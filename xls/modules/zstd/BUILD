@@ -4812,9 +4812,83 @@ xls_dslx_verilog(
     verilog_file = "zstd_enc.v",
 )
 
+zstd_encoder_cocotb_codegen_args = common_codegen_args | {
+    "module_name": "ZstdEncoder",
+    "clock_period_ps": "900",
+    "worst_case_throughput": "5",
+    "ram_configurations": ",".join([
+       "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+           latency = 1,
+           ram_name = "hb_ram{}".format(num),
+           rd_req = "zstd_enc__hb_ram_rd_req_s__{}".format(num),
+           rd_resp = "zstd_enc__hb_ram_rd_resp_r__{}".format(num),
+           wr_req = "zstd_enc__hb_ram_wr_req_s__{}".format(num),
+           wr_resp = "zstd_enc__hb_ram_wr_resp_r__{}".format(num),
+       )
+       for num in range(8)
+    ] + [
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+           latency = 1,
+           ram_name = "ht_ram",
+           rd_req = "zstd_enc__ht_ram_rd_req_s",
+           rd_resp = "zstd_enc__ht_ram_rd_resp_r",
+           wr_req = "zstd_enc__ht_ram_wr_req_s",
+           wr_resp = "zstd_enc__ht_ram_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+           latency = 1,
+           ram_name = "ll_ctable_ram",
+           rd_req = "zstd_enc__ll_ctable_ram_rd_req_s",
+           rd_resp = "zstd_enc__ll_ctable_ram_rd_resp_r",
+           wr_req = "zstd_enc__ll_ctable_ram_wr_req_s",
+           wr_resp = "zstd_enc__ll_ctable_ram_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+           latency = 1,
+           ram_name = "ml_ctable_ram",
+           rd_req = "zstd_enc__ml_ctable_ram_rd_req_s",
+           rd_resp = "zstd_enc__ml_ctable_ram_rd_resp_r",
+           wr_req = "zstd_enc__ml_ctable_ram_wr_req_s",
+           wr_resp = "zstd_enc__ml_ctable_ram_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+           latency = 1,
+           ram_name = "of_ctable_ram",
+           rd_req = "zstd_enc__of_ctable_ram_rd_req_s",
+           rd_resp = "zstd_enc__of_ctable_ram_rd_resp_r",
+           wr_req = "zstd_enc__of_ctable_ram_wr_req_s",
+           wr_resp = "zstd_enc__of_ctable_ram_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+           latency = 1,
+           ram_name = "ll_ttable_ram",
+           rd_req = "zstd_enc__ll_ttable_ram_rd_req_s",
+           rd_resp = "zstd_enc__ll_ttable_ram_rd_resp_r",
+           wr_req = "zstd_enc__ll_ttable_ram_wr_req_s",
+           wr_resp = "zstd_enc__ll_ttable_ram_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+           latency = 1,
+           ram_name = "ml_ttable_ram",
+           rd_req = "zstd_enc__ml_ttable_ram_rd_req_s",
+           rd_resp = "zstd_enc__ml_ttable_ram_rd_resp_r",
+           wr_req = "zstd_enc__ml_ttable_ram_wr_req_s",
+           wr_resp = "zstd_enc__ml_ttable_ram_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+           latency = 1,
+           ram_name = "of_ttable_ram",
+           rd_req = "zstd_enc__of_ttable_ram_rd_req_s",
+           rd_resp = "zstd_enc__of_ttable_ram_rd_resp_r",
+           wr_req = "zstd_enc__of_ttable_ram_wr_req_s",
+           wr_resp = "zstd_enc__of_ttable_ram_wr_resp_r",
+        ),
+    ])
+}
+
 xls_dslx_verilog(
     name = "zstd_encoder_benchmark_verilog",
-    codegen_args = zstd_encoder_codegen_args,
+    codegen_args = zstd_encoder_cocotb_codegen_args,
     dslx_top = "ZstdEncoderCocotbInst",
     library = ":zstd_encoder_dslx",
     tags = ["manual"],
@@ -4878,6 +4952,7 @@ py_test(
         ":zstd_enc_cocotb.v",
         "//xls/modules/zstd/rtl:zstd_enc_wrapper.v",
         "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
+        "//xls/modules/zstd/rtl:ram_1r1w.v",
         "@com_icarus_iverilog//:iverilog",
         "@com_icarus_iverilog//:vvp",
     ],

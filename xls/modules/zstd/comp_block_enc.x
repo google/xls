@@ -260,7 +260,7 @@ pub proc CompressBlockEncoder<
 
         let tok = join();
         let (tok, req) = recv(tok, req_r);
-        trace_fmt!("[CompressBlockDecoder] received compression request {:#x}", req);
+        trace_fmt!("[CompressBlockEncoder] received compression request {:#x}", req);
 
         let tok = send(tok, mf_req_s, MfReq {
             input_addr: req.addr,
@@ -272,7 +272,7 @@ pub proc CompressBlockEncoder<
             }
         });
         let (tok, mf_resp) = recv(tok, mf_resp_r);
-        trace_fmt!("[CompressBlockDecoder] received Match Finder response {:#x}", mf_resp);
+        trace_fmt!("[CompressBlockEncoder] received Match Finder response {:#x}", mf_resp);
 
         let tok = send(tok, le_req_s, RawMemcopyReq {
             lit_addr: LITERALS_BUFFER_AXI_ADDR,
@@ -280,7 +280,7 @@ pub proc CompressBlockEncoder<
             out_addr: req.out_addr
         });
         let (tok, le_resp) = recv(tok, le_resp_r);
-        trace_fmt!("[CompressBlockDecoder] received Literals encoder response {:#x}", le_resp);
+        trace_fmt!("[CompressBlockEncoder] received Literals encoder response {:#x}", le_resp);
 
 
         let tok = send(tok, se_req_s, SeReq {
@@ -290,13 +290,13 @@ pub proc CompressBlockEncoder<
         });
         let (tok, se_resp) = recv(tok, se_resp_r);
 
-        trace_fmt!("[CompressBlockDecoder] received Sequence encoder response {:#x}", se_resp);
+        trace_fmt!("[CompressBlockEncoder] received Sequence encoder response {:#x}", se_resp);
 
         let resp = Resp {
             length: le_resp.length + se_resp.length,
             status: Status::OK
         };
-        trace_fmt!("[CompressBlockDecoder] sent back response {:#x}", resp);
+        trace_fmt!("[CompressBlockEncoder] sent back response {:#x}", resp);
         let tok = send(tok, resp_s, resp);
     }
 }

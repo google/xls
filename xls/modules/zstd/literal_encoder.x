@@ -134,6 +134,7 @@ proc LiteralSectionHeaderWriter<ADDR_W: u32, DATA_W: u32> {
         let mem_wr_data_tok = send(mem_wr_tok, mem_wr_data_s, mem_wr_data);
 
         let (tok, resp) = recv(mem_wr_data_tok, mem_wr_resp_r);
+        trace_fmt!("[LiteralSectionHeaderWriter] {} {}", req.regenerated_size, resp);
         let status = if resp.status == MemWriterStatus::OKAY { Status::OK } else { Status::ERROR };
 
         let resp = Resp { length, status };
