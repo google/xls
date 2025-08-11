@@ -30,6 +30,10 @@ embed_data_attrs = {
         executable = True,
         allow_files = True,
     ),
+    "_libc_runtime": attr.label(
+        default = Label("//xls/dev_tools/embed_data:compat_libc_dep"),
+        providers = [CcInfo],
+    ),
 }
 
 _xls_cc_embed_data_attrs = dicts.add(
@@ -100,7 +104,10 @@ def get_embedded_data(
         cc_toolchain = cc_toolchain,
         srcs = [cpp_file],
         public_hdrs = [hdr_file],
-        compilation_contexts = [ctx.attr._absl_span[CcInfo].compilation_context],
+        compilation_contexts = [
+            ctx.attr._absl_span[CcInfo].compilation_context,
+            ctx.attr._libc_runtime[CcInfo].compilation_context,
+        ],
         additional_inputs = [data_file],
     )
     (link_ctx, _link_outputs) = cc_common.create_linking_context_from_compilation_outputs(
@@ -109,7 +116,10 @@ def get_embedded_data(
         feature_configuration = feature_configuration,
         cc_toolchain = cc_toolchain,
         compilation_outputs = comp_outputs,
-        linking_contexts = [ctx.attr._absl_span[CcInfo].linking_context],
+        linking_contexts = [
+            ctx.attr._absl_span[CcInfo].linking_context,
+            ctx.attr._libc_runtime[CcInfo].linking_context,
+        ],
     )
     return CcInfo(compilation_context = comp_ctx, linking_context = link_ctx)
 
