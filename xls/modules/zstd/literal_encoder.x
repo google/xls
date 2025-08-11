@@ -141,7 +141,7 @@ proc LiteralSectionHeaderWriter<ADDR_W: u32, DATA_W: u32> {
     }
 }
 
-proc LiteralsEncoder<ADDR_W: u32, DATA_W: u32> {
+pub proc LiteralsEncoder<ADDR_W: u32, DATA_W: u32> {
     type MemReaderReq = mem_reader::MemReaderReq<ADDR_W>;
     type MemReaderResp = mem_reader::MemReaderResp<DATA_W, ADDR_W>;
     type MemReaderStatus = mem_reader::MemReaderStatus;
@@ -201,16 +201,16 @@ proc LiteralsEncoder<ADDR_W: u32, DATA_W: u32> {
         rle_mem_wr_resp_r: chan<MemWriterResp> in,
     ) {
 
-        let (lshwr_req_s, lshwr_req_r) = chan<HeaderWriterReq>("lshwr_req");
-        let (lshwr_resp_s, lshwr_resp_r) = chan<HeaderWriterResp>("lshwr_resp");
+        let (lshwr_req_s, lshwr_req_r) = chan<HeaderWriterReq, u32:1>("lshwr_req");
+        let (lshwr_resp_s, lshwr_resp_r) = chan<HeaderWriterResp, u32:1>("lshwr_resp");
 
         spawn LiteralSectionHeaderWriter<ADDR_W, DATA_W>(
             lshwr_req_r, lshwr_resp_s,
             lshwr_mem_wr_req_s, lshwr_mem_wr_data_s, lshwr_mem_wr_resp_r,
         );
 
-        let (raw_req_s, raw_req_r) = chan<RawMemcopyReq>("raw_req");
-        let (raw_resp_s, raw_resp_r) = chan<RawMemcopyResp>("raw_resp");
+        let (raw_req_s, raw_req_r) = chan<RawMemcopyReq, u32:1>("raw_req");
+        let (raw_resp_s, raw_resp_r) = chan<RawMemcopyResp, u32:1>("raw_resp");
 
         spawn mem_copy::RawMemcopy<ADDR_W, DATA_W>(
             raw_req_r, raw_resp_s,
