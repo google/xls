@@ -1407,3 +1407,11 @@ place_and_route(
     tags = ["manual"],
     target_die_utilization_percentage = "10",
 )
+
+xls_dslx_library(
+    name = "mem_reader_data_upscaler_dslx",
+    srcs = ["mem_reader_data_upscaler.x"],
+    deps = [
+        ":mem_reader_dslx",
+    ],
+)
