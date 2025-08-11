@@ -41,6 +41,7 @@
 #include "absl/types/span.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/fileno.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/source_location.h"
 
@@ -50,6 +51,12 @@ namespace verilog {
 enum class FileType {
   kVerilog,
   kSystemVerilog,
+};
+
+enum class AnnotationType {
+  kNone,
+  kComment,
+  kLineDirective,
 };
 
 // Forward declarations.
@@ -164,7 +171,7 @@ class VastNode {
       : file_(file), loc_(loc) {}
   virtual ~VastNode() = default;
 
-  std::string PreEmit(LineInfo* line_info);
+  virtual std::string PreEmit(LineInfo* line_info);
 
   // The file which owns this node.
   VerilogFile* file() const { return file_; }
@@ -1849,6 +1856,7 @@ class ContinuousAssignment final : public VastNode {
       : VastNode(file, loc), lhs_(lhs), rhs_(rhs) {}
 
   std::string Emit(LineInfo* line_info) const final;
+  std::string PreEmit(LineInfo* line_info) override;
 
  private:
   Expression* lhs_;
@@ -2251,12 +2259,8 @@ struct ModulePort {
 
   ModulePortDirection direction;
   // TODO since ModulePort is not a VastNode,
-  // add a field for source location info
-  // use a string for a comment,
-  // or SourceInfo that will be used to format a comment
-  std::string _docstring;
-  const std::string& docstring() const { return _docstring; }
-  void docstring(const std::string& value) { _docstring = value; }
+  // use this field for source location info
+  std::string doc_string;
   Def* wire;
 };
 
@@ -2471,7 +2475,10 @@ using FileMember =
 // Represents a file (as a Verilog translation-unit equivalent).
 class VerilogFile {
  public:
-  explicit VerilogFile(FileType file_type) : file_type_(file_type) {}
+  explicit VerilogFile(FileType file_type, AnnotationType annotation_type, absl::flat_hash_map<Fileno, std::string> fileno_to_filename)
+    : file_type_(file_type), annotation_type_(annotation_type), fileno_to_filename_(fileno_to_filename) {
+      // TODO if file_type is kVerilog, then annotation_type == kLineDirective is illegal
+    }
 
   VerilogPackage* AddVerilogPackage(std::string_view name,
                                     const SourceInfo& loc) {
@@ -2760,6 +2767,14 @@ class VerilogFile {
 
   const std::vector<FileMember>& members() const { return members_; }
 
+  const AnnotationType& annotation_type() const {
+    return annotation_type_;
+  }
+
+  absl::flat_hash_map<Fileno, std::string>& fileno_to_filename() {
+   return fileno_to_filename_;
+  }
+
  private:
   // Same as PlainLiteral if value fits in an int32_t. Otherwise creates a
   // 64-bit literal to hold the value.
@@ -2769,8 +2784,9 @@ class VerilogFile {
                ? PlainLiteral(value, loc)
                : Literal(SBits(value, 64), loc);
   }
-
   FileType file_type_;
+  AnnotationType annotation_type_;
+  absl::flat_hash_map<Fileno, std::string> fileno_to_filename_;
   std::vector<FileMember> members_;
   std::vector<std::unique_ptr<VastNode>> nodes_;
 };

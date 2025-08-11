@@ -48,11 +48,43 @@
 namespace xls {
 namespace verilog {
 
+std::string getFilename(Fileno fileno, VerilogFile* file) {
+  if (file->fileno_to_filename().contains(fileno)) {
+    return file->fileno_to_filename().at(fileno);
+  }
+  return {};
+}
+
 std::string VastNode::PreEmit(LineInfo* line_info) {
-    // TODO if (!loc().Empty)
-    //   emit a comment with source location information
-    // TODO define the format for the comment
-    return absl::StrFormat("// PreEmit: %s\n", loc().ToString());
+    // TODO define what to return when nothing is emitted, empty string is not needed
+    // TODO what to do with line_info?
+    if (loc().locations.empty()) {
+      return {};
+    }
+    switch (file()->annotation_type()) {
+      case AnnotationType::kNone: {
+        return {};
+      }
+      case AnnotationType::kComment: {
+        auto append_location = [&](std::string* out, const SourceLocation& location) {
+          auto f = getFilename(location.fileno(), file());
+          auto l = location.lineno().value();
+          auto c = location.colno().value();
+          absl::StrAppendFormat(out, "%s:%d:%d", f, l, c);
+        };
+        auto res = absl::StrJoin(loc().locations, " ", append_location);
+        return absl::StrFormat("// %s\n", res);
+      }
+      case AnnotationType::kLineDirective: {
+        auto first_loc = loc().locations.begin();
+        auto fileno = first_loc->fileno();
+        std::string filename = getFilename(fileno, file());
+        return absl::StrFormat("`line %d \"%s\" 0\n", first_loc->lineno().value() + 1, filename);
+      }
+      default: {
+        return {};
+      }
+    }
 }
 
 namespace {
@@ -473,7 +505,7 @@ UnpackedArrayType* VerilogFile::UnpackedArrayType(
 
 std::string VerilogFile::Emit(LineInfo* line_info) const {
   auto file_member_str = [=](const FileMember& member) -> std::string {
-    return absl::visit([=](auto* m) { return m->Emit(line_info); }, member);
+    return absl::visit([=](auto* m) { return m->PreEmit(line_info) + m->Emit(line_info); }, member);
   };
 
   std::string out;
@@ -663,7 +695,7 @@ std::string VerilogFunctionCall::Emit(LineInfo* line_info) const {
 
 LogicRef* Module::AddPortDef(ModulePortDirection direction, Def* def,
                              const SourceInfo& loc) {
-  ports_.push_back(ModulePort{.direction = direction, .wire = def, ._docstring = loc.ToString()});
+  ports_.push_back(ModulePort{.direction = direction, .wire = def, .doc_string = loc.ToString()});
   return file()->Make<LogicRef>(loc, def);
 }
 
@@ -1147,6 +1179,10 @@ std::string VerilogPackageSection::Emit(LineInfo* line_info) const {
   }
   LineInfoEnd(line_info, this);
   return absl::StrJoin(elements, "\n");
+}
+
+std::string ContinuousAssignment::PreEmit(LineInfo *line_info) {
+  return rhs_->VastNode::PreEmit(line_info);
 }
 
 std::string ContinuousAssignment::Emit(LineInfo* line_info) const {

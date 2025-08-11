@@ -457,7 +457,7 @@ absl::StatusOr<LogicRef*> ModuleBuilder::AddInputPort(
     input_section()->Add<ContinuousAssignment>(SourceInfo(), wire, port);
     return wire;
   }
-  return module_->AddInput(name, raw_bits_type, SourceInfo());
+  return module_->AddInput(name, raw_bits_type, loc ? loc.value() : SourceInfo());
 }
 
 absl::Status ModuleBuilder::AddOutputPort(
