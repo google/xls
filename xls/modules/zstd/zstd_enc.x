@@ -774,6 +774,10 @@ proc ZstdEncoderCocotbInst {
     type CTableRamRdResp = ram::ReadResp<COCOTB_FSE_CTABLE_RAM_DATA_W>;
     type TTableRamRdReq = ram::ReadReq<COCOTB_FSE_TABLE_RAM_ADDR_W, COCOTB_FSE_TTABLE_RAM_NUM_PARTITIONS>;
     type TTableRamRdResp = ram::ReadResp<COCOTB_FSE_TTABLE_RAM_DATA_W>;
+    type CTableRamWrReq = ram::WriteReq<COCOTB_FSE_TABLE_RAM_ADDR_W, COCOTB_FSE_CTABLE_RAM_DATA_W, COCOTB_FSE_CTABLE_RAM_NUM_PARTITIONS>;
+    type CTableRamWrResp = ram::WriteResp;
+    type TTableRamWrReq = ram::WriteReq<COCOTB_FSE_TABLE_RAM_ADDR_W, COCOTB_FSE_TTABLE_RAM_DATA_W, COCOTB_FSE_TTABLE_RAM_NUM_PARTITIONS>;
+    type TTableRamWrResp = ram::WriteResp;
     type Req = ZstdEncodeReq<COCOTB_ADDR_W, COCOTB_DATA_W>;
     type Resp = ZstdEncodeResp;
     type AxiAr = axi::AxiAr<COCOTB_ADDR_W, COCOTB_ID_W>;
@@ -783,6 +787,19 @@ proc ZstdEncoderCocotbInst {
     type AxiB = axi::AxiB<COCOTB_ID_W>;
 
     init {}
+
+    ml_ctable_ram_wr_req_s: chan<CTableRamWrReq> out;
+    ml_ctable_ram_wr_resp_r: chan<CTableRamWrResp> in;
+    ll_ctable_ram_wr_req_s: chan<CTableRamWrReq> out;
+    ll_ctable_ram_wr_resp_r: chan<CTableRamWrResp> in;
+    of_ctable_ram_wr_req_s: chan<CTableRamWrReq> out;
+    of_ctable_ram_wr_resp_r: chan<CTableRamWrResp> in;
+    ml_ttable_ram_wr_req_s: chan<TTableRamWrReq> out;
+    ml_ttable_ram_wr_resp_r: chan<TTableRamWrResp> in;
+    ll_ttable_ram_wr_req_s: chan<TTableRamWrReq> out;
+    ll_ttable_ram_wr_resp_r: chan<TTableRamWrResp> in;
+    of_ttable_ram_wr_req_s: chan<TTableRamWrReq> out;
+    of_ttable_ram_wr_resp_r: chan<TTableRamWrResp> in;
 
     config(
         enc_req_r: chan<Req> in,
@@ -811,8 +828,20 @@ proc ZstdEncoderCocotbInst {
         ll_ttable_ram_rd_req_s: chan<TTableRamRdReq> out,
         ll_ttable_ram_rd_resp_r: chan<TTableRamRdResp> in,
         of_ttable_ram_rd_req_s: chan<TTableRamRdReq> out,
-        of_ttable_ram_rd_resp_r: chan<TTableRamRdResp> in
-    ) {
+        of_ttable_ram_rd_resp_r: chan<TTableRamRdResp> in,
+        ml_ctable_ram_wr_req_s: chan<CTableRamWrReq> out,
+        ml_ctable_ram_wr_resp_r: chan<CTableRamWrResp> in,
+        ll_ctable_ram_wr_req_s: chan<CTableRamWrReq> out,
+        ll_ctable_ram_wr_resp_r: chan<CTableRamWrResp> in,
+        of_ctable_ram_wr_req_s: chan<CTableRamWrReq> out,
+        of_ctable_ram_wr_resp_r: chan<CTableRamWrResp> in,
+        ml_ttable_ram_wr_req_s: chan<TTableRamWrReq> out,
+        ml_ttable_ram_wr_resp_r: chan<TTableRamWrResp> in,
+        ll_ttable_ram_wr_req_s: chan<TTableRamWrReq> out,
+        ll_ttable_ram_wr_resp_r: chan<TTableRamWrResp> in,
+        of_ttable_ram_wr_req_s: chan<TTableRamWrReq> out,
+        of_ttable_ram_wr_resp_r: chan<TTableRamWrResp> in
+    ){
         let (mem_wr_req_s, mem_wr_req_r) = chan<MemWriterReq, u32:1>("mem_wr_req");
         let (mem_wr_data_s, mem_wr_data_r) = chan<MemWriterData, u32:1>("mem_wr_data");
         let (mem_wr_resp_s, mem_wr_resp_r) = chan<MemWriterResp, u32:1>("mem_wr_resp");
@@ -877,7 +906,29 @@ proc ZstdEncoderCocotbInst {
             ll_ttable_ram_rd_req_s, ll_ttable_ram_rd_resp_r,
             of_ttable_ram_rd_req_s, of_ttable_ram_rd_resp_r
         );
+        (
+            ml_ctable_ram_wr_req_s, ml_ctable_ram_wr_resp_r,
+            ll_ctable_ram_wr_req_s, ll_ctable_ram_wr_resp_r,
+            of_ctable_ram_wr_req_s, of_ctable_ram_wr_resp_r,
+            ml_ttable_ram_wr_req_s, ml_ttable_ram_wr_resp_r,
+            ll_ttable_ram_wr_req_s, ll_ttable_ram_wr_resp_r,
+            of_ttable_ram_wr_req_s, of_ttable_ram_wr_resp_r
+        )
     }
 
-    next(state: ()) { }
+    next(state: ()) {
+        let tok = join();
+        send_if(tok, ml_ctable_ram_wr_req_s, false, zero!<CTableRamWrReq>());
+        send_if(tok, ll_ctable_ram_wr_req_s, false, zero!<CTableRamWrReq>());
+        send_if(tok, of_ctable_ram_wr_req_s, false, zero!<CTableRamWrReq>());
+        send_if(tok, ml_ttable_ram_wr_req_s, false, zero!<TTableRamWrReq>());
+        send_if(tok, ll_ttable_ram_wr_req_s, false, zero!<TTableRamWrReq>());
+        send_if(tok, of_ttable_ram_wr_req_s, false, zero!<TTableRamWrReq>());
+        recv_if(tok, ml_ctable_ram_wr_resp_r, false, zero!<CTableRamWrResp>());
+        recv_if(tok, ll_ctable_ram_wr_resp_r, false, zero!<CTableRamWrResp>());
+        recv_if(tok, of_ctable_ram_wr_resp_r, false, zero!<CTableRamWrResp>());
+        recv_if(tok, ml_ttable_ram_wr_resp_r, false, zero!<CTableRamWrResp>());
+        recv_if(tok, ll_ttable_ram_wr_resp_r, false, zero!<CTableRamWrResp>());
+        recv_if(tok, of_ttable_ram_wr_resp_r, false, zero!<CTableRamWrResp>());
+    }
 }
