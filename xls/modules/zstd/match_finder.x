@@ -66,6 +66,8 @@
 //    - A dummy sequence is added to mark the trailing literal.
 //    - Literals: [1, 2, 8, 5, 6, 1, 9]
 //    - Sequences: [(6, 4, 3), (1, 0, 0)]
+//
+//  NOTE: assumes DATA_W <= SEQUENCE_RECORD_W
 
 import std;
 
@@ -81,12 +83,15 @@ import xls.modules.zstd.hash_table;
 import xls.modules.zstd.aligned_parallel_ram;
 import xls.modules.zstd.mem_reader_simple_arbiter;
 import xls.modules.zstd.mem_writer_simple_arbiter;
+import xls.modules.zstd.sequence_encoder;
+import xls.modules.zstd.memory.mem_writer_data_downscaler;
 
 const KEY_WIDTH = common::SYMBOL_WIDTH;
 const DEFAULT_HT_KEY_W = u32:32;
 const DEFAULT_HB_DATA_W = u32:64;
+const WIDER_BUS_DATA_W = u32:64;
 
-struct ZstdParams<HT_SIZE_W: u32> {
+pub struct ZstdParams<HT_SIZE_W: u32> {
     num_entries_log2: uN[HT_SIZE_W],
 }
 
@@ -186,7 +191,8 @@ proc MatchFinderInternalLiteralCopy<
     type MemReaderResp = mem_reader::MemReaderResp<DATA_W, ADDR_W>;
     type MemWriterReq = mem_writer::MemWriterReq<ADDR_W>;
     type MemWriterResp = mem_writer::MemWriterResp;
-    type MemWriterDataPacket = mem_writer::MemWriterDataPacket<DATA_W, ADDR_W>;
+    type MemWriterDataPacket = mem_writer::MemWriterDataPacket<WIDER_BUS_DATA_W, ADDR_W>;
+    type NarrowMemWriterDataPacket = mem_writer::MemWriterDataPacket<DATA_W, ADDR_W>;
     type MemWriterRespStatus = mem_writer::MemWriterRespStatus;
 
     type Addr = uN[ADDR_W];
@@ -256,7 +262,7 @@ proc MatchFinderInternalLiteralCopy<
                     length: KEY_WIDTH_BYTES
                 });
                 let tok2 = send(tok, mem_wr_packet_s, MemWriterDataPacket {
-                    data: mem_resp.data,
+                    data: mem_resp.data as uN[HB_DATA_W],
                     length: KEY_WIDTH_BYTES,
                     last: true
                 });
@@ -294,7 +300,8 @@ proc MatchFinderInternalHistoryCompare<
 
     type MemWriterReq = mem_writer::MemWriterReq<ADDR_W>;
     type MemWriterResp = mem_writer::MemWriterResp;
-    type MemWriterDataPacket = mem_writer::MemWriterDataPacket<DATA_W, ADDR_W>;
+    type MemWriterDataPacket = mem_writer::MemWriterDataPacket<WIDER_BUS_DATA_W, ADDR_W>;
+    type NarrowMemWriterDataPacket = mem_writer::MemWriterDataPacket<DATA_W, ADDR_W>;
     type MemWriterRespStatus = mem_writer::MemWriterRespStatus;
     type MemReaderReq = mem_reader::MemReaderReq<ADDR_W>;
     type MemReaderResp = mem_reader::MemReaderResp<DATA_W, ADDR_W>;
@@ -354,8 +361,8 @@ proc MatchFinderInternalHistoryCompare<
 
             trace_fmt!("comparing {:#x} ({:#x})=={:#x}", hb_resp.data, state.conf.current_hb_offset, mem_resp.data);
 
-            let diff = hb_resp.data != mem_resp.data || state.conf.current_hb_offset == uN[HB_OFFSET_W]:0;
-            let match_length_increment_cornercase = if state.conf.current_hb_offset == uN[HB_OFFSET_W]:0 && hb_resp.data == mem_resp.data { u32:1 } else { u32:0 };
+            let diff = hb_resp.data != mem_resp.data as uN[HB_DATA_W] || state.conf.current_hb_offset == uN[HB_OFFSET_W]:0;
+            let match_length_increment_cornercase = if state.conf.current_hb_offset == uN[HB_OFFSET_W]:0 && hb_resp.data == mem_resp.data as uN[HB_DATA_W] { u32:1 } else { u32:0 };
 
             let tok = send_if(tok, resp_s, diff, Resp {
                 match_found: true,
@@ -376,7 +383,7 @@ proc MatchFinderInternalHistoryCompare<
     }
 }
 
-proc MatchFinder<
+pub proc MatchFinder<
     ADDR_W: u32, DATA_W: u32, HT_SIZE: u32, HB_SIZE: u32, MIN_SEQ_LEN: u32,
     DATA_W_LOG2: u32 = {std::clog2(DATA_W + u32:1)},
 
@@ -412,7 +419,8 @@ proc MatchFinder<
     type MemReaderResp = mem_reader::MemReaderResp<DATA_W, ADDR_W>;
     type MemWriterReq = mem_writer::MemWriterReq<ADDR_W>;
     type MemWriterResp = mem_writer::MemWriterResp;
-    type MemWriterDataPacket = mem_writer::MemWriterDataPacket<DATA_W, ADDR_W>;
+    type MemWriterDataPacket = mem_writer::MemWriterDataPacket<WIDER_BUS_DATA_W, ADDR_W>;
+    type NarrowMemWriterDataPacket = mem_writer::MemWriterDataPacket<DATA_W, ADDR_W>;
     type MemWriterRespStatus = mem_writer::MemWriterRespStatus;
 
     type Addr = uN[ADDR_W];
@@ -444,7 +452,7 @@ proc MatchFinder<
         mem_rd_req_s: chan<MemReaderReq> out,
         mem_rd_resp_r: chan<MemReaderResp> in,
         mem_wr_req_s: chan<MemWriterReq> out,
-        mem_wr_packet_s: chan<MemWriterDataPacket> out,
+        mem_wr_packet_s: chan<NarrowMemWriterDataPacket> out,
         mem_wr_resp_r: chan<MemWriterResp> in,
         ht_rd_req_s: chan<HashTableRdReq> out,
         ht_rd_resp_r: chan<HashTableRdResp> in,
@@ -467,11 +475,17 @@ proc MatchFinder<
         let (n_mem_rd_req_s, n_mem_rd_req_r) = chan<MemReaderReq, u32:1>[3]("n_mem_rd_req");
         let (n_mem_rd_resp_s, n_mem_rd_resp_r) = chan<MemReaderResp, u32:1>[3]("n_mem_rd_resp");
 
+        let (wider_mem_wr_packet_s, wider_mem_wr_packet_r) = chan<MemWriterDataPacket, u32:1>("wider_mem_wr_packet");
 
-        spawn mem_writer_simple_arbiter::MemWriterSimpleArbiter<ADDR_W, DATA_W, u32:2>
+        spawn mem_writer_data_downscaler::MemWriterDataDownscaler<
+            ADDR_W, WIDER_BUS_DATA_W, DATA_W,
+        > (wider_mem_wr_packet_r, mem_wr_packet_s);
+
+
+        spawn mem_writer_simple_arbiter::MemWriterSimpleArbiter<ADDR_W, WIDER_BUS_DATA_W, u32:2>
         (
             n_mem_wr_req_r, n_mem_wr_data_r, n_mem_wr_resp_s,
-            mem_wr_req_s, mem_wr_packet_s, mem_wr_resp_r,
+            mem_wr_req_s, wider_mem_wr_packet_s, mem_wr_resp_r,
         );
 
         spawn mem_reader_simple_arbiter::MemReaderSimpleArbiter<ADDR_W, DATA_W, u32:3> (
@@ -515,6 +529,7 @@ proc MatchFinder<
         const KEY_WIDTH_BYTES = KEY_WIDTH as Addr / Addr:8;
         const HB_DATA_BYTES = HB_DATA_W / u32:8;
         const DATA_W_B = DATA_W / u32:8;
+        const SEQUENCE_RECORD_B = sequence_encoder::SEQUENCE_RECORD_W / u32:8;
         let tok = join();
 
         if !state.active {
@@ -529,28 +544,15 @@ proc MatchFinder<
                 remaining_size: req.input_size,
                 ..zero!<State>()
             }
-        } else if state.remaining_size == Addr:0 {
-            // write trailing sequence
-            trace_fmt!("writing sequence ({}, {}, {})", state.lit_since_last_sequence, u32:0, u32:0);
-
-            let tok = send(tok, mem_wr_req_s, MemWriterReq {
-                addr: state.seq_addr_offset + state.output_seq_addr,
-                length: DATA_W_B,
-            });
-
-            let tok = send(tok, mem_wr_packet_s, MemWriterDataPacket {
-                data: (state.lit_since_last_sequence as u16 ++ u16:0 ++ u16:0) as uN[DATA_W],
-                length: DATA_W_B,
-                last: true,
-            });
-
-            let (tok, wr_resp) = recv(tok, mem_wr_resp_r);
-
+        } else if state.remaining_size == uN[ADDR_W]:0 {
+            // https://datatracker.ietf.org/doc/html/rfc8878#name-sequences_section
+            // When all sequences are decoded, if there are literals left in the Literals_Section, these bytes are added at the end of the block.
+            trace_fmt!("Literals left ({}, {}, {})", state.lit_since_last_sequence, u32:0, u32:0);
             trace_fmt!("Encoding finished");
             let tok = send(tok, resp_s, Resp {
                 status: RespStatus::OK,
                 lit_cnt: state.lit_cnt,
-                seq_cnt: state.seq_cnt + u32:1,
+                seq_cnt: state.seq_cnt,
             });
             zero!<State>()
         } else {
@@ -591,21 +593,30 @@ proc MatchFinder<
 
             let tok3 = send_if(tok, mem_wr_req_s, encode_sequence, MemWriterReq {
                 addr: state.seq_addr_offset + state.output_seq_addr,
-                length: DATA_W_B,
+                length: SEQUENCE_RECORD_B,
             });
+
+            let seq_bytes = sequence_encoder::serialize_sequence(
+                sequence_encoder::Sequence {
+                    literals_len: state.lit_since_last_sequence as u16,
+                    // https://datatracker.ietf.org/doc/html/rfc8878#section-3.1.1.3.2.1.1
+                    // match length code is incremented by 3 when decoding (TODO: make sure baselines are handled correctly)
+                    match_len: cmp_resp.match_length as u16 - u16:3,
+                    // https://datatracker.ietf.org/doc/html/rfc8878#name-sequence-execution
+                    // if Offset_Value > 3, then the offset is Offset_Value - 3 => offset += 3 (we don't use repeat offsets for now)
+                    offset: match_offset as u16 + u16:3
+                }
+            ) as uN[WIDER_BUS_DATA_W];
+
             let tok3 = send_if(tok3, mem_wr_packet_s, encode_sequence, MemWriterDataPacket {
-                data: (
-                    state.lit_since_last_sequence as u16 ++
-                    match_offset as u16 ++
-                    cmp_resp.match_length as u16
-                ) as uN[DATA_W],
-                length: DATA_W_B,
+                data: seq_bytes,
+                length: SEQUENCE_RECORD_B,
                 last: true,
             });
             let (tok3, wr_resp) = recv_if(tok3, mem_wr_resp_r, encode_sequence, zero!<MemWriterResp>());
             if encode_sequence {
-                trace_fmt!("|- writing sequence ({}, {}, {}), at {:#x} [{}], hb offset was {}",
-                    state.lit_since_last_sequence, match_offset, cmp_resp.match_length,
+                trace_fmt!("|- writing sequence ({}, {}, {}) (serialized: {:#x}), at {:#x} [{}], hb offset was {}",
+                    state.lit_since_last_sequence, match_offset, cmp_resp.match_length, seq_bytes,
                     state.seq_addr_offset + state.output_seq_addr,wr_resp.status, offset
                 );
             } else {};
@@ -633,9 +644,9 @@ proc MatchFinder<
             let tok = join(tok3, tok4, tok5);
             // Step 6: compute next iteration parameters
             let address_increment = KEY_WIDTH_BYTES * cmp_resp.match_length;
-            let lit_cnt_increment = if encode_sequence { Addr:0 } else { cmp_resp.match_length };
-            let lit_address_increment = if encode_sequence { Addr:0 } else { KEY_WIDTH_BYTES * cmp_resp.match_length };
-            let seq_address_increment = if encode_sequence { DATA_W_B } else { Addr:0 };
+            let lit_cnt_increment = if encode_sequence { uN[ADDR_W]:0 } else { cmp_resp.match_length };
+            let lit_address_increment = if encode_sequence { uN[ADDR_W]:0 } else { KEY_WIDTH_BYTES * cmp_resp.match_length };
+            let seq_address_increment = if encode_sequence { SEQUENCE_RECORD_B } else { uN[ADDR_W]:0 };
             let seq_cnt_increment = encode_sequence as Addr; // if encode_sequence: seq_cnt ++
             let lit_since_last_sequence = if encode_sequence { Addr:0 } else { state.lit_since_last_sequence + cmp_resp.match_length };
             let remaining_size = if state.remaining_size < address_increment { u32:0 } else { state.remaining_size - address_increment };
@@ -674,7 +685,8 @@ proc MatchFinderInst {
 
     type MemWriterReq = mem_writer::MemWriterReq<INST_ADDR_W>;
     type MemWriterResp = mem_writer::MemWriterResp;
-    type MemWriterDataPacket = mem_writer::MemWriterDataPacket<INST_DATA_W, INST_ADDR_W>;
+    type MemWriterDataPacket = mem_writer::MemWriterDataPacket<WIDER_BUS_DATA_W, INST_ADDR_W>;
+    type NarrowMemWriterDataPacket = mem_writer::MemWriterDataPacket<INST_DATA_W, INST_ADDR_W>;
 
     type HashTableRdReq = hash_table::HashTableReadReq<INST_HT_KEY_W, INST_HT_SIZE, INST_HT_SIZE_W>;
     type HashTableRdResp = hash_table::HashTableReadResp<INST_HT_VALUE_W>;
@@ -700,7 +712,7 @@ proc MatchFinderInst {
 
         // Output
         mem_wr_req_s: chan<MemWriterReq> out,
-        mem_wr_packet_s: chan<MemWriterDataPacket> out,
+        mem_wr_packet_s: chan<NarrowMemWriterDataPacket> out,
         mem_wr_resp_r: chan<MemWriterResp> in,
 
         // HashTable RAM interface
@@ -1255,22 +1267,19 @@ proc MatchFinderTest {
         }(join());
 
         // assert: sequences
-        assert_eq(resp.seq_cnt, u32:3);
+        assert_eq(resp.seq_cnt, u32:2);
         for ((i, expected), tok) in enumerate([
             // legend:
             // LL : literals_len,
             // MO : match offset,
             // ML : match len
 
-            //    seq1
-            //         LLLL MOMO MLML
-            u64:0x0000_0008_0007_0003,
-            //    seq2
-            //         LLLL MOMO MLML
-            u64:0x0000_0001_0004_0003,
-            //    seq3
-            //          LLLL MOMO MLML
-            u64:0x0000__0001_0000_0000
+            //    seq2     seq1
+            //    MLML LLLL MOMO MLML
+            u64:0x0000_0008_000A_0000,
+            //                seq2
+            //              LLLL MOMO
+            u64:0x0000_0000_0001_0007,
         ]) {
             let tok = send(tok, output_rd_req_s, OutputBufferRamRdReq {
                 addr: TEST_OUTPUT_SEQ_ADDR / RamAddr:8 + i,
