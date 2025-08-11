@@ -500,6 +500,19 @@ class InferenceTable {
   virtual std::optional<const AstNode*> GetColonRefTarget(
       const ColonRef* colon_ref) const = 0;
 
+  // When the converter resolves the callee for an `Invocation` node, it uses
+  // this to store the callee to avoid any need for redundant resolution later.
+  virtual void SetCalleeInCallerContext(
+      const Invocation* invocation,
+      std::optional<const ParametricContext*> caller_context,
+      const Function* callee) = 0;
+
+  // Retrieves the callee function that was resolved for the given `Invocation`
+  // node during its conversion.
+  virtual std::optional<const Function*> GetCalleeInCallerContext(
+      const Invocation* invocation,
+      std::optional<const ParametricContext*> caller_context) const = 0;
+
   // Returns the type variable for `node` in the table, if any.
   virtual std::optional<const NameRef*> GetTypeVariable(
       const AstNode* node) const = 0;

@@ -1003,32 +1003,10 @@ class StatefulResolver : public TypeAnnotationResolver {
                 return std::nullopt;
               }
 
-              // Get a type for `ref` that is owned by annotation->owner(),
-              // because the end goal is to fabricate a literal in that module.
-              // Note that there is no need for a parametric context because we
-              // only deal with references to module-level constants here.
-              XLS_ASSIGN_OR_RETURN(
-                  std::optional<const TypeAnnotation*> ref_type,
-                  ResolveAndUnifyTypeAnnotationsForNode(
-                      std::nullopt, ref, TypeAnnotationFilter::None()));
-              CHECK(ref_type.has_value());
-              if ((*ref_type)->owner() != annotation->owner()) {
-                XLS_ASSIGN_OR_RETURN(
-                    // Trivially unifying the already-unified annotation for the
-                    // annotation->owner() module is tantamount to saying "clone
-                    // it into that module." There isn't currently a standalone
-                    // util for this.
-                    ref_type, UnifyTypeAnnotations(
-                                  *annotation->owner(), table_, file_table_,
-                                  error_generator_, evaluator_,
-                                  parametric_struct_instantiator_, std::nullopt,
-                                  std::vector<const TypeAnnotation*>{*ref_type},
-                                  annotation->span(), import_data_));
-              }
               auto* result = node->owner()->Make<Number>(
                   Span::None(), value.ToString(/*humanize=*/true),
-                  NumberKind::kOther, nullptr,
-                  /*in_parens=*/false, /*leave_span_intact=*/true);
+                  NumberKind::kOther, nullptr, /*in_parens=*/false,
+                  /*leave_span_intact=*/true);
               return result;
             }));
 

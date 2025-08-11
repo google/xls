@@ -455,6 +455,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     XLS_ASSIGN_OR_RETURN(
         const FunctionAndTargetObject function_and_target_object,
         ResolveFunction(invocation->callee(), caller, caller_context));
+    table_.SetCalleeInCallerContext(invocation, caller_context,
+                                    function_and_target_object.function);
 
     const Function* function = function_and_target_object.function;
     std::optional<const ParametricContext*> caller_or_target_struct_context =
@@ -677,7 +679,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       XLS_ASSIGN_OR_RETURN(const TypeAnnotation* parametric_free_type,
                            GetParametricFreeType(
                                CreateFunctionTypeAnnotation(module_, *function),
-                               value_exprs, invocation_context->self_type()));
+                               value_exprs, invocation_context->self_type(),
+                               /*clone_if_no_parametrics=*/true));
       XLS_RETURN_IF_ERROR(
           ConvertSubtree(parametric_free_type, caller, caller_context));
 
@@ -685,6 +688,20 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                            resolver_->ResolveIndirectTypeAnnotations(
                                invocation_context, parametric_free_type,
                                TypeAnnotationFilter::None()));
+
+      // In a context such as a parametric proc, where parametric-dependent type
+      // aliases may be used in a function signature, the resolution of indirect
+      // annotations in the signature may introduce parametrics, which we also
+      // want to get rid of. For example, `(value_t) -> value_t` is overtly
+      // parametric-free but could resolve to `(uN[N]) -> uN[N]` if `value_t` is
+      // a parametric proc-level alias. We then need to replace the resulting
+      // `N`s.
+      XLS_ASSIGN_OR_RETURN(
+          parametric_free_type,
+          GetParametricFreeType(parametric_free_type, value_exprs,
+                                invocation_context->self_type(),
+                                /*clone_if_no_parametrics=*/false));
+
       parametric_free_function_type =
           down_cast<const FunctionTypeAnnotation*>(parametric_free_type);
 
@@ -697,8 +714,16 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     XLS_RETURN_IF_ERROR(table_.AddTypeAnnotationToVariableForParametricContext(
         caller_context, *table_.GetTypeVariable(invocation),
         parametric_free_function_type->return_type()));
-    XLS_RETURN_IF_ERROR(GenerateTypeInfo(caller_or_target_struct_context,
-                                         invocation->callee()));
+
+    // Note that the callee node does not need type info if it is a non-impl
+    // proc function, and generating it would be complicated due to the possible
+    // use of proc-level parametrics. Unlike with impl-style member functions,
+    // we don't have a target struct context for the proc.
+    if (!function->IsInProc()) {
+      XLS_RETURN_IF_ERROR(GenerateTypeInfo(caller_or_target_struct_context,
+                                           invocation->callee()));
+    }
+
     for (int i = 0; i < parametric_free_function_type->param_types().size();
          i++) {
       const TypeAnnotation* formal_type =
@@ -2070,7 +2095,19 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   absl::StatusOr<const TypeAnnotation*> GetParametricFreeType(
       const TypeAnnotation* type,
       const absl::flat_hash_map<const NameDef*, ExprOrType> actual_values,
-      std::optional<const TypeAnnotation*> real_self_type = std::nullopt) {
+      std::optional<const TypeAnnotation*> real_self_type = std::nullopt,
+      bool clone_if_no_parametrics = true) {
+    if (!clone_if_no_parametrics) {
+      std::vector<std::pair<const NameRef*, const NameDef*>> refs;
+      XLS_ASSIGN_OR_RETURN(refs, CollectReferencedUnder(type));
+      const bool any_parametrics = absl::c_any_of(refs, [&](const auto& pair) {
+        return pair.second->parent()->kind() == AstNodeKind::kParametricBinding;
+      });
+      if (!any_parametrics) {
+        return type;
+      }
+    }
+
     CloneReplacer replacer = NameRefMapper(table_, actual_values);
     if (real_self_type.has_value()) {
       replacer = ChainCloneReplacers(

@@ -586,8 +586,9 @@ class Visitor : public AstNodeVisitorWithDefault {
 
   absl::Status HandleInvocation(const Invocation* invocation) override {
     if (!IsBuiltinFn(invocation->callee())) {
-      absl::StatusOr<Function*> f = ResolveFunction(invocation->callee(), ti_);
-      if (f.ok() && (*f)->tag() == FunctionTag::kProcInit) {
+      std::optional<const Function*> f =
+          table_.GetCalleeInCallerContext(invocation, parametric_context_);
+      if (f.has_value() && (*f)->tag() == FunctionTag::kProcInit) {
         XLS_RETURN_IF_ERROR(EvaluateAndNoteExpr(invocation));
       }
       return absl::OkStatus();

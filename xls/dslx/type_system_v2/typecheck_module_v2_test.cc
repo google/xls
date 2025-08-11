@@ -6794,6 +6794,46 @@ proc main {
                         HasNodeWithType("spawn Counter<32>(p32, 50)", "()"))));
 }
 
+TEST(TypecheckV2Test, ParametricProcWithTypeAlias) {
+  EXPECT_THAT(R"(
+proc Counter<N: u32> {
+  type value_t = uN[N];
+
+  c: chan<value_t> out;
+  max: value_t;
+  init { 0 }
+  config(c: chan<value_t> out, max: value_t) {
+    (c, max)
+  }
+  next(i: value_t) {
+    send(join(), c, i);
+    if i == max { i } else { i + 1 }
+  }
+}
+
+proc main {
+  c16: chan<u16> in;
+  c32: chan<u32> in;
+  init { (join(), 0) }
+  config() {
+    let (p16, c16) = chan<u16>("my_chan16");
+    let (p32, c32) = chan<u32>("my_chan32");
+    spawn Counter<16>(p16, 50);
+    spawn Counter<32>(p32, 50);
+    (c16,c32)
+  }
+  next(state: (token, u48)) {
+    let (tok16, v16) = recv(state.0, c16);
+    let (tok32, v32) = recv(tok16, c32);
+    (tok32, v32 ++ v16)
+  }
+}
+)",
+              TypecheckSucceeds(
+                  AllOf(HasNodeWithType("spawn Counter<16>(p16, 50)", "()"),
+                        HasNodeWithType("spawn Counter<32>(p32, 50)", "()"))));
+}
+
 TEST(TypecheckV2Test, ParametricProcValueCloning) {
   // This is the version of matmul in https://github.com/google/xls/issues/2706
   // but reduced to a minimal repro. Note that it is too minimized to be valid

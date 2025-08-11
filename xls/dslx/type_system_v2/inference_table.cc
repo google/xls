@@ -186,6 +186,7 @@ struct MutableParametricContextData {
   absl::flat_hash_map<const InferenceVariable*,
                       std::vector<const TypeAnnotation*>>
       type_annotations_per_type_variable;
+  absl::flat_hash_map<const Invocation*, const Function*> callees;
 };
 
 // An auxiliary data structure for holding cached unification data associated
@@ -602,6 +603,29 @@ class InferenceTableImpl : public InferenceTable {
                                           : std::make_optional(it->second);
   }
 
+  void SetCalleeInCallerContext(
+      const Invocation* invocation,
+      std::optional<const ParametricContext*> caller_context,
+      const Function* callee) override {
+    if (caller_context.has_value()) {
+      mutable_parametric_context_data_.at(*caller_context).callees[invocation] =
+          callee;
+    } else {
+      callees_with_no_caller_context_[invocation] = callee;
+    }
+  }
+
+  std::optional<const Function*> GetCalleeInCallerContext(
+      const Invocation* invocation,
+      std::optional<const ParametricContext*> caller_context) const override {
+    const absl::flat_hash_map<const Invocation*, const Function*>& map =
+        caller_context.has_value()
+            ? mutable_parametric_context_data_.at(*caller_context).callees
+            : callees_with_no_caller_context_;
+    const auto it = map.find(invocation);
+    return it == map.end() ? std::nullopt : std::make_optional(it->second);
+  }
+
   absl::StatusOr<AstNode*> Clone(const AstNode* input, CloneReplacer replacer,
                                  bool in_place) override {
     absl::flat_hash_map<const AstNode*, AstNode*> all_pairs;
@@ -930,6 +954,8 @@ class InferenceTableImpl : public InferenceTable {
       parametric_value_exprs_;
   absl::flat_hash_map<const InferenceVariable*, std::vector<const Invocation*>>
       invocations_feeding_type_variable_;
+  absl::flat_hash_map<const Invocation*, const Function*>
+      callees_with_no_caller_context_;
   UnificationCache cache_;
 };
 
