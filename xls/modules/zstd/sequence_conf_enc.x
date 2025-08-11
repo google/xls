@@ -26,7 +26,10 @@ pub enum SequenceSectionHeaderWriterStatus : u1 {
     ERROR = 1,
 }
 
-pub struct SequenceSectionHeaderWriterResp { status: SequenceSectionHeaderWriterStatus }
+pub struct SequenceSectionHeaderWriterResp<ADDR_W: u32> {
+    status: SequenceSectionHeaderWriterStatus,
+    length: uN[ADDR_W]
+}
 
 const LITERALS_MODE_BITS_OFFSET = u32:6;
 const OFFSET_MODE_BITS_OFFSET = u32:4;
@@ -90,7 +93,7 @@ pub proc SequenceHeaderWriter<ADDR_W: u32, DATA_W: u32> {
 
         let (req_tok, resp) = recv(mem_wr_data_tok, mem_wr_resp_r);
         let status = if resp.status == MemWriterStatus::OKAY { Status::OK } else { Status::ERROR };
-        let resp = Resp { status };
+        let resp = Resp { status: status, length: length };
         send(req_tok, resp_s, resp);
     }
 }
