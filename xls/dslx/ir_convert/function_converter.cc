@@ -1600,7 +1600,7 @@ absl::StatusOr<BValue> FunctionConverter::HandleForBody(
 // Returns whether `node` is a range expression, which is either a `Range` node
 // or an `Invocation` node with a callee of the builtin `range`.
 static bool IsRangeExpr(AstNode* node) {
-  if (auto* range = dynamic_cast<Range*>(node)) {
+  if (dynamic_cast<Range*>(node)) {
     return true;
   }
   if (auto* invocation = dynamic_cast<Invocation*>(node)) {
