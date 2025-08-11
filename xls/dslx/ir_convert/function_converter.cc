@@ -1123,6 +1123,14 @@ absl::Status FunctionConverter::HandleBuiltinElementCount(
   return absl::OkStatus();
 }
 
+absl::Status FunctionConverter::HandleBuiltinConfiguredValueOr(
+    const Invocation* node) {
+  XLS_ASSIGN_OR_RETURN(InterpValue iv, current_type_info_->GetConstExpr(node));
+  XLS_ASSIGN_OR_RETURN(Value v, InterpValueToValue(iv));
+  DefConst(node, v);
+  return absl::OkStatus();
+}
+
 absl::Status FunctionConverter::HandleBuiltinWideningCast(
     const Invocation* node) {
   XLS_RET_CHECK_EQ(node->args().size(), 1);
@@ -2493,6 +2501,8 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
           {"ctz", &FunctionConverter::HandleBuiltinCtz},
           {"decode", &FunctionConverter::HandleBuiltinDecode},
           {"element_count", &FunctionConverter::HandleBuiltinElementCount},
+          {"configured_value_or",
+           &FunctionConverter::HandleBuiltinConfiguredValueOr},
           {"encode", &FunctionConverter::HandleBuiltinEncode},
           {"gate!", &FunctionConverter::HandleBuiltinGate},
           {"one_hot", &FunctionConverter::HandleBuiltinOneHot},

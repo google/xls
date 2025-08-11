@@ -467,6 +467,7 @@ class FunctionConverter {
   absl::Status HandleBuiltinWideningCast(const Invocation* node);
   absl::Status HandleBuiltinBitCount(const Invocation* node);
   absl::Status HandleBuiltinElementCount(const Invocation* node);
+  absl::Status HandleBuiltinConfiguredValueOr(const Invocation* node);
   absl::Status HandleBuiltinXorReduce(const Invocation* node);
 
   absl::Status HandleBuiltinJoin(const Invocation* node);

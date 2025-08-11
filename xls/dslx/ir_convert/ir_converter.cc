@@ -609,6 +609,8 @@ absl::Status AddContentsToPackage(
                                  file_contents, module_name,
                                  /*print_on_error=*/true,
                                  /*filename=*/path_value, printed_error));
+  XLS_RETURN_IF_ERROR(
+      module->SetConfiguredValues(convert_options.configured_values));
   absl::StatusOr<TypecheckedModule> typechecked_module =
       TypecheckModule(std::move(module), path_value, import_data,
                       convert_options.type_inference_v2);
