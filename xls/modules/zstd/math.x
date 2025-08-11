@@ -41,7 +41,9 @@ fn logshiftl_test() {
     let max = std::unsigned_max_value<u32:8>();
     assert_eq(logshiftl(max, u4:4), max << u4:4);
     assert_eq(logshiftl(max, u4:5), max << u4:5);
-    assert_eq(logshiftl(max, u4:15), max << u4:15);
+    // TIv2 does not allow a direct left over-shift by a literal amount.
+    let overshift_amount = u4:15;
+    assert_eq(logshiftl(max, u4:15), max << overshift_amount);
     assert_eq(logshiftl(bits[24]:0xc0ffee, u8:12), bits[24]:0xfee000);
 }
 
@@ -73,7 +75,9 @@ fn logshiftr_test() {
     let max = std::unsigned_max_value<u32:8>();
     assert_eq(logshiftr(max, u4:4), max >> u4:4);
     assert_eq(logshiftr(max, u4:5), max >> u4:5);
-    assert_eq(logshiftr(max, u4:15), max >> u4:15);
+    // TIv2 does not allow a direct right over-shift by a literal amount.
+    let overshift_amount = u4:15;
+    assert_eq(logshiftr(max, u4:15), max >> overshift_amount);
     assert_eq(logshiftr(bits[24]:0xc0ffee, u8:12), bits[24]:0x000c0f);
 }
 
