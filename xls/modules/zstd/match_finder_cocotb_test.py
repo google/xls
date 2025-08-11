@@ -90,9 +90,9 @@ def set_termination_event(monitor, event, transactions):
 def deserialized_sequences(sequences):
   def word_from_bytes(bytes, ix):
     return int(bytes[ix]) + (int(bytes[ix+1]) << 8)
-  for i in range(0, len(sequences), 8):
-    match_length = word_from_bytes(sequences, i)
-    step_back = word_from_bytes(sequences, i + 2)
+  for i in range(0, len(sequences), 6):
+    match_length = word_from_bytes(sequences, i) + 3
+    step_back = word_from_bytes(sequences, i + 2) - 3
     copy_length = word_from_bytes(sequences, i + 4)
     yield (match_length, step_back, copy_length)
 
@@ -114,6 +114,10 @@ def simple_decode(literals, sequences):
     print(f"{hex(len(decoded))} = {[hex(ma) for ma in matched]}")
     decoded += matched
     literals_ix += copy_length
+  # Append the remaining literals
+  for i in range(literals_ix, len(literals)):
+    decoded.append(literals[i])
+
   return decoded
 
 def generate_input_data():
@@ -158,8 +162,8 @@ async def basic_test(dut):
   assert STATUS == 0
   await ClockCycles(dut.clk, 1000) # make sure all memory writes finish
 
-  literals = memory.read(LITERALS_OBUF_ADDR, LIT_CNT * 8)
-  sequences = memory.read(SEQUENCES_OBUF_ADDR, SEQ_CNT * 8)
+  literals = memory.read(LITERALS_OBUF_ADDR, LIT_CNT)
+  sequences = memory.read(SEQUENCES_OBUF_ADDR, SEQ_CNT * 6)
   decoded = simple_decode(literals, sequences)
 
   all_equal = True

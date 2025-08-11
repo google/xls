@@ -4094,10 +4094,12 @@ xls_dslx_library(
         "//xls/modules/zstd/memory:axi_dslx",
         "//xls/modules/zstd/memory:axi_ram_reader_dslx",
         "//xls/modules/zstd/memory:axi_ram_writer_dslx",
+        "//xls/modules/zstd/memory:mem_writer_data_downscaler_dslx",
         ":mem_reader_simple_arbiter_dslx",
         ":mem_writer_simple_arbiter_dslx",
         ":hash_table_dslx",
         ":history_buffer_dslx",
+        ":sequence_encoder_dslx"
     ],
 )
 
