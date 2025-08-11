@@ -959,8 +959,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       return type.status();
     }
 
-    XLS_RETURN_IF_ERROR(ValidateConcreteType(
-        node, type->get(), *ti, warning_collector_, import_data_, file_table_));
+    XLS_RETURN_IF_ERROR(
+        ValidateConcreteType(table_, parametric_context, node, type->get(), *ti,
+                             warning_collector_, import_data_, file_table_));
 
     if (node->kind() == AstNodeKind::kTypeAnnotation ||
         node->kind() == AstNodeKind::kTypeAlias ||

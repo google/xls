@@ -796,8 +796,8 @@ class InferenceTableImpl : public InferenceTable {
     parametric_value_exprs_[parametric_context] = std::move(value_exprs);
   }
 
-  ParametricEnv GetParametricEnv(
-      std::optional<const ParametricContext*> parametric_context) override {
+  ParametricEnv GetParametricEnv(std::optional<const ParametricContext*>
+                                     parametric_context) const override {
     if (parametric_context.has_value()) {
       const auto it = converted_parametric_envs_.find(*parametric_context);
       if (it != converted_parametric_envs_.end()) {

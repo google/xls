@@ -15,12 +15,15 @@
 #ifndef XLS_DSLX_TYPE_SYSTEM_V2_VALIDATE_CONCRETE_TYPE_H_
 #define XLS_DSLX_TYPE_SYSTEM_V2_VALIDATE_CONCRETE_TYPE_H_
 
+#include <optional>
+
 #include "absl/status/status.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
@@ -28,11 +31,12 @@ namespace xls::dslx {
 // Checks if the given concrete type ultimately makes sense for the given node,
 // based on the intrinsic properties of the node, like being an add operation or
 // containing an embedded literal.
-absl::Status ValidateConcreteType(const AstNode* node, const Type* type,
-                                  const TypeInfo& ti,
-                                  WarningCollector& warning_collector,
-                                  const ImportData& import_data,
-                                  const FileTable& file_table);
+absl::Status ValidateConcreteType(
+    const InferenceTable& inference_table,
+    std::optional<const ParametricContext*> parametric_context,
+    const AstNode* node, const Type* type, const TypeInfo& ti,
+    WarningCollector& warning_collector, const ImportData& import_data,
+    const FileTable& file_table);
 
 }  // namespace xls::dslx
 

@@ -582,7 +582,7 @@ class InferenceTable {
   // `fn foo<A: u32, B: u32 = {clog2(A)}>`, which is what downstream logic
   // expects.
   virtual ParametricEnv GetParametricEnv(
-      std::optional<const ParametricContext*> parametric_context) = 0;
+      std::optional<const ParametricContext*> parametric_context) const = 0;
 
   // Stores the parametric value expressions for the given context. Unlike the
   // `ParametricEnv`, this is not set automatically at construction time for any

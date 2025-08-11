@@ -44,6 +44,7 @@
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
+#include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
 
@@ -65,11 +66,14 @@ absl::StatusOr<BitsLikeProperties> GetBitsLikeOrError(
 // `ValidateConcreteType`.
 class TypeValidator : public AstNodeVisitorWithDefault {
  public:
-  explicit TypeValidator(const Type* type, const TypeInfo& ti,
-                         WarningCollector& warning_collector,
-                         const ImportData& import_data,
-                         const FileTable& file_table)
-      : type_(type),
+  explicit TypeValidator(
+      const InferenceTable& table,
+      std::optional<const ParametricContext*> parametric_context,
+      const Type* type, const TypeInfo& ti, WarningCollector& warning_collector,
+      const ImportData& import_data, const FileTable& file_table)
+      : table_(table),
+        parametric_context_(parametric_context),
+        type_(type),
         ti_(ti),
         warning_collector_(warning_collector),
         import_data_(import_data),
@@ -292,16 +296,17 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     if (range->has_pattern_semantics()) {
       return absl::OkStatus();
     }
+    const ParametricEnv env = table_.GetParametricEnv(parametric_context_);
     XLS_ASSIGN_OR_RETURN(
         InterpValue start,
         ConstexprEvaluator::EvaluateToValue(
             const_cast<ImportData*>(&import_data_), const_cast<TypeInfo*>(&ti_),
-            &warning_collector_, ParametricEnv(), range->start()));
+            &warning_collector_, env, range->start()));
     XLS_ASSIGN_OR_RETURN(
         InterpValue end,
         ConstexprEvaluator::EvaluateToValue(
             const_cast<ImportData*>(&import_data_), const_cast<TypeInfo*>(&ti_),
-            &warning_collector_, ParametricEnv(), range->end()));
+            &warning_collector_, env, range->end()));
 
     if (start.Gt(end)->IsTrue()) {
       return RangeStartGreaterThanEndErrorStatus(range->span(), range, start,
@@ -620,6 +625,8 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  const InferenceTable& table_;
+  std::optional<const ParametricContext*> parametric_context_;
   const Type* type_;
   const TypeInfo& ti_;
   WarningCollector& warning_collector_;
@@ -629,15 +636,17 @@ class TypeValidator : public AstNodeVisitorWithDefault {
 
 }  // namespace
 
-absl::Status ValidateConcreteType(const AstNode* node, const Type* type,
-                                  const TypeInfo& ti,
-                                  WarningCollector& warning_collector,
-                                  const ImportData& import_data,
-                                  const FileTable& file_table) {
+absl::Status ValidateConcreteType(
+    const InferenceTable& table,
+    std::optional<const ParametricContext*> parametric_context,
+    const AstNode* node, const Type* type, const TypeInfo& ti,
+    WarningCollector& warning_collector, const ImportData& import_data,
+    const FileTable& file_table) {
   if (type->IsMeta()) {
     XLS_ASSIGN_OR_RETURN(type, UnwrapMetaType(*type));
   }
-  TypeValidator validator(type, ti, warning_collector, import_data, file_table);
+  TypeValidator validator(table, parametric_context, type, ti,
+                          warning_collector, import_data, file_table);
   return node->Accept(&validator);
 }
 
