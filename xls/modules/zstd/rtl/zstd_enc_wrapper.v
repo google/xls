@@ -25,7 +25,7 @@ module zstd_enc_wrapper #(
     parameter BUSER_WIDTH = 1,
     parameter ARUSER_WIDTH = 1,
     parameter RUSER_WIDTH = 1,
-    parameter CONF_W = 1,
+    parameter CONF_W = 2,
     parameter REQ_W = AXI_DATA_W + AXI_ADDR_W + AXI_ADDR_W + AXI_DATA_W + CONF_W
 ) (
     input wire clk,
@@ -171,6 +171,248 @@ module zstd_enc_wrapper #(
     assign zstd_enc__axi_r_vld = memory_axi_r_rvalid;
     assign memory_axi_r_rready = zstd_enc__axi_r_rdy;
 
+    localparam HB_SIZE = 1024;
+    localparam HB_RAM_NUM = 8;
+    localparam HB_DATA_W = 8;
+    localparam HB_RAM_SIZE = HB_SIZE / HB_RAM_NUM;
+    localparam HB_ADDR_W = $clog2(HB_RAM_SIZE);
+    localparam HB_NUM_PARTITIONS = 1;
+    wire [HB_ADDR_W-1:0]         hb_ram_rd_addr [0:7];
+    wire [HB_DATA_W-1:0]         hb_ram_rd_data [0:7];
+    wire                         hb_ram_rd_en   [0:7];
+    wire [HB_NUM_PARTITIONS-1:0] hb_ram_rd_mask [0:7];
+    wire [HB_ADDR_W-1:0]         hb_ram_wr_addr [0:7];
+    wire [HB_DATA_W-1:0]         hb_ram_wr_data [0:7];
+    wire                         hb_ram_wr_en   [0:7];
+    wire [HB_NUM_PARTITIONS-1:0] hb_ram_wr_mask [0:7];
+
+    genvar i;
+    generate
+        for (i = 0; i < 8; i = i + 1) begin : hb_loop
+            ram_1r1w #(
+                .DATA_WIDTH(HB_DATA_W),
+                .ADDR_WIDTH(HB_ADDR_W),
+                .SIZE(HB_SIZE),
+                .NUM_PARTITIONS(HB_NUM_PARTITIONS)
+            ) hb_ram (
+                .clk(clk),
+                .rst(rst),
+                .rd_addr (hb_ram_rd_addr[i]),
+                .rd_data (hb_ram_rd_data[i]),
+                .rd_en   (hb_ram_rd_en[i]),
+                .rd_mask (hb_ram_rd_mask[i]),
+                .wr_data (hb_ram_wr_data[i]),
+                .wr_addr (hb_ram_wr_addr[i]),
+                .wr_en   (hb_ram_wr_en[i]),
+                .wr_mask (hb_ram_wr_mask[i])
+            );
+        end
+    endgenerate
+
+    localparam HT_KEY_W = 32;
+    localparam HT_SIZE = 512;
+    localparam HT_ADDR_W = $clog2(HT_SIZE);
+    localparam HT_ENTRY_W = HT_KEY_W + 32;
+    localparam HT_DATA_W = HT_ENTRY_W + 1;  // 32 (KEY_WIDTH) + 32 (ADDR_W) + 1 (match or not);
+    localparam HT_NUM_PARTITIONS = HT_DATA_W;
+    wire [HT_DATA_W-1:0]         ht_ram_rd_data;
+    wire [HT_ADDR_W-1:0]         ht_ram_rd_addr;
+    wire                         ht_ram_rd_en;
+    wire [HT_NUM_PARTITIONS-1:0]         ht_ram_rd_mask;
+    wire [HT_DATA_W-1:0]         ht_ram_wr_data;
+    wire [HT_ADDR_W-1:0]         ht_ram_wr_addr;
+    wire                         ht_ram_wr_en;
+    wire [HT_NUM_PARTITIONS-1:0] ht_ram_wr_mask;
+
+    ram_1r1w #(
+        .DATA_WIDTH(HT_DATA_W),
+        .ADDR_WIDTH(HT_ADDR_W),
+        .SIZE(HT_SIZE),
+        .NUM_PARTITIONS(HT_NUM_PARTITIONS)
+    ) ht_ram (
+        .clk(clk),
+        .rst(rst),
+        .rd_addr (ht_ram_rd_addr),
+        .rd_data (ht_ram_rd_data),
+        .rd_en   (ht_ram_rd_en),
+        .rd_mask (ht_ram_rd_mask),
+        .wr_addr (ht_ram_wr_addr),
+        .wr_data (ht_ram_wr_data),
+        .wr_en   (ht_ram_wr_en),
+        .wr_mask (ht_ram_wr_mask)
+    );
+
+    // fse table buffers
+
+    localparam FSE_TABLE_RAM_ADDR_W = 32;
+    localparam FSE_CTABLE_RAM_DATA_W = 16;
+    localparam FSE_TTABLE_RAM_DATA_W = 64;
+    localparam FSE_CTABLE_NUM_PARTITIONS = 2;
+    localparam FSE_TTABLE_NUM_PARTITIONS = 4;
+    localparam FSE_RAM_SIZE = 'h1000;
+
+    wire [FSE_CTABLE_RAM_DATA_W-1:0]        ll_ctable_ram_rd_data;
+    wire [FSE_TABLE_RAM_ADDR_W-1:0]         ll_ctable_ram_rd_addr;
+    wire                                    ll_ctable_ram_rd_en;
+    wire [FSE_CTABLE_NUM_PARTITIONS-1:0]    ll_ctable_ram_rd_mask;
+    wire [FSE_CTABLE_RAM_DATA_W-1:0]        ll_ctable_ram_wr_data;
+    wire [FSE_TABLE_RAM_ADDR_W-1:0]         ll_ctable_ram_wr_addr;
+    wire                                    ll_ctable_ram_wr_en;
+    wire [FSE_CTABLE_NUM_PARTITIONS-1:0]    ll_ctable_ram_wr_mask;
+
+    wire [FSE_CTABLE_RAM_DATA_W-1:0]        ml_ctable_ram_rd_data;
+    wire [FSE_TABLE_RAM_ADDR_W-1:0]         ml_ctable_ram_rd_addr;
+    wire                                    ml_ctable_ram_rd_en;
+    wire [FSE_CTABLE_NUM_PARTITIONS-1:0]    ml_ctable_ram_rd_mask;
+    wire [FSE_CTABLE_RAM_DATA_W-1:0]        ml_ctable_ram_wr_data;
+    wire [FSE_TABLE_RAM_ADDR_W-1:0]         ml_ctable_ram_wr_addr;
+    wire                                    ml_ctable_ram_wr_en;
+    wire [FSE_CTABLE_NUM_PARTITIONS-1:0]    ml_ctable_ram_wr_mask;
+
+    wire [FSE_CTABLE_RAM_DATA_W-1:0]        of_ctable_ram_rd_data;
+    wire [FSE_TABLE_RAM_ADDR_W-1:0]         of_ctable_ram_rd_addr;
+    wire                                    of_ctable_ram_rd_en;
+    wire [FSE_CTABLE_NUM_PARTITIONS-1:0]    of_ctable_ram_rd_mask;
+    wire [FSE_CTABLE_RAM_DATA_W-1:0]        of_ctable_ram_wr_data;
+    wire [FSE_TABLE_RAM_ADDR_W-1:0]         of_ctable_ram_wr_addr;
+    wire                                    of_ctable_ram_wr_en;
+    wire [FSE_CTABLE_NUM_PARTITIONS-1:0]    of_ctable_ram_wr_mask;
+
+    wire [FSE_TTABLE_RAM_DATA_W-1:0]        ll_ttable_ram_rd_data;
+    wire [FSE_TABLE_RAM_ADDR_W-1:0]         ll_ttable_ram_rd_addr;
+    wire                                    ll_ttable_ram_rd_en;
+    wire [FSE_TTABLE_NUM_PARTITIONS-1:0]    ll_ttable_ram_rd_mask;
+    wire [FSE_TTABLE_RAM_DATA_W-1:0]        ll_ttable_ram_wr_data;
+    wire [FSE_TABLE_RAM_ADDR_W-1:0]         ll_ttable_ram_wr_addr;
+    wire                                    ll_ttable_ram_wr_en;
+    wire [FSE_TTABLE_NUM_PARTITIONS-1:0]    ll_ttable_ram_wr_mask;
+
+    wire [FSE_TTABLE_RAM_DATA_W-1:0]        ml_ttable_ram_rd_data;
+    wire [FSE_TABLE_RAM_ADDR_W-1:0]         ml_ttable_ram_rd_addr;
+    wire                                    ml_ttable_ram_rd_en;
+    wire [FSE_TTABLE_NUM_PARTITIONS-1:0]    ml_ttable_ram_rd_mask;
+    wire [FSE_TTABLE_RAM_DATA_W-1:0]        ml_ttable_ram_wr_data;
+    wire [FSE_TABLE_RAM_ADDR_W-1:0]         ml_ttable_ram_wr_addr;
+    wire                                    ml_ttable_ram_wr_en;
+    wire [FSE_TTABLE_NUM_PARTITIONS-1:0]    ml_ttable_ram_wr_mask;
+
+    wire [FSE_TTABLE_RAM_DATA_W-1:0]        of_ttable_ram_rd_data;
+    wire [FSE_TABLE_RAM_ADDR_W-1:0]         of_ttable_ram_rd_addr;
+    wire                                    of_ttable_ram_rd_en;
+    wire [FSE_TTABLE_NUM_PARTITIONS-1:0]    of_ttable_ram_rd_mask;
+    wire [FSE_TTABLE_RAM_DATA_W-1:0]        of_ttable_ram_wr_data;
+    wire [FSE_TABLE_RAM_ADDR_W-1:0]         of_ttable_ram_wr_addr;
+    wire                                    of_ttable_ram_wr_en;
+    wire [FSE_TTABLE_NUM_PARTITIONS-1:0]    of_ttable_ram_wr_mask;
+
+    ram_1r1w #(
+        .DATA_WIDTH(FSE_CTABLE_RAM_DATA_W),
+        .ADDR_WIDTH(FSE_TABLE_RAM_ADDR_W),
+        .SIZE(FSE_RAM_SIZE),
+        .NUM_PARTITIONS(FSE_CTABLE_NUM_PARTITIONS)
+    ) ll_ctable_ram (
+        .clk(clk),
+        .rst(rst),
+        .rd_addr (ll_ctable_ram_rd_addr),
+        .rd_data (ll_ctable_ram_rd_data),
+        .rd_en   (ll_ctable_ram_rd_en),
+        .rd_mask (ll_ctable_ram_rd_mask),
+        .wr_addr (ll_ctable_ram_wr_addr),
+        .wr_data (ll_ctable_ram_wr_data),
+        .wr_en   (ll_ctable_ram_wr_en),
+        .wr_mask (ll_ctable_ram_wr_mask)
+    );
+
+    ram_1r1w #(
+        .DATA_WIDTH(FSE_CTABLE_RAM_DATA_W),
+        .ADDR_WIDTH(FSE_TABLE_RAM_ADDR_W),
+        .SIZE(FSE_RAM_SIZE),
+        .NUM_PARTITIONS(FSE_CTABLE_NUM_PARTITIONS)
+    ) ml_ctable_ram (
+        .clk(clk),
+        .rst(rst),
+        .rd_addr (ml_ctable_ram_rd_addr),
+        .rd_data (ml_ctable_ram_rd_data),
+        .rd_en   (ml_ctable_ram_rd_en),
+        .rd_mask (ml_ctable_ram_rd_mask),
+        .wr_addr (ml_ctable_ram_wr_addr),
+        .wr_data (ml_ctable_ram_wr_data),
+        .wr_en   (ml_ctable_ram_wr_en),
+        .wr_mask (ml_ctable_ram_wr_mask)
+    );
+
+    ram_1r1w #(
+        .DATA_WIDTH(FSE_CTABLE_RAM_DATA_W),
+        .ADDR_WIDTH(FSE_TABLE_RAM_ADDR_W),
+        .SIZE(FSE_RAM_SIZE),
+        .NUM_PARTITIONS(FSE_CTABLE_NUM_PARTITIONS)
+    ) ol_ctable_ram (
+        .clk(clk),
+        .rst(rst),
+        .rd_addr (of_ctable_ram_rd_addr),
+        .rd_data (of_ctable_ram_rd_data),
+        .rd_en   (of_ctable_ram_rd_en),
+        .rd_mask (of_ctable_ram_rd_mask),
+        .wr_addr (of_ctable_ram_wr_addr),
+        .wr_data (of_ctable_ram_wr_data),
+        .wr_en   (of_ctable_ram_wr_en),
+        .wr_mask (of_ctable_ram_wr_mask)
+    );
+
+    ram_1r1w #(
+        .DATA_WIDTH(FSE_TTABLE_RAM_DATA_W),
+        .ADDR_WIDTH(FSE_TABLE_RAM_ADDR_W),
+        .SIZE(FSE_RAM_SIZE),
+        .NUM_PARTITIONS(FSE_TTABLE_NUM_PARTITIONS)
+    ) ll_ttable_ram (
+        .clk(clk),
+        .rst(rst),
+        .rd_addr (ll_ttable_ram_rd_addr),
+        .rd_data (ll_ttable_ram_rd_data),
+        .rd_en   (ll_ttable_ram_rd_en),
+        .rd_mask (ll_ttable_ram_rd_mask),
+        .wr_addr (ll_ttable_ram_wr_addr),
+        .wr_data (ll_ttable_ram_wr_data),
+        .wr_en   (ll_ttable_ram_wr_en),
+        .wr_mask (ll_ttable_ram_wr_mask)
+    );
+
+    ram_1r1w #(
+        .DATA_WIDTH(FSE_TTABLE_RAM_DATA_W),
+        .ADDR_WIDTH(FSE_TABLE_RAM_ADDR_W),
+        .SIZE(FSE_RAM_SIZE),
+        .NUM_PARTITIONS(FSE_TTABLE_NUM_PARTITIONS)
+    ) ml_ttable_ram (
+        .clk(clk),
+        .rst(rst),
+        .rd_addr (ml_ttable_ram_rd_addr),
+        .rd_data (ml_ttable_ram_rd_data),
+        .rd_en   (ml_ttable_ram_rd_en),
+        .rd_mask (ml_ttable_ram_rd_mask),
+        .wr_addr (ml_ttable_ram_wr_addr),
+        .wr_data (ml_ttable_ram_wr_data),
+        .wr_en   (ml_ttable_ram_wr_en),
+        .wr_mask (ml_ttable_ram_wr_mask)
+    );
+
+    ram_1r1w #(
+        .DATA_WIDTH(FSE_TTABLE_RAM_DATA_W),
+        .ADDR_WIDTH(FSE_TABLE_RAM_ADDR_W),
+        .SIZE(FSE_RAM_SIZE),
+        .NUM_PARTITIONS(FSE_TTABLE_NUM_PARTITIONS)
+    ) of_ttable_ram (
+        .clk(clk),
+        .rst(rst),
+        .rd_addr (of_ttable_ram_rd_addr),
+        .rd_data (of_ttable_ram_rd_data),
+        .rd_en   (of_ttable_ram_rd_en),
+        .rd_mask (of_ttable_ram_rd_mask),
+        .wr_addr (of_ttable_ram_wr_addr),
+        .wr_data (of_ttable_ram_wr_data),
+        .wr_en   (of_ttable_ram_wr_en),
+        .wr_mask (of_ttable_ram_wr_mask)
+    );
+
     ZstdEncoder zstd_encoder_benchmark (
         .clk(clk),
         .rst(rst),
@@ -199,7 +441,142 @@ module zstd_enc_wrapper #(
         .zstd_enc__enc_resp_s_vld(resp_s_vld),
         .zstd_enc__enc_req_r(req_r_data),
         .zstd_enc__enc_req_r_rdy(req_r_rdy),
-        .zstd_enc__enc_req_r_vld(req_r_vld)
+        .zstd_enc__enc_req_r_vld(req_r_vld),
+
+        .hb_ram0_rd_addr(hb_ram_rd_addr[0]),
+        .hb_ram0_rd_data(hb_ram_rd_data[0]),
+        .hb_ram0_rd_en  (hb_ram_rd_en[0]),
+        .hb_ram0_rd_mask(hb_ram_rd_mask[0]),
+        .hb_ram0_wr_addr(hb_ram_wr_addr[0]),
+        .hb_ram0_wr_data(hb_ram_wr_data[0]),
+        .hb_ram0_wr_en  (hb_ram_wr_en[0]),
+        .hb_ram0_wr_mask(hb_ram_wr_mask[0]),
+
+        .hb_ram1_rd_addr(hb_ram_rd_addr[1]),
+        .hb_ram1_rd_data(hb_ram_rd_data[1]),
+        .hb_ram1_rd_en  (hb_ram_rd_en[1]),
+        .hb_ram1_rd_mask(hb_ram_rd_mask[1]),
+        .hb_ram1_wr_addr(hb_ram_wr_addr[1]),
+        .hb_ram1_wr_data(hb_ram_wr_data[1]),
+        .hb_ram1_wr_en  (hb_ram_wr_en[1]),
+        .hb_ram1_wr_mask(hb_ram_wr_mask[1]),
+
+        .hb_ram2_rd_addr(hb_ram_rd_addr[2]),
+        .hb_ram2_rd_data(hb_ram_rd_data[2]),
+        .hb_ram2_rd_en  (hb_ram_rd_en[2]),
+        .hb_ram2_rd_mask(hb_ram_rd_mask[2]),
+        .hb_ram2_wr_addr(hb_ram_wr_addr[2]),
+        .hb_ram2_wr_data(hb_ram_wr_data[2]),
+        .hb_ram2_wr_en  (hb_ram_wr_en[2]),
+        .hb_ram2_wr_mask(hb_ram_wr_mask[2]),
+
+        .hb_ram3_rd_addr(hb_ram_rd_addr[3]),
+        .hb_ram3_rd_data(hb_ram_rd_data[3]),
+        .hb_ram3_rd_en  (hb_ram_rd_en[3]),
+        .hb_ram3_rd_mask(hb_ram_rd_mask[3]),
+        .hb_ram3_wr_addr(hb_ram_wr_addr[3]),
+        .hb_ram3_wr_data(hb_ram_wr_data[3]),
+        .hb_ram3_wr_en  (hb_ram_wr_en[3]),
+        .hb_ram3_wr_mask(hb_ram_wr_mask[3]),
+
+        .hb_ram4_rd_addr(hb_ram_rd_addr[4]),
+        .hb_ram4_rd_data(hb_ram_rd_data[4]),
+        .hb_ram4_rd_en  (hb_ram_rd_en[4]),
+        .hb_ram4_rd_mask(hb_ram_rd_mask[4]),
+        .hb_ram4_wr_addr(hb_ram_wr_addr[4]),
+        .hb_ram4_wr_data(hb_ram_wr_data[4]),
+        .hb_ram4_wr_en  (hb_ram_wr_en[4]),
+        .hb_ram4_wr_mask(hb_ram_wr_mask[4]),
+
+        .hb_ram5_rd_addr(hb_ram_rd_addr[5]),
+        .hb_ram5_rd_data(hb_ram_rd_data[5]),
+        .hb_ram5_rd_en  (hb_ram_rd_en[5]),
+        .hb_ram5_rd_mask(hb_ram_rd_mask[5]),
+        .hb_ram5_wr_addr(hb_ram_wr_addr[5]),
+        .hb_ram5_wr_data(hb_ram_wr_data[5]),
+        .hb_ram5_wr_en  (hb_ram_wr_en[5]),
+        .hb_ram5_wr_mask(hb_ram_wr_mask[5]),
+
+        .hb_ram6_rd_addr(hb_ram_rd_addr[6]),
+        .hb_ram6_rd_data(hb_ram_rd_data[6]),
+        .hb_ram6_rd_en  (hb_ram_rd_en[6]),
+        .hb_ram6_rd_mask(hb_ram_rd_mask[6]),
+        .hb_ram6_wr_addr(hb_ram_wr_addr[6]),
+        .hb_ram6_wr_data(hb_ram_wr_data[6]),
+        .hb_ram6_wr_en  (hb_ram_wr_en[6]),
+        .hb_ram6_wr_mask(hb_ram_wr_mask[6]),
+
+        .hb_ram7_rd_addr(hb_ram_rd_addr[7]),
+        .hb_ram7_rd_data(hb_ram_rd_data[7]),
+        .hb_ram7_rd_en  (hb_ram_rd_en[7]),
+        .hb_ram7_rd_mask(hb_ram_rd_mask[7]),
+        .hb_ram7_wr_addr(hb_ram_wr_addr[7]),
+        .hb_ram7_wr_data(hb_ram_wr_data[7]),
+        .hb_ram7_wr_en  (hb_ram_wr_en[7]),
+        .hb_ram7_wr_mask(hb_ram_wr_mask[7]),
+
+        .ht_ram_rd_addr(ht_ram_rd_addr),
+        .ht_ram_rd_data(ht_ram_rd_data),
+        .ht_ram_rd_en  (ht_ram_rd_en),
+        .ht_ram_rd_mask(ht_ram_rd_mask),
+        .ht_ram_wr_addr(ht_ram_wr_addr),
+        .ht_ram_wr_data(ht_ram_wr_data),
+        .ht_ram_wr_en  (ht_ram_wr_en),
+        .ht_ram_wr_mask(ht_ram_wr_mask),
+
+        .ll_ctable_ram_rd_addr(ll_ctable_ram_rd_addr),
+        .ll_ctable_ram_rd_data(ll_ctable_ram_rd_data),
+        .ll_ctable_ram_rd_en  (ll_ctable_ram_rd_en),
+        .ll_ctable_ram_rd_mask(ll_ctable_ram_rd_mask),
+        .ll_ctable_ram_wr_addr(ll_ctable_ram_wr_addr),
+        .ll_ctable_ram_wr_data(ll_ctable_ram_wr_data),
+        .ll_ctable_ram_wr_en  (ll_ctable_ram_wr_en),
+        .ll_ctable_ram_wr_mask(ll_ctable_ram_wr_mask),
+
+        .ml_ctable_ram_rd_addr(ml_ctable_ram_rd_addr),
+        .ml_ctable_ram_rd_data(ml_ctable_ram_rd_data),
+        .ml_ctable_ram_rd_en  (ml_ctable_ram_rd_en),
+        .ml_ctable_ram_rd_mask(ml_ctable_ram_rd_mask),
+        .ml_ctable_ram_wr_addr(ml_ctable_ram_wr_addr),
+        .ml_ctable_ram_wr_data(ml_ctable_ram_wr_data),
+        .ml_ctable_ram_wr_en  (ml_ctable_ram_wr_en),
+        .ml_ctable_ram_wr_mask(ml_ctable_ram_wr_mask),
+
+        .of_ctable_ram_rd_addr(of_ctable_ram_rd_addr),
+        .of_ctable_ram_rd_data(of_ctable_ram_rd_data),
+        .of_ctable_ram_rd_en  (of_ctable_ram_rd_en),
+        .of_ctable_ram_rd_mask(of_ctable_ram_rd_mask),
+        .of_ctable_ram_wr_addr(of_ctable_ram_wr_addr),
+        .of_ctable_ram_wr_data(of_ctable_ram_wr_data),
+        .of_ctable_ram_wr_en  (of_ctable_ram_wr_en),
+        .of_ctable_ram_wr_mask(of_ctable_ram_wr_mask),
+
+        .ll_ttable_ram_rd_addr(ll_ttable_ram_rd_addr),
+        .ll_ttable_ram_rd_data(ll_ttable_ram_rd_data),
+        .ll_ttable_ram_rd_en  (ll_ttable_ram_rd_en),
+        .ll_ttable_ram_rd_mask(ll_ttable_ram_rd_mask),
+        .ll_ttable_ram_wr_addr(ll_ttable_ram_wr_addr),
+        .ll_ttable_ram_wr_data(ll_ttable_ram_wr_data),
+        .ll_ttable_ram_wr_en  (ll_ttable_ram_wr_en),
+        .ll_ttable_ram_wr_mask(ll_ttable_ram_wr_mask),
+
+        .ml_ttable_ram_rd_addr(ml_ttable_ram_rd_addr),
+        .ml_ttable_ram_rd_data(ml_ttable_ram_rd_data),
+        .ml_ttable_ram_rd_en  (ml_ttable_ram_rd_en),
+        .ml_ttable_ram_rd_mask(ml_ttable_ram_rd_mask),
+        .ml_ttable_ram_wr_addr(ml_ttable_ram_wr_addr),
+        .ml_ttable_ram_wr_data(ml_ttable_ram_wr_data),
+        .ml_ttable_ram_wr_en  (ml_ttable_ram_wr_en),
+        .ml_ttable_ram_wr_mask(ml_ttable_ram_wr_mask),
+
+        .of_ttable_ram_rd_addr(of_ttable_ram_rd_addr),
+        .of_ttable_ram_rd_data(of_ttable_ram_rd_data),
+        .of_ttable_ram_rd_en  (of_ttable_ram_rd_en),
+        .of_ttable_ram_rd_mask(of_ttable_ram_rd_mask),
+        .of_ttable_ram_wr_addr(of_ttable_ram_wr_addr),
+        .of_ttable_ram_wr_data(of_ttable_ram_wr_data),
+        .of_ttable_ram_wr_en  (of_ttable_ram_wr_en),
+        .of_ttable_ram_wr_mask(of_ttable_ram_wr_mask)
     );
 
 endmodule
