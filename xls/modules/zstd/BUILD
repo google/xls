@@ -4773,6 +4773,7 @@ xls_dslx_library(
     deps = [
         "//xls/modules/zstd/compression:block_size_dslx",
         ":mem_writer_simple_arbiter_dslx",
+        ":comp_block_enc_dslx",
         ":mem_reader_simple_arbiter_dslx",
         ":frame_header_dec_dslx",
         ":frame_header_enc_dslx",
@@ -4798,7 +4799,8 @@ xls_dslx_test(
 
 zstd_encoder_codegen_args = common_codegen_args | {
     "module_name": "ZstdEncoder",
-    "worst_case_throughput": "4",
+    "worst_case_throughput": "5",
+    "clock_period_ps": "900"
 }
 
 xls_dslx_verilog(
