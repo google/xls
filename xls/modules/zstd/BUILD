@@ -4998,3 +4998,23 @@ xls_dslx_test(
     name = "sequence_encoder_dslx_test",
     library = "sequence_encoder_dslx",
 )
+
+xls_dslx_library(
+    name = "comp_block_enc_dslx",
+    srcs = [
+        "comp_block_enc.x",
+    ],
+    deps = [
+        ":common_dslx",
+        ":sequence_encoder_dslx",
+        ":match_finder_dslx",
+        ":literal_encoder_dslx",
+        ":mem_reader_simple_arbiter_dslx",
+        ":mem_writer_simple_arbiter_dslx",
+        "//xls/modules/zstd/memory:axi_dslx",
+        "//xls/modules/zstd/memory:axi_ram_reader_dslx",
+        "//xls/modules/zstd/memory:axi_ram_writer_dslx",
+        "//xls/modules/zstd/memory:mem_reader_dslx",
+        "//xls/modules/zstd/memory:mem_writer_dslx",
+    ],
+)
