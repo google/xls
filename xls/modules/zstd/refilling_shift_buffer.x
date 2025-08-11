@@ -61,7 +61,7 @@ pub fn length_width(data_width: u32) -> u32 {
 // works only on values with bit length divisible by 8
 fn reverse_byte_order<N_BITS: u32, N_BYTES: u32 = {N_BITS / u32:8}>(data: uN[N_BITS]) -> uN[N_BITS] {
     const_assert!(std::ceil_div(N_BITS, u32:8) == N_BITS / u32:8);
-    unroll_for! (i, acc): (u32, uN[N_BITS]) in range(u32:0, N_BYTES) {
+    unroll_for! (i, acc): (u32, uN[N_BITS]) in u32:0..N_BYTES {
         let offset = i * u32:8;
         let offset_rev = (N_BYTES - i - u32:1) * u32:8;
         acc | (rev(data[offset +: u8]) as uN[N_BITS] << offset_rev)

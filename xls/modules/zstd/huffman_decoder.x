@@ -207,7 +207,7 @@ pub proc HuffmanDecoder {
                             uN[hcommon::MAX_WEIGHT][SYMBOLS_N],
                             uN[hcommon::WEIGHT_LOG][SYMBOLS_N],
                         )
-                    ) in range(u32:0, hcommon::PARALLEL_ACCESS_WIDTH) {
+                    ) in u32:0..hcommon::PARALLEL_ACCESS_WIDTH {
                 (
                     update(symbol_valid, (state.symbol_config_id as u32 * u32:8) + i, config.symbol_valid[i]),
                     update(symbol_code, (state.symbol_config_id as u32 * u32:8) + i, config.code[i]),
@@ -221,7 +221,7 @@ pub proc HuffmanDecoder {
                 trace_fmt!("[HuffmanDecoder] {} -> READ_DATA", state.fsm);
                 assert!(state.fsm == FSM::AWAITING_CONFIG, "invalid_state_transition");
                 trace_fmt!("[HuffmanDecoder] Received codes:");
-                for (i, ()) in range(u32:0, SYMBOLS_N) {
+                for (i, ()) in u32:0..SYMBOLS_N {
                     if symbol_valid[i] {
                         trace_fmt!("[HuffmanDecoder]   {:#b} (len {}) -> {:#x}", symbol_code[i], symbol_code_len[i], i);
                     } else {};
@@ -267,7 +267,7 @@ pub proc HuffmanDecoder {
             state.data_len > uN[BUFF_W_LOG2]:0
         ) {
             // greedily take longest match, won't skip anything since no symbol is a prefix of another (Huffman property)
-            let (literal, matched) = for(i, (literal, matched)) : (u32, (uN[common::SYMBOL_WIDTH], bool)) in range(u32:0, SYMBOLS_N) {
+            let (literal, matched) = for(i, (literal, matched)) : (u32, (uN[common::SYMBOL_WIDTH], bool)) in u32:0..SYMBOLS_N {
                 let test_length = state.symbol_code_len[i];
                 let data_mask = (!uN[hcommon::MAX_WEIGHT]:0) >> (hcommon::MAX_WEIGHT - test_length as u32);
                 let data_masked = state.data as uN[hcommon::MAX_WEIGHT] & data_mask;
@@ -319,7 +319,7 @@ pub proc HuffmanDecoder {
         );
 
         let data = if do_send_literals {
-            for (i, data): (u32, common::LitData) in range(u32:0, u32:8) {
+            for (i, data): (u32, common::LitData) in u32:0..u32:8 {
                 data | (state.decoded_literals[i] as common::LitData << (common::SYMBOL_WIDTH * i))
             }(zero!<common::LitData>())
         } else {
@@ -751,7 +751,7 @@ proc HuffmanDecoder_test {
 
             // send codes if required
             let (tok, codes_idx) = if start.new_config {
-                for (_, (tok, codes_idx)): (u32, (token, u32)) in range(u32:0, SYMBOLS_N / hcommon::PARALLEL_ACCESS_WIDTH) {
+                for (_, (tok, codes_idx)): (u32, (token, u32)) in u32:0..SYMBOLS_N / hcommon::PARALLEL_ACCESS_WIDTH {
                     let tok = send(tok, codes_s, TEST_CODES[codes_idx]);
                     trace_fmt!("Send #{} codes {:#x}", codes_idx + u32:1, TEST_CODES[codes_idx]);
                     (tok, codes_idx + u32:1)

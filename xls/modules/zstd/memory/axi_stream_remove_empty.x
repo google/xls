@@ -86,7 +86,7 @@ pub proc RemoveEmptyBytes<
         let (tok, frame) = recv(join(), stream_r);
         let (in_data, str) = (frame.data, frame.str);
 
-        let (data, len, _) = unroll_for! (i, (data, len, offset)): (u32, (Data, Length, Offset)) in range(u32:0, DATA_W_DIV8) {
+        let (data, len, _) = unroll_for! (i, (data, len, offset)): (u32, (Data, Length, Offset)) in u32:0..DATA_W_DIV8 {
             if str[i +: u1] {
                 (
                     data | (in_data & (Data:0xFF << (u32:8 * i))) >> (OffsetExt:8 * offset as OffsetExt),
@@ -197,7 +197,7 @@ proc RemoveEmptyBytesTest {
             TestStrobedStream{data: Data:0xDEADBEEF, len: Length:32, id: Id:0, dest: Dest:0, last: true}
         ];
 
-        let tok = for (i, tok): (u32, token) in range(u32:0, u32:16) {
+        let tok = for (i, tok): (u32, token) in u32:0..u32:16 {
             let tok = send(tok, stream_s, input_data[i]);
             trace_fmt!("TestRemoveEmptyBytes: Sent #{} strobed packet: {:#x}", i + u32:1, input_data[i]);
             let (tok, continuous_stream) = recv(tok, continuous_stream_r);

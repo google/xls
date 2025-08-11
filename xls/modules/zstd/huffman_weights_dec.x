@@ -1984,7 +1984,7 @@ proc HuffmanWeightsDecoder_test {
         let (input_ram_wr_req_s, input_ram_wr_req_r) = chan<InputBufferRamWrReq>[TEST_RAM_N]("input_ram_wr_req");
         let (input_ram_wr_resp_s, input_ram_wr_resp_r) = chan<InputBufferRamWrResp>[TEST_RAM_N]("input_ram_wr_resp");
 
-        unroll_for! (i, _) in range(u32:0, TEST_RAM_N) {
+        unroll_for! (i, _) in u32:0..TEST_RAM_N {
             spawn ram::RamModel<
                 TEST_RAM_DATA_W, TEST_RAM_SIZE, TEST_RAM_PARTITION_SIZE,
                 TEST_RAM_SIMULTANEOUS_RW_BEHAVIOR, TEST_RAM_INITIALIZED,
@@ -2000,7 +2000,7 @@ proc HuffmanWeightsDecoder_test {
         let (axi_ar_s, axi_ar_r) = chan<AxiAr>[TEST_RAM_N]("axi_ar");
         let (axi_r_s, axi_r_r) = chan<AxiR>[TEST_RAM_N]("axi_r");
 
-        unroll_for! (i, _) in range(u32:0, TEST_RAM_N) {
+        unroll_for! (i, _) in u32:0..TEST_RAM_N {
             spawn axi_ram_reader::AxiRamReader<
                 TEST_AXI_ADDR_W, TEST_AXI_DATA_W,
                 TEST_AXI_DEST_W, TEST_AXI_ID_W,
@@ -2016,7 +2016,7 @@ proc HuffmanWeightsDecoder_test {
         let (mem_rd_req_s, mem_rd_req_r) = chan<MemReaderReq>[TEST_RAM_N]("mem_rd_req");
         let (mem_rd_resp_s, mem_rd_resp_r) = chan<MemReaderResp>[TEST_RAM_N]("mem_rd_resp");
 
-        unroll_for! (i, _) in range(u32:0, TEST_RAM_N) {
+        unroll_for! (i, _) in u32:0..TEST_RAM_N {
             spawn mem_reader::MemReader<
                 TEST_AXI_DATA_W, TEST_AXI_ADDR_W, TEST_AXI_DEST_W, TEST_AXI_ID_W,
             >(
@@ -2129,8 +2129,8 @@ proc HuffmanWeightsDecoder_test {
         // RAW weights
 
         // Fill input RAM
-        for (i, tok) in range(u32:0, (array_size(TEST_RAW_DATA) + TEST_DATA_PER_RAM_WRITE - u32:1) / TEST_DATA_PER_RAM_WRITE) {
-            let ram_data = for (j, ram_data) in range(u32:0, TEST_DATA_PER_RAM_WRITE) {
+        for (i, tok) in u32:0..(array_size(TEST_RAW_DATA) + TEST_DATA_PER_RAM_WRITE - u32:1) / TEST_DATA_PER_RAM_WRITE {
+            let ram_data = for (j, ram_data) in u32:0..TEST_DATA_PER_RAM_WRITE {
                 let data_idx = i * TEST_DATA_PER_RAM_WRITE + j;
                 if (data_idx < array_size(TEST_RAW_DATA)) {
                     ram_data | ((TEST_RAW_DATA[data_idx] as uN[TEST_RAM_DATA_W]) << (u32:8 * j))
@@ -2145,7 +2145,7 @@ proc HuffmanWeightsDecoder_test {
                 mask: !uN[TEST_RAM_NUM_PARTITIONS]:0,
             };
 
-            let tok = unroll_for! (i, tok) in range(u32:0, TEST_RAM_N) {
+            let tok = unroll_for! (i, tok) in u32:0..TEST_RAM_N {
                 let tok = send(tok, input_ram_wr_req_s[i], input_ram_wr_req);
                 let (tok, _) = recv(tok, input_ram_wr_resp_r[i]);
                 tok
@@ -2178,7 +2178,7 @@ proc HuffmanWeightsDecoder_test {
         let test_data = update(TEST_RAW_DATA, last_weight_idx, last_weight_entry);
 
         // Check output RAM
-        let tok = for (i, tok) in range(u32:0, u32:32) {
+        let tok = for (i, tok) in u32:0..u32:32 {
             let expected_value = if i < u32:16 {
                 (
                     (test_data[4*i + u32:1] as u4) ++ ((test_data[4*i + u32:1] >> u32:4) as u4) ++
@@ -2205,11 +2205,11 @@ proc HuffmanWeightsDecoder_test {
 
 
         // FSE-encoded weights
-        unroll_for! (i, tok) in range(u32:0, array_size(TESTCASES_FSE)) {
+        unroll_for! (i, tok) in u32:0..array_size(TESTCASES_FSE) {
             let (TEST_FSE_DATA, TEST_FSE_WEIGHTS) = TESTCASES_FSE[i];
             // Fill input RAM
-            for (i, tok) in range(u32:0, (array_size(TEST_FSE_DATA) + TEST_DATA_PER_RAM_WRITE - u32:1) / TEST_DATA_PER_RAM_WRITE) {
-                let ram_data = for (j, ram_data) in range(u32:0, TEST_DATA_PER_RAM_WRITE) {
+            for (i, tok) in u32:0..(array_size(TEST_FSE_DATA) + TEST_DATA_PER_RAM_WRITE - u32:1) / TEST_DATA_PER_RAM_WRITE {
+                let ram_data = for (j, ram_data) in u32:0..TEST_DATA_PER_RAM_WRITE {
                     let data_idx = i * TEST_DATA_PER_RAM_WRITE + j;
                     if (data_idx < array_size(TEST_FSE_DATA)) {
                         ram_data | ((TEST_FSE_DATA[data_idx] as uN[TEST_RAM_DATA_W]) << (u32:8 * j))
@@ -2224,7 +2224,7 @@ proc HuffmanWeightsDecoder_test {
                     mask: !uN[TEST_RAM_NUM_PARTITIONS]:0,
                 };
 
-                let tok = unroll_for! (i, tok) in range(u32:0, TEST_RAM_N) {
+                let tok = unroll_for! (i, tok) in u32:0..TEST_RAM_N {
                     let tok = send(tok, input_ram_wr_req_s[i], input_ram_wr_req);
                     let (tok, _) = recv(tok, input_ram_wr_resp_r[i]);
                     tok
@@ -2249,7 +2249,7 @@ proc HuffmanWeightsDecoder_test {
             assert_eq((TEST_FSE_DATA[0] + u8:1) as uN[TEST_AXI_ADDR_W], resp.tree_description_size);
 
             // Check output RAM
-            let tok = for (i, tok) in range(u32:0, u32:32) {
+            let tok = for (i, tok) in u32:0..u32:32 {
                 let expected_value = (
                     TEST_FSE_WEIGHTS[4*i + u32:0] ++
                     TEST_FSE_WEIGHTS[4*i + u32:1] ++

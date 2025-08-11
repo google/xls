@@ -694,7 +694,7 @@ proc AxiRamReaderTest {
                 u32:0
             };
 
-            for (j, tok): (u32, token) in range(u32:0, TEST_RAM_SIZE) {
+            for (j, tok): (u32, token) in u32:0..TEST_RAM_SIZE {
                 if (j <= data_len) {
                     let (tok, data) = recv(tok, axi_r_r);
                     trace_fmt!("Received data #{} {:#x}", j, data);
@@ -712,7 +712,7 @@ proc AxiRamReaderTest {
                         _ => fail!("invalid_burst_mode", TestAxiAddr:0),
                     };
                     // create expected data using RAM data
-                    let (expected_data, addr_valid) = for (k, (expected_data, addr_valid)): (u32, (uN[TEST_AXI_DATA_W], bool)) in range(u32:0, TEST_AXI_DATA_W / u32:8) {
+                    let (expected_data, addr_valid) = for (k, (expected_data, addr_valid)): (u32, (uN[TEST_AXI_DATA_W], bool)) in u32:0..TEST_AXI_DATA_W / u32:8 {
                         if k < (u32:1 << (axi_ar_bundle.size as u32)) {
                             let ram_addr = (araddr + k) / (TEST_RAM_DATA_W / u32:8);
                             let ram_offset = ((araddr + k) % (TEST_RAM_DATA_W / u32:8)) * u32:8;

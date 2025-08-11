@@ -125,7 +125,7 @@ proc PacketDecoder<RAM_ADDR_WIDTH: u32> {
         let (tok, literals) = recv(tok, literals_in_r);
 
         // Strip flag last from literals
-        let literals_data = for (i, data): (u32, CopyOrMatchContent) in range(u32:0, RAM_NUM) {
+        let literals_data = for (i, data): (u32, CopyOrMatchContent) in u32:0..RAM_NUM {
             bit_slice_update(
                 data,
                 common::SYMBOL_WIDTH * i,
@@ -133,7 +133,7 @@ proc PacketDecoder<RAM_ADDR_WIDTH: u32> {
             )
         }(CopyOrMatchContent:0);
 
-        let literals_lasts = for (i, lasts): (u32, bool[RAM_NUM]) in range(u32:0, RAM_NUM) {
+        let literals_lasts = for (i, lasts): (u32, bool[RAM_NUM]) in u32:0..RAM_NUM {
             let last = (literals.content >> (RAM_DATA_WIDTH * (i + u32:1) - u32:1)) as u1;
             update(lasts, i, last)
         }(bool[RAM_NUM]:[0, ...]);
@@ -259,13 +259,13 @@ proc PacketDecoder_test {
 
     next (state: ()) {
         let tok = join();
-        let tok = for (i, tok): (u32, token) in range(u32:0, array_size(TEST_LITERALS_IN)) {
+        let tok = for (i, tok): (u32, token) in u32:0..array_size(TEST_LITERALS_IN) {
             let tok = send(tok, literals_in_s, TEST_LITERALS_IN[i]);
             trace_fmt!("Sent #{} literals {:#x}", i, TEST_LITERALS_IN[i]);
             tok
         }(tok);
 
-        let tok = for (i, tok): (u32, token) in range(u32:0, array_size(TEST_LITERALS_OUT)) {
+        let tok = for (i, tok): (u32, token) in u32:0..array_size(TEST_LITERALS_OUT) {
             let (tok, literals) = recv(tok, literals_out_r);
             trace_fmt!("Received #{} literals {:#x}", i, literals);
             assert_eq(TEST_LITERALS_OUT[i], literals);
@@ -480,7 +480,7 @@ proc LiteralsBufferWriter<
         let (tok1, literals_data, literals_data_valid) = recv_if_non_blocking(tok0, literals_r, do_recv_literals, zero!<LiteralsData>());
 
         // write literals to RAM
-        let packet_data = for (i, data): (u32, LiteralsWithLast) in range(u32:0, RAM_NUM) {
+        let packet_data = for (i, data): (u32, LiteralsWithLast) in u32:0..RAM_NUM {
             let last = if literals_data.length as u32 == i + u32:1 { (literals_data.last as LiteralsWithLast) << common::SYMBOL_WIDTH } else {LiteralsWithLast:0};
             let literal = (((literals_data.data >> (common::SYMBOL_WIDTH * i)) as uN[common::SYMBOL_WIDTH]) as LiteralsWithLast) | last;
             data | (literal << (RAM_DATA_WIDTH * i))

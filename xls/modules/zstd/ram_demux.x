@@ -516,14 +516,14 @@ proc RamDemuxWrappedTest {
         let tok = send(tok, sel_req_s, u1:0);
         let (tok, _) = recv(tok, sel_resp_r);
         // send 8 write requests
-        let tok = for (i, tok): (u32, token) in range(u32:0, TEST_DEMUX_QUEUE_LEN + u32:3) {
+        let tok = for (i, tok): (u32, token) in u32:0..TEST_DEMUX_QUEUE_LEN + u32:3 {
             let req = TestDemuxWriteWordReq(i as TestDemuxAddr, i as TestDemuxData);
             let tok = send(tok, wr_req_s, req);
             let (tok, _) = recv(tok, wr_resp_r);
             tok
         }(tok);
         // read values directly from ram
-        let tok = for (i, tok): (u32, token) in range(u32:0, TEST_DEMUX_QUEUE_LEN + u32:3) {
+        let tok = for (i, tok): (u32, token) in u32:0..TEST_DEMUX_QUEUE_LEN + u32:3 {
             let req0 = TestDemuxReadWordReq(i as TestDemuxAddr);
             let tok = send(tok, rd_req0_s, req0);
             let (tok, resp0) = recv(tok, rd_resp0_r);
@@ -536,14 +536,14 @@ proc RamDemuxWrappedTest {
         let tok = send(tok, sel_req_s, u1:1);
         let (tok, _) = recv(tok, sel_resp_r);
         // write values directly to ram
-        let tok = for (i, tok): (u32, token) in range(u32:0, TEST_DEMUX_QUEUE_LEN + u32:3) {
+        let tok = for (i, tok): (u32, token) in u32:0..TEST_DEMUX_QUEUE_LEN + u32:3 {
             let req1 = TestDemuxWriteWordReq(i as TestDemuxAddr, i as TestDemuxData);
             let tok = send(tok, wr_req1_s, req1);
             let (tok, _) = recv(tok, wr_resp1_r);
             tok
         }(tok);
         // send 8 write requests
-        let tok = for (i, tok): (u32, token) in range(u32:0, TEST_DEMUX_QUEUE_LEN + u32:3) {
+        let tok = for (i, tok): (u32, token) in u32:0..TEST_DEMUX_QUEUE_LEN + u32:3 {
             let req = TestDemuxReadWordReq(i as TestDemuxAddr);
             let tok = send(tok, rd_req_s, req);
             let (tok, resp) = recv(tok, rd_resp_r);

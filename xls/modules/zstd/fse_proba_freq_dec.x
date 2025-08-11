@@ -749,7 +749,7 @@ proc FseProbaFreqDecoderTest {
         // check that the proc consumed the padding by sending request
         // and checking over 100 cycles that it won't be served
         let tok = send(tok, buff_in_ctrl_s, BufferCtrl { length: u7:0x1 });
-        let tok = for (_, tok): (u32, token) in range(u32:0, u32:100) {
+        let tok = for (_, tok): (u32, token) in u32:0..u32:100 {
             let (tok, _, valid) = recv_non_blocking(tok, buff_out_data_r, zero!<BufferOutput>());
             assert_eq(valid, false);
             tok

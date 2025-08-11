@@ -447,7 +447,7 @@ proc ZstdDecoderTest {
         let (comp_ram_wr_req_s,  comp_ram_wr_req_r) = chan<RamWrReq>[AXI_CHAN_N]("comp_ram_wr_req");
         let (comp_ram_wr_resp_s, comp_ram_wr_resp_r) = chan<RamWrResp>[AXI_CHAN_N]("comp_ram_wr_resp");
 
-        unroll_for! (i, ()): (u32, ()) in range(u32:0, AXI_CHAN_N) {
+        unroll_for! (i, ()): (u32, ()) in u32:0..AXI_CHAN_N {
             spawn ram::RamModel<
                 TEST_RAM_DATA_W, TEST_RAM_SIZE, TEST_RAM_WORD_PARTITION_SIZE,
                 TEST_RAM_SIMULTANEOUS_READ_WRITE_BEHAVIOR, TEST_RAM_INITIALIZED
@@ -464,7 +464,7 @@ proc ZstdDecoderTest {
         let (litbuf_rd_resp_s, litbuf_rd_resp_r) = chan<LitBufRamRdResp>[u32:8]("litbuf_rd_resp");
         let (litbuf_wr_req_s,  litbuf_wr_req_r) = chan<LitBufRamWrReq>[u32:8]("litbuf_wr_req");
         let (litbuf_wr_resp_s, litbuf_wr_resp_r) = chan<LitBufRamWrResp>[u32:8]("litbuf_wr_resp");
-        unroll_for! (i, ()): (u32, ()) in range(u32:0, u32:8) {
+        unroll_for! (i, ()): (u32, ()) in u32:0..u32:8 {
             spawn ram::RamModel<
                 LITERALS_BUFFER_RAM_DATA_W, LITERALS_BUFFER_RAM_SIZE, LITERALS_BUFFER_RAM_WORD_PARTITION_SIZE,
                 TEST_RAM_SIMULTANEOUS_READ_WRITE_BEHAVIOR, TEST_RAM_INITIALIZED
@@ -514,7 +514,7 @@ proc ZstdDecoderTest {
         let (fse_rd_resp_s, fse_rd_resp_r) = chan<FseRamRdResp>[u32:6]("fse_rd_resp");
         let (fse_wr_req_s, fse_wr_req_r) = chan<FseRamWrReq>[u32:6]("fse_wr_req");
         let (fse_wr_resp_s, fse_wr_resp_r) = chan<FseRamWrResp>[u32:6]("fse_wr_resp");
-        unroll_for! (i, ()): (u32, ()) in range(u32:0, u32:6) {
+        unroll_for! (i, ()): (u32, ()) in u32:0..u32:6 {
             spawn ram::RamModel<
                 TEST_FSE_RAM_DATA_W, TEST_FSE_RAM_SIZE, TEST_FSE_RAM_WORD_PARTITION_SIZE,
                 TEST_RAM_SIMULTANEOUS_READ_WRITE_BEHAVIOR, TEST_RAM_INITIALIZED
@@ -662,7 +662,7 @@ proc ZstdDecoderTest {
             notify_s,
         );
 
-        unroll_for! (i, ()): (u32, ()) in range(u32:0, u32:8) {
+        unroll_for! (i, ()): (u32, ()) in u32:0..u32:8 {
             spawn ram::RamModel<
                 TEST_HB_DATA_W, TEST_HB_RAM_SIZE, TEST_HB_RAM_WORD_PARTITION_SIZE,
                 TEST_HB_RAM_SIMULTANEOUS_READ_WRITE_BEHAVIOR, TEST_HB_RAM_INITIALIZED,
@@ -730,7 +730,7 @@ proc ZstdDecoderTest {
         trace_fmt!("Filling LL default FSE table");
         let tok = send(tok, ll_sel_test_req_s, u1:0);
         let (tok, _) = recv(tok, ll_sel_test_resp_r);
-        let tok = unroll_for! (i, tok): (u32, token) in range(u32:0, array_size(sequence_dec::DEFAULT_LL_TABLE)) {
+        let tok = unroll_for! (i, tok): (u32, token) in u32:0..array_size(sequence_dec::DEFAULT_LL_TABLE) {
             let req = FseRamWrReq {
                 addr: i as uN[TEST_FSE_RAM_ADDR_W],
                 data: fse_table_creator::fse_record_to_bits(sequence_dec::DEFAULT_LL_TABLE[i]),
@@ -747,7 +747,7 @@ proc ZstdDecoderTest {
         trace_fmt!("Filling OF default FSE table");
         let tok = send(tok, of_sel_test_req_s, u1:0);
         let (tok, _) = recv(tok, of_sel_test_resp_r);
-        let tok = unroll_for! (i, tok): (u32, token) in range(u32:0, array_size(sequence_dec::DEFAULT_OF_TABLE)) {
+        let tok = unroll_for! (i, tok): (u32, token) in u32:0..array_size(sequence_dec::DEFAULT_OF_TABLE) {
             let req = FseRamWrReq {
                 addr: i as uN[TEST_FSE_RAM_ADDR_W],
                 data: fse_table_creator::fse_record_to_bits(sequence_dec::DEFAULT_OF_TABLE[i]),
@@ -764,7 +764,7 @@ proc ZstdDecoderTest {
         trace_fmt!("Filling ML default FSE table");
         let tok = send(tok, ml_sel_test_req_s, u1:0);
         let (tok, _) = recv(tok, ml_sel_test_resp_r);
-        let tok = unroll_for! (i, tok): (u32, token) in range(u32:0, array_size(sequence_dec::DEFAULT_ML_TABLE)) {
+        let tok = unroll_for! (i, tok): (u32, token) in u32:0..array_size(sequence_dec::DEFAULT_ML_TABLE) {
             let req = FseRamWrReq {
                 addr: i as uN[TEST_FSE_RAM_ADDR_W],
                 data: fse_table_creator::fse_record_to_bits(sequence_dec::DEFAULT_ML_TABLE[i]),
@@ -777,10 +777,10 @@ proc ZstdDecoderTest {
         let tok = send(tok, ml_sel_test_req_s, u1:1);
         let (tok, _) = recv(tok, ml_sel_test_resp_r);
 
-        let tok = unroll_for! (test_i, tok): (u32, token) in range(u32:0, frames_count) {
+        let tok = unroll_for! (test_i, tok): (u32, token) in u32:0..frames_count {
             trace_fmt!("Loading testcase {:x}", test_i + u32:1);
             let frame = comp_frame::FRAMES[test_i];
-            let tok = for (i, tok): (u32, token) in range(u32:0, frame.array_length) {
+            let tok = for (i, tok): (u32, token) in u32:0..frame.array_length {
                 let req = RamWrReq {
                     addr: i as uN[TEST_RAM_ADDR_W],
                     data: frame.data[i] as uN[TEST_RAM_DATA_W],
@@ -789,7 +789,7 @@ proc ZstdDecoderTest {
                 let tok = send(tok, fh_ram_wr_req_s, req);
                 let tok = send(tok, bh_ram_wr_req_s, req);
                 let tok = send(tok, raw_ram_wr_req_s, req);
-                for (i, tok): (u32, token) in range(u32:0, AXI_CHAN_N) {
+                for (i, tok): (u32, token) in u32:0..AXI_CHAN_N {
                     send(tok, comp_ram_wr_req_s[i], req)
                 }(tok)
             }(tok);
@@ -863,7 +863,7 @@ proc ZstdDecoderTest {
             let (tok, final_output_memory, final_output_memory_id, final_transfered_bytes) =
                 for (axi_transaction, (tok, output_memory, output_memory_id, transfered_bytes)):
                     (u32, (token, uN[TEST_AXI_DATA_W][TEST_MOCK_OUTPUT_RAM_SIZE], u32, u32))
-                     in range(u32:0, MAX_AXI_TRANSACTIONS) {
+                     in u32:0..MAX_AXI_TRANSACTIONS {
                 if (transfered_bytes < DECOMPRESSED_BYTES) {
                     trace_fmt!("ZstdDecTest: Handle AXI Write transaction #{}", axi_transaction);
                     let (tok, axi_aw) = recv(tok, output_axi_aw_r);
@@ -871,7 +871,7 @@ proc ZstdDecoderTest {
                     let (tok, internal_output_memory, internal_output_memory_id, internal_transfered_bytes) =
                         for (axi_transfer, (tok, out_mem, out_mem_id, transf_bytes)):
                             (u32, (token, uN[TEST_AXI_DATA_W][TEST_MOCK_OUTPUT_RAM_SIZE], u32, u32))
-                             in range(u32:0, MAX_AXI_TRANSFERS) {
+                             in u32:0..MAX_AXI_TRANSFERS {
                         if (axi_transfer as u8 <= axi_aw.len) {
                             // Receive AXI burst beat transfers
                             let (tok, axi_w) = recv(tok, output_axi_w_r);
@@ -903,7 +903,7 @@ proc ZstdDecoderTest {
 
             assert_eq(final_transfered_bytes, DECOMPRESSED_BYTES);
             assert_eq(final_output_memory_id, decomp_frame.array_length);
-            for (memory_id, _): (u32, ()) in range(u32:0, decomp_frame.array_length) {
+            for (memory_id, _): (u32, ()) in u32:0..decomp_frame.array_length {
                 trace_fmt!("Comparing {} output packet: {:#x} ?= {:#x}", memory_id,  final_output_memory[memory_id], decomp_frame.data[memory_id]);
                 assert_eq(final_output_memory[memory_id], decomp_frame.data[memory_id]);
             }(());

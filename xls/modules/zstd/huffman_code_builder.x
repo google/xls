@@ -191,7 +191,7 @@ pub proc WeightCodeBuilder
         let meta_data = prescan_data.meta_data;
 
         // update seen weights
-        let seen_weights = for (i, weights) in range(u32:0, MAX_WEIGHT + u32:1) {
+        let seen_weights = for (i, weights) in u32:0..MAX_WEIGHT + u32:1 {
             update(weights, i, weights[i] | meta_data.valid_weights[i])
         }(state.seen_weights);
 
@@ -199,7 +199,7 @@ pub proc WeightCodeBuilder
         let do_send_loopback = (state.fsm == FSM::GATHER_WEIGHTS_RUN) && prescan_data_valid;
 
         let sum_of_weights_powers = if do_send_loopback {
-            for (i, acc) in range(u32:0, PARALLEL_ACCESS_WIDTH) {
+            for (i, acc) in u32:0..PARALLEL_ACCESS_WIDTH {
                 if (prescan_data.weights[i] != uN[WEIGHT_LOG]:0) {
                     acc + (uN[MAX_WEIGHT + u32:2]:1 << prescan_data.weights[i] as uN[MAX_WEIGHT + u32:2])
                 } else {
@@ -213,11 +213,11 @@ pub proc WeightCodeBuilder
         // compute the codes as in ZSTD, but incrementally
         // https://github.com/facebook/zstd/blob/f9a6031963dee08620855545bdad7d519c208e8a/doc/educational_decoder/zstd_decompress.c#L1938-L1946
         let huffman_base_codes = if do_send_loopback {
-            let base = for (i, huffman_base_codes) in range(u32:0, PARALLEL_ACCESS_WIDTH) {
+            let base = for (i, huffman_base_codes) in u32:0..PARALLEL_ACCESS_WIDTH {
                 let adder_weight = prescan_data.weights[i];
                 let increment = (u32:1 << (adder_weight as u32 - u32:1));
                 if adder_weight != uN[WEIGHT_LOG]:0 {
-                    for (weight, huffman_base_codes) in range(u32:0, MAX_WEIGHT + u32:1) {
+                    for (weight, huffman_base_codes) in u32:0..MAX_WEIGHT + u32:1 {
                         if weight as uN[WEIGHT_LOG] > adder_weight {
                             update(huffman_base_codes, weight, huffman_base_codes[weight] + increment as uN[MAX_WEIGHT])
                         } else {
@@ -258,13 +258,13 @@ pub proc WeightCodeBuilder
 
         let huffman_codes = match(state.fsm, advance_state) {
             (FSM::IDLE, _) => {
-                for (i, codes) in range(u32:0, MAX_WEIGHT + u32:1) {
+                for (i, codes) in u32:0..MAX_WEIGHT + u32:1 {
                     update(codes, i, uN[MAX_WEIGHT]:0)
                 }(zero!<uN[MAX_WEIGHT][MAX_WEIGHT + u32:1]>())
             },
             (FSM::GENERATE_CODES_RUN, _) => {
                 let weights_count = meta_data.weights_count;
-                for(i, codes) in range(u32:0, MAX_WEIGHT + u32:1) {
+                for(i, codes) in u32:0..MAX_WEIGHT + u32:1 {
                     update(codes, i, codes[i] + (weights_count[i] as uN[MAX_WEIGHT]))
                 }(state.huffman_codes)
             },
@@ -338,18 +338,18 @@ pub proc WeightCodeBuilder
         let tok = send_if(tok, lookahead_config_s, send_lookahead, lookahead_packet);
 
         // set symbol valid if weight is nonzero
-        let symbols_valid = for (i, symbol_valid) in range(u32:0, PARALLEL_ACCESS_WIDTH) {
+        let symbols_valid = for (i, symbol_valid) in u32:0..PARALLEL_ACCESS_WIDTH {
             update(symbol_valid, i, prescan_data.weights[i] != uN[WEIGHT_LOG]:0)
         }(zero!<u1[PARALLEL_ACCESS_WIDTH]>());
 
         // set symbol length as max_length - weight + 1
-        let codes_length = for (i, code_length) in range(u32:0, PARALLEL_ACCESS_WIDTH) {
+        let codes_length = for (i, code_length) in u32:0..PARALLEL_ACCESS_WIDTH {
             update(code_length, i, state.max_number_of_bits - prescan_data.weights[i] + uN[WEIGHT_LOG]:1)
         }(zero!<uN[WEIGHT_LOG][PARALLEL_ACCESS_WIDTH]>());
 
         // the computations below are equivalent to
         // https://github.com/facebook/zstd/blob/f9a6031963dee08620855545bdad7d519c208e8a/doc/educational_decoder/zstd_decompress.c#L1949-L1960
-        let codes = for (i, codes) in range(u32:0, PARALLEL_ACCESS_WIDTH) {
+        let codes = for (i, codes) in u32:0..PARALLEL_ACCESS_WIDTH {
             let current_weight = prescan_data.weights[i];
             let length = state.max_number_of_bits - current_weight + uN[WEIGHT_LOG]:1;
             let cardinality = state.huffman_codes[current_weight] + meta_data.occurance_number[i] as uN[MAX_WEIGHT];
@@ -416,8 +416,8 @@ pub proc WeightCodeBuilder
 ////        let tok = join();
 ////        let rand_state = random::rng_new(random::rng_deterministic_seed());
 ////        // Setup external memory with random values
-////        for (i, rand_state) in range(u32:0, MAX_SYMBOL_COUNT/PARALLEL_ACCESS_WIDTH) {
-////            let (new_rand_state, data_to_send) = for (j, (rand_state, data_to_send)) in range(u32:0, PARALLEL_ACCESS_WIDTH) {
+////        for (i, rand_state) in u32:0..MAX_SYMBOL_COUNT/PARALLEL_ACCESS_WIDTH {
+////            let (new_rand_state, data_to_send) = for (j, (rand_state, data_to_send)) in u32:0..PARALLEL_ACCESS_WIDTH {
 ////                let (new_rand_state, data) = random::rng_next(rand_state);
 ////                let weight = (data - (data/u32:12) * u32:12) as u4;
 ////                let new_data_to_send = update(data_to_send as uN[WEIGHT_LOG][PARALLEL_ACCESS_WIDTH], j, weight) as external_ram_data;
@@ -434,9 +434,9 @@ pub proc WeightCodeBuilder
 ////        }(rand_state);
 ////        send(tok, start_prescan, true);
 ////        // First run
-////        for (_, rand_state) in range(u32:0, MAX_SYMBOL_COUNT/PARALLEL_ACCESS_WIDTH) {
+////        for (_, rand_state) in u32:0..MAX_SYMBOL_COUNT/PARALLEL_ACCESS_WIDTH {
 ////            // Generate expected output
-////            let (new_rand_state, expected_data) = for (j, (rand_state, data_to_send)) in range(u32:0, PARALLEL_ACCESS_WIDTH) {
+////            let (new_rand_state, expected_data) = for (j, (rand_state, data_to_send)) in u32:0..PARALLEL_ACCESS_WIDTH {
 ////                let (new_rand_state, data) = random::rng_next(rand_state);
 ////                let weight = (data - (data/u32:12) * u32:12) as u4;
 ////                let new_data_to_send = update(data_to_send as uN[WEIGHT_LOG][PARALLEL_ACCESS_WIDTH], j, weight) as external_ram_data;
@@ -452,20 +452,20 @@ pub proc WeightCodeBuilder
 ////        }(rand_state);
 ////
 ////        // Second run
-////        for (_, rand_state) in range(u32:0, MAX_SYMBOL_COUNT/PARALLEL_ACCESS_WIDTH) {
+////        for (_, rand_state) in u32:0..MAX_SYMBOL_COUNT/PARALLEL_ACCESS_WIDTH {
 ////            // Generate expected output
-////            let (new_rand_state, expected_data) = for (j, (rand_state, data_to_send)) in range(u32:0, PARALLEL_ACCESS_WIDTH) {
+////            let (new_rand_state, expected_data) = for (j, (rand_state, data_to_send)) in u32:0..PARALLEL_ACCESS_WIDTH {
 ////                let (new_rand_state, data) = random::rng_next(rand_state);
 ////                let weight = (data - (data/u32:12) * u32:12) as u4;
 ////                let new_data_to_send = update(data_to_send as uN[WEIGHT_LOG][PARALLEL_ACCESS_WIDTH], j, weight) as external_ram_data;
 ////                (new_rand_state, new_data_to_send)
 ////            }((rand_state, zero!<external_ram_data>()));
 ////            let expected_data = expected_data as uN[WEIGHT_LOG][PARALLEL_ACCESS_WIDTH];
-////            let valid_weights = for (i, seen_weights) in range(u32:0, PARALLEL_ACCESS_WIDTH) {
+////            let valid_weights = for (i, seen_weights) in u32:0..PARALLEL_ACCESS_WIDTH {
 ////                update(seen_weights, expected_data[i], true)
 ////            }(zero!<u1[MAX_WEIGHT + u32:1]>());
-////            let occurance_number = for (i, occurance_number) in range(u32:0, PARALLEL_ACCESS_WIDTH) {
-////                let number = for (j, number) in range(u32:0, PARALLEL_ACCESS_WIDTH){
+////            let occurance_number = for (i, occurance_number) in u32:0..PARALLEL_ACCESS_WIDTH {
+////                let number = for (j, number) in u32:0..PARALLEL_ACCESS_WIDTH{
 ////                    if (j < i && expected_data[j] == expected_data[i]) {
 ////                        number + u4:1
 ////                    } else {
@@ -474,8 +474,8 @@ pub proc WeightCodeBuilder
 ////                }(zero!<uN[COUNTER_WIDTH]>());
 ////                update(occurance_number, i, number)
 ////            }(zero!<uN[COUNTER_WIDTH][PARALLEL_ACCESS_WIDTH]>());
-////            let weights_count = for (i, weights_count) in range(u32:0, MAX_WEIGHT + u32:1) {
-////                let count = for (j, count) in range(u32:0, PARALLEL_ACCESS_WIDTH) {
+////            let weights_count = for (i, weights_count) in u32:0..MAX_WEIGHT + u32:1 {
+////                let count = for (j, count) in u32:0..PARALLEL_ACCESS_WIDTH {
 ////                    if (expected_data[j] == i as uN[COUNTER_WIDTH]) {
 ////                        count + uN[COUNTER_WIDTH]:1
 ////                    } else {

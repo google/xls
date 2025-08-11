@@ -591,7 +591,7 @@ proc FseLookupDecoderTest {
     next(_: ()) {
         let tok = join();
 
-        let tok = unroll_for!(test_i, tok): (u32, token) in range(u32:0, array_size(COMP_LOOKUP_DECODER_TESTCASES)) {
+        let tok = unroll_for!(test_i, tok): (u32, token) in u32:0..array_size(COMP_LOOKUP_DECODER_TESTCASES) {
             let (input, output, req, exp_resp) = COMP_LOOKUP_DECODER_TESTCASES[test_i];
 
             trace_fmt!("Loading testcase {:x}", test_i);

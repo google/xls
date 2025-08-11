@@ -578,7 +578,7 @@ pub fn create_ram_wr_data<RAM_ADDR_WIDTH: u32, RAM_DATA_WIDTH: u32, RAM_NUM_PART
     (reqs: ram::WriteReq<RAM_ADDR_WIDTH, RAM_DATA_WIDTH, RAM_NUM_PARTITIONS>[RAM_NUM], ptr: HistoryBufferPtr) -> (bool, RamWrRespHandlerData) {
     const RAM_REQ_MASK_NONE = bits[RAM_NUM_PARTITIONS]:0;
 
-    let (do_write, resp) = for (i, (do_write, resp)): (u32, (bool, bool[RAM_NUM])) in range(u32:0, RAM_NUM) {
+    let (do_write, resp) = for (i, (do_write, resp)): (u32, (bool, bool[RAM_NUM])) in u32:0..RAM_NUM {
         (
             do_write || reqs[i].mask,
             update(resp, i, reqs[i].mask != RAM_REQ_MASK_NONE)
@@ -646,7 +646,7 @@ pub fn create_ram_rd_data<RAM_ADDR_WIDTH: u32, RAM_DATA_WIDTH: u32, RAM_NUM_PART
     (reqs: ram::ReadReq<RAM_ADDR_WIDTH, RAM_NUM_PARTITIONS>[RAM_NUM], read_start: RamReadStart, read_len: RamReadLen, last: bool, next_packet_valid: bool) -> (bool, RamRdRespHandlerData) {
     const RAM_REQ_MASK_NONE = bits[RAM_NUM_PARTITIONS]:0;
 
-    let (do_read, resp) = for (i, (do_read, resp)): (u32, (bool, bool[RAM_NUM])) in range(u32:0, RAM_NUM) {
+    let (do_read, resp) = for (i, (do_read, resp)): (u32, (bool, bool[RAM_NUM])) in u32:0..RAM_NUM {
         (
             do_read || reqs[i].mask,
             update(resp, i, reqs[i].mask != RAM_REQ_MASK_NONE)

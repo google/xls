@@ -2457,7 +2457,7 @@ proc SequenceDecoderTest {
         // FILL THE LL DEFAULT RAM
         let tok = send(tok, ll_sel_test_req_s, u1:0);
         let (tok, _) = recv(tok, ll_sel_test_resp_r);
-        let tok = unroll_for! (i, tok): (u32, token) in range(u32:0, array_size(DEFAULT_LL_TABLE)) {
+        let tok = unroll_for! (i, tok): (u32, token) in u32:0..array_size(DEFAULT_LL_TABLE) {
             let req = FseRamWrReq {
                 addr: i as FseAddr,
                 data: fse_table_creator::fse_record_to_bits(DEFAULT_LL_TABLE[i]),
@@ -2473,7 +2473,7 @@ proc SequenceDecoderTest {
         // FILL THE OF DEFAULT RAM
         let tok = send(tok, of_sel_test_req_s, u1:0);
         let (tok, _) = recv(tok, of_sel_test_resp_r);
-        let tok = unroll_for! (i, tok): (u32, token) in range(u32:0, array_size(DEFAULT_OF_TABLE)) {
+        let tok = unroll_for! (i, tok): (u32, token) in u32:0..array_size(DEFAULT_OF_TABLE) {
             let req = FseRamWrReq {
                 addr: i as FseAddr,
                 data: fse_table_creator::fse_record_to_bits(DEFAULT_OF_TABLE[i]),
@@ -2489,7 +2489,7 @@ proc SequenceDecoderTest {
         // FILL THE ML DEFAULT RAM
         let tok = send(tok, ml_sel_test_req_s, u1:0);
         let (tok, _) = recv(tok, ml_sel_test_resp_r);
-        let tok = unroll_for! (i, tok): (u32, token) in range(u32:0, array_size(DEFAULT_ML_TABLE)) {
+        let tok = unroll_for! (i, tok): (u32, token) in u32:0..array_size(DEFAULT_ML_TABLE) {
             let req = FseRamWrReq {
                 addr: i as FseAddr,
                 data: fse_table_creator::fse_record_to_bits(DEFAULT_ML_TABLE[i]),
@@ -2503,12 +2503,12 @@ proc SequenceDecoderTest {
         let (tok, _) = recv(tok, ml_sel_test_resp_r);
 
         // LOAD TESTCASES
-        let tok = unroll_for! (test_i, tok): (u32, token) in range(u32:0, array_size(SEQ_DEC_TESTCASES)) {
+        let tok = unroll_for! (test_i, tok): (u32, token) in u32:0..array_size(SEQ_DEC_TESTCASES) {
             let (seq_len, seq_data, expected_len, expected_data) = SEQ_DEC_TESTCASES[test_i];
             let ADDR_OFFSET = uN[TEST_AXI_ADDR_W]:0x10;
             let seq_len_words = std::ceil_div(seq_len + ADDR_OFFSET, u32:8);
             // FILL THE TEST DATA
-            let tok = for (i, tok): (u32, token) in range(u32:0, seq_len_words) {
+            let tok = for (i, tok): (u32, token) in u32:0..seq_len_words {
                 let req = InputRamWrReq {
                     addr: i as InputAddr,
                     data: seq_data[i] as InputData,
@@ -2524,7 +2524,7 @@ proc SequenceDecoderTest {
             }(tok);
 
             // COUNT THE AMOUNT OF LITERALS
-            let (tok, literals_count) = for (i, (tok, literals_count)): (u32, (token, u20)) in range(u32:0, expected_len) {
+            let (tok, literals_count) = for (i, (tok, literals_count)): (u32, (token, u20)) in u32:0..expected_len {
                 let literals_count = match expected_data[i].msg_type {
                     SequenceExecutorMessageType::SEQUENCE => literals_count,
                     SequenceExecutorMessageType::LITERAL => literals_count + expected_data[i].length as u20,
@@ -2543,7 +2543,7 @@ proc SequenceDecoderTest {
                 literals_count: literals_count,
             });
 
-            let tok = for (i, tok): (u32, token) in range(u32:0, expected_len) {
+            let tok = for (i, tok): (u32, token) in u32:0..expected_len {
                 let output = expected_data[i];
                 let (tok, recv_output) = recv(tok, fd_command_r);
                 trace_fmt!("[{}]: Expected: {:#x}\nGot: {:#x}\n", i, output, recv_output);
@@ -2571,7 +2571,7 @@ proc SequenceDecoderTest {
             });
 
             // Don't read the last output packet from the expected output array
-            let tok = for (i, tok): (u32, token) in range(u32:0, expected_len - u32:1) {
+            let tok = for (i, tok): (u32, token) in u32:0..expected_len - u32:1 {
                 let output = expected_data[i];
                 let (tok, recv_output) = recv(tok, fd_command_r);
                 trace_fmt!("[{}]: Expected: {:#x}\nGot: {:#x}\n", i, output, recv_output);

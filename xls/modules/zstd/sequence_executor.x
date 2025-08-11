@@ -786,7 +786,7 @@ const LITERAL_TEST_MEMORY_CONTENT:(TestRamAddr, RamData)[3][RAM_NUM] = [
 
 //     next(state: ()) {
 //         let tok = join();
-//         for (i, ()): (u32, ()) in range(u32:0, array_size(LITERAL_TEST_INPUT_DATA)) {
+//         for (i, ()): (u32, ()) in u32:0..array_size(LITERAL_TEST_INPUT_DATA) {
 //             let tok = send(tok, input_s, LITERAL_TEST_INPUT_DATA[i]);
 //             // Don't receive when there's an empty literals packet which is not last
 //             if (LITERAL_TEST_INPUT_DATA[i].msg_type != SequenceExecutorMessageType::LITERAL ||
@@ -798,8 +798,8 @@ const LITERAL_TEST_MEMORY_CONTENT:(TestRamAddr, RamData)[3][RAM_NUM] = [
 //             } else {}
 //         }(());
 
-//         for (i, ()): (u32, ()) in range(u32:0, RAM_NUM) {
-//             for (j, ()): (u32, ()) in range(u32:0, array_size(LITERAL_TEST_MEMORY_CONTENT[0])) {
+//         for (i, ()): (u32, ()) in u32:0..RAM_NUM {
+//             for (j, ()): (u32, ()) in u32:0..array_size(LITERAL_TEST_MEMORY_CONTENT[0]) {
 //                 let addr = LITERAL_TEST_MEMORY_CONTENT[i][j].0;
 //                 let tok = send(tok, ram_rd_req_s[i], TestReadReq { addr, mask: RAM_REQ_MASK_ALL });
 //                 let (tok, resp) = recv(tok, ram_rd_resp_r[i]);

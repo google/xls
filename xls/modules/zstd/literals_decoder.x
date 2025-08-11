@@ -547,7 +547,7 @@ proc LiteralsDecoderCtrl_test {
         ];
 
         // Test logic
-        let tok = for (i, tok): (u32, token) in range(u32:0, u32:6) {
+        let tok = for (i, tok): (u32, token) in u32:0..u32:6 {
             let lit_ctrl_req = lit_ctrl_reqs[i];
             let expected_lit_header_req = HeaderReq { addr: lit_ctrl_req.addr };
             let lit_header_resp = lit_header_resps[i];
@@ -2345,7 +2345,7 @@ proc LiteralsDecoder_test {
 //                 trace_fmt!("Sent #{} literals ctrl, {:#x}", i + u32:1, test_ctrl);
 //                 tok
 //             } else if (state == (i + u32:1) * CYCLES_PER_RAM_READ - u32:1) {
-//                 for (addr, tok): (u32, token) in range(u32:0, u32:10) {
+//                 for (addr, tok): (u32, token) in u32:0..u32:10 {
 //                     let read_req = TestReadReq {
 //                         addr: addr as uN[TEST_RAM_ADDR_WIDTH],
 //                         mask: u1:1

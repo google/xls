@@ -661,7 +661,7 @@ proc FseTableCreatorTest {
         let dist_arr_length = array_size(common::FSE_OFFSET_DEFAULT_DIST);
         let accuracy_log = AccuracyLog:5;
         // 1. Fill the DPD Ram with default probability distribution
-        let tok = for (idx, tok): (u32, token) in range(u32:0, dist_arr_length) {
+        let tok = for (idx, tok): (u32, token) in u32:0..dist_arr_length {
             let tok = send(
                 tok, dpd_wr_req_s,
                 DpdRamWriteReq {
@@ -684,7 +684,7 @@ proc FseTableCreatorTest {
         // 4. Read FSE Ram and verify values
         // (https://datatracker.ietf.org/doc/html/rfc8878#section-appendix.a)
         let code_length = u16:1 << accuracy_log;
-        let tok = for (idx, tok): (u16, token) in range(u16:0, code_length) {
+        let tok = for (idx, tok): (u16, token) in u16:0..code_length {
             let tok = send(tok, fse_rd_req_s,
                 FseRamReadReq {
                     addr: checked_cast<uN[TEST_FSE_RAM_ADDR_WIDTH]>(idx),

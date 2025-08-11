@@ -75,7 +75,7 @@ pub proc RleLiteralsDecoder<DATA_W: u32> {
 
         let last = req.length <= MAX_LEN;
         let length = if last { req.length } else { MAX_LEN };
-        let data = unroll_for! (i, data): (u32, uN[DATA_W]) in range(u32:0, MAX_OUTPUT_SYMBOLS) {
+        let data = unroll_for! (i, data): (u32, uN[DATA_W]) in u32:0..MAX_OUTPUT_SYMBOLS {
             bit_slice_update(data, i * u32:8, req.symbol)
         }(uN[DATA_W]:0);
 

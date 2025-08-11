@@ -99,7 +99,7 @@ pub proc AxiCsrAccessor<
         let data_w = if axi_w_valid {
             trace_fmt!("[CSR ACCESSOR] received csr write at {:#x}", axi_w);
 
-            let (w_data, _, _) = for (i, (w_data, strb, mask)): (u32, (uN[DATA_W], uN[DATA_W_DIV8], uN[DATA_W])) in range(u32:0, DATA_W_DIV8) {
+            let (w_data, _, _) = for (i, (w_data, strb, mask)): (u32, (uN[DATA_W], uN[DATA_W_DIV8], uN[DATA_W])) in u32:0..DATA_W_DIV8 {
                 let w_data = if axi_w.strb as u1 {
                     w_data | (axi_w.data & mask)
                 } else {

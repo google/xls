@@ -183,7 +183,7 @@ pub proc HuffmanDataPreprocessor {
             let (data_bits, data_bits_len) = if state.first {
                 let data_bits = data.data;
 
-                let (prefix_len, _) = for (i, (prefix_len, stop)): (u32, (u4, bool)) in range(u32:0, MAX_PREFIX_LEN as u32) {
+                let (prefix_len, _) = for (i, (prefix_len, stop)): (u32, (u4, bool)) in u32:0..MAX_PREFIX_LEN as u32 {
                     if stop || (data_bits >> i) as u1 {
                         (
                             prefix_len,
@@ -386,7 +386,7 @@ proc HuffmanDataPreprocessor_test {
                 (tok, cfg_idx + u32:1)
             } else { (tok, cfg_idx) };
 
-            let (tok, data_idx, _) = for (_, (tok, data_idx, do_send)) in range(u32:0, hcommon::MAX_CODE_LEN) {
+            let (tok, data_idx, _) = for (_, (tok, data_idx, do_send)) in u32:0..hcommon::MAX_CODE_LEN {
                 if data_idx < array_size(TEST_DATA) {
                     let data = TEST_DATA[data_idx];
 

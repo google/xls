@@ -1795,7 +1795,7 @@ proc CompLookupDecoderTest {
         // This has to be outside of unroll_for!, otherwise typechecker reports type mismatch on identical types
         let req_start = Req {};
 
-        let tok = unroll_for!(test_i, tok): (u32, token) in range(u32:0, array_size(COMP_LOOKUP_DECODER_TESTCASES)) {
+        let tok = unroll_for!(test_i, tok): (u32, token) in u32:0..array_size(COMP_LOOKUP_DECODER_TESTCASES) {
             let (input, output, resp_ok) = COMP_LOOKUP_DECODER_TESTCASES[test_i];
 
             trace_fmt!("Loading testcase {:x}", test_i);

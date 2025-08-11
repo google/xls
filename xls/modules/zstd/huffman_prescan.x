@@ -299,8 +299,8 @@ pub proc WeightPreScan
             trace_fmt!("[WeightPreScan] Sent output {:#x}", prescan_output);
         } else {};
 
-        let occurance_matrix = for (i, occurance_matrix) in range(u32:0, PARALLEL_ACCESS_WIDTH) {
-            let row = for (j, row) in range(u32:0, MAX_WEIGHT + u32:1) {
+        let occurance_matrix = for (i, occurance_matrix) in u32:0..PARALLEL_ACCESS_WIDTH {
+            let row = for (j, row) in u32:0..MAX_WEIGHT + u32:1 {
                 if (ram_data[i] == j as uN[COUNTER_WIDTH]) {
                     update(row, j, row[j] + uN[COUNTER_WIDTH]:1)
                 } else { row }
@@ -308,13 +308,13 @@ pub proc WeightPreScan
             update(occurance_matrix, i + u32:1, row)
         }(zero!<uN[COUNTER_WIDTH][MAX_WEIGHT + u32:1][PARALLEL_ACCESS_WIDTH + u32:1]>());
 
-        let valid_weights = for(i, valid_weights) in range(u32:0, MAX_WEIGHT + u32:1) {
+        let valid_weights = for(i, valid_weights) in u32:0..MAX_WEIGHT + u32:1 {
             if (occurance_matrix[PARALLEL_ACCESS_WIDTH][i] != uN[COUNTER_WIDTH]:0) {
                 update(valid_weights, i, true)
             } else { valid_weights }
         }(zero!<u1[MAX_WEIGHT + u32:1]>());
 
-        let occurance_number = for (i, occurance_number) in range(u32:0, PARALLEL_ACCESS_WIDTH) {
+        let occurance_number = for (i, occurance_number) in u32:0..PARALLEL_ACCESS_WIDTH {
             let number = occurance_matrix[i][ram_data[i]];
             update(occurance_number, i, number)
         }(zero!<uN[COUNTER_WIDTH][PARALLEL_ACCESS_WIDTH]>());
@@ -394,8 +394,8 @@ proc Prescan_test{
         let tok = join();
         let rand_state = random::rng_new(random::rng_deterministic_seed());
         // Setup external memory with random values
-        for (i, rand_state) in range(u32:0, MAX_SYMBOL_COUNT/PARALLEL_ACCESS_WIDTH) {
-            let (new_rand_state, data_to_send) = for (j, (rand_state, data_to_send)) in range(u32:0, PARALLEL_ACCESS_WIDTH) {
+        for (i, rand_state) in u32:0..MAX_SYMBOL_COUNT/PARALLEL_ACCESS_WIDTH {
+            let (new_rand_state, data_to_send) = for (j, (rand_state, data_to_send)) in u32:0..PARALLEL_ACCESS_WIDTH {
                 let (new_rand_state, data) = random::rng_next(rand_state);
                 let weight = (data - (data/u32:12) * u32:12) as u4;
                 let new_data_to_send = update(data_to_send as uN[WEIGHT_LOG][PARALLEL_ACCESS_WIDTH], j, weight) as external_ram_data;
@@ -412,9 +412,9 @@ proc Prescan_test{
         }(rand_state);
         send(tok, start_prescan, true);
         // First run
-        for (_, rand_state) in range(u32:0, MAX_SYMBOL_COUNT/PARALLEL_ACCESS_WIDTH) {
+        for (_, rand_state) in u32:0..MAX_SYMBOL_COUNT/PARALLEL_ACCESS_WIDTH {
             // Generate expected output
-            let (new_rand_state, expected_data) = for (j, (rand_state, data_to_send)) in range(u32:0, PARALLEL_ACCESS_WIDTH) {
+            let (new_rand_state, expected_data) = for (j, (rand_state, data_to_send)) in u32:0..PARALLEL_ACCESS_WIDTH {
                 let (new_rand_state, data) = random::rng_next(rand_state);
                 let weight = (data - (data/u32:12) * u32:12) as u4;
                 let new_data_to_send = update(data_to_send as uN[WEIGHT_LOG][PARALLEL_ACCESS_WIDTH], j, weight) as external_ram_data;
@@ -430,20 +430,20 @@ proc Prescan_test{
         }(rand_state);
 
         // Second run
-        for (_, rand_state) in range(u32:0, MAX_SYMBOL_COUNT/PARALLEL_ACCESS_WIDTH) {
+        for (_, rand_state) in u32:0..MAX_SYMBOL_COUNT/PARALLEL_ACCESS_WIDTH {
             // Generate expected output
-            let (new_rand_state, expected_data) = for (j, (rand_state, data_to_send)) in range(u32:0, PARALLEL_ACCESS_WIDTH) {
+            let (new_rand_state, expected_data) = for (j, (rand_state, data_to_send)) in u32:0..PARALLEL_ACCESS_WIDTH {
                 let (new_rand_state, data) = random::rng_next(rand_state);
                 let weight = (data - (data/u32:12) * u32:12) as u4;
                 let new_data_to_send = update(data_to_send as uN[WEIGHT_LOG][PARALLEL_ACCESS_WIDTH], j, weight) as external_ram_data;
                 (new_rand_state, new_data_to_send)
             }((rand_state, zero!<external_ram_data>()));
             let expected_data = expected_data as uN[WEIGHT_LOG][PARALLEL_ACCESS_WIDTH];
-            let valid_weights = for (i, seen_weights) in range(u32:0, PARALLEL_ACCESS_WIDTH) {
+            let valid_weights = for (i, seen_weights) in u32:0..PARALLEL_ACCESS_WIDTH {
                 update(seen_weights, expected_data[i], true)
             }(zero!<u1[MAX_WEIGHT + u32:1]>());
-            let occurance_number = for (i, occurance_number) in range(u32:0, PARALLEL_ACCESS_WIDTH) {
-                let number = for (j, number) in range(u32:0, PARALLEL_ACCESS_WIDTH){
+            let occurance_number = for (i, occurance_number) in u32:0..PARALLEL_ACCESS_WIDTH {
+                let number = for (j, number) in u32:0..PARALLEL_ACCESS_WIDTH{
                     if (j < i && expected_data[j] == expected_data[i]) {
                         number + u4:1
                     } else {
@@ -452,8 +452,8 @@ proc Prescan_test{
                 }(zero!<uN[COUNTER_WIDTH]>());
                 update(occurance_number, i, number)
             }(zero!<uN[COUNTER_WIDTH][PARALLEL_ACCESS_WIDTH]>());
-            let weights_count = for (i, weights_count) in range(u32:0, MAX_WEIGHT + u32:1) {
-                let count = for (j, count) in range(u32:0, PARALLEL_ACCESS_WIDTH) {
+            let weights_count = for (i, weights_count) in u32:0..MAX_WEIGHT + u32:1 {
+                let count = for (j, count) in u32:0..PARALLEL_ACCESS_WIDTH {
                     if (expected_data[j] == i as uN[COUNTER_WIDTH]) {
                         count + uN[COUNTER_WIDTH]:1
                     } else {

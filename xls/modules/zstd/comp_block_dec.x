@@ -1326,7 +1326,7 @@ proc CompressBlockDecoderTest {
         let (axi_ram_wr_resp_s, axi_ram_wr_resp_r) = chan<TestcaseRamWrResp>[AXI_CHAN_N]("axi_ram_wr_resp");
         let (axi_ram_ar_s, axi_ram_ar_r) = chan<MemAxiAr>[AXI_CHAN_N]("axi_ram_ar");
         let (axi_ram_r_s, axi_ram_r_r) = chan<MemAxiR>[AXI_CHAN_N]("axi_ram_r");
-        unroll_for! (i, ()): (u32, ()) in range(u32:0, AXI_CHAN_N) {
+        unroll_for! (i, ()): (u32, ()) in u32:0..AXI_CHAN_N {
             spawn ram::RamModel<
                 TEST_CASE_RAM_DATA_W, TEST_CASE_RAM_SIZE, TEST_CASE_RAM_WORD_PARTITION_SIZE,
                 TEST_RAM_SIM_RW_BEHAVIOR, TEST_RAM_INITIALIZED
@@ -1346,7 +1346,7 @@ proc CompressBlockDecoderTest {
         let (litbuf_rd_resp_s, litbuf_rd_resp_r) = chan<LitBufRamRdResp>[u32:8]("litbuf_rd_resp");
         let (litbuf_wr_req_s,  litbuf_wr_req_r) = chan<LitBufRamWrReq>[u32:8]("litbuf_wr_req");
         let (litbuf_wr_resp_s, litbuf_wr_resp_r) = chan<LitBufRamWrResp>[u32:8]("litbuf_wr_resp");
-        unroll_for! (i, ()): (u32, ()) in range(u32:0, u32:8) {
+        unroll_for! (i, ()): (u32, ()) in u32:0..u32:8 {
             spawn ram::RamModel<
                 TEST_LITERALS_BUFFER_RAM_DATA_W, TEST_LITERALS_BUFFER_RAM_SIZE, TEST_LITERALS_BUFFER_RAM_WORD_PARTITION_SIZE,
                 TEST_RAM_SIM_RW_BEHAVIOR, TEST_RAM_INITIALIZED
@@ -1395,7 +1395,7 @@ proc CompressBlockDecoderTest {
         let (fse_rd_resp_s, fse_rd_resp_r) = chan<SeqFseRamRdResp>[u32:6]("tmp_rd_resp");
         let (fse_wr_req_s, fse_wr_req_r) = chan<SeqFseRamWrReq>[u32:6]("tmp_wr_req");
         let (fse_wr_resp_s, fse_wr_resp_r) = chan<SeqFseRamWrResp>[u32:6]("tmp_wr_resp");
-        unroll_for! (i, ()): (u32, ()) in range(u32:0, u32:6) {
+        unroll_for! (i, ()): (u32, ()) in u32:0..u32:6 {
             spawn ram::RamModel<
                 TEST_SEQ_FSE_RAM_DATA_W, TEST_SEQ_FSE_RAM_SIZE, TEST_SEQ_FSE_RAM_WORD_PARTITION_SIZE,
                 TEST_RAM_SIM_RW_BEHAVIOR, TEST_RAM_INITIALIZED
@@ -1556,7 +1556,7 @@ proc CompressBlockDecoderTest {
         trace_fmt!("Filling LL default FSE table");
         let tok = send(tok, ll_sel_test_req_s, u1:0);
         let (tok, _) = recv(tok, ll_sel_test_resp_r);
-        let tok = unroll_for! (i, tok): (u32, token) in range(u32:0, array_size(sequence_dec::DEFAULT_LL_TABLE)) {
+        let tok = unroll_for! (i, tok): (u32, token) in u32:0..array_size(sequence_dec::DEFAULT_LL_TABLE) {
             let req = SeqFseRamWrReq {
                 addr: i as uN[TEST_SEQ_FSE_RAM_ADDR_W],
                 data: fse_table_creator::fse_record_to_bits(sequence_dec::DEFAULT_LL_TABLE[i]),
@@ -1573,7 +1573,7 @@ proc CompressBlockDecoderTest {
         trace_fmt!("Filling OF default FSE table");
         let tok = send(tok, of_sel_test_req_s, u1:0);
         let (tok, _) = recv(tok, of_sel_test_resp_r);
-        let tok = unroll_for! (i, tok): (u32, token) in range(u32:0, array_size(sequence_dec::DEFAULT_OF_TABLE)) {
+        let tok = unroll_for! (i, tok): (u32, token) in u32:0..array_size(sequence_dec::DEFAULT_OF_TABLE) {
             let req = SeqFseRamWrReq {
                 addr: i as uN[TEST_SEQ_FSE_RAM_ADDR_W],
                 data: fse_table_creator::fse_record_to_bits(sequence_dec::DEFAULT_OF_TABLE[i]),
@@ -1590,7 +1590,7 @@ proc CompressBlockDecoderTest {
         trace_fmt!("Filling ML default FSE table");
         let tok = send(tok, ml_sel_test_req_s, u1:0);
         let (tok, _) = recv(tok, ml_sel_test_resp_r);
-        let tok = unroll_for! (i, tok): (u32, token) in range(u32:0, array_size(sequence_dec::DEFAULT_ML_TABLE)) {
+        let tok = unroll_for! (i, tok): (u32, token) in u32:0..array_size(sequence_dec::DEFAULT_ML_TABLE) {
             let req = SeqFseRamWrReq {
                 addr: i as uN[TEST_SEQ_FSE_RAM_ADDR_W],
                 data: fse_table_creator::fse_record_to_bits(sequence_dec::DEFAULT_ML_TABLE[i]),
@@ -1615,7 +1615,7 @@ proc CompressBlockDecoderTest {
                     mask: !uN[TEST_CASE_RAM_NUM_PARTITIONS]:0
                 };
                 // Write to all RAMs
-                let tok = unroll_for! (j, tok): (u32, token) in range(u32:0, AXI_CHAN_N) {
+                let tok = unroll_for! (j, tok): (u32, token) in u32:0..AXI_CHAN_N {
                     let tok = send(tok, axi_ram_wr_req_s[j], req);
                     let (tok, _) = recv(tok, axi_ram_wr_resp_r[j]);
                     tok
@@ -1635,7 +1635,7 @@ proc CompressBlockDecoderTest {
             trace_fmt!("Sending request to compressed block decoder: {}", req);
             let tok = send(tok, req_s, req);
 
-            let tok = for (i, tok): (u32, token) in range(u32:0, output_length) {
+            let tok = for (i, tok): (u32, token) in u32:0..output_length {
                 let expected_packet = output[i];
                 let (tok, recvd_packet) = recv(tok, cmd_constr_out_r);
                 trace_fmt!("Received {} command constructor packet: {:#x}", i, recvd_packet);
