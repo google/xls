@@ -21,6 +21,7 @@
 // * ZSTD library uses a single buffer for storing both the transforms and symbol encodings where each half of the buffer serves different purpose, we split that to two
 // * This file contains an implementation of a SequenceEncoderBuffer for writing bitstreams, it's quite generic and can be used for other procs
 // * The biggest offset was assumed to fit in 16-bits
+// * this assumes DATA_W <= WIDER_BUS_DATA_W
 
 import std;
 
@@ -34,6 +35,9 @@ import xls.modules.zstd.memory.mem_writer;
 import xls.modules.zstd.mem_writer_simple_arbiter;
 import xls.modules.zstd.mem_reader_simple_arbiter;
 import xls.modules.zstd.sequence_conf_enc;
+import xls.modules.zstd.memory.mem_reader_data_upscaler;
+
+const WIDER_BUS_DATA_W = u32:64;
 
 
 fn highbit(val: u32) -> u32 {
@@ -120,10 +124,10 @@ const ML_CODE_TO_LEN = u5[53]: [
     u5:12, u5:13, u5:14, u5:15, u5:16
 ];
 
-const SEQUENCE_RECORD_W = u32:48;
+pub const SEQUENCE_RECORD_W = u32:48;
 const SEQUENCE_RECORD_B = SEQUENCE_RECORD_W / u32:8;
 
-struct Sequence {
+pub struct Sequence {
     literals_len: u16,
     offset: u16,
     match_len: u16
@@ -142,19 +146,20 @@ fn get_sequence_addr<ADDR_W: u32>(base: uN[ADDR_W], count: u17, iter: uN[ADDR_W]
     base + incr * SEQUENCE_RECORD_B as uN[ADDR_W]
 }
 
-enum SequenceEncoderStatus: u1 {
+pub enum SequenceEncoderStatus: u1 {
     OK = 0,
     ERROR = 1,
 }
 
-struct SequenceEncoderReq<ADDR_W: u32> {
+pub struct SequenceEncoderReq<ADDR_W: u32> {
     addr: uN[ADDR_W],
     seq_addr: uN[ADDR_W],
     seq_cnt: u17,
 }
 
-struct SequenceEncoderResp<ADDR_W: u32> {
+pub struct SequenceEncoderResp<ADDR_W: u32> {
     status: SequenceEncoderStatus,
+    length: uN[ADDR_W]
 }
 
 struct CStatePtr<ADDR_W: u32> {
@@ -174,6 +179,7 @@ struct SequenceEncoderState<ADDR_W: u32, RAM_ADDR_W: u32> {
     ll_value: u16,
     ml_value: u16,
     of_value: u16,
+    bytes_written: uN[ADDR_W]
 }
 
 fn deserialize_sequence(data: uN[SEQUENCE_RECORD_W]) -> Sequence {
@@ -184,7 +190,7 @@ fn deserialize_sequence(data: uN[SEQUENCE_RECORD_W]) -> Sequence {
     }
 }
 
-fn serialize_sequence(seq: Sequence) -> uN[SEQUENCE_RECORD_W] {
+pub fn serialize_sequence(seq: Sequence) -> uN[SEQUENCE_RECORD_W] {
     seq.literals_len ++ seq.offset ++ seq.match_len
 }
 
@@ -193,7 +199,7 @@ struct Delta {
     nb_bits: u32
 }
 
-fn serialize_tt<RAM_DATA_W: u32>(delta: Delta) -> uN[RAM_DATA_W] {
+pub fn serialize_tt<RAM_DATA_W: u32>(delta: Delta) -> uN[RAM_DATA_W] {
     delta.find_state ++ delta.nb_bits
 }
 
@@ -226,8 +232,8 @@ fn add_bits<BUFF_W: u32, BUFF_SIZE_W: u32>(buff: uN[BUFF_W], value:  uN[BUFF_W],
 }
 
 // generated with ZSTD: FSE_buildCTable_wksp(CTable_OffsetBits, OF_defaultNorm, DefaultMaxOff, OF_defaultNormLog, scratchBuffer, sizeof(scratchBuffer));
-const OF_DEFAULT_CTABLE=u16[16]:[0x20,0x37,0x2e,0x25,0x33,0x2a,0x21,0x38,0x26,0x2f,0x2b,0x34,0x22,0x39,0x30,0x27,];
-const OF_DEFAULT_TTABLE=Delta[16]:[
+pub const OF_DEFAULT_CTABLE=u16[16]:[0x20,0x37,0x2e,0x25,0x33,0x2a,0x21,0x38,0x26,0x2f,0x2b,0x34,0x22,0x39,0x30,0x27,];
+pub const OF_DEFAULT_TTABLE=Delta[16]:[
 	Delta { find_state: u32:0xffffffff, nb_bits: u32:0x4ffe0 },
 	Delta { find_state: u32:0x0, nb_bits: u32:0x4ffe0 },
 	Delta { find_state: u32:0x1, nb_bits: u32:0x4ffe0 },
@@ -247,8 +253,8 @@ const OF_DEFAULT_TTABLE=Delta[16]:[
 ];
 
 // generated with ZSTD: FSE_buildCTable_wksp(CTable_LitLength, LL_defaultNorm, MaxLL, LL_defaultNormLog, scratchBuffer, sizeof(scratchBuffer));
-const LL_DEFAULT_CTABLE=u16[32]:[0x40,0x41,0x56,0x6b,0x42,0x57,0x6c,0x58,0x6d,0x43,0x6e,0x44,0x59,0x5a,0x6f,0x45,0x70,0x46,0x5b,0x5c,0x71,0x47,0x72,0x48,0x5d,0x5e,0x73,0x49,0x74,0x5f,0x4a,0x75,];
-const LL_DEFAULT_TTABLE=Delta[32]:[
+pub const LL_DEFAULT_CTABLE=u16[32]:[0x40,0x41,0x56,0x6b,0x42,0x57,0x6c,0x58,0x6d,0x43,0x6e,0x44,0x59,0x5a,0x6f,0x45,0x70,0x46,0x5b,0x5c,0x71,0x47,0x72,0x48,0x5d,0x5e,0x73,0x49,0x74,0x5f,0x4a,0x75,];
+pub const LL_DEFAULT_TTABLE=Delta[32]:[
 	Delta { find_state: u32:0xfffffffc, nb_bits: u32:0x4ff80 },
 	Delta { find_state: u32:0x1, nb_bits: u32:0x4ffa0 },
 	Delta { find_state: u32:0x5, nb_bits: u32:0x5ff80 },
@@ -284,8 +290,8 @@ const LL_DEFAULT_TTABLE=Delta[32]:[
 ];
 
 // generated with ZSTD: FSE_buildCTable_wksp(CTable_MatchLength, ML_defaultNorm, MaxML, ML_defaultNormLog, scratchBuffer, sizeof(scratchBuffer));
-const ML_DEFAULT_CTABLE=u16[32]:[0x40,0x41,0x56,0x6b,0x6c,0x42,0x57,0x6d,0x43,0x58,0x59,0x6e,0x44,0x6f,0x45,0x5a,0x5b,0x70,0x46,0x71,0x5c,0x47,0x72,0x5d,0x48,0x73,0x5e,0x49,0x74,0x5f,0x4a,0x75,];
-const ML_DEFAULT_TTABLE=Delta[32]:[
+pub const ML_DEFAULT_CTABLE=u16[32]:[0x40,0x41,0x56,0x6b,0x6c,0x42,0x57,0x6d,0x43,0x58,0x59,0x6e,0x44,0x6f,0x45,0x5a,0x5b,0x70,0x46,0x71,0x5c,0x47,0x72,0x5d,0x48,0x73,0x5e,0x49,0x74,0x5f,0x4a,0x75,];
+pub const ML_DEFAULT_TTABLE=Delta[32]:[
 	Delta { find_state: u32:0xffffffff, nb_bits: u32:0x5ffc0 },
 	Delta { find_state: u32:0xfffffffd, nb_bits: u32:0x4ff80 },
 	Delta { find_state: u32:0x2, nb_bits: u32:0x4ffa0 },
@@ -326,6 +332,7 @@ struct SequenceEncoderBufferState<ADDR_W: u32, BUFF_W: u32, BUFF_SIZE_W: u32> {
     addr: uN[ADDR_W],
     buffer: uN[BUFF_W],
     buffer_size: uN[BUFF_SIZE_W],
+    bytes_written: uN[ADDR_W]
 }
 
 type SequenceEncoderBufferInstr = u4;
@@ -343,7 +350,11 @@ struct SequenceEncoderBufferReq<ADDR_W: u32, BUFF_W: u32, BUFF_SIZE_W: u32> {
     instr: SequenceEncoderBufferInstr,
     write_data: uN[BUFF_W],
     write_data_size: uN[BUFF_SIZE_W],
-    addr: uN[ADDR_W]
+    addr: uN[ADDR_W],
+}
+
+struct SequenceEncoderBufferSync<ADDR_W: u32> {
+    bytes_written: uN[ADDR_W]
 }
 
 proc SequenceEncoderBuffer<
@@ -352,7 +363,7 @@ proc SequenceEncoderBuffer<
 > {
     type State = SequenceEncoderBufferState<ADDR_W, BUFF_W, BUFF_SIZE_W>;
     type Req = SequenceEncoderBufferReq<ADDR_W, BUFF_W, BUFF_SIZE_W>;
-    type Sync = ();
+    type Sync = SequenceEncoderBufferSync<ADDR_W>;
 
     type MemWriterReq = mem_writer::MemWriterReq<ADDR_W>;
     type MemWriterData = mem_writer::MemWriterDataPacket<DATA_W, ADDR_W>;
@@ -382,6 +393,7 @@ proc SequenceEncoderBuffer<
 
     next(state: State) {
         type BuffSize = uN[BUFF_SIZE_W];
+        type Addr = uN[ADDR_W];
         const DATA_B = DATA_W / u32:8;
         const MINIMAL_SLACK = BuffSize:16 * BuffSize:6; // it's the max packet width the buffer can get from the encoder
         let tok = join();
@@ -419,7 +431,7 @@ proc SequenceEncoderBuffer<
                 trace_fmt!("[SequenceEncoderBuffer] Flushing {} B to {:#x}", length, addr);
                 addr + length
             } else {
-                let tok = send(tok, sync_s, ());
+                let tok = send(tok, sync_s, Sync { bytes_written: Addr:0 });
                 addr
             };
 
@@ -428,7 +440,8 @@ proc SequenceEncoderBuffer<
                 pad: is_command(req.instr, PAD),
                 addr: addr,
                 buffer: buffer,
-                buffer_size: next_size
+                buffer_size: next_size,
+                bytes_written: Addr:0
             }
         } else if state.buffer_size < DATA_W as BuffSize && state.pad {
             let to_write = state.buffer[s32:0:DATA_W as s32];
@@ -443,19 +456,22 @@ proc SequenceEncoderBuffer<
                 last: true
             });
             let (tok, _) = recv(tok, mem_wr_resp_r);
-            let tok = send(tok, sync_s, ());
+            let tok = send(tok, sync_s, Sync { bytes_written: length + state.bytes_written });
 
             State {
                 flushing: false,
                 buffer: zero!<uN[BUFF_W]>(),
                 buffer_size: BuffSize:0,
+                bytes_written: Addr:0,
                 ..state
             }
         }  else if state.buffer_size < DATA_W as BuffSize {
             let (tok, _) = recv(tok, mem_wr_resp_r);
-            let tok = send(tok, sync_s, ());
+
+            let tok = send(tok, sync_s, Sync { bytes_written: state.bytes_written });
 
             State {
+                bytes_written: Addr:0,
                 flushing: false,
                 ..state
             }
@@ -471,13 +487,14 @@ proc SequenceEncoderBuffer<
             State {
                 buffer: state.buffer >> DATA_W,
                 buffer_size: state.buffer_size - DATA_W as BuffSize,
+                bytes_written: state.bytes_written + DATA_B,
                 ..state
             }
         }
     }
 }
 
-proc SequenceEncoder<
+pub proc SequenceEncoder<
     ADDR_W: u32, DATA_W: u32, RAM_ADDR_W: u32,
     CTABLE_RAM_DATA_W: u32, CTABLE_RAM_NUM_PARTITIONS: u32,
     TTABLE_RAM_DATA_W: u32, TTABLE_RAM_NUM_PARTITIONS: u32,
@@ -492,7 +509,7 @@ proc SequenceEncoder<
     type HeaderResp = sequence_conf_enc::SequenceSectionHeaderWriterResp;
     type HeaderStatus = sequence_conf_enc::SequenceSectionHeaderWriterStatus;
     type BufferReq = SequenceEncoderBufferReq<ADDR_W, BUFF_W, BUFF_SIZE_W>;
-    type BufferSync = ();
+    type BufferSync = SequenceEncoderBufferSync<ADDR_W>;
     type CompressionMode = common::CompressionMode;
 
     type CTableRamRdReq = ram::ReadReq<RAM_ADDR_W, CTABLE_RAM_NUM_PARTITIONS>;
@@ -502,6 +519,8 @@ proc SequenceEncoder<
 
     type MemReaderReq = mem_reader::MemReaderReq<ADDR_W>;
     type MemReaderResp = mem_reader::MemReaderResp<DATA_W, ADDR_W>;
+    type WiderMemReaderResp = mem_reader::MemReaderResp<WIDER_BUS_DATA_W, ADDR_W>;
+
     type MemReaderStatus = mem_reader::MemReaderStatus;
 
     type MemWriterReq = mem_writer::MemWriterReq<ADDR_W>;
@@ -521,7 +540,7 @@ proc SequenceEncoder<
     sb_sync_r: chan<BufferSync> in;
 
     mem_rd_req_s: chan<MemReaderReq> out;
-    mem_rd_resp_r: chan<MemReaderResp> in;
+    mem_rd_resp_r: chan<WiderMemReaderResp> in;
 
     ml_ctable_buf_req_s: chan<CTableRamRdReq> out;
     ml_ctable_buf_resp_r: chan<CTableRamRdResp> in;
@@ -561,13 +580,20 @@ proc SequenceEncoder<
         of_ttable_buf_req_s: chan<TTableRamRdReq> out,
         of_ttable_buf_resp_r: chan<TTableRamRdResp> in
     ) {
-        let (sh_req_s, sh_req_r) = chan<HeaderReq>("sh_req");
-        let (sh_resp_s, sh_resp_r) = chan<HeaderResp>("sh_resp");
-        let (sb_req_s, sb_req_r) = chan<BufferReq>("sb_req");
-        let (sb_sync_s, sb_sync_r) = chan<BufferSync>("sb_sync");
-        let (n_mem_wr_req_s, n_mem_wr_req_r) = chan<MemWriterReq>[u32:2]("n_mem_wr_req");
-        let (n_mem_wr_data_s, n_mem_wr_data_r) = chan<MemWriterData>[u32:2]("n_mem_wr_data");
-        let (n_mem_wr_resp_s, n_mem_wr_resp_r) = chan<MemWriterResp>[u32:2]("n_mem_wr_resp");
+        let (sh_req_s, sh_req_r) = chan<HeaderReq, u32:1>("sh_req");
+        let (sh_resp_s, sh_resp_r) = chan<HeaderResp, u32:1>("sh_resp");
+        let (sb_req_s, sb_req_r) = chan<BufferReq, u32:1>("sb_req");
+        let (sb_sync_s, sb_sync_r) = chan<BufferSync, u32:1>("sb_sync");
+        let (n_mem_wr_req_s, n_mem_wr_req_r) = chan<MemWriterReq, u32:1>[u32:2]("n_mem_wr_req");
+        let (n_mem_wr_data_s, n_mem_wr_data_r) = chan<MemWriterData, u32:1>[u32:2]("n_mem_wr_data");
+        let (n_mem_wr_resp_s, n_mem_wr_resp_r) = chan<MemWriterResp, u32:1>[u32:2]("n_mem_wr_resp");
+        let (wider_mem_rd_resp_s, wider_mem_rd_resp_r) = chan<WiderMemReaderResp, u32:1>("wider_mem_rd_resp");
+
+
+        spawn mem_reader_data_upscaler::MemReaderDataUpscaler<ADDR_W, DATA_W, WIDER_BUS_DATA_W> (
+            mem_rd_resp_r, wider_mem_rd_resp_s
+        );
+
 
         spawn mem_writer_simple_arbiter::MemWriterSimpleArbiter<ADDR_W, DATA_W, u32:2> (
             n_mem_wr_req_r, n_mem_wr_data_r, n_mem_wr_resp_s,
@@ -590,7 +616,7 @@ proc SequenceEncoder<
             req_r, resp_s,
             sh_req_s, sh_resp_r,
             sb_req_s, sb_sync_r,
-            mem_rd_req_s, mem_rd_resp_r,
+            mem_rd_req_s, wider_mem_rd_resp_r,
             ml_ctable_buf_req_s, ml_ctable_buf_resp_r, ll_ctable_buf_req_s, ll_ctable_buf_resp_r, of_ctable_buf_req_s, of_ctable_buf_resp_r,
             ml_ttable_buf_req_s, ml_ttable_buf_resp_r, ll_ttable_buf_req_s, ll_ttable_buf_resp_r, of_ttable_buf_req_s, of_ttable_buf_resp_r
         )
@@ -607,7 +633,7 @@ proc SequenceEncoder<
         let tok = join();
         if (!state.active) {
             let (tok, req) = recv(tok, req_r);
-            trace_fmt!("[SequenceEncoder] Received request: {}", req);
+            trace_fmt!("[SequenceEncoder] Received request: {:#x}", req);
 
             // step 1. write the header
             let tok = send(tok, sh_req_s, HeaderReq {
@@ -623,88 +649,98 @@ proc SequenceEncoder<
             assert_eq(sh_resp.status, HeaderStatus::OK);
 
             if req.seq_cnt == u17:0 {
+                // corner case: no sequences
                 trace_fmt!("[SequenceEncoder] Warning! Called with seq_cnt=0");
-            } else {};
+                let resp = Resp {
+                    status: Status::OK,
+                    length: sh_resp.length
+                };
+                let tok = send(tok, resp_s, resp);
+                zero!<State>()
+            } else {
+                // TODO: get ll, ml, of acc logs from compression table
+                // TODO: write the compression table
+                // step 2. read the first sequence
+                let addr = get_sequence_addr<ADDR_W>(req.seq_addr, req.seq_cnt, u32:0);
+                let tok = send(tok, mem_rd_req_s, MemReaderReq {
+                    addr: addr,
+                    length: SEQUENCE_RECORD_B
+                });
+                let (tok, seq) = recv(tok, mem_rd_resp_r);
+                let serialized = seq.data;
+                let seq = deserialize_sequence(serialized as uN[SEQUENCE_RECORD_W]);
+                trace_fmt!("[SequenceEncoder] Serialized sequence {:#x} (at {:#x}) Deserialized sequence: {:#x}", serialized, addr, seq);
+                let (ml, ll, of) = sequence_to_codes(seq);
+                trace_fmt!("[SequenceEncoder] Received sequence[{:#x}]={:#x} (serialized={:#x}), encoded(ml={:#x}, ll={:#x}, of={:#x})", addr, seq, serialized, ml, ll, of);
 
-            // TODO: get ll, ml, of acc logs from compression table
-            // TODO: write the compression table (here?)
-            // step 2. read the first sequence
-            let addr = get_sequence_addr<ADDR_W>(req.seq_addr, req.seq_cnt, u32:0);
-            let tok = send(tok, mem_rd_req_s, MemReaderReq {
-                addr: addr,
-                length: SEQUENCE_RECORD_B
-            });
-            let (tok, seq) = recv(tok, mem_rd_resp_r);
-            let serialized = seq.data;
-            let seq = deserialize_sequence(serialized as uN[SEQUENCE_RECORD_W]);
-            let (ml, ll, of) = sequence_to_codes(seq);
-            trace_fmt!("[SequenceEncoder] Received sequence[{:#x}]={:#x} (serialized={:#x}), encoded(ml={:#x}, ll={:#x}, of={:#x})", addr, seq, serialized, ml, ll, of);
+                // step 3. read first delta info
+                let tok = send(tok, ll_ttable_buf_req_s, TTableRamRdReq { addr: ll as Addr, mask: TT_FULL_MASK });
+                let tok = send(tok, ml_ttable_buf_req_s, TTableRamRdReq { addr: ml as Addr, mask: TT_FULL_MASK });
+                let tok = send(tok, of_ttable_buf_req_s, TTableRamRdReq { addr: of as Addr, mask: TT_FULL_MASK });
+                let (tok, ll_tt) = recv(tok, ll_ttable_buf_resp_r);
+                let (tok, ml_tt) = recv(tok, ml_ttable_buf_resp_r);
+                let (tok, of_tt) = recv(tok, of_ttable_buf_resp_r);
+                let ll_tt = deserialize_tt<TTABLE_RAM_DATA_W>(ll_tt.data);
+                let ml_tt = deserialize_tt<TTABLE_RAM_DATA_W>(ml_tt.data);
+                let of_tt = deserialize_tt<TTABLE_RAM_DATA_W>(of_tt.data);
 
-            // step 3. read first delta info
-            let tok = send(tok, ll_ttable_buf_req_s, TTableRamRdReq { addr: ll as Addr, mask: TT_FULL_MASK });
-            let tok = send(tok, ml_ttable_buf_req_s, TTableRamRdReq { addr: ml as Addr, mask: TT_FULL_MASK });
-            let tok = send(tok, of_ttable_buf_req_s, TTableRamRdReq { addr: of as Addr, mask: TT_FULL_MASK });
-            let (tok, ll_tt) = recv(tok, ll_ttable_buf_resp_r);
-            let (tok, ml_tt) = recv(tok, ml_ttable_buf_resp_r);
-            let (tok, of_tt) = recv(tok, of_ttable_buf_resp_r);
-            let ll_tt = deserialize_tt<TTABLE_RAM_DATA_W>(ll_tt.data);
-            let ml_tt = deserialize_tt<TTABLE_RAM_DATA_W>(ml_tt.data);
-            let of_tt = deserialize_tt<TTABLE_RAM_DATA_W>(of_tt.data);
+                let ll_value_addr = initial_value_address<RAM_ADDR_W>(ll_tt);
+                let ml_value_addr = initial_value_address<RAM_ADDR_W>(ml_tt);
+                let of_value_addr = initial_value_address<RAM_ADDR_W>(of_tt);
 
-            let ll_value_addr = initial_value_address<RAM_ADDR_W>(ll_tt);
-            let ml_value_addr = initial_value_address<RAM_ADDR_W>(ml_tt);
-            let of_value_addr = initial_value_address<RAM_ADDR_W>(of_tt);
+                // step 4. read the first symbol encoding
+                let tok = send(tok, ll_ctable_buf_req_s, CTableRamRdReq { addr: ll_value_addr, mask: CT_FULL_MASK});
+                let tok = send(tok, ml_ctable_buf_req_s, CTableRamRdReq { addr: ml_value_addr, mask: CT_FULL_MASK});
+                let tok = send(tok, of_ctable_buf_req_s, CTableRamRdReq { addr: of_value_addr, mask: CT_FULL_MASK});
+                let (tok, ll_enc) = recv(tok, ll_ctable_buf_resp_r);
+                let (tok, ml_enc) = recv(tok, ml_ctable_buf_resp_r);
+                let (tok, of_enc) = recv(tok, of_ctable_buf_resp_r);
 
-            // step 4. read the first symbol encoding
-            let tok = send(tok, ll_ctable_buf_req_s, CTableRamRdReq { addr: ll_value_addr, mask: CT_FULL_MASK});
-            let tok = send(tok, ml_ctable_buf_req_s, CTableRamRdReq { addr: ml_value_addr, mask: CT_FULL_MASK});
-            let tok = send(tok, of_ctable_buf_req_s, CTableRamRdReq { addr: of_value_addr, mask: CT_FULL_MASK});
-            let (tok, ll_enc) = recv(tok, ll_ctable_buf_resp_r);
-            let (tok, ml_enc) = recv(tok, ml_ctable_buf_resp_r);
-            let (tok, of_enc) = recv(tok, of_ctable_buf_resp_r);
+                trace_fmt!(
+                    "[SequenceEncoder] Addresses: {:#x} {:#x} {:#x} Deltas: {:#x} {:#x} {:#x} Encoded: {:#x} {:#x} {:#x}",
+                    ll_value_addr, ml_value_addr, of_value_addr, ll_tt, ml_tt, of_tt, ll_enc, ml_enc, of_enc
+                );
 
-            trace_fmt!(
-                "[SequenceEncoder] Addresses: {:#x} {:#x} {:#x} Deltas: {:#x} {:#x} {:#x} Encoded: {:#x} {:#x} {:#x}",
-                ll_value_addr, ml_value_addr, of_value_addr, ll_tt, ml_tt, of_tt, ll_enc, ml_enc, of_enc
-            );
+                // step 5. write raw literal, match_len & offset
+                // order:
+                // - ll from sequence
+                // - ml from sequence
+                // - of from sequence
+                // https://github.com/facebook/zstd/blob/e128976193546dceb24249206a02ff8f444f7120/lib/compress/zstd_compress_sequences.c#L314-L317
+                // https://github.com/facebook/zstd/blob/e128976193546dceb24249206a02ff8f444f7120/lib/compress/zstd_compress_sequences.c#L328
 
-            // step 5. write raw literal, match_len & offset
-            // order:
-            // - ll from sequence
-            // - ml from sequence
-            // - of from sequence
-            // https://github.com/facebook/zstd/blob/e128976193546dceb24249206a02ff8f444f7120/lib/compress/zstd_compress_sequences.c#L314-L317
-            // https://github.com/facebook/zstd/blob/e128976193546dceb24249206a02ff8f444f7120/lib/compress/zstd_compress_sequences.c#L328
+                let write_size = uN[BUFF_SIZE_W]:0;
+                let to_write = add_bits(zero!<uN[BUFF_W]>(), seq.literals_len as uN[BUFF_W], LL_CODE_TO_LEN[ll] as uN[BUFF_SIZE_W], write_size);
+                let write_size = LL_CODE_TO_LEN[ll] as uN[BUFF_SIZE_W];
+                let to_write = add_bits(to_write, seq.match_len as uN[BUFF_W], ML_CODE_TO_LEN[ml] as uN[BUFF_SIZE_W], write_size);
+                let write_size = write_size + ML_CODE_TO_LEN[ml] as uN[BUFF_SIZE_W];
+                let to_write = add_bits(to_write, seq.offset as uN[BUFF_W], of as uN[BUFF_SIZE_W], write_size);
+                let write_size = write_size + of as uN[BUFF_SIZE_W];
 
-            let write_size = uN[BUFF_SIZE_W]:0;
-            let to_write = add_bits(zero!<uN[BUFF_W]>(), seq.literals_len as uN[BUFF_W], LL_CODE_TO_LEN[ll] as uN[BUFF_SIZE_W], write_size);
-            let write_size = LL_CODE_TO_LEN[ll] as uN[BUFF_SIZE_W];
-            let to_write = add_bits(to_write, seq.match_len as uN[BUFF_W], ML_CODE_TO_LEN[ml] as uN[BUFF_SIZE_W], write_size);
-            let write_size = write_size + ML_CODE_TO_LEN[ml] as uN[BUFF_SIZE_W];
-            let to_write = add_bits(to_write, seq.offset as uN[BUFF_W], of as uN[BUFF_SIZE_W], write_size);
-            let write_size = write_size + of as uN[BUFF_SIZE_W];
+                let tok = send(tok, sb_req_s, BufferReq {
+                    instr: WRITE | SET_ADDR,
+                    write_data: to_write,
+                    write_data_size: write_size,
+                    addr: req.addr + sh_resp.length
+                });
+                let (tok, sync) = recv(tok, sb_sync_r);
 
-            let tok = send(tok, sb_req_s, BufferReq {
-                instr: WRITE | SET_ADDR,
-                write_data: to_write,
-                write_data_size: write_size,
-                addr: req.addr
-            });
-            let (tok, _) = recv(tok, sb_sync_r);
-
-            // step 6. initialize state based on the last sequence read
-            // https://github.com/facebook/zstd/blob/e128976193546dceb24249206a02ff8f444f7120/lib/common/fse.h#L443-L452
-            State {
-                active: true,
-                req: req,
-                iter: Addr:1,
-                ll_acc_log: DEFAULT_LL_ACC_LOG as u16,
-                ml_acc_log: DEFAULT_ML_ACC_LOG as u16,
-                of_acc_log: DEFAULT_OF_ACC_LOG as u16,
-                ll_value: ll_enc.data,
-                ml_value: ml_enc.data,
-                of_value: of_enc.data
+                // step 6. initialize state based on the last sequence read
+                // https://github.com/facebook/zstd/blob/e128976193546dceb24249206a02ff8f444f7120/lib/common/fse.h#L443-L452
+                State {
+                    active: true,
+                    req: req,
+                    iter: Addr:1,
+                    ll_acc_log: DEFAULT_LL_ACC_LOG as u16,
+                    ml_acc_log: DEFAULT_ML_ACC_LOG as u16,
+                    of_acc_log: DEFAULT_OF_ACC_LOG as u16,
+                    ll_value: ll_enc.data,
+                    ml_value: ml_enc.data,
+                    of_value: of_enc.data,
+                    bytes_written: sync.bytes_written + sh_resp.length
+                }
             }
+
         } else if state.req.seq_cnt as Addr == state.iter {
             // step 11. write the final encoded values
             // order:
@@ -721,7 +757,7 @@ proc SequenceEncoder<
             let write_size = write_size + state.of_acc_log as uN[BUFF_SIZE_W];
             let to_write = add_bits(to_write, state.ll_value as uN[BUFF_W], state.ll_acc_log as uN[BUFF_SIZE_W], write_size);
             let write_size = write_size + state.ll_acc_log as uN[BUFF_SIZE_W];
-            let to_write = add_bits(to_write, uN[BUFF_W]:1, uN[BUFF_SIZE_W]:1, write_size);
+            let to_write = add_bits(to_write, uN[BUFF_W]:1, uN[BUFF_SIZE_W]:1, write_size); // end mark
             let write_size = write_size + uN[BUFF_SIZE_W]:1;
 
 
@@ -732,8 +768,12 @@ proc SequenceEncoder<
                 write_data_size: write_size,
                 addr: uN[ADDR_W]:0
             });
-            let (tok, _) = recv(tok, sb_sync_r);
-            let resp = zero!<Resp>();
+            let (tok, sync) = recv(tok, sb_sync_r);
+
+            let resp = Resp {
+                status: Status::OK,
+                length: state.bytes_written + sync.bytes_written
+            };
             let tok = send(tok, resp_s, resp);
             zero!<State>()
         } else {
@@ -806,7 +846,7 @@ proc SequenceEncoder<
                 write_data_size: write_size,
                 addr: uN[ADDR_W]:0
             });
-            let (tok, _) = recv(tok, sb_sync_r);
+            let (tok, sync) = recv(tok, sb_sync_r);
             trace_fmt!("Sent {:#x}", to_write);
 
             State {
@@ -815,6 +855,7 @@ proc SequenceEncoder<
                 ll_value: ll_enc.data,
                 ml_value: ml_enc.data,
                 of_value: of_enc.data,
+                bytes_written: state.bytes_written + sync.bytes_written,
                 ..state
             }
         }
@@ -858,8 +899,12 @@ const TEST_SEQUENCES = Sequence[TEST_SEQUENCES_CNT]:[
     Sequence { literals_len: u16:0, offset: u16:25, match_len: u16:0 }
 ];
 
-const EXPECTED_DATA_LEN = u32:17;
+const EXPECTED_DATA_LEN = u32:19;
 const EXPECTED_DATA = [
+    // sequence header
+    u8:0x08,    // sequence count
+    u8:0x00,    // compression modes
+    // encoded sequences
 	u8:0x39,
 	u8:0x01,
 	u8:0x68,
@@ -1178,7 +1223,10 @@ proc SequenceEncoderPredefinedTest {
         );
         trace!("[TEST] Running the encoding...");
         let (tok, resp) = recv(tok, resp_r);
-        assert_eq(resp, zero!<SequenceEncoderResp>());
+        assert_eq(resp, SequenceEncoderResp {
+            status: SequenceEncoderStatus::OK,
+            length: EXPECTED_DATA_LEN
+        });
         trace!("[TEST] Encoding done, checking output...");
 
         let tok = for ((i, expected), tok) in enumerate(EXPECTED_DATA) {

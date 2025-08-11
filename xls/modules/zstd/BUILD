@@ -4990,6 +4990,7 @@ xls_dslx_library(
         "//xls/modules/zstd/memory:axi_ram_writer_dslx",
         "//xls/modules/zstd/memory:mem_reader_dslx",
         "//xls/modules/zstd/memory:mem_writer_dslx",
+        "//xls/modules/zstd/memory:mem_reader_data_upscaler_dslx",
     ],
 )
 
