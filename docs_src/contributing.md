@@ -33,6 +33,10 @@ There are a few small
 [XLS clarifications](https://google.github.io/xls/xls_style/) for local style on
 this project where the style guide is ambiguous.
 
+If you would like to propose additional clarifications, please open an Issue or
+Discussion; broad PRs that amount to de-facto style changes without a decision
+on the accompanying Issue or Discussion will be closed.
+
 ## Code reviews
 
 All submissions, including submissions by project members, require review. We
