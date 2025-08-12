@@ -40,7 +40,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
-#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/stopwatch.h"
@@ -582,22 +581,6 @@ bool HasPath(const absl::flat_hash_set<Node*>& sources,
   return false;
 }
 
-bool IsProvenMutuallyExclusiveChannel(ChannelRef channel_ref) {
-  if (std::holds_alternative<Channel*>(channel_ref)) {
-    Channel* channel = std::get<Channel*>(channel_ref);
-    return channel->kind() == ChannelKind::kStreaming &&
-           down_cast<StreamingChannel*>(channel)->GetStrictness() ==
-               ChannelStrictness::kProvenMutuallyExclusive;
-  }
-
-  CHECK(std::holds_alternative<ChannelInterface*>(channel_ref));
-  ChannelInterface* channel_reference =
-      std::get<ChannelInterface*>(channel_ref);
-  return channel_reference->kind() == ChannelKind::kStreaming &&
-         channel_reference->strictness() ==
-             ChannelStrictness::kProvenMutuallyExclusive;
-}
-
 std::string_view GetChannelName(ChannelRef channel_ref) {
   if (std::holds_alternative<Channel*>(channel_ref)) {
     return std::get<Channel*>(channel_ref)->name();
@@ -637,14 +620,6 @@ absl::StatusOr<bool> MergeSends(Predicates* p, FunctionBase* f,
   }
 
   if (HasPath(users, inputs)) {
-    // Check if this was a required merge due to channel strictness.
-    if (IsProvenMutuallyExclusiveChannel(channel_ref)) {
-      return absl::FailedPreconditionError(absl::StrFormat(
-          "Unable to merge operations on proven-mutually-exclusive channel "
-          "%s in proc %s without creating a cycle.",
-          GetChannelName(channel_ref), f->name()));
-    }
-
     // We can't merge these sends without forming a cycle.
     VLOG(1) << "Unable to merge nodes without creating a cycle: "
             << absl::StrJoin(to_merge, ", ", [](std::string* out, Node* node) {
@@ -732,14 +707,6 @@ absl::StatusOr<bool> MergeReceives(Predicates* p, FunctionBase* f,
   }
 
   if (HasPath(users, inputs)) {
-    // Check if this was a required merge due to channel strictness.
-    if (IsProvenMutuallyExclusiveChannel(channel_ref)) {
-      return absl::FailedPreconditionError(absl::StrFormat(
-          "Unable to merge operations on proven-mutually-exclusive channel "
-          "%s in proc %s without creating a cycle.",
-          GetChannelName(channel_ref), f->name()));
-    }
-
     // We can't merge these sends without forming a cycle.
     VLOG(1) << "Unable to merge nodes without creating a cycle: "
             << absl::StrJoin(to_merge, ", ", [](std::string* out, Node* node) {
@@ -828,37 +795,6 @@ absl::StatusOr<bool> MergeNodes(Predicates* p, FunctionBase* f,
   return false;
 }
 
-// Returns the set of proven_mutually_exclusive channels that have operations
-// predicated by `node`.
-absl::StatusOr<absl::flat_hash_set<Channel*>>
-GetControlledProvenMutuallyExclusiveChannels(Node* node, const Predicates& p) {
-  FunctionBase* f = node->function_base();
-  absl::flat_hash_set<Channel*> controlled_channels;
-  for (Node* predicated_node : p.GetNodesPredicatedBy(node)) {
-    Channel* channel = nullptr;
-    if (predicated_node->Is<Send>()) {
-      XLS_ASSIGN_OR_RETURN(channel,
-                           f->package()->GetChannel(
-                               predicated_node->As<Send>()->channel_name()));
-    } else if (predicated_node->Is<Receive>()) {
-      XLS_ASSIGN_OR_RETURN(channel,
-                           f->package()->GetChannel(
-                               predicated_node->As<Receive>()->channel_name()));
-    } else {
-      continue;
-    }
-
-    if (channel->kind() != ChannelKind::kStreaming) {
-      continue;
-    }
-    if (down_cast<StreamingChannel*>(channel)->GetStrictness() ==
-        ChannelStrictness::kProvenMutuallyExclusive) {
-      controlled_channels.insert(channel);
-    }
-  }
-  return controlled_channels;
-}
-
 void Predicates::SetPredicate(Node* node, Node* pred) {
   if (predicated_by_.contains(node)) {
     Node* replaced_predicate = predicated_by_.at(node);
@@ -927,25 +863,11 @@ absl::StatusOr<std::optional<bool>> Predicates::QueryMutuallyExclusive(
                        translator.Translator());
   Z3_context ctx = solver->ctx();
   solvers::z3::ScopedErrorHandler seh(ctx);
-  XLS_ASSIGN_OR_RETURN(
-      absl::flat_hash_set<Channel*> channels_a,
-      GetControlledProvenMutuallyExclusiveChannels(pred_a, *this));
-  XLS_ASSIGN_OR_RETURN(
-      absl::flat_hash_set<Channel*> channels_b,
-      GetControlledProvenMutuallyExclusiveChannels(pred_b, *this));
-  bool required_for_compilation = HasIntersection(channels_a, channels_b);
 
   // NB We could check if a or b is always false but since we do this lazily
   // theres no benefit there.
 
-  if (required_for_compilation) {
-    LOG(INFO) << "Removing Z3's rlimit for mutex check on " << pred_a->GetName()
-              << " and " << pred_b->GetName()
-              << " as mutual exclusion is required for compilation.";
-    solver->SetRlimit(0);
-  } else {
-    solver->SetRlimit(translator.z3_rlimit());
-  }
+  solver->SetRlimit(translator.z3_rlimit());
   std::optional<Stopwatch> timer;
   if (VLOG_IS_ON(2)) {
     timer.emplace();
@@ -969,33 +891,11 @@ absl::StatusOr<std::optional<bool>> Predicates::QueryMutuallyExclusive(
     return true;
   } else if (satisfiable == Z3_L_TRUE) {
     XLS_RETURN_IF_ERROR(MarkNotMutuallyExclusive(pred_a, pred_b));
-    if (required_for_compilation) {
-      return absl::FailedPreconditionError(absl::StrFormat(
-          "Proved that %s and %s, which control operations on "
-          "proven-mutually-exclusive channels (%s), are not mutually "
-          "exclusive.",
-          pred_a->GetName(), pred_b->GetName(),
-          absl::StrJoin(Intersection(channels_a, channels_b), ", ",
-                        [](std::string* out, Channel* channel) {
-                          absl::StrAppend(out, channel->name());
-                        })));
-    }
     return false;
   } else {
     VLOG(3) << "Z3 ran out of time checking mutual exclusion of "
             << pred_a->GetName() << " and " << pred_b->GetName();
     XLS_RETURN_IF_ERROR(MarkUnknownMutuallyExclusive(pred_a, pred_b));
-    if (required_for_compilation) {
-      return absl::FailedPreconditionError(absl::StrFormat(
-          "Z3 failed to prove that %s and %s, which control operations on "
-          "proven-mutually-exclusive channels (%s), are mutually "
-          "exclusive.",
-          pred_a->GetName(), pred_b->GetName(),
-          absl::StrJoin(Intersection(channels_a, channels_b), ", ",
-                        [](std::string* out, Channel* channel) {
-                          absl::StrAppend(out, channel->name());
-                        })));
-    }
     return std::nullopt;
   }
 }

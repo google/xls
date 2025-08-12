@@ -158,22 +158,6 @@ TEST_F(MutualExclusionPassTest, TwoParallelSends) {
 }
 
 TEST_F(MutualExclusionPassTest,
-       TwoParallelSendsWithSmallRlimitAndRequiredMerging) {
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * test_channel,
-      p->CreateStreamingChannel("test_channel", ChannelOps::kSendOnly,
-                                p->GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Proc * proc, CreateTwoParallelSendsProc(p.get(), "main", test_channel));
-  EXPECT_THAT(RunMutualExclusionPass(
-                  proc, SchedulingOptions().mutual_exclusion_z3_rlimit(1)),
-              IsOkAndHolds(true));
-  EXPECT_EQ(NumberOfOp(proc, Op::kSend), 1);
-  XLS_EXPECT_OK(VerifyProc(proc, true));
-}
-
-TEST_F(MutualExclusionPassTest,
        TwoParallelSendsWithSmallRlimitAndOptionalMerging) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -491,35 +475,6 @@ TEST_F(MutualExclusionPassTest, TwoProcsBothHavingTwoParallelSends) {
   EXPECT_EQ(NumberOfOp(proc1, Op::kSend), 1);
   XLS_EXPECT_OK(VerifyProc(proc0, true));
   XLS_EXPECT_OK(VerifyProc(proc1, true));
-}
-
-TEST_F(MutualExclusionPassTest, RequiredMergeFails) {
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p, ParsePackage(R"(
-     package test_module
-
-     chan cin0(
-       bits[32], id=0, kind=streaming, ops=receive_only,
-       flow_control=ready_valid)
-
-     chan cin1(
-       bits[32], id=1, kind=streaming, ops=receive_only,
-       flow_control=ready_valid)
-
-     top proc main(s: bits[1], init={0}) {
-       not_s: bits[1] = not(s)
-       tok: token = literal(value=token)
-       rcv0_not: (token, bits[32]) = receive(tok, predicate=not_s, channel=cin0)
-       rcv1_not: (token, bits[32]) = receive(tok, predicate=not_s, channel=cin1)
-       tok0: token = tuple_index(rcv0_not, index=0)
-       tok1: token = tuple_index(rcv1_not, index=0)
-       rcv0: (token, bits[32]) = receive(tok1, predicate=s, channel=cin0)
-       rcv1: (token, bits[32]) = receive(tok0, predicate=s, channel=cin1)
-       next (not_s)
-     }
-  )"));
-  EXPECT_THAT(RunMutualExclusionPass(p.get()),
-              StatusIs(absl::StatusCode::kFailedPrecondition,
-                       HasSubstr("without creating a cycle")));
 }
 
 TEST_F(MutualExclusionPassTest, AvoidsCycles) {

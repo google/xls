@@ -531,7 +531,6 @@ cc_library(
     deps = [
         ":scheduling_options",
         ":scheduling_pass",
-        "//xls/common:casts",
         "//xls/common:stopwatch",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",

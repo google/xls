@@ -437,7 +437,7 @@ static absl::StatusOr<Node*> UpdateSingleStagePipelineWithFlowControl(
 static absl::StatusOr<std::vector<Node*>> MakeValidNodesForInputStates(
     std::vector<std::vector<int64_t>>& input_states,
     absl::Span<std::optional<StateRegister> const> state_registers,
-    int64_t stage_count, std::string_view valid_suffix, Block* block) {
+    int64_t stage_count, Block* block) {
   std::vector<Node*> result;
   for (Stage stage = 0; stage < stage_count; ++stage) {
     // Add a valid signal for each state element with non-trivial backedge.
@@ -814,34 +814,28 @@ static absl::Status AddBubbleFlowControl(
     Proc* proc, absl::Span<ProcInstance* const> instances, Block* block,
     std::vector<Node*>& all_active_outputs_ready) {
   int64_t stage_count = streaming_io.pipeline_registers.size() + 1;
-  std::string_view data_suffix = options.streaming_channel_data_suffix();
-  std::string_view valid_suffix = options.streaming_channel_valid_suffix();
-  std::string_view ready_suffix = options.streaming_channel_ready_suffix();
 
   // Node in each stage that represents when all inputs channels (that are
   // predicated true) are valid.
-  XLS_ASSIGN_OR_RETURN(
-      std::vector<Node*> all_active_inputs_valid,
-      MakeInputValidPortsForInputChannels(streaming_io.inputs, stage_count,
-                                          valid_suffix, block));
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> all_active_inputs_valid,
+                       MakeInputValidPortsForInputChannels(
+                           streaming_io.inputs, stage_count, options, block));
   VLOG(3) << "After Inputs Valid";
   XLS_VLOG_LINES(3, block->DumpIr());
 
   // Node in each stage that represents when all output channels (that are
   // predicated true) are ready.
-  XLS_ASSIGN_OR_RETURN(
-      all_active_outputs_ready,
-      MakeInputReadyPortsForOutputChannels(streaming_io.outputs, stage_count,
-                                           ready_suffix, block));
+  XLS_ASSIGN_OR_RETURN(all_active_outputs_ready,
+                       MakeInputReadyPortsForOutputChannels(
+                           streaming_io.outputs, stage_count, options, block));
   VLOG(3) << "After Outputs Ready";
   XLS_VLOG_LINES(3, block->DumpIr());
 
   // Node in each stage that represents when all state values are valid.
-  XLS_ASSIGN_OR_RETURN(
-      std::vector<Node*> all_active_states_valid,
-      MakeValidNodesForInputStates(streaming_io.input_states,
-                                   streaming_io.state_registers, stage_count,
-                                   valid_suffix, block));
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> all_active_states_valid,
+                       MakeValidNodesForInputStates(
+                           streaming_io.input_states,
+                           streaming_io.state_registers, stage_count, block));
   VLOG(3) << "After States Valid";
   XLS_VLOG_LINES(3, block->DumpIr());
 
@@ -885,11 +879,11 @@ static absl::Status AddBubbleFlowControl(
     }
     XLS_RETURN_IF_ERROR(MakeOutputValidPortsForOutputChannels(
         all_active_inputs_valid, stage_valid_no_option,
-        bubble_flow_control.next_stage_open, streaming_io.outputs, valid_suffix,
+        bubble_flow_control.next_stage_open, streaming_io.outputs, options,
         proc, instances, block));
     XLS_RETURN_IF_ERROR(MakeOutputDataPortsForOutputChannels(
         all_active_inputs_valid, stage_valid_no_option,
-        bubble_flow_control.next_stage_open, streaming_io.outputs, data_suffix,
+        bubble_flow_control.next_stage_open, streaming_io.outputs, options,
         block));
   }
 
@@ -911,8 +905,8 @@ static absl::Status AddBubbleFlowControl(
   XLS_VLOG_LINES(3, block->DumpIr());
 
   XLS_RETURN_IF_ERROR(MakeOutputReadyPortsForInputChannels(
-      bubble_flow_control.data_load_enable, streaming_io.inputs, ready_suffix,
-      proc, instances, block));
+      bubble_flow_control.data_load_enable, streaming_io.inputs, options, proc,
+      instances, block));
 
   VLOG(3) << "After Ready";
   XLS_VLOG_LINES(3, block->DumpIr());
