@@ -507,6 +507,7 @@ void XlsccTestBase::BlockTest(
   codegen_flags_proto.set_generator(xls::GENERATOR_KIND_PIPELINE);
   codegen_flags_proto.set_streaming_channel_ready_suffix(channel_ready_suffix);
   codegen_flags_proto.set_streaming_channel_valid_suffix(channel_valid_suffix);
+  codegen_flags_proto.set_flop_inputs(true);
 
   XLS_ASSERT_OK(xls::ScheduleAndCodegen(package_.get(),
                                         scheduling_options_flags_proto,
