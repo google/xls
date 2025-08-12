@@ -53,6 +53,11 @@ class FunctionBase {
   using NodeList = std::list<std::unique_ptr<Node>>;
 
  public:
+  enum class Kind {
+    kFunction,
+    kProc,
+    kBlock,
+  };
   FunctionBase(std::string_view name, Package* package)
       : name_(name), package_(package) {}
   FunctionBase(const FunctionBase& other) = delete;
@@ -80,6 +85,9 @@ class FunctionBase {
 
   // DumpIr emits the IR in a parsable, hierarchical text format.
   virtual std::string DumpIr() const = 0;
+
+  // Get the kind of function base this is as an enum.
+  virtual Kind kind() const = 0;
 
   // Get FunctionBase attributes suitable for putting in #[...] in the IR.
   std::vector<std::string> AttributeIrStrings() const;
@@ -188,9 +196,9 @@ class FunctionBase {
   }
 
   // Returns whether this FunctionBase is a function, proc, or block.
-  bool IsFunction() const;
-  bool IsProc() const;
-  bool IsBlock() const;
+  bool IsFunction() const { return kind() == Kind::kFunction; }
+  bool IsProc() const { return kind() == Kind::kProc; }
+  bool IsBlock() const { return kind() == Kind::kBlock; }
 
   const Function* AsFunctionOrDie() const;
   Function* AsFunctionOrDie();
@@ -279,6 +287,7 @@ inline absl::Span<ChangeListener* const> GetChangeListeners(
 }
 
 std::ostream& operator<<(std::ostream& os, const FunctionBase& function);
+std::ostream& operator<<(std::ostream& os, const FunctionBase::Kind& kind);
 
 }  // namespace xls
 

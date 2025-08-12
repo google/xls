@@ -261,6 +261,8 @@ class Proc : public FunctionBase {
 
   std::string DumpIr() const override;
 
+  FunctionBase::Kind kind() const final { return FunctionBase::Kind::kProc; }
+
   // Returns true if this is a new-style proc which has proc-scoped channels.
   bool is_new_style_proc() const { return is_new_style_proc_; }
 

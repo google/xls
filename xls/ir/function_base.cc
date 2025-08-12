@@ -49,6 +49,17 @@
 
 namespace xls {
 
+std::ostream& operator<<(std::ostream& os, const FunctionBase::Kind& kind) {
+  switch (kind) {
+    case FunctionBase::Kind::kFunction:
+      return os << "function";
+    case FunctionBase::Kind::kProc:
+      return os << "proc";
+    case FunctionBase::Kind::kBlock:
+      return os << "block";
+  }
+}
+
 std::vector<std::string> FunctionBase::AttributeIrStrings() const {
   std::vector<std::string> attribute_strings;
   if (ForeignFunctionData().has_value()) {
@@ -200,18 +211,6 @@ absl::Status FunctionBase::Accept(DfsVisitor* visitor) {
   }
 
   return absl::OkStatus();
-}
-
-bool FunctionBase::IsFunction() const {
-  return dynamic_cast<const Function*>(this) != nullptr;
-}
-
-bool FunctionBase::IsProc() const {
-  return dynamic_cast<const Proc*>(this) != nullptr;
-}
-
-bool FunctionBase::IsBlock() const {
-  return dynamic_cast<const Block*>(this) != nullptr;
 }
 
 const Function* FunctionBase::AsFunctionOrDie() const {

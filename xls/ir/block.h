@@ -343,6 +343,8 @@ class Block : public FunctionBase {
 
   std::string DumpIr() const override;
 
+  FunctionBase::Kind kind() const final { return FunctionBase::Kind::kBlock; }
+
   // Add metadata describing the mapping from ports to the channel they are
   // derived from.
   absl::Status AddChannelPortMetadata(ChannelPortMetadata metadata);

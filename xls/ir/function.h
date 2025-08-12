@@ -56,6 +56,10 @@ class Function : public FunctionBase {
   //   This is only useful when dumping individual functions, and not packages.
   std::string DumpIr() const override;
 
+  FunctionBase::Kind kind() const final {
+    return FunctionBase::Kind::kFunction;
+  }
+
   // DumpIr emits the IR in a hierarchical text format with the returned
   // annotations after each node definition.
   std::string DumpIrWithAnnotations(
