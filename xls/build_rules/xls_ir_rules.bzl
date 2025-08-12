@@ -174,6 +174,12 @@ def _convert_to_ir(ctx, src):
         # don't mix well with short-flags.
         my_args.add("--{}={}".format(flag, value))
 
+    if ctx.attr.configured_values:
+        formatted_values = []
+        for k, v in ctx.attr.configured_values.items():
+            formatted_values.append("{}:{}".format(k, v))
+        my_args.add("--configured_values={}".format(",".join(formatted_values)))
+
     ir_filename = get_output_filename_value(
         ctx,
         "ir_file",
@@ -614,6 +620,12 @@ xls_ir_common_attrs = {
 xls_dslx_ir_attrs = dicts.add(
     xls_dslx_library_as_input_attrs,
     {
+        "configured_values": attr.string_dict(
+            doc = "Dictionary of overrides to use for overridable constants " +
+                  "in IR conversion. Format is \"key\":\"value\" pairs, e.g. " +
+                  "--configured_value_overrides=" +
+                  "{\"supported_opcodes\":\"OpcodeSet::SmallSubset\",\"foo\":\"true\"}",
+        ),
         "dslx_top": attr.string(
             doc = "Defines the 'top' argument of the" +
                   "//xls/dslx/ir_convert:ir_converter_main application.",

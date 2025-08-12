@@ -89,6 +89,12 @@ absl::Status RealMain(absl::Span<const std::string_view> paths) {
     package_name = ir_converter_options.package_name();
   }
 
+  std::vector<std::string> configured_values;
+  if (ir_converter_options.configured_values_size() > 0) {
+    configured_values.assign(ir_converter_options.configured_values().begin(),
+                             ir_converter_options.configured_values().end());
+  }
+
   bool emit_fail_as_assert = ir_converter_options.emit_fail_as_assert();
   bool verify_ir = ir_converter_options.verify();
   bool convert_tests = ir_converter_options.convert_tests();
@@ -118,6 +124,7 @@ absl::Status RealMain(absl::Span<const std::string_view> paths) {
       .default_fifo_config = default_fifo_config,
       .proc_scoped_channels = proc_scoped_channels,
       .type_inference_v2 = type_inference_v2,
+      .configured_values = configured_values,
   };
 
   // The following checks are performed inside ConvertFilesToPackage(), but we

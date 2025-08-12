@@ -117,6 +117,40 @@ xls_dslx_opt_ir_test(
 )
 
 xls_dslx_opt_ir(
+    name = "configured_value_or",
+    srcs = ["configured_value_or.x"],
+    configured_values = {
+        "b_override": "true",
+        "u32_override": "123",
+        "s32_override": "-200",
+        "enum_override": "MyEnum::B",
+    },
+    dslx_top = "main",
+)
+
+cc_xls_ir_jit_wrapper(
+    name = "configured_value_or_jit_wrapper",
+    src = ":configured_value_or",
+    jit_wrapper_args = {
+        "class_name": "ConfiguredValueOr",
+        "function": "main",
+        "namespace": "xls::examples",
+    },
+)
+
+cc_test(
+    name = "configured_value_or_jit_test",
+    srcs = ["configured_value_or_jit_test.cc"],
+    deps = [
+        ":configured_value_or_jit_wrapper",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir:value",
+        "@googletest//:gtest",
+    ],
+)
+
+xls_dslx_opt_ir(
     name = "custom_schedule",
     srcs = ["custom_schedule.x"],
     dslx_top = "Accumulator",

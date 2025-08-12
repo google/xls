@@ -17,6 +17,7 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
@@ -83,6 +84,12 @@ ABSL_FLAG(bool, lower_to_proc_scoped_channels, false,
           "false, generates global channels. This is a temporary flag that "
           "will not be used after the full implementation is complete. Cannot "
           "be combined with proc_scoped_channels");
+ABSL_FLAG(
+    std::optional<std::vector<std::string>>, configured_values, std::nullopt,
+    "Dictionary of overrides to use for overridable constants "
+    "in IR conversion. Format is \"key\":\"value\" pairs, e.g. "
+    "--configured_values="
+    "{\"supported_opcodes\":\"OpcodeSet::SmallSubset\",\"foo\":\"true\"}");
 // LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
 ABSL_FLAG(std::optional<std::string>, ir_converter_options_used_textproto_file,
           std::nullopt,
@@ -107,6 +114,16 @@ absl::StatusOr<bool> SetOptionsFromFlags(IrConverterOptionsFlagsProto& proto) {
       proto.set_##__x(*flag);                                \
     }                                                        \
   }
+#define POPULATE_REPEATED_FLAG(__x)                          \
+  {                                                          \
+    any_flags_set |= FLAGS_##__x.IsSpecifiedOnCommandLine(); \
+    const auto& flag = absl::GetFlag(FLAGS_##__x);           \
+    if (flag.has_value()) {                                  \
+      for (const auto& item : *flag) {                       \
+        proto.add_##__x(item);                               \
+      }                                                      \
+    }                                                        \
+  }
   POPULATE_OPTIONAL_FLAG(output_file);
   POPULATE_OPTIONAL_FLAG(top);
   POPULATE_FLAG(dslx_stdlib_path);
@@ -123,6 +140,7 @@ absl::StatusOr<bool> SetOptionsFromFlags(IrConverterOptionsFlagsProto& proto) {
   POPULATE_OPTIONAL_FLAG(interface_textproto_file);
   POPULATE_FLAG(type_inference_v2);
   POPULATE_FLAG(lower_to_proc_scoped_channels);
+  POPULATE_REPEATED_FLAG(configured_values);
 
 #undef POPULATE_FLAG
 
