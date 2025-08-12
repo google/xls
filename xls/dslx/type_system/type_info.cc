@@ -427,9 +427,13 @@ std::vector<InvocationCalleeData> TypeInfo::GetUniqueInvocationCalleeData(
 
 std::optional<Type*> TypeInfo::GetItem(const AstNode* key) const {
   CHECK_EQ(key->owner(), module_) << absl::StreamFormat(
-      "attempted to get type information for AST node: `%s`; but it is from "
-      "module `%s` and type information is for module `%s`",
-      key->ToString(), key->owner()->name(), module_->name());
+      "attempted to get type information for AST node: `%s` at `%s`; but it is "
+      "from module `%s` and type information is for module `%s`",
+      key->ToString(),
+      key->GetSpan().has_value()
+          ? key->GetSpan()->ToString(*key->owner()->file_table())
+          : "<unknown>",
+      key->owner()->name(), module_->name());
   auto it = dict_.find(key);
   if (it != dict_.end()) {
     return it->second.get();

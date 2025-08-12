@@ -538,6 +538,7 @@ class Unifier {
       }
     }
     return parametric_struct_instantiator_.InstantiateParametricStruct(
+        module_,
         instantiator.has_value() ? (*instantiator)->span()
                                  : annotations[0]->span(),
         parametric_context_, struct_def, explicit_parametrics, instantiator);

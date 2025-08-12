@@ -6834,6 +6834,56 @@ proc main {
                         HasNodeWithType("spawn Counter<32>(p32, 50)", "()"))));
 }
 
+TEST(TypecheckV2Test, ParametricStructInferenceUsingProcParametric) {
+  constexpr std::string_view kImported = R"(
+pub struct Data<N: u32> {
+  value: uN[N]
+}
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+proc Counter<N: u32> {
+  type value_t = imported::Data<N>;
+
+  c: chan<value_t> out;
+  init { value_t { value: 0 } }
+  config(c: chan<value_t> out) {
+    (c,)
+  }
+  next(i: value_t) {
+    send(join(), c, i);
+    let res = imported::Data { value: uN[N]:0 };
+    res
+  }
+}
+
+proc main {
+  c16: chan<imported::Data<16>> in;
+  c32: chan<imported::Data<32>> in;
+  init { (join(), 0) }
+  config() {
+    let (p16, c16) = chan<imported::Data<16>>("my_chan16");
+    let (p32, c32) = chan<imported::Data<32>>("my_chan32");
+    spawn Counter<16>(p16);
+    spawn Counter<32>(p32);
+    (c16,c32)
+  }
+  next(state: (token, u48)) {
+    let (tok16, v16) = recv(state.0, c16);
+    let (tok32, v32) = recv(tok16, c32);
+    (tok32, v32.value ++ v16.value)
+  }
+}
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              IsOkAndHolds(HasTypeInfo(
+                  AllOf(HasNodeWithType("spawn Counter<16>(p16)", "()"),
+                        HasNodeWithType("spawn Counter<32>(p32)", "()")))));
+}
+
 TEST(TypecheckV2Test, ParametricProcValueCloning) {
   // This is the version of matmul in https://github.com/google/xls/issues/2706
   // but reduced to a minimal repro. Note that it is too minimized to be valid

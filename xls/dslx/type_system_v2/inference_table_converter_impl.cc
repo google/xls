@@ -1858,21 +1858,29 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   }
 
   absl::StatusOr<const TypeAnnotation*> InstantiateParametricStruct(
-      const Span& span, std::optional<const ParametricContext*> parent_context,
+      Module& module, const Span& span,
+      std::optional<const ParametricContext*> parent_context,
       const StructDef& struct_def,
       const std::vector<InterpValue>& explicit_parametrics,
       std::optional<const StructInstanceBase*> instantiator_node) override {
+    VLOG(6) << "Instantiate parametric struct `" << struct_def.identifier()
+            << "` with parent context: " << ToString(parent_context) << " and "
+            << explicit_parametrics.size()
+            << " explicit parametrics from module: " << module.name();
+
     // The goal here is to come up with a complete parametric value `Expr`
     // vector, which has a value for every formal binding, by inferring or
     // defaulting whichever ones are not explicit. The algorithm is the same as
     // for parametric function invocations, and the differences are in the
     // logistics. We build this as a map, `resolved_parametrics`, and convert it
     // to a vector at the end.
-    XLS_ASSIGN_OR_RETURN(TypeInfo * ti,
+    XLS_ASSIGN_OR_RETURN(TypeInfo * instance_parent_ti,
                          GetTypeInfo(struct_def.owner(), parent_context));
-    XLS_ASSIGN_OR_RETURN(
-        TypeInfo * instance_type_info,
-        import_data_.type_info_owner().New(struct_def.owner(), ti));
+    XLS_ASSIGN_OR_RETURN(TypeInfo * actual_arg_ti,
+                         GetTypeInfo(&module, parent_context));
+    XLS_ASSIGN_OR_RETURN(TypeInfo * instance_type_info,
+                         import_data_.type_info_owner().New(
+                             struct_def.owner(), instance_parent_ti));
     ParametricBindings bindings(struct_def.parametric_bindings());
     absl::flat_hash_map<std::string, ExprOrType> resolved_parametrics;
     auto set_value = [&](const ParametricBinding* binding,
@@ -1952,8 +1960,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           InferImplicitParametrics(
               span, parent_context, /*target_context=*/std::nullopt,
               implicit_parametrics, formal_member_types, actual_member_exprs,
-              instance_type_info, instance_type_info,
-              [&](const Expr* actual_arg) {
+              instance_type_info, actual_arg_ti, [&](const Expr* actual_arg) {
                 // Invocation arguments within a struct need to be converted
                 // prior to use.
                 if (actual_arg->kind() == AstNodeKind::kInvocation) {

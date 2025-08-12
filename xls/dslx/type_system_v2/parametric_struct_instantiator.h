@@ -33,18 +33,40 @@ class ParametricStructInstantiator {
  public:
   virtual ~ParametricStructInstantiator() = default;
 
+  // Instantiates a parametric struct of the type indicated by `struct_def`.
+  // Here, "instantiate" means "make the appropriate parameterization exist with
+  // a `ParametricContext` in the `InferenceTable`." Sometimes this is done to
+  // handle a struct instance expression (which makes a particular object of the
+  // struct exist in DSLX), e.g. `Foo { a: 1, b: 2 }`. Other times it is done to
+  // handle a type annotation in DSLX referencing a parametric struct, like
+  // `zero!<Foo>()`
+  //
+  // The `module`, `span`, `parametric_context`, and `instantiator_node` are all
+  // from the place which is motivating the instantiation of the struct, i.e.
+  // the place consuming the struct declaration, rather than necessarily the
+  // place where the declaration lives.
+  //
+  // The return value is a `TypeAnnotation` referring to the struct with a
+  // complete parameterization.
   virtual absl::StatusOr<const TypeAnnotation*> InstantiateParametricStruct(
-      const Span& span, std::optional<const ParametricContext*> parent_context,
+      Module& module, const Span& span,
+      std::optional<const ParametricContext*> parent_context,
       const StructDef& struct_def,
       const std::vector<InterpValue>& explicit_parametrics,
       std::optional<const StructInstanceBase*> instantiator_node) = 0;
 
+  // Converts the `member_type` of some member of the entity referenced by
+  // `struct_or_proc_ref` into a form that has any struct parametrics replaced
+  // by their values.
   virtual absl::StatusOr<const TypeAnnotation*>
   GetParametricFreeStructMemberType(
       std::optional<const ParametricContext*> struct_context,
       const StructOrProcRef& struct_or_proc_ref,
       const TypeAnnotation* member_type) = 0;
 
+  // Lighter-weight variant of `InstantiateParametricStruct` for situations
+  // where inference of the parametrics is unnecessary; the parametrics must be
+  // provided in `ref`.
   virtual absl::StatusOr<const ParametricContext*>
   GetOrCreateParametricStructContext(
       std::optional<const ParametricContext*> parent_context,
