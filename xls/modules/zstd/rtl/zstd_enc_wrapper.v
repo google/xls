@@ -249,7 +249,7 @@ module zstd_enc_wrapper #(
     localparam FSE_TTABLE_RAM_DATA_W = 64;
     localparam FSE_CTABLE_NUM_PARTITIONS = 2;
     localparam FSE_TTABLE_NUM_PARTITIONS = 4;
-    localparam FSE_RAM_SIZE = 'h1000;
+    localparam FSE_RAM_SIZE = 'h1000; // TODO: figure out the proper value for the size, for now it's just a "magic number"
 
     wire [FSE_CTABLE_RAM_DATA_W-1:0]        ll_ctable_ram_rd_data;
     wire [FSE_TABLE_RAM_ADDR_W-1:0]         ll_ctable_ram_rd_addr;
@@ -309,7 +309,8 @@ module zstd_enc_wrapper #(
         .DATA_WIDTH(FSE_CTABLE_RAM_DATA_W),
         .ADDR_WIDTH(FSE_TABLE_RAM_ADDR_W),
         .SIZE(FSE_RAM_SIZE),
-        .NUM_PARTITIONS(FSE_CTABLE_NUM_PARTITIONS)
+        .NUM_PARTITIONS(FSE_CTABLE_NUM_PARTITIONS),
+        .INIT_FILE("../../xls/modules/zstd/zstd_enc_ll_ctable_default.mem")
     ) ll_ctable_ram (
         .clk(clk),
         .rst(rst),
@@ -327,7 +328,8 @@ module zstd_enc_wrapper #(
         .DATA_WIDTH(FSE_CTABLE_RAM_DATA_W),
         .ADDR_WIDTH(FSE_TABLE_RAM_ADDR_W),
         .SIZE(FSE_RAM_SIZE),
-        .NUM_PARTITIONS(FSE_CTABLE_NUM_PARTITIONS)
+        .NUM_PARTITIONS(FSE_CTABLE_NUM_PARTITIONS),
+        .INIT_FILE("../../xls/modules/zstd/zstd_enc_ml_ctable_default.mem")
     ) ml_ctable_ram (
         .clk(clk),
         .rst(rst),
@@ -345,7 +347,8 @@ module zstd_enc_wrapper #(
         .DATA_WIDTH(FSE_CTABLE_RAM_DATA_W),
         .ADDR_WIDTH(FSE_TABLE_RAM_ADDR_W),
         .SIZE(FSE_RAM_SIZE),
-        .NUM_PARTITIONS(FSE_CTABLE_NUM_PARTITIONS)
+        .NUM_PARTITIONS(FSE_CTABLE_NUM_PARTITIONS),
+        .INIT_FILE("../../xls/modules/zstd/zstd_enc_of_ctable_default.mem")
     ) ol_ctable_ram (
         .clk(clk),
         .rst(rst),
@@ -363,7 +366,8 @@ module zstd_enc_wrapper #(
         .DATA_WIDTH(FSE_TTABLE_RAM_DATA_W),
         .ADDR_WIDTH(FSE_TABLE_RAM_ADDR_W),
         .SIZE(FSE_RAM_SIZE),
-        .NUM_PARTITIONS(FSE_TTABLE_NUM_PARTITIONS)
+        .NUM_PARTITIONS(FSE_TTABLE_NUM_PARTITIONS),
+        .INIT_FILE("../../xls/modules/zstd/zstd_enc_ll_ttable_default.mem")
     ) ll_ttable_ram (
         .clk(clk),
         .rst(rst),
@@ -378,10 +382,11 @@ module zstd_enc_wrapper #(
     );
 
     ram_1r1w #(
-        .DATA_WIDTH(FSE_TTABLE_RAM_DATA_W),
+    .DATA_WIDTH(FSE_TTABLE_RAM_DATA_W),
         .ADDR_WIDTH(FSE_TABLE_RAM_ADDR_W),
         .SIZE(FSE_RAM_SIZE),
-        .NUM_PARTITIONS(FSE_TTABLE_NUM_PARTITIONS)
+        .NUM_PARTITIONS(FSE_TTABLE_NUM_PARTITIONS),
+        .INIT_FILE("../../xls/modules/zstd/zstd_enc_ml_ttable_default.mem")
     ) ml_ttable_ram (
         .clk(clk),
         .rst(rst),
@@ -399,7 +404,8 @@ module zstd_enc_wrapper #(
         .DATA_WIDTH(FSE_TTABLE_RAM_DATA_W),
         .ADDR_WIDTH(FSE_TABLE_RAM_ADDR_W),
         .SIZE(FSE_RAM_SIZE),
-        .NUM_PARTITIONS(FSE_TTABLE_NUM_PARTITIONS)
+        .NUM_PARTITIONS(FSE_TTABLE_NUM_PARTITIONS),
+        .INIT_FILE("../../xls/modules/zstd/zstd_enc_of_ttable_default.mem")
     ) of_ttable_ram (
         .clk(clk),
         .rst(rst),
