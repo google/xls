@@ -4953,6 +4953,7 @@ py_test(
         "//xls/modules/zstd/rtl:zstd_enc_wrapper.v",
         "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
         "//xls/modules/zstd/rtl:ram_1r1w.v",
+        "//xls/modules/zstd:zstd_enc_xx_xtable_default_default",
         "@com_icarus_iverilog//:iverilog",
         "@com_icarus_iverilog//:vvp",
     ],
@@ -5094,4 +5095,16 @@ xls_dslx_library(
         "//xls/modules/zstd/memory:mem_reader_dslx",
         "//xls/modules/zstd/memory:mem_writer_dslx",
     ],
+)
+
+filegroup(
+    name = "zstd_enc_xx_xtable_default_default",
+    srcs = [
+        "zstd_enc_ll_ctable_default.mem",
+        "zstd_enc_ml_ctable_default.mem",
+        "zstd_enc_of_ctable_default.mem",
+        "zstd_enc_ll_ttable_default.mem",
+        "zstd_enc_ml_ttable_default.mem",
+        "zstd_enc_of_ttable_default.mem",
+    ]
 )
