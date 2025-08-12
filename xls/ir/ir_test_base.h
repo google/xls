@@ -168,7 +168,7 @@ struct ScopedRecordIr {
 
  private:
   Package* p_;
-  std::string_view name_;
+  std::string name_;
 };
 
 // Helper to record something on failure.
