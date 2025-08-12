@@ -289,7 +289,7 @@ class InferenceTableImpl : public InferenceTable {
  public:
   absl::StatusOr<const NameRef*> DefineInternalVariable(
       InferenceVariableKind kind, AstNode* definer, std::string_view name,
-      std::optional<const TypeAnnotation*> declaration_annotation) override {
+      std::optional<const TypeAnnotation*> declaration_annotation) final {
     VLOG(6) << "DefineInternalVariable of kind " << (int)kind << " with name "
             << name << " and definer: " << definer->ToString();
     XLS_RET_CHECK(definer->GetSpan().has_value());
@@ -310,7 +310,7 @@ class InferenceTableImpl : public InferenceTable {
   }
 
   absl::StatusOr<const NameRef*> DefineParametricVariable(
-      const ParametricBinding& binding) override {
+      const ParametricBinding& binding) final {
     VLOG(6) << "DefineParametricVariable of type "
             << binding.type_annotation()->ToString() << " with name "
             << binding.name_def()->ToString();
@@ -331,7 +331,7 @@ class InferenceTableImpl : public InferenceTable {
       std::optional<const Function*> caller,
       std::optional<const ParametricContext*> parent_context,
       std::optional<const TypeAnnotation*> self_type,
-      TypeInfo* invocation_type_info) override {
+      TypeInfo* invocation_type_info) final {
     VLOG(5) << "Add parametric invocation: " << node.ToString()
             << " from parent context: "
             << ::xls::dslx::ToString(parent_context);
@@ -371,7 +371,7 @@ class InferenceTableImpl : public InferenceTable {
   }
 
   bool MapToCanonicalInvocationTypeInfo(ParametricContext* parametric_context,
-                                        ParametricEnv env) override {
+                                        ParametricEnv env) final {
     CHECK(parametric_context->is_invocation());
 
     // `ParametricEnv` doesn't currently capture generic types, so for the time
@@ -453,14 +453,14 @@ class InferenceTableImpl : public InferenceTable {
   }
 
   absl::Status SetTypeAnnotation(const AstNode* node,
-                                 const TypeAnnotation* annotation) override {
+                                 const TypeAnnotation* annotation) final {
     return MutateAndCheckNodeData(
         node, [=](NodeData& data) { data.type_annotation = annotation; });
   }
 
   absl::Status AddTypeAnnotationToVariableForParametricContext(
       std::optional<const ParametricContext*> context, const NameRef* ref,
-      const TypeAnnotation* annotation) override {
+      const TypeAnnotation* annotation) final {
     XLS_ASSIGN_OR_RETURN(const InferenceVariable* variable, GetVariable(ref));
     AddTypeAnnotationForParametricContextInternal(context, variable,
                                                   annotation);
@@ -470,7 +470,7 @@ class InferenceTableImpl : public InferenceTable {
   absl::Status AddTypeAnnotationToVariableForParametricContext(
       std::optional<const ParametricContext*> context,
       const ParametricBinding* binding,
-      const TypeAnnotation* annotation) override {
+      const TypeAnnotation* annotation) final {
     XLS_ASSIGN_OR_RETURN(const InferenceVariable* variable,
                          GetVariable(binding->name_def()));
     AddTypeAnnotationForParametricContextInternal(context, variable,
@@ -501,7 +501,7 @@ class InferenceTableImpl : public InferenceTable {
   }
 
   void SetAnnotationFlag(const TypeAnnotation* annotation,
-                         TypeInferenceFlag flag) override {
+                         TypeInferenceFlag flag) final {
     annotation_flags_[annotation].SetFlag(flag);
   }
 
@@ -513,7 +513,7 @@ class InferenceTableImpl : public InferenceTable {
   }
 
   absl::Status SetTypeVariable(const AstNode* node,
-                               const NameRef* type) override {
+                               const NameRef* type) final {
     XLS_ASSIGN_OR_RETURN(InferenceVariable * variable, GetVariable(type));
     VLOG(6) << "SetTypeVariable node " << node->ToString() << "; type "
             << type->ToString() << " variable " << variable->ToString();
@@ -592,7 +592,7 @@ class InferenceTableImpl : public InferenceTable {
   }
 
   void SetColonRefTarget(const ColonRef* colon_ref,
-                         const AstNode* target) override {
+                         const AstNode* target) final {
     colon_ref_targets_[colon_ref] = target;
   }
 
@@ -606,7 +606,7 @@ class InferenceTableImpl : public InferenceTable {
   void SetCalleeInCallerContext(
       const Invocation* invocation,
       std::optional<const ParametricContext*> caller_context,
-      const Function* callee) override {
+      const Function* callee) final {
     if (caller_context.has_value()) {
       mutable_parametric_context_data_.at(*caller_context).callees[invocation] =
           callee;
@@ -627,7 +627,7 @@ class InferenceTableImpl : public InferenceTable {
   }
 
   absl::StatusOr<AstNode*> Clone(const AstNode* input, CloneReplacer replacer,
-                                 bool in_place) override {
+                                 bool in_place) final {
     absl::flat_hash_map<const AstNode*, AstNode*> all_pairs;
     XLS_ASSIGN_OR_RETURN(
         all_pairs, CloneAstAndGetAllPairs(
@@ -754,14 +754,14 @@ class InferenceTableImpl : public InferenceTable {
   }
 
   absl::Status SetSliceStartAndWidthExprs(
-      const AstNode* node, StartAndWidthExprs start_and_width) override {
+      const AstNode* node, StartAndWidthExprs start_and_width) final {
     return MutateAndCheckNodeData(node, [&](NodeData& data) {
       data.slice_start_and_width_exprs = start_and_width;
     });
   }
 
   std::optional<StartAndWidthExprs> GetSliceStartAndWidthExprs(
-      const AstNode* node) override {
+      const AstNode* node) final {
     const auto it = node_data_.find(node);
     return it == node_data_.end() ? std::nullopt
                                   : it->second.slice_start_and_width_exprs;
@@ -772,7 +772,7 @@ class InferenceTableImpl : public InferenceTable {
       const NameRef* variable,
       const absl::flat_hash_set<const NameRef*>&
           transitive_variable_dependencies,
-      const TypeAnnotation* unified_type) override {
+      const TypeAnnotation* unified_type) final {
     cache_.SetUnifiedTypeForVariable(GetCanonicalContext(parametric_context),
                                      variable, transitive_variable_dependencies,
                                      unified_type);
@@ -780,19 +780,19 @@ class InferenceTableImpl : public InferenceTable {
 
   std::optional<const TypeAnnotation*> GetCachedUnifiedTypeForVariable(
       std::optional<const ParametricContext*> parametric_context,
-      const NameRef* variable) override {
+      const NameRef* variable) final {
     return cache_.GetUnifiedTypeForVariable(
         GetCanonicalContext(parametric_context), variable);
   }
 
   void SetParametricEnv(const ParametricContext* parametric_context,
-                        ParametricEnv env) override {
+                        ParametricEnv env) final {
     converted_parametric_envs_[parametric_context] = std::move(env);
   }
 
   void SetParametricValueExprs(
       const ParametricContext* parametric_context,
-      absl::flat_hash_map<const NameDef*, ExprOrType> value_exprs) override {
+      absl::flat_hash_map<const NameDef*, ExprOrType> value_exprs) final {
     parametric_value_exprs_[parametric_context] = std::move(value_exprs);
   }
 
@@ -809,7 +809,7 @@ class InferenceTableImpl : public InferenceTable {
 
   absl::StatusOr<absl::flat_hash_map<const NameDef*, ExprOrType>>
   GetParametricValueExprs(
-      const ParametricContext* parametric_context) override {
+      const ParametricContext* parametric_context) final {
     const auto it = parametric_value_exprs_.find(parametric_context);
     if (it == parametric_value_exprs_.end()) {
       return absl::NotFoundError(absl::StrCat("No value exprs for context: ",

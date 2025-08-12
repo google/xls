@@ -658,13 +658,13 @@ class FindTypeVisitor : public AstNodeVisitorWithDefault {
   bool found() const { return found_; }
 
   absl::Status HandleBuiltinTypeAnnotation(
-      const BuiltinTypeAnnotation* builtin_type) override {
+      const BuiltinTypeAnnotation* builtin_type) final {
     found_ = found_ || is_target_type_(builtin_type);
     return absl::OkStatus();
   }
 
   absl::Status HandleTupleTypeAnnotation(
-      const TupleTypeAnnotation* tuple_type) override {
+      const TupleTypeAnnotation* tuple_type) final {
     found_ = found_ || is_target_type_(tuple_type);
     for (TypeAnnotation* member_type : tuple_type->members()) {
       if (found_) {
@@ -676,63 +676,63 @@ class FindTypeVisitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleArrayTypeAnnotation(
-      const ArrayTypeAnnotation* array_type) override {
+      const ArrayTypeAnnotation* array_type) final {
     found_ = found_ || is_target_type_(array_type);
     return array_type->element_type()->Accept(this);
   }
 
   absl::Status HandleTypeRefTypeAnnotation(
-      const TypeRefTypeAnnotation* type_ref_type) override {
+      const TypeRefTypeAnnotation* type_ref_type) final {
     found_ = found_ || is_target_type_(type_ref_type);
     return type_ref_type->type_ref()->Accept(this);
   }
 
   absl::Status HandleMemberTypeAnnotation(
-      const MemberTypeAnnotation*) override {
+      const MemberTypeAnnotation*) final {
     return absl::InternalError(
         "MemberTypeAnnotation nodes are not supported by the fuzzer.");
   }
 
   absl::Status HandleElementTypeAnnotation(
-      const ElementTypeAnnotation*) override {
+      const ElementTypeAnnotation*) final {
     return absl::InternalError(
         "ElementTypeAnnotation nodes are not supported by the fuzzer.");
   }
 
-  absl::Status HandleSliceTypeAnnotation(const SliceTypeAnnotation*) override {
+  absl::Status HandleSliceTypeAnnotation(const SliceTypeAnnotation*) final {
     return absl::InternalError(
         "SliceTypeAnnotation nodes are not supported by the fuzzer.");
   }
 
   absl::Status HandleFunctionTypeAnnotation(
-      const FunctionTypeAnnotation*) override {
+      const FunctionTypeAnnotation*) final {
     return absl::InternalError(
         "FunctionTypeAnnotation nodes are not supported by the fuzzer.");
   }
 
   absl::Status HandleReturnTypeAnnotation(
-      const ReturnTypeAnnotation*) override {
+      const ReturnTypeAnnotation*) final {
     return absl::InternalError(
         "ReturnTypeAnnotation nodes are not supported by the fuzzer.");
   }
 
-  absl::Status HandleParamTypeAnnotation(const ParamTypeAnnotation*) override {
+  absl::Status HandleParamTypeAnnotation(const ParamTypeAnnotation*) final {
     return absl::InternalError(
         "ParamTypeAnnotation nodes are not supported by the fuzzer.");
   }
 
-  absl::Status HandleAnyTypeAnnotation(const AnyTypeAnnotation*) override {
+  absl::Status HandleAnyTypeAnnotation(const AnyTypeAnnotation*) final {
     return absl::InternalError(
         "AnyTypeAnnotation nodes are not supported by the fuzzer.");
   }
 
   absl::Status HandleTypeVariableTypeAnnotation(
-      const TypeVariableTypeAnnotation* type_variable_type) override {
+      const TypeVariableTypeAnnotation* type_variable_type) final {
     found_ = found_ || is_target_type_(type_variable_type);
     return type_variable_type->type_variable()->Accept(this);
   }
 
-  absl::Status HandleTypeRef(const TypeRef* type_ref) override {
+  absl::Status HandleTypeRef(const TypeRef* type_ref) final {
     const TypeDefinition& type_def = type_ref->type_definition();
     if (std::holds_alternative<TypeAlias*>(type_def)) {
       return std::get<TypeAlias*>(type_def)->Accept(this);
@@ -750,23 +750,23 @@ class FindTypeVisitor : public AstNodeVisitorWithDefault {
     return std::get<ColonRef*>(type_def)->Accept(this);
   }
 
-  absl::Status HandleTypeAlias(const TypeAlias* type_alias) override {
+  absl::Status HandleTypeAlias(const TypeAlias* type_alias) final {
     return type_alias->type_annotation().Accept(this);
   }
 
-  absl::Status HandleStructDef(const StructDef* struct_def) override {
+  absl::Status HandleStructDef(const StructDef* struct_def) final {
     return HandleStructDefBaseInternal(struct_def);
   }
 
-  absl::Status HandleProcDef(const ProcDef* proc_def) override {
+  absl::Status HandleProcDef(const ProcDef* proc_def) final {
     return HandleStructDefBaseInternal(proc_def);
   }
 
-  absl::Status HandleEnumDef(const EnumDef* enum_def) override {
+  absl::Status HandleEnumDef(const EnumDef* enum_def) final {
     return enum_def->type_annotation()->Accept(this);
   }
 
-  absl::Status HandleColonRef(const ColonRef* colon_def) override {
+  absl::Status HandleColonRef(const ColonRef* colon_def) final {
     return absl::InternalError("ColonRef are not supported by the fuzzer.");
   }
 

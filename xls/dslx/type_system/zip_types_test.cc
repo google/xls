@@ -89,23 +89,23 @@ std::ostream& operator<<(std::ostream& os, const CallbackData& data) {
 
 // Trivial implementation of the callbacks abstract interface that just collects
 // events as they are triggered in an underlying vector.
-class ZipTypesCallbacksCollector : public ZipTypesCallbacks {
+class ZipTypesCallbacksCollector final : public ZipTypesCallbacks {
  public:
-  ~ZipTypesCallbacksCollector() override = default;
+  ~ZipTypesCallbacksCollector() final = default;
 
-  absl::Status NoteAggregateStart(const AggregatePair& pair) override {
+  absl::Status NoteAggregateStart(const AggregatePair& pair) final {
     data_.push_back(CallbackData{.kind = CallbackKind::kAggregateStart,
                                  .aggregates = pair});
     return absl::OkStatus();
   }
-  absl::Status NoteAggregateEnd(const AggregatePair& pair) override {
+  absl::Status NoteAggregateEnd(const AggregatePair& pair) final {
     data_.push_back(
         CallbackData{.kind = CallbackKind::kAggregateEnd, .aggregates = pair});
     return absl::OkStatus();
   }
   absl::Status NoteMatchedLeafType(const Type& lhs, const Type* lhs_parent,
                                    const Type& rhs,
-                                   const Type* rhs_parent) override {
+                                   const Type* rhs_parent) final {
     data_.push_back(CallbackData{.kind = CallbackKind::kMatchedLeaf,
                                  .lhs = &lhs,
                                  .lhs_parent = lhs_parent,
@@ -115,7 +115,7 @@ class ZipTypesCallbacksCollector : public ZipTypesCallbacks {
   }
   absl::Status NoteTypeMismatch(const Type& lhs, const Type* lhs_parent,
                                 const Type& rhs,
-                                const Type* rhs_parent) override {
+                                const Type* rhs_parent) final {
     data_.push_back(CallbackData{.kind = CallbackKind::kMismatch,
                                  .lhs = &lhs,
                                  .lhs_parent = lhs_parent,

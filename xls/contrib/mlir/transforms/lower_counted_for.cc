@@ -289,7 +289,7 @@ class ForToCountedForRewrite : public OpConversionPattern<ForOp> {
 class LowerCountedForPass
     : public impl::LowerCountedForPassBase<LowerCountedForPass> {
  private:
-  void runOnOperation() override {
+  void runOnOperation() final {
     // See comment in ForToCountedForRewrite for why we do this.
     DenseSet<StringRef> addedSymbols;
     SymbolTable symbolTable(getOperation());

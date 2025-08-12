@@ -34,11 +34,11 @@ class NocSimulatorToNocTrafficInjectorShim
       : simulator_(&simulator), traffic_injector_(&traffic_injector) {}
 
   // Called by the simulator each cycle to request for traffic.
-  absl::Status RunCycle() override { return traffic_injector_->RunCycle(); }
+  absl::Status RunCycle() final { return traffic_injector_->RunCycle(); }
 
   // Called by the traffic injector to inject traffic.
   absl::Status SendFlitAtTime(TimedDataFlit flit,
-                              NetworkComponentId source) override {
+                              NetworkComponentId source) final {
     XLS_ASSIGN_OR_RETURN(SimNetworkInterfaceSrc * src,
                          simulator_->GetSimNetworkInterfaceSrc(source));
     return src->SendFlitAtTime(flit);

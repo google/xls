@@ -94,7 +94,7 @@ absl::StatusOr<LeafTypeTree<DataSource>> VisitorDefaultHandler(Node* node) {
 // control join operator appends the control signal name.
 class TestDataflowVisitor : public DataflowVisitor<DataSource> {
  protected:
-  absl::Status DefaultHandler(Node* node) override {
+  absl::Status DefaultHandler(Node* node) final {
     XLS_ASSIGN_OR_RETURN(LeafTypeTree<DataSource> result,
                          VisitorDefaultHandler(node));
     return SetValue(node, std::move(result));
@@ -119,7 +119,7 @@ class TestDataflowVisitorWithControl : public TestDataflowVisitor {
   absl::StatusOr<DataSource> JoinElements(
       Type* element_type, absl::Span<const DataSource* const> data_sources,
       absl::Span<const LeafTypeTreeView<DataSource>> control_sources,
-      Node* node, absl::Span<const int64_t> index) override {
+      Node* node, absl::Span<const int64_t> index) final {
     XLS_RET_CHECK(!data_sources.empty());
     DataSource result = *data_sources.front();
     for (const DataSource* other : data_sources.subspan(1)) {

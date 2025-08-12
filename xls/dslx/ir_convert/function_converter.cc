@@ -324,7 +324,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleConstAssert(const ConstAssert* node) override {
+  absl::Status HandleConstAssert(const ConstAssert* node) final {
     // No need to IR-convert these, because they're checked by the typechecker.
     return absl::OkStatus();
   }
@@ -332,7 +332,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   // A macro used for AST types where we want to visit all children, then call
   // the FunctionConverter handler (i.e. postorder traversal).
 #define TRAVERSE_DISPATCH(__type)                            \
-  absl::Status Handle##__type(const __type* node) override { \
+  absl::Status Handle##__type(const __type* node) final { \
     XLS_RETURN_IF_ERROR(VisitChildren(node));                \
     return converter_->Handle##__type(node);                 \
   }
@@ -349,7 +349,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   // A macro used for AST types where we don't want to visit any children, just
   // call the FunctionConverter handler.
 #define NO_TRAVERSE_DISPATCH(__type)                         \
-  absl::Status Handle##__type(const __type* node) override { \
+  absl::Status Handle##__type(const __type* node) final { \
     return converter_->Handle##__type(node);                 \
   }
 
@@ -363,7 +363,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   // A macro used for AST types where we don't want to visit any children, just
   // call the FunctionConverter handler.
 #define NO_TRAVERSE_DISPATCH_VISIT(__type)                   \
-  absl::Status Handle##__type(const __type* node) override { \
+  absl::Status Handle##__type(const __type* node) final { \
     return converter_->Handle##__type(node);                 \
   }
 
@@ -392,7 +392,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   // A macro used for AST types that we never expect to visit (if we do we
   // provide an error message noting it was unexpected).
 #define INVALID(__type)                                      \
-  absl::Status Handle##__type(const __type* node) override { \
+  absl::Status Handle##__type(const __type* node) final { \
     return Invalid(node);                                    \
   }
 

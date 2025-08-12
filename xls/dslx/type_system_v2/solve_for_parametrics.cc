@@ -75,7 +75,7 @@ absl::StatusOr<const TypeRefTypeAnnotation*> CanonicalizeTypeRefTypeAnnotation(
 // was last encountered on each.
 class Visitor : public AstNodeVisitorWithDefault {
  public:
-  absl::Status HandleNameRef(const NameRef* node) override {
+  absl::Status HandleNameRef(const NameRef* node) final {
     XLS_RETURN_IF_ERROR(DefaultHandler(node));
     if (std::holds_alternative<const NameDef*>(node->name_def())) {
       last_variable_ = std::get<const NameDef*>(node->name_def());
@@ -84,19 +84,19 @@ class Visitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleTypeVariableTypeAnnotation(
-      const TypeVariableTypeAnnotation* node) override {
+      const TypeVariableTypeAnnotation* node) final {
     XLS_RETURN_IF_ERROR(DefaultHandler(node));
     last_tvta_ = node;
     return absl::OkStatus();
   }
 
   absl::Status HandleBuiltinTypeAnnotation(
-      const BuiltinTypeAnnotation* node) override {
+      const BuiltinTypeAnnotation* node) final {
     return HandlePossibleIntegerAnnotation(node);
   }
 
   absl::Status HandleArrayTypeAnnotation(
-      const ArrayTypeAnnotation* node) override {
+      const ArrayTypeAnnotation* node) final {
     absl::Status initial_result = HandlePossibleIntegerAnnotation(node);
     if (initial_result.ok() && !last_signedness_and_bit_count_.has_value()) {
       // Not an integer annotation, but an array of something that it still
@@ -107,27 +107,27 @@ class Visitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleTupleTypeAnnotation(
-      const TupleTypeAnnotation* node) override {
+      const TupleTypeAnnotation* node) final {
     XLS_RETURN_IF_ERROR(DefaultHandler(node));
     last_direct_annotation_ = node;
     return absl::OkStatus();
   }
 
   absl::Status HandleTypeRefTypeAnnotation(
-      const TypeRefTypeAnnotation* node) override {
+      const TypeRefTypeAnnotation* node) final {
     XLS_RETURN_IF_ERROR(DefaultHandler(node));
     last_direct_annotation_ = node;
     return absl::OkStatus();
   }
 
   absl::Status HandleFunctionTypeAnnotation(
-      const FunctionTypeAnnotation* node) override {
+      const FunctionTypeAnnotation* node) final {
     XLS_RETURN_IF_ERROR(DefaultHandler(node));
     last_direct_annotation_ = node;
     return absl::OkStatus();
   }
 
-  absl::Status DefaultHandler(const AstNode* node) override {
+  absl::Status DefaultHandler(const AstNode* node) final {
     last_variable_ = std::nullopt;
     last_signedness_and_bit_count_ = std::nullopt;
     last_tvta_ = std::nullopt;

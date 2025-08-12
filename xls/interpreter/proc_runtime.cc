@@ -48,14 +48,14 @@
 namespace xls {
 
 // Functor for recording channel activity as trace messages.
-class ChannelTraceRecorder : public ChannelQueueCallback {
+class ChannelTraceRecorder final : public ChannelQueueCallback {
  public:
   ChannelTraceRecorder(ProcRuntime* runtime, FormatPreference format_preference)
       : runtime_(runtime), format_preference_(format_preference) {}
-  ~ChannelTraceRecorder() override = default;
+  ~ChannelTraceRecorder() final = default;
 
   void ReadValue(ChannelInstance* channel_instance,
-                 const Value& value) override {
+                 const Value& value) final {
     std::string message = absl::StrFormat("Received data on channel `%s`: %s",
                                           channel_instance->ToString(),
                                           value.ToString(format_preference_));
@@ -65,7 +65,7 @@ class ChannelTraceRecorder : public ChannelQueueCallback {
   }
 
   void WriteValue(ChannelInstance* channel_instance,
-                  const Value& value) override {
+                  const Value& value) final {
     std::string message = absl::StrFormat("Sent data on channel `%s`: %s",
                                           channel_instance->ToString(),
                                           value.ToString(format_preference_));

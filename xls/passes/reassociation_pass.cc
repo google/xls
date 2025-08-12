@@ -593,7 +593,7 @@ class OneShotReassociationVisitor : public DfsVisitorWithDefault {
           operand_infos)
       : query_engine_(query_engine), operand_infos_(operand_infos) {}
 
-  absl::Status DefaultHandler(Node* n) override {
+  absl::Status DefaultHandler(Node* n) final {
     XLS_RET_CHECK(n->GetType()->IsBits()) << n;
     // If we reach here we aren't associative.
     unsigned_result_ = AssociativeElements::MakeLeaf(n);
@@ -601,21 +601,21 @@ class OneShotReassociationVisitor : public DfsVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleAdd(BinOp* op) override { return HandleAssociativeOp(op); }
-  absl::Status HandleSub(BinOp* op) override { return HandleAssociativeOp(op); }
-  absl::Status HandleSMul(ArithOp* op) override {
+  absl::Status HandleAdd(BinOp* op) final { return HandleAssociativeOp(op); }
+  absl::Status HandleSub(BinOp* op) final { return HandleAssociativeOp(op); }
+  absl::Status HandleSMul(ArithOp* op) final {
     unsigned_result_ = AssociativeElements::MakeLeaf(op);
     XLS_ASSIGN_OR_RETURN(signed_result_,
                          CalculateAssociativeOp(op, /*is_signed=*/true));
     return absl::OkStatus();
   }
-  absl::Status HandleUMul(ArithOp* op) override {
+  absl::Status HandleUMul(ArithOp* op) final {
     signed_result_ = AssociativeElements::MakeLeaf(op);
     XLS_ASSIGN_OR_RETURN(unsigned_result_,
                          CalculateAssociativeOp(op, /*is_signed=*/false));
     return absl::OkStatus();
   }
-  absl::Status HandleNeg(UnOp* op) override {
+  absl::Status HandleNeg(UnOp* op) final {
     const AssociativeElements& base_signed =
         GetOperandInfo(0, /*is_signed=*/true);
     if (base_signed.op() == Op::kUMul) {
@@ -639,7 +639,7 @@ class OneShotReassociationVisitor : public DfsVisitorWithDefault {
     }
     return absl::OkStatus();
   }
-  absl::Status HandleConcat(Concat* cc) override {
+  absl::Status HandleConcat(Concat* cc) final {
     std::optional<ZeroExtLike> ext_like = ZeroExtLike::Make(cc, query_engine_);
     if (!ext_like) {
       return DefaultHandler(cc);
@@ -647,11 +647,11 @@ class OneShotReassociationVisitor : public DfsVisitorWithDefault {
     return HandleZeroExtLike(*ext_like);
   }
 
-  absl::Status HandleZeroExtend(ExtendOp* ext) override {
+  absl::Status HandleZeroExtend(ExtendOp* ext) final {
     return HandleZeroExtLike(*ZeroExtLike::Make(ext, query_engine_));
   }
 
-  absl::Status HandleSignExtend(ExtendOp* ext) override {
+  absl::Status HandleSignExtend(ExtendOp* ext) final {
     const AssociativeElements& inner_unsigned =
         GetOperandInfo(0, /*is_signed=*/false);
     std::optional<ZeroExtLike> zero_ext_like =

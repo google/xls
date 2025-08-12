@@ -31,7 +31,7 @@ namespace {
 
 class ProcIdTest : public ::testing::Test {
  protected:
-  void SetUp() override {
+  void SetUp() final {
     auto [foo_module, foo_proc] = CreateEmptyProc(file_table_, "Foo");
     auto [bar_module, bar_proc] = CreateEmptyProc(file_table_, "Bar");
     auto [baz_module, baz_proc] = CreateEmptyProc(file_table_, "Baz");

@@ -177,7 +177,7 @@ std::vector<Node*> ReverseTopoSort(FunctionBase* f,
     // trivial DFS visitor which will emit an error message displaying the
     // cycle.
     class CycleChecker : public DfsVisitorWithDefault {
-      absl::Status DefaultHandler(Node* node) override {
+      absl::Status DefaultHandler(Node* node) final {
         return absl::OkStatus();
       }
     };

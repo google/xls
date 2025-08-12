@@ -45,11 +45,11 @@ steady_clock_t::duration ToSteadyDuration(absl::Duration d) {
 
 class RealTimeSteadyClock final : public SteadyClock {
  public:
-  ~RealTimeSteadyClock() override {
+  ~RealTimeSteadyClock() final {
     LOG(FATAL) << "RealTimeSteadyClock should never be destroyed";
   }
 
-  SteadyTime Now() override { return SteadyTime::Now(); }
+  SteadyTime Now() final { return SteadyTime::Now(); }
 };
 
 }  // namespace

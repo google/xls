@@ -243,13 +243,13 @@ class OptimizationContext {
  private:
   const std::vector<Node*>& ReverseTopoSortReference(FunctionBase* f);
 
-  class InvalidatingVector : public ChangeListener {
+  class InvalidatingVector final : public ChangeListener {
    public:
     explicit InvalidatingVector(FunctionBase* f, std::vector<Node*> value = {})
         : f_(f), storage_(std::move(value)) {
       f_->RegisterChangeListener(this);
     }
-    ~InvalidatingVector() override { f_->UnregisterChangeListener(this); }
+    ~InvalidatingVector() final { f_->UnregisterChangeListener(this); }
 
     InvalidatingVector(const InvalidatingVector&) = delete;
     InvalidatingVector& operator=(const InvalidatingVector&) = delete;
@@ -276,15 +276,15 @@ class OptimizationContext {
     std::vector<Node*>* operator->() { return &storage_; }
     const std::vector<Node*>* operator->() const { return &storage_; }
 
-    void NodeAdded(Node*) override { storage_.clear(); }
-    void NodeDeleted(Node*) override { storage_.clear(); }
-    void OperandChanged(Node*, Node*, absl::Span<const int64_t>) override {
+    void NodeAdded(Node*) final { storage_.clear(); }
+    void NodeDeleted(Node*) final { storage_.clear(); }
+    void OperandChanged(Node*, Node*, absl::Span<const int64_t>) final {
       storage_.clear();
     }
-    void OperandRemoved(Node*, Node*) override { storage_.clear(); }
-    void OperandAdded(Node*) override { storage_.clear(); }
-    void ReturnValueChanged(Function*, Node*) override { storage_.clear(); }
-    void NextStateElementChanged(Proc*, int64_t, Node*) override {
+    void OperandRemoved(Node*, Node*) final { storage_.clear(); }
+    void OperandAdded(Node*) final { storage_.clear(); }
+    void ReturnValueChanged(Function*, Node*) final { storage_.clear(); }
+    void NextStateElementChanged(Proc*, int64_t, Node*) final {
       storage_.clear();
     }
 

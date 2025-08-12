@@ -65,7 +65,7 @@ class FuncInterpreter final : public IrInterpreter {
       const absl::flat_hash_map<std::string_view, Value>& param_vals)
       : param_vals_(param_vals) {}
 
-  absl::Status HandleParam(Param* param) override {
+  absl::Status HandleParam(Param* param) final {
     XLS_RET_CHECK(param_vals_.contains(param->name()));
     return IrInterpreter::SetValueResult(param, param_vals_.at(param->name()));
   }

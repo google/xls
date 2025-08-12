@@ -70,7 +70,7 @@ using ::testing::HasSubstr;
 
 class BytecodeInterpreterTest : public ::testing::Test {
  public:
-  void SetUp() override { import_data_.emplace(CreateImportDataForTest()); }
+  void SetUp() final { import_data_.emplace(CreateImportDataForTest()); }
 
  protected:
   std::optional<ImportData> import_data_;

@@ -37,7 +37,7 @@ namespace {
 // A testing visitor which records which nodes it has visited.
 class TestVisitor : public DfsVisitorWithDefault {
  public:
-  absl::Status DefaultHandler(Node* node) override {
+  absl::Status DefaultHandler(Node* node) final {
     VLOG(1) << "Visiting " << node->GetName();
     visited_.push_back(node);
     visited_set_.insert(node);

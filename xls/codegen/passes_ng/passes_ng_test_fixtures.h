@@ -368,7 +368,7 @@ class SweepPipelineStagesFixture : public BlockConversionTestFixture,
 // Simple pipelined function test fixture.
 class SweepTrivialPipelinedFunctionFixture : public SweepPipelineStagesFixture {
  public:
-  CodegenOptions codegen_options() override {
+  CodegenOptions codegen_options() final {
     return SweepPipelineStagesFixture::codegen_options()
         .flop_inputs(false)
         .flop_outputs(true)

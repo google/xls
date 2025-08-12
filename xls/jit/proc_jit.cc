@@ -61,7 +61,7 @@ namespace {
 
 // A continuation used by the ProcJit. Stores control and data state of proc
 // execution for the JIT.
-class ProcJitContinuation : public ProcContinuation {
+class ProcJitContinuation final : public ProcContinuation {
  public:
   // Construct a new continuation. Execution of the proc begins with the state
   // set to its initial values with no proc nodes yet executed. `queues` is the
@@ -74,13 +74,13 @@ class ProcJitContinuation : public ProcContinuation {
                                const JittedFunctionBase& jit_func,
                                bool has_observer_callbacks);
 
-  ~ProcJitContinuation() override = default;
+  ~ProcJitContinuation() final = default;
 
   std::vector<Value> GetState() const override;
-  absl::Status SetState(std::vector<Value> v) override;
+  absl::Status SetState(std::vector<Value> v) final;
   const InterpreterEvents& GetEvents() const override { return events_; }
-  InterpreterEvents& GetEvents() override { return events_; }
-  void ClearEvents() override { events_.Clear(); }
+  InterpreterEvents& GetEvents() final { return events_; }
+  void ClearEvents() final { events_.Clear(); }
 
   bool AtStartOfTick() const override { return continuation_point_ == 0; }
 
@@ -104,8 +104,8 @@ class ProcJitContinuation : public ProcContinuation {
 
   InstanceContext* instance_context() { return &instance_context_; }
 
-  absl::Status SetObserver(EvaluationObserver* obs) override;
-  void ClearObserver() override;
+  absl::Status SetObserver(EvaluationObserver* obs) final;
+  void ClearObserver() final;
   bool SupportsObservers() const override { return has_observer_callbacks_; }
 
  private:
@@ -113,7 +113,7 @@ class ProcJitContinuation : public ProcContinuation {
    public:
     explicit RuntimeObserverShim(ProcJitContinuation* owner) : owner_(owner) {}
 
-    void RecordNodeValue(int64_t node_ptr, const uint8_t* data) override {
+    void RecordNodeValue(int64_t node_ptr, const uint8_t* data) final {
       if (!owner_->GetObserver()) {
         return;
       }

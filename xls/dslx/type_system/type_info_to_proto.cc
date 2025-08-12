@@ -442,61 +442,61 @@ class ToProtoVisitor : public TypeVisitor {
   explicit ToProtoVisitor(const FileTable& file_table)
       : file_table_(file_table) {}
 
-  absl::Status HandleBits(const BitsType& type) override {
+  absl::Status HandleBits(const BitsType& type) final {
     XLS_ASSIGN_OR_RETURN(*proto_.mutable_bits_type(),
                          ToProto(type, file_table_));
     return absl::OkStatus();
   }
-  absl::Status HandleBitsConstructor(const BitsConstructorType& type) override {
+  absl::Status HandleBitsConstructor(const BitsConstructorType& type) final {
     XLS_ASSIGN_OR_RETURN(*proto_.mutable_bits_constructor_type(),
                          ToProto(type, file_table_));
     return absl::OkStatus();
   }
-  absl::Status HandleFunction(const FunctionType& type) override {
+  absl::Status HandleFunction(const FunctionType& type) final {
     XLS_ASSIGN_OR_RETURN(*proto_.mutable_fn_type(), ToProto(type, file_table_));
     return absl::OkStatus();
   }
-  absl::Status HandleTuple(const TupleType& type) override {
+  absl::Status HandleTuple(const TupleType& type) final {
     XLS_ASSIGN_OR_RETURN(*proto_.mutable_tuple_type(),
                          ToProto(type, file_table_));
     return absl::OkStatus();
   }
-  absl::Status HandleArray(const ArrayType& type) override {
+  absl::Status HandleArray(const ArrayType& type) final {
     XLS_ASSIGN_OR_RETURN(*proto_.mutable_array_type(),
                          ToProto(type, file_table_));
     return absl::OkStatus();
   }
-  absl::Status HandleStruct(const StructType& type) override {
+  absl::Status HandleStruct(const StructType& type) final {
     XLS_ASSIGN_OR_RETURN(*proto_.mutable_struct_type(),
                          ToProto(type, file_table_));
     return absl::OkStatus();
   }
-  absl::Status HandleProc(const ProcType& type) override {
+  absl::Status HandleProc(const ProcType& type) final {
     XLS_ASSIGN_OR_RETURN(*proto_.mutable_proc_type(),
                          ToProto(type, file_table_));
     return absl::OkStatus();
   }
-  absl::Status HandleEnum(const EnumType& type) override {
+  absl::Status HandleEnum(const EnumType& type) final {
     XLS_ASSIGN_OR_RETURN(*proto_.mutable_enum_type(),
                          ToProto(type, file_table_));
     return absl::OkStatus();
   }
-  absl::Status HandleMeta(const MetaType& type) override {
+  absl::Status HandleMeta(const MetaType& type) final {
     XLS_ASSIGN_OR_RETURN(*proto_.mutable_meta_type(),
                          ToProto(type, file_table_));
     return absl::OkStatus();
   }
-  absl::Status HandleToken(const TokenType& type) override {
+  absl::Status HandleToken(const TokenType& type) final {
     XLS_ASSIGN_OR_RETURN(*proto_.mutable_token_type(),
                          ToProto(type, file_table_));
     return absl::OkStatus();
   }
-  absl::Status HandleChannel(const ChannelType& type) override {
+  absl::Status HandleChannel(const ChannelType& type) final {
     XLS_ASSIGN_OR_RETURN(*proto_.mutable_channel_type(),
                          ToProto(type, file_table_));
     return absl::OkStatus();
   }
-  absl::Status HandleModule(const ModuleType& type) override {
+  absl::Status HandleModule(const ModuleType& type) final {
     XLS_ASSIGN_OR_RETURN(*proto_.mutable_module_type(),
                          ToProto(type, file_table_));
     return absl::OkStatus();

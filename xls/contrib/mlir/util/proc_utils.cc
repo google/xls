@@ -477,7 +477,7 @@ struct TestConvertForOpToSprocCallPass
   void getDependentDialects(DialectRegistry& registry) const override {
     registry.insert<xls::XlsDialect>();
   }
-  void runOnOperation() override {
+  void runOnOperation() final {
     // We need to transform in pre-order, but MLIR's walkers require that if we
     // erase forOp we must interrupt the walk. So we run the walk to fixpoint.
     SymbolTable symbolTable(getOperation());

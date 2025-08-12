@@ -45,7 +45,7 @@ class FastConcretizerImpl : public FastConcretizer,
       : file_table_(file_table) {}
 
   absl::StatusOr<std::unique_ptr<Type>> Concretize(
-      const TypeAnnotation* annotation) override {
+      const TypeAnnotation* annotation) final {
     absl::StatusOr<SignednessAndBitCountResult> signedness_and_bit_count =
         GetSignednessAndBitCount(annotation);
     if (signedness_and_bit_count.ok()) {
@@ -63,7 +63,7 @@ class FastConcretizerImpl : public FastConcretizer,
   }
 
   absl::Status HandleArrayTypeAnnotation(
-      const ArrayTypeAnnotation* array_type) override {
+      const ArrayTypeAnnotation* array_type) final {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> element_type,
                          Concretize(array_type->element_type()));
     XLS_ASSIGN_OR_RETURN(uint32_t dim, GetU32(array_type->dim()));
@@ -73,7 +73,7 @@ class FastConcretizerImpl : public FastConcretizer,
   }
 
   absl::Status HandleTupleTypeAnnotation(
-      const TupleTypeAnnotation* tuple_type) override {
+      const TupleTypeAnnotation* tuple_type) final {
     std::vector<std::unique_ptr<Type>> member_types;
     member_types.reserve(tuple_type->members().size());
     for (const TypeAnnotation* member : tuple_type->members()) {
@@ -86,7 +86,7 @@ class FastConcretizerImpl : public FastConcretizer,
   }
 
   absl::Status HandleFunctionTypeAnnotation(
-      const FunctionTypeAnnotation* function_type) override {
+      const FunctionTypeAnnotation* function_type) final {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> return_type,
                          Concretize(function_type->return_type()));
     std::vector<std::unique_ptr<Type>> param_types;
@@ -100,7 +100,7 @@ class FastConcretizerImpl : public FastConcretizer,
     return absl::OkStatus();
   }
 
-  absl::Status DefaultHandler(const AstNode*) override {
+  absl::Status DefaultHandler(const AstNode*) final {
     return absl::UnimplementedError("Node is not handled by fast concretizer.");
   }
 

@@ -85,7 +85,7 @@ class Visitor : public AstNodeVisitorWithDefault {
         ti_(ti),
         trace_(std::move(trace)) {}
 
-  absl::Status HandleConstantDef(const ConstantDef* constant_def) override {
+  absl::Status HandleConstantDef(const ConstantDef* constant_def) final {
     VLOG(6) << "Checking constant def value: " << constant_def->ToString()
             << " with type: " << type_.ToString();
     absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
@@ -102,7 +102,7 @@ class Visitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleZeroMacro(const ZeroMacro* zero_macro) override {
+  absl::Status HandleZeroMacro(const ZeroMacro* zero_macro) final {
     VLOG(6) << "Checking zero_macro value: " << zero_macro->ToString()
             << " with type: " << type_.ToString();
 
@@ -113,7 +113,7 @@ class Visitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleAllOnesMacro(const AllOnesMacro* all_ones_macro) override {
+  absl::Status HandleAllOnesMacro(const AllOnesMacro* all_ones_macro) final {
     VLOG(6) << "Checking all_ones_macro value: " << all_ones_macro->ToString()
             << " with type: " << type_.ToString();
 
@@ -125,7 +125,7 @@ class Visitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleNameRef(const NameRef* name_ref) override {
+  absl::Status HandleNameRef(const NameRef* name_ref) final {
     if (std::holds_alternative<const NameDef*>(name_ref->name_def())) {
       const NameDef* name_def = std::get<const NameDef*>(name_ref->name_def());
       if (ti_->IsKnownConstExpr(name_def)) {
@@ -137,7 +137,7 @@ class Visitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleColonRef(const ColonRef* colon_ref) override {
+  absl::Status HandleColonRef(const ColonRef* colon_ref) final {
     // Imported Enums have been handled by their own module. If they can be
     // constexpr evaluated, record value.
     if (IsImport(colon_ref) && type_.IsEnum()) {
@@ -233,14 +233,14 @@ class Visitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleNumber(const Number* number) override {
+  absl::Status HandleNumber(const Number* number) final {
     XLS_ASSIGN_OR_RETURN(InterpValue value, EvaluateNumber(*number, type_));
     trace_.SetResult(value);
     ti_->NoteConstExpr(number, value);
     return absl::OkStatus();
   }
 
-  absl::Status HandleLet(const Let* let) override {
+  absl::Status HandleLet(const Let* let) final {
     absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
         &import_data_, ti_, &warning_collector_,
         table_.GetParametricEnv(parametric_context_), let->rhs());
@@ -273,7 +273,7 @@ class Visitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleIndex(const Index* index) override {
+  absl::Status HandleIndex(const Index* index) final {
     // A `Slice` actually has its bounds stored in `TypeInfo` out-of-band from
     // the real type info, mirroring the `StartAndWidthExprs` that we store in
     // the `InferenceTable`.
@@ -298,7 +298,7 @@ class Visitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleConstAssert(const ConstAssert* node) override {
+  absl::Status HandleConstAssert(const ConstAssert* node) final {
     absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
         &import_data_, ti_, &warning_collector_,
         table_.GetParametricEnv(parametric_context_), node->arg());
@@ -347,7 +347,7 @@ class Visitor : public AstNodeVisitorWithDefault {
                              /*is_const=*/false);
   }
 
-  absl::Status HandleUnrollFor(const UnrollFor* unroll_for) override {
+  absl::Status HandleUnrollFor(const UnrollFor* unroll_for) final {
     // Unroll for is expanded to a sequence of statements as following.
     // ```
     // let X = unroll_for! (i, a) in iterable {
@@ -549,7 +549,7 @@ class Visitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleFormatMacro(const FormatMacro* node) override {
+  absl::Status HandleFormatMacro(const FormatMacro* node) final {
     if (!node->verbosity().has_value()) {
       return absl::OkStatus();
     }
@@ -577,14 +577,14 @@ class Visitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleFunction(const Function* function) override {
+  absl::Status HandleFunction(const Function* function) final {
     if (function->tag() == FunctionTag::kProcInit) {
       XLS_RETURN_IF_ERROR(EvaluateAndNoteExpr(function->body()));
     }
     return absl::OkStatus();
   }
 
-  absl::Status HandleInvocation(const Invocation* invocation) override {
+  absl::Status HandleInvocation(const Invocation* invocation) final {
     if (!IsBuiltinFn(invocation->callee())) {
       std::optional<const Function*> f =
           table_.GetCalleeInCallerContext(invocation, parametric_context_);
@@ -656,7 +656,7 @@ class ConstantCollectorImpl : public ConstantCollector {
 
   absl::Status CollectConstants(
       std::optional<const ParametricContext*> parametric_context,
-      const AstNode* node, const Type& type, TypeInfo* ti) override {
+      const AstNode* node, const Type& type, TypeInfo* ti) final {
     TypeSystemTrace trace =
         tracer_.TraceCollectConstants(parametric_context, node);
     Visitor visitor(table_, module_, import_data_, warning_collector_,

@@ -468,7 +468,7 @@ class ReturnIfErrorLoop : public ReturnLoop<absl::Status> {
       : ReturnLoop(std::move(return_value)) {}
 
  private:
-  absl::Status LoopAgain(size_t* ops) override {
+  absl::Status LoopAgain(size_t* ops) final {
     --*ops;
     XLS_RETURN_IF_ERROR(Loop(ops));
     return absl::OkStatus();
@@ -481,7 +481,7 @@ class ReturnIfErrorWithAnnotateLoop : public ReturnLoop<absl::Status> {
       : ReturnLoop(std::move(return_value)) {}
 
  private:
-  absl::Status LoopAgain(size_t* ops) override {
+  absl::Status LoopAgain(size_t* ops) final {
     --*ops;
     XLS_RETURN_IF_ERROR(Loop(ops))
         << "The quick brown fox jumped over the lazy dog.";
@@ -495,7 +495,7 @@ class AssignOrReturnLoop : public ReturnLoop<absl::StatusOr<int>> {
       : ReturnLoop(std::move(return_value)) {}
 
  private:
-  ReturnType LoopAgain(size_t* ops) override {
+  ReturnType LoopAgain(size_t* ops) final {
     --*ops;
     XLS_ASSIGN_OR_RETURN(int result, Loop(ops));
     return result;
@@ -510,7 +510,7 @@ class AssignOrReturnAnnotateLoop : public ReturnLoop<absl::StatusOr<int>> {
       : ReturnLoop(std::move(return_value)) {}
 
  private:
-  ReturnType LoopAgain(size_t* ops) override {
+  ReturnType LoopAgain(size_t* ops) final {
     --*ops;
     XLS_ASSIGN_OR_RETURN(int result, Loop(ops),
                          _ << "The quick brown fox jumped over the lazy dog.");

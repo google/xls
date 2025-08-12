@@ -3111,31 +3111,31 @@ TEST_P(TypecheckBothVersionsTest, NumbersAreConstexpr) {
    public:
     explicit IsConstVisitor(TypeInfo* type_info) : type_info_(type_info) {}
 
-    absl::Status HandleFunction(const Function* node) override {
+    absl::Status HandleFunction(const Function* node) final {
       XLS_RETURN_IF_ERROR(node->body()->Accept(this));
       return absl::OkStatus();
     }
 
-    absl::Status HandleStatementBlock(const StatementBlock* node) override {
+    absl::Status HandleStatementBlock(const StatementBlock* node) final {
       for (auto child : node->GetChildren(/*want_types=*/false)) {
         XLS_RETURN_IF_ERROR(child->Accept(this));
       }
       return absl::OkStatus();
     }
 
-    absl::Status HandleStatement(const Statement* node) override {
+    absl::Status HandleStatement(const Statement* node) final {
       for (auto child : node->GetChildren(/*want_types=*/false)) {
         XLS_RETURN_IF_ERROR(child->Accept(this));
       }
       return absl::OkStatus();
     }
 
-    absl::Status HandleLet(const Let* node) override {
+    absl::Status HandleLet(const Let* node) final {
       XLS_RETURN_IF_ERROR(node->rhs()->Accept(this));
       return absl::OkStatus();
     }
 
-    absl::Status HandleNumber(const Number* node) override {
+    absl::Status HandleNumber(const Number* node) final {
       if (type_info_->GetConstExpr(node).ok()) {
         constexpr_numbers_seen_++;
       } else {

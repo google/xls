@@ -46,30 +46,30 @@ namespace {
 // operands and the type of the result.
 class NodeChecker : public DfsVisitor {
  public:
-  absl::Status HandleAdd(BinOp* add) override {
+  absl::Status HandleAdd(BinOp* add) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(add, 2));
     return ExpectAllSameBitsType(add);
   }
 
-  absl::Status HandleAndReduce(BitwiseReductionOp* and_reduce) override {
+  absl::Status HandleAndReduce(BitwiseReductionOp* and_reduce) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(and_reduce, 1));
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(and_reduce, 0));
     return ExpectHasBitsType(and_reduce, 1);
   }
 
-  absl::Status HandleOrReduce(BitwiseReductionOp* or_reduce) override {
+  absl::Status HandleOrReduce(BitwiseReductionOp* or_reduce) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(or_reduce, 1));
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(or_reduce, 0));
     return ExpectHasBitsType(or_reduce, 1);
   }
 
-  absl::Status HandleXorReduce(BitwiseReductionOp* xor_reduce) override {
+  absl::Status HandleXorReduce(BitwiseReductionOp* xor_reduce) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(xor_reduce, 1));
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(xor_reduce, 0));
     return ExpectHasBitsType(xor_reduce, 1);
   }
 
-  absl::Status HandleAssert(Assert* assert_op) override {
+  absl::Status HandleAssert(Assert* assert_op) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(assert_op, 2));
     XLS_RETURN_IF_ERROR(ExpectOperandHasTokenType(assert_op, 0));
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(assert_op, /*operand_no=*/1,
@@ -77,7 +77,7 @@ class NodeChecker : public DfsVisitor {
     return ExpectHasTokenType(assert_op);
   }
 
-  absl::Status HandleTrace(Trace* trace_op) override {
+  absl::Status HandleTrace(Trace* trace_op) final {
     XLS_RETURN_IF_ERROR(ExpectOperandHasTokenType(trace_op, 0));
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(trace_op, /*operand_no=*/1,
                                                  /*expected_bit_count=*/1));
@@ -89,29 +89,29 @@ class NodeChecker : public DfsVisitor {
     return ExpectHasTokenType(trace_op);
   }
 
-  absl::Status HandleCover(Cover* cover) override {
+  absl::Status HandleCover(Cover* cover) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(cover, 1));
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(cover, /*operand_no=*/0,
                                                  /*expected_bit_count=*/1));
     return ExpectHasTupleType(cover);
   }
 
-  absl::Status HandleNaryAnd(NaryOp* and_op) override {
+  absl::Status HandleNaryAnd(NaryOp* and_op) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCountGt(and_op, 0));
     return ExpectAllSameBitsType(and_op);
   }
 
-  absl::Status HandleNaryNand(NaryOp* nand_op) override {
+  absl::Status HandleNaryNand(NaryOp* nand_op) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCountGt(nand_op, 0));
     return ExpectAllSameBitsType(nand_op);
   }
 
-  absl::Status HandleNaryNor(NaryOp* nor_op) override {
+  absl::Status HandleNaryNor(NaryOp* nor_op) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCountGt(nor_op, 0));
     return ExpectAllSameBitsType(nor_op);
   }
 
-  absl::Status HandleAfterAll(AfterAll* after_all) override {
+  absl::Status HandleAfterAll(AfterAll* after_all) final {
     XLS_RETURN_IF_ERROR(ExpectHasTokenType(after_all));
     for (int64_t i = 0; i < after_all->operand_count(); ++i) {
       XLS_RETURN_IF_ERROR(ExpectOperandHasTokenType(after_all, i));
@@ -119,7 +119,7 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleMinDelay(MinDelay* min_delay) override {
+  absl::Status HandleMinDelay(MinDelay* min_delay) final {
     XLS_RETURN_IF_ERROR(ExpectHasTokenType(min_delay));
     XLS_RETURN_IF_ERROR(ExpectOperandCount(min_delay, 1));
     XLS_RETURN_IF_ERROR(ExpectOperandHasTokenType(min_delay, /*operand_no=*/0));
@@ -130,7 +130,7 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleReceive(Receive* receive) override {
+  absl::Status HandleReceive(Receive* receive) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCountRange(receive, 1, 2));
     XLS_RETURN_IF_ERROR(ExpectOperandHasTokenType(receive, /*operand_no=*/0));
     if (receive->predicate().has_value()) {
@@ -186,7 +186,7 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleSend(Send* send) override {
+  absl::Status HandleSend(Send* send) final {
     XLS_RETURN_IF_ERROR(ExpectHasTokenType(send));
     XLS_RETURN_IF_ERROR(ExpectOperandCountRange(send, 2, 3));
     XLS_RETURN_IF_ERROR(ExpectOperandHasTokenType(send, /*operand_no=*/0));
@@ -235,7 +235,7 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleArray(Array* array) override {
+  absl::Status HandleArray(Array* array) final {
     XLS_RETURN_IF_ERROR(ExpectHasArrayType(array));
     ArrayType* array_type = array->GetType()->AsArrayOrDie();
     XLS_RETURN_IF_ERROR(ExpectOperandCount(array, array_type->size()));
@@ -246,7 +246,7 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleBitSlice(BitSlice* bit_slice) override {
+  absl::Status HandleBitSlice(BitSlice* bit_slice) final {
     XLS_RETURN_IF_ERROR(ExpectHasBitsType(bit_slice, bit_slice->width()));
     XLS_RETURN_IF_ERROR(ExpectOperandCount(bit_slice, 1));
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(bit_slice, 0));
@@ -274,7 +274,7 @@ class NodeChecker : public DfsVisitor {
   }
 
   absl::Status HandleDynamicBitSlice(
-      DynamicBitSlice* dynamic_bit_slice) override {
+      DynamicBitSlice* dynamic_bit_slice) final {
     XLS_RETURN_IF_ERROR(
         ExpectHasBitsType(dynamic_bit_slice, dynamic_bit_slice->width()));
     XLS_RETURN_IF_ERROR(ExpectOperandCount(dynamic_bit_slice, 2));
@@ -298,7 +298,7 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleBitSliceUpdate(BitSliceUpdate* update) override {
+  absl::Status HandleBitSliceUpdate(BitSliceUpdate* update) final {
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(update, 0));
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(update, 1));
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(update, 2));
@@ -307,7 +307,7 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleConcat(Concat* concat) override {
+  absl::Status HandleConcat(Concat* concat) final {
     // All operands should be bits types.
     int64_t total_bits = 0;
     for (int64_t i = 0; i < concat->operand_count(); ++i) {
@@ -318,7 +318,7 @@ class NodeChecker : public DfsVisitor {
     return ExpectHasBitsType(concat, /*expected_bit_count=*/total_bits);
   }
 
-  absl::Status HandleCountedFor(CountedFor* counted_for) override {
+  absl::Status HandleCountedFor(CountedFor* counted_for) final {
     XLS_RET_CHECK_GE(counted_for->trip_count(), 0);
     if (counted_for->operand_count() == 0) {
       return absl::InternalError(absl::StrFormat(
@@ -402,7 +402,7 @@ class NodeChecker : public DfsVisitor {
     return ExpectOperandHasType(counted_for, 0, counted_for->GetType());
   }
 
-  absl::Status HandleDecode(Decode* decode) override {
+  absl::Status HandleDecode(Decode* decode) final {
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(decode, 0));
     XLS_RETURN_IF_ERROR(ExpectHasBitsType(decode, decode->width()));
     // The width of the decode output must be less than or equal to
@@ -419,7 +419,7 @@ class NodeChecker : public DfsVisitor {
   }
 
   absl::Status HandleDynamicCountedFor(
-      DynamicCountedFor* dynamic_counted_for) override {
+      DynamicCountedFor* dynamic_counted_for) final {
     Function* body = dynamic_counted_for->body();
     // Verify function has signature
     //  body(i: bits[N], loop_carry_data: T, [inv_arg0, ..., inv_argN]) -> T
@@ -522,69 +522,69 @@ class NodeChecker : public DfsVisitor {
                                 dynamic_counted_for->GetType());
   }
 
-  absl::Status HandleEncode(Encode* encode) override {
+  absl::Status HandleEncode(Encode* encode) final {
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(encode, 0));
     // Width of the encode output must be ceil(log_2(max_input + 1)).
     return ExpectHasBitsType(encode,
                              CeilOfLog2(encode->operand(0)->BitCountOrDie()));
   }
 
-  absl::Status HandleUDiv(BinOp* div) override {
+  absl::Status HandleUDiv(BinOp* div) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(div, 2));
     return ExpectAllSameBitsType(div);
   }
 
-  absl::Status HandleSDiv(BinOp* div) override {
+  absl::Status HandleSDiv(BinOp* div) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(div, 2));
     return ExpectAllSameBitsType(div);
   }
 
-  absl::Status HandleUMod(BinOp* mod) override {
+  absl::Status HandleUMod(BinOp* mod) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(mod, 2));
     return ExpectAllSameBitsType(mod);
   }
 
-  absl::Status HandleSMod(BinOp* mod) override {
+  absl::Status HandleSMod(BinOp* mod) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(mod, 2));
     return ExpectAllSameBitsType(mod);
   }
 
-  absl::Status HandleEq(CompareOp* eq) override {
+  absl::Status HandleEq(CompareOp* eq) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(eq, 2));
     XLS_RETURN_IF_ERROR(ExpectOperandsSameTypeNoToken(eq));
     return ExpectHasBitsType(eq, /*expected_bit_count=*/1);
   }
 
-  absl::Status HandleUGe(CompareOp* ge) override {
+  absl::Status HandleUGe(CompareOp* ge) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(ge, 2));
     XLS_RETURN_IF_ERROR(ExpectOperandsAreBitsAndSameWidth(ge));
     return ExpectHasBitsType(ge, /*expected_bit_count=*/1);
   }
 
-  absl::Status HandleUGt(CompareOp* gt) override {
+  absl::Status HandleUGt(CompareOp* gt) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(gt, 2));
     XLS_RETURN_IF_ERROR(ExpectOperandsAreBitsAndSameWidth(gt));
     return ExpectHasBitsType(gt, /*expected_bit_count=*/1);
   }
 
-  absl::Status HandleSGe(CompareOp* ge) override {
+  absl::Status HandleSGe(CompareOp* ge) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(ge, 2));
     XLS_RETURN_IF_ERROR(ExpectOperandsAreBitsAndSameWidth(ge));
     return ExpectHasBitsType(ge, /*expected_bit_count=*/1);
   }
 
-  absl::Status HandleSGt(CompareOp* gt) override {
+  absl::Status HandleSGt(CompareOp* gt) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(gt, 2));
     XLS_RETURN_IF_ERROR(ExpectOperandsAreBitsAndSameWidth(gt));
     return ExpectHasBitsType(gt, /*expected_bit_count=*/1);
   }
 
-  absl::Status HandleIdentity(UnOp* identity) override {
+  absl::Status HandleIdentity(UnOp* identity) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(identity, 1));
     return ExpectAllSameType(identity);
   }
 
-  absl::Status HandleArrayIndex(ArrayIndex* index) override {
+  absl::Status HandleArrayIndex(ArrayIndex* index) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCountGt(index, 0));
     XLS_RETURN_IF_ERROR(VerifyMultidimensionalArrayIndex(
         index->indices(), index->array()->GetType(), index));
@@ -600,7 +600,7 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleArraySlice(ArraySlice* slice) override {
+  absl::Status HandleArraySlice(ArraySlice* slice) final {
     Node* array = slice->array();
     int64_t width = slice->width();
     XLS_RETURN_IF_ERROR(ExpectOperandHasArrayType(slice, 0));
@@ -619,7 +619,7 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleArrayUpdate(ArrayUpdate* update) override {
+  absl::Status HandleArrayUpdate(ArrayUpdate* update) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCountGt(update, 1));
     XLS_RETURN_IF_ERROR(
         ExpectSameType(update, update->GetType(), update->array_to_update(),
@@ -643,7 +643,7 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleArrayConcat(ArrayConcat* array_concat) override {
+  absl::Status HandleArrayConcat(ArrayConcat* array_concat) final {
     // Must have at least one operand
     XLS_RETURN_IF_ERROR(ExpectOperandCountGt(array_concat, 0));
 
@@ -678,7 +678,7 @@ class NodeChecker : public DfsVisitor {
     return ExpectHasArrayType(array_concat, zeroth_element_type, size);
   }
 
-  absl::Status HandleInvoke(Invoke* invoke) override {
+  absl::Status HandleInvoke(Invoke* invoke) final {
     // Verify the signature (inputs and output) of the invoked function matches
     // the Invoke node.
     Function* func = invoke->to_apply();
@@ -707,36 +707,36 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleLiteral(Literal* literal) override {
+  absl::Status HandleLiteral(Literal* literal) final {
     // Verify type matches underlying Value object.
     XLS_RETURN_IF_ERROR(ExpectOperandCount(literal, 0));
     return ExpectValueIsType(literal->value(), literal->GetType());
   }
 
-  absl::Status HandleULe(CompareOp* le) override {
+  absl::Status HandleULe(CompareOp* le) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(le, 2));
     XLS_RETURN_IF_ERROR(ExpectOperandsAreBitsAndSameWidth(le));
     return ExpectHasBitsType(le, /*expected_bit_count=*/1);
   }
 
-  absl::Status HandleULt(CompareOp* lt) override {
+  absl::Status HandleULt(CompareOp* lt) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(lt, 2));
     XLS_RETURN_IF_ERROR(ExpectOperandsAreBitsAndSameWidth(lt));
     return ExpectHasBitsType(lt, /*expected_bit_count=*/1);
   }
-  absl::Status HandleSLe(CompareOp* le) override {
+  absl::Status HandleSLe(CompareOp* le) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(le, 2));
     XLS_RETURN_IF_ERROR(ExpectOperandsAreBitsAndSameWidth(le));
     return ExpectHasBitsType(le, /*expected_bit_count=*/1);
   }
 
-  absl::Status HandleSLt(CompareOp* lt) override {
+  absl::Status HandleSLt(CompareOp* lt) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(lt, 2));
     XLS_RETURN_IF_ERROR(ExpectOperandsAreBitsAndSameWidth(lt));
     return ExpectHasBitsType(lt, /*expected_bit_count=*/1);
   }
 
-  absl::Status HandleMap(Map* map) override {
+  absl::Status HandleMap(Map* map) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(map, 1));
     XLS_RETURN_IF_ERROR(ExpectHasArrayType(map));
     XLS_RETURN_IF_ERROR(ExpectHasArrayType(map->operand(0)));
@@ -762,21 +762,21 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleSMul(ArithOp* mul) override {
+  absl::Status HandleSMul(ArithOp* mul) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(mul, 2));
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(mul, 0));
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(mul, 1));
     return ExpectHasBitsType(mul);
   }
 
-  absl::Status HandleUMul(ArithOp* mul) override {
+  absl::Status HandleUMul(ArithOp* mul) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(mul, 2));
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(mul, 0));
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(mul, 1));
     return ExpectHasBitsType(mul);
   }
 
-  absl::Status HandleSMulp(PartialProductOp* mul) override {
+  absl::Status HandleSMulp(PartialProductOp* mul) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(mul, 2));
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(mul, 0));
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(mul, 1));
@@ -805,7 +805,7 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleUMulp(PartialProductOp* mul) override {
+  absl::Status HandleUMulp(PartialProductOp* mul) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(mul, 2));
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(mul, 0));
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(mul, 1));
@@ -834,23 +834,23 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleNe(CompareOp* ne) override {
+  absl::Status HandleNe(CompareOp* ne) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(ne, 2));
     XLS_RETURN_IF_ERROR(ExpectOperandsSameTypeNoToken(ne));
     return ExpectHasBitsType(ne, /*expected_bit_count=*/1);
   }
 
-  absl::Status HandleNeg(UnOp* neg) override {
+  absl::Status HandleNeg(UnOp* neg) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(neg, 1));
     return ExpectAllSameBitsType(neg);
   }
 
-  absl::Status HandleNot(UnOp* not_op) override {
+  absl::Status HandleNot(UnOp* not_op) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(not_op, 1));
     return ExpectAllSameBitsType(not_op);
   }
 
-  absl::Status HandleOneHot(OneHot* one_hot) override {
+  absl::Status HandleOneHot(OneHot* one_hot) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(one_hot, 1));
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(one_hot, 0));
     int64_t operand_bit_count = one_hot->operand(0)->BitCountOrDie();
@@ -859,7 +859,7 @@ class NodeChecker : public DfsVisitor {
     return ExpectHasBitsType(one_hot, operand_bit_count + 1);
   }
 
-  absl::Status HandleOneHotSel(OneHotSelect* sel) override {
+  absl::Status HandleOneHotSel(OneHotSelect* sel) final {
     if (sel->operand_count() < 2) {
       return absl::InternalError(absl::StrFormat(
           "Expected %s to have at least 2 operands", sel->GetName()));
@@ -888,7 +888,7 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandlePrioritySel(PrioritySelect* sel) override {
+  absl::Status HandlePrioritySel(PrioritySelect* sel) final {
     if (sel->operand_count() < 2) {
       return absl::InternalError(absl::StrFormat(
           "Expected %s to have at least 3 operands", sel->GetName()));
@@ -927,17 +927,17 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleNaryOr(NaryOp* or_op) override {
+  absl::Status HandleNaryOr(NaryOp* or_op) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCountGt(or_op, 0));
     return ExpectAllSameBitsType(or_op);
   }
 
-  absl::Status HandleNaryXor(NaryOp* xor_op) override {
+  absl::Status HandleNaryXor(NaryOp* xor_op) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCountGt(xor_op, 0));
     return ExpectAllSameBitsType(xor_op);
   }
 
-  absl::Status HandleParam(Param* param) override {
+  absl::Status HandleParam(Param* param) final {
     if (param->function_base()->IsProc()) {
       return absl::InternalError(
           absl::StrFormat("Param node %s is in a proc", param->GetName()));
@@ -945,7 +945,7 @@ class NodeChecker : public DfsVisitor {
     return ExpectOperandCount(param, 0);
   }
 
-  absl::Status HandleStateRead(StateRead* state_read) override {
+  absl::Status HandleStateRead(StateRead* state_read) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCountRange(state_read, 0, 1));
     if (state_read->predicate().has_value()) {
       XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(state_read, /*operand_no=*/0,
@@ -964,7 +964,7 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleNext(Next* next) override {
+  absl::Status HandleNext(Next* next) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCountRange(next, 2, 3));
     if (!next->state_read()->Is<StateRead>()) {
       return absl::InternalError(
@@ -991,12 +991,12 @@ class NodeChecker : public DfsVisitor {
                                 proc->GetStateElementType(index));
   }
 
-  absl::Status HandleReverse(UnOp* reverse) override {
+  absl::Status HandleReverse(UnOp* reverse) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(reverse, 1));
     return ExpectAllSameBitsType(reverse);
   }
 
-  absl::Status HandleSel(Select* sel) override {
+  absl::Status HandleSel(Select* sel) final {
     if (sel->operand_count() < 2) {
       return absl::InternalError(absl::StrFormat(
           "Expected %s to have at least 2 operands", sel->GetName()));
@@ -1053,18 +1053,18 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleShll(BinOp* shll) override { return HandleShiftOp(shll); }
+  absl::Status HandleShll(BinOp* shll) final { return HandleShiftOp(shll); }
 
-  absl::Status HandleShra(BinOp* shra) override { return HandleShiftOp(shra); }
+  absl::Status HandleShra(BinOp* shra) final { return HandleShiftOp(shra); }
 
-  absl::Status HandleShrl(BinOp* shrl) override { return HandleShiftOp(shrl); }
+  absl::Status HandleShrl(BinOp* shrl) final { return HandleShiftOp(shrl); }
 
-  absl::Status HandleSub(BinOp* sub) override {
+  absl::Status HandleSub(BinOp* sub) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(sub, 2));
     return ExpectAllSameBitsType(sub);
   }
 
-  absl::Status HandleTuple(Tuple* tuple) override {
+  absl::Status HandleTuple(Tuple* tuple) final {
     XLS_RETURN_IF_ERROR(ExpectHasTupleType(tuple));
     if (!tuple->GetType()->IsTuple()) {
       return absl::InternalError(absl::StrFormat(
@@ -1083,7 +1083,7 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleTupleIndex(TupleIndex* index) override {
+  absl::Status HandleTupleIndex(TupleIndex* index) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(index, 1));
     XLS_RETURN_IF_ERROR(ExpectHasTupleType(index->operand(0)));
     TupleType* operand_type = index->operand(0)->GetType()->AsTupleOrDie();
@@ -1098,31 +1098,31 @@ class NodeChecker : public DfsVisitor {
                           "tuple operand element type");
   }
 
-  absl::Status HandleSignExtend(ExtendOp* sign_ext) override {
+  absl::Status HandleSignExtend(ExtendOp* sign_ext) final {
     return HandleExtendOp(sign_ext, /*nonempty_input=*/true);
   }
-  absl::Status HandleZeroExtend(ExtendOp* zero_ext) override {
+  absl::Status HandleZeroExtend(ExtendOp* zero_ext) final {
     return HandleExtendOp(zero_ext, /*nonempty_input=*/false);
   }
 
-  absl::Status HandleInputPort(InputPort* input_port) override {
+  absl::Status HandleInputPort(InputPort* input_port) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(input_port, 0));
     return absl::OkStatus();
   }
 
-  absl::Status HandleOutputPort(OutputPort* output_port) override {
+  absl::Status HandleOutputPort(OutputPort* output_port) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(output_port, 1));
     XLS_RETURN_IF_ERROR(ExpectHasEmptyTupleType(output_port));
     return absl::OkStatus();
   }
 
-  absl::Status HandleRegisterRead(RegisterRead* reg_read) override {
+  absl::Status HandleRegisterRead(RegisterRead* reg_read) final {
     XLS_RETURN_IF_ERROR(
         ExpectHasType(reg_read, reg_read->GetRegister()->type()));
     return absl::OkStatus();
   }
 
-  absl::Status HandleRegisterWrite(RegisterWrite* reg_write) override {
+  absl::Status HandleRegisterWrite(RegisterWrite* reg_write) final {
     XLS_RETURN_IF_ERROR(
         ExpectOperandHasType(reg_write, 0, reg_write->GetRegister()->type()));
     if (reg_write->GetRegister()->reset_value().has_value() &&
@@ -1161,19 +1161,19 @@ class NodeChecker : public DfsVisitor {
   }
 
   absl::Status HandleInstantiationInput(
-      InstantiationInput* instantiation_input) override {
+      InstantiationInput* instantiation_input) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(instantiation_input, 1));
     XLS_RETURN_IF_ERROR(ExpectHasEmptyTupleType(instantiation_input));
     return absl::OkStatus();
   }
 
   absl::Status HandleInstantiationOutput(
-      InstantiationOutput* instantiation_output) override {
+      InstantiationOutput* instantiation_output) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(instantiation_output, 0));
     return absl::OkStatus();
   }
 
-  absl::Status HandleGate(Gate* gate) override {
+  absl::Status HandleGate(Gate* gate) final {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(gate, 2));
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(gate, /*operand_no=*/0,
                                                  /*expected_bit_count=*/1));

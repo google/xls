@@ -147,7 +147,7 @@ class StateDependencyVisitor : public DataflowVisitor<InlineBitmap> {
  public:
   explicit StateDependencyVisitor(Proc* proc) : proc_(proc) {}
 
-  absl::Status DefaultHandler(Node* node) override {
+  absl::Status DefaultHandler(Node* node) final {
     // By default, conservatively assume that each element in `node` is
     // dependent upon all of the state elements which appear in the operands of
     // `node`.
@@ -155,7 +155,7 @@ class StateDependencyVisitor : public DataflowVisitor<InlineBitmap> {
                               node->GetType(), FlattenOperandBitmaps(node)));
   }
 
-  absl::Status HandleStateRead(StateRead* state_read) override {
+  absl::Status HandleStateRead(StateRead* state_read) final {
     // A state read is only dependent upon itself.
     XLS_ASSIGN_OR_RETURN(int64_t index, proc_->GetStateElementIndex(
                                             state_read->state_element()));
@@ -193,7 +193,7 @@ class StateDependencyVisitor : public DataflowVisitor<InlineBitmap> {
   absl::StatusOr<InlineBitmap> JoinElements(
       Type* element_type, absl::Span<const InlineBitmap* const> data_sources,
       absl::Span<const LeafTypeTreeView<InlineBitmap>> control_sources,
-      Node* node, absl::Span<const int64_t> index) override {
+      Node* node, absl::Span<const int64_t> index) final {
     InlineBitmap element = *data_sources.front();
     for (const InlineBitmap* data_source : data_sources.subspan(1)) {
       element.Union(*data_source);

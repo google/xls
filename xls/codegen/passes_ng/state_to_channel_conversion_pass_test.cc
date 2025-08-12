@@ -84,7 +84,7 @@ class StateChannelConversionTest
     : public IrTestBase,
       public testing::WithParamInterface<TestParam> {
  public:
-  void SetUp() override { package_ = CreatePackage(); }
+  void SetUp() final { package_ = CreatePackage(); }
 
   std::unique_ptr<Package> package_;
 };
@@ -268,7 +268,7 @@ class CounterProcWithMaxHelper : public CounterProcHelper {
     return absl::OkStatus();
   }
 
-  void NextRound() override {
+  void NextRound() final {
     // New data out.
     EXPECT_THAT(Tick(),
                 IsOkAndHolds(TickResult{
@@ -308,7 +308,7 @@ class CounterProcWithMaxHelper : public CounterProcHelper {
  protected:
   absl::StatusOr<Proc*> BuildProc(ProcBuilder& pb, Channel* out_channel,
                                   uint32_t start_value,
-                                  uint32_t delta_each_round) override {
+                                  uint32_t delta_each_round) final {
     BValue enable = pb.StateElement("enable", Value(UBits(1, 1)));
     BValue counter = pb.StateElement(kCounterStateElementName,
                                      Value(UBits(start_value, 32)), enable);

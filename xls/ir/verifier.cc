@@ -125,7 +125,7 @@ absl::Status VerifyFunctionBase(FunctionBase* function) {
 
   // Verify that there are no cycles in the node graph.
   class CycleChecker : public DfsVisitorWithDefault {
-    absl::Status DefaultHandler(Node* node) override {
+    absl::Status DefaultHandler(Node* node) final {
       return absl::OkStatus();
     }
   };
@@ -1036,7 +1036,7 @@ absl::Status VerifyBlock(Block* block, bool codegen) {
   // for cycles through instantiations. We elaborate and use a visitor on the
   // elaboration to look for more cycles through the hierarchy.
   class CycleChecker : public ElaboratedBlockDfsVisitorWithDefault {
-    absl::Status DefaultHandler(const ElaboratedNode& node) override {
+    absl::Status DefaultHandler(const ElaboratedNode& node) final {
       return absl::OkStatus();
     }
   };

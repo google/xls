@@ -913,7 +913,7 @@ class NodeSearch : public DfsVisitorWithDefault {
  public:
   explicit NodeSearch(Node* target) : target_(target) {}
 
-  absl::Status DefaultHandler(Node* node) override {
+  absl::Status DefaultHandler(Node* node) final {
     if (node == target_) {
       // We've found our target, and can cancel the search. (This causes
       // Node::Accept to return early, since we've already accomplished our

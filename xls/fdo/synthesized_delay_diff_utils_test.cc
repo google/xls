@@ -69,7 +69,7 @@ class FakeSynthesizer : public Synthesizer {
 
 class SynthesizedDelayDiffUtilsTest : public IrTestBase {
  public:
-  void SetUp() override {
+  void SetUp() final {
     package_ = CreatePackage();
     XLS_ASSERT_OK_AND_ASSIGN(f_, ParseFunction(R"(
 fn foobar(x: bits[8], y: bits[8], z: bits[8]) -> bits[8] {

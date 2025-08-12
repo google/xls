@@ -56,7 +56,7 @@ absl::StatusOr<BlockElaboration> ParseAndElaborate(std::string_view ir,
 // A testing visitor which records which nodes it has visited.
 class TestVisitor : public ElaboratedBlockDfsVisitorWithDefault {
  public:
-  absl::Status DefaultHandler(const ElaboratedNode& node) override {
+  absl::Status DefaultHandler(const ElaboratedNode& node) final {
     VLOG(1) << "Visiting " << node.ToString();
     visited_.push_back(node);
     visited_set_.insert(node);

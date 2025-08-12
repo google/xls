@@ -59,7 +59,7 @@ class ArrayUpdateSliceOpRewrite : public OpRewritePattern<ArrayUpdateSliceOp> {
 class ExpandMacroOpsPass
     : public impl::ExpandMacroOpsPassBase<ExpandMacroOpsPass> {
  public:
-  void runOnOperation() override {
+  void runOnOperation() final {
     getOperation()->walk([&](Operation* op) {
       if (auto interface = dyn_cast<XlsRegionOpInterface>(op)) {
         if (interface.isSupportedRegion()) {

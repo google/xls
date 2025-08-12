@@ -413,18 +413,18 @@ TEST_F(ProcTest, TransformStateElement) {
    public:
     absl::StatusOr<Node*> TransformStateRead(
         Proc* proc, StateRead* new_state_read,
-        StateRead* old_state_read) override {
+        StateRead* old_state_read) final {
       return proc->MakeNode<UnOp>(new_state_read->loc(), new_state_read,
                                   Op::kNeg);
     }
     absl::StatusOr<Node*> TransformNextValue(Proc* proc,
                                              StateRead* new_state_read,
-                                             Next* old_next) override {
+                                             Next* old_next) final {
       return proc->MakeNode<UnOp>(old_next->value()->loc(), old_next->value(),
                                   Op::kNeg);
     }
     absl::StatusOr<std::optional<Node*>> TransformNextPredicate(
-        Proc* proc, StateRead* new_state_read, Next* old_next) override {
+        Proc* proc, StateRead* new_state_read, Next* old_next) final {
       XLS_ASSIGN_OR_RETURN(
           Node * true_const,
           proc->MakeNode<Literal>(old_next->loc(), Value::Bool(true)));

@@ -40,14 +40,14 @@ class CoverageEvalObserver final : public EvaluationObserver,
  public:
   explicit CoverageEvalObserver(std::optional<JitRuntime*> jit = std::nullopt)
       : jit_(jit) {}
-  void NodeEvaluated(Node* n, const Value& v) override;
-  std::optional<RuntimeObserver*> AsRawObserver() override {
+  void NodeEvaluated(Node* n, const Value& v) final;
+  std::optional<RuntimeObserver*> AsRawObserver() final {
     if (jit_) {
       return this;
     }
     return std::nullopt;
   }
-  void RecordNodeValue(int64_t node_ptr, const uint8_t* data) override;
+  void RecordNodeValue(int64_t node_ptr, const uint8_t* data) final;
 
   // Prepare for proto conversion.
   absl::Status Finalize();

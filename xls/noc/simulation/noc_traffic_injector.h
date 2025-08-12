@@ -253,7 +253,7 @@ class NocTrafficInjectorService : public NocSimulatorServiceShim {
   NocTrafficInjectorService(NocTrafficInjector& injector, NocSimulator)
       : injector_(&injector) {}
 
-  absl::Status RunCycle() override { return injector_->RunCycle(); }
+  absl::Status RunCycle() final { return injector_->RunCycle(); }
 
  private:
   NocTrafficInjector* injector_;

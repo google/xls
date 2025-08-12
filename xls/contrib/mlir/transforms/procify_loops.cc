@@ -42,7 +42,7 @@ class ProcifyLoopsPass : public impl::ProcifyLoopsPassBase<ProcifyLoopsPass> {
  public:
   using ProcifyLoopsPassBase::ProcifyLoopsPassBase;
 
-  void runOnOperation() override {
+  void runOnOperation() final {
     ModuleOp module = getOperation();
     SymbolTable symbolTable(module);
     // We need to transform in pre-order, but MLIR's walkers require that if we

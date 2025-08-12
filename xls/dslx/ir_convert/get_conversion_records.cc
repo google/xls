@@ -57,7 +57,7 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
         proc_id_factory_(proc_id_factory),
         top_(top) {}
 
-  absl::Status HandleFunction(const Function* f) override {
+  absl::Status HandleFunction(const Function* f) final {
     if (f->tag() == FunctionTag::kProcInit ||
         f->tag() == FunctionTag::kProcConfig) {
       // Don't include init or config, since they will always be converted while
@@ -139,20 +139,20 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     return DefaultHandler(f);
   }
 
-  absl::Status HandleTestFunction(const TestFunction* tf) override {
+  absl::Status HandleTestFunction(const TestFunction* tf) final {
     if (!include_tests_) {
       return absl::OkStatus();
     }
     return DefaultHandler(tf);
   }
 
-  absl::Status HandleQuickCheck(const QuickCheck* qc) override {
+  absl::Status HandleQuickCheck(const QuickCheck* qc) final {
     Function* f = qc->fn();
     XLS_RET_CHECK(!f->IsParametric()) << f->ToString();
     return DefaultHandler(qc);
   }
 
-  absl::Status HandleProc(const Proc* p) override {
+  absl::Status HandleProc(const Proc* p) final {
     // Do not process children, because we'll process the `next` function
     // as a top-level function in the module.
     // TODO: https://github.com/google/xls/issues/1029 - remove module-level
@@ -160,13 +160,13 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleTestProc(const TestProc* tp) override {
+  absl::Status HandleTestProc(const TestProc* tp) final {
     // Do not process children, because we'll process the next function
     // as a top-level function in the module.
     return absl::OkStatus();
   }
 
-  absl::Status DefaultHandler(const AstNode* node) override {
+  absl::Status DefaultHandler(const AstNode* node) final {
     for (auto child : node->GetChildren(false)) {
       XLS_RETURN_IF_ERROR(child->Accept(this));
     }

@@ -65,12 +65,12 @@ absl::StatusOr<std::optional<std::filesystem::path>> GetCrasherDir() {
 
 class RunFuzzCodegenTest : public ::testing::Test {
  protected:
-  void SetUp() override {
+  void SetUp() final {
     XLS_ASSERT_OK_AND_ASSIGN(crasher_dir_, GetCrasherDir());
     XLS_ASSERT_OK_AND_ASSIGN(temp_dir_, TempDirectory::Create());
   }
 
-  void TearDown() override {
+  void TearDown() final {
     // Take ownership of the `temp_dir_` so it will be destroyed on return; this
     // lets us use early-exit control flow.
     TempDirectory temp_dir = *std::move(temp_dir_);

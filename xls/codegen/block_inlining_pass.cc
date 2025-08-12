@@ -50,7 +50,7 @@ class InlineVisitor : public ElaboratedBlockDfsVisitorWithDefault {
   reg_map() const {
     return reg_map_;
   }
-  absl::Status DefaultHandler(const ElaboratedNode& n) override {
+  absl::Status DefaultHandler(const ElaboratedNode& n) final {
     std::vector<Node*> new_ops;
     new_ops.reserve(n.node->operand_count());
     for (Node* op : n.node->operands()) {
@@ -65,7 +65,7 @@ class InlineVisitor : public ElaboratedBlockDfsVisitorWithDefault {
 
   // NB Call order is InstantiationInput -> Input
   absl::Status HandleInstantiationInput(InstantiationInput* ii,
-                                        BlockInstance* instance) override {
+                                        BlockInstance* instance) final {
     if (ii->instantiation()->kind() != InstantiationKind::kBlock) {
       // Copy a new instantiation
       XLS_ASSIGN_OR_RETURN(
@@ -101,7 +101,7 @@ class InlineVisitor : public ElaboratedBlockDfsVisitorWithDefault {
   }
 
   absl::Status HandleInputPort(InputPort* port,
-                               BlockInstance* instance) override {
+                               BlockInstance* instance) final {
     if (!instance->parent_instance()) {
       // Top block, no linking of ports required.
       XLS_ASSIGN_OR_RETURN(
@@ -125,7 +125,7 @@ class InlineVisitor : public ElaboratedBlockDfsVisitorWithDefault {
 
   // NB Call order is Output -> InstantiationOutput
   absl::Status HandleOutputPort(OutputPort* port,
-                                BlockInstance* instance) override {
+                                BlockInstance* instance) final {
     if (!instance->parent_instance()) {
       // Top block, no linking of ports required.
       XLS_ASSIGN_OR_RETURN(
@@ -146,7 +146,7 @@ class InlineVisitor : public ElaboratedBlockDfsVisitorWithDefault {
   }
 
   absl::Status HandleInstantiationOutput(InstantiationOutput* ii,
-                                         BlockInstance* instance) override {
+                                         BlockInstance* instance) final {
     if (ii->instantiation()->kind() != InstantiationKind::kBlock) {
       // Copy a new instantiation
       XLS_ASSIGN_OR_RETURN(
@@ -179,7 +179,7 @@ class InlineVisitor : public ElaboratedBlockDfsVisitorWithDefault {
   }
 
   absl::Status HandleRegisterRead(RegisterRead* rr,
-                                  BlockInstance* instance) override {
+                                  BlockInstance* instance) final {
     XLS_ASSIGN_OR_RETURN(Register * new_reg,
                          GetCopiedRegister(rr->GetRegister(), instance));
     XLS_ASSIGN_OR_RETURN(Node * new_node,
@@ -190,7 +190,7 @@ class InlineVisitor : public ElaboratedBlockDfsVisitorWithDefault {
   }
 
   absl::Status HandleRegisterWrite(RegisterWrite* rw,
-                                   BlockInstance* instance) override {
+                                   BlockInstance* instance) final {
     XLS_ASSIGN_OR_RETURN(Register * new_reg,
                          GetCopiedRegister(rw->GetRegister(), instance));
     Node* new_data = old_to_new_[{.node = rw->data(), .instance = instance}];

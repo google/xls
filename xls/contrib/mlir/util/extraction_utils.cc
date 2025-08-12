@@ -187,7 +187,7 @@ struct TestExtractAsTopLevelModulePass
   StringRef getDescription() const final {
     return "Extracts the function in 'test.name' as a top level module.";
   }
-  void runOnOperation() override {
+  void runOnOperation() final {
     auto attr =
         cast<StringAttr>(getOperation()->getDiscardableAttr("test.name"));
     llvm::outs() << "Testing : " << attr << "\n";

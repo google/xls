@@ -165,42 +165,42 @@ class MakeValueVisitor : public TypeVisitor {
         span_(span),
         value_name_(value_name) {}
 
-  absl::Status HandleEnum(const EnumType& t) override {
+  absl::Status HandleEnum(const EnumType& t) final {
     XLS_ASSIGN_OR_RETURN(result_, leaf_type_fn_(t, import_data_, span_));
     return absl::OkStatus();
   }
 
-  absl::Status HandleBits(const BitsType& t) override {
+  absl::Status HandleBits(const BitsType& t) final {
     XLS_ASSIGN_OR_RETURN(result_, leaf_type_fn_(t, import_data_, span_));
     return absl::OkStatus();
   }
 
-  absl::Status HandleFunction(const FunctionType& t) override {
+  absl::Status HandleFunction(const FunctionType& t) final {
     return TypeInferenceErrorStatus(
         span_, &t,
         absl::StrFormat("Cannot make a %s of function type.", value_name_),
         file_table());
   }
-  absl::Status HandleChannel(const ChannelType& t) override {
+  absl::Status HandleChannel(const ChannelType& t) final {
     return TypeInferenceErrorStatus(
         span_, &t,
         absl::StrFormat("Cannot make a %s of channel type.", value_name_),
         file_table());
   }
-  absl::Status HandleToken(const TokenType& t) override {
+  absl::Status HandleToken(const TokenType& t) final {
     return TypeInferenceErrorStatus(
         span_, &t,
         absl::StrFormat("Cannot make a %s of token type.", value_name_),
         file_table());
   }
-  absl::Status HandleBitsConstructor(const BitsConstructorType& t) override {
+  absl::Status HandleBitsConstructor(const BitsConstructorType& t) final {
     return TypeInferenceErrorStatus(
         span_, &t,
         absl::StrFormat("Cannot make a %s of bits-constructor type.",
                         value_name_),
         file_table());
   }
-  absl::Status HandleStruct(const StructType& t) override {
+  absl::Status HandleStruct(const StructType& t) final {
     std::vector<InterpValue> elems;
     for (const auto& member : t.members()) {
       XLS_RETURN_IF_ERROR(member->Accept(*this));
@@ -210,14 +210,14 @@ class MakeValueVisitor : public TypeVisitor {
     result_ = InterpValue::MakeTuple(std::move(elems));
     return absl::OkStatus();
   }
-  absl::Status HandleProc(const ProcType& t) override {
+  absl::Status HandleProc(const ProcType& t) final {
     return TypeInferenceErrorStatus(
         span_, &t,
         absl::StrFormat("Cannot make a %s of proc type.", value_name_),
         file_table());
   }
 
-  absl::Status HandleTuple(const TupleType& t) override {
+  absl::Status HandleTuple(const TupleType& t) final {
     std::vector<InterpValue> elems;
     for (const auto& m : t.members()) {
       XLS_RETURN_IF_ERROR(m->Accept(*this));
@@ -228,7 +228,7 @@ class MakeValueVisitor : public TypeVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleArray(const ArrayType& t) override {
+  absl::Status HandleArray(const ArrayType& t) final {
     std::optional<BitsLikeProperties> bits_like = GetBitsLike(t);
     if (bits_like.has_value()) {
       return HandleBitsLike(bits_like.value());
@@ -243,14 +243,14 @@ class MakeValueVisitor : public TypeVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleMeta(const MetaType& t) override {
+  absl::Status HandleMeta(const MetaType& t) final {
     return TypeInferenceErrorStatus(
         span_, &t,
         absl::StrFormat("Cannot make a %s of a meta-type.", value_name_),
         file_table());
   }
 
-  absl::Status HandleModule(const ModuleType& t) override {
+  absl::Status HandleModule(const ModuleType& t) final {
     return TypeInferenceErrorStatus(
         span_, &t,
         absl::StrFormat("Cannot make a %s of a module type.", value_name_),

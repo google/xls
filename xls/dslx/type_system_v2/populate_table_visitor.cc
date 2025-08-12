@@ -75,16 +75,16 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
         import_data_(import_data),
         typecheck_imported_module_(std::move(typecheck_imported_module)) {}
 
-  absl::Status PopulateFromModule(const Module* module) override {
+  absl::Status PopulateFromModule(const Module* module) final {
     return module->Accept(this);
   }
 
-  absl::Status PopulateFromInvocation(const Invocation* invocation) override {
+  absl::Status PopulateFromInvocation(const Invocation* invocation) final {
     return invocation->Accept(this);
   }
 
   absl::Status PopulateFromUnrolledLoopBody(
-      const StatementBlock* root) override {
+      const StatementBlock* root) final {
     XLS_RET_CHECK(!handle_proc_functions_);
     std::optional<const Function*> containing_function =
         GetContainingFunction(root);
@@ -96,7 +96,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return result;
   }
 
-  absl::Status HandleImport(const Import* node) override {
+  absl::Status HandleImport(const Import* node) final {
     VLOG(5) << "HandleImport: " << node->ToString();
     ImportTokens import_subject = ImportTokens(node->subject());
     if (import_data_.Contains(import_subject)) {
@@ -109,7 +109,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return DefaultHandler(node);
   }
 
-  absl::Status HandleUse(const Use* node) override {
+  absl::Status HandleUse(const Use* node) final {
     VLOG(5) << "HandleUse: " << node->ToString();
     for (UseSubject& subject : const_cast<Use*>(node)->LinearizeToSubjects()) {
       XLS_ASSIGN_OR_RETURN(
@@ -134,7 +134,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return DefaultHandler(node);
   }
 
-  absl::Status HandleConstantDef(const ConstantDef* node) override {
+  absl::Status HandleConstantDef(const ConstantDef* node) final {
     VLOG(5) << "HandleConstantDef: " << node->ToString();
     XLS_ASSIGN_OR_RETURN(const NameRef* variable,
                          DefineTypeVariableForVariableOrConstant(node));
@@ -142,7 +142,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return DefaultHandler(node);
   }
 
-  absl::Status HandleChannelDecl(const ChannelDecl* node) override {
+  absl::Status HandleChannelDecl(const ChannelDecl* node) final {
     VLOG(5) << "HandleChannelDecl: " << node->ToString()
             << " with type: " << node->type()->ToString();
     if (node->fifo_depth().has_value()) {
@@ -180,13 +180,13 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return DefaultHandler(node);
   }
 
-  absl::Status HandleParam(const Param* node) override {
+  absl::Status HandleParam(const Param* node) final {
     VLOG(5) << "HandleParam: " << node->ToString();
     XLS_RETURN_IF_ERROR(DefineTypeVariableForVariableOrConstant(node).status());
     return DefaultHandler(node);
   }
 
-  absl::Status HandleProc(const Proc* node) override {
+  absl::Status HandleProc(const Proc* node) final {
     VLOG(5) << "HandleProc: " << node->ToString();
     handle_proc_functions_ = true;
     XLS_RETURN_IF_ERROR(DefaultHandler(node));
@@ -194,18 +194,18 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return absl::OkStatus();
   }
 
-  absl::Status HandleProcMember(const ProcMember* node) override {
+  absl::Status HandleProcMember(const ProcMember* node) final {
     VLOG(5) << "HandleProcMember: " << node->ToString();
     XLS_RETURN_IF_ERROR(DefineTypeVariableForVariableOrConstant(node).status());
     return DefaultHandler(node);
   }
 
-  absl::Status HandleNameRef(const NameRef* node) override {
+  absl::Status HandleNameRef(const NameRef* node) final {
     VLOG(5) << "HandleNameRef: " << node->ToString();
     return PropagateDefToRef(node);
   }
 
-  absl::Status HandleColonRef(const ColonRef* node) override {
+  absl::Status HandleColonRef(const ColonRef* node) final {
     // Generally this handler sets both a type annotation and a colon ref target
     // for `node` (the target is a dedicated piece of data specific to
     // `ColonRef` nodes). If the `ColonRef` refers to a type, then these two
@@ -356,7 +356,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
         file_table_);
   }
 
-  absl::Status HandleNumber(const Number* node) override {
+  absl::Status HandleNumber(const Number* node) final {
     VLOG(5) << "HandleNumber: " << node->ToString();
     TypeAnnotation* annotation = node->type_annotation();
     if (annotation == nullptr) {
@@ -377,7 +377,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return table_.SetTypeAnnotation(node, annotation);
   }
 
-  absl::Status HandleBinop(const Binop* node) override {
+  absl::Status HandleBinop(const Binop* node) final {
     VLOG(5) << "HandleBinop: " << node->ToString();
 
     // Any `Binop` should be a descendant of some context-setting node and
@@ -464,7 +464,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return DefaultHandler(node);
   }
 
-  absl::Status HandleUnop(const Unop* node) override {
+  absl::Status HandleUnop(const Unop* node) final {
     VLOG(5) << "HandleUnop: " << node->ToString();
 
     // Any `Unop` should be a descendant of some context-setting node and
@@ -475,7 +475,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return DefaultHandler(node);
   }
 
-  absl::Status HandleCast(const Cast* node) override {
+  absl::Status HandleCast(const Cast* node) final {
     VLOG(5) << "HandleCast: " << node->ToString();
 
     // Create a new type variable for the casted expression.
@@ -492,7 +492,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return DefaultHandler(node);
   }
 
-  absl::Status HandleConditional(const Conditional* node) override {
+  absl::Status HandleConditional(const Conditional* node) final {
     VLOG(5) << "HandleConditional: " << node->ToString();
     // In the example `const D = if (a) {b} else {c};`, the `ConstantDef`
     // establishes a type variable that is just propagated down to `b` and
@@ -518,7 +518,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return DefaultHandler(node);
   }
 
-  absl::Status HandleMatch(const Match* node) override {
+  absl::Status HandleMatch(const Match* node) final {
     VLOG(5) << "HandleMatch: " << node->ToString();
     // Any `match` should be a descendant of some context-setting node and
     // should have a type that was set when its parent was visited. Each
@@ -565,7 +565,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return DefaultHandler(node);
   }
 
-  absl::Status HandleXlsTuple(const XlsTuple* node) override {
+  absl::Status HandleXlsTuple(const XlsTuple* node) final {
     VLOG(5) << "HandleXlsTuple: " << node->ToString();
 
     // When we come in here with an example like:
@@ -624,7 +624,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return DefaultHandler(node);
   }
 
-  absl::Status HandleRestOfTuple(const RestOfTuple* node) override {
+  absl::Status HandleRestOfTuple(const RestOfTuple* node) final {
     VLOG(5) << "HandleRestOfTuple: " << node->ToString();
     TypeAnnotation* any_type =
         module_.Make<AnyTypeAnnotation>(/*multiple=*/true);
@@ -638,7 +638,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   // not provide any top-level type information but the allowable size of the
   // tuple. A `NameDefTree` must be used in a context where this tuple of `Any`
   // will get unified against a source of actual type information.
-  absl::Status HandleNameDefTree(const NameDefTree* node) override {
+  absl::Status HandleNameDefTree(const NameDefTree* node) final {
     VLOG(5) << "HandleNameDefTree: " << node->ToString();
 
     if (node->is_leaf()) {
@@ -887,18 +887,18 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return absl::OkStatus();
   }
 
-  absl::Status HandleFor(const For* node) override {
+  absl::Status HandleFor(const For* node) final {
     VLOG(5) << "HandleFor: " << node->ToString();
     return HandleForLoopBase(node);
   }
 
-  absl::Status HandleUnrollFor(const UnrollFor* node) override {
+  absl::Status HandleUnrollFor(const UnrollFor* node) final {
     VLOG(5) << "HandleUnrollFor: " << node->ToString();
     return HandleForLoopBase(node);
   }
 
   absl::Status HandleArrayTypeAnnotation(
-      const ArrayTypeAnnotation* node) override {
+      const ArrayTypeAnnotation* node) final {
     VLOG(5) << "HandleArrayTypeAnnotation: " << node->ToString();
     XLS_ASSIGN_OR_RETURN(
         const NameRef* dim_variable,
@@ -925,7 +925,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   }
 
   absl::Status HandleChannelTypeAnnotation(
-      const ChannelTypeAnnotation* node) override {
+      const ChannelTypeAnnotation* node) final {
     if (node->dims()) {
       for (Expr* dim : *node->dims()) {
         XLS_ASSIGN_OR_RETURN(const NameRef* dim_variable,
@@ -941,7 +941,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   }
 
   absl::Status HandleTypeRefTypeAnnotation(
-      const TypeRefTypeAnnotation* node) override {
+      const TypeRefTypeAnnotation* node) final {
     VLOG(5) << "HandleTypeRefTypeAnnotation: " << node->ToString();
 
     XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,
@@ -993,14 +993,14 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return DefaultHandler(node);
   }
 
-  absl::Status HandleTypeRef(const TypeRef* node) override {
+  absl::Status HandleTypeRef(const TypeRef* node) final {
     // `TypeRef::GetChildren` does not yield the type definition it contains. We
     // want that to be processed here in case it's a `ColonRef`.
     return ToAstNode(node->type_definition())->Accept(this);
   }
 
   absl::Status HandleSelfTypeAnnotation(
-      const SelfTypeAnnotation* node) override {
+      const SelfTypeAnnotation* node) final {
     VLOG(5) << "HandleSelfTypeAnnotation: " << node->ToString();
     XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,
                          GetStructOrProcRef(node->struct_ref(), import_data_));
@@ -1018,19 +1018,19 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return DefaultHandler(node);
   }
 
-  absl::Status HandleStructInstance(const StructInstance* node) override {
+  absl::Status HandleStructInstance(const StructInstance* node) final {
     VLOG(5) << "HandleStructInstance: " << node->ToString();
     return HandleStructInstanceInternal(node, /*source=*/std::nullopt);
   }
 
   absl::Status HandleSplatStructInstance(
-      const SplatStructInstance* node) override {
+      const SplatStructInstance* node) final {
     VLOG(5) << "HandleSplatStructInstance: " << node->ToString();
     XLS_RETURN_IF_ERROR(HandleStructInstanceInternal(node, node->splatted()));
     return node->splatted()->Accept(this);
   }
 
-  absl::Status HandleAttr(const Attr* node) override {
+  absl::Status HandleAttr(const Attr* node) final {
     // Establish a context for the unification of the struct type.
     XLS_ASSIGN_OR_RETURN(
         const NameRef* struct_type_variable,
@@ -1050,7 +1050,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return DefaultHandler(node);
   }
 
-  absl::Status HandleString(const String* node) override {
+  absl::Status HandleString(const String* node) final {
     VLOG(5) << "HandleString: " << node->ToString();
     // Strings are always constants, and we always know their size, so we can
     // just set their annotation to u8[N] (with a constant N)
@@ -1064,7 +1064,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return DefaultHandler(node);
   }
 
-  absl::Status HandleArray(const Array* node) override {
+  absl::Status HandleArray(const Array* node) final {
     VLOG(5) << "HandleArray: " << node->ToString();
 
     // When we come in here with an example like:
@@ -1160,7 +1160,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return DefaultHandler(node);
   }
 
-  absl::Status HandleRange(const Range* node) override {
+  absl::Status HandleRange(const Range* node) final {
     VLOG(5) << "HandleRange: " << node->ToString();
 
     // In a match pattern, a range means "match against anything in this range"
@@ -1235,7 +1235,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return DefaultHandler(node);
   }
 
-  absl::Status HandleIndex(const Index* node) override {
+  absl::Status HandleIndex(const Index* node) final {
     // Whether it's a normal index op or a slice, the LHS, which is the original
     // array, always has its own unification context.
     XLS_ASSIGN_OR_RETURN(
@@ -1289,7 +1289,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return DefaultHandler(node);
   }
 
-  absl::Status HandleWidthSlice(const WidthSlice* node) override {
+  absl::Status HandleWidthSlice(const WidthSlice* node) final {
     // We handle this out-of-band via `HandleWidthSliceInternal` while looking
     // at the `Index` node that contains the slice, because the default type of
     // the slice index depends on the type of the container being sliced.
@@ -1326,7 +1326,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return DefaultHandler(node);
   }
 
-  absl::Status HandleSlice(const Slice* node) override {
+  absl::Status HandleSlice(const Slice* node) final {
     // A general slice uses a signed start and/or limit.
 
     const NameRef* bound_variable = nullptr;
@@ -1359,7 +1359,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return DefaultHandler(node);
   }
 
-  absl::Status HandleTupleIndex(const TupleIndex* node) override {
+  absl::Status HandleTupleIndex(const TupleIndex* node) final {
     VLOG(5) << "HandleTupleIndex: " << node->ToString();
 
     // Establish a context for the unification of the tuple type.
@@ -1393,7 +1393,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return DefaultHandler(node);
   }
 
-  absl::Status HandleFunction(const Function* node) override {
+  absl::Status HandleFunction(const Function* node) final {
     // Proc functions are reachable via both the `Module` and the `Proc`, as an
     // oddity of how procs are set up in the AST. We only want to handle them in
     // the context of the `Proc`, because at that point we will have processed
@@ -1445,7 +1445,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return absl::OkStatus();
   }
 
-  absl::Status HandleParametricBinding(const ParametricBinding* node) override {
+  absl::Status HandleParametricBinding(const ParametricBinding* node) final {
     VLOG(5) << "HandleParametricBinding: " << node->ToString();
     XLS_RETURN_IF_ERROR(table_.DefineParametricVariable(*node).status());
     if (node->expr() != nullptr) {
@@ -1464,7 +1464,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return DefaultHandler(node);
   }
 
-  absl::Status HandleStatement(const Statement* node) override {
+  absl::Status HandleStatement(const Statement* node) final {
     VLOG(5) << "HandleStatement: " << node->ToString();
     // If it's just an expr, assign it a type variable.
     if (std::holds_alternative<Expr*>(node->wrapped())) {
@@ -1483,7 +1483,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return DefaultHandler(node);
   }
 
-  absl::Status HandleStatementBlock(const StatementBlock* node) override {
+  absl::Status HandleStatementBlock(const StatementBlock* node) final {
     // A statement block may have a type variable imposed at a higher level of
     // the tree. For example, in
     //     `const X = { statement0; ...; statementN }`
@@ -1511,7 +1511,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return DefaultHandler(node);
   }
 
-  absl::Status HandleSpawn(const Spawn* node) override {
+  absl::Status HandleSpawn(const Spawn* node) final {
     VLOG(5) << "HandleSpawn: " << node->ToString();
     XLS_ASSIGN_OR_RETURN(
         const NameRef* config_type_variable,
@@ -1557,7 +1557,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return kShouldBeInProc.contains(*builtin_name);
   }
 
-  absl::Status HandleInvocation(const Invocation* node) override {
+  absl::Status HandleInvocation(const Invocation* node) final {
     // When we come in here with an example like:
     //   let x: u32 = foo(a, b);
     //
@@ -1675,7 +1675,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return node->callee()->Accept(this);
   }
 
-  absl::Status HandleEnumDef(const EnumDef* node) override {
+  absl::Status HandleEnumDef(const EnumDef* node) final {
     // When we come in here with an example like:
     //   enum MyEnum : u8 {
     //     A = 1;
@@ -1747,7 +1747,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return DefaultHandler(node);
   }
 
-  absl::Status HandleFormatMacro(const FormatMacro* node) override {
+  absl::Status HandleFormatMacro(const FormatMacro* node) final {
     // The verbosity, if specified, has its own unification context.
     if (node->verbosity().has_value()) {
       XLS_ASSIGN_OR_RETURN(
@@ -1821,17 +1821,17 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return DefaultHandler(node);
   }
 
-  absl::Status HandleZeroMacro(const ZeroMacro* node) override {
+  absl::Status HandleZeroMacro(const ZeroMacro* node) final {
     VLOG(5) << "HandleZeroMacro: " << node->ToString();
     return HandleZeroOrOneMacro(node, node->type());
   }
 
-  absl::Status HandleAllOnesMacro(const AllOnesMacro* node) override {
+  absl::Status HandleAllOnesMacro(const AllOnesMacro* node) final {
     VLOG(5) << "HandleAllOnesMacro: " << node->ToString();
     return HandleZeroOrOneMacro(node, node->type());
   }
 
-  absl::Status HandleConstAssert(const ConstAssert* node) override {
+  absl::Status HandleConstAssert(const ConstAssert* node) final {
     VLOG(5) << "HandleConstAssert: " << node->ToString();
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
         node->arg(), CreateBoolAnnotation(module_, node->span())));
@@ -1846,7 +1846,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return DefaultHandler(node);
   }
 
-  absl::Status HandleLet(const Let* node) override {
+  absl::Status HandleLet(const Let* node) final {
     VLOG(5) << "HandleLet: " << node->ToString();
     XLS_ASSIGN_OR_RETURN(
         const NameRef* variable,
@@ -1871,7 +1871,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return DefaultHandler(node);
   }
 
-  absl::Status HandleTypeAlias(const TypeAlias* node) override {
+  absl::Status HandleTypeAlias(const TypeAlias* node) final {
     VLOG(5) << "HandleTypeAlias: " << node->ToString();
     XLS_RETURN_IF_ERROR(
         table_.SetTypeAnnotation(node, &node->type_annotation()));
@@ -1880,7 +1880,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return DefaultHandler(node);
   }
 
-  absl::Status HandleQuickCheck(const QuickCheck* node) override {
+  absl::Status HandleQuickCheck(const QuickCheck* node) final {
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
         node, CreateBoolAnnotation(module_, node->span())));
     XLS_ASSIGN_OR_RETURN(
@@ -1893,7 +1893,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return DefaultHandler(node);
   }
 
-  absl::Status DefaultHandler(const AstNode* node) override {
+  absl::Status DefaultHandler(const AstNode* node) final {
     for (AstNode* child : node->GetChildren(/*want_types=*/true)) {
       XLS_RETURN_IF_ERROR(child->Accept(this));
     }

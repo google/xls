@@ -116,26 +116,26 @@ absl::Status FlattenEnum(const ValueFormatDescriptor& efd, const BValue& v,
   return absl::OkStatus();
 }
 
-class FlattenVisitor : public ValueFormatVisitor {
+class FlattenVisitor final : public ValueFormatVisitor {
  public:
   FlattenVisitor(BValue ir_value, ConvertContext& ctx)
       : ir_value_(ir_value), ctx_(ctx) {}
 
-  ~FlattenVisitor() override = default;
+  ~FlattenVisitor() final = default;
 
-  absl::Status HandleArray(const ValueFormatDescriptor& d) override {
+  absl::Status HandleArray(const ValueFormatDescriptor& d) final {
     return FlattenArray(d, ir_value_, ctx_);
   }
-  absl::Status HandleStruct(const ValueFormatDescriptor& d) override {
+  absl::Status HandleStruct(const ValueFormatDescriptor& d) final {
     return FlattenStruct(d, ir_value_, ctx_);
   }
-  absl::Status HandleEnum(const ValueFormatDescriptor& d) override {
+  absl::Status HandleEnum(const ValueFormatDescriptor& d) final {
     return FlattenEnum(d, ir_value_, ctx_);
   }
-  absl::Status HandleTuple(const ValueFormatDescriptor& d) override {
+  absl::Status HandleTuple(const ValueFormatDescriptor& d) final {
     return FlattenTuple(d, ir_value_, ctx_);
   }
-  absl::Status HandleLeafValue(const ValueFormatDescriptor& d) override {
+  absl::Status HandleLeafValue(const ValueFormatDescriptor& d) final {
     ctx_.fmt_steps.push_back(d.leaf_format());
     ctx_.ir_args.push_back(ir_value_);
     return absl::OkStatus();

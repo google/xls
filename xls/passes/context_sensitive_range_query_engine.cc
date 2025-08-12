@@ -415,7 +415,7 @@ class ProxyContextQueryEngine final : public QueryEngine {
                           const RangeQueryEngine& range_data)
       : base_(base), range_data_(range_data) {}
 
-  absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override {
+  absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) final {
     return absl::UnimplementedError(
         "Cannot populate proxy query engine. Populate must be called on "
         "original engine only.");

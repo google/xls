@@ -62,7 +62,7 @@ class StringSink : public absl::LogSink {
  public:
   StringSink() = default;
 
-  void Send(const absl::LogEntry& entry) override {
+  void Send(const absl::LogEntry& entry) final {
     absl::StrAppend(&message_, entry.source_basename(), ":",
                     entry.source_line(), " - ", entry.text_message());
   }

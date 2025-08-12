@@ -134,7 +134,7 @@ class RewrittenProcMemoryModel : public ProcMemoryModel {
     elements_.resize(size, AllOnesOfType(elements_type_));
   }
 
-  absl::Status Tick() override {
+  absl::Status Tick() final {
     struct Request {
       bool read = false;
       bool write = false;
@@ -188,7 +188,7 @@ class RewrittenProcMemoryModel : public ProcMemoryModel {
     return absl::OkStatus();
   }
 
-  absl::Status Reset() override {
+  absl::Status Reset() final {
     elements_.assign(elements_.size(), XsOfType(elements_type_));
     return absl::OkStatus();
   }

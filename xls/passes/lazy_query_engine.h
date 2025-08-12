@@ -128,7 +128,7 @@ class LazyQueryEngine : public QueryEngine {
       FunctionBase* f, absl::flat_hash_map<Node*, LeafTypeTree<Info>> givens) {
     return info_.AttachWithGivens(f, std::move(givens));
   }
-  absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override {
+  absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) final {
     return info_.Attach(f);
   }
 

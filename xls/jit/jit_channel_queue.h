@@ -130,7 +130,7 @@ class JitChannelQueue : public ChannelQueue {
 
 // A thread-safe version of the JIT channel queue. All accesses are guarded by a
 // mutex.
-class ThreadSafeJitChannelQueue : public JitChannelQueue {
+class ThreadSafeJitChannelQueue final : public JitChannelQueue {
  public:
   ThreadSafeJitChannelQueue(ChannelInstance* channel_instance,
                             JitRuntime* jit_runtime)
@@ -138,10 +138,10 @@ class ThreadSafeJitChannelQueue : public JitChannelQueue {
         byte_queue_(
             jit_runtime->GetTypeByteSize(channel_instance->channel->type()),
             channel_instance->channel->kind() == ChannelKind::kSingleValue) {}
-  ~ThreadSafeJitChannelQueue() override = default;
+  ~ThreadSafeJitChannelQueue() final = default;
 
   // Write raw bytes representing a value in LLVM's native format.
-  void WriteRaw(const uint8_t* data) override {
+  void WriteRaw(const uint8_t* data) final {
     absl::MutexLock lock(&mutex_);
     byte_queue_.Write(data);
     if (!callbacks_.empty()) {
@@ -151,7 +151,7 @@ class ThreadSafeJitChannelQueue : public JitChannelQueue {
 
   // Reads raw bytes representing a value in LLVM's native format. Returns
   // true if queue was not empty and data was read.
-  bool ReadRaw(uint8_t* buffer) override {
+  bool ReadRaw(uint8_t* buffer) final {
     absl::MutexLock lock(&mutex_);
     if (generator_.has_value()) {
       std::optional<Value> generated_value = (*generator_)();
@@ -167,17 +167,17 @@ class ThreadSafeJitChannelQueue : public JitChannelQueue {
   }
 
  protected:
-  int64_t GetSizeInternal() const ABSL_SHARED_LOCKS_REQUIRED(mutex_) override;
+  int64_t GetSizeInternal() const ABSL_SHARED_LOCKS_REQUIRED(mutex_) final;
   void WriteInternal(const Value& value)
-      ABSL_SHARED_LOCKS_REQUIRED(mutex_) override;
+      ABSL_SHARED_LOCKS_REQUIRED(mutex_) final;
   std::optional<Value> ReadInternal()
-      ABSL_SHARED_LOCKS_REQUIRED(mutex_) override;
+      ABSL_SHARED_LOCKS_REQUIRED(mutex_) final;
 
   ByteQueue byte_queue_ ABSL_GUARDED_BY(mutex_);
 };
 
 // A thread-unsafe version of the JIT channel queue.
-class ThreadUnsafeJitChannelQueue : public JitChannelQueue {
+class ThreadUnsafeJitChannelQueue final : public JitChannelQueue {
  public:
   ThreadUnsafeJitChannelQueue(ChannelInstance* channel_instance,
                               JitRuntime* jit_runtime)
@@ -185,15 +185,15 @@ class ThreadUnsafeJitChannelQueue : public JitChannelQueue {
         byte_queue_(
             jit_runtime->GetTypeByteSize(channel_instance->channel->type()),
             channel_instance->channel->kind() == ChannelKind::kSingleValue) {}
-  ~ThreadUnsafeJitChannelQueue() override = default;
+  ~ThreadUnsafeJitChannelQueue() final = default;
 
-  void WriteRaw(const uint8_t* data) override {
+  void WriteRaw(const uint8_t* data) final {
     byte_queue_.Write(data);
     if (!callbacks_.empty()) {
       CallWriteCallbacks(jit_runtime_->UnpackBuffer(data, channel()->type()));
     }
   }
-  bool ReadRaw(uint8_t* buffer) override {
+  bool ReadRaw(uint8_t* buffer) final {
     if (generator_.has_value()) {
       std::optional<Value> generated_value = (*generator_)();
       if (generated_value.has_value()) {
@@ -208,17 +208,17 @@ class ThreadUnsafeJitChannelQueue : public JitChannelQueue {
   }
 
  protected:
-  int64_t GetSizeInternal() const ABSL_SHARED_LOCKS_REQUIRED(mutex_) override;
-  void WriteInternal(const Value& value) override;
-  std::optional<Value> ReadInternal() override;
+  int64_t GetSizeInternal() const ABSL_SHARED_LOCKS_REQUIRED(mutex_) final;
+  void WriteInternal(const Value& value) final;
+  std::optional<Value> ReadInternal() final;
 
   ByteQueue byte_queue_;
 };
 
 // A Channel manager which holds exclusively JitChannelQueues.
-class JitChannelQueueManager : public ChannelQueueManager {
+class JitChannelQueueManager final : public ChannelQueueManager {
  public:
-  ~JitChannelQueueManager() override = default;
+  ~JitChannelQueueManager() final = default;
 
   // Factories which create a queue manager with exclusively ThreadSafe/Unsafe
   // queues.

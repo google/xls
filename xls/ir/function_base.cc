@@ -184,7 +184,7 @@ absl::Status FunctionBase::Accept(DfsVisitor* visitor) {
     // Not all nodes were visited. This indicates a cycle. Create a separate
     // trivial DFS visitor to find the cycle.
     class CycleChecker : public DfsVisitorWithDefault {
-      absl::Status DefaultHandler(Node* node) override {
+      absl::Status DefaultHandler(Node* node) final {
         return absl::OkStatus();
       }
     };

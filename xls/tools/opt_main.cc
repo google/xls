@@ -85,9 +85,9 @@ class FileStderrLogSink final : public absl::LogSink {
     CHECK_OK(SetFileContents(path_, ""));
   }
 
-  ~FileStderrLogSink() override = default;
+  ~FileStderrLogSink() final = default;
 
-  void Send(const absl::LogEntry& entry) override {
+  void Send(const absl::LogEntry& entry) final {
     if (entry.log_severity() < absl::StderrThreshold()) {
       return;
     }

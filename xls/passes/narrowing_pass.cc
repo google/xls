@@ -258,8 +258,8 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
 
   bool changed() const { return changed_; }
 
-  absl::Status DefaultHandler(Node* node) override { return NoChange(); }
-  absl::Status HandleArrayUpdate(ArrayUpdate* update) override {
+  absl::Status DefaultHandler(Node* node) final { return NoChange(); }
+  absl::Status HandleArrayUpdate(ArrayUpdate* update) final {
     if (!update->assumed_in_bounds() &&
         ArrayIndicesAssumedInBounds(
             update, update->indices(),
@@ -271,13 +271,13 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     }
     return NoChange();
   }
-  absl::Status HandleGate(Gate* gate) override {
+  absl::Status HandleGate(Gate* gate) final {
     // We explicitly never want anything to occur here except being replaced
     // with a constant.
     return NoChange();
   }
 
-  absl::Status HandleSel(Select* sel) override {
+  absl::Status HandleSel(Select* sel) final {
     if (analysis_ != AnalysisType::kRangeWithContext) {
       return NoChange();
     }
@@ -324,37 +324,37 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
             state.IsDefaultArm() ? select->cases().size() : state.arm_index(),
             select->ToString()));
   }
-  absl::Status HandleEq(CompareOp* eq) override {
+  absl::Status HandleEq(CompareOp* eq) final {
     return MaybeNarrowCompare(eq);
   }
-  absl::Status HandleNe(CompareOp* ne) override {
+  absl::Status HandleNe(CompareOp* ne) final {
     return MaybeNarrowCompare(ne);
   }
-  absl::Status HandleSGe(CompareOp* ge) override {
+  absl::Status HandleSGe(CompareOp* ge) final {
     return MaybeNarrowCompare(ge);
   }
-  absl::Status HandleSGt(CompareOp* gt) override {
+  absl::Status HandleSGt(CompareOp* gt) final {
     return MaybeNarrowCompare(gt);
   }
-  absl::Status HandleSLe(CompareOp* le) override {
+  absl::Status HandleSLe(CompareOp* le) final {
     return MaybeNarrowCompare(le);
   }
-  absl::Status HandleSLt(CompareOp* lt) override {
+  absl::Status HandleSLt(CompareOp* lt) final {
     return MaybeNarrowCompare(lt);
   }
-  absl::Status HandleUGe(CompareOp* ge) override {
+  absl::Status HandleUGe(CompareOp* ge) final {
     return MaybeNarrowCompare(ge);
   }
-  absl::Status HandleUGt(CompareOp* gt) override {
+  absl::Status HandleUGt(CompareOp* gt) final {
     return MaybeNarrowCompare(gt);
   }
-  absl::Status HandleULe(CompareOp* le) override {
+  absl::Status HandleULe(CompareOp* le) final {
     return MaybeNarrowCompare(le);
   }
-  absl::Status HandleULt(CompareOp* lt) override {
+  absl::Status HandleULt(CompareOp* lt) final {
     return MaybeNarrowCompare(lt);
   }
-  absl::Status HandleNeg(UnOp* neg) override {
+  absl::Status HandleNeg(UnOp* neg) final {
     // Narrows negate:
     //
     //  neg(0b00...00XXX) => signext(neg(0b0XXX))
@@ -536,7 +536,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     return NoChange();
   }
 
-  absl::Status HandleLiteral(Literal* literal) override {
+  absl::Status HandleLiteral(Literal* literal) final {
     return MaybeNarrowLiteralArray(literal);
   }
 
@@ -681,7 +681,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
   // If leading bits are known of the shift-value we can remove any where the
   // unknown bits cannot overwrite them. We will also narrow shift_amnt and
   // split the value based on the calculated ranges of shift_amnt.
-  absl::Status HandleShll(BinOp* shll) override {
+  absl::Status HandleShll(BinOp* shll) final {
     Node* shift_value = shll->operand(0);
     Node* shift_amnt = shll->operand(1);
     // Narrow the shift amount.
@@ -790,10 +790,10 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     return replace_with_narrowed(narrowed_shift_value, narrowed_shift_amnt);
   }
 
-  absl::Status HandleShra(BinOp* shra) override {
+  absl::Status HandleShra(BinOp* shra) final {
     return MaybeNarrowShiftRight(shra);
   }
-  absl::Status HandleShrl(BinOp* shrl) override {
+  absl::Status HandleShrl(BinOp* shrl) final {
     return MaybeNarrowShiftRight(shrl);
   }
 
@@ -937,7 +937,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
   //
   // Finally if the number of interesting bits is less then the slice size we
   // can slice to a smaller size and extend.
-  absl::Status HandleDynamicBitSlice(DynamicBitSlice* slice) override {
+  absl::Status HandleDynamicBitSlice(DynamicBitSlice* slice) final {
     int64_t leading_start_zeros = CountLeadingKnownZeros(slice->start(), slice);
     int64_t leading_to_slice_zeros =
         CountLeadingKnownZeros(slice->to_slice(), slice);
@@ -1060,7 +1060,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     return Change(slice, res);
   }
 
-  absl::Status HandleDecode(Decode* decode) override {
+  absl::Status HandleDecode(Decode* decode) final {
     // Narrow the index operand of decode operations if the index has leading
     // zeros.
     Node* index = decode->operand(0);
@@ -1111,7 +1111,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     return Change(/*original=*/decode, /*replacement=*/replacement);
   }
 
-  absl::Status HandleSub(BinOp* sub) override {
+  absl::Status HandleSub(BinOp* sub) final {
     VLOG(3) << "Trying to narrow sub: " << sub->ToString();
     XLS_RET_CHECK_EQ(sub->op(), Op::kSub);
 
@@ -1191,7 +1191,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     }
     return NoChange();
   }
-  absl::Status HandleAdd(BinOp* add) override {
+  absl::Status HandleAdd(BinOp* add) final {
     VLOG(3) << "Trying to narrow add: " << add->ToString();
 
     XLS_RET_CHECK_EQ(add->op(), Op::kAdd);
@@ -1282,10 +1282,10 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     return NoChange();
   }
 
-  absl::Status HandleUMul(ArithOp* umul) override {
+  absl::Status HandleUMul(ArithOp* umul) final {
     return MaybeNarrowMultiply(umul);
   }
-  absl::Status HandleSMul(ArithOp* smul) override {
+  absl::Status HandleSMul(ArithOp* smul) final {
     return MaybeNarrowMultiply(smul);
   }
 
@@ -1436,7 +1436,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
 
     return NoChange();
   }
-  absl::Status HandleArrayIndex(ArrayIndex* array_index) override {
+  absl::Status HandleArrayIndex(ArrayIndex* array_index) final {
     bool changed = false;
     bool assumed_in_bounds = array_index->assumed_in_bounds();
 
@@ -1541,10 +1541,10 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     return NoChange();
   }
 
-  absl::Status HandleSMulp(PartialProductOp* mul) override {
+  absl::Status HandleSMulp(PartialProductOp* mul) final {
     return MaybeNarrowPartialMultiply(mul);
   }
-  absl::Status HandleUMulp(PartialProductOp* mul) override {
+  absl::Status HandleUMulp(PartialProductOp* mul) final {
     return MaybeNarrowPartialMultiply(mul);
   }
 

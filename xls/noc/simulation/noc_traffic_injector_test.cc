@@ -427,11 +427,11 @@ TEST(NocTrafficInjectorTest, MeasureTrafficInjectionRate) {
   class NocTrafficInjectorSink : public NocSimulatorTrafficServiceShim {
    public:
     // Not used in this test.
-    absl::Status RunCycle() override { return absl::OkStatus(); }
+    absl::Status RunCycle() final { return absl::OkStatus(); }
 
     // Measures traffic sent from source.
     absl::Status SendFlitAtTime(TimedDataFlit flit,
-                                NetworkComponentId source) override {
+                                NetworkComponentId source) final {
       if (flit.cycle > max_cycle_) {
         max_cycle_ = flit.cycle;
       }

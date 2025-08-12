@@ -437,12 +437,12 @@ inline std::ostream& operator<<(std::ostream& os, const Type& t) {
 // For example, if you do `deduce(u32)` where `u32` is the builtin type
 // annotation, it will tell you "this thing is a type" and contain "the type is
 // u32".
-class MetaType : public Type {
+class MetaType final : public Type {
  public:
   explicit MetaType(std::unique_ptr<Type> wrapped)
       : wrapped_(std::move(wrapped)) {}
 
-  ~MetaType() override;
+  ~MetaType() final;
 
   absl::Status Accept(TypeVisitor& v) const override {
     return v.HandleMeta(*this);
@@ -503,9 +503,9 @@ class MetaType : public Type {
 // it cannot be distinguished or parameterized in any way from other token type
 // instances (unless you compare by pointer, of course, which is an
 // implementation detail and not part of the Type API).
-class TokenType : public Type {
+class TokenType final : public Type {
  public:
-  ~TokenType() override;
+  ~TokenType() final;
 
   absl::Status Accept(TypeVisitor& v) const override {
     return v.HandleToken(*this);
@@ -867,11 +867,11 @@ class EnumType : public Type {
 //    xN
 //
 // Note that the last one has parametric signedness.
-class BitsConstructorType : public Type {
+class BitsConstructorType final : public Type {
  public:
   explicit BitsConstructorType(TypeDim is_signed);
 
-  ~BitsConstructorType() override;
+  ~BitsConstructorType() final;
 
   absl::Status Accept(TypeVisitor& v) const override;
   absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
@@ -897,10 +897,10 @@ class BitsConstructorType : public Type {
 // Represents an existential type for a given module's identity. This
 // representation allows us to place the type of a module-reference AST node
 // into the type information mapping.
-class ModuleType : public Type {
+class ModuleType final : public Type {
  public:
   explicit ModuleType(const Module& module) : module_(module) {}
-  ~ModuleType() override;
+  ~ModuleType() final;
 
   absl::Status Accept(TypeVisitor& v) const override;
   absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
@@ -944,7 +944,7 @@ class ModuleType : public Type {
 // Note that there are related helpers IsUBits() and IsSBits() for concisely
 // testing whether a `Type` is an unsigned or signed BitsType,
 // respectively.
-class BitsType : public Type {
+class BitsType final : public Type {
  public:
   static std::string GetDebugName() { return "BitsType"; }
 
@@ -968,7 +968,7 @@ class BitsType : public Type {
 
   BitsType(bool is_signed, TypeDim size);
 
-  ~BitsType() override = default;
+  ~BitsType() final = default;
 
   absl::Status Accept(TypeVisitor& v) const override {
     return v.HandleBits(*this);

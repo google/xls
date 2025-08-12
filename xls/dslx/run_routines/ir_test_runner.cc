@@ -148,7 +148,7 @@ class IrRunner : public AbstractParsedTestRunner {
 
   absl::StatusOr<RunResult> RunTestProc(
       std::string_view name,
-      const BytecodeInterpreterOptions& options) override {
+      const BytecodeInterpreterOptions& options) final {
     if (options.trace_channels()) {
       LOG(WARNING) << "Unable to trace channels with IR testing";
     }
@@ -174,7 +174,7 @@ class IrRunner : public AbstractParsedTestRunner {
 
   absl::StatusOr<RunResult> RunTestFunction(
       std::string_view name,
-      const BytecodeInterpreterOptions& options) override {
+      const BytecodeInterpreterOptions& options) final {
     auto* func_package = packages_.at(name).get();
     XLS_ASSIGN_OR_RETURN(xls::Function * f, func_package->GetTopAsFunction());
     XLS_RET_CHECK(f->GetType()->return_type()->IsTuple()) << f->GetType();

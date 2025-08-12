@@ -111,7 +111,7 @@ absl::StatusOr<absl::flat_hash_map<Node*, Value>> ToValueMap(
 class MemoizedIrInterpreter : public IrInterpreter {
  public:
   using IrInterpreter::IrInterpreter;
-  absl::Status HandleParam(Param* param) override {
+  absl::Status HandleParam(Param* param) final {
     XLS_RET_CHECK(NodeValuesMap().contains(param));
     return absl::OkStatus();
   }

@@ -55,7 +55,7 @@ class EvaluatorImpl : public Evaluator {
 
   absl::StatusOr<bool> EvaluateBoolOrExpr(
       std::optional<const ParametricContext*> parametric_context,
-      std::variant<bool, const Expr*> value_or_expr) override {
+      std::variant<bool, const Expr*> value_or_expr) final {
     if (std::holds_alternative<bool>(value_or_expr)) {
       return std::get<bool>(value_or_expr);
     }
@@ -83,20 +83,20 @@ class EvaluatorImpl : public Evaluator {
 
   absl::StatusOr<int64_t> EvaluateU32OrExpr(
       std::optional<const ParametricContext*> parametric_context,
-      std::variant<int64_t, const Expr*> value_or_expr) override {
+      std::variant<int64_t, const Expr*> value_or_expr) final {
     return Evaluate32BitIntOrExpr(parametric_context, value_or_expr,
                                   /*is_signed=*/false);
   }
 
   absl::StatusOr<int64_t> EvaluateS32OrExpr(
       std::optional<const ParametricContext*> parametric_context,
-      std::variant<int64_t, const Expr*> value_or_expr) override {
+      std::variant<int64_t, const Expr*> value_or_expr) final {
     return Evaluate32BitIntOrExpr(parametric_context, value_or_expr,
                                   /*is_signed=*/true);
   }
 
   absl::StatusOr<InterpValue> Evaluate(
-      const ParametricContextScopedExpr& scoped_expr) override {
+      const ParametricContextScopedExpr& scoped_expr) final {
     VLOG(7) << "Evaluate: " << scoped_expr.expr()->ToString()
             << " with owner: " << scoped_expr.expr()->owner()->name()
             << " in module: " << module_.name()
@@ -120,7 +120,7 @@ class EvaluatorImpl : public Evaluator {
   absl::StatusOr<InterpValue> Evaluate(
       std::optional<const ParametricContext*> parametric_context,
       TypeInfo* type_info, const TypeAnnotation* type_annotation,
-      const Expr* expr) override {
+      const Expr* expr) final {
     TypeSystemTrace trace = tracer_.TraceEvaluate(parametric_context, expr);
 
     // This is the type of the parametric binding we are talking about, which is

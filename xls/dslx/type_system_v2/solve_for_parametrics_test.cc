@@ -54,7 +54,7 @@ using ::testing::UnorderedElementsAre;
 
 class SolveForParametricsTest : public ::testing::Test {
  public:
-  void SetUp() override { import_data_ = CreateImportDataPtrForTest(); }
+  void SetUp() final { import_data_ = CreateImportDataPtrForTest(); }
 
   absl::StatusOr<std::unique_ptr<Module>> Parse(std::string_view program,
                                                 bool parse_fn_stubs = false) {

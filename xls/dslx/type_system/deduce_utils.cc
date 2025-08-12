@@ -70,45 +70,45 @@ class FormatMacroArgumentValidator : public TypeVisitor {
   FormatMacroArgumentValidator(const FileTable& file_table, const Span& span)
       : file_table_(file_table), span_(span) {}
 
-  absl::Status HandleArray(const ArrayType& t) override {
+  absl::Status HandleArray(const ArrayType& t) final {
     return absl::OkStatus();
   }
-  absl::Status HandleBits(const BitsType& t) override {
+  absl::Status HandleBits(const BitsType& t) final {
     return absl::OkStatus();
   }
-  absl::Status HandleEnum(const EnumType& t) override {
+  absl::Status HandleEnum(const EnumType& t) final {
     return absl::OkStatus();
   }
-  absl::Status HandleToken(const TokenType& t) override {
+  absl::Status HandleToken(const TokenType& t) final {
     return absl::OkStatus();
   }
-  absl::Status HandleStruct(const StructType& t) override {
+  absl::Status HandleStruct(const StructType& t) final {
     return absl::OkStatus();
   }
-  absl::Status HandleProc(const ProcType& t) override {
+  absl::Status HandleProc(const ProcType& t) final {
     return absl::OkStatus();
   }
-  absl::Status HandleTuple(const TupleType& t) override {
+  absl::Status HandleTuple(const TupleType& t) final {
     return absl::OkStatus();
   }
-  absl::Status HandleBitsConstructor(const BitsConstructorType& t) override {
+  absl::Status HandleBitsConstructor(const BitsConstructorType& t) final {
     return absl::OkStatus();
   }
-  absl::Status HandleFunction(const FunctionType& t) override {
+  absl::Status HandleFunction(const FunctionType& t) final {
     return TypeInferenceErrorStatus(
         span_, &t, ": Cannot format an expression with function type",
         file_table_);
   }
-  absl::Status HandleChannel(const ChannelType& t) override {
+  absl::Status HandleChannel(const ChannelType& t) final {
     return TypeInferenceErrorStatus(
         span_, &t, ": Cannot format an expression with channel type",
         file_table_);
   }
-  absl::Status HandleMeta(const MetaType& t) override {
+  absl::Status HandleMeta(const MetaType& t) final {
     return TypeInferenceErrorStatus(
         span_, &t, ": Cannot format an expression with meta type", file_table_);
   }
-  absl::Status HandleModule(const ModuleType& t) override {
+  absl::Status HandleModule(const ModuleType& t) final {
     return TypeInferenceErrorStatus(
         span_, &t, ": Cannot format an expression with module type",
         file_table_);

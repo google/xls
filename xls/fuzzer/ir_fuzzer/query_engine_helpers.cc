@@ -34,7 +34,7 @@ using NodeValues =
 namespace {
 class Observer : public EvaluationObserver {
  public:
-  void NodeEvaluated(Node* n, const Value& v) override { values_[n] = v; }
+  void NodeEvaluated(Node* n, const Value& v) final { values_[n] = v; }
   const absl::flat_hash_map<Node*, Value>& values() const& { return values_; }
   absl::flat_hash_map<Node*, Value> values() && { return std::move(values_); }
 

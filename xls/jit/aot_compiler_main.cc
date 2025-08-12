@@ -101,18 +101,18 @@ class IntermediatesObserver final : public JitObserver {
     return requests_;
   }
   // Called when a LLVM module has been created and is ready for optimization
-  void UnoptimizedModule(const llvm::Module* module) override {
+  void UnoptimizedModule(const llvm::Module* module) final {
     llvm::raw_string_ostream ostream(unoptimized_);
     module->print(ostream, nullptr);
   }
   // Called when a LLVM module has been created and is ready for codegen
-  void OptimizedModule(const llvm::Module* module) override {
+  void OptimizedModule(const llvm::Module* module) final {
     llvm::raw_string_ostream ostream(optimized_);
     module->print(ostream, nullptr);
   }
   // Called when a LLVM module has been compiled with the asm code.
   void AssemblyCodeString(const llvm::Module* module,
-                          std::string_view asm_code) override {
+                          std::string_view asm_code) final {
     asm_ = asm_code;
   }
 

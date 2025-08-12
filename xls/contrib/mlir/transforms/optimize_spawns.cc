@@ -133,7 +133,7 @@ void RemoveUnusedArguments(SprocOp sproc) {
 class OptimizeSpawnsPass
     : public impl::OptimizeSpawnsPassBase<OptimizeSpawnsPass> {
  public:
-  void runOnOperation() override {
+  void runOnOperation() final {
     RewritePatternSet patterns(&getContext());
     patterns.add<SendOfBlockingReceiveOp>(&getContext());
     if (failed(applyPatternsGreedily(getOperation().getNext(),

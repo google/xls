@@ -37,13 +37,13 @@ class AotCompiler final : public LlvmCompiler {
       bool include_msan, int64_t opt_level = LlvmCompiler::kDefaultOptLevel,
       JitObserver* observer = nullptr);
 
-  absl::StatusOr<AotCompiler*> AsAotCompiler() override { return this; }
+  absl::StatusOr<AotCompiler*> AsAotCompiler() final { return this; }
 
   // Compiles the given LLVM module into object code.
-  absl::Status CompileModule(std::unique_ptr<llvm::Module>&& module) override;
+  absl::Status CompileModule(std::unique_ptr<llvm::Module>&& module) final;
 
   // Return the underlying LLVM context.
-  llvm::LLVMContext* GetContext() override { return context_.get(); }
+  llvm::LLVMContext* GetContext() final { return context_.get(); }
 
   absl::StatusOr<std::unique_ptr<llvm::TargetMachine>> CreateTargetMachine()
       override;
@@ -63,7 +63,7 @@ class AotCompiler final : public LlvmCompiler {
   }
 
  protected:
-  absl::Status InitInternal() override;
+  absl::Status InitInternal() final;
 
  private:
   // TODO(https://github.com/google/xls/issues/1639): It would be nice to

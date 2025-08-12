@@ -2359,11 +2359,11 @@ class IntervalRangeGivens : public RangeDataProvider {
  public:
   explicit IntervalRangeGivens(absl::Span<Node* const> topo_sort)
       : topo_sort_(topo_sort) {}
-  std::optional<RangeData> GetKnownIntervals(Node* node) override {
+  std::optional<RangeData> GetKnownIntervals(Node* node) final {
     return std::nullopt;
   }
 
-  absl::Status IterateFunction(DfsVisitor* visitor) override {
+  absl::Status IterateFunction(DfsVisitor* visitor) final {
     for (Node* n : topo_sort_) {
       XLS_RETURN_IF_ERROR(n->VisitSingleNode(visitor));
     }
@@ -2421,11 +2421,11 @@ class LambdaRangeGivens : public RangeDataProvider {
  public:
   LambdaRangeGivens(FunctionBase* func, FKnown known)
       : func_(func), known_func_(known) {}
-  std::optional<RangeData> GetKnownIntervals(Node* node) override {
+  std::optional<RangeData> GetKnownIntervals(Node* node) final {
     return known_func_(node);
   }
 
-  absl::Status IterateFunction(DfsVisitor* visitor) override {
+  absl::Status IterateFunction(DfsVisitor* visitor) final {
     return func_->Accept(visitor);
   }
 

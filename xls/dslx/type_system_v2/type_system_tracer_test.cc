@@ -34,7 +34,7 @@ namespace {
 
 class TypeSystemTracerTest : public ::testing::Test {
  public:
-  void SetUp() override {
+  void SetUp() final {
     tracer_ = TypeSystemTracer::Create(/*active=*/true);
     import_data_.emplace(CreateImportDataForTest());
     warning_collector_.emplace(kAllWarningsSet);

@@ -1792,15 +1792,15 @@ DocRef Fmt(const NameDefTree& n, Comments& comments, DocArena& arena) {
   return ConcatNGroup(arena, pieces);
 }
 
-class FmtExprVisitor : public ExprVisitor {
+class FmtExprVisitor final : public ExprVisitor {
  public:
   FmtExprVisitor(DocArena& arena, Comments& comments)
       : arena_(arena), comments_(comments) {}
 
-  ~FmtExprVisitor() override = default;
+  ~FmtExprVisitor() final = default;
 
 #define DEFINE_HANDLER(__type)                               \
-  absl::Status Handle##__type(const __type* expr) override { \
+  absl::Status Handle##__type(const __type* expr) final { \
     result_ = Fmt(*expr, comments_, arena_);                 \
     return absl::OkStatus();                                 \
   }

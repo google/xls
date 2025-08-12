@@ -33,7 +33,7 @@ absl::Status ZipTypesWithParents(const Type& lhs, const Type& rhs,
 // calling ZipTypes -- we inherit TypeVisitor because we need to learn the
 // actual type of the generic `Type` on the left hand side and then compare that
 // to what we see on the right hand side at each step.
-class ZipTypeVisitor : public TypeVisitor {
+class ZipTypeVisitor final : public TypeVisitor {
  public:
   explicit ZipTypeVisitor(const Type& rhs, const Type* lhs_parent,
                           const Type* rhs_parent, ZipTypesCallbacks& callbacks)
@@ -42,38 +42,38 @@ class ZipTypeVisitor : public TypeVisitor {
         rhs_parent_(rhs_parent),
         callbacks_(callbacks) {}
 
-  ~ZipTypeVisitor() override = default;
+  ~ZipTypeVisitor() final = default;
 
   // -- various non-aggregate types
 
-  absl::Status HandleEnum(const EnumType& lhs) override {
+  absl::Status HandleEnum(const EnumType& lhs) final {
     return HandleNonAggregate(lhs);
   }
-  absl::Status HandleBits(const BitsType& lhs) override {
+  absl::Status HandleBits(const BitsType& lhs) final {
     return HandleNonAggregate(lhs);
   }
-  absl::Status HandleBitsConstructor(const BitsConstructorType& lhs) override {
+  absl::Status HandleBitsConstructor(const BitsConstructorType& lhs) final {
     return HandleNonAggregate(lhs);
   }
-  absl::Status HandleToken(const TokenType& lhs) override {
+  absl::Status HandleToken(const TokenType& lhs) final {
     return HandleNonAggregate(lhs);
   }
 
   // -- types that contain other types
 
-  absl::Status HandleTuple(const TupleType& lhs) override {
+  absl::Status HandleTuple(const TupleType& lhs) final {
     if (auto* rhs = dynamic_cast<const TupleType*>(&rhs_)) {
       return HandleTupleLike(lhs, *rhs);
     }
     return callbacks_.NoteTypeMismatch(lhs, lhs_parent_, rhs_, rhs_parent_);
   }
-  absl::Status HandleStruct(const StructType& lhs) override {
+  absl::Status HandleStruct(const StructType& lhs) final {
     return HandleStructTypeBase<StructType>(lhs);
   }
-  absl::Status HandleProc(const ProcType& lhs) override {
+  absl::Status HandleProc(const ProcType& lhs) final {
     return HandleStructTypeBase<ProcType>(lhs);
   }
-  absl::Status HandleArray(const ArrayType& lhs) override {
+  absl::Status HandleArray(const ArrayType& lhs) final {
     if (auto* rhs = dynamic_cast<const ArrayType*>(&rhs_)) {
       if (lhs.size() != rhs->size()) {
         return callbacks_.NoteTypeMismatch(lhs, lhs_parent_, rhs_, rhs_parent_);
@@ -87,7 +87,7 @@ class ZipTypeVisitor : public TypeVisitor {
     }
     return callbacks_.NoteTypeMismatch(lhs, lhs_parent_, rhs_, rhs_parent_);
   }
-  absl::Status HandleChannel(const ChannelType& lhs) override {
+  absl::Status HandleChannel(const ChannelType& lhs) final {
     if (auto* rhs = dynamic_cast<const ChannelType*>(&rhs_)) {
       // If channel directions don't match, capture the full channel strings.
       if (lhs.direction() != rhs->direction()) {
@@ -102,7 +102,7 @@ class ZipTypeVisitor : public TypeVisitor {
     }
     return callbacks_.NoteTypeMismatch(lhs, lhs_parent_, rhs_, rhs_parent_);
   }
-  absl::Status HandleFunction(const FunctionType& lhs) override {
+  absl::Status HandleFunction(const FunctionType& lhs) final {
     if (auto* rhs = dynamic_cast<const FunctionType*>(&rhs_)) {
       AggregatePair aggregates = std::make_pair(&lhs, rhs);
       XLS_RETURN_IF_ERROR(callbacks_.NoteAggregateStart(aggregates));
@@ -116,7 +116,7 @@ class ZipTypeVisitor : public TypeVisitor {
     }
     return callbacks_.NoteTypeMismatch(lhs, lhs_parent_, rhs_, rhs_parent_);
   }
-  absl::Status HandleMeta(const MetaType& lhs) override {
+  absl::Status HandleMeta(const MetaType& lhs) final {
     if (auto* rhs = dynamic_cast<const MetaType*>(&rhs_)) {
       AggregatePair aggregates = std::make_pair(&lhs, rhs);
       XLS_RETURN_IF_ERROR(callbacks_.NoteAggregateStart(aggregates));
@@ -168,7 +168,7 @@ class ZipTypeVisitor : public TypeVisitor {
     return callbacks_.NoteTypeMismatch(lhs, lhs_parent_, rhs_, rhs_parent_);
   }
 
-  absl::Status HandleModule(const ModuleType& lhs) override {
+  absl::Status HandleModule(const ModuleType& lhs) final {
     return absl::InvalidArgumentError("Cannot zip module types; got: " +
                                       lhs.ToString());
   }

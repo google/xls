@@ -66,7 +66,7 @@ absl::StatusOr<xls::Type*> TypeToIr(Package* package, const Type& type,
     Visitor(const ParametricEnv& bindings, Package* package)
         : bindings_(bindings), package_(package) {}
 
-    absl::Status HandleArray(const ArrayType& t) override {
+    absl::Status HandleArray(const ArrayType& t) final {
       XLS_ASSIGN_OR_RETURN(int64_t element_count,
                            ResolveDimToInt(t.size(), bindings_));
 
@@ -84,22 +84,22 @@ absl::StatusOr<xls::Type*> TypeToIr(Package* package, const Type& type,
       retval_ = result;
       return absl::OkStatus();
     }
-    absl::Status HandleBits(const BitsType& t) override {
+    absl::Status HandleBits(const BitsType& t) final {
       XLS_ASSIGN_OR_RETURN(int64_t bit_count,
                            ResolveDimToInt(t.size(), bindings_));
       retval_ = package_->GetBitsType(bit_count);
       return absl::OkStatus();
     }
-    absl::Status HandleEnum(const EnumType& t) override {
+    absl::Status HandleEnum(const EnumType& t) final {
       XLS_ASSIGN_OR_RETURN(int64_t bit_count, t.size().GetAsInt64());
       retval_ = package_->GetBitsType(bit_count);
       return absl::OkStatus();
     }
-    absl::Status HandleToken(const TokenType& t) override {
+    absl::Status HandleToken(const TokenType& t) final {
       retval_ = package_->GetTokenType();
       return absl::OkStatus();
     }
-    absl::Status HandleStruct(const StructType& t) override {
+    absl::Status HandleStruct(const StructType& t) final {
       std::vector<xls::Type*> members;
       members.reserve(t.members().size());
       for (const std::unique_ptr<Type>& m : t.members()) {
@@ -110,13 +110,13 @@ absl::StatusOr<xls::Type*> TypeToIr(Package* package, const Type& type,
       retval_ = package_->GetTupleType(members);
       return absl::OkStatus();
     }
-    absl::Status HandleProc(const ProcType& t) override {
+    absl::Status HandleProc(const ProcType& t) final {
       // TODO: https://github.com/google/xls/issues/836 - Support this.
       return absl::UnimplementedError(absl::StrCat(
           "IR lowering for impl-style procs is not yet supported: ",
           t.ToString()));
     }
-    absl::Status HandleTuple(const TupleType& t) override {
+    absl::Status HandleTuple(const TupleType& t) final {
       std::vector<xls::Type*> members;
       members.reserve(t.members().size());
       for (const std::unique_ptr<Type>& m : t.members()) {
@@ -127,27 +127,27 @@ absl::StatusOr<xls::Type*> TypeToIr(Package* package, const Type& type,
       retval_ = package_->GetTupleType(members);
       return absl::OkStatus();
     }
-    absl::Status HandleFunction(const FunctionType& t) override {
+    absl::Status HandleFunction(const FunctionType& t) final {
       return absl::UnimplementedError(absl::StrCat(
           "Cannot convert function type to XLS IR type: ", t.ToString()));
     }
-    absl::Status HandleChannel(const ChannelType& t) override {
+    absl::Status HandleChannel(const ChannelType& t) final {
       return absl::UnimplementedError(absl::StrCat(
           "Cannot convert channel type to XLS IR type: ", t.ToString()));
     }
-    absl::Status HandleBitsConstructor(const BitsConstructorType& t) override {
+    absl::Status HandleBitsConstructor(const BitsConstructorType& t) final {
       return absl::UnimplementedError(
           absl::StrCat("Cannot convert bits-constructor type to XLS IR type: ",
                        t.ToString()));
     }
     // Note: this is a bit of a kluge, we just turn metatypes into their
     // corresponding (unwrapped) IR type.
-    absl::Status HandleMeta(const MetaType& t) override {
+    absl::Status HandleMeta(const MetaType& t) final {
       XLS_ASSIGN_OR_RETURN(retval_,
                            TypeToIr(package_, *t.wrapped(), bindings_));
       return absl::OkStatus();
     }
-    absl::Status HandleModule(const ModuleType& t) override {
+    absl::Status HandleModule(const ModuleType& t) final {
       return absl::UnimplementedError(absl::StrCat(
           "Cannot convert module type to XLS IR type: ", t.ToString()));
     }

@@ -397,7 +397,7 @@ class LegalizeArrayConcatPattern : public OpConversionPattern<ArrayConcatOp> {
 
 class ArrayToBitsPass : public impl::ArrayToBitsPassBase<ArrayToBitsPass> {
  public:
-  void runOnOperation() override {
+  void runOnOperation() final {
     TensorTypeConverter typeConverter;
     ConversionTarget target(getContext());
     target.addDynamicallyLegalOp<ChanOp>(

@@ -62,7 +62,7 @@ class FakeSynthesisServiceImpl : public SynthesisService::Service {
 
   ::grpc::Status Compile(::grpc::ServerContext* server_context,
                          const CompileRequest* request,
-                         CompileResponse* result) override {
+                         CompileResponse* result) final {
     auto start = absl::Now();
 
     result->set_slack_ps(

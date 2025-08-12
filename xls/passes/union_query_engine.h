@@ -114,7 +114,7 @@ class UnownedConstUnionQueryEngine : public UnownedUnionQueryEngine {
   explicit UnownedConstUnionQueryEngine(std::vector<QueryEngine const*> engines)
       : UnownedUnionQueryEngine(UnsafeConstCast(std::move(engines))) {}
 
-  absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override {
+  absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) final {
     return absl::InternalError("Cannot repopulate const engines.");
   }
 

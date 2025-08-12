@@ -76,7 +76,7 @@ class UnrollProcVisitor final : public DfsVisitorWithDefault {
         activation_(activation),
         token_value_(std::move(token_value)) {}
 
-  absl::Status DefaultHandler(Node* n) override {
+  absl::Status DefaultHandler(Node* n) final {
     XLS_RETURN_IF_ERROR(fb_.GetError());
     std::vector<Node*> new_ops;
     for (Node* old_op : n->operands()) {
@@ -92,7 +92,7 @@ class UnrollProcVisitor final : public DfsVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleStateRead(StateRead* state_read) override {
+  absl::Status HandleStateRead(StateRead* state_read) final {
     XLS_RETURN_IF_ERROR(fb_.GetError());
     if (state_read->GetType()->IsToken()) {
       values_[{state_read, activation_}] = fb_.Literal(token_value_);
@@ -104,7 +104,7 @@ class UnrollProcVisitor final : public DfsVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleSend(Send* s) override {
+  absl::Status HandleSend(Send* s) final {
     XLS_RETURN_IF_ERROR(fb_.GetError());
     values_[{s, activation_}] = fb_.Literal(token_value_);
     BValue predicate_value;
@@ -122,12 +122,12 @@ class UnrollProcVisitor final : public DfsVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleNext(Next* n) override {
+  absl::Status HandleNext(Next* n) final {
     XLS_RETURN_IF_ERROR(fb_.GetError());
     return absl::OkStatus();
   }
 
-  absl::Status HandleReceive(Receive* r) override {
+  absl::Status HandleReceive(Receive* r) final {
     XLS_RETURN_IF_ERROR(fb_.GetError());
     BValue real_data;
     if (recv_state_.contains({r->channel_name(), activation_})) {
@@ -158,16 +158,16 @@ class UnrollProcVisitor final : public DfsVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleAssert(Assert* a) override {
+  absl::Status HandleAssert(Assert* a) final {
     return absl::UnimplementedError(
         "UnrollProcVisitor: assert is not supported");
   }
-  absl::Status HandleCover(Cover* c) override {
+  absl::Status HandleCover(Cover* c) final {
     return absl::UnimplementedError(
         "UnrollProcVisitor: cover is not supported");
   }
 
-  absl::Status HandleAfterAll(AfterAll* aa) override {
+  absl::Status HandleAfterAll(AfterAll* aa) final {
     XLS_RETURN_IF_ERROR(fb_.GetError());
     // TODO: https://github.com/google/xls/issues/1375 - It would be nice to
     // record this for real. The issue is that we'd need to figure out some way

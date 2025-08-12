@@ -49,7 +49,7 @@ class TuplifyFlatStateElement : public Proc::StateElementTransformer {
 
   absl::StatusOr<Node*> TransformStateRead(Proc* proc,
                                            StateRead* new_state_read,
-                                           StateRead* old_state_read) override {
+                                           StateRead* old_state_read) final {
     CHECK_GT(split_ends_.size(), 1);
 
     BitsType* old_type = old_state_read->GetType()->AsBitsOrDie();
@@ -72,7 +72,7 @@ class TuplifyFlatStateElement : public Proc::StateElementTransformer {
 
   absl::StatusOr<Node*> TransformNextValue(Proc* proc,
                                            StateRead* new_state_read,
-                                           Next* old_next) override {
+                                           Next* old_next) final {
     CHECK_GT(split_ends_.size(), 1);
 
     Node* old_value = old_next->value();

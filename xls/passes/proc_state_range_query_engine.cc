@@ -293,7 +293,7 @@ class ConstantValueIrInterpreter
   values() const {
     return map_;
   }
-  absl::Status DefaultHandler(Node* n) override {
+  absl::Status DefaultHandler(Node* n) final {
     if ((OpIsSideEffecting(n->op()) || n->op() == Op::kAfterAll) &&
         n->op() != Op::kGate) {
       // Side effecting ops (eg send, recv, trace, cover etc) either don't
@@ -395,7 +395,7 @@ class ConstantValueIrInterpreter
                n->GetType(), std::move(res)));
   }
 
-  absl::Status HandleNext(Next* n) override {
+  absl::Status HandleNext(Next* n) final {
     return absl::InternalError(absl::StrFormat(
         "Unexpected invoke of %s. Next nodes should not feed into anything.",
         n->ToString()));
@@ -406,9 +406,9 @@ class ConstantValueIrInterpreter
                            n->GetType(), absl::flat_hash_set<Bits>{}));
   }
 
-  absl::Status HandleParam(Param* p) override { return HandleNonConst(p); }
+  absl::Status HandleParam(Param* p) final { return HandleNonConst(p); }
 
-  absl::Status HandleLiteral(Literal* l) override {
+  absl::Status HandleLiteral(Literal* l) final {
     XLS_ASSIGN_OR_RETURN(LeafTypeTree<Value> value_ltt,
                          ValueToLeafTypeTree(l->value(), l->GetType()));
     return SetValue(l, leaf_type_tree::Map<absl::flat_hash_set<Bits>, Value>(
@@ -427,7 +427,7 @@ class ConstantValueIrInterpreter
       absl::Span<const absl::flat_hash_set<Bits>* const> data_sources,
       absl::Span<const LeafTypeTreeView<absl::flat_hash_set<Bits>>>
           control_sources,
-      Node* node, absl::Span<const int64_t> index) override {
+      Node* node, absl::Span<const int64_t> index) final {
     if (!element_type->IsBits()) {
       return absl::flat_hash_set<Bits>{};
     }

@@ -66,7 +66,7 @@ using ::testing::HasSubstr;
 
 class ProcHierarchyInterpreterTest : public ::testing::Test {
  public:
-  void SetUp() override { import_data_.emplace(CreateImportDataForTest()); }
+  void SetUp() final { import_data_.emplace(CreateImportDataForTest()); }
 
   absl::StatusOr<TestProc*> ParseAndGetTestProc(
       std::string_view program, std::string_view test_proc_name) {

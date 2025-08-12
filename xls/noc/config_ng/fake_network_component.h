@@ -27,7 +27,7 @@ class FakeNetworkComponent : public NetworkComponent {
   explicit FakeNetworkComponent(NetworkView* network_view)
       : NetworkComponent(network_view) {}
 
-  absl::Status Visit(NetworkComponentVisitor& v) override {
+  absl::Status Visit(NetworkComponentVisitor& v) final {
     return absl::Status();
   };
 };

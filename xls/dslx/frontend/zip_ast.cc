@@ -42,7 +42,7 @@ class ZipVisitor : public AstNodeVisitorWithDefault {
   ZipAstOptions& options() { return options_; }
 
 #define DECLARE_HANDLER(__type)                           \
-  absl::Status Handle##__type(const __type* n) override { \
+  absl::Status Handle##__type(const __type* n) final { \
     return Handle<__type>(n);                             \
   }
   XLS_DSLX_AST_NODE_EACH(DECLARE_HANDLER)

@@ -110,9 +110,9 @@ class RuntimeEvaluationObserverAdapter final
                                    JitRuntime* runtime)
       : RuntimeEvaluationObserver(to_node, runtime), real_(obs) {}
 
-  std::optional<RuntimeObserver*> AsRawObserver() override { return this; }
+  std::optional<RuntimeObserver*> AsRawObserver() final { return this; }
 
-  void NodeEvaluated(Node* n, const Value& v) override {
+  void NodeEvaluated(Node* n, const Value& v) final {
     real_->NodeEvaluated(n, v);
   }
 

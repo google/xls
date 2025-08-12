@@ -86,21 +86,21 @@ class SharedCompiler final : public LlvmCompiler {
   bool IsSharedCompilation() const override { return true; }
 
   // Share around the same module.
-  std::unique_ptr<llvm::Module> NewModule(std::string_view ignored) override {
+  std::unique_ptr<llvm::Module> NewModule(std::string_view ignored) final {
     CHECK(the_module_) << "no module to give out!";
     auto res = std::move(*the_module_);
     the_module_.reset();
     return res;
   }
 
-  absl::Status CompileModule(std::unique_ptr<llvm::Module>&& module) override {
+  absl::Status CompileModule(std::unique_ptr<llvm::Module>&& module) final {
     XLS_RET_CHECK(!the_module_) << "Already took back module.";
     the_module_ = std::move(module);
     return absl::OkStatus();
   }
 
   // Return the underlying LLVM context.
-  llvm::LLVMContext* GetContext() override { return underlying_->GetContext(); }
+  llvm::LLVMContext* GetContext() final { return underlying_->GetContext(); }
   absl::StatusOr<std::unique_ptr<llvm::TargetMachine>> CreateTargetMachine()
       override {
     return underlying_->CreateTargetMachine();
@@ -114,7 +114,7 @@ class SharedCompiler final : public LlvmCompiler {
   }
 
  protected:
-  absl::Status InitInternal() override {
+  absl::Status InitInternal() final {
     return absl::InternalError("Should not be called");
   }
 

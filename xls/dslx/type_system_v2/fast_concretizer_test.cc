@@ -40,7 +40,7 @@ using ::testing::Not;
 
 class FastConcretizerTest : public ::testing::Test {
  public:
-  void SetUp() override {
+  void SetUp() final {
     module_ =
         std::make_unique<Module>("test", /*fs_path=*/std::nullopt, file_table_);
     concretizer_ = FastConcretizer::Create(file_table_);

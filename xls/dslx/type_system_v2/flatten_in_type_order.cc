@@ -38,14 +38,14 @@ class Flattener : public AstNodeVisitorWithDefault {
         root_(root),
         include_parametric_entities_(include_parametric_entities) {}
 
-  absl::Status HandleFunction(const Function* node) override {
+  absl::Status HandleFunction(const Function* node) final {
     if (!include_parametric_entities_ && node->IsParametric()) {
       return absl::OkStatus();
     }
     return DefaultHandler(node);
   }
 
-  absl::Status HandleProc(const Proc* node) override {
+  absl::Status HandleProc(const Proc* node) final {
     if (!include_parametric_entities_ && node->IsParametric()) {
       return absl::OkStatus();
     }
@@ -64,7 +64,7 @@ class Flattener : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleImpl(const Impl* node) override {
+  absl::Status HandleImpl(const Impl* node) final {
     XLS_ASSIGN_OR_RETURN(std::optional<const StructDefBase*> def,
                          GetStructOrProcDef(node->struct_ref(), import_data_));
     XLS_RET_CHECK(def.has_value());
@@ -74,7 +74,7 @@ class Flattener : public AstNodeVisitorWithDefault {
     return DefaultHandler(node);
   }
 
-  absl::Status HandleStructInstance(const StructInstance* node) override {
+  absl::Status HandleStructInstance(const StructInstance* node) final {
     nodes_.push_back(node);
     XLS_RETURN_IF_ERROR(node->struct_ref()->Accept(this));
     for (const auto& [_, member] : node->GetUnorderedMembers()) {
@@ -83,7 +83,7 @@ class Flattener : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleInvocation(const Invocation* node) override {
+  absl::Status HandleInvocation(const Invocation* node) final {
     // Do the equivalent `DefaultHandler`, but exclude most of the arguments.
     // We exclude the arguments because when an argument should
     // be converted depends on whether its type is determining or determined by
@@ -97,7 +97,7 @@ class Flattener : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleLet(const Let* node) override {
+  absl::Status HandleLet(const Let* node) final {
     if (node->type_annotation() != nullptr) {
       XLS_RETURN_IF_ERROR(node->type_annotation()->Accept(this));
     }
@@ -109,7 +109,7 @@ class Flattener : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleMatch(const Match* node) override {
+  absl::Status HandleMatch(const Match* node) final {
     XLS_RETURN_IF_ERROR(node->matched()->Accept(this));
     // Prefer to visit arms that contain invocations first so that any type
     // information they produce is available when analyzing other arms whose
@@ -121,7 +121,7 @@ class Flattener : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleMatchArm(const MatchArm* node) override {
+  absl::Status HandleMatchArm(const MatchArm* node) final {
     for (const NameDefTree* name_def_tree : node->patterns()) {
       XLS_RETURN_IF_ERROR(name_def_tree->Accept(this));
     }
@@ -130,11 +130,11 @@ class Flattener : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleRestOfTuple(const RestOfTuple* node) override {
+  absl::Status HandleRestOfTuple(const RestOfTuple* node) final {
     return absl::OkStatus();
   }
 
-  absl::Status HandleConstantDef(const ConstantDef* node) override {
+  absl::Status HandleConstantDef(const ConstantDef* node) final {
     if (node->type_annotation() != nullptr) {
       XLS_RETURN_IF_ERROR(node->type_annotation()->Accept(this));
     }
@@ -144,7 +144,7 @@ class Flattener : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleUnrollFor(const UnrollFor* node) override {
+  absl::Status HandleUnrollFor(const UnrollFor* node) final {
     // node->body() will not be handled because unroll_for generates new
     // unrolled body statements.
     if (node->type_annotation()) {
@@ -157,7 +157,7 @@ class Flattener : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status DefaultHandler(const AstNode* node) override {
+  absl::Status DefaultHandler(const AstNode* node) final {
     // Prefer conversion of invocations before nodes that may use them.
     std::vector<const AstNode*> invocations;
     std::vector<const AstNode*> non_invocations;

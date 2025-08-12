@@ -61,7 +61,7 @@ class ZipAstTest : public ::testing::Test {
 
 class Collector : public AstNodeVisitorWithDefault {
  public:
-  absl::Status DefaultHandler(const AstNode* node) override {
+  absl::Status DefaultHandler(const AstNode* node) final {
     nodes_.push_back(node);
     return absl::OkStatus();
   }

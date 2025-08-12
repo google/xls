@@ -28,17 +28,17 @@ namespace verilog {
 
 // An IO strategy used for testing which transparently passes the byte-wise
 // input and output interfaces up through the top-level module.
-class NullIOStrategy : public IOStrategy {
+class NullIOStrategy final : public IOStrategy {
  public:
-  ~NullIOStrategy() override = default;
+  ~NullIOStrategy() final = default;
 
   absl::Status AddTopLevelDependencies(LogicRef* clk, Reset reset,
-                                       Module* m) override;
+                                       Module* m) final;
 
   absl::Status InstantiateIOBlocks(Input input, Output output,
-                                   Module* m) override;
+                                   Module* m) final;
 
-  absl::StatusOr<std::vector<VerilogInclude>> GetIncludes() override {
+  absl::StatusOr<std::vector<VerilogInclude>> GetIncludes() final {
     return std::vector<VerilogInclude>();
   }
 

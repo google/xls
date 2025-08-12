@@ -392,7 +392,7 @@ TEST_F(FunctionTest, IrReservedWordIdentifiers) {
 
 class TestVisitor : public DfsVisitorWithDefault {
  public:
-  absl::Status DefaultHandler(Node* node) override { return absl::OkStatus(); }
+  absl::Status DefaultHandler(Node* node) final { return absl::OkStatus(); }
 };
 
 TEST_F(FunctionTest, GraphWithCycle) {

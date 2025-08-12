@@ -115,7 +115,7 @@ class BooleanifierNodeEvaluator : public AbstractNodeEvaluator<BitEvaluator> {
         params_(params) {}
 
   // Select the appropriate elements.
-  absl::Status HandleArrayIndex(ArrayIndex* index) override {
+  absl::Status HandleArrayIndex(ArrayIndex* index) final {
     XLS_ASSIGN_OR_RETURN(std::vector<BitEvaluator::Span> indexes,
                          GetValueList(index->indices()));
     XLS_ASSIGN_OR_RETURN(LeafTypeTreeView<LeafValueT> array,
@@ -137,7 +137,7 @@ class BooleanifierNodeEvaluator : public AbstractNodeEvaluator<BitEvaluator> {
   }
 
   // select the appropriate slice.
-  absl::Status HandleArraySlice(ArraySlice* slice) override {
+  absl::Status HandleArraySlice(ArraySlice* slice) final {
     XLS_ASSIGN_OR_RETURN(LeafTypeTreeView<LeafValueT> array,
                          GetCompoundValue(slice->array()));
     XLS_ASSIGN_OR_RETURN(ArrayType * array_type, slice->GetType()->AsArray());
@@ -189,7 +189,7 @@ class BooleanifierNodeEvaluator : public AbstractNodeEvaluator<BitEvaluator> {
     return SetValue(slice, std::move(result));
   }
 
-  absl::Status HandleArrayUpdate(ArrayUpdate* update) override {
+  absl::Status HandleArrayUpdate(ArrayUpdate* update) final {
     XLS_ASSIGN_OR_RETURN(std::vector<BitEvaluator::Span> indexes,
                          GetValueList(update->indices()));
     XLS_ASSIGN_OR_RETURN(LeafTypeTreeView<LeafValueT> array,
@@ -218,7 +218,7 @@ class BooleanifierNodeEvaluator : public AbstractNodeEvaluator<BitEvaluator> {
     return SetValue(update, std::move(result));
   }
 
-  absl::Status HandleParam(Param* param) override {
+  absl::Status HandleParam(Param* param) final {
     XLS_ASSIGN_OR_RETURN(LeafTypeTree<LeafValueT> result,
                          UnpackParam(params_.at(param->name())));
     return SetValue(param, std::move(result));

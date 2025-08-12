@@ -174,9 +174,9 @@ class FunctionInstantiator : public ParametricInstantiator {
   //
   // Instantiates the parameters of function_type_ according to the presented
   // args_' types.
-  absl::StatusOr<TypeAndParametricEnv> Instantiate() override;
+  absl::StatusOr<TypeAndParametricEnv> Instantiate() final;
 
-  std::string_view GetKindName() override { return "function"; }
+  std::string_view GetKindName() final { return "function"; }
 
  private:
   FunctionInstantiator(
@@ -209,9 +209,9 @@ class StructInstantiator : public ParametricInstantiator {
       absl::Span<const ParametricBinding* absl_nonnull const>
           parametric_bindings);
 
-  absl::StatusOr<TypeAndParametricEnv> Instantiate() override;
+  absl::StatusOr<TypeAndParametricEnv> Instantiate() final;
 
-  std::string_view GetKindName() override { return "struct"; }
+  std::string_view GetKindName() final { return "struct"; }
 
  private:
   StructInstantiator(Span span, const StructType& struct_type,

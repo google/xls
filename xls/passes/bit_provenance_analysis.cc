@@ -51,7 +51,7 @@ class BitProvenanceVisitor final : public DataflowVisitor<TreeBitSources> {
   // TODO(allight): With a query engine passed down to DataflowVisitor we could
   // do a better job picking which select branches etc are possible.
 
-  absl::Status DefaultHandler(Node* node) override {
+  absl::Status DefaultHandler(Node* node) final {
     // Generic node is the sole source of all of its bits.
     XLS_ASSIGN_OR_RETURN(
         auto tree,
@@ -71,7 +71,7 @@ class BitProvenanceVisitor final : public DataflowVisitor<TreeBitSources> {
     return SetValue(node, std::move(tree));
   }
 
-  absl::Status HandleConcat(Concat* concat) override {
+  absl::Status HandleConcat(Concat* concat) final {
     std::vector<TreeBitRange> elements;
     int64_t bit_off = 0;
     // Loop from LSB to MSB
@@ -94,7 +94,7 @@ class BitProvenanceVisitor final : public DataflowVisitor<TreeBitSources> {
                     concat->GetType(), TreeBitSources(std::move(elements))));
   }
 
-  absl::Status HandleBitSlice(BitSlice* bs) override {
+  absl::Status HandleBitSlice(BitSlice* bs) final {
     const TreeBitSources& arg = GetValue(bs->operand(0)).Get({});
     std::vector<TreeBitRange> elements;
     int64_t remaining_bits = bs->width();
@@ -152,12 +152,12 @@ class BitProvenanceVisitor final : public DataflowVisitor<TreeBitSources> {
                         ext->GetType(), TreeBitSources(std::move(elements))));
   }
 
-  absl::Status HandleSignExtend(ExtendOp* ext) override {
+  absl::Status HandleSignExtend(ExtendOp* ext) final {
     // TODO(allight): Argurably the source for the new high-bits is the old MSB
     // in sign-extend. It's not clear this would ever really be useful however.
     return HandleExtend(ext);
   }
-  absl::Status HandleZeroExtend(ExtendOp* ext) override {
+  absl::Status HandleZeroExtend(ExtendOp* ext) final {
     return HandleExtend(ext);
   }
 
@@ -251,7 +251,7 @@ class BitProvenanceVisitor final : public DataflowVisitor<TreeBitSources> {
   absl::StatusOr<TreeBitSources> JoinElements(
       Type* element_type, absl::Span<const TreeBitSources* const> data_sources,
       absl::Span<const LeafTypeTreeView<TreeBitSources>> control_sources,
-      Node* node, absl::Span<const int64_t> index) override {
+      Node* node, absl::Span<const int64_t> index) final {
     // TODO Find overlaps
     std::vector<TreeBitRange> range(data_sources.front()->ranges().begin(),
                                     data_sources.front()->ranges().end());

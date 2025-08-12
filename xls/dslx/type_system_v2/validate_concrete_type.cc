@@ -79,7 +79,7 @@ class TypeValidator : public AstNodeVisitorWithDefault {
         import_data_(import_data),
         file_table_(file_table) {}
 
-  absl::Status HandleNumber(const Number* literal) override {
+  absl::Status HandleNumber(const Number* literal) final {
     // A literal can have its own explicit type annotation that ultimately
     // doesn't even fit the hard coded value. For example, `u4:0xffff`, or
     // something more subtly wrong, like `uN[N]:0xffff`, where N proves to be
@@ -95,13 +95,13 @@ class TypeValidator : public AstNodeVisitorWithDefault {
         "Non-bits type used to define a numeric literal.", file_table_);
   }
 
-  absl::Status HandleConstantDef(const ConstantDef* def) override {
+  absl::Status HandleConstantDef(const ConstantDef* def) final {
     WarnOnInappropriateConstantName(def->name_def()->identifier(), def->span(),
                                     *def->owner(), &warning_collector_);
     return DefaultHandler(def);
   }
 
-  absl::Status HandleNameRef(const NameRef* ref) override {
+  absl::Status HandleNameRef(const NameRef* ref) final {
     if (IsNameRefToParametricFunction(ref) && !type_->IsFunction()) {
       // Bare parametric function references that are not invocations don't get
       // typechecked the normal way, because we only annotate their types when
@@ -116,7 +116,7 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     return DefaultHandler(ref);
   }
 
-  absl::Status HandleBinop(const Binop* binop) override {
+  absl::Status HandleBinop(const Binop* binop) final {
     if ((GetBinopSameTypeKinds().contains(binop->binop_kind()) ||
          GetBinopShifts().contains(binop->binop_kind())) &&
         !IsBitsLike(*type_)) {
@@ -142,7 +142,7 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     return DefaultHandler(binop);
   }
 
-  absl::Status HandleUnop(const Unop* unop) override {
+  absl::Status HandleUnop(const Unop* unop) final {
     if (!IsBitsLike(*type_)) {
       return TypeInferenceErrorStatus(
           unop->span(), type_,
@@ -152,7 +152,7 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     return DefaultHandler(unop);
   }
 
-  absl::Status HandleIndex(const Index* index) override {
+  absl::Status HandleIndex(const Index* index) final {
     XLS_RETURN_IF_ERROR(absl::visit(
         Visitor{[&](Slice* slice) { return ValidateSliceLhs(index); },
                 [&](WidthSlice* width_slice) -> absl::Status {
@@ -163,7 +163,7 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     return DefaultHandler(index);
   }
 
-  absl::Status HandleTupleIndex(const TupleIndex* tuple_index) override {
+  absl::Status HandleTupleIndex(const TupleIndex* tuple_index) final {
     const Type& lhs_type = **ti_.GetItem(tuple_index->lhs());
     const Type& rhs_type = **ti_.GetItem(tuple_index->index());
     XLS_RETURN_IF_ERROR(
@@ -173,7 +173,7 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     return DefaultHandler(tuple_index);
   }
 
-  absl::Status HandleInvocation(const Invocation* invocation) override {
+  absl::Status HandleInvocation(const Invocation* invocation) final {
     using BuiltinValidator =
         absl::Status (TypeValidator::*)(const Invocation&, const FunctionType&);
     static const auto* builtin_validators =
@@ -195,7 +195,7 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     return DefaultHandler(invocation);
   }
 
-  absl::Status HandleFormatMacro(const FormatMacro* macro) override {
+  absl::Status HandleFormatMacro(const FormatMacro* macro) final {
     for (const Expr* arg : macro->args()) {
       const Type& type = **ti_.GetItem(arg);
       XLS_RETURN_IF_ERROR(
@@ -204,7 +204,7 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleCast(const Cast* cast) override {
+  absl::Status HandleCast(const Cast* cast) final {
     // For a cast node we have to validate that the types being cast to/from are
     // compatible via the `IsAcceptableCast` predicate.
 
@@ -229,7 +229,7 @@ class TypeValidator : public AstNodeVisitorWithDefault {
   // type of ElementTypeNotation is not a subscriptable type, it just returns
   // the container type without reporting an error, so it must be checked here.
   // This check can be removed after figuring out the reasoning behind that.
-  absl::Status HandleFor(const For* forexpr) override {
+  absl::Status HandleFor(const For* forexpr) final {
     const Type* type = *ti_.GetItem(forexpr->iterable());
     if (!type->IsArray()) {
       return TypeInferenceErrorStatus(
@@ -242,7 +242,7 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     return DefaultHandler(forexpr);
   }
 
-  absl::Status HandleQuickCheck(const QuickCheck* node) override {
+  absl::Status HandleQuickCheck(const QuickCheck* node) final {
     std::optional<const Type*> fn_return_type = ti_.GetItem(node->fn()->body());
     XLS_RET_CHECK(fn_return_type.has_value());
     std::optional<BitsLikeProperties> fn_return_type_bits_like =
@@ -256,7 +256,7 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleMatch(const Match* node) override {
+  absl::Status HandleMatch(const Match* node) final {
     std::optional<const Type*> matched_type = ti_.GetItem(node->matched());
     XLS_RET_CHECK(matched_type.has_value());
 
@@ -292,7 +292,7 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleRange(const Range* range) override {
+  absl::Status HandleRange(const Range* range) final {
     if (range->has_pattern_semantics()) {
       return absl::OkStatus();
     }
@@ -323,7 +323,7 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status DefaultHandler(const AstNode* node) override {
+  absl::Status DefaultHandler(const AstNode* node) final {
     if (node->parent() != nullptr &&
         node->parent()->kind() == AstNodeKind::kBinop) {
       if (const auto* binop = down_cast<Binop*>(node->parent());

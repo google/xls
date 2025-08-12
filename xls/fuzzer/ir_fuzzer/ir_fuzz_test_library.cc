@@ -139,7 +139,7 @@ class PrintIrOnFailure : public testing::EmptyTestEventListener {
         ir_(ir),
         args_(args ? std::optional<std::string>(std::string(*args))
                    : std::nullopt) {}
-  void OnTestEnd(const testing::TestInfo& result) override {
+  void OnTestEnd(const testing::TestInfo& result) final {
     if (&result == test_ && result.result()->Failed()) {
       RecordFuzzInfoString(ir_, args_);
     }

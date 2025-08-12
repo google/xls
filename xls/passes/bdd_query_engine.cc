@@ -244,7 +244,7 @@ class BddQueryEngine::AssumingQueryEngine final : public QueryEngine {
         query_engine_(query_engine_storage_.get()),
         assumption_(assumption) {}
 
-  absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override;
+  absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) final;
   bool IsTracked(Node* node) const override;
   std::optional<SharedLeafTypeTree<TernaryVector>> GetTernary(
       Node* node) const override;
@@ -468,7 +468,7 @@ class BddNodeEvaluator : public AbstractNodeEvaluator<SaturatingBddEvaluator> {
     return SetValue(node, value->AsView().AsShared());
   }
 
-  absl::Status DefaultHandler(Node* node) override {
+  absl::Status DefaultHandler(Node* node) final {
     return SetValue(node, get_variables_(node).AsShared());
   }
 

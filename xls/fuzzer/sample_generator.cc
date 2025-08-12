@@ -82,7 +82,7 @@ class HasMapBuiltinVisitor : public AstNodeVisitorWithDefault {
  public:
   bool GetHasMap() const { return has_map_; }
 
-  absl::Status HandleInvocation(const dslx::Invocation* n) override {
+  absl::Status HandleInvocation(const dslx::Invocation* n) final {
     std::optional<std::string_view> builtin_name =
         dslx::GetBuiltinFnName(n->callee());
     if (builtin_name.has_value()) {
@@ -99,7 +99,7 @@ class HasNonBlockingRecvVisitor : public AstNodeVisitorWithDefault {
  public:
   bool GetHasNbRecv() const { return has_nb_recv_; }
 
-  absl::Status HandleInvocation(const dslx::Invocation* n) override {
+  absl::Status HandleInvocation(const dslx::Invocation* n) final {
     std::optional<std::string_view> builtin_name =
         dslx::GetBuiltinFnName(n->callee());
     if (builtin_name.has_value()) {
@@ -120,7 +120,7 @@ class IsPotentiallyDelayingNodeVisitor : public AstNodeVisitorWithDefault {
   bool IsRecv() const { return is_recv_; }
   bool IsDelaying() const { return is_send_ || is_recv_; }
 
-  absl::Status HandleInvocation(const dslx::Invocation* n) override {
+  absl::Status HandleInvocation(const dslx::Invocation* n) final {
     std::optional<std::string_view> builtin_name =
         dslx::GetBuiltinFnName(n->callee());
     if (builtin_name.has_value()) {

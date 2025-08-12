@@ -43,7 +43,7 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
   explicit TypeRefUnwrapper(const ImportData& import_data)
       : import_data_(import_data) {}
 
-  absl::Status HandleColonRef(const ColonRef* colon_ref) override {
+  absl::Status HandleColonRef(const ColonRef* colon_ref) final {
     XLS_ASSIGN_OR_RETURN(std::optional<ModuleInfo*> import_module,
                          GetImportedModuleInfo(colon_ref, import_data_));
     if (import_module.has_value()) {
@@ -58,12 +58,12 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleTypeAlias(const TypeAlias* alias) override {
+  absl::Status HandleTypeAlias(const TypeAlias* alias) final {
     return alias->type_annotation().Accept(this);
   }
 
   absl::Status HandleTypeRefTypeAnnotation(
-      const TypeRefTypeAnnotation* annotation) override {
+      const TypeRefTypeAnnotation* annotation) final {
     if (!annotation->parametrics().empty() && !parametrics_.empty()) {
       return TypeInferenceErrorStatus(
           annotation->span(), /* type= */ nullptr,
@@ -82,26 +82,26 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
     return ToAstNode(annotation->type_ref()->type_definition())->Accept(this);
   }
 
-  absl::Status HandleProcDef(const ProcDef* def) override {
+  absl::Status HandleProcDef(const ProcDef* def) final {
     type_def_ = const_cast<ProcDef*>(def);
     return absl::OkStatus();
   }
 
-  absl::Status HandleStructDef(const StructDef* def) override {
+  absl::Status HandleStructDef(const StructDef* def) final {
     type_def_ = const_cast<StructDef*>(def);
     return absl::OkStatus();
   }
 
-  absl::Status HandleEnumDef(const EnumDef* def) override {
+  absl::Status HandleEnumDef(const EnumDef* def) final {
     type_def_ = const_cast<EnumDef*>(def);
     return absl::OkStatus();
   }
 
-  absl::Status HandleNameDef(const NameDef* name_def) override {
+  absl::Status HandleNameDef(const NameDef* name_def) final {
     return name_def->definer()->Accept(this);
   }
 
-  absl::Status HandleNameRef(const NameRef* name_ref) override {
+  absl::Status HandleNameRef(const NameRef* name_ref) final {
     return ToAstNode(name_ref->name_def())->Accept(this);
   }
 

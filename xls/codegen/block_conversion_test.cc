@@ -1544,7 +1544,7 @@ proc my_proc(tkn: token, st: (), init={token, ()}) {
 class SimplePipelinedProcTest : public ProcConversionTestFixture {
  protected:
   absl::StatusOr<std::unique_ptr<Package>> BuildBlockInPackage(
-      int64_t stage_count, const CodegenOptions& options) override {
+      int64_t stage_count, const CodegenOptions& options) final {
     // Simple streaming one input and one output pipeline.
     auto package_ptr = std::make_unique<Package>(TestName());
     Package& package = *package_ptr;
@@ -2095,7 +2095,7 @@ class SimpleRunningCounterProcTestSweepFixture
 
  protected:
   absl::StatusOr<std::unique_ptr<Package>> BuildBlockInPackage(
-      int64_t stage_count, const CodegenOptions& options) override {
+      int64_t stage_count, const CodegenOptions& options) final {
     // Simple streaming one input and one output pipeline.
     auto package_ptr = std::make_unique<Package>(TestName());
     Package& package = *package_ptr;
@@ -2289,7 +2289,7 @@ INSTANTIATE_TEST_SUITE_P(
 class MultiInputPipelinedProcTest : public ProcConversionTestFixture {
  protected:
   absl::StatusOr<std::unique_ptr<Package>> BuildBlockInPackage(
-      int64_t stage_count, const CodegenOptions& options) override {
+      int64_t stage_count, const CodegenOptions& options) final {
     // Simple streaming one input and one output pipeline.
     auto package_ptr = std::make_unique<Package>(TestName());
     Package& package = *package_ptr;
@@ -3060,7 +3060,7 @@ TEST_F(MultiInputPipelinedProcTest, IdleSignalNoFlops) {
 class MultiInputWithStatePipelinedProcTest : public ProcConversionTestFixture {
  protected:
   absl::StatusOr<std::unique_ptr<Package>> BuildBlockInPackage(
-      int64_t stage_count, const CodegenOptions& options) override {
+      int64_t stage_count, const CodegenOptions& options) final {
     // Simple streaming one input and one output pipeline.
     auto package_ptr = std::make_unique<Package>(TestName());
     Package& package = *package_ptr;
@@ -3345,7 +3345,7 @@ TEST_F(BlockConversionTest, BlockWithNonMutuallyExclusiveSends) {
 class MultiIOWithStatePipelinedProcTest : public ProcConversionTestFixture {
  protected:
   absl::StatusOr<std::unique_ptr<Package>> BuildBlockInPackage(
-      int64_t stage_count, const CodegenOptions& options) override {
+      int64_t stage_count, const CodegenOptions& options) final {
     auto package_ptr = std::make_unique<Package>(TestName());
     Package& package = *package_ptr;
 
@@ -4236,7 +4236,7 @@ TEST_F(ProcConversionTestFixture, TwoReceivesTwoSendsRandomScheduler) {
 class NonblockingReceivesProcTest : public ProcConversionTestFixture {
  protected:
   absl::StatusOr<std::unique_ptr<Package>> BuildBlockInPackage(
-      int64_t stage_count, const CodegenOptions& options) override {
+      int64_t stage_count, const CodegenOptions& options) final {
     auto package_ptr = std::make_unique<Package>(TestName());
     Package& package = *package_ptr;
 
@@ -5454,13 +5454,13 @@ proc slow_counter(counter: bits[32], odd_iteration: bits[1], init={0, 0}) {
                           5, 5, std::nullopt, 6, 6, std::nullopt, 7, 7))));
 }
 
-class AddPredicate : public Proc::StateElementTransformer {
+class AddPredicate final : public Proc::StateElementTransformer {
  public:
   explicit AddPredicate(Node* predicate) : predicate_(predicate) {}
-  ~AddPredicate() override = default;
+  ~AddPredicate() final = default;
 
   absl::StatusOr<std::optional<Node*>> TransformReadPredicate(
-      Proc* proc, StateRead* old_state_read) override {
+      Proc* proc, StateRead* old_state_read) final {
     return predicate_;
   }
 

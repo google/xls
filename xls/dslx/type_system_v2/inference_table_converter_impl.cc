@@ -143,7 +143,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   absl::Status ConvertSubtree(
       const AstNode* node, std::optional<const Function*> function,
       std::optional<const ParametricContext*> parametric_context,
-      bool filter_param_type_annotations = false) override {
+      bool filter_param_type_annotations = false) final {
     // Avoid converting a subtree multiple times, as a performance optimization.
     // Evaluation functions convert the `Expr` they are being asked to evaluate
     // in case it is fabricated. For an `Expr` that is actually present in the
@@ -763,7 +763,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   // provided module, its root type info is returned.
   absl::StatusOr<TypeInfo*> GetTypeInfo(
       const Module* module,
-      std::optional<const ParametricContext*> parametric_context) override {
+      std::optional<const ParametricContext*> parametric_context) final {
     TypeInfo* return_ti = base_type_info_;
     if (!proc_type_info_stack_.empty()) {
       return_ti = proc_type_info_stack_.top();
@@ -1110,12 +1110,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   }
 
   // Returns the resulting base type info for the entire conversion.
-  TypeInfo* GetBaseTypeInfo() override { return base_type_info_; }
+  TypeInfo* GetBaseTypeInfo() final { return base_type_info_; }
 
   absl::StatusOr<std::unique_ptr<Type>> Concretize(
       const TypeAnnotation* annotation,
       std::optional<const ParametricContext*> parametric_context,
-      bool needs_conversion_before_eval) override {
+      bool needs_conversion_before_eval) final {
     TypeSystemTrace trace = tracer_->TraceConcretize(annotation);
     VLOG(5) << "Concretize: " << annotation->ToString()
             << " in context invocation: " << ToString(parametric_context);
@@ -1327,7 +1327,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
 
   absl::StatusOr<const FunctionAndTargetObject> ResolveFunction(
       const Expr* callee, std::optional<const Function*> caller_function,
-      std::optional<const ParametricContext*> caller_context) override {
+      std::optional<const ParametricContext*> caller_context) final {
     const AstNode* function_node = nullptr;
     std::optional<Expr*> target_object;
     std::optional<const ParametricContext*> target_struct_context =
@@ -1861,7 +1861,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       const Span& span, std::optional<const ParametricContext*> parent_context,
       const StructDef& struct_def,
       const std::vector<InterpValue>& explicit_parametrics,
-      std::optional<const StructInstanceBase*> instantiator_node) override {
+      std::optional<const StructInstanceBase*> instantiator_node) final {
     // The goal here is to come up with a complete parametric value `Expr`
     // vector, which has a value for every formal binding, by inferring or
     // defaulting whichever ones are not explicit. The algorithm is the same as
@@ -2165,7 +2165,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   absl::Status BitCountMismatchError(
       std::optional<const ParametricContext*> parametric_context,
       const TypeAnnotation* annotation1,
-      const TypeAnnotation* annotation2) override {
+      const TypeAnnotation* annotation2) final {
     if (!parametric_context.has_value()) {
       return BitCountMismatchErrorStatus(annotation1, annotation2, file_table_);
     }
@@ -2183,7 +2183,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   absl::Status SignednessMismatchError(
       std::optional<const ParametricContext*> parametric_context,
       const TypeAnnotation* annotation1,
-      const TypeAnnotation* annotation2) override {
+      const TypeAnnotation* annotation2) final {
     if (!parametric_context.has_value()) {
       return SignednessMismatchErrorStatus(annotation1, annotation2,
                                            file_table_);
@@ -2202,7 +2202,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   absl::Status TypeMismatchError(
       std::optional<const ParametricContext*> parametric_context,
       const TypeAnnotation* annotation1,
-      const TypeAnnotation* annotation2) override {
+      const TypeAnnotation* annotation2) final {
     if (!parametric_context.has_value()) {
       return TypeMismatchErrorStatus(annotation1, annotation2, file_table_);
     }

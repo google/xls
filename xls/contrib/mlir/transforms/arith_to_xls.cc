@@ -120,7 +120,7 @@ static Type boolLike(Operation* op) {
 
 class ArithToXlsPass : public impl::ArithToXlsPassBase<ArithToXlsPass> {
  public:
-  void runOnOperation() override {
+  void runOnOperation() final {
     getOperation()->walk([&](Operation* op) {
       if (auto interface = dyn_cast<XlsRegionOpInterface>(op)) {
         if (interface.isSupportedRegion()) {

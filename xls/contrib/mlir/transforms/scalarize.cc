@@ -816,7 +816,7 @@ class LegalizeCallDslxPattern : public OpConversionPattern<CallDslxOp> {
 
 class ScalarizePass : public impl::ScalarizePassBase<ScalarizePass> {
  public:
-  void runOnOperation() override {
+  void runOnOperation() final {
     getOperation()->walk([&](Operation* op) {
       if (auto interface = dyn_cast<XlsRegionOpInterface>(op)) {
         if (interface.isSupportedRegion()) {

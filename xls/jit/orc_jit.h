@@ -37,13 +37,13 @@
 namespace xls {
 // A wrapper around ORC JIT which hides some of the internals of the LLVM
 // interface.
-class OrcJit : public LlvmCompiler {
+class OrcJit final : public LlvmCompiler {
  public:
   static constexpr int64_t kDefaultOptLevel = 2;
 
-  ~OrcJit() override;
+  ~OrcJit() final;
 
-  absl::StatusOr<OrcJit*> AsOrcJit() override { return this; }
+  absl::StatusOr<OrcJit*> AsOrcJit() final { return this; }
 
   // Create an LLVM orc jit. This can be used by the AOT generator to manually
   // control whether asan calls should be included. Users other than the AOT
@@ -60,7 +60,7 @@ class OrcJit : public LlvmCompiler {
   JitObserver* jit_observer() const { return jit_observer_; }
 
   // Compiles the given LLVM module into the JIT's execution session.
-  absl::Status CompileModule(std::unique_ptr<llvm::Module>&& module) override;
+  absl::Status CompileModule(std::unique_ptr<llvm::Module>&& module) final;
 
   // Returns the address of the given JIT'ed function.
   absl::StatusOr<llvm::orc::ExecutorAddr> LoadSymbol(
@@ -68,7 +68,7 @@ class OrcJit : public LlvmCompiler {
 
   // Return the underlying LLVM context.
   // TODO: b/430302945 - This is not thread safe!
-  llvm::LLVMContext* GetContext() override {
+  llvm::LLVMContext* GetContext() final {
     return context_.withContextDo([](llvm::LLVMContext* ctxt) { return ctxt; });
   }
 
@@ -76,7 +76,7 @@ class OrcJit : public LlvmCompiler {
       override;
 
  protected:
-  absl::Status InitInternal() override;
+  absl::Status InitInternal() final;
 
  private:
   OrcJit(int64_t opt_level, bool include_msan, bool include_observer_callbacks);

@@ -916,7 +916,7 @@ absl::Status BlockElaboration::Accept(
     //
     // Create a separate trivial DFS visitor to find the cycle.
     class CycleChecker : public ElaboratedBlockDfsVisitorWithDefault {
-      absl::Status DefaultHandler(const ElaboratedNode& node) override {
+      absl::Status DefaultHandler(const ElaboratedNode& node) final {
         return absl::OkStatus();
       }
     };
@@ -1081,7 +1081,7 @@ std::vector<ElaboratedNode> ElaboratedReverseTopoSort(
     // trivial DFS visitor which will emit an error message displaying the
     // cycle.
     class CycleChecker : public ElaboratedBlockDfsVisitorWithDefault {
-      absl::Status DefaultHandler(const ElaboratedNode& node) override {
+      absl::Status DefaultHandler(const ElaboratedNode& node) final {
         return absl::OkStatus();
       }
     };

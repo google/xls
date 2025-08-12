@@ -56,7 +56,7 @@ class BitCountVisitor : public DataflowVisitor<internal::LeadingBits> {
     return SetValue(node, value->AsView());
   }
 
-  absl::Status DefaultHandler(Node* node) override {
+  absl::Status DefaultHandler(Node* node) final {
     XLS_ASSIGN_OR_RETURN(
         LeadingBitsTree unknown,
         LeadingBitsTree::CreateFromFunction(
@@ -71,7 +71,7 @@ class BitCountVisitor : public DataflowVisitor<internal::LeadingBits> {
     return SetValue(node, std::move(unknown));
   }
 
-  absl::Status HandleLiteral(Literal* lit) override {
+  absl::Status HandleLiteral(Literal* lit) final {
     XLS_ASSIGN_OR_RETURN(LeafTypeTree<Value> ltt,
                          ValueToLeafTypeTree(lit->value(), lit->GetType()));
     LeafTypeTree<internal::LeadingBits> res =
@@ -90,7 +90,7 @@ class BitCountVisitor : public DataflowVisitor<internal::LeadingBits> {
     return SetValue(lit, std::move(res));
   }
 
-  absl::Status HandleSignExtend(ExtendOp* sign_ext) override {
+  absl::Status HandleSignExtend(ExtendOp* sign_ext) final {
     Node* input = sign_ext->operand(0);
     internal::LeadingBits input_cnt = GetValue(input).Get({});
     return SetSingleValue(
@@ -98,7 +98,7 @@ class BitCountVisitor : public DataflowVisitor<internal::LeadingBits> {
         input_cnt.ExtendBy(sign_ext->new_bit_count() - input->BitCountOrDie()));
   }
 
-  absl::Status HandleZeroExtend(ExtendOp* zero_ext) override {
+  absl::Status HandleZeroExtend(ExtendOp* zero_ext) final {
     Node* input = zero_ext->operand(0);
     internal::LeadingBits input_cnt = GetValue(input).Get({});
     int64_t extend_by = zero_ext->new_bit_count() - input->BitCountOrDie();
@@ -109,7 +109,7 @@ class BitCountVisitor : public DataflowVisitor<internal::LeadingBits> {
                                         input_cnt.leading_zeros() + extend_by));
   }
 
-  absl::Status HandleConcat(Concat* concat) override {
+  absl::Status HandleConcat(Concat* concat) final {
     Node* zero_op = nullptr;
     int64_t start = 0;
     for (start = 0; start < concat->operand_count(); ++start) {
@@ -150,7 +150,7 @@ class BitCountVisitor : public DataflowVisitor<internal::LeadingBits> {
   }
 
   // Z3 correctness proof in bit_count_query_engine_proofs_z3.py
-  absl::Status HandleNeg(UnOp* neg) override {
+  absl::Status HandleNeg(UnOp* neg) final {
     if (neg->BitCountOrDie() == 0) {
       return SetSingleValue(neg, internal::LeadingBits::ZeroSize());
     }
@@ -181,7 +181,7 @@ class BitCountVisitor : public DataflowVisitor<internal::LeadingBits> {
     return SetSingleValue(neg, cnts);
   }
 
-  absl::Status HandleNot(UnOp* not_op) override {
+  absl::Status HandleNot(UnOp* not_op) final {
     Node* input = not_op->operand(0);
     internal::LeadingBits input_cnt = GetValue(input).Get({});
     switch (input_cnt.value()) {
@@ -196,7 +196,7 @@ class BitCountVisitor : public DataflowVisitor<internal::LeadingBits> {
     }
   }
 
-  absl::Status HandleBitSlice(BitSlice* slice) override {
+  absl::Status HandleBitSlice(BitSlice* slice) final {
     if (slice->BitCountOrDie() == 0) {
       return SetSingleValue(slice, internal::LeadingBits::ZeroSize());
     }
@@ -209,7 +209,7 @@ class BitCountVisitor : public DataflowVisitor<internal::LeadingBits> {
                                      .LimitSizeTo(slice->BitCountOrDie()));
   }
 
-  absl::Status HandleShll(BinOp* op) override {
+  absl::Status HandleShll(BinOp* op) final {
     Node* lhs = op->operand(0);
     Node* rhs = op->operand(1);
     if (lhs->BitCountOrDie() == 0) {
@@ -235,7 +235,7 @@ class BitCountVisitor : public DataflowVisitor<internal::LeadingBits> {
     return SetSingleValue(op, internal::LeadingBits::Unconstrained());
   }
 
-  absl::Status HandleShrl(BinOp* op) override {
+  absl::Status HandleShrl(BinOp* op) final {
     Node* lhs = op->operand(0);
     Node* rhs = op->operand(1);
     if (lhs->BitCountOrDie() == 0) {
@@ -267,7 +267,7 @@ class BitCountVisitor : public DataflowVisitor<internal::LeadingBits> {
         op, internal::LeadingBits::KnownZeros(lhs_cnt.leading_zeros()));
   }
 
-  absl::Status HandleShra(BinOp* op) override {
+  absl::Status HandleShra(BinOp* op) final {
     Node* lhs = op->operand(0);
     Node* rhs = op->operand(1);
     if (lhs->BitCountOrDie() == 0) {
@@ -293,7 +293,7 @@ class BitCountVisitor : public DataflowVisitor<internal::LeadingBits> {
   }
 
   // Z3 correctness proof in bit_count_query_engine_proofs_z3.py
-  absl::Status HandleAdd(BinOp* add) override {
+  absl::Status HandleAdd(BinOp* add) final {
     Node* lhs = add->operand(0);
     Node* rhs = add->operand(1);
     internal::LeadingBits lhs_cnt = GetValue(lhs).Get({});
@@ -318,7 +318,7 @@ class BitCountVisitor : public DataflowVisitor<internal::LeadingBits> {
   }
 
   // Z3 correctness proof in bit_count_query_engine_proofs_z3.py
-  absl::Status HandleSub(BinOp* sub) override {
+  absl::Status HandleSub(BinOp* sub) final {
     Node* lhs = sub->operand(0);
     Node* rhs = sub->operand(1);
     auto res =
@@ -342,7 +342,7 @@ class BitCountVisitor : public DataflowVisitor<internal::LeadingBits> {
       Type* element_type,
       absl::Span<const internal::LeadingBits* const> data_sources,
       absl::Span<const LeafTypeTreeView<internal::LeadingBits>> control_sources,
-      Node* node, absl::Span<const int64_t> index) override {
+      Node* node, absl::Span<const int64_t> index) final {
     if (element_type->GetFlatBitCount() == 0) {
       return internal::LeadingBits::ZeroSize();
     }

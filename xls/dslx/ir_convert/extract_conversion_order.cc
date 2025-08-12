@@ -163,7 +163,7 @@ std::string ConversionRecord::ToString() const {
 }
 
 // Collects all Invocation nodes below the visited node.
-class InvocationVisitor : public ExprVisitor {
+class InvocationVisitor final : public ExprVisitor {
  public:
   InvocationVisitor(Module* module, TypeInfo* type_info,
                     const ParametricEnv& bindings,
@@ -175,7 +175,7 @@ class InvocationVisitor : public ExprVisitor {
     CHECK_EQ(type_info_->module(), module_);
   }
 
-  ~InvocationVisitor() override = default;
+  ~InvocationVisitor() final = default;
 
   const FileTable& file_table() const { return *module_->file_table(); }
 
@@ -187,23 +187,23 @@ class InvocationVisitor : public ExprVisitor {
     TypeInfo* type_info = nullptr;
   };
 
-  absl::Status HandleArray(const Array* expr) override {
+  absl::Status HandleArray(const Array* expr) final {
     for (const Expr* element : expr->members()) {
       XLS_RETURN_IF_ERROR(element->AcceptExpr(this));
     }
     return absl::OkStatus();
   }
 
-  absl::Status HandleAttr(const Attr* expr) override {
+  absl::Status HandleAttr(const Attr* expr) final {
     return expr->lhs()->AcceptExpr(this);
   }
 
-  absl::Status HandleBinop(const Binop* expr) override {
+  absl::Status HandleBinop(const Binop* expr) final {
     XLS_RETURN_IF_ERROR(expr->lhs()->AcceptExpr(this));
     return expr->rhs()->AcceptExpr(this);
   }
 
-  absl::Status HandleStatementBlock(const StatementBlock* expr) override {
+  absl::Status HandleStatementBlock(const StatementBlock* expr) final {
     for (Statement* stmt : expr->statements()) {
       XLS_RETURN_IF_ERROR(
           absl::visit(Visitor{
@@ -227,17 +227,17 @@ class InvocationVisitor : public ExprVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleCast(const Cast* expr) override {
+  absl::Status HandleCast(const Cast* expr) final {
     return expr->expr()->AcceptExpr(this);
   }
 
-  absl::Status HandleFor(const For* expr) override {
+  absl::Status HandleFor(const For* expr) final {
     XLS_RETURN_IF_ERROR(expr->init()->AcceptExpr(this));
     XLS_RETURN_IF_ERROR(expr->iterable()->AcceptExpr(this));
     return expr->body()->AcceptExpr(this);
   }
 
-  absl::Status HandleUnrollFor(const UnrollFor* expr) override {
+  absl::Status HandleUnrollFor(const UnrollFor* expr) final {
     std::optional<const Expr*> unrolled =
         type_info_->GetUnrolledLoop(expr, bindings_);
     if (unrolled.has_value()) {
@@ -246,26 +246,26 @@ class InvocationVisitor : public ExprVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleFormatMacro(const FormatMacro* expr) override {
+  absl::Status HandleFormatMacro(const FormatMacro* expr) final {
     for (const Expr* arg : expr->args()) {
       XLS_RETURN_IF_ERROR(arg->AcceptExpr(this));
     }
     return absl::OkStatus();
   }
 
-  absl::Status HandleFunctionRef(const FunctionRef* expr) override {
+  absl::Status HandleFunctionRef(const FunctionRef* expr) final {
     return absl::OkStatus();
   }
 
-  absl::Status HandleAllOnesMacro(const AllOnesMacro* expr) override {
+  absl::Status HandleAllOnesMacro(const AllOnesMacro* expr) final {
     return absl::OkStatus();
   }
 
-  absl::Status HandleZeroMacro(const ZeroMacro* expr) override {
+  absl::Status HandleZeroMacro(const ZeroMacro* expr) final {
     return absl::OkStatus();
   }
 
-  absl::Status HandleIndex(const Index* expr) override {
+  absl::Status HandleIndex(const Index* expr) final {
     XLS_RETURN_IF_ERROR(expr->lhs()->AcceptExpr(this));
     // WidthSlice and Slice alternatives only contain constant values and so
     // don't need to be traversed.
@@ -275,7 +275,7 @@ class InvocationVisitor : public ExprVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleInvocation(const Invocation* node) override {
+  absl::Status HandleInvocation(const Invocation* node) final {
     std::optional<CalleeInfo> callee_info;
     for (const Expr* arg : node->args()) {
       XLS_RETURN_IF_ERROR(arg->AcceptExpr(this));
@@ -365,7 +365,7 @@ class InvocationVisitor : public ExprVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleLambda(const Lambda* expr) override {
+  absl::Status HandleLambda(const Lambda* expr) final {
     return absl::UnimplementedError("lambdas not yet supported");
   }
 
@@ -374,7 +374,7 @@ class InvocationVisitor : public ExprVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleMatch(const Match* expr) override {
+  absl::Status HandleMatch(const Match* expr) final {
     XLS_RETURN_IF_ERROR(expr->matched()->AcceptExpr(this));
     for (const MatchArm* arm : expr->arms()) {
       XLS_RETURN_IF_ERROR(arm->expr()->AcceptExpr(this));
@@ -382,12 +382,12 @@ class InvocationVisitor : public ExprVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleRange(const Range* expr) override {
+  absl::Status HandleRange(const Range* expr) final {
     XLS_RETURN_IF_ERROR(expr->start()->AcceptExpr(this));
     return expr->end()->AcceptExpr(this);
   }
 
-  absl::Status HandleSpawn(const Spawn* expr) override {
+  absl::Status HandleSpawn(const Spawn* expr) final {
     XLS_RETURN_IF_ERROR(expr->callee()->AcceptExpr(this));
     XLS_RETURN_IF_ERROR(expr->config()->AcceptExpr(this));
     XLS_RETURN_IF_ERROR(expr->next()->AcceptExpr(this));
@@ -395,7 +395,7 @@ class InvocationVisitor : public ExprVisitor {
   }
 
   absl::Status HandleSplatStructInstance(
-      const SplatStructInstance* expr) override {
+      const SplatStructInstance* expr) final {
     XLS_RETURN_IF_ERROR(expr->splatted()->AcceptExpr(this));
     for (const auto& member : expr->members()) {
       XLS_RETURN_IF_ERROR(member.second->AcceptExpr(this));
@@ -403,33 +403,33 @@ class InvocationVisitor : public ExprVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleStructInstance(const StructInstance* expr) override {
+  absl::Status HandleStructInstance(const StructInstance* expr) final {
     for (const auto& member : expr->GetUnorderedMembers()) {
       XLS_RETURN_IF_ERROR(member.second->AcceptExpr(this));
     }
     return absl::OkStatus();
   }
 
-  absl::Status HandleConditional(const Conditional* expr) override {
+  absl::Status HandleConditional(const Conditional* expr) final {
     XLS_RETURN_IF_ERROR(expr->test()->AcceptExpr(this));
     XLS_RETURN_IF_ERROR(expr->consequent()->AcceptExpr(this));
     return ToExprNode(expr->alternate())->AcceptExpr(this);
   }
 
-  absl::Status HandleTupleIndex(const TupleIndex* expr) override {
+  absl::Status HandleTupleIndex(const TupleIndex* expr) final {
     return expr->lhs()->AcceptExpr(this);
   }
 
-  absl::Status HandleUnop(const Unop* expr) override {
+  absl::Status HandleUnop(const Unop* expr) final {
     return expr->operand()->AcceptExpr(this);
   }
 
-  absl::Status HandleVerbatimNode(const VerbatimNode* node) override {
+  absl::Status HandleVerbatimNode(const VerbatimNode* node) final {
     return absl::Status(absl::StatusCode::kUnimplemented,
                         "Should not convert VerbatimNode");
   }
 
-  absl::Status HandleXlsTuple(const XlsTuple* expr) override {
+  absl::Status HandleXlsTuple(const XlsTuple* expr) final {
     for (const Expr* member : expr->members()) {
       XLS_RETURN_IF_ERROR(member->AcceptExpr(this));
     }
@@ -439,7 +439,7 @@ class InvocationVisitor : public ExprVisitor {
   // Null handlers (we're not using ExprVisitorWithDefault to guard against
   // accidental omissions).
 #define DEFAULT_HANDLE(TYPE) \
-  absl::Status Handle##TYPE(const TYPE*) override { return absl::OkStatus(); }
+  absl::Status Handle##TYPE(const TYPE*) final { return absl::OkStatus(); }
 
   // No ColonRef handling (ColonRef invocations are handled in HandleInvocation;
   // all other ColonRefs are to constant values, which don't need their deriving

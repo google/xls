@@ -45,7 +45,7 @@ class FunctionInterpreter final : public IrInterpreter {
                       std::optional<EvaluationObserver*> observer)
       : IrInterpreter(observer), args_(args.begin(), args.end()) {}
 
-  absl::Status HandleParam(Param* param) override {
+  absl::Status HandleParam(Param* param) final {
     XLS_ASSIGN_OR_RETURN(int64_t index,
                          param->function_base()->GetParamIndex(param));
     if (index >= args_.size()) {

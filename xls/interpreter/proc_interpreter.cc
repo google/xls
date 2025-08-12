@@ -50,7 +50,7 @@ namespace xls {
 namespace {
 
 // A continuation used by the ProcInterpreter.
-class ProcInterpreterContinuation : public ProcContinuation {
+class ProcInterpreterContinuation final : public ProcContinuation {
  public:
   // Construct a new continuation. Execution the proc begins with the state set
   // to its initial values with no proc nodes yet executed.
@@ -62,19 +62,19 @@ class ProcInterpreterContinuation : public ProcContinuation {
     }
   }
 
-  ~ProcInterpreterContinuation() override = default;
+  ~ProcInterpreterContinuation() final = default;
 
   std::vector<Value> GetState() const override { return state_; }
 
-  absl::Status SetState(std::vector<Value> v) override {
+  absl::Status SetState(std::vector<Value> v) final {
     XLS_RETURN_IF_ERROR(CheckConformsToStateType(v));
     state_ = std::move(v);
     return absl::OkStatus();
   }
 
   const InterpreterEvents& GetEvents() const override { return events_; }
-  InterpreterEvents& GetEvents() override { return events_; }
-  void ClearEvents() override { events_.Clear(); }
+  InterpreterEvents& GetEvents() final { return events_; }
+  void ClearEvents() final { events_.Clear(); }
   bool AtStartOfTick() const override { return node_index_ == 0; }
 
   const absl::flat_hash_map<StateElement*, std::vector<Next*>>&
@@ -140,7 +140,7 @@ class ProcIrInterpreter : public IrInterpreter {
         queue_manager_(queue_manager),
         active_next_values_(active_next_values) {}
 
-  absl::Status HandleReceive(Receive* receive) override {
+  absl::Status HandleReceive(Receive* receive) final {
     XLS_ASSIGN_OR_RETURN(ChannelQueue * queue,
                          GetChannelQueue(receive->channel_name()));
 
@@ -174,7 +174,7 @@ class ProcIrInterpreter : public IrInterpreter {
         receive, Value::Tuple({Value::Token(), *value, Value(UBits(1, 1))}));
   }
 
-  absl::Status HandleSend(Send* send) override {
+  absl::Status HandleSend(Send* send) final {
     XLS_ASSIGN_OR_RETURN(ChannelQueue * queue,
                          GetChannelQueue(send->channel_name()));
     if (send->predicate().has_value()) {
@@ -192,7 +192,7 @@ class ProcIrInterpreter : public IrInterpreter {
     return SetValueResult(send, Value::Token());
   }
 
-  absl::Status HandleStateRead(StateRead* state_read) override {
+  absl::Status HandleStateRead(StateRead* state_read) final {
     XLS_ASSIGN_OR_RETURN(
         int64_t index,
         state_read->function_base()->AsProcOrDie()->GetStateElementIndex(
@@ -200,7 +200,7 @@ class ProcIrInterpreter : public IrInterpreter {
     return SetValueResult(state_read, state_[index]);
   }
 
-  absl::Status HandleNext(Next* next) override {
+  absl::Status HandleNext(Next* next) final {
     if (next->predicate().has_value()) {
       Value predicate = ResolveAsValue(*next->predicate());
       XLS_RET_CHECK(predicate.IsBits());

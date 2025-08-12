@@ -64,7 +64,7 @@ class Callbacks : public ZipTypesCallbacks {
  public:
   explicit Callbacks(MismatchData& mismatches) : mismatches_(mismatches) {}
 
-  absl::Status NoteAggregateStart(const AggregatePair& aggregates) override {
+  absl::Status NoteAggregateStart(const AggregatePair& aggregates) final {
     return absl::visit(
         Visitor{
             [&](std::pair<const TupleType*, const TupleType*>) {
@@ -101,7 +101,7 @@ class Callbacks : public ZipTypesCallbacks {
         aggregates);
   }
 
-  absl::Status NoteAggregateNext(const AggregatePair& aggregates) override {
+  absl::Status NoteAggregateNext(const AggregatePair& aggregates) final {
     return absl::visit(
         Visitor{
             [&](auto p) { return absl::OkStatus(); },
@@ -117,7 +117,7 @@ class Callbacks : public ZipTypesCallbacks {
         aggregates);
   }
 
-  absl::Status NoteAggregateEnd(const AggregatePair& aggregates) override {
+  absl::Status NoteAggregateEnd(const AggregatePair& aggregates) final {
     return absl::visit(
         Visitor{
             [&](std::pair<const TupleType*, const TupleType*>) {
@@ -158,7 +158,7 @@ class Callbacks : public ZipTypesCallbacks {
 
   absl::Status NoteMatchedLeafType(const Type& lhs, const Type* lhs_parent,
                                    const Type& rhs,
-                                   const Type* rhs_parent) override {
+                                   const Type* rhs_parent) final {
     match_count_++;
     BeforeType(lhs, lhs_parent, rhs, rhs_parent);
     AddMatched(lhs.ToString(), &colorized_lhs_);
@@ -168,7 +168,7 @@ class Callbacks : public ZipTypesCallbacks {
 
   absl::Status NoteTypeMismatch(const Type& lhs, const Type* lhs_parent,
                                 const Type& rhs,
-                                const Type* rhs_parent) override {
+                                const Type* rhs_parent) final {
     if (auto* lhs_tuple = dynamic_cast<const TupleType*>(&lhs)) {
       if (auto* rhs_tuple = dynamic_cast<const TupleType*>(&rhs)) {
         XLS_RET_CHECK_NE(lhs_tuple->size(), rhs_tuple->size());

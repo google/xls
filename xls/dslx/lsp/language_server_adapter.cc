@@ -112,7 +112,7 @@ class LanguageServerFilesystem : public VirtualizableFilesystem {
   explicit LanguageServerFilesystem(LanguageServerAdapter& parent)
       : parent_(parent) {}
 
-  absl::Status FileExists(const std::filesystem::path& path) override {
+  absl::Status FileExists(const std::filesystem::path& path) final {
     LspUri uri(verible::lsp::PathToLSPUri(path.c_str()));
     auto it = parent_.vfs_contents().find(uri);
     if (it == parent_.vfs_contents().end()) {
@@ -123,7 +123,7 @@ class LanguageServerFilesystem : public VirtualizableFilesystem {
   }
 
   absl::StatusOr<std::string> GetFileContents(
-      const std::filesystem::path& path) override {
+      const std::filesystem::path& path) final {
     // First we check if it exists in the virtual layer.
     LspUri uri(verible::lsp::PathToLSPUri(path.c_str()));
     auto it = parent_.vfs_contents().find(uri);
@@ -134,7 +134,7 @@ class LanguageServerFilesystem : public VirtualizableFilesystem {
     return it->second;
   }
 
-  absl::StatusOr<std::filesystem::path> GetCurrentDirectory() override {
+  absl::StatusOr<std::filesystem::path> GetCurrentDirectory() final {
     XLS_ASSIGN_OR_RETURN(std::filesystem::path current,
                          xls::GetCurrentDirectory());
     return verible::lsp::PathToLSPUri(current.c_str());

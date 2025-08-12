@@ -185,21 +185,21 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
     stack_.push(&*traces_.begin());
   }
 
-  TypeSystemTrace TraceUnify(const AstNode* node) override {
+  TypeSystemTrace TraceUnify(const AstNode* node) final {
     return Trace(TypeSystemTraceImpl{.parent = stack_.top(),
                                      .kind = TraceKind::kUnify,
                                      .address = node,
                                      .node = node});
   }
 
-  TypeSystemTrace TraceUnify(const NameRef* type_variable) override {
+  TypeSystemTrace TraceUnify(const NameRef* type_variable) final {
     return Trace(TypeSystemTraceImpl{.parent = stack_.top(),
                                      .kind = TraceKind::kUnify,
                                      .inference_variable = type_variable});
   }
 
   TypeSystemTrace TraceUnify(
-      const std::vector<const TypeAnnotation*>& annotations) override {
+      const std::vector<const TypeAnnotation*>& annotations) final {
     return Trace(TypeSystemTraceImpl{.parent = stack_.top(),
                                      .kind = TraceKind::kUnify,
                                      .annotations = annotations});
@@ -207,7 +207,7 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
 
   TypeSystemTrace TraceFilter(
       TypeAnnotationFilter filter,
-      const std::vector<const TypeAnnotation*>& annotations) override {
+      const std::vector<const TypeAnnotation*>& annotations) final {
     return Trace(TypeSystemTraceImpl{.parent = stack_.top(),
                                      .kind = TraceKind::kFilter,
                                      .filter = filter,
@@ -216,7 +216,7 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
 
   TypeSystemTrace TraceResolve(
       const TypeAnnotation* annotation,
-      std::optional<const ParametricContext*> parametric_context) override {
+      std::optional<const ParametricContext*> parametric_context) final {
     return Trace(TypeSystemTraceImpl{.parent = stack_.top(),
                                      .kind = TraceKind::kResolve,
                                      .address = annotation,
@@ -224,14 +224,14 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
                                      .parametric_context = parametric_context});
   }
 
-  TypeSystemTrace TraceConvertNode(const AstNode* node) override {
+  TypeSystemTrace TraceConvertNode(const AstNode* node) final {
     return Trace(TypeSystemTraceImpl{.parent = stack_.top(),
                                      .kind = TraceKind::kConvertNode,
                                      .address = node,
                                      .node = node});
   }
 
-  TypeSystemTrace TraceConvertActualArgument(const AstNode* node) override {
+  TypeSystemTrace TraceConvertActualArgument(const AstNode* node) final {
     return Trace(TypeSystemTraceImpl{.parent = stack_.top(),
                                      .kind = TraceKind::kConvertActualArgument,
                                      .address = node,
@@ -241,7 +241,7 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
   TypeSystemTrace TraceConvertInvocation(
       const Invocation* invocation,
       std::optional<const ParametricContext*> caller_context,
-      std::optional<bool> convert_for_type_variable_unification) override {
+      std::optional<bool> convert_for_type_variable_unification) final {
     return Trace(
         TypeSystemTraceImpl{.parent = stack_.top(),
                             .kind = TraceKind::kConvertInvocation,
@@ -253,7 +253,7 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
   }
 
   TypeSystemTrace TraceInferImplicitParametrics(
-      const absl::flat_hash_set<const ParametricBinding*>& bindings) override {
+      const absl::flat_hash_set<const ParametricBinding*>& bindings) final {
     return Trace(
         TypeSystemTraceImpl{.parent = stack_.top(),
                             .kind = TraceKind::kInferImplicitParametrics,
@@ -262,7 +262,7 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
 
   TypeSystemTrace TraceEvaluate(
       std::optional<const ParametricContext*> parametric_context,
-      const Expr* expr) override {
+      const Expr* expr) final {
     return Trace(TypeSystemTraceImpl{.parent = stack_.top(),
                                      .kind = TraceKind::kEvaluate,
                                      .address = expr,
@@ -272,7 +272,7 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
 
   TypeSystemTrace TraceCollectConstants(
       std::optional<const ParametricContext*> parametric_context,
-      const AstNode* node) override {
+      const AstNode* node) final {
     return Trace(TypeSystemTraceImpl{.parent = stack_.top(),
                                      .kind = TraceKind::kCollectConstants,
                                      .address = node,
@@ -280,14 +280,14 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
                                      .parametric_context = parametric_context});
   }
 
-  TypeSystemTrace TraceConcretize(const TypeAnnotation* annotation) override {
+  TypeSystemTrace TraceConcretize(const TypeAnnotation* annotation) final {
     return Trace(TypeSystemTraceImpl{.parent = stack_.top(),
                                      .kind = TraceKind::kConcretize,
                                      .address = annotation,
                                      .annotation = annotation});
   }
 
-  TypeSystemTrace TraceUnroll(const AstNode* node) override {
+  TypeSystemTrace TraceUnroll(const AstNode* node) final {
     return Trace(TypeSystemTraceImpl{.parent = stack_.top(),
                                      .kind = TraceKind::kUnroll,
                                      .address = node,

@@ -441,7 +441,7 @@ class BaseForwardingQueryEngine final : public ForwardingQueryEngine {
  public:
   explicit BaseForwardingQueryEngine(const QueryEngine& qe) : qe_(qe) {}
 
-  absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override {
+  absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) final {
     return absl::UnimplementedError(
         "Populate not supported on specialized query engines.");
   }

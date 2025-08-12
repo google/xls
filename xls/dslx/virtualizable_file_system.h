@@ -48,13 +48,13 @@ class VirtualizableFilesystem {
 // A simple (and often "default") implementation of the virtualizable file
 // system that just calls into the XLS "real filesystem" routines that talk to
 // the running operating system.
-class RealFilesystem : public VirtualizableFilesystem {
+class RealFilesystem final : public VirtualizableFilesystem {
  public:
-  ~RealFilesystem() override = default;
-  absl::Status FileExists(const std::filesystem::path& path) override;
+  ~RealFilesystem() final = default;
+  absl::Status FileExists(const std::filesystem::path& path) final;
   absl::StatusOr<std::string> GetFileContents(
-      const std::filesystem::path& path) override;
-  absl::StatusOr<std::filesystem::path> GetCurrentDirectory() override;
+      const std::filesystem::path& path) final;
+  absl::StatusOr<std::filesystem::path> GetCurrentDirectory() final;
 };
 
 // A fake filesystem that gives back the same file content for all requested
@@ -62,20 +62,20 @@ class RealFilesystem : public VirtualizableFilesystem {
 //
 // If `expect_path` is given in addition to the file content, then we will error
 // out if the GetFileContents has any other path.
-class UniformContentFilesystem : public VirtualizableFilesystem {
+class UniformContentFilesystem final : public VirtualizableFilesystem {
  public:
   explicit UniformContentFilesystem(
       std::string_view file_content,
       std::optional<std::string_view> expect_path = std::nullopt)
       : file_content_(file_content), expect_path_(expect_path) {}
 
-  ~UniformContentFilesystem() override = default;
+  ~UniformContentFilesystem() final = default;
 
-  absl::Status FileExists(const std::filesystem::path& path) override {
+  absl::Status FileExists(const std::filesystem::path& path) final {
     return absl::NotFoundError("UniformContentFilesystem");
   }
   absl::StatusOr<std::string> GetFileContents(
-      const std::filesystem::path& path) override {
+      const std::filesystem::path& path) final {
     if (expect_path_.has_value() && path != expect_path_.value()) {
       return absl::InvalidArgumentError(absl::StrFormat(
           "UniformContentFilesystem expected path: `%s` but got: `%s`",
@@ -83,7 +83,7 @@ class UniformContentFilesystem : public VirtualizableFilesystem {
     }
     return file_content_;
   }
-  absl::StatusOr<std::filesystem::path> GetCurrentDirectory() override {
+  absl::StatusOr<std::filesystem::path> GetCurrentDirectory() final {
     return absl::NotFoundError("UniformContentFilesystem");
   }
 
@@ -97,19 +97,19 @@ class UniformContentFilesystem : public VirtualizableFilesystem {
 //
 // `cwd` is used to resolve relative paths to absolute paths before lookup in
 // the `files` map.
-class FakeFilesystem : public VirtualizableFilesystem {
+class FakeFilesystem final : public VirtualizableFilesystem {
  public:
   FakeFilesystem(absl::flat_hash_map<std::filesystem::path, std::string> files,
                  std::filesystem::path cwd);
 
-  ~FakeFilesystem() override = default;
+  ~FakeFilesystem() final = default;
 
-  absl::Status FileExists(const std::filesystem::path& path) override;
+  absl::Status FileExists(const std::filesystem::path& path) final;
 
   absl::StatusOr<std::string> GetFileContents(
-      const std::filesystem::path& path) override;
+      const std::filesystem::path& path) final;
 
-  absl::StatusOr<std::filesystem::path> GetCurrentDirectory() override {
+  absl::StatusOr<std::filesystem::path> GetCurrentDirectory() final {
     return cwd_;
   }
 
@@ -120,17 +120,17 @@ class FakeFilesystem : public VirtualizableFilesystem {
 
 // A fake filesystem that always returns errors, useful in testing when we don't
 // expect any virtual filesystem operations to be performed.
-class AllErrorsFilesystem : public VirtualizableFilesystem {
+class AllErrorsFilesystem final : public VirtualizableFilesystem {
  public:
-  ~AllErrorsFilesystem() override = default;
-  absl::Status FileExists(const std::filesystem::path& path) override {
+  ~AllErrorsFilesystem() final = default;
+  absl::Status FileExists(const std::filesystem::path& path) final {
     return absl::InvalidArgumentError("AllErrorsFilesystem");
   }
   absl::StatusOr<std::string> GetFileContents(
-      const std::filesystem::path& path) override {
+      const std::filesystem::path& path) final {
     return absl::InvalidArgumentError("AllErrorsFilesystem");
   }
-  absl::StatusOr<std::filesystem::path> GetCurrentDirectory() override {
+  absl::StatusOr<std::filesystem::path> GetCurrentDirectory() final {
     return absl::InvalidArgumentError("AllErrorsFilesystem");
   }
 };

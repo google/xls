@@ -57,7 +57,7 @@ using ::testing::HasSubstr;
 
 class InferenceTableTest : public ::testing::Test {
  public:
-  void SetUp() override {
+  void SetUp() final {
     import_data_.emplace(CreateImportDataForTest());
     warning_collector_.emplace(kAllWarningsSet);
     module_ =

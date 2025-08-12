@@ -101,7 +101,7 @@ class TokenProvenanceVisitor
       absl::Span<absl::flat_hash_set<Node*> const* const> data_sources,
       absl::Span<const LeafTypeTreeView<absl::flat_hash_set<Node*>>>
           control_sources,
-      Node* node, absl::Span<const int64_t> index) override {
+      Node* node, absl::Span<const int64_t> index) final {
     if (!AreAllElementsEmpty(control_sources)) {
       return TokenError(node);
     }
@@ -118,7 +118,7 @@ class TokenProvenanceVisitor
 // visitor's traversal instead of having to topo-sort.
 class TokenProvenanceWithTopoSortVisitor : public TokenProvenanceVisitor {
  public:
-  absl::Status DefaultHandler(Node* node) override {
+  absl::Status DefaultHandler(Node* node) final {
     const bool result_contains_token = TypeHasToken(node->GetType());
     if (result_contains_token || OpIsSideEffecting(node->op())) {
       if (node->OpIn({Op::kParam, Op::kStateRead}) && !result_contains_token) {

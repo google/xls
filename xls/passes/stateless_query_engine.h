@@ -41,7 +41,7 @@ class StatelessQueryEngine : public QueryEngine {
  public:
   StatelessQueryEngine() = default;
 
-  absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override {
+  absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) final {
     return ReachedFixpoint::Unchanged;
   }
 

@@ -55,7 +55,7 @@ constexpr std::string_view kPackageName = "the_package";
 
 class ChannelScopeTest : public ::testing::Test {
  public:
-  void SetUp() override {
+  void SetUp() final {
     conv_.package = std::make_unique<Package>(kPackageName);
     import_data_ = std::make_unique<ImportData>(CreateImportDataForTest());
     module_ = std::make_unique<Module>("test", /*fs_path=*/std::nullopt,

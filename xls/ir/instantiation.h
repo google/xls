@@ -111,11 +111,11 @@ class BlockInstantiation : public Instantiation {
   absl::StatusOr<InstantiationType> type() const override;
 
   absl::StatusOr<InstantiationPort> GetInputPort(
-      std::string_view name) override;
+      std::string_view name) final;
   absl::StatusOr<InstantiationPort> GetOutputPort(
-      std::string_view name) override;
+      std::string_view name) final;
 
-  absl::StatusOr<BlockInstantiation*> AsBlockInstantiation() override {
+  absl::StatusOr<BlockInstantiation*> AsBlockInstantiation() final {
     return this;
   }
 
@@ -136,7 +136,7 @@ class ExternInstantiation : public Instantiation {
   std::string ToString() const final;
   absl::StatusOr<InstantiationType> type() const override;
 
-  absl::StatusOr<ExternInstantiation*> AsExternInstantiation() override {
+  absl::StatusOr<ExternInstantiation*> AsExternInstantiation() final {
     return this;
   }
 
@@ -169,7 +169,7 @@ class FifoInstantiation : public Instantiation {
 
   std::string ToString() const final;
 
-  absl::StatusOr<FifoInstantiation*> AsFifoInstantiation() override {
+  absl::StatusOr<FifoInstantiation*> AsFifoInstantiation() final {
     return this;
   }
 
@@ -212,7 +212,7 @@ class DelayLineInstantiation : public Instantiation {
 
   std::string ToString() const final;
 
-  absl::StatusOr<DelayLineInstantiation*> AsDelayLineInstantiation() override {
+  absl::StatusOr<DelayLineInstantiation*> AsDelayLineInstantiation() final {
     return this;
   }
 

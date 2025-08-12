@@ -260,7 +260,7 @@ class IndexTypeConversionPass
  public:
   using IndexTypeConversionPassBase::IndexTypeConversionPassBase;
 
-  void runOnOperation() override {
+  void runOnOperation() final {
     MLIRContext &ctx = getContext();
     IndexTypeConverter typeConverter(ctx, indexTypeBitWidth);
     ConversionTarget target(ctx);

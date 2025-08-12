@@ -87,11 +87,11 @@ class NoGivensProvider final : public RangeDataProvider {
  public:
   explicit NoGivensProvider(FunctionBase* function) : function_(function) {}
 
-  std::optional<RangeData> GetKnownIntervals(Node* node) override {
+  std::optional<RangeData> GetKnownIntervals(Node* node) final {
     return std::nullopt;
   }
 
-  absl::Status IterateFunction(DfsVisitor* visitor) override {
+  absl::Status IterateFunction(DfsVisitor* visitor) final {
     return function_->Accept(visitor);
   }
 
@@ -111,7 +111,7 @@ class RangeQueryEngine : public QueryEngine {
 
   // Populate the data in this `RangeQueryEngine` using the
   // given `FunctionBase*`;
-  absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override {
+  absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) final {
     NoGivensProvider givens(f);
     return PopulateWithGivens(givens);
   }

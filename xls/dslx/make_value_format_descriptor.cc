@@ -96,7 +96,7 @@ absl::StatusOr<ValueFormatDescriptor> MakeValueFormatDescriptor(
     explicit Visitor(FormatPreference field_preference)
         : field_preference_(field_preference) {}
 
-    absl::Status HandleArray(const ArrayType& t) override {
+    absl::Status HandleArray(const ArrayType& t) final {
       if (IsBitsLike(t)) {
         result_ = ValueFormatDescriptor::MakeLeafValue(field_preference_);
         return absl::OkStatus();
@@ -105,51 +105,51 @@ absl::StatusOr<ValueFormatDescriptor> MakeValueFormatDescriptor(
                            MakeArrayFormatDescriptor(t, field_preference_));
       return absl::OkStatus();
     }
-    absl::Status HandleStruct(const StructType& t) override {
+    absl::Status HandleStruct(const StructType& t) final {
       XLS_ASSIGN_OR_RETURN(result_,
                            MakeStructFormatDescriptor(t, field_preference_));
       return absl::OkStatus();
     }
-    absl::Status HandleProc(const ProcType& t) override {
+    absl::Status HandleProc(const ProcType& t) final {
       XLS_ASSIGN_OR_RETURN(result_,
                            MakeStructFormatDescriptor(t, field_preference_));
       return absl::OkStatus();
     }
-    absl::Status HandleTuple(const TupleType& t) override {
+    absl::Status HandleTuple(const TupleType& t) final {
       XLS_ASSIGN_OR_RETURN(result_,
                            MakeTupleFormatDescriptor(t, field_preference_));
       return absl::OkStatus();
     }
-    absl::Status HandleEnum(const EnumType& t) override {
+    absl::Status HandleEnum(const EnumType& t) final {
       XLS_ASSIGN_OR_RETURN(result_,
                            MakeEnumFormatDescriptor(t, field_preference_));
       return absl::OkStatus();
     }
-    absl::Status HandleBits(const BitsType& t) override {
+    absl::Status HandleBits(const BitsType& t) final {
       result_ = ValueFormatDescriptor::MakeLeafValue(field_preference_);
       return absl::OkStatus();
     }
-    absl::Status HandleFunction(const FunctionType& t) override {
+    absl::Status HandleFunction(const FunctionType& t) final {
       return absl::InvalidArgumentError("Cannot format a function type; got: " +
                                         t.ToString());
     }
-    absl::Status HandleToken(const TokenType& t) override {
+    absl::Status HandleToken(const TokenType& t) final {
       return absl::InvalidArgumentError("Cannot format a token type; got: " +
                                         t.ToString());
     }
-    absl::Status HandleChannel(const ChannelType& t) override {
+    absl::Status HandleChannel(const ChannelType& t) final {
       return absl::InvalidArgumentError("Cannot format a channel type; got: " +
                                         t.ToString());
     }
-    absl::Status HandleMeta(const MetaType& t) override {
+    absl::Status HandleMeta(const MetaType& t) final {
       return absl::InvalidArgumentError("Cannot format a metatype; got: " +
                                         t.ToString());
     }
-    absl::Status HandleBitsConstructor(const BitsConstructorType& t) override {
+    absl::Status HandleBitsConstructor(const BitsConstructorType& t) final {
       return absl::InvalidArgumentError(
           "Cannot format a bits constructor; got: " + t.ToString());
     }
-    absl::Status HandleModule(const ModuleType& t) override {
+    absl::Status HandleModule(const ModuleType& t) final {
       return absl::InvalidArgumentError("Cannot format a module type; got: " +
                                         t.ToString());
     }

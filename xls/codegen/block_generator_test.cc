@@ -2304,7 +2304,7 @@ class ZeroWidthBlockGeneratorTest
   }
   std::filesystem::path GoldenFilePath(
       std::string_view test_file_name,
-      const std::filesystem::path& testdata_dir) override {
+      const std::filesystem::path& testdata_dir) final {
     // We suffix the golden reference files with "txt" on top of the extension
     // just to indicate they're compiler byproduct comparison points and not
     // Verilog files that have been written by hand.

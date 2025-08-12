@@ -469,7 +469,7 @@ absl::StatusOr<std::vector<AstNode*>> CollectUnder(AstNode* root,
     explicit CollectVisitor(std::vector<AstNode*>& nodes) : nodes_(nodes) {}
 
 #define DECLARE_HANDLER(__type)                           \
-  absl::Status Handle##__type(const __type* n) override { \
+  absl::Status Handle##__type(const __type* n) final { \
     nodes_.push_back(const_cast<__type*>(n));             \
     return absl::OkStatus();                              \
   }

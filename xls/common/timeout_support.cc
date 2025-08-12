@@ -26,7 +26,7 @@
 namespace xls {
 
 namespace {
-class Cleaner : public TimeoutCleaner {
+class Cleaner final : public TimeoutCleaner {
  public:
   explicit Cleaner(absl::Duration duration)
       : duration_(duration), barrier_(2), thr_(Cleaner::StartThread, this) {
@@ -34,7 +34,7 @@ class Cleaner : public TimeoutCleaner {
     barrier_.Block();
   }
 
-  ~Cleaner() override {
+  ~Cleaner() final {
     notify_.Notify();
     thr_.join();
   }

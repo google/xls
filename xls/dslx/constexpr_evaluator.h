@@ -39,7 +39,7 @@ namespace xls::dslx {
 // conversion, at which point we don't want to be collecting warnings since we
 // expect to have flagged all warnings (e.g. rollovers) in the type checking
 // phase.
-class ConstexprEvaluator : public xls::dslx::ExprVisitor {
+class ConstexprEvaluator final : public xls::dslx::ExprVisitor {
  public:
   // Evaluates the given expression to determine if it's constexpr or not, and
   // updates `type_info` accordingly. Returns success as long as no error
@@ -64,42 +64,42 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   //    `u32[4]:[0, 1, ...]`. The type is needed to determine the number of
   //    elements to fill in.
   // In all other cases, `type` can be nullptr.
-  ~ConstexprEvaluator() override = default;
+  ~ConstexprEvaluator() final = default;
 
-  absl::Status HandleAllOnesMacro(const AllOnesMacro* expr) override;
-  absl::Status HandleArray(const Array* expr) override;
-  absl::Status HandleAttr(const Attr* expr) override;
-  absl::Status HandleBinop(const Binop* expr) override;
-  absl::Status HandleCast(const Cast* expr) override;
-  absl::Status HandleChannelDecl(const ChannelDecl* expr) override;
-  absl::Status HandleColonRef(const ColonRef* expr) override;
-  absl::Status HandleConditional(const Conditional* expr) override;
-  absl::Status HandleFor(const For* expr) override;
-  absl::Status HandleFormatMacro(const FormatMacro* expr) override {
+  absl::Status HandleAllOnesMacro(const AllOnesMacro* expr) final;
+  absl::Status HandleArray(const Array* expr) final;
+  absl::Status HandleAttr(const Attr* expr) final;
+  absl::Status HandleBinop(const Binop* expr) final;
+  absl::Status HandleCast(const Cast* expr) final;
+  absl::Status HandleChannelDecl(const ChannelDecl* expr) final;
+  absl::Status HandleColonRef(const ColonRef* expr) final;
+  absl::Status HandleConditional(const Conditional* expr) final;
+  absl::Status HandleFor(const For* expr) final;
+  absl::Status HandleFormatMacro(const FormatMacro* expr) final {
     return absl::OkStatus();
   }
-  absl::Status HandleFunctionRef(const FunctionRef* expr) override;
-  absl::Status HandleIndex(const Index* expr) override;
-  absl::Status HandleInvocation(const Invocation* expr) override;
-  absl::Status HandleLambda(const Lambda* expr) override;
-  absl::Status HandleMatch(const Match* expr) override;
-  absl::Status HandleNameRef(const NameRef* expr) override;
-  absl::Status HandleNumber(const Number* expr) override;
-  absl::Status HandleRange(const Range* expr) override;
-  absl::Status HandleSpawn(const Spawn* expr) override {
+  absl::Status HandleFunctionRef(const FunctionRef* expr) final;
+  absl::Status HandleIndex(const Index* expr) final;
+  absl::Status HandleInvocation(const Invocation* expr) final;
+  absl::Status HandleLambda(const Lambda* expr) final;
+  absl::Status HandleMatch(const Match* expr) final;
+  absl::Status HandleNameRef(const NameRef* expr) final;
+  absl::Status HandleNumber(const Number* expr) final;
+  absl::Status HandleRange(const Range* expr) final;
+  absl::Status HandleSpawn(const Spawn* expr) final {
     return absl::OkStatus();
   }
   absl::Status HandleSplatStructInstance(
-      const SplatStructInstance* expr) override;
-  absl::Status HandleStatementBlock(const StatementBlock* expr) override;
-  absl::Status HandleString(const String* expr) override;
-  absl::Status HandleStructInstance(const StructInstance* expr) override;
-  absl::Status HandleTupleIndex(const TupleIndex* expr) override;
-  absl::Status HandleUnop(const Unop* expr) override;
-  absl::Status HandleUnrollFor(const UnrollFor* expr) override;
-  absl::Status HandleVerbatimNode(const VerbatimNode* node) override;
-  absl::Status HandleXlsTuple(const XlsTuple* expr) override;
-  absl::Status HandleZeroMacro(const ZeroMacro* expr) override;
+      const SplatStructInstance* expr) final;
+  absl::Status HandleStatementBlock(const StatementBlock* expr) final;
+  absl::Status HandleString(const String* expr) final;
+  absl::Status HandleStructInstance(const StructInstance* expr) final;
+  absl::Status HandleTupleIndex(const TupleIndex* expr) final;
+  absl::Status HandleUnop(const Unop* expr) final;
+  absl::Status HandleUnrollFor(const UnrollFor* expr) final;
+  absl::Status HandleVerbatimNode(const VerbatimNode* node) final;
+  absl::Status HandleXlsTuple(const XlsTuple* expr) final;
+  absl::Status HandleZeroMacro(const ZeroMacro* expr) final;
 
  private:
   absl::Status HandleExternRef(const NameRef* name_ref, const NameDef* name_def,

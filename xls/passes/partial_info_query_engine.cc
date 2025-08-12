@@ -75,7 +75,7 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
     return SetValue(node, value->AsView());
   }
 
-  absl::Status DefaultHandler(Node* node) override {
+  absl::Status DefaultHandler(Node* node) final {
     XLS_ASSIGN_OR_RETURN(
         LeafTypeTree<PartialInformation> unknown,
         LeafTypeTree<PartialInformation>::CreateFromFunction(
@@ -87,7 +87,7 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
     return SetValue(node, std::move(unknown));
   }
 
-  absl::Status HandleAdd(BinOp* add) override {
+  absl::Status HandleAdd(BinOp* add) final {
     Node* lhs = add->operand(0);
     Node* rhs = add->operand(1);
     return SetValue(
@@ -95,7 +95,7 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
                  add->GetType(), partial_ops::Add(GetValue(lhs).Get({}),
                                                   GetValue(rhs).Get({}))));
   }
-  absl::Status HandleAndReduce(BitwiseReductionOp* and_reduce) override {
+  absl::Status HandleAndReduce(BitwiseReductionOp* and_reduce) final {
     Node* input = and_reduce->operand(0);
     return SetValue(and_reduce,
                     LeafTypeTree<PartialInformation>::CreateSingleElementTree(
@@ -103,7 +103,7 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
                         partial_ops::AndReduce(GetValue(input).Get({}))));
   }
 
-  absl::Status HandleBitSlice(BitSlice* bit_slice) override {
+  absl::Status HandleBitSlice(BitSlice* bit_slice) final {
     return SetValue(
         bit_slice,
         LeafTypeTree<PartialInformation>::CreateSingleElementTree(
@@ -111,7 +111,7 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
             partial_ops::BitSlice(GetValue(bit_slice->operand(0)).Get({}),
                                   bit_slice->start(), bit_slice->width())));
   }
-  absl::Status HandleBitSliceUpdate(BitSliceUpdate* update) override {
+  absl::Status HandleBitSliceUpdate(BitSliceUpdate* update) final {
     return SetValue(
         update,
         LeafTypeTree<PartialInformation>::CreateSingleElementTree(
@@ -120,7 +120,7 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
                                    GetValue(update->start()).Get({}),
                                    GetValue(update->update_value()).Get({}))));
   }
-  absl::Status HandleConcat(Concat* concat) override {
+  absl::Status HandleConcat(Concat* concat) final {
     std::vector<PartialInformation> operands;
     for (Node* operand : concat->operands()) {
       operands.push_back(GetValue(operand).Get({}));
@@ -129,7 +129,7 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
                     LeafTypeTree<PartialInformation>::CreateSingleElementTree(
                         concat->GetType(), partial_ops::Concat(operands)));
   }
-  absl::Status HandleDecode(Decode* decode) override {
+  absl::Status HandleDecode(Decode* decode) final {
     return SetValue(
         decode, LeafTypeTree<PartialInformation>::CreateSingleElementTree(
                     decode->GetType(),
@@ -137,7 +137,7 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
                                         decode->width())));
   }
   absl::Status HandleDynamicBitSlice(
-      DynamicBitSlice* dynamic_bit_slice) override {
+      DynamicBitSlice* dynamic_bit_slice) final {
     return SetValue(dynamic_bit_slice,
                     LeafTypeTree<PartialInformation>::CreateSingleElementTree(
                         dynamic_bit_slice->GetType(),
@@ -146,13 +146,13 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
                             GetValue(dynamic_bit_slice->start()).Get({}),
                             dynamic_bit_slice->width())));
   }
-  absl::Status HandleEncode(Encode* encode) override {
+  absl::Status HandleEncode(Encode* encode) final {
     return SetValue(
         encode, LeafTypeTree<PartialInformation>::CreateSingleElementTree(
                     encode->GetType(),
                     partial_ops::Encode(GetValue(encode->operand(0)).Get({}))));
   }
-  absl::Status HandleEq(CompareOp* eq) override {
+  absl::Status HandleEq(CompareOp* eq) final {
     Node* lhs = eq->operand(0);
     Node* rhs = eq->operand(1);
 
@@ -166,7 +166,7 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
                     LeafTypeTree<PartialInformation>::CreateSingleElementTree(
                         eq->GetType(), result));
   }
-  absl::Status HandleGate(Gate* gate) override {
+  absl::Status HandleGate(Gate* gate) final {
     const PartialInformation& control = GetValue(gate->operand(0)).Get({});
     LeafTypeTreeView<PartialInformation> input =
         GetValue(gate->operand(1)).AsView();
@@ -178,7 +178,7 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
               return partial_ops::Gate(control, input_leaf);
             }));
   }
-  absl::Status HandleLiteral(Literal* literal) override {
+  absl::Status HandleLiteral(Literal* literal) final {
     XLS_ASSIGN_OR_RETURN(
         LeafTypeTree<Value> value_tree,
         ValueToLeafTypeTree(literal->value(), literal->GetType()));
@@ -193,7 +193,7 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
               return PartialInformation::Precise(value.bits());
             }));
   }
-  absl::Status HandleNaryAnd(NaryOp* and_op) override {
+  absl::Status HandleNaryAnd(NaryOp* and_op) final {
     PartialInformation result = PartialInformation::Precise(
         Bits::AllOnes(and_op->GetType()->GetFlatBitCount()));
     for (Node* operand : and_op->operands()) {
@@ -203,7 +203,7 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
                     LeafTypeTree<PartialInformation>::CreateSingleElementTree(
                         and_op->GetType(), result));
   }
-  absl::Status HandleNaryNand(NaryOp* nand_op) override {
+  absl::Status HandleNaryNand(NaryOp* nand_op) final {
     PartialInformation result = PartialInformation::Precise(
         Bits::AllOnes(nand_op->GetType()->GetFlatBitCount()));
     for (Node* operand : nand_op->operands()) {
@@ -213,7 +213,7 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
                     LeafTypeTree<PartialInformation>::CreateSingleElementTree(
                         nand_op->GetType(), result.Not()));
   }
-  absl::Status HandleNaryNor(NaryOp* nor_op) override {
+  absl::Status HandleNaryNor(NaryOp* nor_op) final {
     PartialInformation result =
         PartialInformation::Precise(Bits(nor_op->GetType()->GetFlatBitCount()));
     for (Node* operand : nor_op->operands()) {
@@ -223,7 +223,7 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
                     LeafTypeTree<PartialInformation>::CreateSingleElementTree(
                         nor_op->GetType(), result.Not()));
   }
-  absl::Status HandleNaryOr(NaryOp* or_op) override {
+  absl::Status HandleNaryOr(NaryOp* or_op) final {
     PartialInformation result =
         PartialInformation::Precise(Bits(or_op->GetType()->GetFlatBitCount()));
     for (Node* operand : or_op->operands()) {
@@ -233,7 +233,7 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
                     LeafTypeTree<PartialInformation>::CreateSingleElementTree(
                         or_op->GetType(), result));
   }
-  absl::Status HandleNaryXor(NaryOp* xor_op) override {
+  absl::Status HandleNaryXor(NaryOp* xor_op) final {
     PartialInformation result =
         PartialInformation::Precise(Bits(xor_op->GetType()->GetFlatBitCount()));
     for (Node* operand : xor_op->operands()) {
@@ -243,7 +243,7 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
                     LeafTypeTree<PartialInformation>::CreateSingleElementTree(
                         xor_op->GetType(), result));
   }
-  absl::Status HandleNe(CompareOp* ne) override {
+  absl::Status HandleNe(CompareOp* ne) final {
     Node* lhs = ne->operand(0);
     Node* rhs = ne->operand(1);
 
@@ -261,19 +261,19 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
                     LeafTypeTree<PartialInformation>::CreateSingleElementTree(
                         ne->GetType(), result));
   }
-  absl::Status HandleNeg(UnOp* neg) override {
+  absl::Status HandleNeg(UnOp* neg) final {
     return SetValue(neg,
                     LeafTypeTree<PartialInformation>::CreateSingleElementTree(
                         neg->GetType(),
                         partial_ops::Neg(GetValue(neg->operand(0)).Get({}))));
   }
-  absl::Status HandleNot(UnOp* not_op) override {
+  absl::Status HandleNot(UnOp* not_op) final {
     return SetValue(
         not_op, LeafTypeTree<PartialInformation>::CreateSingleElementTree(
                     not_op->GetType(),
                     partial_ops::Not(GetValue(not_op->operand(0)).Get({}))));
   }
-  absl::Status HandleOneHot(OneHot* one_hot) override {
+  absl::Status HandleOneHot(OneHot* one_hot) final {
     const PartialInformation& input = GetValue(one_hot->operand(0)).Get({});
     TernaryVector result;
     return SetValue(
@@ -283,7 +283,7 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
                                     ? partial_ops::OneHotLsbToMsb(input)
                                     : partial_ops::OneHotMsbToLsb(input)));
   }
-  absl::Status HandleOneHotSel(OneHotSelect* ohs) override {
+  absl::Status HandleOneHotSel(OneHotSelect* ohs) final {
     const PartialInformation& selector = GetValue(ohs->selector()).Get({});
     const bool selector_can_be_zero =
         !query_engine_.AtLeastOneBitTrue(ohs->selector());
@@ -312,21 +312,21 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
             })));
     return SetValue(ohs, std::move(result));
   }
-  absl::Status HandleOrReduce(BitwiseReductionOp* or_reduce) override {
+  absl::Status HandleOrReduce(BitwiseReductionOp* or_reduce) final {
     Node* input = or_reduce->operand(0);
     return SetValue(or_reduce,
                     LeafTypeTree<PartialInformation>::CreateSingleElementTree(
                         or_reduce->GetType(),
                         partial_ops::OrReduce(GetValue(input).Get({}))));
   }
-  absl::Status HandleReverse(UnOp* reverse) override {
+  absl::Status HandleReverse(UnOp* reverse) final {
     PartialInformation result = GetValue(reverse->operand(0)).Get({});
     result.Reverse();
     return SetValue(reverse,
                     LeafTypeTree<PartialInformation>::CreateSingleElementTree(
                         reverse->GetType(), result));
   }
-  absl::Status HandleSDiv(BinOp* div) override {
+  absl::Status HandleSDiv(BinOp* div) final {
     Node* lhs = div->operand(0);
     Node* rhs = div->operand(1);
     return SetValue(
@@ -334,7 +334,7 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
                  div->GetType(), partial_ops::SDiv(GetValue(lhs).Get({}),
                                                    GetValue(rhs).Get({}))));
   }
-  absl::Status HandleSGe(CompareOp* ge) override {
+  absl::Status HandleSGe(CompareOp* ge) final {
     Node* lhs = ge->operand(0);
     Node* rhs = ge->operand(1);
     return SetValue(
@@ -342,7 +342,7 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
                 ge->GetType(), partial_ops::SGe(GetValue(lhs).Get({}),
                                                 GetValue(rhs).Get({}))));
   }
-  absl::Status HandleSGt(CompareOp* gt) override {
+  absl::Status HandleSGt(CompareOp* gt) final {
     Node* lhs = gt->operand(0);
     Node* rhs = gt->operand(1);
     return SetValue(
@@ -350,7 +350,7 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
                 gt->GetType(), partial_ops::SGt(GetValue(lhs).Get({}),
                                                 GetValue(rhs).Get({}))));
   }
-  absl::Status HandleSLe(CompareOp* le) override {
+  absl::Status HandleSLe(CompareOp* le) final {
     Node* lhs = le->operand(0);
     Node* rhs = le->operand(1);
     return SetValue(
@@ -358,7 +358,7 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
                 le->GetType(), partial_ops::SLe(GetValue(lhs).Get({}),
                                                 GetValue(rhs).Get({}))));
   }
-  absl::Status HandleSLt(CompareOp* lt) override {
+  absl::Status HandleSLt(CompareOp* lt) final {
     Node* lhs = lt->operand(0);
     Node* rhs = lt->operand(1);
     return SetValue(
@@ -366,7 +366,7 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
                 lt->GetType(), partial_ops::SLt(GetValue(lhs).Get({}),
                                                 GetValue(rhs).Get({}))));
   }
-  absl::Status HandleSMod(BinOp* mod) override {
+  absl::Status HandleSMod(BinOp* mod) final {
     Node* lhs = mod->operand(0);
     Node* rhs = mod->operand(1);
     return SetValue(
@@ -374,7 +374,7 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
                  mod->GetType(), partial_ops::SMod(GetValue(lhs).Get({}),
                                                    GetValue(rhs).Get({}))));
   }
-  absl::Status HandleSMul(ArithOp* mul) override {
+  absl::Status HandleSMul(ArithOp* mul) final {
     Node* lhs = mul->operand(0);
     Node* rhs = mul->operand(1);
     return SetValue(
@@ -383,7 +383,7 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
                  partial_ops::SMul(GetValue(lhs).Get({}), GetValue(rhs).Get({}),
                                    mul->BitCountOrDie())));
   }
-  absl::Status HandleShll(BinOp* shll) override {
+  absl::Status HandleShll(BinOp* shll) final {
     Node* input = shll->operand(0);
     Node* amount = shll->operand(1);
     return SetValue(
@@ -392,7 +392,7 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
             shll->GetType(), partial_ops::Shll(GetValue(input).Get({}),
                                                GetValue(amount).Get({}))));
   }
-  absl::Status HandleShra(BinOp* shra) override {
+  absl::Status HandleShra(BinOp* shra) final {
     Node* input = shra->operand(0);
     Node* amount = shra->operand(1);
     return SetValue(
@@ -401,7 +401,7 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
             shra->GetType(), partial_ops::Shra(GetValue(input).Get({}),
                                                GetValue(amount).Get({}))));
   }
-  absl::Status HandleShrl(BinOp* shrl) override {
+  absl::Status HandleShrl(BinOp* shrl) final {
     Node* input = shrl->operand(0);
     Node* amount = shrl->operand(1);
     return SetValue(
@@ -410,7 +410,7 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
             shrl->GetType(), partial_ops::Shrl(GetValue(input).Get({}),
                                                GetValue(amount).Get({}))));
   }
-  absl::Status HandleSignExtend(ExtendOp* sign_ext) override {
+  absl::Status HandleSignExtend(ExtendOp* sign_ext) final {
     return SetValue(
         sign_ext,
         LeafTypeTree<PartialInformation>::CreateSingleElementTree(
@@ -418,7 +418,7 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
             partial_ops::SignExtend(GetValue(sign_ext->operand(0)).Get({}),
                                     sign_ext->new_bit_count())));
   }
-  absl::Status HandleSub(BinOp* sub) override {
+  absl::Status HandleSub(BinOp* sub) final {
     Node* lhs = sub->operand(0);
     Node* rhs = sub->operand(1);
     return SetValue(
@@ -426,7 +426,7 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
                  sub->GetType(), partial_ops::Sub(GetValue(lhs).Get({}),
                                                   GetValue(rhs).Get({}))));
   }
-  absl::Status HandleUDiv(BinOp* div) override {
+  absl::Status HandleUDiv(BinOp* div) final {
     Node* lhs = div->operand(0);
     Node* rhs = div->operand(1);
     return SetValue(
@@ -434,7 +434,7 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
                  div->GetType(), partial_ops::UDiv(GetValue(lhs).Get({}),
                                                    GetValue(rhs).Get({}))));
   }
-  absl::Status HandleUGe(CompareOp* ge) override {
+  absl::Status HandleUGe(CompareOp* ge) final {
     Node* lhs = ge->operand(0);
     Node* rhs = ge->operand(1);
     return SetValue(
@@ -442,7 +442,7 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
                 ge->GetType(), partial_ops::UGe(GetValue(lhs).Get({}),
                                                 GetValue(rhs).Get({}))));
   }
-  absl::Status HandleUGt(CompareOp* gt) override {
+  absl::Status HandleUGt(CompareOp* gt) final {
     Node* lhs = gt->operand(0);
     Node* rhs = gt->operand(1);
     return SetValue(
@@ -450,7 +450,7 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
                 gt->GetType(), partial_ops::UGt(GetValue(lhs).Get({}),
                                                 GetValue(rhs).Get({}))));
   }
-  absl::Status HandleULe(CompareOp* le) override {
+  absl::Status HandleULe(CompareOp* le) final {
     Node* lhs = le->operand(0);
     Node* rhs = le->operand(1);
     return SetValue(
@@ -458,7 +458,7 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
                 le->GetType(), partial_ops::ULe(GetValue(lhs).Get({}),
                                                 GetValue(rhs).Get({}))));
   }
-  absl::Status HandleULt(CompareOp* lt) override {
+  absl::Status HandleULt(CompareOp* lt) final {
     Node* lhs = lt->operand(0);
     Node* rhs = lt->operand(1);
     return SetValue(
@@ -466,7 +466,7 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
                 lt->GetType(), partial_ops::ULt(GetValue(lhs).Get({}),
                                                 GetValue(rhs).Get({}))));
   }
-  absl::Status HandleUMod(BinOp* mod) override {
+  absl::Status HandleUMod(BinOp* mod) final {
     Node* lhs = mod->operand(0);
     Node* rhs = mod->operand(1);
     return SetValue(
@@ -474,7 +474,7 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
                  mod->GetType(), partial_ops::UMod(GetValue(lhs).Get({}),
                                                    GetValue(rhs).Get({}))));
   }
-  absl::Status HandleUMul(ArithOp* mul) override {
+  absl::Status HandleUMul(ArithOp* mul) final {
     Node* lhs = mul->operand(0);
     Node* rhs = mul->operand(1);
     return SetValue(
@@ -483,14 +483,14 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
                  partial_ops::UMul(GetValue(lhs).Get({}), GetValue(rhs).Get({}),
                                    mul->BitCountOrDie())));
   }
-  absl::Status HandleXorReduce(BitwiseReductionOp* xor_reduce) override {
+  absl::Status HandleXorReduce(BitwiseReductionOp* xor_reduce) final {
     Node* input = xor_reduce->operand(0);
     return SetValue(xor_reduce,
                     LeafTypeTree<PartialInformation>::CreateSingleElementTree(
                         xor_reduce->GetType(),
                         partial_ops::XorReduce(GetValue(input).Get({}))));
   }
-  absl::Status HandleZeroExtend(ExtendOp* zero_ext) override {
+  absl::Status HandleZeroExtend(ExtendOp* zero_ext) final {
     return SetValue(
         zero_ext,
         LeafTypeTree<PartialInformation>::CreateSingleElementTree(
@@ -590,7 +590,7 @@ class PartialInfoVisitor : public DataflowVisitor<PartialInformation> {
       Type* element_type,
       absl::Span<const PartialInformation* const> data_sources,
       absl::Span<const LeafTypeTreeView<PartialInformation>> control_sources,
-      Node* node, absl::Span<const int64_t> index) override {
+      Node* node, absl::Span<const int64_t> index) final {
     if (node->Is<Select>()) {
       CHECK_EQ(control_sources.size(), 1);
       return SelectElements(/*selector=*/control_sources.front().Get({}),

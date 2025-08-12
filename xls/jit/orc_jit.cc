@@ -83,27 +83,27 @@ class UnsupportedExecutorProcessControl
   }
 
   llvm::Expected<int32_t> runAsMain(llvm::orc::ExecutorAddr MainFnAddr,
-                                    llvm::ArrayRef<std::string> Args) override {
+                                    llvm::ArrayRef<std::string> Args) final {
     llvm_unreachable("Unsupported");
   }
 
   llvm::Expected<int32_t> runAsVoidFunction(
-      llvm::orc::ExecutorAddr VoidFnAddr) override {
+      llvm::orc::ExecutorAddr VoidFnAddr) final {
     llvm_unreachable("Unsupported");
   }
 
   llvm::Expected<int32_t> runAsIntFunction(llvm::orc::ExecutorAddr IntFnAddr,
-                                           int Arg) override {
+                                           int Arg) final {
     llvm_unreachable("Unsupported");
   }
 
   void callWrapperAsync(llvm::orc::ExecutorAddr WrapperFnAddr,
                         IncomingWFRHandler OnComplete,
-                        llvm::ArrayRef<char> ArgBuffer) override {
+                        llvm::ArrayRef<char> ArgBuffer) final {
     llvm_unreachable("Unsupported");
   }
 
-  llvm::Error disconnect() override { return llvm::Error::success(); }
+  llvm::Error disconnect() final { return llvm::Error::success(); }
 };
 }  // namespace
 

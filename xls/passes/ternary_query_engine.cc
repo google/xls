@@ -168,12 +168,12 @@ class TernaryNodeEvaluator : public AbstractNodeEvaluator<TernaryEvaluator> {
   }
 
   // By default everything is considered fully unconstrained.
-  absl::Status DefaultHandler(Node* n) override {
+  absl::Status DefaultHandler(Node* n) final {
     XLS_ASSIGN_OR_RETURN(auto unconstrained, UnconstrainedOf(n->GetType()));
     return SetValue(n, std::move(unconstrained));
   }
 
-  absl::Status HandleArrayIndex(ArrayIndex* index) override {
+  absl::Status HandleArrayIndex(ArrayIndex* index) final {
     XLS_ASSIGN_OR_RETURN(auto indices, GetValueList(index->indices()));
     XLS_ASSIGN_OR_RETURN(auto array, GetCompoundValue(index->array()));
     if (indices.empty()) {
@@ -199,7 +199,7 @@ class TernaryNodeEvaluator : public AbstractNodeEvaluator<TernaryEvaluator> {
     return SetValue(index, std::move(result));
   }
 
-  absl::Status HandleArraySlice(ArraySlice* slice) override {
+  absl::Status HandleArraySlice(ArraySlice* slice) final {
     XLS_ASSIGN_OR_RETURN(auto start, GetValue(slice->start()));
     XLS_ASSIGN_OR_RETURN(CompoundValueView array,
                          GetCompoundValue(slice->array()));
@@ -220,7 +220,7 @@ class TernaryNodeEvaluator : public AbstractNodeEvaluator<TernaryEvaluator> {
     return SetValue(slice, std::move(result));
   }
 
-  absl::Status HandleArrayUpdate(ArrayUpdate* update) override {
+  absl::Status HandleArrayUpdate(ArrayUpdate* update) final {
     XLS_ASSIGN_OR_RETURN(auto indices, GetValueList(update->indices()));
     XLS_ASSIGN_OR_RETURN(auto array,
                          GetCompoundValue(update->array_to_update()));

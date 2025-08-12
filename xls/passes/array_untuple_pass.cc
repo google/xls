@@ -223,17 +223,17 @@ absl::StatusOr<Value> GetElementArray(const Value& base, int64_t idx) {
   return Value::Array(vals);
 }
 
-class UntupleVisitor : public DfsVisitorWithDefault {
+class UntupleVisitor final : public DfsVisitorWithDefault {
  public:
   explicit UntupleVisitor(UnionFind<Node*>& groups,
                           const absl::flat_hash_set<Node*>& excluded_groups)
       : groups_(groups), excluded_groups_(excluded_groups) {}
-  ~UntupleVisitor() override = default;
+  ~UntupleVisitor() final = default;
 
   bool changed() const { return changed_; }
-  absl::Status DefaultHandler(Node* n) override { return absl::OkStatus(); }
+  absl::Status DefaultHandler(Node* n) final { return absl::OkStatus(); }
 
-  absl::Status HandleEq(CompareOp* eq) override {
+  absl::Status HandleEq(CompareOp* eq) final {
     if (!CanUntuple(eq->operand(0))) {
       // NB we force the two sides of this to be in the same equiv class so we
       // only need to check one.
@@ -245,7 +245,7 @@ class UntupleVisitor : public DfsVisitorWithDefault {
         eq->ReplaceUsesWithNew<NaryOp>(comps, Op::kAnd).status());
     return absl::OkStatus();
   }
-  absl::Status HandleNe(CompareOp* ne) override {
+  absl::Status HandleNe(CompareOp* ne) final {
     if (!CanUntuple(ne->operand(0))) {
       // NB we force the two sides of this to be in the same equiv class so we
       // only need to check one.
@@ -257,7 +257,7 @@ class UntupleVisitor : public DfsVisitorWithDefault {
         ne->ReplaceUsesWithNew<NaryOp>(comps, Op::kOr).status());
     return absl::OkStatus();
   }
-  absl::Status HandleLiteral(Literal* lit) override {
+  absl::Status HandleLiteral(Literal* lit) final {
     if (!CanUntuple(lit)) {
       return DefaultHandler(lit);
     }
@@ -275,7 +275,7 @@ class UntupleVisitor : public DfsVisitorWithDefault {
     return RecordUntuple(lit, std::move(elements));
   }
 
-  absl::Status HandleParam(Param* param) override {
+  absl::Status HandleParam(Param* param) final {
     if (!CanUntuple(param)) {
       return DefaultHandler(param);
     }
@@ -283,7 +283,7 @@ class UntupleVisitor : public DfsVisitorWithDefault {
         "Attempting to untuple argument of function: ", param->ToString()));
   }
 
-  absl::Status HandleStateRead(StateRead* state_read) override {
+  absl::Status HandleStateRead(StateRead* state_read) final {
     if (!CanUntuple(state_read)) {
       return DefaultHandler(state_read);
     }
@@ -307,7 +307,7 @@ class UntupleVisitor : public DfsVisitorWithDefault {
     return RecordUntuple(state_read, std::move(res));
   }
 
-  absl::Status HandleNext(Next* n) override {
+  absl::Status HandleNext(Next* n) final {
     if (!CanUntuple(n->state_read())) {
       return DefaultHandler(n);
     }
@@ -338,7 +338,7 @@ class UntupleVisitor : public DfsVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleArrayIndex(ArrayIndex* array_index) override {
+  absl::Status HandleArrayIndex(ArrayIndex* array_index) final {
     if (!CanUntuple(array_index->array())) {
       return DefaultHandler(array_index);
     }
@@ -362,7 +362,7 @@ class UntupleVisitor : public DfsVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleArray(Array* arr) override {
+  absl::Status HandleArray(Array* arr) final {
     if (!CanUntuple(arr)) {
       return DefaultHandler(arr);
     }
@@ -391,7 +391,7 @@ class UntupleVisitor : public DfsVisitorWithDefault {
     return RecordUntuple(arr, std::move(elements));
   }
 
-  absl::Status HandleArrayUpdate(ArrayUpdate* update) override {
+  absl::Status HandleArrayUpdate(ArrayUpdate* update) final {
     if (!CanUntuple(update)) {
       return DefaultHandler(update);
     }
@@ -415,7 +415,7 @@ class UntupleVisitor : public DfsVisitorWithDefault {
     return RecordUntuple(update, std::move(results));
   }
 
-  absl::Status HandleArraySlice(ArraySlice* slice) override {
+  absl::Status HandleArraySlice(ArraySlice* slice) final {
     if (!CanUntuple(slice)) {
       return DefaultHandler(slice);
     }
@@ -433,7 +433,7 @@ class UntupleVisitor : public DfsVisitorWithDefault {
     return RecordUntuple(slice, std::move(res));
   }
 
-  absl::Status HandleArrayConcat(ArrayConcat* concat) override {
+  absl::Status HandleArrayConcat(ArrayConcat* concat) final {
     if (!CanUntuple(concat)) {
       return DefaultHandler(concat);
     }
@@ -461,7 +461,7 @@ class UntupleVisitor : public DfsVisitorWithDefault {
     return RecordUntuple(concat, std::move(res));
   }
 
-  absl::Status HandleGate(Gate* gate) override {
+  absl::Status HandleGate(Gate* gate) final {
     if (!CanUntuple(gate)) {
       return DefaultHandler(gate);
     }
@@ -478,7 +478,7 @@ class UntupleVisitor : public DfsVisitorWithDefault {
     return RecordUntuple(gate, std::move(res));
   }
 
-  absl::Status HandleSel(Select* sel) override {
+  absl::Status HandleSel(Select* sel) final {
     if (!CanUntuple(sel)) {
       return DefaultHandler(sel);
     }
@@ -491,7 +491,7 @@ class UntupleVisitor : public DfsVisitorWithDefault {
               loc, selector, cases, def, name);
         });
   }
-  absl::Status HandlePrioritySel(PrioritySelect* sel) override {
+  absl::Status HandlePrioritySel(PrioritySelect* sel) final {
     if (!CanUntuple(sel)) {
       return DefaultHandler(sel);
     }
@@ -505,7 +505,7 @@ class UntupleVisitor : public DfsVisitorWithDefault {
               loc, selector, cases, *def, name);
         });
   }
-  absl::Status HandleOneHotSel(OneHotSelect* sel) override {
+  absl::Status HandleOneHotSel(OneHotSelect* sel) final {
     if (!CanUntuple(sel)) {
       return DefaultHandler(sel);
     }

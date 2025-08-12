@@ -161,7 +161,7 @@ TEST(SymbolNames, AreAsExpected) {
 }
 
 class ProcJitAotPscTest : public testing::Test {
-  void SetUp() override {
+  void SetUp() final {
     if (!AreCapsSymbolsAsExpected() || !AreMultiSymbolsAsExpected()) {
       GTEST_SKIP() << "Linking probably failed. AOTEntrypoints lists "
                       "unexpected symbol names";

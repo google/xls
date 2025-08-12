@@ -824,7 +824,7 @@ class HlsNoTuplePragmaHandler : public HlsArgsPragmaHandler {
 
   void HandlePragma(clang::Preprocessor& PP, clang::PragmaIntroducer Introducer,
                     clang::Token& firstToken,
-                    const std::vector<clang::Token>& toks) override {
+                    const std::vector<clang::Token>& toks) final {
     const clang::PresumedLoc presumed_loc =
         PP.getSourceManager().getPresumedLoc(Introducer.Loc);
 
@@ -848,7 +848,7 @@ class HlsSyntheticIntPragmaHandler : public HlsArgsPragmaHandler {
 
   void HandlePragma(clang::Preprocessor& PP, clang::PragmaIntroducer Introducer,
                     clang::Token& firstToken,
-                    const std::vector<clang::Token>& toks) override {
+                    const std::vector<clang::Token>& toks) final {
     const clang::PresumedLoc presumed_loc =
         PP.getSourceManager().getPresumedLoc(Introducer.Loc);
 
@@ -873,7 +873,7 @@ class HlsTopPragmaHandler : public HlsArgsPragmaHandler {
 
   void HandlePragma(clang::Preprocessor& PP, clang::PragmaIntroducer Introducer,
                     clang::Token& firstToken,
-                    const std::vector<clang::Token>& toks) override {
+                    const std::vector<clang::Token>& toks) final {
     GenerateAnnotation(PP, clang::PragmaHandler::getName(), firstToken,
                        /*arguments=*/{});
   }
@@ -890,7 +890,7 @@ class HlsAllowDefaultPadPragmaHandler : public HlsArgsPragmaHandler {
 
   void HandlePragma(clang::Preprocessor& PP, clang::PragmaIntroducer Introducer,
                     clang::Token& firstToken,
-                    const std::vector<clang::Token>& toks) override {
+                    const std::vector<clang::Token>& toks) final {
     GenerateAnnotation(PP, "hls_array_allow_default_pad", firstToken,
                        /*arguments=*/{});
   }
@@ -909,7 +909,7 @@ class HlsDesignPragmaHandler : public HlsArgsPragmaHandler {
 
   void HandlePragma(clang::Preprocessor& PP, clang::PragmaIntroducer Introducer,
                     clang::Token& firstToken,
-                    const std::vector<clang::Token>& toks) override {
+                    const std::vector<clang::Token>& toks) final {
     const clang::Token& tok = toks.at(0);
 
     if (tok.is(clang::tok::identifier)) {
@@ -939,7 +939,7 @@ class HlsPipelineInitIntervalPragmaHandler : public clang::PragmaHandler {
       : clang::PragmaHandler("hls_pipeline_init_interval") {}
 
   void HandlePragma(clang::Preprocessor& PP, clang::PragmaIntroducer Introducer,
-                    clang::Token& firstToken) override {
+                    clang::Token& firstToken) final {
     std::vector<clang::Token> toks;
     PP.LexTokensUntilEOF(&toks);
     GenerateAnnotation(PP, "hls_pipeline_init_interval", firstToken, toks);
@@ -954,7 +954,7 @@ class HlsUnrollPragmaHandler : public clang::PragmaHandler {
  public:
   explicit HlsUnrollPragmaHandler() : clang::PragmaHandler("hls_unroll") {}
   void HandlePragma(clang::Preprocessor& PP, clang::PragmaIntroducer Introducer,
-                    clang::Token& firstToken) override {
+                    clang::Token& firstToken) final {
     std::vector<clang::Token> toks;
     PP.LexTokensUntilEOF(&toks);
     GenerateAnnotation(PP, "hls_unroll", firstToken, toks);
@@ -968,7 +968,7 @@ static clang::PragmaHandlerRegistry::Add<HlsUnrollPragmaHandler>
 class UnknownPragmaHandler : public clang::PragmaHandler {
  public:
   void HandlePragma(clang::Preprocessor& PP, clang::PragmaIntroducer Introducer,
-                    clang::Token& firstToken) override {
+                    clang::Token& firstToken) final {
     const std::string& name = firstToken.getIdentifierInfo()->getName().str();
     static const auto* non_hls_names = new absl::flat_hash_set<std::string>(
         {"top", "design", "pipeline_init_interval", "array_allow_default_pad",
@@ -995,7 +995,7 @@ class LibToolASTConsumer : public clang::ASTConsumer {
   explicit LibToolASTConsumer(clang::CompilerInstance& CI, CCParser& parser)
       : visitor_(new LibToolVisitor(CI, parser)) {}
 
-  void HandleTranslationUnit(clang::ASTContext& Context) override {
+  void HandleTranslationUnit(clang::ASTContext& Context) final {
     visitor_->TraverseDecl(Context.getTranslationUnitDecl());
   }
 
@@ -1005,14 +1005,14 @@ class LibToolASTConsumer : public clang::ASTConsumer {
 class LibToolFrontendAction : public clang::ASTFrontendAction {
  public:
   explicit LibToolFrontendAction(CCParser& parser) : parser_(parser) {}
-  void EndSourceFileAction() override;
+  void EndSourceFileAction() final;
   std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(
-      clang::CompilerInstance& CI, clang::StringRef /*file*/) override {
+      clang::CompilerInstance& CI, clang::StringRef /*file*/) final {
     compiler_instance_ = &CI;
     return std::unique_ptr<clang::ASTConsumer>(
         new LibToolASTConsumer(CI, parser_));
   }
-  void ExecuteAction() override { clang::ASTFrontendAction::ExecuteAction(); }
+  void ExecuteAction() final { clang::ASTFrontendAction::ExecuteAction(); }
 
  private:
   CCParser& parser_;
@@ -1026,7 +1026,7 @@ class DiagnosticInterceptor : public clang::TextDiagnosticPrinter {
       : clang::TextDiagnosticPrinter(os, *diags, OwnsOutputStream),
         parser_(translator) {}
   void HandleDiagnostic(clang::DiagnosticsEngine::Level level,
-                        const clang::Diagnostic& info) override {
+                        const clang::Diagnostic& info) final {
     // Print the message
     clang::TextDiagnosticPrinter::HandleDiagnostic(level, info);
 

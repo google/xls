@@ -107,7 +107,7 @@ TEST(SymbolNames, AreAsExpected) {
 
 class FunctionJitAotTest : public testing::Test {
  protected:
-  void SetUp() override {
+  void SetUp() final {
     if (!AreSymbolsAsExpected()) {
       GTEST_SKIP() << "Linking probably failed. AOTEntrypoints lists "
                       "unexpected symbol names";

@@ -78,15 +78,15 @@ class BasicIntegrationAlgorithm
   }
 
   // Initialize member fields.
-  absl::Status Initialize() override;
+  absl::Status Initialize() final;
 
   // Returns a function that integrates the functions in source_functions_.
   // Runs after Initialize.
-  absl::StatusOr<std::unique_ptr<IntegrationFunction>> Run() override;
+  absl::StatusOr<std::unique_ptr<IntegrationFunction>> Run() final;
 
   // Get the IntegrationOptions::Algorithm value corresponding to
   // this algoirthm.
-  IntegrationOptions::Algorithm get_corresponding_algorithm_option() override {
+  IntegrationOptions::Algorithm get_corresponding_algorithm_option() final {
     return IntegrationOptions::Algorithm::kBasicIntegrationAlgorithm;
   }
 

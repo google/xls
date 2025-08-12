@@ -80,7 +80,7 @@ class TestbenchThread
     };
   }
 
-  void Init() override { shard_data_ = create_shard_fn_(); }
+  void Init() final { shard_data_ = create_shard_fn_(); }
 
  private:
   std::unique_ptr<ShardDataT> shard_data_;

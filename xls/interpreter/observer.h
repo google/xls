@@ -39,7 +39,7 @@ class EvaluationObserver {
 // Test observer that just collects every node value.
 class CollectingEvaluationObserver : public EvaluationObserver {
  public:
-  void NodeEvaluated(Node* n, const Value& v) override {
+  void NodeEvaluated(Node* n, const Value& v) final {
     values_.try_emplace(n).first->second.push_back(v);
   }
 

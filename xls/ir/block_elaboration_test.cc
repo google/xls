@@ -287,7 +287,7 @@ TEST_F(ElaborationTest, ElaborateFifoInstantiation) {
 class RecordingVisitor : public ElaboratedBlockDfsVisitorWithDefault {
  public:
   absl::Status DefaultHandler(
-      const ElaboratedNode& node_and_instance) override {
+      const ElaboratedNode& node_and_instance) final {
     ordered_.push_back(node_and_instance);
     return absl::OkStatus();
   }

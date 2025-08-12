@@ -274,19 +274,19 @@ Node* GetZ(const Frontier& frontier) {
 // relatively cheap, this seems worthwhile.
 class BooleanFlowTracker : public DfsVisitorWithDefault {
  public:
-  absl::Status HandleNaryAnd(NaryOp* and_op) override {
+  absl::Status HandleNaryAnd(NaryOp* and_op) final {
     return HandleLogicOp(and_op);
   }
-  absl::Status HandleNaryNand(NaryOp* nand_op) override {
+  absl::Status HandleNaryNand(NaryOp* nand_op) final {
     return HandleLogicOp(nand_op);
   }
-  absl::Status HandleNaryNor(NaryOp* nor_op) override {
+  absl::Status HandleNaryNor(NaryOp* nor_op) final {
     return HandleLogicOp(nor_op);
   }
-  absl::Status HandleNot(UnOp* not_op) override {
+  absl::Status HandleNot(UnOp* not_op) final {
     return HandleLogicOp(not_op);
   }
-  absl::Status HandleNaryOr(NaryOp* or_op) override {
+  absl::Status HandleNaryOr(NaryOp* or_op) final {
     return HandleLogicOp(or_op);
   }
 
@@ -374,7 +374,7 @@ class BooleanFlowTracker : public DfsVisitorWithDefault {
     return table.CreateReplacement(original->loc(), operands, f);
   }
 
-  absl::Status DefaultHandler(Node* node) override { return absl::OkStatus(); }
+  absl::Status DefaultHandler(Node* node) final { return absl::OkStatus(); }
 
   absl::Span<const std::pair<Node*, Node*>> node_replacements() {
     return node_replacements_;

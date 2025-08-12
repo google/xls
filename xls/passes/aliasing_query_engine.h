@@ -80,7 +80,7 @@ class AliasingQueryEngine final : public QueryEngine {
   Node* UnaliasNode(Node* orig) const {
     return alias_map_->Contains(orig) ? alias_map_->Find(orig)->second : orig;
   }
-  absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override {
+  absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) final {
     return base_->Populate(f);
   }
   bool IsTracked(Node* node) const override {

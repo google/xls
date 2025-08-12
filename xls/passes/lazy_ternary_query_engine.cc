@@ -68,7 +68,7 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
     return SetValue(node, value->AsView());
   }
 
-  absl::Status DefaultHandler(Node* node) override {
+  absl::Status DefaultHandler(Node* node) final {
     XLS_ASSIGN_OR_RETURN(
         TernaryTree unknown,
         TernaryTree::CreateFromFunction(
@@ -80,7 +80,7 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
     return SetValue(node, std::move(unknown));
   }
 
-  absl::Status HandleAdd(BinOp* add) override {
+  absl::Status HandleAdd(BinOp* add) final {
     Node* lhs = add->operand(0);
     Node* rhs = add->operand(1);
     return SetValue(
@@ -88,7 +88,7 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
                  add->GetType(),
                  evaluator_.Add(GetValue(lhs).Get({}), GetValue(rhs).Get({}))));
   }
-  absl::Status HandleAndReduce(BitwiseReductionOp* and_reduce) override {
+  absl::Status HandleAndReduce(BitwiseReductionOp* and_reduce) final {
     Node* input = and_reduce->operand(0);
     return SetValue(and_reduce,
                     TernaryTree::CreateSingleElementTree(
@@ -96,7 +96,7 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
                         evaluator_.AndReduce(GetValue(input).Get({}))));
   }
 
-  absl::Status HandleBitSlice(BitSlice* bit_slice) override {
+  absl::Status HandleBitSlice(BitSlice* bit_slice) final {
     return SetValue(
         bit_slice,
         TernaryTree::CreateSingleElementTree(
@@ -104,7 +104,7 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
             evaluator_.BitSlice(GetValue(bit_slice->operand(0)).Get({}),
                                 bit_slice->start(), bit_slice->width())));
   }
-  absl::Status HandleBitSliceUpdate(BitSliceUpdate* update) override {
+  absl::Status HandleBitSliceUpdate(BitSliceUpdate* update) final {
     return SetValue(update, TernaryTree::CreateSingleElementTree(
                                 update->GetType(),
                                 evaluator_.BitSliceUpdate(
@@ -112,7 +112,7 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
                                     GetValue(update->start()).Get({}),
                                     GetValue(update->update_value()).Get({}))));
   }
-  absl::Status HandleConcat(Concat* concat) override {
+  absl::Status HandleConcat(Concat* concat) final {
     std::vector<TernarySpan> operands;
     for (Node* operand : concat->operands()) {
       operands.push_back(GetValue(operand).Get({}));
@@ -121,7 +121,7 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
                     TernaryTree::CreateSingleElementTree(
                         concat->GetType(), evaluator_.Concat(operands)));
   }
-  absl::Status HandleDecode(Decode* decode) override {
+  absl::Status HandleDecode(Decode* decode) final {
     return SetValue(decode,
                     TernaryTree::CreateSingleElementTree(
                         decode->GetType(),
@@ -129,7 +129,7 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
                                           decode->width())));
   }
   absl::Status HandleDynamicBitSlice(
-      DynamicBitSlice* dynamic_bit_slice) override {
+      DynamicBitSlice* dynamic_bit_slice) final {
     return SetValue(dynamic_bit_slice,
                     TernaryTree::CreateSingleElementTree(
                         dynamic_bit_slice->GetType(),
@@ -138,13 +138,13 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
                             GetValue(dynamic_bit_slice->start()).Get({}),
                             dynamic_bit_slice->width())));
   }
-  absl::Status HandleEncode(Encode* encode) override {
+  absl::Status HandleEncode(Encode* encode) final {
     return SetValue(
         encode, TernaryTree::CreateSingleElementTree(
                     encode->GetType(),
                     evaluator_.Encode(GetValue(encode->operand(0)).Get({}))));
   }
-  absl::Status HandleEq(CompareOp* eq) override {
+  absl::Status HandleEq(CompareOp* eq) final {
     Node* lhs = eq->operand(0);
     Node* rhs = eq->operand(1);
 
@@ -158,7 +158,7 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
                             eq->GetType(),
                             TernaryVector({evaluator_.AndReduce(leaves_eq)})));
   }
-  absl::Status HandleGate(Gate* gate) override {
+  absl::Status HandleGate(Gate* gate) final {
     TernaryValue control = GetValue(gate->operand(0)).Get({}).front();
     TernaryTreeView input = GetValue(gate->operand(1)).AsView();
     return SetValue(gate, leaf_type_tree::Map<TernaryVector, TernaryVector>(
@@ -166,7 +166,7 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
                                 return evaluator_.Gate(control, input_leaf);
                               }));
   }
-  absl::Status HandleLiteral(Literal* literal) override {
+  absl::Status HandleLiteral(Literal* literal) final {
     XLS_ASSIGN_OR_RETURN(
         LeafTypeTree<Value> value_tree,
         ValueToLeafTypeTree(literal->value(), literal->GetType()));
@@ -180,7 +180,7 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
                           return ternary_ops::BitsToTernary(value.bits());
                         }));
   }
-  absl::Status HandleNaryAnd(NaryOp* and_op) override {
+  absl::Status HandleNaryAnd(NaryOp* and_op) final {
     std::vector<TernarySpan> operands;
     operands.reserve(and_op->operand_count());
     for (Node* operand : and_op->operands()) {
@@ -190,7 +190,7 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
                     TernaryTree::CreateSingleElementTree(
                         and_op->GetType(), evaluator_.BitwiseAnd(operands)));
   }
-  absl::Status HandleNaryNand(NaryOp* nand_op) override {
+  absl::Status HandleNaryNand(NaryOp* nand_op) final {
     std::vector<TernarySpan> operands;
     operands.reserve(nand_op->operand_count());
     for (Node* operand : nand_op->operands()) {
@@ -201,7 +201,7 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
                      nand_op->GetType(),
                      evaluator_.BitwiseNot(evaluator_.BitwiseAnd(operands))));
   }
-  absl::Status HandleNaryNor(NaryOp* nor_op) override {
+  absl::Status HandleNaryNor(NaryOp* nor_op) final {
     std::vector<TernarySpan> operands;
     operands.reserve(nor_op->operand_count());
     for (Node* operand : nor_op->operands()) {
@@ -212,7 +212,7 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
                         nor_op->GetType(),
                         evaluator_.BitwiseNot(evaluator_.BitwiseOr(operands))));
   }
-  absl::Status HandleNaryOr(NaryOp* or_op) override {
+  absl::Status HandleNaryOr(NaryOp* or_op) final {
     std::vector<TernarySpan> operands;
     operands.reserve(or_op->operand_count());
     for (Node* operand : or_op->operands()) {
@@ -222,7 +222,7 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
                     TernaryTree::CreateSingleElementTree(
                         or_op->GetType(), evaluator_.BitwiseOr(operands)));
   }
-  absl::Status HandleNaryXor(NaryOp* xor_op) override {
+  absl::Status HandleNaryXor(NaryOp* xor_op) final {
     std::vector<TernarySpan> operands;
     operands.reserve(xor_op->operand_count());
     for (Node* operand : xor_op->operands()) {
@@ -232,7 +232,7 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
                     TernaryTree::CreateSingleElementTree(
                         xor_op->GetType(), evaluator_.BitwiseXor(operands)));
   }
-  absl::Status HandleNe(CompareOp* ne) override {
+  absl::Status HandleNe(CompareOp* ne) final {
     Node* lhs = ne->operand(0);
     Node* rhs = ne->operand(1);
 
@@ -247,20 +247,20 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
                             ne->GetType(),
                             TernaryVector({evaluator_.OrReduce(leaves_ne)})));
   }
-  absl::Status HandleNeg(UnOp* neg) override {
+  absl::Status HandleNeg(UnOp* neg) final {
     return SetValue(
         neg,
         TernaryTree::CreateSingleElementTree(
             neg->GetType(), evaluator_.Neg(GetValue(neg->operand(0)).Get({}))));
   }
-  absl::Status HandleNot(UnOp* not_op) override {
+  absl::Status HandleNot(UnOp* not_op) final {
     return SetValue(
         not_op,
         TernaryTree::CreateSingleElementTree(
             not_op->GetType(),
             evaluator_.BitwiseNot(GetValue(not_op->operand(0)).Get({}))));
   }
-  absl::Status HandleOneHot(OneHot* one_hot) override {
+  absl::Status HandleOneHot(OneHot* one_hot) final {
     TernarySpan input = GetValue(one_hot->operand(0)).Get({});
     TernaryVector result;
     return SetValue(one_hot, TernaryTree::CreateSingleElementTree(
@@ -269,7 +269,7 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
                                      ? evaluator_.OneHotLsbToMsb(input)
                                      : evaluator_.OneHotMsbToLsb(input)));
   }
-  absl::Status HandleOneHotSel(OneHotSelect* ohs) override {
+  absl::Status HandleOneHotSel(OneHotSelect* ohs) final {
     TernarySpan selector = GetValue(ohs->selector()).Get({});
     const bool selector_can_be_zero =
         !query_engine_.AtLeastOneBitTrue(ohs->selector());
@@ -296,20 +296,20 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
             })));
     return SetValue(ohs, std::move(result));
   }
-  absl::Status HandleOrReduce(BitwiseReductionOp* or_reduce) override {
+  absl::Status HandleOrReduce(BitwiseReductionOp* or_reduce) final {
     Node* input = or_reduce->operand(0);
     return SetValue(or_reduce,
                     TernaryTree::CreateSingleElementTree(
                         or_reduce->GetType(),
                         evaluator_.OrReduce(GetValue(input).Get({}))));
   }
-  absl::Status HandleReverse(UnOp* reverse) override {
+  absl::Status HandleReverse(UnOp* reverse) final {
     TernaryVector result = GetValue(reverse->operand(0)).Get({});
     absl::c_reverse(result);
     return SetValue(reverse, TernaryTree::CreateSingleElementTree(
                                  reverse->GetType(), result));
   }
-  absl::Status HandleSDiv(BinOp* div) override {
+  absl::Status HandleSDiv(BinOp* div) final {
     Node* lhs = div->operand(0);
     Node* rhs = div->operand(1);
     return SetValue(
@@ -317,7 +317,7 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
                  div->GetType(), evaluator_.SDiv(GetValue(lhs).Get({}),
                                                  GetValue(rhs).Get({}))));
   }
-  absl::Status HandleSGe(CompareOp* ge) override {
+  absl::Status HandleSGe(CompareOp* ge) final {
     Node* lhs = ge->operand(0);
     Node* rhs = ge->operand(1);
     return SetValue(ge,
@@ -326,7 +326,7 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
                         TernaryVector({evaluator_.Not(evaluator_.SLessThan(
                             GetValue(lhs).Get({}), GetValue(rhs).Get({})))})));
   }
-  absl::Status HandleSGt(CompareOp* gt) override {
+  absl::Status HandleSGt(CompareOp* gt) final {
     Node* lhs = gt->operand(0);
     Node* rhs = gt->operand(1);
     return SetValue(
@@ -335,7 +335,7 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
                 TernaryVector({evaluator_.SLessThan(GetValue(rhs).Get({}),
                                                     GetValue(lhs).Get({}))})));
   }
-  absl::Status HandleSLe(CompareOp* le) override {
+  absl::Status HandleSLe(CompareOp* le) final {
     Node* lhs = le->operand(0);
     Node* rhs = le->operand(1);
     return SetValue(le,
@@ -344,7 +344,7 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
                         TernaryVector({evaluator_.Not(evaluator_.SLessThan(
                             GetValue(rhs).Get({}), GetValue(lhs).Get({})))})));
   }
-  absl::Status HandleSLt(CompareOp* lt) override {
+  absl::Status HandleSLt(CompareOp* lt) final {
     Node* lhs = lt->operand(0);
     Node* rhs = lt->operand(1);
     return SetValue(
@@ -353,7 +353,7 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
                 TernaryVector({evaluator_.SLessThan(GetValue(lhs).Get({}),
                                                     GetValue(rhs).Get({}))})));
   }
-  absl::Status HandleSMod(BinOp* mod) override {
+  absl::Status HandleSMod(BinOp* mod) final {
     Node* lhs = mod->operand(0);
     Node* rhs = mod->operand(1);
     return SetValue(
@@ -361,7 +361,7 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
                  mod->GetType(), evaluator_.SMod(GetValue(lhs).Get({}),
                                                  GetValue(rhs).Get({}))));
   }
-  absl::Status HandleSMul(ArithOp* mul) override {
+  absl::Status HandleSMul(ArithOp* mul) final {
     TernaryVector result = evaluator_.SMul(GetValue(mul->operand(0)).Get({}),
                                            GetValue(mul->operand(1)).Get({}));
     int64_t expected_width = mul->BitCountOrDie();
@@ -373,7 +373,7 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
     return SetValue(
         mul, TernaryTree::CreateSingleElementTree(mul->GetType(), result));
   }
-  absl::Status HandleShll(BinOp* shll) override {
+  absl::Status HandleShll(BinOp* shll) final {
     Node* input = shll->operand(0);
     Node* amount = shll->operand(1);
     return SetValue(shll, TernaryTree::CreateSingleElementTree(
@@ -381,7 +381,7 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
                                                    GetValue(input).Get({}),
                                                    GetValue(amount).Get({}))));
   }
-  absl::Status HandleShra(BinOp* shra) override {
+  absl::Status HandleShra(BinOp* shra) final {
     Node* input = shra->operand(0);
     Node* amount = shra->operand(1);
     return SetValue(shra, TernaryTree::CreateSingleElementTree(
@@ -389,7 +389,7 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
                                                    GetValue(input).Get({}),
                                                    GetValue(amount).Get({}))));
   }
-  absl::Status HandleShrl(BinOp* shrl) override {
+  absl::Status HandleShrl(BinOp* shrl) final {
     Node* input = shrl->operand(0);
     Node* amount = shrl->operand(1);
     return SetValue(shrl, TernaryTree::CreateSingleElementTree(
@@ -397,14 +397,14 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
                                                    GetValue(input).Get({}),
                                                    GetValue(amount).Get({}))));
   }
-  absl::Status HandleSignExtend(ExtendOp* sign_ext) override {
+  absl::Status HandleSignExtend(ExtendOp* sign_ext) final {
     return SetValue(sign_ext, TernaryTree::CreateSingleElementTree(
                                   sign_ext->GetType(),
                                   evaluator_.SignExtend(
                                       GetValue(sign_ext->operand(0)).Get({}),
                                       sign_ext->new_bit_count())));
   }
-  absl::Status HandleSub(BinOp* sub) override {
+  absl::Status HandleSub(BinOp* sub) final {
     Node* lhs = sub->operand(0);
     Node* rhs = sub->operand(1);
     return SetValue(
@@ -412,7 +412,7 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
                  sub->GetType(),
                  evaluator_.Sub(GetValue(lhs).Get({}), GetValue(rhs).Get({}))));
   }
-  absl::Status HandleUDiv(BinOp* div) override {
+  absl::Status HandleUDiv(BinOp* div) final {
     Node* lhs = div->operand(0);
     Node* rhs = div->operand(1);
     return SetValue(
@@ -420,7 +420,7 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
                  div->GetType(), evaluator_.UDiv(GetValue(lhs).Get({}),
                                                  GetValue(rhs).Get({}))));
   }
-  absl::Status HandleUGe(CompareOp* ge) override {
+  absl::Status HandleUGe(CompareOp* ge) final {
     Node* lhs = ge->operand(0);
     Node* rhs = ge->operand(1);
     return SetValue(ge,
@@ -429,7 +429,7 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
                         TernaryVector({evaluator_.UGreaterThanOrEqual(
                             GetValue(lhs).Get({}), GetValue(rhs).Get({}))})));
   }
-  absl::Status HandleUGt(CompareOp* gt) override {
+  absl::Status HandleUGt(CompareOp* gt) final {
     Node* lhs = gt->operand(0);
     Node* rhs = gt->operand(1);
     return SetValue(gt,
@@ -438,7 +438,7 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
                         TernaryVector({evaluator_.UGreaterThan(
                             GetValue(lhs).Get({}), GetValue(rhs).Get({}))})));
   }
-  absl::Status HandleULe(CompareOp* le) override {
+  absl::Status HandleULe(CompareOp* le) final {
     Node* lhs = le->operand(0);
     Node* rhs = le->operand(1);
     return SetValue(le,
@@ -447,7 +447,7 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
                         TernaryVector({evaluator_.ULessThanOrEqual(
                             GetValue(lhs).Get({}), GetValue(rhs).Get({}))})));
   }
-  absl::Status HandleULt(CompareOp* lt) override {
+  absl::Status HandleULt(CompareOp* lt) final {
     Node* lhs = lt->operand(0);
     Node* rhs = lt->operand(1);
     return SetValue(
@@ -456,7 +456,7 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
                 TernaryVector({evaluator_.ULessThan(GetValue(lhs).Get({}),
                                                     GetValue(rhs).Get({}))})));
   }
-  absl::Status HandleUMod(BinOp* mod) override {
+  absl::Status HandleUMod(BinOp* mod) final {
     Node* lhs = mod->operand(0);
     Node* rhs = mod->operand(1);
     return SetValue(
@@ -464,7 +464,7 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
                  mod->GetType(), evaluator_.UMod(GetValue(lhs).Get({}),
                                                  GetValue(rhs).Get({}))));
   }
-  absl::Status HandleUMul(ArithOp* mul) override {
+  absl::Status HandleUMul(ArithOp* mul) final {
     TernaryVector result = evaluator_.UMul(GetValue(mul->operand(0)).Get({}),
                                            GetValue(mul->operand(1)).Get({}));
     int64_t expected_width = mul->BitCountOrDie();
@@ -476,14 +476,14 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
     return SetValue(
         mul, TernaryTree::CreateSingleElementTree(mul->GetType(), result));
   }
-  absl::Status HandleXorReduce(BitwiseReductionOp* xor_reduce) override {
+  absl::Status HandleXorReduce(BitwiseReductionOp* xor_reduce) final {
     Node* input = xor_reduce->operand(0);
     return SetValue(xor_reduce,
                     TernaryTree::CreateSingleElementTree(
                         xor_reduce->GetType(),
                         evaluator_.XorReduce(GetValue(input).Get({}))));
   }
-  absl::Status HandleZeroExtend(ExtendOp* zero_ext) override {
+  absl::Status HandleZeroExtend(ExtendOp* zero_ext) final {
     return SetValue(zero_ext, TernaryTree::CreateSingleElementTree(
                                   zero_ext->GetType(),
                                   evaluator_.ZeroExtend(
@@ -548,7 +548,7 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
   absl::StatusOr<TernaryVector> JoinElements(
       Type* element_type, absl::Span<const TernaryVector* const> data_sources,
       absl::Span<const LeafTypeTreeView<TernaryVector>> control_sources,
-      Node* node, absl::Span<const int64_t> index) override {
+      Node* node, absl::Span<const int64_t> index) final {
     if (node->Is<Select>()) {
       CHECK_EQ(control_sources.size(), 1);
       return SelectElements(/*selector=*/control_sources.front().Get({}),

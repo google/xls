@@ -136,7 +136,7 @@ class ElaboratedBlockJitContinuation : public BlockJitContinuation {
     return base;
   }
   absl::Status SetRegisters(
-      const absl::flat_hash_map<std::string, Value>& regs) override {
+      const absl::flat_hash_map<std::string, Value>& regs) final {
     absl::flat_hash_map<std::string, Value> translated_regs = regs;
     for (const auto& [orig, rename] : reg_rename_map_) {
       if (auto node = translated_regs.extract(orig)) {
@@ -171,7 +171,7 @@ class ElaboratedBlockJitContinuation : public BlockJitContinuation {
 class ElaboratedBlockJit : public BlockJit {
  public:
   std::unique_ptr<BlockJitContinuation> NewContinuation(
-      BlockEvaluator::OutputPortSampleTime sample_time) override {
+      BlockEvaluator::OutputPortSampleTime sample_time) final {
     return std::make_unique<ElaboratedBlockJitContinuation>(
         metadata_, this, function_, reg_rename_map_, materialized_impl_regs_,
         sample_time);
@@ -832,11 +832,11 @@ class BlockContinuationJitWrapper final : public BlockContinuation {
     return continuation_->SetRegisters(regs);
   }
 
-  void ClearObserver() override {
+  void ClearObserver() final {
     continuation_->ClearObserver();
     eval_observer_.reset();
   }
-  absl::Status SetObserver(EvaluationObserver* obs) override {
+  absl::Status SetObserver(EvaluationObserver* obs) final {
     ClearObserver();
     std::optional<RuntimeObserver*> run = obs->AsRawObserver();
     if (run) {

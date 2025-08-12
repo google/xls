@@ -1310,24 +1310,24 @@ static absl::Status Unify(NameDefTree* name_def_tree, const Type& other,
 
 static absl::Status ValidateMatchable(const Type& type, const Span& span,
                                       const FileTable& file_table) {
-  class MatchableTypeVisitor : public TypeVisitor {
+  class MatchableTypeVisitor final : public TypeVisitor {
    public:
     MatchableTypeVisitor(const Span& span, const FileTable& file_table)
         : span_(span), file_table_(file_table) {}
-    ~MatchableTypeVisitor() override = default;
-    absl::Status HandleBits(const BitsType& type) override {
+    ~MatchableTypeVisitor() final = default;
+    absl::Status HandleBits(const BitsType& type) final {
       return absl::OkStatus();
     }
-    absl::Status HandleEnum(const EnumType& type) override {
+    absl::Status HandleEnum(const EnumType& type) final {
       return absl::OkStatus();
     }
-    absl::Status HandleTuple(const TupleType& type) override {
+    absl::Status HandleTuple(const TupleType& type) final {
       for (const auto& member : type.members()) {
         XLS_RETURN_IF_ERROR(member->Accept(*this));
       }
       return absl::OkStatus();
     }
-    absl::Status HandleArray(const ArrayType& type) override {
+    absl::Status HandleArray(const ArrayType& type) final {
       std::optional<BitsLikeProperties> bits_like = GetBitsLike(type);
       if (bits_like.has_value()) {
         return absl::OkStatus();
@@ -1337,29 +1337,29 @@ static absl::Status ValidateMatchable(const Type& type, const Span& span,
     // Note: this should not be directly observable outside of the array type
     // element.
     absl::Status HandleBitsConstructor(
-        const BitsConstructorType& type) override {
+        const BitsConstructorType& type) final {
       return Error(type);
     }
     // -- these types are not matchable
-    absl::Status HandleMeta(const MetaType& type) override {
+    absl::Status HandleMeta(const MetaType& type) final {
       return Error(type);
     }
-    absl::Status HandleFunction(const FunctionType& type) override {
+    absl::Status HandleFunction(const FunctionType& type) final {
       return Error(type);
     }
-    absl::Status HandleChannel(const ChannelType& type) override {
+    absl::Status HandleChannel(const ChannelType& type) final {
       return Error(type);
     }
-    absl::Status HandleToken(const TokenType& type) override {
+    absl::Status HandleToken(const TokenType& type) final {
       return Error(type);
     }
-    absl::Status HandleStruct(const StructType& type) override {
+    absl::Status HandleStruct(const StructType& type) final {
       return Error(type);
     }
-    absl::Status HandleProc(const ProcType& type) override {
+    absl::Status HandleProc(const ProcType& type) final {
       return Error(type);
     }
-    absl::Status HandleModule(const ModuleType& type) override {
+    absl::Status HandleModule(const ModuleType& type) final {
       return Error(type);
     }
 
@@ -2040,7 +2040,7 @@ class DeduceVisitor : public AstNodeVisitor {
   explicit DeduceVisitor(DeduceCtx* ctx) : ctx_(ctx) {}
 
 #define DEDUCE_DISPATCH(__type, __rule)                   \
-  absl::Status Handle##__type(const __type* n) override { \
+  absl::Status Handle##__type(const __type* n) final { \
     result_ = __rule(n, ctx_);                            \
     return result_.status();                              \
   }
@@ -2096,80 +2096,80 @@ class DeduceVisitor : public AstNodeVisitor {
   // Unhandled nodes for deduction, either they are custom visited or not
   // visited "automatically" in the traversal process (e.g. top level module
   // members).
-  absl::Status HandleProc(const Proc* n) override { return Fatal(n); }
-  absl::Status HandleSlice(const Slice* n) override { return Fatal(n); }
-  absl::Status HandleImport(const Import* n) override { return Fatal(n); }
-  absl::Status HandleUse(const Use* n) override { return Fatal(n); }
-  absl::Status HandleFunction(const Function* n) override { return Fatal(n); }
-  absl::Status HandleQuickCheck(const QuickCheck* n) override {
+  absl::Status HandleProc(const Proc* n) final { return Fatal(n); }
+  absl::Status HandleSlice(const Slice* n) final { return Fatal(n); }
+  absl::Status HandleImport(const Import* n) final { return Fatal(n); }
+  absl::Status HandleUse(const Use* n) final { return Fatal(n); }
+  absl::Status HandleFunction(const Function* n) final { return Fatal(n); }
+  absl::Status HandleQuickCheck(const QuickCheck* n) final {
     return Fatal(n);
   }
-  absl::Status HandleTestFunction(const TestFunction* n) override {
+  absl::Status HandleTestFunction(const TestFunction* n) final {
     return Fatal(n);
   }
-  absl::Status HandleTestProc(const TestProc* n) override { return Fatal(n); }
-  absl::Status HandleModule(const Module* n) override { return Fatal(n); }
-  absl::Status HandleWidthSlice(const WidthSlice* n) override {
+  absl::Status HandleTestProc(const TestProc* n) final { return Fatal(n); }
+  absl::Status HandleModule(const Module* n) final { return Fatal(n); }
+  absl::Status HandleWidthSlice(const WidthSlice* n) final {
     return Fatal(n);
   }
-  absl::Status HandleNameDefTree(const NameDefTree* n) override {
+  absl::Status HandleNameDefTree(const NameDefTree* n) final {
     return Fatal(n);
   }
-  absl::Status HandleNameDef(const NameDef* n) override { return Fatal(n); }
-  absl::Status HandleStructMemberNode(const StructMemberNode* n) override {
+  absl::Status HandleNameDef(const NameDef* n) final { return Fatal(n); }
+  absl::Status HandleStructMemberNode(const StructMemberNode* n) final {
     return Fatal(n);
   }
-  absl::Status HandleBuiltinNameDef(const BuiltinNameDef* n) override {
+  absl::Status HandleBuiltinNameDef(const BuiltinNameDef* n) final {
     return Fatal(n);
   }
-  absl::Status HandleParametricBinding(const ParametricBinding* n) override {
+  absl::Status HandleParametricBinding(const ParametricBinding* n) final {
     return Fatal(n);
   }
-  absl::Status HandleWildcardPattern(const WildcardPattern* n) override {
+  absl::Status HandleWildcardPattern(const WildcardPattern* n) final {
     return Fatal(n);
   }
-  absl::Status HandleRestOfTuple(const RestOfTuple* n) override {
+  absl::Status HandleRestOfTuple(const RestOfTuple* n) final {
     return Fatal(n);
   }
-  absl::Status HandleVerbatimNode(const VerbatimNode* n) override {
+  absl::Status HandleVerbatimNode(const VerbatimNode* n) final {
     return Fatal(n);
   }
 
   // All of these annotation types are created by `type_system_v2`, so there
   // should be none of them when using `type_system` for inference.
   absl::Status HandleTypeVariableTypeAnnotation(
-      const TypeVariableTypeAnnotation* n) override {
+      const TypeVariableTypeAnnotation* n) final {
     return Fatal(n);
   }
   absl::Status HandleMemberTypeAnnotation(
-      const MemberTypeAnnotation* n) override {
+      const MemberTypeAnnotation* n) final {
     return Fatal(n);
   }
   absl::Status HandleElementTypeAnnotation(
-      const ElementTypeAnnotation* n) override {
+      const ElementTypeAnnotation* n) final {
     return Fatal(n);
   }
   absl::Status HandleSliceTypeAnnotation(
-      const SliceTypeAnnotation* n) override {
+      const SliceTypeAnnotation* n) final {
     return Fatal(n);
   }
   absl::Status HandleFunctionTypeAnnotation(
-      const FunctionTypeAnnotation* n) override {
+      const FunctionTypeAnnotation* n) final {
     return Fatal(n);
   }
   absl::Status HandleReturnTypeAnnotation(
-      const ReturnTypeAnnotation* n) override {
+      const ReturnTypeAnnotation* n) final {
     return Fatal(n);
   }
   absl::Status HandleParamTypeAnnotation(
-      const ParamTypeAnnotation* n) override {
+      const ParamTypeAnnotation* n) final {
     return Fatal(n);
   }
-  absl::Status HandleAnyTypeAnnotation(const AnyTypeAnnotation* n) override {
+  absl::Status HandleAnyTypeAnnotation(const AnyTypeAnnotation* n) final {
     return Fatal(n);
   }
 
-  absl::Status HandleFunctionRef(const FunctionRef* n) override {
+  absl::Status HandleFunctionRef(const FunctionRef* n) final {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> callee_type,
                          ctx_->Deduce(n->callee()));
     if (!callee_type->IsFunction()) {
@@ -2183,7 +2183,7 @@ class DeduceVisitor : public AstNodeVisitor {
   }
 
   absl::Status HandleGenericTypeAnnotation(
-      const GenericTypeAnnotation* n) override {
+      const GenericTypeAnnotation* n) final {
     return Fatal(n);
   }
 

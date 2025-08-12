@@ -289,7 +289,7 @@ class PredicateRewriter {
 class ScfToXlsConversionPass
     : public impl::ScfToXlsPassBase<ScfToXlsConversionPass> {
  public:
-  void runOnOperation() override {
+  void runOnOperation() final {
     getOperation()->walk([&](XlsRegionOpInterface interface) {
       if (interface.isSupportedRegion()) {
         runOnOperation(interface);

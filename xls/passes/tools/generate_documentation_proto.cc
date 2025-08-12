@@ -64,7 +64,7 @@ namespace m = clang::ast_matchers;
 // it's an ABC).
 class Callback : public m::MatchFinder::MatchCallback {
  public:
-  void run(const m::MatchFinder::MatchResult& result) override {
+  void run(const m::MatchFinder::MatchResult& result) final {
     bool updated_any = false;
     bool updated_exact = false;
     if (const clang::CXXRecordDecl* clz =

@@ -35,7 +35,7 @@ class DeadCodeEliminationPass : public OptimizationFunctionBasePass {
  public:
   DeadCodeEliminationPass()
       : OptimizationFunctionBasePass("dce", "Dead Code Elimination") {}
-  ~DeadCodeEliminationPass() override {}
+  ~DeadCodeEliminationPass() final {}
 
  protected:
   // Iterate all nodes, mark and eliminate the unvisited nodes.
@@ -214,7 +214,7 @@ transformation and accordingly the pass is derived from
 class CsePass : public OptimizationFunctionBasePass {
  public:
   CsePass() : OptimizationFunctionBasePass("cse", "Common subexpression elimination") {}
-  ~CsePass() override {}
+  ~CsePass() final {}
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

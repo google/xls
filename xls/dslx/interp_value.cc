@@ -345,26 +345,26 @@ absl::StatusOr<std::string> InterpValue::ToFormattedString(
           include_type_prefix_(include_type_prefix),
           indentation_(indentation) {}
 
-    absl::Status HandleStruct(const ValueFormatDescriptor& d) override {
+    absl::Status HandleStruct(const ValueFormatDescriptor& d) final {
       XLS_ASSIGN_OR_RETURN(
           result_, v_.ToStructString(d, include_type_prefix_, indentation_));
       return absl::OkStatus();
     }
-    absl::Status HandleArray(const ValueFormatDescriptor& d) override {
+    absl::Status HandleArray(const ValueFormatDescriptor& d) final {
       XLS_ASSIGN_OR_RETURN(
           result_, v_.ToArrayString(d, include_type_prefix_, indentation_));
       return absl::OkStatus();
     }
-    absl::Status HandleEnum(const ValueFormatDescriptor& d) override {
+    absl::Status HandleEnum(const ValueFormatDescriptor& d) final {
       XLS_ASSIGN_OR_RETURN(result_, v_.ToEnumString(d));
       return absl::OkStatus();
     }
-    absl::Status HandleTuple(const ValueFormatDescriptor& d) override {
+    absl::Status HandleTuple(const ValueFormatDescriptor& d) final {
       XLS_ASSIGN_OR_RETURN(
           result_, v_.ToTupleString(d, include_type_prefix_, indentation_));
       return absl::OkStatus();
     }
-    absl::Status HandleLeafValue(const ValueFormatDescriptor& d) override {
+    absl::Status HandleLeafValue(const ValueFormatDescriptor& d) final {
       result_ =
           v_.ToString(/*humanize=*/!include_type_prefix_, d.leaf_format());
       return absl::OkStatus();

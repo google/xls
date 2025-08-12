@@ -38,7 +38,7 @@ using NodeValues =
     absl::flat_hash_map<Node*, absl::flat_hash_map<std::vector<Value>, Value>>;
 absl::StatusOr<NodeValues> SampleValuesWith(
     Function* f, std::vector<std::vector<Value>> args);
-class ScopedCheckTestChange : public testing::EmptyTestEventListener {
+class ScopedCheckTestChange final : public testing::EmptyTestEventListener {
  public:
   ScopedCheckTestChange() : unit_(testing::UnitTest::GetInstance()) {
     if (!unit_) {
@@ -46,15 +46,15 @@ class ScopedCheckTestChange : public testing::EmptyTestEventListener {
     }
     unit_->listeners().Append(this);
   }
-  ~ScopedCheckTestChange() override {
+  ~ScopedCheckTestChange() final {
     if (!unit_) {
       return;
     }
     unit_->listeners().Release(this);
   }
   bool new_failed() const { return new_failed_; }
-  virtual void OnTestPartResult(
-      const testing::TestPartResult& result) override {
+  void OnTestPartResult(
+      const testing::TestPartResult& result) final {
     if (result.failed()) {
       new_failed_ = true;
     }
