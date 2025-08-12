@@ -473,10 +473,11 @@ absl::Status FunctionConverter::Visit(const AstNode* node) {
 /* static */ std::string FunctionConverter::IrValueToString(
     const IrValue& value) {
   return absl::visit(
-      Visitor{[](BValue b) { return absl::StrFormat("%p", b.node()); },
-              [](CValue c) { return absl::StrFormat("%p", c.value.node()); },
-              [](Channel* chan) { return absl::StrFormat("%p", chan); },
-              [](ChannelInterface* ci) { return absl::StrFormat("%p", ci); }},
+      Visitor{
+          [](BValue b) { return absl::StrFormat("%p", b.node()); },
+          [](CValue c) { return absl::StrFormat("%p", c.value.node()); },
+          [](Channel* chan) { return absl::StrFormat("%p", chan); },
+      },
       value);
 }
 
@@ -550,11 +551,12 @@ absl::Status FunctionConverter::DefAlias(const AstNode* from,
   node_to_ir_[to] = std::move(value);
   if (const auto* name_def = dynamic_cast<const NameDef*>(to)) {
     // Name the aliased node based on the identifier in the NameDef.
-    if (std::holds_alternative<BValue>(node_to_ir_.at(from))) {
-      BValue ir_node = std::get<BValue>(node_to_ir_.at(from));
+    IrValue from_ir_value = node_to_ir_.at(from);
+    if (std::holds_alternative<BValue>(from_ir_value)) {
+      BValue ir_node = std::get<BValue>(from_ir_value);
       ir_node.SetName(name_def->identifier());
-    } else if (std::holds_alternative<CValue>(node_to_ir_.at(from))) {
-      BValue ir_node = std::get<CValue>(node_to_ir_.at(from)).value;
+    } else if (std::holds_alternative<CValue>(from_ir_value)) {
+      BValue ir_node = std::get<CValue>(from_ir_value).value;
       ir_node.SetName(name_def->identifier());
     }
     // Do nothing for channels; they have no BValue-type representation (they
@@ -644,15 +646,15 @@ std::optional<FunctionConverter::IrValue> FunctionConverter::GetNodeToIr(
 absl::Status FunctionConverter::HandleUnop(const Unop* node) {
   XLS_ASSIGN_OR_RETURN(BValue operand, Use(node->operand()));
   switch (node->unop_kind()) {
-    case UnopKind::kNegate: {
-      Def(node, [&](const SourceInfo& loc) {
-        return function_builder_->AddUnOp(xls::Op::kNeg, operand, loc);
-      });
-      return absl::OkStatus();
-    }
     case UnopKind::kInvert: {
       Def(node, [&](const SourceInfo& loc) {
         return function_builder_->AddUnOp(xls::Op::kNot, operand, loc);
+      });
+      return absl::OkStatus();
+    }
+    case UnopKind::kNegate: {
+      Def(node, [&](const SourceInfo& loc) {
+        return function_builder_->AddUnOp(xls::Op::kNeg, operand, loc);
       });
       return absl::OkStatus();
     }
@@ -2415,14 +2417,6 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
   }
 
   // A few builtins are handled specially.
-
-  if (called_name == "fail!") {
-    XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_args());
-    XLS_RET_CHECK_EQ(args.size(), 2)
-        << called_name << " builtin requires two arguments";
-    return HandleFailBuiltin(node, /*label_expr=*/node->args()[0],
-                             /*arg=*/args[1]);
-  }
   if (called_name == "assert!") {
     XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_args());
     XLS_RET_CHECK_EQ(args.size(), 2)
@@ -2430,23 +2424,57 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
     return HandleAssertBuiltin(node, /*predicate=*/args[0],
                                /*label_expr=*/node->args()[1]);
   }
-  if (called_name == "assert_lt") {
-    XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_args());
-    XLS_RET_CHECK_EQ(args.size(), 2)
-        << called_name << " builtin requires two arguments";
-    return HandleAssertLtBuiltin(node, /*lhs=*/args[0], /*rhs=*/args[1]);
-  }
   if (called_name == "assert_eq") {
     XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_args());
     XLS_RET_CHECK_EQ(args.size(), 2)
         << called_name << " builtin requires two arguments";
     return HandleAssertEqBuiltin(node, /*lhs=*/args[0], /*rhs=*/args[1]);
   }
+  if (called_name == "assert_lt") {
+    XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_args());
+    XLS_RET_CHECK_EQ(args.size(), 2)
+        << called_name << " builtin requires two arguments";
+    return HandleAssertLtBuiltin(node, /*lhs=*/args[0], /*rhs=*/args[1]);
+  }
   if (called_name == "cover!") {
     XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_args());
     XLS_RET_CHECK_EQ(args.size(), 2)
         << called_name << " builtin requires two arguments";
     return HandleCoverBuiltin(node, args[1]);
+  }
+  if (called_name == "fail!") {
+    XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_args());
+    XLS_RET_CHECK_EQ(args.size(), 2)
+        << called_name << " builtin requires two arguments";
+    return HandleFailBuiltin(node, /*label_expr=*/node->args()[0],
+                             /*arg=*/args[1]);
+  }
+  if (called_name == "join") {
+    return HandleBuiltinJoin(node);
+  }
+  if (called_name == "map") {
+    return HandleMap(node).status();
+  }
+  if (called_name == "recv") {
+    return HandleBuiltinRecv(node);
+  }
+  if (called_name == "recv_if") {
+    return HandleBuiltinRecvIf(node);
+  }
+  if (called_name == "recv_if_non_blocking") {
+    return HandleBuiltinRecvIfNonBlocking(node);
+  }
+  if (called_name == "recv_non_blocking") {
+    return HandleBuiltinRecvNonBlocking(node);
+  }
+  if (called_name == "send") {
+    return HandleBuiltinSend(node);
+  }
+  if (called_name == "send_if") {
+    return HandleBuiltinSendIf(node);
+  }
+  if (called_name == "token") {
+    return HandleBuiltinToken(node);
   }
   if (called_name == "trace!") {
     XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_args());
@@ -2456,33 +2484,6 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
       return function_builder_->Identity(args[0], loc);
     });
     return absl::OkStatus();
-  }
-  if (called_name == "map") {
-    return HandleMap(node).status();
-  }
-  if (called_name == "send") {
-    return HandleBuiltinSend(node);
-  }
-  if (called_name == "send_if") {
-    return HandleBuiltinSendIf(node);
-  }
-  if (called_name == "recv") {
-    return HandleBuiltinRecv(node);
-  }
-  if (called_name == "recv_if") {
-    return HandleBuiltinRecvIf(node);
-  }
-  if (called_name == "recv_non_blocking") {
-    return HandleBuiltinRecvNonBlocking(node);
-  }
-  if (called_name == "recv_if_non_blocking") {
-    return HandleBuiltinRecvIfNonBlocking(node);
-  }
-  if (called_name == "join") {
-    return HandleBuiltinJoin(node);
-  }
-  if (called_name == "token") {
-    return HandleBuiltinToken(node);
   }
 
   // The rest of the builtins have "handle" methods we can resolve.
@@ -2536,10 +2537,9 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
 
 /* static */ absl::Status FunctionConverter::CheckValueIsChannel(
     const IrValue& ir_value) {
-  if (!(std::holds_alternative<Channel*>(ir_value) ||
-        std::holds_alternative<ChannelInterface*>(ir_value))) {
+  if (!std::holds_alternative<Channel*>(ir_value)) {
     return absl::InvalidArgumentError(
-        "Expected Channel or ChannelInterface, got BValue or CValue.");
+        "Expected Channel, got BValue or CValue.");
   }
   return absl::OkStatus();
 }

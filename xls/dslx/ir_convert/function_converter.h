@@ -224,13 +224,13 @@ class FunctionConverter {
   // Every AST node has an "IR value" that is either a function builder value
   // (BValue) or its IR-conversion-time-constant-decorated cousin (CValue), or
   // an inter-proc Channel.
-  using IrValue = std::variant<BValue, CValue, Channel*, ChannelInterface*>;
+  using IrValue = std::variant<BValue, CValue, Channel*>;
 
   // Helper for converting an IR value to its BValue pointer for use in
   // debugging.
   static std::string IrValueToString(const IrValue& value);
 
-  // Helper that checks that the given IrValue is a Channel or ChannelInterface.
+  // Helper that checks that the given IrValue is a Channel.
   static absl::Status CheckValueIsChannel(const IrValue& ir_value);
 
   void SetFunctionBuilder(std::unique_ptr<BuilderBase> builder);
@@ -443,41 +443,42 @@ class FunctionConverter {
   absl::StatusOr<BValue> HandleMap(const Invocation* node);
 
   // Builtin invocation handlers.
+  // keep-sorted start
   absl::Status HandleBuiltinAndReduce(const Invocation* node);
   absl::Status HandleBuiltinArrayRev(const Invocation* node);
   absl::Status HandleBuiltinArraySize(const Invocation* node);
   absl::Status HandleBuiltinArraySlice(const Invocation* node);
+  absl::Status HandleBuiltinBitCount(const Invocation* node);
   absl::Status HandleBuiltinBitSliceUpdate(const Invocation* node);
   absl::Status HandleBuiltinCheckedCast(const Invocation* node);
   absl::Status HandleBuiltinClz(const Invocation* node);
   absl::Status HandleBuiltinCtz(const Invocation* node);
-  absl::Status HandleBuiltinGate(const Invocation* node);
   absl::Status HandleBuiltinDecode(const Invocation* node);
+  absl::Status HandleBuiltinElementCount(const Invocation* node);
   absl::Status HandleBuiltinEncode(const Invocation* node);
+  absl::Status HandleBuiltinGate(const Invocation* node);
+  absl::Status HandleBuiltinJoin(const Invocation* node);
   absl::Status HandleBuiltinOneHot(const Invocation* node);
   absl::Status HandleBuiltinOneHotSel(const Invocation* node);
-  absl::Status HandleBuiltinPrioritySel(const Invocation* node);
   absl::Status HandleBuiltinOrReduce(const Invocation* node);
-  absl::Status HandleBuiltinRev(const Invocation* node);
-  absl::Status HandleBuiltinZip(const Invocation* node);
-  absl::Status HandleBuiltinSignex(const Invocation* node);
-  absl::Status HandleBuiltinSMulp(const Invocation* node);
-  absl::Status HandleBuiltinUpdate(const Invocation* node);
-  absl::Status HandleBuiltinUMulp(const Invocation* node);
-  absl::Status HandleBuiltinWideningCast(const Invocation* node);
-  absl::Status HandleBuiltinBitCount(const Invocation* node);
-  absl::Status HandleBuiltinElementCount(const Invocation* node);
-  absl::Status HandleBuiltinConfiguredValueOr(const Invocation* node);
-  absl::Status HandleBuiltinXorReduce(const Invocation* node);
-
-  absl::Status HandleBuiltinJoin(const Invocation* node);
-  absl::Status HandleBuiltinToken(const Invocation* node);
-  absl::Status HandleBuiltinSend(const Invocation* node);
-  absl::Status HandleBuiltinSendIf(const Invocation* node);
+  absl::Status HandleBuiltinPrioritySel(const Invocation* node);
   absl::Status HandleBuiltinRecv(const Invocation* node);
   absl::Status HandleBuiltinRecvIf(const Invocation* node);
-  absl::Status HandleBuiltinRecvNonBlocking(const Invocation* node);
   absl::Status HandleBuiltinRecvIfNonBlocking(const Invocation* node);
+  absl::Status HandleBuiltinRecvNonBlocking(const Invocation* node);
+  absl::Status HandleBuiltinRev(const Invocation* node);
+  absl::Status HandleBuiltinSMulp(const Invocation* node);
+  absl::Status HandleBuiltinSend(const Invocation* node);
+  absl::Status HandleBuiltinSendIf(const Invocation* node);
+  absl::Status HandleBuiltinSignex(const Invocation* node);
+  absl::Status HandleBuiltinToken(const Invocation* node);
+  absl::Status HandleBuiltinUMulp(const Invocation* node);
+  absl::Status HandleBuiltinUpdate(const Invocation* node);
+  absl::Status HandleBuiltinWideningCast(const Invocation* node);
+  absl::Status HandleBuiltinConfiguredValueOr(const Invocation* node);
+  absl::Status HandleBuiltinXorReduce(const Invocation* node);
+  absl::Status HandleBuiltinZip(const Invocation* node);
+  // keep-sorted end
 
   // Derefences the type definition to a struct definition.
   absl::StatusOr<StructDef*> DerefStruct(TypeDefinition node);
