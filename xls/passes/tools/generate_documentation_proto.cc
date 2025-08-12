@@ -65,13 +65,10 @@ namespace m = clang::ast_matchers;
 class Callback : public m::MatchFinder::MatchCallback {
  public:
   void run(const m::MatchFinder::MatchResult& result) override {
-    bool updated_any = false;
-    bool updated_exact = false;
     if (const clang::CXXRecordDecl* clz =
             result.Nodes.getNodeAs<clang::CXXRecordDecl>("base_opt_pass")) {
       if (!doc_any_) {
         doc_any_ = GetCommentFromMatch(result.Context, clz);
-        updated_any = true;
       } else if (VLOG_IS_ON(3)) {
         std::string dump;
         llvm::raw_string_ostream oss(dump);
@@ -84,7 +81,6 @@ class Callback : public m::MatchFinder::MatchCallback {
             result.Nodes.getNodeAs<clang::CXXRecordDecl>("exact_opt_pass")) {
       if (!doc_exact_) {
         doc_exact_ = GetCommentFromMatch(result.Context, clz);
-        updated_exact = true;
       } else if (VLOG_IS_ON(3)) {
         std::string dump;
         llvm::raw_string_ostream oss(dump);
@@ -220,7 +216,6 @@ absl::StatusOr<PassDocumentationProto> GenerateDocumentationProto(
   std::vector<OptimizationPassRegistryBase::RegistrationInfo> infos =
       registry.GetRegisteredInfos();
   xls::PassDocumentationProto res;
-  bool found = false;
   VLOG(5) << "found " << infos.size() << "infos!";
   VLOG(5) << "Looking for " << header;
   for (const auto& info : infos) {
@@ -238,7 +233,6 @@ absl::StatusOr<PassDocumentationProto> GenerateDocumentationProto(
       *pass->mutable_file() = info.header_file;
       *pass->mutable_short_name() = info.short_name;
       *pass->mutable_long_name() = real_pass->long_name();
-      found = true;
     } else {
       VLOG(4) << "Didn't examine header " << info.header_file;
     }

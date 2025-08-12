@@ -402,7 +402,7 @@ DocRef Fmt(const TypeAnnotation& n, Comments& comments, DocArena& arena) {
   if (auto* t = dynamic_cast<const ChannelTypeAnnotation*>(&n)) {
     return Fmt(*t, comments, arena);
   }
-  if (auto* t = dynamic_cast<const SelfTypeAnnotation*>(&n)) {
+  if (dynamic_cast<const SelfTypeAnnotation*>(&n)) {
     return arena.Make(Keyword::kSelfType);
   }
 
