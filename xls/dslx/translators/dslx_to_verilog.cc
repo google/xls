@@ -86,7 +86,7 @@ std::optional<AstNode*> GetTypeDefinition(
 std::string GetVerilogTypedefIdentifier(const TypeAnnotation* type_annotation,
                                         std::string_view function_name,
                                         std::string_view param_name) {
-  if (auto ta = dynamic_cast<const TypeRefTypeAnnotation*>(type_annotation)) {
+  if (dynamic_cast<const TypeRefTypeAnnotation*>(type_annotation)) {
     return type_annotation->ToString();
   }
 
