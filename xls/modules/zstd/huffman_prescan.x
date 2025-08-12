@@ -95,7 +95,7 @@ fn BitsToInternalStruct<
     BITS: u32 = {WEIGHT_PRESCAN_METADATA_SIZE},
     OCCURANCE_WIDTH: u32 ={COUNTER_WIDTH * PARALLEL_ACCESS_WIDTH},
 > (rawBits: bits[BITS]) -> WeightPreScanMetaData {
-    WeightPreScanMetaData<PARALLEL_ACCESS_WIDTH> {
+    WeightPreScanMetaData {
         occurance_number: rawBits[0:OCCURANCE_WIDTH as s32] as uN[COUNTER_WIDTH][PARALLEL_ACCESS_WIDTH],
         valid_weights:    rawBits[OCCURANCE_WIDTH as s32:(OCCURANCE_WIDTH + MAX_WEIGHT + u32:1) as s32] as u1[MAX_WEIGHT + u32:1],
         weights_count:    rawBits[(OCCURANCE_WIDTH + MAX_WEIGHT + u32:1) as s32:BITS as s32] as uN[COUNTER_WIDTH][MAX_WEIGHT + u32:1]

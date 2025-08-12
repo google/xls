@@ -59,7 +59,7 @@ const TEST_RAM_REQ_MASK_NONE = bits[TEST_RAM_NUM_PARTITIONS]:0;
 
 type TestRamAddr = bits[TEST_RAM_ADDR_WIDTH];
 type TestWriteReq = ram::WriteReq<TEST_RAM_ADDR_WIDTH, TEST_RAM_DATA_WIDTH, TEST_RAM_NUM_PARTITIONS>;
-type TestWriteResp = ram::WriteResp<TEST_RAM_ADDR_WIDTH>;
+type TestWriteResp = ram::WriteResp;
 type TestReadReq = ram::ReadReq<TEST_RAM_ADDR_WIDTH, TEST_RAM_NUM_PARTITIONS>;
 type TestReadResp = ram::ReadResp<TEST_RAM_DATA_WIDTH>;
 

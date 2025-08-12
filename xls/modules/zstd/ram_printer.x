@@ -37,7 +37,7 @@ pub proc RamPrinter<DATA_WIDTH: u32, SIZE: u32, NUM_PARTITIONS: u32, ADDR_WIDTH:
 
     init { RamPrinterState { status: RamPrinterStatus::IDLE, addr: bits[ADDR_WIDTH]:0 } }
 
-    next(state: RamPrinterState) {
+    next(state: RamPrinterState<ADDR_WIDTH>) {
         let tok = join();
         let is_idle = state.status == RamPrinterStatus::IDLE;
         let (tok, _) = recv_if(tok, print_r, is_idle, ());

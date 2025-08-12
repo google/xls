@@ -453,7 +453,7 @@ proc RefillingShiftBufferTest<BACKWARDS: bool> {
     type RSBInput = RefillingShiftBufferInput<TEST_DATA_W, TEST_LENGTH_W>;
     type RSBOutput = RefillingShiftBufferOutput<TEST_DATA_W, TEST_LENGTH_W>;
     type RSBCtrl = RefillingShiftBufferCtrl<TEST_LENGTH_W>;
-    type State = RefillerState<TEST_ADDR_W, TEST_BUFFER_W_CLOG2>;
+    type State = RefillerState<TEST_ADDR_W, TEST_LENGTH_W, TEST_BUFFER_W_CLOG2>;
 
     terminator: chan<bool> out;
     reader_req_r: chan<MemReaderReq> in;
