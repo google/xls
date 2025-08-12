@@ -67,7 +67,10 @@ pub proc SequenceHeaderWriter<ADDR_W: u32, DATA_W: u32> {
                                      (req.conf.offset_mode as u8 << OFFSET_MODE_BITS_OFFSET) |
                                      (req.conf.match_mode as u8 << MATCH_MODE_BITS_OFFSET);
 
-        let (data, length) = if sequence_count < u17:0x80 {
+        let (data, length) = if sequence_count == u17:0x0 {
+            // if (byte0 == 0): there are no sequences. The sequence section stops here
+            (Data:0, Length:1)
+        } else if sequence_count < u17:0x80 {
             let b0 = checked_cast<u8>(sequence_count);
             let data = (compression_modes_byte ++ b0) as Data;
             (data, Length:2)
