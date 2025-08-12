@@ -45,7 +45,7 @@ HT_SIZE_W = 10
 MEM_SIZE = 0x100000
 OBUF_ADDR = 0x1000
 INPUT_RANGE = (0, 10)
-INPUT_SIZE = 0x50
+INPUT_SIZE = 0x1000
 
 signal_widths = {"bresp": 3}
 axi.AxiBBus._signal_widths = signal_widths
@@ -113,7 +113,7 @@ async def testcase(dut, params, input_data, max_block_size = 128):
   await cocotb.start(drv_req.send(req))
   await terminate.wait()
 
-  mem_contents = memory.read(OBUF_ADDR, 0x2000)
+  mem_contents = memory.read(OBUF_ADDR, 2*INPUT_SIZE)
   with open("input.bin", "wb") as f:
     f.write(input_data)
 
@@ -121,7 +121,11 @@ async def testcase(dut, params, input_data, max_block_size = 128):
     f.write(mem_contents)
     
   dctx = DecompressFrame(mem_contents)
-  assert(dctx == input_data)
+
+  for i in range(INPUT_SIZE):
+    print(f"comparing {hex(dctx[i])}=={hex(input_data[i])}")
+    assert dctx[i] == input_data[i]
+
 
 @cocotb.test(timeout_time=1000, timeout_unit="ms")
 async def raw_block_test(dut):
@@ -155,7 +159,7 @@ async def comp_block_test(dut):
       "enable_compressed": True
     },
     input_data=generate_random_bytes(),
-    max_block_size=0x15
+    max_block_size=0x400
   )
 
 if __name__ == "__main__":
