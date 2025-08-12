@@ -124,6 +124,7 @@ struct MatchFinderInternalLoopState<
     lit_cnt: u32,
     seq_cnt: u32,
     lit_since_last_sequence: u32,
+    hb_entry_cnt: u32,
 
     current_input_addr: uN[ADDR_W],
     output_lit_addr: uN[ADDR_W],
@@ -255,7 +256,7 @@ proc MatchFinderInternalLiteralCopy<
             });
             let (tok1, _) = recv(tok, hb_wr_resp_r);
 
-            if conf.move_literals {
+            let status = if conf.move_literals {
                 // place in literals memory
                 let tok2 = send(tok, mem_wr_req_s, MemWriterReq {
                     addr: conf.output_addr,
@@ -268,11 +269,13 @@ proc MatchFinderInternalLiteralCopy<
                 });
                 let (tok2, resp) = recv(tok, mem_wr_resp_r);
                 trace_fmt!("|- writing literal value {:#x} at {:#x} -> {:#x} [{}]", mem_resp.data, conf.input_addr, conf.output_addr, resp.status);
+                resp.status
             } else {
+                mem_writer::MemWriterRespStatus::OKAY
             };
 
             State {
-                active: true,
+                active: status == mem_writer::MemWriterRespStatus::OKAY,
                 conf: Config{
                     input_addr: conf.input_addr + KEY_WIDTH_BYTES,
                     output_addr: conf.output_addr + KEY_WIDTH_BYTES,
@@ -578,6 +581,9 @@ pub proc MatchFinder<
             // Step 2: compute history buffer offset and get match length
             let offset = ((state.current_input_addr - (ht_rd_resp.value as Addr)) as uN[HB_OFFSET_W] - uN[HB_OFFSET_W]:2) * HB_DATA_BYTES as uN[HB_OFFSET_W];
 
+            // cornercase: prevent inter-block matches
+            let matched = matched && offset as u32 < HB_DATA_BYTES * state.hb_entry_cnt;
+
             let tok = send_if(tok, hb_mlen_conf_s, matched, HistoryCompareConfig {
                 current_hb_offset: offset,
                 current_input_addr: state.current_input_addr + KEY_WIDTH_BYTES,
@@ -650,6 +656,7 @@ pub proc MatchFinder<
             let seq_cnt_increment = encode_sequence as Addr; // if encode_sequence: seq_cnt ++
             let lit_since_last_sequence = if encode_sequence { Addr:0 } else { state.lit_since_last_sequence + cmp_resp.match_length };
             let remaining_size = if state.remaining_size < address_increment { u32:0 } else { state.remaining_size - address_increment };
+            let hb_entry_cnt = state.hb_entry_cnt + cmp_resp.match_length as u32;
 
             State {
                 active: true,
@@ -660,6 +667,7 @@ pub proc MatchFinder<
                 lit_since_last_sequence: lit_since_last_sequence,
                 seq_addr_offset: state.seq_addr_offset + seq_address_increment,
                 seq_cnt: state.seq_cnt + seq_cnt_increment,
+                hb_entry_cnt: hb_entry_cnt,
                 ..state
             }
         }
