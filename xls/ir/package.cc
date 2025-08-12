@@ -652,6 +652,27 @@ absl::Status VerifyValuesAreType(absl::Span<const Value> values, Type* type) {
 
 }  // namespace
 
+absl::Status Package::RenameChannel(std::string_view original,
+                                    std::string_view new_name) {
+  XLS_RET_CHECK(!ChannelsAreProcScoped()) << "New style procs";
+  XLS_RET_CHECK(channels_.contains(original))
+      << "no channel named '" << original << "'";
+  XLS_RET_CHECK(!channels_.contains(new_name))
+      << "'" << new_name << "' already used by a channel.";
+  std::unique_ptr<Channel> chan(channels_.extract(original).mapped().release());
+  chan->SetName(new_name);
+  channels_[new_name] = std::move(chan);
+  for (const auto& proc : procs_) {
+    for (Node* n : proc->nodes()) {
+      if (n->Is<ChannelNode>() &&
+          n->As<ChannelNode>()->channel_name() == original) {
+        XLS_RETURN_IF_ERROR(n->As<ChannelNode>()->ReplaceChannel(new_name));
+      }
+    }
+  }
+  return absl::OkStatus();
+}
+
 absl::StatusOr<StreamingChannel*> Package::CreateStreamingChannel(
     std::string_view name, ChannelOps supported_ops, Type* type,
     absl::Span<const Value> initial_values, ChannelConfig channel_config,

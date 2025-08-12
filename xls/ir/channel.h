@@ -37,6 +37,8 @@
 
 namespace xls {
 
+class Package;
+
 // Enum for the various kinds of channels supported in XLS.
 enum class ChannelKind : uint8_t {
   // A channel with FIFO semantics.
@@ -274,12 +276,17 @@ class Channel {
         type_(type),
         initial_values_(initial_values.begin(), initial_values.end()) {}
 
+  void SetName(std::string_view name) { name_ = name; }
+
   std::string name_;
   int64_t id_;
   ChannelOps supported_ops_;
   ChannelKind kind_;
   Type* type_;
   std::vector<Value> initial_values_;
+
+  // For SetName;
+  friend class Package;
 };
 
 // The flow control mechanism to use for streaming channels. This affects how

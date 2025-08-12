@@ -354,6 +354,12 @@ class Package {
   absl::StatusOr<Channel*> GetChannel(int64_t id) const;
   absl::StatusOr<Channel*> GetChannel(std::string_view name) const;
 
+  // Change the name of channel 'original' to 'new_name'.
+  //
+  // Only valid for old-style procs (ChannelsAreProcScoped() == false).
+  absl::Status RenameChannel(std::string_view original,
+                             std::string_view new_name);
+
   // Returns true if channels are proc scoped in this package. Returns false if
   // there are no channels or procs.
   bool ChannelsAreProcScoped() const;
