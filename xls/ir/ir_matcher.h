@@ -786,12 +786,20 @@ inline ::testing::Matcher<::xls::ChannelRef> Channel() {
 
 template <typename T>
 inline ::testing::Matcher<::xls::ChannelRef> Channel(
-    T name, std::optional<ChannelKind> kind,
-    std::optional<const ::xls::Type*> type_)
-  requires(std::is_convertible_v<T, std::string>)
-{
+    std::string_view name, std::optional<ChannelKind> kind,
+    std::optional<const ::xls::Type*> type_) {
   return ::testing::MakeMatcher(new ::xls::op_matchers::ChannelMatcher(
-      std::string{name}, kind,
+      testing::Eq(std::string(name)), kind,
+      type_.has_value() ? std::optional(type_.value()->ToString())
+                        : std::nullopt));
+}
+
+template <typename T>
+inline ::testing::Matcher<::xls::ChannelRef> Channel(
+    T name, std::optional<ChannelKind> kind,
+    std::optional<const ::xls::Type*> type_) {
+  return ::testing::MakeMatcher(new ::xls::op_matchers::ChannelMatcher(
+      name, kind,
       type_.has_value() ? std::optional(type_.value()->ToString())
                         : std::nullopt));
 }
