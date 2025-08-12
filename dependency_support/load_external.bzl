@@ -19,7 +19,6 @@
 # Eventual goal that none of this is needed anymore and the file can be removed.
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-load("//dependency_support/boost:workspace.bzl", repo_boost = "repo")
 load("//dependency_support/llvm:workspace.bzl", repo_llvm = "repo")
 load("//dependency_support/pprof:workspace.bzl", repo_rules_pprof = "repo")
 load("//dependency_support/rules_hdl:workspace.bzl", repo_rules_hdl = "repo")
@@ -39,7 +38,6 @@ def load_external_repositories():
     # https://github.com/google/xls/issues/931#issue-1667228764 for more
     # information / background.
 
-    repo_boost()
     repo_llvm()
     repo_rules_hdl()
     repo_rules_pprof()
