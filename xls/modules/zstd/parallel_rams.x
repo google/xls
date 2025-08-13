@@ -575,7 +575,7 @@ pub struct RamWrRespHandlerResp<RAM_ADDR_WIDTH: u32> {
 }
 
 pub fn create_ram_wr_data<RAM_ADDR_WIDTH: u32, RAM_DATA_WIDTH: u32, RAM_NUM_PARTITIONS: u32>
-    (reqs: ram::WriteReq<RAM_ADDR_WIDTH, RAM_DATA_WIDTH, RAM_NUM_PARTITIONS>[RAM_NUM], ptr: HistoryBufferPtr) -> (bool, RamWrRespHandlerData) {
+    (reqs: ram::WriteReq<RAM_ADDR_WIDTH, RAM_DATA_WIDTH, RAM_NUM_PARTITIONS>[RAM_NUM], ptr: HistoryBufferPtr<RAM_ADDR_WIDTH>) -> (bool, RamWrRespHandlerData<RAM_ADDR_WIDTH>) {
     const RAM_REQ_MASK_NONE = bits[RAM_NUM_PARTITIONS]:0;
 
     let (do_write, resp) = for (i, (do_write, resp)): (u32, (bool, bool[RAM_NUM])) in u32:0..RAM_NUM {
@@ -589,8 +589,8 @@ pub fn create_ram_wr_data<RAM_ADDR_WIDTH: u32, RAM_DATA_WIDTH: u32, RAM_NUM_PART
 }
 
 pub proc RamWrRespHandler<RAM_ADDR_WIDTH: u32, RAM_DATA_WIDTH: u32 = {u32:8}> {
-    input_r: chan<RamWrRespHandlerData> in;
-    output_s: chan<RamWrRespHandlerResp> out;
+    input_r: chan<RamWrRespHandlerData<RAM_ADDR_WIDTH>> in;
+    output_s: chan<RamWrRespHandlerResp<RAM_ADDR_WIDTH>> out;
     wr_resp_m0_r: chan<ram::WriteResp> in;
     wr_resp_m1_r: chan<ram::WriteResp> in;
     wr_resp_m2_r: chan<ram::WriteResp> in;

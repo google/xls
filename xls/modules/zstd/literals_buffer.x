@@ -61,7 +61,7 @@ const TEST_RAM_SIMULTANEOUS_READ_WRITE_BEHAVIOR = ram::SimultaneousReadWriteBeha
 
 type TestRamAddr = bits[TEST_RAM_ADDR_WIDTH];
 type TestWriteReq = ram::WriteReq<TEST_RAM_ADDR_WIDTH, RAM_DATA_WIDTH, RAM_NUM_PARTITIONS>;
-type TestWriteResp = ram::WriteResp<TEST_RAM_ADDR_WIDTH>;
+type TestWriteResp = ram::WriteResp;
 type TestReadReq = ram::ReadReq<TEST_RAM_ADDR_WIDTH, RAM_NUM_PARTITIONS>;
 type TestReadResp = ram::ReadResp<RAM_DATA_WIDTH>;
 
@@ -524,7 +524,7 @@ proc LiteralsBufferWriter<
 
         let tok3_0 = send_if(tok2, ram_comp_input_s, do_write, wr_resp_handler_data);
 
-        let (tok3_1, comp_data, comp_data_valid) = recv_non_blocking(tok2, ram_comp_output_r, zero!<RamWrRespHandlerResp>());
+        let (tok3_1, comp_data, comp_data_valid) = recv_non_blocking(tok2, ram_comp_output_r, zero!<RamWrRespHandlerResp<RAM_ADDR_WIDTH>>());
 
         // update state
         let state = if (literals_data_valid) {
