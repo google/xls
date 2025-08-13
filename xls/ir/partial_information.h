@@ -32,40 +32,43 @@ namespace xls {
 // ternary and interval information.
 class PartialInformation {
  public:
-  explicit PartialInformation(int64_t bit_count)
-      : PartialInformation(bit_count, std::nullopt, std::nullopt) {}
+  explicit PartialInformation(int64_t bit_count) : bit_count_(bit_count) {}
   explicit PartialInformation(TernarySpan ternary)
-      : PartialInformation(ternary.size(),
-                           TernaryVector(ternary.begin(), ternary.end()),
-                           std::nullopt) {}
+      : bit_count_(ternary.size()),
+        ternary_(
+            std::make_optional<TernaryVector>(ternary.begin(), ternary.end())) {
+    Initialize();
+  }
   explicit PartialInformation(TernaryVector ternary)
-      : PartialInformation(ternary.size(), std::move(ternary), std::nullopt) {}
+      : bit_count_(ternary.size()), ternary_(std::move(ternary)) {
+    Initialize();
+  }
   explicit PartialInformation(IntervalSet range)
-      : PartialInformation(range.BitCount(), std::nullopt, std::move(range)) {}
+      : bit_count_(range.BitCount()), range_(std::move(range)) {
+    Initialize();
+  }
   PartialInformation(TernarySpan ternary, IntervalSet range)
-      : PartialInformation(ternary.size(),
-                           TernaryVector(ternary.begin(), ternary.end()),
-                           std::make_optional(std::move(range))) {}
+      : bit_count_(range.BitCount()),
+        ternary_(
+            std::make_optional<TernaryVector>(ternary.begin(), ternary.end())),
+        range_(std::move(range)) {
+    Initialize();
+  }
   PartialInformation(std::optional<TernaryVector> ternary,
                      std::optional<IntervalSet> range)
-      : PartialInformation(range.has_value()
-                               ? range->BitCount()
-                               : (ternary.has_value() ? ternary->size() : -1),
-                           std::move(ternary), std::move(range)) {}
-
+      : bit_count_(range.has_value()
+                       ? range->BitCount()
+                       : (ternary.has_value() ? ternary->size() : -1)),
+        ternary_(std::move(ternary)),
+        range_(std::move(range)) {
+    Initialize();
+  }
   PartialInformation(int64_t bit_count, std::optional<TernaryVector> ternary,
                      std::optional<IntervalSet> range)
       : bit_count_(bit_count),
         ternary_(std::move(ternary)),
         range_(std::move(range)) {
-    if (ternary_.has_value()) {
-      CHECK_EQ(ternary_->size(), bit_count_);
-    }
-    if (range_.has_value()) {
-      CHECK_EQ(range_->BitCount(), bit_count_);
-      range_->Normalize();
-    }
-    ReconcileInformation();
+    Initialize();
   }
 
   static PartialInformation Unconstrained(int64_t bit_count) {
@@ -177,6 +180,19 @@ class PartialInformation {
   }
 
  private:
+  // Contains shared logic for the constructors, to be invoked after all data
+  // members are initialized.
+  void Initialize() {
+    if (ternary_.has_value()) {
+      CHECK_EQ(ternary_->size(), bit_count_);
+    }
+    if (range_.has_value()) {
+      CHECK_EQ(range_->BitCount(), bit_count_);
+      range_->Normalize();
+    }
+    ReconcileInformation();
+  }
+
   void ReconcileInformation();
 
   void MarkImpossible() {
