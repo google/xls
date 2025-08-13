@@ -1012,6 +1012,29 @@ class ChannelNode : public Node {
                           : std::nullopt;
   }
 
+  absl::Status SetPredicate(std::optional<Node*> predicate) {
+    if (predicate) {
+      Node* new_predicate = *predicate;
+      XLS_RET_CHECK(new_predicate->GetType()->IsBits() &&
+                    new_predicate->BitCountOrDie() == 1)
+          << absl::StreamFormat(
+                 "Expected predicate to be single-bit bits type, is: %s",
+                 new_predicate->GetType()->ToString());
+      if (has_predicate_) {
+        return ReplaceOperandNumber(operand_count() - 1, new_predicate);
+      }
+      has_predicate_ = true;
+      AddOperand(new_predicate);
+      return absl::OkStatus();
+    }
+    if (!has_predicate_) {
+      // Already don't have a predicate?
+      return absl::OkStatus();
+    }
+    has_predicate_ = false;
+    return RemoveOptionalOperand(operand_count() - 1);
+  }
+
   absl::Status ReplacePredicate(Node* new_predicate) {
     XLS_RET_CHECK(has_predicate_) << absl::StreamFormat(
         "Cannot replace predicate of node `%s` as it does not currently have a "
