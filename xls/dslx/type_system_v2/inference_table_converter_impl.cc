@@ -1578,6 +1578,14 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           XLS_RET_CHECK(colon_ref_annotation.has_value());
           type = *colon_ref_annotation;
         }
+
+        XLS_ASSIGN_OR_RETURN(
+            TypeInfo * actual_arg_ti,
+            GetTypeInfo(&module_, invocation_context->parent_context()));
+
+        XLS_ASSIGN_OR_RETURN(type, CleanseGenericTypeArgument(
+                                       invocation_context->parent_context(),
+                                       *actual_arg_ti, type));
         XLS_RETURN_IF_ERROR(
             table_.AddTypeAnnotationToVariableForParametricContext(
                 invocation_context, binding, type));
@@ -1831,10 +1839,14 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           values.emplace(binding->identifier(), std::move(value));
         } else {
           XLS_RET_CHECK(target_context.has_value());
+          XLS_ASSIGN_OR_RETURN(
+              const TypeAnnotation* type,
+              CleanseGenericTypeArgument(
+                  actual_arg_context, *actual_arg_ti,
+                  std::get<const TypeAnnotation*>(value_or_type)));
           XLS_RETURN_IF_ERROR(
               table_.AddTypeAnnotationToVariableForParametricContext(
-                  target_context, binding,
-                  std::get<const TypeAnnotation*>(value_or_type)));
+                  target_context, binding, type));
         }
       }
     }
@@ -1855,6 +1867,47 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           file_table_);
     }
     return values;
+  }
+
+  // Replaces parametrics and constants in a `type` which is being passed
+  // (explicitly or implicitly) as a type parametric. This is necessary because
+  // it amounts to passing the type over a parametric context boundary. For
+  // example,
+  //
+  // fn g<T: type>(value: T) { ... }
+  // fn f<A: u32>(value: uN[A]) { g<uN[A]>(value); }
+  // fn main() { f(u5:1); }
+  //
+  // Here there is an invocation context for `f` in which `A=5`, and there is an
+  // invocation context for `g` in which `A` does not exist. If we just add the
+  // type annotation `uN[A]` to the type variable `T` for the `g` invocation
+  // context (which is how types are passed as parametrics), then when `T` is
+  // unified in the `g` context, `A` will fail to evaluate. So, using this
+  // helper, we instead turn `uN[A]` into `uN[5]` before adding it to `T` in
+  // this scenario.
+  absl::StatusOr<const TypeAnnotation*> CleanseGenericTypeArgument(
+      std::optional<const ParametricContext*> parametric_context,
+      const TypeInfo& ti, const TypeAnnotation* type) {
+    if (!parametric_context.has_value()) {
+      return type;
+    }
+
+    std::vector<std::pair<const NameRef*, const NameDef*>> refs;
+    XLS_ASSIGN_OR_RETURN(refs, CollectReferencedUnder(type));
+    absl::flat_hash_map<const NameDef*, ExprOrType> values;
+    for (const auto& [ref, def] : refs) {
+      std::optional<InterpValue> value = ti.GetConstExprOption(def);
+      if (value.has_value()) {
+        std::optional<Number*> literal =
+            ConvertToNumberIfBitsLike(*ref->owner(), ref->span(), *value);
+        if (literal.has_value()) {
+          values.emplace(def, *literal);
+        }
+      }
+    }
+
+    return GetParametricFreeType(type, std::move(values),
+                                 (*parametric_context)->self_type());
   }
 
   absl::StatusOr<const TypeAnnotation*> InstantiateParametricStruct(
@@ -2057,26 +2110,21 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       return member_type;
     }
     absl::flat_hash_map<const NameDef*, ExprOrType> parametrics_and_constants;
-    std::vector<ExprOrType> parametric_vector;
     std::vector<ParametricBinding*> bindings =
         struct_or_proc_ref.def->parametric_bindings();
     CHECK_GE(bindings.size(), struct_or_proc_ref.parametrics.size());
+
     for (int i = 0; i < bindings.size(); i++) {
       const ParametricBinding* binding = bindings[i];
-      ExprOrType value_expr;
-      if (i >= struct_or_proc_ref.parametrics.size()) {
-        XLS_ASSIGN_OR_RETURN(
-            AstNode * clone,
-            table_.Clone(binding->expr(),
-                         NameRefMapper(table_, parametrics_and_constants),
-                         /*in_place=*/false));
-        value_expr = down_cast<Expr*>(clone);
-      } else {
-        value_expr = struct_or_proc_ref.parametrics[i];
-      }
-      parametrics_and_constants.emplace(binding->name_def(), value_expr);
-      parametric_vector.push_back(value_expr);
+      XLS_ASSIGN_OR_RETURN(
+          InterpValue value,
+          (*struct_context)->type_info()->GetConstExpr(binding->name_def()));
+      std::optional<Number*> literal =
+          ConvertToNumberIfBitsLike(module_, binding->span(), value);
+      XLS_RET_CHECK(literal.has_value());
+      parametrics_and_constants.emplace(binding->name_def(), *literal);
     }
+
     // If there is an impl, load the impl constants into the map for erasure as
     // well.
     if (struct_or_proc_ref.def->impl().has_value()) {
@@ -2085,12 +2133,14 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         XLS_ASSIGN_OR_RETURN(
             InterpValue value,
             (*struct_context)->type_info()->GetConstExpr(constant->name_def()));
-        Expr* value_expr = module_.Make<Number>(
-            constant->span(), value.ToString(/*humanize=*/true),
-            NumberKind::kOther, nullptr);
-        parametrics_and_constants.emplace(constant->name_def(), value_expr);
+        std::optional<Number*> literal =
+            ConvertToNumberIfBitsLike(module_, constant->span(), value);
+        if (literal.has_value()) {
+          parametrics_and_constants.emplace(constant->name_def(), *literal);
+        }
       }
     }
+
     return GetParametricFreeType(member_type, parametrics_and_constants,
                                  struct_context.has_value()
                                      ? (*struct_context)->self_type()
@@ -2131,7 +2181,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     }
     XLS_ASSIGN_OR_RETURN(
         AstNode * clone,
-        table_.Clone(type, std::move(replacer), /*in_place=*/false));
+        table_.Clone(type, std::move(replacer), type->owner()));
     return down_cast<const TypeAnnotation*>(clone);
   }
 

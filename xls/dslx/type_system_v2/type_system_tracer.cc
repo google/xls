@@ -14,8 +14,6 @@
 
 #include "xls/dslx/type_system_v2/type_system_tracer.h"
 
-#include <algorithm>
-#include <cstddef>
 #include <cstdint>
 #include <iostream>
 #include <list>
@@ -38,6 +36,7 @@
 #include "xls/common/indent.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/type_annotation_filter.h"
@@ -313,7 +312,7 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
     return result;
   }
 
-  std::string ConvertStatsToString() const override {
+  std::string ConvertStatsToString(const FileTable& file_table) const override {
     std::string result;
 
     // Sort a local copy of `stats_` in descending order by total processing
@@ -343,11 +342,10 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
       absl::StrAppendFormat(&result, "Node: `%s`\n", node_string);
       absl::StrAppendFormat(&result, "Kind: `%s`\n",
                             AstNodeKindToString(node->kind()));
-      absl::StrAppendFormat(
-          &result, "Span: %s\n",
-          node->GetSpan().has_value()
-              ? node->GetSpan()->ToString(*node->owner()->file_table())
-              : "<unknown>");
+      absl::StrAppendFormat(&result, "Span: %s\n",
+                            node->GetSpan().has_value()
+                                ? node->GetSpan()->ToString(file_table)
+                                : "<unknown>");
       absl::StrAppendFormat(&result, "Times converted: %d\n",
                             node_stats.conversion_count);
       absl::StrAppendFormat(
@@ -472,7 +470,9 @@ class NoopTracer final : public TypeSystemTracer {
   TypeSystemTrace TraceUnroll(const AstNode* node) final { return Noop(); }
 
   std::string ConvertTracesToString() const final { return ""; }
-  std::string ConvertStatsToString() const final { return ""; }
+  std::string ConvertStatsToString(const FileTable& file_table) const final {
+    return "";
+  }
 
   static void NoopCleanup() {}
 

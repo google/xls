@@ -321,6 +321,16 @@ absl::StatusOr<InterpValue> GetArrayTypeColonAttr(
                                 [&] { return array_type->ToString(); });
 }
 
+std::optional<Number*> ConvertToNumberIfBitsLike(Module& module,
+                                                 const Span& span,
+                                                 const InterpValue& value) {
+  if (!value.IsBits() && !value.IsEnum()) {
+    return std::nullopt;
+  }
+  return module.Make<Number>(span, value.ToString(/*humanize=*/true),
+                             NumberKind::kOther, nullptr);
+}
+
 std::optional<const UseTreeEntry*> IsExternNameRef(const NameRef& name_ref) {
   const AstNode* definer = name_ref.GetDefiner();
   if (definer == nullptr) {

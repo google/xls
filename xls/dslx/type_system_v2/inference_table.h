@@ -535,11 +535,12 @@ class InferenceTable {
   GetInvocationsFeedingTypeVariable(const NameRef* variable) const = 0;
 
   // Clones the given `input` subtree and the table data for each node.
-  // If `in_place` is true, will clone each node into its own module. Otherwise,
-  // all nodes will be cloned into the module that owns `input`.
-  virtual absl::StatusOr<AstNode*> Clone(const AstNode* input,
-                                         CloneReplacer replacer,
-                                         bool in_place = true) = 0;
+  // If a `target_module` is specified, then nodes are cloned into that module;
+  // otherwise, each node is cloned into the module that owns the original
+  // counterpart.
+  virtual absl::StatusOr<AstNode*> Clone(
+      const AstNode* input, CloneReplacer replacer,
+      std::optional<Module*> target_module = std::nullopt) = 0;
 
   // Stores the expanded, absolute start and width expressions for a slice,
   // which need to eventually be concretized and added to `TypeInfo`.

@@ -626,12 +626,13 @@ class InferenceTableImpl : public InferenceTable {
     return it == map.end() ? std::nullopt : std::make_optional(it->second);
   }
 
-  absl::StatusOr<AstNode*> Clone(const AstNode* input, CloneReplacer replacer,
-                                 bool in_place) override {
+  absl::StatusOr<AstNode*> Clone(
+      const AstNode* input, CloneReplacer replacer,
+      std::optional<Module*> target_module) override {
     absl::flat_hash_map<const AstNode*, AstNode*> all_pairs;
     XLS_ASSIGN_OR_RETURN(
         all_pairs, CloneAstAndGetAllPairs(
-                       input, in_place,
+                       input, target_module,
                        ChainCloneReplacers(&PreserveTypeDefinitionsReplacer,
                                            std::move(replacer))));
     for (const auto& [old_node, new_node] : all_pairs) {
@@ -1013,14 +1014,15 @@ bool IsColonRefWithTypeTarget(const InferenceTable& table, const Expr* expr) {
 CloneReplacer NameRefMapper(
     InferenceTable& table,
     const absl::flat_hash_map<const NameDef*, ExprOrType>& map) {
-  return [&](const AstNode* node) -> absl::StatusOr<std::optional<AstNode*>> {
+  return [table = &table, map = &map](
+             const AstNode* node) -> absl::StatusOr<std::optional<AstNode*>> {
     if (node->kind() == AstNodeKind::kNameRef) {
       const auto* ref = down_cast<const NameRef*>(node);
       if (std::holds_alternative<const NameDef*>(ref->name_def())) {
-        const auto it = map.find(std::get<const NameDef*>(ref->name_def()));
-        if (it != map.end()) {
-          return table.Clone(ToAstNode(it->second),
-                             &PreserveTypeDefinitionsReplacer);
+        const auto it = map->find(std::get<const NameDef*>(ref->name_def()));
+        if (it != map->end()) {
+          return table->Clone(ToAstNode(it->second),
+                              &PreserveTypeDefinitionsReplacer, ref->owner());
         }
       }
     }

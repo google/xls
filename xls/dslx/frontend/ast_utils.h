@@ -30,6 +30,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
 
 namespace xls::dslx {
@@ -95,6 +96,12 @@ absl::StatusOr<InterpValue> GetBuiltinNameDefColonAttr(
 absl::StatusOr<InterpValue> GetArrayTypeColonAttr(
     const ArrayTypeAnnotation* type, uint64_t constexpr_dim,
     std::string_view attr);
+
+// Converts an `InterpValue` into an unannotated literal if it is bits-like;
+// otherwise returns `nullopt`.
+std::optional<Number*> ConvertToNumberIfBitsLike(Module& module,
+                                                 const Span& span,
+                                                 const InterpValue& value);
 
 // Returns a non-nullopt value if `name_ref` is bound by a `use` statement.
 std::optional<const UseTreeEntry*> IsExternNameRef(const NameRef& name_ref);

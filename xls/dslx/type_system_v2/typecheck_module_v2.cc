@@ -89,7 +89,7 @@ absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
         tracer_ref.ConvertTracesToString()));
     XLS_RETURN_IF_ERROR(SetFileContents(
         out_dir / absl::Substitute("trace_stats_$0.txt", module_name),
-        tracer_ref.ConvertStatsToString()));
+        tracer_ref.ConvertStatsToString(import_data->file_table())));
   }
 
   if (!status.ok()) {

@@ -1275,7 +1275,8 @@ CloneReplacer NameRefReplacer(
 }
 
 absl::StatusOr<absl::flat_hash_map<const AstNode*, AstNode*>>
-CloneAstAndGetAllPairs(const AstNode* root, bool in_place,
+CloneAstAndGetAllPairs(const AstNode* root,
+                       std::optional<Module*> target_module,
                        CloneReplacer replacer) {
   if (root->kind() == AstNodeKind::kModule) {
     return absl::InvalidArgumentError("Clone a module via 'CloneModule'.");
@@ -1286,17 +1287,15 @@ CloneAstAndGetAllPairs(const AstNode* root, bool in_place,
     return absl::flat_hash_map<const AstNode*, AstNode*>{
         {root, *root_replacement}};
   }
-  AstCloner cloner(in_place ? std::nullopt : std::make_optional(root->owner()),
-                   std::move(replacer));
+  AstCloner cloner(target_module, std::move(replacer));
   XLS_RETURN_IF_ERROR(root->Accept(&cloner));
   return cloner.old_to_new();
 }
 
 absl::StatusOr<AstNode*> CloneAst(const AstNode* root, CloneReplacer replacer) {
   absl::flat_hash_map<const AstNode*, AstNode*> all_pairs;
-  XLS_ASSIGN_OR_RETURN(
-      all_pairs,
-      CloneAstAndGetAllPairs(root, /*in_place=*/false, std::move(replacer)));
+  XLS_ASSIGN_OR_RETURN(all_pairs, CloneAstAndGetAllPairs(root, root->owner(),
+                                                         std::move(replacer)));
   return all_pairs.at(root);
 }
 

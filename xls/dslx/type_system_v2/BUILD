@@ -616,6 +616,7 @@ cc_library(
         "//xls/dslx:interp_value",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_node",
+        "//xls/dslx/frontend:pos",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",

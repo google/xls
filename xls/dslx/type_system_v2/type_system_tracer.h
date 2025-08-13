@@ -25,6 +25,7 @@
 #include "absl/functional/any_invocable.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/type_annotation_filter.h"
@@ -115,7 +116,8 @@ class TypeSystemTracer {
   virtual TypeSystemTrace TraceUnroll(const AstNode* node) = 0;
 
   virtual std::string ConvertTracesToString() const = 0;
-  virtual std::string ConvertStatsToString() const = 0;
+  virtual std::string ConvertStatsToString(
+      const FileTable& file_table) const = 0;
 };
 
 }  // namespace xls::dslx

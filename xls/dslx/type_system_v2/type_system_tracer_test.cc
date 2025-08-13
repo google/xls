@@ -55,7 +55,7 @@ TEST_F(TypeSystemTracerTest, InactiveTracer) {
       module_->Make<Number>(Span::Fake(), "1", NumberKind::kOther, nullptr);
   tracer->TraceUnify(one);
   EXPECT_EQ(tracer->ConvertTracesToString(), "");
-  EXPECT_EQ(tracer->ConvertStatsToString(), "");
+  EXPECT_EQ(tracer->ConvertStatsToString(file_table_), "");
 }
 
 TEST_F(TypeSystemTracerTest, ConvertTracesToStringWithNoTraces) {

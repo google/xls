@@ -88,10 +88,12 @@ absl::StatusOr<AstNode*> CloneAst(const AstNode* root,
                                   CloneReplacer replacer = &NoopCloneReplacer);
 
 // Variant that returns all the old->new pairs in the cloned subtree.
-// If `in_place` is true, each node will be cloned into its current owner.
-// Otherwise, all nodes will be cloned into the owner of `root`.
+// If a `target_module` is specified, then cloned nodes will be created in that
+// module; otherwise, clones will be created "in place", i.e. in the module that
+// owns the original counterpart.
 absl::StatusOr<absl::flat_hash_map<const AstNode*, AstNode*>>
-CloneAstAndGetAllPairs(const AstNode* root, bool in_place,
+CloneAstAndGetAllPairs(const AstNode* root,
+                       std::optional<Module*> target_module,
                        CloneReplacer replacer = &NoopCloneReplacer);
 
 absl::StatusOr<std::unique_ptr<Module>> CloneModule(
