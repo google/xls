@@ -37,6 +37,11 @@ load(
     "xls_ir_opt_ir",
     "xls_ir_verilog",
 )
+load(
+    "//xls/common:openroad_warnings.bzl",
+    "ASAP7_SUPPPRESSED_WARNINGS",
+    "SKY130_SUPPPRESSED_WARNINGS",
+)
 load("//xls/examples:list_filegroup_files.bzl", "list_filegroup_files")
 
 package(
@@ -278,6 +283,7 @@ place_and_route(
     die_width_microns = 500,
     min_pin_distance = "0.2",
     placement_density = "0.6",
+    suppress_warnings = ASAP7_SUPPPRESSED_WARNINGS,
     synthesized_rtl = ":riscv_simple_verilog_synth_asap7",
     tags = ["manual"],
 )
@@ -336,6 +342,7 @@ place_and_route(
     die_width_microns = 5000,
     min_pin_distance = "2",
     placement_density = "0.5",
+    suppress_warnings = SKY130_SUPPPRESSED_WARNINGS,
     synthesized_rtl = ":riscv_simple_verilog_synth_sky130",
     tags = ["manual"],
 )
@@ -1061,6 +1068,7 @@ place_and_route(
     die_width_microns = 45,
     min_pin_distance = "2",
     placement_density = "0.95",
+    suppress_warnings = SKY130_SUPPPRESSED_WARNINGS,
     synthesized_rtl = ":find_index_5000ps_model_unit_verilog_synth_sky130",
 )
 
@@ -1078,6 +1086,7 @@ place_and_route(
     die_width_microns = 7,
     min_pin_distance = "0.2",
     placement_density = "0.95",
+    suppress_warnings = ASAP7_SUPPPRESSED_WARNINGS,
     synthesized_rtl = ":find_index_5000ps_model_unit_verilog_synth_asap7",
 )
 
