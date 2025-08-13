@@ -138,6 +138,7 @@ bool IsCompatible(TernarySpan a, TernarySpan b);
 // in both `lhs` and `rhs`. CHECK fails if `lhs` and `rhs` have different
 // lengths.
 void UpdateWithIntersection(TernaryVector& lhs, TernarySpan rhs);
+void UpdateWithIntersection(TernaryVector& lhs, const TernaryVector& rhs);
 void UpdateWithIntersection(TernaryVector& lhs, const Bits& rhs);
 
 // Returns the number of known bits in the given `TernaryVector`.

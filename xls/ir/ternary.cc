@@ -304,6 +304,9 @@ void UpdateWithIntersection(TernaryVector& lhs, TernarySpan rhs) {
     }
   }
 }
+void UpdateWithIntersection(TernaryVector& lhs, const TernaryVector& rhs) {
+  UpdateWithIntersection(lhs, absl::MakeConstSpan(rhs));
+}
 void UpdateWithIntersection(TernaryVector& lhs, const Bits& rhs) {
   CHECK_EQ(lhs.size(), rhs.bit_count());
 
