@@ -272,7 +272,7 @@ pub fn literal_packet_to_write_reqs<
     RAM_NUM_PARTITIONS: u32 = {ram::num_partitions(RAM_WORD_PARTITION_SIZE, RAM_DATA_WIDTH)}
 >(
     ptr: HistoryBufferPtr<RAM_ADDR_WIDTH>, literal: SequenceExecutorPacket<RAM_DATA_WIDTH>
-) -> (ram::WriteReq<RAM_ADDR_WIDTH, RAM_DATA_WIDTH, RAM_NUM_PARTITIONS>[RAM_NUM], HistoryBufferPtr) {
+) -> (ram::WriteReq<RAM_ADDR_WIDTH, RAM_DATA_WIDTH, RAM_NUM_PARTITIONS>[RAM_NUM], HistoryBufferPtr<RAM_ADDR_WIDTH>) {
     type WriteReq = ram::WriteReq<RAM_ADDR_WIDTH, RAM_DATA_WIDTH, RAM_NUM_PARTITIONS>;
     let result = WriteReq[RAM_NUM]:[
         literal_packet_to_single_write_req<HISTORY_BUFFER_SIZE_KB, RAM_ADDR_WIDTH, RAM_DATA_WIDTH>(ptr, literal, RamNumber:0),
