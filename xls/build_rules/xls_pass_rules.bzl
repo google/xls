@@ -17,6 +17,8 @@
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
 load("@bazel_tools//tools/cpp:toolchain_utils.bzl", "find_cpp_toolchain", "use_cpp_toolchain")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
+load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load(
     "//xls/build_rules:xls_cc_embed_data_rules.bzl",
     _embed_data_attrs = "embed_data_attrs",

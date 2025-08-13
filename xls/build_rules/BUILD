@@ -127,6 +127,7 @@ bzl_library(
         ":xls_toolchains_bzl",
         ":xls_type_check_utils_bzl",
         "@bazel_skylib//lib:dicts",
+        "@rules_cc//cc/common",
     ],
 )
 
@@ -282,6 +283,7 @@ bzl_library(
         ":xls_utilities_bzl",
         "@bazel_skylib//lib:dicts",
         "@bazel_skylib//rules:common_settings",
+        "@rules_cc//cc/common",
     ],
 )
 
@@ -289,7 +291,10 @@ bzl_library(
     name = "xls_cc_embed_data_rules_bzl",
     srcs = ["xls_cc_embed_data_rules.bzl"],
     visibility = ["//visibility:private"],
-    deps = ["@bazel_skylib//lib:dicts"],
+    deps = [
+        "@bazel_skylib//lib:dicts",
+        "@rules_cc//cc/common",
+    ],
 )
 
 bzl_library(
@@ -302,6 +307,7 @@ bzl_library(
         ":xls_utilities_bzl",
         "@bazel_skylib//lib:dicts",
         "@rules_cc//cc:core_rules",
+        "@rules_cc//cc/common",
     ],
 )
 

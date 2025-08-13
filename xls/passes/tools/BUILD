@@ -125,7 +125,10 @@ bzl_library(
     name = "generate_documentation_rule_bzl",
     srcs = ["generate_documentation_rule.bzl"],
     visibility = ["//xls:xls_internal"],
-    deps = ["//xls/build_rules:xls_providers_bzl"],
+    deps = [
+        "//xls/build_rules:xls_providers_bzl",
+        "@rules_cc//cc/common",
+    ],
 )
 
 # NB This is intentionally a library with a 'main' etc since we want to link in

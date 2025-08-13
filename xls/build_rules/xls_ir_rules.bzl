@@ -14,6 +14,8 @@
 """This module contains IR-related build rules for XLS."""
 
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
+load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
+load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load(
     "//xls/build_rules:xls_common_rules.bzl",
     "append_cmd_line_args_to",
