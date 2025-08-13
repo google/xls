@@ -951,9 +951,6 @@ class Reassociation {
                 LeafTypeTree<std::optional<SignednessPair>>::
                     CreateSingleElementTree(node->GetType(), elements);
             // Mark that nothing actually changed.
-            XLS_RETURN_IF_ERROR(
-                cache_.SetForced(*replaced_with_op_with_constant, given)
-                    .status());
             XLS_RETURN_IF_ERROR(cache_.SetForced(node, given).status());
             XLS_RETURN_IF_ERROR(
                 cache_.SetForced(elements.signed_values.node(), given)

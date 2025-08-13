@@ -905,6 +905,8 @@ absl::Status Node::ReplaceUsesWith(Node* replacement,
                                    const std::function<bool(Node*)>& filter,
                                    bool replace_implicit_uses) {
   XLS_RET_CHECK(replacement != nullptr);
+  XLS_RET_CHECK_NE(replacement, this)
+      << "Attempted to replace node with itself: " << replacement->ToString();
   XLS_RET_CHECK(GetType() == replacement->GetType())
       << "type was: " << GetType()->ToString()
       << " replacement: " << replacement->GetType()->ToString();

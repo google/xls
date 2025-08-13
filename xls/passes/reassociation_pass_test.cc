@@ -1400,6 +1400,30 @@ top fn FuzzTest(p3: bits[1] id=1) -> bits[64] {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
 }
 
+TEST_F(ReassociationPassTest, SelfReferentialReassociationRegression) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, Parser::ParsePackage(R"ir(
+package FuzzTest
+
+top fn FuzzTest(p0: bits[1000] id=1) -> bits[1000] {
+  bit_slice.2: bits[1] = bit_slice(p0, start=0, width=1, id=2)
+  bit_slice.3: bits[1] = bit_slice(p0, start=0, width=1, id=3)
+  add.4: bits[1] = add(bit_slice.2, bit_slice.3, id=4)
+  zero_ext.6: bits[1000] = zero_ext(add.4, new_bit_count=1000, id=6)
+  sub.7: bits[1000] = sub(zero_ext.6, p0, id=7)
+  add.8: bits[1000] = add(p0, sub.7, id=8)
+  zero_ext.5: bits[1000] = zero_ext(p0, new_bit_count=1000, id=5)
+  literal.9: bits[64] = literal(value=0, id=9)
+  sign_ext.10: bits[1000] = sign_ext(add.8, new_bit_count=1000, id=10)
+  zero_ext.11: bits[1] = zero_ext(add.4, new_bit_count=1, id=11)
+  add.12: bits[1000] = add(zero_ext.5, p0, id=12)
+  ret add.13: bits[1000] = add(add.8, sub.7, id=13)
+}
+  )ir"));
+  ScopedVerifyEquivalence stays_equivalent(
+      p->GetTop().value()->AsFunctionOrDie(), kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+}
+
 void IrFuzzReassociation(FuzzPackageWithArgs fuzz_package_with_args) {
   ReassociationPass pass;
   OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
