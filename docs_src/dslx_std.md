@@ -253,6 +253,23 @@ fn test_clz_ctz() {
 }
 ```
 
+### `configured_value_or`
+
+Accesses an externally configured value by name (given by `label`), or returns
+the passed-in `default_value` if no value has been externally configured for
+that label. This enables building multiple versions of a single piece of code
+from the same source, with variations controlled at build time.
+
+```
+fn configured_value_or<T: type, N:u32>(label:u8[N], default_value: T) -> T;
+```
+
+Bazel Target:
+[`xls/examples/BUILD`](https://github.com/google/xls/tree/main/xls/examples/BUILD;l=119;rcl=794114262)
+
+Example usage:
+[`xls/examples/configured_value_or.x`](https://github.com/google/xls/tree/main/xls/examples/configured_value_or.x).
+
 ### `decode`
 
 Converts a binary-encoded value into a one-hot value. Given `n`, interpreted as
