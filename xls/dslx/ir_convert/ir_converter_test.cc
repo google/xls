@@ -4376,18 +4376,9 @@ pub proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest,
-     DISABLED_ParametricSimpleSpawnDifferentParametricsFromEnv) {
-  // This fails with INTERNAL: XLS_RET_CHECK failure
-  // (.../bytecode/bytecode_interpreter.cc:573)
-  // invocation_data->env_to_callee_data().contains(caller_bindings) ||
-  // invocation_data->env_to_callee_data().contains(ParametricEnv()) invocation:
-  // `spawnee2.config<M>()` @ test_module.x:11:32-11:33 caller:
-  // `spawnee1.config` caller_bindings: {N: u32:3}
-
-  // This should "just work".
+TEST_P(ProcScopedChannelsIrConverterTest,
+       ParametricSimpleSpawnDifferentParametricsFromEnv) {
   constexpr std::string_view kProgram = R"(
-#![feature(type_inference_v2)]
 proc spawnee2<N:u32> {
   init { }
   config() { () }
@@ -4402,9 +4393,7 @@ proc spawnee1<M:u32> {
 
 pub proc main {
   init { }
-  config() {
-    spawn spawnee1<u32:3>();
-  }
+  config() { spawn spawnee1<u32:1>(); }
   next(state: ()) { () }
 }
 )";

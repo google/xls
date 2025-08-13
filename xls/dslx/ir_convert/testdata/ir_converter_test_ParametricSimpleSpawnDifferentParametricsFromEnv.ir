@@ -1,0 +1,34 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+proc __test_module__spawnee2_0__1_next<>(__state: (), init={()}) {
+  __state: () = state_read(state_element=__state, id=2)
+  tuple.6: () = tuple(id=6)
+  __token: token = literal(value=token, id=1)
+  literal.3: bits[1] = literal(value=1, id=3)
+  N: bits[32] = literal(value=1, id=4)
+  tuple.5: () = tuple(id=5)
+  next_value.7: () = next_value(param=__state, value=tuple.6, id=7)
+}
+
+proc __test_module__spawnee1_0__1_next<>(__state: (), init={()}) {
+  proc_instantiation __test_module__spawnee2_0__1_next_inst(proc=__test_module__spawnee2_0__1_next)
+  __state: () = state_read(state_element=__state, id=9)
+  tuple.13: () = tuple(id=13)
+  __token: token = literal(value=token, id=8)
+  literal.10: bits[1] = literal(value=1, id=10)
+  M: bits[32] = literal(value=1, id=11)
+  tuple.12: () = tuple(id=12)
+  next_value.14: () = next_value(param=__state, value=tuple.13, id=14)
+}
+
+top proc __test_module__main_0_next<>(__state: (), init={()}) {
+  proc_instantiation __test_module__spawnee1_0__1_next_inst(proc=__test_module__spawnee1_0__1_next)
+  __state: () = state_read(state_element=__state, id=16)
+  tuple.19: () = tuple(id=19)
+  __token: token = literal(value=token, id=15)
+  literal.17: bits[1] = literal(value=1, id=17)
+  tuple.18: () = tuple(id=18)
+  next_value.20: () = next_value(param=__state, value=tuple.19, id=20)
+}
