@@ -2000,6 +2000,7 @@ cc_library(
         ":channel_ops",
         ":elaboration",
         ":ir",
+        ":type",
         ":value",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",

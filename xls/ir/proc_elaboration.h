@@ -16,7 +16,6 @@
 #define XLS_IR_PROC_ELABORATION_H_
 
 #include <cstdint>
-#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -39,6 +38,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/proc_instantiation.h"
+#include "xls/ir/type.h"
 #include "ortools/graph/graph.h"
 
 namespace xls {
@@ -331,6 +331,13 @@ class ProcElaboration {
     return proc_instance_ptrs_[id];
   }
 
+  absl::StatusOr<absl::Span<ChannelEdge const>> GetChannelRefs() const {
+    if (!channel_graph_) {
+      XLS_ASSIGN_OR_RETURN(std::tie(channel_graph_, channel_refs_),
+                           BuildChannelGraph());
+    }
+    return *channel_refs_;
+  }
   absl::StatusOr<ChannelEdge> GetChannelRefs(ChannelId id) const {
     if (!channel_graph_) {
       XLS_ASSIGN_OR_RETURN(std::tie(channel_graph_, channel_refs_),
