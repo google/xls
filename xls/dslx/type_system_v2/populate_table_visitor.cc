@@ -259,7 +259,16 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
             std::optional<const AstNode*> def,
             HandleStructAttributeReferenceInternal(
                 node, *struct_ref->def, struct_ref->parametrics, node->attr()));
-        if (def.has_value()) {
+        if (struct_ref->type_ref_type_annotation.has_value()) {
+          // In this case we are dealing with S<parametrics>::CONSTANT
+          // masquerading behind the superficially simpler TypeAlias::CONSTANT
+          // case. We need to handle it like what it really is (see the
+          // `S<parametrics>::CONSTANT` case further down) in order for the
+          // parametrics to be resolved properly.
+          return table_.SetTypeAnnotation(
+              node, module_.Make<MemberTypeAnnotation>(
+                        *struct_ref->type_ref_type_annotation, node->attr()));
+        } else if (def.has_value()) {
           return PropagateDefToRef(*def, node);
         }
       }

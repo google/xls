@@ -73,6 +73,9 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
           import_data_.file_table());
     }
 
+    if (!type_ref_type_annotation_.has_value()) {
+      type_ref_type_annotation_ = annotation;
+    }
     if (!annotation->parametrics().empty()) {
       parametrics_ = annotation->parametrics();
     }
@@ -114,7 +117,8 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
     return StructOrProcRef{
         .def = down_cast<StructDefBase*>(ToAstNode(*type_def_)),
         .parametrics = parametrics_,
-        .instantiator = instantiator_};
+        .instantiator = instantiator_,
+        .type_ref_type_annotation = type_ref_type_annotation_};
   }
 
   std::optional<const EnumDef*> GetEnumDef() {
@@ -129,6 +133,7 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
   // These fields get populated as we visit nodes.
   std::vector<ExprOrType> parametrics_;
   std::optional<TypeDefinition> type_def_;
+  std::optional<const TypeRefTypeAnnotation*> type_ref_type_annotation_;
   std::optional<const StructInstanceBase*> instantiator_;
 };
 

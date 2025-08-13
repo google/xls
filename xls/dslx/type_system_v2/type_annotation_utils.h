@@ -22,12 +22,10 @@
 #include <variant>
 #include <vector>
 
-#include "absl/container/flat_hash_map.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
-#include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
@@ -38,6 +36,7 @@ struct StructOrProcRef {
   const StructDefBase* def;
   std::vector<ExprOrType> parametrics;
   std::optional<const StructInstanceBase*> instantiator;
+  std::optional<const TypeRefTypeAnnotation*> type_ref_type_annotation;
 };
 
 // The signedness and bit count extracted from a `TypeAnnotation`. The

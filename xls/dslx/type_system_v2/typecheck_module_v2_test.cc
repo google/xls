@@ -4879,6 +4879,28 @@ const Y = uN[S<2>::N_VALUE]:0;
                                       HasNodeWithType("Y", "uN[2]"))));
 }
 
+TEST(TypecheckV2Test, ImplConstantForwardParametricToFunction) {
+  EXPECT_THAT(R"(
+fn f<A: u32>(a: uN[A]) -> uN[A] { a }
+
+struct S<N: u32> {}
+
+impl S<N> {
+  const F_VALUE = f<N>(1);
+}
+
+// Note that this was only failing originally if a type alias rather than the
+// actual struct name was used to access `F_VALUE`.
+type S1 = S<1>;
+type S2 = S<2>;
+
+const X = S1::F_VALUE;
+const Y = S2::F_VALUE;
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[1]"),
+                                      HasNodeWithType("Y", "uN[2]"))));
+}
+
 TEST(TypecheckV2Test, SumOfImplConstantsFromDifferentParameterizations) {
   EXPECT_THAT(R"(
 struct S<N: u32> {}
