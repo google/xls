@@ -38,7 +38,7 @@ pub struct BlockHeaderDecoderResp {
 
 pub proc BlockHeaderDecoder<DATA_W: u32, ADDR_W: u32> {
     type Req = BlockHeaderDecoderReq<ADDR_W>;
-    type Resp = BlockHeaderDecoderResp<ADDR_W>;
+    type Resp = BlockHeaderDecoderResp;
 
     type MemReaderReq = mem_reader::MemReaderReq<ADDR_W>;
     type MemReaderResp = mem_reader::MemReaderResp<DATA_W, ADDR_W>;

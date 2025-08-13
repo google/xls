@@ -889,7 +889,7 @@ proc HuffmanFseWeightsDecoder<
     type WeightsRamWrReq = ram::WriteReq<WEIGHTS_RAM_ADDR_W, WEIGHTS_RAM_DATA_W, WEIGHTS_RAM_NUM_PARTITIONS>;
     type WeightsRamWrResp = ram::WriteResp;
 
-    type CompLookupDecoderReq =  comp_lookup_dec::CompLookupDecoderReq<AXI_ADDR_W>;
+    type CompLookupDecoderReq =  comp_lookup_dec::CompLookupDecoderReq;
     type CompLookupDecoderResp = comp_lookup_dec::CompLookupDecoderResp;
 
     type DpdRamRdReq = ram::ReadReq<DPD_RAM_ADDR_W, DPD_RAM_NUM_PARTITIONS>;
