@@ -554,10 +554,16 @@ absl::Status FunctionConverter::DefAlias(const AstNode* from,
     IrValue from_ir_value = node_to_ir_.at(from);
     if (std::holds_alternative<BValue>(from_ir_value)) {
       BValue ir_node = std::get<BValue>(from_ir_value);
-      ir_node.SetName(name_def->identifier());
+      XLS_RET_CHECK(ir_node.valid());
+      if (ir_node.node()->op() != Op::kParam) {
+        ir_node.SetName(name_def->identifier());
+      }
     } else if (std::holds_alternative<CValue>(from_ir_value)) {
       BValue ir_node = std::get<CValue>(from_ir_value).value;
-      ir_node.SetName(name_def->identifier());
+      XLS_RET_CHECK(ir_node.valid());
+      if (ir_node.node()->op() != Op::kParam) {
+        ir_node.SetName(name_def->identifier());
+      }
     }
     // Do nothing for channels; they have no BValue-type representation (they
     // exist as _global_ entities, not nodes in a Proc's IR), so they can't

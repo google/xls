@@ -261,6 +261,30 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, Concat) {
   ExpectIr(converted);
 }
 
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       ParameterNamePreservedOnLetAlias) {
+  constexpr std::string_view program = R"(
+pub fn my_fun(baz: u32) -> u32 {
+  let foo = baz;
+  foo
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "my_fun", kNoPosOptions));
+
+  // Expect the parameter to retain its original DSLX name `baz` in IR.
+  EXPECT_EQ(converted, R"(package test_module
+
+file_number 0 "test_module.x"
+
+top fn __test_module__my_fun(baz: bits[32] id=1) -> bits[32] {
+  ret baz: bits[32] = param(name=baz, id=1)
+}
+)");
+}
+
 TEST_P(IrConverterWithBothTypecheckVersionsTest, TwoPlusTwo) {
   const char* program =
       R"(fn two_plus_two() -> u32 {
@@ -4116,13 +4140,13 @@ proc main {
     spawn producer(p);
     spawn consumer(c);
 
-    let (p, c) = 
+    let (p, c) =
     #[channel(depth=1, register_push_outputs=true, register_pop_outputs=true, bypass=false)]
     chan<u32>("my_chan1");
     spawn producer(p);
     spawn consumer(c);
 
-    let (p, c) = 
+    let (p, c) =
     #[channel(depth=0, input_flop_kind=zero_latency, output_flop_kind=flop)]
     chan<u32>("my_chan2");
     spawn producer(p);
