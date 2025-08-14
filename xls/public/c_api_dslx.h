@@ -76,6 +76,9 @@ struct xls_dslx_function;
 struct xls_dslx_quickcheck;
 struct xls_dslx_function;
 struct xls_dslx_param;
+struct xls_dslx_expr;
+struct xls_dslx_module_member;
+struct xls_dslx_type_dim;
 
 struct xls_dslx_import_data* xls_dslx_import_data_create(
     const char* dslx_stdlib_path, const char* additional_search_paths[],
@@ -94,6 +97,11 @@ struct xls_dslx_module* xls_dslx_typechecked_module_get_module(
     struct xls_dslx_typechecked_module*);
 struct xls_dslx_type_info* xls_dslx_typechecked_module_get_type_info(
     struct xls_dslx_typechecked_module*);
+
+// Returns the imported TypeInfo associated with the given module if present
+// within the import graph rooted at `type_info`; otherwise returns nullptr.
+struct xls_dslx_type_info* xls_dslx_type_info_get_imported_type_info(
+    struct xls_dslx_type_info* type_info, struct xls_dslx_module* module);
 
 int64_t xls_dslx_module_get_member_count(struct xls_dslx_module*);
 
@@ -230,6 +238,10 @@ char* xls_dslx_enum_member_get_name(struct xls_dslx_enum_member*);
 
 struct xls_dslx_expr* xls_dslx_enum_member_get_value(
     struct xls_dslx_enum_member*);
+
+// Returns the owning module for the given expression AST node.
+struct xls_dslx_module* xls_dslx_expr_get_owner_module(
+    struct xls_dslx_expr* expr);
 
 // -- type_annotation
 

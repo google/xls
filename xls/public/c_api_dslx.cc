@@ -99,6 +99,18 @@ struct xls_dslx_type_info* xls_dslx_typechecked_module_get_type_info(
   return reinterpret_cast<xls_dslx_type_info*>(cpp_type_info);
 }
 
+struct xls_dslx_type_info* xls_dslx_type_info_get_imported_type_info(
+    struct xls_dslx_type_info* type_info, struct xls_dslx_module* module) {
+  auto* cpp_type_info = reinterpret_cast<xls::dslx::TypeInfo*>(type_info);
+  auto* cpp_module = reinterpret_cast<xls::dslx::Module*>(module);
+  std::optional<xls::dslx::TypeInfo*> imported =
+      cpp_type_info->GetImportedTypeInfo(cpp_module);
+  if (!imported.has_value()) {
+    return nullptr;
+  }
+  return reinterpret_cast<xls_dslx_type_info*>(*imported);
+}
+
 bool xls_dslx_parse_and_typecheck(
     const char* text, const char* path, const char* module_name,
     struct xls_dslx_import_data* import_data, char** error_out,
@@ -564,6 +576,13 @@ struct xls_dslx_expr* xls_dslx_enum_member_get_value(
   auto* cpp_member = reinterpret_cast<xls::dslx::EnumMember*>(m);
   xls::dslx::Expr* cpp_value = cpp_member->value;
   return reinterpret_cast<xls_dslx_expr*>(cpp_value);
+}
+
+struct xls_dslx_module* xls_dslx_expr_get_owner_module(
+    struct xls_dslx_expr* expr) {
+  auto* cpp_expr = reinterpret_cast<xls::dslx::Expr*>(expr);
+  xls::dslx::Module* cpp_module = cpp_expr->owner();
+  return reinterpret_cast<xls_dslx_module*>(cpp_module);
 }
 
 // -- type_info
