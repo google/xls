@@ -520,8 +520,8 @@ TEST_F(NodeUtilTest, ChannelUsers) {
 
   XLS_ASSERT_OK(pb.Build({}));
 
-  absl::flat_hash_map<Channel*, std::vector<Node*>> channel_users;
-  XLS_ASSERT_OK_AND_ASSIGN(channel_users, ChannelUsers(&p));
+  absl::flat_hash_map<Channel*, ChannelUsers> channel_users;
+  XLS_ASSERT_OK_AND_ASSIGN(channel_users, GetChannelUsers(&p));
 
   EXPECT_THAT(channel_users,
               UnorderedElementsAre(Key(ch0), Key(ch1), Key(ch2)));
@@ -533,11 +533,11 @@ TEST_F(NodeUtilTest, ChannelUsers) {
   ASSERT_TRUE(recv2.node()->op() == Op::kTupleIndex);
   Node* recv2_node = recv2.node()->As<TupleIndex>()->operand(0);
 
-  EXPECT_THAT(channel_users[ch0], UnorderedElementsAre(recv0_node));
-  EXPECT_THAT(channel_users[ch1],
+  EXPECT_THAT(channel_users[ch0].receives, UnorderedElementsAre(recv0_node));
+  EXPECT_THAT(channel_users[ch1].sends,
               UnorderedElementsAre(send1_0.node(), send1_1.node()));
-  EXPECT_THAT(channel_users[ch2],
-              UnorderedElementsAre(send2.node(), recv2_node));
+  EXPECT_THAT(channel_users[ch2].sends, UnorderedElementsAre(send2.node()));
+  EXPECT_THAT(channel_users[ch2].receives, UnorderedElementsAre(recv2_node));
 }
 
 TEST_F(NodeUtilTest, GetNodeAtIndex) {

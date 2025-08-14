@@ -769,35 +769,39 @@ static absl::Status AddOneShotOutputLogic(
 
   for (Stage stage = 0; stage < streaming_io.outputs.size(); ++stage) {
     for (const StreamingOutput& output : streaming_io.outputs.at(stage)) {
-      // Add a buffer before the valid output ports and after
-      // the ready input port to serve as points where the
-      // additional logic from AddRegisterToRDVNodes() can be inserted.
-      XLS_ASSIGN_OR_RETURN(std::string port_name,
-                           StreamingIOName(*output.GetDataPort()));
-      XLS_ASSIGN_OR_RETURN(std::string port_valid_name,
-                           StreamingIOName(*output.GetValidPort()));
-      std::string valid_buf_name = absl::StrFormat("__%s_buf", port_valid_name);
+      if (ChannelRefFlowControl(output.GetChannel()) ==
+          FlowControl::kReadyValid) {
+        // Add a buffer before the valid output ports and after
+        // the ready input port to serve as points where the
+        // additional logic from AddRegisterToRDVNodes() can be inserted.
+        XLS_ASSIGN_OR_RETURN(std::string port_name,
+                             StreamingIOName(*output.GetDataPort()));
+        XLS_ASSIGN_OR_RETURN(std::string port_valid_name,
+                             StreamingIOName(*output.GetValidPort()));
+        std::string valid_buf_name =
+            absl::StrFormat("__%s_buf", port_valid_name);
 
-      XLS_ASSIGN_OR_RETURN(
-          Node * output_port_valid_buf,
-          block->MakeNodeWithName<UnOp>(
-              /*loc=*/SourceInfo(), output.GetValidPort().value()->operand(0),
-              Op::kIdentity, valid_buf_name));
-      XLS_RETURN_IF_ERROR(output.GetValidPort().value()->ReplaceOperandNumber(
-          0, output_port_valid_buf));
+        XLS_ASSIGN_OR_RETURN(
+            Node * output_port_valid_buf,
+            block->MakeNodeWithName<UnOp>(
+                /*loc=*/SourceInfo(), output.GetValidPort().value()->operand(0),
+                Op::kIdentity, valid_buf_name));
+        XLS_RETURN_IF_ERROR(output.GetValidPort().value()->ReplaceOperandNumber(
+            0, output_port_valid_buf));
 
-      XLS_ASSIGN_OR_RETURN(
-          Node * output_port_ready_buf,
-          block->MakeNodeWithName<UnOp>(
-              /*loc=*/SourceInfo(), output.GetReadyPort().value(),
-              Op::kIdentity, valid_buf_name));
+        XLS_ASSIGN_OR_RETURN(
+            Node * output_port_ready_buf,
+            block->MakeNodeWithName<UnOp>(
+                /*loc=*/SourceInfo(), output.GetReadyPort().value(),
+                Op::kIdentity, valid_buf_name));
 
-      XLS_RETURN_IF_ERROR(output.GetReadyPort().value()->ReplaceUsesWith(
-          output_port_ready_buf));
+        XLS_RETURN_IF_ERROR(output.GetReadyPort().value()->ReplaceUsesWith(
+            output_port_ready_buf));
 
-      XLS_RETURN_IF_ERROR(AddOneShotLogicToRVNodes(
-          output_port_valid_buf, output_port_ready_buf,
-          all_active_outputs_ready[stage], port_name, block));
+        XLS_RETURN_IF_ERROR(AddOneShotLogicToRVNodes(
+            output_port_valid_buf, output_port_ready_buf,
+            all_active_outputs_ready[stage], port_name, block));
+      }
     }
   }
 
@@ -1485,12 +1489,12 @@ absl::Status SingleProcToPipelinedBlock(
 
   XLS_RETURN_IF_ERROR(block->AddClockPort("clk"));
   VLOG(3) << "Schedule Used";
-  XLS_VLOG_LINES(3, package_schedule.ToString());
+  XLS_VLOG_LINES(3, package_schedule.GetSchedule(proc).ToString());
 
   XLS_ASSIGN_OR_RETURN(
       (auto [streaming_io_and_pipeline, concurrent_stages]),
       CloneNodesIntoPipelinedBlock(proc, package_schedule, options, block,
-                                   converted_blocks));
+                                   converted_blocks, elab));
 
   VLOG(3) << "After Pipeline";
   XLS_VLOG_LINES(3, block->DumpIr());
