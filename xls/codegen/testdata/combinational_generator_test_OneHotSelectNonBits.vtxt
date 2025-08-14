@@ -4,5 +4,5 @@ module main(
   input wire [31:0] y,
   output wire [31:0] out
 );
-  assign out = x & {32{p[0]}} | y & {32{p[1]}};
+  assign out = {x[31:16] & {16{p[0]}} | y[31:16] & {16{p[1]}}, x[15:0] & {16{p[0]}} | y[15:0] & {16{p[1]}}};
 endmodule

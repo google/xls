@@ -20,23 +20,112 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "xls/codegen/codegen_pass.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/block.h"
+#include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/register.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/value_utils.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
+namespace {
 
-absl::StatusOr<bool> RegisterLegalizationPass::RunInternal(
-    Package* package, const CodegenPassOptions& options, PassResults* results,
-    CodegenContext& context) const {
+// For registers with multiple RegisterWrites, combine into a single
+// RegisterWrite.
+absl::StatusOr<bool> ReplaceMultiwriteRegisters(Package* package,
+                                                CodegenContext& context) {
+  bool changed = false;
+  absl::flat_hash_map<Register*, RegisterWrite*> new_reg_writes;
+  for (const std::unique_ptr<Block>& block : package->blocks()) {
+    for (Register* reg : block->GetRegisters()) {
+      XLS_ASSIGN_OR_RETURN(absl::Span<RegisterWrite* const> reg_writes_span,
+                           block->GetRegisterWrites(reg));
+      XLS_RET_CHECK(!reg_writes_span.empty());
+      if (reg_writes_span.size() == 1) {
+        continue;
+      }
+      VLOG(3) << "Compbining multiple write register " << reg->name();
+      std::vector<RegisterWrite*> reg_writes(reg_writes_span.begin(),
+                                             reg_writes_span.end());
+      std::vector<Node*> data;
+      std::vector<Node*> load_enables;
+      for (RegisterWrite* reg_write : reg_writes) {
+        data.push_back(reg_write->data());
+        if (!reg_write->load_enable().has_value()) {
+          return absl::InternalError(
+              absl::StrFormat("Register `%s` has multiple writes but write "
+                              "`%s` is not predicated",
+                              reg->name(), reg_write->GetName()));
+        }
+        load_enables.push_back(*reg_write->load_enable());
+      }
+      const SourceInfo& loc = reg_writes.front()->loc();
+
+      XLS_ASSIGN_OR_RETURN(Node * new_load_enable,
+                           block->MakeNode<NaryOp>(loc, load_enables, Op::kOr));
+      XLS_ASSIGN_OR_RETURN(Node * selector,
+                           block->MakeNode<xls::Concat>(loc, load_enables));
+
+      // Reverse the order of the values, so they match up to the selector.
+      std::reverse(data.begin(), data.end());
+      XLS_ASSIGN_OR_RETURN(Node * new_data,
+                           block->MakeNode<OneHotSelect>(loc, selector, data));
+      XLS_ASSIGN_OR_RETURN(
+          new_reg_writes[reg],
+          block->MakeNode<RegisterWrite>(loc, new_data, new_load_enable,
+                                         reg_writes.front()->reset(), reg));
+
+      // Remove the old register_writes.
+      for (RegisterWrite* reg_write : reg_writes) {
+        XLS_RETURN_IF_ERROR(block->RemoveNode(reg_write));
+      }
+
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    // Patch up the metadata. State registers may have multiple writes so
+    // replace with the new single write.
+    for (const std::unique_ptr<Block>& block : package->blocks()) {
+      StreamingIOPipeline& streaming_io =
+          context.GetMetadataForBlock(block.get()).streaming_io_and_pipeline;
+      for (std::optional<StateRegister>& state_reg :
+           streaming_io.state_registers) {
+        if (!state_reg.has_value()) {
+          continue;
+        }
+        if (new_reg_writes.contains(state_reg->reg)) {
+          state_reg->reg_writes = {new_reg_writes.at(state_reg->reg)};
+        }
+        if (state_reg->reg_full.has_value() &&
+            new_reg_writes.contains(state_reg->reg_full->reg)) {
+          state_reg->reg_full->sets = {
+              new_reg_writes.at(state_reg->reg_full->reg)};
+        }
+      }
+    }
+
+    context.GcMetadata();
+  }
+  return changed;
+}
+
+absl::StatusOr<bool> RemoveZeroWidthRegisters(Package* package,
+                                              CodegenContext& context) {
   bool changed = false;
 
   // Build vector of (Block, Register) because removing registers invalidates
@@ -95,8 +184,20 @@ absl::StatusOr<bool> RegisterLegalizationPass::RunInternal(
       }
     }
   }
-
   return changed;
+}
+
+}  // namespace
+
+absl::StatusOr<bool> RegisterLegalizationPass::RunInternal(
+    Package* package, const CodegenPassOptions& options, PassResults* results,
+    CodegenContext& context) const {
+  XLS_ASSIGN_OR_RETURN(bool multi_write_changed,
+                       ReplaceMultiwriteRegisters(package, context));
+  XLS_ASSIGN_OR_RETURN(bool zero_width_changed,
+                       RemoveZeroWidthRegisters(package, context));
+
+  return multi_write_changed || zero_width_changed;
 }
 
 }  // namespace xls::verilog
