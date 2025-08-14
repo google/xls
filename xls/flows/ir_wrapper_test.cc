@@ -110,6 +110,7 @@ pub fn GetLatency() -> s64 {
   ExpectIr(get_latency->DumpIr(), TestName() + "_get_latency");
 
   XLS_ASSERT_OK_AND_ASSIGN(Package * package, ir_wrapper.GetIrPackage());
+  std::cout << "Package: " << package->DumpIr() << std::endl;
   ExpectIr(package->DumpIr(), TestName() + "_package");
 
   // Test that that the jit for the function can be retrieved and run.
@@ -163,6 +164,7 @@ TEST(IrWrapperTest, DslxProcsToIrOk) {
   XLS_VLOG_LINES(3, top_proc->DumpIr());
 
   XLS_ASSERT_OK_AND_ASSIGN(Package * package, ir_wrapper.GetIrPackage());
+  std::cout << "Package: " << package->DumpIr() << std::endl;
   ExpectIr(package->DumpIr(), TestName());
 
   // Test that that the jit for the proc can be retrieved and run.

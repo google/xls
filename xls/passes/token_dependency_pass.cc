@@ -132,7 +132,7 @@ absl::StatusOr<bool> TokenDependencyPass::RunOnFunctionBaseInternal(
     if (a->GetType()->IsToken()) {
       continue;
     }
-    if (a->Is<StateRead>()) {
+    if (a->Is<StateRead>() || a->Is<Param>()) {
       // This operation does not consume a token.
       continue;
     }
