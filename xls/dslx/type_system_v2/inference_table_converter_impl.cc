@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/functional/function_ref.h"
@@ -75,6 +76,18 @@
 
 namespace xls::dslx {
 namespace {
+
+// Returns whether the type for the given node should be a `MetaType`, i.e. the
+// node represents a type itself rather than an object of the type.
+bool NeedsMetaType(const InferenceTable& table, const AstNode* node) {
+  static const absl::NoDestructor<absl::flat_hash_set<AstNodeKind>>
+      kMetaTypeKinds({AstNodeKind::kTypeAnnotation, AstNodeKind::kTypeAlias,
+                      AstNodeKind::kEnumDef, AstNodeKind::kStructDef,
+                      AstNodeKind::kProcDef});
+  return kMetaTypeKinds->contains(node->kind()) ||
+         (node->kind() == AstNodeKind::kColonRef &&
+          IsColonRefWithTypeTarget(table, down_cast<const ColonRef*>(node)));
+}
 
 // RAII guard for a frame on the proc type info stack.
 class ProcTypeInfoFrame {
@@ -963,10 +976,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         ValidateConcreteType(table_, parametric_context, node, type->get(), *ti,
                              warning_collector_, import_data_, file_table_));
 
-    if (node->kind() == AstNodeKind::kTypeAnnotation ||
-        node->kind() == AstNodeKind::kTypeAlias ||
-        (node->kind() == AstNodeKind::kColonRef &&
-         IsColonRefWithTypeTarget(table_, down_cast<const ColonRef*>(node)))) {
+    if (NeedsMetaType(table_, node)) {
       MetaType meta_type((*type)->CloneToUnique());
       ti->SetItem(node, meta_type);
     } else {
