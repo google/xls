@@ -17,6 +17,7 @@ import random
 import cocotb
 import cocotbext.axi.axi_channels as axi
 
+from inspect import currentframe
 from pathlib import Path
 from cocotb.clock import Clock
 from cocotb.triggers import Event
@@ -94,7 +95,7 @@ async def testcase(dut, params, input_data, max_block_size = 128):
   memory = AxiRamFromArray(connect_axi_bus(dut, "memory"), dut.clk, dut.rst, arr=input_data, size=MEM_SIZE)
   req = Req(
       input_offset=0x0,
-      data_size=INPUT_SIZE,
+      data_size=len(input_data),
       output_offset=OBUF_ADDR,
       max_block_size=max_block_size,
       **params
@@ -122,10 +123,22 @@ async def testcase(dut, params, input_data, max_block_size = 128):
     
   dctx = DecompressFrame(mem_contents)
 
-  for i in range(INPUT_SIZE):
+  for i in range(len(dctx)):
     print(f"comparing {hex(dctx[i])}=={hex(input_data[i])}")
     assert dctx[i] == input_data[i]
 
+PREGENERATED_FILES_DIR = '../../xls/modules/zstd/data/'
+
+async def testcase_pregenerated(dut, filename, max_block_size, params):
+  with open(PREGENERATED_FILES_DIR + filename, "rb") as f:
+    input_data = f.read()
+  input_data = bytearray(input_data)
+  await testcase(
+    dut, 
+    params,
+    input_data,
+    max_block_size
+  )
 
 @cocotb.test(timeout_time=1000, timeout_unit="ms")
 async def raw_block_test(dut):
@@ -161,6 +174,73 @@ async def comp_block_test(dut):
     input_data=generate_random_bytes(),
     max_block_size=0x400
   )
+
+def parse_decl(frame):
+  fname = frame.f_code.co_name
+  tokens = fname.split("_")
+  filename = f"enc_{tokens[0]}_{tokens[1]}"
+  max_block_size = int(tokens[3][:-1])
+  mode = tokens[4]
+  params = {
+    "enable_rle": mode == "rle",
+    "enable_compressed": mode == "compressed"
+  }
+  return filename, max_block_size, params
+
+# pregenerated testcases
+# convention:
+# pregenerated_<input_size>B_block_<max_block_size>B_<mode>
+# input_size should match one of the input sizes available in xls/modules/zstd/data
+# mode should be one of:
+# - compressed
+# - rle
+# - raw
+# it is then parsed and a test with specified params is run
+
+p=testcase_pregenerated
+d=parse_decl
+
+# RAW
+@cocotb.test(timeout_time=10000, timeout_unit="ms")
+async def pregenerated_2000B_block_100B_raw(dut): await p(dut, *d(currentframe()))
+@cocotb.test(timeout_time=10000, timeout_unit="ms")
+async def pregenerated_2000B_block_500B_raw(dut): await p(dut, *d(currentframe()))
+
+# COMPRESSED
+@cocotb.test(timeout_time=10000, timeout_unit="ms")
+async def pregenerated_200B_block_10B_compressed(dut): await p(dut, *d(currentframe()))
+@cocotb.test(timeout_time=10000, timeout_unit="ms")
+async def pregenerated_200B_block_100B_compressed(dut): await p(dut, *d(currentframe()))
+@cocotb.test(timeout_time=10000, timeout_unit="ms")
+async def pregenerated_200B_block_500B_compressed(dut): await p(dut, *d(currentframe()))
+@cocotb.test(timeout_time=10000, timeout_unit="ms")
+async def pregenerated_300B_block_10B_compressed(dut): await p(dut, *d(currentframe()))
+@cocotb.test(timeout_time=10000, timeout_unit="ms")
+async def pregenerated_300B_block_100B_compressed(dut): await p(dut, *d(currentframe()))
+@cocotb.test(timeout_time=10000, timeout_unit="ms")
+async def pregenerated_300B_block_500B_compressed(dut): await p(dut, *d(currentframe()))
+@cocotb.test(timeout_time=10000, timeout_unit="ms")
+async def pregenerated_500B_block_10B_compressed(dut): await p(dut, *d(currentframe()))
+@cocotb.test(timeout_time=10000, timeout_unit="ms")
+async def pregenerated_500B_block_100B_compressed(dut): await p(dut, *d(currentframe()))
+@cocotb.test(timeout_time=10000, timeout_unit="ms")
+async def pregenerated_1024B_block_10B_compressed(dut): await p(dut, *d(currentframe()))
+@cocotb.test(timeout_time=10000, timeout_unit="ms")
+async def pregenerated_1024B_block_100B_compressed(dut): await p(dut, *d(currentframe()))
+@cocotb.test(timeout_time=10000, timeout_unit="ms")
+async def pregenerated_1024B_block_500B_compressed(dut): await p(dut, *d(currentframe()))
+@cocotb.test(timeout_time=10000, timeout_unit="ms")
+async def pregenerated_1030B_block_10B_compressed(dut): await p(dut, *d(currentframe()))
+@cocotb.test(timeout_time=10000, timeout_unit="ms")
+async def pregenerated_1030B_block_100B_compressed(dut): await p(dut, *d(currentframe()))
+@cocotb.test(timeout_time=10000, timeout_unit="ms")
+async def pregenerated_1030B_block_500B_compressed(dut): await p(dut, *d(currentframe()))
+@cocotb.test(timeout_time=30000, timeout_unit="ms")
+async def pregenerated_2000B_block_10B_compressed(dut): await p(dut, *d(currentframe()))
+@cocotb.test(timeout_time=20000, timeout_unit="ms")
+async def pregenerated_2000B_block_100B_compressed(dut): await p(dut, *d(currentframe()))
+@cocotb.test(timeout_time=20000, timeout_unit="ms")
+async def pregenerated_2000B_block_500B_compressed(dut): await p(dut, *d(currentframe()))
 
 if __name__ == "__main__":
   toplevel = "zstd_enc_wrapper"
