@@ -470,7 +470,6 @@ proc SequenceEncoderBuffer<
                 ..state
             }
         }  else if state.buffer_size < DATA_W as BuffSize {
-            trace_fmt!("bbb");
             let (tok, _) = recv(tok, mem_wr_resp_r);
 
             let tok = send(tok, sync_s, Sync { bytes_written: state.bytes_written });
@@ -794,7 +793,7 @@ pub proc SequenceEncoder<
             let write_size = write_size + uN[BUFF_SIZE_W]:1;
 
 
-            trace_fmt!("Sent (final) {:#x}", to_write);
+            trace_fmt!("[SequenceEncoder] Sent (final) {:#x}", to_write);
             let tok = send(tok, sb_req_s, BufferReq {
                 instr: SequenceEncoderBufferInstr { flush: true, pad: true, write: true, ..NOP},
                 write_data: to_write,
@@ -880,7 +879,7 @@ pub proc SequenceEncoder<
                 addr: uN[ADDR_W]:0
             });
             let (tok, sync) = recv(tok, sb_sync_r);
-            trace_fmt!("Sent {:#x}", to_write);
+            trace_fmt!("[SequenceEncoder] Sent {:#x}", to_write);
 
             State {
                 active: true,
