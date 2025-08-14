@@ -494,6 +494,34 @@ proc SequenceEncoderBuffer<
     }
 }
 
+const INST_ADDR_W = u32:32;
+const INST_DATA_W = u32:64;
+const INST_BUFF_W = u32: 1024;
+const INST_BUFF_SIZE_W = std::clog2(INST_BUFF_W + u32:1);
+proc SequenceEncoderBufferInst {
+    type Req = SequenceEncoderBufferReq<INST_ADDR_W, INST_BUFF_W, INST_BUFF_SIZE_W>;
+    type Sync = SequenceEncoderBufferSync<INST_ADDR_W>;
+    type MemWriterReq = mem_writer::MemWriterReq<INST_ADDR_W>;
+    type MemWriterData = mem_writer::MemWriterDataPacket<INST_DATA_W, INST_ADDR_W>;
+    type MemWriterResp = mem_writer::MemWriterResp;
+
+    config(
+        req_r: chan<Req> in,
+        sync_s: chan<Sync> out,
+        mem_wr_req_s: chan<MemWriterReq> out,
+        mem_wr_data_s: chan<MemWriterData> out,
+        mem_wr_resp_r: chan<MemWriterResp> in
+    ) {
+        spawn SequenceEncoderBuffer<INST_ADDR_W, INST_DATA_W, INST_BUFF_W, INST_BUFF_SIZE_W>
+        (
+            req_r, sync_s,
+            mem_wr_req_s, mem_wr_data_s, mem_wr_resp_r
+        );
+    }
+    init {}
+    next(state:()) {}
+}
+
 pub proc SequenceEncoder<
     ADDR_W: u32, DATA_W: u32, RAM_ADDR_W: u32,
     CTABLE_RAM_DATA_W: u32, CTABLE_RAM_NUM_PARTITIONS: u32,

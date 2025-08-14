@@ -5077,6 +5077,65 @@ xls_dslx_test(
     library = "sequence_encoder_dslx",
 )
 
+sequence_encoder_buffer_codegen_args = common_codegen_args | {
+    "module_name": "SequenceEncoderBuffer",
+    "clock_period_ps": "900",
+    "worst_case_throughput": "1",
+}
+
+xls_dslx_verilog(
+    name = "sequence_encoder_buffer_verilog",
+    codegen_args = sequence_encoder_buffer_codegen_args,
+    dslx_top = "SequenceEncoderBufferInst",
+    library = ":sequence_encoder_dslx",
+    tags = ["manual"],
+    verilog_file = "sequence_encoder_buffer.v",
+)
+
+xls_benchmark_ir(
+    name = "sequence_encoder_buffer_opt_ir_benchmark",
+    src = ":sequence_encoder_buffer_verilog.opt.ir",
+    benchmark_ir_args = sequence_encoder_buffer_codegen_args,
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "sequence_encoder_buffer_verilog_lib",
+    srcs = [
+        ":sequence_encoder_buffer.v",
+        # "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "sequence_encoder_buffer_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "SequenceEncoderBuffer",
+    deps = [
+        ":sequence_encoder_buffer_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "sequence_encoder_buffer_benchmark_synth",
+    synth_target = ":sequence_encoder_buffer_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "sequence_encoder_buffer_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":sequence_encoder_buffer_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
+
 xls_dslx_library(
     name = "comp_block_enc_dslx",
     srcs = [
