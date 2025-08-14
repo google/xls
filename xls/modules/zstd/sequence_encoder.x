@@ -913,6 +913,7 @@ const TEST_CT_NUM_PARTITIONS = ram::num_partitions(TEST_T_PARTITION_SIZE, TEST_C
 const TEST_TT_NUM_PARTITIONS = ram::num_partitions(TEST_T_PARTITION_SIZE, TEST_TT_DATA_W);
 
 const TEST_BUFF_W = u32:256;
+const TEST_BUFF_SIZE_W = std::clog2(TEST_BUFF_W + u32:1);
 
 const TEST_OUTPUT_ADDR = uN[TEST_ADDR_W]:0x100;
 const TEST_SEQUENCES_CNT = u32:8;
@@ -953,6 +954,179 @@ const EXPECTED_DATA = [
 ];
 
 #[test_proc]
+proc SequenceEncoderBufferTest {
+    type Req = SequenceEncoderBufferReq<TEST_ADDR_W, TEST_BUFF_W, TEST_BUFF_SIZE_W>;
+    type Instr = SequenceEncoderBufferInstr;
+    type Sync = SequenceEncoderBufferSync<TEST_ADDR_W>;
+    type MemWriterReq = mem_writer::MemWriterReq<TEST_ADDR_W>;
+    type MemWriterData = mem_writer::MemWriterDataPacket<TEST_DATA_W, TEST_ADDR_W>;
+    type MemWriterResp = mem_writer::MemWriterResp;
+
+    init {}
+
+    req_s: chan<Req> out;
+    sync_r: chan<Sync> in;
+    mem_wr_req_r: chan<MemWriterReq> in;
+    mem_wr_data_r: chan<MemWriterData> in;
+    mem_wr_resp_s: chan<MemWriterResp> out;
+    terminator: chan<bool> out;
+
+    config(terminator: chan<bool> out) {
+        let (req_s, req_r) = chan<Req>("req");
+        let (sync_s, sync_r) = chan<Sync>("sync");
+
+        let (mem_wr_req_s, mem_wr_req_r) = chan<MemWriterReq>("mem_wr_req");
+        let (mem_wr_data_s, mem_wr_data_r) = chan<MemWriterData>("mem_wr_data");
+        let (mem_wr_resp_s, mem_wr_resp_r) = chan<MemWriterResp>("mem_wr_resp");
+
+        spawn SequenceEncoderBuffer<TEST_ADDR_W, TEST_DATA_W, TEST_BUFF_W, TEST_BUFF_SIZE_W>
+        (
+            req_r, sync_s,
+            mem_wr_req_s, mem_wr_data_s, mem_wr_resp_r
+        );
+
+        (
+            req_s, sync_r,
+            mem_wr_req_r, mem_wr_data_r, mem_wr_resp_s,
+            terminator
+        )
+    }
+
+    next(state: ()) {
+        type Addr = uN[TEST_ADDR_W];
+        type Data = uN[TEST_BUFF_W];
+        type RespData = uN[TEST_DATA_W];
+        type Sz = uN[TEST_BUFF_SIZE_W];
+        let tok = join();
+
+        // 1. set address
+        let tok = send(tok, req_s, Req {
+            instr: Instr { set_addr: true, ..NOP },
+            addr: Addr:0xB16B00B5,
+            ..zero!<Req>()
+        });
+
+        // 2. send some data
+        let tok = send(tok, req_s, Req {
+            instr: Instr { write: true, ..NOP },
+            write_data: Data:0b11010110,
+            write_data_size: Sz:8,
+            addr: Addr:0
+        });
+        let tok = send(tok, req_s, Req {
+            instr: Instr { write: true, flush: true, ..NOP }, // this flush shouldn't do anything
+            write_data: Data:0b110,
+            write_data_size: Sz:3,
+            addr: Addr:0
+        });
+        let tok = send(tok, req_s, Req {
+            instr: Instr { write: true, ..NOP },
+            write_data: Data:0b1101110111010101010100001101110111010101010100000000000000000000,
+            write_data_size: Sz:64,
+            addr: Addr:0
+        });
+        // 3. force flush
+        let tok = send(tok, req_s, Req {
+            instr: Instr { flush: true, ..NOP },
+            ..zero!<Req>()
+        });
+        let (tok, req) = recv(tok, mem_wr_req_r);
+        assert_eq(req, MemWriterReq {
+            addr: Addr:0xB16B00B5,
+            length: Addr:8
+        });
+        let (tok, data) = recv(tok, mem_wr_data_r);
+        assert_eq(data, MemWriterData {
+            data: RespData:0b10101010100001101110111010101010100000000000000000000_110_11010110,
+            length: Addr:8,
+            last: false
+        });
+        let tok = send(tok, mem_wr_resp_s, zero!<MemWriterResp>());
+        // 4. send more data
+        let tok = send(tok, req_s, Req {
+            instr: Instr { write: true, ..NOP },
+            write_data: all_ones!<Data>(),
+            write_data_size: TEST_BUFF_W as Sz - Sz:11 - Sz:96, // brings buffer to BUFF_W - SLACK size
+            addr: Addr:0
+        });
+        let tok = send(tok, req_s, Req {
+            instr: Instr { write: true, ..NOP },
+            write_data: Data:0b1,
+            write_data_size: Sz:1,                              // causes the buffer to flush
+            addr: Addr:0
+        });
+        // 5. implicit flush
+        let (tok, req) = recv(tok, mem_wr_req_r);
+        trace_fmt!("{}", req);
+        assert_eq(req, MemWriterReq {
+            addr: Addr:0xB16B00BD,
+            length: Addr:16,
+        });
+        let (tok, data) = recv(tok, mem_wr_data_r);
+        assert_eq(data, MemWriterData {
+            data: RespData: 0b11111111111111111111111111111111111111111111111111111_11011101110,
+            length: Addr:8,
+            last: false
+        });
+        let (tok, data) = recv(tok, mem_wr_data_r);
+        assert_eq(data, MemWriterData {
+            data: RespData: 0xFFFFFFFFFFFFFFFF,
+            length: Addr:8,
+            last: false
+        });
+        let tok = send(tok, mem_wr_resp_s, zero!<MemWriterResp>());
+        // 6. send more data
+        let tok = send(tok, req_s, Req {
+            instr: Instr { write: true, ..NOP },
+            write_data: Data:0b10101110100010100101010101001111110101010100100001101010101010101,
+            write_data_size: Sz:65,
+            addr: Addr:0
+        });
+        let tok = send(tok, req_s, Req {
+            instr: Instr { write: true, ..NOP },
+            write_data: Data:0b101010100100001101010101010101,
+            write_data_size: Sz:30,
+            addr: Addr:0
+        });
+        // 7. flush with padding
+        let tok = send(tok, req_s, Req {
+            instr: Instr { write: true, flush: true, pad: true, ..NOP },
+            write_data: Data:0b111100101010100100001101010101010101,
+            write_data_size: Sz:36,
+            addr: Addr:0
+        });
+
+        let (tok, req) = recv(tok, mem_wr_req_r);
+        assert_eq(req, MemWriterReq {
+            addr: Addr:0xb16b00cd,
+            length: Addr: 21
+        });
+
+        let (tok, data) = recv(tok, mem_wr_data_r);
+        assert_eq(data, MemWriterData {
+            data: RespData: 0b0101010100100001101010101010101_111111111111111111111111111111111,
+            length: Addr: 8,
+            last: false
+        });
+        let (tok, data) = recv(tok, mem_wr_data_r);
+        assert_eq(data, MemWriterData {
+            data: RespData: 0b101010100100001101010101010101_1010111010001010010101010100111111,
+            length: Addr: 8,
+            last: false
+        });
+
+        let (tok, data) = recv(tok, mem_wr_data_r);
+        assert_eq(data, MemWriterData {
+            // p - padding    pppp
+            data: RespData: 0b0000_111100101010100100001101010101010101,
+            length: Addr: 5,
+            last: true
+        });
+        send(tok, terminator, true);
+    }
+}
+
+// #[test_proc]
 proc SequenceEncoderPredefinedTest {
     type Req = SequenceEncoderReq<TEST_ADDR_W>;
     type Resp = SequenceEncoderResp<TEST_ADDR_W>;
@@ -1045,6 +1219,8 @@ proc SequenceEncoderPredefinedTest {
         let (ml_ttable_ram_wr_req_s, ml_ttable_ram_wr_req_r) = chan<TTRamWrReq>("ml_ttable_ram_wr_req");
         let (ml_ttable_ram_wr_resp_s, ml_ttable_ram_wr_resp_r) = chan<RamWrResp>("ml_ttable_ram_wr_resp");
 
+        let (n_mem_rd_req_s, n_mem_rd_req_r) = chan<MemReaderReq>[2]("n_mem_rd_req");
+        let (n_mem_rd_resp_s, n_mem_rd_resp_r) = chan<MemReaderResp>[2]("n_mem_rd_resp");
         let (mem_rd_req_s, mem_rd_req_r) = chan<MemReaderReq>("mem_rd_req");
         let (mem_rd_resp_s, mem_rd_resp_r) = chan<MemReaderResp>("mem_rd_resp");
         let (mem_wr_req_s, mem_wr_req_r) = chan<MemWriterReq>("mem_wr_req");
@@ -1151,6 +1327,12 @@ proc SequenceEncoderPredefinedTest {
             mem_wr_resp_s,
         );
 
+
+        spawn mem_reader_simple_arbiter::MemReaderSimpleArbiter<TEST_ADDR_W, TEST_DATA_W, u32:2> (
+            n_mem_rd_req_r, n_mem_rd_resp_s,
+            mem_rd_req_s, mem_rd_resp_r,
+        );
+
         spawn SequenceEncoder<
             TEST_ADDR_W, TEST_DATA_W, TEST_RAM_ADDR_W,
             TEST_CT_DATA_W, TEST_CT_NUM_PARTITIONS,
@@ -1158,7 +1340,7 @@ proc SequenceEncoderPredefinedTest {
             TEST_BUFF_W
         >(
             req_r, resp_s,
-            mem_rd_req_s, mem_rd_resp_r,
+            n_mem_rd_req_s[0], n_mem_rd_resp_r[0],
             mem_wr_req_s, mem_wr_data_s, mem_wr_resp_r,
             ml_ctable_ram_rd_req_s, ml_ctable_ram_rd_resp_r, ll_ctable_ram_rd_req_s, ll_ctable_ram_rd_resp_r, of_ctable_ram_rd_req_s, of_ctable_ram_rd_resp_r,
             ml_ttable_ram_rd_req_s, ml_ttable_ram_rd_resp_r, ll_ttable_ram_rd_req_s, ll_ttable_ram_rd_resp_r, of_ttable_ram_rd_req_s, of_ttable_ram_rd_resp_r
@@ -1167,7 +1349,7 @@ proc SequenceEncoderPredefinedTest {
         (
             terminator,
             req_s, resp_r,
-            mem_rd_req_s, mem_rd_resp_r,
+            n_mem_rd_req_s[1], n_mem_rd_resp_r[1],
             mem_wr_req_s, mem_wr_data_s, mem_wr_resp_r,
             ml_ctable_ram_wr_req_s, ml_ctable_ram_wr_resp_r, ll_ctable_ram_wr_req_s, ll_ctable_ram_wr_resp_r, of_ctable_ram_wr_req_s, of_ctable_ram_wr_resp_r,
             ml_ttable_ram_wr_req_s, ml_ttable_ram_wr_resp_r, ll_ttable_ram_wr_req_s, ll_ttable_ram_wr_resp_r, of_ttable_ram_wr_req_s, of_ttable_ram_wr_resp_r
