@@ -1069,15 +1069,15 @@ absl::StatusOr<Function*> FunctionBuilder::Build() {
 
 absl::StatusOr<Function*> FunctionBuilder::BuildWithReturnValue(
     BValue return_value) {
-  if (ErrorPending()) {
-    return GetError();
-  }
   XLS_RET_CHECK_EQ(return_value.builder(), this);
   // down_cast the FunctionBase* to Function*. We know this is safe because
   // FunctionBuilder constructs and passes a Function to BuilderBase
   // constructor so function_ is always a Function.
   Function* f = package()->AddFunction(
       absl::WrapUnique(down_cast<Function*>(function_.release())));
+  if (ErrorPending()) {
+    return GetError();
+  }
   XLS_RETURN_IF_ERROR(f->set_return_value(return_value.node()));
   if (should_verify_) {
     XLS_RETURN_IF_ERROR(VerifyFunction(f));
@@ -1190,15 +1190,17 @@ absl::Status ProcBuilder::InstantiateProc(
 }
 
 absl::StatusOr<Proc*> ProcBuilder::Build() {
-  if (ErrorPending()) {
-    return GetError();
-  }
-
   // down_cast the FunctionBase* to Proc*. We know this is safe because
   // ProcBuilder constructs and passes a Proc to BuilderBase constructor so
   // function_ is always a Proc.
+  //
+  // Add the proc to the package even if it fails to verify or has a pending
+  // error to avoid lifetime issues.
   Proc* proc = package()->AddProc(
       absl::WrapUnique(down_cast<Proc*>(function_.release())));
+  if (ErrorPending()) {
+    return GetError();
+  }
   if (should_verify_) {
     XLS_RETURN_IF_ERROR(VerifyProc(proc));
   }
@@ -1921,15 +1923,14 @@ BValue BlockBuilder::InsertRegister(std::string_view name, BValue data,
 }
 
 absl::StatusOr<Block*> BlockBuilder::Build() {
-  if (ErrorPending()) {
-    return GetError();
-  }
-
   // down_cast the FunctionBase* to Block*. We know this is safe because
   // BlockBuilder constructs and passes a Block to BuilderBase constructor so
   // function_ is always a Block.
   Block* block = package()->AddBlock(
       absl::WrapUnique(down_cast<Block*>(function_.release())));
+  if (ErrorPending()) {
+    return GetError();
+  }
   if (should_verify_) {
     XLS_RETURN_IF_ERROR(VerifyBlock(block));
   }
