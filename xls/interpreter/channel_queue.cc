@@ -40,7 +40,7 @@
 namespace xls {
 
 absl::Status ChannelQueue::AttachGenerator(GeneratorFn generator) {
-  absl::MutexLock lock(&mutex_);
+  absl::MutexLock lock(mutex_);
   if (generator_.has_value()) {
     return absl::InternalError("ChannelQueue already has a generator attached");
   }
@@ -58,7 +58,7 @@ absl::Status ChannelQueue::Write(const Value& value) {
   VLOG(4) << absl::StreamFormat(
       "Writing value to channel instance `%s`: { %s }",
       channel_instance()->ToString(), value.ToString());
-  absl::MutexLock lock(&mutex_);
+  absl::MutexLock lock(mutex_);
   if (generator_.has_value()) {
     return absl::InternalError(
         "Cannot write to ChannelQueue because it has a generator function.");
@@ -90,7 +90,7 @@ void ChannelQueue::WriteInternal(const Value& value) {
 }
 
 std::optional<Value> ChannelQueue::Read() {
-  absl::MutexLock lock(&mutex_);
+  absl::MutexLock lock(mutex_);
   if (generator_.has_value()) {
     // Write/ReadInternal are virtual and may have other side-effects so rather
     // than directly returning the generated value, write then read it.

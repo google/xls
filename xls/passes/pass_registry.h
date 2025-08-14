@@ -66,8 +66,8 @@ class PassRegistry {
   // Clone without copying the generators. This has a lifetime dependency on
   // the original registry.
   PassRegistry& operator=(const PassRegistry& o ABSL_ATTRIBUTE_LIFETIME_BOUND) {
-    absl::MutexLock mu_this(&registry_lock_);
-    absl::MutexLock mu_o(&o.registry_lock_);
+    absl::MutexLock mu_this(registry_lock_);
+    absl::MutexLock mu_o(o.registry_lock_);
     generators_ = o.generators_;
     registration_info_ = o.registration_info_;
     return *this;
@@ -79,36 +79,36 @@ class PassRegistry {
 
   // Register a generator with a given name.
   absl::Status Register(std::string_view name, GeneratorPtr gen) {
-    absl::MutexLock mu(&registry_lock_);
+    absl::MutexLock mu(registry_lock_);
     return RegisterLocked(name, gen);
   }
 
   // Register a generator with a given name.
   absl::Status Register(std::string_view name, GeneratorUniquePtr gen) {
-    absl::MutexLock mu(&registry_lock_);
+    absl::MutexLock mu(registry_lock_);
     return RegisterLocked(name, std::move(gen));
   }
 
   // Get a pass generator of the given name.
   absl::StatusOr<PassGenerator<OptionsT, ContextT...>*> Generator(
       std::string_view name) const {
-    absl::MutexLock mu(&registry_lock_);
+    absl::MutexLock mu(registry_lock_);
     return GeneratorLocked(name);
   }
 
   std::vector<std::string_view> GetRegisteredNames() const {
-    absl::MutexLock mu(&registry_lock_);
+    absl::MutexLock mu(registry_lock_);
     return GetRegisteredNamesLocked();
   }
 
   std::vector<RegistrationInfo> GetRegisteredInfos() const {
-    absl::MutexLock mu(&registry_lock_);
+    absl::MutexLock mu(registry_lock_);
     return GetRegisteredInfosLocked();
   }
 
   void AddRegistrationInfo(std::string_view name, std::string_view class_name,
                            std::string_view header_file) {
-    absl::MutexLock mu(&registry_lock_);
+    absl::MutexLock mu(registry_lock_);
     AddRegistrationInfoLocked(name, class_name, header_file);
   }
 

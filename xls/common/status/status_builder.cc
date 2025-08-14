@@ -134,7 +134,7 @@ void StatusBuilder::ConditionallyLog(const absl::Status& status) const {
       static auto* log_every_sites = new LogSites();
 
       const auto now = absl::Now();
-      absl::MutexLock lock(&log_every_sites->mutex);
+      absl::MutexLock lock(log_every_sites->mutex);
       absl::Time& next_log =
           log_every_sites
               ->next_log_by_file_and_line[{loc_.file_name(), loc_.line()}];
