@@ -17,19 +17,16 @@ import xls.modules.zstd.memory.mem_reader;
 
 struct MemReaderDataUpscalerState<
     ADDR_W: u32, DATA_IN_W: u32, DATA_OUT_W: u32,
-    RATIO: u32, RATIO_W: u32,
 > {
     response: mem_reader::MemReaderResp<DATA_OUT_W, ADDR_W>,
 }
 
 pub proc MemReaderDataUpscaler<
     ADDR_W: u32, DATA_IN_W: u32, DATA_OUT_W: u32,
-    RATIO: u32 = {std::ceil_div(DATA_IN_W, DATA_OUT_W)},
-    RATIO_W: u32 = {u32:3}, //{std::clog2(RATIO + u32:1)}
 > {
     type InData = mem_reader::MemReaderResp<DATA_IN_W, ADDR_W>;
     type OutData = mem_reader::MemReaderResp<DATA_OUT_W, ADDR_W>;
-    type State = MemReaderDataUpscalerState<ADDR_W, DATA_IN_W, DATA_OUT_W, RATIO, RATIO_W>;
+    type State = MemReaderDataUpscalerState<ADDR_W, DATA_IN_W, DATA_OUT_W>;
     type Status = mem_reader::MemReaderStatus;
 
     const_assert!(DATA_IN_W <= DATA_OUT_W); // input should be narrower than output
