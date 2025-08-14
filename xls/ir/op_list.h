@@ -69,6 +69,7 @@ inline constexpr uint8_t kSideEffecting = 0b00010000;
   F(kNand, OP_NAND, "nand", op_types::kBitWise | op_types::kCommutative)       \
   F(kNe, OP_NE, "ne", op_types::kComparison | op_types::kCommutative)          \
   F(kNeg, OP_NEG, "neg", op_types::kStandard)                                  \
+  F(kNewChannel, OP_NEW_CHANNEL, "new_channel", op_types::kSideEffecting)      \
   F(kNext, OP_NEXT_VALUE, "next_value", op_types::kSideEffecting)              \
   F(kNor, OP_NOR, "nor", op_types::kBitWise | op_types::kCommutative)          \
   F(kNot, OP_NOT, "not", op_types::kBitWise)                                   \
@@ -81,6 +82,8 @@ inline constexpr uint8_t kSideEffecting = 0b00010000;
   F(kParam, OP_PARAM, "param", op_types::kSideEffecting)                       \
   F(kPrioritySel, OP_PRIORITY_SEL, "priority_sel", op_types::kStandard)        \
   F(kReceive, OP_RECEIVE, "receive", op_types::kSideEffecting)                 \
+  F(kRecvChannelEnd, OP_RECV_CHANNEL_END, "recv_channel_end",                  \
+    op_types::kSideEffecting)                                                  \
   F(kRegisterRead, OP_REGISTER_READ, "register_read",                          \
     op_types::kSideEffecting)                                                  \
   F(kRegisterWrite, OP_REGISTER_WRITE, "register_write",                       \
@@ -97,6 +100,8 @@ inline constexpr uint8_t kSideEffecting = 0b00010000;
     op_types::kAssociative | op_types::kCommutative)                           \
   F(kSel, OP_SEL, "sel", op_types::kStandard)                                  \
   F(kSend, OP_SEND, "send", op_types::kSideEffecting)                          \
+  F(kSendChannelEnd, OP_SEND_CHANNEL_END, "send_channel_end",                  \
+    op_types::kSideEffecting)                                                  \
   F(kShll, OP_SHLL, "shll", op_types::kStandard)                               \
   F(kShra, OP_SHRA, "shra", op_types::kStandard)                               \
   F(kShrl, OP_SHRL, "shrl", op_types::kStandard)                               \

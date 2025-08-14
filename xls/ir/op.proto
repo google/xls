@@ -96,4 +96,7 @@ enum OpProto {
   OP_GATE = 74;
   OP_TRACE = 75;
   OP_MIN_DELAY = 76;
+  OP_NEW_CHANNEL = 77;
+  OP_SEND_CHANNEL_END = 78;
+  OP_RECV_CHANNEL_END = 79;
 }

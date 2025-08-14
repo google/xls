@@ -158,21 +158,24 @@ bool ShouldEvaluate(Node* node) {
     case Op::kDynamicCountedFor:
     case Op::kGate:
     case Op::kInputPort:
+    case Op::kInstantiationInput:
+    case Op::kInstantiationOutput:
     case Op::kInvoke:
     case Op::kMap:
+    case Op::kNewChannel:
     case Op::kOutputPort:
     case Op::kParam:
     case Op::kStateRead:
     case Op::kNext:
     case Op::kReceive:
+    case Op::kRecvChannelEnd:
     case Op::kRegisterRead:
     case Op::kRegisterWrite:
     case Op::kSend:
+    case Op::kSendChannelEnd:
     case Op::kTrace:
     case Op::kTuple:
     case Op::kTupleIndex:
-    case Op::kInstantiationInput:
-    case Op::kInstantiationOutput:
       return false;
 
     // Unsupported comparison operations.
