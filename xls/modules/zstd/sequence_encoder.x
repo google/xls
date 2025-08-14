@@ -162,13 +162,6 @@ pub struct SequenceEncoderResp<ADDR_W: u32> {
     length: uN[ADDR_W]
 }
 
-struct CStatePtr<ADDR_W: u32> {
-    value: uN[ADDR_W],
-    state_table: uN[ADDR_W],
-    symbol_tt: uN[ADDR_W],
-    acc_log: u16
-}
-
 struct SequenceEncoderState<ADDR_W: u32, RAM_ADDR_W: u32> {
     active: bool,
     req: SequenceEncoderReq<ADDR_W>,
@@ -176,6 +169,7 @@ struct SequenceEncoderState<ADDR_W: u32, RAM_ADDR_W: u32> {
     ll_acc_log: u16,
     ml_acc_log: u16,
     of_acc_log: u16,
+    // see: https://github.com/facebook/zstd/blob/f9e26bb42bf2f2cd640829ea9deafbd398e6106f/lib/compress/zstd_compress_sequences.c#L311-L381
     ll_value: u16,
     ml_value: u16,
     of_value: u16,
@@ -327,39 +321,46 @@ pub const ML_DEFAULT_TTABLE=Delta[32]:[
 ];
 
 struct SequenceEncoderBufferState<ADDR_W: u32, BUFF_W: u32, BUFF_SIZE_W: u32> {
-    flushing: bool,
-    pad: bool,
-    addr: uN[ADDR_W],
-    buffer: uN[BUFF_W],
-    buffer_size: uN[BUFF_SIZE_W],
-    bytes_written: uN[ADDR_W]
+    flushing: bool,                  // is the flushing of the buffer in progress
+    pad: bool,                       // should pad the last write
+    addr: uN[ADDR_W],                // destination
+    buffer: uN[BUFF_W],              // buffer state (data)
+    buffer_size: uN[BUFF_SIZE_W],    // buffer state (size)
+    bytes_written: uN[ADDR_W]        // tracker for the total count of bytes written
 }
 
-type SequenceEncoderBufferInstr = u4;
-
-const SET_ADDR = SequenceEncoderBufferInstr:1;
-const WRITE = SequenceEncoderBufferInstr:2;
-const FLUSH = SequenceEncoderBufferInstr:4;
-const PAD = SequenceEncoderBufferInstr:8;
-
-fn is_command(instr: SequenceEncoderBufferInstr, bit: SequenceEncoderBufferInstr) -> bool {
-    instr & (bit as SequenceEncoderBufferInstr) != SequenceEncoderBufferInstr:0
+struct SequenceEncoderBufferInstr {
+    set_addr: bool,         // set destination address in memory (i.e. where the data will be flushed to)
+    write: bool,            // write data to buffer
+    flush: bool,            // force flushing of data (only multiples of DATA_W, remainder will be left in a buffer)
+    pad: bool               // flush the entire buffer (also the remainder) by padding it with zeros
 }
+const NOP = zero!<SequenceEncoderBufferInstr>();
 
 struct SequenceEncoderBufferReq<ADDR_W: u32, BUFF_W: u32, BUFF_SIZE_W: u32> {
-    instr: SequenceEncoderBufferInstr,
-    write_data: uN[BUFF_W],
-    write_data_size: uN[BUFF_SIZE_W],
-    addr: uN[ADDR_W],
+    instr: SequenceEncoderBufferInstr,  // currently processed instruction
+    write_data: uN[BUFF_W],             // data to write                         (write instruction)
+    write_data_size: uN[BUFF_SIZE_W],   // size of the data to write in **bits** (write instruction)
+    addr: uN[ADDR_W],                   // destination                           (set_addr instruction)
 }
 
 struct SequenceEncoderBufferSync<ADDR_W: u32> {
     bytes_written: uN[ADDR_W]
 }
 
+// A shift buffer for writing the encoded fse bitstream to memory
+// It reads the data from the encoder (write) and periodically flushes part of data to the memory.
+// The data is flushed at request (flush) and when the slack of the buffer is written to (which is last MINIMAL_SLACK bytes).
+// When flushing without padding (flushing: true, pad: false), a remainder of at most DATA_W - 1 bits might be left in the buffer
+// When flushing with padding (flushing: true, pad: true), entire buffer will be written to memory and the remaining bits will be padded with zeros
+//
+// Typical usage pattern
+// 1. send set_addr command
+// 2. keep sending data using write_command
+// 3. on last write send also flush and pad commands
 proc SequenceEncoderBuffer<
     ADDR_W: u32, DATA_W: u32, BUFF_W: u32,
-    BUFF_SIZE_W: u32 = { std::clog2(BUFF_W) }
+    BUFF_SIZE_W: u32 = { std::clog2(BUFF_W + u32:1) }
 > {
     type State = SequenceEncoderBufferState<ADDR_W, BUFF_W, BUFF_SIZE_W>;
     type Req = SequenceEncoderBufferReq<ADDR_W, BUFF_W, BUFF_SIZE_W>;
@@ -395,7 +396,10 @@ proc SequenceEncoderBuffer<
         type BuffSize = uN[BUFF_SIZE_W];
         type Addr = uN[ADDR_W];
         const DATA_B = DATA_W / u32:8;
-        const MINIMAL_SLACK = BuffSize:16 * BuffSize:6; // it's the max packet width the buffer can get from the encoder
+        const MINIMAL_SLACK = BuffSize:16 * BuffSize:6;
+        // it's the max data size the buffer can get from the encoder
+        // max ll/ml/of_value is 16 bit, max ll/ml/of is 16 bit
+        // the buffer receives at most 3 x zz_value and 3 x zz in a single write (thus 16 * 6)
         let tok = join();
 
         if !state.flushing {
@@ -403,7 +407,7 @@ proc SequenceEncoderBuffer<
 
             // WRITE
             let next_size = req.write_data_size + state.buffer_size;
-            let buffer = if is_command(req.instr, WRITE) {
+            let buffer = if req.instr.write {
                 trace_fmt!("[SequenceEncoderBuffer] Writing data from request {:#x} (size={})", req.write_data, req.write_data_size);
                 let buffer = add_bits(state.buffer, req.write_data, req.write_data_size, state.buffer_size);
                 trace_fmt!("[SequenceEncoderBuffer] buffer state: {:#b} (size={})", buffer, next_size);
@@ -413,7 +417,7 @@ proc SequenceEncoderBuffer<
             };
 
             // SET_ADDR
-            let addr = if is_command(req.instr, SET_ADDR) {
+            let addr = if req.instr.set_addr {
                 trace_fmt!("[SequenceEncoderBuffer] setting address {:#x}", req.addr);
                 req.addr
             } else {
@@ -421,9 +425,9 @@ proc SequenceEncoderBuffer<
             };
 
             // FLUSH or flushing condition met
-            let flush = is_command(req.instr, FLUSH) || BUFF_W as BuffSize - next_size < MINIMAL_SLACK;
-            let addr = if flush {
-                let length = if is_command(req.instr, FLUSH) { std::ceil_div(next_size as u32, u32:8) } else { (next_size as u32 / DATA_W) * DATA_B };
+            let flush = (req.instr.flush || BUFF_W as BuffSize - next_size < MINIMAL_SLACK) &&  (req.instr.pad || state.buffer_size >= DATA_W as BuffSize);
+            let addr = if flush  {
+                let length = if req.instr.pad { std::ceil_div(next_size as u32, u32:8) } else { (next_size as u32 / DATA_W) * DATA_B };
                 let tok = send(tok, mem_wr_req_s, MemWriterReq{
                     addr: addr,
                     length: length
@@ -437,7 +441,7 @@ proc SequenceEncoderBuffer<
 
             State {
                 flushing: flush,
-                pad: is_command(req.instr, PAD),
+                pad: req.instr.pad,
                 addr: addr,
                 buffer: buffer,
                 buffer_size: next_size,
@@ -466,6 +470,7 @@ proc SequenceEncoderBuffer<
                 ..state
             }
         }  else if state.buffer_size < DATA_W as BuffSize {
+            trace_fmt!("bbb");
             let (tok, _) = recv(tok, mem_wr_resp_r);
 
             let tok = send(tok, sync_s, Sync { bytes_written: state.bytes_written });
@@ -526,7 +531,7 @@ pub proc SequenceEncoder<
     ADDR_W: u32, DATA_W: u32, RAM_ADDR_W: u32,
     CTABLE_RAM_DATA_W: u32, CTABLE_RAM_NUM_PARTITIONS: u32,
     TTABLE_RAM_DATA_W: u32, TTABLE_RAM_NUM_PARTITIONS: u32,
-    BUFF_W: u32, BUFF_SIZE_W: u32 = { std::clog2(BUFF_W) }
+    BUFF_W: u32, BUFF_SIZE_W: u32 = { std::clog2(BUFF_W + u32:1) }
 > {
     type Req = SequenceEncoderReq<ADDR_W>;
     type Resp = SequenceEncoderResp<ADDR_W>;
@@ -746,7 +751,7 @@ pub proc SequenceEncoder<
                 let write_size = write_size + of as uN[BUFF_SIZE_W];
 
                 let tok = send(tok, sb_req_s, BufferReq {
-                    instr: WRITE | SET_ADDR,
+                    instr: SequenceEncoderBufferInstr {write: true, set_addr: true, ..NOP},
                     write_data: to_write,
                     write_data_size: write_size,
                     addr: req.addr + sh_resp.length
@@ -791,7 +796,7 @@ pub proc SequenceEncoder<
 
             trace_fmt!("Sent (final) {:#x}", to_write);
             let tok = send(tok, sb_req_s, BufferReq {
-                instr: FLUSH | PAD | WRITE,
+                instr: SequenceEncoderBufferInstr { flush: true, pad: true, write: true, ..NOP},
                 write_data: to_write,
                 write_data_size: write_size,
                 addr: uN[ADDR_W]:0
@@ -869,7 +874,7 @@ pub proc SequenceEncoder<
             let write_size = write_size + of as uN[BUFF_SIZE_W];
 
             let tok = send(tok, sb_req_s, BufferReq {
-                instr: WRITE,
+                instr: SequenceEncoderBufferInstr { write: true, ..NOP},
                 write_data: to_write,
                 write_data_size: write_size,
                 addr: uN[ADDR_W]:0

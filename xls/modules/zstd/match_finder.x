@@ -175,7 +175,7 @@ struct MatchFinderInternalLiteralCopyResp<ADDR_W: u32> {
 
 proc MatchFinderInternalLiteralCopy<
     ADDR_W: u32, DATA_W: u32, HB_SIZE: u32, MIN_SEQ_LEN: u32,
-    HB_DATA_W: u32 = {u32:64},
+    HB_DATA_W: u32 = {DEFAULT_HB_DATA_W},
     HB_OFFSET_W: u32 = {std::clog2(HB_SIZE)}
 >
 {
@@ -289,7 +289,7 @@ proc MatchFinderInternalLiteralCopy<
 }
 proc MatchFinderInternalHistoryCompare<
     ADDR_W: u32, DATA_W: u32, HB_SIZE: u32, MIN_SEQ_LEN: u32,
-    HB_DATA_W: u32 = {u32:64},
+    HB_DATA_W: u32 = {DEFAULT_HB_DATA_W},
     HB_OFFSET_W: u32 = {std::clog2(HB_SIZE)},
 >{
     type State = MatchFinderInternalHistoryCompareState<ADDR_W, HB_OFFSET_W>;
