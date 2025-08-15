@@ -948,4 +948,27 @@ absl::StatusOr<StateRead*> Proc::TransformStateElement(
   return new_state_read;
 }
 
+absl::Status Proc::InternalRebuildSideTables() {
+  XLS_RET_CHECK(params_.empty());
+  // Why is next-values in base but not elements?
+  next_values_.clear();
+  next_values_by_state_read_.clear();
+  state_reads_.clear();
+  for (Node* n : nodes()) {
+    if (n->Is<StateRead>()) {
+      XLS_RET_CHECK(!state_reads_.contains(n->As<StateRead>()->state_element()))
+          << "Duplicate state element read: "
+          << n->As<StateRead>()->state_element();
+      state_reads_[n->As<StateRead>()->state_element()] = n->As<StateRead>();
+    } else if (n->Is<Next>()) {
+      next_values_.push_back(n->As<Next>());
+      next_values_by_state_read_[n->As<Next>()->state_read()->As<StateRead>()]
+          .insert(n->As<Next>());
+    }
+  }
+  // TODO(allight): We should make it so we can recover channel/proc-inst things
+  // here too. Ditto for the state elements themselves.
+  return absl::OkStatus();
+}
+
 }  // namespace xls

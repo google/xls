@@ -250,7 +250,23 @@ class FunctionBase {
     }
   };
 
+  // Rebuild any side tables (to the maximum extent possible) using only the
+  // node graph and unchangeable metadata.
+  // TODO(allgiht): This is a terrible API since you basically just need to know
+  // when it needs to be called. Ideally this should be called regularly in some
+  // fashion.
+  // TODO(allight): Significant parts of the function/proc/block is included in
+  // the 'unchangeable metadata' and some of it is actually pretty malleable. We
+  // should move to a more node-y future where almost all
+  // configuration/definition data is embedded in the node graph.
+  absl::Status RebuildSideTables();
+
  protected:
+  // Many function-types have side-tables that store various pieces of
+  // information. This function should, as much as possible, rebuild any using
+  // only data from the nodes. If data is missing or corrupted or a valid setup
+  // cannot be created then an error may be returned.
+  virtual absl::Status InternalRebuildSideTables() = 0;
   // Internal virtual helper for adding a node. Returns a pointer to the newly
   // added node.
   virtual Node* AddNodeInternal(std::unique_ptr<Node> node);

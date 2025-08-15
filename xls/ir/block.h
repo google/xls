@@ -423,6 +423,12 @@ class Block : public FunctionBase {
     signature_ = std::move(signature);
   }
 
+ protected:
+  absl::Status InternalRebuildSideTables() final {
+    return absl::UnimplementedError(
+        "Cannot rebuild block side tables at this time.");
+  }
+
  private:
   // Sets the name of the given port node (InputPort or OutputPort) to the
   // given name. Unlike xls::Node::SetName which may name the node `name` with

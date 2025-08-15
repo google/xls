@@ -279,4 +279,15 @@ std::ostream& operator<<(std::ostream& os, const FunctionBase& function) {
   return os;
 }
 
+absl::Status FunctionBase::RebuildSideTables() {
+  // TODO(allight): The fact that there is so much crap in the function_base
+  // itself is a problem. Having next's and params' in the function base doesn't
+  // make a ton of sense.
+  // NB Because of above the next-values/next_values_by_state_read_ and params
+  // lists are updated in proc and function respectively.
+  // NB We assume that node_iterators_ never gets invalidated.
+  XLS_RETURN_IF_ERROR(InternalRebuildSideTables());
+  return absl::OkStatus();
+}
+
 }  // namespace xls

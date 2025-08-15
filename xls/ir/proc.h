@@ -376,6 +376,9 @@ class Proc : public FunctionBase {
   // new-style.
   absl::Status ConvertToNewStyle();
 
+ protected:
+  absl::Status InternalRebuildSideTables() final;
+
  private:
   bool is_new_style_proc_;
 

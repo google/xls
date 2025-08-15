@@ -82,6 +82,9 @@ class Function : public FunctionBase {
 
   bool HasImplicitUse(Node* node) const final { return node == return_value(); }
 
+ protected:
+  absl::Status InternalRebuildSideTables() final;
+
  private:
   Node* return_value_ = nullptr;
 };

@@ -252,5 +252,18 @@ bool Function::IsDefinitelyEqualTo(const Function* other) const {
   }
   return result;
 }
+absl::Status Function::InternalRebuildSideTables() {
+  // We can't actually rebuild much of anything since the order of the params is
+  // only held in the side table. We can still check for correctness at least.
+  // TODO(allight): We should ideally be able to do this.
+  XLS_RET_CHECK(next_values_.empty());
+  XLS_RET_CHECK(next_values_by_state_read_.empty());
+
+  for (Param* p : params_) {
+    XLS_RET_CHECK(p->function_base() == this)
+        << "param from different function: " << p;
+  }
+  return absl::OkStatus();
+}
 
 }  // namespace xls
