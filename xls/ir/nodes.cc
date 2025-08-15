@@ -1395,9 +1395,20 @@ absl::StatusOr<Node*> Send::CloneInNewFunction(
 
 absl::StatusOr<Node*> StateRead::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
+  XLS_RET_CHECK(new_function->IsProc())
+      << this << " cloning into " << new_function;
+  XLS_ASSIGN_OR_RETURN(
+      int64_t idx,
+      function_base()->AsProcOrDie()->GetStateElementIndex(state_element()));
+  XLS_RET_CHECK_LT(idx, new_function->AsProcOrDie()->GetStateElementCount());
+  XLS_ASSIGN_OR_RETURN(
+      Type * orig_type,
+      new_function->package()->MapTypeFromOtherPackage(GetType()));
+  XLS_RET_CHECK_EQ(orig_type,
+                   new_function->AsProcOrDie()->GetStateElementType(idx));
   // TODO(meheff): Choose an appropriate name for the cloned node.
   return new_function->MakeNodeWithName<StateRead>(
-      loc(), state_element(),
+      loc(), new_function->AsProcOrDie()->GetStateElement(idx),
       new_operands.empty() ? std::nullopt : std::make_optional(new_operands[0]),
       GetNameView());
 }

@@ -342,19 +342,29 @@ absl::StatusOr<StateRead*> Proc::AppendStateElement(
                             init_value, read_predicate, next_state);
 }
 
-absl::StatusOr<StateRead*> Proc::InsertStateElement(
+absl::StatusOr<StateElement*> Proc::InsertUnreadStateElement(
     int64_t index, std::string_view requested_state_name,
-    const Value& init_value, std::optional<Node*> read_predicate,
-    std::optional<Node*> next_state) {
+    const Value& init_value) {
   XLS_RET_CHECK_LE(index, GetStateElementCount());
   std::string state_name = UniquifyStateName(requested_state_name);
   state_elements_[state_name] = std::make_unique<StateElement>(
       state_name, package()->GetTypeForValue(init_value), init_value);
   StateElement* state_element = state_elements_.at(state_name).get();
   state_vec_.insert(state_vec_.begin() + index, state_element);
-  XLS_ASSIGN_OR_RETURN(StateRead * state_read,
-                       MakeNodeWithName<StateRead>(SourceInfo(), state_element,
-                                                   read_predicate, state_name));
+  return state_element;
+}
+
+absl::StatusOr<StateRead*> Proc::InsertStateElement(
+    int64_t index, std::string_view requested_state_name,
+    const Value& init_value, std::optional<Node*> read_predicate,
+    std::optional<Node*> next_state) {
+  XLS_ASSIGN_OR_RETURN(
+      StateElement * state_element,
+      InsertUnreadStateElement(index, requested_state_name, init_value));
+  XLS_ASSIGN_OR_RETURN(
+      StateRead * state_read,
+      MakeNodeWithName<StateRead>(SourceInfo(), state_element, read_predicate,
+                                  state_element->name()));
   state_reads_[state_element] = state_read;
 
   if (next_state.has_value()) {
@@ -666,7 +676,11 @@ absl::StatusOr<Channel*> Proc::GetChannel(std::string_view name) {
     return it->second.get();
   }
   return absl::NotFoundError(absl::StrFormat(
-      "No channel with name `%s` in proc `%s`", name, this->name()));
+      "No channel with name `%s` in proc `%s`. Available [%s]", name,
+      this->name(),
+      absl::StrJoin(channels_, ", ", [](std::string* s, const auto& channel) {
+        absl::StrAppendFormat(s, "`%s`", channel.first);
+      })));
 }
 
 bool Proc::HasChannelWithName(std::string_view name) {
@@ -796,6 +810,13 @@ absl::StatusOr<ProcInstantiation*> Proc::AddProcInstantiation(
   proc_instantiations_.push_back(
       std::make_unique<ProcInstantiation>(name, channel_args, proc));
   return proc_instantiations_.back().get();
+}
+absl::StatusOr<std::vector<std::unique_ptr<ProcInstantiation>>>
+Proc::RemoveAllProcInstantiations() {
+  XLS_RET_CHECK(is_new_style_proc());
+  std::vector<std::unique_ptr<ProcInstantiation>> result;
+  std::swap(result, proc_instantiations_);
+  return std::move(result);
 }
 
 bool Proc::HasChannelInterface(std::string_view name,

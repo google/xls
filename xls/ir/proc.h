@@ -228,6 +228,17 @@ class Proc : public FunctionBase {
                               /*next_state=*/std::nullopt);
   }
 
+  // Add a new state element (at index) without any reads or nexts. These must
+  // be added separately before verification.
+  absl::StatusOr<StateElement*> InsertUnreadStateElement(
+      int64_t index, std::string_view requested_state_name,
+      const Value& init_value);
+  absl::StatusOr<StateElement*> AppendUnreadStateElement(
+      std::string_view requested_state_name, const Value& init_value) {
+    return InsertUnreadStateElement(GetStateElementCount(),
+                                    requested_state_name, init_value);
+  }
+
   // Adds a state element at the given index. Current state elements at the
   // given index or higher will be shifted up. Returns the newly created
   // parameter node.
@@ -340,6 +351,9 @@ class Proc : public FunctionBase {
   absl::StatusOr<ProcInstantiation*> AddProcInstantiation(
       std::string_view name, absl::Span<ChannelInterface* const> channel_args,
       Proc* proc);
+  // Delete all proc instantiations
+  absl::StatusOr<std::vector<std::unique_ptr<ProcInstantiation>>>
+  RemoveAllProcInstantiations();
 
   // Returns whether this proc has a channel interface of the given name. Only
   // can be called for new style procs.
