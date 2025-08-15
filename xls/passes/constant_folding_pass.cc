@@ -37,6 +37,10 @@ namespace xls {
 namespace {
 // Check if we can do constant folding on this node.
 bool NodeIsConstantFoldable(Node* node, QueryEngine& query_engine) {
+  if (node->users().empty() && !node->function_base()->HasImplicitUse(node)) {
+    // If the node has no users, replacing it with a literal is pointless.
+    return false;
+  }
   if (node->Is<Literal>()) {
     // Already a constant, nothing to do.
     return false;
