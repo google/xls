@@ -237,11 +237,11 @@ compound_passes: [
       # Run ConditionalSpecializationPass before TokenDependencyPass to remove
       # false data dependencies
       "cond_spec(Bdd)",
-      # Legalize multiple channel operations before proc inlining. The
-      # legalization can add an adapter proc that should be inlined.
       "channel_legalization",
       "token_dependency",
-      # Simplify the adapter procs before inlining.
+      # Simplify for channel_legalization.
+      # TODO(rigge): revisit this now that channel legalization no longer adds
+      # an adapter proc.
       "fixedpoint_simp(2)",
       # Flatten and optimize the proc state. Run tuple simplification to
       # simplify tuple structures left over from flattening.
