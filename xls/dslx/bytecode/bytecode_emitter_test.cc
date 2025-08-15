@@ -280,13 +280,28 @@ fn main(x: u1) -> s1 {
 })";
 
   ImportData import_data(CreateImportDataForTest());
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
-                           EmitBytecodes(&import_data, kProgram, "main"));
 
-  EXPECT_EQ(BytecodesToString(bf->bytecodes(), /*source_locs=*/false,
-                              import_data.file_table()),
-            R"(000 load 0
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf, tm.module->GetTest("main"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
+                           BytecodeEmitter::Emit(&import_data, tm.type_info,
+                                                 tf->fn(), std::nullopt));
+
+  if (tm.type_inference_v2) {
+    EXPECT_EQ(BytecodesToString(bf->bytecodes(), /*source_locs=*/false,
+                                import_data.file_table()),
+              R"(000 load 0
+001 cast sN[1])");
+  } else {
+    EXPECT_EQ(BytecodesToString(bf->bytecodes(), /*source_locs=*/false,
+                                import_data.file_table()),
+              R"(000 load 0
 001 cast xN[is_signed=1][1])");
+  }
 }
 
 TEST(BytecodeEmitterTest, Shadowing) {
@@ -1334,7 +1349,7 @@ fn main() -> u32 {
 TEST(BytecodeEmitterTest, SimpleFor) {
   constexpr std::string_view kProgram = R"(#[test]
 fn main() -> u32 {
-  for (i, accum) : (u32, u32) in range(u32:0, u32:8) {
+  for (i, accum) : (u32, u32) in u32:0..u32:8 {
     accum + i
   }(u32:1)
 })";
@@ -1348,8 +1363,7 @@ fn main() -> u32 {
   const std::vector<std::string> kExpected = {
       "literal u32:0",
       "literal u32:8",
-      "literal builtin:range",
-      "call range(u32:0, u32:8)",
+      "range",
       "store 0",
       "literal u32:0",
       "store 1",
@@ -1379,7 +1393,7 @@ fn main() -> u32 {
   };
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
-  ASSERT_EQ(bytecodes.size(), 30);
+  ASSERT_EQ(bytecodes.size(), 29);
   for (int i = 0; i < bytecodes.size(); i++) {
     ASSERT_EQ(
         bytecodes[i].ToString(import_data.file_table(), /*source_locs=*/false),

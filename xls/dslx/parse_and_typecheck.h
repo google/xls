@@ -52,6 +52,7 @@ struct TypecheckedModule {
   Module* module;
   TypeInfo* type_info;
   WarningCollector warnings;
+  bool type_inference_v2;
 };
 
 // Helper that parses and typechecks the given "text" for a module.

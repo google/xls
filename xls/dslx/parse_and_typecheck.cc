@@ -107,11 +107,14 @@ absl::StatusOr<TypecheckedModule> TypecheckModule(
       absl::StatusOr<std::unique_ptr<ModuleInfo>> (*)(
           std::unique_ptr<Module>, std::filesystem::path path, ImportData*,
           WarningCollector*);
+  bool used_version2 = false;
   ExtendedTypecheckModuleFn version_entry_point =
-      force_version2 || module->attributes().contains(
-                            ModuleAttribute::kTypeInferenceVersion2)
-          ? &TypecheckModuleV2
-          : static_cast<ExtendedTypecheckModuleFn>(&TypecheckModule);
+      static_cast<ExtendedTypecheckModuleFn>(&TypecheckModule);
+  if (force_version2 ||
+      module->attributes().contains(ModuleAttribute::kTypeInferenceVersion2)) {
+    version_entry_point = &TypecheckModuleV2;
+    used_version2 = true;
+  }
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<ModuleInfo> module_info,
       version_entry_point(std::move(module), path, import_data, &warnings));
@@ -119,7 +122,10 @@ absl::StatusOr<TypecheckedModule> TypecheckModule(
   TypeInfo* type_info = module_info->type_info();
   XLS_RETURN_IF_ERROR(
       import_data->Put(subject, std::move(module_info)).status());
-  return TypecheckedModule{module_ptr, type_info, std::move(warnings)};
+  return TypecheckedModule{.module = module_ptr,
+                           .type_info = type_info,
+                           .warnings = std::move(warnings),
+                           .type_inference_v2 = used_version2};
 }
 
 }  // namespace xls::dslx

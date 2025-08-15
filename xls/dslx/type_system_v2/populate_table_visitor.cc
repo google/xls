@@ -307,7 +307,14 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
             HandleStructAttributeReferenceInternal(
                 node, *struct_ref->def, struct_ref->parametrics, node->attr()));
         XLS_RET_CHECK(ref.has_value());
-
+        if (struct_ref->type_ref_type_annotation.has_value()) {
+          // Handle a parametric struct reference with the same kind of indirect
+          // annotation we would use for a local one. Otherwise the parametrics
+          // would not be dealt with properly.
+          return table_.SetTypeAnnotation(
+              node, module_.Make<MemberTypeAnnotation>(
+                        *struct_ref->type_ref_type_annotation, node->attr()));
+        }
         return SetCrossModuleTypeAnnotation(node, *ref);
       }
       XLS_ASSIGN_OR_RETURN(ModuleMember member,
