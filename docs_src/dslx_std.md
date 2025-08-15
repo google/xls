@@ -261,11 +261,11 @@ that label. This enables building multiple versions of a single piece of code
 from the same source, with variations controlled at build time.
 
 ```
-fn configured_value_or<T: type, N:u32>(label:u8[N], default_value: T) -> T;
+fn configured_value_or<T: type, N: u32>(label: u8[N], default_value: T) -> T;
 ```
 
 Bazel Target:
-[`xls/examples/BUILD`](https://github.com/google/xls/tree/main/xls/examples/BUILD;l=119;rcl=794114262)
+[`xls/examples/BUILD`](https://github.com/google/xls/tree/main/xls/examples/BUILD;l=119)
 
 Example usage:
 [`xls/examples/configured_value_or.x`](https://github.com/google/xls/tree/main/xls/examples/configured_value_or.x).
