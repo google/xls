@@ -478,6 +478,223 @@ std::string ToString(const MatchedPairs& pairs) {
   return ret;
 }
 
+// Checks if two comparison nodes are opposite to each other for any way they
+// are arranged.
+bool CanSimplifyThreeWayCompare(Node* first_compare, Node* second_compare,
+                                const QueryEngine& query_engine,
+                                bool inversed_compares = false) {
+  // The second compare must only be used once otherwise using an EqualOp would
+  // just add a component.
+  if (second_compare->users().size() != 1) {
+    return false;
+  }
+  // The compares must have two operands.
+  if (first_compare->operand_count() != 2 ||
+      second_compare->operand_count() != 2) {
+    return false;
+  }
+  Node* first_compare_lhs = first_compare->operands()[0];
+  Node* first_compare_rhs = first_compare->operands()[1];
+  Node* second_compare_lhs = second_compare->operands()[0];
+  Node* second_compare_rhs = second_compare->operands()[1];
+  // The compares must contain only bits operands.
+  if (!first_compare_lhs->GetType()->IsBits() ||
+      !first_compare_rhs->GetType()->IsBits() ||
+      !second_compare_lhs->GetType()->IsBits() ||
+      !second_compare_rhs->GetType()->IsBits()) {
+    return false;
+  }
+  std::vector<Op> gt_ops(2);
+  std::vector<Op> lt_ops(2);
+  // Use equality comparisons if the compares should be inverted.
+  if (inversed_compares) {
+    gt_ops = {Op::kUGe, Op::kSGe};
+    lt_ops = {Op::kULe, Op::kSLe};
+  } else {
+    gt_ops = {Op::kUGt, Op::kSGt};
+    lt_ops = {Op::kULt, Op::kSLt};
+  }
+  auto is_gt_op = [&](Node* node) { return node->OpIn(gt_ops); };
+  auto is_lt_op = [&](Node* node) { return node->OpIn(lt_ops); };
+  // Check if the nodes operands are equal to each other in order.
+  bool operands_equal = query_engine.NodesKnownUnsignedEquals(
+                            first_compare_lhs, second_compare_lhs) &&
+                        query_engine.NodesKnownUnsignedEquals(
+                            first_compare_rhs, second_compare_rhs);
+  // Check if the nodes operands are equal to each other in flipped order.
+  bool flipped_operands_equal = query_engine.NodesKnownUnsignedEquals(
+                                    first_compare_lhs, second_compare_rhs) &&
+                                query_engine.NodesKnownUnsignedEquals(
+                                    first_compare_rhs, second_compare_lhs);
+  if (is_gt_op(first_compare) && is_lt_op(second_compare)) {
+    return operands_equal;
+  }
+  if (is_lt_op(first_compare) && is_gt_op(second_compare)) {
+    return operands_equal;
+  }
+  if (is_gt_op(first_compare) && is_gt_op(second_compare)) {
+    return flipped_operands_equal;
+  }
+  if (is_lt_op(first_compare) && is_lt_op(second_compare)) {
+    return flipped_operands_equal;
+  }
+  return false;
+}
+
+// Simplify the select if it is a three way compare.
+absl::StatusOr<bool> TrySimplifyThreeWayCompareSelect(
+    Select* sel, const QueryEngine& query_engine) {
+  if (IsBinarySelect(sel->cases()[0])) {
+    // sel(ugt, [sel(ult, [eq_result, ult_result]), ugt_result]) becomes
+    // sel(ugt, [sel(eq, [ult_result, eq_result]), ugt_result])
+    Select* sub_sel = sel->cases()[0]->As<Select>();
+    Node* first_compare = sel->selector();
+    Node* second_compare = sub_sel->selector();
+    // Make sure the sub select is only used once to avoid duplicates.
+    if (sub_sel->users().size() != 1 ||
+        !CanSimplifyThreeWayCompare(first_compare, second_compare,
+                                    query_engine)) {
+      return false;
+    }
+    XLS_ASSIGN_OR_RETURN(
+        Node * new_eq, sel->function_base()->MakeNode<CompareOp>(
+                           second_compare->loc(), second_compare->operands()[0],
+                           second_compare->operands()[1], Op::kEq));
+    XLS_ASSIGN_OR_RETURN(
+        Node * new_sub_sel,
+        sel->function_base()->MakeNode<Select>(
+            sub_sel->loc(), new_eq,
+            std::vector<Node*>{sub_sel->cases()[1], sub_sel->cases()[0]},
+            std::nullopt));
+    // Replace all uses of the select with the new select because they are
+    // equivalent.
+    XLS_RETURN_IF_ERROR(sel->ReplaceUsesWithNew<Select>(
+                               sel->selector(),
+                               std::vector<Node*>{new_sub_sel, sel->cases()[1]},
+                               std::nullopt)
+                            .status());
+    return true;
+  } else if (IsBinarySelect(sel->cases()[1])) {
+    // sel(ule, [ugt_result, sel(uge, [ult_result, eq_result])) becomes
+    // sel(ule, [ugt_result, sel(eq, [ult_result, eq_result])])
+    Select* sub_sel = sel->cases()[1]->As<Select>();
+    Node* first_compare = sel->selector();
+    Node* second_compare = sub_sel->selector();
+    if (sub_sel->users().size() != 1 ||
+        !CanSimplifyThreeWayCompare(first_compare, second_compare, query_engine,
+                                    /*inversed_compares=*/true)) {
+      return false;
+    }
+    XLS_ASSIGN_OR_RETURN(
+        Node * new_eq, sel->function_base()->MakeNode<CompareOp>(
+                           second_compare->loc(), second_compare->operands()[0],
+                           second_compare->operands()[1], Op::kEq));
+    XLS_ASSIGN_OR_RETURN(
+        Node * new_sub_sel,
+        sel->function_base()->MakeNode<Select>(
+            sub_sel->loc(), new_eq,
+            std::vector<Node*>{sub_sel->cases()[0], sub_sel->cases()[1]},
+            std::nullopt));
+    XLS_RETURN_IF_ERROR(sel->ReplaceUsesWithNew<Select>(
+                               sel->selector(),
+                               std::vector<Node*>{sel->cases()[0], new_sub_sel},
+                               std::nullopt)
+                            .status());
+    return true;
+  }
+  return false;
+}
+
+// Simplify the priority select if it is a three way compare.
+absl::StatusOr<bool> TrySimplifyThreeWayComparePrioritySelect(
+    PrioritySelect* sel, const QueryEngine& query_engine) {
+  Node* selector = sel->selector();
+  if (selector->op() == Op::kConcat && selector->operand_count() == 2) {
+    // priority_sel(concat(ugt, ult), [ult_result, ugt_result], eq_result)
+    // becomes
+    // priority_sel(concat(ugt, eq), [eq_result, ugt_result], ult_result)
+    Node* first_compare = selector->operands()[0];
+    Node* second_compare = selector->operands()[1];
+    if (selector->users().size() != 1 ||
+        !CanSimplifyThreeWayCompare(first_compare, second_compare,
+                                    query_engine)) {
+      return false;
+    }
+    XLS_ASSIGN_OR_RETURN(
+        Node * new_eq, sel->function_base()->MakeNode<CompareOp>(
+                           second_compare->loc(), second_compare->operands()[0],
+                           second_compare->operands()[1], Op::kEq));
+    XLS_ASSIGN_OR_RETURN(
+        Node * new_concat,
+        sel->function_base()->MakeNode<Concat>(
+            selector->loc(), std::vector<Node*>{first_compare, new_eq}));
+    XLS_RETURN_IF_ERROR(
+        sel->ReplaceUsesWithNew<PrioritySelect>(
+               new_concat,
+               std::vector<Node*>{sel->default_value(), sel->cases()[1]},
+               sel->cases()[0])
+            .status());
+    return true;
+  } else if (IsBinaryPrioritySelect(sel) &&
+             IsBinaryPrioritySelect(sel->default_value())) {
+    // priority_sel(ugt, [ugt_result],
+    //              priority_sel(ult, [ult_result], eq_result)) becomes
+    // priority_sel(ugt, [ugt_result],
+    //              priority_sel(eq, [eq_result], ult_result))
+    PrioritySelect* sub_sel = sel->default_value()->As<PrioritySelect>();
+    Node* first_compare = selector;
+    Node* second_compare = sub_sel->selector();
+    if (sub_sel->users().size() != 1 ||
+        !CanSimplifyThreeWayCompare(first_compare, second_compare,
+                                    query_engine)) {
+      return false;
+    }
+    XLS_ASSIGN_OR_RETURN(
+        Node * new_eq, sel->function_base()->MakeNode<CompareOp>(
+                           second_compare->loc(), second_compare->operands()[0],
+                           second_compare->operands()[1], Op::kEq));
+    XLS_ASSIGN_OR_RETURN(
+        Node * new_sub_sel,
+        sel->function_base()->MakeNode<PrioritySelect>(
+            sub_sel->loc(), new_eq,
+            std::vector<Node*>{sub_sel->default_value()}, sub_sel->cases()[0]));
+    XLS_RETURN_IF_ERROR(sel->ReplaceUsesWithNew<PrioritySelect>(
+                               sel->selector(),
+                               std::vector<Node*>{sel->cases()[0]}, new_sub_sel)
+                            .status());
+    return true;
+  } else if (IsBinaryPrioritySelect(sel) &&
+             IsBinaryPrioritySelect(sel->cases()[0])) {
+    // priority_sel(ule,
+    //              [priority_sel(uge, [eq_result], ult_result)], ugt_result)
+    // becomes
+    // priority_sel(ule,
+    //              [priority_sel(eq, [eq_result], ult_result)], ugt_result)
+    PrioritySelect* sub_sel = sel->cases()[0]->As<PrioritySelect>();
+    Node* first_compare = selector;
+    Node* second_compare = sub_sel->selector();
+    if (!CanSimplifyThreeWayCompare(first_compare, second_compare, query_engine,
+                                    /*inversed_compares=*/true)) {
+      return false;
+    }
+    XLS_ASSIGN_OR_RETURN(
+        Node * new_eq, sel->function_base()->MakeNode<CompareOp>(
+                           second_compare->loc(), second_compare->operands()[0],
+                           second_compare->operands()[1], Op::kEq));
+    XLS_ASSIGN_OR_RETURN(
+        Node * new_sub_sel,
+        sel->function_base()->MakeNode<PrioritySelect>(
+            sub_sel->loc(), new_eq, std::vector<Node*>{sub_sel->cases()[0]},
+            sub_sel->default_value()));
+    XLS_RETURN_IF_ERROR(sel->ReplaceUsesWithNew<PrioritySelect>(
+                               sel->selector(), std::vector<Node*>{new_sub_sel},
+                               sel->default_value())
+                            .status());
+    return true;
+  }
+  return false;
+}
+
 // Returns a bit-based select instruction which selects a slice of the given
 // bit-based select's cases. The cases are sliced with the given start and width
 // and then selected with a new bit-based select which is returned.
@@ -1020,6 +1237,40 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
       }
       // Has an unknown bit before the first known one, so the result is
       // unknown.
+    }
+  }
+
+  // Three Way Compare with Select:
+  // Checking if a > b followed by a < b with an else is a common coding
+  // practice:
+  //
+  // if (a > b) {
+  // } else if (a < b) {
+  // } else {}  // a == b
+  //
+  // This can be simplified to use a comparison op for the default case instead
+  // of an equality op because the comparison op is more expensive:
+  //
+  // if (a > b) {
+  // } else if (a == b) {
+  // } else {}  // a < b
+  if (IsBinarySelect(node)) {
+    Select* sel = node->As<Select>();
+    XLS_ASSIGN_OR_RETURN(bool changed,
+                         TrySimplifyThreeWayCompareSelect(sel, query_engine));
+    if (changed) {
+      return true;
+    }
+  }
+
+  // Three Way Compare with PrioritySelect:
+  // Same as the above optimizations but uses PrioritySelect:
+  if (node->Is<PrioritySelect>()) {
+    PrioritySelect* sel = node->As<PrioritySelect>();
+    XLS_ASSIGN_OR_RETURN(bool changed, TrySimplifyThreeWayComparePrioritySelect(
+                                           sel, query_engine));
+    if (changed) {
+      return true;
     }
   }
 
