@@ -225,6 +225,11 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
       // which is not useful.
       return false;
     }
+    // If the node has no users, replacing it with a literal is pointless.
+    if (to_replace->users().empty() &&
+        !to_replace->function_base()->HasImplicitUse(to_replace)) {
+      return false;
+    }
     std::optional<SharedLeafTypeTree<TernaryVector>> ternary =
         query_engine.GetTernary(to_replace);
     if (!ternary.has_value()) {
