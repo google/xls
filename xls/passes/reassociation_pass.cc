@@ -267,6 +267,11 @@ class AssociativeElements {
         // No overflow is happening anywhere so you can merge in this element.
         return true;
       }
+      if (e.overflows() && e.node()->BitCountOrDie() != n->BitCountOrDie()) {
+        // There's an overflow at an intermediate node, and the bit-width is
+        // changing. Can't combine.
+        return false;
+      }
       // If the bit-width changed we can't combine.
       return absl::c_all_of(e.all_elements(), [&](const NodeData& nd) {
         return nd.node->BitCountOrDie() == n->BitCountOrDie();

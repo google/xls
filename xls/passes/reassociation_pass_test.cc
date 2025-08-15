@@ -1424,6 +1424,26 @@ top fn FuzzTest(p0: bits[1000] id=1) -> bits[1000] {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
 }
 
+// Discovered by the IR fuzzer 2025-08-14 (id:
+// 600adb6e8013ca66eb69f11e4bc8c897069d3310).
+//
+// Previously reassociated through the narrowed umul.2 despite the overflow.
+TEST_F(ReassociationPassTest, TruncationRegression) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, Parser::ParsePackage(R"ir(
+package FuzzTest
+
+top fn FuzzTest(p0: bits[4] id=1) -> bits[4] {
+  umul.2: bits[1] = umul(p0, p0, id=2)
+  zero_ext.3: bits[4] = zero_ext(p0, new_bit_count=4, id=3)
+  umul.5: bits[4] = umul(p0, umul.2, id=5)
+  ret umul.6: bits[4] = umul(zero_ext.3, umul.5, id=6)
+}
+  )ir"));
+  ScopedVerifyEquivalence stays_equivalent(
+      p->GetTop().value()->AsFunctionOrDie(), kProverTimeout);
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
+}
+
 void IrFuzzReassociation(FuzzPackageWithArgs fuzz_package_with_args) {
   ReassociationPass pass;
   OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
