@@ -5,3 +5,7 @@ file_number 0 "top_module.x"
 fn __top__GetLatency() -> bits[64] {
   ret params_latency: bits[64] = literal(value=7, id=3, pos=[(0,2,17)])
 }
+
+fn non_synth___top__GetLatency() -> () {
+  ret literal.7: () = literal(value=(), id=7, pos=[(0,2,17)])
+}

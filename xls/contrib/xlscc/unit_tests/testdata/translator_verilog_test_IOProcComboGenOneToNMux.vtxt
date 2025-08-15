@@ -12,15 +12,15 @@ module foo_proc(
 );
   wire continuation_3_ctx_3__full_condi_output__1;
   wire ctx_3__full_condition_ctx_3__rel_output__1;
-  wire literal_221;
+  wire literal_270;
   wire p0_all_active_outputs_ready;
   assign continuation_3_ctx_3__full_condi_output__1 = dir == 32'h0000_0000;
   assign ctx_3__full_condition_ctx_3__rel_output__1 = ~continuation_3_ctx_3__full_condi_output__1;
-  assign literal_221 = 1'h1;
+  assign literal_270 = 1'h1;
   assign p0_all_active_outputs_ready = (~continuation_3_ctx_3__full_condi_output__1 | out1_rdy) & (~ctx_3__full_condition_ctx_3__rel_output__1 | out2_rdy);
   assign in_rdy = p0_all_active_outputs_ready;
   assign out1 = in;
-  assign out1_vld = in_vld & literal_221 & literal_221 & continuation_3_ctx_3__full_condi_output__1;
+  assign out1_vld = in_vld & literal_270 & literal_270 & continuation_3_ctx_3__full_condi_output__1;
   assign out2 = in;
-  assign out2_vld = in_vld & literal_221 & literal_221 & ctx_3__full_condition_ctx_3__rel_output__1;
+  assign out2_vld = in_vld & literal_270 & literal_270 & ctx_3__full_condition_ctx_3__rel_output__1;
 endmodule
