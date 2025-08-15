@@ -48,6 +48,7 @@
 #include "xls/dslx/type_system_v2/import_utils.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/parametric_struct_instantiator.h"
+#include "xls/dslx/type_system_v2/simplified_type_annotation_cache.h"
 #include "xls/dslx/type_system_v2/type_annotation_filter.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
 #include "xls/dslx/type_system_v2/type_system_tracer.h"
@@ -123,6 +124,7 @@ class StatefulResolver : public TypeAnnotationResolver {
       UnificationErrorGenerator& error_generator, Evaluator& evaluator,
       ParametricStructInstantiator& parametric_struct_instantiator,
       TypeSystemTracer& tracer, ImportData& import_data,
+      SimplifiedTypeAnnotationCache& simplified_type_annotation_cache,
       std::function<absl::Status(std::optional<const ParametricContext*>,
                                  const Invocation*)>
           invocation_converter)
@@ -134,6 +136,7 @@ class StatefulResolver : public TypeAnnotationResolver {
         parametric_struct_instantiator_(parametric_struct_instantiator),
         tracer_(tracer),
         import_data_(import_data),
+        simplified_type_annotation_cache_(simplified_type_annotation_cache),
         invocation_converter_(invocation_converter) {}
 
   absl::StatusOr<std::unique_ptr<TypeAnnotationResolver>> ResolverForNode(
@@ -141,7 +144,7 @@ class StatefulResolver : public TypeAnnotationResolver {
     return TypeAnnotationResolver::Create(
         *node->owner(), table_, file_table_, error_generator_, evaluator_,
         parametric_struct_instantiator_, tracer_, import_data_,
-        invocation_converter_);
+        simplified_type_annotation_cache_, invocation_converter_);
   }
 
   absl::StatusOr<std::optional<const TypeAnnotation*>>
@@ -555,6 +558,15 @@ class StatefulResolver : public TypeAnnotationResolver {
           "No member `$0` in struct `$1`.", member_type->member_name(),
           struct_def->identifier()));
     }
+    // If the simplified member type annotation is known, such as when we
+    // process the members of a non-parametric StructDef, use it.
+    // Keeping the dummy `parametric_context` argument here in case we support
+    // caching parametric MemberTypeAnnotation in the future.
+    if (std::optional<const TypeAnnotation*> cached =
+            simplified_type_annotation_cache_.GetSimplifiedypeAnnotation(
+                parametric_context, *member)) {
+      return *cached;
+    }
     return parametric_struct_instantiator_.GetParametricFreeStructMemberType(
         parametric_context, *struct_or_proc_ref, (*member)->type());
   }
@@ -927,8 +939,18 @@ class StatefulResolver : public TypeAnnotationResolver {
           latest = table_.GetTypeAnnotation(colon_ref);
         }
       } else {
-        latest = table_.GetTypeAnnotation(ToAstNode(TypeDefinitionGetNameDef(
-            type_ref_annotation->type_ref()->type_definition())));
+        const TypeDefinition& type_def =
+            type_ref_annotation->type_ref()->type_definition();
+        // If the simplified type of a type alias is known, use it.
+        if (std::holds_alternative<TypeAlias*>(type_def)) {
+          if (std::optional<const TypeAnnotation*> cached =
+                  simplified_type_annotation_cache_.GetSimplifiedypeAnnotation(
+                      std::nullopt, std::get<TypeAlias*>(type_def))) {
+            return const_cast<TypeAnnotation*>(*cached);
+          }
+        }
+        latest = table_.GetTypeAnnotation(
+            ToAstNode(TypeDefinitionGetNameDef(type_def)));
       }
 
       // If the TRTA unwrapped in this iteration specified parametrics, add them
@@ -1021,6 +1043,7 @@ class StatefulResolver : public TypeAnnotationResolver {
   ParametricStructInstantiator& parametric_struct_instantiator_;
   TypeSystemTracer& tracer_;
   ImportData& import_data_;
+  SimplifiedTypeAnnotationCache& simplified_type_annotation_cache_;
   std::function<absl::Status(std::optional<const ParametricContext*>,
                              const Invocation*)>
       invocation_converter_;
@@ -1038,6 +1061,7 @@ class StatelessResolver : public TypeAnnotationResolver {
       UnificationErrorGenerator& error_generator, Evaluator& evaluator,
       ParametricStructInstantiator& parametric_struct_instantiator,
       TypeSystemTracer& tracer, ImportData& import_data,
+      SimplifiedTypeAnnotationCache& simplified_type_annotation_cache,
       std::function<absl::Status(std::optional<const ParametricContext*>,
                                  const Invocation*)>
           invocation_converter)
@@ -1049,6 +1073,7 @@ class StatelessResolver : public TypeAnnotationResolver {
         parametric_struct_instantiator_(parametric_struct_instantiator),
         tracer_(tracer),
         import_data_(import_data),
+        simplified_type_annotation_cache_(simplified_type_annotation_cache),
         invocation_converter_(std::move(invocation_converter)) {}
 
   absl::StatusOr<std::optional<const TypeAnnotation*>>
@@ -1102,7 +1127,7 @@ class StatelessResolver : public TypeAnnotationResolver {
     return std::make_unique<StatefulResolver>(
         module_, table_, file_table_, error_generator_, evaluator_,
         parametric_struct_instantiator_, tracer_, import_data_,
-        invocation_converter_);
+        simplified_type_annotation_cache_, invocation_converter_);
   }
 
   Module& module_;
@@ -1113,6 +1138,7 @@ class StatelessResolver : public TypeAnnotationResolver {
   ParametricStructInstantiator& parametric_struct_instantiator_;
   TypeSystemTracer& tracer_;
   ImportData& import_data_;
+  SimplifiedTypeAnnotationCache& simplified_type_annotation_cache_;
   std::function<absl::Status(std::optional<const ParametricContext*>,
                              const Invocation*)>
       invocation_converter_;
@@ -1125,13 +1151,14 @@ std::unique_ptr<TypeAnnotationResolver> TypeAnnotationResolver::Create(
     UnificationErrorGenerator& error_generator, Evaluator& evaluator,
     ParametricStructInstantiator& parametric_struct_instantiator,
     TypeSystemTracer& tracer, ImportData& import_data,
+    SimplifiedTypeAnnotationCache& simplified_type_annotation_cache,
     std::function<absl::Status(std::optional<const ParametricContext*>,
                                const Invocation*)>
         invocation_converter) {
   return std::make_unique<StatelessResolver>(
       module, table, file_table, error_generator, evaluator,
       parametric_struct_instantiator, tracer, import_data,
-      std::move(invocation_converter));
+      simplified_type_annotation_cache, std::move(invocation_converter));
 }
 
 }  // namespace xls::dslx

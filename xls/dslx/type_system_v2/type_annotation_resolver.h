@@ -28,6 +28,7 @@
 #include "xls/dslx/type_system_v2/evaluator.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/parametric_struct_instantiator.h"
+#include "xls/dslx/type_system_v2/simplified_type_annotation_cache.h"
 #include "xls/dslx/type_system_v2/type_annotation_filter.h"
 #include "xls/dslx/type_system_v2/type_system_tracer.h"
 #include "xls/dslx/type_system_v2/unify_type_annotations.h"
@@ -49,6 +50,7 @@ class TypeAnnotationResolver {
       UnificationErrorGenerator& error_generator, Evaluator& evaluator,
       ParametricStructInstantiator& parametric_struct_instantiator,
       TypeSystemTracer& tracer, ImportData& import_data,
+      SimplifiedTypeAnnotationCache& simplified_type_annotation_cache,
       std::function<absl::Status(std::optional<const ParametricContext*>,
                                  const Invocation*)>
           invocation_converter);

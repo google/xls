@@ -62,10 +62,15 @@ class InferenceTableConverter {
   // or in the context of a parametric invocation. The
   // `needs_conversion_before_eval` flag indicates if the annotation needs its
   // subtree converted before evaluating parts of it.
+  // The `node` where `annotation` is obtained from may be optionally provided,
+  // and for certain kinds of node a simplified TypeAnnotation may be cached for
+  // it, which is to improve performance for certain use cases, while the
+  // node itself does not affect type concretization.
   virtual absl::StatusOr<std::unique_ptr<Type>> Concretize(
       const TypeAnnotation* annotation,
       std::optional<const ParametricContext*> parametric_context,
-      bool needs_conversion_before_eval) = 0;
+      bool needs_conversion_before_eval,
+      std::optional<const AstNode*> node = std::nullopt) = 0;
 
   // Determines what function is being invoked by a `callee` expression.
   virtual absl::StatusOr<const FunctionAndTargetObject> ResolveFunction(

@@ -124,6 +124,7 @@ cc_library(
         ":inference_table_converter",
         ":parametric_struct_instantiator",
         ":populate_table_visitor",
+        ":simplified_type_annotation_cache",
         ":solve_for_parametrics",
         ":type_annotation_filter",
         ":type_annotation_resolver",
@@ -153,6 +154,7 @@ cc_library(
         "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/functional:any_invocable",
         "@com_google_absl//absl/functional:function_ref",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
@@ -671,6 +673,7 @@ cc_library(
         ":import_utils",
         ":inference_table",
         ":parametric_struct_instantiator",
+        ":simplified_type_annotation_cache",
         ":type_annotation_filter",
         ":type_annotation_utils",
         ":type_system_tracer",
@@ -730,5 +733,18 @@ cc_library(
         "//xls/dslx/frontend:ast_node_visitor_with_default",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
+    name = "simplified_type_annotation_cache",
+    srcs = ["simplified_type_annotation_cache.cc"],
+    hdrs = ["simplified_type_annotation_cache.h"],
+    deps = [
+        ":inference_table",
+        ":unify_type_annotations",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_node",
+        "@com_google_absl//absl/container:flat_hash_map",
     ],
 )

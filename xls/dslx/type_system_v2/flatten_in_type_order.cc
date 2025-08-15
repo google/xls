@@ -157,6 +157,21 @@ class Flattener : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  absl::Status HandleStructDef(const StructDef* node) override {
+    // StructDefBase::GetChildren does not return StructMemberNodes, this is
+    // blocked by https://github.com/google/xls/issues/1756.
+    nodes_.push_back(node->name_def());
+    for (const ParametricBinding* parametric_binding :
+         node->parametric_bindings()) {
+      XLS_RETURN_IF_ERROR(parametric_binding->Accept(this));
+    }
+    for (const StructMemberNode* member : node->members()) {
+      XLS_RETURN_IF_ERROR(member->Accept(this));
+    }
+    nodes_.push_back(node);
+    return absl::OkStatus();
+  }
+
   absl::Status DefaultHandler(const AstNode* node) override {
     // Prefer conversion of invocations before nodes that may use them.
     std::vector<const AstNode*> invocations;

@@ -1368,6 +1368,19 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return DefaultHandler(node);
   }
 
+  // For non-parametric structs, the type of each member is already known at
+  // the struct's definition, so we want to generate a simplified type
+  // annotation for each member and cache it for use by type unification of
+  // instances of this struct.
+  absl::Status HandleStructDef(const StructDef* node) override {
+    if (!node->IsParametric()) {
+      for (const StructMemberNode* member : node->members()) {
+        XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(member, member->type()));
+      }
+    }
+    return DefaultHandler(node);
+  }
+
   absl::Status HandleTupleIndex(const TupleIndex* node) override {
     VLOG(5) << "HandleTupleIndex: " << node->ToString();
 

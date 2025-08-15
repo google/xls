@@ -7378,7 +7378,7 @@ fn main() -> uN[5] {
   XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
   EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSizeMismatch("u8", "uN[5]")));
+                       HasSizeMismatch("uN[8]", "uN[5]")));
 }
 
 TEST(TypecheckV2Test, ImportConstantSizeMismatch) {

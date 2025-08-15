@@ -29,6 +29,7 @@
 #include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/functional/function_ref.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -65,6 +66,7 @@
 #include "xls/dslx/type_system_v2/inference_table_converter.h"
 #include "xls/dslx/type_system_v2/parametric_struct_instantiator.h"
 #include "xls/dslx/type_system_v2/populate_table_visitor.h"
+#include "xls/dslx/type_system_v2/simplified_type_annotation_cache.h"
 #include "xls/dslx/type_system_v2/solve_for_parametrics.h"
 #include "xls/dslx/type_system_v2/type_annotation_filter.h"
 #include "xls/dslx/type_system_v2/type_annotation_resolver.h"
@@ -142,6 +144,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
             module, table, file_table,
             /*error_generator=*/*this, *evaluator_,
             /*parametric_struct_instantiator=*/*this, *tracer_, import_data_,
+            simplified_type_annotation_cache_,
             [&](std::optional<const ParametricContext*> parametric_context,
                 const Invocation* invocation) {
               return TryConvertInvocationForUnification(parametric_context,
@@ -859,6 +862,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
             *details.callee->owner(), table_, file_table_,
             /*error_generator=*/*this, /*evaluator=*/*evaluator_,
             /*parametric_struct_instantiator=*/*this, *tracer_, import_data_,
+            simplified_type_annotation_cache_,
             [&](std::optional<const ParametricContext*> parametric_context,
                 const Invocation* invocation) {
               return TryConvertInvocationForUnification(parametric_context,
@@ -931,7 +935,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     absl::StatusOr<std::unique_ptr<Type>> type =
         Concretize(*annotation, parametric_context,
                    /*needs_conversion_before_eval=*/node->kind() !=
-                       AstNodeKind::kTypeAnnotation);
+                       AstNodeKind::kTypeAnnotation,
+                   node);
 
     if (!type.ok()) {
       // When the node itself is an annotation, and we decide to concretize
@@ -1125,7 +1130,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   absl::StatusOr<std::unique_ptr<Type>> Concretize(
       const TypeAnnotation* annotation,
       std::optional<const ParametricContext*> parametric_context,
-      bool needs_conversion_before_eval) override {
+      bool needs_conversion_before_eval,
+      std::optional<const AstNode*> node) override {
     TypeSystemTrace trace = tracer_->TraceConcretize(annotation);
     VLOG(5) << "Concretize: " << annotation->ToString()
             << " in context invocation: " << ToString(parametric_context);
@@ -1134,6 +1140,15 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     absl::StatusOr<std::unique_ptr<Type>> type =
         fast_concretizer_->Concretize(annotation);
     if (type.ok()) {
+      // If resulting type is bits-like, we fabricate a simplified type
+      // annotation for the node.
+      if (node) {
+        if (BitsType* bits_type = dynamic_cast<BitsType*>(&**type)) {
+          simplified_type_annotation_cache_.MaybeAddBitsLikeTypeAnnotation(
+              module_, parametric_context, *node, bits_type->is_signed(),
+              *(bits_type->size().GetAsInt64()));
+        }
+      }
       return std::move(*type);
     }
 
@@ -1330,6 +1345,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         int64_t bit_count,
         evaluator_->EvaluateU32OrExpr(parametric_context,
                                       signedness_and_bit_count.bit_count));
+    if (node) {
+      // If resulting type is bits-like, we fabricate a simplified type
+      // annotation for the node.
+      simplified_type_annotation_cache_.MaybeAddBitsLikeTypeAnnotation(
+          module_, parametric_context, *node, signedness, bit_count);
+    }
     VLOG(5) << "Concretized: " << annotation->ToString()
             << " to signed: " << signedness << ", bit count: " << bit_count;
     return std::make_unique<BitsType>(signedness, bit_count);
@@ -1451,7 +1472,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       const TypeAnnotation* annotation,
       std::optional<const ParametricContext*> parametric_context) {
     return Concretize(annotation, parametric_context,
-                      /*needs_conversion_before_eval=*/false);
+                      /*needs_conversion_before_eval=*/false, std::nullopt);
   }
 
   // Given an invocation of the `map` builtin, creates a FunctionTypeAnnotation
@@ -2300,6 +2321,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       converted_invocations_;
   absl::flat_hash_set<const Proc*> converted_procs_;
 
+  SimplifiedTypeAnnotationCache simplified_type_annotation_cache_;
   absl::flat_hash_map<
       std::pair<const AstNode*, std::optional<const ParametricContext*>>,
       std::unique_ptr<Type>>

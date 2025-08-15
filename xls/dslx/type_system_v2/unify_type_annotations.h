@@ -15,6 +15,7 @@
 #ifndef XLS_DSLX_TYPE_SYSTEM_V2_UNIFY_TYPE_ANNOTATIONS_H_
 #define XLS_DSLX_TYPE_SYSTEM_V2_UNIFY_TYPE_ANNOTATIONS_H_
 
+#include <cstdint>
 #include <optional>
 #include <vector>
 
@@ -46,6 +47,18 @@ class UnificationErrorGenerator {
       std::optional<const ParametricContext*> parametric_context,
       const TypeAnnotation* a, const TypeAnnotation* b) = 0;
 };
+
+// A size and signedness with a flag for whether it is automatic. Automatic
+// values have more flexible unification rules.
+struct SignednessAndSize {
+  TypeInferenceFlag flag;
+  bool is_signed;
+  int64_t size;
+};
+
+const TypeAnnotation* SignednessAndSizeToAnnotation(
+    Module& module, const SignednessAndSize& signedness_and_size,
+    const Span& span);
 
 // Comes up with one type annotation reconciling the information in any type
 // annotations that have been associated with the given type variable. If the
