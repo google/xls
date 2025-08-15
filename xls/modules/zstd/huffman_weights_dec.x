@@ -455,9 +455,9 @@ pub proc HuffmanFseDecoder<
         )
     }
 
-    init { zero!<HuffmanFseDecoderState>() }
+    init { zero!<State>() }
 
-    next (state: HuffmanFseDecoderState) {
+    next (state: State) {
         type RamAddr = uN[RAM_ADDR_W];
         const RAM_MASK_ALL = std::unsigned_max_value<RAM_NUM_PARTITIONS>();
 
@@ -467,7 +467,7 @@ pub proc HuffmanFseDecoder<
         let (_, ctrl, ctrl_valid) = recv_if_non_blocking(tok, ctrl_r, state.fsm == FSM::RECV_CTRL, zero!<Ctrl>());
         let state = if ctrl_valid {
             trace_fmt!("[HuffmanFseDecoder] ctrl: {:#x}", ctrl);
-            HuffmanFseDecoderState {
+            State {
                 ctrl: ctrl,
                 stream_len: (ctrl.length as u16) * u16:8,
                 ..state
