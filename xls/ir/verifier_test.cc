@@ -45,6 +45,21 @@ class VerifierTest : public IrTestBase {
   VerifierTest() = default;
 };
 
+TEST_F(VerifierTest, ArrayIndexOfEmptyArray) {
+  std::string input = R"(
+package p
+
+fn f(a: bits[8][0], i: bits[3]) -> bits[8] {
+  ret array_index.1: bits[8] = array_index(a, indices=[i])
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
+  EXPECT_THAT(
+      VerifyPackage(p.get()),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Array index cannot be applied to an empty array")));
+}
+
 TEST_F(VerifierTest, BadSelect) {
   static constexpr std::string_view input = R"(
 package subrosa

@@ -1291,13 +1291,15 @@ fn f() -> bits[32] {
   EXPECT_THAT(proven_eq, IsProvenTrue());
 }
 
-TEST_F(Z3IrTranslatorTest, IndexBitsType) {
+TEST_F(Z3IrTranslatorTest, IndexSingleElementArray) {
   const std::string program = R"(
 package p
 
 fn f() -> bits[32] {
   eight: bits[32] = literal(value=8)
-  ret result: bits[32] = array_index(eight, indices=[])
+  zero: bits[32] = literal(value=0)
+  arr: bits[32][1] = array(eight)
+  ret result: bits[32] = array_index(arr, indices=[zero])
 }
 )";
 
