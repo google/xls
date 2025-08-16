@@ -471,28 +471,73 @@ const BAR: u32 = FOO + FOO;)"));
 TEST(LanguageServerAdapterTest, DocumentHighlight) {
   LanguageServerAdapter adapter(GetDslxStdlibUri(), /*dslx_paths=*/{});
   const LspUri kUri("file:///fake/path/test.x");
-  XLS_ASSERT_OK(adapter.Update(kUri, R"(pub const FOO = u32:42;
+  XLS_ASSERT_OK(adapter.Update(kUri, R"(
+
+pub const FOO = u32:42;
 
 const BAR: u32 = FOO + FOO;
 
-fn f() -> u32 { FOO })"));
-  const auto kTargetPos = verible::lsp::Position{4, 16};
+fn f() -> u32 { FOO }    // <- hovering over F of FOO
+)"));
+  const auto kTargetPos = verible::lsp::Position{6, 16};
   XLS_ASSERT_OK_AND_ASSIGN(
       std::vector<verible::lsp::DocumentHighlight> highlights,
       adapter.DocumentHighlight(kUri, kTargetPos));
 
   // There are four instances in the document including the definition.
-  EXPECT_EQ(highlights.size(), 4);
+  ASSERT_EQ(highlights.size(), 4);
 
   // Definition comes first.
-  EXPECT_EQ(highlights[0].range.start.line, 0);
+  EXPECT_EQ(highlights[0].range.start.line, 2);
 
-  // Then uses in the const.
-  EXPECT_EQ(highlights[1].range.start.line, 2);
-  EXPECT_EQ(highlights[2].range.start.line, 2);
+  // Then two uses in const-eval
+  EXPECT_EQ(highlights[1].range.start.line, 4);
+  EXPECT_EQ(highlights[1].range.start.character, 17);
+  EXPECT_EQ(highlights[1].range.end.character, 20);
+
+  EXPECT_EQ(highlights[2].range.start.line, 4);
+  EXPECT_EQ(highlights[2].range.start.character, 23);
 
   // Then use in the function definition.
-  EXPECT_EQ(highlights[3].range.start.line, 4);
+  EXPECT_EQ(highlights[3].range.start.line, 6);
+  EXPECT_EQ(highlights[3].range.start.character, 16);
+}
+
+// https://github.com/google/xls/issues/2852
+TEST(LanguageServerAdapterTest, DISABLED_DocumentHighlightTypeInferenceV2) {
+  // Exact copy of DocumentHighlight test, but Tiv2 enabled.
+  LanguageServerAdapter adapter(GetDslxStdlibUri(), /*dslx_paths=*/{});
+  const LspUri kUri("file:///fake/path/test.x");
+  XLS_ASSERT_OK(adapter.Update(kUri, R"(
+#![feature(type_inference_v2)]
+pub const FOO = u32:42;
+
+const BAR: u32 = FOO + FOO;
+
+fn f() -> u32 { FOO }    // <- hovering over F of FOO
+)"));
+  const auto kTargetPos = verible::lsp::Position{6, 16};
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<verible::lsp::DocumentHighlight> highlights,
+      adapter.DocumentHighlight(kUri, kTargetPos));
+
+  // There are four instances in the document including the definition.
+  ASSERT_EQ(highlights.size(), 4);
+
+  // Definition comes first.
+  EXPECT_EQ(highlights[0].range.start.line, 2);
+
+  // Then two uses in const-eval
+  EXPECT_EQ(highlights[1].range.start.line, 4);
+  EXPECT_EQ(highlights[1].range.start.character, 17);
+  EXPECT_EQ(highlights[1].range.end.character, 20);
+
+  EXPECT_EQ(highlights[2].range.start.line, 4);
+  EXPECT_EQ(highlights[2].range.start.character, 23);
+
+  // Then use in the function definition.
+  EXPECT_EQ(highlights[3].range.start.line, 6);
+  EXPECT_EQ(highlights[3].range.start.character, 16);
 }
 
 // This models a scenario where we observe a problem in `outer.x`, but that
