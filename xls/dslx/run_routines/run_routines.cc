@@ -758,7 +758,6 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
     const Pos& start_pos = quickcheck->span().start();
     Function* f = quickcheck->fn();
     VLOG(1) << "Found quickcheck function: " << f->identifier();
-    std::cerr << "[ RUN QUICKCHECK        ] " << quickcheck_name << '\n';
 
     auto test_case_start = absl::Now();
 
@@ -774,6 +773,7 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
           .timestamp = test_case_start});
       continue;
     }
+    std::cerr << "[ RUN QUICKCHECK        ] " << quickcheck_name << '\n';
     dslx::PackageConversionData conv{
         .package = std::make_unique<Package>(entry_module->name())};
     Package& package = *conv.package;
