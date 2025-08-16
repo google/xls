@@ -692,16 +692,15 @@ TEST(FunctionBuilderTest, ArrayIndexMultipleDimensions) {
   EXPECT_EQ(func->return_value()->GetType(), element_type);
 }
 
-TEST(FunctionBuilderTest, ArrayIndexNilIndex) {
+TEST(FunctionBuilderTest, ArrayIndexBitsSubjectNilIndex) {
   Package p("p");
   FunctionBuilder b("f", &p);
   BValue a = b.Param("a", p.GetBitsType(123));
   b.ArrayIndex(a, {});
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * func, b.Build());
-  EXPECT_THAT(func->return_value(),
-              m::ArrayIndex(m::Param("a"), /*indices=*/{}));
-  EXPECT_EQ(func->return_value()->GetType(), p.GetBitsType(123));
+  EXPECT_THAT(b.Build().status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Expected operand 0 of array_index")));
 }
 
 TEST(FunctionBuilderTest, ArrayIndexWrongIndexType) {

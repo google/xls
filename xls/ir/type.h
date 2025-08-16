@@ -184,6 +184,7 @@ class ArrayType : public Type {
 
   Type* element_type() const { return element_type_; }
   int64_t size() const { return size_; }
+  bool empty() const { return size_ == 0; }
 
   int64_t GetFlatBitCount() const override {
     return element_type_->GetFlatBitCount() * size_;

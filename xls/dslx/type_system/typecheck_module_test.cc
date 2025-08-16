@@ -109,6 +109,13 @@ fn main() -> u2 { p<u32:1>(u2:0) }
   XLS_EXPECT_OK(Typecheck(text));
 }
 
+TEST_P(TypecheckBothVersionsTest, IndexZeroSizedArray) {
+  std::string_view text = R"(fn f(a: u8[0], b: u3) -> u8 { a[b] })";
+  EXPECT_THAT(Typecheck(text),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Zero-sized arrays cannot be indexed")));
+}
+
 // The type of the default expression is wrong for the parametric binding of X.
 //
 // It's /always/ wrong, but it's also not used, so this test is pointing out "do
