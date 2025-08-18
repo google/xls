@@ -66,8 +66,11 @@
 #include "xls/ir/name_uniquer.h"
 
 namespace xls::dslx {
+
 namespace {
 
+constexpr std::string_view kSelfOutsideImplError =
+    "Type `Self` cannot be used outside of an `impl`";
 constexpr std::string_view kConstAssertIdentifier = "const_assert!";
 
 absl::StatusOr<std::vector<ExprOrType>> CloneParametrics(
@@ -1126,9 +1129,7 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
   if (tok.IsTypeKeyword()) {  // Builtin types.
     Pos start_pos = tok.span().start();
     if (tok.GetKeyword() == Keyword::kSelfType) {
-      return ParseErrorStatus(tok.span(),
-                              "Parameter with type `Self` must be named `self` "
-                              "and can only be used in `impl` functions");
+      return ParseErrorStatus(tok.span(), kSelfOutsideImplError);
     }
     if (allow_generic_type && tok.GetKeyword() == Keyword::kType) {
       return module_->Make<GenericTypeAnnotation>(tok.span());
@@ -2015,9 +2016,11 @@ absl::StatusOr<Function*> Parser::ParseFunctionInternal(
   if (dropped_arrow) {
     XLS_ASSIGN_OR_RETURN(bool is_self, PeekTokenIs(Keyword::kSelfType));
     if (is_self) {
-      CHECK(struct_ref != nullptr);
       XLS_ASSIGN_OR_RETURN(Token self_tok,
                            PopKeywordOrError(Keyword::kSelfType));
+      if (struct_ref == nullptr) {
+        return ParseErrorStatus(self_tok.span(), kSelfOutsideImplError);
+      }
       return_type = module_->Make<SelfTypeAnnotation>(
           self_tok.span(), /*explicit_type=*/true, struct_ref);
     } else {
@@ -3619,7 +3622,20 @@ absl::StatusOr<Param*> Parser::ParseParam(Bindings& bindings,
     XLS_RETURN_IF_ERROR(
         DropTokenOrError(TokenKind::kColon, /*start=*/nullptr,
                          "Expect type annotation on parameters"));
-    XLS_ASSIGN_OR_RETURN(type, ParseTypeAnnotation(bindings));
+    XLS_ASSIGN_OR_RETURN(bool next_is_self_type,
+                         PeekTokenIs(Keyword::kSelfType));
+    if (next_is_self_type) {
+      XLS_ASSIGN_OR_RETURN(Token self_tok,
+                           PopKeywordOrError(Keyword::kSelfType));
+      if (struct_ref == nullptr) {
+        return ParseErrorStatus(self_tok.span(), kSelfOutsideImplError);
+      }
+      type =
+          module_->Make<SelfTypeAnnotation>(self_tok.span(),
+                                            /*explicit_type=*/true, struct_ref);
+    } else {
+      XLS_ASSIGN_OR_RETURN(type, ParseTypeAnnotation(bindings));
+    }
   }
   if (dynamic_cast<SelfTypeAnnotation*>(type) &&
       name->identifier() != KeywordToString(Keyword::kSelf)) {
