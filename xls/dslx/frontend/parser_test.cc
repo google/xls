@@ -389,6 +389,19 @@ fn main() -> u9 {
                  HasSubstr("Cannot find a definition for name: \"self\"")));
 }
 
+TEST(ParserErrorTest, SelfParamOutsideImpl) {
+  constexpr std::string_view kProgram = "fn n(self";
+  FileTable file_table;
+  Scanner s{file_table, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
+  EXPECT_THAT(
+      module.status(),
+      IsPosError(
+          "ParseError",
+          HasSubstr("`self` parameter cannot be used outside of an `impl`")));
+}
+
 TEST(ParserErrorTest, ImplUsingMisnamedSelf) {
   constexpr std::string_view kProgram = R"(struct foo { }
 impl foo {
