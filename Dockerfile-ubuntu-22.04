@@ -23,7 +23,7 @@ RUN chmod +x bazelisk-linux-amd64 && mv bazelisk-linux-amd64 /usr/bin/bazel
 
 
 # Install dependencies
-RUN apt-get -y install python3-dev python-is-python3 libtinfo6 build-essential libxml2-dev liblapack-dev libblas-dev gfortran zip
+RUN apt-get -y install python3-dev python-is-python3 libtinfo6 build-essential libxml2-dev liblapack-dev libblas-dev gfortran zip default-jdk
 
 # Install development tools
 RUN apt-get install -y git vim
