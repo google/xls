@@ -3607,7 +3607,10 @@ absl::StatusOr<Param*> Parser::ParseParam(Bindings& bindings,
   XLS_ASSIGN_OR_RETURN(NameDef * name, ParseNameDef(bindings));
   XLS_ASSIGN_OR_RETURN(bool peek_is_colon, PeekTokenIs(TokenKind::kColon));
   if (name->identifier() == KeywordToString(Keyword::kSelf)) {
-    CHECK(struct_ref != nullptr);
+    if (struct_ref == nullptr) {
+      return ParseErrorStatus(
+          name->span(), "`self` parameter cannot be used outside of an `impl`");
+    }
     bool explicit_type = peek_is_colon;
     type = module_->Make<SelfTypeAnnotation>(name->span(), explicit_type,
                                              struct_ref);
