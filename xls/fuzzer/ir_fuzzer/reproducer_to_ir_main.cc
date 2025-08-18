@@ -22,17 +22,18 @@
 #include "absl/flags/flag.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
-#include "google/protobuf/text_format.h"
+#include "absl/strings/str_join.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
-#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/fuzzer/ir_fuzzer/fuzzer_arg_list.pb.h"
 #include "xls/fuzzer/ir_fuzzer/reproducer_repo_files.h"
 #include "xls/fuzzer/ir_fuzzer/reproducer_to_ir.h"
 #include "xls/ir/function.h"
 #include "xls/ir/value.h"
+#include "xls/ir/xls_value.pb.h"
+#include "xls/tests/testvector.pb.h"
 
 constexpr static std::string_view kUsage = R"(
 Parse a fuzztest reproducer which is only a IrFuzzDomain() or
@@ -46,6 +47,8 @@ ABSL_FLAG(std::string, args_out, "/dev/null",
           "file to dump the args as binary proto to.");
 ABSL_FLAG(std::string, args_textproto_out, "/dev/null",
           "file to dump the args as text proto to.");
+ABSL_FLAG(std::string, args_testvector_out, "/dev/null",
+          "file to dump the args as testvector textproto to.");
 
 namespace xls {
 namespace {
@@ -66,20 +69,24 @@ absl::Status RealMain(std::string_view file_v) {
       auto args,
       FuzzerReproToValues(repro, absl::GetFlag(FLAGS_fuzztest_args)));
   XLS_RETURN_IF_ERROR(
-      AppendStringToFile(absl::GetFlag(FLAGS_ir_out), pkg->DumpIr()));
+      SetFileContents(absl::GetFlag(FLAGS_ir_out), pkg->DumpIr()));
   FuzzerArgListProto proto;
+  testvector::SampleInputsProto testvector;
   for (const auto& lst : args) {
     auto* proto_list = proto.add_set();
     for (const Value& v : lst) {
       XLS_ASSIGN_OR_RETURN(*proto_list->add_arg(), v.AsProto());
     }
+    testvector.mutable_function_args()->add_args(absl::StrJoin(
+        lst, "; ",
+        [](std::string* out, const Value& v) { out->append(v.ToString()); }));
   }
-  std::string txtproto;
-  XLS_RET_CHECK(google::protobuf::TextFormat::PrintToString(proto, &txtproto));
   XLS_RETURN_IF_ERROR(
-      AppendStringToFile(absl::GetFlag(FLAGS_args_textproto_out), txtproto));
-  XLS_RETURN_IF_ERROR(AppendStringToFile(absl::GetFlag(FLAGS_args_out),
-                                         proto.SerializeAsString()));
+      SetTextProtoFile(absl::GetFlag(FLAGS_args_textproto_out), proto));
+  XLS_RETURN_IF_ERROR(SetFileContents(absl::GetFlag(FLAGS_args_out),
+                                      proto.SerializeAsString()));
+  XLS_RETURN_IF_ERROR(
+      SetTextProtoFile(absl::GetFlag(FLAGS_args_testvector_out), testvector));
   return absl::OkStatus();
 }
 

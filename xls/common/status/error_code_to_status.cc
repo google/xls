@@ -17,6 +17,7 @@
 #include <system_error>  // NOLINT(build/c++11)
 
 #include "absl/status/status.h"
+#include "xls/common/source_location.h"
 #include "xls/common/status/status_builder.h"
 
 namespace xls {
@@ -197,14 +198,16 @@ absl::StatusCode ErrorCodeToStatusCode(const std::error_code& ec) {
   }
 }
 
-xabsl::StatusBuilder ErrorCodeToStatus(const std::error_code& ec) {
+xabsl::StatusBuilder ErrorCodeToStatus(const std::error_code& ec,
+                                       xabsl::SourceLocation loc) {
   return xabsl::StatusBuilder(
-      absl::Status(ErrorCodeToStatusCode(ec), ec.message()));
+      absl::Status(ErrorCodeToStatusCode(ec), ec.message()), loc);
 }
 
-xabsl::StatusBuilder ErrnoToStatus(int errno_value) {
+xabsl::StatusBuilder ErrnoToStatus(int errno_value, xabsl::SourceLocation loc) {
   return xabsl::StatusBuilder(
-      ErrorCodeToStatus(std::error_code(errno_value, std::generic_category())));
+      ErrorCodeToStatus(std::error_code(errno_value, std::generic_category())),
+      loc);
 }
 
 }  // namespace xls

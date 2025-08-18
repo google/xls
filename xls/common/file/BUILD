@@ -59,6 +59,7 @@ cc_library(
     hdrs = ["filesystem.h"],
     deps = [
         ":temp_file",
+        "//xls/common:source_location",
         "//xls/common/status:error_code_to_status",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",

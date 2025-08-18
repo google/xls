@@ -35,6 +35,7 @@ cc_library(
     visibility = ["//xls/common:__subpackages__"],
     deps = [
         ":status_builder",
+        "//xls/common:source_location",
         "@com_google_absl//absl/status",
     ],
 )

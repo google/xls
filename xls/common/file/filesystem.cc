@@ -41,6 +41,7 @@
 #include "google/protobuf/io/zero_copy_stream_impl.h"
 #include "google/protobuf/text_format.h"
 #include "xls/common/file/temp_file.h"
+#include "xls/common/source_location.h"
 #include "xls/common/status/error_code_to_status.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -51,9 +52,10 @@ namespace {
 
 // Returns a Status error based on the errno value. The error message includes
 // the filename.
-absl::Status ErrNoToStatusWithFilename(int errno_value,
-                                       const std::filesystem::path& file_name) {
-  xabsl::StatusBuilder builder = ErrnoToStatus(errno);
+absl::Status ErrNoToStatusWithFilename(
+    int errno_value, const std::filesystem::path& file_name,
+    xabsl::SourceLocation loc = xabsl::SourceLocation::current()) {
+  xabsl::StatusBuilder builder = ErrnoToStatus(errno, loc);
   builder << file_name.string();
   return std::move(builder);
 }
@@ -326,7 +328,9 @@ absl::Status SetTextProtoFile(const std::filesystem::path& file_name,
 
   // Clear existing contents.
   if (ftruncate(fd, 0) == -1) {
-    return ErrNoToStatusWithFilename(errno, file_name);
+    // Continue anyway since some files like /dev/null can't be truncated.
+    LOG(WARNING) << "Unable to truncate opened file " << file_name << " due to "
+                 << strerror(errno);
   }
 
   google::protobuf::io::FileOutputStream output_stream(fd);
