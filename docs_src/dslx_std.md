@@ -1189,6 +1189,54 @@ fn test_split_lsbs() {
 }
 ```
 
+#### `std::zero_pad_lsbs`
+
+```dslx-snippet
+pub fn zero_pad_lsbs
+    <AtLeast: u32, S: bool, N: u32, R: u32 = {max(AtLeast, N)},
+     NumBitsAppended: u32 = {usub_or_zero(R, N)}>(x: xN[S][N]) -> bits[R]
+```
+
+Returns a bits that is at least AtLeast bits wide, by inserting the minimum required number
+of least significant zeros. The result will be wider than AtLeast when the input is wider
+than AtLeast.
+
+Example:
+
+```dslx
+import std;
+
+#[test]
+fn test_zero_pad_lsbs() {
+    assert_eq(std::zero_pad_lsbs<u32:4>(u1:1), u4:0b1000);
+    assert_eq(std::zero_pad_lsbs<u32:16>(u32:1), u32:1);
+}
+```
+
+#### `std::zero_pad_msbs`
+
+```dslx-snippet
+pub fn zero_pad_msbs
+    <AtLeast: u32, S: bool, N: u32, R: u32 = {max(AtLeast, N)},
+     NumBitsAppended: u32 = {usub_or_zero(R, N)}>(x: xN[S][N]) -> bits[R]
+```
+
+Returns a bits that is at least AtLeast bits wide, by inserting the minimum required number
+of most significant zeros. The result will be wider than AtLeast when the input is wider than
+AtLeast.
+
+Example:
+
+```dslx
+import std;
+
+#[test]
+fn test_zero_pad_msbs() {
+    assert_eq(std::zero_pad_msbs<u32:4>(u1:1), u4:1);
+    assert_eq(std::zero_pad_msbs<u32:16>(u32:1), u32:1);
+}
+```
+
 ### Mathematical Functions
 
 #### `std::usub_or_zero`
