@@ -1916,6 +1916,9 @@ Parser::ParseFunctionSignature(
                        Parser::ParseTypedArguments(package));
   for (const TypedArgument& param : params) {
     BValue param_bvalue = fb->Param(param.name, param.type);
+    if (!param_bvalue.valid()) {
+      return fb->GetError();
+    }
     (*name_to_value)[param.name] = param_bvalue;
     param_bvalue.node()->SetId(param.id.value_or(kUnassignedNodeId));
   }

@@ -145,14 +145,14 @@ absl::Status VerifyFunctionBase(FunctionBase* function) {
     XLS_RET_CHECK(param_set.insert(param).second)
         << "Param appears more than once in Function::params()";
     XLS_RET_CHECK(param_names.insert(param->GetName()).second)
-        << "Param name " << param->GetName()
-        << " is duplicated in Function::params()";
+        << "Param name `" << param->GetName()
+        << "` is duplicated in Function::params()";
   }
   int64_t param_node_count = 0;
   for (Node* node : function->nodes()) {
     if (node->Is<Param>()) {
       XLS_RET_CHECK(param_set.contains(node))
-          << "Param " << node->GetName() << " is not in Function::params()";
+          << "Param `" << node->GetName() << "` is not in Function::params()";
       param_node_count++;
     }
   }
