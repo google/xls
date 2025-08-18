@@ -253,6 +253,9 @@ class FuzzCoverageTest(test_base.TestCase):
         ir_op_pb2.OP_SEND,
         ir_op_pb2.OP_STATE_READ,
         ir_op_pb2.OP_TRACE,
+        ir_op_pb2.OP_NEW_CHANNEL,
+        ir_op_pb2.OP_SEND_CHANNEL_END,
+        ir_op_pb2.OP_RECV_CHANNEL_END,
     ]
     # The set of expected to be seen and expected to be not seen should cover
     # all ops.
