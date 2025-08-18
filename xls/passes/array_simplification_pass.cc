@@ -308,6 +308,13 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
     } else {
       XLS_ASSIGN_OR_RETURN(operand_no, first_index.ToUint64());
     }
+    // If there are no remaining indices, replace with the selected element
+    // directly instead of creating an ArrayIndex with an empty index list.
+    if (array_index->indices().size() == 1) {
+      XLS_RETURN_IF_ERROR(
+          array_index->ReplaceUsesWith(array->operand(operand_no)));
+      return SimplifyResult::Changed({array->operand(operand_no)});
+    }
     XLS_ASSIGN_OR_RETURN(
         ArrayIndex * new_array_index,
         array_index->ReplaceUsesWithNew<ArrayIndex>(
