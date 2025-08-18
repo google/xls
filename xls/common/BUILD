@@ -14,13 +14,15 @@
 
 # Common utilities shared among XLA subfolders.
 
+# cc_proto_library is used in this file
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+
 # pytype test and library
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 # Load proto_library
-# cc_proto_library is used in this file
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -655,4 +657,9 @@ cc_library(
     testonly = True,
     srcs = ["undeclared_outputs.cc"],
     hdrs = ["undeclared_outputs.h"],
+)
+
+bzl_library(
+    name = "openroad_warnings_bzl",
+    srcs = ["openroad_warnings.bzl"],
 )

@@ -29,6 +29,11 @@ load(
     "xls_ir_opt_ir",
     "xls_ir_verilog",
 )
+load(
+    "//xls/common:openroad_warnings.bzl",
+    "ASAP7_SUPPPRESSED_WARNINGS",
+    "SKY130_SUPPPRESSED_WARNINGS",
+)
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -172,6 +177,7 @@ place_and_route(
     die_width_microns = 150,
     min_pin_distance = "2",
     placement_density = "0.7",
+    suppress_warnings = SKY130_SUPPPRESSED_WARNINGS,
     synthesized_rtl = ":rle_enc_synth_sky130",
 )
 
@@ -198,6 +204,7 @@ place_and_route(
     die_width_microns = 25,
     min_pin_distance = "0.2",
     placement_density = "0.95",
+    suppress_warnings = ASAP7_SUPPPRESSED_WARNINGS,
     synthesized_rtl = ":rle_enc_synth_asap7",
 )
 
@@ -298,6 +305,7 @@ place_and_route(
     die_width_microns = 200,
     min_pin_distance = "2",
     placement_density = "0.85",
+    suppress_warnings = SKY130_SUPPPRESSED_WARNINGS,
     synthesized_rtl = ":rle_dec_synth_sky130",
 )
 
@@ -324,6 +332,7 @@ place_and_route(
     die_width_microns = 15,
     min_pin_distance = "0.2",
     placement_density = "0.95",
+    suppress_warnings = ASAP7_SUPPPRESSED_WARNINGS,
     synthesized_rtl = ":rle_dec_synth_asap7",
 )
 
