@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <optional>
 #include <utility>
 
 #include "mlir/include/mlir/Analysis/TopologicalSortUtils.h"
@@ -32,6 +33,31 @@ namespace mlir::xls {
 #include "xls/contrib/mlir/transforms/passes.h.inc"
 
 namespace {
+
+// Combines two FifoConfigs into one, assuming that they are concatenated and
+// that a value passes through `a` before it passes through `b`.
+std::optional<FifoConfig> combineFifoConfigs(std::optional<FifoConfig> a,
+                                             std::optional<FifoConfig> b) {
+  if (!a && !b) {
+    return std::nullopt;
+  }
+  if (!a) {
+    return *b;
+  }
+  if (!b) {
+    return *a;
+  }
+  bool bypass = a->getBypass() || b->getBypass();
+  // The depth of the combined FIFO is the sum of the depths of the two FIFOs,
+  // as a notional value passes through one FIFO and then the other.
+  int64_t depth = a->getFifoDepth() + b->getFifoDepth();
+  // registerPushOutputs affects the "push" ports, which are input ports.
+  bool registerPushOutputs = a->getRegisterPushOutputs();
+  // registerPopOutputs affects the "pop" ports, which are output ports.
+  bool registerPopOutputs = b->getRegisterPopOutputs();
+  return FifoConfig::get(a->getContext(), depth, bypass, registerPushOutputs,
+                         registerPopOutputs);
+}
 
 class SendOfBlockingReceiveOp : public OpRewritePattern<SSendOp> {
  public:
@@ -59,8 +85,24 @@ class SendOfBlockingReceiveOp : public OpRewritePattern<SSendOp> {
     int64_t recvChanIdx = cast<BlockArgument>(recv.getChannel()).getArgNumber();
     Value sendChan = sproc.getYieldedChannels()[sendChanIdx];
     Value recvChan = sproc.getYieldedChannels()[recvChanIdx];
+    auto sendChanOp = sendChan.getDefiningOp<SchanOp>();
+    auto recvChanOp = recvChan.getDefiningOp<SchanOp>();
 
-    if (auto sendChanOp = sendChan.getDefiningOp<SchanOp>()) {
+    if (sendChanOp && recvChanOp) {
+      // Both channels are interior channels, so we can pick either one to be
+      // the final channel. Moreover, we can combine the FifoConfigs of the two
+      // channels.
+      std::optional<FifoConfig> fifoConfig = combineFifoConfigs(
+          sendChanOp.getFifoConfig(), recvChanOp.getFifoConfig());
+      if (fifoConfig) {
+        recvChanOp.setFifoConfigAttr(*fifoConfig);
+      }
+      Value sendChanReceiver = sendChanOp.getIn();
+      rewriter.replaceUsesWithIf(sendChanReceiver, recvChan,
+                                 [&](OpOperand& opOperand) {
+                                   return !isa<YieldOp>(opOperand.getOwner());
+                                 });
+    } else if (sendChanOp && !sendChanOp.getFifoConfig().has_value()) {
       // The send channel is an interior channel, so replace uses of its "in"
       // port with the recv channel (recv can either be interior or argument).
       Value sendChanReceiver = sendChanOp.getIn();
@@ -68,7 +110,7 @@ class SendOfBlockingReceiveOp : public OpRewritePattern<SSendOp> {
                                  [&](OpOperand& opOperand) {
                                    return !isa<YieldOp>(opOperand.getOwner());
                                  });
-    } else if (auto recvChanOp = recvChan.getDefiningOp<SchanOp>()) {
+    } else if (recvChanOp && !recvChanOp.getFifoConfig().has_value()) {
       // The recv channel is an interior channel, so replace uses of its "out"
       // port with the send channel (send can either be interior or a result).
       Value recvChanSender = recvChanOp.getOut();
@@ -79,6 +121,9 @@ class SendOfBlockingReceiveOp : public OpRewritePattern<SSendOp> {
     } else {
       // The recv channel is an argument and the send channel is a result. This
       // needs a send/recv pair so we can't optimize this.
+      //
+      // Or, one is an interior channel that has a FifoConfig and the other is
+      // a result/argument that cannot have a FifoConfig.
       return failure();
     }
 
