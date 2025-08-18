@@ -4259,6 +4259,7 @@ cc_library(
 
 cc_library(
     name = "pass_test_helpers",
+    testonly = True,
     hdrs = ["pass_test_helpers.h"],
     deps = [
         ":optimization_pass",
@@ -4267,6 +4268,8 @@ cc_library(
         "//xls/ir",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@googletest//:gtest",
     ],
 )
 

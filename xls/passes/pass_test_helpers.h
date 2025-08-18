@@ -15,12 +15,19 @@
 #ifndef XLS_PASSES_PASS_TEST_HELPERS_H_
 #define XLS_PASSES_PASS_TEST_HELPERS_H_
 
+#include <cstdint>
+#include <string>
+#include <string_view>
+
+#include "gtest/gtest.h"
 #include "absl/base/nullability.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+
 namespace xls {
 
 template <typename Inner>
@@ -54,6 +61,25 @@ class RecordIfPassChanged : public OptimizationPass {
  private:
   bool* changed_;
   Inner inner_;
+};
+
+class RecordPackagePass : public OptimizationPass {
+ public:
+  explicit RecordPackagePass(std::string_view prefix)
+      : OptimizationPass("record-pass", "record-pass"), prefix_(prefix) {}
+
+ protected:
+  absl::StatusOr<bool> RunInternal(
+      Package* ir, const OptimizationPassOptions& options, PassResults* results,
+      OptimizationContext& context) const override {
+    ::testing::Test::RecordProperty(absl::StrCat(prefix_, ++idx_),
+                                    ir->DumpIr());
+    return false;
+  }
+
+ private:
+  std::string prefix_;
+  mutable int64_t idx_ = 0;
 };
 
 }  // namespace xls
