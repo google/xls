@@ -354,39 +354,29 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   }
 
   // keep-sorted start
+  NO_TRAVERSE_DISPATCH(Array)
+  NO_TRAVERSE_DISPATCH(Attr)
+  NO_TRAVERSE_DISPATCH(Cast)
+  NO_TRAVERSE_DISPATCH(ColonRef)
+  NO_TRAVERSE_DISPATCH(Conditional)
+  NO_TRAVERSE_DISPATCH(ConstantDef)
+  NO_TRAVERSE_DISPATCH(For)
+  NO_TRAVERSE_DISPATCH(FormatMacro)
+  NO_TRAVERSE_DISPATCH(Index)
+  NO_TRAVERSE_DISPATCH(Invocation)
+  NO_TRAVERSE_DISPATCH(Let)
+  NO_TRAVERSE_DISPATCH(Match)
   NO_TRAVERSE_DISPATCH(NameRef)
   NO_TRAVERSE_DISPATCH(Number)
   NO_TRAVERSE_DISPATCH(Param)
+  NO_TRAVERSE_DISPATCH(Range)
+  NO_TRAVERSE_DISPATCH(Spawn)
+  NO_TRAVERSE_DISPATCH(SplatStructInstance)
+  NO_TRAVERSE_DISPATCH(Statement)
+  NO_TRAVERSE_DISPATCH(StatementBlock)
   NO_TRAVERSE_DISPATCH(String)
-  // keep-sorted end
-
-  // A macro used for AST types where we don't want to visit any children, just
-  // call the FunctionConverter handler.
-#define NO_TRAVERSE_DISPATCH_VISIT(__type)                   \
-  absl::Status Handle##__type(const __type* node) override { \
-    return converter_->Handle##__type(node);                 \
-  }
-
-  // keep-sorted start
-  NO_TRAVERSE_DISPATCH_VISIT(Array)
-  NO_TRAVERSE_DISPATCH_VISIT(Attr)
-  NO_TRAVERSE_DISPATCH_VISIT(Cast)
-  NO_TRAVERSE_DISPATCH_VISIT(ColonRef)
-  NO_TRAVERSE_DISPATCH_VISIT(Conditional)
-  NO_TRAVERSE_DISPATCH_VISIT(ConstantDef)
-  NO_TRAVERSE_DISPATCH_VISIT(For)
-  NO_TRAVERSE_DISPATCH_VISIT(FormatMacro)
-  NO_TRAVERSE_DISPATCH_VISIT(Index)
-  NO_TRAVERSE_DISPATCH_VISIT(Invocation)
-  NO_TRAVERSE_DISPATCH_VISIT(Let)
-  NO_TRAVERSE_DISPATCH_VISIT(Match)
-  NO_TRAVERSE_DISPATCH_VISIT(Range)
-  NO_TRAVERSE_DISPATCH_VISIT(Spawn)
-  NO_TRAVERSE_DISPATCH_VISIT(SplatStructInstance)
-  NO_TRAVERSE_DISPATCH_VISIT(Statement)
-  NO_TRAVERSE_DISPATCH_VISIT(StatementBlock)
-  NO_TRAVERSE_DISPATCH_VISIT(StructInstance)
-  NO_TRAVERSE_DISPATCH_VISIT(TupleIndex)
+  NO_TRAVERSE_DISPATCH(StructInstance)
+  NO_TRAVERSE_DISPATCH(TupleIndex)
   // keep-sorted end
 
   // A macro used for AST types that we never expect to visit (if we do we
