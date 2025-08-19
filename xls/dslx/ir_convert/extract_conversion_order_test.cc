@@ -237,6 +237,12 @@ fn main() -> u32 { f(u2:0) }
 }
 
 TEST(ExtractConversionOrderTest, UseTreeEntryCallInParametric) {
+  // TODO: https://github.com/google/xls/issues/2876 - TIv2 does not yet support
+  // "use" syntax.
+  if (kDefaultTypeInferenceVersion == TypeInferenceVersion::kVersion2) {
+    return;
+  }
+
   constexpr std::string_view kProgram = R"(#![feature(use_syntax)]
 use std::is_pow2;
 fn f<N: u32>(x: bits[N]) -> bool { is_pow2(x) }

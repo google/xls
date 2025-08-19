@@ -81,9 +81,6 @@ class ProcHierarchyInterpreterTest : public ::testing::Test {
                    const BytecodeInterpreterOptions& options) {
     XLS_ASSIGN_OR_RETURN(TypeInfo * ti, tm_->type_info->GetTopLevelProcTypeInfo(
                                             test_proc->proc()));
-    XLS_ASSIGN_OR_RETURN(
-        InterpValue terminator,
-        ti->GetConstExpr(test_proc->proc()->config().params()[0]));
     std::vector<std::string> trace_output;
     XLS_ASSIGN_OR_RETURN(
         std::unique_ptr<ProcHierarchyInterpreter> hierarchy_interpreter,

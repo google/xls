@@ -293,7 +293,7 @@ TEST(FunctionConverterTest, ConvertsLastExprAndImplicitTokenWithoutError) {
       ParseAndTypecheck(R"(
 fn f() {
     let acc: u32 = u32:0;
-    for (i, acc): (u32, u32) in range(u32:0, u32:8) {
+    for (i, acc): (u32, u32) in u32:0..u32:8 {
         let acc = acc + i;
         trace_fmt!("Do nothing");
         acc
