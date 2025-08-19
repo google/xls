@@ -142,7 +142,7 @@ class ThreadSafeJitChannelQueue : public JitChannelQueue {
 
   // Write raw bytes representing a value in LLVM's native format.
   void WriteRaw(const uint8_t* data) override {
-    absl::MutexLock lock(&mutex_);
+    absl::MutexLock lock(mutex_);
     byte_queue_.Write(data);
     if (!callbacks_.empty()) {
       CallWriteCallbacks(jit_runtime_->UnpackBuffer(data, channel()->type()));
@@ -152,7 +152,7 @@ class ThreadSafeJitChannelQueue : public JitChannelQueue {
   // Reads raw bytes representing a value in LLVM's native format. Returns
   // true if queue was not empty and data was read.
   bool ReadRaw(uint8_t* buffer) override {
-    absl::MutexLock lock(&mutex_);
+    absl::MutexLock lock(mutex_);
     if (generator_.has_value()) {
       std::optional<Value> generated_value = (*generator_)();
       if (generated_value.has_value()) {
