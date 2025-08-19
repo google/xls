@@ -30,6 +30,12 @@ xls_dslx_ir(
     dslx_top = "main",
 )
 
+xls_dslx_ir(
+    name = "multi_proc_ir",
+    srcs = ["multi_proc.x"],
+    dslx_top = "proc_ten",
+)
+
 cc_xls_ir_jit_wrapper(
     name = "test_jit_wrapper",
     src = ":test_ir",
@@ -37,4 +43,14 @@ cc_xls_ir_jit_wrapper(
         "class_name": "TestIr",
         "namespace": "xls::jit_test::v1",
     },
+)
+
+cc_xls_ir_jit_wrapper(
+    name = "multi_proc_jit_wrapper",
+    src = ":multi_proc_ir",
+    jit_wrapper_args = {
+        "class_name": "TestProc",
+        "namespace": "xls::jit_test::v1",
+    },
+    wrapper_type = "PROC",
 )

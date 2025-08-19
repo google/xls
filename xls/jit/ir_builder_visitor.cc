@@ -3765,9 +3765,9 @@ std::string JitBuilderContext::MangleFunctionName(FunctionBase* f) {
   if (f == top() || !llvm_compiler().IsSharedCompilation()) {
     return MangleForLLVM(absl::StrCat(f->name(), symbol_salt_), with_salt);
   }
-  return MangleForLLVM(
-      absl::StrFormat("%s____SUBROUTINE_OF_%s", f->name(), top()->name()),
-      with_salt);
+  return MangleForLLVM(absl::StrFormat("%s____SUBROUTINE_OF_%s_%s", f->name(),
+                                       top()->name(), symbol_salt_),
+                       with_salt);
 }
 llvm::Value* LlvmMemcpy(llvm::Value* tgt, llvm::Value* src, int64_t size,
                         llvm::IRBuilder<>& builder) {
