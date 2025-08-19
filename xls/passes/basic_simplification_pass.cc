@@ -298,6 +298,7 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
   // And(x, -1, y) => And(x, y)
   // Nand(x, -1, y) => Nand(x, y)
   if (n->op() == Op::kAnd || n->op() == Op::kNand) {
+    LOG(INFO) << "Simplifying: " << n->ToString();
     VLOG(2) << "FOUND: remove all-ones operands from and/nand";
     XLS_ASSIGN_OR_RETURN(bool changed,
                          eliminate_operands_where([&query_engine](Node* node) {

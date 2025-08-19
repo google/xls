@@ -9,7 +9,7 @@ module leaf_proc(
   output wire accum_out_vld
 );
   reg [31:0] p0_tuple_index_23;
-  reg [31:0] __accum;
+  reg [31:0] accum;
   reg p0_valid;
   wire p1_stage_done;
   wire p1_not_valid;
@@ -22,16 +22,16 @@ module leaf_proc(
   assign p0_enable = p1_stage_done | p1_not_valid;
   assign p0_data_enable = p0_enable & accum_in_vld;
   assign p0_load_en = p0_data_enable | rst;
-  assign add_30 = __accum + p0_tuple_index_23;
+  assign add_30 = accum + p0_tuple_index_23;
   always @ (posedge clk) begin
     p0_tuple_index_23 <= p0_load_en ? accum_in : p0_tuple_index_23;
   end
   always @ (posedge clk) begin
     if (rst) begin
-      __accum <= 32'h0000_0000;
+      accum <= 32'h0000_0000;
       p0_valid <= 1'h0;
     end else begin
-      __accum <= p1_stage_done ? add_30 : __accum;
+      accum <= p1_stage_done ? add_30 : accum;
       p0_valid <= p0_enable ? accum_in_vld : p0_valid;
     end
   end
@@ -57,12 +57,12 @@ module a_top_proc(
   output wire [31:0] out1_ch,
   output wire out1_ch_vld
 );
-  wire instantiation_output_78;
-  wire [31:0] instantiation_output_79;
-  wire instantiation_output_80;
-  wire instantiation_output_85;
-  wire [31:0] instantiation_output_86;
-  wire instantiation_output_87;
+  wire instantiation_output_77;
+  wire [31:0] instantiation_output_78;
+  wire instantiation_output_79;
+  wire instantiation_output_84;
+  wire [31:0] instantiation_output_85;
+  wire instantiation_output_86;
   reg p0_valid;
   wire p0_stage_done;
   wire p0_enable;
@@ -82,9 +82,9 @@ module a_top_proc(
     .accum_in(in0_ch),
     .accum_in_vld(in0_ch_vld),
     .accum_out_rdy(out0_ch_rdy),
-    .accum_in_rdy(instantiation_output_78),
-    .accum_out(instantiation_output_79),
-    .accum_out_vld(instantiation_output_80),
+    .accum_in_rdy(instantiation_output_77),
+    .accum_out(instantiation_output_78),
+    .accum_out_vld(instantiation_output_79),
     .clk(clk)
   );
   leaf_proc inst1 (
@@ -92,15 +92,15 @@ module a_top_proc(
     .accum_in(in1_ch),
     .accum_in_vld(in1_ch_vld),
     .accum_out_rdy(out1_ch_rdy),
-    .accum_in_rdy(instantiation_output_85),
-    .accum_out(instantiation_output_86),
-    .accum_out_vld(instantiation_output_87),
+    .accum_in_rdy(instantiation_output_84),
+    .accum_out(instantiation_output_85),
+    .accum_out_vld(instantiation_output_86),
     .clk(clk)
   );
-  assign in0_ch_rdy = instantiation_output_78;
-  assign in1_ch_rdy = instantiation_output_85;
-  assign out0_ch = instantiation_output_79;
-  assign out0_ch_vld = instantiation_output_80;
-  assign out1_ch = instantiation_output_86;
-  assign out1_ch_vld = instantiation_output_87;
+  assign in0_ch_rdy = instantiation_output_77;
+  assign in1_ch_rdy = instantiation_output_84;
+  assign out0_ch = instantiation_output_78;
+  assign out0_ch_vld = instantiation_output_79;
+  assign out1_ch = instantiation_output_85;
+  assign out1_ch_vld = instantiation_output_86;
 endmodule

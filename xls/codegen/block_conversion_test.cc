@@ -31,6 +31,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
@@ -5192,10 +5193,7 @@ MATCHER_P(StateRegFoundInBlock, block, "") {
                                    block->nodes().end());
   absl::Span<Register* const> registers = block->GetRegisters();
   bool has_reg = (arg.reg != nullptr || arg.reg_read != nullptr ||
-                  arg.reg_write != nullptr);
-  bool has_reg_full =
-      (arg.reg_full != nullptr || arg.reg_full_read != nullptr ||
-       arg.reg_full_write != nullptr);
+                  !arg.reg_writes.empty());
   if (has_reg) {
     if (absl::c_find(registers, arg.reg) == registers.end()) {
       *result_listener << absl::StreamFormat("reg for %s not in %s", arg.name,
@@ -5207,27 +5205,31 @@ MATCHER_P(StateRegFoundInBlock, block, "") {
                                              arg.name, block->name());
       return false;
     }
-    if (absl::c_find(nodes, arg.reg_write) == nodes.end()) {
-      *result_listener << absl::StreamFormat("reg_write for %s not in %s",
-                                             arg.name, block->name());
-      return false;
+    for (RegisterWrite* reg_write : arg.reg_writes) {
+      if (absl::c_find(nodes, reg_write) == nodes.end()) {
+        *result_listener << absl::StreamFormat("reg_write for %s not in %s",
+                                               arg.name, block->name());
+        return false;
+      }
     }
   }
-  if (has_reg_full) {
-    if (absl::c_find(registers, arg.reg_full) == registers.end()) {
+  if (arg.reg_full.has_value()) {
+    if (absl::c_find(registers, arg.reg_full->reg) == registers.end()) {
       *result_listener << absl::StreamFormat("reg_full for %s not in %s",
                                              arg.name, block->name());
       return false;
     }
-    if (absl::c_find(nodes, arg.reg_full_read) == nodes.end()) {
+    if (absl::c_find(nodes, arg.reg_full->read) == nodes.end()) {
       *result_listener << absl::StreamFormat("reg_full_read for %s not in %s",
                                              arg.name, block->name());
       return false;
     }
-    if (absl::c_find(nodes, arg.reg_full_write) == nodes.end()) {
-      *result_listener << absl::StreamFormat("reg_full_write for %s not in %s",
-                                             arg.name, block->name());
-      return false;
+    for (RegisterWrite* reg_write : arg.reg_full->sets) {
+      if (absl::c_find(nodes, reg_write) == nodes.end()) {
+        *result_listener << absl::StreamFormat(
+            "reg_full_write for %s not in %s", arg.name, block->name());
+        return false;
+      }
     }
   }
   return true;
@@ -5781,7 +5783,7 @@ TEST_F(BlockConversionTest, NodeToStageMapSimple) {
                                 .streaming_io_and_pipeline.node_to_stage_map));
   EXPECT_THAT(context.GetMetadataForBlock(context.top_block())
                   .streaming_io_and_pipeline.node_to_stage_map,
-              has_mapping(m::RegisterRead("__a"), 0));
+              has_mapping(m::RegisterRead("a"), 0));
   // TODO: It would be nice to identify the state register writes in the
   // node-to-stage-map somehow. This is not really too important but having
   // stage information scattered around in a bunch of places is annoying.
@@ -5840,13 +5842,13 @@ TEST_F(BlockConversionTest, NodeToStageMapMulti) {
   // stage information scattered around in a bunch of places is annoying.
   EXPECT_THAT(context.GetMetadataForBlock(context.top_block())
                   .streaming_io_and_pipeline.node_to_stage_map,
-              has_mapping(m::RegisterRead("__a"), 0));
+              has_mapping(m::RegisterRead("a"), 0));
   EXPECT_THAT(context.GetMetadataForBlock(context.top_block())
                   .streaming_io_and_pipeline.node_to_stage_map,
-              has_mapping(m::RegisterRead("__b"), 1));
+              has_mapping(m::RegisterRead("b"), 1));
   EXPECT_THAT(context.GetMetadataForBlock(context.top_block())
                   .streaming_io_and_pipeline.node_to_stage_map,
-              has_mapping(m::RegisterRead("__c"), 2));
+              has_mapping(m::RegisterRead("c"), 2));
   RecordProperty("block", p->DumpIr());
   RecordProperty("map", testing::PrintToString(
                             context.GetMetadataForBlock(context.top_block())

@@ -22,6 +22,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
@@ -107,11 +108,17 @@ absl::StatusOr<bool> RunOnBlock(Block* block, CodegenMetadata& metadata,
         // Immediate back edge.
         continue;
       }
-      candidate_registers.push_back({.reg = maybe_reg->reg,
-                                     .read = maybe_reg->reg_read,
-                                     .read_stage = maybe_reg->read_stage,
-                                     .write = maybe_reg->reg_write,
-                                     .write_stage = write_stage});
+      if (maybe_reg->reg != nullptr && maybe_reg->reg_writes.size() != 1) {
+        return absl::InternalError(absl::StrFormat(
+            "Register `%s` has multiple writes", maybe_reg->reg->name()));
+      }
+      candidate_registers.push_back(
+          {.reg = maybe_reg->reg,
+           .read = maybe_reg->reg_read,
+           .read_stage = maybe_reg->read_stage,
+           .write = maybe_reg->reg == nullptr ? nullptr
+                                              : maybe_reg->reg_writes.front(),
+           .write_stage = write_stage});
     }
   }
   // pipeline registers (but not their valid/reset regs) are candidates for
