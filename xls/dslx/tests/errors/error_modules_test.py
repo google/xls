@@ -304,10 +304,9 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     stderr = self._run(
         'xls/dslx/tests/errors/double_define_parameter.x'
     )
-    # TODO(leary): 2020-01-26 This should not be flagged at the IR level, we
-    # should catch it in the frontend.
     self.assertIn(
-        'Could not build IR: Parameter named "x" already exists', stderr
+        'ParseError: Name `x` is defined more than once in parameter list',
+        stderr,
     )
 
   def test_non_constexpr_slice(self):

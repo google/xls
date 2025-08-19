@@ -2623,10 +2623,17 @@ std::vector<AstNode*> Let::GetChildren(bool want_types) const {
 }
 
 std::string Let::ToString() const {
-  return absl::StrFormat(
-      "%s %s%s = %s;", is_const_ ? "const" : "let", name_def_tree_->ToString(),
-      type_annotation_ == nullptr ? "" : ": " + type_annotation_->ToString(),
-      rhs_->ToString());
+  const std::string rhs_str = rhs_->ToString();
+  const bool rhs_starts_with_newline =
+      !rhs_str.empty() && rhs_str.front() == '\n';
+  const std::string type_str = type_annotation_ == nullptr
+                                   ? std::string()
+                                   : ": " + type_annotation_->ToString();
+  const std::string eq_and_rhs = rhs_starts_with_newline
+                                     ? absl::StrCat(" =", rhs_str)
+                                     : absl::StrCat(" = ", rhs_str);
+  return absl::StrFormat("%s %s%s%s;", is_const_ ? "const" : "let",
+                         name_def_tree_->ToString(), type_str, eq_and_rhs);
 }
 
 // -- class Expr

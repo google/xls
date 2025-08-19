@@ -389,6 +389,19 @@ fn main() -> u9 {
                  HasSubstr("Cannot find a definition for name: \"self\"")));
 }
 
+TEST(ParserErrorTest, DuplicateParamNamesAreParseError) {
+  constexpr std::string_view kProgram = R"(fn f(a: u4, a: u4) -> u4 { a })";
+  FileTable file_table;
+  Scanner s{file_table, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
+  EXPECT_THAT(
+      module.status(),
+      IsPosError(
+          "ParseError",
+          HasSubstr("Name `a` is defined more than once in parameter list")));
+}
+
 TEST(ParserErrorTest, SelfParamOutsideImpl) {
   constexpr std::string_view kProgram = "fn n(self";
   FileTable file_table;
@@ -3833,7 +3846,7 @@ proc AProc {
     a: chan<u32> out;
     b: chan<u32> in;
     config() {
-        let (a, b) = 
+        let (a, b) =
         #[channel(depth=1, bypass=true, register_push_outputs=true, register_pop_outputs=true, input_flop_kind=flop, output_flop_kind=zero_latency)]
         chan<u32>("foo");
     }
@@ -3847,7 +3860,7 @@ proc AProc {
     a: chan<u32> out;
     b: chan<u32> in;
     config() {
-        let (a, b) = 
+        let (a, b) =
         #[channel(depth=1, bypass=true, register_push_outputs=true, register_pop_outputs=true, input_flop_kind=flop)]
         chan<u32>("foo");
     }
@@ -3861,7 +3874,7 @@ proc AProc {
     a: chan<u32> out;
     b: chan<u32> in;
     config() {
-        let (a, b) = 
+        let (a, b) =
         #[channel(depth=1, bypass=true, register_push_outputs=true, register_pop_outputs=true)]
         chan<u32>("foo");
     }
@@ -3875,7 +3888,7 @@ proc AProc {
     a: chan<u32> out;
     b: chan<u32> in;
     config() {
-        let (a, b) = 
+        let (a, b) =
         #[channel(depth=0)]
         chan<u32>("foo");
     }

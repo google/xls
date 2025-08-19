@@ -3659,6 +3659,18 @@ absl::StatusOr<std::vector<Param*>> Parser::ParseParams(
       return ParseErrorStatus(p->span(), "`self` must be the first parameter");
     }
   }
+  // Ensure parameter identifiers are unique within the list.
+  absl::flat_hash_set<std::string> seen_param_names;
+  for (Param* p : params) {
+    NameDef* name_def = p->name_def();
+    const std::string& ident = name_def->identifier();
+    if (!seen_param_names.insert(ident).second) {
+      return ParseErrorStatus(
+          name_def->span(),
+          absl::StrFormat(
+              "Name `%s` is defined more than once in parameter list", ident));
+    }
+  }
   return params;
 }
 

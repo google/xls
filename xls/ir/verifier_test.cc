@@ -196,6 +196,24 @@ fn graph(a: bits[16]) -> bits[16] {
                HasSubstr("Function/proc/block with name graph is not unique")));
 }
 
+TEST_F(VerifierTest, DuplicateParameterNames) {
+  Package p("DupParamManual");
+  Type* u4 = p.GetBitsType(4);
+  // Build the function by hand to bypass builder duplicate-name checks.
+  Function* f = p.AddFunction(std::make_unique<Function>("f", &p));
+  XLS_ASSERT_OK_AND_ASSIGN(Param * a1,
+                           f->MakeNodeWithName<Param>(SourceInfo(), u4, "a"));
+  XLS_ASSERT_OK_AND_ASSIGN(Param * a2,
+                           f->MakeNodeWithName<Param>(SourceInfo(), u4, "a"));
+  // Force duplicate param names without uniquification.
+  a1->SetNameDirectly("a");
+  a2->SetNameDirectly("a");
+  XLS_ASSERT_OK(f->set_return_value(a1));
+  EXPECT_THAT(VerifyFunction(f),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Param name `a` is duplicated")));
+}
+
 TEST_F(VerifierTest, NonUniqueFunctionAndBlockName) {
   std::string input = R"(
 package NonUniqueFunctionName
