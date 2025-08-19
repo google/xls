@@ -109,9 +109,9 @@ class ProfileEntry {
     // count sample
     samp->add_value(1);
     // calculate time sample.
-    auto tot = *elapsed_;
+    auto tot = elapsed_.value_or(stopwatch_.GetElapsedTime());
     for (const auto& child : children_) {
-      tot -= *child.elapsed_;
+      tot -= child.elapsed_.value_or(child.stopwatch_.GetElapsedTime());
     }
 
     // add time sample
