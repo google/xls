@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <string>
+
 #include "llvm/include/llvm/Support/LogicalResult.h"
 #include "mlir/include/mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"
@@ -27,9 +29,26 @@
 #include "xls/contrib/mlir/transforms/xls_lower.h"
 #include "xls/contrib/mlir/util/extraction_utils.h"
 #include "xls/contrib/mlir/util/proc_utils.h"
+#include "xls/public/c_api.h"
 
 int main(int argc, char** argv) {
+  // We allow ABSL flags to be passed to this binary after a double-dash:
+  // xls_translate ... -- --alsologtostderr
+  char** mlir_argv = argv;
+  char** absl_argv = argv;
+  int mlir_argc = argc, absl_argc = 1;
+  for (int i = 0; i < argc; ++i) {
+    if (std::string(argv[i]) == std::string("--")) {
+      // -- found; split into MLIR and ABSL args.
+      absl_argv = &argv[i];  // -- becomes argv[0] for absl.
+      mlir_argc = i;
+      absl_argc = argc - i;
+      break;
+    }
+  }
+  xls_init_xls("Initializing XLS", absl_argc, absl_argv);
   mlir::DialectRegistry registry;
+
   registry.insert<mlir::arith::ArithDialect, mlir::func::FuncDialect,
                   mlir::math::MathDialect, mlir::scf::SCFDialect,
                   mlir::tensor::TensorDialect>();
@@ -46,6 +65,6 @@ int main(int argc, char** argv) {
   mlir::xls::RegisterXlsLowerPassPipeline();
   mlir::xls::test::registerTestExtractAsTopLevelModulePass();
   mlir::xls::test::registerTestConvertForOpToSprocCallPass();
-  return failed(
-      mlir::MlirOptMain(argc, argv, "MLIR XLS pass driver\n", registry));
+  return failed(mlir::MlirOptMain(mlir_argc, mlir_argv,
+                                  "MLIR XLS pass driver\n", registry));
 }

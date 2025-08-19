@@ -190,4 +190,23 @@ def OptimizeSpawnsPass : Pass<"optimize-spawns", "SprocOp"> {
   }];
 }
 
+def OptimizeUsingXlsPass : Pass<"optimize-using-xls", "::mlir::ModuleOp"> {
+  let summary = "Optimizes module using XLS.";
+  let description = [{
+    Optimizes an MLIR module in XLS dialect by translating to XLS IR, having XLS
+    optimize the resultant XLS IR and translating back to XLS dialect.
+
+    This pass is a coarse-grained optimization pass that converts the entire
+    module to XLS IR, runs the XLS optimizer, and then converts the module
+    back. This is intended for reuse/interleaving with other passes.
+  }];
+
+  let dependentDialects = [
+    "mlir::xls::XlsDialect",
+    "mlir::func::FuncDialect",
+  ];
+
+  // TODO(jpienaar): Add pipeline options.
+}
+
 #endif // MLIR_XLS_TRANSFORMS_PASSES

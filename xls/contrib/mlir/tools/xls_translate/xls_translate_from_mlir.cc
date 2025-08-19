@@ -1447,6 +1447,37 @@ absl::StatusOr<::xls::Function*> wrapDslxFunctionIfNeeded(
   }
 }
 
+LogicalResult setTop(Operation* op, std::string_view name, Package* package) {
+  if (!name.empty()) {
+    absl::Status status = package->SetTopByName(name);
+    if (!status.ok()) {
+      return op->emitError() << "failed to set top: " << status.message();
+    }
+    return success();
+  }
+
+  for (auto region_op :
+       cast<ModuleOp>(op).getOps<xls::XlsRegionOpInterface>()) {
+    // If name is not set and the function is not private, use the function name
+    // as the top.
+    if (auto fn = dyn_cast<FuncOp>(*region_op); fn && fn.isPrivate()) {
+      continue;
+    }
+    if (!name.empty()) {
+      llvm::errs() << "Multiple potential top functions: " << name << " and "
+                   << region_op.getName()
+                   << "; pass --main-function to select\n";
+      return failure();
+    }
+    name = region_op.getName();
+  }
+  if (auto ret = package->SetTopByName(name); !ret.ok()) {
+    return op->emitError("failed to set top: ") << ret.message();
+  }
+  return success();
+}
+}  // namespace
+
 FailureOr<std::unique_ptr<Package>> mlirXlsToXls(Operation* op,
                                                  StringRef dslx_search_path,
                                                  DslxPackageCache& dslx_cache) {
@@ -1548,14 +1579,14 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(Operation* op,
       // Eagerly import the function.
       auto xlsFunc = getFunction(translation_state, name);
       if (!xlsFunc.ok()) {
-        llvm::errs() << "Failed to get function " << name << ": "
-                     << xlsFunc.status().message() << "\n";
+        export_dslx_op.emitOpError("failed to get function: ")
+            << xlsFunc.status().message();
         return failure();
       }
       if (auto status = (*xlsFunc)->Clone(name, package.get()).status();
           !status.ok()) {
-        llvm::errs() << "Failed to clone function " << name << ": "
-                     << status.message() << "\n";
+        export_dslx_op.emitOpError("failed to clone function: ")
+            << status.message();
         return failure();
       }
       continue;
@@ -1603,8 +1634,8 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(Operation* op,
       // Eagerly import the function.
       auto xlsFunc = getFunction(translation_state, xls_region.getName());
       if (!xlsFunc.ok()) {
-        llvm::errs() << "Failed to get function " << xls_region.getName()
-                     << ": " << xlsFunc.status().message() << "\n";
+        func.emitOpError("failed to get function: ")
+            << xlsFunc.status().message();
         return failure();
       }
       if (failed(translation_state.recordOpaqueTypes(func, xlsFunc.value()))) {
@@ -1614,9 +1645,8 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(Operation* op,
       if (linkage.getKind() == LinkageKind::kForeign) {
         xlsFunc = wrapDslxFunctionIfNeeded(xlsFunc.value(), package.get());
         if (!xlsFunc.ok()) {
-          llvm::errs() << "Failed to wrap DSLX function "
-                       << xls_region.getName() << ": "
-                       << xlsFunc.status().message() << "\n";
+          func.emitOpError("failed to wrap DSLX function: ")
+              << xls_region.getName() << ": " << xlsFunc.status().message();
           return failure();
         }
         translation_state.addFunction(xls_region.getName(), xlsFunc.value());
@@ -1631,8 +1661,8 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(Operation* op,
             ::xls::ForeignFunctionDataCreateFromTemplate(
                 templateString.value());
         if (!ffd.ok()) {
-          llvm::errs() << "Failed to create foreign function data: "
-                       << ffd.status().message() << "\n";
+          func.emitOpError("failed to create foreign function data: ")
+              << ffd.status().message();
           return failure();
         }
         xlsFunc.value()->SetForeignFunctionData(ffd.value());
@@ -1671,8 +1701,7 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(Operation* op,
         }
       }
       if (absl::StatusOr<::xls::Proc*> s = fb.Build(); !s.ok()) {
-        llvm::errs() << "Failed to build proc: " << s.status().message()
-                     << "\n";
+        eproc.emitOpError() << "failed to build proc: " << s.status().message();
         return failure();
       }
     } else {
@@ -1703,16 +1732,16 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(Operation* op,
 
       if (absl::StatusOr<::xls::Function*> s = fb.BuildWithReturnValue(*out);
           !s.ok()) {
-        llvm::errs() << "Failed to build function: " << s.status().message()
-                     << "\n";
+        op.emitOpError() << "failed to build function: "
+                         << s.status().message();
         return failure();
       } else {
         // Capture mapping to built function.
         translation_state.addFunction(xls_region.getName(), s.value());
         if (isImportedVerilog) {
           if (failed(annotateForeignFunction(cast<FuncOp>(op), *s.value()))) {
-            llvm::errs() << "Failed to annotate foreign function: "
-                         << xls_region.getName() << "\n";
+            op.emitOpError() << "failed to annotate foreign function: "
+                             << xls_region.getName();
             return failure();
           }
         }
@@ -1722,37 +1751,6 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(Operation* op,
 
   return package;
 }
-
-LogicalResult setTop(Operation* op, std::string_view name, Package* package) {
-  if (!name.empty()) {
-    absl::Status status = package->SetTopByName(name);
-    if (!status.ok()) {
-      return op->emitError() << "failed to set top: " << status.message();
-    }
-    return success();
-  }
-
-  for (auto region_op :
-       cast<ModuleOp>(op).getOps<xls::XlsRegionOpInterface>()) {
-    // If name is not set and the function is not private, use the function name
-    // as the top.
-    if (auto fn = dyn_cast<FuncOp>(*region_op); fn && fn.isPrivate()) {
-      continue;
-    }
-    if (!name.empty()) {
-      llvm::errs() << "Multiple potential top functions: " << name << " and "
-                   << region_op.getName()
-                   << "; pass --main-function to select\n";
-      return failure();
-    }
-    name = region_op.getName();
-  }
-  if (auto ret = package->SetTopByName(name); !ret.ok()) {
-    return op->emitError("failed to set top: ") << ret.message();
-  }
-  return success();
-}
-}  // namespace
 
 LogicalResult MlirXlsToXlsTranslate(Operation* op, llvm::raw_ostream& output,
                                     MlirXlsToXlsTranslateOptions options,

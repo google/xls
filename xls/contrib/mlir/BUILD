@@ -329,15 +329,16 @@ cc_library(
         ":expand_macro_ops",  # buildcleaner: keep
         ":index_type_conversion",  # buildcleaner: keep
         ":instantiate_eprocs",  # buildcleaner: keep
+        ":lower_counted_for",  # buildcleaner: keep
         ":math_to_xls",  # buildcleaner: keep
         ":mlir_xls",
         ":normalize_xls_calls",  # buildcleaner: keep
         ":optimize_spawns",  # buildcleaner: keep
+        ":optimize_using_xls",  # buildcleaner: keep
         ":proc_elaboration",  # buildcleaner: keep
         ":procify_loops",  # buildcleaner: keep
         ":scalarize",  # buildcleaner: keep
         ":scf_to_xls",  # buildcleaner: keep
-        ":transforms/lower_counted_for",  # buildcleaner: keep
         ":xls_transforms_passes",
         "@llvm-project//llvm:Support",
         "@llvm-project//mlir:Pass",
@@ -346,7 +347,7 @@ cc_library(
 )
 
 cc_library(
-    name = "transforms/lower_counted_for",
+    name = "lower_counted_for",
     srcs = ["transforms/lower_counted_for.cc"],
     deps = [
         ":mlir_xls",
@@ -359,6 +360,21 @@ cc_library(
         "@llvm-project//mlir:SCFUtils",
         "@llvm-project//mlir:Support",
         "@llvm-project//mlir:TransformUtils",
+    ],
+)
+
+cc_library(
+    name = "optimize_using_xls",
+    srcs = ["transforms/optimize_using_xls.cc"],
+    deps = [
+        ":mlir_xls",
+        ":xls_transforms_passes_inc_gen",
+        ":xls_translate_lib",
+        "//xls/tools:opt",
+        "@com_google_absl//absl/status",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:Pass",
+        "@llvm-project//mlir:Support",
     ],
 )
 
@@ -451,6 +467,7 @@ cc_binary(
         ":transforms/xls_lower",
         ":xls_dialect_registration",
         ":xls_transforms_passes",
+        "//xls/public:c_api",
         "@llvm-project//llvm:Support",
         "@llvm-project//mlir:ArithDialect",
         "@llvm-project//mlir:FuncDialect",

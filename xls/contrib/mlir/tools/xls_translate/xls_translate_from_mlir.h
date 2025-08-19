@@ -110,6 +110,10 @@ LogicalResult MlirXlsToXlsTranslate(Operation* op, llvm::raw_ostream& output,
                                     MlirXlsToXlsTranslateOptions options = {},
                                     MetricsReporter metrics_reporter = nullptr);
 
+// Translates an operation with XLS dialect to XLS IR.
+FailureOr<std::unique_ptr<::xls::Package>> mlirXlsToXls(
+    Operation* op, StringRef dslx_search_path, DslxPackageCache& dslx_cache);
+
 }  // namespace mlir::xls
 
 #endif  // GDM_HW_MLIR_XLS_TOOLS_XLS_TRANSLATE_XLS_TRANSLATE_FROM_MLIR_H_
