@@ -12,11 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Tests for xls.tools.block_to_verilog_main."""
+
 import subprocess
+import dataclasses
 from google.protobuf import text_format
 from absl.testing import absltest
 from xls.codegen import codegen_residual_data_pb2
 from xls.codegen import module_signature_pb2
+
 from xls.common import runfiles
 from xls.common import test_base
 
@@ -24,6 +28,12 @@ from xls.common import test_base
 BLOCK_TO_VERILOG_MAIN_PATH = runfiles.get_path(
     'xls/tools/block_to_verilog_main'
 )
+
+@dataclasses.dataclass
+class NodeMetadata:
+  node_name: str
+  node_id: int
+  emitted_inline: bool = False
 
 BLOCK_IR = '''package add
 
@@ -40,6 +50,25 @@ top block my_function(a: bits[32], b: bits[32], out: bits[32]) {
   id_not_b: bits[32] = identity(not_b, id=10)
   sum: bits[32] = add(neg_a, id_not_b, id=11)
   out: () = output_port(sum, name=out, id=12)
+}
+'''
+
+INLINE_OR_IR = '''package inline_or
+
+#[signature("""module_name: "inline_or" data_ports { direction: PORT_DIRECTION_INPUT name: "a" width: 32 type { type_enum: BITS bit_count: 32 } }
+                                          data_ports { direction: PORT_DIRECTION_INPUT name: "b" width: 32 type { type_enum: BITS bit_count: 32 } }
+                                          data_ports { direction: PORT_DIRECTION_OUTPUT name: "out" width: 32 type { type_enum: BITS bit_count: 32 } }
+                                          fixed_latency { latency: 0 } """)]
+
+top block inline_or(a: bits[32], b: bits[32], out: bits[32]) {
+  a: bits[32] = input_port(name=a, id=1)
+  b: bits[32] = input_port(name=b, id=2)
+  and_ab: bits[32] = and(a, b, id=3)
+  xor_ab: bits[32] = xor(a, b, id=4)
+  not_a: bits[32] = not(a, id=5)
+  nand_notab: bits[32] = nand(not_a, b, id=6)
+  combined: bits[32] = or(and_ab, xor_ab, not_a, nand_notab, id=7)
+  out: () = output_port(combined, name=out, id=8)
 }
 '''
 
@@ -66,14 +95,14 @@ top block my_function(a: bits[32], out: bits[32]) {
 
 class BlockToVerilogMainTest(absltest.TestCase):
 
-  def write_residual_data(self, node_pairs, filename):
+  def write_residual_data(self, block_name: str,
+                          node_specs: list[NodeMetadata], filename: str):
+    """Writes residual data for a block from a list of NodeMetadata."""
     ref = codegen_residual_data_pb2.CodegenResidualData()
-    b = ref.blocks.add()
-    b.block_name = 'my_function'
-    for name, node_id in node_pairs:
-      n = b.nodes.add()
-      n.node_name = name
-      n.node_id = node_id
+    b = ref.blocks.add(block_name = block_name)
+    for spec in node_specs:
+      b.nodes.add(node_name = spec.node_name, node_id = spec.node_id,
+                  emitted_inline = spec.emitted_inline)
     path = test_base.create_named_output_text_file(filename)
     with open(path, 'w') as f:
       f.write(text_format.MessageToString(ref))
@@ -85,6 +114,19 @@ class BlockToVerilogMainTest(absltest.TestCase):
       if substring in line:
         return i
     self.fail(f"Substring '{substring}' not found in provided text")
+
+  def run_with_inline_specs(self, ir_file, block_name: str, node_specs) -> str:
+    """Writes residual using `node_specs` and returns Verilog."""
+    ref_inline = self.write_residual_data(
+        block_name, node_specs, 'residual_data.textproto')
+    verilog_text = subprocess.check_output([
+        BLOCK_TO_VERILOG_MAIN_PATH,
+        '--alsologtostderr',
+        '--generator=combinational',
+        '--reference_residual_data_path=' + ref_inline,
+        ir_file.full_path,
+    ]).decode('utf-8')
+    return verilog_text
 
   def test_block_ir_generates_verilog(self):
     # Use a simple combinational block IR directly.
@@ -107,6 +149,7 @@ class BlockToVerilogMainTest(absltest.TestCase):
       self.assertIn('endmodule', verilog)
       self.assertIn('input wire', verilog)
       self.assertIn('output wire', verilog)
+
     with open(signature_path, 'r') as f:
       sig_proto = text_format.Parse(
           f.read(), module_signature_pb2.ModuleSignatureProto()
@@ -153,10 +196,11 @@ class BlockToVerilogMainTest(absltest.TestCase):
 
     # Provide name/id pairs corresponding to BLOCK_IR ids.
     ref1_path = self.write_residual_data(
+        'my_function',
         [
-            ('neg_a', 8),
-            ('not_b', 9),
-            ('id_not_b', 10),
+            NodeMetadata('neg_a', 8),
+            NodeMetadata('not_b', 9),
+            NodeMetadata('id_not_b', 10),
         ],
         'ref_block_order1.textproto',
     )
@@ -184,10 +228,12 @@ class BlockToVerilogMainTest(absltest.TestCase):
       )
 
     ref2_path = self.write_residual_data(
+
+        'my_function',
         [
-            ('not_b', 9),
-            ('neg_a', 8),
-            ('id_not_b', 10),
+            NodeMetadata('not_b', 9),
+            NodeMetadata('neg_a', 8),
+            NodeMetadata('id_not_b', 10),
         ],
         'ref_block_order2.textproto',
     )
@@ -258,10 +304,12 @@ class BlockToVerilogMainTest(absltest.TestCase):
     block_ir_file = self.create_tempfile(content=BLOCK_IR)
 
     ref_path = self.write_residual_data(
+
+        'my_function',
         [
-            ('neg_a', 8),
-            ('not_b', 9),
-            ('id_not_b', 10),
+            NodeMetadata('neg_a', 8),
+            NodeMetadata('not_b', 9),
+            NodeMetadata('id_not_b', 10),
         ],
         'ref_pipeline_order.textproto',
     )
@@ -280,6 +328,54 @@ class BlockToVerilogMainTest(absltest.TestCase):
 
     self.assertNotEqual(proc.returncode, 0)
     self.assertIn('not supported when generating pipelines', proc.stderr)
+
+  def test_inline_all_expressions(self):
+    ir_file = self.create_tempfile(content=INLINE_OR_IR)
+    v = self.run_with_inline_specs(ir_file, 'inline_or', [
+        NodeMetadata('and_ab', 3, True),
+        NodeMetadata('xor_ab', 4, True),
+        NodeMetadata('not_a', 5, True),
+        NodeMetadata('nand_notab', 6, True),
+    ])
+    self.assertIn('assign combined = a & b | a ^ b | ~a | ~(~a & b)', v)
+
+  def test_inline_some_expressions(self):
+    ir_file = self.create_tempfile(content=INLINE_OR_IR)
+    v = self.run_with_inline_specs(ir_file, 'inline_or', [
+        NodeMetadata('and_ab', 3, True),
+        NodeMetadata('xor_ab', 4, False),
+        NodeMetadata('not_a', 5, True),
+        NodeMetadata('nand_notab', 6, False),
+    ])
+    self.assertIn('assign xor_ab = a ^ b', v)
+    self.assertIn('assign nand_notab = ~(~a & b)', v)
+    self.assertIn('assign combined = a & b | xor_ab | ~a | nand_notab', v)
+
+  def test_inline_alternate_subset(self):
+    ir_file = self.create_tempfile(content=INLINE_OR_IR)
+    v = self.run_with_inline_specs(ir_file, 'inline_or', [
+        NodeMetadata('and_ab', 3, False),
+        NodeMetadata('xor_ab', 4, True),
+        NodeMetadata('not_a', 5, False),
+        NodeMetadata('nand_notab', 6, True),
+    ])
+    self.assertIn('assign and_ab = a & b', v)
+    self.assertIn('assign not_a = ~a', v)
+    self.assertIn('assign combined = and_ab | a ^ b | not_a | ~(not_a & b)', v)
+
+  def test_inline_none(self):
+    ir_file = self.create_tempfile(content=INLINE_OR_IR)
+    v = self.run_with_inline_specs(ir_file, 'inline_or', [
+        NodeMetadata('and_ab', 3, False),
+        NodeMetadata('xor_ab', 4, False),
+        NodeMetadata('not_a', 5, False),
+        NodeMetadata('nand_notab', 6, False),
+    ])
+    self.assertIn('assign and_ab = a & b', v)
+    self.assertIn('assign xor_ab = a ^ b', v)
+    self.assertIn('assign not_a = ~a', v)
+    self.assertIn('assign nand_notab = ~(not_a & b)', v)
+    self.assertIn('assign combined = and_ab | xor_ab | not_a | nand_notab', v)
 
 
 if __name__ == '__main__':
