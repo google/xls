@@ -528,9 +528,10 @@ pub proc ZstdEncoder<
 
         let tok = send(tok, fhw_req_s, FrameHeaderEncoderReq {
             addr: request.output_offset,
-            window_log: u5:22,
+            window_log: u5:22, // TODO: Calculate window log based on window size
             src_size: request.data_size as u64,
             dict_id: u32:0,
+            max_block_size: request.max_block_size as u64,
             provide_dict_id: false,
             provide_checksum: false,
             provide_content_size: true,

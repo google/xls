@@ -34,6 +34,7 @@ pub struct FrameHeaderEncoderReq<ADDR_W: u32> {
     window_log: WindowLog,
     src_size: u64,
     dict_id: u32,
+    max_block_size: u64,
     provide_dict_id: bool,
     provide_checksum: bool,
     provide_content_size: bool,
@@ -57,7 +58,8 @@ const ZSTD_WINDOW_LOG_MIN = WindowLog:10;
 // Implemented as in https://github.com/facebook/zstd/blob/12ea5f6e30c5b0411dd39d29089b5ee4e0044403/lib/compress/zstd_compress.c#L4703
 fn create_frame_header_data(
     window_log: WindowLog, src_size: u64, dict_id: u32,
-    provide_dict_id: bool, provide_checksum: bool, provide_content_size: bool, provide_window_size: bool
+    provide_dict_id: bool, provide_checksum: bool, provide_content_size: bool, provide_window_size: bool,
+    max_block_size: u64
 ) -> (uN[144], HeaderSize) {
     type Size = HeaderSize;
     type WindowSize = u64;
@@ -74,7 +76,7 @@ fn create_frame_header_data(
     let dict_id_size_code = if provide_dict_id { dict_id_size_code_length } else { u2:0 };
 
     let window_size = WindowSize:1 << window_log;
-    let single_segment = provide_content_size && (window_size >= src_size);
+    let single_segment = provide_content_size && (window_size >= src_size) && max_block_size <= src_size;
     let window_log_byte = ((window_log as u8 - ZSTD_WINDOW_LOG_MIN as u8) << 3) as u8;
 
     let fcs_code_length = match (src_size) {
@@ -175,7 +177,8 @@ pub proc FrameHeaderEncoder<
         let (tok1, req) = recv(tok0, req_r);
         let (data, data_len) = create_frame_header_data(
             req.window_log, req.src_size, req.dict_id,
-            req.provide_dict_id, req.provide_checksum, req.provide_content_size, req.provide_window_size
+            req.provide_dict_id, req.provide_checksum, req.provide_content_size, req.provide_window_size,
+            req.max_block_size
         );
 
         let length = checked_cast<Addr>(data_len);
@@ -277,6 +280,7 @@ proc FrameHeaderEncoderTest {
                     addr: Addr:1234,
                     window_log: WindowLog:22,
                     src_size: u64:0x3a16b33f3da53a79,
+                    max_block_size: u64:0x1000,
                     dict_id: u32:0,
                     provide_dict_id: false,
                     provide_checksum: true,
@@ -301,6 +305,7 @@ proc FrameHeaderEncoderTest {
                     addr: Addr:1234,
                     window_log: WindowLog:22,
                     src_size: u64:0x3a16b33f3da53a79,
+                    max_block_size: u64:0x1000,
                     dict_id: u32:0xCAFE,
                     provide_dict_id: true,
                     provide_checksum: true,
@@ -325,6 +330,7 @@ proc FrameHeaderEncoderTest {
                     addr: Addr:1234,
                     window_log: WindowLog:22,
                     src_size: u64:0x3a16b33f3da53a79,
+                    max_block_size: u64:0x1000,
                     dict_id: u32:0xCAFE,
                     provide_dict_id: true,
                     provide_checksum: false,
@@ -351,6 +357,7 @@ proc FrameHeaderEncoderTest {
                     window_log: WindowLog:22,
                     src_size: u64:0x200,
                     dict_id: u32:0xCAFE,
+                    max_block_size: u64:0x200,
                     provide_dict_id: true,
                     provide_checksum: false,
                     provide_content_size: true,
@@ -374,6 +381,7 @@ proc FrameHeaderEncoderTest {
                     window_log: WindowLog:22,
                     src_size: u64:0x0,
                     dict_id: u32:0xCAFE,
+                    max_block_size: u64:0x0,
                     provide_dict_id: true,
                     provide_checksum: false,
                     provide_content_size: true,
@@ -395,6 +403,7 @@ proc FrameHeaderEncoderTest {
                     window_log: WindowLog:22,
                     src_size: u64:0x0,
                     dict_id: u32:0xCAFE,
+                    max_block_size: u64:0x0,
                     provide_dict_id: false,
                     provide_checksum: true,
                     provide_content_size: true,
@@ -418,6 +427,7 @@ proc FrameHeaderEncoderTest {
                     window_log: WindowLog:22,
                     src_size: u64:0x0,
                     dict_id: u32:0xCAFE,
+                    max_block_size: u64:0x0,
                     provide_dict_id: false,
                     provide_checksum: true,
                     provide_content_size: true,
@@ -441,6 +451,7 @@ proc FrameHeaderEncoderTest {
                     window_log: WindowLog:22,
                     src_size: u64:0x0,
                     dict_id: u32:0xCAFE,
+                    max_block_size: u64:0x0,
                     provide_dict_id: false,
                     provide_checksum: false,
                     provide_content_size: false,
