@@ -623,7 +623,8 @@ bool IsColonRefWithTypeTarget(const InferenceTable& table, const Expr* expr);
 // that is value in `map`, it clones it via `table.Clone()`.
 CloneReplacer NameRefMapper(
     InferenceTable& table,
-    const absl::flat_hash_map<const NameDef*, ExprOrType>& map);
+    const absl::flat_hash_map<const NameDef*, ExprOrType>& map,
+    std::optional<Module*> target_module = std::nullopt);
 
 }  // namespace xls::dslx
 

@@ -2197,7 +2197,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       }
     }
 
-    CloneReplacer replacer = NameRefMapper(table_, actual_values);
+    CloneReplacer replacer =
+        NameRefMapper(table_, actual_values, type->owner());
     if (real_self_type.has_value()) {
       replacer = ChainCloneReplacers(
           std::move(replacer),

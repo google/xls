@@ -1013,8 +1013,9 @@ bool IsColonRefWithTypeTarget(const InferenceTable& table, const Expr* expr) {
 
 CloneReplacer NameRefMapper(
     InferenceTable& table,
-    const absl::flat_hash_map<const NameDef*, ExprOrType>& map) {
-  return [table = &table, map = &map](
+    const absl::flat_hash_map<const NameDef*, ExprOrType>& map,
+    std::optional<Module*> target_module) {
+  return [table = &table, map = &map, target_module](
              const AstNode* node) -> absl::StatusOr<std::optional<AstNode*>> {
     if (node->kind() == AstNodeKind::kNameRef) {
       const auto* ref = down_cast<const NameRef*>(node);
@@ -1022,7 +1023,8 @@ CloneReplacer NameRefMapper(
         const auto it = map->find(std::get<const NameDef*>(ref->name_def()));
         if (it != map->end()) {
           return table->Clone(ToAstNode(it->second),
-                              &PreserveTypeDefinitionsReplacer, ref->owner());
+                              &PreserveTypeDefinitionsReplacer,
+                              target_module ? *target_module : ref->owner());
         }
       }
     }
