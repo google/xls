@@ -14,7 +14,6 @@
 
 import std;
 
-import xls.modules.zstd.math;
 import xls.modules.zstd.memory.axi;
 import xls.examples.ram;
 
@@ -188,7 +187,7 @@ proc AxiRamReaderRequester<
                         ..state
                     }
                 } else {
-                    let incr = math::logshiftl(uN[AXI_ADDR_W]:1, state.ar_bundle.size as uN[AXI_ADDR_W]);
+                    let incr = (uN[AXI_ADDR_W]:1 << state.ar_bundle.size as u3) as uN[AXI_ADDR_W];
                     let addr = match state.ar_bundle.burst {
                         AxiAxBurst::FIXED => state.addr,
                         AxiAxBurst::INCR => state.addr + incr,
@@ -263,13 +262,13 @@ proc AxiRamReaderResponder<
             trace_fmt!("Received RAM response {:#x}", ram_read_resp);
         } else {};
 
-        let mask = math::logshiftl(uN[RAM_DATA_W]:1, sync_data.read_data_size as uN[RAM_DATA_W]) - uN[RAM_DATA_W]:1;
-        let mask = math::logshiftl(mask, state.data_size);
+        let mask = (uN[RAM_DATA_W]:1 << sync_data.read_data_size) as uN[RAM_DATA_W] - uN[RAM_DATA_W]:1;
+        let mask = (mask << state.data_size);
 
         let ram_data_shifted = if (sync_data.read_data_offset > state.data_size) {
-            math::logshiftr(ram_read_resp.data, sync_data.read_data_offset - state.data_size) as uN[AXI_DATA_W] & mask
+            (ram_read_resp.data >> sync_data.read_data_offset - state.data_size) as uN[AXI_DATA_W] & mask
         } else {
-            math::logshiftl(ram_read_resp.data, state.data_size - sync_data.read_data_offset) as uN[AXI_DATA_W] & mask
+            (ram_read_resp.data << state.data_size - sync_data.read_data_offset) as uN[AXI_DATA_W] & mask
         };
 
         // update state
