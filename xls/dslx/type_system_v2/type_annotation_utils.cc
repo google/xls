@@ -287,6 +287,10 @@ const ArrayTypeAnnotation* CastToNonBitsArrayTypeAnnotation(
   if (!annotation->IsAnnotation<ArrayTypeAnnotation>()) {
     return nullptr;
   }
+  const auto* array = annotation->AsAnnotation<ArrayTypeAnnotation>();
+  if (IsToken(array->element_type())) {
+    return array;
+  }
   // If the signedness and bit count can be retrieved, then it's some flavor of
   // xN, uN, sN, etc. and not what this function is looking for. If that yields
   // an invalid argument error, then it's still one of those types but
@@ -295,7 +299,7 @@ const ArrayTypeAnnotation* CastToNonBitsArrayTypeAnnotation(
       GetSignednessAndBitCount(annotation);
   return !signedness_and_bit_count.ok() &&
                  !absl::IsInvalidArgument(signedness_and_bit_count.status())
-             ? annotation->AsAnnotation<ArrayTypeAnnotation>()
+             ? array
              : nullptr;
 }
 

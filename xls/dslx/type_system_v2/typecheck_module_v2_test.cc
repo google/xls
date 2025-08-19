@@ -885,6 +885,34 @@ fn tuple_fn() -> u32 {
       TypecheckSucceeds(HasNodeWithType("x", "(uN[3], uN[4], uN[4])[4]")));
 }
 
+TEST(TypecheckV2Test, ArrayOfTokensFails) {
+  EXPECT_THAT(R"(
+proc main {
+  init {}
+  config() {}
+  next(st:()) {
+    let x = [join()][u1:0];
+    ()
+  }
+}
+)",
+              TypecheckFails(HasSubstr("tokens cannot be placed in arrays")));
+}
+
+TEST(TypecheckV2Test, ArrayWithTokenInTupleFails) {
+  EXPECT_THAT(R"(
+proc main {
+  init {}
+  config() {}
+  next(st:()) {
+    let x = [(join(),)];
+    ()
+  }
+}
+)",
+              TypecheckFails(HasSubstr("tokens cannot be placed in arrays")));
+}
+
 TEST(TypecheckV2Test, NestedTuples) {
   EXPECT_THAT(
       R"(

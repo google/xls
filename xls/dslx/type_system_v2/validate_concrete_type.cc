@@ -95,6 +95,15 @@ class TypeValidator : public AstNodeVisitorWithDefault {
         "Non-bits type used to define a numeric literal.", file_table_);
   }
 
+  absl::Status HandleArray(const Array* array) override {
+    if (type_->HasToken()) {
+      return TypeInferenceErrorStatus(array->span(), type_,
+                                      "tokens cannot be placed in arrays.",
+                                      file_table_);
+    }
+    return absl::OkStatus();
+  }
+
   absl::Status HandleConstantDef(const ConstantDef* def) override {
     WarnOnInappropriateConstantName(def->name_def()->identifier(), def->span(),
                                     *def->owner(), &warning_collector_);
