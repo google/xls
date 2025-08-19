@@ -69,6 +69,7 @@ RUNFILES_DIR = LITE_CFG_PY.parents[3].absolute().as_posix()''',
         exclude = [
             "**/translate_import_*.mlir",
             "**/translate_foreign.mlir",
+            "**/optimize_using_xls.mlir",
         ],
     )
 ]
