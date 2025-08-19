@@ -174,6 +174,13 @@ ABSL_FLAG(bool, optimize_ir, false,
           "optimizations. A non-zero error status is returned if the results "
           "do not match.");
 ABSL_FLAG(
+    std::optional<std::string>, optimize_passes, std::nullopt,
+    "Space-separated list of optimization passes to run if `--optimize_ir` is "
+    "specified, using the same syntax as `opt_main`'s `--passes` flag. If not "
+    "specified, the default pipeline will be run. Passes are named by "
+    "'short_name' and if they have non-opt-level arguments these are placed in "
+    "(). Fixed point sets of passes can be put within [].");
+ABSL_FLAG(
     bool, eval_after_each_pass, false,
     "When specified with --optimize_ir, run evaluation after each pass. "
     "A non-zero error status is returned if any of the results do not match.");
@@ -525,8 +532,15 @@ absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
   // (either expected result passed in on the command line or the result
   // produced without optimizations).
   if (absl::GetFlag(FLAGS_optimize_ir)) {
-    std::unique_ptr<OptimizationCompoundPass> pipeline =
-        CreateOptimizationPassPipeline();
+    std::unique_ptr<OptimizationCompoundPass> pipeline;
+    if (absl::GetFlag(FLAGS_optimize_passes).has_value()) {
+      XLS_ASSIGN_OR_RETURN(pipeline,
+                           GetOptimizationPipelineGenerator().GeneratePipeline(
+                               *absl::GetFlag(FLAGS_optimize_passes)));
+    } else {
+      pipeline = CreateOptimizationPassPipeline();
+    }
+
     if (absl::GetFlag(FLAGS_eval_after_each_pass)) {
       pipeline->AddInvariantChecker<EvalInvariantChecker>(
           arg_sets, absl::GetFlag(FLAGS_use_llvm_jit));

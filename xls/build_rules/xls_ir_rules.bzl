@@ -394,6 +394,7 @@ def get_eval_ir_test_cmd(ctx, src, append_cmd_line_args = True):
         "expected",
         "expected_file",
         "optimize_ir",
+        "optimize_passes",
         "eval_after_each_pass",
         "use_llvm_jit",
         "test_llvm_jit",
