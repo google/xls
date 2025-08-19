@@ -409,13 +409,13 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(BuiltinTypeAnnotation)
   INVALID(ChannelTypeAnnotation)
   INVALID(ElementTypeAnnotation)
-  INVALID(SliceTypeAnnotation)
   INVALID(FunctionTypeAnnotation)
   INVALID(GenericTypeAnnotation)
   INVALID(MemberTypeAnnotation)
   INVALID(ParamTypeAnnotation)
   INVALID(ReturnTypeAnnotation)
   INVALID(SelfTypeAnnotation)
+  INVALID(SliceTypeAnnotation)
   INVALID(TupleTypeAnnotation)
   INVALID(TypeRefTypeAnnotation)
   INVALID(TypeVariableTypeAnnotation)
@@ -2495,11 +2495,11 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
           {"bit_slice_update", &FunctionConverter::HandleBuiltinBitSliceUpdate},
           {"checked_cast", &FunctionConverter::HandleBuiltinCheckedCast},
           {"clz", &FunctionConverter::HandleBuiltinClz},
+          {"configured_value_or",
+           &FunctionConverter::HandleBuiltinConfiguredValueOr},
           {"ctz", &FunctionConverter::HandleBuiltinCtz},
           {"decode", &FunctionConverter::HandleBuiltinDecode},
           {"element_count", &FunctionConverter::HandleBuiltinElementCount},
-          {"configured_value_or",
-           &FunctionConverter::HandleBuiltinConfiguredValueOr},
           {"encode", &FunctionConverter::HandleBuiltinEncode},
           {"gate!", &FunctionConverter::HandleBuiltinGate},
           {"one_hot", &FunctionConverter::HandleBuiltinOneHot},

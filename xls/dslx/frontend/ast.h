@@ -48,15 +48,15 @@
 
 // Higher-order macro for all the Expr node leaf types (non-abstract).
 #define XLS_DSLX_EXPR_NODE_EACH(X) \
-  /* keep-sorted start */          \
+  /* keep-sorted start */       \
   X(AllOnesMacro)                  \
   X(Array)                         \
   X(Attr)                          \
   X(Binop)                         \
-  X(StatementBlock)                \
   X(Cast)                          \
   X(ChannelDecl)                   \
   X(ColonRef)                      \
+  X(Conditional)                   \
   X(For)                           \
   X(FormatMacro)                   \
   X(FunctionRef)                   \
@@ -69,9 +69,9 @@
   X(Range)                         \
   X(Spawn)                         \
   X(SplatStructInstance)           \
+  X(StatementBlock)                \
   X(String)                        \
   X(StructInstance)                \
-  X(Conditional)                   \
   X(TupleIndex)                    \
   X(Unop)                          \
   X(UnrollFor)                     \
@@ -85,14 +85,14 @@
 // (Note that this includes all the Expr node leaf kinds listed in
 // XLS_DSLX_EXPR_NODE_EACH).
 #define XLS_DSLX_AST_NODE_EACH(X) \
-  /* keep-sorted start */         \
+  /* keep-sorted start */      \
   X(BuiltinNameDef)               \
   X(ConstAssert)                  \
   X(ConstantDef)                  \
   X(EnumDef)                      \
   X(Function)                     \
-  X(Import)                       \
   X(Impl)                         \
+  X(Import)                       \
   X(Let)                          \
   X(MatchArm)                     \
   X(Module)                       \
@@ -117,9 +117,9 @@
   X(UseTreeEntry)                 \
   X(WidthSlice)                   \
   X(WildcardPattern)              \
-  /* keep-sorted end */           \
+  /* keep-sorted end */        \
   /* type annotations */          \
-  /* keep-sorted start */         \
+  /* keep-sorted start */      \
   X(AnyTypeAnnotation)            \
   X(ArrayTypeAnnotation)          \
   X(BuiltinTypeAnnotation)        \
@@ -135,7 +135,7 @@
   X(TupleTypeAnnotation)          \
   X(TypeRefTypeAnnotation)        \
   X(TypeVariableTypeAnnotation)   \
-  /* keep-sorted end */           \
+  /* keep-sorted end */        \
   XLS_DSLX_EXPR_NODE_EACH(X)
 
 namespace xls::dslx {

@@ -452,6 +452,7 @@ class FunctionConverter {
   absl::Status HandleBuiltinBitSliceUpdate(const Invocation* node);
   absl::Status HandleBuiltinCheckedCast(const Invocation* node);
   absl::Status HandleBuiltinClz(const Invocation* node);
+  absl::Status HandleBuiltinConfiguredValueOr(const Invocation* node);
   absl::Status HandleBuiltinCtz(const Invocation* node);
   absl::Status HandleBuiltinDecode(const Invocation* node);
   absl::Status HandleBuiltinElementCount(const Invocation* node);
@@ -475,7 +476,6 @@ class FunctionConverter {
   absl::Status HandleBuiltinUMulp(const Invocation* node);
   absl::Status HandleBuiltinUpdate(const Invocation* node);
   absl::Status HandleBuiltinWideningCast(const Invocation* node);
-  absl::Status HandleBuiltinConfiguredValueOr(const Invocation* node);
   absl::Status HandleBuiltinXorReduce(const Invocation* node);
   absl::Status HandleBuiltinZip(const Invocation* node);
   // keep-sorted end

@@ -27,18 +27,18 @@
 namespace xls::dslx {
 
 #define XLS_DSLX_BUILTIN_EACH(X)               \
-  /* keep-sorted start */                      \
+  /* keep-sorted start */                   \
   X("and_reduce", kAndReduce)                  \
   X("array_rev", kArrayRev)                    \
   X("array_size", kArraySize)                  \
   X("array_slice", kArraySlice)                \
-  X("assert_eq", kAssertEq)                    \
   X("assert!", kAssert)                        \
+  X("assert_eq", kAssertEq)                    \
   X("assert_lt", kAssertLt)                    \
   X("bit_count", kBitCount)                    \
   X("bit_slice_update", kBitSliceUpdate)       \
-  X("checked_cast", kCheckedCast)              \
   X("ceillog2", kCeilLog2)                     \
+  X("checked_cast", kCheckedCast)              \
   X("clz", kClz)                               \
   X("configured_value_or", kConfiguredValueOr) \
   X("cover!", kCover)                          \
@@ -64,15 +64,15 @@ namespace xls::dslx {
   X("widening_cast", kWideningCast)            \
   X("xor_reduce", kXorReduce)                  \
   X("zip", kZip)                               \
-  /* keep-sorted end */                        \
+  /* keep-sorted end */                     \
   X("join", kJoin)                             \
   X("token", kToken)                           \
   /* send/recv routines */                     \
-  /* keep-sorted start */                      \
+  /* keep-sorted start */                   \
   X("recv", kRecv)                             \
-  X("recv_nonblocking", kRecvNonBlocking)      \
   X("recv_if", kRecvIf)                        \
   X("recv_if_nonblocking", kRecvIfNonBlocking) \
+  X("recv_nonblocking", kRecvNonBlocking)      \
   X("send", kSend)                             \
   X("send_if", kSendIf)                        \
   /* keep-sorted end */

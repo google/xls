@@ -38,16 +38,16 @@ class Formatter {
   Formatter(Comments& comments, DocArena& arena)
       : comments_(comments), arena_(arena) {}
 
-  // keep-sorted start
   // Each `Format` method creates a pretty-printable document from the given AST
   // node `n`.
-  DocRef Format(const Function& n, bool is_test = false);
+  // keep-sorted start
   DocRef Format(const Expr& n);
+  DocRef Format(const Function& n, bool is_test = false);
   DocRef Format(const Let& n, bool trailing_semi);
-  absl::StatusOr<DocRef> Format(const Module& n);
   // If `trailing_semi` is true, then a trailing semicolon will also be emitted.
   DocRef Format(const Statement& n, bool trailing_semi);
   DocRef Format(const VerbatimNode& n);
+  absl::StatusOr<DocRef> Format(const Module& n);
   // keep-sorted end
 
  private:
@@ -59,7 +59,6 @@ class Formatter {
   DocRef Format(const Impl& n);
   DocRef Format(const ImplMember& n);
   DocRef Format(const Import& n);
-  DocRef Format(const Use& n);
   DocRef Format(const ModuleMember& n);
   DocRef Format(const ParametricBinding& n);
   DocRef Format(const ParametricBinding* n);
@@ -71,6 +70,7 @@ class Formatter {
   DocRef Format(const TestFunction& n);
   DocRef Format(const TestProc& n);
   DocRef Format(const TypeAlias& n);
+  DocRef Format(const Use& n);
   DocRef FormatParams(absl::Span<const Param* const> params);
   DocRef FormatStructDefBase(
       const StructDefBase& n, Keyword keyword,
