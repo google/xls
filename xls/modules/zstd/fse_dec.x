@@ -15,7 +15,6 @@
 import std;
 import xls.examples.ram;
 import xls.modules.zstd.common;
-import xls.modules.zstd.math;
 import xls.modules.zstd.refilling_shift_buffer;
 import xls.modules.zstd.fse_table_creator;
 
@@ -376,7 +375,7 @@ pub proc FseDecoder<
         let state = if do_read_bits & buf_data_valid {
             FseDecoderState {
                 sent_buf_ctrl: false,
-                read_bits: math::logshiftl(buf_data.data, state.read_bits_length) | state.read_bits,
+                read_bits: (buf_data.data << state.read_bits_length) | state.read_bits,
                 read_bits_length: state.read_bits_length + buf_data.length,
                 shift_buffer_error: state.shift_buffer_error | buf_data.error,
                 ..state
