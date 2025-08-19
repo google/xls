@@ -73,6 +73,9 @@ namespace {
 class ZeroExtLike {
  public:
   static std::optional<ZeroExtLike> Make(Node* n, const QueryEngine& qe) {
+    if (n->GetType()->GetFlatBitCount() == 0) {
+      return std::nullopt;
+    }
     switch (n->op()) {
       case Op::kZeroExt:
         return ZeroExtLike(n, n->operand(0), /*op_num=*/0);
