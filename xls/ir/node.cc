@@ -922,6 +922,7 @@ absl::Status Node::ReplaceUsesWith(Node* replacement,
   XLS_RET_CHECK(GetType() == replacement->GetType())
       << "type was: " << GetType()->ToString()
       << " replacement: " << replacement->GetType()->ToString();
+  VLOG(2) << "Replacing uses of " << this << " with " << replacement;
   ++package()->transform_metrics().nodes_replaced;
   bool all_replaced = true;
   std::vector<Node*> orig_users(users().begin(), users().end());
