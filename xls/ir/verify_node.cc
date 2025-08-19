@@ -1008,6 +1008,14 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleRecvChannelEnd(RecvChannelEnd* rce) override {
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleSendChannelEnd(SendChannelEnd* sce) override {
+    return absl::OkStatus();
+  }
+
   absl::Status HandleReverse(UnOp* reverse) override {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(reverse, 1));
     return ExpectAllSameBitsType(reverse);

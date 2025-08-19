@@ -388,9 +388,13 @@ absl::Status Node::VisitSingleNode(DfsVisitor* visitor) {
           visitor->HandleNewChannel(down_cast<NewChannel*>(this)));
       break;
     case Op::kRecvChannelEnd:
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleRecvChannelEnd(down_cast<RecvChannelEnd*>(this)));
+      break;
     case Op::kSendChannelEnd:
-      return absl::UnimplementedError(
-          absl::StrFormat("Cannot handle %s yet", GetName()));
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleSendChannelEnd(down_cast<SendChannelEnd*>(this)));
+      break;
   }
   return absl::OkStatus();
 }

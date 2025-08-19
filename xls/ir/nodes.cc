@@ -1446,11 +1446,11 @@ absl::StatusOr<Node*> NewChannel::CloneInNewFunction(
 absl::StatusOr<Node*> RecvChannelEnd::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   return new_function->MakeNodeWithName<RecvChannelEnd>(loc(), GetType(),
-                                                        channel_name());
+                                                        channel_interface());
 }
 absl::StatusOr<Node*> SendChannelEnd::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   return new_function->MakeNodeWithName<SendChannelEnd>(loc(), GetType(),
-                                                        channel_name());
+                                                        channel_interface());
 }
 }  // namespace xls

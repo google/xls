@@ -991,18 +991,23 @@ class RecvChannelEnd : public Node {
   static constexpr std::array<Op, 1> kOps = {Op::kRecvChannelEnd};
 
   RecvChannelEnd(const SourceInfo& loc, Type* type,
-                 std::string_view channel_name, FunctionBase* function)
-      : Node(Op::kRecvChannelEnd, type, loc, channel_name, function),
-        channel_name_(channel_name) {}
+                 const ReceiveChannelInterface* channel_interface,
+                 FunctionBase* function)
+      : Node(Op::kRecvChannelEnd, type, loc, channel_interface->name(),
+             function),
+        channel_interface_(channel_interface) {}
 
-  const std::string& channel_name() const { return channel_name_; }
+  std::string_view channel_name() const { return channel_interface_->name(); }
+  const ReceiveChannelInterface* channel_interface() const {
+    return channel_interface_;
+  }
 
   absl::StatusOr<Node*> CloneInNewFunction(
       absl::Span<Node* const> new_operands,
       FunctionBase* new_function) const final;
 
  private:
-  std::string channel_name_;
+  const ReceiveChannelInterface* channel_interface_;
 };
 
 // Represents a new-style channel "send" node. NOTE: this is still a work in
@@ -1012,18 +1017,23 @@ class SendChannelEnd : public Node {
   static constexpr std::array<Op, 1> kOps = {Op::kSendChannelEnd};
 
   SendChannelEnd(const SourceInfo& loc, Type* type,
-                 std::string_view channel_name, FunctionBase* function)
-      : Node(Op::kSendChannelEnd, type, loc, channel_name, function),
-        channel_name_(channel_name) {}
+                 const SendChannelInterface* channel_interface,
+                 FunctionBase* function)
+      : Node(Op::kSendChannelEnd, type, loc, channel_interface->name(),
+             function),
+        channel_interface_(channel_interface) {}
 
-  const std::string& channel_name() const { return channel_name_; }
+  std::string_view channel_name() const { return channel_interface_->name(); }
+  const SendChannelInterface* channel_interface() const {
+    return channel_interface_;
+  }
 
   absl::StatusOr<Node*> CloneInNewFunction(
       absl::Span<Node* const> new_operands,
       FunctionBase* new_function) const final;
 
  private:
-  std::string channel_name_;
+  const SendChannelInterface* channel_interface_;
 };
 
 // Base class for nodes which communicate over channels.

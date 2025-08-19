@@ -223,6 +223,14 @@ absl::Status DfsVisitorWithDefault::HandleNewChannel(NewChannel* new_channel) {
   return DefaultHandler(new_channel);
 }
 
+absl::Status DfsVisitorWithDefault::HandleRecvChannelEnd(RecvChannelEnd* rce) {
+  return DefaultHandler(rce);
+}
+
+absl::Status DfsVisitorWithDefault::HandleSendChannelEnd(SendChannelEnd* sce) {
+  return DefaultHandler(sce);
+}
+
 absl::Status DfsVisitorWithDefault::HandleRegisterRead(RegisterRead* reg_read) {
   return DefaultHandler(reg_read);
 }

@@ -79,6 +79,8 @@ class DfsVisitor {
   virtual absl::Status HandleStateRead(StateRead* state_read) = 0;
   virtual absl::Status HandleNext(Next* next) = 0;
   virtual absl::Status HandleNewChannel(NewChannel* new_channel) = 0;
+  virtual absl::Status HandleRecvChannelEnd(RecvChannelEnd* rce) = 0;
+  virtual absl::Status HandleSendChannelEnd(SendChannelEnd* sce) = 0;
   virtual absl::Status HandleReceive(Receive* receive) = 0;
   virtual absl::Status HandleRegisterRead(RegisterRead* reg_read) = 0;
   virtual absl::Status HandleRegisterWrite(RegisterWrite* reg_write) = 0;
@@ -204,6 +206,8 @@ class DfsVisitorWithDefault : public DfsVisitor {
   absl::Status HandleStateRead(StateRead* state_read) override;
   absl::Status HandleNext(Next* next) override;
   absl::Status HandleNewChannel(NewChannel* new_channel) override;
+  absl::Status HandleRecvChannelEnd(RecvChannelEnd* rce) override;
+  absl::Status HandleSendChannelEnd(SendChannelEnd* sce) override;
   absl::Status HandleReceive(Receive* receive) override;
   absl::Status HandleRegisterRead(RegisterRead* reg_read) override;
   absl::Status HandleRegisterWrite(RegisterWrite* reg_write) override;

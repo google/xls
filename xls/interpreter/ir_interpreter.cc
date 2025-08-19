@@ -758,6 +758,16 @@ absl::Status IrInterpreter::HandleNewChannel(NewChannel* new_channel) {
       "NewChannel value not implemented in IrInterpreter");
 }
 
+absl::Status IrInterpreter::HandleRecvChannelEnd(RecvChannelEnd* rce) {
+  return absl::UnimplementedError(
+      "RecvChannelEnd value not implemented in IrInterpreter");
+}
+
+absl::Status IrInterpreter::HandleSendChannelEnd(SendChannelEnd* sce) {
+  return absl::UnimplementedError(
+      "SendChannelEnd value not implemented in IrInterpreter");
+}
+
 absl::Status IrInterpreter::HandleReverse(UnOp* reverse) {
   return SetBitsResult(reverse,
                        bits_ops::Reverse(ResolveAsBits(reverse->operand(0))));
