@@ -990,6 +990,21 @@ TEST_F(ParserTest, VTraceFmtWithArgs) {
 })");
 }
 
+TEST_F(ParserTest, TraceFmtExplicitParametricsDisallowed) {
+  const std::string text = R"(fn main() {
+    trace_fmt!<>;
+  })";
+
+  Scanner s{file_table_, Fileno(0), std::string{text}};
+  Parser parser{"test", &s};
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
+  EXPECT_THAT(
+      module,
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("trace_fmt! macro does not expect parametric arguments.")));
+}
+
 TEST_F(ParserTest, ParseProcWithConst) {
   RoundTrip(R"(proc simple {
     const MAX_X = u32:10;
