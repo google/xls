@@ -698,8 +698,7 @@ TEST_F(VerifierTest, MismatchedChannelFlowControl) {
   EXPECT_THAT(
       VerifyPackage(&package),
       StatusIs(absl::StatusCode::kInternal,
-               HasSubstr("ChannelInterface `ch` in proc `subproc` bound to "
-                         "channels with different flow control")));
+               HasSubstr("does not match the flow control of channel")));
 }
 
 TEST_F(VerifierTest, MismatchedInterfaceChannelFlowControl) {
@@ -735,8 +734,7 @@ TEST_F(VerifierTest, MismatchedInterfaceChannelFlowControl) {
   EXPECT_THAT(
       VerifyPackage(&package),
       StatusIs(absl::StatusCode::kInternal,
-               HasSubstr("ChannelInterface `ch` in proc `subproc` bound to "
-                         "channels with different flow control")));
+               HasSubstr("does not match the flow control of channel")));
 }
 
 TEST_F(VerifierTest, NextNodeWithWrongType) {

@@ -2032,7 +2032,6 @@ cc_test(
         ":codegen_result",
         ":module_signature_cc_proto",
         ":pipeline_generator",
-        ":test_fifos",
         "//xls/common:casts",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -2043,6 +2042,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:op",
         "//xls/ir:proc_elaboration",
+        "//xls/ir:source_location",
         "//xls/ir:verifier",
         "//xls/scheduling:pipeline_schedule",
         "//xls/scheduling:run_pipeline_schedule",
@@ -2054,7 +2054,6 @@ cc_test(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
         "@googletest//:gtest",
     ],
 )

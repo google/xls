@@ -793,6 +793,26 @@ absl::StatusOr<PackageSchedule> RunSynchronousPipelineSchedule(
     }
   }
 
+  // All channels and channel interfaces must be streaming channels and have
+  // no flow control.
+  for (Proc* proc : elab.procs()) {
+    for (const std::unique_ptr<ChannelInterface>& channel_interface :
+         proc->channel_interfaces()) {
+      if (channel_interface->kind() != ChannelKind::kStreaming) {
+        return absl::UnimplementedError(
+            absl::StrFormat("Only streaming channels are supported with "
+                            "synchronous procs: channel `%s` in proc `%s`",
+                            channel_interface->name(), proc->name()));
+      }
+      if (channel_interface->flow_control() != FlowControl::kNone) {
+        return absl::UnimplementedError(
+            absl::StrFormat("Flow control is not supported with "
+                            "synchronous procs: channel `%s` in proc `%s`",
+                            channel_interface->name(), proc->name()));
+      }
+    }
+  }
+
   XLS_ASSIGN_OR_RETURN(
       ScheduleGraph graph,
       ScheduleGraph::CreateSynchronousGraph(package, /*loopback_channels=*/{},

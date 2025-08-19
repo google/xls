@@ -2,52 +2,11 @@ module subproc(
   input wire clk,
   input wire rst,
   input wire [31:0] sub_in,
-  input wire sub_in_vld,
-  input wire sub_out_rdy,
-  output wire sub_in_rdy,
-  output wire [31:0] sub_out,
-  output wire sub_out_vld
+  output wire [31:0] sub_out
 );
-  reg [31:0] p0_tuple_index_23;
-  reg [31:0] p1_add_29;
-  reg p0_valid;
-  reg p1_valid;
-  wire p2_stage_done;
-  wire p2_not_valid;
-  wire p1_enable;
-  wire p1_data_enable;
-  wire p1_load_en;
-  wire p1_not_valid;
-  wire p0_enable;
-  wire p0_data_enable;
-  wire p0_load_en;
-  wire [31:0] add_29;
-  assign p2_stage_done = p1_valid & sub_out_rdy;
-  assign p2_not_valid = ~p1_valid;
-  assign p1_enable = p2_stage_done | p2_not_valid;
-  assign p1_data_enable = p1_enable & p0_valid;
-  assign p1_load_en = p1_data_enable | rst;
-  assign p1_not_valid = ~p0_valid;
-  assign p0_enable = p1_load_en | p1_not_valid;
-  assign p0_data_enable = p0_enable & sub_in_vld;
-  assign p0_load_en = p0_data_enable | rst;
-  assign add_29 = p0_tuple_index_23 + 32'h0000_0001;
-  always_ff @ (posedge clk) begin
-    p0_tuple_index_23 <= p0_load_en ? sub_in : p0_tuple_index_23;
-    p1_add_29 <= p1_load_en ? add_29 : p1_add_29;
-  end
-  always_ff @ (posedge clk) begin
-    if (rst) begin
-      p0_valid <= 1'h0;
-      p1_valid <= 1'h0;
-    end else begin
-      p0_valid <= p0_enable ? sub_in_vld : p0_valid;
-      p1_valid <= p1_enable ? p0_valid : p1_valid;
-    end
-  end
-  assign sub_in_rdy = p0_load_en;
-  assign sub_out = p1_add_29;
-  assign sub_out_vld = p1_valid;
+  wire [31:0] add_19;
+  assign add_19 = sub_in + 32'h0000_0001;
+  assign sub_out = add_19;
 endmodule
 
 
@@ -55,28 +14,16 @@ module my_proc(
   input wire clk,
   input wire rst,
   input wire [31:0] top_in,
-  input wire top_in_vld,
-  input wire top_out_rdy,
-  output wire top_in_rdy,
-  output wire [31:0] top_out,
-  output wire top_out_vld
+  output wire [31:0] top_out
 );
-  wire instantiation_output_85;
-  wire [31:0] instantiation_output_86;
-  wire instantiation_output_87;
+  wire [31:0] instantiation_output_35;
 
   // ===== Instantiations
   subproc inst1 (
     .rst(rst),
     .sub_in(top_in),
-    .sub_in_vld(top_in_vld),
-    .sub_out_rdy(top_out_rdy),
-    .sub_in_rdy(instantiation_output_85),
-    .sub_out(instantiation_output_86),
-    .sub_out_vld(instantiation_output_87),
+    .sub_out(instantiation_output_35),
     .clk(clk)
   );
-  assign top_in_rdy = instantiation_output_85;
-  assign top_out = instantiation_output_86;
-  assign top_out_vld = instantiation_output_87;
+  assign top_out = instantiation_output_35;
 endmodule

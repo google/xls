@@ -260,11 +260,12 @@ CloneNodesIntoPipelinedBlock(
   const PipelineSchedule& pipeline_schedule =
       package_schedule.GetSchedule(function_base);
   CloneNodesIntoBlockHandler cloner(function_base, pipeline_schedule.length(),
-                                    options, block, &package_schedule);
+                                    options, block, &package_schedule, elab);
   XLS_RETURN_IF_ERROR(cloner.AddLiterals());
   if (function_base->IsProc()) {
     XLS_RETURN_IF_ERROR(cloner.AddChannelPortsAndFifoInstantiations());
     XLS_RETURN_IF_ERROR(cloner.AddBlockInstantiations(converted_blocks));
+    XLS_RETURN_IF_ERROR(cloner.AddBlockMetadata());
   }
   for (int64_t stage = 0; stage < pipeline_schedule.length(); ++stage) {
     XLS_RET_CHECK_OK(
@@ -344,6 +345,7 @@ absl::StatusOr<StreamingIOPipeline> CloneProcNodesIntoBlock(
     Proc* proc, const CodegenOptions& options, Block* block) {
   CloneNodesIntoBlockHandler cloner(proc, /*stage_count=*/0, options, block);
   XLS_RETURN_IF_ERROR(cloner.AddChannelPortsAndFifoInstantiations());
+  XLS_RETURN_IF_ERROR(cloner.AddBlockMetadata());
   XLS_RET_CHECK_OK(cloner.CloneNodes(TopoSort(proc), /*stage=*/0));
   return cloner.GetResult();
 }
