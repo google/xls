@@ -368,13 +368,19 @@ cc_library(
     srcs = ["transforms/optimize_using_xls.cc"],
     deps = [
         ":mlir_xls",
+        ":xls_transforms_passes",
         ":xls_transforms_passes_inc_gen",
         ":xls_translate_lib",
         "//xls/tools:opt",
         "@com_google_absl//absl/status",
+        "@com_google_protobuf//:protobuf",
+        "@llvm-project//llvm:Support",
+        "@llvm-project//mlir:ArithDialect",
+        "@llvm-project//mlir:FuncDialect",
         "@llvm-project//mlir:IR",
         "@llvm-project//mlir:Pass",
         "@llvm-project//mlir:Support",
+        "@llvm-project//mlir:TransformUtils",
     ],
 )
 

@@ -206,7 +206,15 @@ def OptimizeUsingXlsPass : Pass<"optimize-using-xls", "::mlir::ModuleOp"> {
     "mlir::func::FuncDialect",
   ];
 
-  // TODO(jpienaar): Add pipeline options.
+  let options = [
+    // TODO(jpienaar): Should this be the proto instead? Downside is it adds
+    // a dependency in the passes header on the proto, but is probably better
+    // as API to pass creation.
+    Option<"xls_pipeline", "xls-pipeline", "std::optional<std::string>",
+      /*default=*/"std::nullopt",
+      "XLS pass pipeline to apply to the module."
+    >
+  ];
 }
 
 #endif // MLIR_XLS_TRANSFORMS_PASSES
