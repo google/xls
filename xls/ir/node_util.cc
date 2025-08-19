@@ -307,7 +307,6 @@ absl::StatusOr<Node*> FromTreeOfNodes(FunctionBase* f,
   // Flat type; this is a leaf node.
   CHECK(tree.type()->IsBits() || tree.type()->IsToken());
   CHECK_EQ(tree.size(), 1);
-  XLS_RET_CHECK(name.empty());
 
   Node* leaf = tree.elements().front();
   XLS_RET_CHECK_EQ(leaf->function_base(), f);
