@@ -49,15 +49,15 @@ namespace synthesis {
 
 absl::StatusOr<std::vector<int64_t>>
 Synthesizer::SynthesizeNodesConcurrentlyAndGetDelays(
-    absl::Span<const absl::flat_hash_set<Node *>> nodes_list) const {
+    absl::Span<const absl::flat_hash_set<Node*>> nodes_list) const {
   // Launches multi-threading delay estimation.
   std::vector<absl::StatusOr<int64_t>> results;
   std::vector<std::unique_ptr<Thread>> threads;
   results.reserve(nodes_list.size());
   absl::StatusOr<int64_t> init_val = 0;
-  for (const absl::flat_hash_set<Node *> &nodes : nodes_list) {
+  for (const absl::flat_hash_set<Node*>& nodes : nodes_list) {
     results.push_back(init_val);
-    absl::StatusOr<int64_t> &dest = results.back();
+    absl::StatusOr<int64_t>& dest = results.back();
     // TODO(hanchenye): 2023-08-14 Use a thread pool structure that we can
     // schedule on.
     threads.push_back(std::make_unique<Thread>(
@@ -65,7 +65,7 @@ Synthesizer::SynthesizeNodesConcurrentlyAndGetDelays(
   }
 
   // Records the estimated delays.
-  for (auto &t : threads) {
+  for (auto& t : threads) {
     t->Join();
   }
   std::vector<int64_t> delay_list;
@@ -78,7 +78,7 @@ Synthesizer::SynthesizeNodesConcurrentlyAndGetDelays(
 }
 
 absl::StatusOr<int64_t> Synthesizer::SynthesizeNodesAndGetDelay(
-    const absl::flat_hash_set<Node *> &nodes) const {
+    const absl::flat_hash_set<Node*>& nodes) const {
   std::string top_name = "tmp_module";
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> tmp_package,
                        ExtractNodes(nodes, top_name));
@@ -92,7 +92,7 @@ absl::StatusOr<int64_t> Synthesizer::SynthesizeNodesAndGetDelay(
 }
 
 absl::StatusOr<int64_t> Synthesizer::SynthesizeFunctionBaseAndGetDelay(
-    FunctionBase *f) const {
+    FunctionBase* f) const {
   XLS_ASSIGN_OR_RETURN(std::string verilog_text,
                        FunctionBaseToVerilog(f, /*flop_inputs_outputs=*/true));
   if (verilog_text.empty()) {
@@ -102,13 +102,13 @@ absl::StatusOr<int64_t> Synthesizer::SynthesizeFunctionBaseAndGetDelay(
 }
 
 absl::StatusOr<std::string> Synthesizer::FunctionBaseToVerilog(
-    FunctionBase *f, bool flop_inputs_outputs) const {
+    FunctionBase* f, bool flop_inputs_outputs) const {
   if (f->node_count() == 0) {
     return "";
   }
   // With the temporary function, we convert it to a combinational block. If
   // flop_inputs_outputs is set, we insert registers to the inputs and outputs.
-  Block *tmp_block;
+  Block* tmp_block;
   if (!flop_inputs_outputs) {
     if (!f->IsFunction()) {
       return absl::InvalidArgumentError(
@@ -118,12 +118,12 @@ absl::StatusOr<std::string> Synthesizer::FunctionBaseToVerilog(
     options.entry(f->name());
     XLS_ASSIGN_OR_RETURN(verilog::CodegenContext context,
                          verilog::FunctionToCombinationalBlock(
-                             down_cast<Function *>(f), options));
+                             down_cast<Function*>(f), options));
     XLS_RET_CHECK(context.HasTopBlock());
     tmp_block = context.top_block();
   } else {
     ScheduleCycleMap cycle_map;
-    for (Node *node : f->nodes()) {
+    for (Node* node : f->nodes()) {
       cycle_map.emplace(node, 0);
     }
     // Generate block with flopped inputs and outputs. We always use verilog
@@ -150,7 +150,7 @@ absl::StatusOr<std::string> Synthesizer::FunctionBaseToVerilog(
   return GenerateVerilog(tmp_block, options.use_system_verilog(false));
 }
 
-absl::StatusOr<SynthesizerFactory *> SynthesizerManager::GetSynthesizerFactory(
+absl::StatusOr<SynthesizerFactory*> SynthesizerManager::GetSynthesizerFactory(
     std::string_view name) {
   if (!synthesizers_.contains(name)) {
     if (synthesizer_names_.empty()) {
@@ -169,7 +169,7 @@ absl::StatusOr<SynthesizerFactory *> SynthesizerManager::GetSynthesizerFactory(
 
 absl::StatusOr<std::unique_ptr<Synthesizer>>
 SynthesizerManager::MakeSynthesizer(std::string_view name,
-                                    const SynthesizerParameters &parameters) {
+                                    const SynthesizerParameters& parameters) {
   XLS_ASSIGN_OR_RETURN(SynthesizerFactory * factory,
                        GetSynthesizerFactory(name));
   return factory->CreateSynthesizer(parameters);
@@ -177,7 +177,7 @@ SynthesizerManager::MakeSynthesizer(std::string_view name,
 
 absl::StatusOr<std::unique_ptr<Synthesizer>>
 SynthesizerManager::MakeSynthesizer(
-    std::string_view name, const SchedulingOptions &scheduling_options) {
+    std::string_view name, const SchedulingOptions& scheduling_options) {
   XLS_ASSIGN_OR_RETURN(SynthesizerFactory * factory,
                        GetSynthesizerFactory(name));
   return factory->CreateSynthesizer(scheduling_options);
@@ -195,15 +195,15 @@ absl::Status SynthesizerManager::RegisterSynthesizer(
   return absl::OkStatus();
 }
 
-SynthesizerManager &GetSynthesizerManagerSingleton() {
+SynthesizerManager& GetSynthesizerManagerSingleton() {
   static absl::NoDestructor<SynthesizerManager> manager;
   return *manager;
 }
 
 }  // namespace synthesis
 
-absl::StatusOr<synthesis::Synthesizer *> SetUpSynthesizer(
-    const SchedulingOptions &flags) {
+absl::StatusOr<synthesis::Synthesizer*> SetUpSynthesizer(
+    const SchedulingOptions& flags) {
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<synthesis::Synthesizer> synthesizer,
       synthesis::GetSynthesizerManagerSingleton().MakeSynthesizer(

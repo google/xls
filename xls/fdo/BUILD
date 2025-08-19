@@ -122,6 +122,8 @@ cc_library(
         "//xls/codegen:block_generator",
         "//xls/codegen:codegen_options",
         "//xls/codegen:codegen_pass",
+        "//xls/codegen:codegen_residual_data_cc_proto",
+        "//xls/codegen:verilog_line_map_cc_proto",
         "//xls/common:casts",
         "//xls/common:thread",
         "//xls/common/status:ret_check",

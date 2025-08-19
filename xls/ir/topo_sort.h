@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "absl/random/bit_gen_ref.h"
+#include "absl/types/span.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 
@@ -44,6 +45,14 @@ std::vector<Node*> TopoSort(
 // As above, but returns a reverse topo order.
 std::vector<Node*> ReverseTopoSort(
     FunctionBase* f, std::optional<absl::BitGenRef> randomizer = std::nullopt);
+
+// Returns a topological sort using a reference ordering to influence the
+// returned order. `reference_sort` is a not necessarily strict subset of the
+// ids of the nodes in `f`. The order of any pair of nodes in `reference_order`
+// is maintained in the returned toposort if possible (ordering is not
+// prohibited by dependencies in `f`).
+std::vector<Node*> StableTopoSort(FunctionBase* f,
+                                  absl::Span<int64_t const> reference_order);
 
 }  // namespace xls
 

@@ -25,6 +25,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/types/span.h"
+#include "xls/codegen/codegen_residual_data.pb.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/op_override.h"
 #include "xls/codegen/ram_configuration.h"
@@ -356,6 +357,15 @@ class CodegenOptions {
   CodegenOptions& add_invariant_assertions(bool value);
   bool add_invariant_assertions() const { return add_invariant_assertions_; }
 
+  // Optional residual data container to populate during codegen.
+  CodegenOptions& set_residual_data(CodegenResidualData data) {
+    residual_data_ = std::move(data);
+    return *this;
+  }
+  const std::optional<CodegenResidualData>& residual_data() const {
+    return residual_data_;
+  }
+
  private:
   std::optional<std::string> entry_;
   std::optional<std::string> module_name_;
@@ -395,6 +405,7 @@ class CodegenOptions {
   std::string fifo_module_ = "xls_fifo_wrapper";
   std::string nodata_fifo_module_ = "";
   std::vector<int32_t> randomize_order_seed_;
+  std::optional<CodegenResidualData> residual_data_;
 };
 
 template <typename Sink>

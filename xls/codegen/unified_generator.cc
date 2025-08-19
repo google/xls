@@ -26,6 +26,7 @@
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/codegen_pass_pipeline.h"
+#include "xls/codegen/codegen_residual_data.pb.h"
 #include "xls/codegen/codegen_result.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/passes_ng/stage_conversion_pass_pipeline.h"
@@ -144,10 +145,11 @@ absl::StatusOr<CodegenResult> GenerateModuleText(
 
   // VAST Generation: Block to Verilog codegen pass.
   VerilogLineMap verilog_line_map;
+  CodegenResidualData residual_data;
   XLS_ASSIGN_OR_RETURN(
       std::string verilog,
       GenerateVerilog(codegen_context.top_block(), pass_options.codegen_options,
-                      &verilog_line_map));
+                      &verilog_line_map, &residual_data));
 
   XLS_ASSIGN_OR_RETURN(
       ModuleSignature signature,

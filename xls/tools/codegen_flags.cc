@@ -29,7 +29,9 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "xls/codegen/codegen_residual_data.pb.h"
 #include "xls/common/file/filesystem.h"
+#include "xls/common/proto_adaptor_utils.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/xls_ir_interface.pb.h"
@@ -198,6 +200,13 @@ ABSL_FLAG(std::string, output_scheduling_pass_metrics_path, "",
 ABSL_FLAG(std::string, output_codegen_pass_metrics_path, "",
           "Output path for the pass pipeline metrics for codegen  passes as a "
           "PassPipelineMetricsProto.");
+ABSL_FLAG(std::string, output_residual_data_path, "",
+          "Output path for the CodegenResidualData proto in textproto format.");
+ABSL_FLAG(std::string, reference_residual_data_path, "",
+          "Path to a CodegenResidualData textproto providing a reference node "
+          "order and other metadata which can be used to minimize the "
+          "differences between generated Verilog from different invocations of "
+          "codegen.");
 ABSL_FLAG(std::string, block_metrics_path, "",
           "The filename to write the metrics, including the bill of "
           "materials, for the generated Verilog file");
@@ -393,6 +402,16 @@ static absl::StatusOr<bool> SetOptionsFromFlags(CodegenFlagsProto& proto) {
         proto.mutable_package_interface()->ParseFromString(interface_bytes));
     any_flags_set = true;
     CHECK(proto.has_package_interface());
+  }
+
+  // If a reference residual data path is provided, parse it and attach to
+  // the flags proto so downstream codegen can consume without file I/O.
+  if (FLAGS_reference_residual_data_path.IsSpecifiedOnCommandLine() &&
+      !absl::GetFlag(FLAGS_reference_residual_data_path).empty()) {
+    verilog::CodegenResidualData reference;
+    XLS_RETURN_IF_ERROR(xls::ParseTextProtoFile(
+        absl::GetFlag(FLAGS_reference_residual_data_path), &reference));
+    *proto.mutable_reference_residual_data() = std::move(reference);
   }
 #undef POPULATE_FLAG
 #undef POPULATE_REPEATED_FLAG

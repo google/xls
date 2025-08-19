@@ -345,5 +345,80 @@ BENCHMARK(BM_TopoSortBinaryTree)->DenseRange(2, 20, 2);
 BENCHMARK(BM_TopoSortLadder)->Range(2, 1024);
 BENCHMARK(BM_TopoSortDense)->RangePair(2, 512, 3, 32);
 
+TEST(StableTopoSortTest, StableTopoSort) {
+  std::string program = R"(
+  fn diamond(x: bits[32]) -> bits[32] {
+    neg: bits[32] = neg(x)
+    not: bits[32] = not(x)
+    unused: bits[32] = identity(x)
+    ret retval: bits[32] = or(neg, not)
+  })";
+
+  Package p("p");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, Parser::ParseFunction(program, &p));
+
+  auto get_id = [&](std::string_view name) {
+    return f->GetNode(name).value()->id();
+  };
+  auto get_node = [&](std::string_view name) {
+    return f->GetNode(name).value();
+  };
+  auto get_index = [&](absl::Span<Node* const> v,
+                       std::string_view name) -> int64_t {
+    auto it = absl::c_find(v, f->GetNode(name).value());
+    CHECK(it != v.end());
+    return std::distance(v.begin(), it);
+  };
+  {
+    // All nodes ordered.
+    std::vector<int64_t> reference_ids = {get_id("x"), get_id("neg"),
+                                          get_id("not"), get_id("unused"),
+                                          get_id("retval")};
+    EXPECT_THAT(
+        StableTopoSort(f, reference_ids),
+        testing::ElementsAre(get_node("x"), get_node("neg"), get_node("not"),
+                             get_node("unused"), get_node("retval")));
+  }
+
+  {
+    // Empty reference.
+    std::vector<Node*> order = StableTopoSort(f, {});
+    EXPECT_EQ(order.front(), f->GetNode("x").value());
+    EXPECT_EQ(order.back(), f->return_value());
+  }
+
+  {
+    // Different all nodes ordered with node after return value.
+    std::vector<int64_t> reference_ids = {get_id("x"), get_id("not"),
+                                          get_id("neg"), get_id("retval"),
+                                          get_id("unused")};
+    EXPECT_THAT(
+        StableTopoSort(f, reference_ids),
+        testing::ElementsAre(get_node("x"), get_node("not"), get_node("neg"),
+                             get_node("retval"), get_node("unused")));
+  }
+
+  {
+    // Partial interior reference: not before neg.
+    std::vector<int64_t> reference_ids = {get_id("not"), get_id("neg")};
+    std::vector<Node*> order = StableTopoSort(f, reference_ids);
+    EXPECT_LT(get_index(order, "not"), get_index(order, "neg"));
+  }
+
+  {
+    // Partial interior reference reversed: neg before not.
+    std::vector<int64_t> reference_ids = {get_id("neg"), get_id("not")};
+    std::vector<Node*> order = StableTopoSort(f, reference_ids);
+    EXPECT_LT(get_index(order, "neg"), get_index(order, "not"));
+  }
+
+  {
+    // Impossible reference: return value before parameter.
+    std::vector<int64_t> reference_ids = {get_id("retval"), get_id("x")};
+    std::vector<Node*> order = StableTopoSort(f, reference_ids);
+    EXPECT_LT(get_index(order, "x"), get_index(order, "retval"));
+  }
+}
+
 }  // namespace
 }  // namespace xls
