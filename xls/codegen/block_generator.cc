@@ -371,6 +371,20 @@ class BlockGenerator {
     }
   }
 
+  std::optional<const BlockResidualData*> GetReferenceBlockResidualData()
+      const {
+    if (!options_.residual_data().has_value()) {
+      return std::nullopt;
+    }
+    for (const BlockResidualData& block_data :
+         options_.residual_data().value().blocks()) {
+      if (block_data.block_name() == block_->name()) {
+        return &block_data;
+      }
+    }
+    return std::nullopt;
+  }
+
   // Generates and returns the Verilog text for the underlying block.
   absl::Status Emit() {
     if (block_residual_data_ != nullptr) {
@@ -467,14 +481,11 @@ class BlockGenerator {
     return absl::OkStatus();
   }
 
-  // If the node has an assigned name then don't emit as an inline expression.
-  // This ensures the name appears in the generated Verilog.
-  bool ShouldEmitAsAssignment(Node* const n, int64_t inline_depth) {
-    if (n->HasAssignedName() ||
-        (n->users().size() > 1 && !ShouldInlineExpressionIntoMultipleUses(n)) ||
-        n->function_base()->HasImplicitUse(n) ||
-        !mb_.CanEmitAsInlineExpression(n) || options_.separate_lines() ||
-        inline_depth > options_.max_inline_depth()) {
+  // Returns true if the given node must be emitted as an assignment due
+  // hard language costraints or style constraints which must not be violated.
+  bool MustEmitAsAssignment(Node* n) {
+    if (n->function_base()->HasImplicitUse(n) ||
+        !mb_.CanEmitAsInlineExpression(n) || options_.separate_lines()) {
       return true;
     }
     // Emit operands of RegisterWrite's as assignments rather than inline
@@ -485,6 +496,15 @@ class BlockGenerator {
       }
     }
     return false;
+  }
+
+  // Returns true if the given node should be emitted as an assignment
+  // for readability purposes. This is a soft constraint / suggestion.
+  bool ShouldEmitAsAssignment(Node* const n, int64_t inline_depth) {
+    return (
+        n->HasAssignedName() ||
+        (n->users().size() > 1 && !ShouldInlineExpressionIntoMultipleUses(n)) ||
+        inline_depth > options_.max_inline_depth());
   }
 
   // Name of the node if it gets emitted as a separate assignment.
@@ -501,6 +521,34 @@ class BlockGenerator {
   absl::Status EmitLogic(absl::Span<Node* const> nodes,
                          std::optional<int64_t> stage = std::nullopt) {
     absl::flat_hash_map<Node*, int64_t> node_depth;
+
+    // If reference residual data is provided, this map indicates which nodes
+    // (by id) were emitted inline in the reference compilation.
+    absl::flat_hash_map<int64_t, bool> nodes_ids_emitted_inline_in_reference;
+    std::optional<const BlockResidualData*> reference_block_residual_data =
+        GetReferenceBlockResidualData();
+    if (reference_block_residual_data.has_value()) {
+      for (const NodeResidualData& node_data :
+           reference_block_residual_data.value()->nodes()) {
+        nodes_ids_emitted_inline_in_reference[node_data.node_id()] =
+            node_data.emitted_inline();
+      }
+    }
+
+    // Returns true if the given node should be emitted as an assignment. This
+    // is determined by hard constraints on what can be emitted inline,
+    // readability heuristics, and reference residual data (if any).
+    auto emit_as_assignment = [&](Node* node, int64_t inline_depth) {
+      if (MustEmitAsAssignment(node)) {
+        return true;
+      }
+      auto it = nodes_ids_emitted_inline_in_reference.find(node->id());
+      if (it != nodes_ids_emitted_inline_in_reference.end()) {
+        return !it->second;
+      }
+      return ShouldEmitAsAssignment(node, inline_depth);
+    };
+
     for (Node* node : nodes) {
       VLOG(3) << "Emitting logic for: " << node->GetName();
 
@@ -672,17 +720,17 @@ class BlockGenerator {
               node->operands().begin(), node->operands().end(), [&](Node* n) {
                 return !std::holds_alternative<Expression*>(node_exprs_.at(n));
               })) {
-        bool emit_as_assignment = ShouldEmitAsAssignment(node, inline_depth);
+        bool is_assignment = emit_as_assignment(node, inline_depth);
         XLS_ASSIGN_OR_RETURN(
             node_exprs_[node],
             CodegenNodeWithUnrepresentedOperands(
                 node, &mb_, node_exprs_, NodeAssignmentName(node, stage),
-                emit_as_assignment));
-        if (!emit_as_assignment) {
+                is_assignment));
+        if (!is_assignment) {
           node_depth[node] = inline_depth;
         }
-        if (residual_node_data != nullptr) {
-          residual_node_data->set_emitted_inline(!emit_as_assignment);
+        if (residual_node_data != nullptr && !is_assignment) {
+          residual_node_data->set_emitted_inline(true);
         }
         continue;
       }
@@ -711,11 +759,14 @@ class BlockGenerator {
         inputs.push_back(std::get<Expression*>(node_exprs_.at(operand)));
       }
 
-      if (ShouldEmitAsAssignment(node, inline_depth)) {
+      if (emit_as_assignment(node, inline_depth)) {
         XLS_ASSIGN_OR_RETURN(
             node_exprs_[node],
             mb_.EmitAsAssignment(NodeAssignmentName(node, stage), node,
                                  inputs));
+        if (residual_node_data != nullptr) {
+          residual_node_data->set_emitted_inline(false);
+        }
       } else {
         XLS_ASSIGN_OR_RETURN(node_exprs_[node],
                              mb_.EmitAsInlineExpression(node, inputs));

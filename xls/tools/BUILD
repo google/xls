@@ -738,6 +738,7 @@ cc_library(
         "//xls/scheduling:scheduling_pass_pipeline",
         "//xls/scheduling:scheduling_result",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
