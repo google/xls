@@ -219,6 +219,10 @@ absl::Status DfsVisitorWithDefault::HandleNext(Next* next) {
   return DefaultHandler(next);
 }
 
+absl::Status DfsVisitorWithDefault::HandleNewChannel(NewChannel* new_channel) {
+  return DefaultHandler(new_channel);
+}
+
 absl::Status DfsVisitorWithDefault::HandleRegisterRead(RegisterRead* reg_read) {
   return DefaultHandler(reg_read);
 }

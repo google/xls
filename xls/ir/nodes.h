@@ -967,15 +967,21 @@ class NewChannel : public Node {
  public:
   static constexpr std::array<Op, 1> kOps = {Op::kNewChannel};
 
-  NewChannel(const SourceInfo& loc, Op op, Type* type,
-             std::string_view channel_name, FunctionBase* function)
-      : Node(op, type, loc, channel_name, function),
-        channel_name_(channel_name) {}
+  NewChannel(const SourceInfo& loc, Type* type, const Channel* channel,
+             FunctionBase* function)
+      : Node(Op::kNewChannel, type, loc, channel->name(), function),
+        channel_(channel) {}
 
-  const std::string& channel_name() const { return channel_name_; }
+  const Channel* channel() const { return channel_; }
+
+  std::string_view channel_name() const { return channel_->name(); }
+
+  absl::StatusOr<Node*> CloneInNewFunction(
+      absl::Span<Node* const> new_operands,
+      FunctionBase* new_function) const final;
 
  private:
-  std::string channel_name_;
+  const Channel* channel_;
 };
 
 // Represents a new-style channel "receiver" node. NOTE: this is still a work in
@@ -984,12 +990,16 @@ class RecvChannelEnd : public Node {
  public:
   static constexpr std::array<Op, 1> kOps = {Op::kRecvChannelEnd};
 
-  RecvChannelEnd(const SourceInfo& loc, Op op, Type* type,
+  RecvChannelEnd(const SourceInfo& loc, Type* type,
                  std::string_view channel_name, FunctionBase* function)
-      : Node(op, type, loc, channel_name, function),
+      : Node(Op::kRecvChannelEnd, type, loc, channel_name, function),
         channel_name_(channel_name) {}
 
   const std::string& channel_name() const { return channel_name_; }
+
+  absl::StatusOr<Node*> CloneInNewFunction(
+      absl::Span<Node* const> new_operands,
+      FunctionBase* new_function) const final;
 
  private:
   std::string channel_name_;
@@ -1001,12 +1011,16 @@ class SendChannelEnd : public Node {
  public:
   static constexpr std::array<Op, 1> kOps = {Op::kSendChannelEnd};
 
-  SendChannelEnd(const SourceInfo& loc, Op op, Type* type,
+  SendChannelEnd(const SourceInfo& loc, Type* type,
                  std::string_view channel_name, FunctionBase* function)
-      : Node(op, type, loc, channel_name, function),
+      : Node(Op::kSendChannelEnd, type, loc, channel_name, function),
         channel_name_(channel_name) {}
 
   const std::string& channel_name() const { return channel_name_; }
+
+  absl::StatusOr<Node*> CloneInNewFunction(
+      absl::Span<Node* const> new_operands,
+      FunctionBase* new_function) const final;
 
  private:
   std::string channel_name_;

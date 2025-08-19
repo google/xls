@@ -253,6 +253,7 @@ class RangeQueryVisitor : public DfsVisitor {
   absl::Status HandleParam(Param* param) override;
   absl::Status HandleStateRead(StateRead* state_read) override;
   absl::Status HandleNext(Next* next) override;
+  absl::Status HandleNewChannel(NewChannel* new_channel) override;
   absl::Status HandleReceive(Receive* receive) override;
   absl::Status HandleRegisterRead(RegisterRead* reg_read) override;
   absl::Status HandleRegisterWrite(RegisterWrite* reg_write) override;
@@ -1118,6 +1119,11 @@ absl::Status RangeQueryVisitor::HandleStateRead(StateRead* state_read) {
 absl::Status RangeQueryVisitor::HandleNext(Next* next) {
   INITIALIZE_OR_SKIP(next);
   // Next values return nothing, represented with an empty tuple.
+  return absl::OkStatus();
+}
+
+absl::Status RangeQueryVisitor::HandleNewChannel(NewChannel* new_channel) {
+  INITIALIZE_OR_SKIP(new_channel);
   return absl::OkStatus();
 }
 

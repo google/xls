@@ -753,6 +753,11 @@ absl::Status IrInterpreter::HandleNext(Next* next) {
       "Next value not implemented in IrInterpreter");
 }
 
+absl::Status IrInterpreter::HandleNewChannel(NewChannel* new_channel) {
+  return absl::UnimplementedError(
+      "NewChannel value not implemented in IrInterpreter");
+}
+
 absl::Status IrInterpreter::HandleReverse(UnOp* reverse) {
   return SetBitsResult(reverse,
                        bits_ops::Reverse(ResolveAsBits(reverse->operand(0))));

@@ -1004,6 +1004,10 @@ class NodeChecker : public DfsVisitor {
                                 proc->GetStateElementType(index));
   }
 
+  absl::Status HandleNewChannel(NewChannel* new_channel) override {
+    return absl::OkStatus();
+  }
+
   absl::Status HandleReverse(UnOp* reverse) override {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(reverse, 1));
     return ExpectAllSameBitsType(reverse);

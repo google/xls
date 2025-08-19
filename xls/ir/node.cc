@@ -384,6 +384,9 @@ absl::Status Node::VisitSingleNode(DfsVisitor* visitor) {
           down_cast<InstantiationOutput*>(this)));
       break;
     case Op::kNewChannel:
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleNewChannel(down_cast<NewChannel*>(this)));
+      break;
     case Op::kRecvChannelEnd:
     case Op::kSendChannelEnd:
       return absl::UnimplementedError(
