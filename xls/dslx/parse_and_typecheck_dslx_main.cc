@@ -14,6 +14,7 @@
 
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -90,9 +91,11 @@ absl::Status RealMain(std::string_view entry_module_path,
       CreateImportData(options.dslx_stdlib_path, options.dslx_paths,
                        options.warnings, std::move(vfs));
 
-  absl::StatusOr<TypecheckedModule> tm =
-      ParseAndTypecheck(program, entry_module_path, module_name, &import_data,
-                        nullptr, options.type_inference_v2);
+  absl::StatusOr<TypecheckedModule> tm = ParseAndTypecheck(
+      program, entry_module_path, module_name, &import_data, nullptr,
+      options.type_inference_v2
+          ? std::make_optional(TypeInferenceVersion::kVersion2)
+          : std::nullopt);
   if (!tm.ok()) {
     TryPrintError(tm.status(), import_data.file_table(), import_data.vfs());
   }

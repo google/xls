@@ -36,6 +36,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/ir_convert/conversion_info.h"
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/test_utils.h"
 #include "xls/dslx/parse_and_typecheck.h"
@@ -164,12 +165,14 @@ void ExpectVersionSpecificIr(
 
 absl::StatusOr<std::string> ConvertOneFunctionForTest(
     std::string_view program, std::string_view fn_name, ImportData& import_data,
-    const ConvertOptions& options, bool typecheck_version2 = false) {
+    const ConvertOptions& options,
+    std::optional<TypeInferenceVersion> force_typecheck_version =
+        std::nullopt) {
   XLS_ASSIGN_OR_RETURN(
       TypecheckedModule tm,
       ParseAndTypecheck(program, /*path=*/"test_module.x",
                         /*module_name=*/"test_module", &import_data,
-                        /*comments=*/nullptr, typecheck_version2));
+                        /*comments=*/nullptr, force_typecheck_version));
   return ConvertOneFunction(tm.module, /*entry_function_name=*/fn_name,
                             &import_data,
                             /*parametric_env=*/nullptr, options);
@@ -178,15 +181,18 @@ absl::StatusOr<std::string> ConvertOneFunctionForTest(
 absl::StatusOr<std::string> ConvertOneFunctionForTest(
     std::string_view program, std::string_view fn_name,
     const ConvertOptions& options = ConvertOptions{},
-    bool typecheck_version2 = false) {
+    std::optional<TypeInferenceVersion> force_typecheck_version =
+        std::nullopt) {
   auto import_data = CreateImportDataForTest();
   return ConvertOneFunctionForTest(program, fn_name, import_data, options,
-                                   typecheck_version2);
+                                   force_typecheck_version);
 }
 
 absl::StatusOr<std::string> ConvertModuleForTest(
     std::string_view program, const ConvertOptions& options = ConvertOptions{},
-    ImportData* import_data = nullptr, bool typecheck_version2 = false) {
+    ImportData* import_data = nullptr,
+    std::optional<TypeInferenceVersion> force_typecheck_version =
+        std::nullopt) {
   std::optional<ImportData> import_data_value;
   if (import_data == nullptr) {
     import_data_value.emplace(CreateImportDataForTest());
@@ -195,7 +201,8 @@ absl::StatusOr<std::string> ConvertModuleForTest(
   XLS_ASSIGN_OR_RETURN(
       TypecheckedModule tm,
       ParseAndTypecheck(program, "test_module.x", "test_module", import_data,
-                        /*comments=*/nullptr, typecheck_version2, options));
+                        /*comments=*/nullptr, force_typecheck_version,
+                        options));
   XLS_ASSIGN_OR_RETURN(std::string converted,
                        ConvertModule(tm.module, import_data, options));
   return converted;
@@ -207,34 +214,31 @@ class IrConverterWithBothTypecheckVersionsTest
   absl::StatusOr<std::string> ConvertOneFunctionForTest(
       std::string_view program, std::string_view fn_name,
       ImportData& import_data, const ConvertOptions& options) {
-    return ::xls::dslx::ConvertOneFunctionForTest(
-        program, fn_name, import_data, options,
-        GetParam() == TypeInferenceVersion::kVersion2);
+    return ::xls::dslx::ConvertOneFunctionForTest(program, fn_name, import_data,
+                                                  options, GetParam());
   }
 
   absl::StatusOr<std::string> ConvertOneFunctionForTest(
       std::string_view program, std::string_view fn_name,
       const ConvertOptions& options = ConvertOptions{}) {
-    return ::xls::dslx::ConvertOneFunctionForTest(
-        program, fn_name, options,
-        GetParam() == TypeInferenceVersion::kVersion2);
+    return ::xls::dslx::ConvertOneFunctionForTest(program, fn_name, options,
+                                                  GetParam());
   }
 
   absl::StatusOr<std::string> ConvertModuleForTest(
       std::string_view program,
       const ConvertOptions& options = ConvertOptions{},
       ImportData* import_data = nullptr) {
-    return ::xls::dslx::ConvertModuleForTest(
-        program, options, import_data,
-        GetParam() == TypeInferenceVersion::kVersion2);
+    return ::xls::dslx::ConvertModuleForTest(program, options, import_data,
+                                             GetParam());
   }
 
   absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
       std::string_view program, std::string_view path,
       std::string_view module_name, ImportData* import_data = nullptr) {
-    return ::xls::dslx::ParseAndTypecheck(
-        program, path, module_name, import_data,
-        /*comments=*/nullptr, GetParam() == TypeInferenceVersion::kVersion2);
+    return ::xls::dslx::ParseAndTypecheck(program, path, module_name,
+                                          import_data,
+                                          /*comments=*/nullptr, GetParam());
   }
 };
 
@@ -604,6 +608,11 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, TupleOfLiterals) {
 }
 
 TEST(IrConverterTest, CountedForWithRangeFunction) {
+  if (kDefaultTypeInferenceVersion == TypeInferenceVersion::kVersion2) {
+    // The range() builtin is deprecated and no longer supported in TIv2.
+    return;
+  }
+
   const char* program =
       R"(fn f() -> u32 {
   for (i, accum): (u32, u32) in range(u32:0, u32:4) {
@@ -1172,6 +1181,12 @@ fn test() -> Foo<u32:5> {
 // This is an example where we use an externally-defined parametric function
 // into module scope and invoke it at module scope.
 TEST(IrConverterTest, UseOfClog2InModuleScopedConstantDefinition) {
+  if (kDefaultTypeInferenceVersion == TypeInferenceVersion::kVersion2) {
+    // TODO: https://github.com/google/xls/issues/2876 - TIv2 does not yet
+    // support "use" syntax.
+    return;
+  }
+
   const char* kProgram = R"(#![feature(use_syntax)]
 use std::clog2;
 
@@ -1243,7 +1258,7 @@ fn test() -> u32 {
   ExpectIr(converted);
 }
 
-TEST(IrConverterTest, UnrollForWithoutAccName) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, UnrollForWithoutAccName) {
   const char* kProgram = R"(
 fn test() -> u32 {
   unroll_for!(i, _): (u32, u32) in u32:0..u32:4 {
@@ -1255,7 +1270,7 @@ fn test() -> u32 {
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
                            ConvertModuleForTest(kProgram, kNoPosOptions));
-  ExpectIr(converted);
+  ExpectVersionSpecificIr(converted, GetParam());
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
@@ -1293,6 +1308,11 @@ fn test() -> u32 {
 }
 
 TEST(IrConverterTest, UnrollForWithRangeBuiltin) {
+  if (kDefaultTypeInferenceVersion == TypeInferenceVersion::kVersion2) {
+    // The range() builtin is deprecated and no longer supported by TIv2.
+    return;
+  }
+
   const char* kProgram = R"(
 fn test() -> u32 {
   unroll_for!(i, acc): (u32, u32) in range(u32:3, u32:6) {
@@ -1375,7 +1395,7 @@ fn test() -> u32 {
   }
 }
 
-TEST(IrConverterTest, UnrollForWithParametric) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, UnrollForWithParametric) {
   const char* kProgram = R"(
 fn test<SIZE:u32>() -> bits[SIZE] {
   unroll_for!(i, acc): (bits[SIZE], bits[SIZE]) in bits[SIZE]:0..bits[SIZE]:4 {
@@ -1390,7 +1410,7 @@ fn foo() -> u8 {
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
                            ConvertModuleForTest(kProgram, kNoPosOptions));
-  ExpectIr(converted);
+  ExpectVersionSpecificIr(converted, GetParam());
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
@@ -3763,11 +3783,13 @@ fn main() -> (bool, u32, s32, MyEnum, bool, u32, s32, MyEnum) {
   options.emit_positions = false;
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(kProgram, options, nullptr, true));
+      ConvertModuleForTest(kProgram, options, nullptr,
+                           TypeInferenceVersion::kVersion2));
   ExpectIr(converted);
 }
 
-TEST(IrConverterTest, MapInvocationWithBuiltinFunction) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       MapInvocationWithBuiltinFunction) {
   constexpr std::string_view program =
       R"(
 fn main(x: u32[4]) -> u32[4] {
@@ -3777,7 +3799,7 @@ fn main(x: u32[4]) -> u32[4] {
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
                            ConvertModuleForTest(program, kNoPosOptions));
-  ExpectIr(converted);
+  ExpectVersionSpecificIr(converted, GetParam());
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
@@ -3872,15 +3894,24 @@ fn main() -> u8 {
                            xls::TempFile::CreateWithContent(program, ".x"));
   const std::string dslx_str_path = temp.path().string();
   bool printed_error = false;
-  EXPECT_THAT(
+  absl::StatusOr<PackageConversionData> result =
       ConvertFilesToPackage({dslx_str_path},
                             /*stdlib_path=*/"", {temp.path()}, ConvertOptions{},
                             /*top=*/"main",
-                            /*package_name=*/std::nullopt, &printed_error),
-      StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          HasSubstr("Return type of function body for 'main' did not match")));
-  EXPECT_TRUE(printed_error);
+                            /*package_name=*/std::nullopt, &printed_error);
+  if (kDefaultTypeInferenceVersion == TypeInferenceVersion::kVersion2) {
+    EXPECT_THAT(result, StatusIs(absl::StatusCode::kInvalidArgument,
+                                 HasSizeMismatch("u32", "u8")));
+  } else {
+    EXPECT_THAT(
+        result,
+        StatusIs(absl::StatusCode::kInvalidArgument,
+                 HasSubstr(
+                     "Return type of function body for 'main' did not match")));
+    // IR conversion only prints an error when v1 is being used, since it is
+    // caught earlier with v2.
+    EXPECT_TRUE(printed_error);
+  }
 }
 
 TEST(IrConverterTest, ProcWithNonConstArgumentInConfigIsNotConverted) {
@@ -3940,6 +3971,12 @@ proc Generator {
 }
 
 TEST(IrConverterTest, UseTreeEntryCallInParametric) {
+  if (kDefaultTypeInferenceVersion == TypeInferenceVersion::kVersion2) {
+    // TODO: https://github.com/google/xls/issues/2876 - TIv2 does not yet
+    // support "use" syntax.
+    return;
+  }
+
   constexpr std::string_view program = R"(
   #![feature(use_syntax)]
   use std::is_pow2;
@@ -4317,8 +4354,11 @@ TEST_P(ProcScopedChannelsIrConverterTest, ConfigWithParam) {
   // This only works with tiv2 at the moment. With v1, an error is thrown in
   // ConstexprEvaluator.HandleNumber because (I think) it hasn't noted the u32:1
   // in init as a constant.
+  if (GetParam() == TypeInferenceVersion::kVersion1) {
+    return;
+  }
+
   constexpr std::string_view kProgram = R"(
-#![feature(type_inference_v2)]
 proc adder {
   amount: u32;
   init { u32:1 }

@@ -16,6 +16,7 @@
 
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -44,7 +45,8 @@ namespace xls::dslx {
 absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
     std::string_view text, std::string_view path, std::string_view module_name,
     ImportData* import_data, std::vector<CommentData>* comments,
-    bool force_version2, const ConvertOptions& options) {
+    std::optional<TypeInferenceVersion> force_version,
+    const ConvertOptions& options) {
   XLS_RET_CHECK(import_data != nullptr);
 
   FileTable& file_table = import_data->file_table();
@@ -63,7 +65,7 @@ absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
                                    import_data->file_table(), comments));
 
   XLS_RETURN_IF_ERROR(module->SetConfiguredValues(options.configured_values));
-  return TypecheckModule(std::move(module), path, import_data, force_version2);
+  return TypecheckModule(std::move(module), path, import_data, force_version);
 }
 
 absl::StatusOr<std::unique_ptr<Module>> ParseModule(
@@ -92,7 +94,8 @@ absl::StatusOr<std::unique_ptr<Module>> ParseModuleFromFileAtPath(
 
 absl::StatusOr<TypecheckedModule> TypecheckModule(
     std::unique_ptr<Module> module, std::string_view path,
-    ImportData* import_data, bool force_version2) {
+    ImportData* import_data,
+    std::optional<TypeInferenceVersion> force_version) {
   XLS_RET_CHECK(module.get() != nullptr);
   XLS_RET_CHECK(import_data != nullptr);
 
@@ -107,13 +110,22 @@ absl::StatusOr<TypecheckedModule> TypecheckModule(
       absl::StatusOr<std::unique_ptr<ModuleInfo>> (*)(
           std::unique_ptr<Module>, std::filesystem::path path, ImportData*,
           WarningCollector*);
-  bool used_version2 = false;
   ExtendedTypecheckModuleFn version_entry_point =
       static_cast<ExtendedTypecheckModuleFn>(&TypecheckModule);
-  if (force_version2 ||
-      module->attributes().contains(ModuleAttribute::kTypeInferenceVersion2)) {
+
+  const bool force_v1 = force_version.has_value() &&
+                        *force_version == TypeInferenceVersion::kVersion1;
+  const bool force_v2 = force_version.has_value() &&
+                        *force_version == TypeInferenceVersion::kVersion2;
+  const bool module_has_v1 =
+      module->attributes().contains(ModuleAttribute::kTypeInferenceVersion1);
+  const bool module_has_v2 =
+      module->attributes().contains(ModuleAttribute::kTypeInferenceVersion2);
+  const bool default_v2 =
+      kDefaultTypeInferenceVersion == TypeInferenceVersion::kVersion2;
+  if (!force_v1 && !module_has_v1 &&
+      (force_v2 || module_has_v2 || default_v2)) {
     version_entry_point = &TypecheckModuleV2;
-    used_version2 = true;
   }
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<ModuleInfo> module_info,
@@ -124,8 +136,7 @@ absl::StatusOr<TypecheckedModule> TypecheckModule(
       import_data->Put(subject, std::move(module_info)).status());
   return TypecheckedModule{.module = module_ptr,
                            .type_info = type_info,
-                           .warnings = std::move(warnings),
-                           .type_inference_v2 = used_version2};
+                           .warnings = std::move(warnings)};
 }
 
 }  // namespace xls::dslx

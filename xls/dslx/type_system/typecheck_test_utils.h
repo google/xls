@@ -28,8 +28,6 @@
 
 namespace xls::dslx {
 
-enum class TypeInferenceVersion : uint8_t { kVersion1 = 1, kVersion2 = 2 };
-
 // TODO: erinzmoore - Require all `Typecheck` callers to pass in `ImportData`
 // and delete this struct.
 struct TypecheckResult {

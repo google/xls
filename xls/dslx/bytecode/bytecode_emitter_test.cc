@@ -291,7 +291,7 @@ fn main(x: u1) -> s1 {
                            BytecodeEmitter::Emit(&import_data, tm.type_info,
                                                  tf->fn(), std::nullopt));
 
-  if (tm.type_inference_v2) {
+  if (kDefaultTypeInferenceVersion == TypeInferenceVersion::kVersion2) {
     EXPECT_EQ(BytecodesToString(bf->bytecodes(), /*source_locs=*/false,
                                 import_data.file_table()),
               R"(000 load 0
@@ -1664,8 +1664,8 @@ create_tuple 8)";
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data,
-                        /*comments=*/nullptr, /*force_version2=*/false,
-                        options));
+                        /*comments=*/nullptr,
+                        /*force_version=*/std::nullopt, options));
 
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf, tm.module->GetTest("main"));
 

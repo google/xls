@@ -220,6 +220,7 @@ cc_test(
     srcs = ["ir_converter_test.cc"],
     data = glob(["testdata/*.ir"]),
     deps = [
+        ":conversion_info",
         ":convert_options",
         ":ir_converter",
         ":test_utils",

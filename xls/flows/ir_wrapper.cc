@@ -181,10 +181,13 @@ absl::StatusOr<IrWrapper> IrWrapper::Create(
     XLS_RET_CHECK(module_and_path.GetDslxModule() != nullptr);
     XLS_ASSIGN_OR_RETURN(
         TypecheckedModule module_typechecked,
-        TypecheckModule(module_and_path.GiveUpDslxModule(),
-                        module_and_path.GetFilePath(), ir_wrapper.import_data_,
-                        top_module.GetDslxModule()->attributes().contains(
-                            dslx::ModuleAttribute::kTypeInferenceVersion2)));
+        TypecheckModule(
+            module_and_path.GiveUpDslxModule(), module_and_path.GetFilePath(),
+            ir_wrapper.import_data_,
+            top_module.GetDslxModule()->attributes().contains(
+                dslx::ModuleAttribute::kTypeInferenceVersion2)
+                ? std::make_optional(dslx::TypeInferenceVersion::kVersion2)
+                : std::nullopt));
 
     ir_wrapper.other_modules_.push_back(module_typechecked.module);
 

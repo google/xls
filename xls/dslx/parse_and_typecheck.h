@@ -15,8 +15,10 @@
 #ifndef XLS_DSLX_PARSE_AND_TYPECHECK_H_
 #define XLS_DSLX_PARSE_AND_TYPECHECK_H_
 
+#include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string_view>
 #include <vector>
 
@@ -32,6 +34,11 @@
 #include "xls/dslx/warning_kind.h"
 
 namespace xls::dslx {
+
+enum class TypeInferenceVersion : uint8_t { kVersion1 = 1, kVersion2 = 2 };
+
+constexpr TypeInferenceVersion kDefaultTypeInferenceVersion =
+    TypeInferenceVersion::kVersion1;
 
 // Options to parse and typecheck a DSLX module.
 //   dslx_stdlib_path: Path to the DSLX standard library.
@@ -52,7 +59,6 @@ struct TypecheckedModule {
   Module* module;
   TypeInfo* type_info;
   WarningCollector warnings;
-  bool type_inference_v2;
 };
 
 // Helper that parses and typechecks the given "text" for a module.
@@ -63,7 +69,7 @@ struct TypecheckedModule {
 absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
     std::string_view text, std::string_view path, std::string_view module_name,
     ImportData* import_data, std::vector<CommentData>* comments = nullptr,
-    bool force_version2 = false,
+    std::optional<TypeInferenceVersion> force_version = std::nullopt,
     const ConvertOptions& options = ConvertOptions{});
 
 // Helper that parses and creates a new module from the given "text".
@@ -88,7 +94,8 @@ absl::StatusOr<std::unique_ptr<Module>> ParseModuleFromFileAtPath(
 // "import_data" is used to get-or-insert any imported modules.
 absl::StatusOr<TypecheckedModule> TypecheckModule(
     std::unique_ptr<Module> module, std::string_view path,
-    ImportData* import_data, bool force_version2 = false);
+    ImportData* import_data,
+    std::optional<TypeInferenceVersion> force_version = std::nullopt);
 
 }  // namespace xls::dslx
 

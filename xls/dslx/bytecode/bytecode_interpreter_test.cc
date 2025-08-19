@@ -921,9 +921,13 @@ fn main(x: u32) -> u32 {
 
   absl::StatusOr<InterpValue> value =
       Interpret(kProgram, "main", {InterpValue::MakeU32(2)});
+
   EXPECT_THAT(value.status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Match pattern is not exhaustive")));
+                       HasSubstr(kDefaultTypeInferenceVersion ==
+                                         TypeInferenceVersion::kVersion2
+                                     ? "`match` patterns are not exhaustive"
+                                     : "Match pattern is not exhaustive")));
 }
 
 TEST_F(BytecodeInterpreterTest, RunMatchWithNameRefs) {
@@ -1403,11 +1407,19 @@ fn width_slice() -> u32 {
   a[u32:16 +: u32]
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(kProgram, "width_slice"));
-  ASSERT_TRUE(value.IsBits());
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_value, value.GetBitsOrDie().ToUint64());
-  EXPECT_EQ(int_value, 0x0000dead);
+  absl::StatusOr<InterpValue> value = Interpret(kProgram, "width_slice");
+  if (kDefaultTypeInferenceVersion == TypeInferenceVersion::kVersion2) {
+    EXPECT_THAT(
+        value,
+        StatusIs(absl::StatusCode::kInvalidArgument,
+                 HasSubstr("Slice range out of bounds for array of size 32")));
+  } else {
+    XLS_ASSERT_OK(value);
+    ASSERT_TRUE(value->IsBits());
+    XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_value,
+                             value->GetBitsOrDie().ToUint64());
+    EXPECT_EQ(int_value, 0x0000dead);
+  }
 }
 
 // Tests a slice from both ends: a[-x:-y].
@@ -1851,6 +1863,11 @@ fn main() -> u32 {
 }
 
 TEST_F(BytecodeInterpreterTest, BuiltinRange) {
+  if (kDefaultTypeInferenceVersion == TypeInferenceVersion::kVersion2) {
+    // The range() builtin is deprecated and no longer supported in TIv2.
+    return;
+  }
+
   constexpr std::string_view kProgram = R"(
 fn main() -> u32[5] {
   range(u32:100, u32:105)

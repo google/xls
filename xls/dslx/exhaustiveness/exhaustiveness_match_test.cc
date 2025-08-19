@@ -93,7 +93,10 @@ void CheckNonExhaustive(std::string_view program) {
       ParseAndTypecheck(program, "test.x", "test", &import_data);
   EXPECT_THAT(tm.status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Match patterns are not exhaustive")));
+                       HasSubstr(kDefaultTypeInferenceVersion ==
+                                         TypeInferenceVersion::kVersion2
+                                     ? "`match` patterns are not exhaustive"
+                                     : "Match patterns are not exhaustive")));
 }
 
 void CheckExhaustiveWithRedundantPattern(std::string_view program) {
@@ -107,8 +110,12 @@ void CheckExhaustiveWithRedundantPattern(std::string_view program) {
       tm.warnings.warnings();
   ASSERT_FALSE(collected_warnings.empty());
   for (const WarningCollector::Entry& warning : collected_warnings) {
-    EXPECT_THAT(warning.message,
-                HasSubstr("Match is already exhaustive before this pattern"));
+    EXPECT_THAT(
+        warning.message,
+        HasSubstr(kDefaultTypeInferenceVersion ==
+                          TypeInferenceVersion::kVersion2
+                      ? "`match` is already exhaustive before this pattern"
+                      : "Match is already exhaustive before this pattern"));
   }
 }
 
@@ -578,10 +585,18 @@ fn main(e: imported::MyEnum) -> u32 {
   // TODO(cdleary): 2025-02-09 We should make a layer where InterpValue can
   // print out resolved enum member names. This needs constexpr-eval'd
   // information on how to map bits values into enum member names.
-  EXPECT_THAT(tm.status(),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       AllOf(HasSubstr("Match pattern is not exhaustive"),
-                             HasSubstr("`MyEnum:1` not covered"))));
+
+  if (kDefaultTypeInferenceVersion == TypeInferenceVersion::kVersion2) {
+    EXPECT_THAT(tm.status(),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         AllOf(HasSubstr("`match` patterns are not exhaustive"),
+                               HasSubstr("`MyEnum:1` is not covered"))));
+  } else {
+    EXPECT_THAT(tm.status(),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         AllOf(HasSubstr("Match pattern is not exhaustive"),
+                               HasSubstr("`MyEnum:1` not covered"))));
+  }
 }
 
 }  // namespace
