@@ -58,7 +58,7 @@ pub const TEST_RAM_SIMULTANEOUS_READ_WRITE_BEHAVIOR = ram::SimultaneousReadWrite
 
 type TestRamAddr = bits[TEST_RAM_ADDR_WIDTH];
 type TestWriteReq = ram::WriteReq<TEST_RAM_ADDR_WIDTH, RAM_DATA_WIDTH, RAM_NUM_PARTITIONS>;
-type TestWriteResp = ram::WriteResp<TEST_RAM_ADDR_WIDTH>;
+type TestWriteResp = ram::WriteResp;
 type TestReadReq = ram::ReadReq<TEST_RAM_ADDR_WIDTH, RAM_NUM_PARTITIONS>;
 type TestReadResp = ram::ReadResp<RAM_DATA_WIDTH>;
 
@@ -328,7 +328,7 @@ pub proc SequenceExecutor<HISTORY_BUFFER_SIZE_KB: u32,
         // Literals and Sequences (and the other way around) and between every
         // Sequence read from the input (original sequence from the ZSTD stream).
         let (tok1_2, wr_resp, wr_resp_valid) =
-            recv_non_blocking(tok0, ram_comp_output_r, zero!<RamWrRespHandlerResp>());
+            recv_non_blocking(tok0, ram_comp_output_r, zero!<RamWrRespHandlerResp<RAM_ADDR_WIDTH>>());
         if wr_resp_valid {
             trace_fmt!("[SequenceExecutor] Received completion update");
         } else { };
