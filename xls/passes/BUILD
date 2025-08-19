@@ -1052,6 +1052,7 @@ xls_pass(
         "//xls/ir:bits",
         "//xls/ir:function_builder",
         "//xls/ir:op",
+        "//xls/ir:value",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
