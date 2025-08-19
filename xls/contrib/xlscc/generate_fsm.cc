@@ -179,6 +179,119 @@ absl::StatusOr<NewFSMLayout> NewFSMGenerator::LayoutNewFSM(
     PrintNewFSMStates(ret);
   }
 
+  // Plan the state elements
+  //
+  // State elements may be shared by multiple continuation values if the values
+  // have the same type and are not saved in the same state (slice + jump flags)
+  //
+  // For optimization purposes, such as narrowing, it is better that the values
+  // saved in a state element share semantics. Therefore, Clang NamedDecls are
+  // used to identify values that may share a state element.
+  absl::flat_hash_map<const clang::NamedDecl*, std::vector<int64_t>>
+      state_element_indices_by_decl;
+
+  for (const NewFSMState& state : ret.states) {
+    // Only need to save continuation values on activation transitions
+    if (!ret.transition_by_slice_from_index.contains(state.slice_index)) {
+      continue;
+    }
+
+    // A state element can only be used once in a given transition
+    absl::flat_hash_set<int64_t> used_state_element_indices;
+
+    // Mark reserved elements
+    for (const ContinuationValue* value : state.values_to_save) {
+      if (!ret.state_element_by_continuation_value.contains(value)) {
+        continue;
+      }
+      used_state_element_indices.insert(
+          ret.state_element_by_continuation_value.at(value));
+    }
+
+    for (const ContinuationValue* value : state.values_to_save) {
+      if (ret.state_element_by_continuation_value.contains(value)) {
+        continue;
+      }
+      // This value has not already been assigned a state element
+      // Try to find state elements to share by decl
+      std::optional<int64_t> found_element_by_decl = std::nullopt;
+      std::vector<const clang::NamedDecl*> decls;
+      for (const clang::NamedDecl* decl : value->decls) {
+        decls.push_back(decl);
+      }
+      func.SortNamesDeterministically(decls);
+
+      for (const clang::NamedDecl* decl : decls) {
+        if (!state_element_indices_by_decl.contains(decl)) {
+          continue;
+        }
+        const std::vector<int64_t>& elements_for_this_decl =
+            state_element_indices_by_decl.at(decl);
+        for (const int64_t element_for_decl_index : elements_for_this_decl) {
+          if (used_state_element_indices.contains(element_for_decl_index)) {
+            continue;
+          }
+          XLSCC_CHECK(ret.state_elements.at(element_for_decl_index)
+                          .type->IsEqualTo(value->output_node->GetType()),
+                      body_loc);
+          found_element_by_decl = element_for_decl_index;
+          break;
+        }
+        if (found_element_by_decl.has_value()) {
+          break;
+        }
+      }
+
+      int64_t element_index = found_element_by_decl.value_or(-1);
+
+      // Create a new state element if none were found to share
+      if (!found_element_by_decl.has_value()) {
+        NewFSMStateElement state_element = {
+            .name =
+                absl::StrFormat("%s_slc_%li", value->name, state.slice_index),
+            .type = value->output_node->GetType(),
+        };
+        ret.state_elements.push_back(state_element);
+        element_index = ret.state_elements.size() - 1;
+        ret.state_element_by_continuation_value[value] = element_index;
+      }
+
+      // Mark element used for this value in this transition
+      XLSCC_CHECK_GE(element_index, 0, body_loc);
+      XLSCC_CHECK_LT(element_index, ret.state_elements.size(), body_loc);
+      ret.state_element_by_continuation_value[value] = element_index;
+      used_state_element_indices.insert(element_index);
+      for (const clang::NamedDecl* decl : decls) {
+        state_element_indices_by_decl[decl].push_back(element_index);
+      }
+    }
+  }
+
+  if (debug_ir_trace_flags_ & DebugIrTraceFlags_FSMStates) {
+    int64_t total_bits = 0;
+    for (const NewFSMStateElement& elem : ret.state_elements) {
+      total_bits += elem.type->GetFlatBitCount();
+    }
+    LOG(INFO) << "State elements allocated, total " << total_bits << " bits:";
+    for (int64_t elem_idx = 0; elem_idx < ret.state_elements.size();
+         ++elem_idx) {
+      const NewFSMStateElement& elem = ret.state_elements.at(elem_idx);
+      std::vector<std::string> value_names;
+      for (const auto& [value, value_elem_index] :
+           ret.state_element_by_continuation_value) {
+        if (value_elem_index != elem_idx) {
+          continue;
+        }
+        value_names.push_back(
+            absl::StrFormat("%s from slice %li", value->name,
+                            ret.output_slice_index_by_value.at(value)));
+      }
+      LOG(INFO) << absl::StrFormat("    %s (%s), values: %s", elem.name,
+                                   elem.type->ToString(),
+                                   absl::StrJoin(value_names, ", "));
+    }
+  }
+
   return ret;
 }
 absl::Status NewFSMGenerator::LayoutNewFSMStates(
@@ -392,7 +505,7 @@ absl::Status NewFSMGenerator::LayoutValuesToSaveForNewFSMStates(
   return absl::OkStatus();
 }
 
-void NewFSMGenerator::PrintNewFSMStates(const NewFSMLayout& layout) {
+std::string NewFSMGenerator::GetStateName(const NewFSMState& state) {
   auto jump_infos_string =
       [](const std::vector<JumpInfo>& jump_infos) -> std::string {
     std::vector<std::string> ret;
@@ -404,12 +517,30 @@ void NewFSMGenerator::PrintNewFSMStates(const NewFSMLayout& layout) {
     }
     return absl::StrJoin(ret, ",");
   };
+  return absl::StrFormat("  [slc %li j %s]: ", state.slice_index,
+                         jump_infos_string(state.jumped_from_slice_indices));
+}
 
+std::string NewFSMGenerator::GetIRStateName(const NewFSMState& state) {
+  auto jump_infos_string =
+      [](const std::vector<JumpInfo>& jump_infos) -> std::string {
+    std::vector<std::string> ret;
+    for (const JumpInfo& jump_info : jump_infos) {
+      std::string str;
+      absl::StrAppendFormat(&str, "{%li,c = %li}", jump_info.from_slice,
+                            jump_info.count);
+      ret.push_back(str);
+    }
+    return absl::StrJoin(ret, "_");
+  };
+  return absl::StrFormat("state_%li__%s", state.slice_index,
+                         jump_infos_string(state.jumped_from_slice_indices));
+}
+
+void NewFSMGenerator::PrintNewFSMStates(const NewFSMLayout& layout) {
   LOG(INFO) << absl::StrFormat("States %li, inputs:", layout.states.size());
   for (const NewFSMState& state : layout.states) {
-    LOG(INFO) << absl::StrFormat(
-        "  [slc %li j %s]: ", state.slice_index,
-        jump_infos_string(state.jumped_from_slice_indices).c_str());
+    LOG(INFO) << GetStateName(state);
     for (const auto& [input_param, continuation_out] :
          state.current_inputs_by_input_param) {
       LOG(INFO) << absl::StrFormat(
@@ -421,12 +552,14 @@ void NewFSMGenerator::PrintNewFSMStates(const NewFSMLayout& layout) {
   LOG(INFO) << absl::StrFormat("States %li, values to save:",
                                layout.states.size());
   for (const NewFSMState& state : layout.states) {
-    LOG(INFO) << absl::StrFormat(
-        "  [slc %li j %s]: ", state.slice_index,
-        jump_infos_string(state.jumped_from_slice_indices).c_str());
+    int64_t num_bits = 0;
+    for (const ContinuationValue* value : state.values_to_save) {
+      num_bits += value->output_node->GetType()->GetFlatBitCount();
+    }
+    LOG(INFO) << GetStateName(state) << ": " << num_bits << " bits to save";
     for (const ContinuationValue* value : state.values_to_save) {
       LOG(INFO) << absl::StrFormat(
-          "    v %s slice %li (%li bits)", value->name.c_str(),
+          "    v %s (%p) slice %li (%li bits)", value->name.c_str(), value,
           layout.output_slice_index_by_value.at(value),
           value->output_node->GetType()->GetFlatBitCount());
     }
@@ -527,36 +660,30 @@ NewFSMGenerator::GenerateNewFSMInvocation(
   absl::flat_hash_map<const ContinuationValue*, TrackedBValue>
       value_by_continuation_value;
 
-  // TODO(seanhaskell): Re-use these by same decl
   absl::flat_hash_map<const ContinuationValue*, TrackedBValue>
       state_element_by_continuation_value;
 
-  {
-    absl::flat_hash_set<const ContinuationValue*> all_values_to_save;
-    for (const NewFSMState& state : layout.states) {
-      for (const ContinuationValue* value : state.values_to_save) {
-        all_values_to_save.insert(value);
-      }
-    }
+  absl::flat_hash_map<int64_t, std::vector<const ContinuationValue*>>
+      values_by_state_element_index;
 
-    int64_t slice_index = 0;
-    for (const GeneratedFunctionSlice& slice : func.slices) {
-      for (const ContinuationValue& continuation_out :
-           slice.continuations_out) {
-        // Create state elements only for values to save from analysis
-        if (!all_values_to_save.contains(&continuation_out)) {
-          continue;
-        }
+  for (const auto& [value, index] :
+       layout.state_element_by_continuation_value) {
+    values_by_state_element_index[index].push_back(value);
+  }
 
-        TrackedBValue state_element = pb.StateElement(
-            /*name=*/absl::StrFormat("__slice_%li_cont_%s_%li", slice_index,
-                                     continuation_out.name,
-                                     layout.index_by_slice.at(&slice)),
-            xls::ZeroOfType(continuation_out.output_node->GetType()), body_loc);
+  // Create state elements
+  // Loop over vector for determinism
+  for (int64_t state_element_index = 0;
+       state_element_index < layout.state_elements.size();
+       ++state_element_index) {
+    const NewFSMStateElement& state_element =
+        layout.state_elements.at(state_element_index);
+    TrackedBValue xls_state_element = pb.StateElement(
+        state_element.name, xls::ZeroOfType(state_element.type), body_loc);
 
-        state_element_by_continuation_value[&continuation_out] = state_element;
-      }
-      ++slice_index;
+    for (const ContinuationValue* value :
+         values_by_state_element_index.at(state_element_index)) {
+      state_element_by_continuation_value[value] = xls_state_element;
     }
   }
 
@@ -715,20 +842,6 @@ NewFSMGenerator::GenerateNewFSMInvocation(
           /*name=*/
           absl::StrFormat("select_active_or_prev_slice_%li_cont_%s",
                           slice_index, continuation_out.name));
-
-      // Generate next values for state elements
-      NextStateValue next_value = {
-          .value = value_out,
-          .condition = slice_active,
-      };
-
-      // Generate next values
-      extra_next_state_values.insert(
-          {state_element_by_continuation_value.at(&continuation_out)
-               .node()
-               ->As<xls::StateRead>()
-               ->state_element(),
-           next_value});
     }
 
     if (is_last_slice) {
@@ -827,6 +940,58 @@ NewFSMGenerator::GenerateNewFSMInvocation(
                .value = jump_to_slice_index,
                .condition = jump_condition,
            }});
+
+      // Sorted for determinism
+      absl::btree_set<int64_t> from_jump_slice_indices;
+      for (const NewFSMState& state : layout.states) {
+        if (state.slice_index != slice_index) {
+          continue;
+        }
+        for (const JumpInfo& jump_info : state.jumped_from_slice_indices) {
+          from_jump_slice_indices.insert(jump_info.from_slice);
+        }
+      }
+
+      // Create a next value for each state for this slice
+      for (const NewFSMState& state : layout.states) {
+        if (state.slice_index != slice_index) {
+          continue;
+        }
+
+        absl::btree_set<int64_t> jumped_from_slice_indices_this_state;
+        for (const JumpInfo& jump_info : state.jumped_from_slice_indices) {
+          jumped_from_slice_indices_this_state.insert(jump_info.from_slice);
+        }
+
+        XLS_ASSIGN_OR_RETURN(
+            TrackedBValue state_active_condition,
+            GeneratePhiCondition(from_jump_slice_indices,
+                                 jumped_from_slice_indices_this_state,
+                                 state_element_by_jump_slice_index, pb,
+                                 state.slice_index, body_loc));
+
+        TrackedBValue next_value_condition =
+            pb.And(state_active_condition, jump_condition, body_loc,
+                   /*name=*/GetIRStateName(state));
+
+        for (const ContinuationValue* continuation_out : state.values_to_save) {
+          // Generate next values for state elements
+          NextStateValue next_value = {
+              .priority = 0,
+              .value = value_by_continuation_value.at(continuation_out),
+              .condition = next_value_condition,
+          };
+
+          xls::StateElement* state_elem =
+              state_element_by_continuation_value.at(continuation_out)
+                  .node()
+                  ->As<xls::StateRead>()
+                  ->state_element();
+
+          // Generate next values
+          extra_next_state_values.insert({state_elem, next_value});
+        }
+      }
     }
   }
 
@@ -857,6 +1022,41 @@ NewFSMGenerator::GenerateNewFSMInvocation(
       .return_value = return_value,
       .returns_this_activation = finished_iteration,
       .extra_next_state_values = extra_next_state_values};
+}
+
+absl::StatusOr<TrackedBValue> NewFSMGenerator::GeneratePhiCondition(
+    const absl::btree_set<int64_t>& from_jump_slice_indices,
+    const absl::btree_set<int64_t>& jumped_from_slice_indices_this_state,
+    const absl::flat_hash_map<int64_t, TrackedBValue>&
+        state_element_by_jump_slice_index,
+    xls::ProcBuilder& pb, int64_t slice_index,
+    const xls::SourceInfo& body_loc) {
+  TrackedBValue condition = pb.Literal(xls::UBits(1, 1), body_loc);
+
+  // Include all jump slices in each condition
+  for (int64_t from_jump_slice_index : from_jump_slice_indices) {
+    TrackedBValue jump_state_element =
+        state_element_by_jump_slice_index.at(from_jump_slice_index);
+    const int64_t active_value =
+        jumped_from_slice_indices_this_state.contains(from_jump_slice_index)
+            ? 1
+            : 0;
+    TrackedBValue condition_part =
+        pb.Eq(jump_state_element,
+              pb.Literal(xls::UBits(active_value, 1), body_loc,
+                         /*name=*/
+                         absl::StrFormat("slice_%li_from_jump_slice_%li_active",
+                                         slice_index, from_jump_slice_index)));
+
+    condition =
+        pb.And(condition, condition_part, body_loc,
+               /*name=*/
+               absl::StrFormat(
+                   "slice_%li_%s__phi_condition", slice_index,
+                   absl::StrJoin(jumped_from_slice_indices_this_state, "_")));
+  }
+
+  return condition;
 }
 
 absl::StatusOr<
@@ -899,32 +1099,14 @@ NewFSMGenerator::GeneratePhiConditions(
       for (const JumpInfo& jump_info : state->jumped_from_slice_indices) {
         jumped_from_slice_indices_this_state.insert(jump_info.from_slice);
       }
-      TrackedBValue condition = pb.Literal(xls::UBits(1, 1), body_loc);
 
-      // Include all jump slices in each condition
-      for (int64_t from_jump_slice_index : from_jump_slice_indices) {
-        TrackedBValue jump_state_element =
-            state_element_by_jump_slice_index.at(from_jump_slice_index);
-        const int64_t active_value =
-            jumped_from_slice_indices_this_state.contains(from_jump_slice_index)
-                ? 1
-                : 0;
-        TrackedBValue condition_part = pb.Eq(
-            jump_state_element,
-            pb.Literal(
-                xls::UBits(active_value, 1), body_loc,
-                /*name=*/
-                absl::StrFormat("slice_%li_param_%s_from_jump_slice_%li_active",
-                                state->slice_index, param->name(),
-                                from_jump_slice_index)));
+      XLS_ASSIGN_OR_RETURN(
+          TrackedBValue condition,
+          GeneratePhiCondition(from_jump_slice_indices,
+                               jumped_from_slice_indices_this_state,
+                               state_element_by_jump_slice_index, pb,
+                               state->slice_index, body_loc));
 
-        condition = pb.And(
-            condition, condition_part, body_loc,
-            /*name=*/
-            absl::StrFormat(
-                "slice_%li_jump__%s__phi_condition", state->slice_index,
-                absl::StrJoin(jumped_from_slice_indices_this_state, "_")));
-      }
       PhiElement& phi_element = phi_elements.emplace_back();
       phi_element.value = state->current_inputs_by_input_param.at(param);
       phi_element.condition = condition;

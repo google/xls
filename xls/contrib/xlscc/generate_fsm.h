@@ -41,6 +41,14 @@ struct JumpInfo {
   int64_t count = 0;
 };
 
+// For determinism
+struct ContinuationValuePointerComparator {
+  bool operator()(const ContinuationValue* lhs,
+                  const ContinuationValue* rhs) const {
+    return lhs->output_node->id() < rhs->output_node->id();
+  }
+};
+
 struct NewFSMState {
   // Conditions to be in the state
   int64_t slice_index = -1;
@@ -50,16 +58,20 @@ struct NewFSMState {
   absl::flat_hash_map<const xls::Param*, const ContinuationValue*>
       current_inputs_by_input_param;
 
-  // Values used after this state
-
-  // TODO(seanhaskell): Use this for FSM generation
-  absl::flat_hash_set<const ContinuationValue*> values_to_save;
+  // Values used after this state. Ordered for determinism.
+  absl::btree_set<const ContinuationValue*, ContinuationValuePointerComparator>
+      values_to_save;
 };
 
 struct NewFSMActivationTransition {
   int64_t from_slice = -1;
   int64_t to_slice = -1;
   bool unconditional_forward = false;
+};
+
+struct NewFSMStateElement {
+  std::string name;
+  xls::Type* type = nullptr;
 };
 
 // Provides the necessary information to generate an FSM.
@@ -77,6 +89,10 @@ struct NewFSMLayout {
       output_slice_index_by_value;
   absl::flat_hash_map<int64_t, NewFSMActivationTransition>
       transition_by_slice_from_index;
+
+  std::vector<NewFSMStateElement> state_elements;
+  absl::flat_hash_map<const ContinuationValue*, int64_t>
+      state_element_by_continuation_value;
 };
 
 // This class implements the New FSM in a separate module from the monolithic
@@ -128,6 +144,14 @@ class NewFSMGenerator : public GeneratorBase {
                             state_element_by_jump_slice_index,
                         xls::ProcBuilder& pb, const xls::SourceInfo& body_loc);
 
+  absl::StatusOr<TrackedBValue> GeneratePhiCondition(
+      const absl::btree_set<int64_t>& from_jump_slice_indices,
+      const absl::btree_set<int64_t>& jumped_from_slice_indices_this_state,
+      const absl::flat_hash_map<int64_t, TrackedBValue>&
+          state_element_by_jump_slice_index,
+      xls::ProcBuilder& pb, int64_t slice_index,
+      const xls::SourceInfo& body_loc);
+
   absl::StatusOr<std::optional<TrackedBValue>> GenerateInputValueInContext(
       const xls::Param* param,
       const absl::flat_hash_map<int64_t, std::vector<PhiElement>>&
@@ -142,6 +166,8 @@ class NewFSMGenerator : public GeneratorBase {
                                             const xls::SourceInfo& body_loc);
 
   void PrintNewFSMStates(const NewFSMLayout& layout);
+  std::string GetStateName(const NewFSMState& state);
+  std::string GetIRStateName(const NewFSMState& state);
 
  private:
   TranslatorIOInterface& translator_io_;
