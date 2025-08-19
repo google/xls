@@ -114,7 +114,8 @@ class ProveQuickcheckMainTest(test_base.TestCase):
     #[quickcheck]
     fn qc_never_42(x: u8) -> bool { x != u8:42 }
     """
-    self._prove_quickcheck(program, test_filter='qc_a*')
+    _, stderr = self._prove_quickcheck(program, test_filter='qc_a*')
+    self.assertNotIn('[ RUN QUICKCHECK        ] qc_never_42', stderr)
 
 
 if __name__ == '__main__':
