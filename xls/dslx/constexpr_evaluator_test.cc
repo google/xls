@@ -62,15 +62,12 @@ struct TestData {
 
 absl::StatusOr<TestData> CreateTestData(std::string_view module_text) {
   auto import_data = std::make_unique<ImportData>(CreateImportDataForTest());
-  Scanner s(import_data->file_table(), Fileno(0), std::string(module_text));
-  Parser parser{"test", &s};
 
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module, parser.ParseModule());
-  XLS_ASSIGN_OR_RETURN(TypecheckedModule typechecked_module,
-                       TypecheckModule(std::move(module),
-                                       /*path=*/"test", import_data.get()));
-  return TestData{typechecked_module.module, std::move(import_data),
-                  typechecked_module.type_info};
+  XLS_ASSIGN_OR_RETURN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(module_text, "test.x", "test", import_data.get()));
+
+  return TestData{tm.module, std::move(import_data), tm.type_info};
 }
 
 absl::StatusOr<Type*> GetType(TypeInfo* ti, Expr* expr) {
