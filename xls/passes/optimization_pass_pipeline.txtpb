@@ -203,11 +203,6 @@ compound_passes: [
     short_name: "post-inlining-opt"
     passes: [
       "fixedpoint_simp(2)",
-      # Wait until inlining is finished before splitting out non-synthesizable
-      # nodes.
-      "non_synth_separation",
-      "dce",
-      "fixedpoint_simp(2)",
       # We previously ran cond_spec(noBdd) as part of fixedpoint_simp, but found
       # it was not beneficial and showed up as hot on profiles. There's some
       # evidence that it is helpful for reducing memory usage, though, so we
@@ -310,11 +305,7 @@ compound_passes: [
       "dce",
       "select_merge",
       "dce",
-      "fixedpoint_simp(3)",
-      # Perform inlining after major optimizations to bring non-synthesizable
-      # nodes back into the main function.
-      "inlining",
-      "dfe"
+      "fixedpoint_simp(3)"
     ]
     comment: "Passes performed after inlining"
   },

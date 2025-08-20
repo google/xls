@@ -799,9 +799,6 @@ Passes performed after inlining
 
 
 - [fixedpoint_simp(2)](#fixedpoint_simp2)
-- [non_synth_separation](#non_synth_separation)
-- [dce](#dce)
-- [fixedpoint_simp(2)](#fixedpoint_simp2)
 - [cond_spec(noBdd)](#cond_specnoBdd)
 - [dce](#dce)
 - [bdd_simp(2)](#bdd_simp2)
@@ -873,8 +870,6 @@ Passes performed after inlining
 - [select_merge](#select_merge)
 - [dce](#dce)
 - [fixedpoint_simp(3)](#fixedpoint_simp3)
-- [inlining](#inlining)
-- [dfe](#dfe)
 
 
 
