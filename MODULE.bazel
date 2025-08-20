@@ -64,3 +64,13 @@ bazel_dep(name = "protoc-gen-validate", version = "1.2.1.bcr.1")
 
 # compilation DB; build_cleaner
 bazel_dep(name = "bant", version = "0.2.2", dev_dependency = True)
+
+# Hedron's Compile Commands Extractor for Bazel
+# https://github.com/hedronvision/bazel-compile-commands-extractor
+bazel_dep(name = "hedron_compile_commands", dev_dependency = True)
+git_override(
+    module_name = "hedron_compile_commands",
+    remote = "https://github.com/hedronvision/bazel-compile-commands-extractor.git",
+    # Updated 2025/08/19.
+    commit = "abb61a688167623088f8768cc9264798df6a9d10",
+)
