@@ -3352,7 +3352,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest,
   ExpectIr(converted);
 }
 
-TEST_P(IrConverterWithBothTypecheckVersionsTest, ChannelDecl) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, InvalidChannelDecl) {
   constexpr std::string_view kProgram = R"(fn main() {
   let _ = chan<u8>("my_chan");
   ()
@@ -3362,10 +3362,31 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, ChannelDecl) {
   options.emit_positions = false;
   options.verify_ir = false;
   auto import_data = CreateImportDataForTest();
-  EXPECT_THAT(
-      ConvertOneFunctionForTest(kProgram, "main", import_data, options),
-      StatusIs(absl::StatusCode::kInternal,
-               HasSubstr("Channel declarations should only be encountered")));
+  EXPECT_THAT(ConvertOneFunctionForTest(kProgram, "main", import_data, options),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Channels can only be declared in")));
+}
+
+TEST_P(IrConverterWithBothTypecheckVersionsTest, InvalidSpawn) {
+  constexpr std::string_view kProgram = R"(
+proc p {
+  init { () }
+  config() { () }
+  next(state: ()) { state }
+}
+
+fn main() {
+  spawn p();
+}
+)";
+  ConvertOptions options;
+  options.emit_fail_as_assert = false;
+  options.emit_positions = false;
+  options.verify_ir = false;
+  auto import_data = CreateImportDataForTest();
+  EXPECT_THAT(ConvertOneFunctionForTest(kProgram, "main", import_data, options),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Functions cannot spawn procs")));
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
@@ -4634,7 +4655,7 @@ pub proc main {
   ExpectIr(converted);
 }
 
-TEST_P(ProcScopedChannelsIrConverterTest, ChannelDeclBadAssignment) {
+TEST_P(ProcScopedChannelsIrConverterTest, InvalidChannelDeclAssignment) {
   constexpr std::string_view kProgram = R"(
 pub proc main {
   init { }
@@ -4681,6 +4702,28 @@ proc main {
                                     .lower_to_proc_scoped_channels = true,
                                 }));
   ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, InvalidChannelDeclInNext) {
+  constexpr std::string_view kProgram = R"(
+pub proc main {
+  init { }
+  config() { () }
+  next(state: ()) {
+    let (a, b) = chan<u32>("data_0");
+    state
+  }
+}
+)";
+
+  EXPECT_THAT(
+      ConvertOneFunctionForTest(kProgram, "main",
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("Channels can only be declared in")));
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ConvertWithoutTests) {

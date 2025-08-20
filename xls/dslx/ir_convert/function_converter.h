@@ -610,6 +610,9 @@ class FunctionConverter {
 
   // If the function is the entry function resulting in a top entity in the IR.
   bool is_top_;
+
+  // The current type of function being processed.
+  FunctionTag current_fn_tag_ = FunctionTag::kNormal;
 };
 
 }  // namespace xls::dslx

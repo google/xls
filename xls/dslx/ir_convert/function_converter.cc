@@ -3071,6 +3071,12 @@ absl::Status FunctionConverter::HandleSpawn(const Spawn* node) {
   XLS_RET_CHECK_NE(builder_ptr, nullptr)
       << "Spawn nodes should only be encountered during proc conversion; "
          "we seem to be in function conversion.";
+  if (current_fn_tag_ != FunctionTag::kProcConfig) {
+    // Make sure this is only called from a proc config method.
+    return IrConversionErrorStatus(
+        node->span(), "Procs can only be spawned in a proc `config` method.",
+        file_table());
+  }
 
   // Get the ir proc from the map via the config.
   const Invocation* config = node->config();
@@ -3097,13 +3103,22 @@ absl::Status FunctionConverter::HandleChannelDecl(const ChannelDecl* node) {
   VLOG(5) << "HandleChannelDecl: " << node->ToString();
   ProcBuilder* builder_ptr =
       dynamic_cast<ProcBuilder*>(function_builder_.get());
-  XLS_RET_CHECK_NE(builder_ptr, nullptr)
-      << "Channel declarations should only be encountered during proc "
-         "conversion; we seem to be in function conversion.";
+  if (builder_ptr == nullptr) {
+    return IrConversionErrorStatus(
+        node->span(),
+        "Channels can only be declared in a proc `config` method.",
+        file_table());
+  }
   XLS_RET_CHECK(options_.lower_to_proc_scoped_channels)
-      << "Should not call FunctionConverter::HandleChannelDecl when not "
-         "lowering to proc-scoped channels";
-  // TODO: davidplass - make sure this is only called from a proc config method.
+      << "Should only call FunctionConverter::HandleChannelDecl when lowering "
+         "to proc-scoped channels";
+  if (current_fn_tag_ != FunctionTag::kProcConfig) {
+    // Make sure this is only called from a proc config method.
+    return IrConversionErrorStatus(
+        node->span(),
+        "Channels can only be declared in a proc `config` method.",
+        file_table());
+  }
 
   // Evaluate the name to a constant and get the type
   XLS_ASSIGN_OR_RETURN(
@@ -3265,12 +3280,15 @@ absl::Status FunctionConverter::HandleProcNextFunction(
   if (options_.lower_to_proc_scoped_channels) {
     for (const Param* param : config_fn.params()) {
       XLS_ASSIGN_OR_RETURN(Type * type, type_info->GetItemOrError(param));
+      // TODO: davidplass - deal with channel arrays as params.
       XLS_RET_CHECK_NE(dynamic_cast<ChannelType*>(type), nullptr)
           << "Cannot have non-channel arguments to a `config` function "
              "anymore. Use a parametric on the proc instead.";
     }
     // Process the body of the config function as a function.
+    current_fn_tag_ = config_fn.tag();
     XLS_RETURN_IF_ERROR(Visit(config_fn.body()));
+    current_fn_tag_ = f->tag();
   }
 
   XLS_RETURN_IF_ERROR(Visit(f->body()));
