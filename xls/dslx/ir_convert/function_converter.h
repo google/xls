@@ -224,7 +224,7 @@ class FunctionConverter {
   // Every AST node has an "IR value" that is either a function builder value
   // (BValue) or its IR-conversion-time-constant-decorated cousin (CValue), or
   // an inter-proc Channel.
-  using IrValue = std::variant<BValue, CValue, Channel*>;
+  using IrValue = std::variant<BValue, CValue, Channel*, ChannelInterface*>;
 
   // Helper for converting an IR value to its BValue pointer for use in
   // debugging.
@@ -613,6 +613,10 @@ class FunctionConverter {
 
   // The current type of function being processed.
   FunctionTag current_fn_tag_ = FunctionTag::kNormal;
+
+  // The last tuple converted. Used for mapping the return tuple of a proc
+  // `config` method to actual proc members.
+  std::vector<BValue> last_tuple_;
 };
 
 }  // namespace xls::dslx
