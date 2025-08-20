@@ -427,6 +427,20 @@ TEST(ParserErrorTest, SelfTypeOutsideImplReturnType) {
                  HasSubstr("Type `Self` cannot be used outside of an `impl`")));
 }
 
+TEST(ParserErrorTest, RecursionInReturnTypeDefinition) {
+  // The function name should not be in scope while parsing its signature;
+  // referencing it in the return type should be a parse-time name error.
+  constexpr std::string_view kProgram = "fn p()->xN[p()]{}";
+  FileTable file_table;
+  Scanner s{file_table, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
+  EXPECT_THAT(
+      module.status(),
+      IsPosError("ParseError",
+                 HasSubstr("Cannot find a definition for name: \"p\"")));
+}
+
 TEST(ParserErrorTest, ImplUsingMisnamedSelf) {
   constexpr std::string_view kProgram = R"(struct foo { }
 impl foo {
