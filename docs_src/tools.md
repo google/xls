@@ -17,6 +17,12 @@ tool may be run against arbitrary IR not just the fixed set of XLS benchmarks.
 The output of this tool is scraped by `run_benchmarks` to construct a table
 comparing metrics against a mint CL across the benchmark suite.
 
+## [`block_to_verilog_main`](https://github.com/google/xls/tree/main/xls/tools/block_to_verilog_main.cc)
+
+Lowers a XLS IR file containing a block into Verilog. This the final step of
+what `codegen_main` performs. This tool accepts the same codegen options as
+`codegen_main`.
+
 ## [`booleanify_main`](https://github.com/google/xls/tree/main/xls/dev_tools/booleanify_main.cc)
 
 Rewrites an XLS IR function in terms of its ops' fundamental AND/OR/NOT

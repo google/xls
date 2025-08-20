@@ -701,6 +701,8 @@ cc_library(
     deps = [
         ":codegen_flags_cc_proto",
         ":scheduling_options_flags_cc_proto",
+        "//xls/codegen:block_generator",
+        "//xls/codegen:block_metrics",
         "//xls/codegen:codegen_options",
         "//xls/codegen:codegen_result",
         "//xls/codegen:combinational_generator",
@@ -725,6 +727,7 @@ cc_library(
         "//xls/scheduling:scheduling_pass",
         "//xls/scheduling:scheduling_pass_pipeline",
         "//xls/scheduling:scheduling_result",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
@@ -756,6 +759,32 @@ cc_binary(
         "//xls/scheduling:pipeline_schedule",
         "//xls/scheduling:scheduling_options",
         "//xls/scheduling:scheduling_result",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_binary(
+    name = "block_to_verilog_main",
+    srcs = ["block_to_verilog_main.cc"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":codegen",
+        ":codegen_flags",
+        ":codegen_flags_cc_proto",
+        "//xls/codegen:codegen_result",
+        "//xls/codegen:module_signature",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/dev_tools:tool_timeout",
+        "//xls/ir:ir_parser",
+        "//xls/ir:verifier",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
@@ -811,6 +840,21 @@ py_test(
     deps = [
         "//xls/common:runfiles",
         "//xls/common:test_base",
+    ],
+)
+
+py_test(
+    name = "block_to_verilog_main_test",
+    srcs = ["block_to_verilog_main_test.py"],
+    data = [
+        ":block_to_verilog_main",
+    ],
+    deps = [
+        "//xls/codegen:module_signature_py_pb2",
+        "//xls/common:runfiles",
+        "//xls/common:test_base",
+        "@abseil-py//absl/testing:absltest",
+        "@com_google_protobuf//:protobuf_python",
     ],
 )
 
