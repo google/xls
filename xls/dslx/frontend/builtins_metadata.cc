@@ -48,10 +48,26 @@ const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins() {
           // Typically built-ins are done as AST nodes if they require some
           // special syntactic construct that is not capable of being handled
           // with the normal grammar.
-          {"all_ones!", {.signature = "() -> T", .is_ast_node = true}},
-          {"zero!", {.signature = "() -> T", .is_ast_node = true}},
-          {"trace_fmt!", {.signature = "(T) -> T", .is_ast_node = true}},
-          {"vtrace_fmt!", {.signature = "(u32, T) -> T", .is_ast_node = true}},
+          {"all_ones!",
+           {.signature = "() -> T",
+            .is_ast_node = true,
+            .requires_implicit_token = false,
+            .allows_explicit_parametrics = true}},
+          {"zero!",
+           {.signature = "() -> T",
+            .is_ast_node = true,
+            .requires_implicit_token = false,
+            .allows_explicit_parametrics = true}},
+          {"trace_fmt!",
+           {.signature = "(T) -> T",
+            .is_ast_node = true,
+            .requires_implicit_token = false,
+            .allows_explicit_parametrics = false}},
+          {"vtrace_fmt!",
+           {.signature = "(u32, T) -> T",
+            .is_ast_node = true,
+            .requires_implicit_token = false,
+            .allows_explicit_parametrics = false}},
 
           // -- Normal built-in functions
           //

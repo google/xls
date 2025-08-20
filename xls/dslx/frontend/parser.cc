@@ -2467,6 +2467,36 @@ absl::StatusOr<Expr*> Parser::ParseTermRhs(Expr* lhs, Bindings& outer_bindings,
 
       XLS_ASSIGN_OR_RETURN(bool has_open_paren,
                            PeekTokenIs(TokenKind::kOParen));
+      // Disallow explicit parametrics (even empty) for AST-node builtins that
+      // do not accept parametrics per metadata. Expand the error span to cover
+      // the full invocation (up to the closing ')') if present.
+      if (auto* name_ref = dynamic_cast<NameRef*>(lhs)) {
+        if (auto* builtin = TryGet<BuiltinNameDef*>(name_ref->name_def())) {
+          std::string name = builtin->identifier();
+          const auto& meta = GetParametricBuiltins();
+          if (auto it = meta.find(name); it != meta.end()) {
+            const BuiltinsData& data = it->second;
+            if (data.is_ast_node && !data.allows_explicit_parametrics) {
+              Pos end_pos = GetPos();
+              if (has_open_paren) {
+                CHECK_OK(PopToken().status());
+                Bindings* b = sub_txn.bindings();
+                XLS_ASSIGN_OR_RETURN(
+                    std::vector<Expr*> ignored_args,
+                    ParseCommaSeq<Expr*>(
+                        [b, this] { return ParseExpression(*b); },
+                        TokenKind::kCParen));
+                end_pos = GetPos();
+              }
+              return ParseErrorStatus(
+                  Span(new_pos, end_pos),
+                  absl::Substitute(
+                      "$0 macro does not expect parametric arguments.", name));
+            }
+          }
+        }
+      }
+
       if (!has_open_paren) {
         sub_txn.CommitAndCancelCleanup(&sub_cleanup);
         return module_->Make<FunctionRef>(lhs->span(), lhs, *parametrics);

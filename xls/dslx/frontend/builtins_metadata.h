@@ -36,6 +36,14 @@ struct BuiltinsData {
   // but built-ins that demand a token like `assert!`, `cover!`, `fail!` etc do
   // have this set.
   bool requires_implicit_token = false;
+
+  // Indicates whether the builtin permits explicit parametric instantiation
+  // via angle brackets at the callsite; e.g. `zero!<T>()`.
+  //
+  // Defaults to false. Only a small subset of AST-node builtins (e.g. `zero!`,
+  // `all_ones!`) should set this to true. Non-AST builtins are not gated by
+  // this flag.
+  bool allows_explicit_parametrics = false;
 };
 
 // Map from the name of the parametric builtin function; e.g. `assert_eq` to a
