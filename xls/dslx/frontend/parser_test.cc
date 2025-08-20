@@ -735,6 +735,22 @@ TEST(ParserErrorTest, ParseErrorForImplWithoutStructDef) {
       IsPosError("ParseError", HasSubstr("Cannot find a definition for name")));
 }
 
+TEST(ParserErrorTest, TypeKeywordInPatternPositionIsParseError) {
+  constexpr std::string_view kProgram = R"(fn f(x: u2) -> u2 {
+    match 0 {
+      type
+    }
+  })";
+
+  FileTable file_table;
+  Scanner s{file_table, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
+  EXPECT_THAT(module.status(),
+              IsPosError("ParseError",
+                         HasSubstr("Expected pattern; got keyword:type")));
+}
+
 TEST_F(ParserTest, StructDefRoundTrip) {
   RoundTrip(R"(pub struct foo<A: u32, B: bits[16]> {
     a: bits[A],
