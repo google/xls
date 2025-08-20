@@ -3362,9 +3362,10 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, ChannelDecl) {
   options.emit_positions = false;
   options.verify_ir = false;
   auto import_data = CreateImportDataForTest();
-  EXPECT_THAT(ConvertOneFunctionForTest(kProgram, "main", import_data, options),
-              StatusIs(absl::StatusCode::kUnimplemented,
-                       HasSubstr("AST node unsupported for IR conversion:")));
+  EXPECT_THAT(
+      ConvertOneFunctionForTest(kProgram, "main", import_data, options),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("Channel declarations should only be encountered")));
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
@@ -4584,6 +4585,102 @@ pub proc main {
       StatusIs(
           absl::StatusCode::kInternal,
           HasSubstr("Cannot lower a parametric proc without an invocation")));
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, ChannelDecl) {
+  constexpr std::string_view kProgram = R"(
+pub proc main {
+  init { }
+  config() {
+    let (a, b) = chan<u32>("data_0");
+    ()
+  }
+  next(state: ()) { state }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, ChannelDeclIgnoreHalf) {
+  constexpr std::string_view kProgram = R"(
+pub proc main {
+  init { }
+  config() {
+    let (a, _) = chan<u32>("data_0");
+    let (_, b) = chan<u16>("data_1");
+    ()
+  }
+  next(state: ()) { state }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, ChannelDeclBadAssignment) {
+  constexpr std::string_view kProgram = R"(
+pub proc main {
+  init { }
+  config() {
+    let a = chan<u32>("data_0");
+    ()
+  }
+  next(state: ()) { state }
+}
+)";
+
+  EXPECT_THAT(
+      ConvertOneFunctionForTest(kProgram, "main",
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("Must assign a channel declaration to a 2-tuple")));
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, ChannelDeclsWithTypes) {
+  const std::string kProgram = R"(
+proc main {
+  init { () }
+  config() {
+    let (p0, c0) : (chan<u32> out, chan<u32> in) = chan<u32>("u32_chan");
+    let (p1, c1) : (chan<u64> out, chan<u64> in) = chan<u64>("u64_chan");
+    let (p2, c2) : (chan<(u16, (u64, (u64)))> out, chan<(u16, (u64, (u64)))> in) = chan<(u16, (u64, (u64)))>("tuple_chan");
+    let (p3, c3) = chan<(u8, (u64, u64[4]))>("tuple_with_array_chan");
+    ()
+  }
+
+  next(state: ()) { state }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
+  ExpectIr(converted);
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ConvertWithoutTests) {

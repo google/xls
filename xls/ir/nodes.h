@@ -968,9 +968,8 @@ class NewChannel : public Node {
   static constexpr std::array<Op, 1> kOps = {Op::kNewChannel};
 
   NewChannel(const SourceInfo& loc, Type* type, const Channel* channel,
-             FunctionBase* function)
-      : Node(Op::kNewChannel, type, loc, channel->name(), function),
-        channel_(channel) {}
+             std::string_view name, FunctionBase* function)
+      : Node(Op::kNewChannel, type, loc, name, function), channel_(channel) {}
 
   const Channel* channel() const { return channel_; }
 

@@ -334,6 +334,7 @@ class FunctionConverter {
 
   // AstNode handlers.
   absl::Status HandleBinop(const Binop* node);
+  absl::Status HandleChannelDecl(const ChannelDecl* node);
   absl::Status HandleNameRef(const NameRef* node);
 
   absl::Status HandleExternNameRef(const NameRef* node,
@@ -400,6 +401,7 @@ class FunctionConverter {
   absl::Status HandleInvocation(const Invocation* node);
   absl::Status HandleLambda(const Lambda* node);
   absl::Status HandleLet(const Let* node);
+  absl::Status HandleLetChannelDecl(const Let* node);
   absl::Status HandleMatch(const Match* node);
   absl::Status HandleRange(const Range* node);
   absl::Status HandleSplatStructInstance(const SplatStructInstance* node);

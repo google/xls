@@ -32,6 +32,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/substitute.h"
 #include "absl/types/span.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
@@ -1123,6 +1124,19 @@ absl::StatusOr<ChannelWithInterfaces> ProcBuilder::AddChannel(
   XLS_ASSIGN_OR_RETURN(channel_interfaces.receive_interface,
                        proc()->GetReceiveChannelInterface(name));
   return channel_interfaces;
+}
+
+absl::StatusOr<BValue> ProcBuilder::AddChannelDecl(
+    std::string_view name, Type* type, const SourceInfo& loc, ChannelKind kind,
+    absl::Span<const Value> initial_values) {
+  XLS_RET_CHECK(proc()->is_new_style_proc());
+  XLS_ASSIGN_OR_RETURN(auto channel_with_interfaces,
+                       AddChannel(name, type, kind, initial_values));
+  XLS_ASSIGN_OR_RETURN(NewChannel * nc,
+                       proc()->MakeNodeWithName<NewChannel>(
+                           loc, type, channel_with_interfaces.channel,
+                           absl::Substitute("__chan_$0", name)));
+  return CreateBValue(nc, loc);
 }
 
 absl::StatusOr<ReceiveChannelInterface*> ProcBuilder::AddInputChannel(

@@ -1439,8 +1439,8 @@ bool Select::AllCases(const std::function<bool(Node*)>& p) const {
 
 absl::StatusOr<Node*> NewChannel::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
-  return new_function->MakeNodeWithName<NewChannel>(loc(), GetType(),
-                                                    channel());
+  return new_function->MakeNodeWithName<NewChannel>(loc(), GetType(), channel(),
+                                                    GetNameView());
 }
 
 absl::StatusOr<Node*> RecvChannelEnd::CloneInNewFunction(

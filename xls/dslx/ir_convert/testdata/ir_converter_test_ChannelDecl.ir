@@ -1,0 +1,15 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+top proc __test_module__main_0_next<>(__state: (), init={()}) {
+  chan data_0(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+  chan_interface data_0(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface data_0(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  __state: () = state_read(state_element=__state, id=2)
+  __token: token = literal(value=token, id=1)
+  literal.3: bits[1] = literal(value=1, id=3)
+  __chan_data_0: bits[32] = new_channel(id=4)
+  tuple.7: () = tuple(id=7)
+  next_value.8: () = next_value(param=__state, value=__state, id=8)
+}

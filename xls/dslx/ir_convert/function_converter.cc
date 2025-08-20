@@ -357,6 +357,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   NO_TRAVERSE_DISPATCH(Array)
   NO_TRAVERSE_DISPATCH(Attr)
   NO_TRAVERSE_DISPATCH(Cast)
+  NO_TRAVERSE_DISPATCH(ChannelDecl)
   NO_TRAVERSE_DISPATCH(ColonRef)
   NO_TRAVERSE_DISPATCH(Conditional)
   NO_TRAVERSE_DISPATCH(ConstantDef)
@@ -424,7 +425,6 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   // The visitor operates within a function, so none of these should be visible.
   // keep-sorted start
   INVALID(BuiltinNameDef)
-  INVALID(ChannelDecl)
   INVALID(EnumDef)
   INVALID(Function)
   INVALID(Impl)
@@ -875,6 +875,58 @@ absl::Status FunctionConverter::HandleLambda(const Lambda* node) {
   return absl::UnimplementedError("lambdas not yet supported");
 }
 
+absl::Status FunctionConverter::HandleLetChannelDecl(const Let* node) {
+  ProcBuilder* builder_ptr =
+      dynamic_cast<ProcBuilder*>(function_builder_.get());
+  XLS_RET_CHECK_NE(builder_ptr, nullptr)
+      << "Channel declarations should only be encountered during proc "
+         "conversion; we seem to be in function conversion.";
+
+  xls::Proc* proc = builder_ptr->proc();
+
+  XLS_ASSIGN_OR_RETURN(BValue channel_decl_value, Use(node->rhs()));
+  NewChannel* new_channel_node =
+      dynamic_cast<NewChannel*>(channel_decl_value.node());
+  XLS_RET_CHECK(new_channel_node != nullptr);
+  const Channel* channel = new_channel_node->channel();
+
+  std::vector<NameDefTree::Leaf> leaves = node->name_def_tree()->Flatten();
+  XLS_RET_CHECK_EQ(leaves.size(), 2)
+      << "Must assign a channel declaration to a 2-tuple";
+  for (int i = 0; i < 2; i++) {
+    if (std::holds_alternative<NameDef*>(leaves[i])) {
+      NameDef* name_def = std::get<NameDef*>(leaves[i]);
+      SourceInfo loc = ToSourceInfo(name_def->span());
+      if (i == 0) {
+        XLS_ASSIGN_OR_RETURN(SendChannelInterface * sci,
+                             proc->GetSendChannelInterface(channel->name()));
+        XLS_ASSIGN_OR_RETURN(
+            SendChannelEnd * send,
+            proc->MakeNodeWithName<SendChannelEnd>(loc, sci->type(), sci));
+        BValue send_value(send, builder_ptr);
+        Def(name_def, [&](const SourceInfo& loc) { return send_value; });
+        // We only need the definition in our local IR cache so we remove
+        // the node itself from the function.
+        XLS_RETURN_IF_ERROR(proc->RemoveNode(send));
+      } else {
+        XLS_ASSIGN_OR_RETURN(ReceiveChannelInterface * rci,
+                             proc->GetReceiveChannelInterface(channel->name()));
+        XLS_ASSIGN_OR_RETURN(
+            RecvChannelEnd * recv,
+            proc->MakeNodeWithName<RecvChannelEnd>(loc, rci->type(), rci));
+        BValue recv_value(recv, builder_ptr);
+        Def(name_def, [&](const SourceInfo& loc) { return recv_value; });
+        // We only need the definition in our local IR cache so we remove
+        // the node itself from the function.
+        XLS_RETURN_IF_ERROR(proc->RemoveNode(recv));
+      }
+    }
+  }
+
+  // TODO: davidplass - also deal with channel arrays
+  return absl::OkStatus();
+}
+
 absl::Status FunctionConverter::HandleLet(const Let* node) {
   VLOG(5) << "FunctionConverter::HandleLet: `" << node->ToString()
           << "`; rhs: `" << node->rhs()->ToString() << "`";
@@ -883,14 +935,6 @@ absl::Status FunctionConverter::HandleLet(const Let* node) {
   XLS_ASSIGN_OR_RETURN(BValue rhs, Use(node->rhs()));
   XLS_RET_CHECK(rhs.valid());
 
-  // Verify that the RHS conforms to the annotation (if present).
-  if (node->type_annotation() != nullptr) {
-    XLS_ASSIGN_OR_RETURN(xls::Type * annotated_type,
-                         ResolveTypeToIr(node->type_annotation()));
-    xls::Type* value_type = rhs.GetType();
-    XLS_RET_CHECK_EQ(annotated_type, value_type);
-  }
-
   XLS_RETURN_IF_ERROR(DefAlias(node->rhs(), /*to=*/node));
 
   if (node->name_def_tree()->is_leaf()) {
@@ -898,7 +942,13 @@ absl::Status FunctionConverter::HandleLet(const Let* node) {
     // is bound to.
     XLS_RETURN_IF_ERROR(
         DefAlias(node->rhs(), /*to=*/ToAstNode(node->name_def_tree()->leaf())));
+    XLS_RET_CHECK_EQ(dynamic_cast<ChannelDecl*>(node->rhs()), nullptr)
+        << "Must assign a channel declaration to a 2-tuple";
   } else {
+    if (dynamic_cast<ChannelDecl*>(node->rhs()) != nullptr) {
+      return HandleLetChannelDecl(node);
+    }
+
     // TODO: https://github.com/google/xls/issues/1459 - Rewrite this to be
     // actually recursive (instead of "effectively recursive" via the `levels`
     // and `delta_at_level` vectors).
@@ -3039,6 +3089,42 @@ absl::Status FunctionConverter::HandleSpawn(const Spawn* node) {
   // technically an Expr, so it needs to have an Ir value in the map, even
   // though that value is never read.
   SetNodeToIr(node, BValue());
+
+  return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::HandleChannelDecl(const ChannelDecl* node) {
+  VLOG(5) << "HandleChannelDecl: " << node->ToString();
+  ProcBuilder* builder_ptr =
+      dynamic_cast<ProcBuilder*>(function_builder_.get());
+  XLS_RET_CHECK_NE(builder_ptr, nullptr)
+      << "Channel declarations should only be encountered during proc "
+         "conversion; we seem to be in function conversion.";
+  XLS_RET_CHECK(options_.lower_to_proc_scoped_channels)
+      << "Should not call FunctionConverter::HandleChannelDecl when not "
+         "lowering to proc-scoped channels";
+  // TODO: davidplass - make sure this is only called from a proc config method.
+
+  // Evaluate the name to a constant and get the type
+  XLS_ASSIGN_OR_RETURN(
+      InterpValue name_value,
+      ConstexprEvaluator::EvaluateToValue(
+          import_data_, current_type_info_, kNoWarningCollector,
+          ParametricEnv(parametric_env_map_), &node->channel_name_expr()));
+  XLS_ASSIGN_OR_RETURN(std::string name, InterpValueAsString(name_value));
+  std::optional<Type*> type = current_type_info_->GetItem(node->type());
+  XLS_RET_CHECK(type.has_value());
+
+  XLS_ASSIGN_OR_RETURN(
+      xls::Type * ir_type,
+      TypeToIr(package(), **type, ParametricEnv(parametric_env_map_)));
+  SourceInfo loc = ToSourceInfo(node->span());
+  // TODO: davidplass - deal with channel arrays here.
+
+  // This returns a NewChannel node.
+  XLS_ASSIGN_OR_RETURN(auto channel_ir_node,
+                       builder_ptr->AddChannelDecl(name, ir_type, loc));
+  SetNodeToIr(node, channel_ir_node);
 
   return absl::OkStatus();
 }
