@@ -34,12 +34,16 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/interval.h"
+#include "xls/ir/interval_set.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
+#include "xls/ir/ternary.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_builder.h"
 #include "xls/passes/query_engine.h"
+#include "xls/passes/ternary_query_engine_test_common.h"
 #include "xls/solvers/z3_ir_translator.h"
 #include "xls/solvers/z3_ir_translator_matchers.h"
 
@@ -1241,6 +1245,97 @@ fn FuzzTest() -> bits[64] {
   EXPECT_EQ(qe.KnownLeadingSignBits(neg), 63);
 }
 
+TEST_F(BitCountQueryEngineTest, TernaryValues) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue lhs = fb.Param("lhs", p->GetBitsType(8));
+  BValue rhs = fb.Param("rhs", p->GetBitsType(8));
+  BValue add = fb.Add(lhs, rhs);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  BitCountQueryEngine qe;
+  XLS_ASSERT_OK(qe.Populate(f));
+  XLS_ASSERT_OK(qe.AddGiven(lhs.node(),
+                            LeadingBitsTree::CreateSingleElementTree(
+                                p->GetBitsType(8), LeadingBits::KnownOnes(3))));
+  XLS_ASSERT_OK(qe.AddGiven(rhs.node(),
+                            LeadingBitsTree::CreateSingleElementTree(
+                                p->GetBitsType(8), LeadingBits::KnownOnes(3))));
+  EXPECT_EQ(qe.KnownLeadingZeros(add.node()), 0);
+  EXPECT_EQ(qe.KnownLeadingOnes(add.node()), 2);
+  EXPECT_EQ(qe.KnownLeadingSignBits(add.node()), 2);
+  EXPECT_EQ(qe.GetTernary(add.node())->Get({}),
+            StringToTernaryVector("0b11XX_XXXX").value());
+}
+
+TEST_F(BitCountQueryEngineTest, IntervalPosValues) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue lhs = fb.Param("lhs", p->GetBitsType(8));
+  BValue rhs = fb.Param("rhs", p->GetBitsType(8));
+  BValue add = fb.Add(lhs, rhs);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  BitCountQueryEngine qe;
+  XLS_ASSERT_OK(qe.Populate(f));
+  XLS_ASSERT_OK(qe.AddGiven(
+      lhs.node(), LeadingBitsTree::CreateSingleElementTree(
+                      p->GetBitsType(8), LeadingBits::KnownZeros(3))));
+  XLS_ASSERT_OK(qe.AddGiven(
+      rhs.node(), LeadingBitsTree::CreateSingleElementTree(
+                      p->GetBitsType(8), LeadingBits::KnownZeros(3))));
+  EXPECT_EQ(qe.KnownLeadingZeros(add.node()), 2);
+  EXPECT_EQ(qe.KnownLeadingOnes(add.node()), 0);
+  EXPECT_EQ(qe.KnownLeadingSignBits(add.node()), 2);
+  EXPECT_EQ(
+      qe.GetIntervals(add.node()).Get({}),
+      IntervalSet::Of({Interval(UBits(0b00000000, 8), UBits(0b00111111, 8))}));
+}
+
+TEST_F(BitCountQueryEngineTest, IntervalSignValues) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue lhs = fb.Param("lhs", p->GetBitsType(8));
+  BValue rhs = fb.Param("rhs", p->GetBitsType(8));
+  BValue add = fb.Add(lhs, rhs);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  BitCountQueryEngine qe;
+  XLS_ASSERT_OK(qe.Populate(f));
+  XLS_ASSERT_OK(qe.AddGiven(
+      lhs.node(), LeadingBitsTree::CreateSingleElementTree(
+                      p->GetBitsType(8), LeadingBits::SignValues(3))));
+  XLS_ASSERT_OK(qe.AddGiven(
+      rhs.node(), LeadingBitsTree::CreateSingleElementTree(
+                      p->GetBitsType(8), LeadingBits::SignValues(3))));
+  EXPECT_EQ(qe.KnownLeadingZeros(add.node()), 0);
+  EXPECT_EQ(qe.KnownLeadingOnes(add.node()), 0);
+  EXPECT_EQ(qe.KnownLeadingSignBits(add.node()), 2);
+  EXPECT_EQ(
+      qe.GetIntervals(add.node()).Get({}),
+      IntervalSet::Of({Interval(UBits(0b00000000, 8), UBits(0b00111111, 8)),
+                       Interval(UBits(0b11000000, 8), UBits(0b11111111, 8))}));
+}
+TEST_F(BitCountQueryEngineTest, IntervalNegValues) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue lhs = fb.Param("lhs", p->GetBitsType(8));
+  BValue rhs = fb.Param("rhs", p->GetBitsType(8));
+  BValue add = fb.Add(lhs, rhs);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  BitCountQueryEngine qe;
+  XLS_ASSERT_OK(qe.Populate(f));
+  XLS_ASSERT_OK(qe.AddGiven(lhs.node(),
+                            LeadingBitsTree::CreateSingleElementTree(
+                                p->GetBitsType(8), LeadingBits::KnownOnes(3))));
+  XLS_ASSERT_OK(qe.AddGiven(rhs.node(),
+                            LeadingBitsTree::CreateSingleElementTree(
+                                p->GetBitsType(8), LeadingBits::KnownOnes(3))));
+  EXPECT_EQ(qe.KnownLeadingZeros(add.node()), 0);
+  EXPECT_EQ(qe.KnownLeadingOnes(add.node()), 2);
+  EXPECT_EQ(qe.KnownLeadingSignBits(add.node()), 2);
+  EXPECT_EQ(
+      qe.GetIntervals(add.node()).Get({}),
+      IntervalSet::Of({Interval(UBits(0b11000000, 8), UBits(0b11111111, 8))}));
+}
+
 void ConsistencyTest(FuzzPackageWithArgs fuzz) {
   CheckQueryEngineConsistency<BitCountQueryEngine>(
       fuzz, [](const BitCountQueryEngine& qe, Node* n, Value value) -> bool {
@@ -1268,6 +1363,15 @@ void ConsistencyTest(FuzzPackageWithArgs fuzz) {
 }
 
 FUZZ_TEST(BitCountQueryEngineFuzzTest, ConsistencyTest)
+    .WithDomains(PackageWithArgsDomainBuilder(/*arg_set_count=*/10)
+                     .WithOnlyBitsOperations()
+                     .Build());
+
+void TernaryConsistencyTest(FuzzPackageWithArgs fuzz) {
+  CheckTernaryEngineConsistency<BitCountQueryEngine>(fuzz);
+}
+
+FUZZ_TEST(BitCountQueryEngineFuzzTest, TernaryConsistencyTest)
     .WithDomains(PackageWithArgsDomainBuilder(/*arg_set_count=*/10)
                      .WithOnlyBitsOperations()
                      .Build());

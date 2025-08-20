@@ -34,6 +34,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/ternary.h"
 #include "xls/ir/type.h"
+#include "xls/ir/value.h"
 #include "xls/passes/predicate_state.h"
 #include "xls/passes/query_engine.h"
 
@@ -43,6 +44,28 @@ bool UnownedUnionQueryEngine::IsKnown(const TreeBitLocation& bit) const {
   return absl::c_any_of(engines_, [&](const QueryEngine* qe) -> bool {
     return qe->IsKnown(bit);
   });
+}
+
+bool UnownedUnionQueryEngine::IsFullyKnown(Node* n) const {
+  // Fastpath check if any qe happens to know the value all on its own.
+  if (absl::c_any_of(engines_, [&](const QueryEngine* qe) -> bool {
+        return qe->IsFullyKnown(n);
+      })) {
+    return true;
+  }
+  // Fallback to the ternary based one.
+  return QueryEngine::IsFullyKnown(n);
+}
+
+std::optional<Value> UnownedUnionQueryEngine::KnownValue(Node* node) const {
+  for (const QueryEngine* engine : engines_) {
+    std::optional<Value> res = engine->KnownValue(node);
+    if (res) {
+      return res;
+    }
+  }
+  // Fallback to the ternary-based union of everything.
+  return QueryEngine::KnownValue(node);
 }
 
 std::optional<bool> UnownedUnionQueryEngine::KnownValue(

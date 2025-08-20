@@ -1932,6 +1932,29 @@ TEST_P(NarrowingPassTest, NoSignedOverflow) {
   ASSERT_THAT(Run(p.get()), IsOk());
 }
 
+// This was found by the fuzzer. It needs to have the sdiv so that the bit-count
+// can see this is constant but ternary can't and due to the way they worked
+// this information was not synthesized in this specific case.
+TEST_P(NarrowingPassTest, ZeroShiftLeft) {
+  const std::string program = R"ir(
+fn FuzzTest() -> bits[1000] {
+  literal.1: bits[64] = literal(value=0, id=1)
+  literal.3: bits[64] = literal(value=0, id=3)
+  zero_ext.2: bits[1000] = zero_ext(literal.1, new_bit_count=1000, id=2)
+  zero_ext.4: bits[1000] = zero_ext(literal.3, new_bit_count=1000, id=4)
+  sdiv.5: bits[1000] = sdiv(zero_ext.2, zero_ext.4, id=5)
+  shrl.6: bits[1000] = shrl(sdiv.5, sdiv.5, id=6)
+  ret shll.7: bits[1000] = shll(sdiv.5, shrl.6, id=7)
+}
+  )ir";
+  auto p = CreatePackage();
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  ScopedVerifyEquivalence sve(f);
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+}
+
 INSTANTIATE_TEST_SUITE_P(
     NarrowingPassTestInstantiation, NarrowingPassTest,
     ::testing::Values(NarrowingPass::AnalysisType::kTernary,

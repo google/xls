@@ -261,6 +261,10 @@ bool QueryEngine::IsAllZeros(Node* node) const {
   if (!IsTracked(node) || TypeHasToken(node->GetType())) {
     return false;
   }
+  if (node->GetType()->IsBits()) {
+    std::optional<int64_t> leading_cnt = KnownLeadingZeros(node);
+    return leading_cnt && *leading_cnt == node->BitCountOrDie();
+  }
   std::optional<SharedLeafTypeTree<TernaryVector>> ternary_value =
       GetTernary(node);
   return ternary_value.has_value() &&
@@ -272,6 +276,10 @@ bool QueryEngine::IsAllZeros(Node* node) const {
 bool QueryEngine::IsAllOnes(Node* node) const {
   if (!IsTracked(node) || TypeHasToken(node->GetType())) {
     return false;
+  }
+  if (node->GetType()->IsBits()) {
+    std::optional<int64_t> leading_cnt = KnownLeadingOnes(node);
+    return leading_cnt && *leading_cnt == node->BitCountOrDie();
   }
   std::optional<SharedLeafTypeTree<TernaryVector>> ternary_value =
       GetTernary(node);

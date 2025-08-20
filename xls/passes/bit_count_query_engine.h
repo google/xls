@@ -16,7 +16,6 @@
 #define XLS_PASSES_BIT_COUNT_QUERY_ENGINE_H_
 
 #include <algorithm>
-#include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <optional>
@@ -27,9 +26,11 @@
 #include "absl/types/span.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
 #include "xls/ir/ternary.h"
 #include "xls/ir/type.h"
+#include "xls/ir/value.h"
 #include "xls/passes/lazy_query_engine.h"
 #include "xls/passes/query_engine.h"
 namespace xls {
@@ -137,11 +138,8 @@ class LeadingBits {
 // and sign bits and nothing else.
 class BitCountQueryEngine : public LazyQueryEngine<internal::LeadingBits> {
  public:
-  // some information is present but its unlikely to be useful. If this is
-  // required use a ternary engine.
-  std::optional<SharedTernaryTree> GetTernary(Node* node) const override {
-    return std::nullopt;
-  }
+  std::optional<SharedTernaryTree> GetTernary(Node* node) const override;
+  LeafTypeTree<IntervalSet> GetIntervals(Node* node) const override;
   bool AtMostOneTrue(absl::Span<TreeBitLocation const> bits) const override {
     return false;
   }
@@ -172,6 +170,8 @@ class BitCountQueryEngine : public LazyQueryEngine<internal::LeadingBits> {
     return std::nullopt;
   }
 
+  bool IsFullyKnown(Node* n) const override;
+  std::optional<Value> KnownValue(Node* n) const override;
   std::optional<bool> KnownValue(const TreeBitLocation& loc) const override;
 
   std::optional<int64_t> KnownLeadingOnes(Node* n) const override {

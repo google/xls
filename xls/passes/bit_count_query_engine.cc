@@ -33,6 +33,8 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/interval_ops.h"
+#include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/ternary.h"
@@ -385,6 +387,117 @@ class BitCountVisitor : public DataflowVisitor<internal::LeadingBits> {
   }
 };
 }  // namespace
+
+std::optional<SharedTernaryTree> BitCountQueryEngine::GetTernary(
+    Node* node) const {
+  std::optional<SharedLeafTypeTree<internal::LeadingBits>> bits_tree =
+      GetInfo(node);
+  if (!bits_tree) {
+    return std::nullopt;
+  }
+  // Fast path for not actually knowing anything.
+  if (absl::c_all_of(bits_tree->elements(),
+                     [](const internal::LeadingBits& bits) -> bool {
+                       return bits.value() == TernaryValue::kUnknown;
+                     })) {
+    return std::nullopt;
+  }
+  auto res = leaf_type_tree::MapIndex<TernaryVector, internal::LeadingBits>(
+      bits_tree->AsView(),
+      [](Type* t, const internal::LeadingBits& bits,
+         absl::Span<const int64_t> idx) -> absl::StatusOr<TernaryVector> {
+        TernaryVector vec(t->GetFlatBitCount(), bits.value());
+        for (int64_t i = 0; i < t->GetFlatBitCount() - bits.count(); ++i) {
+          vec[i] = TernaryValue::kUnknown;
+        }
+        return vec;
+      });
+  CHECK_OK(res.status());
+  return std::move(res).value().AsShared();
+}
+
+LeafTypeTree<IntervalSet> BitCountQueryEngine::GetIntervals(Node* node) const {
+  std::optional<SharedLeafTypeTree<internal::LeadingBits>> bits_tree =
+      GetInfo(node);
+  if (!bits_tree) {
+    auto res = IntervalSetTree::CreateFromFunction(
+        node->GetType(), [](Type* leaf_type) -> absl::StatusOr<IntervalSet> {
+          return IntervalSet::Maximal(leaf_type->GetFlatBitCount());
+        });
+    CHECK_OK(res.status());
+    return std::move(res).value();
+  }
+  auto res = leaf_type_tree::MapIndex<IntervalSet, internal::LeadingBits>(
+      bits_tree->AsView(),
+      [](Type* t, const internal::LeadingBits& bits,
+         absl::Span<const int64_t> idx) -> absl::StatusOr<IntervalSet> {
+        if (bits.value() == TernaryValue::kUnknown && bits.count() == 1) {
+          // No actual constraints.
+          return IntervalSet::Maximal(t->GetFlatBitCount());
+        }
+        IntervalSet low =
+            IntervalSet::Maximal(t->GetFlatBitCount() - bits.count());
+        switch (bits.value()) {
+          case TernaryValue::kKnownZero:
+            return low.ZeroExtend(t->GetFlatBitCount());
+          case TernaryValue::kKnownOne:
+            return interval_ops::Concat(
+                {IntervalSet::Precise(Bits::AllOnes(bits.count())), low});
+          case TernaryValue::kUnknown: {
+            IntervalSet neg = interval_ops::Concat(
+                {IntervalSet::Precise(Bits::AllOnes(bits.count())), low});
+            IntervalSet pos = low.ZeroExtend(t->GetFlatBitCount());
+            return IntervalSet::Combine(neg, pos);
+          }
+        }
+      });
+  CHECK_OK(res.status());
+  return std::move(res).value();
+}
+
+bool BitCountQueryEngine::IsFullyKnown(Node* n) const {
+  std::optional<SharedLeafTypeTree<internal::LeadingBits>> bits_tree =
+      GetInfo(n);
+  if (!bits_tree) {
+    return false;
+  }
+  bool fully_known = true;
+  CHECK_OK(leaf_type_tree::ForEachIndex(
+      bits_tree->AsView(),
+      [&](Type* t, const internal::LeadingBits& bits,
+          auto idx) -> absl::Status {
+        fully_known = fully_known && bits.value() != TernaryValue::kUnknown &&
+                      bits.leading_signs() == t->GetFlatBitCount();
+        return absl::OkStatus();
+      }));
+  return fully_known;
+}
+
+std::optional<Value> BitCountQueryEngine::KnownValue(Node* n) const {
+  std::optional<SharedLeafTypeTree<internal::LeadingBits>> bits_tree =
+      GetInfo(n);
+  if (!bits_tree) {
+    return std::nullopt;
+  }
+  bool fully_known = true;
+  auto mapped = leaf_type_tree::MapIndex<Value, internal::LeadingBits>(
+      bits_tree->AsView(),
+      [&](Type* t, const internal::LeadingBits& bits,
+          auto idx) -> absl::StatusOr<Value> {
+        fully_known = fully_known && bits.value() != TernaryValue::kUnknown &&
+                      bits.leading_signs() == t->GetFlatBitCount();
+        return bits.value() == TernaryValue::kKnownZero
+                   ? Value(Bits(t->GetFlatBitCount()))
+                   : Value(Bits::AllOnes(t->GetFlatBitCount()));
+      });
+  CHECK_OK(mapped.status());
+  if (!fully_known) {
+    return std::nullopt;
+  }
+  absl::StatusOr<Value> val = LeafTypeTreeToValue(mapped->AsView());
+  CHECK_OK(val.status());
+  return *val;
+}
 
 std::optional<bool> BitCountQueryEngine::KnownValue(
     const TreeBitLocation& loc) const {

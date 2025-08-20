@@ -35,6 +35,7 @@
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
 #include "xls/ir/ternary.h"
+#include "xls/ir/value.h"
 #include "xls/passes/predicate_state.h"
 #include "xls/passes/query_engine.h"
 
@@ -93,8 +94,9 @@ class UnownedUnionQueryEngine : public QueryEngine {
       absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
       Node* node) const override;
 
+  bool IsFullyKnown(Node* n) const override;
+  std::optional<Value> KnownValue(Node* node) const override;
   bool IsKnown(const TreeBitLocation& bit) const override;
-  using QueryEngine::KnownValue;
   std::optional<bool> KnownValue(const TreeBitLocation& bit) const override;
   bool IsAllZeros(Node* n) const override;
   bool IsAllOnes(Node* n) const override;
