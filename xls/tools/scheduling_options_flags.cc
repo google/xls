@@ -306,6 +306,12 @@ static absl::StatusOr<bool> SetOptionsFromFlags(
       absl::GetFlag(FLAGS_infeasible_per_state_backedge_slack_pool);
   if (infeasible_per_state_backedge_slack_pool.has_value()) {
     any_flags_set |= true;
+    if (*infeasible_per_state_backedge_slack_pool <= 0.0) {
+      return absl::InvalidArgumentError(absl::StrCat(
+          "If specified, --infeasible_per_state_backedge_slack_pool must be "
+          "set to a positive value; was ",
+          *infeasible_per_state_backedge_slack_pool));
+    }
     failure_behavior->set_infeasible_per_state_backedge_slack_pool(
         *infeasible_per_state_backedge_slack_pool);
   }

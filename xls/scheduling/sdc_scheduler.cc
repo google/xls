@@ -827,9 +827,11 @@ absl::StatusOr<int64_t> SDCSchedulingModel::ExtractPipelineLength(
 
 absl::Status SDCSchedulingModel::AddSlackVariables(
     std::optional<double> infeasible_per_state_backedge_slack_pool) {
-  if (infeasible_per_state_backedge_slack_pool.has_value()) {
-    XLS_RET_CHECK_GT(*infeasible_per_state_backedge_slack_pool, 0)
-        << "infeasible_per_state_backedge_slack_pool must be positive";
+  if (infeasible_per_state_backedge_slack_pool.has_value() &&
+      *infeasible_per_state_backedge_slack_pool <= 0.0) {
+    return absl::InvalidArgumentError(absl::StrCat(
+        "infeasible_per_state_backedge_slack_pool must be positive; was ",
+        *infeasible_per_state_backedge_slack_pool));
   }
   // Add slack variables to all relevant constraints.
 
