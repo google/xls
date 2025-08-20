@@ -468,7 +468,6 @@ xls_pass(
 cc_test(
     name = "map_inlining_pass_test",
     srcs = ["map_inlining_pass_test.cc"],
-    shard_count = 10,
     deps = [
         ":map_inlining_pass",
         ":optimization_pass",
@@ -1916,7 +1915,6 @@ xls_pass(
 cc_test(
     name = "label_recovery_pass_test",
     srcs = ["label_recovery_pass_test.cc"],
-    shard_count = 10,
     deps = [
         ":dfe_pass",
         ":inlining_pass",
@@ -2505,7 +2503,6 @@ cc_test(
 cc_test(
     name = "proc_state_tuple_flattening_pass_test",
     srcs = ["proc_state_tuple_flattening_pass_test.cc"],
-    shard_count = 10,
     deps = [
         ":dataflow_simplification_pass",
         ":dce_pass",
@@ -2588,7 +2585,6 @@ cc_test(
 cc_test(
     name = "cse_pass_test",
     srcs = ["cse_pass_test.cc"],
-    shard_count = 10,
     deps = [
         ":cse_pass",
         ":dce_pass",
@@ -2671,7 +2667,6 @@ cc_test(
 cc_test(
     name = "boolean_simplification_pass_test",
     srcs = ["boolean_simplification_pass_test.cc"],
-    shard_count = 10,
     deps = [
         ":boolean_simplification_pass",
         ":dce_pass",
@@ -2724,7 +2719,6 @@ cc_test(
 cc_test(
     name = "token_dependency_pass_test",
     srcs = ["token_dependency_pass_test.cc"],
-    shard_count = 10,
     deps = [
         ":optimization_pass",
         ":pass_base",
@@ -2749,7 +2743,6 @@ cc_test(
 cc_test(
     name = "token_simplification_pass_test",
     srcs = ["token_simplification_pass_test.cc"],
-    shard_count = 10,
     deps = [
         ":optimization_pass",
         ":pass_base",
@@ -2772,7 +2765,6 @@ cc_test(
 cc_test(
     name = "strength_reduction_pass_test",
     srcs = ["strength_reduction_pass_test.cc"],
-    shard_count = 10,
     deps = [
         ":dce_pass",
         ":optimization_pass",
@@ -2856,7 +2848,6 @@ cc_test(
 cc_test(
     name = "select_merging_pass_test",
     srcs = ["select_merging_pass_test.cc"],
-    shard_count = 10,
     deps = [
         ":optimization_pass",
         ":pass_base",
@@ -2929,7 +2920,6 @@ cc_test(
 cc_test(
     name = "dce_pass_test",
     srcs = ["dce_pass_test.cc"],
-    shard_count = 10,
     deps = [
         ":dce_pass",
         ":optimization_pass",
@@ -3099,7 +3089,6 @@ cc_test(
 cc_test(
     name = "bdd_simplification_pass_test",
     srcs = ["bdd_simplification_pass_test.cc"],
-    shard_count = 10,
     deps = [
         ":bdd_simplification_pass",
         ":optimization_pass",
@@ -3178,7 +3167,6 @@ cc_test(
 cc_test(
     name = "bdd_cse_pass_test",
     srcs = ["bdd_cse_pass_test.cc"],
-    shard_count = 10,
     deps = [
         ":bdd_cse_pass",
         ":optimization_pass",
@@ -3256,7 +3244,6 @@ cc_test(
 cc_test(
     name = "context_sensitive_range_query_engine_test",
     srcs = ["context_sensitive_range_query_engine_test.cc"],
-    shard_count = 10,
     deps = [
         ":context_sensitive_range_query_engine",
         ":predicate_state",
@@ -3444,7 +3431,6 @@ cc_test(
 cc_test(
     name = "comparison_simplification_pass_test",
     srcs = ["comparison_simplification_pass_test.cc"],
-    shard_count = 10,
     deps = [
         ":comparison_simplification_pass",
         ":optimization_pass",
@@ -3632,7 +3618,6 @@ cc_test(
 cc_test(
     name = "channel_legalization_pass_test",
     srcs = ["channel_legalization_pass_test.cc"],
-    shard_count = 10,
     deps = [
         ":channel_legalization_pass",
         ":optimization_pass",
@@ -3734,7 +3719,6 @@ xls_pass(
 cc_test(
     name = "dataflow_simplification_pass_test",
     srcs = ["dataflow_simplification_pass_test.cc"],
-    shard_count = 10,
     deps = [
         ":dataflow_simplification_pass",
         ":dce_pass",
@@ -3909,7 +3893,6 @@ xls_pass(
 cc_test(
     name = "proc_state_provenance_narrowing_pass_test",
     srcs = ["proc_state_provenance_narrowing_pass_test.cc"],
-    shard_count = 10,
     deps = [
         ":dce_pass",
         ":optimization_pass",
