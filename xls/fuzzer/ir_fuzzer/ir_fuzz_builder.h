@@ -16,6 +16,7 @@
 #define XLS_FUZZER_IR_FUZZER_IR_FUZZ_BUILDER_H_
 
 #include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_helpers.h"
 #include "xls/fuzzer/ir_fuzzer/ir_node_context_list.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/node.h"
@@ -33,7 +34,10 @@ class IrFuzzBuilder {
  public:
   IrFuzzBuilder(const FuzzProgramProto& fuzz_program, Package* p,
                 FunctionBuilder* fb)
-      : fuzz_program_(fuzz_program), p_(p), fb_(fb), context_list_(p_, fb_) {}
+      : fuzz_program_(fuzz_program),
+        p_(p),
+        fb_(fb),
+        context_list_(p_, fb_, IrFuzzHelpers(fuzz_program.version())) {}
 
   // Main function that returns the final IR BValue.
   BValue BuildIr();

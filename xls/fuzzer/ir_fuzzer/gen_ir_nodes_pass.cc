@@ -49,7 +49,7 @@ void GenIrNodesPass::HandleParam(const FuzzParamProto& param) {
   // param.
   std::string name = absl::StrFormat("p%d", context_list_.GetListSize());
   // Retrieve the Type object from the FuzzTypeProto.
-  Type* type = ConvertTypeProtoToType(p_, param.type());
+  Type* type = helpers_.ConvertTypeProtoToType(p_, param.type());
   // Append the param BValue to the combined context list and the context list
   // for its type.
   context_list_.AppendElement(fb_->Param(name, type));
@@ -132,10 +132,11 @@ void GenIrNodesPass::HandleUMul(const FuzzUMulProto& umul) {
     BValue lhs = GetBitsOperand(umul.lhs_idx());
     BValue rhs = GetBitsOperand(umul.rhs_idx());
     // The bit width cannot exceed the sum of the bit widths of the operands.
-    int64_t right_bound = std::min<int64_t>(
-        kMaxFuzzBitWidth, lhs.BitCountOrDie() + rhs.BitCountOrDie());
+    int64_t right_bound =
+        std::min<int64_t>(IrFuzzHelpers::kMaxFuzzBitWidth,
+                          lhs.BitCountOrDie() + rhs.BitCountOrDie());
     int64_t bit_width =
-        BoundedWidth(umul.bit_width(), /*left_bound=*/1, right_bound);
+        helpers_.BoundedWidth(umul.bit_width(), /*left_bound=*/1, right_bound);
     context_list_.AppendElement(fb_->UMul(lhs, rhs, bit_width));
   } else {
     // If the bit width is not set, don't use it and coerce the operands to be
@@ -151,10 +152,11 @@ void GenIrNodesPass::HandleSMul(const FuzzSMulProto& smul) {
   if (smul.has_bit_width()) {
     BValue lhs = GetBitsOperand(smul.lhs_idx());
     BValue rhs = GetBitsOperand(smul.rhs_idx());
-    int64_t right_bound = std::min<int64_t>(
-        kMaxFuzzBitWidth, lhs.BitCountOrDie() + rhs.BitCountOrDie());
+    int64_t right_bound =
+        std::min<int64_t>(IrFuzzHelpers::kMaxFuzzBitWidth,
+                          lhs.BitCountOrDie() + rhs.BitCountOrDie());
     int64_t bit_width =
-        BoundedWidth(smul.bit_width(), /*left_bound=*/1, right_bound);
+        helpers_.BoundedWidth(smul.bit_width(), /*left_bound=*/1, right_bound);
     context_list_.AppendElement(fb_->SMul(lhs, rhs, bit_width));
   } else {
     BValue lhs = GetCoercedBitsOperand(smul.lhs_idx(), smul.operands_type());
@@ -168,10 +170,11 @@ void GenIrNodesPass::HandleUMulp(const FuzzUMulpProto& umulp) {
   if (umulp.has_bit_width()) {
     BValue lhs = GetBitsOperand(umulp.lhs_idx());
     BValue rhs = GetBitsOperand(umulp.rhs_idx());
-    int64_t right_bound = std::min<int64_t>(
-        kMaxFuzzBitWidth, lhs.BitCountOrDie() + rhs.BitCountOrDie());
+    int64_t right_bound =
+        std::min<int64_t>(IrFuzzHelpers::kMaxFuzzBitWidth,
+                          lhs.BitCountOrDie() + rhs.BitCountOrDie());
     int64_t bit_width =
-        BoundedWidth(umulp.bit_width(), /*left_bound=*/1, right_bound);
+        helpers_.BoundedWidth(umulp.bit_width(), /*left_bound=*/1, right_bound);
     context_list_.AppendElement(fb_->UMulp(lhs, rhs, bit_width));
   } else {
     BValue lhs = GetCoercedBitsOperand(umulp.lhs_idx(), umulp.operands_type());
@@ -185,10 +188,11 @@ void GenIrNodesPass::HandleSMulp(const FuzzSMulpProto& smulp) {
   if (smulp.has_bit_width()) {
     BValue lhs = GetBitsOperand(smulp.lhs_idx());
     BValue rhs = GetBitsOperand(smulp.rhs_idx());
-    int64_t right_bound = std::min<int64_t>(
-        kMaxFuzzBitWidth, lhs.BitCountOrDie() + rhs.BitCountOrDie());
+    int64_t right_bound =
+        std::min<int64_t>(IrFuzzHelpers::kMaxFuzzBitWidth,
+                          lhs.BitCountOrDie() + rhs.BitCountOrDie());
     int64_t bit_width =
-        BoundedWidth(smulp.bit_width(), /*left_bound=*/1, right_bound);
+        helpers_.BoundedWidth(smulp.bit_width(), /*left_bound=*/1, right_bound);
     context_list_.AppendElement(fb_->SMulp(lhs, rhs, bit_width));
   } else {
     BValue lhs = GetCoercedBitsOperand(smulp.lhs_idx(), smulp.operands_type());
@@ -239,13 +243,13 @@ void GenIrNodesPass::HandleConcat(const FuzzConcatProto& concat) {
   // Requires at least one operand.
   std::vector<BValue> operands =
       GetBitsOperands(concat.operand_idxs(), /*min_operand_count=*/1);
-  // Only use operands such that their summed bit width is less than or equal to
-  // kMaxFuzzBitWidth.
+  // Only use operands such that their summed bit width is less than or equal
+  // to IrFuzzHelpers::kMaxFuzzBitWidth.
   int64_t bit_width_sum = 0;
   int64_t operand_count = 0;
   for (const auto& operand : operands) {
     bit_width_sum += operand.BitCountOrDie();
-    if (bit_width_sum > kMaxFuzzBitWidth) {
+    if (bit_width_sum > IrFuzzHelpers::kMaxFuzzBitWidth) {
       break;
     }
     operand_count += 1;
@@ -327,9 +331,9 @@ void GenIrNodesPass::HandleNot(const FuzzNotProto& not_op) {
 }
 
 void GenIrNodesPass::HandleLiteral(const FuzzLiteralProto& literal) {
-  Type* type = ConvertTypeProtoToType(p_, literal.type());
-  Bits value_bits =
-      ChangeBytesBitWidth(literal.value_bytes(), type->GetFlatBitCount());
+  Type* type = helpers_.ConvertTypeProtoToType(p_, literal.type());
+  Bits value_bits = helpers_.ChangeBytesBitWidth(literal.value_bytes(),
+                                                 type->GetFlatBitCount());
   Value value = UnflattenBitsToValue(value_bits, type).value();
   context_list_.AppendElement(fb_->Literal(value));
 }
@@ -371,10 +375,11 @@ void GenIrNodesPass::HandleOneHot(const FuzzOneHotProto& one_hot) {
   // If the operand bit width is kMaxFuzzBitWidth, decrease it by 1 because
   // OneHot returns an operand with a bit width of 1 + the bit width of the
   // operand.
-  if (operand.BitCountOrDie() == kMaxFuzzBitWidth) {
+  if (operand.BitCountOrDie() == IrFuzzHelpers::kMaxFuzzBitWidth) {
     auto operand_coercion_method = one_hot.operand_coercion_method();
-    operand = ChangeBitWidth(fb_, operand, kMaxFuzzBitWidth - 1,
-                             operand_coercion_method.change_bit_width_method());
+    operand = helpers_.ChangeBitWidth(
+        fb_, operand, IrFuzzHelpers::kMaxFuzzBitWidth - 1,
+        operand_coercion_method.change_bit_width_method());
   }
   // Convert the LsbOrMsb proto enum to the FunctionBuilder enum.
   LsbOrMsb priority;
@@ -457,9 +462,9 @@ void GenIrNodesPass::HandleMatch(const FuzzMatchProto& match) {
   // If there are no cases, add a default case.
   if (cases.empty()) {
     Type* default_case_type =
-        ConvertBitsTypeProtoToType(p_, match.operands_type());
+        helpers_.ConvertBitsTypeProtoToType(p_, match.operands_type());
     BValue default_case_value =
-        DefaultValueOfBitsType(p_, fb_, default_case_type);
+        helpers_.DefaultValueOfBitsType(p_, fb_, default_case_type);
     cases.push_back(
         FunctionBuilder::Case{default_case_value, default_case_value});
   }
@@ -481,6 +486,7 @@ void GenIrNodesPass::HandleMatchTrue(const FuzzMatchTrueProto& match_true) {
                              /*bit_width=*/1)});
   }
   if (cases.empty()) {
+    // If there are no cases, add a default case.
     BValue default_case_value = fb_->Literal(UBits(0, 1));
     cases.push_back(
         FunctionBuilder::Case{default_case_value, default_case_value});
@@ -501,7 +507,8 @@ void GenIrNodesPass::HandleArray(const FuzzArrayProto& array) {
   std::vector<BValue> operands =
       GetCoercedOperands(array.operand_idxs(), array.operands_type(),
                          /*min_operand_count=*/1);
-  Type* element_type = ConvertTypeProtoToType(p_, array.operands_type());
+  Type* element_type =
+      helpers_.ConvertTypeProtoToType(p_, array.operands_type());
   context_list_.AppendElement(fb_->Array(operands, element_type));
 }
 
@@ -510,11 +517,11 @@ void GenIrNodesPass::HandleTupleIndex(const FuzzTupleIndexProto& tuple_index) {
   int64_t tuple_size = operand.GetType()->AsTupleOrDie()->size();
   // The tuple must have at least one element.
   if (tuple_size == 0) {
-    operand = DefaultValue(p_, fb_, TypeCase::TUPLE_CASE);
+    operand = helpers_.DefaultValue(p_, fb_, TypeCase::TUPLE_CASE);
     tuple_size = operand.GetType()->AsTupleOrDie()->size();
   }
   int64_t index =
-      Bounded(tuple_index.index(), /*left_bound=*/0, tuple_size - 1);
+      helpers_.Bounded(tuple_index.index(), /*left_bound=*/0, tuple_size - 1);
   context_list_.AppendElement(fb_->TupleIndex(operand, index));
 }
 
@@ -528,7 +535,7 @@ void GenIrNodesPass::HandleArrayIndex(const FuzzArrayIndexProto& array_index) {
 void GenIrNodesPass::HandleArraySlice(const FuzzArraySliceProto& array_slice) {
   BValue operand = GetArrayOperand(array_slice.operand_idx());
   BValue start = GetBitsOperand(array_slice.start_idx());
-  int64_t width = BoundedArraySize(array_slice.width());
+  int64_t width = helpers_.BoundedArraySize(array_slice.width());
   context_list_.AppendElement(fb_->ArraySlice(operand, start, width));
 }
 
@@ -549,12 +556,12 @@ void GenIrNodesPass::HandleArrayConcat(
   std::vector<BValue> operands =
       GetArrayOperands(array_concat.operand_idxs(), /*min_operand_count=*/1);
   // Only use operands such that their summed array size is less than or equal
-  // to kMaxFuzzArraySize.
+  // to IrFuzzHelpers::kMaxFuzzArraySize.
   int64_t array_size_sum = 0;
   int64_t operand_count = 0;
   for (const auto& operand : operands) {
     array_size_sum += operand.GetType()->AsArrayOrDie()->size();
-    if (array_size_sum > kMaxFuzzArraySize) {
+    if (array_size_sum > IrFuzzHelpers::kMaxFuzzArraySize) {
       break;
     }
     operand_count += 1;
@@ -581,7 +588,7 @@ void GenIrNodesPass::HandleSignExtend(const FuzzSignExtendProto& sign_extend) {
   // The bit width cannot be less than the operand bit width because that is an
   // invalid extension.
   int64_t bit_width =
-      BoundedWidth(sign_extend.bit_width(), operand.BitCountOrDie());
+      helpers_.BoundedWidth(sign_extend.bit_width(), operand.BitCountOrDie());
   context_list_.AppendElement(fb_->SignExtend(operand, bit_width));
 }
 
@@ -589,7 +596,7 @@ void GenIrNodesPass::HandleSignExtend(const FuzzSignExtendProto& sign_extend) {
 void GenIrNodesPass::HandleZeroExtend(const FuzzZeroExtendProto& zero_extend) {
   BValue operand = GetBitsOperand(zero_extend.operand_idx());
   int64_t bit_width =
-      BoundedWidth(zero_extend.bit_width(), operand.BitCountOrDie());
+      helpers_.BoundedWidth(zero_extend.bit_width(), operand.BitCountOrDie());
   context_list_.AppendElement(fb_->ZeroExtend(operand, bit_width));
 }
 
@@ -597,13 +604,13 @@ void GenIrNodesPass::HandleBitSlice(const FuzzBitSliceProto& bit_slice) {
   BValue operand = GetBitsOperand(bit_slice.operand_idx());
   // The start value must be within the operand bit width and allow at least 1
   // bit to be sliced.
-  int64_t start =
-      Bounded(bit_slice.start(), /*left_bound=*/0, operand.BitCountOrDie() - 1);
+  int64_t start = helpers_.Bounded(bit_slice.start(), /*left_bound=*/0,
+                                   operand.BitCountOrDie() - 1);
   // The bit width slice amount cannot exceed the operand bit width when
   // starting to slice from the start value.
   int64_t right_bound = std::max<int64_t>(1, operand.BitCountOrDie() - start);
   int64_t bit_width =
-      Bounded(bit_slice.bit_width(), /*left_bound=*/1, right_bound);
+      helpers_.Bounded(bit_slice.bit_width(), /*left_bound=*/1, right_bound);
   context_list_.AppendElement(fb_->BitSlice(operand, start, bit_width));
 }
 
@@ -619,13 +626,14 @@ void GenIrNodesPass::HandleBitSliceUpdate(
 void GenIrNodesPass::HandleDynamicBitSlice(
     const FuzzDynamicBitSliceProto& dynamic_bit_slice) {
   BValue operand = GetBitsOperand(dynamic_bit_slice.operand_idx());
-  int64_t bit_width = BoundedWidth(dynamic_bit_slice.bit_width());
+  int64_t bit_width = helpers_.BoundedWidth(dynamic_bit_slice.bit_width());
   // The operand must be of the same or greater bit width than the dynamic bit
   // slice bit width.
   if (operand.BitCountOrDie() < bit_width) {
     auto operand_coercion_method = dynamic_bit_slice.operand_coercion_method();
-    operand = ChangeBitWidth(fb_, operand, bit_width,
-                             operand_coercion_method.change_bit_width_method());
+    operand = helpers_.ChangeBitWidth(
+        fb_, operand, bit_width,
+        operand_coercion_method.change_bit_width_method());
   }
   BValue start = GetBitsOperand(dynamic_bit_slice.start_idx());
   context_list_.AppendElement(fb_->DynamicBitSlice(operand, start, bit_width));
@@ -636,7 +644,8 @@ void GenIrNodesPass::HandleEncode(const FuzzEncodeProto& encode) {
   BValue encode_bvalue = fb_->Encode(operand);
   // Encode may result in a 0-bit value. If so, change the bit width to 1.
   if (encode_bvalue.BitCountOrDie() == 0) {
-    encode_bvalue = ChangeBitWidth(fb_, encode_bvalue, /*new_bit_width=*/1);
+    encode_bvalue =
+        helpers_.ChangeBitWidth(fb_, encode_bvalue, /*new_bit_width=*/1);
   }
   context_list_.AppendElement(encode_bvalue);
 }
@@ -644,23 +653,24 @@ void GenIrNodesPass::HandleEncode(const FuzzEncodeProto& encode) {
 void GenIrNodesPass::HandleDecode(const FuzzDecodeProto& decode) {
   BValue operand = GetBitsOperand(decode.operand_idx());
   // The decode bit width cannot exceed 2 ** operand_bit_width.
-  int64_t right_bound = kMaxFuzzBitWidth;
+  int64_t right_bound = IrFuzzHelpers::kMaxFuzzBitWidth;
   // We could choose a larger size for this check, but we're clamping to
-  // kMaxFuzzBitWidth and 10 bits is sufficient for this while completely
-  // avoiding potential overflow, unlike e.g. checking for 64 bits.
+  // IrFuzzHelpers::kMaxFuzzBitWidth and 10 bits is sufficient for this while
+  // completely avoiding potential overflow, unlike e.g. checking for 64 bits.
   if (operand.BitCountOrDie() < 10) {
-    right_bound =
-        std::min<int64_t>(kMaxFuzzBitWidth, 1ULL << operand.BitCountOrDie());
+    right_bound = std::min<int64_t>(IrFuzzHelpers::kMaxFuzzBitWidth,
+                                    1ULL << operand.BitCountOrDie());
   }
   int64_t bit_width =
-      BoundedWidth(decode.bit_width(), /*left_bound=*/1, right_bound);
+      helpers_.BoundedWidth(decode.bit_width(), /*left_bound=*/1, right_bound);
   context_list_.AppendElement(fb_->Decode(operand, bit_width));
 }
 
 void GenIrNodesPass::HandleGate(const FuzzGateProto& gate) {
   // The Gate condition only supports bit widths of 1.
-  BValue condition = GetBitsFittedOperand(
-      gate.condition_idx(), gate.condition_coercion_method(), /*bit_width=*/1);
+  BValue condition = GetBitsFittedOperand(gate.condition_idx(),
+                                          gate.condition_coercion_method(),
+                                          /*bit_width=*/1);
   BValue data = GetBitsOperand(gate.data_idx());
   context_list_.AppendElement(fb_->Gate(condition, data));
 }
@@ -698,8 +708,8 @@ BValue GenIrNodesPass::GetArrayOperand(
 BValue GenIrNodesPass::GetCoercedOperand(const OperandIdxProto& operand_idx,
                                          const CoercedTypeProto& coerced_type) {
   BValue operand = GetOperand(operand_idx);
-  Type* type = ConvertTypeProtoToType(p_, coerced_type);
-  return Coerced(p_, fb_, operand, coerced_type, type);
+  Type* type = helpers_.ConvertTypeProtoToType(p_, coerced_type);
+  return helpers_.Coerced(p_, fb_, operand, coerced_type, type);
 }
 
 // Retrieves an operand from the bits context list and then coerces it to the
@@ -708,8 +718,8 @@ BValue GenIrNodesPass::GetCoercedBitsOperand(
     const BitsOperandIdxProto& operand_idx,
     const BitsCoercedTypeProto& coerced_type) {
   BValue operand = GetBitsOperand(operand_idx);
-  Type* type = ConvertBitsTypeProtoToType(p_, coerced_type);
-  return CoercedBits(p_, fb_, operand, coerced_type, type);
+  Type* type = helpers_.ConvertBitsTypeProtoToType(p_, coerced_type);
+  return helpers_.CoercedBits(p_, fb_, operand, coerced_type, type);
 }
 
 // Same as GetCoercedOperand, but uses a CoercionMethodProto directly rather
@@ -719,7 +729,7 @@ BValue GenIrNodesPass::GetFittedOperand(
     const OperandIdxProto& operand_idx,
     const CoercionMethodProto& coercion_method, Type* type) {
   BValue operand = GetOperand(operand_idx);
-  return Fitted(p_, fb_, operand, coercion_method, type);
+  return helpers_.Fitted(p_, fb_, operand, coercion_method, type);
 }
 
 // Same as GetCoercedBitsOperand, but uses a BitsCoercionMethodProto directly
@@ -729,8 +739,8 @@ BValue GenIrNodesPass::GetBitsFittedOperand(
     const BitsOperandIdxProto& operand_idx,
     const BitsCoercionMethodProto& coercion_method, int64_t bit_width) {
   BValue operand = GetBitsOperand(operand_idx);
-  Type* type = p_->GetBitsType(bit_width);
-  return FittedBits(p_, fb_, operand, coercion_method, type);
+  Type* type = p_->GetBitsType(bit_width);  // No change here.
+  return helpers_.FittedBits(p_, fb_, operand, coercion_method, type);
 }
 
 // Retrieves multiple operands from the combined context list. If
@@ -751,7 +761,7 @@ std::vector<BValue> GenIrNodesPass::GetOperands(
     operands.push_back(GetOperand(operand_idxs.at(i)));
   }
   // Fill in any remaining operands with default values.
-  BValue default_value = DefaultValue(p_, fb_);
+  BValue default_value = helpers_.DefaultValue(p_, fb_);
   while (operands.size() < min_operand_count) {
     operands.push_back(default_value);
   }
@@ -769,7 +779,7 @@ std::vector<BValue> GenIrNodesPass::GetBitsOperands(
        i += 1) {
     operands.push_back(GetBitsOperand(operand_idxs.at(i)));
   }
-  BValue default_value = DefaultValue(p_, fb_, TypeCase::BITS_CASE);
+  BValue default_value = helpers_.DefaultValue(p_, fb_, TypeCase::BITS_CASE);
   while (operands.size() < min_operand_count) {
     operands.push_back(default_value);
   }
@@ -787,7 +797,7 @@ std::vector<BValue> GenIrNodesPass::GetArrayOperands(
        i += 1) {
     operands.push_back(GetArrayOperand(operand_idxs.at(i)));
   }
-  BValue default_value = DefaultValue(p_, fb_, TypeCase::ARRAY_CASE);
+  BValue default_value = helpers_.DefaultValue(p_, fb_, TypeCase::ARRAY_CASE);
   while (operands.size() < min_operand_count) {
     operands.push_back(default_value);
   }
@@ -808,8 +818,8 @@ std::vector<BValue> GenIrNodesPass::GetCoercedOperands(
        i += 1) {
     operands.push_back(GetCoercedOperand(operand_idxs.at(i), coerced_type));
   }
-  Type* type = ConvertTypeProtoToType(p_, coerced_type);
-  BValue default_value = DefaultValueOfType(p_, fb_, type);
+  Type* type = helpers_.ConvertTypeProtoToType(p_, coerced_type);
+  BValue default_value = helpers_.DefaultValueOfType(p_, fb_, type);
   while (operands.size() < min_operand_count) {
     operands.push_back(default_value);
   }
@@ -830,8 +840,8 @@ std::vector<BValue> GenIrNodesPass::GetCoercedBitsOperands(
        i += 1) {
     operands.push_back(GetCoercedBitsOperand(operand_idxs.at(i), coerced_type));
   }
-  Type* type = ConvertBitsTypeProtoToType(p_, coerced_type);
-  BValue default_value = DefaultValueOfBitsType(p_, fb_, type);
+  Type* type = helpers_.ConvertBitsTypeProtoToType(p_, coerced_type);
+  BValue default_value = helpers_.DefaultValueOfBitsType(p_, fb_, type);
   while (operands.size() < min_operand_count) {
     operands.push_back(default_value);
   }

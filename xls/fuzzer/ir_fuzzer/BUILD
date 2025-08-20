@@ -149,6 +149,7 @@ cc_library(
         ":combine_context_list",
         ":fuzz_program_cc_proto",
         ":gen_ir_nodes_pass",
+        ":ir_fuzz_helpers",
         ":ir_node_context_list",
         "//xls/ir",
         "//xls/ir:function_builder",
@@ -162,6 +163,7 @@ cc_test(
     deps = [
         ":fuzz_program_cc_proto",
         ":gen_ir_nodes_pass",
+        ":ir_fuzz_domain",
         ":ir_fuzz_helpers",
         ":ir_fuzz_test_library",
         ":ir_node_context_list",
@@ -210,6 +212,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/ir:bits",
         "@com_google_absl//absl/strings:str_format",
+        "@cppitertools",
         "@googletest//:gtest",
     ],
 )

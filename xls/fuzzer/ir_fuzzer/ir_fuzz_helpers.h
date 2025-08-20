@@ -38,90 +38,116 @@ enum TypeCase {
   ARRAY_CASE = 3,
 };
 
-BValue Coerced(Package* p, FunctionBuilder* fb, BValue bvalue,
-               const CoercedTypeProto& coerced_type, Type* target_type);
-BValue CoercedBits(Package* p, FunctionBuilder* fb, BValue bvalue,
-                   const BitsCoercedTypeProto& coerced_type, Type* target_type);
-BValue CoercedTuple(Package* p, FunctionBuilder* fb, BValue bvalue,
-                    const TupleCoercedTypeProto& coerced_type,
-                    Type* target_type);
-BValue CoercedArray(Package* p, FunctionBuilder* fb, BValue bvalue,
-                    const ArrayCoercedTypeProto& coerced_type,
-                    Type* target_type);
+class IrFuzzHelpers {
+ public:
+  constexpr IrFuzzHelpers(FuzzVersion version) : fuzz_version_(version) {}
 
-BValue Fitted(Package* p, FunctionBuilder* fb, BValue bvalue,
-              const CoercionMethodProto& coercion_method, Type* type);
-BValue FittedBits(Package* p, FunctionBuilder* fb, BValue bvalue,
-                  const BitsCoercionMethodProto& coercion_method,
-                  Type* target_type);
-BValue FittedTuple(Package* p, FunctionBuilder* fb, BValue bvalue,
-                   const CoercionMethodProto& coercion_method,
-                   Type* target_type);
-BValue FittedArray(Package* p, FunctionBuilder* fb, BValue bvalue,
-                   const CoercionMethodProto& coercion_method,
-                   Type* target_type);
+  BValue Coerced(Package* p, FunctionBuilder* fb, BValue bvalue,
+                 const CoercedTypeProto& coerced_type, Type* target_type) const;
+  BValue CoercedBits(Package* p, FunctionBuilder* fb, BValue bvalue,
+                     const BitsCoercedTypeProto& coerced_type,
+                     Type* target_type) const;
+  BValue CoercedTuple(Package* p, FunctionBuilder* fb, BValue bvalue,
+                      const TupleCoercedTypeProto& coerced_type,
+                      Type* target_type) const;
+  BValue CoercedArray(Package* p, FunctionBuilder* fb, BValue bvalue,
+                      const ArrayCoercedTypeProto& coerced_type,
+                      Type* target_type) const;
 
-BValue ChangeBitWidth(FunctionBuilder* fb, BValue bvalue, int64_t new_bit_width,
-                      const ChangeBitWidthMethodProto& change_bit_width_method);
-BValue ChangeBitWidth(FunctionBuilder* fb, BValue bvalue,
-                      int64_t new_bit_width);
-BValue DecreaseBitWidth(FunctionBuilder* fb, BValue bvalue,
-                        int64_t new_bit_width,
-                        const DecreaseWidthMethod& decrease_width_method);
-BValue IncreaseBitWidth(FunctionBuilder* fb, BValue bvalue,
-                        int64_t new_bit_width,
-                        const IncreaseWidthMethod& increase_width_method);
+  BValue Fitted(Package* p, FunctionBuilder* fb, BValue bvalue,
+                const CoercionMethodProto& coercion_method, Type* type) const;
+  BValue FittedBits(Package* p, FunctionBuilder* fb, BValue bvalue,
+                    const BitsCoercionMethodProto& coercion_method,
+                    Type* target_type) const;
+  BValue FittedTuple(Package* p, FunctionBuilder* fb, BValue bvalue,
+                     const CoercionMethodProto& coercion_method,
+                     Type* target_type) const;
+  BValue FittedArray(Package* p, FunctionBuilder* fb, BValue bvalue,
+                     const CoercionMethodProto& coercion_method,
+                     Type* target_type) const;
 
-BValue ChangeTupleSize(
-    FunctionBuilder* fb, BValue bvalue, int64_t new_size,
-    const ChangeTupleSizeMethodProto& change_tuple_size_method);
-BValue DecreaseTupleSize(FunctionBuilder* fb, BValue bvalue, int64_t new_size,
-                         const DecreaseTupleSizeMethod& decrease_size_method);
-BValue IncreaseTupleSize(FunctionBuilder* fb, BValue bvalue, int64_t new_size,
-                         const IncreaseTupleSizeMethod& increase_size_method);
+  BValue ChangeBitWidth(
+      FunctionBuilder* fb, BValue bvalue, int64_t new_bit_width,
+      const ChangeBitWidthMethodProto& change_bit_width_method) const;
+  BValue ChangeBitWidth(FunctionBuilder* fb, BValue bvalue,
+                        int64_t new_bit_width) const;
+  BValue DecreaseBitWidth(
+      FunctionBuilder* fb, BValue bvalue, int64_t new_bit_width,
+      const DecreaseWidthMethod& decrease_width_method) const;
+  BValue IncreaseBitWidth(
+      FunctionBuilder* fb, BValue bvalue, int64_t new_bit_width,
+      const IncreaseWidthMethod& increase_bit_width_method) const;
 
-BValue ChangeArraySize(
-    Package* p, FunctionBuilder* fb, BValue bvalue, int64_t new_size,
-    const ChangeArraySizeMethodProto& change_array_size_method);
-BValue DecreaseArraySize(FunctionBuilder* fb, BValue bvalue, int64_t new_size,
-                         const DecreaseArraySizeMethod& decrease_size_method);
-BValue IncreaseArraySize(Package* p, FunctionBuilder* fb, BValue bvalue,
-                         int64_t new_size,
-                         const IncreaseArraySizeMethod& increase_size_method);
+  BValue ChangeTupleSize(
+      FunctionBuilder* fb, BValue bvalue, int64_t new_size,
+      const ChangeTupleSizeMethodProto& change_tuple_size_method) const;
+  BValue DecreaseTupleSize(
+      FunctionBuilder* fb, BValue bvalue, int64_t new_size,
+      const DecreaseTupleSizeMethod& decrease_size_method) const;
+  BValue IncreaseTupleSize(
+      FunctionBuilder* fb, BValue bvalue, int64_t new_size,
+      const IncreaseTupleSizeMethod& increase_size_method) const;
 
-constexpr int64_t kMaxFuzzBitWidth = 1000;
-constexpr int64_t kMaxFuzzTupleSize = 100;
-constexpr int64_t kMaxFuzzArraySize = 100;
+  BValue ChangeArraySize(
+      Package* p, FunctionBuilder* fb, BValue bvalue, int64_t new_size,
+      const ChangeArraySizeMethodProto& change_array_size_method) const;
+  BValue DecreaseArraySize(
+      FunctionBuilder* fb, BValue bvalue, int64_t new_size,
+      const DecreaseArraySizeMethod& decrease_size_method) const;
+  BValue IncreaseArraySize(
+      Package* p, FunctionBuilder* fb, BValue bvalue, int64_t new_size,
+      const IncreaseArraySizeMethod& increase_size_method) const;
 
-int64_t Bounded(int64_t value, int64_t left_bound, int64_t right_bound);
-int64_t BoundedWidth(int64_t bit_width, int64_t left_bound = 1,
-                     int64_t right_bound = kMaxFuzzBitWidth);
-int64_t BoundedTupleSize(int64_t tuple_size, int64_t left_bound = 0,
-                         int64_t right_bound = kMaxFuzzTupleSize);
-int64_t BoundedArraySize(int64_t array_size, int64_t left_bound = 1,
-                         int64_t right_bound = kMaxFuzzArraySize);
+  static constexpr int64_t kMaxFuzzBitWidth = 1000;
+  static constexpr int64_t kMaxFuzzTupleSize = 100;
+  static constexpr int64_t kMaxFuzzArraySize = 100;
 
-BValue DefaultValue(Package* p, FunctionBuilder* fb,
-                    TypeCase type_case = UNSET_CASE);
-BValue DefaultBitsValue(FunctionBuilder* fb);
+  int64_t Bounded(int64_t value, int64_t left_bound, int64_t right_bound) const;
+  int64_t BoundedWidth(int64_t bit_width, int64_t left_bound = 1,
+                       int64_t right_bound = kMaxFuzzBitWidth) const;
+  int64_t BoundedTupleSize(int64_t tuple_size, int64_t left_bound = 0,
+                           int64_t right_bound = kMaxFuzzTupleSize) const;
+  int64_t BoundedArraySize(int64_t array_size, int64_t left_bound = 1,
+                           int64_t right_bound = kMaxFuzzArraySize) const;
 
-BValue DefaultValueOfType(Package* p, FunctionBuilder* fb, Type* type);
-BValue DefaultValueOfBitsType(Package* p, FunctionBuilder* fb, Type* type);
-BValue DefaultValueOfTupleType(Package* p, FunctionBuilder* fb, Type* type);
-BValue DefaultValueOfArrayType(Package* p, FunctionBuilder* fb, Type* type);
+  BValue DefaultValue(Package* p, FunctionBuilder* fb,
+                      TypeCase type_case = UNSET_CASE) const;
+  BValue DefaultBitsValue(FunctionBuilder* fb) const;
 
-template <typename TypeProto>
-Type* ConvertTypeProtoToType(Package* p, const TypeProto& type_proto);
-template <typename BitsTypeProto>
-Type* ConvertBitsTypeProtoToType(Package* p, const BitsTypeProto& bits_type);
-template <typename TupleTypeProto>
-Type* ConvertTupleTypeProtoToType(Package* p, const TupleTypeProto& tuple_type);
-template <typename ArrayTypeProto>
-Type* ConvertArrayTypeProtoToType(Package* p, const ArrayTypeProto& array_type);
+  BValue DefaultValueOfType(Package* p, FunctionBuilder* fb, Type* type) const;
+  BValue DefaultValueOfBitsType(Package* p, FunctionBuilder* fb,
+                                Type* type) const;
+  BValue DefaultValueOfTupleType(Package* p, FunctionBuilder* fb,
+                                 Type* type) const;
+  BValue DefaultValueOfArrayType(Package* p, FunctionBuilder* fb,
+                                 Type* type) const;
 
-std::vector<Value> GenArgsForParam(int64_t arg_count, Type* type,
-                                   const Bits& args_bits, int64_t& bits_idx);
-Bits ChangeBytesBitWidth(std::string bytes, int64_t bit_width);
+  template <typename TypeProto>
+  Type* ConvertTypeProtoToType(Package* p, const TypeProto& type_proto) const;
+  template <typename BitsTypeProto>
+  Type* ConvertBitsTypeProtoToType(Package* p,
+                                   const BitsTypeProto& bits_type) const;
+  template <typename TupleTypeProto>
+  Type* ConvertTupleTypeProtoToType(Package* p,
+                                    const TupleTypeProto& tuple_type) const;
+  template <typename ArrayTypeProto>
+  Type* ConvertArrayTypeProtoToType(Package* p,
+                                    const ArrayTypeProto& array_type) const;
+
+  std::vector<Value> GenArgsForParam(int64_t arg_count, Type* type,
+                                     const Bits& args_bits,
+                                     int64_t& bits_idx) const;
+  Bits ChangeBytesBitWidth(std::string bytes, int64_t bit_width) const;
+
+ private:
+  FuzzVersion fuzz_version_;
+};
+
+constexpr std::array<IrFuzzHelpers, 2> kFuzzHelpers =
+    std::array<IrFuzzHelpers, 2>{
+        IrFuzzHelpers(FuzzVersion::UNSET_FUZZ_VERSION),
+        IrFuzzHelpers(FuzzVersion::BOUND_WITH_MODULO_VERSION),
+    };
 
 }  // namespace xls
 

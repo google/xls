@@ -14,6 +14,7 @@
 
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_helpers.h"
 
+#include <bit>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -36,8 +37,9 @@ namespace xls {
 // should be coerced to the target_type. The target_type should be created based
 // off of the coerced_type. Additional helper functions, like CoercedBits, are
 // provided if you already know that the bvalue is of a bits type.
-BValue Coerced(Package* p, FunctionBuilder* fb, BValue bvalue,
-               const CoercedTypeProto& coerced_type, Type* target_type) {
+BValue IrFuzzHelpers::Coerced(Package* p, FunctionBuilder* fb, BValue bvalue,
+                              const CoercedTypeProto& coerced_type,
+                              Type* target_type) const {
   switch (coerced_type.type_case()) {
     case CoercedTypeProto::kBits:
       return CoercedBits(p, fb, bvalue, coerced_type.bits(), target_type);
@@ -46,13 +48,14 @@ BValue Coerced(Package* p, FunctionBuilder* fb, BValue bvalue,
     case CoercedTypeProto::kArray:
       return CoercedArray(p, fb, bvalue, coerced_type.array(), target_type);
     default:
-      return DefaultValue(p, fb);
+      return DefaultValue(p, fb, TypeCase::UNSET_CASE);
   }
 }
 
-BValue CoercedBits(Package* p, FunctionBuilder* fb, BValue bvalue,
-                   const BitsCoercedTypeProto& coerced_type,
-                   Type* target_type) {
+BValue IrFuzzHelpers::CoercedBits(Package* p, FunctionBuilder* fb,
+                                  BValue bvalue,
+                                  const BitsCoercedTypeProto& coerced_type,
+                                  Type* target_type) const {
   Type* bvalue_type = bvalue.GetType();
   // If the bvalue is already the specified type, return it as is.
   if (bvalue_type == target_type) {
@@ -70,9 +73,10 @@ BValue CoercedBits(Package* p, FunctionBuilder* fb, BValue bvalue,
                         coercion_method.change_bit_width_method());
 }
 
-BValue CoercedTuple(Package* p, FunctionBuilder* fb, BValue bvalue,
-                    const TupleCoercedTypeProto& coerced_type,
-                    Type* target_type) {
+BValue IrFuzzHelpers::CoercedTuple(Package* p, FunctionBuilder* fb,
+                                   BValue bvalue,
+                                   const TupleCoercedTypeProto& coerced_type,
+                                   Type* target_type) const {
   Type* bvalue_type = bvalue.GetType();
   if (bvalue_type == target_type) {
     return bvalue;
@@ -98,9 +102,10 @@ BValue CoercedTuple(Package* p, FunctionBuilder* fb, BValue bvalue,
   return fb->Tuple(coerced_elements);
 }
 
-BValue CoercedArray(Package* p, FunctionBuilder* fb, BValue bvalue,
-                    const ArrayCoercedTypeProto& coerced_type,
-                    Type* target_type) {
+BValue IrFuzzHelpers::CoercedArray(Package* p, FunctionBuilder* fb,
+                                   BValue bvalue,
+                                   const ArrayCoercedTypeProto& coerced_type,
+                                   Type* target_type) const {
   Type* bvalue_type = bvalue.GetType();
   if (bvalue_type == target_type) {
     return bvalue;
@@ -138,8 +143,9 @@ BValue CoercedArray(Package* p, FunctionBuilder* fb, BValue bvalue,
 // because Fitted() uses coercion_method instead of coerced_type. Additional
 // helper functions, like FittedBits, are provided if you already know that the
 // bvalue is of a bits type.
-BValue Fitted(Package* p, FunctionBuilder* fb, BValue bvalue,
-              const CoercionMethodProto& coercion_method, Type* target_type) {
+BValue IrFuzzHelpers::Fitted(Package* p, FunctionBuilder* fb, BValue bvalue,
+                             const CoercionMethodProto& coercion_method,
+                             Type* target_type) const {
   if (target_type->IsBits()) {
     return FittedBits(p, fb, bvalue, coercion_method.bits(), target_type);
   } else if (target_type->IsTuple()) {
@@ -147,13 +153,13 @@ BValue Fitted(Package* p, FunctionBuilder* fb, BValue bvalue,
   } else if (target_type->IsArray()) {
     return FittedArray(p, fb, bvalue, coercion_method, target_type);
   } else {
-    return DefaultValue(p, fb);
+    return DefaultValue(p, fb, TypeCase::UNSET_CASE);
   }
 }
 
-BValue FittedBits(Package* p, FunctionBuilder* fb, BValue bvalue,
-                  const BitsCoercionMethodProto& coercion_method,
-                  Type* target_type) {
+BValue IrFuzzHelpers::FittedBits(Package* p, FunctionBuilder* fb, BValue bvalue,
+                                 const BitsCoercionMethodProto& coercion_method,
+                                 Type* target_type) const {
   Type* bvalue_type = bvalue.GetType();
   // If the bvalue is already the specified type, return it as is.
   if (bvalue_type == target_type) {
@@ -169,9 +175,10 @@ BValue FittedBits(Package* p, FunctionBuilder* fb, BValue bvalue,
                         coercion_method.change_bit_width_method());
 }
 
-BValue FittedTuple(Package* p, FunctionBuilder* fb, BValue bvalue,
-                   const CoercionMethodProto& coercion_method,
-                   Type* target_type) {
+BValue IrFuzzHelpers::FittedTuple(Package* p, FunctionBuilder* fb,
+                                  BValue bvalue,
+                                  const CoercionMethodProto& coercion_method,
+                                  Type* target_type) const {
   Type* bvalue_type = bvalue.GetType();
   if (bvalue_type == target_type) {
     return bvalue;
@@ -195,9 +202,10 @@ BValue FittedTuple(Package* p, FunctionBuilder* fb, BValue bvalue,
   return fb->Tuple(fitted_elements);
 }
 
-BValue FittedArray(Package* p, FunctionBuilder* fb, BValue bvalue,
-                   const CoercionMethodProto& coercion_method,
-                   Type* target_type) {
+BValue IrFuzzHelpers::FittedArray(Package* p, FunctionBuilder* fb,
+                                  BValue bvalue,
+                                  const CoercionMethodProto& coercion_method,
+                                  Type* target_type) const {
   Type* bvalue_type = bvalue.GetType();
   if (bvalue_type == target_type) {
     return bvalue;
@@ -228,9 +236,9 @@ BValue FittedArray(Package* p, FunctionBuilder* fb, BValue bvalue,
 
 // Changes the bit width of an inputted BValue to a specified bit width.
 // Multiple bit width modification methods can be used and specified.
-BValue ChangeBitWidth(
+BValue IrFuzzHelpers::ChangeBitWidth(
     FunctionBuilder* fb, BValue bvalue, int64_t new_bit_width,
-    const ChangeBitWidthMethodProto& change_bit_width_method) {
+    const ChangeBitWidthMethodProto& change_bit_width_method) const {
   if (bvalue.BitCountOrDie() > new_bit_width) {
     // If the bvalue is larger than the bit width, use the decrease width method
     // to reduce the bit width.
@@ -249,18 +257,19 @@ BValue ChangeBitWidth(
 }
 
 // Overloaded version of ChangeBitWidth that uses default width fitting methods.
-BValue ChangeBitWidth(FunctionBuilder* fb, BValue bvalue, int64_t bit_width) {
+BValue IrFuzzHelpers::ChangeBitWidth(FunctionBuilder* fb, BValue bvalue,
+                                     int64_t bit_width) const {
   ChangeBitWidthMethodProto default_method;
   default_method.set_decrease_width_method(
       DecreaseWidthMethod::UNSET_DECREASE_WIDTH_METHOD);
   default_method.set_increase_width_method(
       IncreaseWidthMethod::UNSET_INCREASE_WIDTH_METHOD);
   return ChangeBitWidth(fb, bvalue, bit_width, default_method);
-}
+}  // namespace xls
 
-BValue DecreaseBitWidth(FunctionBuilder* fb, BValue bvalue,
-                        int64_t new_bit_width,
-                        const DecreaseWidthMethod& decrease_width_method) {
+BValue IrFuzzHelpers::DecreaseBitWidth(
+    FunctionBuilder* fb, BValue bvalue, int64_t new_bit_width,
+    const DecreaseWidthMethod& decrease_width_method) const {
   switch (decrease_width_method) {
     case BIT_SLICE_METHOD:
     default:
@@ -268,9 +277,9 @@ BValue DecreaseBitWidth(FunctionBuilder* fb, BValue bvalue,
   }
 }
 
-BValue IncreaseBitWidth(FunctionBuilder* fb, BValue bvalue,
-                        int64_t new_bit_width,
-                        const IncreaseWidthMethod& increase_width_method) {
+BValue IrFuzzHelpers::IncreaseBitWidth(
+    FunctionBuilder* fb, BValue bvalue, int64_t new_bit_width,
+    const IncreaseWidthMethod& increase_width_method) const {
   switch (increase_width_method) {
     case SIGN_EXTEND_METHOD:
       return fb->SignExtend(bvalue, new_bit_width);
@@ -281,9 +290,9 @@ BValue IncreaseBitWidth(FunctionBuilder* fb, BValue bvalue,
 }
 
 // Changes the size of a tuple to match the specified size.
-BValue ChangeTupleSize(
+BValue IrFuzzHelpers::ChangeTupleSize(
     FunctionBuilder* fb, BValue bvalue, int64_t new_size,
-    const ChangeTupleSizeMethodProto& change_tuple_size_method) {
+    const ChangeTupleSizeMethodProto& change_tuple_size_method) const {
   int64_t current_size = bvalue.GetType()->AsTupleOrDie()->size();
   if (current_size > new_size) {
     return DecreaseTupleSize(fb, bvalue, new_size,
@@ -296,8 +305,9 @@ BValue ChangeTupleSize(
   }
 }
 
-BValue DecreaseTupleSize(FunctionBuilder* fb, BValue bvalue, int64_t new_size,
-                         const DecreaseTupleSizeMethod& decrease_size_method) {
+BValue IrFuzzHelpers::DecreaseTupleSize(
+    FunctionBuilder* fb, BValue bvalue, int64_t new_size,
+    const DecreaseTupleSizeMethod& decrease_size_method) const {
   switch (decrease_size_method) {
     case DecreaseTupleSizeMethod::SHRINK_TUPLE_METHOD:
     default:
@@ -311,8 +321,9 @@ BValue DecreaseTupleSize(FunctionBuilder* fb, BValue bvalue, int64_t new_size,
   }
 }
 
-BValue IncreaseTupleSize(FunctionBuilder* fb, BValue bvalue, int64_t new_size,
-                         const IncreaseTupleSizeMethod& increase_size_method) {
+BValue IrFuzzHelpers::IncreaseTupleSize(
+    FunctionBuilder* fb, BValue bvalue, int64_t new_size,
+    const IncreaseTupleSizeMethod& increase_size_method) const {
   switch (increase_size_method) {
     case IncreaseTupleSizeMethod::EXPAND_TUPLE_METHOD:
     default:
@@ -331,9 +342,9 @@ BValue IncreaseTupleSize(FunctionBuilder* fb, BValue bvalue, int64_t new_size,
 }
 
 // Changes the size of an array to match the specified size.
-BValue ChangeArraySize(
+BValue IrFuzzHelpers::ChangeArraySize(
     Package* p, FunctionBuilder* fb, BValue bvalue, int64_t new_size,
-    const ChangeArraySizeMethodProto& change_array_size_method) {
+    const ChangeArraySizeMethodProto& change_array_size_method) const {
   ArrayType* array_type = bvalue.GetType()->AsArrayOrDie();
   if (array_type->size() > new_size) {
     return DecreaseArraySize(fb, bvalue, new_size,
@@ -346,8 +357,9 @@ BValue ChangeArraySize(
   }
 }
 
-BValue DecreaseArraySize(FunctionBuilder* fb, BValue bvalue, int64_t new_size,
-                         const DecreaseArraySizeMethod& decrease_size_method) {
+BValue IrFuzzHelpers::DecreaseArraySize(
+    FunctionBuilder* fb, BValue bvalue, int64_t new_size,
+    const DecreaseArraySizeMethod& decrease_size_method) const {
   ArrayType* array_type = bvalue.GetType()->AsArrayOrDie();
   switch (decrease_size_method) {
     case DecreaseArraySizeMethod::ARRAY_SLICE_METHOD:
@@ -365,9 +377,9 @@ BValue DecreaseArraySize(FunctionBuilder* fb, BValue bvalue, int64_t new_size,
   }
 }
 
-BValue IncreaseArraySize(Package* p, FunctionBuilder* fb, BValue bvalue,
-                         int64_t new_size,
-                         const IncreaseArraySizeMethod& increase_size_method) {
+BValue IrFuzzHelpers::IncreaseArraySize(
+    Package* p, FunctionBuilder* fb, BValue bvalue, int64_t new_size,
+    const IncreaseArraySizeMethod& increase_size_method) const {
   ArrayType* array_type = bvalue.GetType()->AsArrayOrDie();
   switch (increase_size_method) {
     case IncreaseArraySizeMethod::EXPAND_ARRAY_METHOD:
@@ -390,55 +402,64 @@ BValue IncreaseArraySize(Package* p, FunctionBuilder* fb, BValue bvalue,
 }
 
 // Returns the closest bound to the integer if the integer is not in bounds.
-int64_t Bounded(int64_t value, int64_t left_bound, int64_t right_bound) {
+int64_t IrFuzzHelpers::Bounded(int64_t value, int64_t left_bound,
+                               int64_t right_bound) const {
   CHECK_LE(left_bound, right_bound);
-  if (value < left_bound) {
-    return left_bound;
-  } else if (value > right_bound) {
-    return right_bound;
-  } else {
-    return value;
+  if (fuzz_version_ < FuzzVersion::BOUND_WITH_MODULO_VERSION) {
+    if (value < left_bound) {
+      return left_bound;
+    } else if (value > right_bound) {
+      return right_bound;
+    } else {
+      return value;
+    }
   }
+  int64_t diff = right_bound - left_bound;
+  return left_bound +
+         (std::bit_cast<uint64_t>(value) % static_cast<uint64_t>(diff + 1));
 }
 
 // Returns a default bit width if it is not in range. Bit width cannot be
 // negative, cannot be 0, and cannot be too large otherwise the test will run
 // out of memory or take too long.
-int64_t BoundedWidth(int64_t bit_width, int64_t left_bound,
-                     int64_t right_bound) {
+int64_t IrFuzzHelpers::BoundedWidth(int64_t bit_width, int64_t left_bound,
+                                    int64_t right_bound) const {
   return Bounded(bit_width, left_bound, right_bound);
 }
 
-int64_t BoundedTupleSize(int64_t tuple_size, int64_t left_bound,
-                         int64_t right_bound) {
+int64_t IrFuzzHelpers::BoundedTupleSize(int64_t tuple_size, int64_t left_bound,
+                                        int64_t right_bound) const {
   return Bounded(tuple_size, left_bound, right_bound);
 }
 
 // Arrays must have at least one element.
-int64_t BoundedArraySize(int64_t array_size, int64_t left_bound,
-                         int64_t right_bound) {
+int64_t IrFuzzHelpers::BoundedArraySize(int64_t array_size, int64_t left_bound,
+                                        int64_t right_bound) const {
   return Bounded(array_size, left_bound, right_bound);
 }
 
 // Returns a default BValue of the specified type.
-BValue DefaultValue(Package* p, FunctionBuilder* fb, TypeCase type_case) {
+BValue IrFuzzHelpers::DefaultValue(Package* p, FunctionBuilder* fb,
+                                   TypeCase type_case) const {
   switch (type_case) {
     case TypeCase::UNSET_CASE:
     case TypeCase::BITS_CASE:
       return DefaultBitsValue(fb);
     case TypeCase::TUPLE_CASE:
-      return fb->Tuple({DefaultBitsValue(fb)});
+      return fb->Tuple({DefaultValue(p, fb, TypeCase::BITS_CASE)});
     case TypeCase::ARRAY_CASE:
-      return fb->Array({DefaultBitsValue(fb)}, p->GetBitsType(64));
+      return fb->Array({DefaultValue(p, fb, TypeCase::BITS_CASE)},
+                       p->GetBitsType(64));
   }
 }
 
-BValue DefaultBitsValue(FunctionBuilder* fb) {
+BValue IrFuzzHelpers::DefaultBitsValue(FunctionBuilder* fb) const {
   return fb->Literal(UBits(0, 64));
 }
 
 // Returns a default BValue of the specified type.
-BValue DefaultValueOfType(Package* p, FunctionBuilder* fb, Type* type) {
+BValue IrFuzzHelpers::DefaultValueOfType(Package* p, FunctionBuilder* fb,
+                                         Type* type) const {
   if (type->IsBits()) {
     return DefaultValueOfBitsType(p, fb, type);
   } else if (type->IsTuple()) {
@@ -446,16 +467,18 @@ BValue DefaultValueOfType(Package* p, FunctionBuilder* fb, Type* type) {
   } else if (type->IsArray()) {
     return DefaultValueOfArrayType(p, fb, type);
   } else {
-    return DefaultValue(p, fb);
+    return DefaultValue(p, fb, TypeCase::UNSET_CASE);
   }
 }
 
-BValue DefaultValueOfBitsType(Package* p, FunctionBuilder* fb, Type* type) {
+BValue IrFuzzHelpers::DefaultValueOfBitsType(Package* p, FunctionBuilder* fb,
+                                             Type* type) const {
   BitsType* bits_type = type->AsBitsOrDie();
   return fb->Literal(UBits(0, bits_type->bit_count()));
 }
 
-BValue DefaultValueOfTupleType(Package* p, FunctionBuilder* fb, Type* type) {
+BValue IrFuzzHelpers::DefaultValueOfTupleType(Package* p, FunctionBuilder* fb,
+                                              Type* type) const {
   TupleType* tuple_type = type->AsTupleOrDie();
   std::vector<BValue> elements;
   // Retrieve the default of each element in the tuple and make a new tuple.
@@ -465,7 +488,8 @@ BValue DefaultValueOfTupleType(Package* p, FunctionBuilder* fb, Type* type) {
   return fb->Tuple(elements);
 }
 
-BValue DefaultValueOfArrayType(Package* p, FunctionBuilder* fb, Type* type) {
+BValue IrFuzzHelpers::DefaultValueOfArrayType(Package* p, FunctionBuilder* fb,
+                                              Type* type) const {
   ArrayType* array_type = type->AsArrayOrDie();
   std::vector<BValue> elements;
   // Retrieve the default element, fill the array with the same element, and
@@ -480,13 +504,14 @@ BValue DefaultValueOfArrayType(Package* p, FunctionBuilder* fb, Type* type) {
 // These template specializations define that the ConvertTypeProtoToType
 // function can be called with the following types. Use of a template to
 // allow the traversal of any type proto.
-template Type* ConvertTypeProtoToType<FuzzTypeProto>(Package*,
-                                                     const FuzzTypeProto&);
-template Type* ConvertTypeProtoToType<CoercedTypeProto>(
-    Package*, const CoercedTypeProto&);
+template Type* IrFuzzHelpers::ConvertTypeProtoToType<FuzzTypeProto>(
+    Package* p, const FuzzTypeProto&) const;
+template Type* IrFuzzHelpers::ConvertTypeProtoToType<CoercedTypeProto>(
+    Package* p, const CoercedTypeProto&) const;
 // Returns a Type object from the specified type proto.
 template <typename TypeProto>
-Type* ConvertTypeProtoToType(Package* p, const TypeProto& type_proto) {
+Type* IrFuzzHelpers::ConvertTypeProtoToType(Package* p,
+                                            const TypeProto& type_proto) const {
   using TypeCase = decltype(type_proto.type_case());
   switch (type_proto.type_case()) {
     case TypeCase::kBits:
@@ -500,17 +525,18 @@ Type* ConvertTypeProtoToType(Package* p, const TypeProto& type_proto) {
   }
 }
 
-template Type* ConvertBitsTypeProtoToType<BitsCoercedTypeProto>(
-    Package*, const BitsCoercedTypeProto&);
+template Type* IrFuzzHelpers::ConvertBitsTypeProtoToType<BitsCoercedTypeProto>(
+    Package* p, const BitsCoercedTypeProto&) const;
 template <typename BitsTypeProto>
-Type* ConvertBitsTypeProtoToType(Package* p, const BitsTypeProto& bits_type) {
+Type* IrFuzzHelpers::ConvertBitsTypeProtoToType(
+    Package* p, const BitsTypeProto& bits_type) const {
   int64_t bit_width = BoundedWidth(bits_type.bit_width());
   return p->GetBitsType(bit_width);
 }
 
 template <typename TupleTypeProto>
-Type* ConvertTupleTypeProtoToType(Package* p,
-                                  const TupleTypeProto& tuple_type) {
+Type* IrFuzzHelpers::ConvertTupleTypeProtoToType(
+    Package* p, const TupleTypeProto& tuple_type) const {
   int64_t tuple_size = BoundedTupleSize(tuple_type.tuple_elements_size());
   std::vector<Type*> element_types;
   for (int64_t i = 0; i < tuple_size; i += 1) {
@@ -522,8 +548,8 @@ Type* ConvertTupleTypeProtoToType(Package* p,
 }
 
 template <typename ArrayTypeProto>
-Type* ConvertArrayTypeProtoToType(Package* p,
-                                  const ArrayTypeProto& array_type) {
+Type* IrFuzzHelpers::ConvertArrayTypeProtoToType(
+    Package* p, const ArrayTypeProto& array_type) const {
   int64_t array_size = BoundedArraySize(array_type.array_size());
   Type* element_type = ConvertTypeProtoToType(p, array_type.array_element());
   return p->GetArrayType(array_size, element_type);
@@ -531,8 +557,9 @@ Type* ConvertArrayTypeProtoToType(Package* p,
 
 // Returns arg_count number of randomly generated arguments that are compatible
 // for a given parameter type.
-std::vector<Value> GenArgsForParam(int64_t arg_count, Type* type,
-                                   const Bits& args_bits, int64_t& bits_idx) {
+std::vector<Value> IrFuzzHelpers::GenArgsForParam(int64_t arg_count, Type* type,
+                                                  const Bits& args_bits,
+                                                  int64_t& bits_idx) const {
   std::vector<Value> args;
   // Only generate the minimum number of bits needed for the argument.
   int64_t bit_width = type->GetFlatBitCount();
@@ -557,7 +584,8 @@ std::vector<Value> GenArgsForParam(int64_t arg_count, Type* type,
 // Accepts a string representing a byte array, which represents an integer. This
 // byte array is converted into a Bits object, then truncated or zero extended
 // to the specified bit width.
-Bits ChangeBytesBitWidth(std::string bytes, int64_t bit_width) {
+Bits IrFuzzHelpers::ChangeBytesBitWidth(std::string bytes,
+                                        int64_t bit_width) const {
   Bits bits = Bits::FromBytes(
       absl::MakeSpan(reinterpret_cast<const uint8_t*>(bytes.data()),
                      bytes.size()),

@@ -244,6 +244,8 @@ fuzztest::Domain<FuzzPackage> FuzzPackageDomainBuilder::Build() && {
       },
       fuzztest::Arbitrary<FuzzProgramProto>()
           .WithStringField("args_bytes", args)
+          .WithEnumField("version",
+                         fuzztest::Just<int>(kCurrentFuzzProtoVersion))
           .WithRepeatedProtobufField(
               "fuzz_ops",
               // Generate at least one FuzzOp.

@@ -16,6 +16,11 @@ syntax = "proto3";
 
 package xls;
 
+enum FuzzVersion {
+  UNSET_FUZZ_VERSION = 0;
+  BOUND_WITH_MODULO_VERSION = 1;
+}
+
 // This proto is used as a template such that its fields will be randomly
 // populated with values. It contains a list of FuzzOpProtos, where each gets
 // instantiated into a corresponding IR op.
@@ -26,6 +31,9 @@ message FuzzProgramProto {
   // compatible with the parameters of the function.
   optional bytes args_bytes = 2;
   repeated FuzzOpProto fuzz_ops = 3;
+  // Used to specify what sort of optional behavior we want to try to use to
+  // maintain compat with older fuzzed programs.
+  optional FuzzVersion version = 4;
 }
 
 // Specifies the method used to combine the context list of BValues into a

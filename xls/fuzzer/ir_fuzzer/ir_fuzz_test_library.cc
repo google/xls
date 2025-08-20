@@ -281,6 +281,7 @@ absl::StatusOr<FuzzPackage> BuildPackageFromProtoString(
 FuzzPackageWithArgs GenArgSetsForPackage(FuzzPackage fuzz_package,
                                          int64_t arg_set_count) {
   Function* f = fuzz_package.p->GetFunction(kFuzzTestName).value();
+  IrFuzzHelpers helpers(fuzz_package.fuzz_program.version());
   std::vector<std::vector<Value>> arg_sets;
   std::string args_bytes = fuzz_package.fuzz_program.args_bytes();
   // Convert the args_bytes into a Bits object.
@@ -291,8 +292,8 @@ FuzzPackageWithArgs GenArgSetsForPackage(FuzzPackage fuzz_package,
   int64_t bits_idx = 0;
   // Retrieve arg_set_count amount of arguments for each parameter.
   for (Param* param : f->params()) {
-    arg_sets.push_back(
-        GenArgsForParam(arg_set_count, param->GetType(), args_bits, bits_idx));
+    arg_sets.push_back(helpers.GenArgsForParam(arg_set_count, param->GetType(),
+                                               args_bits, bits_idx));
   }
   std::vector<std::vector<Value>> transposed_arg_sets;
   transposed_arg_sets.reserve(arg_set_count);

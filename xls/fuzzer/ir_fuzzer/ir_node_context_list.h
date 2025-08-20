@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_helpers.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/package.h"
 
@@ -37,7 +38,8 @@ enum ContextListType {
 // operands.
 class IrNodeContextList {
  public:
-  IrNodeContextList(Package* p, FunctionBuilder* fb) : p_(p), fb_(fb) {}
+  IrNodeContextList(Package* p, FunctionBuilder* fb, IrFuzzHelpers helpers)
+      : p_(p), fb_(fb), helpers_(helpers) {}
 
   BValue GetElementAt(int64_t list_idx,
                       ContextListType list_type = COMBINED_LIST) const;
@@ -56,6 +58,7 @@ class IrNodeContextList {
   std::vector<BValue> bits_context_list_;
   std::vector<BValue> tuple_context_list_;
   std::vector<BValue> array_context_list_;
+  IrFuzzHelpers helpers_;
 };
 
 }  // namespace xls

@@ -14,38 +14,86 @@
 
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_helpers.h"
 
+#include <cstdint>
 #include <string>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/str_format.h"
+#include "cppitertools/range.hpp"
+#include "cppitertools/sliding_window.hpp"
+#include "cppitertools/zip.hpp"
 #include "xls/ir/bits.h"
 
 namespace xls {
 namespace {
 
-TEST(IrFuzzHelpersTest, ChangeBytesBitWidthWithNoChange) {
+using ::testing::AllOf;
+using ::testing::Each;
+using ::testing::Ge;
+using ::testing::Le;
+
+class IrFuzzHelpersTest : public ::testing::TestWithParam<FuzzVersion> {
+ public:
+  IrFuzzHelpers helpers() const { return IrFuzzHelpers(GetParam()); }
+};
+
+TEST_P(IrFuzzHelpersTest, ChangeBytesBitWidthWithNoChange) {
   std::string bytes = absl::StrFormat("%c", 7);
-  Bits bits = ChangeBytesBitWidth(bytes, 3);
+  Bits bits = helpers().ChangeBytesBitWidth(bytes, 3);
   EXPECT_EQ(bits.ToUint64().value(), 7);
 }
 
-TEST(IrFuzzHelpersTest, ChangeBytesBitWidthWithTruncate) {
+TEST_P(IrFuzzHelpersTest, Bounded) {
+  std::vector<int64_t> res;
+  for (int64_t i = -10; i < 11; ++i) {
+    res.push_back(helpers().Bounded(i, 1, 7));
+  }
+  EXPECT_THAT(res, Each(AllOf(Le(7), Ge(1))));
+  RecordProperty("res", testing::PrintToString(res));
+  auto nxt = [](int64_t i) -> int64_t {
+    if (i != 7) {
+      return i + 1;
+    }
+    return 1;
+  };
+  if (GetParam() >= FuzzVersion::BOUND_WITH_MODULO_VERSION) {
+    for (const auto& [idx, w] :
+         iter::zip(iter::range(-10, 11), iter::sliding_window(res, 2))) {
+      if (idx == -1) {
+        // Discontinuity across 0.
+        continue;
+      }
+      EXPECT_EQ(w[1], nxt(w[0])) << idx;
+    }
+  }
+}
+
+TEST_P(IrFuzzHelpersTest, ChangeBytesBitWidthWithTruncate) {
   std::string bytes = absl::StrFormat("%c", 7);
-  Bits bits = ChangeBytesBitWidth(bytes, 2);
+  Bits bits = helpers().ChangeBytesBitWidth(bytes, 2);
   EXPECT_EQ(bits.ToUint64().value(), 3);
 }
 
-TEST(IrFuzzHelpersTest, ChangeBytesBitWidthWithZeroExtend) {
+TEST_P(IrFuzzHelpersTest, ChangeBytesBitWidthWithZeroExtend) {
   std::string bytes = absl::StrFormat("%c", 7);
-  Bits bits = ChangeBytesBitWidth(bytes, 4);
+  Bits bits = helpers().ChangeBytesBitWidth(bytes, 4);
   EXPECT_EQ(bits.ToUint64().value(), 7);
 }
 
-TEST(IrFuzzHelpersTest, ChangeBytesBitWidthWithLargeInput) {
+TEST_P(IrFuzzHelpersTest, ChangeBytesBitWidthWithLargeInput) {
   std::string bytes = "\xff\xff";
-  Bits bits = ChangeBytesBitWidth(bytes, 16);
+  Bits bits = helpers().ChangeBytesBitWidth(bytes, 16);
   EXPECT_EQ(bits.ToUint64().value(), 65535);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    IrFuzzHelpersTest, IrFuzzHelpersTest,
+    ::testing::Values(FuzzVersion::UNSET_FUZZ_VERSION,
+                      FuzzVersion::BOUND_WITH_MODULO_VERSION),
+    [](const testing::TestParamInfo<FuzzVersion>& v) {
+      return FuzzVersion_Name(v.param);
+    });
 
 }  // namespace
 }  // namespace xls

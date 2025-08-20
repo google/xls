@@ -29,6 +29,10 @@
 
 namespace xls {
 
+// What adjustable behavior we are going to use to generate new fuzz examples.
+constexpr FuzzVersion kCurrentFuzzProtoVersion =
+    FuzzVersion::BOUND_WITH_MODULO_VERSION;
+
 // Helper to build a fuzz package domain.
 class FuzzPackageDomainBuilder {
  public:

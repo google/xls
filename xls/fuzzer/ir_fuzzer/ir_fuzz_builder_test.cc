@@ -21,6 +21,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
 #include "xls/fuzzer/ir_fuzzer/gen_ir_nodes_pass.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_helpers.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/fuzzer/ir_fuzzer/ir_node_context_list.h"
@@ -3503,14 +3504,15 @@ TEST(IrFuzzBuilderTest, GateOp) {
 void GenIrNodesGeneratesValidSizes(const FuzzProgramProto& proto) {
   Package p("test_package");
   FunctionBuilder fb("test_function", &p);
-  IrNodeContextList context_list(&p, &fb);
+  IrNodeContextList context_list(&p, &fb,
+                                 kFuzzHelpers[kCurrentFuzzProtoVersion]);
   GenIrNodesPass pass(proto, &p, &fb, context_list);
   pass.GenIrNodes();
   for (int64_t i = 0; i < context_list.GetListSize(ContextListType::BITS_LIST);
        ++i) {
     ASSERT_LE(context_list.GetElementAt(i, ContextListType::BITS_LIST)
                   .BitCountOrDie(),
-              kMaxFuzzBitWidth);
+              IrFuzzHelpers::kMaxFuzzBitWidth);
   }
   for (int64_t i = 0; i < context_list.GetListSize(ContextListType::TUPLE_LIST);
        ++i) {
@@ -3518,7 +3520,7 @@ void GenIrNodesGeneratesValidSizes(const FuzzProgramProto& proto) {
                   .GetType()
                   ->AsTupleOrDie()
                   ->size(),
-              kMaxFuzzTupleSize);
+              IrFuzzHelpers::kMaxFuzzTupleSize);
   }
   for (int64_t i = 0; i < context_list.GetListSize(ContextListType::ARRAY_LIST);
        ++i) {
@@ -3526,7 +3528,7 @@ void GenIrNodesGeneratesValidSizes(const FuzzProgramProto& proto) {
                   .GetType()
                   ->AsArrayOrDie()
                   ->size(),
-              kMaxFuzzArraySize);
+              IrFuzzHelpers::kMaxFuzzArraySize);
   }
 }
 

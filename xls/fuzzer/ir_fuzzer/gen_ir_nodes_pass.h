@@ -20,6 +20,7 @@
 
 #include "google/protobuf/repeated_ptr_field.h"
 #include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_helpers.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_visitor.h"
 #include "xls/fuzzer/ir_fuzzer/ir_node_context_list.h"
 #include "xls/ir/function_builder.h"
@@ -39,7 +40,8 @@ class GenIrNodesPass : public IrFuzzVisitor {
       : fuzz_program_(fuzz_program),
         p_(p),
         fb_(fb),
-        context_list_(context_list) {}
+        context_list_(context_list),
+        helpers_(fuzz_program.version()) {}
 
   void GenIrNodes();
 
@@ -152,6 +154,7 @@ class GenIrNodesPass : public IrFuzzVisitor {
   Package* p_;
   FunctionBuilder* fb_;
   IrNodeContextList& context_list_;
+  IrFuzzHelpers helpers_;
 };
 
 }  // namespace xls
