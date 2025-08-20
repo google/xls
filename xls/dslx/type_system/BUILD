@@ -420,6 +420,7 @@ cc_test(
         "//xls/dslx:interp_value",
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx:virtualizable_file_system",
+        "//xls/dslx:warning_kind",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_node_visitor_with_default",
         "//xls/dslx/frontend:pos",

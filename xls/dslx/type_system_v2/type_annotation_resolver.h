@@ -32,6 +32,7 @@
 #include "xls/dslx/type_system_v2/type_annotation_filter.h"
 #include "xls/dslx/type_system_v2/type_system_tracer.h"
 #include "xls/dslx/type_system_v2/unify_type_annotations.h"
+#include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
 
@@ -49,7 +50,8 @@ class TypeAnnotationResolver {
       Module& module, InferenceTable& table, const FileTable& file_table,
       UnificationErrorGenerator& error_generator, Evaluator& evaluator,
       ParametricStructInstantiator& parametric_struct_instantiator,
-      TypeSystemTracer& tracer, ImportData& import_data,
+      TypeSystemTracer& tracer, WarningCollector& warning_collector,
+      ImportData& import_data,
       SimplifiedTypeAnnotationCache& simplified_type_annotation_cache,
       std::function<absl::Status(std::optional<const ParametricContext*>,
                                  const Invocation*)>

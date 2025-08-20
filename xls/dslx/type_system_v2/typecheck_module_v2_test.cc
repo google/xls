@@ -5750,9 +5750,11 @@ TEST(TypecheckV2Test, WidthSliceBeforeStartFails) {
 }
 
 TEST(TypecheckV2Test, WidthSliceAfterEndFails) {
-  EXPECT_THAT("const X = (u6:0b011100)[3+:u4];",
-              TypecheckFails(
-                  HasSubstr("Slice range out of bounds for array of size 6")));
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
+                           TypecheckV2("const X = (u6:0b011100)[3+:u4];"));
+  ASSERT_THAT(result.tm.warnings.warnings().size(), 1);
+  EXPECT_EQ(result.tm.warnings.warnings()[0].message,
+            "Slice range out of bounds for array of size 6");
 }
 
 TEST(TypecheckV2Test, WidthSliceByParametrics) {

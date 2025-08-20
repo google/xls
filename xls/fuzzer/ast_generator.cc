@@ -2238,11 +2238,14 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSlice(Context* ctx) {
                       absl::IntervalClosed, bit_gen_, start_low, bit_count))
                 : std::nullopt;
     bool should_have_limit = RandomBool(0.5);
-    limit =
-        should_have_limit
-            ? std::make_optional(absl::Uniform<int64_t>(
-                  absl::IntervalClosed, bit_gen_, -bit_count - 1, bit_count))
-            : std::nullopt;
+    if (should_have_limit) {
+      int64_t min_limit = -bit_count - 1;
+      if (which != SliceType::kBitSlice) {
+        min_limit = 0;
+      }
+      limit = std::make_optional(absl::Uniform<int64_t>(
+          absl::IntervalClosed, bit_gen_, min_limit, bit_count));
+    }
     width = ResolveBitSliceIndices(bit_count, start, limit).second;
     // Make sure we produce non-zero-width things.
     if (options_.emit_zero_width_bits_types || width > 0) {

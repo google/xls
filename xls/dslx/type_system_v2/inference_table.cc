@@ -99,23 +99,14 @@ absl::StatusOr<InferenceVariableKind> TypeAnnotationToInferenceVariableKind(
         return InferenceVariableKind::kInteger;
     }
   }
-  if (annotation->IsAnnotation<ArrayTypeAnnotation>()) {
-    const auto* array = annotation->AsAnnotation<ArrayTypeAnnotation>();
-    if (array->element_type()->IsAnnotation<BuiltinTypeAnnotation>()) {
-      const BuiltinTypeAnnotation* element_type =
-          array->element_type()->AsAnnotation<BuiltinTypeAnnotation>();
-      if (element_type->GetBitCount() == 0) {
-        return InferenceVariableKind::kInteger;
-      }
-    }
-  }
   if (annotation->IsAnnotation<GenericTypeAnnotation>()) {
     return InferenceVariableKind::kType;
   }
-  if (annotation->IsAnnotation<TypeRefTypeAnnotation>()) {
-    // This currently must be an enum or other integral-type alias, which is not
-    // practical to verify here, but if a struct is used then it will fail in
-    // the parser.
+  if (GetSignednessAndBitCount(annotation).ok() ||
+      annotation->IsAnnotation<TypeRefTypeAnnotation>()) {
+    // Note that a type ref encountered here must currently must be an enum or
+    // other integral-type alias. This is not practical to verify here, but if a
+    // struct is used then it will fail in the parser.
     return InferenceVariableKind::kInteger;
   }
   return absl::InvalidArgumentError(

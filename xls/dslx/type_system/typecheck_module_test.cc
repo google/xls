@@ -42,6 +42,7 @@
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 #include "xls/dslx/virtualizable_file_system.h"
+#include "xls/dslx/warning_kind.h"
 
 namespace xls::dslx {
 namespace {
@@ -2887,18 +2888,31 @@ TEST_P(TypecheckBothVersionsTest, SliceWithNonS32LiteralBounds) {
 
 TEST_P(TypecheckBothVersionsTest, WidthSlices) {
   XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> bits[0] { x[0+:bits[0]] }"));
-
-  if (GetParam() == TypeInferenceVersion::kVersion1) {
-    XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> u2 { x[32+:u2] }"));
-  } else {
-    // V2 does not permit slicing past the end.
-    EXPECT_THAT(
-        Typecheck("fn f(x: u32) -> u2 { x[32+:u2] }"),
-        StatusIs(absl::StatusCode::kInvalidArgument,
-                 HasSubstr("Slice range out of bounds for array of size 32")));
-  }
-
   XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> u1 { x[31+:u1] }"));
+}
+
+TEST_P(TypecheckBothVersionsTest, WidthSliceTypeTooLarge) {
+  EXPECT_THAT(
+      Typecheck("fn f(x: u32) -> u33 { x[0+:u33] }"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(GetParam(),
+                                   "Slice type must have <= original number of "
+                                   "bits; attempted slice from 32 to 33 bits."),
+                     HasSubstrInV2(
+                         GetParam(),
+                         "Slice range out of bounds for array of size 32"))));
+}
+
+TEST_P(TypecheckBothVersionsTest, WidthSliceOutOfRangeConsideringStartIndex) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
+                           Typecheck("fn f(x: u32) -> u2 { x[32+:u2] }"));
+  if (GetParam() == TypeInferenceVersion::kVersion2) {
+    // In V2 this is a warning. It is not an error since `u2` is not larger than
+    // the type of `x`.
+    ASSERT_THAT(result.tm.warnings.warnings().size(), 1);
+    EXPECT_EQ(result.tm.warnings.warnings().at(0).kind,
+              WarningKind::kWidthSliceOutOfRange);
+  }
 }
 
 TEST_P(TypecheckBothVersionsTest, WidthSliceNegativeStartNumberLiteral) {
@@ -2974,18 +2988,6 @@ TEST_P(TypecheckBothVersionsTest, WidthSliceTupleSubject) {
               HasSubstrInV1(GetParam(), "Value to slice is not of 'bits' type"),
               HasSubstrInV2(GetParam(),
                             "Expected a bits-like type; got: `(u32,)`"))));
-}
-
-TEST_P(TypecheckBothVersionsTest, OverlargeWidthSlice) {
-  EXPECT_THAT(
-      Typecheck("fn f(x: u32) -> u33 { x[0+:u33] }"),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               AllOf(HasSubstrInV1(GetParam(),
-                                   "Slice type must have <= original number of "
-                                   "bits; attempted slice from 32 to 33 bits."),
-                     HasSubstrInV2(
-                         GetParam(),
-                         "Slice range out of bounds for array of size 32"))));
 }
 
 TEST_P(TypecheckBothVersionsTest, BadAttributeAccessOnTuple) {

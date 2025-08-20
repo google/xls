@@ -45,8 +45,9 @@ enum class WarningKind : WarningKindInt {
   kShouldUseAssert = 1 << 11,
   kAlreadyExhaustiveMatch = 1 << 12,
   kIllegalPackageName = 1 << 13,
+  kWidthSliceOutOfRange = 1 << 14,
 };
-constexpr WarningKindInt kWarningKindCount = 14;
+constexpr WarningKindInt kWarningKindCount = 15;
 
 inline constexpr std::array<WarningKind, kWarningKindCount> kAllWarningKinds = {
     WarningKind::kConstexprEvalRollover,
@@ -63,6 +64,7 @@ inline constexpr std::array<WarningKind, kWarningKindCount> kAllWarningKinds = {
     WarningKind::kShouldUseAssert,
     WarningKind::kAlreadyExhaustiveMatch,
     WarningKind::kIllegalPackageName,
+    WarningKind::kWidthSliceOutOfRange,
 };
 
 // Flag set datatype.

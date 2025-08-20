@@ -143,8 +143,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         resolver_(TypeAnnotationResolver::Create(
             module, table, file_table,
             /*error_generator=*/*this, *evaluator_,
-            /*parametric_struct_instantiator=*/*this, *tracer_, import_data_,
-            simplified_type_annotation_cache_,
+            /*parametric_struct_instantiator=*/*this, *tracer_,
+            warning_collector_, import_data_, simplified_type_annotation_cache_,
             [&](std::optional<const ParametricContext*> parametric_context,
                 const Invocation* invocation) {
               return TryConvertInvocationForUnification(parametric_context,
@@ -861,8 +861,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         foreign_resolver = TypeAnnotationResolver::Create(
             *details.callee->owner(), table_, file_table_,
             /*error_generator=*/*this, /*evaluator=*/*evaluator_,
-            /*parametric_struct_instantiator=*/*this, *tracer_, import_data_,
-            simplified_type_annotation_cache_,
+            /*parametric_struct_instantiator=*/*this, *tracer_,
+            warning_collector_, import_data_, simplified_type_annotation_cache_,
             [&](std::optional<const ParametricContext*> parametric_context,
                 const Invocation* invocation) {
               return TryConvertInvocationForUnification(parametric_context,

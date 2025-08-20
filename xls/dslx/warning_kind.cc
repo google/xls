@@ -58,6 +58,8 @@ absl::StatusOr<std::string_view> WarningKindToString(WarningKind kind) {
       return "already_exhaustive_match";
     case WarningKind::kIllegalPackageName:
       return "illegal_package_name";
+    case WarningKind::kWidthSliceOutOfRange:
+      return "width_slice_out_of_range";
   }
   return absl::InvalidArgumentError(
       absl::StrCat("Invalid warning kind: ", static_cast<int>(kind)));
