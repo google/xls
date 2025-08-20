@@ -258,7 +258,8 @@ fn test_clz_ctz() {
 Accesses an externally configured value by name (given by `label`), or returns
 the passed-in `default_value` if no value has been externally configured for
 that label. This enables building multiple versions of a single piece of code
-from the same source, with variations controlled at build time.
+from the same source, with variations controlled at build time. Note that
+`default_value` must be compile-time-constant values (AKA "constexpr").
 
 ```
 fn configured_value_or<T: type, N: u32>(label: u8[N], default_value: T) -> T;
