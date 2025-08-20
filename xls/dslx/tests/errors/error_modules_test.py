@@ -1047,6 +1047,16 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         stderr,
     )
 
+  def test_self_reference_in_parametric_default(self):
+    # Referencing the function name inside its own parametric default should be
+    # a parse-time name error because the function name is not yet in scope
+    # while parsing the signature.
+    contents = 'fn p<N: u3, M: u32 = { p(u3:0) }>() { () }'
+    tmp = self.create_tempfile(content=contents)
+    stderr = self._run(tmp.full_path, path_is_runfile=False)
+    self.assertIn('ParseError', stderr)
+    self.assertIn('Cannot find a definition for name: "p"', stderr)
+
   def test_duplicate_typedef_binding_in_module(self):
     stderr = self._run(
         'xls/dslx/tests/errors/duplicate_typedef_binding_in_module.x'

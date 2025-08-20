@@ -1995,11 +1995,13 @@ absl::StatusOr<Function*> Parser::ParseFunctionInternal(
     Bindings& outer_bindings, TypeAnnotation* struct_ref) {
   XLS_ASSIGN_OR_RETURN(Token fn_tok, PopKeywordOrError(Keyword::kFn));
 
-  XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDef(outer_bindings));
+  // Do not add the function name to bindings until after the signature is
+  // parsed; this prevents self-references inside the signature (e.g., in
+  // return type or parametric defaults).
+  XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDefNoBind());
 
   Bindings bindings(&outer_bindings);
   bindings.NoteFunctionScoped();
-  bindings.Add(name_def->identifier(), name_def);
 
   XLS_ASSIGN_OR_RETURN(bool dropped_oangle, TryDropToken(TokenKind::kOAngle));
   std::vector<ParametricBinding*> parametric_bindings;
@@ -2029,6 +2031,13 @@ absl::StatusOr<Function*> Parser::ParseFunctionInternal(
   }
 
   StatementBlock* body = nullptr;
+
+  // Make the function name visible only after we've finished parsing the
+  // signature (parametrics, parameters, and optional return type). This
+  // prevents referencing the function itself from within its own signature.
+  outer_bindings.Add(name_def->identifier(), name_def);
+  bindings.Add(name_def->identifier(), name_def);
+
   if (parse_fn_stubs_) {
     // Must have a semicolon
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi));
