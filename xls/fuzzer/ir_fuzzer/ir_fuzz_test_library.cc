@@ -14,6 +14,8 @@
 
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 
+#include <ostream>
+#include <string_view>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -24,7 +26,6 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"

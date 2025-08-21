@@ -16,8 +16,8 @@
 #define XLS_CODEGEN_PASSES_NG_BLOCK_PIPELINE_INSERTER_H_
 
 #include "absl/status/statusor.h"
+#include "xls/codegen/passes_ng/stage_to_block_conversion_metadata.h"
 #include "xls/codegen/codegen_options.h"
-#include "xls/codegen/passes_ng/stage_to_block_conversion.h"
 #include "xls/ir/block.h"
 
 namespace xls::verilog {

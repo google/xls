@@ -15,6 +15,7 @@
 #ifndef XLS_DSLX_FRONTEND_AST_UTILS_H_
 #define XLS_DSLX_FRONTEND_AST_UTILS_H_
 
+#include <utility>
 #include <cstdint>
 #include <optional>
 #include <string>

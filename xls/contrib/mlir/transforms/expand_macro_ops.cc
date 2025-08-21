@@ -16,6 +16,7 @@
 #include <utility>
 
 #include "mlir/include/mlir/IR/Builders.h"
+#include "mlir/include/mlir/Support/WalkResult.h"
 #include "mlir/include/mlir/IR/BuiltinAttributes.h"
 #include "mlir/include/mlir/IR/PatternMatch.h"
 #include "mlir/include/mlir/IR/Value.h"

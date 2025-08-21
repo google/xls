@@ -15,6 +15,7 @@
 #ifndef XLS_FUZZER_IR_FUZZER_IR_FUZZ_HELPERS_H_
 #define XLS_FUZZER_IR_FUZZER_IR_FUZZ_HELPERS_H_
 
+#include <array>
 #include <cstdint>
 #include <string>
 #include <vector>

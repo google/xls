@@ -14,6 +14,7 @@
 
 #include "xls/ir/value.h"
 
+#include <string>
 #include <cstdint>
 #include <sstream>
 #include <string_view>

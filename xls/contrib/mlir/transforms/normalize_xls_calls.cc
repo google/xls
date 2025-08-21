@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "llvm/include/llvm/ADT/DenseMap.h"
+#include "mlir/include/mlir/Support/WalkResult.h"
 #include "llvm/include/llvm/ADT/STLExtras.h"
 #include "llvm/include/llvm/ADT/SmallVector.h"
 #include "llvm/include/llvm/ADT/StringMap.h"

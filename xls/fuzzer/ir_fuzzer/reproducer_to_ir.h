@@ -15,6 +15,7 @@
 #ifndef XLS_FUZZER_IR_FUZZER_REPRODUCER_TO_IR_H_
 #define XLS_FUZZER_IR_FUZZER_REPRODUCER_TO_IR_H_
 
+#include <vector>
 #include <cstdint>
 #include <memory>
 #include <optional>

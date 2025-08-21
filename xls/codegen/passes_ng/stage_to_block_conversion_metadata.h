@@ -15,7 +15,6 @@
 #ifndef XLS_CODEGEN_PASSES_NG_STAGE_TO_BLOCK_CONVERSION_METADATA_H_
 #define XLS_CODEGEN_PASSES_NG_STAGE_TO_BLOCK_CONVERSION_METADATA_H_
 
-#include <cstdint>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -35,7 +34,6 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/node.h"
-#include "xls/ir/xls_ir_interface.pb.h"
 
 namespace xls::verilog {
 

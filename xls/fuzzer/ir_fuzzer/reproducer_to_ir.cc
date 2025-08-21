@@ -14,6 +14,7 @@
 
 #include "xls/fuzzer/ir_fuzzer/reproducer_to_ir.h"
 
+#include <vector>
 #include <cstdint>
 #include <memory>
 #include <optional>

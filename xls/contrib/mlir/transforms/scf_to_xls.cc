@@ -17,6 +17,7 @@
 #include <utility>
 
 #include "llvm/include/llvm/ADT/STLExtras.h"
+#include "mlir/include/mlir/Support/WalkResult.h"
 #include "llvm/include/llvm/ADT/StringRef.h"
 #include "llvm/include/llvm/Support/LogicalResult.h"
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"
@@ -24,7 +25,6 @@
 #include "mlir/include/mlir/Dialect/SCF/Utils/Utils.h"
 #include "mlir/include/mlir/IR/Builders.h"
 #include "mlir/include/mlir/IR/BuiltinAttributes.h"
-#include "mlir/include/mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/include/mlir/IR/Matchers.h"
 #include "mlir/include/mlir/IR/OpDefinition.h"
 #include "mlir/include/mlir/IR/PatternMatch.h"

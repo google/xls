@@ -14,6 +14,7 @@
 
 #include "xls/codegen/passes_ng/flow_control_simplification_pass.h"
 
+#include "absl/base/nullability.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_pass.h"

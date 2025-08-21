@@ -14,6 +14,7 @@
 
 #include "xls/noc/drivers/experiment.h"
 
+#include <variant>
 #include <algorithm>
 #include <cstdint>
 #include <string>

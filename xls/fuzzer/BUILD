@@ -74,7 +74,6 @@ cc_library(
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:status_macros",
         "//xls/dslx/frontend:pos",
-        "//xls/tests:testvector_cc_proto",
         "@boringssl//:crypto",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",

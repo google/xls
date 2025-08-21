@@ -14,6 +14,7 @@
 
 #include "xls/passes/non_synth_separation_pass.h"
 
+#include <vector>
 #include <optional>
 #include <utility>
 

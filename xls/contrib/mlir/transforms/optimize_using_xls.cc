@@ -17,6 +17,7 @@
 #include <string>
 
 #include "absl/status/status.h"
+#include "xls/passes/pass_pipeline.pb.h"
 #include "llvm/include/llvm/Support/CommandLine.h"
 #include "llvm/include/llvm/Support/DebugLog.h"
 #include "mlir/include/mlir/IR/BuiltinOps.h"

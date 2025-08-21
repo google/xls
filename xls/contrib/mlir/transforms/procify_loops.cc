@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "mlir/include/mlir/Dialect/Affine/IR/AffineOps.h"  // IWYU pragma: keep
+#include "mlir/include/mlir/Support/WalkResult.h"
 #include "mlir/include/mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/include/mlir/Dialect/SCF/Utils/Utils.h"
 #include "mlir/include/mlir/IR/Builders.h"

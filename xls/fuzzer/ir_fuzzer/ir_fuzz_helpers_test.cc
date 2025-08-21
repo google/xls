@@ -14,9 +14,11 @@
 
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_helpers.h"
 
+#include <vector>
 #include <cstdint>
 #include <string>
 
+#include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/str_format.h"

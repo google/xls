@@ -18,6 +18,7 @@
 #include <string>
 #include <vector>
 
+#include "mlir/include/mlir/Support/WalkResult.h"
 #include "absl/log/check.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"

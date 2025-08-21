@@ -16,6 +16,7 @@
 
 #include <utility>
 
+#include "mlir/include/mlir/Support/WalkResult.h"
 #include "llvm/include/llvm/Support/LogicalResult.h"  // IWYU pragma: keep
 #include "mlir/include/mlir/Dialect/Arith/IR/Arith.h"  // IWYU pragma: keep
 #include "mlir/include/mlir/Dialect/Math/IR/Math.h"  // IWYU pragma: keep

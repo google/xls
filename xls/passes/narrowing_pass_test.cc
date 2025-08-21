@@ -14,6 +14,7 @@
 
 #include "xls/passes/narrowing_pass.h"
 
+#include <string>
 #include <cstdint>
 #include <optional>
 #include <utility>

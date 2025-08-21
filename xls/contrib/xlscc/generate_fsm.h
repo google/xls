@@ -15,12 +15,13 @@
 #ifndef XLS_CONTRIB_XLSCC_GENERATE_FSM_H_
 #define XLS_CONTRIB_XLSCC_GENERATE_FSM_H_
 
+#include <string>
 #include <cstdint>
 #include <optional>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/container/flat_hash_set.h"
+#include "absl/container/btree_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "clang/include/clang/AST/Decl.h"

@@ -14,6 +14,7 @@
 
 #include "xls/dslx/errors.h"
 
+#include <optional>
 #include <string>
 #include <string_view>
 

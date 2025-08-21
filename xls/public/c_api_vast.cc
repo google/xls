@@ -14,6 +14,7 @@
 
 #include "xls/public/c_api_vast.h"
 
+#include <optional>
 #include <cstddef>
 #include <cstdint>
 #include <string>

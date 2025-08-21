@@ -18,6 +18,7 @@
 #include <utility>
 
 #include "llvm/include/llvm/ADT/ArrayRef.h"
+#include "mlir/include/mlir/Support/WalkResult.h"
 #include "llvm/include/llvm/ADT/STLExtras.h"
 #include "llvm/include/llvm/ADT/SmallVector.h"
 #include "mlir/include/mlir/Dialect/Arith/IR/Arith.h"

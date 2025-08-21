@@ -18,14 +18,12 @@
 #include <vector>
 
 #include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/codegen/vast/vast.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
-#include "xls/ir/xls_type.pb.h"
 #include "xls/ir/value_flattening.h"
 
 namespace xls {

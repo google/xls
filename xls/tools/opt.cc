@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "xls/ir/ram_rewrite.pb.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -38,7 +39,6 @@
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/pass_metrics.pb.h"
-#include "xls/passes/pass_pipeline.pb.h"
 #include "xls/passes/query_engine_checker.h"
 #include "xls/passes/verifier_checker.h"
 #include "xls/tools/opt_flags.pb.h"

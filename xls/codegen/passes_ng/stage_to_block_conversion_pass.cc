@@ -29,7 +29,6 @@
 #include "xls/ir/block.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/package.h"
-#include "xls/ir/xls_ir_interface.pb.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls::verilog {

@@ -23,6 +23,8 @@
 #include <utility>
 #include <vector>
 
+#include "xls/tools/opt_flags.pb.h"
+#include "xls/passes/pass_pipeline.pb.h"
 #include "absl/algorithm/container.h"
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
@@ -33,7 +35,6 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
-#include "xls/passes/optimization_pass_pipeline.pb.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/query_engine_checker.h"
 #include "xls/passes/verifier_checker.h"

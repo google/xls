@@ -14,12 +14,14 @@
 
 #include "xls/fuzzer/verilog_fuzzer/verilog_fuzz_domain.h"
 
+#include <memory>
 #include <cstdint>
 #include <string>
 
+#include "xls/tools/codegen_flags.pb.h"
+#include "xls/tools/scheduling_options_flags.pb.h"
 #include "xls/common/fuzzing/fuzztest.h"
 #include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/ret_check.h"

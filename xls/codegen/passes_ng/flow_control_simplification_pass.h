@@ -16,6 +16,7 @@
 #define XLS_CODEGEN_PASSES_NG_FLOW_CONTROL_SIMPLIFICATION_PASS_H_
 
 #include "absl/status/statusor.h"
+#include "absl/base/nullability.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/ir/package.h"
 #include "xls/passes/pass_base.h"

@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <string>
 #include <cstdint>
 #include <memory>
 #include <optional>
 #include <string_view>
 #include <vector>
 
-#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/flags/flag.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -32,7 +32,6 @@
 #include "xls/fuzzer/ir_fuzzer/reproducer_to_ir.h"
 #include "xls/ir/function.h"
 #include "xls/ir/value.h"
-#include "xls/ir/xls_value.pb.h"
 #include "xls/tests/testvector.pb.h"
 
 constexpr static std::string_view kUsage = R"(

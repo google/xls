@@ -25,7 +25,6 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/package.h"
-#include "xls/ir/xls_ir_interface.pb.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls::verilog {

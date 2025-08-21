@@ -14,6 +14,8 @@
 
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
 
+#include <string>
+#include <vector>
 #include <cstdint>
 #include <iterator>
 #include <memory>
