@@ -107,7 +107,7 @@ absl::Status Translator::GenerateIR_Loop(
         default_unroll && inferred_loop_warning_on;
 
     return GenerateIR_LoopImpl(always_first_iter, warn_inferred_loop_type, init,
-                               cond_expr, inc, body,
+                               /*trial_unroll_init=*/init, cond_expr, inc, body,
                                /*max_iters=*/std::nullopt,
                                /*propagate_break_up=*/false, ctx, loc);
   }
@@ -153,11 +153,70 @@ absl::Status Translator::GenerateIR_Loop(
 
 absl::Status Translator::GenerateIR_LoopImpl(
     bool always_first_iter, bool warn_inferred_loop_type,
+    const clang::Stmt* init, const clang::Stmt* trial_unroll_init,
+    const clang::Expr* cond_expr, const clang::Stmt* inc,
+    const clang::Stmt* body, std::optional<int64_t> max_iters,
+    bool propagate_break_up, clang::ASTContext& ctx,
+    const xls::SourceInfo& loc) {
+  bool omit_conditions_in_unrolling = false;
+
+  XLSCC_CHECK(!max_iters.has_value() || max_iters.value() >= 1, loc);
+
+  if (max_iters.has_value() && max_iters.value() > 1) {
+    auto saved_unique_ids = unique_decl_ids_;
+
+    // Just a trial, don't propagate variables, don't generate side effecting
+    // ops
+    PushContextGuard context_guard(*this, loc);
+    context().propagate_up = false;
+    context().mask_memory_writes = true;
+    context().mask_io_other_than_memory_writes = true;
+
+    XLSCC_CHECK_NE(trial_unroll_init, nullptr, loc);
+
+    absl::StatusOr<GenerateIR_LoopResult> ret = GenerateIR_LoopImplImpl(
+        always_first_iter, warn_inferred_loop_type, trial_unroll_init,
+        cond_expr, inc, body, /*max_iters=*/std::nullopt,
+        /*propagate_break_up=*/false,
+        /*omit_conditions_in_unrolling=*/false, ctx, loc);
+
+    // If the trial fails, then just give up
+    if (ret.ok()) {
+      GenerateIR_LoopResult ret_val = ret.value();
+
+      omit_conditions_in_unrolling =
+          ret_val.proven_iteration_count.has_value() &&
+          (ret_val.proven_iteration_count.value() % max_iters.value()) == 0;
+    } else {
+      LOG(WARNING) << WarningMessage(
+          loc, "Trial unrolling failed, giving up on loop condition removal");
+    }
+
+    unique_decl_ids_ = saved_unique_ids;
+  }
+
+  XLS_ASSIGN_OR_RETURN(GenerateIR_LoopResult ret,
+                       GenerateIR_LoopImplImpl(
+                           always_first_iter, warn_inferred_loop_type, init,
+                           cond_expr, inc, body, max_iters, propagate_break_up,
+                           omit_conditions_in_unrolling, ctx, loc));
+
+  (void)ret;
+
+  return absl::OkStatus();
+}
+
+absl::StatusOr<Translator::GenerateIR_LoopResult>
+Translator::GenerateIR_LoopImplImpl(
+    bool always_first_iter, bool warn_inferred_loop_type,
     const clang::Stmt* init, const clang::Expr* cond_expr,
     const clang::Stmt* inc, const clang::Stmt* body,
     std::optional<int64_t> max_iters, bool propagate_break_up,
-    clang::ASTContext& ctx, const xls::SourceInfo& loc) {
+    bool omit_conditions_in_unrolling, clang::ASTContext& ctx,
+    const xls::SourceInfo& loc) {
   XLSCC_CHECK(!max_iters.has_value() || max_iters.value() > 0, loc);
+
+  GenerateIR_LoopResult ret;
 
   const bool add_loop_jump = generate_new_fsm_ && max_iters.has_value();
 
@@ -266,7 +325,8 @@ absl::Status Translator::GenerateIR_LoopImpl(
                            GenerateIR_Expr(cond_expr, loc));
       CHECK(cond_expr_cval.type()->Is<CBoolType>());
 
-      if (!(first_iter && first_iter_cond_must_be_true)) {
+      if (!((first_iter && first_iter_cond_must_be_true) ||
+            omit_conditions_in_unrolling)) {
         context().or_condition_util(
             context().fb->Not(cond_expr_cval.rvalue(), loc),
             context().relative_break_condition, loc);
@@ -278,11 +338,21 @@ absl::Status Translator::GenerateIR_LoopImpl(
       XLS_RETURN_IF_ERROR(refresh_z3());
 
       XLS_ASSIGN_OR_RETURN(
+          bool condition_must_be_true,
+          BitMustBe(true, context().relative_condition, current_solver,
+                    current_z3_translator, loc));
+
+      if (condition_must_be_true) {
+        ret.proven_iteration_count = nIters + 1;
+      }
+
+      XLS_ASSIGN_OR_RETURN(
           bool condition_must_be_false,
           BitMustBe(false, context().relative_condition, current_solver,
                     current_z3_translator, loc));
 
       if (condition_must_be_false) {
+        ret.proven_max_iteration_count = nIters;
         break;
       }
     }
@@ -328,7 +398,7 @@ absl::Status Translator::GenerateIR_LoopImpl(
     XLS_RETURN_IF_ERROR(GenerateIR_AddLoopEndJump(cond_expr, begin_op, loc));
   }
 
-  return absl::OkStatus();
+  return ret;
 }
 
 bool Translator::LValueContainsOnlyChannels(
@@ -462,13 +532,21 @@ absl::Status Translator::GenerateIR_PipelinedLoopNewFSM(
     const clang::Stmt* inc, const clang::Stmt* body,
     int64_t initiation_interval_arg, int64_t unroll_factor, bool schedule_asap,
     clang::ASTContext& ctx, const xls::SourceInfo& loc) {
+  if (context().mask_io_other_than_memory_writes) {
+    return absl::FailedPreconditionError(
+        ErrorMessage(loc,
+                     "Cannot generate pipelined loops with masked IO, for "
+                     "example within trial unrolling"));
+  }
+
   const int64_t prev_init = context().outer_pipelined_loop_init_interval;
   context().outer_pipelined_loop_init_interval = initiation_interval_arg;
 
-  XLS_RETURN_IF_ERROR(GenerateIR_LoopImpl(
-      always_first_iter, warn_inferred_loop_type, init, cond_expr, inc, body,
-      /*max_iters=*/unroll_factor,
-      /*propagate_break_up=*/false, ctx, loc));
+  XLS_RETURN_IF_ERROR(
+      GenerateIR_LoopImpl(always_first_iter, warn_inferred_loop_type, init,
+                          /*trial_unroll_init=*/init, cond_expr, inc, body,
+                          /*max_iters=*/unroll_factor,
+                          /*propagate_break_up=*/false, ctx, loc));
 
   context().outer_pipelined_loop_init_interval = prev_init;
   return absl::OkStatus();
@@ -480,6 +558,13 @@ absl::Status Translator::GenerateIR_PipelinedLoopOldFSM(
     const clang::Stmt* inc, const clang::Stmt* body,
     int64_t initiation_interval_arg, int64_t unroll_factor, bool schedule_asap,
     clang::ASTContext& ctx, const xls::SourceInfo& loc) {
+  if (context().mask_io_other_than_memory_writes) {
+    return absl::FailedPreconditionError(
+        ErrorMessage(loc,
+                     "Cannot generate pipelined loops with masked IO, for "
+                     "example within trial unrolling"));
+  }
+
   const TranslationContext& outer_context = context();
 
   XLSCC_CHECK(!generate_new_fsm_, loc);
@@ -577,7 +662,7 @@ absl::Status Translator::GenerateIR_PipelinedLoopOldFSM(
   XLS_ASSIGN_OR_RETURN(
       PipelinedLoopSubProc sub_proc,
       GenerateIR_PipelinedLoopBody(
-          cond_expr, inc, body, initiation_interval_arg, unroll_factor,
+          cond_expr, init, inc, body, initiation_interval_arg, unroll_factor,
           always_first_iter, ctx, name_prefix, context_struct_xls_type,
           context_lvals_xls_type, context_cvars_struct_ctype, &lvalues_out,
           context_field_indices, variable_fields_order, &uses_on_reset, loc));
@@ -850,9 +935,9 @@ absl::Status Translator::GenerateIR_PipelinedLoopOldFSM(
 }
 
 absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
-    const clang::Expr* cond_expr, const clang::Stmt* inc,
-    const clang::Stmt* body, int64_t init_interval, int64_t unroll_factor,
-    bool always_first_iter, clang::ASTContext& ctx,
+    const clang::Expr* cond_expr, const clang::Stmt* init,
+    const clang::Stmt* inc, const clang::Stmt* body, int64_t init_interval,
+    int64_t unroll_factor, bool always_first_iter, clang::ASTContext& ctx,
     std::string_view name_prefix, xls::Type* context_struct_xls_type,
     xls::Type* context_lvals_xls_type,
     const std::shared_ptr<CStructType>& context_cvars_struct_ctype,
@@ -1026,7 +1111,8 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
       XLS_RETURN_IF_ERROR(GenerateIR_LoopImpl(
           /*always_first_iter=*/true,
           /*warn_inferred_loop_type=*/false,
-          /*init=*/nullptr, cond_expr, /*inc=*/inc, body,
+          /*init=*/nullptr,
+          /*trial_unroll_init=*/init, cond_expr, /*inc=*/inc, body,
           /*max_iters=*/unroll_factor,
           /*propagate_break_up=*/true, ctx, loc));
 
@@ -1119,6 +1205,8 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
     }
     // vars_accessed_in_body is already sorted deterministically due to
     // iterating over variable_fields_order
+
+    XLS_RETURN_IF_ERROR(RemoveMaskedOpParams(*generated_func, loc));
   }
 
   XLSCC_CHECK_NE(uses_on_reset, nullptr, loc);

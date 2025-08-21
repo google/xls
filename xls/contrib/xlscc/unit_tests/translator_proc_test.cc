@@ -9237,6 +9237,54 @@ TEST_P(TranslatorProcTest, ForPartiallyUnrolled) {
   }
 }
 
+TEST_P(TranslatorProcTest, ForPartiallyUnrolledNested) {
+  const std::string content = R"(
+    #pragma hls_top
+    void foo(__xls_channel<int>& in,
+             __xls_channel<int>& out) {
+      int a = in.read();
+
+      #pragma hls_unroll 2
+      for(long i=1;i<=4;++i) {
+        #pragma hls_unroll 2
+        for(long j=1;j<=8;++j) {
+          a += i;
+        }
+      }
+      out.write(a);
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(CHANNEL_TYPE_FIFO);
+
+    HLSChannel* ch_out1 = block_spec.add_channels();
+    ch_out1->set_name("out");
+    ch_out1->set_is_input(false);
+    ch_out1->set_type(CHANNEL_TYPE_FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {
+      xls::Value(xls::SBits(80, 32)), xls::Value(xls::SBits(100, 32)),
+      xls::Value(xls::SBits(15, 32)), xls::Value(xls::SBits(40, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(80 + 80, 32)),
+                      xls::Value(xls::SBits(100 + 80, 32)),
+                      xls::Value(xls::SBits(15 + 80, 32)),
+                      xls::Value(xls::SBits(40 + 80, 32))};
+
+    ProcTest(content, block_spec, inputs, outputs);
+  }
+}
+
 TEST_P(TranslatorProcTest, ForFullyPipelined) {
   const std::string content = R"(
     #pragma hls_top

@@ -62,8 +62,20 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
     IOOpReturn ret;
     ret.generate_expr = false;
     if (op.op != OpType::kTrace) {
-      XLS_ASSIGN_OR_RETURN(TrackedBValue default_bval,
-                           CreateDefaultValue(channel->item_type, loc));
+      // During IR generation, parameters are generated for masked IOs,
+      // so that they are treated as unknown variables for analysis purposes,
+      // such as loop unrolling. These are later removed and 0s are substituted
+      // when the function [slice] is finished.
+      XLS_ASSIGN_OR_RETURN(xls::Type * item_type_xls,
+                           TranslateTypeToXLS(channel->item_type, loc));
+      TrackedBValue default_bval = context().fb->Param(
+          absl::StrFormat("__masked_%s_%i", channel->unique_name,
+                          next_masked_op_param_number_++),
+          item_type_xls, loc);
+
+      context().sf->masked_op_params_to_remove.push_back(
+          default_bval.node()->As<xls::Param>());
+
       op.input_value = CValue(default_bval, channel->item_type);
     }
     return nullptr;

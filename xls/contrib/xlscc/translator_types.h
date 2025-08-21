@@ -1126,6 +1126,10 @@ struct GeneratedFunction {
   // For sub-blocks
   xls::Channel* direct_ins_channel = nullptr;
 
+  // Temporary: should be empty after function is completed.
+  // Note that these may be across multiple function slices.
+  std::vector<xls::Param*> masked_op_params_to_remove;
+
   template <typename ValueType>
   std::vector<const clang::NamedDecl*> DeterministicKeyNames(
       const absl::flat_hash_map<const clang::NamedDecl*, ValueType>& map)

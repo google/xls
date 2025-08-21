@@ -428,7 +428,6 @@ class Translator final : public GeneratorBase,
         LOG(ERROR) << status.message();
       }
     }
-
     Translator& translator;
     xls::SourceInfo loc;
   };
@@ -663,6 +662,7 @@ class Translator final : public GeneratorBase,
   int next_asm_number_ = 1;
   int next_for_number_ = 1;
   int64_t next_channel_number_ = 1;
+  int64_t next_masked_op_param_number_ = 1;
 
   absl::flat_hash_set<std::string> used_channel_names_;
   std::string GetUniqueChannelName(const std::string& name);
@@ -1033,6 +1033,9 @@ class Translator final : public GeneratorBase,
           decls_by_bval_top_context,
       int64_t total_bvals, const xls::SourceInfo& loc);
   absl::Status FinishSlice(NATIVE_BVAL return_bval, const xls::SourceInfo& loc);
+  // TODO(seanhaskell): Move into FinishSlice() once old FSM is removed.
+  absl::Status RemoveMaskedOpParams(GeneratedFunction& func,
+                                    const xls::SourceInfo& loc);
   absl::Status FinishLastSlice(TrackedBValue return_bval,
                                const xls::SourceInfo& loc);
   absl::Status OptimizeContinuations(GeneratedFunction& func,
@@ -1090,6 +1093,9 @@ class Translator final : public GeneratorBase,
   absl::Status CheckInitIntervalValidity(int initiation_interval_arg,
                                          const xls::SourceInfo& loc);
 
+  // Determines whether to unroll or pipeline a loop, and calls the appropriate
+  // subroutine.
+  //
   // init, cond, and inc can be nullptr
   absl::Status GenerateIR_Loop(
       bool always_first_iter, const clang::Stmt* loop_stmt,
@@ -1099,15 +1105,37 @@ class Translator final : public GeneratorBase,
       const clang::PresumedLoc& presumed_loc, const xls::SourceInfo& loc,
       clang::ASTContext& ctx);
 
+  struct GenerateIR_LoopResult {
+    std::optional<int64_t> proven_iteration_count = std::nullopt;
+    std::optional<int64_t> proven_max_iteration_count = std::nullopt;
+  };
+
+  // Does a trial unroll to check if a loop has a fixed number of iterations
+  // for optimization purposes, calling GenerateIR_LoopImplImpl as necessary.
+  //
+  // if max_iters is specified, it must be > 0, and in new FSM mode,
+  // the loop will be pipelined, that is, begin and end IO ops will be added.
+  //
+  // init, cond, and inc can be nullptr
+  // TODO(seanhaskell): Remove trial_unroll_init with old FSM
+  absl::Status GenerateIR_LoopImpl(
+      bool always_first_iter, bool warn_inferred_loop_type,
+      const clang::Stmt* init, const clang::Stmt* trial_unroll_init,
+      const clang::Expr* cond_expr, const clang::Stmt* inc,
+      const clang::Stmt* body, std::optional<int64_t> max_iters,
+      bool propagate_break_up, clang::ASTContext& ctx,
+      const xls::SourceInfo& loc);
+
   // init, cond, and inc can be nullptr
   // if max_iters is specified, it must be > 0, and in new FSM mode,
   // the loop will be pipelined, that is, begin and end IO ops will be added.
-  absl::Status GenerateIR_LoopImpl(
+  absl::StatusOr<GenerateIR_LoopResult> GenerateIR_LoopImplImpl(
       bool always_first_iter, bool warn_inferred_loop_type,
       const clang::Stmt* init, const clang::Expr* cond_expr,
       const clang::Stmt* inc, const clang::Stmt* body,
       std::optional<int64_t> max_iters, bool propagate_break_up,
-      clang::ASTContext& ctx, const xls::SourceInfo& loc);
+      bool omit_conditions_in_unrolling, clang::ASTContext& ctx,
+      const xls::SourceInfo& loc);
 
   // init, cond, and inc can be nullptr
   absl::Status GenerateIR_PipelinedLoopOldFSM(
@@ -1130,10 +1158,12 @@ class Translator final : public GeneratorBase,
                                          IOOp* begin_op,
                                          const xls::SourceInfo& loc);
 
+  // init is only used for trial unrolling, should already have been generated
+  // by the caller.
   absl::StatusOr<PipelinedLoopSubProc> GenerateIR_PipelinedLoopBody(
-      const clang::Expr* cond_expr, const clang::Stmt* inc,
-      const clang::Stmt* body, int64_t init_interval, int64_t unroll_factor,
-      bool always_first_iter, clang::ASTContext& ctx,
+      const clang::Expr* cond_expr, const clang::Stmt* init,
+      const clang::Stmt* inc, const clang::Stmt* body, int64_t init_interval,
+      int64_t unroll_factor, bool always_first_iter, clang::ASTContext& ctx,
       std::string_view name_prefix, xls::Type* context_struct_xls_type,
       xls::Type* context_lvals_xls_type,
       const std::shared_ptr<CStructType>& context_cvars_struct_ctype,

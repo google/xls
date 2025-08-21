@@ -636,12 +636,28 @@ absl::Status Translator::FinishSlice(NATIVE_BVAL return_bval,
   context().sf->slices.back().function = last_slice_function;
 
   XLS_RETURN_IF_ERROR(AddFeedbacksForSlice(context().sf->slices.back(), loc));
+
+  return absl::OkStatus();
+}
+
+absl::Status Translator::RemoveMaskedOpParams(GeneratedFunction& func,
+                                              const xls::SourceInfo& loc) {
+  for (xls::Param* param : context().sf->masked_op_params_to_remove) {
+    XLS_RETURN_IF_ERROR(param
+                            ->ReplaceUsesWithNew<xls::Literal>(
+                                xls::ZeroOfType(param->GetType()))
+                            .status());
+    XLS_RETURN_IF_ERROR(param->function_base()->RemoveNode(param));
+  }
+  context().sf->masked_op_params_to_remove.clear();
   return absl::OkStatus();
 }
 
 absl::Status Translator::FinishLastSlice(TrackedBValue return_bval,
                                          const xls::SourceInfo& loc) {
   XLS_RETURN_IF_ERROR(FinishSlice(return_bval, loc));
+
+  XLS_RETURN_IF_ERROR(RemoveMaskedOpParams(*context().sf, loc));
 
   XLS_RETURN_IF_ERROR(OptimizeContinuations(*context().sf, loc));
 

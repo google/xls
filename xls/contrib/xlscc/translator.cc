@@ -183,6 +183,7 @@ TranslationContext& Translator::PushContext() {
   context().propagate_continue_up = true;
   // Declaration propagation does not get propagated down
   context().propagate_declarations = false;
+
   return context();
 }
 
@@ -1311,6 +1312,7 @@ absl::Status Translator::GenerateIR_Function_Body(
   auto clean_up_bvalues_guard = absl::MakeCleanup(clean_up_bvalues);
 
   PushContextGuard context_guard(*this, *header.translation_context, body_loc);
+  context().propagate_up = false;
 
   // Extra context layer to generate selects
   {
@@ -2403,18 +2405,6 @@ absl::Status Translator::DeclareVariable(const clang::NamedDecl* lvalue,
                                          const CValue& rvalue,
                                          const xls::SourceInfo& loc,
                                          bool check_unique_ids) {
-  if (context().variables.contains(lvalue)) {
-    return absl::UnimplementedError(ErrorMessage(
-        loc, "Declaration '%s' duplicated\n", lvalue->getNameAsString()));
-  }
-
-  if (check_unique_ids) {
-    if (unique_decl_ids_.contains(lvalue)) {
-      return absl::InternalError(
-          ErrorMessage(loc, "Code assumes NamedDecls are unique, but %s isn't",
-                       lvalue->getNameAsString()));
-    }
-  }
   unique_decl_ids_.insert(lvalue);
 
   context().sf->declaration_order_by_name_[lvalue] =
