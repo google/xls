@@ -23,6 +23,10 @@
 
 namespace xls::dslx {
 
+bool IsAstNodeBuiltinWithExplicitParametrics(std::string_view identifier) {
+  return identifier == "zero!" || identifier == "all_ones!";
+}
+
 const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins() {
   static const absl::NoDestructor<
       absl::flat_hash_map<std::string, BuiltinsData>>

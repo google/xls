@@ -15,7 +15,6 @@
 #ifndef XLS_DSLX_TYPE_SYSTEM_TYPECHECK_TEST_UTILS_H_
 #define XLS_DSLX_TYPE_SYSTEM_TYPECHECK_TEST_UTILS_H_
 
-#include <cstdint>
 #include <memory>
 #include <string_view>
 

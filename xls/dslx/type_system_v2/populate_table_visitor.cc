@@ -48,6 +48,7 @@
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/ast_utils.h"
+#include "xls/dslx/frontend/builtins_metadata.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
@@ -1702,6 +1703,31 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
                             arg_types, module_.Make<TypeVariableTypeAnnotation>(
                                            return_type_variable))));
     return node->callee()->Accept(this);
+  }
+
+  absl::Status HandleFunctionRef(const FunctionRef* node) override {
+    // If this is a reference to an AST-node builtin that allows explicit
+    // parametrics (e.g., zero!, all_ones!) with exactly one explicit
+    // parametric type, treat it as a function-valued expression with
+    // signature `() -> T`, where T is that explicit parametric type.
+    if (auto* name_ref = dynamic_cast<NameRef*>(node->callee())) {
+      if (std::holds_alternative<BuiltinNameDef*>(name_ref->name_def())) {
+        BuiltinNameDef* bnd = std::get<BuiltinNameDef*>(name_ref->name_def());
+        const std::string& name = bnd->identifier();
+        if (IsAstNodeBuiltinWithExplicitParametrics(name) &&
+            node->explicit_parametrics().size() == 1 &&
+            std::holds_alternative<TypeAnnotation*>(
+                node->explicit_parametrics().front())) {
+          auto* ret_type =
+              std::get<TypeAnnotation*>(node->explicit_parametrics().front());
+          auto* fn_type = module_.Make<FunctionTypeAnnotation>(
+              /*param_types=*/std::vector<const TypeAnnotation*>{}, ret_type);
+          XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(node, fn_type));
+          return DefaultHandler(node);
+        }
+      }
+    }
+    return DefaultHandler(node);
   }
 
   absl::Status HandleEnumDef(const EnumDef* node) override {

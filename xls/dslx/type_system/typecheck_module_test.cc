@@ -117,6 +117,44 @@ TEST_P(TypecheckBothVersionsTest, IndexZeroSizedArray) {
                        HasSubstr("Zero-sized arrays cannot be indexed")));
 }
 
+TEST_P(TypecheckBothVersionsTest, ZeroMacroFunctionRefIsNotValue) {
+  // Bare parametric macro reference should have function type `() -> E` and
+  // not be directly usable as a value of type `E`.
+  std::string_view text = R"(enum E:u2{} fn a()->E{ zero!<E> })";
+  constexpr const char* kV1Msg =
+      "Return type of function body for 'a' did not match the annotated return "
+      "type.\nType mismatch:\n   () -> E\nvs E";
+  absl::Status st = Typecheck(text).status();
+  if (GetParam() == TypeInferenceVersion::kVersion1) {
+    FileTable ft;
+    ASSERT_THAT(GetPositionalErrorData(st, "XlsTypeError", ft),
+                absl_testing::IsOk());
+    EXPECT_EQ(GetPositionalErrorData(st, "XlsTypeError", ft)->message,
+              std::string(kV1Msg));
+  } else {
+    EXPECT_THAT(st, StatusIs(absl::StatusCode::kInvalidArgument,
+                             HasTypeMismatch("() -> E", "E")));
+  }
+}
+
+TEST_P(TypecheckBothVersionsTest, AllOnesMacroFunctionRefIsNotValue) {
+  std::string_view text = R"(enum E:u2{} fn a()->E{ all_ones!<E> })";
+  constexpr const char* kV1Msg =
+      "Return type of function body for 'a' did not match the annotated return "
+      "type.\nType mismatch:\n   () -> E\nvs E";
+  absl::Status st = Typecheck(text).status();
+  if (GetParam() == TypeInferenceVersion::kVersion1) {
+    FileTable ft;
+    ASSERT_THAT(GetPositionalErrorData(st, "XlsTypeError", ft),
+                absl_testing::IsOk());
+    EXPECT_EQ(GetPositionalErrorData(st, "XlsTypeError", ft)->message,
+              std::string(kV1Msg));
+  } else {
+    EXPECT_THAT(st, StatusIs(absl::StatusCode::kInvalidArgument,
+                             HasTypeMismatch("() -> E", "E")));
+  }
+}
+
 // The type of the default expression is wrong for the parametric binding of X.
 //
 // It's /always/ wrong, but it's also not used, so this test is pointing out "do
