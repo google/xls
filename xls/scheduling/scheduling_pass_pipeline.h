@@ -15,17 +15,17 @@
 #ifndef XLS_SCHEDULING_SCHEDULING_PASS_PIPELINE_H_
 #define XLS_SCHEDULING_SCHEDULING_PASS_PIPELINE_H_
 
-#include <cstdint>
 #include <memory>
 
 #include "xls/passes/optimization_pass.h"
+#include "xls/scheduling/scheduling_options.h"
 #include "xls/scheduling/scheduling_pass.h"
 
 namespace xls {
 
 // Returns the scheduling pass pipeline which runs on a package.
 std::unique_ptr<SchedulingCompoundPass> CreateSchedulingPassPipeline(
-    OptimizationContext& context, int64_t opt_level = kMaxOptLevel);
+    OptimizationContext& context, const SchedulingOptions& options);
 
 }  // namespace xls
 
