@@ -1131,8 +1131,13 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
     if (tok.GetKeyword() == Keyword::kSelfType) {
       return ParseErrorStatus(tok.span(), kSelfOutsideImplError);
     }
-    if (allow_generic_type && tok.GetKeyword() == Keyword::kType) {
-      return module_->Make<GenericTypeAnnotation>(tok.span());
+    if (tok.GetKeyword() == Keyword::kType) {
+      if (allow_generic_type) {
+        return module_->Make<GenericTypeAnnotation>(tok.span());
+      }
+      return ParseErrorStatus(
+          tok.span(),
+          "Generic type keyword 'type' is not permitted in this context");
     }
     if (tok.GetKeyword() == Keyword::kChan) {
       XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOAngle));
