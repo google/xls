@@ -1787,7 +1787,7 @@ absl::StatusOr<NameDefTree*> Parser::ParsePattern(Bindings& bindings,
 
   if (peek->IsKindIn({TokenKind::kNumber, TokenKind::kCharacter, Keyword::kTrue,
                       Keyword::kFalse}) ||
-      peek->IsTypeKeyword()) {
+      (peek->IsTypeKeyword() && !peek->IsKeyword(Keyword::kType))) {
     XLS_ASSIGN_OR_RETURN(Number * number, ParseNumber(bindings));
     XLS_ASSIGN_OR_RETURN(bool peek_is_double_dot,
                          PeekTokenIs(TokenKind::kDoubleDot));
