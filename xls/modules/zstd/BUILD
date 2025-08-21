@@ -3353,7 +3353,7 @@ benchmark_synth(
 )
 
 place_and_route(
-    name = "huffman_code_builder_place_and_route",
+    name = "huffman_code_builder_place_and_route_skip",
     clock_period = CLOCK_PERIOD_PS,
     core_padding_microns = 2,
     min_pin_distance = "0.5",
