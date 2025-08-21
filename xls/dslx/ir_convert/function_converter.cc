@@ -588,10 +588,7 @@ BValue FunctionConverter::Def(
     const AstNode* node,
     const std::function<BValue(const SourceInfo&)>& ir_func) {
   return DefWithStatus(
-             node,
-             [&ir_func](const SourceInfo& loc) -> absl::StatusOr<BValue> {
-               return ir_func(loc);
-             })
+             node, [&ir_func](const SourceInfo& loc) { return ir_func(loc); })
       .value();
 }
 
@@ -681,7 +678,7 @@ absl::Status FunctionConverter::HandleConcat(const Binop* node, BValue lhs,
 absl::Status FunctionConverter::HandleEq(const Binop* node, BValue lhs,
                                          BValue rhs) {
   return DefWithStatus(node,
-                       [&](const SourceInfo& loc) -> absl::StatusOr<BValue> {
+                       [&](const SourceInfo& loc) {
                          return function_builder_->Eq(lhs, rhs, loc);
                        })
       .status();
@@ -690,7 +687,7 @@ absl::Status FunctionConverter::HandleEq(const Binop* node, BValue lhs,
 absl::Status FunctionConverter::HandleNe(const Binop* node, BValue lhs,
                                          BValue rhs) {
   return DefWithStatus(node,
-                       [&](const SourceInfo& loc) -> absl::StatusOr<BValue> {
+                       [&](const SourceInfo& loc) {
                          return function_builder_->Ne(lhs, rhs, loc);
                        })
       .status();
@@ -791,7 +788,7 @@ absl::Status FunctionConverter::HandleExternNameRef(
   XLS_RET_CHECK(member.has_value());
   return absl::visit(
       Visitor{
-          [&](Function* f) -> absl::Status { return DefAlias(f, /*to=*/node); },
+          [&](Function* f) { return DefAlias(f, /*to=*/node); },
           [&](ConstantDef* c) -> absl::Status {
             XLS_RET_CHECK(node_to_ir_.contains(c->value()))
                 << absl::StreamFormat(
@@ -799,7 +796,7 @@ absl::Status FunctionConverter::HandleExternNameRef(
                        c->ToString());
             return DefAlias(c->value(), /*to=*/node);
           },
-          [&](auto) -> absl::Status {
+          [&](auto) {
             return absl::UnimplementedError(absl::StrFormat(
                 "Unsupported module member type %s for external name "
                 "reference: `%s` @ %s",
@@ -3375,7 +3372,7 @@ absl::Status FunctionConverter::HandleColonRef(const ColonRef* node) {
                            import_data_, current_type_info_, node));
   return absl::visit(
       Visitor{
-          [&](Module* module) -> absl::Status {
+          [&](Module* module) {
             return absl::InternalError("ColonRefs with imports unhandled.");
           },
           [&](EnumDef* enum_def) -> absl::Status {
@@ -3751,13 +3748,11 @@ absl::Status FunctionConverter::HandleStatement(const Statement* node) {
             return absl::OkStatus();
           },
           [&](TypeAlias*) {
-            // Nothing to do, all was resolved at type inference
-            // time.
+            // Nothing to do, all was resolved at type inference time.
             return absl::OkStatus();
           },
           [&](ConstAssert*) {
-            // Nothing to do, all was resolved at type inference
-            // time.
+            // Nothing to do, all was resolved at type inference time.
             return absl::OkStatus();
           },
           [&](Let* let) -> absl::Status {
