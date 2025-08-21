@@ -334,10 +334,13 @@ cc_test(
     deps = [
         ":optimization_pass",
         ":optimization_pass_pipeline",
+        ":pass_base",
         ":passes",
         "//xls/common:xls_gunit_main",
+        "//xls/common/fuzzing:fuzztest",
         "//xls/common/status:matchers",
         "//xls/examples:sample_packages",
+        "//xls/fuzzer/ir_fuzzer:ir_fuzz_domain",
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:channel",

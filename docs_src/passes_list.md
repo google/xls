@@ -1140,6 +1140,8 @@ This is run a large number of times and avoids many time-consuming analyses.
 - [dce](#dce)
 - [const_fold](#const_fold)
 - [dce](#dce)
+- [narrow(Ternary)](#narrowTernary)
+- [dce](#dce)
 - [bitslice_simp](#bitslice_simp)
 - [dce](#dce)
 - [concat_simp](#concat_simp)

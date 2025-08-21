@@ -46,6 +46,8 @@ compound_passes: [
       "dce",
       "const_fold",
       "dce",
+      "narrow(Ternary)",
+      "dce",
       "bitslice_simp",
       "dce",
       "concat_simp",

@@ -22,10 +22,12 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/status/matchers.h"
 #include "xls/examples/sample_packages.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function.h"
@@ -37,6 +39,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -324,6 +327,28 @@ TEST_F(OptimizationPipelineTest, ProcScopedChannels) {
 
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
 }
+
+// Wait for 1 million passes (http://memegen/9906133131144705) to run before we
+// decide we're stuck in an infinite loop.
+//
+// TODO(allight): Ideally we'd check that we run this many passes in a single
+// fixedpoint combinator.
+// TODO(allight): It would be nice if we had a more principled way to do this.
+// TODO(allight): We could check whether the results remain consistent but this
+// is more about not getting into inf-loops.
+static constexpr int64_t kMaxPassCount = 1000000;
+void DefaultPipelineFinishes(std::shared_ptr<Package> package) {
+  auto pipeline = CreateOptimizationPassPipeline();
+  OptimizationPassOptions options;
+  options.bisect_limit = kMaxPassCount;
+  PassResults res;
+  OptimizationContext ctx;
+  XLS_ASSERT_OK(pipeline->Run(package.get(), options, &res, ctx).status());
+  ASSERT_LT(res.total_invocations, kMaxPassCount)
+      << "Took an unreasonable amount of passes to finish.";
+}
+
+FUZZ_TEST(IrFuzzTest, DefaultPipelineFinishes).WithDomains(IrFuzzDomain());
 
 }  // namespace
 }  // namespace xls
