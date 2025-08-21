@@ -63,4 +63,4 @@ bazel_dep(name = "rules_java", version = "8.14.0")
 bazel_dep(name = "protoc-gen-validate", version = "1.2.1.bcr.1")
 
 # compilation DB; build_cleaner
-bazel_dep(name = "bant", version = "0.2.0", dev_dependency = True)
+bazel_dep(name = "bant", version = "0.2.2", dev_dependency = True)
