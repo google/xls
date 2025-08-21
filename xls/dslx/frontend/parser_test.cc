@@ -2550,9 +2550,20 @@ TEST_F(ParserTest, ModuleWithInvalidGenericType) {
   Scanner s{file_table_, Fileno(0), std::string{text}};
   Parser parser{"test", &s};
   auto module_status = parser.ParseModule();
+  ASSERT_THAT(
+      module_status,
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Generic type keyword 'type' is not permitted in this context")));
+}
+
+TEST_F(ParserTest, MatchRangeFollowedByTypeIsParseError) {
+  // Original sample that previously caused a BadStatusOrAccess crash; it should
+  // now produce a regular parse error.
+  constexpr std::string_view text = R"(fn f(x:u3)->u2{match 0{u2:0..type)";
+  absl::StatusOr<std::unique_ptr<Module>> module_status = Parse(text);
   ASSERT_THAT(module_status,
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("String is not a BuiltinType: \"type\"")));
+                       HasSubstr("Expected number; got")));
 }
 
 TEST_F(ParserTest, ParametricInvocation) { RoundTripExpr("f<u32:2>()", {"f"}); }
