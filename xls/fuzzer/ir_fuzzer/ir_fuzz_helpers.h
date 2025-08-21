@@ -123,16 +123,44 @@ class IrFuzzHelpers {
                                  Type* type) const;
 
   template <typename TypeProto>
-  Type* ConvertTypeProtoToType(Package* p, const TypeProto& type_proto) const;
+  Type* ConvertTypeProtoToType(Package* p, const TypeProto& type_proto) const {
+    using TypeCase = decltype(type_proto.type_case());
+    switch (type_proto.type_case()) {
+      case TypeCase::kBits:
+        return ConvertBitsTypeProtoToType(p, type_proto.bits());
+      case TypeCase::kTuple:
+        return ConvertTupleTypeProtoToType(p, type_proto.tuple());
+      case TypeCase::kArray:
+        return ConvertArrayTypeProtoToType(p, type_proto.array());
+      default:
+        return p->GetBitsType(64);
+    }
+  }
   template <typename BitsTypeProto>
   Type* ConvertBitsTypeProtoToType(Package* p,
-                                   const BitsTypeProto& bits_type) const;
+                                   const BitsTypeProto& bits_type) const {
+    int64_t bit_width = BoundedWidth(bits_type.bit_width());
+    return p->GetBitsType(bit_width);
+  }
   template <typename TupleTypeProto>
   Type* ConvertTupleTypeProtoToType(Package* p,
-                                    const TupleTypeProto& tuple_type) const;
+                                    const TupleTypeProto& tuple_type) const {
+    int64_t tuple_size = BoundedTupleSize(tuple_type.tuple_elements_size());
+    std::vector<Type*> element_types;
+    for (int64_t i = 0; i < tuple_size; i += 1) {
+      Type* element_type =
+          ConvertTypeProtoToType(p, tuple_type.tuple_elements(i));
+      element_types.push_back(element_type);
+    }
+    return p->GetTupleType(element_types);
+  }
   template <typename ArrayTypeProto>
   Type* ConvertArrayTypeProtoToType(Package* p,
-                                    const ArrayTypeProto& array_type) const;
+                                    const ArrayTypeProto& array_type) const {
+    int64_t array_size = BoundedArraySize(array_type.array_size());
+    Type* element_type = ConvertTypeProtoToType(p, array_type.array_element());
+    return p->GetArrayType(array_size, element_type);
+  }
 
   std::vector<Value> GenArgsForParam(int64_t arg_count, Type* type,
                                      const Bits& args_bits,

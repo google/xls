@@ -501,60 +501,6 @@ BValue IrFuzzHelpers::DefaultValueOfArrayType(Package* p, FunctionBuilder* fb,
   return fb->Array(elements, array_type->element_type());
 }
 
-// These template specializations define that the ConvertTypeProtoToType
-// function can be called with the following types. Use of a template to
-// allow the traversal of any type proto.
-template Type* IrFuzzHelpers::ConvertTypeProtoToType<FuzzTypeProto>(
-    Package* p, const FuzzTypeProto&) const;
-template Type* IrFuzzHelpers::ConvertTypeProtoToType<CoercedTypeProto>(
-    Package* p, const CoercedTypeProto&) const;
-// Returns a Type object from the specified type proto.
-template <typename TypeProto>
-Type* IrFuzzHelpers::ConvertTypeProtoToType(Package* p,
-                                            const TypeProto& type_proto) const {
-  using TypeCase = decltype(type_proto.type_case());
-  switch (type_proto.type_case()) {
-    case TypeCase::kBits:
-      return ConvertBitsTypeProtoToType(p, type_proto.bits());
-    case TypeCase::kTuple:
-      return ConvertTupleTypeProtoToType(p, type_proto.tuple());
-    case TypeCase::kArray:
-      return ConvertArrayTypeProtoToType(p, type_proto.array());
-    default:
-      return p->GetBitsType(64);
-  }
-}
-
-template Type* IrFuzzHelpers::ConvertBitsTypeProtoToType<BitsCoercedTypeProto>(
-    Package* p, const BitsCoercedTypeProto&) const;
-template <typename BitsTypeProto>
-Type* IrFuzzHelpers::ConvertBitsTypeProtoToType(
-    Package* p, const BitsTypeProto& bits_type) const {
-  int64_t bit_width = BoundedWidth(bits_type.bit_width());
-  return p->GetBitsType(bit_width);
-}
-
-template <typename TupleTypeProto>
-Type* IrFuzzHelpers::ConvertTupleTypeProtoToType(
-    Package* p, const TupleTypeProto& tuple_type) const {
-  int64_t tuple_size = BoundedTupleSize(tuple_type.tuple_elements_size());
-  std::vector<Type*> element_types;
-  for (int64_t i = 0; i < tuple_size; i += 1) {
-    Type* element_type =
-        ConvertTypeProtoToType(p, tuple_type.tuple_elements(i));
-    element_types.push_back(element_type);
-  }
-  return p->GetTupleType(element_types);
-}
-
-template <typename ArrayTypeProto>
-Type* IrFuzzHelpers::ConvertArrayTypeProtoToType(
-    Package* p, const ArrayTypeProto& array_type) const {
-  int64_t array_size = BoundedArraySize(array_type.array_size());
-  Type* element_type = ConvertTypeProtoToType(p, array_type.array_element());
-  return p->GetArrayType(array_size, element_type);
-}
-
 // Returns arg_count number of randomly generated arguments that are compatible
 // for a given parameter type.
 std::vector<Value> IrFuzzHelpers::GenArgsForParam(int64_t arg_count, Type* type,

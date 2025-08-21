@@ -3089,6 +3089,11 @@ TEST(IrFuzzBuilderTest, ArrayConcatOp) {
             operand_idxs {
               list_idx: 1
             }
+            element_type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
       )");
@@ -3124,6 +3129,11 @@ TEST(IrFuzzBuilderTest, ArrayConcatExceedsSizeLimit) {
             }
             operand_idxs {
               list_idx: 0
+            }
+            element_type {
+              bits {
+                bit_width: 10
+              }
             }
           }
         }

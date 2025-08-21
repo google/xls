@@ -555,6 +555,7 @@ message FuzzArrayUpdateProto {
 
 message FuzzArrayConcatProto {
   repeated ArrayOperandIdxProto operand_idxs = 1;
+  optional CoercedTypeProto element_type = 2;
 }
 
 message FuzzReverseProto {

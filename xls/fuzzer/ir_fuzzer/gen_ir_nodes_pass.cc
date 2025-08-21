@@ -569,7 +569,21 @@ void GenIrNodesPass::HandleArrayConcat(
   // Drop the remaining operands.
   operands.resize(operand_count);
   CHECK(!operands.empty());
-  context_list_.AppendElement(fb_->ArrayConcat(operands));
+
+  // Coerce the operands to share the same element type, keeping the sizes the
+  // same.
+  std::vector<BValue> coerced_operands;
+  coerced_operands.reserve(operands.size());
+  for (const auto& operand : operands) {
+    ArrayCoercedTypeProto coerced_type;
+    coerced_type.set_array_size(operand.GetType()->AsArrayOrDie()->size());
+    *coerced_type.mutable_array_element() = array_concat.element_type();
+    coerced_operands.push_back(helpers_.CoercedArray(
+        p_, fb_, operand, coerced_type,
+        helpers_.ConvertArrayTypeProtoToType(p_, coerced_type)));
+  }
+
+  context_list_.AppendElement(fb_->ArrayConcat(coerced_operands));
 }
 
 void GenIrNodesPass::HandleReverse(const FuzzReverseProto& reverse) {

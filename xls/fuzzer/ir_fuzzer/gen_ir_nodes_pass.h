@@ -119,8 +119,6 @@ class GenIrNodesPass : public IrFuzzVisitor {
                            const CoercedTypeProto& coerced_type);
   BValue GetCoercedBitsOperand(const BitsOperandIdxProto& operand_idx,
                                const BitsCoercedTypeProto& coerced_type);
-  BValue GetCoercedArrayOperand(const ArrayOperandIdxProto& operand_idx,
-                                const ArrayCoercedTypeProto& coerced_type);
   BValue GetFittedOperand(const OperandIdxProto& operand_idx,
                           const CoercionMethodProto& coercion_method,
                           Type* type);
@@ -144,10 +142,6 @@ class GenIrNodesPass : public IrFuzzVisitor {
   std::vector<BValue> GetCoercedBitsOperands(
       const google::protobuf::RepeatedPtrField<BitsOperandIdxProto>& operand_idxs,
       const BitsCoercedTypeProto& coerced_type, int64_t min_operand_count = 0,
-      int64_t max_operand_count = -1);
-  std::vector<BValue> GetCoercedArrayOperands(
-      const google::protobuf::RepeatedPtrField<ArrayOperandIdxProto>& operand_idxs,
-      const ArrayCoercedTypeProto& coerced_type, int64_t min_operand_count = 0,
       int64_t max_operand_count = -1);
 
   const FuzzProgramProto& fuzz_program_;
