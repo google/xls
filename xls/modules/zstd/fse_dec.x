@@ -75,6 +75,19 @@ pub struct FseDecoderFinish {
     status: FseDecoderStatus
 }
 
+pub fn extract_triplet(num: u64, sz0: u8, sz1: u8, sz2: u8) -> (
+    u64, u64, u64
+) {
+    let shifted2 = num;
+    let shifted1 = shifted2 >> sz2;
+    let shifted0 = shifted1 >> sz1;
+    (
+        shifted0 & ((u64:1 << sz0) - u64:1),
+        shifted1 & ((u64:1 << sz1) - u64:1),
+        shifted2 & ((u64:1 << sz2) - u64:1)
+    )
+}
+
 // 3.1.1.3.2.1.1. Sequence Codes for Lengths and Offsets
 const SEQ_MAX_CODES_LL = u8:35;
 const SEQ_MAX_CODES_ML = u8:51;
@@ -107,24 +120,18 @@ enum SEQ_PART : u2 {
     MatchLength = 2,
 }
 
-enum FseDecoderFSM : u5 {
+enum FseDecoderFSM : u4 {
     RECV_CTRL = 0,
     PADDING = 1,
-    INIT_OF_STATE = 2,
-    INIT_ML_STATE = 3,
-    INIT_LL_STATE = 4,
-    SEND_RAM_RD_REQ = 5,
-    RECV_RAM_RD_RESP = 6,
-    READ_OF_BITS = 7,
-    READ_ML_BITS = 8,
-    READ_LL_BITS = 9,
-    UPDATE_OF_STATE = 10,
-    UPDATE_ML_STATE = 11,
-    UPDATE_LL_STATE = 12,
-    SEND_COMMAND_LITERAL = 13,
-    SEND_COMMAND_SEQUENCE = 14,
-    SEND_LEFTOVER_LITERALS_REQ = 15,
-    SEND_FINISH = 16,
+    INIT_STATE = 2,
+    SEND_RAM_RD_REQ = 3,
+    RECV_RAM_RD_RESP = 4,
+    READ_BITS = 5,
+    UPDATE_STATE = 6,
+    SEND_COMMAND_LITERAL = 7,
+    SEND_COMMAND_SEQUENCE = 8,
+    SEND_LEFTOVER_LITERALS_REQ = 9,
+    SEND_FINISH = 10,
 }
 
 struct FseDecoderState {
@@ -144,7 +151,7 @@ struct FseDecoderState {
     of_state: u16,
     ll_state: u16,
     ml_state: u16,
-    read_bits: u16,
+    read_bits: u64,
     read_bits_length: u7,
     read_bits_needed: u7,
     sent_buf_ctrl: bool,
@@ -271,15 +278,9 @@ pub proc FseDecoder<
         // read bits
         let do_read_bits = (
             state.fsm == FseDecoderFSM::PADDING ||
-            state.fsm == FseDecoderFSM::INIT_OF_STATE ||
-            state.fsm == FseDecoderFSM::INIT_ML_STATE ||
-            state.fsm == FseDecoderFSM::INIT_LL_STATE ||
-            state.fsm == FseDecoderFSM::READ_OF_BITS ||
-            state.fsm == FseDecoderFSM::READ_ML_BITS ||
-            state.fsm == FseDecoderFSM::READ_LL_BITS ||
-            state.fsm == FseDecoderFSM::UPDATE_OF_STATE ||
-            state.fsm == FseDecoderFSM::UPDATE_ML_STATE ||
-            state.fsm == FseDecoderFSM::UPDATE_LL_STATE
+            state.fsm == FseDecoderFSM::INIT_STATE ||
+            state.fsm == FseDecoderFSM::READ_BITS ||
+            state.fsm == FseDecoderFSM::UPDATE_STATE
         );
         let do_send_buf_ctrl = do_read_bits && !state.sent_buf_ctrl;
 
@@ -310,7 +311,7 @@ pub proc FseDecoder<
         let state = if do_read_bits & buf_data_valid {
             FseDecoderState {
                 sent_buf_ctrl: false,
-                read_bits: math::logshiftl(buf_data.data as u16, state.read_bits_length) | state.read_bits,
+                read_bits: math::logshiftl(buf_data.data, state.read_bits_length) | state.read_bits,
                 read_bits_length: state.read_bits_length + buf_data.length,
                 shift_buffer_error: state.shift_buffer_error | buf_data.error,
                 ..state
@@ -380,7 +381,7 @@ pub proc FseDecoder<
                         FseDecoderState {
                             fsm: FseDecoderFSM::PADDING,
                             ctrl: ctrl,
-                            read_bits: u16:0,
+                            read_bits: u64:0,
                             read_bits_length: u7:0,
                             read_bits_needed: u7:1,
                             ..state
@@ -399,7 +400,7 @@ pub proc FseDecoder<
                     if padding_available {
                         FseDecoderState {
                             fsm: FseDecoderFSM::PADDING,
-                            read_bits: u16:0,
+                            read_bits: u64:0,
                             read_bits_length: u7:0,
                             read_bits_needed: u7:1,
                             padding, ..state
@@ -407,49 +408,31 @@ pub proc FseDecoder<
                     } else {
                         trace_fmt!("padding is: {:#x}", padding);
                         FseDecoderState {
-                            fsm: FseDecoderFSM::INIT_LL_STATE,
-                            read_bits: u16:0,
+                            fsm: FseDecoderFSM::INIT_STATE,
+                            read_bits: u64:0,
                             read_bits_length: u7:0,
-                            read_bits_needed: state.ctrl.ll_acc_log,
+                            read_bits_needed: state.ctrl.of_acc_log + state.ctrl.ll_acc_log + state.ctrl.ml_acc_log,
                             ..state
                         }
                     }
                 } else { state }
             },
 
-            FseDecoderFSM::INIT_LL_STATE => {
+            FseDecoderFSM::INIT_STATE => {
                 if (state.read_bits_needed == state.read_bits_length && !state.sent_buf_ctrl) {
                     trace_fmt!("[FseDecoder]: Moving to INIT_OF_STATE");
-                    FseDecoderState {
-                        fsm: FseDecoderFSM::INIT_OF_STATE,
-                        ll_state: state.read_bits,
-                        read_bits: u16:0,
-                        read_bits_length: u7:0,
-                        read_bits_needed: state.ctrl.of_acc_log,
-                        ..state
-                    }
-                } else { state }
-            },
-            FseDecoderFSM::INIT_OF_STATE => {
-                if (state.read_bits_needed == state.read_bits_length && !state.sent_buf_ctrl) {
-                    trace_fmt!("[FseDecoder]: Moving to INIT_ML_STATE");
-                    FseDecoderState {
-                        fsm: FseDecoderFSM::INIT_ML_STATE,
-                        of_state: state.read_bits,
-                        read_bits: u16:0,
-                        read_bits_length: u7:0,
-                        read_bits_needed: state.ctrl.ml_acc_log,
-                        ..state
-                    }
-                } else { state }
-            },
-            FseDecoderFSM::INIT_ML_STATE => {
-                if (state.read_bits_needed == state.read_bits_length && !state.sent_buf_ctrl) {
-                    trace_fmt!("[FseDecoder]: Moving to RAM_RD_REQ");
+                    // order: ll, of, ml
+                    let (ll_state, of_state, ml_state) = extract_triplet(
+                        state.read_bits,
+                        state.ctrl.ll_acc_log as u8, state.ctrl.of_acc_log as u8, state.ctrl.ml_acc_log as u8
+                    );
+
                     FseDecoderState {
                         fsm: FseDecoderFSM::SEND_RAM_RD_REQ,
-                        ml_state: state.read_bits,
-                        read_bits: u16:0,
+                        ll_state: ll_state as u16,
+                        ml_state: ml_state as u16,
+                        of_state: of_state as u16,
+                        read_bits: u64:0,
                         read_bits_length: u7:0,
                         read_bits_needed: u7:0,
                         ..state
@@ -486,96 +469,82 @@ pub proc FseDecoder<
                 ) {
                     trace_fmt!("all states received: {:#x}", state);
                     FseDecoderState {
-                        fsm: FseDecoderFSM::READ_OF_BITS,
-                        read_bits: u16:0,
+                        fsm: FseDecoderFSM::READ_BITS,
+                        read_bits: u64:0,
                         read_bits_length: u7:0,
-                        read_bits_needed: state.of_fse_table_record.symbol as u7,
+                        read_bits_needed: (
+                            state.of_fse_table_record.symbol as u8 +
+                            SEQ_MATCH_LENGTH_EXTRA_BITS[state.ml_fse_table_record.symbol] +
+                            SEQ_LITERAL_LENGTH_EXTRA_BITS[state.ll_fse_table_record.symbol]
+                        ) as u7,
                         ..state
                     }
                 } else { state }
             },
-            FseDecoderFSM::READ_OF_BITS => {
+            FseDecoderFSM::READ_BITS => {
                 if ((state.read_bits_needed == state.read_bits_length) && !state.sent_buf_ctrl) {
-                    trace_fmt!("of_code: {:#x}", state.of_fse_table_record.symbol);
-                    FseDecoderState {
-                        fsm: FseDecoderFSM::READ_ML_BITS,
-                        of: (math::logshiftl(u32:1, state.of_fse_table_record.symbol) + state.read_bits as u32) as u64,
-                        read_bits: u16:0,
-                        read_bits_length: u7:0,
-                        read_bits_needed: SEQ_MATCH_LENGTH_EXTRA_BITS[state.ml_fse_table_record.symbol] as u7,
-                        ..state
-                    }
-                } else { state }
-            },
-            FseDecoderFSM::READ_ML_BITS => {
-                if ((state.read_bits_needed == state.read_bits_length) && !state.sent_buf_ctrl) {
-                    FseDecoderState {
-                        fsm: FseDecoderFSM::READ_LL_BITS,
-                        ml: (SEQ_MATCH_LENGTH_BASELINES[state.ml_fse_table_record.symbol] + state.read_bits as u32) as u64,
-                        read_bits: u16:0,
-                        read_bits_length: u7:0,
-                        read_bits_needed: SEQ_LITERAL_LENGTH_EXTRA_BITS[state.ll_fse_table_record.symbol] as u7,
-                        ..state
-                    }
-                } else { state }
+                    // order: of, ml, ll
+                    let (of_bits, ml_bits, ll_bits) = extract_triplet(
+                        state.read_bits,
+                        state.of_fse_table_record.symbol as u8,
+                        SEQ_MATCH_LENGTH_EXTRA_BITS[state.ml_fse_table_record.symbol],
+                        SEQ_LITERAL_LENGTH_EXTRA_BITS[state.ll_fse_table_record.symbol]
+                    );
+                    let of = (math::logshiftl(u32:1, state.of_fse_table_record.symbol) + of_bits as u32) as u64;
+                    let ml = (SEQ_MATCH_LENGTH_BASELINES[state.ml_fse_table_record.symbol] + ml_bits as u32) as u64;
+                    let ll = (SEQ_LITERAL_LENGTH_BASELINES[state.ll_fse_table_record.symbol] + ll_bits as u32) as u64;
 
-            },
-            FseDecoderFSM::READ_LL_BITS => {
-                if ((state.read_bits_needed == state.read_bits_length) && !state.sent_buf_ctrl) {
                     if state.sequences_count == u24:1 {
-                        // skip state update for last sequence
+                        let of_state = state.of_fse_table_record.base + of_bits as u16;
                         FseDecoderState {
                             fsm: FseDecoderFSM::SEND_COMMAND_LITERAL,
-                            of_state: state.of_fse_table_record.base + state.read_bits,
-                            ll: (SEQ_LITERAL_LENGTH_BASELINES[state.ll_fse_table_record.symbol] + state.read_bits as u32) as u64,
-                            read_bits: u16:0,
+                            of: of,
+                            ml: ml,
+                            ll: ll,
+                            of_state: of_state,
+                            read_bits: u64:0,
                             read_bits_length: u7:0,
                             read_bits_needed: u7:0,
                             ..state
                         }
                     } else {
                         FseDecoderState {
-                            fsm: FseDecoderFSM::UPDATE_LL_STATE,
-                            ll: (SEQ_LITERAL_LENGTH_BASELINES[state.ll_fse_table_record.symbol] + state.read_bits as u32) as u64,
-                            read_bits: u16:0,
+                            fsm: FseDecoderFSM::UPDATE_STATE,
+                            of: of,
+                            ml: ml,
+                            ll: ll,
+                            read_bits: u64:0,
                             read_bits_length: u7:0,
-                            read_bits_needed: state.ll_fse_table_record.num_of_bits as u7,
+                            read_bits_needed: (
+                                state.ml_fse_table_record.num_of_bits +
+                                state.of_fse_table_record.num_of_bits +
+                                state.ll_fse_table_record.num_of_bits
+                            ) as u7,
                             ..state
                         }
                     }
                 } else { state }
             },
-            FseDecoderFSM::UPDATE_LL_STATE => {
+            FseDecoderFSM::UPDATE_STATE => {
                 trace_fmt!("Values LL: {:#x} ML: {:#x} OF: {:#x}", state.ll, state.ml, state.of);
-                if ((state.read_bits_needed == state.read_bits_length) && !state.sent_buf_ctrl) {
-                    FseDecoderState {
-                        fsm: FseDecoderFSM::UPDATE_ML_STATE,
-                        ll_state: state.ll_fse_table_record.base + state.read_bits,
-                        read_bits: u16:0,
-                        read_bits_length: u7:0,
-                        read_bits_needed: state.ml_fse_table_record.num_of_bits as u7,
-                        ..state
-                    }
-                } else { state }
-            },
-            FseDecoderFSM::UPDATE_ML_STATE => {
-                if ((state.read_bits_needed == state.read_bits_length) && !state.sent_buf_ctrl) {
-                    FseDecoderState {
-                        fsm: FseDecoderFSM::UPDATE_OF_STATE,
-                        ml_state: state.ml_fse_table_record.base + state.read_bits,
-                        read_bits: u16:0,
-                        read_bits_length: u7:0,
-                        read_bits_needed: state.of_fse_table_record.num_of_bits as u7,
-                        ..state
-                    }
-                } else { state }
-            },
-            FseDecoderFSM::UPDATE_OF_STATE => {
+                // order: ll, ml, of
+                let (ll_bits, ml_bits, of_bits) = extract_triplet(
+                    state.read_bits,
+                    state.ll_fse_table_record.num_of_bits,
+                    state.ml_fse_table_record.num_of_bits,
+                    state.of_fse_table_record.num_of_bits
+                );
+                let ll_state = state.ll_fse_table_record.base + ll_bits as u16;
+                let ml_state = state.ml_fse_table_record.base + ml_bits as u16;
+                let of_state = state.of_fse_table_record.base + of_bits as u16;
+
                 if ((state.read_bits_needed == state.read_bits_length) && !state.sent_buf_ctrl) {
                     FseDecoderState {
                         fsm: FseDecoderFSM::SEND_COMMAND_LITERAL,
-                        of_state: state.of_fse_table_record.base + state.read_bits,
-                        read_bits: u16:0,
+                        ll_state: ll_state,
+                        ml_state: ml_state,
+                        of_state: of_state,
+                        read_bits: u64:0,
                         read_bits_length: u7:0,
                         read_bits_needed: u7:0,
                         ..state
