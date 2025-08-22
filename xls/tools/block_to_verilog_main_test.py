@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for xls.tools.block_to_verilog_main."""
-
 import subprocess
 from google.protobuf import text_format
 
