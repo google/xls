@@ -20,7 +20,7 @@ import tempfile
 import cocotb
 from cocotb import triggers
 from cocotb.clock import Clock
-from cocotb.triggers import RisingEdge, ClockCycles, Event
+from cocotb.triggers import RisingEdge, ClockCycles, Event, Edge
 from cocotb.binary import BinaryValue
 from cocotb.utils import get_sim_time
 from cocotb_bus.scoreboard import Scoreboard
@@ -413,6 +413,61 @@ async def test_fse_lookup_decoder_for_huffman(dut, clock, expected_fse_lookups):
   cocotb.start_soon(get_handshake_event(dut, fse_lookup_resp_handshake, func))
 
 
+@cocotb.coroutine
+async def await_state_cycle(clk, wire, func, startvals, endvals):
+  """Monitors a state signal and reports elapsed cycles between start and end states.
+
+  This will continously observe a given state signal and after any of startvals,
+  and then endvals is matched with the value, report the elapsed cycles.
+
+  For procs that have an FSM, use proper start state (the one used after IDLE) in startvals,
+  and a state that corresponds to sending the result back, or switching back to IDLE in endvals.
+
+  Args:
+    wire: state signal to observe
+    func (Callable[[int], None]): Callback function to report the elapsed cycles
+    startvals (Iterable): values that define the start states
+    endvals (Iterable): values that define the end states
+  """
+  while True:
+    while wire.value not in startvals:
+      await Edge(wire)
+    start = get_clock_time(clk)
+    while wire.value not in endvals:
+      await Edge(wire)
+    end = get_clock_time(clk)
+    func(end - start)
+
+async def report_fse_decoder_work(dut, clk):
+  fse_state = dut.ZstdDecoder.xls_modules_zstd_fse_dec__ZstdDecoderInst__ZstdDecoder_0__CompressBlockDecoder_0__SequenceDecoder_0__FseDecoder_0__64_15_32_1_64_7_next_inst10.p2_____state_0__1
+  start_states = [1]
+  end_states = [16]
+
+  def report(value):
+    print(f'FSE Decoder finished after {value} cycles')
+
+  cocotb.start_soon(await_state_cycle(clk, fse_state, report, start_states, end_states))
+
+async def report_sequence_executor_work(dut, clk):
+  state = dut.ZstdDecoder.xls_modules_zstd_sequence_executor__ZstdDecoderInst__ZstdDecoder_0__SequenceExecutor_0__32_64_64_0_0_0_13_8192_65536_next_inst149.p2_____state_0__1
+  start_states = [1, 2]
+  end_states = [0]
+
+  def report(value):
+    print(f'Sequence executor finished after {value} cycles')
+
+  cocotb.start_soon(await_state_cycle(clk, state, report, start_states, end_states))
+
+async def report_fse_table_creator_work(dut, clk):
+  state = dut.ZstdDecoder.xls_modules_zstd_fse_table_creator__ZstdDecoderInst__ZstdDecoder_0__CompressBlockDecoder_0__SequenceDecoder_0__FseLookupDecoder_0__CompLookupDecoder_0__FseTableCreator_0__8_16_1_15_32_1_9_8_1_8_16_1_next_inst15.p3_____state_0__1
+  start_states = [1]
+  end_states = [11]
+
+  def report(value):
+    print(f'FSE table creator finished after {value} cycles')
+
+  cocotb.start_soon(await_state_cycle(clk, state, report, start_states, end_states))
+
 def reverse_expected_huffman_codes(exp_codes):
   def reverse_bits(value, max_bits):
     bv = BinaryValue(value=value, n_bits=max_bits, bigEndian=False)
@@ -641,6 +696,9 @@ async def pregenerated_testing_routine(
   print(
     f"\nusing pregenerated input file for decoder: {pregenerated_path}\n"
   )
+  await report_fse_decoder_work(dut, clock)
+  await report_sequence_executor_work(dut, clock)
+  await report_fse_table_creator_work(dut, clock)
 
   if expected_fse_lookups is not None:
     await test_fse_lookup_decoder(dut, clock, expected_fse_lookups)
