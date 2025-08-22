@@ -176,9 +176,27 @@ localhost instances of [bazel-remote](https://github.com/buchgr/bazel-remote/).
 
 ### Getting Clangd completions
 
-A `compile_flags.txt` file compatible with clangd and similar tools can be
-created by running `xls/dev_tools/make-compilation-db.sh`. Follow directions for
-your editor to install clangd code completion.
+There are two ways of getting clangd completions and related features.
+
+A `compile_flags.txt` file compatible with clangd and similar
+tools can be created by running `xls/dev_tools/make-compilation-db.sh`.
+This approach is faster but does not account for differences in the way
+individual targets are built.
+
+Alternatively,
+[hedronvision/bazel-compile-commands-extractor](https://github.com/hedronvision/bazel-compile-commands-extractor)
+can be used to generate a `compile_commands.json` file that
+clangd can consume. This approach is slower to setup but the
+compiler flags are tailored for each target. The
+`compile_commands.json` file can be built by running:
+
+```bash
+bazel build -c opt //xls/... -k
+bazel run //:refresh_compile_commands
+```
+
+See the comments in the top-level
+[BUILD](https://github.com/google/xls/blob/main/BUILD) file for more details.
 
 ## Stack Diagram and Project Layout
 

@@ -142,7 +142,8 @@ proj/xls$ pip install mdformat mdformat-tables mdformat-footnote
 ```
 
 The file `.mdformat.toml` in the top source directory contains the mdformat
-configuration settings.
+configuration settings. These settings should be picked up automatically
+by mdformat. Invoke mdformat directly on any modified markdown files.
 
 ### DSLX snippets in documentation
 

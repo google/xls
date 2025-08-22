@@ -28,6 +28,7 @@
 # more tutorial information.
 
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
+load("@hedron_compile_commands//:refresh_compile_commands.bzl", "refresh_compile_commands")
 load("@rules_license//rules:license.bzl", "license")
 
 package(
@@ -57,4 +58,17 @@ diff_test(
     name = "fuzztest_config_test",
     file1 = "fuzztest.bazelrc",
     file2 = ":fuzztest_generated_bazelrc",
+)
+
+# To generate compilation DB, run:
+#   bazel build -c opt //xls/... -k
+#   bazel run //:refresh_compile_commands
+#
+# The first command ensures all generated c++ files are built. It takes a
+# while and is not strictly necessary but will result in better
+# cross-referencing.
+refresh_compile_commands(
+    name = "refresh_compile_commands",
+    exclude_external_sources = True,
+    targets = {"//xls/...": "-c opt"},
 )
