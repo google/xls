@@ -56,6 +56,10 @@ ScheduleAndCodegen(
     const SchedulingOptionsFlagsProto& scheduling_options_flags_proto,
     const CodegenFlagsProto& codegen_flags_proto, bool with_delay_model);
 
+// Convert block IR to Verilog.
+absl::StatusOr<verilog::CodegenResult> BlockToVerilog(
+    Package* p, const CodegenFlagsProto& codegen_flags_proto);
+
 }  // namespace xls
 
 #endif  // XLS_TOOLS_CODEGEN_H_

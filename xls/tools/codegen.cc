@@ -21,11 +21,14 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "xls/codegen/block_generator.h"
+#include "xls/codegen/block_metrics.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_result.h"
 #include "xls/codegen/combinational_generator.h"
@@ -484,6 +487,45 @@ ScheduleAndCodegen(
                                            metadata, &schedules));
   return std::make_pair(std::move(scheduling_result),
                         std::move(codegen_result));
+}
+
+absl::StatusOr<verilog::CodegenResult> BlockToVerilog(
+    Package* p, const CodegenFlagsProto& codegen_flags_proto) {
+  XLS_RETURN_IF_ERROR(MaybeSetTop(p, codegen_flags_proto));
+  XLS_ASSIGN_OR_RETURN(verilog::CodegenOptions options,
+                       CodegenOptionsFromProto(codegen_flags_proto));
+
+  if (!p->GetTop().has_value()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Package %s has no top set.", p->name()));
+  }
+  FunctionBase* top_fb = p->GetTop().value();
+  if (!top_fb->IsBlock()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Top `%s` is not a block.", top_fb->name()));
+  }
+  Block* top_block = top_fb->AsBlockOrDie();
+
+  verilog::VerilogLineMap verilog_line_map;
+  XLS_ASSIGN_OR_RETURN(
+      std::string verilog,
+      verilog::GenerateVerilog(top_block, options, &verilog_line_map));
+
+  XLS_RET_CHECK(top_block->GetSignature().has_value())
+      << "Top block is missing a ModuleSignature.";
+  XLS_ASSIGN_OR_RETURN(
+      verilog::ModuleSignature signature,
+      verilog::ModuleSignature::FromProto(*top_block->GetSignature()));
+
+  verilog::XlsMetricsProto metrics;
+  XLS_ASSIGN_OR_RETURN(
+      *metrics.mutable_block_metrics(),
+      verilog::GenerateBlockMetrics(top_block, /*delay_estimator=*/nullptr));
+
+  return verilog::CodegenResult{.verilog_text = std::move(verilog),
+                                .verilog_line_map = std::move(verilog_line_map),
+                                .signature = std::move(signature),
+                                .block_metrics = std::move(metrics)};
 }
 
 }  // namespace xls
