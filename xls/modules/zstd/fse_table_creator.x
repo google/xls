@@ -192,6 +192,9 @@ pub proc FseTableCreator<
 
         let receive_start = (state.status == Status::RECEIVE_START);
         let (tok1, fse_start_msg) = recv_if(tok0, fse_table_start_r, receive_start, zero!<FseStartMsg>());
+        if receive_start {
+            trace_fmt!("[FseTableCreator] received start: {}", fse_start_msg);
+        } else {};
 
         let get_dpd_data = state.status == Status::TEST_NEGATIVE_PROB ||
                            state.status == Status::TEST_POSITIVE_PROB ||
