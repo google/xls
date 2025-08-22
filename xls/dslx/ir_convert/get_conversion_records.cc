@@ -74,8 +74,7 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     if (f->IsParametric()) {
       // We want one ConversionRecord per *unique* parametric binding of
       // this function.
-      XLS_RET_CHECK(!type_info_->GetUniqueInvocationCalleeData(f).empty() ||
-                    !f->IsParametric())
+      XLS_RET_CHECK(!type_info_->GetUniqueInvocationCalleeData(f).empty())
           << "Cannot lower a parametric proc without an invocation";
       for (auto& callee_data : type_info_->GetUniqueInvocationCalleeData(f)) {
         const Invocation* invocation = callee_data.invocation;
