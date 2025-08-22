@@ -224,14 +224,26 @@ class FunctionConverter {
   // Every AST node has an "IR value" that is either a function builder value
   // (BValue) or its IR-conversion-time-constant-decorated cousin (CValue), or
   // an inter-proc Channel.
-  using IrValue = std::variant<BValue, CValue, Channel*>;
+  using IrValue = std::variant<BValue, CValue, Channel*, ChannelInterface*>;
 
   // Helper for converting an IR value to its BValue pointer for use in
   // debugging.
   static std::string IrValueToString(const IrValue& value);
 
-  // Helper that checks that the given IrValue is a Channel.
+  // Helper that checks that the given IrValue is a Channel or ChannelInterface,
+  // or holds a ChannelInterface.
   static absl::Status CheckValueIsChannel(const IrValue& ir_value);
+
+  // Helper that converts the IrValue to the desired ChannelRef variant.
+  template <typename NodeT, typename ChanRef, typename ChanInt>
+  static absl::StatusOr<ChanRef> IrValueToChannelRef(const IrValue& ir_value);
+
+  static absl::StatusOr<SendChannelRef> IrValueToSendChannelRef(
+      const IrValue& ir_value);
+  static absl::StatusOr<ReceiveChannelRef> IrValueToReceiveChannelRef(
+      const IrValue& ir_value);
+  static absl::StatusOr<ChannelInterface*> IrValueToChannelInterface(
+      const IrValue& ir_value);
 
   void SetFunctionBuilder(std::unique_ptr<BuilderBase> builder);
 
@@ -613,6 +625,10 @@ class FunctionConverter {
 
   // The current type of function being processed.
   FunctionTag current_fn_tag_ = FunctionTag::kNormal;
+
+  // The last tuple converted. Used for mapping the return tuple of a proc
+  // `config` method to actual proc members.
+  std::vector<BValue> last_tuple_;
 };
 
 }  // namespace xls::dslx

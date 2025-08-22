@@ -1,0 +1,47 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+proc __test_module__spawnee2_0_next<in_param2: bits[32] in, out_param2: bits[32] out>(__state: (), init={()}) {
+  chan_interface in_param2(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface out_param2(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  in_param2: bits[32] = recv_channel_end(id=4)
+  out_param2: bits[32] = send_channel_end(id=5)
+  __state: () = state_read(state_element=__state, id=2)
+  __token: token = literal(value=token, id=1)
+  literal.3: bits[1] = literal(value=1, id=3)
+  tuple.6: (bits[32], bits[32]) = tuple(in_param2, out_param2, id=6)
+  next_value.7: () = next_value(param=__state, value=__state, id=7)
+}
+
+proc __test_module__spawnee_0_next<in_param: bits[32] in, out_param: bits[32] out>(__state: (), init={()}) {
+  chan_interface in_param(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface out_param(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  proc_instantiation __test_module__spawnee2_0_next_inst(in_param, out_param, proc=__test_module__spawnee2_0_next)
+  __state: () = state_read(state_element=__state, id=9)
+  __token: token = literal(value=token, id=8)
+  literal.10: bits[1] = literal(value=1, id=10)
+  in_param: bits[32] = recv_channel_end(id=11)
+  out_param: bits[32] = send_channel_end(id=12)
+  tuple.13: () = tuple(id=13)
+  next_value.14: () = next_value(param=__state, value=__state, id=14)
+}
+
+top proc __test_module__main_0_next<>(__state: (), init={()}) {
+  chan data_0(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+  chan_interface data_0(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface data_0(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan data_1(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+  chan_interface data_1(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface data_1(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  proc_instantiation __test_module__spawnee_0_next_inst(data_0, data_1, proc=__test_module__spawnee_0_next)
+  __state: () = state_read(state_element=__state, id=16)
+  __token: token = literal(value=token, id=15)
+  literal.17: bits[1] = literal(value=1, id=17)
+  __chan_data_0: bits[32] = new_channel(id=18)
+  data_0: bits[32] = recv_channel_end(id=19)
+  __chan_data_1: bits[32] = new_channel(id=20)
+  data_1: bits[32] = send_channel_end(id=21)
+  tuple.22: () = tuple(id=22)
+  next_value.23: () = next_value(param=__state, value=__state, id=23)
+}
