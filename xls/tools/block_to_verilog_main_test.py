@@ -42,7 +42,6 @@ top block my_function(a: bits[32], b: bits[32], out: bits[32]) {
 }
 '''
 
-# A block IR that instantiates a simple sub_block and wires input to output.
 INSTANTIATION_IR = '''package inst
 
 block sub_block(in: bits[32], out: bits[32]) {
