@@ -17,7 +17,7 @@
 
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_options.h"
-#include "xls/codegen/passes_ng/stage_to_block_conversion.h"
+#include "xls/codegen/passes_ng/stage_to_block_conversion_metadata.h"
 #include "xls/ir/block.h"
 
 namespace xls::verilog {

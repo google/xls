@@ -15,7 +15,6 @@
 #include "xls/dslx/frontend/ast_utils.h"
 
 #include <cstdint>
-#include <deque>
 #include <functional>
 #include <iterator>
 #include <optional>

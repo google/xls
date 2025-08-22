@@ -16,13 +16,11 @@
 #define XLS_DSLX_TYPE_SYSTEM_V2_TYPE_ANNOTATION_FILTER_H_
 
 #include <memory>
-#include <optional>
 #include <string>
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"
 #include "xls/dslx/frontend/ast.h"
-#include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 

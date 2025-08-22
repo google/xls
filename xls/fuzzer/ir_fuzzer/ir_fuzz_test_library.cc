@@ -17,14 +17,15 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <ostream>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"

@@ -31,6 +31,7 @@
 #include "mlir/include/mlir/IR/TypeUtilities.h"
 #include "mlir/include/mlir/IR/Visitors.h"
 #include "mlir/include/mlir/Pass/Pass.h"  // IWYU pragma: keep
+#include "mlir/include/mlir/Support/WalkResult.h"
 #include "xls/contrib/mlir/IR/xls_ops.h"
 
 namespace mlir::xls {

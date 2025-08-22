@@ -19,6 +19,7 @@
 #include <memory>
 #include <optional>
 #include <string_view>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "xls/ir/package.h"

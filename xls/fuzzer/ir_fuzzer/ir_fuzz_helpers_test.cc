@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -23,6 +24,7 @@
 #include "cppitertools/range.hpp"
 #include "cppitertools/sliding_window.hpp"
 #include "cppitertools/zip.hpp"
+#include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
 #include "xls/ir/bits.h"
 
 namespace xls {

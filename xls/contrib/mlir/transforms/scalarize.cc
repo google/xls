@@ -50,6 +50,7 @@
 #include "mlir/include/mlir/Support/LLVM.h"
 #include "mlir/include/mlir/Support/LogicalResult.h"
 #include "mlir/include/mlir/Support/TypeID.h"
+#include "mlir/include/mlir/Support/WalkResult.h"
 #include "mlir/include/mlir/Transforms/DialectConversion.h"
 #include "xls/contrib/mlir/IR/xls_ops.h"
 

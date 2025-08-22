@@ -30,6 +30,7 @@
 #include "mlir/include/mlir/IR/SymbolTable.h"
 #include "mlir/include/mlir/IR/Visitors.h"
 #include "mlir/include/mlir/Support/LLVM.h"
+#include "mlir/include/mlir/Support/WalkResult.h"
 #include "xls/codegen/vast/vast.h"
 #include "xls/contrib/mlir/IR/xls_ops.h"
 #include "xls/contrib/mlir/util/identifier.h"

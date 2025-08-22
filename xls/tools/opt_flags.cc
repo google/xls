@@ -33,10 +33,11 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
-#include "xls/passes/optimization_pass_pipeline.pb.h"
 #include "xls/passes/optimization_pass_registry.h"
+#include "xls/passes/pass_pipeline.pb.h"
 #include "xls/passes/query_engine_checker.h"
 #include "xls/passes/verifier_checker.h"
+#include "xls/tools/opt_flags.pb.h"
 
 // LINT.IfChange
 ABSL_FLAG(std::string, top, "", "Top entity to optimize.");

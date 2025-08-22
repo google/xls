@@ -19,6 +19,7 @@
 #include <optional>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "xls/common/fuzzing/fuzztest.h"
 #include "absl/status/statusor.h"

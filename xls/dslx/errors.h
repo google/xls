@@ -14,6 +14,8 @@
 #ifndef XLS_DSLX_ERRORS_H_
 #define XLS_DSLX_ERRORS_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/status.h"

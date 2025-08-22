@@ -30,6 +30,7 @@
 #include "xls/contrib/mlir/tools/xls_translate/xls_translate_from_mlir.h"
 #include "xls/contrib/mlir/tools/xls_translate/xls_translate_to_mlir.h"
 #include "xls/contrib/mlir/transforms/passes.h"  // IWYU pragma: keep
+#include "xls/passes/pass_pipeline.pb.h"
 #include "xls/tools/opt.h"
 
 #define DEBUG_TYPE "optimize-using-xls"

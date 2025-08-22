@@ -38,7 +38,6 @@
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/proc_instantiation.h"
-#include "xls/ir/type.h"
 #include "ortools/graph/graph.h"
 
 namespace xls {

@@ -24,6 +24,7 @@
 #include "mlir/include/mlir/IR/Visitors.h"
 #include "mlir/include/mlir/Pass/Pass.h"  // IWYU pragma: keep
 #include "mlir/include/mlir/Support/LLVM.h"
+#include "mlir/include/mlir/Support/WalkResult.h"
 #include "mlir/include/mlir/Transforms/DialectConversion.h"
 #include "mlir/include/mlir/Transforms/FoldUtils.h"
 #include "xls/contrib/mlir/IR/xls_ops.h"

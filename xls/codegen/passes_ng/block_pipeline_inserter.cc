@@ -30,7 +30,7 @@
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/conversion_utils.h"
 #include "xls/codegen/passes_ng/block_channel_slot.h"
-#include "xls/codegen/passes_ng/stage_to_block_conversion.h"
+#include "xls/codegen/passes_ng/stage_to_block_conversion_metadata.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"

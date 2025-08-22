@@ -17,7 +17,9 @@
 #include <cstdint>
 #include <iterator>
 #include <memory>
+#include <string>
 #include <utility>
+#include <vector>
 
 #include "xls/common/fuzzing/fuzztest.h"
 #include "absl/algorithm/container.h"

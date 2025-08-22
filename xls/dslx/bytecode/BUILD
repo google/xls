@@ -381,7 +381,6 @@ cc_test(
         "//xls/dslx:command_line_utils",
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",
-        "//xls/dslx:interp_value",
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx:virtualizable_file_system",
         "//xls/dslx/frontend:ast",

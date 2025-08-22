@@ -15,6 +15,8 @@
 #ifndef XLS_FUZZER_IR_FUZZER_VERILOG_FUZZ_DOMAIN_H_
 #define XLS_FUZZER_IR_FUZZER_VERILOG_FUZZ_DOMAIN_H_
 
+#include <string>
+
 #include "xls/common/fuzzing/fuzztest.h"
 #include "absl/status/statusor.h"
 #include "xls/tools/codegen_flags.pb.h"

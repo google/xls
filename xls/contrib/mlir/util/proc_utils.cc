@@ -27,7 +27,6 @@
 #include "mlir/include/mlir/IR/BuiltinAttributes.h"
 #include "mlir/include/mlir/IR/BuiltinOps.h"
 #include "mlir/include/mlir/IR/DialectRegistry.h"
-#include "mlir/include/mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/include/mlir/IR/Location.h"
 #include "mlir/include/mlir/IR/Matchers.h"
 #include "mlir/include/mlir/IR/PatternMatch.h"

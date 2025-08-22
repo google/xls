@@ -26,7 +26,7 @@
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/passes_ng/block_channel_slot.h"
 #include "xls/codegen/passes_ng/passes_ng_test_fixtures.h"
-#include "xls/codegen/passes_ng/stage_to_block_conversion.h"
+#include "xls/codegen/passes_ng/stage_to_block_conversion_metadata.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"

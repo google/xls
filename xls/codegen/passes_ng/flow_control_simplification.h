@@ -15,6 +15,7 @@
 #ifndef XLS_CODEGEN_PASSES_NG_FLOW_CONTROL_SIMPLIFICATION_H_
 #define XLS_CODEGEN_PASSES_NG_FLOW_CONTROL_SIMPLIFICATION_H_
 
+#include "absl/base/nullability.h"
 #include "absl/status/status.h"
 #include "xls/codegen/passes_ng/stage_to_block_conversion_metadata.h"
 #include "xls/ir/block.h"

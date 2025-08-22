@@ -28,6 +28,7 @@
 #include "mlir/include/mlir/Pass/Pass.h"  // IWYU pragma: keep
 #include "mlir/include/mlir/Rewrite/FrozenRewritePatternSet.h"
 #include "mlir/include/mlir/Support/LLVM.h"
+#include "mlir/include/mlir/Support/WalkResult.h"
 #include "mlir/include/mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "xls/contrib/mlir/IR/xls_ops.h"
 

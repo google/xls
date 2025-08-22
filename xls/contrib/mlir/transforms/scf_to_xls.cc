@@ -24,7 +24,6 @@
 #include "mlir/include/mlir/Dialect/SCF/Utils/Utils.h"
 #include "mlir/include/mlir/IR/Builders.h"
 #include "mlir/include/mlir/IR/BuiltinAttributes.h"
-#include "mlir/include/mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/include/mlir/IR/Matchers.h"
 #include "mlir/include/mlir/IR/OpDefinition.h"
 #include "mlir/include/mlir/IR/PatternMatch.h"
@@ -34,6 +33,7 @@
 #include "mlir/include/mlir/Pass/Pass.h"  // IWYU pragma: keep
 #include "mlir/include/mlir/Support/LLVM.h"
 #include "mlir/include/mlir/Support/LogicalResult.h"
+#include "mlir/include/mlir/Support/WalkResult.h"
 #include "mlir/include/mlir/Transforms/DialectConversion.h"
 #include "mlir/include/mlir/Transforms/FoldUtils.h"
 #include "mlir/include/mlir/Transforms/RegionUtils.h"

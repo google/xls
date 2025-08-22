@@ -21,6 +21,7 @@
 #include "mlir/include/mlir/IR/Value.h"
 #include "mlir/include/mlir/IR/Visitors.h"
 #include "mlir/include/mlir/Support/LLVM.h"
+#include "mlir/include/mlir/Support/WalkResult.h"
 #include "mlir/include/mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "xls/contrib/mlir/IR/xls_ops.h"
 #include "xls/contrib/mlir/transforms/passes.h"  // IWYU pragma: keep
