@@ -109,7 +109,22 @@ The resulting Verilog is trivially equivalent for all seed values, but (for most
 tools) will produce results of varying quality. Run as many different seeds
 through codegen & your synthesis tool as you would seeded runs.
 
-## Rendering Documentation
+## Documentation
+
+### Updating README.md and CONTRIBUTING.md
+
+As these two files are special in GitHub repos[^special-docs], they are
+replicated both as top-level files and within the
+[docs_src](https://github.com/google/xls/tree/main/docs_src) sub-directory. When
+changing these files, please ensure that you change the versions under docs_src,
+as these are the source-of-truth for what gets merged.
+
+[^special-docs]: See
+
+    * https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-readmes
+    * https://docs.github.com/en/communities/setting-up-your-project-for-healthy-contributions/setting-guidelines-for-repository-contributors
+
+### Rendering Documentation
 
 XLS uses [mkdocs](https://www.mkdocs.org/) to render its documentation, and
 serves it via GitHub pages at <https://google.github.io/xls>. To render
@@ -159,6 +174,8 @@ in the Markdown docs:
 GitHub issue [google/xls#378](https://github.com/google/xls/issues/378) tracks a
 script that does the parse/typecheck/test that ensures our documentation is up
 to date and correct.
+
+## GitHub Issues
 
 ### GitHub Issue "T-Shirt Size" Estimate Labels
 
