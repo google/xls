@@ -47,6 +47,8 @@
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/bits_ops.h"
 
 namespace xls::dslx {
 namespace {
@@ -369,16 +371,16 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     if (binop.rhs()->kind() == AstNodeKind::kNumber) {
       XLS_ASSIGN_OR_RETURN(InterpValue rhs_value,
                            ti_.GetConstExpr(binop.rhs()));
-      XLS_ASSIGN_OR_RETURN(uint64_t number_value,
-                           rhs_value.GetBitValueUnsigned());
+      XLS_ASSIGN_OR_RETURN(Bits rhs_bits, rhs_value.GetBits());
       const TypeDim& lhs_size = lhs_bits_like.size;
       XLS_ASSIGN_OR_RETURN(int64_t lhs_bits_count, lhs_size.GetAsInt64());
-      if (lhs_bits_count < number_value) {
+      if (bits_ops::ULessThan(UBits(lhs_bits_count, 64), rhs_bits)) {
         return TypeInferenceErrorStatus(
             binop.rhs()->span(), rhs_type,
             absl::StrFormat("Shifting a %d-bit value (`%s`) by a constexpr "
-                            "shift of %d exceeds its bit width.",
-                            lhs_bits_count, lhs_type->ToString(), number_value),
+                            "shift of %s exceeds its bit width.",
+                            lhs_bits_count, lhs_type->ToString(),
+                            rhs_value.ToHumanString()),
             file_table_);
       }
     }

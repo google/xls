@@ -3860,6 +3860,19 @@ TEST(TypecheckV2Test, GlobalConstantEqualsLShiftOfLiteralsSameType) {
   EXPECT_THAT("const X = u32:1 << 4;", TopNodeHasType("uN[32]"));
 }
 
+TEST(TypecheckV2Test, ShiftByMoreThan64Bits) {
+  // The point here is to prove that the validation does not rely on conversion
+  // of the RHS to `int64_t`. In v1 it would do this and incorrectly allow this
+  // example to pass.
+  EXPECT_THAT(
+      R"(
+const X = sN[80]:0x8000_0000_0000_0000_0000 >> uN[80]:0x0aaa_bbbb_cccc_dddd_eeee;
+)",
+      TypecheckFails(
+          HasSubstr("Shifting a 80-bit value (`sN[80]`) by a constexpr shift "
+                    "of 0xaaa_bbbb_cccc_dddd_eeee exceeds its bit width")));
+}
+
 TEST(TypecheckV2Test,
      GlobalConstantEqualsLShiftOfLiteralsRhsDifferentTypeAllSpecified) {
   EXPECT_THAT("const X: u5 = u5:1 << 4;", TopNodeHasType("uN[5]"));

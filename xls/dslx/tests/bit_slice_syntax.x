@@ -80,5 +80,4 @@ fn bit_slice_syntax() {
     // Explicit-width slices.
     assert_eq(u2:0b01, x[2+:u2]);
     assert_eq(s3:0b100, x[3+:s3]);
-    assert_eq(u3:0b001, x[5+:u3]);
 }

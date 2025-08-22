@@ -14,6 +14,6 @@
 
 #[test]
 fn simple_add_test() {
-    let x: sN[80] = sN[80]:0x8000_0000_0000_0000_0000 >> uN[80]:0x0aaa_bbbb_cccc_dddd_eeee;
-    assert_eq(sN[80]:0xffff_ffff_ffff_ffff_ffff, x)
+    let x: sN[80] = sN[80]:0x8000_0000_0000_0000_0000 >> uN[80]:32;
+    assert_eq(sN[80]:0xffff_ffff_8000_0000_0000, x)
 }
