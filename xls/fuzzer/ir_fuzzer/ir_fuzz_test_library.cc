@@ -187,8 +187,10 @@ void OptimizationPassChangesOutputs(FuzzPackageWithArgs fuzz_package_with_args,
       fuzz_package_with_args.fuzz_package.fuzz_program;
   RecordFuzzInfo(fuzz_package_with_args);
   std::vector<std::vector<Value>>& arg_sets = fuzz_package_with_args.arg_sets;
-  VLOG(3) << "IR Fuzzer-2: Before Pass IR:" << "\n" << p->DumpIr() << "\n";
-  ScopedMaybeRecord<std::string> pre("before_pass", p->DumpIr());
+  std::string pre_ir = p->DumpIr();
+  VLOG(3) << "IR Fuzzer-2: Before Pass IR:" << "\n" << pre_ir << "\n";
+  ScopedMaybeRecord<std::string> pre("before_pass", pre_ir);
+  // TODO: b/414654707 - Remove once RecordProperty works in fuzztest.
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction(kFuzzTestName));
   VLOG(3) << "IR Fuzzer-3: Argument Sets: " << StringifyArgSets(arg_sets)
           << "\n";
@@ -219,11 +221,14 @@ void OptimizationPassChangesOutputs(FuzzPackageWithArgs fuzz_package_with_args,
       DoResultsChange(before_pass_results, after_pass_results);
   VLOG(3) << "IR Fuzzer-8: Results Changed: "
           << (results_changed ? "TRUE" : "FALSE") << "\n";
-  ASSERT_FALSE(results_changed)
+  EXPECT_FALSE(results_changed)
       << "\n"
+      << "Args: " << StringifyArgSets(arg_sets) << "\n"
       << "Expected: " << StringifyResults(before_pass_results) << "\n"
       << "Actual:   " << StringifyResults(after_pass_results) << "\n"
-      << "IR:\n"
+      << "Before Pass IR:\n"
+      << pre_ir << "\n"
+      << "After Pass IR:\n"
       << p->DumpIr() << "\n"
       << "Fuzz Protobuf:\n"
       << fuzz_program.DebugString() << "\n";
