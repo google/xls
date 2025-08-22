@@ -836,8 +836,6 @@ py_test(
     ],
 )
 
-# TODO(b/147004555): Add a JIT (or legacy) version of this test once
-# the JIT supports enough functionality to pass.
 py_test(
     name = "eval_ir_main_test",
     srcs = ["eval_ir_main_test.py"],
