@@ -240,7 +240,6 @@ pub proc FseTableCreator<
                 data: checked_cast<uN[TMP_RAM_DATA_WIDTH]>(u16:1),
                 mask: TMP_RAM_REQ_MASK_ALL
             });
-        let (tok5, _) = recv_if(tok5, tmp_wr_resp_r, handle_negative_prob_resp, TestRamWriteResp {});
 
         let handle_positive_prob_write_state_desc = (state.status == Status::HANDLE_POSITIVE_PROB_WRITE_STATE_DESC);
         let addr = if handle_positive_prob_write_state_desc {
@@ -255,7 +254,6 @@ pub proc FseTableCreator<
                 mask: TMP_RAM_REQ_MASK_ALL
             }
         );
-        let (tok6, _) = recv_if(tok6, tmp_wr_resp_r, handle_positive_prob_write_state_desc, TmpRamWriteResp {});
 
         let inner_for_start_counting = state.status == Status::START_ITERATING_POS;
         let negative_proba_count = (u16:1 << state.accuracy_log) - state.high_threshold;
@@ -285,34 +283,36 @@ pub proc FseTableCreator<
         let (tok4, _) = recv_if(tok4, tmp2_wr_resp_r, inner_for_write_sym, FseRamWriteResp {});
 
         let last_for = state.status == Status::LAST_FOR;
-        let tok8 = send_if(tok0, tmp2_rd_req_s, last_for,
+        // tmp2 read and tmp2 write are sent in different states, so it's safe to use the same token here
+        let tok_tmp2_rd = send_if(tok0, tmp2_rd_req_s, last_for,
             Tmp2RamReadReq {
                 addr: checked_cast<uN[TMP2_RAM_ADDR_WIDTH]>(state.idx),
                 mask: TMP2_RAM_REQ_MASK_ALL,
             }
         );
-        let (tok8, fse_resp) = recv_if(tok8, tmp2_rd_resp_r, last_for, zero!<Tmp2RamReadResp>());
+        let (tok_tmp2_rd, fse_resp) = recv_if(tok_tmp2_rd, tmp2_rd_resp_r, last_for, zero!<Tmp2RamReadResp>());
         let fse_record_symbol = fse_resp.data;
 
         let get_state_desc = state.status == Status::GET_STATE_DESC;
         let symbol = state.curr_symbol;
-        let tok8 = send_if(tok8, tmp_rd_req_s, get_state_desc,
+        let tok_tmp_rd = send_if(tok0, tmp_rd_req_s, get_state_desc,
             TmpRamReadReq {
                 addr: checked_cast<uN[TMP_RAM_ADDR_WIDTH]>(symbol),
                 mask: TMP_RAM_REQ_MASK_ALL
             }
         );
-        let (tok8, tmp_resp) = recv_if(tok8, tmp_rd_resp_r, get_state_desc, zero!<TmpRamReadResp>());
+        let (tok_tmp_rd, tmp_resp) = recv_if(tok_tmp_rd, tmp_rd_resp_r, get_state_desc, zero!<TmpRamReadResp>());
 
         let set_state_desc = state.status == Status::SET_STATE_DESC;
-        let tok9 = send_if(tok8, tmp_wr_req_s, set_state_desc,
+        let tok_tmp_wr = send_if(tok_tmp_rd, tmp_wr_req_s, set_state_desc,
             TmpRamWriteReq {
                 addr: checked_cast<uN[TMP_RAM_ADDR_WIDTH]>(symbol),
                 data: checked_cast<uN[TMP_RAM_DATA_WIDTH]>(state.state_desc_for_symbol + u16:1),
                 mask: TMP_RAM_REQ_MASK_ALL
             }
         );
-        let (tok9, _) = recv_if(tok9, tmp_wr_resp_r, set_state_desc, TmpRamWriteResp {});
+
+        let (_, _) = recv_if(tok_tmp_wr, tmp_wr_resp_r, set_state_desc || handle_positive_prob_write_state_desc || handle_negative_prob_resp, TestRamWriteResp {});
 
         let num_bits = state.accuracy_log - common::highest_set_bit(state.state_desc_for_symbol);
         let size = u16:1 << state.accuracy_log;
@@ -330,8 +330,8 @@ pub proc FseTableCreator<
                 data: checked_cast<uN[FSE_RAM_DATA_WIDTH]>(complete_record_as_bits),
                 mask: FSE_RAM_REQ_MASK_ALL
         };
-        let tok10 = send_if(tok8, fse_wr_req_s, set_state_desc, fse_wr_req);
-        let (tok10, _) = recv_if(tok10, fse_wr_resp_r, set_state_desc, FseRamWriteResp {});
+        let tok_fse_wr = send_if(tok0, fse_wr_req_s, set_state_desc, fse_wr_req);
+        let (tok_fse_wr, _) = recv_if(tok_fse_wr, fse_wr_resp_r, set_state_desc, FseRamWriteResp {});
 
         let send_finish = state.status == Status::SEND_FINISH;
         let tok11 = send_if(tok0, fse_table_finish_s, send_finish, ());
