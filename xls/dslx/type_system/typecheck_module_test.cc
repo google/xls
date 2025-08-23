@@ -125,16 +125,9 @@ TEST_P(TypecheckBothVersionsTest, ZeroMacroFunctionRefIsNotValue) {
       "Return type of function body for 'a' did not match the annotated return "
       "type.\nType mismatch:\n   () -> E\nvs E";
   absl::Status st = Typecheck(text).status();
-  if (GetParam() == TypeInferenceVersion::kVersion1) {
-    FileTable ft;
-    ASSERT_THAT(GetPositionalErrorData(st, "XlsTypeError", ft),
-                absl_testing::IsOk());
-    EXPECT_EQ(GetPositionalErrorData(st, "XlsTypeError", ft)->message,
-              std::string(kV1Msg));
-  } else {
-    EXPECT_THAT(st, StatusIs(absl::StatusCode::kInvalidArgument,
-                             HasTypeMismatch("() -> E", "E")));
-  }
+  EXPECT_THAT(st, HasTypeSystemError(GetParam(),
+                                     ::testing::HasSubstr(std::string(kV1Msg)),
+                                     HasTypeMismatch("() -> E", "E")));
 }
 
 TEST_P(TypecheckBothVersionsTest, AllOnesMacroFunctionRefIsNotValue) {
@@ -143,16 +136,9 @@ TEST_P(TypecheckBothVersionsTest, AllOnesMacroFunctionRefIsNotValue) {
       "Return type of function body for 'a' did not match the annotated return "
       "type.\nType mismatch:\n   () -> E\nvs E";
   absl::Status st = Typecheck(text).status();
-  if (GetParam() == TypeInferenceVersion::kVersion1) {
-    FileTable ft;
-    ASSERT_THAT(GetPositionalErrorData(st, "XlsTypeError", ft),
-                absl_testing::IsOk());
-    EXPECT_EQ(GetPositionalErrorData(st, "XlsTypeError", ft)->message,
-              std::string(kV1Msg));
-  } else {
-    EXPECT_THAT(st, StatusIs(absl::StatusCode::kInvalidArgument,
-                             HasTypeMismatch("() -> E", "E")));
-  }
+  EXPECT_THAT(st, HasTypeSystemError(GetParam(),
+                                     ::testing::HasSubstr(std::string(kV1Msg)),
+                                     HasTypeMismatch("() -> E", "E")));
 }
 
 // The type of the default expression is wrong for the parametric binding of X.
