@@ -385,6 +385,12 @@ bool xls_parse_ir_package(const char* ir, const char* filename,
                           char** error_out,
                           struct xls_package** xls_package_out);
 
+// Verifies that the given package satisfies all IR invariants.
+//
+// Returns true on success; on failure returns false and populates `error_out`
+// with an error message that must be freed via `xls_c_str_free`.
+bool xls_verify_package(struct xls_package* p, char** error_out);
+
 // Returns a function contained within the given `package`.
 //
 // Note: the returned function does not need to be freed, it is tied to the

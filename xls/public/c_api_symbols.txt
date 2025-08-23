@@ -296,3 +296,4 @@ xls_vast_verilog_module_get_name
 xls_vast_verilog_module_get_ports
 xls_vast_verilog_module_port_get_def
 xls_vast_verilog_module_port_get_direction
+xls_verify_package

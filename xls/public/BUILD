@@ -270,6 +270,7 @@ cc_library(
         "//xls/ir:events",
         "//xls/ir:format_preference",
         "//xls/ir:ir_parser",
+        "//xls/ir:verifier",
         "//xls/ir:type",
         "//xls/ir:value",
         "//xls/jit:function_jit",

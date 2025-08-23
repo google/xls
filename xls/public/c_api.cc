@@ -48,6 +48,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/ir/verifier.h"
 #include "xls/jit/function_jit.h"
 #include "xls/public/c_api_format_preference.h"
 #include "xls/public/c_api_impl_helpers.h"
@@ -252,6 +253,20 @@ char* xls_schedule_and_codegen_result_get_verilog_text(
 void xls_schedule_and_codegen_result_free(
     struct xls_schedule_and_codegen_result* result) {
   delete reinterpret_cast<xls::ScheduleAndCodegenResult*>(result);
+}
+
+bool xls_verify_package(struct xls_package* p, char** error_out) {
+  CHECK(p != nullptr);
+  CHECK(error_out != nullptr);
+
+  xls::Package* cpp_package = reinterpret_cast<xls::Package*>(p);
+  absl::Status st = xls::VerifyPackage(cpp_package);
+  if (!st.ok()) {
+    *error_out = xls::ToOwnedCString(st.ToString());
+    return false;
+  }
+  *error_out = nullptr;
+  return true;
 }
 
 bool xls_parse_typed_value(const char* input, char** error_out,
