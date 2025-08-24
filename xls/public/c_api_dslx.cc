@@ -314,6 +314,11 @@ bool xls_dslx_quickcheck_get_count(struct xls_dslx_quickcheck* quickcheck,
   return true;
 }
 
+char* xls_dslx_quickcheck_to_string(struct xls_dslx_quickcheck* quickcheck) {
+  auto* cpp_qc = reinterpret_cast<xls::dslx::QuickCheck*>(quickcheck);
+  return xls::ToOwnedCString(cpp_qc->ToString());
+}
+
 bool xls_dslx_type_info_get_requires_implicit_token(
     struct xls_dslx_type_info* type_info, struct xls_dslx_function* function,
     char** error_out, bool* result_out) {

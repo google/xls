@@ -171,6 +171,9 @@ bool xls_dslx_quickcheck_is_exhaustive(struct xls_dslx_quickcheck*);
 bool xls_dslx_quickcheck_get_count(struct xls_dslx_quickcheck*,
                                    int64_t* result_out);
 
+// Note: return value is owned by the caller, free via `xls_c_str_free`.
+char* xls_dslx_quickcheck_to_string(struct xls_dslx_quickcheck*);
+
 int64_t xls_dslx_module_get_type_definition_count(
     struct xls_dslx_module* module);
 
