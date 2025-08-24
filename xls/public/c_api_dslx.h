@@ -148,6 +148,9 @@ char* xls_dslx_param_get_name(struct xls_dslx_param* p);
 struct xls_dslx_type_annotation* xls_dslx_param_get_type_annotation(
     struct xls_dslx_param* p);
 
+// Note: return value is owned by the caller, free via `xls_c_str_free`.
+char* xls_dslx_function_to_string(struct xls_dslx_function* fn);
+
 // Returns the QuickCheck AST node from the given module member. The caller
 // should ensure the module member kind is
 // `xls_dslx_module_member_kind_quick_check`.
@@ -201,6 +204,9 @@ char* xls_dslx_constant_def_get_name(struct xls_dslx_constant_def*);
 struct xls_dslx_expr* xls_dslx_constant_def_get_value(
     struct xls_dslx_constant_def*);
 
+// Note: return value is owned by the caller, free via `xls_c_str_free`.
+char* xls_dslx_constant_def_to_string(struct xls_dslx_constant_def*);
+
 // -- struct_def
 
 // Note: the return value is owned by the caller and must be freed via
@@ -218,6 +224,9 @@ char* xls_dslx_struct_member_get_name(struct xls_dslx_struct_member*);
 
 struct xls_dslx_type_annotation* xls_dslx_struct_member_get_type(
     struct xls_dslx_struct_member*);
+
+// Note: return value is owned by the caller, free via `xls_c_str_free`.
+char* xls_dslx_struct_def_to_string(struct xls_dslx_struct_def*);
 
 // -- enum_def (AST node)
 
@@ -238,6 +247,9 @@ char* xls_dslx_enum_member_get_name(struct xls_dslx_enum_member*);
 
 struct xls_dslx_expr* xls_dslx_enum_member_get_value(
     struct xls_dslx_enum_member*);
+
+// Note: return value is owned by the caller, free via `xls_c_str_free`.
+char* xls_dslx_enum_def_to_string(struct xls_dslx_enum_def*);
 
 // Returns the owning module for the given expression AST node.
 struct xls_dslx_module* xls_dslx_expr_get_owner_module(
@@ -287,6 +299,9 @@ char* xls_dslx_type_alias_get_identifier(struct xls_dslx_type_alias*);
 
 struct xls_dslx_type_annotation* xls_dslx_type_alias_get_type_annotation(
     struct xls_dslx_type_alias*);
+
+// Note: return value is owned by the caller, free via `xls_c_str_free`.
+char* xls_dslx_type_alias_to_string(struct xls_dslx_type_alias*);
 
 // -- interp_value
 
