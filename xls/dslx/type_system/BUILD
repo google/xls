@@ -165,6 +165,7 @@ cc_library(
         "//xls/dslx/frontend:ast_cloner",
         "//xls/dslx/frontend:ast_node",
         "//xls/dslx/frontend:ast_utils",
+        "//xls/dslx/frontend:builtins_metadata",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
         "//xls/dslx/frontend:token_utils",

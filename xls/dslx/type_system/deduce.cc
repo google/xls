@@ -52,6 +52,7 @@
 #include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/ast_utils.h"
+#include "xls/dslx/frontend/builtins_metadata.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_bindings.h"
@@ -2170,6 +2171,30 @@ class DeduceVisitor : public AstNodeVisitor {
   }
 
   absl::Status HandleFunctionRef(const FunctionRef* n) override {
+    // Builtin AST-node macros like zero!/all_ones! referenced with explicit
+    // parametrics but without invocation can be treated as first-class
+    // function values `() -> T`.
+    if (auto* name_ref = dynamic_cast<NameRef*>(n->callee())) {
+      if (std::holds_alternative<BuiltinNameDef*>(name_ref->name_def())) {
+        BuiltinNameDef* bnd = std::get<BuiltinNameDef*>(name_ref->name_def());
+        const std::string& name = bnd->identifier();
+        if (IsAstNodeBuiltinWithExplicitParametrics(name) &&
+            n->explicit_parametrics().size() == 1) {
+          const ExprOrType& et = n->explicit_parametrics().front();
+          XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> param_type,
+                               ctx_->DeduceAndResolve(ToAstNode(et)));
+          XLS_ASSIGN_OR_RETURN(param_type,
+                               UnwrapMetaType(std::move(param_type), n->span(),
+                                              absl::StrCat(name, " macro type"),
+                                              ctx_->file_table()));
+          std::vector<std::unique_ptr<Type>> params;
+          result_ = std::make_unique<FunctionType>(std::move(params),
+                                                   std::move(param_type));
+          return absl::OkStatus();
+        }
+      }
+    }
+
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> callee_type,
                          ctx_->Deduce(n->callee()));
     if (!callee_type->IsFunction()) {

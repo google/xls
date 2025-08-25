@@ -150,6 +150,24 @@ MATCHER_P3(HasSignednessMismatchInV2, param, type1, type2, "") {
                             result_listener);
 }
 
+// Unified matcher for type-system errors that differ across v1/v2.
+// - Verifies code == InvalidArgument
+// - For v1, applies `v1_message_matcher` to status.message()
+// - For v2, applies `v2_message_matcher` to status.message()
+MATCHER_P3(HasTypeSystemError, param, v1_message_matcher, v2_message_matcher,
+           "") {
+  using ::testing::ExplainMatchResult;
+  if (arg.code() != absl::StatusCode::kInvalidArgument) {
+    *result_listener << "status code was not InvalidArgument: " << arg.code();
+    return false;
+  }
+  if (param == TypeInferenceVersion::kVersion1) {
+    return ExplainMatchResult(v1_message_matcher, arg.message(),
+                              result_listener);
+  }
+  return ExplainMatchResult(v2_message_matcher, arg.message(), result_listener);
+}
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_TYPECHECK_TEST_UTILS_H_

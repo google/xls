@@ -61,6 +61,10 @@ const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins();
 // a `BuiltinNameDef` before testing the identifier.
 bool IsNameParametricBuiltin(std::string_view identifier);
 
+// Returns true if the identifier names an AST-node builtin that allows explicit
+// parametrics at the callsite (currently: zero!, all_ones!).
+bool IsAstNodeBuiltinWithExplicitParametrics(std::string_view identifier);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_FRONTEND_BUILTINS_METADATA_H_
