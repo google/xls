@@ -270,8 +270,9 @@ TEST_F(PipelineSchedulingPassTest, FdoWithMultipleProcs) {
 
   XLS_ASSERT_OK_AND_ASSIGN(std::filesystem::path yosys_path,
                            GetXlsRunfilePath("third_party/yosys/yosys"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::filesystem::path sta_path,
-                           GetXlsRunfilePath("@org_theopenroadproject/opensta"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::filesystem::path sta_path,
+      GetXlsRunfilePath("@org_theopenroadproject/opensta"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::filesystem::path lib_path,
       GetXlsRunfilePath("@com_google_skywater_pdk_sky130_fd_sc_hd/timing/"
