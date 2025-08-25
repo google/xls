@@ -1795,6 +1795,7 @@ py_library(
         "//xls/modules/zstd/rtl:ram_1r1w.v",
         "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
         "//xls/modules/zstd/rtl:zstd_dec_wrapper.sv",
+        "//xls/modules/zstd/rtl:cocotb_public_vars.vlt",
         "@com_github_alexforencich_verilog_axi//:rtl/arbiter.v",
         "@com_github_alexforencich_verilog_axi//:rtl/axi_crossbar.v",
         "@com_github_alexforencich_verilog_axi//:rtl/axi_crossbar_addr.v",

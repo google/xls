@@ -58,6 +58,7 @@ if __name__ == "__main__":
       "-Wno-fatal",
       "-Wwarn-ASSIGNIN",
       "--trace-fst", # trace in more space-efficient format than vcd
+      "--no-public-flat-rw",
       "-O3",
       "--assert",
     ], sim="verilator")

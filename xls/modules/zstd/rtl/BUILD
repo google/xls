@@ -38,6 +38,7 @@ exports_files(
         "xls_fifo_wrapper.sv",
         "ram_demux_wrapper.v",
         "ram_1r1w.v",
+        "cocotb_public_vars.vlt",
     ],
 )
 
