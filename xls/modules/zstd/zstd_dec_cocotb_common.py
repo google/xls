@@ -893,4 +893,8 @@ def run_test(test_module, build_args=[], sim="icarus"):
     "xls/modules/zstd/rtl/ram_1r1w.v",
   ]
 
+  if sim == "verilator":
+    # verilator-specific config
+    verilog_sources += "xls/modules/zstd/rtl/cocotb_public_vars.vlt",
+
   cocotb_utils.run_test(toplevel, test_module, verilog_sources, build_args=build_args, sim=sim)
