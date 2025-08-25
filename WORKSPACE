@@ -20,27 +20,17 @@ load("//dependency_support:load_external.bzl", "load_external_repositories")
 
 load_external_repositories()
 
+# This is still needed while we have some WORKSPACE dependencies that call rules_python.
+# Otherwise, you get errors about missing @rules_python_internal in WORKSPACE.
 load(
     "@rules_python//python:repositories.bzl",
     "py_repositories",
-    "python_register_toolchains",
 )
 
-# Must be called before using anything from rules_python.
+# Must be called before using anything from rules_python, namely in initialize_external_repositories.
 # https://github.com/bazelbuild/rules_python/issues/1560#issuecomment-1815118394
 py_repositories()
-
-python_register_toolchains(
-    name = "project_python",
-    python_version = "3.11",
-)
 
 load("//dependency_support:initialize_external.bzl", "initialize_external_repositories")
 
 initialize_external_repositories()
-
-load("@xls_pip_deps//:requirements.bzl", xls_pip_install_deps = "install_deps")
-
-xls_pip_install_deps()
-
-register_toolchains("//xls/common/toolchains:all")

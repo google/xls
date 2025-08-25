@@ -15,6 +15,45 @@ use_repo(llvm, "llvm_toolchain")
 
 register_toolchains("@llvm_toolchain//:all")
 
+# Python toolchain
+# TODO: https://github.com/google/xls/issues/2941 - Update to more recent version once we've
+# migrated to Bazel 8.
+# We need to pin to 1.0.0 until moving to Bazel 8, or else we run into missing py_library attribute
+# (e.g. pyi_srcs) errors in pip dependencies.
+bazel_dep(name = "rules_python", version = "1.0.0")
+
+# or-tools otherwise forces us to 1.2.0.
+single_version_override(
+    module_name = "rules_python",
+    version = "1.0.0",
+)
+
+PYTHON_VERSION = "3.11"
+
+PYTHON_VERSION_NAME = PYTHON_VERSION.replace(".", "_")
+
+python = use_extension("@rules_python//python/extensions:python.bzl", "python")
+python.toolchain(
+    python_version = PYTHON_VERSION,
+)
+
+# Use repo mapping to ensure that BUILD files don't need to be updated when the Python version
+# changes to a different version.
+use_repo(
+    python,
+    project_python = "python_{}".format(PYTHON_VERSION_NAME),
+    project_python_host = "python_{}_host".format(PYTHON_VERSION_NAME),
+)
+
+pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
+pip.parse(
+    timeout = 600000,
+    hub_name = "xls_pip_deps",
+    python_version = PYTHON_VERSION,
+    requirements_lock = "//dependency_support:pip_requirements_lock.txt",
+)
+use_repo(pip, "xls_pip_deps")
+
 # Root module dependencies.
 # Note: some WORKSPACE dependencies still require repo_name aliases.
 bazel_dep(name = "abseil-cpp", version = "20250512.0", repo_name = "com_google_absl")
@@ -22,6 +61,30 @@ bazel_dep(name = "abseil-py", version = "2.1.0")
 bazel_dep(name = "bazel_features", version = "1.30.0")
 bazel_dep(name = "bazel_skylib", version = "1.7.1")
 bazel_dep(name = "boringssl", version = "0.20250114.0")
+bazel_dep(name = "rules_boost", repo_name = "com_github_nelhage_rules_boost")
+archive_override(
+    module_name = "rules_boost",
+    integrity = "sha256-1iYFs1VPnMPW5r+v252WbrraMsMs/vrLoxeGnbyX1iE=",
+    patches = [
+        # rules_boost does not include Boost Python, see
+        # https://github.com/nelhage/rules_boost/issues/67
+        # This is because there doesn't exist a nice standard way in
+        # Bazel to depend on the Python headers of the current Python
+        # toolchain. The patch below selects the same Python headers
+        # that the rest of XLS uses.
+        #"//dependency_support/boost:add_python.patch",
+        "//dependency_support/boost:backtrace_from_rule.patch",
+    ],
+    strip_prefix = "rules_boost-2a7a2ad203e469276540cb7d260e8bd46f6cc030",
+    urls = "https://github.com/nelhage/rules_boost/archive/2a7a2ad203e469276540cb7d260e8bd46f6cc030.tar.gz",
+)
+
+non_module_boost_repositories = use_extension("@com_github_nelhage_rules_boost//:boost/repositories.bzl", "non_module_dependencies")
+use_repo(
+    non_module_boost_repositories,
+    "boost",
+)
+
 bazel_dep(name = "cppitertools", version = "2.2")
 bazel_dep(name = "googleapis", version = "0.0.0-20240819-fe8ba054a")
 bazel_dep(name = "grpc", version = "1.71.0")
@@ -70,7 +133,9 @@ bazel_dep(name = "bant", version = "0.2.2", dev_dependency = True)
 bazel_dep(name = "hedron_compile_commands", dev_dependency = True)
 git_override(
     module_name = "hedron_compile_commands",
-    remote = "https://github.com/hedronvision/bazel-compile-commands-extractor.git",
     # Updated 2025/08/19.
     commit = "abb61a688167623088f8768cc9264798df6a9d10",
+    remote = "https://github.com/hedronvision/bazel-compile-commands-extractor.git",
 )
+
+register_toolchains("//xls/common/toolchains:all")
