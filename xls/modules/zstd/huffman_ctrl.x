@@ -129,8 +129,6 @@ pub proc HuffmanControlAndSequenceMultiStreamHandler<AXI_ADDR_W: u32> {
     type DataPreprocessorStart = data_preprocessor::HuffmanDataPreprocessorStart;
     type Req = HuffmanControlAndSequenceInternalRequest<AXI_ADDR_W>;
 
-    const MAX_STREAM_NO = u2:3;
-
     config_r: chan<Config> in;
     done_s: chan<()> out;
     req_s: chan<Req> out;
@@ -163,6 +161,8 @@ pub proc HuffmanControlAndSequenceMultiStreamHandler<AXI_ADDR_W: u32> {
     init { zero!<State>() }
 
     next(state: State) {
+        const MAX_STREAM_NO = u2:3;
+
         let config = state.config;
         let multi_stream = config.multi_stream;
         let stream_no = state.stream_no;
