@@ -272,6 +272,7 @@ cc_library(
         "//xls/ir:ir_parser",
         "//xls/ir:type",
         "//xls/ir:value",
+        "//xls/ir:verifier",
         "//xls/jit:function_jit",
         "//xls/solvers:z3_ir_translator",
         "//xls/tools:codegen_flags_cc_proto",

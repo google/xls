@@ -1626,6 +1626,70 @@ top fn aoi21(inputs: (bits[1], bits[1], bits[1]) id=1) -> (bits[1], bits[1]) {
   EXPECT_EQ(std::string_view{package_str}, kWant);
 }
 
+TEST(XlsCApiTest, VerifyPackageOk) {
+  xls_package* package = xls_package_create("verify_ok");
+  absl::Cleanup free_package([=] { xls_package_free(package); });
+
+  xls_type* u1 = xls_package_get_bits_type(package, 1);
+  xls_function_builder* fb =
+      xls_function_builder_create("id1", package, /*should_verify=*/true);
+  absl::Cleanup free_fb([=] { xls_function_builder_free(fb); });
+  xls_builder_base* b = xls_function_builder_as_builder_base(fb);
+  xls_bvalue* x = xls_function_builder_add_parameter(fb, "x", u1);
+  absl::Cleanup free_x([=] { xls_bvalue_free(x); });
+  xls_bvalue* ret = xls_builder_base_add_identity(b, x, "ret");
+  absl::Cleanup free_ret([=] { xls_bvalue_free(ret); });
+  xls_function* fn = nullptr;
+  {
+    char* error = nullptr;
+    ASSERT_TRUE(
+        xls_function_builder_build_with_return_value(fb, ret, &error, &fn))
+        << "error: " << (error == nullptr ? "<none>" : error);
+  }
+  {
+    char* error = nullptr;
+    ASSERT_TRUE(xls_verify_package(package, &error))
+        << "error: " << (error == nullptr ? "<none>" : error);
+    ASSERT_EQ(error, nullptr);
+  }
+}
+
+TEST(XlsCApiTest, VerifyPackageDuplicateFunctionNameFails) {
+  xls_package* package = xls_package_create("verify_dup");
+  absl::Cleanup free_package([=] { xls_package_free(package); });
+
+  xls_type* u1 = xls_package_get_bits_type(package, 1);
+  // Build two functions with the same name; skip verification on build so that
+  // package-level verify detects the duplicate.
+  for (int i = 0; i < 2; ++i) {
+    xls_function_builder* fb =
+        xls_function_builder_create("dup", package, /*should_verify=*/false);
+    absl::Cleanup free_fb([=] { xls_function_builder_free(fb); });
+    xls_builder_base* b = xls_function_builder_as_builder_base(fb);
+    xls_bvalue* x = xls_function_builder_add_parameter(fb, "x", u1);
+    absl::Cleanup free_x([=] { xls_bvalue_free(x); });
+    xls_bvalue* ret = xls_builder_base_add_identity(b, x, "ret");
+    absl::Cleanup free_ret([=] { xls_bvalue_free(ret); });
+    xls_function* fn = nullptr;
+    char* error = nullptr;
+    ASSERT_TRUE(
+        xls_function_builder_build_with_return_value(fb, ret, &error, &fn))
+        << "error: " << (error == nullptr ? "<none>" : error);
+  }
+
+  char* error = nullptr;
+  EXPECT_FALSE(xls_verify_package(package, &error));
+  ASSERT_NE(error, nullptr);
+  {
+    const std::string_view got(error);
+    const std::string_view want_suffix =
+        "Function/proc/block with name dup is not unique within package "
+        "verify_dup";
+    EXPECT_NE(got.find(want_suffix), std::string_view::npos) << got;
+  }
+  xls_c_str_free(error);
+}
+
 TEST(XlsCApiTest, FnBuilderConcatAndSlice) {
   xls_package* package = xls_package_create("my_package");
   absl::Cleanup free_package([=] { xls_package_free(package); });
