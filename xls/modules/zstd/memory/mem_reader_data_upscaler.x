@@ -15,29 +15,21 @@
 import std;
 import xls.modules.zstd.memory.mem_reader;
 
-struct MemReaderDataUpscalerState<
-    ADDR_W: u32, DATA_IN_W: u32, DATA_OUT_W: u32,
-> {
+struct MemReaderDataUpscalerState<ADDR_W: u32, DATA_IN_W: u32, DATA_OUT_W: u32> {
     response: mem_reader::MemReaderResp<DATA_OUT_W, ADDR_W>,
 }
 
-pub proc MemReaderDataUpscaler<
-    ADDR_W: u32, DATA_IN_W: u32, DATA_OUT_W: u32,
-> {
+pub proc MemReaderDataUpscaler<ADDR_W: u32, DATA_IN_W: u32, DATA_OUT_W: u32> {
     type InData = mem_reader::MemReaderResp<DATA_IN_W, ADDR_W>;
     type OutData = mem_reader::MemReaderResp<DATA_OUT_W, ADDR_W>;
     type State = MemReaderDataUpscalerState<ADDR_W, DATA_IN_W, DATA_OUT_W>;
     type Status = mem_reader::MemReaderStatus;
-
-    const_assert!(DATA_IN_W <= DATA_OUT_W); // input should be narrower than output
-
+    const_assert!(DATA_IN_W <= DATA_OUT_W);
+    // input should be narrower than output
     in_r: chan<InData> in;
     out_s: chan<OutData> out;
 
-    config(
-        in_r: chan<InData> in,
-        out_s: chan<OutData> out
-    ) { (in_r, out_s) }
+    config(in_r: chan<InData> in, out_s: chan<OutData> out) { (in_r, out_s) }
 
     init { zero!<State>() }
 
@@ -48,16 +40,14 @@ pub proc MemReaderDataUpscaler<
         trace_fmt!("[MemReaderDataUpscaler] data: {}", data);
         let last = data.length < IN_FULL_LENGTH;
         let shift_bits = state.response.length * uN[ADDR_W]:8;
-        let response = OutData{
+        let response = OutData {
             status: Status::OKAY,
-            data: (data.data as uN[DATA_OUT_W] << shift_bits) | state.response.data ,
+            data: (data.data as uN[DATA_OUT_W] << shift_bits) | state.response.data,
             length: state.response.length + data.length,
-            last: last
+            last,
         };
         let tok = send_if(tok, out_s, response.length == OUT_FULL_LENGTH || last, response);
 
-        State {
-            response: if last { zero!<OutData>() } else { response }
-        }
+        State { response: if last { zero!<OutData>() } else { response } }
     }
 }
