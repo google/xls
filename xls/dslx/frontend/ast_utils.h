@@ -89,6 +89,9 @@ bool IsNameRefToParametricFunction(const AstNode* n);
 // "n" should not be null.
 bool ParentIsInvocationWithCallee(const NameRef* n);
 
+// Returns whether `n` is a reference to an imported module (the module itself).
+bool IsImportedModuleReference(const NameRef* n);
+
 // Returns the result of accessing a colon-ref member of a builtin type; e.g.
 // `s7::MAX`.
 absl::StatusOr<InterpValue> GetBuiltinNameDefColonAttr(

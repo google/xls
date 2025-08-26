@@ -1407,19 +1407,11 @@ fn width_slice() -> u32 {
   a[u32:16 +: u32]
 })";
 
-  absl::StatusOr<InterpValue> value = Interpret(kProgram, "width_slice");
-  if (kDefaultTypeInferenceVersion == TypeInferenceVersion::kVersion2) {
-    EXPECT_THAT(
-        value,
-        StatusIs(absl::StatusCode::kInvalidArgument,
-                 HasSubstr("Slice range out of bounds for array of size 32")));
-  } else {
-    XLS_ASSERT_OK(value);
-    ASSERT_TRUE(value->IsBits());
-    XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_value,
-                             value->GetBitsOrDie().ToUint64());
-    EXPECT_EQ(int_value, 0x0000dead);
-  }
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(kProgram, "width_slice"));
+  ASSERT_TRUE(value.IsBits());
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_value, value.GetBitsOrDie().ToUint64());
+  EXPECT_EQ(int_value, 0x0000dead);
 }
 
 // Tests a slice from both ends: a[-x:-y].

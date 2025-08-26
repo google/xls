@@ -498,6 +498,17 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     }
     absl::c_copy(invocation->args(), std::back_inserter(actual_args));
 
+    // Colon refs to types can be masquerading as value `Expr`s in the
+    // arguments. We need to error if there are any of these.
+    for (const Expr* arg : actual_args) {
+      if (arg->kind() == AstNodeKind::kColonRef &&
+          IsColonRefWithTypeTarget(table_, arg)) {
+        return TypeInferenceErrorStatus(
+            arg->span(), nullptr, "Cannot pass a type as a function argument.",
+            file_table_);
+      }
+    }
+
     // Note that functions in procs are treated as if they are parametric (as in
     // v1), because there needs to be a `TypeInfo` with separate const-exprs per
     // instantiation of a proc.
@@ -1404,6 +1415,17 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       }
     } else if (callee->kind() == AstNodeKind::kAttr) {
       const auto* attr = down_cast<const Attr*>(callee);
+
+      // Disallow the form `module.fn()`. If they really want to do that, it
+      // should be `module::fn()`.
+      if (attr->lhs()->kind() == AstNodeKind::kNameRef &&
+          IsImportedModuleReference(down_cast<NameRef*>(attr->lhs()))) {
+        return TypeInferenceErrorStatus(
+            attr->span(), nullptr,
+            "An invocation callee must be a function, with a possible scope.",
+            file_table_);
+      }
+
       XLS_RETURN_IF_ERROR(
           ConvertSubtree(attr->lhs(), caller_function, caller_context));
       target_object = attr->lhs();

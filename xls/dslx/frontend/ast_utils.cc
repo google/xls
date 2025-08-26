@@ -105,6 +105,11 @@ bool ParentIsInvocationWithCallee(const NameRef* n) {
   return invocation != nullptr && invocation->callee() == n;
 }
 
+bool IsImportedModuleReference(const NameRef* n) {
+  const AstNode* parent = ToAstNode(n->name_def())->parent();
+  return parent != nullptr && parent->kind() == AstNodeKind::kImport;
+}
+
 bool IsBuiltinFn(Expr* callee, std::optional<std::string_view> target) {
   BuiltinNameDef* bnd = GetBuiltinNameDef(callee);
   if (bnd == nullptr) {

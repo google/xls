@@ -206,6 +206,15 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     return DefaultHandler(invocation);
   }
 
+  absl::Status HandleStructMemberNode(const StructMemberNode* member) override {
+    if (type_->IsProc()) {
+      return TypeInferenceErrorStatus(
+          member->span(), type_, "Structs cannot contain procs as members.",
+          file_table_);
+    }
+    return absl::OkStatus();
+  }
+
   absl::Status HandleFormatMacro(const FormatMacro* macro) override {
     for (const Expr* arg : macro->args()) {
       const Type& type = **ti_.GetItem(arg);

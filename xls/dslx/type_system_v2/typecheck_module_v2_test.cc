@@ -3769,6 +3769,40 @@ const Y = zero!<imported::X>();
               IsOkAndHolds(HasTypeInfo(HasNodeWithType("Y", "uN[10]"))));
 }
 
+TEST(TypecheckV2Test, ArrayOfTypeColonRefFails) {
+  constexpr std::string_view kImported = R"(
+pub type T = u32;
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+const X = [imported::T];
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Array element cannot be a type reference.")));
+}
+
+TEST(TypecheckV2Test, TypeColonRefAsArgumentFails) {
+  constexpr std::string_view kImported = R"(
+pub type T = u32;
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+fn f(a: u32) {}
+fn g() {
+  f(imported::T);
+}
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  EXPECT_THAT(
+      TypecheckV2(kProgram, "main", &import_data),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Cannot pass a type as a function argument.")));
+}
+
 TEST(TypecheckV2Test, ZeroMacroImportedStructType) {
   constexpr std::string_view kImported = R"(
 pub struct S { field: u32 }
@@ -6857,6 +6891,23 @@ proc main {
               TypecheckSucceeds(
                   AllOf(HasNodeWithType("spawn Counter<16>(p16, 50)", "()"),
                         HasNodeWithType("spawn Counter<32>(p32, 50)", "()"))));
+}
+
+TEST(TypecheckV2Test, ProcAsStructMemberFails) {
+  EXPECT_THAT(
+      R"(
+proc Foo {
+  foo: u32,
+  bar: bool,
+}
+
+impl Foo {}
+
+struct Bar {
+  the_proc: Foo
+}
+)",
+      TypecheckFails(HasSubstr("Structs cannot contain procs as members.")));
 }
 
 TEST(TypecheckV2Test, ParametricProcWithTypeAlias) {

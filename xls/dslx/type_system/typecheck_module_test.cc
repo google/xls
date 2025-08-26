@@ -2337,8 +2337,13 @@ const MY_ARRAY = imported::MyStruct<u32:4, u32:8>[2]:[
       ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
   absl::StatusOr<TypecheckedModule> result =
       ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data);
-  EXPECT_THAT(result, StatusIs(absl::StatusCode::kInvalidArgument,
-                               HasSubstr("Array element cannot be a metatype")))
+  EXPECT_THAT(
+      result,
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr(kDefaultTypeInferenceVersion ==
+                                 TypeInferenceVersion::kVersion1
+                             ? "Array element cannot be a metatype"
+                             : "Array element cannot be a type reference.")))
       << result.status();
 }
 

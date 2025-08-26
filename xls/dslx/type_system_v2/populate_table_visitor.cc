@@ -1174,7 +1174,18 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
             module_.Make<TypeVariableTypeAnnotation>(element_type_variable),
             element_count,
             /*dim_is_min=*/node->has_ellipsis())));
-    return DefaultHandler(node);
+    XLS_RETURN_IF_ERROR(DefaultHandler(node));
+
+    // Disallow `ColonRef` masquerading as a value expr.
+    for (const Expr* expr : node->members()) {
+      if (expr->kind() == AstNodeKind::kColonRef &&
+          IsColonRefWithTypeTarget(table_, expr)) {
+        return TypeInferenceErrorStatus(
+            node->span(), nullptr, "Array element cannot be a type reference.",
+            file_table_);
+      }
+    }
+    return absl::OkStatus();
   }
 
   absl::Status HandleRange(const Range* node) override {
