@@ -116,7 +116,7 @@ type TestCTableRamWrResp = ram::WriteResp;
 type TestTTableRamWrResp = ram::WriteResp;
 
 type TestZstdEncodeReq = zstd_enc::ZstdEncodeReq<TEST_ADDR_W, TEST_RAM_DATA_W>;
-type TestZstdEncodeResp = zstd_enc::ZstdEncodeResp;
+type TestZstdEncodeResp = zstd_enc::ZstdEncodeResp<TEST_ADDR_W>;
 
 const TEST_INPUT_DATA = u32[TEST_INPUT_SIZE]:[
     u32:0xD945_50A5, u32:0xA20C_D8D3, u32:0xB0BE_D046, u32:0xF83C_6D26, u32:0xFAE4_B0C4,
@@ -153,28 +153,28 @@ const TEST_RAM_SIZE = TEST_EXPECTED_SIZE * u32:5;
 
 const TEST_EXPECTED = u32[TEST_EXPECTED_SIZE]:[
     // FH - frame header,   BH - block header,  BB - block content
-    // Magic_Number            BHFH FHFH            BBBB BHBH            BBBB BBBB            BBBB ...
-    u32:0xFD2F_B528,     u32:0x8100_9060,     u32:0x50A5_000C,     u32:0xD8D3_D945,     u32:0xD046_A20C,
-    u32:0x6D26_B0BE,     u32:0xB0C4_F83C,     u32:0x91C4_FAE4,     u32:0x9B1E_9A78,     u32:0xD76D_FDA0,
-    u32:0x76CB_5E66,     u32:0x5F2F_CB7D,     u32:0x9B0B_4033,     u32:0x365F_2128,     u32:0xDD81_D263,
-    u32:0x45C9_D989,     u32:0x06B6_E4CB,     u32:0x107C_0425,     u32:0x7A67_5D31,     u32:0x0C94_2282,
-    u32:0x5FD8_CAC7,     u32:0xBBC3_23A9,     u32:0xF3D0_6122,     u32:0xFB34_1F99,     u32:0x5EF2_A70C,
-    u32:0x61BC_3812,     u32:0xC1B1_9157,     u32:0x1B08_171A,     u32:0xF1AF_DE6F,     u32:0xF51B_420D,
-    u32:0xE3A3_AEE9,     u32:0x09D6_B31E,     u32:0x9703_66AC,     u32:0x1E7A_18E9,     u32:0x47DE_EE87,
-    u32:0x4F52_B63D,     u32:0x5636_59BF,     u32:0x34EE_94D8,     u32:0x9968_2B81,     u32:0xF8CB_6711,
-    u32:0xCB1B_FB2B,     u32:0x3A67_173F,     u32:0x714F_FB94,     u32:0x82FE_F40B,     u32:0x055E_383B,
-    u32:0x2110_A692,     u32:0xB5E0_58A6,     u32:0x9C22_0185,     u32:0xDB57_9DF0,     u32:0x097F_54CA,
-    u32:0x3110_C626,     u32:0x4D36_EA04,     u32:0xFAB0_F11C,     u32:0x3B20_B8CC,     u32:0xBF9C_7801,
-    u32:0xA505_8189,     u32:0xAE34_E380,     u32:0x1B3A_4672,     u32:0xEE9E_1CD5,     u32:0x9931_5F95,
-    u32:0x50D2_BC5C,     u32:0x0544_BCE6,     u32:0xDEA1_C10D,     u32:0x3394_5AB4,     u32:0x0CA1_5E20,
-    u32:0x112E_7FDA,     u32:0x2F81_6FEC,     u32:0x4491_107A,     u32:0x0EB7_86CA,     u32:0xAA22_EA68,
-    u32:0xF2CA_50F1,     u32:0x92F7_3F47,     u32:0xEEE0_E407,     u32:0xE819_F35C,     u32:0x05FA_1D6B,
-    u32:0xA499_3FA7,     u32:0x4812_08BB,     u32:0x3D5C_7C0C,     u32:0xBE16_F5A5,     u32:0xF84B_079A,
-    u32:0x9402_ACA1,     u32:0x28FD_4D2B,     u32:0xCBA5_45B1,     u32:0xFC32_2C7C,     u32:0x8288_6874,
-    u32:0xE707_95A0,     u32:0x2FEF_FB13,     u32:0xDAFC_61F9,     u32:0x0A80_F6E3,     u32:0x831B_DBA0,
-    u32:0x2520_BB84,     u32:0xD817_AD63,     u32:0xC435_EFB3,     u32:0x1E4F_D190,     u32:0x3D28_9064,
-    u32:0x874C_0839,     u32:0xD633_1C07,     u32:0xC751_BBEB,     u32:0xA340_B0A9,     u32:0xFF8A_83B9,
-    u32:0xee5c_028a,     u32:0xbd9c_b4ed,     u32:0x0000_d700
+    // Magic_Number           BHFH FHFH           BBBB BHBH           BBBB BBBB           BBBB ...
+    u32:0xFD2F_B528,    u32:0x0090_6040,    u32:0xA500_0C81,    u32:0xD3D9_4550,    u32:0x46A2_0CD8,
+    u32:0x26B0_BED0,    u32:0xC4F8_3C6D,    u32:0xC4FA_E4B0,    u32:0x1E9A_7891,    u32:0x6DFD_A09B,
+    u32:0xCB5E_66D7,    u32:0x2FCB_7D76,    u32:0x0B40_335F,    u32:0x5F21_289B,    u32:0x81D2_6336,
+    u32:0xC9D9_89DD,    u32:0xB6E4_CB45,    u32:0x7C04_2506,    u32:0x675D_3110,    u32:0x9422_827A,
+    u32:0xD8CA_C70C,    u32:0xC323_A95F,    u32:0xD061_22BB,    u32:0x341F_99F3,    u32:0xF2A7_0CFB,
+    u32:0xBC38_125E,    u32:0xB191_5761,    u32:0x0817_1AC1,    u32:0xAFDE_6F1B,    u32:0x1B42_0DF1,
+    u32:0xA3AE_E9F5,    u32:0xD6B3_1EE3,    u32:0x0366_AC09,    u32:0x7A18_E997,    u32:0xDEEE_871E,
+    u32:0x52B6_3D47,    u32:0x3659_BF4F,    u32:0xEE94_D856,    u32:0x682B_8134,    u32:0xCB67_1199,
+    u32:0x1BFB_2BF8,    u32:0x6717_3FCB,    u32:0x4FFB_943A,    u32:0xFEF4_0B71,    u32:0x5E38_3B82,
+    u32:0x10A6_9205,    u32:0xE058_A621,    u32:0x2201_85B5,    u32:0x579D_F09C,    u32:0x7F54_CADB,
+    u32:0x10C6_2609,    u32:0x36EA_0431,    u32:0xB0F1_1C4D,    u32:0x20B8_CCFA,    u32:0x9C78_013B,
+    u32:0x0581_89BF,    u32:0x34E3_80A5,    u32:0x3A46_72AE,    u32:0x9E1C_D51B,    u32:0x315F_95EE,
+    u32:0xD2BC_5C99,    u32:0x44BC_E650,    u32:0xA1C1_0D05,    u32:0x945A_B4DE,    u32:0xA15E_2033,
+    u32:0x2E7F_DA0C,    u32:0x816F_EC11,    u32:0x9110_7A2F,    u32:0xB786_CA44,    u32:0x22EA_680E,
+    u32:0xCA50_F1AA,    u32:0xF73F_47F2,    u32:0xE0E4_0792,    u32:0x19F3_5CEE,    u32:0xFA1D_6BE8,
+    u32:0x993F_A705,    u32:0x1208_BBA4,    u32:0x5C7C_0C48,    u32:0x16F5_A53D,    u32:0x4B07_9ABE,
+    u32:0x02AC_A1F8,    u32:0xFD4D_2B94,    u32:0xA545_B128,    u32:0x322C_7CCB,    u32:0x8868_74FC,
+    u32:0x0795_A082,    u32:0xEFFB_13E7,    u32:0xFC61_F92F,    u32:0x80F6_E3DA,    u32:0x1BDB_A00A,
+    u32:0x20BB_8483,    u32:0x17AD_6325,    u32:0x35EF_B3D8,    u32:0x4FD1_90C4,    u32:0x2890_641E,
+    u32:0x4C08_393D,    u32:0x331C_0787,    u32:0x51BB_EBD6,    u32:0x40B0_A9C7,    u32:0x8A83_B9A3,
+    u32:0x5C02_8AFF,    u32:0x9CB4_EDEE,    u32:0x00D7_00BD,
 ];
 
 // touch empty.txt
@@ -183,7 +183,7 @@ const TEST_EXPECTED = u32[TEST_EXPECTED_SIZE]:[
 const TEST_EMPTY_EXPECTED_SIZE = u32:3;
 const TEST_EMPTY_EXPECTED = u32[TEST_EMPTY_EXPECTED_SIZE]:[
     // Magic_Number      //      FH FHFH
-    u32:0xFD2F_B528,     u32:0x0001_0020,   u32:0x0
+    u32:0xFD2F_B528,     u32:0x0001_6000,   u32:0x0
 ];
 
 // decodecorpus -p./ -o./ -n1 --block-type=1 --content-size -s35766 (after hard-coding certain values)
@@ -239,7 +239,7 @@ const TEST_COMPRESS_PREDEFINED_EXPECTED = [
     //    LLLLLLLL        LLLLLLLL        LLLLLLLL        LLLLLLLL
     u32:0xbeefb105, u32:0xbeefbaad, u32:0xffbeefdd, u32:0xcafebabe,
     //    LLLLLLLL        SSSSSHSH        BHSSSSSS        LLBHBHBH
-    u32:0xdabbad00, u32:0x603a0002, u32:0x5d757018, u32:0xce400000,
+    u32:0xdabbad00, u32:0x603a0002, u32:0x55757018, u32:0xce400000,
     //    LLLLLLLL        SHLLLLLL        SH
     u32:0xeefeedfa, u32:0x000ff1ce, u32:0x00  // no sequences in this block (only header)
 ];

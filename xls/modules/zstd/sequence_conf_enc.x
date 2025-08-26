@@ -171,7 +171,7 @@ proc SequenceHeaderWriterTest {
         // modes b2 b1 b0, length, config
         let tests: (u32, u3, SequenceConf)[11] = [
             (
-                u32:0x00_00, u3:2,
+                u32:0x00, u3:1,
                 SequenceConf {
                     sequence_count: u17:0,
                     literals_mode: CompressionMode::PREDEFINED,
@@ -180,7 +180,7 @@ proc SequenceHeaderWriterTest {
                 },
             ),
             (
-                u32:0x6C_00, u3:2,
+                u32:0x00, u3:1,
                 SequenceConf {
                     sequence_count: u17:0,
                     literals_mode: CompressionMode::RLE,
@@ -314,8 +314,8 @@ proc SequenceHeaderWriterTest {
         let tok = send(tok, mem_wr_resp_s, MemWriterResp { status: MemWriterRespStatus::ERROR });
         let (tok, recv_status) = recv(tok, resp_r);
 
-        assert_eq(recv_request, MemWriterReq { addr: ADDR, length: u32:2 });
-        assert_eq(recv_data, MemWriterData { data: u64:0x00_00, last: true, length: u32:2 });
+        assert_eq(recv_request, MemWriterReq { addr: ADDR, length: u32:1 });
+        assert_eq(recv_data, MemWriterData { data: u64:0x00_00, last: true, length: u32:1 });
         assert_eq(recv_status.status, Status::ERROR);
 
         send(tok, terminator, true);
