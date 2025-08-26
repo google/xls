@@ -73,7 +73,7 @@ proc LiteralsDecoderCtrl<AXI_ADDR_W: u32> {
     type RawReq = raw_literals_dec::RawLiteralsDecoderReq<AXI_ADDR_W>;
     type RawResp = raw_literals_dec::RawLiteralsDecoderResp;
     type RawRespStatus = raw_literals_dec::RawLiteralsDecoderStatus;
-    type RleReq = rle_literals_dec::RleLiteralsDecoderReq<AXI_ADDR_W>;
+    type RleReq = rle_literals_dec::RleLiteralsDecoderReq;
     type RleResp = rle_literals_dec::RleLiteralsDecoderResp;
     type RleRespStatus = rle_literals_dec::RleLiteralsDecoderStatus;
     type HuffmanReq = huffman_literals_dec::HuffmanLiteralsDecoderReq<AXI_ADDR_W>;
@@ -81,7 +81,7 @@ proc LiteralsDecoderCtrl<AXI_ADDR_W: u32> {
     type HuffmanRespStatus = huffman_literals_dec::HuffmanLiteralsDecoderStatus;
 
     type Status = LiteralsDecoderCtrlStatus;
-    type State = LiteralsDecoderCtrlState;
+    type State = LiteralsDecoderCtrlState<AXI_ADDR_W>;
 
     // Literals Decoder control
     lit_ctrl_req_r: chan<CtrlReq> in;
@@ -329,7 +329,7 @@ proc LiteralsDecoderCtrlInst {
     type HeaderResp = literals_block_header_dec::LiteralsHeaderDecoderResp;
     type RawReq = raw_literals_dec::RawLiteralsDecoderReq<INST_AXI_ADDR_W>;
     type RawResp = raw_literals_dec::RawLiteralsDecoderResp;
-    type RleReq = rle_literals_dec::RleLiteralsDecoderReq<INST_AXI_ADDR_W>;
+    type RleReq = rle_literals_dec::RleLiteralsDecoderReq;
     type RleResp = rle_literals_dec::RleLiteralsDecoderResp;
     type HuffmanReq = huffman_literals_dec::HuffmanLiteralsDecoderReq<INST_AXI_ADDR_W>;
     type HuffmanResp = huffman_literals_dec::HuffmanLiteralsDecoderResp;
@@ -386,7 +386,7 @@ proc LiteralsDecoderCtrl_test {
     type RawReq = raw_literals_dec::RawLiteralsDecoderReq<TEST_AXI_ADDR_W>;
     type RawResp = raw_literals_dec::RawLiteralsDecoderResp;
     type RawStatus = raw_literals_dec::RawLiteralsDecoderStatus;
-    type RleReq = rle_literals_dec::RleLiteralsDecoderReq<TEST_AXI_ADDR_W>;
+    type RleReq = rle_literals_dec::RleLiteralsDecoderReq;
     type RleResp = rle_literals_dec::RleLiteralsDecoderResp;
     type RleStatus = rle_literals_dec::RleLiteralsDecoderStatus;
     type HuffmanReq = huffman_literals_dec::HuffmanLiteralsDecoderReq<TEST_AXI_ADDR_W>;
@@ -790,7 +790,7 @@ pub proc LiteralsDecoder<
         type HeaderResp = literals_block_header_dec::LiteralsHeaderDecoderResp;
         type RawReq = raw_literals_dec::RawLiteralsDecoderReq<AXI_ADDR_W>;
         type RawResp = raw_literals_dec::RawLiteralsDecoderResp;
-        type RleReq = rle_literals_dec::RleLiteralsDecoderReq<AXI_ADDR_W>;
+        type RleReq = rle_literals_dec::RleLiteralsDecoderReq;
         type RleResp = rle_literals_dec::RleLiteralsDecoderResp;
         type HuffmanReq = huffman_literals_dec::HuffmanLiteralsDecoderReq<AXI_ADDR_W>;
         type HuffmanResp = huffman_literals_dec::HuffmanLiteralsDecoderResp;
