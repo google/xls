@@ -1,3 +1,5 @@
+#![feature(type_inference_v2)]
+
 // Copyright 2024 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -150,7 +152,7 @@ proc ZstdDecoderInternal<
     type RawBlockDecoderResp = raw_block_dec::RawBlockDecoderResp;
 
     type RleBlockDecoderStatus = rle_block_dec::RleBlockDecoderStatus;
-    type RleBlockDecoderReq = rle_block_dec::RleBlockDecoderReq<AXI_ADDR_W>;
+    type RleBlockDecoderReq = rle_block_dec::RleBlockDecoderReq;
     type RleBlockDecoderResp = rle_block_dec::RleBlockDecoderResp;
 
     type CompressBlockDecoderStatus = comp_block_dec::CompressBlockDecoderStatus;
@@ -241,7 +243,7 @@ proc ZstdDecoderInternal<
     next (state: State) {
         let tok0 = join();
 
-        const CSR_REQS = CsrRdReq<LOG2_REGS_N>[2]:[
+        const CSR_REQS = CsrRdReq[2]:[
             CsrRdReq {csr: csr<LOG2_REGS_N>(Csr::INPUT_BUFFER)},
             CsrRdReq {csr: csr<LOG2_REGS_N>(Csr::OUTPUT_BUFFER)}
         ];
@@ -674,7 +676,7 @@ proc ZstdDecoderInternalTest {
     type RawBlockDecoderResp = raw_block_dec::RawBlockDecoderResp;
     type RawBlockDecoderStatus = raw_block_dec::RawBlockDecoderStatus;
 
-    type RleBlockDecoderReq = rle_block_dec::RleBlockDecoderReq<TEST_AXI_ADDR_W>;
+    type RleBlockDecoderReq = rle_block_dec::RleBlockDecoderReq;
     type RleBlockDecoderResp = rle_block_dec::RleBlockDecoderResp;
     type RleBlockDecoderStatus = rle_block_dec::RleBlockDecoderStatus;
 
@@ -1001,7 +1003,7 @@ pub proc ZstdDecoder<
     type RawBlockDecoderResp = raw_block_dec::RawBlockDecoderResp;
     type ExtendedBlockDataPacket = common::ExtendedBlockDataPacket;
 
-    type RleBlockDecoderReq = rle_block_dec::RleBlockDecoderReq<AXI_ADDR_W>;
+    type RleBlockDecoderReq = rle_block_dec::RleBlockDecoderReq;
     type RleBlockDecoderResp = rle_block_dec::RleBlockDecoderResp;
 
     type SequenceExecutorPacket = common::SequenceExecutorPacket<common::SYMBOL_WIDTH>;
@@ -1569,7 +1571,7 @@ proc ZstdDecoderInternalInst {
     type RawBlockDecoderReq = raw_block_dec::RawBlockDecoderReq<INST_AXI_ADDR_W>;
     type RawBlockDecoderResp = raw_block_dec::RawBlockDecoderResp;
 
-    type RleBlockDecoderReq = rle_block_dec::RleBlockDecoderReq<INST_AXI_ADDR_W>;
+    type RleBlockDecoderReq = rle_block_dec::RleBlockDecoderReq;
     type RleBlockDecoderResp = rle_block_dec::RleBlockDecoderResp;
 
     type CompressBlockDecoderReq = comp_block_dec::CompressBlockDecoderReq<INST_AXI_ADDR_W>;
