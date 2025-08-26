@@ -4111,7 +4111,7 @@ xls_dslx_test(
 
 match_finder_codegen_args = common_codegen_args | {
     "module_name": "MatchFinder",
-    "worst_case_throughput": "5",
+    "worst_case_throughput": "6",
     "clock_period_ps": CLOCK_PERIOD_PS,
 }
 
