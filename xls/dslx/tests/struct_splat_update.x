@@ -32,7 +32,7 @@ fn test_main() {
 #[test]
 fn test_parametric() {
     let p = ParametricPoint3 { x: u32:42, y: u64:42, z: bits[128]:42 };
-    let q = ParametricPoint3 { x: u16:42, ..p };
+    let q = ParametricPoint3 { x: u32:42, ..p };
     assert_eq(p.y, q.y);
     assert_eq(p.z, q.z);
 }
