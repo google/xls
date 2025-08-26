@@ -57,6 +57,7 @@ class InterpreterTest(test_base.TestCase):
   ) -> str:
     temp_file = self.create_tempfile(content=program)
     cmd = [_INTERP_PATH, temp_file.full_path]
+    cmd.append('--type_inference_v2=true')
     cmd.append(f'--compare={compare}')
     if alsologtostderr:
       cmd.append('--alsologtostderr')
@@ -133,14 +134,12 @@ class InterpreterTest(test_base.TestCase):
     fn parametric_conflict_test() {
       let a: bits[2] = bits[2]:0b10;
       let b: bits[3] = bits[3]:0b110;
-      parametric(a, b)
+      parametric(a, b);
     }
     """)
     stderr = self._parse_and_test(program, want_error=True)
-    self.assertIn(
-        'Parametric value N was bound to different values at different places'
-        ' in invocation; saw: 2; then: 3',
-        stderr,
+    self.assertRegex(
+        stderr, 'TypeInferenceError: size mismatch: bits\\[2\\] at .* vs\\. u3'
     )
 
   def test_fail_incomplete_match(self):
@@ -160,7 +159,7 @@ class InterpreterTest(test_base.TestCase):
         program, warnings_as_errors=False, want_error=True
     )
     self.assertIn(
-        'Match pattern is not exhaustive',
+        '`match` patterns are not exhaustive',
         stderr,
     )
 
@@ -172,10 +171,7 @@ class InterpreterTest(test_base.TestCase):
       assert_eq(false, true)
     }
     """
-    program_file = self.create_tempfile(content=program)
-    cmd = [_INTERP_PATH, program_file.full_path]
-    p = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=False)
-    self.assertNotEqual(p.returncode, 0)
+    self._parse_and_test(program, want_error=True)
 
   def test_passing_then_failing_test_gives_error_retcode(self):
     """Tests that a passing test then failing test gives an error retcode."""
@@ -189,10 +185,7 @@ class InterpreterTest(test_base.TestCase):
       assert_eq(false, true)
     }
     """
-    program_file = self.create_tempfile(content=program)
-    cmd = [_INTERP_PATH, program_file.full_path]
-    p = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=False)
-    self.assertNotEqual(p.returncode, 0)
+    self._parse_and_test(program, want_error=True)
 
   def test_failing_then_passing_test_gives_error_retcode(self):
     program = """
@@ -205,10 +198,7 @@ class InterpreterTest(test_base.TestCase):
       assert_eq(true, true)
     }
     """
-    program_file = self.create_tempfile(content=program)
-    cmd = [_INTERP_PATH, program_file.full_path]
-    p = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=False)
-    self.assertNotEqual(p.returncode, 0)
+    self._parse_and_test(program, want_error=True)
 
   def test_passing_test_returncode(self):
     """Tests that the interpreter gives a 0 retcode for a passing test file."""
@@ -218,10 +208,7 @@ class InterpreterTest(test_base.TestCase):
       assert_eq(true, true)
     }
     """
-    program_file = self.create_tempfile(content=program)
-    cmd = [_INTERP_PATH, program_file.full_path]
-    p = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=False)
-    self.assertEqual(p.returncode, 0)
+    self._parse_and_test(program, want_error=False)
 
   def test_trace(self):
     """Tests that we see trace output in stderr."""
@@ -239,17 +226,11 @@ class InterpreterTest(test_base.TestCase):
       assert_eq(u32:2, fut())
     }
     """
-    program_file = self.create_tempfile(content=program)
-    # Trace is logged with LOG(INFO) so log to stderr to capture output.
-    cmd = [
-        _INTERP_PATH,
-        '--compare=none',
-        '--alsologtostderr',
-        program_file.full_path,
-    ]
-    result = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=True)
-    self.assertIn(': 1', result.stderr)
-    self.assertIn(': 2', result.stderr)
+    stderr = self._parse_and_test(
+        program, want_error=False, compare='none', alsologtostderr=True
+    )
+    self.assertIn(': 1', stderr)
+    self.assertIn(': 2', stderr)
 
   def test_trace_s32(self):
     """Tests that we can trace s32 values."""
@@ -440,10 +421,7 @@ class InterpreterTest(test_base.TestCase):
     0002: fn cast_array_to_wrong_bit_count_test() {
     0003:   let x = u2[2]:[2, 3];
     0004:   assert_eq(u3:0, x as u3)
-    ~~~~~~~~~~~~~~~~~~~~~~~~^-----^ XlsTypeError: Cannot cast from expression type uN[2][2] to uN[3].
-    Type mismatch:
-       uN[2][2]
-    vs uN[3]
+    ~~~~~~~~~~~~~~~~~~~~~~~~^-----^ TypeInferenceError: uN[3] Cannot cast from type `uN[2][2]` to type `uN[3]`
     0005: }
     """),
         stderr,
@@ -611,18 +589,24 @@ class InterpreterTest(test_base.TestCase):
   def test_disable_warning_does_not_affect_another_kind(self):
     """Disable one kind of warning without affecting another."""
     program = """
-    fn f(a: u32, b: u32, c: u32) -> (u32, u32, u32) { (a, b, c,) }
+    fn f(x: u1) -> u1 {
+      match x {
+        u1:0..u1:1 => u1:0,
+        _ => u1:1,
+        u1:1 => u1:1,  // redundant
+      }
+    }
     """
     stderr = self._parse_and_test(
         program,
         want_error=True,
         alsologtostderr=True,
         warnings_as_errors=True,
-        disable_warnings=['useless_let_binding'],
+        extra_flags=['--enable_warnings=already_exhaustive_match'],
+        disable_warnings=['single_line_tuple_trailing_comma'],
     )
     self.assertIn(
-        'Tuple expression (with >1 element) is on a single line, but has a'
-        ' trailing comma.',
+        '`match` is already exhaustive before this pattern',
         stderr,
     )
 
