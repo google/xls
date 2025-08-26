@@ -16,20 +16,22 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <optional>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/hash/hash.h"
 #include "absl/log/check.h"
+#include "absl/log/die_if_null.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/estimators/delay_model/delay_estimator.h"
-#include "xls/estimators/delay_model/delay_estimators.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/passes/bdd_query_engine.h"
+#include "xls/passes/critical_path_delay_analysis.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
@@ -50,41 +52,26 @@ namespace {
 //     in the list. This ensures that the CSE replacement does not increase
 //     critical-path
 //
-absl::StatusOr<std::vector<Node*>> GetNodeOrder(FunctionBase* f,
-                                                OptimizationContext& context) {
+absl::StatusOr<std::vector<Node*>> GetNodeOrder(
+    FunctionBase* f, OptimizationContext& context,
+    const OptimizationPassOptions& options) {
+  CriticalPathDelayAnalysis& critical_path_analysis =
+      *ABSL_DIE_IF_NULL(context.SharedNodeData<CriticalPathDelayAnalysis>(
+          f, {.delay_model_name = options.delay_model}));
+
   // Index of each node in the topological sort.
   absl::flat_hash_map<Node*, int64_t> topo_index;
-  // Critical-path distance from root in the graph to each node.
-  absl::flat_hash_map<Node*, int64_t> node_cp_delay;
   int64_t i = 0;
-
-  // Return an estimate of the delay of the given node. Because BDD-CSE may be
-  // run at any point in the pipeline, some nodes with no delay model may be
-  // present (these would be eliminated before codegen) so return zero for these
-  // cases.
-  // TODO(meheff): Replace with the actual model being used when the delay model
-  // is threaded through the pass pipeline.
-  auto get_node_delay = [&](Node* n) {
-    absl::StatusOr<int64_t> delay_status =
-        GetStandardDelayEstimator().GetOperationDelayInPs(n);
-    return delay_status.ok() ? delay_status.value() : 0;
-  };
   for (Node* node : context.TopoSort(f)) {
-    topo_index[node] = i;
-    int64_t node_start = 0;
-    for (Node* operand : node->operands()) {
-      node_start = std::max(
-          node_start, node_cp_delay.at(operand) + get_node_delay(operand));
-    }
-    node_cp_delay[node] = node_start + get_node_delay(node);
-    ++i;
+    topo_index[node] = i++;
   }
   std::vector<Node*> nodes(f->nodes().begin(), f->nodes().end());
-  std::sort(nodes.begin(), nodes.end(), [&](Node* a, Node* b) {
-    return (node_cp_delay.at(a) < node_cp_delay.at(b) ||
-            (node_cp_delay.at(a) == node_cp_delay.at(b) &&
-             topo_index.at(a) < topo_index.at(b)));
-  });
+  auto sort_key = [&](Node* n) {
+    std::optional<int64_t> delay = critical_path_analysis.GetDelay(n);
+    return std::make_pair(delay.value_or(0), topo_index.at(n));
+  };
+  std::sort(nodes.begin(), nodes.end(),
+            [&](Node* a, Node* b) { return sort_key(a) < sort_key(b); });
   // The node order must be a topological sort in order to avoid introducing
   // cycles in the graph.
   for (Node* node : nodes) {
@@ -134,7 +121,8 @@ absl::StatusOr<bool> BddCsePass::RunOnFunctionBaseInternal(
   bool changed = false;
   absl::flat_hash_map<int64_t, std::vector<Node*>> node_buckets;
   node_buckets.reserve(f->node_count());
-  XLS_ASSIGN_OR_RETURN(std::vector<Node*> node_order, GetNodeOrder(f, context));
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> node_order,
+                       GetNodeOrder(f, context, options));
   for (Node* node : node_order) {
     if (!node->GetType()->IsBits() || node->Is<Literal>()) {
       continue;

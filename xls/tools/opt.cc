@@ -78,6 +78,7 @@ absl::StatusOr<OptOptions> OptOptionsFromFlagsProto(
   POPULATE(enable_resource_sharing)
   POPULATE(force_resource_sharing)
   POPULATE(area_model)
+  POPULATE(delay_model)
   POPULATE(custom_registry)
   if (proto.has_pipeline()) {
     options.pass_pipeline = proto.pipeline();
@@ -162,6 +163,7 @@ absl::Status OptimizeIrForTop(Package* package, const OptOptions& options,
   pass_options.enable_resource_sharing = options.enable_resource_sharing;
   pass_options.force_resource_sharing = options.force_resource_sharing;
   pass_options.area_model = options.area_model;
+  pass_options.delay_model = options.delay_model;
   pass_options.bisect_limit = options.bisect_limit;
   PassResults results;
   OptimizationContext context;

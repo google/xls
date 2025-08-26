@@ -29,7 +29,11 @@ load(
     "get_transitive_built_files_for_xls",
     "is_args_valid",
 )
-load("//xls/build_rules:xls_config_rules.bzl", "CONFIG")
+load(
+    "//xls/build_rules:xls_config_rules.bzl",
+    "CONFIG",
+    "DEFAULT_BENCHMARK_SYNTH_DELAY_MODEL",
+)
 load(
     "//xls/build_rules:xls_dslx_rules.bzl",
     "get_DslxInfo_from_dslx_library_as_input",
@@ -225,6 +229,8 @@ def _optimize_ir(ctx, src, original_input_files):
         1. The optimized IR file.
     """
     opt_ir_args = dict(ctx.attr.opt_ir_args)
+    if "delay_model" not in opt_ir_args:
+        opt_ir_args["delay_model"] = DEFAULT_BENCHMARK_SYNTH_DELAY_MODEL
     IR_OPT_FLAGS = (
         "ir_dump_path",
         "passes",
@@ -237,6 +243,7 @@ def _optimize_ir(ctx, src, original_input_files):
         "enable_resource_sharing",
         "force_resource_sharing",
         "area_model",
+        "delay_model",
         "top",
     )
 
@@ -493,6 +500,7 @@ def get_benchmark_ir_cmd(ctx, src, append_cmd_line_args = True):
         "enable_resource_sharing",
         "force_resource_sharing",
         "area_model",
+        "delay_model",
         "run_evaluators",
     ] + _CODEGEN_FLAGS + _SCHEDULING_FLAGS
 

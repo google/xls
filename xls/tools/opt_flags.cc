@@ -83,6 +83,9 @@ ABSL_FLAG(bool, force_resource_sharing, false,
 ABSL_FLAG(std::string, area_model, "asap7",
           "Area model to use for optimizations.");
 ABSL_FLAG(
+    std::string, delay_model, "asap7",
+    "Delay model to use for optimizations benefiting from timing information.");
+ABSL_FLAG(
     std::optional<std::string>, passes, std::nullopt,
     "Explicit list of passes to run in a specific order. Passes are named "
     "by 'short_name' and if they have non-opt-level arguments these are "
@@ -206,6 +209,7 @@ absl::StatusOr<bool> SetOptionsFromFlags(OptFlagsProto& proto) {
   POPULATE_FLAG(enable_resource_sharing)
   POPULATE_FLAG(force_resource_sharing)
   POPULATE_FLAG(area_model)
+  POPULATE_FLAG(delay_model)
   // pipeline proto flags
   {
     std::optional<std::string> protobin_path =
