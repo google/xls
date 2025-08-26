@@ -31,6 +31,18 @@ load(
 # https://github.com/bazelbuild/rules_python/issues/1560#issuecomment-1815118394
 py_repositories()
 
-load("//dependency_support:initialize_external.bzl", "initialize_external_repositories")
+load("@rules_hdl//dependency_support:dependency_support.bzl", rules_hdl_dependency_support = "dependency_support")
 
-initialize_external_repositories()
+rules_hdl_dependency_support()
+
+load("@rules_hdl//:init.bzl", rules_hdl_init = "init")
+
+rules_hdl_init(python_interpreter_target = "@project_python_host//:python")
+
+load("@rules_7zip//:setup.bzl", "setup_7zip")  # needed by rules_hdl
+
+setup_7zip()
+
+load("//dependency_support/llvm:initialize.bzl", initialize_llvm = "initialize")
+
+initialize_llvm()
