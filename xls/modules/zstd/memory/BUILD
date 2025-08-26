@@ -23,6 +23,7 @@ load(
     "xls_dslx_library",
     "xls_dslx_test",
     "xls_dslx_verilog",
+    "xls_dslx_fmt_test",
 )
 load("//xls/common:openroad_warnings.bzl", "ASAP7_SUPPPRESSED_WARNINGS")
 
@@ -1414,4 +1415,9 @@ xls_dslx_library(
     deps = [
         ":mem_reader_dslx",
     ],
+)
+
+xls_dslx_fmt_test(
+    name = "mem_reader_data_upscaler_fmt_test",
+    src = "mem_reader_data_upscaler.x"
 )

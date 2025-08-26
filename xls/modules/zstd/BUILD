@@ -26,6 +26,7 @@ load(
     "xls_dslx_library",
     "xls_dslx_test",
     "xls_dslx_verilog",
+    "xls_dslx_fmt_test",
 )
 load("//xls/common:openroad_warnings.bzl", "ASAP7_SUPPPRESSED_WARNINGS")
 
@@ -5172,4 +5173,9 @@ filegroup(
         "zstd_enc_ml_ttable_default.mem",
         "zstd_enc_of_ttable_default.mem",
     ]
+)
+
+xls_dslx_fmt_test(
+    name = "comp_block_enc_fmt_test",
+    src = "comp_block_enc.x"
 )
