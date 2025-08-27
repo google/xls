@@ -273,6 +273,11 @@ struct xls_dslx_type_annotation* xls_dslx_param_get_type_annotation(
   return reinterpret_cast<xls_dslx_type_annotation*>(cpp_ta);
 }
 
+char* xls_dslx_function_to_string(struct xls_dslx_function* fn) {
+  auto* cpp_function = reinterpret_cast<xls::dslx::Function*>(fn);
+  return xls::ToOwnedCString(cpp_function->ToString());
+}
+
 struct xls_dslx_quickcheck* xls_dslx_module_member_get_quickcheck(
     struct xls_dslx_module_member* member) {
   auto* cpp_member = reinterpret_cast<xls::dslx::ModuleMember*>(member);
@@ -307,6 +312,11 @@ bool xls_dslx_quickcheck_get_count(struct xls_dslx_quickcheck* quickcheck,
     *result_out = xls::dslx::QuickCheckTestCases::kDefaultTestCount;
   }
   return true;
+}
+
+char* xls_dslx_quickcheck_to_string(struct xls_dslx_quickcheck* quickcheck) {
+  auto* cpp_qc = reinterpret_cast<xls::dslx::QuickCheck*>(quickcheck);
+  return xls::ToOwnedCString(cpp_qc->ToString());
 }
 
 bool xls_dslx_type_info_get_requires_implicit_token(
@@ -415,6 +425,11 @@ int64_t xls_dslx_struct_def_get_member_count(struct xls_dslx_struct_def* n) {
   return cpp_struct_def->size();
 }
 
+char* xls_dslx_struct_def_to_string(struct xls_dslx_struct_def* n) {
+  auto* cpp_struct_def = reinterpret_cast<xls::dslx::StructDef*>(n);
+  return xls::ToOwnedCString(cpp_struct_def->ToString());
+}
+
 // -- colon_ref
 
 struct xls_dslx_import* xls_dslx_colon_ref_resolve_import_subject(
@@ -456,6 +471,11 @@ struct xls_dslx_type_annotation* xls_dslx_type_alias_get_type_annotation(
   auto* cpp = reinterpret_cast<xls::dslx::TypeAlias*>(n);
   xls::dslx::TypeAnnotation& cpp_type_annotation = cpp->type_annotation();
   return reinterpret_cast<xls_dslx_type_annotation*>(&cpp_type_annotation);
+}
+
+char* xls_dslx_type_alias_to_string(struct xls_dslx_type_alias* n) {
+  auto* cpp = reinterpret_cast<xls::dslx::TypeAlias*>(n);
+  return xls::ToOwnedCString(cpp->ToString());
 }
 
 // -- type_annotation
@@ -539,6 +559,11 @@ struct xls_dslx_expr* xls_dslx_constant_def_get_value(
   return reinterpret_cast<xls_dslx_expr*>(cpp_value);
 }
 
+char* xls_dslx_constant_def_to_string(struct xls_dslx_constant_def* n) {
+  auto* cpp = reinterpret_cast<xls::dslx::ConstantDef*>(n);
+  return xls::ToOwnedCString(cpp->ToString());
+}
+
 // -- enum_def
 
 char* xls_dslx_enum_def_get_identifier(struct xls_dslx_enum_def* n) {
@@ -576,6 +601,11 @@ struct xls_dslx_expr* xls_dslx_enum_member_get_value(
   auto* cpp_member = reinterpret_cast<xls::dslx::EnumMember*>(m);
   xls::dslx::Expr* cpp_value = cpp_member->value;
   return reinterpret_cast<xls_dslx_expr*>(cpp_value);
+}
+
+char* xls_dslx_enum_def_to_string(struct xls_dslx_enum_def* n) {
+  auto* cpp_enum_def = reinterpret_cast<xls::dslx::EnumDef*>(n);
+  return xls::ToOwnedCString(cpp_enum_def->ToString());
 }
 
 struct xls_dslx_module* xls_dslx_expr_get_owner_module(
