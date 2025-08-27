@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// TODO(williamjhuang): This is a workaround for TIv2 since ConstantDefs in Proc are not handled
+// correctly. Since we are going to switch to the new impl-based proc, this bug won't be fixed.
 proc parametric<N: u32, M: u32> {
-    const DOUBLE_M = u32:37;
-    c: chan<uN[DOUBLE_M]> in;
+    c: chan<uN[u32:37]> in;
     s: chan<uN[M]> out;
 
     config(c: chan<uN[M]> in, s: chan<uN[M]> out) { (c, s) }
@@ -22,6 +23,7 @@ proc parametric<N: u32, M: u32> {
     init { () }
 
     next(state: ()) {
+        const DOUBLE_M = u32:37;
         let (tok, input) = recv(join(), c);
         let output = ((input as uN[DOUBLE_M]) * uN[DOUBLE_M]:2) as uN[M];
         let tok = send(tok, s, output);

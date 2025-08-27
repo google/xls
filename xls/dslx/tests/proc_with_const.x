@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// TODO(williamjhuang): This is a workaround for TIv2 since ConstantDefs in Proc are not handled
+// correctly. Since we are going to switch to the new impl-based proc, this bug won't be fixed.
 proc counter {
-    const MAX_VAL = u8:15;
     output: chan<u8> out;
 
     config(output: chan<u8> out) { (output,) }
@@ -21,6 +22,7 @@ proc counter {
     init { u8:0 }
 
     next(state: u8) {
+        const MAX_VAL = u8:15;
         let tok = send(join(), output, state);
         if state < MAX_VAL { state + u8:1 } else { MAX_VAL }
     }
