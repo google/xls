@@ -318,6 +318,60 @@ TEST(TypecheckV2BuiltinTest, Clz) {
               TypecheckSucceeds(HasNodeWithType("Y", "uN[8]")));
 }
 
+TEST(TypecheckV2BuiltinTest, ConfiguredValueOr) {
+  EXPECT_THAT(R"(const Y = configured_value_or("foo", u32:123);)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
+}
+
+TEST(TypecheckV2BuiltinTest, ConfiguredValueOrSigned) {
+  EXPECT_THAT(R"(const Y = configured_value_or("foo", s32:-123);)",
+              TypecheckSucceeds(HasNodeWithType("Y", "sN[32]")));
+}
+
+TEST(TypecheckV2BuiltinTest, ConfiguredValueOrBool) {
+  EXPECT_THAT(R"(const Y = configured_value_or("foo", true);)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[1]")));
+}
+
+TEST(TypecheckV2BuiltinTest, ConfiguredValueOrEnum) {
+  EXPECT_THAT(R"(
+enum MyEnum : u2 {
+  A = 0,
+  B = 1,
+}
+const Y = configured_value_or("foo", MyEnum::B);)",
+              TypecheckSucceeds(HasNodeWithType("Y", "MyEnum")));
+}
+
+TEST(TypecheckV2BuiltinTest, ConfiguredValueOrMismatch) {
+  EXPECT_THAT(R"(const Y: u31 = configured_value_or("foo", u32:123);)",
+              TypecheckFails(HasSizeMismatch("u31", "u32")));
+}
+
+TEST(TypecheckV2BuiltinTest, ConfiguredValueOrMismatchSigned) {
+  EXPECT_THAT(R"(const Y: s31 = configured_value_or("foo", s32:-123);)",
+              TypecheckFails(HasSizeMismatch("s31", "s32")));
+}
+
+TEST(TypecheckV2BuiltinTest, ConfiguredValueOrMismatchBool) {
+  EXPECT_THAT(R"(const Y: u2 = configured_value_or("foo", true);)",
+              TypecheckFails(HasSizeMismatch("u2", "bool")));
+}
+
+TEST(TypecheckV2BuiltinTest, ConfiguredValueOrMismatchEnum) {
+  EXPECT_THAT(R"(
+enum MyEnum : u2 {
+  A = 0,
+  B = 1,
+}
+enum OtherEnum : u2 {
+  X = 0,
+  Y = 1,
+}
+const Y: OtherEnum = configured_value_or("foo", MyEnum::B);)",
+              TypecheckFails(HasTypeMismatch("OtherEnum", "MyEnum")));
+}
+
 TEST(TypecheckV2BuiltinTest, Ctz) {
   EXPECT_THAT(R"(const Y = ctz(u8:3);)",
               TypecheckSucceeds(HasNodeWithType("Y", "uN[8]")));
