@@ -1396,6 +1396,9 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       for (const StructMemberNode* member : node->members()) {
         XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(member, member->type()));
       }
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+          node, CreateStructAnnotation(module_, const_cast<StructDef*>(node),
+                                       {}, std::nullopt)));
     }
     return DefaultHandler(node);
   }
