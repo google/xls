@@ -1679,11 +1679,6 @@ DocRef Fmt(const Conditional& n, Comments& comments, DocArena& arena) {
   return ConcatNGroup(arena, pieces);
 }
 
-DocRef Fmt(const ConstAssert& n, Comments& comments, DocArena& arena) {
-  CHECK(false) << "ConstAssert should be handled by Formatter::Format.";
-  return arena.empty();
-}
-
 DocRef Fmt(const TupleIndex& n, Comments& comments, DocArena& arena) {
   std::vector<DocRef> pieces;
   if (WeakerThan(n.lhs()->GetPrecedence(), n.GetPrecedence())) {
@@ -1731,12 +1726,6 @@ DocRef Fmt(const Unop& n, Comments& comments, DocArena& arena) {
     pieces.push_back(Fmt(n.operand(), comments, arena));
   }
   return ConcatNGroup(arena, pieces);
-}
-
-// Default formatting for let-as-expression is to not emit the RHS with a
-// semicolon on it.
-DocRef Fmt(const Let& n, Comments& comments, DocArena& arena) {
-  return Formatter(comments, arena).Format(n, /*trailing_semi=*/false);
 }
 
 DocRef Fmt(const Range& n, Comments& comments, DocArena& arena) {
