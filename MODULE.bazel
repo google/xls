@@ -56,21 +56,21 @@ use_repo(pip, "xls_pip_deps")
 
 # Root module dependencies.
 # Note: some WORKSPACE dependencies still require repo_name aliases.
-bazel_dep(name = "abseil-cpp", version = "20250512.0", repo_name = "com_google_absl")
+bazel_dep(name = "abseil-cpp", version = "20250814.0", repo_name = "com_google_absl")
 bazel_dep(name = "abseil-py", version = "2.1.0")
 bazel_dep(name = "bazel_features", version = "1.30.0")
-bazel_dep(name = "bazel_skylib", version = "1.7.1")
+bazel_dep(name = "bazel_skylib", version = "1.8.1")
 bazel_dep(name = "boringssl", version = "0.20250114.0")
 bazel_dep(name = "cppitertools", version = "2.2")
-bazel_dep(name = "googleapis", version = "0.0.0-20240819-fe8ba054a")
-bazel_dep(name = "grpc", version = "1.71.0")
+bazel_dep(name = "googleapis", version = "0.0.0-20250703-f9d6fe4a")
+bazel_dep(name = "grpc", version = "1.72.0")
 bazel_dep(name = "nlohmann_json", version = "3.11.3.bcr.1")
 bazel_dep(name = "or-tools", version = "9.12", repo_name = "com_google_ortools")
-bazel_dep(name = "platforms", version = "0.0.11")
+bazel_dep(name = "platforms", version = "1.0.0")
 bazel_dep(name = "protobuf", version = "31.1", repo_name = "com_google_protobuf")
 bazel_dep(name = "re2", version = "2024-07-02.bcr.1")
-bazel_dep(name = "riegeli", version = "0.0.0-20241218-3385e3c")
-bazel_dep(name = "rules_cc", version = "0.1.2")
+bazel_dep(name = "riegeli", version = "0.0.0-20250822-9f2744d")
+bazel_dep(name = "rules_cc", version = "0.2.0")
 bazel_dep(name = "rules_closure", version = "0.15.0")
 bazel_dep(name = "rules_license", version = "1.0.0")
 bazel_dep(name = "rules_proto", version = "7.1.0")
@@ -97,9 +97,13 @@ bazel_dep(name = "googletest", version = "1.17.0", dev_dependency = True)
 
 # Repositories we don't really depend on directly, but we need to provide
 # for other dependencies as they are using old versions that are not
-# compatible with current bazel.
-bazel_dep(name = "rules_java", version = "8.14.0")
+# compatible with current bazel OR dependencies ask for different version and
+# we are explicit here.
+bazel_dep(name = "eigen", version = "3.4.0.bcr.3")
+bazel_dep(name = "gazelle", version = "0.45.0")
 bazel_dep(name = "protoc-gen-validate", version = "1.2.1.bcr.1")
+bazel_dep(name = "rules_go", version = "0.57.0")
+bazel_dep(name = "rules_java", version = "8.14.0")
 
 # compilation DB; build_cleaner
 bazel_dep(name = "bant", version = "0.2.2", dev_dependency = True)
