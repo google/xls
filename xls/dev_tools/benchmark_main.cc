@@ -185,26 +185,12 @@ int64_t DurationToMs(absl::Duration duration) {
 
 // Run the standard pipeline on the given package and prints stats about the
 // passes and execution time.
-absl::Status RunOptimizationAndPrintStats(Package* package) {
+absl::Status RunOptimizationAndPrintStats(
+    Package* package, const OptimizationPassOptions& pass_options) {
   std::unique_ptr<OptimizationCompoundPass> pipeline =
       CreateOptimizationPassPipeline();
 
   absl::Time start = absl::Now();
-  OptimizationPassOptions pass_options;
-  int64_t convert_array_index_to_select =
-      absl::GetFlag(FLAGS_convert_array_index_to_select);
-  pass_options.convert_array_index_to_select =
-      (convert_array_index_to_select < 0)
-          ? std::nullopt
-          : std::make_optional(convert_array_index_to_select);
-  int64_t split_next_value_selects =
-      absl::GetFlag(FLAGS_split_next_value_selects);
-  pass_options.split_next_value_selects =
-      (split_next_value_selects < 0)
-          ? std::nullopt
-          : std::make_optional(split_next_value_selects);
-  pass_options.use_context_narrowing_analysis =
-      absl::GetFlag(FLAGS_use_context_narrowing_analysis);
   PassResults pass_results;
   OptimizationContext context;
   XLS_RETURN_IF_ERROR(
@@ -764,7 +750,25 @@ absl::Status RealMain(std::string_view path) {
     XLS_RETURN_IF_ERROR(
         RunInterpreterAndJit(package->GetTop().value(), "unoptimized"));
   }
-  XLS_RETURN_IF_ERROR(RunOptimizationAndPrintStats(package.get()));
+
+  OptimizationPassOptions pass_options;
+  int64_t convert_array_index_to_select =
+      absl::GetFlag(FLAGS_convert_array_index_to_select);
+  pass_options.convert_array_index_to_select =
+      (convert_array_index_to_select < 0)
+          ? std::nullopt
+          : std::make_optional(convert_array_index_to_select);
+  int64_t split_next_value_selects =
+      absl::GetFlag(FLAGS_split_next_value_selects);
+  pass_options.split_next_value_selects =
+      (split_next_value_selects < 0)
+          ? std::nullopt
+          : std::make_optional(split_next_value_selects);
+  pass_options.use_context_narrowing_analysis =
+      absl::GetFlag(FLAGS_use_context_narrowing_analysis);
+  pass_options.delay_model = scheduling_options_flags_proto.delay_model();
+  XLS_RETURN_IF_ERROR(
+      RunOptimizationAndPrintStats(package.get(), pass_options));
 
   FunctionBase* f = package->GetTop().value();
   BddQueryEngine query_engine(BddQueryEngine::kDefaultPathLimit);

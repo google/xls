@@ -720,6 +720,7 @@ cc_library(
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/hash",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
@@ -1039,6 +1040,7 @@ xls_pass(
     pass_class = "ResourceSharingPass",
     deps = [
         ":bdd_query_engine",
+        ":critical_path_delay_analysis",
         ":optimization_pass",
         ":pass_base",
         ":post_dominator_analysis",
@@ -1047,8 +1049,6 @@ xls_pass(
         "//xls/common/status:status_macros",
         "//xls/estimators/area_model:area_estimator",
         "//xls/estimators/area_model:area_estimators",
-        "//xls/estimators/delay_model:delay_estimator",
-        "//xls/estimators/delay_model:delay_estimators",
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:function_builder",
@@ -1058,6 +1058,7 @@ xls_pass(
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/log:die_if_null",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
@@ -1409,24 +1410,71 @@ cc_library(
 )
 
 cc_library(
-    name = "lazy_node_info",
-    hdrs = [
-        "lazy_node_info.h",
-    ],
+    name = "lazy_node_data",
+    hdrs = ["lazy_node_data.h"],
     deps = [
         ":lazy_dag_cache",
         ":query_engine",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/data_structures:leaf_type_tree",
         "//xls/ir",
         "//xls/ir:change_listener",
-        "//xls/ir:type",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "lazy_node_info",
+    hdrs = [
+        "lazy_node_info.h",
+    ],
+    deps = [
+        ":lazy_node_data",
+        "//xls/data_structures:leaf_type_tree",
+        "//xls/ir",
+        "//xls/ir:type",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "critical_path_delay_analysis",
+    srcs = ["critical_path_delay_analysis.cc"],
+    hdrs = ["critical_path_delay_analysis.h"],
+    deps = [
+        ":lazy_node_data",
+        ":optimization_pass",
+        "//xls/common/status:status_macros",
+        "//xls/estimators/delay_model:delay_estimator",
+        "//xls/estimators/delay_model:delay_estimators",
+        "//xls/ir",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "critical_path_delay_analysis_test",
+    srcs = ["critical_path_delay_analysis_test.cc"],
+    deps = [
+        ":critical_path_delay_analysis",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/estimators/delay_model:delay_estimator",
+        "//xls/estimators/delay_model:delay_estimators",
+        "//xls/ir",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:op",
+        "@com_google_absl//absl/status:statusor",
+        "@googletest//:gtest",
     ],
 )
 
@@ -1876,18 +1924,18 @@ xls_pass(
     pass_class = "BddCsePass",
     deps = [
         ":bdd_query_engine",
+        ":critical_path_delay_analysis",
         ":optimization_pass",
         ":pass_base",
         ":query_engine",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/estimators/delay_model:delay_estimator",
-        "//xls/estimators/delay_model:delay_estimators",
         "//xls/ir",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/hash",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/log:die_if_null",
         "@com_google_absl//absl/status:statusor",
     ],
 )

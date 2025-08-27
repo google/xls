@@ -46,4 +46,5 @@ message OptFlagsProto {
   bool passes_bisect_limit_is_error = 18;
   string pass_metrics_path = 19;
   bool debug_optimizations = 20;
+  string delay_model = 21;
 }
