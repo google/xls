@@ -63,7 +63,7 @@ class BlockInterpreter final : public IrInterpreter {
                    const absl::flat_hash_map<std::string, Value>& reg_state,
                    absl::flat_hash_map<std::string, Value>& next_reg_state,
                    std::optional<EvaluationObserver*> observer)
-      : IrInterpreter(nullptr, events, observer),
+      : IrInterpreter(events, EvaluatorOptions(), observer),
         register_prefix_(register_prefix),
         reg_state_(reg_state),
         next_reg_state_(next_reg_state) {

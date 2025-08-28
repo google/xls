@@ -72,6 +72,14 @@ class BytecodeInterpreterOptions {
   }
   bool trace_channels() const { return trace_channels_; }
 
+  // Whether to emit a trace message for each interpreted Call. The message
+  // includes the function name and each argument.
+  BytecodeInterpreterOptions& trace_calls(bool value) {
+    trace_calls_ = value;
+    return *this;
+  }
+  bool trace_calls() const { return trace_calls_; }
+
   // When executing procs, this is the maximum number of ticks which will
   // execute executed before a DeadlineExceeded error is returned. If nullopt
   // no limit is imposed.
@@ -102,6 +110,7 @@ class BytecodeInterpreterOptions {
   TraceHook trace_hook_ = nullptr;
   RolloverHook rollover_hook_ = nullptr;
   bool trace_channels_ = false;
+  bool trace_calls_ = false;
   std::optional<int64_t> max_ticks_;
   bool validate_final_stack_depth_ = true;
   FormatPreference format_preference_ = FormatPreference::kDefault;

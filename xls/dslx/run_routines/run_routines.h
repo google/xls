@@ -33,6 +33,7 @@
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "re2/re2.h"
 #include "xls/dslx/bytecode/bytecode_interpreter_options.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
@@ -50,7 +51,6 @@
 #include "xls/ir/function.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
-#include "re2/re2.h"
 
 namespace xls::dslx {
 
@@ -106,6 +106,7 @@ struct ParseAndTestOptions {
   ConvertOptions convert_options;
 
   bool trace_channels = false;
+  bool trace_calls = false;
   std::optional<int64_t> max_ticks;
   std::function<std::unique_ptr<VirtualizableFilesystem>()> vfs_factory =
       nullptr;

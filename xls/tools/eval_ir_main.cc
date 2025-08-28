@@ -92,6 +92,7 @@
 #include "xls/ir/value_utils.h"
 #include "xls/jit/function_jit.h"
 #include "xls/jit/jit_buffer.h"
+#include "xls/jit/jit_evaluator_options.h"
 #include "xls/jit/observer.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
@@ -392,9 +393,11 @@ absl::StatusOr<std::vector<Value>> Eval(
     // No support for procs yet.
     XLS_ASSIGN_OR_RETURN(
         jit, FunctionJit::Create(
-                 f, absl::GetFlag(FLAGS_llvm_opt_level),
-                 /*include_observer_callbacks=*/eval_observer.has_value(),
-                 &observer));
+                 f, EvaluatorOptions(),
+                 JitEvaluatorOptions()
+                     .set_opt_level(absl::GetFlag(FLAGS_llvm_opt_level))
+                     .set_include_observer_callbacks(eval_observer.has_value())
+                     .set_jit_observer(&observer)));
   }
 
   std::vector<Value> results;
@@ -432,8 +435,9 @@ absl::StatusOr<std::vector<Value>> Eval(
       // resulting events once the JIT fully supports events. Note: This will
       // require rethinking some of the control flow because event comparison
       // only makes sense for certain modes (optimize_ir and test_llvm_jit).
-      XLS_ASSIGN_OR_RETURN(result, DropInterpreterEvents(InterpretFunction(
-                                       f, arg_set.args, eval_observer)));
+      XLS_ASSIGN_OR_RETURN(
+          result, DropInterpreterEvents(InterpretFunction(
+                      f, arg_set.args, EvaluatorOptions(), eval_observer)));
     }
     std::cout << result.ToString(FormatPreference::kHex) << '\n';
 

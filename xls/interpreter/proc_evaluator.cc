@@ -96,8 +96,8 @@ std::ostream& operator<<(std::ostream& os, const TickResult& result) {
   return os;
 }
 
-ProcEvaluator::ProcEvaluator(Proc* proc) : proc_(proc) {
-  has_io_operations_ = false;
+ProcEvaluator::ProcEvaluator(Proc* proc, const EvaluatorOptions& options)
+    : proc_(proc), has_io_operations_(false), options_(options) {
   for (Node* node : proc->nodes()) {
     if (node->Is<Send>() || node->Is<Receive>()) {
       has_io_operations_ = true;

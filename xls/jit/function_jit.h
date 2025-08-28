@@ -29,6 +29,7 @@
 #include "absl/types/span.h"
 #include "llvm/include/llvm/IR/Function.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/interpreter/evaluator_options.h"
 #include "xls/ir/events.h"
 #include "xls/ir/function.h"
 #include "xls/ir/package.h"
@@ -38,6 +39,7 @@
 #include "xls/jit/function_base_jit.h"
 #include "xls/jit/jit_buffer.h"
 #include "xls/jit/jit_callbacks.h"
+#include "xls/jit/jit_evaluator_options.h"
 #include "xls/jit/jit_runtime.h"
 #include "xls/jit/observer.h"
 #include "xls/jit/orc_jit.h"
@@ -53,21 +55,23 @@ class FunctionJit {
   // Returns an object containing a host-compiled version of the specified XLS
   // function.
   static absl::StatusOr<std::unique_ptr<FunctionJit>> Create(
-      Function* xls_function, int64_t opt_level = 3,
-      bool include_observer_callbacks = false,
-      JitObserver* jit_observer = nullptr);
+      Function* xls_function,
+      const EvaluatorOptions& options = EvaluatorOptions(),
+      const JitEvaluatorOptions& jit_options = JitEvaluatorOptions());
 
   // Returns an object containing an AOT-compiled version of the specified XLS
   // function.
   static absl::StatusOr<std::unique_ptr<FunctionJit>> CreateFromAot(
       const AotEntrypointProto& entrypoint, std::string_view data_layout,
       JitFunctionType function_unpacked,
-      std::optional<JitFunctionType> function_packed = std::nullopt);
+      std::optional<JitFunctionType> function_packed = std::nullopt,
+      const EvaluatorOptions& options = EvaluatorOptions());
 
   // Returns the bytes of an object file containing the compiled XLS function.
   static absl::StatusOr<JitObjectCode> CreateObjectCode(
-      Function* xls_function, int64_t opt_level, bool include_msan,
-      JitObserver* observer = nullptr, std::string_view symbol_salt = "");
+      Function* xls_function,
+      const EvaluatorOptions& options = EvaluatorOptions(),
+      const JitEvaluatorOptions& jit_options = JitEvaluatorOptions());
 
   // Executes the compiled function with the specified arguments.
   absl::StatusOr<InterpreterResult<Value>> Run(absl::Span<const Value> args);
@@ -241,8 +245,8 @@ class FunctionJit {
         has_observer_callbacks_(has_observer_callbacks) {}
 
   static absl::StatusOr<std::unique_ptr<FunctionJit>> CreateInternal(
-      Function* xls_function, int64_t opt_level,
-      bool include_observer_callbacks, JitObserver* jit_observer);
+      Function* xls_function, const EvaluatorOptions& options,
+      const JitEvaluatorOptions& jit_options);
 
   template <bool kForceZeroCopy, typename... ArgsT>
   absl::Status RunWithUnpackedViewsCommon(ArgsT... args) {

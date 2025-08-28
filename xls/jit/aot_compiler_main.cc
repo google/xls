@@ -30,10 +30,10 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "google/protobuf/text_format.h"
 #include "llvm/include/llvm/IR/DataLayout.h"
 #include "llvm/include/llvm/IR/LLVMContext.h"
 #include "llvm/include/llvm/Support/raw_ostream.h"
-#include "google/protobuf/text_format.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/status/ret_check.h"
@@ -51,6 +51,7 @@
 #include "xls/jit/function_base_jit.h"
 #include "xls/jit/function_jit.h"
 #include "xls/jit/jit_buffer.h"
+#include "xls/jit/jit_evaluator_options.h"
 #include "xls/jit/jit_proc_runtime.h"
 #include "xls/jit/llvm_compiler.h"
 #include "xls/jit/llvm_type_converter.h"
@@ -263,27 +264,29 @@ absl::Status RealMain(const std::string& input_ir_path,
   }
 
   std::optional<JitObjectCode> object_code;
+  JitEvaluatorOptions jit_opts;
+  jit_opts.set_opt_level(llvm_opt_level)
+      .set_jit_observer(&obs)
+      .set_symbol_salt(absl::GetFlag(FLAGS_symbol_salt))
+      .set_include_msan(include_msan);
   if (f->IsFunction()) {
-    XLS_ASSIGN_OR_RETURN(object_code, FunctionJit::CreateObjectCode(
-                                          f->AsFunctionOrDie(), llvm_opt_level,
-                                          include_msan, &obs, symbol_salt));
+    XLS_ASSIGN_OR_RETURN(
+        object_code, FunctionJit::CreateObjectCode(
+                         f->AsFunctionOrDie(), EvaluatorOptions(), jit_opts));
   } else if (f->IsProc()) {
     if (f->AsProcOrDie()->is_new_style_proc()) {
-      XLS_ASSIGN_OR_RETURN(object_code, CreateProcAotObjectCode(
-                                            f->AsProcOrDie(), llvm_opt_level,
-                                            include_msan, &obs, symbol_salt));
+      XLS_ASSIGN_OR_RETURN(object_code,
+                           CreateProcAotObjectCode(f->AsProcOrDie(), jit_opts));
     } else {
       // all procs
-      XLS_ASSIGN_OR_RETURN(object_code, CreateProcAotObjectCode(
-                                            package.get(), llvm_opt_level,
-                                            include_msan, &obs, symbol_salt));
+      XLS_ASSIGN_OR_RETURN(object_code,
+                           CreateProcAotObjectCode(package.get(), jit_opts));
     }
   } else {
     XLS_ASSIGN_OR_RETURN(BlockElaboration elab,
                          BlockElaboration::Elaborate(f->AsBlockOrDie()));
-    XLS_ASSIGN_OR_RETURN(object_code, BlockJit::CreateObjectCode(
-                                          elab, llvm_opt_level, include_msan,
-                                          &obs, symbol_salt));
+    XLS_ASSIGN_OR_RETURN(object_code,
+                         BlockJit::CreateObjectCode(elab, jit_opts));
   }
   AotPackageEntrypointsProto all_entrypoints;
   if (output_object_path) {
@@ -306,7 +309,8 @@ absl::Status RealMain(const std::string& input_ir_path,
   }
   if (output_textproto_path) {
     std::string text;
-    XLS_RET_CHECK(google::protobuf::TextFormat::PrintToString(all_entrypoints, &text));
+    XLS_RET_CHECK(
+        google::protobuf::TextFormat::PrintToString(all_entrypoints, &text));
     XLS_RETURN_IF_ERROR(SetFileContents(*output_textproto_path, text));
   }
   if (output_proto_path) {

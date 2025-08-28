@@ -26,6 +26,7 @@
 #include "llvm/include/llvm/IR/LLVMContext.h"
 #include "llvm/include/llvm/IR/Module.h"
 #include "llvm/include/llvm/Target/TargetMachine.h"
+#include "xls/jit/jit_evaluator_options.h"
 #include "xls/jit/llvm_compiler.h"
 #include "xls/jit/observer.h"
 
@@ -34,8 +35,7 @@ namespace xls {
 class AotCompiler final : public LlvmCompiler {
  public:
   static absl::StatusOr<std::unique_ptr<AotCompiler>> Create(
-      bool include_msan, int64_t opt_level = LlvmCompiler::kDefaultOptLevel,
-      JitObserver* observer = nullptr);
+      const JitEvaluatorOptions& jit_options);
 
   absl::StatusOr<AotCompiler*> AsAotCompiler() override { return this; }
 
@@ -68,17 +68,17 @@ class AotCompiler final : public LlvmCompiler {
  private:
   // TODO(https://github.com/google/xls/issues/1639): It would be nice to
   // support runtime observer callbacks in aot'd code.
-  AotCompiler(int64_t opt_level, bool include_msan, JitObserver* observer)
-      : LlvmCompiler(opt_level, include_msan,
+  explicit AotCompiler(const JitEvaluatorOptions& jit_options)
+      : LlvmCompiler(jit_options.opt_level(), jit_options.include_msan(),
                      /*include_observer_callbacks=*/false),
-        jit_observer_(observer) {}
+        jit_options_(jit_options) {}
 
   std::unique_ptr<llvm::LLVMContext> context_ =
       std::make_unique<llvm::LLVMContext>();
 
   std::optional<std::vector<uint8_t>> object_code_;
 
-  JitObserver* jit_observer_;
+  JitEvaluatorOptions jit_options_;
 };
 
 }  // namespace xls

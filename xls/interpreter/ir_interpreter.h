@@ -23,6 +23,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/interpreter/evaluator_options.h"
 #include "xls/interpreter/observer.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/dfs_visitor.h"
@@ -42,19 +43,37 @@ absl::StatusOr<Value> InterpretNode(Node* node,
 // A visitor for traversing and evaluating XLS IR.
 class IrInterpreter : public DfsVisitor {
  public:
-  IrInterpreter() : node_values_ptr_(nullptr), events_ptr_(nullptr) {}
-  explicit IrInterpreter(std::optional<EvaluationObserver*> observer)
-      : node_values_ptr_(nullptr), events_ptr_(nullptr), observer_(observer) {}
+  IrInterpreter()
+      : node_values_ptr_(nullptr),
+        events_ptr_(nullptr),
+        options_(EvaluatorOptions()),
+        observer_(std::nullopt),
+        call_depth_(0) {}
+
+  explicit IrInterpreter(
+      InterpreterEvents* events,
+      const EvaluatorOptions& options = EvaluatorOptions(),
+      std::optional<EvaluationObserver*> observer = std::nullopt,
+      int call_depth = 0)
+      : node_values_ptr_(nullptr),
+        events_ptr_(events),
+        options_(options),
+        observer_(observer),
+        call_depth_(call_depth) {}
 
   // Constructor which takes an existing map of node values and events. Used for
   // continuations to enable stopping and restarting execution of a
   // FunctionBase.
   IrInterpreter(absl::flat_hash_map<Node*, Value>* node_values,
                 InterpreterEvents* events,
-                std::optional<EvaluationObserver*> observer = std::nullopt)
+                const EvaluatorOptions& options = EvaluatorOptions(),
+                std::optional<EvaluationObserver*> observer = std::nullopt,
+                int call_depth = 0)
       : node_values_ptr_(node_values),
         events_ptr_(events),
-        observer_(observer) {}
+        options_(options),
+        observer_(observer),
+        call_depth_(call_depth) {}
 
   // Sets the evaluated value for 'node' to the given Value. 'value' must be
   // passed in by value (ha!) because a use case is passing in a previously
@@ -73,6 +92,9 @@ class IrInterpreter : public DfsVisitor {
   InterpreterEvents& GetInterpreterEvents() {
     return events_ptr_ != nullptr ? *events_ptr_ : events_;
   }
+
+  const EvaluatorOptions& options() const { return options_; }
+  int call_depth() const { return call_depth_; }
 
   absl::Status AddInterpreterEvents(const InterpreterEvents& events);
 
@@ -219,7 +241,9 @@ class IrInterpreter : public DfsVisitor {
   // used (`events_ptr` is null).
   InterpreterEvents* events_ptr_;
   InterpreterEvents events_;
+  EvaluatorOptions options_;
   std::optional<EvaluationObserver*> observer_;
+  int call_depth_;
 };
 
 }  // namespace xls
