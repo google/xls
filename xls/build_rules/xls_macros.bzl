@@ -557,6 +557,7 @@ Examples:
     # Setup shared arguments
     SHARED_FLAGS = (
         "top",
+        "delay_model",
     )
     IR_OPT_FLAGS = (
         "ir_dump_path",

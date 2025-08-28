@@ -30,6 +30,7 @@
 
 #include "absl/base/nullability.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/hash/hash.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -188,10 +189,49 @@ struct OptimizationPassOptions : public PassOptionsBase {
 
   // Area model to use
   std::string area_model = "asap7";
+
+  // If provided, passes like SelectLifting may use the named delay model
+  // (e.g., "asap7") to make timing-aware profitability decisions.
+  std::optional<std::string> delay_model;
+};
+
+struct AnalysisOptions {
+  std::optional<std::string> delay_model_name;
+
+  template <typename H>
+  friend H AbslHashValue(H h, const AnalysisOptions& o) {
+    return H::combine(std::move(h), o.delay_model_name);
+  }
+
+  friend bool operator==(const AnalysisOptions& lhs,
+                         const AnalysisOptions& rhs) {
+    return lhs.delay_model_name == rhs.delay_model_name;
+  }
+  friend bool operator!=(const AnalysisOptions& lhs,
+                         const AnalysisOptions& rhs) {
+    return !(lhs == rhs);
+  }
 };
 
 class OptimizationContext {
  public:
+  template <typename AnalysisT>
+    requires(std::is_base_of_v<ChangeListener, AnalysisT>)
+  AnalysisT* SharedNodeData(FunctionBase* f,
+                            const AnalysisOptions& options = {}) {
+    std::pair<std::type_index, AnalysisOptions> key = {typeid(AnalysisT),
+                                                       options};
+    auto& instance_analyses = shared_lazy_node_data_[f];
+    auto it = instance_analyses.find(key);
+    if (it == instance_analyses.end()) {
+      auto analysis = AnalysisT::Create(options);
+      CHECK_OK(analysis.status());
+      CHECK_OK((*analysis)->Attach(f).status());
+      it = instance_analyses.emplace(key, *std::move(analysis)).first;
+    }
+    return dynamic_cast<AnalysisT*>(it->second.get());
+  }
+
   template <typename QueryEngineT>
     requires(std::is_base_of_v<QueryEngine, QueryEngineT>)
   QueryEngineT* SharedQueryEngine(FunctionBase* f) {
@@ -234,6 +274,7 @@ class OptimizationContext {
 
   void Abandon(FunctionBase* f) {
     shared_query_engines_.erase(f);
+    shared_lazy_node_data_.erase(f);
     reverse_topo_sort_.erase(f);
   }
 
@@ -298,6 +339,13 @@ class OptimizationContext {
       FunctionBase*,
       absl::flat_hash_map<std::type_index, std::shared_ptr<QueryEngine>>>
       shared_query_engines_;
+  absl::flat_hash_map<
+      FunctionBase*,
+      absl::flat_hash_map<
+          std::pair<std::type_index, AnalysisOptions>,
+          std::shared_ptr<ChangeListener>,
+          absl::Hash<std::pair<std::type_index, AnalysisOptions>>>>
+      shared_lazy_node_data_;
 };
 
 // Construct a query engine that forwards to the shared implementation from
