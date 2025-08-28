@@ -20,11 +20,11 @@
 #include <utility>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/matchers.h"
@@ -41,6 +41,7 @@
 #include "xls/ir/proc_elaboration.h"
 #include "xls/ir/value.h"
 #include "xls/jit/jit_channel_queue.h"
+#include "xls/jit/jit_evaluator_options.h"
 #include "xls/jit/jit_proc_runtime.h"
 #include "xls/jit/jit_runtime.h"
 #include "xls/jit/orc_jit.h"
@@ -72,9 +73,10 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateMixedSerialProcRuntime(
     if (use_jit) {
       XLS_ASSIGN_OR_RETURN(
           std::unique_ptr<ProcJit> proc_jit,
-          ProcJit::Create(
-              proc, &queue_manager->runtime(), queue_manager.get(),
-              /*include_observer_callbacks=*/options.support_observers()));
+          ProcJit::Create(proc, &queue_manager->runtime(), queue_manager.get(),
+                          options,
+                          JitEvaluatorOptions().set_include_observer_callbacks(
+                              options.support_observers())));
       proc_evaluators.push_back(std::move(proc_jit));
     } else {
       proc_evaluators.push_back(

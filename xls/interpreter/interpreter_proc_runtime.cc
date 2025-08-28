@@ -43,7 +43,7 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateRuntime(
   std::vector<std::unique_ptr<ProcEvaluator>> proc_interpreters;
   for (Proc* proc : queue_manager->elaboration().procs()) {
     proc_interpreters.push_back(
-        std::make_unique<ProcInterpreter>(proc, queue_manager.get()));
+        std::make_unique<ProcInterpreter>(proc, queue_manager.get(), options));
   }
 
   // Create a runtime.

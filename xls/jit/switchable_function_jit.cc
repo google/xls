@@ -33,6 +33,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/value.h"
 #include "xls/jit/function_jit.h"
+#include "xls/jit/jit_evaluator_options.h"
 #include "xls/jit/observer.h"
 
 namespace xls {
@@ -52,9 +53,11 @@ absl::StatusOr<std::unique_ptr<SwitchableFunctionJit>>
 SwitchableFunctionJit::CreateJit(Function* xls_function, int64_t opt_level,
                                  JitObserver* observer) {
   XLS_ASSIGN_OR_RETURN(
-      auto jit,
-      FunctionJit::Create(xls_function, opt_level,
-                          /*include_observer_callbacks=*/false, observer));
+      auto jit, FunctionJit::Create(xls_function, EvaluatorOptions(),
+                                    JitEvaluatorOptions()
+                                        .set_opt_level(opt_level)
+                                        .set_include_observer_callbacks(false)
+                                        .set_jit_observer(observer)));
   return std::unique_ptr<SwitchableFunctionJit>(new SwitchableFunctionJit(
       xls_function, /*use_jit=*/true, std::move(jit)));
 }

@@ -406,6 +406,44 @@ class InterpreterTest(test_base.TestCase):
     self.assertIn('MyEnum::TWO', stderr)
     self.assertIn('0x2a', stderr)
 
+  def test_trace_calls(self):
+    """Tests that --trace_calls emits indented call traces with args."""
+    program = """
+    fn baz(z: u32) -> u32 { z + u32:1 }
+    fn bar(y: u32) -> u32 { baz(y + u32:1) }
+    fn foo(x: u32) -> u32 { bar(x + u32:1) }
+
+    fn sum2(a: u32, b: u32) -> u32 { a + b }
+
+    #[test]
+    fn call_trace_test() {
+      let r = foo(u32:10);
+      assert_eq(u32:13, r);
+      let s = sum2(u32:7, u32:8);
+      assert_eq(u32:15, s)
+    }
+    """
+    # Disable log prefix so we can match the call trace messages directly.
+    stderr = self._parse_and_test(
+        program,
+        want_error=False,
+        alsologtostderr=True,
+        extra_flags=(
+            '--log_prefix=false',
+            '--compare=none',
+            '--trace_calls',
+        ),
+    )
+    # Expect nested calls foo(10) -> bar(11) -> baz(12) with indentation.
+    self.assertIn('foo(u32:10)', stderr)
+    self.assertIn('bar(u32:11)', stderr)
+    self.assertIn('baz(u32:12)', stderr)
+    # Ensure ordering: foo before bar before baz.
+    self.assertLess(stderr.find('foo(u32:10)'), stderr.find('bar(u32:11)'))
+    self.assertLess(stderr.find('bar(u32:11)'), stderr.find('baz(u32:12)'))
+    # Multiple-arg formatting.
+    self.assertIn('sum2(u32:7, u32:8)', stderr)
+
   def test_cast_array_to_wrong_bit_count(self):
     """Tests that casing an array to the wrong bit count causes a failure."""
     program = textwrap.dedent("""\

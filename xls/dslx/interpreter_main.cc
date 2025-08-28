@@ -33,6 +33,7 @@
 #include "absl/strings/str_split.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "re2/re2.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
@@ -47,7 +48,6 @@
 #include "xls/dslx/virtualizable_file_system.h"
 #include "xls/dslx/warning_kind.h"
 #include "xls/ir/format_preference.h"
-#include "re2/re2.h"
 
 // LINT.IfChange
 ABSL_FLAG(std::string, dslx_path, "",
@@ -83,6 +83,9 @@ ABSL_FLAG(bool, warnings_as_errors, true,
 ABSL_FLAG(bool, trace_channels, false,
           "If true, values sent and received on channels are emitted as trace "
           "messages");
+ABSL_FLAG(bool, trace_calls, false,
+          "If true, emit a trace message for each interpreted function call. "
+          "The message includes the function name and argument values");
 ABSL_FLAG(int64_t, max_ticks, 100000,
           "If non-zero, the maximum number of ticks to execute on any proc. If "
           "exceeded an error is returned.");
@@ -144,7 +147,7 @@ absl::StatusOr<TestResult> RealMain(
     const std::optional<std::string>& test_filter,
     FormatPreference format_preference, CompareFlag compare_flag, bool execute,
     bool warnings_as_errors, std::optional<int64_t> seed, bool trace_channels,
-    std::optional<int64_t> max_ticks,
+    bool trace_calls, std::optional<int64_t> max_ticks,
     std::optional<std::string_view> xml_output_file, EvaluatorType evaluator) {
   XLS_ASSIGN_OR_RETURN(
       WarningKindSet warnings,
@@ -199,6 +202,7 @@ absl::StatusOr<TestResult> RealMain(
       .execute = execute,
       .seed = seed,
       .trace_channels = trace_channels,
+      .trace_calls = trace_calls,
       .max_ticks = max_ticks,
   };
 
@@ -241,6 +245,7 @@ int main(int argc, char* argv[]) {
   bool execute = absl::GetFlag(FLAGS_execute);
   bool warnings_as_errors = absl::GetFlag(FLAGS_warnings_as_errors);
   bool trace_channels = absl::GetFlag(FLAGS_trace_channels);
+  bool trace_calls = absl::GetFlag(FLAGS_trace_calls);
   std::optional<int64_t> max_ticks =
       absl::GetFlag(FLAGS_max_ticks) == 0
           ? std::nullopt
@@ -322,7 +327,7 @@ int main(int argc, char* argv[]) {
   absl::StatusOr<xls::dslx::TestResult> test_result = xls::dslx::RealMain(
       args[0], dslx_paths, dslx_stdlib_path, test_filter, preference,
       compare_flag, execute, warnings_as_errors, seed, trace_channels,
-      max_ticks, xml_output_file, evaluator.value());
+      trace_calls, max_ticks, xml_output_file, evaluator.value());
   if (!test_result.ok()) {
     return xls::ExitStatus(test_result.status());
   }

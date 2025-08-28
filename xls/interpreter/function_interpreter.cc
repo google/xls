@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/interpreter/function_interpreter.h"
-
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -30,6 +28,7 @@
 #include "xls/interpreter/ir_interpreter.h"
 #include "xls/interpreter/observer.h"
 #include "xls/ir/events.h"
+#include "xls/ir/function.h"
 #include "xls/ir/keyword_args.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/type.h"
@@ -42,8 +41,11 @@ namespace {
 class FunctionInterpreter final : public IrInterpreter {
  public:
   FunctionInterpreter(absl::Span<const Value> args,
-                      std::optional<EvaluationObserver*> observer)
-      : IrInterpreter(observer), args_(args.begin(), args.end()) {}
+                      const EvaluatorOptions& options,
+                      std::optional<EvaluationObserver*> observer,
+                      int call_depth)
+      : IrInterpreter(/*events=*/nullptr, options, observer, call_depth),
+        args_(args.begin(), args.end()) {}
 
   absl::Status HandleParam(Param* param) override {
     XLS_ASSIGN_OR_RETURN(int64_t index,
@@ -65,7 +67,8 @@ class FunctionInterpreter final : public IrInterpreter {
 
 absl::StatusOr<InterpreterResult<Value>> InterpretFunction(
     Function* function, absl::Span<const Value> args,
-    std::optional<EvaluationObserver*> observer) {
+    const EvaluatorOptions& options,
+    std::optional<EvaluationObserver*> observer, int call_depth) {
   VLOG(3) << "Interpreting function " << function->name();
   if (args.size() != function->params().size()) {
     return absl::InvalidArgumentError(absl::StrFormat(
@@ -84,7 +87,19 @@ absl::StatusOr<InterpreterResult<Value>> InterpretFunction(
           value.ToString(), argno, param_type->ToString()));
     }
   }
-  FunctionInterpreter visitor(args, observer);
+  FunctionInterpreter visitor(args, options, observer, call_depth);
+  if (options.trace_calls()) {
+    std::vector<std::string> arg_strs;
+    arg_strs.reserve(args.size());
+    for (const Value& v : args) {
+      arg_strs.push_back(v.ToHumanString(options.format_preference()));
+    }
+    visitor.GetInterpreterEvents().trace_msgs.push_back(TraceMessage{
+        .message =
+            absl::StrFormat("%*s%s(%s)", 2 * call_depth, "", function->name(),
+                            absl::StrJoin(arg_strs, ", ")),
+        .verbosity = 0});
+  }
   XLS_RETURN_IF_ERROR(function->Accept(&visitor));
   Value result = visitor.ResolveAsValue(function->return_value());
   VLOG(2) << "Result = " << result;
@@ -94,11 +109,13 @@ absl::StatusOr<InterpreterResult<Value>> InterpretFunction(
 
 /* static */ absl::StatusOr<InterpreterResult<Value>> InterpretFunctionKwargs(
     Function* function, const absl::flat_hash_map<std::string, Value>& args,
+    const EvaluatorOptions& options,
     std::optional<EvaluationObserver*> observer) {
   VLOG(2) << "Interpreting function " << function->name() << " with arguments:";
   XLS_ASSIGN_OR_RETURN(std::vector<Value> positional_args,
                        KeywordArgsToPositional(*function, args));
-  return InterpretFunction(function, positional_args, observer);
+  return InterpretFunction(function, positional_args, options, observer,
+                           /*call_depth=*/0);
 }
 
 }  // namespace xls
