@@ -37,6 +37,13 @@ enum RegisterMergeStrategyProto {
   STRATEGY_IDENTITY_ONLY = 2;
 }
 
+enum SourceAnnotationStrategyProto {
+  ANNOTATION_STRATEGY_INVALID = 0;
+  ANNOTATION_STRATEGY_NONE = 1;
+  ANNOTATION_STRATEGY_COMMENT = 2;
+  ANNOTATION_STRATEGY_DIRECTIVE = 3;
+}
+
 // Flags passed to the codegen_main binary.
 //
 // See codegen_flags.cc ABSL_FLAG() definitions for the meaning of these fields.
@@ -99,4 +106,5 @@ message CodegenFlagsProto {
   // If false, runtime invariant assertions (e.g. one-hot selector checks)
   // are omitted from generated RTL.  Default is true.
   optional bool add_invariant_assertions = 42;
+  optional SourceAnnotationStrategyProto source_annotation_strategy = 43;
 }
