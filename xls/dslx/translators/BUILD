@@ -72,9 +72,9 @@ cc_test(
         "//xls/dslx:virtualizable_file_system",
         "//xls/dslx/frontend:ast",
         "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@googletest//:gtest",
+        "@re2",
     ],
 )
 

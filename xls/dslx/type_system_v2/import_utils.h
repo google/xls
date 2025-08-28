@@ -22,6 +22,7 @@
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
 
 namespace xls::dslx {
@@ -47,6 +48,14 @@ absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRefForSubject(
 // by `annotation`.
 absl::StatusOr<std::optional<const StructDefBase*>> GetStructOrProcDef(
     const TypeAnnotation* annotation, const ImportData& import_data);
+
+// Returns whether the given node is a reference to a parametric struct or proc
+// without sufficient parametrics specified (i.e. abstract and non-concretizable
+// in the parametric sense). A node meeting the criteria can be a `TypeAlias`,
+// the `NameDef` of a `TypeAlias`, or a `ColonRef`.
+absl::StatusOr<bool> IsReferenceToAbstractType(const AstNode* node,
+                                               const ImportData& import_data,
+                                               const InferenceTable& table);
 
 // Finds and returns a public module member for the given `ColonRef`. Returns
 // an error if it doesn't exist or isn't public.

@@ -835,6 +835,17 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       return absl::OkStatus();
     }
 
+    // We don't need to concretize a type reference that is "abstract" in the
+    // sense of leaving some parametric bindings of the underlying type
+    // unspecified. There is also no way to do so with v2's avoidance of
+    // `TypeDim`. Only uses of the alias, which provide the parametrics, can be
+    // concretized.
+    XLS_ASSIGN_OR_RETURN(const bool is_abstract_ref,
+                         IsReferenceToAbstractType(node, import_data_, table_));
+    if (is_abstract_ref) {
+      return absl::OkStatus();
+    }
+
     TypeSystemTrace trace = tracer_->TraceConvertNode(node);
     VLOG(5) << "GenerateTypeInfo for node: " << node->ToString()
             << " of kind: `" << AstNodeKindToString(node->kind()) << "`"
@@ -958,33 +969,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       if (node_is_annotation) {
         return absl::OkStatus();
       }
-
-      // We don't need to concretize a type alias that is "abstract" in the
-      // sense of leaving some parametric bindings of the underlying type
-      // unspecified. There is also no way to do so with v2's avoidance of
-      // `TypeDim`. Only uses of the alias, which provide the parametrics, can
-      // be concretized.
-      if (node->kind() == AstNodeKind::kTypeAlias ||
-          (node->kind() == AstNodeKind::kNameDef && node->parent() != nullptr &&
-           node->parent()->kind() == AstNodeKind::kTypeAlias)) {
-        const TypeAlias* alias =
-            node->kind() == AstNodeKind::kTypeAlias
-                ? down_cast<const TypeAlias*>(node)
-                : down_cast<const TypeAlias*>(node->parent());
-
-        XLS_ASSIGN_OR_RETURN(
-            std::optional<StructOrProcRef> struct_or_proc,
-            GetStructOrProcRef(&alias->type_annotation(), import_data_));
-        if (struct_or_proc.has_value() &&
-            GetRequiredParametricBindings(
-                struct_or_proc->def->parametric_bindings())
-                    .size() > struct_or_proc->parametrics.size()) {
-          VLOG(6) << "Not concretizing alias that has unspecified parametrics: "
-                  << node->ToString();
-          return absl::OkStatus();
-        }
-      }
-
       return type.status();
     }
 
@@ -999,6 +983,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       ti->SetItem(node, **type);
     }
 
+    trace.SetResult(**type);
     XLS_RETURN_IF_ERROR(constant_collector_->CollectConstants(
         parametric_context, node, **type, ti));
     VLOG(5) << "Generated type: " << (*ti->GetItem(node))->ToString()

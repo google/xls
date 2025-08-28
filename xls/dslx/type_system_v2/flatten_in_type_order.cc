@@ -15,6 +15,7 @@
 #include "xls/dslx/type_system_v2/flatten_in_type_order.h"
 
 #include <optional>
+#include <variant>
 #include <vector>
 
 #include "absl/status/status.h"
@@ -169,6 +170,20 @@ class Flattener : public AstNodeVisitorWithDefault {
       XLS_RETURN_IF_ERROR(member->Accept(this));
     }
     nodes_.push_back(node);
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleTypeRef(const TypeRef* node) override {
+    // A `TypeRef` does not expose its definition via GetChildren(), probably
+    // because it is not seen as owning the definition. A definition like an
+    // `EnumDef` will be processed when encountered under its lexical parent.
+    // However, if the "definition" is a `ColonRef` to a type, that is not an
+    // actual definition per se, and there are some tools that want to be able
+    // to get a `Type` for any alleged `TypeDefinition`, so we queue it for type
+    // conversion.
+    if (std::holds_alternative<ColonRef*>(node->type_definition())) {
+      return std::get<ColonRef*>(node->type_definition())->Accept(this);
+    }
     return absl::OkStatus();
   }
 

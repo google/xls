@@ -38,6 +38,7 @@
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/type_annotation_filter.h"
 
@@ -77,6 +78,7 @@ struct TypeSystemTraceImpl {
   std::optional<bool> used_cache;
   std::optional<bool> populated_cache;
   std::optional<bool> convert_for_type_variable_unification;
+  std::optional<std::unique_ptr<Type>> result_type;
   absl::Duration duration;
 };
 
@@ -121,6 +123,8 @@ std::string TraceImplToString(const TypeSystemTraceImpl& impl) {
   }
   if (impl.node.has_value()) {
     pieces.push_back(absl::StrCat("node: ", (*impl.node)->ToString()));
+    pieces.push_back(
+        absl::StrCat("kind: ", AstNodeKindToString((*impl.node)->kind())));
   }
   if (impl.inference_variable.has_value()) {
     pieces.push_back(
@@ -160,6 +164,9 @@ std::string TraceImplToString(const TypeSystemTraceImpl& impl) {
   if (impl.result_annotation.has_value()) {
     pieces.push_back(
         absl::StrCat("result: ", (*impl.result_annotation)->ToString()));
+  }
+  if (impl.result_type.has_value()) {
+    pieces.push_back(absl::StrCat("result: ", (*impl.result_type)->ToString()));
   }
   if (impl.result_value.has_value()) {
     pieces.push_back(absl::StrCat("value: ", (*impl.result_value).ToString()));
@@ -492,6 +499,10 @@ std::unique_ptr<TypeSystemTracer> TypeSystemTracer::Create(
 
 void TypeSystemTrace::SetResult(const TypeAnnotation* annotation) {
   impl_->result_annotation = annotation;
+}
+
+void TypeSystemTrace::SetResult(const Type& type) {
+  impl_->result_type = type.CloneToUnique();
 }
 
 void TypeSystemTrace::SetResult(const InterpValue& value) {

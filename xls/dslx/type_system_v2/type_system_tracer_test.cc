@@ -81,11 +81,11 @@ TEST_F(TypeSystemTracerTest, ConvertTracesToString) {
 
   EXPECT_EQ(absl::StrCat("\n", tracer_->ConvertTracesToString()),
             absl::StrFormat(R"(
-ConvertNode (%p, node: 1)
-   Unify (%p, node: 1)
-      Evaluate (%p, node: 1)
+ConvertNode (%p, node: 1, kind: number)
+   Unify (%p, node: 1, kind: number)
+      Evaluate (%p, node: 1, kind: number)
    Concretize (%p, annotation: u32)
-ConvertNode (%p, node: 2)
+ConvertNode (%p, node: 2, kind: number)
 )",
                             one, one, one, u32, two));
 }
