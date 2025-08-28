@@ -79,6 +79,50 @@ struct xls_dslx_param;
 struct xls_dslx_expr;
 struct xls_dslx_module_member;
 struct xls_dslx_type_dim;
+struct xls_dslx_parametric_env;
+struct xls_dslx_interp_value;
+struct xls_bits;
+
+struct xls_dslx_parametric_env_item {
+  const char* identifier;
+  const struct xls_dslx_interp_value* value;
+};
+
+// Creates a parametric environment from items.
+bool xls_dslx_parametric_env_create(
+    const struct xls_dslx_parametric_env_item* items, size_t items_count,
+    char** error_out, struct xls_dslx_parametric_env** env_out);
+
+// Frees a previously created parametric environment.
+void xls_dslx_parametric_env_free(struct xls_dslx_parametric_env*);
+
+// InterpValue constructors.
+struct xls_dslx_interp_value* xls_dslx_interp_value_make_ubits(
+    int64_t bit_count, uint64_t value);
+struct xls_dslx_interp_value* xls_dslx_interp_value_make_sbits(
+    int64_t bit_count, int64_t value);
+
+// Constructs an enum InterpValue given an enum def and the underlying bits.
+bool xls_dslx_interp_value_make_enum(struct xls_dslx_enum_def* def,
+                                     bool is_signed,
+                                     const struct xls_bits* bits,
+                                     char** error_out,
+                                     struct xls_dslx_interp_value** result_out);
+
+// Constructs a tuple InterpValue from elements.
+bool xls_dslx_interp_value_make_tuple(
+    size_t element_count, struct xls_dslx_interp_value** elements,
+    char** error_out, struct xls_dslx_interp_value** result_out);
+
+// Constructs an array InterpValue from elements of the same type.
+bool xls_dslx_interp_value_make_array(
+    size_t element_count, struct xls_dslx_interp_value** elements,
+    char** error_out, struct xls_dslx_interp_value** result_out);
+
+// Parses an InterpValue from DSLX text using the parser/evaluator.
+bool xls_dslx_interp_value_from_string(
+    const char* text, const char* dslx_stdlib_path, char** error_out,
+    struct xls_dslx_interp_value** result_out);
 
 struct xls_dslx_import_data* xls_dslx_import_data_create(
     const char* dslx_stdlib_path, const char* additional_search_paths[],

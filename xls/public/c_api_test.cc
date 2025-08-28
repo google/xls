@@ -953,6 +953,93 @@ TEST(XlsCApiTest, MangleDslxName) {
   EXPECT_EQ(std::string_view(mangled), "__foo_bar__baz_bat");
 }
 
+TEST(XlsCApiTest, MangleDslxNameFullBasic) {
+  char* error = nullptr;
+  char* mangled = nullptr;
+  ASSERT_TRUE(xls_mangle_dslx_name_full(
+      /*module_name=*/"my_mod", /*function_name=*/"f",
+      xls_calling_convention_typical,
+      /*free_keys=*/nullptr, /*free_keys_count=*/0,
+      /*param_env=*/nullptr,
+      /*scope=*/nullptr, &error, &mangled))
+      << (error ? error : "");
+  absl::Cleanup free_mangled([&] { xls_c_str_free(mangled); });
+  EXPECT_EQ(std::string_view(mangled), "__my_mod__f");
+}
+
+TEST(XlsCApiTest, MangleDslxNameFullScope) {
+  char* error = nullptr;
+  char* mangled = nullptr;
+  ASSERT_TRUE(xls_mangle_dslx_name_full(
+      /*module_name=*/"my_mod", /*function_name=*/"f",
+      xls_calling_convention_typical,
+      /*free_keys=*/nullptr, /*free_keys_count=*/0,
+      /*param_env=*/nullptr,
+      /*scope=*/"Point", &error, &mangled))
+      << (error ? error : "");
+  absl::Cleanup free_mangled([&] { xls_c_str_free(mangled); });
+  EXPECT_EQ(std::string_view(mangled), "__my_mod__Point__f");
+}
+
+TEST(XlsCApiTest, MangleDslxNameFullParametrics) {
+  char* error = nullptr;
+  struct xls_dslx_interp_value* x_val =
+      xls_dslx_interp_value_make_ubits(/*bit_count=*/32, /*value=*/42);
+  struct xls_dslx_interp_value* y_val =
+      xls_dslx_interp_value_make_ubits(/*bit_count=*/32, /*value=*/64);
+  absl::Cleanup free_vals([&] {
+    xls_dslx_interp_value_free(x_val);
+    xls_dslx_interp_value_free(y_val);
+  });
+  const char* free_keys[] = {"X", "Y"};
+  struct xls_dslx_parametric_env_item items[] = {
+      {.identifier = "X", .value = x_val},
+      {.identifier = "Y", .value = y_val},
+  };
+  struct xls_dslx_parametric_env* env = nullptr;
+  ASSERT_TRUE(xls_dslx_parametric_env_create(items, /*items_count=*/2, &error,
+                                             &env))
+      << (error ? error : "");
+  absl::Cleanup free_env([&] { xls_dslx_parametric_env_free(env); });
+  char* mangled = nullptr;
+  ASSERT_TRUE(xls_mangle_dslx_name_full(
+      /*module_name=*/"my_mod", /*function_name=*/"p",
+      xls_calling_convention_typical, free_keys,
+      /*free_keys_count=*/2, env,
+      /*scope=*/nullptr, &error, &mangled))
+      << (error ? error : "");
+  absl::Cleanup free_mangled([&] { xls_c_str_free(mangled); });
+  EXPECT_EQ(std::string_view(mangled), "__my_mod__p__42_64");
+}
+
+TEST(XlsCApiTest, MangleDslxNameFullImplicitToken) {
+  char* error = nullptr;
+  char* mangled = nullptr;
+  ASSERT_TRUE(xls_mangle_dslx_name_full(
+      /*module_name=*/"my_mod", /*function_name=*/"f",
+      xls_calling_convention_implicit_token,
+      /*free_keys=*/nullptr, /*free_keys_count=*/0,
+      /*param_env=*/nullptr,
+      /*scope=*/nullptr, &error, &mangled))
+      << (error ? error : "");
+  absl::Cleanup free_mangled([&] { xls_c_str_free(mangled); });
+  EXPECT_EQ(std::string_view(mangled), "__itok__my_mod__f");
+}
+
+TEST(XlsCApiTest, MangleDslxNameFullProcNext) {
+  char* error = nullptr;
+  char* mangled = nullptr;
+  ASSERT_TRUE(xls_mangle_dslx_name_full(
+      /*module_name=*/"my_mod", /*function_name=*/"f",
+      xls_calling_convention_proc_next,
+      /*free_keys=*/nullptr, /*free_keys_count=*/0,
+      /*param_env=*/nullptr,
+      /*scope=*/nullptr, &error, &mangled))
+      << (error ? error : "");
+  absl::Cleanup free_mangled([&] { xls_c_str_free(mangled); });
+  EXPECT_EQ(std::string_view(mangled), "__my_mod__f_next");
+}
+
 TEST(XlsCApiTest, ValueToStringFormatPreferences) {
   char* error = nullptr;
   struct xls_value* value = nullptr;

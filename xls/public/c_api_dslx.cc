@@ -35,12 +35,15 @@
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/interp_value_from_string.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
 #include "xls/dslx/virtualizable_file_system.h"
 #include "xls/dslx/warning_kind.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/value.h"
 #include "xls/public/c_api_impl_helpers.h"
 
@@ -63,6 +66,128 @@ const struct xls_dslx_type* GetMetaTypeHelper(
 }  // namespace
 
 extern "C" {
+bool xls_dslx_parametric_env_create(
+    const struct xls_dslx_parametric_env_item* items, size_t items_count,
+    char** error_out, struct xls_dslx_parametric_env** env_out) {
+  CHECK(error_out != nullptr);
+  CHECK(env_out != nullptr);
+  *error_out = nullptr;
+  if (items_count == 0) {
+    *env_out = reinterpret_cast<xls_dslx_parametric_env*>(
+        new xls::dslx::ParametricEnv());
+    return true;
+  }
+
+  std::vector<std::pair<std::string, xls::dslx::InterpValue>> v;
+  v.reserve(items_count);
+  for (size_t i = 0; i < items_count; ++i) {
+    const xls_dslx_parametric_env_item& it = items[i];
+    CHECK(it.identifier != nullptr);
+    CHECK(it.value != nullptr);
+    const xls::dslx::InterpValue* iv =
+        reinterpret_cast<const xls::dslx::InterpValue*>(it.value);
+    v.emplace_back(it.identifier, *iv);
+  }
+
+  *env_out = reinterpret_cast<xls_dslx_parametric_env*>(
+      new xls::dslx::ParametricEnv(absl::MakeSpan(v)));
+  return true;
+}
+
+void xls_dslx_parametric_env_free(struct xls_dslx_parametric_env* env) {
+  delete reinterpret_cast<xls::dslx::ParametricEnv*>(env);
+}
+
+// InterpValue simple constructors
+struct xls_dslx_interp_value* xls_dslx_interp_value_make_ubits(
+    int64_t bit_count, uint64_t value) {
+  auto* iv = new xls::dslx::InterpValue(xls::dslx::InterpValue::MakeUBits(
+      bit_count, static_cast<int64_t>(value)));
+  return reinterpret_cast<xls_dslx_interp_value*>(iv);
+}
+
+struct xls_dslx_interp_value* xls_dslx_interp_value_make_sbits(
+    int64_t bit_count, int64_t value) {
+  auto* iv = new xls::dslx::InterpValue(
+      xls::dslx::InterpValue::MakeSBits(bit_count, value));
+  return reinterpret_cast<xls_dslx_interp_value*>(iv);
+}
+
+bool xls_dslx_interp_value_make_enum(
+    struct xls_dslx_enum_def* def, bool is_signed, const struct xls_bits* bits,
+    char** error_out, struct xls_dslx_interp_value** result_out) {
+  CHECK(error_out != nullptr);
+  CHECK(result_out != nullptr);
+  *error_out = nullptr;
+  auto* enum_def = reinterpret_cast<xls::dslx::EnumDef*>(def);
+  const xls::Bits* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
+  auto iv = xls::dslx::InterpValue::MakeEnum(*cpp_bits, is_signed, enum_def);
+  *result_out = reinterpret_cast<xls_dslx_interp_value*>(
+      new xls::dslx::InterpValue(std::move(iv)));
+  return true;
+}
+
+bool xls_dslx_interp_value_from_string(
+    const char* text, const char* dslx_stdlib_path, char** error_out,
+    struct xls_dslx_interp_value** result_out) {
+  CHECK(error_out != nullptr);
+  CHECK(result_out != nullptr);
+  *error_out = nullptr;
+  auto status_or = xls::dslx::InterpValueFromString(
+      std::string_view{text}, std::filesystem::path{dslx_stdlib_path});
+  if (!status_or.ok()) {
+    *result_out = nullptr;
+    *error_out = xls::ToOwnedCString(status_or.status().ToString());
+    return false;
+  }
+  *result_out = reinterpret_cast<xls_dslx_interp_value*>(
+      new xls::dslx::InterpValue(std::move(status_or.value())));
+  return true;
+}
+
+bool xls_dslx_interp_value_make_tuple(
+    size_t element_count, struct xls_dslx_interp_value** elements,
+    char** error_out, struct xls_dslx_interp_value** result_out) {
+  CHECK(error_out != nullptr);
+  CHECK(result_out != nullptr);
+  *error_out = nullptr;
+  std::vector<xls::dslx::InterpValue> vec;
+  vec.reserve(element_count);
+  for (size_t i = 0; i < element_count; ++i) {
+    CHECK(elements[i] != nullptr);
+    auto* iv = reinterpret_cast<xls::dslx::InterpValue*>(elements[i]);
+    vec.push_back(*iv);
+  }
+  auto value = xls::dslx::InterpValue::MakeTuple(std::move(vec));
+  *result_out = reinterpret_cast<xls_dslx_interp_value*>(
+      new xls::dslx::InterpValue(std::move(value)));
+  return true;
+}
+
+bool xls_dslx_interp_value_make_array(
+    size_t element_count, struct xls_dslx_interp_value** elements,
+    char** error_out, struct xls_dslx_interp_value** result_out) {
+  CHECK(error_out != nullptr);
+  CHECK(result_out != nullptr);
+  *error_out = nullptr;
+  std::vector<xls::dslx::InterpValue> vec;
+  vec.reserve(element_count);
+  for (size_t i = 0; i < element_count; ++i) {
+    CHECK(elements[i] != nullptr);
+    auto* iv = reinterpret_cast<xls::dslx::InterpValue*>(elements[i]);
+    vec.push_back(*iv);
+  }
+  absl::StatusOr<xls::dslx::InterpValue> arr =
+      xls::dslx::InterpValue::MakeArray(std::move(vec));
+  if (!arr.ok()) {
+    *result_out = nullptr;
+    *error_out = xls::ToOwnedCString(arr.status().ToString());
+    return false;
+  }
+  *result_out = reinterpret_cast<xls_dslx_interp_value*>(
+      new xls::dslx::InterpValue(std::move(*arr)));
+  return true;
+}
 
 struct xls_dslx_import_data* xls_dslx_import_data_create(
     const char* dslx_stdlib_path, const char* additional_search_paths[],
