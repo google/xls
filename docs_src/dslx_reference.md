@@ -1845,7 +1845,7 @@ specified bit, slice out the next `N` bits. This is equivalent to:
 `bits[N]:(x >> start)`. The type can be specified as either signed or unsigned;
 e.g. `[start +: s8]` will produce an 8-bit signed value starting at `start`,
 whereas `[start +: u4]` will produce a 4-bit unsigned number starting at
-`start`.
+`start`. It is considered an error if the slice is out of the bound of the bits.
 
 [Here are many more examples](https://github.com/google/xls/tree/main/xls/dslx/tests/bit_slice_syntax.x):
 
@@ -1909,7 +1909,6 @@ fn test_bit_slice_syntax() {
     // Explicit-width slices.
     assert_eq(u2:0b01, x[2+:u2]);
     assert_eq(s3:0b100, x[3+:s3]);
-    assert_eq(u3:0b001, x[5+:u3]);
 }
 ```
 
