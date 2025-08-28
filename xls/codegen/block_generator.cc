@@ -277,8 +277,8 @@ absl::StatusOr<std::vector<Stage>> SplitBlockIntoStages(
   return stages;
 }
 
-// Returns a sequence of node IDs which is the emission order from the
-// from the residual data, or an empty vector if none exists.
+// Returns a sequence of node IDs which is the emission order from the residual
+// data, or an empty vector if none exists.
 std::vector<int64_t> NodeIdOrderFromResidualData(
     std::string_view block_name, const CodegenResidualData& container) {
   std::vector<int64_t> ids;

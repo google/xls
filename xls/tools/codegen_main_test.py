@@ -161,12 +161,6 @@ class CodeGenMainTest(parameterized.TestCase):
       want: str = runfiles.get_contents_as_text(path)
       self.assertMultiLineEqual(got, want)
 
-  def _find_line_number(self, text: str, substring: str) -> int:
-    for i, line in enumerate(text.splitlines(), start=1):
-      if substring in line:
-        return i
-    self.fail(f"Substring '{substring}' not found in provided text")
-
   def test_combinational(self):
     ir_file = self.create_tempfile(content=NOT_ADD_IR)
 

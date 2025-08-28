@@ -408,6 +408,7 @@ static absl::StatusOr<bool> SetOptionsFromFlags(CodegenFlagsProto& proto) {
   // the flags proto so downstream codegen can consume without file I/O.
   if (FLAGS_reference_residual_data_path.IsSpecifiedOnCommandLine() &&
       !absl::GetFlag(FLAGS_reference_residual_data_path).empty()) {
+    any_flags_set = true;
     verilog::CodegenResidualData reference;
     XLS_RETURN_IF_ERROR(xls::ParseTextProtoFile(
         absl::GetFlag(FLAGS_reference_residual_data_path), &reference));
