@@ -70,8 +70,11 @@ TEST(XlsCApiTest, ConvertDslxToIrSimple) {
   EXPECT_THAT(ir_out, HasSubstr("fn __my_module__id"));
 }
 
+// TODO(williamjhuang) - Many warnings that may be generated under TIv1 are not
+// generated under TIv2, so we are forcing TIv1 in this case.
 TEST(XlsCApiTest, ConvertDslxToIrWithWarningsSet) {
-  const std::string kProgram = "fn id() { let x = u32:1; }";
+  const std::string kProgram = R"(#![feature(type_inference_v1)]
+fn id() { let x = u32:1; })";
   const char* additional_search_paths[] = {};
   const std::string dslx_stdlib_path = std::string(xls::kDefaultDslxStdlibPath);
 
