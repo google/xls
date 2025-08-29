@@ -232,6 +232,14 @@ class OptimizationContext {
     return dynamic_cast<AnalysisT*>(it->second.get());
   }
 
+  template <typename AnalysisT>
+    requires(std::is_base_of_v<ChangeListener, AnalysisT>)
+  AnalysisT* SharedNodeData(FunctionBase* f,
+                            const OptimizationPassOptions& options) {
+    return SharedNodeData<AnalysisT>(
+        f, AnalysisOptions{.delay_model_name = options.delay_model});
+  }
+
   template <typename QueryEngineT>
     requires(std::is_base_of_v<QueryEngine, QueryEngineT>)
   QueryEngineT* SharedQueryEngine(FunctionBase* f) {

@@ -36,6 +36,7 @@
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/solvers/z3_ir_equivalence_testutils.h"
 
 namespace xls {
 
@@ -45,23 +46,26 @@ class SelectLiftingPassTest : public IrTestBase {
  protected:
   SelectLiftingPassTest() = default;
 
-  absl::StatusOr<bool> Run(Function* f) {
+  absl::StatusOr<bool> Run(Function* f,
+                           const OptimizationPassOptions& options) {
     PassResults results;
     OptimizationContext context;
 
     // Run the select lifting pass.
-    XLS_ASSIGN_OR_RETURN(bool changed,
-                         SelectLiftingPass().RunOnFunctionBase(
-                             f, OptimizationPassOptions(), &results, context));
+    XLS_ASSIGN_OR_RETURN(bool changed, SelectLiftingPass().RunOnFunctionBase(
+                                           f, options, &results, context));
 
     // Run dce to clean things up.
-    XLS_RETURN_IF_ERROR(
-        DeadCodeEliminationPass()
-            .RunOnFunctionBase(f, OptimizationPassOptions(), &results, context)
-            .status());
+    XLS_RETURN_IF_ERROR(DeadCodeEliminationPass()
+                            .RunOnFunctionBase(f, options, &results, context)
+                            .status());
 
     // Return whether select lifting changed anything.
     return changed;
+  }
+
+  absl::StatusOr<bool> Run(Function* f) {
+    return Run(f, OptimizationPassOptions());
   }
 };
 
@@ -449,26 +453,363 @@ TEST_F(SelectLiftingPassTest, DontLiftBinaryOpIfIncreasesOutputBitwidth) {
   EXPECT_EQ(f->node_count(), 9);
 }
 
-TEST_F(SelectLiftingPassTest, DontLiftUnaryOpInDefaultCase) {
+TEST_F(SelectLiftingPassTest, LiftUnaryAndInDefaultCase) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
 
   BValue input = fb.Param("input", p->GetBitsType(1));
+  BValue s = fb.Param("s", p->GetBitsType(1));
 
   BValue and_a = fb.And({input});
   BValue and_b = fb.And({and_a, and_a});
-  BValue select = fb.PrioritySelect(and_a, {and_b}, and_a);
+  BValue select = fb.PrioritySelect(s, {and_b}, and_a);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
 
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+  VLOG(3) << "After transformation:" << f->DumpIr();
+  EXPECT_EQ(f->node_count(), 6);
+}
+
+TEST_F(SelectLiftingPassTest, LiftUnaryXorInDefaultCase) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue input = fb.Param("input", p->GetBitsType(1));
+  BValue s = fb.Param("s", p->GetBitsType(1));
+
+  BValue xor_a = fb.Xor({input});
+  BValue xor_b = fb.Xor({xor_a, xor_a});
+  BValue select = fb.PrioritySelect(s, {xor_b}, xor_a);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
+
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+  VLOG(3) << "After transformation:" << f->DumpIr();
+  EXPECT_EQ(f->node_count(), 6);
+}
+
+// Tests for lifting binary operations with identity cases.
+
+TEST_F(SelectLiftingPassTest, LiftAddWithIdentity) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue s = fb.Param("s", p->GetBitsType(2));
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  BValue z = fb.Param("z", p->GetBitsType(32));
+
+  BValue x_plus_y = fb.Add(x, y);
+  BValue x_plus_z = fb.Add(x, z);
+
+  // sel(s, [x, x + y, x, x + z])
+  BValue sel = fb.Select(s, {x, x_plus_y, x, x_plus_z});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
+
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+
+  // Expected: x + sel(s, [0, y, 0, z])
+  auto p_expect = CreatePackage();
+  FunctionBuilder fb_expect(TestName(), p_expect.get());
+  BValue s_exp = fb_expect.Param("s", p_expect->GetBitsType(2));
+  BValue x_exp = fb_expect.Param("x", p_expect->GetBitsType(32));
+  BValue y_exp = fb_expect.Param("y", p_expect->GetBitsType(32));
+  BValue z_exp = fb_expect.Param("z", p_expect->GetBitsType(32));
+  BValue zero = fb_expect.Literal(UBits(0, 32));
+  BValue inner_sel = fb_expect.Select(s_exp, {zero, y_exp, zero, z_exp});
+  BValue final_add = fb_expect.Add(x_exp, inner_sel);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f_expect,
+                           fb_expect.BuildWithReturnValue(final_add));
+  EXPECT_TRUE(f->IsDefinitelyEqualTo(f_expect));
+}
+
+TEST_F(SelectLiftingPassTest, LiftSubWithIdentityRhs) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue s = fb.Param("s", p->GetBitsType(1));
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+
+  BValue y_minus_x = fb.Subtract(y, x);
+
+  // sel(s, [y - x, y])
+  BValue sel = fb.Select(s, {y_minus_x, y});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
+
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+
+  // Expected: y - sel(s, [x, 0])
+  auto p_expect = CreatePackage();
+  FunctionBuilder fb_expect(TestName(), p_expect.get());
+  BValue s_exp = fb_expect.Param("s", p_expect->GetBitsType(1));
+  BValue x_exp = fb_expect.Param("x", p_expect->GetBitsType(32));
+  BValue y_exp = fb_expect.Param("y", p_expect->GetBitsType(32));
+  BValue zero = fb_expect.Literal(UBits(0, 32));
+  BValue inner_sel = fb_expect.Select(s_exp, {x_exp, zero});
+  BValue final_sub = fb_expect.Subtract(y_exp, inner_sel);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f_expect,
+                           fb_expect.BuildWithReturnValue(final_sub));
+  EXPECT_TRUE(f->IsDefinitelyEqualTo(f_expect));
+}
+
+TEST_F(SelectLiftingPassTest, LiftAndWithIdentityDefault) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue s = fb.Param("s", p->GetBitsType(1));
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+
+  BValue x_and_y = fb.And(x, y);
+
+  // sel(s, [x & y], default: x)
+  BValue sel = fb.Select(s, {x_and_y}, x);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
+
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+
+  // Expected: x & sel(s, [y], default: -1)
+  auto p_expect = CreatePackage();
+  FunctionBuilder fb_expect(TestName(), p_expect.get());
+  BValue s_exp = fb_expect.Param("s", p_expect->GetBitsType(1));
+  BValue x_exp = fb_expect.Param("x", p_expect->GetBitsType(32));
+  BValue y_exp = fb_expect.Param("y", p_expect->GetBitsType(32));
+  BValue all_ones = fb_expect.Literal(Bits::AllOnes(32));
+  BValue inner_sel = fb_expect.Select(s_exp, {y_exp}, all_ones);
+  BValue final_and = fb_expect.And(x_exp, inner_sel);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f_expect,
+                           fb_expect.BuildWithReturnValue(final_and));
+  EXPECT_TRUE(f->IsDefinitelyEqualTo(f_expect));
+}
+
+TEST_F(SelectLiftingPassTest, LiftOrWithIdentity) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue s = fb.Param("s", p->GetBitsType(1));
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+
+  BValue x_or_y = fb.Or(x, y);
+
+  // sel(s, [x, x | y])
+  BValue sel = fb.Select(s, {x, x_or_y});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
+
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+
+  // Expected: x | sel(s, [0, y])
+  auto p_expect = CreatePackage();
+  FunctionBuilder fb_expect(TestName(), p_expect.get());
+  BValue s_exp = fb_expect.Param("s", p_expect->GetBitsType(1));
+  BValue x_exp = fb_expect.Param("x", p_expect->GetBitsType(32));
+  BValue y_exp = fb_expect.Param("y", p_expect->GetBitsType(32));
+  BValue zero = fb_expect.Literal(UBits(0, 32));
+  BValue inner_sel = fb_expect.Select(s_exp, {zero, y_exp});
+  BValue final_or = fb_expect.Or(x_exp, inner_sel);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f_expect,
+                           fb_expect.BuildWithReturnValue(final_or));
+  EXPECT_TRUE(f->IsDefinitelyEqualTo(f_expect));
+}
+
+TEST_F(SelectLiftingPassTest, DontLiftMulWithIdentityFallback) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue s = fb.Param("s", p->GetBitsType(1));
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+
+  BValue x_mul_y = fb.UMul(x, y);
+
+  // sel(s, [x * y, x])
+  BValue sel = fb.Select(s, {x_mul_y, x});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
+
+  // Fallback heuristic should prevent lifting multiplication with identity.
   EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
-  VLOG(3) << "After no transformation:" << f->DumpIr();
-  EXPECT_EQ(f->node_count(), 4);
+}
+
+TEST_F(SelectLiftingPassTest, LiftAddWithDifferentLhs) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue s = fb.Param("s", p->GetBitsType(1));
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  BValue z = fb.Param("z", p->GetBitsType(32));
+
+  BValue x_plus_y = fb.Add(x, y);
+  BValue z_plus_y = fb.Add(z, y);
+
+  // sel(s, [x + y, z + y]) // Lifts y
+  BValue sel = fb.Select(s, {x_plus_y, z_plus_y});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
+
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+
+  // Expected: sel(s, [x, z]) + y
+  auto p_expect = CreatePackage();
+  FunctionBuilder fb_expect(TestName(), p_expect.get());
+  BValue s_exp = fb_expect.Param("s", p_expect->GetBitsType(1));
+  BValue x_exp = fb_expect.Param("x", p_expect->GetBitsType(32));
+  BValue y_exp = fb_expect.Param("y", p_expect->GetBitsType(32));
+  BValue z_exp = fb_expect.Param("z", p_expect->GetBitsType(32));
+  BValue inner_sel = fb_expect.Select(s_exp, {x_exp, z_exp});
+  BValue final_add = fb_expect.Add(inner_sel, y_exp);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f_expect,
+                           fb_expect.BuildWithReturnValue(final_add));
+  EXPECT_TRUE(f->IsDefinitelyEqualTo(f_expect));
+}
+
+TEST_F(SelectLiftingPassTest, NoLiftInconsistentSharedSide) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue s = fb.Param("s", p->GetBitsType(1));
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  BValue z = fb.Param("z", p->GetBitsType(32));
+
+  BValue x_plus_y = fb.Add(x, y);
+  BValue z_plus_x = fb.Add(z, x);  // x is on the other side
+
+  // sel(s, [x + y, z + x])
+  BValue sel = fb.Select(s, {x_plus_y, z_plus_x});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
+
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
+}
+
+TEST_F(SelectLiftingPassTest, LiftSubSharedRHSNoIdentity) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue s = fb.Param("s", p->GetBitsType(1));
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  BValue z = fb.Param("z", p->GetBitsType(32));
+
+  BValue y_minus_x = fb.Subtract(y, x);
+  BValue z_minus_x = fb.Subtract(z, x);
+
+  // sel(s, [y - x, z - x])  -- Should lift x
+  BValue sel = fb.Select(s, {y_minus_x, z_minus_x});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
+
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+
+  // Expected: sel(s, [y, z]) - x
+  auto p_expect = CreatePackage();
+  FunctionBuilder fb_expect(TestName(), p_expect.get());
+  BValue s_exp = fb_expect.Param("s", p_expect->GetBitsType(1));
+  BValue x_exp = fb_expect.Param("x", p_expect->GetBitsType(32));
+  BValue y_exp = fb_expect.Param("y", p_expect->GetBitsType(32));
+  BValue z_exp = fb_expect.Param("z", p_expect->GetBitsType(32));
+  BValue inner_sel = fb_expect.Select(s_exp, {y_exp, z_exp});
+  BValue final_sub = fb_expect.Subtract(inner_sel, x_exp);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f_expect,
+                           fb_expect.BuildWithReturnValue(final_sub));
+  EXPECT_TRUE(f->IsDefinitelyEqualTo(f_expect));
+}
+
+TEST_F(SelectLiftingPassTest, DontLiftSubSharedRHSWithIdentity) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue s = fb.Param("s", p->GetBitsType(1));
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+
+  BValue y_minus_x = fb.Subtract(y, x);
+
+  // sel(s, [y - x, x])  -- Should NOT lift x
+  BValue sel = fb.Select(s, {y_minus_x, x});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
+
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
+}
+
+TEST_F(SelectLiftingPassTest, LiftWideSelectDueToProfitability) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue s = fb.Param("s", p->GetBitsType(8));  // Wide selector
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+
+  BValue x_plus_y = fb.Add(x, y);
+
+  std::vector<BValue> cases;
+  for (int i = 0; i < (1 << 8); ++i) {
+    if (i % 2 == 0) {
+      cases.push_back(x);
+    } else {
+      cases.push_back(x_plus_y);
+    }
+  }
+
+  BValue sel = fb.Select(s, cases);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
+
+  // This IS profitable as 128 ADDs are replaced by 1 ADD.
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
 }
 
 void IrFuzzSelectLifting(FuzzPackageWithArgs fuzz_package_with_args) {
   SelectLiftingPass pass;
   OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
 }
+
+TEST_F(SelectLiftingPassTest, LiftMulWithIdentityWithDelayModel) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue s = fb.Param("s", p->GetBitsType(1));
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+
+  BValue x_mul_y = fb.UMul(x, y);
+
+  // sel(s, [x * y, x])
+  BValue sel = fb.Select(s, {x_mul_y, x});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
+
+  // With unit delay model, latency of sel(s, x*y, x) is 2, and latency of
+  // x*sel(s, y, 1) is 2, so lifting is permitted.
+  OptimizationPassOptions opts;
+  opts.delay_model = "unit";
+  EXPECT_THAT(Run(f, opts), absl_testing::IsOkAndHolds(true));
+
+  // Expected: x * sel(s, [y, 1])
+  auto p_expect = CreatePackage();
+  FunctionBuilder fb_expect(TestName(), p_expect.get());
+  BValue s_exp = fb_expect.Param("s", p_expect->GetBitsType(1));
+  BValue x_exp = fb_expect.Param("x", p_expect->GetBitsType(32));
+  BValue y_exp = fb_expect.Param("y", p_expect->GetBitsType(32));
+  BValue one = fb_expect.Literal(UBits(1, 32));
+  BValue inner_sel = fb_expect.Select(s_exp, {y_exp, one});
+  BValue final_mul = fb_expect.UMul(x_exp, inner_sel);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f_expect,
+                           fb_expect.BuildWithReturnValue(final_mul));
+  EXPECT_TRUE(f->IsDefinitelyEqualTo(f_expect));
+}
+
+TEST_F(SelectLiftingPassTest, DontLiftMulWithIdentityIfLatencyIncreases) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue c_val = fb.Param("c_val", p->GetBitsType(32));
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+
+  BValue lit = fb.Literal(UBits(0, 32));
+  BValue cond = fb.AddCompareOp(Op::kSGe, c_val, lit);
+  BValue x_mul_y = fb.UMul(x, y);
+
+  // sel(cond, x*y, x)
+  BValue sel = fb.Select(cond, {x_mul_y, x});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
+
+  // With unit delay model, cond arrives at time 1.
+  // Latency of sel(cond, x*y, x) is max(1, 1, 0) + 1 = 2.
+  // Latency of x*sel(cond, y, 1) is max(0, max(1,0,0)+1) + 1 = 3.
+  // Since 3 > 2, lifting should be inhibited.
+  OptimizationPassOptions opts;
+  opts.delay_model = "unit";
+  EXPECT_THAT(Run(f, opts), absl_testing::IsOkAndHolds(false));
+}
+
 FUZZ_TEST(IrFuzzTest, IrFuzzSelectLifting)
     .WithDomains(IrFuzzDomainWithArgs(/*arg_set_count=*/10));
 

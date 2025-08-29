@@ -14,21 +14,23 @@
 
 #include "xls/passes/select_lifting_pass.h"
 
-#include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
+#include "absl/cleanup/cleanup.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
@@ -36,6 +38,8 @@
 #include "xls/ir/op.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
+#include "xls/ir/value.h"
+#include "xls/passes/critical_path_delay_analysis.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 
@@ -51,9 +55,17 @@ struct TransformationResult {
   TransformationResult() : was_code_modified{false} {}
 };
 
-struct LiftableSelectOperandInfo {
-  Node *shared_input;
-  Op op;
+// Information about a liftable binary operation from a Select node.
+struct LiftedOpInfo {
+  Op lifted_op;        // The binary operation to be lifted.
+  Node* shared_node;   // The operand shared across all cases.
+  bool shared_is_lhs;  // True if the shared node is the LHS operand.
+  std::vector<Node*> other_operands;  // Operands for non-identity cases.
+  std::optional<Node*>
+      default_other_operand;  // Operand for non-identity default.
+  // Indices of cases that were identity (i.e., equal to shared_node).
+  absl::flat_hash_set<int64_t> identity_case_indices;
+  bool default_is_identity;  // True if the default case is an identity.
 };
 
 std::optional<Node *> GetDefaultValue(Node *select) {
@@ -169,211 +181,253 @@ std::optional<Node *> ApplicabilityGuardForArrayIndex(
   return shared_array_ref;
 }
 
-// A select whose cases share a binary operation is applicable if:
-//
-// 1. one operand is shared by all cases, either always on the LHS or RHS.
-//    NOTE: this can be loosened if accounting for an op's commutatitivity.
-// 2. the bit width of the non-shared operand in each case is the same.
-//
-// An example of this is: sel(s, a + b, a + c, a + d) for a,b,c,d of type uN
-//
-std::optional<Node *> ApplicabilityGuardForBinaryOperation(
-    absl::Span<Node *const> cases, std::optional<Node *> default_case) {
-  // Ensure that every case is an operation of the same type on two operands.
-  Op case_op = cases[0]->op();
-  auto is_valid_case = [&](Node *current_case) -> bool {
-    if (current_case->op() != case_op) {
-      VLOG(3) << "The case " << current_case->ToString()
-              << " uses a different operation than another case: " << case_op;
+// Checks if all cases are ArrayIndexes on the same array with compatible
+// indices. Returns the shared array node if liftable.
+std::optional<Node*> CheckArrayIndexLiftable(
+    absl::Span<Node* const> cases, std::optional<Node*> default_case) {
+  if (cases.empty()) {
+    return std::nullopt;
+  }
+  // Check if all cases and default are kArrayIndex
+  if (absl::c_any_of(cases, [](Node* case_node) {
+        return case_node->op() != Op::kArrayIndex;
+      })) {
+    return std::nullopt;
+  }
+  if (default_case.has_value() && (*default_case)->op() != Op::kArrayIndex) {
+    return std::nullopt;
+  }
+
+  return ApplicabilityGuardForArrayIndex(cases, default_case);
+}
+
+// Creates a Literal node representing the identity for the given operation.
+// e.g., 0 for Add/Sub/Xor, -1 for And, 1 for Mul.
+absl::StatusOr<Node*> GetIdentityLiteral(Op op, Type* type,
+                                         FunctionBase* func) {
+  if (!type->IsBits()) {
+    return absl::InvalidArgumentError(
+        "Identity literal requested for non-Bits type.");
+  }
+  int64_t bit_count = type->GetFlatBitCount();
+  Value identity_value;
+  switch (op) {
+    case Op::kAdd:
+    case Op::kSub:
+    case Op::kOr:
+    case Op::kXor:
+    case Op::kShll:
+    case Op::kShrl:
+    case Op::kShra:
+      identity_value = Value(UBits(0, bit_count));
+      break;
+    case Op::kAnd:
+      identity_value = Value(Bits::AllOnes(bit_count));
+      break;
+    case Op::kUMul:
+    case Op::kSMul:
+      identity_value = Value(UBits(1, bit_count));
+      break;
+    default:
+      return absl::InvalidArgumentError(absl::StrCat(
+          "Unsupported operation for identity literal: ", OpToString(op)));
+  }
+  return func->MakeNode<Literal>(SourceInfo(), identity_value);
+}
+
+// Given a set of cases, a potential shared node, and a test operation, this
+// function checks if the operation can be lifted. It returns a LiftedOpInfo
+// struct if the operation is liftable, otherwise std::nullopt.
+std::optional<LiftedOpInfo> GetLiftableOperationInfoForOp(
+    absl::Span<Node* const> cases, std::optional<Node*> default_case,
+    Node* potential_shared_node, Op test_op) {
+  std::optional<bool> shared_is_lhs;
+  bool has_identity_cases = false;
+
+  std::vector<Node*> all_arms;
+  all_arms.reserve(cases.size() + (default_case.has_value() ? 1 : 0));
+  all_arms.insert(all_arms.end(), cases.begin(), cases.end());
+  if (default_case.has_value()) {
+    all_arms.push_back(*default_case);
+  }
+
+  for (Node* arm_node : all_arms) {
+    if (arm_node == potential_shared_node) {
+      has_identity_cases = true;
+      continue;
+    }
+
+    if (arm_node->op() != test_op || arm_node->operand_count() != 2) {
+      return std::nullopt;  // Arm is not identity or test_op
+    }
+
+    bool current_shared_is_lhs;
+    if (arm_node->operand(0) == potential_shared_node) {
+      current_shared_is_lhs = true;
+    } else if (arm_node->operand(1) == potential_shared_node) {
+      current_shared_is_lhs = false;
+    } else {
+      return std::nullopt;  // potential_shared_node not in this arm
+    }
+
+    if (!shared_is_lhs.has_value()) {
+      shared_is_lhs = current_shared_is_lhs;
+    } else if (*shared_is_lhs != current_shared_is_lhs) {
+      return std::nullopt;  // Inconsistent shared side
+    }
+  }
+
+  if (!shared_is_lhs.has_value()) {
+    return std::nullopt;  // Only identity cases, nothing to lift.
+  }
+
+  if (has_identity_cases && !*shared_is_lhs) {
+    if (test_op == Op::kSub || test_op == Op::kShll || test_op == Op::kShrl ||
+        test_op == Op::kShra) {
+      return std::nullopt;  // Cannot lift non-commutative op with RHS shared
+                            // and identity cases.
+    }
+  }
+
+  LiftedOpInfo info{
+      .lifted_op = test_op,
+      .shared_node = potential_shared_node,
+      .shared_is_lhs = *shared_is_lhs,
+  };
+  int64_t other_operand_bitwidth = -1;
+
+  auto check_other_operand = [&](Node* other_operand) -> bool {
+    if (!other_operand->GetType()->IsBits()) {
       return false;
     }
-    if (current_case->operand_count() != 2) {
-      VLOG(3) << "The case " << current_case->ToString()
-              << " is not an operation on two operands";
+    int64_t current_bw = other_operand->GetType()->GetFlatBitCount();
+    if (other_operand_bitwidth == -1) {
+      other_operand_bitwidth = current_bw;
+    } else if (other_operand_bitwidth != current_bw) {
       return false;
     }
     return true;
   };
-  if (default_case.has_value() && !is_valid_case(default_case.value())) {
-    return std::nullopt;
-  }
-  for (Node *current_case : cases) {
-    if (!is_valid_case(current_case)) {
-      return std::nullopt;
+
+  info.other_operands.reserve(cases.size());
+  for (int64_t i = 0; i < cases.size(); ++i) {
+    if (cases[i] == potential_shared_node) {
+      info.identity_case_indices.insert(i);
+    } else {
+      Node* other =
+          *shared_is_lhs ? cases[i]->operand(1) : cases[i]->operand(0);
+      if (!check_other_operand(other)) {
+        return std::nullopt;
+      }
+      info.other_operands.push_back(other);
     }
   }
 
-  // Fetch the operands of the first case, one of which will have to be shared
-  // between all of the "select" inputs.
-  std::optional<Node *> lhs_shared = cases[0]->operand(0);
-  std::optional<Node *> rhs_shared = cases[0]->operand(1);
-
-  auto check_shared = [&](Node *current_case) {
-    if (lhs_shared && current_case->operand(0) != lhs_shared) {
-      VLOG(3) << "The LHS operand is not shared: " << current_case->operand(0)
-              << " != " << *lhs_shared.value();
-      lhs_shared = std::nullopt;
-    }
-    if (rhs_shared && current_case->operand(1) != rhs_shared) {
-      VLOG(3) << "The RHS operand is not shared: " << current_case->operand(0)
-              << " != " << *rhs_shared.value();
-      rhs_shared = std::nullopt;
-    }
-  };
-  // find the shared operand
-  for (uint32_t index = 1; index < cases.length(); index++) {
-    check_shared(cases[index]);
-  }
-
-  if (default_case) {
-    check_shared(default_case.value());
-  }
-
-  if (!lhs_shared && !rhs_shared) {
-    VLOG(3) << "No shared operand found";
-    return std::nullopt;
-  }
-
-  // Ensure the bit width of the non-shared operand in each case is the same.
-  int unique_side = lhs_shared.has_value();
-  int bitwidth = cases[0]->operand(unique_side)->GetType()->GetFlatBitCount();
-  for (Node *case_node : cases.subspan(1)) {
-    int bw = case_node->operand(unique_side)->GetType()->GetFlatBitCount();
-    if (bw != bitwidth) {
-      VLOG(3) << "The bitwidth is not the same for case " << *case_node << ": "
-              << bw << " != " << bitwidth;
-      return std::nullopt;
+  if (default_case.has_value()) {
+    if (*default_case == potential_shared_node) {
+      info.default_is_identity = true;
+    } else {
+      Node* other = *shared_is_lhs ? (*default_case)->operand(1)
+                                   : (*default_case)->operand(0);
+      if (!check_other_operand(other)) {
+        return std::nullopt;
+      }
+      info.default_other_operand = other;
     }
   }
 
-  return lhs_shared ? lhs_shared : rhs_shared;
+  return info;
 }
 
-std::optional<Op> SharedOperation(absl::Span<Node *const> cases,
-                                  std::optional<Node *> default_case) {
-  // All inputs of a "select" node must have the same operation (e.g.,
-  // ArrayIndex) and the same type. Notice that a future improvement could relax
-  // the same-type constraint.
-  //
-  // Fetch the operation and the type of the first element
-  Type *shared_type = cases[0]->GetType();
-  Op shared_op = cases[0]->op();
+// Attempts to find a liftable operation in the select cases.
+std::optional<LiftedOpInfo> GetLiftableOperationInfo(
+    absl::Span<Node* const> cases, std::optional<Node*> default_case,
+    Node* potential_shared_node) {
+  constexpr Op kLiftableBinaryOps[] = {
+      Op::kAdd,  Op::kSub,  Op::kAnd,  Op::kOr,   Op::kXor,
+      Op::kUMul, Op::kSMul, Op::kShll, Op::kShrl, Op::kShra};
 
-  // Check that all inputs within the cases of the "select" have the same type
-  // and op.
-  for (Node *current_input : cases) {
-    if (current_input->GetType() != shared_type) {
-      return std::nullopt;
-    }
-    if (current_input->op() != shared_op) {
-      return std::nullopt;
+  for (Op test_op : kLiftableBinaryOps) {
+    std::optional<LiftedOpInfo> info = GetLiftableOperationInfoForOp(
+        cases, default_case, potential_shared_node, test_op);
+    if (info.has_value()) {
+      return info;
     }
   }
-
-  // Check that the default value has the same type and op of the input cases of
-  // the "select".
-  if (default_case) {
-    Node *default_case_value = default_case.value();
-    if (default_case_value->GetType() != shared_type) {
-      return std::nullopt;
-    }
-    if (default_case_value->op() != shared_op) {
-      return std::nullopt;
-    }
-  }
-
-  return shared_op;
+  return std::nullopt;
 }
 
-absl::StatusOr<std::optional<LiftableSelectOperandInfo>> CanLiftSelect(
-    FunctionBase *func, Node *select_to_optimize) {
+absl::StatusOr<std::optional<LiftedOpInfo>> CanLiftSelect(
+    FunctionBase* func, Node* select_to_optimize) {
   VLOG(3) << "  Checking the applicability guard";
 
   // Only "select" nodes with specific properties can be optimized by this
   // transformation.
-  //
-  // Shared properties that must hold for all cases:
-  //
-  // Property A:
-  //   Only "select" nodes with at least one input case can be optimized.
-  //
-  // Property B:
-  //   Only "select" nodes with the same node type for all its inputs can
-  //   be optimized.
-  //
-  //
-  //
-  // There are more properties that must hold for the transformation to be
-  // applicable. Such properties are specific to the node type of the inputs of
-  // the select.
-  //
-  // The code below checks these properties for the "select" node given as input
-  //
-  // We first collect all input nodes of the select we must check.
-  // Then, we check them all by first checking the shared property above, and
-  // then by applying pattern matching that is specific to the type of the
-  // inputs of the target "select".
-  absl::Span<Node *const> select_cases = GetCases(select_to_optimize);
-  std::optional<Node *> default_value = GetDefaultValue(select_to_optimize);
+  absl::Span<Node* const> cases = GetCases(select_to_optimize);
+  std::optional<Node*> default_case = GetDefaultValue(select_to_optimize);
 
-  // Check the shared property A
-  if (select_cases.empty()) {
-    VLOG(3) << "    The transformation is not applicable: the select does not "
-               "have input cases";
+  if (cases.empty()) {
+    VLOG(3) << "    Select has no cases, not liftable.";
     return std::nullopt;
   }
 
-  // Check the shared property B
-  std::optional<Op> shared_input_op =
-      SharedOperation(select_cases, default_value);
-  if (!shared_input_op) {
-    VLOG(3) << "    The transformation is not applicable: not all inputs have "
-               "the same type and operation";
-    return std::nullopt;
+  // Identify potential shared nodes.
+  absl::btree_set<Node*, Node::NodeIdLessThan> potential_shared_nodes;
+  // Gather other potential shared nodes from other cases and default.
+  auto add_potential_shared = [&](Node* node) {
+    if (node->operand_count() == 2 && node->op() != Op::kArrayIndex) {
+      potential_shared_nodes.insert(node->operand(0));
+      potential_shared_nodes.insert(node->operand(1));
+    } else {
+      potential_shared_nodes.insert(node);
+    }
+  };
+  for (Node* case_node : cases) {
+    add_potential_shared(case_node);
+  }
+  if (default_case.has_value()) {
+    add_potential_shared(*default_case);
   }
 
-  // Check the type-specific constraints
-  std::optional<Node *> shared_input_node;
-  switch (*shared_input_op) {
-    case Op::kArrayIndex:
-      shared_input_node =
-          ApplicabilityGuardForArrayIndex(select_cases, default_value);
-      break;
-
-    // The applicability guard checks that the operation has exactly 2 operands.
-    case Op::kAnd:
-    case Op::kOr:
-    case Op::kNand:
-    case Op::kNor:
-    case Op::kXor:
-    case Op::kAdd:
-    case Op::kSub:
-    case Op::kUMul:
-    case Op::kSMul:
-    case Op::kUDiv:
-    case Op::kSDiv:
-    case Op::kShll:
-    case Op::kShrl:
-    case Op::kShra:
-      shared_input_node =
-          ApplicabilityGuardForBinaryOperation(select_cases, default_value);
-      break;
-
-    default:
-      VLOG(3) << "    The current input of the select is not handled";
-      return std::nullopt;
-  }
-  if (!shared_input_node) {
-    return std::nullopt;
+  for (Node* potential_shared : potential_shared_nodes) {
+    std::optional<LiftedOpInfo> info =
+        GetLiftableOperationInfo(cases, default_case, potential_shared);
+    if (info.has_value()) {
+      return info;
+    }
   }
 
-  return LiftableSelectOperandInfo{.shared_input = *shared_input_node,
-                                   .op = *shared_input_op};
+  // Check for ArrayIndex lifting opportunity.
+  std::optional<Node*> shared_array =
+      CheckArrayIndexLiftable(cases, default_case);
+  if (shared_array.has_value()) {
+    // Build LiftedOpInfo for ArrayIndex
+    std::vector<Node*> index_operands;
+    for (Node* case_node : cases) {
+      index_operands.push_back(case_node->As<ArrayIndex>()->indices()[0]);
+    }
+    std::optional<Node*> default_index_operand;
+    if (default_case.has_value()) {
+      default_index_operand = (*default_case)->As<ArrayIndex>()->indices()[0];
+    }
+
+    return LiftedOpInfo{
+        .lifted_op = Op::kArrayIndex,
+        .shared_node = *shared_array,
+        .shared_is_lhs = true,  // Not really applicable for ArrayIndex
+        .other_operands = std::move(index_operands),
+        .default_other_operand = default_index_operand,
+        .identity_case_indices = {},
+        .default_is_identity = false,
+    };
+  }
+
+  return std::nullopt;
 }
 
-bool ProfitabilityGuardForArrayIndex(FunctionBase *func,
-                                     Node *select_to_optimize,
-                                     Node *array_reference) {
+absl::StatusOr<bool> ProfitabilityGuardForArrayIndex(FunctionBase* func,
+                                                     Node* select_to_optimize,
+                                                     Node* array_reference) {
   // The next properties when hold guarantee that it is profitable to transform
   // the "select" node.
   //
@@ -478,54 +532,212 @@ bool ProfitabilityGuardForArrayIndex(FunctionBase *func,
   return true;
 }
 
-bool ProfitabilityGuardForBinaryOperation(FunctionBase *func,
-                                          Node *select_to_optimize,
-                                          Node *shared_operand) {
-  // Conservatively require that the sum of original nodes' output bitwidth is
-  // greater than the sum of remaining nodes' output bitwidth after the
-  // transformation.
-  //
-  // For example, we claim it is profitable to translate:
-  //   v = sel(s, a + b, a + c) for a,b,c of type uN
-  // into:
-  //   t = sel(s, b, c, d)
-  //   v = a + t
-  // if BOTH original "add" operations in the select are only used by the
-  // select, as we'll go from 3*N to 2*N total node output bitwidth.
+absl::StatusOr<Node*> MakeSelectNode(FunctionBase* func, Node* old_select,
+                                     const std::vector<Node*>& new_cases,
+                                     std::optional<Node*> new_default) {
+  if (old_select->Is<PrioritySelect>()) {
+    return func->MakeNode<PrioritySelect>(
+        SourceInfo(), old_select->As<PrioritySelect>()->selector(), new_cases,
+        *new_default);
+  } else {
+    return func->MakeNode<Select>(SourceInfo(),
+                                  old_select->As<Select>()->selector(),
+                                  new_cases, new_default);
+  }
+}
 
-  // The "initial" bitwidth is the sum of output widths for all the binary
-  // operations we can optimize away + the select's output bitwidth.
-  absl::Span<Node *const> select_cases = GetCases(select_to_optimize);
-  int64_t initial_bitwidths = select_to_optimize->GetType()->GetFlatBitCount();
-  for (Node *operand : select_cases) {
-    // if the operand is single use, the transformation can remove it, so we
-    // count it against the initial bitwidth
-    if (HasSingleUse(operand)) {
-      initial_bitwidths += operand->GetType()->GetFlatBitCount();
+absl::StatusOr<bool> ProfitabilityGuardForBinaryOperation(
+    FunctionBase* func, Node* select_to_optimize, const LiftedOpInfo& info,
+    const OptimizationPassOptions& options, OptimizationContext& context) {
+  // Heuristically: If the selector depends on `shared_node`, lifting will
+  // likely serialize more operations & worsen the critical path.
+  Node* selector = select_to_optimize->Is<Select>()
+                       ? select_to_optimize->As<Select>()->selector()
+                       : select_to_optimize->As<PrioritySelect>()->selector();
+  if (IsAncestorOf(info.shared_node, selector)) {
+    VLOG(3) << "    Selector depends on shared node, avoiding lift due to "
+               "potential latency increase.";
+    return false;
+  }
+
+  // If latency-aware profitability is enabled, check if lifting increases
+  // latency.
+  if (options.delay_model.has_value()) {
+    CriticalPathDelayAnalysis* analysis =
+        context.SharedNodeData<CriticalPathDelayAnalysis>(func, options);
+    if (analysis == nullptr) {
+      return absl::InternalError(absl::StrCat(
+          "Failed to get CriticalPathDelayAnalysis for delay model: ",
+          *options.delay_model));
+    }
+
+    // Check the (unscheduled) critical path through the select we're optimizing
+    int64_t t_before = *analysis->GetInfo(select_to_optimize);
+
+    // To make it easy to estimate the critical path after lifting the select,
+    // we add nodes to represent the post-optimization result.
+    Type* other_operand_type = nullptr;
+    if (!info.other_operands.empty()) {
+      other_operand_type = info.other_operands[0]->GetType();
+    } else {
+      other_operand_type = (*info.default_other_operand)->GetType();
+    }
+
+    std::vector<Node*> tmp_new_cases;
+    std::optional<Node*> tmp_new_default;
+    absl::flat_hash_set<Node*> tmp_identity_literals;
+    Node* tmp_new_select = nullptr;
+    Node* tmp_lifted_op = nullptr;
+
+    absl::Cleanup cleanup = [&] {
+      if (tmp_lifted_op != nullptr) {
+        CHECK_OK(func->RemoveNode(tmp_lifted_op));
+      }
+      if (tmp_new_select != nullptr) {
+        CHECK_OK(func->RemoveNode(tmp_new_select));
+      }
+      for (Node* literal : tmp_identity_literals) {
+        CHECK_OK(func->RemoveNode(literal));
+      }
+    };
+
+    absl::Span<Node* const> original_cases = GetCases(select_to_optimize);
+    int64_t other_operand_idx = 0;
+    for (int64_t i = 0; i < original_cases.size(); ++i) {
+      if (info.identity_case_indices.contains(i)) {
+        XLS_ASSIGN_OR_RETURN(
+            Node * identity_literal,
+            GetIdentityLiteral(info.lifted_op, other_operand_type, func));
+        tmp_new_cases.push_back(identity_literal);
+        tmp_identity_literals.insert(identity_literal);
+      } else {
+        tmp_new_cases.push_back(info.other_operands[other_operand_idx++]);
+      }
+    }
+    std::optional<Node*> original_default = GetDefaultValue(select_to_optimize);
+    if (original_default.has_value()) {
+      if (info.default_is_identity) {
+        XLS_ASSIGN_OR_RETURN(
+            Node * identity_literal,
+            GetIdentityLiteral(info.lifted_op, other_operand_type, func));
+        tmp_new_default = identity_literal;
+        tmp_identity_literals.insert(identity_literal);
+      } else {
+        tmp_new_default = *info.default_other_operand;
+      }
+    }
+
+    XLS_ASSIGN_OR_RETURN(tmp_new_select,
+                         MakeSelectNode(func, select_to_optimize, tmp_new_cases,
+                                        tmp_new_default));
+
+    Node* lhs = info.shared_is_lhs ? info.shared_node : tmp_new_select;
+    Node* rhs = info.shared_is_lhs ? tmp_new_select : info.shared_node;
+    switch (info.lifted_op) {
+      case Op::kAdd:
+      case Op::kSub:
+      case Op::kShll:
+      case Op::kShrl:
+      case Op::kShra: {
+        XLS_ASSIGN_OR_RETURN(
+            tmp_lifted_op,
+            func->MakeNode<BinOp>(SourceInfo(), lhs, rhs, info.lifted_op));
+        break;
+      }
+      case Op::kAnd:
+      case Op::kOr:
+      case Op::kXor: {
+        XLS_ASSIGN_OR_RETURN(
+            tmp_lifted_op,
+            func->MakeNode<NaryOp>(SourceInfo(), std::vector<Node*>{lhs, rhs},
+                                   info.lifted_op));
+        break;
+      }
+      case Op::kUMul:
+      case Op::kSMul: {
+        XLS_ASSIGN_OR_RETURN(
+            tmp_lifted_op, func->MakeNode<ArithOp>(
+                               SourceInfo(), lhs, rhs,
+                               select_to_optimize->GetType()->GetFlatBitCount(),
+                               info.lifted_op));
+        break;
+      }
+      default:
+        return absl::InternalError(
+            absl::StrCat("Unsupported binary operation in latency check: ",
+                         OpToString(info.lifted_op)));
+    }
+
+    int64_t t_after = *analysis->GetInfo(tmp_lifted_op);
+
+    if (t_after > t_before) {
+      VLOG(3) << "    Not lifting " << OpToString(info.lifted_op)
+              << " because latency increases from " << t_before << " to "
+              << t_after << ".";
+      return false;
+    }
+  } else {
+    // Fallback heuristic: if identity cases are present, don't lift
+    // mul/smul.
+    if ((!info.identity_case_indices.empty() || info.default_is_identity) &&
+        (info.lifted_op == Op::kUMul || info.lifted_op == Op::kSMul)) {
+      VLOG(3) << "    Not lifting high-latency op "
+              << OpToString(info.lifted_op)
+              << " with identity cases because no delay model is provided.";
+      return false;
     }
   }
 
-  // The "remaining" bitwidth is the transformed select's output bitwidth + the
-  // new binary operation's output bitwidth. We assume worst case output widths
-  // by taking the max width across all operands.
-  bool shared_is_lhs = select_cases[0]->operand(0) == shared_operand;
-  int64_t new_select_width = 0;
-  for (Node *case_operation : select_cases) {
-    new_select_width = std::max(
-        new_select_width,
-        // bitwidth of the non-shared operand:
-        case_operation->operand(shared_is_lhs)->GetType()->GetFlatBitCount());
+  // Calculate Cost Before:
+  // Sum of bitwidths of the original select and any single-use non-identity
+  // case nodes.
+  int64_t initial_bitwidths = select_to_optimize->GetType()->GetFlatBitCount();
+  absl::Span<Node* const> cases = GetCases(select_to_optimize);
+  for (int64_t i = 0; i < cases.size(); ++i) {
+    if (!info.identity_case_indices.contains(i)) {
+      Node* case_node = cases[i];
+      if (HasSingleUse(case_node)) {
+        initial_bitwidths += case_node->GetType()->GetFlatBitCount();
+      }
+    }
   }
-  int64_t new_binop_width =
-      std::max(shared_operand->GetType()->GetFlatBitCount(), new_select_width);
-  int64_t remaining_bitwidths = new_select_width + new_binop_width;
-  VLOG(3) << "    Output bitwidths would go from -> to: " << initial_bitwidths
-          << " -> " << remaining_bitwidths;
-  return initial_bitwidths > remaining_bitwidths;
+  std::optional<Node*> default_case = GetDefaultValue(select_to_optimize);
+  if (default_case.has_value() && !info.default_is_identity) {
+    if (HasSingleUse(*default_case)) {
+      initial_bitwidths += (*default_case)->GetType()->GetFlatBitCount();
+    }
+  }
+
+  // Calculate Cost After:
+  // Bitwidth of the new select + bitwidth of the lifted binary operation
+  // output.
+  Type* other_operand_type = nullptr;
+  if (!info.other_operands.empty()) {
+    other_operand_type = info.other_operands[0]->GetType();
+  } else if (info.default_other_operand.has_value()) {
+    other_operand_type = (*info.default_other_operand)->GetType();
+  } else {
+    // This should not happen if CanLiftSelect passed.
+    return false;
+  }
+  int64_t new_select_width = other_operand_type->GetFlatBitCount();
+
+  // The output width of the lifted op is the same as the original select.
+  int64_t lifted_op_output_width =
+      select_to_optimize->GetType()->GetFlatBitCount();
+
+  int64_t remaining_bitwidths = new_select_width + lifted_op_output_width;
+
+  VLOG(3) << "    Profitability: Initial bitwidths: " << initial_bitwidths
+          << ", Remaining bitwidths: " << remaining_bitwidths;
+  return initial_bitwidths >= remaining_bitwidths;
 }
 
-bool ShouldLiftSelect(FunctionBase *func, Node *select_to_optimize,
-                      const LiftableSelectOperandInfo &shared_between_inputs) {
+absl::StatusOr<bool> ShouldLiftSelect(FunctionBase* func,
+                                      Node* select_to_optimize,
+                                      const LiftedOpInfo& info,
+                                      const OptimizationPassOptions& options,
+                                      OptimizationContext& context) {
   VLOG(3) << "  Checking the profitability guard";
 
   // Check if the transformation is profitable.
@@ -535,10 +747,11 @@ bool ShouldLiftSelect(FunctionBase *func, Node *select_to_optimize,
   //
   // The next code checks to see if the "select" node given as input should be
   // transformed.
-  switch (shared_between_inputs.op) {
+  switch (info.lifted_op) {
     case Op::kArrayIndex:
-      return ProfitabilityGuardForArrayIndex(
-          func, select_to_optimize, shared_between_inputs.shared_input);
+      // TODO(epastor): This case needs to be handled by the new logic.
+      return ProfitabilityGuardForArrayIndex(func, select_to_optimize,
+                                             info.shared_node);
 
     // The applicability guard checked the operation has exactly 2 operands.
     case Op::kAnd:
@@ -555,8 +768,8 @@ bool ShouldLiftSelect(FunctionBase *func, Node *select_to_optimize,
     case Op::kShll:
     case Op::kShrl:
     case Op::kShra:
-      return ProfitabilityGuardForBinaryOperation(
-          func, select_to_optimize, shared_between_inputs.shared_input);
+      return ProfitabilityGuardForBinaryOperation(func, select_to_optimize,
+                                                  info, options, context);
       break;
 
     default:
@@ -565,48 +778,17 @@ bool ShouldLiftSelect(FunctionBase *func, Node *select_to_optimize,
   }
 }
 
-absl::StatusOr<Node *> MakeSelectNode(FunctionBase *func, Node *old_select,
-                                      const std::vector<Node *> &new_cases,
-                                      std::optional<Node *> new_default) {
-  if (old_select->Is<PrioritySelect>()) {
-    return func->MakeNode<PrioritySelect>(
-        SourceInfo(), old_select->As<PrioritySelect>()->selector(), new_cases,
-        *new_default);
-  } else {
-    return func->MakeNode<Select>(SourceInfo(),
-                                  old_select->As<Select>()->selector(),
-                                  new_cases, new_default);
-  }
-}
-
 absl::StatusOr<TransformationResult> LiftSelectForArrayIndex(
-    FunctionBase *func, Node *select_to_optimize, Node *array_reference) {
+    FunctionBase* func, Node* select_to_optimize, const LiftedOpInfo& info) {
   TransformationResult result;
+  Node* array_reference = info.shared_node;
 
   // Step 0: add a new "select" for the indices
   VLOG(3) << "    Step 0: create a new \"select\" between the indices of the "
              "various arrayIndex nodes";
-  std::optional<Node *> new_default_value = std::nullopt;
-  std::optional<Node *> default_value = GetDefaultValue(select_to_optimize);
-  if (default_value.has_value()) {
-    ArrayIndex *default_case_array_index =
-        default_value.value()->As<ArrayIndex>();
-    absl::Span<Node *const> default_case_array_index_indices =
-        default_case_array_index->indices();
-    new_default_value = default_case_array_index_indices.at(0);
-    VLOG(3) << "      Default case index " << new_default_value.value();
-  }
-  absl::Span<Node *const> select_cases = GetCases(select_to_optimize);
-  std::vector<Node *> new_cases;
-  for (uint32_t case_index = 0; case_index < select_cases.length();
-       ++case_index) {
-    Node *current_case_node = select_cases.at(case_index);
-    ArrayIndex *current_case = current_case_node->As<ArrayIndex>();
-    absl::Span<Node *const> current_case_indices = current_case->indices();
-    VLOG(3) << "      Case " << case_index << ": " << *current_case;
-    VLOG(3) << "        Index: " << current_case_indices.at(0);
-    new_cases.push_back(current_case_indices.at(0));
-  }
+  std::optional<Node*> new_default_value = info.default_other_operand;
+  const std::vector<Node*>& new_cases = info.other_operands;
+
   Node *new_select;
   XLS_ASSIGN_OR_RETURN(
       new_select,
@@ -616,9 +798,10 @@ absl::StatusOr<TransformationResult> LiftSelectForArrayIndex(
   VLOG(3) << "    Step 1: add the new arrayIndex node";
   std::vector<Node *> new_indices;
   new_indices.push_back(new_select);
-  Node *new_array_index = func->AddNode(std::make_unique<ArrayIndex>(
-      SourceInfo(), array_reference, absl::Span<Node *const>(new_indices),
-      "array_index_after_select", func));
+  XLS_ASSIGN_OR_RETURN(
+      Node * new_array_index,
+      func->MakeNode<ArrayIndex>(SourceInfo(), array_reference,
+                                 absl::Span<Node* const>(new_indices)));
 
   // Step 2: replace the uses of the original "select" node with the only
   //         exception of the new array access
@@ -647,42 +830,98 @@ absl::StatusOr<TransformationResult> LiftSelectForArrayIndex(
 }
 
 absl::StatusOr<TransformationResult> LiftSelectForBinaryOperation(
-    FunctionBase *func, Node *select_to_optimize, Node *shared_operand) {
+    FunctionBase* func, Node* select_to_optimize, const LiftedOpInfo& info) {
   TransformationResult result;
+  absl::Span<Node* const> original_cases = GetCases(select_to_optimize);
 
-  VLOG(3) << "    Step 1: determine if the shared operand is the LHS or RHS";
-  absl::Span<Node *const> select_cases = GetCases(select_to_optimize);
-  bool shared_is_lhs = select_cases[0]->operand(0) == shared_operand;
-  std::optional<Node *> default_value = GetDefaultValue(select_to_optimize);
+  VLOG(3) << "    Step 1: Build new cases for the inner select";
+  std::vector<Node*> new_cases;
+  new_cases.reserve(original_cases.size());
+  int64_t other_operand_idx = 0;
 
-  std::optional<Node *> new_default_value = std::nullopt;
-  if (default_value.has_value()) {
-    // fetch the non-shared operand:
-    new_default_value = default_value.value()->operand(shared_is_lhs);
+  Type* other_operand_type = nullptr;
+  if (!info.other_operands.empty()) {
+    other_operand_type = info.other_operands[0]->GetType();
+  } else if (info.default_other_operand.has_value()) {
+    other_operand_type = (*info.default_other_operand)->GetType();
+  }
+  if (other_operand_type == nullptr) {
+    // This can only happen if all cases and default are identity.
+    // But CanLiftSelect should have returned nullopt in this case.
+    return absl::InternalError(
+        "Cannot determine other operand type in LiftSelectForBinaryOperation.");
   }
 
-  VLOG(3) << "    Step 2: create a new select on the non-shared operands";
-  std::vector<Node *> new_cases;
-  for (uint32_t case_idx = 0; case_idx < select_cases.length(); ++case_idx) {
-    Node *current_case = select_cases.at(case_idx);
-    VLOG(3) << "      Case " << case_idx << ": " << *current_case;
-    Node *non_shared_operand = current_case->operand(shared_is_lhs);
-    VLOG(3) << "        Non-shared operand: " << non_shared_operand;
-    new_cases.push_back(non_shared_operand);
+  for (int64_t i = 0; i < original_cases.size(); ++i) {
+    if (info.identity_case_indices.contains(i)) {
+      XLS_ASSIGN_OR_RETURN(
+          Node * identity_literal,
+          GetIdentityLiteral(info.lifted_op, other_operand_type, func));
+      new_cases.push_back(identity_literal);
+    } else {
+      new_cases.push_back(info.other_operands[other_operand_idx++]);
+    }
   }
+
+  VLOG(3) << "    Step 2: Build new default for the inner select";
+  std::optional<Node*> new_default;
+  std::optional<Node*> original_default = GetDefaultValue(select_to_optimize);
+  if (original_default.has_value()) {
+    if (info.default_is_identity) {
+      XLS_ASSIGN_OR_RETURN(
+          new_default,
+          GetIdentityLiteral(info.lifted_op, other_operand_type, func));
+    } else {
+      new_default = *info.default_other_operand;
+    }
+  } else {
+    new_default = std::nullopt;
+  }
+
   XLS_ASSIGN_OR_RETURN(
       Node * new_select,
-      MakeSelectNode(func, select_to_optimize, new_cases, new_default_value));
+      MakeSelectNode(func, select_to_optimize, new_cases, new_default));
 
-  VLOG(3) << "    Step 3: create new binary op on shared operand and select";
-  std::vector<Node *> new_binop_operands = {shared_operand, new_select};
-  if (!shared_is_lhs) {
-    std::iter_swap(new_binop_operands.begin(), ++new_binop_operands.begin());
+  VLOG(3) << "    Step 3: Create the lifted binary operation";
+  Node* lhs = info.shared_is_lhs ? info.shared_node : new_select;
+  Node* rhs = info.shared_is_lhs ? new_select : info.shared_node;
+
+  Node* new_binop;
+  switch (info.lifted_op) {
+    case Op::kAdd:
+    case Op::kSub:
+    case Op::kShll:
+    case Op::kShrl:
+    case Op::kShra: {
+      XLS_ASSIGN_OR_RETURN(
+          new_binop,
+          func->MakeNode<BinOp>(SourceInfo(), lhs, rhs, info.lifted_op));
+      break;
+    }
+    case Op::kAnd:
+    case Op::kOr:
+    case Op::kXor: {
+      XLS_ASSIGN_OR_RETURN(
+          new_binop,
+          func->MakeNode<NaryOp>(SourceInfo(), std::vector<Node*>{lhs, rhs},
+                                 info.lifted_op));
+      break;
+    }
+    case Op::kUMul:
+    case Op::kSMul: {
+      XLS_ASSIGN_OR_RETURN(new_binop,
+                           func->MakeNode<ArithOp>(
+                               SourceInfo(), lhs, rhs,
+                               select_to_optimize->GetType()->GetFlatBitCount(),
+                               info.lifted_op));
+    } break;
+    default:
+      return absl::InternalError(absl::StrCat(
+          "Unsupported binary operation in LiftSelectForBinaryOperation: ",
+          OpToString(info.lifted_op)));
   }
-  XLS_ASSIGN_OR_RETURN(Node * new_binop,
-                       select_cases[0]->Clone(new_binop_operands));
 
-  VLOG(3) << "    Step 4: replace uses of the original \"select\"";
+  VLOG(3) << "    Step 4: Replace uses of the original \"select\"";
   XLS_RETURN_IF_ERROR(select_to_optimize->ReplaceUsesWith(new_binop));
   VLOG(3) << "      New select: " << new_select->ToString();
   VLOG(3) << "      New binop : " << new_binop->ToString();
@@ -702,17 +941,16 @@ absl::StatusOr<TransformationResult> LiftSelectForBinaryOperation(
   return result;
 }
 
-absl::StatusOr<TransformationResult> LiftSelect(
-    FunctionBase *func, Node *select_to_optimize,
-    const LiftableSelectOperandInfo &shared_between_inputs) {
+absl::StatusOr<TransformationResult> LiftSelect(FunctionBase* func,
+                                                Node* select_to_optimize,
+                                                const LiftedOpInfo& info) {
   TransformationResult result;
   VLOG(3) << "  Apply the transformation";
 
   // The transformation depends on the specific inputs of the "select" node
-  switch (shared_between_inputs.op) {
+  switch (info.lifted_op) {
     case Op::kArrayIndex:
-      return LiftSelectForArrayIndex(func, select_to_optimize,
-                                     shared_between_inputs.shared_input);
+      return LiftSelectForArrayIndex(func, select_to_optimize, info);
 
     // The applicability guard checked the operation has exactly 2 operands.
     case Op::kAnd:
@@ -729,8 +967,7 @@ absl::StatusOr<TransformationResult> LiftSelect(
     case Op::kShll:
     case Op::kShrl:
     case Op::kShra:
-      return LiftSelectForBinaryOperation(func, select_to_optimize,
-                                          shared_between_inputs.shared_input);
+      return LiftSelectForBinaryOperation(func, select_to_optimize, info);
 
     default:
 
@@ -742,26 +979,29 @@ absl::StatusOr<TransformationResult> LiftSelect(
   }
 }
 
-absl::StatusOr<TransformationResult> LiftSelect(FunctionBase *func,
-                                                Node *select_to_optimize) {
+absl::StatusOr<TransformationResult> LiftSelect(
+    FunctionBase* func, Node* select_to_optimize,
+    const OptimizationPassOptions& options, OptimizationContext& context) {
   TransformationResult result;
 
   // Check if it is safe to apply the transformation
-  XLS_ASSIGN_OR_RETURN(
-      std::optional<LiftableSelectOperandInfo> applicability_guard_result,
-      CanLiftSelect(func, select_to_optimize));
+  XLS_ASSIGN_OR_RETURN(std::optional<LiftedOpInfo> applicability_guard_result,
+                       CanLiftSelect(func, select_to_optimize));
   if (!applicability_guard_result) {
     VLOG(3) << "  It is not safe to apply the transformation for this select";
 
     // The transformation is not applicable
     return result;
   }
-  LiftableSelectOperandInfo shared_between_inputs = *applicability_guard_result;
+  LiftedOpInfo info = *applicability_guard_result;
 
   // It is safe to apply the transformation
   //
   // Check if it is profitable to apply the transformation
-  if (!ShouldLiftSelect(func, select_to_optimize, shared_between_inputs)) {
+  XLS_ASSIGN_OR_RETURN(
+      bool should_lift,
+      ShouldLiftSelect(func, select_to_optimize, info, options, context));
+  if (!should_lift) {
     VLOG(3) << "  This transformation is not profitable for this select";
 
     // The transformation is not profitable
@@ -772,15 +1012,15 @@ absl::StatusOr<TransformationResult> LiftSelect(FunctionBase *func,
   // It is now the time to apply it.
   VLOG(3) << "  This transformation is applicable and profitable for this "
              "select";
-  XLS_ASSIGN_OR_RETURN(
-      result, LiftSelect(func, select_to_optimize, shared_between_inputs));
+  XLS_ASSIGN_OR_RETURN(result, LiftSelect(func, select_to_optimize, info));
 
   return result;
 }
 
 absl::StatusOr<TransformationResult> LiftSelects(
-    FunctionBase *func,
-    const absl::btree_set<Node *, Node::NodeIdLessThan> &selects_to_consider) {
+    FunctionBase* func,
+    const absl::btree_set<Node*, Node::NodeIdLessThan>& selects_to_consider,
+    const OptimizationPassOptions& options, OptimizationContext& context) {
   TransformationResult result;
 
   // Try to optimize all "select" nodes
@@ -794,7 +1034,7 @@ absl::StatusOr<TransformationResult> LiftSelects(
 
     // Try to optimize the current "select" node
     XLS_ASSIGN_OR_RETURN(TransformationResult current_transformation_result,
-                         LiftSelect(func, select_node));
+                         LiftSelect(func, select_node, options, context));
 
     // Accumulate the result of the transformation
     result.was_code_modified |= current_transformation_result.was_code_modified;
@@ -808,6 +1048,7 @@ absl::StatusOr<TransformationResult> LiftSelects(
 
   // Step 1: delete the old selects
   for (Node *old_select : result.nodes_to_delete) {
+    result.new_selects_to_consider.erase(old_select);
     XLS_RETURN_IF_ERROR(func->RemoveNode(old_select));
   }
 
@@ -845,8 +1086,9 @@ absl::StatusOr<bool> SelectLiftingPass::RunOnFunctionBaseInternal(
     VLOG(3) << "  New optimization iteration";
 
     // Optimize all "select" nodes.
-    XLS_ASSIGN_OR_RETURN(TransformationResult current_result,
-                         LiftSelects(func, selects_to_consider));
+    XLS_ASSIGN_OR_RETURN(
+        TransformationResult current_result,
+        LiftSelects(func, selects_to_consider, options, context));
 
     // Check if we have modified the code.
     was_code_modified |= current_result.was_code_modified;
