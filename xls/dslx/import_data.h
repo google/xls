@@ -256,6 +256,10 @@ class ImportData {
   absl::StatusOr<const EnumDef*> FindEnumDef(const Span& span) const;
   absl::StatusOr<const StructDef*> FindStructDef(const Span& span) const;
   absl::StatusOr<const ProcDef*> FindProcDef(const Span& span) const;
+
+  // Since fabricated nodes can alias the same kind and span (for example TVTA),
+  // this prioritizes returning the node also present in TypeInfo, if there are
+  // multiple matches.
   absl::StatusOr<const AstNode*> FindNode(AstNodeKind kind,
                                           const Span& span) const;
 
