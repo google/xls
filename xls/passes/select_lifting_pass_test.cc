@@ -307,7 +307,7 @@ TEST_F(SelectLiftingPassTest, LiftBinaryOperationSharedRHSWithDefault) {
       fb_expect.Param("default_case", p_expect->GetBitsType(32));
   BValue final_select = fb_expect.Select(
       final_selector, {final_case_a, final_case_b}, final_default);
-  BValue final_smul = fb_expect.SMul(final_select, final_shared);
+  BValue final_smul = fb_expect.SMul(final_shared, final_select);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f_expect,
                            fb_expect.BuildWithReturnValue(final_smul));
 
@@ -317,7 +317,7 @@ TEST_F(SelectLiftingPassTest, LiftBinaryOperationSharedRHSWithDefault) {
   EXPECT_TRUE(f->IsDefinitelyEqualTo(f_expect));
 }
 
-TEST_F(SelectLiftingPassTest, DontLiftBinaryOpsSharingInconsistentOperandSide) {
+TEST_F(SelectLiftingPassTest, DontLiftNonCommutativeInconsistentSide) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
 
@@ -326,9 +326,9 @@ TEST_F(SelectLiftingPassTest, DontLiftBinaryOpsSharingInconsistentOperandSide) {
   BValue case_a = fb.Param("case_a", p->GetBitsType(32));
   BValue case_b = fb.Param("case_b", p->GetBitsType(32));
 
-  BValue add_a = fb.Add(shared, case_a);
-  BValue add_b = fb.Add(case_b, shared);
-  BValue select_node = fb.Select(selector, {add_a, add_b});
+  BValue sub_a = fb.Subtract(shared, case_a);
+  BValue sub_b = fb.Subtract(case_b, shared);  // Inconsistent side
+  BValue select_node = fb.Select(selector, {sub_a, sub_b});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select_node));
 
   EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
@@ -652,13 +652,13 @@ TEST_F(SelectLiftingPassTest, LiftAddWithDifferentLhs) {
   BValue y_exp = fb_expect.Param("y", p_expect->GetBitsType(32));
   BValue z_exp = fb_expect.Param("z", p_expect->GetBitsType(32));
   BValue inner_sel = fb_expect.Select(s_exp, {x_exp, z_exp});
-  BValue final_add = fb_expect.Add(inner_sel, y_exp);
+  BValue final_add = fb_expect.Add(y_exp, inner_sel);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f_expect,
                            fb_expect.BuildWithReturnValue(final_add));
   EXPECT_TRUE(f->IsDefinitelyEqualTo(f_expect));
 }
 
-TEST_F(SelectLiftingPassTest, NoLiftInconsistentSharedSide) {
+TEST_F(SelectLiftingPassTest, LiftCommutativeInconsistentSide) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue s = fb.Param("s", p->GetBitsType(1));
@@ -673,7 +673,20 @@ TEST_F(SelectLiftingPassTest, NoLiftInconsistentSharedSide) {
   BValue sel = fb.Select(s, {x_plus_y, z_plus_x});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
 
-  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+
+  // Expected: x + sel(s, [y, z])
+  auto p_expect = CreatePackage();
+  FunctionBuilder fb_expect(TestName(), p_expect.get());
+  BValue s_exp = fb_expect.Param("s", p_expect->GetBitsType(1));
+  BValue x_exp = fb_expect.Param("x", p_expect->GetBitsType(32));
+  BValue y_exp = fb_expect.Param("y", p_expect->GetBitsType(32));
+  BValue z_exp = fb_expect.Param("z", p_expect->GetBitsType(32));
+  BValue inner_sel = fb_expect.Select(s_exp, {y_exp, z_exp});
+  BValue final_add = fb_expect.Add(x_exp, inner_sel);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f_expect,
+                           fb_expect.BuildWithReturnValue(final_add));
+  EXPECT_TRUE(f->IsDefinitelyEqualTo(f_expect));
 }
 
 TEST_F(SelectLiftingPassTest, LiftSubSharedRHSNoIdentity) {
