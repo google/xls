@@ -661,7 +661,10 @@ proto_library(
     name = "codegen_flags_proto",
     srcs = ["codegen_flags.proto"],
     visibility = ["//xls:xls_users"],
-    deps = ["//xls/ir:xls_ir_interface_proto"],
+    deps = [
+        "//xls/codegen:codegen_residual_data_proto",
+        "//xls/ir:xls_ir_interface_proto",
+    ],
 )
 
 py_proto_library(
@@ -682,6 +685,8 @@ cc_library(
     hdrs = ["codegen_flags.h"],
     deps = [
         ":codegen_flags_cc_proto",
+        "//xls/codegen:codegen_residual_data_cc_proto",
+        "//xls/common:proto_adaptor_utils",
         "//xls/common/file:filesystem",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -707,8 +712,10 @@ cc_library(
         "//xls/codegen:block_generator",
         "//xls/codegen:block_metrics",
         "//xls/codegen:codegen_options",
+        "//xls/codegen:codegen_residual_data_cc_proto",
         "//xls/codegen:codegen_result",
         "//xls/codegen:combinational_generator",
+        "//xls/codegen:module_signature",
         "//xls/codegen:op_override",
         "//xls/codegen:pipeline_generator",
         "//xls/codegen:ram_configuration",
@@ -730,9 +737,7 @@ cc_library(
         "//xls/scheduling:scheduling_pass",
         "//xls/scheduling:scheduling_pass_pipeline",
         "//xls/scheduling:scheduling_result",
-        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
@@ -853,6 +858,7 @@ py_test(
         ":block_to_verilog_main",
     ],
     deps = [
+        "//xls/codegen:codegen_residual_data_py_pb2",
         "//xls/codegen:module_signature_py_pb2",
         "//xls/common:runfiles",
         "//xls/common:test_base",
@@ -873,6 +879,7 @@ py_test(
     shard_count = 50,
     tags = ["optonly"],
     deps = [
+        "//xls/codegen:codegen_residual_data_py_pb2",
         "//xls/codegen:module_signature_py_pb2",
         "//xls/common:runfiles",
         "//xls/common:test_base",

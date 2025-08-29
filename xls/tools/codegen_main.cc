@@ -73,6 +73,11 @@ absl::Status RealMain(std::string_view ir_path) {
 
   XLS_ASSIGN_OR_RETURN(CodegenFlagsProto codegen_flags_proto,
                        GetCodegenFlags());
+  if (codegen_flags_proto.has_reference_residual_data()) {
+    return absl::UnimplementedError(
+        "Reference residual data is not supported in codegen_main; use "
+        "block_to_verilog_main");
+  }
   if (!codegen_flags_proto.top().empty()) {
     XLS_RETURN_IF_ERROR(p->SetTopByName(codegen_flags_proto.top()));
   }
@@ -142,6 +147,12 @@ absl::Status RealMain(std::string_view ir_path) {
   if (!absl::GetFlag(FLAGS_block_metrics_path).empty()) {
     XLS_RETURN_IF_ERROR(SetTextProtoFile(
         absl::GetFlag(FLAGS_block_metrics_path), codegen_result.block_metrics));
+  }
+
+  if (!absl::GetFlag(FLAGS_output_residual_data_path).empty()) {
+    XLS_RETURN_IF_ERROR(
+        SetTextProtoFile(absl::GetFlag(FLAGS_output_residual_data_path),
+                         codegen_result.residual_data));
   }
 
   const std::string& verilog_path = absl::GetFlag(FLAGS_output_verilog_path);

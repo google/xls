@@ -172,13 +172,23 @@ control the scheduler.
     (refactored codegen), 1 (original codegen path), or 0 for default. Currently
     default means the 1 (original).
 
--   `--output_scheduling_pass_metrics_path` Dumps metrics abouth the scheduling
+-   `--output_scheduling_pass_metrics_path` dumps metrics about the scheduling
     pass pipeline to file as a `PassPipelineMetricsProto` proto.
     `dev_tools/pass_metrics_main` can be used to visualize the data.
 
--   `--output_codegen_pass_metrics_path` Dumps metrics abouth the scheduling
-    pass pipeline to file as a `PassPipelineMetricsProto` proto.
+-   `--output_codegen_pass_metrics_path` dumps metrics about the scheduling pass
+    pipeline to file as a `PassPipelineMetricsProto` proto.
     `dev_tools/pass_metrics_main` can be used to visualize the data.
+
+-   `--output_residual_data_path` dumps a CodegenResidualData textproto
+    providing a reference node order and other metadata which can be used to
+    minimize the differences between generated Verilog from different
+    invocations of codegen.
+
+-   `--reference_residual_data_path` accepts a CodegenResidualData textproto
+    (usually dumped by an earlier invocation of codegen) providing a reference
+    node order and other metadata which can be used to minimize the differences
+    between generated Verilog from different invocations of codegen.
 
 # Feedback-driven Optimization (FDO) Options
 

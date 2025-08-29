@@ -1,0 +1,41 @@
+// Copyright 2025 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package xls.verilog;
+
+// Metadata about how a particular IR node is emitted to Verilog.
+message NodeResidualData {
+  // Name of the IR node.
+  optional string node_name = 1;
+  // Unique id of the IR node.
+  optional int64 node_id = 2;
+  // Whether the node was emitted inline (i.e., without a named temporary).
+  optional bool emitted_inline = 3;
+}
+
+// Metadata about how a block is emitted to Verilog.
+message BlockResidualData {
+  // Name of the block this residual data corresponds to.
+  optional string block_name = 1;
+
+  // Node metadata in the order nodes are emitted in the Verilog.
+  repeated NodeResidualData nodes = 2;
+}
+
+// Container for residual data across multiple blocks.
+message CodegenResidualData {
+  repeated BlockResidualData blocks = 1;
+}

@@ -79,6 +79,13 @@ absl::Status RealMain(std::string_view ir_path) {
                          codegen_result.signature.proto()));
   }
 
+  // Optionally write residual data textproto capturing node emission order.
+  if (!absl::GetFlag(FLAGS_output_residual_data_path).empty()) {
+    XLS_RETURN_IF_ERROR(
+        SetTextProtoFile(absl::GetFlag(FLAGS_output_residual_data_path),
+                         codegen_result.residual_data));
+  }
+
   if (verilog_path.empty()) {
     std::cout << codegen_result.verilog_text;
   } else {

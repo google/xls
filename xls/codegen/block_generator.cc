@@ -38,6 +38,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/codegen/codegen_options.h"
+#include "xls/codegen/codegen_residual_data.pb.h"
 #include "xls/codegen/conversion_utils.h"
 #include "xls/codegen/expression_flattening.h"
 #include "xls/codegen/module_builder.h"
@@ -276,6 +277,23 @@ absl::StatusOr<std::vector<Stage>> SplitBlockIntoStages(
   return stages;
 }
 
+// Returns a sequence of node IDs which is the emission order from the residual
+// data, or an empty vector if none exists.
+std::vector<int64_t> NodeIdOrderFromResidualData(
+    std::string_view block_name, const CodegenResidualData& container) {
+  std::vector<int64_t> ids;
+  for (const BlockResidualData& block_data : container.blocks()) {
+    if (block_data.block_name() == block_name) {
+      ids.reserve(block_data.nodes_size());
+      for (const NodeResidualData& n : block_data.nodes()) {
+        ids.push_back(n.node_id());
+      }
+      break;
+    }
+  }
+  return ids;
+}
+
 // Abstraction encapsulating the necessary information to generate
 // (System)Verilog for an IR block.
 class BlockGenerator {
@@ -283,7 +301,8 @@ class BlockGenerator {
   // Generates (System)Verilog from the given block into the given Verilog file
   // using the given options.
   static absl::Status Generate(Block* block, VerilogFile* file,
-                               const CodegenOptions& options) {
+                               const CodegenOptions& options,
+                               CodegenResidualData* output_residual_data) {
     // If reset is specified in the codegen options, it should match the reset
     // behavior in the block.
     if (options.reset().has_value()) {
@@ -327,21 +346,24 @@ class BlockGenerator {
           "Block has registers but no clock port");
     }
 
-    BlockGenerator generator(block, options, clock_name, reset_proto, file);
+    BlockGenerator generator(block, options, clock_name, reset_proto, file,
+                             output_residual_data);
     return generator.Emit();
   }
 
  private:
-  BlockGenerator(
-      Block* block, const CodegenOptions& options,
-      std::optional<std::string_view> clock_name,
-      std::optional<ResetProto> reset_proto,
-      VerilogFile* file)
+  BlockGenerator(Block* block, const CodegenOptions& options,
+                 std::optional<std::string_view> clock_name,
+                 std::optional<ResetProto> reset_proto, VerilogFile* file,
+                 CodegenResidualData* output_residual_data)
       : block_(block),
         options_(options),
         reset_proto_(reset_proto),
         file_(file),
-        mb_(block->name(), file_, options, clock_name, reset_proto) {
+        mb_(block->name(), file_, options, clock_name, reset_proto),
+        block_residual_data_(output_residual_data != nullptr
+                                 ? output_residual_data->add_blocks()
+                                 : nullptr) {
     if (!options.randomize_order_seed().empty()) {
       std::seed_seq seed_seq(options.randomize_order_seed().begin(),
                              options.randomize_order_seed().end());
@@ -351,11 +373,19 @@ class BlockGenerator {
 
   // Generates and returns the Verilog text for the underlying block.
   absl::Status Emit() {
+    if (block_residual_data_ != nullptr) {
+      block_residual_data_->set_block_name(std::string(block_->name()));
+    }
     XLS_RETURN_IF_ERROR(EmitInputPorts());
     // TODO(meheff): 2021/11/04 Emit instantiations in pipeline stages if
     // possible.
     XLS_RETURN_IF_ERROR(DeclareInstantiationOutputs());
     if (options_.emit_as_pipeline()) {
+      if (options_.residual_data().has_value()) {
+        return absl::UnimplementedError(
+            "Reference residual data is not supported when generating "
+            "pipelines");
+      }
       // Emits the block as a sequence of pipeline stages. First reconstruct the
       // stages and emit the stages one-by-one. Emitting as a pipeline is purely
       // cosmetic relative to the emit_as_pipeline=false option as the Verilog
@@ -391,7 +421,19 @@ class BlockGenerator {
           MaybeShuffle(block_->GetRegisters(), shuffled_storage, rng_);
 
       XLS_RETURN_IF_ERROR(DeclareRegisters(registers));
-      XLS_RETURN_IF_ERROR(EmitLogic(TopoSort(block_, rng_)));
+      // Determine emission order using residual reference order if available.
+      std::vector<Node*> order;
+      if (options_.residual_data().has_value()) {
+        std::vector<int64_t> ref_ids = NodeIdOrderFromResidualData(
+            block_->name(), *options_.residual_data());
+        if (!ref_ids.empty()) {
+          order = StableTopoSort(block_, ref_ids);
+        }
+      }
+      if (order.empty()) {
+        order = TopoSort(block_, rng_);
+      }
+      XLS_RETURN_IF_ERROR(EmitLogic(order));
       XLS_RETURN_IF_ERROR(AssignRegisters(registers));
     }
 
@@ -461,6 +503,15 @@ class BlockGenerator {
     absl::flat_hash_map<Node*, int64_t> node_depth;
     for (Node* node : nodes) {
       VLOG(3) << "Emitting logic for: " << node->GetName();
+
+      NodeResidualData* residual_node_data = nullptr;
+      if (block_residual_data_ != nullptr) {
+        residual_node_data = block_residual_data_->add_nodes();
+        residual_node_data->set_node_name(node->GetName());
+        residual_node_data->set_node_id(node->id());
+        // Default to false; only set to true in the few inline cases.
+        residual_node_data->set_emitted_inline(false);
+      }
 
       // TODO(google/xls#653): support per-node overrides?
       std::optional<OpOverride> op_override =
@@ -630,6 +681,9 @@ class BlockGenerator {
         if (!emit_as_assignment) {
           node_depth[node] = inline_depth;
         }
+        if (residual_node_data != nullptr) {
+          residual_node_data->set_emitted_inline(!emit_as_assignment);
+        }
         continue;
       }
 
@@ -666,6 +720,9 @@ class BlockGenerator {
         XLS_ASSIGN_OR_RETURN(node_exprs_[node],
                              mb_.EmitAsInlineExpression(node, inputs));
         node_depth[node] = inline_depth;
+        if (residual_node_data != nullptr) {
+          residual_node_data->set_emitted_inline(true);
+        }
       }
     }
     return absl::OkStatus();
@@ -965,6 +1022,8 @@ class BlockGenerator {
   // Map from xls::Register* to the ModuleBuilder register abstraction
   // representing the underlying Verilog register.
   absl::flat_hash_map<xls::Register*, ModuleBuilder::Register> mb_registers_;
+  // Optional output for capturing residual data.
+  BlockResidualData* block_residual_data_ = nullptr;
 };
 
 // Recursive visitor of blocks in a DFS order. Edges are block instantiations.
@@ -1011,9 +1070,9 @@ absl::StatusOr<std::vector<Block*>> GatherInstantiatedBlocks(Block* top) {
 
 }  // namespace
 
-absl::StatusOr<std::string> GenerateVerilog(Block* top,
-                                            const CodegenOptions& options,
-                                            VerilogLineMap* verilog_line_map) {
+absl::StatusOr<std::string> GenerateVerilog(
+    Block* top, const CodegenOptions& options, VerilogLineMap* verilog_line_map,
+    CodegenResidualData* output_residual_data) {
   VLOG(2) << absl::StreamFormat(
       "Generating Verilog for packge with with top level block `%s`:",
       top->name());
@@ -1024,7 +1083,8 @@ absl::StatusOr<std::string> GenerateVerilog(Block* top,
   VerilogFile file(options.use_system_verilog() ? FileType::kSystemVerilog
                                                 : FileType::kVerilog);
   for (Block* block : blocks) {
-    XLS_RETURN_IF_ERROR(BlockGenerator::Generate(block, &file, options));
+    XLS_RETURN_IF_ERROR(
+        BlockGenerator::Generate(block, &file, options, output_residual_data));
     if (block != blocks.back()) {
       file.Add(file.Make<BlankLine>(SourceInfo()));
       file.Add(file.Make<BlankLine>(SourceInfo()));

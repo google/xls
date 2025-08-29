@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <vector>
 
@@ -194,6 +195,103 @@ std::vector<Node*> TopoSort(FunctionBase* f,
   std::vector<Node*> ordered = ReverseTopoSort(f, randomizer);
   std::reverse(ordered.begin(), ordered.end());
   return ordered;
+}
+
+std::vector<Node*> StableTopoSort(FunctionBase* f,
+                                  absl::Span<int64_t const> reference_order) {
+  std::vector<Node*> result;
+  result.reserve(f->node_count());
+
+  absl::flat_hash_map<Node*, int64_t> remaining_users;
+  remaining_users.reserve(f->node_count());
+
+  // Assign unique priorities to every node:
+  // - The priority of nodes in the reference order is their index in the order.
+  // - Nodes not in the reference order have higher priority than nodes in the
+  //   reference order. This ensures that nodes not in the reference order do
+  //   not interfere with ordering decisions made between nodes in the reference
+  //   order by blocking the addition of reference order nodes to the ready
+  //   list.
+  absl::flat_hash_map<Node*, int64_t> priority;
+  priority.reserve(f->node_count());
+  absl::flat_hash_map<int64_t, int64_t> id_to_index;
+  id_to_index.reserve(reference_order.size());
+  for (int64_t i = 0; i < reference_order.size(); ++i) {
+    id_to_index[reference_order[i]] = i;
+  }
+  int64_t next_priority = reference_order.size();
+  for (Node* node : f->nodes()) {
+    auto it = id_to_index.find(node->id());
+    if (it != id_to_index.end()) {
+      priority[node] = it->second;
+    } else if (f->IsFunction() &&
+               node == f->AsFunctionOrDie()->return_value()) {
+      // Prefer return value at the end all else being equal.
+      priority[node] = std::numeric_limits<int64_t>::max();
+    } else {
+      priority[node] = next_priority++;
+    }
+  }
+
+  auto comparator = [&](Node* a, Node* b) {
+    // A less-than comparator will put the max elment at the end of the heap
+    // after c_pop_heap is called meaning higher priority nodes generally end up
+    // later in the returned sort (after the final reversal).
+    return priority.at(a) < priority.at(b);
+  };
+
+  std::vector<Node*> ready;
+  for (Node* node : f->nodes_reversed()) {
+    auto [it, inserted] = remaining_users.emplace(node, node->users().size());
+    CHECK(inserted);
+    const int64_t& node_remaining_users = it->second;
+    if (node_remaining_users == 0) {
+      VLOG(5) << "At start node was ready: " << node;
+      ready.push_back(node);
+    }
+  }
+
+  absl::c_make_heap(ready, comparator);
+
+  absl::flat_hash_set<Node*> seen_operands;
+  while (!ready.empty()) {
+    absl::c_pop_heap(ready, comparator);
+    Node* r = ready.back();
+    ready.pop_back();
+    result.push_back(r);
+
+    VLOG(5) << "Adding node to order: " << r;
+
+    seen_operands.clear();
+    seen_operands.reserve(r->operand_count());
+    for (int64_t operand_no = r->operand_count() - 1; operand_no >= 0;
+         --operand_no) {
+      Node* operand = r->operand(operand_no);
+      if (auto [_, inserted] = seen_operands.insert(operand); !inserted) {
+        continue;
+      }
+      int64_t& operand_remaining_users = remaining_users.at(operand);
+      DCHECK_GT(operand_remaining_users, 0);
+      if (--operand_remaining_users == 0) {
+        ready.push_back(operand);
+        absl::c_push_heap(ready, comparator);
+      }
+    }
+  }
+
+  if (result.size() < f->node_count()) {
+    class CycleChecker : public DfsVisitorWithDefault {
+      absl::Status DefaultHandler(Node* node) override {
+        return absl::OkStatus();
+      }
+    };
+    CycleChecker cycle_checker;
+    CHECK_OK(f->Accept(&cycle_checker));
+    LOG(FATAL) << "Expected to find cycle in function base.";
+  }
+
+  std::reverse(result.begin(), result.end());
+  return result;
 }
 
 }  // namespace xls

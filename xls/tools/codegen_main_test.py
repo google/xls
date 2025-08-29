@@ -24,6 +24,7 @@ from absl import flags
 from google.protobuf import text_format
 from absl.testing import absltest
 from absl.testing import parameterized
+from xls.codegen import codegen_residual_data_pb2
 from xls.codegen import module_signature_pb2
 from xls.common import runfiles
 from xls.common import test_base
@@ -636,6 +637,69 @@ class CodeGenMainTest(parameterized.TestCase):
 
     # The tables should include a line for dce pass (dead code elimination).
     self.assertIn('dce', codegen_metrics_output)
+
+  def test_output_residual_data_path_writes_textproto(self):
+    ir_file = self.create_tempfile(content=NOT_ADD_IR)
+    residual_path = test_base.create_named_output_text_file(
+        'residual_data.textproto'
+    )
+
+    subprocess.check_call([
+        CODEGEN_MAIN_PATH,
+        '--generator=combinational',
+        '--alsologtostderr',
+        '--top=not_add',
+        '--output_residual_data_path=' + residual_path,
+        ir_file.full_path,
+    ])
+
+    with open(residual_path, 'r') as f:
+      residual = text_format.Parse(
+          f.read(), codegen_residual_data_pb2.CodegenResidualData()
+      )
+      # Exactly one block; nodes should include ports and logic in emission
+      # order.
+      self.assertGreaterEqual(len(residual.blocks), 1)
+      nodes = residual.blocks[0].nodes
+      # For NOT_ADD_IR we expect two inputs and two ops: [x, y, add, not]
+      self.assertLen(nodes, 5)
+      self.assertTrue(nodes[-3].node_name.startswith('add'))
+      self.assertTrue(nodes[-2].node_name.startswith('not'))
+
+  def test_reference_residual_flag_rejected_in_codegen_main(self):
+    ir_file = self.create_tempfile(content=NOT_ADD_IR)
+
+    # Produce a residual file to use as a reference input.
+    initial_residual_path = test_base.create_named_output_text_file(
+        'initial_residual.textproto'
+    )
+    subprocess.check_call([
+        CODEGEN_MAIN_PATH,
+        '--generator=combinational',
+        '--alsologtostderr',
+        '--top=not_add',
+        '--output_residual_data_path=' + initial_residual_path,
+        ir_file.full_path,
+    ])
+
+    # Reference residual should cause codegen_main to error.
+    proc = subprocess.run(
+        [
+            CODEGEN_MAIN_PATH,
+            '--generator=combinational',
+            '--alsologtostderr',
+            '--top=not_add',
+            '--reference_residual_data_path=' + initial_residual_path,
+            ir_file.full_path,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    self.assertNotEqual(proc.returncode, 0)
+    self.assertIn(
+        'Reference residual data is not supported in codegen_main', proc.stderr
+    )
 
   def _one_hot_ir(self) -> str:
     """Returns IR text containing a priority_select amenable to the reduction pass."""

@@ -66,6 +66,7 @@ cc_library(
         ":codegen_options",
         ":codegen_pass",
         ":codegen_pass_pipeline",
+        ":codegen_residual_data_cc_proto",
         ":codegen_result",
         ":module_signature",
         ":verilog_line_map_cc_proto",
@@ -192,6 +193,7 @@ cc_library(
         ":codegen_options",
         ":codegen_pass",
         ":codegen_pass_pipeline",
+        ":codegen_residual_data_cc_proto",
         ":codegen_result",
         ":module_signature",
         ":verilog_line_map_cc_proto",
@@ -292,6 +294,7 @@ cc_library(
         ":codegen_options",
         ":codegen_pass",
         ":codegen_pass_pipeline",
+        ":codegen_residual_data_cc_proto",
         ":codegen_result",
         ":module_signature",
         ":verilog_line_map_cc_proto",
@@ -589,6 +592,7 @@ cc_library(
     srcs = ["codegen_options.cc"],
     hdrs = ["codegen_options.h"],
     deps = [
+        ":codegen_residual_data_cc_proto",
         ":module_signature_cc_proto",
         ":op_override",
         ":ram_configuration",
@@ -763,6 +767,7 @@ cc_library(
     hdrs = ["block_generator.h"],
     deps = [
         ":codegen_options",
+        ":codegen_residual_data_cc_proto",
         ":conversion_utils",
         ":expression_flattening",
         ":module_builder",
@@ -999,6 +1004,21 @@ cc_proto_library(
 py_proto_library(
     name = "verilog_line_map_py_pb2",
     deps = [":verilog_line_map_proto"],
+)
+
+proto_library(
+    name = "codegen_residual_data_proto",
+    srcs = ["codegen_residual_data.proto"],
+)
+
+cc_proto_library(
+    name = "codegen_residual_data_cc_proto",
+    deps = [":codegen_residual_data_proto"],
+)
+
+py_proto_library(
+    name = "codegen_residual_data_py_pb2",
+    deps = [":codegen_residual_data_proto"],
 )
 
 cc_test(
@@ -2077,6 +2097,7 @@ cc_library(
     hdrs = ["codegen_result.h"],
     visibility = ["//xls:xls_users"],
     deps = [
+        ":codegen_residual_data_cc_proto",
         ":module_signature",
         ":verilog_line_map_cc_proto",
         ":xls_metrics_cc_proto",

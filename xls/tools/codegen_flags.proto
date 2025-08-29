@@ -17,6 +17,7 @@ syntax = "proto3";
 package xls;
 
 import "xls/ir/xls_ir_interface.proto";
+import "xls/codegen/codegen_residual_data.proto";
 
 enum GeneratorKind {
   GENERATOR_KIND_INVALID = 0;
@@ -99,4 +100,8 @@ message CodegenFlagsProto {
   // If false, runtime invariant assertions (e.g. one-hot selector checks)
   // are omitted from generated RTL.  Default is true.
   optional bool add_invariant_assertions = 42;
+
+  // Parsed reference residual data. When present, codegen uses this to
+  // influence emission order; preferred over reading from a path at runtime.
+  optional verilog.CodegenResidualData reference_residual_data = 43;
 }
