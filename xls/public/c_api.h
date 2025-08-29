@@ -58,7 +58,10 @@ struct xls_bits_rope;
 struct xls_function;
 struct xls_function_base;
 struct xls_function_jit;
+struct xls_array_type;
 struct xls_function_type;
+struct xls_token_type;
+struct xls_tuple_type;
 struct xls_package;
 struct xls_schedule_and_codegen_result;
 struct xls_type;
@@ -198,6 +201,12 @@ bool xls_value_get_element_count(const struct xls_value* value,
 // success.
 bool xls_value_get_bits(const struct xls_value* value, char** error_out,
                         struct xls_bits** bits_out);
+
+bool xls_value_populate_from_bytes(struct xls_value* value,
+                                   const uint8_t* bytes, size_t byte_count,
+                                   size_t bit_count, char** error_out);
+
+int64_t xls_value_get_flat_bit_count(const struct xls_value* value);
 
 int64_t xls_bits_get_bit_count(const struct xls_bits* bits);
 
@@ -435,6 +444,32 @@ int64_t xls_type_get_flat_bit_count(struct xls_type* type);
 // Returns the number of Bits types contained in the type.
 int64_t xls_type_get_leaf_count(struct xls_type* type);
 
+bool xls_type_is_bits(struct xls_type* type);
+bool xls_type_is_tuple(struct xls_type* type);
+bool xls_type_is_array(struct xls_type* type);
+bool xls_type_is_token(struct xls_type* type);
+bool xls_type_is_equal(struct xls_type* type1, struct xls_type* type2);
+bool xls_type_to_bits_type(struct xls_type* type, char** error_out,
+                           struct xls_bits_type** result_out);
+bool xls_type_to_tuple_type(struct xls_type* type, char** error_out,
+                            struct xls_tuple_type** result_out);
+bool xls_type_to_array_type(struct xls_type* type, char** error_out,
+                            struct xls_array_type** result_out);
+bool xls_type_to_token_type(struct xls_type* type, char** error_out,
+                            struct xls_token_type** result_out);
+
+struct xls_type* xls_array_type_get_element_type(
+    struct xls_array_type* array_type);
+int64_t xls_array_type_get_size(struct xls_array_type* array_type);
+
+bool xls_tuple_type_get_element_types(struct xls_tuple_type* tuple_type,
+                                      char** error_out,
+                                      struct xls_type*** result_out,
+                                      size_t* count_out);
+int64_t xls_tuple_type_get_size(struct xls_tuple_type* tuple_type);
+
+int64_t xls_bits_type_get_bit_count(struct xls_bits_type* bits_type);
+
 // Returns the type of the given function.
 //
 // Note: the returned type does not need to be freed, it is tied to the
@@ -506,6 +541,7 @@ bool xls_function_jit_run(struct xls_function_jit* jit, size_t argc,
 // frees the array of  `xls_function` pointers -- the function should have been
 // allocated by the XLS library where ownership was passed back to the caller.
 void xls_function_ptr_array_free(struct xls_function** function_pointer_array);
+void xls_type_ptr_array_free(struct xls_type** type_pointer_array);
 
 void xls_trace_messages_free(struct xls_trace_message* trace_messages,
                              size_t count);

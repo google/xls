@@ -74,6 +74,14 @@ absl::StatusOr<TupleType*> Type::AsTuple() {
       absl::StrCat("Type is not a tuple: ", *this));
 }
 
+absl::StatusOr<TokenType*> Type::AsToken() {
+  if (IsToken()) {
+    return AsTokenOrDie();
+  }
+  return absl::InvalidArgumentError(
+      absl::StrCat("Type is not a token: ", *this));
+}
+
 TypeProto BitsType::ToProto() const {
   TypeProto proto;
   proto.set_type_enum(TypeProto::BITS);

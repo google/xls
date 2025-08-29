@@ -729,6 +729,104 @@ TEST(XlsCApiTest, MakeUnsignedBits) {
   EXPECT_NE(bits, value_bits);
 }
 
+TEST(XlsCApiTest, ValueFlatBitCount) {
+  xls_value* bool_values[] = {xls_value_make_false(), xls_value_make_false()};
+  absl::Cleanup free_values([bool_values] {
+    for (xls_value* value : bool_values) {
+      xls_value_free(value);
+    }
+  });
+
+  ASSERT_EQ(xls_value_get_flat_bit_count(bool_values[0]), 1);
+  ASSERT_EQ(xls_value_get_flat_bit_count(bool_values[1]), 1);
+  struct xls_value* array = nullptr;
+  char* error_out = nullptr;
+  ASSERT_TRUE(xls_value_make_array(2, bool_values, &error_out, &array));
+  ASSERT_EQ(error_out, nullptr);
+  ASSERT_NE(array, nullptr);
+  absl::Cleanup free_array([array, error_out] {
+    xls_value_free(array);
+    xls_c_str_free(error_out);
+  });
+  ASSERT_EQ(xls_value_get_flat_bit_count(array), 2);
+}
+
+TEST(XlsCApiTest, ValuePopulateFromBytes) {
+  const int kValueCount = 10;
+  xls_value* bool_values[kValueCount] = {};
+
+  for (int i = 0; i < kValueCount; ++i) {
+    bool_values[i] = xls_value_make_false();
+  }
+
+  absl::Cleanup free_values([bool_values] {
+    for (xls_value* value : bool_values) {
+      xls_value_free(value);
+    }
+  });
+
+  xls_value* array = nullptr;
+  char* error_out = nullptr;
+  ASSERT_TRUE(
+      xls_value_make_array(kValueCount, bool_values, &error_out, &array));
+  ASSERT_EQ(error_out, nullptr);
+  ASSERT_NE(array, nullptr);
+  absl::Cleanup free_array([array] { xls_value_free(array); });
+
+  auto verify_array_element = [&array, &error_out](bool expected_values) {
+    xls_value* element_value = nullptr;
+    xls_bits* element_bits = nullptr;
+    for (int i = 0; i < kValueCount; ++i) {
+      ASSERT_TRUE(xls_value_get_element(array, i, &error_out, &element_value));
+      ASSERT_NE(element_value, nullptr);
+      ASSERT_EQ(error_out, nullptr);
+
+      ASSERT_TRUE(xls_value_get_bits(element_value, &error_out, &element_bits));
+      ASSERT_NE(element_bits, nullptr);
+      ASSERT_EQ(error_out, nullptr);
+      ASSERT_EQ(xls_bits_get_bit(element_bits, 0), expected_values);
+      absl::Cleanup free_element_bits_and_value(
+          [&element_value, &element_bits] {
+            xls_value_free(element_value);
+            xls_bits_free(element_bits);
+            element_value = nullptr;
+            element_bits = nullptr;
+          });
+    }
+  };
+
+  verify_array_element(false);
+
+  uint8_t bytes[2] = {0xff, 0xff};
+  ASSERT_TRUE(
+      xls_value_populate_from_bytes(array, bytes, 2, kValueCount, &error_out));
+
+  verify_array_element(true);
+
+  {
+    char* error_out_2 = nullptr;
+    uint8_t bytes_2[2] = {0x00, 0x00};
+    ASSERT_FALSE(xls_value_populate_from_bytes(array, bytes_2, 1, kValueCount,
+                                               &error_out_2));
+    ASSERT_NE(error_out_2, nullptr);
+    EXPECT_THAT(std::string_view{error_out_2},
+                HasSubstr("byte_count * 8 (8) is less than the bit count"));
+    verify_array_element(true);
+    absl::Cleanup free_error_2([&error_out_2] { xls_c_str_free(error_out_2); });
+  }
+  {
+    char* error_out_3 = nullptr;
+    uint8_t bytes_3[2] = {0x00, 0x00};
+    ASSERT_FALSE(xls_value_populate_from_bytes(array, bytes_3, 2,
+                                               kValueCount - 1, &error_out_3));
+    ASSERT_NE(error_out_3, nullptr);
+    EXPECT_THAT(std::string_view{error_out_3},
+                HasSubstr("bit_count (9) is less than the bit count"));
+    verify_array_element(true);
+    absl::Cleanup free_error_3([&error_out_3] { xls_c_str_free(error_out_3); });
+  }
+}
+
 TEST(XlsCApiTest, ParsePackageAndGetFunctions) {
   const std::string kPackage0 = R"(package p)";
   const std::string kPackage1 = R"(package p
@@ -914,6 +1012,156 @@ fn f(x: bits[32] id=3) -> bits[32] {
   absl::Cleanup free_result([result] { xls_value_free(result); });
 
   ASSERT_TRUE(xls_value_eq(ft, result));
+}
+
+TEST(XlsCApiTest, TypeConversionTest) {
+  const std::string kPackage = R"(package test_func
+
+top fn test_func(loc_unknown_: bits[1][2] id=1, loc_unknown_1: (bits[1], bits[8], bits[23])[2] id=2, loc_unknown_2: (bits[1], bits[8], bits[23])[3] id=3) -> (bits[1], bits[8], bits[23])[2] {
+  literal.4: (bits[1], bits[8], bits[23]) = literal(value=(0, 0, 0), id=4)
+  ret array.5: (bits[1], bits[8], bits[23])[2] = array(literal.4, literal.4, id=5)
+}
+)";
+
+  xls_value_kind kind;
+  char* error = nullptr;
+  struct xls_package* package = nullptr;
+  ASSERT_TRUE(
+      xls_parse_ir_package(kPackage.c_str(), "test_func.ir", &error, &package))
+      << "xls_parse_ir_package error: " << error;
+  ASSERT_NE(package, nullptr);
+  ASSERT_EQ(error, nullptr);
+  absl::Cleanup free_package([package] { xls_package_free(package); });
+
+  struct xls_function** functions = nullptr;
+  size_t function_count = 0;
+  ASSERT_TRUE(
+      xls_package_get_functions(package, &error, &functions, &function_count));
+  ASSERT_EQ(error, nullptr);
+  ASSERT_EQ(function_count, 1);
+  ASSERT_NE(functions, nullptr);
+  ASSERT_NE(functions[0], nullptr);
+  absl::Cleanup free_function_array(
+      [&functions] { xls_function_ptr_array_free(functions); });
+
+  struct xls_function* function0 = functions[0];
+  struct xls_function_type* function_type = nullptr;
+  ASSERT_TRUE(xls_function_get_type(function0, &error, &function_type));
+  ASSERT_EQ(error, nullptr);
+
+  int64_t param_count = xls_function_type_get_param_count(function_type);
+  EXPECT_EQ(param_count, 3);
+
+  struct xls_type* param0_type = nullptr;
+  ASSERT_TRUE(xls_function_type_get_param_type(function_type, /*index=*/0,
+                                               &error, &param0_type));
+  ASSERT_NE(param0_type, nullptr);
+  ASSERT_EQ(error, nullptr);
+  ASSERT_TRUE(xls_type_get_kind(param0_type, &error, &kind));
+  ASSERT_EQ(error, nullptr);
+  ASSERT_EQ(kind, xls_value_kind_array);
+  ASSERT_EQ(xls_type_get_flat_bit_count(param0_type), 2);
+  ASSERT_EQ(xls_type_get_leaf_count(param0_type), 2);  // TODO: phui
+
+  struct xls_type* param1_type = nullptr;
+  ASSERT_TRUE(xls_function_type_get_param_type(function_type, /*index=*/1,
+                                               &error, &param1_type));
+  ASSERT_NE(param1_type, nullptr);
+  ASSERT_EQ(error, nullptr);
+  ASSERT_TRUE(xls_type_get_kind(param1_type, &error, &kind));
+  ASSERT_EQ(error, nullptr);
+  ASSERT_EQ(kind, xls_value_kind_array);
+  ASSERT_EQ(xls_type_get_flat_bit_count(param1_type), 64);
+  ASSERT_EQ(xls_type_get_leaf_count(param1_type), 6);
+
+  struct xls_type* ret_type = xls_function_type_get_return_type(function_type);
+  ASSERT_NE(ret_type, nullptr);
+  ASSERT_EQ(error, nullptr);
+  ASSERT_TRUE(xls_type_get_kind(ret_type, &error, &kind));
+  ASSERT_EQ(error, nullptr);
+  ASSERT_EQ(kind, xls_value_kind_array);
+  ASSERT_EQ(xls_type_get_flat_bit_count(ret_type), 64);
+  ASSERT_EQ(xls_type_get_leaf_count(ret_type), 6);
+  ASSERT_TRUE(xls_type_is_array(ret_type));
+  ASSERT_FALSE(xls_type_is_tuple(ret_type));
+  ASSERT_FALSE(xls_type_is_bits(ret_type));
+  ASSERT_FALSE(xls_type_is_token(ret_type));
+
+  struct xls_array_type* ret_array_type = nullptr;
+  ASSERT_TRUE(xls_type_to_array_type(ret_type, &error, &ret_array_type));
+  ASSERT_NE(ret_array_type, nullptr);
+  ASSERT_EQ(error, nullptr);
+
+  ASSERT_EQ(xls_array_type_get_size(ret_array_type), 2);
+
+  struct xls_type* ret_element_type =
+      xls_array_type_get_element_type(ret_array_type);
+  ASSERT_NE(ret_element_type, nullptr);
+  ASSERT_TRUE(xls_type_get_kind(ret_element_type, &error, &kind));
+  ASSERT_EQ(error, nullptr);
+  ASSERT_EQ(kind, xls_value_kind_tuple);
+
+  xls_tuple_type* ret_tuple_type = nullptr;
+  ASSERT_TRUE(
+      xls_type_to_tuple_type(ret_element_type, &error, &ret_tuple_type));
+  ASSERT_NE(ret_tuple_type, nullptr);
+  ASSERT_EQ(error, nullptr);
+
+  ASSERT_EQ(xls_tuple_type_get_size(ret_tuple_type), 3);
+
+  struct xls_type** ret_element_types = nullptr;
+  size_t ret_element_type_count = 0;
+  ASSERT_TRUE(xls_tuple_type_get_element_types(
+      ret_tuple_type, &error, &ret_element_types, &ret_element_type_count));
+  ASSERT_EQ(error, nullptr);
+  ASSERT_EQ(ret_element_type_count, 3);
+  ASSERT_NE(ret_element_types, nullptr);
+  ASSERT_NE(ret_element_types[0], nullptr);
+  ASSERT_NE(ret_element_types[1], nullptr);
+  ASSERT_NE(ret_element_types[2], nullptr);
+  absl::Cleanup free_ret_element_types(
+      [&ret_element_types] { xls_type_ptr_array_free(ret_element_types); });
+
+  struct xls_type* ret_element_type0 = ret_element_types[0];
+  ASSERT_TRUE(xls_type_get_kind(ret_element_type0, &error, &kind));
+  ASSERT_EQ(error, nullptr);
+  ASSERT_EQ(kind, xls_value_kind_bits);
+
+  xls_bits_type* ret_bits_type0 = nullptr;
+  ASSERT_TRUE(
+      xls_type_to_bits_type(ret_element_type0, &error, &ret_bits_type0));
+  ASSERT_NE(ret_bits_type0, nullptr);
+  ASSERT_EQ(error, nullptr);
+
+  ASSERT_EQ(xls_bits_type_get_bit_count(ret_bits_type0), 1);
+
+  struct xls_type* ret_element_type1 = ret_element_types[1];
+  ASSERT_TRUE(xls_type_get_kind(ret_element_type1, &error, &kind));
+  ASSERT_EQ(error, nullptr);
+  ASSERT_EQ(kind, xls_value_kind_bits);
+
+  xls_bits_type* ret_bits_type1 = nullptr;
+  ASSERT_TRUE(
+      xls_type_to_bits_type(ret_element_type1, &error, &ret_bits_type1));
+  ASSERT_NE(ret_bits_type1, nullptr);
+  ASSERT_EQ(error, nullptr);
+
+  ASSERT_EQ(xls_bits_type_get_bit_count(ret_bits_type1), 8);
+
+  struct xls_type* ret_element_type2 = ret_element_types[2];
+  ASSERT_TRUE(xls_type_get_kind(ret_element_type2, &error, &kind));
+  ASSERT_EQ(error, nullptr);
+  ASSERT_EQ(kind, xls_value_kind_bits);
+
+  xls_bits_type* ret_bits_type2 = nullptr;
+  ASSERT_TRUE(
+      xls_type_to_bits_type(ret_element_type2, &error, &ret_bits_type2));
+  ASSERT_NE(ret_bits_type2, nullptr);
+  ASSERT_EQ(error, nullptr);
+  ASSERT_EQ(xls_bits_type_get_bit_count(ret_bits_type2), 23);
+
+  // test xls_type_is_equal
+  ASSERT_TRUE(xls_type_is_equal(param1_type, ret_type));
 }
 
 TEST(XlsCApiTest, ParsePackageAndOptimizeFunctionInIt) {

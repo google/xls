@@ -1,3 +1,5 @@
+xls_array_type_get_element_type
+xls_array_type_get_size
 xls_bits_abs
 xls_bits_add
 xls_bits_and
@@ -24,6 +26,7 @@ xls_bits_to_debug_string
 xls_bits_to_int64
 xls_bits_to_string
 xls_bits_to_uint64
+xls_bits_type_get_bit_count
 xls_bits_umul
 xls_bits_width_slice
 xls_bits_xor
@@ -225,10 +228,22 @@ xls_schedule_and_codegen_package
 xls_schedule_and_codegen_result_free
 xls_schedule_and_codegen_result_get_verilog_text
 xls_trace_messages_free
+xls_tuple_type_get_element_types
+xls_tuple_type_get_size
 xls_type_get_flat_bit_count
 xls_type_get_kind
 xls_type_get_leaf_count
+xls_type_is_array
+xls_type_is_bits
+xls_type_is_equal
+xls_type_is_token
+xls_type_is_tuple
+xls_type_ptr_array_free
+xls_type_to_array_type
+xls_type_to_bits_type
 xls_type_to_string
+xls_type_to_token_type
+xls_type_to_tuple_type
 xls_value_clone
 xls_value_eq
 xls_value_flatten_to_bits
@@ -238,6 +253,7 @@ xls_value_from_bits_owned
 xls_value_get_bits
 xls_value_get_element
 xls_value_get_element_count
+xls_value_get_flat_bit_count
 xls_value_get_kind
 xls_value_make_array
 xls_value_make_false
@@ -246,6 +262,7 @@ xls_value_make_token
 xls_value_make_true
 xls_value_make_tuple
 xls_value_make_ubits
+xls_value_populate_from_bytes
 xls_value_to_string
 xls_value_to_string_format_preference
 xls_vast_always_base_get_statement_block
