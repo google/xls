@@ -36,19 +36,32 @@ class TypecheckMainTest(absltest.TestCase):
         [_TYPECHECK_MAIN_PATH, mod_path, '--dslx_path=' + basedir],
         encoding='utf-8',
     )
-    self.assertIn('TYPE_REF :: `mod_simple_const_enum::MyEnum`', output)
+    self.assertIn('TYPE_ANNOTATION :: `mod_simple_const_enum::MyEnum`', output)
 
   def test_disable_warnings_as_errors(self):
-    content = 'fn f() { let x = u32:42; }'
+    content = """
+    fn f(x: u1) -> u1 {
+      match x {
+        u1:0..u1:1 => u1:0,
+        _ => u1:1,
+        u1:1 => u1:1,  // redundant
+      }
+    }
+    """
     f = self.create_tempfile(content=content)
     p = subp.run(
-        [_TYPECHECK_MAIN_PATH, f.full_path, '--warnings_as_errors=false'],
+        [
+            _TYPECHECK_MAIN_PATH,
+            f.full_path,
+            '--enable_warnings=already_exhaustive_match',
+            '--warnings_as_errors=false',
+        ],
         encoding='utf-8',
         check=True,
         stderr=subp.PIPE,
     )
     self.assertEqual(p.returncode, 0)
-    self.assertIn('not used', p.stderr)
+    self.assertIn('is already exhaustive', p.stderr)
 
   def test_disable_warning(self):
     content = 'fn f() { let x = u32:42; }'
@@ -87,7 +100,7 @@ class TypecheckMainTest(absltest.TestCase):
     )
     self.assertIsNotNone(p.returncode)
     self.assertNotEqual(p.returncode, 0)
-    self.assertIn('Match is already exhaustive', p.stderr)
+    self.assertIn('is already exhaustive', p.stderr)
 
 
 if __name__ == '__main__':
