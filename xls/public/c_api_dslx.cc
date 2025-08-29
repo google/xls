@@ -48,6 +48,7 @@
 #include "xls/public/c_api_impl_helpers.h"
 
 namespace {
+
 const struct xls_dslx_type* GetMetaTypeHelper(
     struct xls_dslx_type_info* type_info, xls::dslx::AstNode* cpp_node) {
   CHECK(cpp_node != nullptr);
@@ -63,9 +64,11 @@ const struct xls_dslx_type* GetMetaTypeHelper(
   CHECK_OK(unwrapped);
   return reinterpret_cast<const struct xls_dslx_type*>(*unwrapped);
 }
+
 }  // namespace
 
 extern "C" {
+
 bool xls_dslx_parametric_env_create(
     const struct xls_dslx_parametric_env_item* items, size_t items_count,
     char** error_out, struct xls_dslx_parametric_env** env_out) {

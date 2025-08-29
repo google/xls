@@ -63,6 +63,7 @@ struct xls_package;
 struct xls_schedule_and_codegen_result;
 struct xls_type;
 struct xls_value;
+struct xls_dslx_parametric_env;
 
 void xls_init_xls(const char* usage, int argc, char* argv[]);
 
@@ -122,7 +123,6 @@ enum {
 // Mangling with full options. If `param_env` is non-null, its bindings are
 // used as the parametric environment; otherwise no parametric bindings are
 // applied.
-struct xls_dslx_parametric_env;  // fwd-decl
 bool xls_mangle_dslx_name_full(
     const char* module_name, const char* function_name,
     xls_calling_convention convention, const char* const free_keys[],
