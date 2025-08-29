@@ -231,7 +231,7 @@ allows calling it with only the result size specified, because `EXP_SZ` and
 pub type float32 = float<u32:8, u32:23>;
 
 #[test]
-fn test_float32_to_int32 {
+fn test_float32_to_int32() {
   let test_input = float32 {
     sign: u1:0x0,
     bexp: u8:0x8e,
