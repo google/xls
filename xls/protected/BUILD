@@ -15,6 +15,8 @@
 # Protected APIs that we expect to change frequently and cannot be depended
 # upon as they are internal XLS details.
 
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
 package(
     default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_best_effort_users"],

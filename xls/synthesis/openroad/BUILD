@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # pytype tests are present in this file
-
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@xls_pip_deps//:requirements.bzl", "requirement")
 
 package(

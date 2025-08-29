@@ -14,6 +14,8 @@
 
 # Tests that consume the publicly-exposed API.
 
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
 package(
     default_applicable_licenses = ["//:license"],
     features = [
