@@ -29,6 +29,7 @@
 
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -191,6 +192,18 @@ class Module : public AstNode {
 
   absl::Span<ModuleMember const> top() const { return top_; }
   absl::Span<ModuleMember> top() { return absl::MakeSpan(top_); }
+
+  // Returns whether the given node is disconnected from the AST, indicating it
+  // was likely fabricated by type inference. We don't want to surface such
+  // internal nodes in some contexts, e.g. in language server adapter
+  // functionality.
+  bool IsSyntheticNode(const AstNode* node) const {
+    // Note that ColonRef is a special case here, because when it's the
+    // definition in a `TypeRef`, the parser actually creates it as a
+    // disconnected node.
+    return node->parent() == nullptr &&
+           node->kind() != AstNodeKind::kColonRef && !top_set_.contains(node);
+  }
 
   // Finds the first top-level member in top() with the given "target" name as
   // an identifier.
@@ -370,6 +383,9 @@ class Module : public AstNode {
 
   std::vector<ModuleMember> top_;  // Top-level members of this module.
   std::vector<std::unique_ptr<AstNode>> nodes_;  // Lifetime-owned AST nodes.
+
+  // Same as `top_` but as a set, for quick contains() checks.
+  absl::flat_hash_set<const AstNode*> top_set_;
 
   // Map of top-level module member name to the member itself.
   absl::flat_hash_map<std::string, ModuleMember> top_by_name_;

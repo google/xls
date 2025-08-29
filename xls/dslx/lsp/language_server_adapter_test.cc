@@ -41,7 +41,7 @@ namespace xls::dslx {
 namespace {
 
 using ::absl_testing::StatusIs;
-using ::testing::HasSubstr;
+using ::testing::ContainsRegex;
 
 std::string DebugString(const verible::lsp::Position& pos) {
   return absl::StrFormat("Position{.line=%d, .character=%d}", pos.line,
@@ -58,13 +58,19 @@ std::string DebugString(const verible::lsp::Location& location) {
                          DebugString(location.range));
 }
 
-bool operator==(const verible::lsp::Position& lhs,
-                const verible::lsp::Position& rhs) {
-  return lhs.line == rhs.line && lhs.character == rhs.character;
+MATCHER_P(PosEq, rhs, "") {
+  if (arg.line == rhs.line && arg.character == rhs.character) {
+    return true;
+  }
+
+  *result_listener << absl::Substitute("Expected $0:$1, got $2:$3", rhs.line,
+                                       rhs.character, arg.line, arg.character);
+  return false;
 }
-bool operator==(const verible::lsp::Range& lhs,
-                const verible::lsp::Range& rhs) {
-  return lhs.start == rhs.start && lhs.end == rhs.end;
+
+MATCHER_P(RangeEq, rhs, "") {
+  return ExplainMatchResult(PosEq(rhs.start), arg.start, result_listener) &&
+         ExplainMatchResult(PosEq(rhs.end), arg.end, result_listener);
 }
 
 LspUri GetDslxStdlibUri() {
@@ -132,8 +138,8 @@ fn main() { f() })"));
   verible::lsp::Location definition_location = definition_locations.at(0);
   const auto want_start = verible::lsp::Position{0, 3};
   const auto want_end = verible::lsp::Position{0, 4};
-  EXPECT_TRUE(definition_location.range.start == want_start);
-  EXPECT_TRUE(definition_location.range.end == want_end);
+  EXPECT_THAT(definition_location.range.start, PosEq(want_start));
+  EXPECT_THAT(definition_location.range.end, PosEq(want_end));
 }
 
 TEST(LanguageServerAdapterTest, TestFindDefinitionsTypeRef) {
@@ -153,8 +159,8 @@ fn f() -> T { () }
   verible::lsp::Location definition_location = definition_locations.at(0);
   const auto want_start = verible::lsp::Position{1, 5};
   const auto want_end = verible::lsp::Position{1, 6};
-  EXPECT_TRUE(definition_location.range.start == want_start);
-  EXPECT_TRUE(definition_location.range.end == want_end);
+  EXPECT_THAT(definition_location.range.start, PosEq(want_start));
+  EXPECT_THAT(definition_location.range.end, PosEq(want_end));
 }
 
 // Demonstrates that we can resolve the RHS of a type alias that is a colon-ref
@@ -181,8 +187,8 @@ type MyTypeAlias = some_module::SomeType;
   EXPECT_EQ(definition_location.uri, kSomeModuleUri.GetStringView());
   const auto want_start = verible::lsp::Position{0, 9};
   const auto want_end = verible::lsp::Position{0, 17};
-  EXPECT_TRUE(definition_location.range.start == want_start);
-  EXPECT_TRUE(definition_location.range.end == want_end);
+  EXPECT_THAT(definition_location.range.start, PosEq(want_start));
+  EXPECT_THAT(definition_location.range.end, PosEq(want_end));
 }
 
 // After we parse an invalid file the language server can still get requests,
@@ -208,8 +214,8 @@ TEST(LanguageServerAdapterTest, TestCallAfterInvalidParse) {
   const verible::lsp::Position& start = diag.range.start;
   const verible::lsp::Position& end = diag.range.end;
 
-  EXPECT_TRUE(start == want_start);
-  EXPECT_TRUE(end == want_end);
+  EXPECT_THAT(start, PosEq(want_start));
+  EXPECT_THAT(end, PosEq(want_end));
   EXPECT_EQ(diag.message,
             "Expected start of top-level construct; got: 'blahblahblah'");
 }
@@ -245,7 +251,7 @@ fn messy() {
   ASSERT_EQ(edits.size(), 1);
 
   const verible::lsp::TextEdit& edit = edits.at(0);
-  EXPECT_TRUE(edit.range == kInputRange) << DebugString(edit.range);
+  EXPECT_THAT(edit.range, RangeEq(kInputRange)) << DebugString(edit.range);
   EXPECT_EQ(edit.newText, R"(// Top of module comment.
 
 fn messy() {
@@ -277,7 +283,7 @@ fn messy(){()// retval comment
   // Assert
   ASSERT_EQ(edits.size(), 1);
   const verible::lsp::TextEdit& edit = edits.at(0);
-  EXPECT_TRUE(edit.range == kInputRange) << DebugString(edit.range);
+  EXPECT_THAT(edit.range, RangeEq(kInputRange)) << DebugString(edit.range);
   // Text should be unchanged, because we disabled formatting.
   EXPECT_EQ(edit.newText, kInput);
 }
@@ -301,7 +307,7 @@ TEST(LanguageServerAdapterTest, InlayHintForLetStatement) {
 
   const verible::lsp::InlayHint& hint = hints.at(0);
   verible::lsp::Position want_position{1, 7};
-  EXPECT_TRUE(hint.position == want_position)
+  EXPECT_THAT(hint.position, PosEq(want_position))
       << "got: " << DebugString(hint.position)
       << " want: " << DebugString(want_position);
   EXPECT_EQ(hint.label, ": uN[32]");
@@ -314,8 +320,8 @@ TEST(LanguageServerAdapterTest, InlayHintForDistinctRoutine) {
   XLS_ASSERT_OK(adapter.Update(kUri, R"(
 pub fn distinct<COUNT: u32, N: u32, S: bool>(items: xN[S][N][COUNT], valid: bool[COUNT]) -> bool {
     const INIT_ALL_DISTINCT = true;
-    for (i, all_distinct) in range(u32:0, COUNT) {
-        for (j, all_distinct) in range(u32:0, COUNT) {
+    for (i, all_distinct) in u32:0..COUNT {
+        for (j, all_distinct) in u32:0..COUNT {
             if i != j && valid[i] && valid[j] && items[i] == items[j] {
                 false
             } else {
@@ -379,7 +385,7 @@ fn main() { imported::f() }
       .start = verible::lsp::Position{0, 7},
       .end = verible::lsp::Position{0, 8},
   };
-  EXPECT_TRUE(definition_location.range == kWantRange);
+  EXPECT_THAT(definition_location.range, RangeEq(kWantRange));
 }
 
 TEST(LanguageServerAdapterTest, RenameForParameter) {
@@ -397,14 +403,14 @@ TEST(LanguageServerAdapterTest, RenameForParameter) {
   XLS_ASSERT_OK_AND_ASSIGN(std::optional<verible::lsp::Range> to_rename,
                            adapter.PrepareRename(kUri, kWantRange.start));
   ASSERT_TRUE(to_rename.has_value());
-  EXPECT_TRUE(kWantRange == to_rename.value());
+  EXPECT_THAT(kWantRange, RangeEq(to_rename.value()));
 
   // Rename from the use position should also work and resolve to the same
   // definition span.
   verible::lsp::Position use_pos{1, 10};
   XLS_ASSERT_OK_AND_ASSIGN(to_rename, adapter.PrepareRename(kUri, use_pos));
   ASSERT_TRUE(to_rename.has_value());
-  EXPECT_TRUE(kWantRange == to_rename.value());
+  EXPECT_THAT(kWantRange, RangeEq(to_rename.value()));
 
   // See what edits come out.
   XLS_ASSERT_OK_AND_ASSIGN(std::optional<verible::lsp::WorkspaceEdit> edit,
@@ -427,14 +433,14 @@ const BAR: u32 = FOO + FOO;)"));
   XLS_ASSERT_OK_AND_ASSIGN(std::optional<verible::lsp::Range> to_rename,
                            adapter.PrepareRename(kUri, kWantRange.start));
   ASSERT_TRUE(to_rename.has_value());
-  EXPECT_TRUE(kWantRange == to_rename.value());
+  EXPECT_THAT(kWantRange, RangeEq(to_rename.value()));
 
   // Rename from the use position should also work and resolve to the same
   // definition span.
   verible::lsp::Position use_pos{2, 17};
   XLS_ASSERT_OK_AND_ASSIGN(to_rename, adapter.PrepareRename(kUri, use_pos));
   ASSERT_TRUE(to_rename.has_value());
-  EXPECT_TRUE(kWantRange == to_rename.value());
+  EXPECT_THAT(kWantRange, RangeEq(to_rename.value()));
 
   // See what edits come out.
   XLS_ASSERT_OK_AND_ASSIGN(std::optional<verible::lsp::WorkspaceEdit> edit,
@@ -459,7 +465,7 @@ const BAR: u32 = FOO + FOO;)"));
   XLS_ASSERT_OK_AND_ASSIGN(std::optional<verible::lsp::Range> to_rename,
                            adapter.PrepareRename(kUri, kWantRange.start));
   ASSERT_TRUE(to_rename.has_value());
-  EXPECT_TRUE(kWantRange == to_rename.value());
+  EXPECT_THAT(kWantRange, RangeEq(to_rename.value()));
 
   // See what edits come out.
   absl::StatusOr<std::optional<verible::lsp::WorkspaceEdit>> edit =
@@ -473,43 +479,6 @@ TEST(LanguageServerAdapterTest, DocumentHighlight) {
   const LspUri kUri("file:///fake/path/test.x");
   XLS_ASSERT_OK(adapter.Update(kUri, R"(
 
-pub const FOO = u32:42;
-
-const BAR: u32 = FOO + FOO;
-
-fn f() -> u32 { FOO }    // <- hovering over F of FOO
-)"));
-  const auto kTargetPos = verible::lsp::Position{6, 16};
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::vector<verible::lsp::DocumentHighlight> highlights,
-      adapter.DocumentHighlight(kUri, kTargetPos));
-
-  // There are four instances in the document including the definition.
-  ASSERT_EQ(highlights.size(), 4);
-
-  // Definition comes first.
-  EXPECT_EQ(highlights[0].range.start.line, 2);
-
-  // Then two uses in const-eval
-  EXPECT_EQ(highlights[1].range.start.line, 4);
-  EXPECT_EQ(highlights[1].range.start.character, 17);
-  EXPECT_EQ(highlights[1].range.end.character, 20);
-
-  EXPECT_EQ(highlights[2].range.start.line, 4);
-  EXPECT_EQ(highlights[2].range.start.character, 23);
-
-  // Then use in the function definition.
-  EXPECT_EQ(highlights[3].range.start.line, 6);
-  EXPECT_EQ(highlights[3].range.start.character, 16);
-}
-
-// https://github.com/google/xls/issues/2852
-TEST(LanguageServerAdapterTest, DISABLED_DocumentHighlightTypeInferenceV2) {
-  // Exact copy of DocumentHighlight test, but Tiv2 enabled.
-  LanguageServerAdapter adapter(GetDslxStdlibUri(), /*dslx_paths=*/{});
-  const LspUri kUri("file:///fake/path/test.x");
-  XLS_ASSERT_OK(adapter.Update(kUri, R"(
-#![feature(type_inference_v2)]
 pub const FOO = u32:42;
 
 const BAR: u32 = FOO + FOO;
@@ -569,7 +538,7 @@ const OUTER_FOO = inner::FOO;  // this is not public, at first
   EXPECT_THAT(
       adapter.Update(outer_uri, outer_contents),
       StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Attempted to refer to module member const FOO")));
+               ContainsRegex("Attempted to refer.* module member .*FOO")));
   std::vector<verible::lsp::Diagnostic> diags =
       adapter.GenerateParseDiagnostics(outer_uri);
   ASSERT_EQ(diags.size(), 1);

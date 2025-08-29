@@ -115,6 +115,9 @@ const AstNode* Module::FindNode(AstNodeKind kind, const Span& target) const {
 std::vector<const AstNode*> Module::FindIntercepting(const Pos& target) const {
   std::vector<const AstNode*> found;
   for (const auto& node : nodes_) {
+    if (IsSyntheticNode(node.get())) {
+      continue;
+    }
     if (node->GetSpan().has_value() && node->GetSpan()->Contains(target)) {
       found.push_back(node.get());
     }
@@ -125,6 +128,9 @@ std::vector<const AstNode*> Module::FindIntercepting(const Pos& target) const {
 std::vector<const AstNode*> Module::FindContained(const Span& target) const {
   std::vector<const AstNode*> found;
   for (const auto& node : nodes_) {
+    if (IsSyntheticNode(node.get())) {
+      continue;
+    }
     if (std::optional<Span> node_span = node->GetSpan();
         node_span.has_value() && target.Contains(node_span.value())) {
       found.push_back(node.get());
@@ -400,6 +406,7 @@ absl::Status Module::AddTop(ModuleMember member,
   }
 
   top_.push_back(member);
+  top_set_.insert(ToAstNode(member));
   for (const std::string& member_name : member_names) {
     top_by_name_.insert({member_name, member});
   }

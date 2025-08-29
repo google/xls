@@ -107,6 +107,7 @@ class Flattener : public AstNodeVisitorWithDefault {
     for (const NameDef* name_def : node->name_def_tree()->GetNameDefs()) {
       XLS_RETURN_IF_ERROR(name_def->Accept(this));
     }
+    nodes_.push_back(node->name_def_tree());
     return absl::OkStatus();
   }
 
