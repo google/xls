@@ -28,6 +28,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/btree_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -36,6 +37,8 @@
 #include "absl/types/span.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
+#include "xls/dslx/mangle.h"
+#include "xls/dslx/type_system/parametric_env.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/bit_push_buffer.h"
 #include "xls/ir/bits.h"
@@ -195,6 +198,62 @@ bool xls_mangle_dslx_name(const char* module_name, const char* function_name,
 
   absl::StatusOr<std::string> result =
       xls::MangleDslxName(module_name, function_name);
+  return xls::ReturnStringHelper(result, error_out, mangled_out);
+}
+
+static bool CallingConventionFromC(xls_calling_convention cc,
+                                   xls::dslx::CallingConvention* out,
+                                   char** error_out) {
+  switch (cc) {
+    case xls_calling_convention_typical:
+      *out = xls::dslx::CallingConvention::kTypical;
+      return true;
+    case xls_calling_convention_implicit_token:
+      *out = xls::dslx::CallingConvention::kImplicitToken;
+      return true;
+    case xls_calling_convention_proc_next:
+      *out = xls::dslx::CallingConvention::kProcNext;
+      return true;
+    default: {
+      absl::Status st =
+          absl::InvalidArgumentError("Invalid calling convention enum");
+      *error_out = xls::ToOwnedCString(st.ToString());
+      return false;
+    }
+  }
+}
+
+bool xls_mangle_dslx_name_full(
+    const char* module_name, const char* function_name,
+    xls_calling_convention convention, const char* const free_keys[],
+    size_t free_keys_count, const struct xls_dslx_parametric_env* param_env,
+    const char* scope, char** error_out, char** mangled_out) {
+  CHECK(module_name != nullptr);
+  CHECK(function_name != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(mangled_out != nullptr);
+
+  xls::dslx::CallingConvention cc_cpp;
+  if (!CallingConventionFromC(convention, &cc_cpp, error_out)) {
+    return false;
+  }
+
+  absl::btree_set<std::string> free_key_set;
+  for (size_t i = 0; i < free_keys_count; ++i) {
+    CHECK(free_keys[i] != nullptr);
+    free_key_set.insert(free_keys[i]);
+  }
+
+  const xls::dslx::ParametricEnv* env =
+      reinterpret_cast<const xls::dslx::ParametricEnv*>(param_env);
+
+  std::string_view scope_sv;
+  if (scope != nullptr) {
+    scope_sv = scope;
+  }
+
+  absl::StatusOr<std::string> result = xls::dslx::MangleDslxName(
+      module_name, function_name, cc_cpp, free_key_set, env, scope_sv);
   return xls::ReturnStringHelper(result, error_out, mangled_out);
 }
 
