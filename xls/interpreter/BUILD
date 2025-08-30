@@ -39,6 +39,7 @@ cc_library(
     ],
     deps = [
         ":block_evaluator",
+        ":evaluator_options",
         ":observer",
         "//xls/codegen:module_signature_cc_proto",
         "//xls/common:casts",
@@ -108,6 +109,7 @@ cc_test(
     size = "small",
     srcs = ["ir_interpreter_test.cc"],
     deps = [
+        ":evaluator_options",
         ":ir_evaluator_test_base",
         ":ir_interpreter",
         ":observer",
@@ -135,6 +137,7 @@ cc_library(
     hdrs = ["proc_interpreter.h"],
     deps = [
         ":channel_queue",
+        ":evaluator_options",
         ":ir_interpreter",
         ":observer",
         ":proc_evaluator",
@@ -246,6 +249,7 @@ cc_library(
     srcs = ["ir_evaluator_test_base.cc"],
     hdrs = ["ir_evaluator_test_base.h"],
     deps = [
+        ":evaluator_options",
         ":observer",
         "//xls/common:math_util",
         "//xls/common/status:matchers",
@@ -369,6 +373,7 @@ cc_library(
     srcs = ["proc_evaluator.cc"],
     hdrs = ["proc_evaluator.h"],
     deps = [
+        ":evaluator_options",
         ":observer",
         "//xls/ir",
         "//xls/ir:events",
@@ -485,6 +490,7 @@ cc_test(
         "//xls/ir:proc_elaboration",
         "//xls/ir:value",
         "//xls/jit:jit_channel_queue",
+        "//xls/jit:jit_evaluator_options",
         "//xls/jit:jit_proc_runtime",
         "//xls/jit:jit_runtime",
         "//xls/jit:orc_jit",

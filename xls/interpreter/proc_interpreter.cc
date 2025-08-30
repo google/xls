@@ -133,8 +133,9 @@ class ProcIrInterpreter : public IrInterpreter {
                     ChannelQueueManager* queue_manager,
                     absl::flat_hash_map<StateElement*, std::vector<Next*>>*
                         active_next_values,
+                    const EvaluatorOptions& options,
                     std::optional<EvaluationObserver*> observer)
-      : IrInterpreter(node_values, events, observer),
+      : IrInterpreter(node_values, events, options, observer),
         proc_instance_(proc_instance),
         state_(state.begin(), state.end()),
         queue_manager_(queue_manager),
@@ -259,8 +260,9 @@ class ProcIrInterpreter : public IrInterpreter {
 
 }  // namespace
 
-ProcInterpreter::ProcInterpreter(Proc* proc, ChannelQueueManager* queue_manager)
-    : ProcEvaluator(proc),
+ProcInterpreter::ProcInterpreter(Proc* proc, ChannelQueueManager* queue_manager,
+                                 const EvaluatorOptions& options)
+    : ProcEvaluator(proc, options),
       queue_manager_(queue_manager),
       execution_order_(TopoSort(proc)) {}
 
@@ -279,7 +281,7 @@ absl::StatusOr<TickResult> ProcInterpreter::Tick(
   ProcIrInterpreter ir_interpreter(cont->proc_instance(), cont->GetState(),
                                    &cont->GetNodeValues(), &cont->GetEvents(),
                                    queue_manager_, &cont->GetActiveNextValues(),
-                                   continuation.GetObserver());
+                                   options(), continuation.GetObserver());
 
   // Resume execution at the node indicated in the continuation
   // (NodeExecutionIndex).

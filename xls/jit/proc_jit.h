@@ -29,8 +29,8 @@
 #include "xls/jit/function_base_jit.h"
 #include "xls/jit/jit_buffer.h"
 #include "xls/jit/jit_channel_queue.h"
+#include "xls/jit/jit_evaluator_options.h"
 #include "xls/jit/jit_runtime.h"
-#include "xls/jit/observer.h"
 #include "xls/jit/orc_jit.h"
 
 namespace xls {
@@ -43,12 +43,14 @@ class ProcJit : public ProcEvaluator {
   // proc.
   static absl::StatusOr<std::unique_ptr<ProcJit>> Create(
       Proc* proc, JitRuntime* jit_runtime, JitChannelQueueManager* queue_mgr,
-      bool include_observer_callbacks = false, JitObserver* observer = nullptr);
+      const EvaluatorOptions& options = EvaluatorOptions(),
+      const JitEvaluatorOptions& jit_options = JitEvaluatorOptions());
 
   static absl::StatusOr<std::unique_ptr<ProcJit>> CreateFromAot(
       Proc* proc, JitRuntime* jit_runtime, JitChannelQueueManager* queue_mgr,
       const AotEntrypointProto& entrypoint, JitFunctionType unpacked,
-      std::optional<JitFunctionType> packed = std::nullopt);
+      std::optional<JitFunctionType> packed = std::nullopt,
+      const EvaluatorOptions& options = EvaluatorOptions());
 
   ~ProcJit() override = default;
 
@@ -64,8 +66,9 @@ class ProcJit : public ProcEvaluator {
  private:
   explicit ProcJit(Proc* proc, JitRuntime* jit_runtime,
                    JitChannelQueueManager* queue_mgr,
-                   std::unique_ptr<OrcJit> orc_jit, bool has_observer_callbacks)
-      : ProcEvaluator(proc),
+                   std::unique_ptr<OrcJit> orc_jit, bool has_observer_callbacks,
+                   const EvaluatorOptions& options)
+      : ProcEvaluator(proc, options),
         jit_runtime_(jit_runtime),
         queue_mgr_(queue_mgr),
         orc_jit_(std::move(orc_jit)),

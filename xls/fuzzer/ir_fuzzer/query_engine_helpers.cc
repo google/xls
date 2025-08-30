@@ -50,7 +50,8 @@ absl::StatusOr<NodeValues> SampleValuesWith(
   NodeValues vals;
   for (const auto& arg : args) {
     Observer o;
-    XLS_RETURN_IF_ERROR(InterpretFunction(f, arg, &o).status());
+    XLS_RETURN_IF_ERROR(
+        InterpretFunction(f, arg, EvaluatorOptions(), &o).status());
     for (Node* n : f->nodes()) {
       XLS_RET_CHECK(o.values().contains(n))
           << "no value of " << n << " calculated.";

@@ -28,6 +28,7 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "llvm/include/llvm/IR/DataLayout.h"
+#include "xls/interpreter/evaluator_options.h"
 #include "xls/ir/events.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
@@ -87,17 +88,19 @@ class JittedFunctionBase {
   // function.
   static absl::StatusOr<JittedFunctionBase> Build(
       Function* xls_function, LlvmCompiler& compiler,
-      std::string_view symbol_salt = "");
+      const EvaluatorOptions& options, std::string_view symbol_salt = "");
 
   // Builds and returns an LLVM IR function implementing the given XLS
   // proc.
   static absl::StatusOr<JittedFunctionBase> Build(
-      Proc* proc, LlvmCompiler& compiler, std::string_view symbol_salt = "");
+      Proc* proc, LlvmCompiler& compiler, const EvaluatorOptions& options,
+      std::string_view symbol_salt = "");
 
   // Builds and returns an LLVM IR function implementing the given XLS
   // block.
   static absl::StatusOr<JittedFunctionBase> Build(
-      Block* block, LlvmCompiler& compiler, std::string_view symbol_salt = "");
+      Block* block, LlvmCompiler& compiler, const EvaluatorOptions& options,
+      std::string_view symbol_salt = "");
 
   // Builds and returns a JittedFunctionBase using code and ABIs provided by an
   // earlier AOT compile.
@@ -218,7 +221,7 @@ class JittedFunctionBase {
 
   static absl::StatusOr<JittedFunctionBase> BuildInternal(
       FunctionBase* function, JitBuilderContext& jit_context,
-      bool build_packed_wrapper);
+      const EvaluatorOptions& options, bool build_packed_wrapper);
 
   // Name and function pointer for the jitted function which accepts/produces
   // arguments/results in LLVM native format.

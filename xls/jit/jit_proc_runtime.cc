@@ -48,6 +48,7 @@
 #include "xls/jit/aot_entrypoint.pb.h"
 #include "xls/jit/function_base_jit.h"
 #include "xls/jit/jit_channel_queue.h"
+#include "xls/jit/jit_evaluator_options.h"
 #include "xls/jit/jit_runtime.h"
 #include "xls/jit/llvm_compiler.h"
 #include "xls/jit/observer.h"
@@ -123,13 +124,10 @@ class SharedCompiler final : public LlvmCompiler {
   std::optional<std::unique_ptr<llvm::Module>> the_module_;
 };
 
-absl::StatusOr<JitObjectCode> GetAotObjectCode(ProcElaboration elaboration,
-                                               int64_t opt_level,
-                                               bool with_msan,
-                                               JitObserver* observer,
-                                               std::string_view symbol_salt) {
+absl::StatusOr<JitObjectCode> GetAotObjectCode(
+    ProcElaboration elaboration, const JitEvaluatorOptions& jit_options) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<AotCompiler> compiler,
-                       AotCompiler::Create(with_msan, opt_level, observer));
+                       AotCompiler::Create(jit_options));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<llvm::TargetMachine> target,
                        compiler->CreateTargetMachine());
   llvm::DataLayout layout = target->createDataLayout();
@@ -142,7 +140,8 @@ absl::StatusOr<JitObjectCode> GetAotObjectCode(ProcElaboration elaboration,
   for (Proc* p : elaboration.procs()) {
     entrypoints.push_back({.function = p});
     XLS_ASSIGN_OR_RETURN(entrypoints.back().jit_info,
-                         JittedFunctionBase::Build(p, sc, symbol_salt));
+                         JittedFunctionBase::Build(p, sc, EvaluatorOptions(),
+                                                   jit_options.symbol_salt()));
   }
   XLS_RETURN_IF_ERROR(compiler->CompileModule(std::move(sc).TakeModule()));
   XLS_ASSIGN_OR_RETURN(std::vector<uint8_t> object_code,
@@ -218,7 +217,7 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateAotRuntime(
         std::unique_ptr<ProcJit> proc_jit,
         ProcJit::CreateFromAot(jit_args.proc, &queue_manager->runtime(),
                                queue_manager.get(), jit_args.entrypoint,
-                               jit_args.unpacked, jit_args.packed));
+                               jit_args.unpacked, jit_args.packed, options));
     proc_jits.push_back(std::move(proc_jit));
   }
 
@@ -254,9 +253,10 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateRuntime(
   for (Proc* proc : queue_manager->elaboration().procs()) {
     XLS_ASSIGN_OR_RETURN(
         std::unique_ptr<ProcJit> proc_jit,
-        ProcJit::Create(
-            proc, &queue_manager->runtime(), queue_manager.get(),
-            /*include_observer_callbacks=*/options.support_observers()));
+        ProcJit::Create(proc, &queue_manager->runtime(), queue_manager.get(),
+                        options,
+                        JitEvaluatorOptions().set_include_observer_callbacks(
+                            options.support_observers())));
     proc_jits.push_back(std::move(proc_jit));
   }
 
@@ -288,20 +288,16 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateJitSerialProcRuntime(
 }
 
 absl::StatusOr<JitObjectCode> CreateProcAotObjectCode(
-    Package* package, int64_t opt_level, bool with_msan, JitObserver* observer,
-    std::string_view symbol_salt) {
+    Package* package, const JitEvaluatorOptions& jit_options) {
   XLS_ASSIGN_OR_RETURN(ProcElaboration elaboration,
                        ProcElaboration::ElaborateOldStylePackage(package));
-  return GetAotObjectCode(std::move(elaboration), opt_level, with_msan,
-                          observer, symbol_salt);
+  return GetAotObjectCode(std::move(elaboration), jit_options);
 }
 absl::StatusOr<JitObjectCode> CreateProcAotObjectCode(
-    Proc* top, int64_t opt_level, bool with_msan, JitObserver* observer,
-    std::string_view symbol_salt) {
+    Proc* top, const JitEvaluatorOptions& jit_options) {
   XLS_ASSIGN_OR_RETURN(ProcElaboration elaboration,
                        ProcElaboration::Elaborate(top));
-  return GetAotObjectCode(std::move(elaboration), opt_level, with_msan,
-                          observer, symbol_salt);
+  return GetAotObjectCode(std::move(elaboration), jit_options);
 }
 
 // Create a SerialProcRuntime composed of ProcJits. Constructed from the
