@@ -3365,11 +3365,29 @@ absl::Status FunctionConverter::HandleColonRef(const ColonRef* node) {
     return DefAlias(constant_def->name_def(), /*to=*/node);
   }
 
+  // Bypass for built-in attrs "MIN", "MAX", and "ZERO".
+  if (std::optional<Type*> maybe_type =
+          current_type_info_->GetItem(ToAstNode(node->subject()))) {
+    if (IsBitsLike(**maybe_type) && IsBuiltinBitsTypeAttr(node->attr())) {
+      XLS_ASSIGN_OR_RETURN(InterpValue iv,
+                           current_type_info_->GetConstExpr(node));
+      XLS_ASSIGN_OR_RETURN(Value value, InterpValueToValue(iv));
+      Def(node, [this, &value](const SourceInfo& loc) {
+        return function_builder_->Literal(value, loc);
+      });
+      return absl::OkStatus();
+    }
+  }
+
   using SubjectT = std::variant<Module*, EnumDef*, BuiltinNameDef*,
                                 ArrayTypeAnnotation*, Impl*>;
   XLS_ASSIGN_OR_RETURN(SubjectT subject,
                        ResolveColonRefSubjectAfterTypeChecking(
                            import_data_, current_type_info_, node));
+
+  // TODO(williamjhuang): The following should not be needed in TIv2 because
+  // there should be type info for the verbatim ColonRef node (not its resolved
+  // type).
   return absl::visit(
       Visitor{
           [&](Module* module) {

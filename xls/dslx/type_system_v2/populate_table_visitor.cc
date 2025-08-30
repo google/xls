@@ -287,6 +287,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       // Built-in member of a built-in type being accessed via a type alias.
       const AstNode* definer = dynamic_cast<const NameDef*>(def)->definer();
       if (const auto* alias = dynamic_cast<const TypeAlias*>(definer)) {
+        XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+            ToAstNode(node->subject()), &alias->type_annotation()));
         return table_.SetTypeAnnotation(
             node, module_.Make<MemberTypeAnnotation>(&alias->type_annotation(),
                                                      node->attr()));
