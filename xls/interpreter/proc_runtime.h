@@ -144,7 +144,7 @@ class ProcRuntime {
 
  protected:
   friend class ChannelTraceRecorder;
-  void AddTraceMessage(TraceMessage message);
+  void AddTraceMessage(int64_t verbosity, std::string message);
 
   // Execute (up to) a single iteration of every proc in the package.
   struct NetworkTickResult {

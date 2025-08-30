@@ -2876,7 +2876,7 @@ TEST_F(ModuleFmtTest, ConstWithFmtDisabled) {
 
 // Note intentional trailing space
 // dslx-fmt::off
-        const foo=u32:    26; const 
+        const foo=u32:    26; const
       bar=u16:    26;
 // dslx-fmt::on
 )");
@@ -2928,7 +2928,7 @@ fn f() -> (u32, u16) {
 
     // dslx-fmt::off
 let y = u16:64;
-let x = 
+let x =
   u32:41;
          (x ,   y)
 
@@ -2944,7 +2944,7 @@ TEST_F(ModuleFmtTest, StatementsWithFmtDisabledThenComment) {
 
     // dslx-fmt::off
 let y = u16:64;
-let x = 
+let x =
   u32:41;
          (x ,   y)
 
@@ -2962,7 +2962,7 @@ TEST_F(ModuleFmtTest, StatementsWithFmtDisabled) {
 
     // dslx-fmt::off
 let y = u16:64;
-let x = 
+let x =
   u32:41;
          (x ,   y)
 
@@ -2974,7 +2974,7 @@ let x =
 TEST_F(ModuleFmtTest, TooLongLines) {
   DoFmt(R"(const result = {
     // dslx-fmt::off
-                   let         y =         u16:64;         let x =         u32:41        ;     let y = u16:63;    (x ,   y) 
+                   let         y =         u16:64;         let x =         u32:41        ;     let y = u16:63;    (x ,   y)
 
 // dslx-fmt::on
 };
@@ -3193,7 +3193,7 @@ proc A {
         let (_foo, _bar, _baz) =
             for (i, (foo, bar, baz)): (
                 // dslx-fmt::off
-                u32, (FooType[NUM_ELEMS][NUM_BLOCKS], BarType[NUM_ELEMS][NUM_BLOCKS], 
+                u32, (FooType[NUM_ELEMS][NUM_BLOCKS], BarType[NUM_ELEMS][NUM_BLOCKS],
                       bool[NUM_ELEMS][NUM_BLOCKS])
                 ) in range(u32:0, 8) {
                 // dslx-fmt::on
@@ -3356,7 +3356,7 @@ TEST_F(ModuleFmtTest, DisableFmtAroundTestFn) {
 TEST_F(ModuleFmtTest, DisableFmtViaFnAttribute) {
   DoFmt(R"(#[dslx_format_disable]
 fn
-test() -> u32 
+test() -> u32
     {
 // first line
         u32:1
@@ -3366,20 +3366,20 @@ test() -> u32
 
 TEST_F(ModuleFmtTest, DisableFmtViaFnAttributeOnlyAppliesToCurrentFn) {
   DoFmt(R"(#[dslx_format_disable]
-fn test() -> u32 
+fn test() -> u32
     {
 // first line
         u32:1
 }
 
 // This one will be formatted:
-fn test2() -> 
+fn test2() ->
 u32 {
     u32:1
 }
 )",
         R"(#[dslx_format_disable]
-fn test() -> u32 
+fn test() -> u32
     {
 // first line
         u32:1

@@ -570,9 +570,14 @@ cc_library(
     srcs = ["events.cc"],
     hdrs = ["events.h"],
     deps = [
+        ":evaluator_result_cc_proto",
+        ":format_preference",
+        ":value",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -1485,6 +1490,22 @@ py_proto_library(
     name = "xls_value_py_pb2",
     visibility = ["//xls:xls_users"],
     deps = [":xls_value_proto"],
+)
+
+proto_library(
+    name = "evaluator_result_proto",
+    srcs = ["evaluator_result.proto"],
+    deps = [":xls_value_proto"],
+)
+
+cc_proto_library(
+    name = "evaluator_result_cc_proto",
+    deps = [":evaluator_result_proto"],
+)
+
+py_proto_library(
+    name = "evaluator_result_py_pb2",
+    deps = [":evaluator_result_proto"],
 )
 
 proto_library(

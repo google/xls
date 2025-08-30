@@ -78,10 +78,11 @@ static void IvToBuffer(const InitVector& iv,
 }
 
 static void PrintTraceMessages(const InterpreterEvents& events) {
-  if (absl::GetFlag(FLAGS_print_traces) && !events.trace_msgs.empty()) {
+  if (absl::GetFlag(FLAGS_print_traces) &&
+      events.GetTraceMessages().size() > 0) {
     std::cout << "Trace messages:" << '\n';
-    for (const auto& tm : events.trace_msgs) {
-      std::cout << " - " << tm.message << '\n';
+    for (const auto& tm : events.GetTraceMessages()) {
+      std::cout << " - " << tm.message() << '\n';
     }
   }
 }

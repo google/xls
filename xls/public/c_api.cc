@@ -1286,17 +1286,18 @@ bool xls_function_jit_run(struct xls_function_jit* jit, size_t argc,
     return false;
   }
 
+  std::vector<std::string> trace_msgs = result->events.GetTraceMessageStrings();
   std::unique_ptr<xls_trace_message[]> trace_messages =
-      std::make_unique<xls_trace_message[]>(result->events.trace_msgs.size());
-  for (size_t i = 0; i < result->events.trace_msgs.size(); ++i) {
-    trace_messages[i].message =
-        xls::ToOwnedCString(result->events.trace_msgs[i].message);
-    trace_messages[i].verbosity = result->events.trace_msgs[i].verbosity;
+      std::make_unique<xls_trace_message[]>(trace_msgs.size());
+  for (int i = 0; i < trace_msgs.size(); ++i) {
+    trace_messages[i].message = xls::ToOwnedCString(trace_msgs[i]);
+    trace_messages[i].verbosity = 0;
   }
   *trace_messages_out = trace_messages.release();
-  *trace_messages_count_out = result->events.trace_msgs.size();
+  *trace_messages_count_out = trace_msgs.size();
 
-  xls::ToOwnedCStrings(result->events.assert_msgs, assert_messages_out,
+  std::vector<std::string> assert_msgs = result->events.GetAssertMessages();
+  xls::ToOwnedCStrings(assert_msgs, assert_messages_out,
                        assert_messages_count_out);
 
   *result_out = reinterpret_cast<struct xls_value*>(

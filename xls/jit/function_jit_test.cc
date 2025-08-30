@@ -152,15 +152,10 @@ absl::StatusOr<Value> RunJitNoEvents(FunctionJit* jit,
                                      absl::Span<const Value> args) {
   XLS_ASSIGN_OR_RETURN(InterpreterResult<Value> result, jit->Run(args));
 
-  if (!result.events.trace_msgs.empty()) {
-    std::vector<std::string_view> trace_msgs;
-    trace_msgs.reserve(result.events.trace_msgs.size());
-    for (const TraceMessage& trace : result.events.trace_msgs) {
-      trace_msgs.push_back(trace.message);
-    }
+  if (!result.events.GetTraceMessages().empty()) {
     return absl::FailedPreconditionError(absl::StrFormat(
         "Unexpected traces generated during RunJitNoEvents:\n%s",
-        absl::StrJoin(trace_msgs, "\n")));
+        absl::StrJoin(result.events.GetTraceMessageStrings(), "\n")));
   }
 
   return InterpreterResultToStatusOrValue(result);
@@ -242,8 +237,8 @@ TEST(FunctionJitTest, TraceFmtNoArgsTest) {
   XLS_ASSERT_OK_AND_ASSIGN(auto jit, FunctionJit::Create(function));
   std::vector<Value> args = {Value::Token(), Value(UBits(1, 1))};
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result, jit->Run(args));
-  ASSERT_EQ(result.events.trace_msgs.size(), 1);
-  EXPECT_EQ(result.events.trace_msgs.at(0).message, "hi I traced");
+  EXPECT_THAT(result.events.GetTraceMessageStrings(),
+              ElementsAre("hi I traced"));
 }
 
 TEST(FunctionJitTest, TraceFmtOneArgTest) {
@@ -259,8 +254,8 @@ TEST(FunctionJitTest, TraceFmtOneArgTest) {
   XLS_ASSERT_OK_AND_ASSIGN(auto jit, FunctionJit::Create(function));
   std::vector<Value> args = {Value::Token(), Value(UBits(1, 1))};
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result, jit->Run(args));
-  ASSERT_EQ(result.events.trace_msgs.size(), 1);
-  EXPECT_EQ(result.events.trace_msgs.at(0).message, "hi I traced: 1");
+  EXPECT_THAT(result.events.GetTraceMessageStrings(),
+              ElementsAre("hi I traced: 1"));
 }
 
 TEST(FunctionJitTest, TraceFmtSignedTest) {
@@ -279,10 +274,8 @@ TEST(FunctionJitTest, TraceFmtSignedTest) {
   XLS_ASSERT_OK_AND_ASSIGN(auto jit, FunctionJit::Create(function));
   std::vector<Value> args = {Value::Token(), Value(UBits(0xff, 8))};
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result, jit->Run(args));
-  ASSERT_EQ(result.events.trace_msgs.size(), 3);
-  EXPECT_EQ(result.events.trace_msgs.at(0).message, "signed: -1");
-  EXPECT_EQ(result.events.trace_msgs.at(1).message, "unsigned: 255");
-  EXPECT_EQ(result.events.trace_msgs.at(2).message, "default: 255");
+  EXPECT_THAT(result.events.GetTraceMessageStrings(),
+              ElementsAre("signed: -1", "unsigned: 255", "default: 255"));
 }
 
 TEST(FunctionJitTest, TraceFmtTwoArgTest) {
@@ -299,8 +292,8 @@ TEST(FunctionJitTest, TraceFmtTwoArgTest) {
   XLS_ASSERT_OK_AND_ASSIGN(auto jit, FunctionJit::Create(function));
   std::vector<Value> args = {Value::Token(), Value(UBits(1, 1))};
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result, jit->Run(args));
-  ASSERT_EQ(result.events.trace_msgs.size(), 1);
-  EXPECT_EQ(result.events.trace_msgs.at(0).message, "hi I traced: 1 also: 2a");
+  EXPECT_THAT(result.events.GetTraceMessageStrings(),
+              ElementsAre("hi I traced: 1 also: 2a"));
 }
 
 TEST(FunctionJitTest, TraceFmtBigArgTest) {
@@ -319,11 +312,12 @@ TEST(FunctionJitTest, TraceFmtBigArgTest) {
   XLS_ASSERT_OK_AND_ASSIGN(auto jit, FunctionJit::Create(function));
   std::vector<Value> args = {Value::Token(), Value(UBits(1, 1))};
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result, jit->Run(args));
-  ASSERT_EQ(result.events.trace_msgs.size(), 1);
-  EXPECT_EQ(result.events.trace_msgs.at(0).message,
-            "hi I traced: "
-            "800000000000000000000000000000000000000000000000000000000000000000"
-            "00000000000000000000000000000000000000000000000000000000000000");
+  EXPECT_THAT(
+      result.events.GetTraceMessageStrings(),
+      ElementsAre(
+          "hi I traced: "
+          "800000000000000000000000000000000000000000000000000000000000000000"
+          "00000000000000000000000000000000000000000000000000000000000000"));
 }
 
 // This test verifies that a compiled JIT function can be reused.

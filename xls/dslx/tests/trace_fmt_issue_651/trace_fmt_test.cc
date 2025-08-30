@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "absl/types/span.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/tests/trace_fmt_issue_651/trace_enum_wrapper.h"
 #include "xls/dslx/tests/trace_fmt_issue_651/trace_s32_wrapper.h"
@@ -31,10 +31,6 @@ namespace xls {
 namespace {
 using ::testing::ElementsAre;
 using ::testing::IsEmpty;
-
-MATCHER_P(TraceMessage, m, "") {
-  return testing::ExplainMatchResult(m, arg.message, result_listener);
-}
 TEST(TraceFmt, LeadingOneU16) {
   XLS_ASSERT_OK_AND_ASSIGN(auto trace, wrapped::Trace_u16::Create());
   XLS_ASSERT_OK_AND_ASSIGN(auto input,
@@ -42,9 +38,9 @@ TEST(TraceFmt, LeadingOneU16) {
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> res,
                            trace->jit()->Run({input}));
 
-  EXPECT_THAT(res.events.assert_msgs, IsEmpty());
-  EXPECT_THAT(res.events.trace_msgs,
-              ElementsAre(TraceMessage("1111_1111_0000_0000")));
+  EXPECT_THAT(res.events.GetAssertMessages(), IsEmpty());
+  EXPECT_THAT(res.events.GetTraceMessageStrings(),
+              ElementsAre("1111_1111_0000_0000"));
 }
 
 TEST(TraceFmt, ZeroPaddedU16) {
@@ -54,9 +50,9 @@ TEST(TraceFmt, ZeroPaddedU16) {
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> res,
                            trace->jit()->Run({input}));
 
-  EXPECT_THAT(res.events.assert_msgs, IsEmpty());
-  EXPECT_THAT(res.events.trace_msgs,
-              ElementsAre(TraceMessage("0000_0000_0111_0000")));
+  EXPECT_THAT(res.events.GetAssertMessages(), IsEmpty());
+  EXPECT_THAT(res.events.GetTraceMessageStrings(),
+              ElementsAre("0000_0000_0111_0000"));
 }
 
 TEST(TraceFmt, LeadingOneU21) {
@@ -67,9 +63,9 @@ TEST(TraceFmt, LeadingOneU21) {
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> res,
                            trace->jit()->Run({input}));
 
-  EXPECT_THAT(res.events.assert_msgs, IsEmpty());
-  EXPECT_THAT(res.events.trace_msgs,
-              ElementsAre(TraceMessage("1_0001_0001_0001_0001_0001")));
+  EXPECT_THAT(res.events.GetAssertMessages(), IsEmpty());
+  EXPECT_THAT(res.events.GetTraceMessageStrings(),
+              ElementsAre("1_0001_0001_0001_0001_0001"));
 }
 
 TEST(TraceFmt, ZeroPaddedU21) {
@@ -79,9 +75,9 @@ TEST(TraceFmt, ZeroPaddedU21) {
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> res,
                            trace->jit()->Run({input}));
 
-  EXPECT_THAT(res.events.assert_msgs, IsEmpty());
-  EXPECT_THAT(res.events.trace_msgs,
-              ElementsAre(TraceMessage("0_0000_0000_0000_0111_0000")));
+  EXPECT_THAT(res.events.GetAssertMessages(), IsEmpty());
+  EXPECT_THAT(res.events.GetTraceMessageStrings(),
+              ElementsAre("0_0000_0000_0000_0111_0000"));
 }
 
 TEST(TraceFmt, LeadingOneS32) {
@@ -91,10 +87,9 @@ TEST(TraceFmt, LeadingOneS32) {
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> res,
                            trace->jit()->Run({input}));
 
-  EXPECT_THAT(res.events.assert_msgs, IsEmpty());
-  EXPECT_THAT(
-      res.events.trace_msgs,
-      ElementsAre(TraceMessage("1111_1111_1111_1111_1111_1111_1110_0000")));
+  EXPECT_THAT(res.events.GetAssertMessages(), IsEmpty());
+  EXPECT_THAT(res.events.GetTraceMessageStrings(),
+              ElementsAre("1111_1111_1111_1111_1111_1111_1110_0000"));
 }
 
 TEST(TraceFmt, ZeroPaddedS32) {
@@ -104,10 +99,9 @@ TEST(TraceFmt, ZeroPaddedS32) {
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> res,
                            trace->jit()->Run({input}));
 
-  EXPECT_THAT(res.events.assert_msgs, IsEmpty());
-  EXPECT_THAT(
-      res.events.trace_msgs,
-      ElementsAre(TraceMessage("0000_0000_0000_0000_0000_0000_0111_0000")));
+  EXPECT_THAT(res.events.GetAssertMessages(), IsEmpty());
+  EXPECT_THAT(res.events.GetTraceMessageStrings(),
+              ElementsAre("0000_0000_0000_0000_0000_0000_0111_0000"));
 }
 
 TEST(TraceFmt, Enum) {
@@ -115,9 +109,9 @@ TEST(TraceFmt, Enum) {
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> res,
                            trace->jit()->Run(absl::Span<Value>()));
 
-  EXPECT_THAT(res.events.assert_msgs, IsEmpty());
-  EXPECT_THAT(res.events.trace_msgs,
-              ElementsAre(TraceMessage("0_0000_0011_0000_0011_1001")));
+  EXPECT_THAT(res.events.GetAssertMessages(), IsEmpty());
+  EXPECT_THAT(res.events.GetTraceMessageStrings(),
+              ElementsAre("0_0000_0011_0000_0011_1001"));
 }
 
 TEST(TraceFmt, LeadingOne16Hex) {
@@ -127,8 +121,8 @@ TEST(TraceFmt, LeadingOne16Hex) {
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> res,
                            trace->jit()->Run({input}));
 
-  EXPECT_THAT(res.events.assert_msgs, IsEmpty());
-  EXPECT_THAT(res.events.trace_msgs, ElementsAre(TraceMessage("ff00")));
+  EXPECT_THAT(res.events.GetAssertMessages(), IsEmpty());
+  EXPECT_THAT(res.events.GetTraceMessageStrings(), ElementsAre("ff00"));
 }
 
 TEST(TraceFmt, ZeroPadded16Hex) {
@@ -138,8 +132,8 @@ TEST(TraceFmt, ZeroPadded16Hex) {
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> res,
                            trace->jit()->Run({input}));
 
-  EXPECT_THAT(res.events.assert_msgs, IsEmpty());
-  EXPECT_THAT(res.events.trace_msgs, ElementsAre(TraceMessage("0070")));
+  EXPECT_THAT(res.events.GetAssertMessages(), IsEmpty());
+  EXPECT_THAT(res.events.GetTraceMessageStrings(), ElementsAre("0070"));
 }
 
 TEST(TraceFmt, LeadingOne21Hex) {
@@ -149,8 +143,8 @@ TEST(TraceFmt, LeadingOne21Hex) {
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> res,
                            trace->jit()->Run({input}));
 
-  EXPECT_THAT(res.events.assert_msgs, IsEmpty());
-  EXPECT_THAT(res.events.trace_msgs, ElementsAre(TraceMessage("1f_ff00")));
+  EXPECT_THAT(res.events.GetAssertMessages(), IsEmpty());
+  EXPECT_THAT(res.events.GetTraceMessageStrings(), ElementsAre("1f_ff00"));
 }
 
 TEST(TraceFmt, ZeroPadded21Hex) {
@@ -160,8 +154,8 @@ TEST(TraceFmt, ZeroPadded21Hex) {
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> res,
                            trace->jit()->Run({input}));
 
-  EXPECT_THAT(res.events.assert_msgs, IsEmpty());
-  EXPECT_THAT(res.events.trace_msgs, ElementsAre(TraceMessage("0f_ff00")));
+  EXPECT_THAT(res.events.GetAssertMessages(), IsEmpty());
+  EXPECT_THAT(res.events.GetTraceMessageStrings(), ElementsAre("0f_ff00"));
 }
 }  // namespace
 }  // namespace xls

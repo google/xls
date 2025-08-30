@@ -861,7 +861,7 @@ TEST_F(TranslatorPointerTest, ReferenceInNestedStruct2) {
 TEST_F(TranslatorPointerTest, ReferenceFuncParam) {
   const std::string content = R"(
 
-    int foo(int& x) { 
+    int foo(int& x) {
       return x*2;
     }
 
@@ -877,7 +877,7 @@ TEST_F(TranslatorPointerTest, ReferenceFuncParam) {
 TEST_F(TranslatorPointerTest, ReferenceFuncParam2) {
   const std::string content = R"(
 
-    void foo(int& x) { 
+    void foo(int& x) {
       x += 10;
     }
 
@@ -903,7 +903,7 @@ TEST_F(TranslatorPointerTest, ReferenceFuncReturn) {
 
     int my_package() {
       int x = 4;
-      
+
       int &xr = x;
       int &y = foo(xr);
       return y;
@@ -1224,15 +1224,15 @@ TEST_F(TranslatorPointerTest, ReferenceToTernarySet) {
 }
 
 TEST_F(TranslatorPointerTest, ReferenceToTernarySetClass) {
-  const std::string content = R"(  
+  const std::string content = R"(
     struct MyInt {
       MyInt(int val) : val_(val) {
       }
-      
+
       operator int()const {
         return val_;
       }
-      
+
       int val_;
     };
 
@@ -1248,15 +1248,15 @@ TEST_F(TranslatorPointerTest, ReferenceToTernarySetClass) {
 }
 
 TEST_F(TranslatorPointerTest, ReferenceToTernarySetClassNested) {
-  const std::string content = R"(  
+  const std::string content = R"(
     struct MyInt {
       MyInt(int val) : val_(val) {
       }
-      
+
       operator int()const {
         return val_;
       }
-      
+
       int val_;
     };
 
@@ -1274,20 +1274,20 @@ TEST_F(TranslatorPointerTest, ReferenceToTernarySetClassNested) {
 }
 
 TEST_F(TranslatorPointerTest, ReferenceToTernarySetClass3) {
-  const std::string content = R"(  
+  const std::string content = R"(
     struct MyInt {
       MyInt(int val) : val_(val) {
       }
-      
+
       operator int()const {
         return val_;
       }
-      
+
       MyInt& operator+=(MyInt& o) {
         val_ += o.val_;
         return *this;
       }
-      
+
       int val_;
     };
 

@@ -22,8 +22,6 @@
 #include <string_view>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
@@ -31,6 +29,8 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
@@ -1506,10 +1506,9 @@ TEST_P(BlockEvaluatorTest, InterpreterEventsCaptured) {
         .interpreter_events = cont->events(),
     };
 
-    EXPECT_THAT(result.interpreter_events.trace_msgs,
-                ElementsAre(FieldsAre("x is 10", 0),
-                            FieldsAre("I'm emphasizing that x is 10", 3)));
-    EXPECT_THAT(result.interpreter_events.assert_msgs, IsEmpty());
+    EXPECT_THAT(result.interpreter_events.GetTraceMessageStrings(),
+                ElementsAre("x is 10", "I'm emphasizing that x is 10"));
+    EXPECT_THAT(result.interpreter_events.GetAssertMessages(), IsEmpty());
   }
 
   {
@@ -1524,10 +1523,10 @@ TEST_P(BlockEvaluatorTest, InterpreterEventsCaptured) {
         .interpreter_events = cont->events(),
     };
 
-    EXPECT_THAT(result.interpreter_events.trace_msgs,
-                ElementsAre(FieldsAre("x is 3", 0),
-                            FieldsAre("I'm emphasizing that x is 3", 3)));
-    EXPECT_THAT(result.interpreter_events.assert_msgs, ElementsAre("foo"));
+    EXPECT_THAT(result.interpreter_events.GetTraceMessageStrings(),
+                ElementsAre("x is 3", "I'm emphasizing that x is 3"));
+    EXPECT_THAT(result.interpreter_events.GetAssertMessages(),
+                ElementsAre("foo"));
   }
 }
 
@@ -1577,12 +1576,11 @@ TEST_P(BlockEvaluatorTest, InterpreterEventsCapturedByChannelizedInterface) {
                              sinks.at(0).GetOutputSequenceAsUint64());
     EXPECT_GT(block_io.outputs.size(), output_sequence.size());
     EXPECT_THAT(output_sequence, ElementsAre(8, 7, 6, 5, 4));
-    EXPECT_THAT(block_io.interpreter_events.assert_msgs,
+    EXPECT_THAT(block_io.interpreter_events.GetAssertMessages(),
                 // Assertion fails for inputs 5 and 4.
                 ElementsAre("foo", "foo"));
-    EXPECT_THAT(block_io.interpreter_events.trace_msgs,
-                Contains(FieldsAre(HasSubstr("I'm emphasizing that x is "), _))
-                    .Times(5));
+    EXPECT_THAT(block_io.interpreter_events.GetTraceMessageStrings(),
+                Contains(HasSubstr("I'm emphasizing that x is ")).Times(5));
   }
 }
 

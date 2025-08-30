@@ -89,16 +89,8 @@ absl::StatusOr<InterpreterResult<Value>> InterpretFunction(
   }
   FunctionInterpreter visitor(args, options, observer, call_depth);
   if (options.trace_calls()) {
-    std::vector<std::string> arg_strs;
-    arg_strs.reserve(args.size());
-    for (const Value& v : args) {
-      arg_strs.push_back(v.ToHumanString(options.format_preference()));
-    }
-    visitor.GetInterpreterEvents().trace_msgs.push_back(TraceMessage{
-        .message =
-            absl::StrFormat("%*s%s(%s)", 2 * call_depth, "", function->name(),
-                            absl::StrJoin(arg_strs, ", ")),
-        .verbosity = 0});
+    visitor.GetInterpreterEvents().AddTraceCallMessage(
+        function->name(), args, call_depth, options.format_preference());
   }
   XLS_RETURN_IF_ERROR(function->Accept(&visitor));
   Value result = visitor.ResolveAsValue(function->return_value());

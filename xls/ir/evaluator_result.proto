@@ -1,0 +1,70 @@
+// Copyright 2025 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package xls;
+
+import "xls/ir/xls_value.proto";
+
+
+// Metadata about a message from a trace statement.
+message TraceStatementProto {
+  optional int64 verbosity = 1;
+}
+
+// Message metadata for a function call when call tracing is enabled.
+message TraceCallProto {
+  optional string function_name = 1;
+  repeated ValueProto args = 2;
+  optional int64 call_depth = 3;
+}
+
+// Message metadata for a node value when node valuetracing is enabled.
+message TraceNodeProto {
+  optional string node_name = 1;
+  optional int64 node_id = 2;
+  optional ValueProto value_changes = 3;
+}
+
+// A trace message emitted during evaluation.
+message TraceMessageProto {
+  optional string message = 1;
+  oneof type {
+    TraceStatementProto statement = 2;
+    TraceCallProto call = 3;
+    TraceNodeProto node = 4;
+  }
+}
+
+// An assertion message emitted during evaluation.
+message AssertMessageProto {
+  string message = 1;
+}
+
+message EvaluatorEventsProto {
+  repeated TraceMessageProto trace_msgs = 1;
+  repeated AssertMessageProto assert_msgs = 2;
+}
+
+// Result of evaluating a function.
+// TODO(meheff): Add support for proc/block evaluation.
+message EvaluatorResultProto {
+  ValueProto result = 1;
+  EvaluatorEventsProto events = 2;
+}
+
+message EvaluatorResultsProto {
+  repeated EvaluatorResultProto results = 1;
+}

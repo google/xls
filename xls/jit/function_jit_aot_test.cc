@@ -132,9 +132,8 @@ TEST_F(FunctionJitAotTest, CallAot) {
   {
     XLS_ASSERT_OK_AND_ASSIGN(auto res, test_aot->Run({Value(UBits(3, 8))}));
     EXPECT_EQ(res.value, Value(UBits(15, 8)));
-    EXPECT_THAT(res.events.trace_msgs,
-                UnorderedElementsAre(TraceMessage("mf_2(6) -> 12", 0),
-                                     TraceMessage("mf_1(3) -> 15", 0)));
+    EXPECT_THAT(res.events.GetTraceMessageStrings(),
+                UnorderedElementsAre("mf_2(6) -> 12", "mf_1(3) -> 15"));
   }
 
   // Packed
@@ -205,10 +204,9 @@ TEST_F(FunctionJitAotTest, InterceptCallAot) {
   {
     XLS_ASSERT_OK_AND_ASSIGN(auto res, test_aot->Run({Value(UBits(3, 8))}));
     EXPECT_EQ(res.value, Value(UBits(15, 8)));
-    EXPECT_THAT(res.events.trace_msgs,
-                UnorderedElementsAre(TraceMessage("Stuck in the middle", 42),
-                                     TraceMessage("mf_2(6) -> 12", 0),
-                                     TraceMessage("mf_1(3) -> 15", 0)));
+    EXPECT_THAT(res.events.GetTraceMessageStrings(),
+                UnorderedElementsAre("Stuck in the middle", "mf_2(6) -> 12",
+                                     "mf_1(3) -> 15"));
     EXPECT_EQ(called_unpacked_cnt, 1);
     EXPECT_EQ(called_packed_cnt, 0);
   }

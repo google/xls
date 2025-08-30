@@ -4,6 +4,9 @@ repos:
     hooks:
       - id: end-of-file-fixer
         exclude: '^(xls/contrib/.*|\.pre-commit-config.yaml|docs_src/passes_list.md|docs_src/bazel_rules_macros.md|.*\.(sh|ir|txt|patch|csv))$'
+      - id: trailing-whitespace
+        files: '(\.cc|\.h|\.py|\.proto)$'
+
   - repo: local
     hooks:
       - id: check-cpp-absolute-includes

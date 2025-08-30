@@ -21,14 +21,14 @@
 #include <utility>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/codegen/block_conversion.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
@@ -159,9 +159,9 @@ class SideEffectConditionPassTest
     for (const absl::flat_hash_map<std::string, Value>& input_set : inputs) {
       XLS_RETURN_IF_ERROR(continuation->RunOneCycle(input_set));
       XLS_RETURN_IF_ERROR(InterpreterEventsToStatus(continuation->events()));
-      for (const TraceMessage& trace : continuation->events().trace_msgs) {
-        traces.push_back(trace.message);
-      }
+      const std::vector<std::string> msgs =
+          continuation->events().GetTraceMessageStrings();
+      traces.insert(traces.end(), msgs.begin(), msgs.end());
     }
     return traces;
   }

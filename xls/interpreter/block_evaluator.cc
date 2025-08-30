@@ -450,12 +450,7 @@ BlockEvaluator::EvaluateChannelizedSequentialBlock(
 
     block_io_results.inputs.push_back(std::move(input_set));
     block_io_results.outputs.push_back(continuation->output_ports());
-    absl::c_copy(
-        continuation->events().assert_msgs,
-        std::back_inserter(block_io_results.interpreter_events.assert_msgs));
-    absl::c_copy(
-        continuation->events().trace_msgs,
-        std::back_inserter(block_io_results.interpreter_events.trace_msgs));
+    block_io_results.interpreter_events.AppendFrom(continuation->events());
   }
 
   return block_io_results;

@@ -5316,7 +5316,7 @@ TEST_F(TranslatorLogicTest, DelegatingCtorInArray) {
   std::string_view content = R"(
     struct DefaultUnrollInner {
         DefaultUnrollInner(int value) {
-          x = value; 
+          x = value;
         }
         DefaultUnrollInner(): DefaultUnrollInner(10) {}
         int x;

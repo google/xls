@@ -716,7 +716,7 @@ TEST_F(CCParserTest, UnrollNo) {
 
   const std::string cpp_src = R"(
     int bar(int (&a)[5], int b) {
-      #pragma hls_unroll no 
+      #pragma hls_unroll no
       for (int i = 0; i < 5; ++i) a[i] = b;
       return true;
     }

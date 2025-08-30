@@ -20,12 +20,12 @@
 #include <string_view>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/channel_queue.h"
@@ -1112,13 +1112,8 @@ TEST_P(ProcRuntimeTestBase, TraceChannels) {
     XLS_ASSERT_OK(runtime->TickUntilBlocked(/*max_ticks=*/100));
 
     InterpreterEvents events = runtime->GetGlobalEvents();
-    std::vector<std::string> event_messages;
-    event_messages.reserve(events.trace_msgs.size());
-    for (const TraceMessage& message : events.trace_msgs) {
-      event_messages.push_back(message.message);
-    }
     EXPECT_THAT(
-        event_messages,
+        events.GetTraceMessageStrings(),
         ElementsAre(ContainsRegex("Sent data on channel `in`.*:42"),
                     ContainsRegex("Sent data on channel `in`.*:123"),
                     ContainsRegex("Received data on channel `in`.*:42"),
@@ -1139,13 +1134,8 @@ TEST_P(ProcRuntimeTestBase, TraceChannels) {
     XLS_ASSERT_OK(runtime->TickUntilBlocked(/*max_ticks=*/100));
 
     InterpreterEvents events = runtime->GetGlobalEvents();
-    std::vector<std::string> event_messages;
-    event_messages.reserve(events.trace_msgs.size());
-    for (const TraceMessage& message : events.trace_msgs) {
-      event_messages.push_back(message.message);
-    }
     EXPECT_THAT(
-        event_messages,
+        events.GetTraceMessageStrings(),
         ElementsAre(ContainsRegex("Sent data on channel `in`.*:0x2a"),
                     ContainsRegex("Sent data on channel `in`.*:0x7b"),
                     ContainsRegex("Received data on channel `in`.*:0x2a"),
@@ -1163,7 +1153,7 @@ TEST_P(ProcRuntimeTestBase, TraceChannels) {
     XLS_ASSERT_OK(in_queue.Write({Value(UBits(123, 32))}));
     XLS_ASSERT_OK(in_queue.Write({Value(UBits(100, 32))}));
     XLS_ASSERT_OK(runtime->TickUntilBlocked(/*max_ticks=*/100));
-    EXPECT_TRUE(runtime->GetGlobalEvents().trace_msgs.empty());
+    EXPECT_TRUE(runtime->GetGlobalEvents().GetTraceMessages().empty());
   }
 }
 

@@ -27,8 +27,6 @@
 #include <utility>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/base/log_severity.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
@@ -47,6 +45,8 @@
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "clang/include/clang/AST/Decl.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/file/temp_file.h"
@@ -155,8 +155,10 @@ void XlsccTestBase::RunAcDatatypeTest(
 
 absl::StatusOr<std::vector<std::string>> XlsccTestBase::GetClangArgForIntTest()
     const {
-  XLS_ASSIGN_OR_RETURN(std::string ac_int_path,
-                       xls::GetXlsRunfilePath("external/com_github_hlslibs_ac_types/include/ac_int.h"));
+  XLS_ASSIGN_OR_RETURN(
+      std::string ac_int_path,
+      xls::GetXlsRunfilePath(
+          "external/com_github_hlslibs_ac_types/include/ac_int.h"));
   XLS_ASSIGN_OR_RETURN(
       std::string xls_int_path,
       xls::GetXlsRunfilePath("xls/contrib/xlscc/synth_only/xls_int.h"));
@@ -383,12 +385,12 @@ absl::StatusOr<std::string> XlsccTestBase::SourceToIr(
 
 static absl::Status LogInterpreterEvents(std::string_view entity_name,
                                          const xls::InterpreterEvents& events) {
-  for (const xls::TraceMessage& msg : events.trace_msgs) {
+  for (const auto& tm : events.GetTraceMessages()) {
     std::string unescaped_msg;
-    XLS_RET_CHECK(absl::CUnescape(msg.message, &unescaped_msg));
+    XLS_RET_CHECK(absl::CUnescape(tm.message(), &unescaped_msg));
     LOG(INFO) << "Proc " << entity_name << " trace: " << unescaped_msg;
   }
-  for (const auto& msg : events.assert_msgs) {
+  for (const std::string& msg : events.GetAssertMessages()) {
     std::string unescaped_msg;
     XLS_RET_CHECK(absl::CUnescape(msg, &unescaped_msg));
     LOG(INFO) << "Proc " << entity_name << " assert: " << unescaped_msg;
@@ -666,12 +668,7 @@ void XlsccTestBase::ProcTest(
       const xls::InterpreterEvents& events =
           interpreter->GetInterpreterEvents(proc.get());
       XLS_EXPECT_OK(LogInterpreterEvents(proc->name(), events));
-      for (const auto& msg : events.trace_msgs) {
-        got_events_for_proc[proc->name()].trace_msgs.push_back(msg);
-      }
-      for (const auto& msg : events.assert_msgs) {
-        got_events_for_proc[proc->name()].assert_msgs.push_back(msg);
-      }
+      got_events_for_proc[proc->name()].AppendFrom(events);
     }
 
     LOG(INFO) << "State after tick " << tick;
@@ -716,8 +713,10 @@ void XlsccTestBase::ProcTest(
     if (got_events_for_proc.contains(proc_name)) {
       got_events = got_events_for_proc.at(proc_name);
     }
-    EXPECT_EQ(ref_events.trace_msgs.size(), got_events.trace_msgs.size());
-    EXPECT_EQ(ref_events.assert_msgs.size(), got_events.assert_msgs.size());
+    EXPECT_EQ(ref_events.GetTraceMessages().size(),
+              got_events.GetTraceMessages().size());
+    EXPECT_EQ(ref_events.GetAssertMessages().size(),
+              got_events.GetAssertMessages().size());
     EXPECT_EQ(ref_events, got_events);
   }
 

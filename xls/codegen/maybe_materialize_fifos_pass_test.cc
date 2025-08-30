@@ -21,17 +21,17 @@
 #include <utility>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
-#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/fifo_model_test_utils.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -164,7 +164,8 @@ class MaterializeFifosPassTestHelper {
       ScopedMaybeRecord input_inst("input", input_set_inst);
       ScopedMaybeRecord test_out("test_output", tester_outputs);
       ScopedMaybeRecord oracle_out("oracle_output", oracle->output_ports());
-      ScopedMaybeRecord trace("trace", tester->events().trace_msgs);
+      ScopedMaybeRecord trace("trace",
+                              tester->events().GetTraceMessageStrings());
       ASSERT_THAT(tester_outputs,
                   UsableOutputsMatch(input_set_inst, oracle->output_ports()))
           << "@" << i << ". tester_state: {"

@@ -19,13 +19,13 @@
 namespace xls {
 
 absl::Status InterpreterEventsToStatus(const InterpreterEvents& events) {
-  if (events.assert_msgs.empty()) {
+  if (events.GetAssertMessages().empty()) {
     return absl::OkStatus();
   }
 
   // If an assertion has been raised, return the message from the first
   // assertion recorded, matching the behavior of short-circuit evaluation.
-  return absl::AbortedError(events.assert_msgs.front());
+  return absl::AbortedError(events.GetAssertMessages().front());
 }
 
 }  // namespace xls

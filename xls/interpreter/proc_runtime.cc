@@ -60,8 +60,7 @@ class ChannelTraceRecorder : public ChannelQueueCallback {
                                           channel_instance->ToString(),
                                           value.ToString(format_preference_));
     VLOG(3) << message;
-    runtime_->AddTraceMessage(
-        TraceMessage{.message = std::move(message), .verbosity = 0});
+    runtime_->AddTraceMessage(0, std::move(message));
   }
 
   void WriteValue(ChannelInstance* channel_instance,
@@ -70,8 +69,7 @@ class ChannelTraceRecorder : public ChannelQueueCallback {
                                           channel_instance->ToString(),
                                           value.ToString(format_preference_));
     VLOG(3) << message;
-    runtime_->AddTraceMessage(
-        TraceMessage{.message = std::move(message), .verbosity = 0});
+    runtime_->AddTraceMessage(0, std::move(message));
   }
 
  private:
@@ -262,9 +260,9 @@ void ProcRuntime::ClearInterpreterEvents() {
   }
 }
 
-void ProcRuntime::AddTraceMessage(TraceMessage message) {
+void ProcRuntime::AddTraceMessage(int64_t verbosity, std::string message) {
   absl::MutexLock lock(&global_events_mutex_);
-  global_events_.trace_msgs.push_back(std::move(message));
+  global_events_.AddTraceStatementMessage(verbosity, std::move(message));
 }
 
 }  // namespace xls
