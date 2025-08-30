@@ -274,6 +274,9 @@ class AstCloner : public AstNodeVisitor {
   }
 
   absl::Status HandleEnumDef(const EnumDef* n) override {
+    if (old_to_new_.contains(n)) {
+      return absl::OkStatus();
+    }
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
     NameDef* new_name_def = down_cast<NameDef*>(old_to_new_.at(n->name_def()));
@@ -845,6 +848,9 @@ class AstCloner : public AstNodeVisitor {
   }
 
   absl::Status HandleStructDef(const StructDef* n) override {
+    if (old_to_new_.contains(n)) {
+      return absl::OkStatus();
+    }
     absl::Status status = HandleStructDefBaseInternal(n);
     if (status.ok()) {
       AstNode* new_node = old_to_new_.at(n);
@@ -859,6 +865,9 @@ class AstCloner : public AstNodeVisitor {
   }
 
   absl::Status HandleProcDef(const ProcDef* n) override {
+    if (old_to_new_.contains(n)) {
+      return absl::OkStatus();
+    }
     return HandleStructDefBaseInternal(n);
   }
 
@@ -985,6 +994,13 @@ class AstCloner : public AstNodeVisitor {
   }
 
   absl::Status HandleTypeAlias(const TypeAlias* n) override {
+    if (old_to_new_.contains(n)) {
+      // Ensure the NameDef definer points at the already-cloned alias.
+      NameDef* existing_name_def =
+          down_cast<NameDef*>(old_to_new_.at(&n->name_def()));
+      existing_name_def->set_definer(old_to_new_.at(n));
+      return absl::OkStatus();
+    }
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
     NameDef* new_name_def = down_cast<NameDef*>(old_to_new_.at(&n->name_def()));
@@ -1003,14 +1019,71 @@ class AstCloner : public AstNodeVisitor {
   absl::Status HandleTypeRef(const TypeRef* n) override {
     TypeDefinition new_type_definition = n->type_definition();
 
-    // A TypeRef doesn't own its referenced type definition, so we have to
-    // explicitly visit it.
+    // A TypeRef doesn't own its referenced type definition. Reuse an existing
+    // type definition in the target module (by identifier) to avoid
+    // duplicating type defs when cloning subtrees into an already-cloned
+    // module. If none exists yet, clone the referenced definition now.
     XLS_RETURN_IF_ERROR(absl::visit(
-        Visitor{[&](auto* ref) -> absl::Status {
-          XLS_RETURN_IF_ERROR(ReplaceOrVisit(ref));
-          new_type_definition = down_cast<decltype(ref)>(old_to_new_.at(ref));
-          return absl::OkStatus();
-        }},
+        Visitor{
+            // Reuse an existing same-named type definition already present
+            // in the target module for module-scoped type defs.
+            [&](TypeAlias* ref) -> absl::Status {
+              absl::StatusOr<TypeDefinition> existing =
+                  module(n)->GetTypeDefinition(ref->identifier());
+              if (existing.ok()) {
+                new_type_definition = *existing;
+                return absl::OkStatus();
+              }
+              XLS_RETURN_IF_ERROR(ReplaceOrVisit(ref));
+              new_type_definition =
+                  down_cast<decltype(ref)>(old_to_new_.at(ref));
+              return absl::OkStatus();
+            },
+            [&](StructDef* ref) -> absl::Status {
+              absl::StatusOr<TypeDefinition> existing =
+                  module(n)->GetTypeDefinition(ref->identifier());
+              if (existing.ok()) {
+                new_type_definition = *existing;
+                return absl::OkStatus();
+              }
+              XLS_RETURN_IF_ERROR(ReplaceOrVisit(ref));
+              new_type_definition =
+                  down_cast<decltype(ref)>(old_to_new_.at(ref));
+              return absl::OkStatus();
+            },
+            [&](ProcDef* ref) -> absl::Status {
+              absl::StatusOr<TypeDefinition> existing =
+                  module(n)->GetTypeDefinition(ref->identifier());
+              if (existing.ok()) {
+                new_type_definition = *existing;
+                return absl::OkStatus();
+              }
+              XLS_RETURN_IF_ERROR(ReplaceOrVisit(ref));
+              new_type_definition =
+                  down_cast<decltype(ref)>(old_to_new_.at(ref));
+              return absl::OkStatus();
+            },
+            [&](EnumDef* ref) -> absl::Status {
+              absl::StatusOr<TypeDefinition> existing =
+                  module(n)->GetTypeDefinition(ref->identifier());
+              if (existing.ok()) {
+                new_type_definition = *existing;
+                return absl::OkStatus();
+              }
+              XLS_RETURN_IF_ERROR(ReplaceOrVisit(ref));
+              new_type_definition =
+                  down_cast<decltype(ref)>(old_to_new_.at(ref));
+              return absl::OkStatus();
+            },
+            // For ColonRef* and UseTreeEntry* we cannot look up by identifier
+            // in the target module; just clone/visit as before.
+            [&](auto* ref) -> absl::Status {
+              XLS_RETURN_IF_ERROR(ReplaceOrVisit(ref));
+              new_type_definition =
+                  down_cast<decltype(ref)>(old_to_new_.at(ref));
+              return absl::OkStatus();
+            },
+        },
         n->type_definition()));
 
     old_to_new_[n] = module(n)->Make<TypeRef>(n->span(), new_type_definition);
