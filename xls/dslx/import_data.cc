@@ -191,13 +191,27 @@ absl::StatusOr<const Module*> ImportData::FindModule(const Span& span) const {
 absl::StatusOr<const AstNode*> ImportData::FindNode(AstNodeKind kind,
                                                     const Span& span) const {
   XLS_ASSIGN_OR_RETURN(const Module* module, FindModule(span));
-  const AstNode* node = module->FindNode(kind, span);
-  if (node == nullptr) {
+  std::vector<const AstNode*> nodes = module->FindNodes(kind, span);
+  if (nodes.empty()) {
     return absl::NotFoundError(absl::StrFormat(
         "Could not find node with kind %s @ %s within module %s",
         AstNodeKindToString(kind), span.ToString(file_table_), module->name()));
   }
-  return node;
+  const TypeInfo* ti = nullptr;
+  for (const auto& [_, module_info] : modules_) {
+    if (&module_info->module() == module) {
+      ti = module_info->type_info();
+      break;
+    }
+  }
+  if (ti) {
+    for (const AstNode* node : nodes) {
+      if (ti->GetItem(node)) {
+        return node;
+      }
+    }
+  }
+  return nodes[0];
 }
 
 absl::Status ImportData::AddToImporterStack(
