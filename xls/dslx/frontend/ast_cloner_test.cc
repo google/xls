@@ -57,6 +57,35 @@ std::optional<TypeRef*> FindFirstTypeRef(AstNode* node) {
   return std::nullopt;
 }
 
+static std::optional<NameRef*> FindFirstNameRefWithId(AstNode* node,
+                                                      std::string_view id) {
+  if (auto* name_ref = dynamic_cast<NameRef*>(node); name_ref) {
+    if (name_ref->identifier() == id) {
+      return name_ref;
+    }
+  }
+  for (AstNode* child : node->GetChildren(true)) {
+    std::optional<NameRef*> found = FindFirstNameRefWithId(child, id);
+    if (found.has_value()) {
+      return found;
+    }
+  }
+  return std::nullopt;
+}
+
+static std::optional<Number*> FindFirstNumber(AstNode* node) {
+  if (auto* number = dynamic_cast<Number*>(node); number) {
+    return number;
+  }
+  for (AstNode* child : node->GetChildren(true)) {
+    std::optional<Number*> found = FindFirstNumber(child);
+    if (found.has_value()) {
+      return found;
+    }
+  }
+  return std::nullopt;
+}
+
 TEST(AstClonerTest, BasicOperation) {
   constexpr std::string_view kProgram = R"(
 fn main() -> u32 {
@@ -158,6 +187,7 @@ fn main() {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
                            CloneModule(*module.get()));
   EXPECT_EQ(kProgram, clone->ToString());
+  XLS_ASSERT_OK(VerifyClone(module.get(), clone.get(), file_table));
 }
 
 TEST(AstClonerTest, InvocationWithParens) {
@@ -181,6 +211,7 @@ fn myfunc_spec2(arg: MyStruct<15>) -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
                            CloneModule(*module.get()));
   EXPECT_EQ(kProgram, clone->ToString());
+  XLS_ASSERT_OK(VerifyClone(module.get(), clone.get(), file_table));
 }
 
 TEST(AstClonerTest, ReplaceOneOfTwoNameRefs) {
@@ -209,7 +240,9 @@ fn main() -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(
       AstNode * clone,
       CloneAst(body_expr,
-               [&](const AstNode* original_node) -> std::optional<AstNode*> {
+               [&](const AstNode* original_node, Module*,
+                   const absl::flat_hash_map<const AstNode*, AstNode*>&)
+                   -> std::optional<AstNode*> {
                  if (const auto* name_ref =
                          dynamic_cast<const NameRef*>(original_node);
                      name_ref && name_ref->identifier() == "a") {
@@ -708,6 +741,7 @@ fn main() -> s64 {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
                            CloneModule(*module.get()));
   EXPECT_EQ(kProgram, clone->ToString());
+  XLS_ASSERT_OK(VerifyClone(module.get(), clone.get(), file_table));
 }
 
 TEST(AstClonerTest, ColonRef) {
@@ -722,6 +756,7 @@ fn main() -> foo::BAR {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
                            CloneModule(*module.get()));
   EXPECT_EQ(kProgram, clone->ToString());
+  XLS_ASSERT_OK(VerifyClone(module.get(), clone.get(), file_table));
 }
 
 TEST(AstClonerTest, IotaArray) {
@@ -736,6 +771,7 @@ fn main() -> u32[ARRAY_SIZE] {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
                            CloneModule(*module.get()));
   EXPECT_EQ(kProgram, clone->ToString());
+  XLS_ASSERT_OK(VerifyClone(module.get(), clone.get(), file_table));
 }
 
 TEST(AstClonerTest, NonConstantArray) {
@@ -749,6 +785,7 @@ TEST(AstClonerTest, NonConstantArray) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
                            CloneModule(*module.get()));
   EXPECT_EQ(kProgram, clone->ToString());
+  XLS_ASSERT_OK(VerifyClone(module.get(), clone.get(), file_table));
 }
 
 TEST(AstClonerTest, Binops) {
@@ -996,7 +1033,8 @@ fn foo(a: u32, b: u32, c: u32, d: u32) -> u32 {
           foo,
           ChainCloneReplacers(
               // The first replacer does a => "3" and b => "4".
-              [&](const AstNode* node)
+              [&](const AstNode* node, Module*,
+                  const absl::flat_hash_map<const AstNode*, AstNode*>&)
                   -> absl::StatusOr<std::optional<AstNode*>> {
                 if (const auto* name_ref = dynamic_cast<const NameRef*>(node)) {
                   if (name_ref->identifier() == "a") {
@@ -1013,7 +1051,8 @@ fn foo(a: u32, b: u32, c: u32, d: u32) -> u32 {
                 return std::nullopt;
               },
               // The second replacer does "3" -> 5" and c => "6".
-              [&](const AstNode* node)
+              [&](const AstNode* node, Module*,
+                  const absl::flat_hash_map<const AstNode*, AstNode*>&)
                   -> absl::StatusOr<std::optional<AstNode*>> {
                 if (const auto* number = dynamic_cast<const Number*>(node);
                     number) {
@@ -1052,17 +1091,20 @@ fn foo(a: u32) -> u32 {
                                                     "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(Function * foo,
                            module->GetMemberOrError<Function>("foo"));
-  EXPECT_THAT(CloneAst(foo, ChainCloneReplacers(
-                                [&](const AstNode* node)
-                                    -> absl::StatusOr<std::optional<AstNode*>> {
-                                  return absl::InvalidArgumentError("Invalid");
-                                },
-                                [&](const AstNode* node)
-                                    -> absl::StatusOr<std::optional<AstNode*>> {
-                                  return absl::FailedPreconditionError(
-                                      "Should not run");
-                                })),
-              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(
+      CloneAst(foo,
+               ChainCloneReplacers(
+                   [&](const AstNode* node, Module*,
+                       const absl::flat_hash_map<const AstNode*, AstNode*>&)
+                       -> absl::StatusOr<std::optional<AstNode*>> {
+                     return absl::InvalidArgumentError("Invalid");
+                   },
+                   [&](const AstNode* node, Module*,
+                       const absl::flat_hash_map<const AstNode*, AstNode*>&)
+                       -> absl::StatusOr<std::optional<AstNode*>> {
+                     return absl::FailedPreconditionError("Should not run");
+                   })),
+      StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 TEST(AstClonerTest, ChainCloneReplacersFailureInSecond) {
@@ -1078,16 +1120,20 @@ fn foo(a: u32) -> u32 {
                                                     "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(Function * foo,
                            module->GetMemberOrError<Function>("foo"));
-  EXPECT_THAT(CloneAst(foo, ChainCloneReplacers(
-                                [&](const AstNode* node)
-                                    -> absl::StatusOr<std::optional<AstNode*>> {
-                                  return std::nullopt;
-                                },
-                                [&](const AstNode* node)
-                                    -> absl::StatusOr<std::optional<AstNode*>> {
-                                  return absl::InvalidArgumentError("Invalid");
-                                })),
-              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(
+      CloneAst(foo,
+               ChainCloneReplacers(
+                   [&](const AstNode* node, Module*,
+                       const absl::flat_hash_map<const AstNode*, AstNode*>&)
+                       -> absl::StatusOr<std::optional<AstNode*>> {
+                     return std::nullopt;
+                   },
+                   [&](const AstNode* node, Module*,
+                       const absl::flat_hash_map<const AstNode*, AstNode*>&)
+                       -> absl::StatusOr<std::optional<AstNode*>> {
+                     return absl::InvalidArgumentError("Invalid");
+                   })),
+      StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 TEST(AstClonerTest, ObservableCloneReplacerWithNoReplacement) {
@@ -1107,7 +1153,11 @@ fn foo(a: u32, b: u32, c: u32, d: u32) -> u32 {
   XLS_ASSERT_OK(
       CloneAst(foo,
                ObservableCloneReplacer(
-                   &flag, [&](const AstNode* source) { return std::nullopt; }))
+                   &flag,
+                   [&](const AstNode* source, Module*,
+                       const absl::flat_hash_map<const AstNode*, AstNode*>&) {
+                     return std::nullopt;
+                   }))
           .status());
   EXPECT_FALSE(flag);
 }
@@ -1127,17 +1177,19 @@ fn foo(a: u32, b: u32, c: u32) -> u32 {
                            module->GetMemberOrError<Function>("foo"));
   bool flag = false;
   XLS_ASSERT_OK(
-      CloneAst(foo, ObservableCloneReplacer(
-                        &flag,
-                        [&](const AstNode* source)
-                            -> absl::StatusOr<std::optional<AstNode*>> {
-                          if (source->ToString() == "5") {
-                            return module->Make<Number>(
-                                Span::Fake(), "4", NumberKind::kOther,
-                                /*type_annotation=*/nullptr);
-                          }
-                          return std::nullopt;
-                        }))
+      CloneAst(foo,
+               ObservableCloneReplacer(
+                   &flag,
+                   [&](const AstNode* source, Module*,
+                       const absl::flat_hash_map<const AstNode*, AstNode*>&)
+                       -> absl::StatusOr<std::optional<AstNode*>> {
+                     if (source->ToString() == "5") {
+                       return module->Make<Number>(Span::Fake(), "4",
+                                                   NumberKind::kOther,
+                                                   /*type_annotation=*/nullptr);
+                     }
+                     return std::nullopt;
+                   }))
           .status());
   EXPECT_TRUE(flag);
 }
@@ -1151,17 +1203,145 @@ TEST(AstClonerTest, ReplaceRoot) {
                            module->GetMemberOrError<Function>("foo"));
   XLS_ASSERT_OK_AND_ASSIGN(
       AstNode * clone,
-      CloneAst(
-          foo,
-          // Replace the root with "3".
-          [&](const AstNode* node) -> absl::StatusOr<std::optional<AstNode*>> {
-            if (node == foo) {
-              return module->Make<Number>(Span::Fake(), "3", NumberKind::kOther,
-                                          /*type_annotation=*/nullptr);
-            }
-            return std::nullopt;
-          }));
+      CloneAst(foo,
+               // Replace the root with "3".
+               [&](const AstNode* node, Module* new_module,
+                   const absl::flat_hash_map<const AstNode*, AstNode*>&)
+                   -> absl::StatusOr<std::optional<AstNode*>> {
+                 if (node == foo) {
+                   return new_module->Make<Number>(Span::Fake(), "3",
+                                                   NumberKind::kOther,
+                                                   /*type_annotation=*/nullptr);
+                 }
+                 return std::nullopt;
+               }));
   EXPECT_EQ(clone->ToString(), "3");
+  XLS_ASSERT_OK(VerifyClone(foo, clone, *module->file_table()));
+}
+
+TEST(AstClonerTest, ReplacerCreatesNodesInTargetModule) {
+  constexpr std::string_view kProgram = R"(fn main() -> u32 { u32:0 })";
+
+  FileTable src_file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto src_module, ParseModule(kProgram, "src_path.x",
+                                                        "src", src_file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * main_fn,
+                           src_module->GetMemberOrError<Function>("main"));
+
+  FileTable dst_file_table;
+  Module dst_module("dst", /*fs_path=*/std::nullopt, dst_file_table);
+
+  // Replace the literal with a new one allocated in the destination module.
+  absl::flat_hash_map<const AstNode*, AstNode*> pairs;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      pairs, CloneAstAndGetAllPairs(
+                 main_fn, &dst_module,
+                 [&](const AstNode* node, Module* new_module,
+                     const absl::flat_hash_map<const AstNode*, AstNode*>&) {
+                   if (node->kind() == AstNodeKind::kNumber) {
+                     return std::optional<AstNode*>{new_module->Make<Number>(
+                         Span::Fake(), "42", NumberKind::kOther,
+                         /*type_annotation=*/nullptr)};
+                   }
+                   return std::optional<AstNode*>{std::nullopt};
+                 }));
+
+  XLS_ASSERT_OK(
+      VerifyClone(main_fn, pairs.at(main_fn), *src_module->file_table()));
+
+  // Find the original number and confirm the replacement lives in the dst
+  // module.
+  std::optional<Number*> old_number_opt = FindFirstNumber(main_fn);
+  ASSERT_TRUE(old_number_opt.has_value());
+  Number* old_number = *old_number_opt;
+  auto* new_number = down_cast<Number*>(pairs.at(old_number));
+  EXPECT_EQ(new_number->owner(), &dst_module);
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t value,
+                           new_number->GetAsUint64(*dst_module.file_table()));
+  EXPECT_EQ(value, 42u);
+}
+
+TEST(AstClonerTest, ReplacerUsesOldToNewMappingForNameRef) {
+  constexpr std::string_view kProgram = R"(fn main() -> u32 {
+  let b = u32:7;
+  let a = u32:1;
+  a + 1
+})";
+
+  FileTable src_file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto src_module, ParseModule(kProgram, "src_path.x",
+                                                        "src", src_file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * main_fn,
+                           src_module->GetMemberOrError<Function>("main"));
+
+  // Grab the old NameDef for "b" so the replacer can use the mapping to the new
+  // one.
+  NameDef* b_name_def = nullptr;
+  for (Statement* stmt : main_fn->body()->statements()) {
+    const auto& wrapped = stmt->wrapped();
+    if (auto let_ptr =
+            std::get_if<Let*>(&const_cast<Statement::Wrapped&>(wrapped));
+        let_ptr != nullptr && *let_ptr != nullptr) {
+      auto name_defs = (*let_ptr)->name_def_tree()->GetNameDefs();
+      if (!name_defs.empty() && name_defs[0]->identifier() == "b") {
+        b_name_def = name_defs[0];
+        break;
+      }
+    }
+  }
+  ASSERT_NE(b_name_def, nullptr);
+
+  FileTable dst_file_table;
+  Module dst_module("dst", /*fs_path=*/std::nullopt, dst_file_table);
+
+  absl::flat_hash_map<const AstNode*, AstNode*> pairs2;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      pairs2,
+      CloneAstAndGetAllPairs(
+          main_fn, &dst_module,
+          [&](const AstNode* node, Module* new_module,
+              const absl::flat_hash_map<const AstNode*, AstNode*>& old_to_new)
+              -> absl::StatusOr<std::optional<AstNode*>> {
+            // Replace occurrences of the NameRef "a" with a NameRef to the
+            // (new) "b".
+            if (const auto* nr = dynamic_cast<const NameRef*>(node);
+                nr != nullptr && nr->identifier() == "a") {
+              auto it = old_to_new.find(b_name_def);
+              XLS_RET_CHECK(it != old_to_new.end());
+              auto* new_b_def = down_cast<NameDef*>(it->second);
+              return std::optional<AstNode*>{new_module->Make<NameRef>(
+                  Span::Fake(), new_b_def->identifier(), new_b_def)};
+            }
+            return std::optional<AstNode*>{std::nullopt};
+          }));
+
+  XLS_ASSERT_OK(
+      VerifyClone(main_fn, pairs2.at(main_fn), *src_module->file_table()));
+
+  Function* cloned_main = nullptr;
+  for (const auto& kv : pairs2) {
+    if (auto* f = dynamic_cast<Function*>(kv.second)) {
+      cloned_main = f;
+      break;
+    }
+  }
+  ASSERT_NE(cloned_main, nullptr);
+  EXPECT_EQ(cloned_main->ToString(), R"(fn main() -> u32 {
+    let b = u32:7;
+    let a = u32:1;
+    b + 1
+})");
+
+  // Verify the synthesized NameRef to "b" refers to the def in the destination
+  // module.
+  std::optional<NameRef*> found_name_ref_opt =
+      FindFirstNameRefWithId(cloned_main, "b");
+  ASSERT_TRUE(found_name_ref_opt.has_value());
+  NameRef* found_name_ref = *found_name_ref_opt;
+  auto name_def_variant = found_name_ref->name_def();
+  ASSERT_TRUE(std::holds_alternative<const NameDef*>(name_def_variant));
+  const NameDef* mapped_b = std::get<const NameDef*>(name_def_variant);
+  EXPECT_EQ(mapped_b->owner(), &dst_module);
 }
 
 TEST(AstClonerTest, ZeroMacro) {
@@ -1783,7 +1963,9 @@ TEST(AstClonerTest, CloneStatementBlockSkipsEmptyVerbatimNode) {
   XLS_ASSERT_OK_AND_ASSIGN(
       AstNode * clone,
       CloneAst(&statement_block,
-               [&](const AstNode* node) -> std::optional<AstNode*> {
+               [&](const AstNode* node, Module*,
+                   const absl::flat_hash_map<const AstNode*, AstNode*>&)
+                   -> std::optional<AstNode*> {
                  if (node->kind() == AstNodeKind::kStatement) {
                    // Replace with a verbatim node with no text.
                    return &empty_verbatim;
@@ -1812,7 +1994,9 @@ TEST(AstClonerTest, CloneStatementBlockUsesVerbatimNode) {
   XLS_ASSERT_OK_AND_ASSIGN(
       AstNode * clone,
       CloneAst(&statement_block,
-               [&](const AstNode* node) -> std::optional<AstNode*> {
+               [&](const AstNode* node, Module*,
+                   const absl::flat_hash_map<const AstNode*, AstNode*>&)
+                   -> std::optional<AstNode*> {
                  if (node->kind() == AstNodeKind::kStatement) {
                    // Replace with the desired verbatim node
                    return &verbatim;
@@ -2071,6 +2255,7 @@ fn foo(a: u32, b: u32) -> u32 {
   absl::flat_hash_map<const AstNode*, AstNode*> clones;
   XLS_ASSERT_OK_AND_ASSIGN(
       clones, CloneAstAndGetAllPairs(foo, foo->owner(), &NoopCloneReplacer));
+  XLS_ASSERT_OK(VerifyClone(foo, clones.at(foo), *module->file_table()));
   absl::flat_hash_set<const AstNode*> original_nodes = FlattenToSet(foo);
   // This is EXPECT_GE because the cloner traverses nodes that are suppressed by
   // GetChildren() while the flattener doesn't.

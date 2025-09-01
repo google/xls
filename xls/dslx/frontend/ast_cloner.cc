@@ -1205,7 +1205,8 @@ class AstCloner : public AstNodeVisitor {
     if (old_to_new_.contains(node)) {
       return absl::OkStatus();
     }
-    XLS_ASSIGN_OR_RETURN(std::optional<AstNode*> replacement, replacer_(node));
+    XLS_ASSIGN_OR_RETURN(std::optional<AstNode*> replacement,
+                         replacer_(node, module(node), old_to_new_));
     if (replacement.has_value()) {
       old_to_new_[node] = *replacement;
       return absl::OkStatus();
@@ -1238,17 +1239,20 @@ class AstCloner : public AstNodeVisitor {
 
 }  // namespace
 
-std::optional<AstNode*> PreserveTypeDefinitionsReplacer(const AstNode* node) {
+std::optional<AstNode*> PreserveTypeDefinitionsReplacer(
+    const AstNode* node, Module* module,
+    const absl::flat_hash_map<const AstNode*, AstNode*>&) {
   if (node->kind() == AstNodeKind::kTypeRef) {
     const auto* type_ref = down_cast<const TypeRef*>(node);
-    return node->owner()->Make<TypeRef>(type_ref->span(),
-                                        type_ref->type_definition());
+    return module->Make<TypeRef>(type_ref->span(), type_ref->type_definition());
   }
   return std::nullopt;
 }
 
 CloneReplacer NameRefReplacer(const NameDef* def, Expr* replacement) {
-  return [=](const AstNode* node) -> std::optional<AstNode*> {
+  return [=](const AstNode* node, Module* new_module,
+             const absl::flat_hash_map<const AstNode*, AstNode*>&)
+             -> std::optional<AstNode*> {
     if (node->kind() == AstNodeKind::kNameRef) {
       const auto* name_ref = down_cast<const NameRef*>(node);
       if (std::holds_alternative<const NameDef*>(name_ref->name_def()) &&
@@ -1262,14 +1266,16 @@ CloneReplacer NameRefReplacer(const NameDef* def, Expr* replacement) {
 
 CloneReplacer NameRefReplacer(
     const absl::flat_hash_map<const NameDef*, NameDef*>* replacement_defs) {
-  return [=](const AstNode* original_node) -> std::optional<AstNode*> {
+  return [=](const AstNode* original_node, Module* new_module,
+             const absl::flat_hash_map<const AstNode*, AstNode*>&)
+             -> std::optional<AstNode*> {
     if (original_node->kind() == AstNodeKind::kNameRef) {
       const auto* original_ref = down_cast<const NameRef*>(original_node);
       const AstNode* def = ToAstNode(original_ref->name_def());
       if (def->kind() == AstNodeKind::kNameDef) {
         const auto it = replacement_defs->find(down_cast<const NameDef*>(def));
         if (it != replacement_defs->end()) {
-          return original_node->owner()->Make<NameRef>(
+          return new_module->Make<NameRef>(
               original_ref->span(), original_ref->identifier(), it->second);
         }
       }
@@ -1285,8 +1291,11 @@ CloneAstAndGetAllPairs(const AstNode* root,
   if (root->kind() == AstNodeKind::kModule) {
     return absl::InvalidArgumentError("Clone a module via 'CloneModule'.");
   }
+  Module* new_module =
+      target_module.has_value() ? *target_module : root->owner();
+  absl::flat_hash_map<const AstNode*, AstNode*> empty_old_to_new;
   XLS_ASSIGN_OR_RETURN(std::optional<AstNode*> root_replacement,
-                       replacer(root));
+                       replacer(root, new_module, empty_old_to_new));
   if (root_replacement.has_value()) {
     return absl::flat_hash_map<const AstNode*, AstNode*>{
         {root, *root_replacement}};
@@ -1317,15 +1326,19 @@ absl::StatusOr<std::unique_ptr<Module>> CloneModule(const Module& module,
 }
 
 CloneReplacer ChainCloneReplacers(CloneReplacer first, CloneReplacer second) {
-  return [first = std::move(first),
-          second = std::move(second)](const AstNode* node) mutable
-             -> absl::StatusOr<std::optional<AstNode*>> {
-    XLS_ASSIGN_OR_RETURN(std::optional<AstNode*> first_result, first(node));
-    XLS_ASSIGN_OR_RETURN(
-        std::optional<AstNode*> second_result,
-        second(first_result.has_value() ? *first_result : node));
-    return second_result.has_value() ? second_result : first_result;
-  };
+  return
+      [first = std::move(first), second = std::move(second)](
+          const AstNode* node, Module* module,
+          const absl::flat_hash_map<const AstNode*, AstNode*>&
+              old_to_new) mutable -> absl::StatusOr<std::optional<AstNode*>> {
+        XLS_ASSIGN_OR_RETURN(std::optional<AstNode*> first_result,
+                             first(node, module, old_to_new));
+        XLS_ASSIGN_OR_RETURN(
+            std::optional<AstNode*> second_result,
+            second(first_result.has_value() ? *first_result : node, module,
+                   old_to_new));
+        return second_result.has_value() ? second_result : first_result;
+      };
 }
 
 // Verifies that `node` consists solely of "new" AST nodes and none that are
