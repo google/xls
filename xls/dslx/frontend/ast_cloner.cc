@@ -274,9 +274,6 @@ class AstCloner : public AstNodeVisitor {
   }
 
   absl::Status HandleEnumDef(const EnumDef* n) override {
-    if (old_to_new_.contains(n)) {
-      return absl::OkStatus();
-    }
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
     NameDef* new_name_def = down_cast<NameDef*>(old_to_new_.at(n->name_def()));
@@ -848,9 +845,6 @@ class AstCloner : public AstNodeVisitor {
   }
 
   absl::Status HandleStructDef(const StructDef* n) override {
-    if (old_to_new_.contains(n)) {
-      return absl::OkStatus();
-    }
     absl::Status status = HandleStructDefBaseInternal(n);
     if (status.ok()) {
       AstNode* new_node = old_to_new_.at(n);
@@ -865,9 +859,6 @@ class AstCloner : public AstNodeVisitor {
   }
 
   absl::Status HandleProcDef(const ProcDef* n) override {
-    if (old_to_new_.contains(n)) {
-      return absl::OkStatus();
-    }
     return HandleStructDefBaseInternal(n);
   }
 
@@ -994,13 +985,6 @@ class AstCloner : public AstNodeVisitor {
   }
 
   absl::Status HandleTypeAlias(const TypeAlias* n) override {
-    if (old_to_new_.contains(n)) {
-      // Ensure the NameDef definer points at the already-cloned alias.
-      NameDef* existing_name_def =
-          down_cast<NameDef*>(old_to_new_.at(&n->name_def()));
-      existing_name_def->set_definer(old_to_new_.at(n));
-      return absl::OkStatus();
-    }
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
     NameDef* new_name_def = down_cast<NameDef*>(old_to_new_.at(&n->name_def()));
@@ -1206,15 +1190,16 @@ class AstCloner : public AstNodeVisitor {
   // already been processed.
   absl::Status VisitChildren(const AstNode* node) {
     for (const auto& child : node->GetChildren(/*want_types=*/true)) {
-      if (!old_to_new_.contains(child)) {
-        XLS_RETURN_IF_ERROR(ReplaceOrVisit(child));
-      }
+      XLS_RETURN_IF_ERROR(ReplaceOrVisit(child));
     }
     return absl::OkStatus();
   }
 
   absl::Status ReplaceOrVisit(const AstNode* node) {
     if (node == nullptr) {
+      return absl::OkStatus();
+    }
+    if (old_to_new_.contains(node)) {
       return absl::OkStatus();
     }
     XLS_ASSIGN_OR_RETURN(std::optional<AstNode*> replacement, replacer_(node));
