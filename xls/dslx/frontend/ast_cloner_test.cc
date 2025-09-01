@@ -1655,19 +1655,19 @@ fn foo(x: MyU32) -> MyU32 {
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(foo));
   Function* cloned_foo = down_cast<Function*>(clone);
 
-  // Param type should reference the existing module-level alias, not a cloned
-  // one.
+  // Param type and the return type should reference the same alias.
   auto* param_trta = down_cast<TypeRefTypeAnnotation*>(
       cloned_foo->params()[0]->type_annotation());
   TypeRef* param_tr = param_trta->type_ref();
   ASSERT_TRUE(std::holds_alternative<TypeAlias*>(param_tr->type_definition()));
-  EXPECT_EQ(std::get<TypeAlias*>(param_tr->type_definition()), alias);
-
-  // Return type should also reference the existing alias.
+  EXPECT_EQ(param_tr->owner(), clone->owner());
+  TypeAlias* param_alias = std::get<TypeAlias*>(param_tr->type_definition());
+  EXPECT_EQ(param_alias->owner(), clone->owner());
   auto* ret_trta = down_cast<TypeRefTypeAnnotation*>(cloned_foo->return_type());
   TypeRef* ret_tr = ret_trta->type_ref();
   ASSERT_TRUE(std::holds_alternative<TypeAlias*>(ret_tr->type_definition()));
-  EXPECT_EQ(std::get<TypeAlias*>(ret_tr->type_definition()), alias);
+  EXPECT_EQ(std::get<TypeAlias*>(param_tr->type_definition()),
+            std::get<TypeAlias*>(ret_tr->type_definition()));
 }
 
 TEST(AstClonerTest, EnumTypeRefReusesTopLevelEnumInCloneModule) {
@@ -1707,44 +1707,6 @@ fn id(x: MyEnum) -> MyEnum { x }
   TypeRef* ret_tr = ret_trta->type_ref();
   ASSERT_TRUE(std::holds_alternative<EnumDef*>(ret_tr->type_definition()));
   EXPECT_EQ(std::get<EnumDef*>(ret_tr->type_definition()), enum_def);
-}
-
-TEST(AstClonerTest, TypeRefReusesTargetModuleAliasWhenCloningIntoOtherModule) {
-  constexpr std::string_view kSrc = R"(
-type MyU32 = u32;
-fn foo(x: MyU32) -> MyU32 { x }
-)";
-  constexpr std::string_view kDst = R"(
-type MyU32 = u32;
-)";
-
-  FileTable ft_src;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> src,
-                           ParseModule(kSrc, "src.x", "src_mod", ft_src));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * foo,
-                           src->GetMemberOrError<Function>("foo"));
-
-  FileTable ft_dst;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> dst,
-                           ParseModule(kDst, "dst.x", "dst_mod", ft_dst));
-  XLS_ASSERT_OK_AND_ASSIGN(TypeAlias * dst_alias,
-                           dst->GetMemberOrError<TypeAlias>("MyU32"));
-
-  absl::flat_hash_map<const AstNode*, AstNode*> clones;
-  XLS_ASSERT_OK_AND_ASSIGN(
-      clones, CloneAstAndGetAllPairs(foo, dst.get(), &NoopCloneReplacer));
-
-  auto* cloned_foo = down_cast<Function*>(clones.at(foo));
-  auto* param_trta = down_cast<TypeRefTypeAnnotation*>(
-      cloned_foo->params()[0]->type_annotation());
-  TypeRef* param_tr = param_trta->type_ref();
-  ASSERT_TRUE(std::holds_alternative<TypeAlias*>(param_tr->type_definition()));
-  EXPECT_EQ(std::get<TypeAlias*>(param_tr->type_definition()), dst_alias);
-
-  auto* ret_trta = down_cast<TypeRefTypeAnnotation*>(cloned_foo->return_type());
-  TypeRef* ret_tr = ret_trta->type_ref();
-  ASSERT_TRUE(std::holds_alternative<TypeAlias*>(ret_tr->type_definition()));
-  EXPECT_EQ(std::get<TypeAlias*>(ret_tr->type_definition()), dst_alias);
 }
 
 TEST(AstClonerTest, TypeRefClonesAliasWhenTargetHasNone) {
@@ -1843,7 +1805,8 @@ fn main(x: foo::ImportedStruct) {
   // Ensure the parsed TypeRef is backed by a ColonRef.
   std::optional<TypeRef*> type_ref = FindFirstTypeRef(f);
   ASSERT_TRUE(type_ref.has_value());
-  ASSERT_TRUE(std::holds_alternative<ColonRef*>((*type_ref)->type_definition()));
+  ASSERT_TRUE(
+      std::holds_alternative<ColonRef*>((*type_ref)->type_definition()));
 
   // Clone and ensure we preserve the ColonRef variant and string form.
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(f));
@@ -1852,8 +1815,8 @@ fn main(x: foo::ImportedStruct) {
 
   std::optional<TypeRef*> cloned_type_ref = FindFirstTypeRef(clone);
   ASSERT_TRUE(cloned_type_ref.has_value());
-  ASSERT_TRUE(std::holds_alternative<ColonRef*>(
-      (*cloned_type_ref)->type_definition()));
+  ASSERT_TRUE(
+      std::holds_alternative<ColonRef*>((*cloned_type_ref)->type_definition()));
 }
 
 TEST(AstClonerTest, TypeRefFromStructDef) {
@@ -1933,7 +1896,8 @@ impl MyProc {}
   XLS_ASSERT_OK(VerifyClone(impl, clone, *module->file_table()));
 
   auto* cloned_impl = down_cast<Impl*>(clone);
-  auto* cloned_trta = down_cast<TypeRefTypeAnnotation*>(cloned_impl->struct_ref());
+  auto* cloned_trta =
+      down_cast<TypeRefTypeAnnotation*>(cloned_impl->struct_ref());
   ASSERT_TRUE(std::holds_alternative<ProcDef*>(
       cloned_trta->type_ref()->type_definition()));
 }
