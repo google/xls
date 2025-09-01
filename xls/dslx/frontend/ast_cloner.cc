@@ -949,16 +949,19 @@ class AstCloner : public AstNodeVisitor {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
     XLS_RETURN_IF_ERROR(ReplaceOrVisit(&n->fn()));
-    old_to_new_[n] = module(n)->Make<TestFunction>(
-        n->span(), *down_cast<Function*>(old_to_new_.at(&n->fn())));
+    XLS_ASSIGN_OR_RETURN(Function * new_fn, CastIfNotVerbatim<Function*>(
+                                                old_to_new_.at(&n->fn())));
+    old_to_new_[n] = module(n)->Make<TestFunction>(n->span(), *new_fn);
     return absl::OkStatus();
   }
 
   absl::Status HandleTestProc(const TestProc* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
-    old_to_new_[n] = module(n)->Make<TestProc>(
-        down_cast<Proc*>(old_to_new_.at(n->proc())), n->expected_fail_label());
+    XLS_ASSIGN_OR_RETURN(Proc * new_proc,
+                         CastIfNotVerbatim<Proc*>(old_to_new_.at(n->proc())));
+    old_to_new_[n] =
+        module(n)->Make<TestProc>(new_proc, n->expected_fail_label());
     return absl::OkStatus();
   }
 
