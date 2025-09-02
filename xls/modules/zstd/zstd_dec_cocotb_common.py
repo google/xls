@@ -16,6 +16,7 @@
 import math
 import enum
 import tempfile
+import sys
 
 import cocotb
 from cocotb import triggers
@@ -608,6 +609,32 @@ async def test_huffman_weights(dut, clock, expected_huffman_weights):
   )
   cocotb.start_soon(get_handshake_event(dut, huffman_weights_resp_handshake, func))
 
+async def check_output(expected_packet_count, memory, reference_memory, output_monitor, obuf_addr, clock):
+  # Read decoded frame in chunks of AXI_DATA_W length
+  # Compare against frame decompressed with the reference library
+  current_addr = obuf_addr
+  decode_start = get_clock_time(clock)
+  await output_monitor.wait()
+  decode_first_packet = get_clock_time(clock)
+
+  for read_op in range(0, expected_packet_count):
+    current_addr = obuf_addr + (read_op * AXI_DATA_W_BYTES)
+    exp_mem_contents = int.from_bytes(reference_memory.read(current_addr, AXI_DATA_W_BYTES), byteorder="little")
+    mem_contents = (await output_monitor.recv()).wdata
+    assert mem_contents == exp_mem_contents, (
+      "{} bytes of memory contents at address {} "
+      "don't match the expected contents:\n"
+      "{}\nvs\n{}"
+    ).format(
+      AXI_DATA_W_BYTES,
+      hex(current_addr),
+      hex(mem_contents),
+      hex(exp_mem_contents),
+    )
+    print(f'[cocotb] Got correct packet (addr: {hex(current_addr)}, data: {hex(mem_contents)}, clk: {get_clock_time(clock)})', file=sys.stderr)
+
+  decode_last_packet = get_clock_time(clock)
+  return (decode_start, decode_first_packet, decode_last_packet)
 
 async def test_decoder(dut, axi_buses, cpu, clock, encoded_file):
   """Test decoder with zstd-compressed data provided in `encoded_file`
@@ -634,6 +661,9 @@ async def test_decoder(dut, axi_buses, cpu, clock, encoded_file):
   expected_decoded_frame = data_generator.DecompressFrame(encoded_file.read())
   reference_memory = SparseMemory(mem_size)
   reference_memory.write(obuf_addr, expected_decoded_frame)
+  expected_packet_count = (
+    len(expected_decoded_frame) + (AXI_DATA_W_BYTES - 1)
+  ) // AXI_DATA_W_BYTES
 
   # Initialise testbench memory with generated ZSTD frame
   memory = AxiRamFromFile(
@@ -643,31 +673,12 @@ async def test_decoder(dut, axi_buses, cpu, clock, encoded_file):
   await configure_decoder(dut, cpu, ibuf_addr, obuf_addr)
   output_monitor = AxiWMonitor(memory_bus.write.w, dut.clk, dut.rst)
   await start_decoder(cpu)
-  decode_start = get_clock_time(clock)
-  await output_monitor.wait()
-  decode_first_packet = get_clock_time(clock)
+
+  decode_times = await check_output(expected_packet_count, memory, reference_memory, output_monitor, obuf_addr, clock)
+  (decode_start, decode_first_packet, decode_last_packet) = decode_times
   await assert_notify.wait()
-  decode_end = get_clock_time(clock)
   await wait_for_idle(cpu)
-  # Read decoded frame in chunks of AXI_DATA_W length
-  # Compare against frame decompressed with the reference library
-  expected_packet_count = (
-    len(expected_decoded_frame) + (AXI_DATA_W_BYTES - 1)
-  ) // AXI_DATA_W_BYTES
-  for read_op in range(0, expected_packet_count):
-    addr = obuf_addr + (read_op * AXI_DATA_W_BYTES)
-    mem_contents = memory.read(addr, AXI_DATA_W_BYTES)
-    exp_mem_contents = reference_memory.read(addr, AXI_DATA_W_BYTES)
-    assert mem_contents == exp_mem_contents, (
-      "{} bytes of memory contents at address {} "
-      "don't match the expected contents:\n"
-      "{}\nvs\n{}"
-    ).format(
-      AXI_DATA_W_BYTES,
-      hex(addr),
-      hex(int.from_bytes(mem_contents, byteorder="little")),
-      hex(int.from_bytes(exp_mem_contents, byteorder="little")),
-    )
+  decode_end = get_clock_time(clock)
 
   latency = decode_first_packet - decode_start
   throughput_repacketizer = expected_packet_count / (decode_end - decode_first_packet)
