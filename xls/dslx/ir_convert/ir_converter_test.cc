@@ -4726,6 +4726,80 @@ pub proc main {
                HasSubstr("Channels can only be declared in")));
 }
 
+TEST_P(ProcScopedChannelsIrConverterTest, InvalidConfigParam) {
+  if (GetParam() == TypeInferenceVersion::kVersion1) {
+    // v1 fails figuring out the param type for some reason.
+    return;
+  }
+
+  constexpr std::string_view kProgram = R"(
+proc invalid {
+  init { }
+  config(a: u32) { () }
+  next(state: ()) { state }
+}
+
+proc main {
+  init { }
+  config() { () }
+  next(state: ()) { state }
+}
+)";
+
+  EXPECT_THAT(
+      ConvertOneFunctionForTest(kProgram, "main",
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("Cannot have non-channel parameters")));
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, ChannelArrayDeclNotSupportedYet) {
+  constexpr std::string_view kProgram = R"(
+pub proc main {
+  init { }
+  config() {
+    let (a, b) = chan<u32>[2]("data_0");
+    ()
+  }
+  next(state: ()) { state }
+}
+)";
+
+  EXPECT_THAT(
+      ConvertOneFunctionForTest(kProgram, "main",
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }),
+      StatusIs(absl::StatusCode::kInternal, HasSubstr("channel arrays yet")));
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, ChannelArrayParamNotSupportedYet) {
+  constexpr std::string_view kProgram = R"(
+pub proc main {
+  chan_1: chan<u32> in;
+  chan_2: chan<u32> in;
+
+  init { }
+  config(chan_param: chan<u32>[2] in) {
+    (chan_param[0], chan_param[1])
+  }
+  next(state: ()) { state }
+}
+)";
+
+  EXPECT_THAT(
+      ConvertOneFunctionForTest(kProgram, "main",
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }),
+      StatusIs(absl::StatusCode::kInternal, HasSubstr("channel arrays")));
+}
+
 TEST_P(ProcScopedChannelsIrConverterTest, LoopbackChannelMember) {
   constexpr std::string_view kProgram = R"(
 proc main {

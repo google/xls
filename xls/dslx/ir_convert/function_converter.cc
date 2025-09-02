@@ -2093,6 +2093,8 @@ absl::Status FunctionConverter::HandleIndex(const Index* node) {
         // rather than ending up here. The reason for disallowing them in next()
         // is low utility and higher difficulty of implementation against
         // non-lowered arrays, which can't be an `IrValue`, `BValue`, etc.
+        // TODO: davidplass - relax this requirement when ChannelArrays are
+        // indeed supported when lowering to proc-scoped channels.
         return absl::InvalidArgumentError(absl::StrFormat(
             "Invalid channel subarray use: `%s` at %s; channel subarrays can "
             "only be used in proc config functions.",
@@ -3209,6 +3211,8 @@ absl::Status FunctionConverter::HandleChannelDecl(const ChannelDecl* node) {
         "Channels can only be declared in a proc `config` method.",
         file_table());
   }
+  XLS_RET_CHECK(!node->dims().has_value())
+      << "Lowering to proc-scoped channels does not support channel arrays yet";
 
   // Evaluate the name to a constant and get the type
   XLS_ASSIGN_OR_RETURN(
@@ -3384,10 +3388,15 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     for (const Param* param : config_fn.params()) {
       XLS_ASSIGN_OR_RETURN(Type * type, type_info->GetItemOrError(param));
       // TODO: davidplass - deal with channel arrays as params.
+      XLS_RET_CHECK_EQ(dynamic_cast<ArrayType*>(type), nullptr)
+          << "Lowering to proc-scoped channels does not support channel arrays "
+             "as config parameters yet.";
       ChannelType* channel_type = dynamic_cast<ChannelType*>(type);
       XLS_RET_CHECK_NE(channel_type, nullptr)
-          << "Cannot have non-channel arguments to a `config` function "
-             "anymore. Use a parametric on the proc instead.";
+          << "Cannot have non-channel parameters to a `config` function "
+             "with proc-scoped channels. Use a parametric on the proc instead. "
+             "Was: "
+          << param->ToString();
 
       // TOOD: davidplass - figure out how to get strictness, flow control,
       // kind instead of defaults. These will likely vary depending on if it's
