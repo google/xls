@@ -272,32 +272,97 @@ class TimingAnalysis {
   absl::flat_hash_map<NaryFoldingAction *, double> delay_spread_;
 };
 
+bool UsesSource(Node *node, Node *source) {
+  if (node == source) {
+    return true;
+  }
+
+  absl::flat_hash_set<Node *> visited;
+  std::vector<Node *> worklist;
+  for (Node *operand : node->operands()) {
+    if (operand == source) {
+      return true;
+    }
+    if (visited.insert(operand).second) {
+      worklist.push_back(operand);
+    }
+  }
+
+  // Find if @source is used by @node transitively.
+  while (!worklist.empty()) {
+    Node *current = worklist.back();
+    worklist.pop_back();
+
+    for (Node *operand : current->operands()) {
+      if (operand == source) {
+        return true;  // Found source transitively.
+      }
+      if (visited.insert(operand).second) {
+        worklist.push_back(operand);
+      }
+    }
+  }
+
+  return false;
+}
+
+// InfluencedBySource returns true if @node has any operand in the def-use chain
+// of @source that has any influence on the value of @node under the provided
+// @assumptions for the bit values of nodes.
+bool InfluencedBySource(
+    Node *node, Node *source, const BddQueryEngine &bdd_engine,
+    std::vector<std::pair<TreeBitLocation, bool>> assumptions) {
+  // If an "and" operation has an operand known to have a value of "0" where the
+  // operand is not in the def-use chain of @source, then @source can have any
+  // value and still not influence the value of @node.
+  if (node->op() == Op::kAnd || node->op() == Op::kNand) {
+    for (Node *op : node->operands()) {
+      std::optional<Bits> value = bdd_engine.ImpliedNodeValue(assumptions, op);
+      if (value && value->IsZero() && !UsesSource(op, source)) {
+        return false;
+      }
+    }
+  }
+
+  // similar to the "and" case, except an operand needs to have a value of "1"
+  if (node->op() == Op::kOr || node->op() == Op::kNor) {
+    for (Node *op : node->operands()) {
+      std::optional<Bits> value = bdd_engine.ImpliedNodeValue(assumptions, op);
+      if (value && value->IsOne() && !UsesSource(op, source)) {
+        return false;
+      }
+    }
+  }
+
+  // Conservatively assume the value of @source impacts the value of @node
+  return true;
+}
+
 // This function returns true if @node stops the propagation of the value passed
-// as the select case @case_number, false otherwise.
+// as the select case @case_number under the assumption that the select
+// instruction would not select @case_number. Note if the select instruction
+// would have selected @case_number, this pass does not care whether other
+// def-use chains also require the select case @case_number.
+//
+// The @node stop propagation if its value does not depend on the input value of
+// the select case @case_number.
 bool DoesErase(Node *node, uint32_t case_number,
-               absl::Span<const TreeBitLocation> selector_bits,
+               absl::Span<const TreeBitLocation> selector_bits, Node *source,
                const BddQueryEngine &bdd_engine,
                absl::flat_hash_map<Node *, bool> &nodes_with_side_effects,
                absl::flat_hash_map<Node *, absl::flat_hash_map<uint32_t, bool>>
                    &nodes_with_side_effects_at_case) {
-  // Check if @node stops the propagation knowing we do not select @case_number
-  // of the select being targeted.
+  // First query BDD where the only assumed value is that the selector's bit
+  // @case_number is unset.
   std::vector<std::pair<TreeBitLocation, bool>> assumed_values;
   assumed_values.push_back(std::make_pair(selector_bits[case_number], false));
-  std::optional<Bits> node_value_when_case_not_selected =
-      bdd_engine.ImpliedNodeValue(assumed_values, node);
-  if (node_value_when_case_not_selected &&
-      node_value_when_case_not_selected->IsZero()) {
+  if (!InfluencedBySource(node, source, bdd_engine, assumed_values)) {
     // Memoize the result of the analysis
     nodes_with_side_effects[node] = false;
 
     return true;
   }
 
-  // Check if @node erases @source
-  // To do it, we check if @node is guaranteed to be "0" (and therefore erase
-  // @source through this def-use chain) when the case selected is not
-  // @case_number.
   for (const auto &[t_number, t] : iter::enumerate(selector_bits)) {
     if (t_number == case_number) {
       continue;
@@ -310,10 +375,7 @@ bool DoesErase(Node *node, uint32_t case_number,
     assumed_values.push_back(std::make_pair(selector_bits[case_number], false));
 
     // Check if the current def-use chain gets erased.
-    std::optional<Bits> node_value_when_case_not_selected =
-        bdd_engine.ImpliedNodeValue(assumed_values, node);
-    if (!node_value_when_case_not_selected ||
-        !node_value_when_case_not_selected->IsZero()) {
+    if (InfluencedBySource(node, source, bdd_engine, assumed_values)) {
       // We cannot guarantee @node erases @source.
       return false;
     }
@@ -378,7 +440,7 @@ absl::StatusOr<bool> HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
     Next *next_node = node->As<Next>();
     std::optional<Node *> predicate = next_node->predicate();
     if (predicate.has_value()) {
-      if (DoesErase(*predicate, case_number, selector_bits, bdd_engine,
+      if (DoesErase(*predicate, case_number, selector_bits, source, bdd_engine,
                     nodes_with_side_effects, nodes_with_side_effects_at_case)) {
         return false;
       }
@@ -388,7 +450,7 @@ absl::StatusOr<bool> HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
   // Check if the current node of the current def-use chain erases the
   // computation specified by @source
   if ((source != nullptr) &&
-      DoesErase(node, case_number, selector_bits, bdd_engine,
+      DoesErase(node, case_number, selector_bits, source, bdd_engine,
                 nodes_with_side_effects, nodes_with_side_effects_at_case)) {
     return false;
   }
