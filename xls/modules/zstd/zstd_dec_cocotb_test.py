@@ -347,7 +347,7 @@ def prepare_test_environment(dut):
 
 async def test_fse_lookup_decoder(dut, clock, expected_fse_lookups):
   lookup_dec_resp_channel = xlschannel.XLSChannel(
-    dut.ZstdDecoder.xls_modules_zstd_sequence_dec__ZstdDecoderInst__ZstdDecoder_0__CompressBlockDecoder_0__SequenceDecoder_0__SequenceDecoderCtrl_0__FseLookupCtrl_0_next_inst148,
+    dut.ZstdDecoder.xls_modules_zstd_sequence_dec__ZstdDecoderInst__ZstdDecoder_0__CompressBlockDecoder_0__SequenceDecoder_0__SequenceDecoderCtrl_0__FseLookupCtrl_0_next_inst149,
     "zstd_dec__flc_resp",
     dut.clk,
   )
@@ -435,7 +435,7 @@ def reverse_expected_huffman_codes(exp_codes):
 
 async def test_huffman_codes(dut, clock, expected_codes):
   WEIGHT_CODE_BUILDER_INST = (
-    dut.ZstdDecoder.xls_modules_zstd_huffman_code_builder__ZstdDecoderInst__ZstdDecoder_0__CompressBlockDecoder_0__LiteralsDecoder_0__HuffmanLiteralsDecoder_0__WeightCodeBuilder_0_next_inst19
+    dut.ZstdDecoder.xls_modules_zstd_huffman_code_builder__ZstdDecoderInst__ZstdDecoder_0__CompressBlockDecoder_0__LiteralsDecoder_0__HuffmanLiteralsDecoder_0__WeightCodeBuilder_0_next_inst20
   )
   CODES_CHANNEL_NAME = "zstd_dec__code_builder_codes"
 
@@ -486,7 +486,7 @@ async def test_huffman_codes(dut, clock, expected_codes):
 
 async def test_huffman_weights(dut, clock, expected_huffman_weights):
   lookup_dec_resp_channel = xlschannel.XLSChannel(
-    dut.ZstdDecoder.xls_modules_zstd_huffman_ctrl__ZstdDecoderInst__ZstdDecoder_0__CompressBlockDecoder_0__LiteralsDecoder_0__HuffmanLiteralsDecoder_0__HuffmanControlAndSequence_0__32_64_next_inst20,
+    dut.ZstdDecoder.xls_modules_zstd_huffman_ctrl__ZstdDecoderInst__ZstdDecoder_0__CompressBlockDecoder_0__LiteralsDecoder_0__HuffmanLiteralsDecoder_0__HuffmanControlAndSequence_0__32_64_next_inst21,
     "zstd_dec__weights_dec_resp",
     dut.clk,
   )
