@@ -14,6 +14,7 @@
 
 #include "xls/dslx/errors.h"
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -259,6 +260,20 @@ absl::Status RangeTooLargeErrorStatus(const Span& span, const Range* range,
       "RangeTooLargeError: %s Range expr `%s` has size %s, which is greater "
       "than maximum number representable by u32.",
       span.ToString(file_table), range->ToString(), size.ToString(true)));
+}
+
+absl::Status ArrayDimTooLargeErrorStatus(const Span& span, uint64_t value,
+                                         const FileTable& file_table) {
+  auto u32 = BitsType::MakeU32();
+  return TypeInferenceErrorStatus(
+      span, u32.get(),
+      absl::StrFormat(
+          "Dimension value is too large, high bit is set: %#x; "
+          "XLS only allows sizes up to 31 bits to guard against the more "
+          "common mistake of specifying a negative (constexpr) value as a "
+          "size.",
+          value),
+      file_table);
 }
 
 }  // namespace xls::dslx

@@ -2257,20 +2257,6 @@ absl::StatusOr<TypeDim> DimToConcreteUsize(const Expr* dim_expr,
   VLOG(10) << "DimToConcreteUsize; dim_expr: `" << dim_expr->ToString() << "`";
 
   std::unique_ptr<BitsType> u32 = BitsType::MakeU32();
-  auto validate_high_bit = [ctx, &u32](const Span& span, uint32_t value) {
-    if ((value >> 31) == 0) {
-      return absl::OkStatus();
-    }
-    return TypeInferenceErrorStatus(
-        span, u32.get(),
-        absl::StrFormat(
-            "Dimension value is too large, high bit is set: %#x; "
-            "XLS only allows sizes up to 31 bits to guard against the more "
-            "common mistake of specifying a negative (constexpr) value as a "
-            "size.",
-            value),
-        ctx->file_table());
-  };
 
   // We allow numbers in dimension position to go without type annotations -- we
   // implicitly make the type of the dimension u32, as we generally do with
@@ -2295,7 +2281,8 @@ absl::StatusOr<TypeDim> DimToConcreteUsize(const Expr* dim_expr,
     const uint32_t value_u32 = static_cast<uint32_t>(value);
     XLS_RET_CHECK_EQ(value, value_u32);
 
-    XLS_RETURN_IF_ERROR(validate_high_bit(number->span(), value_u32));
+    XLS_RETURN_IF_ERROR(
+        CheckArrayDimTooLarge(number->span(), value_u32, ctx->file_table()));
 
     // No need to use the ConstexprEvaluator here. We've already got the goods.
     // It'd have trouble anyway, since this number isn't type-decorated.
@@ -2327,7 +2314,8 @@ absl::StatusOr<TypeDim> DimToConcreteUsize(const Expr* dim_expr,
     XLS_ASSIGN_OR_RETURN(uint64_t int_value,
                          constexpr_value.GetBitValueViaSign());
     uint32_t u32_value = static_cast<uint32_t>(int_value);
-    XLS_RETURN_IF_ERROR(validate_high_bit(dim_expr->span(), u32_value));
+    XLS_RETURN_IF_ERROR(
+        CheckArrayDimTooLarge(dim_expr->span(), u32_value, ctx->file_table()));
     XLS_RET_CHECK_EQ(u32_value, int_value);
     return TypeDim::CreateU32(u32_value);
   }

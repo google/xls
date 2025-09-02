@@ -311,6 +311,10 @@ absl::StatusOr<InterpValue> GetConfiguredValueAsInterpValue(
 
 // Returns the patterns of the arm as a string.
 std::string PatternsToString(const MatchArm* arm);
+
+// Returns an error if the array dimension is greater than 2^31-1.
+absl::Status CheckArrayDimTooLarge(Span span, uint64_t dim,
+                                   const FileTable& file_table);
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_DEDUCE_UTILS_H_

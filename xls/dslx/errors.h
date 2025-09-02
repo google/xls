@@ -14,6 +14,7 @@
 #ifndef XLS_DSLX_ERRORS_H_
 #define XLS_DSLX_ERRORS_H_
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -151,6 +152,10 @@ absl::Status RangeStartGreaterThanEndErrorStatus(const Span& span,
 absl::Status RangeTooLargeErrorStatus(const Span& span, const Range* range,
                                       const InterpValue& size,
                                       const FileTable& file_table);
+
+// To be raised when the dimension of an array is larger than 2^31-1.
+absl::Status ArrayDimTooLargeErrorStatus(const Span& span, uint64_t value,
+                                         const FileTable& file_table);
 
 // Extracts the assertion label from an error message.
 // Intended for use with errors returned by `FailureErrorStatusForAssertion()`.

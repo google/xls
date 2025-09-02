@@ -1287,4 +1287,12 @@ std::string PatternsToString(const MatchArm* arm) {
                        });
 }
 
+absl::Status CheckArrayDimTooLarge(Span span, uint64_t dim,
+                                   const FileTable& file_table) {
+  if ((dim >> 31) == 0) {
+    return absl::OkStatus();
+  }
+  return ArrayDimTooLargeErrorStatus(span, dim, file_table);
+}
+
 }  // namespace xls::dslx

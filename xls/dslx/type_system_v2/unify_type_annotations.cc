@@ -37,6 +37,7 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system_v2/evaluator.h"
 #include "xls/dslx/type_system_v2/import_utils.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
@@ -340,6 +341,8 @@ class Unifier {
           "Array has ellipsis (`...`) but does not have a type annotation.",
           file_table_);
     }
+    XLS_RETURN_IF_ERROR(
+        CheckArrayDimTooLarge(span, unified_dim->size, file_table_));
     XLS_ASSIGN_OR_RETURN(const TypeAnnotation* unified_element_type,
                          UnifyTypeAnnotations(element_type_annotations, span));
     XLS_ASSIGN_OR_RETURN(
