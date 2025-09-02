@@ -346,7 +346,7 @@ def prepare_test_environment(dut):
 
 async def test_fse_lookup_decoder(dut, clock, expected_fse_lookups):
   lookup_dec_resp_channel = xlschannel.XLSChannel(
-    dut.ZstdDecoder.xls_modules_zstd_sequence_dec__ZstdDecoderInst__ZstdDecoder_0__CompressBlockDecoder_0__SequenceDecoder_0__SequenceDecoderCtrl_0__FseLookupCtrl_0_next_inst148,
+    dut.ZstdDecoder.xls_modules_zstd_sequence_dec__ZstdDecoderInst__ZstdDecoder_0__CompressBlockDecoder_0__SequenceDecoder_0__SequenceDecoderCtrl_0__FseLookupCtrl_0_next_inst149,
     "zstd_dec__flc_resp",
     dut.clk,
   )
@@ -449,7 +449,7 @@ async def report_fse_decoder_work(dut, clk):
   cocotb.start_soon(await_state_cycle(clk, fse_state, report, start_states, end_states))
 
 async def report_sequence_executor_work(dut, clk):
-  state = dut.ZstdDecoder.xls_modules_zstd_sequence_executor__ZstdDecoderInst__ZstdDecoder_0__SequenceExecutor_0__32_64_64_0_0_0_13_8192_65536_next_inst149.p2_____state_0__1
+  state = dut.ZstdDecoder.xls_modules_zstd_sequence_executor__ZstdDecoderInst__ZstdDecoder_0__SequenceExecutor_0__32_64_64_0_0_0_13_8192_65536_next_inst150.p2_____state_0__1
   start_states = [1, 2]
   end_states = [0]
 
@@ -459,7 +459,7 @@ async def report_sequence_executor_work(dut, clk):
   cocotb.start_soon(await_state_cycle(clk, state, report, start_states, end_states))
 
 async def report_fse_table_creator_work(dut, clk):
-  state = dut.ZstdDecoder.xls_modules_zstd_fse_table_creator__ZstdDecoderInst__ZstdDecoder_0__CompressBlockDecoder_0__SequenceDecoder_0__FseLookupDecoder_0__CompLookupDecoder_0__FseTableCreator_0__8_16_1_15_32_1_9_8_1_8_16_1_next_inst15.p3_____state_0__1
+  state = dut.ZstdDecoder.xls_modules_zstd_fse_table_creator__ZstdDecoderInst__ZstdDecoder_0__CompressBlockDecoder_0__SequenceDecoder_0__FseLookupDecoder_0__CompLookupDecoder_0__FseTableCreator_0__8_16_1_15_32_1_9_8_1_8_16_1_next_inst16.p3_____state_0__1
   start_states = [1]
   end_states = [11]
 
