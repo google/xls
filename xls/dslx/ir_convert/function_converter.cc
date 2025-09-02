@@ -474,6 +474,11 @@ absl::Status FunctionConverter::Visit(const AstNode* node) {
           [](Channel* chan) {
             return absl::StrFormat("%s (%p)", chan->name(), chan);
           },
+          [](ChannelInterface* ci) {
+            return absl::StrFormat("%s %s (%p)", ci->name(),
+                                   ChannelDirectionToString(ci->direction()),
+                                   ci);
+          },
       },
       value);
 }
