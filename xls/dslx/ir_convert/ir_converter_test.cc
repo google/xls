@@ -4831,6 +4831,86 @@ proc main {
   ExpectIr(converted);
 }
 
+TEST(ProcScopedChannelsIrConverterTest, SpawnFromLocal) {
+  constexpr std::string_view kProgram = R"(
+proc spawnee {
+  in_chan: chan<u32> in;
+  out_chan: chan<u32> out;
+
+  init { }
+  config(in_param: chan<u32> in, out_param: chan<u32> out) {
+    (in_param, out_param)
+  }
+  next(state: ()) { state }
+}
+
+proc main {
+  init { }
+  config() {
+    let (_, receiver0) = chan<u32>("data_0");
+    let (sender1, _) = chan<u32>("data_1");
+    spawn spawnee(receiver0, sender1);
+    ()
+  }
+  next(state: ()) { state }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, SpawnFromParam) {
+  constexpr std::string_view kProgram = R"(
+proc spawnee2 {
+  in_chan: chan<u32> in;
+  out_chan: chan<u32> out;
+
+  init { }
+  config(in_param2: chan<u32> in, out_param2: chan<u32> out) {
+    (in_param2, out_param2)
+  }
+  next(state: ()) { state }
+}
+
+proc spawnee {
+  init { }
+  config(in_param: chan<u32> in, out_param: chan<u32> out) {
+    spawn spawnee2(in_param, out_param);
+    ()
+  }
+  next(state: ()) { state }
+}
+
+proc main {
+  init { }
+  config() {
+    let (_, receiver0) = chan<u32>("data_0");
+    let (sender1, _) = chan<u32>("data_1");
+    spawn spawnee(receiver0, sender1);
+    ()
+  }
+  next(state: ()) { state }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
+  ExpectIr(converted);
+}
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ConvertWithoutTests) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,

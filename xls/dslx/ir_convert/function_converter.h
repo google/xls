@@ -242,6 +242,8 @@ class FunctionConverter {
       const IrValue& ir_value);
   static absl::StatusOr<ReceiveChannelRef> IrValueToReceiveChannelRef(
       const IrValue& ir_value);
+  static absl::StatusOr<ChannelInterface*> IrValueToChannelInterface(
+      const IrValue& ir_value);
 
   void SetFunctionBuilder(std::unique_ptr<BuilderBase> builder);
 

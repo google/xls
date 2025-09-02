@@ -117,6 +117,7 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     }
 
     const Invocation* invocation = nullptr;
+    TypeInfo* type_info = type_info_;
     // If this is a proc next function, find the corresponding config
     // invocation (spawn) and put it in the conversion record. Take the first
     // one because there is no way to disambiguate them at this point.
@@ -131,11 +132,12 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
                   << config_fn.identifier();
         }
         invocation = all_callee_data[0].invocation;
+        type_info = all_callee_data[0].derived_type_info;
       }
     }
     XLS_ASSIGN_OR_RETURN(
         ConversionRecord cr,
-        MakeConversionRecord(const_cast<Function*>(f), module_, type_info_,
+        MakeConversionRecord(const_cast<Function*>(f), module_, type_info,
                              ParametricEnv(), proc_id, invocation, f == top_));
     records_.push_back(cr);
     return DefaultHandler(f);

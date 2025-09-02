@@ -2635,6 +2635,19 @@ FunctionConverter::IrValueToReceiveChannelRef(const IrValue& ir_value) {
                              ReceiveChannelInterface>(ir_value);
 }
 
+/* static */ absl::StatusOr<ChannelInterface*>
+FunctionConverter::IrValueToChannelInterface(const IrValue& ir_value) {
+  absl::StatusOr<SendChannelRef> send = IrValueToSendChannelRef(ir_value);
+  if (send.ok()) {
+    XLS_RET_CHECK(std::holds_alternative<SendChannelInterface*>(*send));
+    return std::get<SendChannelInterface*>(*send);
+  }
+  XLS_ASSIGN_OR_RETURN(ReceiveChannelRef recv,
+                       IrValueToReceiveChannelRef(ir_value));
+  XLS_RET_CHECK(std::holds_alternative<ReceiveChannelInterface*>(recv));
+  return std::get<ReceiveChannelInterface*>(recv);
+}
+
 /* static */ absl::Status FunctionConverter::CheckValueIsChannel(
     const IrValue& ir_value) {
   // Allow a send or receive in the BValue
@@ -3142,24 +3155,31 @@ absl::Status FunctionConverter::HandleSpawn(const Spawn* node) {
       << "Spawn nodes should only be encountered during proc conversion; "
          "we seem to be in function conversion.";
   if (current_fn_tag_ != FunctionTag::kProcConfig) {
-    // Make sure this is only called from a proc config method.
     return IrConversionErrorStatus(
         node->span(), "Procs can only be spawned in a proc `config` method.",
         file_table());
   }
 
-  // Get the ir proc from the map via the config.
-  const Invocation* config = node->config();
-  XLS_RET_CHECK(package_data_.invocation_to_ir_proc.contains(config))
-      << node->ToString();
-  xls::Proc* ir_proc = package_data_.invocation_to_ir_proc[config];
+  const Invocation* invocation = node->config();
+  XLS_RET_CHECK(package_data_.invocation_to_ir_proc.contains(invocation));
+  xls::Proc* ir_proc = package_data_.invocation_to_ir_proc[invocation];
+
+  // Lookup the channel interface for each actual arg and add it to the args
+  // vector.
+  std::vector<ChannelInterface*> channel_args;
+  for (Expr* arg : invocation->args()) {
+    XLS_RETURN_IF_ERROR(Visit(arg));
+    XLS_ASSIGN_OR_RETURN(IrValue arg_value, Use(arg));
+    XLS_ASSIGN_OR_RETURN(ChannelInterface * channel_interface,
+                         IrValueToChannelInterface(arg_value));
+    channel_args.push_back(channel_interface);
+  }
 
   xls::Proc* current_proc = builder_ptr->proc();
-  // TODO: https://github.com/google/xls/issues/2078 - set up the channel_args
   XLS_RETURN_IF_ERROR(
       current_proc
           ->AddProcInstantiation(absl::StrFormat("%s_inst", ir_proc->name()),
-                                 /* channel_args=*/{}, ir_proc)
+                                 absl::MakeSpan(channel_args), ir_proc)
           .status());
   // Spawn is an Invocation, which is an Instantiation, which is
   // technically an Expr, so it needs to have an Ir value in the map, even
