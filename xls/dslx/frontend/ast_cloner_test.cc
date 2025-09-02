@@ -21,16 +21,17 @@
 #include <variant>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/command_line_utils.h"
+#include "xls/dslx/create_import_data.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/module.h"
@@ -1962,6 +1963,38 @@ fn foo(a: u32, b: u32) -> u32 {
     EXPECT_NE(it->second, original);
     EXPECT_TRUE(cloned_nodes.contains(it->second));
   }
+}
+
+TEST(AstClonerTest, ImportSetsNameDefDefinerOnClone) {
+  constexpr std::string_view kImportedProgram =
+      "pub const PLACEHOLDER = u32:0;";
+  constexpr std::string_view kProgram = R"(import my.module as foo;
+
+fn main() -> u32 {
+  foo::PLACEHOLDER
+}
+)";
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(*module.get()));
+  // Typecheck the cloned module; pre-fix this should fail due to missing
+  // name-def definer on the Import. We pre-populate the imported subject so
+  // import resolution does not fail spuriously.
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK(ParseAndTypecheck(kImportedProgram, "my/module.x", "my.module",
+                                  &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule cloned_tm,
+      TypecheckModule(std::move(clone), "fake_path.x", &import_data));
+
+  std::optional<ModuleMember*> member =
+      cloned_tm.module->FindMemberWithName("foo");
+  ASSERT_TRUE(member.has_value());
+  ASSERT_TRUE(std::holds_alternative<Import*>(*member.value()));
+  Import* import = std::get<Import*>(*member.value());
+  EXPECT_EQ(import->name_def().definer(), import);
 }
 
 }  // namespace

@@ -68,6 +68,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/dslx:command_line_utils",
+        "//xls/dslx:create_import_data",
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx:virtualizable_file_system",
         "@com_google_absl//absl/container:flat_hash_map",
