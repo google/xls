@@ -277,11 +277,12 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       // Built-in member of a built-in type case, like `u32::ZERO`.
       AstNode* def = ToAstNode(std::get<NameRef*>(node->subject())->name_def());
       if (auto* builtin_name_def = dynamic_cast<BuiltinNameDef*>(def)) {
+        XLS_ASSIGN_OR_RETURN(TypeAnnotation * builtin_type_annotation,
+                             CreateBuiltinTypeAnnotation(
+                                 module_, builtin_name_def, node->span()));
         return table_.SetTypeAnnotation(
-            node, module_.Make<MemberTypeAnnotation>(
-                      CreateBuiltinTypeAnnotation(module_, builtin_name_def,
-                                                  node->span()),
-                      node->attr()));
+            node, module_.Make<MemberTypeAnnotation>(builtin_type_annotation,
+                                                     node->attr()));
       }
 
       // Built-in member of a built-in type being accessed via a type alias.

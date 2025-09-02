@@ -87,10 +87,10 @@ TypeAnnotation* CreateS32Annotation(Module& module, const Span& span) {
       span, BuiltinType::kS32, module.GetOrCreateBuiltinNameDef("s32"));
 }
 
-TypeAnnotation* CreateBuiltinTypeAnnotation(Module& module,
-                                            BuiltinNameDef* name_def,
-                                            const Span& span) {
-  BuiltinType builtin_type = *BuiltinTypeFromString(name_def->ToString());
+absl::StatusOr<TypeAnnotation*> CreateBuiltinTypeAnnotation(
+    Module& module, BuiltinNameDef* name_def, const Span& span) {
+  XLS_ASSIGN_OR_RETURN(BuiltinType builtin_type,
+                       BuiltinTypeFromString(name_def->ToString()));
   return module.Make<BuiltinTypeAnnotation>(span, builtin_type, name_def);
 }
 

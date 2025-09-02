@@ -93,9 +93,8 @@ TypeAnnotation* CreateU8Annotation(Module& module, const Span& span);
 
 // Creates a type annotation based on the name def of a built-in type like
 // `u32`.
-TypeAnnotation* CreateBuiltinTypeAnnotation(Module& module,
-                                            BuiltinNameDef* name_def,
-                                            const Span& span);
+absl::StatusOr<TypeAnnotation*> CreateBuiltinTypeAnnotation(
+    Module& module, BuiltinNameDef* name_def, const Span& span);
 
 // Creates an annotation referring to the given struct definition with the given
 // parametric arguments.
