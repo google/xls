@@ -2555,13 +2555,8 @@ fn f(x: u32) -> u32 {
     }
 }
 )");
-  EXPECT_THAT(
-      result,
-      StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          AllOf(HasSubstrInV1(GetParam(), "Match patterns are not exhaustive"),
-                HasSubstrInV2(GetParam(),
-                              "`match` patterns are not exhaustive"))));
+  EXPECT_THAT(result, StatusIs(absl::StatusCode::kInvalidArgument,
+                               HasSubstr("Match patterns are not exhaustive")));
 }
 
 TEST_P(TypecheckBothVersionsTest, MatchWithOneNonExhaustivePattern) {
@@ -2572,13 +2567,8 @@ fn f(x: u32) -> u32 {
     }
 }
 )");
-  EXPECT_THAT(
-      result,
-      StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          AllOf(HasSubstrInV1(GetParam(), "Match pattern is not exhaustive"),
-                HasSubstrInV2(GetParam(),
-                              "`match` patterns are not exhaustive"))));
+  EXPECT_THAT(result, StatusIs(absl::StatusCode::kInvalidArgument,
+                               HasSubstr("Match patterns are not exhaustive")));
 }
 
 TEST_P(TypecheckBothVersionsTest, ArrayInconsistency) {

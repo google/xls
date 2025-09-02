@@ -300,14 +300,8 @@ class TypeValidator : public AstNodeVisitorWithDefault {
       std::optional<InterpValue> sample =
           exhaustiveness_checker.SampleSimplestUncoveredValue();
       XLS_RET_CHECK(sample.has_value());
-      return TypeInferenceErrorStatus(
-          node->span(), matched,
-          absl::StrFormat(
-              "`match` patterns are not exhaustive; e.g. `%s` is not covered; "
-              "please add additional patterns to complete the match or a "
-              "default case via `_ => ...`",
-              sample->ToString()),
-          file_table_);
+      return MatchNotExhaustiveStatus(node->span(), matched, *sample,
+                                      file_table_);
     }
     return absl::OkStatus();
   }

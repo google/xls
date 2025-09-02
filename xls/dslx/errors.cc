@@ -276,4 +276,17 @@ absl::Status ArrayDimTooLargeErrorStatus(const Span& span, uint64_t value,
       file_table);
 }
 
+absl::Status MatchNotExhaustiveStatus(const Span& span, const Type* matched,
+                                      InterpValue& unmatched_sample,
+                                      const FileTable& file_table) {
+  return TypeInferenceErrorStatus(
+      span, matched,
+      absl::StrFormat(
+          "Match patterns are not exhaustive; e.g. `%s` is not covered; "
+          "please add additional patterns to complete the match or a "
+          "default case via `_ => ...`",
+          unmatched_sample.ToString()),
+      file_table);
+}
+
 }  // namespace xls::dslx

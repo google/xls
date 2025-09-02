@@ -159,7 +159,7 @@ class InterpreterTest(test_base.TestCase):
         program, warnings_as_errors=False, want_error=True
     )
     self.assertIn(
-        '`match` patterns are not exhaustive',
+        'Match patterns are not exhaustive',
         stderr,
     )
 

@@ -3339,7 +3339,7 @@ fn f(x: u1) -> u32 {
     }
 }
 )",
-              TypecheckFails(HasSubstr("`match` patterns are not exhaustive")));
+              TypecheckFails(HasSubstr("Match patterns are not exhaustive")));
 }
 
 TEST(TypecheckV2Test, MatchAlreadyExhaustive) {

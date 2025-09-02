@@ -157,6 +157,14 @@ absl::Status RangeTooLargeErrorStatus(const Span& span, const Range* range,
 absl::Status ArrayDimTooLargeErrorStatus(const Span& span, uint64_t value,
                                          const FileTable& file_table);
 
+// To be raised when the dimension of an array is larger than 2^31-1.
+absl::Status ArrayDimTooLargeErrorStatus(const Span& span, uint64_t value,
+                                         const FileTable& file_table);
+
+absl::Status MatchNotExhaustiveStatus(const Span& span, const Type* matched,
+                                      InterpValue& unmatched_sample,
+                                      const FileTable& file_table);
+
 // Extracts the assertion label from an error message.
 // Intended for use with errors returned by `FailureErrorStatusForAssertion()`.
 std::optional<std::string> GetAssertionLabelFromError(

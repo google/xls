@@ -1451,16 +1451,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceMatch(const Match* node,
     std::optional<InterpValue> sample =
         exhaustiveness_checker.SampleSimplestUncoveredValue();
     XLS_RET_CHECK(sample.has_value());
-    return TypeInferenceErrorStatus(
-        node->span(), matched.get(),
-        absl::StrFormat(
-            "Match %s not exhaustive; e.g. `%s` not covered; please add "
-            "remaining "
-            "patterns to complete the match or a default case "
-            "via `_ => ...`",
-            seen_patterns.size() == 1 ? "pattern is" : "patterns are",
-            sample->ToString()),
-        ctx->file_table());
+    return MatchNotExhaustiveStatus(node->span(), matched.get(), *sample,
+                                    ctx->file_table());
   }
 
   std::vector<std::unique_ptr<Type>> arm_types;

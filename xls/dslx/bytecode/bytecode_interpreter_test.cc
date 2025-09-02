@@ -924,10 +924,7 @@ fn main(x: u32) -> u32 {
 
   EXPECT_THAT(value.status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr(kDefaultTypeInferenceVersion ==
-                                         TypeInferenceVersion::kVersion2
-                                     ? "`match` patterns are not exhaustive"
-                                     : "Match pattern is not exhaustive")));
+                       HasSubstr("Match patterns are not exhaustive")));
 }
 
 TEST_F(BytecodeInterpreterTest, RunMatchWithNameRefs) {
