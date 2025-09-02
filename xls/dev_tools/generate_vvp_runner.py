@@ -37,7 +37,7 @@ def main(argv):
   path = '/'.join(path.split('/')[3:])
 
   print("""#!/usr/bin/env bash
-
+set -e
 temp=$(mktemp)
 stdout="${{temp}}.stdout"
 stderr="${{temp}}.stderr"
