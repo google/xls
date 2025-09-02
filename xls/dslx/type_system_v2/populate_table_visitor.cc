@@ -380,15 +380,20 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     VLOG(5) << "HandleNumber: " << node->ToString();
     TypeAnnotation* annotation = node->type_annotation();
     if (annotation == nullptr) {
-      XLS_ASSIGN_OR_RETURN(annotation,
-                           CreateAnnotationSizedToFit(module_, *node));
-      // Treat `true` and `false` like they have intrinsic bool annotations.
-      // Otherwise, consider an annotation we add to be an auto-annotation that
-      // is "negotiable".
-      if (node->number_kind() != NumberKind::kBool) {
-        table_.SetAnnotationFlag(annotation, TypeInferenceFlag::kMinSize);
-        if (node->HasPrefix()) {
-          table_.SetAnnotationFlag(annotation, TypeInferenceFlag::kHasPrefix);
+      // Character is implied to be `u8`.
+      if (node->number_kind() == NumberKind::kCharacter) {
+        annotation = CreateU8Annotation(module_, node->span());
+      } else {
+        XLS_ASSIGN_OR_RETURN(annotation,
+                             CreateAnnotationSizedToFit(module_, *node));
+        // Treat `true` and `false` like they have intrinsic bool annotations.
+        // Otherwise, consider an annotation we add to be an auto-annotation
+        // that is "negotiable".
+        if (node->number_kind() == NumberKind::kOther) {
+          table_.SetAnnotationFlag(annotation, TypeInferenceFlag::kMinSize);
+          if (node->HasPrefix()) {
+            table_.SetAnnotationFlag(annotation, TypeInferenceFlag::kHasPrefix);
+          }
         }
       }
     } else {

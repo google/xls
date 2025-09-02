@@ -83,6 +83,11 @@ TEST(TypecheckV2Test, GlobalSignedIntegerConstantFromDecimalOverflow) {
               TypecheckFails(HasSizeMismatch("s33", "s32")));
 }
 
+TEST(TypecheckV2Test, CharLiteralImplicitSizeTest) {
+  EXPECT_THAT("const X: u32 = 'a';",
+              TypecheckFails(HasSizeMismatch("u8", "u32")));
+}
+
 TEST(TypecheckV2Test, GlobalIntegerConstantEqualsAnotherConstant) {
   EXPECT_THAT(
       R"(
