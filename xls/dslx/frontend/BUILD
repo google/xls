@@ -39,6 +39,7 @@ cc_library(
         ":proc",
         "//xls/common:casts",
         "//xls/common:visitor",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir:format_strings",
         "@com_google_absl//absl/container:flat_hash_map",

@@ -31,6 +31,7 @@
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/casts.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/frontend/ast.h"
@@ -419,11 +420,12 @@ class AstCloner : public AstNodeVisitor {
   absl::Status HandleImport(const Import* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
-    NameDef* new_name_def = down_cast<NameDef*>(old_to_new_.at(&n->name_def()));
+    NameDef* name_def = &n->name_def();
+    NameDef* new_name_def = down_cast<NameDef*>(old_to_new_.at(name_def));
     Import* new_import = module(n)->Make<Import>(n->span(), n->subject(),
                                                  *new_name_def, n->alias());
-    new_name_def->set_definer(new_import);
     old_to_new_[n] = new_import;
+    new_name_def->set_definer(old_to_new_.at(name_def->definer()));
     return absl::OkStatus();
   }
 
@@ -459,11 +461,13 @@ class AstCloner : public AstNodeVisitor {
 
     UseTreeEntry* new_use_tree_entry =
         module(n)->Make<UseTreeEntry>(std::move(new_payload), n->span());
+    old_to_new_[n] = new_use_tree_entry;
     if (std::holds_alternative<NameDef*>(new_use_tree_entry->payload())) {
       NameDef* leaf = std::get<NameDef*>(new_use_tree_entry->payload());
-      leaf->set_definer(new_use_tree_entry);
+      XLS_RET_CHECK(std::holds_alternative<NameDef*>(n->payload()));
+      NameDef* old_leaf = std::get<NameDef*>(n->payload());
+      leaf->set_definer(old_to_new_.at(old_leaf->definer()));
     }
-    old_to_new_[n] = new_use_tree_entry;
     return absl::OkStatus();
   }
 
