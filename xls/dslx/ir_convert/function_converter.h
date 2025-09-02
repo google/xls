@@ -230,8 +230,18 @@ class FunctionConverter {
   // debugging.
   static std::string IrValueToString(const IrValue& value);
 
-  // Helper that checks that the given IrValue is a Channel.
+  // Helper that checks that the given IrValue is a Channel or ChannelInterface,
+  // or holds a ChannelInterface.
   static absl::Status CheckValueIsChannel(const IrValue& ir_value);
+
+  // Helper that converts the IrValue to the desired ChannelRef variant.
+  template <typename NodeT, typename ChanRef, typename ChanInt>
+  static absl::StatusOr<ChanRef> IrValueToChannelRef(const IrValue& ir_value);
+
+  static absl::StatusOr<SendChannelRef> IrValueToSendChannelRef(
+      const IrValue& ir_value);
+  static absl::StatusOr<ReceiveChannelRef> IrValueToReceiveChannelRef(
+      const IrValue& ir_value);
 
   void SetFunctionBuilder(std::unique_ptr<BuilderBase> builder);
 

@@ -69,6 +69,9 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     if (f->proc().has_value()) {
       proc_id = proc_id_factory_.CreateProcId(
           /*parent=*/std::nullopt, f->proc().value(),
+          // TODO: davidplass - For parametric procs we have to decide if this
+          // is a new instance if it has been called with the same parametrics
+          // before. Otherwise it needs a new procid.
           /*count_as_new_instance=*/false);
     }
     if (f->IsParametric()) {

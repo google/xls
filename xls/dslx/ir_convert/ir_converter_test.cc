@@ -4777,6 +4777,60 @@ proc main {
   ExpectIr(converted);
 }
 
+TEST_P(ProcScopedChannelsIrConverterTest, SimpleSend) {
+  constexpr std::string_view kProgram = R"(
+proc main {
+  out_chan: chan<u32> out;
+
+  init { u32:1 }
+  config(out_param: chan<u32> out) {
+    (out_param,)
+  }
+  next(state: u32) {
+    send(token(), out_chan, state);
+    state
+  }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, SimpleRecv) {
+  constexpr std::string_view kProgram = R"(
+proc main {
+  in_chan: chan<u32> in;
+
+  init { u32:1 }
+  config(in_param: chan<u32> in) {
+    (in_param,)
+  }
+  next(state: u32) {
+    let (_, result) = recv(token(), in_chan);
+    result
+  }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
+  ExpectIr(converted);
+}
+
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ConvertWithoutTests) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,

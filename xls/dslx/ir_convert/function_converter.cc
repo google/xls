@@ -851,10 +851,15 @@ absl::Status FunctionConverter::HandleNameRef(const NameRef* node) {
           // There is no IR equivalent for a channel array. The Index nodes
           // that refer to it have to be lowered to refer to specific channels.
           return absl::OkStatus();
-        } else {
+        } else if (std::holds_alternative<Channel*>(v)) {
           VLOG(4) << "Reference to Proc member: " << k
                   << " : Chan  : " << std::get<Channel*>(v)->ToString();
           SetNodeToIr(from, std::get<Channel*>(v));
+        } else {
+          // Channel interface
+          VLOG(4) << "Reference to Proc member: " << k << " : ChanInterface : "
+                  << std::get<ChannelInterface*>(v)->ToString();
+          SetNodeToIr(from, std::get<ChannelInterface*>(v));
         }
       }
     }
@@ -2588,13 +2593,65 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
   return (this->*f)(node);
 }
 
+/* static */ template <typename NodeT, typename ChanRef, typename ChanInt>
+absl::StatusOr<ChanRef> FunctionConverter::IrValueToChannelRef(
+    const IrValue& ir_value) {
+  return absl::visit(
+      Visitor{
+          [](BValue b) -> absl::StatusOr<ChanRef> {
+            Node* node = b.node();
+            if (node->Is<NodeT>()) {
+              NodeT* sce = node->As<NodeT>();
+              return sce->channel_interface();
+            }
+            return absl::InternalError(absl::StrFormat(
+                "Cannot convert IrValue node of type %s to ChannelRef",
+                OpToString(node->op())));
+          },
+          [](CValue c) -> absl::StatusOr<ChanRef> {
+            return absl::InvalidArgumentError("Unexpected CValue in IrValue.");
+          },
+          [](Channel* chan) -> absl::StatusOr<ChanRef> { return chan; },
+          [](ChannelInterface* ci) -> absl::StatusOr<ChanRef> {
+            if (ChanInt* sci = dynamic_cast<ChanInt*>(ci)) {
+              return sci;
+            }
+            return absl::InvalidArgumentError(
+                "Unexpected ChannelInterface in IrValue.");
+          },
+      },
+      ir_value);
+}
+
+/* static */ absl::StatusOr<SendChannelRef>
+FunctionConverter::IrValueToSendChannelRef(const IrValue& ir_value) {
+  return IrValueToChannelRef<SendChannelEnd, SendChannelRef,
+                             SendChannelInterface>(ir_value);
+}
+
+/* static */ absl::StatusOr<ReceiveChannelRef>
+FunctionConverter::IrValueToReceiveChannelRef(const IrValue& ir_value) {
+  return IrValueToChannelRef<RecvChannelEnd, ReceiveChannelRef,
+                             ReceiveChannelInterface>(ir_value);
+}
+
 /* static */ absl::Status FunctionConverter::CheckValueIsChannel(
     const IrValue& ir_value) {
-  if (!std::holds_alternative<Channel*>(ir_value)) {
-    return absl::InvalidArgumentError(
-        "Expected Channel, got BValue or CValue.");
+  // Allow a send or receive in the BValue
+  if (std::holds_alternative<BValue>(ir_value)) {
+    BValue bvalue = std::get<BValue>(ir_value);
+    if (!bvalue.node()->OpIn({Op::kSendChannelEnd, Op::kRecvChannelEnd})) {
+      return absl::InternalError(absl::StrFormat(
+          "Expected BValue with ChannelEnd, got node of type %s",
+          OpToString(bvalue.node()->op())));
+    }
+    return absl::OkStatus();
   }
-  return absl::OkStatus();
+  if (std::holds_alternative<Channel*>(ir_value) ||
+      std::holds_alternative<ChannelInterface*>(ir_value)) {
+    return absl::OkStatus();
+  }
+  return absl::InvalidArgumentError("Expected Channel, got BValue or CValue.");
 }
 
 absl::Status FunctionConverter::HandleBuiltinSend(const Invocation* node) {
@@ -2611,20 +2668,21 @@ absl::Status FunctionConverter::HandleBuiltinSend(const Invocation* node) {
   XLS_RETURN_IF_ERROR(Visit(token));
   XLS_RETURN_IF_ERROR(Visit(channel));
   XLS_RETURN_IF_ERROR(Visit(payload));
-  IrValue ir_value = node_to_ir_[channel];
-  XLS_RETURN_IF_ERROR(CheckValueIsChannel(ir_value));
+  IrValue channel_ir_value = node_to_ir_[channel];
+  XLS_RETURN_IF_ERROR(CheckValueIsChannel(channel_ir_value));
   XLS_ASSIGN_OR_RETURN(BValue token_value, Use(token));
   XLS_ASSIGN_OR_RETURN(BValue data_value, Use(payload));
 
   BValue result;
+  XLS_ASSIGN_OR_RETURN(SendChannelRef channel_ref,
+                       IrValueToSendChannelRef(channel_ir_value));
   if (implicit_token_data_.has_value()) {
     XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
     result = builder_ptr->SendIf(
-        std::get<Channel*>(ir_value), token_value,
+        channel_ref, token_value,
         implicit_token_data_->create_control_predicate(), data_value);
   } else {
-    result = builder_ptr->Send(std::get<Channel*>(ir_value), token_value,
-                               data_value);
+    result = builder_ptr->Send(channel_ref, token_value, data_value);
   }
   node_to_ir_[node] = result;
   tokens_.push_back(result);
@@ -2711,23 +2769,28 @@ absl::Status FunctionConverter::HandleBuiltinRecv(const Invocation* node) {
       << "Recv nodes should only be encountered during Proc conversion; "
          "we seem to be in function conversion.";
 
-  XLS_RETURN_IF_ERROR(Visit(node->args()[0]));
-  XLS_RETURN_IF_ERROR(Visit(node->args()[1]));
-  IrValue ir_value = node_to_ir_[node->args()[1]];
-  XLS_RETURN_IF_ERROR(CheckValueIsChannel(ir_value));
+  Expr* token = node->args()[0];
+  Expr* channel = node->args()[1];
 
-  XLS_ASSIGN_OR_RETURN(BValue token, Use(node->args()[0]));
+  XLS_RETURN_IF_ERROR(Visit(token));
+  XLS_RETURN_IF_ERROR(Visit(channel));
+  IrValue channel_ir_value = node_to_ir_[channel];
+  XLS_RETURN_IF_ERROR(CheckValueIsChannel(channel_ir_value));
+
+  XLS_ASSIGN_OR_RETURN(ReceiveChannelRef channel_ref,
+                       IrValueToReceiveChannelRef(channel_ir_value));
+  XLS_ASSIGN_OR_RETURN(BValue token_value, Use(token));
   BValue value;
   if (implicit_token_data_.has_value()) {
     XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
     value = builder_ptr->ReceiveIf(
-        std::get<Channel*>(ir_value), token,
+        channel_ref, token_value,
         implicit_token_data_->create_control_predicate());
   } else {
-    value = builder_ptr->Receive(std::get<Channel*>(ir_value), token);
+    value = builder_ptr->Receive(channel_ref, token_value);
   }
-  BValue token_value = builder_ptr->TupleIndex(value, 0);
-  tokens_.push_back(token_value);
+  BValue new_token_value = builder_ptr->TupleIndex(value, 0);
+  tokens_.push_back(new_token_value);
   node_to_ir_[node] = value;
   return absl::OkStatus();
 }
@@ -3151,6 +3214,7 @@ absl::Status FunctionConverter::HandleChannelDecl(const ChannelDecl* node) {
   return absl::OkStatus();
 }
 
+// TODO: davidplass - break this method up. It's too big.
 absl::Status FunctionConverter::HandleProcNextFunction(
     Function* f, const Invocation* invocation, TypeInfo* type_info,
     ImportData* import_data, const ParametricEnv* parametric_env,
@@ -3203,6 +3267,12 @@ absl::Status FunctionConverter::HandleProcNextFunction(
   if (options_.lower_to_proc_scoped_channels) {
     builder =
         std::make_unique<ProcBuilder>(NewStyleProc{}, mangled_name, package());
+    // TODO: davidplass - when get_conversion_records properly returns
+    // unique proc ids for unique parametric spawns, uncomment this ret check.
+    // XLS_RET_CHECK(!proc_data_->id_to_members.contains(proc_id));
+    if (!proc_data_->id_to_members.contains(proc_id)) {
+      proc_data_->id_to_members[proc_id] = {};
+    }
   } else {
     // TODO: https://github.com/google/xls/issues/2078 - Remove this else
     // when all procs are generated as new style/proc scoped channels.
@@ -3348,6 +3418,27 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     for (const ProcMember* member : proc->members()) {
       BValue tuple_entry = last_tuple_[i++];
       Def(member, [tuple_entry](const SourceInfo& loc) { return tuple_entry; });
+
+      // Store the ChannelInterface for this entry in the id_to_members map.
+      Node* node = tuple_entry.node();
+      switch (node->op()) {
+        case Op::kSendChannelEnd: {
+          SendChannelEnd* sce = node->As<SendChannelEnd>();
+          proc_data_->id_to_members.at(proc_id)[member->identifier()] =
+              sce->channel_interface();
+          break;
+        }
+        case Op::kRecvChannelEnd: {
+          RecvChannelEnd* rce = node->As<RecvChannelEnd>();
+          proc_data_->id_to_members.at(proc_id)[member->identifier()] =
+              rce->channel_interface();
+          break;
+        }
+        default:
+          return absl::InternalError(absl::StrFormat(
+              "Cannot process config return tuple element %d of type %s", i - 1,
+              OpToString(node->op())));
+      }
     }
   }
 
