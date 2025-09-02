@@ -243,7 +243,7 @@ proc ZstdDecoderInternal<
     next (state: State) {
         let tok0 = join();
 
-        const CSR_REQS = CsrRdReq[2]:[
+        const CSR_REQS = csr_config::CsrRdReq<LOG2_REGS_N>[2]:[
             CsrRdReq {csr: csr<LOG2_REGS_N>(Csr::INPUT_BUFFER)},
             CsrRdReq {csr: csr<LOG2_REGS_N>(Csr::OUTPUT_BUFFER)}
         ];
