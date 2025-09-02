@@ -299,9 +299,8 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   // Causes node "n" to accept this visitor (basic double-dispatch).
   absl::Status Visit(const AstNode* n) {
     XLS_RET_CHECK_NE(n, nullptr);
-    VLOG(6) << this << " visiting: `" << n->ToString() << "` ("
-            << n->GetNodeTypeName() << ")" << " @ "
-            << SpanToString(n->GetSpan(), converter_->file_table());
+    VLOG(6) << "Visiting: `" << n->ToString() << "` (" << n->GetNodeTypeName()
+            << ") @ " << SpanToString(n->GetSpan(), converter_->file_table());
     return n->Accept(this);
   }
 
@@ -464,9 +463,17 @@ absl::Status FunctionConverter::Visit(const AstNode* node) {
     const IrValue& value) {
   return absl::visit(
       Visitor{
-          [](BValue b) { return absl::StrFormat("%p", b.node()); },
+          [](BValue b) {
+            if (b.valid()) {
+              return absl::StrFormat("%s (%p)", b.ToString(), b.node());
+            } else {
+              return absl::StrFormat("%p", b.node());
+            }
+          },
           [](CValue c) { return absl::StrFormat("%p", c.value.node()); },
-          [](Channel* chan) { return absl::StrFormat("%p", chan); },
+          [](Channel* chan) {
+            return absl::StrFormat("%s (%p)", chan->name(), chan);
+          },
       },
       value);
 }
@@ -730,6 +737,7 @@ absl::Status FunctionConverter::HandleTupleIndex(const TupleIndex* node) {
 }
 
 absl::Status FunctionConverter::HandleXlsTuple(const XlsTuple* node) {
+  VLOG(5) << "FunctionConverter::HandleXlsTuple: " << node->ToString();
   std::vector<BValue> operands;
   for (Expr* o : node->members()) {
     XLS_ASSIGN_OR_RETURN(BValue v, Use(o));
@@ -738,6 +746,9 @@ absl::Status FunctionConverter::HandleXlsTuple(const XlsTuple* node) {
   Def(node, [this, &operands](const SourceInfo& loc) {
     return function_builder_->Tuple(operands, loc);
   });
+  if (current_fn_tag_ == FunctionTag::kProcConfig) {
+    last_tuple_ = operands;
+  }
   return absl::OkStatus();
 }
 
@@ -902,9 +913,6 @@ absl::Status FunctionConverter::HandleLetChannelDecl(const Let* node) {
             proc->MakeNodeWithName<SendChannelEnd>(loc, sci->type(), sci));
         BValue send_value(send, builder_ptr);
         Def(name_def, [&](const SourceInfo& loc) { return send_value; });
-        // We only need the definition in our local IR cache so we remove
-        // the node itself from the function.
-        XLS_RETURN_IF_ERROR(proc->RemoveNode(send));
       } else {
         XLS_ASSIGN_OR_RETURN(ReceiveChannelInterface * rci,
                              proc->GetReceiveChannelInterface(channel->name()));
@@ -913,9 +921,6 @@ absl::Status FunctionConverter::HandleLetChannelDecl(const Let* node) {
             proc->MakeNodeWithName<RecvChannelEnd>(loc, rci->type(), rci));
         BValue recv_value(recv, builder_ptr);
         Def(name_def, [&](const SourceInfo& loc) { return recv_value; });
-        // We only need the definition in our local IR cache so we remove
-        // the node itself from the function.
-        XLS_RETURN_IF_ERROR(proc->RemoveNode(recv));
       }
     }
   }
@@ -3273,36 +3278,21 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     XLS_RETURN_IF_ERROR(Visit(dep));
   }
 
-  Function& config_fn = f->proc().value()->config();
-  if (options_.lower_to_proc_scoped_channels) {
-    for (const Param* param : config_fn.params()) {
-      XLS_ASSIGN_OR_RETURN(Type * type, type_info->GetItemOrError(param));
-      // TODO: davidplass - deal with channel arrays as params.
-      XLS_RET_CHECK_NE(dynamic_cast<ChannelType*>(type), nullptr)
-          << "Cannot have non-channel arguments to a `config` function "
-             "anymore. Use a parametric on the proc instead.";
-    }
-    // Process the body of the config function as a function.
-    current_fn_tag_ = config_fn.tag();
-    XLS_RETURN_IF_ERROR(Visit(config_fn.body()));
-    current_fn_tag_ = f->tag();
-  }
-
-  XLS_RETURN_IF_ERROR(Visit(f->body()));
-
-  builder_ptr->Next(state, std::get<BValue>(node_to_ir_[f->body()]));
-
-  XLS_ASSIGN_OR_RETURN(xls::Proc * p, builder_ptr->Build());
-
-  // Generate channel interfaces.
+  Function& config_fn = proc->config();
   if (options_.lower_to_proc_scoped_channels) {
     // This probably was checked already but might as well double-check it.
     XLS_RET_CHECK(invocation != nullptr || !f->IsParametric())
         << "Cannot lower a parametric proc without an invocation";
+    xls::Proc* ir_proc = builder_ptr->proc();
+
+    // Generate channel interfaces.
     for (const Param* param : config_fn.params()) {
       XLS_ASSIGN_OR_RETURN(Type * type, type_info->GetItemOrError(param));
+      // TODO: davidplass - deal with channel arrays as params.
       ChannelType* channel_type = dynamic_cast<ChannelType*>(type);
-      XLS_RET_CHECK_NE(channel_type, nullptr);
+      XLS_RET_CHECK_NE(channel_type, nullptr)
+          << "Cannot have non-channel arguments to a `config` function "
+             "anymore. Use a parametric on the proc instead.";
 
       // TOOD: davidplass - figure out how to get strictness, flow control,
       // kind instead of defaults. These will likely vary depending on if it's
@@ -3315,17 +3305,53 @@ absl::Status FunctionConverter::HandleProcNextFunction(
       XLS_ASSIGN_OR_RETURN(
           xls::Type * ir_type,
           TypeToIr(package(), channel_type->payload_type(), *parametric_env));
+      SourceInfo loc = ToSourceInfo(param->span());
       if (channel_type->direction() == ChannelDirection::kIn) {
         XLS_ASSIGN_OR_RETURN(
-            auto _, p->AddInputChannel(param->identifier(), ir_type, kind,
-                                       flow_control, strictness));
+            ReceiveChannelInterface * rci,
+            ir_proc->AddInputChannel(param->identifier(), ir_type, kind,
+                                     flow_control, strictness));
+        XLS_ASSIGN_OR_RETURN(
+            RecvChannelEnd * recv,
+            ir_proc->MakeNodeWithName<RecvChannelEnd>(loc, rci->type(), rci));
+        BValue recv_value(recv, builder_ptr);
+        Def(param->name_def(),
+            [&](const SourceInfo& loc) { return recv_value; });
       } else {
         XLS_ASSIGN_OR_RETURN(
-            auto _, p->AddOutputChannel(param->identifier(), ir_type, kind,
-                                        flow_control, strictness));
+            SendChannelInterface * sci,
+            ir_proc->AddOutputChannel(param->identifier(), ir_type, kind,
+                                      flow_control, strictness));
+        XLS_ASSIGN_OR_RETURN(
+            SendChannelEnd * send,
+            ir_proc->MakeNodeWithName<SendChannelEnd>(loc, sci->type(), sci));
+        BValue send_value(send, builder_ptr);
+        Def(param->name_def(),
+            [&](const SourceInfo& loc) { return send_value; });
       }
     }
+
+    // Process the body of the config function as a function.
+    current_fn_tag_ = config_fn.tag();
+    last_tuple_.clear();
+    XLS_RETURN_IF_ERROR(Visit(config_fn.body()));
+    current_fn_tag_ = f->tag();
+
+    // Copy from the return tuple of config to the proc members (the channels).
+    XLS_RET_CHECK_EQ(last_tuple_.size(), proc->members().size());
+    int i = 0;
+    for (const ProcMember* member : proc->members()) {
+      BValue tuple_entry = last_tuple_[i++];
+      Def(member, [tuple_entry](const SourceInfo& loc) { return tuple_entry; });
+    }
   }
+
+  XLS_RETURN_IF_ERROR(Visit(f->body()));
+
+  builder_ptr->Next(state, std::get<BValue>(node_to_ir_[f->body()]));
+
+  XLS_ASSIGN_OR_RETURN(xls::Proc * p, builder_ptr->Build());
+
   package_data_.ir_to_dslx[p] = f;
   // The invocation is actually the "config".
   package_data_.invocation_to_ir_proc[invocation] = p;

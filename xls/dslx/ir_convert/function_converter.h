@@ -613,6 +613,10 @@ class FunctionConverter {
 
   // The current type of function being processed.
   FunctionTag current_fn_tag_ = FunctionTag::kNormal;
+
+  // The last tuple converted. Used for mapping the return tuple of a proc
+  // `config` method to actual proc members.
+  std::vector<BValue> last_tuple_;
 };
 
 }  // namespace xls::dslx
