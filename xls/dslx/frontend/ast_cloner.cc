@@ -422,7 +422,6 @@ class AstCloner : public AstNodeVisitor {
     NameDef* new_name_def = down_cast<NameDef*>(old_to_new_.at(&n->name_def()));
     Import* new_import = module(n)->Make<Import>(n->span(), n->subject(),
                                                  *new_name_def, n->alias());
-    // Mirror parser behavior: bind the name to its definer (the Import).
     new_name_def->set_definer(new_import);
     old_to_new_[n] = new_import;
     return absl::OkStatus();
@@ -458,8 +457,13 @@ class AstCloner : public AstNodeVisitor {
                 }},
         n->payload());
 
-    old_to_new_[n] =
+    UseTreeEntry* new_use_tree_entry =
         module(n)->Make<UseTreeEntry>(std::move(new_payload), n->span());
+    if (std::holds_alternative<NameDef*>(new_use_tree_entry->payload())) {
+      NameDef* leaf = std::get<NameDef*>(new_use_tree_entry->payload());
+      leaf->set_definer(new_use_tree_entry);
+    }
+    old_to_new_[n] = new_use_tree_entry;
     return absl::OkStatus();
   }
 
