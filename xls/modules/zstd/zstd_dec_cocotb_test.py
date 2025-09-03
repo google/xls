@@ -55,6 +55,7 @@ from xls.modules.zstd.cocotb import data_generator
 from xls.modules.zstd.cocotb.memory import AxiRamFromFile
 from xls.modules.zstd.cocotb.utils import run_test
 from xls.modules.zstd.cocotb import xlsstruct
+from xls.modules.zstd.zstd_dec_cocotb_common import check_decoder_compliance
 
 AXI_DATA_W = 64
 AXI_DATA_W_BYTES = AXI_DATA_W // 8

@@ -17,7 +17,7 @@ import sys
 import cocotb
 import os
 import pathlib
-from xls.modules.zstd.zstd_dec_cocotb_common import pregenerated_testing_routine, run_test
+from xls.modules.zstd.zstd_dec_cocotb_common import pregenerated_testing_routine, run_test, check_decoder_compliance
 from multiprocessing import cpu_count
 
 @cocotb.test(timeout_time=int(os.getenv("ZSTD_DEC_COCOTB_CLI_TIMEOUT", "5000")), timeout_unit="ms")
@@ -40,6 +40,10 @@ if __name__ == "__main__":
         # bazel run changes the working dir to runfiles tree so relative paths won't work
         print(f"error: '{sys.argv[1]}' is not absolute path")
         usage()
+
+    if not check_decoder_compliance(sys.argv[1]):
+        print(f"error: '{sys.argv[1]}' is not suitable for the decoder parameters")
+        sys.exit(1)
     
     # cocotb doesn't perserve global vars nor sys.argv
     # we work it around by passing arguments through env
