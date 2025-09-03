@@ -146,6 +146,17 @@ class Status(enum.Enum):
 
   IDLE = 0x0
   RUNNING = 0x1
+  READ_CONFIG_OK = 2
+  FRAME_HEADER_OK = 3
+  FRAME_HEADER_CORRUPTED = 4
+  FRAME_HEADER_UNSUPPORTED_WINDOW_SIZE = 5
+  BLOCK_HEADER_OK = 6
+  BLOCK_HEADER_CORRUPTED = 7
+  BLOCK_HEADER_MEMORY_ACCESS_ERROR = 8
+  RAW_BLOCK_OK = 9
+  RAW_BLOCK_ERROR = 10
+  RLE_BLOCK_OK = 11
+  CMP_BLOCK_OK = 12
 
 
 def check_decoder_compliance(file_path):
@@ -609,6 +620,27 @@ async def test_huffman_weights(dut, clock, expected_huffman_weights):
   )
   cocotb.start_soon(get_handshake_event(dut, huffman_weights_resp_handshake, func))
 
+
+async def check_status(dut, cpu, timeout=100):
+  (unused_notify_channel, notify_monitor) = connect_xls_channel(
+    dut, NOTIFY_CHANNEL, NotifyStruct
+  )
+  notify_event = triggers.Event()
+  set_termination_event(notify_monitor, notify_event, 1)
+
+  await notify_event.wait()
+
+  status = None
+  while timeout != 0 and status != Status.IDLE:
+    status_reg = await csr_read(cpu, CSR.STATUS)
+    status = Status(int.from_bytes(status_reg.data, byteorder="little"))
+    timeout -= 1
+
+  assert status == Status.IDLE, (
+    f"Decoder finished with non-idle status: {status.name}"
+  )
+
+
 async def check_output(expected_packet_count, memory, reference_memory, output_monitor, obuf_addr, clock):
   # Read decoded frame in chunks of AXI_DATA_W length
   # Compare against frame decompressed with the reference library
@@ -646,12 +678,6 @@ async def test_decoder(dut, axi_buses, cpu, clock, encoded_file):
 
   memory_bus = axi_buses["memory"]
 
-  (unused_notify_channel, notify_monitor) = connect_xls_channel(
-    dut, NOTIFY_CHANNEL, NotifyStruct
-  )
-  assert_notify = triggers.Event()
-  set_termination_event(notify_monitor, assert_notify, 1)
-
   mem_size = MAX_ENCODED_FRAME_SIZE_B
   ibuf_addr = 0x0
   obuf_addr = mem_size // 2
@@ -674,10 +700,11 @@ async def test_decoder(dut, axi_buses, cpu, clock, encoded_file):
   output_monitor = AxiWMonitor(memory_bus.write.w, dut.clk, dut.rst)
   await start_decoder(cpu)
 
-  decode_times = await check_output(expected_packet_count, memory, reference_memory, output_monitor, obuf_addr, clock)
+  check_status_thread = await cocotb.start(check_status(dut,cpu))
+  check_output_thread = await cocotb.start(check_output(expected_packet_count, memory, reference_memory, output_monitor, obuf_addr, clock))
+  decode_times = await check_output_thread
   (decode_start, decode_first_packet, decode_last_packet) = decode_times
-  await assert_notify.wait()
-  await wait_for_idle(cpu)
+  await check_status_thread
   decode_end = get_clock_time(clock)
 
   latency = decode_first_packet - decode_start
