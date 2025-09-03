@@ -147,6 +147,45 @@ class Status(enum.Enum):
   RUNNING = 0x1
 
 
+def check_decoder_compliance(file_path):
+  with open(file_path, mode='rb') as compressed_file:
+    # Unused magic number
+    compressed_file.seek(4)
+
+    frame_header_descriptor = int.from_bytes(compressed_file.read(1))
+
+    # 6th bit of a frame header indicates if a window descriptor is present
+    SINGLE_SEGMENT_FLAG_MASK = 0b100000
+    if frame_header_descriptor & SINGLE_SEGMENT_FLAG_MASK == 0:
+      # Calculate a required window_size for the encoded file
+      # and compare it with the ZSTD decoder history buffer size.
+      # Based on window_size calculation from: RFC 8878
+      # https://datatracker.ietf.org/doc/html/rfc8878#name-window-descriptor
+      window_descriptor = int.from_bytes(compressed_file.read(1))
+
+      MANTISSA_BITS = 0b111
+      mantissa = window_descriptor & MANTISSA_BITS
+
+      EXPONENT_BITS = 0b11111000
+      exponent = (window_descriptor & EXPONENT_BITS) >> 3
+
+      window_log = 10 + exponent
+      window_base = 1 << window_log
+      window_add = (window_base / 8) * mantissa
+      window_size = int(window_base + window_add)
+
+      # This value represent the size of the history buffer for the tested
+      # instance of the ZSTD decoder, and should be in line with the value
+      # of `INST_HB_SIZE_KB` declared in the zstd_dec.x file.
+      HISTORY_BUFFER_SIZE = 64 * 1024 # 64 KB
+
+      if window_size > HISTORY_BUFFER_SIZE:
+        print(f"error: required window size greater than the actual history buffer: {window_size} > {HISTORY_BUFFER_SIZE}")
+        return False
+
+  return True
+
+
 def check_ram_contents(mem, expected, name=""):
   for i, value in enumerate(expected):
     assert mem[i].value == value
@@ -576,6 +615,8 @@ async def test_decoder(dut, axi_buses, cpu, clock, encoded_file):
   The output of the decoder is compared with the output of decodercorpus
   using the same input file.
   """
+  assert check_decoder_compliance(encoded_file.name), (f"error: '{encoded_file.name}' is not suitable for the decoder parameters")
+
   memory_bus = axi_buses["memory"]
 
   (unused_notify_channel, notify_monitor) = connect_xls_channel(
