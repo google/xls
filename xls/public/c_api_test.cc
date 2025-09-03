@@ -70,6 +70,106 @@ TEST(XlsCApiTest, ConvertDslxToIrSimple) {
   EXPECT_THAT(ir_out, HasSubstr("fn __my_module__id"));
 }
 
+// -- Bits comparisons
+
+TEST(XlsCApiTest, BitsUnsignedComparisonsMixedWidths) {
+  char* error_out = nullptr;
+  xls_bits* a8 = nullptr;
+  xls_bits* b16 = nullptr;
+  ASSERT_TRUE(xls_bits_make_ubits(8, /*value=*/0x10, &error_out, &a8));
+  absl::Cleanup free_a8([a8] { xls_bits_free(a8); });
+  ASSERT_TRUE(xls_bits_make_ubits(16, /*value=*/0x20, &error_out, &b16));
+  absl::Cleanup free_b16([b16] { xls_bits_free(b16); });
+
+  EXPECT_TRUE(xls_bits_ult(a8, b16));
+  EXPECT_TRUE(xls_bits_ule(a8, b16));
+  EXPECT_FALSE(xls_bits_ugt(a8, b16));
+  EXPECT_FALSE(xls_bits_uge(a8, b16));
+
+  // Reflexive equal case across mixed widths.
+  xls_bits* a16_same = nullptr;
+  ASSERT_TRUE(xls_bits_make_ubits(16, /*value=*/0x0010, &error_out, &a16_same));
+  absl::Cleanup free_a16_same([a16_same] { xls_bits_free(a16_same); });
+  EXPECT_FALSE(xls_bits_ult(a8, a16_same));
+  EXPECT_TRUE(xls_bits_ule(a8, a16_same));
+  EXPECT_FALSE(xls_bits_ugt(a8, a16_same));
+  EXPECT_TRUE(xls_bits_uge(a8, a16_same));
+}
+
+TEST(XlsCApiTest, BitsSignedComparisons) {
+  char* error_out = nullptr;
+  xls_bits* neg8 = nullptr;
+  xls_bits* pos8 = nullptr;
+  ASSERT_TRUE(xls_bits_make_sbits(8, /*value=*/-1, &error_out, &neg8));
+  absl::Cleanup free_neg8([neg8] { xls_bits_free(neg8); });
+  ASSERT_TRUE(xls_bits_make_sbits(8, /*value=*/1, &error_out, &pos8));
+  absl::Cleanup free_pos8([pos8] { xls_bits_free(pos8); });
+
+  EXPECT_TRUE(xls_bits_slt(neg8, pos8));
+  EXPECT_TRUE(xls_bits_sle(neg8, pos8));
+  EXPECT_FALSE(xls_bits_sgt(neg8, pos8));
+  EXPECT_FALSE(xls_bits_sge(neg8, pos8));
+
+  // Equal values.
+  xls_bits* neg8_copy = nullptr;
+  ASSERT_TRUE(xls_bits_make_sbits(8, /*value=*/-1, &error_out, &neg8_copy));
+  absl::Cleanup free_neg8_copy([neg8_copy] { xls_bits_free(neg8_copy); });
+  EXPECT_FALSE(xls_bits_slt(neg8, neg8_copy));
+  EXPECT_TRUE(xls_bits_sle(neg8, neg8_copy));
+  EXPECT_FALSE(xls_bits_sgt(neg8, neg8_copy));
+  EXPECT_TRUE(xls_bits_sge(neg8, neg8_copy));
+}
+
+TEST(XlsCApiTest, BitsSignedComparisonsMixedWidths) {
+  char* error_out = nullptr;
+  // -1 (8-bit) vs +1 (16-bit)
+  xls_bits* neg8 = nullptr;
+  xls_bits* pos16 = nullptr;
+  ASSERT_TRUE(xls_bits_make_sbits(8, /*value=*/-1, &error_out, &neg8));
+  absl::Cleanup free_neg8([neg8] { xls_bits_free(neg8); });
+  ASSERT_TRUE(xls_bits_make_sbits(16, /*value=*/1, &error_out, &pos16));
+  absl::Cleanup free_pos16([pos16] { xls_bits_free(pos16); });
+
+  EXPECT_TRUE(xls_bits_slt(neg8, pos16));
+  EXPECT_TRUE(xls_bits_sle(neg8, pos16));
+  EXPECT_FALSE(xls_bits_sgt(neg8, pos16));
+  EXPECT_FALSE(xls_bits_sge(neg8, pos16));
+
+  // +1 (8-bit) vs -1 (16-bit)
+  xls_bits* pos8 = nullptr;
+  xls_bits* neg16 = nullptr;
+  ASSERT_TRUE(xls_bits_make_sbits(8, /*value=*/1, &error_out, &pos8));
+  absl::Cleanup free_pos8([pos8] { xls_bits_free(pos8); });
+  ASSERT_TRUE(xls_bits_make_sbits(16, /*value=*/-1, &error_out, &neg16));
+  absl::Cleanup free_neg16([neg16] { xls_bits_free(neg16); });
+
+  EXPECT_FALSE(xls_bits_slt(pos8, neg16));
+  EXPECT_FALSE(xls_bits_sle(pos8, neg16));
+  EXPECT_TRUE(xls_bits_sgt(pos8, neg16));
+  EXPECT_TRUE(xls_bits_sge(pos8, neg16));
+}
+
+TEST(XlsCApiTest, BitsEqualityAndInequalityComparisons) {
+  char* error_out = nullptr;
+  xls_bits* a = nullptr;
+  xls_bits* b = nullptr;
+  ASSERT_TRUE(xls_bits_make_ubits(5, 0b10101, &error_out, &a));
+  absl::Cleanup free_a([a] { xls_bits_free(a); });
+  ASSERT_TRUE(xls_bits_make_ubits(5, 0b10101, &error_out, &b));
+  absl::Cleanup free_b([b] { xls_bits_free(b); });
+
+  EXPECT_TRUE(xls_bits_eq(a, b));
+  EXPECT_FALSE(xls_bits_ne(a, b));
+
+  xls_bits* c = nullptr;
+  ASSERT_TRUE(xls_bits_make_ubits(6, 0b010101, &error_out, &c));
+  absl::Cleanup free_c([c] { xls_bits_free(c); });
+
+  // Mixed-width equality should be false; inequality true.
+  EXPECT_FALSE(xls_bits_eq(a, c));
+  EXPECT_TRUE(xls_bits_ne(a, c));
+}
+
 // TODO(williamjhuang) - Many warnings that may be generated under TIv1 are not
 // generated under TIv2, so we are forcing TIv1 in this case.
 TEST(XlsCApiTest, ConvertDslxToIrWithWarningsSet) {
