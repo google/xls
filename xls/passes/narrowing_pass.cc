@@ -359,12 +359,77 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
   absl::Status HandleULt(CompareOp* lt) override {
     return MaybeNarrowCompare(lt);
   }
+
+  bool CanBeMin(Node* node, Node* user) {
+    const QueryEngine& query_engine = QueryEngineForNodeAndUser(node, user);
+    IntervalSet intervals = query_engine.GetIntervals(node).Get({});
+    if (!intervals.Covers(Bits::MinSigned(node->BitCountOrDie()))) {
+      return false;
+    }
+    return true;
+  }
+
   absl::Status HandleNeg(UnOp* neg) override {
+    Node* input = neg->operand(UnOp::kArgOperand);
+
+    // If the operand is a sign-extension, we can swap the order of neg and
+    // sign-extend to reduce the input bit-width.
+    if (input->Is<ExtendOp>() && input->op() == Op::kSignExt) {
+      ExtendOp* sign_ext = input->As<ExtendOp>();
+      Node* i = sign_ext->operand(0);
+      bool can_be_min = CanBeMin(i, neg) && CanBeMin(i, sign_ext);
+      const int64_t n = i->BitCountOrDie();
+      const int64_t x = sign_ext->new_bit_count();
+      if (!can_be_min || x == n) {
+        // Transformation 1: neg(sign_ext(i)) -> sign_ext(neg(i))
+        // This transformation is safe if i cannot be MinValue(n) or if the
+        // bit-width is not increased.
+        XLS_ASSIGN_OR_RETURN(Node * i_neg, neg->function_base()->MakeNode<UnOp>(
+                                               i->loc(), i, Op::kNeg));
+        XLS_ASSIGN_OR_RETURN(Node * replacement,
+                             neg->ReplaceUsesWithNew<ExtendOp>(
+                                 i_neg, neg->BitCountOrDie(), Op::kSignExt));
+        return Change(/*original=*/neg, replacement);
+      }
+
+      // The most optimal transformation cannot be applied.
+      // Check if we are using the most advanced analysis; if not, then do not
+      // apply any change and wait for the next invocation of narrowing_pass
+      // that uses the most advanced analysis. If instead we are using the most
+      // advanced analysis, then apply the less optimal transformation that is
+      // correct for all cases.
+      if (analysis_ != AnalysisType::kRangeWithContext) {
+        return NoChange();
+      }
+
+      // Apply the less optimal transformation.
+      //
+      // Transformation 2:
+      // We must use a formula that is semantically equivalent in all cases.
+      // The equivalence is:
+      // neg(sign_ext(i)) -> sign_ext(neg(sign_ext(i, n+1)), x)
+      //
+      // This transformation is not worth doing if x <= n + 1.
+      if (x <= n + 1) {
+        return NoChange();
+      }
+      XLS_ASSIGN_OR_RETURN(Node * i_ext_n_plus_1,
+                           neg->function_base()->MakeNode<ExtendOp>(
+                               i->loc(), i, n + 1, Op::kSignExt));
+      XLS_ASSIGN_OR_RETURN(Node * i_neg_n_plus_1,
+                           neg->function_base()->MakeNode<UnOp>(
+                               i->loc(), i_ext_n_plus_1, Op::kNeg));
+      XLS_ASSIGN_OR_RETURN(
+          Node * replacement,
+          neg->ReplaceUsesWithNew<ExtendOp>(
+              i_neg_n_plus_1, neg->BitCountOrDie(), Op::kSignExt));
+      return Change(/*original=*/neg, replacement);
+    }
+
     // Narrows negate:
     //
     //  neg(0b00...00XXX) => signext(neg(0b0XXX))
     //  neg(0b00...0000X) => signext(0bX)
-    Node* input = neg->operand(UnOp::kArgOperand);
     int64_t leading_zero = CountLeadingKnownZeros(input, neg);
     if (leading_zero == 0 || leading_zero == 1) {
       // Transform is - [00000??] -> signext[-[0??], width] so if there are no

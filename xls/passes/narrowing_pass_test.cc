@@ -275,6 +275,43 @@ TEST_P(NarrowingPassTest, NarrowableNegThreeBit) {
       m::SignExt(m::Neg(m::BitSlice(ext.node(), /*start=*/0, /*width=*/4))));
 }
 
+TEST_P(NarrowingPassTest, NegOfSignExtendThatCannotBeMinVal) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue in = fb.Param("in", p->GetBitsType(8));
+  BValue const_value_10 = fb.Literal(SBits(10, 8));
+  BValue const_value_3 = fb.Literal(SBits(3, 8));
+  BValue comp_condition = fb.SLt(in, const_value_10);
+  BValue v = fb.Select(comp_condition, const_value_10, const_value_3);
+  BValue first_op = fb.Add(v, const_value_3);
+  BValue second_op = fb.SMul(first_op, const_value_10);
+  BValue sign_ext = fb.SignExtend(second_op, 16);
+  fb.Negate(sign_ext);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+}
+
+TEST_P(NarrowingPassTest, NegOfSignExtendThatCanBeMinVal) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue i = fb.Param("i", p->GetBitsType(8));
+  BValue sign_ext = fb.SignExtend(i, 16);
+  fb.Negate(sign_ext);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence sve(f);
+  bool expected_return_value =
+      (analysis() == NarrowingPass::AnalysisType::kRangeWithContext);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(expected_return_value));
+  if (expected_return_value) {
+    EXPECT_THAT(
+        f->return_value(),
+        m::SignExt(m::Neg(AllOf(m::Type("bits[9]"), m::SignExt(i.node())))));
+  }
+}
+
 TEST_P(NarrowingPassTest, UnnarrowableShift) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
