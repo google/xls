@@ -344,7 +344,7 @@ class InvocationVisitor : public ExprVisitor {
 
       XLS_RET_CHECK(instantiation_type_info.has_value())
           << "Could not find instantiation for `" << node->ToString() << "`"
-          << " via bindings: " << *callee_bindings.value();
+          << " via bindings: " << bindings_;
 
       // Note: when mapping a function that is non-parametric, the instantiated
       // type info can be nullptr (no associated type info, as the callee didn't

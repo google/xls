@@ -103,14 +103,20 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
           // Note, it's possible there is no config invocation if it's a
           // top proc or some other reason.
         }
+        ParametricEnv caller_bindings = callee_data.caller_bindings;
+        std::optional<TypeInfo*> instantiation_type_info =
+            type_info_->GetInvocationTypeInfo(invocation, caller_bindings);
+        XLS_RET_CHECK(instantiation_type_info.has_value())
+            << "Could not find instantiation for `" << invocation->ToString()
+            << "` via bindings: " << caller_bindings;
+
         XLS_ASSIGN_OR_RETURN(
             ConversionRecord cr,
-            MakeConversionRecord(const_cast<Function*>(f), module_,
-                                 callee_data.derived_type_info,
-                                 callee_data.callee_bindings, proc_id,
-                                 invocation,
-                                 // parametric functions can never be 'top'
-                                 /*is_top=*/false));
+            MakeConversionRecord(
+                const_cast<Function*>(f), module_, *instantiation_type_info,
+                callee_data.callee_bindings, proc_id, invocation,
+                // parametric functions can never be 'top'
+                /*is_top=*/false));
         records_.push_back(cr);
       }
       return DefaultHandler(f);

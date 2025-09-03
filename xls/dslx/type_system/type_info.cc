@@ -499,7 +499,7 @@ absl::Status TypeInfo::AddInvocationTypeInfo(const Invocation& invocation,
   if (it == top->invocations_.end()) {
     // No data for this invocation yet.
     absl::flat_hash_map<ParametricEnv, InvocationCalleeData> env_to_callee_data;
-    InvocationCalleeData callee_data{callee_env, derived_type_info,
+    InvocationCalleeData callee_data{callee_env, caller_env, derived_type_info,
                                      &invocation};
     env_to_callee_data[caller_env] = callee_data;
 
@@ -514,7 +514,8 @@ absl::Status TypeInfo::AddInvocationTypeInfo(const Invocation& invocation,
   VLOG(3) << "Adding to existing invocation data.";
   InvocationData* invocation_data = it->second.get();
   return invocation_data->Add(
-      caller_env, InvocationCalleeData{callee_env, derived_type_info});
+      caller_env,
+      InvocationCalleeData{callee_env, caller_env, derived_type_info});
 }
 
 std::optional<bool> TypeInfo::GetRequiresImplicitToken(

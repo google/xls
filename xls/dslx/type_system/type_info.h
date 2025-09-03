@@ -68,6 +68,7 @@ struct SliceData {
 // parametric instantiation.
 struct InvocationCalleeData {
   ParametricEnv callee_bindings;
+  ParametricEnv caller_bindings;
   TypeInfo* derived_type_info;
   const Invocation* invocation;
 };

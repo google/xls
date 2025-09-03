@@ -4631,6 +4631,73 @@ pub proc main {
   ExpectIr(converted);
 }
 
+TEST_P(ProcScopedChannelsIrConverterTest, ParametricChannelDecl) {
+  constexpr std::string_view kProgram = R"(
+proc spawnee1<M:u32> {
+  init { }
+  config() {
+    let (a, b) = chan<uN[M]>("data_0");
+    ()
+  }
+  next(state: ()) { () }
+}
+
+pub proc main {
+  init { }
+  config() {
+    spawn spawnee1<u32:1>();
+    ()
+  }
+  next(state: ()) { () }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, ParametricChannelMember) {
+  constexpr std::string_view kProgram = R"(
+proc spawnee1<M:u32> {
+  out_chan: chan<uN[M]> out;
+  in_chan: chan<uN[M]> in;
+
+  init { }
+  config() {
+    let (sender, receiver) = chan<uN[M]>("data_0");
+    (sender, receiver)
+  }
+  next(state: ()) { state }
+}
+
+pub proc main {
+  init { }
+  config() {
+    spawn spawnee1<u32:1>();
+    ()
+  }
+  next(state: ()) { () }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
+  ExpectIr(converted);
+}
+
 TEST_P(ProcScopedChannelsIrConverterTest, ChannelDeclIgnoreHalf) {
   constexpr std::string_view kProgram = R"(
 pub proc main {
