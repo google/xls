@@ -183,7 +183,10 @@ py_test(
         "testdata/unit_delay_model_stats.csv",
         ":estimator_model_stats",
     ],
-    tags = ["nomsan"],  # scipy seems not to be msan-clean.
+    tags = [
+        "noasan",  # TODO: b/436249343 - Remove this when SciPy is patched.
+        "nomsan",  # scipy seems not to be msan-clean.
+    ],
     deps = [
         "//xls/common:runfiles",
         "//xls/common:test_base",
