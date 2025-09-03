@@ -781,12 +781,8 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     self.assertIn(
         'parametric_instantiation_with_runtime_value.x:20:5-20:6', stderr
     )
-    self.assertIn('TypeInferenceError', stderr)
     self.assertIn(
-        (
-            'Parametric expression `x` was not constexpr -- parametric values'
-            ' must be compile-time constants'
-        ),
+        'expr `x` is not constexpr',
         stderr,
     )
 

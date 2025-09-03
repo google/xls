@@ -221,7 +221,7 @@ absl::Status CheckedCastErrorStatus(const Span& span,
 absl::Status NotConstantErrorStatus(const Span& span, const Expr* expr,
                                     const FileTable& file_table) {
   return absl::InvalidArgumentError(
-      absl::StrFormat("NotConstantError: %s expr `%s` is not a constexpr.",
+      absl::StrFormat("NotConstantError: %s expr `%s` is not constexpr.",
                       span.ToString(file_table), expr->ToString()));
 }
 
@@ -286,6 +286,16 @@ absl::Status MatchNotExhaustiveStatus(const Span& span, const Type* matched,
           "please add additional patterns to complete the match or a "
           "default case via `_ => ...`",
           unmatched_sample.ToString()),
+      file_table);
+}
+
+absl::Status ConstAssertFailureStatus(const Span& span, const Expr* expr,
+                                      std::string env_string,
+                                      const FileTable& file_table) {
+  return TypeInferenceErrorStatus(
+      span, nullptr,
+      absl::StrFormat("const_assert! failure: `%s` constexpr environment: %s",
+                      expr->ToString(), env_string),
       file_table);
 }
 

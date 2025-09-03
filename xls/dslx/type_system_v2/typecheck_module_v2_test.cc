@@ -5932,7 +5932,7 @@ fn foo(a : u32) {
   let A = u32:1..a;
 }
 )",
-              TypecheckFails(HasSubstr("was not constexpr")));
+              TypecheckFails(HasSubstr("is not constexpr")));
 }
 
 TEST(TypecheckV2Test, RangeExprSignednessMismatch) {

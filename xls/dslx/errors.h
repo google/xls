@@ -161,8 +161,15 @@ absl::Status ArrayDimTooLargeErrorStatus(const Span& span, uint64_t value,
 absl::Status ArrayDimTooLargeErrorStatus(const Span& span, uint64_t value,
                                          const FileTable& file_table);
 
+// To be raised when there exists a case not covered by a match arm and there
+// is no catch-all for the match.
 absl::Status MatchNotExhaustiveStatus(const Span& span, const Type* matched,
                                       InterpValue& unmatched_sample,
+                                      const FileTable& file_table);
+
+// To be raised when const_assert! evaluates to false.
+absl::Status ConstAssertFailureStatus(const Span& span, const Expr* expr,
+                                      std::string env_string,
                                       const FileTable& file_table);
 
 // Extracts the assertion label from an error message.

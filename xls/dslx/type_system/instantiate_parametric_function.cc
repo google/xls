@@ -105,12 +105,8 @@ EvaluateExplicitParametrics(
     // The value we're instantiating the function with must be constexpr -- we
     // can't instantiate with values determined at runtime, of course.
     if (!parent_ctx->type_info()->IsKnownConstExpr(parametric_expr)) {
-      return TypeInferenceErrorStatus(
-          parametric_expr->span(), parametric_expr_type.get(),
-          absl::StrFormat("Parametric expression `%s` was not constexpr -- "
-                          "parametric values must be compile-time constants",
-                          parametric_expr->ToString()),
-          ctx->file_table());
+      return NotConstantErrorStatus(parametric_expr->span(), parametric_expr,
+                                    ctx->file_table());
     }
 
     XLS_ASSIGN_OR_RETURN(

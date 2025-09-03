@@ -688,10 +688,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceConstAssert(const ConstAssert* node,
       ctx->import_data(), ctx->type_info(), ctx->warnings(), parametric_env,
       node->arg(), type.get()));
   if (!ctx->type_info()->IsKnownConstExpr(node->arg())) {
-    return TypeInferenceErrorStatus(
-        node->span(), nullptr,
-        absl::StrFormat("const_assert! expression is not constexpr"),
-        ctx->file_table());
+    return NotConstantErrorStatus(node->span(), node->arg(), ctx->file_table());
   }
 
   XLS_ASSIGN_OR_RETURN(InterpValue constexpr_value,
@@ -701,12 +698,9 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceConstAssert(const ConstAssert* node,
         ConstexprEnvData constexpr_env_data,
         MakeConstexprEnv(ctx->import_data(), ctx->type_info(), ctx->warnings(),
                          node->arg(), parametric_env));
-    return TypeInferenceErrorStatus(
-        node->span(), nullptr,
-        absl::StrFormat("const_assert! failure: `%s` constexpr environment: %s",
-                        node->arg()->ToString(),
-                        EnvMapToString(constexpr_env_data.env)),
-        ctx->file_table());
+    return ConstAssertFailureStatus(node->span(), node->arg(),
+                                    EnvMapToString(constexpr_env_data.env),
+                                    ctx->file_table());
   }
 
   VLOG(5) << "DeduceConstAssert result: " << type->ToString();

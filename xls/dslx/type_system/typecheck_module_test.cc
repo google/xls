@@ -1312,7 +1312,7 @@ fn main(p: u32) -> () {
   const_assert!(p == u32:42);
 })"),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("const_assert! expression is not constexpr")));
+                       HasSubstr("`p == u32:42` is not constexpr")));
 }
 
 TEST_P(TypecheckBothVersionsTest, FitsInTypeSN0) {

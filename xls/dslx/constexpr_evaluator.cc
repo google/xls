@@ -91,10 +91,7 @@ namespace xls::dslx {
     return type_info->GetConstExpr(expr);
   }
   const FileTable& file_table = import_data->file_table();
-  return absl::InvalidArgumentError(absl::StrFormat(
-      "Expression @ %s was not constexpr: `%s` in type info for module: %s",
-      expr->span().ToString(file_table), expr->ToString(),
-      type_info->module()->name()));
+  return NotConstantErrorStatus(expr->span(), expr, file_table);
 }
 
 // Evaluates the given expression and terminates current function execution

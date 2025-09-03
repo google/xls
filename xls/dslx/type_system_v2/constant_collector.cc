@@ -303,20 +303,17 @@ class Visitor : public AstNodeVisitorWithDefault {
         &import_data_, ti_, &warning_collector_,
         table_.GetParametricEnv(parametric_context_), node->arg());
     if (!value.ok()) {
-      return TypeInferenceErrorStatus(
-          node->span(), nullptr,
-          absl::Substitute("const_assert! expression is not constexpr: `$0`",
-                           node->arg()->ToString()),
-          file_table_);
+      return NotConstantErrorStatus(node->span(), node->arg(), file_table_);
     }
     VLOG(6) << "Evaluated const assert: " << node->arg()->ToString()
             << " to: " << value->ToString();
     if (value->IsFalse()) {
-      return TypeInferenceErrorStatus(
-          node->span(), nullptr,
-          absl::Substitute("const_assert! failure: `$0`",
-                           node->arg()->ToString()),
-          file_table_);
+      XLS_ASSIGN_OR_RETURN(
+          ConstexprEnvData env,
+          MakeConstexprEnv(&import_data_, ti_, &warning_collector_, node->arg(),
+                           table_.GetParametricEnv(parametric_context_)));
+      return ConstAssertFailureStatus(node->span(), node->arg(),
+                                      EnvMapToString(env.env), file_table_);
     }
     return absl::OkStatus();
   }
