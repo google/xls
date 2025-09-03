@@ -20,8 +20,10 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/ast_env.h"
@@ -40,6 +42,9 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
 // Returns the deduced types for all of the parameters of "f".
 absl::StatusOr<std::vector<std::unique_ptr<Type>>> TypecheckFunctionParams(
     Function& f, DeduceCtx* ctx);
+
+absl::Status ValidateCoverBuiltinInvocation(const FileTable& file_table,
+                                            const Invocation* invocation);
 
 // Interprets an expression we're forced to evaluate at typechecking-time.
 absl::StatusOr<InterpValue> InterpretExpr(

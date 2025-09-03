@@ -43,6 +43,7 @@
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/type_system/typecheck_invocation.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/warning_collector.h"
@@ -189,6 +190,7 @@ class TypeValidator : public AstNodeVisitorWithDefault {
         absl::Status (TypeValidator::*)(const Invocation&, const FunctionType&);
     static const auto* builtin_validators =
         new absl::flat_hash_map<std::string_view, BuiltinValidator>{
+            {"cover!", &TypeValidator::ValidateCoverInvocation},
             {"decode", &TypeValidator::ValidateDecodeInvocation},
             {"update", &TypeValidator::ValidateUpdateInvocation},
             {"widening_cast", &TypeValidator::ValidateWideningCastInvocation}};
@@ -503,6 +505,13 @@ class TypeValidator : public AstNodeVisitorWithDefault {
       return ValidateArrayIndex(*index, lhs_type, rhs_type, ti_, file_table_);
     }
     return absl::OkStatus();
+  }
+
+  absl::Status ValidateCoverInvocation(const Invocation& invocation,
+                                       const FunctionType& signature) {
+    // TODO(williamjhuang) - After TIv2 is enabled the validation logic should
+    // move here.
+    return ValidateCoverBuiltinInvocation(file_table_, &invocation);
   }
 
   absl::Status ValidateDecodeInvocation(const Invocation& invocation,

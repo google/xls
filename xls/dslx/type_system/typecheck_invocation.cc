@@ -29,6 +29,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/log_lines.h"
@@ -141,25 +142,32 @@ static absl::Status ValidateWithinProc(std::string_view builtin_name,
   return absl::OkStatus();
 }
 
-static absl::Status TypecheckCoverBuiltinInvocation(
-    DeduceCtx* ctx, const Invocation* invocation) {
+absl::Status ValidateCoverBuiltinInvocation(const FileTable& file_table,
+                                            const Invocation* invocation) {
   // Make sure that the coverpoint's identifier is valid in both Verilog
   // and DSLX - notably, we don't support Verilog escaped strings.
   // TODO(rspringer): 2021-05-26: Ensure only one instance of an identifier
   // in a design.
   String* identifier_node = dynamic_cast<String*>(invocation->args()[0]);
-  XLS_RET_CHECK(identifier_node != nullptr);
+  if (identifier_node == nullptr) {
+    return TypeInferenceErrorStatus(
+        invocation->args()[0]->span(), nullptr,
+        absl::StrCat(invocation->args()[0]->ToString(),
+                     " is not a string literal"),
+        file_table);
+  }
+
   if (identifier_node->text().empty()) {
     return InvalidIdentifierErrorStatus(
         invocation->span(), "An identifier must be specified with a cover! op.",
-        ctx->file_table());
+        file_table);
   }
 
   std::string identifier = identifier_node->text();
   if (identifier[0] == '\\') {
     return InvalidIdentifierErrorStatus(
         invocation->span(), "Verilog escaped strings are not supported.",
-        ctx->file_table());
+        file_table);
   }
 
   // We don't support Verilog "escaped strings", so we only have to worry
@@ -170,7 +178,7 @@ static absl::Status TypecheckCoverBuiltinInvocation(
         "A coverpoint identifier must start with a letter or underscore, "
         "and otherwise consist of letters, digits, underscores, and/or "
         "dollar signs.",
-        ctx->file_table());
+        file_table);
   }
 
   return absl::OkStatus();
@@ -315,7 +323,8 @@ TypecheckParametricBuiltinInvocation(DeduceCtx* ctx,
       ctx->import_data()));
 
   if (callee_nameref->identifier() == "cover!") {
-    XLS_RETURN_IF_ERROR(TypecheckCoverBuiltinInvocation(ctx, invocation));
+    XLS_RETURN_IF_ERROR(
+        ValidateCoverBuiltinInvocation(ctx->file_table(), invocation));
   }
 
   // fsignature returns a tab w/a fn type, not the fn return type (which is
