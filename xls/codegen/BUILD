@@ -1122,6 +1122,7 @@ cc_test(
         "//xls/ir:value",
         "//xls/simulation:verilog_test_base",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/types:span",
         "@googletest//:gtest",
     ],

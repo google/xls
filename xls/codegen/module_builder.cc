@@ -407,11 +407,13 @@ absl::StatusOr<LogicRef*> ModuleBuilder::AddInputPort(
   // All inputs are flattened so unflatten arrays with a sequence of
   // assignments.
   ArrayType* array_type = type->AsArrayOrDie();
+  int64_t element_bit_count = NestedElementWidth(array_type);
+  XLS_RET_CHECK(element_bit_count > 0);
   XLS_ASSIGN_OR_RETURN(
       LogicRef * ar,
       module_->AddWire(
           unflattened_name,
-          file_->UnpackedArrayType(NestedElementWidth(array_type),
+          file_->UnpackedArrayType(element_bit_count,
                                    NestedArrayBounds(array_type), SourceInfo()),
           SourceInfo(), input_section()));
   XLS_RETURN_IF_ERROR(AssignFromSlice(
@@ -432,6 +434,7 @@ absl::StatusOr<LogicRef*> ModuleBuilder::AddInputPort(
                         "collides with another identifier in the module",
                         name, module_name_));
   }
+  XLS_RET_CHECK(bit_count > 0);
   auto* raw_bits_type = file_->BitVectorType(bit_count, SourceInfo());
   if (sv_type && options_.emit_sv_types()) {
     XLS_ASSIGN_OR_RETURN(
@@ -1384,14 +1387,17 @@ absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
     // Currently, an array register requires SystemVerilog because there is an
     // array assignment in the always flop block.
     ArrayType* array_type = type->AsArrayOrDie();
+    int64_t element_bit_count = NestedElementWidth(array_type);
+    XLS_RET_CHECK(element_bit_count > 0);
     XLS_ASSIGN_OR_RETURN(
         reg, module_->AddReg(SanitizeAndUniquifyName(name),
                              file_->UnpackedArrayType(
-                                 NestedElementWidth(array_type),
+                                 element_bit_count,
                                  NestedArrayBounds(array_type), SourceInfo()),
                              SourceInfo(),
                              /*init=*/nullptr, declaration_section()));
   } else {
+    XLS_RET_CHECK(type->GetFlatBitCount() > 0);
     XLS_ASSIGN_OR_RETURN(
         reg, module_->AddReg(
                  SanitizeAndUniquifyName(name),
@@ -1416,6 +1422,7 @@ absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
         "Block has no reset signal, but register has reset value.");
   }
 
+  XLS_RET_CHECK(bit_count > 0);
   XLS_ASSIGN_OR_RETURN(
       LogicRef * ref,
       module_->AddReg(SanitizeAndUniquifyName(name),

@@ -20,6 +20,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/types/span.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/vast/vast.h"
@@ -36,8 +37,10 @@ namespace xls {
 namespace verilog {
 namespace {
 
+using ::absl_testing::IsOk;
 using ::absl_testing::StatusIs;
 using ::testing::HasSubstr;
+using ::testing::Not;
 
 constexpr char kTestName[] = "module_builder_test";
 constexpr char kTestdataPath[] = "xls/codegen/testdata";
@@ -74,6 +77,13 @@ TEST_P(ModuleBuilderTest, AddTwoNumbers) {
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  file.Emit());
+}
+
+TEST_P(ModuleBuilderTest, AddZeroWidthInputPortFails) {
+  VerilogFile file = NewVerilogFile();
+  Package p(TestBaseName());
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options());
+  EXPECT_THAT(mb.AddInputPort("x", p.GetBitsType(0)), Not(IsOk()));
 }
 
 TEST_P(ModuleBuilderTest, NewSections) {
@@ -118,6 +128,17 @@ TEST_P(ModuleBuilderTest, Registers) {
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  file.Emit());
+}
+
+TEST_P(ModuleBuilderTest, DeclareZeroWidthRegisterFails) {
+  VerilogFile file = NewVerilogFile();
+  Package p(TestBaseName());
+  Type* u32 = p.GetBitsType(32);
+  Type* u0 = p.GetBitsType(0);
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options(),
+                   /*clk_name=*/"clk");
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * x, mb.AddInputPort("x", u32));
+  EXPECT_THAT(mb.DeclareRegister("a", u0, x), Not(IsOk()));
 }
 
 TEST_P(ModuleBuilderTest, DifferentResetPassedToAssignRegisters) {
