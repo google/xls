@@ -72,7 +72,8 @@ class YosysSynthesisServiceImpl : public SynthesisService::Service {
                             const std::filesystem::path& abc_constr_path,
                             const std::filesystem::path& verilog_path,
                             const std::filesystem::path& json_path,
-                            const std::filesystem::path& netlist_path) const;
+                            const std::filesystem::path& netlist_path,
+                            const std::filesystem::path& stats_json_path) const;
 
   // Invokes yosys and nextpnr to synthesis the verilog given in the
   // CompileRequest.

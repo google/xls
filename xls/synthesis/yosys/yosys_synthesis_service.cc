@@ -120,7 +120,8 @@ std::string YosysSynthesisServiceImpl::BuildYosysTcl(
     const CompileRequest* request, const std::filesystem::path& abc_constr_path,
     const std::filesystem::path& verilog_path,
     const std::filesystem::path& json_path,
-    const std::filesystem::path& netlist_path) const {
+    const std::filesystem::path& netlist_path,
+    const std::filesystem::path& stats_json_path) const {
   std::vector<std::string> yosys_tcl_vec;
   std::string yosys_tcl;
 
@@ -161,7 +162,8 @@ std::string YosysSynthesisServiceImpl::BuildYosysTcl(
   const std::string print_statistics_marker_start =
       absl::StrFormat("puts \"XLS marker: statistics section starts here\";");
   const std::string print_statistics =
-      absl::StrFormat("yosys stat -liberty %s -top %s;", synthesis_libraries_,
+      absl::StrFormat("yosys tee -q -o %s stat -json -liberty %s -top %s",
+                      stats_json_path.string(), synthesis_libraries_,
                       request->top_module_name());
 
   const std::string write_json_netlist =
@@ -234,9 +236,10 @@ absl::Status YosysSynthesisServiceImpl::RunSynthesis(
     XLS_RETURN_IF_ERROR(
         SetFileContents(abc_constr_path, BuildAbcConstraints(request)));
     std::filesystem::path yosys_tcl_path = temp_dir_path / "yosys.tcl";
+    std::filesystem::path stats_json_path = temp_dir_path / "stats.json";
     std::string yosys_tcl =
         BuildYosysTcl(request, abc_constr_path, verilog_path, synth_json_path,
-                      synth_verilog_path);
+                      synth_verilog_path, stats_json_path);
     XLS_RETURN_IF_ERROR(SetFileContents(yosys_tcl_path, yosys_tcl));
     LOG(INFO) << "Running Yosys:  command file: " << yosys_tcl_path;
     XLS_ASSIGN_OR_RETURN(string_pair,
@@ -256,8 +259,10 @@ absl::Status YosysSynthesisServiceImpl::RunSynthesis(
   }
 
   // Add stats in response.
+  XLS_ASSIGN_OR_RETURN(std::string stats_json_content,
+                       GetFileContents(temp_dir_path / "stats.json"));
   XLS_ASSIGN_OR_RETURN(YosysSynthesisStatistics parse_stats,
-                       ParseYosysOutput(yosys_stdout));
+                       ParseYosysJsonOutput(stats_json_content));
   XLS_RET_CHECK(!result->has_instance_count());
   for (const auto& name_count : parse_stats.cell_histogram) {
     (*result->mutable_instance_count()
