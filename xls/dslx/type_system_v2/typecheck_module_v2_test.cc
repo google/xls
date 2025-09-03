@@ -8838,5 +8838,18 @@ const ARR = imported::T[2]:[0, 0];
               IsOkAndHolds(HasTypeInfo(HasNodeWithType("ARR", "uN[17][2]"))));
 }
 
+TEST(TypecheckV2Test, InvalidDoubleColonRef) {
+  EXPECT_THAT(R"(
+enum Foo: u1 {
+  BAR = 1,
+}
+
+fn enum_invalid_access() -> u1 {
+  Foo::foo::BAR
+}
+)",
+              TypecheckFails(HasSubstr("name `foo` in `Foo` is undefined")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

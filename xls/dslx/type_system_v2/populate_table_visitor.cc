@@ -302,7 +302,11 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       auto* sub_col_ref = std::get<ColonRef*>(node->subject());
       XLS_ASSIGN_OR_RETURN(std::optional<ModuleInfo*> import_module,
                            GetImportedModuleInfo(sub_col_ref, import_data_));
-      XLS_RET_CHECK(import_module.has_value());
+      if (!import_module.has_value()) {
+        return UndefinedNameErrorStatus(sub_col_ref->span(),
+                                        ToAstNode(sub_col_ref->subject()),
+                                        sub_col_ref->attr(), file_table_);
+      }
       XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_ref,
                            GetStructOrProcRef(sub_col_ref, import_data_));
       if (struct_ref.has_value()) {
