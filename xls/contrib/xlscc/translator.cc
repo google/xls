@@ -1477,7 +1477,7 @@ absl::Status Translator::ScanStruct(const clang::RecordDecl* sd) {
       XLS_ASSIGN_OR_RETURN(
           auto field_type,
           TranslateTypeFromClang(
-              base_struct->getTypeForDecl()->getCanonicalTypeInternal(),
+              base_struct->getASTContext().getCanonicalTagType(base_struct),
               GetLoc(*base_struct)));
 
       fields.push_back(std::make_shared<CField>(
@@ -5930,7 +5930,7 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::TranslateTypeFromClang(
             absl::StrFormat("Unsupported BuiltIn type %i", builtin->getKind()));
     }
   } else if (auto enum_type = clang::dyn_cast<const clang::EnumType>(type)) {
-    clang::EnumDecl* decl = enum_type->getDecl();
+    clang::EnumDecl* decl = enum_type->getOriginalDecl();
     int width = decl->getNumPositiveBits() + decl->getNumNegativeBits();
     bool is_signed = decl->getNumNegativeBits() > 0;
     absl::btree_map<std::string, int64_t> variants_by_name;
@@ -5945,18 +5945,19 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::TranslateTypeFromClang(
     return shared_ptr<CType>(new CEnumType(decl->getNameAsString(), width,
                                            is_signed,
                                            std::move(variants_by_name)));
-  } else if (type->getTypeClass() ==
-             clang::Type::TypeClass::TemplateSpecialization) {
-    // Up-cast to avoid multiple inheritance of getAsRecordDecl()
-    std::shared_ptr<CInstantiableTypeAlias> ret(
-        new CInstantiableTypeAlias(type->getAsRecordDecl()));
-    return ret;
+  } else if (auto spec_type =
+                 clang::dyn_cast<const clang::TemplateSpecializationType>(
+                     type)) {
+    return TranslateTypeFromClang(spec_type->desugar(), loc);
   } else if (auto record = clang::dyn_cast<const clang::RecordType>(type)) {
-    clang::RecordDecl* decl = record->getDecl();
+    clang::RecordDecl* decl = record->getOriginalDecl();
 
     if (clang::isa<clang::RecordDecl>(decl)) {
-      return std::shared_ptr<CType>(new CInstantiableTypeAlias(
-          decl->getTypeForDecl()->getAsRecordDecl()));
+      return std::shared_ptr<CType>(
+          new CInstantiableTypeAlias(decl->getASTContext()
+                                         .getCanonicalTagType(decl)
+                                         .getTypePtr()
+                                         ->getAsRecordDecl()));
     }
     return absl::UnimplementedError(ErrorMessage(
         loc, "Unsupported recordtype kind %s in translate: %s",
@@ -5972,8 +5973,8 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::TranslateTypeFromClang(
                                         array_as_tuple);
   } else if (auto td = clang::dyn_cast<const clang::TypedefType>(type)) {
     return TranslateTypeFromClang(td->getDecl()->getUnderlyingType(), loc);
-  } else if (auto elab = clang::dyn_cast<const clang::ElaboratedType>(type)) {
-    return TranslateTypeFromClang(elab->getCanonicalTypeInternal(), loc);
+  } else if (auto ut = clang::dyn_cast<const clang::UsingType>(type)) {
+    return TranslateTypeFromClang(ut->desugar(), loc);
   } else if (auto aut = clang::dyn_cast<const clang::AutoType>(type)) {
     return TranslateTypeFromClang(
         aut->getContainedDeducedType()->getDeducedType(), loc);
@@ -6108,12 +6109,6 @@ absl::StatusOr<Translator::StrippedType> Translator::StripTypeQualifiers(
   }
 
   const bool wasConst = ret.base.isConstQualified();
-
-  const clang::Type* type = ret.base.getTypePtr();
-  if (auto dec = clang::dyn_cast<const clang::ElaboratedType>(type)) {
-    ret = StrippedType(dec->desugar(), ret.is_ref);
-  }
-
   if (wasConst) {
     ret.base.addConst();
   }

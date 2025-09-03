@@ -263,7 +263,7 @@ absl::StatusOr<bool> Translator::TypeIsChannel(clang::QualType param,
   }
 
   if (auto record = clang::dyn_cast<const clang::RecordType>(type)) {
-    clang::RecordDecl* decl = record->getDecl();
+    clang::RecordDecl* decl = record->getOriginalDecl();
 
     if (auto class_template_spec =
             clang::dyn_cast<const clang::ClassTemplateSpecializationDecl>(
@@ -329,7 +329,7 @@ absl::StatusOr<std::shared_ptr<CChannelType>> Translator::GetChannelType(
   } else if (auto record = clang::dyn_cast<const clang::RecordType>(
                  stripped.base.getTypePtr());
              record != nullptr) {
-    clang::RecordDecl* decl = record->getDecl();
+    clang::RecordDecl* decl = record->getOriginalDecl();
     if (auto class_template_spec =
             clang::dyn_cast<const clang::ClassTemplateSpecializationDecl>(
                 decl)) {
