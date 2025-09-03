@@ -758,6 +758,76 @@ bool xls_bits_eq(const struct xls_bits* a, const struct xls_bits* b) {
   return *cpp_a == *cpp_b;
 }
 
+bool xls_bits_ne(const struct xls_bits* a, const struct xls_bits* b) {
+  CHECK(a != nullptr);
+  CHECK(b != nullptr);
+  return !xls_bits_eq(a, b);
+}
+
+bool xls_bits_ult(const struct xls_bits* a, const struct xls_bits* b) {
+  CHECK(a != nullptr);
+  CHECK(b != nullptr);
+  const auto* cpp_a = reinterpret_cast<const xls::Bits*>(a);
+  const auto* cpp_b = reinterpret_cast<const xls::Bits*>(b);
+  return xls::bits_ops::ULessThan(*cpp_a, *cpp_b);
+}
+
+bool xls_bits_ule(const struct xls_bits* a, const struct xls_bits* b) {
+  CHECK(a != nullptr);
+  CHECK(b != nullptr);
+  const auto* cpp_a = reinterpret_cast<const xls::Bits*>(a);
+  const auto* cpp_b = reinterpret_cast<const xls::Bits*>(b);
+  return xls::bits_ops::ULessThanOrEqual(*cpp_a, *cpp_b);
+}
+
+bool xls_bits_ugt(const struct xls_bits* a, const struct xls_bits* b) {
+  CHECK(a != nullptr);
+  CHECK(b != nullptr);
+  const auto* cpp_a = reinterpret_cast<const xls::Bits*>(a);
+  const auto* cpp_b = reinterpret_cast<const xls::Bits*>(b);
+  return xls::bits_ops::UGreaterThan(*cpp_a, *cpp_b);
+}
+
+bool xls_bits_uge(const struct xls_bits* a, const struct xls_bits* b) {
+  CHECK(a != nullptr);
+  CHECK(b != nullptr);
+  const auto* cpp_a = reinterpret_cast<const xls::Bits*>(a);
+  const auto* cpp_b = reinterpret_cast<const xls::Bits*>(b);
+  return xls::bits_ops::UGreaterThanOrEqual(*cpp_a, *cpp_b);
+}
+
+bool xls_bits_slt(const struct xls_bits* a, const struct xls_bits* b) {
+  CHECK(a != nullptr);
+  CHECK(b != nullptr);
+  const auto* cpp_a = reinterpret_cast<const xls::Bits*>(a);
+  const auto* cpp_b = reinterpret_cast<const xls::Bits*>(b);
+  return xls::bits_ops::SLessThan(*cpp_a, *cpp_b);
+}
+
+bool xls_bits_sle(const struct xls_bits* a, const struct xls_bits* b) {
+  CHECK(a != nullptr);
+  CHECK(b != nullptr);
+  const auto* cpp_a = reinterpret_cast<const xls::Bits*>(a);
+  const auto* cpp_b = reinterpret_cast<const xls::Bits*>(b);
+  return xls::bits_ops::SLessThanOrEqual(*cpp_a, *cpp_b);
+}
+
+bool xls_bits_sgt(const struct xls_bits* a, const struct xls_bits* b) {
+  CHECK(a != nullptr);
+  CHECK(b != nullptr);
+  const auto* cpp_a = reinterpret_cast<const xls::Bits*>(a);
+  const auto* cpp_b = reinterpret_cast<const xls::Bits*>(b);
+  return xls::bits_ops::SGreaterThan(*cpp_a, *cpp_b);
+}
+
+bool xls_bits_sge(const struct xls_bits* a, const struct xls_bits* b) {
+  CHECK(a != nullptr);
+  CHECK(b != nullptr);
+  const auto* cpp_a = reinterpret_cast<const xls::Bits*>(a);
+  const auto* cpp_b = reinterpret_cast<const xls::Bits*>(b);
+  return xls::bits_ops::SGreaterThanOrEqual(*cpp_a, *cpp_b);
+}
+
 int64_t xls_bits_get_bit_count(const struct xls_bits* bits) {
   CHECK(bits != nullptr);
   const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);

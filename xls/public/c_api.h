@@ -231,7 +231,24 @@ bool xls_bits_make_sbits(int64_t bit_count, int64_t value, char** error_out,
 void xls_bits_free(struct xls_bits* bits);
 void xls_bits_rope_free(xls_bits_rope* b);
 
+// Equality compares exact bit patterns including bit_count. If widths differ,
+// equality returns false (no error). Pointers must be non-null.
 bool xls_bits_eq(const struct xls_bits* a, const struct xls_bits* b);
+
+// Inequality and comparison operations on bits values.
+// Unsigned comparisons interpret both operands as unsigned. Mixed widths are
+// allowed; comparisons follow bits_ops semantics. Pointers must be non-null.
+bool xls_bits_ne(const struct xls_bits* a, const struct xls_bits* b);
+bool xls_bits_ult(const struct xls_bits* a, const struct xls_bits* b);
+bool xls_bits_ule(const struct xls_bits* a, const struct xls_bits* b);
+bool xls_bits_ugt(const struct xls_bits* a, const struct xls_bits* b);
+bool xls_bits_uge(const struct xls_bits* a, const struct xls_bits* b);
+// Signed comparisons interpret both operands as two's-complement signed values.
+// Mixed widths are allowed; comparisons follow bits_ops semantics.
+bool xls_bits_slt(const struct xls_bits* a, const struct xls_bits* b);
+bool xls_bits_sle(const struct xls_bits* a, const struct xls_bits* b);
+bool xls_bits_sgt(const struct xls_bits* a, const struct xls_bits* b);
+bool xls_bits_sge(const struct xls_bits* a, const struct xls_bits* b);
 
 // Returns the bit at the given index, where `index` is a zero-is-lsb value.
 //
