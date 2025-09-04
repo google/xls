@@ -392,7 +392,7 @@ xls_benchmark_ir(
     name = "frame_header_dec_opt_ir_benchmark",
     src = ":frame_header_dec_verilog.opt.ir",
     benchmark_ir_args = FRAME_HEADER_DEC_CODEGEN_ARGS | {
-        "top": "__frame_header_dec__FrameHeaderDecoderInst__FrameHeaderDecoder_0__16_32_30_5_next",
+        "top": "__frame_header_dec__FrameHeaderDecoderInst__FrameHeaderDecoder_0__16_32_7864320_5_next",
         "pipeline_stages": "10",
     },
     tags = ["manual"],

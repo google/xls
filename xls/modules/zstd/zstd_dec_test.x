@@ -35,8 +35,6 @@ import xls.modules.zstd.data.comp_frame_fse_comp;
 import xls.modules.zstd.data.comp_frame_fse_repeated;
 import xls.modules.zstd.data.comp_frame;
 
-const TEST_WINDOW_LOG_MAX = u32:30;
-
 const TEST_AXI_DATA_W = u32:64;
 const TEST_AXI_ADDR_W = u32:32;
 const TEST_AXI_ID_W = u32:8;
@@ -50,7 +48,7 @@ const TEST_HB_RAM_N = u32:8;
 const TEST_HB_ADDR_W = sequence_executor::ZSTD_RAM_ADDR_WIDTH;
 const TEST_HB_DATA_W = sequence_executor::RAM_DATA_WIDTH;
 const TEST_HB_NUM_PARTITIONS = sequence_executor::RAM_NUM_PARTITIONS;
-const TEST_HB_SIZE_KB = sequence_executor::ZSTD_HISTORY_BUFFER_SIZE_KB;
+const TEST_HB_SIZE_B = sequence_executor::ZSTD_HISTORY_BUFFER_SIZE_KB as u64 * u64:1024;
 const TEST_HB_RAM_SIZE = sequence_executor::ZSTD_RAM_SIZE;
 const TEST_HB_RAM_WORD_PARTITION_SIZE = sequence_executor::RAM_WORD_PARTITION_SIZE;
 const TEST_HB_RAM_SIMULTANEOUS_READ_WRITE_BEHAVIOR = sequence_executor::TEST_RAM_SIMULTANEOUS_READ_WRITE_BEHAVIOR;
@@ -600,8 +598,8 @@ proc ZstdDecoderTester<FRAMES: TestFrames, DECOMPRESSED_FRAMES: TestFrames> {
 
         spawn zstd_dec::ZstdDecoder<
             TEST_AXI_DATA_W, TEST_AXI_ADDR_W, TEST_AXI_ID_W, TEST_AXI_DEST_W,
-            TEST_REGS_N, TEST_WINDOW_LOG_MAX,
-            TEST_HB_ADDR_W, TEST_HB_DATA_W, TEST_HB_NUM_PARTITIONS, TEST_HB_SIZE_KB,
+            TEST_REGS_N,
+            TEST_HB_ADDR_W, TEST_HB_DATA_W, TEST_HB_NUM_PARTITIONS, TEST_HB_SIZE_B,
 
             TEST_DPD_RAM_ADDR_W, TEST_DPD_RAM_DATA_W, TEST_DPD_RAM_NUM_PARTITIONS,
             TEST_TMP_RAM_ADDR_W, TEST_TMP_RAM_DATA_W, TEST_TMP_RAM_NUM_PARTITIONS,

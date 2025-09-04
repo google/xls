@@ -524,7 +524,7 @@ pub proc SequenceExecutor<HISTORY_BUFFER_SIZE_KB: u32,
     }
 }
 
-pub const ZSTD_HISTORY_BUFFER_SIZE_KB: u32 = u32:64;
+pub const ZSTD_HISTORY_BUFFER_SIZE_KB: u32 = common::HISTORY_BUFFER_SIZE_KB;
 pub const ZSTD_RAM_SIZE = parallel_rams::ram_size(ZSTD_HISTORY_BUFFER_SIZE_KB);
 pub const ZSTD_RAM_ADDR_WIDTH = parallel_rams::ram_addr_width(ZSTD_HISTORY_BUFFER_SIZE_KB);
 const ZSTD_AXI_DATA_W = u32:64;

@@ -21,7 +21,14 @@ pub const MAX_ID = u32::MAX;
 pub const SYMBOL_WIDTH = u32:8;
 pub const BLOCK_SIZE_WIDTH = u32:21;
 pub const OFFSET_WIDTH = u32:22;
+
+// u32 here is sufficient for the maximum size of the history buffer
+// as RFC 8878 states that 3.75 TB is the maximum allowed value for
+// a window size and storing this value in KB units allows it to be
+// saved in a 32-bit unsigned integer (2^32 * 2^10 > 3.75 TB)
+// https://datatracker.ietf.org/doc/html/rfc8878#section-3.1.1.1.2-6
 pub const HISTORY_BUFFER_SIZE_KB = u32:64;
+
 pub const BUFFER_WIDTH = u32:128;
 pub const MAX_BLOCK_SIZE_KB = u32:64;
 

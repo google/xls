@@ -933,8 +933,8 @@ pub proc ZstdDecoder<
     // AXI parameters
     AXI_DATA_W: u32, AXI_ADDR_W: u32, AXI_ID_W: u32, AXI_DEST_W: u32,
     // decoder parameters
-    REGS_N: u32, WINDOW_LOG_MAX: u32,
-    HB_ADDR_W: u32, HB_DATA_W: u32, HB_NUM_PARTITIONS: u32, HB_SIZE_KB: u32,
+    REGS_N: u32,
+    HB_ADDR_W: u32, HB_DATA_W: u32, HB_NUM_PARTITIONS: u32, HB_SIZE: u64,
 
     DPD_RAM_ADDR_W: u32, DPD_RAM_DATA_W: u32, DPD_RAM_NUM_PARTITIONS: u32,
     TMP_RAM_ADDR_W: u32, TMP_RAM_DATA_W: u32, TMP_RAM_NUM_PARTITIONS: u32,
@@ -1267,7 +1267,7 @@ pub proc ZstdDecoder<
         let (fh_req_s, fh_req_r) = chan<FrameHeaderDecoderReq, CHANNEL_DEPTH>("fh_req");
         let (fh_resp_s, fh_resp_r) = chan<FrameHeaderDecoderResp, CHANNEL_DEPTH>("fh_resp");
 
-        spawn frame_header_dec::FrameHeaderDecoder<WINDOW_LOG_MAX, AXI_DATA_W, AXI_ADDR_W>(
+        spawn frame_header_dec::FrameHeaderDecoder<HB_SIZE, AXI_DATA_W, AXI_ADDR_W>(
             fh_mem_rd_req_s, fh_mem_rd_resp_r,
             fh_req_r, fh_resp_s,
         );
@@ -1418,7 +1418,7 @@ pub proc ZstdDecoder<
         let (seq_exec_looped_s, seq_exec_looped_r) = chan<SequenceExecutorPacket, CHANNEL_DEPTH>("seq_exec_looped");
         let (output_mem_wr_data_in_s,  output_mem_wr_data_in_r) = chan<MemWriterDataPacket, CHANNEL_DEPTH>("output_mem_wr_data_in");
 
-        spawn sequence_executor::SequenceExecutor<HB_SIZE_KB, AXI_DATA_W, AXI_ADDR_W>(
+        spawn sequence_executor::SequenceExecutor<HISTORY_BUFFER_SIZE_KB, AXI_DATA_W, AXI_ADDR_W>(
             seq_exec_input_r, output_mem_wr_data_in_s,
             seq_exec_looped_r, seq_exec_looped_s,
             ram_rd_req_0_s, ram_rd_req_1_s, ram_rd_req_2_s, ram_rd_req_3_s,
@@ -1462,11 +1462,10 @@ const INST_AXI_ADDR_W = u32:32;
 const INST_AXI_ID_W = u32:4;
 const INST_AXI_DEST_W = u32:4;
 const INST_REGS_N = u32:16;
-const INST_WINDOW_LOG_MAX = u32:30;
 const INST_HB_ADDR_W = sequence_executor::ZSTD_RAM_ADDR_WIDTH;
 const INST_HB_DATA_W = sequence_executor::RAM_DATA_WIDTH;
 const INST_HB_NUM_PARTITIONS = sequence_executor::RAM_NUM_PARTITIONS;
-const INST_HB_SIZE_KB = sequence_executor::ZSTD_HISTORY_BUFFER_SIZE_KB;
+const INST_HB_SIZE_B = common::HISTORY_BUFFER_SIZE_KB as u64 * u64:1024;
 
 const INST_LOG2_REGS_N = std::clog2(INST_REGS_N);
 const INST_AXI_DATA_W_DIV8 = INST_AXI_DATA_W / u32:8;
@@ -1539,7 +1538,7 @@ const INST_HUFFMAN_WEIGHTS_TMP2_RAM_WORD_PARTITION_SIZE = INST_HUFFMAN_WEIGHTS_T
 const INST_HUFFMAN_WEIGHTS_TMP2_RAM_NUM_PARTITIONS = ram::num_partitions(
     INST_HUFFMAN_WEIGHTS_TMP2_RAM_WORD_PARTITION_SIZE, INST_HUFFMAN_WEIGHTS_TMP2_RAM_DATA_W);
 
-const INST_HISTORY_BUFFER_SIZE_KB = u32:64;
+const INST_HISTORY_BUFFER_SIZE_KB = common::HISTORY_BUFFER_SIZE_KB;
 const INST_AXI_CHAN_N = u32:11;
 
 // Literals buffer memory parameters
@@ -1857,8 +1856,8 @@ proc ZstdDecoderInst {
     ) {
         spawn ZstdDecoder<
             INST_AXI_DATA_W, INST_AXI_ADDR_W, INST_AXI_ID_W, INST_AXI_DEST_W,
-            INST_REGS_N, INST_WINDOW_LOG_MAX,
-            INST_HB_ADDR_W, INST_HB_DATA_W, INST_HB_NUM_PARTITIONS, INST_HB_SIZE_KB,
+            INST_REGS_N,
+            INST_HB_ADDR_W, INST_HB_DATA_W, INST_HB_NUM_PARTITIONS, INST_HB_SIZE_B,
 
             INST_DPD_RAM_ADDR_W, INST_DPD_RAM_DATA_W, INST_DPD_RAM_NUM_PARTITIONS,
             INST_TMP_RAM_ADDR_W, INST_TMP_RAM_DATA_W, INST_TMP_RAM_NUM_PARTITIONS,
