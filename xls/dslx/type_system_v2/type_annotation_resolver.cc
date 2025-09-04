@@ -961,6 +961,13 @@ class StatefulResolver : public TypeAnnotationResolver {
           latest = down_cast<const TypeAnnotation*>(*target);
         } else {
           latest = table_.GetTypeAnnotation(colon_ref);
+          // We expect the ColonRef in this context to be a type alias, so it
+          // must have a TypeRefTypeAnnotation.
+          if (latest.has_value() &&
+              (*latest)->annotation_kind() != TypeAnnotationKind::kTypeRef) {
+            return NotATypeErrorStatus(*(colon_ref)->GetSpan(), colon_ref,
+                                       file_table_);
+          }
         }
       } else {
         const TypeDefinition& type_def =

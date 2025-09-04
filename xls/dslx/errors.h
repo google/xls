@@ -113,6 +113,11 @@ absl::Status TypeMismatchErrorStatus(const Type& type1, const Type& type2,
 absl::Status TypeMissingErrorStatus(const AstNode& node, const AstNode* user,
                                     const FileTable& file_table);
 
+// To be raised when expr is expected to be resolved to a type but it is
+// actually not.
+absl::Status NotATypeErrorStatus(const Span& span, const AstNode* expr,
+                                 const FileTable& file_table);
+
 // To be raised when a recursive import is detected.
 absl::Status RecursiveImportErrorStatus(const Span& nested_import,
                                         const Span& earlier_import,

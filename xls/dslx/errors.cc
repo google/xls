@@ -182,6 +182,14 @@ absl::Status TypeMissingErrorStatus(const AstNode& node, const AstNode* user,
       SpanToString(node.GetSpan(), file_table)));
 }
 
+absl::Status NotATypeErrorStatus(const Span& span, const AstNode* expr,
+                                 const FileTable& file_table) {
+  return TypeInferenceErrorStatus(
+      span, nullptr,
+      absl::StrFormat("Expected a type, got `%s`.", expr->ToString()),
+      file_table);
+}
+
 absl::Status RecursiveImportErrorStatus(const Span& nested_import,
                                         const Span& earlier_import,
                                         absl::Span<const ImportRecord> cycle,

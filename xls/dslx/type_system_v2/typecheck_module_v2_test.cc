@@ -8851,5 +8851,43 @@ fn enum_invalid_access() -> u1 {
               TypecheckFails(HasSubstr("name `foo` in `Foo` is undefined")));
 }
 
+TEST(TypecheckV2Test, ValueColonRefAsSliceWidthFails) {
+  constexpr std::string_view kImported = R"(
+pub const A = u20:1;
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn f(x: u32) -> u20 {
+  x[0+:imported::A]
+}
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Expected a type, got `imported::A`")));
+}
+
+TEST(TypecheckV2Test, ValueColonRefAsTypeAnnotationFails) {
+  constexpr std::string_view kImported = R"(
+pub enum A: u1 {
+ A1 = 1,
+}
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn f() -> u32 {
+  imported::A::A1:3
+}
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Expected a type, got `imported::A::A1`")));
+}
+
 }  // namespace
 }  // namespace xls::dslx
