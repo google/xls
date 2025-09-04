@@ -18,14 +18,15 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
-#include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
+#include "libs/json11/json11.hpp"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "re2/re2.h"
@@ -61,107 +62,44 @@ absl::StatusOr<int64_t> ParseNextpnrOutput(std::string_view nextpnr_output) {
   return static_cast<int64_t>(max_mhz * 1e6);
 }
 
-absl::StatusOr<YosysSynthesisStatistics> ParseYosysOutput(
-    std::string_view yosys_output) {
+absl::StatusOr<YosysSynthesisStatistics> ParseYosysJsonOutput(
+    std::string_view json_content) {
   YosysSynthesisStatistics stats;
   stats.area = -1.0f;
   stats.sequential_area = -1.0f;
-  std::vector<std::string_view> lines = absl::StrSplit(yosys_output, '\n');
-  std::vector<std::string_view>::iterator parse_line_itr = lines.begin();
 
-  // Advance parse_line_index until a line starting with 'key' is found.
-  // Return false if 'key' is not found, otherwise true.
-  auto parse_until_found_string_starts_with = [&](std::string_view key) {
-    for (; parse_line_itr != lines.end(); ++parse_line_itr) {
-      if (absl::StartsWith(*parse_line_itr, key)) {
-        return true;
-      }
-    }
-    return false;
-  };
+  std::string err;
+  const auto json = json11::Json::parse(std::string(json_content), err);
+  if (!err.empty()) {
+    return absl::InternalError(absl::StrFormat(
+        "ParseYosysJsonOutput JSON parse error: %s \n content: %s", err,
+        json_content));
+  }
 
-  // Advance parse_line_index until a line containing 'key' is found.
-  // Return false if 'key' is not found, otherwise true.
-  auto parse_until_found_string_contains = [&](std::string_view key) {
-    for (; parse_line_itr != lines.end(); ++parse_line_itr) {
-      if (absl::StrContains(*parse_line_itr, key)) {
-        return true;
-      }
-    }
-    return false;
-  };
-
-  // Find the XLS marker for the statistics section - the set of statistics
-  // we are interested in is printed after this marker.
-  if (!parse_until_found_string_starts_with(
-          "XLS marker: statistics section starts here")) {
+  if (!json["design"].is_object()) {
     return absl::InternalError(
-        "ParseYosysOutput could not find the term \"XLS marker: statistics "
-        "section starts here\" in the yosys output");
+        "ParseYosysJsonOutput could not find root 'design' object in JSON");
   }
-  // Find the "Number of cells:" line. The cell histogram is printed immediately
-  // after this line.
-  if (!parse_until_found_string_contains("Number of cells:")) {
-    return absl::InternalError(
-        "ParseYosysOutput could not find the term \"Number of cells:\" in the "
-        "yosys output");
-  }
-  parse_line_itr++;
 
-  static constexpr LazyRE2 cell_histogram_regex = {
-      .pattern_ = R"(\s+(\w+)\s+(\d+)\s*)"};
-  // Process cell histogram.
-  for (; parse_line_itr != lines.end(); ++parse_line_itr) {
-    int64_t cell_count;
-    std::string cell_name;
-    if (RE2::FullMatch(*parse_line_itr, *cell_histogram_regex, &cell_name,
-                       &cell_count)) {
-      XLS_RET_CHECK(!stats.cell_histogram.contains(cell_name));
-      stats.cell_histogram[cell_name] = cell_count;
-    } else {
-      break;
+  const auto& design = json["design"];
+
+  if (design["num_cells_by_type"].is_object()) {
+    for (auto const& [cell_name, count] :
+         design["num_cells_by_type"].object_items()) {
+      stats.cell_histogram[cell_name] = count.int_value();
     }
   }
 
-  static constexpr LazyRE2 unknown_cell_area_regex = {
-      .pattern_ = R"(\s+Area for cell type (\w+) is unknown!)"};
-  static constexpr LazyRE2 area_regex = {
-      .pattern_ = R"(\s+Chip area for .+: ([0-9\+\-e\.]+))"};
-  static constexpr LazyRE2 sequential_area_regex = {
-      .pattern_ = R"(\s+of which used for sequential elements: )"
-                  R"(([0-9\+\-e\.]+))"};
+  if (design["area"].is_number()) {
+    stats.area = design["area"].number_value();
+  }
 
-  // The stats related to area, if exists, should come immediately after the
-  // cell histogram. We need to be careful of not jumping to another set of
-  // statistics. Ideally, we should have an end marker as the area part might or
-  // might not exist. However, we find that printing another marker after
-  // calling `yosys stats` might result in the marker getting mixed in the
-  // statistics output. Therefore, we use the following heuristic: if we see the
-  // "Number of cells:" line again, we are probably in another set of
-  // statistics, and we should stop parsing.
-  while (parse_line_itr != lines.end() &&
-         !absl::StrContains(*parse_line_itr, "Number of cells:")) {
-    double parsed_area = -1.0f;
-    double parsed_sequential_area = -1.0f;
-    std::string parsed_cell_type_area_unknown;
-    if (RE2::FullMatch(*parse_line_itr, *unknown_cell_area_regex,
-                       &parsed_cell_type_area_unknown)) {
-      stats.cell_type_with_unknown_area.push_back(
-          parsed_cell_type_area_unknown);
-    }
-    if (RE2::FullMatch(*parse_line_itr, *area_regex, &parsed_area)) {
-      stats.area = parsed_area;
-    }
-    if (RE2::PartialMatch(*parse_line_itr, *sequential_area_regex,
-                          &parsed_sequential_area)) {
-      stats.sequential_area = parsed_sequential_area;
-      break;
-    }
-    ++parse_line_itr;
+  if (design["sequential_area"].is_number()) {
+    stats.sequential_area = design["sequential_area"].number_value();
   }
 
   return stats;
-}  //  ParseYosysOutput
+}
 
 absl::StatusOr<STAStatistics> ParseOpenSTAOutput(std::string_view sta_output) {
   STAStatistics stats;

@@ -55,66 +55,26 @@ TEST(YosysUtilTest, GetMaxFrequencyFailed) {
 }
 
 TEST(YosysUtilTest, ParseYosysOutput) {
-  std::string input = R"(
-2.1.1. Analyzing design hierarchy..
-Top module:  \__input__fun
-Used module:     \shll_1
-
-2.49. Printing statistics.
-
-=== __input__dummy ===
-
-   Number of wires:                  0
-   Number of wire bits:              0
-   Number of public wires:           0
-   Number of public wire bits:       0
-   Number of memories:               0
-   Number of memory bits:            0
-   Number of processes:              0
-   Number of cells:                  0
-     CCU2C                           0
-     TRELLIS_FF                      0
-
-=== __input__fun ===
-
-   Number of wires:                 11
-   Number of wire bits:            578
-   Number of public wires:          11
-   Number of public wire bits:     578
-   Number of memories:               0
-   Number of memory bits:            0
-   Number of processes:              0
-   Number of cells:                224
-     CCU2C                          32
-     TRELLIS_FF                    192
-
-2.50. Executing CHECK pass (checking for obvious problems).
-checking module __input__fun..
-found and reported 0 problems.
-  )
-
-XLS marker: statistics section starts here
-
-@t=12s: 9. Printing statistics.
-
-=== __input__fun ===
-
-   Number of wires:                 11
-   Number of wire bits:            578
-   Number of public wires:          11
-   Number of public wire bits:     578
-   Number of memories:               0
-   Number of memory bits:            0
-   Number of processes:              0
-   Number of cells:                224
-     CCU2C                          32
-     TRELLIS_FF                    192
-
-   Chip area for module '\__input__fun': 1074.385620
-     of which used for sequential elements: 37.324800 (3.47%)
-)";
+  std::string input = R"({
+  "design": {
+    "num_wires": 11,
+    "num_wire_bits": 578,
+    "num_public_wires": 11,
+    "num_public_wire_bits": 578,
+    "num_memories": 0,
+    "num_memory_bits": 0,
+    "num_processes": 0,
+    "num_cells": 224,
+    "num_cells_by_type": {
+      "CCU2C": 32,
+      "TRELLIS_FF": 192
+    },
+    "area": 1074.385620,
+    "sequential_area": 37.324800
+  }
+})";
   XLS_ASSERT_OK_AND_ASSIGN(YosysSynthesisStatistics stats,
-                           ParseYosysOutput(input));
+                           ParseYosysJsonOutput(input));
   EXPECT_THAT(stats.cell_histogram,
               UnorderedElementsAre(std::pair(std::string("CCU2C"), 32),
                                    std::pair(std::string("TRELLIS_FF"), 192)));
@@ -123,219 +83,29 @@ XLS marker: statistics section starts here
 }
 
 TEST(YosysUtilTest, ParseYosysOutputWithoutAreaStats) {
-  std::string input = R"(
-2.1.1. Analyzing design hierarchy..
-Top module:  \__input__fun
-Used module:     \shll_1
-
-2.49. Printing statistics.
-
-=== __input__dummy ===
-
-   Number of wires:                  0
-   Number of wire bits:              0
-   Number of public wires:           0
-   Number of public wire bits:       0
-   Number of memories:               0
-   Number of memory bits:            0
-   Number of processes:              0
-   Number of cells:                  0
-     CCU2C                           0
-     TRELLIS_FF                      0
-
-=== __input__fun ===
-
-   Number of wires:                 11
-   Number of wire bits:            578
-   Number of public wires:          11
-   Number of public wire bits:     578
-   Number of memories:               0
-   Number of memory bits:            0
-   Number of processes:              0
-   Number of cells:                224
-     CCU2C                          32
-     TRELLIS_FF                    192
-
-2.50. Executing CHECK pass (checking for obvious problems).
-checking module __input__fun..
-found and reported 0 problems.
-  )
-
-XLS marker: statistics section starts here
-
-@t=12s: 9. Printing statistics.
-
-=== __input__fun ===
-
-   Number of wires:                 11
-   Number of wire bits:            578
-   Number of public wires:          11
-   Number of public wire bits:     578
-   Number of memories:               0
-   Number of memory bits:            0
-   Number of processes:              0
-   Number of cells:                224
-     CCU2C                          32
-     TRELLIS_FF                    192
-
-)";
+  std::string input = R"({
+  "design": {
+    "num_wires": 11,
+    "num_wire_bits": 578,
+    "num_public_wires": 11,
+    "num_public_wire_bits": 578,
+    "num_memories": 0,
+    "num_memory_bits": 0,
+    "num_processes": 0,
+    "num_cells": 224,
+    "num_cells_by_type": {
+      "CCU2C": 32,
+      "TRELLIS_FF": 192
+    }
+  }
+})";
   XLS_ASSERT_OK_AND_ASSIGN(YosysSynthesisStatistics stats,
-                           ParseYosysOutput(input));
+                           ParseYosysJsonOutput(input));
   EXPECT_THAT(stats.cell_histogram,
               UnorderedElementsAre(std::pair(std::string("CCU2C"), 32),
                                    std::pair(std::string("TRELLIS_FF"), 192)));
   EXPECT_THAT(stats.area, -1);
   EXPECT_THAT(stats.sequential_area, -1);
-}
-
-TEST(YosysUtilTest, ParseYosysOutputWithUnknownAreaCell) {
-  std::string input = R"(
-2.1.1. Analyzing design hierarchy..
-Top module:  \__input__fun
-Used module:     \shll_1
-
-2.49. Printing statistics.
-
-=== __input__dummy ===
-
-   Number of wires:                  0
-   Number of wire bits:              0
-   Number of public wires:           0
-   Number of public wire bits:       0
-   Number of memories:               0
-   Number of memory bits:            0
-   Number of processes:              0
-   Number of cells:                  0
-     CCU2C                           0
-     TRELLIS_FF                      0
-
-=== __input__fun ===
-
-   Number of wires:                 11
-   Number of wire bits:            578
-   Number of public wires:          11
-   Number of public wire bits:     578
-   Number of memories:               0
-   Number of memory bits:            0
-   Number of processes:              0
-   Number of cells:                224
-     CCU2C                          32
-     TRELLIS_FF                    192
-
-2.50. Executing CHECK pass (checking for obvious problems).
-checking module __input__fun..
-found and reported 0 problems.
-  )
-
-XLS marker: statistics section starts here
-
-@t=12s: 9. Printing statistics.
-
-=== __input__fun ===
-
-   Number of wires:                 11
-   Number of wire bits:            578
-   Number of public wires:          11
-   Number of public wire bits:     578
-   Number of memories:               0
-   Number of memory bits:            0
-   Number of processes:              0
-   Number of cells:                224
-     CCU2C                          32
-     TRELLIS_FF                    192
-
-   Area for cell type CCU2C is unknown!
-
-   Chip area for module '\__input__fun': 1074.385620
-     of which used for sequential elements: 37.324800 (3.47%)
-
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(YosysSynthesisStatistics stats,
-                           ParseYosysOutput(input));
-  EXPECT_THAT(stats.cell_histogram,
-              UnorderedElementsAre(std::pair(std::string("CCU2C"), 32),
-                                   std::pair(std::string("TRELLIS_FF"), 192)));
-  EXPECT_THAT(stats.cell_type_with_unknown_area,
-              UnorderedElementsAre(std::string("CCU2C")));
-  EXPECT_THAT(stats.area, 1074.385620);
-  EXPECT_THAT(stats.sequential_area, 37.324800);
-}
-
-TEST(YosysUtilTest, ParseYosysOutputNoXLSMarker) {
-  std::string input = R"(
-2.1.1. Analyzing design hierarchy..
-Used module:     \shll_1
-
-2.49. Printing statistics.
-
-=== __input__dummy ===
-
-   Number of wires:                  0
-   Number of wire bits:              0
-   Number of public wires:           0
-   Number of public wire bits:       0
-   Number of memories:               0
-   Number of memory bits:            0
-   Number of processes:              0
-   Number of cells:                  0
-     CCU2C                           0
-     TRELLIS_FF                      0
-
-=== __input__fun ===
-
-   Number of wires:                 11
-   Number of wire bits:            578
-   Number of public wires:          11
-   Number of public wire bits:     578
-   Number of memories:               0
-   Number of memory bits:            0
-   Number of processes:              0
-   Number of cells:                224
-     CCU2C                          32
-     TRELLIS_FF                    192
-
-2.50. Executing CHECK pass (checking for obvious problems).
-checking module __input__fun..
-found and reported 0 problems.
-  )";
-  auto result = ParseYosysOutput(input);
-  EXPECT_THAT(result,
-              StatusIs(absl::StatusCode::kInternal,
-                       HasSubstr("ParseYosysOutput could not find the term "
-                                 "\"XLS marker: statistics section starts here"
-                                 "\" in the yosys output")));
-}
-
-TEST(YosysUtilTest, ParseYosysOutputNoStatsToParse) {
-  std::string input = R"(
-2.1.1. Analyzing design hierarchy..
-Top module:  \__input__fun
-Used module:     \shll_1
-
-2.49. Printing statistics.
-
-=== __input__fun ===
-
-   Number of bugs in yosys_util:                 0
-
-2.50. Executing CHECK pass (checking for obvious problems).
-checking module __input__fun..
-found and reported 0 problems.
-  )
-
-XLS marker: statistics section starts here
-
-@t=12s: 9. Printing statistics.
-
-=== __input__fun ===
-
-   Number of bugs in yosys_util:                 0
-";
-  auto result = ParseYosysOutput(input);
-  EXPECT_THAT(result,
-              StatusIs(absl::StatusCode::kInternal,
-                       HasSubstr("ParseYosysOutput could not find the term "
-                                 "\"Number of cells:\" in the yosys output")));
 }
 
 TEST(YosysUtilTest, ParseSTAOutput) {
