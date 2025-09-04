@@ -51,22 +51,6 @@ bool ContainsProc(const Type& type) {
   return false;
 }
 
-// Warn folks if it's not following
-// https://doc.rust-lang.org/1.0.0/style/style/naming/README.html
-void WarnOnInappropriateMemberName(std::string_view member_name,
-                                   const Span& span, const Module& module,
-                                   DeduceCtx* ctx) {
-  if (!IsAcceptablySnakeCase(member_name) &&
-      !module.attributes().contains(
-          ModuleAttribute::kAllowNonstandardMemberNaming)) {
-    ctx->warnings()->Add(
-        span, WarningKind::kMemberNaming,
-        absl::StrFormat("Standard style is snake_case for struct member names; "
-                        "got: `%s`",
-                        member_name));
-  }
-}
-
 }  // namespace
 
 absl::Status TypecheckStructDefBase(const StructDefBase* node, DeduceCtx* ctx) {
@@ -100,8 +84,6 @@ absl::StatusOr<std::vector<std::unique_ptr<Type>>> DeduceStructDefBaseMembers(
         validator) {
   std::vector<std::unique_ptr<Type>> members;
   for (const auto* member : node->members()) {
-    WarnOnInappropriateMemberName(member->name(), member->name_def()->span(),
-                                  *node->owner(), ctx);
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> concrete,
                          ctx->DeduceAndResolve(member->type()));
     XLS_ASSIGN_OR_RETURN(

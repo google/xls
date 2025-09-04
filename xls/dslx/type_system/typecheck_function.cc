@@ -55,22 +55,6 @@
 namespace xls::dslx {
 namespace {
 
-// Sees if the function is named with a `_test` suffix but not marked with a
-// test annotation -- this is likely to be a user mistake, so we give a warning.
-void WarnIfConfusinglyNamedLikeTest(Function& f, DeduceCtx* ctx) {
-  if (!absl::EndsWith(f.identifier(), "_test")) {
-    return;
-  }
-  AstNode* parent = f.parent();
-  if (parent == nullptr || parent->kind() != AstNodeKind::kTestFunction) {
-    ctx->warnings()->Add(
-        f.span(), WarningKind::kMisleadingFunctionName,
-        absl::StrFormat("Function `%s` ends with `_test` but is "
-                        "not marked as a unit test via #[test]",
-                        f.identifier()));
-  }
-}
-
 // Checks that an actual `TypeDim` for one parametric argument matches that of a
 // formal type (e.g. a `TypeDim` in an actual return type of a function vs. the
 // counterpart `TypeDim` in its declared return type).
@@ -140,8 +124,6 @@ absl::Status TypecheckFunction(Function& f, DeduceCtx* ctx) {
   VLOG(2) << absl::StreamFormat("Fn stack (%d entries):",
                                 ctx->fn_stack().size());
   XLS_VLOG_LINES(2, ctx->GetFnStackDebugString());
-
-  WarnIfConfusinglyNamedLikeTest(f, ctx);
 
   // Every top-level proc needs its own type info (that's shared between both
   // proc functions). Otherwise, the implicit channels created during top-level
