@@ -231,7 +231,7 @@ absl::Status ToTreeOfNodesInPlace(Node* node,
       (node->GetType()->IsTuple() &&
        node->GetType()->AsTupleOrDie()->element_types().empty()) ||
       (node->GetType()->IsArray() &&
-       node->GetType()->AsArrayOrDie()->size() == 0)) {
+       node->GetType()->AsArrayOrDie()->empty())) {
     segment.elements().front() = node;
     return absl::OkStatus();
   }

@@ -621,7 +621,7 @@ class NodeChecker : public DfsVisitor {
     XLS_RETURN_IF_ERROR(ExpectDoesNotContainToken(slice));
     XLS_RETURN_IF_ERROR(ExpectHasArrayType(
         slice, array->GetType()->AsArrayOrDie()->element_type(), width));
-    if (array->GetType()->AsArrayOrDie()->size() == 0) {
+    if (array->GetType()->AsArrayOrDie()->empty()) {
       return absl::InvalidArgumentError(
           "Array slice cannot be applied to an empty array");
     }
