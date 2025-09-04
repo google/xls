@@ -201,8 +201,10 @@ std::optional<Node*> CheckArrayIndexLiftable(
   return ApplicabilityGuardForArrayIndex(cases, default_case);
 }
 
-// Creates a Literal node representing the identity for the given operation.
-// e.g., 0 for Add/Sub/Xor, -1 for And, 1 for Mul.
+// Creates a Literal node representing the right-identity for the given
+// operation. e.g., 0 for Add/Sub/Xor, -1 for And, 1 for Mul.
+// Note that all operations in kLiftableBinaryOps have a constant
+// right-identity, which simplifies lifting when the shared node is on the LHS.
 absl::StatusOr<Node*> GetIdentityLiteral(Op op, Type* type,
                                          FunctionBase* func) {
   if (!type->IsBits()) {
@@ -242,101 +244,121 @@ std::optional<LiftedOpInfo> GetLiftableOperationInfoForOp(
     absl::Span<Node* const> cases, std::optional<Node*> default_case,
     Node* potential_shared_node, Op test_op) {
   std::optional<bool> shared_is_lhs;
-  bool has_identity_cases = false;
+  std::vector<Node*> other_operands;
+  absl::flat_hash_set<int64_t> identity_case_indices;
+  int64_t other_operand_bitwidth = -1;
+  bool default_is_identity = false;
+  std::optional<Node*> default_other_operand;
+  bool op_is_commutative = OpIsCommutative(test_op);
 
-  std::vector<Node*> all_arms;
-  all_arms.reserve(cases.size() + (default_case.has_value() ? 1 : 0));
-  all_arms.insert(all_arms.end(), cases.begin(), cases.end());
-  if (default_case.has_value()) {
-    all_arms.push_back(*default_case);
-  }
-
-  for (Node* arm_node : all_arms) {
-    if (arm_node == potential_shared_node) {
-      has_identity_cases = true;
-      continue;
+  // Helper lambda to check a single node (case or default) for liftability.
+  // Returns the "other" operand and a boolean indicating if the shared node
+  // was the LHS.
+  struct LiftableCase {
+    Node* other_operand;
+    bool shared_is_lhs;
+  };
+  auto check_liftable = [&](Node* node) -> std::optional<LiftableCase> {
+    if (node->op() != test_op || node->operand_count() != 2) {
+      return std::nullopt;
     }
 
-    if (arm_node->op() != test_op || arm_node->operand_count() != 2) {
-      return std::nullopt;  // Arm is not identity or test_op
-    }
+    Node* op0 = node->operand(0);
+    Node* op1 = node->operand(1);
+    Node* current_other_operand = nullptr;
+    bool current_shared_is_lhs = false;
 
-    bool current_shared_is_lhs;
-    if (arm_node->operand(0) == potential_shared_node) {
+    if (op0 == potential_shared_node) {
       current_shared_is_lhs = true;
-    } else if (arm_node->operand(1) == potential_shared_node) {
+      current_other_operand = op1;
+    } else if (op1 == potential_shared_node) {
       current_shared_is_lhs = false;
+      current_other_operand = op0;
     } else {
-      return std::nullopt;  // potential_shared_node not in this arm
+      return std::nullopt;  // potential_shared_node not in this case
     }
 
     if (!shared_is_lhs.has_value()) {
       shared_is_lhs = current_shared_is_lhs;
-    } else if (*shared_is_lhs != current_shared_is_lhs) {
-      return std::nullopt;  // Inconsistent shared side
+    } else if (!op_is_commutative && *shared_is_lhs != current_shared_is_lhs) {
+      return std::nullopt;  // Inconsistent shared side for non-commutative op
     }
-  }
 
-  if (!shared_is_lhs.has_value()) {
-    return std::nullopt;  // Only identity cases, nothing to lift.
-  }
-
-  if (has_identity_cases && !*shared_is_lhs) {
-    if (test_op == Op::kSub || test_op == Op::kShll || test_op == Op::kShrl ||
-        test_op == Op::kShra) {
-      return std::nullopt;  // Cannot lift non-commutative op with RHS shared
-                            // and identity cases.
+    Type* other_type = current_other_operand->GetType();
+    if (!other_type->IsBits()) {
+      return std::nullopt;  // Other operand must be Bits type.
     }
-  }
-
-  LiftedOpInfo info{
-      .lifted_op = test_op,
-      .shared_node = potential_shared_node,
-      .shared_is_lhs = *shared_is_lhs,
-  };
-  int64_t other_operand_bitwidth = -1;
-
-  auto check_other_operand = [&](Node* other_operand) -> bool {
-    if (!other_operand->GetType()->IsBits()) {
-      return false;
-    }
-    int64_t current_bw = other_operand->GetType()->GetFlatBitCount();
+    int64_t current_bw = other_type->GetFlatBitCount();
     if (other_operand_bitwidth == -1) {
       other_operand_bitwidth = current_bw;
     } else if (other_operand_bitwidth != current_bw) {
-      return false;
+      return std::nullopt;  // Inconsistent bitwidth for other operands
     }
-    return true;
+    return LiftableCase{current_other_operand, current_shared_is_lhs};
   };
 
-  info.other_operands.reserve(cases.size());
   for (int64_t i = 0; i < cases.size(); ++i) {
-    if (cases[i] == potential_shared_node) {
-      info.identity_case_indices.insert(i);
-    } else {
-      Node* other =
-          *shared_is_lhs ? cases[i]->operand(1) : cases[i]->operand(0);
-      if (!check_other_operand(other)) {
-        return std::nullopt;
-      }
-      info.other_operands.push_back(other);
+    Node* case_node = cases[i];
+    if (case_node == potential_shared_node) {
+      identity_case_indices.insert(i);
+      continue;
     }
+
+    std::optional<LiftableCase> liftable_case = check_liftable(case_node);
+    if (!liftable_case.has_value()) {
+      return std::nullopt;
+    }
+    other_operands.push_back(liftable_case->other_operand);
   }
 
   if (default_case.has_value()) {
-    if (*default_case == potential_shared_node) {
-      info.default_is_identity = true;
+    Node* def_node = *default_case;
+    if (def_node == potential_shared_node) {
+      default_is_identity = true;
     } else {
-      Node* other = *shared_is_lhs ? (*default_case)->operand(1)
-                                   : (*default_case)->operand(0);
-      if (!check_other_operand(other)) {
+      std::optional<LiftableCase> liftable_case = check_liftable(def_node);
+      if (!liftable_case.has_value()) {
         return std::nullopt;
       }
-      info.default_other_operand = other;
+      default_other_operand = liftable_case->other_operand;
     }
   }
 
-  return info;
+  // If no non-identity cases were found, there's nothing to lift.
+  if (!shared_is_lhs.has_value()) {
+    return std::nullopt;
+  }
+
+  // If the shared node is on the RHS for a non-commutative op, we can only
+  // lift if identity cases are present if the op has a left-identity L
+  // such that `L op shared = shared`. The non-commutative operations
+  // currently supported for lifting (subtraction and shifts) do not possess
+  // a left-identity, so we disallow lifting in this configuration.
+  if (!op_is_commutative && !*shared_is_lhs &&
+      (!identity_case_indices.empty() || default_is_identity)) {
+    VLOG(3) << "Cannot lift: shared node is RHS of non-commutative op "
+            << OpToString(test_op)
+            << ", and identity cases are present. Lifting in this "
+               "configuration requires a left identity, which "
+            << OpToString(test_op) << " lacks.";
+    return std::nullopt;
+  }
+
+  // If the op is commutative, we can always act as if the shared node was on
+  // the LHS.
+  if (op_is_commutative) {
+    shared_is_lhs = true;
+  }
+
+  return LiftedOpInfo{
+      .lifted_op = test_op,
+      .shared_node = potential_shared_node,
+      .shared_is_lhs = *shared_is_lhs,
+      .other_operands = std::move(other_operands),
+      .default_other_operand = default_other_operand,
+      .identity_case_indices = std::move(identity_case_indices),
+      .default_is_identity = default_is_identity,
+  };
 }
 
 // Attempts to find a liftable operation in the select cases.
