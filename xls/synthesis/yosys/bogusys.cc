@@ -13,7 +13,6 @@
 // limitations under the License.
 
 #include <cstdint>
-#include <filesystem>
 #include <iostream>
 #include <string>
 #include <string_view>
@@ -35,24 +34,54 @@ static constexpr std::string_view kUsage =
     "which looks like yosys output and writes a json netlist file output.";
 
 // Canned snippet of yosys output.
-const char kYosysOutput[] = R"({
-  "design": {
-    "num_wires": 11,
-    "num_wire_bits": 578,
-    "num_public_wires": 11,
-    "num_public_wire_bits": 578,
-    "num_memories": 0,
-    "num_memory_bits": 0,
-    "num_processes": 0,
-    "num_cells": 224,
-    "num_cells_by_type": {
-      "CCU2C": 32,
-      "TRELLIS_FF": 192
-    },
-    "area": 1074.385620,
-    "sequential_area": 37.324800
-  }
-})";
+const char kYosysOutput[] = R"(
+....
+
+Top module:  \__input__fun
+
+....
+
+2.49. Printing statistics.
+
+=== __input__fun ===
+
+   Number of wires:                 11
+   Number of wire bits:            578
+   Number of public wires:          11
+   Number of public wire bits:     578
+   Number of memories:               0
+   Number of memory bits:            0
+   Number of processes:              0
+   Number of cells:                224
+     CCU2C                          32
+     TRELLIS_FF                    192
+
+2.50. Executing CHECK pass (checking for obvious problems).
+checking module __input__fun..
+found and reported 0 problems.
+
+XLS marker: statistics section starts here
+
+9. Printing statistics.
+
+=== __input__fun ===
+
+   Number of wires:                 11
+   Number of wire bits:            578
+   Number of public wires:          11
+   Number of public wire bits:     578
+   Number of memories:               0
+   Number of memory bits:            0
+   Number of processes:              0
+   Number of cells:                224
+     CCU2C                          32
+     TRELLIS_FF                    192
+
+   Chip area for module '\__input__fun': 1074.385620
+     of which used for sequential elements: 37.324800 (3.47%)
+
+....
+)";
 
 namespace xls {
 namespace synthesis {
@@ -81,9 +110,6 @@ absl::Status RealMain(absl::Span<const std::string> args) {
       GetXlsRunfilePath("xls/synthesis/yosys/testdata/netlist.json"));
   XLS_ASSIGN_OR_RETURN(std::string json, GetFileContents(runfile_path));
   XLS_RETURN_IF_ERROR(SetFileContents(json_out_path, json));
-  std::filesystem::path json_stats_out_path =
-      std::filesystem::path(json_out_path).parent_path() / "stats.json";
-  XLS_RETURN_IF_ERROR(SetFileContents(json_stats_out_path, kYosysOutput));
   std::cout << kYosysOutput;
   return absl::OkStatus();
 }

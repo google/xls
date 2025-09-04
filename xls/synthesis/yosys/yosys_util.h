@@ -42,10 +42,8 @@ struct YosysSynthesisStatistics {
   std::vector<std::string> cell_type_with_unknown_area;
 };
 
-// Parses the given JSON string output of yosys and returns information about
-// the synthesis results.
-absl::StatusOr<YosysSynthesisStatistics> ParseYosysJsonOutput(
-    std::string_view json_content);
+absl::StatusOr<YosysSynthesisStatistics> ParseYosysOutput(
+    std::string_view yosys_output);
 
 // Parses the given strings output of STA and returns information about the
 // results.
