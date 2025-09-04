@@ -260,7 +260,7 @@ def get_runfiles_for_xls(ctx, additional_runfiles_list, additional_files_list):
     Returns a runfiles object with the runfiles containing the files
     from the 'srcs', 'deps', 'data' and 'library' attributes, and the
     additional runfiles in 'additional_runfiles_list', and the files in
-    'additional_runfiles_list'.
+    'additional_files_list'.
 
     Args:
       ctx: The current rule's context object.

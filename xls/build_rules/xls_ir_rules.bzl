@@ -509,13 +509,19 @@ def get_benchmark_ir_cmd(ctx, src, append_cmd_line_args = True):
         _DEFAULT_BENCHMARK_IR_ARGS,
     )
 
+    extra_runfiles = [src.ir_file]
+
     is_args_valid(benchmark_ir_args, BENCHMARK_IR_FLAGS)
     if ctx.attr.top:
         benchmark_ir_args.setdefault("top", ctx.attr.top)
     if ctx.attr.scheduling_options_proto:
-        benchmark_ir_args["scheduling_options_proto"] = ctx.attr.scheduling_options_proto
+        scheduling_options_file = ctx.files.scheduling_options_proto[0]
+        benchmark_ir_args["scheduling_options_proto"] = scheduling_options_file.short_path
+        extra_runfiles.append(scheduling_options_file)
     if ctx.attr.codegen_options_proto:
-        benchmark_ir_args["codegen_options_proto"] = ctx.attr.codegen_options_proto
+        codegen_options_file = ctx.files.codegen_options_proto[0]
+        benchmark_ir_args["codegen_options_proto"] = codegen_options_file.short_path
+        extra_runfiles.append(codegen_options_file)
     my_args = args_to_string(benchmark_ir_args)
 
     # Note: The user, or a higher level script, may pass ad hoc arguments through this script to
@@ -532,7 +538,7 @@ def get_benchmark_ir_cmd(ctx, src, append_cmd_line_args = True):
 
     # Get runfiles
     benchmark_ir_tool_runfiles = ctx.attr._xls_benchmark_ir_tool[DefaultInfo].default_runfiles
-    runfiles = get_runfiles_for_xls(ctx, [benchmark_ir_tool_runfiles], [src.ir_file])
+    runfiles = get_runfiles_for_xls(ctx, [benchmark_ir_tool_runfiles], extra_runfiles)
     return runfiles, cmd
 
 def get_mangled_ir_symbol(
