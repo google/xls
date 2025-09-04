@@ -882,7 +882,7 @@ pub proc LiteralsBuffer<
     next (state: ()) { }
 }
 
-const INST_HISTORY_BUFFER_SIZE_KB = u32:64;
+const INST_HISTORY_BUFFER_SIZE_KB = common::HISTORY_BUFFER_SIZE_KB;
 const INST_RAM_ADDR_WIDTH = parallel_rams::ram_addr_width(INST_HISTORY_BUFFER_SIZE_KB);
 const INST_RAM_NUM_PARTITIONS = RAM_NUM_PARTITIONS;
 const INST_RAM_DATA_WIDTH = RAM_DATA_WIDTH;

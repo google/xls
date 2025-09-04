@@ -911,7 +911,7 @@ pub proc LiteralsDecoder<
     next (state: ()) { }
 }
 
-const ZSTD_HISTORY_BUFFER_SIZE_KB: u32 = u32:64;
+const ZSTD_HISTORY_BUFFER_SIZE_KB: u32 = common::HISTORY_BUFFER_SIZE_KB;
 const ZSTD_RAM_ADDR_WIDTH: u32 = parallel_rams::ram_addr_width(ZSTD_HISTORY_BUFFER_SIZE_KB);
 const INST_AXI_DATA_W:u32 = u32:64;
 const INST_AXI_ID_W:u32 = u32:4;
