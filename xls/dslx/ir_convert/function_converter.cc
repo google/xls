@@ -2685,19 +2685,20 @@ absl::Status FunctionConverter::HandleBuiltinSend(const Invocation* node) {
   XLS_RETURN_IF_ERROR(Visit(payload));
   IrValue channel_ir_value = node_to_ir_[channel];
   XLS_RETURN_IF_ERROR(CheckValueIsChannel(channel_ir_value));
-  XLS_ASSIGN_OR_RETURN(BValue token_value, Use(token));
-  XLS_ASSIGN_OR_RETURN(BValue data_value, Use(payload));
 
-  BValue result;
+  XLS_ASSIGN_OR_RETURN(BValue token_value, Use(token));
   XLS_ASSIGN_OR_RETURN(SendChannelRef channel_ref,
                        IrValueToSendChannelRef(channel_ir_value));
+  XLS_ASSIGN_OR_RETURN(BValue payload_value, Use(payload));
+
+  BValue result;
   if (implicit_token_data_.has_value()) {
     XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
     result = builder_ptr->SendIf(
         channel_ref, token_value,
-        implicit_token_data_->create_control_predicate(), data_value);
+        implicit_token_data_->create_control_predicate(), payload_value);
   } else {
-    result = builder_ptr->Send(channel_ref, token_value, data_value);
+    result = builder_ptr->Send(channel_ref, token_value, payload_value);
   }
   node_to_ir_[node] = result;
   tokens_.push_back(result);
@@ -2718,26 +2719,28 @@ absl::Status FunctionConverter::HandleBuiltinSendIf(const Invocation* node) {
 
   XLS_RETURN_IF_ERROR(Visit(token));
   XLS_RETURN_IF_ERROR(Visit(channel));
-  IrValue ir_value = node_to_ir_[channel];
-  XLS_RETURN_IF_ERROR(CheckValueIsChannel(ir_value));
+  IrValue channel_ir_value = node_to_ir_[channel];
+  XLS_RETURN_IF_ERROR(CheckValueIsChannel(channel_ir_value));
+  XLS_RETURN_IF_ERROR(Visit(predicate));
+  XLS_RETURN_IF_ERROR(Visit(payload));
 
   XLS_ASSIGN_OR_RETURN(BValue token_value, Use(token));
-  XLS_RETURN_IF_ERROR(Visit(predicate));
+  XLS_ASSIGN_OR_RETURN(SendChannelRef channel_ref,
+                       IrValueToSendChannelRef(channel_ir_value));
   XLS_ASSIGN_OR_RETURN(BValue predicate_value, Use(predicate));
+  XLS_ASSIGN_OR_RETURN(BValue payload_value, Use(payload));
 
-  XLS_RETURN_IF_ERROR(Visit(payload));
-  XLS_ASSIGN_OR_RETURN(BValue data_value, Use(payload));
   BValue result;
   if (implicit_token_data_.has_value()) {
     XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
     result = builder_ptr->SendIf(
-        std::get<Channel*>(ir_value), token_value,
+        channel_ref, token_value,
         builder_ptr->And({implicit_token_data_->create_control_predicate(),
                           predicate_value}),
-        data_value);
+        payload_value);
   } else {
-    result = builder_ptr->SendIf(std::get<Channel*>(ir_value), token_value,
-                                 predicate_value, data_value);
+    result = builder_ptr->SendIf(channel_ref, token_value, predicate_value,
+                                 payload_value);
   }
   node_to_ir_[node] = result;
   tokens_.push_back(result);
@@ -2818,25 +2821,31 @@ absl::Status FunctionConverter::HandleBuiltinRecvNonBlocking(
       << "Recv nodes should only be encountered during Proc conversion; "
          "we seem to be in function conversion.";
 
-  XLS_RETURN_IF_ERROR(Visit(node->args()[0]));
-  XLS_RETURN_IF_ERROR(Visit(node->args()[1]));
-  IrValue ir_value = node_to_ir_[node->args()[1]];
-  XLS_RETURN_IF_ERROR(CheckValueIsChannel(ir_value));
-  XLS_RETURN_IF_ERROR(Visit(node->args()[2]));
+  Expr* token = node->args()[0];
+  Expr* channel = node->args()[1];
+  Expr* default_expr = node->args()[2];
 
-  XLS_ASSIGN_OR_RETURN(BValue token, Use(node->args()[0]));
-  XLS_ASSIGN_OR_RETURN(BValue default_value, Use(node->args()[2]));
+  XLS_RETURN_IF_ERROR(Visit(token));
+  XLS_RETURN_IF_ERROR(Visit(channel));
+  IrValue channel_ir_value = node_to_ir_[channel];
+  XLS_RETURN_IF_ERROR(CheckValueIsChannel(channel_ir_value));
+  XLS_RETURN_IF_ERROR(Visit(default_expr));
+
+  XLS_ASSIGN_OR_RETURN(BValue token_value, Use(token));
+  XLS_ASSIGN_OR_RETURN(ReceiveChannelRef channel_ref,
+                       IrValueToReceiveChannelRef(channel_ir_value));
+  XLS_ASSIGN_OR_RETURN(BValue default_value, Use(default_expr));
 
   BValue recv;
   if (implicit_token_data_.has_value()) {
     XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
     recv = builder_ptr->ReceiveIfNonBlocking(
-        std::get<Channel*>(ir_value), token,
+        channel_ref, token_value,
         implicit_token_data_->create_control_predicate());
   } else {
-    recv = builder_ptr->ReceiveNonBlocking(std::get<Channel*>(ir_value), token);
+    recv = builder_ptr->ReceiveNonBlocking(channel_ref, token_value);
   }
-  BValue token_value = builder_ptr->TupleIndex(recv, 0);
+  BValue new_token_value = builder_ptr->TupleIndex(recv, 0);
   BValue received_value = builder_ptr->TupleIndex(recv, 1);
   BValue receive_activated = builder_ptr->TupleIndex(recv, 2);
 
@@ -2845,9 +2854,9 @@ absl::Status FunctionConverter::HandleBuiltinRecvNonBlocking(
   BValue value =
       builder_ptr->Select(receive_activated, {default_value, received_value});
   BValue repackaged_result =
-      builder_ptr->Tuple({token_value, value, receive_activated});
+      builder_ptr->Tuple({new_token_value, value, receive_activated});
 
-  tokens_.push_back(token_value);
+  tokens_.push_back(new_token_value);
   node_to_ir_[node] = repackaged_result;
 
   return absl::OkStatus();
@@ -2860,39 +2869,44 @@ absl::Status FunctionConverter::HandleBuiltinRecvIf(const Invocation* node) {
       << "Recv nodes should only be encountered during Proc conversion; "
          "we seem to be in function conversion.";
 
-  XLS_RETURN_IF_ERROR(Visit(node->args()[0]));
-  XLS_RETURN_IF_ERROR(Visit(node->args()[1]));
-  IrValue ir_value = node_to_ir_[node->args()[1]];
-  XLS_RETURN_IF_ERROR(CheckValueIsChannel(ir_value));
+  Expr* token = node->args()[0];
+  Expr* channel = node->args()[1];
+  Expr* predicate = node->args()[2];
+  Expr* default_expr = node->args()[3];
 
-  XLS_RETURN_IF_ERROR(Visit(node->args()[2]));
-  XLS_RETURN_IF_ERROR(Visit(node->args()[3]));
+  XLS_RETURN_IF_ERROR(Visit(token));
+  XLS_RETURN_IF_ERROR(Visit(channel));
+  IrValue channel_ir_value = node_to_ir_[channel];
+  XLS_RETURN_IF_ERROR(CheckValueIsChannel(channel_ir_value));
+  XLS_RETURN_IF_ERROR(Visit(predicate));
+  XLS_RETURN_IF_ERROR(Visit(default_expr));
 
-  XLS_ASSIGN_OR_RETURN(BValue token, Use(node->args()[0]));
-  XLS_ASSIGN_OR_RETURN(BValue predicate, Use(node->args()[2]));
-  XLS_ASSIGN_OR_RETURN(BValue default_value, Use(node->args()[3]));
+  XLS_ASSIGN_OR_RETURN(BValue token_value, Use(token));
+  XLS_ASSIGN_OR_RETURN(ReceiveChannelRef channel_ref,
+                       IrValueToReceiveChannelRef(channel_ir_value));
+  XLS_ASSIGN_OR_RETURN(BValue predicate_value, Use(predicate));
+  XLS_ASSIGN_OR_RETURN(BValue default_value, Use(default_expr));
 
   BValue recv;
   if (implicit_token_data_.has_value()) {
     XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
     recv = builder_ptr->ReceiveIf(
-        std::get<Channel*>(ir_value), token,
-        builder_ptr->And(
-            {implicit_token_data_->create_control_predicate(), predicate}));
+        channel_ref, token_value,
+        builder_ptr->And({implicit_token_data_->create_control_predicate(),
+                          predicate_value}));
   } else {
-    recv =
-        builder_ptr->ReceiveIf(std::get<Channel*>(ir_value), token, predicate);
+    recv = builder_ptr->ReceiveIf(channel_ref, token_value, predicate_value);
   }
-  BValue token_value = builder_ptr->TupleIndex(recv, 0);
+  BValue new_token_value = builder_ptr->TupleIndex(recv, 0);
   BValue received_value = builder_ptr->TupleIndex(recv, 1);
 
   // IR receive-if has a default value of zero. Mux in the
   // default_value specified in DSLX.
   BValue value =
-      builder_ptr->Select(predicate, {default_value, received_value});
-  BValue repackaged_result = builder_ptr->Tuple({token_value, value});
+      builder_ptr->Select(predicate_value, {default_value, received_value});
+  BValue repackaged_result = builder_ptr->Tuple({new_token_value, value});
 
-  tokens_.push_back(token_value);
+  tokens_.push_back(new_token_value);
   node_to_ir_[node] = repackaged_result;
   return absl::OkStatus();
 }
@@ -2905,30 +2919,36 @@ absl::Status FunctionConverter::HandleBuiltinRecvIfNonBlocking(
       << "Recv nodes should only be encountered during Proc conversion; "
          "we seem to be in function conversion.";
 
-  XLS_RETURN_IF_ERROR(Visit(node->args()[0]));
-  XLS_RETURN_IF_ERROR(Visit(node->args()[1]));
-  IrValue ir_value = node_to_ir_[node->args()[1]];
-  XLS_RETURN_IF_ERROR(CheckValueIsChannel(ir_value));
+  Expr* token = node->args()[0];
+  Expr* channel = node->args()[1];
+  Expr* predicate = node->args()[2];
+  Expr* default_expr = node->args()[3];
 
-  XLS_RETURN_IF_ERROR(Visit(node->args()[2]));
-  XLS_RETURN_IF_ERROR(Visit(node->args()[3]));
+  XLS_RETURN_IF_ERROR(Visit(token));
+  XLS_RETURN_IF_ERROR(Visit(channel));
+  IrValue channel_ir_value = node_to_ir_[channel];
+  XLS_RETURN_IF_ERROR(CheckValueIsChannel(channel_ir_value));
+  XLS_RETURN_IF_ERROR(Visit(predicate));
+  XLS_RETURN_IF_ERROR(Visit(default_expr));
 
-  XLS_ASSIGN_OR_RETURN(BValue token, Use(node->args()[0]));
-  XLS_ASSIGN_OR_RETURN(BValue predicate, Use(node->args()[2]));
-  XLS_ASSIGN_OR_RETURN(BValue default_value, Use(node->args()[3]));
+  XLS_ASSIGN_OR_RETURN(BValue token_value, Use(token));
+  XLS_ASSIGN_OR_RETURN(ReceiveChannelRef channel_ref,
+                       IrValueToReceiveChannelRef(channel_ir_value));
+  XLS_ASSIGN_OR_RETURN(BValue predicate_value, Use(predicate));
+  XLS_ASSIGN_OR_RETURN(BValue default_value, Use(default_expr));
 
   BValue recv;
   if (implicit_token_data_.has_value()) {
     XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
     recv = builder_ptr->ReceiveIfNonBlocking(
-        std::get<Channel*>(ir_value), token,
-        builder_ptr->And(
-            {implicit_token_data_->create_control_predicate(), predicate}));
+        channel_ref, token_value,
+        builder_ptr->And({implicit_token_data_->create_control_predicate(),
+                          predicate_value}));
   } else {
-    recv = builder_ptr->ReceiveIfNonBlocking(std::get<Channel*>(ir_value),
-                                             token, predicate);
+    recv = builder_ptr->ReceiveIfNonBlocking(channel_ref, token_value,
+                                             predicate_value);
   }
-  BValue token_value = builder_ptr->TupleIndex(recv, 0);
+  BValue new_token_value = builder_ptr->TupleIndex(recv, 0);
   BValue received_value = builder_ptr->TupleIndex(recv, 1);
   BValue receive_activated = builder_ptr->TupleIndex(recv, 2);
 
@@ -2937,9 +2957,9 @@ absl::Status FunctionConverter::HandleBuiltinRecvIfNonBlocking(
   BValue value =
       builder_ptr->Select(receive_activated, {default_value, received_value});
   BValue repackaged_result =
-      builder_ptr->Tuple({token_value, value, receive_activated});
+      builder_ptr->Tuple({new_token_value, value, receive_activated});
 
-  tokens_.push_back(token_value);
+  tokens_.push_back(new_token_value);
   node_to_ir_[node] = repackaged_result;
   return absl::OkStatus();
 }

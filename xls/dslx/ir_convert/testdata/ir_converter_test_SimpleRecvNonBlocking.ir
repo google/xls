@@ -1,0 +1,24 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+top proc __test_module__main_0_next<in_param: bits[32] in>(__state: bits[32], init={1}) {
+  chan_interface in_param(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  literal.6: token = literal(value=token, id=6)
+  literal.3: bits[1] = literal(value=1, id=3)
+  receive.8: (token, bits[32], bits[1]) = receive(literal.6, predicate=literal.3, channel=in_param, blocking=false, id=8)
+  tuple_index.11: bits[1] = tuple_index(receive.8, index=2, id=11)
+  literal.7: bits[32] = literal(value=42, id=7)
+  tuple_index.10: bits[32] = tuple_index(receive.8, index=1, id=10)
+  tuple_index.9: token = tuple_index(receive.8, index=0, id=9)
+  sel.12: bits[32] = sel(tuple_index.11, cases=[literal.7, tuple_index.10], id=12)
+  tuple.13: (token, bits[32], bits[1]) = tuple(tuple_index.9, sel.12, tuple_index.11, id=13)
+  in_param: bits[32] = recv_channel_end(id=4)
+  __state: bits[32] = state_read(state_element=__state, id=2)
+  result: bits[32] = tuple_index(tuple.13, index=1, id=15)
+  __token: token = literal(value=token, id=1)
+  tuple.5: (bits[32]) = tuple(in_param, id=5)
+  tuple_index.14: token = tuple_index(tuple.13, index=0, id=14)
+  tuple_index.16: bits[1] = tuple_index(tuple.13, index=2, id=16)
+  next_value.17: () = next_value(param=__state, value=result, id=17)
+}
