@@ -63,6 +63,7 @@ struct xls_package;
 struct xls_schedule_and_codegen_result;
 struct xls_type;
 struct xls_value;
+struct xls_dslx_parametric_env;
 
 void xls_init_xls(const char* usage, int argc, char* argv[]);
 
@@ -111,6 +112,22 @@ bool xls_optimize_ir(const char* ir, const char* top, char** error_out,
 
 bool xls_mangle_dslx_name(const char* module_name, const char* function_name,
                           char** error_out, char** mangled_out);
+
+typedef int32_t xls_calling_convention;
+enum {
+  xls_calling_convention_typical = 0,
+  xls_calling_convention_implicit_token = 1,
+  xls_calling_convention_proc_next = 2,
+};
+
+// Mangling with full options. If `param_env` is non-null, its bindings are
+// used as the parametric environment; otherwise no parametric bindings are
+// applied.
+bool xls_mangle_dslx_name_full(
+    const char* module_name, const char* function_name,
+    xls_calling_convention convention, const char* const free_keys[],
+    size_t free_keys_count, const struct xls_dslx_parametric_env* param_env,
+    const char* scope, char** error_out, char** mangled_out);
 
 // Args:
 //   p: The package to schedule and codegen.
