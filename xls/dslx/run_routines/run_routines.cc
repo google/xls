@@ -608,6 +608,7 @@ static absl::Status RunQuickCheck(AbstractRunComparator* run_comparator,
       qc_fn.calling_convention == CallingConvention::kImplicitToken ? 2 : 0;
 
   std::vector<InterpValue> dslx_argset;
+  dslx_argset.reserve(dslx_params.size());
   for (int64_t i = 0; i < dslx_params.size(); ++i) {
     const Type& arg_type = *dslx_params[i];
     const Value& value = last_ir_argset[ir_args_start_index + i];
@@ -616,14 +617,38 @@ static absl::Status RunQuickCheck(AbstractRunComparator* run_comparator,
     dslx_argset.push_back(interp_value);
   }
 
+  // Building a DSLX  test case from the  example 
+  std::string sig = absl::StrFormat("fn %s_auto_test() {\n",
+                                    dslx_fn->identifier());
+  std::string bindings;
+  for (int64_t i = 0; i < static_cast<int64_t>(dslx_params.size()); ++i) {
+    const Param* p = dslx_fn->params()[i];
+    bindings += absl::StrFormat("  let %s: %s = %s;\n", p->identifier(),
+                                p->type_annotation()->ToString(),
+                                dslx_argset[i].ToString());
+  }
+
+  // Extract function body expression (strip surrounding braces if present).
+  std::string expr = dslx_fn->body()->ToString();
+  if (!expr.empty() && expr.front() == '{' && expr.back() == '}') {
+    expr = expr.substr(1, expr.size() - 2);
+    absl::StripAsciiWhitespace(&expr);
+  }
+
+  std::string auto_test =
+      sig + bindings + "  assert_eq!(" + expr + ", true);\n}\n";
+
   std::string dslx_argset_str = absl::StrJoin(
       dslx_argset, ", ", [](std::string* out, const InterpValue& v) {
         absl::StrAppend(out, v.ToString());
       });
+
   return FailureErrorStatus(
       dslx_fn->span(),
-      absl::StrFormat("Found falsifying example after %d tests: [%s]",
-                      outputs.size(), dslx_argset_str),
+      absl::StrFormat(
+          "Found example after %d tests: [%s]\n\n"
+          "Auto-generated DSLX test case:\n%s",
+          outputs.size(), dslx_argset_str, auto_test),
       *dslx_fn->owner()->file_table());
 }
 
@@ -765,7 +790,7 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
       auto test_case_end = absl::Now();
       result.AddTestCase(test_xml::TestCase{
           .name = quickcheck_name,
-          .file = std::string{start_pos.GetFilename(file_table)},
+          .file = std::string{start_pos.GetFilename(*entry_module->file_table())},
           .line = start_pos.GetHumanLineno(),
           .status = test_xml::RunStatus::kRun,
           .result = test_xml::RunResult::kFiltered,
@@ -773,7 +798,7 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
           .timestamp = test_case_start});
       continue;
     }
-    std::cerr << "[ RUN QUICKCHECK        ] " << quickcheck_name << '\n';
+    std::cerr << "[ RUN QUICKCHECK        ] " << quickcheck_name << '\n';    
     dslx::PackageConversionData conv{
         .package = std::make_unique<Package>(entry_module->name())};
     Package& package = *conv.package;
@@ -786,17 +811,16 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
       }
       HandleError(result, status, quickcheck_name, start_pos, test_case_start,
                   absl::Now() - test_case_start, /*is_quickcheck=*/true,
-                  file_table, import_data.vfs());
+                  *entry_module->file_table(), import_data.vfs());
       return true;
     };
 
     const absl::Status convert_status = ConvertOneFunctionIntoPackage(
-        f, &import_data,
-        /*parametric_env=*/nullptr, ConvertOptions{}, &conv);
+        f, &import_data, /*parametric_env=*/nullptr, ConvertOptions{}, &conv);
     if (handle_if_error(convert_status)) {
       continue;
     }
-
+    
     // Note: we need this to eliminate unoptimized IR constructs that are not
     // currently handled for translation; e.g. bounded-for-loops, asserts and
     // non-inlined function calls.
@@ -914,11 +938,8 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
                        parse_and_typecheck_options.warnings, std::move(vfs));
   FileTable& file_table = import_data.file_table();
 
-  absl::StatusOr<TypecheckedModule> tm = ParseAndTypecheck(
-      program, filename, module_name, &import_data, nullptr,
-      parse_and_typecheck_options.type_inference_v2
-          ? std::make_optional(TypeInferenceVersion::kVersion2)
-          : std::nullopt);
+  absl::StatusOr<TypecheckedModule> tm =
+      ParseAndTypecheck(program, filename, module_name, &import_data);
   if (!tm.ok()) {
     if (TryPrintError(tm.status(), import_data.file_table(),
                       import_data.vfs())) {
