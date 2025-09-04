@@ -279,9 +279,6 @@ absl::Status ExtractFromCell(const cell_lib::Block& cell,
 absl::StatusOr<CellLibraryProto> ExtractFunctions(
     cell_lib::CharStream* stream) {
   cell_lib::Scanner scanner(stream);
-  absl::flat_hash_set<std::string> kind_allowlist(
-      {"library", "cell", "pin", "direction", "function", "ff", "next_state",
-       "statetable"});
   cell_lib::Parser parser(&scanner);
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<cell_lib::Block> block,
