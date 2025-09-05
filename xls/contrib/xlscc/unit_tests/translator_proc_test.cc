@@ -146,6 +146,26 @@ INSTANTIATE_TEST_SUITE_P(
                       .split_states_on_channel_ops = true}),
     GetTestInfo);
 
+// TODO(seanhaskell): Remove this with old FSM
+class TranslatorProcTest_NewFSMOnly
+    : public TranslatorProcTestWithoutFSMParam,
+      public ::testing::WithParamInterface<TestParams> {
+ protected:
+  TranslatorProcTest_NewFSMOnly() {
+    generate_new_fsm_ = GetParam().generate_new_fsm;
+    merge_states_ = GetParam().merge_states;
+    split_states_on_channel_ops_ = GetParam().split_states_on_channel_ops;
+  }
+};
+
+INSTANTIATE_TEST_SUITE_P(
+    TranslatorProcTest_NewFSMOnly, TranslatorProcTest_NewFSMOnly,
+    Values(TestParams{.generate_new_fsm = true,
+                      .split_states_on_channel_ops = false},
+           TestParams{.generate_new_fsm = true,
+                      .split_states_on_channel_ops = true}),
+    GetTestInfo);
+
 TEST_P(TranslatorProcTest, IOProcMux) {
   const std::string content = R"(
     #include "/xls_builtin.h"
@@ -7864,6 +7884,42 @@ TEST_P(TranslatorProcTest, PipelinedLoopConditional2) {
         xls::Value(xls::SBits(11 + 0, 32)), xls::Value(xls::SBits(11 + 1, 32)),
         xls::Value(xls::SBits(11 + 2, 32)), xls::Value(xls::SBits(11 + 3, 32)),
         xls::Value(xls::SBits(11 + 4, 32)), xls::Value(xls::SBits(11 + 5, 32))};
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /* min_ticks = */ 1,
+             /* max_ticks = */ 100,
+             /* top_level_init_interval = */ 1);
+  }
+}
+
+TEST_P(TranslatorProcTest_NewFSMOnly, PipelinedLoopConditional3) {
+  const std::string content = R"(
+       class Block {
+        public:
+         __xls_channel<int, __xls_channel_dir_Out>& out;
+
+         #pragma hls_top
+         void Run() {
+          static bool done = false;
+          static int st = 0;
+
+          if(!done) {
+            #pragma hls_pipeline_init_interval 1
+            for(int i=0;i<4;++i) {
+              ++st;
+              done = true;
+            }
+          }
+          out.write(st);
+          st += 3;
+        }
+      };)";
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(4, 32)),
+                      xls::Value(xls::SBits(7, 32))};
     ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
              /* min_ticks = */ 1,
              /* max_ticks = */ 100,
