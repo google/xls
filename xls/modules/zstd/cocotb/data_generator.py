@@ -90,6 +90,11 @@ def GenerateFrame(seed, btype, output_path, ltype=LiteralType.RANDOM):
   args.append("--content-size")
   # Test payloads up to 16KB
   args.append("--max-content-size-log=14")
+  # Window log 15 is our maximum allowed value,
+  # as then the max window size is equal to 61 440 bytes
+  # which fits into the zstd decoder history buffer
+  # with size of 65 536 bytes.
+  args.append("--max-window-log=15")
   args.append("-p" + output_path)
   args.append("-vvvvvvv")
 
