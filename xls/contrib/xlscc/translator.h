@@ -222,6 +222,7 @@ struct TranslationContext {
   bool for_loops_default_unroll = false;
 
   // Flag set in pipelined for body
+  // TODO(seanhaskell): Remove with old FSM
   // TODO(seanhaskell): Remove once all features are supported
   bool in_pipelined_for_body = false;
   int64_t outer_pipelined_loop_init_interval = 0;
@@ -750,6 +751,32 @@ class Translator final : public GeneratorBase,
       std::vector<const clang::Expr*> expr_args, TrackedBValue* this_inout,
       std::shared_ptr<LValue>* this_lval, const xls::SourceInfo& loc);
 
+  absl::Status AddIOOpForSliceForCall(
+      const GeneratedFunction& func, GeneratedFunctionSlice& slice,
+      TrackedBValue last_slice_ret,
+      absl::flat_hash_map<const IOOp*, IOOp*>& caller_ops_by_callee_op,
+      const absl::flat_hash_map<IOChannel*, IOChannel*>&
+          caller_channels_by_callee_channel,
+      const xls::SourceInfo& loc);
+
+  absl::Status AddContinuationFeedbacksForCall(
+      const GeneratedFunction& func,
+      const std::map<const ContinuationValue*, TrackedBValue>&
+          returns_by_continuation_value,
+      absl::flat_hash_map<const IOOp*, IOOp*>& caller_ops_by_callee_op,
+      const absl::flat_hash_set<const ContinuationInput*>&
+          upstream_callee_continuation_inputs,
+      absl::flat_hash_map<const xls::Param*, xls::Param*>&
+          caller_params_by_callee_param,
+      const xls::SourceInfo& loc);
+
+  absl::Status AddArgsForSideEffectingParams(
+      const GeneratedFunction& func,
+      const std::list<SideEffectingParameter>& side_effecting_parameters,
+      const absl::flat_hash_map<const IOOp*, IOOp*>& caller_ops_by_callee_op,
+      std::vector<TrackedBValue>& args, int64_t& expected_returns,
+      const xls::SourceInfo& loc);
+
   absl::Status FailIfTypeHasDtors(const clang::CXXRecordDecl* cxx_record);
   bool LValueContainsOnlyChannels(const std::shared_ptr<LValue>& lvalue);
 
@@ -996,7 +1023,14 @@ class Translator final : public GeneratorBase,
   // Returns permanent IOOp pointer
   absl::StatusOr<IOOp*> AddOpToChannel(IOOp& op, IOChannel* channel_param,
                                        const xls::SourceInfo& loc,
-                                       bool mask = false);
+                                       bool mask = false,
+                                       bool no_before_slice = false);
+
+  bool OpIsMasked(const IOOp& op);
+
+  absl::StatusOr<TrackedBValue> GetIOOpRetValueFromSlice(
+      TrackedBValue slice_ret_val, const GeneratedFunctionSlice& slice,
+      const xls::SourceInfo& loc);
 
   absl::StatusOr<std::optional<const IOOp*>> GetPreviousOp(
       const IOOp& op, const xls::SourceInfo& loc);
@@ -1004,7 +1038,7 @@ class Translator final : public GeneratorBase,
   absl::StatusOr<TrackedBValue> AddConditionToIOReturn(
       const IOOp& op, TrackedBValue retval, const xls::SourceInfo& loc);
 
-  absl::Status NewContinuation(const IOOp& op, bool slice_before);
+  absl::Status NewContinuation(const IOOp& op, bool create_slice_before);
   absl::Status AddFeedbacksForSlice(GeneratedFunctionSlice& slice,
                                     const xls::SourceInfo& loc);
   absl::StatusOr<std::vector<NATIVE_BVAL>>

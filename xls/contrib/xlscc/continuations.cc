@@ -189,6 +189,8 @@ Translator::ConvertBValuesToContinuationOutputsForCurrentSlice(
       // Filled in for name search, identity is inserted later
       continuation_out.output_node = node;
 
+      continuation_out.created_from = bvals;
+
       xls::LeafTypeTreeView<xls::NodeSource> output_source =
           visitor.GetValue(continuation_out.output_node);
 
@@ -448,7 +450,8 @@ absl::Status Translator::AddContinuationsToNewSlice(
 
 // The continuation comes before the IO op, and so does not include its input
 // parameter
-absl::Status Translator::NewContinuation(const IOOp& op, bool slice_before) {
+absl::Status Translator::NewContinuation(const IOOp& op,
+                                         bool create_slice_before) {
   // If there is no first slice, then don't generate any
   if (context().sf->slices.empty()) {
     return absl::OkStatus();
@@ -484,9 +487,16 @@ absl::Status Translator::NewContinuation(const IOOp& op, bool slice_before) {
           name_found_for_bval, decls_by_bval_top_context,
           /*total_bvals_out=*/&total_bvals, loc));
 
+  // Only slices before IO operations return IO op conditions.
+  //
+  // If the next slice, the one this function is about to create,
+  // will be an explicit "before IO" slice, then this one, which we are
+  // finalizing with its output, doesn't need an IO return.
+  //
   // TODO(seanhaskell): Turn into a check when subroutine calls work with new
   // FSM
-  if (ret_value_saved.valid()) {
+  if (!create_slice_before) {
+    XLSCC_CHECK(ret_value_saved.valid(), loc);
     ret_vals.push_back(ret_value_saved);
   }
 
@@ -499,7 +509,9 @@ absl::Status Translator::NewContinuation(const IOOp& op, bool slice_before) {
   GeneratedFunctionSlice& last_slice = context().sf->slices.back();
 
   // Start building the next slice
-  context().sf->slices.push_back(GeneratedFunctionSlice{});
+  context().sf->slices.push_back(GeneratedFunctionSlice{
+      .is_slice_before = create_slice_before,
+  });
 
   GeneratedFunctionSlice& new_slice = context().sf->slices.back();
 
@@ -514,8 +526,8 @@ absl::Status Translator::NewContinuation(const IOOp& op, bool slice_before) {
 
   function_in_progress.builder = std::make_unique<TrackedFunctionBuilder>(
       absl::StrFormat("%s_slice_%s_%s_%i", xls_name,
-                      slice_before ? "before" : "after", Debug_OpName(op),
-                      op.channel_op_index),
+                      create_slice_before ? "before" : "after",
+                      Debug_OpName(op), op.channel_op_index),
       package_);
 
   // Update xls::FunctionBuilder pointers in TranslationContexts
@@ -1336,14 +1348,6 @@ absl::Status Translator::GenerateFunctionSliceWrapper(
          ++i, ++continuation_in_it) {
       XLSCC_CHECK_EQ(slice.function->params().at(i),
                      continuation_in_it->input_node, loc);
-
-      if (continuation_in_count_by_param.at(continuation_in_it->input_node) !=
-          1) {
-        return absl::UnimplementedError(
-            "Cannot generate function slice wrapper for phis. Subroutines with "
-            "multiple slices (IO, pipelined loops) are not yet implemented in "
-            "the new FSM.");
-      }
 
       TrackedBValue prev_slice_val =
           prev_slice_ret.at(continuation_in_it->continuation_out);

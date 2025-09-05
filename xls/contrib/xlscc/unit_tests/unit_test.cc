@@ -442,8 +442,8 @@ void XlsccTestBase::BuildTestIR(
     EXPECT_EQ(package_text, text) << "Failed determinism test";
   }
 
-  LOG(INFO) << "Package IR: ";
-  LOG(INFO) << package_text;
+  VLOG(1) << "Package IR: ";
+  VLOG(1) << package_text;
 
   XLS_ASSERT_OK_AND_ASSIGN(const clang::FunctionDecl* top_decl,
                            translator_->GetTopFunction());
@@ -984,8 +984,8 @@ void XlsccTestBase::IOTest(std::string_view content, std::list<IOOpTest> inputs,
                            SourceToIr(content, &func, /* clang_argv= */ {},
                                       /* io_test_mode= */ true));
 
-  LOG(INFO) << "Package IR: ";
-  LOG(INFO) << ir_src;
+  VLOG(1) << "Package IR: ";
+  VLOG(1) << ir_src;
 
   XLS_ASSERT_OK_AND_ASSIGN(const clang::FunctionDecl* top_decl,
                            translator_->GetTopFunction());

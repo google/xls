@@ -306,6 +306,8 @@ static absl::Status Run(std::string_view cpp_path) {
 
     XLS_RETURN_IF_ERROR(package.SetTopByName(top_name));
     translator.AddSourceInfoToPackage(package);
+
+    std::cerr << "Saving Package IR..." << '\n';
     XLS_RETURN_IF_ERROR(
         write_to_output(absl::StrCat(package.DumpIr(), "\n"), top_function));
   } else {
@@ -336,6 +338,7 @@ static absl::Status Run(std::string_view cpp_path) {
                          translator.GetTopFunction());
     const GeneratedFunction* top_function =
         translator.GetGeneratedFunction(top_function_decl);
+
     XLS_RETURN_IF_ERROR(
         write_to_output(absl::StrCat(package.DumpIr(), "\n"), top_function));
   }

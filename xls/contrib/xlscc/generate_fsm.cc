@@ -294,6 +294,7 @@ absl::StatusOr<NewFSMLayout> NewFSMGenerator::LayoutNewFSM(
 
   return ret;
 }
+
 absl::Status NewFSMGenerator::LayoutNewFSMStates(
     NewFSMLayout& layout, const GeneratedFunction& func,
     const xls::SourceInfo& body_loc) {
@@ -808,10 +809,9 @@ NewFSMGenerator::GenerateNewFSMInvocation(
       const GeneratedFunctionSlice& next_slice =
           *layout.slice_by_index.at(slice_index + 1);
       if (next_slice.after_op != nullptr) {
-        TrackedBValue op_out_value = pb.TupleIndex(
-            ret_tup, ret_tup.GetType()->AsTupleOrDie()->size() - 1, body_loc,
-            /*name=*/
-            absl::StrFormat("%s_io_out_value", slice.function->name()));
+        XLS_ASSIGN_OR_RETURN(
+            TrackedBValue op_out_value,
+            translator_io_.GetIOOpRetValueFromSlice(ret_tup, slice, body_loc));
         last_op_out_value = op_out_value;
       } else {
         last_op_out_value = TrackedBValue();

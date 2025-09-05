@@ -55,6 +55,7 @@
 namespace xlscc {
 
 class TranslatorTypeInterface;
+struct GeneratedFunctionSlice;
 
 class ConstValue;
 // Base class for immutable objects representing XLS[cc] value types
@@ -808,6 +809,10 @@ class TranslatorIOInterface {
       xls::ProcBuilder& pb,
       const std::optional<ChannelBundle>& optional_channel_bundle,
       std::optional<TrackedBValue> extra_condition = std::nullopt) = 0;
+
+  virtual absl::StatusOr<TrackedBValue> GetIOOpRetValueFromSlice(
+      TrackedBValue slice_ret_val, const GeneratedFunctionSlice& slice,
+      const xls::SourceInfo& loc) = 0;
 };
 
 // This base class provides common functionality from the Translator class,
@@ -866,8 +871,6 @@ using LValueMap =
     DeterministicMapBase<K, std::shared_ptr<LValue>,
                          absl::flat_hash_map<K, std::shared_ptr<LValue>>,
                          OrderLValuesFunc>;
-
-struct GeneratedFunctionSlice;
 
 // Tracks information about an __xls_channel parameter to a function
 struct IOChannel {
@@ -1014,6 +1017,11 @@ struct ContinuationValue {
   // If this is true, then the value doesn't need to be stored in a state
   // element, as it is assumed to be always available externally.
   bool direct_in = false;
+
+  // Ordered list of the BValues for the Node that feeds this output.
+  // A ContinuationValue corresponds to exactly one Node, but several
+  // BValues can point to this Node.
+  std::vector<TrackedBValue*> created_from;
 };
 
 // A value inputted to a function slice, continuing a TrackedBValue from
@@ -1038,9 +1046,13 @@ struct ContinuationInput {
 struct GeneratedFunctionSlice {
   xls::Function* function = nullptr;
   const IOOp* after_op = nullptr;
+  bool is_slice_before = false;
   std::vector<const clang::NamedDecl*> static_values;
   std::list<ContinuationValue> continuations_out;
   std::list<ContinuationInput> continuations_in;
+
+  // Saved parameter order
+  std::list<SideEffectingParameter> side_effecting_parameters;
 
   // Temporaries used during slice generation only, not optimization
   absl::flat_hash_map<const clang::NamedDecl*, ContinuationValue*>
@@ -1099,6 +1111,7 @@ struct GeneratedFunction {
   int no_channel_op_count = 0;
 
   // Saved parameter order
+  // TODO(seanhaskell): Remove with old FSM
   std::list<SideEffectingParameter> side_effecting_parameters;
 
   // Global values built with this FunctionBuilder

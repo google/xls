@@ -43,25 +43,44 @@
 
 namespace xlscc {
 
-absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
-                                                 const xls::SourceInfo& loc,
-                                                 bool mask) {
-  context().any_side_effects_requested = true;
-  context().any_io_ops_requested = true;
-
+bool Translator::OpIsMasked(const IOOp& op) {
   const bool mask_write =
       context().mask_memory_writes && op.op == OpType::kWrite;
   const bool mask_other =
       context().mask_io_other_than_memory_writes && op.op != OpType::kWrite;
 
+  return context().mask_side_effects || mask_write || mask_other;
+}
+
+absl::StatusOr<TrackedBValue> Translator::GetIOOpRetValueFromSlice(
+    TrackedBValue slice_ret_val, const GeneratedFunctionSlice& slice,
+    const xls::SourceInfo& loc) {
+  XLSCC_CHECK_GT(slice_ret_val.GetType()->AsTupleOrDie()->size(), 0, loc);
+  TrackedBValue op_out_value = context().fb->TupleIndex(
+      slice_ret_val, slice_ret_val.GetType()->AsTupleOrDie()->size() - 1, loc,
+      /*name=*/
+      absl::StrFormat("%s_io_out_value", slice.function->name()));
+  XLSCC_CHECK(op_out_value.valid(), loc);
+
+  return op_out_value;
+}
+
+absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
+                                                 const xls::SourceInfo& loc,
+                                                 bool mask,
+                                                 bool no_before_slice) {
+  context().any_side_effects_requested = true;
+  context().any_io_ops_requested = true;
+
   CHECK(op.op == OpType::kTrace || op.op == OpType::kLoopBegin ||
         op.op == OpType::kLoopEndJump || channel != nullptr);
   CHECK_EQ(op.channel, nullptr);
 
-  if (mask || context().mask_side_effects || mask_write || mask_other) {
+  if (mask || OpIsMasked(op)) {
     IOOpReturn ret;
     ret.generate_expr = false;
-    if (op.op != OpType::kTrace) {
+    if (op.op != OpType::kTrace && op.op != OpType::kLoopBegin &&
+        op.op != OpType::kLoopEndJump) {
       // During IR generation, parameters are generated for masked IOs,
       // so that they are treated as unknown variables for analysis purposes,
       // such as loop unrolling. These are later removed and 0s are substituted
@@ -97,12 +116,13 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
   // When splitting activations on channel ops, a slice with no after_op
   // must be created in order to make it possible to transition activations
   // or "jump" to this slice, as it has no IO op input.
-  if (generate_new_fsm_ && split_states_on_channel_ops_ && channel != nullptr) {
-    XLS_RETURN_IF_ERROR(NewContinuation(op, /*slice_before=*/true));
+  if (generate_new_fsm_ && split_states_on_channel_ops_ && channel != nullptr &&
+      !no_before_slice) {
+    XLS_RETURN_IF_ERROR(NewContinuation(op, /*create_slice_before=*/true));
   }
 
   // Add the continuation before, not including the received parameter
-  XLS_RETURN_IF_ERROR(NewContinuation(op, /*slice_before=*/false));
+  XLS_RETURN_IF_ERROR(NewContinuation(op, /*create_slice_before=*/false));
 
   std::shared_ptr<CType> channel_item_type;
 
@@ -176,6 +196,10 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
     side_effecting_param.xls_io_param_type = xls_param_type;
     side_effecting_param.io_op = &context().sf->io_ops.back();
     context().sf->side_effecting_parameters.push_back(side_effecting_param);
+    if (!context().sf->slices.empty()) {
+      context().sf->slices.back().side_effecting_parameters.push_back(
+          side_effecting_param);
+    }
   }
 
   IOOp* ret = &context().sf->io_ops.back();

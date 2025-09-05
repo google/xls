@@ -501,7 +501,10 @@ absl::StatusOr<IOOp*> Translator::GenerateIR_AddLoopBegin(
 absl::Status Translator::GenerateIR_AddLoopEndJump(const clang::Expr* cond_expr,
                                                    IOOp* begin_op,
                                                    const xls::SourceInfo& loc) {
-  XLSCC_CHECK_NE(begin_op, nullptr, loc);
+  // IO / side effects masked case
+  if (begin_op == nullptr) {
+    return absl::OkStatus();
+  }
 
   TrackedBValue continue_condition = context().full_condition_bval(loc);
 
@@ -532,15 +535,16 @@ absl::Status Translator::GenerateIR_PipelinedLoopNewFSM(
     const clang::Stmt* inc, const clang::Stmt* body,
     int64_t initiation_interval_arg, int64_t unroll_factor, bool schedule_asap,
     clang::ASTContext& ctx, const xls::SourceInfo& loc) {
-  if (context().mask_io_other_than_memory_writes) {
-    return absl::FailedPreconditionError(
-        ErrorMessage(loc,
-                     "Cannot generate pipelined loops with masked IO, for "
-                     "example within trial unrolling"));
+  if (schedule_asap) {
+    return absl::UnimplementedError(
+        absl::StrFormat("Generating IO ops with scheduling options (ASAP "
+                        "etc) not yet supported"));
   }
 
   const int64_t prev_init = context().outer_pipelined_loop_init_interval;
   context().outer_pipelined_loop_init_interval = initiation_interval_arg;
+  const bool prev_in_pipelined_for_body = context().in_pipelined_for_body;
+  context().in_pipelined_for_body = true;
 
   XLS_RETURN_IF_ERROR(
       GenerateIR_LoopImpl(always_first_iter, warn_inferred_loop_type, init,
@@ -549,6 +553,7 @@ absl::Status Translator::GenerateIR_PipelinedLoopNewFSM(
                           /*propagate_break_up=*/false, ctx, loc));
 
   context().outer_pipelined_loop_init_interval = prev_init;
+  context().in_pipelined_for_body = prev_in_pipelined_for_body;
   return absl::OkStatus();
 }
 
