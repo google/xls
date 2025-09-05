@@ -21,12 +21,12 @@
 #include <variant>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
@@ -1632,6 +1632,127 @@ fn bar() -> u32{
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(orig_ref));
   NameRef* new_ref = down_cast<NameRef*>(clone);
   EXPECT_EQ(orig_ref->name_def(), new_ref->name_def());
+}
+
+TEST(AstClonerTest, DoesntCloneTypeAliasTwice) {
+  constexpr std::string_view kProgram = R"(
+type MyU32 = u32;
+
+fn foo(x: MyU32) -> MyU32 {
+  x
+}
+)";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * foo,
+                           module->GetMemberOrError<Function>("foo"));
+  XLS_ASSERT_OK_AND_ASSIGN(TypeAlias * alias,
+                           module->GetMemberOrError<TypeAlias>("MyU32"));
+
+  // Clone just the function into the same target module.
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(foo));
+  Function* cloned_foo = down_cast<Function*>(clone);
+
+  // Param type and the return type should reference the same alias.
+  auto* param_trta = down_cast<TypeRefTypeAnnotation*>(
+      cloned_foo->params()[0]->type_annotation());
+  TypeRef* param_tr = param_trta->type_ref();
+  ASSERT_TRUE(std::holds_alternative<TypeAlias*>(param_tr->type_definition()));
+  EXPECT_EQ(param_tr->owner(), clone->owner());
+  TypeAlias* param_alias = std::get<TypeAlias*>(param_tr->type_definition());
+  EXPECT_EQ(param_alias->owner(), clone->owner());
+  auto* ret_trta = down_cast<TypeRefTypeAnnotation*>(cloned_foo->return_type());
+  TypeRef* ret_tr = ret_trta->type_ref();
+  ASSERT_TRUE(std::holds_alternative<TypeAlias*>(ret_tr->type_definition()));
+  EXPECT_EQ(std::get<TypeAlias*>(param_tr->type_definition()),
+            std::get<TypeAlias*>(ret_tr->type_definition()));
+}
+
+TEST(AstClonerTest, DoesntCloneEnumTwice) {
+  constexpr std::string_view kProgram = R"(
+enum MyEnum : u32 {
+    A = 0,
+    B = 1,
+}
+
+fn id(x: MyEnum) -> MyEnum { x }
+)";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Module> module,
+      ParseModule(kProgram, "fake_path.x", "the_module", file_table));
+
+  // Clone the whole module.
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(*module.get()));
+  XLS_ASSERT_OK(VerifyClone(module.get(), clone.get(), file_table));
+
+  // Get the cloned top-level enum and function.
+  XLS_ASSERT_OK_AND_ASSIGN(EnumDef * enum_def,
+                           clone->GetMemberOrError<EnumDef>("MyEnum"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * id,
+                           clone->GetMemberOrError<Function>("id"));
+
+  // Param type should reference the cloned top-level enum, not a detached copy.
+  auto* param_trta =
+      down_cast<TypeRefTypeAnnotation*>(id->params()[0]->type_annotation());
+  TypeRef* param_tr = param_trta->type_ref();
+  ASSERT_TRUE(std::holds_alternative<EnumDef*>(param_tr->type_definition()));
+  EXPECT_EQ(std::get<EnumDef*>(param_tr->type_definition()), enum_def);
+
+  // Return type should also reference the same cloned top-level enum.
+  auto* ret_trta = down_cast<TypeRefTypeAnnotation*>(id->return_type());
+  TypeRef* ret_tr = ret_trta->type_ref();
+  ASSERT_TRUE(std::holds_alternative<EnumDef*>(ret_tr->type_definition()));
+  EXPECT_EQ(std::get<EnumDef*>(ret_tr->type_definition()), enum_def);
+}
+
+TEST(AstClonerTest, DoesntCloneStructDefTwice) {
+  constexpr std::string_view kProgram = R"(
+struct MyStruct { a: u32 }
+
+fn id(x: MyStruct) -> MyStruct { x }
+)";
+
+  constexpr std::string_view kExpectedFunction =
+      R"(fn id(x: MyStruct) -> MyStruct {
+    x
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+
+  XLS_ASSERT_OK_AND_ASSIGN(StructDef * struct_def,
+                           module->GetMemberOrError<StructDef>("MyStruct"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * id,
+                           module->GetMemberOrError<Function>("id"));
+
+  // Param and return types should be backed by the StructDef.
+  auto* param_trta =
+      down_cast<TypeRefTypeAnnotation*>(id->params()[0]->type_annotation());
+  TypeRef* param_tr = param_trta->type_ref();
+  ASSERT_TRUE(std::holds_alternative<StructDef*>(param_tr->type_definition()));
+  EXPECT_EQ(std::get<StructDef*>(param_tr->type_definition()), struct_def);
+
+  auto* ret_trta = down_cast<TypeRefTypeAnnotation*>(id->return_type());
+  TypeRef* ret_tr = ret_trta->type_ref();
+  ASSERT_TRUE(std::holds_alternative<StructDef*>(ret_tr->type_definition()));
+  EXPECT_EQ(std::get<StructDef*>(ret_tr->type_definition()), struct_def);
+
+  // Clone and ensure ToString and variant preservation.
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(id));
+  EXPECT_EQ(kExpectedFunction, clone->ToString());
+  XLS_ASSERT_OK(VerifyClone(id, clone, *module->file_table()));
+
+  auto* cloned_id = down_cast<Function*>(clone);
+  auto* cloned_param_trta = down_cast<TypeRefTypeAnnotation*>(
+      cloned_id->params()[0]->type_annotation());
+  ASSERT_TRUE(std::holds_alternative<StructDef*>(
+      cloned_param_trta->type_ref()->type_definition()));
 }
 
 TEST(AstClonerTest, CloneAstClonesVerbatimNode) {
