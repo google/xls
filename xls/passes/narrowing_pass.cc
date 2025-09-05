@@ -371,6 +371,36 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
 
   absl::Status HandleNeg(UnOp* neg) override {
     Node* input = neg->operand(UnOp::kArgOperand);
+    int64_t bit_count = input->BitCountOrDie();
+
+    // First, check for trailing zeros.
+    int64_t trailing_zeros = CountTrailingKnownZeros(input, neg);
+    if (trailing_zeros > 0) {
+      VLOG(3) << absl::StreamFormat(
+          "Narrowing neg %s due to %d trailing zeros in operand %s",
+          neg->GetName(), trailing_zeros, input->GetName());
+      // v = v' << X
+      // neg(v) = neg(v' << X) = (-v') << X = neg(v') << X
+      //
+      // 1. v_hi = BitSlice(v, start=X, width=W-X)
+      XLS_ASSIGN_OR_RETURN(Node * v_hi,
+                           neg->function_base()->MakeNode<BitSlice>(
+                               neg->loc(), input, /*start=*/trailing_zeros,
+                               /*width=*/bit_count - trailing_zeros));
+      // 2. neg_v_hi = Neg(v_hi)
+      XLS_ASSIGN_OR_RETURN(
+          Node * neg_v_hi,
+          neg->function_base()->MakeNode<UnOp>(neg->loc(), v_hi, Op::kNeg));
+      // 3. zeros = Literal(value=0, bit_count=X)
+      XLS_ASSIGN_OR_RETURN(Node * zeros,
+                           neg->function_base()->MakeNode<Literal>(
+                               neg->loc(), Value(UBits(0, trailing_zeros))));
+      // 4. result = Concat(neg_v_hi, zeros)
+      XLS_ASSIGN_OR_RETURN(Node * result,
+                           neg->ReplaceUsesWithNew<Concat>(
+                               absl::Span<Node* const>{neg_v_hi, zeros}));
+      return Change(/*original=*/neg, /*replacement=*/result);
+    }
 
     // If the operand is a sign-extension, we can swap the order of neg and
     // sign-extend to reduce the input bit-width.
