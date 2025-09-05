@@ -87,13 +87,9 @@ class AstCloner : public AstNodeVisitor {
   absl::Status HandleSelfTypeAnnotation(const SelfTypeAnnotation* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
-    if (!old_to_new_.contains(n->struct_ref())) {
-      XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->struct_ref()));
-    }
-    TypeAnnotation* new_struct_ref =
-        down_cast<TypeAnnotation*>(old_to_new_.at(n->struct_ref()));
+    // Avoid cloning non-owned struct_ref; reuse the original pointer.
     old_to_new_[n] = module(n)->Make<SelfTypeAnnotation>(
-        n->span(), n->explicit_type(), new_struct_ref);
+        n->span(), n->explicit_type(), n->struct_ref());
     return absl::OkStatus();
   }
 
@@ -485,14 +481,9 @@ class AstCloner : public AstNodeVisitor {
     for (const Expr* arg : n->args()) {
       new_args.push_back(down_cast<Expr*>(old_to_new_.at(arg)));
     }
-    std::optional<Invocation*> new_originator = std::nullopt;
-    if (n->originating_invocation().has_value()) {
-      if (!old_to_new_.contains(*n->originating_invocation())) {
-        XLS_RETURN_IF_ERROR(ReplaceOrVisit(*n->originating_invocation()));
-      }
-      new_originator =
-          down_cast<Invocation*>(old_to_new_.at(*n->originating_invocation()));
-    }
+    // Avoid cloning non-owned originating_invocation; reuse the original.
+    std::optional<const Invocation*> new_originator =
+        n->originating_invocation();
 
     old_to_new_[n] = module(n)->Make<Invocation>(
         n->span(), down_cast<Expr*>(old_to_new_.at(n->callee())), new_args,
@@ -762,10 +753,8 @@ class AstCloner : public AstNodeVisitor {
       const SplatStructInstance* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
-    // Have to explicitly visit struct ref, since it's not a child.
-    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->struct_ref()));
-    TypeAnnotation* new_struct_ref =
-        down_cast<TypeAnnotation*>(old_to_new_.at(n->struct_ref()));
+    // Avoid cloning non-owned struct_ref; reuse the original pointer.
+    TypeAnnotation* new_struct_ref = n->struct_ref();
 
     const std::vector<std::pair<std::string, Expr*>>& old_members =
         n->members();
@@ -870,12 +859,8 @@ class AstCloner : public AstNodeVisitor {
     Impl* new_impl = module(n)->Make<Impl>(
         n->span(), nullptr, std::vector<ImplMember>{}, n->is_public());
     old_to_new_[n] = new_impl;
-    if (!old_to_new_.contains(n->struct_ref())) {
-      XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->struct_ref()));
-    }
-    TypeAnnotation* new_struct_ref =
-        down_cast<TypeAnnotation*>(old_to_new_.at(n->struct_ref()));
-    new_impl->set_struct_ref(new_struct_ref);
+    // Avoid cloning non-owned struct_ref; reuse the original pointer.
+    new_impl->set_struct_ref(n->struct_ref());
     std::vector<ImplMember> new_members;
     new_members.reserve(n->members().size());
     for (const auto& member : n->members()) {
@@ -908,10 +893,8 @@ class AstCloner : public AstNodeVisitor {
   absl::Status HandleStructInstance(const StructInstance* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
-    // Have to explicitly visit struct ref, since it's not a child.
-    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->struct_ref()));
-    TypeAnnotation* new_struct_ref =
-        down_cast<TypeAnnotation*>(old_to_new_.at(n->struct_ref()));
+    // Avoid cloning non-owned struct_ref; reuse the original pointer.
+    TypeAnnotation* new_struct_ref = n->struct_ref();
 
     absl::Span<const std::pair<std::string, Expr*>> old_members =
         n->GetUnorderedMembers();
@@ -1032,9 +1015,9 @@ class AstCloner : public AstNodeVisitor {
 
   absl::Status HandleTypeVariableTypeAnnotation(
       const TypeVariableTypeAnnotation* n) override {
-    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->type_variable()));
-    old_to_new_[n] = module(n)->Make<TypeVariableTypeAnnotation>(
-        down_cast<const NameRef*>(old_to_new_[n->type_variable()]));
+    // Avoid cloning non-owned type variable NameRef; reuse the original.
+    old_to_new_[n] =
+        module(n)->Make<TypeVariableTypeAnnotation>(n->type_variable());
     return absl::OkStatus();
   }
 
