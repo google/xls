@@ -107,12 +107,6 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleConstantDef(const ConstantDef* def) override {
-    WarnOnInappropriateConstantName(def->name_def()->identifier(), def->span(),
-                                    *def->owner(), &warning_collector_);
-    return DefaultHandler(def);
-  }
-
   absl::Status HandleNameRef(const NameRef* ref) override {
     if (IsNameRefToParametricFunction(ref) && !type_->IsFunction()) {
       // Bare parametric function references that are not invocations don't get
