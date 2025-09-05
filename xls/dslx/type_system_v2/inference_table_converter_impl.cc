@@ -2207,13 +2207,16 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     CloneReplacer replacer =
         NameRefMapper(table_, actual_values, type->owner());
     if (real_self_type.has_value()) {
-      replacer = ChainCloneReplacers(
+      replacer = MutuallyExclusiveChainCloneReplacers(
           std::move(replacer),
-          [&](const AstNode* node) -> absl::StatusOr<std::optional<AstNode*>> {
+          [&](const AstNode* node, Module*,
+              const absl::flat_hash_map<const AstNode*, AstNode*>&)
+              -> absl::StatusOr<std::optional<OldToNewMap>> {
             if (node->kind() == AstNodeKind::kTypeAnnotation &&
                 down_cast<const TypeAnnotation*>(node)
                     ->IsAnnotation<SelfTypeAnnotation>()) {
-              return const_cast<TypeAnnotation*>(*real_self_type);
+              return OldToNewMap{{node,
+                                  const_cast<TypeAnnotation*>(*real_self_type)}};
             }
             return std::nullopt;
           });

@@ -421,19 +421,30 @@ class StatefulResolver : public TypeAnnotationResolver {
       }
 
       ObservableCloneReplacer replace_indirect(
-          &replaced_anything, [&](const AstNode* node) {
-            return ReplaceIndirectTypeAnnotations(node, parametric_context,
-                                                  annotation, filter);
+          &replaced_anything,
+          [&](const AstNode* node, Module*,
+              const absl::flat_hash_map<const AstNode*, AstNode*>&)
+              -> absl::StatusOr<std::optional<OldToNewMap>> {
+            XLS_ASSIGN_OR_RETURN(
+                auto maybe, ReplaceIndirectTypeAnnotations(
+                                node, parametric_context, annotation, filter));
+            if (!maybe) return std::nullopt;
+            return OldToNewMap{{node, *maybe}};
           });
       ObservableCloneReplacer replace_type_aliases(
-          &replaced_anything, [&](const AstNode* node) {
-            return ReplaceTypeAliasWithTarget(node);
+          &replaced_anything,
+          [&](const AstNode* node, Module*,
+              const absl::flat_hash_map<const AstNode*, AstNode*>&)
+              -> absl::StatusOr<std::optional<OldToNewMap>> {
+            XLS_ASSIGN_OR_RETURN(auto maybe, ReplaceTypeAliasWithTarget(node));
+            if (!maybe) return std::nullopt;
+            return OldToNewMap{{node, *maybe}};
           });
       XLS_ASSIGN_OR_RETURN(
           AstNode * clone,
           table_.Clone(annotation, type_refs_only
                                        ? std::move(replace_type_aliases)
-                                       : ChainCloneReplacers(
+                                       : SameModuleChainCloneReplacers(
                                              std::move(replace_indirect),
                                              std::move(replace_type_aliases))));
       if (replaced_anything) {
@@ -1037,10 +1048,11 @@ class StatefulResolver : public TypeAnnotationResolver {
         AstNode * result,
         table_.Clone(
             annotation,
-            [&](const AstNode* node)
-                -> absl::StatusOr<std::optional<AstNode*>> {
+            [&](const AstNode* node, Module* new_module,
+                const absl::flat_hash_map<const AstNode*, AstNode*>&)
+                -> absl::StatusOr<std::optional<OldToNewMap>> {
               if (node->kind() == AstNodeKind::kTypeRef) {
-                return const_cast<AstNode*>(node);
+                return OldToNewMap{{node, const_cast<AstNode*>(node)}};
               }
               if (node->kind() != AstNodeKind::kNameRef ||
                   !vars.name_refs().contains(down_cast<const NameRef*>(node))) {
@@ -1056,11 +1068,11 @@ class StatefulResolver : public TypeAnnotationResolver {
                 return std::nullopt;
               }
 
-              auto* result = node->owner()->Make<Number>(
+              auto* result = new_module->Make<Number>(
                   Span::None(), value.ToString(/*humanize=*/true),
                   NumberKind::kOther, nullptr, /*in_parens=*/false,
                   /*leave_span_intact=*/true);
-              return result;
+              return OldToNewMap{{node, result}};
             }));
 
     return down_cast<const TypeAnnotation*>(result);

@@ -16,6 +16,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -31,6 +32,7 @@
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/casts.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/frontend/ast.h"
@@ -85,13 +87,9 @@ class AstCloner : public AstNodeVisitor {
   absl::Status HandleSelfTypeAnnotation(const SelfTypeAnnotation* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
-    if (!old_to_new_.contains(n->struct_ref())) {
-      XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->struct_ref()));
-    }
-    TypeAnnotation* new_struct_ref =
-        down_cast<TypeAnnotation*>(old_to_new_.at(n->struct_ref()));
+    // Avoid cloning non-owned struct_ref; reuse the original pointer.
     old_to_new_[n] = module(n)->Make<SelfTypeAnnotation>(
-        n->span(), n->explicit_type(), new_struct_ref);
+        n->span(), n->explicit_type(), n->struct_ref());
     return absl::OkStatus();
   }
 
@@ -483,14 +481,9 @@ class AstCloner : public AstNodeVisitor {
     for (const Expr* arg : n->args()) {
       new_args.push_back(down_cast<Expr*>(old_to_new_.at(arg)));
     }
-    std::optional<Invocation*> new_originator = std::nullopt;
-    if (n->originating_invocation().has_value()) {
-      if (!old_to_new_.contains(*n->originating_invocation())) {
-        XLS_RETURN_IF_ERROR(ReplaceOrVisit(*n->originating_invocation()));
-      }
-      new_originator =
-          down_cast<Invocation*>(old_to_new_.at(*n->originating_invocation()));
-    }
+    // Avoid cloning non-owned originating_invocation; reuse the original.
+    std::optional<const Invocation*> new_originator =
+        n->originating_invocation();
 
     old_to_new_[n] = module(n)->Make<Invocation>(
         n->span(), down_cast<Expr*>(old_to_new_.at(n->callee())), new_args,
@@ -760,10 +753,8 @@ class AstCloner : public AstNodeVisitor {
       const SplatStructInstance* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
-    // Have to explicitly visit struct ref, since it's not a child.
-    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->struct_ref()));
-    TypeAnnotation* new_struct_ref =
-        down_cast<TypeAnnotation*>(old_to_new_.at(n->struct_ref()));
+    // Avoid cloning non-owned struct_ref; reuse the original pointer.
+    TypeAnnotation* new_struct_ref = n->struct_ref();
 
     const std::vector<std::pair<std::string, Expr*>>& old_members =
         n->members();
@@ -868,12 +859,8 @@ class AstCloner : public AstNodeVisitor {
     Impl* new_impl = module(n)->Make<Impl>(
         n->span(), nullptr, std::vector<ImplMember>{}, n->is_public());
     old_to_new_[n] = new_impl;
-    if (!old_to_new_.contains(n->struct_ref())) {
-      XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->struct_ref()));
-    }
-    TypeAnnotation* new_struct_ref =
-        down_cast<TypeAnnotation*>(old_to_new_.at(n->struct_ref()));
-    new_impl->set_struct_ref(new_struct_ref);
+    // Avoid cloning non-owned struct_ref; reuse the original pointer.
+    new_impl->set_struct_ref(n->struct_ref());
     std::vector<ImplMember> new_members;
     new_members.reserve(n->members().size());
     for (const auto& member : n->members()) {
@@ -906,10 +893,8 @@ class AstCloner : public AstNodeVisitor {
   absl::Status HandleStructInstance(const StructInstance* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
-    // Have to explicitly visit struct ref, since it's not a child.
-    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->struct_ref()));
-    TypeAnnotation* new_struct_ref =
-        down_cast<TypeAnnotation*>(old_to_new_.at(n->struct_ref()));
+    // Avoid cloning non-owned struct_ref; reuse the original pointer.
+    TypeAnnotation* new_struct_ref = n->struct_ref();
 
     absl::Span<const std::pair<std::string, Expr*>> old_members =
         n->GetUnorderedMembers();
@@ -949,16 +934,19 @@ class AstCloner : public AstNodeVisitor {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
     XLS_RETURN_IF_ERROR(ReplaceOrVisit(&n->fn()));
-    old_to_new_[n] = module(n)->Make<TestFunction>(
-        n->span(), *down_cast<Function*>(old_to_new_.at(&n->fn())));
+    XLS_ASSIGN_OR_RETURN(Function * new_fn, CastIfNotVerbatim<Function*>(
+                                                old_to_new_.at(&n->fn())));
+    old_to_new_[n] = module(n)->Make<TestFunction>(n->span(), *new_fn);
     return absl::OkStatus();
   }
 
   absl::Status HandleTestProc(const TestProc* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
-    old_to_new_[n] = module(n)->Make<TestProc>(
-        down_cast<Proc*>(old_to_new_.at(n->proc())), n->expected_fail_label());
+    XLS_ASSIGN_OR_RETURN(Proc * new_proc,
+                         CastIfNotVerbatim<Proc*>(old_to_new_.at(n->proc())));
+    old_to_new_[n] =
+        module(n)->Make<TestProc>(new_proc, n->expected_fail_label());
     return absl::OkStatus();
   }
 
@@ -1001,18 +989,17 @@ class AstCloner : public AstNodeVisitor {
   }
 
   absl::Status HandleTypeRef(const TypeRef* n) override {
-    TypeDefinition new_type_definition = n->type_definition();
-
-    // A TypeRef doesn't own its referenced type definition, so we have to
-    // explicitly visit it.
-    XLS_RETURN_IF_ERROR(absl::visit(
-        Visitor{[&](auto* ref) -> absl::Status {
-          XLS_RETURN_IF_ERROR(ReplaceOrVisit(ref));
-          new_type_definition = down_cast<decltype(ref)>(old_to_new_.at(ref));
-          return absl::OkStatus();
-        }},
-        n->type_definition()));
-
+    TypeDefinition old_type_definition = n->type_definition();
+    TypeDefinition new_type_definition = std::visit(
+        [this](auto* def_ptr) -> TypeDefinition {
+          using PtrT = std::decay_t<decltype(def_ptr)>;
+          auto it = old_to_new_.find(def_ptr);
+          if (it != old_to_new_.end()) {
+            return down_cast<PtrT>(it->second);
+          }
+          return def_ptr;
+        },
+        old_type_definition);
     old_to_new_[n] = module(n)->Make<TypeRef>(n->span(), new_type_definition);
     return absl::OkStatus();
   }
@@ -1028,9 +1015,9 @@ class AstCloner : public AstNodeVisitor {
 
   absl::Status HandleTypeVariableTypeAnnotation(
       const TypeVariableTypeAnnotation* n) override {
-    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->type_variable()));
-    old_to_new_[n] = module(n)->Make<TypeVariableTypeAnnotation>(
-        down_cast<const NameRef*>(old_to_new_[n->type_variable()]));
+    // Avoid cloning non-owned type variable NameRef; reuse the original.
+    old_to_new_[n] =
+        module(n)->Make<TypeVariableTypeAnnotation>(n->type_variable());
     return absl::OkStatus();
   }
 
@@ -1190,9 +1177,7 @@ class AstCloner : public AstNodeVisitor {
   // already been processed.
   absl::Status VisitChildren(const AstNode* node) {
     for (const auto& child : node->GetChildren(/*want_types=*/true)) {
-      if (!old_to_new_.contains(child)) {
-        XLS_RETURN_IF_ERROR(ReplaceOrVisit(child));
-      }
+      XLS_RETURN_IF_ERROR(ReplaceOrVisit(child));
     }
     return absl::OkStatus();
   }
@@ -1201,9 +1186,13 @@ class AstCloner : public AstNodeVisitor {
     if (node == nullptr) {
       return absl::OkStatus();
     }
-    XLS_ASSIGN_OR_RETURN(std::optional<AstNode*> replacement, replacer_(node));
+    if (old_to_new_.contains(node)) {
+      return absl::OkStatus();
+    }
+    XLS_ASSIGN_OR_RETURN(std::optional<OldToNewMap> replacement,
+                         replacer_(node, module(node), old_to_new_));
     if (replacement.has_value()) {
-      old_to_new_[node] = *replacement;
+      old_to_new_.insert(replacement->begin(), replacement->end());
       return absl::OkStatus();
     }
     return node->Accept(this);
@@ -1234,22 +1223,15 @@ class AstCloner : public AstNodeVisitor {
 
 }  // namespace
 
-std::optional<AstNode*> PreserveTypeDefinitionsReplacer(const AstNode* node) {
-  if (node->kind() == AstNodeKind::kTypeRef) {
-    const auto* type_ref = down_cast<const TypeRef*>(node);
-    return node->owner()->Make<TypeRef>(type_ref->span(),
-                                        type_ref->type_definition());
-  }
-  return std::nullopt;
-}
-
 CloneReplacer NameRefReplacer(const NameDef* def, Expr* replacement) {
-  return [=](const AstNode* node) -> std::optional<AstNode*> {
+  return [=](const AstNode* node, Module* /*new_module*/,
+             const absl::flat_hash_map<const AstNode*, AstNode*>&)
+             -> std::optional<OldToNewMap> {
     if (node->kind() == AstNodeKind::kNameRef) {
       const auto* name_ref = down_cast<const NameRef*>(node);
       if (std::holds_alternative<const NameDef*>(name_ref->name_def()) &&
           std::get<const NameDef*>(name_ref->name_def()) == def) {
-        return replacement;
+        return OldToNewMap{{node, replacement}};
       }
     }
     return std::nullopt;
@@ -1258,15 +1240,18 @@ CloneReplacer NameRefReplacer(const NameDef* def, Expr* replacement) {
 
 CloneReplacer NameRefReplacer(
     const absl::flat_hash_map<const NameDef*, NameDef*>* replacement_defs) {
-  return [=](const AstNode* original_node) -> std::optional<AstNode*> {
+  return [=](const AstNode* original_node, Module* new_module,
+             const absl::flat_hash_map<const AstNode*, AstNode*>&)
+             -> std::optional<OldToNewMap> {
     if (original_node->kind() == AstNodeKind::kNameRef) {
       const auto* original_ref = down_cast<const NameRef*>(original_node);
       const AstNode* def = ToAstNode(original_ref->name_def());
       if (def->kind() == AstNodeKind::kNameDef) {
         const auto it = replacement_defs->find(down_cast<const NameDef*>(def));
         if (it != replacement_defs->end()) {
-          return original_node->owner()->Make<NameRef>(
+          NameRef* new_ref = new_module->Make<NameRef>(
               original_ref->span(), original_ref->identifier(), it->second);
+          return OldToNewMap{{original_node, new_ref}};
         }
       }
     }
@@ -1281,11 +1266,13 @@ CloneAstAndGetAllPairs(const AstNode* root,
   if (root->kind() == AstNodeKind::kModule) {
     return absl::InvalidArgumentError("Clone a module via 'CloneModule'.");
   }
-  XLS_ASSIGN_OR_RETURN(std::optional<AstNode*> root_replacement,
-                       replacer(root));
+  Module* new_module =
+      target_module.has_value() ? *target_module : root->owner();
+  absl::flat_hash_map<const AstNode*, AstNode*> empty_old_to_new;
+  XLS_ASSIGN_OR_RETURN(std::optional<OldToNewMap> root_replacement,
+                       replacer(root, new_module, empty_old_to_new));
   if (root_replacement.has_value()) {
-    return absl::flat_hash_map<const AstNode*, AstNode*>{
-        {root, *root_replacement}};
+    return *root_replacement;
   }
   AstCloner cloner(target_module, std::move(replacer));
   XLS_RETURN_IF_ERROR(root->Accept(&cloner));
@@ -1312,14 +1299,59 @@ absl::StatusOr<std::unique_ptr<Module>> CloneModule(const Module& module,
   return new_module;
 }
 
-CloneReplacer ChainCloneReplacers(CloneReplacer first, CloneReplacer second) {
-  return [first = std::move(first),
-          second = std::move(second)](const AstNode* node) mutable
-             -> absl::StatusOr<std::optional<AstNode*>> {
-    XLS_ASSIGN_OR_RETURN(std::optional<AstNode*> first_result, first(node));
-    XLS_ASSIGN_OR_RETURN(
-        std::optional<AstNode*> second_result,
-        second(first_result.has_value() ? *first_result : node));
+CloneReplacer SameModuleChainCloneReplacers(CloneReplacer first,
+                                            CloneReplacer second) {
+  return [first = std::move(first), second = std::move(second)](
+             const AstNode* node, Module* module,
+             const absl::flat_hash_map<const AstNode*, AstNode*>&
+                 old_to_new) mutable
+             -> absl::StatusOr<std::optional<OldToNewMap>> {
+    XLS_ASSIGN_OR_RETURN(std::optional<OldToNewMap> first_result,
+                         first(node, module, old_to_new));
+    if (!first_result.has_value()) {
+      // First did nothing; return second's result on the original node.
+      XLS_ASSIGN_OR_RETURN(std::optional<OldToNewMap> second_result,
+                           second(node, module, old_to_new));
+      return second_result;
+    }
+
+    // First produced a mapping. Look for the mapping of the current node.
+    auto it = first_result->find(node);
+    XLS_RET_CHECK(it != first_result->end());
+    AstNode* intermediate = it->second;
+
+    // Apply the second replacer to the intermediate value.
+    XLS_ASSIGN_OR_RETURN(std::optional<OldToNewMap> second_result,
+                         second(intermediate, module, old_to_new));
+    if (!second_result.has_value()) {
+      // Second did nothing; retain first's mapping for this node.
+      return first_result;
+    }
+
+    // Compose the two mappings.
+    for (auto it = first_result->begin(); it != first_result->end(); ++it) {
+      auto it2 = second_result->find(it->second);
+      if (it2 != second_result->end()) {
+        it->second = it2->second;
+      }
+    }
+
+    return first_result;
+  };
+}
+
+CloneReplacer MutuallyExclusiveChainCloneReplacers(CloneReplacer first,
+                                                   CloneReplacer second) {
+  return [first = std::move(first), second = std::move(second)](
+             const AstNode* node, Module* module,
+             const absl::flat_hash_map<const AstNode*, AstNode*>&
+                 old_to_new) mutable
+             -> absl::StatusOr<std::optional<OldToNewMap>> {
+    XLS_ASSIGN_OR_RETURN(std::optional<OldToNewMap> first_result,
+                         first(node, module, old_to_new));
+    XLS_ASSIGN_OR_RETURN(std::optional<OldToNewMap> second_result,
+                         second(node, module, old_to_new));
+    XLS_RET_CHECK(!(first_result.has_value() && second_result.has_value()));
     return second_result.has_value() ? second_result : first_result;
   };
 }

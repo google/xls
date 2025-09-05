@@ -2910,9 +2910,8 @@ absl::StatusOr<Function*> Parser::ParseProcConfig(
   std::vector<TypeAnnotation*> return_elements;
   return_elements.reserve(proc_members.size());
   for (const ProcMember* member : proc_members) {
-    XLS_ASSIGN_OR_RETURN(
-        TypeAnnotation * member_type_clone,
-        CloneNode(member->type_annotation(), &PreserveTypeDefinitionsReplacer));
+    XLS_ASSIGN_OR_RETURN(TypeAnnotation * member_type_clone,
+                         CloneNode(member->type_annotation()));
     return_elements.push_back(member_type_clone);
   }
   TypeAnnotation* return_type =
@@ -2966,8 +2965,7 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
   }
 
   XLS_ASSIGN_OR_RETURN(TypeAnnotation * return_type,
-                       CloneNode(state_param->type_annotation(),
-                                 &PreserveTypeDefinitionsReplacer));
+                       CloneNode(state_param->type_annotation()));
   XLS_ASSIGN_OR_RETURN(StatementBlock * body,
                        ParseBlockExpression(inner_bindings));
   Span span(oparen.span().start(), GetPos());
@@ -3276,8 +3274,7 @@ absl::StatusOr<ModuleMember> Parser::ParseProcLike(const Pos& start_pos,
   // Just as with proc member decls, we need the init fn to have its own return
   // type, to avoid parent/child relationship violations.
   XLS_ASSIGN_OR_RETURN(auto* init_return_type,
-                       CloneNode(proc_like_body.next->return_type(),
-                                 &PreserveTypeDefinitionsReplacer));
+                       CloneNode(proc_like_body.next->return_type()));
   init_return_type->SetParentage();
   proc_like_body.init->set_return_type(
       down_cast<TypeAnnotation*>(init_return_type));

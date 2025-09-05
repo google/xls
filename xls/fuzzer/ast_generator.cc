@@ -526,9 +526,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
   Param* param = GenerateParam({.type = channel_type_annotation}).param;
   auto to_member = [this](const Param* p) -> absl::StatusOr<ProcMember*> {
     XLS_ASSIGN_OR_RETURN(NameDef * name_def, CloneNode(p->name_def()));
-    XLS_ASSIGN_OR_RETURN(
-        AstNode * type_annotation,
-        CloneAst(p->type_annotation(), &PreserveTypeDefinitionsReplacer));
+    XLS_ASSIGN_OR_RETURN(AstNode * type_annotation,
+                         CloneAst(p->type_annotation()));
     return module_->Make<ProcMember>(
         name_def, down_cast<TypeAnnotation*>(type_annotation));
   };

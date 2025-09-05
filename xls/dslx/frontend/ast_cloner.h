@@ -30,16 +30,25 @@
 
 namespace xls::dslx {
 
+using OldToNewMap = absl::flat_hash_map<const AstNode*, AstNode*>;
+
 // A function that can be used to override the cloning behavior for certain
 // nodes during a `CloneAst` operations. A replacer can be used to replace
 // targeted nodes with something else entirely, or it can just "clone" those
 // nodes differently than the default logic.
+//
+// The replacer is invoked with:
+//  - the original AST node under consideration
+//  - the target `Module*` where any new nodes should be created
+//  - a pointer to the current old->new mapping accumulated so far during clone
 using CloneReplacer =
-    absl::AnyInvocable<absl::StatusOr<std::optional<AstNode*>>(const AstNode*)>;
+    absl::AnyInvocable<absl::StatusOr<std::optional<OldToNewMap>>(
+        const AstNode*, Module*, const OldToNewMap&)>;
 
 // This function is directly usable as the `replacer` argument for `CloneAst`
 // when a direct clone with no replacements is desired.
-inline std::optional<AstNode*> NoopCloneReplacer(const AstNode* original_node) {
+inline std::optional<OldToNewMap> NoopCloneReplacer(
+    const AstNode* original_node, Module*, const OldToNewMap&) {
   return std::nullopt;
 }
 
@@ -50,8 +59,10 @@ class ObservableCloneReplacer {
   explicit ObservableCloneReplacer(bool* flag, CloneReplacer replacer)
       : flag_(flag), replacer_(std::move(replacer)) {}
 
-  absl::StatusOr<std::optional<AstNode*>> operator()(const AstNode* node) {
-    XLS_ASSIGN_OR_RETURN(std::optional<AstNode*> result, replacer_(node));
+  absl::StatusOr<std::optional<OldToNewMap>> operator()(
+      const AstNode* node, Module* module, const OldToNewMap& old_to_new) {
+    XLS_ASSIGN_OR_RETURN(std::optional<OldToNewMap> result,
+                         replacer_(node, module, old_to_new));
     *flag_ |= result.has_value();
     return result;
   }
@@ -60,13 +71,6 @@ class ObservableCloneReplacer {
   bool* const flag_;
   CloneReplacer replacer_;
 };
-
-// A replacer function that performs shallow clones of `TypeRef` nodes, pointing
-// the clone to the original `TypeDefinition` object. This is useful for e.g.
-// cloning return types without recursing into cloned definitions which would
-// change nominal types.
-std::optional<AstNode*> PreserveTypeDefinitionsReplacer(
-    const AstNode* original_node);
 
 // Creates a `CloneReplacer` that replaces references to the given `def` with
 // the given `replacement`.
@@ -101,7 +105,14 @@ absl::StatusOr<std::unique_ptr<Module>> CloneModule(
 
 // Returns a CloneReplacer that runs `first` and then runs `second` on the
 // preliminary result, short-circuiting if `first` returns an error.
-CloneReplacer ChainCloneReplacers(CloneReplacer first, CloneReplacer second);
+// The replacers are restricted to produce replacements in the same module.
+CloneReplacer SameModuleChainCloneReplacers(CloneReplacer first,
+                                            CloneReplacer second);
+
+// Returns a CloneReplacer that runs `first` and runs `second` on the input
+// module. It checks that only one of the two replacers should do something.
+CloneReplacer MutuallyExclusiveChainCloneReplacers(CloneReplacer first,
+                                                   CloneReplacer second);
 
 // Verifies that the AST node tree rooted at `new_root` does not contain any of
 // the AST nodes in the tree rooted at `old_root`. In practice, this will verify
