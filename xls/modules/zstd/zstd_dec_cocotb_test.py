@@ -549,6 +549,8 @@ async def test_decoder(
     # Generate ZSTD frame to temporary file
     data_generator.GenerateFrame(seed, block_type, encoded.name, literal_type)
 
+  assert check_decoder_compliance(encoded.name), (f"error: '{encoded.name}' is not suitable for the decoder parameters")
+
   print(
     "\nusing"
     + (" pregenerated" if pregenerated else f" randomly generated (seed={seed})")

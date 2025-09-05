@@ -1,0 +1,68 @@
+From c052badd17fdb6751f3b5820ab6f7eab0cab196e Mon Sep 17 00:00:00 2001
+From: Mateusz Gancarz <mgancarz@antmicro.com>
+Date: Fri, 5 Sep 2025 11:11:34 +0200
+Subject: [PATCH] decodecorpus: allow specifying max window log
+
+---
+ tests/decodecorpus.c | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/tests/decodecorpus.c b/tests/decodecorpus.c
+index f25e5dc7..085f7be2 100644
+--- a/tests/decodecorpus.c
++++ b/tests/decodecorpus.c
+@@ -163,6 +163,7 @@ static double RAND_exp(U32* seed, double mean)
+ const char* BLOCK_TYPES[] = {"raw", "rle", "compressed"};
+ 
+ #define MAX_DECOMPRESSED_SIZE_LOG 20
++#define MIN_WINDOW_LOG 10
+ #define MAX_DECOMPRESSED_SIZE (1ULL << MAX_DECOMPRESSED_SIZE_LOG)
+ 
+ #define MAX_WINDOW_LOG 22 /* Recommended support is 8MB, so limit to 4MB + mantissa */
+@@ -257,6 +258,7 @@ typedef enum {
+ *  Global variables (set from command line)
+ *********************************************************/
+ U32 g_maxDecompressedSizeLog = MAX_DECOMPRESSED_SIZE_LOG;  /* <= 20 */
++U32 g_maxWindowLog = MAX_WINDOW_LOG;                           /* 10 <= window log <= 22 */
+ U32 g_maxBlockSize = ZSTD_BLOCKSIZE_MAX;                       /* <= 128 KB */
+ 
+ /*-*******************************************************
+@@ -289,7 +291,7 @@ static void writeFrameHeader(U32* seed, frame_t* frame, dictInfo info)
+     /* generate window size */
+     {
+         /* Follow window algorithm from specification */
+-        int const exponent = RAND(seed) % (MAX_WINDOW_LOG - 10);
++        int const exponent = g_maxWindowLog > 10 ? RAND(seed) % (g_maxWindowLog - 10) : 0;
+         int const mantissa = RAND(seed) % 8;
+         windowByte = (BYTE) ((exponent << 3) | mantissa);
+         fh.windowSize = (1U << (exponent + 10));
+@@ -1231,7 +1233,7 @@ static U32 generateCompressedBlock(U32 seed, frame_t* frame, dictInfo info)
+     while (!blockWritten) {
+         size_t cSize;
+         /* generate window size */
+-        {   int const exponent = RAND(&seed) % (MAX_WINDOW_LOG - 10);
++        {   int const exponent = g_maxWindowLog > 10 ? RAND(&seed) % (g_maxWindowLog - 10) : 0;
+             int const mantissa = RAND(&seed) % 8;
+             frame->header.windowSize = (1U << (exponent + 10));
+             frame->header.windowSize += (frame->header.windowSize / 8) * mantissa;
+@@ -1807,6 +1809,7 @@ static void advancedUsage(const char* programName)
+     DISPLAY( " --max-block-size-log=#   : max block size log, must be in range [2, 17]\n");
+     DISPLAY( " --max-content-size-log=# : max content size log, must be <= 20\n");
+     DISPLAY( "                            (this is ignored with gen-blocks)\n");
++    DISPLAY( " --max-window-log=#       : max window log, must be in range [10, 22]\n");
+     DISPLAY( " --block-type=#           : force certain block type (raw=0, rle=1, compressed=2)\n");
+     DISPLAY( " --frame-header-only      : dump only frame header\n");
+     DISPLAY( " --no-magic               : do not add magic number\n");
+@@ -1931,6 +1934,9 @@ int main(int argc, char** argv)
+                         U32 value = readU32FromChar(&argument);
+                         g_maxDecompressedSizeLog =
+                                 MIN(MAX_DECOMPRESSED_SIZE_LOG, value);
++                    } else if (longCommandWArg(&argument, "max-window-log=")) {
++                        U32 value = readU32FromChar(&argument);
++                        g_maxWindowLog = MIN(MAX_WINDOW_LOG, MAX(MIN_WINDOW_LOG, value));
+                     } else if (longCommandWArg(&argument, "block-type=")) {
+                         U32 value = readU32FromChar(&argument);
+                         opts.blockType = malloc(sizeof(blockType_e));
+-- 
+2.39.5
+

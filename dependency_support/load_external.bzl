@@ -76,6 +76,10 @@ def load_external_repositories():
     http_archive(
         name = "zstd",
         sha256 = "9ace5a1b3c477048c6e034fe88d2abb5d1402ced199cae8e9eef32fdc32204df",
+        patches = [
+            Label("@//dependency_support/com_github_facebook_zstd:allow-specifying-max-window-log.patch"),
+        ],
+        patch_args = ["-p1"],
         strip_prefix = "zstd-fdfb2aff39dc498372d8c9e5f2330b692fea9794",
         urls = ["https://github.com/facebook/zstd/archive/fdfb2aff39dc498372d8c9e5f2330b692fea9794.zip"],
         build_file = Label("//dependency_support/com_github_facebook_zstd:bundled.BUILD.bazel"),
