@@ -26,6 +26,11 @@ package(
     licenses = ["notice"],  # Apache 2.0
 )
 
+filegroup(
+    name = "release_files",
+    srcs = ["BUILD"],
+)
+
 alias(
     name = "xls_config",
     actual = ":xls_config_oss",
@@ -37,11 +42,9 @@ cc_library(
     hdrs = ["xls_config.h"],
 )
 
-# LINT.Start
 bool_config_setting(
     name = "save_temps_is_requested",
     values = {"save_temps": "true"},
-    visibility = ["//xls:xls_internal"],
 )
 
 # Tell AOT targets to emit llvm ir and asm in addition to their normal outputs.
@@ -50,13 +53,10 @@ bool_config_setting(
 bool_flag(
     name = "emit_aot_intermediates",
     build_setting_default = False,
-    visibility = ["//xls:xls_internal"],
 )
 
 # Tell opt-rules to record a pprof of pass executions.
 bool_flag(
     name = "profile_opt_passes",
     build_setting_default = False,
-    visibility = ["//xls:xls_internal"],
 )
-# LINT.End

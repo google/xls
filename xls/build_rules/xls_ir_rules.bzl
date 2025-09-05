@@ -231,7 +231,9 @@ def _optimize_ir(ctx, src, original_input_files):
         1. The optimized IR file.
         1. Any other output files.
     """
-    emit_pprof = ctx.attr._profile_opt_passes[BuildSettingInfo].value
+
+    # Accept the option being missing.
+    emit_pprof = hasattr(ctx.attr, "_profile_opt_passes") and ctx.attr._profile_opt_passes[BuildSettingInfo].value
     opt_ir_args = dict(ctx.attr.opt_ir_args)
     if "delay_model" not in opt_ir_args:
         opt_ir_args["delay_model"] = DEFAULT_BENCHMARK_SYNTH_DELAY_MODEL
