@@ -106,7 +106,12 @@ absl::StatusOr<std::unique_ptr<Module>> CloneModule(
 
 // Returns a CloneReplacer that runs `first` and then runs `second` on the
 // preliminary result, short-circuiting if `first` returns an error.
-CloneReplacer ChainCloneReplacers(CloneReplacer first, CloneReplacer second);
+// The replacers are restricted to produce replacements in the same module.
+CloneReplacer SameModuleChainCloneReplacers(CloneReplacer first, CloneReplacer second);
+
+// Returns a CloneReplacer that runs `first` and runs `second` on the input module.
+// It checks that only one of the two replacers should do something.
+CloneReplacer MutuallyExclusiveChainCloneReplacers(CloneReplacer first, CloneReplacer second);
 
 // Verifies that the AST node tree rooted at `new_root` does not contain any of
 // the AST nodes in the tree rooted at `old_root`. In practice, this will verify

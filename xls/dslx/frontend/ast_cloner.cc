@@ -32,6 +32,7 @@
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/casts.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/frontend/ast.h"
@@ -1315,7 +1316,8 @@ absl::StatusOr<std::unique_ptr<Module>> CloneModule(const Module& module,
   return new_module;
 }
 
-CloneReplacer ChainCloneReplacers(CloneReplacer first, CloneReplacer second) {
+CloneReplacer SameModuleChainCloneReplacers(CloneReplacer first,
+                                            CloneReplacer second) {
   return
       [first = std::move(first), second = std::move(second)](
           const AstNode* node, Module* module,
@@ -1327,6 +1329,27 @@ CloneReplacer ChainCloneReplacers(CloneReplacer first, CloneReplacer second) {
             std::optional<AstNode*> second_result,
             second(first_result.has_value() ? *first_result : node, module,
                    old_to_new));
+        if (first_result.has_value() && second_result.has_value()) {
+          XLS_RET_CHECK_EQ(first_result.value()->owner(), node->owner());
+          XLS_RET_CHECK_EQ(first_result.value()->owner(),
+                           second_result.value()->owner());
+        }
+        return second_result.has_value() ? second_result : first_result;
+      };
+}
+
+CloneReplacer MutuallyExclusiveChainCloneReplacers(CloneReplacer first,
+                                                   CloneReplacer second) {
+  return
+      [first = std::move(first), second = std::move(second)](
+          const AstNode* node, Module* module,
+          const absl::flat_hash_map<const AstNode*, AstNode*>&
+              old_to_new) mutable -> absl::StatusOr<std::optional<AstNode*>> {
+        XLS_ASSIGN_OR_RETURN(std::optional<AstNode*> first_result,
+                             first(node, module, old_to_new));
+        XLS_ASSIGN_OR_RETURN(std::optional<AstNode*> second_result,
+                             second(node, module, old_to_new));
+        XLS_RET_CHECK(!(first_result.has_value() && second_result.has_value()));
         return second_result.has_value() ? second_result : first_result;
       };
 }

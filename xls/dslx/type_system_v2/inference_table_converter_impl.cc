@@ -2207,7 +2207,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     CloneReplacer replacer =
         NameRefMapper(table_, actual_values, type->owner());
     if (real_self_type.has_value()) {
-      replacer = ChainCloneReplacers(
+      replacer = MutuallyExclusiveChainCloneReplacers(
           std::move(replacer),
           [&](const AstNode* node, Module*,
               const absl::flat_hash_map<const AstNode*, AstNode*>&)

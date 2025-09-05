@@ -437,7 +437,7 @@ class StatefulResolver : public TypeAnnotationResolver {
           AstNode * clone,
           table_.Clone(annotation, type_refs_only
                                        ? std::move(replace_type_aliases)
-                                       : ChainCloneReplacers(
+                                       : SameModuleChainCloneReplacers(
                                              std::move(replace_indirect),
                                              std::move(replace_type_aliases))));
       if (replaced_anything) {
