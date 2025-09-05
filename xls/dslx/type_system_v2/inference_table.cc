@@ -1012,7 +1012,7 @@ CloneReplacer NameRefMapper(
   return [table = &table, map = &map, target_module](
              const AstNode* node, Module* new_module,
              const absl::flat_hash_map<const AstNode*, AstNode*>&)
-             -> absl::StatusOr<std::optional<AstNode*>> {
+             -> absl::StatusOr<std::optional<OldToNewMap>> {
     if (node->kind() == AstNodeKind::kNameRef) {
       const auto* ref = down_cast<const NameRef*>(node);
       if (std::holds_alternative<const NameDef*>(ref->name_def())) {
@@ -1020,8 +1020,11 @@ CloneReplacer NameRefMapper(
         if (it != map->end()) {
           Module* module_for_clone =
               target_module ? *target_module : new_module;
-          return table->Clone(ToAstNode(it->second), &NoopCloneReplacer,
-                              module_for_clone);
+          XLS_ASSIGN_OR_RETURN(
+              AstNode * cloned,
+              table->Clone(ToAstNode(it->second), &NoopCloneReplacer,
+                           module_for_clone));
+          return OldToNewMap{{node, cloned}};
         }
       }
     }

@@ -2211,11 +2211,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           std::move(replacer),
           [&](const AstNode* node, Module*,
               const absl::flat_hash_map<const AstNode*, AstNode*>&)
-              -> absl::StatusOr<std::optional<AstNode*>> {
+              -> absl::StatusOr<std::optional<OldToNewMap>> {
             if (node->kind() == AstNodeKind::kTypeAnnotation &&
                 down_cast<const TypeAnnotation*>(node)
                     ->IsAnnotation<SelfTypeAnnotation>()) {
-              return const_cast<TypeAnnotation*>(*real_self_type);
+              return OldToNewMap{{node,
+                                  const_cast<TypeAnnotation*>(*real_self_type)}};
             }
             return std::nullopt;
           });

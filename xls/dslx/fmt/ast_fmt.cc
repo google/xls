@@ -3167,10 +3167,13 @@ absl::StatusOr<std::string> AutoFmt(VirtualizableFilesystem& vfs,
   FormatDisabler disabler(vfs, comments, *m.fs_path());
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<Module> clone,
-      CloneModule(m, [&](const AstNode* node, Module*,
-                         const absl::flat_hash_map<const AstNode*, AstNode*>&) {
-        return disabler(node);
-      }));
+      CloneModule(
+          m,
+          [&](const AstNode* node, Module* target_module,
+              const absl::flat_hash_map<const AstNode*, AstNode*>& old_to_new)
+              -> absl::StatusOr<std::optional<OldToNewMap>> {
+            return disabler(node, target_module, old_to_new);
+          }));
   return AutoFmt(*clone, comments, text_width);
 }
 
@@ -3180,10 +3183,13 @@ absl::StatusOr<std::string> AutoFmt(VirtualizableFilesystem& vfs,
   FormatDisabler disabler(vfs, comments, contents);
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<Module> clone,
-      CloneModule(m, [&](const AstNode* node, Module*,
-                         const absl::flat_hash_map<const AstNode*, AstNode*>&) {
-        return disabler(node);
-      }));
+      CloneModule(
+          m,
+          [&](const AstNode* node, Module* target_module,
+              const absl::flat_hash_map<const AstNode*, AstNode*>& old_to_new)
+              -> absl::StatusOr<std::optional<OldToNewMap>> {
+            return disabler(node, target_module, old_to_new);
+          }));
   return AutoFmt(*clone, comments, text_width);
 }
 

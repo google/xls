@@ -242,11 +242,13 @@ fn main() -> u32 {
       CloneAst(body_expr,
                [&](const AstNode* original_node, Module*,
                    const absl::flat_hash_map<const AstNode*, AstNode*>&)
-                   -> std::optional<AstNode*> {
+                   -> absl::StatusOr<std::optional<OldToNewMap>> {
                  if (const auto* name_ref =
                          dynamic_cast<const NameRef*>(original_node);
                      name_ref && name_ref->identifier() == "a") {
-                   return a_replacement;
+                   OldToNewMap m;
+                   m.insert({original_node, a_replacement});
+                   return m;
                  }
                  return std::nullopt;
                }));
@@ -1009,7 +1011,8 @@ fn foo(a: u32, b: u32, c: u32, d: u32) -> u32 {
                ObservableCloneReplacer(
                    &flag,
                    [&](const AstNode* source, Module*,
-                       const absl::flat_hash_map<const AstNode*, AstNode*>&) {
+                       const absl::flat_hash_map<const AstNode*, AstNode*>&)
+                       -> absl::StatusOr<std::optional<OldToNewMap>> {
                      return std::nullopt;
                    }))
           .status());
@@ -1034,13 +1037,16 @@ fn foo(a: u32, b: u32, c: u32) -> u32 {
       CloneAst(foo,
                ObservableCloneReplacer(
                    &flag,
-                   [&](const AstNode* source, Module*,
+                   [&](const AstNode* source, Module* new_module,
                        const absl::flat_hash_map<const AstNode*, AstNode*>&)
-                       -> absl::StatusOr<std::optional<AstNode*>> {
+                       -> absl::StatusOr<std::optional<OldToNewMap>> {
                      if (source->ToString() == "5") {
-                       return module->Make<Number>(Span::Fake(), "4",
-                                                   NumberKind::kOther,
-                                                   /*type_annotation=*/nullptr);
+                       AstNode* replaced = new_module->Make<Number>(
+                           Span::Fake(), "4", NumberKind::kOther,
+                           /*type_annotation=*/nullptr);
+                       OldToNewMap m;
+                       m.insert({source, replaced});
+                       return m;
                      }
                      return std::nullopt;
                    }))
@@ -1061,11 +1067,14 @@ TEST(AstClonerTest, ReplaceRoot) {
                // Replace the root with "3".
                [&](const AstNode* node, Module* new_module,
                    const absl::flat_hash_map<const AstNode*, AstNode*>&)
-                   -> absl::StatusOr<std::optional<AstNode*>> {
+                   -> absl::StatusOr<std::optional<OldToNewMap>> {
                  if (node == foo) {
-                   return new_module->Make<Number>(Span::Fake(), "3",
-                                                   NumberKind::kOther,
-                                                   /*type_annotation=*/nullptr);
+                   AstNode* repl = new_module->Make<Number>(
+                       Span::Fake(), "3", NumberKind::kOther,
+                       /*type_annotation=*/nullptr);
+                   OldToNewMap m;
+                   m.insert({node, repl});
+                   return m;
                  }
                  return std::nullopt;
                }));
@@ -1091,13 +1100,17 @@ TEST(AstClonerTest, ReplacerCreatesNodesInTargetModule) {
       pairs, CloneAstAndGetAllPairs(
                  main_fn, &dst_module,
                  [&](const AstNode* node, Module* new_module,
-                     const absl::flat_hash_map<const AstNode*, AstNode*>&) {
+                     const absl::flat_hash_map<const AstNode*, AstNode*>&)
+                     -> absl::StatusOr<std::optional<OldToNewMap>> {
                    if (node->kind() == AstNodeKind::kNumber) {
-                     return std::optional<AstNode*>{new_module->Make<Number>(
+                     AstNode* repl = new_module->Make<Number>(
                          Span::Fake(), "42", NumberKind::kOther,
-                         /*type_annotation=*/nullptr)};
+                         /*type_annotation=*/nullptr);
+                     OldToNewMap m;
+                     m.insert({node, repl});
+                     return m;
                    }
-                   return std::optional<AstNode*>{std::nullopt};
+                   return std::nullopt;
                  }));
 
   XLS_ASSERT_OK(
@@ -1155,7 +1168,7 @@ TEST(AstClonerTest, ReplacerUsesOldToNewMappingForNameRef) {
           main_fn, &dst_module,
           [&](const AstNode* node, Module* new_module,
               const absl::flat_hash_map<const AstNode*, AstNode*>& old_to_new)
-              -> absl::StatusOr<std::optional<AstNode*>> {
+              -> absl::StatusOr<std::optional<OldToNewMap>> {
             // Replace occurrences of the NameRef "a" with a NameRef to the
             // (new) "b".
             if (const auto* nr = dynamic_cast<const NameRef*>(node);
@@ -1163,10 +1176,13 @@ TEST(AstClonerTest, ReplacerUsesOldToNewMappingForNameRef) {
               auto it = old_to_new.find(b_name_def);
               XLS_RET_CHECK(it != old_to_new.end());
               auto* new_b_def = down_cast<NameDef*>(it->second);
-              return std::optional<AstNode*>{new_module->Make<NameRef>(
-                  Span::Fake(), new_b_def->identifier(), new_b_def)};
+              AstNode* repl = new_module->Make<NameRef>(
+                  Span::Fake(), new_b_def->identifier(), new_b_def);
+              OldToNewMap m;
+              m.insert({node, repl});
+              return m;
             }
-            return std::optional<AstNode*>{std::nullopt};
+            return std::nullopt;
           }));
 
   XLS_ASSERT_OK(
@@ -1819,10 +1835,12 @@ TEST(AstClonerTest, CloneStatementBlockSkipsEmptyVerbatimNode) {
       CloneAst(&statement_block,
                [&](const AstNode* node, Module*,
                    const absl::flat_hash_map<const AstNode*, AstNode*>&)
-                   -> std::optional<AstNode*> {
+                   -> absl::StatusOr<std::optional<OldToNewMap>> {
                  if (node->kind() == AstNodeKind::kStatement) {
                    // Replace with a verbatim node with no text.
-                   return &empty_verbatim;
+                   OldToNewMap m;
+                   m.insert({node, &empty_verbatim});
+                   return m;
                  }
                  return std::nullopt;
                }));
@@ -1850,10 +1868,12 @@ TEST(AstClonerTest, CloneStatementBlockUsesVerbatimNode) {
       CloneAst(&statement_block,
                [&](const AstNode* node, Module*,
                    const absl::flat_hash_map<const AstNode*, AstNode*>&)
-                   -> std::optional<AstNode*> {
+                   -> absl::StatusOr<std::optional<OldToNewMap>> {
                  if (node->kind() == AstNodeKind::kStatement) {
                    // Replace with the desired verbatim node
-                   return &verbatim;
+                   OldToNewMap m;
+                   m.insert({node, &verbatim});
+                   return m;
                  }
                  return std::nullopt;
                }));

@@ -53,8 +53,9 @@ bool IsInDesugaredFn(const AstNode *node) {
 }
 }  // namespace
 
-absl::StatusOr<std::optional<AstNode *>> FormatDisabler::operator()(
-    const AstNode *node) {
+absl::StatusOr<std::optional<absl::flat_hash_map<const AstNode *, AstNode *>>>
+FormatDisabler::operator()(const AstNode *node, Module *target_module,
+                           const absl::flat_hash_map<const AstNode *, AstNode *> &old_to_new) {
   if (seen_nodes_.contains(node)) {
     return std::nullopt;
   }
@@ -69,7 +70,7 @@ absl::StatusOr<std::optional<AstNode *>> FormatDisabler::operator()(
     // https://github.com/google/xls/issues/1782 is fixed.
     text.append("\n");
     VerbatimNode *verbatim_node =
-        node->owner()->Make<VerbatimNode>(unformatted_span, text);
+        target_module->Make<VerbatimNode>(unformatted_span, text);
 
     comments_.RemoveComments(unformatted_span);
     unformatted_end_ = unformatted_span.limit();
@@ -78,7 +79,7 @@ absl::StatusOr<std::optional<AstNode *>> FormatDisabler::operator()(
 
     VLOG(5) << "Function with disable_format set, replacing "
             << node->ToString() << " with VerbatimNode";
-    return verbatim_node;
+    return absl::flat_hash_map<const AstNode *, AstNode *>{{node, verbatim_node}};
   }
 
   if (node == nullptr || !node->GetSpan().has_value()) {
@@ -109,7 +110,9 @@ absl::StatusOr<std::optional<AstNode *>> FormatDisabler::operator()(
       VLOG(5) << "Setting previous node to " << node->ToString();
       previous_node_ = node;
 
-      return node->owner()->Make<VerbatimNode>(*node->GetSpan());
+      VerbatimNode *empty_verbatim =
+          target_module->Make<VerbatimNode>(*node->GetSpan());
+      return absl::flat_hash_map<const AstNode *, AstNode *>{{node, empty_verbatim}};
     }
 
     // We're past the end of the unformatted range; clear the setting.
@@ -163,7 +166,7 @@ absl::StatusOr<std::optional<AstNode *>> FormatDisabler::operator()(
 
   // c. Create a new VerbatimNode with the content from step b.
   VerbatimNode *verbatim_node =
-      node->owner()->Make<VerbatimNode>(unformatted_span, text);
+      target_module->Make<VerbatimNode>(unformatted_span, text);
 
   comments_.RemoveComments(unformatted_span);
 
@@ -177,7 +180,7 @@ absl::StatusOr<std::optional<AstNode *>> FormatDisabler::operator()(
   // e. Replace the current node with the verbatim node from step c
   VLOG(5) << "Setting previous node to, and replacing " << node->ToString()
           << " with VerbatimNode";
-  return verbatim_node;
+  return absl::flat_hash_map<const AstNode *, AstNode *>{{node, verbatim_node}};
 }
 
 std::vector<const CommentData *> FormatDisabler::FindCommentsWithText(
