@@ -37,6 +37,7 @@ cc_library(
     hdrs = ["xls_config.h"],
 )
 
+# LINT.Start
 bool_config_setting(
     name = "save_temps_is_requested",
     values = {"save_temps": "true"},
@@ -58,3 +59,4 @@ bool_flag(
     build_setting_default = False,
     visibility = ["//xls:xls_internal"],
 )
+# LINT.End
