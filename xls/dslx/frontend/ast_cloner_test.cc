@@ -990,30 +990,6 @@ TEST(AstClonerTest, SliceWithNullptrs) {
   XLS_ASSERT_OK(VerifyClone(top_member, clone, file_table));
 }
 
-TEST(AstClonerTest, PreserveTypeDefinitionsReplacer) {
-  constexpr std::string_view kProgram =
-      R"(
-type my_type = u32;
-fn foo() -> u32 {
-  zero!<my_type>()
-}
-)";
-
-  FileTable file_table;
-  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
-                                                    "the_module", file_table));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * foo,
-                           module->GetMemberOrError<Function>("foo"));
-  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone,
-                           CloneAst(foo, &PreserveTypeDefinitionsReplacer));
-  std::optional<TypeRef*> type_ref = FindFirstTypeRef(foo);
-  ASSERT_TRUE(type_ref.has_value());
-  std::optional<TypeRef*> cloned_type_ref = FindFirstTypeRef(clone);
-  ASSERT_TRUE(cloned_type_ref.has_value());
-  EXPECT_EQ((*cloned_type_ref)->type_definition(),
-            (*type_ref)->type_definition());
-}
-
 TEST(AstClonerTest, ChainCloneReplacersSuccess) {
   constexpr std::string_view kProgram =
       R"(

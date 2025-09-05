@@ -73,14 +73,6 @@ class ObservableCloneReplacer {
   CloneReplacer replacer_;
 };
 
-// A replacer function that performs shallow clones of `TypeRef` nodes, pointing
-// the clone to the original `TypeDefinition` object. This is useful for e.g.
-// cloning return types without recursing into cloned definitions which would
-// change nominal types.
-std::optional<AstNode*> PreserveTypeDefinitionsReplacer(
-    const AstNode* original_node, Module* module,
-    const absl::flat_hash_map<const AstNode*, AstNode*>& old_to_new);
-
 // Creates a `CloneReplacer` that replaces references to the given `def` with
 // the given `replacement`.
 CloneReplacer NameRefReplacer(const NameDef* def, Expr* replacement);

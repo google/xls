@@ -621,14 +621,14 @@ class InferenceTableImpl : public InferenceTable {
       const AstNode* input, CloneReplacer replacer,
       std::optional<Module*> target_module) override {
     absl::flat_hash_map<const AstNode*, AstNode*> all_pairs;
-    XLS_ASSIGN_OR_RETURN(
-        all_pairs, CloneAstAndGetAllPairs(
-                       input, target_module,
-                       ChainCloneReplacers(&PreserveTypeDefinitionsReplacer,
-                                           std::move(replacer))));
+    XLS_ASSIGN_OR_RETURN(all_pairs,
+                         CloneAstAndGetAllPairs(input, target_module,
+
+                                                std::move(replacer)));
     // VerifyClone won't pass here.
     // XLS_RETURN_IF_ERROR(
-    //     VerifyClone(input, all_pairs.at(input), *input->owner()->file_table()));
+    //     VerifyClone(input, all_pairs.at(input),
+    //     *input->owner()->file_table()));
     for (const auto& [old_node, new_node] : all_pairs) {
       if (old_node != new_node) {
         const auto it = node_data_.find(old_node);
@@ -1020,8 +1020,7 @@ CloneReplacer NameRefMapper(
         if (it != map->end()) {
           Module* module_for_clone =
               target_module ? *target_module : new_module;
-          return table->Clone(ToAstNode(it->second),
-                              &PreserveTypeDefinitionsReplacer,
+          return table->Clone(ToAstNode(it->second), &NoopCloneReplacer,
                               module_for_clone);
         }
       }

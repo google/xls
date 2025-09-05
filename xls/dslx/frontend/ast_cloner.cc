@@ -16,6 +16,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -1004,18 +1005,17 @@ class AstCloner : public AstNodeVisitor {
   }
 
   absl::Status HandleTypeRef(const TypeRef* n) override {
-    TypeDefinition new_type_definition = n->type_definition();
-
-    // A TypeRef doesn't own its referenced type definition, so we have to
-    // explicitly visit it.
-    XLS_RETURN_IF_ERROR(absl::visit(
-        Visitor{[&](auto* ref) -> absl::Status {
-          XLS_RETURN_IF_ERROR(ReplaceOrVisit(ref));
-          new_type_definition = down_cast<decltype(ref)>(old_to_new_.at(ref));
-          return absl::OkStatus();
-        }},
-        n->type_definition()));
-
+    TypeDefinition old_type_definition = n->type_definition();
+    TypeDefinition new_type_definition = std::visit(
+        [this](auto* def_ptr) -> TypeDefinition {
+          using PtrT = std::decay_t<decltype(def_ptr)>;
+          auto it = old_to_new_.find(def_ptr);
+          if (it != old_to_new_.end()) {
+            return down_cast<PtrT>(it->second);
+          }
+          return def_ptr;
+        },
+        old_type_definition);
     old_to_new_[n] = module(n)->Make<TypeRef>(n->span(), new_type_definition);
     return absl::OkStatus();
   }
@@ -1238,16 +1238,6 @@ class AstCloner : public AstNodeVisitor {
 };
 
 }  // namespace
-
-std::optional<AstNode*> PreserveTypeDefinitionsReplacer(
-    const AstNode* node, Module* module,
-    const absl::flat_hash_map<const AstNode*, AstNode*>&) {
-  if (node->kind() == AstNodeKind::kTypeRef) {
-    const auto* type_ref = down_cast<const TypeRef*>(node);
-    return module->Make<TypeRef>(type_ref->span(), type_ref->type_definition());
-  }
-  return std::nullopt;
-}
 
 CloneReplacer NameRefReplacer(const NameDef* def, Expr* replacement) {
   return [=](const AstNode* node, Module* new_module,

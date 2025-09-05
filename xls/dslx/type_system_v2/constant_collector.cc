@@ -332,9 +332,7 @@ class Visitor : public AstNodeVisitorWithDefault {
       const NameDefTree* input, Expr* iteration_value,
       absl::flat_hash_map<const NameDef*, NameDef*>& old_to_new_name_defs) {
     absl::flat_hash_map<const AstNode*, AstNode*> pairs;
-    XLS_ASSIGN_OR_RETURN(
-        pairs, CloneAstAndGetAllPairs(input, input->owner(),
-                                      &PreserveTypeDefinitionsReplacer));
+    XLS_ASSIGN_OR_RETURN(pairs, CloneAstAndGetAllPairs(input, input->owner()));
     NameDefTree* iteration_ndt = down_cast<NameDefTree*>(pairs.at(input));
     for (const auto& [old_node, new_node] : pairs) {
       if (old_node->kind() == AstNodeKind::kNameDef) {
@@ -483,9 +481,7 @@ class Visitor : public AstNodeVisitorWithDefault {
       XLS_ASSIGN_OR_RETURN(
           AstNode * copy_body,
           CloneAst(unroll_for->body(),
-                   ChainCloneReplacers(
-                       &PreserveTypeDefinitionsReplacer,
-                       NameRefReplacer(&iteration_name_def_mapping))));
+                   NameRefReplacer(&iteration_name_def_mapping)));
       StatementBlock* copy_body_statementblock =
           down_cast<StatementBlock*>(copy_body);
       absl::Span<Statement* const> statements =
