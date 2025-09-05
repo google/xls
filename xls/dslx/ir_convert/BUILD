@@ -32,10 +32,28 @@ package(
 )
 
 cc_library(
+    name = "channel_arrays",
+    srcs = ["channel_arrays.cc"],
+    hdrs = ["channel_arrays.h"],
+    deps = [
+        "//xls/common/status:status_macros",
+        "//xls/dslx:constexpr_evaluator",
+        "//xls/dslx:import_data",
+        "//xls/dslx:interp_value",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/type_system:parametric_env",
+        "//xls/dslx/type_system:type_info",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
     name = "channel_scope",
     srcs = ["channel_scope.cc"],
     hdrs = ["channel_scope.h"],
     deps = [
+        ":channel_arrays",
         ":conversion_info",
         ":convert_options",
         ":ir_conversion_utils",

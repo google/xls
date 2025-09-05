@@ -29,6 +29,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/proc_id.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/ir_convert/channel_arrays.h"
 #include "xls/dslx/ir_convert/conversion_info.h"
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/type_system/parametric_env.h"
@@ -115,6 +116,7 @@ class ChannelScope {
   void EnterFunctionContext(TypeInfo* type_info,
                             const ParametricEnv& bindings) {
     function_context_.emplace(type_info, bindings);
+    channel_arrays_.emplace(import_data_, type_info, bindings);
   }
 
   // Creates the channel object, or array of channel objects, indicated by the
@@ -176,9 +178,6 @@ class ChannelScope {
   std::string_view GetBaseNameForChannelOrArray(
       ChannelOrArray channel_or_array);
 
-  absl::StatusOr<std::vector<std::string>> CreateAllArrayElementSuffixes(
-      const std::vector<Expr*>& dims);
-
   absl::StatusOr<std::string> CreateBaseChannelName(
       std::string_view short_name);
 
@@ -232,6 +231,7 @@ class ChannelScope {
   absl::flat_hash_map<std::pair<ProcId, const NameDef*>, ChannelOrArray>
       name_def_to_channel_or_array_;
   absl::flat_hash_map<std::string, ChannelArray*> subarrays_;
+  std::optional<ChannelArrays> channel_arrays_;
 };
 
 }  // namespace xls::dslx
