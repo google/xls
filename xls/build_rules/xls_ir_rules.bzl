@@ -14,6 +14,7 @@
 """This module contains IR-related build rules for XLS."""
 
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
+load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load(
@@ -68,6 +69,7 @@ _DEFAULT_IR_EVAL_TEST_ARGS = {
 _DEFAULT_BENCHMARK_IR_ARGS = {}
 
 _IR_FILE_EXTENSION = ".ir"
+_PPROF_FILE_EXTENSION = ".pprof"
 
 _OPT_IR_FILE_EXTENSION = ".opt.ir"
 _OPT_LOG_FILE_EXTENSION = ".opt.log"
@@ -227,7 +229,9 @@ def _optimize_ir(ctx, src, original_input_files):
       A tuple with the following elements in the order presented:
         1. The runfiles to optimize the IR file.
         1. The optimized IR file.
+        1. Any other output files.
     """
+    emit_pprof = ctx.attr._profile_opt_passes[BuildSettingInfo].value
     opt_ir_args = dict(ctx.attr.opt_ir_args)
     if "delay_model" not in opt_ir_args:
         opt_ir_args["delay_model"] = DEFAULT_BENCHMARK_SYNTH_DELAY_MODEL
@@ -304,9 +308,17 @@ def _optimize_ir(ctx, src, original_input_files):
     else:
         execution_requirements = None
 
+    outs = [opt_ir_file, log_file, opt_options_used_textproto_file]
+    extra_outs = []
+    if emit_pprof:
+        pprof_filename = ctx.attr.name + _PPROF_FILE_EXTENSION
+        pprof_file = ctx.actions.declare_file(pprof_filename)
+        args.add("--passes_profile", pprof_file)
+        outs.append(pprof_file)
+        extra_outs.append(pprof_file)
     runfiles = get_runfiles_for_xls(ctx, [], [src.ir_file] + ram_rewrite_files + debug_src_files + original_input_files)
     ctx.actions.run(
-        outputs = [opt_ir_file, log_file, opt_options_used_textproto_file],
+        outputs = outs,
         executable = ctx.executable._xls_opt_ir_tool,
         execution_requirements = execution_requirements,
         # The files required for optimizing the IR file.
@@ -316,7 +328,7 @@ def _optimize_ir(ctx, src, original_input_files):
         progress_message = "Optimizing IR %s" % src.ir_file.short_path,
         toolchain = None,
     )
-    return runfiles, opt_ir_file
+    return runfiles, opt_ir_file, extra_outs
 
 def get_ir_equivalence_test_cmd(
         ctx,
@@ -769,14 +781,14 @@ def xls_ir_opt_ir_impl(ctx, src, original_input_files):
         1. The list of built files.
         1. The runfiles.
     """
-    runfiles, opt_ir_file = _optimize_ir(ctx, src, original_input_files)
+    runfiles, opt_ir_file, extra = _optimize_ir(ctx, src, original_input_files)
     return [
         IrFileInfo(ir_file = opt_ir_file),
         OptIrArgInfo(
             unopt_ir = src,
             opt_ir_args = ctx.attr.opt_ir_args,
         ),
-        [opt_ir_file],
+        [opt_ir_file] + extra,
         runfiles,
     ]
 
@@ -807,6 +819,10 @@ xls_ir_opt_ir_attrs = dicts.add(
             doc = "The filename to write the OptFlagsProto textproto to. If not specified, the " +
                   "name of the target followed by " + _OPT_OPTIONS_USED_FILE_EXTENSION +
                   " is used.",
+        ),
+        "_profile_opt_passes": attr.label(
+            doc = "Generate a pprof of pass executions. Set using --//xls/common/config:profile_opt_passes",
+            default = Label("//xls/common/config:profile_opt_passes"),
         ),
     },
 )

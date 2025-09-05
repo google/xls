@@ -127,6 +127,7 @@ bzl_library(
         ":xls_toolchains_bzl",
         ":xls_type_check_utils_bzl",
         "@bazel_skylib//lib:dicts",
+        "@bazel_skylib//rules:common_settings",
         "@rules_cc//cc/common",
     ],
 )

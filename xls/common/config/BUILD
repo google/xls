@@ -51,3 +51,10 @@ bool_flag(
     build_setting_default = False,
     visibility = ["//xls:xls_internal"],
 )
+
+# Tell opt-rules to record a pprof of pass executions.
+bool_flag(
+    name = "profile_opt_passes",
+    build_setting_default = False,
+    visibility = ["//xls:xls_internal"],
+)
