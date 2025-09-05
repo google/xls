@@ -76,7 +76,7 @@ pub proc ShiftBufferAligner<
         let (tok0, data) = recv(tok, input_r);
         let tok0 = send(tok0, inter_s, Inter {
             length: data.length,
-            data: math::logshiftl(data.data as DataX2, state.ptr),
+            data: (data.data as DataX2 << state.ptr),
         });
 
         State {ptr: (state.ptr + data.length) % (DATA_WIDTH as Length) }
@@ -266,7 +266,7 @@ pub proc ShiftBufferStorage<DATA_WIDTH: u32, LENGTH_WIDTH: u32> {
             let new_read_ptr = new_read_ptr + state.cmd.length as BufferLength;
             let rdata = Output {
                 length: state.cmd.length,
-                data: math::mask(math::logshiftr(state.buffer, state.read_ptr) as Data, state.cmd.length),
+                data: math::mask((state.buffer >> state.read_ptr) as Data, state.cmd.length),
             };
 
             // trace_fmt!("rdata: {:#x}", rdata);
