@@ -233,7 +233,7 @@ Examples:
         xls_ir_top_attrs,
         _xls_ir_jit_wrapper_attrs,
         CONFIG["xls_outs_attrs"],
-        xls_toolchain_attrs,
+        dicts.pick(xls_toolchain_attrs, ["_xls_jit_wrapper_tool"]),
     ),
 )
 
