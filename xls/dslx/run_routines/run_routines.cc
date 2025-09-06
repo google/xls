@@ -43,6 +43,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "re2/re2.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/inline_bitmap.h"
@@ -88,7 +89,6 @@
 #include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/passes/pass_base.h"
 #include "xls/solvers/z3_ir_translator.h"
-#include "re2/re2.h"
 
 namespace xls::dslx {
 namespace {
@@ -1014,6 +1014,7 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
     interpreter_options.post_fn_eval_hook(post_fn_eval_hook)
         .trace_hook(absl::bind_front(InfoLoggingTraceHook, file_table))
         .trace_channels(options.trace_channels)
+        .trace_calls(options.trace_calls)
         .max_ticks(options.max_ticks)
         .format_preference(options.format_preference);
     if (std::holds_alternative<TestFunction*>(*member)) {

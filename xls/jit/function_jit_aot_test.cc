@@ -18,11 +18,11 @@
 #include <string_view>
 #include <type_traits>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/matchers.h"
@@ -126,7 +126,8 @@ TEST_F(FunctionJitAotTest, CallAot) {
       auto test_aot, FunctionJit::CreateFromAot(
                          proto.entrypoint(0), proto.data_layout(),
                          __multi_func_with_trace__multi_function_one,
-                         __multi_func_with_trace__multi_function_one_packed));
+                         __multi_func_with_trace__multi_function_one_packed,
+                         EvaluatorOptions()));
   // Value
   {
     XLS_ASSERT_OK_AND_ASSIGN(auto res, test_aot->Run({Value(UBits(3, 8))}));

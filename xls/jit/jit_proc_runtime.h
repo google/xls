@@ -15,10 +15,8 @@
 #ifndef XLS_JIT_JIT_PROC_RUNTIME_H_
 #define XLS_JIT_JIT_PROC_RUNTIME_H_
 
-#include <cstdint>
 #include <memory>
 #include <optional>
-#include <string_view>
 
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -28,7 +26,7 @@
 #include "xls/ir/xls_ir_interface.pb.h"
 #include "xls/jit/aot_entrypoint.pb.h"
 #include "xls/jit/function_base_jit.h"
-#include "xls/jit/observer.h"
+#include "xls/jit/jit_evaluator_options.h"
 
 namespace xls {
 
@@ -73,12 +71,11 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateAotSerialProcRuntime(
 
 // Generate AOT code for the given proc elaboration.
 absl::StatusOr<JitObjectCode> CreateProcAotObjectCode(
-    Package* package, int64_t opt_level, bool with_msan,
-    JitObserver* observer = nullptr, std::string_view symbol_salt = "");
+    Package* package,
+    const JitEvaluatorOptions& jit_options = JitEvaluatorOptions());
 // Generate AOT code for the given proc elaboration.
 absl::StatusOr<JitObjectCode> CreateProcAotObjectCode(
-    Proc* top, int64_t opt_level, bool with_msan,
-    JitObserver* observer = nullptr, std::string_view symbol_salt = "");
+    Proc* top, const JitEvaluatorOptions& jit_options = JitEvaluatorOptions());
 
 }  // namespace xls
 

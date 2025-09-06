@@ -60,6 +60,7 @@
 #include "xls/jit/function_base_jit.h"
 #include "xls/jit/jit_buffer.h"
 #include "xls/jit/jit_callbacks.h"
+#include "xls/jit/jit_evaluator_options.h"
 #include "xls/jit/jit_runtime.h"
 #include "xls/jit/llvm_compiler.h"
 #include "xls/jit/observer.h"
@@ -355,17 +356,18 @@ absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
     block = elab.blocks().front();
     XLS_ASSIGN_OR_RETURN(InterfaceMetadata metadata,
                          InterfaceMetadata::CreateFromBlock(block));
-    XLS_ASSIGN_OR_RETURN(auto function,
-                         JittedFunctionBase::Build(block, *orc_jit));
+    XLS_ASSIGN_OR_RETURN(
+        auto function,
+        JittedFunctionBase::Build(block, *orc_jit, EvaluatorOptions()));
     return std::unique_ptr<BlockJit>(new BlockJit(
         std::move(metadata), std::move(jit_runtime), std::move(orc_jit),
         std::move(function), support_observer_callbacks));
   }
   XLS_ASSIGN_OR_RETURN(ElaborationJitData jit_data,
                        CloneElaborationPackage(elab));
-  XLS_ASSIGN_OR_RETURN(
-      JittedFunctionBase jit_entrypoint,
-      JittedFunctionBase::Build(jit_data.inlined_block, *orc_jit));
+  XLS_ASSIGN_OR_RETURN(JittedFunctionBase jit_entrypoint,
+                       JittedFunctionBase::Build(jit_data.inlined_block,
+                                                 *orc_jit, EvaluatorOptions()));
   XLS_ASSIGN_OR_RETURN(
       InterfaceMetadata metadata,
       InterfaceMetadata::CreateFromBlock(jit_data.inlined_block));
@@ -418,10 +420,9 @@ absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
 }
 
 /* static */ absl::StatusOr<JitObjectCode> BlockJit::CreateObjectCode(
-    const BlockElaboration& elab, int64_t opt_level, bool include_msan,
-    JitObserver* obs, std::string_view symbol_salt) {
+    const BlockElaboration& elab, const JitEvaluatorOptions& jit_options) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<AotCompiler> comp,
-                       AotCompiler::Create(include_msan, opt_level, obs));
+                       AotCompiler::Create(jit_options));
   XLS_ASSIGN_OR_RETURN(llvm::DataLayout data_layout, comp->CreateDataLayout());
   // NB We could avoid doing a package clone if there are no instantations but
   // since this is aot anyway its easier to just not bother. The cloned package
@@ -430,7 +431,8 @@ absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
                        CloneElaborationPackage(elab));
   XLS_ASSIGN_OR_RETURN(
       auto function,
-      JittedFunctionBase::Build(jit_data.inlined_block, *comp, symbol_salt));
+      JittedFunctionBase::Build(jit_data.inlined_block, *comp,
+                                EvaluatorOptions(), jit_options.symbol_salt()));
   XLS_ASSIGN_OR_RETURN(auto obj_code, std::move(comp)->GetObjectCode());
   return JitObjectCode{
       .object_code = std::move(obj_code),

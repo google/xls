@@ -42,6 +42,7 @@
 #include "xls/jit/function_base_jit.h"
 #include "xls/jit/jit_buffer.h"
 #include "xls/jit/jit_callbacks.h"
+#include "xls/jit/jit_evaluator_options.h"
 #include "xls/jit/jit_runtime.h"
 #include "xls/jit/observer.h"
 #include "xls/jit/orc_jit.h"
@@ -84,8 +85,8 @@ class BlockJit {
 
   // Returns the bytes of an object file containing the compiled XLS function.
   static absl::StatusOr<JitObjectCode> CreateObjectCode(
-      const BlockElaboration& elab, int64_t opt_level, bool include_msan,
-      JitObserver* obs, std::string_view symbol_salt = "");
+      const BlockElaboration& elab,
+      const JitEvaluatorOptions& jit_options = JitEvaluatorOptions());
 
   virtual ~BlockJit() = default;
 

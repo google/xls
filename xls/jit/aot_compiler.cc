@@ -62,10 +62,9 @@ namespace xls {
 
 // static
 absl::StatusOr<std::unique_ptr<AotCompiler>> AotCompiler::Create(
-    bool include_msan, int64_t opt_level, JitObserver* observer) {
+    const JitEvaluatorOptions& jit_options) {
   LlvmCompiler::InitializeLlvm();
-  auto compiler = std::unique_ptr<AotCompiler>(
-      new AotCompiler(opt_level, include_msan, observer));
+  auto compiler = std::unique_ptr<AotCompiler>(new AotCompiler(jit_options));
   XLS_RETURN_IF_ERROR(compiler->Init());
   return std::move(compiler);
 }
@@ -199,11 +198,11 @@ absl::Status AddWeakEmuTls(llvm::Module& module, llvm::LLVMContext* context) {
 absl::Status AotCompiler::CompileModule(
     std::unique_ptr<llvm::Module>&& module) {
   JitObserverRequests notification;
-  if (jit_observer_ != nullptr) {
-    notification = jit_observer_->GetNotificationOptions();
+  if (jit_options_.jit_observer() != nullptr) {
+    notification = jit_options_.jit_observer()->GetNotificationOptions();
   }
   if (notification.unoptimized_module) {
-    jit_observer_->UnoptimizedModule(module.get());
+    jit_options_.jit_observer()->UnoptimizedModule(module.get());
   }
   auto err = PerformStandardOptimization(module.get());
   if (err) {
@@ -218,7 +217,7 @@ absl::Status AotCompiler::CompileModule(
     XLS_RETURN_IF_ERROR(AddWeakEmuTls(*module, GetContext()));
   }
   if (notification.optimized_module) {
-    jit_observer_->OptimizedModule(module.get());
+    jit_options_.jit_observer()->OptimizedModule(module.get());
   }
   if (notification.assembly_code_str) {
     llvm::SmallVector<char, 0> asm_stream_buffer;
@@ -233,7 +232,7 @@ absl::Status AotCompiler::CompileModule(
     std::unique_ptr<llvm::Module> clone = llvm::CloneModule(*module);
     asm_mpm.run(*clone);
     std::string asm_code(asm_stream_buffer.begin(), asm_stream_buffer.end());
-    jit_observer_->AssemblyCodeString(module.get(), asm_code);
+    jit_options_.jit_observer()->AssemblyCodeString(module.get(), asm_code);
   }
   llvm::SmallVector<char, 0> stream_buffer;
   llvm::raw_svector_ostream ostream(stream_buffer);

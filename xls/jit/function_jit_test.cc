@@ -28,9 +28,6 @@
 #include <tuple>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
-#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -44,12 +41,16 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "llvm/include/llvm/IR/DataLayout.h"
 #include "xls/common/bits_util.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/interpreter/evaluator_options.h"
 #include "xls/interpreter/ir_evaluator_test_base.h"
 #include "xls/interpreter/observer.h"
 #include "xls/interpreter/random_value.h"
@@ -66,6 +67,7 @@
 #include "xls/ir/xls_type.pb.h"
 #include "xls/jit/function_base_jit.h"
 #include "xls/jit/jit_buffer.h"
+#include "xls/jit/jit_evaluator_options.h"
 #include "xls/jit/jit_runtime.h"
 #include "xls/jit/llvm_compiler.h"
 #include "xls/jit/observer.h"
@@ -89,12 +91,15 @@ using ::testing::Values;
 auto MakeJitWithOptLevel(bool with_observers, int64_t opt_level) {
   return IrEvaluatorTestParam(
       [=](Function* function, absl::Span<const Value> args,
+          const EvaluatorOptions& options,
           std::optional<EvaluationObserver*> obs)
           -> absl::StatusOr<InterpreterResult<Value>> {
         XLS_ASSIGN_OR_RETURN(
-            auto jit, FunctionJit::Create(
-                          function, /*opt_level=*/opt_level,
-                          /*include_observer_callbacks=*/obs.has_value()));
+            auto jit, FunctionJit::Create(function, EvaluatorOptions(),
+                                          JitEvaluatorOptions()
+                                              .set_opt_level(opt_level)
+                                              .set_include_observer_callbacks(
+                                                  obs.has_value())));
         std::optional<RuntimeEvaluationObserverAdapter> run_obs;
         if (obs) {
           run_obs.emplace(
@@ -109,12 +114,15 @@ auto MakeJitWithOptLevel(bool with_observers, int64_t opt_level) {
       },
       [=](Function* function,
           const absl::flat_hash_map<std::string, Value>& kwargs,
+          const EvaluatorOptions& /*options*/,
           std::optional<EvaluationObserver*> obs)
           -> absl::StatusOr<InterpreterResult<Value>> {
         XLS_ASSIGN_OR_RETURN(
-            auto jit, FunctionJit::Create(
-                          function, /*opt_level=*/opt_level,
-                          /*include_observer_callbacks=*/obs.has_value()));
+            auto jit, FunctionJit::Create(function, EvaluatorOptions(),
+                                          JitEvaluatorOptions()
+                                              .set_opt_level(opt_level)
+                                              .set_include_observer_callbacks(
+                                                  obs.has_value())));
         std::optional<RuntimeEvaluationObserverAdapter> run_obs;
         if (obs) {
           run_obs.emplace(
@@ -167,8 +175,9 @@ TEST(FunctionJitTest, MsanCatchesUninitializedInputs) {
   auto p1 = b.Param("cond", p.GetBitsType(8));
   b.Add(p1, p1);
   XLS_ASSERT_OK_AND_ASSIGN(Function * function, b.Build());
-  XLS_ASSERT_OK_AND_ASSIGN(auto jit,
-                           FunctionJit::Create(function, /*opt_level=*/1));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto jit, FunctionJit::Create(function, EvaluatorOptions(),
+                                    JitEvaluatorOptions().set_opt_level(1)));
   GTEST_SKIP()
       << "MSAN is not currently configured to check accesses within "
          "jit-functions due to bug: https://github.com/google/xls/issues/1418";
@@ -201,6 +210,23 @@ TEST(FunctionJitTest, MsanCatchesUninitializedInputs) {
         std::cerr << "output is " << static_cast<uint32_t>(mbv.GetValue());
       }(),
       ".*MemorySanitizer.*");
+}
+
+TEST(FunctionJitTest, TraceCallsUnsupported) {
+  Package p("TraceCallsUnsupported");
+  FunctionBuilder b("f", &p);
+  auto x = b.Param("x", p.GetBitsType(8));
+  auto y = b.Param("y", p.GetBitsType(8));
+  b.Add(x, y);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+
+  EvaluatorOptions eval_opts;
+  eval_opts.set_trace_calls(true);
+
+  auto st = FunctionJit::Create(f, eval_opts, JitEvaluatorOptions());
+  EXPECT_THAT(st.status(),
+              StatusIs(absl::StatusCode::kUnimplemented,
+                       HasSubstr("Tracing calls is not supported")));
 }
 
 TEST(FunctionJitTest, TraceFmtNoArgsTest) {
@@ -1178,8 +1204,9 @@ void TestPackedBitsWithType(const TypeProto& type_proto) {
                      /*jit_observer=*/nullptr));
   XLS_ASSERT_OK_AND_ASSIGN(llvm::DataLayout data_layout,
                            orc_jit->CreateDataLayout());
-  XLS_ASSERT_OK_AND_ASSIGN(JittedFunctionBase jit,
-                           JittedFunctionBase::Build(function, *orc_jit));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      JittedFunctionBase jit,
+      JittedFunctionBase::Build(function, *orc_jit, EvaluatorOptions()));
 
   std::minstd_rand bitgen;
   Value lhs_value = RandomValue(tpe, bitgen);
@@ -1243,8 +1270,9 @@ void TestPackedTupleWithType(const TypeProto& type_proto) {
                      /*jit_observer=*/nullptr));
   XLS_ASSERT_OK_AND_ASSIGN(llvm::DataLayout data_layout,
                            orc_jit->CreateDataLayout());
-  XLS_ASSERT_OK_AND_ASSIGN(JittedFunctionBase jit,
-                           JittedFunctionBase::Build(function, *orc_jit));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      JittedFunctionBase jit,
+      JittedFunctionBase::Build(function, *orc_jit, EvaluatorOptions()));
 
   std::minstd_rand bitgen;
   Value lhs_value = RandomValue(tuple_type, bitgen);
@@ -1313,8 +1341,9 @@ void TestPackedArrayWithType(const TypeProto& type_proto) {
                      /*jit_observer=*/nullptr));
   XLS_ASSERT_OK_AND_ASSIGN(llvm::DataLayout data_layout,
                            orc_jit->CreateDataLayout());
-  XLS_ASSERT_OK_AND_ASSIGN(JittedFunctionBase jit,
-                           JittedFunctionBase::Build(function, *orc_jit));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      JittedFunctionBase jit,
+      JittedFunctionBase::Build(function, *orc_jit, EvaluatorOptions()));
 
   std::vector<Bits> bits_vector;
   for (int i = 0; i < num_elements; i++) {

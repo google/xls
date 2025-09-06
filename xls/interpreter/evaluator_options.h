@@ -42,10 +42,18 @@ class EvaluatorOptions {
   }
   bool support_observers() const { return support_observers_; }
 
+  // Whether to emit a trace message for each interpreted Call.
+  EvaluatorOptions& set_trace_calls(bool value) {
+    trace_calls_ = value;
+    return *this;
+  }
+  bool trace_calls() const { return trace_calls_; }
+
  private:
   bool trace_channels_ = false;
   FormatPreference format_preference_ = FormatPreference::kDefault;
   bool support_observers_ = false;
+  bool trace_calls_ = false;
 };
 
 }  // namespace xls
