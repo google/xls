@@ -85,7 +85,7 @@ build_test(
 
 py_proto_library(
     name = "visualization_proto_py_pb2",
-    visibility = ["//xls:xls_internal"],
+    visibility = ["//visibility:private"],
     deps = [":visualization_proto"],
 )
 
