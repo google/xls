@@ -28,7 +28,7 @@ message AstGeneratorOptionsProto {
   // The maximum (inclusive) width for aggregate types; e.g. tuples and arrays.
   optional int64 max_width_aggregate_types = 3;
 
-  // Emit loops (currently not connected, loops are always generated).
+  // Whether to emit loops.
   optional bool emit_loops = 4;
 
   // Whether to emit `gate!()` builtin calls.

@@ -2525,15 +2525,17 @@ int OpProbability(OpChoice op) {
   LOG(FATAL) << "Invalid op choice: " << static_cast<int64_t>(op);
 }
 
-absl::discrete_distribution<int>& GetOpDistribution(bool generate_proc) {
+absl::discrete_distribution<int>& GetOpDistribution(bool generate_proc,
+                                                    bool emit_loops) {
   auto dist = [&](bool generate_proc) {
     static const std::set<int> proc_ops = {int{kChannelOp}, int{kJoinOp}};
     std::vector<int> tmp;
     tmp.reserve(int{kEndSentinel});
     for (int i = 0; i < int{kEndSentinel}; ++i) {
-      // When not generating a proc, do not generate proc operations by setting
-      // its probability to zero.
-      if (!generate_proc && proc_ops.find(i) != proc_ops.end()) {
+      // If there are things we shouldn't generate, prevent generating them by
+      // setting their probability to zero.
+      if ((!emit_loops && i == kCountedFor) ||
+          (!generate_proc && proc_ops.find(i) != proc_ops.end())) {
         tmp.push_back(0);
         continue;
       }
@@ -2549,8 +2551,10 @@ absl::discrete_distribution<int>& GetOpDistribution(bool generate_proc) {
   return func_dist;
 }
 
-OpChoice ChooseOp(absl::BitGenRef bit_gen, bool generate_proc) {
-  return static_cast<OpChoice>(GetOpDistribution(generate_proc)(bit_gen));
+OpChoice ChooseOp(absl::BitGenRef bit_gen, bool generate_proc,
+                  bool emit_loops) {
+  return static_cast<OpChoice>(
+      GetOpDistribution(generate_proc, emit_loops)(bit_gen));
 }
 
 }  // namespace
@@ -2559,7 +2563,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t call_depth,
                                                      Context* ctx) {
   absl::StatusOr<TypedExpr> generated = RecoverableError("Not yet generated.");
   while (IsRecoverableError(generated.status())) {
-    switch (ChooseOp(bit_gen_, ctx->is_generating_proc)) {
+    switch (ChooseOp(bit_gen_, ctx->is_generating_proc, options_.emit_loops)) {
       case kArray:
         generated = GenerateArray(ctx);
         break;
