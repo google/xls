@@ -61,7 +61,7 @@ _xls_dslx_opt_ir_attrs = dicts.add(
     xls_dslx_ir_attrs,
     xls_ir_opt_ir_attrs,
     CONFIG["xls_outs_attrs"],
-    xls_toolchain_attrs,
+    dicts.pick(xls_toolchain_attrs, ["_xls_ir_converter_tool", "_xls_opt_ir_tool"]),
 )
 
 def _xls_dslx_opt_ir_impl(ctx):
@@ -271,7 +271,12 @@ Examples:
         xls_eval_ir_test_attrs,
         xls_benchmark_ir_attrs,
         xls_ir_top_attrs,
-        xls_toolchain_attrs,
+        dicts.pick(xls_toolchain_attrs, [
+            "_xls_dslx_interpreter_tool",
+            "_xls_ir_equivalence_tool",
+            "_xls_ir_eval_tool",
+            "_xls_benchmark_ir_tool",
+        ]),
     ),
     test = True,
 )
@@ -323,7 +328,11 @@ _dslx_verilog_attrs = dicts.add(
     xls_ir_opt_ir_attrs,
     xls_ir_verilog_attrs,
     CONFIG["xls_outs_attrs"],
-    xls_toolchain_attrs,
+    dicts.pick(xls_toolchain_attrs, [
+        "_xls_ir_converter_tool",
+        "_xls_opt_ir_tool",
+        "_xls_codegen_tool",
+    ]),
 )
 
 xls_dslx_verilog = rule(

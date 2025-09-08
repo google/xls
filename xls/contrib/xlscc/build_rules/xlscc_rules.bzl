@@ -462,7 +462,7 @@ defined.
     attrs = dicts.add(
         _xls_cc_ir_attrs,
         CONFIG["xls_outs_attrs"],
-        xls_toolchain_attrs,
+        dicts.pick(xls_toolchain_attrs, ["_xlscc_tool"]),
     ),
 )
 
@@ -605,7 +605,7 @@ _cc_verilog_attrs = dicts.add(
     xls_ir_opt_ir_attrs,
     xls_ir_verilog_attrs,
     CONFIG["xls_outs_attrs"],
-    xls_toolchain_attrs,
+    dicts.pick(xls_toolchain_attrs, ["_xlscc_tool", "_xls_opt_ir_tool", "_xls_codegen_tool"]),
 )
 
 xls_cc_verilog = rule(

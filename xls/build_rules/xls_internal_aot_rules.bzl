@@ -168,7 +168,7 @@ xls_aot_generate = rule(
         xls_ir_top_attrs,
         _xls_aot_files_attrs,
         CONFIG["xls_outs_attrs"],
-        xls_toolchain_attrs,
+        dicts.pick(xls_toolchain_attrs, ["_xls_aot_compiler_tool"]),
     ),
     fragments = ["cpp"],
     toolchains = use_cpp_toolchain(),

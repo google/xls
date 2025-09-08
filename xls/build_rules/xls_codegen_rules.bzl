@@ -524,7 +524,7 @@ Example:
         xls_ir_common_attrs,
         xls_ir_verilog_attrs,
         CONFIG["xls_outs_attrs"],
-        xls_toolchain_attrs,
+        dicts.pick(xls_toolchain_attrs, ["_xls_codegen_tool"]),
         {
             "log_file": attr.label(
                 doc = "The file to log the output to.",
@@ -624,6 +624,9 @@ Example:
     ```
     """,
     implementation = _xls_benchmark_verilog_impl,
-    attrs = dicts.add(xls_benchmark_verilog_attrs, xls_toolchain_attrs),
+    attrs = dicts.add(
+        xls_benchmark_verilog_attrs,
+        dicts.pick(xls_toolchain_attrs, ["_xls_benchmark_codegen_tool"]),
+    ),
     executable = True,
 )
