@@ -263,9 +263,6 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceConstantDef(const ConstantDef* node,
     }
   }
 
-  WarnOnInappropriateConstantName(node->identifier(), node->span(),
-                                  *node->owner(), ctx->warnings());
-
   XLS_ASSIGN_OR_RETURN(InterpValue constexpr_value,
                        EvaluateConstexprValue(ctx, node->value()));
   ctx->type_info()->NoteConstExpr(node, constexpr_value);
@@ -380,13 +377,6 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceLet(const Let* node,
   XLS_RETURN_IF_ERROR(
       BindNames(node->name_def_tree(), *rhs, ctx, maybe_constexpr_value));
 
-  if (node->name_def_tree()->IsWildcardLeaf()) {
-    ctx->warnings()->Add(
-        node->name_def_tree()->span(), WarningKind::kUselessLetBinding,
-        "`let _ = expr;` statement can be simplified to `expr;` -- there is no "
-        "need for a `let` binding here");
-  }
-
   if (node->is_const()) {
     TypeInfo* ti = ctx->type_info();
     XLS_ASSIGN_OR_RETURN(InterpValue constexpr_value,
@@ -398,9 +388,6 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceLet(const Let* node,
 
     NameDef* name_def = node->name_def_tree()->GetNameDefs()[0];
     ti->NoteConstExpr(name_def, ti->GetConstExpr(node->rhs()).value());
-
-    WarnOnInappropriateConstantName(name_def->identifier(), node->span(),
-                                    *node->owner(), ctx->warnings());
   }
 
   VLOG(5) << "DeduceLet rhs: " << rhs->ToString();
@@ -751,101 +738,11 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceAttr(const Attr* node,
   return result_type;
 }
 
-// Returns whether "e" is definitely a meaningless expression-statement; i.e. if
-// in statement context definitely has no side-effects and thus should be
-// flagged.
-//
-// Note that some invocations of functions will have no side-effects and will be
-// meaningless, but because we don't look inside of callees to see if they are
-// side-effecting, we conservatively mark those as potentially useful.
-static bool DefinitelyMeaninglessExpression(Expr* e) {
-  absl::StatusOr<std::vector<AstNode*>> nodes_under_e =
-      CollectUnder(e, /*want_types=*/true);
-  if (!nodes_under_e.ok()) {
-    LOG(WARNING) << "Could not collect nodes under `" << e->ToString()
-                 << "`; status: " << nodes_under_e.status();
-    return false;
-  }
-  for (AstNode* n : nodes_under_e.value()) {
-    // In the DSL side effects can only be caused by invocations or
-    // invocation-like AST nodes.
-    switch (n->kind()) {
-      case AstNodeKind::kInvocation:
-      case AstNodeKind::kFormatMacro:
-      case AstNodeKind::kSpawn:
-        return false;
-      default:
-        continue;
-    }
-  }
-  return true;
-}
-
 absl::StatusOr<std::unique_ptr<Type>> DeduceStatement(const Statement* node,
                                                       DeduceCtx* ctx) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> result,
                        ctx->Deduce(ToAstNode(node->wrapped())));
   return result;
-}
-
-// Warns if the next-to-last statement in a block has a trailing semi and the
-// last statement is a nil tuple expression, as this is redundant; i.e.
-//
-//    {
-//      foo;
-//      ()  <-- useless, semi on previous statement implies it
-//    }
-static void DetectUselessTrailingTuplePattern(const StatementBlock* block,
-                                              DeduceCtx* ctx) {
-  // TODO(https://github.com/google/xls/issues/1124) 2023-08-31 Proc config
-  // parsing functions synthesize a tuple at the end, and we don't want to flag
-  // that since the user didn't even create it.
-  if (block->parent()->kind() == AstNodeKind::kFunction &&
-      dynamic_cast<const Function*>(block->parent())->tag() ==
-          FunctionTag::kProcConfig) {
-    return;
-  }
-
-  // Need at least a statement (i.e. with semicolon after it) and an
-  // expression-statement at the end to match this pattern.
-  if (block->statements().size() < 2) {
-    return;
-  }
-
-  // Make sure we ignore this if we're only following an implicit prologue (as
-  // is used to convert implicit-token-parameter semantics for now).
-  // TODO(https://github.com/google/xls/issues/1401): Remove once we no longer
-  // support implicit token parameter semantics.
-  const Statement* next_to_last_stmt =
-      block->statements()[block->statements().size() - 2];
-  if (next_to_last_stmt->GetSpan().has_value() &&
-      next_to_last_stmt->GetSpan()->limit() <=
-          block->span().start().BumpCol()) {
-    return;
-  }
-
-  // Trailing statement has to be an expression-statement.
-  const Statement* last_stmt = block->statements().back();
-  if (!std::holds_alternative<Expr*>(last_stmt->wrapped())) {
-    return;
-  }
-
-  // It has to be a tuple.
-  const auto* last_expr = std::get<Expr*>(last_stmt->wrapped());
-  auto* trailing_tuple = dynamic_cast<const XlsTuple*>(last_expr);
-  if (trailing_tuple == nullptr) {
-    return;
-  }
-
-  // Tuple has to be nil.
-  if (!trailing_tuple->empty()) {
-    return;
-  }
-
-  ctx->warnings()->Add(
-      trailing_tuple->span(), WarningKind::kTrailingTupleAfterSemi,
-      absl::StrFormat("Block has a trailing nil (empty) tuple after a "
-                      "semicolon -- this is implied, please remove it"));
 }
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceStatementBlock(
@@ -861,36 +758,6 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceStatementBlock(
     last = Type::MakeUnit();
   }
 
-  // We only want to check the last statement for "useless expression-statement"
-  // property if it is not yielding a value from a block; e.g.
-  //
-  //    {
-  //      my_invocation!();
-  //      u32:42  // <- ok, no trailing semi
-  //    }
-  //
-  // vs
-  //
-  //    {
-  //      my_invocation!();
-  //      u32:42;  // <- useless, trailing semi means block yields nil
-  //    }
-  const bool should_check_last_statement = node->trailing_semi();
-  for (int64_t i = 0; i < static_cast<int64_t>(node->statements().size()) -
-                              (should_check_last_statement ? 0 : 1);
-       ++i) {
-    const Statement* s = node->statements()[i];
-    if (std::holds_alternative<Expr*>(s->wrapped()) &&
-        DefinitelyMeaninglessExpression(std::get<Expr*>(s->wrapped()))) {
-      Expr* e = std::get<Expr*>(s->wrapped());
-      ctx->warnings()->Add(e->span(), WarningKind::kUselessExpressionStatement,
-                           absl::StrFormat("Expression statement `%s` appears "
-                                           "useless (i.e. has no side-effects)",
-                                           e->ToString()));
-    }
-  }
-
-  DetectUselessTrailingTuplePattern(node, ctx);
   return last;
 }
 

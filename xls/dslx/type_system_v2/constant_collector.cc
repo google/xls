@@ -251,9 +251,6 @@ class Visitor : public AstNodeVisitorWithDefault {
       // Reminder: we don't allow name destructuring in constant defs, so this
       // is expected to never fail.
       XLS_RET_CHECK_EQ(let->name_def_tree()->GetNameDefs().size(), 1);
-      NameDef* name_def = let->name_def_tree()->GetNameDefs()[0];
-      WarnOnInappropriateConstantName(name_def->identifier(), let->span(),
-                                      *let->owner(), &warning_collector_);
     } else if (!value.ok()) {
       return absl::OkStatus();
     }

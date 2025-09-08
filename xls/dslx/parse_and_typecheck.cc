@@ -33,6 +33,7 @@
 #include "xls/dslx/frontend/parser.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/scanner.h"
+#include "xls/dslx/frontend/semantics_analysis.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/type_system/type_info.h"
@@ -105,6 +106,10 @@ absl::StatusOr<TypecheckedModule> TypecheckModule(
   Module* module_ptr = module.get();
   XLS_ASSIGN_OR_RETURN(ImportTokens subject,
                        ImportTokens::FromString(module_name));
+
+  SemanticsAnalysis semantics_analysis;
+  XLS_RETURN_IF_ERROR(
+      semantics_analysis.RunPreTypeCheckPass(*module, warnings));
 
   using ExtendedTypecheckModuleFn =
       absl::StatusOr<std::unique_ptr<ModuleInfo>> (*)(

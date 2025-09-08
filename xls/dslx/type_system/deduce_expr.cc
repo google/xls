@@ -408,73 +408,6 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceString(const String* string,
   return std::make_unique<ArrayType>(BitsType::MakeU8(), std::move(dim));
 }
 
-static bool IsBlockJustUnitTuple(const StatementBlock& block) {
-  if (block.empty()) {
-    return true;
-  }
-  if (block.size() != 1) {
-    return false;
-  }
-  const Statement* statement = block.statements().front();
-  const Statement::Wrapped& wrapped = statement->wrapped();
-  if (!std::holds_alternative<Expr*>(wrapped)) {
-    return false;
-  }
-  const auto* expr = std::get<Expr*>(wrapped);
-  auto* tuple = dynamic_cast<const XlsTuple*>(expr);
-  if (tuple == nullptr) {
-    return false;
-  }
-  return tuple->empty();
-}
-
-static bool IsBlockWithOneFailStmt(const StatementBlock& block) {
-  if (block.size() != 1) {
-    return false;
-  }
-  const Statement* statement = block.statements().front();
-  const Statement::Wrapped& wrapped = statement->wrapped();
-  if (!std::holds_alternative<Expr*>(wrapped)) {
-    return false;
-  }
-  const auto* expr = std::get<Expr*>(wrapped);
-  auto* invocation = dynamic_cast<const Invocation*>(expr);
-  if (invocation == nullptr) {
-    return false;
-  }
-  Expr* callee = invocation->callee();
-  auto* name_ref = dynamic_cast<const NameRef*>(callee);
-  if (name_ref == nullptr) {
-    return false;
-  }
-  AnyNameDef any_name_def = name_ref->name_def();
-  if (!std::holds_alternative<BuiltinNameDef*>(any_name_def)) {
-    return false;
-  }
-  auto* bnd = std::get<BuiltinNameDef*>(any_name_def);
-  return bnd->identifier() == "fail!";
-}
-
-static void WarnOnConditionalContainingJustFailStatement(
-    const Conditional& node, DeduceCtx* ctx) {
-  const StatementBlock* consequent = node.consequent();
-  std::variant<StatementBlock*, Conditional*> alternate_ast_node =
-      node.alternate();
-  if (!std::holds_alternative<StatementBlock*>(alternate_ast_node)) {
-    return;
-  }
-  const StatementBlock* alternate =
-      std::get<StatementBlock*>(alternate_ast_node);
-
-  if (IsBlockWithOneFailStmt(*consequent) && IsBlockJustUnitTuple(*alternate)) {
-    std::string message = absl::StrFormat(
-        "`if test { fail!(...) } else { () }` pattern should be replaced with "
-        "`assert!(test, ...)`");
-    ctx->warnings()->Add(node.span(), WarningKind::kShouldUseAssert,
-                         std::move(message));
-  }
-}
-
 absl::StatusOr<std::unique_ptr<Type>> DeduceConditional(const Conditional* node,
                                                         DeduceCtx* ctx) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> test_type,
@@ -502,8 +435,6 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceConditional(const Conditional* node,
         "Conditional consequent type (in the 'then' clause) "
         "did not match alternative type (in the 'else' clause)");
   }
-
-  WarnOnConditionalContainingJustFailStatement(*node, ctx);
 
   return consequent_type;
 }
@@ -786,22 +717,6 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceTupleIndex(const TupleIndex* node,
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceXlsTuple(const XlsTuple* node,
                                                      DeduceCtx* ctx) {
-  // Give a warning if the tuple is on a single line, is more than one element,
-  // but has a trailing comma.
-  //
-  // Note: warning diagnostics and type checking are currently fused together,
-  // but this is a pure post-parsing warning -- currently type checking the pass
-  // that has a warning collector available.
-  if (node->span().start().lineno() == node->span().limit().lineno() &&
-      node->members().size() > 1 && node->has_trailing_comma()) {
-    std::string message = absl::StrFormat(
-        "Tuple expression (with >1 element) is on a single "
-        "line, but has a trailing comma.");
-    ctx->warnings()->Add(node->span(),
-                         WarningKind::kSingleLineTupleTrailingComma,
-                         std::move(message));
-  }
-
   std::vector<std::unique_ptr<Type>> members;
   for (Expr* e : node->members()) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> m, ctx->Deduce(e));

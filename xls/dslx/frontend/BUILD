@@ -664,6 +664,26 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "semantics_analysis",
+    srcs = ["semantics_analysis.cc"],
+    hdrs = ["semantics_analysis.h"],
+    deps = [
+        ":ast",
+        ":ast_node_visitor_with_default",
+        ":module",
+        ":pos",
+        ":token_utils",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:warning_collector",
+        "//xls/dslx:warning_kind",
+        "//xls/dslx/type_system:deduce_utils",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
 genrule(
     name = "builtin_stubs_gen",
     srcs = ["builtin_stubs.x"],
