@@ -104,7 +104,7 @@ distribution.
 
 On an average 8-core VM:
 
--   A full initial build **without the C++ front-end (e.g. "DSLX only") may take
+-   A full initial build **without the C++ front-end (e.g., "DSLX only") may take
     about 2 hours**,
 -   **Including the C++ front-end may take up to 6 hours.**
 
@@ -213,11 +213,11 @@ purpose, and correspond to the components in this XLS stack diagram:
 -   [`xls`](https://github.com/google/xls/tree/main/xls): Project-named
     subdirectory within the repository, in common Bazel-project style.
     -   [`build`](https://github.com/google/xls/tree/main/xls/BUILD): Build
-        macros that create XLS artifacts; e.g. convert DSL to IR, create test
+        macros that create XLS artifacts; e.g., convert DSL to IR, create test
         targets for DSL code, etc.
     -   [`codegen`](https://github.com/google/xls/tree/main/xls/codegen):
         Verilog AST (VAST) support to generate Verilog/SystemVerilog operations
-        and FSMs. VAST is built up by components we call *generators* (e.g.
+        and FSMs. VAST is built up by components we call *generators* (e.g.,
         PipelineGenerator, SequentialGenerator for FSMs) in the translation from
         XLS IR.
     -   [`common`](https://github.com/google/xls/tree/main/xls/common): "base"
@@ -231,7 +231,7 @@ purpose, and correspond to the components in this XLS stack diagram:
         interest for teams with existing C++ HLS code bases.
     -   [`data_structures`](https://github.com/google/xls/tree/main/xls/data_structures):
         Generic data structures used in XLS that augment standard libraries;
-        e.g. BDDs, union find, min cut, etc.
+        e.g., BDDs, union find, min cut, etc.
     -   [`delay_model`](https://github.com/google/xls/tree/main/xls/estimators/delay_model):
         Functionality to characterize, describe, and interpolate data delay for
         XLS IR operations on a target backend process. Already-characterized
@@ -239,7 +239,7 @@ purpose, and correspond to the components in this XLS stack diagram:
         be referred to via command line flags.
     -   [`dslx`](https://github.com/google/xls/tree/main/xls/dslx): A DSL
         (called "DSLX") that mimics Rust, while being an immutable
-        expression-language dataflow DSL with hardware-oriented features; e.g.
+        expression-language dataflow DSL with hardware-oriented features; e.g.,
         arbitrary bitwidths, entirely fixed size objects, fully analyzeable call
         graph. XLS team has found dataflow DSLs are a good fit to describe
         hardware as compared to languages designed assume von Neumann style
@@ -274,7 +274,7 @@ purpose, and correspond to the components in this XLS stack diagram:
         that run on the XLS IR as part of optimization, before scheduling / code
         generation.
     -   [`scheduling`](https://github.com/google/xls/tree/main/xls/scheduling):
-        Scheduling algorithms, determine when operations execute (e.g. which
+        Scheduling algorithms, determine when operations execute (e.g., which
         pipeline stage) in a clocked design.
     -   [`simulation`](https://github.com/google/xls/tree/main/xls/simulation):
         Code that wraps Verilog simulators and generates Verilog testbenches for
@@ -283,12 +283,12 @@ purpose, and correspond to the components in this XLS stack diagram:
         constructs.
     -   [`solvers`](https://github.com/google/xls/tree/main/xls/solvers):
         Converters from XLS IR into SMT solver input, such that formal proofs
-        can be run on XLS computations; e.g. Logical Equalence Checks between
+        can be run on XLS computations; e.g., Logical Equalence Checks between
         XLS IR and a netlist description. [Z3](https://github.com/Z3Prover/z3)
         is used as the solver engine.
     -   [`synthesis`](https://github.com/google/xls/tree/main/xls/synthesis):
         Interface that wraps backend synthesis flows, such that tools can be
-        retargeted e.g. between ASIC and FPGA flows.
+        retargeted e.g., between ASIC and FPGA flows.
     -   [`tests`](https://github.com/google/xls/tree/main/xls/tests):
         Integration tests that span various top-level components of the XLS
         project.
@@ -302,20 +302,20 @@ purpose, and correspond to the components in this XLS stack diagram:
 
 ## Community
 
-Discussions about XLS - development, debugging, usage, etc:
+Discussions about XLS - development, debugging, usage, etc.:
 
--   Ideally happen in the
+-   Ideally happen in
     [XLS repo GitHub discussions](https://github.com/google/xls/discussions)
 -   But, if you feel email is a better venue for the discussion, there is also
     an [xls-dev mailing list](https://groups.google.com/g/xls-dev) -- please
     prefer GitHub discussions if possible as they are searchable and can be
-    easily cross-referenced and converted to the issue tracker
+    easily cross-referenced and converted to an issue in the issue tracker
 
 ## Contributors
 
 The following are
 [contributors](https://github.com/google/xls/graphs/contributors) to the XLS
-project, see our
+project; see our
 [contributing documentation](https://google.github.io/xls/contributing/) and
 [good first issues](https://github.com/google/xls/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
 if you're interested in contributing, or reach out via
@@ -333,6 +333,7 @@ if you're interested in contributing, or reach out via
 -   [Chris Drake](https://github.com/cjdrake)
 -   [Chris Leary](https://github.com/cdleary)
 -   [Conor McCullough](https://github.com/crmymh)
+-   [David Plass](https://github.com/dplassgit)
 -   [Dan Killebrew](https://github.com/dkillebrew-g)
 -   [Derek Lockhart](https://github.com/dmlockhart)
 -   [Eric Astor](https://github.com/ericastor)
