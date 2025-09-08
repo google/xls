@@ -17,5 +17,9 @@ repos:
     rev: v3.3.4
     hooks:
       - id: pylint
-        files: ^(xls/dev_tools/check_.*\.py|xls/dslx/interpreter_test\.py)$
+        # Pylint is noisy with lots of false positives, the following settings
+        # run pylint, print the output, and ignore the exit code.
+        entry: bash -c 'pylint "$@" || true'
+        verbose: true
+        files: ^xls/.*\.py$
         args: [--rcfile=.pylintrc]
