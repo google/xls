@@ -33,7 +33,7 @@
 namespace xls {
 
 absl::StatusOr<std::unique_ptr<Package>> ClonePackage(
-    Package* p, std::optional<std::string_view> name) {
+    const Package* p, std::optional<std::string_view> name) {
   std::unique_ptr<Package> clone =
       std::make_unique<Package>(name.value_or(p->name()));
   absl::flat_hash_map<Channel*, Channel*> chan_map;

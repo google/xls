@@ -29,7 +29,7 @@ namespace xls {
 // Id numbers are not necessarily going to be identical, ordering of lists of
 // channels/fucntions/procs/blocks etc might not be identical.
 absl::StatusOr<std::unique_ptr<Package>> ClonePackage(
-    Package* p, std::optional<std::string_view> name = std::nullopt);
+    const Package* p, std::optional<std::string_view> name = std::nullopt);
 
 }  // namespace xls
 
