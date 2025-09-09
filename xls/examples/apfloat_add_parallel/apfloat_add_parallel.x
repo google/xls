@@ -354,7 +354,7 @@ fn r_exponent_differencer_test() {
 fn r_path<EXP_SZ: u32, FRACTION_SZ: u32>(a: apfloat::APFloat<EXP_SZ, FRACTION_SZ>,
                                          b: apfloat::APFloat<EXP_SZ, FRACTION_SZ>)
                                          -> (apfloat::APFloat<EXP_SZ, FRACTION_SZ>, bool) {
-    const SIGNIFICAND_WIDTH = FRACTION_SZ + u32:1;
+    const _SIGNIFICAND_WIDTH = FRACTION_SZ + u32:1;
 
     let (exp_diff_sign, up_diff, med_shift, use_far) = r_exponent_differencer(a, b);
 
@@ -391,7 +391,7 @@ fn r_path<EXP_SZ: u32, FRACTION_SZ: u32>(a: apfloat::APFloat<EXP_SZ, FRACTION_SZ
     type PaddedAlignedSignificand = sN[ALIGNED_SIGNIFICAND_FRACTION_BITS + u32:2];
     type AlignedSignificandWithRounding = uN[ALIGNED_SIGNIFICAND_FRACTION_BITS + u32:1];
 
-    let signed_small_significand = if exp_diff_sign {
+    let _signed_small_significand = if exp_diff_sign {
         signed_b_significand
     } else {
         signed_a_significand
@@ -408,14 +408,14 @@ fn r_path<EXP_SZ: u32, FRACTION_SZ: u32>(a: apfloat::APFloat<EXP_SZ, FRACTION_SZ
                        sign_adjusted_padding);
     let medium_shift_aligned_signed_small_significand =
         (padded_signed_small_significand >> med_shift) as AlignedSignificandWithRounding;
-    let aligned_signed_small_significand = if exponent_difference_is_big {
+    let _aligned_signed_small_significand = if exponent_difference_is_big {
         max_shift_aligned_small_significand
     } else {
         medium_shift_aligned_signed_small_significand
     };
 
     let larger_significand = if exp_diff_sign { b_significand } else { a_significand };
-    let preshifted_larger_significand = if effective_subtraction {
+    let _preshifted_larger_significand = if effective_subtraction {
         larger_significand ++ u1:0
     } else {
         u1:0 ++ larger_significand
@@ -423,7 +423,7 @@ fn r_path<EXP_SZ: u32, FRACTION_SZ: u32>(a: apfloat::APFloat<EXP_SZ, FRACTION_SZ
 
     // Under the assumptions of the R-Path, we also know the sign of the larger input is
     // the sign of the output
-    let far_sign = if exp_diff_sign { b.sign } else { a.sign };
+    let _far_sign = if exp_diff_sign { b.sign } else { a.sign };
 
     // Missing: shifted add and rounding magic.
 

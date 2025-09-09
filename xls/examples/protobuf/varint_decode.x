@@ -27,7 +27,7 @@ pub fn varint_decode_u32<NUM_BYTES:u32={std::clog2(u32:32)},
  bytes: u8[NUM_BYTES]) -> (u32, uN[LEN_WIDTH]) {
   type LenType = uN[LEN_WIDTH];
 
-  let (chunks, last_chunk, saw_last_chunk) =
+  let (chunks, last_chunk, _saw_last_chunk) =
    for (i, (chunks, last_chunk, saw_last_chunk)):
    (u32, (u7[NUM_BYTES], LenType, bool)) in u32:0..NUM_BYTES {
     let current_byte = bytes[i];
