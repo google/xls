@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+#include "xls/interpreter/function_interpreter.h"
 
 #include <cstdint>
 #include <optional>
@@ -69,7 +70,8 @@ class FunctionInterpreter final : public IrInterpreter {
 absl::StatusOr<InterpreterResult<Value>> InterpretFunction(
     Function* function, absl::Span<const Value> args,
     const EvaluatorOptions& options,
-    std::optional<EvaluationObserver*> observer, int call_depth) {
+    std::optional<EvaluationObserver*> observer, int call_depth,
+    std::optional<SourceInfo> call_site) {
   VLOG(3) << "Interpreting function " << function->name();
   if (args.size() != function->params().size()) {
     return absl::InvalidArgumentError(absl::StrFormat(
@@ -89,13 +91,32 @@ absl::StatusOr<InterpreterResult<Value>> InterpretFunction(
     }
   }
   FunctionInterpreter visitor(args, options, observer, call_depth);
+  // Helper to resolve a source filename for the provided SourceInfo, if any.
+  auto resolve_source_filename =
+      [&](const std::optional<SourceInfo>& info) -> std::optional<std::string> {
+    if (info.has_value() && !info->locations.empty()) {
+      const SourceLocation& loc = info->locations.front();
+      std::optional<std::string> fname =
+          function->package()->GetFilename(loc.fileno());
+      if (fname.has_value()) {
+        return fname;
+      }
+    }
+    return std::nullopt;
+  };
   if (options.trace_calls()) {
     visitor.GetInterpreterEvents().AddTraceCallMessage(
-        function->name(), args, call_depth, options.format_preference());
+        function->name(), args, call_depth, options.format_preference(),
+        call_site, resolve_source_filename(call_site));
   }
   XLS_RETURN_IF_ERROR(function->Accept(&visitor));
   Value result = visitor.ResolveAsValue(function->return_value());
   VLOG(2) << "Result = " << result;
+  if (options.trace_calls()) {
+    visitor.GetInterpreterEvents().AddTraceCallReturnMessage(
+        function->name(), call_depth, options.format_preference(), result,
+        call_site, resolve_source_filename(call_site));
+  }
   InterpreterEvents events = visitor.GetInterpreterEvents();
   return InterpreterResult<Value>{std::move(result), std::move(events)};
 }
@@ -107,8 +128,7 @@ absl::StatusOr<InterpreterResult<Value>> InterpretFunction(
   VLOG(2) << "Interpreting function " << function->name() << " with arguments:";
   XLS_ASSIGN_OR_RETURN(std::vector<Value> positional_args,
                        KeywordArgsToPositional(*function, args));
-  return InterpretFunction(function, positional_args, options, observer,
-                           /*call_depth=*/0);
+  return InterpretFunction(function, positional_args, options, observer);
 }
 
 }  // namespace xls
