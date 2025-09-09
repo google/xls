@@ -37,7 +37,7 @@ absl::StatusOr<InterpreterResult<Value>> InterpretFunction(
     Function* function, absl::Span<const Value> args,
     const EvaluatorOptions& options = EvaluatorOptions(),
     std::optional<EvaluationObserver*> observer = std::nullopt,
-    int call_depth = 0);
+    int call_depth = 0, std::optional<SourceInfo> call_site = std::nullopt);
 
 // Runs the interpreter on the function where the arguments are given by name.
 // Returns both the result alue and any events that happened while running.
