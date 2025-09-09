@@ -1648,8 +1648,7 @@ fn foo(x: MyU32) -> MyU32 {
                                                     "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(Function * foo,
                            module->GetMemberOrError<Function>("foo"));
-  XLS_ASSERT_OK_AND_ASSIGN(TypeAlias * alias,
-                           module->GetMemberOrError<TypeAlias>("MyU32"));
+  XLS_ASSERT_OK(module->GetMemberOrError<TypeAlias>("MyU32"));
 
   // Clone just the function into the same target module.
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(foo));
