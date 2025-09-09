@@ -182,6 +182,19 @@ static std::string InterpValueBitsToString(const InterpValue& v,
 
 std::string InterpValue::ToString(bool humanize,
                                   FormatPreference format) const {
+  std::string result = ToStringInternal(humanize, format);
+  if (tag_ == InterpValueTag::kUBits || tag_ == InterpValueTag::kUBits ||
+      tag_ == InterpValueTag::kSBits || tag_ == InterpValueTag::kTuple ||
+      tag_ == InterpValueTag::kArray || tag_ == InterpValueTag::kEnum ||
+      tag_ == InterpValueTag::kFunction || tag_ == InterpValueTag::kToken ||
+      tag_ == InterpValueTag::kChannelReference) {
+    return result;
+  }
+  LOG(FATAL) << "Unhandled tag: " << tag_;
+}
+
+std::string InterpValue::ToStringInternal(bool humanize,
+                                          FormatPreference format) const {
   auto make_guts = [&] {
     return absl::StrJoin(
         GetValuesOrDie(), ", ",
@@ -228,7 +241,7 @@ std::string InterpValue::ToString(bool humanize,
               ? absl::StrCat(*GetChannelReferenceOrDie().GetChannelId())
               : "none");
   }
-  LOG(FATAL) << "Unhandled tag: " << tag_;
+  return "<INVALID>";
 }
 
 static std::string IndentString(std::string_view s, int64_t n) {

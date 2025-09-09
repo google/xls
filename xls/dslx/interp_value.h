@@ -418,6 +418,10 @@ class InterpValue {
   absl::StatusOr<std::string> ToEnumString(
       const ValueFormatDescriptor& fmt_desc) const;
 
+  std::string ToStringInternal(
+      bool humanize = false,
+      FormatPreference format = FormatPreference::kDefault) const;
+
   // Note: currently InterpValues are not scoped to a lifetime, so we use a
   // shared_ptr for referring to token data for identity purposes.
   //

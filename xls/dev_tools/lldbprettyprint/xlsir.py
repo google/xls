@@ -303,7 +303,9 @@ def xls_interpvalue_summary(valobj, _):
     # TODO(allight): Consider rewriting in python.
     return (
         _maybe_deref(valobj)
-        .EvaluateExpression("this.ToHumanString()")
+        .EvaluateExpression(
+            "this.ToStringInternal(false, xls::FormatPreference::kDefault)"
+        )
         .GetSummary()
         .strip('"')
     )
