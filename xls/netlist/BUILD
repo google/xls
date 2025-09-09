@@ -339,7 +339,6 @@ cc_library(
         ":netlist_cc_proto",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",

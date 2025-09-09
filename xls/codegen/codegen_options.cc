@@ -21,7 +21,6 @@
 
 #include "absl/log/log.h"
 #include "absl/types/span.h"
-#include "xls/codegen/codegen_residual_data.pb.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/op_override.h"
 #include "xls/codegen/ram_configuration.h"

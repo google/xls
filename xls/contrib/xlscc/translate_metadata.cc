@@ -23,7 +23,7 @@
 #include "clang/include/clang/AST/DeclCXX.h"
 #include "clang/include/clang/AST/DeclTemplate.h"
 #include "clang/include/clang/AST/TemplateBase.h"
-#include "clang/include/clang/AST/Type.h"
+#include "clang/include/clang/AST/TypeBase.h"
 #include "clang/include/clang/Basic/LLVM.h"
 #include "clang/include/clang/Basic/SourceLocation.h"
 #include "clang/include/clang/Basic/SourceManager.h"

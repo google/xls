@@ -20,6 +20,7 @@
 #include <functional>
 #include <iostream>
 #include <list>
+#include <map>
 #include <memory>
 #include <optional>
 #include <set>
@@ -49,7 +50,7 @@
 #include "clang/include/clang/AST/Mangle.h"
 #include "clang/include/clang/AST/OperationKinds.h"
 #include "clang/include/clang/AST/Stmt.h"
-#include "clang/include/clang/AST/Type.h"
+#include "clang/include/clang/AST/TypeBase.h"
 #include "clang/include/clang/Basic/LLVM.h"
 #include "clang/include/clang/Basic/SourceLocation.h"
 #include "xls/contrib/xlscc/cc_parser.h"
@@ -65,6 +66,7 @@
 #include "xls/ir/fileno.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"

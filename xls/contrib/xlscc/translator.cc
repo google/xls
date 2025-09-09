@@ -62,7 +62,7 @@
 #include "clang/include/clang/AST/OperationKinds.h"
 #include "clang/include/clang/AST/Stmt.h"
 #include "clang/include/clang/AST/TemplateBase.h"
-#include "clang/include/clang/AST/Type.h"
+#include "clang/include/clang/AST/TypeBase.h"
 #include "clang/include/clang/Basic/ABI.h"
 #include "clang/include/clang/Basic/LLVM.h"
 #include "clang/include/clang/Basic/OperatorKinds.h"

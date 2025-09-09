@@ -19,6 +19,7 @@
 #include <string_view>
 
 #include "gmock/gmock.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/substitute.h"
 #include "xls/dslx/import_data.h"

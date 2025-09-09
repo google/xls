@@ -26,7 +26,7 @@
 #include "clang/include/clang/AST/DeclTemplate.h"
 #include "clang/include/clang/AST/Expr.h"
 #include "clang/include/clang/AST/ExprCXX.h"
-#include "clang/include/clang/AST/Type.h"
+#include "clang/include/clang/AST/TypeBase.h"
 #include "clang/include/clang/Basic/LLVM.h"
 #include "clang/include/clang/Basic/OperatorKinds.h"
 #include "xls/common/status/status_macros.h"

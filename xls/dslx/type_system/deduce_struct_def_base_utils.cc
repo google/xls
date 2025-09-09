@@ -20,17 +20,13 @@
 #include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
-#include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
-#include "xls/dslx/frontend/token_utils.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
-#include "xls/dslx/warning_kind.h"
 
 namespace xls::dslx {
 namespace {

@@ -28,7 +28,6 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/casts.h"
@@ -49,8 +48,6 @@
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/typecheck_invocation.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
-#include "xls/dslx/warning_collector.h"
-#include "xls/dslx/warning_kind.h"
 
 namespace xls::dslx {
 namespace {

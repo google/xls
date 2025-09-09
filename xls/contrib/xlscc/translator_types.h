@@ -38,7 +38,7 @@
 #include "clang/include/clang/AST/Expr.h"
 #include "clang/include/clang/AST/Mangle.h"
 #include "clang/include/clang/AST/Stmt.h"
-#include "clang/include/clang/AST/Type.h"
+#include "clang/include/clang/AST/TypeBase.h"
 #include "clang/include/clang/Basic/LLVM.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/contrib/xlscc/node_manipulation.h"
