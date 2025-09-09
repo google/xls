@@ -36,7 +36,7 @@ class TypecheckMainTest(absltest.TestCase):
         [_TYPECHECK_MAIN_PATH, mod_path, '--dslx_path=' + basedir],
         encoding='utf-8',
     )
-    self.assertIn('TYPE_REF :: `mod_simple_const_enum::MyEnum`', output)
+    self.assertIn('TYPE_ANNOTATION :: `mod_simple_const_enum::MyEnum`', output)
 
   def test_disable_warnings_as_errors(self):
     content = 'fn f() { let x = u32:42; }'
