@@ -33,6 +33,8 @@
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "re2/re2.h"
+#include "xls/dslx/bytecode/bytecode_interpreter.h"
 #include "xls/dslx/bytecode/bytecode_interpreter_options.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
@@ -45,12 +47,12 @@
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/virtualizable_file_system.h"
+#include "xls/ir/evaluator_result.pb.h"
 #include "xls/ir/events.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/function.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
-#include "re2/re2.h"
 
 namespace xls::dslx {
 
@@ -111,6 +113,9 @@ struct ParseAndTestOptions {
   std::optional<int64_t> max_ticks;
   std::function<std::unique_ptr<VirtualizableFilesystem>()> vfs_factory =
       nullptr;
+
+  // If non-null, adds a EvaluatorResultProto for each test.
+  xls::EvaluatorResultsProto* results_out = nullptr;
 };
 
 // As above, but a subset of the options required for the ParseAndProve()
@@ -235,7 +240,8 @@ class AbstractParsedTestRunner {
   virtual absl::StatusOr<RunResult> RunTestProc(
       std::string_view name, const BytecodeInterpreterOptions& options) = 0;
   virtual absl::StatusOr<RunResult> RunTestFunction(
-      std::string_view name, const BytecodeInterpreterOptions& options) = 0;
+      std::string_view name, const BytecodeInterpreterOptions& options,
+      std::optional<DslxInterpreterEvents*> events) = 0;
 };
 
 class DslxInterpreterTestRunner final : public AbstractTestRunner {
@@ -257,8 +263,8 @@ class DslxInterpreterParsedTestRunner : public AbstractParsedTestRunner {
       std::string_view name,
       const BytecodeInterpreterOptions& options) override;
   absl::StatusOr<RunResult> RunTestFunction(
-      std::string_view name,
-      const BytecodeInterpreterOptions& options) override;
+      std::string_view name, const BytecodeInterpreterOptions& options,
+      std::optional<DslxInterpreterEvents*> events) override;
 
  private:
   ImportData* import_data_;

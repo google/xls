@@ -18,15 +18,35 @@ package xls;
 
 import "xls/ir/xls_value.proto";
 
+message SourceLocationProto {
+  optional string filename = 1;
+  optional int64 line = 2;
+  optional int64 column = 3;
+}
+
 // Metadata about a message from a trace statement.
 message TraceStatementProto {
   optional int64 verbosity = 1;
 }
 
-// Message metadata for a function call when call tracing is enabled.
+// Message metadata for a function call when call tracing is enabled. There is
+// a one-to-one correspondence between a TraceCallProto and a
+// TraceCallReturnProto. The trace call is emitted as the function call is
+// made in the evaluator, and the trace call return is emitted as the function
+// returns. Log messages recorded between the call and return are beneath
+// the scope of the function call.
 message TraceCallProto {
   optional string function_name = 1;
   repeated ValueProto args = 2;
+  optional int64 call_depth = 3;
+}
+
+// Message metadata for a function return when call tracing is enabled.
+// There is a one-to-one correspondence between a TraceCallProto and a
+// TraceCallReturnProto.
+message TraceCallReturnProto {
+  optional string function_name = 1;
+  optional ValueProto return_value = 2;
   optional int64 call_depth = 3;
 }
 
@@ -40,16 +60,19 @@ message TraceNodeProto {
 // A trace message emitted during evaluation.
 message TraceMessageProto {
   optional string message = 1;
+  optional SourceLocationProto location = 2;
   oneof type {
-    TraceStatementProto statement = 2;
-    TraceCallProto call = 3;
-    TraceNodeProto node = 4;
+    TraceStatementProto statement = 3;
+    TraceCallProto call = 4;
+    TraceNodeProto node = 5;
+    TraceCallReturnProto call_return = 6;
   }
 }
 
 // An assertion message emitted during evaluation.
 message AssertMessageProto {
   string message = 1;
+  optional SourceLocationProto location = 2;
 }
 
 message EvaluatorEventsProto {

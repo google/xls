@@ -64,6 +64,7 @@ cc_library(
         "//xls/interpreter:random_value",
         "//xls/ir",
         "//xls/ir:bits",
+        "//xls/ir:evaluator_result_cc_proto",
         "//xls/ir:events",
         "//xls/ir:format_preference",
         "//xls/ir:op",
