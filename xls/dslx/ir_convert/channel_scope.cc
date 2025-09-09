@@ -121,9 +121,8 @@ absl::StatusOr<ChannelOrArray> ChannelScope::DefineChannelOrArrayInternal(
     return channel;
   }
   ChannelArray* array = &arrays_.emplace_back(ChannelArray(base_channel_name));
-  XLS_RET_CHECK(channel_arrays_.has_value());
   XLS_ASSIGN_OR_RETURN(std::vector<std::string> suffixes,
-                       channel_arrays_->CreateAllArrayElementSuffixes(*dims));
+                       CreateAllArrayElementSuffixes(*dims));
   for (const std::string& suffix : suffixes) {
     std::string channel_name =
         absl::StrCat(base_channel_name, kNameAndDimsSeparator, suffix);
@@ -288,6 +287,38 @@ std::string_view ChannelScope::GetBaseNameForChannelOrArray(
               },
               [](ChannelInterface* channel) { return channel->name(); }},
       channel_or_array);
+}
+
+absl::StatusOr<std::vector<std::string>>
+ChannelScope::CreateAllArrayElementSuffixes(const std::vector<Expr*>& dims) {
+  std::vector<std::string> strings;
+  // Note: dims are in the opposite of indexing order, and here we want to use
+  // them to produce index strings in indexing order, hence the backwards loop.
+  for (int64_t i = dims.size() - 1; i >= 0; --i) {
+    Expr* dim = dims[i];
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue dim_interp_value,
+        ConstexprEvaluator::EvaluateToValue(
+            import_data_, function_context_->type_info,
+            /*warning_collector=*/nullptr, function_context_->bindings, dim));
+    XLS_ASSIGN_OR_RETURN(int64_t dim_value,
+                         dim_interp_value.GetBitValueUnsigned());
+    std::vector<std::string> new_strings;
+    new_strings.reserve(dim_value * strings.size());
+    for (int64_t element_index = 0; element_index < dim_value;
+         element_index++) {
+      if (strings.empty()) {
+        new_strings.push_back(absl::StrCat(element_index));
+        continue;
+      }
+      for (const std::string& next : strings) {
+        new_strings.push_back(
+            absl::StrCat(next, kBetweenDimsSeparator, element_index));
+      }
+    }
+    strings = std::move(new_strings);
+  }
+  return strings;
 }
 
 absl::StatusOr<std::string> ChannelScope::CreateBaseChannelName(
