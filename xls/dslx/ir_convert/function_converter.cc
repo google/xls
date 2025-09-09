@@ -804,22 +804,21 @@ absl::Status FunctionConverter::HandleExternNameRef(
       imported_info->module->FindMemberWithName(node->identifier());
   XLS_RET_CHECK(member.has_value());
   return absl::visit(
-      Visitor{
-          [&](Function* f) { return DefAlias(f, /*to=*/node); },
-          [&](ConstantDef* c) -> absl::Status {
-            XLS_RET_CHECK(node_to_ir_.contains(c->value()))
-                << absl::StreamFormat(
-                       "ConstantDef `%s` not found in node_to_ir_ map",
-                       c->ToString());
-            return DefAlias(c->value(), /*to=*/node);
-          },
-          [&](auto) {
-            return absl::UnimplementedError(absl::StrFormat(
-                "Unsupported module member type %s for external name "
-                "reference: `%s` @ %s",
-                GetModuleMemberTypeName(*member.value()), node->identifier(),
-                node->span().ToString(file_table())));
-          }},
+      Visitor{[&](Function* f) { return DefAlias(f, /*to=*/node); },
+              [&](ConstantDef* c) -> absl::Status {
+                XLS_RET_CHECK(node_to_ir_.contains(c->value()))
+                    << absl::StreamFormat(
+                           "ConstantDef `%s` not found in node_to_ir_ map",
+                           c->ToString());
+                return DefAlias(c->value(), /*to=*/node);
+              },
+              [&](auto) {
+                return absl::UnimplementedError(absl::StrFormat(
+                    "Unsupported module member type %s for external name "
+                    "reference: `%s` @ %s",
+                    GetModuleMemberTypeName(*member.value()),
+                    node->identifier(), node->span().ToString(file_table())));
+              }},
       *member.value());
 }
 
@@ -1776,7 +1775,7 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
 
   Def(node, [&](const SourceInfo& loc) {
     BValue result = function_builder_->CountedFor(
-        init, trip_count, /*stride=*/1, ir_body_function, invariant_args);
+        init, trip_count, /*stride=*/1, ir_body_function, invariant_args, loc);
     // If a token was threaded through, we grab it and note it's an assertion
     // token.
     if (implicit_token_data_.has_value()) {
