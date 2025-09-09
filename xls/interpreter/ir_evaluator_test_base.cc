@@ -82,9 +82,9 @@ TEST_P(IrEvaluatorTestBase, InterpretObserver) {
   BValue res = fb.Add(p1, p2);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   CollectingEvaluationObserver observer;
-  ASSERT_THAT(
-      RunWithNoEvents(f, {Value(UBits(1, 32)), Value(UBits(2, 32))}, &observer),
-      IsOkAndHolds(Value(UBits(3, 32))));
+  ASSERT_THAT(RunWithNoEvents(f, {Value(UBits(1, 32)), Value(UBits(2, 32))},
+                              EvaluatorOptions(), &observer),
+              IsOkAndHolds(Value(UBits(3, 32))));
   EXPECT_THAT(
       observer.values(),
       UnorderedElementsAre(Pair(p1.node(), ElementsAre(Value(UBits(1, 32)))),
@@ -366,8 +366,8 @@ absl::Status RunZeroExtendTest(const IrEvaluatorTestParam& param,
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(formatted_ir));
   XLS_ASSIGN_OR_RETURN(Function * function, package->GetTopAsFunction());
 
-  EXPECT_THAT(DropInterpreterEvents(
-                  param.evaluator(function, /*args=*/{}, std::nullopt)),
+  EXPECT_THAT(DropInterpreterEvents(param.evaluator(
+                  function, /*args=*/{}, EvaluatorOptions(), std::nullopt)),
               IsOkAndHolds(Value(UBits(3, output_size))));
 
   return absl::OkStatus();
@@ -396,9 +396,9 @@ absl::Status RunSignExtendTest(const IrEvaluatorTestParam& param,
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(formatted_text));
   XLS_ASSIGN_OR_RETURN(Function * function, package->GetTopAsFunction());
   Value expected(bits_ops::SignExtend(input, new_bit_count));
-  EXPECT_THAT(
-      DropInterpreterEvents(param.evaluator(function, {}, std::nullopt)),
-      IsOkAndHolds(expected));
+  EXPECT_THAT(DropInterpreterEvents(param.evaluator(
+                  function, {}, EvaluatorOptions(), std::nullopt)),
+              IsOkAndHolds(expected));
   return absl::OkStatus();
 }
 
@@ -1556,8 +1556,8 @@ absl::Status RunConcatTest(const IrEvaluatorTestParam& param,
   XLS_ASSIGN_OR_RETURN(Function * function, package->GetTopAsFunction());
 
   Value expected(bits_ops::Concat({a.bits(), b.bits()}));
-  EXPECT_THAT(DropInterpreterEvents(
-                  param.kwargs_evaluator(function, kwargs, std::nullopt)),
+  EXPECT_THAT(DropInterpreterEvents(param.kwargs_evaluator(
+                  function, kwargs, EvaluatorOptions(), std::nullopt)),
               IsOkAndHolds(expected));
   return absl::OkStatus();
 }
@@ -2151,8 +2151,8 @@ absl::Status RunReverseTest(const IrEvaluatorTestParam& param,
   XLS_ASSIGN_OR_RETURN(Function * function, package->GetTopAsFunction());
 
   Value expected(bits_ops::Reverse(bits));
-  EXPECT_THAT(DropInterpreterEvents(
-                  param.evaluator(function, {Value(bits)}, std::nullopt)),
+  EXPECT_THAT(DropInterpreterEvents(param.evaluator(
+                  function, {Value(bits)}, EvaluatorOptions(), std::nullopt)),
               IsOkAndHolds(expected));
 
   return absl::OkStatus();
@@ -3360,9 +3360,9 @@ absl::Status RunBitSliceTest(const IrEvaluatorTestParam& param,
   std::reverse(bytes.begin(), bytes.end());
   Value expected(
       Bits::FromBytes(bytes, literal_width).Slice(slice_start, slice_width));
-  EXPECT_THAT(
-      DropInterpreterEvents(param.evaluator(function, {}, std::nullopt)),
-      IsOkAndHolds(expected));
+  EXPECT_THAT(DropInterpreterEvents(param.evaluator(
+                  function, {}, EvaluatorOptions(), std::nullopt)),
+              IsOkAndHolds(expected));
 
   return absl::OkStatus();
 }
@@ -3418,9 +3418,9 @@ absl::Status RunDynamicBitSliceTest(const IrEvaluatorTestParam& param,
     Bits truncated = shifted.Slice(0, slice_width);
     expected = Value(truncated);
   }
-  EXPECT_THAT(
-      DropInterpreterEvents(param.evaluator(function, {}, std::nullopt)),
-      IsOkAndHolds(expected));
+  EXPECT_THAT(DropInterpreterEvents(param.evaluator(
+                  function, {}, EvaluatorOptions(), std::nullopt)),
+              IsOkAndHolds(expected));
 
   return absl::OkStatus();
 }
@@ -3465,9 +3465,9 @@ absl::Status RunDynamicBitSliceTestLargeStart(const IrEvaluatorTestParam& param,
 
   // Clearly out of bounds
   Value expected = Value(Bits(slice_width));
-  EXPECT_THAT(
-      DropInterpreterEvents(param.evaluator(function, {}, std::nullopt)),
-      IsOkAndHolds(expected));
+  EXPECT_THAT(DropInterpreterEvents(param.evaluator(
+                  function, {}, EvaluatorOptions(), std::nullopt)),
+              IsOkAndHolds(expected));
 
   return absl::OkStatus();
 }
@@ -3517,8 +3517,8 @@ absl::Status RunBitwiseReduceTest(
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(formatted_ir));
   XLS_ASSIGN_OR_RETURN(Function * function, package->GetTopAsFunction());
 
-  EXPECT_THAT(DropInterpreterEvents(
-                  param.evaluator(function, {Value(bits)}, std::nullopt)),
+  EXPECT_THAT(DropInterpreterEvents(param.evaluator(
+                  function, {Value(bits)}, EvaluatorOptions(), std::nullopt)),
               IsOkAndHolds(generate_expected(bits)));
   return absl::OkStatus();
 }

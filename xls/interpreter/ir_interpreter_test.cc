@@ -24,6 +24,7 @@
 #include "absl/status/status_matchers.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
+#include "xls/interpreter/evaluator_options.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/interpreter/ir_evaluator_test_base.h"
 #include "xls/interpreter/observer.h"
@@ -51,13 +52,15 @@ INSTANTIATE_TEST_SUITE_P(
     IrInterpreterTest, IrEvaluatorTestBase,
     testing::Values(IrEvaluatorTestParam(
         [](Function* function, absl::Span<const Value> args,
+           const EvaluatorOptions& options,
            std::optional<EvaluationObserver*> obs) {
-          return InterpretFunction(function, args, obs);
+          return InterpretFunction(function, args, options, obs);
         },
         [](Function* function,
            const absl::flat_hash_map<std::string, Value>& kwargs,
+           const EvaluatorOptions& options,
            std::optional<EvaluationObserver*> obs) {
-          return InterpretFunctionKwargs(function, kwargs, obs);
+          return InterpretFunctionKwargs(function, kwargs, options, obs);
         },
         true, "IrInterpreter")),
     testing::PrintToStringParamName());
@@ -88,6 +91,47 @@ TEST_F(IrInterpreterOnlyTest, EvaluateNode) {
               IsOkAndHolds(Value(UBits(0b1011, 4))));
   EXPECT_THAT(InterpretNode(FindNode("literal.1", function), {}),
               IsOkAndHolds(Value(UBits(6, 4))));
+}
+
+TEST_F(IrInterpreterOnlyTest, TraceCalls) {
+  Package p("trace_calls");
+
+  // inner(a, b) = a + b
+  FunctionBuilder inner_b("inner", &p);
+  auto a = inner_b.Param("a", p.GetBitsType(8));
+  auto b = inner_b.Param("b", p.GetBitsType(8));
+  inner_b.Add(a, b);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * inner, inner_b.Build());
+
+  // mid(x, y) = inner(x, y)
+  FunctionBuilder mid_b("mid", &p);
+  auto x = mid_b.Param("x", p.GetBitsType(8));
+  auto y = mid_b.Param("y", p.GetBitsType(8));
+  mid_b.Invoke({x, y}, inner);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * mid, mid_b.Build());
+
+  // top(m, n) = mid(m, n) + inner(m, n)
+  FunctionBuilder top_b("my_function", &p);
+  auto m = top_b.Param("m", p.GetBitsType(8));
+  auto n = top_b.Param("n", p.GetBitsType(8));
+  auto v1 = top_b.Invoke({m, n}, mid);
+  auto v2 = top_b.Invoke({n, m}, inner);
+  top_b.Add(v1, v2);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * top, top_b.Build());
+
+  EvaluatorOptions opts;
+  opts.set_trace_calls(true);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpreterResult<Value> result,
+      InterpretFunction(top, {Value(UBits(1, 8)), Value(UBits(2, 8))}, opts));
+
+  // Calls should be recorded in order: top, mid, inner (from within mid),
+  // then inner (direct from top). Arguments should be included.
+  ASSERT_EQ(result.events.trace_msgs.size(), 4);
+  EXPECT_EQ(result.events.trace_msgs[0].message, "my_function(1, 2)");
+  EXPECT_EQ(result.events.trace_msgs[1].message, "  mid(1, 2)");
+  EXPECT_EQ(result.events.trace_msgs[2].message, "    inner(1, 2)");
+  EXPECT_EQ(result.events.trace_msgs[3].message, "  inner(2, 1)");
 }
 
 TEST_F(IrInterpreterOnlyTest, SideEffectingNodes) {

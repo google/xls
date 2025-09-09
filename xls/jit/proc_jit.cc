@@ -50,6 +50,7 @@
 #include "xls/jit/jit_buffer.h"
 #include "xls/jit/jit_callbacks.h"
 #include "xls/jit/jit_channel_queue.h"
+#include "xls/jit/jit_evaluator_options.h"
 #include "xls/jit/jit_runtime.h"
 #include "xls/jit/llvm_compiler.h"
 #include "xls/jit/observer.h"
@@ -319,11 +320,11 @@ absl::Status InitializeChannelQueues(
 /* static */ absl::StatusOr<std::unique_ptr<ProcJit>> ProcJit::CreateFromAot(
     Proc* proc, JitRuntime* jit_runtime, JitChannelQueueManager* queue_mgr,
     const AotEntrypointProto& entrypoint, JitFunctionType unpacked,
-    std::optional<JitFunctionType> packed) {
+    std::optional<JitFunctionType> packed, const EvaluatorOptions& options) {
   // TODO(allight): Supporting observer callbacks in aot would be nice.
   auto jit = std::unique_ptr<ProcJit>(
       new ProcJit(proc, jit_runtime, queue_mgr, /*orc_jit=*/nullptr,
-                  /*has_observer_callbacks=*/false));
+                  /*has_observer_callbacks=*/false, options));
   XLS_ASSIGN_OR_RETURN(
       jit->jitted_function_base_,
       JittedFunctionBase::BuildFromAot(entrypoint, unpacked, packed));
@@ -335,16 +336,18 @@ absl::Status InitializeChannelQueues(
 
 absl::StatusOr<std::unique_ptr<ProcJit>> ProcJit::Create(
     Proc* proc, JitRuntime* jit_runtime, JitChannelQueueManager* queue_mgr,
-    bool include_observer_callbacks, JitObserver* jit_observer) {
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<OrcJit> orc_jit,
-      OrcJit::Create(LlvmCompiler::kDefaultOptLevel, include_observer_callbacks,
-                     jit_observer));
+    const EvaluatorOptions& options, const JitEvaluatorOptions& jit_options) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<OrcJit> orc_jit,
+                       OrcJit::Create(jit_options.opt_level(),
+                                      jit_options.include_observer_callbacks(),
+                                      jit_options.jit_observer()));
   auto jit = absl::WrapUnique(
       new ProcJit(proc, jit_runtime, queue_mgr, std::move(orc_jit),
-                  /*has_observer_callbacks=*/include_observer_callbacks));
-  XLS_ASSIGN_OR_RETURN(jit->jitted_function_base_,
-                       JittedFunctionBase::Build(proc, jit->GetOrcJit()));
+                  jit_options.include_observer_callbacks(), options));
+  XLS_ASSIGN_OR_RETURN(
+      jit->jitted_function_base_,
+      JittedFunctionBase::Build(proc, jit->GetOrcJit(), options,
+                                jit_options.symbol_salt()));
   XLS_RET_CHECK(jit->jitted_function_base_.InputsAndOutputsAreEquivalent());
 
   XLS_RETURN_IF_ERROR(InitializeChannelQueues(

@@ -1281,7 +1281,11 @@ JitTempBuffer JittedFunctionBase::CreateTempBuffer() const {
 // dependent xls::Functions which may be called by `xls_function`.
 absl::StatusOr<JittedFunctionBase> JittedFunctionBase::BuildInternal(
     FunctionBase* xls_function, JitBuilderContext& jit_context,
-    bool build_packed_wrapper) {
+    const EvaluatorOptions& options, bool build_packed_wrapper) {
+  if (options.trace_calls()) {
+    return absl::UnimplementedError(
+        "Tracing calls is not supported in the JIT");
+  }
   std::vector<FunctionBase*> functions = GetDependentFunctions(xls_function);
   BufferAllocator allocator(&jit_context.type_converter());
   llvm::Function* top_function = nullptr;
@@ -1382,23 +1386,25 @@ absl::StatusOr<JittedFunctionBase> JittedFunctionBase::BuildInternal(
 
 absl::StatusOr<JittedFunctionBase> JittedFunctionBase::Build(
     Function* xls_function, LlvmCompiler& compiler,
-    std::string_view symbol_salt) {
+    const EvaluatorOptions& options, std::string_view symbol_salt) {
   JitBuilderContext jit_context(compiler, xls_function, symbol_salt);
-  return JittedFunctionBase::BuildInternal(xls_function, jit_context,
+  return JittedFunctionBase::BuildInternal(xls_function, jit_context, options,
                                            /*build_packed_wrapper=*/true);
 }
 
 absl::StatusOr<JittedFunctionBase> JittedFunctionBase::Build(
-    Proc* proc, LlvmCompiler& compiler, std::string_view symbol_salt) {
+    Proc* proc, LlvmCompiler& compiler, const EvaluatorOptions& options,
+    std::string_view symbol_salt) {
   JitBuilderContext jit_context(compiler, proc, symbol_salt);
-  return JittedFunctionBase::BuildInternal(proc, jit_context,
+  return JittedFunctionBase::BuildInternal(proc, jit_context, options,
                                            /*build_packed_wrapper=*/false);
 }
 
 absl::StatusOr<JittedFunctionBase> JittedFunctionBase::Build(
-    Block* block, LlvmCompiler& compiler, std::string_view symbol_salt) {
+    Block* block, LlvmCompiler& compiler, const EvaluatorOptions& options,
+    std::string_view symbol_salt) {
   JitBuilderContext jit_context(compiler, block, symbol_salt);
-  return JittedFunctionBase::BuildInternal(block, jit_context,
+  return JittedFunctionBase::BuildInternal(block, jit_context, options,
                                            /*build_packed_wrapper=*/false);
 }
 

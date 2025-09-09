@@ -32,6 +32,7 @@
 #include "llvm/include/llvm/Support/Error.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/interpreter/evaluator_options.h"
 #include "xls/ir/events.h"
 #include "xls/ir/function.h"
 #include "xls/ir/keyword_args.h"
@@ -44,8 +45,8 @@
 #include "xls/jit/aot_compiler.h"
 #include "xls/jit/aot_entrypoint.pb.h"
 #include "xls/jit/function_base_jit.h"
+#include "xls/jit/jit_evaluator_options.h"
 #include "xls/jit/jit_runtime.h"
-#include "xls/jit/observer.h"
 #include "xls/jit/orc_jit.h"
 
 namespace xls {
@@ -95,10 +96,9 @@ FunctionJit::InterfaceMetadata::CreateFromAotEntrypoint(
 }
 
 absl::StatusOr<std::unique_ptr<FunctionJit>> FunctionJit::Create(
-    Function* xls_function, int64_t opt_level, bool include_observer_callbacks,
-    JitObserver* jit_observer) {
-  return CreateInternal(xls_function, opt_level, include_observer_callbacks,
-                        jit_observer);
+    Function* xls_function, const EvaluatorOptions& options,
+    const JitEvaluatorOptions& jit_options) {
+  return CreateInternal(xls_function, options, jit_options);
 }
 
 // Returns an object containing an AOT-compiled version of the specified XLS
@@ -107,7 +107,8 @@ absl::StatusOr<std::unique_ptr<FunctionJit>> FunctionJit::Create(
 FunctionJit::CreateFromAot(const AotEntrypointProto& entrypoint,
                            std::string_view data_layout,
                            JitFunctionType function_unpacked,
-                           std::optional<JitFunctionType> function_packed) {
+                           std::optional<JitFunctionType> function_packed,
+                           const EvaluatorOptions& options) {
   XLS_ASSIGN_OR_RETURN(JittedFunctionBase jfb,
                        JittedFunctionBase::BuildFromAot(
                            entrypoint, function_unpacked, function_packed));
@@ -130,14 +131,14 @@ FunctionJit::CreateFromAot(const AotEntrypointProto& entrypoint,
 }
 
 absl::StatusOr<JitObjectCode> FunctionJit::CreateObjectCode(
-    Function* xls_function, int64_t opt_level, bool include_msan,
-    JitObserver* observer, std::string_view symbol_salt) {
+    Function* xls_function, const EvaluatorOptions& options,
+    const JitEvaluatorOptions& jit_options) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<AotCompiler> comp,
-                       AotCompiler::Create(include_msan, opt_level, observer));
+                       AotCompiler::Create(jit_options));
   XLS_ASSIGN_OR_RETURN(llvm::DataLayout data_layout, comp->CreateDataLayout());
-  XLS_ASSIGN_OR_RETURN(
-      JittedFunctionBase jfb,
-      JittedFunctionBase::Build(xls_function, *comp, symbol_salt));
+  XLS_ASSIGN_OR_RETURN(JittedFunctionBase jfb,
+                       JittedFunctionBase::Build(xls_function, *comp, options,
+                                                 jit_options.symbol_salt()));
   XLS_ASSIGN_OR_RETURN(auto obj_code, std::move(comp)->GetObjectCode());
   return JitObjectCode{.object_code = std::move(obj_code),
                        .entrypoints =
@@ -151,21 +152,27 @@ absl::StatusOr<JitObjectCode> FunctionJit::CreateObjectCode(
 }
 
 absl::StatusOr<std::unique_ptr<FunctionJit>> FunctionJit::CreateInternal(
-    Function* xls_function, int64_t opt_level, bool include_observer_callbacks,
-    JitObserver* jit_observer) {
-  XLS_ASSIGN_OR_RETURN(
-      auto orc_jit,
-      OrcJit::Create(opt_level, include_observer_callbacks, jit_observer));
+    Function* xls_function, const EvaluatorOptions& options,
+    const JitEvaluatorOptions& jit_options) {
+  XLS_ASSIGN_OR_RETURN(auto orc_jit,
+                       OrcJit::Create(jit_options.opt_level(),
+                                      jit_options.include_observer_callbacks(),
+                                      jit_options.jit_observer()));
   XLS_ASSIGN_OR_RETURN(llvm::DataLayout data_layout,
                        orc_jit->CreateDataLayout());
-  XLS_ASSIGN_OR_RETURN(auto function_base,
-                       JittedFunctionBase::Build(xls_function, *orc_jit));
+  EvaluatorOptions eval_options = options;
+  eval_options.set_support_observers(jit_options.include_observer_callbacks());
+  XLS_ASSIGN_OR_RETURN(
+      auto function_base,
+      JittedFunctionBase::Build(xls_function, *orc_jit, eval_options,
+                                jit_options.symbol_salt()));
 
   XLS_ASSIGN_OR_RETURN(InterfaceMetadata metadata,
                        InterfaceMetadata::CreateFromFunction(xls_function));
   return std::unique_ptr<FunctionJit>(new FunctionJit(
       std::move(metadata), std::move(orc_jit), std::move(function_base),
-      include_observer_callbacks, std::make_unique<JitRuntime>(data_layout)));
+      jit_options.include_observer_callbacks(),
+      std::make_unique<JitRuntime>(data_layout)));
 }
 
 absl::StatusOr<InterpreterResult<Value>> FunctionJit::Run(

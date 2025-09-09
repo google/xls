@@ -214,6 +214,7 @@ cc_binary(
         "//xls/ir:value_utils",
         "//xls/jit:function_jit",
         "//xls/jit:jit_buffer",
+        "//xls/jit:jit_evaluator_options",
         "//xls/jit:observer",
         "//xls/passes",
         "//xls/passes:optimization_pass",

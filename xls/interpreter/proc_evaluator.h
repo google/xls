@@ -25,6 +25,7 @@
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "xls/interpreter/evaluator_options.h"
 #include "xls/interpreter/observer.h"
 #include "xls/ir/events.h"
 #include "xls/ir/proc.h"
@@ -130,7 +131,7 @@ std::ostream& operator<<(std::ostream& os, const TickResult& result);
 // Abstract base class for evaluators of procs (e.g., interpreter or JIT).
 class ProcEvaluator {
  public:
-  explicit ProcEvaluator(Proc* proc);
+  ProcEvaluator(Proc* proc, const EvaluatorOptions& options);
   virtual ~ProcEvaluator() = default;
 
   // Creates and returns a new continuation for the proc. The continuation is
@@ -152,9 +153,12 @@ class ProcEvaluator {
   // Returns true if the proc has any send or receive nodes.
   bool ProcHasIoOperations() const { return has_io_operations_; }
 
+  const EvaluatorOptions& options() const { return options_; }
+
  private:
   Proc* proc_;
   bool has_io_operations_;
+  EvaluatorOptions options_;
 };
 
 }  // namespace xls

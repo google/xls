@@ -577,8 +577,7 @@ absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
           << (invocation_data->caller() == nullptr
                   ? "nullptr"
                   : invocation_data->caller()->identifier())
-          << "`"
-          << " caller_bindings: " << caller_bindings;
+          << "` caller_bindings: " << caller_bindings;
     }
 
     const InvocationCalleeData& callee_data =
@@ -652,6 +651,20 @@ absl::Status BytecodeInterpreter::EvalCall(const Bytecode& bytecode) {
                        PopArgsRightToLeft(remaining_args));
   if (first_arg.has_value()) {
     args.insert(args.begin(), *first_arg);
+  }
+
+  // Optionally emit a trace message of the function name and arguments.
+  if (options_.trace_calls() && options_.trace_hook()) {
+    std::vector<std::string> arg_strs;
+    arg_strs.reserve(args.size());
+    for (const InterpValue& a : args) {
+      arg_strs.push_back(
+          a.ToString(/*humanize=*/false, options_.format_preference()));
+    }
+    std::string message = absl::StrFormat("%*s%s(%s)", 2 * frames_.size(), "",
+                                          user_fn_data.function->identifier(),
+                                          absl::StrJoin(arg_strs, ", "));
+    options_.trace_hook()(bytecode.source_span(), message);
   }
 
   std::vector<InterpValue> args_copy = args;

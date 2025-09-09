@@ -567,8 +567,9 @@ absl::Status IrInterpreter::HandleInvoke(Invoke* invoke) {
   for (int64_t i = 0; i < to_apply->params().size(); ++i) {
     args.push_back(ResolveAsValue(invoke->operand(i)));
   }
-  XLS_ASSIGN_OR_RETURN(InterpreterResult<Value> result,
-                       InterpretFunction(to_apply, args));
+  XLS_ASSIGN_OR_RETURN(
+      InterpreterResult<Value> result,
+      InterpretFunction(to_apply, args, options_, observer_, call_depth_ + 1));
   XLS_RETURN_IF_ERROR(AddInterpreterEvents(result.events));
   return SetValueResult(invoke, result.value);
 }

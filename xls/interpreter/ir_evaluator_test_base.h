@@ -33,6 +33,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/interpreter/evaluator_options.h"
 #include "xls/interpreter/observer.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/events.h"
@@ -51,6 +52,7 @@ struct IrEvaluatorTestParam {
   // [positional] args.
   using EvaluatorFnT = std::function<absl::StatusOr<InterpreterResult<Value>>(
       Function* function, absl::Span<const Value> args,
+      const EvaluatorOptions& options,
       std::optional<EvaluationObserver*> observer)>;
 
   // Function to perform evaluation of the specified program with the given
@@ -59,6 +61,7 @@ struct IrEvaluatorTestParam {
       std::function<absl::StatusOr<InterpreterResult<Value>>(
           Function* function,
           const absl::flat_hash_map<std::string, Value>& kwargs,
+          const EvaluatorOptions& options,
           std::optional<EvaluationObserver*> observer)>;
 
   IrEvaluatorTestParam(EvaluatorFnT evaluator_in,
@@ -116,17 +119,19 @@ class IrEvaluatorTestBase
   // events generated.
   absl::StatusOr<InterpreterResult<Value>> RunWithEvents(
       Function* f, absl::Span<const Value> args,
+      const EvaluatorOptions& options = EvaluatorOptions(),
       std::optional<EvaluationObserver*> observer = std::nullopt) {
-    return GetParam().evaluator(f, args, observer);
+    return GetParam().evaluator(f, args, options, observer);
   }
 
   // Runs the given function with Values as input, checking that no traces or
   // assertion failures are recorded.
   absl::StatusOr<Value> RunWithNoEvents(
       Function* f, absl::Span<const Value> args,
+      const EvaluatorOptions& options = EvaluatorOptions(),
       std::optional<EvaluationObserver*> observer = std::nullopt) {
     XLS_ASSIGN_OR_RETURN(InterpreterResult<Value> result,
-                         GetParam().evaluator(f, args, observer));
+                         GetParam().evaluator(f, args, options, observer));
 
     if (!result.events.trace_msgs.empty()) {
       std::vector<std::string_view> trace_messages;
@@ -153,8 +158,9 @@ class IrEvaluatorTestBase
       XLS_RET_CHECK(f->param(i)->GetType()->IsBits());
       value_args.push_back(Value(UBits(args[i], f->param(i)->BitCountOrDie())));
     }
-    XLS_ASSIGN_OR_RETURN(Value value_result,
-                         RunWithNoEvents(f, value_args, observer));
+    XLS_ASSIGN_OR_RETURN(
+        Value value_result,
+        RunWithNoEvents(f, value_args, EvaluatorOptions(), observer));
     XLS_RET_CHECK(value_result.IsBits());
     return value_result.bits().ToUint64();
   }
@@ -177,11 +183,11 @@ class IrEvaluatorTestBase
   // Runs the given function with keyword arguments as input, checking that no
   // events are generated.
   absl::StatusOr<Value> RunWithKwargsNoEvents(
-      Function* function,
-      const absl::flat_hash_map<std::string, Value>& kwargs) {
+      Function* function, const absl::flat_hash_map<std::string, Value>& kwargs,
+      const EvaluatorOptions& options = EvaluatorOptions()) {
     XLS_ASSIGN_OR_RETURN(
         InterpreterResult<Value> result,
-        GetParam().kwargs_evaluator(function, kwargs, std::nullopt));
+        GetParam().kwargs_evaluator(function, kwargs, options, std::nullopt));
     XLS_RET_CHECK(result.events.trace_msgs.empty());
     XLS_RET_CHECK(result.events.assert_msgs.empty());
     return result.value;

@@ -126,7 +126,8 @@ TEST_F(FunctionJitAotTest, CallAot) {
       auto test_aot, FunctionJit::CreateFromAot(
                          proto.entrypoint(0), proto.data_layout(),
                          __multi_func_with_trace__multi_function_one,
-                         __multi_func_with_trace__multi_function_one_packed));
+                         __multi_func_with_trace__multi_function_one_packed,
+                         EvaluatorOptions()));
   // Value
   {
     XLS_ASSERT_OK_AND_ASSIGN(auto res, test_aot->Run({Value(UBits(3, 8))}));

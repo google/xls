@@ -20,6 +20,7 @@
 
 #include "absl/status/statusor.h"
 #include "xls/interpreter/channel_queue.h"
+#include "xls/interpreter/evaluator_options.h"
 #include "xls/interpreter/proc_evaluator.h"
 #include "xls/ir/node.h"
 #include "xls/ir/proc.h"
@@ -32,7 +33,8 @@ namespace xls {
 // are thread-safe if called with different continuations.
 class ProcInterpreter : public ProcEvaluator {
  public:
-  ProcInterpreter(Proc* proc, ChannelQueueManager* queue_manager);
+  ProcInterpreter(Proc* proc, ChannelQueueManager* queue_manager,
+                  const EvaluatorOptions& options = EvaluatorOptions());
   ProcInterpreter(const ProcInterpreter&) = delete;
   ProcInterpreter operator=(const ProcInterpreter&) = delete;
 

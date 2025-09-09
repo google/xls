@@ -57,6 +57,15 @@ package(
 )
 
 cc_library(
+    name = "jit_evaluator_options",
+    hdrs = ["jit_evaluator_options.h"],
+    deps = [
+        ":llvm_compiler",
+        ":observer",
+    ],
+)
+
+cc_library(
     name = "observer",
     srcs = ["observer.cc"],
     hdrs = ["observer.h"],
@@ -103,6 +112,7 @@ cc_binary(
         ":function_base_jit",
         ":function_jit",
         ":jit_buffer",
+        ":jit_evaluator_options",
         ":jit_proc_runtime",
         ":llvm_compiler",
         ":llvm_type_converter",
@@ -399,6 +409,7 @@ cc_library(
     visibility = ["//xls:xls_users"],
     deps = [
         ":function_jit",
+        ":jit_evaluator_options",
         ":observer",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -442,11 +453,13 @@ cc_library(
         ":function_base_jit",
         ":jit_buffer",
         ":jit_callbacks",
+        ":jit_evaluator_options",
         ":jit_runtime",
         ":observer",
         ":orc_jit",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/interpreter:evaluator_options",
         "//xls/ir",
         "//xls/ir:events",
         "//xls/ir:keyword_args",
@@ -477,6 +490,7 @@ cc_test(
         ":function_base_jit",
         ":function_jit",
         ":jit_buffer",
+        ":jit_evaluator_options",
         ":jit_runtime",
         ":llvm_compiler",
         ":observer",
@@ -488,6 +502,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/interpreter:evaluator_options",
         "//xls/interpreter:ir_evaluator_test_base",
         "//xls/interpreter:observer",
         "//xls/interpreter:random_value",
@@ -729,6 +744,7 @@ cc_library(
     ],
     deps = [
         ":jit_emulated_tls",
+        ":jit_evaluator_options",
         ":llvm_compiler",
         ":observer",
         "//xls/common/status:status_macros",
@@ -813,6 +829,7 @@ cc_library(
         ":function_base_jit",
         ":jit_buffer",
         ":jit_callbacks",
+        ":jit_evaluator_options",
         ":jit_runtime",
         ":llvm_compiler",
         ":observer",
@@ -890,6 +907,7 @@ cc_library(
         ":jit_buffer",
         ":jit_callbacks",
         ":jit_channel_queue",
+        ":jit_evaluator_options",
         ":jit_runtime",
         ":llvm_compiler",
         ":observer",
@@ -949,6 +967,7 @@ cc_library(
         "//xls/common:math_util",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/interpreter:evaluator_options",
         "//xls/ir",
         "//xls/ir:events",
         "//xls/ir:op",
@@ -981,6 +1000,7 @@ cc_library(
         ":aot_entrypoint_cc_proto",
         ":function_base_jit",
         ":jit_channel_queue",
+        ":jit_evaluator_options",
         ":jit_runtime",
         ":llvm_compiler",
         ":observer",
@@ -1108,6 +1128,7 @@ cc_test(
     srcs = ["proc_jit_test.cc"],
     deps = [
         ":jit_channel_queue",
+        ":jit_evaluator_options",
         ":jit_runtime",
         ":orc_jit",
         ":proc_jit",

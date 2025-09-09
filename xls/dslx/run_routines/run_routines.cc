@@ -1014,6 +1014,7 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
     interpreter_options.post_fn_eval_hook(post_fn_eval_hook)
         .trace_hook(absl::bind_front(InfoLoggingTraceHook, file_table))
         .trace_channels(options.trace_channels)
+        .trace_calls(options.trace_calls)
         .max_ticks(options.max_ticks)
         .format_preference(options.format_preference);
     if (std::holds_alternative<TestFunction*>(*member)) {

@@ -106,6 +106,7 @@ struct ParseAndTestOptions {
   ConvertOptions convert_options;
 
   bool trace_channels = false;
+  bool trace_calls = false;
   std::optional<int64_t> max_ticks;
   std::function<std::unique_ptr<VirtualizableFilesystem>()> vfs_factory =
       nullptr;

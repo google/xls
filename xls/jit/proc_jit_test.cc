@@ -24,6 +24,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/jit/jit_channel_queue.h"
+#include "xls/jit/jit_evaluator_options.h"
 #include "xls/jit/jit_runtime.h"
 #include "xls/jit/orc_jit.h"
 
@@ -44,7 +45,9 @@ std::unique_ptr<ProcEvaluator> EvaluatorFromProc(
       dynamic_cast<JitChannelQueueManager*>(queue_manager);
   CHECK(jit_queue_manager != nullptr);
   return ProcJit::Create(proc, GetJitRuntime(), jit_queue_manager,
-                         /*include_observer_callbacks=*/kWithObserver)
+                         EvaluatorOptions(),
+                         JitEvaluatorOptions().set_include_observer_callbacks(
+                             kWithObserver))
       .value();
 }
 
