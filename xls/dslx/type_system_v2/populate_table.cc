@@ -58,12 +58,13 @@ absl::Status PopulateBuiltinStubs(ImportData* import_data,
       builtins_visitor->PopulateFromModule(builtins_module.get()));
 
   Module* builtins_ptr = builtins_module.get();
+  // Do not emit unused variable warnings for builtins.
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<InferenceTableConverter> builtins_converter,
-      CreateInferenceTableConverter(
-          *table, *builtins_module, *import_data, *warnings,
-          import_data->file_table(),
-          TypeSystemTracer::Create(/*active=*/false)));
+      CreateInferenceTableConverter(*table, *builtins_module, *import_data,
+                                    *warnings, import_data->file_table(),
+                                    TypeSystemTracer::Create(/*active=*/false),
+                                    /*semantics_analysis=*/nullptr));
   XLS_ASSIGN_OR_RETURN(TypeInfo * builtins_type_info,
                        import_data->GetRootTypeInfo(builtins_ptr));
 

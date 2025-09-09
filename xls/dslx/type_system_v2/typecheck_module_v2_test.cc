@@ -4697,9 +4697,7 @@ fn main() -> u7 {
 
 TEST(TypecheckV2Test, LetConstWarnsOnBadName) {
   XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
-fn main() {
-  const bad_name_const = u32:5;
-}
+const bad_name_const = u32:5;
 )"));
   ASSERT_THAT(result.tm.warnings.warnings().size(), 1);
   EXPECT_EQ(result.tm.warnings.warnings()[0].message,
@@ -8899,6 +8897,32 @@ fn f() -> u32 {
   EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Expected a type, got `imported::A::A1`")));
+}
+
+TEST(TypecheckV2Test, UnusedDefinition) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn f() {
+  let a = u32:1;
+}
+)"));
+  ASSERT_THAT(result.tm.warnings.warnings().size(), 1);
+  EXPECT_EQ(result.tm.warnings.warnings()[0].message,
+            "Definition of `a` (type `uN[32]`) is not used in function `f`");
+}
+
+TEST(TypecheckV2Test, UnusedDefinitionParametrics) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn f<A: u32>() {
+  let a: uN[A] = 0;
+}
+
+fn g() {
+  f<u32:2>();
+}
+)"));
+  ASSERT_THAT(result.tm.warnings.warnings().size(), 1);
+  EXPECT_EQ(result.tm.warnings.warnings()[0].message,
+            "Definition of `a` (type `uN[2]`) is not used in function `f`");
 }
 
 }  // namespace

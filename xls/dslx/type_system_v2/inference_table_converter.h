@@ -36,6 +36,8 @@ struct FunctionAndTargetObject {
   std::optional<const ParametricContext*> target_struct_context;
 };
 
+class SemanticsAnalysis;
+
 // Class that facilitates the conversion of an `InferenceTable` to
 // `TypeInfo`.
 class InferenceTableConverter {
@@ -85,6 +87,8 @@ class InferenceTableConverter {
   virtual absl::StatusOr<TypeInfo*> GetTypeInfo(
       const Module* module,
       std::optional<const ParametricContext*> parametric_context) = 0;
+
+  virtual SemanticsAnalysis* GetSemanticsAnalysis() = 0;
 };
 
 }  // namespace xls::dslx

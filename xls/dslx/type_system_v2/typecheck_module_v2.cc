@@ -27,6 +27,7 @@
 #include "xls/common/file/filesystem.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/module.h"
+#include "xls/dslx/frontend/semantics_analysis.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
@@ -42,7 +43,8 @@ namespace xls::dslx {
 
 absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
     std::unique_ptr<Module> module, std::filesystem::path path,
-    ImportData* import_data, WarningCollector* warnings) {
+    ImportData* import_data, WarningCollector* warnings,
+    std::unique_ptr<SemanticsAnalysis> semantics_analysis) {
   std::string_view module_name = module->name();
   const bool top_module = !import_data->HasInferenceTable();
   if (top_module) {
@@ -57,14 +59,16 @@ absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
   auto typecheck_imported_module = [import_data, warnings](
                                        std::unique_ptr<Module> module,
                                        std::filesystem::path path) {
-    return TypecheckModuleV2(std::move(module), path, import_data, warnings);
+    return TypecheckModuleV2(std::move(module), path, import_data, warnings,
+                             /*semantics_analysis=*/nullptr);
   };
   XLS_RETURN_IF_ERROR(PopulateTable(table, module.get(), import_data, warnings,
                                     typecheck_imported_module));
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<InferenceTableConverter> converter,
-                       CreateInferenceTableConverter(
-                           *table, *module, *import_data, *warnings,
-                           import_data->file_table(), std::move(tracer)));
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<InferenceTableConverter> converter,
+      CreateInferenceTableConverter(
+          *table, *module, *import_data, *warnings, import_data->file_table(),
+          std::move(tracer), std::move(semantics_analysis)));
   import_data->SetInferenceTableConverter(module.get(), converter.get());
 
   absl::Status status =

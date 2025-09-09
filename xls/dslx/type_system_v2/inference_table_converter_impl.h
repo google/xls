@@ -1,3 +1,4 @@
+#include "xls/dslx/frontend/semantics_analysis.h"
 // Copyright 2024 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,11 +32,11 @@ namespace xls::dslx {
 
 // Creates an InferenceTableConverter for the given module.
 absl::StatusOr<std::unique_ptr<InferenceTableConverter>>
-CreateInferenceTableConverter(InferenceTable& table, Module& module,
-                              ImportData& import_data,
-                              WarningCollector& warning_collector,
-                              const FileTable& file_table,
-                              std::unique_ptr<TypeSystemTracer> tracer);
+CreateInferenceTableConverter(
+    InferenceTable& table, Module& module, ImportData& import_data,
+    WarningCollector& warning_collector, const FileTable& file_table,
+    std::unique_ptr<TypeSystemTracer> tracer,
+    std::unique_ptr<SemanticsAnalysis> semantics_analysis);
 
 }  // namespace xls::dslx
 

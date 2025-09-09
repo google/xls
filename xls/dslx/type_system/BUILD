@@ -377,6 +377,7 @@ cc_library(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:proc",
+        "//xls/dslx/frontend:semantics_analysis",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",

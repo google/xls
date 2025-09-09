@@ -15,8 +15,15 @@
 #ifndef XLS_DSLX_FRONTEND_SEMANTICS_ANALYSIS_H_
 #define XLS_DSLX_FRONTEND_SEMANTICS_ANALYSIS_H_
 
+#include <memory>
+#include <utility>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/import_data.h"
+#include "xls/dslx/type_system/type.h"
 #include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
@@ -31,6 +38,20 @@ class SemanticsAnalysis {
  public:
   absl::Status RunPreTypeCheckPass(Module& module,
                                    WarningCollector& warning_collector);
+
+  absl::Status RunPostTypeCheckPass(WarningCollector& warning_collector);
+
+  void SetNameDefType(const NameDef* def, const Type* type);
+
+ private:
+  // Used by kUnusedDefinition. We cannot completely determine whether a
+  // definition is truly unused at RunPreTypeCheckPass, because (1) tokens are
+  // implicitly joined, and (2) if we implement const_if, unused definitions in
+  // a never-taken branch should not be warned. They have to be reported after
+  // type checking.
+  std::vector<std::pair<const Function*, std::vector<const NameDef*>>>
+      maybe_unreferenced_defs;
+  absl::flat_hash_map<const NameDef*, std::unique_ptr<Type>> def_to_type_;
 };
 
 }  // namespace xls::dslx

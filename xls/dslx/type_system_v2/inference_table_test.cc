@@ -70,7 +70,8 @@ class InferenceTableTest : public ::testing::Test {
         std::unique_ptr<InferenceTableConverter> converter,
         CreateInferenceTableConverter(
             *table_, *module_, *import_data_, *warning_collector_, file_table_,
-            TypeSystemTracer::Create(/*active=*/false)));
+            TypeSystemTracer::Create(/*active=*/false),
+            /*semantics_analysis=*/nullptr));
     XLS_RETURN_IF_ERROR(
         converter->ConvertSubtree(module_.get(), /*function=*/std::nullopt,
                                   /*parametric_context=*/std::nullopt));

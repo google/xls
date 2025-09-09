@@ -107,14 +107,15 @@ absl::StatusOr<TypecheckedModule> TypecheckModule(
   XLS_ASSIGN_OR_RETURN(ImportTokens subject,
                        ImportTokens::FromString(module_name));
 
-  SemanticsAnalysis semantics_analysis;
+  std::unique_ptr<SemanticsAnalysis> semantics_analysis =
+      std::make_unique<SemanticsAnalysis>();
   XLS_RETURN_IF_ERROR(
-      semantics_analysis.RunPreTypeCheckPass(*module, warnings));
+      semantics_analysis->RunPreTypeCheckPass(*module, warnings));
 
   using ExtendedTypecheckModuleFn =
       absl::StatusOr<std::unique_ptr<ModuleInfo>> (*)(
           std::unique_ptr<Module>, std::filesystem::path path, ImportData*,
-          WarningCollector*);
+          WarningCollector*, std::unique_ptr<SemanticsAnalysis>);
   ExtendedTypecheckModuleFn version_entry_point =
       static_cast<ExtendedTypecheckModuleFn>(&TypecheckModule);
 
@@ -134,7 +135,14 @@ absl::StatusOr<TypecheckedModule> TypecheckModule(
   }
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<ModuleInfo> module_info,
-      version_entry_point(std::move(module), path, import_data, &warnings));
+      version_entry_point(std::move(module), path, import_data, &warnings,
+                          std::move(semantics_analysis)));
+
+  if (version_entry_point == TypecheckModuleV2) {
+    XLS_RETURN_IF_ERROR(module_info->inference_table_converter()
+                            ->GetSemanticsAnalysis()
+                            ->RunPostTypeCheckPass(warnings));
+  }
 
   TypeInfo* type_info = module_info->type_info();
   XLS_RETURN_IF_ERROR(

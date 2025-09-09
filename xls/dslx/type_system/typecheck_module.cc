@@ -36,6 +36,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/proc.h"
+#include "xls/dslx/frontend/semantics_analysis.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/interp_value.h"
@@ -399,14 +400,16 @@ absl::Status TypecheckModuleMember(const ModuleMember& member, Module* module,
 
 absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModule(
     std::unique_ptr<Module> module, std::filesystem::path path,
-    ImportData* import_data, WarningCollector* warnings) {
+    ImportData* import_data, WarningCollector* warnings,
+    std::unique_ptr<SemanticsAnalysis> /*unused*/) {
   XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
                        import_data->type_info_owner().New(module.get()));
 
   auto typecheck_module = [import_data, warnings](
                               std::unique_ptr<Module> module,
                               std::filesystem::path path) {
-    return TypecheckModule(std::move(module), path, import_data, warnings);
+    return TypecheckModule(std::move(module), path, import_data, warnings,
+                           nullptr);
   };
 
   DeduceCtx ctx(type_info, module.get(),

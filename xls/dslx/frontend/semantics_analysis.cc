@@ -14,12 +14,18 @@
 
 #include "xls/dslx/frontend/semantics_analysis.h"
 
+#include <algorithm>
 #include <cstddef>
+#include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <variant>
+#include <vector>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
@@ -30,6 +36,7 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/token_utils.h"
 #include "xls/dslx/type_system/deduce_utils.h"
+#include "xls/dslx/type_system/type.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
 
@@ -360,12 +367,120 @@ class PreTypecheckPass : public AstNodeVisitorWithDefault {
   WarningCollector& warning_collector_;
 };
 
+class CollectUseDef : public AstNodeVisitorWithDefault {
+ public:
+  absl::Status HandleNameDef(const NameDef* node) override {
+    // Users can silence unused warnings by prefixing an identifier with an
+    // underscore to make it more well documented; e.g.
+    //  let (one, _two, three) = ...;  // _two can go unused
+    if (!absl::StartsWith(node->identifier(), "_")) {
+      defs_.insert(node);
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleNameRef(const NameRef* node) override {
+    AddUse(node->name_def());
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleTypeRef(const TypeRef* node) override {
+    AddUse(TypeDefinitionGetNameDef(node->type_definition()));
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleTypeAlias(const TypeAlias* node) override {
+    // Do not mark type alias as unused.
+    return node->type_annotation().Accept(this);
+  }
+
+  absl::Status DefaultHandler(const AstNode* node) override {
+    for (const AstNode* child : node->GetChildren(/*want_types=*/true)) {
+      XLS_RETURN_IF_ERROR(child->Accept(this));
+    }
+    return absl::OkStatus();
+  }
+
+  const absl::flat_hash_set<const NameDef*>& Defs() const { return defs_; }
+  const absl::flat_hash_set<const NameDef*>& Uses() const { return uses_; }
+
+ private:
+  void AddUse(const AnyNameDef& any_name_def) {
+    if (const NameDef* const* name_def =
+            std::get_if<const NameDef*>(&any_name_def)) {
+      uses_.insert(*name_def);
+    }
+  }
+
+  absl::flat_hash_set<const NameDef*> defs_;
+  absl::flat_hash_set<const NameDef*> uses_;
+};
+
 }  // namespace
 
 absl::Status SemanticsAnalysis::RunPreTypeCheckPass(
     Module& module, WarningCollector& warning_collector) {
   PreTypecheckPass pass(warning_collector);
+
+  for (const ModuleMember& top : module.top()) {
+    if (const Function* const* func = std::get_if<Function*>(&top)) {
+      CollectUseDef visitor;
+      XLS_RETURN_IF_ERROR((*func)->body()->Accept(&visitor));
+
+      maybe_unreferenced_defs.emplace_back(
+          std::make_pair(*func, std::vector<const NameDef*>()));
+      std::vector<const NameDef*>& defs_in_func =
+          maybe_unreferenced_defs.back().second;
+
+      for (const NameDef* def : visitor.Defs()) {
+        if (!visitor.Uses().contains(def)) {
+          defs_in_func.emplace_back(def);
+          def_to_type_.try_emplace(def, nullptr);
+        }
+      }
+    }
+  }
+
   return module.Accept(&pass);
+}
+
+// If a possibly unused def is concretized to a non-token type at any possible
+// context, it is truly unused.
+void SemanticsAnalysis::SetNameDefType(const NameDef* def, const Type* type) {
+  auto found = def_to_type_.find(def);
+  if (found != def_to_type_.end()) {
+    if ((found->second && found->second->IsToken()) || !found->second) {
+      found->second = type->CloneToUnique();
+    }
+  }
+}
+
+absl::Status SemanticsAnalysis::RunPostTypeCheckPass(
+    WarningCollector& warning_collector) {
+  // Report unused defs.
+  for (auto& [f, unused_defs] : maybe_unreferenced_defs) {
+    // Sort them for reporting stability.
+    std::sort(
+        unused_defs.begin(), unused_defs.end(),
+        [](const NameDef* a, const NameDef* b) {
+          return a->span() < b->span() ||
+                 (a->span() == b->span() && a->identifier() < b->identifier());
+        });
+    for (const NameDef* def : unused_defs) {
+      std::unique_ptr<Type>& type = def_to_type_.at(def);
+      // Tokens are implicitly joined at the end of a proc `next()`, so we
+      // don't warn on these.
+      if (type && !type->IsToken()) {
+        warning_collector.Add(
+            def->span(), WarningKind::kUnusedDefinition,
+            absl::StrFormat(
+                "Definition of `%s` (type `%s`) is not used in function `%s`",
+                def->identifier(), type->ToString(), f->identifier()));
+      }
+    }
+  }
+
+  return absl::OkStatus();
 }
 
 }  // namespace xls::dslx

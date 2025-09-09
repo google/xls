@@ -20,6 +20,7 @@
 
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/module.h"
+#include "xls/dslx/frontend/semantics_analysis.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/warning_collector.h"
 
@@ -29,7 +30,8 @@ namespace xls::dslx {
 // used for modules that have the `kTypeInferenceVersion2` annotation.
 absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
     std::unique_ptr<Module> module, std::filesystem::path path,
-    ImportData* import_data, WarningCollector* warnings);
+    ImportData* import_data, WarningCollector* warnings,
+    std::unique_ptr<SemanticsAnalysis> semantics_analysis);
 
 }  // namespace xls::dslx
 

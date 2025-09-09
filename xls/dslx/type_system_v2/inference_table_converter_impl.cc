@@ -52,6 +52,7 @@
 #include "xls/dslx/frontend/builtin_stubs_utils.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/semantics_analysis.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/parametric_env.h"
@@ -125,12 +126,11 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                                     public UnificationErrorGenerator,
                                     public ParametricStructInstantiator {
  public:
-  InferenceTableConverterImpl(InferenceTable& table, Module& module,
-                              ImportData& import_data,
-                              WarningCollector& warning_collector,
-                              TypeInfo* base_type_info,
-                              const FileTable& file_table,
-                              std::unique_ptr<TypeSystemTracer> tracer)
+  InferenceTableConverterImpl(
+      InferenceTable& table, Module& module, ImportData& import_data,
+      WarningCollector& warning_collector, TypeInfo* base_type_info,
+      const FileTable& file_table, std::unique_ptr<TypeSystemTracer> tracer,
+      std::unique_ptr<SemanticsAnalysis> semantics_analysis)
       : table_(table),
         module_(module),
         import_data_(import_data),
@@ -138,6 +138,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         base_type_info_(base_type_info),
         file_table_(file_table),
         tracer_(std::move(tracer)),
+        semantics_analysis_(std::move(semantics_analysis)),
         evaluator_(CreateEvaluator(table_, module_, import_data_,
                                    warning_collector_, *this, *tracer_)),
         resolver_(TypeAnnotationResolver::Create(
@@ -970,6 +971,14 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         return absl::OkStatus();
       }
       return type.status();
+    }
+
+    // Mark NameDef's concretized type to tell if it is actually unused.
+    if (semantics_analysis_) {
+      if (node->kind() == AstNodeKind::kNameDef) {
+        semantics_analysis_->SetNameDefType(down_cast<const NameDef*>(node),
+                                            type->get());
+      }
     }
 
     XLS_RETURN_IF_ERROR(
@@ -2310,6 +2319,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                                    annotation2->span(), file_table_);
   }
 
+  SemanticsAnalysis* GetSemanticsAnalysis() override {
+    return semantics_analysis_.get();
+  }
+
   InferenceTable& table_;
   Module& module_;
   ImportData& import_data_;
@@ -2317,6 +2330,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   TypeInfo* const base_type_info_;
   const FileTable& file_table_;
   std::unique_ptr<TypeSystemTracer> tracer_;
+  std::unique_ptr<SemanticsAnalysis> semantics_analysis_;
   std::unique_ptr<Evaluator> evaluator_;
   std::unique_ptr<TypeAnnotationResolver> resolver_;
   std::unique_ptr<ConstantCollector> constant_collector_;
@@ -2349,18 +2363,18 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
 }  // namespace
 
 absl::StatusOr<std::unique_ptr<InferenceTableConverter>>
-CreateInferenceTableConverter(InferenceTable& table, Module& module,
-                              ImportData& import_data,
-                              WarningCollector& warning_collector,
-                              const FileTable& file_table,
-                              std::unique_ptr<TypeSystemTracer> tracer) {
+CreateInferenceTableConverter(
+    InferenceTable& table, Module& module, ImportData& import_data,
+    WarningCollector& warning_collector, const FileTable& file_table,
+    std::unique_ptr<TypeSystemTracer> tracer,
+    std::unique_ptr<SemanticsAnalysis> semantics_analysis) {
   VLOG(1) << "CreateInferenceTableConverter: module " << &module;
 
   XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
                        import_data.type_info_owner().New(&module));
   return std::make_unique<InferenceTableConverterImpl>(
       table, module, import_data, warning_collector, type_info, file_table,
-      std::move(tracer));
+      std::move(tracer), std::move(semantics_analysis));
 }
 
 }  // namespace xls::dslx
