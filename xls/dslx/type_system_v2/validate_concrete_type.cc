@@ -220,6 +220,20 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  absl::Status HandleSplatStructInstance(
+      const SplatStructInstance* splat) override {
+    XLS_ASSIGN_OR_RETURN(Type * type, ti_.GetItemOrError(splat->splatted()));
+    if (splat->members().size() == type->AsStruct().size()) {
+      warning_collector_.Add(
+          splat->splatted()->span(), WarningKind::kUselessStructSplat,
+          absl::StrFormat(
+              "'Splatted' struct instance has all members of struct "
+              "defined, consider removing the `..%s`",
+              splat->splatted()->ToString()));
+    }
+    return absl::OkStatus();
+  }
+
   absl::Status HandleCast(const Cast* cast) override {
     // For a cast node we have to validate that the types being cast to/from are
     // compatible via the `IsAcceptableCast` predicate.

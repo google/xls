@@ -1413,6 +1413,18 @@ const Y = S<10> { ..X };
                                "`S`: u32:5 vs. u32:10")));
 }
 
+TEST(TypecheckV2Test, UselessStructSplatWarning) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+struct S { field1: u32, field2: s32 }
+const X = S { field1: u32:6, field2: s32:7 };
+const Y = S { field1: u32:3, field2: s32:4, ..X };
+)"));
+  ASSERT_THAT(result.tm.warnings.warnings().size(), 1);
+  EXPECT_EQ(result.tm.warnings.warnings()[0].message,
+            "'Splatted' struct instance has all members of struct defined, "
+            "consider removing the `..X`");
+}
+
 TEST(TypecheckV2Test, AccessOfStructMember) {
   EXPECT_THAT(
       R"(
