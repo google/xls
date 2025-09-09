@@ -14,5 +14,5 @@ fn ____test_module__main_counted_for_0_body(__index: bits[32] id=3, accum: bits[
 
 top fn __test_module__main(a: (bits[7], bits[7])[3] id=1) -> bits[7] {
   literal.2: bits[7] = literal(value=0, id=2, pos=[(0,4,4)])
-  ret counted_for.13: bits[7] = counted_for(literal.2, trip_count=3, stride=1, body=____test_module__main_counted_for_0_body, invariant_args=[a], id=13)
+  ret counted_for.13: bits[7] = counted_for(literal.2, trip_count=3, stride=1, body=____test_module__main_counted_for_0_body, invariant_args=[a], id=13, pos=[(0,2,2)])
 }
