@@ -15,6 +15,7 @@
 #ifndef XLS_IR_TOPO_SORT_H_
 #define XLS_IR_TOPO_SORT_H_
 
+#include <cstdint>
 #include <optional>
 #include <vector>
 

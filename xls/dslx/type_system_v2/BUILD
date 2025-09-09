@@ -735,7 +735,6 @@ cc_library(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_node",
         "//xls/dslx/frontend:ast_node_visitor_with_default",
-        "//xls/dslx/frontend:ast_utils",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
     ],

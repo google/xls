@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "absl/container/btree_map.h"
+#include "clang/include/clang/AST/TypeBase.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
@@ -38,7 +39,6 @@
 #include "clang/include/clang/AST/Expr.h"
 #include "clang/include/clang/AST/Mangle.h"
 #include "clang/include/clang/AST/Stmt.h"
-#include "clang/include/clang/AST/Type.h"
 #include "clang/include/clang/Basic/LLVM.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/contrib/xlscc/node_manipulation.h"

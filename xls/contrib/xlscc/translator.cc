@@ -33,6 +33,7 @@
 #include <utility>
 #include <vector>
 
+#include "clang/include/clang/AST/TypeBase.h"
 #include "absl/algorithm/container.h"
 #include "absl/base/casts.h"
 #include "absl/cleanup/cleanup.h"
@@ -62,7 +63,6 @@
 #include "clang/include/clang/AST/OperationKinds.h"
 #include "clang/include/clang/AST/Stmt.h"
 #include "clang/include/clang/AST/TemplateBase.h"
-#include "clang/include/clang/AST/Type.h"
 #include "clang/include/clang/Basic/ABI.h"
 #include "clang/include/clang/Basic/LLVM.h"
 #include "clang/include/clang/Basic/OperatorKinds.h"

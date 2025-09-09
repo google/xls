@@ -19,7 +19,6 @@
 #include <optional>
 #include <string>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #include "absl/cleanup/cleanup.h"
@@ -45,7 +44,6 @@
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
-#include "xls/dslx/warning_kind.h"
 #include "xls/ir/bits.h"
 
 namespace xls::dslx {

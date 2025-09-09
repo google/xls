@@ -21,6 +21,8 @@
 #include <utility>
 #include <vector>
 
+#include "xls/codegen/xls_metrics.pb.h"
+#include "xls/codegen/verilog_line_map.pb.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"

@@ -15,6 +15,7 @@
 #ifndef XLS_CONTRIB_XLSCC_TRANSLATOR_H_
 #define XLS_CONTRIB_XLSCC_TRANSLATOR_H_
 
+#include <map>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -30,6 +31,8 @@
 #include <vector>
 
 #include "absl/base/attributes.h"
+#include "clang/include/clang/AST/TypeBase.h"
+#include "xls/ir/nodes.h"
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -49,7 +52,6 @@
 #include "clang/include/clang/AST/Mangle.h"
 #include "clang/include/clang/AST/OperationKinds.h"
 #include "clang/include/clang/AST/Stmt.h"
-#include "clang/include/clang/AST/Type.h"
 #include "clang/include/clang/Basic/LLVM.h"
 #include "clang/include/clang/Basic/SourceLocation.h"
 #include "xls/contrib/xlscc/cc_parser.h"

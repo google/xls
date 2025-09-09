@@ -40,7 +40,6 @@
 #include "clang/include/clang/AST/DeclBase.h"
 #include "clang/include/clang/AST/DeclCXX.h"
 #include "clang/include/clang/AST/GlobalDecl.h"
-#include "clang/include/clang/AST/Type.h"
 #include "clang/include/clang/Basic/LLVM.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/status_macros.h"

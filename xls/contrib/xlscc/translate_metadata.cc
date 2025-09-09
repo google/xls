@@ -17,13 +17,13 @@
 #include <memory>
 
 #include "absl/container/flat_hash_set.h"
+#include "clang/include/clang/AST/TypeBase.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "clang/include/clang/AST/DeclCXX.h"
 #include "clang/include/clang/AST/DeclTemplate.h"
 #include "clang/include/clang/AST/TemplateBase.h"
-#include "clang/include/clang/AST/Type.h"
 #include "clang/include/clang/Basic/LLVM.h"
 #include "clang/include/clang/Basic/SourceLocation.h"
 #include "clang/include/clang/Basic/SourceManager.h"
