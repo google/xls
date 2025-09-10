@@ -74,6 +74,8 @@ class ChannelArray {
     if (it == flattened_name_to_channel_.end()) {
       return std::nullopt;
     }
+    // TODO: davidplass - Change FindChannel to return a ChannelRef,
+    // or add a FindChannelRef method.
     return it->second;
   }
 
@@ -98,6 +100,7 @@ class ChannelArray {
   // channel name for an element is `base_channel_name_` plus a suffix produced
   // by `ChannelScope::CreateAllArrayElementSuffixes()`, with the base name and
   // suffix separated by a double underscore.
+  // TODO: davidplass - change to ChannelRef.
   absl::flat_hash_map<std::string, Channel*> flattened_name_to_channel_;
 };
 
@@ -109,6 +112,7 @@ class ChannelScope {
   ChannelScope(PackageConversionData* conversion_info, ImportData* import_data,
                const ConvertOptions& options,
                std::optional<FifoConfig> default_fifo_config = std::nullopt);
+  virtual ~ChannelScope() = default;
 
   // The owner (IR converter driving the overall procedure) should invoke this
   // with the `type_info` and `bindings` for the function, before converting
@@ -165,11 +169,20 @@ class ChannelScope {
   absl::StatusOr<ChannelOrArray> GetChannelOrArrayForArrayIndex(
       const ProcId& proc_id, const Index* index);
 
+ protected:
+  // TODO: davidplass - make this an abstract function in a new abstract
+  // base class.
+  virtual absl::StatusOr<Channel*> CreateChannel(
+      std::string_view name, ChannelOps ops, xls::Type* type,
+      std::optional<ChannelConfig> channel_config,
+      bool interface_channel = false);
+
  private:
   absl::StatusOr<ChannelOrArray> DefineChannelOrArrayInternal(
       std::string_view short_name, ChannelOps ops, xls::Type* type,
       std::optional<ChannelConfig> channel_config,
-      const std::optional<std::vector<Expr*>>& dims);
+      const std::optional<std::vector<Expr*>>& dims,
+      bool interface_channel = false);
 
   absl::Status DefineProtoChannelOrArray(
       ChannelOrArray array, dslx::ChannelTypeAnnotation* type_annot,
@@ -185,10 +198,6 @@ class ChannelScope {
 
   absl::StatusOr<std::optional<ChannelConfig>> CreateChannelConfig(
       const ChannelDecl* decl) const;
-
-  absl::StatusOr<Channel*> CreateChannel(
-      std::string_view name, ChannelOps ops, xls::Type* type,
-      std::optional<ChannelConfig> channel_config);
 
   absl::StatusOr<ChannelOrArray> EvaluateIndex(const ProcId& proc_id,
                                                const Index* index,

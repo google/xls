@@ -95,7 +95,7 @@ absl::StatusOr<ChannelOrArray> ChannelScope::DefineChannelOrArray(
   XLS_ASSIGN_OR_RETURN(
       ChannelOrArray channel_or_array,
       DefineChannelOrArrayInternal(short_name, ChannelOps::kSendReceive, type,
-                                   channel_config, decl->dims()));
+                                   channel_config, decl->dims(), false));
   decl_to_channel_or_array_[decl] = channel_or_array;
   return channel_or_array;
 }
@@ -103,7 +103,7 @@ absl::StatusOr<ChannelOrArray> ChannelScope::DefineChannelOrArray(
 absl::StatusOr<ChannelOrArray> ChannelScope::DefineChannelOrArrayInternal(
     std::string_view short_name, ChannelOps ops, xls::Type* type,
     std::optional<ChannelConfig> channel_config,
-    const std::optional<std::vector<Expr*>>& dims) {
+    const std::optional<std::vector<Expr*>>& dims, bool interface_channel) {
   std::string base_channel_name;
   if (convert_options_.lower_to_proc_scoped_channels) {
     // When using proc scoped channels the channel names do not have to be
@@ -115,9 +115,9 @@ absl::StatusOr<ChannelOrArray> ChannelScope::DefineChannelOrArrayInternal(
   }
   std::vector<std::string> channel_names;
   if (!dims.has_value()) {
-    XLS_ASSIGN_OR_RETURN(
-        Channel * channel,
-        CreateChannel(base_channel_name, ops, type, channel_config));
+    XLS_ASSIGN_OR_RETURN(Channel * channel,
+                         CreateChannel(base_channel_name, ops, type,
+                                       channel_config, interface_channel));
     return channel;
   }
   ChannelArray* array = &arrays_.emplace_back(ChannelArray(base_channel_name));
@@ -127,9 +127,9 @@ absl::StatusOr<ChannelOrArray> ChannelScope::DefineChannelOrArrayInternal(
   for (const std::string& suffix : suffixes) {
     std::string channel_name =
         absl::StrCat(base_channel_name, kNameAndDimsSeparator, suffix);
-    XLS_ASSIGN_OR_RETURN(
-        Channel * channel,
-        CreateChannel(channel_name, ops, type, channel_config));
+    XLS_ASSIGN_OR_RETURN(Channel * channel,
+                         CreateChannel(channel_name, ops, type, channel_config,
+                                       interface_channel));
     array->AddChannel(channel_name, channel);
   }
   return array;
@@ -154,7 +154,7 @@ absl::StatusOr<ChannelOrArray> ChannelScope::DefineBoundaryChannelOrArray(
       ChannelOrArray channel_or_array,
       DefineChannelOrArrayInternal(param->identifier(), op, ir_type,
                                    /*channel_config=*/std::nullopt,
-                                   type_annot->dims()));
+                                   type_annot->dims(), true));
   XLS_RETURN_IF_ERROR(DefineProtoChannelOrArray(channel_or_array, type_annot,
                                                 ir_type, type_info));
   return channel_or_array;
@@ -348,7 +348,7 @@ absl::StatusOr<std::optional<ChannelConfig>> ChannelScope::CreateChannelConfig(
 
 absl::StatusOr<Channel*> ChannelScope::CreateChannel(
     std::string_view name, ChannelOps ops, xls::Type* type,
-    std::optional<ChannelConfig> channel_config) {
+    std::optional<ChannelConfig> channel_config, bool interface_channel) {
   if (channel_config.has_value()) {
     return conversion_info_->package->CreateStreamingChannel(
         name, ops, type,
