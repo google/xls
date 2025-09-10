@@ -21,7 +21,7 @@ from xls.modules.zstd.cocotb.utils import run_test
 if __name__ == "__main__":
     toplevel = "axi_writer_wrapper"
     verilog_sources = [
-      "xls/modules/zstd/memory/axi_writer.v",
+      "xls/modules/zstd/memory/axi_writer_no_fsm.v",
       "xls/modules/zstd/memory/rtl/axi_writer_wrapper.v",
     ]
     test_module=[ "axi_writer_cocotb" ]

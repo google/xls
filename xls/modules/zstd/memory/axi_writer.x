@@ -175,7 +175,6 @@ pub proc AxiWriterInternalW<
     }
 }
 
-
 pub proc AxiWriterNoFsm<
     ADDR_W: u32, DATA_W: u32, DEST_W: u32, ID_W: u32,
 
@@ -251,24 +250,24 @@ pub proc AxiWriterNoFsm<
                 ..state
             }
         } else {
-            let aligned_addr = common::align<DATA_W_DIV8>(state.addr); // OK
-            let aligned_offset = common::offset<DATA_W_DIV8>(state.addr) as Addr; // OK
+            let aligned_addr = common::align<DATA_W_DIV8>(state.addr);
+            let aligned_offset = common::offset<DATA_W_DIV8>(state.addr) as Addr;
 
-            let bytes_to_max_burst = MAX_AXI_BURST_BYTES - aligned_offset as Addr; // OK?
-            let bytes_to_4k = common::bytes_to_4k_boundary(state.addr); // OK
+            let bytes_to_max_burst = MAX_AXI_BURST_BYTES - aligned_offset as Addr;
+            let bytes_to_4k = common::bytes_to_4k_boundary(state.addr);
 
-            let tran_len = std::min(state.len, std::min(bytes_to_4k, bytes_to_max_burst)); // OK
-            let (req_low_lane, req_high_lane) = common::get_lanes<DATA_W_DIV8>(state.addr, tran_len); // OK
-            let adjusted_tran_len = aligned_offset as Addr + tran_len; // OK
-            let rest = std::mod_pow2(adjusted_tran_len, BYTES_IN_TRANSFER) != Length:0; // OK
+            let tran_len = std::min(state.len, std::min(bytes_to_4k, bytes_to_max_burst));
+            let (req_low_lane, req_high_lane) = common::get_lanes<DATA_W_DIV8>(state.addr, tran_len);
+            let adjusted_tran_len = aligned_offset as Addr + tran_len;
+            let rest = std::mod_pow2(adjusted_tran_len, BYTES_IN_TRANSFER) != Length:0;
             let aw_len = if rest {
-                std::div_pow2(adjusted_tran_len, BYTES_IN_TRANSFER) as u8 // OK
+                std::div_pow2(adjusted_tran_len, BYTES_IN_TRANSFER) as u8
             } else {
-                (std::div_pow2(adjusted_tran_len, BYTES_IN_TRANSFER) - Length:1) as u8 // OK
+                (std::div_pow2(adjusted_tran_len, BYTES_IN_TRANSFER) - Length:1) as u8
             };
 
-            let next_addr = state.addr + tran_len; // OK
-            let next_len = state.len - tran_len; // OK
+            let next_addr = state.addr + tran_len;
+            let next_len = state.len - tran_len;
 
             let aw_bundle = AxiAw {
                 id: uN[ID_W]:1 + state.bundle_id as uN[ID_W],
@@ -561,6 +560,32 @@ proc AxiWriterInst {
            ch_axi_st_read: chan<InstAxiStream> in) {
 
         spawn AxiWriter<
+            INST_ADDR_W, INST_DATA_W, INST_DEST_W, INST_ID_W>(
+            ch_write_req, ch_write_resp, ch_axi_aw, ch_axi_w, ch_axi_b, ch_axi_st_read);
+        ()
+    }
+
+    init { () }
+
+    next(state: ()) {  }
+}
+
+proc AxiWriterNoFsmInst {
+    type InstReq = AxiWriterRequest<INST_ADDR_W>;
+    type InstAxiWriterResp = AxiWriterResp;
+    type InstAxiStream = axi_st::AxiStream<INST_DATA_W, INST_DEST_W, INST_ID_W, INST_DATA_W_DIV8>;
+    type InstAxiAw = axi::AxiAw<INST_ADDR_W, INST_ID_W>;
+    type InstAxiW = axi::AxiW<INST_DATA_W, INST_DATA_W_DIV8>;
+    type InstAxiB = axi::AxiB<INST_ID_W>;
+
+    config(ch_write_req: chan<InstReq> in,
+           ch_write_resp: chan<InstAxiWriterResp> out,
+           ch_axi_aw: chan<InstAxiAw> out,
+           ch_axi_w: chan<InstAxiW> out,
+           ch_axi_b: chan<InstAxiB> in,
+           ch_axi_st_read: chan<InstAxiStream> in) {
+
+        spawn AxiWriterNoFsm<
             INST_ADDR_W, INST_DATA_W, INST_DEST_W, INST_ID_W>(
             ch_write_req, ch_write_resp, ch_axi_aw, ch_axi_w, ch_axi_b, ch_axi_st_read);
         ()

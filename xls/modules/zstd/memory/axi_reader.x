@@ -503,6 +503,58 @@ proc AxiReaderInst {
     next(state: ()) {  }
 }
 
+proc AxiReaderNoFsmInst {
+    type Req = AxiReaderReq<INST_ADDR_W>;
+    type AxiAr = axi::AxiAr<INST_ADDR_W, INST_ID_W>;
+    type AxiR = axi::AxiR<INST_DATA_W, INST_ID_W>;
+    type AxiStream = axi_st::AxiStream<INST_DATA_W, INST_DEST_W, INST_ID_W, INST_DATA_W_DIV8>;
+    type Error = AxiReaderError;
+
+    config(
+        req_r: chan<Req> in,
+        axi_ar_s: chan<AxiAr> out,
+        axi_r_r: chan<AxiR> in,
+        axi_st_s: chan<AxiStream> out,
+        err_s: chan<Error> out,
+        ) {
+
+        spawn AxiReaderNoFsm<INST_ADDR_W, INST_DATA_W, INST_DEST_W, INST_ID_W>(
+            req_r, axi_ar_s, axi_r_r, axi_st_s, err_s
+        );
+    }
+
+    init { () }
+    next(state: ()) {  }
+}
+
+const INST_ADV_AXI_DATA_W = u32:128;
+const INST_ADV_AXI_ADDR_W = u32:16;
+const INST_ADV_AXI_DEST_W = u32:8;
+const INST_ADV_AXI_ID_W = u32:8;
+const INST_ADV_AXI_DATA_W_DIV8 = INST_ADV_AXI_DATA_W / u32:8;
+const INST_ADV_AXI_LANE_W = std::clog2(INST_ADV_AXI_DATA_W_DIV8);
+
+proc AxiReaderInternalRInst {
+    type AxiR = axi::AxiR<INST_ADV_AXI_DATA_W, INST_ADV_AXI_ID_W>;
+    type AxiStream = axi_st::AxiStream<INST_ADV_AXI_DATA_W, INST_ADV_AXI_DEST_W, INST_ADV_AXI_ID_W, INST_ADV_AXI_DATA_W_DIV8>;
+    type Conf = AxiReaderInternalRConfig<INST_ADV_AXI_ADDR_W, INST_ADV_AXI_LANE_W>;
+
+    config(
+        conf_r: chan<Conf> in,
+        resp_s: chan<bool> out,
+        axi_r_r: chan<AxiR> in,
+        axi_st_s: chan<AxiStream> out,
+    ) {
+
+        spawn AxiReaderInternalR<INST_ADV_AXI_ADDR_W, INST_ADV_AXI_DATA_W, INST_ADV_AXI_DEST_W, INST_ADV_AXI_ID_W>(
+            conf_r, resp_s, axi_r_r, axi_st_s
+        );
+    }
+
+    init { () }
+    next(state: ()) {  }
+}
+
 
 const TEST_ADDR_W = u32:16;
 const TEST_DATA_W = u32:32;
