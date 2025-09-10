@@ -1970,13 +1970,6 @@ async def zstd_compressed_frames_test(dut):
   literal_type = data_generator.LiteralType.RAW
   await testing_routine(dut, test_cases, block_type, literal_type)
 
-
-# @cocotb.test(timeout_time=1000, timeout_unit="ms")
-# async def zstd_random_frames_test(dut):
-# test_cases = 1
-# block_type = BlockType.RANDOM
-# await testing_routine(dut, test_cases, block_type)
-
 if __name__ == "__main__":
   sys.path.append(str(pathlib.Path(__file__).parent))
   with tempfile.NamedTemporaryFile(mode="w") as modified_zstd_verilog:
