@@ -79,7 +79,7 @@ absl::Status ParseAndAcceptWithConverter(std::string_view module_text,
   XLS_ASSIGN_OR_RETURN(
       Function * f, tm.module->GetMemberOrError<Function>("test_proc.config"));
 
-  ChannelScope channel_scope(&conv, &import_data, ConvertOptions{});
+  GlobalChannelScope channel_scope(&conv, &import_data, ConvertOptions{});
   channel_scope.EnterFunctionContext(tm.type_info, bindings);
   ProcConfigIrConverter converter(f, tm.type_info, &import_data, &proc_data,
                                   &channel_scope, bindings, proc_id);
