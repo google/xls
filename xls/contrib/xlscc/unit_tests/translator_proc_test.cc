@@ -7871,6 +7871,49 @@ TEST_P(TranslatorProcTest, PipelinedLoopConditional2) {
   }
 }
 
+TEST_P(TranslatorProcTest, PipelinedLoopConditional3) {
+  const std::string content = R"(
+       class Block {
+        public:
+         __xls_channel<int, __xls_channel_dir_Out>& out;
+
+         #pragma hls_top
+         void Run() {
+          static bool done = false;
+          static int st = 0;
+
+          if(!done) {
+            #pragma hls_pipeline_init_interval 1
+            for(int i=0;i<4;++i) {
+              ++st;
+              done = true;
+            }
+          }
+          out.write(st);
+          st += 3;
+        }
+      };)";
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    if (generate_new_fsm_) {
+      // Correct values
+      outputs["out"] = {xls::Value(xls::SBits(4, 32)),
+                        xls::Value(xls::SBits(7, 32))};
+    } else {
+      // Incorrect values with old FSM
+      outputs["out"] = {xls::Value(xls::SBits(1, 32)),
+                        xls::Value(xls::SBits(4, 32))};
+    }
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /* min_ticks = */ 1,
+             /* max_ticks = */ 100,
+             /* top_level_init_interval = */ 1);
+  }
+}
+
 TEST_P(TranslatorProcTest, PipelinedLoopSerialAfterASAP) {
   const std::string content = R"(
        class Block {
