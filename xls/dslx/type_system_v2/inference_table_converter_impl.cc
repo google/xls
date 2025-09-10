@@ -2213,8 +2213,18 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       }
     }
 
-    CloneReplacer replacer =
-        NameRefMapper(table_, actual_values, type->owner());
+    CloneReplacer replacer = ChainCloneReplacers(
+        NameRefMapper(table_, actual_values, type->owner()),
+        [&](const AstNode* node) -> absl::StatusOr<std::optional<AstNode*>> {
+          // Explicitly leave attrs alone in an example like
+          // `uN[STRUCT_CONST.n]`. With the current grammar, there is no way
+          // these nodes need parametric replacement. Trying to clone them
+          // across modules can make them fail to evaluate.
+          if (node->kind() == AstNodeKind::kAttr) {
+            return const_cast<AstNode*>(node);
+          }
+          return std::nullopt;
+        });
     if (real_self_type.has_value()) {
       replacer = ChainCloneReplacers(
           std::move(replacer),

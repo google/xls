@@ -3786,6 +3786,26 @@ const Y = zero!<imported::X>();
               IsOkAndHolds(HasTypeInfo(HasNodeWithType("Y", "uN[10]"))));
 }
 
+TEST(TypecheckV2Test, ImportedParametricFunctionWithConstantInSignature) {
+  constexpr std::string_view kImported = R"(
+pub struct Foo {
+  value: u32
+}
+
+pub const C = Foo { value: 5 };
+
+pub fn foo<N: u32>(a: uN[C.value]) -> uN[C.value] { a }
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+const Y = imported::foo<1>(u5:2);
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              IsOkAndHolds(HasTypeInfo(HasNodeWithType("Y", "uN[5]"))));
+}
+
 TEST(TypecheckV2Test, ArrayOfTypeColonRefFails) {
   constexpr std::string_view kImported = R"(
 pub type T = u32;
