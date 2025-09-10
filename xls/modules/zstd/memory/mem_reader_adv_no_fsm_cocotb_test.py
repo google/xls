@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 2025 The XLS Authors
+# Copyright 2024 The XLS Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,10 +19,13 @@ from pathlib import Path
 from xls.modules.zstd.cocotb.utils import run_test
 
 if __name__ == "__main__":
-    toplevel = "axi_writer_wrapper"
-    verilog_sources = [
-      "xls/modules/zstd/memory/axi_writer.v",
-      "xls/modules/zstd/memory/rtl/axi_writer_wrapper.v",
-    ]
-    test_module=[ "axi_writer_cocotb" ]
-    run_test(toplevel, test_module, verilog_sources)
+  sys.path.append(str(Path(__file__).parent))
+
+  toplevel = "mem_reader_wrapper"
+  verilog_sources = [
+    "xls/modules/zstd/memory/mem_reader_adv_no_fsm.v",
+    "xls/modules/zstd/memory/rtl/mem_reader_wrapper.v",
+  ]
+  test_module = [ "mem_reader_cocotb" ]
+  run_test(toplevel, test_module, verilog_sources)
+

@@ -19,10 +19,12 @@ from pathlib import Path
 from xls.modules.zstd.cocotb.utils import run_test
 
 if __name__ == "__main__":
-    toplevel = "axi_writer_wrapper"
-    verilog_sources = [
-      "xls/modules/zstd/memory/axi_writer.v",
-      "xls/modules/zstd/memory/rtl/axi_writer_wrapper.v",
-    ]
-    test_module=[ "axi_writer_cocotb" ]
-    run_test(toplevel, test_module, verilog_sources)
+  sys.path.append(str(Path(__file__).parent))
+
+  toplevel = "mem_writer_wrapper"
+  verilog_sources = [
+    "xls/modules/zstd/memory/mem_writer_no_fsm.v",
+    "xls/modules/zstd/memory/rtl/mem_writer_wrapper.v",
+  ]
+  test_module = [ "mem_writer_cocotb" ]
+  run_test(toplevel, test_module, verilog_sources)

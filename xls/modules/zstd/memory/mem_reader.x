@@ -348,6 +348,66 @@ pub proc MemReaderAdv<
         let (axi_st_remove_s, axi_st_remove_r) = chan<AxiStreamOutput, u32:1>("axi_st_remove");
         let (axi_st_out_s, axi_st_out_r) = chan<AxiStreamOutput, u32:1>("axi_st_out");
 
+        spawn MemReaderInternal<
+            DSLX_DATA_W, DSLX_ADDR_W,
+            AXI_DATA_W, AXI_ADDR_W, AXI_DEST_W, AXI_ID_W,
+        >(req_r, resp_s, reader_req_s, reader_err_r, axi_st_out_r);
+
+        spawn axi_reader::AxiReader<
+            AXI_ADDR_W, AXI_DATA_W, AXI_DEST_W, AXI_ID_W
+        >(reader_req_r, axi_ar_s, axi_r_r, axi_st_in_s, reader_err_s);
+
+        spawn axi_stream_downscaler::AxiStreamDownscaler<
+            AXI_DATA_W, DSLX_DATA_W, AXI_DEST_W, AXI_ID_W
+        >(axi_st_in_r, axi_st_remove_s);
+
+        spawn axi_stream_remove_empty::AxiStreamRemoveEmpty<
+            DSLX_DATA_W, AXI_DEST_W, AXI_ID_W
+        >(axi_st_remove_r, axi_st_out_s);
+    }
+
+    init { }
+    next(state: ()) { }
+}
+
+// A proc that integrates other procs to create a functional design for
+// performing AXI read transactions. It allows for connecting narrow DSLX-side
+// with wider AXI-side, if the wider side has to be a multiple of the narrower side.
+// This implementation does not use FSMs
+pub proc MemReaderAdvNoFsm<
+    // DSLX side parameters
+    DSLX_DATA_W: u32, DSLX_ADDR_W: u32,
+    // AXI side parameters
+    AXI_DATA_W: u32, AXI_ADDR_W: u32, AXI_DEST_W: u32, AXI_ID_W: u32,
+    // parameters calculated from other values
+    DSLX_DATA_W_DIV8: u32 = {DSLX_DATA_W / u32:8},
+    AXI_DATA_W_DIV8: u32 = {AXI_DATA_W / u32:8},
+    AXI_TO_DSLX_RATIO: u32 = {AXI_DATA_W / DSLX_DATA_W},
+    AXI_TO_DSLX_RATIO_W: u32 = {std::clog2((AXI_DATA_W / DSLX_DATA_W) + u32:1)}
+> {
+    type Req = MemReaderReq<DSLX_ADDR_W>;
+    type Resp = MemReaderResp<DSLX_DATA_W, DSLX_ADDR_W>;
+
+    type AxiReaderReq = axi_reader::AxiReaderReq<AXI_ADDR_W>;
+    type AxiR = axi::AxiR<AXI_DATA_W, AXI_ID_W>;
+    type AxiAr = axi::AxiAr<AXI_ADDR_W, AXI_ID_W>;
+    type AxiStreamInput = axi_st::AxiStream<AXI_DATA_W, AXI_DEST_W, AXI_ID_W, AXI_DATA_W_DIV8>;
+    type AxiStreamOutput = axi_st::AxiStream<DSLX_DATA_W, AXI_DEST_W, AXI_ID_W, DSLX_DATA_W_DIV8>;
+    type AxiReaderError =  axi_reader::AxiReaderError;
+
+    config(
+        req_r: chan<Req> in,
+        resp_s: chan<Resp> out,
+        axi_ar_s: chan<AxiAr> out,
+        axi_r_r: chan<AxiR> in
+    ) {
+        let (reader_req_s, reader_req_r) = chan<AxiReaderReq, u32:1>("reader_req");
+        let (reader_err_s, reader_err_r) = chan<AxiReaderError, u32:1>("reader_err");
+
+        let (axi_st_in_s, axi_st_in_r) = chan<AxiStreamInput, u32:1>("axi_st_in");
+        let (axi_st_remove_s, axi_st_remove_r) = chan<AxiStreamOutput, u32:1>("axi_st_remove");
+        let (axi_st_out_s, axi_st_out_r) = chan<AxiStreamOutput, u32:1>("axi_st_out");
+
         spawn MemReaderInternalNoFsm<
             DSLX_DATA_W, DSLX_ADDR_W,
             AXI_DATA_W, AXI_ADDR_W, AXI_DEST_W, AXI_ID_W,
@@ -364,8 +424,6 @@ pub proc MemReaderAdv<
         spawn axi_stream_remove_empty::AxiStreamRemoveEmpty<
             DSLX_DATA_W, AXI_DEST_W, AXI_ID_W
         >(axi_st_remove_r, axi_st_out_s);
-
-        ()
     }
 
     init { }
@@ -376,6 +434,55 @@ pub proc MemReaderAdv<
 // performing AXI read transactions. The proc allows for interfacing with
 // AXI bus that has the same data width as DSLX-side of the design.
 pub proc MemReader<
+    DATA_W: u32, ADDR_W: u32, DEST_W: u32, ID_W: u32,
+    DATA_W_DIV8: u32 = {DATA_W / u32:8},
+> {
+    type Req = MemReaderReq<ADDR_W>;
+    type Resp = MemReaderResp<DATA_W, ADDR_W>;
+
+    type AxiReaderReq = axi_reader::AxiReaderReq<ADDR_W>;
+    type AxiR = axi::AxiR<DATA_W, ID_W>;
+    type AxiAr = axi::AxiAr<ADDR_W, ID_W>;
+    type AxiStreamInput = axi_st::AxiStream<DATA_W, DEST_W, ID_W, DATA_W_DIV8>;
+    type AxiStreamOutput = axi_st::AxiStream<DATA_W, DEST_W, ID_W, DATA_W_DIV8>;
+    type AxiReaderError = axi_reader::AxiReaderError;
+
+    config(
+        req_r: chan<Req> in,
+        resp_s: chan<Resp> out,
+        axi_ar_s: chan<AxiAr> out,
+        axi_r_r: chan<AxiR> in
+    ) {
+        let (reader_req_s, reader_req_r) = chan<AxiReaderReq, u32:1>("reader_req");
+        let (reader_err_s, reader_err_r) = chan<AxiReaderError, u32:1>("reader_err");
+
+        let (axi_st_in_s, axi_st_in_r) = chan<AxiStreamInput, u32:1>("axi_st_in");
+        let (axi_st_out_s, axi_st_out_r) = chan<AxiStreamOutput, u32:1>("axi_st_out");
+
+        spawn MemReaderInternal<
+            DATA_W, ADDR_W, DATA_W, ADDR_W, DEST_W, ID_W
+        >(req_r, resp_s, reader_req_s, reader_err_r, axi_st_out_r);
+
+        spawn axi_reader::AxiReader<
+            ADDR_W, DATA_W, DEST_W, ID_W
+        >(reader_req_r, axi_ar_s, axi_r_r, axi_st_in_s, reader_err_s);
+
+        spawn axi_stream_remove_empty::AxiStreamRemoveEmpty<
+            DATA_W, DEST_W, ID_W
+        >(axi_st_in_r, axi_st_out_s);
+        ()
+    }
+
+    init { }
+    next(state: ()) { }
+}
+
+
+// A proc that integrates other procs to create a functional design for
+// performing AXI read transactions. The proc allows for interfacing with
+// AXI bus that has the same data width as DSLX-side of the design.
+// This implementation does not use FSMs
+pub proc MemReaderNoFsm<
     DATA_W: u32, ADDR_W: u32, DEST_W: u32, ID_W: u32,
     DATA_W_DIV8: u32 = {DATA_W / u32:8},
 > {
@@ -460,6 +567,36 @@ proc MemReaderAdvInst {
     next(state: ()) { }
 }
 
+proc MemReaderAdvNoFsmInst {
+    type Req = MemReaderReq<INST_ADV_DSLX_ADDR_W>;
+    type Resp = MemReaderResp<INST_ADV_DSLX_DATA_W, INST_ADV_DSLX_ADDR_W>;
+
+    type AxiReaderReq = axi_reader::AxiReaderReq<INST_ADV_AXI_ADDR_W>;
+    type AxiAr = axi::AxiAr<INST_ADV_AXI_ADDR_W, INST_ADV_AXI_ID_W>;
+    type AxiR = axi::AxiR<INST_ADV_AXI_DATA_W, INST_ADV_AXI_ID_W>;
+    type AxiStream = axi_st::AxiStream<INST_ADV_AXI_DATA_W, INST_ADV_AXI_DEST_W, INST_ADV_AXI_ID_W, INST_ADV_AXI_DATA_W_DIV8>;
+
+    type State = MemReaderState<INST_ADV_AXI_ADDR_W, INST_ADV_DSLX_ADDR_W>;
+    type Fsm = MemReaderFsm;
+
+    config(
+        req_r: chan<Req> in,
+        resp_s: chan<Resp> out,
+        axi_ar_s: chan<AxiAr> out,
+        axi_r_r: chan<AxiR> in
+    ) {
+        spawn MemReaderAdvNoFsm<
+            INST_ADV_DSLX_DATA_W, INST_ADV_DSLX_ADDR_W,
+            INST_ADV_AXI_DATA_W, INST_ADV_AXI_ADDR_W, INST_ADV_AXI_DEST_W, INST_ADV_AXI_ID_W,
+        >(req_r, resp_s, axi_ar_s, axi_r_r);
+
+        ()
+    }
+
+    init { }
+    next(state: ()) { }
+}
+
 proc MemReaderInternalInst {
     type Req = MemReaderReq<INST_ADV_DSLX_ADDR_W>;
     type Resp = MemReaderResp<INST_ADV_DSLX_DATA_W, INST_ADV_DSLX_ADDR_W>;
@@ -488,6 +625,37 @@ proc MemReaderInternalInst {
     init { }
     next(state: ()) { }
 }
+
+proc MemReaderInternalNoFsmInst {
+    type Req = MemReaderReq<INST_ADV_DSLX_ADDR_W>;
+    type Resp = MemReaderResp<INST_ADV_DSLX_DATA_W, INST_ADV_DSLX_ADDR_W>;
+
+    type AxiReaderReq = axi_reader::AxiReaderReq<INST_ADV_AXI_ADDR_W>;
+    type AxiReaderError = axi_reader::AxiReaderError;
+
+    type AxiAr = axi::AxiAr<INST_ADV_AXI_ADDR_W, INST_ADV_AXI_ID_W>;
+    type AxiR = axi::AxiR<INST_ADV_AXI_DATA_W, INST_ADV_AXI_ID_W>;
+    type AxiStreamOutput = axi_st::AxiStream<INST_ADV_DSLX_DATA_W, INST_ADV_AXI_DEST_W, INST_ADV_AXI_ID_W, INST_ADV_DSLX_DATA_W_DIV8>;
+
+    config(
+        req_r: chan<Req> in,
+        resp_s: chan<Resp> out,
+        reader_req_s: chan<AxiReaderReq> out,
+        reader_err_r: chan<AxiReaderError> in,
+        axi_st_out_r: chan<AxiStreamOutput> in
+    ) {
+        spawn MemReaderInternalNoFsm<
+            INST_ADV_DSLX_DATA_W, INST_ADV_DSLX_ADDR_W,
+            INST_ADV_AXI_DATA_W, INST_ADV_AXI_ADDR_W, INST_ADV_AXI_DEST_W, INST_ADV_AXI_ID_W,
+        >(req_r, resp_s, reader_req_s, reader_err_r, axi_st_out_r);
+        ()
+    }
+
+    init { }
+    next(state: ()) { }
+}
+
+
 
 const INST_DATA_W = u32:64;
 const INST_ADDR_W = u32:16;
@@ -524,6 +692,36 @@ proc MemReaderInst {
     init { }
     next(state: ()) { }
 }
+
+proc MemReaderNoFsmInst {
+    type Req = MemReaderReq<INST_ADDR_W>;
+    type Resp = MemReaderResp<INST_DATA_W, INST_ADDR_W>;
+
+    type AxiReaderReq = axi_reader::AxiReaderReq<INST_ADDR_W>;
+    type AxiAr = axi::AxiAr<INST_ADDR_W, INST_ID_W>;
+    type AxiR = axi::AxiR<INST_DATA_W, INST_ID_W>;
+    type AxiStream = axi_st::AxiStream<INST_DATA_W, INST_DEST_W, INST_ID_W, INST_DATA_W_DIV8>;
+
+    type State = MemReaderState<INST_ADDR_W, INST_ADDR_W>;
+    type Fsm = MemReaderFsm;
+
+    config(
+        req_r: chan<Req> in,
+        resp_s: chan<Resp> out,
+        axi_ar_s: chan<AxiAr> out,
+        axi_r_r: chan<AxiR> in
+    ) {
+        spawn MemReaderNoFsm<
+            INST_DATA_W, INST_ADDR_W, INST_DEST_W, INST_ID_W,
+        >(req_r, resp_s, axi_ar_s, axi_r_r);
+
+        ()
+    }
+
+    init { }
+    next(state: ()) { }
+}
+
 
 const TEST_AXI_DATA_W = u32:128;
 const TEST_AXI_ADDR_W = u32:16;
