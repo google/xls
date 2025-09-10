@@ -617,14 +617,14 @@ proc HuffmanControlAndSequence_test {
 
         const TEST_STREAM_ADDR = uN[TEST_AXI_ADDR_W][4]:[
             ctrl.base_addr + JUMP_TABLE_SIZE,
+            ctrl.base_addr + JUMP_TABLE_SIZE + uN[TEST_AXI_ADDR_W]:0x1,
             ctrl.base_addr + JUMP_TABLE_SIZE + uN[TEST_AXI_ADDR_W]:0x3,
-            ctrl.base_addr + JUMP_TABLE_SIZE + uN[TEST_AXI_ADDR_W]:0x5,
             ctrl.base_addr + JUMP_TABLE_SIZE + uN[TEST_AXI_ADDR_W]:0x6,
         ];
         const TEST_STREAM_LENGTH = uN[TEST_AXI_ADDR_W][4]:[
-            uN[TEST_AXI_ADDR_W]:0x3,
-            uN[TEST_AXI_ADDR_W]:0x2,
             uN[TEST_AXI_ADDR_W]:0x1,
+            uN[TEST_AXI_ADDR_W]:0x2,
+            uN[TEST_AXI_ADDR_W]:0x3,
             uN[TEST_AXI_ADDR_W]:0x3,
         ];
 
@@ -692,14 +692,14 @@ proc HuffmanControlAndSequence_test {
 
         const TEST_STREAM_ADDR = uN[TEST_AXI_ADDR_W][4]:[
             ctrl.base_addr + tree_description_size + JUMP_TABLE_SIZE,
+            ctrl.base_addr + tree_description_size + JUMP_TABLE_SIZE + uN[TEST_AXI_ADDR_W]:0x1,
             ctrl.base_addr + tree_description_size + JUMP_TABLE_SIZE + uN[TEST_AXI_ADDR_W]:0x3,
-            ctrl.base_addr + tree_description_size + JUMP_TABLE_SIZE + uN[TEST_AXI_ADDR_W]:0x5,
             ctrl.base_addr + tree_description_size + JUMP_TABLE_SIZE + uN[TEST_AXI_ADDR_W]:0x6,
         ];
         const TEST_STREAM_LENGTH = uN[TEST_AXI_ADDR_W][4]:[
-            uN[TEST_AXI_ADDR_W]:0x3,
-            uN[TEST_AXI_ADDR_W]:0x2,
             uN[TEST_AXI_ADDR_W]:0x1,
+            uN[TEST_AXI_ADDR_W]:0x2,
+            uN[TEST_AXI_ADDR_W]:0x3,
             uN[TEST_AXI_ADDR_W]:0x1F,
         ];
 
