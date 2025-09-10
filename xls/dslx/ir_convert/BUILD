@@ -89,6 +89,27 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "proc_scoped_channel_scope",
+    srcs = ["proc_scoped_channel_scope.cc"],
+    hdrs = ["proc_scoped_channel_scope.h"],
+    deps = [
+        ":channel_scope",
+        ":conversion_info",
+        ":convert_options",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:import_data",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/type_system:type_info",
+        "//xls/ir:channel",
+        "//xls/ir:channel_ops",
+        "//xls/ir:function_builder",
+        "//xls/ir:type",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
 cc_test(
     name = "channel_scope_test",
     srcs = ["channel_scope_test.cc"],
@@ -288,6 +309,7 @@ cc_library(
         ":convert_options",
         ":ir_conversion_utils",
         ":proc_config_ir_converter",
+        ":proc_scoped_channel_scope",
         "//xls/common:casts",
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
