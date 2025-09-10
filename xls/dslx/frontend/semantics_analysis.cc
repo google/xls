@@ -29,8 +29,10 @@
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
@@ -408,7 +410,29 @@ class CollectUseDef : public AstNodeVisitorWithDefault {
   void AddUse(const AnyNameDef& any_name_def) {
     if (const NameDef* const* name_def =
             std::get_if<const NameDef*>(&any_name_def)) {
-      uses_.insert(*name_def);
+      if (!uses_.insert(*name_def).second) {
+        return;
+      }
+
+      // We make an exception to NameDefTree, that if any def in it is used, all
+      // defs in the tree are considered used. This is because the user
+      // typically wants to keep a meaningful name for each component of a
+      // NameDefTree binding, even though only some of them will be used, and we
+      // want to reduce superfluous warnings on that.
+      const AstNode* node = *name_def;
+      while (node->parent() &&
+             node->parent()->kind() == AstNodeKind::kNameDefTree) {
+        node = down_cast<const NameDefTree*>(node->parent());
+      }
+      if (node != *name_def) {
+        for (NameDefTree::Leaf& leaf :
+             down_cast<const NameDefTree*>(node)->Flatten()) {
+          if (const NameDef* const* tree_name_def =
+                  std::get_if<NameDef*>(&leaf)) {
+            uses_.insert(*tree_name_def);
+          }
+        }
+      }
     }
   }
 

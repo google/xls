@@ -8955,6 +8955,17 @@ fn g() {
             "Definition of `a` (type `uN[2]`) is not used in function `f`");
 }
 
+TEST(TypecheckV2Test, AllowSomeUnusedDefInNameDefTree) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn f(A: (u32, u32)[5]) -> (u32, u32) {
+  for (i, (a, b)) in A {
+    (a, a)
+  } ((u32:0, u32:0))
+}
+)"));
+  EXPECT_EQ(result.tm.warnings.warnings().size(), 0);
+}
+
 // The following two tests mirrors TIv1's behavior of checking for rollover only
 // on implicit parametric bindings, but not anywhere else.
 TEST(TypecheckV2Test, ImplicitParametricBindingRollover) {

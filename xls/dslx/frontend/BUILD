@@ -670,10 +670,12 @@ cc_library(
     hdrs = ["semantics_analysis.h"],
     deps = [
         ":ast",
+        ":ast_node",
         ":ast_node_visitor_with_default",
         ":module",
         ":pos",
         ":token_utils",
+        "//xls/common:casts",
         "//xls/common/status:status_macros",
         "//xls/dslx:import_data",
         "//xls/dslx:warning_collector",
