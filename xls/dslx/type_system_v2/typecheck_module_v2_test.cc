@@ -6019,6 +6019,16 @@ const X = A..s8:3;
                                        "is greater than end value 3")));
 }
 
+TEST(TypecheckV2Test, RangeExprEmptyRange) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+const A = s8:4;
+const X = A..s8:4;
+)"));
+  ASSERT_THAT(result.tm.warnings.warnings().size(), 1);
+  EXPECT_EQ(result.tm.warnings.warnings()[0].message,
+            "`A..s8:4` from `s8:4` to `s8:4` is an empty range");
+}
+
 TEST(TypecheckV2Test, MinAttribute) {
   XLS_EXPECT_OK(TypecheckV2(R"(
 const_assert!(u8::MIN == 0);

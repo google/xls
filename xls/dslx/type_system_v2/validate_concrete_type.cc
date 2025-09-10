@@ -344,6 +344,12 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     if (!diff.FitsInNBitsUnsigned(32)) {
       return RangeTooLargeErrorStatus(range->span(), range, diff, file_table_);
     }
+    if (start.Eq(end)) {
+      warning_collector_.Add(
+          range->span(), WarningKind::kEmptyRangeLiteral,
+          absl::StrFormat("`%s` from `%s` to `%s` is an empty range",
+                          range->ToString(), start.ToString(), end.ToString()));
+    }
     return absl::OkStatus();
   }
 
