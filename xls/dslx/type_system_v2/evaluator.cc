@@ -28,6 +28,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/type.h"
@@ -139,11 +140,14 @@ class EvaluatorImpl : public Evaluator {
       type_info->SetItem(type_annotation, MetaType(type->CloneToUnique()));
     }
 
+    // TODO(williamjhuang) - See ConstexprEvaluator::InterpretExpr(const Expr*)
+    bool warn_rollover = expr->parent() && expr->parent()->kind() ==
+                                               AstNodeKind::kParametricBinding;
     XLS_ASSIGN_OR_RETURN(
         InterpValue result,
         ConstexprEvaluator::EvaluateToValue(
             &import_data_, type_info, &warning_collector_,
-            table_.GetParametricEnv(parametric_context), expr));
+            table_.GetParametricEnv(parametric_context), expr, warn_rollover));
     VLOG(7) << "Evaluation result for: " << expr->ToString()
             << " in context: " << ToString(parametric_context)
             << " value: " << result.ToString();

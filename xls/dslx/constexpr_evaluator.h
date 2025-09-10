@@ -47,14 +47,15 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   static absl::Status Evaluate(ImportData* import_data, TypeInfo* type_info,
                                WarningCollector* warning_collector,
                                const ParametricEnv& bindings, const Expr* expr,
-                               const Type* type = nullptr);
+                               const Type* type = nullptr,
+                               bool warn_rollover = false);
 
   // Performs the same action as `Evaluate`, but returns the resulting constexpr
   // value. Returns an error status if `expr` is non-constexpr.
   static absl::StatusOr<InterpValue> EvaluateToValue(
       ImportData* import_data, TypeInfo* type_info,
       WarningCollector* warning_collector, const ParametricEnv& bindings,
-      const Expr* expr);
+      const Expr* expr, bool warn_rollover = false);
 
   // A concrete type is only necessary when:
   //  - Deducing a Number that is undecorated and whose type is specified by
@@ -107,12 +108,14 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
 
   ConstexprEvaluator(ImportData* import_data, TypeInfo* type_info,
                      WarningCollector* warning_collector,
-                     ParametricEnv bindings, const Type* type)
+                     ParametricEnv bindings, const Type* type,
+                     bool warn_rollover)
       : import_data_(import_data),
         type_info_(type_info),
         warning_collector_(warning_collector),
         bindings_(std::move(bindings)),
-        type_(type) {}
+        type_(type),
+        warn_rollover_(warn_rollover) {}
 
   // Interprets the given expression. Prior to calling this function, it's
   // necessary to determine that all expression components are constexpr.
@@ -123,6 +126,7 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   WarningCollector* const warning_collector_;
   const ParametricEnv bindings_;
   const Type* const type_;
+  bool warn_rollover_;
 };
 
 // Holds the results of `MakeConstexprEnv()` -- generally users will use `env`,

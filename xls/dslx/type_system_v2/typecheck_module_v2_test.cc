@@ -8935,5 +8935,33 @@ fn g() {
             "Definition of `a` (type `uN[2]`) is not used in function `f`");
 }
 
+// The following two tests mirrors TIv1's behavior of checking for rollover only
+// on implicit parametric bindings, but not anywhere else.
+TEST(TypecheckV2Test, ImplicitParametricBindingRollover) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn p<N: u32, M: u32 = {N - (u32:1 << 31) - u32:1}>() {
+}
+
+fn main() {
+  p<u32:0>();  // <-- cause an underflow to occur
+}
+)"));
+  EXPECT_EQ(result.tm.warnings.warnings()[0].message,
+            "constexpr evaluation detected rollover in operation");
+}
+
+TEST(TypecheckV2Test, ParametricTypeRolloverOk) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn p<N: u32, M: u32>() -> u32 {
+  uN[N - M + u32:2]:1 as u32
+}
+
+fn main() -> u32 {
+  p<u32:1, u32:2>()
+}
+)"));
+  EXPECT_EQ(result.tm.warnings.warnings().size(), 0);
+}
+
 }  // namespace
 }  // namespace xls::dslx

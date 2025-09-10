@@ -581,6 +581,7 @@ cc_library(
         "//xls/dslx:interp_value",
         "//xls/dslx:warning_collector",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_node",
         "//xls/dslx/type_system:type",
         "//xls/dslx/type_system:type_info",
         "@com_google_absl//absl/container:flat_hash_map",

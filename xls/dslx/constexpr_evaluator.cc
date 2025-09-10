@@ -65,7 +65,7 @@ namespace xls::dslx {
 /* static */ absl::Status ConstexprEvaluator::Evaluate(
     ImportData* import_data, TypeInfo* type_info,
     WarningCollector* warning_collector, const ParametricEnv& bindings,
-    const Expr* expr, const Type* type) {
+    const Expr* expr, const Type* type, bool warn_rollover) {
   VLOG(5) << "ConstexprEvaluator::Evaluate; expr: " << expr->ToString() << " @ "
           << expr->span().ToString(import_data->file_table());
   if (type != nullptr) {
@@ -77,16 +77,16 @@ namespace xls::dslx {
     return absl::OkStatus();
   }
   ConstexprEvaluator evaluator(import_data, type_info, warning_collector,
-                               bindings, type);
+                               bindings, type, warn_rollover);
   return expr->AcceptExpr(&evaluator);
 }
 
 /* static */ absl::StatusOr<InterpValue> ConstexprEvaluator::EvaluateToValue(
     ImportData* import_data, TypeInfo* type_info,
     WarningCollector* warning_collector, const ParametricEnv& bindings,
-    const Expr* expr) {
-  XLS_RETURN_IF_ERROR(
-      Evaluate(import_data, type_info, warning_collector, bindings, expr));
+    const Expr* expr, bool warn_rollover) {
+  XLS_RETURN_IF_ERROR(Evaluate(import_data, type_info, warning_collector,
+                               bindings, expr, nullptr, warn_rollover));
   if (type_info->IsKnownConstExpr(expr)) {
     return type_info->GetConstExpr(expr);
   }
@@ -104,7 +104,7 @@ namespace xls::dslx {
       sub_type = type_info_->GetItem(EXPR).value();                           \
     }                                                                         \
     ConstexprEvaluator sub_eval(import_data_, type_info_, warning_collector_, \
-                                bindings_, sub_type);                         \
+                                bindings_, sub_type, warn_rollover_);         \
     XLS_RETURN_IF_ERROR(EXPR->AcceptExpr(&sub_eval));                         \
   }                                                                           \
   if (!type_info_->IsKnownConstExpr(EXPR)) {                                  \
@@ -655,9 +655,19 @@ absl::Status ConstexprEvaluator::InterpretExpr(const Expr* expr) {
   std::vector<Span> rollovers;
   BytecodeInterpreterOptions options;
   options.rollover_hook([&](const Span& s) { rollovers.push_back(s); });
-  XLS_ASSIGN_OR_RETURN(InterpValue constexpr_value,
-                       BytecodeInterpreter::Interpret(import_data_, bf.get(),
-                                                      /*args=*/{}));
+  // TODO(williamjhuang) - The previous code has a bug here that
+  // BytecodeInterpreter does not uses the rollover_hook even one is intended to
+  // be used. In TIv1 this ended up only implicit parametric bindings are being
+  // checked for rollover in a different code path, but not at other location
+  // where constexpr is expected. We are matching this behavior in TIv2 for now
+  // because a lot of code in stdlib has potentially overflowing immediate
+  // expressions, so we cannot enable this warning universally.
+  XLS_ASSIGN_OR_RETURN(
+      InterpValue constexpr_value,
+      BytecodeInterpreter::Interpret(
+          import_data_, bf.get(),
+          /*args=*/{}, /*channel_manager=*/std::nullopt,
+          warn_rollover_ ? options : BytecodeInterpreterOptions()));
   if (warning_collector_ != nullptr) {
     for (const Span& s : rollovers) {
       warning_collector_->Add(
