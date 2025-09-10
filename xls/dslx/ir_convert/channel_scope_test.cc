@@ -53,7 +53,7 @@ using ::xls::proto_testing::EqualsProto;
 
 constexpr std::string_view kPackageName = "the_package";
 
-class ChannelScopeTest : public ::testing::Test {
+class GlobalChannelScopeTest : public ::testing::Test {
  public:
   void SetUp() override {
     conv_.package = std::make_unique<Package>(kPackageName);
@@ -61,8 +61,8 @@ class ChannelScopeTest : public ::testing::Test {
     module_ = std::make_unique<Module>("test", /*fs_path=*/std::nullopt,
                                        import_data_->file_table());
     XLS_ASSERT_OK_AND_ASSIGN(type_info_, type_info_owner_.New(module_.get()));
-    scope_ =
-        std::make_unique<ChannelScope>(&conv_, import_data_.get(), options_);
+    scope_ = std::make_unique<GlobalChannelScope>(&conv_, import_data_.get(),
+                                                  options_);
     scope_->EnterFunctionContext(type_info_, bindings_);
   }
 
@@ -131,10 +131,10 @@ class ChannelScopeTest : public ::testing::Test {
   TypeInfoOwner type_info_owner_;
   ConvertOptions options_;
   TypeInfo* type_info_;
-  std::unique_ptr<ChannelScope> scope_;
+  std::unique_ptr<GlobalChannelScope> scope_;
 };
 
-TEST_F(ChannelScopeTest, DefineChannel) {
+TEST_F(GlobalChannelScopeTest, DefineChannel) {
   ChannelDecl* decl = MakeU32ChannelDecl("the_channel");
   XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray result,
                            scope_->DefineChannelOrArray(decl));
@@ -146,7 +146,7 @@ TEST_F(ChannelScopeTest, DefineChannel) {
   EXPECT_THAT(channel->initial_values(), IsEmpty());
 }
 
-TEST_F(ChannelScopeTest, DefineChannelArray) {
+TEST_F(GlobalChannelScopeTest, DefineChannelArray) {
   std::vector<Expr*> dims = {MakeU32("5")};
   ChannelDecl* decl = MakeU32ChannelDecl("the_channel", dims);
   XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray result,
@@ -154,7 +154,7 @@ TEST_F(ChannelScopeTest, DefineChannelArray) {
   EXPECT_TRUE(std::holds_alternative<ChannelArray*>(result));
 }
 
-TEST_F(ChannelScopeTest, DefineBoundaryChannel) {
+TEST_F(GlobalChannelScopeTest, DefineBoundaryChannel) {
   Param* param = MakeU32Param("the_channel", ChannelDirection::kIn);
   XLS_ASSERT_OK_AND_ASSIGN(
       ChannelOrArray result,
@@ -167,7 +167,7 @@ TEST_F(ChannelScopeTest, DefineBoundaryChannel) {
               )pb")));
 }
 
-TEST_F(ChannelScopeTest, DefineBoundaryInputChannelArray) {
+TEST_F(GlobalChannelScopeTest, DefineBoundaryInputChannelArray) {
   std::vector<Expr*> dims = {MakeU32("2")};
   Param* param = MakeU32Param("the_channel", ChannelDirection::kIn, dims);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -187,7 +187,7 @@ TEST_F(ChannelScopeTest, DefineBoundaryInputChannelArray) {
                           )pb")));
 }
 
-TEST_F(ChannelScopeTest, DefineBoundaryOutputChannelArray) {
+TEST_F(GlobalChannelScopeTest, DefineBoundaryOutputChannelArray) {
   std::vector<Expr*> dims = {MakeU32("2")};
   Param* param = MakeU32Param("the_channel", ChannelDirection::kOut, dims);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -207,7 +207,7 @@ TEST_F(ChannelScopeTest, DefineBoundaryOutputChannelArray) {
                           )pb")));
 }
 
-TEST_F(ChannelScopeTest, DefineChannelProcScoped) {
+TEST_F(GlobalChannelScopeTest, DefineChannelProcScoped) {
   options_.lower_to_proc_scoped_channels = true;
   ChannelDecl* decl = MakeU32ChannelDecl("the_channel");
   XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray result,
@@ -220,7 +220,7 @@ TEST_F(ChannelScopeTest, DefineChannelProcScoped) {
   EXPECT_THAT(channel->initial_values(), IsEmpty());
 }
 
-TEST_F(ChannelScopeTest, DefineChannelArrayProcScoped) {
+TEST_F(GlobalChannelScopeTest, DefineChannelArrayProcScoped) {
   options_.lower_to_proc_scoped_channels = true;
   std::vector<Expr*> dims = {MakeU32("5")};
   ChannelDecl* decl = MakeU32ChannelDecl("the_channel", dims);
@@ -229,7 +229,7 @@ TEST_F(ChannelScopeTest, DefineChannelArrayProcScoped) {
   EXPECT_TRUE(std::holds_alternative<ChannelArray*>(result));
 }
 
-TEST_F(ChannelScopeTest, DefineBoundaryChannelProcScoped) {
+TEST_F(GlobalChannelScopeTest, DefineBoundaryChannelProcScoped) {
   options_.lower_to_proc_scoped_channels = true;
   Param* param = MakeU32Param("the_channel", ChannelDirection::kIn);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -243,7 +243,7 @@ TEST_F(ChannelScopeTest, DefineBoundaryChannelProcScoped) {
               )pb")));
 }
 
-TEST_F(ChannelScopeTest, DefineBoundaryInputChannelArrayProcScoped) {
+TEST_F(GlobalChannelScopeTest, DefineBoundaryInputChannelArrayProcScoped) {
   std::vector<Expr*> dims = {MakeU32("2")};
   Param* param = MakeU32Param("the_channel", ChannelDirection::kIn, dims);
   options_.lower_to_proc_scoped_channels = true;
@@ -264,7 +264,7 @@ TEST_F(ChannelScopeTest, DefineBoundaryInputChannelArrayProcScoped) {
                           )pb")));
 }
 
-TEST_F(ChannelScopeTest, DefineBoundaryOutputChannelArrayProcScoped) {
+TEST_F(GlobalChannelScopeTest, DefineBoundaryOutputChannelArrayProcScoped) {
   options_.lower_to_proc_scoped_channels = true;
   std::vector<Expr*> dims = {MakeU32("2")};
   Param* param = MakeU32Param("the_channel", ChannelDirection::kOut, dims);
@@ -285,7 +285,7 @@ TEST_F(ChannelScopeTest, DefineBoundaryOutputChannelArrayProcScoped) {
                           )pb")));
 }
 
-TEST_F(ChannelScopeTest, AssociateWithExistingChannelDecl) {
+TEST_F(GlobalChannelScopeTest, AssociateWithExistingChannelDecl) {
   ChannelDecl* decl = MakeU32ChannelDecl("the_channel");
   XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray result,
                            scope_->DefineChannelOrArray(decl));
@@ -296,7 +296,7 @@ TEST_F(ChannelScopeTest, AssociateWithExistingChannelDecl) {
       std::get<Channel*>(result));
 }
 
-TEST_F(ChannelScopeTest, AssociateWithExistingChannelArrayDecl) {
+TEST_F(GlobalChannelScopeTest, AssociateWithExistingChannelArrayDecl) {
   std::vector<Expr*> dims = {MakeU32("5")};
   ChannelDecl* decl = MakeU32ChannelDecl("the_channel", dims);
   XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray result,
@@ -308,7 +308,7 @@ TEST_F(ChannelScopeTest, AssociateWithExistingChannelArrayDecl) {
       std::get<ChannelArray*>(result));
 }
 
-TEST_F(ChannelScopeTest, AssociateWithExistingChannelOrArrayNonexistent) {
+TEST_F(GlobalChannelScopeTest, AssociateWithExistingChannelOrArrayNonexistent) {
   ChannelDecl* decl = MakeU32ChannelDecl("the_channel");
   NameDef* name_def = module_->Make<NameDef>(Span::Fake(), "ch", nullptr);
   EXPECT_THAT(
@@ -316,7 +316,7 @@ TEST_F(ChannelScopeTest, AssociateWithExistingChannelOrArrayNonexistent) {
       StatusIs(absl::StatusCode::kNotFound));
 }
 
-TEST_F(ChannelScopeTest, AssociateWithExistingChannel) {
+TEST_F(GlobalChannelScopeTest, AssociateWithExistingChannel) {
   ChannelDecl* decl = MakeU32ChannelDecl("the_channel");
   XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray result,
                            scope_->DefineChannelOrArray(decl));
@@ -326,7 +326,7 @@ TEST_F(ChannelScopeTest, AssociateWithExistingChannel) {
       scope_->AssociateWithExistingChannelOrArray(ProcId{}, name_def, result));
 }
 
-TEST_F(ChannelScopeTest, AssociateWithExistingChannelArray) {
+TEST_F(GlobalChannelScopeTest, AssociateWithExistingChannelArray) {
   std::vector<Expr*> dims = {MakeU32("5")};
   ChannelDecl* decl = MakeU32ChannelDecl("the_channel", dims);
   XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray result,
@@ -337,7 +337,8 @@ TEST_F(ChannelScopeTest, AssociateWithExistingChannelArray) {
       scope_->AssociateWithExistingChannelOrArray(ProcId{}, name_def, result));
 }
 
-TEST_F(ChannelScopeTest, AssociateWithExistingChannelArrayDifferentProcIds) {
+TEST_F(GlobalChannelScopeTest,
+       AssociateWithExistingChannelArrayDifferentProcIds) {
   std::vector<Expr*> dims = {MakeU32("5")};
   ChannelDecl* arr1_decl = MakeU32ChannelDecl("arr1", dims);
   XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray arr1,
@@ -374,7 +375,7 @@ TEST_F(ChannelScopeTest, AssociateWithExistingChannelArrayDifferentProcIds) {
   EXPECT_EQ(test_channel2->name(), "the_package__arr2__2");
 }
 
-TEST_F(ChannelScopeTest,
+TEST_F(GlobalChannelScopeTest,
        AssociateWithExistingChannelArrayDifferentProcIdsProcScoped) {
   options_.lower_to_proc_scoped_channels = true;
   std::vector<Expr*> dims = {MakeU32("5")};
@@ -413,7 +414,7 @@ TEST_F(ChannelScopeTest,
   EXPECT_EQ(test_channel2->name(), "arr2__2");
 }
 
-TEST_F(ChannelScopeTest, HandleChannelIndex1DValid) {
+TEST_F(GlobalChannelScopeTest, HandleChannelIndex1DValid) {
   std::vector<Expr*> dims = {MakeU32("5")};
   ChannelDecl* decl = MakeU32ChannelDecl("the_channel", dims);
   XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray result,
@@ -425,7 +426,7 @@ TEST_F(ChannelScopeTest, HandleChannelIndex1DValid) {
   EXPECT_EQ(channel->name(), "the_package__the_channel__2");
 }
 
-TEST_F(ChannelScopeTest, HandleChannelIndex2DValid) {
+TEST_F(GlobalChannelScopeTest, HandleChannelIndex2DValid) {
   std::vector<Expr*> dims = {MakeU32("2"), MakeU32("5")};
   ChannelDecl* decl = MakeU32ChannelDecl("the_channel", dims);
   XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray result,
@@ -437,7 +438,7 @@ TEST_F(ChannelScopeTest, HandleChannelIndex2DValid) {
   EXPECT_EQ(channel->name(), "the_package__the_channel__4_1");
 }
 
-TEST_F(ChannelScopeTest, HandleChannelIndexWithNonArray) {
+TEST_F(GlobalChannelScopeTest, HandleChannelIndexWithNonArray) {
   ChannelDecl* decl = MakeU32ChannelDecl("the_channel");
   XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray result,
                            scope_->DefineChannelOrArray(decl));
@@ -447,7 +448,7 @@ TEST_F(ChannelScopeTest, HandleChannelIndexWithNonArray) {
       StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
-TEST_F(ChannelScopeTest, HandleChannelIndexWithTooManyIndices) {
+TEST_F(GlobalChannelScopeTest, HandleChannelIndexWithTooManyIndices) {
   std::vector<Expr*> dims = {MakeU32("2"), MakeU32("5")};
   ChannelDecl* decl = MakeU32ChannelDecl("the_channel", dims);
   XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray result,
@@ -458,7 +459,7 @@ TEST_F(ChannelScopeTest, HandleChannelIndexWithTooManyIndices) {
               StatusIs(absl::StatusCode::kNotFound));
 }
 
-TEST_F(ChannelScopeTest, HandleChannelIndexWithInsufficientIndices) {
+TEST_F(GlobalChannelScopeTest, HandleChannelIndexWithInsufficientIndices) {
   std::vector<Expr*> dims = {MakeU32("2"), MakeU32("5")};
   ChannelDecl* decl = MakeU32ChannelDecl("the_channel", dims);
   XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray result,
@@ -469,7 +470,7 @@ TEST_F(ChannelScopeTest, HandleChannelIndexWithInsufficientIndices) {
       StatusIs(absl::StatusCode::kNotFound));
 }
 
-TEST_F(ChannelScopeTest, HandleSubarrayIndex) {
+TEST_F(GlobalChannelScopeTest, HandleSubarrayIndex) {
   std::vector<Expr*> dims = {MakeU32("2"), MakeU32("5")};
   ChannelDecl* decl = MakeU32ChannelDecl("the_channel", dims);
   XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray result,
@@ -494,7 +495,7 @@ TEST_F(ChannelScopeTest, HandleSubarrayIndex) {
   EXPECT_EQ(channel->name(), "the_package__the_channel__4_1");
 }
 
-TEST_F(ChannelScopeTest, HandleChannelIndexWithOutOfRangeIndices) {
+TEST_F(GlobalChannelScopeTest, HandleChannelIndexWithOutOfRangeIndices) {
   std::vector<Expr*> dims = {MakeU32("2"), MakeU32("5")};
   ChannelDecl* decl = MakeU32ChannelDecl("the_channel", dims);
   XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray result,

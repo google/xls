@@ -42,11 +42,12 @@
 
 namespace xls::dslx {
 
-// Represents an array of channels that has been flattened by a `ChannelScope`
-// so that each element has a synthetic, flattened name. The data in a
-// `ChannelArray` is opaque to all but the internals of the `ChannelScope`.
+// Represents an array of channels that has been flattened by a
+// `GlobalChannelScope` so that each element has a synthetic, flattened name.
+// The data in a `ChannelArray` is opaque to all but the internals of the
+// `GlobalChannelScope`.
 class ChannelArray {
-  friend class ChannelScope;
+  friend class GlobalChannelScope;
 
  public:
   // For logging purposes.
@@ -74,6 +75,8 @@ class ChannelArray {
     if (it == flattened_name_to_channel_.end()) {
       return std::nullopt;
     }
+    // TODO: davidplass - Change FindChannel to return a ChannelRef,
+    // or add a FindChannelRef method.
     return it->second;
   }
 
@@ -84,9 +87,9 @@ class ChannelArray {
   // Whether this array represents part of a larger N-D array, with up to N-1
   // dims fixed. In that case, it will contain some of the same channel pointers
   // that are in the `ChannelArray` object representing the overall array.
-  // `ChannelArray` objects for subarrays are fabricated by a `ChannelScope` on
-  // an as-needed basis, when references to them are encountered (in the form of
-  // `Index` ops).
+  // `ChannelArray` objects for subarrays are fabricated by a
+  // `GlobalChannelScope` on an as-needed basis, when references to them are
+  // encountered (in the form of `Index` ops).
   const bool subarray_;
 
   // The flattened names in order of addition. The scope adds channels in
@@ -96,52 +99,50 @@ class ChannelArray {
 
   // Each element in this map represents one element of the array. The flattened
   // channel name for an element is `base_channel_name_` plus a suffix produced
-  // by `ChannelScope::CreateAllArrayElementSuffixes()`, with the base name and
-  // suffix separated by a double underscore.
+  // by `GlobalChannelScope::CreateAllArrayElementSuffixes()`, with the base
+  // name and suffix separated by a double underscore.
+  // TODO: davidplass - change to ChannelRef.
   absl::flat_hash_map<std::string, Channel*> flattened_name_to_channel_;
 };
 
 using ChannelOrArray = std::variant<Channel*, ChannelArray*, ChannelInterface*>;
 
-// An object that manages definition and access to channels used in a proc.
 class ChannelScope {
  public:
-  ChannelScope(PackageConversionData* conversion_info, ImportData* import_data,
-               const ConvertOptions& options,
-               std::optional<FifoConfig> default_fifo_config = std::nullopt);
+  virtual ~ChannelScope() = default;
 
   // The owner (IR converter driving the overall procedure) should invoke this
   // with the `type_info` and `bindings` for the function, before converting
   // each function to IR. All other functions assume this has been done.
-  void EnterFunctionContext(TypeInfo* type_info,
-                            const ParametricEnv& bindings) {
-    function_context_.emplace(type_info, bindings);
-    channel_arrays_.emplace(import_data_, type_info, bindings);
-  }
+  virtual void EnterFunctionContext(TypeInfo* type_info,
+                                    const ParametricEnv& bindings) = 0;
 
   // Creates the channel object, or array of channel objects, indicated by the
   // given `decl`, and returns it.
-  absl::StatusOr<ChannelOrArray> DefineChannelOrArray(const ChannelDecl* decl);
+  virtual absl::StatusOr<ChannelOrArray> DefineChannelOrArray(
+      const ChannelDecl* decl) = 0;
 
   // Creates the channel object, or array of channel objects, indicated by the
   // given parameter at the overall DSLX->IR conversion boundary. Channels at
   // the boundary have only a send or receive side.
-  absl::StatusOr<ChannelOrArray> DefineBoundaryChannelOrArray(
-      const Param* param, TypeInfo* type_info);
+  virtual absl::StatusOr<ChannelOrArray> DefineBoundaryChannelOrArray(
+      const Param* param, TypeInfo* type_info,
+      bool interface_channel = false) = 0;
 
   // Associates `name_def` as an alias of the channel or array defined by the
   // given `decl` that was previously passed to `DefineChannelOrArray`. This
   // should be used, for example, when a channel is passed into `spawn` and the
   // receiving proc associates it with a local argument name.
-  absl::StatusOr<ChannelOrArray> AssociateWithExistingChannelOrArray(
-      const ProcId& proc_id, const NameDef* name_def, const ChannelDecl* decl);
+  virtual absl::StatusOr<ChannelOrArray> AssociateWithExistingChannelOrArray(
+      const ProcId& proc_id, const NameDef* name_def,
+      const ChannelDecl* decl) = 0;
 
   // Variant of `AssociateWithExistingChannelOrArray`, to be used when the
   // caller has the channel or array returned by `DefineChannelOrArray` on hand,
   // rather than the `decl` it was made from.
-  absl::Status AssociateWithExistingChannelOrArray(
+  virtual absl::Status AssociateWithExistingChannelOrArray(
       const ProcId& proc_id, const NameDef* name_def,
-      ChannelOrArray channel_or_array);
+      ChannelOrArray channel_or_array) = 0;
 
   // Retrieves the individual `Channel` that is referred to by the given `index`
   // operation. In order for this to succeed, `index` must meet the following
@@ -155,21 +156,64 @@ class ChannelScope {
   //      be constexpr evaluatable.
   // A not-found error is the guaranteed result in cases where `index` is not
   // a channel array index operation at all.
-  absl::StatusOr<Channel*> GetChannelForArrayIndex(const ProcId& proc_id,
-                                                   const Index* index);
+  virtual absl::StatusOr<Channel*> GetChannelForArrayIndex(
+      const ProcId& proc_id, const Index* index) = 0;
 
   // Retrieves the subarray or individual `Channel` that is referred to by the
   // given `index operation. The `index` must conform to the criteria described
   // for `GetChannelForArrayIndex()`, but it may lead part way into a
   // multidimensional channel array.
+  virtual absl::StatusOr<ChannelOrArray> GetChannelOrArrayForArrayIndex(
+      const ProcId& proc_id, const Index* index) = 0;
+};
+
+// An object that manages definition and access to channels used in a proc.
+class GlobalChannelScope : public ChannelScope {
+ public:
+  GlobalChannelScope(
+      PackageConversionData* conversion_info, ImportData* import_data,
+      const ConvertOptions& options,
+      std::optional<FifoConfig> default_fifo_config = std::nullopt);
+  ~GlobalChannelScope() override = default;
+
+  void EnterFunctionContext(TypeInfo* type_info,
+                            const ParametricEnv& bindings) override {
+    function_context_.emplace(type_info, bindings);
+    channel_arrays_.emplace(import_data_, type_info, bindings);
+  }
+
+  absl::StatusOr<ChannelOrArray> DefineChannelOrArray(
+      const ChannelDecl* decl) override;
+
+  absl::StatusOr<ChannelOrArray> DefineBoundaryChannelOrArray(
+      const Param* param, TypeInfo* type_info,
+      bool interface_channel = false) override;
+
+  absl::StatusOr<ChannelOrArray> AssociateWithExistingChannelOrArray(
+      const ProcId& proc_id, const NameDef* name_def,
+      const ChannelDecl* decl) override;
+
+  absl::Status AssociateWithExistingChannelOrArray(
+      const ProcId& proc_id, const NameDef* name_def,
+      ChannelOrArray channel_or_array) override;
+
+  absl::StatusOr<Channel*> GetChannelForArrayIndex(const ProcId& proc_id,
+                                                   const Index* index) override;
+
   absl::StatusOr<ChannelOrArray> GetChannelOrArrayForArrayIndex(
-      const ProcId& proc_id, const Index* index);
+      const ProcId& proc_id, const Index* index) override;
+
+ protected:
+  virtual absl::StatusOr<Channel*> CreateChannel(
+      std::string_view name, ChannelOps ops, xls::Type* type,
+      std::optional<ChannelConfig> channel_config);
 
  private:
   absl::StatusOr<ChannelOrArray> DefineChannelOrArrayInternal(
       std::string_view short_name, ChannelOps ops, xls::Type* type,
       std::optional<ChannelConfig> channel_config,
-      const std::optional<std::vector<Expr*>>& dims);
+      const std::optional<std::vector<Expr*>>& dims,
+      bool interface_channel = false);
 
   absl::Status DefineProtoChannelOrArray(
       ChannelOrArray array, dslx::ChannelTypeAnnotation* type_annot,
@@ -185,10 +229,6 @@ class ChannelScope {
 
   absl::StatusOr<std::optional<ChannelConfig>> CreateChannelConfig(
       const ChannelDecl* decl) const;
-
-  absl::StatusOr<Channel*> CreateChannel(
-      std::string_view name, ChannelOps ops, xls::Type* type,
-      std::optional<ChannelConfig> channel_config);
 
   absl::StatusOr<ChannelOrArray> EvaluateIndex(const ProcId& proc_id,
                                                const Index* index,
