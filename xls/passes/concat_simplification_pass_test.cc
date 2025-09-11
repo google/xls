@@ -810,6 +810,44 @@ TEST_F(ConcatSimplificationPassTest, OrOfConcatWithLiteralAndSomethingElse) {
   EXPECT_THAT(Run(f), IsOkAndHolds(false));
 }
 
+TEST_F(ConcatSimplificationPassTest, 
+  NarrowBitwiseSurroundingConcatWithLiteral) {
+   auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+    fn foo(x: bits[10], b: bits[4]) -> bits[10] {
+      literal_ones: bits[6] = literal(value=0b111111, id=1)
+      concat.2: bits[10] = concat(literal_ones, b, id=2)
+      ret or.3: bits[10] = or(x, concat.2, id=3, pos=[(0,1,2)])
+    }
+  )",
+                                                       p.get()));
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(
+                  m::Literal(UBits(0b111111, 6)),
+                  m::Or(m::BitSlice(m::Param("x"), 0, 4), m::Param("b"))));
+}
+
+TEST_F(ConcatSimplificationPassTest, 
+  NarrowBitwiseSurroundingConcatWithLiteralXor) {
+   auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+    fn foo(x: bits[10], b: bits[4]) -> bits[10] {
+      literal_ones: bits[6] = literal(value=0b000000, id=1)
+      concat.2: bits[10] = concat(b, literal_ones, id=2)
+      ret xor.3: bits[10] = xor(x, concat.2, id=3, pos=[(0,1,2)])
+    }
+  )",
+                                                       p.get()));
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(
+                  m::Xor(m::BitSlice(m::Param("x"), 6, 4), m::Param("b")),
+                  m::BitSlice(m::Param("x"), 0, 6)));
+}
+
 void IrFuzzConcatSimplification(FuzzPackageWithArgs fuzz_package_with_args) {
   ConcatSimplificationPass pass;
   OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
