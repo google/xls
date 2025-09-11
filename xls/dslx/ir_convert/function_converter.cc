@@ -58,6 +58,7 @@
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/ir_conversion_utils.h"
 #include "xls/dslx/ir_convert/proc_config_ir_converter.h"
+#include "xls/dslx/ir_convert/proc_scoped_channel_scope.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system/parametric_env.h"
@@ -3333,6 +3334,11 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     XLS_RETURN_IF_ERROR(builder_ptr->SetAsTop());
   }
 
+  proc_scoped_channel_scope_ = std::make_unique<ProcScopedChannelScope>(
+      package_data_.conversion_info, import_data, options_, builder_ptr);
+  ParametricEnv bindings(parametric_env_map_);
+  proc_scoped_channel_scope_->EnterFunctionContext(type_info, bindings);
+
   // Set the one state element.
   XLS_RET_CHECK(proc_proto_);
   PackageInterfaceProto::NamedValue* state_proto =
@@ -3407,51 +3413,60 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     // Generate channel interfaces.
     for (const Param* param : config_fn.params()) {
       XLS_ASSIGN_OR_RETURN(Type * type, type_info->GetItemOrError(param));
-      // TODO: davidplass - deal with channel arrays as params.
-      XLS_RET_CHECK_EQ(dynamic_cast<ArrayType*>(type), nullptr)
-          << "Lowering to proc-scoped channels does not support channel arrays "
-             "as config parameters yet.";
-      ChannelType* channel_type = dynamic_cast<ChannelType*>(type);
-      XLS_RET_CHECK_NE(channel_type, nullptr)
-          << "Cannot have non-channel parameters to a `config` function "
-             "with proc-scoped channels. Use a parametric on the proc instead. "
-             "Was: "
-          << param->ToString();
-
-      // TOOD: davidplass - figure out how to get strictness, flow control,
-      // kind instead of defaults. These will likely vary depending on if it's
-      // a boundary or a loopback channel.
-      std::optional<ChannelStrictness> strictness = kDefaultChannelStrictness;
-      FlowControl flow_control = FlowControl::kReadyValid;
-      ChannelKind kind = ChannelKind::kStreaming;
-      // Payload_type is a dslx::Type but we need it to be an IR type
-      // (xls::Type)
-      XLS_ASSIGN_OR_RETURN(
-          xls::Type * ir_type,
-          TypeToIr(package(), channel_type->payload_type(), *parametric_env));
-      SourceInfo loc = ToSourceInfo(param->span());
-      if (channel_type->direction() == ChannelDirection::kIn) {
+      if (dynamic_cast<ArrayType*>(type) != nullptr) {
+        // TODO: davidplass - Use DefineBoundaryChannelOrArray for both
+        // array and non-array params. Currently this causes a timeout
+        // for certain non-channel-array tests (probably due to some infinite
+        // recursion).
         XLS_ASSIGN_OR_RETURN(
-            ReceiveChannelInterface * rci,
-            ir_proc->AddInputChannel(param->identifier(), ir_type, kind,
-                                     flow_control, strictness));
-        XLS_ASSIGN_OR_RETURN(
-            RecvChannelEnd * recv,
-            ir_proc->MakeNodeWithName<RecvChannelEnd>(loc, rci->type(), rci));
-        BValue recv_value(recv, builder_ptr);
-        Def(param->name_def(),
-            [&](const SourceInfo& loc) { return recv_value; });
+            ChannelOrArray channel_interface,
+            proc_scoped_channel_scope_->DefineBoundaryChannelOrArray(
+                param, type_info));
+        XLS_RET_CHECK(std::holds_alternative<ChannelArray*>(channel_interface));
+        // TODO: davidplass - assign the param name to an appropriate BValue
+        // for this channel or array, for the Def call.
       } else {
+        ChannelType* channel_type = dynamic_cast<ChannelType*>(type);
+        XLS_RET_CHECK_NE(channel_type, nullptr)
+            << "Cannot have non-channel parameters to a `config` function "
+               "with proc-scoped channels. Use a parametric on the proc "
+               "instead. Was: "
+            << param->ToString();
+        // TOOD: davidplass - figure out how to get strictness, flow control,
+        // kind instead of defaults. These will likely vary depending on if it's
+        // a boundary or a loopback channel.
+        std::optional<ChannelStrictness> strictness = kDefaultChannelStrictness;
+        FlowControl flow_control = FlowControl::kReadyValid;
+        ChannelKind kind = ChannelKind::kStreaming;
+        // Payload_type is a dslx::Type but we need it to be an IR type
+        // (xls::Type)
         XLS_ASSIGN_OR_RETURN(
-            SendChannelInterface * sci,
-            ir_proc->AddOutputChannel(param->identifier(), ir_type, kind,
-                                      flow_control, strictness));
-        XLS_ASSIGN_OR_RETURN(
-            SendChannelEnd * send,
-            ir_proc->MakeNodeWithName<SendChannelEnd>(loc, sci->type(), sci));
-        BValue send_value(send, builder_ptr);
-        Def(param->name_def(),
-            [&](const SourceInfo& loc) { return send_value; });
+            xls::Type * ir_type,
+            TypeToIr(package(), channel_type->payload_type(), *parametric_env));
+        SourceInfo loc = ToSourceInfo(param->span());
+        if (channel_type->direction() == ChannelDirection::kIn) {
+          XLS_ASSIGN_OR_RETURN(
+              ReceiveChannelInterface * rci,
+              ir_proc->AddInputChannel(param->identifier(), ir_type, kind,
+                                       flow_control, strictness));
+          XLS_ASSIGN_OR_RETURN(
+              RecvChannelEnd * recv,
+              ir_proc->MakeNodeWithName<RecvChannelEnd>(loc, rci->type(), rci));
+          BValue recv_value(recv, builder_ptr);
+          Def(param->name_def(),
+              [&](const SourceInfo& loc) { return recv_value; });
+        } else {
+          XLS_ASSIGN_OR_RETURN(
+              SendChannelInterface * sci,
+              ir_proc->AddOutputChannel(param->identifier(), ir_type, kind,
+                                        flow_control, strictness));
+          XLS_ASSIGN_OR_RETURN(
+              SendChannelEnd * send,
+              ir_proc->MakeNodeWithName<SendChannelEnd>(loc, sci->type(), sci));
+          BValue send_value(send, builder_ptr);
+          Def(param->name_def(),
+              [&](const SourceInfo& loc) { return send_value; });
+        }
       }
     }
 

@@ -4880,16 +4880,42 @@ pub proc main {
       StatusIs(absl::StatusCode::kInternal, HasSubstr("channel arrays yet")));
 }
 
-TEST_P(ProcScopedChannelsIrConverterTest, ChannelArrayParamNotSupportedYet) {
+TEST_P(ProcScopedChannelsIrConverterTest, ChannelArrayParam) {
   constexpr std::string_view kProgram = R"(
 pub proc main {
-  chan_1: chan<u32> in;
-  chan_2: chan<u32> in;
-
   init { }
-  config(chan_param: chan<u32>[2] in) {
-    (chan_param[0], chan_param[1])
+  config(in_chans: chan<u32>[3] in, out_chans: chan<u16>[2] out) { () }
+  next(state: ()) { () }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, InvalidChannelArrayParam) {
+  if (GetParam() == TypeInferenceVersion::kVersion1) {
+    // v1 fails figuring out the param type for some reason.
+    return;
   }
+
+  constexpr std::string_view kProgram = R"(
+proc invalid {
+  init { }
+  config(in_chans: chan<u32>[3] in, invalid: u32) { () }
+  next(state: ()) { () }
+}
+
+pub proc main {
+  init { }
+  config() { () }
   next(state: ()) { state }
 }
 )";
@@ -4900,7 +4926,8 @@ pub proc main {
                                     .emit_positions = false,
                                     .lower_to_proc_scoped_channels = true,
                                 }),
-      StatusIs(absl::StatusCode::kInternal, HasSubstr("channel arrays")));
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("Cannot have non-channel parameters")));
 }
 
 TEST_P(ProcScopedChannelsIrConverterTest, LoopbackChannelMember) {

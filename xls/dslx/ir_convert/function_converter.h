@@ -40,6 +40,7 @@
 #include "xls/dslx/ir_convert/conversion_info.h"
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/proc_config_ir_converter.h"
+#include "xls/dslx/ir_convert/proc_scoped_channel_scope.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
@@ -629,6 +630,8 @@ class FunctionConverter {
   // The last tuple converted. Used for mapping the return tuple of a proc
   // `config` method to actual proc members.
   std::vector<BValue> last_tuple_;
+
+  std::unique_ptr<ProcScopedChannelScope> proc_scoped_channel_scope_;
 };
 
 }  // namespace xls::dslx
