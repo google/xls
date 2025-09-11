@@ -32,6 +32,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/command_line_utils.h"
+#include "xls/dslx/create_import_data.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/module.h"
@@ -2268,6 +2269,77 @@ fn foo(a: u32, b: u32) -> u32 {
     EXPECT_NE(it->second, original);
     EXPECT_TRUE(cloned_nodes.contains(it->second));
   }
+}
+
+TEST(AstClonerTest, ImportSetsNameDefDefinerOnClone) {
+  constexpr std::string_view kImportedProgram =
+      "pub const PLACEHOLDER = u32:0;";
+  constexpr std::string_view kProgram = R"(import my.module as foo;
+
+fn main() -> u32 {
+  foo::PLACEHOLDER
+}
+)";
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(*module.get()));
+  // Typecheck the module to confirm that cloning populated the imported
+  // subject.
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK(ParseAndTypecheck(kImportedProgram, "my/module.x", "my.module",
+                                  &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule cloned_tm,
+      TypecheckModule(std::move(clone), "fake_path.x", &import_data));
+
+  std::optional<ModuleMember*> member =
+      cloned_tm.module->FindMemberWithName("foo");
+  ASSERT_TRUE(member.has_value());
+  ASSERT_TRUE(std::holds_alternative<Import*>(*member.value()));
+  Import* import = std::get<Import*>(*member.value());
+  EXPECT_EQ(import->name_def().definer(), import);
+}
+
+TEST(AstClonerTest, UseSetsNameDefDefinerOnClone) {
+  // Minimal use of a single module to keep the test crisp while exercising
+  // UseTreeEntry leaf definer behavior and typechecking via import.
+  constexpr std::string_view kImportedProgram = R"(pub const D = u32:0; )";
+  constexpr std::string_view kProgram = R"(#![feature(use_syntax)]
+use foo;
+fn main() -> u32 { foo::D }
+)";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(*module.get()));
+
+  // Prepare a fake filesystem so DoImportViaUse finds the module `foo`.
+  absl::flat_hash_map<std::filesystem::path, std::string> files;
+  files[std::filesystem::path("/foo.x")] = std::string(kImportedProgram);
+  auto vfs = std::make_unique<FakeFilesystem>(std::move(files),
+                                              std::filesystem::path("/"));
+  auto import_data = CreateImportDataForTest(std::move(vfs));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule cloned_tm,
+      TypecheckModule(std::move(clone), "fake_path.x", &import_data));
+
+  // Verify the Use leaves have their NameDef definer set to the UseTreeEntry.
+  Use* use = nullptr;
+  for (const ModuleMember& mm : cloned_tm.module->top()) {
+    if (std::holds_alternative<Use*>(mm)) {
+      use = std::get<Use*>(mm);
+      break;
+    }
+  }
+  ASSERT_NE(use, nullptr);
+  std::vector<UseSubject> subjects = use->LinearizeToSubjects();
+  ASSERT_EQ(subjects.size(), 1);
+  EXPECT_EQ(subjects[0].name_def().definer(), &subjects[0].use_tree_entry());
 }
 
 }  // namespace
