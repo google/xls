@@ -630,10 +630,6 @@ place_and_route(
     target_die_utilization_percentage = "10",
 )
 
-mem_reader_no_fsm_codegen_args = common_codegen_args | {
-    "module_name": "mem_reader_internal",
-}
-
 xls_dslx_verilog(
     name = "mem_reader_internal_no_fsm_verilog",
     codegen_args = mem_reader_no_fsm_codegen_args,
@@ -819,44 +815,6 @@ py_test(
         "@com_google_protobuf//:protobuf_python",
     ],
 )
-
-# exports_files(
-#     [
-#         "manual_axi_reader_internal_r.v",
-#         "manual_mem_reader_adv_no_fsm.v",
-#     ],
-# )
-#
-# py_test(
-#     name = "mem_reader_adv_no_fsm_fixed_cocotb_test",
-#     srcs = [
-#         "mem_reader_adv_no_fsm_fixed_cocotb_test.py",
-#         "mem_reader_cocotb.py"
-#     ],
-#     data = [
-#         ":manual_axi_reader_internal_r.v",
-#         ":manual_mem_reader_adv_no_fsm.v",
-#         "//xls/modules/zstd/memory/rtl:mem_reader_wrapper.v",
-#         "@com_icarus_iverilog//:iverilog",
-#         "@com_icarus_iverilog//:vvp",
-#     ],
-#     env = {"BUILD_WORKING_DIRECTORY": "sim_build"},
-#     tags = ["manual"],
-#     visibility = ["//xls:xls_users"],
-#     deps = [
-#         requirement("cocotb"),
-#         requirement("cocotbext-axi"),
-#         requirement("pytest"),
-#         "//xls/common:runfiles",
-#         "//xls/modules/zstd/cocotb:channel",
-#         "//xls/modules/zstd/cocotb:memory",
-#         "//xls/modules/zstd/cocotb:utils",
-#         "//xls/modules/zstd/cocotb:xlsstruct",
-#         "@abseil-py//absl:app",
-#         "@abseil-py//absl/flags",
-#         "@com_google_protobuf//:protobuf_python",
-#     ],
-# )
 
 # AxiWriter (FSM-based)
 
