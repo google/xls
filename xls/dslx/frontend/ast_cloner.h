@@ -34,12 +34,21 @@ namespace xls::dslx {
 // nodes during a `CloneAst` operations. A replacer can be used to replace
 // targeted nodes with something else entirely, or it can just "clone" those
 // nodes differently than the default logic.
+//
+// The replacer is invoked with:
+//  - the original AST node under consideration
+//  - the target `Module*` where any new nodes should be created
+//  - a pointer to the current old->new mapping accumulated so far during clone
 using CloneReplacer =
-    absl::AnyInvocable<absl::StatusOr<std::optional<AstNode*>>(const AstNode*)>;
+    absl::AnyInvocable<absl::StatusOr<std::optional<AstNode*>>(
+        const AstNode*, Module*,
+        const absl::flat_hash_map<const AstNode*, AstNode*>&)>;
 
 // This function is directly usable as the `replacer` argument for `CloneAst`
 // when a direct clone with no replacements is desired.
-inline std::optional<AstNode*> NoopCloneReplacer(const AstNode* original_node) {
+inline std::optional<AstNode*> NoopCloneReplacer(
+    const AstNode* original_node, Module*,
+    const absl::flat_hash_map<const AstNode*, AstNode*>&) {
   return std::nullopt;
 }
 
@@ -50,8 +59,11 @@ class ObservableCloneReplacer {
   explicit ObservableCloneReplacer(bool* flag, CloneReplacer replacer)
       : flag_(flag), replacer_(std::move(replacer)) {}
 
-  absl::StatusOr<std::optional<AstNode*>> operator()(const AstNode* node) {
-    XLS_ASSIGN_OR_RETURN(std::optional<AstNode*> result, replacer_(node));
+  absl::StatusOr<std::optional<AstNode*>> operator()(
+      const AstNode* node, Module* module,
+      const absl::flat_hash_map<const AstNode*, AstNode*>& old_to_new) {
+    XLS_ASSIGN_OR_RETURN(std::optional<AstNode*> result,
+                         replacer_(node, module, old_to_new));
     *flag_ |= result.has_value();
     return result;
   }
@@ -66,7 +78,8 @@ class ObservableCloneReplacer {
 // cloning return types without recursing into cloned definitions which would
 // change nominal types.
 std::optional<AstNode*> PreserveTypeDefinitionsReplacer(
-    const AstNode* original_node);
+    const AstNode* original_node, Module* module,
+    const absl::flat_hash_map<const AstNode*, AstNode*>& old_to_new);
 
 // Creates a `CloneReplacer` that replaces references to the given `def` with
 // the given `replacement`.

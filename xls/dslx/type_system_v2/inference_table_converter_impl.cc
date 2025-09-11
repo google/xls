@@ -2215,7 +2215,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
 
     CloneReplacer replacer = ChainCloneReplacers(
         NameRefMapper(table_, actual_values, type->owner()),
-        [&](const AstNode* node) -> absl::StatusOr<std::optional<AstNode*>> {
+        [&](const AstNode* node, Module*,
+            const absl::flat_hash_map<const AstNode*, AstNode*>&)
+            -> absl::StatusOr<std::optional<AstNode*>> {
           // Explicitly leave attrs alone in an example like
           // `uN[STRUCT_CONST.n]`. With the current grammar, there is no way
           // these nodes need parametric replacement. Trying to clone them
@@ -2228,7 +2230,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     if (real_self_type.has_value()) {
       replacer = ChainCloneReplacers(
           std::move(replacer),
-          [&](const AstNode* node) -> absl::StatusOr<std::optional<AstNode*>> {
+          [&](const AstNode* node, Module*,
+              const absl::flat_hash_map<const AstNode*, AstNode*>&)
+              -> absl::StatusOr<std::optional<AstNode*>> {
             if (node->kind() == AstNodeKind::kTypeAnnotation &&
                 down_cast<const TypeAnnotation*>(node)
                     ->IsAnnotation<SelfTypeAnnotation>()) {

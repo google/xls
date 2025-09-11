@@ -421,12 +421,16 @@ class StatefulResolver : public TypeAnnotationResolver {
       }
 
       ObservableCloneReplacer replace_indirect(
-          &replaced_anything, [&](const AstNode* node) {
+          &replaced_anything,
+          [&](const AstNode* node, Module*,
+              const absl::flat_hash_map<const AstNode*, AstNode*>&) {
             return ReplaceIndirectTypeAnnotations(node, parametric_context,
                                                   annotation, filter);
           });
       ObservableCloneReplacer replace_type_aliases(
-          &replaced_anything, [&](const AstNode* node) {
+          &replaced_anything,
+          [&](const AstNode* node, Module*,
+              const absl::flat_hash_map<const AstNode*, AstNode*>&) {
             return ReplaceTypeAliasWithTarget(node);
           });
       XLS_ASSIGN_OR_RETURN(
@@ -1037,7 +1041,8 @@ class StatefulResolver : public TypeAnnotationResolver {
         AstNode * result,
         table_.Clone(
             annotation,
-            [&](const AstNode* node)
+            [&](const AstNode* node, Module* new_module,
+                const absl::flat_hash_map<const AstNode*, AstNode*>&)
                 -> absl::StatusOr<std::optional<AstNode*>> {
               if (node->kind() == AstNodeKind::kTypeRef) {
                 return const_cast<AstNode*>(node);
@@ -1056,7 +1061,7 @@ class StatefulResolver : public TypeAnnotationResolver {
                 return std::nullopt;
               }
 
-              auto* result = node->owner()->Make<Number>(
+              auto* result = new_module->Make<Number>(
                   Span::None(), value.ToString(/*humanize=*/true),
                   NumberKind::kOther, nullptr, /*in_parens=*/false,
                   /*leave_span_intact=*/true);
