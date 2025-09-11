@@ -1979,9 +1979,7 @@ fn main() -> u32 {
                                                     "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
                            CloneModule(*module.get()));
-  // Typecheck the cloned module; pre-fix this should fail due to missing
-  // name-def definer on the Import. We pre-populate the imported subject so
-  // import resolution does not fail spuriously.
+  // Typecheck the module to confirm that cloning populated the imported subject.
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK(ParseAndTypecheck(kImportedProgram, "my/module.x", "my.module",
                                   &import_data));

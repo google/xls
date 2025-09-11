@@ -422,9 +422,8 @@ class AstCloner : public AstNodeVisitor {
 
     NameDef* name_def = &n->name_def();
     NameDef* new_name_def = down_cast<NameDef*>(old_to_new_.at(name_def));
-    Import* new_import = module(n)->Make<Import>(n->span(), n->subject(),
-                                                 *new_name_def, n->alias());
-    old_to_new_[n] = new_import;
+    old_to_new_[n] = module(n)->Make<Import>(n->span(), n->subject(),
+                                             *new_name_def, n->alias());
     new_name_def->set_definer(old_to_new_.at(name_def->definer()));
     return absl::OkStatus();
   }
