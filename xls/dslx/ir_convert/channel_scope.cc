@@ -108,6 +108,19 @@ ChannelOrArray ToChannelOrArray(ChannelRef ref) {
       ref);
 }
 
+absl::StatusOr<ChannelRef> ToChannelRef(ChannelOrArray ref) {
+  return absl::visit(
+      Visitor{
+          [](Channel* c) -> absl::StatusOr<ChannelRef> { return c; },
+          [](ChannelInterface* ci) -> absl::StatusOr<ChannelRef> { return ci; },
+          [](ChannelArray* c) -> absl::StatusOr<ChannelRef> {
+            return absl::InvalidArgumentError(
+                "Cannot convert ChannelArray to ChannelRef");
+          },
+      },
+      ref);
+}
+
 absl::StatusOr<ChannelOrArray> ChannelScope::DefineChannelOrArrayInternal(
     std::string_view short_name, ChannelOps ops, xls::Type* type,
     std::optional<ChannelConfig> channel_config,
@@ -237,13 +250,13 @@ absl::Status ChannelScope::AssociateWithExistingChannelOrArray(
   return absl::OkStatus();
 }
 
-absl::StatusOr<Channel*> ChannelScope::GetChannelForArrayIndex(
+absl::StatusOr<ChannelRef> ChannelScope::GetChannelForArrayIndex(
     const ProcId& proc_id, const Index* index) {
   XLS_ASSIGN_OR_RETURN(
       ChannelOrArray result,
       EvaluateIndex(proc_id, index, /*allow_subarray_reference=*/false));
-  XLS_RET_CHECK(std::holds_alternative<Channel*>(result));
-  return std::get<Channel*>(result);
+  // Only works for Channel or ChannelInterface
+  return ToChannelRef(result);
 }
 
 absl::StatusOr<ChannelOrArray> ChannelScope::GetChannelOrArrayForArrayIndex(

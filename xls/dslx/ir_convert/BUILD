@@ -130,6 +130,7 @@ cc_test(
         "//xls/dslx/type_system:type",
         "//xls/dslx/type_system:type_info",
         "//xls/ir",
+        "//xls/ir:channel",
         "//xls/ir:channel_ops",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",

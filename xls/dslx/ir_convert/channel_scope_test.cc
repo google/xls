@@ -40,6 +40,7 @@
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/package.h"
 
@@ -365,13 +366,15 @@ TEST_F(ChannelScopeTest, AssociateWithExistingChannelArrayDifferentProcIds) {
   // Trying to evaluate `ch[some_index]` now should give us a different object
   // depending on the proc ID.
   XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * test_channel1,
+      ChannelRef test_channel1_ref,
       scope_->GetChannelForArrayIndex(proc_id1, CreateIndexOp(ch_ref, {"2"})));
-  EXPECT_EQ(test_channel1->name(), "the_package__arr1__2");
+  EXPECT_EQ(std::get<Channel*>(test_channel1_ref)->name(),
+            "the_package__arr1__2");
   XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * test_channel2,
+      ChannelRef test_channel2_ref,
       scope_->GetChannelForArrayIndex(proc_id2, CreateIndexOp(ch_ref, {"2"})));
-  EXPECT_EQ(test_channel2->name(), "the_package__arr2__2");
+  EXPECT_EQ(std::get<Channel*>(test_channel2_ref)->name(),
+            "the_package__arr2__2");
 }
 
 TEST_F(ChannelScopeTest,
@@ -404,13 +407,13 @@ TEST_F(ChannelScopeTest,
   // Trying to evaluate `ch[some_index]` now should give us a different object
   // depending on the proc ID.
   XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * test_channel1,
+      ChannelRef test_channel1_ref,
       scope_->GetChannelForArrayIndex(proc_id1, CreateIndexOp(ch_ref, {"2"})));
-  EXPECT_EQ(test_channel1->name(), "arr1__2");
+  EXPECT_EQ(std::get<Channel*>(test_channel1_ref)->name(), "arr1__2");
   XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * test_channel2,
+      ChannelRef test_channel2_ref,
       scope_->GetChannelForArrayIndex(proc_id2, CreateIndexOp(ch_ref, {"2"})));
-  EXPECT_EQ(test_channel2->name(), "arr2__2");
+  EXPECT_EQ(std::get<Channel*>(test_channel2_ref)->name(), "arr2__2");
 }
 
 TEST_F(ChannelScopeTest, HandleChannelIndex1DValid) {
@@ -420,9 +423,10 @@ TEST_F(ChannelScopeTest, HandleChannelIndex1DValid) {
                            scope_->DefineChannelOrArray(decl));
   EXPECT_TRUE(std::holds_alternative<ChannelArray*>(result));
   XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * channel,
+      ChannelRef channel_ref,
       scope_->GetChannelForArrayIndex(ProcId{}, CreateIndexOp(decl, {"2"})));
-  EXPECT_EQ(channel->name(), "the_package__the_channel__2");
+  EXPECT_EQ(std::get<Channel*>(channel_ref)->name(),
+            "the_package__the_channel__2");
 }
 
 TEST_F(ChannelScopeTest, HandleChannelIndex2DValid) {
@@ -431,10 +435,11 @@ TEST_F(ChannelScopeTest, HandleChannelIndex2DValid) {
   XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray result,
                            scope_->DefineChannelOrArray(decl));
   EXPECT_TRUE(std::holds_alternative<ChannelArray*>(result));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * channel,
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelRef channel_ref,
                            scope_->GetChannelForArrayIndex(
                                ProcId{}, CreateIndexOp(decl, {"4", "1"})));
-  EXPECT_EQ(channel->name(), "the_package__the_channel__4_1");
+  EXPECT_EQ(std::get<Channel*>(channel_ref)->name(),
+            "the_package__the_channel__4_1");
 }
 
 TEST_F(ChannelScopeTest, HandleChannelIndexWithNonArray) {
@@ -488,10 +493,11 @@ TEST_F(ChannelScopeTest, HandleSubarrayIndex) {
       ProcId{}, subarray_def, subarray));
 
   // Now index into the subarray.
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * channel,
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelRef channel_ref,
                            scope_->GetChannelForArrayIndex(
                                ProcId{}, CreateIndexOp(subarray_ref, {"1"})));
-  EXPECT_EQ(channel->name(), "the_package__the_channel__4_1");
+  EXPECT_EQ(std::get<Channel*>(channel_ref)->name(),
+            "the_package__the_channel__4_1");
 }
 
 TEST_F(ChannelScopeTest, HandleChannelIndexWithOutOfRangeIndices) {

@@ -3425,6 +3425,10 @@ absl::Status FunctionConverter::HandleProcNextFunction(
         XLS_RET_CHECK(std::holds_alternative<ChannelArray*>(channel_interface));
         // TODO: davidplass - assign the param name to an appropriate BValue
         // for this channel or array, for the Def call.
+
+        // Sets up the array for later indexing.
+        XLS_RETURN_IF_ERROR(channel_scope_->AssociateWithExistingChannelOrArray(
+            *proc_id_, param->name_def(), channel_interface));
       } else {
         ChannelType* channel_type = dynamic_cast<ChannelType*>(type);
         XLS_RET_CHECK_NE(channel_type, nullptr)

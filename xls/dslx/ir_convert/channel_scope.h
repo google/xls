@@ -156,8 +156,8 @@ class ChannelScope {
   //      be constexpr evaluatable.
   // A not-found error is the guaranteed result in cases where `index` is not
   // a channel array index operation at all.
-  absl::StatusOr<Channel*> GetChannelForArrayIndex(const ProcId& proc_id,
-                                                   const Index* index);
+  absl::StatusOr<ChannelRef> GetChannelForArrayIndex(const ProcId& proc_id,
+                                                     const Index* index);
 
   // Retrieves the subarray or individual `Channel` that is referred to by the
   // given `index operation. The `index` must conform to the criteria described
