@@ -84,7 +84,7 @@ pub proc HuffmanAxiReader<AXI_DATA_W: u32, AXI_ADDR_W: u32, AXI_ID_W: u32, AXI_D
     init { zero!<State>() }
 
     next (state: State) {
-        const BYTES_PER_TRANSACTION = (AXI_ADDR_W / u32:8) as u8;
+        const _BYTES_PER_TRANSACTION = (AXI_ADDR_W / u32:8) as u8;
 
         // receive and store ctrl
         let (_, ctrl, ctrl_valid) = recv_if_non_blocking(join(), ctrl_r, state.ctrl.len == state.bytes_sent, zero!<Ctrl>());

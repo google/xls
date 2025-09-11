@@ -184,7 +184,7 @@ pub proc FseTableCreator<
     next(state: State) {
         const DPD_RAM_REQ_MASK_ALL = std::unsigned_max_value<DPD_RAM_NUM_PARTITIONS>();
         const FSE_RAM_REQ_MASK_ALL = std::unsigned_max_value<FSE_RAM_NUM_PARTITIONS>();
-        const FSE_RAM_REQ_MASK_SYMBOL = uN[FSE_RAM_NUM_PARTITIONS]:1;
+        const _FSE_RAM_REQ_MASK_SYMBOL = uN[FSE_RAM_NUM_PARTITIONS]:1;
         const TMP_RAM_REQ_MASK_ALL = std::unsigned_max_value<TMP_RAM_NUM_PARTITIONS>();
         const TMP2_RAM_REQ_MASK_ALL = std::unsigned_max_value<TMP2_RAM_NUM_PARTITIONS>();
 

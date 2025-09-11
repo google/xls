@@ -432,7 +432,7 @@ pub proc FseProbaFreqDecoder<
             },
             Fsm::RECV_ZERO_PROBA => {
                 let zero_proba_count = out_data.data as SymbolCount;
-                let zero_proba_length = out_data.length as SymbolCount;
+                let _zero_proba_length = out_data.length as SymbolCount;
                 let zero_proba_count = get_adjusted_value(zero_proba_count as u16, state.remainder) as SymbolCount;
 
                 // all zero probabilitis received

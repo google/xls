@@ -2206,7 +2206,6 @@ fn ldexp_test() {
 // number (largest magnitude negative number).
 pub fn cast_to_fixed<NUM_DST_BITS: u32, EXP_SZ: u32, FRACTION_SZ: u32>
     (to_cast: APFloat<EXP_SZ, FRACTION_SZ>) -> sN[NUM_DST_BITS] {
-    const UEXP_SZ: u32 = EXP_SZ + u32:1;
     const EXTENDED_FIXED_SZ: u32 = NUM_DST_BITS + u32:1 + FRACTION_SZ + NUM_DST_BITS;
 
     const MIN_FIXED_VALUE = (uN[NUM_DST_BITS]:1 <<
@@ -3759,7 +3758,6 @@ pub fn fma<EXP_SZ: u32, FRACTION_SZ: u32>
     let result_fraction =
         if is_result_nan { uN[FRACTION_SZ]:1 << (FRACTION_SZ - u32:4) } else { result_fraction };
     let result_sign = if is_result_nan { u1:0 } else { result_sign };
-    let is_result_inf = has_pos_inf | has_neg_inf;
 
     APFloat<EXP_SZ, FRACTION_SZ> {
         sign: result_sign,
@@ -4795,9 +4793,6 @@ fn round_normal<EXP_SZ: u32, FRACTION_SZ: u32, ROUND_STYLE: RoundStyle = {RoundS
 
     const ROUND_STYLE_IS_TIES_TO_EVEN: bool = ROUND_STYLE == RoundStyle::TIES_TO_EVEN;
     const ROUND_STYLE_IS_TIES_TO_AWAY: bool = ROUND_STYLE == RoundStyle::TIES_TO_AWAY;
-    const EXP_MAX = std::mask_bits<EXP_SZ>();
-    const FRACTION_MAX = std::mask_bits<FRACTION_SZ>();
-    const FRACTION_SZ_PLUS_ONE = FRACTION_SZ + u32:1;
     const_assert!(ROUND_STYLE_IS_TIES_TO_EVEN || ROUND_STYLE_IS_TIES_TO_AWAY);
     if !has_fractional_part(f) {
         f

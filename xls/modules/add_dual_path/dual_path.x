@@ -31,7 +31,7 @@ enum WhichPath : u1 {
 pub fn add_dual_path<EXP_SZ: u32, FRACTION_SZ: u32>
     (x: APFloat<EXP_SZ, FRACTION_SZ>, y: APFloat<EXP_SZ, FRACTION_SZ>)
     -> APFloat<EXP_SZ, FRACTION_SZ> {
-    const FRACTION_SZ_P1: u32 = FRACTION_SZ + u32:1;
+    const _FRACTION_SZ_P1: u32 = FRACTION_SZ + u32:1;
 
     let abs_diff_result: AbsDiffResult<EXP_SZ> = abs_diff::abs_diff(x.bexp, y.bexp);
 

@@ -193,7 +193,7 @@ pub proc ShiftBufferStorage<DATA_WIDTH: u32, LENGTH_WIDTH: u32> {
         type DataLength = bits[LENGTH_WIDTH];
         // trace_fmt!("state: {:#x}", state);
 
-        const MAX_BUFFER_CNT = (DATA_WIDTH * u32:3) as BufferLength;
+        const _MAX_BUFFER_CNT = (DATA_WIDTH * u32:3) as BufferLength;
 
         let shift_buffer_right = state.read_ptr >= (DATA_WIDTH as BufferLength);
         // trace_fmt!("shift_buffer_right: {:#x}", shift_buffer_right);
