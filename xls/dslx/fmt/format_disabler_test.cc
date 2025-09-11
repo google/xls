@@ -20,11 +20,12 @@
 #include <string_view>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/fmt/comments.h"
@@ -61,8 +62,7 @@ TEST(FormatDisablerTest, NotDisabled) {
   // Act.
   UniformContentFilesystem vfs(kProgram, "fake.x");
   FormatDisabler disabler(vfs, comments, kProgram);
-  XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> actual,
-                           disabler(import_node));
+  XLS_ASSERT_OK_AND_ASSIGN(auto actual, disabler(import_node, m.get(), {}));
 
   // Assert that it is nullopt, which indicates "node not modified".
   EXPECT_EQ(actual, std::nullopt);
@@ -88,8 +88,7 @@ TEST(FormatDisablerTest, NotDisabled_WithComments) {
 
   UniformContentFilesystem vfs(kProgram, "fake.x");
   FormatDisabler disabler(vfs, comments, kProgram);
-  XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> actual,
-                           disabler(import_node));
+  XLS_ASSERT_OK_AND_ASSIGN(auto actual, disabler(import_node, m.get(), {}));
 
   EXPECT_EQ(actual, std::nullopt);
 }
@@ -109,11 +108,11 @@ TEST(FormatDisablerTest, DisabledAroundImport) {
 
   UniformContentFilesystem vfs(kProgram, "fake.x");
   FormatDisabler disabler(vfs, comments, kProgram);
-  XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> actual,
-                           disabler(import_node));
-
+  XLS_ASSERT_OK_AND_ASSIGN(auto actual, disabler(import_node, m.get(), {}));
   ASSERT_TRUE(actual.has_value());
-  VerbatimNode* actual_node = down_cast<VerbatimNode*>(*actual);
+  auto it_map = actual->find(import_node);
+  ASSERT_NE(it_map, actual->end());
+  VerbatimNode* actual_node = down_cast<VerbatimNode*>(it_map->second);
   ASSERT_NE(actual_node, nullptr);
 
   EXPECT_EQ(actual_node->text(), absl::StrCat(kImport, kFmtOn));
@@ -135,11 +134,11 @@ TEST(FormatDisablerTest, EnabledOnSameLine) {
 
   UniformContentFilesystem vfs(kProgram, "fake.x");
   FormatDisabler disabler(vfs, comments, kProgram);
-  XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> actual,
-                           disabler(import_node));
-
+  XLS_ASSERT_OK_AND_ASSIGN(auto actual, disabler(import_node, m.get(), {}));
   ASSERT_TRUE(actual.has_value());
-  VerbatimNode* actual_node = down_cast<VerbatimNode*>(*actual);
+  auto it_map = actual->find(import_node);
+  ASSERT_NE(it_map, actual->end());
+  VerbatimNode* actual_node = down_cast<VerbatimNode*>(it_map->second);
   ASSERT_NE(actual_node, nullptr);
 
   EXPECT_EQ(actual_node->text(), absl::StrCat(kImport, kFmtOn));
@@ -161,11 +160,14 @@ TEST(FormatDisablerTest, EnabledOnSameLineWithNewlineBetween) {
 
   UniformContentFilesystem vfs(kProgram, "fake.x");
   FormatDisabler disabler(vfs, comments, kProgram);
-  XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> actual,
-                           disabler(import_node));
-
+  XLS_ASSERT_OK_AND_ASSIGN(auto actual, disabler(import_node, m.get(), {}));
   ASSERT_TRUE(actual.has_value());
-  VerbatimNode* actual_node = down_cast<VerbatimNode*>(*actual);
+  auto it_map = actual->find(import_node);
+  ASSERT_NE(it_map, actual->end());
+  std::optional<AstNode*> actual_node_opt = it_map->second;
+
+  ASSERT_TRUE(actual_node_opt.has_value());
+  VerbatimNode* actual_node = down_cast<VerbatimNode*>(*actual_node_opt);
   ASSERT_NE(actual_node, nullptr);
 
   EXPECT_EQ(actual_node->text(), absl::StrCat(kImport, kFmtOn));
@@ -188,11 +190,15 @@ TEST(FormatDisablerTest, MultipleDisabledStatements) {
 
   UniformContentFilesystem vfs(kProgram, "fake.x");
   FormatDisabler disabler(vfs, comments, kProgram);
-  XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> first_actual,
-                           disabler(first_import_node));
-
+  XLS_ASSERT_OK_AND_ASSIGN(auto first_actual,
+                           disabler(first_import_node, m.get(), {}));
   ASSERT_TRUE(first_actual.has_value());
-  VerbatimNode* first_verbatim_node = down_cast<VerbatimNode*>(*first_actual);
+  auto it_first = first_actual->find(first_import_node);
+  ASSERT_NE(it_first, first_actual->end());
+  std::optional<AstNode*> first_node_opt = it_first->second;
+
+  ASSERT_TRUE(first_node_opt.has_value());
+  VerbatimNode* first_verbatim_node = down_cast<VerbatimNode*>(*first_node_opt);
   ASSERT_NE(first_verbatim_node, nullptr);
 
   // Text should be the two imports concatenated.
@@ -200,10 +206,15 @@ TEST(FormatDisablerTest, MultipleDisabledStatements) {
 
   // The second node should be replaced with an empty verbatim node since it's
   // within the "disable" range.
-  XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> second_actual,
-                           disabler(second_import_node));
+  XLS_ASSERT_OK_AND_ASSIGN(auto second_actual,
+                           disabler(second_import_node, m.get(), {}));
   ASSERT_TRUE(second_actual.has_value());
-  VerbatimNode* second_verbatim_node = down_cast<VerbatimNode*>(*second_actual);
+  auto it_second = second_actual->find(second_import_node);
+  ASSERT_NE(it_second, second_actual->end());
+  std::optional<AstNode*> second_node_opt = it_second->second;
+  ASSERT_TRUE(second_node_opt.has_value());
+  VerbatimNode* second_verbatim_node =
+      down_cast<VerbatimNode*>(*second_node_opt);
   ASSERT_NE(second_verbatim_node, nullptr);
 
   EXPECT_TRUE(second_verbatim_node->IsEmpty());
@@ -227,11 +238,16 @@ TEST(FormatDisablerTest, OneDisabledOneEnabledStatement) {
 
   UniformContentFilesystem vfs(kProgram, "fake.x");
   FormatDisabler disabler(vfs, comments, kProgram);
-  XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> first_actual,
-                           disabler(first_import_node));
+  XLS_ASSERT_OK_AND_ASSIGN(auto first_actual,
+                           disabler(first_import_node, m.get(), {}));
+  std::optional<AstNode*> first_node_opt = std::nullopt;
+  if (first_actual.has_value()) {
+    auto it = first_actual->find(first_import_node);
+    if (it != first_actual->end()) first_node_opt = it->second;
+  }
 
-  ASSERT_TRUE(first_actual.has_value());
-  VerbatimNode* actual_node = down_cast<VerbatimNode*>(*first_actual);
+  ASSERT_TRUE(first_node_opt.has_value());
+  VerbatimNode* actual_node = down_cast<VerbatimNode*>(*first_node_opt);
   ASSERT_NE(actual_node, nullptr);
 
   // Text should be just the first import.
@@ -239,9 +255,14 @@ TEST(FormatDisablerTest, OneDisabledOneEnabledStatement) {
 
   // The second import should be left as-is since it's outside the "disable"
   // range.
-  XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> second_actual,
-                           disabler(second_import_node));
-  EXPECT_EQ(second_actual, std::nullopt);
+  XLS_ASSERT_OK_AND_ASSIGN(auto second_actual,
+                           disabler(second_import_node, m.get(), {}));
+  std::optional<AstNode*> second_node_opt = std::nullopt;
+  if (second_actual.has_value()) {
+    auto it = second_actual->find(second_import_node);
+    if (it != second_actual->end()) second_node_opt = it->second;
+  }
+  EXPECT_EQ(second_node_opt, std::nullopt);
 }
 
 TEST(FormatDisablerTest, MultipleEnabledStatements) {
@@ -264,14 +285,24 @@ TEST(FormatDisablerTest, MultipleEnabledStatements) {
   FormatDisabler disabler(vfs, comments, kProgram);
   // First node should be returned as-is, since there's no "start disable"
   // before it.
-  XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> first_actual,
-                           disabler(first_import_node));
-  EXPECT_EQ(first_actual, std::nullopt);
+  XLS_ASSERT_OK_AND_ASSIGN(auto first_actual,
+                           disabler(first_import_node, m.get(), {}));
+  std::optional<AstNode*> first_node_opt = std::nullopt;
+  if (first_actual.has_value()) {
+    auto it = first_actual->find(first_import_node);
+    if (it != first_actual->end()) first_node_opt = it->second;
+  }
+  EXPECT_EQ(first_node_opt, std::nullopt);
 
   // The second node should be returned as-is too.
-  XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> second_actual,
-                           disabler(second_import_node));
-  EXPECT_EQ(second_actual, std::nullopt);
+  XLS_ASSERT_OK_AND_ASSIGN(auto second_actual,
+                           disabler(second_import_node, m.get(), {}));
+  std::optional<AstNode*> second_node_opt = std::nullopt;
+  if (second_actual.has_value()) {
+    auto it = second_actual->find(second_import_node);
+    if (it != second_actual->end()) second_node_opt = it->second;
+  }
+  EXPECT_EQ(second_node_opt, std::nullopt);
 }
 
 TEST(FormatDisablerTest, EnabledOnly) {
@@ -289,8 +320,12 @@ TEST(FormatDisablerTest, EnabledOnly) {
 
   UniformContentFilesystem vfs(kProgram, "fake.x");
   FormatDisabler disabler(vfs, comments, kProgram);
-  XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> actual,
-                           disabler(import_node));
+  XLS_ASSERT_OK_AND_ASSIGN(auto maybe_map, disabler(import_node, m.get(), {}));
+  std::optional<AstNode*> actual = std::nullopt;
+  if (maybe_map.has_value()) {
+    auto it = maybe_map->find(import_node);
+    if (it != maybe_map->end()) actual = it->second;
+  }
 
   // No change.
   EXPECT_EQ(actual, std::nullopt);
@@ -311,8 +346,11 @@ TEST(FormatDisablerTest, NeverEnabled) {
 
   UniformContentFilesystem vfs(kProgram, "fake.x");
   FormatDisabler disabler(vfs, comments, kProgram);
-  XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> actual,
-                           disabler(import_node));
+  XLS_ASSERT_OK_AND_ASSIGN(auto maybe_map, disabler(import_node, m.get(), {}));
+  ASSERT_TRUE(maybe_map.has_value());
+  auto it_map = maybe_map->find(import_node);
+  ASSERT_NE(it_map, maybe_map->end());
+  std::optional<AstNode*> actual = it_map->second;
 
   ASSERT_TRUE(actual.has_value());
   VerbatimNode* actual_node = down_cast<VerbatimNode*>(*actual);
@@ -333,12 +371,21 @@ TEST(FormatDisablerTest, NoSpan) {
   UniformContentFilesystem vfs(kProgram, "fake.x");
   Import* import_node = std::get<Import*>(m->top().at(0));
   FormatDisabler disabler(vfs, comments, kProgram);
-  XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> actual,
-                           disabler(import_node));
+  XLS_ASSERT_OK_AND_ASSIGN(auto first_map, disabler(import_node, m.get(), {}));
+  std::optional<AstNode*> actual = std::nullopt;
+  if (first_map.has_value()) {
+    auto it = first_map->find(import_node);
+    if (it != first_map->end()) actual = it->second;
+  }
 
   // Now we can give it a node with no span.
   BuiltinNameDef built_in(nullptr, "identifier");
-  XLS_ASSERT_OK_AND_ASSIGN(actual, disabler(&built_in));
+  XLS_ASSERT_OK_AND_ASSIGN(auto no_span_map, disabler(&built_in, m.get(), {}));
+  actual = std::nullopt;
+  if (no_span_map.has_value()) {
+    auto it = no_span_map->find(&built_in);
+    if (it != no_span_map->end()) actual = it->second;
+  }
 
   ASSERT_FALSE(actual.has_value());
 }
@@ -360,7 +407,7 @@ import m;
 
   Import* import_node = std::get<Import*>(m->top().at(0));
   FormatDisabler disabler(vfs, comments, kProgram);
-  EXPECT_THAT(disabler(import_node),
+  EXPECT_THAT(disabler(import_node, m.get(), {}),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("between module start and")));
 }
@@ -384,10 +431,10 @@ import m;
 
   FormatDisabler disabler(vfs, comments, kProgram);
   Import* first_import_node = std::get<Import*>(m->top().at(0));
-  XLS_ASSERT_OK(disabler(first_import_node));
+  XLS_ASSERT_OK(disabler(first_import_node, m.get(), {}).status());
 
   Import* second_import_node = std::get<Import*>(m->top().at(1));
-  EXPECT_THAT(disabler(second_import_node),
+  EXPECT_THAT(disabler(second_import_node, m.get(), {}),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("between import m; and import m2")));
 }
@@ -411,8 +458,11 @@ TEST(FormatDisablerTest, InternalCommentIncludedInVerbatimNode) {
   UniformContentFilesystem vfs(kProgram, "fake.x");
   FormatDisabler disabler(vfs, comments, kProgram);
   EXPECT_EQ(comments.GetComments(m->GetSpan().value()).size(), 4);
-  XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> actual,
-                           disabler(import_node));
+  XLS_ASSERT_OK_AND_ASSIGN(auto maybe_map, disabler(import_node, m.get(), {}));
+  ASSERT_TRUE(maybe_map.has_value());
+  auto it_map = maybe_map->find(import_node);
+  ASSERT_NE(it_map, maybe_map->end());
+  std::optional<AstNode*> actual = it_map->second;
 
   ASSERT_TRUE(actual.has_value());
   VerbatimNode* actual_node = down_cast<VerbatimNode*>(*actual);
