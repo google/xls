@@ -4900,6 +4900,62 @@ pub proc main {
   ExpectIr(converted);
 }
 
+TEST_P(ProcScopedChannelsIrConverterTest, ChannelArrayIndexSendRecv) {
+  constexpr std::string_view kProgram = R"(
+pub proc main {
+  init { }
+  config(in_chans: chan<u32>[3] in, out_chans: chan<u16>[2] out) {
+    send(token(), out_chans[1], u16:42);
+    recv(token(), in_chans[2]);
+    ()
+  }
+  next(state: ()) { () }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, ChannelArrayIndexSpawn) {
+  constexpr std::string_view kProgram = R"(
+proc spawnee {
+  inch: chan<u32> in;
+  outch: chan<u16> out;
+  init { }
+  config(inch_param: chan<u32> in, outch_param: chan<u16> out) {
+    (inch_param, outch_param)
+  }
+  next(states: ()) { () }
+}
+
+pub proc main {
+  init { }
+  config(in_chans: chan<u32>[3] in, out_chans: chan<u16>[2] out) {
+    spawn spawnee(in_chans[2], out_chans[1]);
+    ()
+  }
+  next(state: ()) { () }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
+  ExpectIr(converted);
+}
 TEST_P(ProcScopedChannelsIrConverterTest, InvalidChannelArrayParam) {
   if (GetParam() == TypeInferenceVersion::kVersion1) {
     // v1 fails figuring out the param type for some reason.

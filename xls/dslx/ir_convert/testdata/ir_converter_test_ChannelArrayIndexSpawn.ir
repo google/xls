@@ -1,0 +1,31 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+proc __test_module__spawnee_0_next<inch_param: bits[32] in, outch_param: bits[16] out>(__state: (), init={()}) {
+  chan_interface inch_param(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface outch_param(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  inch_param: bits[32] = recv_channel_end(id=4)
+  outch_param: bits[16] = send_channel_end(id=5)
+  __state: () = state_read(state_element=__state, id=2)
+  tuple.7: () = tuple(id=7)
+  __token: token = literal(value=token, id=1)
+  literal.3: bits[1] = literal(value=1, id=3)
+  tuple.6: (bits[32], bits[16]) = tuple(inch_param, outch_param, id=6)
+  next_value.8: () = next_value(param=__state, value=tuple.7, id=8)
+}
+
+top proc __test_module__main_0_next<in_chans__0: bits[32] in, in_chans__1: bits[32] in, in_chans__2: bits[32] in, out_chans__0: bits[16] out, out_chans__1: bits[16] out>(__state: (), init={()}) {
+  chan_interface in_chans__0(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface in_chans__1(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface in_chans__2(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface out_chans__0(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface out_chans__1(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  proc_instantiation __test_module__spawnee_0_next_inst(in_chans__2, out_chans__1, proc=__test_module__spawnee_0_next)
+  __state: () = state_read(state_element=__state, id=10)
+  tuple.13: () = tuple(id=13)
+  __token: token = literal(value=token, id=9)
+  literal.11: bits[1] = literal(value=1, id=11)
+  tuple.12: () = tuple(id=12)
+  next_value.14: () = next_value(param=__state, value=tuple.13, id=14)
+}
