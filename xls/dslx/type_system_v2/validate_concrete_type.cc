@@ -301,7 +301,7 @@ class TypeValidator : public AstNodeVisitorWithDefault {
         if (exhaustive_before) {
           warning_collector_.Add(
               pattern->span(), WarningKind::kAlreadyExhaustiveMatch,
-              "`match` is already exhaustive before this pattern");
+              "Match is already exhaustive before this pattern");
         }
       }
     }

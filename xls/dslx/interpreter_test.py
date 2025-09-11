@@ -644,7 +644,7 @@ class InterpreterTest(test_base.TestCase):
         disable_warnings=['single_line_tuple_trailing_comma'],
     )
     self.assertIn(
-        '`match` is already exhaustive before this pattern',
+        'Match is already exhaustive before this pattern',
         stderr,
     )
 

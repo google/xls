@@ -107,12 +107,8 @@ void CheckExhaustiveWithRedundantPattern(std::string_view program) {
       tm.warnings.warnings();
   ASSERT_FALSE(collected_warnings.empty());
   for (const WarningCollector::Entry& warning : collected_warnings) {
-    EXPECT_THAT(
-        warning.message,
-        HasSubstr(kDefaultTypeInferenceVersion ==
-                          TypeInferenceVersion::kVersion2
-                      ? "`match` is already exhaustive before this pattern"
-                      : "Match is already exhaustive before this pattern"));
+    EXPECT_THAT(warning.message,
+                HasSubstr("Match is already exhaustive before this pattern"));
   }
 }
 

@@ -3366,7 +3366,7 @@ fn f(x: u4) -> u32 {
 )"));
   ASSERT_THAT(result.tm.warnings.warnings().size(), 1);
   EXPECT_EQ(result.tm.warnings.warnings()[0].message,
-            "`match` is already exhaustive before this pattern");
+            "Match is already exhaustive before this pattern");
 }
 
 TEST(TypecheckV2Test, PatternMatch) {
