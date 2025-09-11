@@ -428,6 +428,7 @@ cc_library(
         ":pipeline_scheduling_pass",
         ":proc_state_legalization_pass",
         ":scheduling_checker",
+        ":scheduling_options",
         ":scheduling_pass",
         ":scheduling_wrapper_pass",
         "//xls/passes",

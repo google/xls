@@ -496,6 +496,7 @@ void XlsccTestBase::BlockTest(
   scheduling_options_flags_proto.set_pipeline_stages(4);
   scheduling_options_flags_proto.set_delay_model("unit");
   scheduling_options_flags_proto.set_multi_proc(true);
+  scheduling_options_flags_proto.set_merge_on_mutual_exclusion(true);
 
   const std::string reset_port_name = "rst";
   const std::string_view channel_ready_suffix = "_rdy";

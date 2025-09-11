@@ -64,4 +64,5 @@ message SchedulingOptionsFlagsProto {
   optional bool recover_after_minimizing_clock = 27;
   optional int64 opt_level = 30;
   optional double dynamic_throughput_objective_weight = 32;
+  optional bool merge_on_mutual_exclusion = 34;
 }
