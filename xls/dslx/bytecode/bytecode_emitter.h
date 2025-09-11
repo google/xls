@@ -151,6 +151,7 @@ class BytecodeEmitter : public ExprVisitor {
   absl::Status HandleXlsTuple(const XlsTuple* node) override;
 
   // keep-sorted start
+  absl::Status HandleBuiltinArraySize(const Invocation* node);
   absl::Status HandleBuiltinBitCount(const Invocation* node);
   absl::Status HandleBuiltinCheckedCast(const Invocation* node);
   absl::Status HandleBuiltinConfiguredValueOr(const Invocation* node);

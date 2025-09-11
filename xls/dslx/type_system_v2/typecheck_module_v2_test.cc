@@ -9010,5 +9010,22 @@ fn main() -> u32 {
   EXPECT_EQ(result.tm.warnings.warnings().size(), 0);
 }
 
+TEST(TypecheckV2Test, ParametricArraySizeInRange) {
+  EXPECT_THAT(
+      R"(
+fn sum_elements<N: u32>(elements: u32[N]) -> u32 {
+    let result: u32 = for (i, accum) in u32:0..array_size(elements) {
+        accum + elements[i]
+    }(u32:0);
+    result
+}
+
+pub fn sum_elements_2(elements: u32[2]) -> u32 {
+    sum_elements(elements)
+}
+)",
+      TypecheckSucceeds(HasNodeWithType("sum_elements(elements)", "uN[32]")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

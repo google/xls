@@ -753,6 +753,14 @@ absl::Status BytecodeEmitter::HandleBuiltinBitCount(const Invocation* node) {
   return absl::OkStatus();
 }
 
+absl::Status BytecodeEmitter::HandleBuiltinArraySize(const Invocation* node) {
+  XLS_ASSIGN_OR_RETURN(InterpValue default_or_override_interp_value,
+                       type_info_->GetConstExpr(node));
+  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLiteral,
+                               default_or_override_interp_value));
+  return absl::OkStatus();
+}
+
 absl::Status BytecodeEmitter::HandleBuiltinElementCount(
     const Invocation* node) {
   VLOG(5) << "BytecodeEmitter::HandleInvocation - ElementCount @ "
@@ -1107,6 +1115,9 @@ absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
       name_ref != nullptr && name_ref->IsBuiltin()) {
     VLOG(10) << "HandleInvocation; builtin name_ref: " << name_ref->ToString();
 
+    if (name_ref->identifier() == "array_size") {
+      return HandleBuiltinArraySize(node);
+    }
     if (name_ref->identifier() == "bit_count") {
       return HandleBuiltinBitCount(node);
     }
