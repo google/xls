@@ -26,7 +26,7 @@
 
 namespace xls::dslx {
 
-absl::StatusOr<Channel*> ProcScopedChannelScope::CreateChannel(
+absl::StatusOr<ChannelRef> ProcScopedChannelScope::CreateChannel(
     std::string_view name, ChannelOps ops, xls::Type* type,
     std::optional<ChannelConfig> channel_config, bool interface_channel) {
   if (interface_channel) {

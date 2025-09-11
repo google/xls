@@ -19,12 +19,10 @@
 #include <string_view>
 
 #include "absl/status/statusor.h"
-#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/ir_convert/channel_scope.h"
 #include "xls/dslx/ir_convert/conversion_info.h"
 #include "xls/dslx/ir_convert/convert_options.h"
-#include "xls/dslx/type_system/type_info.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
@@ -43,7 +41,7 @@ class ProcScopedChannelScope : public ChannelScope {
         proc_builder_(proc_builder) {}
 
  protected:
-  absl::StatusOr<Channel*> CreateChannel(
+  absl::StatusOr<ChannelRef> CreateChannel(
       std::string_view name, ChannelOps ops, xls::Type* type,
       std::optional<ChannelConfig> channel_config,
       bool interface_channel) override;

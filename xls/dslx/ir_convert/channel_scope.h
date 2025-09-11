@@ -64,18 +64,16 @@ class ChannelArray {
     return flattened_names_in_order_;
   }
 
-  void AddChannel(std::string_view flattened_name, Channel* channel) {
+  void AddChannel(std::string_view flattened_name, ChannelRef channel) {
     flattened_names_in_order_.push_back(std::string(flattened_name));
     flattened_name_to_channel_.emplace(flattened_name, channel);
   }
 
-  std::optional<Channel*> FindChannel(std::string_view flattened_name) {
+  std::optional<ChannelRef> FindChannel(std::string_view flattened_name) {
     const auto it = flattened_name_to_channel_.find(flattened_name);
     if (it == flattened_name_to_channel_.end()) {
       return std::nullopt;
     }
-    // TODO: davidplass - Change FindChannel to return a ChannelRef,
-    // or add a FindChannelRef method.
     return it->second;
   }
 
@@ -100,8 +98,7 @@ class ChannelArray {
   // channel name for an element is `base_channel_name_` plus a suffix produced
   // by `ChannelScope::CreateAllArrayElementSuffixes()`, with the base name and
   // suffix separated by a double underscore.
-  // TODO: davidplass - change to ChannelRef.
-  absl::flat_hash_map<std::string, Channel*> flattened_name_to_channel_;
+  absl::flat_hash_map<std::string, ChannelRef> flattened_name_to_channel_;
 };
 
 using ChannelOrArray = std::variant<Channel*, ChannelArray*, ChannelInterface*>;
@@ -172,7 +169,7 @@ class ChannelScope {
  protected:
   // TODO: davidplass - make this an abstract function in a new abstract
   // base class.
-  virtual absl::StatusOr<Channel*> CreateChannel(
+  virtual absl::StatusOr<ChannelRef> CreateChannel(
       std::string_view name, ChannelOps ops, xls::Type* type,
       std::optional<ChannelConfig> channel_config,
       bool interface_channel = false);

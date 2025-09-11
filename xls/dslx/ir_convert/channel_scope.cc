@@ -100,6 +100,14 @@ absl::StatusOr<ChannelOrArray> ChannelScope::DefineChannelOrArray(
   return channel_or_array;
 }
 
+ChannelOrArray ToChannelOrArray(ChannelRef ref) {
+  return absl::visit(
+      Visitor{
+          [](auto* c) -> ChannelOrArray { return c; },
+      },
+      ref);
+}
+
 absl::StatusOr<ChannelOrArray> ChannelScope::DefineChannelOrArrayInternal(
     std::string_view short_name, ChannelOps ops, xls::Type* type,
     std::optional<ChannelConfig> channel_config,
@@ -115,10 +123,10 @@ absl::StatusOr<ChannelOrArray> ChannelScope::DefineChannelOrArrayInternal(
   }
   std::vector<std::string> channel_names;
   if (!dims.has_value()) {
-    XLS_ASSIGN_OR_RETURN(Channel * channel,
+    XLS_ASSIGN_OR_RETURN(ChannelRef channel_ref,
                          CreateChannel(base_channel_name, ops, type,
                                        channel_config, interface_channel));
-    return channel;
+    return ToChannelOrArray(channel_ref);
   }
   ChannelArray* array = &arrays_.emplace_back(ChannelArray(base_channel_name));
   XLS_RET_CHECK(channel_arrays_.has_value());
@@ -127,7 +135,7 @@ absl::StatusOr<ChannelOrArray> ChannelScope::DefineChannelOrArrayInternal(
   for (const std::string& suffix : suffixes) {
     std::string channel_name =
         absl::StrCat(base_channel_name, kNameAndDimsSeparator, suffix);
-    XLS_ASSIGN_OR_RETURN(Channel * channel,
+    XLS_ASSIGN_OR_RETURN(ChannelRef channel,
                          CreateChannel(channel_name, ops, type, channel_config,
                                        interface_channel));
     array->AddChannel(channel_name, channel);
@@ -176,10 +184,10 @@ absl::Status ChannelScope::DefineProtoChannelOrArray(
   if (std::holds_alternative<ChannelArray*>(channel_or_array)) {
     auto* array = std::get<ChannelArray*>(channel_or_array);
     for (const std::string& name : array->flattened_names_in_order()) {
-      std::optional<Channel*> channel = array->FindChannel(name);
-      XLS_RET_CHECK(channel.has_value());
-      XLS_RETURN_IF_ERROR(
-          DefineProtoChannelOrArray(*channel, type_annot, ir_type, type_info));
+      std::optional<ChannelRef> channel_ref = array->FindChannel(name);
+      XLS_RET_CHECK(channel_ref.has_value());
+      XLS_RETURN_IF_ERROR(DefineProtoChannelOrArray(
+          ToChannelOrArray(*channel_ref), type_annot, ir_type, type_info));
     }
     return absl::OkStatus();
   }
@@ -346,7 +354,7 @@ absl::StatusOr<std::optional<ChannelConfig>> ChannelScope::CreateChannelConfig(
   return ChannelConfig().WithFifoConfig(default_fifo_config_);
 }
 
-absl::StatusOr<Channel*> ChannelScope::CreateChannel(
+absl::StatusOr<ChannelRef> ChannelScope::CreateChannel(
     std::string_view name, ChannelOps ops, xls::Type* type,
     std::optional<ChannelConfig> channel_config, bool interface_channel) {
   if (channel_config.has_value()) {
@@ -380,10 +388,11 @@ absl::StatusOr<ChannelOrArray> ChannelScope::GetChannelArrayElement(
       array->base_channel_name(),
       array->is_subarray() ? kBetweenDimsSeparator : kNameAndDimsSeparator,
       flattened_name_suffix);
-  std::optional<Channel*> channel = array->FindChannel(flattened_channel_name);
-  if (channel.has_value()) {
-    VLOG(4) << "Found channel array element: " << (*channel)->name();
-    return *channel;
+  std::optional<ChannelRef> channel_ref =
+      array->FindChannel(flattened_channel_name);
+  if (channel_ref.has_value()) {
+    VLOG(4) << "Found channel array element: " << ChannelRefName(*channel_ref);
+    return ToChannelOrArray(*channel_ref);
   }
   if (allow_subarray_reference) {
     return GetOrDefineSubarray(array, flattened_channel_name);
@@ -407,8 +416,8 @@ absl::StatusOr<ChannelArray*> ChannelScope::GetOrDefineSubarray(
   VLOG(5) << "Searching for subarray elements with prefix " << subarray_prefix;
   for (const std::string& name : array->flattened_names_in_order()) {
     if (absl::StartsWith(name, subarray_prefix)) {
-      Channel* channel = *array->FindChannel(name);
-      subarray->AddChannel(channel->name(), channel);
+      ChannelRef channel_ref = *array->FindChannel(name);
+      subarray->AddChannel(ChannelRefName(channel_ref), channel_ref);
     }
   }
   // If type checking has been done right etc., there should never be a request
