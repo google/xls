@@ -1,18 +1,15 @@
 1:0-1:19: STRUCT_DEF :: `struct S {
     x: u32,
 }` :: typeof(S { x: uN[32] })
-1:7-1:8: NAME_DEF :: `S` :: typeof(S { x: uN[32] })
 1:14-1:17: TYPE_ANNOTATION :: `u32` :: typeof(uN[32])
 2:0-2:31: FUNCTION :: `fn f() -> S {
     S { x: u32:42 }
 }` :: () -> S { x: uN[32] }
 2:3-2:4: NAME_DEF :: `f` :: () -> S { x: uN[32] }
-2:10-2:11: TYPE_REF :: `S` :: typeof(S { x: uN[32] })
 2:10-2:12: TYPE_ANNOTATION :: `S` :: typeof(S { x: uN[32] })
 2:12-2:31: STATEMENT_BLOCK :: `{
     S { x: u32:42 }
 }` :: S { x: uN[32] }
-2:14-2:15: TYPE_REF :: `S` :: typeof(S { x: uN[32] })
 2:16-2:29: STATEMENT :: `S { x: u32:42 }` :: S { x: uN[32] }
 2:16-2:29: STRUCT_INSTANCE :: `S { x: u32:42 }` :: S { x: uN[32] }
 2:21-2:24: TYPE_ANNOTATION :: `u32` :: typeof(uN[32])

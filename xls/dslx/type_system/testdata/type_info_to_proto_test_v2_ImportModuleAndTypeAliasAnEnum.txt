@@ -1,0 +1,4 @@
+3:0-3:37: TYPE_ALIAS :: `type MyFoo = my_imported_module::Foo;` :: typeof(Foo)
+3:5-3:10: NAME_DEF :: `MyFoo` :: typeof(Foo)
+3:13-3:36: COLON_REF :: `my_imported_module::Foo` :: typeof(Foo)
+3:13-3:36: TYPE_ANNOTATION :: `my_imported_module::Foo` :: typeof(Foo)

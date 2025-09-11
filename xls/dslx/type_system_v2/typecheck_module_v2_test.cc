@@ -5589,9 +5589,9 @@ struct S<X: u32, Y: u32> {
 type MyS = S<3, 4>;
 fn f() -> MyS { MyS {x: 3, y: 4 } }
 )",
-              TypecheckSucceeds(
-                  AllOf(HasNodeWithType("f", "() -> S { x: uN[3], y: uN[4] }"),
-                        HasNodeWithType("MyS", "S { x: uN[3], y: uN[4] }"))));
+              TypecheckSucceeds(AllOf(
+                  HasNodeWithType("f", "() -> S { x: uN[3], y: uN[4] }"),
+                  HasNodeWithType("MyS", "typeof(S { x: uN[3], y: uN[4] })"))));
 }
 
 TEST(TypecheckV2Test, TypeAliasWithUnspecifiedParametrics) {
@@ -5674,10 +5674,10 @@ fn f() -> uN[3] {
   x.x
 }
 )",
-              TypecheckSucceeds(
-                  AllOf(HasNodeWithType("f", "() -> uN[3]"),
-                        HasNodeWithType("MyS", "S { x: uN[3], y: uN[4] }"),
-                        HasNodeWithType("x", "S { x: uN[3], y: uN[4] }"))));
+              TypecheckSucceeds(AllOf(
+                  HasNodeWithType("f", "() -> uN[3]"),
+                  HasNodeWithType("MyS", "typeof(S { x: uN[3], y: uN[4] })"),
+                  HasNodeWithType("x", "S { x: uN[3], y: uN[4] }"))));
 }
 
 TEST(TypecheckV2Test, SliceOfBitsLiteral) {
@@ -8356,9 +8356,10 @@ fn f(x: A) -> A {
 
   auto import_data = CreateImportDataForTest();
   XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
-  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
-              IsOkAndHolds(HasTypeInfo(AllOf(HasNodeWithType("A", "MyEnum"),
-                                             HasNodeWithType("x", "MyEnum")))));
+  EXPECT_THAT(
+      TypecheckV2(kProgram, "main", &import_data),
+      IsOkAndHolds(HasTypeInfo(AllOf(HasNodeWithType("A", "typeof(MyEnum)"),
+                                     HasNodeWithType("x", "MyEnum")))));
 }
 
 TEST(TypecheckV2Test, ImportedEnumAsTypeTwoLevel) {
@@ -8388,9 +8389,10 @@ fn f(x: A) -> A {
   auto import_data = CreateImportDataForTest();
   XLS_EXPECT_OK(TypecheckV2(kFirst, "first", &import_data));
   XLS_EXPECT_OK(TypecheckV2(kSecond, "second", &import_data));
-  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
-              IsOkAndHolds(HasTypeInfo(AllOf(HasNodeWithType("A", "MyEnum"),
-                                             HasNodeWithType("x", "MyEnum")))));
+  EXPECT_THAT(
+      TypecheckV2(kProgram, "main", &import_data),
+      IsOkAndHolds(HasTypeInfo(AllOf(HasNodeWithType("A", "typeof(MyEnum)"),
+                                     HasNodeWithType("x", "MyEnum")))));
 }
 
 TEST(TypecheckV2Test, ImportedEnumInFunction) {
@@ -8792,9 +8794,9 @@ type x = imported::S;
 )";
   auto import_data = CreateImportDataForTest();
   XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
-  EXPECT_THAT(
-      TypecheckV2(kProgram, "main", &import_data),
-      IsOkAndHolds(HasTypeInfo(HasNodeWithType("x", "S { arr: uN[32][4] }"))));
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              IsOkAndHolds(HasTypeInfo(
+                  HasNodeWithType("x", "typeof(S { arr: uN[32][4] })"))));
 }
 
 TEST(TypecheckV2Test, MatchWithInvocationInExpression) {

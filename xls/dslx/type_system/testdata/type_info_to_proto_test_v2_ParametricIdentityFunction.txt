@@ -1,0 +1,22 @@
+1:7-1:8: NUMBER :: `32` :: uN[32]
+1:7-1:8: NUMBER :: `32` :: uN[32]
+1:10-1:13: TYPE_ANNOTATION :: `u32` :: typeof(uN[32])
+1:18-1:25: TYPE_ANNOTATION :: `bits[N]` :: typeof(uN[32])
+1:30-1:37: TYPE_ANNOTATION :: `bits[N]` :: typeof(uN[32])
+2:0-2:39: FUNCTION :: `fn id(x: u32) -> u32 {
+    pid<u32:32>(x)
+}` :: (uN[32]) -> uN[32]
+2:3-2:5: NAME_DEF :: `id` :: (uN[32]) -> uN[32]
+2:6-2:7: NAME_DEF :: `x` :: uN[32]
+2:6-2:12: PARAM :: `x: u32` :: uN[32]
+2:9-2:12: TYPE_ANNOTATION :: `u32` :: typeof(uN[32])
+2:17-2:20: TYPE_ANNOTATION :: `u32` :: typeof(uN[32])
+2:21-2:39: STATEMENT_BLOCK :: `{
+    pid<u32:32>(x)
+}` :: uN[32]
+2:23-2:26: NAME_REF :: `pid` :: (uN[32]) -> uN[32]
+2:26-2:37: INVOCATION :: `pid<u32:32>(x)` :: uN[32]
+2:26-2:37: STATEMENT :: `pid<u32:32>(x)` :: uN[32]
+2:27-2:30: TYPE_ANNOTATION :: `u32` :: typeof(uN[32])
+2:27-2:33: NUMBER :: `u32:32` :: uN[32]
+2:35-2:36: NAME_REF :: `x` :: uN[32]

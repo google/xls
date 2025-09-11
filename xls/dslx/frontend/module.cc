@@ -105,7 +105,7 @@ std::string Module::ToString() const {
 const AstNode* Module::FindNode(AstNodeKind kind, const Span& target) const {
   for (const auto& node : nodes_) {
     if (node->kind() == kind && node->GetSpan().has_value() &&
-        node->GetSpan().value() == target) {
+        node->GetSpan().value() == target && !IsSyntheticNode(node.get())) {
       return node.get();
     }
   }

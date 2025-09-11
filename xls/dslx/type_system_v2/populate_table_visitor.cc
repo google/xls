@@ -1531,12 +1531,13 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
           table_.GetTypeVariable(expr);
       if (!type_variable.has_value()) {
         XLS_ASSIGN_OR_RETURN(
-            const NameRef* type_variable,
+            type_variable,
             table_.DefineInternalVariable(
                 InferenceVariableKind::kType, const_cast<Statement*>(node),
                 GenerateInternalTypeVariableName(expr)));
-        XLS_RETURN_IF_ERROR(table_.SetTypeVariable(expr, type_variable));
+        XLS_RETURN_IF_ERROR(table_.SetTypeVariable(expr, *type_variable));
       }
+      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node, *type_variable));
     }
     return DefaultHandler(node);
   }

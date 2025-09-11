@@ -928,10 +928,13 @@ absl::StatusOr<TypeInfoProto> TypeInfoToProto(const TypeInfo& type_info) {
     const AstNode* node;
     const Type* type;
   };
+  Module* module = type_info.module();
   std::vector<Item> items;
   for (const auto& [node, type] : type_info.dict()) {
-    items.push_back(
-        Item{node->GetSpan().value(), node->kind(), node, type.get()});
+    if (!module->IsSyntheticNode(node)) {
+      items.push_back(
+          Item{node->GetSpan().value(), node->kind(), node, type.get()});
+    }
   }
   std::sort(items.begin(), items.end(), [](const Item& lhs, const Item& rhs) {
     return std::make_tuple(lhs.span.start(), lhs.span.limit(),

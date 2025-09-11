@@ -89,7 +89,9 @@ bool NeedsMetaType(const InferenceTable& table, const AstNode* node) {
                       AstNodeKind::kProcDef});
   return kMetaTypeKinds->contains(node->kind()) ||
          (node->kind() == AstNodeKind::kColonRef &&
-          IsColonRefWithTypeTarget(table, down_cast<const ColonRef*>(node)));
+          IsColonRefWithTypeTarget(table, down_cast<const ColonRef*>(node))) ||
+         (node->kind() == AstNodeKind::kNameDef && node->parent() &&
+          node->parent()->kind() == AstNodeKind::kTypeAlias);
 }
 
 // RAII guard for a frame on the proc type info stack.

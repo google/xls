@@ -1,0 +1,15 @@
+1:0-1:23: ENUM_DEF :: `enum E : u32 {
+    A = 42,
+}` :: typeof(E)
+1:9-1:12: TYPE_ANNOTATION :: `u32` :: typeof(uN[32])
+1:19-1:21: NUMBER :: `42` :: uN[32]
+2:0-2:20: FUNCTION :: `fn f() -> E {
+    E::A
+}` :: () -> E
+2:3-2:4: NAME_DEF :: `f` :: () -> E
+2:10-2:12: TYPE_ANNOTATION :: `E` :: typeof(E)
+2:12-2:20: STATEMENT_BLOCK :: `{
+    E::A
+}` :: E
+2:14-2:18: COLON_REF :: `E::A` :: E
+2:14-2:18: STATEMENT :: `E::A` :: E
