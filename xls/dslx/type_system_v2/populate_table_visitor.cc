@@ -1205,9 +1205,11 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
 
     // In a match pattern, a range means "match against anything in this range"
     // as opposed to "fabricate an array with everything in this range," so the
-    // type of the range expr is just the type of the range endpoints, and
-    // default handling of the children will get us that.
+    // type of the range expr is just the type of the range endpoints.
     if (node->has_pattern_semantics()) {
+      const NameRef* type_variable = *table_.GetTypeVariable(node);
+      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->start(), type_variable));
+      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->end(), type_variable));
       return DefaultHandler(node);
     }
 

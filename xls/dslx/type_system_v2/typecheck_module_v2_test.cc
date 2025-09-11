@@ -3503,7 +3503,8 @@ fn main() {
 }
 
 TEST(TypecheckV2Test, PatternMatchWithRange) {
-  EXPECT_THAT(R"(
+  EXPECT_THAT(
+      R"(
 fn f(x: u32) -> u32 {
     match x {
         1..3 => u32:1,
@@ -3520,9 +3521,24 @@ fn main() {
 
 }
 )",
-              TypecheckSucceeds(AllOf(HasNodeWithType("res", "uN[1]"),
-                                      HasNodeWithType("res2", "uN[6]"),
-                                      HasNodeWithType("1..3", "uN[32]"))));
+      TypecheckSucceeds(AllOf(
+          HasNodeWithType("res", "uN[1]"), HasNodeWithType("res2", "uN[6]"),
+          HasNodeWithType("1", "uN[32]"), HasNodeWithType("3", "uN[32]"),
+          HasNodeWithType("1..3", "uN[32]"))));
+}
+
+TEST(TypecheckV2Test, PatternMatchWithInvalidRange) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn f(x: u32) -> u32 {
+    match x {
+        3..1 => u32:1,
+        _ => x,
+    }
+}
+)"));
+  ASSERT_THAT(result.tm.warnings.warnings().size(), 1);
+  EXPECT_EQ(result.tm.warnings.warnings()[0].message,
+            "`3..1` from `u32:3` to `u32:1` is an empty range");
 }
 
 TEST(TypecheckV2Test, PatternMatchWithRangeInTuple) {
