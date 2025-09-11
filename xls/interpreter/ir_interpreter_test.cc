@@ -127,11 +127,9 @@ TEST_F(IrInterpreterOnlyTest, TraceCalls) {
 
   // Calls should be recorded in order: top, mid, inner (from within mid),
   // then inner (direct from top). Arguments should be included.
-  ASSERT_EQ(result.events.trace_msgs.size(), 4);
-  EXPECT_EQ(result.events.trace_msgs[0].message, "my_function(1, 2)");
-  EXPECT_EQ(result.events.trace_msgs[1].message, "  mid(1, 2)");
-  EXPECT_EQ(result.events.trace_msgs[2].message, "    inner(1, 2)");
-  EXPECT_EQ(result.events.trace_msgs[3].message, "  inner(2, 1)");
+  EXPECT_THAT(result.events.GetTraceMessageStrings(),
+              ElementsAre("my_function(1, 2)", "  mid(1, 2)", "    inner(1, 2)",
+                          "  inner(2, 1)"));
 }
 
 TEST_F(IrInterpreterOnlyTest, SideEffectingNodes) {
@@ -197,11 +195,10 @@ fn accum_dynamic(trips: bits[8]) -> bits[32] {
                            InterpretFunction(accum_fixed, {}));
 
   Value accum_5_value = Value(UBits(10, 32));
-  auto accum_5_traces = {FieldsAre("accum is 0", 0), FieldsAre("accum is 0", 0),
-                         FieldsAre("accum is 1", 0), FieldsAre("accum is 3", 0),
-                         FieldsAre("accum is 6", 0)};
+  std::vector<std::string> accum_5_traces = {
+      "accum is 0", "accum is 0", "accum is 1", "accum is 3", "accum is 6"};
   EXPECT_EQ(accum_fixed_result.value, accum_5_value);
-  EXPECT_THAT(accum_fixed_result.events.trace_msgs,
+  EXPECT_THAT(accum_fixed_result.events.GetTraceMessageStrings(),
               ElementsAreArray(accum_5_traces));
 
   Function* accum_dynamic = FindFunction("accum_dynamic", package.get());
@@ -210,32 +207,30 @@ fn accum_dynamic(trips: bits[8]) -> bits[32] {
       InterpreterResult<Value> accum_dynamic_5,
       InterpretFunction(accum_dynamic, {Value(UBits(5, 8))}));
   EXPECT_EQ(accum_dynamic_5.value, accum_5_value);
-  EXPECT_THAT(accum_dynamic_5.events.trace_msgs,
+  EXPECT_THAT(accum_dynamic_5.events.GetTraceMessageStrings(),
               ElementsAreArray(accum_5_traces));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       InterpreterResult<Value> accum_dynamic_0,
       InterpretFunction(accum_dynamic, {Value(UBits(0, 8))}));
   EXPECT_EQ(accum_dynamic_0.value, Value(UBits(0, 32)));
-  EXPECT_THAT(accum_dynamic_0.events.trace_msgs, ElementsAre());
+  EXPECT_THAT(accum_dynamic_0.events.GetTraceMessageStrings(), ElementsAre());
 
   XLS_ASSERT_OK_AND_ASSIGN(
       InterpreterResult<Value> accum_dynamic_1,
       InterpretFunction(accum_dynamic, {Value(UBits(1, 8))}));
   EXPECT_EQ(accum_dynamic_1.value, Value(UBits(0, 32)));
-  EXPECT_THAT(accum_dynamic_1.events.trace_msgs,
-              ElementsAre(FieldsAre("accum is 0", 0)));
+  EXPECT_THAT(accum_dynamic_1.events.GetTraceMessageStrings(),
+              ElementsAre("accum is 0"));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       InterpreterResult<Value> accum_dynamic_7,
       InterpretFunction(accum_dynamic, {Value(UBits(7, 8))}));
   EXPECT_EQ(accum_dynamic_7.value, Value(UBits(21, 32)));
   EXPECT_THAT(
-      accum_dynamic_7.events.trace_msgs,
-      ElementsAre(FieldsAre("accum is 0", 0), FieldsAre("accum is 0", 0),
-                  FieldsAre("accum is 1", 0), FieldsAre("accum is 3", 0),
-                  FieldsAre("accum is 6", 0), FieldsAre("accum is 10", 0),
-                  FieldsAre("accum is 15", 0)));
+      accum_dynamic_7.events.GetTraceMessageStrings(),
+      ElementsAre("accum is 0", "accum is 0", "accum is 1", "accum is 3",
+                  "accum is 6", "accum is 10", "accum is 15"));
 }
 
 // Test collecting traces across a map.
@@ -270,10 +265,8 @@ fn map_trace() -> bits[32][5]{
   XLS_ASSERT_OK_AND_ASSIGN(Value map_trace_expected,
                            Value::UBitsArray({121, 144, 169, 196, 225}, 32));
   EXPECT_EQ(map_trace_result.value, map_trace_expected);
-  EXPECT_THAT(
-      map_trace_result.events.trace_msgs,
-      UnorderedElementsAre(FieldsAre("f is odd", 0), FieldsAre("d is odd", 0),
-                           FieldsAre("b is odd", 0)));
+  EXPECT_THAT(map_trace_result.events.GetTraceMessageStrings(),
+              UnorderedElementsAre("f is odd", "d is odd", "b is odd"));
 }
 
 }  // namespace

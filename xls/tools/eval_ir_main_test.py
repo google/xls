@@ -17,9 +17,11 @@ import ctypes
 import struct
 import subprocess
 
+from google.protobuf import text_format
 from absl.testing import parameterized
 from xls.common import runfiles
 from xls.common import test_base
+from xls.ir import evaluator_result_pb2
 from xls.ir import xls_value_pb2
 from xls.tools import node_coverage_stats_pb2
 
@@ -263,6 +265,64 @@ class EvalMainTest(parameterized.TestCase):
     self.assertLen(result.decode('utf-8').strip().split('\n'), 42)
     # And with overwhelming probability they should all be different.
     self.assertLen(set(result.decode('utf-8').strip().split('\n')), 42)
+
+  def test_output_results_proto_with_trace(self):
+    trace_ir = """package foo
+
+top fn foo(x: bits[8]) -> bits[8] {
+  tkn: token = literal(value=token)
+  on: bits[1] = literal(value=1)
+  trace.1: token = trace(tkn, on, format="x is {:x}", data_operands=[x])
+  ret identity.2: bits[8] = identity(x)
+}
+"""
+    ir_file = self.create_tempfile(content=trace_ir)
+    out = self.create_tempfile()
+    result = subprocess.check_output([
+        EVAL_IR_MAIN_PATH,
+        '--nouse_llvm_jit',
+        '--input=bits[8]:0x2a',
+        f'--output_results_proto={out.full_path}',
+        ir_file.full_path,
+    ])
+    self.assertEqual(result.decode('utf-8').strip(), 'bits[8]:0x2a')
+    # Parse textproto and verify trace message
+    results_proto = evaluator_result_pb2.EvaluatorResultsProto()
+    text_format.Parse(out.read_text(), results_proto)
+    self.assertLen(results_proto.results, 1)
+    # Verify result matches bits[8]:0x2a
+    res = results_proto.results[0].result
+    self.assertTrue(res.HasField('bits'))
+    self.assertEqual(res.bits.bit_count, 8)
+    self.assertEqual(res.bits.data, struct.pack('b', 0x2A))
+    self.assertGreaterEqual(len(results_proto.results[0].events.trace_msgs), 1)
+    self.assertEqual(
+        results_proto.results[0].events.trace_msgs[0].message, 'x is 2a'
+    )
+
+  def test_trace_to_stderr(self):
+    trace_ir = """package foo
+
+top fn foo(x: bits[8]) -> bits[8] {
+  tkn: token = literal(value=token)
+  on: bits[1] = literal(value=1)
+  trace.1: token = trace(tkn, on, format="x is {:x}", data_operands=[x])
+  ret identity.2: bits[8] = identity(x)
+}
+"""
+    ir_file = self.create_tempfile(content=trace_ir)
+    comp = subprocess.run(
+        [
+            EVAL_IR_MAIN_PATH,
+            '--nouse_llvm_jit',
+            '--input=bits[8]:0x2a',
+            '--trace_to_stderr',
+            ir_file.full_path,
+        ],
+        stderr=subprocess.PIPE,
+        check=True,
+    )
+    self.assertIn('x is 2a', comp.stderr.decode('utf-8'))
 
   def test_jit_result_injection(self):
     ir_file = self.create_tempfile(content=ADD_IR)

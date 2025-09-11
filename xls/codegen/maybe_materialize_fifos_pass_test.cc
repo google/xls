@@ -164,7 +164,8 @@ class MaterializeFifosPassTestHelper {
       ScopedMaybeRecord input_inst("input", input_set_inst);
       ScopedMaybeRecord test_out("test_output", tester_outputs);
       ScopedMaybeRecord oracle_out("oracle_output", oracle->output_ports());
-      ScopedMaybeRecord trace("trace", tester->events().trace_msgs);
+      ScopedMaybeRecord trace("trace",
+                              tester->events().GetTraceMessageStrings());
       ASSERT_THAT(tester_outputs,
                   UsableOutputsMatch(input_set_inst, oracle->output_ports()))
           << "@" << i << ". tester_state: {"

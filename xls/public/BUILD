@@ -266,7 +266,6 @@ cc_library(
         ":runtime_build_actions",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
-        "//xls/dslx:interp_value_utils",
         "//xls/dslx:mangle",
         "//xls/dslx/type_system:parametric_env",
         "//xls/interpreter:ir_interpreter",

@@ -133,12 +133,9 @@ class IrEvaluatorTestBase
     XLS_ASSIGN_OR_RETURN(InterpreterResult<Value> result,
                          GetParam().evaluator(f, args, options, observer));
 
-    if (!result.events.trace_msgs.empty()) {
-      std::vector<std::string_view> trace_messages;
-      trace_messages.reserve(result.events.trace_msgs.size());
-      for (const TraceMessage& trace : result.events.trace_msgs) {
-        trace_messages.push_back(trace.message);
-      }
+    if (!result.events.GetTraceMessages().empty()) {
+      std::vector<std::string> trace_messages =
+          result.events.GetTraceMessageStrings();
       return absl::FailedPreconditionError(
           absl::StrFormat("Unexpected traces during RunWithNoEvents:\n%s",
                           absl::StrJoin(trace_messages, "\n")));
@@ -188,8 +185,8 @@ class IrEvaluatorTestBase
     XLS_ASSIGN_OR_RETURN(
         InterpreterResult<Value> result,
         GetParam().kwargs_evaluator(function, kwargs, options, std::nullopt));
-    XLS_RET_CHECK(result.events.trace_msgs.empty());
-    XLS_RET_CHECK(result.events.assert_msgs.empty());
+    XLS_RET_CHECK(result.events.GetTraceMessages().empty());
+    XLS_RET_CHECK(result.events.GetAssertMessages().empty());
     return result.value;
   }
 };

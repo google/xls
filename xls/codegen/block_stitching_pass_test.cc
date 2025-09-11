@@ -714,10 +714,10 @@ struct BlockEvaluationOutputsEqMatcher {
 
   bool MatchAndExplain(const BlockEvaluationResults& results,
                        ::testing::MatchResultListener* listener) const {
-    if (!results.interpreter_events.assert_msgs.empty()) {
+    if (!results.interpreter_events.GetAssertMessages().empty()) {
       *listener << absl::StreamFormat(
           "Unexpected assertion failures: %s.",
-          absl::StrJoin(results.interpreter_events.assert_msgs, ", "));
+          absl::StrJoin(results.interpreter_events.GetAssertMessages(), ", "));
       return false;
     }
     if (results.actual_outputs != expected_outputs) {
@@ -4998,8 +4998,8 @@ TEST_F(BlockStitchingPassTest, ProcWithAssert) {
       EvalBlock(top_block, context.metadata(), {{"in", {100, 200, 300, 0}}}),
       IsOkAndHolds(Field(
           "interpreter_events", &BlockEvaluationResults::interpreter_events,
-          Field("assert_msgs", &InterpreterEvents::assert_msgs,
-                ElementsAre(HasSubstr("input must not be zero"))))));
+          Property(&InterpreterEvents::GetAssertMessages,
+                   ElementsAre(HasSubstr("input must not be zero"))))));
 }
 
 TEST_F(BlockStitchingPassTest, ProcWithCover) {
@@ -5140,12 +5140,10 @@ TEST_F(BlockStitchingPassTest, ProcWithTrace) {
 
   EXPECT_THAT(
       interpreter->GetInterpreterEvents(p->GetProc("trace_not_zero").value())
-          .trace_msgs,
-      ElementsAre(FieldsAre(HasSubstr("data: 100"), 0),
-                  FieldsAre(HasSubstr("data: 200"), 0),
-                  FieldsAre(HasSubstr("data: 300"), 0),
-                  FieldsAre(HasSubstr("data: 400"), 0),
-                  FieldsAre(HasSubstr("data: 500"), 0)));
+          .GetTraceMessageStrings(),
+      ElementsAre(HasSubstr("data: 100"), HasSubstr("data: 200"),
+                  HasSubstr("data: 300"), HasSubstr("data: 400"),
+                  HasSubstr("data: 500")));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       (auto [changed, context]),
@@ -5163,12 +5161,11 @@ TEST_F(BlockStitchingPassTest, ProcWithTrace) {
           BlockOutputsEq({{"out", {100, 200, 300, 0, 400, 0, 500}}}),
           Field("interpreter_events",
                 &BlockEvaluationResults::interpreter_events,
-                Field("trace_msgs", &InterpreterEvents::trace_msgs,
-                      ElementsAre(FieldsAre(HasSubstr("data: 100"), 0),
-                                  FieldsAre(HasSubstr("data: 200"), 0),
-                                  FieldsAre(HasSubstr("data: 300"), 0),
-                                  FieldsAre(HasSubstr("data: 400"), 0),
-                                  FieldsAre(HasSubstr("data: 500"), 0)))))));
+                Property(
+                    &InterpreterEvents::GetTraceMessageStrings,
+                    ElementsAre(HasSubstr("data: 100"), HasSubstr("data: 200"),
+                                HasSubstr("data: 300"), HasSubstr("data: 400"),
+                                HasSubstr("data: 500")))))));
 }
 
 TEST_F(BlockStitchingPassTest, ProcWithNonblockingReceivesWithPassthrough) {

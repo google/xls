@@ -169,7 +169,9 @@ class GeneratedTester : public XlsccTestBase {
       xabsl::SourceLocation loc = xabsl::SourceLocation::current()) {
     XLS_ASSIGN_OR_RETURN(
         std::string ac_int_path,
-        xls::GetXlsRunfilePath("external/com_github_hlslibs_ac_types/include/ac_int.h"));
+        xls::GetXlsRunfilePath(
+            "include/ac_int.h",
+            /*package=*/"external/com_github_hlslibs_ac_types"));
     XLS_ASSIGN_OR_RETURN(
         std::string xls_int_path,
         xls::GetXlsRunfilePath("xls/contrib/xlscc/synth_only/xls_int.h"));

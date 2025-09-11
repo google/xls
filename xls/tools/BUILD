@@ -206,6 +206,7 @@ cc_binary(
         "//xls/interpreter:random_value",
         "//xls/ir",
         "//xls/ir:bits",
+        "//xls/ir:evaluator_result_cc_proto",
         "//xls/ir:events",
         "//xls/ir:format_preference",
         "//xls/ir:ir_parser",
@@ -232,6 +233,7 @@ cc_binary(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+        "@com_google_protobuf//:protobuf",
         "@llvm-project//llvm:CodeGen",
         "@llvm-project//llvm:ExecutionEngine",
         "@llvm-project//llvm:IRReader",
@@ -900,9 +902,11 @@ py_test(
         ":node_coverage_stats_py_pb2",
         "//xls/common:runfiles",
         "//xls/common:test_base",
+        "//xls/ir:evaluator_result_py_pb2",
         "//xls/ir:xls_value_py_pb2",
         "@abseil-py//absl/testing:absltest",
         "@abseil-py//absl/testing:parameterized",
+        "@com_google_protobuf//:protobuf_python",
     ],
 )
 

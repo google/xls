@@ -54,8 +54,7 @@ void PerformFormatStep(InstanceContext* thiz, JitRuntime* runtime,
 
 void RecordTrace(InstanceContext* thiz, std::string* buffer, int64_t verbosity,
                  InterpreterEvents* events) {
-  events->trace_msgs.push_back(
-      TraceMessage{.message = *buffer, .verbosity = verbosity});
+  events->AddTraceStatementMessage(verbosity, *buffer);
   delete buffer;
 }
 std::string* CreateTraceBuffer(InstanceContext* thiz) {
@@ -63,7 +62,7 @@ std::string* CreateTraceBuffer(InstanceContext* thiz) {
 }
 void RecordAssertion(InstanceContext* thiz, const char* msg,
                      InterpreterEvents* events) {
-  events->assert_msgs.push_back(msg);
+  events->AddAssertMessage(msg);
 }
 
 bool QueueReceiveWrapper(InstanceContext* thiz, int64_t queue_index,

@@ -15,57 +15,96 @@
 #ifndef XLS_IR_EVENTS_H_
 #define XLS_IR_EVENTS_H_
 
-#include <compare>
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
+#include "absl/types/span.h"
+#include "xls/ir/evaluator_result.pb.h"
+#include "xls/ir/format_preference.h"
+#include "xls/ir/value.h"
 
 namespace xls {
 
-// A trace message is a string and a verbosity associated with the message.
-struct TraceMessage {
-  std::string message;
-  int64_t verbosity;
-
-  bool operator==(const TraceMessage& other) const {
-    return message == other.message && verbosity == other.verbosity;
-  }
-  bool operator!=(const TraceMessage& other) const { return !(*this == other); }
-  std::strong_ordering operator<=>(const TraceMessage& other) const {
-    auto verbosity_cmp = verbosity <=> other.verbosity;
-    if (verbosity_cmp != std::strong_ordering::equal) {
-      return verbosity_cmp;
-    }
-    return message <=> other.message;
-  }
-
-  template <typename Sink>
-  friend void AbslStringify(Sink& sink, const TraceMessage& t) {
-    absl::Format(&sink, "%s [verbosity: %d]", t.message, t.verbosity);
-  }
-};
-
 // Common structure capturing events that can be produced by any XLS interpreter
 // (DSLX, IR, JIT, etc.)
-struct InterpreterEvents {
-  std::vector<TraceMessage> trace_msgs;
-  std::vector<std::string> assert_msgs;
-
-  void Clear() {
-    trace_msgs.clear();
-    assert_msgs.clear();
+class InterpreterEvents {
+ public:
+  void AddTraceStatementMessage(int64_t verbosity, std::string msg) {
+    TraceMessageProto* tm = proto_.add_trace_msgs();
+    tm->set_message(std::move(msg));
+    tm->mutable_statement()->set_verbosity(verbosity);
   }
 
+  void AddTraceCallMessage(std::string_view function_name,
+                           absl::Span<const Value> args, int64_t call_depth,
+                           FormatPreference format_preference) {
+    TraceMessageProto* tm = proto_.add_trace_msgs();
+    // Build an indented message like: "  foo(1, 2, 3)".
+    tm->set_message(absl::StrFormat(
+        "%*s%s(%s)", call_depth * 2, "", function_name,
+        absl::StrJoin(args, ", ",
+                      [format_preference](std::string* out, const Value& v) {
+                        out->append(v.ToHumanString(format_preference));
+                      })));
+    tm->mutable_call()->set_function_name(std::string{function_name});
+    tm->mutable_call()->set_call_depth(call_depth);
+    for (const Value& v : args) {
+      *tm->mutable_call()->add_args() = v.AsProto().value();
+    }
+  }
+  void AddAssertMessage(const std::string& msg) {
+    proto_.add_assert_msgs()->set_message(msg);
+  }
+
+  const ::google::protobuf::RepeatedPtrField<TraceMessageProto>& GetTraceMessages()
+      const {
+    return proto_.trace_msgs();
+  }
+  std::vector<std::string> GetTraceMessageStrings() const {
+    std::vector<std::string> messages;
+    messages.reserve(proto_.trace_msgs_size());
+    for (const TraceMessageProto& t : proto_.trace_msgs()) {
+      messages.push_back(t.message());
+    }
+    return messages;
+  }
+  std::vector<std::string> GetAssertMessages() const {
+    std::vector<std::string> asserts;
+    asserts.reserve(proto_.assert_msgs_size());
+    for (const AssertMessageProto& a : proto_.assert_msgs()) {
+      asserts.push_back(a.message());
+    }
+    return asserts;
+  }
+
+  void Clear() { proto_.Clear(); }
+
   bool operator==(const InterpreterEvents& other) const {
-    return trace_msgs == other.trace_msgs && assert_msgs == other.assert_msgs;
+    return proto_.SerializeAsString() == other.proto_.SerializeAsString();
   }
   bool operator!=(const InterpreterEvents& other) const {
     return !(*this == other);
   }
+
+  void AppendFrom(const InterpreterEvents& other) {
+    for (const TraceMessageProto& t : other.proto_.trace_msgs()) {
+      *proto_.add_trace_msgs() = t;
+    }
+    for (const AssertMessageProto& a : other.proto_.assert_msgs()) {
+      *proto_.add_assert_msgs() = a;
+    }
+  }
+
+  const EvaluatorEventsProto& AsProto() const { return proto_; }
+
+ private:
+  EvaluatorEventsProto proto_;
 };
 // Convert an InterpreterEvents structure into a result status, returning
 // a failure when an assertion has been raised.

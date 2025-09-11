@@ -323,11 +323,9 @@ TEST(JitWrapperTest, BlockTraceEventsWork) {
       something::cool::MultiFuncWithTraceBlockJitPorts().SetX(
           3)));  // After the pipeline is flushed, 5*3 will be the output.
   XLS_ASSERT_OK(jit->RunOneCycle(*cont));
-  EXPECT_THAT(cont->interpreter_events().assert_msgs, IsEmpty());
-  EXPECT_THAT(
-      cont->interpreter_events().trace_msgs,
-      ElementsAre(TraceMessage{.message = "mf_2(2) -> 4", .verbosity = 0},
-                  TraceMessage{.message = "mf_1(1) -> 5", .verbosity = 0}));
+  EXPECT_THAT(cont->interpreter_events().GetAssertMessages(), IsEmpty());
+  EXPECT_THAT(cont->interpreter_events().GetTraceMessageStrings(),
+              ElementsAre("mf_2(2) -> 4", "mf_1(1) -> 5"));
 }
 
 }  // namespace

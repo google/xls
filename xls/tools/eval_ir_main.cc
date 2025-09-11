@@ -62,6 +62,7 @@
 #include "llvm/include/llvm/Support/SourceMgr.h"
 #include "llvm/include/llvm/Support/raw_ostream.h"
 #include "llvm/include/llvm/Target/TargetMachine.h"
+#include "google/protobuf/text_format.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
@@ -80,6 +81,7 @@
 #include "xls/interpreter/observer.h"
 #include "xls/interpreter/random_value.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/evaluator_result.pb.h"
 #include "xls/ir/events.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/function.h"
@@ -192,6 +194,11 @@ ABSL_FLAG(bool, test_llvm_jit, false,
 ABSL_FLAG(int64_t, llvm_opt_level, 3,
           "The optimization level of the LLVM JIT. Valid values are from 0 (no "
           "optimizations) to 3 (maximum optimizations).");
+ABSL_FLAG(std::string, output_results_proto, "",
+          "If non-empty, write a text EvaluatorResultsProto (one entry per "
+          "argset) to the given file path.");
+ABSL_FLAG(bool, trace_to_stderr, false,
+          "If true, write trace messages to stderr.");
 ABSL_FLAG(std::string, input_validator_expr, "",
           "DSLX expression to validate randomly-generated inputs. "
           "The expression can reference entry function input arguments "
@@ -386,7 +393,8 @@ absl::StatusOr<std::vector<Value>> Eval(
     Function* f, absl::Span<const ArgSet> arg_sets, bool use_jit,
     std::optional<EvaluationObserver*> eval_observer = std::nullopt,
     std::string_view actual_src = "actual",
-    std::string_view expected_src = "expected") {
+    std::string_view expected_src = "expected",
+    EvaluatorResultsProto* results_out = nullptr) {
   EvalIrJitObserver observer(absl::GetFlag(FLAGS_use_llvm_jit_interpreter));
   std::unique_ptr<FunctionJit> jit;
   if (use_jit) {
@@ -402,15 +410,15 @@ absl::StatusOr<std::vector<Value>> Eval(
 
   std::vector<Value> results;
   for (const ArgSet& arg_set : arg_sets) {
-    Value result;
+    InterpreterResult<Value> run_res;
     if (use_jit) {
       if (absl::GetFlag(FLAGS_test_only_inject_jit_result).empty()) {
         if (absl::GetFlag(FLAGS_use_llvm_jit_interpreter)) {
           XLS_RET_CHECK(!eval_observer)
               << "Observer not supported with llvm interpreter.";
-          XLS_ASSIGN_OR_RETURN(result, DropInterpreterEvents(RunLlvmInterpreter(
-                                           f, observer.saved_opt_ir(),
-                                           jit.get(), arg_set.args)));
+          XLS_ASSIGN_OR_RETURN(
+              run_res, RunLlvmInterpreter(f, observer.saved_opt_ir(), jit.get(),
+                                          arg_set.args));
         } else {
           std::optional<RuntimeEvaluationObserverAdapter> adapt;
           if (eval_observer) {
@@ -422,35 +430,42 @@ absl::StatusOr<std::vector<Value>> Eval(
                 jit->runtime());
             XLS_RETURN_IF_ERROR(jit->SetRuntimeObserver(&adapt.value()));
           }
-          XLS_ASSIGN_OR_RETURN(result,
-                               DropInterpreterEvents(jit->Run(arg_set.args)));
+          XLS_ASSIGN_OR_RETURN(run_res, jit->Run(arg_set.args));
           jit->ClearRuntimeObserver();
         }
       } else {
-        XLS_ASSIGN_OR_RETURN(result, Parser::ParseTypedValue(absl::GetFlag(
-                                         FLAGS_test_only_inject_jit_result)));
+        XLS_ASSIGN_OR_RETURN(
+            Value inj, Parser::ParseTypedValue(
+                           absl::GetFlag(FLAGS_test_only_inject_jit_result)));
+        run_res = InterpreterResult<Value>{std::move(inj), InterpreterEvents{}};
       }
     } else {
-      // TODO(https://github.com/google/xls/issues/506): 2021-10-12 Also compare
-      // resulting events once the JIT fully supports events. Note: This will
-      // require rethinking some of the control flow because event comparison
-      // only makes sense for certain modes (optimize_ir and test_llvm_jit).
       XLS_ASSIGN_OR_RETURN(
-          result, DropInterpreterEvents(InterpretFunction(
-                      f, arg_set.args, EvaluatorOptions(), eval_observer)));
+          run_res, InterpretFunction(f, arg_set.args, EvaluatorOptions(),
+                                     eval_observer));
     }
-    std::cout << result.ToString(FormatPreference::kHex) << '\n';
+    if (absl::GetFlag(FLAGS_trace_to_stderr)) {
+      for (const std::string& msg : run_res.events.GetTraceMessageStrings()) {
+        std::cerr << msg << '\n';
+      }
+    }
+    if (results_out != nullptr) {
+      EvaluatorResultProto* entry = results_out->add_results();
+      *entry->mutable_result() = run_res.value.AsProto().value();
+      *entry->mutable_events() = run_res.events.AsProto();
+    }
+    std::cout << run_res.value.ToString(FormatPreference::kHex) << '\n';
 
     if (arg_set.expected.has_value()) {
-      if (result != *arg_set.expected) {
+      if (run_res.value != *arg_set.expected) {
         return absl::InvalidArgumentError(absl::StrFormat(
             "Miscompare for input[%i] \"%s\"\n  %s: %s\n  %s: %s",
             results.size(), ArgsToString(arg_set.args), actual_src,
-            result.ToString(FormatPreference::kHex), expected_src,
+            run_res.value.ToString(FormatPreference::kHex), expected_src,
             arg_set.expected->ToString(FormatPreference::kHex)));
       }
     }
-    results.push_back(result);
+    results.push_back(run_res.value);
   }
   return results;
 }
@@ -512,10 +527,20 @@ absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
           << "Cannot specify expected values when using --test_llvm_jit";
       arg_sets[i].expected = interpreter_results[i];
     }
+    EvaluatorResultsProto results_proto;
+    EvaluatorResultsProto* out_ptr =
+        absl::GetFlag(FLAGS_output_results_proto).empty() ? nullptr
+                                                          : &results_proto;
     XLS_RETURN_IF_ERROR(Eval(f, arg_sets, /*use_jit=*/true,
                              /*eval_observer=*/cov.observer(), "JIT",
-                             "interpreter")
+                             "interpreter", out_ptr)
                             .status());
+    if (out_ptr != nullptr) {
+      std::string text;
+      XLS_RET_CHECK(google::protobuf::TextFormat::PrintToString(*out_ptr, &text));
+      XLS_RETURN_IF_ERROR(
+          SetFileContents(absl::GetFlag(FLAGS_output_results_proto), text));
+    }
     return absl::OkStatus();
   }
 
@@ -523,9 +548,14 @@ absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
   // results as the expected values if the expected value is not already
   // set. These expected values are used in any later evaluation after
   // optimizations.
+  EvaluatorResultsProto results_proto;
+  EvaluatorResultsProto* out_ptr =
+      absl::GetFlag(FLAGS_output_results_proto).empty() ? nullptr
+                                                        : &results_proto;
   XLS_ASSIGN_OR_RETURN(
       std::vector<Value> results,
-      Eval(f, arg_sets, absl::GetFlag(FLAGS_use_llvm_jit), cov.observer()));
+      Eval(f, arg_sets, absl::GetFlag(FLAGS_use_llvm_jit), cov.observer(),
+           /*actual_src=*/"actual", /*expected_src=*/"expected", out_ptr));
   for (int64_t i = 0; i < arg_sets.size(); ++i) {
     if (!arg_sets[i].expected.has_value()) {
       arg_sets[i].expected = results[i];
@@ -557,11 +587,17 @@ absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
 
     XLS_RETURN_IF_ERROR(Eval(f, arg_sets, absl::GetFlag(FLAGS_use_llvm_jit),
                              cov.observer(), "after optimizations",
-                             "before optimizations")
+                             "before optimizations", /*results_out=*/nullptr)
                             .status());
   } else {
     XLS_RET_CHECK(!absl::GetFlag(FLAGS_eval_after_each_pass))
         << "Must specify --optimize_ir with --eval_after_each_pass";
+  }
+  if (out_ptr != nullptr) {
+    std::string text;
+    XLS_RET_CHECK(google::protobuf::TextFormat::PrintToString(*out_ptr, &text));
+    XLS_RETURN_IF_ERROR(
+        SetFileContents(absl::GetFlag(FLAGS_output_results_proto), text));
   }
   return absl::OkStatus();
 }

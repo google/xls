@@ -100,12 +100,11 @@ class IrRunner : public AbstractParsedTestRunner {
     std::vector<std::string> asserts;
     for (xls::ProcInstance* instance : rt->elaboration().proc_instances()) {
       const InterpreterEvents& events = rt->GetInterpreterEvents(instance);
-      for (const auto& trace : events.trace_msgs) {
+      for (const std::string& msg : events.GetTraceMessageStrings()) {
         options.trace_hook()(
-            Span::FromString(trace.message, file_table()).value_or(Span{}),
-            trace.message);
+            Span::FromString(msg, file_table()).value_or(Span{}), msg);
       }
-      absl::c_copy(events.assert_msgs, std::back_inserter(asserts));
+      absl::c_copy(events.GetAssertMessages(), std::back_inserter(asserts));
     }
     if (asserts.empty()) {
       std::optional<Value> proc_result =
@@ -181,16 +180,15 @@ class IrRunner : public AbstractParsedTestRunner {
     XLS_RET_CHECK_EQ(f->GetType()->return_type()->AsTupleOrDie()->size(), 0)
         << f->GetType();
     XLS_ASSIGN_OR_RETURN(InterpreterResult<Value> v, this->func_runner_(f, {}));
-    for (const TraceMessage& trace : v.events.trace_msgs) {
-      options.trace_hook()(
-          Span::FromString(trace.message, file_table()).value_or(Span{}),
-          trace.message);
+    for (const std::string& msg : v.events.GetTraceMessageStrings()) {
+      options.trace_hook()(Span::FromString(msg, file_table()).value_or(Span{}),
+                           msg);
     }
-    if (v.events.assert_msgs.empty()) {
+    if (v.events.GetAssertMessages().empty()) {
       return RunResult{.result = absl::OkStatus()};
     }
     return RunResult{.result = absl::AbortedError(
-                         absl::StrJoin(v.events.assert_msgs, "\n"))};
+                         absl::StrJoin(v.events.GetAssertMessages(), "\n"))};
   }
 
  private:

@@ -216,16 +216,17 @@ static absl::Status LogInterpreterEvents(
       cycle.has_value() ? absl::StrFormat("Cycle[%d]: ", cycle.value()) : "";
 
   if (absl::GetFlag(FLAGS_show_trace)) {
-    for (const auto& msg : events.trace_msgs) {
-      if (msg.verbosity <= absl::GetFlag(FLAGS_max_trace_verbosity)) {
+    for (const auto& msg : events.GetTraceMessages()) {
+      int64_t verbosity = msg.has_statement() ? msg.statement().verbosity() : 0;
+      if (verbosity <= absl::GetFlag(FLAGS_max_trace_verbosity)) {
         std::string unescaped_msg;
-        XLS_RET_CHECK(absl::CUnescape(msg.message, &unescaped_msg));
+        XLS_RET_CHECK(absl::CUnescape(msg.message(), &unescaped_msg));
         LOG(INFO) << cycle_str << "Proc " << entity_name
                   << " trace: " << unescaped_msg << "\n";
       }
     }
   }
-  for (const auto& msg : events.assert_msgs) {
+  for (const auto& msg : events.GetAssertMessages()) {
     std::string unescaped_msg;
     XLS_RET_CHECK(absl::CUnescape(msg, &unescaped_msg));
     LOG(INFO) << cycle_str << "Proc " << entity_name
@@ -407,7 +408,7 @@ static absl::Status EvaluateProcs(
             runtime->GetInterpreterEvents(proc);
         XLS_RETURN_IF_ERROR(LogInterpreterEvents(proc->name(), events));
         if (options.fail_on_assert) {
-          for (const std::string& assert : events.assert_msgs) {
+          for (const std::string& assert : events.GetAssertMessages()) {
             asserts.push_back(
                 absl::StrFormat("Proc %s: %s", proc->name(), assert));
           }
@@ -898,9 +899,10 @@ static absl::Status RunBlock(
     const xls::InterpreterEvents& events = continuation->events();
     XLS_RETURN_IF_ERROR(LogInterpreterEvents(block->name(), events, cycle));
 
-    if (!events.assert_msgs.empty() && options.fail_on_assert) {
-      return absl::UnknownError(absl::StrFormat(
-          "Assert(s) fired:\n\n%s", absl::StrJoin(events.assert_msgs, "\n")));
+    if (!events.GetAssertMessages().empty() && options.fail_on_assert) {
+      return absl::UnknownError(
+          absl::StrFormat("Assert(s) fired:\n\n%s",
+                          absl::StrJoin(events.GetAssertMessages(), "\n")));
     }
 
     if (resetting) {

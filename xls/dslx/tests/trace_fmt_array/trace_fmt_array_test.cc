@@ -25,10 +25,6 @@ namespace xls {
 namespace {
 using ::testing::ElementsAre;
 using ::testing::IsEmpty;
-
-MATCHER_P(TraceMessage, m, "") {
-  return testing::ExplainMatchResult(m, arg.message, result_listener);
-}
 TEST(TraceFmtArray, TraceHasCommas) {
   XLS_ASSERT_OK_AND_ASSIGN(auto trace, wrapped::TraceIt::Create());
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -38,10 +34,9 @@ TEST(TraceFmtArray, TraceHasCommas) {
                            trace->jit()->Run({input}));
 
   EXPECT_EQ(res.value.bits(), UBits(1, 8));
-  EXPECT_THAT(res.events.assert_msgs, IsEmpty());
-  EXPECT_THAT(
-      res.events.trace_msgs,
-      ElementsAre(TraceMessage("The array is [1, 2, 3, 4, 5, 6, 7, 8]")));
+  EXPECT_THAT(res.events.GetAssertMessages(), IsEmpty());
+  EXPECT_THAT(res.events.GetTraceMessageStrings(),
+              ElementsAre("The array is [1, 2, 3, 4, 5, 6, 7, 8]"));
 }
 
 }  // namespace

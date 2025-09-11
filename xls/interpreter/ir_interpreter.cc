@@ -91,14 +91,7 @@ absl::StatusOr<Value> InterpretNode(Node* node,
 
 absl::Status IrInterpreter::AddInterpreterEvents(
     const InterpreterEvents& events) {
-  for (const TraceMessage& trace_msg : events.trace_msgs) {
-    GetInterpreterEvents().trace_msgs.push_back(trace_msg);
-  }
-
-  for (const std::string& assert_msg : events.assert_msgs) {
-    GetInterpreterEvents().assert_msgs.push_back(assert_msg);
-  }
-
+  GetInterpreterEvents().AppendFrom(events);
   return absl::OkStatus();
 }
 
@@ -505,7 +498,7 @@ absl::Status IrInterpreter::HandleAssert(Assert* assert_op) {
   VLOG(2) << "Checking assert " << assert_op->ToString();
   VLOG(2) << "Condition is " << ResolveAsBool(assert_op->condition());
   if (!ResolveAsBool(assert_op->condition())) {
-    GetInterpreterEvents().assert_msgs.push_back(assert_op->message());
+    GetInterpreterEvents().AddAssertMessage(assert_op->message());
   }
   return SetValueResult(assert_op, Value::Token());
 }
@@ -548,10 +541,8 @@ absl::Status IrInterpreter::HandleTrace(Trace* trace_op) {
 
     VLOG(3) << "Trace output: " << trace_output;
 
-    GetInterpreterEvents().trace_msgs.push_back(TraceMessage{
-        .message = trace_output,
-        .verbosity = trace_op->verbosity(),
-    });
+    GetInterpreterEvents().AddTraceStatementMessage(trace_op->verbosity(),
+                                                    trace_output);
   }
   return SetValueResult(trace_op, Value::Token());
 }

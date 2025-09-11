@@ -4030,8 +4030,8 @@ TEST_P(IrEvaluatorTestBase, Assert) {
   std::vector<Value> fail_args = {Value::Token(), Value(UBits(0, 1))};
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> fail_result,
                            RunWithEvents(f, fail_args));
-  EXPECT_THAT(fail_result.events.trace_msgs, ElementsAre());
-  EXPECT_THAT(fail_result.events.assert_msgs,
+  EXPECT_TRUE(fail_result.events.GetTraceMessages().empty());
+  EXPECT_THAT(fail_result.events.GetAssertMessages(),
               ElementsAre("the assertion error message"));
 }
 
@@ -4067,8 +4067,9 @@ TEST_P(IrEvaluatorTestBase, FunAssert) {
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> fail_result,
                            RunWithEvents(top, fail_args));
 
-  EXPECT_THAT(fail_result.events.trace_msgs, ElementsAre());
-  EXPECT_THAT(fail_result.events.assert_msgs, ElementsAre("x is more than 7"));
+  EXPECT_THAT(fail_result.events.GetTraceMessageStrings(), ElementsAre());
+  EXPECT_THAT(fail_result.events.GetAssertMessages(),
+              ElementsAre("x is more than 7"));
 }
 
 TEST_P(IrEvaluatorTestBase, TwoAssert) {
@@ -4091,26 +4092,26 @@ TEST_P(IrEvaluatorTestBase, TwoAssert) {
                                    Value(UBits(1, 1))};
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> fail1_result,
                            RunWithEvents(f, fail1_args));
-  EXPECT_THAT(fail1_result.events.trace_msgs, ElementsAre());
-  EXPECT_THAT(fail1_result.events.assert_msgs,
+  EXPECT_THAT(fail1_result.events.GetTraceMessageStrings(), ElementsAre());
+  EXPECT_THAT(fail1_result.events.GetAssertMessages(),
               ElementsAre("first assertion error message"));
 
   std::vector<Value> fail2_args = {Value::Token(), Value(UBits(1, 1)),
                                    Value(UBits(0, 1))};
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> fail2_result,
                            RunWithEvents(f, fail2_args));
-  EXPECT_THAT(fail2_result.events.trace_msgs, ElementsAre());
-  EXPECT_THAT(fail2_result.events.assert_msgs,
+  EXPECT_THAT(fail2_result.events.GetTraceMessageStrings(), ElementsAre());
+  EXPECT_THAT(fail2_result.events.GetAssertMessages(),
               ElementsAre("second assertion error message"));
 
   std::vector<Value> failboth_args = {Value::Token(), Value(UBits(0, 1)),
                                       Value(UBits(0, 1))};
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> failboth_result,
                            RunWithEvents(f, failboth_args));
-  EXPECT_THAT(failboth_result.events.trace_msgs, ElementsAre());
+  EXPECT_THAT(failboth_result.events.GetTraceMessageStrings(), ElementsAre());
   // The token-plumbing ensures that the first assertion is checked first,
   // so test that both assertions are reported in order,
-  EXPECT_THAT(failboth_result.events.assert_msgs,
+  EXPECT_THAT(failboth_result.events.GetAssertMessages(),
               ElementsAre("first assertion error message",
                           "second assertion error message"));
 }
@@ -4162,10 +4163,7 @@ fn ba (in_token:token, a_cond: bits[1], b_cond: bits[1]) -> bits[8] {
       -> absl::StatusOr<std::vector<std::string>> {
     XLS_ASSIGN_OR_RETURN(auto result, RunWithEvents(f, args));
     std::vector<std::string> trace_msgs;
-    trace_msgs.reserve(result.events.trace_msgs.size());
-    for (const auto& msg : result.events.trace_msgs) {
-      trace_msgs.push_back(msg.message);
-    }
+    trace_msgs = result.events.GetTraceMessageStrings();
     return trace_msgs;
   };
 
@@ -4218,9 +4216,9 @@ TEST_P(IrEvaluatorTestBase, EmptyTraceTest) {
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> print_trace_result,
                            RunWithEvents(f, print_trace_args));
   EXPECT_EQ(print_trace_result.value, Value::Token());
-  EXPECT_THAT(print_trace_result.events.assert_msgs, ElementsAre());
-  EXPECT_THAT(print_trace_result.events.trace_msgs,
-              ElementsAre(FieldsAre("", 0)));
+  EXPECT_THAT(print_trace_result.events.GetAssertMessages(), ElementsAre());
+  EXPECT_THAT(print_trace_result.events.GetTraceMessageStrings(),
+              ElementsAre(""));
 }
 
 TEST_P(IrEvaluatorTestBase, ThreeStringTraceTest) {
@@ -4243,9 +4241,9 @@ TEST_P(IrEvaluatorTestBase, ThreeStringTraceTest) {
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> print_trace_result,
                            RunWithEvents(f, print_trace_args));
   EXPECT_EQ(print_trace_result.value, Value::Token());
-  EXPECT_THAT(print_trace_result.events.assert_msgs, ElementsAre());
-  EXPECT_THAT(print_trace_result.events.trace_msgs,
-              ElementsAre(FieldsAre("hello world!", 0)));
+  EXPECT_THAT(print_trace_result.events.GetAssertMessages(), ElementsAre());
+  EXPECT_THAT(print_trace_result.events.GetTraceMessageStrings(),
+              ElementsAre("hello world!"));
 }
 
 TEST_P(IrEvaluatorTestBase, TupleTraceTest) {
@@ -4264,9 +4262,9 @@ TEST_P(IrEvaluatorTestBase, TupleTraceTest) {
 
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> print_trace_result,
                            RunWithEvents(f, {Value::Token()}));
-  EXPECT_THAT(print_trace_result.events.assert_msgs, ElementsAre());
-  EXPECT_THAT(print_trace_result.events.trace_msgs,
-              ElementsAre(FieldsAre("my tuple = (1, 123)", 0)));
+  EXPECT_THAT(print_trace_result.events.GetAssertMessages(), ElementsAre());
+  EXPECT_THAT(print_trace_result.events.GetTraceMessageStrings(),
+              ElementsAre("my tuple = (1, 123)"));
 }
 
 TEST_P(IrEvaluatorTestBase, TupleTraceTestHex) {
@@ -4285,9 +4283,9 @@ TEST_P(IrEvaluatorTestBase, TupleTraceTestHex) {
 
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> print_trace_result,
                            RunWithEvents(f, {Value::Token()}));
-  EXPECT_THAT(print_trace_result.events.assert_msgs, ElementsAre());
-  EXPECT_THAT(print_trace_result.events.trace_msgs,
-              ElementsAre(FieldsAre("my tuple = (0x1, 0x7b)", 0)));
+  EXPECT_THAT(print_trace_result.events.GetAssertMessages(), ElementsAre());
+  EXPECT_THAT(print_trace_result.events.GetTraceMessageStrings(),
+              ElementsAre("my tuple = (0x1, 0x7b)"));
 }
 
 TEST_P(IrEvaluatorTestBase, ComplexTypeTraceTest) {
@@ -4311,11 +4309,10 @@ TEST_P(IrEvaluatorTestBase, ComplexTypeTraceTest) {
 
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> print_trace_result,
                            RunWithEvents(f, {Value::Token()}));
-  EXPECT_THAT(print_trace_result.events.assert_msgs, ElementsAre());
+  EXPECT_THAT(print_trace_result.events.GetAssertMessages(), ElementsAre());
   EXPECT_THAT(
-      print_trace_result.events.trace_msgs,
-      ElementsAre(FieldsAre(
-          "my complex value = ([(1, 2), (3, 123)], 42, token, ())", 0)));
+      print_trace_result.events.GetTraceMessageStrings(),
+      ElementsAre("my complex value = ([(1, 2), (3, 123)], 42, token, ())"));
 }
 
 TEST_P(IrEvaluatorTestBase, TraceVerbosityTest) {
@@ -4338,9 +4335,9 @@ TEST_P(IrEvaluatorTestBase, TraceVerbosityTest) {
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> print_trace_result,
                            RunWithEvents(f, print_trace_args));
   EXPECT_EQ(print_trace_result.value, Value::Token());
-  EXPECT_THAT(print_trace_result.events.assert_msgs, ElementsAre());
-  EXPECT_THAT(print_trace_result.events.trace_msgs,
-              ElementsAre(FieldsAre("hello world!", 3)));
+  EXPECT_THAT(print_trace_result.events.GetAssertMessages(), ElementsAre());
+  EXPECT_THAT(print_trace_result.events.GetTraceMessageStrings(),
+              ElementsAre("hello world!"));
 }
 
 TEST_P(IrEvaluatorTestBase, ConcatWithZeroWidth) {
