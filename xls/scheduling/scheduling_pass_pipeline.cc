@@ -47,11 +47,15 @@ std::unique_ptr<SchedulingCompoundPass> CreateSchedulingPassPipeline(
   bool eliminate_noop_next = false;
   top->Add<MutualExclusionPass>();
   if (opt_level > 0) {
-    auto fixedpoint =
-        GetOptimizationPipelineGenerator().GeneratePipeline("fixedpoint_simp");
-    CHECK_OK(fixedpoint.status())
-        << "Unable to create fixedpoint-simplification pass. This is a bug.";
-    top->Add<SchedulingWrapperPass>(*std::move(fixedpoint), context, opt_level,
+    // Run a small number of opt-passes to clean up the mutex changes.
+    // TODO(allight): We might want to move this pre-scheduling mutex pass (and
+    // the earlier legalization pass) into the opt-main pipeline to avoid
+    // needing to do this.
+    auto pipeline =
+        GetOptimizationPipelineGenerator().GeneratePipeline("scheduling-opt");
+    CHECK_OK(pipeline.status())
+        << "Unable to create scheduling-opt pass. This is a bug.";
+    top->Add<SchedulingWrapperPass>(*std::move(pipeline), context, opt_level,
                                     eliminate_noop_next);
   }
   top->Add<SchedulingWrapperPass>(std::make_unique<DeadCodeEliminationPass>(),

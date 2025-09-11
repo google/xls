@@ -1051,6 +1051,39 @@ Optimization which removes useless selects between the data value of a condition
 
 
 
+## scheduling-opt - scheduling opt passes {#scheduling-opt}
+
+
+Passes performed immediately before starting scheduling.
+
+These optimizations are used to fix up any changes the mutual-exclusion pass & proc-state legalize performs before the initial scheduling.
+
+TODO(allight): We might wish to move these into opt only. `sched` running optimization passes is an artifact of how these tools evolved which no longer makes too much sense. To do this will require making a decision on how to handle 'mutual-exclusion opt' however.
+
+
+[Text-proto](http://github.com/google/xls/tree/main/xls/passes/optimization_pass_pipeline.txtpb)
+
+
+### Options Set
+
+
+
+
+Min opt level: 1
+
+
+
+
+
+
+### Invoked Passes
+
+
+- [fixedpoint_simp](#fixedpoint_simp)
+- [dce](#dce)
+
+
+
 ## select_lifting - Select Lifting {#select_lifting}
 
 

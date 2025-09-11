@@ -336,6 +336,27 @@ compound_passes: [
       "Inlining segment of the pipeline\n"
       "\n"
       "This is performed to fixedpoint and each run a single layer of the function hierarchy is inlined away."
+  },
+  {
+    long_name: "scheduling opt passes"
+    short_name: "scheduling-opt"
+    passes: [
+      "fixedpoint_simp",
+      "dce"
+    ]
+    options: {
+      min_opt_level: 1
+    }
+    comment:
+      "Passes performed immediately before starting scheduling.\n"
+      "\n"
+      "These optimizations are used to fix up any changes the mutual-exclusion "
+      "pass & proc-state legalize performs before the initial scheduling.\n"
+      "\n"
+      "TODO(allight): We might wish to move these into opt only. `sched` "
+      "running optimization passes is an artifact of how these tools evolved "
+      "which no longer makes too much sense. To do this will require making a "
+      "decision on how to handle 'mutual-exclusion opt' however."
   }
 ]
 default_pipeline: [
