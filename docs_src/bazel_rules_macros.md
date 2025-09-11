@@ -784,6 +784,20 @@ Creates a cc_library target for transpiled DSLX types.
 This macros invokes the DSLX-to-C++ transpiler and compiles the result as
 a cc_library with its target name identical to this macro.
 
+Example:
+
+```
+xls_dslx_cpp_type_library
+    name = "b_cpp_types_generate",
+    src = "b.x",
+    namespace = "xls::b",
+)
+
+```
+
+will generate b_cpp_types_generate.cc and b_cpp_types_generate.h,
+and package them into a cc_library.
+
 
 **PARAMETERS**
 
@@ -792,7 +806,7 @@ a cc_library with its target name identical to this macro.
 | :------------- | :------------- | :------------- |
 | <a id="xls_dslx_cpp_type_library-name"></a>name |  The name of the eventual cc_library.   |  none |
 | <a id="xls_dslx_cpp_type_library-src"></a>src |  The DSLX file whose types to compile as C++.   |  none |
-| <a id="xls_dslx_cpp_type_library-deps"></a>deps |  <p align="center"> - </p>   |  `[]` |
+| <a id="xls_dslx_cpp_type_library-deps"></a>deps |  dslx_library dependencies imported by src.   |  `[]` |
 | <a id="xls_dslx_cpp_type_library-namespace"></a>namespace |  The C++ namespace to generate the code in (e.g., `foo::bar`).   |  `None` |
 
 

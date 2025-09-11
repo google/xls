@@ -769,7 +769,7 @@ xls_dslx_generate_cpp_type_files_attrs = {
 
 xls_dslx_generate_cpp_type_files = rule(
     doc = """Generates a cc and h file pair that provides a C++ interface to
-the DSLX types in srcs.  srcs must only contain a single file.
+the DSLX types in srcs. srcs must only contain a single file.
 
 Example:
 
@@ -778,8 +778,8 @@ Example:
         name = "b_cpp_types_generate",
         srcs = ["b.x"],
         deps = [":a_dslx"],
-
-        outs_prefix = "b_cpp_types",
+        source_file = "b_cpp_types.cc",
+        header_file = "b_cpp_types.h",
         namespace = "xls::b",
     )
 
