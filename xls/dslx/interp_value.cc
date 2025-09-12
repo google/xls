@@ -1035,6 +1035,11 @@ absl::StatusOr<xls::Value> InterpValue::ConvertToIr() const {
   LOG(FATAL) << "Unhandled tag: " << tag_;
 }
 
+absl::StatusOr<xls::ValueProto> InterpValue::AsProto() const {
+  XLS_ASSIGN_OR_RETURN(xls::Value v, ConvertToIr());
+  return v.AsProto();
+}
+
 bool InterpValue::operator<(const InterpValue& rhs) const {
   if (IsBits()) {
     if (!rhs.IsBits()) {

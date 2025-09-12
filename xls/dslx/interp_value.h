@@ -308,7 +308,10 @@ class InterpValue {
   std::string ToString(
       bool humanize = false,
       FormatPreference format = FormatPreference::kDefault) const;
-  std::string ToHumanString() const { return ToString(/*humanize=*/true); }
+  std::string ToHumanString(
+      FormatPreference format = FormatPreference::kDefault) const {
+    return ToString(/*humanize=*/true, format);
+  }
 
   template <typename Sink>
   friend void AbslStringify(Sink& sink, const InterpValue& v) {
@@ -385,6 +388,10 @@ class InterpValue {
   // Convert any non-function InterpValue to an IR Value.
   // Note: Enum conversions are lossy because enum types don't exist in the IR.
   absl::StatusOr<xls::Value> ConvertToIr() const;
+
+  // Converts this InterpValue to a ValueProto. ValueProto is a mirror of the IR
+  // Value type.
+  absl::StatusOr<xls::ValueProto> AsProto() const;
 
   // Convert many non-function InterpValues to IR Values.
   // Note: Enum conversions are lossy because enum types don't exist in the IR.
