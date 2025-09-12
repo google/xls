@@ -1577,14 +1577,18 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     absl::flat_hash_map<std::string, InterpValue> values;
     absl::flat_hash_set<const ParametricBinding*> implicit_parametrics;
     ParametricBindings bindings(invocation_context->parametric_bindings());
+    const Function& callee =
+        *std::get<ParametricInvocationDetails>(invocation_context->details())
+             .callee;
     auto infer_pending_implicit_parametrics = [&]() -> absl::Status {
       if (implicit_parametrics.empty()) {
         return absl::OkStatus();
       }
       absl::flat_hash_map<std::string, InterpValue> new_values;
-      XLS_ASSIGN_OR_RETURN(new_values, InferImplicitFunctionParametrics(
-                                           invocation_context, invocation,
-                                           implicit_parametrics));
+      XLS_ASSIGN_OR_RETURN(
+          new_values, InferImplicitFunctionParametrics(
+                          invocation_context, invocation,
+                          callee.parametric_bindings(), implicit_parametrics));
       implicit_parametrics.clear();
       values.merge(std::move(new_values));
       return absl::OkStatus();
@@ -1698,9 +1702,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       }
     }
 
-    const Function& callee =
-        *std::get<ParametricInvocationDetails>(invocation_context->details())
-             .callee;
     if (callee.IsInProc()) {
       for (const ProcMember* member : (*callee.proc())->members()) {
         XLS_RETURN_IF_ERROR(
@@ -1721,6 +1722,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>>
   InferImplicitFunctionParametrics(
       const ParametricContext* invocation_context, const Invocation* invocation,
+      const std::vector<ParametricBinding*>& all_parametrics,
       absl::flat_hash_set<const ParametricBinding*> implicit_parametrics) {
     VLOG(5) << "Inferring " << implicit_parametrics.size()
             << " implicit parametrics for invocation: "
@@ -1753,8 +1755,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         GetTypeInfo(&module_, invocation_context->parent_context()));
     return InferImplicitParametrics(
         invocation->span(), invocation_context->parent_context(),
-        invocation_context, implicit_parametrics, formal_types, actual_args, ti,
-        actual_arg_ti,
+        invocation_context, all_parametrics, implicit_parametrics, formal_types,
+        actual_args, ti, actual_arg_ti,
         /*pre_use_actual_arg=*/
         [&](const Expr* actual_arg) {
           // If an argument is essentially being used to figure out its own
@@ -1784,6 +1786,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       const Span& span,
       std::optional<const ParametricContext*> actual_arg_context,
       std::optional<const ParametricContext*> target_context,
+      const std::vector<ParametricBinding*>& all_parametrics,
       absl::flat_hash_set<const ParametricBinding*> implicit_parametrics,
       absl::Span<const TypeAnnotation* const> formal_types,
       absl::Span<Expr* const> actual_args, TypeInfo* output_ti,
@@ -1900,11 +1903,14 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       }
     }
     if (!implicit_parametrics.empty()) {
+      // Output unresolved parametrics in the order they appear in source code.
       std::vector<std::string> binding_names;
-      binding_names.reserve(implicit_parametrics.size());
-      for (const ParametricBinding* binding : implicit_parametrics) {
-        binding_names.push_back(binding->identifier());
+      for (const ParametricBinding* parametric : all_parametrics) {
+        if (implicit_parametrics.contains(parametric)) {
+          binding_names.push_back(parametric->identifier());
+        }
       }
+      CHECK(binding_names.size() == implicit_parametrics.size());
       return TypeInferenceErrorStatus(
           span, /*type=*/nullptr,
           absl::Substitute("Could not infer parametric(s): $0 of $1; target "
@@ -2061,8 +2067,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           new_values,
           InferImplicitParametrics(
               span, parent_context, /*target_context=*/std::nullopt,
-              implicit_parametrics, formal_member_types, actual_member_exprs,
-              instance_type_info, actual_arg_ti, [&](const Expr* actual_arg) {
+              struct_def.parametric_bindings(), implicit_parametrics,
+              formal_member_types, actual_member_exprs, instance_type_info,
+              actual_arg_ti, [&](const Expr* actual_arg) {
                 // Invocation arguments within a struct need to be converted
                 // prior to use.
                 if (actual_arg->kind() == AstNodeKind::kInvocation) {
