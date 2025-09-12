@@ -19,9 +19,9 @@ fn id(x: mod_simple_struct::MyStruct) -> mod_simple_struct::MyStruct {
     x
 }
 
-fn main() -> bool {
+fn main() {
     // Even though this is structurally the same it is nominally different, and
     // we still want to get a good (non confusing) error message.
     let other_definition = mod_simple_struct_duplicate::MyStruct{};
-    id(other_definition)
+    id(other_definition);
 }

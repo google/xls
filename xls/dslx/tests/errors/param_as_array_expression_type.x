@@ -12,4 +12,4 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn main(x: u32) -> () { u32[x]:[0, ...]}
+fn main(x: u32) -> () { u32[x]:[0, ...]; }

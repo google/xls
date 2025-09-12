@@ -12,4 +12,4 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn f_shl(x: u32) { x << -3 }
+fn f_shl(x: u32) { x << -3; }

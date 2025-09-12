@@ -36,6 +36,7 @@ py_test(
         "//xls/common:runfiles",
         "//xls/common:test_base",
         "@abseil-py//absl/logging",
+        "@abseil-py//absl/testing:parameterized",
     ],
 )
 

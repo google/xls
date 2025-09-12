@@ -13,5 +13,5 @@
 // limitations under the License.
 
 fn over_shift(x: u4) {
-  x << 5
+  x << 5;
 }

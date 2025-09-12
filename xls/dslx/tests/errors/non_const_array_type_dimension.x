@@ -13,5 +13,5 @@
 // limitations under the License.
 
 fn main(x: u32) -> (){
-  u32[x]:[0, ...]
+  u32[x]:[0, ...];
 }

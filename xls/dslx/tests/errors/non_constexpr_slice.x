@@ -12,6 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn non_constexpr_slice(a: u32, x: u4) {
-  a[0:x]
+fn non_constexpr_slice(a: u32, x: s32) {
+  a[0:x];
 }
