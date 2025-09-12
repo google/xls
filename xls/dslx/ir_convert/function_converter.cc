@@ -1650,8 +1650,10 @@ absl::StatusOr<BValue> FunctionConverter::HandleForBody(
 
   XLS_ASSIGN_OR_RETURN(BValue init, Use(node->init()));
   if (implicit_token_data_.has_value()) {
-    BValue activated = trip_count == 0 ? function_builder_->Literal(UBits(0, 1))
-                                       : implicit_token_data_->activated;
+    BValue activated = trip_count == 0
+                           ? function_builder_->Literal(UBits(0, 1))
+                           : implicit_token_data_->create_control_predicate();
+
     init = function_builder_->Tuple(
         {implicit_token_data_->entry_token, activated, init});
   }
