@@ -389,15 +389,16 @@ absl::Status ModuleBuilder::AssignFromSlice(
 }
 
 absl::StatusOr<LogicRef*> ModuleBuilder::AddInputPort(
-    std::string_view name, Type* type,
-    std::optional<std::string_view> sv_type) {
+    std::string_view name, Type* type, std::optional<std::string_view> sv_type,
+    std::optional<SourceInfo> loc) {
   if (sv_type && options_.emit_sv_types() && type->IsArray()) {
     return absl::UnimplementedError(
         "Codegen packs arrays at port boundaries, see "
         "https://github.com/google/xls/issues/1637.");
   }
-  XLS_ASSIGN_OR_RETURN(LogicRef * port,
-                       AddInputPort(name, type->GetFlatBitCount(), sv_type));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * port,
+      AddInputPort(name, type->GetFlatBitCount(), sv_type, loc));
   if (!type->IsArray()) {
     return port;
   }
@@ -425,7 +426,7 @@ absl::StatusOr<LogicRef*> ModuleBuilder::AddInputPort(
 
 absl::StatusOr<LogicRef*> ModuleBuilder::AddInputPort(
     std::string_view name, int64_t bit_count,
-    std::optional<std::string_view> sv_type) {
+    std::optional<std::string_view> sv_type, std::optional<SourceInfo> loc) {
   std::string sanitized_unique_name = SanitizeAndUniquifyName(name);
   if (sanitized_unique_name != name) {
     return absl::InvalidArgumentError(
@@ -441,7 +442,7 @@ absl::StatusOr<LogicRef*> ModuleBuilder::AddInputPort(
         LogicRef * port,
         module_->AddInput(
             name, file_->ExternType(raw_bits_type, *sv_type, SourceInfo()),
-            SourceInfo()));
+            loc ? loc.value() : SourceInfo()));
     if (!sv_type.has_value()) {
       return port;
     }
@@ -454,11 +455,12 @@ absl::StatusOr<LogicRef*> ModuleBuilder::AddInputPort(
         LogicRef * wire,
         module_->AddWire(flattened_name,
                          file_->BitVectorType(bit_count, SourceInfo()),
-                         SourceInfo(), input_section()));
+                         loc ? loc.value() : SourceInfo(), input_section()));
     input_section()->Add<ContinuousAssignment>(SourceInfo(), wire, port);
     return wire;
   }
-  return module_->AddInput(name, raw_bits_type, SourceInfo());
+  return module_->AddInput(name, raw_bits_type,
+                           loc ? loc.value() : SourceInfo());
 }
 
 absl::Status ModuleBuilder::AddOutputPort(
