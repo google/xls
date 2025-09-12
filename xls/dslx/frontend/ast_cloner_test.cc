@@ -14,10 +14,12 @@
 #include "xls/dslx/frontend/ast_cloner.h"
 
 #include <cstdint>
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -2324,9 +2326,11 @@ fn main() -> u32 { foo::D }
                                               std::filesystem::path("/"));
   auto import_data = CreateImportDataForTest(std::move(vfs));
 
+  // Note: `use` only works with TIv1.
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule cloned_tm,
-      TypecheckModule(std::move(clone), "fake_path.x", &import_data));
+      TypecheckModule(std::move(clone), "fake_path.x", &import_data,
+                      TypeInferenceVersion::kVersion1));
 
   // Verify the Use leaves have their NameDef definer set to the UseTreeEntry.
   Use* use = nullptr;
