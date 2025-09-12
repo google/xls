@@ -27,12 +27,14 @@
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/ir/value.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
@@ -69,21 +71,105 @@ class NonSynthSeparationPassTest : public IrTestBase {
   }
 };
 
-TEST_F(NonSynthSeparationPassTest, FunctionsAreCloned) {
+TEST_F(NonSynthSeparationPassTest, FunctionWithNoNonSynthNodesNotCloned) {
   auto p = CreatePackage();
   FunctionBuilder fb("f", p.get());
+  fb.Literal(UBits(1, 1));
+  XLS_ASSERT_OK(fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+  EXPECT_THAT(p->GetFunctionBases().size(), 1);
+}
+
+TEST_F(NonSynthSeparationPassTest, EmptyProcNotCloned) {
+  auto p = CreatePackage();
+  ProcBuilder pb("proc1", p.get());
+  XLS_ASSERT_OK(pb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+  EXPECT_THAT(p->GetFunctionBases().size(), 1);
+}
+
+TEST_F(NonSynthSeparationPassTest, FunctionIsCloned) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("f", p.get());
+  fb.Assert(fb.Literal(Value::Token()), fb.Literal(UBits(0, 1)), "");
   fb.Literal(UBits(1, 1));
   XLS_ASSERT_OK(fb.Build());
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   XLS_ASSERT_OK(p->GetFunction("non_synth_f"));
 }
 
+TEST_F(NonSynthSeparationPassTest, ProcIsCloned) {
+  auto p = CreatePackage();
+  ProcBuilder pb("proc1", p.get());
+  pb.Assert(pb.Literal(Value::Token()), pb.Literal(UBits(0, 1)), "");
+  pb.Literal(UBits(1, 1));
+  XLS_ASSERT_OK(pb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  XLS_ASSERT_OK(p->GetFunction("non_synth_proc1"));
+}
+
+TEST_F(NonSynthSeparationPassTest, ProcIsClonedWithSend) {
+  auto p = CreatePackage();
+  ProcBuilder pb("proc1", p.get());
+  pb.Assert(pb.Literal(Value::Token()), pb.Literal(UBits(0, 1)), "");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto channel, p->CreateSingleValueChannel(
+                        "channel", ChannelOps::kSendOnly, p->GetBitsType(1)));
+  BValue send =
+      pb.Send(channel, pb.Literal(Value::Token()), pb.Literal(UBits(0, 1)));
+  pb.Identity(send);
+  XLS_ASSERT_OK(pb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * non_synth_proc1,
+                           p->GetFunction("non_synth_proc1"));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * identity_node,
+                           non_synth_proc1->GetNode("identity.14"));
+  EXPECT_THAT(identity_node, m::Identity(m::Param()));
+}
+
+TEST_F(NonSynthSeparationPassTest, ProcIsClonedWithReceive) {
+  auto p = CreatePackage();
+  ProcBuilder pb("proc1", p.get());
+  pb.Assert(pb.Literal(Value::Token()), pb.Literal(UBits(0, 1)), "");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto channel,
+      p->CreateSingleValueChannel("channel", ChannelOps::kReceiveOnly,
+                                  p->GetBitsType(1)));
+  BValue receive = pb.Receive(channel, pb.Literal(Value::Token()));
+  pb.Identity(receive);
+  XLS_ASSERT_OK(pb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * non_synth_proc1,
+                           p->GetFunction("non_synth_proc1"));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * identity_node,
+                           non_synth_proc1->GetNode("identity.12"));
+  EXPECT_THAT(identity_node, m::Identity(m::Param()));
+}
+
+TEST_F(NonSynthSeparationPassTest, ProcIsClonedWithStateRead) {
+  auto p = CreatePackage();
+  ProcBuilder pb("proc1", p.get());
+  pb.Assert(pb.Literal(Value::Token()), pb.Literal(UBits(0, 1)), "");
+  BValue state_read = pb.StateElement("state_read", UBits(0, 1));
+  pb.Identity(state_read);
+  XLS_ASSERT_OK(pb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * non_synth_proc1,
+                           p->GetFunction("non_synth_proc1"));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * identity_node,
+                           non_synth_proc1->GetNode("identity.10"));
+  EXPECT_THAT(identity_node, m::Identity(m::Param()));
+}
+
 TEST_F(NonSynthSeparationPassTest, FunctionsAreClonedWithNoDuplicateNames) {
   auto p = CreatePackage();
   FunctionBuilder fb("f", p.get());
+  fb.Assert(fb.Literal(Value::Token()), fb.Literal(UBits(0, 1)), "");
   fb.Literal(UBits(1, 1));
   XLS_ASSERT_OK(fb.Build());
   FunctionBuilder non_synth_fb("non_synth_f", p.get());
+  non_synth_fb.Assert(non_synth_fb.Literal(Value::Token()),
+                      non_synth_fb.Literal(UBits(0, 1)), "");
   non_synth_fb.Literal(UBits(1, 1));
   XLS_ASSERT_OK(non_synth_fb.Build());
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
@@ -93,9 +179,10 @@ TEST_F(NonSynthSeparationPassTest, FunctionsAreClonedWithNoDuplicateNames) {
   XLS_ASSERT_OK(p->GetFunction("non_synth_non_synth_f"));
 }
 
-TEST_F(NonSynthSeparationPassTest, NonSynthFunctionReturnValuesAreVoided) {
+TEST_F(NonSynthSeparationPassTest, NonSynthFunctionReturnValueIsMadeUseless) {
   auto p = CreatePackage();
   FunctionBuilder fb("f", p.get());
+  fb.Assert(fb.Literal(Value::Token()), fb.Literal(UBits(0, 1)), "");
   fb.Literal(UBits(1, 1));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
@@ -109,11 +196,12 @@ TEST_F(NonSynthSeparationPassTest, NonSynthFunctionReturnValuesAreVoided) {
 TEST_F(NonSynthSeparationPassTest, InvokeToNonSynthFunctionIsInserted) {
   auto p = CreatePackage();
   FunctionBuilder fb("f", p.get());
+  fb.Assert(fb.Literal(Value::Token()), fb.Literal(UBits(0, 1)), "");
   fb.Literal(UBits(1, 1));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   XLS_ASSERT_OK(p->GetFunction("non_synth_f"));
-  XLS_ASSERT_OK_AND_ASSIGN(Node * invoke_node, f->GetNode("invoke.4"));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * invoke_node, f->GetNode("invoke.10"));
   EXPECT_THAT(invoke_node,
               m::Invoke(std::vector<testing::Matcher<const Node*>>()));
 }
@@ -122,6 +210,7 @@ TEST_F(NonSynthSeparationPassTest,
        InvokeToNonSynthFunctionIsInsertedWithParams) {
   auto p = CreatePackage();
   FunctionBuilder fb("f", p.get());
+  fb.Assert(fb.Literal(Value::Token()), fb.Literal(UBits(0, 1)), "");
   fb.Param("p0", p->GetBitsType(1));
   fb.Param("p1", p->GetTupleType({}));
   fb.Param("p2", p->GetArrayType(1, p->GetBitsType(1)));
@@ -129,19 +218,36 @@ TEST_F(NonSynthSeparationPassTest,
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   XLS_ASSERT_OK(p->GetFunction("non_synth_f"));
-  XLS_ASSERT_OK_AND_ASSIGN(Node * invoke_node, f->GetNode("invoke.10"));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * invoke_node, f->GetNode("invoke.16"));
   EXPECT_THAT(invoke_node,
               m::Invoke(m::Param("p0"), m::Param("p1"), m::Param("p2")));
+}
+
+TEST_F(NonSynthSeparationPassTest, InvokeToNonSynthProcIsInsertedWithParams) {
+  auto p = CreatePackage();
+  ProcBuilder pb("proc1", p.get());
+  pb.Assert(pb.Literal(Value::Token()), pb.Literal(UBits(0, 1)), "");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto channel,
+      p->CreateSingleValueChannel("channel", ChannelOps::kReceiveOnly,
+                                  p->GetBitsType(1)));
+  BValue receive = pb.Receive(channel, pb.Literal(Value::Token()));
+  pb.Identity(receive);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc1, pb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  XLS_ASSERT_OK(p->GetFunction("non_synth_proc1"));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * invoke_node, proc1->GetNode("invoke.14"));
+  EXPECT_THAT(invoke_node, m::Invoke(m::Receive()));
 }
 
 // This test fails if the nodes are not topologically sorted.
 TEST_F(NonSynthSeparationPassTest, NonSynthNodesAreRemoved) {
   auto p = CreatePackage();
   FunctionBuilder fb("f", p.get());
-  BValue assert_token = fb.AfterAll({});
+  BValue assert_token = fb.Literal(Value::Token());
   BValue assert_condition = fb.Literal(UBits(0, 1));
   BValue assert = fb.Assert(assert_token, assert_condition, "");
-  BValue trace_token = fb.AfterAll({});
+  BValue trace_token = fb.Literal(Value::Token());
   BValue trace_condition = fb.Literal(UBits(0, 1));
   BValue trace = fb.Trace(trace_token, trace_condition, {}, "");
   BValue cover_condition = fb.Literal(UBits(0, 1));
@@ -151,10 +257,9 @@ TEST_F(NonSynthSeparationPassTest, NonSynthNodesAreRemoved) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(Function * non_synth_f,
                            p->GetFunction("non_synth_f"));
-  std::vector<testing::Matcher<const Node*>> empty_operands;
   EXPECT_THAT(f->return_value(),
-              m::Tuple(m::AfterAll(empty_operands), m::AfterAll(empty_operands),
-                       m::Tuple(empty_operands)));
+              m::Tuple(m::Literal(), m::Literal(),
+                       m::Tuple(std::vector<testing::Matcher<const Node*>>())));
   EXPECT_THAT(f->node_count(), 8);
   EXPECT_THAT(non_synth_f->node_count(), 10);
 }
@@ -162,10 +267,10 @@ TEST_F(NonSynthSeparationPassTest, NonSynthNodesAreRemoved) {
 TEST_F(NonSynthSeparationPassTest, NonSynthNodesAreRemovedWithDCE) {
   auto p = CreatePackage();
   FunctionBuilder fb("f", p.get());
-  BValue assert_token = fb.AfterAll({});
+  BValue assert_token = fb.Literal(Value::Token());
   BValue assert_condition = fb.Literal(UBits(0, 1));
   BValue assert = fb.Assert(assert_token, assert_condition, "");
-  BValue trace_token = fb.AfterAll({});
+  BValue trace_token = fb.Literal(Value::Token());
   BValue trace_condition = fb.Literal(UBits(0, 1));
   BValue trace = fb.Trace(trace_token, trace_condition, {}, "");
   BValue cover_condition = fb.Literal(UBits(0, 1));
@@ -175,10 +280,9 @@ TEST_F(NonSynthSeparationPassTest, NonSynthNodesAreRemovedWithDCE) {
   ASSERT_THAT(RunWithDCE(p.get()), IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(Function * non_synth_f,
                            p->GetFunction("non_synth_f"));
-  std::vector<testing::Matcher<const Node*>> empty_operands;
   EXPECT_THAT(f->return_value(),
-              m::Tuple(m::AfterAll(empty_operands), m::AfterAll(empty_operands),
-                       m::Tuple(empty_operands)));
+              m::Tuple(m::Literal(), m::Literal(),
+                       m::Tuple(std::vector<testing::Matcher<const Node*>>())));
   EXPECT_THAT(f->node_count(), 5);
   EXPECT_THAT(non_synth_f->node_count(), 9);
 }
@@ -187,6 +291,7 @@ TEST_F(NonSynthSeparationPassTest, NonSynthNodesAreRemovedWithDCE) {
 TEST_F(NonSynthSeparationPassTest, GateNodesAreReplacedWithSelects) {
   auto p = CreatePackage();
   FunctionBuilder fb("f", p.get());
+  fb.Assert(fb.Literal(Value::Token()), fb.Literal(UBits(0, 1)), "");
   BValue gate_condition = fb.Literal(UBits(0, 1));
   BValue gate_data = fb.Literal(UBits(0, 2));
   BValue gate = fb.Gate(gate_condition, gate_data);
@@ -196,7 +301,7 @@ TEST_F(NonSynthSeparationPassTest, GateNodesAreReplacedWithSelects) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(Function * non_synth_f,
                            p->GetFunction("non_synth_f"));
-  XLS_ASSERT_OK_AND_ASSIGN(Node * select_node, non_synth_f->GetNode("sel.13"));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * select_node, non_synth_f->GetNode("sel.20"));
   EXPECT_THAT(select_node,
               m::Select(m::Literal(UBits(0, 1)), {m::Literal(UBits(0, 2))},
                         m::Literal(UBits(0, 2))));
