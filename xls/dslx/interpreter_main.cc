@@ -93,7 +93,7 @@ ABSL_FLAG(std::string, evaluator, "dslx-interpreter",
           "What evaluator should be used to actually execute the dslx test. "
           "'dslx-interpreter' is the DSLX bytecode interpreter. 'ir-jit' is "
           "the XLS-IR JIT. ir-interpreter' is the XLS-IR interpreter.");
-ABSL_FLAG(bool, type_inference_v2, false,
+ABSL_FLAG(std::optional<bool>, type_inference_v2, std::nullopt,
           "Whether to use type system v2 when type checking the input.");
 // LINT.ThenChange(//xls/build_rules/xls_dslx_rules.bzl)
 
@@ -153,7 +153,14 @@ absl::StatusOr<TestResult> RealMain(
       WarningKindSet warnings,
       GetWarningsSetFromFlags(absl::GetFlag(FLAGS_enable_warnings),
                               absl::GetFlag(FLAGS_disable_warnings)));
-  bool type_inference_v2 = absl::GetFlag(FLAGS_type_inference_v2);
+  std::optional<bool> type_inference_v2_flag =
+      absl::GetFlag(FLAGS_type_inference_v2);
+  std::optional<TypeInferenceVersion> type_inference_version =
+      type_inference_v2_flag.has_value()
+          ? std::make_optional(*type_inference_v2_flag
+                                   ? TypeInferenceVersion::kVersion2
+                                   : TypeInferenceVersion::kVersion1)
+          : std::nullopt;
 
   RealFilesystem vfs;
 
@@ -190,7 +197,7 @@ absl::StatusOr<TestResult> RealMain(
   ParseAndTypecheckOptions parse_and_typecheck_options = {
       .dslx_stdlib_path = dslx_stdlib_path,
       .dslx_paths = dslx_paths,
-      .type_inference_v2 = type_inference_v2,
+      .type_inference_version = type_inference_version,
       .warnings_as_errors = warnings_as_errors,
       .warnings = warnings,
   };

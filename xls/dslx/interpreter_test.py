@@ -299,7 +299,9 @@ class InterpreterTest(test_base.TestCase):
         '--log_prefix=false',
         program_file.full_path,
     ]
-    result = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=False)
+    result = subp.run(
+        cmd, stderr=subp.PIPE, encoding='utf-8', check=False, env={}
+    )
     print(result.stderr)
     self.assertRegex(result.stderr, r's as hex:\s+MyStruct\s+{\s+x: 0x2a')
     self.assertRegex(result.stderr, r's as bin:\s+MyStruct\s+{\s+x: 0b10_1010')
@@ -331,7 +333,9 @@ class InterpreterTest(test_base.TestCase):
         '--log_prefix=false',
         program_file.full_path,
     ]
-    result = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=False)
+    result = subp.run(
+        cmd, stderr=subp.PIPE, encoding='utf-8', check=False, env={}
+    )
     print(result.stderr)
     self.assertRegex(result.stderr, r'a as hex: \[\s+MyStruct\s+{\s+x: 0x2a')
     self.assertRegex(
@@ -863,7 +867,7 @@ class OutOfTreeInterpreterTest(test_base.TestCase):
         [
             self.interpreter_path.full_path,
             temp_file.full_path,
-            '--type_inference_v2',
+            '--type_inference_v2=true',
         ],
         stdout=subp.PIPE,
         stderr=subp.PIPE,
