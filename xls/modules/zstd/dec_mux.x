@@ -28,7 +28,7 @@ type CopyOrMatchLength = common::CopyOrMatchLength;
 type SequenceExecutorMessageType = common::SequenceExecutorMessageType;
 type SequenceExecutorPacket = common::SequenceExecutorPacket<common::SYMBOL_WIDTH>;
 
-const MAX_ID = common::DATA_WIDTH;
+const MAX_ID = all_ones!<u32>();
 const DATA_WIDTH = common::DATA_WIDTH;
 
 struct DecoderMuxState {
