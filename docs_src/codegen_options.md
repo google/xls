@@ -125,10 +125,11 @@ control the scheduler.
 
 -   `--additional_channel_delay_ps=...` adds additional delay to operations on
     specific external channels. The flag takes a comma-separated list of
-    `channel=delay` pairs, which means that the operations on `channel` will be
-    modeled as having an additional `delay` picoseconds of delay. This can be
-    helpful to meet timing when integrating XLS designs with other RTL. Note
-    that since all flow-controlled channel operations have both inputs &
+    `channel[:direction]=delay` pairs, which means that the operations on
+    `channel` (and if specified, in the given `direction` [either recv or send])
+    will be modelled as having an additional `delay` picoseconds of delay. This
+    can be helpful to meet timing when integrating XLS designs with other RTL.
+    Note that since all flow-controlled channel operations have both inputs &
     outputs, the actual delay applied will be the sum of this value and the
     greater of `additional_input_delay_ps` or `additional_output_delay_ps`, if
     provided.
@@ -171,6 +172,11 @@ control the scheduler.
 -   `--codegen_version` is the version of codegen pipeline to use. Either 2
     (refactored codegen), 1 (original codegen path), or 0 for default. Currently
     default means the 1 (original).
+
+-   `--merge_on_mutual_exclusion` runs a mutual-exclusion analysis and attempts
+    to merge any I/O operations on the same channel that can be proven to be
+    mutually exclusive. If disabled, instead relies entirely on channel
+    legalization to ensure the results are correct. True by default.
 
 -   `--output_scheduling_pass_metrics_path` dumps metrics about the scheduling
     pass pipeline to file as a `PassPipelineMetricsProto` proto.

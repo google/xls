@@ -22,6 +22,7 @@
 #include <optional>
 #include <random>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -405,15 +406,29 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
   DecoratingDelayEstimator io_delay_added(
       "io_delay_added", delay_estimator, [&](Node* node, int64_t base_delay) {
         if (node->Is<ChannelNode>()) {
-          if (IsExternalIoNode(node->As<ChannelNode>(), elab)) {
-            const int64_t channel_delay =
-                options
-                    .additional_channel_delay_ps(
-                        node->As<ChannelNode>()->channel_name())
-                    .value_or(0);
-            return base_delay + max_io_delay + channel_delay;
+          std::string_view channel_name =
+              node->As<ChannelNode>()->channel_name();
+          std::string channel_op = absl::StrCat(
+              channel_name, ":",
+              node->As<ChannelNode>()->direction() == ChannelDirection::kSend
+                  ? "send"
+                  : "recv");
+          int64_t channel_delay_ps = 0;
+          if (std::optional<int64_t> op_delay =
+                  options.additional_channel_delay_ps(channel_op);
+              op_delay.has_value()) {
+            channel_delay_ps = *op_delay;
+          } else if (std::optional<int64_t> channel_delay =
+                         options.additional_channel_delay_ps(channel_name);
+                     channel_delay.has_value()) {
+            channel_delay_ps = *channel_delay;
           }
-          return base_delay;
+
+          if (IsExternalIoNode(node->As<ChannelNode>(), elab)) {
+            return base_delay + max_io_delay + channel_delay_ps;
+          }
+
+          return base_delay + channel_delay_ps;
         }
         if (node->function_base()->IsFunction()) {
           if (node->Is<Param>()) {

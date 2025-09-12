@@ -197,10 +197,10 @@ SCHEDULING_FIELDS = {
                                   "outputs, so this delay is added to sends and receives.",
     "additional_channel_delay_ps": "The additional delay added to each specified external " +
                                    "channel's operations, as a comma-separated list of " +
-                                   "channel=delay pairs. Note that flow-controlled channel " +
-                                   "operations all have both inputs and outputs, so the overall " +
-                                   "delay added is the sum of this and the maximum of the " +
-                                   "specified additional_(input|output)_delay_ps parameters " +
+                                   "channel[:direction]=delay pairs. Note that flow-controlled " +
+                                   "channel operations all have both inputs and outputs, so the " +
+                                   "overall delay added is the sum of this and the maximum of " +
+                                   "the specified additional_(input|output)_delay_ps parameters " +
                                    "(if provided).",
     "ffi_fallback_delay_ps": "Delay of foreign function calls if not " +
                              "otherwise specified.",
@@ -232,6 +232,8 @@ SCHEDULING_FIELDS = {
     "fdo_synthesis_libraries": "Synthesis and STA libraries.",
     "fdo_default_driver_cell": "Cell to assume is driving primary inputs.",
     "fdo_default_load": "Cell to assume is being driven by primary outputs.",
+    "merge_on_mutual_exclusion": "Use mutual exclusion to merge I/O operations aggressively. " +
+                                 "If false, relies on channel legalization for correctness.",
     "multi_proc": "If true, schedule all procs and codegen them all.",
     "simulation_macro_name": "Name of the Verilog macro used to guard simulation-only " +
                              "constructs. If prefixed with `!` the polarity of the guard " +
