@@ -54,7 +54,7 @@ ABSL_FLAG(std::string, enable_warnings, "",
           "default set");
 ABSL_FLAG(bool, warnings_as_errors, true,
           "Whether to fail early, as an error, if warnings are detected");
-ABSL_FLAG(bool, type_inference_v2, false,
+ABSL_FLAG(std::optional<bool>, type_inference_v2, std::nullopt,
           "Whether to use type system v2 when type checking the input.");
 
 namespace xls::dslx {
@@ -72,8 +72,14 @@ absl::Status RealMain(std::string_view entry_module_path,
       WarningKindSet warnings,
       GetWarningsSetFromFlags(absl::GetFlag(FLAGS_enable_warnings),
                               absl::GetFlag(FLAGS_disable_warnings)));
-  bool type_inference_v2 = absl::GetFlag(FLAGS_type_inference_v2);
-
+  std::optional<bool> type_inference_v2_flag =
+      absl::GetFlag(FLAGS_type_inference_v2);
+  std::optional<TypeInferenceVersion> type_inference_version =
+      type_inference_v2_flag.has_value()
+          ? std::make_optional(*type_inference_v2_flag
+                                   ? TypeInferenceVersion::kVersion2
+                                   : TypeInferenceVersion::kVersion1)
+          : std::nullopt;
   std::unique_ptr<VirtualizableFilesystem> vfs =
       std::make_unique<RealFilesystem>();
 
@@ -81,21 +87,20 @@ absl::Status RealMain(std::string_view entry_module_path,
                        vfs->GetFileContents(entry_module_path));
   XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(entry_module_path));
 
-  ParseAndTypecheckOptions options = {.dslx_stdlib_path = dslx_stdlib_path,
-                                      .dslx_paths = dslx_paths,
-                                      .type_inference_v2 = type_inference_v2,
-                                      .warnings_as_errors = warnings_as_errors,
-                                      .warnings = warnings};
+  ParseAndTypecheckOptions options = {
+      .dslx_stdlib_path = dslx_stdlib_path,
+      .dslx_paths = dslx_paths,
+      .type_inference_version = type_inference_version,
+      .warnings_as_errors = warnings_as_errors,
+      .warnings = warnings};
 
   auto import_data =
       CreateImportData(options.dslx_stdlib_path, options.dslx_paths,
                        options.warnings, std::move(vfs));
 
-  absl::StatusOr<TypecheckedModule> tm = ParseAndTypecheck(
-      program, entry_module_path, module_name, &import_data, nullptr,
-      options.type_inference_v2
-          ? std::make_optional(TypeInferenceVersion::kVersion2)
-          : std::nullopt);
+  absl::StatusOr<TypecheckedModule> tm =
+      ParseAndTypecheck(program, entry_module_path, module_name, &import_data,
+                        nullptr, options.type_inference_version);
   if (!tm.ok()) {
     TryPrintError(tm.status(), import_data.file_table(), import_data.vfs());
   }

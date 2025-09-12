@@ -50,8 +50,7 @@ class ImportModuleWithTypeErrorTest(parameterized.TestCase):
         '--warnings_as_errors={}'.format(str(warnings_as_errors).lower()),
     ]
 
-    if type_inference_v2:
-      cmd.append('--type_inference_v2=' + str(type_inference_v2).lower())
+    cmd.append('--type_inference_v2=' + str(type_inference_v2).lower())
 
     if compare:
       cmd.append('--compare=' + compare)
