@@ -912,6 +912,16 @@ dslx_lang_test(
 )
 
 dslx_lang_test(
+    name = "assert_in_for_under_inactive_conditional",
+    compare = "interpreter",
+    # Don't convert to IR because we want to compare the IR interpreter and
+    # DSL interpreter. convert_to_ir=True disables comparison.
+    convert_to_ir = False,
+    # IR asserts are software-only; skip z3 equivalence.
+    test_ir_equivalence = False,
+)
+
+dslx_lang_test(
     name = "quickcheck_fn_with_fail",
     # Primarily a #[quickcheck] function.
     convert_to_ir = False,
