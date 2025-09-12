@@ -249,6 +249,9 @@ absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
 
   scheduling_options.schedule_all_procs(proto.multi_proc());
 
+  scheduling_options.merge_on_mutual_exclusion(
+      proto.merge_on_mutual_exclusion());
+
   return scheduling_options;
 }
 
