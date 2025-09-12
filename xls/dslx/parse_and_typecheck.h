@@ -48,7 +48,7 @@ constexpr TypeInferenceVersion kDefaultTypeInferenceVersion =
 struct ParseAndTypecheckOptions {
   std::filesystem::path dslx_stdlib_path;
   absl::Span<const std::filesystem::path> dslx_paths;
-  bool type_inference_v2 = false;
+  std::optional<TypeInferenceVersion> type_inference_version;
   bool warnings_as_errors = true;
   WarningKindSet warnings = kDefaultWarningsSet;
 };
