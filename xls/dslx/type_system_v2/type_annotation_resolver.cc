@@ -780,15 +780,11 @@ class StatefulResolver : public TypeAnnotationResolver {
     }
 
     if (constexpr_start.ok()) {
-      if (*constexpr_start < 0) {
-        return TypeInferenceErrorStatus(
-            slice_type->span(), nullptr,
-            absl::StrCat("Width-slice start value cannot be negative, only "
-                         "unsigned values are permitted; got start value: ",
-                         *constexpr_start),
-            file_table_);
-      }
-      if (*constexpr_start + width > source_size) {
+      // In TIv2, the type of a width slice's start index is unsigned, so the
+      // evaluated constexpr_start should always be unsigned, so if we see a
+      // negative value, it is actually positive and larger than 2^63, this is
+      // for sure larger than any allowable array size.
+      if (*constexpr_start < 0 || *constexpr_start + width > source_size) {
         // In v2, if the start happens to be constexpr and makes the width too
         // far, there is an added warning that is not in v1.
         warning_collector_.Add(

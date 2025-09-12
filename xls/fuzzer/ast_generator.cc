@@ -2264,7 +2264,11 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSlice(Context* ctx) {
       break;
     }
     case SliceType::kWidthSlice: {
+      // We do not allow widthslice with MSB set.
       int64_t start_int = start.has_value() ? *start : 0;
+      if (start_int < 0) {
+        start_int += (1LL << 63);
+      }
       bool use_xn = RandomBool(0.05);
       rhs = module_->Make<WidthSlice>(
           fake_span_, MakeNumber(start_int),
