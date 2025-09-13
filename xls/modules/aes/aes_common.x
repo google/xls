@@ -267,7 +267,7 @@ pub fn inv_sub_bytes(block: Block) -> Block {
 }
 
 #[test]
-fn test_inv_sub_bytes(block: Block) {
+fn test_inv_sub_bytes() {
     let input = Block:[
         [u8:0x0, u8:0x1, u8:0x2, u8:0x3],
         [u8:0xff, u8:0xfe, u8:0xfd, u8:0xfc],
@@ -287,7 +287,7 @@ pub fn inv_shift_rows(block: Block) -> Block {
 }
 
 #[test]
-fn test_inv_shift_rows(block: Block) {
+fn test_inv_shift_rows() {
     let input = Block:[
         [u8:0x0, u8:0x1, u8:0x2, u8:0x3],
         [u8:0x4, u8:0x5, u8:0x6, u8:0x7],

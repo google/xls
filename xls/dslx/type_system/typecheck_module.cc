@@ -361,6 +361,18 @@ absl::Status TypecheckModuleMember(const ModuleMember& member, Module* module,
             ScopedFnStackEntry scoped_entry(tf->fn(), ctx, WithinProc::kNo);
             XLS_RETURN_IF_ERROR(TypecheckFunction(tf->fn(), ctx));
             scoped_entry.Finish();
+
+            // Enforce `#[test]` functions have signature `() -> ()`.
+            XLS_ASSIGN_OR_RETURN(
+                FunctionType * fn_type,
+                ctx->type_info()->GetItemAs<FunctionType>(&tf->fn()));
+            if (!fn_type->params().empty() ||
+                !fn_type->return_type().IsUnit()) {
+              return TypeInferenceErrorStatus(
+                  tf->fn().span(), fn_type,
+                  "Test functions must have function type `() -> ()`",
+                  ctx->file_table());
+            }
             return absl::OkStatus();
           },
           [module, ctx](TestProc* member) -> absl::Status {

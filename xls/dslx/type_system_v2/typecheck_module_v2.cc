@@ -26,9 +26,11 @@
 #include "absl/strings/substitute.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/semantics_analysis.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/inference_table_converter.h"
@@ -103,6 +105,26 @@ absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
   XLS_ASSIGN_OR_RETURN(
       TypeInfo * type_info,
       import_data->type_info_owner().GetRootTypeInfo(module.get()));
+
+  // Enforce `#[test]` function signature `() -> ()`.
+  for (const ModuleMember& member : module->top()) {
+    if (std::holds_alternative<TestFunction*>(member)) {
+      TestFunction* tf = std::get<TestFunction*>(member);
+      if (tf->fn().IsParametric()) {
+        return TypeInferenceErrorStatus(tf->fn().span(), /*type=*/nullptr,
+                                        "Test functions cannot be parametric.",
+                                        import_data->file_table());
+      }
+      XLS_ASSIGN_OR_RETURN(FunctionType * fn_type,
+                           type_info->GetItemAs<FunctionType>(&tf->fn()));
+      if (!fn_type->params().empty() || !fn_type->return_type().IsUnit()) {
+        return TypeInferenceErrorStatus(
+            tf->fn().span(), fn_type,
+            "Test functions must have function type `() -> ()`",
+            import_data->file_table());
+      }
+    }
+  }
 
   return std::make_unique<ModuleInfo>(std::move(module), type_info,
                                       std::filesystem::path(path),
