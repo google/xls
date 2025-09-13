@@ -89,6 +89,8 @@ absl::Status ValueFormatDescriptor::Accept(ValueFormatVisitor& v) const {
     case ValueFormatDescriptorKind::kStruct:
       return v.HandleStruct(*this);
   }
+  return absl::InvalidArgumentError(absl::StrFormat(
+      "Out of bounds ValueFormatDescriptorKind: %d", static_cast<int>(kind())));
 }
 
 }  // namespace xls::dslx
