@@ -373,7 +373,7 @@ TEST(GetConversionRecordsTest, TestFunction) {
 fn f<N: u32>(x: bits[N]) -> u32 { N }
 
 #[test]
-fn my_test() -> bool { f<u32:8>(u8:1) == u32:8 }
+fn my_test() { assert_eq(f<u32:8>(u8:1), u32:8) }
 )";
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -395,7 +395,7 @@ TEST(GetConversionRecordsTest, TestFunctionSkipped) {
 fn f<N: u32>(x: bits[N]) -> u32 { N }
 
 #[test]
-fn my_test() -> bool { f<u32:8>(u8:1) == u32:8 }
+fn my_test() { assert_eq(f<u32:8>(u8:1), u32:8) }
 )";
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
