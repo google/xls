@@ -250,8 +250,7 @@ absl::StatusOr<Expr*> BuildEnumParametricExpr(
   return static_cast<Expr*>(cref);
 }
 
-// Dispatch point for future non-enum TypeRef support. Currently only enums are
-// supported; other kinds will return an error via the enum helper.
+// Currently only enums are supported; other kinds will return an error.
 absl::StatusOr<Expr*> BuildParametricExprForTypeRef(
     TypeRef* tr, const InterpValue& iv, TypeInfo& type_info,
     const Span& inv_span, Module* target_module,
