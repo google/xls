@@ -38,6 +38,32 @@ bzl_library(
 )
 
 cc_library(
+    name = "replace_invocations",
+    srcs = ["replace_invocations.cc"],
+    hdrs = ["replace_invocations.h"],
+    deps = [
+        ":import_data",
+        ":parse_and_typecheck",
+        ":warning_collector",
+        "//xls/common/status:ret_check",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_cloner",
+        "//xls/dslx/frontend:ast_utils",
+        "//xls/dslx/frontend:module",
+        "//xls/dslx/type_system:parametric_env",
+        "//xls/dslx/type_system:type_info",
+        "//xls/dslx/type_system:typecheck_module",
+        "//xls/ir:bits",
+        "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
     name = "virtualizable_file_system",
     srcs = ["virtualizable_file_system.cc"],
     hdrs = ["virtualizable_file_system.h"],
@@ -130,6 +156,30 @@ cc_library(
         "//xls/dslx/bytecode:bytecode_cache",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "replace_invocations_test",
+    srcs = ["replace_invocations_test.cc"],
+    deps = [
+        ":create_import_data",
+        ":default_dslx_stdlib_path",
+        ":parse_and_typecheck",
+        ":replace_invocations",
+        ":virtualizable_file_system",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_utils",
+        "//xls/dslx/frontend:module",
+        "//xls/dslx/type_system:parametric_env",
+        "//xls/dslx/type_system:type_info",
+        "//xls/ir:bits",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:status_matchers",
+        "@com_google_absl//absl/types:span",
+        "@googletest//:gtest",
     ],
 )
 

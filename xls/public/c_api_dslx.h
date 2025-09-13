@@ -82,6 +82,20 @@ struct xls_dslx_type_dim;
 struct xls_dslx_parametric_env;
 struct xls_dslx_interp_value;
 struct xls_bits;
+// Rule for rewriting invocations in bulk API.
+struct xls_dslx_invocation_rewrite_rule {
+  // Replace invocations whose resolved callee is exactly this function.
+  struct xls_dslx_function* from_callee;
+  // The function that should be used as the new callee.
+  struct xls_dslx_function* to_callee;
+  // Optional filter: only invocations whose callee-side ParametricEnv equals
+  // this value will be replaced. If null, matches all instantiations.
+  const struct xls_dslx_parametric_env* match_callee_env;  // optional
+  // Optional explicit env for the replacement callee. If null, retains the
+  // original invocation's explicit parametrics. If non-null but empty, emits
+  // no explicit parametrics (rely on deduction).
+  const struct xls_dslx_parametric_env* to_callee_env;  // optional
+};
 
 struct xls_dslx_parametric_env_item {
   const char* identifier;
@@ -453,6 +467,16 @@ struct xls_dslx_type* xls_dslx_type_array_get_element_type(
 
 struct xls_dslx_type_dim* xls_dslx_type_array_get_size(
     struct xls_dslx_type* type);
+
+// Rewrites invocations in the given module according to the rules. Returns a
+// new typechecked module installed in the import graph under `install_subject`.
+// On error, returns false and populates error_out (owned by caller).
+bool xls_dslx_replace_invocations_in_module(
+    struct xls_dslx_typechecked_module* tm,
+    struct xls_dslx_function* const callers[], size_t callers_count,
+    const struct xls_dslx_invocation_rewrite_rule* rules, size_t rules_count,
+    struct xls_dslx_import_data* import_data, const char* install_subject,
+    char** error_out, struct xls_dslx_typechecked_module** result_out);
 
 }  // extern "C"
 
