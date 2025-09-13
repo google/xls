@@ -213,6 +213,7 @@ cc_library(
     deps = [
         ":c_api_impl_helpers",
         "//xls/common:visitor",
+        "//xls/dslx:replace_invocations",
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",
         "//xls/dslx:interp_value",

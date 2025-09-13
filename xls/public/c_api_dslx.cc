@@ -37,6 +37,7 @@
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_from_string.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/replace_invocations.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
@@ -1026,6 +1027,67 @@ bool xls_dslx_type_dim_get_as_int64(struct xls_dslx_type_dim* td,
 void xls_dslx_type_dim_free(struct xls_dslx_type_dim* td) {
   auto* cpp_type_dim = reinterpret_cast<xls::dslx::TypeDim*>(td);
   delete cpp_type_dim;
+}
+
+bool xls_dslx_replace_invocations_in_module(
+    struct xls_dslx_typechecked_module* tm,
+    struct xls_dslx_function* const callers[], size_t callers_count,
+    const struct xls_dslx_invocation_rewrite_rule* rules, size_t rules_count,
+    struct xls_dslx_import_data* import_data, const char* install_subject,
+    char** error_out, struct xls_dslx_typechecked_module** result_out) {
+  CHECK(error_out != nullptr);
+  CHECK(result_out != nullptr);
+  *error_out = nullptr;
+  *result_out = nullptr;
+  CHECK(tm != nullptr);
+  CHECK(import_data != nullptr);
+  CHECK(install_subject != nullptr);
+  CHECK(callers != nullptr || callers_count == 0);
+  CHECK(rules != nullptr || rules_count == 0);
+
+  auto* cpp_tm = reinterpret_cast<xls::dslx::TypecheckedModule*>(tm);
+  auto* cpp_import_data = reinterpret_cast<xls::dslx::ImportData*>(import_data);
+
+  std::vector<const xls::dslx::Function*> callers_cpp;
+  callers_cpp.reserve(callers_count);
+  for (size_t i = 0; i < callers_count; ++i) {
+    CHECK(callers[i] != nullptr);
+    callers_cpp.push_back(
+        reinterpret_cast<const xls::dslx::Function*>(callers[i]));
+  }
+
+  std::vector<xls::dslx::InvocationRewriteRule> rules_cpp;
+  rules_cpp.reserve(rules_count);
+  for (size_t i = 0; i < rules_count; ++i) {
+    const xls_dslx_invocation_rewrite_rule& r = rules[i];
+    CHECK(r.from_callee != nullptr);
+    CHECK(r.to_callee != nullptr);
+    xls::dslx::InvocationRewriteRule rr;
+    rr.from_callee =
+        reinterpret_cast<const xls::dslx::Function*>(r.from_callee);
+    rr.to_callee = reinterpret_cast<const xls::dslx::Function*>(r.to_callee);
+    if (r.match_callee_env != nullptr) {
+      rr.match_callee_env = *reinterpret_cast<const xls::dslx::ParametricEnv*>(
+          r.match_callee_env);
+    }
+    if (r.to_callee_env != nullptr) {
+      rr.to_callee_env =
+          *reinterpret_cast<const xls::dslx::ParametricEnv*>(r.to_callee_env);
+    }
+    rules_cpp.push_back(std::move(rr));
+  }
+
+  absl::StatusOr<xls::dslx::TypecheckedModule> new_tm =
+      xls::dslx::ReplaceInvocationsInModule(
+          *cpp_tm, absl::MakeSpan(callers_cpp), absl::MakeSpan(rules_cpp),
+          *cpp_import_data, std::string_view{install_subject});
+  if (!new_tm.ok()) {
+    *error_out = xls::ToOwnedCString(new_tm.status().ToString());
+    return false;
+  }
+  auto* heap_tm = new xls::dslx::TypecheckedModule{*std::move(new_tm)};
+  *result_out = reinterpret_cast<xls_dslx_typechecked_module*>(heap_tm);
+  return true;
 }
 
 }  // extern "C"
