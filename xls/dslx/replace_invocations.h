@@ -69,7 +69,3 @@ absl::StatusOr<TypecheckedModule> ReplaceInvocationsInModule(
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_REPLACE_INVOCATIONS_H_
-
-
-
-

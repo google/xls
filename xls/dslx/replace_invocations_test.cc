@@ -1230,7 +1230,3 @@ fn caller(x: u32) -> u32 { f(x) }
 
 }  // namespace
 }  // namespace xls::dslx
-
-
-
-
