@@ -182,7 +182,7 @@ fn trivial(x: u5) -> bool { id(true) }
   constexpr const char* kFilename = "test.x";
   RunComparator jit_comparator(CompareMode::kJit);
   ParseAndTestOptions options;
-  options.run_comparator = &jit_comparator;
+  options.quickcheck_runner = &jit_comparator;
   options.seed = int64_t{2};
   XLS_ASSERT_OK_AND_ASSIGN(
       TestResultData result,
@@ -206,7 +206,7 @@ fn trivial(x: u2) -> bool { id(true) }
   constexpr const char* kFilename = "test.x";
   RunComparator jit_comparator(CompareMode::kJit);
   ParseAndTestOptions options;
-  options.run_comparator = &jit_comparator;
+  options.quickcheck_runner = &jit_comparator;
   XLS_ASSERT_OK_AND_ASSIGN(
       TestResultData result,
       ParseAndTest(kProgram, kModuleName, kFilename, options));
@@ -239,7 +239,7 @@ fn qc(x: MyEnum) -> bool {
   ParseAndTestOptions options;
   options.parse_and_typecheck_options.warnings =
       DisableWarning(kAllWarningsSet, WarningKind::kAlreadyExhaustiveMatch);
-  options.run_comparator = &jit_comparator;
+  options.quickcheck_runner = &jit_comparator;
   XLS_ASSERT_OK_AND_ASSIGN(
       TestResultData result,
       ParseAndTest(kProgram, kModuleName, kFilename, options));
@@ -266,7 +266,7 @@ fn qc(x: EmptyEnum) -> bool {
   options.vfs_factory = [kProgram] {
     return std::make_unique<UniformContentFilesystem>(kProgram, "test.x");
   };
-  options.run_comparator = &jit_comparator;
+  options.quickcheck_runner = &jit_comparator;
   XLS_ASSERT_OK_AND_ASSIGN(
       TestResultData result,
       ParseAndTest(kProgram, kModuleName, kFilename, options));
@@ -294,7 +294,7 @@ fn qc(x: xN[S][4]) -> MyBool2 {
   constexpr const char* kFilename = "test.x";
   RunComparator jit_comparator(CompareMode::kJit);
   ParseAndTestOptions options;
-  options.run_comparator = &jit_comparator;
+  options.quickcheck_runner = &jit_comparator;
   XLS_ASSERT_OK_AND_ASSIGN(
       TestResultData result,
       ParseAndTest(kProgram, kModuleName, kFilename, options));
@@ -313,7 +313,7 @@ fn qc_with_implicit_token(x: u2) -> bool {
   constexpr const char* kFilename = "test.x";
   RunComparator jit_comparator(CompareMode::kJit);
   ParseAndTestOptions options;
-  options.run_comparator = &jit_comparator;
+  options.quickcheck_runner = &jit_comparator;
   options.vfs_factory = [kProgram] {
     return std::make_unique<UniformContentFilesystem>(kProgram, "test.x");
   };
@@ -342,7 +342,7 @@ fn bfloat16_bits_to_float32_bits_upcast_is_zero_pad(x: bits[BF16_TOTAL_SZ]) -> b
   constexpr const char* kFilename = "test.x";
   RunComparator jit_comparator(CompareMode::kJit);
   ParseAndTestOptions options;
-  options.run_comparator = &jit_comparator;
+  options.quickcheck_runner = &jit_comparator;
 
   const std::filesystem::path root("/");
   auto get_stdlib_contents = [](std::string_view filename) -> std::string {
@@ -386,7 +386,7 @@ fn trivial(x: u11) -> bool { x != u11::MAX }
   constexpr const char* kFilename = "test.x";
   RunComparator jit_comparator(CompareMode::kJit);
   ParseAndTestOptions options;
-  options.run_comparator = &jit_comparator;
+  options.quickcheck_runner = &jit_comparator;
   options.vfs_factory = [kProgram] {
     return std::make_unique<UniformContentFilesystem>(kProgram, "test.x");
   };
@@ -408,7 +408,7 @@ fn trivial(x: u5, y: u6) -> bool { !(x == u5::MAX && y == u6::MAX) }
   constexpr const char* kFilename = "test.x";
   RunComparator jit_comparator(CompareMode::kJit);
   ParseAndTestOptions options;
-  options.run_comparator = &jit_comparator;
+  options.quickcheck_runner = &jit_comparator;
   options.vfs_factory = [kProgram] {
     return std::make_unique<UniformContentFilesystem>(kProgram, "test.x");
   };
@@ -430,7 +430,7 @@ fn trivial(x: u5) -> bool { id(true) }
   constexpr const char* kFilename = "test.x";
   RunComparator jit_comparator(CompareMode::kJit);
   ParseAndTestOptions options;
-  options.run_comparator = &jit_comparator;
+  options.quickcheck_runner = &jit_comparator;
   XLS_ASSERT_OK_AND_ASSIGN(
       TestResultData result,
       ParseAndTest(kProgram, kModuleName, kFilename, options));
@@ -452,7 +452,7 @@ fn qc(x: bool) -> bool { do_fail(x) }
   RunComparator jit_comparator(CompareMode::kJit);
   ParseAndTestOptions options;
   options.seed = int64_t{2316476071057580};
-  options.run_comparator = &jit_comparator;
+  options.quickcheck_runner = &jit_comparator;
   options.vfs_factory = [kProgram] {
     return std::make_unique<UniformContentFilesystem>(kProgram, "test.x");
   };
@@ -472,7 +472,7 @@ fn trivial(x: u5) -> bool { false }
   constexpr const char* kModuleName = "test";
   RunComparator jit_comparator(CompareMode::kJit);
   ParseAndTestOptions options;
-  options.run_comparator = &jit_comparator;
+  options.quickcheck_runner = &jit_comparator;
   options.seed = int64_t{42};
   XLS_ASSERT_OK_AND_ASSIGN(
       TestResultData result,
