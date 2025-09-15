@@ -107,6 +107,26 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "scheduling_options_test",
+    srcs = ["scheduling_options_test.cc"],
+    deps = [
+        ":scheduling_options",
+        ":scheduling_pass",
+        ":scheduling_pass_pipeline",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/estimators/delay_model:delay_estimator",
+        "//xls/ir",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:op",
+        "//xls/passes:optimization_pass",
+        "//xls/passes:pass_base",
+        "//xls/tools:scheduling_options_flags_cc_proto",
+        "@googletest//:gtest",
+    ],
+)
+
 cc_library(
     name = "min_cut_scheduler",
     srcs = ["min_cut_scheduler.cc"],
@@ -428,6 +448,7 @@ cc_library(
         ":pipeline_scheduling_pass",
         ":proc_state_legalization_pass",
         ":scheduling_checker",
+        ":scheduling_options",
         ":scheduling_pass",
         ":scheduling_wrapper_pass",
         "//xls/passes",
