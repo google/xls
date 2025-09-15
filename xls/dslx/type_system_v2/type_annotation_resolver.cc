@@ -780,15 +780,15 @@ class StatefulResolver : public TypeAnnotationResolver {
     }
 
     if (constexpr_start.ok()) {
-      if (*constexpr_start < 0) {
-        return TypeInferenceErrorStatus(
-            slice_type->span(), nullptr,
-            absl::StrCat("Width-slice start value cannot be negative, only "
-                         "unsigned values are permitted; got start value: ",
-                         *constexpr_start),
-            file_table_);
-      }
-      if (*constexpr_start + width > source_size) {
+      // If start index is a signed value or a negative number literal it would
+      // have a signed type annotation which contradicts with the type
+      // annotation of a widthslice `uN[width]` and it would have been caught
+      // earlier at the unification of the index itself, so start index is
+      // expected to be unsigned, and the only reason that constexpr_start may
+      // be negative is that the value being evaluated is a uint64_t with MSB
+      // set, which overflows when casted to int64_t. It is obvious that a start
+      // index of 2^63 or greater is always out of range.
+      if (*constexpr_start < 0 || *constexpr_start + width > source_size) {
         // In v2, if the start happens to be constexpr and makes the width too
         // far, there is an added warning that is not in v1.
         warning_collector_.Add(

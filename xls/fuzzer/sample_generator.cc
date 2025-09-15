@@ -49,6 +49,7 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
@@ -484,8 +485,17 @@ absl::StatusOr<Sample> GenerateSample(
                              /*additional_search_paths=*/{},
                              /*enabled_warnings=*/dslx::kAllWarningsSet,
                              std::make_unique<dslx::RealFilesystem>()));
-  absl::StatusOr<TypecheckedModule> tm =
-      ParseAndTypecheck(dslx_text, "sample.x", "sample", &import_data);
+
+  // TODO(williamjhaung) - Disable kWidthSliceOutOfRange for now because in
+  // ast_generator it cannot determine whether the start value of a
+  // kDynamicSlice is in range, so this may result in a warning turned into an
+  // error.
+  dslx::ConvertOptions convert_options{
+      .warnings = dslx::DisableWarning(
+          dslx::kDefaultWarningsSet, dslx::WarningKind::kWidthSliceOutOfRange)};
+  absl::StatusOr<TypecheckedModule> tm = ParseAndTypecheck(
+      dslx_text, "sample.x", "sample", &import_data, /*comments=*/nullptr,
+      /*force_version=*/std::nullopt, convert_options);
   if (!tm.ok()) {
     LOG(ERROR) << "Generated sample failed to parse-and-typecheck ("
                << dslx_text.size() << " bytes):";
