@@ -164,13 +164,22 @@ u32, BITSTREAM_BUFFER_W: u32, DATA_W_LOG2: u32 = {std::clog2(DATA_W + u32:1)}>
         let (hb_rd_resp_s, hb_rd_resp_r) = chan<HistoryBufferRdResp, CHANNEL_DEPTH>("hb_rd_resp");
         let (hb_wr_req_s, hb_wr_req_r) = chan<HistoryBufferWrReq, CHANNEL_DEPTH>("hb_wr_req");
         let (hb_wr_resp_s, hb_wr_resp_r) = chan<HistoryBufferWrResp, CHANNEL_DEPTH>("hb_wr_resp");
+
         let (n_mf_buf_mem_rd_req_s, n_mf_buf_mem_rd_req_r) =
-            chan<MemReaderReq, CHANNEL_DEPTH>[2]("n_mf_buf_rd_req");
+            chan<MemReaderReq, CHANNEL_DEPTH>[3]("n_mf_buf_rd_req");
         let (n_mf_buf_mem_rd_resp_s, n_mf_buf_mem_rd_resp_r) =
-            chan<MemReaderResp, CHANNEL_DEPTH>[2]("n_mf_buf_rd_resp");
+            chan<MemReaderResp, CHANNEL_DEPTH>[3]("n_mf_buf_rd_resp");
+        let (mem_wr_req_s, mem_wr_req_r) =
+            chan<MemWriterReq, CHANNEL_DEPTH>[2]("mem_wr_req");
+        let (mem_wr_data_s, mem_wr_data_r) =
+            chan<MemWriterData, CHANNEL_DEPTH>[2]("mem_wr_data");
+        let (mem_wr_resp_s, mem_wr_resp_r) =
+            chan<MemWriterResp, CHANNEL_DEPTH>[2]("mem_wr_resp");
+
         // literals encoder
         let (le_req_s, le_req_r) = chan<RawMemcopyReq, CHANNEL_DEPTH>("le_req");
         let (le_resp_s, le_resp_r) = chan<RawMemcopyResp, CHANNEL_DEPTH>("le_resp");
+
         // sequence encoder
         let (se_req_s, se_req_r) = chan<SeReq, CHANNEL_DEPTH>("se_req");
         let (se_resp_s, se_resp_r) = chan<SeResp, CHANNEL_DEPTH>("se_resp");
@@ -187,19 +196,26 @@ u32, BITSTREAM_BUFFER_W: u32, DATA_W_LOG2: u32 = {std::clog2(DATA_W + u32:1)}>
             mf_req_r, mf_resp_s, input_mem_rd_req_s, input_mem_rd_resp_r, mf_buf_mem_wr_req_s,
             mf_buf_mem_wr_data_s, mf_buf_mem_wr_resp_r, ht_rd_req_s, ht_rd_resp_r, ht_wr_req_s,
             ht_wr_resp_r, hb_rd_req_s, hb_rd_resp_r, hb_wr_req_s, hb_wr_resp_r);
-        spawn mem_reader_simple_arbiter::MemReaderSimpleArbiter<ADDR_W, DATA_W, u32:2>(
+        spawn mem_reader_simple_arbiter::MemReaderSimpleArbiter<ADDR_W, DATA_W, u32:3>(
             n_mf_buf_mem_rd_req_r, n_mf_buf_mem_rd_resp_s, mf_buf_mem_rd_req_s, mf_buf_mem_rd_resp_r);
-
+        spawn mem_writer_simple_arbiter::MemWriterSimpleArbiter<ADDR_W, DATA_W, u32:2>(
+            mem_wr_req_r, mem_wr_data_r, mem_wr_resp_s,
+            le_output_mem_wr_req_s, le_output_mem_wr_data_s, le_output_mem_wr_resp_r,
+        );
         // literals encoder
         spawn literal_encoder::LiteralsEncoder<ADDR_W, DATA_W>(
-            le_req_r, le_resp_s, n_mf_buf_mem_rd_req_s[0], n_mf_buf_mem_rd_resp_r[0],
+            le_req_r, le_resp_s,
+            n_mf_buf_mem_rd_req_s[0], n_mf_buf_mem_rd_resp_r[0],
             lhw_output_mem_wr_req_s, lhw_output_mem_wr_data_s, lhw_output_mem_wr_resp_r,
-            le_output_mem_wr_req_s, le_output_mem_wr_data_s, le_output_mem_wr_resp_r);
+            mem_wr_req_s[0], mem_wr_data_s[0], mem_wr_resp_r[0],
+            n_mf_buf_mem_rd_req_s[1], n_mf_buf_mem_rd_resp_r[1],
+            mem_wr_req_s[1], mem_wr_data_s[1], mem_wr_resp_r[1]
+        );
 
         // sequence encoder
         spawn sequence_encoder::SequenceEncoder<
             ADDR_W, DATA_W, FSE_TABLE_RAM_ADDR_W, FSE_CTABLE_RAM_DATA_W, FSE_CTABLE_RAM_NUM_PARTITIONS, FSE_TTABLE_RAM_DATA_W, FSE_TTABLE_RAM_NUM_PARTITIONS, BITSTREAM_BUFFER_W>(
-            se_req_r, se_resp_s, n_mf_buf_mem_rd_req_s[1], n_mf_buf_mem_rd_resp_r[1],
+            se_req_r, se_resp_s, n_mf_buf_mem_rd_req_s[2], n_mf_buf_mem_rd_resp_r[2],
             se_output_mem_wr_req_s, se_output_mem_wr_data_s, se_output_mem_wr_resp_r,
             ml_ctable_ram_rd_req_s, ml_ctable_ram_rd_resp_r, ll_ctable_ram_rd_req_s,
             ll_ctable_ram_rd_resp_r, of_ctable_ram_rd_req_s, of_ctable_ram_rd_resp_r,
