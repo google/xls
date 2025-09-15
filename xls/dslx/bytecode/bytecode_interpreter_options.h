@@ -35,9 +35,6 @@ using PostFnEvalHook = std::function<absl::Status(
     const Function* f, absl::Span<const InterpValue> args, const ParametricEnv*,
     const InterpValue& got)>;
 
-using TraceHook =
-    std::function<void(const Span& source_location, std::string_view message)>;
-
 using RolloverHook = std::function<void(const Span&)>;
 
 class BytecodeInterpreterOptions {
@@ -50,14 +47,6 @@ class BytecodeInterpreterOptions {
     return *this;
   }
   const PostFnEvalHook& post_fn_eval_hook() const { return post_fn_eval_hook_; }
-
-  // Callback to invoke when a trace operation executes. The callback argument
-  // is the trace string.
-  BytecodeInterpreterOptions& trace_hook(TraceHook hook) {
-    trace_hook_ = std::move(hook);
-    return *this;
-  }
-  const TraceHook& trace_hook() const { return trace_hook_; }
 
   BytecodeInterpreterOptions& rollover_hook(RolloverHook hook) {
     rollover_hook_ = std::move(hook);
@@ -107,7 +96,6 @@ class BytecodeInterpreterOptions {
 
  private:
   PostFnEvalHook post_fn_eval_hook_ = nullptr;
-  TraceHook trace_hook_ = nullptr;
   RolloverHook rollover_hook_ = nullptr;
   bool trace_channels_ = false;
   bool trace_calls_ = false;

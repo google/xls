@@ -19,12 +19,12 @@
 #include <string_view>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
@@ -32,6 +32,7 @@
 #include "xls/dslx/value_format_descriptor.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/format_preference.h"
+#include "xls/ir/value.h"
 
 namespace xls::dslx {
 namespace {
@@ -365,6 +366,71 @@ TEST(InterpValueTest, FormatEnum) {
                     {{UBits(0, 32), "FOO"}, {UBits(1, 32), "BAR"}}));
   EXPECT_EQ(foo.ToFormattedString(fmt_desc).value(), "MyEnum::FOO  // u32:0");
   EXPECT_EQ(bar.ToFormattedString(fmt_desc).value(), "MyEnum::BAR  // u32:1");
+}
+
+TEST(InterpValueTest, AsProtoBits) {
+  InterpValue iv = InterpValue::MakeU32(0xdeadbeef);
+  XLS_ASSERT_OK_AND_ASSIGN(xls::ValueProto proto, iv.AsProto());
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Value round_trip, xls::Value::FromProto(proto));
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Value expected, iv.ConvertToIr());
+  EXPECT_EQ(round_trip, expected);
+}
+
+TEST(InterpValueTest, AsProtoArray) {
+  InterpValue a = InterpValue::MakeU8(1);
+  InterpValue b = InterpValue::MakeU8(2);
+  InterpValue c = InterpValue::MakeU8(3);
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue array,
+                           InterpValue::MakeArray({a, b, c}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(xls::ValueProto proto, array.AsProto());
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Value round_trip, xls::Value::FromProto(proto));
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Value expected, array.ConvertToIr());
+  EXPECT_EQ(round_trip, expected);
+}
+
+TEST(InterpValueTest, AsProtoTuple) {
+  InterpValue x = InterpValue::MakeU8(255);
+  InterpValue y = InterpValue::MakeBool(true);
+  InterpValue tup = InterpValue::MakeTuple({x, y});
+
+  XLS_ASSERT_OK_AND_ASSIGN(xls::ValueProto proto, tup.AsProto());
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Value round_trip, xls::Value::FromProto(proto));
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Value expected, tup.ConvertToIr());
+  EXPECT_EQ(round_trip, expected);
+}
+
+TEST(InterpValueTest, AsProtoSignedBits) {
+  // -2 in 8-bit two's complement.
+  InterpValue s = InterpValue::MakeSBits(/*bit_count=*/8, /*value=*/-2);
+  XLS_ASSERT_OK_AND_ASSIGN(xls::ValueProto proto, s.AsProto());
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Value round_trip, xls::Value::FromProto(proto));
+  // Note: Proto loses signedness;  SBits constructs a twos-complement
+  // representation of the signed value.
+  EXPECT_EQ(round_trip, xls::Value(SBits(-2, 8)));
+}
+
+TEST(InterpValueTest, AsProtoEnum) {
+  // Define a tiny enum and create an InterpValue::Enum.
+  constexpr std::string_view kProgram = R"(enum MyEnum : u3 {
+    A = 0,
+    B = 5,
+  })";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(EnumDef * enum_def,
+                           module->GetMemberOrError<EnumDef>("MyEnum"));
+
+  Bits bits_val = UBits(/*value=*/5, /*bit_count=*/3);
+  InterpValue enum_value =
+      InterpValue::MakeEnum(bits_val, /*is_signed=*/false, enum_def);
+
+  XLS_ASSERT_OK_AND_ASSIGN(xls::ValueProto proto, enum_value.AsProto());
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Value round_trip, xls::Value::FromProto(proto));
+  // Expected IR value is just the raw bits (enum metadata is not preserved).
+  EXPECT_EQ(round_trip, xls::Value(UBits(5, 3)));
 }
 
 }  // namespace

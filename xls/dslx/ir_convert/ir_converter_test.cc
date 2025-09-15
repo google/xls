@@ -24,12 +24,13 @@
 #include <string>
 #include <string_view>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
+#include "re2/re2.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/golden_files.h"
 #include "xls/common/status/matchers.h"
@@ -43,7 +44,6 @@
 #include "xls/dslx/run_routines/run_comparator.h"
 #include "xls/dslx/run_routines/run_routines.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
-#include "re2/re2.h"
 
 namespace xls::dslx {
 namespace {

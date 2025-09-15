@@ -21,5 +21,5 @@ top fn __test_module__main() -> bits[7] {
   tuple.7: (bits[7], bits[7]) = tuple(literal.5, literal.6, id=7, pos=[(0,2,63)])
   literal.1: bits[7] = literal(value=0, id=1, pos=[(0,4,4)])
   array.8: (bits[7], bits[7])[2] = array(tuple.4, tuple.7, id=8, pos=[(0,2,48)])
-  ret counted_for.19: bits[7] = counted_for(literal.1, trip_count=2, stride=1, body=____test_module__main_counted_for_0_body, invariant_args=[array.8], id=19)
+  ret counted_for.19: bits[7] = counted_for(literal.1, trip_count=2, stride=1, body=____test_module__main_counted_for_0_body, invariant_args=[array.8], id=19, pos=[(0,2,2)])
 }
