@@ -617,20 +617,21 @@ FunctionConverter::CValue FunctionConverter::DefConst(const AstNode* node,
 }
 
 absl::StatusOr<BValue> FunctionConverter::Use(const AstNode* node) const {
-  auto it = node_to_ir_.find(node);
-  if (it == node_to_ir_.end()) {
+  std::optional<IrValue> value = GetNodeToIr(node);
+  if (!value.has_value()) {
     return absl::NotFoundError(
         absl::StrFormat("Could not resolve IR value for %s node: %s",
                         node->GetNodeTypeName(), node->ToString()));
   }
-  const IrValue& ir_value = it->second;
+  const IrValue& ir_value = *value;
   VLOG(6) << absl::StreamFormat("Using node '%s' (%p) as IR value %s.",
                                 node->ToString(), node,
                                 IrValueToString(ir_value));
   if (std::holds_alternative<BValue>(ir_value)) {
     return std::get<BValue>(ir_value);
   }
-  XLS_RET_CHECK(std::holds_alternative<CValue>(ir_value));
+  XLS_RET_CHECK(std::holds_alternative<CValue>(ir_value))
+      << "Expected CValue, got " << ir_value.index();
   return std::get<CValue>(ir_value).value;
 }
 
@@ -2090,21 +2091,31 @@ absl::Status FunctionConverter::HandleIndex(const Index* node) {
     absl::StatusOr<ChannelOrArray> channel_or_array =
         channel_scope_->GetChannelOrArrayForArrayIndex(*proc_id_, node);
     if (channel_or_array.ok()) {
-      if (std::holds_alternative<ChannelArray*>(*channel_or_array)) {
-        // We don't allow referencing subarrays outside of config(), and the
-        // ones that occur in config() are dealt with in `ProcConfigIrConverter`
-        // rather than ending up here. The reason for disallowing them in next()
-        // is low utility and higher difficulty of implementation against
-        // non-lowered arrays, which can't be an `IrValue`, `BValue`, etc.
-        // TODO: davidplass - relax this requirement when ChannelArrays are
-        // indeed supported when lowering to proc-scoped channels.
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "Invalid channel subarray use: `%s` at %s; channel subarrays can "
-            "only be used in proc config functions.",
-            node->ToString(), node->span().ToString(file_table())));
-      }
-      node_to_ir_[node] = std::get<Channel*>(*channel_or_array);
-      return absl::OkStatus();
+      return absl::visit(
+          Visitor{[&](ChannelArray*) {
+                    // We don't allow referencing subarrays outside of config(),
+                    // and the ones that occur in config() are dealt with in
+                    // `ProcConfigIrConverter` rather than ending up here. The
+                    // reason for disallowing them in next() is low utility and
+                    // higher difficulty of implementation against non-lowered
+                    // arrays, which can't be an `IrValue`, `BValue`, etc.
+                    // TODO: davidplass - relax this requirement when
+                    // ChannelArrays are indeed supported when lowering to
+                    // proc-scoped channels.
+                    return absl::InvalidArgumentError(absl::StrFormat(
+                        "Invalid channel subarray use: `%s` at %s; channel "
+                        "subarrays can only be used in proc config functions.",
+                        node->ToString(), node->span().ToString(file_table())));
+                  },
+                  [&](Channel* c) {
+                    node_to_ir_[node] = c;
+                    return absl::OkStatus();
+                  },
+                  [&](ChannelInterface* ci) {
+                    node_to_ir_[node] = ci;
+                    return absl::OkStatus();
+                  }},
+          *channel_or_array);
     }
   }
   XLS_RETURN_IF_ERROR(Visit(node->lhs()));
@@ -3194,9 +3205,10 @@ absl::Status FunctionConverter::HandleSpawn(const Spawn* node) {
   std::vector<ChannelInterface*> channel_args;
   for (Expr* arg : invocation->args()) {
     XLS_RETURN_IF_ERROR(Visit(arg));
-    XLS_ASSIGN_OR_RETURN(IrValue arg_value, Use(arg));
+    std::optional<IrValue> arg_value = GetNodeToIr(arg);
+    XLS_RET_CHECK(arg_value.has_value());
     XLS_ASSIGN_OR_RETURN(ChannelInterface * channel_interface,
-                         IrValueToChannelInterface(arg_value));
+                         IrValueToChannelInterface(*arg_value));
     channel_args.push_back(channel_interface);
   }
 
