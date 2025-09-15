@@ -133,11 +133,15 @@ ABSL_FLAG(int64_t, additional_input_delay_ps, 0,
           "The additional delay added to each input.");
 ABSL_FLAG(int64_t, additional_output_delay_ps, 0,
           "The additional delay added to each output.");
-ABSL_FLAG(ChannelDelayMap, additional_channel_delay_ps, {},
-          "The additional delay added for operations on each external channel; "
-          "specified as a comma-separated list of 'channel=delay' pairs. Note "
-          "that the actual delay added will be the sum of this and the largest "
-          "of the additional_(input|output)_delay_ps parameters, if provided.");
+ABSL_FLAG(
+    ChannelDelayMap, additional_channel_delay_ps, {},
+    "The additional delay added for operations on each external channel; "
+    "specified as a comma-separated list of 'channel[:direction]=delay' pairs; "
+    "if both directed and undirected delays are specified for the same "
+    "channel, the directed delay will be used for the appropriate operations "
+    "(and the undirected delay will be ignored for those operations). Note "
+    "that the actual delay added will be the sum of this and the largest of "
+    "the additional_(input|output)_delay_ps parameters, if provided.");
 ABSL_FLAG(int64_t, ffi_fallback_delay_ps, 0,
           "Delay of foreign function calls if not otherwise specified.");
 ABSL_FLAG(std::vector<std::string>, io_constraints, {},

@@ -125,10 +125,11 @@ control the scheduler.
 
 -   `--additional_channel_delay_ps=...` adds additional delay to operations on
     specific external channels. The flag takes a comma-separated list of
-    `channel=delay` pairs, which means that the operations on `channel` will be
-    modeled as having an additional `delay` picoseconds of delay. This can be
-    helpful to meet timing when integrating XLS designs with other RTL. Note
-    that since all flow-controlled channel operations have both inputs &
+    `channel[:direction]=delay` pairs, which means that the operations on
+    `channel` (and if specified, in the given `direction` [either recv or send])
+    will be modelled as having an additional `delay` picoseconds of delay. This
+    can be helpful to meet timing when integrating XLS designs with other RTL.
+    Note that since all flow-controlled channel operations have both inputs &
     outputs, the actual delay applied will be the sum of this value and the
     greater of `additional_input_delay_ps` or `additional_output_delay_ps`, if
     provided.

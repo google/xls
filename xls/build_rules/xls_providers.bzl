@@ -197,10 +197,10 @@ SCHEDULING_FIELDS = {
                                   "outputs, so this delay is added to sends and receives.",
     "additional_channel_delay_ps": "The additional delay added to each specified external " +
                                    "channel's operations, as a comma-separated list of " +
-                                   "channel=delay pairs. Note that flow-controlled channel " +
-                                   "operations all have both inputs and outputs, so the overall " +
-                                   "delay added is the sum of this and the maximum of the " +
-                                   "specified additional_(input|output)_delay_ps parameters " +
+                                   "channel[:direction]=delay pairs. Note that flow-controlled " +
+                                   "channel operations all have both inputs and outputs, so the " +
+                                   "overall delay added is the sum of this and the maximum of " +
+                                   "the specified additional_(input|output)_delay_ps parameters " +
                                    "(if provided).",
     "ffi_fallback_delay_ps": "Delay of foreign function calls if not " +
                              "otherwise specified.",

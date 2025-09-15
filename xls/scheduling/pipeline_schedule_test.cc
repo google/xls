@@ -1890,6 +1890,43 @@ TEST_F(PipelineScheduleTest, ProcScheduleWithChannelSpecificDelay) {
               IsSupersetOf({neg_rcv2.node(), sum.node(), send.node()}));
 }
 
+TEST_F(PipelineScheduleTest, ProcScheduleWithChannelDirectionSpecificDelay) {
+  Package p("p");
+
+  Type* u16 = p.GetBitsType(16);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch,
+      p.CreateStreamingChannel("ch", ChannelOps::kSendReceive, u16));
+
+  TokenlessProcBuilder pb("the_proc", "tkn", &p);
+
+  BValue rcv = pb.Receive(ch);
+  BValue neg_rcv = pb.Negate(rcv);
+  BValue send = pb.Send(ch, neg_rcv);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+
+  // Set different delays for send and receive on channel "ch".
+  SchedulingOptions options =
+      SchedulingOptions()
+          .clock_period_ps(5)
+          .add_additional_channel_delay_ps("ch:recv", 1)
+          .add_additional_channel_delay_ps("ch:send", 5);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, TestDelayEstimator(), options));
+
+  // rcv: Delay 1. Fits in cycle 0.
+  // neg_rcv: Starts no sooner than t=1, with delay 1. Fits in cycle 0.
+  // send: Starts no sooner than t=2, with delay 5. Does not fit in cycle 0.
+  ASSERT_EQ(schedule.length(), 2);
+  EXPECT_EQ(schedule.cycle(rcv.node()), 0);
+  EXPECT_EQ(schedule.cycle(neg_rcv.node()), 0);
+  EXPECT_EQ(schedule.cycle(send.node()), 1);
+}
+
 TEST_F(PipelineScheduleTest, ProcScheduleWithConstraints) {
   Package p("p");
   Type* u16 = p.GetBitsType(16);
