@@ -58,7 +58,7 @@ enum ZstdDecoderInternalFsm: u4 {
     INVALID = 15,
 }
 
-enum ZstdDecoderStatus: u5 {
+pub enum ZstdDecoderStatus: u5 {
     IDLE = 0,
     RUNNING = 1,
     READ_CONFIG_OK = 2,
