@@ -588,12 +588,12 @@ const TEST_MEMORY: TestAxiRamWrReq[7] = [
     // HTD Header: 0x84 (Direct representation, HTD length: 3)
     // Huffman Tree Description
     // code         symbol  length  weight
-    // N/A          0x03    0       0
+    // N/A          0x02    0       0
     // 0b0000       0x04    4       1
     // 0b0001       0x05    4       1      // last weight implicit
-    // 0b001        0x02    3       2
-    // 0b01         0x01    2       3
-    // 0b1          0x00    1       4
+    // 0b001        0x03    3       2
+    // 0b01         0x00    2       3
+    // 0b1          0x01    1       4
     // 0b00001      padding
 
     TestAxiRamWrReq { addr: TestAxiRamAddr:0x0, data: (u16:0b00001_1_01_0000_0001 ++ u24:0x100234 ++ u8:0x84) as TestAxiRamData, mask: TestAxiRamMask:0xFF },
@@ -615,12 +615,12 @@ const TEST_MEMORY: TestAxiRamWrReq[7] = [
     // Jump Table: 0x0002_0002_0002 (Stream1: 2 bytes; Stream2: 2 bytes; Stream3: 2 bytes)
     // Huffman Tree Description
     // code         symbol  length  weight
-    // N/A          0x03    0       0
+    // N/A          0x02    0       0
     // 0b0000       0x04    4       1
     // 0b0001       0x05    4       1      // last weight implicit
-    // 0b001        0x02    3       2
-    // 0b01         0x01    2       3
-    // 0b1          0x00    1       4
+    // 0b001        0x03    3       2
+    // 0b01         0x00    2       3
+    // 0b1          0x01    1       4
     // 0b00001      padding
     TestAxiRamWrReq { addr: TestAxiRamAddr:0x40, data: (u32:0x0002_0002 ++ u24:0x100234 ++ u8:0x84) as TestAxiRamData, mask: TestAxiRamMask:0xFF },
     //                           AXI addr: 0x200                      ^               ^          ^
@@ -689,7 +689,7 @@ const TEST_CTRL: TestCtrl[4] = [
 const TEST_DECODED_LITERALS = common::LiteralsDataWithSync[10]:[
     // Literals #0
     common::LiteralsDataWithSync {
-        data: common::LitData:0x0504_0100,
+        data: common::LitData:0x0504_0001,
         length: common::LitLength:4,
         last: true,
         id: u32:0,
@@ -697,7 +697,7 @@ const TEST_DECODED_LITERALS = common::LiteralsDataWithSync[10]:[
     },
     // Literals #1
     common::LiteralsDataWithSync {
-        data: common::LitData:0x0001_0405,
+        data: common::LitData:0x0100_0405,
         length: common::LitLength:4,
         last: true,
         id: u32:1,
@@ -705,28 +705,28 @@ const TEST_DECODED_LITERALS = common::LiteralsDataWithSync[10]:[
     },
     // Literals #2
     common::LiteralsDataWithSync {
-        data: common::LitData:0x0504_0100,
+        data: common::LitData:0x0504_0001,
         length: common::LitLength:4,
         last: false,
         id: u32:2,
         literals_last: false,
     },
     common::LiteralsDataWithSync {
-        data: common::LitData:0x0504_0100,
+        data: common::LitData:0x0504_0001,
         length: common::LitLength:4,
         last: false,
         id: u32:2,
         literals_last: false,
     },
     common::LiteralsDataWithSync {
-        data: common::LitData:0x0504_0100,
+        data: common::LitData:0x0504_0001,
         length: common::LitLength:4,
         last: false,
         id: u32:2,
         literals_last: false,
     },
     common::LiteralsDataWithSync {
-        data: common::LitData:0x0504_0100,
+        data: common::LitData:0x0504_0001,
         length: common::LitLength:4,
         last: true,
         id: u32:2,
@@ -734,28 +734,28 @@ const TEST_DECODED_LITERALS = common::LiteralsDataWithSync[10]:[
     },
     // Literals #3
     common::LiteralsDataWithSync {
-        data: common::LitData:0x0504_0100,
+        data: common::LitData:0x0504_0001,
         length: common::LitLength:4,
         last: false,
         id: u32:3,
         literals_last: true,
     },
     common::LiteralsDataWithSync {
-        data: common::LitData:0x0504_0100,
+        data: common::LitData:0x0504_0001,
         length: common::LitLength:4,
         last: false,
         id: u32:3,
         literals_last: true,
     },
     common::LiteralsDataWithSync {
-        data: common::LitData:0x0504_0100,
+        data: common::LitData:0x0504_0001,
         length: common::LitLength:4,
         last: false,
         id: u32:3,
         literals_last: true,
     },
     common::LiteralsDataWithSync {
-        data: common::LitData:0x0504_0100,
+        data: common::LitData:0x0504_0001,
         length: common::LitLength:4,
         last: true,
         id: u32:3,
