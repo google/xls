@@ -4695,6 +4695,20 @@ place_and_route(
 )
 
 xls_dslx_library(
+    name = "block_size_dslx",
+    srcs = ["block_size.x"],
+    deps = [
+        "//xls/modules/zstd:common_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "block_size_dslx_test",
+    library = ":block_size_dslx",
+    tags = ["manual"],
+)
+
+xls_dslx_library(
     name = "frame_header_enc_dslx",
     srcs = ["frame_header_enc.x"],
     deps = [
@@ -4772,7 +4786,7 @@ xls_dslx_library(
         "zstd_enc.x",
     ],
     deps = [
-        "//xls/modules/zstd/compression:block_size_dslx",
+        ":block_size_dslx",
         ":mem_writer_simple_arbiter_dslx",
         ":comp_block_enc_dslx",
         ":mem_reader_simple_arbiter_dslx",
