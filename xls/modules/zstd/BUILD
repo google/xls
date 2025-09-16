@@ -1470,6 +1470,7 @@ xls_dslx_test(
     size = "enormous",
     srcs = [
         "data/comp_frame.x",
+        "data/comp_frame_unsupported_window.x",
         "data/comp_frame_fse_comp.x",
         "data/comp_frame_fse_repeated.x",
         "data/comp_frame_huffman.x",
