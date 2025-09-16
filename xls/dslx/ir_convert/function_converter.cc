@@ -3422,11 +3422,12 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     // This probably was checked already but might as well double-check it.
     XLS_RET_CHECK(invocation != nullptr || !f->IsParametric())
         << "Cannot lower a parametric proc without an invocation";
-    xls::Proc* ir_proc = builder_ptr->proc();
 
     // Generate channel interfaces.
     for (const Param* param : config_fn.params()) {
       XLS_ASSIGN_OR_RETURN(Type * type, type_info->GetItemOrError(param));
+      ChannelOrArray channel_or_array;
+
       if (ArrayType* array_type = dynamic_cast<ArrayType*>(type);
           array_type != nullptr) {
         const Type& innermost_type =
@@ -3444,14 +3445,12 @@ absl::Status FunctionConverter::HandleProcNextFunction(
         // for certain non-channel-array tests (probably due to some infinite
         // recursion).
         XLS_ASSIGN_OR_RETURN(
-            ChannelOrArray channel_or_array,
+            channel_or_array,
             proc_scoped_channel_scope_->DefineBoundaryChannelOrArray(
                 param, type_info));
         XLS_RET_CHECK(std::holds_alternative<ChannelArray*>(channel_or_array));
-
-        // Sets up the array for later indexing.
-        XLS_RETURN_IF_ERROR(channel_scope_->AssociateWithExistingChannelOrArray(
-            *proc_id_, param->name_def(), channel_or_array));
+        // TODO: davidplass - assign the param name to an appropriate BValue
+        // for this channel or array, for the Def call.
       } else {
         ChannelType* channel_type = dynamic_cast<ChannelType*>(type);
         XLS_RET_CHECK_NE(channel_type, nullptr)
@@ -3471,30 +3470,33 @@ absl::Status FunctionConverter::HandleProcNextFunction(
             xls::Type * ir_type,
             TypeToIr(package(), channel_type->payload_type(), *parametric_env));
         SourceInfo loc = ToSourceInfo(param->span());
+        xls::Proc* ir_proc = builder_ptr->proc();
+        BValue bvalue;
         if (channel_type->direction() == ChannelDirection::kIn) {
           XLS_ASSIGN_OR_RETURN(
               ReceiveChannelInterface * rci,
               ir_proc->AddInputChannel(param->identifier(), ir_type, kind,
                                        flow_control, strictness));
+          channel_or_array = rci;
           XLS_ASSIGN_OR_RETURN(
               RecvChannelEnd * recv,
               ir_proc->MakeNodeWithName<RecvChannelEnd>(loc, rci->type(), rci));
-          BValue recv_value(recv, builder_ptr);
-          Def(param->name_def(),
-              [&](const SourceInfo& loc) { return recv_value; });
+          bvalue = BValue(recv, builder_ptr);
         } else {
           XLS_ASSIGN_OR_RETURN(
               SendChannelInterface * sci,
               ir_proc->AddOutputChannel(param->identifier(), ir_type, kind,
                                         flow_control, strictness));
+          channel_or_array = sci;
           XLS_ASSIGN_OR_RETURN(
               SendChannelEnd * send,
               ir_proc->MakeNodeWithName<SendChannelEnd>(loc, sci->type(), sci));
-          BValue send_value(send, builder_ptr);
-          Def(param->name_def(),
-              [&](const SourceInfo& loc) { return send_value; });
+          bvalue = BValue(send, builder_ptr);
         }
+        Def(param->name_def(), [&](const SourceInfo& loc) { return bvalue; });
       }
+      XLS_RETURN_IF_ERROR(channel_scope_->AssociateWithExistingChannelOrArray(
+          *proc_id_, param->name_def(), channel_or_array));
     }
 
     // Process the body of the config function as a function.
