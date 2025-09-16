@@ -719,6 +719,56 @@ async def test_decoder(dut, axi_buses, cpu, clock, encoded_file):
 
   return (latency, throughput_bytes, throughput_repacketizer)
 
+async def wait_for_status(cpu, timeout=100):
+  status = None
+  while timeout != 0 and status != Status.IDLE:
+    status_reg = await csr_read(cpu, CSR.STATUS)
+    status = Status(int.from_bytes(status_reg.data, byteorder="little"))
+    timeout -= 1
+
+  return status
+
+async def expect_status(dut, cpu, expected_status, timeout=100):
+  (unused_notify_channel, notify_monitor) = connect_xls_channel(
+    dut, NOTIFY_CHANNEL, NotifyStruct
+  )
+  notify_event = triggers.Event()
+  set_termination_event(notify_monitor, notify_event, 1)
+  await notify_event.wait()
+
+  status = await wait_for_status(cpu)
+  assert status == expected_status, (
+    f"Decoder finished with non-expected status: {status.name}"
+  )
+
+async def test_decoder_status(dut, axi_buses, cpu, clock, encoded_file, expected_status):
+  """Test decoder with zstd-compressed data provided in `encoded_file`
+
+  The output error of the decoder is compared with provided expected error.
+  """
+
+  memory_bus = axi_buses["memory"]
+
+  mem_size = MAX_ENCODED_FRAME_SIZE_B
+  ibuf_addr = 0x0
+  obuf_addr = mem_size // 2
+
+  await reset_dut(dut, 50)
+
+  expected_decoded_frame = data_generator.DecompressFrame(encoded_file.read())
+  reference_memory = SparseMemory(mem_size)
+  reference_memory.write(obuf_addr, expected_decoded_frame)
+
+  # Initialise testbench memory with generated ZSTD frame
+  memory = AxiRamFromFile(
+    bus=memory_bus, clock=dut.clk, reset=dut.rst, path=encoded_file.name, size=mem_size
+  )
+
+  await configure_decoder(dut, cpu, ibuf_addr, obuf_addr)
+  await start_decoder(cpu)
+
+  check_status_thread = await cocotb.start(expect_status(dut, cpu, expected_status))
+  await check_status_thread
 
 async def randomized_testing_routine(
   dut,
@@ -796,6 +846,21 @@ async def pregenerated_testing_routine(
   print(
     f"Frame #0: latency: {measurement[0]} cycles; throughput: {measurement[1]} B/cycle ({measurement[2]} packets/cycle)"
   )
+
+
+async def test_expected_status(
+  dut,
+  pregenerated_path,
+  expected_status
+):
+  (axi_buses, cpu, clock) = prepare_test_environment(dut)
+  print(f"\nusing pregenerated input file for decoder: {pregenerated_path}\n")
+  await report_fse_decoder_work(dut, clock)
+  await report_sequence_executor_work(dut, clock)
+  await report_fse_table_creator_work(dut, clock)
+
+  with open(pregenerated_path, 'rb') as input_file:
+    measurement = await test_decoder_status(dut, axi_buses, cpu, clock, input_file, expected_status)
 
 
 def run_test(test_module, build_args=[], sim="icarus"):
