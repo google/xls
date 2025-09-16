@@ -39,6 +39,7 @@ cc_library(
     srcs = ["delay_estimator.cc"],
     hdrs = ["delay_estimator.h"],
     deps = [
+        "//xls/common:math_util",
         "//xls/common:test_macros",
         "//xls/common/status:status_macros",
         "//xls/ir",

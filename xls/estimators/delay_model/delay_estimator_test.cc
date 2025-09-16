@@ -105,7 +105,7 @@ TEST_F(DelayEstimatorTest, LogicalEffortForAndReduces) {
                              fb.BuildWithReturnValue(fb.AndReduce(x)));
     EXPECT_THAT(
         DelayEstimator::GetLogicalEffortDelayInPs(f->return_value(), 10),
-        IsOkAndHolds(350));
+        IsOkAndHolds(210));
   }
 }
 
@@ -131,7 +131,7 @@ TEST_F(DelayEstimatorTest, LogicalEffortForOrReduces) {
                              fb.BuildWithReturnValue(fb.OrReduce(x)));
     EXPECT_THAT(
         DelayEstimator::GetLogicalEffortDelayInPs(f->return_value(), 10),
-        IsOkAndHolds(680));
+        IsOkAndHolds(210));
   }
 }
 
