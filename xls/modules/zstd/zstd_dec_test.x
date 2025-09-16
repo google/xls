@@ -34,6 +34,7 @@ import xls.modules.zstd.data.comp_frame_huffman_fse;
 import xls.modules.zstd.data.comp_frame_fse_comp;
 import xls.modules.zstd.data.comp_frame_fse_repeated;
 import xls.modules.zstd.data.comp_frame;
+import xls.modules.zstd.data.comp_frame_unsupported_window;
 
 const TEST_AXI_DATA_W = u32:64;
 const TEST_AXI_ADDR_W = u32:32;
@@ -259,7 +260,7 @@ proc ZstdDecoderTester<FRAMES: TestFrames, DECOMPRESSED_FRAMES: TestFrames> {
     type LitBufRamWrResp = ram::WriteResp;
 
     start_r: chan<()> in;
-    finished_s: chan<bool> out;
+    finished_s: chan<zstd_dec::ZstdDecoderStatus> out;
 
     csr_axi_aw_s: chan<CsrAxiAw> out;
     csr_axi_w_s: chan<CsrAxiW> out;
@@ -319,7 +320,7 @@ proc ZstdDecoderTester<FRAMES: TestFrames, DECOMPRESSED_FRAMES: TestFrames> {
 
     init {}
 
-    config(start_r: chan<()> in, finished_s: chan<bool> out) {
+    config(start_r: chan<()> in, finished_s: chan<zstd_dec::ZstdDecoderStatus> out) {
 
         let (csr_axi_aw_s, csr_axi_aw_r) = chan<CsrAxiAw>("csr_axi_aw");
         let (csr_axi_w_s, csr_axi_w_r) = chan<CsrAxiW>("csr_axi_w");
@@ -886,8 +887,9 @@ proc ZstdDecoderTester<FRAMES: TestFrames, DECOMPRESSED_FRAMES: TestFrames> {
                     let (tok, csr_response) = recv(tok, csr_axi_r_r);
                     trace_fmt!("ZstdDecTest: Received Csr status {:#x}", csr_response);
 
-                    let csr_status = csr_response.data as u5;
-                    let valid_state = match (csr_status as zstd_dec::ZstdDecoderStatus) {
+                    let csr_status_data = csr_response.data as u5;
+                    let csr_status = csr_status_data as zstd_dec::ZstdDecoderStatus;
+                    let valid_state = match (csr_status) {
                         zstd_dec::ZstdDecoderStatus::FRAME_HEADER_CORRUPTED => false,
                         zstd_dec::ZstdDecoderStatus::FRAME_HEADER_UNSUPPORTED_WINDOW_SIZE => false,
                         zstd_dec::ZstdDecoderStatus::BLOCK_HEADER_CORRUPTED => false,
@@ -897,7 +899,7 @@ proc ZstdDecoderTester<FRAMES: TestFrames, DECOMPRESSED_FRAMES: TestFrames> {
                     };
 
                     if !valid_state {
-                        send(tok, finished_s, false);
+                        send(tok, finished_s, csr_status);
                     } else {};
 
                     let (tok, internal_output_memory, internal_output_memory_id, internal_transfered_bytes) =
@@ -945,24 +947,24 @@ proc ZstdDecoderTester<FRAMES: TestFrames, DECOMPRESSED_FRAMES: TestFrames> {
             tok
         }(tok);
 
-        send(tok, finished_s, true);
+        send(tok, finished_s, zstd_dec::ZstdDecoderStatus::IDLE);
     }
 }
 
 #[test_proc]
-proc RawLiteralsPredefinedSequencesTest {
+proc UnsupportedWindowSizeTest {
     terminator: chan<bool> out;
     start_s: chan<()> out;
-    finished_r: chan<bool> in;
+    finished_r: chan<zstd_dec::ZstdDecoderStatus> in;
 
     init {}
 
     config (terminator: chan<bool> out,) {
-        const FRAMES = comp_frame::FRAMES;
-        const DECOMPRESSED_FRAMES = comp_frame::DECOMPRESSED_FRAMES;
+        const FRAMES = comp_frame_unsupported_window::FRAMES;
+        const DECOMPRESSED_FRAMES = comp_frame_unsupported_window::DECOMPRESSED_FRAMES;
 
         let (start_s, start_r) = chan<()>("start");
-        let (finished_s, finished_r) = chan<bool>("finished");
+        let (finished_s, finished_r) = chan<zstd_dec::ZstdDecoderStatus>("finished");
 
         spawn ZstdDecoderTester<FRAMES, DECOMPRESSED_FRAMES>(start_r, finished_s);
         (terminator, start_s, finished_r)
@@ -971,7 +973,33 @@ proc RawLiteralsPredefinedSequencesTest {
     next(state: ()) {
         let tok = send(join(), start_s, ());
         let (tok, result) = recv(tok, finished_r);
-        send(tok, terminator, result);
+        send(tok, terminator, result == zstd_dec::ZstdDecoderStatus::FRAME_HEADER_UNSUPPORTED_WINDOW_SIZE);
+    }
+}
+
+#[test_proc]
+proc RawLiteralsPredefinedSequencesTest {
+    terminator: chan<bool> out;
+    start_s: chan<()> out;
+    finished_r: chan<zstd_dec::ZstdDecoderStatus> in;
+
+    init {}
+
+    config (terminator: chan<bool> out,) {
+        const FRAMES = comp_frame::FRAMES;
+        const DECOMPRESSED_FRAMES = comp_frame::DECOMPRESSED_FRAMES;
+
+        let (start_s, start_r) = chan<()>("start");
+        let (finished_s, finished_r) = chan<zstd_dec::ZstdDecoderStatus>("finished");
+
+        spawn ZstdDecoderTester<FRAMES, DECOMPRESSED_FRAMES>(start_r, finished_s);
+        (terminator, start_s, finished_r)
+    }
+
+    next(state: ()) {
+        let tok = send(join(), start_s, ());
+        let (tok, result) = recv(tok, finished_r);
+        send(tok, terminator, result == zstd_dec::ZstdDecoderStatus::IDLE);
     }
 }
 
@@ -979,7 +1007,7 @@ proc RawLiteralsPredefinedSequencesTest {
 proc RleLiteralsRepeatedSequencesTest {
     terminator: chan<bool> out;
     start_s: chan<()> out;
-    finished_r: chan<bool> in;
+    finished_r: chan<zstd_dec::ZstdDecoderStatus> in;
 
     init {}
 
@@ -989,7 +1017,7 @@ proc RleLiteralsRepeatedSequencesTest {
         const DECOMPRESSED_FRAMES = comp_frame_fse_repeated::DECOMPRESSED_FRAMES;
 
         let (start_s, start_r) = chan<()>("start");
-        let (finished_s, finished_r) = chan<bool>("finished");
+        let (finished_s, finished_r) = chan<zstd_dec::ZstdDecoderStatus>("finished");
 
         spawn ZstdDecoderTester<FRAMES, DECOMPRESSED_FRAMES>(start_r, finished_s);
         (terminator, start_s, finished_r)
@@ -998,7 +1026,7 @@ proc RleLiteralsRepeatedSequencesTest {
     next(state: ()) {
         let tok = send(join(), start_s, ());
         let (tok, result) = recv(tok, finished_r);
-        send(tok, terminator, result);
+        send(tok, terminator, result == zstd_dec::ZstdDecoderStatus::IDLE);
     }
 }
 
@@ -1010,7 +1038,7 @@ proc RleLiteralsRepeatedSequencesTest {
 proc RawHuffmanLiteralsPredefinedSequencesTest_skip {
     terminator: chan<bool> out;
     start_s: chan<()> out;
-    finished_r: chan<bool> in;
+    finished_r: chan<zstd_dec::ZstdDecoderStatus> in;
 
     init {}
 
@@ -1019,7 +1047,7 @@ proc RawHuffmanLiteralsPredefinedSequencesTest_skip {
         const DECOMPRESSED_FRAMES = comp_frame_huffman::DECOMPRESSED_FRAMES;
 
         let (start_s, start_r) = chan<()>("start");
-        let (finished_s, finished_r) = chan<bool>("finished");
+        let (finished_s, finished_r) = chan<zstd_dec::ZstdDecoderStatus>("finished");
 
         spawn ZstdDecoderTester<FRAMES, DECOMPRESSED_FRAMES>(start_r, finished_s);
         (terminator, start_s, finished_r)
@@ -1028,7 +1056,7 @@ proc RawHuffmanLiteralsPredefinedSequencesTest_skip {
     next(state: ()) {
         let tok = send(join(), start_s, ());
         let (tok, result) = recv(tok, finished_r);
-        send(tok, terminator, result);
+        send(tok, terminator, result == zstd_dec::ZstdDecoderStatus::IDLE);
     }
 }
 
@@ -1036,7 +1064,7 @@ proc RawHuffmanLiteralsPredefinedSequencesTest_skip {
 proc FseHuffmanLiteralsPredefinedSequencesTest_skip {
     terminator: chan<bool> out;
     start_s: chan<()> out;
-    finished_r: chan<bool> in;
+    finished_r: chan<zstd_dec::ZstdDecoderStatus> in;
 
     init {}
 
@@ -1045,7 +1073,7 @@ proc FseHuffmanLiteralsPredefinedSequencesTest_skip {
         const DECOMPRESSED_FRAMES = comp_frame_huffman_fse::DECOMPRESSED_FRAMES;
 
         let (start_s, start_r) = chan<()>("start");
-        let (finished_s, finished_r) = chan<bool>("finished");
+        let (finished_s, finished_r) = chan<zstd_dec::ZstdDecoderStatus>("finished");
 
         spawn ZstdDecoderTester<FRAMES, DECOMPRESSED_FRAMES>(start_r, finished_s);
         (terminator, start_s, finished_r)
@@ -1054,7 +1082,7 @@ proc FseHuffmanLiteralsPredefinedSequencesTest_skip {
     next(state: ()) {
         let tok = send(join(), start_s, ());
         let (tok, result) = recv(tok, finished_r);
-        send(tok, terminator, result);
+        send(tok, terminator, result == zstd_dec::ZstdDecoderStatus::IDLE);
     }
 }
 
@@ -1062,7 +1090,7 @@ proc FseHuffmanLiteralsPredefinedSequencesTest_skip {
 proc RawHuffmanLiteralsCompressedSequencesTest_skip {
     terminator: chan<bool> out;
     start_s: chan<()> out;
-    finished_r: chan<bool> in;
+    finished_r: chan<zstd_dec::ZstdDecoderStatus> in;
 
     init {}
 
@@ -1072,7 +1100,7 @@ proc RawHuffmanLiteralsCompressedSequencesTest_skip {
         const DECOMPRESSED_FRAMES = comp_frame_fse_comp::DECOMPRESSED_FRAMES;
 
         let (start_s, start_r) = chan<()>("start");
-        let (finished_s, finished_r) = chan<bool>("finished");
+        let (finished_s, finished_r) = chan<zstd_dec::ZstdDecoderStatus>("finished");
 
         spawn ZstdDecoderTester<FRAMES, DECOMPRESSED_FRAMES>(start_r, finished_s);
         (terminator, start_s, finished_r)
@@ -1081,6 +1109,6 @@ proc RawHuffmanLiteralsCompressedSequencesTest_skip {
     next(state: ()) {
         let tok = send(join(), start_s, ());
         let (tok, result) = recv(tok, finished_r);
-        send(tok, terminator, result);
+        send(tok, terminator, result == zstd_dec::ZstdDecoderStatus::IDLE);
     }
 }
