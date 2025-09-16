@@ -993,7 +993,6 @@ py_test(
         "@com_icarus_iverilog//:vvp",
     ],
     env = {"BUILD_WORKING_DIRECTORY": "sim_build"},
-    imports = ["."],
     tags = ["manual"],
     visibility = ["//xls:xls_users"],
     deps = [
@@ -1248,7 +1247,6 @@ py_test(
         "@com_icarus_iverilog//:vvp",
     ],
     env = {"BUILD_WORKING_DIRECTORY": "sim_build"},
-    imports = ["."],
     tags = ["manual"],
     visibility = ["//xls:xls_users"],
     deps = [

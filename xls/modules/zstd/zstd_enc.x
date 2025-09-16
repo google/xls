@@ -33,7 +33,7 @@ import xls.modules.zstd.mem_writer_simple_arbiter;
 import xls.modules.zstd.mem_reader_simple_arbiter;
 import xls.modules.zstd.common;
 import xls.modules.zstd.memory.axi;
-import xls.modules.zstd.compression.block_size;
+import xls.modules.zstd.block_size;
 import xls.modules.zstd.comp_block_enc;
 
 pub enum ZstdEncodeRespStatus : u1 {
