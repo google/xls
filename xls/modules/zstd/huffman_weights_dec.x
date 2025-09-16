@@ -172,9 +172,11 @@ proc HuffmanRawWeightsDecoder<
         let last_weight = (next_power - state.sum) as u4;
 
         // It is required to change the ordering of the weights.
-        // Huffman literals decoder expects the weight of the first symbol
+        // - First symbol is stored in the most significant nibble of given input
+        // byte requiring us to swap each adjecent weights (rfc8878#section-4.2.1.1).
+        // - Huffman literals decoder expects the weight of the first symbol
         // as the most significant nibble at the most significant byte
-        // in the first cell of the WeightsMemory.
+        // in the first cell of the WeightsMemory requiring us to reverse them.
 
         // Inject the last weight, take into the acount the reverse
         let weights = if (state.req.n_symbols > u8:0 && (mem_rd_resp_valid && mem_rd_resp.last)) {
@@ -186,16 +188,16 @@ proc HuffmanRawWeightsDecoder<
             weights
         };
 
-        let reversed_weights = match(AXI_DATA_W) {
+        let weights = match(AXI_DATA_W) {
             u32:32 => (
-                weights[7] ++ weights[6] ++ weights[5] ++ weights[4] ++
-                weights[3] ++ weights[2] ++ weights[1] ++ weights[0]
+                weights[6] ++ weights[7] ++ weights[4] ++ weights[5] ++
+                weights[2] ++ weights[3] ++ weights[0] ++ weights[1]
             ) as uN[AXI_DATA_W],
             u32:64 => (
-                weights[15] ++ weights[14] ++ weights[13] ++ weights[12] ++
-                weights[11] ++ weights[10] ++ weights[9]  ++ weights[8] ++
-                weights[7]  ++ weights[6]  ++ weights[5]  ++ weights[4] ++
-                weights[3]  ++ weights[2]  ++ weights[1]  ++ weights[0]
+                weights[14] ++ weights[15] ++ weights[12] ++ weights[13] ++
+                weights[10] ++ weights[11] ++ weights[8]  ++ weights[9] ++
+                weights[6]  ++ weights[7]  ++ weights[4]  ++ weights[5] ++
+                weights[2]  ++ weights[3]  ++ weights[0]  ++ weights[1]
             ) as uN[AXI_DATA_W],
             _ => fail!("unsupported_axi_data_width", uN[AXI_DATA_W]:0),
         };
@@ -210,7 +212,7 @@ proc HuffmanRawWeightsDecoder<
 
         let (buffer, buffer_len) = if do_recv_data && mem_rd_resp_valid {
             (
-                buffer | ((reversed_weights as uN[BUFF_LEN] << (BUFF_LEN - AXI_DATA_W - buffer_len as u32))),
+                buffer | ((weights as uN[BUFF_LEN] << (BUFF_LEN - AXI_DATA_W - buffer_len as u32))),
                 buffer_len + (AXI_DATA_W as uN[BUFF_LEN_LOG2]),
             )
         } else {
@@ -2181,10 +2183,10 @@ proc HuffmanWeightsDecoder_test {
         let tok = for (i, tok) in u32:0..u32:32 {
             let expected_value = if i < u32:16 {
                 (
-                    (test_data[4*i + u32:1] as u4) ++ ((test_data[4*i + u32:1] >> u32:4) as u4) ++
-                    (test_data[4*i + u32:2] as u4) ++ ((test_data[4*i + u32:2] >> u32:4) as u4) ++
-                    (test_data[4*i + u32:3] as u4) ++ ((test_data[4*i + u32:3] >> u32:4) as u4) ++
-                    (test_data[4*i + u32:4] as u4) ++ ((test_data[4*i + u32:4] >> u32:4) as u4)
+                    ((test_data[4*i + u32:1] >> u32:4) as u4) ++ (test_data[4*i + u32:1] as u4) ++
+                    ((test_data[4*i + u32:2] >> u32:4) as u4) ++ (test_data[4*i + u32:2] as u4) ++
+                    ((test_data[4*i + u32:3] >> u32:4) as u4) ++ (test_data[4*i + u32:3] as u4) ++
+                    ((test_data[4*i + u32:4] >> u32:4) as u4) ++ (test_data[4*i + u32:4] as u4)
                 )
             } else {
                 u32:0

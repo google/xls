@@ -2001,7 +2001,7 @@ proc LiteralsDecoder_test {
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::LITERAL,
                 length: CopyOrMatchLength:4,
-                content: CopyOrMatchContent:0x0504_0100,
+                content: CopyOrMatchContent:0x0504_0001,
                 last: true
             },
             // Literals #5 (RLE)
@@ -2021,7 +2021,7 @@ proc LiteralsDecoder_test {
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::LITERAL,
                 length: CopyOrMatchLength:4,
-                content: CopyOrMatchContent:0x0001_0405,
+                content: CopyOrMatchContent:0x0100_0405,
                 last: true
             },
             // Literals #7 (RLE)
@@ -2030,13 +2030,13 @@ proc LiteralsDecoder_test {
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::LITERAL,
                 length: CopyOrMatchLength:8,
-                content: CopyOrMatchContent:0x0504_0100_0504_0100,
+                content: CopyOrMatchContent:0x0504_0001_0504_0001,
                 last: false
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::LITERAL,
                 length: CopyOrMatchLength:8,
-                content: CopyOrMatchContent:0x0504_0100_0504_0100,
+                content: CopyOrMatchContent:0x0504_0001_0504_0001,
                 last: true
             },
             // Literals #9 (RAW)
@@ -2068,13 +2068,13 @@ proc LiteralsDecoder_test {
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::LITERAL,
                 length: CopyOrMatchLength:8,
-                content: CopyOrMatchContent:0x0504_0100_0504_0100,
+                content: CopyOrMatchContent:0x0504_0001_0504_0001,
                 last: false
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::LITERAL,
                 length: CopyOrMatchLength:8,
-                content: CopyOrMatchContent:0x0504_0100_0504_0100,
+                content: CopyOrMatchContent:0x0504_0001_0504_0001,
                 last: true
             },
         ];
