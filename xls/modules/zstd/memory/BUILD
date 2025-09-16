@@ -59,7 +59,7 @@ xls_dslx_test(
 
 CLOCK_PERIOD_PS = "750"
 
-common_codegen_args = {
+COMMON_CODEGEN_ARGS = {
     "delay_model": "asap7",
     "reset": "rst",
     "worst_case_throughput": "1",
@@ -94,7 +94,7 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
-axi_reader_codegen_args = common_codegen_args | {
+AXI_READER_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "clock_period_ps": CLOCK_PERIOD_PS,
     "module_name": "axi_reader",
     "worst_case_throughput": "2",
@@ -102,7 +102,7 @@ axi_reader_codegen_args = common_codegen_args | {
 
 xls_dslx_verilog(
     name = "axi_reader_verilog",
-    codegen_args = axi_reader_codegen_args,
+    codegen_args = AXI_READER_CODEGEN_ARGS,
     dslx_top = "AxiReaderInst",
     library = ":axi_reader_dslx",
     tags = ["manual"],
@@ -112,7 +112,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "axi_reader_opt_ir_benchmark",
     src = ":axi_reader_verilog.opt.ir",
-    benchmark_ir_args = axi_reader_codegen_args,
+    benchmark_ir_args = AXI_READER_CODEGEN_ARGS,
     tags = ["manual"],
 )
 
@@ -142,7 +142,7 @@ benchmark_synth(
 
 place_and_route(
     name = "axi_reader_place_and_route",
-    clock_period = axi_reader_codegen_args["clock_period_ps"],
+    clock_period = AXI_READER_CODEGEN_ARGS["clock_period_ps"],
     core_padding_microns = 2,
     min_pin_distance = "0.5",
     placement_density = "0.30",
@@ -155,14 +155,14 @@ place_and_route(
 
 # AxiReader (no FSM)
 
-axi_reader_no_fsm_codegen_args = common_codegen_args | {
+AXI_READER_NO_FSM_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "worst_case_throughput": "4",
     "module_name": "axi_reader",
 }
 
 xls_dslx_verilog(
     name = "axi_reader_no_fsm_verilog",
-    codegen_args = axi_reader_no_fsm_codegen_args,
+    codegen_args = AXI_READER_NO_FSM_CODEGEN_ARGS,
     dslx_top = "AxiReaderInst",
     library = ":axi_reader_dslx",
     tags = ["manual"],
@@ -172,7 +172,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "axi_reader_no_fsm_opt_ir_benchmark",
     src = ":axi_reader_no_fsm_verilog.opt.ir",
-    benchmark_ir_args = axi_reader_no_fsm_codegen_args,
+    benchmark_ir_args = AXI_READER_NO_FSM_CODEGEN_ARGS,
     tags = ["manual"],
 )
 
@@ -202,7 +202,7 @@ benchmark_synth(
 
 place_and_route(
     name = "axi_reader_no_fsm_place_and_route",
-    clock_period = axi_reader_codegen_args["clock_period_ps"],
+    clock_period = AXI_READER_CODEGEN_ARGS["clock_period_ps"],
     core_padding_microns = 2,
     min_pin_distance = "0.5",
     placement_density = "0.30",
@@ -212,14 +212,14 @@ place_and_route(
     target_die_utilization_percentage = "10",
 )
 
-axi_reader_internal_r_codegen_args = common_codegen_args | {
+AXI_READER_INTERNAL_R_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "worst_case_throughput": "1",
     "module_name": "axi_reader_internal_r",
 }
 
 xls_dslx_verilog(
     name = "axi_reader_internal_r_verilog",
-    codegen_args = axi_reader_internal_r_codegen_args,
+    codegen_args = AXI_READER_INTERNAL_R_CODEGEN_ARGS,
     dslx_top = "AxiReaderInternalRInst",
     library = ":axi_reader_dslx",
     tags = ["manual"],
@@ -244,7 +244,7 @@ xls_dslx_test(
 
 xls_dslx_verilog(
     name = "axi_stream_remove_empty_verilog",
-    codegen_args = common_codegen_args | {"module_name": "axi_stream_remove_empty"},
+    codegen_args = COMMON_CODEGEN_ARGS | {"module_name": "axi_stream_remove_empty"},
     dslx_top = "AxiStreamRemoveEmptyInst",
     library = ":axi_stream_remove_empty_dslx",
     tags = ["manual"],
@@ -292,7 +292,7 @@ place_and_route(
 
 xls_dslx_verilog(
     name = "remove_empty_bytes_verilog",
-    codegen_args = common_codegen_args | {"module_name": "remove_empty_bytes"},
+    codegen_args = COMMON_CODEGEN_ARGS | {"module_name": "remove_empty_bytes"},
     dslx_top = "RemoveEmptyBytesInst",
     library = ":axi_stream_remove_empty_dslx",
     tags = ["manual"],
@@ -302,7 +302,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "remove_empty_bytes_opt_ir_benchmark",
     src = ":remove_empty_bytes_verilog.opt.ir",
-    benchmark_ir_args = common_codegen_args,
+    benchmark_ir_args = COMMON_CODEGEN_ARGS,
     tags = ["manual"],
 )
 
@@ -361,7 +361,7 @@ xls_dslx_test(
 
 xls_dslx_verilog(
     name = "axi_stream_downscaler_verilog",
-    codegen_args = common_codegen_args | {"module_name": "axi_stream_downscaler"},
+    codegen_args = COMMON_CODEGEN_ARGS | {"module_name": "axi_stream_downscaler"},
     dslx_top = "AxiStreamDownscalerInst",
     library = ":axi_stream_downscaler_dslx",
     tags = ["manual"],
@@ -371,7 +371,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "axi_stream_downscaler_opt_ir_benchmark",
     src = ":axi_stream_downscaler_verilog.opt.ir",
-    benchmark_ir_args = common_codegen_args,
+    benchmark_ir_args = COMMON_CODEGEN_ARGS,
     tags = ["manual"],
 )
 
@@ -431,7 +431,7 @@ xls_dslx_test(
 
 # FIXME: Improve the proc to achieve CLOCK_PERIOD_PS
 AXI_RAM_READER_CLOCK_PERIOD_PS = "850"
-axi_ram_reader_codegen_args = common_codegen_args | {
+AXI_RAM_READER_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "axi_ram_reader",
     "clock_period_ps": AXI_RAM_READER_CLOCK_PERIOD_PS,
     "ram_configurations": "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
@@ -446,7 +446,7 @@ axi_ram_reader_codegen_args = common_codegen_args | {
 
 xls_dslx_verilog(
     name = "axi_ram_reader_verilog",
-    codegen_args = axi_ram_reader_codegen_args,
+    codegen_args = AXI_RAM_READER_CODEGEN_ARGS,
     dslx_top = "AxiRamReaderInstWithEmptyWrites",
     library = ":axi_ram_reader_dslx",
     tags = ["manual"],
@@ -464,7 +464,7 @@ verilog_library(
 xls_benchmark_ir(
     name = "axi_ram_reader_opt_ir_benchmark",
     src = ":axi_ram_reader_verilog.opt.ir",
-    benchmark_ir_args = axi_ram_reader_codegen_args,
+    benchmark_ir_args = AXI_RAM_READER_CODEGEN_ARGS,
     tags = ["manual"],
 )
 
@@ -517,14 +517,14 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
-mem_reader_codegen_args = common_codegen_args | {
+MEM_READER_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "mem_reader",
     "worst_case_throughput": "2",
 }
 
 xls_dslx_verilog(
     name = "mem_reader_verilog",
-    codegen_args = mem_reader_codegen_args,
+    codegen_args = MEM_READER_CODEGEN_ARGS,
     dslx_top = "MemReaderInst",
     library = ":mem_reader_dslx",
     tags = ["manual"],
@@ -542,7 +542,7 @@ verilog_library(
 xls_benchmark_ir(
     name = "mem_reader_opt_ir_benchmark",
     src = ":mem_reader_verilog.opt.ir",
-    benchmark_ir_args = mem_reader_codegen_args,
+    benchmark_ir_args = MEM_READER_CODEGEN_ARGS,
     tags = ["manual"],
 )
 
@@ -564,7 +564,7 @@ benchmark_synth(
 
 place_and_route(
     name = "mem_reader_place_and_route",
-    clock_period = mem_reader_codegen_args["clock_period_ps"],
+    clock_period = MEM_READER_CODEGEN_ARGS["clock_period_ps"],
     core_padding_microns = 2,
     min_pin_distance = "0.5",
     placement_density = "0.30",
@@ -577,14 +577,14 @@ place_and_route(
 
 # MemReader (no FSM)
 
-mem_reader_no_fsm_codegen_args = common_codegen_args | {
+MEM_READER_NO_FSM_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "mem_reader",
     "worst_case_throughput": "4",
 }
 
 xls_dslx_verilog(
     name = "mem_reader_no_fsm_verilog",
-    codegen_args = mem_reader_no_fsm_codegen_args,
+    codegen_args = MEM_READER_NO_FSM_CODEGEN_ARGS,
     dslx_top = "MemReaderNoFsmInst",
     library = ":mem_reader_dslx",
     tags = ["manual"],
@@ -602,7 +602,7 @@ verilog_library(
 xls_benchmark_ir(
     name = "mem_reader_no_fsm_opt_ir_benchmark",
     src = ":mem_reader_no_fsm_verilog.opt.ir",
-    benchmark_ir_args = mem_reader_no_fsm_codegen_args,
+    benchmark_ir_args = MEM_READER_NO_FSM_CODEGEN_ARGS,
     tags = ["manual"],
 )
 
@@ -624,7 +624,7 @@ benchmark_synth(
 
 place_and_route(
     name = "mem_reader_no_fsm_place_and_route",
-    clock_period = mem_reader_no_fsm_codegen_args["clock_period_ps"],
+    clock_period = MEM_READER_NO_FSM_CODEGEN_ARGS["clock_period_ps"],
     core_padding_microns = 2,
     min_pin_distance = "0.5",
     placement_density = "0.30",
@@ -636,7 +636,7 @@ place_and_route(
 
 xls_dslx_verilog(
     name = "mem_reader_internal_no_fsm_verilog",
-    codegen_args = mem_reader_no_fsm_codegen_args,
+    codegen_args = MEM_READER_NO_FSM_CODEGEN_ARGS,
     dslx_top = "MemReaderInternalNoFsmInst",
     library = ":mem_reader_dslx",
     tags = ["manual"],
@@ -645,14 +645,14 @@ xls_dslx_verilog(
 
 # MemReaderAdv (FSM-based)
 
-mem_reader_adv_codegen_args = common_codegen_args | {
+MEM_READER_ADV_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "mem_reader_adv",
     "worst_case_throughput": "2"
 }
 
 xls_dslx_verilog(
     name = "mem_reader_adv_verilog",
-    codegen_args = mem_reader_adv_codegen_args,
+    codegen_args = MEM_READER_ADV_CODEGEN_ARGS,
     dslx_top = "MemReaderAdvInst",
     library = ":mem_reader_dslx",
     tags = ["manual"],
@@ -662,7 +662,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "mem_reader_adv_opt_ir_benchmark",
     src = ":mem_reader_adv_verilog.opt.ir",
-    benchmark_ir_args = mem_reader_adv_codegen_args,
+    benchmark_ir_args = MEM_READER_ADV_CODEGEN_ARGS,
     tags = ["manual"],
 )
 
@@ -711,7 +711,7 @@ py_test(
     ],
     data = [
         ":mem_reader_adv.v",
-        "//xls/modules/zstd/memory/rtl:mem_reader_wrapper.v",
+        "//xls/modules/zstd/memory/rtl:mem_reader_wrapper.sv",
         "@com_icarus_iverilog//:iverilog",
         "@com_icarus_iverilog//:vvp",
     ],
@@ -733,14 +733,14 @@ py_test(
 
 # MemReader (no FSM)
 
-mem_reader_adv_no_fsm_codegen_args = common_codegen_args | {
+MEM_READER_ADV_NO_FSM_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "mem_reader_adv",
     "worst_case_throughput": "4",
 }
 
 xls_dslx_verilog(
     name = "mem_reader_adv_no_fsm_verilog",
-    codegen_args = mem_reader_adv_no_fsm_codegen_args,
+    codegen_args = MEM_READER_ADV_NO_FSM_CODEGEN_ARGS,
     dslx_top = "MemReaderAdvNoFsmInst",
     library = ":mem_reader_dslx",
     tags = ["manual"],
@@ -750,7 +750,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "mem_reader_adv_no_fsm_opt_ir_benchmark",
     src = ":mem_reader_adv_no_fsm_verilog.opt.ir",
-    benchmark_ir_args = mem_reader_adv_no_fsm_codegen_args,
+    benchmark_ir_args = MEM_READER_ADV_NO_FSM_CODEGEN_ARGS,
     tags = ["manual"],
 )
 
@@ -798,7 +798,7 @@ py_test(
     ],
     data = [
         ":mem_reader_adv_no_fsm.v",
-        "//xls/modules/zstd/memory/rtl:mem_reader_wrapper.v",
+        "//xls/modules/zstd/memory/rtl:mem_reader_wrapper.sv",
         "@com_icarus_iverilog//:iverilog",
         "@com_icarus_iverilog//:vvp",
     ],
@@ -808,7 +808,6 @@ py_test(
     deps = [
         requirement("cocotb"),
         requirement("cocotbext-axi"),
-        requirement("pytest"),
         "//xls/common:runfiles",
         "//xls/modules/zstd/cocotb:channel",
         "//xls/modules/zstd/cocotb:memory",
@@ -838,13 +837,13 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
-axi_writer_codegen_args = common_codegen_args | {
+AXI_WRITER_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "axi_writer"
 }
 
 xls_dslx_verilog(
     name = "axi_writer_verilog",
-    codegen_args = axi_writer_codegen_args,
+    codegen_args = AXI_WRITER_CODEGEN_ARGS,
     dslx_top = "AxiWriterInst",
     library = ":axi_writer_dslx",
     tags = ["manual"],
@@ -854,7 +853,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "axi_writer_opt_ir_benchmark",
     src = ":axi_writer_verilog.opt.ir",
-    benchmark_ir_args = axi_writer_codegen_args,
+    benchmark_ir_args = AXI_WRITER_CODEGEN_ARGS,
     tags = ["manual"],
 )
 
@@ -884,7 +883,7 @@ benchmark_synth(
 
 place_and_route(
     name = "axi_writer_place_and_route",
-    clock_period = axi_writer_codegen_args["clock_period_ps"],
+    clock_period = AXI_WRITER_CODEGEN_ARGS["clock_period_ps"],
     core_padding_microns = 2,
     min_pin_distance = "0.5",
     placement_density = "0.30",
@@ -903,7 +902,7 @@ py_test(
     ],
     data = [
         ":axi_writer.v",
-        "//xls/modules/zstd/memory/rtl:axi_writer_wrapper.v",
+        "//xls/modules/zstd/memory/rtl:axi_writer_wrapper.sv",
         "@com_icarus_iverilog//:iverilog",
         "@com_icarus_iverilog//:vvp",
     ],
@@ -924,14 +923,14 @@ py_test(
 
 # AxiWriter (no FSM)
 
-axi_writer_no_fsm_codegen_args = common_codegen_args | {
+AXI_WRITER_NO_FSM_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "axi_writer",
     "worst_case_throughput": "4"
 }
 
 xls_dslx_verilog(
     name = "axi_writer_no_fsm_verilog",
-    codegen_args = axi_writer_no_fsm_codegen_args,
+    codegen_args = AXI_WRITER_NO_FSM_CODEGEN_ARGS,
     dslx_top = "AxiWriterNoFsmInst",
     library = ":axi_writer_dslx",
     tags = ["manual"],
@@ -941,7 +940,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "axi_writer_no_fsm_opt_ir_benchmark",
     src = ":axi_writer_no_fsm_verilog.opt.ir",
-    benchmark_ir_args = axi_writer_no_fsm_codegen_args,
+    benchmark_ir_args = AXI_WRITER_NO_FSM_CODEGEN_ARGS,
     tags = ["manual"],
 )
 
@@ -971,7 +970,7 @@ benchmark_synth(
 
 place_and_route(
     name = "axi_writer_no_fsm_place_and_route",
-    clock_period = axi_writer_codegen_args["clock_period_ps"],
+    clock_period = AXI_WRITER_CODEGEN_ARGS["clock_period_ps"],
     core_padding_microns = 2,
     min_pin_distance = "0.5",
     placement_density = "0.30",
@@ -989,7 +988,7 @@ py_test(
     ],
     data = [
         ":axi_writer_no_fsm.v",
-        "//xls/modules/zstd/memory/rtl:axi_writer_wrapper.v",
+        "//xls/modules/zstd/memory/rtl:axi_writer_wrapper.sv",
         "@com_icarus_iverilog//:iverilog",
         "@com_icarus_iverilog//:vvp",
     ],
@@ -1000,7 +999,6 @@ py_test(
     deps = [
         requirement("cocotb"),
         requirement("cocotbext-axi"),
-        requirement("pytest"),
         "//xls/common:runfiles",
         "//xls/modules/zstd/cocotb:channel",
         "//xls/modules/zstd/cocotb:utils",
@@ -1029,7 +1027,7 @@ xls_dslx_test(
     library = ":axi_stream_add_empty_dslx",
 )
 
-axi_stream_add_empty_codegen_args = common_codegen_args | {
+AXI_STREAM_ADD_EMPTY_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "axi_stream_add_empty",
     "pipeline_stages": "2",
     "streaming_channel_data_suffix": "_data",
@@ -1037,7 +1035,7 @@ axi_stream_add_empty_codegen_args = common_codegen_args | {
 
 xls_dslx_verilog(
     name = "axi_stream_add_empty_verilog",
-    codegen_args = axi_stream_add_empty_codegen_args,
+    codegen_args = AXI_STREAM_ADD_EMPTY_CODEGEN_ARGS,
     dslx_top = "AxiStreamAddEmptyInst",
     library = ":axi_stream_add_empty_dslx",
     tags = ["manual"],
@@ -1047,7 +1045,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "axi_stream_add_empty_opt_ir_benchmark",
     src = ":axi_stream_add_empty_verilog.opt.ir",
-    benchmark_ir_args = axi_stream_add_empty_codegen_args,
+    benchmark_ir_args = AXI_STREAM_ADD_EMPTY_CODEGEN_ARGS,
     tags = ["manual"],
 )
 
@@ -1090,7 +1088,7 @@ place_and_route(
 
 # MemWriter (FSM-based)
 
-mem_writer_codegen_args = common_codegen_args | {
+MEM_WRITER_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "mem_writer"
 }
 
@@ -1114,7 +1112,7 @@ xls_dslx_test(
 
 xls_dslx_verilog(
     name = "mem_writer_verilog",
-    codegen_args = mem_writer_codegen_args,
+    codegen_args = MEM_WRITER_CODEGEN_ARGS,
     dslx_top = "MemWriterInst",
     library = ":mem_writer_dslx",
     tags = ["manual"],
@@ -1166,7 +1164,7 @@ py_test(
     ],
     data = [
         ":mem_writer.v",
-        "//xls/modules/zstd/memory/rtl:mem_writer_wrapper.v",
+        "//xls/modules/zstd/memory/rtl:mem_writer_wrapper.sv",
         "@com_icarus_iverilog//:iverilog",
         "@com_icarus_iverilog//:vvp",
     ],
@@ -1187,14 +1185,14 @@ py_test(
 
 # MemWriter (no FSM)
 
-mem_writer_no_fsm_codegen_args = common_codegen_args | {
+MEM_WRITER_NO_FSM_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "mem_writer",
     "worst_case_throughput": "4",
 }
 
 xls_dslx_verilog(
     name = "mem_writer_no_fsm_verilog",
-    codegen_args = mem_writer_no_fsm_codegen_args,
+    codegen_args = MEM_WRITER_NO_FSM_CODEGEN_ARGS,
     dslx_top = "MemWriterNoFsmInst",
     library = ":mem_writer_dslx",
     tags = ["manual"],
@@ -1227,7 +1225,7 @@ benchmark_synth(
 
 place_and_route(
     name = "mem_writer_no_fsm_place_and_route",
-    clock_period = mem_writer_codegen_args["clock_period_ps"],
+    clock_period = MEM_WRITER_CODEGEN_ARGS["clock_period_ps"],
     core_padding_microns = 2,
     min_pin_distance = "0.5",
     placement_density = "0.30",
@@ -1245,7 +1243,7 @@ py_test(
     ],
     data = [
         ":mem_writer_no_fsm.v",
-        "//xls/modules/zstd/memory/rtl:mem_writer_wrapper.v",
+        "//xls/modules/zstd/memory/rtl:mem_writer_wrapper.sv",
         "@com_icarus_iverilog//:iverilog",
         "@com_icarus_iverilog//:vvp",
     ],
@@ -1256,7 +1254,6 @@ py_test(
     deps = [
         requirement("cocotb"),
         requirement("cocotbext-axi"),
-        requirement("pytest"),
         "//xls/common:runfiles",
         "//xls/modules/zstd/cocotb:channel",
         "//xls/modules/zstd/cocotb:utils",
@@ -1284,7 +1281,7 @@ xls_dslx_test(
     library = ":axi_ram_writer_dslx",
 )
 
-axi_ram_writer_codegen_args = common_codegen_args | {
+AXI_RAM_WRITER_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "AxiRamWriter",
     "clock_period_ps": "750",
     "pipeline_stages": "8",
@@ -1294,7 +1291,7 @@ axi_ram_writer_codegen_args = common_codegen_args | {
 
 xls_dslx_verilog(
     name = "axi_ram_writer_verilog",
-    codegen_args = axi_ram_writer_codegen_args,
+    codegen_args = AXI_RAM_WRITER_CODEGEN_ARGS,
     dslx_top = "AxiRamWriterInst",
     library = ":axi_ram_writer_dslx",
     tags = ["manual"],
@@ -1304,8 +1301,8 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "axi_ram_writer_opt_ir_benchmark",
     src = ":axi_ram_writer_verilog.opt.ir",
-    codegen_args = axi_ram_writer_codegen_args,
-    benchmark_ir_args = common_codegen_args,
+    codegen_args = AXI_RAM_WRITER_CODEGEN_ARGS,
+    benchmark_ir_args = COMMON_CODEGEN_ARGS,
     tags = ["manual"],
 )
 
@@ -1362,7 +1359,7 @@ xls_dslx_test(
 
 xls_dslx_verilog(
     name = "mem_writer_data_downscaler_verilog",
-    codegen_args = common_codegen_args,
+    codegen_args = COMMON_CODEGEN_ARGS,
     dslx_top = "MemWriterDataDownscalerInst",
     library = ":mem_writer_data_downscaler_dslx",
     tags = ["manual"],
@@ -1372,7 +1369,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "mem_writer_data_downscaler_opt_ir_benchmark",
     src = ":mem_writer_data_downscaler_verilog.opt.ir",
-    benchmark_ir_args = common_codegen_args,
+    benchmark_ir_args = COMMON_CODEGEN_ARGS,
     tags = ["manual"],
 )
 

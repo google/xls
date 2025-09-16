@@ -182,6 +182,8 @@ async def basic_test(dut):
 
 
 if __name__ == "__main__":
+  sys.path.append(str(Path(__file__).parent))
+
   toplevel = "match_finder_wrapper"
   verilog_sources = [
     "xls/modules/zstd/match_finder_cocotb.v",

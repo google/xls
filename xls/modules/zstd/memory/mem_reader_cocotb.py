@@ -266,15 +266,7 @@ if __name__ == "__main__":
   toplevel = "mem_reader_wrapper"
   verilog_sources = [
     "xls/modules/zstd/memory/mem_reader_adv.v",
-    "xls/modules/zstd/memory/rtl/mem_reader_wrapper.v",
-  ]
-  test_module = [Path(__file__).stem]
-  run_test(toplevel, test_module, verilog_sources)
-
-  toplevel = "mem_reader_wrapper"
-  verilog_sources = [
-    "xls/modules/zstd/memory/mem_reader_adv.v",
-    "xls/modules/zstd/memory/rtl/mem_reader_wrapper.v",
+    "xls/modules/zstd/memory/rtl/mem_reader_wrapper.sv",
   ]
   test_module = [Path(__file__).stem]
   run_test(toplevel, test_module, verilog_sources)

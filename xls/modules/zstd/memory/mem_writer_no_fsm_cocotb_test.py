@@ -24,7 +24,7 @@ if __name__ == "__main__":
   toplevel = "mem_writer_wrapper"
   verilog_sources = [
     "xls/modules/zstd/memory/mem_writer_no_fsm.v",
-    "xls/modules/zstd/memory/rtl/mem_writer_wrapper.v",
+    "xls/modules/zstd/memory/rtl/mem_writer_wrapper.sv",
   ]
   test_module = [ "mem_writer_cocotb" ]
   run_test(toplevel, test_module, verilog_sources)

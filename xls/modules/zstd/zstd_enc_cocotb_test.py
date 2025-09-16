@@ -245,12 +245,14 @@ async def pregenerated_2000B_block_100B_compressed(dut): await p(dut, *d(current
 async def pregenerated_2000B_block_500B_compressed(dut): await p(dut, *d(currentframe()))  
 
 if __name__ == "__main__":
+  sys.path.append(str(Path(__file__).parent))
+
   toplevel = "zstd_enc_wrapper"
   verilog_sources = [
     "xls/modules/zstd/zstd_enc_cocotb.v",
-    "xls/modules/zstd/rtl/zstd_enc_wrapper.v",
-    "xls/modules/zstd/rtl/xls_fifo_wrapper.v",
-    "xls/modules/zstd/rtl/ram_1r1w.v"
+    "xls/modules/zstd/rtl/zstd_enc_wrapper.sv",
+    "xls/modules/zstd/rtl/xls_fifo_wrapper.sv",
+    "xls/modules/zstd/rtl/ram_1r1w.sv"
   ]
 
   test_module=[Path(__file__).stem]

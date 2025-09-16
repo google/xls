@@ -32,8 +32,8 @@ package(
 
 exports_files(
     [
-        "mem_reader_wrapper.v",
-        "mem_writer_wrapper.v",
-        "axi_writer_wrapper.v",
+        "mem_reader_wrapper.sv",
+        "mem_writer_wrapper.sv",
+        "axi_writer_wrapper.sv",
     ],
 )

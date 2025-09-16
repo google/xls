@@ -219,8 +219,8 @@ pub proc LiteralsEncoder<ADDR_W: u32, DATA_W: u32> {
             raw_mem_wr_req_s, raw_mem_wr_data_s, raw_mem_wr_resp_r,
         );
 
-        let (rle_req_s, rle_req_r) = chan<RleBlockEncoderReq>("rle_req");
-        let (rle_resp_s, rle_resp_r) = chan<RleBlockEncoderResp>("rle_resp");
+        let (rle_req_s, rle_req_r) = chan<RleBlockEncoderReq, u32:1>("rle_req");
+        let (rle_resp_s, rle_resp_r) = chan<RleBlockEncoderResp, u32:1>("rle_resp");
 
         spawn rle_block_encoder::RleBlockEncoder<ADDR_W, DATA_W, ADDR_W, RLE_HEURISTIC_SAMPLE_COUNT>
         (
