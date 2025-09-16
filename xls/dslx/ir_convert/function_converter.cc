@@ -3427,22 +3427,31 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     // Generate channel interfaces.
     for (const Param* param : config_fn.params()) {
       XLS_ASSIGN_OR_RETURN(Type * type, type_info->GetItemOrError(param));
-      if (dynamic_cast<ArrayType*>(type) != nullptr) {
+      if (ArrayType* array_type = dynamic_cast<ArrayType*>(type);
+          array_type != nullptr) {
+        const Type& innermost_type =
+            array_type->GetInnermostElementType().element_type;
+        const ChannelType* channel_type =
+            dynamic_cast<const ChannelType*>(&innermost_type);
+        XLS_RET_CHECK_NE(channel_type, nullptr)
+            << "Cannot have non-channel parameters to a `config` function "
+               "with proc-scoped channels. Use a parametric on the proc "
+               "instead. Was: "
+            << param->ToString();
+
         // TODO: davidplass - Use DefineBoundaryChannelOrArray for both
         // array and non-array params. Currently this causes a timeout
         // for certain non-channel-array tests (probably due to some infinite
         // recursion).
         XLS_ASSIGN_OR_RETURN(
-            ChannelOrArray channel_interface,
+            ChannelOrArray channel_or_array,
             proc_scoped_channel_scope_->DefineBoundaryChannelOrArray(
                 param, type_info));
-        XLS_RET_CHECK(std::holds_alternative<ChannelArray*>(channel_interface));
-        // TODO: davidplass - assign the param name to an appropriate BValue
-        // for this channel or array, for the Def call.
+        XLS_RET_CHECK(std::holds_alternative<ChannelArray*>(channel_or_array));
 
         // Sets up the array for later indexing.
         XLS_RETURN_IF_ERROR(channel_scope_->AssociateWithExistingChannelOrArray(
-            *proc_id_, param->name_def(), channel_interface));
+            *proc_id_, param->name_def(), channel_or_array));
       } else {
         ChannelType* channel_type = dynamic_cast<ChannelType*>(type);
         XLS_RET_CHECK_NE(channel_type, nullptr)

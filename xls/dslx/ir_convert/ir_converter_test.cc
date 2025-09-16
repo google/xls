@@ -4986,6 +4986,36 @@ pub proc main {
                HasSubstr("Cannot have non-channel parameters")));
 }
 
+TEST_P(ProcScopedChannelsIrConverterTest, InvalidConfigArrayParam) {
+  if (GetParam() == TypeInferenceVersion::kVersion1) {
+    // v1 fails figuring out the param type for some reason.
+    return;
+  }
+
+  constexpr std::string_view kProgram = R"(
+proc invalid {
+  init { }
+  config(invalid: u32[3]) { () }
+  next(state: ()) { () }
+}
+
+pub proc main {
+  init { }
+  config() { () }
+  next(state: ()) { state }
+}
+)";
+
+  EXPECT_THAT(
+      ConvertOneFunctionForTest(kProgram, "main",
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("Cannot have non-channel parameters")));
+}
+
 TEST_P(ProcScopedChannelsIrConverterTest, LoopbackChannelMember) {
   constexpr std::string_view kProgram = R"(
 proc main {
