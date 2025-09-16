@@ -1417,6 +1417,14 @@ py_binary(
     ],
 )
 
+py_binary(
+    name = "zstd_test_debugger",
+    srcs = ["zstd_test_debugger.py"],
+    main = "zstd_test_debugger.py",
+    tags = ["manual"],
+    visibility = ["//xls:xls_users"],
+)
+
 genrule(
     name = "zstd_test_frames_generate",
     srcs = [],
@@ -1772,6 +1780,7 @@ py_library(
         ":axi_crossbar_wrapper.v",
         ":patch_zstd_dec",
         ":zstd_dec_xx_fse_default",
+        "//xls/modules/zstd:zstd_test_debugger",
         "//xls/modules/zstd/rtl:ram_1r1w.v",
         "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
         "//xls/modules/zstd/rtl:zstd_dec_wrapper.sv",

@@ -50,8 +50,11 @@ from cocotbext.axi.axi_channels import (
 from cocotbext.axi.axi_ram import AxiRam
 from cocotbext.axi.sparse_memory import SparseMemory
 
+from pathlib import Path
+
 import xls.modules.zstd.cocotb.channel as xlschannel
 import xls.modules.zstd.cocotb.utils as cocotb_utils
+from xls.modules.zstd.zstd_test_debugger import debug_file
 from xls.modules.zstd.cocotb import data_generator
 from xls.modules.zstd.cocotb.memory import AxiRamFromFile
 from xls.modules.zstd.cocotb import xlsstruct
@@ -641,7 +644,7 @@ async def check_status(dut, cpu, timeout=100):
   )
 
 
-async def check_output(expected_packet_count, memory, reference_memory, output_monitor, obuf_addr, clock):
+async def check_output(expected_packet_count, memory, reference_memory, output_monitor, obuf_addr, clock, encoded_file):
   # Read decoded frame in chunks of AXI_DATA_W length
   # Compare against frame decompressed with the reference library
   current_addr = obuf_addr
@@ -650,19 +653,28 @@ async def check_output(expected_packet_count, memory, reference_memory, output_m
   decode_first_packet = get_clock_time(clock)
 
   for read_op in range(0, expected_packet_count):
-    current_addr = obuf_addr + (read_op * AXI_DATA_W_BYTES)
+    decoded_bytes_index = (read_op * AXI_DATA_W_BYTES)
+    current_addr = obuf_addr + decoded_bytes_index
     exp_mem_contents = int.from_bytes(reference_memory.read(current_addr, AXI_DATA_W_BYTES), byteorder="little")
     mem_contents = (await output_monitor.recv()).wdata
-    assert mem_contents == exp_mem_contents, (
-      "{} bytes of memory contents at address {} "
-      "don't match the expected contents:\n"
-      "{}\nvs\n{}"
-    ).format(
-      AXI_DATA_W_BYTES,
-      hex(current_addr),
-      hex(mem_contents),
-      hex(exp_mem_contents),
-    )
+    if mem_contents != exp_mem_contents:
+      incorrect_byte_index = 0
+      for byte_index in range(AXI_DATA_W_BYTES):
+        if (mem_contents >> (byte_index * 8) & 0xFF) != (exp_mem_contents >> (byte_index * 8) & 0xFF):
+          incorrect_byte_index = decoded_bytes_index + 7 - incorrect_byte_index
+          break
+
+      debug_file(encoded_file, incorrect_byte_index, Path(encoded_file).name)
+      assert False, (
+        "{} bytes of memory contents at address {} "
+        "don't match the expected contents:\n"
+        "{}\nvs\n{}"
+      ).format(
+        AXI_DATA_W_BYTES,
+        hex(current_addr),
+        hex(mem_contents),
+        hex(exp_mem_contents),
+      )
     print(f'[cocotb] Got correct packet (addr: {hex(current_addr)}, data: {hex(mem_contents)}, clk: {get_clock_time(clock)})', file=sys.stderr)
 
   decode_last_packet = get_clock_time(clock)
@@ -701,7 +713,7 @@ async def test_decoder(dut, axi_buses, cpu, clock, encoded_file):
   await start_decoder(cpu)
 
   check_status_thread = await cocotb.start(check_status(dut,cpu))
-  check_output_thread = await cocotb.start(check_output(expected_packet_count, memory, reference_memory, output_monitor, obuf_addr, clock))
+  check_output_thread = await cocotb.start(check_output(expected_packet_count, memory, reference_memory, output_monitor, obuf_addr, clock, encoded_file.name))
   decode_times = await check_output_thread
   (decode_start, decode_first_packet, decode_last_packet) = decode_times
   await check_status_thread
