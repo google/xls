@@ -3761,7 +3761,7 @@ static std::string MangleForLLVM(std::string_view name_v, bool with_salt) {
 }  // namespace
 
 std::string JitBuilderContext::MangleFunctionName(FunctionBase* f) {
-  bool with_salt = symbol_salt_ != "";
+  bool with_salt = !symbol_salt_.empty();
   if (f == top() || !llvm_compiler().IsSharedCompilation()) {
     return MangleForLLVM(absl::StrCat(f->name(), symbol_salt_), with_salt);
   }

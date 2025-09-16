@@ -100,7 +100,7 @@ Value JitRuntime::UnpackBufferInternal(const uint8_t* buffer,
     }
     case TypeKind::kArray: {
       const ArrayType* array_type = result_type->AsArrayOrDie();
-      if (array_type->size() == 0) {
+      if (array_type->empty()) {
         return Value::ArrayOrDie({});
       }
 
