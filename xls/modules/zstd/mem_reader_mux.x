@@ -70,13 +70,20 @@ pub proc MemReaderMux<
     next(state: State) {
         let tok0 = join();
 
-        let (tok1_0, n_req, n_req_valid) = recv_if_non_blocking(tok0, n_req_r[state.sel], !state.active, zero!<MemReaderReq>());
+        let (tok1_0, n_req, n_req_valid) = unroll_for! (i, (tok, resp, valid)): (uN[N_WIDTH], (token, MemReaderReq, bool)) in range(uN[N_WIDTH]:0, N as uN[N_WIDTH]) {
+            let (tok, r, v) = recv_if_non_blocking(tok, n_req_r[i], state.sel == i && !state.active, zero!<MemReaderReq>());
+            if v { (tok, r, true) } else { (tok, resp, valid) }
+        }((tok0, zero!<MemReaderReq>(), false));
+
         let tok2_0 = send_if(tok1_0, req_s, n_req_valid, n_req);
 
         let active = state.active || n_req_valid;
 
         let (tok2_1, resp, resp_valid) = recv_if_non_blocking(tok1_0, resp_r, active, zero!<MemReaderResp>());
-        let tok3_0 = send_if(tok2_1, n_resp_s[state.sel], resp_valid, resp);
+
+        let tok3_0 = unroll_for! (i, tok): (uN[N_WIDTH], token) in range(uN[N_WIDTH]:0, N as uN[N_WIDTH]) {
+            send_if(tok, n_resp_s[i], state.sel == i && resp_valid, resp)
+        }(tok2_1);
 
         let active = (state.active || n_req_valid) && !(resp_valid && resp.last);
 
@@ -85,6 +92,40 @@ pub proc MemReaderMux<
 
         State { active, sel }
     }
+}
+
+const INST_ADDR_W = u32:32;
+const INST_DATA_W = u32:32;
+const INST_N = u32:5;
+const INST_N_WIDTH = std::clog2(INST_N + u32:1);
+
+proc MemReaderMuxInst {
+    type MemReaderReq = mem_reader::MemReaderReq<INST_ADDR_W>;
+    type MemReaderResp = mem_reader::MemReaderResp<INST_DATA_W, INST_ADDR_W>;
+
+    type State = MemReaderMuxState<INST_N>;
+    type Sel = uN[INST_N_WIDTH];
+
+    init {}
+    config(
+        sel_req_r: chan<Sel> in,
+        sel_resp_s: chan<()> out,
+        n_req_r: chan<MemReaderReq>[INST_N] in,
+        n_resp_s: chan<MemReaderResp>[INST_N] out,
+        req_s: chan<MemReaderReq> out,
+        resp_r: chan<MemReaderResp> in,
+     ) {
+
+        spawn MemReaderMux<INST_ADDR_W, INST_DATA_W, INST_N>(
+            sel_req_r, sel_resp_s,
+            n_req_r, n_resp_s,
+            req_s, resp_r,
+        );
+
+        ()
+    }
+
+    next(state: ()) {}
 }
 
 const TEST_ADDR_W = u32:32;

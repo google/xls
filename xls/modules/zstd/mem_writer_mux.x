@@ -75,24 +75,69 @@ pub proc MemWriterMux<
     next(state: State) {
         let tok0 = join();
 
-        let (tok1_0, n_req, n_req_valid) = recv_if_non_blocking(tok0, n_req_r[state.sel], !state.active, zero!<MemWriterReq>());
+        let (tok1_0, n_req, n_req_valid) = unroll_for! (i, (tok, resp, valid)): (uN[N_WIDTH], (token, MemWriterReq, bool)) in range(uN[N_WIDTH]:0, N as uN[N_WIDTH]) {
+            let (tok, r, v) = recv_if_non_blocking(tok, n_req_r[i], state.sel == i && !state.active, zero!<MemWriterReq>());
+            if v { (tok, r, true) } else { (tok, resp, valid) }
+        }((tok0, zero!<MemWriterReq>(), false));
+
         let tok2_0 = send_if(tok1_0, req_s, n_req_valid, n_req);
 
         let active = state.active || n_req_valid;
 
-        let (tok2_1, n_data, n_data_valid) = recv_if_non_blocking(tok1_0, n_data_r[state.sel], active, zero!<MemWriterData>());
+        let (tok2_1, n_data, n_data_valid) = unroll_for! (i, (tok, resp, valid)): (uN[N_WIDTH], (token, MemWriterData, bool)) in range(uN[N_WIDTH]:0, N as uN[N_WIDTH]) {
+            let (tok, r, v) = recv_if_non_blocking(tok, n_data_r[i], state.sel == i && active, zero!<MemWriterData>());
+            if v { (tok, r, true) } else { (tok, resp, valid) }
+        }((tok1_0, zero!<MemWriterData>(), false));
+
         let tok3_0 = send_if(tok2_1, data_s, n_data_valid, n_data);
 
         let (tok2_2, resp, resp_valid) = recv_if_non_blocking(tok1_0, resp_r, active, zero!<MemWriterResp>());
-        let tok3_1 = send_if(tok2_2, n_resp_s[state.sel], resp_valid, resp);
 
+        let tok3_1 = unroll_for! (i, tok): (uN[N_WIDTH], token) in range(uN[N_WIDTH]:0, N as uN[N_WIDTH]) {
+            send_if(tok, n_resp_s[i], state.sel == i && resp_valid, resp)
+        }(tok2_2);
         let active = (state.active || n_req_valid) && !(resp_valid);
-
         let (tok3_2, sel, sel_valid) = recv_if_non_blocking(tok2_2, sel_req_r, !active, state.sel);
         let tok4_0 = send_if(tok3_2, sel_resp_s, sel_valid, ());
-
         State { active, sel }
     }
+}
+
+
+const INST_ADDR_W = u32:32;
+const INST_DATA_W = u32:32;
+const INST_N = u32:5;
+const INST_N_WIDTH = std::clog2(INST_N + u32:1);
+
+proc MemWriterMuxInst {
+    type MemWriterReq = mem_writer::MemWriterReq<INST_ADDR_W>;
+    type MemWriterResp = mem_writer::MemWriterResp;
+    type MemWriterData = mem_writer::MemWriterDataPacket<INST_DATA_W, INST_ADDR_W>;
+
+    type State = MemWriterMuxState<INST_N>;
+    type Sel = uN[INST_N_WIDTH];
+
+    init {}
+    config(
+        sel_req_r: chan<Sel> in,
+        sel_resp_s: chan<()> out,
+        n_req_r: chan<MemWriterReq>[INST_N] in,
+        n_data_r: chan<MemWriterData>[INST_N] in,
+        n_resp_s: chan<MemWriterResp>[INST_N] out,
+        req_s: chan<MemWriterReq> out,
+        data_s: chan<MemWriterData> out,
+        resp_r: chan<MemWriterResp> in,
+     ) {
+        spawn MemWriterMux<INST_ADDR_W, INST_DATA_W, u32:5>(
+            sel_req_r, sel_resp_s,
+            n_req_r, n_data_r, n_resp_s,
+            req_s, data_s, resp_r,
+        );
+
+        ()
+    }
+
+    next(state: ()) {}
 }
 
 const TEST_ADDR_W = u32:32;

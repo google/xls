@@ -48,8 +48,8 @@ pub proc MemWriterSimpleArbiter<
         resp_r: chan<MemWriterResp> in,
     ) {
 
-        let (sel_req_s, sel_req_r) = chan<Sel>("sel_req");
-        let (sel_resp_s, sel_resp_r) = chan<()>("sel_resp");
+        let (sel_req_s, sel_req_r) = chan<Sel, u32:1>("sel_req");
+        let (sel_resp_s, sel_resp_r) = chan<(), u32:1>("sel_resp");
 
         spawn mem_writer_mux::MemWriterMux<ADDR_W, DATA_W, N>(
             sel_req_r, sel_resp_s,
@@ -73,6 +73,41 @@ pub proc MemWriterSimpleArbiter<
         } else {
             State {cnt: state.cnt + uN[N_WIDTH]:1 }
         }
+    }
+}
+
+
+const INST_ADDR_W = u32:32;
+const INST_DATA_W = u32:32;
+const INST_NUM_PARTITIONS = u32:32;
+const INST_N = u32:5;
+const INST_N_WIDTH = std::clog2(INST_N + u32:1);
+
+proc MemWriterSimpleArbiterInst {
+    type MemWriterReq = mem_writer::MemWriterReq<INST_ADDR_W>;
+    type MemWriterResp = mem_writer::MemWriterResp;
+    type MemWriterData = mem_writer::MemWriterDataPacket<INST_DATA_W, INST_ADDR_W>;
+
+    type Addr = uN[INST_ADDR_W];
+    type Length = uN[INST_ADDR_W];
+    type Data = uN[INST_DATA_W];
+
+    init {}
+    config(
+        n_req_r: chan<MemWriterReq>[INST_N] in,
+        n_data_r: chan<MemWriterData>[INST_N] in,
+        n_resp_s: chan<MemWriterResp>[INST_N] out,
+        req_s: chan<MemWriterReq> out,
+        data_s: chan<MemWriterData> out,
+        resp_r: chan<MemWriterResp> in,
+    ) {
+        spawn MemWriterSimpleArbiter<INST_ADDR_W, INST_DATA_W, INST_N>(
+            n_req_r, n_data_r, n_resp_s,
+            req_s, data_s, resp_r,
+        );
+    }
+
+    next(state: ()) {
     }
 }
 
