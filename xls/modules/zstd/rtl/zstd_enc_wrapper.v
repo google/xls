@@ -26,7 +26,8 @@ module zstd_enc_wrapper #(
     parameter ARUSER_WIDTH = 1,
     parameter RUSER_WIDTH = 1,
     parameter CONF_W = 2,
-    parameter REQ_W = AXI_DATA_W + AXI_ADDR_W + AXI_ADDR_W + AXI_DATA_W + CONF_W
+    parameter REQ_W = AXI_DATA_W + AXI_ADDR_W + AXI_ADDR_W + AXI_DATA_W + CONF_W,
+    parameter RESP_W = AXI_ADDR_W + 1
 ) (
     input wire clk,
     input wire rst,
@@ -36,7 +37,7 @@ module zstd_enc_wrapper #(
     output wire req_r_rdy,
 
     // response
-    output wire resp_s_data,
+    output wire [RESP_W-1:0] resp_s_data,
     output wire resp_s_rdy,
     input wire resp_s_vld,
 
