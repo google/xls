@@ -4195,3 +4195,85 @@ xls_dslx_test(
     name = "mem_reader_simple_arbiter_dslx_test",
     library = ":mem_reader_simple_arbiter_dslx",
 )
+
+xls_dslx_library(
+    name = "sequence_header_writer_dslx",
+    srcs = [
+        "sequence_conf_enc.x",
+    ],
+    deps = [
+        ":mem_writer_simple_arbiter_dslx",
+        ":common_dslx"
+    ],
+)
+
+xls_dslx_test(
+    name = "sequence_header_writer_dslx_test",
+    library = ":sequence_header_writer_dslx",
+)
+
+sequence_header_writer_codegen_args = common_codegen_args | {
+    "module_name": "SequenceHeaderWriter",
+    "clock_period_ps": "750",
+    "pipeline_stages": "8",
+    "worst_case_throughput": "1",
+}
+
+xls_dslx_verilog(
+    name = "sequence_header_writer_verilog",
+    codegen_args = sequence_header_writer_codegen_args,
+    dslx_top = "SequenceHeaderWriterInst",
+    library = ":sequence_header_writer_dslx",
+    tags = ["manual"],
+    verilog_file = "sequence_conf_enc.v",
+    opt_ir_args = {
+        "inline_procs": "false",
+    },
+)
+
+
+xls_benchmark_ir(
+    name = "sequence_header_writer_opt_ir_benchmark",
+    src = ":sequence_header_writer_verilog.opt.ir",
+    codegen_args = sequence_header_writer_codegen_args,
+    benchmark_ir_args = {
+        "inline_procs": "false",
+    },
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "sequence_header_writer_verilog_lib",
+    srcs = [
+        ":sequence_conf_enc.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "sequence_header_writer_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "SequenceHeaderWriter",
+    deps = [
+        ":sequence_header_writer_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "sequence_header_writer_benchmark_synth",
+    synth_target = ":sequence_header_writer_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "sequence_header_writer_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":sequence_header_writer_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
