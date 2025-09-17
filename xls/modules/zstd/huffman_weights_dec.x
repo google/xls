@@ -1407,9 +1407,11 @@ pub proc HuffmanWeightsDecoder<
 
         let resp = match weights_type {
             WeightsType::RAW => {
+                // based on https://datatracker.ietf.org/doc/html/rfc8878#section-4.2.1.1
+                let weights_size = (raw_weights_req.n_symbols + u8:1) >> u8:1; // equivalent of ceil(n_symbols/2)
                 Resp {
                     status: raw_status,
-                    tree_description_size: (((header_byte - u8:127) >> u8:1) + u8:1) as uN[AXI_ADDR_W] + uN[AXI_ADDR_W]:1, // include header size
+                    tree_description_size: weights_size as uN[AXI_ADDR_W] + uN[AXI_ADDR_W]:1, // include header size
                 }
             },
             WeightsType::FSE => {
