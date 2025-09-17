@@ -41,12 +41,12 @@ namespace {
 
 using ::absl_testing::StatusIs;
 
-struct PT {
+struct ParseTypecheckResult {
   std::unique_ptr<ImportData> import_data;
   TypecheckedModule tm;
 };
 
-absl::StatusOr<PT> ParseTypecheck(std::string text) {
+absl::StatusOr<ParseTypecheckResult> ParseTypecheck(std::string text) {
   std::filesystem::path stdlib = std::string(::xls::kDefaultDslxStdlibPath);
   auto import_data = std::make_unique<ImportData>(CreateImportData(
       stdlib, /*additional_search_paths=*/std::vector<std::filesystem::path>{},
@@ -55,7 +55,7 @@ absl::StatusOr<PT> ParseTypecheck(std::string text) {
       TypecheckedModule tm,
       ParseAndTypecheck(text, /*path=*/"test.x", /*module_name=*/"test",
                         import_data.get()));
-  return PT{.import_data = std::move(import_data), .tm = std::move(tm)};
+  return ParseTypecheckResult{.import_data = std::move(import_data), .tm = std::move(tm)};
 }
 
 TEST(ReplaceInvocationsTest, NonParametricSimpleReplacement) {
@@ -64,7 +64,7 @@ fn a(x: u32) -> u32 { x + u32:1 }
 fn b(x: u32) -> u32 { x + u32:2 }
 fn caller(x: u32) -> u32 { b(x) + b(x) }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(PT pt, ParseTypecheck(kText));
+  XLS_ASSERT_OK_AND_ASSIGN(ParseTypecheckResult pt, ParseTypecheck(kText));
   Module* m = pt.tm.module;
 
   ASSERT_NE(m->GetFunction("caller"), std::nullopt);
@@ -112,7 +112,7 @@ fn caller() -> (u8, u16) {
   (y8, y16)
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(PT pt, ParseTypecheck(kText));
+  XLS_ASSERT_OK_AND_ASSIGN(ParseTypecheckResult pt, ParseTypecheck(kText));
   Module* m = pt.tm.module;
 
   ASSERT_NE(m->GetFunction("caller"), std::nullopt);
@@ -160,7 +160,7 @@ fn id<N: u32>(x: uN[N]) -> uN[N] { x }
 fn id2<N: u32>(x: uN[N]) -> uN[N] { x }
 fn caller() -> u8 { id<u32:8>(u8:1) }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(PT pt, ParseTypecheck(kText));
+  XLS_ASSERT_OK_AND_ASSIGN(ParseTypecheckResult pt, ParseTypecheck(kText));
   Module* m = pt.tm.module;
 
   Function* caller = m->GetFunction("caller").value();
@@ -201,7 +201,7 @@ fn id<N: u32>(x: uN[N]) -> uN[N] { x }
 fn id2<N: u32>(x: uN[N]) -> uN[N] { x }
 fn caller() -> u8 { id<u32:8>(u8:1) }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(PT pt, ParseTypecheck(kText));
+  XLS_ASSERT_OK_AND_ASSIGN(ParseTypecheckResult pt, ParseTypecheck(kText));
   Module* m = pt.tm.module;
 
   Function* caller = m->GetFunction("caller").value();
@@ -239,7 +239,7 @@ fn id<N: u32>(x: uN[N]) -> uN[N] { x }
 fn id2<N: u32>(x: uN[N]) -> uN[N] { x }
 fn caller(x: u32) -> u32 { id(x) }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(PT pt, ParseTypecheck(kText));
+  XLS_ASSERT_OK_AND_ASSIGN(ParseTypecheckResult pt, ParseTypecheck(kText));
   Module* m = pt.tm.module;
 
   Function* caller = m->GetFunction("caller").value();
@@ -279,7 +279,7 @@ fn a(x: u32) -> u32 { x + u32:1 }
 fn b(x: u32) -> u32 { x + u32:2 }
 fn caller(x: u32) -> u32 { b(x) + b(x) }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(PT pt, ParseTypecheck(kText));
+  XLS_ASSERT_OK_AND_ASSIGN(ParseTypecheckResult pt, ParseTypecheck(kText));
   Module* m = pt.tm.module;
 
   Function* caller = m->GetFunction("caller").value();
@@ -318,7 +318,7 @@ fn id<N: u32>(x: uN[N]) -> uN[N] { x }
 fn caller() -> (u8, u16) { (id<u32:8>(u8:1), id<u32:16>(u16:2)) }
 fn id2<N: u32>(x: uN[N]) -> uN[N] { x }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(PT pt, ParseTypecheck(kText));
+  XLS_ASSERT_OK_AND_ASSIGN(ParseTypecheckResult pt, ParseTypecheck(kText));
   Module* m = pt.tm.module;
 
   Function* caller = m->GetFunction("caller").value();
@@ -346,7 +346,7 @@ fn caller() -> (u8, u16) {
   (id(a), id(b))
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(PT pt, ParseTypecheck(kText));
+  XLS_ASSERT_OK_AND_ASSIGN(ParseTypecheckResult pt, ParseTypecheck(kText));
   Module* m = pt.tm.module;
 
   Function* caller = m->GetFunction("caller").value();
@@ -395,7 +395,7 @@ fn caller(x: u32) -> (u32, u32) {
   (a, b)
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(PT pt, ParseTypecheck(kText));
+  XLS_ASSERT_OK_AND_ASSIGN(ParseTypecheckResult pt, ParseTypecheck(kText));
   Module* m = pt.tm.module;
 
   Function* caller = m->GetFunction("caller").value();
@@ -450,7 +450,7 @@ fn f<N: E>(x: u32) -> u32 { x }
 fn g<N: E>(x: u32) -> u32 { x }
 fn caller(x: u32) -> u32 { f<E::B>(x) }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(PT pt, ParseTypecheck(kText));
+  XLS_ASSERT_OK_AND_ASSIGN(ParseTypecheckResult pt, ParseTypecheck(kText));
   Module* m = pt.tm.module;
 
   Function* caller = m->GetFunction("caller").value();
@@ -633,7 +633,7 @@ fn id<N: u32>(x: uN[N]) -> uN[N] { x }
 fn id2<N: u32>(x: uN[N]) -> uN[N] { x }
 fn caller() -> (u8, u16) { (id<u32:8>(u8:1), id<u32:16>(u16:2)) }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(PT pt, ParseTypecheck(kText));
+  XLS_ASSERT_OK_AND_ASSIGN(ParseTypecheckResult pt, ParseTypecheck(kText));
   Module* m = pt.tm.module;
 
   Function* caller = m->GetFunction("caller").value();
@@ -676,7 +676,7 @@ fn caller() -> (u8, u16) {
   (id(a), id(b))
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(PT pt, ParseTypecheck(kText));
+  XLS_ASSERT_OK_AND_ASSIGN(ParseTypecheckResult pt, ParseTypecheck(kText));
   Module* m = pt.tm.module;
 
   Function* caller = m->GetFunction("caller").value();
@@ -715,7 +715,7 @@ fn f<N: u32>(x: u32) -> u32 { x }
 fn g<N: u32>(x: u32) -> u32 { x }
 fn caller(x: u32) -> u32 { f<u32:1>(x) }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(PT pt, ParseTypecheck(kText));
+  XLS_ASSERT_OK_AND_ASSIGN(ParseTypecheckResult pt, ParseTypecheck(kText));
   Module* m = pt.tm.module;
 
   Function* caller = m->GetFunction("caller").value();
@@ -758,7 +758,7 @@ fn id<B: u32, A: u32>(x: u32) -> u32 { x }
 fn id2<B: u32, A: u32>(x: u32) -> u32 { x }
 fn caller() -> u32 { id<u32:1, u32:2>(u32:0) }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(PT pt, ParseTypecheck(kText));
+  XLS_ASSERT_OK_AND_ASSIGN(ParseTypecheckResult pt, ParseTypecheck(kText));
   Module* m = pt.tm.module;
 
   Function* caller = m->GetFunction("caller").value();
@@ -800,7 +800,7 @@ fn f<M: u32, K: u32>(x: u32) -> u32 { x }
 fn g<M: u32, K: u32>(x: u32) -> u32 { x }
 fn caller() -> u32 { f<u32:1, u32:1>(u32:0) }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(PT pt, ParseTypecheck(kText));
+  XLS_ASSERT_OK_AND_ASSIGN(ParseTypecheckResult pt, ParseTypecheck(kText));
   Module* m = pt.tm.module;
 
   Function* caller = m->GetFunction("caller").value();
@@ -826,7 +826,7 @@ fn f<M: u32, K: u32>(x: u32) -> u32 { x }
 fn g<M: u32, K: u32>(x: u32) -> u32 { x }
 fn caller() -> u32 { f<u32:1, u32:1>(u32:0) }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(PT pt, ParseTypecheck(kText));
+  XLS_ASSERT_OK_AND_ASSIGN(ParseTypecheckResult pt, ParseTypecheck(kText));
   Module* m = pt.tm.module;
 
   Function* caller = m->GetFunction("caller").value();
@@ -857,7 +857,7 @@ fn f<N: E>(x: u32) -> u32 { x }
 fn g<N: E>(x: u32) -> u32 { x }
 fn caller(x: u32) -> u32 { f<E::A>(x) }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(PT pt, ParseTypecheck(kText));
+  XLS_ASSERT_OK_AND_ASSIGN(ParseTypecheckResult pt, ParseTypecheck(kText));
   Module* m = pt.tm.module;
 
   Function* caller = m->GetFunction("caller").value();
@@ -890,7 +890,7 @@ fn h(x: u32) -> u32 { x + u32:3 }
 fn caller1(x: u32) -> u32 { f(x) + g(x) }
 fn caller2(x: u32) -> u32 { f(x) + h(x) }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(PT pt, ParseTypecheck(kText));
+  XLS_ASSERT_OK_AND_ASSIGN(ParseTypecheckResult pt, ParseTypecheck(kText));
   Module* m = pt.tm.module;
 
   Function* caller1 = m->GetFunction("caller1").value();
@@ -942,7 +942,7 @@ fn id3<N: u32>(x: uN[N]) -> uN[N] { x }
 fn caller1() -> (u8, u16) { (id<u32:8>(u8:1), id<u32:16>(u16:2)) }
 fn caller2() -> (u16, u8) { (id<u32:16>(u16:3), id<u32:8>(u8:4)) }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(PT pt, ParseTypecheck(kText));
+  XLS_ASSERT_OK_AND_ASSIGN(ParseTypecheckResult pt, ParseTypecheck(kText));
   Module* m = pt.tm.module;
 
   Function* caller1 = m->GetFunction("caller1").value();
@@ -1013,7 +1013,7 @@ fn f<N: Alias>(x: u32) -> u32 { x }
 fn g<N: Alias>(x: u32) -> u32 { x }
 fn caller(x: u32) -> u32 { f<Alias::B>(x) }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(PT pt, ParseTypecheck(kText));
+  XLS_ASSERT_OK_AND_ASSIGN(ParseTypecheckResult pt, ParseTypecheck(kText));
   Module* m = pt.tm.module;
 
   Function* caller = m->GetFunction("caller").value();
@@ -1211,7 +1211,7 @@ fn f<N: S>(x: u32) -> u32 { x }
 fn g<N: S>(x: u32) -> u32 { x }
 fn caller(x: u32) -> u32 { f(x) }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(PT pt, ParseTypecheck(kText));
+  XLS_ASSERT_OK_AND_ASSIGN(ParseTypecheckResult pt, ParseTypecheck(kText));
   Module* m = pt.tm.module;
   Function* caller = m->GetFunction("caller").value();
   Function* f = m->GetFunction("f").value();

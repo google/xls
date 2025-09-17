@@ -45,6 +45,7 @@ cc_library(
         ":import_data",
         ":parse_and_typecheck",
         ":warning_collector",
+        "//xls/common:visitor",
         "//xls/common/status:ret_check",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_cloner",

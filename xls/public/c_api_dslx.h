@@ -82,6 +82,7 @@ struct xls_dslx_type_dim;
 struct xls_dslx_parametric_env;
 struct xls_dslx_interp_value;
 struct xls_bits;
+
 // Rule for rewriting invocations in bulk API.
 struct xls_dslx_invocation_rewrite_rule {
   // Replace invocations whose resolved callee is exactly this function.

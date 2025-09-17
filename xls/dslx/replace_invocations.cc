@@ -22,6 +22,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/visitor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/ast_utils.h"
@@ -37,13 +38,6 @@
 namespace xls::dslx {
 
 namespace {
-
-template <typename... T>
-struct Overloaded : T... {
-  using T::operator()...;
-};
-template <typename... T>
-Overloaded(T...) -> Overloaded<T...>;
 
 bool MatchesCalleeEnv(const InvocationData& data,
                       const std::optional<ParametricEnv>& want_env) {
@@ -106,7 +100,7 @@ absl::StatusOr<ColonRef::Subject> MakeColonRefSubjectFromTypeRef(
     TypeRef* type_ref, const Span& inv_span, Module* target_module,
     const absl::flat_hash_map<const AstNode*, AstNode*>& old_to_new) {
   using ReturnT = absl::StatusOr<ColonRef::Subject>;
-  return absl::visit(Overloaded{
+  return absl::visit(xls::Visitor{
                          [&](ColonRef* old_cref) -> ReturnT {
                            auto it = old_to_new.find(old_cref);
                            XLS_RET_CHECK(it != old_to_new.end());
