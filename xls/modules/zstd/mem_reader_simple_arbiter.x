@@ -43,8 +43,8 @@ pub proc MemReaderSimpleArbiter<
         resp_r: chan<MemReaderResp> in,
     ) {
 
-        let (sel_req_s, sel_req_r) = chan<Sel>("sel_req");
-        let (sel_resp_s, sel_resp_r) = chan<()>("sel_resp");
+        let (sel_req_s, sel_req_r) = chan<Sel, u32:1>("sel_req");
+        let (sel_resp_s, sel_resp_r) = chan<(), u32:1>("sel_resp");
 
         spawn mem_reader_mux::MemReaderMux<ADDR_W, DATA_W, N>(
             sel_req_r, sel_resp_s,
@@ -68,6 +68,38 @@ pub proc MemReaderSimpleArbiter<
         } else {
             State {cnt: state.cnt + uN[N_WIDTH]:1 }
         }
+    }
+}
+
+
+const INST_ADDR_W = u32:32;
+const INST_DATA_W = u32:32;
+const INST_NUM_PARTITIONS = u32:32;
+const INST_N = u32:5;
+const INST_N_WIDTH = std::clog2(INST_N + u32:1);
+
+proc MemReaderSimpleArbiterInst {
+    type MemReaderReq = mem_reader::MemReaderReq<INST_ADDR_W>;
+    type MemReaderResp = mem_reader::MemReaderResp<INST_DATA_W, INST_ADDR_W>;
+
+    type Addr = uN[INST_ADDR_W];
+    type Length = uN[INST_ADDR_W];
+    type Data = uN[INST_DATA_W];
+
+    init {}
+    config(
+        n_req_r: chan<MemReaderReq>[INST_N] in,
+        n_resp_s: chan<MemReaderResp>[INST_N] out,
+        req_s: chan<MemReaderReq> out,
+        resp_r: chan<MemReaderResp> in,
+    ) {
+        spawn MemReaderSimpleArbiter<INST_ADDR_W, INST_DATA_W, INST_N>(
+            n_req_r, n_resp_s,
+            req_s, resp_r,
+        );
+    }
+
+    next(state: ()) {
     }
 }
 
