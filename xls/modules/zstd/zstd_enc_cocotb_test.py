@@ -20,7 +20,7 @@ import cocotbext.axi.axi_channels as axi
 from inspect import currentframe
 from pathlib import Path
 from cocotb.clock import Clock
-from cocotb.triggers import Event
+from cocotb.triggers import Event, RisingEdge
 from xls.modules.zstd.cocotb.channel import (
   XLSChannel,
   XLSChannelDriver,
@@ -73,6 +73,7 @@ class Req(XLSStruct):
 @xls_dataclass
 class Resp(XLSStruct):
   status: STATUS_W
+  written_bytes: ADDR_W
 
 def set_termination_event(monitor, event, transactions):
   def terminate_cb(_):
@@ -104,23 +105,28 @@ async def testcase(dut, params, input_data, max_block_size = 128):
   # channels
   ch_resp = XLSChannel(dut, "resp_s", dut.clk, start_now=True)
   drv_req = XLSChannelDriver(dut, "req_r", dut.clk)
-  mon_req = XLSChannelMonitor(dut, "req_r", dut.clk, Req)
-  mon_resp = XLSChannelMonitor(dut, "resp_s", dut.clk, Resp)
+  # mon_req = XLSChannelMonitor(dut, "req_r", dut.clk, Req)
+  # mon_resp = XLSChannelMonitor(dut, "resp_s", dut.clk, Resp)
   terminate = Event()
-  set_termination_event(mon_resp, terminate, 1)
+  # set_termination_event(mon_resp, terminate, 1)
 
   # run benchmark
   await reset(dut.clk, dut.rst, cycles=10)
   await cocotb.start(drv_req.send(req))
-  await terminate.wait()
 
-  mem_contents = memory.read(OBUF_ADDR, 2*INPUT_SIZE)
+  while True:
+    await RisingEdge(dut.clk)
+    if ch_resp.rdy.value and ch_resp.vld.value:
+        resp = Resp.from_int(ch_resp.data.value.integer)
+        break;
+
   with open("input.bin", "wb") as f:
     f.write(input_data)
 
+  mem_contents = memory.read(OBUF_ADDR, resp.written_bytes)
   with open("result.zst", "wb") as f:
     f.write(mem_contents)
-    
+
   dctx = DecompressFrame(mem_contents)
 
   for i in range(len(dctx)):

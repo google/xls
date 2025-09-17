@@ -54,8 +54,9 @@ pub struct ZstdEncodeReq<ADDR_W: u32, DATA_W: u32> {
     params: ZstdEncodeParams
 }
 
-pub struct ZstdEncodeResp {
-    status: ZstdEncodeRespStatus
+pub struct ZstdEncodeResp<ADDR_W: u32> {
+    status: ZstdEncodeRespStatus,
+    written_bytes: uN[ADDR_W],
 }
 
 struct ZstdEncoderBlockWriterConf<ADDR_W: u32, DATA_W: u32> {
@@ -68,7 +69,13 @@ struct ZstdEncoderBlockWriterConf<ADDR_W: u32, DATA_W: u32> {
 
 struct ZstdEncoderBlockWriterState<ADDR_W: u32, DATA_W: u32> {
     active: bool,
+    written_bytes: uN[ADDR_W],
     conf: ZstdEncoderBlockWriterConf<ADDR_W, DATA_W>,
+}
+
+struct ZstdEncoderBlockWriterResp<ADDR_W: u32> {
+    status: ZstdEncodeRespStatus,
+    length: uN[ADDR_W],
 }
 
 const BLOCK_HEADER_LENGTH_BYTES = u32:3;
@@ -82,7 +89,7 @@ pub proc ZstdEncoderBlockWriter<ADDR_W: u32, DATA_W: u32> {
     type MemWriterResp = mem_writer::MemWriterResp;
     type MemWriterStatus = mem_writer::MemWriterRespStatus;
 
-    type Resp = ZstdEncodeResp;
+    type Resp = ZstdEncoderBlockWriterResp<ADDR_W>;
     type State = ZstdEncoderBlockWriterState<ADDR_W, DATA_W>;
     type Conf = ZstdEncoderBlockWriterConf<ADDR_W, DATA_W>;
     type Status = ZstdEncodeRespStatus;
@@ -111,7 +118,7 @@ pub proc ZstdEncoderBlockWriter<ADDR_W: u32, DATA_W: u32> {
 
     // parent I/O
     conf_r: chan<Conf> in;
-    resp_s: chan<Status> out;
+    resp_s: chan<Resp> out;
 
     // block header
     bhw_req_s: chan<BlockHeaderWriterReq> out;
@@ -133,7 +140,7 @@ pub proc ZstdEncoderBlockWriter<ADDR_W: u32, DATA_W: u32> {
     init { zero!<State>() }
     config(
         conf_r: chan<Conf> in,
-        resp_s: chan<Status> out,
+        resp_s: chan<Resp> out,
         bhw_req_s: chan<BlockHeaderWriterReq> out,
         bhw_resp_r: chan<BlockHeaderWriterResp> in,
         raw_req_s: chan<RawMemcopyReq> out,
@@ -145,7 +152,6 @@ pub proc ZstdEncoderBlockWriter<ADDR_W: u32, DATA_W: u32> {
         rle_mem_wr_req_s: chan<MemWriterReq> out,
         rle_mem_wr_data_s: chan<MemWriterData> out,
         rle_mem_wr_resp_r: chan<MemWriterResp> in
-
     ) {
         (
             conf_r, resp_s,
@@ -161,7 +167,8 @@ pub proc ZstdEncoderBlockWriter<ADDR_W: u32, DATA_W: u32> {
             let (tok, conf) = recv(join(), conf_r);
             State {
                 active: true,
-                conf: conf
+                conf: conf,
+                written_bytes: Addr:0,
             }
         } else {
             let tok = join();
@@ -276,17 +283,19 @@ pub proc ZstdEncoderBlockWriter<ADDR_W: u32, DATA_W: u32> {
                 Status::ERROR
             };
 
+            let written_bytes = block_content_size + BLOCK_HEADER_LENGTH_BYTES;
+            let total_written_bytes = state.written_bytes + written_bytes as Addr;
             if last_block || status != ZstdEncodeRespStatus::OK {
-                let tok = send(join(tok1, tok2), resp_s, status);
+                let tok = send(join(tok1, tok2), resp_s, Resp {status, length: total_written_bytes});
                 zero!<State>()
             } else {
-                let bytes_written = block_content_size + BLOCK_HEADER_LENGTH_BYTES;
                 State {
                     active: true,
+                    written_bytes: total_written_bytes,
                     conf: Conf {
                         bytes_left: conf.bytes_left - size as u32,
                         input_offset: conf.input_offset as Addr + size as Addr,
-                        output_offset: conf.output_offset as Addr + bytes_written as Addr,
+                        output_offset: conf.output_offset as Addr + written_bytes as Addr,
                         ..conf
                     }
                 }
@@ -315,8 +324,9 @@ pub proc ZstdEncoder<
     type MemWriterStatus = mem_writer::MemWriterRespStatus;
 
     type Req = ZstdEncodeReq<ADDR_W, DATA_W>;
-    type Resp = ZstdEncodeResp;
+    type Resp = ZstdEncodeResp<ADDR_W>;
     type ZstdEncoderBlockWriterConf = ZstdEncoderBlockWriterConf<ADDR_W, DATA_W>;
+    type ZstdEncoderBlockWriterResp = ZstdEncoderBlockWriterResp<ADDR_W>;
     type Status = ZstdEncodeRespStatus;
 
     type FrameHeader = frame_header_dec::FrameHeader;
@@ -364,7 +374,7 @@ pub proc ZstdEncoder<
 
     // communication
     conf_s: chan<ZstdEncoderBlockWriterConf> out;
-    bw_resp_r: chan<Status> in;
+    bw_resp_r: chan<ZstdEncoderBlockWriterResp> in;
     fhw_req_s: chan<FrameHeaderEncoderReq> out;
     fhw_resp_r: chan<FrameHeaderEncoderResp> in;
 
@@ -435,7 +445,7 @@ pub proc ZstdEncoder<
     ) {
         // internal
         let (conf_s, conf_r) = chan<ZstdEncoderBlockWriterConf, u32:1>("conf");
-        let (bw_resp_s, bw_resp_r) = chan<Status, u32:1>("bw_resp");
+        let (bw_resp_s, bw_resp_r) = chan<ZstdEncoderBlockWriterResp, u32:1>("bw_resp");
 
         // headers
         let (fhw_req_s, fhw_req_r) = chan<FrameHeaderEncoderReq, u32:1>("bhw_req");
@@ -537,22 +547,29 @@ pub proc ZstdEncoder<
             provide_content_size: true,
             provide_window_size: true,
         });
-        let (tok, resp) = recv(tok, fhw_resp_r);
-        trace_fmt!("written frame header {:#x}", resp);
+        let (tok, fhw_resp) = recv(tok, fhw_resp_r);
+        trace_fmt!("written frame header {:#x}", fhw_resp);
 
-        if (resp.status != FrameHeaderEncoderStatus::OKAY) {
+        if (fhw_resp.status != FrameHeaderEncoderStatus::OKAY) {
             trace_fmt!("failed writing frame header");
-            send(tok, enc_resp_s, ZstdEncodeResp{status: ZstdEncodeRespStatus::ERROR});
+            send(tok, enc_resp_s, ZstdEncodeResp{
+                status: ZstdEncodeRespStatus::ERROR,
+                written_bytes: uN[ADDR_W]:0
+            });
         } else {
             let tok = send(tok, conf_s, ZstdEncoderBlockWriterConf {
                 bytes_left: request.data_size as u32,
                 input_offset: request.input_offset,
-                output_offset: request.output_offset + resp.length as uN[ADDR_W],
+                output_offset: request.output_offset + fhw_resp.length as uN[ADDR_W],
                 max_block_size: request.max_block_size,
                 params: request.params
             });
-            let (tok, status) = recv(tok, bw_resp_r);
-            send(tok, enc_resp_s, ZstdEncodeResp{status: status});
+            let (tok, bw_resp) = recv(tok, bw_resp_r);
+            let resp = ZstdEncodeResp{
+                status: bw_resp.status,
+                written_bytes: fhw_resp.length as uN[ADDR_W] + bw_resp.length,
+            };
+            send(tok, enc_resp_s, resp);
         };
     }
 }
@@ -618,7 +635,7 @@ proc ZstdEncoderInst {
     type TTableRamRdReq = ram::ReadReq<INST_FSE_TABLE_RAM_ADDR_W, INST_FSE_TTABLE_RAM_NUM_PARTITIONS>;
     type TTableRamRdResp = ram::ReadResp<INST_FSE_TTABLE_RAM_DATA_W>;
     type Req = ZstdEncodeReq<INST_ADDR_W, INST_DATA_W>;
-    type Resp = ZstdEncodeResp;
+    type Resp = ZstdEncodeResp<INST_ADDR_W>;
 
     init {}
 
@@ -780,7 +797,7 @@ proc ZstdEncoderCocotbInst {
     type TTableRamWrReq = ram::WriteReq<COCOTB_FSE_TABLE_RAM_ADDR_W, COCOTB_FSE_TTABLE_RAM_DATA_W, COCOTB_FSE_TTABLE_RAM_NUM_PARTITIONS>;
     type TTableRamWrResp = ram::WriteResp;
     type Req = ZstdEncodeReq<COCOTB_ADDR_W, COCOTB_DATA_W>;
-    type Resp = ZstdEncodeResp;
+    type Resp = ZstdEncodeResp<COCOTB_ADDR_W>;
     type AxiAr = axi::AxiAr<COCOTB_ADDR_W, COCOTB_ID_W>;
     type AxiR = axi::AxiR<COCOTB_DATA_W, COCOTB_ID_W>;
     type AxiAw = axi::AxiAw<COCOTB_ADDR_W, COCOTB_ID_W>;
@@ -877,7 +894,7 @@ proc ZstdEncoderCocotbInst {
             mem_rd_req_s, mem_rd_resp_r,
         );
 
-        spawn  ZstdEncoder<COCOTB_ADDR_W, COCOTB_DATA_W,
+        spawn ZstdEncoder<COCOTB_ADDR_W, COCOTB_DATA_W,
             COCOTB_RLE_HEURISTIC_SAMPLE_COUNT,
             COCOTB_HB_SIZE, COCOTB_HB_DATA_W, COCOTB_HB_OFFSET_W, COCOTB_HB_RAM_ADDR_W, COCOTB_HB_RAM_DATA_W, COCOTB_HB_RAM_NUM, COCOTB_HB_RAM_NUM_PARTITIONS,
             COCOTB_HT_SIZE, COCOTB_HT_KEY_W, COCOTB_HT_VALUE_W, COCOTB_HT_SIZE_W, COCOTB_HT_HASH_W, COCOTB_HT_RAM_DATA_W, COCOTB_HT_RAM_NUM_PARTITIONS,
