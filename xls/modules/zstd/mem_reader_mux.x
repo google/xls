@@ -149,7 +149,10 @@ proc MemReaderMuxTest {
         // Cannot switch during the transmission
         let tok = send(tok, sel_req_s, Sel:1);
 
-        let tok = send(tok, resp_s, zero!<MemReaderResp>());
+        let tok = send(tok, resp_s, MemReaderResp {
+            last: true,
+            ..zero!<MemReaderResp>()
+        });
         let (tok, _) = recv(tok, n_resp_r[3]);
 
         // Now we should be able to receive the select
@@ -158,7 +161,10 @@ proc MemReaderMuxTest {
         let tok = send(tok, n_req_s[1], zero!<MemReaderReq>());
         let (tok, _) = recv(tok, req_r);
 
-        let tok = send(tok, resp_s, zero!<MemReaderResp>());
+        let tok = send(tok, resp_s, MemReaderResp {
+            last: true,
+            ..zero!<MemReaderResp>()
+        });
         let (tok, _) = recv(tok, n_resp_r[1]);
 
         send(tok, terminator, true);

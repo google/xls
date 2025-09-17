@@ -123,7 +123,11 @@ proc MemReaderSimpleArbiterTest {
             trace_fmt!("Sending request {:#x} on channel: {}", req, i);
             let tok = send(tok, n_req_s[i], req);
 
-            let resp = zero!<MemReaderResp>();
+            let resp = MemReaderResp {
+                last: true,
+                ..zero!<MemReaderResp>()
+            };
+
             trace_fmt!("Sending response {:#x} on channel: {}", resp, i);
             let tok = send(tok, resp_s, resp);
 
