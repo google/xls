@@ -43,6 +43,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "re2/re2.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/inline_bitmap.h"
@@ -65,6 +66,7 @@
 #include "xls/dslx/interp_value_utils.h"
 #include "xls/dslx/ir_convert/conversion_info.h"
 #include "xls/dslx/ir_convert/convert_options.h"
+#include "xls/dslx/ir_convert/function_converter.h"
 #include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/parse_and_typecheck.h"
@@ -88,7 +90,6 @@
 #include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/passes/pass_base.h"
 #include "xls/solvers/z3_ir_translator.h"
-#include "re2/re2.h"
 
 namespace xls::dslx {
 namespace {
@@ -973,13 +974,10 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
                             const ParametricEnv* parametric_env,
                             const InterpValue& got) -> absl::Status {
       XLS_RET_CHECK(f != nullptr);
-      std::optional<bool> requires_implicit_token =
-          import_data.GetRootTypeInfoForNode(f)
-              .value()
-              ->GetRequiresImplicitToken(*f);
-      XLS_RET_CHECK(requires_implicit_token.has_value());
+      bool requires_implicit_token =
+          GetRequiresImplicitToken(*f, &import_data, options.convert_options);
       return options.run_comparator->RunComparison(ir_package.get(),
-                                                   *requires_implicit_token, f,
+                                                   requires_implicit_token, f,
                                                    args, parametric_env, got);
     };
   }

@@ -101,6 +101,8 @@ absl::Status RealMain(absl::Span<const std::string_view> paths) {
   bool warnings_as_errors = ir_converter_options.warnings_as_errors();
   bool proc_scoped_channels = ir_converter_options.proc_scoped_channels();
   bool type_inference_v2 = ir_converter_options.type_inference_v2();
+  bool force_implicit_token_calling_convention =
+      ir_converter_options.force_implicit_token_calling_convention();
 
   // Start with the default set, then enable the to-enable and then disable the
   // to-disable.
@@ -124,6 +126,8 @@ absl::Status RealMain(absl::Span<const std::string_view> paths) {
       .default_fifo_config = default_fifo_config,
       .proc_scoped_channels = proc_scoped_channels,
       .type_inference_v2 = type_inference_v2,
+      .force_implicit_token_calling_convention =
+          force_implicit_token_calling_convention,
       .configured_values = configured_values,
   };
 

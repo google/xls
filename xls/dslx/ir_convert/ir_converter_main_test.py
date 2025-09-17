@@ -274,6 +274,29 @@ class IrConverterMainTest(test_base.TestCase):
     """),
     )
 
+  def test_force_implicit_token_calling_convention(self) -> None:
+    program = "fn f(x: u32) -> u32 { x }"
+    result = self._ir_convert(
+        {"a.x": program},
+        top="f",
+        extra_flags=["--force_implicit_token_calling_convention"],
+    )
+    implicit_funcs = [
+        f
+        for f in result.interface.functions
+        if f.base.name == "__itok__a__f"
+    ]
+    self.assertLen(implicit_funcs, 1)
+    self.assertTrue(implicit_funcs[0].base.top)
+    self.assertGreaterEqual(len(implicit_funcs[0].parameters), 2)
+    self.assertEqual(implicit_funcs[0].parameters[0].type, _TOKEN)
+    self.assertEqual(implicit_funcs[0].parameters[1].type, _1BITS)
+    self.assertTrue(
+        any(f.base.name == "__a__f" for f in result.interface.functions)
+    )
+    self.assertIn("fn __itok__a__f(", result.ir)
+    self.assertIn("fn __a__f(", result.ir)
+
   def test_multi_file(self) -> None:
     self.assertEqual(
         self._ir_convert(

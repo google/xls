@@ -151,6 +151,7 @@ def _convert_to_ir(ctx, src):
         "default_fifo_config",
         "proc_scoped_channels",
         "lower_to_proc_scoped_channels",
+        "force_implicit_token_calling_convention",
     )
 
     # With runs outside a monorepo, the execution root for the workspace of
