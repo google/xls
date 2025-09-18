@@ -38,6 +38,7 @@
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/ir_convert/channel_scope.h"
 #include "xls/dslx/ir_convert/conversion_info.h"
+#include "xls/dslx/ir_convert/conversion_record.h"
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/proc_config_ir_converter.h"
 #include "xls/dslx/ir_convert/proc_scoped_channel_scope.h"
@@ -149,10 +150,9 @@ class FunctionConverter {
   absl::Status HandleFunction(Function* node, TypeInfo* type_info,
                               const ParametricEnv* parametric_env);
 
-  absl::Status HandleProcNextFunction(
-      Function* pf, const Invocation* invocation, TypeInfo* type_info,
-      ImportData* import_data, const ParametricEnv* parametric_env,
-      const ProcId& proc_id, ProcConversionData* proc_data);
+  absl::Status HandleProcNextFunction(const ConversionRecord& record,
+                                      ImportData* import_data,
+                                      ProcConversionData* proc_data);
 
   // Notes a constant-definition dependency for the function (so it can
   // participate in the IR conversion).

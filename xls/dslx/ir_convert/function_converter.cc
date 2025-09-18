@@ -54,6 +54,7 @@
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_utils.h"
 #include "xls/dslx/ir_convert/channel_scope.h"
+#include "xls/dslx/ir_convert/conversion_record.h"
 #include "xls/dslx/ir_convert/convert_format_macro.h"
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/ir_conversion_utils.h"
@@ -3275,16 +3276,21 @@ absl::Status FunctionConverter::HandleChannelDecl(const ChannelDecl* node) {
 
 // TODO: davidplass - break this method up. It's too big.
 absl::Status FunctionConverter::HandleProcNextFunction(
-    Function* f, const Invocation* invocation, TypeInfo* type_info,
-    ImportData* import_data, const ParametricEnv* parametric_env,
-    const ProcId& proc_id, ProcConversionData* proc_data) {
+    const ConversionRecord& record, ImportData* import_data,
+    ProcConversionData* proc_data) {
+  TypeInfo* type_info = record.type_info();
   XLS_RET_CHECK_NE(type_info, nullptr);
+
+  Function* f = record.f();
+  ProcId proc_id = record.proc_id().value();
   VLOG(5) << "HandleProcNextFunction: " << f->ToString() << " proc id "
           << proc_id.ToString();
+  const Invocation* invocation = record.invocation();
   if (invocation != nullptr) {
     VLOG(5) << "HandleProcNextFunction: invocation " << invocation->ToString();
   }
 
+  const ParametricEnv* parametric_env = &record.parametric_env();
   if (parametric_env != nullptr) {
     SetParametricEnv(parametric_env);
   }

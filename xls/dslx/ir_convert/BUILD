@@ -328,6 +328,7 @@ cc_library(
     deps = [
         ":channel_scope",
         ":conversion_info",
+        ":conversion_record",
         ":convert_format_macro",
         ":convert_options",
         ":ir_conversion_utils",

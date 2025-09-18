@@ -226,9 +226,7 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
       proc_data->id_to_initial_value[record.proc_id().value()] = ir_value;
     }
 
-    return converter.HandleProcNextFunction(
-        f, record.invocation(), record.type_info(), import_data,
-        &record.parametric_env(), record.proc_id().value(), proc_data);
+    return converter.HandleProcNextFunction(record, import_data, proc_data);
   }
 
   return converter.HandleFunction(f, record.type_info(),
