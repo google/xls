@@ -52,6 +52,18 @@ class ChannelArray {
   // For logging purposes.
   std::string ToString() const { return base_channel_name_; }
 
+  std::vector<ChannelRef> channels() const {
+    std::vector<ChannelRef> channels;
+    channels.reserve(flattened_names_in_order_.size());
+    for (auto& name : flattened_names_in_order_) {
+      std::optional<ChannelRef> channel = FindChannel(name);
+      if (channel.has_value()) {
+        channels.push_back(*channel);
+      }
+    }
+    return channels;
+  }
+
  private:
   explicit ChannelArray(std::string_view base_channel_name,
                         bool subarray = false)
@@ -69,7 +81,7 @@ class ChannelArray {
     flattened_name_to_channel_.emplace(flattened_name, channel);
   }
 
-  std::optional<ChannelRef> FindChannel(std::string_view flattened_name) {
+  std::optional<ChannelRef> FindChannel(std::string_view flattened_name) const {
     const auto it = flattened_name_to_channel_.find(flattened_name);
     if (it == flattened_name_to_channel_.end()) {
       return std::nullopt;

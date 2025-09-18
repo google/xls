@@ -3216,20 +3216,30 @@ absl::Status FunctionConverter::HandleSpawn(const Spawn* node) {
 
   const Invocation* invocation = node->config();
   XLS_RET_CHECK(package_data_.invocation_to_ir_proc.contains(invocation));
-  xls::Proc* ir_proc = package_data_.invocation_to_ir_proc[invocation];
 
-  // Lookup the channel interface for each actual arg and add it to the args
-  // vector.
   std::vector<ChannelInterface*> channel_args;
+  channel_args.reserve(invocation->args().size());
   for (Expr* arg : invocation->args()) {
     XLS_RETURN_IF_ERROR(Visit(arg));
-    std::optional<IrValue> arg_value = GetNodeToIr(arg);
-    XLS_RET_CHECK(arg_value.has_value());
-    XLS_ASSIGN_OR_RETURN(ChannelInterface * channel_interface,
-                         IrValueToChannelInterface(*arg_value));
-    channel_args.push_back(channel_interface);
+    std::optional<IrValue> arg_value_opt = GetNodeToIr(arg);
+    XLS_RET_CHECK(arg_value_opt.has_value());
+    IrValue arg_value = *arg_value_opt;
+    if (std::holds_alternative<ChannelArray*>(arg_value)) {
+      // Get all the channel interfaces of this array and
+      // add them to the channel_args
+      ChannelArray* channel_array = std::get<ChannelArray*>(arg_value);
+      for (ChannelRef channel : channel_array->channels()) {
+        XLS_RET_CHECK(std::holds_alternative<ChannelInterface*>(channel));
+        channel_args.push_back(std::get<ChannelInterface*>(channel));
+      }
+    } else {
+      XLS_ASSIGN_OR_RETURN(ChannelInterface * channel_interface,
+                           IrValueToChannelInterface(arg_value));
+      channel_args.push_back(channel_interface);
+    }
   }
 
+  xls::Proc* ir_proc = package_data_.invocation_to_ir_proc[invocation];
   xls::Proc* current_proc = builder_ptr->proc();
   XLS_RETURN_IF_ERROR(
       current_proc
