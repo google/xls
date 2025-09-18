@@ -178,16 +178,6 @@ proc HuffmanRawWeightsDecoder<
         // as the most significant nibble at the most significant byte
         // in the first cell of the WeightsMemory requiring us to reverse them.
 
-        // Inject the last weight, take into the acount the reverse
-        let weights = if (state.req.n_symbols > u8:0 && (mem_rd_resp_valid && mem_rd_resp.last)) {
-            trace_fmt!("[RAW] The sum of weight's powers of 2's: {}", state.sum);
-            trace_fmt!("[RAW] The last weight: {}", last_weight);
-            trace_fmt!("[RAW] Injected {:#x} into weights[{}]", last_weight, MAX_WEIGHTS_IN_PACKET as u8 - state.req.n_symbols);
-            update(weights, (MAX_WEIGHTS_IN_PACKET as u8 - (state.req.n_symbols % MAX_WEIGHTS_IN_PACKET as u8)), last_weight)
-        } else {
-            weights
-        };
-
         let weights = match(AXI_DATA_W) {
             u32:32 => (
                 weights[6] ++ weights[7] ++ weights[4] ++ weights[5] ++
@@ -200,7 +190,17 @@ proc HuffmanRawWeightsDecoder<
                 weights[2]  ++ weights[3]  ++ weights[0]  ++ weights[1]
             ) as uN[AXI_DATA_W],
             _ => fail!("unsupported_axi_data_width", uN[AXI_DATA_W]:0),
-        };
+        } as u4[MAX_WEIGHTS_IN_PACKET];
+
+        let weights = if (state.req.n_symbols > u8:0 && (mem_rd_resp_valid && mem_rd_resp.last)) {
+         trace_fmt!("[RAW] The sum of weight's powers of 2's: {}", state.sum);
+         trace_fmt!("[RAW] The last weight: {}", last_weight);
+         trace_fmt!("[RAW] MAX_WEIGHTS: {}", MAX_WEIGHTS_IN_PACKET);
+         trace_fmt!("[RAW] Injected {:#x} into weights[{}]", last_weight, (state.req.n_symbols % MAX_WEIGHTS_IN_PACKET as u8));
+         update(weights, (state.req.n_symbols % MAX_WEIGHTS_IN_PACKET as u8), last_weight)
+        } else {
+            weights
+        } as uN[AXI_DATA_W];
 
         if do_recv_data && mem_rd_resp_valid {
             trace_fmt!("[RAW] Weights: {:#x}", weights);
