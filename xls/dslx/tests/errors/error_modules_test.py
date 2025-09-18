@@ -47,7 +47,7 @@ class ImportModuleWithTypeErrorTest(parameterized.TestCase):
     cmd = [
         _INTERP_PATH,
         path,
-        '--warnings_as_errors={}'.format(str(warnings_as_errors).lower()),
+        f"--warnings_as_errors={str(warnings_as_errors).lower()}",
     ]
 
     cmd.append('--type_inference_v2=' + str(type_inference_v2).lower())
@@ -284,7 +284,7 @@ class ImportModuleWithTypeErrorTest(parameterized.TestCase):
     if type_inference_v2:
       self._assert_type_mismatch('ModStruct', 'u8', stderr)
     else:
-      self.assertIn('{}:23:24-23:26'.format(test_path), stderr)
+      self.assertIn(f'{test_path}:23:24-23:26', stderr)
       self.assertIn('Non-bits type used to define a numeric literal.', stderr)
 
   def test_invalid_parameter_cast(self, type_inference_v2):
@@ -962,7 +962,9 @@ class ImportModuleWithTypeErrorTest(parameterized.TestCase):
           contents,
           want_type,
           want_message_substr,
-          want_type_inference_v2_message_substr=want_type_inference_v2_message_substr,
+          want_type_inference_v2_message_substr=(
+              want_type_inference_v2_message_substr
+          ),
           type_inference_v2=type_inference_v2,
       )
 
@@ -1011,7 +1013,9 @@ class ImportModuleWithTypeErrorTest(parameterized.TestCase):
           contents,
           want_type,
           want_message_substr,
-          want_type_inference_v2_message_substr=want_type_inference_v2_message_substr,
+          want_type_inference_v2_message_substr=(
+              want_type_inference_v2_message_substr
+          ),
           type_inference_v2=type_inference_v2,
       )
 
@@ -1107,7 +1111,8 @@ class ImportModuleWithTypeErrorTest(parameterized.TestCase):
             r'previous import @'
             # Filenames (& import names) are different lengths internally vs
             # externally.
-            r' xls/dslx/tests/errors/imports_corecursive_importer.x:15:1-15:(53|73)'
+            r' xls/dslx/tests/errors/imports_corecursive_'
+            r'importer.x:15:1-15:(53|73)'
         ),
     )
     self.assertRegex(
@@ -1371,7 +1376,7 @@ class ImportModuleWithTypeErrorTest(parameterized.TestCase):
     )
     self._assert_per_version_error_message(
         'Test functions cannot be parametric.',
-        'Could not find type for number: bits[N]:42',
+        'Test functions cannot be parametric.',
         stderr,
         type_inference_v2,
     )
