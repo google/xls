@@ -44,14 +44,16 @@ class Evaluator {
       std::variant<bool, const Expr*> value_or_expr) = 0;
 
   // Returns the unsigned 32-bit value of `value_or_expr` if it holds a value;
-  // otherwise, evaluates it in the given parametric context.
-  virtual absl::StatusOr<int64_t> EvaluateU32OrExpr(
+  // otherwise, evaluates it in the given parametric context. Returns an error
+  // if it is not a constexpr, or if the result cannot fit.
+  virtual absl::StatusOr<uint32_t> EvaluateU32OrExpr(
       std::optional<const ParametricContext*> parametric_context,
       std::variant<int64_t, const Expr*> value_or_expr) = 0;
 
   // Returns the signed 32-bit value of `value_or_expr` if it holds a value;
-  // otherwise, evaluates it in the given parametric context.
-  virtual absl::StatusOr<int64_t> EvaluateS32OrExpr(
+  // otherwise, evaluates it in the given parametric context.  Returns an error
+  // if it is not a constexpr, or if the result cannot fit.
+  virtual absl::StatusOr<int32_t> EvaluateS32OrExpr(
       std::optional<const ParametricContext*> parametric_context,
       std::variant<int64_t, const Expr*> value_or_expr) = 0;
 

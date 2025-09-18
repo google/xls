@@ -1193,8 +1193,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       return std::make_unique<TupleType>(std::move(member_types));
     }
     if (const auto* array = CastToNonBitsArrayTypeAnnotation(annotation)) {
-      XLS_ASSIGN_OR_RETURN(int64_t size, evaluator_->EvaluateU32OrExpr(
-                                             parametric_context, array->dim()));
+      XLS_ASSIGN_OR_RETURN(
+          uint32_t size,
+          evaluator_->EvaluateU32OrExpr(parametric_context, array->dim()));
       XLS_ASSIGN_OR_RETURN(
           std::unique_ptr<Type> element_type,
           Concretize(array->element_type(), parametric_context));
@@ -1224,8 +1225,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           std::move(payload_type), channel->direction());
       if (channel->dims().has_value()) {
         for (Expr* dim : *channel->dims()) {
-          XLS_ASSIGN_OR_RETURN(int64_t size, evaluator_->EvaluateU32OrExpr(
-                                                 parametric_context, dim));
+          XLS_ASSIGN_OR_RETURN(uint32_t size, evaluator_->EvaluateU32OrExpr(
+                                                  parametric_context, dim));
           type = std::make_unique<ArrayType>(
               std::move(type), TypeDim(InterpValue::MakeU32(size)));
         }

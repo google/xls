@@ -15,15 +15,19 @@
 #include "xls/dslx/type_system_v2/evaluator.h"
 
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <variant>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/constexpr_evaluator.h"
@@ -42,6 +46,18 @@
 namespace xls::dslx {
 namespace {
 
+template <typename T>
+class ToSigned {
+ public:
+  typedef std::make_signed_t<T> type;
+};
+
+template <>
+class ToSigned<bool> {
+ public:
+  typedef bool type;
+};
+
 class EvaluatorImpl : public Evaluator {
  public:
   EvaluatorImpl(InferenceTable& table, Module& module, ImportData& import_data,
@@ -57,43 +73,22 @@ class EvaluatorImpl : public Evaluator {
   absl::StatusOr<bool> EvaluateBoolOrExpr(
       std::optional<const ParametricContext*> parametric_context,
       std::variant<bool, const Expr*> value_or_expr) override {
-    if (std::holds_alternative<bool>(value_or_expr)) {
-      return std::get<bool>(value_or_expr);
-    }
-    const Expr* expr = std::get<const Expr*>(value_or_expr);
-    std::optional<InterpValue> value =
-        FastEvaluate(parametric_context, BuiltinType::kBool, expr);
-
-    if (!value.has_value()) {
-      XLS_RETURN_IF_ERROR(
-          converter_.ConvertSubtree(expr, std::nullopt, parametric_context));
-
-      XLS_ASSIGN_OR_RETURN(
-          value,
-          Evaluate(ParametricContextScopedExpr(
-              parametric_context,
-              CreateBoolAnnotation(*expr->owner(), expr->span()), expr)));
-
-      if (expr->kind() == AstNodeKind::kNumber) {
-        literal_cache_.emplace(
-            std::make_pair(BuiltinType::kBool, expr->ToString()), *value);
-      }
-    }
-    return value->GetBitValueUnsigned();
+    return EvaluateValueOrExpr<bool, BuiltinType::kBool>(parametric_context,
+                                                         value_or_expr);
   }
 
-  absl::StatusOr<int64_t> EvaluateU32OrExpr(
+  absl::StatusOr<uint32_t> EvaluateU32OrExpr(
       std::optional<const ParametricContext*> parametric_context,
       std::variant<int64_t, const Expr*> value_or_expr) override {
-    return Evaluate32BitIntOrExpr(parametric_context, value_or_expr,
-                                  /*is_signed=*/false);
+    return EvaluateValueOrExpr<uint32_t, BuiltinType::kU32>(parametric_context,
+                                                            value_or_expr);
   }
 
-  absl::StatusOr<int64_t> EvaluateS32OrExpr(
+  absl::StatusOr<int32_t> EvaluateS32OrExpr(
       std::optional<const ParametricContext*> parametric_context,
       std::variant<int64_t, const Expr*> value_or_expr) override {
-    return Evaluate32BitIntOrExpr(parametric_context, value_or_expr,
-                                  /*is_signed=*/true);
+    return EvaluateValueOrExpr<int32_t, BuiltinType::kS32>(parametric_context,
+                                                           value_or_expr);
   }
 
   absl::StatusOr<InterpValue> Evaluate(
@@ -156,17 +151,31 @@ class EvaluatorImpl : public Evaluator {
   }
 
  private:
-  absl::StatusOr<int64_t> Evaluate32BitIntOrExpr(
+  template <typename ResultT, typename ValueT>
+  absl::StatusOr<ResultT> CheckedCast(ValueT value) {
+    if (value >= static_cast<typename ToSigned<ResultT>::type>(
+                     std::numeric_limits<ResultT>::min()) &&
+        value <= std::numeric_limits<ResultT>::max()) {
+      return static_cast<ResultT>(value);
+    }
+    // We expect overflows from actual user code be detected at type
+    // unification, so this is not supposed to be reachable.
+    return absl::InternalError(
+        absl::StrCat("Evaluator overflow detected: `", value,
+                     "` cannot be represented in target type."));
+  }
+
+  template <typename ResultT, BuiltinType BuiltinT, typename ValueT>
+  absl::StatusOr<ResultT> EvaluateValueOrExpr(
       std::optional<const ParametricContext*> parametric_context,
-      std::variant<int64_t, const Expr*> value_or_expr, bool is_signed) {
-    if (std::holds_alternative<int64_t>(value_or_expr)) {
-      return std::get<int64_t>(value_or_expr);
+      std::variant<ValueT, const Expr*> value_or_expr) {
+    if (ValueT* value = std::get_if<ValueT>(&value_or_expr)) {
+      return CheckedCast<ResultT>(*value);
     }
 
     const Expr* expr = std::get<const Expr*>(value_or_expr);
-    const BuiltinType type = is_signed ? BuiltinType::kS32 : BuiltinType::kU32;
     std::optional<InterpValue> value =
-        FastEvaluate(parametric_context, type, expr);
+        FastEvaluate(parametric_context, BuiltinT, expr);
 
     if (!value.has_value()) {
       XLS_RETURN_IF_ERROR(converter_.ConvertSubtree(
@@ -175,26 +184,28 @@ class EvaluatorImpl : public Evaluator {
       std::optional<const TypeAnnotation*> type_annotation =
           table_.GetTypeAnnotation(expr);
       if (!type_annotation.has_value()) {
-        type_annotation =
-            is_signed ? CreateS32Annotation(*expr->owner(), expr->span())
-                      : CreateU32Annotation(*expr->owner(), expr->span());
+        type_annotation = expr->owner()->Make<BuiltinTypeAnnotation>(
+            expr->span(), BuiltinT,
+            expr->owner()->GetOrCreateBuiltinNameDef(BuiltinT));
       }
       XLS_ASSIGN_OR_RETURN(
           value, Evaluate(ParametricContextScopedExpr(parametric_context,
                                                       *type_annotation, expr)));
 
       if (expr->kind() == AstNodeKind::kNumber) {
-        literal_cache_.emplace(std::make_pair(type, expr->ToString()), *value);
+        literal_cache_.emplace(std::make_pair(BuiltinT, expr->ToString()),
+                               *value);
       }
     }
 
-    int64_t result;
-    if (value->IsSigned()) {
-      XLS_ASSIGN_OR_RETURN(result, value->GetBitValueSigned());
+    XLS_ASSIGN_OR_RETURN(bool signedness, GetBuiltinTypeSignedness(BuiltinT));
+    if (signedness) {
+      XLS_ASSIGN_OR_RETURN(int64_t result, value->GetBitValueSigned());
+      return CheckedCast<ResultT>(result);
     } else {
-      XLS_ASSIGN_OR_RETURN(result, value->GetBitValueUnsigned());
+      XLS_ASSIGN_OR_RETURN(uint64_t result, value->GetBitValueUnsigned());
+      return CheckedCast<ResultT>(result);
     }
-    return result;
   }
 
   // Evaluates the given `Expr` if there is a faster way to do so than using
