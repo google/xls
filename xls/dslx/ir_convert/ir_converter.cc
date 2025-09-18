@@ -61,6 +61,7 @@
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/ir_convert/channel_scope.h"
 #include "xls/dslx/ir_convert/conversion_info.h"
+#include "xls/dslx/ir_convert/conversion_record.h"
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/extract_conversion_order.h"
 #include "xls/dslx/ir_convert/function_converter.h"

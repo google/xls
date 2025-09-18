@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_DSLX_IR_CONVERT_ET_CONVERSION_RECORDS_H_
-#define XLS_DSLX_IR_CONVERT_ET_CONVERSION_RECORDS_H_
+#ifndef XLS_DSLX_IR_CONVERT_GET_CONVERSION_RECORDS_H_
+#define XLS_DSLX_IR_CONVERT_GET_CONVERSION_RECORDS_H_
 
 #include <variant>
 #include <vector>
 
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
-#include "xls/dslx/ir_convert/extract_conversion_order.h"
+#include "xls/dslx/ir_convert/conversion_record.h"
 #include "xls/dslx/type_system/type_info.h"
 
 namespace xls::dslx {
@@ -43,4 +43,4 @@ absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecordsForEntry(
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_IR_CONVERT_ET_CONVERSION_RECORDS_H_
+#endif  // XLS_DSLX_IR_CONVERT_GET_CONVERSION_RECORDS_H_

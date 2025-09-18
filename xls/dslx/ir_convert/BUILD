@@ -49,6 +49,29 @@ cc_library(
 )
 
 cc_library(
+    name = "conversion_record",
+    srcs = ["conversion_record.cc"],
+    hdrs = ["conversion_record.h"],
+    deps = [
+        "//xls/common/status:status_macros",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_node",
+        "//xls/dslx/frontend:module",
+        "//xls/dslx/frontend:proc_id",
+        "//xls/dslx/type_system:parametric_env",
+        "//xls/dslx/type_system:type_info",
+        "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
     name = "channel_scope",
     srcs = ["channel_scope.cc"],
     hdrs = ["channel_scope.h"],
@@ -386,6 +409,7 @@ cc_library(
     deps = [
         ":channel_scope",
         ":conversion_info",
+        ":conversion_record",
         ":convert_options",
         ":extract_conversion_order",
         ":function_converter",
@@ -437,6 +461,7 @@ cc_library(
     srcs = ["extract_conversion_order.cc"],
     hdrs = ["extract_conversion_order.h"],
     deps = [
+        ":conversion_record",
         "//xls/common:casts",
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
@@ -452,7 +477,6 @@ cc_library(
         "//xls/dslx/type_system:parametric_env",
         "//xls/dslx/type_system:type_info",
         "@com_google_absl//absl/algorithm:container",
-        "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
@@ -488,6 +512,7 @@ cc_library(
     srcs = ["get_conversion_records.cc"],
     hdrs = ["get_conversion_records.h"],
     deps = [
+        ":conversion_record",
         ":extract_conversion_order",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
