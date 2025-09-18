@@ -3450,15 +3450,21 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     XLS_RETURN_IF_ERROR(Visit(dep));
   }
 
-  Function& config_fn = proc->config();
   if (options_.lower_to_proc_scoped_channels) {
+    TypeInfo* config_type_info = record.config_record() != nullptr
+                                     ? record.config_record()->type_info()
+                                     : type_info;
+    ScopedTypeInfoSwap stis(this, config_type_info);
+
+    Function& config_fn = proc->config();
     // This probably was checked already but might as well double-check it.
     XLS_RET_CHECK(invocation != nullptr || !f->IsParametric())
         << "Cannot lower a parametric proc without an invocation";
 
     // Generate channel interfaces.
     for (const Param* param : config_fn.params()) {
-      XLS_ASSIGN_OR_RETURN(Type * type, type_info->GetItemOrError(param));
+      XLS_ASSIGN_OR_RETURN(Type * type,
+                           current_type_info_->GetItemOrError(param));
       ChannelOrArray channel_or_array;
 
       if (ArrayType* array_type = dynamic_cast<ArrayType*>(type);
@@ -3480,7 +3486,7 @@ absl::Status FunctionConverter::HandleProcNextFunction(
         XLS_ASSIGN_OR_RETURN(
             channel_or_array,
             proc_scoped_channel_scope_->DefineBoundaryChannelOrArray(
-                param, type_info));
+                param, current_type_info_));
         XLS_RET_CHECK(std::holds_alternative<ChannelArray*>(channel_or_array));
         SetNodeToIr(param->name_def(),
                     std::get<ChannelArray*>(channel_or_array));
@@ -3586,7 +3592,11 @@ absl::Status FunctionConverter::HandleProcNextFunction(
   XLS_ASSIGN_OR_RETURN(xls::Proc * p, builder_ptr->Build());
 
   package_data_.ir_to_dslx[p] = f;
-  // The invocation is actually the "config".
+  if (record.config_record() != nullptr) {
+    // The invocation is actually the "next", but we need the "config".
+    package_data_.invocation_to_ir_proc[record.config_record()->invocation()] =
+        p;
+  }
   package_data_.invocation_to_ir_proc[invocation] = p;
   return absl::OkStatus();
 }
