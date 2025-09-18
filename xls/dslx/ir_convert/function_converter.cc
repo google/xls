@@ -481,6 +481,7 @@ absl::Status FunctionConverter::Visit(const AstNode* node) {
                                    ChannelDirectionToString(ci->direction()),
                                    ci);
           },
+          [](ChannelArray* ca) { return absl::StrFormat("%p", ca); },
       },
       value);
 }
@@ -746,6 +747,23 @@ absl::Status FunctionConverter::HandleTupleIndex(const TupleIndex* node) {
 
 absl::Status FunctionConverter::HandleXlsTuple(const XlsTuple* node) {
   VLOG(5) << "FunctionConverter::HandleXlsTuple: " << node->ToString();
+  if (current_fn_tag_ == FunctionTag::kProcConfig) {
+    std::vector<IrValue> ir_operands;
+    std::vector<BValue> b_operands;
+    for (Expr* operand : node->members()) {
+      std::optional<IrValue> v = GetNodeToIr(operand);
+      XLS_RET_CHECK(v.has_value());
+      if (std::holds_alternative<BValue>(*v)) {
+        b_operands.push_back(std::get<BValue>(*v));
+      }
+      ir_operands.push_back(*v);
+    }
+    last_tuple_ = ir_operands;
+    Def(node, [this, &b_operands](const SourceInfo& loc) {
+      return function_builder_->Tuple(b_operands, loc);
+    });
+    return absl::OkStatus();
+  }
   std::vector<BValue> operands;
   for (Expr* o : node->members()) {
     XLS_ASSIGN_OR_RETURN(BValue v, Use(o));
@@ -754,9 +772,6 @@ absl::Status FunctionConverter::HandleXlsTuple(const XlsTuple* node) {
   Def(node, [this, &operands](const SourceInfo& loc) {
     return function_builder_->Tuple(operands, loc);
   });
-  if (current_fn_tag_ == FunctionTag::kProcConfig) {
-    last_tuple_ = operands;
-  }
   return absl::OkStatus();
 }
 
@@ -851,9 +866,7 @@ absl::Status FunctionConverter::HandleNameRef(const NameRef* node) {
         } else if (std::holds_alternative<ChannelArray*>(v)) {
           VLOG(4) << "Reference to Proc member: " << k << " : Chan array : "
                   << std::get<ChannelArray*>(v)->ToString();
-          // There is no IR equivalent for a channel array. The Index nodes
-          // that refer to it have to be lowered to refer to specific channels.
-          return absl::OkStatus();
+          SetNodeToIr(from, std::get<ChannelArray*>(v));
         } else if (std::holds_alternative<Channel*>(v)) {
           VLOG(4) << "Reference to Proc member: " << k
                   << " : Chan  : " << std::get<Channel*>(v)->ToString();
@@ -2636,6 +2649,10 @@ absl::StatusOr<ChanRef> FunctionConverter::IrValueToChannelRef(
             return absl::InvalidArgumentError(
                 "Unexpected ChannelInterface in IrValue.");
           },
+          [](ChannelArray* chan) -> absl::StatusOr<ChanRef> {
+            return absl::InvalidArgumentError(
+                "Unexpected ChannelArray in IrValue.");
+          },
       },
       ir_value);
 }
@@ -3455,8 +3472,8 @@ absl::Status FunctionConverter::HandleProcNextFunction(
             proc_scoped_channel_scope_->DefineBoundaryChannelOrArray(
                 param, type_info));
         XLS_RET_CHECK(std::holds_alternative<ChannelArray*>(channel_or_array));
-        // TODO: davidplass - assign the param name to an appropriate BValue
-        // for this channel or array, for the Def call.
+        SetNodeToIr(param->name_def(),
+                    std::get<ChannelArray*>(channel_or_array));
       } else {
         ChannelType* channel_type = dynamic_cast<ChannelType*>(type);
         XLS_RET_CHECK_NE(channel_type, nullptr)
@@ -3515,28 +3532,39 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     XLS_RET_CHECK_EQ(last_tuple_.size(), proc->members().size());
     int i = 0;
     for (const ProcMember* member : proc->members()) {
-      BValue tuple_entry = last_tuple_[i++];
-      Def(member, [tuple_entry](const SourceInfo& loc) { return tuple_entry; });
+      IrValue tuple_entry = last_tuple_[i++];
+      if (std::holds_alternative<ChannelArray*>(tuple_entry)) {
+        ChannelArray* channel_array = std::get<ChannelArray*>(tuple_entry);
+        SetNodeToIr(member->name_def(), tuple_entry);
+        proc_data_->id_to_members.at(proc_id)[member->identifier()] =
+            channel_array;
+        XLS_RETURN_IF_ERROR(channel_scope_->AssociateWithExistingChannelOrArray(
+            *proc_id_, member->name_def(), channel_array));
+      } else {
+        BValue bvalue = std::get<BValue>(tuple_entry);
+        Def(member->name_def(),
+            [bvalue](const SourceInfo& loc) { return bvalue; });
 
-      // Store the ChannelInterface for this entry in the id_to_members map.
-      Node* node = tuple_entry.node();
-      switch (node->op()) {
-        case Op::kSendChannelEnd: {
-          SendChannelEnd* sce = node->As<SendChannelEnd>();
-          proc_data_->id_to_members.at(proc_id)[member->identifier()] =
-              sce->channel_interface();
-          break;
+        // Store the ChannelInterface for this entry in the id_to_members map.
+        Node* node = bvalue.node();
+        switch (node->op()) {
+          case Op::kSendChannelEnd: {
+            SendChannelEnd* sce = node->As<SendChannelEnd>();
+            proc_data_->id_to_members.at(proc_id)[member->identifier()] =
+                sce->channel_interface();
+            break;
+          }
+          case Op::kRecvChannelEnd: {
+            RecvChannelEnd* rce = node->As<RecvChannelEnd>();
+            proc_data_->id_to_members.at(proc_id)[member->identifier()] =
+                rce->channel_interface();
+            break;
+          }
+          default:
+            return absl::InternalError(absl::StrFormat(
+                "Cannot process config return tuple element %d of type %s",
+                i - 1, OpToString(node->op())));
         }
-        case Op::kRecvChannelEnd: {
-          RecvChannelEnd* rce = node->As<RecvChannelEnd>();
-          proc_data_->id_to_members.at(proc_id)[member->identifier()] =
-              rce->channel_interface();
-          break;
-        }
-        default:
-          return absl::InternalError(absl::StrFormat(
-              "Cannot process config return tuple element %d of type %s", i - 1,
-              OpToString(node->op())));
       }
     }
   }

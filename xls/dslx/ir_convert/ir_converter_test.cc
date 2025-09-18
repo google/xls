@@ -5016,6 +5016,62 @@ pub proc main {
                HasSubstr("Cannot have non-channel parameters")));
 }
 
+TEST_P(ProcScopedChannelsIrConverterTest, ChannelArrayMembers) {
+  constexpr std::string_view kProgram = R"(
+pub proc main {
+  ins: chan<u32>[3] in;
+  outs: chan<u16>[2] out;
+
+  init { }
+  config(in_chans: chan<u32>[3] in, out_chans: chan<u16>[2] out) {
+    (in_chans, out_chans)
+  }
+  next(state: ()) {
+    send(token(), outs[0], u16:42);
+    recv(token(), ins[1]);
+    ()
+  }
+}
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, ChannelArrayAndChannelMembers) {
+  constexpr std::string_view kProgram = R"(
+pub proc main {
+  ins: chan<u32>[3] in;
+  outs: chan<u16> out;
+
+  init { }
+  config(in_chans: chan<u32>[3] in, out_chan: chan<u16> out) {
+    (in_chans, out_chan)
+  }
+  next(state: ()) {
+    send(token(), outs, u16:42);
+    recv(token(), ins[1]);
+    ()
+  }
+}
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
+  ExpectIr(converted);
+}
+
 TEST_P(ProcScopedChannelsIrConverterTest, LoopbackChannelMember) {
   constexpr std::string_view kProgram = R"(
 proc main {

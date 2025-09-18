@@ -225,7 +225,8 @@ class FunctionConverter {
   // Every AST node has an "IR value" that is either a function builder value
   // (BValue) or its IR-conversion-time-constant-decorated cousin (CValue), or
   // an inter-proc Channel.
-  using IrValue = std::variant<BValue, CValue, Channel*, ChannelInterface*>;
+  using IrValue =
+      std::variant<BValue, CValue, Channel*, ChannelInterface*, ChannelArray*>;
 
   // Helper for converting an IR value to its BValue pointer for use in
   // debugging.
@@ -629,7 +630,7 @@ class FunctionConverter {
 
   // The last tuple converted. Used for mapping the return tuple of a proc
   // `config` method to actual proc members.
-  std::vector<BValue> last_tuple_;
+  std::vector<IrValue> last_tuple_;
 
   std::unique_ptr<ProcScopedChannelScope> proc_scoped_channel_scope_;
 };
