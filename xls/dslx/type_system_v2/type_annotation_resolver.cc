@@ -745,7 +745,7 @@ class StatefulResolver : public TypeAnnotationResolver {
 
     const auto* width_slice = std::get<WidthSlice*>(slice_type->slice());
     StartAndWidthExprs start_and_width;
-    absl::StatusOr<int64_t> constexpr_start =
+    absl::StatusOr<uint32_t> constexpr_start =
         evaluator_.EvaluateU32OrExpr(parametric_context, width_slice->start());
     if (constexpr_start.ok()) {
       start_and_width.start = *constexpr_start;
@@ -780,15 +780,8 @@ class StatefulResolver : public TypeAnnotationResolver {
     }
 
     if (constexpr_start.ok()) {
-      // If start index is a signed value or a negative number literal it would
-      // have a signed type annotation which contradicts with the type
-      // annotation of a widthslice `uN[width]` and it would have been caught
-      // earlier at the unification of the index itself, so start index is
-      // expected to be unsigned, and the only reason that constexpr_start may
-      // be negative is that the value being evaluated is a uint64_t with MSB
-      // set, which overflows when casted to int64_t. It is obvious that a start
-      // index of 2^63 or greater is always out of range.
-      if (*constexpr_start < 0 || *constexpr_start + width > source_size) {
+      if (*constexpr_start > source_size ||
+          width > source_size - *constexpr_start) {
         // In v2, if the start happens to be constexpr and makes the width too
         // far, there is an added warning that is not in v1.
         warning_collector_.Add(
