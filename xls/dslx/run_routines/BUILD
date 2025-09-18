@@ -56,6 +56,7 @@ cc_library(
         "//xls/dslx/frontend:pos",
         "//xls/dslx/ir_convert:conversion_info",
         "//xls/dslx/ir_convert:convert_options",
+        "//xls/dslx/ir_convert:function_converter",
         "//xls/dslx/ir_convert:ir_converter",
         "//xls/dslx/type_system:parametric_env",
         "//xls/dslx/type_system:type",
