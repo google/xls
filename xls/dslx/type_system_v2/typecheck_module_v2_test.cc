@@ -5865,6 +5865,16 @@ const Y = f<1, 4>(0b100111);
                                       HasNodeWithType("Y", "uN[4]"))));
 }
 
+TEST(TypecheckV2Test, WidthSliceStartOverflow) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+const A : u64 = 0;
+const B = A[0x7FFFFFFFFFFFFFFF+:u32];
+)"));
+  ASSERT_THAT(result.tm.warnings.warnings().size(), 1);
+  EXPECT_EQ(result.tm.warnings.warnings()[0].message,
+            "Slice range out of bounds for array of size 64");
+}
+
 TEST(TypecheckV2Test, WithSliceSetsTypeOnStart) {
   EXPECT_THAT(R"(
 fn f(x: u32, y: u32) -> u8 {
