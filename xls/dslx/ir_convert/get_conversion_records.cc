@@ -27,7 +27,7 @@
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/proc_id.h"
-#include "xls/dslx/ir_convert/extract_conversion_order.h"
+#include "xls/dslx/ir_convert/conversion_record.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/public/status_macros.h"

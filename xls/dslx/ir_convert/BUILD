@@ -514,7 +514,6 @@ cc_library(
     hdrs = ["get_conversion_records.h"],
     deps = [
         ":conversion_record",
-        ":extract_conversion_order",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx/frontend:ast",
@@ -534,7 +533,7 @@ cc_test(
     name = "get_conversion_records_test",
     srcs = ["get_conversion_records_test.cc"],
     deps = [
-        ":extract_conversion_order",
+        ":conversion_record",
         ":get_conversion_records",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
