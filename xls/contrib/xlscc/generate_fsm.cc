@@ -88,14 +88,14 @@ absl::StatusOr<NewFSMLayout> NewFSMGenerator::LayoutNewFSM(
 
   // Record transitions across activations
   // TODO(seanhaskell): Add from last to first for statics
+
   bool first_slice = true;
   for (const GeneratedFunctionSlice& slice : func.slices) {
     if (first_slice) {
       first_slice = false;
       continue;
     }
-    const IOOp* after_op = slice.after_op;
-    if (after_op == nullptr) {
+    if (slice.is_slice_before) {
       // This is the "before" slice that can be transitioned to in an IO
       // activation transition.
       const int64_t before_io_slice_index = ret.index_by_slice.at(&slice);
@@ -104,6 +104,7 @@ absl::StatusOr<NewFSMLayout> NewFSMGenerator::LayoutNewFSM(
           ret.slice_by_index.at(after_io_slice_index);
       const IOOp* op_after = after_io_slice->after_op;
       CHECK_NE(op_after, nullptr);
+
       if (!channels_used_this_activation.contains(op_after->channel)) {
         channels_used_this_activation.insert(op_after->channel);
         continue;
@@ -116,11 +117,13 @@ absl::StatusOr<NewFSMLayout> NewFSMGenerator::LayoutNewFSM(
       ret.transition_by_slice_from_index[transition.from_slice] = transition;
       ret.state_transitions.push_back(transition);
       ret.all_jump_from_slice_indices.push_back(transition.from_slice);
-
       // All channels are cleared after the transition
       channels_used_this_activation.clear();
+      // The barrier is before this op, so this channel must be added
+      channels_used_this_activation.insert(op_after->channel);
       continue;
     }
+    const IOOp* after_op = slice.after_op;
     // This is optional, so doesn't reset channels_used_this_activation
     if (after_op->op == OpType::kLoopEndJump) {
       const int64_t end_jump_slice_index = ret.index_by_slice.at(&slice);
