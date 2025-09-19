@@ -439,6 +439,190 @@ absl::StatusOr<bool> TryHoistBitWiseOperation(Node* node,
   return true;
 }
 
+// This attempts to narrow and hoist a bitwise operation above a concat
+// For example:
+// avar is [0:31] and bvar is [0]
+// when avar needs to be bit ANDed with bvar, the compiler often first
+// concatenates the shorter bvar and then performs the bitwise operation:
+//   And(Concat(bvar, 0b000...000), avar)
+// This pass will try to hoist the AND operation above the concat:
+//   Concat(And(bvar, avar[0:0]), 0b000...000)
+// which effectively narrows the bitwise operation
+// This optimization applies to both AND and OR operations with a operand with 0
+// and 1 concats respectively.
+absl::StatusOr<bool> TryNarrowAndHoistBitWiseOperation(Concat* concat,
+                                              const QueryEngine& query_engine,
+                                              std::deque<Concat*>* worklist) {
+  // Check if the concat has exactly two operands.
+  if (concat->operand_count() != 2) {
+    return false;
+  }
+
+  // Find the constant operand of the concat.
+  Bits constant_bits;
+  int64_t constant_operand_index = -1;
+  for (int64_t i = 0; i < concat->operand_count(); ++i) {
+    Node* operand = concat->operand(i);
+    if (query_engine.IsFullyKnown(operand)) {
+      // If the operand is a constant, record it.
+      Bits known_value = *query_engine.KnownValueAsBits(operand);
+      if (known_value.IsZero() || known_value.IsAllOnes()) {
+        constant_bits = known_value;
+        constant_operand_index = i;
+        break;
+      }
+    }
+  }
+
+  // Target operand is the one that is not the constant operand in the concat.
+  Node* target_operand = concat->operand(!constant_operand_index);
+
+  if (target_operand == nullptr) {
+    // No constant operand found.
+    return false;
+  }
+
+  // Calculate the exact bit position of the target operand.
+  int64_t bit_position_start = 0;
+  int64_t bit_length = target_operand->BitCountOrDie();;
+  if (constant_operand_index == 1) {
+    // If the constant operand is 1, the target operand bit position
+    // starts after the constant operand.
+    bit_position_start = concat->operand(constant_operand_index)->BitCountOrDie();
+  } else {
+    // If the constant operand is 0, the target operand bit position
+    // starts at 0.
+    bit_position_start = 0;
+  }
+
+  // Heuristic to make sure the narrowing is actually meaningful.
+  // Six bits is chosen since most modern FPGAs have 6-LUTs
+  if (constant_bits.bit_count() < 6) {
+    return false;
+  }
+
+  // Now iterate through all the users of the concat and find
+  // bitwise And or Or operations that can be narrowed
+  // and hoisted above the concat.
+  bool changed = false;
+  for (Node* user : concat->users()) {
+    if (!OpIsBitWise(user->op()) || user->operand_count() != 2) {
+      continue;
+    }
+
+    // Find the operand that is not the target concat of this function.
+    // Please note that this operant may very much be a concat as well but its
+    // not the one we are currently interseted in so we treat it as a generic
+    // operand.
+    Node* non_concat = nullptr;
+    if (user->operand(0) == concat) {
+      non_concat = user->operand(1);
+    } else if (user->operand(1) == concat) {
+      non_concat = user->operand(0);
+    }
+
+    // If the user is a And or Or operation, we can narrow it
+    // and hoist it above the concat.
+    if ((user->op() == Op::kAnd && constant_bits.IsZero()) ||
+        (user->op() == Op::kOr && constant_bits.IsAllOnes())) {
+      // Produce a bit slice of the other operand that matches the length 
+      // of the target operand.
+      XLS_ASSIGN_OR_RETURN(
+          Node * bit_slice,
+          user->function_base()->MakeNode<BitSlice>(
+              user->loc(), non_concat, bit_position_start,
+              bit_length));
+      
+      // Clone the user with the bit slice as the first operand.
+      XLS_ASSIGN_OR_RETURN(
+          Node * narrowed_op,
+          user->Clone({bit_slice, target_operand}));
+
+      // Create the concatenation of the narrowed operation.
+      Concat* new_concat = nullptr;
+      if (constant_operand_index == 0) {
+        // Case for the bitwise operation being concatenated to the low bits
+        XLS_ASSIGN_OR_RETURN(
+            new_concat,
+            user->function_base()->MakeNode<Concat>(
+                user->loc(), std::vector<Node*>{concat->operand(0), narrowed_op}));
+      } else {
+        // Case for the bitwise operation being concatenated to the high bits
+        XLS_ASSIGN_OR_RETURN(
+            new_concat,
+            user->function_base()->MakeNode<Concat>(
+                user->loc(), std::vector<Node*>{narrowed_op, concat->operand(1)}));
+      }
+
+      // Replace the original user with the new concat.
+      XLS_RETURN_IF_ERROR(user->ReplaceUsesWith(new_concat));
+      // Add the new concat to the worklist for further processing.
+      worklist->push_back(new_concat);
+      changed = true;
+      break;
+    } else if (user->op() == Op::kXor && constant_bits.IsZero()) {
+      // If the user is a Xor operation, we can narrow it
+      // and hoist it above the concat but requires a different semantics compared
+      // to And/Or operations.
+
+      // Produce a bit slice of the non_concat operand that matches the length 
+      // of the target operand.
+      XLS_ASSIGN_OR_RETURN(
+          Node * bit_slice_for_xor,
+          user->function_base()->MakeNode<BitSlice>(
+              user->loc(), non_concat, bit_position_start,
+              bit_length));
+
+      // Slice the rest of the non_concat operand for concatenation back later
+      // on.
+      Node * bit_slice_for_concat = nullptr;
+      if (bit_position_start == 0) {
+        XLS_ASSIGN_OR_RETURN(
+          bit_slice_for_concat,
+          user->function_base()->MakeNode<BitSlice>(
+              user->loc(), non_concat, bit_position_start + bit_length,
+              non_concat->BitCountOrDie() - bit_length));
+      } else {
+        XLS_ASSIGN_OR_RETURN(
+          bit_slice_for_concat,
+          user->function_base()->MakeNode<BitSlice>(
+              user->loc(), non_concat, 0, non_concat->BitCountOrDie() - bit_length));
+      }
+
+      // Clone the user with the bit slice as the first operand
+      XLS_ASSIGN_OR_RETURN(
+          Node * narrowed_op,
+          user->Clone({bit_slice_for_xor, target_operand}));
+      
+      // Create a new concat with the narrowed operation and the rest of the
+      // non_concat operand.
+      Concat* new_concat = nullptr;
+      if (constant_operand_index == 0) {
+        // Case for the bitwise operation being concatenated to the low bits
+        XLS_ASSIGN_OR_RETURN(
+            new_concat,
+            user->function_base()->MakeNode<Concat>(
+                user->loc(), std::vector<Node*>{bit_slice_for_concat, narrowed_op}));
+      } else {
+        // Case for the bitwise operation being concatenated to the high bits
+        XLS_ASSIGN_OR_RETURN(
+            new_concat,
+            user->function_base()->MakeNode<Concat>(
+                user->loc(), std::vector<Node*>{narrowed_op, bit_slice_for_concat}));
+      }
+
+      // Replace the original user with the narrowed operation.
+      XLS_RETURN_IF_ERROR(user->ReplaceUsesWith(new_concat));
+      // Add the new concat to the worklist for further processing.
+      worklist->push_back(new_concat);
+      changed = true;
+      break;
+    }
+  }
+
+  return changed;
+}
+
 // Transform a reduction of a concat to a reduction of the concat's operands.
 // e.g. OrReduce(Concat(a,b)) ==> Or(OrReduce(a), OrReduce(b))
 absl::StatusOr<bool> TryBypassReductionOfConcatenation(Node* node) {
@@ -570,6 +754,16 @@ absl::StatusOr<bool> ConcatSimplificationPass::RunOnFunctionBaseInternal(
     XLS_ASSIGN_OR_RETURN(bool node_changed,
                          SimplifyConcat(concat, options.opt_level, &worklist));
     changed = changed || node_changed;
+
+    // Run the narrowing and hoisting optimization for bitwise users of the concat.
+    // This is done here since it operates on the granularity of single concats and
+    // thus would save some analysis effort if we do it here rather than below.
+    if (options.narrowing_enabled()) {
+      XLS_ASSIGN_OR_RETURN(
+          bool narrow_changed,
+          TryNarrowAndHoistBitWiseOperation(concat, query_engine, &worklist));
+      changed = changed || narrow_changed;
+    }
   }
 
   // For optimizations which optimize around concats, just iterate through once
