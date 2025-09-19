@@ -14,6 +14,7 @@
 
 #include "xls/passes/range_query_engine.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -629,6 +630,27 @@ absl::Status RangeQueryVisitor::HandleMap(Map* map) {
   return absl::OkStatus();  // TODO(taktoa): implement
 }
 
+// Attempts to obtain precise array indices from the given intervals. Returns
+// the empty vector if any interval is not precise or cannot be coerced to an
+// int64_t.
+std::vector<int64_t> GetArrayIndices(
+    const std::vector<IntervalSet>& intervals) {
+  std::vector<int64_t> indexes;
+  indexes.reserve(intervals.size());
+  for (int64_t i = 0; i < intervals.size(); ++i) {
+    const IntervalSet& interval = intervals[i];
+    if (!interval.IsPrecise()) {
+      return {};
+    }
+    auto index = interval.GetPreciseValue()->UnsignedToInt64();
+    if (!index.ok()) {
+      return {};
+    }
+    indexes.push_back(*index);
+  }
+  return indexes;
+}
+
 absl::Status RangeQueryVisitor::HandleArrayIndex(ArrayIndex* array_index) {
   INITIALIZE_OR_SKIP(array_index);
 
@@ -670,6 +692,22 @@ absl::Status RangeQueryVisitor::HandleArrayIndex(ArrayIndex* array_index) {
           array_type->element_type()->AsArray();
       array_type = array_type_status.ok() ? *array_type_status : nullptr;
     }
+  }
+
+  // Fast path: if all of the index intervals are precise, we can just perform
+  // a lookup.
+  if (std::vector<int64_t> indexes = GetArrayIndices(index_intervals);
+      !indexes.empty()) {
+    for (int64_t i = 0; i < index_intervals.size(); ++i) {
+      // Clamp to boundary if out of bounds.
+      int64_t bound = dimension[i] - 1;
+      indexes[i] = std::clamp<int64_t>(indexes[i], 0, bound);
+    }
+
+    SetIntervalSetTree(
+        array_index,
+        leaf_type_tree::Clone(array_interval_set_tree->AsView(indexes)));
+    return absl::OkStatus();
   }
 
   IntervalSetTree result = EmptyIntervalSetTree(array_index->GetType());
