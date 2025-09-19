@@ -118,11 +118,18 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
   // or "jump" to this slice, as it has no IO op input.
   if (generate_new_fsm_ && split_states_on_channel_ops_ && channel != nullptr &&
       !no_before_slice) {
-    XLS_RETURN_IF_ERROR(NewContinuation(op, /*create_slice_before=*/true));
+    XLS_RETURN_IF_ERROR(NewContinuation(op.op, Debug_OpName(op),
+                                        /*op_ret_value=*/TrackedBValue(),
+                                        op.op_location, op.channel_op_index,
+                                        /*create_slice_before=*/true,
+                                        /*temp_name=*/false));
   }
 
   // Add the continuation before, not including the received parameter
-  XLS_RETURN_IF_ERROR(NewContinuation(op, /*create_slice_before=*/false));
+  XLS_RETURN_IF_ERROR(NewContinuation(op.op, Debug_OpName(op), op.ret_value,
+                                      op.op_location, op.channel_op_index,
+                                      /*create_slice_before=*/false,
+                                      /*temp_name=*/false));
 
   std::shared_ptr<CType> channel_item_type;
 

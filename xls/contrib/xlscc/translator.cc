@@ -3882,7 +3882,6 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
       caller_params_by_callee_param;
 
   TrackedBValue last_slice_ret;
-
   for (auto slice_it = func->slices.begin(); slice_it != func->slices.end();
        ++slice_it) {
     GeneratedFunctionSlice& slice = *slice_it;
@@ -3892,9 +3891,29 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
       XLS_RETURN_IF_ERROR(AddIOOpForSliceForCall(
           *func, slice, last_slice_ret, caller_ops_by_callee_op,
           caller_channels_by_callee_channel, loc));
+
+      // Set slice before name, if there is one
+      if (slice_it != func->slices.begin()) {
+        auto last_slice_it = context().sf->slices.rbegin();
+        last_slice_it++;
+        if (last_slice_it->is_slice_before &&
+            // Not masked
+            caller_ops_by_callee_op.at(slice.after_op) != nullptr) {
+          IOOp* caller_op = caller_ops_by_callee_op.at(slice.after_op);
+
+          std::string before_slice_name =
+              FormatSliceName(Debug_OpName(*caller_op), caller_op->op_location,
+                              caller_op->channel_op_index,
+                              /*create_slice_before=*/true,
+                              /*temp_name=*/false);
+
+          last_slice_it->function->SetName(before_slice_name);
+        }
+      }
     } else if (slice.is_slice_before) {
       XLSCC_CHECK_NE(&slice, &func->slices.front(), loc);
 
+      // This is the callee slice!
       auto next_slice_it = slice_it;
       ++next_slice_it;
       XLSCC_CHECK(next_slice_it != func->slices.end(), loc);
@@ -3902,9 +3921,16 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
       GeneratedFunctionSlice& next_slice = *next_slice_it;
       XLSCC_CHECK_NE(next_slice.after_op, nullptr, loc);
 
+      // This is the callee op!
       if (next_slice.after_op != nullptr && !OpIsMasked(*next_slice.after_op)) {
-        XLS_RETURN_IF_ERROR(NewContinuation(*next_slice.after_op,
-                                            /*create_slice_before=*/true));
+        XLS_RETURN_IF_ERROR(
+            NewContinuation(next_slice.after_op->op,
+                            /*op_name=*/"",
+                            /*op_ret_value=*/TrackedBValue(),
+                            /*loc=*/next_slice.after_op->op_location,
+                            /*channel_op_index=*/-1,
+                            /*create_slice_before=*/true,
+                            /*temp_name=*/true));
       }
     }
 

@@ -344,7 +344,7 @@ Translator::ConvertBValuesToContinuationOutputsForCurrentSlice(
 }
 
 absl::Status Translator::AddContinuationsToNewSlice(
-    const IOOp& after_op, GeneratedFunctionSlice& last_slice,
+    OpType after_op_type, GeneratedFunctionSlice& last_slice,
     GeneratedFunctionSlice& new_slice,
     const absl::flat_hash_map<const ContinuationValue*,
                               std::vector<TrackedBValue*>>&
@@ -409,7 +409,7 @@ absl::Status Translator::AddContinuationsToNewSlice(
     // added later. Literals can still be substituted for them during
     // optimization.
     if (continuation_in.continuation_out->literal.has_value() &&
-        after_op.op != OpType::kLoopBegin) {
+        after_op_type != OpType::kLoopBegin) {
       // Literals should only be propagated downstream, as upstream feedbacks
       // imply statefulness and a need for inductive reasoning about values.
       //
@@ -448,20 +448,37 @@ absl::Status Translator::AddContinuationsToNewSlice(
   return absl::OkStatus();
 }
 
+std::string Translator::FormatSliceName(std::string_view op_name,
+                                        const xls::SourceInfo& loc,
+                                        int64_t channel_op_index,
+                                        bool create_slice_before,
+                                        bool temp_name) {
+  std::string_view xls_name =
+      xls_names_for_functions_generated_.at(context().sf->clang_decl);
+
+  if (temp_name) {
+    XLSCC_CHECK(create_slice_before, loc);
+    return absl::StrFormat("%s_slice_before__temp", xls_name);
+  }
+  return absl::StrFormat("%s_slice_%s_%s_%i", xls_name,
+                         create_slice_before ? "before" : "after", op_name,
+                         channel_op_index);
+}
+
 // The continuation comes before the IO op, and so does not include its input
 // parameter
-absl::Status Translator::NewContinuation(const IOOp& op,
-                                         bool create_slice_before) {
+absl::Status Translator::NewContinuation(
+    OpType op_type, std::string_view op_name, TrackedBValue op_ret_value,
+    const xls::SourceInfo& loc, int64_t channel_op_index,
+    bool create_slice_before, bool temp_name) {
   // If there is no first slice, then don't generate any
   if (context().sf->slices.empty()) {
     return absl::OkStatus();
   }
 
-  const xls::SourceInfo& loc = op.op_location;
-
   // ConvertBValuesToContinuationOutputsForCurrentSlice() will invalidate
   // BValues
-  const NATIVE_BVAL ret_value_saved = op.ret_value;
+  const NATIVE_BVAL ret_value_saved = op_ret_value;
 
   // Create only one ContinuationValue per xls::Node
   //
@@ -521,14 +538,11 @@ absl::Status Translator::NewContinuation(const IOOp& op,
   FunctionInProgress& function_in_progress =
       *functions_in_progress_.at(context().sf->clang_decl);
 
-  std::string_view xls_name =
-      xls_names_for_functions_generated_.at(context().sf->clang_decl);
+  std::string slice_name = FormatSliceName(op_name, loc, channel_op_index,
+                                           create_slice_before, temp_name);
 
-  function_in_progress.builder = std::make_unique<TrackedFunctionBuilder>(
-      absl::StrFormat("%s_slice_%s_%s_%i", xls_name,
-                      create_slice_before ? "before" : "after",
-                      Debug_OpName(op), op.channel_op_index),
-      package_);
+  function_in_progress.builder =
+      std::make_unique<TrackedFunctionBuilder>(slice_name, package_);
 
   // Update xls::FunctionBuilder pointers in TranslationContexts
   for (TranslationContext& context : context_stack_) {
@@ -539,7 +553,7 @@ absl::Status Translator::NewContinuation(const IOOp& op,
   }
 
   XLS_RETURN_IF_ERROR(AddContinuationsToNewSlice(
-      op, last_slice, new_slice, bvalues_by_continuation_output,
+      op_type, last_slice, new_slice, bvalues_by_continuation_output,
       continuation_outputs_by_bval, name_found_for_bval,
       decls_by_bval_top_context, total_bvals, loc));
 

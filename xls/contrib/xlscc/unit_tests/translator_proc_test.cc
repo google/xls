@@ -10092,6 +10092,42 @@ TEST_P(TranslatorProcTest, MaskedSubroutineWithIO2) {
   }
 }
 
+TEST_P(TranslatorProcTest, SubroutineNotDuplicated) {
+  const std::string content = R"(
+    class Block {
+      __xls_channel<int, __xls_channel_dir_In> in;
+      __xls_channel<int, __xls_channel_dir_Out> out;
+
+      int read_it() {
+          return in.read();
+      }
+
+      #pragma hls_top
+      void Run() {
+        int x = read_it();
+        x += 3 * read_it();
+        out.write(3 * x);
+      }
+    };
+  )";
+
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/false));
+  package_ = std::make_unique<xls::Package>("my_package");
+  HLSBlock block_spec;
+  auto ret =
+      translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec);
+  XLS_ASSERT_OK(ret.status());
+
+  absl::flat_hash_set<std::string> function_names;
+
+  for (const std::unique_ptr<xls::Function>& func : package_->functions()) {
+    EXPECT_FALSE(function_names.contains(func->name()));
+    function_names.insert(func->name());
+  }
+}
+
 }  // namespace
 
 }  // namespace xlscc

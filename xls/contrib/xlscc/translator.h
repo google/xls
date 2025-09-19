@@ -1040,7 +1040,18 @@ class Translator final : public GeneratorBase,
   absl::StatusOr<TrackedBValue> AddConditionToIOReturn(
       const IOOp& op, TrackedBValue retval, const xls::SourceInfo& loc);
 
-  absl::Status NewContinuation(const IOOp& op, bool create_slice_before);
+  // op_name can be empty if temp_name is true
+  // channel_op_index is ignored if temp_name is true
+  // op_ret_value can be invalid if create_slice_before is true
+  absl::Status NewContinuation(OpType op_type, std::string_view op_name,
+                               TrackedBValue op_ret_value,
+                               const xls::SourceInfo& loc,
+                               int64_t channel_op_index,
+                               bool create_slice_before, bool temp_name);
+  std::string FormatSliceName(std::string_view op_name,
+                              const xls::SourceInfo& loc,
+                              int64_t channel_op_index,
+                              bool create_slice_before, bool temp_name);
   absl::Status AddFeedbacksForSlice(GeneratedFunctionSlice& slice,
                                     const xls::SourceInfo& loc);
   absl::StatusOr<std::vector<NATIVE_BVAL>>
@@ -1056,7 +1067,7 @@ class Translator final : public GeneratorBase,
           decls_by_bval_top_context,
       int64_t* total_bvals_out, const xls::SourceInfo& loc);
   absl::Status AddContinuationsToNewSlice(
-      const IOOp& after_op, GeneratedFunctionSlice& last_slice,
+      OpType after_op_type, GeneratedFunctionSlice& last_slice,
       GeneratedFunctionSlice& new_slice,
       const absl::flat_hash_map<const ContinuationValue*,
                                 std::vector<TrackedBValue*>>&
