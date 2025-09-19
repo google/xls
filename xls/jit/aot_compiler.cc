@@ -93,6 +93,8 @@ AotCompiler::CreateTargetMachine() {
   };
 
   error_or_target_builder->setRelocationModel(llvm::Reloc::Model::PIC_);
+  error_or_target_builder->setCodeModel(llvm::CodeModel::Medium);
+
   // In ahead-of-time compilation we're compiling on machines we are not
   // immediately about to run on, where runtime machines may have
   // heterogeneous specifications vs the compilation machine. We assume a
