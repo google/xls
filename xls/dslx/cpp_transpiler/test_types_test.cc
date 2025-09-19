@@ -17,6 +17,7 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/cpp_transpiler/test_types_dep_lib.h"
 #include "xls/dslx/cpp_transpiler/test_types_lib.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/value.h"
@@ -27,6 +28,9 @@ namespace {
 using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
 using ::testing::HasSubstr;
+
+namespace test = ::xls::test::test_types;
+namespace test_dep = ::xls::test::test_types_dep;
 
 TEST(TestTypesTest, EnumToString) {
   EXPECT_EQ(MyEnumToString(test::MyEnum::kA), "MyEnum::kA (0)");
@@ -459,6 +463,50 @@ TEST(TestTypesTest, StructWithLotsOfTypes) {
   y: uN[44]:0x1234,
   z: sN[11]:-3,
 })");
+}
+
+TEST(TestTypesTest, StructWithImportedType) {
+  test::StructWithImportedType s = {
+      .alias_req = test::Request{.addr = 0x1234, .enable = true},
+      .imported_req = test_dep::Request{.addr = 0xbeef, .enable = false}};
+
+  XLS_ASSERT_OK(s.Verify());
+
+  // TODO: https://github.com/google/xls/issues/3045 - Make ToString method
+  // properly refer to dependency types from `::xls::test::test_types_dep` for
+  // imported_req.
+  EXPECT_EQ(s.ToString(), R"(StructWithImportedType {
+  alias_req: Request {
+      addr: bits[64]:0x1234,
+      enable: bits[1]:0x1,
+    },
+  imported_req: Request {
+      addr: bits[64]:0xbeef,
+      enable: bits[1]:0x0,
+    },
+})");
+
+  // TODO: https://github.com/google/xls/issues/3045 - Make ToDslxString method
+  // properly refer to imported types from `test_types_dep` for imported_req.
+  EXPECT_EQ(s.ToDslxString(), R"(StructWithImportedType {
+  alias_req: Request {
+      addr: Addr:0x1234,
+      enable: bool:true,
+    },
+  imported_req: Request {
+      addr: Addr:0xbeef,
+      enable: bool:false,
+    },
+})");
+}
+
+TEST(TestTypesTest, TypeAliasToImportedType) {
+  test::Addr addr = 0x1234;
+
+  XLS_ASSERT_OK(test::VerifyAddr(addr));
+  EXPECT_EQ(test::AddrToString(addr), R"(bits[64]:0x1234)");
+
+  EXPECT_EQ(test::AddrToDslxString(addr), R"(Addr:0x1234)");
 }
 
 TEST(TestTypesTest, StructWithTuplesArrayToString) {

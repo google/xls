@@ -382,6 +382,7 @@ def xls_dslx_cpp_type_library(
         name,
         src,
         deps = [],
+        cpp_deps = [],
         namespace = None):
     """Creates a cc_library target for transpiled DSLX types.
 
@@ -391,22 +392,38 @@ def xls_dslx_cpp_type_library(
     Example:
 
     ```
-    xls_dslx_cpp_type_library
+    xls_dslx_cpp_type_library(
         name = "b_cpp_types_generate",
         src = "b.x",
-        namespace = "xls::b",
+        namespace = "xls",
     )
 
     ```
 
-    will generate b_cpp_types_generate.cc and b_cpp_types_generate.h,
-    and package them into a cc_library.
+    will generate b_cpp_types_generate.cc and b_cpp_types_generate.h, and package them into a
+    cc_library under the namespace "::xls::b".
+
+    If another DSLX library `a.x` depends on types in `:b_dslx`, the `xls_dslx_cpp_type_library` for
+     `a` should explicitly depend on the C++ library above and use the same parent namespace:
+
+    ```
+    xls_dslx_cpp_type_library(
+        name = "a_cpp_types_generate",
+        src = "a.x",
+        deps = [":b_dslx"],
+        cpp_deps = [":b_cpp_types_generate"],
+        namespace = "xls",
+    )
+    ```
 
     Args:
       name: The name of the eventual cc_library.
       src: The DSLX file whose types to compile as C++.
       deps: dslx_library dependencies imported by src.
-      namespace: The C++ namespace to generate the code in (e.g., `foo::bar`).
+      cpp_deps: direct cc_library dependencies that should be included in the generated C++ files.
+      namespace: The C++ namespace to generate the code in (e.g., `foo::bar`). Use of this arg is
+        strongly encouraged to avoid polluting top-level namespaces per
+        https://google.github.io/styleguide/cppguide.html#Namespace_Names.
     """
     xls_dslx_generate_cpp_type_files(
         name = name + "_generate_sources",
@@ -414,6 +431,7 @@ def xls_dslx_cpp_type_library(
         source_file = name + ".cc",
         header_file = name + ".h",
         deps = deps,
+        cpp_deps = cpp_deps,
         namespace = namespace,
     )
     cc_library(
@@ -428,10 +446,7 @@ def xls_dslx_cpp_type_library(
             "@com_google_absl//absl/types:span",
             "//xls/public:status_macros",
             "//xls/public:value",
-        ],
-        data = [
-            ":" + name + "_generate_sources",
-        ],
+        ] + cpp_deps,
     )
 
 def xls_synthesis_metrics(

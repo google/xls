@@ -22,6 +22,7 @@
 #include <string_view>
 
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/type_info.h"
@@ -34,6 +35,23 @@ std::string SanitizeCppName(std::string_view name);
 // Returns the C++ type name used to represent the given DSLX type name.
 std::string DslxTypeNameToCpp(std::string_view dslx_type);
 
+// Returns the C++ namespace used to represent the given DSLX module name.
+// Avoids collisions with C++ keywords and well-known namespaces
+// (https://abseil.io/tips/130).
+std::string DslxModuleNameToCppNamespace(std::string_view dslx_module);
+
+struct CppType {
+  std::string name;
+  std::string namespace_prefix = "";
+
+  std::string FullyQualifiedName() const {
+    if (namespace_prefix.empty()) {
+      return name;
+    }
+    return absl::StrCat(namespace_prefix, "::", name);
+  }
+};
+
 // A class which handles generation of snippets of C++ code for a particular
 // type which may be represented with a TypeAnnotation (e.g., array, tuple,
 // bit-vector).
@@ -43,7 +61,8 @@ std::string DslxTypeNameToCpp(std::string_view dslx_type);
 // non-conflicting variable names.
 class CppEmitter {
  public:
-  explicit CppEmitter(std::string_view cpp_type, std::string_view dslx_type)
+  explicit CppEmitter(const CppType& cpp_type, std::string_view dslx_type,
+                      std::string_view cpp_namespace = "")
       : cpp_type_(cpp_type), dslx_type_(dslx_type) {}
   virtual ~CppEmitter() = default;
 
@@ -120,7 +139,7 @@ class CppEmitter {
   }
 
   // Returns the C++ type handled by this emitter.
-  std::string_view cpp_type() const { return cpp_type_; }
+  const CppType& cpp_type() const { return cpp_type_; }
 
   // Returns true if the c++ type is primitive (e.g., uint16_t).
   bool IsCppPrimitiveType() const {
@@ -134,10 +153,11 @@ class CppEmitter {
   // `type_annotation`.
   static absl::StatusOr<std::unique_ptr<CppEmitter>> Create(
       const TypeAnnotation* type_annotation, std::string_view dslx_type,
-      TypeInfo* type_info, ImportData* import_data);
+      TypeInfo* type_info, ImportData* import_data,
+      std::string_view parent_namespaces);
 
  private:
-  std::string cpp_type_;
+  CppType cpp_type_;
   std::string dslx_type_;
 };
 

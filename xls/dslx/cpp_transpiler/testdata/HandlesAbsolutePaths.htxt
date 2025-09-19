@@ -11,6 +11,8 @@
 #include "absl/status/statusor.h"
 #include "xls/public/value.h"
 
+namespace my_module {
+
 enum class MyEnum : uint64_t {
   kA = 0,
   kB = 1,
@@ -37,5 +39,7 @@ absl::StatusOr<::xls::Value> MyEnumToValue(MyEnum input);
 absl::StatusOr<MyEnum> MyEnumFromValue(const ::xls::Value& value);
 absl::Status VerifyMyEnum(MyEnum value);
 std::ostream& operator<<(std::ostream& os, MyEnum value);
+
+}  // namespace my_module
 
 #endif  // TMP_FAKE_PATH_H_

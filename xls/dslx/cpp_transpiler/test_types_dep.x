@@ -13,3 +13,6 @@
 // limitations under the License.
 
 pub type NonUsedType = u62;
+pub type Addr = u64;
+
+pub struct Request { addr: Addr, enable: bool }

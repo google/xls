@@ -36,6 +36,8 @@
   return std::string(amount * 2, ' ');
 }
 
+namespace my_module {
+
 absl::StatusOr<MyStruct> MyStruct::FromValue(const ::xls::Value& value) {
   if (!value.IsTuple() || value.size() != 5) {
     return absl::InvalidArgumentError("Value is not a tuple of 5 elements.");
@@ -159,3 +161,5 @@ std::ostream& operator<<(std::ostream& os, const MyStruct& data) {
   os << data.ToString();
   return os;
 }
+
+}  // namespace my_module

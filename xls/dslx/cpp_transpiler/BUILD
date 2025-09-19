@@ -35,6 +35,7 @@ cc_library(
     srcs = ["cpp_transpiler.cc"],
     hdrs = ["cpp_transpiler.h"],
     deps = [
+        ":cpp_emitter",
         ":cpp_type_generator",
         "//xls/common/status:status_macros",
         "//xls/dslx:import_data",
@@ -43,6 +44,7 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -63,6 +65,8 @@ cc_library(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_utils",
         "//xls/dslx/type_system:type_info",
+        "//xls/dslx/type_system_v2:import_utils",
+        "//xls/dslx/type_system_v2:type_annotation_utils",
         "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
@@ -148,8 +152,15 @@ cc_binary(
 )
 
 xls_dslx_cpp_type_library(
+    name = "test_types_dep_lib",
+    src = ":test_types_dep.x",
+    namespace = "xls::test",
+)
+
+xls_dslx_cpp_type_library(
     name = "test_types_lib",
     src = ":test_types.x",
+    cpp_deps = [":test_types_dep_lib"],
     namespace = "xls::test",
     deps = [":test_types"],
 )
@@ -158,6 +169,7 @@ cc_test(
     name = "test_types_test",
     srcs = ["test_types_test.cc"],
     deps = [
+        ":test_types_dep_lib",
         ":test_types_lib",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",

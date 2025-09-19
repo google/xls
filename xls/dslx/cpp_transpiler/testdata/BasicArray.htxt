@@ -11,6 +11,8 @@
 #include "absl/status/statusor.h"
 #include "xls/public/value.h"
 
+namespace my_module {
+
 struct MyStruct {
   std::array<uint32_t, 32> x;
   std::array<int8_t, 8> y;
@@ -25,5 +27,7 @@ struct MyStruct {
   bool operator!=(const MyStruct& other) const { return !(*this == other); }
   friend std::ostream& operator<<(std::ostream& os, const MyStruct& data);
 };
+
+}  // namespace my_module
 
 #endif  // FAKE_PATH_H_

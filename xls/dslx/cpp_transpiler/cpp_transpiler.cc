@@ -27,6 +27,7 @@
 #include "absl/strings/str_replace.h"
 #include "absl/strings/substitute.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/cpp_transpiler/cpp_emitter.h"
 #include "xls/dslx/cpp_transpiler/cpp_type_generator.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
@@ -34,10 +35,10 @@
 
 namespace xls::dslx {
 
-absl::StatusOr<CppSource> TranspileToCpp(Module* module,
-                                         ImportData* import_data,
-                                         std::string_view output_header_path,
-                                         std::string_view namespaces) {
+absl::StatusOr<CppSource> TranspileToCpp(
+    Module* module, ImportData* import_data,
+    absl::Span<const std::string> additional_include_headers,
+    std::string_view output_header_path, std::string_view namespaces) {
   constexpr std::string_view kHeaderTemplate =
       R"(// AUTOMATICALLY GENERATED FILE FROM `xls/dslx/cpp_transpiler`. DO NOT EDIT!
 #ifndef $0
@@ -49,7 +50,7 @@ absl::StatusOr<CppSource> TranspileToCpp(Module* module,
 #include <string_view>
 #include <vector>
 
-#include "absl/status/statusor.h"
+$4#include "absl/status/statusor.h"
 #include "xls/public/value.h"
 
 $2$1$3
@@ -65,7 +66,7 @@ $2$1$3
 #include <vector>
 
 #include "%s"
-#include "absl/base/macros.h"
+%s#include "absl/base/macros.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -103,11 +104,10 @@ $2$1$3
   std::vector<std::string> header;
   std::vector<std::string> source;
 
-  // TODO(b/351861097): 2024-07-08 Convert dependent types in other imports so
-  // that types defined in imported files can be used.
   for (const TypeDefinition& def : module->GetTypeDefinitions()) {
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<CppTypeGenerator> generator,
-                         CppTypeGenerator::Create(def, type_info, import_data));
+    XLS_ASSIGN_OR_RETURN(
+        std::unique_ptr<CppTypeGenerator> generator,
+        CppTypeGenerator::Create(def, type_info, import_data, namespaces));
     XLS_ASSIGN_OR_RETURN(CppSource result, generator->GetCppSource());
     header.push_back(result.header);
     source.push_back(result.source);
@@ -123,19 +123,27 @@ $2$1$3
     current_path = current_path.parent_path();
   }
 
-  std::string namespace_begin;
-  std::string namespace_end;
-  if (!namespaces.empty()) {
-    namespace_begin = absl::StrCat("namespace ", namespaces, " {\n\n");
-    namespace_end = absl::StrCat("\n\n}  // namespace ", namespaces);
+  std::string namespace_name = DslxModuleNameToCppNamespace(module->name());
+  std::string full_namespace =
+      namespaces.empty() ? namespace_name
+                         : absl::StrCat(namespaces, "::", namespace_name);
+  std::string namespace_begin =
+      absl::StrCat("namespace ", full_namespace, " {\n\n");
+  std::string namespace_end =
+      absl::StrCat("\n\n}  // namespace ", full_namespace);
+
+  std::string include_headers;
+  for (const std::string& header : additional_include_headers) {
+    absl::StrAppend(&include_headers, "#include \"", header, "\"\n");
   }
 
   return CppSource{
       absl::Substitute(kHeaderTemplate, header_guard,
                        absl::StrJoin(header, "\n\n"), namespace_begin,
-                       namespace_end),
-      absl::StrFormat(kSourceTemplate, output_header_path, namespace_begin,
-                      absl::StrJoin(source, "\n\n"), namespace_end)};
+                       namespace_end, include_headers),
+      absl::StrFormat(kSourceTemplate, output_header_path, include_headers,
+                      namespace_begin, absl::StrJoin(source, "\n\n"),
+                      namespace_end)};
 }
 
 }  // namespace xls::dslx

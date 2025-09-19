@@ -776,7 +776,7 @@ Examples:
 <pre>
 load("//xls/build_rules:xls_build_defs.bzl", "xls_dslx_cpp_type_library")
 
-xls_dslx_cpp_type_library(<a href="#xls_dslx_cpp_type_library-name">name</a>, <a href="#xls_dslx_cpp_type_library-src">src</a>, <a href="#xls_dslx_cpp_type_library-deps">deps</a>, <a href="#xls_dslx_cpp_type_library-namespace">namespace</a>)
+xls_dslx_cpp_type_library(<a href="#xls_dslx_cpp_type_library-name">name</a>, <a href="#xls_dslx_cpp_type_library-src">src</a>, <a href="#xls_dslx_cpp_type_library-deps">deps</a>, <a href="#xls_dslx_cpp_type_library-cpp_deps">cpp_deps</a>, <a href="#xls_dslx_cpp_type_library-namespace">namespace</a>)
 </pre>
 
 Creates a cc_library target for transpiled DSLX types.
@@ -787,16 +787,29 @@ a cc_library with its target name identical to this macro.
 Example:
 
 ```
-xls_dslx_cpp_type_library
+xls_dslx_cpp_type_library(
     name = "b_cpp_types_generate",
     src = "b.x",
-    namespace = "xls::b",
+    namespace = "xls",
 )
 
 ```
 
-will generate b_cpp_types_generate.cc and b_cpp_types_generate.h,
-and package them into a cc_library.
+will generate b_cpp_types_generate.cc and b_cpp_types_generate.h, and package them into a
+cc_library under the namespace "::xls::b".
+
+If another DSLX library `a.x` depends on types in `:b_dslx`, the `xls_dslx_cpp_type_library` for
+ `a` should explicitly depend on the C++ library above and use the same parent namespace:
+
+```
+xls_dslx_cpp_type_library(
+    name = "a_cpp_types_generate",
+    src = "a.x",
+    deps = [":b_dslx"],
+    cpp_deps = [":b_cpp_types_generate"],
+    namespace = "xls",
+)
+```
 
 
 **PARAMETERS**
@@ -807,7 +820,8 @@ and package them into a cc_library.
 | <a id="xls_dslx_cpp_type_library-name"></a>name |  The name of the eventual cc_library.   |  none |
 | <a id="xls_dslx_cpp_type_library-src"></a>src |  The DSLX file whose types to compile as C++.   |  none |
 | <a id="xls_dslx_cpp_type_library-deps"></a>deps |  dslx_library dependencies imported by src.   |  `[]` |
-| <a id="xls_dslx_cpp_type_library-namespace"></a>namespace |  The C++ namespace to generate the code in (e.g., `foo::bar`).   |  `None` |
+| <a id="xls_dslx_cpp_type_library-cpp_deps"></a>cpp_deps |  direct cc_library dependencies that should be included in the generated C++ files.   |  `[]` |
+| <a id="xls_dslx_cpp_type_library-namespace"></a>namespace |  The C++ namespace to generate the code in (e.g., `foo::bar`). Use of this arg is strongly encouraged to avoid polluting top-level namespaces per https://google.github.io/styleguide/cppguide.html#Namespace_Names.   |  `None` |
 
 
 <a id="xls_dslx_fmt_test"></a>

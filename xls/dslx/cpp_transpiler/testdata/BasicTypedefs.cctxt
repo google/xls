@@ -36,7 +36,7 @@
   return std::string(amount * 2, ' ');
 }
 
-namespace robs::secret::space {
+namespace robs::secret::space::my_module {
 
 absl::Status VerifyMyType(MyType value) {
   if (!FitsInNBitsUnsigned(value, 6)) {
@@ -540,4 +540,4 @@ absl::StatusOr<MyFirstTuple> MyFirstTupleFromValue(const ::xls::Value& value) {
   return result;
 }
 
-}  // namespace robs::secret::space
+}  // namespace robs::secret::space::my_module

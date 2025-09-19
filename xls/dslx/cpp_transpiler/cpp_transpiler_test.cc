@@ -68,9 +68,11 @@ pub enum MyEnum : u32 {
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule module,
-      ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
+      ParseAndTypecheck(kModule, "fake_path", "my_module", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto result, TranspileToCpp(module.module, &import_data, "fake_path.h"));
+      auto result,
+      TranspileToCpp(module.module, &import_data,
+                     /*additional_include_headers=*/{}, "fake_path.h"));
   ExpectEqualToGoldenFiles(result);
 }
 
@@ -93,9 +95,11 @@ pub enum MyEnum : u32 {
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule module,
-      ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
+      ParseAndTypecheck(kModule, "fake_path", "my_module", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto result, TranspileToCpp(module.module, &import_data, "fake_path.h"));
+      auto result,
+      TranspileToCpp(module.module, &import_data,
+                     /*additional_include_headers=*/{}, "fake_path.h"));
   ExpectEqualToGoldenFiles(result);
 }
 
@@ -111,9 +115,11 @@ pub enum MyEnum : s64 {
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule module,
-      ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
+      ParseAndTypecheck(kModule, "fake_path", "my_module", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto result, TranspileToCpp(module.module, &import_data, "fake_path.h"));
+      auto result,
+      TranspileToCpp(module.module, &import_data,
+                     /*additional_include_headers=*/{}, "fake_path.h"));
   ExpectEqualToGoldenFiles(result);
 }
 
@@ -129,9 +135,11 @@ pub enum MyEnum : u64 {
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule module,
-      ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
+      ParseAndTypecheck(kModule, "fake_path", "my_module", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto result, TranspileToCpp(module.module, &import_data, "fake_path.h"));
+      auto result,
+      TranspileToCpp(module.module, &import_data,
+                     /*additional_include_headers=*/{}, "fake_path.h"));
   ExpectEqualToGoldenFiles(result);
 }
 
@@ -156,10 +164,11 @@ type MyFirstTuple = (u7, s8, MyType, MySignedType, MyArrayType1, MyArrayType2);
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule module,
-      ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
+      ParseAndTypecheck(kModule, "fake_path", "my_module", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto result, TranspileToCpp(module.module, &import_data, "fake_path.h",
-                                  "robs::secret::space"));
+      auto result, TranspileToCpp(module.module, &import_data,
+                                  /*additional_include_headers=*/{},
+                                  "fake_path.h", "robs::secret::space"));
   ExpectEqualToGoldenFiles(result);
 }
 
@@ -176,9 +185,11 @@ struct MyStruct {
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule module,
-      ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
+      ParseAndTypecheck(kModule, "fake_path", "my_module", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto result, TranspileToCpp(module.module, &import_data, "fake_path.h"));
+      auto result,
+      TranspileToCpp(module.module, &import_data,
+                     /*additional_include_headers=*/{}, "fake_path.h"));
   ExpectEqualToGoldenFiles(result);
 }
 
@@ -193,9 +204,11 @@ struct MyStruct {
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule module,
-      ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
+      ParseAndTypecheck(kModule, "fake_path", "my_module", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto result, TranspileToCpp(module.module, &import_data, "fake_path.h"));
+      auto result,
+      TranspileToCpp(module.module, &import_data,
+                     /*additional_include_headers=*/{}, "fake_path.h"));
   ExpectEqualToGoldenFiles(result);
 }
 
@@ -215,9 +228,11 @@ struct OuterStruct {
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule module,
-      ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
+      ParseAndTypecheck(kModule, "fake_path", "my_module", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto result, TranspileToCpp(module.module, &import_data, "fake_path.h"));
+      auto result,
+      TranspileToCpp(module.module, &import_data,
+                     /*additional_include_headers=*/{}, "fake_path.h"));
   ExpectEqualToGoldenFiles(result);
 }
 
@@ -248,9 +263,11 @@ struct OuterStruct {
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule module,
-      ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
+      ParseAndTypecheck(kModule, "fake_path", "my_module", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto result, TranspileToCpp(module.module, &import_data, "fake_path.h"));
+      auto result,
+      TranspileToCpp(module.module, &import_data,
+                     /*additional_include_headers=*/{}, "fake_path.h"));
   ExpectEqualToGoldenFiles(result);
 }
 
@@ -267,10 +284,11 @@ pub enum MyEnum : u34 {
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule module,
-      ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
+      ParseAndTypecheck(kModule, "fake_path", "my_module", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(
       auto result,
-      TranspileToCpp(module.module, &import_data, "/tmp/fake_path.h"));
+      TranspileToCpp(module.module, &import_data,
+                     /*additional_include_headers=*/{}, "/tmp/fake_path.h"));
   ExpectEqualToGoldenFiles(result);
 }
 
@@ -284,10 +302,11 @@ struct Foo {
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule module,
-      ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
+      ParseAndTypecheck(kModule, "fake_path", "my_module", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(
       auto result,
-      TranspileToCpp(module.module, &import_data, "/tmp/fake_path.h"));
+      TranspileToCpp(module.module, &import_data,
+                     /*additional_include_headers=*/{}, "/tmp/fake_path.h"));
   ExpectEqualToGoldenFiles(result);
 }
 
@@ -306,10 +325,11 @@ struct Bar {
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule module,
-      ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
+      ParseAndTypecheck(kModule, "fake_path", "my_module", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(
       auto result,
-      TranspileToCpp(module.module, &import_data, "/tmp/fake_path.h"));
+      TranspileToCpp(module.module, &import_data,
+                     /*additional_include_headers=*/{}, "/tmp/fake_path.h"));
   ExpectEqualToGoldenFiles(result);
 }
 
@@ -321,10 +341,12 @@ type MyUnsupportedSignedBit = s1;
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule module,
-      ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
-  EXPECT_THAT(TranspileToCpp(module.module, &import_data, "/tmp/fake_path.h"),
-              StatusIs(absl::StatusCode::kUnimplemented,
-                       HasSubstr("Signed one-bit numbers are not supported")));
+      ParseAndTypecheck(kModule, "fake_path", "my_module", &import_data));
+  EXPECT_THAT(
+      TranspileToCpp(module.module, &import_data,
+                     /*additional_include_headers=*/{}, "/tmp/fake_path.h"),
+      StatusIs(absl::StatusCode::kUnimplemented,
+               HasSubstr("Signed one-bit numbers are not supported")));
 }
 
 TEST(CppTranspilerTest, UnsupportedTypes) {
@@ -344,18 +366,97 @@ struct MyUnsupportedWideStruct {
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule module,
-      ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
+      ParseAndTypecheck(kModule, "fake_path", "my_module", &import_data));
   // The types compile, but the code is wrong.
   // TODO(https://github.com/google/xls/issues/1135): Fix this.
   XLS_ASSERT_OK_AND_ASSIGN(
       auto result,
-      TranspileToCpp(module.module, &import_data, "/tmp/fake_path.h"));
+      TranspileToCpp(module.module, &import_data,
+                     /*additional_include_headers=*/{}, "/tmp/fake_path.h"));
   EXPECT_THAT(result.header,
               HasSubstr("using MyUnsupportedWideAlias = int64_t;"));
   EXPECT_THAT(result.header, HasSubstr("uint64_t wide_field"));
   EXPECT_THAT(result.header, HasSubstr("uint64_t wide_field"));
   EXPECT_THAT(result.header,
               HasSubstr("enum class MyUnsupportedWideEnum : uint64_t"));
+}
+
+TEST(CppTranspilerTest, ParentNamespaceSpecified) {
+  constexpr std::string_view kModule = R"(
+type Foo = u32;
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule module,
+      ParseAndTypecheck(kModule, "fake_path", "baz", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result,
+      TranspileToCpp(module.module, &import_data,
+                     /*additional_include_headers=*/{}, "/tmp/fake_path.h",
+                     /*namespaces=*/"foo::bar"));
+  EXPECT_THAT(result.header, HasSubstr("namespace foo::bar::baz"));
+  EXPECT_THAT(result.source, HasSubstr("namespace foo::bar::baz"));
+}
+
+TEST(CppTranspilerTest, DslxModuleNameIsCppKeyword) {
+  constexpr std::string_view kModule = R"(
+type Foo = u32;
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule module,
+      ParseAndTypecheck(kModule, "fake_path", "namespace", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result,
+      TranspileToCpp(module.module, &import_data,
+                     /*additional_include_headers=*/{}, "/tmp/fake_path.h"));
+  EXPECT_THAT(result.header, HasSubstr("namespace _namespace"));
+  EXPECT_THAT(result.source, HasSubstr("namespace _namespace"));
+}
+
+TEST(CppTranspilerTest, DslxModuleNameIsWellKnownNamespace) {
+  constexpr std::string_view kModule = R"(
+type Foo = u32;
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule module,
+      ParseAndTypecheck(kModule, "fake_path", "std", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result,
+      TranspileToCpp(module.module, &import_data,
+                     /*additional_include_headers=*/{}, "/tmp/fake_path.h"));
+  EXPECT_THAT(result.header, HasSubstr("namespace _std"));
+  EXPECT_THAT(result.source, HasSubstr("namespace _std"));
+}
+
+TEST(CppTranspilerTest, DepHeadersIncluded) {
+  constexpr std::string_view kModule = R"(
+type Foo = u32;
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule module,
+      ParseAndTypecheck(kModule, "fake_path", "my_module", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result,
+      TranspileToCpp(module.module, &import_data,
+                     /*additional_include_headers=*/
+                     {"path/to/some_types.h", "path/to/other_types.h"},
+                     "/tmp/fake_path.h"));
+  EXPECT_THAT(result.header, HasSubstr(R"(
+#include "path/to/some_types.h"
+#include "path/to/other_types.h"
+)"));
+  EXPECT_THAT(result.source, HasSubstr(R"(
+#include "/tmp/fake_path.h"
+#include "path/to/some_types.h"
+#include "path/to/other_types.h"
+)"));
 }
 
 }  // namespace

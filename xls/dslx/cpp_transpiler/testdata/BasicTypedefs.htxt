@@ -11,7 +11,7 @@
 #include "absl/status/statusor.h"
 #include "xls/public/value.h"
 
-namespace robs::secret::space {
+namespace robs::secret::space::my_module {
 
 using MyType = uint8_t;
 inline constexpr int64_t kMyTypeWidth = 6;
@@ -80,6 +80,6 @@ std::string MyFirstTupleToDslxString(const MyFirstTuple& value, int64_t indent =
 absl::StatusOr<::xls::Value> MyFirstTupleToValue(const MyFirstTuple& input);
 absl::StatusOr<MyFirstTuple> MyFirstTupleFromValue(const ::xls::Value& value);
 
-}  // namespace robs::secret::space
+}  // namespace robs::secret::space::my_module
 
 #endif  // FAKE_PATH_H_

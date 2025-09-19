@@ -44,6 +44,8 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/type_system_v2/import_utils.h"
+#include "xls/dslx/type_system_v2/type_annotation_utils.h"
 
 namespace xls::dslx {
 namespace {
@@ -124,7 +126,7 @@ absl::StatusOr<int64_t> ArraySize(const ArrayTypeAnnotation* type_annotation,
 // types (bool, int8_t, uint16_t, etc).
 class BitVectorCppEmitter : public CppEmitter {
  public:
-  explicit BitVectorCppEmitter(std::string_view cpp_type,
+  explicit BitVectorCppEmitter(const CppType& cpp_type,
                                std::string_view dslx_type,
                                int64_t dslx_bit_count, bool is_signed)
       : CppEmitter(cpp_type, dslx_type),
@@ -134,8 +136,9 @@ class BitVectorCppEmitter : public CppEmitter {
 
   static absl::StatusOr<std::unique_ptr<BitVectorCppEmitter>> Create(
       std::string_view dslx_type, int64_t dslx_bit_count, bool is_signed) {
-    XLS_ASSIGN_OR_RETURN(std::string cpp_type,
+    XLS_ASSIGN_OR_RETURN(std::string cpp_type_name,
                          GetBitVectorCppType(dslx_bit_count, is_signed));
+    CppType cpp_type = {.name = cpp_type_name};
     return std::make_unique<BitVectorCppEmitter>(cpp_type, dslx_type,
                                                  dslx_bit_count, is_signed);
   }
@@ -258,19 +261,71 @@ class TypeRefCppEmitter : public CppEmitter {
   // `dslx_bit_count` contains the bit count of the underlying DSLX type if it
   // is a bit-vector or std::nullopt otherwise.
   explicit TypeRefCppEmitter(const TypeRefTypeAnnotation* type_annotation,
-                             std::string_view cpp_type,
+                             bool type_has_methods, const CppType& cpp_type,
                              std::string_view dslx_type,
                              std::optional<int64_t> dslx_bit_count)
       : CppEmitter(cpp_type, dslx_type),
         typeref_type_annotation_(type_annotation),
+        type_has_methods_(type_has_methods),
         dslx_bit_count_(dslx_bit_count) {}
   ~TypeRefCppEmitter() override = default;
 
   static absl::StatusOr<std::unique_ptr<TypeRefCppEmitter>> Create(
       const TypeRefTypeAnnotation* type_annotation, std::string_view dslx_type,
-      TypeInfo* type_info, ImportData* import_data) {
-    std::string cpp_type =
-        DslxTypeNameToCpp(type_annotation->type_ref()->ToString());
+      TypeInfo* type_info, ImportData* import_data,
+      std::string_view parent_namespaces) {
+    // TODO: https://github.com/google/xls/issues/3045: Feedback from mckeever@
+    // is that it would be better to consider this post-typechecking and
+    // use the output of type inference (i.e. TypeInfo and Type) rather than
+    // analyzing ColonRefs and TRTAs using type inference utils.
+    // One challenge is that type inference will erase bits-like type aliases
+    // which prevents us from detecting type refs to imports of such aliases.
+    //
+    // If imported, the type is defined in a different header and
+    // included.
+    bool is_imported = std::holds_alternative<ColonRef*>(
+                           type_annotation->type_ref()->type_definition()) &&
+                       IsImport(std::get<ColonRef*>(
+                           type_annotation->type_ref()->type_definition()));
+
+    CppType cpp_type;
+    bool cpp_type_has_methods;
+    if (is_imported) {
+      const ColonRef* colon_ref =
+          std::get<ColonRef*>(type_annotation->type_ref()->type_definition());
+      std::string_view dslx_basename = colon_ref->attr();
+      std::optional<ImportSubject> import_subject =
+          colon_ref->ResolveImportSubject();
+      XLS_RET_CHECK(import_subject.has_value());  // IsImport is true
+      if (!std::holds_alternative<Import*>(*import_subject)) {
+        return absl::InvalidArgumentError(absl::StrCat(
+            "Unsupported import through `using`: ", colon_ref->ToString()));
+      }
+
+      std::string dslx_module =
+          std::get<Import*>(*import_subject)->name_def().identifier();
+      std::string import_namespace =
+          absl::StrCat("::", parent_namespaces,
+                       "::", DslxModuleNameToCppNamespace(dslx_module));
+      cpp_type = {.name = DslxTypeNameToCpp(dslx_basename),
+                  .namespace_prefix = import_namespace};
+
+      XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,
+                           GetStructOrProcRef(type_annotation, *import_data));
+      if (struct_or_proc_ref.has_value()) {
+        XLS_RET_CHECK(struct_or_proc_ref->def->kind() ==
+                      AstNodeKind::kStructDef);
+        cpp_type_has_methods = true;
+      } else {
+        cpp_type_has_methods = false;
+      }
+    } else {
+      cpp_type = {
+          .name = DslxTypeNameToCpp(type_annotation->type_ref()->ToString())};
+      cpp_type_has_methods = std::holds_alternative<StructDef*>(
+          type_annotation->type_ref()->type_definition());
+    }
+
     std::optional<BitVectorMetadata> bit_vector_metadata =
         ExtractBitVectorMetadata(type_annotation);
     std::optional<int64_t> dslx_bit_count;
@@ -279,7 +334,9 @@ class TypeRefCppEmitter : public CppEmitter {
                            GetBitCountFromBitVectorMetadata(
                                *bit_vector_metadata, type_info, import_data));
     }
-    return std::make_unique<TypeRefCppEmitter>(type_annotation, cpp_type,
+
+    return std::make_unique<TypeRefCppEmitter>(type_annotation,
+                                               cpp_type_has_methods, cpp_type,
                                                dslx_type, dslx_bit_count);
   }
 
@@ -287,25 +344,32 @@ class TypeRefCppEmitter : public CppEmitter {
                             int64_t nesting) const override {
     return absl::StrFormat(
         "XLS_ASSIGN_OR_RETURN(%s, %s);", lhs,
-        TypeHasMethods() ? absl::StrFormat("%s.ToValue()", rhs)
-                         : absl::StrFormat("%sToValue(%s)", cpp_type(), rhs));
+        TypeHasMethods()
+            ? absl::StrFormat("%s.ToValue()", rhs)
+            : absl::StrFormat("%sToValue(%s)", cpp_type().FullyQualifiedName(),
+                              rhs));
   }
 
   std::string AssignFromValue(std::string_view lhs, std::string_view rhs,
                               int64_t nesting) const override {
     return absl::StrFormat(
         "XLS_ASSIGN_OR_RETURN(%s, %s);", lhs,
-        TypeHasMethods() ? absl::StrFormat("%s::FromValue(%s)", cpp_type(), rhs)
-                         : absl::StrFormat("%sFromValue(%s)", cpp_type(), rhs));
+        TypeHasMethods()
+            ? absl::StrFormat("%s::FromValue(%s)",
+                              cpp_type().FullyQualifiedName(), rhs)
+            : absl::StrFormat("%sFromValue(%s)",
+                              cpp_type().FullyQualifiedName(), rhs));
   }
 
   std::string Verify(std::string_view identifier, std::string_view name,
                      int64_t nesting) const override {
     return absl::StrFormat(
         "XLS_RETURN_IF_ERROR(%s);",
-        TypeHasMethods()
-            ? absl::StrFormat("%s.Verify()", identifier)
-            : absl::StrFormat("Verify%s(%s)", cpp_type(), identifier));
+        TypeHasMethods() ? absl::StrFormat("%s.Verify()", identifier)
+        : cpp_type().namespace_prefix.empty()
+            ? absl::StrFormat("Verify%s(%s)", cpp_type().name, identifier)
+            : absl::StrFormat("%s::Verify%s(%s)", cpp_type().namespace_prefix,
+                              cpp_type().name, identifier));
   }
 
   std::string ToString(std::string_view str_to_append,
@@ -316,7 +380,8 @@ class TypeRefCppEmitter : public CppEmitter {
         "%s += %s;", str_to_append,
         TypeHasMethods()
             ? absl::StrFormat("%s.ToString(%s)", identifier, indent_amount)
-            : absl::StrFormat("%sToString(%s, %s)", cpp_type(), identifier,
+            : absl::StrFormat("%sToString(%s, %s)",
+                              cpp_type().FullyQualifiedName(), identifier,
                               indent_amount));
   }
 
@@ -328,14 +393,12 @@ class TypeRefCppEmitter : public CppEmitter {
         "%s += %s;", str_to_append,
         TypeHasMethods()
             ? absl::StrFormat("%s.ToDslxString(%s)", identifier, indent_amount)
-            : absl::StrFormat("%sToDslxString(%s, %s)", cpp_type(), identifier,
+            : absl::StrFormat("%sToDslxString(%s, %s)",
+                              cpp_type().FullyQualifiedName(), identifier,
                               indent_amount));
   }
 
-  bool TypeHasMethods() const {
-    return std::holds_alternative<StructDef*>(
-        typeref_type_annotation_->type_ref()->type_definition());
-  }
+  bool TypeHasMethods() const { return type_has_methods_; }
 
   std::optional<int64_t> GetBitCountIfBitVector() const override {
     return dslx_bit_count_;
@@ -343,6 +406,10 @@ class TypeRefCppEmitter : public CppEmitter {
 
  protected:
   const TypeRefTypeAnnotation* typeref_type_annotation_;
+  // Whether the C++ type corresponds to an underlying DSLX struct type; if so,
+  // we need to call the C++ member functions instead of free functions
+  // (pre/post)-fixed with the C++ type name.
+  bool type_has_methods_;
   // Bit-count of the underlying DSLX type if it is a bitvector.
   std::optional<int64_t> dslx_bit_count_;
 };
@@ -351,8 +418,8 @@ class TypeRefCppEmitter : public CppEmitter {
 // std::array.
 class ArrayCppEmitter : public CppEmitter {
  public:
-  explicit ArrayCppEmitter(std::string_view cpp_type,
-                           std::string_view dslx_type, int64_t array_size,
+  explicit ArrayCppEmitter(const CppType& cpp_type, std::string_view dslx_type,
+                           int64_t array_size,
                            std::unique_ptr<CppEmitter> element_emitter)
       : CppEmitter(cpp_type, dslx_type),
         array_size_(array_size),
@@ -361,7 +428,7 @@ class ArrayCppEmitter : public CppEmitter {
 
   static absl::StatusOr<std::unique_ptr<ArrayCppEmitter>> Create(
       const ArrayTypeAnnotation* type_annotation, TypeInfo* type_info,
-      ImportData* import_data) {
+      ImportData* import_data, std::string_view parent_namespaces) {
     XLS_ASSIGN_OR_RETURN(int64_t array_size,
                          ArraySize(type_annotation, type_info, import_data));
 
@@ -375,9 +442,11 @@ class ArrayCppEmitter : public CppEmitter {
         std::unique_ptr<CppEmitter> element_emitter,
         CppEmitter::Create(type_annotation->element_type(),
                            type_annotation->element_type()->ToString(),
-                           type_info, import_data));
-    std::string cpp_type =
-        absl::StrFormat("std::array<%s, %d>", element_emitter->cpp_type(), dim);
+                           type_info, import_data, parent_namespaces));
+    CppType cpp_type = {.name = absl::StrFormat(
+                            "std::array<%s, %d>",
+                            element_emitter->cpp_type().FullyQualifiedName(),
+                            dim)};
 
     return std::make_unique<ArrayCppEmitter>(
         cpp_type, type_annotation->ToString(), array_size,
@@ -507,7 +576,7 @@ class ArrayCppEmitter : public CppEmitter {
 class TupleCppEmitter : public CppEmitter {
  public:
   explicit TupleCppEmitter(
-      std::string_view cpp_type, std::string_view dslx_type,
+      const CppType& cpp_type, std::string_view dslx_type,
       std::vector<std::unique_ptr<CppEmitter>> element_emitters)
       : CppEmitter(cpp_type, dslx_type),
         element_emitters_(std::move(element_emitters)) {}
@@ -515,19 +584,21 @@ class TupleCppEmitter : public CppEmitter {
 
   static absl::StatusOr<std::unique_ptr<TupleCppEmitter>> Create(
       const TupleTypeAnnotation* type_annotation, TypeInfo* type_info,
-      ImportData* import_data) {
+      ImportData* import_data, std::string_view parent_namespaces) {
     std::vector<std::unique_ptr<CppEmitter>> element_emitters;
     std::vector<std::string> element_cpp_types;
     for (TypeAnnotation* element_type : type_annotation->members()) {
       XLS_ASSIGN_OR_RETURN(
           std::unique_ptr<CppEmitter> element_emitter,
           CppEmitter::Create(element_type, element_type->ToString(), type_info,
-                             import_data));
-      element_cpp_types.push_back(std::string{element_emitter->cpp_type()});
+                             import_data, parent_namespaces));
+      element_cpp_types.push_back(
+          element_emitter->cpp_type().FullyQualifiedName());
       element_emitters.push_back(std::move(element_emitter));
     }
-    std::string cpp_type = absl::StrFormat(
-        "std::tuple<%s>", absl::StrJoin(element_cpp_types, ", "));
+    CppType cpp_type = {
+        .name = absl::StrFormat("std::tuple<%s>",
+                                absl::StrJoin(element_cpp_types, ", "))};
     return std::make_unique<TupleCppEmitter>(
         cpp_type, type_annotation->ToString(), std::move(element_emitters));
   }
@@ -736,9 +807,19 @@ std::string DslxTypeNameToCpp(std::string_view dslx_type) {
   return SanitizeCppName(Camelize(dslx_type));
 }
 
+std::string DslxModuleNameToCppNamespace(std::string_view dslx_module) {
+  static const absl::NoDestructor<absl::flat_hash_set<std::string>>
+      kWellKnownNamespaces({"absl", "std", "testing", "util"});
+  if (kWellKnownNamespaces->contains(dslx_module)) {
+    return absl::StrCat("_", dslx_module);
+  }
+  return SanitizeCppName(dslx_module);
+}
+
 /* static */ absl::StatusOr<std::unique_ptr<CppEmitter>> CppEmitter::Create(
     const TypeAnnotation* type_annotation, std::string_view dslx_type,
-    TypeInfo* type_info, ImportData* import_data) {
+    TypeInfo* type_info, ImportData* import_data,
+    std::string_view parent_namespaces) {
   // Both builtin (e.g., `u32`) and array types (e.g, `sU[22]`) can represent
   // bit-vector types so call IsBitVectorType to identify them.
   std::optional<BitVectorMetadata> bit_vector_metadata =
@@ -755,18 +836,20 @@ std::string DslxTypeNameToCpp(std::string_view dslx_type) {
   if (const ArrayTypeAnnotation* array_type =
           dynamic_cast<const ArrayTypeAnnotation*>(type_annotation);
       array_type != nullptr) {
-    return ArrayCppEmitter::Create(array_type, type_info, import_data);
+    return ArrayCppEmitter::Create(array_type, type_info, import_data,
+                                   parent_namespaces);
   }
   if (const TupleTypeAnnotation* tuple_type =
           dynamic_cast<const TupleTypeAnnotation*>(type_annotation);
       tuple_type != nullptr) {
-    return TupleCppEmitter::Create(tuple_type, type_info, import_data);
+    return TupleCppEmitter::Create(tuple_type, type_info, import_data,
+                                   parent_namespaces);
   }
   if (const TypeRefTypeAnnotation* type_ref =
           dynamic_cast<const TypeRefTypeAnnotation*>(type_annotation);
       type_ref != nullptr) {
     return TypeRefCppEmitter::Create(type_ref, dslx_type, type_info,
-                                     import_data);
+                                     import_data, parent_namespaces);
   }
 
   return absl::InvalidArgumentError(absl::StrCat(

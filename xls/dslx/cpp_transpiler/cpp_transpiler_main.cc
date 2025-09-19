@@ -37,14 +37,14 @@
 #include "xls/dslx/virtualizable_file_system.h"
 #include "xls/dslx/warning_kind.h"
 
+ABSL_FLAG(std::vector<std::string>, include_headers, {}, "Include headers.");
 ABSL_FLAG(std::string, output_header_path, "",
           "Path at which to write the generated header.");
 ABSL_FLAG(std::string, output_source_path, "",
           "Path at which to write the generated source.");
 ABSL_FLAG(std::string, namespaces, "",
           "Double-colon-delimited namespaces with which to wrap the "
-          "generated code, e.g., \"my::namespace\" or "
-          "\"::my::explicitly::top::level::namespace\".");
+          "generated code, e.g., \"my::namespace\" (note: no leading `::`).");
 ABSL_FLAG(std::string, dslx_stdlib_path,
           std::string(xls::kDefaultDslxStdlibPath),
           "Path to DSLX standard library");
@@ -67,6 +67,7 @@ modules).
 absl::Status RealMain(const std::filesystem::path& module_path,
                       const std::filesystem::path& dslx_stdlib_path,
                       absl::Span<const std::filesystem::path> dslx_paths,
+                      absl::Span<const std::string> include_headers,
                       std::string_view output_header_path,
                       std::string_view output_source_path,
                       std::string_view namespaces) {
@@ -75,13 +76,14 @@ absl::Status RealMain(const std::filesystem::path& module_path,
   ImportData import_data(CreateImportData(
       dslx_stdlib_path, /*additional_search_paths=*/dslx_paths,
       kDefaultWarningsSet, std::make_unique<RealFilesystem>()));
-  XLS_ASSIGN_OR_RETURN(TypecheckedModule module,
-                       ParseAndTypecheck(module_text, std::string(module_path),
-                                         "source", &import_data));
+  XLS_ASSIGN_OR_RETURN(
+      TypecheckedModule module,
+      ParseAndTypecheck(module_text, std::string(module_path),
+                        module_path.stem().string(), &import_data));
   XLS_ASSIGN_OR_RETURN(
       CppSource sources,
-      TranspileToCpp(module.module, &import_data, output_header_path,
-                     std::string(namespaces)));
+      TranspileToCpp(module.module, &import_data, include_headers,
+                     output_header_path, std::string(namespaces)));
 
   XLS_RETURN_IF_ERROR(SetFileContents(output_header_path, sources.header));
   XLS_RETURN_IF_ERROR(SetFileContents(output_source_path, sources.source));
@@ -117,7 +119,8 @@ int main(int argc, char* argv[]) {
 
   return xls::ExitStatus(xls::dslx::RealMain(
       args[0], absl::GetFlag(FLAGS_dslx_stdlib_path), dslx_paths,
-      output_header_path, output_source_path, absl::GetFlag(FLAGS_namespaces)));
+      absl::GetFlag(FLAGS_include_headers), output_header_path,
+      output_source_path, absl::GetFlag(FLAGS_namespaces)));
 
   return 0;
 }

@@ -11,6 +11,8 @@
 #include "absl/status/statusor.h"
 #include "xls/public/value.h"
 
+namespace my_module {
+
 struct Foo {
   std::tuple<uint32_t, uint32_t> a;
 
@@ -23,5 +25,7 @@ struct Foo {
   bool operator!=(const Foo& other) const { return !(*this == other); }
   friend std::ostream& operator<<(std::ostream& os, const Foo& data);
 };
+
+}  // namespace my_module
 
 #endif  // TMP_FAKE_PATH_H_

@@ -715,6 +715,10 @@ def _xls_dslx_generate_cpp_type_files_impl(ctx):
     cc_file = ctx.outputs.source_file
     h_file = ctx.outputs.header_file
 
+    include_header_files = []
+    for cpp_dep in ctx.attr.cpp_deps:
+        include_header_files.extend([f.short_path for f in cpp_dep[CcInfo].compilation_context.direct_public_headers])
+
     cpp_transpiler_tool = ctx.executable._xls_cpp_transpiler_tool
 
     cpp_transpiler_tool_runfiles = ctx.attr._xls_cpp_transpiler_tool[DefaultInfo].default_runfiles
@@ -727,6 +731,7 @@ def _xls_dslx_generate_cpp_type_files_impl(ctx):
     my_args.add("--output_source_path={}".format(cc_file.path))
     my_args.add("--output_header_path={}".format(h_file.path))
     my_args.add("--dslx_path=={}".format(dslx_path))
+    my_args.add_joined("--include_headers", include_header_files, join_with = ",")
 
     if ctx.attr.namespace:
         my_args.add("--namespaces={}".format(ctx.attr.namespace))
@@ -754,6 +759,9 @@ def _xls_dslx_generate_cpp_type_files_impl(ctx):
     ]
 
 xls_dslx_generate_cpp_type_files_attrs = {
+    "cpp_deps": attr.label_list(
+        doc = "Direct cc_library dependencies that should be included in the generated C++ files.",
+    ),
     "namespace": attr.string(doc = "The C++ namespace to generate the code in (e.g., `foo::bar`)."),
     "source_file": attr.output(
         doc = "The filename of the generated source file. The filename must " +
@@ -780,7 +788,7 @@ Example:
         deps = [":a_dslx"],
         source_file = "b_cpp_types.cc",
         header_file = "b_cpp_types.h",
-        namespace = "xls::b",
+        namespace = "xls",
     )
 
     ```

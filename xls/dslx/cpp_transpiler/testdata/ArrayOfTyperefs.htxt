@@ -11,6 +11,8 @@
 #include "absl/status/statusor.h"
 #include "xls/public/value.h"
 
+namespace my_module {
+
 struct Foo {
   uint32_t a;
   uint64_t b;
@@ -40,5 +42,7 @@ struct Bar {
   bool operator!=(const Bar& other) const { return !(*this == other); }
   friend std::ostream& operator<<(std::ostream& os, const Bar& data);
 };
+
+}  // namespace my_module
 
 #endif  // TMP_FAKE_PATH_H_

@@ -36,6 +36,8 @@
   return std::string(amount * 2, ' ');
 }
 
+namespace my_module {
+
 absl::StatusOr<InnerStruct> InnerStruct::FromValue(const ::xls::Value& value) {
   if (!value.IsTuple() || value.size() != 2) {
     return absl::InvalidArgumentError("Value is not a tuple of 2 elements.");
@@ -321,3 +323,5 @@ std::ostream& operator<<(std::ostream& os, const OuterStruct& data) {
   os << data.ToString();
   return os;
 }
+
+}  // namespace my_module

@@ -64,11 +64,12 @@ class EnumCppTypeGenerator : public CppTypeGenerator {
   ~EnumCppTypeGenerator() override = default;
 
   static absl::StatusOr<std::unique_ptr<EnumCppTypeGenerator>> Create(
-      const EnumDef* enum_def, TypeInfo* type_info, ImportData* import_data) {
+      const EnumDef* enum_def, TypeInfo* type_info, ImportData* import_data,
+      std::string_view parent_namespaces) {
     XLS_ASSIGN_OR_RETURN(
         std::unique_ptr<CppEmitter> emitter,
         CppEmitter::Create(enum_def->type_annotation(), enum_def->identifier(),
-                           type_info, import_data));
+                           type_info, import_data, parent_namespaces));
     auto generator = std::make_unique<EnumCppTypeGenerator>(
         DslxTypeNameToCpp(enum_def->identifier()), enum_def->identifier(),
         std::move(emitter));
@@ -79,7 +80,8 @@ class EnumCppTypeGenerator : public CppTypeGenerator {
 
   absl::StatusOr<CppSource> GetCppSource() const override {
     std::string enum_decl = absl::StrFormat(
-        "enum class %s : %s {\n%s\n};", cpp_type(), emitter_->cpp_type(),
+        "enum class %s : %s {\n%s\n};", cpp_type(),
+        emitter_->cpp_type().FullyQualifiedName(),
         absl::StrJoin(
             enum_values_, "\n", [](std::string* out, const EnumValue& ev) {
               absl::StrAppendFormat(out, "  %s = %s,", ev.name, ev.value_str);
@@ -142,7 +144,8 @@ class EnumCppTypeGenerator : public CppTypeGenerator {
   // Returns the C++ cast of the given variable to the C== base type for this
   // enum (e.g., uint8_t_).
   std::string CastToCppBaseType(std::string_view name) const {
-    return absl::StrFormat("static_cast<%s>(%s)", emitter_->cpp_type(), name);
+    return absl::StrFormat("static_cast<%s>(%s)",
+                           emitter_->cpp_type().FullyQualifiedName(), name);
   }
 
   static absl::StatusOr<std::vector<EnumValue>> BuildEnumValues(
@@ -267,7 +270,8 @@ class EnumCppTypeGenerator : public CppTypeGenerator {
         "absl::StatusOr<%s> %sFromValue(const ::xls::Value& value)", cpp_type(),
         cpp_type());
     std::vector<std::string> pieces;
-    pieces.push_back(absl::StrFormat("%s result_base;", emitter_->cpp_type()));
+    pieces.push_back(absl::StrFormat(
+        "%s result_base;", emitter_->cpp_type().FullyQualifiedName()));
     pieces.push_back(
         emitter_->AssignFromValue("result_base", "value", /*nesting=*/0));
     pieces.push_back(absl::StrFormat(
@@ -317,12 +321,12 @@ class TypeAliasCppTypeGenerator : public CppTypeGenerator {
   ~TypeAliasCppTypeGenerator() override = default;
 
   static absl::StatusOr<std::unique_ptr<TypeAliasCppTypeGenerator>> Create(
-      const TypeAlias* type_alias, TypeInfo* type_info,
-      ImportData* import_data) {
-    XLS_ASSIGN_OR_RETURN(
-        std::unique_ptr<CppEmitter> emitter,
-        CppEmitter::Create(&type_alias->type_annotation(),
-                           type_alias->identifier(), type_info, import_data));
+      const TypeAlias* type_alias, TypeInfo* type_info, ImportData* import_data,
+      std::string_view parent_namespaces) {
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<CppEmitter> emitter,
+                         CppEmitter::Create(&type_alias->type_annotation(),
+                                            type_alias->identifier(), type_info,
+                                            import_data, parent_namespaces));
     return std::make_unique<TypeAliasCppTypeGenerator>(
         DslxTypeNameToCpp(type_alias->identifier()), type_alias->identifier(),
         std::move(emitter));
@@ -337,7 +341,8 @@ class TypeAliasCppTypeGenerator : public CppTypeGenerator {
 
     std::vector<std::string> hdr_pieces;
     hdr_pieces.push_back(
-        absl::StrFormat("using %s = %s;", cpp_type(), emitter_->cpp_type()));
+        absl::StrFormat("using %s = %s;", cpp_type(),
+                        emitter_->cpp_type().FullyQualifiedName()));
     std::optional<int64_t> width = emitter_->GetBitCountIfBitVector();
     if (width.has_value()) {
       hdr_pieces.push_back(
@@ -478,13 +483,14 @@ class StructCppTypeGenerator : public CppTypeGenerator {
   ~StructCppTypeGenerator() override = default;
 
   static absl::StatusOr<std::unique_ptr<StructCppTypeGenerator>> Create(
-      const StructDef* struct_def, TypeInfo* type_info,
-      ImportData* import_data) {
+      const StructDef* struct_def, TypeInfo* type_info, ImportData* import_data,
+      std::string_view parent_namespaces) {
     std::vector<std::unique_ptr<CppEmitter>> member_emitters;
     for (const auto* m : struct_def->members()) {
-      XLS_ASSIGN_OR_RETURN(std::unique_ptr<CppEmitter> emitter,
-                           CppEmitter::Create(m->type(), m->type()->ToString(),
-                                              type_info, import_data));
+      XLS_ASSIGN_OR_RETURN(
+          std::unique_ptr<CppEmitter> emitter,
+          CppEmitter::Create(m->type(), m->type()->ToString(), type_info,
+                             import_data, parent_namespaces));
       member_emitters.push_back(std::move(emitter));
     }
     return std::make_unique<StructCppTypeGenerator>(
@@ -498,7 +504,8 @@ class StructCppTypeGenerator : public CppTypeGenerator {
     for (int64_t i = 0; i < struct_def_->size(); ++i) {
       std::string member_name = cpp_member_names_[i];
       member_decls.push_back(absl::StrFormat(
-          "%s %s;", member_emitters_[i]->cpp_type(), member_name));
+          "%s %s;", member_emitters_[i]->cpp_type().FullyQualifiedName(),
+          member_name));
       std::optional<int64_t> width =
           member_emitters_[i]->GetBitCountIfBitVector();
       if (width.has_value()) {
@@ -711,23 +718,24 @@ class StructCppTypeGenerator : public CppTypeGenerator {
 
 /* static */ absl::StatusOr<std::unique_ptr<CppTypeGenerator>>
 CppTypeGenerator::Create(const TypeDefinition& type_definition,
-                         TypeInfo* type_info, ImportData* import_data) {
+                         TypeInfo* type_info, ImportData* import_data,
+                         std::string_view namespaces) {
   return absl::visit(
       Visitor{
           [&](const TypeAlias* type_alias)
               -> absl::StatusOr<std::unique_ptr<CppTypeGenerator>> {
             return TypeAliasCppTypeGenerator::Create(type_alias, type_info,
-                                                     import_data);
+                                                     import_data, namespaces);
           },
           [&](const StructDef* struct_def)
               -> absl::StatusOr<std::unique_ptr<CppTypeGenerator>> {
             return StructCppTypeGenerator::Create(struct_def, type_info,
-                                                  import_data);
+                                                  import_data, namespaces);
           },
           [&](const EnumDef* enum_def)
               -> absl::StatusOr<std::unique_ptr<CppTypeGenerator>> {
             return EnumCppTypeGenerator::Create(enum_def, type_info,
-                                                import_data);
+                                                import_data, namespaces);
           },
           [&](const ColonRef* colon_ref)
               -> absl::StatusOr<std::unique_ptr<CppTypeGenerator>> {

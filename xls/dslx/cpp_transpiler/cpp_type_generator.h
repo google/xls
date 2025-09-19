@@ -55,7 +55,7 @@ class CppTypeGenerator {
   // Returns a type generator for the given TypeDefinition.
   static absl::StatusOr<std::unique_ptr<CppTypeGenerator>> Create(
       const TypeDefinition& type_definition, TypeInfo* type_info,
-      ImportData* import_data);
+      ImportData* import_data, std::string_view parent_namespaces);
 
  protected:
   std::string cpp_type_;
