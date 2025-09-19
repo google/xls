@@ -62,7 +62,6 @@ CLOCK_PERIOD_PS = "750"
 COMMON_CODEGEN_ARGS = {
     "delay_model": "asap7",
     "reset": "rst",
-    "worst_case_throughput": "1",
     "use_system_verilog": "false",
     "clock_period_ps": CLOCK_PERIOD_PS,
     "clock_margin_percent": "20",
@@ -70,6 +69,8 @@ COMMON_CODEGEN_ARGS = {
     "streaming_channel_data_suffix": "_data",
     "fifo_module": "",
     "materialize_internal_fifos": "true",
+    "worst_case_throughput": "0",
+    "minimize_worst_case_throughput": "true",
 
     # TODO: This should be adjusted when per channel separation of IO options is enabled
     "flop_inputs_kind": "skid",
@@ -97,7 +98,6 @@ xls_dslx_test(
 AXI_READER_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "clock_period_ps": CLOCK_PERIOD_PS,
     "module_name": "axi_reader",
-    "worst_case_throughput": "2",
 }
 
 xls_dslx_verilog(
@@ -156,7 +156,6 @@ place_and_route(
 # AxiReader (no FSM)
 
 AXI_READER_NO_FSM_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
-    "worst_case_throughput": "4",
     "module_name": "axi_reader",
 }
 
@@ -213,7 +212,6 @@ place_and_route(
 )
 
 AXI_READER_INTERNAL_R_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
-    "worst_case_throughput": "1",
     "module_name": "axi_reader_internal_r",
 }
 
@@ -519,7 +517,6 @@ xls_dslx_test(
 
 MEM_READER_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "mem_reader",
-    "worst_case_throughput": "2",
 }
 
 xls_dslx_verilog(
@@ -579,7 +576,6 @@ place_and_route(
 
 MEM_READER_NO_FSM_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "mem_reader",
-    "worst_case_throughput": "4",
 }
 
 xls_dslx_verilog(
@@ -647,7 +643,6 @@ xls_dslx_verilog(
 
 MEM_READER_ADV_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "mem_reader_adv",
-    "worst_case_throughput": "2"
 }
 
 xls_dslx_verilog(
@@ -735,7 +730,6 @@ py_test(
 
 MEM_READER_ADV_NO_FSM_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "mem_reader_adv",
-    "worst_case_throughput": "4",
 }
 
 xls_dslx_verilog(
@@ -925,7 +919,6 @@ py_test(
 
 AXI_WRITER_NO_FSM_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "axi_writer",
-    "worst_case_throughput": "4"
 }
 
 xls_dslx_verilog(
@@ -1186,7 +1179,6 @@ py_test(
 
 MEM_WRITER_NO_FSM_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "mem_writer",
-    "worst_case_throughput": "4",
 }
 
 xls_dslx_verilog(
@@ -1283,7 +1275,6 @@ AXI_RAM_WRITER_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "AxiRamWriter",
     "clock_period_ps": "750",
     "pipeline_stages": "8",
-    "worst_case_throughput": "1",
     "materialize_internal_fifos": "true"
 }
 
