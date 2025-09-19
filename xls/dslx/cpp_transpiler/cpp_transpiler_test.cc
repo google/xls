@@ -448,15 +448,11 @@ type Foo = u32;
                      /*additional_include_headers=*/
                      {"path/to/some_types.h", "path/to/other_types.h"},
                      "/tmp/fake_path.h"));
-  EXPECT_THAT(result.header, HasSubstr(R"(
-#include "path/to/some_types.h"
-#include "path/to/other_types.h"
-)"));
-  EXPECT_THAT(result.source, HasSubstr(R"(
-#include "/tmp/fake_path.h"
-#include "path/to/some_types.h"
-#include "path/to/other_types.h"
-)"));
+  EXPECT_THAT(result.header, HasSubstr("#include \"path/to/some_types.h\"\n"
+                                       "#include \"path/to/other_types.h\"\n"));
+  EXPECT_THAT(result.source, HasSubstr("#include \"/tmp/fake_path.h\"\n"
+                                       "#include \"path/to/some_types.h\"\n"
+                                       "#include \"path/to/other_types.h\"\n"));
 }
 
 }  // namespace
