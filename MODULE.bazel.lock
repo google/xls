@@ -2110,7 +2110,7 @@
           "@@or-tools~//bazel/ortools_requirements.txt": "37e22395e78ef3572ab57b7717fd8f54851919bb73ca404f367536dc15a8e3eb",
           "@@pybind11_abseil~//pybind11_abseil/requirements/requirements_lock_3_11.txt": "7d1074311e9f32f25ca112fc86fbec98bc024d820a8dc00f94e8679a7e6b480c",
           "@@rules_python~//tools/publish/requirements_linux.txt": "8175b4c8df50ae2f22d1706961884beeb54e7da27bd2447018314a175981997d",
-          "@@//dependency_support/pip_requirements_lock.txt": "e813fef63629aaca3c070b25f1265afb21da8400c4dc846646f3056965670718",
+          "@@//dependency_support/pip_requirements_lock.txt": "5108b11922afcb1c3b8abc232356cbff368ad481d6bb54472356427cba87f4fc",
           "@@or-tools~//bazel/notebook_requirements.txt": "ca78fad693f1b35eed8bb7c54e5ddf7ad255c4b9d94ce18efa55859759a8fb70",
           "@@protoc-gen-validate~//python/requirements.txt": "6a540bc029bbf3a5f78f9f9282bd30e2965c98eeb150f2cfc5facccbd8a98297",
           "@@pybind11_protobuf~//pybind11_protobuf/requirements/requirements_lock_3_10.txt": "afd6f9406f4e80a504f1575121a937f4c15388aec4a17393f0cb1ac9f09d18dd",
@@ -14405,6 +14405,39 @@
               "timeout": 600000
             }
           },
+          "xls_pip_deps_311_cocotb": {
+            "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "dep_template": "@xls_pip_deps//{name}:{target}",
+              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
+              "repo": "xls_pip_deps_311",
+              "requirement": "cocotb==1.7.2     --hash=sha256:0c1687ac78141724b8529e029ee6299698ecaa8a2c431b744eeff487a4bb18de     --hash=sha256:163e5262020cc21f6a0391fb4727c9ab3ecbf6ee12a1472c8f7320b3ba211a50     --hash=sha256:170cf4d01c4d7c6c5b141ffc1824e846a6c8adbed553a50984cd522c1dddb111     --hash=sha256:1851ac56eed7bb6c745aabfc0e417195cb4f08b5df50846c04eb77a868bfeaba     --hash=sha256:1abffb36183b07469c490836c66d8b9e24fc1bec7c27356818618a6719fabd4b     --hash=sha256:33be79f048f4072240668a079d2bcebd1a24611a0a1e55439b65ffa0ff077790     --hash=sha256:34ab1bf3f18476724dd4e21dbcc0e060e813eb502abe155b800084fb6945360c     --hash=sha256:360019f74270661d14e9caa8103e740a070cb466ab08376a565ec0ef4c13dbbf     --hash=sha256:37ddb79f4ab60d2d2dc5a9db5bf767d226eb4978fd15b84dfb968d31ab2fcda5     --hash=sha256:43f5af578803e5726b5c75421c0e35e54021ab423d3aa4efe930feb740d6479d     --hash=sha256:4738f36b9730cc05b74ccba3648dba0455cf9f237abf822ef307a274a29474c2     --hash=sha256:4aa5d73ebdb59ef24cef36a1f8cca11dcecb3ee7b71a84df02751020bc67ea77     --hash=sha256:574d21501ff1a3d36889397cd58a18d102d0e40391aa7a0274b600d1cc4c7dc3     --hash=sha256:69f4e539dd308c9e169ab23135138ec397061b700f209803a6022ae9fbe08933     --hash=sha256:6f289ac00f4884046ec64db7006e47b1c857a36dcd2a80ea0873cbff00248368     --hash=sha256:707f795a17679b4653a50bd4094536a46fbfee5c6e3d951fac4320ee211ad13f     --hash=sha256:7828e22946f128aa59cb9254de4037b99e3bd5a51fe8f590cf64a3141d742a37     --hash=sha256:82f694da656a699154b15ee28be3ac39c41a71d33985313deda12a3645f8b3db     --hash=sha256:959892eb94bd0b3ff40e0fca51d33a3936416deb853e2bac4f7f766b40002650     --hash=sha256:a7ec6a2d212c27ec46bed17a15d60b7b29cd0f734f11cc16d2cb4d3f6136e133     --hash=sha256:a90c77f4bbfdf73aa16093dfe95c68af1a1ca685ebfa525f3f150eab252f6728     --hash=sha256:b288a59fa8dffc1cbc53105e71e2f8c82421081b17282e41319832654b309477     --hash=sha256:c41cc8d4ece57f5e26076cd12f1e11d464d7f118fdb74b958269535185d99a30     --hash=sha256:c8dce91d2a918ee63338d79b08e3d52f1d2797efd9c2bedd13c33d674f730db8     --hash=sha256:d26a8a40cea61f295be04b1164a5dd9ec873f13a39814ad00efec7fd899320e0     --hash=sha256:d80b3baafff1a8a91ac860023c448c603767bed502258160a5cb6029976fec4f     --hash=sha256:dcf5354268f16d9e11e05cf3616172ca5ef503b45567f75ebd96a0bfdb9832d1     --hash=sha256:ded849360fb31746f1ba3a994f89c3bba2466ec2d0b4b5da0030645645f938d4     --hash=sha256:e03df73573aec261447602904bd66927eeb2f00dd24370dc9a57f47fd42c4d70     --hash=sha256:f97c2eb92cb68831f19b82ba0038ce40fa73c5edbffb7930745edac20c5358d1     --hash=sha256:fa8abed5260baf4306fbfb997c8789fe24bc229cd762b12d7dba0b9c20147b1d",
+              "timeout": 600000
+            }
+          },
+          "xls_pip_deps_311_cocotb_bus": {
+            "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "dep_template": "@xls_pip_deps//{name}:{target}",
+              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
+              "repo": "xls_pip_deps_311",
+              "requirement": "cocotb-bus==0.2.1     --hash=sha256:a197aa4b0e0ad28469c8877b41b3fb2ec0206da9f491b9276d1578ce6dd8aa8d",
+              "timeout": 600000
+            }
+          },
+          "xls_pip_deps_311_cocotbext_axi": {
+            "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "dep_template": "@xls_pip_deps//{name}:{target}",
+              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
+              "repo": "xls_pip_deps_311",
+              "requirement": "cocotbext-axi==0.1.24     --hash=sha256:3ed62dcaf9448833176826507c5bc5c346431c4846a731e409d87c862d960593     --hash=sha256:533ba6c7503c6302bdb9ef86e43a549ad5da876eafb1adce23d39751c54cced4",
+              "timeout": 600000
+            }
+          },
           "xls_pip_deps_312_contourpy": {
             "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
             "ruleClassName": "whl_library",
@@ -14424,6 +14457,17 @@
               "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
               "repo": "xls_pip_deps_312",
               "requirement": "cycler==0.12.1     --hash=sha256:85cef7cff222d8644161529808465972e51340599459b8ac3ccbac5a854e0d30     --hash=sha256:88bb128f02ba341da8ef447245a9e138fae777f6a23943da4540077d3601eb1c",
+              "timeout": 600000
+            }
+          },
+          "xls_pip_deps_311_find_libpython": {
+            "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "dep_template": "@xls_pip_deps//{name}:{target}",
+              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
+              "repo": "xls_pip_deps_311",
+              "requirement": "find-libpython==0.4.0     --hash=sha256:034a4253bd57da3408aefc59aeac1650150f6c1f42e10fdd31615cf1df0842e3     --hash=sha256:46f9cdcd397ddb563b2d7592ded3796a41c1df5222443bd9d981721c906c03e6",
               "timeout": 600000
             }
           },
@@ -15192,8 +15236,12 @@
               "whl_map": {
                 "blinker": "{\"xls_pip_deps_312_blinker\":[{\"version\":\"3.12\"}]}",
                 "click": "{\"xls_pip_deps_312_click\":[{\"version\":\"3.12\"}]}",
+                "cocotb": "{\"xls_pip_deps_311_cocotb\":[{\"version\":\"3.11\"}]}",
+                "cocotb_bus": "{\"xls_pip_deps_311_cocotb_bus\":[{\"version\":\"3.11\"}]}",
+                "cocotbext_axi": "{\"xls_pip_deps_311_cocotbext_axi\":[{\"version\":\"3.11\"}]}",
                 "contourpy": "{\"xls_pip_deps_312_contourpy\":[{\"version\":\"3.12\"}]}",
                 "cycler": "{\"xls_pip_deps_312_cycler\":[{\"version\":\"3.12\"}]}",
+                "find_libpython": "{\"xls_pip_deps_311_find_libpython\":[{\"version\":\"3.11\"}]}",
                 "flask": "{\"xls_pip_deps_312_flask\":[{\"version\":\"3.12\"}]}",
                 "fonttools": "{\"xls_pip_deps_312_fonttools\":[{\"version\":\"3.12\"}]}",
                 "itsdangerous": "{\"xls_pip_deps_312_itsdangerous\":[{\"version\":\"3.12\"}]}",
@@ -15219,8 +15267,12 @@
               "packages": [
                 "blinker",
                 "click",
+                "cocotb",
+                "cocotb_bus",
+                "cocotbext_axi",
                 "contourpy",
                 "cycler",
+                "find_libpython",
                 "flask",
                 "fonttools",
                 "itsdangerous",
