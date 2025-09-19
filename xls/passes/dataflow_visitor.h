@@ -107,6 +107,25 @@ class DataflowVisitor : public DfsVisitorWithDefault {
     return SetValueFromLeafElements(array_concat, std::move(leaves));
   }
 
+  // Returns the indices of `array_index` if and only if *all* indices are
+  // known. Returns the empty vector otherwise.
+  std::vector<int64_t> AllIndicesKnown(ArrayIndex* array_index) {
+    std::vector<int64_t> indices;
+    for (Node* index : array_index->indices()) {
+      if (std::optional<Bits> index_value =
+              query_engine_.KnownValueAsBits(index);
+          index_value.has_value()) {
+        std::optional<int64_t> result =
+            bits_ops::TryUnsignedBitsToInt64(*index_value);
+        if (!result.has_value()) {
+          return {};
+        }
+        indices.push_back(*result);
+      }
+    }
+    return indices;
+  }
+
   absl::Status HandleArrayIndex(ArrayIndex* array_index) override {
     // The value for an array-index operation is the join of the possibly
     // indexed values in the input array. no need to join values from
@@ -115,16 +134,28 @@ class DataflowVisitor : public DfsVisitorWithDefault {
     std::vector<int64_t> bounds =
         GetArrayBounds(array_index->array()->GetType());
     std::vector<LeafTypeTreeView<LeafT>> data_sources;
-    XLS_RETURN_IF_ERROR(leaf_type_tree::ForEachSubArray<LeafT>(
-        array_value.AsView(), array_index->indices().size(),
-        [&](LeafTypeTreeView<LeafT> element_view,
-            absl::Span<const int64_t> index) {
-          if (IndicesMightBeEquivalent(array_index->indices(), index, bounds,
-                                       /*indices_clamped=*/true)) {
-            data_sources.push_back(element_view);
-          }
-          return absl::OkStatus();
-        }));
+
+    // Fast path: if all indices are known then we can just look up the value
+    // for the known index.
+    if (std::vector<int64_t> indices = AllIndicesKnown(array_index);
+        !indices.empty() && indices.size() == bounds.size()) {
+      for (int64_t i = 0; i < indices.size(); ++i) {
+        indices[i] = std::clamp<int64_t>(indices[i], 0, bounds[i] - 1);
+      }
+      data_sources.push_back(array_value.AsView(indices));
+    } else {
+      XLS_RETURN_IF_ERROR(leaf_type_tree::ForEachSubArray<LeafT>(
+          array_value.AsView(), array_index->indices().size(),
+          [&](LeafTypeTreeView<LeafT> element_view,
+              absl::Span<const int64_t> index) {
+            if (IndicesMightBeEquivalent(array_index->indices(), index, bounds,
+                                         /*indices_clamped=*/true)) {
+              data_sources.push_back(element_view);
+            }
+            return absl::OkStatus();
+          }));
+    }
+
     std::vector<LeafTypeTreeView<LeafT>> control_sources;
     for (Node* index : array_index->indices()) {
       XLS_RET_CHECK(IsLeafType(index->GetType()));
@@ -390,6 +421,9 @@ class DataflowVisitor : public DfsVisitorWithDefault {
     }
     return bits_ops::UEqual(bits_index, concrete_index);
   }
+  // Customizable index equivalence for leaf types. Note that equality must be
+  // a sub-relation of equivalence - indices being equal implies that they are
+  // equivalent.
   virtual bool IndexIsEquivalent(const LeafT& index, int64_t concrete_index,
                                  int64_t bound, bool index_clamped) const {
     return false;
@@ -413,6 +447,9 @@ class DataflowVisitor : public DfsVisitorWithDefault {
                               int64_t bound, bool index_clamped) const {
     return IndexIsEquivalent(bits_index, concrete_index, bound, index_clamped);
   }
+  // Customizable index equivalence for leaf types. Note that equality must be
+  // a sub-relation of equivalence - indices being equal implies that they are
+  // equivalent.
   virtual bool IndexMightBeEquivalent(const LeafT& index,
                                       int64_t concrete_index, int64_t bound,
                                       bool index_clamped) const {
