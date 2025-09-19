@@ -416,6 +416,27 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
           "Unknown merge strategy: %v", p.register_merge_strategy()));
   }
 
+  if (p.has_source_annotation_strategy()) {
+    switch (p.source_annotation_strategy()) {
+      case ANNOTATION_STRATEGY_NONE:
+        options.source_annotation_strategy(
+            verilog::CodegenOptions::SourceAnnotationStrategy::kNone);
+        break;
+      case ANNOTATION_STRATEGY_COMMENT:
+        options.source_annotation_strategy(
+            verilog::CodegenOptions::SourceAnnotationStrategy::kComment);
+        break;
+      case ANNOTATION_STRATEGY_DIRECTIVE:
+        options.source_annotation_strategy(
+            verilog::CodegenOptions::SourceAnnotationStrategy::kLineDirective);
+        break;
+      default:
+        return absl::InvalidArgumentError(
+            absl::StrFormat("Unknown source annotation strategy: %v",
+                            p.source_annotation_strategy()));
+    }
+  }
+
   if (!p.randomize_order_seed().empty()) {
     options.randomize_order_seed(p.randomize_order_seed());
   }
