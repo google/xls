@@ -148,21 +148,13 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
             << " with type: " << node->type()->ToString();
     if (node->fifo_depth().has_value()) {
       Expr* fifo_depth = *node->fifo_depth();
-      XLS_ASSIGN_OR_RETURN(const NameRef* fifo_depth_var,
-                           table_.DefineInternalVariable(
-                               InferenceVariableKind::kType, fifo_depth,
-                               GenerateInternalTypeVariableName(fifo_depth)));
-      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(fifo_depth, fifo_depth_var));
+      XLS_RETURN_IF_ERROR(DefineAndSetTypeVariable(fifo_depth, "fifo_depth"));
       XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
           fifo_depth, CreateU32Annotation(module_, fifo_depth->span())));
     }
     if (node->dims().has_value()) {
       for (Expr* dim : *node->dims()) {
-        XLS_ASSIGN_OR_RETURN(const NameRef* dim_variable,
-                             table_.DefineInternalVariable(
-                                 InferenceVariableKind::kType, dim,
-                                 GenerateInternalTypeVariableName(dim)));
-        XLS_RETURN_IF_ERROR(table_.SetTypeVariable(dim, dim_variable));
+        XLS_RETURN_IF_ERROR(DefineAndSetTypeVariable(dim, "channel_dim"));
         XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
             dim, CreateU32Annotation(module_, dim->span())));
       }
@@ -426,22 +418,15 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       // which will then be assumed by the type variable for the `ConstantDef`.
       XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
           node, CreateBoolAnnotation(module_, node->span())));
-      XLS_ASSIGN_OR_RETURN(
-          const NameRef* operand_variable,
-          table_.DefineInternalVariable(
-              InferenceVariableKind::kType, const_cast<Binop*>(node),
-              GenerateInternalTypeVariableName(node)));
+      XLS_ASSIGN_OR_RETURN(const NameRef* operand_variable,
+                           DefineTypeVariable(node, "expr"));
       XLS_RETURN_IF_ERROR(
           table_.SetTypeVariable(node->lhs(), operand_variable));
       XLS_RETURN_IF_ERROR(
           table_.SetTypeVariable(node->rhs(), operand_variable));
     } else if (GetBinopShifts().contains(node->binop_kind())) {
       XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->lhs(), type_variable));
-      XLS_ASSIGN_OR_RETURN(const NameRef* rhs_variable,
-                           table_.DefineInternalVariable(
-                               InferenceVariableKind::kType, node->rhs(),
-                               GenerateInternalTypeVariableName(node->rhs())));
-      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->rhs(), rhs_variable));
+      XLS_RETURN_IF_ERROR(DefineAndSetTypeVariable(node->rhs(), "rhs"));
     } else if (node->binop_kind() == BinopKind::kConcat) {
       // The type of a concat is
       //   ArrayType(ElementType(lhs),
@@ -453,16 +438,10 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       // There is a nontrivial set of rules for what input types are actually
       // allowed, and the application of those rules is deferred until
       // `ValidateConcreteType` at the end.
-      XLS_ASSIGN_OR_RETURN(
-          const NameRef* lhs_variable,
-          table_.DefineInternalVariable(
-              InferenceVariableKind::kType, const_cast<Expr*>(node->lhs()),
-              GenerateInternalTypeVariableName(node->lhs())));
-      XLS_ASSIGN_OR_RETURN(
-          const NameRef* rhs_variable,
-          table_.DefineInternalVariable(
-              InferenceVariableKind::kType, const_cast<Expr*>(node->rhs()),
-              GenerateInternalTypeVariableName(node->rhs())));
+      XLS_ASSIGN_OR_RETURN(const NameRef* lhs_variable,
+                           DefineTypeVariable(node->lhs(), "lhs"));
+      XLS_ASSIGN_OR_RETURN(const NameRef* rhs_variable,
+                           DefineTypeVariable(node->rhs(), "rhs"));
       XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->lhs(), lhs_variable));
       XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->rhs(), rhs_variable));
       auto* lhs_tvta = module_.Make<TypeVariableTypeAnnotation>(lhs_variable);
@@ -470,11 +449,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
 
       // Create the synthetic AST node for the expression, and process it.
       Expr* sum = CreateElementCountSum(module_, lhs_tvta, rhs_tvta);
-      XLS_ASSIGN_OR_RETURN(
-          const NameRef* sum_variable,
-          table_.DefineInternalVariable(InferenceVariableKind::kType, sum,
-                                        GenerateInternalTypeVariableName(sum)));
-      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(sum, sum_variable));
+      XLS_RETURN_IF_ERROR(DefineAndSetTypeVariable(sum, "concat_result"));
       XLS_RETURN_IF_ERROR(sum->Accept(this));
 
       XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
@@ -508,11 +483,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     VLOG(5) << "HandleCast: " << node->ToString();
 
     // Create a new type variable for the casted expression.
-    XLS_ASSIGN_OR_RETURN(const NameRef* casted_variable,
-                         table_.DefineInternalVariable(
-                             InferenceVariableKind::kType, node->expr(),
-                             GenerateInternalTypeVariableName(node->expr())));
-    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->expr(), casted_variable));
+    XLS_RETURN_IF_ERROR(DefineAndSetTypeVariable(node->expr(), "cast_result"));
 
     // The cast node has the target type annotation (assuming it is valid, which
     // will be checked at conversion time).
@@ -537,13 +508,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     // Mark the test as bool.
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
         node->test(), CreateBoolAnnotation(module_, node->test()->span())));
-    XLS_ASSIGN_OR_RETURN(
-        const NameRef* test_variable,
-        table_.DefineInternalVariable(
-            InferenceVariableKind::kType, const_cast<Expr*>(node->test()),
-            GenerateInternalTypeVariableName(node->test())));
-    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->test(), test_variable));
-
+    XLS_RETURN_IF_ERROR(DefineAndSetTypeVariable(node->test(), "test"));
     return DefaultHandler(node);
   }
 
@@ -554,13 +519,9 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     // arm of the `match` must match the type of the `match` itself.
     const NameRef* arm_type = *table_.GetTypeVariable(node);
 
-    XLS_ASSIGN_OR_RETURN(
-        const NameRef* matched_var_type,
-        table_.DefineInternalVariable(
-            InferenceVariableKind::kType, node->matched(),
-            GenerateInternalTypeVariableName(node->matched())));
-    XLS_RETURN_IF_ERROR(
-        table_.SetTypeVariable(node->matched(), matched_var_type));
+    XLS_ASSIGN_OR_RETURN(const NameRef* matched_var,
+                         DefineTypeVariable(node->matched(), "matched"));
+    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->matched(), matched_var));
 
     if (node->arms().empty()) {
       return TypeInferenceErrorStatus(node->span(), /*type=*/nullptr,
@@ -584,10 +545,10 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
 
       XLS_RETURN_IF_ERROR(table_.SetTypeVariable(arm->expr(), arm_type));
       for (const NameDefTree* pattern : arm->patterns()) {
-        XLS_RETURN_IF_ERROR(table_.SetTypeVariable(pattern, matched_var_type));
+        XLS_RETURN_IF_ERROR(table_.SetTypeVariable(pattern, matched_var));
         if (pattern->is_leaf()) {
-          XLS_RETURN_IF_ERROR(table_.SetTypeVariable(ToAstNode(pattern->leaf()),
-                                                     matched_var_type));
+          XLS_RETURN_IF_ERROR(
+              table_.SetTypeVariable(ToAstNode(pattern->leaf()), matched_var));
         }
       }
     }
@@ -640,9 +601,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       }
       XLS_ASSIGN_OR_RETURN(
           const NameRef* member_variable,
-          table_.DefineInternalVariable(
-              InferenceVariableKind::kType, member,
-              GenerateInternalTypeVariableName(member), element_annotation));
+          DefineTypeVariable(member, absl::StrCat("member_", i),
+                             element_annotation));
       XLS_RETURN_IF_ERROR(table_.SetTypeVariable(member, member_variable));
       member_types.push_back(
           module_.Make<TypeVariableTypeAnnotation>(member_variable));
@@ -737,12 +697,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       Expr* offset = CreateElementCountOffset(
           module_, const_cast<TypeAnnotation*>(tree_type),
           tree->nodes().size() - i);
-      XLS_ASSIGN_OR_RETURN(
-          const NameRef* offset_variable,
-          table_.DefineInternalVariable(
-              InferenceVariableKind::kType, const_cast<Expr*>(offset),
-              GenerateInternalTypeVariableName(offset)));
-      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(offset, offset_variable));
+      XLS_RETURN_IF_ERROR(DefineAndSetTypeVariable(offset, "offset"));
       XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
           offset, CreateU32Annotation(module_, child->span())));
       XLS_RETURN_IF_ERROR(offset->Accept(this));
@@ -756,14 +711,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       element_type = module_.Make<ElementTypeAnnotation>(tree_type, index);
     }
 
-    XLS_ASSIGN_OR_RETURN(
-        const NameRef* child_variable,
-        table_.DefineInternalVariable(
-            InferenceVariableKind::kType, const_cast<AstNode*>(actual_child),
-            absl::Substitute("internal_type_ndt_at_$0_in_$1",
-                             child->span().ToString(file_table_),
-                             module_.name())));
-    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(actual_child, child_variable));
+    XLS_RETURN_IF_ERROR(DefineAndSetTypeVariable(actual_child, "ndt"));
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(actual_child, element_type));
     if (child->is_leaf()) {
       XLS_RETURN_IF_ERROR(ToAstNode(child->leaf())->Accept(this));
@@ -806,13 +754,12 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     }
 
     // Handle iterable.
-    XLS_ASSIGN_OR_RETURN(const NameRef* iterable_type_variable,
-                         table_.DefineInternalVariable(
-                             InferenceVariableKind::kType, node->iterable(),
-                             GenerateInternalTypeVariableName(node->iterable()),
-                             iterable_type_annotation
-                                 ? std::make_optional(iterable_type_annotation)
-                                 : std::nullopt));
+    XLS_ASSIGN_OR_RETURN(
+        const NameRef* iterable_type_variable,
+        DefineTypeVariable(node->iterable(), "iterable",
+                           iterable_type_annotation
+                               ? std::make_optional(iterable_type_annotation)
+                               : std::nullopt));
     XLS_RETURN_IF_ERROR(
         table_.SetTypeVariable(node->iterable(), iterable_type_variable));
     if (iterable_type_annotation) {
@@ -836,11 +783,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
                             : iterator_ndt;
     XLS_ASSIGN_OR_RETURN(
         const NameRef* iterator_type_variable,
-        table_.DefineInternalVariable(
-            InferenceVariableKind::kType, iterator,
-            absl::Substitute("internal_type_iterator_at_$0_in_$1",
-                             node->span().ToString(file_table_),
-                             module_.name()),
+        DefineTypeVariable(
+            iterator, "iterator",
             iterator_accumulator_type_annotation
                 ? std::make_optional(iterator_accumulator_type_annotation)
                 : std::nullopt));
@@ -886,13 +830,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     XLS_RETURN_IF_ERROR(
         table_.SetTypeVariable(node->init(), for_node_type_variable));
 
-    XLS_ASSIGN_OR_RETURN(
-        const NameRef* body_type_variable,
-        table_.DefineInternalVariable(
-            InferenceVariableKind::kType, node->body(),
-            absl::Substitute("internal_type_loop_body_at_$0_in_$1",
-                             node->span().ToString(file_table_),
-                             module_.name())));
+    XLS_ASSIGN_OR_RETURN(const NameRef* body_type_variable,
+                         DefineTypeVariable(node->body(), "loop_body"));
     XLS_RETURN_IF_ERROR(
         table_.SetTypeVariable(node->body(), body_type_variable));
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
@@ -929,12 +868,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   absl::Status HandleArrayTypeAnnotation(
       const ArrayTypeAnnotation* node) override {
     VLOG(5) << "HandleArrayTypeAnnotation: " << node->ToString();
-    XLS_ASSIGN_OR_RETURN(
-        const NameRef* dim_variable,
-        table_.DefineInternalVariable(
-            InferenceVariableKind::kType, const_cast<Expr*>(node->dim()),
-            GenerateInternalTypeVariableName(node->dim())));
-    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->dim(), dim_variable));
+    XLS_RETURN_IF_ERROR(DefineAndSetTypeVariable(node->dim(), "dim"));
     if (node->element_type()->IsAnnotation<BuiltinTypeAnnotation>() &&
         node->element_type()
                 ->AsAnnotation<BuiltinTypeAnnotation>()
@@ -957,11 +891,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       const ChannelTypeAnnotation* node) override {
     if (node->dims()) {
       for (Expr* dim : *node->dims()) {
-        XLS_ASSIGN_OR_RETURN(const NameRef* dim_variable,
-                             table_.DefineInternalVariable(
-                                 InferenceVariableKind::kType, dim,
-                                 GenerateInternalTypeVariableName(dim)));
-        XLS_RETURN_IF_ERROR(table_.SetTypeVariable(dim, dim_variable));
+        XLS_RETURN_IF_ERROR(DefineAndSetTypeVariable(dim, "dim"));
         XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
             dim, CreateU32Annotation(module_, dim->span())));
       }
@@ -1002,13 +932,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
             i < struct_or_proc_ref->parametrics.size()
                 ? std::get<Expr*>(struct_or_proc_ref->parametrics[i])
                 : binding->expr();
-        XLS_ASSIGN_OR_RETURN(
-            const NameRef* actual_expr_variable,
-            table_.DefineInternalVariable(
-                InferenceVariableKind::kType, const_cast<Expr*>(actual_expr),
-                GenerateInternalTypeVariableName(actual_expr)));
         XLS_RETURN_IF_ERROR(
-            table_.SetTypeVariable(actual_expr, actual_expr_variable));
+            DefineAndSetTypeVariable(actual_expr, "actual_expr"));
         XLS_RETURN_IF_ERROR(
             table_.SetTypeAnnotation(actual_expr, binding->type_annotation()));
       } else if (binding->expr() == nullptr) {
@@ -1061,11 +986,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
 
   absl::Status HandleAttr(const Attr* node) override {
     // Establish a context for the unification of the struct type.
-    XLS_ASSIGN_OR_RETURN(
-        const NameRef* struct_type_variable,
-        table_.DefineInternalVariable(
-            InferenceVariableKind::kType, const_cast<Expr*>(node->lhs()),
-            GenerateInternalTypeVariableName(node->lhs())));
+    XLS_ASSIGN_OR_RETURN(const NameRef* struct_type_variable,
+                         DefineTypeVariable(node->lhs(), "struct_type"));
     XLS_RETURN_IF_ERROR(
         table_.SetTypeVariable(node->lhs(), struct_type_variable));
 
@@ -1163,11 +1085,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       element_annotation =
           module_.Make<ElementTypeAnnotation>(*array_annotation);
     }
-    XLS_ASSIGN_OR_RETURN(
-        const NameRef* element_type_variable,
-        table_.DefineInternalVariable(
-            InferenceVariableKind::kType, const_cast<Array*>(node),
-            GenerateInternalTypeVariableName(node), element_annotation));
+    XLS_ASSIGN_OR_RETURN(const NameRef* element_type_variable,
+                         DefineTypeVariable(node, "element"));
     for (Expr* member : node->members()) {
       XLS_RETURN_IF_ERROR(
           table_.SetTypeVariable(member, element_type_variable));
@@ -1239,20 +1158,13 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
 
     // Create and assign a type variable for generated element count expr and
     // its sub expressions.
-    XLS_ASSIGN_OR_RETURN(const NameRef* element_count_type_variable,
-                         table_.DefineInternalVariable(
-                             InferenceVariableKind::kType, element_count,
-                             GenerateInternalTypeVariableName(element_count)));
     XLS_RETURN_IF_ERROR(
-        table_.SetTypeVariable(element_count, element_count_type_variable));
+        DefineAndSetTypeVariable(element_count, "element_count"));
     XLS_RETURN_IF_ERROR(element_count->Accept(this));
 
     // Create a variable for the element type, and assign it to start and end.
-    XLS_ASSIGN_OR_RETURN(
-        const NameRef* endpoint_type_variable,
-        table_.DefineInternalVariable(InferenceVariableKind::kType,
-                                      const_cast<Range*>(node),
-                                      GenerateInternalTypeVariableName(node)));
+    XLS_ASSIGN_OR_RETURN(const NameRef* endpoint_type_variable,
+                         DefineTypeVariable(node, "range_endpoint"));
     XLS_ASSIGN_OR_RETURN(
         std::optional<const TypeAnnotation*> range_annotation,
         GetDeclarationTypeAnnotation<ArrayTypeAnnotation>(node));
@@ -1280,52 +1192,45 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   absl::Status HandleIndex(const Index* node) override {
     // Whether it's a normal index op or a slice, the LHS, which is the original
     // array, always has its own unification context.
-    XLS_ASSIGN_OR_RETURN(
-        const NameRef* lhs_variable,
-        table_.DefineInternalVariable(
-            InferenceVariableKind::kType, const_cast<Expr*>(node->lhs()),
-            GenerateInternalTypeVariableName(node->lhs()) + "_index_lhs"));
+    XLS_ASSIGN_OR_RETURN(const NameRef* lhs_variable,
+                         DefineTypeVariable(node->lhs(), "index_lhs"));
     XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->lhs(), lhs_variable));
     auto* lhs_tvta = module_.Make<TypeVariableTypeAnnotation>(lhs_variable);
 
     XLS_RETURN_IF_ERROR(absl::visit(
-        Visitor{
-            [&](Slice* slice) -> absl::Status {
-              return table_.SetTypeAnnotation(
-                  node, module_.Make<SliceTypeAnnotation>(node->span(),
-                                                          lhs_tvta, slice));
-            },
-            [&](WidthSlice* width_slice) -> absl::Status {
-              table_.SetAnnotationFlag(lhs_tvta,
-                                       TypeInferenceFlag::kBitsLikeType);
-              XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-                  node, module_.Make<SliceTypeAnnotation>(
-                            node->span(), lhs_tvta, width_slice)));
-              return HandleWidthSliceInternal(lhs_tvta, width_slice);
-            },
-            [&](Expr* expr) -> absl::Status {
-              // A node like `array[i]` is basically a binary operator with
-              // independent contexts on the LHS and RHS. The RHS is constrained
-              // to u32, while the LHS must be some kind of array. The "some
-              // kind of array" part is not capturable in the table, but readily
-              // verifiable at the end of type inference, so we defer that.
-              XLS_ASSIGN_OR_RETURN(
-                  const NameRef* rhs_variable,
-                  table_.DefineInternalVariable(
-                      InferenceVariableKind::kType, const_cast<Expr*>(expr),
-                      GenerateInternalTypeVariableName(expr) + "_index"));
-              XLS_RETURN_IF_ERROR(table_.SetTypeVariable(expr, rhs_variable));
-              const TypeAnnotation* u32 =
-                  CreateU32Annotation(module_, expr->span());
-              XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(expr, u32));
-              table_.SetAnnotationFlag(u32, TypeInferenceFlag::kStandardType);
+        Visitor{[&](Slice* slice) -> absl::Status {
+                  return table_.SetTypeAnnotation(
+                      node, module_.Make<SliceTypeAnnotation>(node->span(),
+                                                              lhs_tvta, slice));
+                },
+                [&](WidthSlice* width_slice) -> absl::Status {
+                  table_.SetAnnotationFlag(lhs_tvta,
+                                           TypeInferenceFlag::kBitsLikeType);
+                  XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+                      node, module_.Make<SliceTypeAnnotation>(
+                                node->span(), lhs_tvta, width_slice)));
+                  return HandleWidthSliceInternal(lhs_tvta, width_slice);
+                },
+                [&](Expr* expr) -> absl::Status {
+                  // A node like `array[i]` is basically a binary operator with
+                  // independent contexts on the LHS and RHS. The RHS is
+                  // constrained to u32, while the LHS must be some kind of
+                  // array. The "some kind of array" part is not capturable in
+                  // the table, but readily verifiable at the end of type
+                  // inference, so we defer that.
+                  XLS_RETURN_IF_ERROR(DefineAndSetTypeVariable(expr, "index"));
+                  const TypeAnnotation* u32 =
+                      CreateU32Annotation(module_, expr->span());
+                  XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(expr, u32));
+                  table_.SetAnnotationFlag(u32,
+                                           TypeInferenceFlag::kStandardType);
 
-              // The type of the entire expr is then
-              // ElementType(lhs_variable).
-              XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-                  node, module_.Make<ElementTypeAnnotation>(lhs_tvta)));
-              return absl::OkStatus();
-            }},
+                  // The type of the entire expr is then
+                  // ElementType(lhs_variable).
+                  XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+                      node, module_.Make<ElementTypeAnnotation>(lhs_tvta)));
+                  return absl::OkStatus();
+                }},
         node->rhs()));
 
     return DefaultHandler(node);
@@ -1342,21 +1247,11 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
                                         const WidthSlice* node) {
     // A width slice uses an unsigned start index.
     Expr* start = node->start();
-    XLS_ASSIGN_OR_RETURN(
-        const NameRef* start_variable,
-        table_.DefineInternalVariable(
-            InferenceVariableKind::kType, const_cast<Expr*>(start),
-            GenerateInternalTypeVariableName(start) + "_width_slice_start"));
-    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(start, start_variable));
+    XLS_RETURN_IF_ERROR(DefineAndSetTypeVariable(start, "width_slice_start"));
 
     Expr* lhs_element_count = CreateElementCountInvocation(module_, lhs_tvta);
-    XLS_ASSIGN_OR_RETURN(
-        const NameRef* element_count_variable,
-        table_.DefineInternalVariable(
-            InferenceVariableKind::kType, lhs_element_count,
-            GenerateInternalTypeVariableName(lhs_element_count)));
     XLS_RETURN_IF_ERROR(
-        table_.SetTypeVariable(lhs_element_count, element_count_variable));
+        DefineAndSetTypeVariable(lhs_element_count, "lhs_element_count"));
     XLS_RETURN_IF_ERROR(lhs_element_count->Accept(this));
 
     const TypeAnnotation* rhs_standard_type = CreateUnOrSnAnnotation(
@@ -1373,11 +1268,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
 
     const NameRef* bound_variable = nullptr;
     if (node->start() != nullptr || node->limit() != nullptr) {
-      XLS_ASSIGN_OR_RETURN(
-          bound_variable,
-          table_.DefineInternalVariable(
-              InferenceVariableKind::kType, const_cast<Slice*>(node),
-              GenerateInternalTypeVariableName(node)));
+      XLS_ASSIGN_OR_RETURN(bound_variable, DefineTypeVariable(node, "slice"));
     }
 
     if (node->start() != nullptr) {
@@ -1421,22 +1312,13 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     VLOG(5) << "HandleTupleIndex: " << node->ToString();
 
     // Establish a context for the unification of the tuple type.
-    XLS_ASSIGN_OR_RETURN(
-        const NameRef* tuple_type_variable,
-        table_.DefineInternalVariable(
-            InferenceVariableKind::kType, const_cast<Expr*>(node->lhs()),
-            GenerateInternalTypeVariableName(node->lhs())));
+    XLS_ASSIGN_OR_RETURN(const NameRef* tuple_type_variable,
+                         DefineTypeVariable(node->lhs(), "lhs"));
     XLS_RETURN_IF_ERROR(
         table_.SetTypeVariable(node->lhs(), tuple_type_variable));
 
     // The index itself must be u32.
-    XLS_ASSIGN_OR_RETURN(
-        const NameRef* index_type_variable,
-        table_.DefineInternalVariable(
-            InferenceVariableKind::kType, const_cast<Number*>(node->index()),
-            GenerateInternalTypeVariableName<Expr>(node->index())));
-    XLS_RETURN_IF_ERROR(
-        table_.SetTypeVariable(node->index(), index_type_variable));
+    XLS_RETURN_IF_ERROR(DefineAndSetTypeVariable(node->index(), "tuple_index"));
     const TypeAnnotation* u32 =
         CreateU32Annotation(module_, node->index()->span());
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(node->index(), u32));
@@ -1479,10 +1361,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     // formal return type and what is returned by the actual body.
     XLS_ASSIGN_OR_RETURN(
         const NameRef* return_type_variable,
-        table_.DefineInternalVariable(InferenceVariableKind::kType,
-                                      const_cast<Function*>(node),
-                                      GenerateInternalTypeVariableName(node),
-                                      function_type_annotation->return_type()));
+        DefineTypeVariable(node, "ret_type",
+                           function_type_annotation->return_type()));
     XLS_RETURN_IF_ERROR(
         table_.SetTypeVariable(node->body(), return_type_variable));
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
@@ -1510,12 +1390,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       // To handle the default expression correctly, we need to impose a type
       // variable pretending that there is something like a `let` or `const`
       // LHS, and the expression type will later have to be unified to that.
-      XLS_ASSIGN_OR_RETURN(const NameRef* type_of_parametric,
-                           table_.DefineInternalVariable(
-                               InferenceVariableKind::kType, node->expr(),
-                               GenerateInternalTypeVariableName(node->expr())));
-      XLS_RETURN_IF_ERROR(
-          table_.SetTypeVariable(node->expr(), type_of_parametric));
+      XLS_RETURN_IF_ERROR(DefineAndSetTypeVariable(node->expr(), "binding"));
       XLS_RETURN_IF_ERROR(
           table_.SetTypeAnnotation(node->expr(), node->type_annotation()));
     }
@@ -1530,11 +1405,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       std::optional<const NameRef*> type_variable =
           table_.GetTypeVariable(expr);
       if (!type_variable.has_value()) {
-        XLS_ASSIGN_OR_RETURN(
-            type_variable,
-            table_.DefineInternalVariable(
-                InferenceVariableKind::kType, const_cast<Statement*>(node),
-                GenerateInternalTypeVariableName(expr)));
+        XLS_ASSIGN_OR_RETURN(type_variable, DefineTypeVariable(node, "stmt"));
         XLS_RETURN_IF_ERROR(table_.SetTypeVariable(expr, *type_variable));
       }
       XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node, *type_variable));
@@ -1572,25 +1443,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
 
   absl::Status HandleSpawn(const Spawn* node) override {
     VLOG(5) << "HandleSpawn: " << node->ToString();
-    XLS_ASSIGN_OR_RETURN(
-        const NameRef* config_type_variable,
-        table_.DefineInternalVariable(
-            InferenceVariableKind::kType,
-            const_cast<Invocation*>(node->config()),
-            absl::StrCat(GenerateInternalTypeVariableName(
-                             static_cast<const Expr*>(node->config())),
-                         "_config")));
-    XLS_RETURN_IF_ERROR(
-        table_.SetTypeVariable(node->config(), config_type_variable));
-    XLS_ASSIGN_OR_RETURN(
-        const NameRef* next_type_variable,
-        table_.DefineInternalVariable(
-            InferenceVariableKind::kType, const_cast<Invocation*>(node->next()),
-            absl::StrCat(GenerateInternalTypeVariableName(
-                             static_cast<const Expr*>(node->next())),
-                         "_next")));
-    XLS_RETURN_IF_ERROR(
-        table_.SetTypeVariable(node->next(), next_type_variable));
+    XLS_RETURN_IF_ERROR(DefineAndSetTypeVariable(node->config(), "config"));
+    XLS_RETURN_IF_ERROR(DefineAndSetTypeVariable(node->next(), "next"));
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
         node, CreateUnitTupleAnnotation(module_, node->span())));
     return DefaultHandler(node);
@@ -1657,14 +1511,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     for (ExprOrType parametric : node->explicit_parametrics()) {
       if (std::holds_alternative<Expr*>(parametric)) {
         const Expr* parametric_value_expr = std::get<Expr*>(parametric);
-        XLS_ASSIGN_OR_RETURN(
-            const NameRef* type_variable,
-            table_.DefineInternalVariable(
-                InferenceVariableKind::kType,
-                const_cast<Expr*>(parametric_value_expr),
-                GenerateInternalTypeVariableName(parametric_value_expr)));
         XLS_RETURN_IF_ERROR(
-            table_.SetTypeVariable(parametric_value_expr, type_variable));
+            DefineAndSetTypeVariable(parametric_value_expr, "parametric_val"));
         XLS_RETURN_IF_ERROR(parametric_value_expr->Accept(this));
       } else {
         XLS_RETURN_IF_ERROR(
@@ -1672,12 +1520,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       }
     }
 
-    XLS_ASSIGN_OR_RETURN(
-        const NameRef* function_type_variable,
-        table_.DefineInternalVariable(
-            InferenceVariableKind::kType, const_cast<Expr*>(node->callee()),
-            absl::StrCat(GenerateInternalTypeVariableName(node->callee()),
-                         "_callee")));
+    XLS_ASSIGN_OR_RETURN(const NameRef* function_type_variable,
+                         DefineTypeVariable(node->callee(), "callee"));
     XLS_RETURN_IF_ERROR(
         table_.SetTypeVariable(node->callee(), function_type_variable));
 
@@ -1689,12 +1533,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       // function of a struct, needs the actual object type added to the
       // signature in place of the formal `Self`.
       const Attr* attr = down_cast<const Attr*>(node->callee());
-      XLS_ASSIGN_OR_RETURN(
-          const NameRef* obj_type_variable,
-          table_.DefineInternalVariable(
-              InferenceVariableKind::kType, const_cast<Expr*>(attr->lhs()),
-              absl::StrCat(GenerateInternalTypeVariableName(attr->lhs()),
-                           "_target_obj")));
+      XLS_ASSIGN_OR_RETURN(const NameRef* obj_type_variable,
+                           DefineTypeVariable(attr->lhs(), "target_obj"));
       XLS_RETURN_IF_ERROR(
           table_.SetTypeVariable(attr->lhs(), obj_type_variable));
       XLS_RETURN_IF_ERROR(attr->lhs()->Accept(this));
@@ -1714,11 +1554,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
           arg_index_including_implicit_self);
       XLS_ASSIGN_OR_RETURN(
           const NameRef* arg_type_variable,
-          table_.DefineInternalVariable(
-              InferenceVariableKind::kType, const_cast<Expr*>(arg),
-              absl::Substitute("$0_actual_arg_$1",
-                               GenerateInternalTypeVariableName(arg), i),
-              arg_annotation));
+          DefineTypeVariable(arg, absl::StrCat("actual_arg_", i),
+                             arg_annotation));
       arg_types.push_back(
           module_.Make<TypeVariableTypeAnnotation>(arg_type_variable));
       XLS_RETURN_IF_ERROR(table_.SetTypeVariable(arg, arg_type_variable));
@@ -1778,15 +1615,10 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     // they have.
     VLOG(5) << "HandleEnumDef: " << node->ToString();
 
-    XLS_ASSIGN_OR_RETURN(
-        const NameRef* enum_type_variable,
-        table_.DefineInternalVariable(
-            InferenceVariableKind::kType, const_cast<EnumDef*>(node),
-            GenerateInternalTypeVariableName(node),
-            node->type_annotation()
-                ? std::make_optional(node->type_annotation())
-                : std::nullopt));
-    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node, enum_type_variable));
+    XLS_RETURN_IF_ERROR(DefineAndSetTypeVariable(
+        node, "base_type",
+        node->type_annotation() ? std::make_optional(node->type_annotation())
+                                : std::nullopt));
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
         node, module_.Make<TypeRefTypeAnnotation>(
                   node->span(),
@@ -1807,10 +1639,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       // type.
       XLS_ASSIGN_OR_RETURN(
           const NameRef* value_type_variable,
-          table_.DefineInternalVariable(
-              InferenceVariableKind::kType,
-              const_cast<Expr*>(node->values()[0].value),
-              GenerateInternalTypeVariableName(node->values()[0].value)));
+          DefineTypeVariable(node->values()[0].value, "value"));
       absl::flat_hash_set<std::string> names;
       for (const EnumMember& value : node->values()) {
         // Check for duplicated value names.
@@ -1834,14 +1663,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   absl::Status HandleFormatMacro(const FormatMacro* node) override {
     // The verbosity, if specified, has its own unification context.
     if (node->verbosity().has_value()) {
-      XLS_ASSIGN_OR_RETURN(
-          const NameRef* verbosity_variable,
-          table_.DefineInternalVariable(
-              InferenceVariableKind::kType,
-              const_cast<Expr*>(*node->verbosity()),
-              GenerateInternalTypeVariableName(*node->verbosity())));
       XLS_RETURN_IF_ERROR(
-          table_.SetTypeVariable(*node->verbosity(), verbosity_variable));
+          DefineAndSetTypeVariable(*node->verbosity(), "verbosity"));
     }
 
     // The number of actual args is determined by the format string.
@@ -1856,13 +1679,9 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     }
 
     // Each arg has an independent unification context.
-    for (const Expr* arg : node->args()) {
-      XLS_ASSIGN_OR_RETURN(
-          const NameRef* arg_variable,
-          table_.DefineInternalVariable(InferenceVariableKind::kType,
-                                        const_cast<Expr*>(arg),
-                                        GenerateInternalTypeVariableName(arg)));
-      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(arg, arg_variable));
+    for (int i = 0; i < node->args().size(); i++) {
+      XLS_RETURN_IF_ERROR(
+          DefineAndSetTypeVariable(node->args()[i], absl::StrCat("arg", i)));
     }
 
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
@@ -1874,12 +1693,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     if (std::holds_alternative<Expr*>(type)) {
       Expr* expr = std::get<Expr*>(type);
       if (expr->kind() == AstNodeKind::kColonRef) {
-        XLS_ASSIGN_OR_RETURN(
-            const NameRef* expr_variable,
-            table_.DefineInternalVariable(
-                InferenceVariableKind::kType, const_cast<Expr*>(expr),
-                absl::StrCat(GenerateInternalTypeVariableName(expr),
-                             "_colon_ref_type_param")));
+        XLS_ASSIGN_OR_RETURN(const NameRef* expr_variable,
+                             DefineTypeVariable(expr, "colon_ref_type_param"));
         XLS_RETURN_IF_ERROR(table_.SetTypeVariable(expr, expr_variable));
         XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
             node, module_.Make<TypeVariableTypeAnnotation>(expr_variable)));
@@ -1919,12 +1734,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     VLOG(5) << "HandleConstAssert: " << node->ToString();
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
         node->arg(), CreateBoolAnnotation(module_, node->span())));
-    XLS_ASSIGN_OR_RETURN(
-        const NameRef* operand_variable,
-        table_.DefineInternalVariable(
-            InferenceVariableKind::kType, const_cast<Expr*>(node->arg()),
-            GenerateInternalTypeVariableName(node->arg())));
-    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->arg(), operand_variable));
+    XLS_RETURN_IF_ERROR(DefineAndSetTypeVariable(node->arg(), "assert_cond"));
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
         node, CreateUnitTupleAnnotation(module_, node->span())));
     return DefaultHandler(node);
@@ -1934,12 +1744,10 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     VLOG(5) << "HandleLet: " << node->ToString();
     XLS_ASSIGN_OR_RETURN(
         const NameRef* variable,
-        table_.DefineInternalVariable(
-            InferenceVariableKind::kType, const_cast<Let*>(node),
-            GenerateInternalTypeVariableName(node),
-            node->type_annotation() == nullptr
-                ? std::nullopt
-                : std::make_optional(node->type_annotation())));
+        DefineTypeVariable(node, "let",
+                           node->type_annotation() == nullptr
+                               ? std::nullopt
+                               : std::make_optional(node->type_annotation())));
     XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->rhs(), variable));
     XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node, variable));
     XLS_RETURN_IF_ERROR(
@@ -1967,13 +1775,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   absl::Status HandleQuickCheck(const QuickCheck* node) override {
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
         node, CreateBoolAnnotation(module_, node->span())));
-    XLS_ASSIGN_OR_RETURN(
-        const NameRef* quickcheck_variable,
-        table_.DefineInternalVariable(InferenceVariableKind::kType,
-                                      const_cast<QuickCheck*>(node),
-                                      GenerateInternalTypeVariableName(node)));
-    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node, quickcheck_variable));
-
+    XLS_RETURN_IF_ERROR(DefineAndSetTypeVariable(node, "quickcheck"));
     return DefaultHandler(node);
   }
 
@@ -2039,12 +1841,10 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       const T* node) {
     XLS_ASSIGN_OR_RETURN(
         const NameRef* variable,
-        table_.DefineInternalVariable(
-            InferenceVariableKind::kType, const_cast<T*>(node),
-            GenerateInternalTypeVariableName(node),
-            node->type_annotation() == nullptr
-                ? std::nullopt
-                : std::make_optional(node->type_annotation())));
+        DefineTypeVariable(node, "var",
+                           node->type_annotation() == nullptr
+                               ? std::nullopt
+                               : std::make_optional(node->type_annotation())));
     XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node, variable));
     XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->name_def(), variable));
     if (node->type_annotation() != nullptr) {
@@ -2054,68 +1854,33 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return variable;
   }
 
-  // Generates a name for an internal inference variable that will be used as
-  // the type for the given node. The name is only relevant for traceability.
-  template <typename T>
-  std::string GenerateInternalTypeVariableName(const T* node) {
-    return absl::Substitute("internal_type_$0_at_$1_in_$2", node->identifier(),
-                            node->span().ToString(file_table_), module_.name());
-  }
-  // Specialization for `Expr` nodes, which do not have an identifier.
-  template <>
-  std::string GenerateInternalTypeVariableName(const Expr* node) {
-    return absl::Substitute("internal_type_expr_at_$0_in_$1",
-                            node->span().ToString(file_table_), module_.name());
-  }
-  // Specialization for `Quickcheck` nodes, which do not have an identifier.
-  template <>
-  std::string GenerateInternalTypeVariableName(const QuickCheck* node) {
-    return absl::Substitute("internal_type_quickcheck_at_$0_in_$1",
-                            node->span().ToString(file_table_), module_.name());
+  // Defines an inference variable of `kType` kind, with a name that includes
+  // the given `name_piece` as well as boilerplate such as the span and module
+  // name.
+  absl::StatusOr<const NameRef*> DefineTypeVariable(
+      const AstNode* definer, std::string_view name_piece,
+      std::optional<const TypeAnnotation*> declaration_annotation =
+          std::nullopt) {
+    const std::optional<Span> span = definer->GetSpan();
+    const std::string span_str =
+        span.has_value() ? span->ToString(file_table_) : "<unknown>";
+    return table_.DefineInternalVariable(
+        InferenceVariableKind::kType, const_cast<AstNode*>(definer),
+        absl::Substitute("internal_type_$0_at_$1_in_$2", name_piece, span_str,
+                         module_.name()),
+        declaration_annotation);
   }
 
-  // Specialization for `Let` nodes, which do not have an identifier.
-  template <>
-  std::string GenerateInternalTypeVariableName(const Let* node) {
-    return absl::Substitute("internal_type_let_at_$0_in_$1",
-                            node->span().ToString(file_table_), module_.name());
-  }
-  // Specialization for `Array` nodes.
-  template <>
-  std::string GenerateInternalTypeVariableName(const Array* node) {
-    return absl::Substitute("internal_type_array_element_at_$0_in_$1",
-                            node->span().ToString(file_table_), module_.name());
-  }
-  // Specialization for `Range` nodes.
-  template <>
-  std::string GenerateInternalTypeVariableName(const Range* node) {
-    return absl::StrCat("internal_type_range_element_at_",
-                        node->span().ToString(file_table_));
-  }
-  // Specialization for `Slice` nodes.
-  template <>
-  std::string GenerateInternalTypeVariableName(const Slice* node) {
-    return absl::StrCat("internal_type_slice_bound_at_",
-                        node->GetSpan()->ToString(file_table_));
-  }
-  // Variant for an actual struct member expr.
-  std::string GenerateInternalTypeVariableName(
-      const StructMemberNode* formal_member, const Expr* actual_member) {
-    return absl::Substitute(
-        "internal_type_actual_member_$0_at_$1_in_$2", formal_member->name(),
-        actual_member->span().ToString(file_table_), module_.name());
-  }
-  // Variant for operands of a binary operator.
-  std::string GenerateInternalTypeVariableName(const Binop* binop) {
-    return absl::Substitute("internal_type_operand_$0_at_$1_in_$2",
-                            BinopKindToString(binop->binop_kind()),
-                            binop->span().ToString(file_table_),
-                            module_.name());
-  }
-  // Variant for `NameDefTree`.
-  std::string GenerateInternalTypeVariableName(const NameDefTree* node) {
-    return absl::Substitute("internal_type_ndt_at_$0_in_$1",
-                            node->span().ToString(file_table_), module_.name());
+  // Defines a type variable using `DefineTypeVariable` and also sets it in the
+  // table as the variable for `definer`.
+  absl::Status DefineAndSetTypeVariable(
+      const AstNode* definer, std::string_view name_piece,
+      std::optional<const TypeAnnotation*> declaration_annotation =
+          std::nullopt) {
+    XLS_ASSIGN_OR_RETURN(
+        const NameRef* variable,
+        DefineTypeVariable(definer, name_piece, declaration_annotation));
+    return table_.SetTypeVariable(definer, variable);
   }
 
   absl::Status SetCrossModuleTypeAnnotation(const AstNode* node,
@@ -2296,14 +2061,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
                                              formal_member->name());
       table_.SetAnnotationFlag(formal_member_type,
                                TypeInferenceFlag::kFormalMemberType);
-      XLS_ASSIGN_OR_RETURN(
-          const NameRef* member_type_variable,
-          table_.DefineInternalVariable(
-              InferenceVariableKind::kType, const_cast<Expr*>(actual_member),
-              GenerateInternalTypeVariableName(formal_member, actual_member),
-              formal_member_type));
-      XLS_RETURN_IF_ERROR(
-          table_.SetTypeVariable(actual_member, member_type_variable));
+      XLS_RETURN_IF_ERROR(DefineAndSetTypeVariable(
+          actual_member, "actual_member", formal_member_type));
       XLS_RETURN_IF_ERROR(
           table_.SetTypeAnnotation(actual_member, formal_member_type));
       XLS_RETURN_IF_ERROR(actual_member->Accept(this));

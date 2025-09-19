@@ -1069,9 +1069,10 @@ std::string TypeRefTypeAnnotation::ToString() const {
 // -- class TypeVariableTypeAnnotation
 
 TypeVariableTypeAnnotation::TypeVariableTypeAnnotation(
-    Module* owner, const NameRef* type_variable)
+    Module* owner, const NameRef* type_variable, bool internal)
     : TypeAnnotation(owner, type_variable->span(), kAnnotationKind),
-      type_variable_(type_variable) {}
+      type_variable_(type_variable),
+      internal_(internal) {}
 
 std::string TypeVariableTypeAnnotation::ToString() const {
   return absl::StrCat("TypeVariableTypeAnnotation: ",

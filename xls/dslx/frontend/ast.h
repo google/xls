@@ -513,14 +513,16 @@ class TypeVariableTypeAnnotation : public TypeAnnotation {
   static constexpr TypeAnnotationKind kAnnotationKind =
       TypeAnnotationKind::kTypeVariable;
 
-  explicit TypeVariableTypeAnnotation(Module* owner,
-                                      const NameRef* type_variable);
+  TypeVariableTypeAnnotation(Module* owner, const NameRef* type_variable,
+                             bool internal = true);
 
   // Returns a `NameRef` for the type variable indicated by this annotation. The
   // variable may be a type parametric or an internally-defined type variable.
   const NameRef* type_variable() const { return type_variable_; }
 
   std::string ToString() const override;
+
+  bool internal() const { return internal_; }
 
   std::string_view GetNodeTypeName() const override {
     return "TypeVariableTypeAnnotation";
@@ -538,6 +540,7 @@ class TypeVariableTypeAnnotation : public TypeAnnotation {
 
  private:
   const NameRef* const type_variable_;
+  bool internal_;
 };
 
 // Represents the type of a member of a struct, like

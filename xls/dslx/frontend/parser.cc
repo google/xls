@@ -1096,7 +1096,8 @@ absl::StatusOr<TypeRefOrAnnotation> Parser::ParseTypeRef(Bindings& bindings,
               << name_def->definer()->ToString();
 
       return module_->Make<TypeVariableTypeAnnotation>(
-          module_->Make<NameRef>(tok.span(), name_def->identifier(), name_def));
+          module_->Make<NameRef>(tok.span(), name_def->identifier(), name_def),
+          /*internal=*/false);
     }
   }
   if (!IsOneOf<TypeAlias, EnumDef, StructDef, ProcDef, UseTreeEntry>(
