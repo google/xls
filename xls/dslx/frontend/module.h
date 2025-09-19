@@ -36,6 +36,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
+#include "xls/common/casts.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/proc.h"
@@ -198,11 +199,22 @@ class Module : public AstNode {
   // internal nodes in some contexts, e.g. in language server adapter
   // functionality.
   bool IsSyntheticNode(const AstNode* node) const {
-    // Note that ColonRef is a special case here, because when it's the
-    // definition in a `TypeRef`, the parser actually creates it as a
-    // disconnected node.
-    return node->parent() == nullptr &&
-           node->kind() != AstNodeKind::kColonRef && !top_set_.contains(node);
+    // It's synthetic if it's a top-level node that is not in the top set (the
+    // set is populated by the parser). Note that ColonRef is a special case
+    // here, because when it's the definition in a `TypeRef`, the parser
+    // actually creates it as a disconnected node.
+    if (node->parent() == nullptr && node->kind() != AstNodeKind::kColonRef &&
+        !top_set_.contains(node)) {
+      return true;
+    }
+
+    // It's synthetic if it's an internally-generated TVTA. Note that there are
+    // user-written TVTAs, which are entities whose type is a `T: type` kind of
+    // parametric, and these are not marked internal.
+    return node->kind() == AstNodeKind::kTypeAnnotation &&
+           down_cast<const TypeAnnotation*>(node)->annotation_kind() ==
+               TypeAnnotationKind::kTypeVariable &&
+           down_cast<const TypeVariableTypeAnnotation*>(node)->internal();
   }
 
   // Finds the first top-level member in top() with the given "target" name as
