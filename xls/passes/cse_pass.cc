@@ -74,8 +74,11 @@ absl::StatusOr<bool> RunCse(FunctionBase* f, OptimizationContext& context,
     for (Node* operand : GetOperandsForCse(n, &span_backing_store)) {
       values_to_hash.push_back(operand->id());
     }
-    // If this is slow because of many literals, the Literal values could be
-    // combined into the hash. As is, all literals get the same hash value.
+    // Combine the Literal values into the hash, but only if we're going to
+    // common literals.
+    if (common_literals && n->Is<Literal>()) {
+      values_to_hash.push_back(absl::HashOf(n->As<Literal>()->value()));
+    }
     return hasher(values_to_hash);
   };
 
