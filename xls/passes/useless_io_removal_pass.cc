@@ -88,10 +88,23 @@ absl::StatusOr<bool> UselessIORemovalPass::RunInternal(
         }
         XLS_ASSIGN_OR_RETURN(ChannelRef channel_ref, send->GetChannelRef());
         Node* predicate = send->predicate().value();
-        if (query_engine.IsAllZeros(predicate) &&
-            channel_maps.to_send.at(channel_ref).size() >= 2) {
-          channel_maps.to_send.at(channel_ref).erase(send);
-          replacement = send->token();
+        if (query_engine.IsAllZeros(predicate)) {
+          // We can remove the send if this is not the last send left on the
+          // channel.
+          if (channel_maps.to_send.at(channel_ref).size() > 1) {
+            channel_maps.to_send.at(channel_ref).erase(send);
+            replacement = send->token();
+          } else if (!send->data()->Is<Literal>() ||
+                     !send->data()->As<Literal>()->value().IsAllZeros()) {
+            // If we aren't removing the send, at least replace its data
+            // input with zero, as it will never be used.
+            XLS_ASSIGN_OR_RETURN(
+                Literal * zero,
+                proc->MakeNode<Literal>(send->loc(),
+                                        ZeroOfType(send->data()->GetType())));
+            send->ReplaceOperand(send->data(), zero);
+            changed = true;
+          }
         } else if (query_engine.IsAllOnes(predicate)) {
           XLS_ASSIGN_OR_RETURN(
               replacement,
@@ -108,6 +121,8 @@ absl::StatusOr<bool> UselessIORemovalPass::RunInternal(
         Node* predicate = receive->predicate().value();
         if (query_engine.IsAllZeros(predicate) &&
             channel_maps.to_receive.at(channel_ref).size() >= 2) {
+          // We can remove the receive if this is not the last receive left on
+          // the channel.
           XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
           channel_maps.to_receive.at(channel_ref).erase(receive);
           XLS_ASSIGN_OR_RETURN(Literal * zero,

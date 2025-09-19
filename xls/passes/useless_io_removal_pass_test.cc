@@ -32,7 +32,9 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 #include "xls/passes/dce_pass.h"
@@ -77,27 +79,18 @@ TEST_F(UselessIORemovalPassTest, DontRemoveOnlySend) {
       p->CreateStreamingChannel("test_channel", ChannelOps::kSendOnly,
                                 p->GetBitsType(32)));
   ProcBuilder pb(TestName(), p.get());
+  BValue token = pb.StateElement("tkn", Value::Token());
   pb.StateElement("state", Value(UBits(0, 0)));
-  pb.SendIf(channel, pb.Literal(Value::Token()), pb.Literal(UBits(0, 1)),
-            pb.Literal(UBits(1, 32)));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.Literal(UBits(0, 0))}));
+  token = pb.SendIf(channel, token, pb.Literal(UBits(0, 1)),
+                    pb.Literal(UBits(1, 32)), SourceInfo(), "my_send");
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           pb.Build({token, pb.Literal(UBits(0, 0))}));
   int64_t original_node_count = proc->node_count();
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_EQ(proc->node_count(), original_node_count);
-}
-
-TEST_F(UselessIORemovalPassTest, DontRemoveOnlySendNewStyle) {
-  auto p = CreatePackage();
-  TokenlessProcBuilder pb(NewStyleProc(), TestName(), "tkn", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      SendChannelInterface * channel,
-      pb.AddOutputChannel("test_channel", p->GetBitsType(32)));
-  pb.StateElement("state", Value(UBits(0, 0)));
-  pb.SendIf(channel, pb.Literal(UBits(0, 1)), pb.Literal(UBits(1, 32)));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.Literal(UBits(0, 0))}));
-  int64_t original_node_count = proc->node_count();
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
-  EXPECT_EQ(proc->node_count(), original_node_count);
+  XLS_ASSERT_OK_AND_ASSIGN(Node * send_node, proc->GetNode("my_send"));
+  ASSERT_TRUE(send_node->Is<Send>());
+  EXPECT_THAT(send_node->As<Send>()->data(), m::Literal(0));
 }
 
 TEST_F(UselessIORemovalPassTest, RemoveSendIfLiteralFalse) {
@@ -241,6 +234,48 @@ TEST_F(UselessIORemovalPassTest, RemoveReceivePredIfLiteralTrue) {
   EXPECT_THAT(
       proc->next_values(proc->GetStateRead(1)),
       ElementsAre(m::Next(proc->GetStateRead(1), m::TupleIndex(tuple, 1))));
+}
+
+TEST_F(UselessIORemovalPassTest, DontRemoveLastSendIfOnSendOnlyChannel) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StreamingChannel * channel,
+      p->CreateStreamingChannel("test_channel", ChannelOps::kSendOnly,
+                                p->GetBitsType(32)));
+  ProcBuilder pb(TestName(), p.get());
+  BValue token = pb.StateElement("tkn", Value::Token());
+  pb.StateElement("state", Value(UBits(0, 0)));
+  token = pb.SendIf(channel, token, pb.Literal(UBits(0, 1)),
+                    pb.Literal(UBits(1, 32)), SourceInfo(), "my_send");
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           pb.Build({token, pb.Literal(UBits(0, 0))}));
+  ASSERT_EQ(p->channels().size(), 1);
+  int64_t original_node_count = proc->node_count();
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_EQ(proc->node_count(), original_node_count);
+  XLS_ASSERT_OK_AND_ASSIGN(Node * send_node, proc->GetNode("my_send"));
+  ASSERT_TRUE(send_node->Is<Send>());
+  EXPECT_THAT(send_node->As<Send>()->data(), m::Literal(0));
+}
+
+TEST_F(UselessIORemovalPassTest, DontRemoveLastReceiveIfOnReceiveOnlyChannel) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StreamingChannel * channel,
+      p->CreateStreamingChannel("test_channel", ChannelOps::kReceiveOnly,
+                                p->GetBitsType(32)));
+  ProcBuilder pb(TestName(), p.get());
+  BValue token = pb.StateElement("tkn", Value::Token());
+  pb.StateElement("state", Value(UBits(0, 32)));
+  BValue token_and_result =
+      pb.ReceiveIf(channel, token, pb.Literal(UBits(0, 1)));
+  token = pb.TupleIndex(token_and_result, 0);
+  BValue result = pb.TupleIndex(token_and_result, 1);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({token, result}));
+  ASSERT_EQ(p->channels().size(), 1);
+  int64_t original_node_count = proc->node_count();
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
+  EXPECT_EQ(proc->node_count(), original_node_count);
 }
 
 void IrFuzzUselessIORemoval(FuzzPackageWithArgs fuzz_package_with_args) {
