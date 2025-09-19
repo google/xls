@@ -807,21 +807,22 @@ absl::Status FunctionConverter::HandleExternNameRef(
       imported_info->module->FindMemberWithName(node->identifier());
   XLS_RET_CHECK(member.has_value());
   return absl::visit(
-      Visitor{[&](Function* f) { return DefAlias(f, /*to=*/node); },
-              [&](ConstantDef* c) -> absl::Status {
-                XLS_RET_CHECK(node_to_ir_.contains(c->value()))
-                    << absl::StreamFormat(
-                           "ConstantDef `%s` not found in node_to_ir_ map",
-                           c->ToString());
-                return DefAlias(c->value(), /*to=*/node);
-              },
-              [&](auto) {
-                return absl::UnimplementedError(absl::StrFormat(
-                    "Unsupported module member type %s for external name "
-                    "reference: `%s` @ %s",
-                    GetModuleMemberTypeName(*member.value()),
-                    node->identifier(), node->span().ToString(file_table())));
-              }},
+      Visitor{
+          [&](Function* f) { return DefAlias(f, /*to=*/node); },
+          [&](ConstantDef* c) -> absl::Status {
+            XLS_RET_CHECK(node_to_ir_.contains(c->value()))
+                << absl::StreamFormat(
+                       "ConstantDef `%s` not found in node_to_ir_ map",
+                       c->ToString());
+            return DefAlias(c->value(), /*to=*/node);
+          },
+          [&](auto) {
+            return absl::UnimplementedError(absl::StrFormat(
+                "Unsupported module member type %s for external name "
+                "reference: `%s` @ %s",
+                GetModuleMemberTypeName(*member.value()), node->identifier(),
+                node->span().ToString(file_table())));
+          }},
       *member.value());
 }
 
