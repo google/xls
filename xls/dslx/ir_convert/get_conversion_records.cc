@@ -14,7 +14,9 @@
 
 #include "xls/dslx/ir_convert/get_conversion_records.h"
 
+#include <memory>
 #include <optional>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -39,9 +41,10 @@ namespace {
 // Makes the conversion record from the pieces.
 absl::StatusOr<ConversionRecord> MakeConversionRecord(
     Function* f, Module* m, TypeInfo* type_info, const ParametricEnv& bindings,
-    std::optional<ProcId> proc_id, const Invocation* invocation, bool is_top) {
+    std::optional<ProcId> proc_id, const Invocation* invocation, bool is_top,
+    std::unique_ptr<ConversionRecord> config_record = nullptr) {
   return ConversionRecord::Make(f, invocation, m, type_info, bindings, proc_id,
-                                is_top);
+                                is_top, std::move(config_record));
 }
 
 // An AstNodeVisitor that creates ConversionRecords from appropriate AstNodes
@@ -81,6 +84,9 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
           << "Cannot lower a parametric proc without an invocation";
       for (auto& callee_data : type_info_->GetUniqueInvocationCalleeData(f)) {
         const Invocation* invocation = callee_data.invocation;
+        VLOG(5) << "Processing callee data invocation "
+                << invocation->ToString();
+        const Invocation* config_invocation = nullptr;
         // TODO: davidplass - change this to gather invocations from *spawns*
         // instead of *functions*. This will allow function_converter to emit
         // multiple IR procs with the same parametrics but different config
@@ -90,13 +96,14 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
           // If this is a proc next function, find the corresponding config
           // invocation (spawn) with the same parametrics and put it in the
           // conversion record.
-          invocation = nullptr;
           const Function& config_fn = f->proc().value()->config();
           for (InvocationCalleeData& config_callee_data :
                type_info_->GetUniqueInvocationCalleeData(&config_fn)) {
             if (config_callee_data.callee_bindings ==
                 callee_data.callee_bindings) {
-              invocation = config_callee_data.invocation;
+              VLOG(5) << "Found config for next"
+                      << config_callee_data.invocation->ToString();
+              config_invocation = config_callee_data.invocation;
               break;
             }
           }
@@ -109,6 +116,24 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
         XLS_RET_CHECK(instantiation_type_info.has_value())
             << "Could not find instantiation for `" << invocation->ToString()
             << "` via bindings: " << caller_bindings;
+        std::unique_ptr<ConversionRecord> config_record;
+        if (config_invocation != nullptr) {
+          std::optional<TypeInfo*> config_type_info =
+              type_info_->GetInvocationTypeInfo(config_invocation,
+                                                caller_bindings);
+          XLS_RET_CHECK(config_type_info.has_value())
+              << "Could not find instantiation for `"
+              << config_invocation->ToString()
+              << "` via bindings: " << caller_bindings;
+          XLS_ASSIGN_OR_RETURN(
+              ConversionRecord cr,
+              MakeConversionRecord(
+                  const_cast<Function*>(f), module_, *config_type_info,
+                  callee_data.callee_bindings, proc_id, config_invocation,
+                  // parametric functions can never be 'top'
+                  /*is_top=*/false));
+          config_record = std::make_unique<ConversionRecord>(std::move(cr));
+        }
 
         XLS_ASSIGN_OR_RETURN(
             ConversionRecord cr,
@@ -116,14 +141,26 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
                 const_cast<Function*>(f), module_, *instantiation_type_info,
                 callee_data.callee_bindings, proc_id, invocation,
                 // parametric functions can never be 'top'
-                /*is_top=*/false));
-        records_.push_back(cr);
+                /*is_top=*/false, std::move(config_record)));
+        records_.push_back(std::move(cr));
       }
       return DefaultHandler(f);
     }
 
     const Invocation* invocation = nullptr;
     TypeInfo* type_info = type_info_;
+    std::vector<InvocationCalleeData> all_callee_data =
+        type_info_->GetUniqueInvocationCalleeData(f);
+    if (!all_callee_data.empty()) {
+      if (all_callee_data.size() > 1) {
+        // Warning
+        VLOG(2) << "More than 1 non-parametric invocation of "
+                << f->identifier();
+      }
+      invocation = all_callee_data[0].invocation;
+      type_info = all_callee_data[0].derived_type_info;
+    }
+    std::unique_ptr<ConversionRecord> config_record = nullptr;
     // If this is a proc next function, find the corresponding config
     // invocation (spawn) and put it in the conversion record. Take the first
     // one because there is no way to disambiguate them at this point.
@@ -137,15 +174,24 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
           VLOG(2) << "More than 1 non-parametric invocation of "
                   << config_fn.identifier();
         }
-        invocation = all_callee_data[0].invocation;
-        type_info = all_callee_data[0].derived_type_info;
+        const Invocation* config_invocation = all_callee_data[0].invocation;
+        TypeInfo* config_type_info = all_callee_data[0].derived_type_info;
+        XLS_ASSIGN_OR_RETURN(
+            ConversionRecord cr,
+            MakeConversionRecord(const_cast<Function*>(f), module_,
+                                 config_type_info, ParametricEnv(), proc_id,
+                                 config_invocation,
+                                 // parametric functions can never be 'top'
+                                 /*is_top=*/false));
+        config_record = std::make_unique<ConversionRecord>(std::move(cr));
       }
     }
     XLS_ASSIGN_OR_RETURN(
         ConversionRecord cr,
         MakeConversionRecord(const_cast<Function*>(f), module_, type_info,
-                             ParametricEnv(), proc_id, invocation, f == top_));
-    records_.push_back(cr);
+                             ParametricEnv(), proc_id, invocation, f == top_,
+                             std::move(config_record)));
+    records_.push_back(std::move(cr));
     return DefaultHandler(f);
   }
 
@@ -183,7 +229,7 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  std::vector<ConversionRecord>& records() { return records_; }
+  std::vector<ConversionRecord> records() { return std::move(records_); }
 
  private:
   Module* const module_;

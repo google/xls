@@ -1,0 +1,43 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+proc __test_module__spawnee_0_next<inparam: bits[32] in>(__state: (), init={()}) {
+  chan_interface inparam(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  literal.9: token = literal(value=token, id=9)
+  literal.3: bits[1] = literal(value=1, id=3)
+  receive.11: (token, bits[32], bits[1]) = receive(literal.9, predicate=literal.3, channel=inparam, blocking=false, id=11)
+  tuple_index.14: bits[1] = tuple_index(receive.11, index=2, id=14)
+  literal.10: bits[32] = literal(value=4294967295, id=10)
+  tuple_index.13: bits[32] = tuple_index(receive.11, index=1, id=13)
+  literal.5: bits[32] = literal(value=0, id=5)
+  literal.6: bits[32] = literal(value=1, id=6)
+  inparam: bits[32] = recv_channel_end(id=4)
+  tuple_index.12: token = tuple_index(receive.11, index=0, id=12)
+  sel.15: bits[32] = sel(tuple_index.14, cases=[literal.10, tuple_index.13], id=15)
+  __state: () = state_read(state_element=__state, id=2)
+  __token: token = literal(value=token, id=1)
+  x: bits[32] = add(literal.5, literal.6, id=7)
+  tuple.8: (bits[32]) = tuple(inparam, id=8)
+  tuple.16: (token, bits[32], bits[1]) = tuple(tuple_index.12, sel.15, tuple_index.14, id=16)
+  next_value.17: () = next_value(param=__state, value=__state, id=17)
+}
+
+top proc __test_module__main_0_next<>(__state: (), init={()}) {
+  chan chanchan(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+  chan_interface chanchan(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface chanchan(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  proc_instantiation __test_module__spawnee_0_next_inst(chanchan, proc=__test_module__spawnee_0_next)
+  chanchan: bits[32] = send_channel_end(id=22)
+  literal.25: token = literal(value=token, id=25)
+  literal.26: bits[32] = literal(value=1, id=26)
+  literal.20: bits[1] = literal(value=1, id=20)
+  __state: () = state_read(state_element=__state, id=19)
+  tuple.28: () = tuple(id=28)
+  __token: token = literal(value=token, id=18)
+  __chan_chanchan: bits[32] = new_channel(id=21)
+  chanchan__1: bits[32] = recv_channel_end(id=23)
+  tuple.24: (bits[32]) = tuple(chanchan, id=24)
+  send.27: token = send(literal.25, literal.26, predicate=literal.20, channel=chanchan, id=27)
+  next_value.29: () = next_value(param=__state, value=tuple.28, id=29)
+}
