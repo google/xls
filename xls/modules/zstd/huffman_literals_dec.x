@@ -200,27 +200,27 @@ pub proc HuffmanLiteralsDecoder<
             jump_table_mem_rd_resp_r,
         );
 
-        spawn mem_reader::MemReader<AXI_DATA_W, AXI_ADDR_W, AXI_DEST_W, AXI_ID_W, u32:1>(
+        spawn mem_reader::MemReader<AXI_DATA_W, AXI_ADDR_W, AXI_DEST_W, AXI_ID_W>(
            jump_table_mem_rd_req_r, jump_table_mem_rd_resp_s,
            jump_table_axi_ar_s, jump_table_axi_r_r
         );
 
-        spawn mem_reader::MemReader<AXI_DATA_W, AXI_ADDR_W, AXI_DEST_W, AXI_ID_W, u32:1>(
+        spawn mem_reader::MemReader<AXI_DATA_W, AXI_ADDR_W, AXI_DEST_W, AXI_ID_W>(
            weights_header_dec_mem_rd_req_r, weights_header_dec_mem_rd_resp_s,
            weights_header_dec_axi_ar_s, weights_header_dec_axi_r_r
         );
 
-        spawn mem_reader::MemReader<AXI_DATA_W, AXI_ADDR_W, AXI_DEST_W, AXI_ID_W, u32:1>(
+        spawn mem_reader::MemReader<AXI_DATA_W, AXI_ADDR_W, AXI_DEST_W, AXI_ID_W>(
            weights_raw_dec_mem_rd_req_r, weights_raw_dec_mem_rd_resp_s,
            weights_raw_dec_axi_ar_s, weights_raw_dec_axi_r_r
         );
 
-        spawn mem_reader::MemReader<AXI_DATA_W, AXI_ADDR_W, AXI_DEST_W, AXI_ID_W, u32:1>(
+        spawn mem_reader::MemReader<AXI_DATA_W, AXI_ADDR_W, AXI_DEST_W, AXI_ID_W>(
            weights_fse_lookup_dec_mem_rd_req_r, weights_fse_lookup_dec_mem_rd_resp_s,
            weights_fse_lookup_dec_axi_ar_s, weights_fse_lookup_dec_axi_r_r
         );
 
-        spawn mem_reader::MemReader<AXI_DATA_W, AXI_ADDR_W, AXI_DEST_W, AXI_ID_W, u32:1>(
+        spawn mem_reader::MemReader<AXI_DATA_W, AXI_ADDR_W, AXI_DEST_W, AXI_ID_W>(
            weights_fse_decoder_dec_mem_rd_req_r, weights_fse_decoder_dec_mem_rd_resp_s,
            weights_fse_decoder_dec_axi_ar_s, weights_fse_decoder_dec_axi_r_r
         );
