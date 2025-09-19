@@ -15,6 +15,7 @@
 #include "xls/dslx/ir_convert/extract_conversion_order.h"
 
 #include <algorithm>
+#include <iterator>
 #include <optional>
 #include <string>
 #include <utility>
@@ -659,20 +660,24 @@ static absl::StatusOr<std::vector<ConversionRecord>> GetOrderForProc(
   std::vector<ConversionRecord> final_order;
   std::vector<ConversionRecord> config_fns;
   std::vector<ConversionRecord> next_fns;
-  for (const auto& record : ready) {
+  for (auto& record : ready) {
     if (record.f()->tag() == FunctionTag::kProcConfig) {
-      config_fns.push_back(record);
+      config_fns.push_back(std::move(record));
     } else if (record.f()->tag() == FunctionTag::kProcNext) {
-      next_fns.push_back(record);
+      next_fns.push_back(std::move(record));
     } else {
       // Regular functions can go wherever.
-      final_order.push_back(record);
+      final_order.push_back(std::move(record));
     }
   }
   // Need to reverse so constants can prop in config
   std::reverse(config_fns.begin(), config_fns.end());
-  final_order.insert(final_order.end(), config_fns.begin(), config_fns.end());
-  final_order.insert(final_order.end(), next_fns.begin(), next_fns.end());
+  final_order.insert(final_order.end(),
+                     std::make_move_iterator(config_fns.begin()),
+                     std::make_move_iterator(config_fns.end()));
+  final_order.insert(final_order.end(),
+                     std::make_move_iterator(next_fns.begin()),
+                     std::make_move_iterator(next_fns.end()));
   return final_order;
 }
 
@@ -760,7 +765,8 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
 
     XLS_ASSIGN_OR_RETURN(std::vector<ConversionRecord> proc_ready,
                          GetOrderForProc(proc, proc_ti, /*is_top=*/false));
-    ready.insert(ready.end(), proc_ready.begin(), proc_ready.end());
+    ready.insert(ready.end(), std::make_move_iterator(proc_ready.begin()),
+                 std::make_move_iterator(proc_ready.end()));
   }
 
   // Remove duplicated functions. When performing a complete module conversion,

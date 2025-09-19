@@ -15,6 +15,7 @@
 #include "xls/dslx/ir_convert/get_conversion_records.h"
 
 #include <optional>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -117,7 +118,7 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
                 callee_data.callee_bindings, proc_id, invocation,
                 // parametric functions can never be 'top'
                 /*is_top=*/false));
-        records_.push_back(cr);
+        records_.push_back(std::move(cr));
       }
       return DefaultHandler(f);
     }
@@ -145,7 +146,7 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
         ConversionRecord cr,
         MakeConversionRecord(const_cast<Function*>(f), module_, type_info,
                              ParametricEnv(), proc_id, invocation, f == top_));
-    records_.push_back(cr);
+    records_.push_back(std::move(cr));
     return DefaultHandler(f);
   }
 
@@ -183,7 +184,7 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  std::vector<ConversionRecord>& records() { return records_; }
+  std::vector<ConversionRecord> records() { return std::move(records_); }
 
  private:
   Module* const module_;

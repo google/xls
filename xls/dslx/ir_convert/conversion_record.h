@@ -15,6 +15,7 @@
 #ifndef XLS_DSLX_IR_CONVERSION_RECORD_H_
 #define XLS_DSLX_IR_CONVERSION_RECORD_H_
 
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -50,7 +51,8 @@ class ConversionRecord {
   static absl::StatusOr<ConversionRecord> Make(
       Function* f, const Invocation* invocation, Module* module,
       TypeInfo* type_info, ParametricEnv parametric_env,
-      std::optional<ProcId> proc_id, bool is_top);
+      std::optional<ProcId> proc_id, bool is_top,
+      std::unique_ptr<ConversionRecord> config_record = nullptr);
 
   // Integrity-checks that the parametric_env provided are sufficient to
   // instantiate f (i.e. if it is parametric). Returns an internal error status
@@ -65,20 +67,23 @@ class ConversionRecord {
   const ParametricEnv& parametric_env() const { return parametric_env_; }
   std::optional<ProcId> proc_id() const { return proc_id_; }
   bool IsTop() const { return is_top_; }
+  const ConversionRecord* config_record() const { return config_record_.get(); }
 
   std::string ToString() const;
 
  private:
   ConversionRecord(Function* f, const Invocation* invocation, Module* module,
                    TypeInfo* type_info, ParametricEnv parametric_env,
-                   std::optional<ProcId> proc_id, bool is_top)
+                   std::optional<ProcId> proc_id, bool is_top,
+                   std::unique_ptr<ConversionRecord> config_record)
       : f_(f),
         invocation_(invocation),
         module_(module),
         type_info_(type_info),
         parametric_env_(std::move(parametric_env)),
         proc_id_(std::move(proc_id)),
-        is_top_(is_top) {}
+        is_top_(is_top),
+        config_record_(std::move(config_record)) {}
 
   Function* f_;
   const Invocation* invocation_;
@@ -87,6 +92,7 @@ class ConversionRecord {
   ParametricEnv parametric_env_;
   std::optional<ProcId> proc_id_;
   bool is_top_;
+  std::unique_ptr<ConversionRecord> config_record_;
 };
 
 std::string ConversionRecordsToString(
