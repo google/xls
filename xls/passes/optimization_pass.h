@@ -193,6 +193,13 @@ struct OptimizationPassOptions : public PassOptionsBase {
   // If provided, passes like SelectLifting may use the named delay model
   // (e.g., "asap7") to make timing-aware profitability decisions.
   std::optional<std::string> delay_model;
+
+  OptimizationPassOptions WithDelayModel(
+      std::optional<std::string> delay_model) const& {
+    OptimizationPassOptions opt = *this;
+    opt.delay_model = delay_model;
+    return opt;
+  }
 };
 
 struct AnalysisOptions {
