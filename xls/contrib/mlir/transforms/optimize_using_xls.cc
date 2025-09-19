@@ -71,11 +71,18 @@ struct OptimizeUsingXlsPass
 void OptimizeUsingXlsPass::runOnOperation() {
   ModuleOp module = getOperation();
 
+  if (failed(optimizeUsingXls(module, *dslx_cache_, xls_pipeline))) {
+    return signalPassFailure();
+  }
+}
+
+LogicalResult optimizeUsingXls(ModuleOp module, DslxPackageCache& dslx_cache,
+                               std::optional<std::string> xls_pipeline) {
   FailureOr<std::unique_ptr<::xls::Package>> package =
       mlirXlsToXls(module,
-                   /*dslx_search_path=*/"", *dslx_cache_);
+                   /*dslx_search_path=*/"", dslx_cache);
   if (failed(package)) {
-    return signalPassFailure();
+    return failure();
   }
 
   ::xls::tools::OptOptions opt_options;
@@ -83,9 +90,8 @@ void OptimizeUsingXlsPass::runOnOperation() {
   if (xls_pipeline.has_value()) {
     ::xls::PassPipelineProto pass_pipeline;
     if (!google::protobuf::TextFormat::ParseFromString(*xls_pipeline, &pass_pipeline)) {
-      mlir::emitError(module.getLoc())
-          << "invalid pass pipeline: " << *xls_pipeline;
-      return signalPassFailure();
+      return mlir::emitError(module.getLoc())
+             << "invalid pass pipeline: " << *xls_pipeline;
     }
     opt_options.pass_pipeline = pass_pipeline;
   }
@@ -97,19 +103,19 @@ void OptimizeUsingXlsPass::runOnOperation() {
     absl::Status status =
         ::xls::tools::OptimizeIrForTop(package->get(), opt_options);
     if (!status.ok()) {
-      module.emitError("failed to optimize IR: ") << status.ToString();
-      return signalPassFailure();
+      return module.emitError("failed to optimize IR: ") << status.ToString();
     }
   }
 
   OwningOpRef<Operation*> new_module_op =
-      XlsToMlirXlsTranslate(*package.value(), &getContext());
+      XlsToMlirXlsTranslate(**package, module.getContext());
   if (!new_module_op) {
-    module.emitError("failed to translate optimized XLS IR back to MLIR");
-    return signalPassFailure();
+    return module.emitError(
+        "failed to translate optimized XLS IR back to MLIR");
   }
   module.getBodyRegion().takeBody(
       cast<ModuleOp>(*new_module_op).getBodyRegion());
+  return success();
 }
 
 }  // namespace mlir::xls
