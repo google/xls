@@ -44,7 +44,6 @@ using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
 using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
-using ::testing::FieldsAre;
 using ::testing::HasSubstr;
 using ::testing::UnorderedElementsAre;
 
