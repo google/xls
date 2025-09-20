@@ -15,9 +15,18 @@
 #ifndef GDM_HW_MLIR_XLS_TRANSFORMS_PASSES_H_
 #define GDM_HW_MLIR_XLS_TRANSFORMS_PASSES_H_
 
+#include <optional>
+#include <string>
+
 #include "mlir/include/mlir/Pass/Pass.h"  // IWYU pragma: keep
+#include "mlir/include/mlir/Support/LLVM.h"
+
+namespace mlir {
+class ModuleOp;
+}  // namespace mlir
 
 namespace mlir::xls {
+class DslxPackageCache;
 
 #define GEN_PASS_DECL
 #include "xls/contrib/mlir/transforms/passes.h.inc"  // IWYU pragma: export
@@ -25,6 +34,11 @@ namespace mlir::xls {
 // Generate the code for registering passes.
 #define GEN_PASS_REGISTRATION
 #include "xls/contrib/mlir/transforms/passes.h.inc"  // IWYU pragma: export
+
+// Optimizes the given MLIR module using XLS.
+LogicalResult optimizeUsingXls(
+    ModuleOp module, DslxPackageCache& dslx_cache,
+    std::optional<std::string> xls_pipeline = std::nullopt);
 
 }  // namespace mlir::xls
 
