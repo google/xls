@@ -9,7 +9,7 @@ module SingleAddFlopOutputsNotInputs(
   assign p0_add_3_comb = x + y;
 
   // Registers for pipe stage 0:
-  reg [7:0] p0_add_3;
+  logic [7:0] p0_add_3;
   always_ff @ (posedge clk) begin
     p0_add_3 <= p0_add_3_comb;
   end

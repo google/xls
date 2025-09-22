@@ -8,8 +8,8 @@ module PipelinedAandB(
   // ===== Pipe stage 0:
 
   // Registers for pipe stage 0:
-  reg [31:0] p0_a;
-  reg [31:0] p0_b;
+  logic [31:0] p0_a;
+  logic [31:0] p0_b;
   always_ff @ (posedge the_clock) begin
     if (the_reset) begin
       p0_a <= 32'h0000_0000;
@@ -25,7 +25,7 @@ module PipelinedAandB(
   assign p1_and_8_comb = p0_a & p0_b;
 
   // Registers for pipe stage 1:
-  reg [31:0] p1_sum;
+  logic [31:0] p1_sum;
   always_ff @ (posedge the_clock) begin
     if (the_reset) begin
       p1_sum <= 32'h0000_0000;

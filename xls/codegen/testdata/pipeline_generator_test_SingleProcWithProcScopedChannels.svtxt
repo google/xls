@@ -8,7 +8,7 @@ module myleaf(
   output wire [31:0] out,
   output wire out_vld
 );
-  reg p0_valid;
+  logic p0_valid;
   wire p0_stage_done;
   wire p0_load_en;
   wire [31:0] add_24;

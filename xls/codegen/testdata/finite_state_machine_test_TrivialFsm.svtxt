@@ -6,8 +6,8 @@ module TrivialFsm(
   localparam
     StateFoo = 0,
     StateBar = 1;
-  reg [StateBits - 1:0] state = StateFoo;
-  reg [StateBits - 1:0] state_next = StateFoo;
+  logic [StateBits - 1:0] state = StateFoo;
+  logic [StateBits - 1:0] state_next = StateFoo;
 
   // FSM state transition logic.
   always_comb begin

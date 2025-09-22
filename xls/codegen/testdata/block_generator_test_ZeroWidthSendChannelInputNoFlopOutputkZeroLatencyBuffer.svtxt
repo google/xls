@@ -7,7 +7,7 @@ module pipelined_proc(
   output wire in_ready,
   output wire out_valid
 );
-  reg __out_data_valid_skid_reg;
+  logic __out_data_valid_skid_reg;
   wire out_data_from_skid_rdy;
   wire out_data_to_is_not_rdy;
   wire out_data_skid_data_load_en;

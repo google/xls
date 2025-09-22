@@ -81,10 +81,10 @@ void LineInfoIncrease(LineInfo* line_info, int64_t delta) {
 // Converts a `DataKind` to its SystemVerilog name, if any. Emitting a data type
 // in most contexts requires the containing entity to emit both the `DataKind`
 // and the `DataType`, at least one of which should emit as nonempty.
-std::string DataKindToString(DataKind kind) {
+std::string DataKindToString(DataKind kind, bool system_verilog) {
   switch (kind) {
     case DataKind::kReg:
-      return "reg";
+      return system_verilog ? "logic" : "reg";
     case DataKind::kWire:
       return "wire";
     case DataKind::kLogic:
@@ -615,8 +615,9 @@ std::string VerilogFunction::Emit(LineInfo* line_info) const {
   if (return_value_def_->data_type()->IsScalar() &&
       file()->use_system_verilog()) {
     // Preface the return type with "logic", so there's always a type provided.
-    return_type =
-        absl::StrCat(DataKindToString(DataKind::kLogic), " ", return_type);
+    return_type = absl::StrCat(
+        DataKindToString(DataKind::kLogic, file()->use_system_verilog()), " ",
+        return_type);
   }
   if (!return_type.empty()) {
     return_type = absl::StrCat(" ", return_type);
@@ -705,7 +706,8 @@ absl::StatusOr<LogicRef*> Module::AddReg(std::string_view name, DataType* type,
                                          const SourceInfo& loc,
                                          Expression* init,
                                          ModuleSection* section) {
-  XLS_RETURN_IF_ERROR(NoteDefined(&defined_names_, name, "reg"));
+  XLS_RETURN_IF_ERROR(NoteDefined(
+      &defined_names_, name, file()->use_system_verilog() ? "logic" : "reg"));
   return AddRegInternal(name, type, loc, init, section);
 }
 
@@ -1064,7 +1066,8 @@ std::string Def::Emit(LineInfo* line_info) const {
 
 std::string Def::EmitNoSemi(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
-  std::string kind_str = DataKindToString(data_kind());
+  std::string kind_str =
+      DataKindToString(data_kind(), file()->use_system_verilog());
   std::string data_type_str =
       data_type()->EmitWithIdentifier(line_info, GetName());
   std::string result = CombineKindAndDataType(kind_str, data_type_str);
@@ -1501,7 +1504,8 @@ std::string Enum::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
   std::string result = "enum {\n";
   if (kind_ != DataKind::kUntypedEnum) {
-    std::string kind_str = DataKindToString(kind_);
+    std::string kind_str =
+        DataKindToString(kind_, file()->use_system_verilog());
     std::string data_type_str = BaseType()->Emit(line_info);
     std::string underlying_type_str =
         CombineKindAndDataType(kind_str, data_type_str);

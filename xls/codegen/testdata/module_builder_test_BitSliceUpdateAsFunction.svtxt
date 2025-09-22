@@ -3,7 +3,7 @@ module BitSliceUpdateAsFunction(
   input wire [15:0] start,
   input wire [7:0] value
 );
-  function automatic [31:0] bit_slice_update_w32_16b_8b (input reg [31:0] to_update, input reg [15:0] start, input reg [7:0] update_value);
+  function automatic [31:0] bit_slice_update_w32_16b_8b (input logic [31:0] to_update, input logic [15:0] start, input logic [7:0] update_value);
     begin
       bit_slice_update_w32_16b_8b = start >= 16'h0020 ? to_update : {24'h00_0000, update_value} << start | ~(32'h0000_00ff << start) & to_update;
     end
