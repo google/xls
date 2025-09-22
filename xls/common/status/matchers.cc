@@ -68,8 +68,9 @@ void AddFatalFailure(std::string_view expression,
                      const xabsl::StatusBuilder& builder) {
   GTEST_MESSAGE_AT_(
       builder.source_location().file_name(), builder.source_location().line(),
-      ::absl::StrCat(expression,
-                     " returned error: ", absl::Status(builder).ToString())
+      ::absl::StrCat(expression, " returned error: ",
+                     absl::Status(builder).ToString(
+                         absl::StatusToStringMode::kWithEverything))
           .c_str(),
       ::testing::TestPartResult::kFatalFailure);
 }
