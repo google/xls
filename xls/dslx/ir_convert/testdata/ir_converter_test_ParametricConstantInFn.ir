@@ -1,0 +1,14 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn __test_module__f__16(input: bits[16] id=1) -> bits[16] {
+  literal.3: bits[16] = literal(value=65535, id=3)
+  N: bits[32] = literal(value=16, id=2)
+  ret add.4: bits[16] = add(literal.3, input, id=4)
+}
+
+top fn __test_module__main() -> bits[16] {
+  literal.5: bits[16] = literal(value=1, id=5)
+  ret invoke.6: bits[16] = invoke(literal.5, to_apply=__test_module__f__16, id=6)
+}

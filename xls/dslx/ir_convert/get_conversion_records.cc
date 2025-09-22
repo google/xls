@@ -14,6 +14,7 @@
 
 #include "xls/dslx/ir_convert/get_conversion_records.h"
 
+#include <memory>
 #include <optional>
 #include <utility>
 #include <variant>
@@ -40,9 +41,10 @@ namespace {
 // Makes the conversion record from the pieces.
 absl::StatusOr<ConversionRecord> MakeConversionRecord(
     Function* f, Module* m, TypeInfo* type_info, const ParametricEnv& bindings,
-    std::optional<ProcId> proc_id, const Invocation* invocation, bool is_top) {
+    std::optional<ProcId> proc_id, const Invocation* invocation, bool is_top,
+    std::unique_ptr<ConversionRecord> config_record = nullptr) {
   return ConversionRecord::Make(f, invocation, m, type_info, bindings, proc_id,
-                                is_top);
+                                is_top, std::move(config_record));
 }
 
 // An AstNodeVisitor that creates ConversionRecords from appropriate AstNodes
@@ -57,6 +59,65 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
         include_tests_(include_tests),
         proc_id_factory_(proc_id_factory),
         top_(top) {}
+
+  absl::StatusOr<ConversionRecord> InvocationToConversionRecord(
+      const Function* f, const Invocation* invocation,
+      TypeInfo* instantiation_type_info, ParametricEnv callee_bindings,
+      ParametricEnv caller_bindings, bool is_top,
+      std::optional<ProcId> proc_id) {
+    if (invocation != nullptr) {
+      VLOG(5) << "Processing invocation " << invocation->ToString();
+    } else {
+      VLOG(5) << "Processing fn " << f->ToString();
+    }
+    // TODO: davidplass - change this to gather invocations from *spawns*
+    // instead of *functions*. This will allow function_converter to emit
+    // multiple IR procs with the same parametrics but different config
+    // parameters. Then, HandleFunction would only have to handle procs
+    // that are not spawned explicitly, like test or top procs.
+
+    // Note, it's possible there is no config invocation if it's a
+    // top proc or some other reason.
+    std::unique_ptr<ConversionRecord> config_record;
+    if (f->tag() == FunctionTag::kProcNext) {
+      // If this is a proc next function, find the corresponding config
+      // invocation (spawn) with the same parametrics and put it in the
+      // conversion record.
+      const Function& config_fn = f->proc().value()->config();
+      std::vector<InvocationCalleeData> all_callee_data =
+          type_info_->GetUniqueInvocationCalleeData(&config_fn);
+      for (InvocationCalleeData& config_callee_data : all_callee_data) {
+        if (config_callee_data.callee_bindings == callee_bindings) {
+          VLOG(5) << "Found config for next: "
+                  << config_callee_data.invocation->ToString();
+          const Invocation* config_invocation = config_callee_data.invocation;
+          std::optional<TypeInfo*> config_type_info =
+              type_info_->GetInvocationTypeInfo(config_invocation,
+                                                caller_bindings);
+          XLS_RET_CHECK(config_type_info.has_value())
+              << "Could not find instantiation for `"
+              << config_invocation->ToString()
+              << "` via bindings: " << caller_bindings;
+          XLS_ASSIGN_OR_RETURN(
+              ConversionRecord cr,
+              MakeConversionRecord(const_cast<Function*>(f), module_,
+                                   *config_type_info, callee_bindings, proc_id,
+                                   config_invocation,
+                                   // config functions can never be 'top'
+                                   /*is_top=*/false));
+          config_record = std::make_unique<ConversionRecord>(std::move(cr));
+          break;
+        }
+      }
+    }
+
+    XLS_ASSIGN_OR_RETURN(
+        ConversionRecord cr,
+        MakeConversionRecord(const_cast<Function*>(f), module_,
+                             instantiation_type_info, callee_bindings, proc_id,
+                             invocation, is_top, std::move(config_record)));
+    return cr;
+  }
 
   absl::Status HandleFunction(const Function* f) override {
     if (f->tag() == FunctionTag::kProcInit ||
@@ -75,78 +136,34 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
           // before. Otherwise it needs a new procid.
           /*count_as_new_instance=*/false);
     }
+    std::vector<InvocationCalleeData> calls =
+        type_info_->GetUniqueInvocationCalleeData(f);
     if (f->IsParametric()) {
       // We want one ConversionRecord per *unique* parametric binding of
       // this function.
-      XLS_RET_CHECK(!type_info_->GetUniqueInvocationCalleeData(f).empty())
+      XLS_RET_CHECK(!calls.empty())
           << "Cannot lower a parametric proc without an invocation";
-      for (auto& callee_data : type_info_->GetUniqueInvocationCalleeData(f)) {
-        const Invocation* invocation = callee_data.invocation;
-        // TODO: davidplass - change this to gather invocations from *spawns*
-        // instead of *functions*. This will allow function_converter to emit
-        // multiple IR procs with the same parametrics but different config
-        // parameters. Then, HandleFunction would only have to handle procs
-        // that are not spawned explicitly, like test or top procs.
-        if (f->tag() == FunctionTag::kProcNext) {
-          // If this is a proc next function, find the corresponding config
-          // invocation (spawn) with the same parametrics and put it in the
-          // conversion record.
-          invocation = nullptr;
-          const Function& config_fn = f->proc().value()->config();
-          for (InvocationCalleeData& config_callee_data :
-               type_info_->GetUniqueInvocationCalleeData(&config_fn)) {
-            if (config_callee_data.callee_bindings ==
-                callee_data.callee_bindings) {
-              invocation = config_callee_data.invocation;
-              break;
-            }
-          }
-          // Note, it's possible there is no config invocation if it's a
-          // top proc or some other reason.
-        }
-        ParametricEnv caller_bindings = callee_data.caller_bindings;
-        std::optional<TypeInfo*> instantiation_type_info =
-            type_info_->GetInvocationTypeInfo(invocation, caller_bindings);
-        XLS_RET_CHECK(instantiation_type_info.has_value())
-            << "Could not find instantiation for `" << invocation->ToString()
-            << "` via bindings: " << caller_bindings;
-
-        XLS_ASSIGN_OR_RETURN(
-            ConversionRecord cr,
-            MakeConversionRecord(
-                const_cast<Function*>(f), module_, *instantiation_type_info,
-                callee_data.callee_bindings, proc_id, invocation,
-                // parametric functions can never be 'top'
-                /*is_top=*/false));
-        records_.push_back(std::move(cr));
-      }
-      return DefaultHandler(f);
     }
-
-    const Invocation* invocation = nullptr;
-    TypeInfo* type_info = type_info_;
-    // If this is a proc next function, find the corresponding config
-    // invocation (spawn) and put it in the conversion record. Take the first
-    // one because there is no way to disambiguate them at this point.
-    if (f->tag() == FunctionTag::kProcNext) {
-      Function& config_fn = f->proc().value()->config();
-      std::vector<InvocationCalleeData> all_callee_data =
-          type_info_->GetUniqueInvocationCalleeData(&config_fn);
-      if (!all_callee_data.empty()) {
-        if (all_callee_data.size() > 1) {
-          // Warning
-          VLOG(2) << "More than 1 non-parametric invocation of "
-                  << config_fn.identifier();
-        }
-        invocation = all_callee_data[0].invocation;
-        type_info = all_callee_data[0].derived_type_info;
-      }
+    for (auto& callee_data : calls) {
+      XLS_ASSIGN_OR_RETURN(
+          ConversionRecord cr,
+          InvocationToConversionRecord(
+              f, callee_data.invocation, callee_data.derived_type_info,
+              callee_data.callee_bindings, callee_data.caller_bindings,
+              // Parametric functions can never be top.
+              /* is_top= */ !f->IsParametric() && f == top_, proc_id));
+      records_.push_back(std::move(cr));
     }
-    XLS_ASSIGN_OR_RETURN(
-        ConversionRecord cr,
-        MakeConversionRecord(const_cast<Function*>(f), module_, type_info,
-                             ParametricEnv(), proc_id, invocation, f == top_));
-    records_.push_back(std::move(cr));
+    if (calls.empty()) {
+      // We can still convert this function even though it's never been called.
+      XLS_ASSIGN_OR_RETURN(
+          ConversionRecord cr,
+          InvocationToConversionRecord(f, /* invocation= */ nullptr, type_info_,
+                                       /* callee_bindings= */ ParametricEnv(),
+                                       /* caller_bindings= */ ParametricEnv(),
+                                       /* is_top= */ f == top_, proc_id));
+      records_.push_back(std::move(cr));
+    }
     return DefaultHandler(f);
   }
 

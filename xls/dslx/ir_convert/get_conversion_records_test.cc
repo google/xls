@@ -164,12 +164,21 @@ proc top {
       GetConversionRecords(tm.module, tm.type_info, false));
   ASSERT_EQ(3, order.size());
   EXPECT_EQ(order[0].f()->identifier(), "P.next");
-  EXPECT_EQ(order[0].invocation()->ToString(), "P.config<u32:2>(u2:1)");
+  EXPECT_EQ(order[0].invocation()->ToString(),
+            "P.next<u32:2>(P.init<u32:2>())");
+  const ConversionRecord* config_record = order[0].config_record();
+  EXPECT_NE(config_record, nullptr);
+  EXPECT_EQ(config_record->invocation()->ToString(), "P.config<u32:2>(u2:1)");
   EXPECT_EQ(order[0].parametric_env(),
             ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
                 {"N", InterpValue::MakeUBits(/*bit_count=*/32, /*value=*/2)}}));
   EXPECT_EQ(order[1].f()->identifier(), "P.next");
-  EXPECT_EQ(order[1].invocation()->ToString(), "P.config<u32:4>(u4:2)");
+  EXPECT_EQ(order[1].invocation()->ToString(),
+            "P.next<u32:4>(P.init<u32:4>())");
+  config_record = order[1].config_record();
+  EXPECT_NE(config_record, nullptr);
+  EXPECT_EQ(config_record->invocation()->ToString(), "P.config<u32:4>(u4:2)");
+  EXPECT_NE(order[1].config_record(), nullptr);
   EXPECT_EQ(order[1].parametric_env(),
             ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
                 {"N", InterpValue::MakeUBits(/*bit_count=*/32, /*value=*/4)}}));

@@ -4433,6 +4433,131 @@ pub proc main {
   ExpectIr(converted);
 }
 
+TEST_P(ProcScopedChannelsIrConverterTest, ParametricUsedInNext) {
+  constexpr std::string_view kProgram = R"(
+proc spawnee<N:u32> {
+  inch: chan<uN[N]> in;
+
+  init { }
+  config(inparam: chan<uN[N]> in) {
+    let x = zero!<uN[N]>();
+    (inparam,)
+  }
+  next(state: ()) {
+    recv_non_blocking(token(), inch, all_ones!<uN[N]>());
+    state
+  }
+}
+
+pub proc main {
+  outch: chan<u8> out;
+  init { }
+  config() {
+    let (s, r) = chan<u8>("chanchan");
+    spawn spawnee<u32:8>(r);
+    (s,)
+  }
+  next(state: ()) {
+    send(token(), outch, u8:1);
+    ()
+  }
+})";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, ConstantInNext) {
+  constexpr std::string_view kProgram = R"(
+proc spawnee {
+  inch: chan<u32> in;
+
+  init { }
+  config(inparam: chan<u32> in) {
+    let x = zero!<u32>()+u32:1;
+    (inparam,)
+  }
+  next(state: ()) {
+    recv_non_blocking(token(), inch, all_ones!<u32>());
+    state
+  }
+}
+
+pub proc main {
+  outch: chan<u32> out;
+  init { }
+  config() {
+    let (s, r) = chan<u32>("chanchan");
+    spawn spawnee(r);
+    (s,)
+  }
+  next(state: ()) {
+    send(token(), outch, u32:1);
+    ()
+  }
+})";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, ConstantInFn) {
+  constexpr std::string_view kProgram = R"(
+fn f(input: u16) -> u16 {
+    all_ones!<u16>() + input
+}
+
+fn main() -> u16 {
+  f(u16:1)
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, ParametricConstantInFn) {
+  constexpr std::string_view kProgram = R"(
+fn f<N:u32>(input: uN[N]) -> uN[N] {
+    all_ones!<uN[N]>() + input
+}
+
+fn main() -> u16 {
+  f<u32:16>(u16:1)
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
+  ExpectIr(converted);
+}
 TEST_P(ProcScopedChannelsIrConverterTest,
        ParametricSimpleSpawnDifferentParametrics) {
   constexpr std::string_view kProgram = R"(
@@ -5374,7 +5499,7 @@ proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, SpawnFromLocal) {
+TEST_P(ProcScopedChannelsIrConverterTest, SpawnFromLocal) {
   constexpr std::string_view kProgram = R"(
 proc spawnee {
   in_chan: chan<u32> in;
