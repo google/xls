@@ -222,6 +222,7 @@ cc_library(
         ":xls_transforms_passes_inc_gen",
         "@llvm-project//mlir:IR",  # buildcleaner: keep
         "@llvm-project//mlir:Pass",
+        "@llvm-project//mlir:Support",
     ],
 )
 
