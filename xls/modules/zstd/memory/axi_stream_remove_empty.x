@@ -364,7 +364,7 @@ pub proc AxiStreamRemoveEmpty<
         stream_in_r: chan<AxiStream> in,
         stream_out_s: chan<AxiStream> out,
     ) {
-        let (continuous_stream_s, continuous_stream_r) = chan<StrobedStream, u32:0>("continuous_stream");
+        let (continuous_stream_s, continuous_stream_r) = chan<StrobedStream, u32:1>("continuous_stream");
 
         spawn RemoveEmptyBytes<DATA_W, DEST_W, ID_W>(
             stream_in_r,
