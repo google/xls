@@ -30,6 +30,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "xls/common/math_util.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
@@ -117,21 +118,51 @@ namespace {
                              kind, node->operands().size()));
     return std::ceil(invert ? base_effort + int64_t{1} : base_effort);
   };
-  auto get_reduction_logical_effort =
-      [node](netlist::CellKind kind, bool invert) -> absl::StatusOr<int64_t> {
-    const int64_t bit_count = node->operand(0)->BitCountOrDie();
+  // Calculate the reduction logical effort. We use the lower of a binary-tree
+  // reduction and a linear reduction.
+  //
+  // TODO(allight): A binary tree is not actually always the best architecture
+  // for a reduction and the correspondence between effort and delay is not
+  // always simple. For now a binary-tree is a good approximation however. See
+  // chapter 11 of "Sutherland, I., et al., Logical Effort: Designing Fast CMOS
+  // Circuits" (and frankly the rest of the book) for more information. For a
+  // follow up we can find the optimal branching factors and use them. See
+  // chapter 11.2 for more information.
+  auto get_reduction_logical_effort_of =
+      [](netlist::CellKind kind, bool invert,
+         int64_t bit_count) -> absl::StatusOr<int64_t> {
     if (bit_count < 2) {
       return 0;
     }
     XLS_ASSIGN_OR_RETURN(
         double base_effort,
         netlist::logical_effort::GetLogicalEffort(kind, bit_count));
-    return std::ceil(invert ? base_effort + int64_t{1} : base_effort);
+    int64_t effort_raw =
+        std::ceil(invert ? base_effort + int64_t{1} : base_effort);
+    uint64_t tree_depth = CeilOfLog2(bit_count);
+    XLS_ASSIGN_OR_RETURN(double base_bin_tree_effort,
+                         netlist::logical_effort::GetLogicalEffort(kind, 2));
+    int64_t tree_node_effort_raw = std::ceil(
+        invert ? base_bin_tree_effort + int64_t{1} : base_bin_tree_effort);
+    int64_t effort_tree = tree_node_effort_raw * tree_depth;
+    return std::min(effort_raw, effort_tree);
+  };
+  auto get_reduction_logical_effort =
+      [&](netlist::CellKind kind, bool invert) -> absl::StatusOr<int64_t> {
+    const int64_t bit_count = node->operand(0)->BitCountOrDie();
+    return get_reduction_logical_effort_of(kind, invert, bit_count);
   };
   switch (node->op()) {
     // TODO(leary): 2019-09-24 Collect real numbers for these.
     case Op::kGate:
       return get_logical_effort(netlist::CellKind::kNand, /*invert=*/true);
+    // TODO(allight): The nary ops (And, Nand, Nor, Or, Xor) should all be
+    // modeled using a tree structure too. Note that the current tree
+    // implementation won't work with nand/nor since they are not associative
+    // and care will need to be taken to ensure they are modeled accurately.
+    // Currently this models it as though a single cell is always used but this
+    // is simply not true (especially as the synthesizer trades off area and
+    // delay).
     case Op::kAnd:
       return get_logical_effort(netlist::CellKind::kNand, /*invert=*/true);
     case Op::kNand:
@@ -144,6 +175,11 @@ namespace {
       return get_logical_effort(netlist::CellKind::kXor, /*invert=*/false);
     case Op::kNot:
       return get_logical_effort(netlist::CellKind::kInverter, /*invert=*/false);
+    // NB By modeling the reduction ops as a binary tree we are assuming the
+    // synthsizer takes the area/delay tradeoff inherent in which cells it
+    // chooses in a particular direction. This choice is likely not the optimal
+    // one for either area or delay in real process nodes however it is a
+    // reasonable approximation.
     case Op::kAndReduce:
       return get_reduction_logical_effort(netlist::CellKind::kNand,
                                           /*invert=*/true);
@@ -162,11 +198,13 @@ namespace {
         // A 2-bit or less encode simply passes through the MSB.
         return 0;
       }
-      XLS_ASSIGN_OR_RETURN(
-          int64_t nor_delay,
-          netlist::logical_effort::GetLogicalEffort(netlist::CellKind::kNor,
-                                                    (operand_width + 1) / 2));
-      return std::ceil(nor_delay + 1);
+      int64_t bit_count = (operand_width + 1) / 2;
+      XLS_ASSIGN_OR_RETURN(int64_t nor_delay, get_reduction_logical_effort_of(
+                                                  netlist::CellKind::kNor,
+                                                  /*invert=*/true,
+                                                  /*bit_count=*/bit_count));
+      // The last not isn't needed so remove it.
+      return std::ceil(nor_delay - 1);
     }
     case Op::kOneHotSel: {
       // This should synthesize to something quite similar to a two-level NAND
