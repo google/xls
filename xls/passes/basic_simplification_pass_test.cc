@@ -566,6 +566,15 @@ TEST_F(BasicSimplificationPassTest, OrInverses) {
                m::Literal(Bits::AllOnes(32)), m::Literal(Bits::AllOnes(32))));
 }
 
+TEST_F(BasicSimplificationPassTest, ZeroCasePrioritySel) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.PrioritySelect(fb.Literal(UBits(0, 0)), {}, fb.Literal(UBits(0xf, 4)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Literal(0xf));
+}
+
 void BasicSimplification(FuzzPackageWithArgs fuzz_package_with_args) {
   BasicSimplificationPass pass;
   OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);

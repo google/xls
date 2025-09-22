@@ -213,6 +213,8 @@ compound_passes: [
       "dce",
       "bdd_simp(2)",
       "dce",
+      "basic_simp",
+      "dce",
       "bdd_cse",
       # TODO(https://github.com/google/xls/issues/274): 2022/01/20 Remove this
       # extra conditional specialization pass when the pipeline has been
@@ -268,6 +270,8 @@ compound_passes: [
       #
       "bdd_simp(3)",
       "dce",
+      "basic_simp",
+      "dce",
       "bdd_cse",
       "select_lifting",
       "dce",
@@ -286,6 +290,8 @@ compound_passes: [
       "fixedpoint_simp(3)",
       #
       "bdd_simp(3)",
+      "dce",
+      "basic_simp",
       "dce",
       "bdd_cse",
       "dce",

@@ -76,6 +76,15 @@ bool IsBinaryIrreflexiveRelation(Node* node) {
 absl::StatusOr<bool> MatchPatterns(Node* n) {
   StatelessQueryEngine query_engine;
 
+  // Pattern: PrioritySel(bits[0], cases=[], default_value=X) => X
+  if (n->op() == Op::kPrioritySel &&
+      n->As<PrioritySelect>()->selector()->BitCountOrDie() == 0) {
+    VLOG(2) << "FOUND: PrioritySel(bits[0], cases=[], default_value=X) => X";
+    XLS_RETURN_IF_ERROR(
+        n->ReplaceUsesWith(n->As<PrioritySelect>()->default_value()));
+    return true;
+  }
+
   // Pattern: Add/Sub/Or/Shift a value with 0 on the RHS.
   if ((n->op() == Op::kAdd || n->op() == Op::kSub || n->op() == Op::kShll ||
        n->op() == Op::kShrl || n->op() == Op::kShra) &&
