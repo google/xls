@@ -77,7 +77,7 @@ def main(argv: Sequence[str]) -> None:
             _REPRO.value,
             f"--fuzztest_args={_FUZZTEST_ARGS.value}"
             if _FUZZTEST_ARGS.value > 0
-            else "--nofuzztest_args",
+            else "--package_only",
             f"--ir_out={tmpdir}/fuzz.ir",
             f"--args_testvector_out={tmpdir}/testvector.textproto",
         ],

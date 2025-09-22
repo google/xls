@@ -43,12 +43,14 @@ absl::StatusOr<std::vector<std::vector<Value>>> FuzzerReproToValues(
 absl::StatusOr<std::shared_ptr<Package>> FuzzerReproToIr(
     std::string_view data, std::optional<int64_t> num_args) {
   if (num_args) {
+    VLOG(2) << "Num args: " << *num_args;
     auto domain = IrFuzzDomainWithArgs(*num_args);
     XLS_ASSIGN_OR_RETURN(
         auto [fuzz_data],
         fuzztest::unstable::ParseReproducerValue(data, domain));
     return std::shared_ptr<Package>(fuzz_data.fuzz_package.p.release());
   } else {
+    VLOG(2) << "No args";
     auto domain = IrFuzzDomain();
     XLS_ASSIGN_OR_RETURN(
         auto [fuzz_data],

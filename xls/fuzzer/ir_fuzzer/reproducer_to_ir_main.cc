@@ -39,8 +39,9 @@ Parse a fuzztest reproducer which is only a IrFuzzDomain() or
 IrFuzzDomainWithArgs(<fuzztest_args>) and print the package.
 )";
 
-ABSL_FLAG(std::optional<int64_t>, fuzztest_args, 10,
-          "How many args the domain has");
+ABSL_FLAG(bool, package_only, false,
+          "If true use IrFuzzDomain and ignore --fuzztest_args.");
+ABSL_FLAG(int64_t, fuzztest_args, 10, "How many args the domain has");
 ABSL_FLAG(std::string, ir_out, "/dev/stdout", "file to dump the ir to.");
 ABSL_FLAG(std::string, args_out, "/dev/null",
           "file to dump the args as binary proto to.");
@@ -59,14 +60,15 @@ absl::Status RealMain(std::string_view file_v) {
         file, FuzztestRepoToFilePath(file),
         _ << "Unable to find file for fuzztest repo target: " << file);
   }
+  std::optional<int64_t> num_args = std::nullopt;
+  if (!absl::GetFlag(FLAGS_package_only)) {
+    num_args = absl::GetFlag(FLAGS_fuzztest_args);
+  }
   XLS_ASSIGN_OR_RETURN(std::string repro, GetFileContents(file), _ << file);
-  XLS_ASSIGN_OR_RETURN(
-      auto pkg, FuzzerReproToIr(repro, absl::GetFlag(FLAGS_fuzztest_args)));
+  XLS_ASSIGN_OR_RETURN(auto pkg, FuzzerReproToIr(repro, num_args));
   Function* the_function = pkg->functions().front().get();
   XLS_RETURN_IF_ERROR(pkg->SetTop(the_function));
-  XLS_ASSIGN_OR_RETURN(
-      auto args,
-      FuzzerReproToValues(repro, absl::GetFlag(FLAGS_fuzztest_args)));
+  XLS_ASSIGN_OR_RETURN(auto args, FuzzerReproToValues(repro, num_args));
   XLS_RETURN_IF_ERROR(
       SetFileContents(absl::GetFlag(FLAGS_ir_out), pkg->DumpIr()));
   FuzzerArgListProto proto;
