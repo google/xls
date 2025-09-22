@@ -26,8 +26,8 @@
 5:23-5:28: TYPE_ANNOTATION :: `u2[2]` :: typeof(uN[2][2])
 5:26-5:27: NUMBER :: `2` :: uN[32]
 5:29-5:35: ARRAY :: `u2[2]:[1, 1]` :: uN[2][2]
-5:29-5:35: TYPE_ANNOTATION :: `TypeVariableTypeAnnotation: internal_type_expr_at_fake.x:6:30-6:36_in_fake_actual_arg_0` :: typeof(uN[2])
-5:29-5:35: TYPE_ANNOTATION :: `TypeVariableTypeAnnotation: internal_type_expr_at_fake.x:6:30-6:36_in_fake_actual_arg_0` :: typeof(uN[2])
+5:29-5:35: TYPE_ANNOTATION :: `u2` :: typeof(uN[2])
+5:29-5:35: TYPE_ANNOTATION :: `u2` :: typeof(uN[2])
 5:30-5:31: NUMBER :: `1` :: uN[2]
 5:33-5:34: NUMBER :: `1` :: uN[2]
 5:37-5:41: TYPE_ANNOTATION :: `bool` :: typeof(uN[1])
