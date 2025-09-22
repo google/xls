@@ -695,6 +695,27 @@ absl::StatusOr<bool> ProfitabilityGuardForArrayIndex(FunctionBase* func,
 absl::StatusOr<bool> ProfitabilityGuardForBinaryOperation(
     FunctionBase* func, Node* select_to_optimize, const LiftedOpInfo& info,
     const OptimizationPassOptions& options, OptimizationContext& context) {
+  // If lifting a shift operation combines literal shift amounts into a select,
+  // this creates a variable shift from constant shifts, which is more
+  // expensive. If we don't have a delay model, avoid lifting in this case.
+  // If we do have a delay model, we trust it to determine if lifting is
+  // profitable.
+  bool all_other_operands_are_literals = absl::c_all_of(
+      info.other_operands, [](Node* n) { return n->Is<Literal>(); });
+  bool default_is_literal_or_identity_or_nonexistent =
+      !info.default_other_operand.has_value() || info.default_is_identity ||
+      (*info.default_other_operand)->Is<Literal>();
+  if (!options.delay_model.has_value() && info.shared_is_lhs &&
+      (info.lifted_op == Op::kShll || info.lifted_op == Op::kShrl ||
+       info.lifted_op == Op::kShra) &&
+      all_other_operands_are_literals &&
+      default_is_literal_or_identity_or_nonexistent) {
+    VLOG(3) << "    Not lifting " << OpToString(info.lifted_op)
+            << " because it would replace constant shifts with a variable "
+               "shift, and no delay model is provided.";
+    return false;
+  }
+
   // Heuristically: If the selector depends on `shared_node`, lifting will
   // likely serialize more operations & worsen the critical path.
   Node* selector = select_to_optimize->Is<Select>()

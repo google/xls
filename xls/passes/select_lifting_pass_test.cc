@@ -14,6 +14,9 @@
 
 #include "xls/passes/select_lifting_pass.h"
 
+#include <cstdint>
+#include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -25,12 +28,15 @@
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/passes/dce_pass.h"
@@ -42,9 +48,53 @@ namespace xls {
 
 namespace {
 
+class FakeDelayEstimator : public DelayEstimator {
+ public:
+  FakeDelayEstimator(std::string name, int64_t const_shift_delay,
+                     int64_t var_shift_delay)
+      : DelayEstimator(std::move(name)),
+        const_shift_delay_(const_shift_delay),
+        var_shift_delay_(var_shift_delay) {}
+  absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const override {
+    switch (node->op()) {
+      case Op::kParam:
+      case Op::kLiteral:
+        return 0;
+      case Op::kShll:
+      case Op::kShrl:
+      case Op::kShra:
+        if (node->operand(1)->Is<Literal>()) {
+          return const_shift_delay_;
+        }
+        return var_shift_delay_;
+      case Op::kSel:
+        return 30;
+      default:
+        return 10;
+    }
+  }
+
+ private:
+  int64_t const_shift_delay_;
+  int64_t var_shift_delay_;
+};
+
 class SelectLiftingPassTest : public IrTestBase {
  protected:
   SelectLiftingPassTest() = default;
+
+  static void SetUpTestSuite() {
+    XLS_ASSERT_OK(GetDelayEstimatorManagerSingleton().RegisterDelayEstimator(
+        std::make_unique<FakeDelayEstimator>("cheap_var_shift",
+                                             /*const_shift_delay=*/10,
+                                             /*var_shift_delay=*/10),
+        DelayEstimatorPrecedence::kLow));
+    XLS_ASSERT_OK(GetDelayEstimatorManagerSingleton().RegisterDelayEstimator(
+        std::make_unique<FakeDelayEstimator>("expensive_var_shift",
+                                             /*const_shift_delay=*/10,
+                                             /*var_shift_delay=*/20),
+        DelayEstimatorPrecedence::kLow));
+  }
 
   absl::StatusOr<bool> Run(Function* f,
                            const OptimizationPassOptions& options) {
@@ -625,6 +675,77 @@ TEST_F(SelectLiftingPassTest, DontLiftMulWithIdentityFallback) {
 
   // Fallback heuristic should prevent lifting multiplication with identity.
   EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
+}
+
+TEST_F(SelectLiftingPassTest, DontLiftConstantShiftsToVariableShift) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue s = fb.Param("s", p->GetBitsType(1));
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Literal(UBits(1, 32));
+  BValue z = fb.Literal(UBits(2, 32));
+
+  BValue x_shl_y = fb.Shll(x, y);
+  BValue x_shl_z = fb.Shll(x, z);
+
+  // sel(s, [x << 1, x << 2])
+  BValue sel = fb.Select(s, {x_shl_y, x_shl_z});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
+
+  // We do NOT want to lift this to x << sel(s, 1, 2), as variable shifts
+  // are more expensive than constant shifts.
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
+}
+
+TEST_F(SelectLiftingPassTest,
+       LiftConstantShiftsToVariableShiftIfProfitableByDelayModel) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue s = fb.Param("s", p->GetBitsType(1));
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Literal(UBits(1, 32));
+  BValue z = fb.Literal(UBits(2, 32));
+
+  BValue x_shl_y = fb.Shll(x, y);
+  BValue x_shl_z = fb.Shll(x, z);
+
+  // sel(s, [x << 1, x << 2])
+  BValue sel = fb.Select(s, {x_shl_y, x_shl_z});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
+
+  // With 'cheap_var_shift' delay model, const shift delay is 10, var shift
+  // delay is 10, sel delay is 30. Latency before = max(0, 10, 10) + 30 = 40.
+  // Latency after = max(0, max(0,0,0)+30) + 10 = 40.
+  // Since 40 <= 40, lifting should be permitted.
+  OptimizationPassOptions opts;
+  opts.delay_model = "cheap_var_shift";
+  EXPECT_THAT(Run(f, opts), absl_testing::IsOkAndHolds(true));
+}
+
+TEST_F(SelectLiftingPassTest,
+       DontLiftConstantShiftsToVariableShiftIfUnprofitableByDelayModel) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue s = fb.Param("s", p->GetBitsType(1));
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Literal(UBits(1, 32));
+  BValue z = fb.Literal(UBits(2, 32));
+
+  BValue x_shl_y = fb.Shll(x, y);
+  BValue x_shl_z = fb.Shll(x, z);
+
+  // sel(s, [x << 1, x << 2])
+  BValue sel = fb.Select(s, {x_shl_y, x_shl_z});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
+
+  // With 'expensive_var_shift' delay model, const shift delay is 10, var shift
+  // delay is 20, sel delay is 30.
+  // Latency before = max(0, 10, 10) + 30 = 40.
+  // Latency after = max(0, max(0,0,0)+30) + 20 = 50.
+  // Since 50 > 40, lifting should be inhibited.
+  OptimizationPassOptions opts;
+  opts.delay_model = "expensive_var_shift";
+  EXPECT_THAT(Run(f, opts), absl_testing::IsOkAndHolds(false));
 }
 
 TEST_F(SelectLiftingPassTest, LiftAddWithDifferentLhs) {

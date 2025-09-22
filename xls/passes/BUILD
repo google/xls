@@ -4294,6 +4294,7 @@ cc_test(
         "//xls/common/fuzzing:fuzztest",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
+        "//xls/estimators/delay_model:delay_estimator",
         "//xls/fuzzer/ir_fuzzer:ir_fuzz_domain",
         "//xls/fuzzer/ir_fuzzer:ir_fuzz_test_library",
         "//xls/ir",
