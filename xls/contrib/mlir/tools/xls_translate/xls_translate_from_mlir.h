@@ -30,6 +30,7 @@
 #include "mlir/include/mlir/IR/OwningOpRef.h"
 #include "mlir/include/mlir/Support/LLVM.h"
 #include "xls/codegen/xls_metrics.pb.h"
+#include "xls/scheduling/pipeline_schedule.pb.h"
 #include "xls/tools/codegen_flags.h"
 #include "xls/tools/codegen_flags.pb.h"
 #include "xls/tools/opt.h"
@@ -105,10 +106,16 @@ struct MlirXlsToXlsTranslateOptions {
 using MetricsReporter = llvm::function_ref<void(
     const ::xls::Package&, const ::xls::verilog::BlockMetricsProto&)>;
 
+// Callback for reporting scheduling metrics.
+using SchedulingMetricsReporter = llvm::function_ref<void(
+    const ::xls::Package&, const ::xls::PackageScheduleProto&)>;
+
 // Translates an operation with XLS dialect to DSLX.
-LogicalResult MlirXlsToXlsTranslate(Operation* op, llvm::raw_ostream& output,
-                                    MlirXlsToXlsTranslateOptions options = {},
-                                    MetricsReporter metrics_reporter = nullptr);
+LogicalResult MlirXlsToXlsTranslate(
+    Operation* op, llvm::raw_ostream& output,
+    MlirXlsToXlsTranslateOptions options = {},
+    MetricsReporter metrics_reporter = nullptr,
+    SchedulingMetricsReporter scheduling_metrics_reporter = nullptr);
 
 // Translates an operation with XLS dialect to XLS IR.
 FailureOr<std::unique_ptr<::xls::Package>> mlirXlsToXls(
