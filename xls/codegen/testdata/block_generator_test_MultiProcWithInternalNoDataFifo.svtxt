@@ -8,9 +8,9 @@ module pipelined_proc__1(
   output wire in_rdy,
   output wire internal_vld
 );
-  reg p0_valid;
-  reg __in_valid_reg;
-  reg __internal_valid_reg;
+  logic p0_valid;
+  logic __in_valid_reg;
+  logic __internal_valid_reg;
   wire internal_valid_inv;
   wire internal_valid_load_en;
   wire internal_load_en;
@@ -55,9 +55,9 @@ module proc_out(
   output wire internal_rdy,
   output wire out_vld
 );
-  reg p0_valid;
-  reg __internal_valid_reg;
-  reg __out_valid_reg;
+  logic p0_valid;
+  logic __internal_valid_reg;
+  logic __out_valid_reg;
   wire out_valid_inv;
   wire out_valid_load_en;
   wire out_load_en;

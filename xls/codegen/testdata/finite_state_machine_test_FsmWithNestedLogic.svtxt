@@ -10,9 +10,9 @@ module FsmWithNestedLogic(
   localparam
     StateA = 0,
     StateB = 1;
-  reg [StateBits - 1:0] state = StateA;
-  reg [StateBits - 1:0] state_next = StateA;
-  reg [7:0] qux = 0;
+  logic [StateBits - 1:0] state = StateA;
+  logic [StateBits - 1:0] state_next = StateA;
+  logic [7:0] qux = 0;
 
   // FSM state transition logic.
   always_comb begin

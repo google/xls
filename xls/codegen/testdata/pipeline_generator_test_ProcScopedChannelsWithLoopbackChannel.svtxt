@@ -8,12 +8,12 @@ module myproc(
   wire instantiation_output_22;
   wire [31:0] instantiation_output_23;
   wire p0_stage_done;
-  reg [31:0] p0_tuple_index_28;
-  reg [31:0] p1_add_34;
-  reg p0_valid;
-  reg p1_valid;
-  reg __fifo_loopback_push_data_has_been_sent_reg;
-  reg __out_has_been_sent_reg;
+  logic [31:0] p0_tuple_index_28;
+  logic [31:0] p1_add_34;
+  logic p0_valid;
+  logic p1_valid;
+  logic __fifo_loopback_push_data_has_been_sent_reg;
+  logic __out_has_been_sent_reg;
   wire __out_has_sent_or_is_ready;
   wire p2_stage_done;
   wire p2_not_valid;

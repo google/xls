@@ -12,12 +12,12 @@ module ComplexFsm(
     StateHappy = 2,
     StateAwake = 3,
     StateSleepy = 4;
-  reg [StateBits - 1:0] state = StateHungry;
-  reg [StateBits - 1:0] state_next = StateHungry;
-  reg sleep = 0;
-  reg walk = 0;
-  reg run = 1;
-  reg die = 1;
+  logic [StateBits - 1:0] state = StateHungry;
+  logic [StateBits - 1:0] state_next = StateHungry;
+  logic sleep = 0;
+  logic walk = 0;
+  logic run = 1;
+  logic die = 1;
 
   // FSM state transition logic.
   always_comb begin

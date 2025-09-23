@@ -10,12 +10,12 @@ module subproc1(
   output wire [31:0] sub1_out,
   output wire sub1_out_vld
 );
-  reg [31:0] p0_tuple_index_102;
-  reg [31:0] p1_add_108;
-  reg [31:0] p2_neg_113;
-  reg p0_valid;
-  reg p1_valid;
-  reg p2_valid;
+  logic [31:0] p0_tuple_index_102;
+  logic [31:0] p1_add_108;
+  logic [31:0] p2_neg_113;
+  logic p0_valid;
+  logic p1_valid;
+  logic p2_valid;
   wire p3_stage_done;
   wire p3_not_valid;
   wire p2_enable;
@@ -79,16 +79,16 @@ module subproc2(
   output wire sub2_out_vld
 );
   // lint_off MULTIPLY
-  function automatic [31:0] umul32b_32b_x_32b (input reg [31:0] lhs, input reg [31:0] rhs);
+  function automatic [31:0] umul32b_32b_x_32b (input logic [31:0] lhs, input logic [31:0] rhs);
     begin
       umul32b_32b_x_32b = lhs * rhs;
     end
   endfunction
   // lint_on MULTIPLY
-  reg [31:0] p0_tuple_index_41;
-  reg [31:0] p1_umul_47;
-  reg p0_valid;
-  reg p1_valid;
+  logic [31:0] p0_tuple_index_41;
+  logic [31:0] p1_umul_47;
+  logic p0_valid;
+  logic p1_valid;
   wire p2_stage_done;
   wire p2_not_valid;
   wire p1_enable;
@@ -153,33 +153,33 @@ module my_proc(
   wire instantiation_output_218;
   wire [31:0] instantiation_output_219;
   wire instantiation_output_220;
-  reg [31:0] p0_tuple_index_223;
-  reg [31:0] p1_neg_229;
-  reg [31:0] p2_neg_229;
-  reg [31:0] p3_neg_229;
-  reg [31:0] p4_neg_229;
-  reg [31:0] p5_neg_229;
-  reg [31:0] p6_neg_229;
-  reg [31:0] p7_neg_229;
-  reg [31:0] p8_neg_229;
-  reg [31:0] p9_neg_229;
-  reg [31:0] p10_neg_229;
-  reg [31:0] p10_tuple_index_269;
-  reg [31:0] p11_add_277;
-  reg p0_valid;
-  reg p1_valid;
-  reg p2_valid;
-  reg p3_valid;
-  reg p4_valid;
-  reg p5_valid;
-  reg p6_valid;
-  reg p7_valid;
-  reg p8_valid;
-  reg p9_valid;
-  reg p10_valid;
-  reg p11_valid;
-  reg __fifo_tmp1_push_data_has_been_sent_reg;
-  reg __top_out_has_been_sent_reg;
+  logic [31:0] p0_tuple_index_223;
+  logic [31:0] p1_neg_229;
+  logic [31:0] p2_neg_229;
+  logic [31:0] p3_neg_229;
+  logic [31:0] p4_neg_229;
+  logic [31:0] p5_neg_229;
+  logic [31:0] p6_neg_229;
+  logic [31:0] p7_neg_229;
+  logic [31:0] p8_neg_229;
+  logic [31:0] p9_neg_229;
+  logic [31:0] p10_neg_229;
+  logic [31:0] p10_tuple_index_269;
+  logic [31:0] p11_add_277;
+  logic p0_valid;
+  logic p1_valid;
+  logic p2_valid;
+  logic p3_valid;
+  logic p4_valid;
+  logic p5_valid;
+  logic p6_valid;
+  logic p7_valid;
+  logic p8_valid;
+  logic p9_valid;
+  logic p10_valid;
+  logic p11_valid;
+  logic __fifo_tmp1_push_data_has_been_sent_reg;
+  logic __top_out_has_been_sent_reg;
   wire __top_out_has_sent_or_is_ready;
   wire p12_stage_done;
   wire p12_not_valid;

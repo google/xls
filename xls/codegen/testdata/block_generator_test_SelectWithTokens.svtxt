@@ -14,8 +14,8 @@ module pipelined_proc(
   output wire [6:0] out_data,
   output wire out_valid
 );
-  reg [6:0] __out_data_reg;
-  reg __out_data_valid_reg;
+  logic [6:0] __out_data_reg;
+  logic __out_data_valid_reg;
   wire ctrl_0;
   wire p0_all_active_inputs_valid;
   wire p0_all_active_states_valid;

@@ -4,8 +4,8 @@ module Registers(
   input wire [31:0] y,
   output wire [31:0] out
 );
-  reg [31:0] a;
-  reg [31:0] b;
+  logic [31:0] a;
+  logic [31:0] b;
   always_ff @ (posedge clk) begin
     a <= x + y;
     b <= y;
