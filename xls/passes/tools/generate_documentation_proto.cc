@@ -124,6 +124,18 @@ class Callback : public m::MatchFinder::MatchCallback {
     if (clang::comments::TextComment* tc =
             llvm::dyn_cast<clang::comments::TextComment>(c)) {
       oss << std::string_view(tc->getText().begin(), tc->getText().end());
+    } else if (clang::comments::VerbatimBlockLineComment* vl =
+                   llvm::dyn_cast<clang::comments::VerbatimBlockLineComment>(
+                       c)) {
+      oss << std::string_view(vl->getText().begin(), vl->getText().end());
+    } else if (clang::comments::VerbatimBlockComment* vc =
+                   llvm::dyn_cast<clang::comments::VerbatimBlockComment>(c)) {
+      for (clang::comments::Comment* c :
+           xabsl::iterator_range<decltype(vc->child_begin())>(
+               vc->child_begin(), vc->child_end())) {
+        ParseComment(c, oss);
+        oss << "\n";
+      }
     } else if (clang::comments::ParagraphComment* pc =
                    llvm::dyn_cast<clang::comments::ParagraphComment>(c)) {
       for (clang::comments::Comment* c :
