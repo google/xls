@@ -74,3 +74,11 @@ py_library(
         "@zstd//:zstd_cli",
     ],
 )
+
+py_library(
+    name = "fse_table_record",
+    srcs = ["fse_table_record.py"],
+    deps = [
+        ":xlsstruct"
+    ]
+)

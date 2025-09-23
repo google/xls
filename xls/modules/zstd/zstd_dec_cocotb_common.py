@@ -90,6 +90,7 @@ NUM_OF_BITS_W = 8
 BASE_W = 16
 
 
+# TODO replace this with fse_table_record from ./cocotb/
 @xlsstruct.xls_dataclass
 class FseTableRecord(xlsstruct.XLSStruct):
   base: BASE_W
