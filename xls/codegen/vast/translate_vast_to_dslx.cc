@@ -35,6 +35,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/codegen/vast/dslx_builder.h"
+#include "xls/codegen/vast/fold_vast_constants.h"
 #include "xls/codegen/vast/infer_vast_types.h"
 #include "xls/codegen/vast/vast.h"
 #include "xls/common/casts.h"
@@ -45,7 +46,6 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/token.h"
 #include "xls/dslx/import_data.h"
-#include "xls/dslx/interp_value.h"
 #include "xls/dslx/trait_visitor.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/type.h"
@@ -705,7 +705,10 @@ class VastToDslxTranslator {
       verilog::Expression* vast_dim, bool dim_is_max,
       dslx::TypeAnnotation* base_type) {
     XLS_ASSIGN_OR_RETURN(dslx::Expr * dim, TranslateExpression(vast_dim));
-    // Reduce the width to a constant if possible.
+
+    // If the dim has name refs, we don't want to reduce it to a literal,
+    // because we want the relationship to those names to be preserved in the
+    // generated code.
     dslx::TraitVisitor trait_visitor;
     XLS_RETURN_IF_ERROR(dim->AcceptExpr(&trait_visitor));
     dslx::Span span = dim->span();
@@ -716,13 +719,10 @@ class VastToDslxTranslator {
       }
       return module().Make<dslx::ArrayTypeAnnotation>(span, base_type, dim);
     }
-    XLS_RETURN_IF_ERROR(deduce_ctx().Deduce(dim).status());
-    XLS_ASSIGN_OR_RETURN(dslx::InterpValue range_value,
-                         InterpretExpr(import_data(), type_info(), dim));
-    if (range_value.IsUnit()) {
-      return absl::InternalError("Expected range to be unit");
-    }
-    XLS_ASSIGN_OR_RETURN(int64_t int_value, range_value.GetBitValueViaSign());
+
+    // Reduce to a literal any dim that has no name refs.
+    XLS_ASSIGN_OR_RETURN(int64_t int_value,
+                         verilog::FoldEntireVastExpr(vast_dim, vast_type_map_));
     if (dim_is_max) {
       ++int_value;
     }
