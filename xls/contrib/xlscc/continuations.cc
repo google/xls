@@ -891,6 +891,8 @@ absl::Status RemovePassThroughs(GeneratedFunction& func, bool& changed,
           continuation_inputs_by_output_node.at(continuation_out.output_node);
       CHECK_GE(pass_through_to_inputs.size(), 1);
 
+      bool maps_out_of_date = false;
+
       // In the case of phis, optimization can end up with a slice passing
       // through to itself, need to break the cycle by deleting this
       for (ContinuationInput* pass_through_to_input : pass_through_to_inputs) {
@@ -908,9 +910,13 @@ absl::Status RemovePassThroughs(GeneratedFunction& func, bool& changed,
             });
         CHECK_EQ(slice.continuations_in.size(), prev_num - 1);
         changed = true;
+        maps_out_of_date = true;
       }
 
-      update_maps();
+      if (maps_out_of_date) {
+        update_maps();
+        maps_out_of_date = false;
+      }
 
       if (!continuation_inputs_by_output_node.contains(
               continuation_out.output_node)) {
@@ -951,8 +957,22 @@ absl::Status RemovePassThroughs(GeneratedFunction& func, bool& changed,
                   ->IsEqualTo(first_this_slice_input->continuation_out
                                   ->output_node->GetType()));
 
+        std::vector<ContinuationInput*>& pass_through_to_inputs_for_output =
+            continuation_inputs_by_output_node.at(
+                pass_through_to_input->continuation_out->output_node);
+        std::vector<ContinuationInput*>& first_this_slice_inputs_for_output =
+            continuation_inputs_by_output_node.at(
+                first_this_slice_input->continuation_out->output_node);
+
+        const auto n_erased = std::erase(pass_through_to_inputs_for_output,
+                                         pass_through_to_input);
+        CHECK_EQ(n_erased, 1);
+
         pass_through_to_input->continuation_out =
             first_this_slice_input->continuation_out;
+
+        first_this_slice_inputs_for_output.push_back(pass_through_to_input);
+
         changed = true;
 
         for (++this_slice_inputs_it;
@@ -968,13 +988,17 @@ absl::Status RemovePassThroughs(GeneratedFunction& func, bool& changed,
           new_input.continuation_out = this_slice_input->continuation_out;
           downstream_slice->continuations_in.push_back(new_input);
           changed = true;
+          maps_out_of_date = true;
         }
       }
 
-      update_maps();
+      // Don't invalidate pass_through_to_inputs inside the loop
+      continuation_inputs_by_output_node.erase(continuation_out.output_node);
 
-      CHECK(!continuation_inputs_by_output_node.contains(
-          continuation_out.output_node));
+      if (maps_out_of_date) {
+        update_maps();
+        maps_out_of_date = false;
+      }
     }
   }
 
