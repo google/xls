@@ -277,6 +277,22 @@ const x: u31 = bit_count();
               TypecheckFails(HasSubstr("Could not infer parametric")));
 }
 
+TEST(TypecheckV2Test, BitCountImportedEnum) {
+  constexpr std::string_view kImported = R"(
+pub enum X : u3 {
+    A = 0
+}
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+const Y = bit_count<imported::X>();
+const_assert!(Y == 3);
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  XLS_EXPECT_OK(TypecheckV2(kProgram, "main", &import_data));
+}
+
 TEST(TypecheckV2BuiltinTest, BitSliceUpdate) {
   EXPECT_THAT(R"(const Y = bit_slice_update(u32:10, u33:11, u34:12);)",
               TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
@@ -606,6 +622,20 @@ TEST(TypecheckV2BuiltinTest, ElementCountTuple) {
 TEST(TypecheckV2BuiltinTest, ElementCountUnit) {
   EXPECT_THAT(R"(const Y = element_count<()>();)",
               TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
+}
+
+TEST(TypecheckV2Test, ElementCountImportedType) {
+  constexpr std::string_view kImported = R"(
+pub type T = u32[10];
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+const Y = element_count<imported::T>();
+const_assert!(Y == 10);
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  XLS_EXPECT_OK(TypecheckV2(kProgram, "main", &import_data));
 }
 
 TEST(TypecheckV2BuiltinTest, Enumerate) {

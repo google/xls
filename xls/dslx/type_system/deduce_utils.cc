@@ -42,6 +42,7 @@
 #include "xls/common/visitor.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
@@ -1120,8 +1121,8 @@ absl::Status NoteBuiltinInvocationConstExpr(std::string_view fn_name,
   // parametric argument rather than a value.
   if (fn_name == "bit_count" || fn_name == "element_count") {
     XLS_RET_CHECK_EQ(invocation->explicit_parametrics().size(), 1);
-    std::optional<const Type*> explicit_parametric_type = ti->GetItem(
-        std::get<TypeAnnotation*>(invocation->explicit_parametrics()[0]));
+    std::optional<const Type*> explicit_parametric_type =
+        ti->GetItem(ToAstNode(invocation->explicit_parametrics()[0]));
     XLS_RET_CHECK(explicit_parametric_type.has_value());
     XLS_ASSIGN_OR_RETURN(
         InterpValue value,
