@@ -29,6 +29,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -37,6 +38,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/data_structures/inline_bitmap.h"
 #include "xls/ir/block.h"
 #include "xls/ir/call_graph.h"
 #include "xls/ir/channel.h"
@@ -56,7 +58,7 @@
 
 namespace xls {
 
-Package::Package(std::string_view name) : name_(name) {}
+Package::Package(std::string_view name) : name_(name), user_data_ids_(64) {}
 
 Package::~Package() = default;
 
@@ -948,6 +950,50 @@ TransformMetricsProto TransformMetrics::ToProto() const {
   ret.set_operands_replaced(operands_replaced);
   ret.set_operands_removed(operands_removed);
   return ret;
+}
+
+namespace {
+#ifdef NDEBUG
+static constexpr bool kDebugMode = false;
+#else
+static constexpr bool kDebugMode = true;
+#endif
+}  // namespace
+
+void Package::ReleaseNodeUserDataId(int64_t id) {
+  CHECK(user_data_ids_.Get(id)) << "id: " << id;
+  user_data_ids_.Set(id, false);
+  if constexpr (kDebugMode) {
+    for (FunctionBase* fb : GetFunctionBases()) {
+      for (Node* n : fb->nodes()) {
+        CHECK(!n->HasUserData(id))
+            << "id: " << id << " node: " << n->ToString();
+      }
+    }
+  }
+}
+int64_t Package::AllocateNodeUserDataId() {
+  if (user_data_ids_.IsAllOnes()) {
+    int64_t size = user_data_ids_.bit_count();
+    user_data_ids_ = std::move(user_data_ids_).WithSize(size + 64);
+    LOG(WARNING) << "Excessive user data live use: " << (size + 1)
+                 << " live data!";
+  }
+  int64_t off = 0;
+  // Find first word with a false bit.
+  while (!(~user_data_ids_.GetWord(off / InlineBitmap::kWordBits))) {
+    off += InlineBitmap::kWordBits;
+  }
+  // Find the byte.
+  while (!(~user_data_ids_.GetByte(off / 8))) {
+    off += 8;
+  }
+  // Find the bit.
+  while (user_data_ids_.Get(off)) {
+    off++;
+  }
+  user_data_ids_.Set(off);
+  return off;
 }
 
 // Printers for fuzztest use.
