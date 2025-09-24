@@ -17,14 +17,15 @@ import sys
 import cocotb
 import os
 import pathlib
-from xls.modules.zstd.zstd_dec_cocotb_common import pregenerated_testing_routine, run_test, check_decoder_compliance
+from xls.modules.zstd.zstd_dec_cocotb_common import run_test, check_decoder_compliance
+from xls.modules.zstd.zstd_dec_detailed_test import detailed_testing_routine
 from multiprocessing import cpu_count
 
 @cocotb.test(timeout_time=int(os.getenv("ZSTD_DEC_COCOTB_CLI_TIMEOUT", "5000")), timeout_unit="ms")
 async def zstd_cli_test(dut):
     input_name = os.getenv("ZSTD_DEC_COCOTB_CLI_INPUT")
     print("input_name: ", input_name)
-    await pregenerated_testing_routine(dut, input_name)
+    await detailed_testing_routine(dut, input_name)
 
 def usage():
       print(f"usage: {os.path.basename(sys.argv[0])} /abs/path/to/input.zst [timeout_is_ms]")

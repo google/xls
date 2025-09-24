@@ -1500,6 +1500,7 @@ ZSTD_DEC_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "worst_case_throughput": "6",
     # "flop_inputs_kind": "skid",
     # "flop_outputs_kind": "skid",
+    "streaming_channel_data_suffix": "_data",
     "materialize_internal_fifos": "false",  # TODO: remove once this option works with loopback channels
     "ram_configurations": ",".join([
         ",".join([
@@ -1881,6 +1882,16 @@ py_test(
     toolchains=["@rules_perl//:current_toolchain"],
 )
 
+py_library(
+    name = "zstd_dec_detailed_test",
+    srcs = ["zstd_dec_detailed_test.py"],
+    deps = [
+        requirement("cocotb"),
+        "//xls/modules/zstd:zstd_dec_cocotb_common",
+    ],
+    toolchains=["@rules_perl//:current_toolchain"],
+)
+
 py_binary(
     name = "zstd_dec_cocotb_cli",
     srcs = ["zstd_dec_cocotb_cli.py"],
@@ -1893,6 +1904,7 @@ py_binary(
     visibility = ["//xls:xls_users"],
     deps = [
         requirement("cocotb"),
+        ":zstd_dec_detailed_test",
         "//xls/modules/zstd:zstd_dec_cocotb_common",
     ],
     toolchains=["@rules_perl//:current_toolchain"],

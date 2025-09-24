@@ -52,7 +52,7 @@ from cocotbext.axi.sparse_memory import SparseMemory
 
 from pathlib import Path
 
-import xls.modules.zstd.cocotb.channel as xlschannel
+from xls.modules.zstd.cocotb.channel import XLSChannel, XLSChannelMonitor
 import xls.modules.zstd.cocotb.utils as cocotb_utils
 from xls.modules.zstd.zstd_test_debugger import debug_file
 from xls.modules.zstd.cocotb import data_generator
@@ -380,8 +380,8 @@ def get_clock_time(clock: Clock):
 
 
 def connect_xls_channel(dut, channel_name, xls_struct):
-  channel = xlschannel.XLSChannel(dut, channel_name, dut.clk, start_now=True)
-  monitor = xlschannel.XLSChannelMonitor(dut, channel_name, dut.clk, xls_struct)
+  channel = XLSChannel(dut, channel_name, dut.clk, start_now=True)
+  monitor = XLSChannelMonitor(dut, channel_name, dut.clk, xls_struct)
 
   return (channel, monitor)
 
@@ -400,7 +400,7 @@ def prepare_test_environment(dut):
 
 
 async def test_fse_lookup_decoder(dut, clock, expected_fse_lookups):
-  lookup_dec_resp_channel = xlschannel.XLSChannel(
+  lookup_dec_resp_channel = XLSChannel(
     dut.ZstdDecoder.xls_modules_zstd_sequence_dec__ZstdDecoderInst__ZstdDecoder_0__CompressBlockDecoder_0__SequenceDecoder_0__SequenceDecoderCtrl_0__FseLookupCtrl_0_next_inst149,
     "zstd_dec__flc_resp",
     dut.clk,
@@ -439,7 +439,7 @@ async def test_fse_lookup_decoder(dut, clock, expected_fse_lookups):
 
 
 async def test_fse_lookup_decoder_for_huffman(dut, clock, expected_fse_lookups):
-  lookup_dec_resp_channel = xlschannel.XLSChannel(
+  lookup_dec_resp_channel = XLSChannel(
     dut.ZstdDecoder.xls_modules_zstd_comp_lookup_dec__ZstdDecoderInst__ZstdDecoder_0__CompressBlockDecoder_0__LiteralsDecoder_0__HuffmanLiteralsDecoder_0__HuffmanWeightsDecoder_0__HuffmanFseWeightsDecoder_0__CompLookupDecoder_0__64_8_16_1_15_8_32_1_7_9_8_1_8_16_1_next_inst5,
     "zstd_dec__fse_table_finish__1",
     dut.clk,
@@ -548,7 +548,7 @@ async def test_huffman_codes(dut, clock, expected_codes):
   )
   CODES_CHANNEL_NAME = "zstd_dec__code_builder_codes"
 
-  codes_channel = xlschannel.XLSChannel(
+  codes_channel = XLSChannel(
     WEIGHT_CODE_BUILDER_INST, CODES_CHANNEL_NAME, dut.clk
   )
   huffman_code_handshake = triggers.Event()
@@ -594,7 +594,7 @@ async def test_huffman_codes(dut, clock, expected_codes):
 
 
 async def test_huffman_weights(dut, clock, expected_huffman_weights):
-  lookup_dec_resp_channel = xlschannel.XLSChannel(
+  lookup_dec_resp_channel = XLSChannel(
     dut.ZstdDecoder.xls_modules_zstd_huffman_ctrl__ZstdDecoderInst__ZstdDecoder_0__CompressBlockDecoder_0__LiteralsDecoder_0__HuffmanLiteralsDecoder_0__HuffmanControlAndSequence_0__32_64_next_inst21,
     "zstd_dec__weights_dec_resp",
     dut.clk,
@@ -859,7 +859,6 @@ async def pregenerated_testing_routine(
   print(
     f"Frame #0: latency: {measurement[0]} cycles; throughput: {measurement[1]} B/cycle ({measurement[2]} packets/cycle)"
   )
-
 
 async def test_expected_status(
   dut,
