@@ -1645,20 +1645,30 @@ const TEST_TMP2_RAM_NUM_PARTITIONS = ram::num_partitions(TEST_TMP2_RAM_WORD_PART
 // RAW weights
 const TEST_RAW_INPUT_ADDR = uN[TEST_AXI_ADDR_W]:0x40;
 
-// Weights sum is 1010, so the last one will be 14
-const TEST_RAW_DATA = u8[65]:[
-    // len      x0 x1      x2 x3      x4 x5      x6 x7      x8 x9      xA xB      xC xD      xE xF
-    u8:248, u8:0xB__6, u8:0x8__5, u8:0x6__A, u8:0x9__C, u8:0x0__C, u8:0xA__9, u8:0x0__0, u8:0xD__0, // 0x0x
-            u8:0x6__E, u8:0x3__9, u8:0x8__4, u8:0x7__C, u8:0xC__2, u8:0x4__2, u8:0xB__A, u8:0x4__E, // 0x1x
-            u8:0xF__6, u8:0x2__7, u8:0x9__4, u8:0xD__1, u8:0xD__8, u8:0x2__B, u8:0xE__2, u8:0xD__1, // 0x2x
-            u8:0x8__F, u8:0x2__4, u8:0xD__3, u8:0x0__E, u8:0xF__E, u8:0x1__B, u8:0xF__9, u8:0x8__2, // 0x3x
-            u8:0xC__A, u8:0x6__1, u8:0x0__3, u8:0xD__C, u8:0xF__5, u8:0x1__D, u8:0x7__0, u8:0x1__6, // 0x4x
-            u8:0xA__A, u8:0x3__2, u8:0x8__8, u8:0x0__6, u8:0xE__7, u8:0x6__7, u8:0x8__E, u8:0x6__2, // 0x5x
-            u8:0x1__F, u8:0x3__E, u8:0xF__0, u8:0xC__7, u8:0x4__1, u8:0x7__E, u8:0x8__C, u8:0x8__4, // 0x6x
-            u8:0x3__3, u8:0xA__8, u8:0xE__E, u8:0x4__B, u8:0x0__0, u8:0x0__0, u8:0x0__0, u8:0x0__0, // 0x7x
+const TEST_RAW_TREE_DESCRIPTION_SIZE = u32:15; // (header + weight stream)
+
+const TEST_RAW_DATA = u8[19]:[
+        u8:155,  // header
+        // weights stream
+        u8:0x75, u8:0x66, u8:0x66, u8:0x66,
+        u8:0x66, u8:0x66, u8:0x55, u8:0x55,
+        u8:0x44, u8:0x44, u8:0x33, u8:0x31,
+        u8:0x11, u8:0x00,
+        // dummy leftover
+        u8:0xDE, u8:0xAD, u8:0xBE, u8:0xEF,
 ];
 
-const TEST_RAW_DATA_LAST_WEIGHT = u8:0xA;
+const_assert!(TEST_WEIGHTS_RAM_DATA_W == u32:32);
+const TEST_RAW_RAM_PACKET_COUNT = TEST_WEIGHTS_RAM_SIZE / TEST_WEIGHTS_RAM_PARTITION_SIZE;
+
+const TEST_RAW_EXPECTED_WEIGHT_RAM = uN[TEST_WEIGHTS_RAM_DATA_W][TEST_RAW_RAM_PACKET_COUNT]:[
+        uN[TEST_WEIGHTS_RAM_DATA_W]:0x75666666,
+        uN[TEST_WEIGHTS_RAM_DATA_W]:0x66665555,
+        uN[TEST_WEIGHTS_RAM_DATA_W]:0x44443331,
+        uN[TEST_WEIGHTS_RAM_DATA_W]:0x11001000,
+        //                                ^- last weight
+        uN[TEST_WEIGHTS_RAM_DATA_W]:0x0, ...
+];
 
 // FSE weights
 const TEST_FSE_INPUT_ADDR = uN[TEST_AXI_ADDR_W]:0x200;
@@ -2171,29 +2181,11 @@ proc HuffmanWeightsDecoder_test {
         let (tok, resp) = recv(tok, resp_r);
         trace_fmt!("[TEST] Received respose {:#x}", resp);
         assert_eq(HuffmanWeightsDecoderStatus::OKAY, resp.status);
-        assert_eq((((TEST_RAW_DATA[0] - u8:127) >> u32:1) + u8:2) as uN[TEST_AXI_ADDR_W], resp.tree_description_size);
-
-        // Insert last weight in test data
-        let last_weight_idx = ((TEST_RAW_DATA[0] as u32 - u32:127) / u32:2) + u32:1;
-        let last_weight_entry = (
-            TEST_RAW_DATA[last_weight_idx] |
-            (TEST_RAW_DATA_LAST_WEIGHT << (u32:4 * (u32:1 - ((TEST_RAW_DATA[0] - u8:127) as u1 as u32))))
-        );
-        let test_data = update(TEST_RAW_DATA, last_weight_idx, last_weight_entry);
+        assert_eq(TEST_RAW_TREE_DESCRIPTION_SIZE as uN[TEST_AXI_ADDR_W], resp.tree_description_size);
 
         // Check output RAM
-        let tok = for (i, tok) in u32:0..u32:32 {
-            let expected_value = if i < u32:16 {
-                (
-                    ((test_data[4*i + u32:1] >> u32:4) as u4) ++ (test_data[4*i + u32:1] as u4) ++
-                    ((test_data[4*i + u32:2] >> u32:4) as u4) ++ (test_data[4*i + u32:2] as u4) ++
-                    ((test_data[4*i + u32:3] >> u32:4) as u4) ++ (test_data[4*i + u32:3] as u4) ++
-                    ((test_data[4*i + u32:4] >> u32:4) as u4) ++ (test_data[4*i + u32:4] as u4)
-                )
-            } else {
-                u32:0
-            };
-
+        let tok = for (i, tok) in u32:0..array_size(TEST_RAW_EXPECTED_WEIGHT_RAM) {
+            let expected_value = TEST_RAW_EXPECTED_WEIGHT_RAM[i];
             let weights_ram_rd_req = WeightsRamRdReq {
                 addr: i as uN[TEST_WEIGHTS_RAM_ADDR_W],
                 mask: !uN[TEST_WEIGHTS_RAM_NUM_PARTITIONS]:0,
