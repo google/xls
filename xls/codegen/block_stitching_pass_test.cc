@@ -97,7 +97,6 @@ using ::testing::Each;
 using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
 using ::testing::Eq;
-using ::testing::FieldsAre;
 using ::testing::HasSubstr;
 using ::testing::IsSupersetOf;
 using ::testing::Pair;
