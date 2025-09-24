@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <string>
 
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "grpcpp/server_context.h"
 #include "grpcpp/support/status.h"
@@ -31,6 +32,7 @@ namespace synthesis {
   absl::StatusOr<int64_t> delay = synthesizer_->SynthesizeVerilogAndGetDelay(
       request->module_text(), request->top_module_name());
   if (!delay.ok()) {
+    VLOG(3) << "Failed to get delay: " << delay.status();
     return ::grpc::Status(grpc::StatusCode::INTERNAL,
                           std::string(delay.status().message()));
   }

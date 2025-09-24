@@ -225,6 +225,7 @@ cc_library(
         ":synthesizer",
         "//xls/synthesis:synthesis_cc_proto",
         "//xls/synthesis:synthesis_service_cc_grpc",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/status:statusor",
         "@grpc//:grpc++",
     ],
