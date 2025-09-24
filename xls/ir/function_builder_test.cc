@@ -137,6 +137,18 @@ TEST(FunctionBuilderTest, NonTupleValueToTupleIndex) {
                HasSubstr("Operand of tuple-index must be tuple-typed")));
 }
 
+TEST(FunctionBuilderTest, TupleIndexOutOfBounds) {
+  Package p("p");
+  FunctionBuilder b("tuple_index_oob_test", &p);
+  BitsType* u32 = p.GetBitsType(32);
+  BValue tup = b.Tuple({b.Param("a", u32), b.Param("b", u32)});
+  b.TupleIndex(tup, 2);
+  absl::Status status = b.Build().status();
+  EXPECT_THAT(status, StatusIs(absl::StatusCode::kInvalidArgument,
+                               HasSubstr("Tuple index 2 out of range for tuple "
+                                         "type (bits[32], bits[32])")));
+}
+
 TEST(FunctionBuilderTest, LiteralArrayTest) {
   Package p("p");
   FunctionBuilder b("literal_array", &p);
