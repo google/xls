@@ -45,6 +45,17 @@ class XLSChannel(Bus):
         self.start_recv_loop()
 
   @cocotb.coroutine
+  async def recv(self):
+    while True:
+      await RisingEdge(self.clk)
+      if self.rdy.value and self.vld.value:
+          return self.data.value
+
+  @cocotb.coroutine
+  async def recv_as(self, xlsstruct_type):
+      return xlsstruct_type.from_int(await self.recv())
+
+  @cocotb.coroutine
   async def recv_channel(self):
     """Cocotb coroutine that acts as a proc receiving data from a channel."""
     self.rdy.setimmediatevalue(1)
