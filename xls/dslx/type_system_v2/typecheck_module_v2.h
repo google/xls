@@ -16,12 +16,17 @@
 #define XLS_DSLX_TYPE_SYSTEM_V2_TYPECHECK_MODULE_V2_H_
 
 #include <filesystem>
+#include <functional>
 #include <memory>
 
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/semantics_analysis.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/type_system_v2/type_inference_error_handler.h"
 #include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
@@ -31,7 +36,8 @@ namespace xls::dslx {
 absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
     std::unique_ptr<Module> module, std::filesystem::path path,
     ImportData* import_data, WarningCollector* warnings,
-    std::unique_ptr<SemanticsAnalysis> semantics_analysis);
+    std::unique_ptr<SemanticsAnalysis> semantics_analysis,
+    TypeInferenceErrorHandler error_handler);
 
 }  // namespace xls::dslx
 

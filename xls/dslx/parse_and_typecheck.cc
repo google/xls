@@ -38,6 +38,7 @@
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/typecheck_module.h"
+#include "xls/dslx/type_system_v2/type_inference_error_handler.h"
 #include "xls/dslx/type_system_v2/typecheck_module_v2.h"
 #include "xls/dslx/warning_collector.h"
 
@@ -47,7 +48,7 @@ absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
     std::string_view text, std::string_view path, std::string_view module_name,
     ImportData* import_data, std::vector<CommentData>* comments,
     std::optional<TypeInferenceVersion> force_version,
-    const ConvertOptions& options) {
+    const ConvertOptions& options, TypeInferenceErrorHandler error_handler) {
   XLS_RET_CHECK(import_data != nullptr);
 
   FileTable& file_table = import_data->file_table();
@@ -66,7 +67,8 @@ absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
                                    import_data->file_table(), comments));
 
   XLS_RETURN_IF_ERROR(module->SetConfiguredValues(options.configured_values));
-  return TypecheckModule(std::move(module), path, import_data, force_version);
+  return TypecheckModule(std::move(module), path, import_data, force_version,
+                         error_handler);
 }
 
 absl::StatusOr<std::unique_ptr<Module>> ParseModule(
@@ -95,8 +97,8 @@ absl::StatusOr<std::unique_ptr<Module>> ParseModuleFromFileAtPath(
 
 absl::StatusOr<TypecheckedModule> TypecheckModule(
     std::unique_ptr<Module> module, std::string_view path,
-    ImportData* import_data,
-    std::optional<TypeInferenceVersion> force_version) {
+    ImportData* import_data, std::optional<TypeInferenceVersion> force_version,
+    TypeInferenceErrorHandler error_handler) {
   XLS_RET_CHECK(module.get() != nullptr);
   XLS_RET_CHECK(import_data != nullptr);
 
@@ -115,7 +117,8 @@ absl::StatusOr<TypecheckedModule> TypecheckModule(
   using ExtendedTypecheckModuleFn =
       absl::StatusOr<std::unique_ptr<ModuleInfo>> (*)(
           std::unique_ptr<Module>, std::filesystem::path path, ImportData*,
-          WarningCollector*, std::unique_ptr<SemanticsAnalysis>);
+          WarningCollector*, std::unique_ptr<SemanticsAnalysis>,
+          TypeInferenceErrorHandler);
   ExtendedTypecheckModuleFn version_entry_point =
       static_cast<ExtendedTypecheckModuleFn>(&TypecheckModule);
 
@@ -136,7 +139,7 @@ absl::StatusOr<TypecheckedModule> TypecheckModule(
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<ModuleInfo> module_info,
       version_entry_point(std::move(module), path, import_data, &warnings,
-                          std::move(semantics_analysis)));
+                          std::move(semantics_analysis), error_handler));
 
   if (version_entry_point == TypecheckModuleV2) {
     XLS_RETURN_IF_ERROR(module_info->inference_table_converter()

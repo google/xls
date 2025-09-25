@@ -64,7 +64,8 @@ absl::Status PopulateBuiltinStubs(ImportData* import_data,
       CreateInferenceTableConverter(*table, *builtins_module, *import_data,
                                     *warnings, import_data->file_table(),
                                     TypeSystemTracer::Create(/*active=*/false),
-                                    /*semantics_analysis=*/nullptr));
+                                    /*semantics_analysis=*/nullptr,
+                                    /*error_handler=*/nullptr));
   XLS_ASSIGN_OR_RETURN(TypeInfo * builtins_type_info,
                        import_data->GetRootTypeInfo(builtins_ptr));
 

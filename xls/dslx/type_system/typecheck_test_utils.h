@@ -24,6 +24,7 @@
 #include "absl/strings/substitute.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/type_system_v2/type_inference_error_handler.h"
 #include "re2/re2.h"
 
 namespace xls::dslx {
@@ -42,16 +43,21 @@ struct TypecheckResult {
 // Helper for parsing/typechecking a snippet of DSLX text.
 //
 // If `import_data` is not provided one is created for internal use.
-absl::StatusOr<TypecheckResult> Typecheck(std::string_view program,
-                                          std::string_view module_name = "fake",
-                                          ImportData* import_data = nullptr,
-                                          bool add_version_attribute = true);
+absl::StatusOr<TypecheckResult> Typecheck(
+    std::string_view program, std::string_view module_name = "fake",
+    ImportData* import_data = nullptr, bool add_version_attribute = true,
+    TypeInferenceErrorHandler error_handler = nullptr);
 
 // Variant that prepends the `type_inference_v2` DSLX module attribute to
 // `program` to force the use of type_system_v2.
 absl::StatusOr<TypecheckResult> TypecheckV2(
     std::string_view program, std::string_view module_name = "fake",
     ImportData* import_data = nullptr);
+
+// Variant that prepends the `type_inference_v2` DSLX module attribute to
+// `program` to force the use of type_system_v2.
+absl::StatusOr<TypecheckResult> TypecheckV2(
+    std::string_view program, TypeInferenceErrorHandler error_handler);
 
 // Verifies that a failed typecheck status message indicates a type mismatch
 // between the given two types in string format.

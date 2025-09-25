@@ -72,6 +72,7 @@
 #include "xls/dslx/type_system_v2/type_annotation_filter.h"
 #include "xls/dslx/type_system_v2/type_annotation_resolver.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
+#include "xls/dslx/type_system_v2/type_inference_error_handler.h"
 #include "xls/dslx/type_system_v2/type_system_tracer.h"
 #include "xls/dslx/type_system_v2/unify_type_annotations.h"
 #include "xls/dslx/type_system_v2/validate_concrete_type.h"
@@ -132,7 +133,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       InferenceTable& table, Module& module, ImportData& import_data,
       WarningCollector& warning_collector, TypeInfo* base_type_info,
       const FileTable& file_table, std::unique_ptr<TypeSystemTracer> tracer,
-      std::unique_ptr<SemanticsAnalysis> semantics_analysis)
+      std::unique_ptr<SemanticsAnalysis> semantics_analysis,
+      TypeInferenceErrorHandler error_handler)
       : table_(table),
         module_(module),
         import_data_(import_data),
@@ -141,6 +143,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         file_table_(file_table),
         tracer_(std::move(tracer)),
         semantics_analysis_(std::move(semantics_analysis)),
+        error_handler_(error_handler),
         evaluator_(CreateEvaluator(table_, module_, import_data_,
                                    warning_collector_, *this, *tracer_)),
         resolver_(TypeAnnotationResolver::Create(
@@ -148,6 +151,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
             /*error_generator=*/*this, *evaluator_,
             /*parametric_struct_instantiator=*/*this, *tracer_,
             warning_collector_, import_data_, simplified_type_annotation_cache_,
+            MakeResolverErrorHandler(error_handler),
             [&](std::optional<const ParametricContext*> parametric_context,
                 const Invocation* invocation) {
               return TryConvertInvocationForUnification(parametric_context,
@@ -714,10 +718,11 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       XLS_RETURN_IF_ERROR(
           ConvertSubtree(parametric_free_type, caller, caller_context));
 
-      XLS_ASSIGN_OR_RETURN(parametric_free_type,
-                           resolver_->ResolveIndirectTypeAnnotations(
-                               invocation_context, parametric_free_type,
-                               TypeAnnotationFilter::None()));
+      XLS_ASSIGN_OR_RETURN(
+          parametric_free_type,
+          resolver_->ResolveIndirectTypeAnnotations(
+              invocation_context, invocation, parametric_free_type,
+              TypeAnnotationFilter::None()));
 
       // In a context such as a parametric proc, where parametric-dependent type
       // aliases may be used in a function signature, the resolution of indirect
@@ -888,6 +893,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
             /*error_generator=*/*this, /*evaluator=*/*evaluator_,
             /*parametric_struct_instantiator=*/*this, *tracer_,
             warning_collector_, import_data_, simplified_type_annotation_cache_,
+            MakeResolverErrorHandler(error_handler_),
             [&](std::optional<const ParametricContext*> parametric_context,
                 const Invocation* invocation) {
               return TryConvertInvocationForUnification(parametric_context,
@@ -911,10 +917,11 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
             node->parent()->kind() == AstNodeKind::kInvocation) {
           XLS_ASSIGN_OR_RETURN(
               annotation, resolver->ResolveAndUnifyTypeAnnotations(
-                              parametric_context, {*annotation},
+                              parametric_context, node, {*annotation},
                               (*annotation)->span(), type_annotation_filter,
                               table_.GetAnnotationFlag(*annotation)
-                                  .HasFlag(TypeInferenceFlag::kBitsLikeType)));
+                                  .HasFlag(TypeInferenceFlag::kBitsLikeType),
+                              /*used_error_handler=*/nullptr));
         }
 
         // Builtin fragments of bits-like types, like `uN` and `xN[true]` have
@@ -1170,7 +1177,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     }
 
     XLS_ASSIGN_OR_RETURN(annotation, resolver_->ResolveIndirectTypeAnnotations(
-                                         parametric_context, annotation,
+                                         parametric_context, node, annotation,
                                          TypeAnnotationFilter::None()));
     if (annotation->IsAnnotation<AnyTypeAnnotation>()) {
       return absl::InvalidArgumentError(absl::Substitute(
@@ -1480,6 +1487,37 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   }
 
  private:
+  // Wraps the given external error handler in the narrower error handler
+  // interface used by `TypeAnnotationResolver`. This allows the resolver to
+  // raise an error using the limited information it has, and the returned
+  // wrapper decorates it with the concretized types of the candidate
+  // annotations.
+  ResolverErrorHandler MakeResolverErrorHandler(
+      TypeInferenceErrorHandler handler) {
+    if (!handler) {
+      return nullptr;
+    }
+    return [this, handler = std::move(handler)](
+               std::optional<const ParametricContext*> parametric_context,
+               const AstNode* node,
+               absl::Span<const TypeAnnotation*> annotations)
+               -> absl::StatusOr<const TypeAnnotation*> {
+      std::vector<std::unique_ptr<Type>> types;
+      std::vector<CandidateType> candidates;
+      types.reserve(annotations.size());
+      candidates.reserve(annotations.size());
+      for (const TypeAnnotation* annotation : annotations) {
+        XLS_ASSIGN_OR_RETURN(
+            std::unique_ptr<Type> type,
+            Concretize(annotation, parametric_context, false, std::nullopt));
+        candidates.emplace_back(annotation, type.get(),
+                                table_.GetAnnotationFlag(annotation));
+        types.push_back(std::move(type));
+      }
+      return handler(node, absl::MakeSpan(candidates));
+    };
+  }
+
   bool IsMapInvocation(const Invocation* node) {
     return IsBuiltinFn(node->callee()) && node->callee()->ToString() == "map";
   }
@@ -1829,7 +1867,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                 << annotation->ToString();
       }
       XLS_RETURN_IF_ERROR(resolver_->ResolveIndirectTypeAnnotations(
-          actual_arg_context, actual_arg_annotations, filter));
+          actual_arg_context, actual_args[i], actual_arg_annotations, filter));
       if (actual_arg_annotations.empty()) {
         VLOG(6) << "The actual argument type variable: "
                 << (*actual_arg_type_var)->ToString()
@@ -1839,14 +1877,16 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
 
       XLS_ASSIGN_OR_RETURN(
           const TypeAnnotation* formal_type,
-          resolver_->ResolveTypeRefs(target_context, formal_types[i]));
+          resolver_->ResolveTypeRefs(target_context, actual_args[i],
+                                     formal_types[i]));
 
       XLS_ASSIGN_OR_RETURN(
           const TypeAnnotation* actual_arg_type,
           resolver_->ResolveAndUnifyTypeAnnotations(
-              actual_arg_context, actual_arg_annotations,
+              actual_arg_context, actual_args[i], actual_arg_annotations,
               actual_args[i]->span(), TypeAnnotationFilter::None(),
-              /*require_bits_like=*/false));
+              /*require_bits_like=*/false,
+              /*used_error_handler=*/nullptr));
       XLS_RETURN_IF_ERROR(
           ConvertSubtree(actual_arg_type, std::nullopt, actual_arg_context));
       VLOG(5) << "Infer using actual type: " << actual_arg_type->ToString()
@@ -1867,14 +1907,16 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         // `SolveForParametrics` does not yield user-presentable errors. When it
         // errors, it means the formal and actual argument types are not
         // reconcilable.
-        XLS_ASSIGN_OR_RETURN(const TypeAnnotation* direct_actual_arg_type,
-                             resolver_->ResolveIndirectTypeAnnotations(
-                                 actual_arg_context, actual_arg_type,
-                                 TypeAnnotationFilter::None()));
+        XLS_ASSIGN_OR_RETURN(
+            const TypeAnnotation* direct_actual_arg_type,
+            resolver_->ResolveIndirectTypeAnnotations(
+                actual_arg_context, actual_args[i], actual_arg_type,
+                TypeAnnotationFilter::None()));
         XLS_ASSIGN_OR_RETURN(
             const TypeAnnotation* direct_formal_arg_type,
             resolver_->ResolveIndirectTypeAnnotations(
-                target_context, formal_types[i], TypeAnnotationFilter::None()));
+                target_context, actual_args[i], formal_types[i],
+                TypeAnnotationFilter::None()));
         return TypeMismatchError(actual_arg_context, direct_actual_arg_type,
                                  direct_formal_arg_type);
       }
@@ -2354,6 +2396,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   const FileTable& file_table_;
   std::unique_ptr<TypeSystemTracer> tracer_;
   std::unique_ptr<SemanticsAnalysis> semantics_analysis_;
+  TypeInferenceErrorHandler error_handler_;
   std::unique_ptr<Evaluator> evaluator_;
   std::unique_ptr<TypeAnnotationResolver> resolver_;
   std::unique_ptr<ConstantCollector> constant_collector_;
@@ -2390,14 +2433,15 @@ CreateInferenceTableConverter(
     InferenceTable& table, Module& module, ImportData& import_data,
     WarningCollector& warning_collector, const FileTable& file_table,
     std::unique_ptr<TypeSystemTracer> tracer,
-    std::unique_ptr<SemanticsAnalysis> semantics_analysis) {
+    std::unique_ptr<SemanticsAnalysis> semantics_analysis,
+    TypeInferenceErrorHandler error_handler) {
   VLOG(1) << "CreateInferenceTableConverter: module " << &module;
 
   XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
                        import_data.type_info_owner().New(&module));
   return std::make_unique<InferenceTableConverterImpl>(
       table, module, import_data, warning_collector, type_info, file_table,
-      std::move(tracer), std::move(semantics_analysis));
+      std::move(tracer), std::move(semantics_analysis), error_handler);
 }
 
 }  // namespace xls::dslx

@@ -34,6 +34,7 @@
 #include "xls/dslx/type_system_v2/inference_table_converter.h"
 #include "xls/dslx/type_system_v2/inference_table_converter_impl.h"
 #include "xls/dslx/type_system_v2/populate_table.h"
+#include "xls/dslx/type_system_v2/type_inference_error_handler.h"
 #include "xls/dslx/type_system_v2/type_system_tracer.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/tools/typecheck_flags.h"
@@ -44,7 +45,8 @@ namespace xls::dslx {
 absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
     std::unique_ptr<Module> module, std::filesystem::path path,
     ImportData* import_data, WarningCollector* warnings,
-    std::unique_ptr<SemanticsAnalysis> semantics_analysis) {
+    std::unique_ptr<SemanticsAnalysis> semantics_analysis,
+    TypeInferenceErrorHandler error_handler) {
   std::string_view module_name = module->name();
   const bool top_module = !import_data->HasInferenceTable();
   if (top_module) {
@@ -56,11 +58,11 @@ absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
   std::unique_ptr<TypeSystemTracer> tracer =
       TypeSystemTracer::Create(flags.dump_traces(), flags.time_every_action());
   auto& tracer_ref = *tracer;
-  auto typecheck_imported_module = [import_data, warnings](
+  auto typecheck_imported_module = [import_data, warnings, error_handler](
                                        std::unique_ptr<Module> module,
                                        std::filesystem::path path) {
     return TypecheckModuleV2(std::move(module), path, import_data, warnings,
-                             /*semantics_analysis=*/nullptr);
+                             /*semantics_analysis=*/nullptr, error_handler);
   };
   XLS_RETURN_IF_ERROR(PopulateTable(table, module.get(), import_data, warnings,
                                     typecheck_imported_module));
@@ -68,7 +70,7 @@ absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
       std::unique_ptr<InferenceTableConverter> converter,
       CreateInferenceTableConverter(
           *table, *module, *import_data, *warnings, import_data->file_table(),
-          std::move(tracer), std::move(semantics_analysis)));
+          std::move(tracer), std::move(semantics_analysis), error_handler));
   import_data->SetInferenceTableConverter(module.get(), converter.get());
 
   absl::Status status =

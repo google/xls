@@ -31,6 +31,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/substitute.h"
+#include "absl/types/span.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -128,6 +129,7 @@ class StatefulResolver : public TypeAnnotationResolver {
       TypeSystemTracer& tracer, WarningCollector& warning_collector,
       ImportData& import_data,
       SimplifiedTypeAnnotationCache& simplified_type_annotation_cache,
+      ResolverErrorHandler error_handler,
       std::function<absl::Status(std::optional<const ParametricContext*>,
                                  const Invocation*)>
           invocation_converter)
@@ -141,6 +143,7 @@ class StatefulResolver : public TypeAnnotationResolver {
         warning_collector_(warning_collector),
         import_data_(import_data),
         simplified_type_annotation_cache_(simplified_type_annotation_cache),
+        error_handler_(error_handler),
         invocation_converter_(invocation_converter) {}
 
   absl::StatusOr<std::unique_ptr<TypeAnnotationResolver>> ResolverForNode(
@@ -148,7 +151,8 @@ class StatefulResolver : public TypeAnnotationResolver {
     return TypeAnnotationResolver::Create(
         *node->owner(), table_, file_table_, error_generator_, evaluator_,
         parametric_struct_instantiator_, tracer_, warning_collector_,
-        import_data_, simplified_type_annotation_cache_, invocation_converter_);
+        import_data_, simplified_type_annotation_cache_, error_handler_,
+        invocation_converter_);
   }
 
   absl::StatusOr<std::optional<const TypeAnnotation*>>
@@ -213,8 +217,8 @@ class StatefulResolver : public TypeAnnotationResolver {
         }
       }
       absl::StatusOr<const TypeAnnotation*> result =
-          ResolveAndUnifyTypeAnnotations(parametric_context, *type_variable,
-                                         *node_span, filter,
+          ResolveAndUnifyTypeAnnotations(parametric_context, node,
+                                         *type_variable, *node_span, filter,
                                          /*require_bits_like=*/false);
       if (result.ok()) {
         trace.SetResult(*result);
@@ -226,11 +230,12 @@ class StatefulResolver : public TypeAnnotationResolver {
       // If the annotation belongs to a different module, send through
       // unification to potentially create a copy in this module.
       if (annotation.has_value() && (*annotation)->owner() != &module_) {
-        XLS_ASSIGN_OR_RETURN(
-            const TypeAnnotation* result,
-            ResolveAndUnifyTypeAnnotations(parametric_context, {*annotation},
-                                           *node->GetSpan(), filter,
-                                           /*require_bits_like=*/false));
+        XLS_ASSIGN_OR_RETURN(const TypeAnnotation* result,
+                             ResolveAndUnifyTypeAnnotations(
+                                 parametric_context, node, {*annotation},
+                                 *node->GetSpan(), filter,
+                                 /*require_bits_like=*/false,
+                                 /*used_error_handler=*/nullptr));
         trace.SetResult(result);
         return result;
       }
@@ -244,8 +249,9 @@ class StatefulResolver : public TypeAnnotationResolver {
 
   absl::StatusOr<const TypeAnnotation*> ResolveAndUnifyTypeAnnotations(
       std::optional<const ParametricContext*> parametric_context,
-      const NameRef* type_variable, const Span& span,
-      TypeAnnotationFilter filter, bool require_bits_like) override {
+      std::optional<const AstNode*> context_node, const NameRef* type_variable,
+      const Span& span, TypeAnnotationFilter filter,
+      bool require_bits_like) override {
     TypeSystemTrace trace = tracer_.TraceUnify(type_variable);
     VLOG(6) << "Unifying type annotations for variable "
             << type_variable->ToString();
@@ -254,7 +260,8 @@ class StatefulResolver : public TypeAnnotationResolver {
     if (type_variable->owner() != &module_) {
       XLS_ASSIGN_OR_RETURN(auto new_resolver, ResolverForNode(type_variable));
       return new_resolver->ResolveAndUnifyTypeAnnotations(
-          parametric_context, type_variable, span, filter, require_bits_like);
+          parametric_context, context_node, type_variable, span, filter,
+          require_bits_like);
     }
 
     const NameDef* type_variable_def =
@@ -295,16 +302,17 @@ class StatefulResolver : public TypeAnnotationResolver {
       filtered_top_level = annotations.size() != original_size;
     }
     int reject_count = 0;
+    bool used_error_handler = false;
     absl::flat_hash_set<const NameRef*> variables_traversed;
     XLS_ASSIGN_OR_RETURN(
         const TypeAnnotation* result,
         ResolveAndUnifyTypeAnnotations(
-            parametric_context, annotations, span,
+            parametric_context, context_node, annotations, span,
             TypeAnnotationFilter::CaptureRejectCount(&reject_count)
                 .Chain(TypeAnnotationFilter::CaptureVariables(
                     &variables_traversed))
                 .Chain(filter),
-            require_bits_like));
+            require_bits_like, &used_error_handler));
     VLOG(6) << "Unified type for variable " << type_variable->ToString() << ": "
             << result->ToString();
     trace.SetResult(result);
@@ -312,8 +320,10 @@ class StatefulResolver : public TypeAnnotationResolver {
     // Cache the result externally only if we actually considered all the deps
     // of the variable, and came up with a non-Any result. Otherwise the result
     // is only durable/relevant enough to reuse locally within the scope of the
-    // one external resolution request.
-    if (!filtered_top_level && reject_count == 0 &&
+    // one external resolution request. We also do not cache results that were
+    // generated by an external error handler, because the handler may want to
+    // be invoked for every node affected by an offending type variable.
+    if (!used_error_handler && !filtered_top_level && reject_count == 0 &&
         !result->IsAnnotation<AnyTypeAnnotation>()) {
       VLOG(6) << "Caching unified type: " << result->ToString()
               << " for variable: " << type_variable->ToString();
@@ -329,10 +339,12 @@ class StatefulResolver : public TypeAnnotationResolver {
 
   absl::StatusOr<const TypeAnnotation*> ResolveAndUnifyTypeAnnotations(
       std::optional<const ParametricContext*> parametric_context,
+      std::optional<const AstNode*> context_node,
       std::vector<const TypeAnnotation*> annotations, const Span& span,
-      TypeAnnotationFilter filter, bool require_bits_like) override {
-    XLS_RETURN_IF_ERROR(ResolveIndirectTypeAnnotations(parametric_context,
-                                                       annotations, filter));
+      TypeAnnotationFilter filter, bool require_bits_like,
+      bool* used_error_handler) override {
+    XLS_RETURN_IF_ERROR(ResolveIndirectTypeAnnotations(
+        parametric_context, context_node, annotations, filter));
 
     if (require_bits_like) {
       for (const TypeAnnotation* annotation : annotations) {
@@ -343,26 +355,38 @@ class StatefulResolver : public TypeAnnotationResolver {
     }
 
     TypeSystemTrace trace = tracer_.TraceUnify(annotations);
-    XLS_ASSIGN_OR_RETURN(
-        const TypeAnnotation* result,
-        UnifyTypeAnnotations(module_, table_, file_table_, error_generator_,
-                             evaluator_, parametric_struct_instantiator_,
-                             parametric_context, annotations, span,
-                             import_data_));
-    trace.SetResult(result);
+    absl::StatusOr<const TypeAnnotation*> result = UnifyTypeAnnotations(
+        module_, table_, file_table_, error_generator_, evaluator_,
+        parametric_struct_instantiator_, parametric_context, annotations, span,
+        import_data_);
+    if (!result.ok() && error_handler_ && context_node.has_value()) {
+      result = error_handler_(parametric_context, *context_node,
+                              absl::MakeSpan(annotations));
+      if (result.ok() && used_error_handler != nullptr) {
+        *used_error_handler = true;
+      }
+    }
+
+    if (!result.ok()) {
+      return result.status();
+    }
+
+    trace.SetResult(*result);
     return result;
   }
 
   absl::Status ResolveIndirectTypeAnnotations(
       std::optional<const ParametricContext*> parametric_context,
+      std::optional<const AstNode*> context_node,
       std::vector<const TypeAnnotation*>& annotations,
       TypeAnnotationFilter filter) override {
     std::vector<const TypeAnnotation*> result;
     for (const TypeAnnotation* annotation : annotations) {
       if (!filter.Filter(annotation)) {
-        XLS_ASSIGN_OR_RETURN(const TypeAnnotation* resolved_annotation,
-                             ResolveIndirectTypeAnnotations(
-                                 parametric_context, annotation, filter));
+        XLS_ASSIGN_OR_RETURN(
+            const TypeAnnotation* resolved_annotation,
+            ResolveIndirectTypeAnnotations(parametric_context, context_node,
+                                           annotation, filter));
         result.push_back(resolved_annotation);
       }
     }
@@ -372,15 +396,17 @@ class StatefulResolver : public TypeAnnotationResolver {
 
   absl::StatusOr<const TypeAnnotation*> ResolveIndirectTypeAnnotations(
       std::optional<const ParametricContext*> parametric_context,
+      std::optional<const AstNode*> context_node,
       const TypeAnnotation* annotation, TypeAnnotationFilter filter) override {
-    return ResolveInternal(parametric_context, annotation, filter,
+    return ResolveInternal(parametric_context, context_node, annotation, filter,
                            /*type_refs_only=*/false);
   }
 
   absl::StatusOr<const TypeAnnotation*> ResolveTypeRefs(
       std::optional<const ParametricContext*> parametric_context,
+      std::optional<const AstNode*> context_node,
       const TypeAnnotation* annotation) override {
-    return ResolveInternal(parametric_context, annotation,
+    return ResolveInternal(parametric_context, context_node, annotation,
                            TypeAnnotationFilter::None(),
                            /*type_refs_only=*/true);
   }
@@ -388,6 +414,7 @@ class StatefulResolver : public TypeAnnotationResolver {
  private:
   absl::StatusOr<const TypeAnnotation*> ResolveInternal(
       std::optional<const ParametricContext*> parametric_context,
+      std::optional<const AstNode*> context_node,
       const TypeAnnotation* annotation, TypeAnnotationFilter filter,
       bool type_refs_only) {
     TypeSystemTrace trace =
@@ -424,8 +451,8 @@ class StatefulResolver : public TypeAnnotationResolver {
           &replaced_anything,
           [&](const AstNode* node, Module*,
               const absl::flat_hash_map<const AstNode*, AstNode*>&) {
-            return ReplaceIndirectTypeAnnotations(node, parametric_context,
-                                                  annotation, filter);
+            return ReplaceIndirectTypeAnnotations(
+                node, parametric_context, context_node, annotation, filter);
           });
       ObservableCloneReplacer replace_type_aliases(
           &replaced_anything,
@@ -477,11 +504,12 @@ class StatefulResolver : public TypeAnnotationResolver {
   // used to help infer.
   absl::StatusOr<const TypeAnnotation*> ResolveMemberType(
       std::optional<const ParametricContext*> parametric_context,
+      std::optional<const AstNode*> context_node,
       const MemberTypeAnnotation* member_type, TypeAnnotationFilter filter) {
     VLOG(6) << "Resolve member type: " << member_type->ToString();
     XLS_ASSIGN_OR_RETURN(
         const TypeAnnotation* object_type,
-        ResolveIndirectTypeAnnotations(parametric_context,
+        ResolveIndirectTypeAnnotations(parametric_context, context_node,
                                        member_type->struct_type(), filter));
     absl::StatusOr<SignednessAndBitCountResult> signedness_and_bit_count =
         GetSignednessAndBitCount(object_type);
@@ -587,11 +615,12 @@ class StatefulResolver : public TypeAnnotationResolver {
   // that this utility is being used to help infer.
   absl::StatusOr<const TypeAnnotation*> ResolveElementType(
       std::optional<const ParametricContext*> parametric_context,
+      std::optional<const AstNode*> context_node,
       const ElementTypeAnnotation* element_type, TypeAnnotationFilter filter) {
     XLS_ASSIGN_OR_RETURN(
         const TypeAnnotation* container_type,
         ResolveIndirectTypeAnnotations(
-            parametric_context, element_type->container_type(),
+            parametric_context, context_node, element_type->container_type(),
             filter.Chain(TypeAnnotationFilter::BlockRecursion(element_type))));
     if (container_type->IsAnnotation<ArrayTypeAnnotation>()) {
       return container_type->AsAnnotation<ArrayTypeAnnotation>()
@@ -641,13 +670,14 @@ class StatefulResolver : public TypeAnnotationResolver {
 
   absl::StatusOr<const TypeAnnotation*> ResolveReturnType(
       std::optional<const ParametricContext*> parametric_context,
+      std::optional<const AstNode*> context_node,
       const ReturnTypeAnnotation* return_type, TypeAnnotationFilter filter) {
     VLOG(6) << "Resolve return type: " << return_type->ToString()
             << " in context: " << ToString(parametric_context);
     XLS_ASSIGN_OR_RETURN(
         const TypeAnnotation* function_type,
         ResolveIndirectTypeAnnotations(
-            parametric_context, return_type->function_type(),
+            parametric_context, context_node, return_type->function_type(),
             filter.Chain(TypeAnnotationFilter::BlockRecursion(return_type))));
     TypeAnnotation* result_type =
         function_type->AsAnnotation<FunctionTypeAnnotation>()->return_type();
@@ -657,12 +687,13 @@ class StatefulResolver : public TypeAnnotationResolver {
 
   absl::StatusOr<const TypeAnnotation*> ResolveParamType(
       std::optional<const ParametricContext*> parametric_context,
+      std::optional<const AstNode*> context_node,
       const ParamTypeAnnotation* param_type, TypeAnnotationFilter filter) {
     VLOG(6) << "Resolve param type: " << param_type->ToString();
     XLS_ASSIGN_OR_RETURN(
         const TypeAnnotation* function_type,
         ResolveIndirectTypeAnnotations(
-            parametric_context, param_type->function_type(),
+            parametric_context, context_node, param_type->function_type(),
             filter.Chain(TypeAnnotationFilter::BlockRecursion(param_type))));
     const std::vector<const TypeAnnotation*>& resolved_types =
         function_type->AsAnnotation<FunctionTypeAnnotation>()->param_types();
@@ -684,10 +715,11 @@ class StatefulResolver : public TypeAnnotationResolver {
 
   absl::StatusOr<const TypeAnnotation*> ResolveSliceType(
       std::optional<const ParametricContext*> parametric_context,
+      std::optional<const AstNode*> context_node,
       const SliceTypeAnnotation* slice_type, TypeAnnotationFilter filter) {
     XLS_ASSIGN_OR_RETURN(
         const TypeAnnotation* source_type,
-        ResolveIndirectTypeAnnotations(parametric_context,
+        ResolveIndirectTypeAnnotations(parametric_context, context_node,
                                        slice_type->source_type(), filter));
     int64_t source_size = 0;
     TypeAnnotation* element_type = nullptr;
@@ -753,9 +785,10 @@ class StatefulResolver : public TypeAnnotationResolver {
       start_and_width.start = width_slice->start();
     }
 
-    XLS_ASSIGN_OR_RETURN(const TypeAnnotation* width_type,
-                         ResolveIndirectTypeAnnotations(
-                             parametric_context, width_slice->width(), filter));
+    XLS_ASSIGN_OR_RETURN(
+        const TypeAnnotation* width_type,
+        ResolveIndirectTypeAnnotations(parametric_context, context_node,
+                                       width_slice->width(), filter));
     absl::StatusOr<SignednessAndBitCountResult> width_signedness_and_bit_count =
         GetSignednessAndBitCount(width_type);
     if (!width_signedness_and_bit_count.ok()) {
@@ -829,11 +862,12 @@ class StatefulResolver : public TypeAnnotationResolver {
     ReplaceIndirectTypeAnnotationsVisitor(
         Module& module, const InferenceTable& table, StatefulResolver& resolver,
         std::optional<const ParametricContext*> parametric_context,
-        TypeAnnotationFilter filter)
+        std::optional<const AstNode*> context_node, TypeAnnotationFilter filter)
         : module_(module),
           table_(table),
           resolver_(resolver),
           parametric_context_(parametric_context),
+          context_node_(context_node),
           filter_(filter) {}
 
     absl::Status HandleTypeVariableTypeAnnotation(
@@ -844,16 +878,17 @@ class StatefulResolver : public TypeAnnotationResolver {
       XLS_ASSIGN_OR_RETURN(
           result_,
           resolver_.ResolveAndUnifyTypeAnnotations(
-              parametric_context_, variable_type_annotation->type_variable(),
+              parametric_context_, context_node_,
+              variable_type_annotation->type_variable(),
               variable_type_annotation->span(), filter_, require_bits_like));
       return absl::OkStatus();
     }
 
     absl::Status HandleMemberTypeAnnotation(
         const MemberTypeAnnotation* member_type) override {
-      XLS_ASSIGN_OR_RETURN(
-          result_, resolver_.ResolveMemberType(parametric_context_, member_type,
-                                               filter_));
+      XLS_ASSIGN_OR_RETURN(result_, resolver_.ResolveMemberType(
+                                        parametric_context_, context_node_,
+                                        member_type, filter_));
       VLOG(5) << "Member type expansion for: " << member_type->member_name()
               << " yielded: " << result_->ToString();
       return absl::OkStatus();
@@ -861,17 +896,17 @@ class StatefulResolver : public TypeAnnotationResolver {
 
     absl::Status HandleElementTypeAnnotation(
         const ElementTypeAnnotation* element_type) override {
-      XLS_ASSIGN_OR_RETURN(result_,
-                           resolver_.ResolveElementType(parametric_context_,
-                                                        element_type, filter_));
+      XLS_ASSIGN_OR_RETURN(result_, resolver_.ResolveElementType(
+                                        parametric_context_, context_node_,
+                                        element_type, filter_));
       return absl::OkStatus();
     }
 
     absl::Status HandleReturnTypeAnnotation(
         const ReturnTypeAnnotation* return_type) override {
-      XLS_ASSIGN_OR_RETURN(
-          result_, resolver_.ResolveReturnType(parametric_context_, return_type,
-                                               filter_));
+      XLS_ASSIGN_OR_RETURN(result_, resolver_.ResolveReturnType(
+                                        parametric_context_, context_node_,
+                                        return_type, filter_));
       return absl::OkStatus();
     }
 
@@ -881,9 +916,9 @@ class StatefulResolver : public TypeAnnotationResolver {
         result_ = module_.Make<AnyTypeAnnotation>();
         return absl::OkStatus();
       }
-      XLS_ASSIGN_OR_RETURN(
-          result_,
-          resolver_.ResolveParamType(parametric_context_, param_type, filter_));
+      XLS_ASSIGN_OR_RETURN(result_, resolver_.ResolveParamType(
+                                        parametric_context_, context_node_,
+                                        param_type, filter_));
       return absl::OkStatus();
     }
 
@@ -897,9 +932,9 @@ class StatefulResolver : public TypeAnnotationResolver {
 
     absl::Status HandleSliceTypeAnnotation(
         const SliceTypeAnnotation* slice_type) override {
-      XLS_ASSIGN_OR_RETURN(
-          result_,
-          resolver_.ResolveSliceType(parametric_context_, slice_type, filter_));
+      XLS_ASSIGN_OR_RETURN(result_, resolver_.ResolveSliceType(
+                                        parametric_context_, context_node_,
+                                        slice_type, filter_));
       return absl::OkStatus();
     }
 
@@ -916,6 +951,7 @@ class StatefulResolver : public TypeAnnotationResolver {
     const InferenceTable& table_;
     StatefulResolver& resolver_;
     std::optional<const ParametricContext*> parametric_context_;
+    std::optional<const AstNode*> context_node_;
     TypeAnnotationFilter filter_;
     const TypeAnnotation* result_ = nullptr;
   };
@@ -925,9 +961,10 @@ class StatefulResolver : public TypeAnnotationResolver {
   absl::StatusOr<std::optional<AstNode*>> ReplaceIndirectTypeAnnotations(
       const AstNode* node,
       std::optional<const ParametricContext*> parametric_context,
+      std::optional<const AstNode*> context_node,
       const TypeAnnotation* annotation, TypeAnnotationFilter filter) {
-    ReplaceIndirectTypeAnnotationsVisitor visitor(module_, table_, *this,
-                                                  parametric_context, filter);
+    ReplaceIndirectTypeAnnotationsVisitor visitor(
+        module_, table_, *this, parametric_context, context_node, filter);
     XLS_RETURN_IF_ERROR(node->Accept(&visitor));
     return visitor.result();
   }
@@ -1082,6 +1119,7 @@ class StatefulResolver : public TypeAnnotationResolver {
   WarningCollector& warning_collector_;
   ImportData& import_data_;
   SimplifiedTypeAnnotationCache& simplified_type_annotation_cache_;
+  ResolverErrorHandler error_handler_;
   std::function<absl::Status(std::optional<const ParametricContext*>,
                              const Invocation*)>
       invocation_converter_;
@@ -1101,6 +1139,7 @@ class StatelessResolver : public TypeAnnotationResolver {
       TypeSystemTracer& tracer, WarningCollector& warning_collector,
       ImportData& import_data,
       SimplifiedTypeAnnotationCache& simplified_type_annotation_cache,
+      ResolverErrorHandler error_handler,
       std::function<absl::Status(std::optional<const ParametricContext*>,
                                  const Invocation*)>
           invocation_converter)
@@ -1114,6 +1153,7 @@ class StatelessResolver : public TypeAnnotationResolver {
         warning_collector_(warning_collector),
         import_data_(import_data),
         simplified_type_annotation_cache_(simplified_type_annotation_cache),
+        error_handler_(error_handler),
         invocation_converter_(std::move(invocation_converter)) {}
 
   absl::StatusOr<std::optional<const TypeAnnotation*>>
@@ -1126,40 +1166,48 @@ class StatelessResolver : public TypeAnnotationResolver {
 
   absl::StatusOr<const TypeAnnotation*> ResolveAndUnifyTypeAnnotations(
       std::optional<const ParametricContext*> parametric_context,
-      const NameRef* type_variable, const Span& span,
-      TypeAnnotationFilter filter, bool require_bits_like) final {
+      std::optional<const AstNode*> context_node, const NameRef* type_variable,
+      const Span& span, TypeAnnotationFilter filter,
+      bool require_bits_like) final {
     return CreateStatefulResolver()->ResolveAndUnifyTypeAnnotations(
-        parametric_context, type_variable, span, filter, require_bits_like);
+        parametric_context, context_node, type_variable, span, filter,
+        require_bits_like);
   }
 
   absl::StatusOr<const TypeAnnotation*> ResolveAndUnifyTypeAnnotations(
       std::optional<const ParametricContext*> parametric_context,
+      std::optional<const AstNode*> context_node,
       std::vector<const TypeAnnotation*> annotations, const Span& span,
-      TypeAnnotationFilter filter, bool require_bits_like) final {
+      TypeAnnotationFilter filter, bool require_bits_like,
+      bool* used_error_handler) final {
     return CreateStatefulResolver()->ResolveAndUnifyTypeAnnotations(
-        parametric_context, annotations, span, filter, require_bits_like);
+        parametric_context, context_node, annotations, span, filter,
+        require_bits_like, used_error_handler);
   }
 
   absl::StatusOr<const TypeAnnotation*> ResolveIndirectTypeAnnotations(
       std::optional<const ParametricContext*> parametric_context,
+      std::optional<const AstNode*> context_node,
       const TypeAnnotation* annotation, TypeAnnotationFilter filter) override {
     return CreateStatefulResolver()->ResolveIndirectTypeAnnotations(
-        parametric_context, annotation, filter);
+        parametric_context, context_node, annotation, filter);
   }
 
   absl::Status ResolveIndirectTypeAnnotations(
       std::optional<const ParametricContext*> parametric_context,
+      std::optional<const AstNode*> context_node,
       std::vector<const TypeAnnotation*>& annotations,
       TypeAnnotationFilter filter) override {
     return CreateStatefulResolver()->ResolveIndirectTypeAnnotations(
-        parametric_context, annotations, filter);
+        parametric_context, context_node, annotations, filter);
   }
 
   absl::StatusOr<const TypeAnnotation*> ResolveTypeRefs(
       std::optional<const ParametricContext*> parametric_context,
+      std::optional<const AstNode*> context_node,
       const TypeAnnotation* annotation) override {
     return CreateStatefulResolver()->ResolveTypeRefs(parametric_context,
-                                                     annotation);
+                                                     context_node, annotation);
   }
 
  private:
@@ -1167,7 +1215,8 @@ class StatelessResolver : public TypeAnnotationResolver {
     return std::make_unique<StatefulResolver>(
         module_, table_, file_table_, error_generator_, evaluator_,
         parametric_struct_instantiator_, tracer_, warning_collector_,
-        import_data_, simplified_type_annotation_cache_, invocation_converter_);
+        import_data_, simplified_type_annotation_cache_, error_handler_,
+        invocation_converter_);
   }
 
   Module& module_;
@@ -1180,6 +1229,7 @@ class StatelessResolver : public TypeAnnotationResolver {
   WarningCollector& warning_collector_;
   ImportData& import_data_;
   SimplifiedTypeAnnotationCache& simplified_type_annotation_cache_;
+  ResolverErrorHandler error_handler_;
   std::function<absl::Status(std::optional<const ParametricContext*>,
                              const Invocation*)>
       invocation_converter_;
@@ -1194,13 +1244,15 @@ std::unique_ptr<TypeAnnotationResolver> TypeAnnotationResolver::Create(
     TypeSystemTracer& tracer, WarningCollector& warning_collector,
     ImportData& import_data,
     SimplifiedTypeAnnotationCache& simplified_type_annotation_cache,
+    ResolverErrorHandler error_handler,
     std::function<absl::Status(std::optional<const ParametricContext*>,
                                const Invocation*)>
         invocation_converter) {
   return std::make_unique<StatelessResolver>(
       module, table, file_table, error_generator, evaluator,
       parametric_struct_instantiator, tracer, warning_collector, import_data,
-      simplified_type_annotation_cache, std::move(invocation_converter));
+      simplified_type_annotation_cache, error_handler,
+      std::move(invocation_converter));
 }
 
 }  // namespace xls::dslx

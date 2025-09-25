@@ -129,6 +129,7 @@ cc_library(
         ":type_annotation_filter",
         ":type_annotation_resolver",
         ":type_annotation_utils",
+        ":type_inference_error_handler",
         ":type_system_tracer",
         ":unify_type_annotations",
         ":validate_concrete_type",
@@ -247,6 +248,19 @@ cc_library(
 )
 
 cc_library(
+    name = "type_inference_error_handler",
+    hdrs = ["type_inference_error_handler.h"],
+    deps = [
+        ":inference_table",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_node",
+        "//xls/dslx/type_system:type",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
     name = "typecheck_module_v2",
     srcs = ["typecheck_module_v2.cc"],
     hdrs = ["typecheck_module_v2.h"],
@@ -255,11 +269,14 @@ cc_library(
         ":inference_table_converter",
         ":inference_table_converter_impl",
         ":populate_table",
+        ":type_inference_error_handler",
         ":type_system_tracer",
         "//xls/common/file:filesystem",
         "//xls/common/status:status_macros",
         "//xls/dslx:import_data",
         "//xls/dslx:warning_collector",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_node",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:semantics_analysis",
         "//xls/dslx/type_system:type_info",
@@ -269,6 +286,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -409,6 +427,32 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx/type_system:typecheck_test_utils",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "typecheck_module_v2_error_handler_test",
+    srcs = ["typecheck_module_v2_error_handler_test.cc"],
+    deps = [
+        ":matchers",
+        ":type_annotation_utils",
+        ":type_inference_error_handler",
+        ":type_system_test_utils",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_node",
+        "//xls/dslx/frontend:pos",
+        "//xls/dslx/type_system:typecheck_test_utils",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
         "@googletest//:gtest",
     ],
 )
@@ -681,6 +725,7 @@ cc_library(
         ":simplified_type_annotation_cache",
         ":type_annotation_filter",
         ":type_annotation_utils",
+        ":type_inference_error_handler",
         ":type_system_tracer",
         ":unify_type_annotations",
         "//xls/common:casts",
@@ -706,6 +751,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
     ],
 )
 

@@ -30,6 +30,7 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/type_system_v2/type_inference_error_handler.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
 
@@ -70,7 +71,8 @@ absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
     std::string_view text, std::string_view path, std::string_view module_name,
     ImportData* import_data, std::vector<CommentData>* comments = nullptr,
     std::optional<TypeInferenceVersion> force_version = std::nullopt,
-    const ConvertOptions& options = ConvertOptions{});
+    const ConvertOptions& options = ConvertOptions{},
+    TypeInferenceErrorHandler error_handler = nullptr);
 
 // Helper that parses and creates a new module from the given "text".
 //
@@ -95,7 +97,8 @@ absl::StatusOr<std::unique_ptr<Module>> ParseModuleFromFileAtPath(
 absl::StatusOr<TypecheckedModule> TypecheckModule(
     std::unique_ptr<Module> module, std::string_view path,
     ImportData* import_data,
-    std::optional<TypeInferenceVersion> force_version = std::nullopt);
+    std::optional<TypeInferenceVersion> force_version = std::nullopt,
+    TypeInferenceErrorHandler error_handler = nullptr);
 
 }  // namespace xls::dslx
 

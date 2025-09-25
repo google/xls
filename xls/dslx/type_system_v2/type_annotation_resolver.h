@@ -22,6 +22,7 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
@@ -35,6 +36,14 @@
 #include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
+
+// An internal rendition of `TypeInferenceErrorHandler` without the concretized
+// type inputs, which a `TypeAnnotationResolver` cannot supply. Higher level
+// machinery can wrap such a handler with concretization.
+using ResolverErrorHandler =
+    std::function<absl::StatusOr<const TypeAnnotation*>(
+        std::optional<const ParametricContext*> parametric_context,
+        const AstNode*, absl::Span<const TypeAnnotation*>)>;
 
 // An object that wraps type unification logic with resolution of indirect type
 // annotations. Indirect type annotations, such as `MemberTypeAnnotation`,
@@ -53,6 +62,7 @@ class TypeAnnotationResolver {
       TypeSystemTracer& tracer, WarningCollector& warning_collector,
       ImportData& import_data,
       SimplifiedTypeAnnotationCache& simplified_type_annotation_cache,
+      ResolverErrorHandler error_handler,
       std::function<absl::Status(std::optional<const ParametricContext*>,
                                  const Invocation*)>
           invocation_converter);
@@ -72,14 +82,20 @@ class TypeAnnotationResolver {
   // resolving any indirect ones before invoking unification.
   virtual absl::StatusOr<const TypeAnnotation*> ResolveAndUnifyTypeAnnotations(
       std::optional<const ParametricContext*> parametric_context,
-      const NameRef* type_variable, const Span& span,
-      TypeAnnotationFilter filter, bool require_bits_like) = 0;
+      std::optional<const AstNode*> context_node, const NameRef* type_variable,
+      const Span& span, TypeAnnotationFilter filter,
+      bool require_bits_like) = 0;
 
-  // Overload that resolves and unifies specific type annotations.
+  // Overload that resolves and unifies specific type annotations. The
+  // optional `used_error_handler` output flag receives whether or not the
+  // `ResolverErrorHandler` associated with this resolver was used for this
+  // operation.
   virtual absl::StatusOr<const TypeAnnotation*> ResolveAndUnifyTypeAnnotations(
       std::optional<const ParametricContext*> parametric_context,
+      std::optional<const AstNode*> context_node,
       std::vector<const TypeAnnotation*> annotations, const Span& span,
-      TypeAnnotationFilter filter, bool require_bits_like) = 0;
+      TypeAnnotationFilter filter, bool require_bits_like,
+      bool* used_error_handler) = 0;
 
   // Returns `annotation` with any indirect annotations resolved into direct
   // annotations. An indirect annotation is an internally-generated one that
@@ -98,6 +114,7 @@ class TypeAnnotationResolver {
   // predicate is not applied to the input `annotation` itself.
   virtual absl::StatusOr<const TypeAnnotation*> ResolveIndirectTypeAnnotations(
       std::optional<const ParametricContext*> parametric_context,
+      std::optional<const AstNode*> context_node,
       const TypeAnnotation* annotation, TypeAnnotationFilter filter) = 0;
 
   // Overload that deeply resolves all `TypeVariableTypeAnnotation`s within a
@@ -106,6 +123,7 @@ class TypeAnnotationResolver {
   // `annotations` and the expansions of any encountered type variables.
   virtual absl::Status ResolveIndirectTypeAnnotations(
       std::optional<const ParametricContext*> parametric_context,
+      std::optional<const AstNode*> context_node,
       std::vector<const TypeAnnotation*>& annotations,
       TypeAnnotationFilter filter) = 0;
 
@@ -115,6 +133,7 @@ class TypeAnnotationResolver {
   // attempting to use the unknown parametrics in that case.
   virtual absl::StatusOr<const TypeAnnotation*> ResolveTypeRefs(
       std::optional<const ParametricContext*> parametric_context,
+      std::optional<const AstNode*> context_node,
       const TypeAnnotation* annotation) = 0;
 };
 

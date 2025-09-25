@@ -1,4 +1,3 @@
-#include "xls/dslx/frontend/semantics_analysis.h"
 // Copyright 2024 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,9 +21,11 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/semantics_analysis.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/inference_table_converter.h"
+#include "xls/dslx/type_system_v2/type_inference_error_handler.h"
 #include "xls/dslx/type_system_v2/type_system_tracer.h"
 #include "xls/dslx/warning_collector.h"
 
@@ -36,7 +37,8 @@ CreateInferenceTableConverter(
     InferenceTable& table, Module& module, ImportData& import_data,
     WarningCollector& warning_collector, const FileTable& file_table,
     std::unique_ptr<TypeSystemTracer> tracer,
-    std::unique_ptr<SemanticsAnalysis> semantics_analysis);
+    std::unique_ptr<SemanticsAnalysis> semantics_analysis,
+    TypeInferenceErrorHandler error_handler);
 
 }  // namespace xls::dslx
 

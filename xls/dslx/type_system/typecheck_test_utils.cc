@@ -15,6 +15,7 @@
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -25,16 +26,18 @@
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/type_info_to_proto.h"
+#include "xls/dslx/type_system_v2/type_inference_error_handler.h"
 #include "xls/dslx/virtualizable_file_system.h"
 
 namespace xls::dslx {
 
-absl::StatusOr<TypecheckResult> Typecheck(std::string_view program,
-                                          std::string_view module_name,
-                                          ImportData* import_data,
-                                          bool add_version_attribute) {
+absl::StatusOr<TypecheckResult> Typecheck(
+    std::string_view program, std::string_view module_name,
+    ImportData* import_data, bool add_version_attribute,
+    TypeInferenceErrorHandler error_handler) {
   std::unique_ptr<ImportData> owned_import_data;
   if (import_data == nullptr) {
     owned_import_data = CreateImportDataPtrForTest();
@@ -46,7 +49,8 @@ absl::StatusOr<TypecheckResult> Typecheck(std::string_view program,
           : std::string(program);
   absl::StatusOr<TypecheckedModule> tm = ParseAndTypecheck(
       program_with_version_attribute, absl::StrCat(module_name, ".x"),
-      module_name, import_data);
+      module_name, import_data, /*comments=*/nullptr,
+      /*force_version=*/std::nullopt, ConvertOptions{}, error_handler);
 
   if (!tm.ok()) {
     UniformContentFilesystem vfs(program_with_version_attribute);
@@ -58,6 +62,13 @@ absl::StatusOr<TypecheckResult> Typecheck(std::string_view program,
   XLS_RETURN_IF_ERROR(TypeInfoToProto(*tm->type_info).status());
 
   return TypecheckResult{std::move(owned_import_data), std::move(*tm)};
+}
+
+absl::StatusOr<TypecheckResult> TypecheckV2(
+    std::string_view program, TypeInferenceErrorHandler error_handler) {
+  return Typecheck(absl::StrCat("#![feature(type_inference_v2)]\n\n", program),
+                   /*module_name=*/"fake", /*import_data=*/nullptr,
+                   /*add_version_attribute=*/false, error_handler);
 }
 
 absl::StatusOr<TypecheckResult> TypecheckV2(std::string_view program,
