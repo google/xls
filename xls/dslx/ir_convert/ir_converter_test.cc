@@ -5171,11 +5171,6 @@ pub proc main {
 }
 
 TEST_P(ProcScopedChannelsIrConverterTest, SpawnFromChannelArrayParams) {
-  if (GetParam() == TypeInferenceVersion::kVersion1) {
-    // v1 fails figuring out the send argument type for some reason.
-    return;
-  }
-
   constexpr std::string_view kProgram = R"(
 pub proc spawnee {
   ins: chan<u32>[3] in;
@@ -5244,11 +5239,6 @@ pub proc main {
 
 TEST_P(ProcScopedChannelsIrConverterTest,
        SpawnFromChannelArrayAndChannelParams) {
-  if (GetParam() == TypeInferenceVersion::kVersion1) {
-    // v1 fails figuring out the send argument type for some reason.
-    return;
-  }
-
   constexpr std::string_view kProgram = R"(
 pub proc spawnee {
   ins: chan<u32>[3] in;
@@ -5285,6 +5275,52 @@ pub proc main {
                                 }));
   ExpectIr(converted);
 }
+
+TEST_P(ProcScopedChannelsIrConverterTest, ParametricChannelArrayMembers) {
+  constexpr std::string_view kProgram = R"(
+proc spawnee<N: u32, M: u32> {
+  ins: chan<uN[N]>[3] in;
+  outs: chan<uN[M]>[2] out;
+
+  init { }
+  config(in_chans: chan<uN[N]>[3] in, out_chans: chan<uN[M]>[2] out) {
+    (in_chans, out_chans)
+  }
+  next(state: ()) {
+    send(token(), outs[0], all_ones!<uN[M]>());
+    recv(token(), ins[1]);
+    ()
+  }
+}
+
+pub proc main {
+  ins: chan<u32>[3] in;
+  outs: chan<u16>[2] out;
+
+  init { }
+  config(ins: chan<u32>[3] in, outs: chan<u16>[2] out) {
+    spawn spawnee<u32:32, u32:16>(ins, outs);
+    (ins, outs)
+  }
+  next(state: ()) {
+    send(token(), outs[0], u16:42);
+    recv(token(), ins[1]);
+    ()
+  }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
+  ExpectIr(converted);
+}
+
 TEST_P(ProcScopedChannelsIrConverterTest, LoopbackChannelMember) {
   constexpr std::string_view kProgram = R"(
 proc main {

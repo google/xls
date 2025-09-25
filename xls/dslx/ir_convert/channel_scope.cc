@@ -158,6 +158,7 @@ absl::StatusOr<ChannelOrArray> ChannelScope::DefineChannelOrArrayInternal(
 
 absl::StatusOr<ChannelOrArray> ChannelScope::DefineBoundaryChannelOrArray(
     const Param* param, TypeInfo* type_info) {
+  XLS_RET_CHECK(function_context_.has_value());
   VLOG(4) << "ChannelScope::DefineBoundaryChannelOrArray: "
           << param->ToString();
   auto* type_annot =
@@ -165,9 +166,9 @@ absl::StatusOr<ChannelOrArray> ChannelScope::DefineBoundaryChannelOrArray(
   XLS_RET_CHECK(type_annot != nullptr);
   std::optional<Type*> type = type_info->GetItem(type_annot->payload());
   XLS_RET_CHECK(type.has_value());
-  XLS_ASSIGN_OR_RETURN(
-      xls::Type * ir_type,
-      TypeToIr(conversion_info_->package.get(), **type, ParametricEnv()));
+  XLS_ASSIGN_OR_RETURN(xls::Type * ir_type,
+                       TypeToIr(conversion_info_->package.get(), **type,
+                                function_context_->bindings));
   ChannelOps op = type_annot->direction() == ChannelDirection::kIn
                       ? ChannelOps::kReceiveOnly
                       : ChannelOps::kSendOnly;

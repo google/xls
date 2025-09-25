@@ -3381,11 +3381,6 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     XLS_RETURN_IF_ERROR(builder_ptr->SetAsTop());
   }
 
-  proc_scoped_channel_scope_ = std::make_unique<ProcScopedChannelScope>(
-      package_data_.conversion_info, import_data, options_, builder_ptr);
-  ParametricEnv bindings(parametric_env_map_);
-  proc_scoped_channel_scope_->EnterFunctionContext(type_info, bindings);
-
   // Set the one state element.
   XLS_RET_CHECK(proc_proto_);
   PackageInterfaceProto::NamedValue* state_proto =
@@ -3454,6 +3449,8 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     TypeInfo* config_type_info = record.config_record() != nullptr
                                      ? record.config_record()->type_info()
                                      : type_info;
+    VLOG(5) << "Lowering to PSC, config typeinfo: "
+            << config_type_info->GetTypeInfoTreeString();
     ScopedTypeInfoSwap stis(this, config_type_info);
 
     Function& config_fn = proc->config();
@@ -3461,8 +3458,16 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     XLS_RET_CHECK(invocation != nullptr || !f->IsParametric())
         << "Cannot lower a parametric proc without an invocation";
 
+    proc_scoped_channel_scope_ = std::make_unique<ProcScopedChannelScope>(
+        package_data_.conversion_info, import_data, options_, builder_ptr);
+    ParametricEnv bindings(parametric_env_map_);
+    proc_scoped_channel_scope_->EnterFunctionContext(current_type_info_,
+                                                     bindings);
+
     // Generate channel interfaces.
     for (const Param* param : config_fn.params()) {
+      VLOG(5) << "Lowering to PSC, generate channel interface: "
+              << param->ToString();
       XLS_ASSIGN_OR_RETURN(Type * type,
                            current_type_info_->GetItemOrError(param));
       ChannelOrArray channel_or_array;
@@ -3471,6 +3476,8 @@ absl::Status FunctionConverter::HandleProcNextFunction(
           array_type != nullptr) {
         const Type& innermost_type =
             array_type->GetInnermostElementType().element_type;
+        VLOG(5) << "Lowering to PSC, innermost type: "
+                << innermost_type.ToString();
         const ChannelType* channel_type =
             dynamic_cast<const ChannelType*>(&innermost_type);
         XLS_RET_CHECK_NE(channel_type, nullptr)
@@ -3539,6 +3546,7 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     }
 
     // Process the body of the config function as a function.
+    VLOG(5) << "Visiting config " << config_fn.ToString();
     current_fn_tag_ = config_fn.tag();
     last_tuple_.clear();
     XLS_RETURN_IF_ERROR(Visit(config_fn.body()));
@@ -3548,6 +3556,7 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     XLS_RET_CHECK_EQ(last_tuple_.size(), proc->members().size());
     int i = 0;
     for (const ProcMember* member : proc->members()) {
+      VLOG(5) << "Handling proc member " << member->ToString();
       IrValue tuple_entry = last_tuple_[i++];
       if (std::holds_alternative<ChannelArray*>(tuple_entry)) {
         ChannelArray* channel_array = std::get<ChannelArray*>(tuple_entry);
@@ -3585,6 +3594,7 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     }
   }
 
+  VLOG(5) << "Visiting body";
   XLS_RETURN_IF_ERROR(Visit(f->body()));
 
   builder_ptr->Next(state, std::get<BValue>(node_to_ir_[f->body()]));
