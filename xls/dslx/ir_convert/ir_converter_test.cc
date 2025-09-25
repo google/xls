@@ -5081,6 +5081,85 @@ pub proc main {
                                 }));
   ExpectIr(converted);
 }
+
+TEST_P(ProcScopedChannelsIrConverterTest, MultiDimChannelArray) {
+  constexpr std::string_view kProgram = R"(
+proc main {
+  outchs: chan<u16>[4][2] out;
+  inchs: chan<u16>[4][2] in;
+
+  config(outchs: chan<u16>[4][2] out, inchs: chan<u16>[4][2] in) {
+    (outchs, inchs)
+  }
+
+  init { () }
+
+  next(state: ()) {
+    let (tok, val) = recv(token(), inchs[1][0]);
+    send(tok, outchs[1][3], val);
+    state
+  }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .verify_ir = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, MultiDimChannelArraySlice) {
+  constexpr std::string_view kProgram = R"(
+proc consumer {
+  send_chans: chan<u16>[16] out;
+  recv_chans: chan<u16>[16][4] in;
+
+  config(send_chans: chan<u16>[16] out, recv_chans: chan<u16>[16][4] in) {
+    (send_chans, recv_chans)
+  }
+
+  init { () }
+
+  next(state: ()) {
+    let (tok, i) = recv(join(), recv_chans[0][0]);
+    send(tok, send_chans[1], i + i);
+    ()
+  }
+}
+
+proc producer {
+  ps: chan<u16>[16][4][2] out;
+  cs: chan<u16>[16][4][2] in;
+
+  config(ps: chan<u16>[16][4][2] out, cs: chan<u16>[16][4][2] in) {
+    spawn consumer(ps[0][1], cs[0]);
+    (ps, cs)
+  }
+
+  init { () }
+
+  next(state: ()) { state }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "producer", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .verify_ir = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
+  ExpectIr(converted);
+}
+
 TEST_P(ProcScopedChannelsIrConverterTest, InvalidChannelArrayParam) {
   if (GetParam() == TypeInferenceVersion::kVersion1) {
     // v1 fails figuring out the param type for some reason.
