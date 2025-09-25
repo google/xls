@@ -20,18 +20,17 @@
 #include <vector>
 
 #include "absl/container/btree_set.h"
-#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_map.h"
 
 namespace xls {
 
-using TokenProvenance = absl::flat_hash_map<
-    Node*, std::unique_ptr<SharedLeafTypeTree<absl::flat_hash_set<Node*>>>>;
+using TokenProvenance = NodeMap<SharedLeafTypeTree<absl::flat_hash_set<Node*>>>;
 
 // Compute, for each token-type in the given `FunctionBase*`, what
 // side-effecting node(s) contributed to that token. If a leaf type in one of
@@ -45,7 +44,7 @@ std::string ToString(const TokenProvenance& provenance);
 // nodes (/ AfterAll) that their token inputs immediately came from. Note that
 // this skips over intermediate movement of tokens through tuples, `identity`,
 // or selects.
-using TokenDAG = absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>;
+using TokenDAG = NodeMap<absl::flat_hash_set<Node*>>;
 
 // Compute the immediate preceding side-effecting nodes (including proc token
 // param and `after_all`s) for each side-effecting node (and after_all). Note

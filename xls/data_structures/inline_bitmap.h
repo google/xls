@@ -39,6 +39,10 @@ class BitmapView;
 // A bitmap that has 64-bits of inline storage by default.
 class InlineBitmap {
  public:
+  // How many bits are held in one word.
+  static constexpr int64_t kWordBits = 64;
+  // How many bytes are held in one word.
+  static constexpr int64_t kWordBytes = 8;
   // Constructs an InlineBitmap of width `bit_count` using the bits in
   // `word`. If `bit_count` is greater than 64, then all high bits are set to
   // `fill`.
@@ -344,9 +348,6 @@ class InlineBitmap {
   XLS_FRIEND_TEST(InlineBitmapTest, MaskForWord);
   friend uint64_t GetWordBitsAtForTest(const InlineBitmap& ib,
                                        int64_t bit_offset);
-
-  static constexpr int64_t kWordBits = 64;
-  static constexpr int64_t kWordBytes = 8;
 
   // Gets the kWordBits bits following bit_offset with 'Get(bit_offset)' being
   // the LSB, Get(bit_offset + 1) being the next lsb etc.

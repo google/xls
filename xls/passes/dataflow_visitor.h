@@ -22,7 +22,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/types/span.h"
@@ -33,6 +32,7 @@
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_map.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/type.h"
 #include "xls/passes/stateless_query_engine.h"
@@ -322,16 +322,15 @@ class DataflowVisitor : public DfsVisitorWithDefault {
   absl::Status HandleTupleIndex(TupleIndex* tuple_index) override {
     return SetValue(
         tuple_index,
-        map_.at(tuple_index->operand(0))->AsView({tuple_index->index()}));
+        map_.at(tuple_index->operand(0)).AsView({tuple_index->index()}));
   }
 
   // Returns the leaf type tree value associated with `node`.
   LeafTypeTreeView<LeafT> GetValue(Node* node) const {
-    return map_.at(node)->AsView();
+    return map_.at(node).AsView();
   }
 
-  absl::flat_hash_map<Node*, std::unique_ptr<SharedLeafTypeTree<LeafT>>>
-  ToStoredValues() && {
+  NodeMap<SharedLeafTypeTree<LeafT>> ToStoredValues() && {
     return std::move(map_);
   }
 
@@ -386,20 +385,17 @@ class DataflowVisitor : public DfsVisitorWithDefault {
   // Sets the leaf type tree value associated with `node`.
   absl::Status SetValue(Node* node, LeafTypeTreeView<LeafT> value) {
     XLS_RET_CHECK_EQ(node->GetType(), value.type());
-    map_.insert_or_assign(
-        node, std::make_unique<SharedLeafTypeTree<LeafT>>(value.AsShared()));
+    map_.insert_or_assign(node, value.AsShared());
     return absl::OkStatus();
   }
   absl::Status SetValue(Node* node, LeafTypeTree<LeafT>&& value) {
     XLS_RET_CHECK_EQ(node->GetType(), value.type());
-    map_.insert_or_assign(node, std::make_unique<SharedLeafTypeTree<LeafT>>(
-                                    std::move(value).AsShared()));
+    map_.insert_or_assign(node, std::move(value).AsShared());
     return absl::OkStatus();
   }
   absl::Status SetValue(Node* node, SharedLeafTypeTree<LeafT>&& value) {
     XLS_RET_CHECK_EQ(node->GetType(), value.type());
-    map_.insert_or_assign(
-        node, std::make_unique<SharedLeafTypeTree<LeafT>>(std::move(value)));
+    map_.insert_or_assign(node, std::move(value));
     return absl::OkStatus();
   }
 
@@ -519,7 +515,7 @@ class DataflowVisitor : public DfsVisitorWithDefault {
   // Storage for the leaf type tree values associated with each node; must be
   // pointer-stable so that values can be shared (by populating some values as
   // Views of others).
-  absl::flat_hash_map<Node*, std::unique_ptr<SharedLeafTypeTree<LeafT>>> map_;
+  NodeMap<SharedLeafTypeTree<LeafT>> map_;
 };
 
 }  // namespace xls

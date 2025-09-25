@@ -36,6 +36,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/common/casts.h"
+#include "xls/common/pointer_utils.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/change_listener.h"
@@ -997,4 +998,28 @@ bool Node::OpIn(absl::Span<const Op> choices) const {
 
 Package* Node::package() const { return function_base()->package(); }
 
+std::optional<TypeErasedUniquePtr> Node::TakeUserData(int64_t idx) {
+  DCHECK(function_base()->package()->IsLiveUserDataId(idx)) << idx;
+  if (user_data_.size() <= idx) {
+    return std::nullopt;
+  }
+  std::optional<TypeErasedUniquePtr> data = std::move(user_data_[idx]);
+  user_data_[idx] = std::nullopt;
+  return data;
+}
+void* Node::GetUserData(int64_t idx) {
+  DCHECK(function_base()->package()->IsLiveUserDataId(idx)) << idx;
+  if (user_data_.size() <= idx) {
+    user_data_.resize(idx + 1);
+  }
+  const auto& v = user_data_[idx];
+  return v ? v->get() : nullptr;
+}
+void Node::SetUserData(int64_t idx, TypeErasedUniquePtr data) {
+  DCHECK(function_base()->package()->IsLiveUserDataId(idx)) << idx;
+  if (user_data_.size() <= idx) {
+    user_data_.resize(idx + 1);
+  }
+  user_data_[idx] = std::move(data);
+}
 }  // namespace xls

@@ -20,7 +20,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
@@ -28,6 +27,7 @@
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_map.h"
 #include "xls/passes/query_engine.h"
 
 namespace xls {
@@ -158,18 +158,15 @@ class BitProvenanceAnalysis {
   // Get all the sources for a given node.
   LeafTypeTreeView<TreeBitSources> GetBitSources(Node* n) const {
     CHECK(IsTracked(n)) << n;
-    return sources_.at(n)->AsView();
+    return sources_.at(n).AsView();
   }
 
  private:
   explicit BitProvenanceAnalysis(
-      absl::flat_hash_map<
-          Node*, std::unique_ptr<SharedLeafTypeTree<TreeBitSources>>>&& sources)
+      NodeMap<SharedLeafTypeTree<TreeBitSources>>&& sources)
       : sources_(std::move(sources)) {}
   // Map from a node to the nodes which are the source of each of its bits.
-  absl::flat_hash_map<Node*,
-                      std::unique_ptr<SharedLeafTypeTree<TreeBitSources>>>
-      sources_;
+  NodeMap<SharedLeafTypeTree<TreeBitSources>> sources_;
 };
 
 }  // namespace xls

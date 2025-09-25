@@ -129,6 +129,7 @@ cc_library(
         "//xls/estimators/delay_model:analyze_critical_path",
         "//xls/estimators/delay_model:delay_estimator",
         "//xls/ir",
+        "//xls/ir:node_map",
         "//xls/ir:op",
         "//xls/passes:bdd_query_engine",
         "//xls/passes:partial_info_query_engine",

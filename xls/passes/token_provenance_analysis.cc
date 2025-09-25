@@ -32,6 +32,7 @@
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_map.h"
 #include "xls/ir/op.h"
 #include "xls/ir/type.h"
 #include "xls/passes/dataflow_visitor.h"
@@ -159,7 +160,7 @@ std::string ToString(const TokenProvenance& provenance) {
     }
     lines.push_back(absl::StrFormat(
         "  %s : {%s}", node->GetName(),
-        provenance.at(node)->ToString(
+        provenance.at(node).ToString(
             [](const absl::flat_hash_set<Node*>& sources) {
               std::vector<Node*> sorted_sources(sources.begin(), sources.end());
               absl::c_sort(sorted_sources, Node::NodeIdLessThan());
@@ -179,7 +180,7 @@ absl::StatusOr<TokenDAG> ComputeTokenDAG(FunctionBase* f) {
       for (Node* operand : node->operands()) {
         if (operand->GetType()->IsToken()) {
           const absl::flat_hash_set<Node*>& child =
-              provenance.at(operand)->Get({});
+              provenance.at(operand).Get({});
           dag[node].insert(child.cbegin(), child.cend());
         }
       }

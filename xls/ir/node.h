@@ -24,6 +24,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
@@ -31,6 +32,7 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/casts.h"
+#include "xls/common/pointer_utils.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/change_listener.h"
 #include "xls/ir/op.h"
@@ -316,6 +318,28 @@ class Node {
     absl::Format(&sink, "%s", node.GetName());
   }
 
+  // User-data access functions. Should not be directly used. Use NodeMap
+  // instead.
+  //
+  // Extreme care should be used when interacting with these functions and the
+  // Package ones since this is basically doing manual memory management.
+
+  // Get the pointer associated with this indexes user data or nullptr if
+  // never set. Use HasUserData to see if anything has ever been set.
+  //
+  // idx must be a value returned by Package::AllocateNodeUserData which has not
+  // had ReleaseNodeUserDataId called on it.
+  void* GetUserData(int64_t idx);
+  // Sets user data at idx to 'data'.
+  void SetUserData(int64_t idx, TypeErasedUniquePtr data);
+  // Removes user data at idx from the node. Returns std::nullopt if nothing has
+  // been set.
+  std::optional<TypeErasedUniquePtr> TakeUserData(int64_t idx);
+  // Checks if anything has ever been set at the given user data.
+  bool HasUserData(int64_t idx) {
+    return user_data_.size() > idx && user_data_[idx].has_value();
+  }
+
  protected:
   // FunctionBase needs to be a friend to access RemoveUser for deleting nodes
   // from the graph.
@@ -368,6 +392,15 @@ class Node {
 
   // Set of users sorted by node_id for stability.
   absl::InlinedVector<Node*, 2> users_;
+
+ private:
+  std::vector<std::optional<TypeErasedUniquePtr>> user_data_;
+
+  // Clear all user data.
+  void ClearUserData() { user_data_.clear(); };
+
+  // for ClearUserData
+  friend class Package;
 };
 
 inline NodeRef::NodeRef(Node* node)
