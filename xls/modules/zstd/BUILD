@@ -1570,6 +1570,7 @@ xls_dslx_library(
 
 xls_dslx_test(
     name = "comp_lookup_dec_dslx_test",
+    exec_properties = {"mem": "16g"},
     library = ":comp_lookup_dec_dslx",
     tags = ["manual"],
 )
