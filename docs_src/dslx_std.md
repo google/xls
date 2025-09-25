@@ -1380,12 +1380,16 @@ positive power of 2. This functionality is the same as
 #### `std::?pow`
 
 ```dslx-snippet
+pub fn pow<S: bool, N: u32>(x: xN[S][N], n: uN[N]) -> sN[N]
 pub fn upow<N: u32>(x: uN[N], n: uN[N]) -> uN[N]
 pub fn spow<N: u32>(x: sN[N], n: uN[N]) -> sN[N]
 ```
 
 Performs integer exponentiation as in Hacker's Delight, Section 11-3. Only
 non-negative exponents are allowed, hence the uN parameter for spow.
+
+The variants with signedness in the function name predate parameterization of
+signedness as a language feature, and are deprecated.
 
 #### `std::clog2`
 
