@@ -156,10 +156,28 @@ cc_test(
 )
 
 cc_library(
+    name = "dslx_type_fixer",
+    srcs = ["dslx_type_fixer.cc"],
+    hdrs = ["dslx_type_fixer.h"],
+    deps = [
+        "//xls/common:casts",
+        "//xls/common/status:status_macros",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_cloner",
+        "//xls/dslx/frontend:ast_node",
+        "//xls/dslx/type_system:type",
+        "//xls/dslx/type_system:type_info",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
     name = "dslx_builder",
     srcs = ["dslx_builder.cc"],
     hdrs = ["dslx_builder.h"],
     deps = [
+        ":dslx_type_fixer",
         ":fold_vast_constants",
         ":vast",
         "//xls/common:casts",
@@ -181,6 +199,7 @@ cc_library(
         "//xls/dslx/fmt:ast_fmt",
         "//xls/dslx/fmt:comments",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_cloner",
         "//xls/dslx/frontend:comment_data",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:parser",

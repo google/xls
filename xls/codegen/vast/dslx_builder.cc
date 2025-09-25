@@ -32,6 +32,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/variant.h"
+#include "xls/codegen/vast/dslx_type_fixer.h"
 #include "xls/codegen/vast/fold_vast_constants.h"
 #include "xls/codegen/vast/vast.h"
 #include "xls/common/casts.h"
@@ -45,6 +46,7 @@
 #include "xls/dslx/fmt/ast_fmt.h"
 #include "xls/dslx/fmt/comments.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/comment_data.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/parser.h"
@@ -311,12 +313,12 @@ DslxBuilder::DslxBuilder(
   deduce_ctx_.fn_stack().push_back(dslx::FnStackEntry::MakeTop(&module_));
 }
 
-absl::StatusOr<dslx::Expr*> DslxBuilder::MakeNameRefAndMaybeCast(
+absl::StatusOr<dslx::Expr*> DslxBuilder::MakeNameRefAndCast(
     verilog::Expression* expr, const dslx::Span& span, std::string_view name,
     verilog::VastNode* target) {
   XLS_ASSIGN_OR_RETURN(dslx::Expr * ref,
                        resolver_->MakeNameRef(*this, span, name, target));
-  return MaybeCastToInferredVastType(expr, ref);
+  return CastToInferredVastType(expr, ref);
 }
 
 void DslxBuilder::AddTypedef(verilog::Module* definer,
@@ -424,20 +426,26 @@ absl::StatusOr<dslx::Expr*> DslxBuilder::ConvertMaxToWidth(
       vast_value->file()->Make<verilog::IntegerType>(SourceInfo(),
                                                      /*signed=*/false);
   // If we would be producing `foo - 1 + 1`, just extract the `foo`.
-  if (auto* binop = dynamic_cast<dslx::Binop*>(dslx_value);
-      binop && binop->binop_kind() == dslx::BinopKind::kSub) {
+  auto* binop = dynamic_cast<dslx::Binop*>(dslx_value);
+  if (binop == nullptr) {
+    auto* cast = dynamic_cast<dslx::Cast*>(dslx_value);
+    if (cast != nullptr) {
+      binop = dynamic_cast<dslx::Binop*>(cast->expr());
+    }
+  }
+  if (binop != nullptr && binop->binop_kind() == dslx::BinopKind::kSub) {
     auto* rhs_number = dynamic_cast<dslx::Number*>(binop->rhs());
     if (rhs_number != nullptr) {
       absl::StatusOr<uint64_t> rhs_value =
           rhs_number->GetAsUint64(file_table());
       if (rhs_value.ok() && *rhs_value == 1) {
-        return MaybeCast(unsigned_int_type, binop->lhs());
+        return Cast(unsigned_int_type, binop->lhs());
       }
     }
   }
   // Add 1 if really necessary.
   XLS_ASSIGN_OR_RETURN(dslx::Expr * casted_max,
-                       MaybeCast(unsigned_int_type, dslx_value));
+                       Cast(unsigned_int_type, dslx_value));
   dslx::Number* one = module().Make<dslx::Number>(
       span, "1", dslx::NumberKind::kOther, type_annot);
   return module().Make<dslx::Binop>(span, dslx::BinopKind::kAdd, casted_max,
@@ -564,26 +572,17 @@ absl::StatusOr<dslx::Import*> DslxBuilder::GetOrImportModule(
   return std::get<dslx::Import*>(*std_or.value());
 }
 
-absl::StatusOr<dslx::Expr*> DslxBuilder::MaybeCastToInferredVastType(
+absl::StatusOr<dslx::Expr*> DslxBuilder::CastToInferredVastType(
     verilog::Expression* vast_expr, dslx::Expr* expr,
     bool cast_enum_to_builtin) {
   XLS_ASSIGN_OR_RETURN(verilog::DataType * vast_type,
                        GetVastDataType(vast_expr));
-  return MaybeCast(vast_type, expr, cast_enum_to_builtin);
+  return Cast(vast_type, expr, cast_enum_to_builtin);
 }
 
-absl::StatusOr<dslx::Expr*> DslxBuilder::MaybeCast(verilog::DataType* vast_type,
-                                                   dslx::Expr* expr,
-                                                   bool cast_enum_to_builtin) {
-  if (auto* cast = dynamic_cast<dslx::Cast*>(expr); cast) {
-    // Avoid doing something like `(foo as s32) as u32`, which can happen
-    // because we coerce array sizes to u32 on the DSLX translation side.
-    absl::StatusOr<dslx::Expr*> smaller_onion =
-        MaybeCast(vast_type, cast->expr());
-    if (smaller_onion.ok()) {
-      return smaller_onion;
-    }
-  }
+absl::StatusOr<dslx::Expr*> DslxBuilder::Cast(verilog::DataType* vast_type,
+                                              dslx::Expr* expr,
+                                              bool cast_enum_to_builtin) {
   if (!vast_type->FlatBitCountAsInt64().ok()) {
     VLOG(2) << "Warning: cannot insert a cast of expr: " << expr->ToString()
             << " to type: " << vast_type->Emit(nullptr)
@@ -598,31 +597,34 @@ absl::StatusOr<dslx::Expr*> DslxBuilder::MaybeCast(verilog::DataType* vast_type,
             << expr->ToString() << " to type: " << vast_type->Emit(nullptr)
             << " because the DSLX type cannot be deduced. This may happen if a "
                "parameter value has a system function call.";
-    return Cast(vast_type, expr);
+    return CastInternal(vast_type, expr);
   }
-  if ((*deduced_dslx_type)->HasEnum() &&
-      (cast_enum_to_builtin || !vast_type->IsUserDefined())) {
-    // DSLX considers enum and values to mismatch operands of an equivalent
-    // built-in type. VAST type inference will say in that case that they are
-    // both the generic type, and we need the cast to make DSLX comply.
-    return Cast(vast_type, expr, cast_enum_to_builtin);
+  if ((*deduced_dslx_type)->HasEnum()) {
+    if (cast_enum_to_builtin || !vast_type->IsUserDefined()) {
+      // DSLX considers enum and values to mismatch operands of an equivalent
+      // built-in type. VAST type inference will say in that case that they are
+      // both the generic type, and we need the cast to make DSLX comply.
+      return CastInternal(vast_type, expr, cast_enum_to_builtin);
+    }
+    XLS_ASSIGN_OR_RETURN(dslx::TypeDim deduced_dslx_dim,
+                         (*deduced_dslx_type)->GetTotalBitCount());
+    XLS_ASSIGN_OR_RETURN(int64_t deduced_dslx_bit_count,
+                         deduced_dslx_dim.GetAsInt64());
+    XLS_ASSIGN_OR_RETURN(int64_t verilog_bit_count,
+                         vast_type->FlatBitCountAsInt64());
+    if (deduced_dslx_bit_count != verilog_bit_count) {
+      return Cast(vast_type, expr);
+    }
+    absl::StatusOr<bool> deduced_dslx_signed =
+        dslx::IsSigned(**deduced_dslx_type);
+    if (!deduced_dslx_signed.ok() ||
+        *deduced_dslx_signed != vast_type->is_signed()) {
+      return Cast(vast_type, expr);
+    }
+    return expr;
   }
-  XLS_ASSIGN_OR_RETURN(dslx::TypeDim deduced_dslx_dim,
-                       (*deduced_dslx_type)->GetTotalBitCount());
-  XLS_ASSIGN_OR_RETURN(int64_t deduced_dslx_bit_count,
-                       deduced_dslx_dim.GetAsInt64());
-  XLS_ASSIGN_OR_RETURN(int64_t verilog_bit_count,
-                       vast_type->FlatBitCountAsInt64());
-  if (deduced_dslx_bit_count != verilog_bit_count) {
-    return Cast(vast_type, expr);
-  }
-  absl::StatusOr<bool> deduced_dslx_signed =
-      dslx::IsSigned(**deduced_dslx_type);
-  if (!deduced_dslx_signed.ok() ||
-      *deduced_dslx_signed != vast_type->is_signed()) {
-    return Cast(vast_type, expr);
-  }
-  return expr;
+
+  return CastInternal(vast_type, expr);
 }
 
 absl::StatusOr<dslx::TypeAnnotation*> DslxBuilder::VastTypeToDslxTypeForCast(
@@ -698,9 +700,8 @@ std::optional<std::string> DslxBuilder::GenerateSizeCommentIfNotObvious(
   return std::nullopt;
 }
 
-absl::StatusOr<dslx::Expr*> DslxBuilder::Cast(verilog::DataType* vast_type,
-                                              dslx::Expr* expr,
-                                              bool force_builtin) {
+absl::StatusOr<dslx::Expr*> DslxBuilder::CastInternal(
+    verilog::DataType* vast_type, dslx::Expr* expr, bool force_builtin) {
   XLS_ASSIGN_OR_RETURN(
       dslx::TypeAnnotation * type,
       VastTypeToDslxTypeForCast(expr->span(), vast_type, force_builtin));
@@ -715,6 +716,27 @@ absl::StatusOr<verilog::DataType*> DslxBuilder::GetVastDataType(
         absl::StrCat("No Verilog type inferred for: ", expr->Emit(nullptr)));
   }
   return it->second;
+}
+
+absl::StatusOr<dslx::TypecheckedModule> DslxBuilder::RoundTrip(
+    const dslx::Module& module, std::string_view path,
+    dslx::ImportData& import_data) {
+  const std::string text = module.ToString();
+  dslx::Fileno fileno = import_data.file_table().GetOrCreate(path);
+  dslx::Scanner scanner(import_data.file_table(), fileno, text);
+  dslx::Parser parser(module_.name(), &scanner);
+  XLS_ASSIGN_OR_RETURN(
+      dslx::TypecheckedModule parsed_module,
+      ParseAndTypecheck(text, path, module_.name(), &import_data),
+      _ << "Failed to parse and typecheck module:\n"
+        << text);
+  return parsed_module;
+}
+
+dslx::ImportData DslxBuilder::CreateImportData() {
+  return dslx::CreateImportData(dslx_stdlib_path_, additional_search_paths_,
+                                /*enabled_warnings=*/dslx::kDefaultWarningsSet,
+                                std::make_unique<dslx::RealFilesystem>());
 }
 
 absl::StatusOr<std::string> DslxBuilder::FormatModule() {
@@ -732,24 +754,28 @@ absl::StatusOr<std::string> DslxBuilder::FormatModule() {
       break;
     }
   }
+
+  // Perform an initial type inference run, then do cleanup informed by type
+  // inference, like removal of dead casts.
+  dslx::ImportData initial_import_data = CreateImportData();
+  const std::string file_name = module_.name() + ".x";
+  XLS_ASSIGN_OR_RETURN(dslx::TypecheckedModule initial_module,
+                       RoundTrip(module_, file_name, initial_import_data));
+  std::unique_ptr<DslxTypeFixer> fixer = CreateDslxTypeFixer();
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<dslx::Module> module_with_stripped_casts,
+      CloneModule(*initial_module.module,
+                  fixer->GetReplacer(initial_module.type_info)));
+
   // We now need to round-trip the module to text and back to AST, without the
   // comments, in order for the nodes to get spans accurately representing the
   // DSLX as opposed to the source Verilog. We then position the comments
   // relative to the appropriate spans.
-  const std::string text = module_.ToString();
-  const std::string file_name = module_.name() + ".x";
-  auto import_data =
-      dslx::CreateImportData(dslx_stdlib_path_, additional_search_paths_,
-                             /*enabled_warnings=*/dslx::kDefaultWarningsSet,
-                             std::make_unique<dslx::RealFilesystem>());
-  dslx::Fileno fileno = import_data.file_table().GetOrCreate(file_name);
-  dslx::Scanner scanner(import_data.file_table(), fileno, text);
-  dslx::Parser parser(module_.name(), &scanner);
+  dslx::ImportData import_data = CreateImportData();
   XLS_ASSIGN_OR_RETURN(
       dslx::TypecheckedModule parsed_module,
-      ParseAndTypecheck(text, file_name, module_.name(), &import_data),
-      _ << "Failed to parse and typecheck module:\n"
-        << text);
+      RoundTrip(*module_with_stripped_casts, file_name, import_data));
+
   std::vector<dslx::CommentData> comment_data;
   for (const auto& [type_name, comment] : type_def_comments_) {
     absl::StatusOr<dslx::TypeDefinition> type_def =

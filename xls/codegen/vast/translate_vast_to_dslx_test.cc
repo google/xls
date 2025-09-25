@@ -920,8 +920,8 @@ pub const power = u16:0x3;
 
 import std;
 
-pub const upow_result = std::upow(upow_lhs, power as uN[16]);
-pub const spow_result = std::spow(spow_lhs, power as uN[16]) as u16;
+pub const upow_result = std::upow(upow_lhs, power);
+pub const spow_result = std::spow(spow_lhs, power) as u16;
 )";
 
   XLS_EXPECT_VAST_TRANSLATION(f, kExpected);

@@ -218,7 +218,7 @@ class VastToDslxTranslator {
       // this node won't be used for formatting.
       result = module().Make<dslx::Binop>(span, kind, lhs, rhs, span);
     }
-    return dslx_builder_->MaybeCastToInferredVastType(op, result);
+    return dslx_builder_->CastToInferredVastType(op, result);
   }
 
   absl::StatusOr<dslx::Expr*> TranslateConcat(verilog::Concat* concat) {
@@ -235,7 +235,7 @@ class VastToDslxTranslator {
       // See https://github.com/google/xls/issues/1498.
       XLS_ASSIGN_OR_RETURN(dslx::Expr * dslx_expr, TranslateExpression(next));
       XLS_ASSIGN_OR_RETURN(dslx_expr,
-                           dslx_builder_->MaybeCastToInferredVastType(
+                           dslx_builder_->CastToInferredVastType(
                                next, dslx_expr, /*cast_enum_to_builtin=*/true));
       XLS_ASSIGN_OR_RETURN(auto expr_type, deduce_ctx().Deduce(dslx_expr));
       bool is_signed = false;
@@ -636,8 +636,8 @@ class VastToDslxTranslator {
       auto* fn_ref = module().Make<dslx::ColonRef>(span, name_ref, "clog2");
       dslx::Expr* result = module().Make<dslx::Invocation>(span, fn_ref, args);
 
-      XLS_ASSIGN_OR_RETURN(result, dslx_builder_->MaybeCastToInferredVastType(
-                                       vast_call, result));
+      XLS_ASSIGN_OR_RETURN(
+          result, dslx_builder_->CastToInferredVastType(vast_call, result));
       XLS_RETURN_IF_ERROR(deduce_ctx().Deduce(result).status());
       return result;
     }
@@ -647,9 +647,9 @@ class VastToDslxTranslator {
 
   absl::StatusOr<dslx::Expr*> TranslateParameterRef(
       verilog::ParameterRef* ref) {
-    return dslx_builder_->MakeNameRefAndMaybeCast(ref, CreateNodeSpan(ref),
-                                                  ref->parameter()->GetName(),
-                                                  ref->parameter());
+    return dslx_builder_->MakeNameRefAndCast(ref, CreateNodeSpan(ref),
+                                             ref->parameter()->GetName(),
+                                             ref->parameter());
   }
 
   absl::StatusOr<dslx::Expr*> TranslateEnumMemberRef(
@@ -660,15 +660,15 @@ class VastToDslxTranslator {
     XLS_ASSIGN_OR_RETURN(dslx::Expr * type_def_ref,
                          resolver_.MakeNameRef(*dslx_builder_, span,
                                                type_def->GetName(), type_def));
-    return dslx_builder_->MaybeCastToInferredVastType(
+    return dslx_builder_->CastToInferredVastType(
         ref, module().Make<dslx::ColonRef>(
                  span, resolver_.NameRefToColonRefSubject(type_def_ref),
                  ref->member()->GetName()));
   }
 
   absl::StatusOr<dslx::Expr*> TranslateLogicRef(verilog::LogicRef* ref) {
-    return dslx_builder_->MakeNameRefAndMaybeCast(ref, CreateNodeSpan(ref),
-                                                  ref->GetName(), ref->def());
+    return dslx_builder_->MakeNameRefAndCast(ref, CreateNodeSpan(ref),
+                                             ref->GetName(), ref->def());
   }
 
   absl::StatusOr<dslx::Expr*> TranslateUnary(verilog::Unary* op) {
@@ -684,7 +684,7 @@ class VastToDslxTranslator {
         return absl::InvalidArgumentError(
             absl::StrCat("Unsupported unary operator kind: ", op->kind()));
     }
-    return dslx_builder_->MaybeCastToInferredVastType(op, result);
+    return dslx_builder_->CastToInferredVastType(op, result);
   }
 
   absl::StatusOr<dslx::Expr*> TranslateExpression(verilog::Expression* expr) {

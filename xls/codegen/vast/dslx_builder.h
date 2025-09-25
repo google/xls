@@ -30,6 +30,7 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_bindings.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/warning_collector.h"
@@ -119,11 +120,12 @@ class DslxBuilder {
           vast_type_map,
       dslx::WarningCollector& warnings);
 
-  // Creates a name ref with a cast, if necessary, to the equivalent of the
-  // inferred VAST type in the type map.
-  absl::StatusOr<dslx::Expr*> MakeNameRefAndMaybeCast(
-      verilog::Expression* vast_expr, const dslx::Span& span,
-      std::string_view name, verilog::VastNode* target);
+  // Creates a name ref with a cast to the equivalent of the inferred VAST type
+  // in the type map.
+  absl::StatusOr<dslx::Expr*> MakeNameRefAndCast(verilog::Expression* vast_expr,
+                                                 const dslx::Span& span,
+                                                 std::string_view name,
+                                                 verilog::VastNode* target);
 
   // Registers a VAST typedef, and what it maps to in DSLX, for later lookup via
   // `FindTypedef`.
@@ -135,20 +137,20 @@ class DslxBuilder {
   absl::StatusOr<dslx::Import*> GetOrImportModule(
       const dslx::ImportTokens& import_tokens);
 
-  // Returns `expr` casted, if necessary, to the equivalent of the inferred VAST
-  // type for `vast_expr` in the type map. Pass `true` for
-  // `cast_enum_to_builtin` in rare contexts where Verilog allows an enum and
-  // DSLX doesn't  (e.g. concat operands).
-  absl::StatusOr<dslx::Expr*> MaybeCastToInferredVastType(
+  // Returns `expr` casted to the equivalent of the inferred VAST type for
+  // `vast_expr` in the type map. Pass `true` for `cast_enum_to_builtin` in rare
+  // contexts where Verilog allows an enum and DSLX doesn't  (e.g. concat
+  // operands).
+  absl::StatusOr<dslx::Expr*> CastToInferredVastType(
       verilog::Expression* vast_expr, dslx::Expr* expr,
       bool cast_enum_to_builtin = false);
 
-  // Returns `expr` casted, if necessary, to the equivalent of the specified
-  // `vast_type`. If `cast_enum_to_builtin` is true, then the corresponding DSLX
-  // built-in type will be used for any VAST enum type.
-  absl::StatusOr<dslx::Expr*> MaybeCast(verilog::DataType* vast_type,
-                                        dslx::Expr* expr,
-                                        bool cast_enum_to_builtin = false);
+  // Returns `expr` casted to the equivalent of the specified `vast_type`. If
+  // `cast_enum_to_builtin` is true, then the corresponding DSLX built-in type
+  // will be used for any VAST enum type.
+  absl::StatusOr<dslx::Expr*> Cast(verilog::DataType* vast_type,
+                                   dslx::Expr* expr,
+                                   bool cast_enum_to_builtin = false);
 
   dslx::Unop* HandleUnaryOperator(const dslx::Span& span,
                                   dslx::UnopKind unop_kind, dslx::Expr* arg);
@@ -188,9 +190,9 @@ class DslxBuilder {
  private:
   // Returns `expr` casted, whether necessary or not, to the equivalent of the
   // specified `vast_type`.
-  absl::StatusOr<dslx::Expr*> Cast(verilog::DataType* vast_type,
-                                   dslx::Expr* expr,
-                                   bool force_builtin = false);
+  absl::StatusOr<dslx::Expr*> CastInternal(verilog::DataType* vast_type,
+                                           dslx::Expr* expr,
+                                           bool force_builtin = false);
 
   std::optional<std::string> GenerateSizeCommentIfNotObvious(
       verilog::DataType* data_type, bool compute_size_if_struct);
@@ -200,6 +202,12 @@ class DslxBuilder {
   absl::StatusOr<dslx::TypeAnnotation*> VastTypeToDslxTypeForCast(
       const dslx::Span& span, verilog::DataType* vast_type,
       bool force_builtin = false);
+
+  absl::StatusOr<dslx::TypecheckedModule> RoundTrip(
+      const dslx::Module& module, std::string_view path,
+      dslx::ImportData& import_data);
+
+  dslx::ImportData CreateImportData();
 
   const std::vector<std::filesystem::path> additional_search_paths_;
   const std::string dslx_stdlib_path_;
