@@ -693,6 +693,14 @@ class [[hls_synthetic_int]] XlsInt : public XlsIntBase<Width, Signed> {
   struct rt_unary : public ac_datatypes::ac_int<Width, Signed>::rt_unary {
     typedef XlsInt<rt_unary::neg_w, rt_unary::neg_s> neg;
     typedef XlsInt<Width + !Signed, true> bnot;
+    typedef XlsInt<rt_unary::mag_w, rt_unary::mag_s> mag;
+    template <unsigned N>
+    struct set {
+      typedef XlsInt<
+          ac_datatypes::ac_int<Width, Signed>::rt_unary::template set<N>::sum_w,
+          ac_datatypes::ac_int<Width, Signed>::rt_unary::template set<N>::sum_s>
+          sum;
+    };
   };
 
   bool operator!() const { return (*this) == XlsInt(0); }
