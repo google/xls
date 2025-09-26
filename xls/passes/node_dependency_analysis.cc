@@ -20,6 +20,8 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -35,14 +37,14 @@ namespace {
 // Perform actual analysis.
 // f is the function to analyze. We only care about getting results for
 // 'interesting_nodes' if the set is non-empty (otherwise all nodes are
-// searched). Preds returns the nodes the argument depends on. iter is the
+// searched). Succs returns the nodes that depend on the argument. iter is the
 // iterator to walk the function in the topological order defined by preds.
-template <typename Predecessors>
+template <typename Successors>
 std::tuple<absl::flat_hash_map<Node*, InlineBitmap>,
            absl::flat_hash_map<Node*, int64_t>>
 AnalyzeDependents(FunctionBase* f,
                   const absl::flat_hash_set<Node*>& interesting_nodes,
-                  Predecessors preds, absl::Span<Node* const> topo_sort) {
+                  Successors succs, absl::Span<Node* const> topo_sort) {
   absl::flat_hash_map<Node*, int64_t> node_ids;
   node_ids.reserve(f->node_count());
   int64_t cnt = 0;
@@ -62,16 +64,24 @@ AnalyzeDependents(FunctionBase* f,
     }
     return seen_interesting_nodes_count == interesting_nodes.size();
   };
+  VLOG(3) << "Analyzing dependents of " << f->node_count() << " nodes with "
+          << interesting_nodes.size() << " interesting.";
   int64_t bitmap_size = f->node_count();
   absl::flat_hash_map<Node*, InlineBitmap> results;
   results.reserve(f->node_count());
   for (Node* n : topo_sort) {
-    InlineBitmap& bm = results.emplace(n, bitmap_size).first->second;
+    auto [it, inserted] = results.try_emplace(n, bitmap_size);
+    InlineBitmap& bm = it->second;
     bm.Set(node_ids[n]);
-    for (Node* pred : preds(n)) {
-      bm.Union(results.at(pred));
+    for (Node* succ : succs(n)) {
+      auto [s_it, s_new] = results.try_emplace(succ, bm);
+      if (!s_new) {
+        s_it->second.Union(bm);
+      }
     }
-    if (is_last_interesting_node(n)) {
+    if (!is_interesting(n)) {
+      results.erase(n);
+    } else if (is_last_interesting_node(n)) {
       break;
     }
   }
@@ -95,7 +105,7 @@ NodeDependencyAnalysis NodeDependencyAnalysis::BackwardDependents(
     FunctionBase* fb, absl::Span<Node* const> nodes) {
   absl::flat_hash_set<Node*> interesting(nodes.begin(), nodes.end());
   auto [dependents, node_ids] = AnalyzeDependents(
-      fb, interesting, [](Node* node) { return node->operands(); },
+      fb, interesting, /*succs=*/[](Node* node) { return node->users(); },
       TopoSort(fb));
   return NodeDependencyAnalysis(/*is_forwards=*/false, dependents, node_ids);
 }
@@ -104,7 +114,7 @@ NodeDependencyAnalysis NodeDependencyAnalysis::ForwardDependents(
     FunctionBase* fb, absl::Span<Node* const> nodes) {
   absl::flat_hash_set<Node*> interesting(nodes.begin(), nodes.end());
   auto [dependents, node_ids] = AnalyzeDependents(
-      fb, interesting, [](Node* node) { return node->users(); },
+      fb, interesting, /*succs=*/[](Node* node) { return node->operands(); },
       ReverseTopoSort(fb));
   return NodeDependencyAnalysis(/*is_forwards=*/true, dependents, node_ids);
 }
