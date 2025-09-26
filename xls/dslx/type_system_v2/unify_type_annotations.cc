@@ -221,6 +221,28 @@ class Unifier {
                  : UnifyParametricStructAnnotations(*struct_def,
                                                     annotations_to_unify);
     }
+    XLS_ASSIGN_OR_RETURN(std::optional<OldStyleProcRef> first_old_style_proc,
+                         GetOldStyleProcRef(annotations[0], import_data_));
+    if (first_old_style_proc.has_value()) {
+      // A proc is trivially unifiable, because a proc may only be used by
+      // `spawn`, so just check if others are the same proc.
+      XLS_RETURN_IF_ERROR(
+          CastAllOrError<Proc>(
+              annotations,
+              [&](const TypeAnnotation* annotation) -> const Proc* {
+                absl::StatusOr<std::optional<OldStyleProcRef>>
+                    next_old_style_proc =
+                        GetOldStyleProcRef(annotation, import_data_);
+                if (next_old_style_proc.ok() &&
+                    next_old_style_proc->has_value() &&
+                    (*next_old_style_proc)->def == first_old_style_proc->def) {
+                  return first_old_style_proc->def;
+                }
+                return nullptr;
+              })
+              .status());
+      return annotations[0];
+    }
     return UnifyBitsLikeTypeAnnotations(annotations, span);
   }
 

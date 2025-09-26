@@ -307,4 +307,13 @@ absl::Status ConstAssertFailureStatus(const Span& span, const Expr* expr,
       file_table);
 }
 
+absl::Status ParametricsRedefinedErrorStatus(const Span& span, const Expr* expr,
+                                             const FileTable& file_table) {
+  return TypeInferenceErrorStatus(
+      span, nullptr,
+      absl::StrFormat("Parametric values defined multiple times for `%s`",
+                      expr->ToString()),
+      file_table);
+}
+
 }  // namespace xls::dslx

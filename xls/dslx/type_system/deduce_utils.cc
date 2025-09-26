@@ -647,6 +647,10 @@ absl::StatusOr<ColonRefSubjectT> ResolveColonRefSubjectForTypeChecking(
             LOG(FATAL) << "Extern UseTreeEntry not yet supported: "
                        << use_tree_entry->ToString();
           },
+          [](Proc* proc) -> ReturnT {
+            return absl::UnimplementedError(
+                "New feature no longer supporting TIv1");
+          },
       },
       td.value());
 }
@@ -879,6 +883,10 @@ absl::StatusOr<StructDef*> DerefToStruct(const Span& span,
                   retval, DerefToStruct(span, original_ref_text, current,
                                         imported->type_info));
               return absl::OkStatus();
+            },
+            [](Proc* proc) -> absl::Status {
+              return absl::UnimplementedError(
+                  "New feature no longer supporting TIv1");
             }},
         current);
     XLS_RETURN_IF_ERROR(status);

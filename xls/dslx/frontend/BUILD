@@ -108,6 +108,7 @@ cc_library(
     deps = [
         ":ast",
         ":ast_cloner",
+        ":ast_node",
         ":ast_utils",
         ":bindings",
         ":builtins_metadata",
@@ -330,6 +331,7 @@ cc_library(
     deps = [
         ":ast",
         ":pos",
+        ":proc",
         "//xls/common:visitor",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -416,8 +418,14 @@ cc_library(
 
 cc_library(
     name = "ast",
-    srcs = ["ast.cc"],
-    hdrs = ["ast.h"],
+    srcs = [
+        "ast.cc",
+        "proc.cc",
+    ],
+    hdrs = [
+        "ast.h",
+        "proc.h",
+    ],
     deps = [
         ":ast_builtin_types",
         ":ast_node",
@@ -438,6 +446,7 @@ cc_library(
         "//xls/ir:number_parser",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/base:no_destructor",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
@@ -466,7 +475,6 @@ cc_library(
 
 cc_library(
     name = "proc",
-    srcs = ["proc.cc"],
     hdrs = ["proc.h"],
     deps = [
         ":ast",

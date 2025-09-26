@@ -56,6 +56,8 @@
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/type_system_v2/import_utils.h"
+#include "xls/dslx/type_system_v2/type_annotation_utils.h"
 #include "xls/dslx/value_format_descriptor.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/format_preference.h"
@@ -284,6 +286,28 @@ absl::Status BytecodeEmitter::HandleArray(const Array* node) {
 }
 
 absl::Status BytecodeEmitter::HandleAttr(const Attr* node) {
+  // Handle node->lhs() is a proc alias.
+  XLS_ASSIGN_OR_RETURN(std::optional<OldStyleProcRef> old_style_proc_def,
+                       GetOldStyleProcRef(node->lhs(), *import_data_));
+  if (old_style_proc_def.has_value()) {
+    Function* func;
+    Proc* proc = const_cast<Proc*>(old_style_proc_def->def);
+    if (node->attr() == "config") {
+      func = &proc->config();
+    } else if (node->attr() == "next") {
+      func = &proc->next();
+    } else if (node->attr() == "init") {
+      func = &proc->init();
+    } else {
+      return UndefinedNameErrorStatus(node->span(), node, node->attr(),
+                                      file_table());
+    }
+    Add(Bytecode::MakeLiteral(
+        node->span(), InterpValue::MakeFunction(
+                          InterpValue::UserFnData{func->owner(), func})));
+    return absl::OkStatus();
+  }
+
   // Will place a struct instance on the stack.
   XLS_RETURN_IF_ERROR(node->lhs()->AcceptExpr(this));
 

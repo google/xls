@@ -45,7 +45,9 @@
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/typecheck_invocation.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
+#include "xls/dslx/type_system_v2/import_utils.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
+#include "xls/dslx/type_system_v2/type_annotation_utils.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
 #include "xls/ir/bits.h"
@@ -120,6 +122,17 @@ class TypeValidator : public AstNodeVisitorWithDefault {
           file_table_);
     }
     return DefaultHandler(ref);
+  }
+
+  absl::Status HandleParam(const Param* param) override {
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<OldStyleProcRef> old_style_proc_ref,
+        GetOldStyleProcRef(param->type_annotation(), import_data_));
+    if (old_style_proc_ref.has_value()) {
+      return NotATypeErrorStatus(param->span(), param->type_annotation(),
+                                 file_table_);
+    }
+    return DefaultHandler(param);
   }
 
   absl::Status HandleBinop(const Binop* binop) override {

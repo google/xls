@@ -1601,10 +1601,12 @@ class Array final : public Expr {
   bool has_ellipsis_;
 };
 
+class Proc;
+
 // Several different AST nodes define types that can be referred to by a
 // TypeRef.
 using TypeDefinition = std::variant<TypeAlias*, StructDef*, ProcDef*, EnumDef*,
-                                    ColonRef*, UseTreeEntry*>;
+                                    ColonRef*, UseTreeEntry*, Proc*>;
 
 // Returns the name definition that (most locally) defined this type definition
 // AST node.
@@ -2272,8 +2274,6 @@ class ParametricBinding : public AstNode {
   // caller). May be null.
   Expr* expr_;
 };
-
-class Proc;
 
 // Indicates if a function is normal or is part of a proc instantiation.
 enum class FunctionTag : uint8_t {

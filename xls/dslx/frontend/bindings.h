@@ -42,7 +42,7 @@ namespace xls::dslx {
 // definitions.
 using BoundNode =
     std::variant<EnumDef*, TypeAlias*, ConstantDef*, NameDef*, BuiltinNameDef*,
-                 StructDef*, ProcDef*, Import*, UseTreeEntry*>;
+                 StructDef*, ProcDef*, Import*, UseTreeEntry*, Proc*>;
 
 // Returns a string, useful for reporting in error messages, for the type of the
 // AST node contained inside of the given BoundNode variant; e.g. "Import".
@@ -176,7 +176,8 @@ class Bindings {
     return std::holds_alternative<EnumDef*>(*bn) ||
            std::holds_alternative<TypeAlias*>(*bn) ||
            std::holds_alternative<StructDef*>(*bn) ||
-           std::holds_alternative<ProcDef*>(*bn);
+           std::holds_alternative<ProcDef*>(*bn) ||
+           std::holds_alternative<Proc*>(*bn);
   }
 
   // As above, but flags a ParseError() if the binding cannot be resolved,

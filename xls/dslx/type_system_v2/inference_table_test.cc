@@ -231,16 +231,18 @@ TEST_F(InferenceTableTest, ParametricVariable) {
       ToAstNode(bar->body()->statements().at(0)->wrapped()));
   const Invocation* invocation2 = down_cast<const Invocation*>(
       ToAstNode(bar->body()->statements().at(1)->wrapped()));
-  XLS_ASSERT_OK_AND_ASSIGN(const ParametricContext* parametric_context1,
-                           table_->AddParametricInvocation(
-                               *invocation1, *foo, bar,
-                               /*parent_context=*/std::nullopt,
-                               /*self_type=*/std::nullopt, CreateTypeInfo()));
-  XLS_ASSERT_OK_AND_ASSIGN(const ParametricContext* parametric_context2,
-                           table_->AddParametricInvocation(
-                               *invocation2, *foo, bar,
-                               /*parent_context=*/std::nullopt,
-                               /*self_type=*/std::nullopt, CreateTypeInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      const ParametricContext* parametric_context1,
+      table_->AddParametricInvocation(
+          *invocation1, invocation1->explicit_parametrics(), *foo, bar,
+          /*parent_context=*/std::nullopt,
+          /*self_type=*/std::nullopt, CreateTypeInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      const ParametricContext* parametric_context2,
+      table_->AddParametricInvocation(
+          *invocation2, invocation2->explicit_parametrics(), *foo, bar,
+          /*parent_context=*/std::nullopt,
+          /*self_type=*/std::nullopt, CreateTypeInfo()));
 
   EXPECT_THAT(table_->GetParametricInvocations(),
               ElementsAre(parametric_context1, parametric_context2));
@@ -292,16 +294,18 @@ TEST_F(InferenceTableTest, ParametricVariableWithDefault) {
       ToAstNode(bar->body()->statements().at(0)->wrapped()));
   const Invocation* invocation2 = down_cast<const Invocation*>(
       ToAstNode(bar->body()->statements().at(1)->wrapped()));
-  XLS_ASSERT_OK_AND_ASSIGN(const ParametricContext* parametric_context1,
-                           table_->AddParametricInvocation(
-                               *invocation1, *foo, bar,
-                               /*parent_context=*/std::nullopt,
-                               /*self_type=*/std::nullopt, CreateTypeInfo()));
-  XLS_ASSERT_OK_AND_ASSIGN(const ParametricContext* parametric_context2,
-                           table_->AddParametricInvocation(
-                               *invocation2, *foo, bar,
-                               /*parent_context=*/std::nullopt,
-                               /*self_type=*/std::nullopt, CreateTypeInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      const ParametricContext* parametric_context1,
+      table_->AddParametricInvocation(
+          *invocation1, invocation1->explicit_parametrics(), *foo, bar,
+          /*parent_context=*/std::nullopt,
+          /*self_type=*/std::nullopt, CreateTypeInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      const ParametricContext* parametric_context2,
+      table_->AddParametricInvocation(
+          *invocation2, invocation2->explicit_parametrics(), *foo, bar,
+          /*parent_context=*/std::nullopt,
+          /*self_type=*/std::nullopt, CreateTypeInfo()));
 
   EXPECT_THAT(table_->GetParametricInvocations(),
               ElementsAre(parametric_context1, parametric_context2));
@@ -369,11 +373,12 @@ TEST_F(InferenceTableTest, ParametricVariableWithArrayAnnotation) {
   ASSERT_EQ(bar->body()->statements().size(), 1);
   const Invocation* invocation = down_cast<const Invocation*>(
       ToAstNode(bar->body()->statements().at(0)->wrapped()));
-  XLS_ASSERT_OK_AND_ASSIGN(const ParametricContext* parametric_context,
-                           table_->AddParametricInvocation(
-                               *invocation, *foo, bar,
-                               /*parent_context=*/std::nullopt,
-                               /*self_type=*/std::nullopt, CreateTypeInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      const ParametricContext* parametric_context,
+      table_->AddParametricInvocation(
+          *invocation, invocation->explicit_parametrics(), *foo, bar,
+          /*parent_context=*/std::nullopt,
+          /*self_type=*/std::nullopt, CreateTypeInfo()));
 
   std::optional<ParametricContextScopedExpr> parametric_inv_m_value =
       table_->GetParametricValue(*m, *parametric_context);
@@ -578,16 +583,18 @@ TEST_F(InferenceTableTest, CachingForSpecificParametricContext) {
       ToAstNode(bar->body()->statements().at(0)->wrapped()));
   const Invocation* invocation2 = down_cast<const Invocation*>(
       ToAstNode(bar->body()->statements().at(1)->wrapped()));
-  XLS_ASSERT_OK_AND_ASSIGN(const ParametricContext* parametric_context1,
-                           table_->AddParametricInvocation(
-                               *invocation1, *foo, bar,
-                               /*parent_context=*/std::nullopt,
-                               /*self_type=*/std::nullopt, CreateTypeInfo()));
-  XLS_ASSERT_OK_AND_ASSIGN(const ParametricContext* parametric_context2,
-                           table_->AddParametricInvocation(
-                               *invocation2, *foo, bar,
-                               /*parent_context=*/std::nullopt,
-                               /*self_type=*/std::nullopt, CreateTypeInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      const ParametricContext* parametric_context1,
+      table_->AddParametricInvocation(
+          *invocation1, invocation1->explicit_parametrics(), *foo, bar,
+          /*parent_context=*/std::nullopt,
+          /*self_type=*/std::nullopt, CreateTypeInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      const ParametricContext* parametric_context2,
+      table_->AddParametricInvocation(
+          *invocation2, invocation2->explicit_parametrics(), *foo, bar,
+          /*parent_context=*/std::nullopt,
+          /*self_type=*/std::nullopt, CreateTypeInfo()));
 
   EXPECT_THAT(table_->GetParametricInvocations(),
               ElementsAre(parametric_context1, parametric_context2));
@@ -641,11 +648,12 @@ TEST_F(InferenceTableTest, CachingForCanonicalizedParametricContext) {
       ToAstNode(bar->body()->statements().at(2)->wrapped()));
   ParametricEnv canonical_env(absl::flat_hash_map<std::string, InterpValue>{
       {"N", InterpValue::MakeU32(4)}});
-  XLS_ASSERT_OK_AND_ASSIGN(ParametricContext * canonicalized_context1,
-                           table_->AddParametricInvocation(
-                               *invocation1, *foo, bar,
-                               /*parent_context=*/std::nullopt,
-                               /*self_type=*/std::nullopt, CreateTypeInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ParametricContext * canonicalized_context1,
+      table_->AddParametricInvocation(
+          *invocation1, invocation1->explicit_parametrics(), *foo, bar,
+          /*parent_context=*/std::nullopt,
+          /*self_type=*/std::nullopt, CreateTypeInfo()));
   EXPECT_FALSE(table_->MapToCanonicalInvocationTypeInfo(canonicalized_context1,
                                                         canonical_env));
   const FunctionTypeAnnotation* function_type =
@@ -654,11 +662,12 @@ TEST_F(InferenceTableTest, CachingForCanonicalizedParametricContext) {
               CreateU32Annotation(*module_, Span::Fake())},
           CreateU32Annotation(*module_, Span::Fake()));
   canonicalized_context1->SetParametricFreeFunctionType(function_type);
-  XLS_ASSERT_OK_AND_ASSIGN(ParametricContext * canonicalized_context2,
-                           table_->AddParametricInvocation(
-                               *invocation2, *foo, bar,
-                               /*parent_context=*/std::nullopt,
-                               /*self_type=*/std::nullopt, CreateTypeInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ParametricContext * canonicalized_context2,
+      table_->AddParametricInvocation(
+          *invocation2, invocation2->explicit_parametrics(), *foo, bar,
+          /*parent_context=*/std::nullopt,
+          /*self_type=*/std::nullopt, CreateTypeInfo()));
   EXPECT_TRUE(table_->MapToCanonicalInvocationTypeInfo(canonicalized_context2,
                                                        canonical_env));
   EXPECT_EQ(canonicalized_context1->type_info(),
@@ -667,11 +676,12 @@ TEST_F(InferenceTableTest, CachingForCanonicalizedParametricContext) {
       std::get<ParametricInvocationDetails>(canonicalized_context2->details())
           .parametric_free_function_type,
       function_type);
-  XLS_ASSERT_OK_AND_ASSIGN(const ParametricContext* context3,
-                           table_->AddParametricInvocation(
-                               *invocation3, *foo, bar,
-                               /*parent_context=*/std::nullopt,
-                               /*self_type=*/std::nullopt, CreateTypeInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      const ParametricContext* context3,
+      table_->AddParametricInvocation(
+          *invocation3, invocation3->explicit_parametrics(), *foo, bar,
+          /*parent_context=*/std::nullopt,
+          /*self_type=*/std::nullopt, CreateTypeInfo()));
 
   TypeAnnotation* u4 = CreateUnOrSnAnnotation(*module_, Span::Fake(), false, 4);
   table_->SetCachedUnifiedTypeForVariable(canonicalized_context1, n_ref, {},

@@ -752,6 +752,11 @@ CppTypeGenerator::Create(const TypeDefinition& type_definition,
             return absl::UnimplementedError(absl::StrFormat(
                 "Unsupported type: %s", use_tree_entry->ToString()));
           },
+          [](const Proc* proc)
+              -> absl::StatusOr<std::unique_ptr<CppTypeGenerator>> {
+            return absl::UnimplementedError(
+                absl::StrFormat("Unsupported type: %s", proc->ToString()));
+          },
       },
       type_definition);
 }

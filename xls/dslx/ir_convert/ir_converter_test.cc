@@ -20,6 +20,7 @@
 
 #include "xls/dslx/ir_convert/ir_converter.h"
 
+#include <filesystem>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -29,7 +30,9 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "xls/common/file/get_runfile_path.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/golden_files.h"
 #include "xls/common/status/matchers.h"
@@ -4246,6 +4249,86 @@ proc Proc {
           absl::StatusCode::kUnimplemented,
           HasSubstr(
               "Accessing proc member in non-unrolled loop is unsupported")));
+}
+
+TEST(IrConverterTest, ImportedProcAlias) {
+  auto import_data = CreateImportDataForTest();
+  constexpr std::string_view kImported1 = R"(
+proc AProc<N: u32> {
+  ins: chan<u32>[N] in;
+  init { () }
+  config(ins: chan<u32>[N] in) {
+    (ins,)
+  }
+  next(state: ()) {
+    unroll_for! (i, _): (u32, ()) in u32:0..u32:4 {
+      let (_, v) = recv(token(), ins[i]);
+      trace_fmt!("recv: {}", v);
+    }(());
+    state
+  }
+}
+pub type A = AProc;
+    )";
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(kImported1, "imported1.x", "imported1", &import_data));
+
+  constexpr std::string_view kImported2 = R"(
+import imported1;
+
+pub type B = imported1::A<u32:4>;
+    )";
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(kImported2, "imported2.x", "imported2", &import_data));
+
+  constexpr std::string_view kProgram = R"(
+import imported1;
+import imported2;
+
+type C = imported2::B;
+
+proc main {
+  outs: chan<u32>[4] out;
+  init { () }
+  config() {
+    let (outs, ins) = chan<u32>[4]("ins_outs");
+    spawn imported1::A<u32:4>(ins);
+    spawn C(ins);
+    (outs,)
+  }
+  next(state: ()) {
+    unroll_for! (i, _): (u32, ()) in u32:0..u32:4 {
+      send(token(), outs[i], i);
+    }(());
+    state
+  }
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kProgram, kNoPosOptions, &import_data));
+  ExpectIr(converted);
+}
+
+TEST(IrConverterTest, ProcAliasTopFunc) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::filesystem::path path,
+      GetXlsRunfilePath(
+          absl::StrCat("xls/dslx/ir_convert/testdata/ir_converter_test_",
+                       TestName(), ".input")));
+  bool printed_error = false;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PackageConversionData result,
+      ConvertFilesToPackage({path.string()},
+                            /*stdlib_path=*/"", {path},
+                            ConvertOptions{.emit_positions = false},
+                            /*top=*/"A",
+                            /*package_name=*/std::nullopt, &printed_error));
+  std::string got = result.DumpIr();
+  // Strip file name info because the runpath where the input is compiled is
+  // non-deterministic.
+  ExpectIr(got.substr(got.find("top proc")));
 }
 
 class ProcScopedChannelsIrConverterTest

@@ -29,6 +29,7 @@
 #include "xls/common/visitor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/proc.h"
 #include "re2/re2.h"
 
 namespace xls::dslx {
@@ -113,6 +114,7 @@ std::string BoundNodeGetTypeString(const BoundNode& bn) {
                              [](NameDef*) { return "NameDef"; },
                              [](BuiltinNameDef*) { return "BuiltinNameDef"; },
                              [](Import*) { return "Import"; },
+                             [](Proc*) { return "Proc"; },
                              [&](auto*) {
                                LOG(FATAL) << "Unsupported BoundNode variant: "
                                           << ToAstNode(bn)->ToString();

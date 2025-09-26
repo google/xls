@@ -50,6 +50,7 @@
 #include "xls/dslx/channel_direction.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_cloner.h"
+#include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/frontend/builtins_metadata.h"
@@ -165,6 +166,7 @@ absl::StatusOr<TypeDefinition> BoundNodeToTypeDefinition(BoundNode bn) {
   if (auto* e = TryGet<ProcDef*>(bn)) { return TypeDefinition(e); }
   if (auto* e = TryGet<EnumDef*>(bn)) { return TypeDefinition(e); }
   if (auto* e = TryGet<UseTreeEntry*>(bn)) { return TypeDefinition(e); }
+  if (auto* e = TryGet<Proc*>(bn)) { return TypeDefinition(e); }
   // clang-format on
 
   return absl::InvalidArgumentError("Could not convert to type definition: " +
@@ -1100,7 +1102,7 @@ absl::StatusOr<TypeRefOrAnnotation> Parser::ParseTypeRef(Bindings& bindings,
           /*internal=*/false);
     }
   }
-  if (!IsOneOf<TypeAlias, EnumDef, StructDef, ProcDef, UseTreeEntry>(
+  if (!IsOneOf<TypeAlias, EnumDef, StructDef, ProcDef, UseTreeEntry, Proc>(
           ToAstNode(type_def))) {
     return ParseErrorStatus(
         tok.span(),
@@ -2705,13 +2707,22 @@ absl::StatusOr<Spawn*> Parser::ParseSpawn(Bindings& bindings) {
     XLS_ASSIGN_OR_RETURN(parametrics, ParseParametrics(bindings));
   }
 
-  Expr* spawnee;
+  Expr* spawnee = down_cast<Expr*>(ToAstNode(name_or_colon_ref));
   Expr* config_ref;
   Expr* next_ref;
   Expr* init_ref;
+
+  bool name_ref_is_proc = false;
   if (std::holds_alternative<NameRef*>(name_or_colon_ref)) {
     NameRef* name_ref = std::get<NameRef*>(name_or_colon_ref);
-    spawnee = name_ref;
+    XLS_ASSIGN_OR_RETURN(BoundNode bn, bindings.ResolveNodeOrError(
+                                           name_ref->identifier(),
+                                           name_ref->span(), file_table()));
+    name_ref_is_proc = std::holds_alternative<Proc*>(bn);
+  }
+
+  if (name_ref_is_proc) {
+    NameRef* name_ref = std::get<NameRef*>(name_or_colon_ref);
     // We avoid name collisions b/w existing functions and Proc config/next fns
     // by using a "." as the separator, which is invalid for function
     // specifications.
@@ -2743,26 +2754,20 @@ absl::StatusOr<Spawn*> Parser::ParseSpawn(Bindings& bindings) {
     }
     init_ref = module_->Make<NameRef>(name_ref->span(), init_name, init_def);
   } else {
-    ColonRef* colon_ref = std::get<ColonRef*>(name_or_colon_ref);
-    spawnee = colon_ref;
+    // If spawnee is not a direct NameRef to Proc, then we cannot tell its
+    // target Proc until type inference where we can resolve imported types.
+    // For example, in `spawn imported::A`, `A` may be a type alias, so we
+    // generate fake Attr nodes as call targets.
+    config_ref = module_->Make<Attr>(spawnee->span(), spawnee, "config");
 
-    // Problem: If naively assigned, the colon_ref subject would end up being a
-    // child of both `config_ref` and `next_ref`, which is forbidden. To avoid
-    // this, just clone the subject (references are easily clonable).
-    config_ref =
-        module_->Make<ColonRef>(colon_ref->span(), colon_ref->subject(),
-                                absl::StrCat(colon_ref->attr(), ".config"));
-
-    ColonRef::Subject clone_subject =
-        CloneSubject(module_.get(), colon_ref->subject());
+    // spawnee cannot be owned by multiple nodes, so clone it.
+    XLS_ASSIGN_OR_RETURN(AstNode * clone, CloneAst(spawnee));
     next_ref =
-        module_->Make<ColonRef>(colon_ref->span(), clone_subject,
-                                absl::StrCat(colon_ref->attr(), ".next"));
+        module_->Make<Attr>(spawnee->span(), down_cast<Expr*>(clone), "next");
 
-    clone_subject = CloneSubject(module_.get(), colon_ref->subject());
+    XLS_ASSIGN_OR_RETURN(clone, CloneAst(spawnee));
     init_ref =
-        module_->Make<ColonRef>(colon_ref->span(), clone_subject,
-                                absl::StrCat(colon_ref->attr(), ".init"));
+        module_->Make<Attr>(spawnee->span(), down_cast<Expr*>(clone), "init");
   }
 
   auto parse_args = [this, &bindings] { return ParseExpression(bindings); };
@@ -3295,6 +3300,7 @@ absl::StatusOr<ModuleMember> Parser::ParseProcLike(const Pos& start_pos,
   name_def->set_definer(proc_like);
 
   XLS_RETURN_IF_ERROR(VerifyParentage(proc_like));
+  outer_bindings.Add(name_def->identifier(), proc_like);
   return proc_like;
 }
 

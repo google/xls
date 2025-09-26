@@ -3988,4 +3988,50 @@ proc AProc {
                     "attributes are enabled, please use the new syntax.")));
 }
 
+TEST_F(ParserTest, ProcAlias) {
+  RoundTrip(R"(proc AProc {
+    a: chan<u32> out;
+    b: chan<u32> in;
+    config(c_out: chan<u32> out, c_in: chan<u32> in) {
+        (c_out, c_in)
+    }
+    init {}
+    next(_: ()) {}
+}
+type A = AProc;
+proc Main {
+    a: chan<u32> out;
+    b: chan<u32> in;
+    config(c_out: chan<u32> out, c_in: chan<u32> in) {
+        spawn A(c_out, c_in);
+        (c_out, c_in)
+    }
+    init {}
+    next(_: ()) {}
+})");
+}
+
+TEST_F(ParserTest, ParametricProcAlias) {
+  RoundTrip(R"(proc AProc<X: u32> {
+    a: chan<u32> out;
+    b: chan<u32> in;
+    config(c_out: chan<u32> out, c_in: chan<u32> in) {
+        (c_out, c_in)
+    }
+    init {}
+    next(_: ()) {}
+}
+type A = AProc<u32:4>;
+proc Main {
+    a: chan<u32> out;
+    b: chan<u32> in;
+    config(c_out: chan<u32> out, c_in: chan<u32> in) {
+        spawn A(c_out, c_in);
+        (c_out, c_in)
+    }
+    init {}
+    next(_: ()) {}
+})");
+}
+
 }  // namespace xls::dslx

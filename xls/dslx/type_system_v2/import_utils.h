@@ -39,6 +39,11 @@ absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
 absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
     const ColonRef* colon_ref, const ImportData& import_data);
 
+// Resolves the definition and parametrics for the old style Proc type referred
+// to by `node`.
+absl::StatusOr<std::optional<OldStyleProcRef>> GetOldStyleProcRef(
+    const AstNode* node, const ImportData& import_data);
+
 // Variant that operates on the subject of a `ColonRef`, where the whole thing
 // refers to a struct member.
 absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRefForSubject(

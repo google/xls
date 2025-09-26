@@ -567,8 +567,14 @@ DocRef Fmt(const Attr& n, Comments& comments, DocArena& arena) {
   } else {
     pieces.push_back(Fmt(lhs, comments, arena));
   }
-  pieces.push_back(arena.dot());
-  pieces.push_back(arena.MakeText(std::string{n.attr()}));
+  // Do not print attr if it is an implicitly generated special function call
+  // for a Proc alias, for example `spawn imported::proc_alias.config()` should
+  // be printed as `spawn imported::proc_alias()`.
+  if (!dynamic_cast<const Invocation*>(n.parent()) ||
+      !dynamic_cast<const Spawn*>(n.parent()->parent())) {
+    pieces.push_back(arena.dot());
+    pieces.push_back(arena.MakeText(std::string{n.attr()}));
+  }
   return ConcatNGroup(arena, pieces);
 }
 

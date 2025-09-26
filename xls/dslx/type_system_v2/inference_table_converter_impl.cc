@@ -621,10 +621,21 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         TypeInfo * invocation_type_info,
         import_data_.type_info_owner().New(function->owner(), base_type_info));
 
+    const std::vector<ExprOrType>& explicit_parametrics =
+        invocation->explicit_parametrics().empty()
+            ? function_and_target_object.proc_alias_parametrics
+            : invocation->explicit_parametrics();
+    if (!invocation->explicit_parametrics().empty() &&
+        !function_and_target_object.proc_alias_parametrics.empty()) {
+      return ParametricsRedefinedErrorStatus(invocation->span(), invocation,
+                                             file_table_);
+    }
+
     XLS_ASSIGN_OR_RETURN(
         ParametricContext * invocation_context,
         table_.AddParametricInvocation(
-            *invocation, *function, caller, caller_context,
+            *invocation, explicit_parametrics, *function, caller,
+            caller_context,
             function_and_target_object.target_struct_context.has_value()
                 ? (*function_and_target_object.target_struct_context)
                       ->self_type()
@@ -641,8 +652,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     // arguments, now that we know the formal types.
     const std::vector<ParametricBinding*>& bindings =
         function->parametric_bindings();
-    const std::vector<ExprOrType>& explicit_parametrics =
-        invocation->explicit_parametrics();
     for (int i = 0; i < explicit_parametrics.size(); i++) {
       ExprOrType explicit_parametric = explicit_parametrics[i];
       const ParametricBinding* formal_parametric = bindings[i];
@@ -657,7 +666,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     }
 
     // Convert the explicit parametrics that are being passed.
-    for (ExprOrType explicit_parametric : invocation->explicit_parametrics()) {
+    for (ExprOrType explicit_parametric : explicit_parametrics) {
       XLS_RETURN_IF_ERROR(ConvertSubtree(ToAstNode(explicit_parametric), caller,
                                          caller_context));
     }
@@ -1342,6 +1351,14 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           AddCachedType(struct_def_base, struct_context, *type));
       return type;
     }
+    XLS_ASSIGN_OR_RETURN(std::optional<OldStyleProcRef> old_style_proc_ref,
+                         GetOldStyleProcRef(annotation, import_data_));
+    if (old_style_proc_ref.has_value()) {
+      // A proc alias does not have a concretized type, we return a placeholder
+      // type to make sure any attempt to use it in a value expression fails
+      // ValidateConcreteType.
+      return Type::MakeUnit();
+    }
     XLS_ASSIGN_OR_RETURN(SignednessAndBitCountResult signedness_and_bit_count,
                          GetSignednessAndBitCountWithUserFacingError(
                              annotation, file_table_, [&] {
@@ -1379,6 +1396,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         caller_context.has_value() && (*caller_context)->is_struct()
             ? caller_context
             : std::nullopt;
+    std::vector<ExprOrType> proc_alias_parametrics;
     if (callee->kind() == AstNodeKind::kColonRef) {
       const auto* colon_ref = down_cast<const ColonRef*>(callee);
       std::optional<const AstNode*> target =
@@ -1439,7 +1457,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       XLS_ASSIGN_OR_RETURN(
           std::optional<StructOrProcRef> struct_or_proc_ref,
           GetStructOrProcRef(*target_object_type, import_data_));
-      if (!struct_or_proc_ref.has_value()) {
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<OldStyleProcRef> old_style_proc_ref,
+          GetOldStyleProcRef(*target_object_type, import_data_));
+      if (!struct_or_proc_ref.has_value() && !old_style_proc_ref.has_value()) {
         return TypeInferenceErrorStatus(
             attr->span(), nullptr,
             absl::Substitute(
@@ -1447,24 +1468,40 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                 attr->attr(), (*target_object_type)->ToString()),
             file_table_);
       }
-      if (struct_or_proc_ref->def->IsParametric()) {
-        XLS_ASSIGN_OR_RETURN(target_struct_context,
-                             GetOrCreateParametricStructContext(
-                                 caller_context, *struct_or_proc_ref, callee));
-      }
-      std::optional<Impl*> impl = struct_or_proc_ref->def->impl();
-      XLS_RET_CHECK(impl.has_value());
-      std::optional<Function*> instance_method =
-          (*impl)->GetFunction(attr->attr());
-      if (instance_method.has_value()) {
-        function_node = *instance_method;
-      } else {
-        return TypeInferenceErrorStatusForAnnotation(
-            callee->span(), *target_object_type,
-            absl::Substitute(
-                "Name '$0' is not defined by the impl for struct '$1'.",
-                attr->attr(), struct_or_proc_ref->def->identifier()),
-            file_table_);
+      if (struct_or_proc_ref.has_value()) {
+        if (struct_or_proc_ref->def->IsParametric()) {
+          XLS_ASSIGN_OR_RETURN(
+              target_struct_context,
+              GetOrCreateParametricStructContext(caller_context,
+                                                 *struct_or_proc_ref, callee));
+        }
+        std::optional<Impl*> impl = struct_or_proc_ref->def->impl();
+        XLS_RET_CHECK(impl.has_value());
+        std::optional<Function*> instance_method =
+            (*impl)->GetFunction(attr->attr());
+        if (instance_method.has_value()) {
+          function_node = *instance_method;
+        } else {
+          return TypeInferenceErrorStatusForAnnotation(
+              callee->span(), *target_object_type,
+              absl::Substitute(
+                  "Name '$0' is not defined by the impl for struct '$1'.",
+                  attr->attr(), struct_or_proc_ref->def->identifier()),
+              file_table_);
+        }
+      } else {  // old_style_proc_ref.has_value()
+        // Proc function calls does not use a proc object.
+        target_object = std::nullopt;
+        Proc* proc = const_cast<Proc*>(old_style_proc_ref->def);
+        if (attr->attr() == "config") {
+          function_node = &proc->config();
+        } else if (attr->attr() == "next") {
+          function_node = &proc->next();
+        } else {
+          XLS_RET_CHECK(attr->attr() == "init");
+          function_node = &proc->init();
+        }
+        proc_alias_parametrics = old_style_proc_ref->parametrics;
       }
     }
 
@@ -1477,7 +1514,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                              callee->ToString()),
             file_table_);
       }
-      return FunctionAndTargetObject{fn, target_object, target_struct_context};
+      return FunctionAndTargetObject{fn, target_object, target_struct_context,
+                                     std::move(proc_alias_parametrics)};
     }
     return TypeInferenceErrorStatus(
         callee->span(), nullptr,

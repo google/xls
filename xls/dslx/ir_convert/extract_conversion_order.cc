@@ -451,8 +451,17 @@ absl::StatusOr<std::vector<Proc*>> GetTopLevelProcs(Module* module,
       continue;
     }
 
-    auto* this_spawned = down_cast<Proc*>(spawnee_nameref->GetDefiner());
-    spawned.insert(this_spawned);
+    // Unwrap local type alias.
+    AstNode* node = spawnee_nameref->GetDefiner();
+    while (TypeAlias* type_alias = dynamic_cast<TypeAlias*>(node)) {
+      node = ToAstNode(
+          down_cast<TypeRefTypeAnnotation*>(&type_alias->type_annotation())
+              ->type_ref()
+              ->type_definition());
+    }
+    if (Proc* proc = dynamic_cast<Proc*>(node)) {
+      spawned.insert(proc);
+    }
   }
 
   // All non-parametric procs that are not spawned are top level.

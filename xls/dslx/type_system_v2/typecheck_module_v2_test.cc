@@ -7286,6 +7286,244 @@ proc Proc {
                 HasNodeWithType("b", "chan(sN[32], dir=in)[2]"))));
 }
 
+TEST(TypecheckV2Test, ProcAlias) {
+  EXPECT_THAT(R"(
+proc AProc {
+  a: chan<u32> out;
+  init { }
+  config(c: chan<u32> out) {
+    (c,)
+  }
+  next(_: ()) { }
+}
+
+type A = AProc;
+
+proc main {
+  c: chan<u32> in;
+  init { (join(), 0) }
+  config() {
+    let (p, c) = chan<u32>("my_chan");
+    spawn A(p);
+    (c,)
+  }
+  next(state: (token, u32)) {
+    recv(state.0, c)
+  }
+}
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("spawn A(p)", "()"),
+                                      HasNodeWithType("A.init()", "()"))));
+}
+
+TEST(TypecheckV2Test, ParametricProcAlias) {
+  EXPECT_THAT(R"(
+proc AProc<X: u32> {
+  a: chan<u32> out;
+  b: u8[X];
+  init { }
+  config(c: chan<u32> out) {
+    (c, u8[X]:[0,...])
+  }
+  next(_: ()) { }
+}
+
+type A = AProc;
+
+proc main {
+  c: chan<u32> in;
+  init { (join(), 0) }
+  config() {
+    let (p, c) = chan<u32>("my_chan");
+    spawn A<u32:4>(p);
+    (c,)
+  }
+  next(state: (token, u32)) {
+    recv(state.0, c)
+  }
+}
+)",
+              TypecheckSucceeds(HasNodeWithType(
+                  "A.config<u32:4>(p)", "(chan(uN[32], dir=out), uN[8][4])")));
+}
+
+TEST(TypecheckV2Test, ParametricProcInstanceAlias) {
+  EXPECT_THAT(R"(
+proc AProc<X: u32> {
+  a: chan<u32> out;
+  b: u8[X];
+  init { }
+  config(c: chan<u32> out) {
+    (c, u8[X]:[0,...])
+  }
+  next(_: ()) { }
+}
+
+type A = AProc<u32:5>;
+
+proc main {
+  c: chan<u32> in;
+  init { (join(), 0) }
+  config() {
+    let (p, c) = chan<u32>("my_chan");
+    spawn A(p);
+    (c,)
+  }
+  next(state: (token, u32)) {
+    recv(state.0, c)
+  }
+}
+)",
+              TypecheckSucceeds(HasNodeWithType(
+                  "A.config(p)", "(chan(uN[32], dir=out), uN[8][5])")));
+}
+
+TEST(TypecheckV2Test, ParametricProcAliasNotInstantiatedFails) {
+  EXPECT_THAT(R"(
+proc AProc<X: u32> {
+  a: chan<u32> out;
+  init { }
+  config(c: chan<u32> out) {
+    (c,)
+  }
+  next(_: ()) { }
+}
+
+type A = AProc;
+
+proc main {
+  c: chan<u32> in;
+  init { (join(), 0) }
+  config() {
+    let (p, c) = chan<u32>("my_chan");
+    spawn A(p);
+    (c,)
+  }
+  next(state: (token, u32)) {
+    recv(state.0, c)
+  }
+}
+)",
+              TypecheckFails(HasSubstr(
+                  "Could not infer parametric(s): X of proc `AProc`")));
+}
+
+TEST(TypecheckV2Test, ParametricProcInstanceAliasParametricRedefinedFails) {
+  EXPECT_THAT(R"(
+proc AProc<X: u32> {
+  a: chan<u32> out;
+  init { }
+  config(c: chan<u32> out) {
+    (c,)
+  }
+  next(_: ()) { }
+}
+
+type A = AProc<u32:5>;
+
+proc main {
+  c: chan<u32> in;
+  init { (join(), 0) }
+  config() {
+    let (p, c) = chan<u32>("my_chan");
+    spawn A<u32:5>(p);
+    (c,)
+  }
+  next(state: (token, u32)) {
+    recv(state.0, c)
+  }
+}
+)",
+              TypecheckFails(HasSubstr("Parametric values defined multiple "
+                                       "times for `A.config<u32:5>(p)`")));
+}
+
+TEST(TypecheckV2Test, ProcAliasAsTypeFails) {
+  EXPECT_THAT(R"(
+proc AProc {
+  a: chan<u32> out;
+  init { }
+  config(c: chan<u32> out) {
+    (c,)
+  }
+  next(_: ()) { }
+}
+
+type A = AProc;
+
+fn f(x: A) {
+}
+)",
+              TypecheckFails(HasSubstr("Expected a type, got `A`")));
+}
+
+TEST(TypecheckV2Test, ProcAliasAsExprTypeFails) {
+  EXPECT_THAT(R"(
+proc AProc {
+  a: chan<u32> out;
+  init { }
+  config(c: chan<u32> out) {
+    (c,)
+  }
+  next(_: ()) { }
+}
+
+type A = AProc;
+
+fn f() {
+  let a = A:1; 
+}
+)",
+              TypecheckFails(
+                  HasSubstr("Non-bits type used to define a numeric literal")));
+}
+
+TEST(TypecheckV2Test, ImportedProcAlias) {
+  constexpr std::string_view kImported1 = R"(
+proc AProc<X: u32> {
+  a: chan<u32> out;
+  b: u8[X];
+  init { }
+  config(c: chan<u32> out) {
+    (c, u8[X]:[0,...])
+  }
+  next(_: ()) { }
+}
+
+pub type A = AProc;
+    )";
+  constexpr std::string_view kImported2 = R"(
+import imported1;
+
+pub type B = imported1::A<u32:5>;
+    )";
+  constexpr std::string_view kProgram = R"(
+import imported2;
+
+type C = imported2::B;
+
+proc main {
+  c: chan<u32> in;
+  init { (join(), 0) }
+  config() {
+    let (p, c) = chan<u32>("my_chan");
+    spawn C(p);
+    (c,)
+  }
+  next(state: (token, u32)) {
+    recv(state.0, c)
+  }
+}
+)";
+
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported1, "imported1", &import_data).status());
+  XLS_EXPECT_OK(TypecheckV2(kImported2, "imported2", &import_data).status());
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              IsOkAndHolds(HasTypeInfo(HasNodeWithType(
+                  "C.config(p)", "(chan(uN[32], dir=out), uN[8][5])"))));
+}
+
 TEST(TypecheckV2Test, ImportParametricFunctionWithDefaultExpression) {
   constexpr std::string_view kImported = R"(
 pub fn some_function<N: u32, M: u32 = {N + 1}>() -> uN[M] { uN[M]:0 }

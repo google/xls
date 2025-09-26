@@ -51,6 +51,7 @@
 #include "xls/dslx/frontend/builtins_metadata.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/proc.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/type_system/deduce_utils.h"
@@ -240,6 +241,21 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
             module_.Make<TypeRefTypeAnnotation>(
                 node->span(), module_.Make<TypeRef>(node->span(), type_def),
                 struct_ref->parametrics, std::nullopt);
+        table_.SetColonRefTarget(node, type_ref_annotation);
+        return table_.SetTypeAnnotation(node, type_ref_annotation);
+      }
+
+      // `imported_module::SomeProc` case.
+      XLS_ASSIGN_OR_RETURN(std::optional<OldStyleProcRef> proc_ref,
+                           GetOldStyleProcRef(node, import_data_));
+      if (proc_ref.has_value()) {
+        XLS_ASSIGN_OR_RETURN(
+            TypeDefinition type_def,
+            ToTypeDefinition(const_cast<Proc*>(proc_ref->def)));
+        const TypeAnnotation* type_ref_annotation =
+            module_.Make<TypeRefTypeAnnotation>(
+                node->span(), module_.Make<TypeRef>(node->span(), type_def),
+                proc_ref->parametrics, std::nullopt);
         table_.SetColonRefTarget(node, type_ref_annotation);
         return table_.SetTypeAnnotation(node, type_ref_annotation);
       }
@@ -905,44 +921,15 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
 
     XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,
                          GetStructOrProcRef(node, import_data_));
-    if (!struct_or_proc_ref.has_value() ||
-        struct_or_proc_ref->parametrics.empty()) {
-      return DefaultHandler(node);
+    if (struct_or_proc_ref.has_value()) {
+      return HandleStructOrProcTypeRef(node, struct_or_proc_ref->def,
+                                       struct_or_proc_ref->parametrics);
     }
-    const StructDefBase* struct_def = struct_or_proc_ref->def;
-    if (struct_or_proc_ref->parametrics.size() >
-        struct_def->parametric_bindings().size()) {
-      return ArgCountMismatchErrorStatus(
-          node->span(),
-          absl::Substitute(
-              "Too many parametric values supplied; limit: $0 given: $1",
-              struct_def->parametric_bindings().size(),
-              struct_or_proc_ref->parametrics.size()),
-          file_table_);
-    }
-
-    // If any parametrics are explicitly specified, then they must all be
-    // explicit or defaulted. We technically could infer the rest, as with
-    // functions, but historically we choose not to. We must also constrain the
-    // actual parametric values to the binding type.
-    for (int i = 0; i < struct_def->parametric_bindings().size(); i++) {
-      const ParametricBinding* binding = struct_def->parametric_bindings()[i];
-      if (i < struct_or_proc_ref->parametrics.size()) {
-        const Expr* actual_expr =
-            i < struct_or_proc_ref->parametrics.size()
-                ? std::get<Expr*>(struct_or_proc_ref->parametrics[i])
-                : binding->expr();
-        XLS_RETURN_IF_ERROR(
-            DefineAndSetTypeVariable(actual_expr, "actual_expr"));
-        XLS_RETURN_IF_ERROR(
-            table_.SetTypeAnnotation(actual_expr, binding->type_annotation()));
-      } else if (binding->expr() == nullptr) {
-        return ArgCountMismatchErrorStatus(
-            node->span(),
-            absl::Substitute("No parametric value provided for `$0` in `$1`",
-                             binding->identifier(), struct_def->identifier()),
-            file_table_);
-      }
+    XLS_ASSIGN_OR_RETURN(std::optional<OldStyleProcRef> old_style_proc_ref,
+                         GetOldStyleProcRef(node, import_data_));
+    if (old_style_proc_ref.has_value()) {
+      return HandleStructOrProcTypeRef(node, old_style_proc_ref->def,
+                                       old_style_proc_ref->parametrics);
     }
     return DefaultHandler(node);
   }
@@ -1831,6 +1818,50 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       return ToAstNode(*member);
     }
     return std::nullopt;
+  }
+
+  // Assign type variables to parametrics of a struct or proc type annotation.
+  template <typename T>
+  absl::Status HandleStructOrProcTypeRef(
+      const TypeRefTypeAnnotation* node, T* struct_or_proc_def,
+      const std::vector<ExprOrType>& actual_parametrics) {
+    if (actual_parametrics.empty()) {
+      return DefaultHandler(node);
+    }
+    if (actual_parametrics.size() >
+        struct_or_proc_def->parametric_bindings().size()) {
+      return ArgCountMismatchErrorStatus(
+          node->span(),
+          absl::Substitute(
+              "Too many parametric values supplied; limit: $0 given: $1",
+              struct_or_proc_def->parametric_bindings().size(),
+              actual_parametrics.size()),
+          file_table_);
+    }
+
+    // If any parametrics are explicitly specified, then they must all be
+    // explicit or defaulted. We technically could infer the rest, as with
+    // functions, but historically we choose not to. We must also constrain the
+    // actual parametric values to the binding type.
+    for (int i = 0; i < struct_or_proc_def->parametric_bindings().size(); i++) {
+      const ParametricBinding* binding =
+          struct_or_proc_def->parametric_bindings()[i];
+      if (i < actual_parametrics.size()) {
+        const Expr* actual_expr = std::get<Expr*>(actual_parametrics[i]);
+        XLS_RETURN_IF_ERROR(
+            DefineAndSetTypeVariable(actual_expr, "actual_expr"));
+        XLS_RETURN_IF_ERROR(
+            table_.SetTypeAnnotation(actual_expr, binding->type_annotation()));
+      } else if (binding->expr() == nullptr) {
+        return ArgCountMismatchErrorStatus(
+            node->span(),
+            absl::Substitute("No parametric value provided for `$0` in `$1`",
+                             binding->identifier(),
+                             struct_or_proc_def->identifier()),
+            file_table_);
+      }
+    }
+    return DefaultHandler(node);
   }
 
   // Helper that creates an internal type variable for a `ConstantDef`, `Param`,

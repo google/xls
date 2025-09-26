@@ -224,6 +224,7 @@ cc_library(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_node",
         "//xls/dslx/frontend:module",
+        "//xls/dslx/frontend:proc",
         "//xls/dslx/type_system:parametric_env",
         "//xls/dslx/type_system:type",
         "//xls/dslx/type_system:type_info",

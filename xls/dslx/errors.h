@@ -182,6 +182,12 @@ absl::Status ConstAssertFailureStatus(const Span& span, const Expr* expr,
 std::optional<std::string> GetAssertionLabelFromError(
     const absl::Status& status);
 
+// To be raised when `expr` is already an explicitly instantiated parametric
+// object and it is being instantiated with another parametric environment.
+// For example `type S = A<u32:1>` followed by a use of `S` like `S<u32:2>;`.
+absl::Status ParametricsRedefinedErrorStatus(const Span& span, const Expr* expr,
+                                             const FileTable& file_table);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_ERRORS_H_

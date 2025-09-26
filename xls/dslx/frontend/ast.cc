@@ -51,6 +51,7 @@
 #include "xls/dslx/frontend/ast_builtin_types.inc"
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/proc.h"
 #include "xls/dslx/frontend/token_utils.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
@@ -342,6 +343,7 @@ AnyNameDef TypeDefinitionGetNameDef(const TypeDefinition& td) {
           [](UseTreeEntry* n) -> AnyNameDef {
             return n->GetLeafNameDef().value();
           },
+          [](Proc* n) -> AnyNameDef { return n->name_def(); },
       },
       td);
 }
@@ -354,6 +356,7 @@ AstNode* TypeDefinitionToAstNode(const TypeDefinition& td) {
                          [](EnumDef* n) -> AstNode* { return n; },
                          [](ColonRef* n) -> AstNode* { return n; },
                          [](UseTreeEntry* n) -> AstNode* { return n; },
+                         [](Proc* n) -> AstNode* { return n; },
                      },
                      td);
 }
@@ -373,6 +376,9 @@ absl::StatusOr<TypeDefinition> ToTypeDefinition(AstNode* node) {
   }
   if (node->kind() == AstNodeKind::kColonRef) {
     return down_cast<ColonRef*>(node);
+  }
+  if (node->kind() == AstNodeKind::kProc) {
+    return down_cast<Proc*>(node);
   }
   return absl::InvalidArgumentError(
       absl::StrCat("AST node is not a type definition: ", node->kind()));
