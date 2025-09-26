@@ -437,13 +437,23 @@ BValue BuilderBase::TupleIndex(BValue arg, int64_t idx, const SourceInfo& loc,
   if (ErrorPending()) {
     return BValue();
   }
-  if (!GetType(arg)->IsTuple()) {
+  const Type* arg_type = GetType(arg);
+  if (!arg_type->IsTuple()) {
     return SetError(
         absl::StrFormat(
             "Operand of tuple-index must be tuple-typed, is type: %s",
-            GetType(arg)->ToString()),
+            arg_type->ToString()),
         loc);
   }
+
+  const TupleType* tuple_type = arg_type->AsTupleOrDie();
+  if (idx >= tuple_type->size()) {
+    return SetError(
+        absl::StrFormat("Tuple index %d out of range for tuple type %s", idx,
+                        tuple_type->ToString()),
+        loc);
+  }
+
   return AddNode<xls::TupleIndex>(loc, arg.node(), idx, name);
 }
 
