@@ -146,6 +146,9 @@ CODEGEN_FIELDS = {
                             "output, as a comma-separated list of one or more 32-bit integers. " +
                             "If empty, will use a default order. This can be useful for creating " +
                             "multiple equivalent Verilog outputs to exercise a synthesis pipeline.",
+    "source_annotation_strategy": "The strategy to use for generating source annotations. Use 'Comment'" +
+                            "to generate comments, 'Directive' to generate SystemVerilog `line directives, " +
+                            "or 'None'"
 }
 
 SCHEDULING_FIELDS = {
