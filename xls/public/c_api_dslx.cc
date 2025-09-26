@@ -24,7 +24,9 @@
 #include <variant>
 #include <vector>
 
+#include "absl/types/variant.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/types/span.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
