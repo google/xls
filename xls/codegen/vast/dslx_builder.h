@@ -156,7 +156,8 @@ class DslxBuilder {
                                   dslx::UnopKind unop_kind, dslx::Expr* arg);
 
   absl::StatusOr<dslx::Expr*> HandleIntegerExponentiation(
-      const dslx::Span& span, dslx::Expr* lhs, dslx::Expr* rhs);
+      const dslx::Span& span, dslx::Expr* lhs, dslx::Expr* rhs,
+      verilog::Expression* vast_rhs);
 
   absl::StatusOr<dslx::Number*> HandleConstVal(
       const dslx::Span& span, const Bits& bits,

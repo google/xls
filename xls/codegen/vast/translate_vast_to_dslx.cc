@@ -189,8 +189,8 @@ class VastToDslxTranslator {
         kind = dslx::BinopKind::kDiv;
         break;
       case verilog::OperatorKind::kPower: {
-        XLS_ASSIGN_OR_RETURN(
-            result, dslx_builder_->HandleIntegerExponentiation(span, lhs, rhs));
+        XLS_ASSIGN_OR_RETURN(result, dslx_builder_->HandleIntegerExponentiation(
+                                         span, lhs, rhs, op->rhs()));
         break;
       }
       default:

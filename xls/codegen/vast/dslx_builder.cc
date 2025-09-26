@@ -58,7 +58,6 @@
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/deduce.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
-#include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/typecheck_function.h"
@@ -74,17 +73,6 @@
 
 namespace xls {
 namespace {
-
-absl::StatusOr<bool> IsNegative(const dslx::InterpValue& value) {
-  if (!value.IsSigned()) {
-    return false;
-  }
-  XLS_ASSIGN_OR_RETURN(int64_t bit_count, value.GetBitCount());
-  auto zero = dslx::InterpValue::MakeSBits(bit_count, 0);
-  XLS_ASSIGN_OR_RETURN(auto lt_zero, value.Lt(zero));
-  XLS_ASSIGN_OR_RETURN(int64_t lt_zero_bit_value, lt_zero.GetBitValueViaSign());
-  return lt_zero_bit_value == 1;
-}
 
 std::string GetTypeDefName(const dslx::TypeDefinition& type_def) {
   return absl::visit(Visitor{
@@ -462,33 +450,22 @@ dslx::Unop* DslxBuilder::HandleUnaryOperator(const dslx::Span& span,
 }
 
 absl::StatusOr<dslx::Expr*> DslxBuilder::HandleIntegerExponentiation(
-    const dslx::Span& span, dslx::Expr* lhs, dslx::Expr* rhs) {
-  // TODO(b/330575305): 2022-03-16: Switch the model to deduce after
-  // constructing a value instead of deducing immediately beforehand.
-  XLS_RETURN_IF_ERROR(deduce_ctx().Deduce(lhs).status());
-  XLS_RETURN_IF_ERROR(deduce_ctx().Deduce(rhs).status());
-  XLS_ASSIGN_OR_RETURN(dslx::InterpValue lhs_value,
-                       InterpretExpr(import_data(), type_info(), lhs));
-  if (!lhs_value.HasBits()) {
-    return absl::InvalidArgumentError("pow() LHS isn't bits-typed.");
+    const dslx::Span& span, dslx::Expr* lhs, dslx::Expr* rhs,
+    verilog::Expression* vast_rhs) {
+  XLS_ASSIGN_OR_RETURN(int64_t rhs_value,
+                       verilog::FoldEntireVastExpr(vast_rhs, vast_type_map_));
+  if (rhs_value < 0) {
+    return absl::InvalidArgumentError(
+        absl::StrCat("RHS of pow() cannot be negative: ", rhs_value));
   }
 
-  XLS_ASSIGN_OR_RETURN(dslx::InterpValue rhs_value,
-                       InterpretExpr(import_data(), type_info(), rhs));
-  if (!rhs_value.HasBits()) {
-    return absl::InvalidArgumentError("pow() RHS isn't bits-typed.");
-  }
-
-  XLS_ASSIGN_OR_RETURN(bool is_negative, IsNegative(rhs_value));
-  if (is_negative) {
-    return absl::InvalidArgumentError(absl::StrCat(
-        "RHS of pow() cannot be negative: ", rhs_value.ToString()));
-  }
-
+  XLS_ASSIGN_OR_RETURN(verilog::DataType * vast_rhs_type,
+                       GetVastDataType(vast_rhs));
+  XLS_ASSIGN_OR_RETURN(int64_t rhs_bit_count,
+                       vast_rhs_type->FlatBitCountAsInt64());
   auto* element_type = module().Make<dslx::BuiltinTypeAnnotation>(
       span, dslx::BuiltinType::kUN,
       module().GetOrCreateBuiltinNameDef(dslx::BuiltinType::kUN));
-  XLS_ASSIGN_OR_RETURN(int64_t rhs_bit_count, rhs_value.GetBitCount());
   auto* array_dim =
       module().Make<dslx::Number>(span, absl::StrCat(rhs_bit_count),
                                   dslx::NumberKind::kOther, /*type=*/nullptr);
@@ -496,22 +473,12 @@ absl::StatusOr<dslx::Expr*> DslxBuilder::HandleIntegerExponentiation(
       module().Make<dslx::ArrayTypeAnnotation>(span, element_type, array_dim);
   rhs = module().Make<dslx::Cast>(span, rhs, new_rhs_type);
 
-  std::string power_fn = lhs_value.IsUBits() ? "upow" : "spow";
   XLS_ASSIGN_OR_RETURN(dslx::Import * std,
                        GetOrImportModule(dslx::ImportTokens({"std"})));
   auto* colon_ref = module().Make<dslx::ColonRef>(
-      span, module().Make<dslx::NameRef>(span, "std", &std->name_def()),
-      power_fn);
+      span, module().Make<dslx::NameRef>(span, "std", &std->name_def()), "pow");
   auto* invocation = module().Make<dslx::Invocation>(
       span, colon_ref, std::vector<dslx::Expr*>({lhs, rhs}));
-  dslx::ParametricEnv parametric_env(
-      absl::flat_hash_map<std::string, dslx::InterpValue>{
-          {"N", dslx::InterpValue::MakeUBits(32, rhs_bit_count)}});
-  XLS_RETURN_IF_ERROR(type_info().AddInvocationTypeInfo(
-      *invocation, /*callee=*/nullptr, /*caller=*/nullptr,
-      /*caller_env=*/deduce_ctx().GetCurrentParametricEnv(),
-      /*callee_env=*/parametric_env,
-      /*derived_type_info=*/nullptr));
   return invocation;
 }
 

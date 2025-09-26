@@ -920,8 +920,8 @@ pub const power = u16:0x3;
 
 import std;
 
-pub const upow_result = std::upow(upow_lhs, power);
-pub const spow_result = std::spow(spow_lhs, power) as u16;
+pub const upow_result = std::pow(upow_lhs, power);
+pub const spow_result = std::pow(spow_lhs, power) as u16;
 )";
 
   XLS_EXPECT_VAST_TRANSLATION(f, kExpected);
@@ -1582,7 +1582,7 @@ pub type foo_t = bits[42];
 
 import std;
 
-pub const MiB = std::spow(s32:2, s32:20 as uN[32]) as u32;
+pub const MiB = std::pow(s32:2, s32:20 as uN[32]) as u32;
 pub const Value1 = foo_t:64 * MiB as foo_t;
 pub const Value2 = foo_t:0x0;
 )";

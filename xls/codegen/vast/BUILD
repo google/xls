@@ -207,7 +207,6 @@ cc_library(
         "//xls/dslx/frontend:scanner",
         "//xls/dslx/type_system:deduce",
         "//xls/dslx/type_system:deduce_ctx",
-        "//xls/dslx/type_system:parametric_env",
         "//xls/dslx/type_system:type",
         "//xls/dslx/type_system:type_info",
         "//xls/dslx/type_system:typecheck_function",
