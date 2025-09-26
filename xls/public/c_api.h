@@ -89,8 +89,8 @@ bool xls_convert_dslx_to_ir_with_warnings(
     size_t additional_search_paths_count, const char* enable_warnings[],
     size_t enable_warnings_count, const char* disable_warnings[],
     size_t disable_warnings_count, bool warnings_as_errors,
-    char*** warnings_out, size_t* warnings_out_count, char** error_out,
-    char** ir_out);
+    bool force_implicit_token_calling_convention, char*** warnings_out,
+    size_t* warnings_out_count, char** error_out, char** ir_out);
 
 bool xls_convert_dslx_path_to_ir(const char* path, const char* dslx_stdlib_path,
                                  const char* additional_search_paths[],
@@ -104,8 +104,9 @@ bool xls_convert_dslx_path_to_ir_with_warnings(
     const char* additional_search_paths[], size_t additional_search_paths_count,
     const char* enable_warnings[], size_t enable_warnings_count,
     const char* disable_warnings[], size_t disable_warnings_count,
-    bool warnings_as_errors, char*** warnings_out, size_t* warnings_out_count,
-    char** error_out, char** ir_out);
+    bool warnings_as_errors, bool force_implicit_token_calling_convention,
+    char*** warnings_out, size_t* warnings_out_count, char** error_out,
+    char** ir_out);
 
 bool xls_optimize_ir(const char* ir, const char* top, char** error_out,
                      char** ir_out);

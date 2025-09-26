@@ -67,6 +67,10 @@ struct ConvertOptions {
   // intermediate step? See https://github.com/google/xls/issues/2078
   bool lower_to_proc_scoped_channels = false;
 
+  // Force every DSLX function to use the implicit-token calling convention,
+  // regardless of what type inference determined.
+  bool force_implicit_token_calling_convention = false;
+
   // Configured values to override for use in IR conversion.
   std::vector<std::string> configured_values;
 };
