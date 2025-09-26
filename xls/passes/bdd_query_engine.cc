@@ -860,8 +860,7 @@ bool BddQueryEngine::AtMostOneTrue(
     absl::Span<TreeBitLocation const> bits,
     std::optional<BddNodeIndex> assumption) const {
   // Computing this property is quadratic (at least) so limit the width.
-  const int64_t kMaxWidth = 64;
-  if (bits.size() > kMaxWidth) {
+  if (bits.size() > kOneHotSizeLimit) {
     return false;
   }
 
@@ -888,6 +887,10 @@ bool BddQueryEngine::AtMostOneTrue(
       result = bdd().Or(result, bdd().And(*i_bdd, *j_bdd));
       if (ExceedsPathLimit(result)) {
         VLOG(3) << "AtMostOneTrue exceeded path limit of " << path_limit_;
+        return false;
+      }
+      if (!assumption && result == bdd().one()) {
+        VLOG(3) << "Bits " << i << " and " << j << " can be simultaneously one";
         return false;
       }
     }
