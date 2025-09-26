@@ -16,11 +16,13 @@
 #define XLS_IR_PACKAGE_H_
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <ostream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -28,6 +30,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/data_structures/inline_bitmap.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/fileno.h"
@@ -448,6 +451,21 @@ class Package {
   }
   TransformMetrics& transform_metrics() { return transform_metrics_; }
 
+  // Allocate a new user data id. This function will not reuse an id until
+  // ReleaseNodeUserDataId is called on it.
+  int64_t AllocateNodeUserDataId();
+
+  // Releases the user data id and allows it to be reused.
+  //
+  // NB This must be called once for each value returned by
+  // AllocateNodeUserDataId.
+  //
+  // When this is called all nodes with user data *MUST* have *already* had
+  // TakeUserData called on them to delete the user data associated with them.
+  // On DEBUG builds this is CHECKed.
+  void ReleaseNodeUserDataId(int64_t id);
+  bool IsLiveUserDataId(int64_t id) { return user_data_ids_.Get(id); }
+
  private:
   std::vector<std::string> GetChannelNames() const;
 
@@ -493,6 +511,9 @@ class Package {
 
   // Metrics which record the total number of transformations to the package.
   TransformMetrics transform_metrics_ = {0};
+
+  // Bitmap containing allocated user data ids.
+  InlineBitmap user_data_ids_;
 };
 
 // Printers for fuzztest use.

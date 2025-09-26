@@ -640,6 +640,11 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "pointer_utils",
+    hdrs = ["pointer_utils.h"],
+)
+
 cc_test(
     name = "stopwatch_test",
     srcs = ["stopwatch_test.cc"],

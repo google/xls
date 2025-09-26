@@ -26,3 +26,10 @@ This file provides a context for the XLS project.
 **Documentation:**
 
 *   OSS docs are in `docs_src` and rendered with `mkdocs` at [https://google.github.io/xls/](https://google.github.io/xls/).
+
+**‼️ Agent Instructions ‼️**
+
+*   **NodeMap/NodeSet Usage:** New code should generally use `NodeMap` or
+    `NodeSet` instead of `absl::flat_hash_map` or `absl::flat_hash_set` when the
+    key is `Node*` and the value is not trivially copyable. Existing code should
+    not be modified unless specifically directed to do so.
