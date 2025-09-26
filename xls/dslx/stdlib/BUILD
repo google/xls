@@ -645,6 +645,11 @@ xls_dslx_test(
     dslx_test_args = {"compare": "jit"},
 )
 
+xls_dslx_library(
+    name = "round_dslx",
+    srcs = ["round.x"],
+)
+
 filegroup(
     name = "x_files",
     srcs = glob(["*.x"]),

@@ -1551,6 +1551,252 @@ fn test_distinct_with_invalid() {
 }
 ```
 
+## Rounding functions: `import round`
+
+XLS provides rounding primitives that implement the rounding behavior defined by the [IEEE
+754](https://en.wikipedia.org/wiki/IEEE_754) floating-point specification using the five
+standard rounding
+modes\[[1](https://en.wikipedia.org/wiki/Rounding#Directed_rounding_to_an_integer)\]\[[2](https://en.wikipedia.org/wiki/Rounding#Rounding_to_the_nearest_integer)\].
+Although IEEE 754 describes rounding for floating-point, these more primitive functions operate
+on integer encodings so they can be shared across floating-point pipelines and fixed-point
+logic.
+
+The API accepts unsigned, two's-complement signed, and sign-and-magnitude representations.
+Runtime variants keep the full input width and zero out the rounded-off bits while compile-time
+variants return only the retained most-significant bits. All functions return the rounded value
+together with an overflow flag that reports when the mathematically rounded result requires more
+bits than were supplied.
+
+!!! NOTE
+    The best way to interpret the semantics of these routines is to treat `unrounded` as a
+    fixed-point quantity with `num_bits_rounded` fractional bits, and the value is being rounded
+    to an integer. For unsigned and sign-and-magnitude inputs the corresponding Real value's
+    magnitude is `unrounded / 2^num_bits_rounded`, so the IEEE-754 rounding rules apply directly
+    to that Real number. This viewpoint also explains how round-to-nearest-even behaves when
+    there are zero retained bits: the surviving integer portion is zero (an even value), so ties
+    resolve toward zero.
+
+### Rounding modes and sign tags
+
+#### `RoundingMode`
+
+```dslx-snippet
+pub enum RoundingMode : u3 {
+    RNE = 0,
+    RNA = 1,
+    RTZ = 2,
+    RTN = 3,
+    RTP = 4,
+}
+```
+
+Represents the IEEE-754 rounding selector. The variants correspond to:
+
+- `RoundingMode::RNE` - Round to the nearest representable value; ties go to the even integer.
+- `RoundingMode::RNA` - Round to the nearest representable value; ties go away from zero.
+- `RoundingMode::RTZ` - Round toward zero (floor for non-negative values, ceiling for negative ones).
+- `RoundingMode::RTN` - Round toward negative infinity.
+- `RoundingMode::RTP` - Round toward positive infinity.
+
+The naming scheme is: "RN" for Round to Nearest and "RT" for directed rounding (Round Toward).
+
+#### `Sign`
+
+```dslx-snippet
+pub enum Sign : u1 {
+    NonNegative = 0,
+    Negative = 1,
+}
+```
+
+Annotates whether a sign-and-magnitude operand is non-negative or negative. The core `round`
+function and the sign-and-magnitude wrappers use this. Two's-complement functions infer the sign
+from the most significant bit and set this for the caller.
+
+### Core rounding primitive
+
+#### `round`
+
+```dslx-snippet
+pub fn round<S: bool, N: u32, W_NBR: u32 = {std::clog2(N + u32:1)}, NP1: u32 = {N + u32:1},
+             W_SAFE: u32 = {std::max(N, u32:1)}>
+    (rounding_mode: RoundingMode, num_bits_rounded: uN[W_NBR], sign: Sign, unrounded: xN[S][N])
+    -> (u1, xN[S][N])
+```
+
+Rounds the `num_bits_rounded` least-significant bits of `unrounded` according to the selected
+IEEE-754 mode.
+
+- `rounding_mode` - See [`RoundingMode`](#roundingmode).
+- `num_bits_rounded` - Number of fractional bits to round away; zero keeps the value unchanged and
+  values larger than `N` (argument bit width) treat the entire input as fraction.
+- `sign` - Sign tag when interpreting sign-and-magnitude inputs.
+- `unrounded` - Integer or magnitude to process.
+- Returns `(overflow, rounded)` - Rounded value with the same width/signedness; `overflow` is 1
+  when the mathematically rounded result cannot be represented in `N` bits. When every bit is
+  rounded away the returned magnitude is zero and `overflow` marks rounding modes that would
+  otherwise produce ±1.
+
+### Unsigned functions
+
+#### `round_u`
+
+```dslx-snippet
+pub fn round_u<N: u32, W_NBR: u32 = {std::clog2(N + u32:1)}>
+    (rounding_mode: RoundingMode, num_bits_rounded: uN[W_NBR], unrounded: uN[N]) -> (u1, uN[N])
+```
+
+Rounds an unsigned value.
+
+- `rounding_mode` - See [`RoundingMode`](#roundingmode).
+- `num_bits_rounded` - Number of fractional bits to round away.
+- `unrounded` - Unsigned integer being rounded; the result zeroes the bits rounded away.
+- Returns `(overflow, rounded)` - Rounded unsigned value; `overflow` signals that rounding would
+  exceed the original range.
+
+```dslx
+let (overflow, rounded) =
+    round_u(RoundingMode::RNE, u32:3, u8:0b0001_1100);
+assert_eq(u1:0, overflow);
+assert_eq(u8:0b0010_0000, rounded);
+```
+
+#### `round_trunc_u`
+
+```dslx-snippet
+pub fn round_trunc_u<NumBitsRounded: u32, N: u32, R: u32 = {N - NumBitsRounded},
+                     W_NBR: u32 = {std::clog2(N + u32:1)}>
+    (rounding_mode: RoundingMode, unrounded: uN[N]) -> (u1, uN[R])
+```
+
+Rounds an unsigned value and returns only the most-significant `R` bits.
+
+- `NumBitsRounded` - Compile-time constant that sets how many least-significant bits are
+  discarded.
+- `rounding_mode` - See [`RoundingMode`](#roundingmode).
+- `unrounded` - Unsigned integer being rounded.
+- Returns `(overflow, rounded_msb)` - Rounded value with width `R = N - NumBitsRounded`.
+
+#### `round_trunc_to_u`
+
+```dslx-snippet
+pub fn round_trunc_to_u<AtMost: u32, N: u32, R: u32 = {std::min(AtMost, N)},
+                        NumBitsRounded: u32 = {std::usub_or_zero(N, R)},
+                        W_NBR: u32 = {std::clog2(N + u32:1)}>
+    (rounding_mode: RoundingMode, unrounded: uN[N]) -> (u1, uN[R])
+```
+
+Rounds an unsigned value so the result fits within at most `AtMost` bits. If R >= N then no bits
+are rounded.
+
+- `AtMost` - Compile-time cap on the output width.
+- `rounding_mode` - See [`RoundingMode`](#roundingmode).
+- `unrounded` - Unsigned integer being rounded.
+- Returns `(overflow, rounded_msb)` - Rounded value with width `min(AtMost, N)`.
+
+### Signed functions
+
+#### `round_s`
+
+```dslx-snippet
+pub fn round_s<N: u32, W_NBR: u32 = {std::clog2(N + u32:1)}>
+    (rounding_mode: RoundingMode, num_bits_rounded: uN[W_NBR], unrounded: sN[N]) -> (u1, sN[N])
+```
+
+Rounds a signed value.
+
+- `rounding_mode` - See [`RoundingMode`](#roundingmode).
+- `num_bits_rounded` - Number of fractional bits to round away.
+- `unrounded` - Signed integer being rounded (the rounded result zeroes the bits rounded away).
+- Returns `(overflow, rounded)` - Rounded signed value; `overflow` signals that the rounded
+  integer would require more than `N` bits.
+
+#### `round_trunc_s`
+
+```dslx-snippet
+pub fn round_trunc_s<num_bits_rounded: u32, N: u32, R: u32 = {N - num_bits_rounded},
+                     W_NBR: u32 = {std::clog2(N + u32:1)}>
+    (rounding_mode: RoundingMode, unrounded: sN[N]) -> (u1, sN[R])
+```
+
+Rounds a signed value and returns only the most-significant `R` bits.
+
+- `num_bits_rounded` - Compile-time constant controlling how many bits to drop.
+- `rounding_mode` - See [`RoundingMode`](#roundingmode).
+- `unrounded` - Signed integer being rounded.
+- Returns `(overflow, rounded_msb)` - Rounded value of width `R`; when `R == 0` the numeric
+  result is `0` and only the overflow flag is meaningful.
+
+#### `round_trunc_to_s`
+
+```dslx-snippet
+pub fn round_trunc_to_s<AtMost: u32, N: u32, R: u32 = {std::min(AtMost, N)},
+                        NumBitsRounded: u32 = {std::usub_or_zero(N, R)},
+                        W_NBR: u32 = {std::clog2(N + u32:1)}>
+    (rounding_mode: RoundingMode, unrounded: sN[N]) -> (u1, sN[R])
+```
+
+Rounds a signed value so the result fits within at most `AtMost` bits. If R >= N then no bits
+are rounded.
+
+- `AtMost` - Compile-time cap on the output width.
+- `rounding_mode` - See [`RoundingMode`](#roundingmode).
+- `unrounded` - Signed integer being rounded.
+- Returns `(overflow, rounded_msb)` - Rounded value with width `min(AtMost, N)`.
+
+### Sign-and-magnitude functions
+
+#### `round_sm`
+
+```dslx-snippet
+pub fn round_sm<N: u32, W_NBR: u32 = {std::clog2(N + u32:1)}>
+    (rounding_mode: RoundingMode, num_bits_rounded: uN[W_NBR], sign: Sign, magnitude: uN[N])
+    -> (u1, uN[N])
+```
+
+Rounds a sign-and-magnitude value.
+
+- `rounding_mode` - See [`RoundingMode`](#roundingmode).
+- `num_bits_rounded` - Number of fractional bits to round away.
+- `sign` - Sign tag for the input magnitude.
+- `magnitude` - Magnitude being rounded.
+- Returns `(overflow, rounded)` - Rounded magnitude of width `N`; `overflow` signals loss of
+  range.
+
+#### `round_trunc_sm`
+
+```dslx-snippet
+pub fn round_trunc_sm<num_bits_rounded: u32, N: u32, R: u32 = {N - num_bits_rounded},
+                      W_NBR: u32 = {std::clog2(N + u32:1)}>
+    (rounding_mode: RoundingMode, sign: Sign, magnitude: uN[N]) -> (u1, uN[R])
+```
+
+Rounds a sign-and-magnitude value and returns only the most-significant `R` bits.
+
+- `num_bits_rounded` - Compile-time constant controlling how many bits are discarded.
+- `rounding_mode` - See [`RoundingMode`](#roundingmode).
+- `sign` - Sign tag for the input magnitude.
+- `magnitude` - Magnitude being rounded.
+- Returns `(overflow, rounded_msb)` - Rounded magnitude with width `R`.
+
+#### `round_trunc_to_sm`
+
+```dslx-snippet
+pub fn round_trunc_to_sm<AtMost: u32, N: u32, R: u32 = {std::min(AtMost, N)},
+                         NumBitsRounded: u32 = {std::usub_or_zero(N, R)},
+                         W_NBR: u32 = {std::clog2(N + u32:1)}>
+    (rounding_mode: RoundingMode, sign: Sign, magnitude: uN[N]) -> (u1, uN[R])
+```
+
+Rounds a sign-and-magnitude value so the result fits within at most `AtMost` bits. If R >= N
+then no bits are rounded.
+
+- `AtMost` - Compile-time cap on output width.
+- `rounding_mode` - See [`RoundingMode`](#roundingmode).
+- `sign` - Sign tag for the input magnitude.
+- `magnitude` - Magnitude being rounded.
+- Returns `(overflow, rounded_msb)` - Rounded magnitude with width `min(AtMost, N)`.
+
 ## `import acm_random`
 
 Port of
