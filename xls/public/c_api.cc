@@ -55,7 +55,6 @@
 #include "xls/jit/function_jit.h"
 #include "xls/public/c_api_format_preference.h"
 #include "xls/public/c_api_impl_helpers.h"
-#include "xls/public/c_api_vast.h"
 #include "xls/public/runtime_build_actions.h"
 #include "xls/solvers/z3_ir_translator.h"
 #include "xls/tools/codegen_flags.pb.h"
