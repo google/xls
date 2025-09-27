@@ -16,6 +16,7 @@
 #define XLS_DATA_STRUCTURES_TRANSITIVE_CLOSURE_H_
 
 #include <cstdint>
+#include <type_traits>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -24,6 +25,8 @@
 #include "xls/data_structures/inline_bitmap.h"
 
 namespace xls {
+
+class Node;
 
 namespace internal {
 // Compute the transitive closure of a relation.
@@ -97,6 +100,28 @@ class DenseIdRelation {
   absl::Span<InlineBitmap> relation_;
 };
 
+template <typename NodeRelationBase>
+class NodeRelation {
+ public:
+  explicit NodeRelation(NodeRelationBase& relation) : relation_(relation) {}
+  template <typename F>
+  void ForEachKeyValue(F f) const {
+    for (auto& [j, from_j] : relation_) {
+      f(j, from_j);
+    }
+  }
+  bool Contains(const absl::flat_hash_set<Node*>& vs, Node* const& v) const {
+    return vs.contains(v);
+  }
+  void UnionInPlace(absl::flat_hash_set<Node*>& i,
+                    const absl::flat_hash_set<Node*>& k) const {
+    i.insert(k.begin(), k.end());
+  }
+
+ private:
+  NodeRelationBase& relation_;
+};
+
 }  // namespace internal
 
 template <typename V>
@@ -107,6 +132,19 @@ using HashRelation = absl::flat_hash_map<V, absl::flat_hash_set<V>>;
 template <typename V>
 HashRelation<V> TransitiveClosure(HashRelation<V> v) {
   internal::TransitiveClosure(internal::HashRelation<V>(v));
+  return v;
+}
+
+// Compute the transitive closure of a relation represented as an explicit
+// adjacency list using NodeMap.
+//
+// This has some terrible template stuff to ensure we don't actually need to
+// include NodeMap.
+template <typename NodeRelation>
+NodeRelation TransitiveClosure(NodeRelation v)
+  requires(NodeRelation::kIsNodeMap)
+{
+  internal::TransitiveClosure(internal::NodeRelation(v));
   return v;
 }
 

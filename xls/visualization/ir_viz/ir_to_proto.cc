@@ -39,6 +39,7 @@
 #include "xls/ir/block.h"  // IWYU pragma: keep
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/node_map.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
@@ -202,8 +203,7 @@ absl::StatusOr<viz::FunctionBase> FunctionBaseToVisualizationProto(
       PartialInfoQueryEngine(), ProcStateRangeQueryEngine());
   XLS_RETURN_IF_ERROR(query_engine.Populate(function).status());
 
-  using NodeDAG =
-      absl::flat_hash_map<xls::Node*, absl::flat_hash_set<xls::Node*>>;
+  using NodeDAG = NodeMap<absl::flat_hash_set<xls::Node*>>;
   NodeDAG node_dag;
   if (token_dag) {
     XLS_ASSIGN_OR_RETURN(NodeDAG token_dag, ComputeTokenDAG(function));

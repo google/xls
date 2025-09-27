@@ -27,6 +27,7 @@
 #include "xls/data_structures/inline_bitmap.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_map.h"
 
 namespace xls {
 
@@ -107,15 +108,14 @@ class NodeDependencyAnalysis {
   }
 
  private:
-  NodeDependencyAnalysis(bool is_forwards,
-                         absl::flat_hash_map<Node*, InlineBitmap> dependents,
+  NodeDependencyAnalysis(bool is_forwards, NodeMap<InlineBitmap> dependents,
                          absl::flat_hash_map<Node*, int64_t> node_ids)
       : is_forward_(is_forwards),
         dependents_(std::move(dependents)),
         node_indices_(std::move(node_ids)) {}
 
   bool is_forward_;
-  absl::flat_hash_map<Node*, InlineBitmap> dependents_;
+  NodeMap<InlineBitmap> dependents_;
   absl::flat_hash_map<Node*, int64_t> node_indices_;
 };
 

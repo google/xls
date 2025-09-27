@@ -638,9 +638,11 @@ cc_library(
         "//xls/common:casts",
         "//xls/common:iterator_range",
         "//xls/common:math_util",
+        "//xls/common:pointer_utils",
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/data_structures:inline_bitmap",
         "//xls/data_structures:leaf_type_tree",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/base",
@@ -2488,6 +2490,43 @@ cc_test(
         ":value_flattening",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "node_map",
+    hdrs = ["node_map.h"],
+    deps = [
+        ":ir",
+        "//xls/common:pointer_utils",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:hash_container_defaults",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+    ],
+)
+
+cc_test(
+    name = "node_map_test",
+    srcs = ["node_map_test.cc"],
+    deps = [
+        ":benchmark_support",
+        ":bits",
+        ":function_builder",
+        ":ir",
+        ":ir_matcher",
+        ":ir_test_base",
+        ":node_map",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@google_benchmark//:benchmark",
         "@googletest//:gtest",
     ],
 )

@@ -21,7 +21,6 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
-#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -35,6 +34,7 @@
 #include "xls/ir/interval_ops.h"
 #include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_map.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/ternary.h"
@@ -674,9 +674,8 @@ TernaryTree LazyTernaryQueryEngine::ComputeInfo(
     }
     CHECK_OK(node->VisitSingleNode(&visitor));
   }
-  absl::flat_hash_map<Node*, std::unique_ptr<SharedTernaryTree>> result =
-      std::move(visitor).ToStoredValues();
-  return std::move(*result.at(node)).ToOwned();
+  NodeMap<SharedTernaryTree> result = std::move(visitor).ToStoredValues();
+  return std::move(result.at(node)).ToOwned();
 }
 
 absl::Status LazyTernaryQueryEngine::MergeWithGiven(

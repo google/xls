@@ -245,7 +245,7 @@ std::optional<Node*> GetPredicate(Node* node) {
   return predicate;
 };
 
-using NodeRelation = absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>;
+using NodeRelation = NodeMap<absl::flat_hash_set<Node*>>;
 
 // Find all nodes that the given node transitively depends on.
 absl::flat_hash_set<Node*> DependenciesOf(Node* root) {
@@ -326,7 +326,7 @@ absl::StatusOr<NodeRelation> ComputeMergableEffects(FunctionBase* f) {
   }
 
   NodeRelation result;
-  NodeRelation transitive_closure = TransitiveClosure<Node*>(token_dag);
+  NodeRelation transitive_closure = TransitiveClosure(token_dag);
   for (Node* node : ReverseTopoSort(f)) {
     if (node->Is<Send>() || node->Is<Receive>()) {
       std::string_view channel_name = GetChannelName(node);

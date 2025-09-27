@@ -28,11 +28,14 @@
 #include "xls/data_structures/inline_bitmap.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_map.h"
 #include "xls/ir/topo_sort.h"
 
 namespace xls {
 
 namespace {
+
+using NodeSet = absl::flat_hash_set<Node*>;
 
 // Perform actual analysis.
 // f is the function to analyze. We only care about getting results for
@@ -40,10 +43,8 @@ namespace {
 // searched). Succs returns the nodes that depend on the argument. iter is the
 // iterator to walk the function in the topological order defined by preds.
 template <typename Successors>
-std::tuple<absl::flat_hash_map<Node*, InlineBitmap>,
-           absl::flat_hash_map<Node*, int64_t>>
-AnalyzeDependents(FunctionBase* f,
-                  const absl::flat_hash_set<Node*>& interesting_nodes,
+std::tuple<NodeMap<InlineBitmap>, absl::flat_hash_map<Node*, int64_t>>
+AnalyzeDependents(FunctionBase* f, const NodeSet& interesting_nodes,
                   Successors succs, absl::Span<Node* const> topo_sort) {
   absl::flat_hash_map<Node*, int64_t> node_ids;
   node_ids.reserve(f->node_count());
@@ -67,8 +68,7 @@ AnalyzeDependents(FunctionBase* f,
   VLOG(3) << "Analyzing dependents of " << f->node_count() << " nodes with "
           << interesting_nodes.size() << " interesting.";
   int64_t bitmap_size = f->node_count();
-  absl::flat_hash_map<Node*, InlineBitmap> results;
-  results.reserve(f->node_count());
+  NodeMap<InlineBitmap> results;
   for (Node* n : topo_sort) {
     auto [it, inserted] = results.try_emplace(n, bitmap_size);
     InlineBitmap& bm = it->second;
@@ -86,8 +86,13 @@ AnalyzeDependents(FunctionBase* f,
     }
   }
   // To avoid any bugs delete everything that's not specifically requested.
-  absl::erase_if(results,
-                 [&](auto& pair) { return !is_interesting(pair.first); });
+  for (auto it = results.begin(); it != results.end();) {
+    if (!is_interesting(it->first)) {
+      it = results.erase(it);
+    } else {
+      ++it;
+    }
+  }
   return {results, node_ids};
 }
 
@@ -103,7 +108,7 @@ absl::StatusOr<DependencyBitmap> NodeDependencyAnalysis::GetDependents(
 
 NodeDependencyAnalysis NodeDependencyAnalysis::BackwardDependents(
     FunctionBase* fb, absl::Span<Node* const> nodes) {
-  absl::flat_hash_set<Node*> interesting(nodes.begin(), nodes.end());
+  NodeSet interesting(nodes.begin(), nodes.end());
   auto [dependents, node_ids] = AnalyzeDependents(
       fb, interesting, /*succs=*/[](Node* node) { return node->users(); },
       TopoSort(fb));
@@ -112,7 +117,7 @@ NodeDependencyAnalysis NodeDependencyAnalysis::BackwardDependents(
 
 NodeDependencyAnalysis NodeDependencyAnalysis::ForwardDependents(
     FunctionBase* fb, absl::Span<Node* const> nodes) {
-  absl::flat_hash_set<Node*> interesting(nodes.begin(), nodes.end());
+  NodeSet interesting(nodes.begin(), nodes.end());
   auto [dependents, node_ids] = AnalyzeDependents(
       fb, interesting, /*succs=*/[](Node* node) { return node->operands(); },
       ReverseTopoSort(fb));

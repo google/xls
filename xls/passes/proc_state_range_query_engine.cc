@@ -22,7 +22,6 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
-#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -42,6 +41,7 @@
 #include "xls/ir/interval_ops.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_map.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/proc.h"
@@ -64,7 +64,7 @@ namespace {
 
 class ProcStateGivens : public RangeDataProvider, public TernaryDataProvider {
  public:
-  ProcStateGivens(Proc* proc, absl::flat_hash_map<Node*, IntervalSet> intervals)
+  ProcStateGivens(Proc* proc, NodeMap<IntervalSet> intervals)
       : proc_(proc), intervals_(std::move(intervals)) {}
   absl::Status IterateFunction(DfsVisitor* visitor) override {
     return proc_->Accept(visitor);
@@ -93,7 +93,7 @@ class ProcStateGivens : public RangeDataProvider, public TernaryDataProvider {
 
  private:
   Proc* proc_;
-  absl::flat_hash_map<Node*, IntervalSet> intervals_;
+  NodeMap<IntervalSet> intervals_;
 };
 
 // A givens that restricts the iteration to only values that hit the proc-state
@@ -101,8 +101,7 @@ class ProcStateGivens : public RangeDataProvider, public TernaryDataProvider {
 class ProcStateEvolutionGivens : public ProcStateGivens {
  public:
   ProcStateEvolutionGivens(absl::Span<Node* const> reverse_topo_sort,
-                           Node* target,
-                           absl::flat_hash_map<Node*, IntervalSet> intervals,
+                           Node* target, NodeMap<IntervalSet> intervals,
                            const DependencyBitmap& interesting_nodes)
       : ProcStateGivens(target->function_base()->AsProcOrDie(),
                         std::move(intervals)),
@@ -141,7 +140,7 @@ ExtractContextSensitiveRange(
     const NodeDependencyAnalysis& next_dependent_information) {
   Node* pred = *next->predicate();
   XLS_ASSIGN_OR_RETURN(
-      (absl::flat_hash_map<Node*, IntervalSet> results),
+      NodeMap<IntervalSet> results,
       PropagateGivensBackwards(rqe, proc,
                                {{pred, IntervalSet::Precise(UBits(1, 1))}},
                                reverse_topo_sort));
@@ -288,9 +287,7 @@ class ConstantValueIrInterpreter
   // it's hard to imagine many procs with more than a handful of constant set
   // values which are still narrowable.
   static constexpr int64_t kSegmentLimit = 8;
-  const absl::flat_hash_map<
-      Node*, std::unique_ptr<SharedLeafTypeTree<absl::flat_hash_set<Bits>>>>&
-  values() const {
+  const NodeMap<SharedLeafTypeTree<absl::flat_hash_set<Bits>>>& values() const {
     return map_;
   }
   absl::Status DefaultHandler(Node* n) override {
@@ -519,7 +516,7 @@ absl::StatusOr<absl::flat_hash_set<Bits>> FindConstantUpdateValues(
       continue;
     }
     LeafTypeTreeView<absl::flat_hash_set<Bits>> v =
-        values.at(n->value())->AsView();
+        values.at(n->value()).AsView();
     XLS_RET_CHECK(v.type()->IsBits());
     for (const Bits& b : v.Get({})) {
       param_values.insert(b);
@@ -855,8 +852,7 @@ absl::StatusOr<ReachedFixpoint> ProcStateRangeQueryEngine ::Populate(
   TernaryQueryEngine spec_ternary;
   RangeQueryEngine spec_range;
 
-  absl::flat_hash_map<Node*, IntervalSet> state_read_intervals;
-  state_read_intervals.reserve(final_range_data.size());
+  NodeMap<IntervalSet> state_read_intervals;
   for (const auto& [state_element, range] : final_range_data) {
     state_read_intervals[proc->GetStateRead(state_element)] =
         range.interval_set.Get({});
