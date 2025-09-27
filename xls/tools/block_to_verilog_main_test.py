@@ -53,6 +53,34 @@ top block my_function(a: bits[32], b: bits[32], out: bits[32]) {
 }
 '''
 
+TWO_STAGE_BLOCK_IR = '''package add
+
+#[signature("""module_name: "my_function" data_ports { direction: PORT_DIRECTION_INPUT name: "a" width: 32 type { type_enum: BITS bit_count: 32 } }
+                                          data_ports { direction: PORT_DIRECTION_INPUT name: "b" width: 32 type { type_enum: BITS bit_count: 32 } }
+                                          data_ports { direction: PORT_DIRECTION_OUTPUT name: "out" width: 32 type { type_enum: BITS bit_count: 32 } }
+                                          fixed_latency { latency: 1 } """)]
+
+top block my_function(clk: clock, a: bits[32], b: bits[32], out: bits[32]) {
+  reg not_a_reg(bits[32])
+  reg not_b_reg(bits[32])
+
+  a: bits[32] = input_port(name=a, id=6)
+  b: bits[32] = input_port(name=b, id=7)
+  not_a: bits[32] = not(a, id=8)
+  not_b: bits[32] = not(b, id=9)
+
+  not_a_write: () = register_write(not_a, register=not_a_reg, id=10)
+  not_b_write: () = register_write(not_b, register=not_b_reg, id=11)
+  not_a_reg: bits[32] = register_read(register=not_a_reg, id=12)
+  not_b_reg: bits[32] = register_read(register=not_b_reg, id=13)
+
+  id_not_a: bits[32] = identity(not_a_reg, id=14)
+  id_not_b: bits[32] = identity(not_b_reg, id=15)
+  sum: bits[32] = add(id_not_a, id_not_b, id=16)
+  out: () = output_port(sum, name=out, id=17)
+}
+'''
+
 INLINE_OR_IR = '''package inline_or
 
 #[signature("""module_name: "inline_or" data_ports { direction: PORT_DIRECTION_INPUT name: "a" width: 32 type { type_enum: BITS bit_count: 32 } }
@@ -303,34 +331,41 @@ class BlockToVerilogMainTest(absltest.TestCase):
     with open(verilog1_path, 'r') as f1, open(verilog2_path, 'r') as f2:
       self.assertEqual(f1.read(), f2.read())
 
-  def test_pipeline_generator_rejects_reference_residual(self):
+  def test_two_stage_pipeline(self):
     # Using reference residual data with pipeline generator should fail.
-    block_ir_file = self.create_tempfile(content=BLOCK_IR)
+    block_ir_file = self.create_tempfile(content=TWO_STAGE_BLOCK_IR)
 
     ref_path = self.write_residual_data(
         'my_function',
         [
-            NodeMetadata('neg_a', 8),
+            NodeMetadata('not_a', 8),
             NodeMetadata('not_b', 9),
-            NodeMetadata('id_not_b', 10),
+            NodeMetadata('id_not_b', 15),
+            NodeMetadata('id_not_a', 14),
         ],
         'ref_pipeline_order.textproto',
     )
+    verilog_path = test_base.create_named_output_text_file('output.v')
+    subprocess.check_call([
+        BLOCK_TO_VERILOG_MAIN_PATH,
+        '--alsologtostderr',
+        '--generator=pipeline',
+        '--reference_residual_data_path=' + ref_path,
+        '--output_verilog_path=' + verilog_path,
+        block_ir_file.full_path,
+    ])
 
-    proc = subprocess.run(
-        [
-            BLOCK_TO_VERILOG_MAIN_PATH,
-            '--generator=pipeline',
-            '--reference_residual_data_path=' + ref_path,
-            block_ir_file.full_path,
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    self.assertNotEqual(proc.returncode, 0)
-    self.assertIn('not supported when generating pipelines', proc.stderr)
+    with open(verilog_path, 'r') as f:
+      v = f.read()
+      print(v)
+      self.assertLess(
+          self.find_line_number(v, 'not_a_comb ='),
+          self.find_line_number(v, 'not_b_comb ='),
+      )
+      self.assertLess(
+          self.find_line_number(v, 'id_not_b_comb ='),
+          self.find_line_number(v, 'id_not_a_comb ='),
+      )
 
   def test_inline_all_expressions(self):
     ir_file = self.create_tempfile(content=INLINE_OR_IR)
