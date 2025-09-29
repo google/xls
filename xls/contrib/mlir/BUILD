@@ -137,18 +137,6 @@ gentbl_cc_library(
 )
 
 cc_library(
-    name = "assembly_format",
-    srcs = ["IR/assembly_format.cc"],
-    hdrs = ["IR/assembly_format.h"],
-    deps = [
-        ":xls_ops_typedefs_inc_gen",
-        "@llvm-project//llvm:Support",
-        "@llvm-project//mlir:IR",
-        "@llvm-project//mlir:Support",
-    ],
-)
-
-cc_library(
     name = "mlir_xls",
     srcs = [
         "IR/interfaces.cc.inc",
@@ -167,7 +155,6 @@ cc_library(
         "IR/xls_ops.h",
     ],
     deps = [
-        ":assembly_format",
         "@llvm-project//llvm:Support",
         "@llvm-project//mlir:FuncDialect",
         "@llvm-project//mlir:IR",

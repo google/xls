@@ -15,17 +15,24 @@
 #ifndef GDM_HW_MLIR_XLS_IR_XLS_OPS_H_
 #define GDM_HW_MLIR_XLS_IR_XLS_OPS_H_
 
+#include "llvm/include/llvm/ADT/ArrayRef.h"
 #include "llvm/include/llvm/ADT/StringRef.h"
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"  // IWYU pragma: keep
 #include "mlir/include/mlir/IR/Attributes.h"
+#include "mlir/include/mlir/IR/BuiltinAttributes.h"
 #include "mlir/include/mlir/IR/Dialect.h"
 #include "mlir/include/mlir/IR/DialectImplementation.h"
 #include "mlir/include/mlir/IR/Location.h"
 #include "mlir/include/mlir/IR/MLIRContext.h"
 #include "mlir/include/mlir/IR/OpDefinition.h"
+#include "mlir/include/mlir/IR/OpImplementation.h"
 #include "mlir/include/mlir/IR/Operation.h"
+#include "mlir/include/mlir/IR/OperationSupport.h"
+#include "mlir/include/mlir/IR/TypeRange.h"
 #include "mlir/include/mlir/IR/TypeUtilities.h"
 #include "mlir/include/mlir/IR/Types.h"
+#include "mlir/include/mlir/Support/LLVM.h"
+#include "mlir/include/mlir/Support/LogicalResult.h"
 #include "mlir/include/mlir/Transforms/DialectConversion.h"
 
 // Include order below matters.
