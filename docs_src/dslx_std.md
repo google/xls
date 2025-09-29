@@ -1676,7 +1676,7 @@ Rounds an unsigned value.
 - Returns `(overflow, rounded)` - Rounded unsigned value; `overflow` signals that rounding would
   exceed the original range.
 
-```dslx
+```dslx-snippet
 let (overflow, rounded) =
     round_u(RoundingMode::RNE, u32:3, u8:0b0001_1100);
 assert_eq(u1:0, overflow);
