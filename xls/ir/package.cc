@@ -251,8 +251,7 @@ AddChannelsFromPackage(Package* this_package, const Package* other_package,
 
 // Add FunctionBases (function, proc, and block) from other_package to
 // this_package. Assumes channels have already been added.
-absl::StatusOr<absl::flat_hash_map<const FunctionBase*, FunctionBase*>>
-AddFunctionBasesFromPackage(
+absl::Status AddFunctionBasesFromPackage(
     Package* this_package, const Package* other_package,
     NameCollisionResolver* name_resolver,
     const absl::flat_hash_map<std::string, std::string>& channel_remapping) {
@@ -306,7 +305,7 @@ AddFunctionBasesFromPackage(
     }
   }
 
-  return function_base_remapping;
+  return absl::OkStatus();
 }
 }  // namespace
 
@@ -322,9 +321,8 @@ absl::StatusOr<Package::PackageMergeResult> Package::ImportFromPackage(
                        AddChannelsFromPackage(this, other, &name_resolver));
 
   // Next, merge in functions, procs, and blocks.
-  XLS_ASSIGN_OR_RETURN(auto call_mapping,
-                       AddFunctionBasesFromPackage(this, other, &name_resolver,
-                                                   channel_updates));
+  XLS_RETURN_IF_ERROR(AddFunctionBasesFromPackage(this, other, &name_resolver,
+                                                  channel_updates));
   return Package::PackageMergeResult{
       .name_updates = name_resolver.name_updates(),
       .channel_updates = std::move(channel_updates)};

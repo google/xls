@@ -394,8 +394,6 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
 
   // Make a copy; the fn stack can get re-allocated, etc.
   ParametricEnv caller_parametric_env = ctx->GetCurrentParametricEnv();
-  absl::flat_hash_map<std::string, InterpValue> caller_parametric_env_map =
-      caller_parametric_env.ToMap();
 
   // We need to deduce a callee relative to its parent module. We still need to
   // record data in the original module/ctx, so we hold on to the parent.
