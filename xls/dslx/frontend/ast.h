@@ -3910,6 +3910,10 @@ class ConstantDef : public AstNode {
   const std::string& identifier() const { return name_def_->identifier(); }
   NameDef* name_def() const { return name_def_; }
   TypeAnnotation* type_annotation() const { return type_annotation_; }
+  void set_type_annotation(TypeAnnotation* annotation) {
+    type_annotation_ = annotation;
+  }
+
   Expr* value() const { return value_; }
   const Span& span() const { return span_; }
   std::optional<Span> GetSpan() const override { return span_; }

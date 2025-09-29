@@ -68,6 +68,8 @@ const TypeInferenceFlag TypeInferenceFlag::kBitsLikeType(1 << 4,
                                                          "bits-like-type");
 const TypeInferenceFlag TypeInferenceFlag::kFormalMemberType(
     1 << 5, "formal-member-type");
+const TypeInferenceFlag TypeInferenceFlag::kFormalFunctionType(
+    1 << 6, "formal-function-type");
 
 namespace {
 
