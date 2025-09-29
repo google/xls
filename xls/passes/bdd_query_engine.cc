@@ -864,16 +864,15 @@ bool BddQueryEngine::AtMostOneTrue(
     return false;
   }
 
-  BddNodeIndex result = bdd().zero();
   for (const TreeBitLocation& loc : bits) {
     if (!IsTracked(loc.node())) {
       return false;
     }
   }
 
-  // Compute the NOR-reduction of a pairwise AND of all bits. If this value is
-  // one then no two bits can be simultaneously true. Equivalently: at most one
-  // bit is true.
+  // Check that there is no pair of bits where both can simultaneously be true
+  // (A && B). If there is an assumption check there is no pair of bits where
+  // both the assumption holds and both are true.
   for (int64_t i = 0; i < bits.size(); ++i) {
     std::optional<BddNodeIndex> i_bdd = GetBddNode(bits[i]);
     if (!i_bdd.has_value()) {
@@ -884,19 +883,24 @@ bool BddQueryEngine::AtMostOneTrue(
       if (!j_bdd.has_value()) {
         return false;
       }
-      result = bdd().Or(result, bdd().And(*i_bdd, *j_bdd));
-      if (ExceedsPathLimit(result)) {
+      auto not_i_and_j = bdd().Not(bdd().And(*i_bdd, *j_bdd));
+      if (ExceedsPathLimit(not_i_and_j)) {
         VLOG(3) << "AtMostOneTrue exceeded path limit of " << path_limit_;
+        return false;
+      }
+      if (assumption.has_value() && !Implies(*assumption, not_i_and_j)) {
+        VLOG(3) << "AtMostOneTrue bdd values " << i << " and " << j
+                << " can be true simultaneously under the assumption";
+        return false;
+      }
+      if (not_i_and_j != bdd().one()) {
+        VLOG(3) << "AtMostOneTrue bdd values " << i << " and " << j
+                << " can be true simultaneously";
         return false;
       }
     }
   }
-  result = bdd().Not(result);
-
-  if (assumption.has_value()) {
-    return Implies(*assumption, result);
-  }
-  return result == bdd().one();
+  return true;
 }
 
 std::optional<SharedLeafTypeTree<TernaryVector>> BddQueryEngine::GetTernary(

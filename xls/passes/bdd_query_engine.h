@@ -72,7 +72,7 @@ class BddQueryEngine
 
   // Calculating if at most one bit is true is quadratic so we limit it to
   // values this large or smaller.
-  static constexpr int64_t kOneHotSizeLimit = 64;
+  static constexpr int64_t kOneHotSizeLimit = 300;
 
   // Returns an instance of the recommended default BddQueryEngine, using
   // kDefaultPathLimit and filtering to operate only on nodes that satisfy
