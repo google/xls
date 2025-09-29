@@ -9,10 +9,10 @@ module x_plus_y_plus_z(
   // ===== Pipe stage 0:
 
   // Registers for pipe stage 0:
-  reg [31:0] p0_a;
-  reg [31:0] p0_b;
-  reg [31:0] p0_c;
-  reg [31:0] p0_d;
+  logic [31:0] p0_a;
+  logic [31:0] p0_b;
+  logic [31:0] p0_c;
+  logic [31:0] p0_d;
   always_ff @ (posedge clk) begin
     p0_a <= a;
     p0_b <= b;
@@ -35,7 +35,7 @@ module x_plus_y_plus_z(
   assign p1_sub_30_comb = p1_sub_28_comb - p1_add_29_comb;
 
   // Registers for pipe stage 1:
-  reg [31:0] p1_sub_30;
+  logic [31:0] p1_sub_30;
   always_ff @ (posedge clk) begin
     p1_sub_30 <= p1_sub_30_comb;
   end

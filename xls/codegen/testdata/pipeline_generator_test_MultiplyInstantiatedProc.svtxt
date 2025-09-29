@@ -8,9 +8,9 @@ module leaf_proc(
   output wire [31:0] accum_out,
   output wire accum_out_vld
 );
-  reg [31:0] p0_tuple_index_23;
-  reg [31:0] __accum;
-  reg p0_valid;
+  logic [31:0] p0_tuple_index_23;
+  logic [31:0] __accum;
+  logic p0_valid;
   wire p1_stage_done;
   wire p1_not_valid;
   wire p0_enable;
@@ -63,7 +63,7 @@ module a_top_proc(
   wire instantiation_output_85;
   wire [31:0] instantiation_output_86;
   wire instantiation_output_87;
-  reg p0_valid;
+  logic p0_valid;
   wire p0_stage_done;
   wire p0_enable;
 

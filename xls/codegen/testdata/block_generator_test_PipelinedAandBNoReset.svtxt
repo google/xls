@@ -4,9 +4,9 @@ module PipelinedAandBNoReset(
   input wire [31:0] b,
   output wire [31:0] sum
 );
-  reg [31:0] p0_a;
-  reg [31:0] p0_b;
-  reg [31:0] p1_sum;
+  logic [31:0] p0_a;
+  logic [31:0] p0_b;
+  logic [31:0] p1_sum;
   wire [31:0] and_7;
   assign and_7 = p0_a & p0_b;
   always_ff @ (posedge the_clock) begin

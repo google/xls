@@ -5,7 +5,7 @@ module main(
   // ===== Pipe stage 0:
 
   // Registers for pipe stage 0:
-  reg p0_cond;
+  logic p0_cond;
   always_ff @ (posedge clk) begin
     p0_cond <= cond;
   end

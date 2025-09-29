@@ -8,7 +8,7 @@ module main(
   input wire [63:0] d_long,
   output wire [95:0] out
 );
-  function automatic [15:0] priority_sel_32b_2way_element16 (input reg [1:0] sel, input reg [15:0] case0, input reg [15:0] case1, input reg [15:0] default_value);
+  function automatic [15:0] priority_sel_32b_2way_element16 (input logic [1:0] sel, input logic [15:0] case0, input logic [15:0] case1, input logic [15:0] default_value);
     begin
       unique casez (sel)
         2'b?1: begin
@@ -27,7 +27,7 @@ module main(
       endcase
     end
   endfunction
-  function automatic [15:0] priority_sel_64b_2way_element16 (input reg [1:0] sel, input reg [15:0] case0, input reg [15:0] case1, input reg [15:0] default_value);
+  function automatic [15:0] priority_sel_64b_2way_element16 (input logic [1:0] sel, input logic [15:0] case0, input logic [15:0] case1, input logic [15:0] default_value);
     begin
       unique casez (sel)
         2'b?1: begin

@@ -14,10 +14,10 @@ module OutputAssignments(
     StateConditionalAssignToNondefaultValue = 4,
     StateNestedConditionalAssignToNondefaultValue = 5,
     StateAssignToNondefaultValueAtDifferentDepths = 6;
-  reg [StateBits - 1:0] state = StateIdle;
-  reg [StateBits - 1:0] state_next = StateIdle;
-  reg [7:0] out_42 = 42;
-  reg [7:0] out_123 = 123;
+  logic [StateBits - 1:0] state = StateIdle;
+  logic [StateBits - 1:0] state_next = StateIdle;
+  logic [7:0] out_42 = 42;
+  logic [7:0] out_123 = 123;
 
   // FSM state transition logic.
   always_comb begin

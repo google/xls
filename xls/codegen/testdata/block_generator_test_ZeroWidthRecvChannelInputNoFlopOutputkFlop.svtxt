@@ -7,8 +7,8 @@ module pipelined_proc(
   output wire [31:0] out_data,
   output wire out_valid
 );
-  reg [31:0] __out_data_reg;
-  reg __out_data_valid_reg;
+  logic [31:0] __out_data_reg;
+  logic __out_data_valid_reg;
   wire out_data_valid_inv;
   wire out_data_valid_load_en;
   wire out_data_load_en;

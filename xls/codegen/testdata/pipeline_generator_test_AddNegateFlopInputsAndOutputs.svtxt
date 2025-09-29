@@ -7,8 +7,8 @@ module AddNegateFlopInputsAndOutputs(
   // ===== Pipe stage 0:
 
   // Registers for pipe stage 0:
-  reg [7:0] p0_x;
-  reg [7:0] p0_y;
+  logic [7:0] p0_x;
+  logic [7:0] p0_y;
   always_ff @ (posedge clk) begin
     p0_x <= x;
     p0_y <= y;
@@ -19,7 +19,7 @@ module AddNegateFlopInputsAndOutputs(
   assign p1_add_11_comb = p0_x + p0_y;
 
   // Registers for pipe stage 1:
-  reg [7:0] p1_add_11;
+  logic [7:0] p1_add_11;
   always_ff @ (posedge clk) begin
     p1_add_11 <= p1_add_11_comb;
   end
@@ -29,7 +29,7 @@ module AddNegateFlopInputsAndOutputs(
   assign p2_neg_14_comb = -p1_add_11;
 
   // Registers for pipe stage 2:
-  reg [7:0] p2_neg_14;
+  logic [7:0] p2_neg_14;
   always_ff @ (posedge clk) begin
     p2_neg_14 <= p2_neg_14_comb;
   end

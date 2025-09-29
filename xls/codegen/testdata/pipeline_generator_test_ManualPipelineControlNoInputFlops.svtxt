@@ -11,11 +11,11 @@ module ManualPipelineControlNoInputFlops(
   // ===== Pipe stage 0:
 
   // Registers for pipe stage 0:
-  reg [1:0] p0_s;
-  reg [7:0] p0_x;
-  reg [7:0] p0_y;
-  reg [7:0] p0_z;
-  reg [7:0] p0_a;
+  logic [1:0] p0_s;
+  logic [7:0] p0_x;
+  logic [7:0] p0_y;
+  logic [7:0] p0_z;
+  logic [7:0] p0_a;
   always_ff @ (posedge clk) begin
     p0_s <= load_enable[0] ? s : p0_s;
     p0_x <= load_enable[0] ? x : p0_x;
@@ -27,11 +27,11 @@ module ManualPipelineControlNoInputFlops(
   // ===== Pipe stage 1:
 
   // Registers for pipe stage 1:
-  reg [1:0] p1_s;
-  reg [7:0] p1_x;
-  reg [7:0] p1_y;
-  reg [7:0] p1_z;
-  reg [7:0] p1_a;
+  logic [1:0] p1_s;
+  logic [7:0] p1_x;
+  logic [7:0] p1_y;
+  logic [7:0] p1_z;
+  logic [7:0] p1_a;
   always_ff @ (posedge clk) begin
     p1_s <= load_enable[1] ? p0_s : p1_s;
     p1_x <= load_enable[1] ? p0_x : p1_x;
@@ -43,11 +43,11 @@ module ManualPipelineControlNoInputFlops(
   // ===== Pipe stage 2:
 
   // Registers for pipe stage 2:
-  reg [1:0] p2_s;
-  reg [7:0] p2_x;
-  reg [7:0] p2_y;
-  reg [7:0] p2_z;
-  reg [7:0] p2_a;
+  logic [1:0] p2_s;
+  logic [7:0] p2_x;
+  logic [7:0] p2_y;
+  logic [7:0] p2_z;
+  logic [7:0] p2_a;
   always_ff @ (posedge clk) begin
     p2_s <= load_enable[2] ? p1_s : p2_s;
     p2_x <= load_enable[2] ? p1_x : p2_x;
@@ -61,7 +61,7 @@ module ManualPipelineControlNoInputFlops(
   assign p3_sel_6_comb = p2_s == 2'h0 ? p2_x : (p2_s == 2'h1 ? p2_y : (p2_s == 2'h2 ? p2_z : p2_a));
 
   // Registers for pipe stage 3:
-  reg [7:0] p3_sel_6;
+  logic [7:0] p3_sel_6;
   always_ff @ (posedge clk) begin
     p3_sel_6 <= load_enable[3] ? p3_sel_6_comb : p3_sel_6;
   end

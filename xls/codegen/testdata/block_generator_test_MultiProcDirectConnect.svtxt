@@ -10,12 +10,12 @@ module pipelined_proc__1(
   output wire [31:0] internal,
   output wire internal_vld
 );
-  reg [31:0] p0_tuple_index_25;
-  reg p0_valid;
-  reg [31:0] __in_reg;
-  reg __in_valid_reg;
-  reg [31:0] __internal_reg;
-  reg __internal_valid_reg;
+  logic [31:0] p0_tuple_index_25;
+  logic p0_valid;
+  logic [31:0] __in_reg;
+  logic __in_valid_reg;
+  logic [31:0] __internal_reg;
+  logic __internal_valid_reg;
   wire internal_valid_inv;
   wire internal_valid_load_en;
   wire internal_load_en;
@@ -69,12 +69,12 @@ module proc_out(
   output wire [31:0] out,
   output wire out_vld
 );
-  reg [31:0] p0_tuple_index_85;
-  reg p0_valid;
-  reg [31:0] __internal_reg;
-  reg __internal_valid_reg;
-  reg [31:0] __out_reg;
-  reg __out_valid_reg;
+  logic [31:0] p0_tuple_index_85;
+  logic p0_valid;
+  logic [31:0] __internal_reg;
+  logic __internal_valid_reg;
+  logic [31:0] __out_reg;
+  logic __out_valid_reg;
   wire out_valid_inv;
   wire out_valid_load_en;
   wire out_load_en;

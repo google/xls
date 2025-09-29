@@ -9,7 +9,7 @@ module AddNegateFlopNeitherInputsNorOutputs(
   assign p0_add_7_comb = x + y;
 
   // Registers for pipe stage 0:
-  reg [7:0] p0_add_7;
+  logic [7:0] p0_add_7;
   always_ff @ (posedge clk) begin
     p0_add_7 <= p0_add_7_comb;
   end

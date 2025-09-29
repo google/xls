@@ -9,10 +9,10 @@ module TwoBitSelector(
   // ===== Pipe stage 0:
 
   // Registers for pipe stage 0:
-  reg [1:0] p0_s;
-  reg [7:0] p0_x;
-  reg [7:0] p0_y;
-  reg [7:0] p0_z;
+  logic [1:0] p0_s;
+  logic [7:0] p0_x;
+  logic [7:0] p0_y;
+  logic [7:0] p0_z;
   always_ff @ (posedge clk) begin
     p0_s <= s;
     p0_x <= x;
@@ -25,7 +25,7 @@ module TwoBitSelector(
   assign p1_sel_18_comb = p0_s == 2'h0 ? p0_x : (p0_s == 2'h1 ? p0_y : p0_z);
 
   // Registers for pipe stage 1:
-  reg [7:0] p1_sel_18;
+  logic [7:0] p1_sel_18;
   always_ff @ (posedge clk) begin
     p1_sel_18 <= p1_sel_18_comb;
   end

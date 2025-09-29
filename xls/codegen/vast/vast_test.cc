@@ -27,6 +27,7 @@
 #include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/substitute.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
@@ -420,24 +421,25 @@ TEST_P(VastTest, ModuleWithManyVariableDefinitions) {
       f.Concat({a_ref, a_ref, a_ref, a_ref}, SourceInfo()));
   LineInfo line_info;
   EXPECT_EQ(module->Emit(&line_info),
-            R"(module my_module(
+            absl::Substitute(R"(module my_module(
   input wire a,
   output wire [3:0] b,
   input wire [7:0][41:0][2:0] array
 );
-  reg r1;
-  reg [1:0] r2;
-  reg [0:0] r1_init = 1;
-  reg [41:0] s;
-  reg [41:0] s_init = 42'h000_0000_007b;
-  reg [41:0][7:0][8 + 42 - 1:0] t;
-  reg signed [7:0] signed_foo;
+  $0 r1;
+  $0 [1:0] r2;
+  $0 [0:0] r1_init = 1;
+  $0 [41:0] s;
+  $0 [41:0] s_init = 42'h000_0000_007b;
+  $0 [41:0][7:0][8 + 42 - 1:0] t;
+  $0 signed [7:0] signed_foo;
   wire x;
   wire y;
   wire signed [3 * 3 - 1:0][7:0][8 + 42 - 1:0] z;
   integer i;
   assign b = {a, a, a, a};
-endmodule)");
+endmodule)",
+                             UseSystemVerilog() ? "logic" : "reg"));
 
   EXPECT_EQ(line_info.LookupNode(module).value(),
             std::vector<LineSpan>{LineSpan(0, 17)});
@@ -489,20 +491,22 @@ TEST_P(VastTest, ModuleWithUnpackedArrayRegWithSize) {
       f.Index(f.Index(arr_ref, 2, SourceInfo()), 1, SourceInfo()));
   if (UseSystemVerilog()) {
     EXPECT_EQ(module->Emit(nullptr),
-              R"(module my_module(
+              absl::Substitute(R"(module my_module(
   output wire [63:0] out
 );
-  reg [3:0] arr[8][64];
+  $0 [3:0] arr[8][64];
   assign out = arr[2][1];
-endmodule)");
+endmodule)",
+                               UseSystemVerilog() ? "logic" : "reg"));
   } else {
     EXPECT_EQ(module->Emit(nullptr),
-              R"(module my_module(
+              absl::Substitute(R"(module my_module(
   output wire [63:0] out
 );
-  reg [3:0] arr[0:7][0:63];
+  $0 [3:0] arr[0:7][0:63];
   assign out = arr[2][1];
-endmodule)");
+endmodule)",
+                               UseSystemVerilog() ? "logic" : "reg"));
   }
 }
 
@@ -532,20 +536,22 @@ TEST_P(VastTest, ModuleWithUnpackedArrayRegWithPackedDims) {
       f.Index(f.Index(arr_ref, 2, SourceInfo()), 1, SourceInfo()));
   if (UseSystemVerilog()) {
     EXPECT_EQ(module->Emit(nullptr),
-              R"(module my_module(
+              absl::Substitute(R"(module my_module(
   output wire [63:0] out
 );
-  reg [3:0][41:0][6:0] arr[8][64];
+  $0 [3:0][41:0][6:0] arr[8][64];
   assign out = arr[2][1];
-endmodule)");
+endmodule)",
+                               UseSystemVerilog() ? "logic" : "reg"));
   } else {
     EXPECT_EQ(module->Emit(nullptr),
-              R"(module my_module(
+              absl::Substitute(R"(module my_module(
   output wire [63:0] out
 );
-  reg [3:0][41:0][6:0] arr[0:7][0:63];
+  $0 [3:0][41:0][6:0] arr[0:7][0:63];
   assign out = arr[2][1];
-endmodule)");
+endmodule)",
+                               UseSystemVerilog() ? "logic" : "reg"));
   }
 }
 
@@ -1498,7 +1504,7 @@ TEST_P(VastTest, ParameterAndLocalParam) {
   (void)state;  // unused
 
   EXPECT_EQ(m->Emit(nullptr),
-            R"(module top;
+            absl::Substitute(R"(module top;
   parameter ClocksPerBaud = `DEFAULT_CLOCKS_PER_BAUD;
   parameter logic [15:0] ParamWithDef = 5;
   localparam
@@ -1506,8 +1512,9 @@ TEST_P(VastTest, ParameterAndLocalParam) {
     StateGotByte = 2'h1,
     StateError = 2'h2;
   localparam StateBits = 2'h2;
-  reg [StateBits - 1:0] state = StateIdle;
-endmodule)");
+  $0 [StateBits - 1:0] state = StateIdle;
+endmodule)",
+                             UseSystemVerilog() ? "logic" : "reg"));
 }
 
 TEST_P(VastTest, SimpleConditional) {
@@ -1641,12 +1648,12 @@ TEST_P(VastTest, NestedConditional) {
                                             f.Literal(1, 1, SourceInfo()));
 
   EXPECT_EQ(m->Emit(nullptr),
-            R"(module top(
+            absl::Substitute(R"(module top(
   input wire input1,
   input wire input2
 );
-  reg output1;
-  reg output2;
+  $0 output1;
+  $0 output2;
   always_comb begin
     if (input1) begin
       output1 = 1'h1;
@@ -1659,7 +1666,8 @@ TEST_P(VastTest, NestedConditional) {
       end
     end
   end
-endmodule)");
+endmodule)",
+                             UseSystemVerilog() ? "logic" : "reg"));
 }
 
 TEST_P(VastTest, TestbenchClock) {
@@ -1683,14 +1691,15 @@ TEST_P(VastTest, TestbenchClock) {
                                      f.LogicalNot(clk, SourceInfo()))));
 
   EXPECT_EQ(f.Emit(nullptr),
-            R"(module testbench;
-  reg clk;
+            absl::Substitute(R"(module testbench;
+  $0 clk;
   initial begin
     #1 clk = 0;
     forever #1 clk = !clk;
   end
 endmodule
-)");
+)",
+                             UseSystemVerilog() ? "logic" : "reg"));
 }
 
 TEST_P(VastTest, TestbenchDisplayAndMonitor) {
@@ -1847,17 +1856,18 @@ TEST_P(VastTest, ModuleSections) {
 
   LineInfo line_info;
   EXPECT_EQ(module->Emit(&line_info),
-            R"(module my_module;
+            absl::Substitute(R"(module my_module;
   // section 0
   // more stuff in section 0
   `SOME_MACRO(42);
-  reg [41:0] section_0_reg;
-  reg foo = 1;
+  $0 [41:0] section_0_reg;
+  $0 foo = 1;
   // section 1
   //   nested in section 1
   // more stuff in section 1
   // random comment at end
-endmodule)");
+endmodule)",
+                             UseSystemVerilog() ? "logic" : "reg"));
 
   EXPECT_EQ(line_info.LookupNode(module).value(),
             std::vector<LineSpan>{LineSpan(0, 10)});
@@ -1883,10 +1893,16 @@ TEST_P(VastTest, VerilogFunction) {
                     SourceInfo());
   func->AddStatement<BlockingAssignment>(SourceInfo(), func->return_value_ref(),
                                          f.Shll(foo, bar, SourceInfo()));
-  EXPECT_EQ(func->return_value_def()->Emit(nullptr), "reg [41:0] func;");
+  EXPECT_EQ(func->return_value_def()->Emit(nullptr),
+            absl::Substitute("$0 [41:0] func;",
+                             UseSystemVerilog() ? "logic" : "reg"));
   ASSERT_EQ(func->arguments().size(), 3);
-  EXPECT_EQ(func->arguments()[0]->Emit(nullptr), "reg [31:0] foo;");
-  EXPECT_EQ(func->arguments()[1]->Emit(nullptr), "reg [2:0] bar;");
+  EXPECT_EQ(
+      func->arguments()[0]->Emit(nullptr),
+      absl::Substitute("$0 [31:0] foo;", UseSystemVerilog() ? "logic" : "reg"));
+  EXPECT_EQ(
+      func->arguments()[1]->Emit(nullptr),
+      absl::Substitute("$0 [2:0] bar;", UseSystemVerilog() ? "logic" : "reg"));
   EXPECT_EQ(func->arguments()[2]->Emit(nullptr), "integer baz;");
   EXPECT_EQ(func->statement_block()->Emit(nullptr), R"(begin
   func = foo << bar;
@@ -1901,15 +1917,16 @@ end)");
           std::vector<Expression*>{f.Literal(UBits(12, 32), SourceInfo()),
                                    f.Literal(UBits(2, 3), SourceInfo())}));
   EXPECT_EQ(m->Emit(nullptr),
-            R"(module top;
-  function automatic [41:0] func (input reg [31:0] foo, input reg [2:0] bar, input integer baz);
+            absl::Substitute(R"(module top;
+  function automatic [41:0] func (input $0 [31:0] foo, input $0 [2:0] bar, input integer baz);
     begin
       func = foo << bar;
     end
   endfunction
   wire [31:0] qux;
   assign qux = func(32'h0000_000c, 3'h2);
-endmodule)");
+endmodule)",
+                             UseSystemVerilog() ? "logic" : "reg"));
 }
 
 TEST_P(VastTest, VerilogFunctionNoArguments) {
@@ -1963,10 +1980,10 @@ TEST_P(VastTest, VerilogFunctionWithRegDefs) {
       f.Make<VerilogFunctionCall>(SourceInfo(), func,
                                   std::vector<Expression*>{}));
   EXPECT_EQ(m->Emit(nullptr),
-            R"(module top;
+            absl::Substitute(R"(module top;
   function automatic [41:0] func ();
-    reg [41:0] foo;
-    reg [41:0] bar;
+    $0 [41:0] foo;
+    $0 [41:0] bar;
     begin
       foo = 42'h000_0000_0042;
       bar = foo;
@@ -1975,7 +1992,8 @@ TEST_P(VastTest, VerilogFunctionWithRegDefs) {
   endfunction
   wire [31:0] qux;
   assign qux = func();
-endmodule)");
+endmodule)",
+                             UseSystemVerilog() ? "logic" : "reg"));
 }
 
 TEST_P(VastTest, VerilogFunctionWithScalarReturn) {
@@ -2140,18 +2158,19 @@ TEST_P(VastTest, VerilogFunctionWithComplicatedTypes) {
                                   std::vector<Expression*>{a, b, c}));
   LineInfo line_info;
   EXPECT_EQ(m->Emit(&line_info),
-            R"(module top;
-  function automatic signed [5:0][2:0][32:0] func (input reg foo, input reg signed [6 + 6 - 1:0][110:0] bar, input reg signed [32:0] baz);
+            absl::Substitute(R"(module top;
+  function automatic signed [5:0][2:0][32:0] func (input $0 foo, input $0 signed [6 + 6 - 1:0][110:0] bar, input $0 signed [32:0] baz);
     begin
       func = 0;
     end
   endfunction
-  reg a;
+  $0 a;
   wire signed [6 + 6 - 1:0][110:0] b;
   wire signed [32:0] c;
   wire signed [5:0][2:0][32:0] qux;
   assign qux = func(a, b, c);
-endmodule)");
+endmodule)",
+                             UseSystemVerilog() ? "logic" : "reg"));
 
   EXPECT_EQ(line_info.LookupNode(m).value(),
             std::vector<LineSpan>{LineSpan(0, 11)});
@@ -2209,17 +2228,18 @@ TEST_P(VastTest, RegAndWireDefWithInit) {
       LogicRef * qux, m->AddWire("qux", return_type, func_call, SourceInfo()));
   LineInfo line_info;
   EXPECT_EQ(m->Emit(&line_info),
-            R"(module top;
-  function automatic signed [5:0][2:0][32:0] func (input reg foo, input reg signed [6 + 6 - 1:0][110:0] bar, input reg signed [32:0] baz);
+            absl::Substitute(R"(module top;
+  function automatic signed [5:0][2:0][32:0] func (input $0 foo, input $0 signed [6 + 6 - 1:0][110:0] bar, input $0 signed [32:0] baz);
     begin
       func = 0;
     end
   endfunction
-  reg a = 1'h0;
+  $0 a = 1'h0;
   wire signed [6 + 6 - 1:0][110:0] b = 0;
   wire signed [32:0] c = 33'h0_0000_0000;
   wire signed [5:0][2:0][32:0] qux = func(a, b, c);
-endmodule)");
+endmodule)",
+                             UseSystemVerilog() ? "logic" : "reg"));
 
   EXPECT_EQ(line_info.LookupNode(m).value(),
             std::vector<LineSpan>{LineSpan(0, 10)});

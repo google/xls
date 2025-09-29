@@ -5,7 +5,7 @@ module main(
   input wire [15:0] d,
   output wire [15:0] out
 );
-  function automatic [15:0] priority_sel_16b_2way (input reg [1:0] sel, input reg [15:0] case0, input reg [15:0] case1, input reg [15:0] default_value);
+  function automatic [15:0] priority_sel_16b_2way (input logic [1:0] sel, input logic [15:0] case0, input logic [15:0] case1, input logic [15:0] default_value);
     begin
       unique casez (sel)
         2'b?1: begin

@@ -8,10 +8,10 @@ module subproc(
   output wire [31:0] sub_out,
   output wire sub_out_vld
 );
-  reg [31:0] p0_tuple_index_23;
-  reg [31:0] p1_add_29;
-  reg p0_valid;
-  reg p1_valid;
+  logic [31:0] p0_tuple_index_23;
+  logic [31:0] p1_add_29;
+  logic p0_valid;
+  logic p1_valid;
   wire p2_stage_done;
   wire p2_not_valid;
   wire p1_enable;
