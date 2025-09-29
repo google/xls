@@ -70,6 +70,10 @@ class BddQueryEngine
   // provides a mechanism for limiting the growth of the BDD.
   static constexpr int64_t kDefaultPathLimit = 1024;
 
+  // Calculating if at most one bit is true is quadratic so we limit it to
+  // values this large or smaller.
+  static constexpr int64_t kOneHotSizeLimit = 64;
+
   // Returns an instance of the recommended default BddQueryEngine, using
   // kDefaultPathLimit and filtering to operate only on nodes that satisfy
   // IsCheapForBdds.

@@ -860,8 +860,7 @@ bool BddQueryEngine::AtMostOneTrue(
     absl::Span<TreeBitLocation const> bits,
     std::optional<BddNodeIndex> assumption) const {
   // Computing this property is quadratic (at least) so limit the width.
-  const int64_t kMaxWidth = 64;
-  if (bits.size() > kMaxWidth) {
+  if (bits.size() > kOneHotSizeLimit) {
     return false;
   }
 
