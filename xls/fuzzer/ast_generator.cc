@@ -2534,7 +2534,7 @@ absl::discrete_distribution<int>& GetOpDistribution(bool generate_proc,
     for (int i = 0; i < int{kEndSentinel}; ++i) {
       // If there are things we shouldn't generate, prevent generating them by
       // setting their probability to zero.
-      if ((!emit_loops && i == kCountedFor) ||
+      if ((!emit_loops && (i == kCountedFor || i == kMap)) ||
           (!generate_proc && proc_ops.find(i) != proc_ops.end())) {
         tmp.push_back(0);
         continue;
