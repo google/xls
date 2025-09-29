@@ -842,6 +842,12 @@ LogicalResult SprocOp::verify() {
     }
   }
 
+  if (getIsTop() && !getChannelArguments().empty()) {
+    if (!getBoundaryChannels().has_value()) {
+      return emitOpError() << "top sprocs must have boundary channels";
+    }
+  }
+
   return success();
 }
 

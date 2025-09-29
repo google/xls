@@ -38,7 +38,7 @@
 // CHECK-NEXT:  xls.chan @fetch_arg0 : i32
 // CHECK-NEXT:  xls.chan @fetch_arg1 : i32
 // CHECK-NEXT:  xls.instantiate_eproc @fetch (@fetch_arg0 as @req, @fetch_arg1 as @resp)
-// CHECK-NEXT:  xls.chan @boundary1 {send_supported = false} : i32
+// CHECK-NEXT:  xls.chan @boundary1 {fifo_config = #xls.fifo_config<fifo_depth = 1, bypass = true, register_push_outputs = true, register_pop_outputs = false>, input_flop_kind = #xls<flop_kind skid>, send_supported = false} : i32
 // CHECK-NEXT:  xls.chan @boundary2 {recv_supported = false} : i32
 // CHECK-NEXT:  xls.instantiate_eproc @rom (@rom_arg0 as @boundary1, @rom_arg1 as @boundary2)
 
@@ -77,7 +77,10 @@ xls.sproc @proxy(%req: !xls.schan<i32, in>, %resp: !xls.schan<i32, out>) attribu
   }
 }
 
-xls.sproc @rom(%req: !xls.schan<i32, in>, %resp: !xls.schan<i32, out>) top attributes {boundary_channel_names = ["boundary1", "boundary2"]} {
+xls.sproc @rom(%req: !xls.schan<i32, in>, %resp: !xls.schan<i32, out>) top attributes {boundary_channels = [
+  #xls.boundary_channel<name = "boundary1", fifo_config = #xls.fifo_config<fifo_depth = 1, bypass = true, register_push_outputs = true, register_pop_outputs = false>, input_flop_kind = #xls<flop_kind skid>>,
+  #xls.boundary_channel<name = "boundary2">
+]} {
   spawns {
     xls.yield %req, %resp : !xls.schan<i32, in>, !xls.schan<i32, out>
   }
@@ -144,7 +147,9 @@ module {
       xls.yield %0 : index
     }
   }
-  xls.sproc @some_wrapped_machine(%arg0: !xls.schan<tensor<i32>, in>, %arg1: !xls.schan<tensor<i32>, out>, %arg2: !xls.schan<tensor<i32>, out>) top attributes {boundary_channel_names = ["x['y']", "x['y']1", "x['y']2"]} {
+  xls.sproc @some_wrapped_machine(%arg0: !xls.schan<tensor<i32>, in>, %arg1: !xls.schan<tensor<i32>, out>, %arg2: !xls.schan<tensor<i32>, out>) top attributes {
+    boundary_channels = [#xls.boundary_channel<name = "x['y']">, #xls.boundary_channel<name = "x['y']1">, #xls.boundary_channel<name = "x['y']2">]
+  } {
     spawns {
       %out, %in = xls.schan<tensor<i32>>("x['y']")
       %out_0, %in_1 = xls.schan<tensor<i32>>("x['y']")

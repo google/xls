@@ -21,7 +21,7 @@ xls.sproc @sproc(%arg0: !xls.schan<i32, in>) {
 // CHECK: @top_sproc
 // CHECK: @top_extern_sproc
 xls.extern_sproc @top_extern_sproc (arg0: !xls.schan<i32, in>)
-xls.sproc @top_sproc(%arg0: !xls.schan<i32, in>) top {
+xls.sproc @top_sproc(%arg0: !xls.schan<i32, in>) top attributes { boundary_channels = [#xls.boundary_channel<name = "arg0">] } {
   spawns {
     xls.spawn @top_extern_sproc(%arg0) : !xls.schan<i32, in>
     xls.yield

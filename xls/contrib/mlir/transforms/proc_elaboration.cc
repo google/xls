@@ -323,18 +323,19 @@ void ProcElaborationPass::runOnOperation() {
 
     OpBuilder builder(sproc);
     SmallVector<ChanOp> boundaryChannels;
-    if (sproc.getBoundaryChannelNames().has_value()) {
-      for (auto [arg, name] : llvm::zip(sproc.getChannelArguments(),
-                                        *sproc.getBoundaryChannelNames())) {
+    if (sproc.getBoundaryChannels().has_value()) {
+      for (auto [arg, boundaryChannelAttr] : llvm::zip(
+               sproc.getChannelArguments(), *sproc.getBoundaryChannels())) {
         SchanType schan = cast<SchanType>(arg.getType());
-        auto nameAttr = cast<StringAttr>(name);
+        auto boundaryChannel = cast<BoundaryChannelAttr>(boundaryChannelAttr);
+        auto nameAttr = boundaryChannel.getName();
         // TODO(jpienaar): Remove unnecessary default args once they are
         // generated automatically.
-        auto echan = ChanOp::create(builder, sproc.getLoc(), nameAttr.str(),
-                                    schan.getElementType(),
-                                    /*fifo_config=*/nullptr,
-                                    /*input_flop_kind=*/nullptr,
-                                    /*output_flop_kind=*/nullptr);
+        auto echan = ChanOp::create(
+            builder, sproc.getLoc(), boundaryChannel.getName(),
+            schan.getElementType(), boundaryChannel.getFifoConfig(),
+            boundaryChannel.getInputFlopKind(),
+            boundaryChannel.getOutputFlopKind());
         // We insert the channel in the symbol table, since there might be
         // a clash with an *eproc* name later, so we need to know. Alternatively
         // we could have done something similar in the constructor of the
@@ -351,6 +352,9 @@ void ProcElaborationPass::runOnOperation() {
         }
         boundaryChannels.push_back(echan);
       }
+    } else if (!sproc.getChannelArguments().empty()) {
+      sproc.emitError() << "top sproc has channel arguments but no boundary "
+                           "channels. This is not supported.";
     }
 
     ElaborationInterpreter interpreter;

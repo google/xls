@@ -137,16 +137,19 @@ void addBoundaryChannelNames(
     };
   }
 
-  if (op.getBoundaryChannelNames().has_value()) {
+  if (op.getBoundaryChannels().has_value()) {
     return;
   }
   ::mlir::OpBuilder builder(op.getOperation());
-  ::mlir::SmallVector<::mlir::Attribute> boundaryChannelNames;
+  ::mlir::SmallVector<::mlir::Attribute> boundaryChannels;
   for (Value value : op.getChannelArguments()) {
-    boundaryChannelNames.push_back(
-        builder.getStringAttr(boundaryChannelName(cast<BlockArgument>(value))));
+    BoundaryChannelAttr boundaryChannel = BoundaryChannelAttr::get(
+        builder.getContext(),
+        builder.getStringAttr(boundaryChannelName(cast<BlockArgument>(value))),
+        FifoConfig(), FlopKindAttr(), FlopKindAttr());
+    boundaryChannels.push_back(boundaryChannel);
   }
-  op.setBoundaryChannelNamesAttr(builder.getArrayAttr(boundaryChannelNames));
+  op.setBoundaryChannelsAttr(builder.getArrayAttr(boundaryChannels));
 }
 }  // namespace
 
