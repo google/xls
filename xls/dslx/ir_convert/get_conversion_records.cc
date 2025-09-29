@@ -138,11 +138,9 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     }
     std::vector<InvocationCalleeData> calls =
         type_info_->GetUniqueInvocationCalleeData(f);
-    if (f->IsParametric()) {
-      // We want one ConversionRecord per *unique* parametric binding of
-      // this function.
-      XLS_RET_CHECK(!calls.empty())
-          << "Cannot lower a parametric proc without an invocation";
+    if (f->IsParametric() && calls.empty()) {
+      VLOG(5) << "No calls to parametric proc " << f->name_def()->ToString();
+      return absl::OkStatus();
     }
     for (auto& callee_data : calls) {
       XLS_ASSIGN_OR_RETURN(

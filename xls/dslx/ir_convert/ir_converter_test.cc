@@ -4722,15 +4722,15 @@ pub proc main {
 }
 )";
 
-  EXPECT_THAT(
-      ConvertOneFunctionForTest(kProgram, "main",
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data,
                                 ConvertOptions{
                                     .emit_positions = false,
                                     .lower_to_proc_scoped_channels = true,
-                                }),
-      StatusIs(
-          absl::StatusCode::kInternal,
-          HasSubstr("Cannot lower a parametric proc without an invocation")));
+                                }));
+  ExpectIr(converted);
 }
 
 TEST_P(ProcScopedChannelsIrConverterTest, ChannelDecl) {
