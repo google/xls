@@ -38,5 +38,3 @@ absl::StatusOr<Function*> InsertFunctionSpecialization(
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_FRONTEND_FUNCTION_SPECIALIZER_H_
-
-
