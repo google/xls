@@ -899,8 +899,13 @@ struct IOOp {
 
   bool is_blocking = true;
 
-  // Source location for messages
+  // Source location
+  // Just the location of the op itself. This is used to create nodes in the
+  // IR functions, and will be accumulated by XLS' inlining.
   xls::SourceInfo op_location;
+  // full_op_location is used for locations in proc generation, such as for the
+  // actual IO operation itself. It is accumulated in function calls.
+  xls::SourceInfo full_op_location;
 
   // For OpType::kTrace
   // Assert just puts condition in ret_val. This is not the assertion condition
