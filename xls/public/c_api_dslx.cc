@@ -30,12 +30,14 @@
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
+#include "xls/dslx/frontend/function_specializer.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
@@ -45,8 +47,10 @@
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/type_system/typecheck_module.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
 #include "xls/dslx/virtualizable_file_system.h"
+#include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/value.h"
@@ -687,6 +691,99 @@ struct xls_dslx_function* xls_dslx_call_graph_get_callee_function(
   const xls::dslx::Function* fn = callees.at(callee_index);
   return reinterpret_cast<xls_dslx_function*>(
       const_cast<xls::dslx::Function*>(fn));
+}
+
+bool xls_dslx_typechecked_module_insert_function_specializations(
+    struct xls_dslx_typechecked_module* typechecked_module,
+    const struct xls_dslx_function_specialization_request* requests,
+    size_t request_count, struct xls_dslx_import_data* import_data,
+    const char* install_subject, char** error_out,
+    struct xls_dslx_typechecked_module** result_out) {
+  CHECK(error_out != nullptr);
+  CHECK(result_out != nullptr);
+  *error_out = nullptr;
+  *result_out = nullptr;
+  if (typechecked_module == nullptr || requests == nullptr ||
+      request_count == 0 || install_subject == nullptr) {
+    *error_out = xls::ToOwnedCString(
+        absl::InvalidArgumentError("Invalid arguments").ToString());
+    return false;
+  }
+
+  auto* cpp_tm =
+      reinterpret_cast<xls::dslx::TypecheckedModule*>(typechecked_module);
+  auto* cpp_module = cpp_tm->module;
+  CHECK_NE(cpp_module, nullptr);
+
+  absl::StatusOr<std::unique_ptr<xls::dslx::Module>> cloned_module_or =
+      xls::dslx::CloneModule(*cpp_module);
+  if (!cloned_module_or.ok()) {
+    *error_out = xls::ToOwnedCString(cloned_module_or.status().ToString());
+    return false;
+  }
+  std::unique_ptr<xls::dslx::Module> cloned_module =
+      std::move(cloned_module_or.value());
+
+  for (size_t i = 0; i < request_count; ++i) {
+    const xls_dslx_function_specialization_request& req = requests[i];
+    if (req.function_name == nullptr || req.specialized_name == nullptr) {
+      *error_out = xls::ToOwnedCString(
+          absl::InvalidArgumentError("Null function or specialized name")
+              .ToString());
+      return false;
+    }
+
+    std::optional<xls::dslx::Function*> cloned_function_opt =
+        cloned_module->GetFunction(req.function_name);
+    if (!cloned_function_opt.has_value() ||
+        cloned_function_opt.value() == nullptr) {
+      *error_out = xls::ToOwnedCString(
+          absl::NotFoundError(
+              absl::StrFormat("Function '%s' not found", req.function_name))
+              .ToString());
+      return false;
+    }
+
+    xls::dslx::ParametricEnv empty_env;
+    const xls::dslx::ParametricEnv* request_env =
+        reinterpret_cast<const xls::dslx::ParametricEnv*>(req.env);
+    const xls::dslx::ParametricEnv& env_ref =
+        request_env != nullptr ? *request_env : empty_env;
+
+    absl::StatusOr<xls::dslx::Function*> specialized_function_or =
+        xls::dslx::InsertFunctionSpecialization(cloned_function_opt.value(),
+                                                env_ref, req.specialized_name);
+    if (!specialized_function_or.ok()) {
+      *error_out =
+          xls::ToOwnedCString(specialized_function_or.status().ToString());
+      return false;
+    }
+  }
+
+  auto* cpp_import_data = reinterpret_cast<xls::dslx::ImportData*>(import_data);
+  if (cpp_import_data == nullptr) {
+    *error_out = xls::ToOwnedCString(
+        absl::InvalidArgumentError("ImportData must be provided").ToString());
+    return false;
+  }
+
+  std::string path = cpp_tm->module->fs_path().has_value()
+                         ? cpp_tm->module->fs_path()->string()
+                         : std::string(cpp_tm->module->name());
+  cloned_module->SetName(install_subject);
+
+  absl::StatusOr<xls::dslx::TypecheckedModule> retyped_or =
+      xls::dslx::TypecheckModule(std::move(cloned_module), path,
+                                 cpp_import_data);
+  if (!retyped_or.ok()) {
+    *error_out = xls::ToOwnedCString(retyped_or.status().ToString());
+    return false;
+  }
+
+  auto* tm_on_heap =
+      new xls::dslx::TypecheckedModule{std::move(retyped_or.value())};
+  *result_out = reinterpret_cast<xls_dslx_typechecked_module*>(tm_on_heap);
+  return true;
 }
 
 struct xls_dslx_quickcheck* xls_dslx_module_member_get_quickcheck(

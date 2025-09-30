@@ -110,6 +110,12 @@ struct xls_dslx_parametric_env_item {
   const struct xls_dslx_interp_value* value;
 };
 
+struct xls_dslx_function_specialization_request {
+  const char* function_name;
+  const char* specialized_name;
+  const struct xls_dslx_parametric_env* env;  // Optional; may be null.
+};
+
 // Creates a parametric environment from items.
 bool xls_dslx_parametric_env_create(
     const struct xls_dslx_parametric_env_item* items, size_t items_count,
@@ -217,6 +223,9 @@ int64_t xls_dslx_module_get_member_count(struct xls_dslx_module*);
 struct xls_dslx_module_member* xls_dslx_module_get_member(
     struct xls_dslx_module*, int64_t);
 
+xls_dslx_module_member_kind xls_dslx_module_member_get_kind(
+    struct xls_dslx_module_member*);
+
 struct xls_dslx_constant_def* xls_dslx_module_member_get_constant_def(
     struct xls_dslx_module_member*);
 
@@ -280,6 +289,17 @@ int64_t xls_dslx_call_graph_get_callee_count(
 struct xls_dslx_function* xls_dslx_call_graph_get_callee_function(
     struct xls_dslx_call_graph* call_graph, struct xls_dslx_function* caller,
     int64_t callee_index);
+
+// Specializes each requested function within `typechecked_module`, producing a
+// cloned module that is re-typechecked and installed into `import_data` under
+// `install_subject`. On success, `*result_out` receives the new module.
+bool xls_dslx_typechecked_module_insert_function_specializations(
+    struct xls_dslx_typechecked_module* typechecked_module,
+    const struct xls_dslx_function_specialization_request* requests,
+    size_t request_count,
+    struct xls_dslx_import_data* import_data,
+    const char* install_subject, char** error_out,
+    struct xls_dslx_typechecked_module** result_out);
 
 // Returns the QuickCheck AST node from the given module member. The caller
 // should ensure the module member kind is
