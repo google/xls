@@ -19,7 +19,7 @@ xls.sproc @fn2(%arg0: !xls.schan<tensor<8xi32>, out>) {
 }
 
 // Consumes an argument and passes to a spawn.
-// CHECK:  xls.sproc @consume_arg(%arg0: !xls.schan<tensor<8xi32>, in>) top {
+// CHECK:  xls.sproc @consume_arg(%arg0: !xls.schan<tensor<8xi32>, in>) top
 // CHECK:    spawns {
 // CHECK:      %out, %in = xls.schan<tensor<8xi32>>("x")
 // CHECK:      xls.spawn @fn(%arg0) : !xls.schan<tensor<8xi32>, in>
@@ -29,7 +29,7 @@ xls.sproc @fn2(%arg0: !xls.schan<tensor<8xi32>, out>) {
 // CHECK:      xls.yield
 // CHECK:    }
 // CHECK:  }
-xls.sproc @consume_arg(%arg0: !xls.schan<tensor<8xi32>, in>) top {
+xls.sproc @consume_arg(%arg0: !xls.schan<tensor<8xi32>, in>) top attributes { boundary_channels = [#xls.boundary_channel<name = "arg0">] } {
   spawns {
     %out, %in = xls.schan<tensor<8xi32>>("x")
     xls.spawn @fn(%in) : !xls.schan<tensor<8xi32>, in>
@@ -45,7 +45,7 @@ xls.sproc @consume_arg(%arg0: !xls.schan<tensor<8xi32>, in>) top {
 }
 
 // Produces a result from a spawn.
-// CHECK:  xls.sproc @produce_result(%arg0: !xls.schan<tensor<8xi32>, out>) top {
+// CHECK:  xls.sproc @produce_result(%arg0: !xls.schan<tensor<8xi32>, out>) top
 // CHECK:    spawns {
 // CHECK:      %out, %in = xls.schan<tensor<8xi32>>("x")
 // CHECK:      xls.spawn @fn2(%arg0) : !xls.schan<tensor<8xi32>, out>
@@ -55,7 +55,7 @@ xls.sproc @consume_arg(%arg0: !xls.schan<tensor<8xi32>, in>) top {
 // CHECK:      xls.yield
 // CHECK:    }
 // CHECK:  }
-xls.sproc @produce_result(%arg0: !xls.schan<tensor<8xi32>, out>) top {
+xls.sproc @produce_result(%arg0: !xls.schan<tensor<8xi32>, out>) top attributes { boundary_channels = [#xls.boundary_channel<name = "arg0">] } {
   spawns {
     %out, %in = xls.schan<tensor<8xi32>>("x")
     xls.spawn @fn2(%out) : !xls.schan<tensor<8xi32>, out>
@@ -194,13 +194,13 @@ xls.sproc @unused_args(%arg0: !xls.schan<tensor<8xi32>, in>) {
 
 // Consumes an argument and passes to a spawn. The interior channel has a
 // FifoConfig so can't be eliminated.
-// CHECK:  xls.sproc @consume_arg_fifo(%arg0: !xls.schan<tensor<8xi32>, in>) top {
+// CHECK:  xls.sproc @consume_arg_fifo(%arg0: !xls.schan<tensor<8xi32>, in>) top
 // CHECK:    spawns {
 // CHECK:      %out, %in = xls.schan<tensor<8xi32>>("x") attributes {fifo_config
 // CHECK:      xls.spawn @fn(%in) : !xls.schan<tensor<8xi32>, in>
 // CHECK:      xls.yield %arg0, %out
 // CHECK:    }
-xls.sproc @consume_arg_fifo(%arg0: !xls.schan<tensor<8xi32>, in>) top {
+xls.sproc @consume_arg_fifo(%arg0: !xls.schan<tensor<8xi32>, in>) top attributes { boundary_channels = [#xls.boundary_channel<name = "arg0">] } {
   spawns {
     %out, %in = xls.schan<tensor<8xi32>>("x") attributes {fifo_config = #fifo}
     xls.spawn @fn(%in) : !xls.schan<tensor<8xi32>, in>
@@ -217,13 +217,13 @@ xls.sproc @consume_arg_fifo(%arg0: !xls.schan<tensor<8xi32>, in>) top {
 
 // Produces a result from a spawn. The interior channel has a FifoConfig so
 // can't be eliminated.
-// CHECK:  xls.sproc @produce_result_fifo(%arg0: !xls.schan<tensor<8xi32>, out>) top {
+// CHECK:  xls.sproc @produce_result_fifo(%arg0: !xls.schan<tensor<8xi32>, out>) top
 // CHECK:    spawns {
 // CHECK:      %out, %in = xls.schan<tensor<8xi32>>("x") attributes {fifo_config
 // CHECK:      xls.spawn @fn2(%out) : !xls.schan<tensor<8xi32>, out>
 // CHECK:      xls.yield %in, %arg0
 // CHECK:    }
-xls.sproc @produce_result_fifo(%arg0: !xls.schan<tensor<8xi32>, out>) top {
+xls.sproc @produce_result_fifo(%arg0: !xls.schan<tensor<8xi32>, out>) top attributes { boundary_channels = [#xls.boundary_channel<name = "arg0">] } {
   spawns {
     %out, %in = xls.schan<tensor<8xi32>>("x") attributes {fifo_config = #fifo}
     xls.spawn @fn2(%out) : !xls.schan<tensor<8xi32>, out>

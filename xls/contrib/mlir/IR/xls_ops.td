@@ -203,6 +203,24 @@ def Xls_FifoConfig : Xls_Attr<"FifoConfig"> {
   let assemblyFormat = "`<` struct(params) `>`";
 }
 
+def Xls_BoundaryChannelAttr : Xls_Attr<"BoundaryChannelAttr"> {
+  let summary = "Boundary channel attribute";
+  let description = [{
+    Contains attributes associated with boundary channels for SprocOps.
+  }];
+  let parameters = (ins
+    "::mlir::StringAttr":$name,
+    OptionalParameter<"FifoConfig", "">:$fifo_config,
+    OptionalParameter<"FlopKindAttr", "">:$input_flop_kind,
+    OptionalParameter<"FlopKindAttr", "">:$output_flop_kind
+  );
+  let mnemonic = "boundary_channel";
+  let assemblyFormat = "`<` struct(params) `>`";
+}
+
+def Xls_BoundaryChannelArrayAttr :
+  TypedArrayAttrBase<Xls_BoundaryChannelAttr, "array of boundary_channel">;
+
 class GetShapeSplat<string name> :
     StrFunc<"getShapeSplat($" # name # ".getType())">;
 
@@ -1874,9 +1892,8 @@ def Xls_SprocOp : Xls_Op<"sproc", [
     region contains Schan declarations and "spawns" of other Sprocs. The only way
     to create an Sproc is to spawn another Sproc.
 
-    Sprocs may be marked as "top" if they EITHER:
-      a) Have no channels.
-      b) Have the optional `boundary_channel_names` attribute set.
+    Sprocs may be marked as "top" if they populate the `boundary_channels`
+    list per argument.
 
     In the latter case, boundary channels (used by XLS for tests etc) are
     created with the given names.
@@ -1926,7 +1943,7 @@ def Xls_SprocOp : Xls_Op<"sproc", [
   let arguments = (ins
     SymbolNameAttr:$sym_name,
     BoolAttr:$is_top,
-    OptionalAttr<ArrayAttr>:$boundary_channel_names,
+    OptionalAttr<Xls_BoundaryChannelArrayAttr>:$boundary_channels,
     DefaultValuedAttr<I64Attr, "1">:$min_pipeline_stages
   );
   let regions = (region

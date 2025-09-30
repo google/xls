@@ -357,7 +357,7 @@ func.func @negate(%arg0: bf16) -> bf16 attributes { "xls" = true } {
 // CHECK: next (
 // CHECK-NEXT: %[[X:.*]] = xls.add
 // CHECK-NEXT: xls.yield %[[X]] : i32
-xls.sproc @sproc(%arg0: !xls.schan<i32, in>) top {
+xls.sproc @sproc(%arg0: !xls.schan<i32, in>) top attributes { boundary_channels = [#xls.boundary_channel<name = "arg0">] } {
   spawns {
     xls.yield
   }

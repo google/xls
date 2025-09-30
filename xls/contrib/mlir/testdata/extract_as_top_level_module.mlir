@@ -80,7 +80,7 @@ module attributes {test.name = "sproc"} {
   // CHECK-NOT: func @nope
   // CHECK: xls.sproc @leaf
   // CHECK-NOT: xls.sproc @unrelated
-  // CHECK: xls.sproc @sproc(%arg0: !xls.schan<i32, in>) top attributes {boundary_channel_names = ["arg0"]}
+  // CHECK: xls.sproc @sproc(%arg0: !xls.schan<i32, in>) top attributes {boundary_channels = [#xls.boundary_channel<name = "arg0">]}
   func.func @nope(%arg0: !xls.token, %arg1: i32, %arg2: i1) ->i32 {
     %0 = arith.constant 1 : i32
     return %0 : i32
