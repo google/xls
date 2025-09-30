@@ -31,6 +31,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/dslx/channel_direction.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/proc_id.h"
@@ -41,7 +42,6 @@
 #include "xls/dslx/ir_convert/conversion_record.h"
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/proc_config_ir_converter.h"
-#include "xls/dslx/ir_convert/proc_scoped_channel_scope.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
@@ -240,12 +240,14 @@ class FunctionConverter {
   template <typename NodeT, typename ChanRef, typename ChanInt>
   static absl::StatusOr<ChanRef> IrValueToChannelRef(const IrValue& ir_value);
 
-  static absl::StatusOr<SendChannelRef> IrValueToSendChannelRef(
+  absl::StatusOr<SendChannelRef> IrValueToSendChannelRef(
       const IrValue& ir_value);
-  static absl::StatusOr<ReceiveChannelRef> IrValueToReceiveChannelRef(
+  absl::StatusOr<ReceiveChannelRef> IrValueToReceiveChannelRef(
       const IrValue& ir_value);
-  static absl::StatusOr<ChannelInterface*> IrValueToChannelInterface(
-      const IrValue& ir_value);
+  absl::StatusOr<ChannelInterface*> IrValueToChannelInterface(
+      const IrValue& ir_value, ChannelDirection direction);
+  absl::StatusOr<ChannelInterface*> ChannelToInterface(
+      Channel* channel, ChannelDirection direction);
 
   void SetFunctionBuilder(std::unique_ptr<BuilderBase> builder);
 
@@ -631,8 +633,6 @@ class FunctionConverter {
   // The last tuple converted. Used for mapping the return tuple of a proc
   // `config` method to actual proc members.
   std::vector<IrValue> last_tuple_;
-
-  std::unique_ptr<ProcScopedChannelScope> proc_scoped_channel_scope_;
 };
 
 }  // namespace xls::dslx

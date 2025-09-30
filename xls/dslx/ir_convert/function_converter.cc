@@ -633,7 +633,8 @@ absl::StatusOr<BValue> FunctionConverter::Use(const AstNode* node) const {
     return std::get<BValue>(ir_value);
   }
   XLS_RET_CHECK(std::holds_alternative<CValue>(ir_value))
-      << "Expected CValue, got " << ir_value.index();
+      << "Expected CValue, got " << ir_value.index() << " for "
+      << node->ToString();
   return std::get<CValue>(ir_value).value;
 }
 
@@ -910,13 +911,42 @@ absl::Status FunctionConverter::HandleLambda(const Lambda* node) {
 }
 
 absl::Status FunctionConverter::HandleLetChannelDecl(const Let* node) {
+  XLS_RET_CHECK(options_.lower_to_proc_scoped_channels)
+      << "Should only call FunctionConverter::HandleLetChannelDecl when "
+         "lowering to proc-scoped channels";
   ProcBuilder* builder_ptr =
       dynamic_cast<ProcBuilder*>(function_builder_.get());
   XLS_RET_CHECK_NE(builder_ptr, nullptr)
       << "Channel declarations should only be encountered during proc "
          "conversion; we seem to be in function conversion.";
 
-  xls::Proc* proc = builder_ptr->proc();
+  std::vector<NameDefTree::Leaf> leaves = node->name_def_tree()->Flatten();
+  XLS_RET_CHECK_EQ(leaves.size(), 2)
+      << "Must assign a channel declaration to a 2-tuple";
+
+  std::optional<IrValue> rhs_value = GetNodeToIr(node->rhs());
+  XLS_RET_CHECK(rhs_value.has_value());
+  if (std::holds_alternative<ChannelArray*>(*rhs_value)) {
+    ChannelDecl* decl = dynamic_cast<ChannelDecl*>(node->rhs());
+    XLS_RET_CHECK_NE(decl, nullptr) << "RHS must be a channel decl";
+    for (int i = 0; i < 2; i++) {
+      if (std::holds_alternative<NameDef*>(leaves[i])) {
+        NameDef* name_def = std::get<NameDef*>(leaves[i]);
+        XLS_ASSIGN_OR_RETURN(
+            ChannelOrArray target,
+            channel_scope_->AssociateWithExistingChannelOrArray(
+                *proc_id_, name_def, decl));
+        XLS_RET_CHECK(std::holds_alternative<ChannelArray*>(target));
+        SetNodeToIr(name_def, std::get<ChannelArray*>(target));
+      }
+    }
+    // Let statements must have a corresponding BValue (see HandleStatement)
+    // even though in the case of channel declarations, the BValue isn't used
+    // in favor of looking up the channel in ChannelScope.
+    SetNodeToIr(node, BValue());
+
+    return absl::OkStatus();
+  }
 
   XLS_ASSIGN_OR_RETURN(BValue channel_decl_value, Use(node->rhs()));
   NewChannel* new_channel_node =
@@ -924,9 +954,7 @@ absl::Status FunctionConverter::HandleLetChannelDecl(const Let* node) {
   XLS_RET_CHECK(new_channel_node != nullptr);
   const Channel* channel = new_channel_node->channel();
 
-  std::vector<NameDefTree::Leaf> leaves = node->name_def_tree()->Flatten();
-  XLS_RET_CHECK_EQ(leaves.size(), 2)
-      << "Must assign a channel declaration to a 2-tuple";
+  xls::Proc* proc = builder_ptr->proc();
   for (int i = 0; i < 2; i++) {
     if (std::holds_alternative<NameDef*>(leaves[i])) {
       NameDef* name_def = std::get<NameDef*>(leaves[i]);
@@ -950,8 +978,8 @@ absl::Status FunctionConverter::HandleLetChannelDecl(const Let* node) {
       }
     }
   }
+  XLS_RETURN_IF_ERROR(DefAlias(node->rhs(), /*to=*/node));
 
-  // TODO: davidplass - also deal with channel arrays
   return absl::OkStatus();
 }
 
@@ -960,10 +988,14 @@ absl::Status FunctionConverter::HandleLet(const Let* node) {
           << "`; rhs: `" << node->rhs()->ToString() << "`";
   XLS_RETURN_IF_ERROR(Visit(node->rhs()));
 
-  XLS_ASSIGN_OR_RETURN(BValue rhs, Use(node->rhs()));
-  XLS_RET_CHECK(rhs.valid());
-
-  XLS_RETURN_IF_ERROR(DefAlias(node->rhs(), /*to=*/node));
+  // This must be skipped in case of channel arrays because the rhs
+  // isn't a bvalue, it's a ChannelArray.
+  BValue rhs;
+  if (dynamic_cast<ChannelDecl*>(node->rhs()) == nullptr) {
+    XLS_ASSIGN_OR_RETURN(rhs, Use(node->rhs()));
+    XLS_RET_CHECK(rhs.valid());
+    XLS_RETURN_IF_ERROR(DefAlias(node->rhs(), /*to=*/node));
+  }
 
   if (node->name_def_tree()->is_leaf()) {
     // Alias so that the RHS expression is now known as the name definition it
@@ -2662,29 +2694,67 @@ absl::StatusOr<ChanRef> FunctionConverter::IrValueToChannelRef(
       ir_value);
 }
 
-/* static */ absl::StatusOr<SendChannelRef>
-FunctionConverter::IrValueToSendChannelRef(const IrValue& ir_value) {
-  return IrValueToChannelRef<SendChannelEnd, SendChannelRef,
-                             SendChannelInterface>(ir_value);
-}
-
-/* static */ absl::StatusOr<ReceiveChannelRef>
-FunctionConverter::IrValueToReceiveChannelRef(const IrValue& ir_value) {
-  return IrValueToChannelRef<RecvChannelEnd, ReceiveChannelRef,
-                             ReceiveChannelInterface>(ir_value);
-}
-
-/* static */ absl::StatusOr<ChannelInterface*>
-FunctionConverter::IrValueToChannelInterface(const IrValue& ir_value) {
-  absl::StatusOr<SendChannelRef> send = IrValueToSendChannelRef(ir_value);
-  if (send.ok()) {
-    XLS_RET_CHECK(std::holds_alternative<SendChannelInterface*>(*send));
-    return std::get<SendChannelInterface*>(*send);
+absl::StatusOr<SendChannelRef> FunctionConverter::IrValueToSendChannelRef(
+    const IrValue& ir_value) {
+  XLS_ASSIGN_OR_RETURN(SendChannelRef channel_ref,
+                       (IrValueToChannelRef<SendChannelEnd, SendChannelRef,
+                                            SendChannelInterface>(ir_value)));
+  if (options_.lower_to_proc_scoped_channels &&
+      std::holds_alternative<Channel*>(channel_ref)) {
+    // Go back from the channel to the channel interface
+    XLS_ASSIGN_OR_RETURN(ChannelInterface * ci,
+                         ChannelToInterface(std::get<Channel*>(channel_ref),
+                                            ChannelDirection::kOut));
+    return dynamic_cast<SendChannelInterface*>(ci);
   }
-  XLS_ASSIGN_OR_RETURN(ReceiveChannelRef recv,
-                       IrValueToReceiveChannelRef(ir_value));
-  XLS_RET_CHECK(std::holds_alternative<ReceiveChannelInterface*>(recv));
-  return std::get<ReceiveChannelInterface*>(recv);
+  return channel_ref;
+}
+
+absl::StatusOr<ReceiveChannelRef> FunctionConverter::IrValueToReceiveChannelRef(
+    const IrValue& ir_value) {
+  XLS_ASSIGN_OR_RETURN(
+      ReceiveChannelRef channel_ref,
+      (IrValueToChannelRef<RecvChannelEnd, ReceiveChannelRef,
+                           ReceiveChannelInterface>(ir_value)));
+  if (options_.lower_to_proc_scoped_channels &&
+      std::holds_alternative<Channel*>(channel_ref)) {
+    // Go back from the channel to the channel interface
+    XLS_ASSIGN_OR_RETURN(ChannelInterface * ci,
+                         ChannelToInterface(std::get<Channel*>(channel_ref),
+                                            ChannelDirection::kIn));
+    return dynamic_cast<ReceiveChannelInterface*>(ci);
+  }
+  return channel_ref;
+}
+
+absl::StatusOr<ChannelInterface*> FunctionConverter::ChannelToInterface(
+    Channel* channel, ChannelDirection direction) {
+  XLS_RET_CHECK(options_.lower_to_proc_scoped_channels)
+      << "Should not call ChannelToInterface if not lowering to proc-scoped "
+         "channels";
+  XLS_RET_CHECK_NE(channel, nullptr) << "channel cannot be null";
+  ProcBuilder* builder_ptr =
+      dynamic_cast<ProcBuilder*>(function_builder_.get());
+  XLS_RET_CHECK_NE(builder_ptr, nullptr)
+      << "Send nodes should only be encountered during Proc conversion; "
+         "we seem to be in function conversion.";
+  if (direction == ChannelDirection::kIn) {
+    return builder_ptr->GetReceiveChannelInterface(channel->name());
+  }
+  return builder_ptr->GetSendChannelInterface(channel->name());
+}
+
+absl::StatusOr<ChannelInterface*> FunctionConverter::IrValueToChannelInterface(
+    const IrValue& ir_value, ChannelDirection direction) {
+  if (direction == ChannelDirection::kIn) {
+    XLS_ASSIGN_OR_RETURN(ReceiveChannelRef ref,
+                         IrValueToReceiveChannelRef(ir_value));
+    XLS_RET_CHECK(std::holds_alternative<ReceiveChannelInterface*>(ref));
+    return std::get<ReceiveChannelInterface*>(ref);
+  }
+  XLS_ASSIGN_OR_RETURN(SendChannelRef ref, IrValueToSendChannelRef(ir_value));
+  XLS_RET_CHECK(std::holds_alternative<SendChannelInterface*>(ref));
+  return std::get<SendChannelInterface*>(ref);
 }
 
 /* static */ absl::Status FunctionConverter::CheckValueIsChannel(
@@ -3238,8 +3308,13 @@ absl::Status FunctionConverter::HandleSpawn(const Spawn* node) {
         channel_args.push_back(std::get<ChannelInterface*>(channel));
       }
     } else {
-      XLS_ASSIGN_OR_RETURN(ChannelInterface * channel_interface,
-                           IrValueToChannelInterface(arg_value));
+      // Channel or ChannelInterface.
+      XLS_ASSIGN_OR_RETURN(Type * type,
+                           current_type_info_->GetItemOrError(arg));
+      ChannelType* channel_type = dynamic_cast<ChannelType*>(type);
+      XLS_ASSIGN_OR_RETURN(
+          ChannelInterface * channel_interface,
+          IrValueToChannelInterface(arg_value, channel_type->direction()));
       channel_args.push_back(channel_interface);
     }
   }
@@ -3279,8 +3354,6 @@ absl::Status FunctionConverter::HandleChannelDecl(const ChannelDecl* node) {
         "Channels can only be declared in a proc `config` method.",
         file_table());
   }
-  XLS_RET_CHECK(!node->dims().has_value())
-      << "Lowering to proc-scoped channels does not support channel arrays yet";
 
   // Evaluate the name to a constant and get the type
   XLS_ASSIGN_OR_RETURN(
@@ -3292,12 +3365,20 @@ absl::Status FunctionConverter::HandleChannelDecl(const ChannelDecl* node) {
   std::optional<Type*> type = current_type_info_->GetItem(node->type());
   XLS_RET_CHECK(type.has_value());
 
+  // TODO: davidplass - instead of creating channel arrays via channel scope but
+  // channels via builder_ptr, do both via channel scope.
+  if (node->dims().has_value()) {
+    XLS_ASSIGN_OR_RETURN(ChannelOrArray channel_or_array,
+                         channel_scope_->DefineChannelOrArray(node));
+    XLS_RET_CHECK(std::holds_alternative<ChannelArray*>(channel_or_array));
+    SetNodeToIr(node, std::get<ChannelArray*>(channel_or_array));
+    return absl::OkStatus();
+  }
+
+  SourceInfo loc = ToSourceInfo(node->span());
   XLS_ASSIGN_OR_RETURN(
       xls::Type * ir_type,
       TypeToIr(package(), **type, ParametricEnv(parametric_env_map_)));
-  SourceInfo loc = ToSourceInfo(node->span());
-  // TODO: davidplass - deal with channel arrays here.
-
   // This returns a NewChannel node.
   XLS_ASSIGN_OR_RETURN(auto channel_ir_node,
                        builder_ptr->AddChannelDecl(name, ir_type, loc));
@@ -3450,6 +3531,8 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     XLS_RETURN_IF_ERROR(Visit(dep));
   }
 
+  ParametricEnv bindings(parametric_env_map_);
+  std::unique_ptr<ProcScopedChannelScope> proc_scoped_channel_scope;
   if (options_.lower_to_proc_scoped_channels) {
     TypeInfo* config_type_info = record.config_record() != nullptr
                                      ? record.config_record()->type_info()
@@ -3463,11 +3546,14 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     XLS_RET_CHECK(invocation != nullptr || !f->IsParametric())
         << "Cannot lower a parametric proc without an invocation";
 
-    proc_scoped_channel_scope_ = std::make_unique<ProcScopedChannelScope>(
+    proc_scoped_channel_scope = std::make_unique<ProcScopedChannelScope>(
         package_data_.conversion_info, import_data, options_, builder_ptr);
-    ParametricEnv bindings(parametric_env_map_);
-    proc_scoped_channel_scope_->EnterFunctionContext(current_type_info_,
-                                                     bindings);
+    proc_scoped_channel_scope->EnterFunctionContext(current_type_info_,
+                                                    bindings);
+    // Overwrite channel scope for the remains of this function call with
+    // the proc-scoped version. Since function converters are thrown away after
+    // each function is processed, this is fine.
+    channel_scope_ = proc_scoped_channel_scope.get();
 
     // Generate channel interfaces.
     for (const Param* param : config_fn.params()) {
@@ -3495,10 +3581,9 @@ absl::Status FunctionConverter::HandleProcNextFunction(
         // array and non-array params. Currently this causes a timeout
         // for certain non-channel-array tests (probably due to some infinite
         // recursion).
-        XLS_ASSIGN_OR_RETURN(
-            channel_or_array,
-            proc_scoped_channel_scope_->DefineBoundaryChannelOrArray(
-                param, current_type_info_));
+        XLS_ASSIGN_OR_RETURN(channel_or_array,
+                             channel_scope_->DefineBoundaryChannelOrArray(
+                                 param, current_type_info_));
         XLS_RET_CHECK(std::holds_alternative<ChannelArray*>(channel_or_array));
         SetNodeToIr(param->name_def(),
                     std::get<ChannelArray*>(channel_or_array));

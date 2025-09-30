@@ -4984,25 +4984,74 @@ proc main {
                HasSubstr("Cannot have non-channel parameters")));
 }
 
-TEST_P(ProcScopedChannelsIrConverterTest, ChannelArrayDeclNotSupportedYet) {
+TEST_P(ProcScopedChannelsIrConverterTest, ChannelArrayDecl) {
   constexpr std::string_view kProgram = R"(
 pub proc main {
+  outchs: chan<u32>[2] out;
+  inchs: chan<u32>[2] in;
   init { }
   config() {
-    let (a, b) = chan<u32>[2]("data_0");
-    ()
+    let (s, r) = chan<u32>[2]("data_0");
+    (s, r)
   }
   next(state: ()) { state }
 }
 )";
 
-  EXPECT_THAT(
-      ConvertOneFunctionForTest(kProgram, "main",
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data,
                                 ConvertOptions{
                                     .emit_positions = false,
                                     .lower_to_proc_scoped_channels = true,
-                                }),
-      StatusIs(absl::StatusCode::kInternal, HasSubstr("channel arrays yet")));
+                                }));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, ChannelArrayDeclSpawn) {
+  constexpr std::string_view kProgram = R"(
+proc spawnee {
+  outch: chan<u32> out;
+  inch: chan<u32> in;
+
+  init { }
+  config(outch: chan<u32> out, inch: chan<u32> in) {
+    (outch, inch)
+  }
+  next(state: ()) {
+    let (_, val) = recv(token(), inch);
+    send(token(), outch, val);
+    ()
+  }
+}
+
+pub proc main {
+  outchs: chan<u32>[2] out;
+  inchs: chan<u32>[2] in;
+  init { }
+  config() {
+    let (s, r) = chan<u32>[2]("data_0");
+    spawn spawnee(s[0], r[1]);
+    (s, r)
+  }
+  next(state: ()) {
+    let (_, val) = recv(token(), inchs[1]);
+    send(token(), outchs[0], val);
+    state
+  }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
+  ExpectIr(converted);
 }
 
 TEST_P(ProcScopedChannelsIrConverterTest, ChannelArrayParam) {
