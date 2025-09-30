@@ -2123,10 +2123,11 @@ absl::StatusOr<Parser::BlockSignature> Parser::ParseBlockSignature(
 
 absl::StatusOr<std::string> Parser::ParsePackageName() {
   XLS_RETURN_IF_ERROR(scanner_.DropKeywordOrError("package"));
-  XLS_ASSIGN_OR_RETURN(
-      Token package_name,
-      scanner_.PopTokenOrError(LexicalTokenType::kIdent, "package name"));
-  return package_name.value();
+  // Package names are identifier-like tokens in IR text. All keywords are
+  // contextual in this position and permitted as package names.
+  XLS_ASSIGN_OR_RETURN(Token name_token,
+                       scanner_.PopKeywordOrIdentToken("package name"));
+  return name_token.value();
 }
 
 absl::Status Parser::ParseFileNumber(
