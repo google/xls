@@ -4248,7 +4248,10 @@ proc Proc {
               "Accessing proc member in non-unrolled loop is unsupported")));
 }
 
-TEST(ProcScopedChannelsIrConverterTest, ProcNextOnly) {
+class ProcScopedChannelsIrConverterTest
+    : public IrConverterWithBothTypecheckVersionsTest {};
+
+TEST_P(ProcScopedChannelsIrConverterTest, ProcNextOnly) {
   constexpr std::string_view kProgram = R"(
 proc main {
   init { }
@@ -4267,7 +4270,7 @@ proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, MultipleSimpleProcs) {
+TEST_P(ProcScopedChannelsIrConverterTest, MultipleSimpleProcs) {
   // Tests that it properly assigns p2 as the top.
   constexpr std::string_view kProgram = R"(
 proc p1 {
@@ -4293,7 +4296,7 @@ proc p2 {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, ProcNextInitOnly) {
+TEST_P(ProcScopedChannelsIrConverterTest, ProcNextInitOnly) {
   constexpr std::string_view kProgram = R"(
 proc main {
   init { u32:1 }
@@ -4310,7 +4313,7 @@ proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, SimpleSpawn) {
+TEST_P(ProcScopedChannelsIrConverterTest, SimpleSpawn) {
   constexpr std::string_view kProgram = R"(
 proc spawnee {
   init { }
@@ -4338,7 +4341,7 @@ pub proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, MultipleSpawnees) {
+TEST_P(ProcScopedChannelsIrConverterTest, MultipleSpawnees) {
   constexpr std::string_view kProgram = R"(
 proc spawnee2 {
   init { }
@@ -4369,7 +4372,14 @@ pub proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, ConfigWithParam) {
+TEST_P(ProcScopedChannelsIrConverterTest, ConfigWithParam) {
+  // This only works with tiv2 at the moment. With v1, an error is thrown in
+  // ConstexprEvaluator.HandleNumber because (I think) it hasn't noted the u32:1
+  // in init as a constant.
+  if (GetParam() == TypeInferenceVersion::kVersion1) {
+    return;
+  }
+
   constexpr std::string_view kProgram = R"(
 proc adder {
   amount: u32;
@@ -4395,7 +4405,7 @@ pub proc main {
                HasSubstr("Use a parametric on the proc instead.")));
 }
 
-TEST(ProcScopedChannelsIrConverterTest, ParametricSimpleSpawn) {
+TEST_P(ProcScopedChannelsIrConverterTest, ParametricSimpleSpawn) {
   constexpr std::string_view kProgram = R"(
 proc spawnee<N:u32> {
   init { }
@@ -4423,7 +4433,7 @@ pub proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, ParametricUsedInNext) {
+TEST_P(ProcScopedChannelsIrConverterTest, ParametricUsedInNext) {
   constexpr std::string_view kProgram = R"(
 proc spawnee<N:u32> {
   inch: chan<uN[N]> in;
@@ -4464,7 +4474,7 @@ pub proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, ConstantInNext) {
+TEST_P(ProcScopedChannelsIrConverterTest, ConstantInNext) {
   constexpr std::string_view kProgram = R"(
 proc spawnee {
   inch: chan<u32> in;
@@ -4505,7 +4515,7 @@ pub proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, ConstantInFn) {
+TEST_P(ProcScopedChannelsIrConverterTest, ConstantInFn) {
   constexpr std::string_view kProgram = R"(
 fn f(input: u16) -> u16 {
     all_ones!<u16>() + input
@@ -4527,7 +4537,7 @@ fn main() -> u16 {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, ParametricConstantInFn) {
+TEST_P(ProcScopedChannelsIrConverterTest, ParametricConstantInFn) {
   constexpr std::string_view kProgram = R"(
 fn f<N:u32>(input: uN[N]) -> uN[N] {
     all_ones!<uN[N]>() + input
@@ -4548,8 +4558,8 @@ fn main() -> u16 {
                                 }));
   ExpectIr(converted);
 }
-TEST(ProcScopedChannelsIrConverterTest,
-     ParametricSimpleSpawnDifferentParametrics) {
+TEST_P(ProcScopedChannelsIrConverterTest,
+       ParametricSimpleSpawnDifferentParametrics) {
   constexpr std::string_view kProgram = R"(
 proc spawnee<N:u32> {
   init { }
@@ -4577,8 +4587,8 @@ pub proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest,
-     ParametricSimpleSpawnDifferentParametricsFromEnv) {
+TEST_P(ProcScopedChannelsIrConverterTest,
+       ParametricSimpleSpawnDifferentParametricsFromEnv) {
   constexpr std::string_view kProgram = R"(
 proc spawnee2<N:u32> {
   init { }
@@ -4657,7 +4667,7 @@ pub proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, ChannelInterface) {
+TEST_P(ProcScopedChannelsIrConverterTest, ChannelInterface) {
   constexpr std::string_view kProgram = R"(
 proc spawnee {
   init { }
@@ -4677,7 +4687,7 @@ proc spawnee {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, ChannelInterfaceOut) {
+TEST_P(ProcScopedChannelsIrConverterTest, ChannelInterfaceOut) {
   constexpr std::string_view kProgram = R"(
 proc spawnee {
   init { }
@@ -4697,7 +4707,7 @@ proc spawnee {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, ParametricProcNoSpawn) {
+TEST_P(ProcScopedChannelsIrConverterTest, ParametricProcNoSpawn) {
   constexpr std::string_view kProgram = R"(
 proc spawnee<N: u32> {
   init { }
@@ -4723,7 +4733,7 @@ pub proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, ChannelDecl) {
+TEST_P(ProcScopedChannelsIrConverterTest, ChannelDecl) {
   constexpr std::string_view kProgram = R"(
 pub proc main {
   init { }
@@ -4746,7 +4756,7 @@ pub proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, ParametricChannelDecl) {
+TEST_P(ProcScopedChannelsIrConverterTest, ParametricChannelDecl) {
   constexpr std::string_view kProgram = R"(
 proc spawnee1<M:u32> {
   init { }
@@ -4778,7 +4788,7 @@ pub proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, ParametricChannelMember) {
+TEST_P(ProcScopedChannelsIrConverterTest, ParametricChannelMember) {
   constexpr std::string_view kProgram = R"(
 proc spawnee1<M:u32> {
   out_chan: chan<uN[M]> out;
@@ -4813,7 +4823,7 @@ pub proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, SpawnParametricProcWithChannel) {
+TEST_P(ProcScopedChannelsIrConverterTest, SpawnParametricProcWithChannel) {
   constexpr std::string_view kProgram = R"(
 proc spawnee1<M:u32> {
   out_chan: chan<uN[M]> out;
@@ -4849,7 +4859,7 @@ pub proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, ChannelDeclIgnoreHalf) {
+TEST_P(ProcScopedChannelsIrConverterTest, ChannelDeclIgnoreHalf) {
   constexpr std::string_view kProgram = R"(
 pub proc main {
   init { }
@@ -4873,7 +4883,7 @@ pub proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, InvalidChannelDeclAssignment) {
+TEST_P(ProcScopedChannelsIrConverterTest, InvalidChannelDeclAssignment) {
   constexpr std::string_view kProgram = R"(
 pub proc main {
   init { }
@@ -4895,7 +4905,7 @@ pub proc main {
                HasSubstr("Must assign a channel declaration to a 2-tuple")));
 }
 
-TEST(ProcScopedChannelsIrConverterTest, ChannelDeclsWithTypes) {
+TEST_P(ProcScopedChannelsIrConverterTest, ChannelDeclsWithTypes) {
   const std::string kProgram = R"(
 proc main {
   init { () }
@@ -4922,7 +4932,7 @@ proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, InvalidChannelDeclInNext) {
+TEST_P(ProcScopedChannelsIrConverterTest, InvalidChannelDeclInNext) {
   constexpr std::string_view kProgram = R"(
 pub proc main {
   init { }
@@ -4944,7 +4954,12 @@ pub proc main {
                HasSubstr("Channels can only be declared in")));
 }
 
-TEST(ProcScopedChannelsIrConverterTest, InvalidConfigParam) {
+TEST_P(ProcScopedChannelsIrConverterTest, InvalidConfigParam) {
+  if (GetParam() == TypeInferenceVersion::kVersion1) {
+    // v1 fails figuring out the param type for some reason.
+    return;
+  }
+
   constexpr std::string_view kProgram = R"(
 proc invalid {
   init { }
@@ -4969,7 +4984,7 @@ proc main {
                HasSubstr("Cannot have non-channel parameters")));
 }
 
-TEST(ProcScopedChannelsIrConverterTest, ChannelArrayDecl) {
+TEST_P(ProcScopedChannelsIrConverterTest, ChannelArrayDecl) {
   constexpr std::string_view kProgram = R"(
 pub proc main {
   outchs: chan<u32>[2] out;
@@ -4994,7 +5009,7 @@ pub proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, ChannelArrayDeclSpawn) {
+TEST_P(ProcScopedChannelsIrConverterTest, ChannelArrayDeclSpawn) {
   constexpr std::string_view kProgram = R"(
 proc spawnee {
   outch: chan<u32> out;
@@ -5039,7 +5054,7 @@ pub proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, ChannelArrayParam) {
+TEST_P(ProcScopedChannelsIrConverterTest, ChannelArrayParam) {
   constexpr std::string_view kProgram = R"(
 pub proc main {
   init { }
@@ -5059,7 +5074,7 @@ pub proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, ChannelArrayIndexSendRecv) {
+TEST_P(ProcScopedChannelsIrConverterTest, ChannelArrayIndexSendRecv) {
   constexpr std::string_view kProgram = R"(
 pub proc main {
   init { }
@@ -5083,7 +5098,7 @@ pub proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, ChannelArrayIndexSpawn) {
+TEST_P(ProcScopedChannelsIrConverterTest, ChannelArrayIndexSpawn) {
   constexpr std::string_view kProgram = R"(
 proc spawnee {
   inch: chan<u32> in;
@@ -5116,7 +5131,7 @@ pub proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, MultiDimChannelArray) {
+TEST_P(ProcScopedChannelsIrConverterTest, MultiDimChannelArray) {
   constexpr std::string_view kProgram = R"(
 proc main {
   outchs: chan<u16>[4][2] out;
@@ -5148,7 +5163,7 @@ proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, MultiDimChannelArraySlice) {
+TEST_P(ProcScopedChannelsIrConverterTest, MultiDimChannelArraySlice) {
   constexpr std::string_view kProgram = R"(
 proc consumer {
   send_chans: chan<u16>[16] out;
@@ -5194,7 +5209,12 @@ proc producer {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, InvalidChannelArrayParam) {
+TEST_P(ProcScopedChannelsIrConverterTest, InvalidChannelArrayParam) {
+  if (GetParam() == TypeInferenceVersion::kVersion1) {
+    // v1 fails figuring out the param type for some reason.
+    return;
+  }
+
   constexpr std::string_view kProgram = R"(
 proc invalid {
   init { }
@@ -5219,7 +5239,12 @@ pub proc main {
                HasSubstr("Cannot have non-channel parameters")));
 }
 
-TEST(ProcScopedChannelsIrConverterTest, InvalidConfigArrayParam) {
+TEST_P(ProcScopedChannelsIrConverterTest, InvalidConfigArrayParam) {
+  if (GetParam() == TypeInferenceVersion::kVersion1) {
+    // v1 fails figuring out the param type for some reason.
+    return;
+  }
+
   constexpr std::string_view kProgram = R"(
 proc invalid {
   init { }
@@ -5244,7 +5269,7 @@ pub proc main {
                HasSubstr("Cannot have non-channel parameters")));
 }
 
-TEST(ProcScopedChannelsIrConverterTest, ChannelArrayMembers) {
+TEST_P(ProcScopedChannelsIrConverterTest, ChannelArrayMembers) {
   constexpr std::string_view kProgram = R"(
 pub proc main {
   ins: chan<u32>[3] in;
@@ -5273,7 +5298,7 @@ pub proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, SpawnFromChannelArrayParams) {
+TEST_P(ProcScopedChannelsIrConverterTest, SpawnFromChannelArrayParams) {
   constexpr std::string_view kProgram = R"(
 pub proc spawnee {
   ins: chan<u32>[3] in;
@@ -5311,7 +5336,7 @@ pub proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, ChannelArrayAndChannelMembers) {
+TEST_P(ProcScopedChannelsIrConverterTest, ChannelArrayAndChannelMembers) {
   constexpr std::string_view kProgram = R"(
 pub proc main {
   ins: chan<u32>[3] in;
@@ -5340,7 +5365,8 @@ pub proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, SpawnFromChannelArrayAndChannelParams) {
+TEST_P(ProcScopedChannelsIrConverterTest,
+       SpawnFromChannelArrayAndChannelParams) {
   constexpr std::string_view kProgram = R"(
 pub proc spawnee {
   ins: chan<u32>[3] in;
@@ -5378,7 +5404,7 @@ pub proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, ParametricChannelArrayMembers) {
+TEST_P(ProcScopedChannelsIrConverterTest, ParametricChannelArrayMembers) {
   constexpr std::string_view kProgram = R"(
 proc spawnee<N: u32, M: u32> {
   ins: chan<uN[N]>[3] in;
@@ -5423,7 +5449,7 @@ pub proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, LoopbackChannelMember) {
+TEST_P(ProcScopedChannelsIrConverterTest, LoopbackChannelMember) {
   constexpr std::string_view kProgram = R"(
 proc main {
   out_chan: chan<u32> out;
@@ -5449,7 +5475,7 @@ proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, ParamToChannelMember) {
+TEST_P(ProcScopedChannelsIrConverterTest, ParamToChannelMember) {
   constexpr std::string_view kProgram = R"(
 proc main {
   in_chan: chan<u32> in;
@@ -5474,7 +5500,7 @@ proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, SimpleSend) {
+TEST_P(ProcScopedChannelsIrConverterTest, SimpleSend) {
   constexpr std::string_view kProgram = R"(
 proc main {
   out_chan: chan<u32> out;
@@ -5501,7 +5527,7 @@ proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, SimpleSendIf) {
+TEST_P(ProcScopedChannelsIrConverterTest, SimpleSendIf) {
   constexpr std::string_view kProgram = R"(
 proc main {
   out_chan: chan<u32> out;
@@ -5528,7 +5554,7 @@ proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, SimpleRecv) {
+TEST_P(ProcScopedChannelsIrConverterTest, SimpleRecv) {
   constexpr std::string_view kProgram = R"(
 proc main {
   in_chan: chan<u32> in;
@@ -5555,7 +5581,7 @@ proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, SimpleRecvIf) {
+TEST_P(ProcScopedChannelsIrConverterTest, SimpleRecvIf) {
   constexpr std::string_view kProgram = R"(
 proc main {
   in_chan: chan<u32> in;
@@ -5582,7 +5608,7 @@ proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, SimpleRecvNonBlocking) {
+TEST_P(ProcScopedChannelsIrConverterTest, SimpleRecvNonBlocking) {
   constexpr std::string_view kProgram = R"(
 proc main {
   in_chan: chan<u32> in;
@@ -5609,7 +5635,7 @@ proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, SimpleRecvIfNonBlocking) {
+TEST_P(ProcScopedChannelsIrConverterTest, SimpleRecvIfNonBlocking) {
   constexpr std::string_view kProgram = R"(
 proc main {
   in_chan: chan<u32> in;
@@ -5637,7 +5663,7 @@ proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, SpawnFromLocal) {
+TEST_P(ProcScopedChannelsIrConverterTest, SpawnFromLocal) {
   constexpr std::string_view kProgram = R"(
 proc spawnee {
   in_chan: chan<u32> in;
@@ -5673,7 +5699,7 @@ proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, SpawnFromParam) {
+TEST_P(ProcScopedChannelsIrConverterTest, SpawnFromParam) {
   constexpr std::string_view kProgram = R"(
 proc spawnee2 {
   in_chan: chan<u32> in;
@@ -5718,7 +5744,7 @@ proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, ParametricSpawnFromSpawn) {
+TEST_P(ProcScopedChannelsIrConverterTest, ParametricSpawnFromSpawn) {
   constexpr std::string_view kProgram = R"(
 proc spawnee2<N: u32> {
   in_chan: chan<uN[N]> in;
@@ -5808,5 +5834,12 @@ INSTANTIATE_TEST_SUITE_P(IrConverterWithBothTypecheckVersionsTestSuite,
                          IrConverterWithBothTypecheckVersionsTest,
                          testing::Values(TypeInferenceVersion::kVersion1,
                                          TypeInferenceVersion::kVersion2));
+
+INSTANTIATE_TEST_SUITE_P(
+    ProcScopedChannelsIrConverterWithBothTypecheckVersionsTestSuite,
+    ProcScopedChannelsIrConverterTest,
+    testing::Values(TypeInferenceVersion::kVersion1,
+                    TypeInferenceVersion::kVersion2));
+
 }  // namespace
 }  // namespace xls::dslx
