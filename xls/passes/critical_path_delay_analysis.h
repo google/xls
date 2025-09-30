@@ -35,6 +35,8 @@ class CriticalPathDelayAnalysis : public LazyNodeData<int64_t> {
   static absl::StatusOr<std::shared_ptr<CriticalPathDelayAnalysis>> Create(
       const AnalysisOptions& options);
 
+  Node* NodeAtEndOfCriticalPath(FunctionBase* f) const;
+
  protected:
   int64_t ComputeInfo(
       Node* node,

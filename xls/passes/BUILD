@@ -1508,6 +1508,41 @@ cc_test(
 )
 
 cc_library(
+    name = "critical_path_slack_analysis",
+    srcs = ["critical_path_slack_analysis.cc"],
+    hdrs = ["critical_path_slack_analysis.h"],
+    deps = [
+        ":critical_path_delay_analysis",
+        ":lazy_node_data",
+        "//xls/ir",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "critical_path_slack_analysis_test",
+    srcs = ["critical_path_slack_analysis_test.cc"],
+    deps = [
+        ":critical_path_delay_analysis",
+        ":critical_path_slack_analysis",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/estimators/delay_model:delay_estimator",
+        "//xls/estimators/delay_model:delay_estimators",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:op",
+        "//xls/ir:source_location",
+        "//xls/ir:type",
+        "@com_google_absl//absl/types:span",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "lazy_query_engine",
     hdrs = [
         "lazy_query_engine.h",

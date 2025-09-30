@@ -310,6 +310,8 @@ class LazyNodeData : public ChangeListener,
 
   void ForceRecompute(Node* node) { cache_.MarkUnverified(node); }
 
+  void ClearCache() { cache_.Clear(); }
+
   // Eagerly computes the values for all nodes in the function that do not have
   // known values. This is expensive and should only be used for testing and
   // measurement.

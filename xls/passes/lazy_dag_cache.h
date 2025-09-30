@@ -204,8 +204,9 @@ class LazyDagCache {
         continue;
       }
       descendant_state = CacheState::kInputsUnverified;
-      worklist.insert(worklist.end(), descendant->users().begin(),
-                      descendant->users().end());
+      absl::Span<const Key> descendant_users = provider_->GetUsers(descendant);
+      worklist.insert(worklist.end(), descendant_users.begin(),
+                      descendant_users.end());
     }
   }
 
