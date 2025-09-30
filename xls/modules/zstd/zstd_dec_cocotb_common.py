@@ -204,7 +204,7 @@ def check_decoder_compliance(file_path):
 
 def check_ram_contents(mem, expected, name=""):
   for i, value in enumerate(expected):
-    assert mem[i].value == value
+    assert mem[i].value == value, f"[{name}] index: {i} value: {mem[i].value}, expected: {value}"
 
 
 def print_fse_ram_contents(mem, name="", size=None):
