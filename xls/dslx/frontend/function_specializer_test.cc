@@ -14,6 +14,7 @@
 
 #include "xls/dslx/frontend/function_specializer.h"
 
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>
@@ -21,14 +22,17 @@
 #include <variant>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "gtest/gtest.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/parametric_env.h"
-#include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/type_system/typecheck_module.h"
+#include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
 namespace {
@@ -38,10 +42,6 @@ TEST(FunctionSpecializerTest, SpecializesParametricFunction) {
       R"(fn scale<M: u32>(x: bits[M]) -> bits[M] {
   let shifted = x << M;
   shifted
-}
-
-fn call() -> bits[32] {
-  scale(bits[32]:0x1)
 }
 )";
 
@@ -55,31 +55,18 @@ fn call() -> bits[32] {
 
   auto functions = module->GetFunctionByName();
   ASSERT_TRUE(functions.contains("scale"));
-  ASSERT_TRUE(functions.contains("call"));
   Function* scale_fn = functions.at("scale");
-  Function* call_fn = functions.at("call");
 
-  StatementBlock* call_body = call_fn->body();
-  ASSERT_EQ(call_body->statements().size(), 1);
-  const Statement::Wrapped& wrapped =
-      call_body->statements().front()->wrapped();
-  ASSERT_TRUE(std::holds_alternative<Expr*>(wrapped));
-  auto* invocation = down_cast<Invocation*>(std::get<Expr*>(wrapped));
-
-  TypeInfo* root_type_info = typechecked.type_info;
-  ASSERT_NE(root_type_info, nullptr);
-
-  std::optional<TypeInfo*> instantiation_type_info =
-      root_type_info->GetInvocationTypeInfo(invocation, ParametricEnv());
-  ASSERT_TRUE(instantiation_type_info.has_value());
-
-  std::optional<const ParametricEnv*> callee_env =
-      root_type_info->GetInvocationCalleeBindings(invocation, ParametricEnv());
-  ASSERT_TRUE(callee_env.has_value());
+  ASSERT_FALSE(scale_fn->parametric_bindings().empty());
+  const ParametricBinding* binding = scale_fn->parametric_bindings().front();
+  InterpValue binding_value = InterpValue::MakeUBits(/*bit_count=*/32, 32);
+  absl::flat_hash_map<std::string, InterpValue> env_bindings;
+  env_bindings.emplace(binding->identifier(), binding_value);
+  ParametricEnv env(env_bindings);
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * specialized,
-      InsertFunctionSpecialization(scale_fn, **callee_env, "scale_M32"));
+      InsertFunctionSpecialization(scale_fn, env, "scale_M32"));
 
   EXPECT_FALSE(specialized->IsParametric());
   EXPECT_EQ(specialized->identifier(), "scale_M32");
@@ -103,7 +90,70 @@ fn call() -> bits[32] {
 
   ASSERT_TRUE(module->GetFunction("scale_M32").has_value());
   EXPECT_EQ(module->GetFunctionNames(),
-            (std::vector<std::string>{"scale", "scale_M32", "call"}));
+            (std::vector<std::string>{"scale", "scale_M32"}));
+}
+
+TEST(FunctionSpecializerTest, SpecializedParametersRebindNameRefs) {
+  constexpr std::string_view kProgram =
+      R"(fn passthrough<N: u32>(x: bits[N]) -> bits[N] {
+  x
+}
+)";
+
+  std::unique_ptr<ImportData> import_data = CreateImportDataPtrForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule typechecked,
+                           ParseAndTypecheck(kProgram, "test_module.x",
+                                             "test_module", import_data.get()));
+
+  Module* module = typechecked.module;
+  ASSERT_NE(module, nullptr);
+
+  auto functions = module->GetFunctionByName();
+  ASSERT_TRUE(functions.contains("passthrough"));
+  Function* passthrough_fn = functions.at("passthrough");
+
+  ASSERT_FALSE(passthrough_fn->parametric_bindings().empty());
+  const ParametricBinding* binding =
+      passthrough_fn->parametric_bindings().front();
+  InterpValue binding_value = InterpValue::MakeUBits(/*bit_count=*/32, 8);
+  absl::flat_hash_map<std::string, InterpValue> env_bindings;
+  env_bindings.emplace(binding->identifier(), binding_value);
+  ParametricEnv env(env_bindings);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * specialized,
+      InsertFunctionSpecialization(passthrough_fn, env,
+                                   "passthrough_N8"));
+
+  ASSERT_EQ(specialized->params().size(), 1);
+  Param* specialized_param = specialized->params()[0];
+  NameDef* specialized_name_def = specialized_param->name_def();
+
+  StatementBlock* specialized_body = specialized->body();
+  ASSERT_EQ(specialized_body->statements().size(), 1);
+  const Statement::Wrapped& specialized_wrapped =
+      specialized_body->statements().front()->wrapped();
+  ASSERT_TRUE(std::holds_alternative<Expr*>(specialized_wrapped));
+  Expr* ret_expr = std::get<Expr*>(specialized_wrapped);
+
+  auto* name_ref = down_cast<NameRef*>(ret_expr);
+  ASSERT_TRUE(std::holds_alternative<const NameDef*>(name_ref->name_def()));
+  const NameDef* bound_name_def =
+      std::get<const NameDef*>(name_ref->name_def());
+  EXPECT_EQ(bound_name_def, specialized_name_def);
+
+  // Typecheck the module again to ensure the specialized function integrates.
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> cloned, CloneModule(*module));
+  std::unique_ptr<ImportData> tc_import_data = CreateImportDataPtrForTest();
+  WarningCollector warnings(tc_import_data->enabled_warnings());
+  std::filesystem::path module_path = module->fs_path().value_or(
+      std::filesystem::path("test_module.x"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleInfo> module_info,
+      TypecheckModule(std::move(cloned), module_path.string(),
+                      tc_import_data.get(), &warnings));
+  EXPECT_NE(module_info->type_info(), nullptr);
+  EXPECT_TRUE(module_info->module().GetFunction("passthrough_N8").has_value());
 }
 
 }  // namespace

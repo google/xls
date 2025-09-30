@@ -87,9 +87,12 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:create_import_data",
+        "//xls/dslx:interp_value",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx:warning_collector",
         "//xls/dslx/type_system:parametric_env",
-        "//xls/dslx/type_system:type_info",
+        "//xls/dslx/type_system:typecheck_module",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@googletest//:gtest",
     ],
 )

@@ -26,12 +26,12 @@
 #include <variant>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/base/macros.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/temp_directory.h"
 #include "xls/common/logging/log_lines.h"
@@ -84,16 +84,15 @@ fn call() -> bits[32] { id(bits[32]:0x0) }
 
   char* parse_error = nullptr;
   struct xls_dslx_typechecked_module* tm = nullptr;
-  bool ok = xls_dslx_parse_and_typecheck(
-      kProgram.c_str(), "specialize.x", "specialize_module", import_data,
-      &parse_error, &tm);
+  bool ok = xls_dslx_parse_and_typecheck(kProgram.c_str(), "specialize.x",
+                                         "specialize_module", import_data,
+                                         &parse_error, &tm);
   absl::Cleanup free_parse_error([&] { xls_c_str_free(parse_error); });
   ASSERT_TRUE(ok) << (parse_error ? parse_error : "");
   ASSERT_NE(tm, nullptr);
   absl::Cleanup free_tm([&] { xls_dslx_typechecked_module_free(tm); });
 
-  struct xls_dslx_module* module =
-      xls_dslx_typechecked_module_get_module(tm);
+  struct xls_dslx_module* module = xls_dslx_typechecked_module_get_module(tm);
   ASSERT_NE(module, nullptr);
 
   ASSERT_EQ(xls_dslx_module_get_member_count(module), 2);
@@ -125,8 +124,9 @@ fn call() -> bits[32] { id(bits[32]:0x0) }
   struct xls_dslx_typechecked_module* specialized_tm = nullptr;
   ASSERT_TRUE(xls_dslx_typechecked_module_insert_function_specializations(
       tm, requests, /*request_count=*/1, import_data,
-      "specialize_module.specializations", &specialize_error,
-      &specialized_tm));
+      "specialize_module.specializations", &specialize_error, &specialized_tm))
+      << "specialization error: "
+      << (specialize_error == nullptr ? "<none>" : specialize_error);
   absl::Cleanup free_specialize_error(
       [&] { xls_c_str_free(specialize_error); });
   ASSERT_NE(specialized_tm, nullptr);
@@ -160,7 +160,8 @@ fn call() -> bits[32] { id(bits[32]:0x0) }
       xls_dslx_function_get_identifier(specialized_function);
   char* name_call = xls_dslx_function_get_identifier(call_function);
   absl::Cleanup free_name_source([&] { xls_c_str_free(name_source); });
-  absl::Cleanup free_name_specialized([&] { xls_c_str_free(name_specialized); });
+  absl::Cleanup free_name_specialized(
+      [&] { xls_c_str_free(name_specialized); });
   absl::Cleanup free_name_call([&] { xls_c_str_free(name_call); });
 
   EXPECT_STREQ(name_source, "id");

@@ -82,48 +82,65 @@ absl::StatusOr<Function*> InsertFunctionSpecialization(
     binding_values->emplace(binding->name_def(), *value);
   }
 
-  auto make_replacer = [binding_values]() -> CloneReplacer {
-    return [binding_values](
+  auto make_replacer = [binding_values](
+                            const absl::flat_hash_map<const NameDef*, NameDef*>*
+                                param_name_replacements) -> CloneReplacer {
+    return [binding_values, param_name_replacements](
                const AstNode* original, Module* target_module,
-               const absl::flat_hash_map<const AstNode*, AstNode*>&)
+               const absl::flat_hash_map<const AstNode*, AstNode*>& old_to_new)
                -> absl::StatusOr<std::optional<AstNode*>> {
       if (original->kind() != AstNodeKind::kNameRef) {
         return std::nullopt;
       }
       const NameRef* name_ref = down_cast<const NameRef*>(original);
-      if (!std::holds_alternative<const NameDef*>(name_ref->name_def())) {
-        return std::nullopt;
+      if (std::holds_alternative<const NameDef*>(name_ref->name_def())) {
+        const NameDef* def = std::get<const NameDef*>(name_ref->name_def());
+        if (param_name_replacements != nullptr) {
+          auto param_it = param_name_replacements->find(def);
+          if (param_it != param_name_replacements->end()) {
+            NameDef* replacement = param_it->second;
+            return std::optional<AstNode*>(
+                target_module->Make<NameRef>(name_ref->span(),
+                                             name_ref->identifier(),
+                                             replacement, name_ref->in_parens()));
+          }
+        }
+        auto binding_it = binding_values->find(def);
+        if (binding_it != binding_values->end()) {
+          XLS_ASSIGN_OR_RETURN(Number * literal,
+                               CreateLiteralFromValue(target_module,
+                                                      name_ref->span(),
+                                                      binding_it->second));
+          return std::optional<AstNode*>(literal);
+        }
       }
-      const NameDef* def = std::get<const NameDef*>(name_ref->name_def());
-      auto it = binding_values->find(def);
-      if (it == binding_values->end()) {
-        return std::nullopt;
-      }
-      XLS_ASSIGN_OR_RETURN(
-          Number * literal,
-          CreateLiteralFromValue(target_module, name_ref->span(), it->second));
-      return std::optional<AstNode*>(literal);
+      return std::nullopt;
     };
   };
 
   std::vector<Param*> new_params;
   new_params.reserve(source_function->params().size());
+  absl::flat_hash_map<const NameDef*, NameDef*> param_name_replacements;
   for (Param* param : source_function->params()) {
     XLS_ASSIGN_OR_RETURN(Param * cloned_param,
-                         CloneNode<Param>(param, make_replacer()));
+                         CloneNode<Param>(param,
+                                          make_replacer(/*param_name_replacements=*/nullptr)));
+    param_name_replacements.emplace(param->name_def(),
+                                    cloned_param->name_def());
     new_params.push_back(cloned_param);
   }
 
   TypeAnnotation* new_return_type = nullptr;
   if (source_function->return_type() != nullptr) {
     XLS_ASSIGN_OR_RETURN(new_return_type,
-                         CloneNode<TypeAnnotation>(
-                             source_function->return_type(), make_replacer()));
+                         CloneNode<TypeAnnotation>(source_function->return_type(),
+                                                   make_replacer(&param_name_replacements)));
   }
 
   XLS_ASSIGN_OR_RETURN(
       StatementBlock * new_body,
-      CloneNode<StatementBlock>(source_function->body(), make_replacer()));
+      CloneNode<StatementBlock>(source_function->body(),
+                                make_replacer(&param_name_replacements)));
 
   NameDef* new_name_def = module->Make<NameDef>(
       source_function->name_def()->span(), std::string(specialized_name),
