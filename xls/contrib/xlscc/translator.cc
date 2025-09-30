@@ -4382,6 +4382,13 @@ absl::Status Translator::AddIOOpForSliceForCall(
                     IOChannelInCurrentFunction(caller_op_ptr->channel, loc),
                 loc);
 
+    caller_op_ptr->full_op_location = callee_op.full_op_location;
+
+    if (!loc.locations.empty()) {
+      caller_op_ptr->full_op_location.locations.push_back(
+          loc.locations.front());
+    }
+
     if (caller_op_ptr->op == OpType::kLoopEndJump) {
       const IOOp* callee_loop_begin_op = callee_op.loop_op_paired;
       XLSCC_CHECK_NE(callee_loop_begin_op, nullptr, loc);
