@@ -26,12 +26,12 @@
 #include <variant>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/base/macros.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/temp_directory.h"
 #include "xls/common/logging/log_lines.h"
@@ -147,6 +147,105 @@ fn apply_map(xs: u32[2]) -> u32[2] {
   EXPECT_EQ(get_fn_name(mapped_fn), "callee");
 
   xls_c_str_free(error_out);
+}
+
+TEST(XlsCApiTest, FunctionInsertSpecialization) {
+  const std::string kProgram = R"(fn id<N: u32>(x: bits[N]) -> bits[N] { x }
+fn call() -> bits[32] { id(bits[32]:0x0) }
+)";
+  const char* additional_search_paths[] = {};
+  std::string dslx_stdlib_path = std::string(xls::kDefaultDslxStdlibPath);
+  xls_dslx_import_data* import_data = xls_dslx_import_data_create(
+      dslx_stdlib_path.c_str(), additional_search_paths, 0);
+  ASSERT_NE(import_data, nullptr);
+  absl::Cleanup free_import_data(
+      [=] { xls_dslx_import_data_free(import_data); });
+
+  char* parse_error = nullptr;
+  struct xls_dslx_typechecked_module* tm = nullptr;
+  bool ok = xls_dslx_parse_and_typecheck(kProgram.c_str(), "specialize.x",
+                                         "specialize_module", import_data,
+                                         &parse_error, &tm);
+  absl::Cleanup free_parse_error([&] { xls_c_str_free(parse_error); });
+  ASSERT_TRUE(ok) << (parse_error ? parse_error : "");
+  ASSERT_NE(tm, nullptr);
+  absl::Cleanup free_tm([&] { xls_dslx_typechecked_module_free(tm); });
+
+  struct xls_dslx_module* module = xls_dslx_typechecked_module_get_module(tm);
+  ASSERT_NE(module, nullptr);
+
+  ASSERT_EQ(xls_dslx_module_get_member_count(module), 2);
+  struct xls_dslx_module_member* member0 =
+      xls_dslx_module_get_member(module, 0);
+  ASSERT_EQ(xls_dslx_module_member_get_kind(member0),
+            xls_dslx_module_member_kind_function);
+  struct xls_dslx_function* source_function =
+      xls_dslx_module_member_get_function(member0);
+  ASSERT_TRUE(xls_dslx_function_is_parametric(source_function));
+
+  struct xls_dslx_interp_value* value =
+      xls_dslx_interp_value_make_ubits(/*bit_count=*/32, /*value=*/32);
+  absl::Cleanup free_value([&] { xls_dslx_interp_value_free(value); });
+
+  xls_dslx_parametric_env_item items[] = {{"N", value}};
+  char* env_error = nullptr;
+  struct xls_dslx_parametric_env* env = nullptr;
+  ASSERT_TRUE(xls_dslx_parametric_env_create(items, /*items_count=*/1,
+                                             &env_error, &env));
+  absl::Cleanup free_env([&] { xls_dslx_parametric_env_free(env); });
+  absl::Cleanup free_env_error([&] { xls_c_str_free(env_error); });
+
+  xls_dslx_function_specialization_request requests[] = {
+      {.function_name = "id", .specialized_name = "id_N32", .env = env},
+  };
+
+  char* specialize_error = nullptr;
+  struct xls_dslx_typechecked_module* specialized_tm = nullptr;
+  ASSERT_TRUE(xls_dslx_typechecked_module_insert_function_specializations(
+      tm, requests, /*request_count=*/1, import_data,
+      "specialize_module.specializations", &specialize_error, &specialized_tm))
+      << "specialization error: "
+      << (specialize_error == nullptr ? "<none>" : specialize_error);
+  absl::Cleanup free_specialize_error(
+      [&] { xls_c_str_free(specialize_error); });
+  ASSERT_NE(specialized_tm, nullptr);
+  absl::Cleanup free_specialized_tm(
+      [&] { xls_dslx_typechecked_module_free(specialized_tm); });
+
+  struct xls_dslx_module* specialized_module =
+      xls_dslx_typechecked_module_get_module(specialized_tm);
+  ASSERT_NE(specialized_module, nullptr);
+
+  EXPECT_EQ(xls_dslx_module_get_member_count(module), 2);
+  ASSERT_EQ(xls_dslx_module_get_member_count(specialized_module), 3);
+  struct xls_dslx_module_member* member1 =
+      xls_dslx_module_get_member(specialized_module, 1);
+  ASSERT_EQ(xls_dslx_module_member_get_kind(member1),
+            xls_dslx_module_member_kind_function);
+  struct xls_dslx_function* specialized_function =
+      xls_dslx_module_member_get_function(member1);
+  ASSERT_NE(specialized_function, nullptr);
+
+  struct xls_dslx_module_member* member2 =
+      xls_dslx_module_get_member(specialized_module, 2);
+  ASSERT_EQ(xls_dslx_module_member_get_kind(member2),
+            xls_dslx_module_member_kind_function);
+  struct xls_dslx_function* call_function =
+      xls_dslx_module_member_get_function(member2);
+  ASSERT_NE(call_function, nullptr);
+
+  char* name_source = xls_dslx_function_get_identifier(source_function);
+  char* name_specialized =
+      xls_dslx_function_get_identifier(specialized_function);
+  char* name_call = xls_dslx_function_get_identifier(call_function);
+  absl::Cleanup free_name_source([&] { xls_c_str_free(name_source); });
+  absl::Cleanup free_name_specialized(
+      [&] { xls_c_str_free(name_specialized); });
+  absl::Cleanup free_name_call([&] { xls_c_str_free(name_call); });
+
+  EXPECT_STREQ(name_source, "id");
+  EXPECT_STREQ(name_specialized, "id_N32");
+  EXPECT_STREQ(name_call, "call");
 }
 
 // -- Bits comparisons
