@@ -395,11 +395,33 @@ class BlockGenerator {
     // possible.
     XLS_RETURN_IF_ERROR(DeclareInstantiationOutputs());
     if (options_.emit_as_pipeline()) {
+      // If residual data is provided use it to determine a global order of all
+      // nodes in the block. This is then used to determine the emission order
+      // of nodes within any particular stage.
+      bool has_reference_order = false;
+      std::vector<Node*> global_order;
       if (options_.residual_data().has_value()) {
-        return absl::UnimplementedError(
-            "Reference residual data is not supported when generating "
-            "pipelines");
+        std::vector<int64_t> ref_ids = NodeIdOrderFromResidualData(
+            block_->name(), *options_.residual_data());
+        if (!ref_ids.empty()) {
+          has_reference_order = true;
+          global_order = StableTopoSort(block_, ref_ids);
+        }
       }
+      auto get_stage_node_order = [&](absl::Span<Node* const> stage_nodes) {
+        CHECK(has_reference_order);
+        absl::flat_hash_set<Node*> stage_nodes_set(stage_nodes.begin(),
+                                                   stage_nodes.end());
+        std::vector<Node*> stage_order;
+        for (Node* node : global_order) {
+          if (stage_nodes_set.contains(node)) {
+            stage_order.push_back(node);
+          }
+        }
+        CHECK_EQ(stage_order.size(), stage_nodes.size());
+        return stage_order;
+      };
+
       // Emits the block as a sequence of pipeline stages. First reconstruct the
       // stages and emit the stages one-by-one. Emitting as a pipeline is purely
       // cosmetic relative to the emit_as_pipeline=false option as the Verilog
@@ -415,8 +437,14 @@ class BlockGenerator {
           mb_.declaration_section()->Add<BlankLine>(SourceInfo());
           mb_.declaration_section()->Add<Comment>(
               SourceInfo(), absl::StrFormat("===== Pipe stage %d:", stage_num));
-          XLS_RETURN_IF_ERROR(EmitLogic(stage.combinational_nodes, stage_num));
 
+          if (has_reference_order) {
+            XLS_RETURN_IF_ERROR(EmitLogic(
+                get_stage_node_order(stage.combinational_nodes), stage_num));
+          } else {
+            XLS_RETURN_IF_ERROR(
+                EmitLogic(stage.combinational_nodes, stage_num));
+          }
           if (!stage.registers.empty()) {
             mb_.NewDeclarationAndAssignmentSections();
             mb_.declaration_section()->Add<BlankLine>(SourceInfo());
