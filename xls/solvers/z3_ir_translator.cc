@@ -1902,11 +1902,20 @@ absl::StatusOr<std::string> EmitFunctionAsSmtLib(Function* function) {
   Z3_ast lambda_ast = Z3_mk_lambda_const(ctx, bound_params.size(),
                                          bound_params.data(), body_ast);
 
-  // Z3_ast_to_string returns a pointer to memory owned by the Z3 context.
+  // To emit a self-contained SMT-LIB2 translation, we use Z3_solver_to_string,
+  // which will include necessary definitions.
+  Z3_solver solver = solvers::z3::CreateSolver(ctx, /*num_threads=*/1);
+  auto cleanup = absl::Cleanup([&] { Z3_solver_dec_ref(ctx, solver); });
+  Z3_symbol fn_name =
+      Z3_mk_string_symbol(ctx, std::string(function->name()).c_str());
+  Z3_ast fn_const = Z3_mk_const(ctx, fn_name, Z3_get_sort(ctx, lambda_ast));
+  Z3_solver_assert(ctx, solver, Z3_mk_eq(ctx, fn_const, lambda_ast));
+
+  // Z3_solver_to_string returns a pointer to memory owned by the Z3 context.
   // It remains valid until any further Z3 pretty-printing call or until the
   // context is destroyed.  We immediately copy it into a std::string, so the
   // helper has no lifetime/ownership complications and does not leak.
-  const char* smt_cstr = Z3_ast_to_string(ctx, lambda_ast);
+  const char* smt_cstr = Z3_solver_to_string(ctx, solver);
   return std::string(smt_cstr);
 }
 

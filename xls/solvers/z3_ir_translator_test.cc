@@ -25,6 +25,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/cleanup/cleanup.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/substitute.h"
@@ -2688,11 +2689,53 @@ top fn foo(p: (bits[8], bits[16])) -> (bits[16], bits[8]) {
   // Verify the tuple type spelling in the generated string.
   EXPECT_EQ(tuple_type_str, "(bits[8], bits[16])");
 
-  static constexpr const char kWant[] =
-      "(lambda ((p |(bits[8], bits[16])|))\n  (|(bits[16], bits[8])|\n    "
-      "(|(bits[8], bits[16])_1| p)\n    (|(bits[8], bits[16])_0| p)))";
+  static constexpr std::string_view kWant =
+      R"((declare-datatypes ((|(bits[8], bits[16])| 0)) (((|(bits[8], bits[16])| (|(bits[8], bits[16])_0| (_ BitVec 8)) (|(bits[8], bits[16])_1| (_ BitVec 16))))))
+(declare-datatypes ((|(bits[16], bits[8])| 0)) (((|(bits[16], bits[8])| (|(bits[16], bits[8])_0| (_ BitVec 16)) (|(bits[16], bits[8])_1| (_ BitVec 8))))))
+(declare-fun foo () (Array |(bits[8], bits[16])| |(bits[16], bits[8])|))
+(assert (= foo
+   (lambda ((p |(bits[8], bits[16])|))
+     (|(bits[16], bits[8])|
+       (|(bits[8], bits[16])_1| p)
+       (|(bits[8], bits[16])_0| p)))))
+)";
 
-  EXPECT_EQ(std::string_view{smtlib}, std::string_view{kWant});
+  EXPECT_EQ(smtlib, kWant);
+}
+
+TEST_F(Z3IrTranslatorTest, EmitFunctionAsSmtLibParseable) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  fb.Add(x, y);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string smt_string,
+                           solvers::z3::EmitFunctionAsSmtLib(f));
+
+  // Create a new context and try to parse the string.
+  Z3_config cfg = Z3_mk_config();
+  Z3_context ctx = Z3_mk_context(cfg);
+  absl::Cleanup cleanup = [&] {
+    Z3_del_context(ctx);
+    Z3_del_config(cfg);
+  };
+
+  // Z3_parse_smtlib2_string returns nullptr on error, but in some
+  // configurations it can invoke an error handler that aborts, so we set a
+  // no-op handler just in case.
+  Z3_set_error_handler(ctx, [](Z3_context c, Z3_error_code e) {});
+
+  Z3_ast_vector vec = Z3_parse_smtlib2_string(
+      ctx, smt_string.c_str(), 0, nullptr, nullptr, 0, nullptr, nullptr);
+
+  // Check for errors.
+  ASSERT_EQ(Z3_get_error_code(ctx), Z3_OK)
+      << Z3_get_error_msg(ctx, Z3_get_error_code(ctx));
+  ASSERT_NE(vec, nullptr);
+
+  EXPECT_EQ(Z3_ast_vector_size(ctx, vec), 1);
 }
 
 }  // namespace

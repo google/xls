@@ -2909,8 +2909,11 @@ top fn add(x: bits[32], y: bits[32]) -> bits[32] {
       << "xls_function_to_z3_smtlib error: " << error;
   absl::Cleanup free_smtlib([smtlib] { xls_c_str_free(smtlib); });
 
-  EXPECT_EQ(std::string_view{smtlib},
-            "(lambda ((x (_ BitVec 32)) (y (_ BitVec 32))) (bvadd x y))");
+  EXPECT_EQ(
+      std::string_view{smtlib},
+      R"((declare-fun add () (Array (_ BitVec 32) (_ BitVec 32) (_ BitVec 32)))
+(assert (= add (lambda ((x (_ BitVec 32)) (y (_ BitVec 32))) (bvadd x y))))
+)");
 }
 
 // Tests that we can determine whether a DSLX function is parametric via the
