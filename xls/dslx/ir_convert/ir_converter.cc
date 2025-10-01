@@ -624,9 +624,7 @@ absl::Status AddContentsToPackage(
 
   WarningCollector& warnings = typechecked_module->warnings;
   if (convert_options.warnings_as_errors && !warnings.warnings().empty()) {
-    if (printed_error != nullptr) {
-      *printed_error = true;
-    }
+    *printed_error = true;
     PrintWarnings(warnings, import_data->file_table(), import_data->vfs());
     return absl::InvalidArgumentError(
         "Warnings encountered and warnings-as-errors set.");
@@ -702,6 +700,10 @@ absl::StatusOr<PackageConversionData> ConvertFilesToPackage(
               "Warnings encountered and warnings-as-errors set.");
         }
       }
+    }
+    bool dummy_printed_error = false;
+    if (!printed_error) {
+      printed_error = &dummy_printed_error;
     }
     XLS_RETURN_IF_ERROR(AddContentsToPackage(
         text, module_name, /*path=*/path, /*entry=*/top, convert_options,
