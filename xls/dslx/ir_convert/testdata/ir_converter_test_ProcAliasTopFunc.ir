@@ -1,0 +1,7 @@
+top proc __ir_converter_test_ProcAliasTopFunc__AProc_0_next(__state: (), init={()}) {
+  __state: () = state_read(state_element=__state, id=2)
+  tuple.4: () = tuple(id=4)
+  __token: token = literal(value=token, id=1)
+  literal.3: bits[1] = literal(value=1, id=3)
+  next_value.5: () = next_value(param=__state, value=tuple.4, id=5)
+}

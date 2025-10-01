@@ -39,6 +39,11 @@ struct StructOrProcRef {
   std::optional<const TypeRefTypeAnnotation*> type_ref_type_annotation;
 };
 
+struct OldStyleProcRef {
+  const Proc* def;
+  std::vector<ExprOrType> parametrics;
+};
+
 // The signedness and bit count extracted from a `TypeAnnotation`. The
 // `TypeAnnotation` may use primitive values or exprs; we convey the
 // representation as is.

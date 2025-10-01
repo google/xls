@@ -36,6 +36,8 @@
 #include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/type_system_v2/import_utils.h"
+#include "xls/dslx/type_system_v2/type_annotation_utils.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
@@ -256,7 +258,10 @@ absl::Status ProcConfigIrConverter::HandleParam(const Param* node) {
 absl::Status ProcConfigIrConverter::HandleSpawn(const Spawn* node) {
   VLOG(4) << "ProcConfigIrConverter::HandleSpawn : " << node->ToString();
   std::vector<ProcConfigValue> config_args;
-  XLS_ASSIGN_OR_RETURN(Proc * p, ResolveProc(node->callee(), type_info_));
+  XLS_ASSIGN_OR_RETURN(std::optional<OldStyleProcRef> maybe_proc,
+                       GetOldStyleProcRef(node->callee(), *import_data_));
+  XLS_RET_CHECK(maybe_proc.has_value());
+  Proc* p = const_cast<Proc*>(maybe_proc->def);
   ProcId new_id = proc_id_factory_.CreateProcId(proc_id_, p);
   for (const auto& arg : node->config()->args()) {
     XLS_RETURN_IF_ERROR(arg->Accept(this));

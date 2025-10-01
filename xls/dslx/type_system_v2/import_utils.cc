@@ -26,6 +26,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/module.h"
@@ -97,13 +98,21 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  absl::Status HandleProc(const Proc* proc) override {
+    type_def_ = const_cast<Proc*>(proc);
+    return absl::OkStatus();
+  }
+
   absl::Status HandleEnumDef(const EnumDef* def) override {
     type_def_ = const_cast<EnumDef*>(def);
     return absl::OkStatus();
   }
 
   absl::Status HandleNameDef(const NameDef* name_def) override {
-    return name_def->definer()->Accept(this);
+    if (name_def->definer()) {
+      return name_def->definer()->Accept(this);
+    }
+    return absl::OkStatus();
   }
 
   absl::Status HandleNameRef(const NameRef* name_ref) override {
@@ -121,6 +130,15 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
         .parametrics = parametrics_,
         .instantiator = instantiator_,
         .type_ref_type_annotation = type_ref_type_annotation_};
+  }
+
+  std::optional<OldStyleProcRef> GetOldStyleProcRef() {
+    if (!type_def_.has_value() ||
+        (!std::holds_alternative<Proc*>(*type_def_))) {
+      return std::nullopt;
+    }
+    return OldStyleProcRef{.def = down_cast<Proc*>(ToAstNode(*type_def_)),
+                           .parametrics = parametrics_};
   }
 
   std::optional<const EnumDef*> GetEnumDef() {
@@ -201,6 +219,21 @@ absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
   TypeRefUnwrapper unwrapper(import_data);
   XLS_RETURN_IF_ERROR(colon_ref->Accept(&unwrapper));
   return unwrapper.GetStructOrProcRef();
+}
+
+absl::StatusOr<std::optional<OldStyleProcRef>> GetOldStyleProcRef(
+    const AstNode* node, const ImportData& import_data) {
+  if (node->kind() != AstNodeKind::kColonRef &&
+      node->kind() != AstNodeKind::kNameRef &&
+      !dynamic_cast<const TypeRefTypeAnnotation*>(node)) {
+    return std::nullopt;
+  }
+  TypeRefUnwrapper unwrapper(import_data);
+  if (node->kind() == AstNodeKind::kNameRef) {
+    node = ToAstNode(down_cast<const NameRef*>(node)->name_def());
+  }
+  XLS_RETURN_IF_ERROR(node->Accept(&unwrapper));
+  return unwrapper.GetOldStyleProcRef();
 }
 
 absl::StatusOr<std::optional<const StructDefBase*>> GetStructOrProcDef(

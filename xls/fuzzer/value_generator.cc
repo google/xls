@@ -321,6 +321,10 @@ absl::StatusOr<Expr*> GenerateDslxConstant(absl::BitGenRef bit_gen,
                 "Generating constants of UseTreeEntry types isn't yet "
                 "supported.");
           },
+          [&](dslx::Proc* proc) -> absl::StatusOr<Expr*> {
+            return absl::UnimplementedError(
+                "Generating constants of Proc types isn't yet supported.");
+          },
       },
       typeref->type_definition());
 }

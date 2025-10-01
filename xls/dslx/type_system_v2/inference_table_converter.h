@@ -17,6 +17,7 @@
 
 #include <memory>
 #include <optional>
+#include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -30,10 +31,17 @@ namespace xls::dslx {
 // The result of resolving the target of a function call. If the `target_object`
 // is specified, then it is an instance method being invoked on `target_object`.
 // Otherwise, it is a static function which may or may not be a member.
+// `proc_alias_parametrics` is used if the function is parametric and is invoked
+// through an instantiated parametric type alias, in which case it contains the
+// parametric arguments of that type alias. Currently the only allowed case is a
+// Proc alias, for example in `type A = Proc<u32:2>; ... spawn A();`, the spawn
+// call resolves to `function = Proc.config()` and `proc_alias_parametrics =
+// [u32:2]`.
 struct FunctionAndTargetObject {
   const Function* function = nullptr;
   const std::optional<Expr*> target_object;
   std::optional<const ParametricContext*> target_struct_context;
+  const std::vector<ExprOrType> proc_alias_parametrics;
 };
 
 class SemanticsAnalysis;

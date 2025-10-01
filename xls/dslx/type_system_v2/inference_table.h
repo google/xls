@@ -389,12 +389,17 @@ class InferenceTable {
 
   // Defines an invocation context for a parametric function, giving its
   // associated parametric variables distinct value expression storage for that
-  // context. Note that the `caller` must only be `nullopt` if the invocation is
-  // not in a function (e.g. it may be in the RHS of a free constant
-  // declaration).
+  // context. Note that existing `explicit_parametrics` of an `invocation` must
+  // still be explicitly specified again because the invocation target may be an
+  // alias of a fully specified parametric callable, in which case it does not
+  // inherently own the parametrics, which have to be fetched by resolving the
+  // type alias chain. Note that the `caller` must only be `nullopt` if the
+  // invocation is not in a function (e.g. it may be in the RHS of a free
+  // constant declaration).
   virtual absl::StatusOr<ParametricContext*> AddParametricInvocation(
-      const Invocation& invocation, const Function& callee,
-      std::optional<const Function*> caller,
+      const Invocation& invocation,
+      const std::vector<ExprOrType>& explicit_parametrics,
+      const Function& callee, std::optional<const Function*> caller,
       std::optional<const ParametricContext*> parent_context,
       std::optional<const TypeAnnotation*> self_type,
       TypeInfo* invocation_type_info) = 0;

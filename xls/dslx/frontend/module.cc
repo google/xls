@@ -302,6 +302,9 @@ Module::GetTypeDefinitionByName() const {
     } else if (std::holds_alternative<ProcDef*>(member)) {
       ProcDef* proc_def = std::get<ProcDef*>(member);
       result[proc_def->identifier()] = proc_def;
+    } else if (std::holds_alternative<Proc*>(member)) {
+      Proc* proc = std::get<Proc*>(member);
+      result[proc->identifier()] = proc;
     }
   }
   return result;
@@ -322,6 +325,9 @@ std::vector<TypeDefinition> Module::GetTypeDefinitions() const {
     } else if (std::holds_alternative<ProcDef*>(member)) {
       ProcDef* proc_def = std::get<ProcDef*>(member);
       results.push_back(proc_def);
+    } else if (std::holds_alternative<Proc*>(member)) {
+      Proc* proc = std::get<Proc*>(member);
+      results.push_back(proc);
     }
   }
   return results;

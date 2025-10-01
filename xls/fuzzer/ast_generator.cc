@@ -746,6 +746,9 @@ class FindTypeVisitor : public AstNodeVisitorWithDefault {
     if (std::holds_alternative<EnumDef*>(type_def)) {
       return std::get<EnumDef*>(type_def)->Accept(this);
     }
+    if (std::holds_alternative<Proc*>(type_def)) {
+      return std::get<Proc*>(type_def)->Accept(this);
+    }
     CHECK(std::holds_alternative<ColonRef*>(type_def));
     return std::get<ColonRef*>(type_def)->Accept(this);
   }

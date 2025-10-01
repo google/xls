@@ -304,6 +304,10 @@ absl::StatusOr<TypeInfo::TypeSource> TypeInfo::ResolveTypeDefinition(
           [this](UseTreeEntry* sd) -> absl::StatusOr<TypeInfo::TypeSource> {
             return ResolveTypeDefinition(sd);
           },
+          [](Proc* proc) -> absl::StatusOr<TypeInfo::TypeSource> {
+            return absl::UnimplementedError(
+                "New feature no longer supporting TIv1");
+          },
       },
       source);
 }

@@ -387,6 +387,12 @@ DslxTypeToVerilogManager::TypeDefinitionToVastType(
 
                 return vast_enum_def;
               },
+              [&](Proc* proc) -> absl::StatusOr<verilog::DataType*> {
+                return absl::InternalError(
+                    absl::StrFormat("TypeAnnotation Proc %s not supported by "
+                                    "DslxTypeToVerilogManager",
+                                    proc->ToString()));
+              },
           },
           resolved_type_definition_source.definition));
 

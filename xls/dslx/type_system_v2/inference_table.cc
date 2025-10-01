@@ -318,8 +318,9 @@ class InferenceTableImpl : public InferenceTable {
   }
 
   absl::StatusOr<ParametricContext*> AddParametricInvocation(
-      const Invocation& node, const Function& callee,
-      std::optional<const Function*> caller,
+      const Invocation& node,
+      const std::vector<ExprOrType>& explicit_parametrics,
+      const Function& callee, std::optional<const Function*> caller,
       std::optional<const ParametricContext*> parent_context,
       std::optional<const TypeAnnotation*> self_type,
       TypeInfo* invocation_type_info) override {
@@ -332,8 +333,6 @@ class InferenceTableImpl : public InferenceTable {
         parent_context, self_type);
     const std::vector<ParametricBinding*>& bindings =
         callee.parametric_bindings();
-    const std::vector<ExprOrType>& explicit_parametrics =
-        node.explicit_parametrics();
     XLS_RET_CHECK(explicit_parametrics.size() <= bindings.size());
     MutableParametricContextData mutable_data;
     for (int i = 0; i < bindings.size(); i++) {

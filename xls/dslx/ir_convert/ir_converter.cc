@@ -70,6 +70,8 @@
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/type_system_v2/import_utils.h"
+#include "xls/dslx/type_system_v2/type_annotation_utils.h"
 #include "xls/dslx/virtualizable_file_system.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
@@ -540,6 +542,20 @@ absl::Status ConvertOneFunctionIntoPackage(Module* module,
 
   absl::StatusOr<Proc*> proc =
       module->GetMemberOrError<Proc>(entry_function_name);
+  // Also check for proc alias.
+  if (!proc.ok()) {
+    absl::StatusOr<TypeAlias*> alias =
+        module->GetMemberOrError<TypeAlias>(entry_function_name);
+    if (alias.ok()) {
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<OldStyleProcRef> proc_ref,
+          GetOldStyleProcRef(&(*alias)->type_annotation(), *import_data));
+      if (proc_ref.has_value()) {
+        proc.emplace(const_cast<Proc*>(proc_ref->def));
+      }
+    }
+  }
+
   if (proc.ok()) {
     XLS_RETURN_IF_ERROR(CheckAcceptableTopProc(*proc));
     return ConvertOneFunctionIntoPackageInternal(*proc, import_data,

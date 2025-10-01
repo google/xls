@@ -33,6 +33,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/module.h"
+#include "xls/dslx/frontend/proc.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_from_string.h"
@@ -499,6 +500,9 @@ xls_dslx_type_definition_kind xls_dslx_module_get_type_definition_kind(
                          },
                          [](const xls::dslx::UseTreeEntry*) {
                            return xls_dslx_type_definition_kind_use_tree_entry;
+                         },
+                         [](const xls::dslx::Proc*) {
+                           return xls_dslx_type_definition_kind_proc;
                          },
                      },
                      cpp_type_definition);

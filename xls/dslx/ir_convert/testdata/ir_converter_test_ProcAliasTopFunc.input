@@ -1,0 +1,7 @@
+proc AProc {
+  init { () }
+  config() { }
+  next(state: ()) { }
+}
+
+type A = AProc;
