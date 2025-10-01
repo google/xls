@@ -35,18 +35,6 @@
 
 #define DEBUG_TYPE "optimize-using-xls"
 
-// Consider upstreaming this as the current behavior treats the optional string
-// as an argument.
-namespace llvm::cl {
-template <>
-bool parser<std::optional<std::string>>::parse(
-    Option& O, StringRef ArgName, StringRef Arg,
-    std::optional<std::string>& Value) {
-  Value = Arg;
-  return false;
-}
-}  // namespace llvm::cl
-
 namespace mlir::xls {
 
 #define GEN_PASS_DEF_OPTIMIZEUSINGXLSPASS
