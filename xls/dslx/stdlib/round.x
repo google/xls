@@ -105,15 +105,20 @@ pub enum Sign : u1 {
 // round down is chosen. E.g.
 // round(RNE, 4 bits, unsigned, u5:0b1_1000) -> rounds up (retained msb is 1)
 // round(RNE, 4 bits, unsigned, u4:0b1000) -> rounds down (no retained bits)
-pub fn round
-    <S: bool, N: u32, W_NBR: u32 = {std::clog2(N + u32:1)}, NP1: u32 = {N + u32:1},
-     W_SAFE: u32 = {std::max(N, u32:1)}>
+pub fn round<S: bool, N: u32, W_NBR: u32 = {std::clog2(N + u32:1)}>
     (rounding_mode: RoundingMode, num_bits_rounded: uN[W_NBR], sign: Sign, unrounded: xN[S][N])
     -> (u1, xN[S][N]) {
+    type NumBitsRoundedT = uN[W_NBR];
+
+    // Works even when N is zero.
+    type SafeWord = uN[std::max(N, u32:1)];
+
+    // Wide enough to represent overflow.
+    type ExtendedWord = uN[N + u32:1];
+
     // Compute sign bit while avoiding issues when N is zero.
     let unrounded_u = unrounded as uN[N];
-    let sign_shift = std::usub_or_zero(N, u32:1) as uN[W_NBR];
-    type SafeWord = uN[W_SAFE];
+    let sign_shift = std::usub_or_zero(N, u32:1) as NumBitsRoundedT;
     let unrounded_sign_bit = std::lsb((unrounded_u as SafeWord) >> sign_shift);
 
     // determine sign when unrounded is two's complement
@@ -125,7 +130,7 @@ pub fn round
 
     if N == u32:0 {
         (u1:0, xN[S][N]:0)
-    } else if num_bits_rounded == uN[W_NBR]:0 {
+    } else if num_bits_rounded == NumBitsRoundedT:0 {
         (u1:0, unrounded)
     } else if num_bits_rounded as u32 > N {
         let is_zero = unrounded_u == uN[N]:0;
@@ -159,8 +164,8 @@ pub fn round
         let half_value = (SafeWord:1) << (num_bits_rounded as SafeWord - SafeWord:1);
 
         // as we defined half above, we use a similar definition of one
-        let one = (uN[NP1]:1) << num_bits_rounded;
-        let zero = uN[NP1]:0;
+        let one = (ExtendedWord:1) << num_bits_rounded;
+        let zero = ExtendedWord:0;
 
         // Beware rounded_gt_half when unrounded is two's complement and negative; it's
         // misleading.
@@ -272,7 +277,7 @@ pub fn round
             },
         };
 
-        let sum = retained_bits as uN[NP1] + adjustment;
+        let sum = retained_bits as ExtendedWord + adjustment;
         let (carry, rounded_u) = std::split_msbs<u32:1>(sum);
 
         let rounded_sign_bit = std::lsb((rounded_u as SafeWord) >> sign_shift);
@@ -338,11 +343,11 @@ pub fn round_u<N: u32, W_NBR: u32 = {std::clog2(N + u32:1)}>
 // - returns only the most significant bits (i.e., the rounded result), discarding the rounded-off
 //   bits.
 // Returns (overflow, rounded result).
-pub fn round_trunc_u
-    <NumBitsRounded: u32, N: u32, R: u32 = {N - NumBitsRounded},
-     W_NBR: u32 = {std::clog2(N + u32:1)}>
+pub fn round_trunc_u<NumBitsRounded: u32, N: u32, R: u32 = {N - NumBitsRounded}>
     (rounding_mode: RoundingMode, unrounded: uN[N]) -> (u1, uN[R]) {
     const_assert!(NumBitsRounded <= N);
+    const W_NBR: u32 = std::clog2(N + u32:1);
+
     let (overflow, rounded) = round_u(rounding_mode, NumBitsRounded as uN[W_NBR], unrounded);
     let (rounded_msbs, _) = std::split_msbs<R>(rounded);
     (overflow, rounded_msbs)
@@ -353,17 +358,17 @@ pub fn round_trunc_u
 // - returns only the most significant bits (i.e., the rounded result), discarding the rounded-off
 //   bits.
 // Returns (overflow, rounded result).
-pub fn round_trunc_to_u
-    <AtMost: u32, N: u32, R: u32 = {std::min(AtMost, N)},
-     NumBitsRounded: u32 = {std::usub_or_zero(N, R)}, W_NBR: u32 = {std::clog2(N + u32:1)}>
+pub fn round_trunc_to_u<AtMost: u32, N: u32, R: u32 = {std::min(AtMost, N)}>
     (rounding_mode: RoundingMode, unrounded: uN[N]) -> (u1, uN[R]) {
-    if NumBitsRounded == u32:0 {
+    const NUM_BITS_ROUNDED: u32 = std::usub_or_zero(N, R);
+
+    if NUM_BITS_ROUNDED == u32:0 {
         // This no-op cast is required by the type checker. When this branch is not taken, this
         // cast op unifies the types of the branches.
         let unrounded = unrounded as uN[R];
         (u1:0, unrounded)
     } else {
-        round_trunc_u<NumBitsRounded>(rounding_mode, unrounded)
+        round_trunc_u<NUM_BITS_ROUNDED>(rounding_mode, unrounded)
     }
 }
 
@@ -382,11 +387,11 @@ pub fn round_s<N: u32, W_NBR: u32 = {std::clog2(N + u32:1)}>
 // - returns only the most significant bits (i.e., the rounded result), discarding the rounded-off
 //   bits.
 // Returns (overflow, rounded result).
-pub fn round_trunc_s
-    <num_bits_rounded: u32, N: u32, R: u32 = {N - num_bits_rounded},
-     W_NBR: u32 = {std::clog2(N + u32:1)}>
+pub fn round_trunc_s<num_bits_rounded: u32, N: u32, R: u32 = {N - num_bits_rounded}>
     (rounding_mode: RoundingMode, unrounded: sN[N]) -> (u1, sN[R]) {
     const_assert!(num_bits_rounded <= N);
+    const W_NBR: u32 = std::clog2(N + u32:1);
+
     if R == u32:0 {
         let (overflow, _) = round_s(rounding_mode, num_bits_rounded as uN[W_NBR], unrounded);
         (overflow, zero!<sN[R]>())
@@ -402,15 +407,15 @@ pub fn round_trunc_s
 // - returns only the most significant bits (i.e., the rounded result), discarding the rounded-off
 //   bits.
 // Returns (overflow, rounded result).
-pub fn round_trunc_to_s
-    <AtMost: u32, N: u32, R: u32 = {std::min(AtMost, N)},
-     NumBitsRounded: u32 = {std::usub_or_zero(N, R)}, W_NBR: u32 = {std::clog2(N + u32:1)}>
+pub fn round_trunc_to_s<AtMost: u32, N: u32, R: u32 = {std::min(AtMost, N)}>
     (rounding_mode: RoundingMode, unrounded: sN[N]) -> (u1, sN[R]) {
-    if NumBitsRounded == u32:0 {
+    const NUM_BITS_ROUNDED: u32 = std::usub_or_zero(N, R);
+
+    if NUM_BITS_ROUNDED == u32:0 {
         let unrounded = unrounded as sN[R];
         (u1:0, unrounded)
     } else {
-        round_trunc_s<NumBitsRounded>(rounding_mode, unrounded)
+        round_trunc_s<NUM_BITS_ROUNDED>(rounding_mode, unrounded)
     }
 }
 
@@ -430,11 +435,11 @@ pub fn round_sm<N: u32, W_NBR: u32 = {std::clog2(N + u32:1)}>
 // - returns only the most significant bits (i.e., the rounded result), discarding the rounded-off
 //   bits.
 // Returns (overflow, rounded result).
-pub fn round_trunc_sm
-    <num_bits_rounded: u32, N: u32, R: u32 = {N - num_bits_rounded},
-     W_NBR: u32 = {std::clog2(N + u32:1)}>
+pub fn round_trunc_sm<num_bits_rounded: u32, N: u32, R: u32 = {N - num_bits_rounded}>
     (rounding_mode: RoundingMode, sign: Sign, magnitude: uN[N]) -> (u1, uN[R]) {
     const_assert!(num_bits_rounded <= N);
+    const W_NBR: u32 = std::clog2(N + u32:1);
+
     let (overflow, rounded) =
         round_sm(rounding_mode, num_bits_rounded as uN[W_NBR], sign, magnitude);
     let (rounded_msbs, _) = std::split_msbs<R>(rounded);
@@ -446,14 +451,14 @@ pub fn round_trunc_sm
 // - returns only the most significant bits (i.e., the rounded result), discarding the rounded-off
 //   bits.
 // Returns (overflow, rounded result).
-pub fn round_trunc_to_sm
-    <AtMost: u32, N: u32, R: u32 = {std::min(AtMost, N)},
-     NumBitsRounded: u32 = {std::usub_or_zero(N, R)}, W_NBR: u32 = {std::clog2(N + u32:1)}>
+pub fn round_trunc_to_sm<AtMost: u32, N: u32, R: u32 = {std::min(AtMost, N)}>
     (rounding_mode: RoundingMode, sign: Sign, magnitude: uN[N]) -> (u1, uN[R]) {
-    if NumBitsRounded == u32:0 {
+    const NUM_BITS_ROUNDED: u32 = std::usub_or_zero(N, R);
+
+    if NUM_BITS_ROUNDED == u32:0 {
         let magnitude = magnitude as uN[R];
         (u1:0, magnitude)
     } else {
-        round_trunc_sm<NumBitsRounded>(rounding_mode, sign, magnitude)
+        round_trunc_sm<NUM_BITS_ROUNDED>(rounding_mode, sign, magnitude)
     }
 }
