@@ -565,7 +565,7 @@ async def test_huffman_codes(dut, clock, expected_codes):
     nonlocal block_cnt
 
     assert block_cnt <= 32
-    codes_data = getattr(WEIGHT_CODE_BUILDER_INST, CODES_CHANNEL_NAME)
+    codes_data = getattr(WEIGHT_CODE_BUILDER_INST, CODES_CHANNEL_NAME + '_data')
     data = CodeBuilderOutput.from_int(codes_data.value)
 
     symbol_valid_array = fields_as_array(data, "symbol_valid", 8)
