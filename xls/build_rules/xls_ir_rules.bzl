@@ -319,6 +319,8 @@ def _optimize_ir(ctx, src, original_input_files):
         outs.append(pprof_file)
         extra_outs.append(pprof_file)
     runfiles = get_runfiles_for_xls(ctx, [], [src.ir_file] + ram_rewrite_files + debug_src_files + original_input_files)
+    for v in ctx.attr._extra_opt_flags[BuildSettingInfo].value:
+        args.add(v)
     ctx.actions.run(
         outputs = outs,
         executable = ctx.executable._xls_opt_ir_tool,
@@ -797,6 +799,10 @@ def xls_ir_opt_ir_impl(ctx, src, original_input_files):
 xls_ir_opt_ir_attrs = dicts.add(
     xls_ir_top_attrs,
     {
+        "_extra_opt_flags": attr.label(
+            doc = "Extra flags to pass to the IR optimizer tool.",
+            default = Label("//xls/common/config:extra_opt_args"),
+        ),
         "opt_ir_args": attr.string_dict(
             doc = "Arguments of the IR optimizer tool. For details on the" +
                   "arguments, refer to the opt_main application at" +

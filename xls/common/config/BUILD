@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "string_list_flag")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("//xls/build_rules:xls_utilities.bzl", "bool_config_setting")
 
@@ -59,4 +59,16 @@ bool_flag(
 bool_flag(
     name = "profile_opt_passes",
     build_setting_default = False,
+)
+
+# Tell opt-rules to pass additional arguments
+string_list_flag(
+    name = "extra_opt_args",
+    build_setting_default = [],
+)
+
+# Tell condegen-rules to pass additional arguments
+string_list_flag(
+    name = "extra_codegen_args",
+    build_setting_default = [],
 )

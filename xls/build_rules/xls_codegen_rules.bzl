@@ -17,6 +17,7 @@ This module contains codegen-related build rules for XLS.
 """
 
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
+load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load(
     "//xls/build_rules:xls_common_rules.bzl",
     "append_default_to_args",
@@ -67,6 +68,10 @@ _CODEGEN_FLAGS = CODEGEN_FIELDS.keys()
 _SCHEDULING_FLAGS = SCHEDULING_FIELDS.keys()
 
 xls_ir_verilog_attrs = {
+    "_extra_codegen_flags": attr.label(
+        doc = "Extra flags to pass to the codegen tool.",
+        default = Label("//xls/common/config:extra_codegen_args"),
+    ),
     "codegen_args": attr.string_dict(
         doc = "Arguments of the codegen tool. For details on the arguments, " +
               "refer to the codegen_main application at " +
@@ -426,6 +431,8 @@ def xls_ir_verilog_impl(ctx, src, conv_info):
     final_args += " --scheduling_options_used_textproto_file={}".format(
         sched_config_textproto_file.path,
     )
+    for v in ctx.attr._extra_codegen_flags[BuildSettingInfo].value:
+        final_args += " " + v
 
     if "local" in ctx.attr.tags:
         execution_requirements = {"no-remote-exec": "1"}
