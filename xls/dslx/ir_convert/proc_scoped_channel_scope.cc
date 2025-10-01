@@ -55,8 +55,10 @@ absl::StatusOr<ChannelRef> ProcScopedChannelScope::CreateChannel(
   }
 
   // Create a proc-scoped channel on the proc.
-  XLS_ASSIGN_OR_RETURN(auto channel_with_interfaces,
-                       proc_builder_->AddChannel(name, type));
+  XLS_ASSIGN_OR_RETURN(
+      auto channel_with_interfaces,
+      proc_builder_->AddChannel(name, type, ChannelKind::kStreaming,
+                                /*initial_values=*/{}, channel_config));
   return channel_with_interfaces.channel;
 }
 

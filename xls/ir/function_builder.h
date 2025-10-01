@@ -758,7 +758,8 @@ class ProcBuilder : public BuilderBase {
   absl::StatusOr<ChannelWithInterfaces> AddChannel(
       std::string_view name, Type* type,
       ChannelKind kind = ChannelKind::kStreaming,
-      absl::Span<const Value> initial_values = {});
+      absl::Span<const Value> initial_values = {},
+      std::optional<ChannelConfig> channel_config = std::nullopt);
 
   // Add an interface channel to the proc. Only can be called for new style
   // procs.

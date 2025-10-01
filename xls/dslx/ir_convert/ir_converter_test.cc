@@ -5789,6 +5789,34 @@ proc main {
   ExpectIr(converted);
 }
 
+TEST_P(ProcScopedChannelsIrConverterTest, ProcScopedChannelAttributes) {
+  constexpr std::string_view kProgram = R"(
+#![feature(channel_attributes)]
+proc main {
+  p: chan<u32> out;
+  c: chan<u32> in;
+  init { }
+  config() {
+    let (p, c) =
+      #[channel(depth=16, input_flop_kind=zero_latency, output_flop_kind=flop, register_push_outputs=true, register_pop_outputs=true, bypass=false)]
+      chan<u32>("my_chan0");
+    (p, c)
+  }
+  next(_: ()) { () }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
+  ExpectIr(converted);
+}
+
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ConvertWithoutTests) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,

@@ -1102,14 +1102,15 @@ Proc* ProcBuilder::proc() const { return down_cast<Proc*>(function()); }
 
 absl::StatusOr<ChannelWithInterfaces> ProcBuilder::AddChannel(
     std::string_view name, Type* type, ChannelKind kind,
-    absl::Span<const Value> initial_values) {
+    absl::Span<const Value> initial_values,
+    std::optional<ChannelConfig> channel_config) {
   XLS_RET_CHECK(proc()->is_new_style_proc());
   Channel* channel;
   if (kind == ChannelKind::kStreaming) {
     XLS_ASSIGN_OR_RETURN(
-        channel,
-        proc()->package()->CreateStreamingChannelInProc(
-            name, ChannelOps::kSendReceive, type, proc(), initial_values));
+        channel, proc()->package()->CreateStreamingChannelInProc(
+                     name, ChannelOps::kSendReceive, type, proc(),
+                     initial_values, channel_config.value_or(ChannelConfig())));
   } else {
     XLS_RET_CHECK(initial_values.empty());
     XLS_RET_CHECK_EQ(kind, ChannelKind::kSingleValue);
