@@ -1126,19 +1126,6 @@ absl::StatusOr<ChannelWithInterfaces> ProcBuilder::AddChannel(
   return channel_interfaces;
 }
 
-absl::StatusOr<BValue> ProcBuilder::AddChannelDecl(
-    std::string_view name, Type* type, const SourceInfo& loc, ChannelKind kind,
-    absl::Span<const Value> initial_values) {
-  XLS_RET_CHECK(proc()->is_new_style_proc());
-  XLS_ASSIGN_OR_RETURN(auto channel_with_interfaces,
-                       AddChannel(name, type, kind, initial_values));
-  XLS_ASSIGN_OR_RETURN(NewChannel * nc,
-                       proc()->MakeNodeWithName<NewChannel>(
-                           loc, type, channel_with_interfaces.channel,
-                           absl::Substitute("__chan_$0", name)));
-  return CreateBValue(nc, loc);
-}
-
 absl::StatusOr<ReceiveChannelInterface*> ProcBuilder::AddInputChannel(
     std::string_view name, Type* type, ChannelKind kind,
     std::optional<ChannelStrictness> strictness) {

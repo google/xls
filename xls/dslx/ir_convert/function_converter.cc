@@ -940,45 +940,39 @@ absl::Status FunctionConverter::HandleLetChannelDecl(const Let* node) {
         SetNodeToIr(name_def, std::get<ChannelArray*>(target));
       }
     }
-    // Let statements must have a corresponding BValue (see HandleStatement)
-    // even though in the case of channel declarations, the BValue isn't used
-    // in favor of looking up the channel in ChannelScope.
-    SetNodeToIr(node, BValue());
+  } else {
+    Channel* channel = std::get<Channel*>(*rhs_value);
 
-    return absl::OkStatus();
-  }
-
-  XLS_ASSIGN_OR_RETURN(BValue channel_decl_value, Use(node->rhs()));
-  NewChannel* new_channel_node =
-      dynamic_cast<NewChannel*>(channel_decl_value.node());
-  XLS_RET_CHECK(new_channel_node != nullptr);
-  const Channel* channel = new_channel_node->channel();
-
-  xls::Proc* proc = builder_ptr->proc();
-  for (int i = 0; i < 2; i++) {
-    if (std::holds_alternative<NameDef*>(leaves[i])) {
-      NameDef* name_def = std::get<NameDef*>(leaves[i]);
-      SourceInfo loc = ToSourceInfo(name_def->span());
-      if (i == 0) {
-        XLS_ASSIGN_OR_RETURN(SendChannelInterface * sci,
-                             proc->GetSendChannelInterface(channel->name()));
-        XLS_ASSIGN_OR_RETURN(
-            SendChannelEnd * send,
-            proc->MakeNodeWithName<SendChannelEnd>(loc, sci->type(), sci));
-        BValue send_value(send, builder_ptr);
-        Def(name_def, [&](const SourceInfo& loc) { return send_value; });
-      } else {
-        XLS_ASSIGN_OR_RETURN(ReceiveChannelInterface * rci,
-                             proc->GetReceiveChannelInterface(channel->name()));
-        XLS_ASSIGN_OR_RETURN(
-            RecvChannelEnd * recv,
-            proc->MakeNodeWithName<RecvChannelEnd>(loc, rci->type(), rci));
-        BValue recv_value(recv, builder_ptr);
-        Def(name_def, [&](const SourceInfo& loc) { return recv_value; });
+    xls::Proc* proc = builder_ptr->proc();
+    for (int i = 0; i < 2; i++) {
+      if (std::holds_alternative<NameDef*>(leaves[i])) {
+        NameDef* name_def = std::get<NameDef*>(leaves[i]);
+        SourceInfo loc = ToSourceInfo(name_def->span());
+        if (i == 0) {
+          XLS_ASSIGN_OR_RETURN(SendChannelInterface * sci,
+                               proc->GetSendChannelInterface(channel->name()));
+          XLS_ASSIGN_OR_RETURN(
+              SendChannelEnd * send,
+              proc->MakeNodeWithName<SendChannelEnd>(loc, sci->type(), sci));
+          BValue send_value(send, builder_ptr);
+          Def(name_def, [&](const SourceInfo& loc) { return send_value; });
+        } else {
+          XLS_ASSIGN_OR_RETURN(
+              ReceiveChannelInterface * rci,
+              proc->GetReceiveChannelInterface(channel->name()));
+          XLS_ASSIGN_OR_RETURN(
+              RecvChannelEnd * recv,
+              proc->MakeNodeWithName<RecvChannelEnd>(loc, rci->type(), rci));
+          BValue recv_value(recv, builder_ptr);
+          Def(name_def, [&](const SourceInfo& loc) { return recv_value; });
+        }
       }
     }
   }
-  XLS_RETURN_IF_ERROR(DefAlias(node->rhs(), /*to=*/node));
+  // Let statements must have a corresponding BValue (see HandleStatement)
+  // even though in the case of channel declarations, the BValue isn't used
+  // in favor of looking up the channel in ChannelScope.
+  SetNodeToIr(node, BValue());
 
   return absl::OkStatus();
 }
@@ -3355,35 +3349,14 @@ absl::Status FunctionConverter::HandleChannelDecl(const ChannelDecl* node) {
         file_table());
   }
 
-  // Evaluate the name to a constant and get the type
-  XLS_ASSIGN_OR_RETURN(
-      InterpValue name_value,
-      ConstexprEvaluator::EvaluateToValue(
-          import_data_, current_type_info_, kNoWarningCollector,
-          ParametricEnv(parametric_env_map_), &node->channel_name_expr()));
-  XLS_ASSIGN_OR_RETURN(std::string name, InterpValueAsString(name_value));
-  std::optional<Type*> type = current_type_info_->GetItem(node->type());
-  XLS_RET_CHECK(type.has_value());
-
-  // TODO: davidplass - instead of creating channel arrays via channel scope but
-  // channels via builder_ptr, do both via channel scope.
-  if (node->dims().has_value()) {
-    XLS_ASSIGN_OR_RETURN(ChannelOrArray channel_or_array,
-                         channel_scope_->DefineChannelOrArray(node));
-    XLS_RET_CHECK(std::holds_alternative<ChannelArray*>(channel_or_array));
-    SetNodeToIr(node, std::get<ChannelArray*>(channel_or_array));
-    return absl::OkStatus();
-  }
-
-  SourceInfo loc = ToSourceInfo(node->span());
-  XLS_ASSIGN_OR_RETURN(
-      xls::Type * ir_type,
-      TypeToIr(package(), **type, ParametricEnv(parametric_env_map_)));
-  // This returns a NewChannel node.
-  XLS_ASSIGN_OR_RETURN(auto channel_ir_node,
-                       builder_ptr->AddChannelDecl(name, ir_type, loc));
-  SetNodeToIr(node, channel_ir_node);
-
+  XLS_ASSIGN_OR_RETURN(ChannelOrArray channel_or_array,
+                       channel_scope_->DefineChannelOrArray(node));
+  std::visit(Visitor{
+                 [&](Channel* c) { SetNodeToIr(node, c); },
+                 [&](ChannelInterface* ci) { SetNodeToIr(node, ci); },
+                 [&](ChannelArray* ca) { SetNodeToIr(node, ca); },
+             },
+             channel_or_array);
   return absl::OkStatus();
 }
 
