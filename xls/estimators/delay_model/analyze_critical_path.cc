@@ -14,8 +14,10 @@
 
 #include "xls/estimators/delay_model/analyze_critical_path.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <functional>
+#include <limits>
 #include <optional>
 #include <string>
 #include <utility>
@@ -40,50 +42,32 @@
 
 namespace xls {
 
-absl::StatusOr<std::vector<CriticalPathEntry>> AnalyzeCriticalPath(
+namespace {
+
+absl::StatusOr<NodeDelayEntries> AccumulateNodeDelays(
     FunctionBase* f, std::optional<int64_t> clock_period_ps,
     const DelayEstimator& delay_estimator,
-    absl::AnyInvocable<bool(Node*)> source_filter,
-    absl::AnyInvocable<bool(Node*)> sink_filter) {
-  struct NodeEntry {
-    Node* node;
+    absl::AnyInvocable<bool(Node*)>& source_filter,
+    absl::AnyInvocable<bool(Node*)>& sink_filter) {
+  NodeDelayEntries entries;
+  entries.topo_sorted_nodes = TopoSort(f);
 
-    // Delay of the node.
-    int64_t node_delay;
-
-    // The delay of the critical path in the graph up to and including this node
-    // (includes this node's delay).
-    int64_t critical_path_delay;
-
-    // The predecessor on the critical path through this node.
-    std::optional<Node*> critical_path_predecessor;
-
-    // Whether this node was delayed by a cycle boundary.
-    bool delayed_by_cycle_boundary;
-  };
-
-  // Map from each node to it's corresponding entry.
-  absl::flat_hash_map<Node*, NodeEntry> node_entries;
-
-  // The node with the greatest critical path delay.
-  std::optional<NodeEntry> latest_entry;
-
-  for (Node* node : TopoSort(f)) {
+  for (Node* node : entries.topo_sorted_nodes) {
     if (!source_filter(node) &&
         !absl::c_any_of(node->operands(), [&](Node* operand) {
-          return node_entries.contains(operand);
+          return entries.node_entries.contains(operand);
         })) {
       // This node is neither a source nor on a path from a source.
       continue;
     }
-    NodeEntry& entry = node_entries[node];
+    NodeDelayEntry& entry = entries.node_entries[node];
     entry.node = node;
 
     // The maximum delay from any path up to but not including `node`.
     int64_t max_path_delay = 0;
     for (Node* operand : node->operands()) {
-      auto it = node_entries.find(operand);
-      if (it == node_entries.end()) {
+      auto it = entries.node_entries.find(operand);
+      if (it == entries.node_entries.end()) {
         // This operand is neither a source nor on a path from a source.
         continue;
       }
@@ -113,22 +97,35 @@ absl::StatusOr<std::vector<CriticalPathEntry>> AnalyzeCriticalPath(
     if (!sink_filter(node)) {
       continue;
     }
-    if (!latest_entry.has_value() ||
-        latest_entry->critical_path_delay <= entry.critical_path_delay) {
-      latest_entry = entry;
+    if (!entries.latest.has_value() ||
+        entries.latest->critical_path_delay <= entry.critical_path_delay) {
+      entries.latest = entry;
     }
   }
+  return entries;
+}
+
+}  // anonymous namespace
+
+absl::StatusOr<std::vector<CriticalPathEntry>> AnalyzeCriticalPath(
+    FunctionBase* f, std::optional<int64_t> clock_period_ps,
+    const DelayEstimator& delay_estimator,
+    absl::AnyInvocable<bool(Node*)> source_filter,
+    absl::AnyInvocable<bool(Node*)> sink_filter) {
+  XLS_ASSIGN_OR_RETURN(NodeDelayEntries entries,
+                       AccumulateNodeDelays(f, clock_period_ps, delay_estimator,
+                                            source_filter, sink_filter));
 
   // `latest_entry` has no value for empty FunctionBases or if the source & sink
   // filters removed all nodes.
-  if (!latest_entry.has_value()) {
+  if (!entries.latest.has_value()) {
     return std::vector<CriticalPathEntry>();
   }
 
   // Starting with the operation with the longest path delay, walk back up its
   // critical path constructing CriticalPathEntry's as we go.
   std::vector<CriticalPathEntry> critical_path;
-  NodeEntry* entry = &(latest_entry.value());
+  NodeDelayEntry* entry = &(entries.latest.value());
   while (true) {
     critical_path.push_back(CriticalPathEntry{
         .node = entry->node,
@@ -138,10 +135,65 @@ absl::StatusOr<std::vector<CriticalPathEntry>> AnalyzeCriticalPath(
     if (!entry->critical_path_predecessor.has_value()) {
       break;
     }
-    entry = &node_entries.at(entry->critical_path_predecessor.value());
+    entry = &entries.node_entries.at(entry->critical_path_predecessor.value());
   }
 
   return std::move(critical_path);
+}
+
+absl::StatusOr<absl::flat_hash_map<Node*, int64_t>> SlackFromCriticalPath(
+    FunctionBase* f, std::optional<int64_t> clock_period_ps,
+    const DelayEstimator& delay_estimator,
+    absl::AnyInvocable<bool(Node*)> source_filter,
+    absl::AnyInvocable<bool(Node*)> sink_filter) {
+  XLS_ASSIGN_OR_RETURN(NodeDelayEntries entries,
+                       AccumulateNodeDelays(f, clock_period_ps, delay_estimator,
+                                            source_filter, sink_filter));
+
+  absl::flat_hash_map<Node*, int64_t> node_slack;
+  for (auto node_iter = entries.topo_sorted_nodes.rbegin();
+       node_iter != entries.topo_sorted_nodes.rend(); ++node_iter) {
+    Node* node = *node_iter;
+    if (!entries.node_entries.contains(node)) {
+      continue;
+    }
+    const NodeDelayEntry& node_entry = entries.node_entries.at(node);
+
+    int64_t min_slack = std::numeric_limits<int64_t>::max();
+    bool has_any_users = false;
+    for (Node* user : node->users()) {
+      if (!entries.node_entries.contains(user)) {
+        continue;
+      }
+      has_any_users = true;
+
+      int64_t max_other_operand_delay = node_entry.critical_path_delay;
+      for (Node* operand : user->operands()) {
+        if (!entries.node_entries.contains(operand)) {
+          continue;
+        }
+        max_other_operand_delay =
+            std::max(max_other_operand_delay,
+                     entries.node_entries.at(operand).critical_path_delay);
+      }
+
+      // A node's slack w.r.t a user is the user's slack plus how much less this
+      // node's delay is than the largest delay of the user's other operands.
+      min_slack =
+          std::min(min_slack, node_slack[user] + max_other_operand_delay -
+                                  node_entry.critical_path_delay);
+    }
+
+    // If at the end of the def-use chain, the slack is how much less this
+    // node's delay is than the critical path delay.
+    node_slack[node] =
+        has_any_users
+            ? min_slack
+            : std::max((int64_t)0, entries.latest->critical_path_delay -
+                                       node_entry.critical_path_delay);
+  }
+
+  return node_slack;
 }
 
 std::string CriticalPathToString(

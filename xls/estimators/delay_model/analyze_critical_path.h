@@ -15,12 +15,15 @@
 #ifndef XLS_ESTIMATORS_DELAY_MODEL_ANALYZE_CRITICAL_PATH_H_
 #define XLS_ESTIMATORS_DELAY_MODEL_ANALYZE_CRITICAL_PATH_H_
 
+#include <algorithm>
 #include <cstdint>
 #include <functional>
+#include <limits>
 #include <optional>
 #include <string>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -47,6 +50,33 @@ struct CriticalPathEntry {
   bool delayed_by_cycle_boundary;
 };
 
+struct NodeDelayEntry {
+  Node* node;
+
+  // Delay of the node.
+  int64_t node_delay;
+
+  // The delay of the critical path in the graph up to and including this node
+  // (includes this node's delay).
+  int64_t critical_path_delay;
+
+  // The predecessor on the critical path through this node.
+  std::optional<Node*> critical_path_predecessor;
+
+  // Whether this node was delayed by a cycle boundary.
+  bool delayed_by_cycle_boundary;
+};
+
+struct NodeDelayEntries {
+  std::vector<Node*> topo_sorted_nodes;
+
+  // Map from each node to it's corresponding entry.
+  absl::flat_hash_map<Node*, NodeDelayEntry> node_entries;
+
+  // The node with the greatest critical path delay.
+  std::optional<NodeDelayEntry> latest;
+};
+
 // Returns the critical path, decorated with the delay to produce the output of
 // that node on the critical path.
 //
@@ -60,6 +90,29 @@ struct CriticalPathEntry {
 // The return value for the function (or recurrent state value of a proc) is at
 // the front of the returned vector.
 absl::StatusOr<std::vector<CriticalPathEntry>> AnalyzeCriticalPath(
+    FunctionBase* f, std::optional<int64_t> clock_period_ps,
+    const DelayEstimator& delay_estimator,
+    absl::AnyInvocable<bool(Node*)> source_filter = [](Node*) { return true; },
+    absl::AnyInvocable<bool(Node*)> sink_filter = [](Node*) { return true; });
+
+// Returns the additional delay a node could have before it would alter the
+// critical path. Any one node's slack assumes all other nodes remain unchanged.
+//
+// As an example, consider nodes with the following delays:
+//   a: 2
+//   b: 3
+//   c: 1
+//   d: 5
+//   e: 2
+//   a -> b -> d
+//   |--> c ---^
+//   |--> e
+//
+// The critical path goes through a, b, d with a critical path delay of 10. The
+// slack on c is 2; any more than that and it would take b's place on the
+// critical path. The slack on e is 6; any more than that would result in a
+// critical path through a, e instead of a, b, d. The slack on a, b, and d is 0.
+absl::StatusOr<absl::flat_hash_map<Node*, int64_t>> SlackFromCriticalPath(
     FunctionBase* f, std::optional<int64_t> clock_period_ps,
     const DelayEstimator& delay_estimator,
     absl::AnyInvocable<bool(Node*)> source_filter = [](Node*) { return true; },
