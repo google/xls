@@ -76,6 +76,16 @@ const struct xls_dslx_type* GetMetaTypeHelper(
   return reinterpret_cast<const struct xls_dslx_type*>(*unwrapped);
 }
 
+struct InvocationCalleeDataArray {
+  InvocationCalleeDataArray() = default;
+
+  explicit InvocationCalleeDataArray(
+      std::vector<xls::dslx::InvocationCalleeData> entries_in)
+      : entries(std::move(entries_in)) {}
+
+  std::vector<xls::dslx::InvocationCalleeData> entries;
+};
+
 }  // namespace
 
 extern "C" {
@@ -110,6 +120,30 @@ bool xls_dslx_parametric_env_create(
 
 void xls_dslx_parametric_env_free(struct xls_dslx_parametric_env* env) {
   delete reinterpret_cast<xls::dslx::ParametricEnv*>(env);
+}
+
+int64_t xls_dslx_parametric_env_get_binding_count(
+    const struct xls_dslx_parametric_env* env) {
+  CHECK(env != nullptr);
+  auto* cpp_env = reinterpret_cast<const xls::dslx::ParametricEnv*>(env);
+  return cpp_env->size();
+}
+
+const char* xls_dslx_parametric_env_get_binding_identifier(
+    const struct xls_dslx_parametric_env* env, int64_t index) {
+  CHECK(env != nullptr);
+  auto* cpp_env = reinterpret_cast<const xls::dslx::ParametricEnv*>(env);
+  const xls::dslx::ParametricEnvItem& item = cpp_env->bindings().at(index);
+  return item.identifier.c_str();
+}
+
+struct xls_dslx_interp_value* xls_dslx_parametric_env_get_binding_value(
+    const struct xls_dslx_parametric_env* env, int64_t index) {
+  CHECK(env != nullptr);
+  auto* cpp_env = reinterpret_cast<const xls::dslx::ParametricEnv*>(env);
+  const xls::dslx::ParametricEnvItem& item = cpp_env->bindings().at(index);
+  return reinterpret_cast<xls_dslx_interp_value*>(
+      const_cast<xls::dslx::InterpValue*>(&item.value));
 }
 
 // InterpValue simple constructors
@@ -956,6 +990,118 @@ bool xls_dslx_type_info_get_const_expr(
   *result_out = reinterpret_cast<xls_dslx_interp_value*>(heap);
   *error_out = nullptr;
   return true;
+}
+
+struct xls_dslx_invocation_callee_data_array*
+xls_dslx_type_info_get_unique_invocation_callee_data(
+    struct xls_dslx_type_info* type_info, struct xls_dslx_function* function) {
+  CHECK(type_info != nullptr);
+  CHECK(function != nullptr);
+  auto* cpp_type_info = reinterpret_cast<xls::dslx::TypeInfo*>(type_info);
+  auto* cpp_function = reinterpret_cast<xls::dslx::Function*>(function);
+  std::vector<xls::dslx::InvocationCalleeData> entries =
+      cpp_type_info->GetUniqueInvocationCalleeData(cpp_function);
+  auto* array = new InvocationCalleeDataArray(std::move(entries));
+  return reinterpret_cast<xls_dslx_invocation_callee_data_array*>(array);
+}
+
+struct xls_dslx_invocation_data* xls_dslx_type_info_get_root_invocation_data(
+    struct xls_dslx_type_info* type_info,
+    struct xls_dslx_invocation* invocation) {
+  CHECK(type_info != nullptr);
+  CHECK(invocation != nullptr);
+  auto* cpp_type_info = reinterpret_cast<xls::dslx::TypeInfo*>(type_info);
+  auto* cpp_invocation = reinterpret_cast<xls::dslx::Invocation*>(invocation);
+  std::optional<const xls::dslx::InvocationData*> result =
+      cpp_type_info->GetRootInvocationData(cpp_invocation);
+  if (!result.has_value()) {
+    return nullptr;
+  }
+  return reinterpret_cast<xls_dslx_invocation_data*>(
+      const_cast<xls::dslx::InvocationData*>(*result));
+}
+
+void xls_dslx_invocation_callee_data_array_free(
+    struct xls_dslx_invocation_callee_data_array* array) {
+  if (array == nullptr) {
+    return;
+  }
+  auto* cpp_array = reinterpret_cast<InvocationCalleeDataArray*>(array);
+  delete cpp_array;
+}
+
+int64_t xls_dslx_invocation_callee_data_array_get_count(
+    struct xls_dslx_invocation_callee_data_array* array) {
+  CHECK(array != nullptr);
+  auto* cpp_array = reinterpret_cast<InvocationCalleeDataArray*>(array);
+  return cpp_array->entries.size();
+}
+
+struct xls_dslx_invocation_callee_data*
+xls_dslx_invocation_callee_data_array_get(
+    struct xls_dslx_invocation_callee_data_array* array, int64_t index) {
+  CHECK(array != nullptr);
+  auto* cpp_array = reinterpret_cast<InvocationCalleeDataArray*>(array);
+  xls::dslx::InvocationCalleeData& entry = cpp_array->entries.at(index);
+  return reinterpret_cast<xls_dslx_invocation_callee_data*>(&entry);
+}
+
+const struct xls_dslx_parametric_env*
+xls_dslx_invocation_callee_data_get_callee_bindings(
+    struct xls_dslx_invocation_callee_data* data) {
+  CHECK(data != nullptr);
+  auto* cpp_data = reinterpret_cast<xls::dslx::InvocationCalleeData*>(data);
+  return reinterpret_cast<const struct xls_dslx_parametric_env*>(
+      &cpp_data->callee_bindings);
+}
+
+const struct xls_dslx_parametric_env*
+xls_dslx_invocation_callee_data_get_caller_bindings(
+    struct xls_dslx_invocation_callee_data* data) {
+  CHECK(data != nullptr);
+  auto* cpp_data = reinterpret_cast<xls::dslx::InvocationCalleeData*>(data);
+  return reinterpret_cast<const struct xls_dslx_parametric_env*>(
+      &cpp_data->caller_bindings);
+}
+
+struct xls_dslx_type_info*
+xls_dslx_invocation_callee_data_get_derived_type_info(
+    struct xls_dslx_invocation_callee_data* data) {
+  CHECK(data != nullptr);
+  auto* cpp_data = reinterpret_cast<xls::dslx::InvocationCalleeData*>(data);
+  return reinterpret_cast<xls_dslx_type_info*>(cpp_data->derived_type_info);
+}
+
+struct xls_dslx_invocation* xls_dslx_invocation_callee_data_get_invocation(
+    struct xls_dslx_invocation_callee_data* data) {
+  CHECK(data != nullptr);
+  auto* cpp_data = reinterpret_cast<xls::dslx::InvocationCalleeData*>(data);
+  return reinterpret_cast<xls_dslx_invocation*>(
+      const_cast<xls::dslx::Invocation*>(cpp_data->invocation));
+}
+
+struct xls_dslx_invocation* xls_dslx_invocation_data_get_invocation(
+    struct xls_dslx_invocation_data* data) {
+  CHECK(data != nullptr);
+  auto* cpp_data = reinterpret_cast<xls::dslx::InvocationData*>(data);
+  return reinterpret_cast<xls_dslx_invocation*>(
+      const_cast<xls::dslx::Invocation*>(cpp_data->node()));
+}
+
+struct xls_dslx_function* xls_dslx_invocation_data_get_callee(
+    struct xls_dslx_invocation_data* data) {
+  CHECK(data != nullptr);
+  auto* cpp_data = reinterpret_cast<xls::dslx::InvocationData*>(data);
+  return reinterpret_cast<xls_dslx_function*>(
+      const_cast<xls::dslx::Function*>(cpp_data->callee()));
+}
+
+struct xls_dslx_function* xls_dslx_invocation_data_get_caller(
+    struct xls_dslx_invocation_data* data) {
+  CHECK(data != nullptr);
+  auto* cpp_data = reinterpret_cast<xls::dslx::InvocationData*>(data);
+  return reinterpret_cast<xls_dslx_function*>(
+      const_cast<xls::dslx::Function*>(cpp_data->caller()));
 }
 
 // -- interp_value

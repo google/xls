@@ -78,6 +78,10 @@ struct xls_dslx_quickcheck;
 struct xls_dslx_function;
 struct xls_dslx_param;
 struct xls_dslx_expr;
+struct xls_dslx_invocation;
+struct xls_dslx_invocation_callee_data;
+struct xls_dslx_invocation_callee_data_array;
+struct xls_dslx_invocation_data;
 struct xls_dslx_module_member;
 struct xls_dslx_type_dim;
 struct xls_dslx_parametric_env;
@@ -112,6 +116,18 @@ bool xls_dslx_parametric_env_create(
 
 // Frees a previously created parametric environment.
 void xls_dslx_parametric_env_free(struct xls_dslx_parametric_env*);
+
+// Returns the number of bindings contained in the parametric environment.
+int64_t xls_dslx_parametric_env_get_binding_count(
+    const struct xls_dslx_parametric_env* env);
+
+// Returns the identifier of the binding at `index`.
+const char* xls_dslx_parametric_env_get_binding_identifier(
+    const struct xls_dslx_parametric_env* env, int64_t index);
+
+// Returns the value of the binding at `index`.
+struct xls_dslx_interp_value* xls_dslx_parametric_env_get_binding_value(
+    const struct xls_dslx_parametric_env* env, int64_t index);
 
 // InterpValue constructors.
 struct xls_dslx_interp_value* xls_dslx_interp_value_make_ubits(
@@ -425,6 +441,48 @@ const struct xls_dslx_type* xls_dslx_type_info_get_type_type_annotation(
 bool xls_dslx_type_info_get_const_expr(
     struct xls_dslx_type_info* type_info, struct xls_dslx_expr* expr,
     char** error_out, struct xls_dslx_interp_value** result_out);
+
+struct xls_dslx_invocation_callee_data_array*
+xls_dslx_type_info_get_unique_invocation_callee_data(
+    struct xls_dslx_type_info* type_info, struct xls_dslx_function* function);
+
+struct xls_dslx_invocation_data* xls_dslx_type_info_get_root_invocation_data(
+    struct xls_dslx_type_info* type_info,
+    struct xls_dslx_invocation* invocation);
+
+void xls_dslx_invocation_callee_data_array_free(
+    struct xls_dslx_invocation_callee_data_array* array);
+
+int64_t xls_dslx_invocation_callee_data_array_get_count(
+    struct xls_dslx_invocation_callee_data_array* array);
+
+struct xls_dslx_invocation_callee_data*
+xls_dslx_invocation_callee_data_array_get(
+    struct xls_dslx_invocation_callee_data_array* array, int64_t index);
+
+const struct xls_dslx_parametric_env*
+xls_dslx_invocation_callee_data_get_callee_bindings(
+    struct xls_dslx_invocation_callee_data* data);
+
+const struct xls_dslx_parametric_env*
+xls_dslx_invocation_callee_data_get_caller_bindings(
+    struct xls_dslx_invocation_callee_data* data);
+
+struct xls_dslx_type_info*
+xls_dslx_invocation_callee_data_get_derived_type_info(
+    struct xls_dslx_invocation_callee_data* data);
+
+struct xls_dslx_invocation* xls_dslx_invocation_callee_data_get_invocation(
+    struct xls_dslx_invocation_callee_data* data);
+
+struct xls_dslx_invocation* xls_dslx_invocation_data_get_invocation(
+    struct xls_dslx_invocation_data* data);
+
+struct xls_dslx_function* xls_dslx_invocation_data_get_callee(
+    struct xls_dslx_invocation_data* data);
+
+struct xls_dslx_function* xls_dslx_invocation_data_get_caller(
+    struct xls_dslx_invocation_data* data);
 
 // -- type (deduced type information)
 
