@@ -491,11 +491,6 @@ struct xls_dslx_function* xls_dslx_invocation_data_get_callee(
 struct xls_dslx_function* xls_dslx_invocation_data_get_caller(
     struct xls_dslx_invocation_data* data);
 
-struct xls_dslx_invocation_data*
-xls_dslx_invocation_data_clone(struct xls_dslx_invocation_data* data);
-
-void xls_dslx_invocation_data_free(struct xls_dslx_invocation_data* data);
-
 // -- type (deduced type information)
 
 bool xls_dslx_type_get_total_bit_count(const struct xls_dslx_type*,
