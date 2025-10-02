@@ -1684,6 +1684,142 @@ TEST(XlsCApiTest, DslxModuleMembers) {
   }
 }
 
+TEST(XlsCApiTest, DslxCloneTypecheckedModuleIgnoreMembersSuccess) {
+  const std::string_view kProgram = R"(
+fn helper(x: u32) -> u32 {
+    x + u32:1
+}
+
+fn unused() -> u32 {
+    helper(u32:41)
+}
+
+fn main(x: u32) -> u32 {
+    x
+}
+)";
+
+  const char* additional_search_paths[] = {};
+  xls_dslx_import_data* import_data = xls_dslx_import_data_create(
+      std::string{xls::kDefaultDslxStdlibPath}.c_str(), additional_search_paths,
+      0);
+  ASSERT_NE(import_data, nullptr);
+  absl::Cleanup free_import_data(
+      [=] { xls_dslx_import_data_free(import_data); });
+
+  char* error = nullptr;
+  xls_dslx_typechecked_module* tm = nullptr;
+  bool ok = xls_dslx_parse_and_typecheck(kProgram.data(), "<test>", "top",
+                                         import_data, &error, &tm);
+  ASSERT_TRUE(ok) << "error: " << error;
+  absl::Cleanup free_tm([=] { xls_dslx_typechecked_module_free(tm); });
+
+  xls_dslx_module* module = xls_dslx_typechecked_module_get_module(tm);
+  auto find_function = [&](std::string_view target)
+      -> xls_dslx_function* {
+    int64_t member_count = xls_dslx_module_get_member_count(module);
+    for (int64_t i = 0; i < member_count; ++i) {
+      xls_dslx_module_member* member = xls_dslx_module_get_member(module, i);
+      xls_dslx_function* fn = xls_dslx_module_member_get_function(member);
+      if (fn == nullptr) {
+        continue;
+      }
+      char* identifier = xls_dslx_function_get_identifier(fn);
+      absl::Cleanup free_identifier([&] { xls_c_str_free(identifier); });
+      if (std::string_view{identifier} == target) {
+        return fn;
+      }
+    }
+    return nullptr;
+  };
+
+  xls_dslx_function* unused_fn = find_function("unused");
+  ASSERT_NE(unused_fn, nullptr);
+
+  xls_dslx_function* ignored[] = {unused_fn};
+  xls_dslx_typechecked_module* cloned_tm = nullptr;
+  ASSERT_TRUE(xls_dslx_typechecked_module_clone_ignore_functions(
+      tm, ignored, ABSL_ARRAYSIZE(ignored), "top_clone", import_data, &error,
+      &cloned_tm));
+  ASSERT_EQ(error, nullptr);
+  absl::Cleanup free_cloned_tm(
+      [=] { xls_dslx_typechecked_module_free(cloned_tm); });
+
+  xls_dslx_module* cloned_module =
+      xls_dslx_typechecked_module_get_module(cloned_tm);
+  EXPECT_EQ(xls_dslx_module_get_member_count(cloned_module), 2);
+  xls_dslx_module_member* first_member =
+      xls_dslx_module_get_member(cloned_module, 0);
+  xls_dslx_function* helper_fn =
+      xls_dslx_module_member_get_function(first_member);
+  ASSERT_NE(helper_fn, nullptr);
+  char* helper_name = xls_dslx_function_get_identifier(helper_fn);
+  absl::Cleanup free_helper_name([&] { xls_c_str_free(helper_name); });
+  EXPECT_EQ(std::string_view{helper_name}, "helper");
+  char* module_name = xls_dslx_module_get_name(cloned_module);
+  absl::Cleanup free_module_name([&] { xls_c_str_free(module_name); });
+  EXPECT_EQ(std::string_view{module_name}, "top_clone");
+}
+
+TEST(XlsCApiTest, DslxCloneTypecheckedModuleIgnoreMembersFailure) {
+  const std::string_view kProgram = R"(
+fn helper(x: u32) -> u32 {
+    x + u32:1
+}
+
+fn main(x: u32) -> u32 {
+    helper(x)
+}
+)";
+
+  const char* additional_search_paths[] = {};
+  xls_dslx_import_data* import_data = xls_dslx_import_data_create(
+      std::string{xls::kDefaultDslxStdlibPath}.c_str(), additional_search_paths,
+      0);
+  ASSERT_NE(import_data, nullptr);
+  absl::Cleanup free_import_data(
+      [=] { xls_dslx_import_data_free(import_data); });
+
+  char* error = nullptr;
+  xls_dslx_typechecked_module* tm = nullptr;
+  bool ok = xls_dslx_parse_and_typecheck(kProgram.data(), "<test>", "top",
+                                         import_data, &error, &tm);
+  ASSERT_TRUE(ok) << "error: " << error;
+  absl::Cleanup free_tm([=] { xls_dslx_typechecked_module_free(tm); });
+
+  xls_dslx_module* module = xls_dslx_typechecked_module_get_module(tm);
+  auto find_function = [&](std::string_view target)
+      -> xls_dslx_function* {
+    int64_t member_count = xls_dslx_module_get_member_count(module);
+    for (int64_t i = 0; i < member_count; ++i) {
+      xls_dslx_module_member* member = xls_dslx_module_get_member(module, i);
+      xls_dslx_function* fn = xls_dslx_module_member_get_function(member);
+      if (fn == nullptr) {
+        continue;
+      }
+      char* identifier = xls_dslx_function_get_identifier(fn);
+      absl::Cleanup free_identifier([&] { xls_c_str_free(identifier); });
+      if (std::string_view{identifier} == target) {
+        return fn;
+      }
+    }
+    return nullptr;
+  };
+
+  xls_dslx_function* helper_fn = find_function("helper");
+  ASSERT_NE(helper_fn, nullptr);
+
+  xls_dslx_function* ignored[] = {helper_fn};
+  xls_dslx_typechecked_module* cloned_tm = nullptr;
+  EXPECT_FALSE(xls_dslx_typechecked_module_clone_ignore_functions(
+      tm, ignored, ABSL_ARRAYSIZE(ignored), "top", import_data, &error,
+      &cloned_tm));
+  EXPECT_NE(error, nullptr);
+  absl::Cleanup free_error([&] { xls_c_str_free(error); });
+  EXPECT_TRUE(std::string_view{error}.find("helper") != std::string::npos);
+  EXPECT_EQ(cloned_tm, nullptr);
+}
+
 TEST(XlsCApiTest, ValueGetElementCount) {
   const std::initializer_list<
       std::pair<const char*, std::variant<int64_t, std::string_view>>>

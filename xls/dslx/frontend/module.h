@@ -284,6 +284,9 @@ class Module : public AstNode {
   std::vector<std::string> GetQuickCheckNames() const;
 
   const std::string& name() const { return name_; }
+
+  void SetName(std::string name) { name_ = std::move(name); }
+
   const std::optional<std::filesystem::path>& fs_path() const {
     return fs_path_;
   }
