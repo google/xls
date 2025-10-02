@@ -4256,8 +4256,10 @@ cc_test(
     name = "resource_sharing_pass_test",
     srcs = ["resource_sharing_pass_test.cc"],
     deps = [
+        ":bdd_query_engine",
         ":optimization_pass",
         ":pass_base",
+        ":query_engine",
         ":resource_sharing_pass",
         "//xls/common:xls_gunit_main",
         "//xls/common/fuzzing:fuzztest",
@@ -4272,6 +4274,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "//xls/ir:op",
+        "//xls/ir:source_location",
         "//xls/ir:value",
         "//xls/solvers:z3_ir_equivalence_testutils",
         "@com_google_absl//absl/log:check",

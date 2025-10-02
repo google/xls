@@ -272,32 +272,105 @@ class TimingAnalysis {
   absl::flat_hash_map<NaryFoldingAction *, double> delay_spread_;
 };
 
+bool UsesSource(Node* node, Node* source) {
+  if (node == source) {
+    return true;
+  }
+
+  absl::flat_hash_set<Node*> visited;
+  std::vector<Node*> worklist;
+  for (Node* operand : node->operands()) {
+    if (operand == source) {
+      return true;
+    }
+    if (visited.insert(operand).second) {
+      worklist.push_back(operand);
+    }
+  }
+
+  // Find if @source is used by @node transitively.
+  while (!worklist.empty()) {
+    Node* current = worklist.back();
+    worklist.pop_back();
+
+    for (Node* operand : current->operands()) {
+      if (operand == source) {
+        return true;  // Found source transitively.
+      }
+      if (visited.insert(operand).second) {
+        worklist.push_back(operand);
+      }
+    }
+  }
+
+  return false;
+}
+
+// InfluencedBySource returns true if @node has any operand in the def-use chain
+// of @source that has any influence on the value of @node under the provided
+// @assumptions for the bit values of nodes.
+bool InfluencedBySource(
+    Node* node, Node* source, const BddQueryEngine& bdd_engine,
+    const std::vector<std::pair<TreeBitLocation, bool>>& assumptions) {
+  // If an "and" operation has an operand known to have a value of "0" where the
+  // operand is not in the def-use chain of @source, then @source can have any
+  // value and still not influence the value of @node.
+  if (node->op() == Op::kAnd || node->op() == Op::kNand) {
+    for (Node* op : node->operands()) {
+      std::optional<Bits> value = bdd_engine.ImpliedNodeValue(assumptions, op);
+      if (value && value->IsZero() && !UsesSource(op, source)) {
+        return false;
+      }
+    }
+  }
+
+  // similar to the "and" case, except an operand needs to have a value of "1"
+  if (node->op() == Op::kOr || node->op() == Op::kNor) {
+    for (Node* op : node->operands()) {
+      std::optional<Bits> value = bdd_engine.ImpliedNodeValue(assumptions, op);
+      if (value && value->IsAllOnes() && !UsesSource(op, source)) {
+        return false;
+      }
+    }
+  }
+
+  // Conservatively assume the value of @source impacts the value of @node
+  return true;
+}
+
 // This function returns true if @node stops the propagation of the value passed
-// as the select case @case_number, false otherwise.
-bool DoesErase(Node *node, uint32_t case_number,
-               absl::Span<const TreeBitLocation> selector_bits,
-               const BddQueryEngine &bdd_engine,
-               absl::flat_hash_map<Node *, bool> &nodes_with_side_effects,
-               absl::flat_hash_map<Node *, absl::flat_hash_map<uint32_t, bool>>
-                   &nodes_with_side_effects_at_case) {
-  // Check if @node stops the propagation knowing we do not select @case_number
-  // of the select being targeted.
+// as the select case @case_number under the assumption that the select
+// instruction would not select @case_number. Note if the select instruction
+// would have selected @case_number, this pass does not care whether other
+// def-use chains also require the select case @case_number.
+//
+// The @node stop propagation if its value does not depend on the input value of
+// the select case @case_number.
+bool DoesErase(Node* node, uint32_t case_number,
+               absl::Span<const TreeBitLocation> selector_bits, Node* source,
+               const BddQueryEngine& bdd_engine,
+               absl::flat_hash_map<Node*, bool>& nodes_with_side_effects,
+               absl::flat_hash_map<Node*, absl::flat_hash_map<uint32_t, bool>>&
+                   nodes_with_side_effects_at_case) {
+  // First query BDD where the only assumed value is that the selector's bit
+  // @case_number is unset.
   std::vector<std::pair<TreeBitLocation, bool>> assumed_values;
   assumed_values.push_back(std::make_pair(selector_bits[case_number], false));
-  std::optional<Bits> node_value_when_case_not_selected =
-      bdd_engine.ImpliedNodeValue(assumed_values, node);
-  if (node_value_when_case_not_selected &&
-      node_value_when_case_not_selected->IsZero()) {
+  if (!InfluencedBySource(node, source, bdd_engine, assumed_values)) {
     // Memoize the result of the analysis
     nodes_with_side_effects[node] = false;
 
     return true;
   }
 
-  // Check if @node erases @source
-  // To do it, we check if @node is guaranteed to be "0" (and therefore erase
-  // @source through this def-use chain) when the case selected is not
-  // @case_number.
+  // If there is only one selector bit, and we could not prove erasure assuming
+  // that bit is false, we cannot prove @node erases @source.
+  if (selector_bits.length() == 1) {
+    return false;
+  }
+
+  // Check for erasure assuming one other selector bit is set. If this is found
+  // to be true for all other selector bits, then @node erases @source.
   for (const auto &[t_number, t] : iter::enumerate(selector_bits)) {
     if (t_number == case_number) {
       continue;
@@ -310,10 +383,7 @@ bool DoesErase(Node *node, uint32_t case_number,
     assumed_values.push_back(std::make_pair(selector_bits[case_number], false));
 
     // Check if the current def-use chain gets erased.
-    std::optional<Bits> node_value_when_case_not_selected =
-        bdd_engine.ImpliedNodeValue(assumed_values, node);
-    if (!node_value_when_case_not_selected ||
-        !node_value_when_case_not_selected->IsZero()) {
+    if (InfluencedBySource(node, source, bdd_engine, assumed_values)) {
       // We cannot guarantee @node erases @source.
       return false;
     }
@@ -378,7 +448,7 @@ absl::StatusOr<bool> HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
     Next *next_node = node->As<Next>();
     std::optional<Node *> predicate = next_node->predicate();
     if (predicate.has_value()) {
-      if (DoesErase(*predicate, case_number, selector_bits, bdd_engine,
+      if (DoesErase(*predicate, case_number, selector_bits, source, bdd_engine,
                     nodes_with_side_effects, nodes_with_side_effects_at_case)) {
         return false;
       }
@@ -388,7 +458,7 @@ absl::StatusOr<bool> HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
   // Check if the current node of the current def-use chain erases the
   // computation specified by @source
   if ((source != nullptr) &&
-      DoesErase(node, case_number, selector_bits, bdd_engine,
+      DoesErase(node, case_number, selector_bits, source, bdd_engine,
                 nodes_with_side_effects, nodes_with_side_effects_at_case)) {
     return false;
   }
@@ -1388,11 +1458,12 @@ ListOfAllFoldingActionsWithDestination(
 // given node
 absl::StatusOr<std::vector<std::unique_ptr<NaryFoldingAction>>>
 ListOfFoldingActionsWithDestination(
-    Node *n, FoldingGraph *folding_graph,
-    absl::flat_hash_map<
-        Node *, absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>>>
-        &mutual_exclusivity_relation,
-    AreaEstimator &ae) {
+    Node* n, absl::flat_hash_set<Node*> valid_sources,
+    FoldingGraph* folding_graph,
+    absl::flat_hash_map<Node*,
+                        absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>>&
+        mutual_exclusivity_relation,
+    AreaEstimator& ae) {
   std::vector<std::unique_ptr<NaryFoldingAction>>
       potential_folding_actions_to_perform;
 
@@ -1455,6 +1526,9 @@ ListOfFoldingActionsWithDestination(
   for (BinaryFoldingAction *a : edges_to_n) {
     // Fetch the source of the current folding action
     Node *a_source = a->GetFrom();
+    if (!valid_sources.contains(a_source)) {
+      continue;
+    }
 
     // Check if @a_source is mutually-exclusive with all other nodes already
     // confirmed (i.e., the sources of @subset_of_edges_to_n)
@@ -1489,7 +1563,10 @@ ListOfFoldingActionsWithDestination(
       subset_of_edges_to_n.push_back(a);
     }
   }
-  XLS_RET_CHECK_GT(subset_of_edges_to_n.size(), 0);
+
+  if (subset_of_edges_to_n.empty()) {
+    return potential_folding_actions_to_perform;
+  }
 
   // Select the sub-set of the edges that will result in a profitable folding
   VLOG(4) << "      Select the sub-set of the possible binary folding actions, "
@@ -1909,11 +1986,11 @@ uint64_t GetDelayPathToNode(
 // bit-widths.
 absl::StatusOr<std::vector<std::unique_ptr<NaryFoldingAction>>>
 SelectFoldingActionsBasedOnInDegree(
-    OptimizationContext &context, FoldingGraph *folding_graph,
-    AreaEstimator &ae, DelayEstimator &de,
-    absl::flat_hash_map<
-        Node *, absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>>>
-        &mutual_exclusivity_relation) {
+    OptimizationContext& context, FoldingGraph* folding_graph,
+    AreaEstimator& ae, DelayEstimator& de,
+    absl::flat_hash_map<Node*,
+                        absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>>&
+        mutual_exclusivity_relation) {
   // Get the nodes of the folding graph
   std::vector<Node *> nodes = folding_graph->GetNodes();
 
@@ -1933,19 +2010,22 @@ SelectFoldingActionsBasedOnInDegree(
   VLOG(3) << "  Generate a list of possible n-ary folding actions to perform";
   std::vector<std::unique_ptr<NaryFoldingAction>>
       potential_folding_actions_to_perform;
+  absl::flat_hash_set<Node*> valid_sources{nodes.begin(), nodes.end()};
   for (Node *n : nodes) {
     // Generate the list of profitable n-ary folding actions that have @n as
     // destination.
     XLS_ASSIGN_OR_RETURN(
         std::vector<std::unique_ptr<NaryFoldingAction>>
             foldings_with_n_as_destination,
-        ListOfFoldingActionsWithDestination(n, folding_graph,
+        ListOfFoldingActionsWithDestination(n, valid_sources, folding_graph,
                                             mutual_exclusivity_relation, ae));
 
     // Append such list to the list of all profitable n-ary folding actions.
     for (std::unique_ptr<NaryFoldingAction> &folding :
          foldings_with_n_as_destination) {
-      potential_folding_actions_to_perform.push_back(std::move(folding));
+      if (folding->area_saved() >= ResourceSharingPass::kMinAreaSavings) {
+        potential_folding_actions_to_perform.push_back(std::move(folding));
+      }
     }
   }
 
@@ -1963,10 +2043,10 @@ SelectFoldingActionsBasedOnInDegree(
       potential_folding_actions_to_perform_without_timing_problems;
   potential_folding_actions_to_perform_without_timing_problems.reserve(
       potential_folding_actions_to_perform.size());
-  const double kMaxDelaySpread = 190.0;
   for (std::unique_ptr<NaryFoldingAction> &folding :
        potential_folding_actions_to_perform) {
-    if (ta.GetDelaySpread(folding.get()) <= kMaxDelaySpread) {
+    if (ta.GetDelaySpread(folding.get()) <=
+        ResourceSharingPass::kMaxDelaySpread) {
       potential_folding_actions_to_perform_without_timing_problems.push_back(
           std::move(folding));
     }
@@ -2181,12 +2261,12 @@ SelectRandomlyFoldingActions(FoldingGraph *folding_graph) {
 // This is part of the profitability guard of the resource sharing pass.
 absl::StatusOr<std::vector<std::unique_ptr<NaryFoldingAction>>>
 SelectFoldingActions(
-    OptimizationContext &context, FoldingGraph *folding_graph,
-    ResourceSharingPass::ProfitabilityGuard heuristics, AreaEstimator &ae,
-    DelayEstimator &de,
-    absl::flat_hash_map<
-        Node *, absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>>>
-        &mutual_exclusivity_relation) {
+    OptimizationContext& context, FoldingGraph* folding_graph,
+    ResourceSharingPass::ProfitabilityGuard heuristics, AreaEstimator& ae,
+    DelayEstimator& de,
+    absl::flat_hash_map<Node*,
+                        absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>>&
+        mutual_exclusivity_relation) {
   std::vector<std::unique_ptr<NaryFoldingAction>> folding_actions_to_perform;
   VLOG(3) << "Choosing the best folding actions";
 

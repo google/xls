@@ -39,9 +39,12 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
+#include "xls/passes/bdd_query_engine.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/query_engine.h"
 #include "xls/solvers/z3_ir_equivalence_testutils.h"
 
 namespace xls {
@@ -1198,6 +1201,66 @@ TEST_F(ResourceSharingPassTest, MergeShift) {
   // inputs/outputs pairs we know to be valid.
   InterpretAndCheck(f, {1, 0, 0, 4, 1}, 7);
   InterpretAndCheck(f, {0, 8, 1, 0, 0}, 16);
+}
+
+TEST_F(ResourceSharingPassTest, InfluencedBySourceAndOp) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u1_type = p->GetBitsType(1);
+  BValue i = fb.Param("i", u1_type);
+  BValue j = fb.Param("j", u1_type);
+  BValue and_val = fb.And(i, j, SourceInfo(), "and_node");
+  BValue nand_val = fb.And(i, j, SourceInfo(), "nand_node");
+  BValue both = fb.Concat({and_val, nand_val});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(both));
+
+  OptimizationContext context;
+  const BddQueryEngine* bdd = context.SharedQueryEngine<BddQueryEngine>(f);
+  XLS_ASSERT_OK_AND_ASSIGN(Node * i_node, f->GetNode("i"));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * j_node, f->GetNode("j"));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * and_node, f->GetNode("and_node"));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * nand_node, f->GetNode("nand_node"));
+
+  for (const auto& bool_op : {and_node, nand_node}) {
+    EXPECT_TRUE(InfluencedBySource(bool_op, i_node, *bdd, {}));
+    EXPECT_FALSE(InfluencedBySource(
+        bool_op, i_node, *bdd,
+        {std::make_pair(TreeBitLocation{j_node, 0}, false)}));
+    EXPECT_TRUE(InfluencedBySource(bool_op, j_node, *bdd, {}));
+    EXPECT_FALSE(InfluencedBySource(
+        bool_op, j_node, *bdd,
+        {std::make_pair(TreeBitLocation{i_node, 0}, false)}));
+  }
+}
+
+TEST_F(ResourceSharingPassTest, InfluencedBySourceOrOp) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u1_type = p->GetBitsType(1);
+  BValue i = fb.Param("i", u1_type);
+  BValue j = fb.Param("j", u1_type);
+  BValue or_val = fb.Or(i, j, SourceInfo(), "or_node");
+  BValue nor_val = fb.Or(i, j, SourceInfo(), "nor_node");
+  BValue both = fb.Concat({or_val, nor_val});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(both));
+
+  OptimizationContext context;
+  const BddQueryEngine* bdd = context.SharedQueryEngine<BddQueryEngine>(f);
+  XLS_ASSERT_OK_AND_ASSIGN(Node * i_node, f->GetNode("i"));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * j_node, f->GetNode("j"));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * or_node, f->GetNode("or_node"));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * nor_node, f->GetNode("nor_node"));
+
+  for (const auto& bool_op : {or_node, nor_node}) {
+    EXPECT_TRUE(InfluencedBySource(bool_op, i_node, *bdd, {}));
+    EXPECT_FALSE(
+        InfluencedBySource(bool_op, i_node, *bdd,
+                           {std::make_pair(TreeBitLocation{j_node, 0}, true)}));
+    EXPECT_TRUE(InfluencedBySource(bool_op, j_node, *bdd, {}));
+    EXPECT_FALSE(
+        InfluencedBySource(bool_op, j_node, *bdd,
+                           {std::make_pair(TreeBitLocation{i_node, 0}, true)}));
+  }
 }
 
 void IrFuzzResourceSharing(FuzzPackageWithArgs fuzz_package_with_args) {
