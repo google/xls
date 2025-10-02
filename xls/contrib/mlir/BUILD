@@ -665,8 +665,10 @@ cc_library(
         "//xls/common:math_util",
         "//xls/data_structures:inline_bitmap",
         "//xls/ir:bits",
+        "//xls/ir:value",
         "@com_google_absl//absl/types:span",
         "@llvm-project//llvm:Support",
+        "@llvm-project//mlir:IR",
     ],
 )
 

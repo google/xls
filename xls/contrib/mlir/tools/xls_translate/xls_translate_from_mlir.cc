@@ -25,7 +25,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -35,7 +34,6 @@
 #include "llvm/include/llvm/ADT/APFloat.h"
 #include "llvm/include/llvm/ADT/APInt.h"
 #include "llvm/include/llvm/ADT/STLExtras.h"
-#include "llvm/include/llvm/ADT/Sequence.h"
 #include "llvm/include/llvm/ADT/StringExtras.h"
 #include "llvm/include/llvm/ADT/StringMap.h"
 #include "llvm/include/llvm/ADT/StringRef.h"
@@ -763,33 +761,14 @@ BValue convertOp(CountedForOp counted_for_op, TranslationState& state,
 // Constant Attribute
 ::xls::Value convertConstantAttr(Attribute attr) {
   if (auto int_attr = dyn_cast<IntegerAttr>(attr)) {
-    auto intType = dyn_cast<IntegerType>(int_attr.getType());
-    unsigned bitWidth = intType ? intType.getWidth() : /*IndexType*/ 32u;
-    auto intVal = int_attr.getValue();
-    absl::InlinedVector<bool, 64> bits(bitWidth);
-    // Doing this in a simple loop, not the most efficient and could be improved
-    // if needed (was just avoiding needing to think about the endianness).
-    for (unsigned i : llvm::seq(0u, bitWidth)) {
-      bits[i] = intVal[i];
-    }
-    return ::xls::Value(::xls::Bits(bits));
+    auto int_type = dyn_cast<IntegerType>(int_attr.getType());
+    unsigned bit_width = int_type ? int_type.getWidth() : /*IndexType*/ 32u;
+    APInt intValue = int_attr.getValue().sextOrTrunc(bit_width);
+    return ::xls::Value(bitsFromAPInt(intValue));
   }
   if (auto float_attr = dyn_cast<FloatAttr>(attr)) {
-    FloatType float_type = cast<FloatType>(float_attr.getType());
-    int mantissa_width = float_type.getFPMantissaWidth() - 1;
-    int exponent_width =
-        float_type.getWidth() - float_type.getFPMantissaWidth();
-    auto apfloat = float_attr.getValue();
-    auto apint = apfloat.bitcastToAPInt();
-    llvm::APInt sign = apint.getHiBits(1).trunc(1);
-    llvm::APInt exponent = apint.extractBits(exponent_width, mantissa_width);
-    llvm::APInt mantissa = apint.extractBits(mantissa_width, 0);
-
-    return ::xls::Value::Tuple({
-        ::xls::Value(convertAPInt(sign)),
-        ::xls::Value(convertAPInt(exponent)),
-        ::xls::Value(convertAPInt(mantissa)),
-    });
+    APFloat float_value = float_attr.getValue();
+    return tupleFromAPFloat(float_value);
   }
   llvm::errs() << "Unsupported constant type: " << attr << "\n";
   return {};

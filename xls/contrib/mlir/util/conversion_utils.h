@@ -15,8 +15,11 @@
 #ifndef XLS_CONTRIB_MLIR_UTIL_CONVERSION_UTILS_H_
 #define XLS_CONTRIB_MLIR_UTIL_CONVERSION_UTILS_H_
 
+#include "llvm/include/llvm/ADT/APFloat.h"
 #include "llvm/include/llvm/ADT/APInt.h"
+#include "mlir/include/mlir/IR/BuiltinTypeInterfaces.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/value.h"
 
 namespace mlir::xls {
 
@@ -27,6 +30,14 @@ namespace mlir::xls {
 
 // Converts an XLS Bits to an APInt. This always succeeds.
 llvm::APInt bitsToAPInt(::xls::Bits bits);
+
+// Converts an APFloat to an XLS Value tuple of (sign, exponent, mantissa). This
+// always succeeds.
+::xls::Value tupleFromAPFloat(llvm::APFloat apFloat);
+
+// Converts an XLS Value tuple of (sign, exponent, mantissa) to an APFloat. This
+// always succeeds on valid inputs and is undefined otherwise.
+llvm::APFloat tupleToAPFloat(::xls::Value tuple, FloatType type);
 
 }  // namespace mlir::xls
 
