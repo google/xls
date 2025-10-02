@@ -37,6 +37,7 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/solvers/z3_ir_equivalence.h"
+#include "xls/solvers/z3_ir_equivalence_testutils.h"
 #include "xls/solvers/z3_ir_translator.h"
 
 namespace m = ::xls::op_matchers;
@@ -45,6 +46,7 @@ namespace xls {
 namespace {
 
 using ::absl_testing::IsOkAndHolds;
+using ::xls::solvers::z3::ScopedVerifyEquivalence;
 
 using ::testing::_;
 using ::testing::Each;
@@ -526,6 +528,412 @@ TEST_F(StrengthReductionPassTest, HandlesOneBitMuxWithDefault) {
   )",
                                                        p.get()));
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
+}
+
+TEST_F(StrengthReductionPassTest, AddOneOperandZero) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue lhs = fb.Literal(UBits(0b00000, 4));
+  BValue rhs = fb.Param("p", p->GetBitsType(4));
+  fb.Add(lhs, rhs);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Param("p"));
+}
+
+TEST_F(StrengthReductionPassTest, AddOneOperandZeroWidth1) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue lhs = fb.Param("p", p->GetBitsType(1));
+  BValue rhs = fb.Literal(UBits(0b0, 1));
+  fb.Add(lhs, rhs);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Param("p"));
+}
+
+TEST_F(StrengthReductionPassTest, AddTrailingNoCarry) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue l = fb.Param("l", p->GetBitsType(4));
+  BValue r = fb.Param("r", p->GetBitsType(4));
+  BValue lhs = fb.And(l, fb.Literal(UBits(0b0101, 4)));
+  BValue rhs = fb.And(r, fb.Literal(UBits(0b1010, 4)));
+  fb.Add(lhs, rhs);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Or(lhs.node(), rhs.node()));
+}
+
+TEST_F(StrengthReductionPassTest, AddTrailingNoCarryOneBitSplit) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue l = fb.Param("l", p->GetBitsType(3));
+  BValue r = fb.Param("r", p->GetBitsType(3));
+  BValue lhs = fb.Concat({l, fb.Literal(UBits(0b1, 1))});
+  BValue rhs = fb.Concat({r, fb.Literal(UBits(0b0, 1))});
+  fb.Add(lhs, rhs);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::Add(m::BitSlice(lhs.node(), 1, 3),
+                               m::BitSlice(rhs.node(), 1, 3)),
+                        m::BitSlice(lhs.node(), 0, 1)));
+}
+
+TEST_F(StrengthReductionPassTest, AddTrailingNoCarryOneBitSplitBothZero) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue l = fb.Param("l", p->GetBitsType(3));
+  BValue r = fb.Param("r", p->GetBitsType(3));
+  BValue lhs = fb.Concat({l, fb.Literal(UBits(0b0, 1))});
+  BValue rhs = fb.Concat({r, fb.Literal(UBits(0b0, 1))});
+  fb.Add(lhs, rhs);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::Add(m::BitSlice(lhs.node(), 1, 3),
+                               m::BitSlice(rhs.node(), 1, 3)),
+                        m::BitSlice(lhs.node(), 0, 1)));
+}
+
+TEST_F(StrengthReductionPassTest, AddTrailingNoCarryTwoBitSplit) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue l = fb.Param("l", p->GetBitsType(2));
+  BValue r = fb.Param("r", p->GetBitsType(2));
+  BValue lhs = fb.Concat({l, fb.Literal(UBits(0b00, 2))});
+  BValue rhs = fb.Concat({r, fb.Literal(UBits(0b00, 2))});
+  fb.Add(lhs, rhs);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::Add(m::BitSlice(lhs.node(), 2, 2),
+                               m::BitSlice(rhs.node(), 2, 2)),
+                        m::BitSlice(lhs.node(), 0, 2)));
+}
+
+TEST_F(StrengthReductionPassTest, AddTrailingNoCarryOneBitTernarySplit) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue lhs = fb.Param("l", p->GetBitsType(4));
+  BValue r = fb.Param("r", p->GetBitsType(3));
+  BValue rhs = fb.Concat({r, fb.Literal(UBits(0b0, 1))});
+  fb.Add(lhs, rhs);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::Add(m::BitSlice(lhs.node(), 1, 3),
+                               m::BitSlice(rhs.node(), 1, 3)),
+                        m::BitSlice(lhs.node(), 0, 1)));
+}
+
+TEST_F(StrengthReductionPassTest, AddTrailingNoCarryTwoBitTernarySplit) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue lp = fb.Param("lp", p->GetBitsType(4));
+  BValue rp = fb.Param("rp", p->GetBitsType(4));
+  BValue lhs = fb.Or(fb.And(lp, fb.Literal(UBits(0b0100, 4))),
+                     fb.Literal(UBits(0b1000, 4)));
+  BValue rhs = fb.Or(fb.And(rp, fb.Literal(UBits(0b0111, 4))),
+                     fb.Literal(UBits(0b1000, 4)));
+  fb.Add(lhs, rhs);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::Add(m::BitSlice(lhs.node(), 2, 2),
+                               m::BitSlice(rhs.node(), 2, 2)),
+                        m::BitSlice(rhs.node(), 0, 2)));
+}
+
+TEST_F(StrengthReductionPassTest, AddTrailingNoCarryAlmostFullSplit) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue l = fb.Param("l", p->GetBitsType(1));
+  BValue r = fb.Param("r", p->GetBitsType(1));
+  BValue lhs = fb.Concat({l, fb.Literal(UBits(0b00, 2))});
+  BValue rhs = fb.Concat({r, fb.Literal(UBits(0b00, 2))});
+  fb.Add(lhs, rhs);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::Add(m::BitSlice(lhs.node(), 2, 1),
+                               m::BitSlice(rhs.node(), 2, 1)),
+                        m::BitSlice(lhs.node(), 0, 2)));
+}
+
+TEST_F(StrengthReductionPassTest, AddTrailingNoCarryWideSplit) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue l = fb.Param("l", p->GetBitsType(64));
+  BValue r = fb.Param("r", p->GetBitsType(64));
+  BValue lit17 = fb.Literal(UBits(17, 64));
+  BValue shll_l = fb.Shll(l, lit17);
+  BValue shll_r = fb.Shll(r, lit17);
+  fb.Add(shll_l, shll_r);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::Add(m::BitSlice(m::Shll(), 17, 47),
+                               m::BitSlice(m::Shll(), 17, 47)),
+                        m::BitSlice(m::Shll(), 0, 17)));
+}
+
+TEST_F(StrengthReductionPassTest, AddTrailingNoCarryNoSplitLsbOne) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue l = fb.Param("l", p->GetBitsType(3));
+  BValue r = fb.Param("r", p->GetBitsType(3));
+  BValue lhs = fb.Concat({l, fb.Literal(UBits(0b1, 1))});
+  BValue rhs = fb.Concat({r, fb.Literal(UBits(0b1, 1))});
+  fb.Add(lhs, rhs);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f), IsOkAndHolds(false));
+}
+
+TEST_F(StrengthReductionPassTest, AddTrailingNoCarryNoSplitLsbOneAndX) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue l = fb.Param("l", p->GetBitsType(3));
+  BValue r = fb.Param("r", p->GetBitsType(4));
+  BValue lhs = fb.Concat({l, fb.Literal(UBits(0b1, 1))});
+  BValue rhs = r;
+  fb.Add(lhs, rhs);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f), IsOkAndHolds(false));
+}
+
+TEST_F(StrengthReductionPassTest, AddTrailingNoCarryNoSplitLsbXAndX) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue lhs = fb.Param("l", p->GetBitsType(4));
+  BValue rhs = fb.Param("r", p->GetBitsType(4));
+  fb.Add(lhs, rhs);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f), IsOkAndHolds(false));
+}
+
+TEST_F(StrengthReductionPassTest, SubTrailingNoBorrowOneBitSplitLHS) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue l = fb.Param("l", p->GetBitsType(3));
+  BValue r = fb.Param("r", p->GetBitsType(4));
+  // Set lhs LSB to 1, guaranteeing no borrow to bit 0.
+  BValue lhs = fb.Concat({l, fb.Literal(UBits(0b1, 1))});
+  BValue rhs = r;
+  fb.Subtract(lhs, rhs);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::Sub(m::BitSlice(lhs.node(), 1, 3),
+                               m::BitSlice(rhs.node(), 1, 3)),
+                        m::Not(m::BitSlice(rhs.node(), 0, 1))));
+}
+
+TEST_F(StrengthReductionPassTest, SubTrailingNoBorrowOneBitSplitRHS) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue l = fb.Param("l", p->GetBitsType(4));
+  BValue r = fb.Param("r", p->GetBitsType(3));
+  // Set rhs LSB to 0, guaranteeing no borrow to bit 0.
+  BValue lhs = l;
+  BValue rhs = fb.Concat({r, fb.Literal(UBits(0b0, 1))});
+  fb.Subtract(lhs, rhs);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::Sub(m::BitSlice(lhs.node(), 1, 3),
+                               m::BitSlice(rhs.node(), 1, 3)),
+                        m::BitSlice(lhs.node(), 0, 1)));
+}
+
+TEST_F(StrengthReductionPassTest, SubTrailingNoBorrowTwoBitSplitLHS) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue l = fb.Param("l", p->GetBitsType(2));
+  BValue r = fb.Param("r", p->GetBitsType(4));
+  // Set lhs LSBs to 11, guaranteeing no borrow to bits 0 or 1.
+  BValue lhs = fb.Concat({l, fb.Literal(UBits(0b11, 2))});
+  BValue rhs = r;
+  fb.Subtract(lhs, rhs);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::Sub(m::BitSlice(lhs.node(), 2, 2),
+                               m::BitSlice(rhs.node(), 2, 2)),
+                        m::Not(m::BitSlice(rhs.node(), 0, 2))));
+}
+
+TEST_F(StrengthReductionPassTest, SubTrailingNoBorrowTwoBitSplitRHS) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue l = fb.Param("l", p->GetBitsType(4));
+  BValue r = fb.Param("r", p->GetBitsType(2));
+  // Set rhs LSBs to 00, guaranteeing no borrow to bits 0 or 1.
+  BValue lhs = l;
+  BValue rhs = fb.Concat({r, fb.Literal(UBits(0b00, 2))});
+  fb.Subtract(lhs, rhs);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::Sub(m::BitSlice(lhs.node(), 2, 2),
+                               m::BitSlice(rhs.node(), 2, 2)),
+                        m::BitSlice(lhs.node(), 0, 2)));
+}
+
+TEST_F(StrengthReductionPassTest, SubTrailingBorrowNoSplitGeneric) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue lhs = fb.Param("l", p->GetBitsType(4));
+  BValue rhs = fb.Param("r", p->GetBitsType(4));
+  fb.Subtract(lhs, rhs);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f), IsOkAndHolds(false));
+}
+
+TEST_F(StrengthReductionPassTest, AdderSplitOnNoCarryPropagateMiddle) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue p0 = fb.Param("p0", p->GetBitsType(5));
+  BValue p1 = fb.Param("p1", p->GetBitsType(5));
+  BValue lhs =
+      fb.Or(fb.And(p0, fb.Literal(UBits(0b11011, 5))), fb.Literal(UBits(1, 5)));
+  BValue rhs =
+      fb.Or(fb.And(p1, fb.Literal(UBits(0b11011, 5))), fb.Literal(UBits(1, 5)));
+  fb.Add(lhs, rhs);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Concat(m::Add(m::BitSlice(lhs.node(), /*start=*/3, /*width=*/2),
+                       m::BitSlice(rhs.node(), /*start=*/3, /*width=*/2)),
+                m::Add(m::BitSlice(lhs.node(), /*start=*/0, /*width=*/3),
+                       m::BitSlice(rhs.node(), /*start=*/0, /*width=*/3))));
+}
+
+TEST_F(StrengthReductionPassTest, AdderSplitOnNoCarryPropagateBit1) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue p0 = fb.Param("p0", p->GetBitsType(4));
+  BValue p1 = fb.Param("p1", p->GetBitsType(4));
+  BValue lhs = fb.And(p0, fb.Literal(UBits(0b1101, 4)));
+  BValue rhs = fb.And(p1, fb.Literal(UBits(0b1101, 4)));
+  fb.Add(lhs, rhs);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Concat(m::Add(m::BitSlice(lhs.node(), /*start=*/2, /*width=*/2),
+                       m::BitSlice(rhs.node(), /*start=*/2, /*width=*/2)),
+                m::Add(m::BitSlice(lhs.node(), /*start=*/0, /*width=*/2),
+                       m::BitSlice(rhs.node(), /*start=*/0, /*width=*/2))));
+}
+
+TEST_F(StrengthReductionPassTest, AdderSplitOnNoCarryPropagateMultiple) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue p0 = fb.Param("p0", p->GetBitsType(5));
+  BValue p1 = fb.Param("p1", p->GetBitsType(5));
+  BValue lhs =
+      fb.Or(fb.And(p0, fb.Literal(UBits(0b10101, 5))), fb.Literal(UBits(1, 5)));
+  BValue rhs =
+      fb.Or(fb.And(p1, fb.Literal(UBits(0b10101, 5))), fb.Literal(UBits(1, 5)));
+  fb.Add(lhs, rhs);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Concat(m::Add(m::BitSlice(lhs.node(), /*start=*/2, /*width=*/3),
+                       m::BitSlice(rhs.node(), /*start=*/2, /*width=*/3)),
+                m::Add(m::BitSlice(lhs.node(), /*start=*/0, /*width=*/2),
+                       m::BitSlice(rhs.node(), /*start=*/0, /*width=*/2))));
+}
+
+TEST_F(StrengthReductionPassTest, AdderSplitOnNoCarryPropagateNoSplitOnMSB) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue p0 = fb.Param("p0", p->GetBitsType(2));
+  BValue p1 = fb.Param("p1", p->GetBitsType(2));
+  BValue lhs = fb.Concat({fb.Literal(UBits(0b0, 1)), p0});
+  BValue rhs = fb.Concat({fb.Literal(UBits(0b0, 1)), p1});
+  fb.Add(lhs, rhs);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f), IsOkAndHolds(false));
+}
+
+TEST_F(StrengthReductionPassTest, SubSplitOnNoBorrowPropagateBit2) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue p0 = fb.Param("p0", p->GetBitsType(5));
+  BValue p1 = fb.Param("p1", p->GetBitsType(5));
+  // Guarantees lhs[2]=1
+  BValue lhs = fb.Or(p0, fb.Literal(UBits(0b100, 5)));
+  // Guarantees rhs[2]=0
+  BValue rhs = fb.And(p1, fb.Literal(UBits(0b11011, 5)));
+  fb.Subtract(lhs, rhs);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Concat(m::Sub(m::BitSlice(lhs.node(), /*start=*/3, /*width=*/2),
+                       m::BitSlice(rhs.node(), /*start=*/3, /*width=*/2)),
+                m::Sub(m::BitSlice(lhs.node(), /*start=*/0, /*width=*/3),
+                       m::BitSlice(rhs.node(), /*start=*/0, /*width=*/3))));
+}
+
+TEST_F(StrengthReductionPassTest, SubSplitOnNoBorrowPropagateLowestBit) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue p0 = fb.Param("p0", p->GetBitsType(5));
+  BValue p1 = fb.Param("p1", p->GetBitsType(5));
+  // Guarantees lhs[1]=1, lhs[3]=1
+  BValue lhs = fb.Or(p0, fb.Literal(UBits(0b01010, 5)));
+  // Guarantees rhs[1]=0, rhs[3]=0
+  BValue rhs = fb.And(p1, fb.Literal(UBits(0b10101, 5)));
+  fb.Subtract(lhs, rhs);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  // Bit 1 is the lowest bit where lhs=1, rhs=0. Should split at bit 1+1=2.
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Concat(m::Sub(m::BitSlice(lhs.node(), /*start=*/2, /*width=*/3),
+                       m::BitSlice(rhs.node(), /*start=*/2, /*width=*/3)),
+                m::Sub(m::BitSlice(lhs.node(), /*start=*/0, /*width=*/2),
+                       m::BitSlice(rhs.node(), /*start=*/0, /*width=*/2))));
+}
+
+TEST_F(StrengthReductionPassTest, SubNoSplitIfBorrowMustPropagate) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue p0 = fb.Param("p0", p->GetBitsType(4));
+  BValue p1 = fb.Param("p1", p->GetBitsType(4));
+  // Guarantees lhs[1]=0
+  BValue lhs = fb.And(p0, fb.Literal(UBits(0b1101, 4)));
+  // Guarantees rhs[1]=1
+  BValue rhs = fb.Or(p1, fb.Literal(UBits(0b10, 4)));
+  fb.Subtract(lhs, rhs);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(false));
 }
 
 void IrFuzzStrengthReduction(FuzzPackageWithArgs fuzz_package_with_args) {
