@@ -110,6 +110,11 @@ bool xls_dslx_parametric_env_create(
     const struct xls_dslx_parametric_env_item* items, size_t items_count,
     char** error_out, struct xls_dslx_parametric_env** env_out);
 
+// Clones an existing parametric environment.
+bool xls_dslx_parametric_env_clone(
+    const struct xls_dslx_parametric_env* env,
+    struct xls_dslx_parametric_env** env_out);
+
 // Frees a previously created parametric environment.
 void xls_dslx_parametric_env_free(struct xls_dslx_parametric_env*);
 
@@ -135,6 +140,11 @@ bool xls_dslx_interp_value_make_tuple(
 bool xls_dslx_interp_value_make_array(
     size_t element_count, struct xls_dslx_interp_value** elements,
     char** error_out, struct xls_dslx_interp_value** result_out);
+
+// Clones an InterpValue.
+bool xls_dslx_interp_value_clone(
+    const struct xls_dslx_interp_value* value,
+    struct xls_dslx_interp_value** result_out);
 
 // Parses an InterpValue from DSLX text using the parser/evaluator.
 bool xls_dslx_interp_value_from_string(

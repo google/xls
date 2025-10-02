@@ -108,6 +108,18 @@ bool xls_dslx_parametric_env_create(
   return true;
 }
 
+bool xls_dslx_parametric_env_clone(
+    const struct xls_dslx_parametric_env* env,
+    struct xls_dslx_parametric_env** env_out) {
+  CHECK(env_out != nullptr);
+  CHECK(env != nullptr);
+  const auto* cpp_env =
+      reinterpret_cast<const xls::dslx::ParametricEnv*>(env);
+  auto* heap = new xls::dslx::ParametricEnv(*cpp_env);
+  *env_out = reinterpret_cast<xls_dslx_parametric_env*>(heap);
+  return true;
+}
+
 void xls_dslx_parametric_env_free(struct xls_dslx_parametric_env* env) {
   delete reinterpret_cast<xls::dslx::ParametricEnv*>(env);
 }
@@ -200,6 +212,18 @@ bool xls_dslx_interp_value_make_array(
   }
   *result_out = reinterpret_cast<xls_dslx_interp_value*>(
       new xls::dslx::InterpValue(std::move(*arr)));
+  return true;
+}
+
+bool xls_dslx_interp_value_clone(
+    const struct xls_dslx_interp_value* value,
+    struct xls_dslx_interp_value** result_out) {
+  CHECK(result_out != nullptr);
+  CHECK(value != nullptr);
+  const auto* cpp_interp_value =
+      reinterpret_cast<const xls::dslx::InterpValue*>(value);
+  auto* heap = new xls::dslx::InterpValue(*cpp_interp_value);
+  *result_out = reinterpret_cast<xls_dslx_interp_value*>(heap);
   return true;
 }
 
