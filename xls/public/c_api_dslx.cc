@@ -492,7 +492,7 @@ bool xls_dslx_typechecked_module_insert_function_specializations(
 
     xls::dslx::ParametricEnv empty_env;
     const xls::dslx::ParametricEnv* request_env =
-        reinterpret_cast<xls::dslx::ParametricEnv*>(req.env);
+        reinterpret_cast<const xls::dslx::ParametricEnv*>(req.env);
     const xls::dslx::ParametricEnv& env_ref =
         request_env != nullptr ? *request_env : empty_env;
 

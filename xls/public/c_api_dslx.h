@@ -91,7 +91,7 @@ struct xls_dslx_parametric_env_item {
 struct xls_dslx_function_specialization_request {
   const char* function_name;
   const char* specialized_name;
-  struct xls_dslx_parametric_env* env;  // Optional; may be null.
+  const struct xls_dslx_parametric_env* env;  // Optional; may be null.
 };
 
 // Creates a parametric environment from items.
