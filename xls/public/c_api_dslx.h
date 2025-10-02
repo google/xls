@@ -403,9 +403,9 @@ char* xls_dslx_type_alias_to_string(struct xls_dslx_type_alias*);
 // Note: return value is owned by the caller, free via `xls_c_str_free`.
 char* xls_dslx_interp_value_to_string(struct xls_dslx_interp_value*);
 
-bool xls_dslx_interp_value_convert_to_ir(struct xls_dslx_interp_value* v,
-                                         char** error_out,
-                                         struct xls_value** result_out);
+bool xls_dslx_interp_value_convert_to_ir(
+    const struct xls_dslx_interp_value* v, char** error_out,
+    struct xls_value** result_out);
 
 void xls_dslx_interp_value_free(struct xls_dslx_interp_value*);
 

@@ -994,10 +994,11 @@ void xls_dslx_interp_value_free(struct xls_dslx_interp_value* v) {
   delete cpp_interp_value;
 }
 
-bool xls_dslx_interp_value_convert_to_ir(struct xls_dslx_interp_value* v,
-                                         char** error_out,
-                                         struct xls_value** result_out) {
-  auto* cpp_interp_value = reinterpret_cast<xls::dslx::InterpValue*>(v);
+bool xls_dslx_interp_value_convert_to_ir(
+    const struct xls_dslx_interp_value* v, char** error_out,
+    struct xls_value** result_out) {
+  const auto* cpp_interp_value =
+      reinterpret_cast<const xls::dslx::InterpValue*>(v);
   absl::StatusOr<xls::Value> ir_value = cpp_interp_value->ConvertToIr();
   if (!ir_value.ok()) {
     *error_out = xls::ToOwnedCString(ir_value.status().ToString());
