@@ -460,6 +460,13 @@ struct xls_dslx_invocation_callee_data*
 xls_dslx_invocation_callee_data_array_get(
     struct xls_dslx_invocation_callee_data_array* array, int64_t index);
 
+struct xls_dslx_invocation_callee_data*
+xls_dslx_invocation_callee_data_clone(
+    struct xls_dslx_invocation_callee_data* data);
+
+void xls_dslx_invocation_callee_data_free(
+    struct xls_dslx_invocation_callee_data* data);
+
 const struct xls_dslx_parametric_env*
 xls_dslx_invocation_callee_data_get_callee_bindings(
     struct xls_dslx_invocation_callee_data* data);
@@ -483,6 +490,11 @@ struct xls_dslx_function* xls_dslx_invocation_data_get_callee(
 
 struct xls_dslx_function* xls_dslx_invocation_data_get_caller(
     struct xls_dslx_invocation_data* data);
+
+struct xls_dslx_invocation_data*
+xls_dslx_invocation_data_clone(struct xls_dslx_invocation_data* data);
+
+void xls_dslx_invocation_data_free(struct xls_dslx_invocation_data* data);
 
 // -- type (deduced type information)
 

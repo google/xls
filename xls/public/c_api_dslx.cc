@@ -1046,6 +1046,25 @@ xls_dslx_invocation_callee_data_array_get(
   return reinterpret_cast<xls_dslx_invocation_callee_data*>(&entry);
 }
 
+struct xls_dslx_invocation_callee_data*
+xls_dslx_invocation_callee_data_clone(
+    struct xls_dslx_invocation_callee_data* data) {
+  CHECK(data != nullptr);
+  auto* cpp_data = reinterpret_cast<xls::dslx::InvocationCalleeData*>(data);
+  auto* clone =
+      new xls::dslx::InvocationCalleeData(*cpp_data);
+  return reinterpret_cast<xls_dslx_invocation_callee_data*>(clone);
+}
+
+void xls_dslx_invocation_callee_data_free(
+    struct xls_dslx_invocation_callee_data* data) {
+  if (data == nullptr) {
+    return;
+  }
+  auto* cpp_data = reinterpret_cast<xls::dslx::InvocationCalleeData*>(data);
+  delete cpp_data;
+}
+
 const struct xls_dslx_parametric_env*
 xls_dslx_invocation_callee_data_get_callee_bindings(
     struct xls_dslx_invocation_callee_data* data) {
@@ -1086,6 +1105,22 @@ struct xls_dslx_invocation* xls_dslx_invocation_data_get_invocation(
   auto* cpp_data = reinterpret_cast<xls::dslx::InvocationData*>(data);
   return reinterpret_cast<xls_dslx_invocation*>(
       const_cast<xls::dslx::Invocation*>(cpp_data->node()));
+}
+
+struct xls_dslx_invocation_data*
+xls_dslx_invocation_data_clone(struct xls_dslx_invocation_data* data) {
+  CHECK(data != nullptr);
+  auto* cpp_data = reinterpret_cast<xls::dslx::InvocationData*>(data);
+  auto* clone = new xls::dslx::InvocationData(*cpp_data);
+  return reinterpret_cast<xls_dslx_invocation_data*>(clone);
+}
+
+void xls_dslx_invocation_data_free(struct xls_dslx_invocation_data* data) {
+  if (data == nullptr) {
+    return;
+  }
+  auto* cpp_data = reinterpret_cast<xls::dslx::InvocationData*>(data);
+  delete cpp_data;
 }
 
 struct xls_dslx_function* xls_dslx_invocation_data_get_callee(
