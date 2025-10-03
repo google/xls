@@ -24,6 +24,7 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
@@ -260,6 +261,23 @@ TEST_F(DelayEstimatorTest, LogicalEffortForOneHotSelects) {
     EXPECT_THAT(
         DelayEstimator::GetLogicalEffortDelayInPs(f->return_value(), 10),
         IsOkAndHolds(30));
+  }
+  {
+    // 200-input OneHotSelect
+    auto p = CreatePackage();
+    FunctionBuilder fb(TestName(), p.get());
+    BValue s = fb.Param("s", p->GetBitsType(200));
+    std::vector<BValue> cases;
+    cases.reserve(200);
+    for (int i = 0; i < 200; ++i) {
+      cases.push_back(
+          fb.Param(absl::StrFormat("param_%d", i), p->GetBitsType(10)));
+    }
+    fb.OneHotSelect(s, cases);
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+    EXPECT_THAT(
+        DelayEstimator::GetLogicalEffortDelayInPs(f->return_value(), 10),
+        IsOkAndHolds(180));
   }
 }
 

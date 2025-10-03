@@ -103,7 +103,7 @@ namespace {
 // TODO(leary): 2019-08-19 Read all of the curve-fit values from a
 // characterization file for easier reference / recomputing if necessary.
 /* static */ absl::StatusOr<int64_t> GetLogicalEffortDelayInTau(Node* node) {
-  auto get_logical_effort_for_n_operands =
+  auto get_linear_logical_effort_for_n_operands =
       [](int64_t operand_count, netlist::CellKind kind,
          bool invert) -> absl::StatusOr<int64_t> {
     XLS_ASSIGN_OR_RETURN(
@@ -207,14 +207,15 @@ namespace {
       return std::ceil(nor_delay - 1);
     }
     case Op::kOneHotSel: {
-      // This should synthesize to something quite similar to a two-level NAND
-      // tree (equivalent to an AND/OR tree, with the first level for masking,
-      // and the second to collect the results).
+      // Each bit of the OHS can be computed in parallel without interference.
+      // That means the delay of an N-bit OHS is equivalent to the delay of a
+      // 1-bit OHS.
       //
-      // NOTE: We currently use our full curve fitting for this in most models,
-      // but there are some scenarios where this will kick in.
+      // We model the 1 bit OHS as an OR-reduce of an AND between a bit of the
+      // selector and the corresponding case.
       OneHotSelect* ohs = node->As<OneHotSelect>();
       if (ohs->cases().empty()) {
+        // How does this even happen? Anyway this is just a constant 0.
         return 0;
       }
 
@@ -225,27 +226,45 @@ namespace {
         if (selected_inputs <= 1) {
           return 0;
         }
-        return get_logical_effort_for_n_operands(
-            /*operand_count=*/selected_inputs, netlist::CellKind::kNor,
-            /*invert=*/true);
+        XLS_ASSIGN_OR_RETURN(int64_t red, get_reduction_logical_effort_of(
+                                              netlist::CellKind::kNor,
+                                              /*invert=*/true,
+                                              /*bit_count=*/selected_inputs));
+        XLS_ASSIGN_OR_RETURN(
+            int64_t nor,
+            get_linear_logical_effort_for_n_operands(
+                /*operand_count=*/selected_inputs, netlist::CellKind::kNor,
+                /*invert=*/true));
+        return std::min(red, nor);
       }
 
       if (ohs->cases().size() == 1) {
         // This should just be an AND with the selector.
-        return get_logical_effort_for_n_operands(
+        return get_linear_logical_effort_for_n_operands(
             /*operand_count=*/2, netlist::CellKind::kNand,
             /*invert=*/true);
       }
 
-      XLS_ASSIGN_OR_RETURN(int64_t mask_delay,
-                           get_logical_effort_for_n_operands(
-                               /*operand_count=*/2, netlist::CellKind::kNand,
-                               /*invert=*/false));
-      XLS_ASSIGN_OR_RETURN(int64_t union_delay,
-                           get_logical_effort_for_n_operands(
-                               ohs->cases().size(), netlist::CellKind::kNand,
-                               /*invert=*/false));
-      return mask_delay + union_delay;
+      // Can perform 1 bit OHS as
+      //
+      // Using de Morgan's Law:
+      //
+      //     OR(AND(C, X), AND(C, Y), ...) =
+      //     NOT(AND(NOT(AND(C, X)), NOT(AND(C, Y)), ...)) =
+      //     NAND(NAND(C, X), NAND(C, Y), ...)
+      //
+      // Inner Nand.
+      XLS_ASSIGN_OR_RETURN(int64_t inner_nand_delay,
+                           get_linear_logical_effort_for_n_operands(
+                               2, netlist::CellKind::kNand, /*invert=*/false));
+      // Outer nand
+      // NB reduction_logical_effort_of returns the minimum of linear and tree
+      // logical effort.
+      XLS_ASSIGN_OR_RETURN(int64_t outer_nand_red,
+                           get_reduction_logical_effort_of(
+                               netlist::CellKind::kNand, /*invert=*/false,
+                               /*bit_count=*/ohs->cases().size()));
+      return outer_nand_red + inner_nand_delay;
     }
     default:
       break;
