@@ -106,6 +106,7 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
 
   op.channel = channel;
   op.op_location = loc;
+  op.full_op_location = loc;
 
   if (channel == nullptr) {
     op.channel_op_index = context().sf->no_channel_op_count++;
@@ -949,7 +950,7 @@ absl::StatusOr<GenerateIOReturn> Translator::GenerateIO(
     xls::ProcBuilder& pb,
     const std::optional<ChannelBundle>& optional_channel_bundle,
     std::optional<TrackedBValue> extra_condition) {
-  xls::SourceInfo op_loc = op.op_location;
+  xls::SourceInfo op_loc = op.full_op_location;
 
   TrackedBValue ret_io_value = op_out_value;
 

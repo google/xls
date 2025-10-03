@@ -933,7 +933,7 @@ absl::StatusOr<Translator::LayoutFSMStatesReturn> Translator::LayoutFSMStates(
             "---- invoke ch %s at %s\n",
             invoke.op.channel ? invoke.op.channel->unique_name.c_str()
                               : "(null)",
-            LocString(invoke.op.op_location).c_str());
+            LocString(invoke.op.full_op_location).c_str());
       }
     }
   }
