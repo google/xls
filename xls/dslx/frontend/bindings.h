@@ -76,7 +76,7 @@ std::optional<std::string_view> MaybeExtractParseNameError(
     const absl::Status& status);
 
 struct PositionalErrorData {
-  Span span;
+  std::vector<Span> spans;
   std::string message;
   std::string error_type;
 
@@ -85,7 +85,7 @@ struct PositionalErrorData {
   }
 
   bool operator==(const PositionalErrorData& other) const {
-    return span == other.span && message == other.message &&
+    return spans == other.spans && message == other.message &&
            error_type == other.error_type;
   }
 };

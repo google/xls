@@ -117,7 +117,7 @@ class ImportModuleWithTypeErrorTest(parameterized.TestCase):
         error_message,
         'TypeInferenceError: type mismatch: '
         + re.escape(type1)
-        + ' at .* vs\\. '
+        + ' vs\\. '
         + re.escape(type2),
     )
 
@@ -126,7 +126,7 @@ class ImportModuleWithTypeErrorTest(parameterized.TestCase):
         error_message,
         'TypeInferenceError: size mismatch: '
         + re.escape(type1)
-        + ' at .* vs\\. '
+        + ' vs\\. '
         + re.escape(type2),
     )
 
@@ -135,7 +135,7 @@ class ImportModuleWithTypeErrorTest(parameterized.TestCase):
         error_message,
         'TypeInferenceError: signed vs\\. unsigned mismatch: '
         + re.escape(type1)
-        + ' at .* vs\\. '
+        + ' vs\\. '
         + re.escape(type2),
     )
 

@@ -196,21 +196,6 @@ AstNodeKindProto ToProto(AstNodeKind kind) {
   LOG(FATAL) << "Out of range AstNodeKind: " << static_cast<int64_t>(kind);
 }
 
-PosProto ToProto(const Pos& pos, const FileTable& file_table) {
-  PosProto proto;
-  proto.set_filename(pos.GetFilename(file_table));
-  proto.set_lineno(static_cast<int32_t>(pos.lineno()));
-  proto.set_colno(static_cast<int32_t>(pos.colno()));
-  return proto;
-}
-
-SpanProto ToProto(const Span& span, const FileTable& file_table) {
-  SpanProto proto;
-  *proto.mutable_start() = ToProto(span.start(), file_table);
-  *proto.mutable_limit() = ToProto(span.limit(), file_table);
-  return proto;
-}
-
 // Helper that turns a span of u8s into a std::string so it can be easily
 // inserted into protobuf bytes fields.
 std::string U8sToString(absl::Span<const uint8_t> bs) {
@@ -526,11 +511,6 @@ absl::StatusOr<AstNodeTypeInfoProto> ToProto(const AstNode& node,
   }
   XLS_ASSIGN_OR_RETURN(*proto.mutable_type(), ToProto(type, file_table));
   return proto;
-}
-
-std::string ToHumanString(const SpanProto& s) {
-  return absl::StrFormat("%d:%d-%d:%d", s.start().lineno(), s.start().colno(),
-                         s.limit().lineno(), s.limit().colno());
 }
 
 std::string ToHumanString(AstNodeKindProto kind) {

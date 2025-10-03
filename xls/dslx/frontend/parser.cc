@@ -1552,7 +1552,7 @@ absl::StatusOr<Expr*> Parser::ParseCast(Bindings& bindings,
                                  file_table())
               .value();
       return ParseErrorStatus(
-          data.span,
+          data.spans[0],
           absl::StrFormat("Expected a type as part of a cast expression: %s",
                           data.message));
     }

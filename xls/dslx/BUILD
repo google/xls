@@ -138,12 +138,14 @@ cc_library(
     srcs = ["errors.cc"],
     hdrs = ["errors.h"],
     deps = [
+        ":dslx_status_payloads",
         ":import_record",
         ":interp_value",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_node",
         "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:type",
+        "//xls/dslx/type_system:type_info_cc_proto",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
@@ -155,10 +157,15 @@ cc_test(
     name = "errors_test",
     srcs = ["errors_test.cc"],
     deps = [
+        ":dslx_status_payloads",
         ":errors",
+        "//xls/common:proto_test_utils",
         "//xls/common:xls_gunit_main",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:type",
+        "//xls/dslx/type_system:type_info_cc_proto",
         "@com_google_absl//absl/status",
         "@googletest//:gtest",
     ],
@@ -477,6 +484,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
         "@re2",
     ],
 )
@@ -859,6 +867,17 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "dslx_status_payloads",
+    srcs = ["dslx_status_payloads.cc"],
+    hdrs = ["dslx_status_payloads.h"],
+    deps = [
+        "//xls/dslx/type_system:type_info_cc_proto",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:cord",
     ],
 )
 

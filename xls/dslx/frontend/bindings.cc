@@ -27,8 +27,10 @@
 #include "absl/types/variant.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
+#include "xls/dslx/dslx_status_payloads.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/type_system/type_info.pb.h"
 #include "re2/re2.h"
 
 namespace xls::dslx {
@@ -67,6 +69,19 @@ absl::StatusOr<PositionalErrorData> GetPositionalErrorData(
   if (target_type.has_value() && type_indicator != *target_type) {
     return error();
   }
+
+  std::optional<StatusPayloadProto> payload = GetStatusPayload(status);
+  if (payload.has_value() && payload->spans_size() > 0) {
+    std::vector<Span> spans;
+    for (const SpanProto& span_proto : payload->spans()) {
+      XLS_ASSIGN_OR_RETURN(
+          Span span,
+          Span::FromString(ToHumanString(span_proto, /*v2=*/true), file_table));
+      spans.push_back(span);
+    }
+    return PositionalErrorData{spans, std::string(s), type_indicator};
+  }
+
   std::vector<std::string_view> pieces =
       absl::StrSplit(s, absl::MaxSplits(' ', 1));
   if (pieces.size() < 2) {
@@ -74,7 +89,7 @@ absl::StatusOr<PositionalErrorData> GetPositionalErrorData(
         "Provided status does not have a standard error message");
   }
   XLS_ASSIGN_OR_RETURN(Span span, Span::FromString(pieces[0], file_table));
-  return PositionalErrorData{span, std::string(pieces[1]), type_indicator};
+  return PositionalErrorData{{span}, std::string(pieces[1]), type_indicator};
 }
 
 AnyNameDef BoundNodeToAnyNameDef(BoundNode bn) {

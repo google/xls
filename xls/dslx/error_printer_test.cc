@@ -49,7 +49,7 @@ line 7)",
   const Span error_span(start_pos, limit_pos);
   RealFilesystem vfs;
   std::stringstream ss;
-  XLS_ASSERT_OK(PrintPositionalError(error_span, "my error message", ss,
+  XLS_ASSERT_OK(PrintPositionalError({error_span}, "my error message", ss,
                                      /*color=*/PositionalErrorColor::kNoColor,
                                      file_table, vfs,
                                      /*error_context_line_count=*/3));
@@ -87,7 +87,7 @@ TEST(PrintPositionalErrorTest, MultiLineErrorTest) {
   const Span error_span(start_pos, limit_pos);
   RealFilesystem vfs;
   std::stringstream ss;
-  XLS_ASSERT_OK(PrintPositionalError(error_span, "match not exhaustive", ss,
+  XLS_ASSERT_OK(PrintPositionalError({error_span}, "match not exhaustive", ss,
                                      /*color=*/PositionalErrorColor::kNoColor,
                                      file_table, vfs,
                                      /*error_context_line_count=*/3));
@@ -119,7 +119,7 @@ TEST(PrintPositionalErrorTest, ZeroLineErrorTest) {
   {
     std::stringstream ss;
     XLS_ASSERT_OK(PrintPositionalError(
-        Span(Pos{fileno, 0, 0}, Pos{fileno, 0, 0}), "here", ss,
+        {Span(Pos{fileno, 0, 0}, Pos{fileno, 0, 0})}, "here", ss,
         /*color=*/PositionalErrorColor::kNoColor, file_table, vfs,
         /*error_context_line_count=*/3));
     EXPECT_EQ(ss.str(),
@@ -139,7 +139,7 @@ TEST(PrintPositionalErrorTest, OneLineErrorTest) {
   {
     std::stringstream ss;
     XLS_ASSERT_OK(PrintPositionalError(
-        Span(Pos{fileno, 0, 0}, Pos{fileno, 0, 1}), "here", ss,
+        {Span(Pos{fileno, 0, 0}, Pos{fileno, 0, 1})}, "here", ss,
         /*color=*/PositionalErrorColor::kNoColor, file_table, vfs,
         /*error_context_line_count=*/3));
     EXPECT_EQ(ss.str(),
@@ -155,7 +155,7 @@ TEST(PrintPositionalErrorTest, OneLineErrorTest) {
   {
     std::stringstream ss;
     XLS_ASSERT_OK(PrintPositionalError(
-        Span(Pos{fileno, 0, 0}, Pos{fileno, 1, 0}), "here", ss,
+        {Span(Pos{fileno, 0, 0}, Pos{fileno, 1, 0})}, "here", ss,
         /*color=*/PositionalErrorColor::kNoColor, file_table, vfs,
         /*error_context_line_count=*/3));
     EXPECT_EQ(ss.str(),
@@ -170,7 +170,7 @@ TEST(PrintPositionalErrorTest, OneLineErrorTest) {
   {
     std::stringstream ss;
     XLS_ASSERT_OK(PrintPositionalError(
-        Span(Pos{fileno, 1, 0}, Pos{fileno, 1, 0}), "here", ss,
+        {Span(Pos{fileno, 1, 0}, Pos{fileno, 1, 0})}, "here", ss,
         /*color=*/PositionalErrorColor::kNoColor, file_table, vfs,
         /*error_context_line_count=*/3));
     EXPECT_EQ(ss.str(),
@@ -192,7 +192,7 @@ TEST(PrintPositionalErrorTest, TwoLineErrorTest) {
   {
     std::stringstream ss;
     XLS_ASSERT_OK(PrintPositionalError(
-        Span(Pos{fileno, 0, 0}, Pos{fileno, 0, 1}), "here", ss,
+        {Span(Pos{fileno, 0, 0}, Pos{fileno, 0, 1})}, "here", ss,
         /*color=*/PositionalErrorColor::kNoColor, file_table, vfs,
         /*error_context_line_count=*/3));
     EXPECT_EQ(ss.str(),
@@ -206,7 +206,7 @@ TEST(PrintPositionalErrorTest, TwoLineErrorTest) {
   {
     std::stringstream ss;
     XLS_ASSERT_OK(PrintPositionalError(
-        Span(Pos{fileno, 0, 0}, Pos{fileno, 1, 0}), "here", ss,
+        {Span(Pos{fileno, 0, 0}, Pos{fileno, 1, 0})}, "here", ss,
         /*color=*/PositionalErrorColor::kNoColor, file_table, vfs,
         /*error_context_line_count=*/3));
 
@@ -223,7 +223,7 @@ TEST(PrintPositionalErrorTest, TwoLineErrorTest) {
   {
     std::stringstream ss;
     XLS_ASSERT_OK(PrintPositionalError(
-        Span(Pos{fileno, 1, 0}, Pos{fileno, 1, 2}), "here", ss,
+        {Span(Pos{fileno, 1, 0}, Pos{fileno, 1, 2})}, "here", ss,
         /*color=*/PositionalErrorColor::kNoColor, file_table, vfs,
         /*error_context_line_count=*/3));
     EXPECT_EQ(ss.str(),
@@ -237,7 +237,7 @@ TEST(PrintPositionalErrorTest, TwoLineErrorTest) {
   {
     std::stringstream ss;
     XLS_ASSERT_OK(PrintPositionalError(
-        Span(Pos{fileno, 1, 1}, Pos{fileno, 1, 999}), "here", ss,
+        {Span(Pos{fileno, 1, 1}, Pos{fileno, 1, 999})}, "here", ss,
         /*color=*/PositionalErrorColor::kNoColor, file_table, vfs,
         /*error_context_line_count=*/3));
 
@@ -254,7 +254,7 @@ TEST(PrintPositionalErrorTest, TwoLineErrorTest) {
   {
     std::stringstream ss;
     XLS_ASSERT_OK(PrintPositionalError(
-        Span(Pos{fileno, -99, -17}, Pos{fileno, 88, 999}), "here", ss,
+        {Span(Pos{fileno, -99, -17}, Pos{fileno, 88, 999})}, "here", ss,
         /*color=*/PositionalErrorColor::kNoColor, file_table, vfs,
         /*error_context_line_count=*/3));
 
@@ -272,7 +272,7 @@ TEST(PrintPositionalErrorTest, TwoLineErrorTest) {
   {
     std::stringstream ss;
     XLS_ASSERT_OK(PrintPositionalError(
-        Span(Pos{fileno, -88, 5}, Pos{fileno, -77, 3}), "here", ss,
+        {Span(Pos{fileno, -88, 5}, Pos{fileno, -77, 3})}, "here", ss,
         /*color=*/PositionalErrorColor::kNoColor, file_table, vfs,
         /*error_context_line_count=*/3));
 
@@ -309,7 +309,7 @@ TEST(PrintPositionalErrorTest, FiveLineErrorFuzzTest) {
           const Pos to_pos(fileno, to_line, to_col);
           const Span span(from_pos, to_pos);
           XLS_ASSERT_OK(PrintPositionalError(
-              Span(from_pos, to_pos), "here", ss,
+              {Span(from_pos, to_pos)}, "here", ss,
               /*color=*/PositionalErrorColor::kNoColor, file_table, vfs,
               /*error_context_line_count=*/3));
           EXPECT_THAT(ss.str(), testing::Not(testing::IsEmpty()));

@@ -283,3 +283,8 @@ message AstNodeTypeInfoProto {
 message TypeInfoProto {
   repeated AstNodeTypeInfoProto nodes = 1;
 }
+
+message StatusPayloadProto {
+  repeated SpanProto spans = 1;
+  optional string label = 2;
+}

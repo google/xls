@@ -20,6 +20,7 @@
 #include <string_view>
 
 #include "absl/status/status.h"
+#include "absl/types/span.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/virtualizable_file_system.h"
 #include "xls/dslx/warning_collector.h"
@@ -52,7 +53,7 @@ enum class PositionalErrorColor : uint8_t {
 //    values can be symmetrical around the erroneous line).
 //   Propagates errors from `get_file_contents` when attempting to retrieve the
 //   contents of a file for printing.
-absl::Status PrintPositionalError(const Span& error_span,
+absl::Status PrintPositionalError(absl::Span<const Span> error_spans,
                                   std::string_view error_message,
                                   std::ostream& os, PositionalErrorColor color,
                                   const FileTable& file_table,
