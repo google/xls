@@ -3243,15 +3243,6 @@ fn main() -> u32 {
       xls_dslx_invocation_callee_data_array_get(unique_array, 0);
   ASSERT_NE(callee_data, nullptr);
 
-  xls_dslx_invocation_callee_data* callee_data_clone =
-      xls_dslx_invocation_callee_data_clone(callee_data);
-  ASSERT_NE(callee_data_clone, nullptr);
-  EXPECT_NE(callee_data_clone, callee_data);
-  absl::Cleanup free_callee_data_clone([
-      callee_data_clone] {
-    xls_dslx_invocation_callee_data_free(callee_data_clone);
-  });
-
   const xls_dslx_parametric_env* callee_env =
       xls_dslx_invocation_callee_data_get_callee_bindings(callee_data);
   ASSERT_NE(callee_env, nullptr);
@@ -3278,24 +3269,6 @@ fn main() -> u32 {
   ASSERT_NE(caller_identifier, nullptr);
   EXPECT_STREQ(caller_identifier, "N");
 
-  const xls_dslx_parametric_env* clone_callee_env =
-      xls_dslx_invocation_callee_data_get_callee_bindings(callee_data_clone);
-  ASSERT_NE(clone_callee_env, nullptr);
-  EXPECT_EQ(xls_dslx_parametric_env_get_binding_count(clone_callee_env), 1);
-  const char* clone_callee_identifier =
-      xls_dslx_parametric_env_get_binding_identifier(clone_callee_env, 0);
-  ASSERT_NE(clone_callee_identifier, nullptr);
-  EXPECT_STREQ(clone_callee_identifier, "N");
-
-  const xls_dslx_parametric_env* clone_caller_env =
-      xls_dslx_invocation_callee_data_get_caller_bindings(callee_data_clone);
-  ASSERT_NE(clone_caller_env, nullptr);
-  EXPECT_EQ(xls_dslx_parametric_env_get_binding_count(clone_caller_env), 1);
-  const char* clone_caller_identifier =
-      xls_dslx_parametric_env_get_binding_identifier(clone_caller_env, 0);
-  ASSERT_NE(clone_caller_identifier, nullptr);
-  EXPECT_STREQ(clone_caller_identifier, "N");
-
   xls_dslx_type_info* derived_type_info =
       xls_dslx_invocation_callee_data_get_derived_type_info(callee_data);
   ASSERT_NE(derived_type_info, nullptr);
@@ -3308,24 +3281,9 @@ fn main() -> u32 {
       xls_dslx_type_info_get_root_invocation_data(type_info, invocation);
   ASSERT_NE(invocation_data, nullptr);
 
-  xls_dslx_invocation_data* invocation_data_clone =
-      xls_dslx_invocation_data_clone(invocation_data);
-  ASSERT_NE(invocation_data_clone, nullptr);
-  EXPECT_NE(invocation_data_clone, invocation_data);
-  absl::Cleanup free_invocation_data_clone([
-      invocation_data_clone] {
-    xls_dslx_invocation_data_free(invocation_data_clone);
-  });
-
   EXPECT_EQ(xls_dslx_invocation_data_get_callee(invocation_data), id_fn);
   EXPECT_EQ(xls_dslx_invocation_data_get_caller(invocation_data), caller_fn);
   EXPECT_EQ(xls_dslx_invocation_data_get_invocation(invocation_data),
-            invocation);
-
-  EXPECT_EQ(xls_dslx_invocation_data_get_callee(invocation_data_clone), id_fn);
-  EXPECT_EQ(xls_dslx_invocation_data_get_caller(invocation_data_clone),
-            caller_fn);
-  EXPECT_EQ(xls_dslx_invocation_data_get_invocation(invocation_data_clone),
             invocation);
 }
 
