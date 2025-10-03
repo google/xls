@@ -156,6 +156,18 @@ TEST(IrParserTest, ParseSingleEmptyPackage) {
   EXPECT_EQ(0, package->functions().size());
 }
 
+TEST(IrParserTest, ParseSingleEmptyPackageNamedKeywords) {
+  for (const std::string_view name :
+       {"top", "fn", "proc", "block", "chan", "file_number", "token", "bits",
+        "package", "instantiation"}) {
+    std::string input = absl::StrCat("package ", name);
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                             Parser::ParsePackage(input));
+    EXPECT_EQ(package->name(), name);
+    EXPECT_EQ(0, package->functions().size());
+  }
+}
+
 TEST(IrParserTest, ParseSingleFunctionPackage) {
   std::string input = R"(package SingleFunctionPackage
 
