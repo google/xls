@@ -45,7 +45,6 @@ namespace mlir::xls {
 
 namespace {
 
-using ::llvm::SmallVector;
 using ::mlir::StringAttr;
 using ::mlir::func::FuncOp;
 
