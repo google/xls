@@ -422,8 +422,7 @@ fn my_test() -> bool { f<u32:8>(u8:1) == u32:8 }
                 {"N", InterpValue::MakeUBits(/*bit_count=*/32, /*value=*/8)}}));
 }
 
-TEST(GetConversionRecordsTest, TestProc) {
-  constexpr std::string_view kProgram = R"(
+constexpr std::string_view kTestProc = R"(
 proc P<N: u32> {
   x: uN[N];
   init {zero!<uN[N]>()}
@@ -441,19 +440,36 @@ proc test {
   next(x: ()) { () }
 }
 )";
+TEST(GetConversionRecordsTest, TestProc) {
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::vector<ConversionRecord> order,
-      GetConversionRecords(tm.module, tm.type_info, false));
+      ParseAndTypecheck(kTestProc, "test.x", "test", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
+                           GetConversionRecords(tm.module, tm.type_info, true));
   ASSERT_EQ(2, order.size());
   EXPECT_EQ(order[0].f()->identifier(), "P.next");
   EXPECT_EQ(order[0].parametric_env(),
             ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
                 {"N", InterpValue::MakeUBits(/*bit_count=*/32, /*value=*/4)}}));
   EXPECT_EQ(order[1].f()->identifier(), "test.next");
+}
+
+TEST(GetConversionRecordsTest, TestProcSkipped) {
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kTestProc, "test.x", "test", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<ConversionRecord> order,
+      GetConversionRecords(tm.module, tm.type_info, false));
+  // It still converts the parametric proc because there is still a spawn,
+  // in the test proc.
+  ASSERT_EQ(1, order.size());
+  EXPECT_EQ(order[0].f()->identifier(), "P.next");
+  EXPECT_EQ(order[0].parametric_env(),
+            ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
+                {"N", InterpValue::MakeUBits(/*bit_count=*/32, /*value=*/4)}}));
 }
 
 TEST(GetConversionRecordsTest, Quickcheck) {

@@ -5816,6 +5816,96 @@ proc SomeProc {
   ExpectIr(converted);
 }
 
+constexpr std::string_view kTestProc = R"(
+proc TestUtilityProc {
+    req_r: chan<()> in;
+    resp_s: chan<()> out;
+    config(req_r: chan<()> in, resp_s: chan<()> out) { (req_r, resp_s) }
+    init {  }
+    next(state: ()) {
+        let (tok, _) = recv(join(), req_r);
+        send(tok, resp_s, ());
+    }
+}
+
+#[test_proc]
+proc TestProc {
+    terminator: chan<bool> out;
+    tester_req_s: chan<()> out;
+    tester_resp_r: chan<()> in;
+
+    config(terminator: chan<bool> out) {
+        let (tester_req_s, tester_req_r) = chan<()>("tester_req");
+        let (tester_resp_s, tester_resp_r) = chan<()>("tester_resp");
+
+        spawn TestUtilityProc(tester_req_r, tester_resp_s);
+
+        (terminator, tester_req_s, tester_resp_r)
+    }
+
+    init {}
+
+    next(state: ()) {
+        let tok = send(join(), tester_req_s, ());
+        let (tok, _) = recv(join(), tester_resp_r);
+
+        send(tok, terminator, true);
+    }
+})";
+
+TEST_P(ProcScopedChannelsIrConverterTest, ProcScopedChannelsConvertTestProc) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kTestProc, ConvertOptions{
+                                          .emit_positions = false,
+                                          .convert_tests = true,
+                                          .lower_to_proc_scoped_channels = true,
+                                      }));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, ProcScopedChannelsNoTestProc) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kTestProc, ConvertOptions{
+                                          .emit_positions = false,
+                                          .convert_tests = false,
+                                          .lower_to_proc_scoped_channels = true,
+                                      }));
+  ExpectIr(converted);
+}
+
+constexpr std::string_view kTestFn = R"(
+fn foo() {}
+
+#[test]
+fn calls_foo() {
+  foo();
+}
+)";
+
+TEST_P(ProcScopedChannelsIrConverterTest, ProcScopedChannelsConvertTestFn) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kTestFn, ConvertOptions{
+                                        .emit_positions = false,
+                                        .convert_tests = true,
+                                        .lower_to_proc_scoped_channels = true,
+                                    }));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, ProcScopedChannelsNoTestFn) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kTestFn, ConvertOptions{
+                                        .emit_positions = false,
+                                        .convert_tests = false,
+                                        .lower_to_proc_scoped_channels = true,
+                                    }));
+  ExpectIr(converted);
+}
+
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ConvertWithoutTests) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,

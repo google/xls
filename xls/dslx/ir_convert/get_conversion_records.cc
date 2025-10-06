@@ -119,14 +119,7 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     return cr;
   }
 
-  absl::Status HandleFunction(const Function* f) override {
-    if (f->tag() == FunctionTag::kProcInit ||
-        f->tag() == FunctionTag::kProcConfig) {
-      // Don't include init or config, since they will always be converted while
-      // converting 'next'.
-      return absl::OkStatus();
-    }
-
+  absl::Status AddFunction(const Function* f) {
     std::optional<ProcId> proc_id;
     if (f->proc().has_value()) {
       proc_id = proc_id_factory_.CreateProcId(
@@ -165,6 +158,18 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     return DefaultHandler(f);
   }
 
+  absl::Status HandleFunction(const Function* f) override {
+    if (f->tag() == FunctionTag::kProcInit ||
+        f->tag() == FunctionTag::kProcConfig ||
+        f->tag() == FunctionTag::kProcNext) {
+      // TODO: https://github.com/google/xls/issues/1029 - remove module-level
+      // proc functions.
+      return absl::OkStatus();
+    }
+
+    return AddFunction(f);
+  }
+
   absl::Status HandleTestFunction(const TestFunction* tf) override {
     if (!include_tests_) {
       return absl::OkStatus();
@@ -179,17 +184,14 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleProc(const Proc* p) override {
-    // Do not process children, because we'll process the `next` function
-    // as a top-level function in the module.
-    // TODO: https://github.com/google/xls/issues/1029 - remove module-level
-    // proc functions.
-    return absl::OkStatus();
+    return AddFunction(&p->next());
   }
 
   absl::Status HandleTestProc(const TestProc* tp) override {
-    // Do not process children, because we'll process the next function
-    // as a top-level function in the module.
-    return absl::OkStatus();
+    if (!include_tests_) {
+      return absl::OkStatus();
+    }
+    return DefaultHandler(tp);
   }
 
   absl::Status DefaultHandler(const AstNode* node) override {

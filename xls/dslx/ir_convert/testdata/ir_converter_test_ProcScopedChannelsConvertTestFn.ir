@@ -1,0 +1,14 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn __test_module__foo() -> () {
+  ret tuple.1: () = tuple(id=1)
+}
+
+fn __itok__test_module__calls_foo(__token: token id=2, __activated: bits[1] id=3) -> (token, ()) {
+  after_all.6: token = after_all(id=6)
+  tuple.5: () = tuple(id=5)
+  invoke.4: () = invoke(to_apply=__test_module__foo, id=4)
+  ret tuple.7: (token, ()) = tuple(after_all.6, tuple.5, id=7)
+}
