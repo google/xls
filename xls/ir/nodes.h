@@ -857,6 +857,10 @@ class Next final : public Node {
 
   bool IsDefinitelyEqualTo(const Node* other) const final;
 
+  StateElement* state_element() const {
+    return state_read()->As<StateRead>()->state_element();
+  }
+
  private:
   static constexpr int64_t kPredicateOperand = 2;
 
