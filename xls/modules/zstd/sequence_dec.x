@@ -87,14 +87,19 @@ struct FseLookupCtrlState {
     mode_valid: bool,
     cnt: u2,
     accuracy_logs: u7[3],
+    remainder: common::Remainder,
 }
 
 struct FseLookupCtrlInternalReq {
     cnt: u2,
-    is_rle: bool
+    is_rle: bool,
+    remainder: common::Remainder,
 }
 
-type FseLookupCtrlInternalResp = u7;
+struct FseLookupCtrlInternalResp {
+    accuracy_log: u7,
+    remainder: common::Remainder,
+}
 
 pub proc FseLookupCtrlInternal {
     type Req = FseLookupCtrlInternalReq;
@@ -135,12 +140,15 @@ pub proc FseLookupCtrlInternal {
         trace_fmt!("[SequenceDecoderCtrl/FseLookupCtrl]: Sent fse_demux req {:#x}", req.cnt);
         let (tok, demux_resp) = recv(tok, fse_demux_resp_r);
         trace_fmt!("[SequenceDecoderCtrl/FseLookupCtrl]: Received demux resp {:#x}", demux_resp);
-        let fld_req = FseLookupDecoderReq { is_rle: req.is_rle };
+        let fld_req = FseLookupDecoderReq { is_rle: req.is_rle, remainder: req.remainder };
         let tok = send(tok, fld_req_s, fld_req);
         trace_fmt!("[SequenceDecoderCtrl/FseLookupCtrl]: Sent FseLookupDecoder req: {:x}", fld_req);
         let (tok, fld_resp) = recv(tok, fld_resp_r);
         trace_fmt!("[SequenceDecoderCtrl/FseLookupCtrl]: Received FseLookupDecoder resp {:#x}", fld_resp);
-        let tok = send(tok, resp_s, fld_resp.accuracy_log as u7);
+        let tok = send(tok, resp_s, FseLookupCtrlInternalResp {
+            accuracy_log: fld_resp.accuracy_log as u7,
+            remainder: fld_resp.remainder,
+        });
     }
 }
 
@@ -198,7 +206,8 @@ pub proc FseLookupCtrl {
                 mode: CompressionMode[3]:[req.ll_mode, req.of_mode, req.ml_mode],
                 mode_valid: true,
                 cnt: u2:0,
-                accuracy_logs: state.accuracy_logs // keep the accuracy logs from the previous block for "repeated" blocks
+                accuracy_logs: state.accuracy_logs, // keep the accuracy logs from the previous block for "repeated" blocks
+                ..state
             }
         } else {
             let is_rle = (state.mode[state.cnt] == CompressionMode::RLE);
@@ -207,6 +216,8 @@ pub proc FseLookupCtrl {
             let is_repeated = (state.mode[state.cnt] == CompressionMode::REPEAT);
             let do_set = is_rle || is_compressed;
 
+            trace_fmt!("[FseLookupCtrl] State: {}", state);
+
             match(state.cnt) {
                 u2:0 => trace_fmt!("Handling LL"),
                 u2:1 => trace_fmt!("Handling OF"),
@@ -214,23 +225,30 @@ pub proc FseLookupCtrl {
                 _    => trace_fmt!("Impossible case"),
             };
 
-            let accuracy_log = if do_set {
+            let resp = if do_set {
                 let tok = send(tok, flci_req_s, FseLookupCtrlInternalReq {
                     cnt: state.cnt,
-                    is_rle: is_rle
+                    is_rle: is_rle,
+                    remainder: state.remainder
                  });
-                let (tok, accuracy_log) = recv(tok, flci_resp_r);
-                accuracy_log
+                let (tok, resp) = recv(tok, flci_resp_r);
+                resp
             } else if is_predefined {
-                PREDEFINED_ACURACY_LOG[state.cnt]
+                FseLookupCtrlInternalResp {
+                    accuracy_log: PREDEFINED_ACURACY_LOG[state.cnt],
+                    remainder: state.remainder,
+                }
             } else if is_repeated {
-                state.accuracy_logs[state.cnt]
+                FseLookupCtrlInternalResp {
+                    accuracy_log: state.accuracy_logs[state.cnt],
+                    remainder: state.remainder,
+                }
             } else {
-                fail!("impossible_case", u7:0)
+                fail!("impossible_case", zero!<FseLookupCtrlInternalResp>())
             };
 
-            let accuracy_logs = update(state.accuracy_logs, state.cnt, accuracy_log);
-            trace_fmt!("[SequenceDecoderCtrl/FseLookupCtrl]: accuracy_log: {:#x}, accuracy_logs: {:#x}", accuracy_log, accuracy_logs);
+            let accuracy_logs = update(state.accuracy_logs, state.cnt, resp.accuracy_log);
+            trace_fmt!("[SequenceDecoderCtrl/FseLookupCtrl]: accuracy_log: {:#x}, accuracy_logs: {:#x}", resp.accuracy_log, accuracy_logs);
 
             if state.cnt >= u2:2 {
                 let tok = send(tok, resp_s, FseLookupCtrlResp {
@@ -240,7 +258,7 @@ pub proc FseLookupCtrl {
                 });
                 State { accuracy_logs, ..zero!<State>() }
             } else {
-                State { accuracy_logs, cnt: state.cnt + u2:1, ..state}
+                State { accuracy_logs, cnt: state.cnt + u2:1, remainder: resp.remainder, ..state}
             }
         }
     }

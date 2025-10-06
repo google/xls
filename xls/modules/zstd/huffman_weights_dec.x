@@ -1069,7 +1069,7 @@ proc HuffmanFseWeightsDecoder<
         let tok = send(tok, fld_rsb_start_req_s, fld_rsb_start_req);
         trace_fmt!("[FSE] Sent refilling shift buffer start request {:#x}", fld_rsb_start_req);
 
-        let fld_req = CompLookupDecoderReq {};
+        let fld_req = zero!<CompLookupDecoderReq>();
         let tok = send(tok, fld_req_s, fld_req);
         trace_fmt!("[FSE] Sent FSE lookup decoding request {:#x}", fld_req);
 
