@@ -115,6 +115,20 @@ bool xls_dslx_parametric_env_clone(
     const struct xls_dslx_parametric_env* env,
     struct xls_dslx_parametric_env** env_out);
 
+// Returns whether the given parametric environments are equal.
+bool xls_dslx_parametric_env_equals(
+    const struct xls_dslx_parametric_env* lhs,
+    const struct xls_dslx_parametric_env* rhs, bool* result_out);
+
+// Returns true if lhs is lexicographically less than rhs.
+bool xls_dslx_parametric_env_less_than(
+    const struct xls_dslx_parametric_env* lhs,
+    const struct xls_dslx_parametric_env* rhs, bool* result_out);
+
+// Computes a 64-bit hash value for the given parametric environment.
+bool xls_dslx_parametric_env_hash(
+    const struct xls_dslx_parametric_env* env, uint64_t* result_out);
+
 // Frees a previously created parametric environment.
 void xls_dslx_parametric_env_free(struct xls_dslx_parametric_env*);
 

@@ -14,6 +14,7 @@
 
 #include "xls/public/c_api_dslx.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -25,6 +26,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/hash/hash.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -117,6 +119,68 @@ bool xls_dslx_parametric_env_clone(
       reinterpret_cast<const xls::dslx::ParametricEnv*>(env);
   auto* heap = new xls::dslx::ParametricEnv(*cpp_env);
   *env_out = reinterpret_cast<xls_dslx_parametric_env*>(heap);
+  return true;
+}
+
+bool xls_dslx_parametric_env_equals(
+    const struct xls_dslx_parametric_env* lhs,
+    const struct xls_dslx_parametric_env* rhs, bool* result_out) {
+  CHECK(lhs != nullptr);
+  CHECK(rhs != nullptr);
+  CHECK(result_out != nullptr);
+  const auto* cpp_lhs =
+      reinterpret_cast<const xls::dslx::ParametricEnv*>(lhs);
+  const auto* cpp_rhs =
+      reinterpret_cast<const xls::dslx::ParametricEnv*>(rhs);
+  *result_out = *cpp_lhs == *cpp_rhs;
+  return true;
+}
+
+bool xls_dslx_parametric_env_less_than(
+    const struct xls_dslx_parametric_env* lhs,
+    const struct xls_dslx_parametric_env* rhs, bool* result_out) {
+  CHECK(lhs != nullptr);
+  CHECK(rhs != nullptr);
+  CHECK(result_out != nullptr);
+  const auto* cpp_lhs =
+      reinterpret_cast<const xls::dslx::ParametricEnv*>(lhs);
+  const auto* cpp_rhs =
+      reinterpret_cast<const xls::dslx::ParametricEnv*>(rhs);
+  const auto& lhs_bindings = cpp_lhs->bindings();
+  const auto& rhs_bindings = cpp_rhs->bindings();
+  const int64_t common =
+      std::min(lhs_bindings.size(), rhs_bindings.size());
+  for (int64_t i = 0; i < common; ++i) {
+    const auto& lhs_item = lhs_bindings[i];
+    const auto& rhs_item = rhs_bindings[i];
+    if (lhs_item.identifier < rhs_item.identifier) {
+      *result_out = true;
+      return true;
+    }
+    if (rhs_item.identifier < lhs_item.identifier) {
+      *result_out = false;
+      return true;
+    }
+    if (lhs_item.value < rhs_item.value) {
+      *result_out = true;
+      return true;
+    }
+    if (rhs_item.value < lhs_item.value) {
+      *result_out = false;
+      return true;
+    }
+  }
+  *result_out = lhs_bindings.size() < rhs_bindings.size();
+  return true;
+}
+
+bool xls_dslx_parametric_env_hash(
+    const struct xls_dslx_parametric_env* env, uint64_t* result_out) {
+  CHECK(env != nullptr);
+  CHECK(result_out != nullptr);
+  const auto* cpp_env =
+      reinterpret_cast<const xls::dslx::ParametricEnv*>(env);
+  *result_out = static_cast<uint64_t>(absl::HashOf(*cpp_env));
   return true;
 }
 
