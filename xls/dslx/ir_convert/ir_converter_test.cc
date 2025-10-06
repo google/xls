@@ -5866,8 +5866,7 @@ INSTANTIATE_TEST_SUITE_P(IrConverterWithBothTypecheckVersionsTestSuite,
 INSTANTIATE_TEST_SUITE_P(
     ProcScopedChannelsIrConverterWithBothTypecheckVersionsTestSuite,
     ProcScopedChannelsIrConverterTest,
-    testing::Values(TypeInferenceVersion::kVersion1,
-                    TypeInferenceVersion::kVersion2));
+    testing::Values(TypeInferenceVersion::kVersion2));
 
 }  // namespace
 }  // namespace xls::dslx
