@@ -111,23 +111,26 @@ bool xls_dslx_parametric_env_create(
     char** error_out, struct xls_dslx_parametric_env** env_out);
 
 // Clones an existing parametric environment.
-bool xls_dslx_parametric_env_clone(
-    const struct xls_dslx_parametric_env* env,
-    struct xls_dslx_parametric_env** env_out);
+struct xls_dslx_parametric_env* xls_dslx_parametric_env_clone(
+    const struct xls_dslx_parametric_env* env);
 
 // Returns whether the given parametric environments are equal.
 bool xls_dslx_parametric_env_equals(
     const struct xls_dslx_parametric_env* lhs,
-    const struct xls_dslx_parametric_env* rhs, bool* result_out);
+    const struct xls_dslx_parametric_env* rhs);
 
 // Returns true if lhs is lexicographically less than rhs.
 bool xls_dslx_parametric_env_less_than(
     const struct xls_dslx_parametric_env* lhs,
-    const struct xls_dslx_parametric_env* rhs, bool* result_out);
+    const struct xls_dslx_parametric_env* rhs);
 
 // Computes a 64-bit hash value for the given parametric environment.
-bool xls_dslx_parametric_env_hash(
-    const struct xls_dslx_parametric_env* env, uint64_t* result_out);
+uint64_t xls_dslx_parametric_env_hash(
+    const struct xls_dslx_parametric_env* env);
+
+// Returns a newly allocated string describing the parametric environment.
+char* xls_dslx_parametric_env_to_string(
+    const struct xls_dslx_parametric_env* env);
 
 // Frees a previously created parametric environment.
 void xls_dslx_parametric_env_free(struct xls_dslx_parametric_env*);
@@ -156,9 +159,8 @@ bool xls_dslx_interp_value_make_array(
     char** error_out, struct xls_dslx_interp_value** result_out);
 
 // Clones an InterpValue.
-bool xls_dslx_interp_value_clone(
-    const struct xls_dslx_interp_value* value,
-    struct xls_dslx_interp_value** result_out);
+struct xls_dslx_interp_value* xls_dslx_interp_value_clone(
+    const struct xls_dslx_interp_value* value);
 
 // Parses an InterpValue from DSLX text using the parser/evaluator.
 bool xls_dslx_interp_value_from_string(

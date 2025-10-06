@@ -110,38 +110,32 @@ bool xls_dslx_parametric_env_create(
   return true;
 }
 
-bool xls_dslx_parametric_env_clone(
-    const struct xls_dslx_parametric_env* env,
-    struct xls_dslx_parametric_env** env_out) {
-  CHECK(env_out != nullptr);
+struct xls_dslx_parametric_env* xls_dslx_parametric_env_clone(
+    const struct xls_dslx_parametric_env* env) {
   CHECK(env != nullptr);
   const auto* cpp_env =
       reinterpret_cast<const xls::dslx::ParametricEnv*>(env);
   auto* heap = new xls::dslx::ParametricEnv(*cpp_env);
-  *env_out = reinterpret_cast<xls_dslx_parametric_env*>(heap);
-  return true;
+  return reinterpret_cast<xls_dslx_parametric_env*>(heap);
 }
 
 bool xls_dslx_parametric_env_equals(
     const struct xls_dslx_parametric_env* lhs,
-    const struct xls_dslx_parametric_env* rhs, bool* result_out) {
+    const struct xls_dslx_parametric_env* rhs) {
   CHECK(lhs != nullptr);
   CHECK(rhs != nullptr);
-  CHECK(result_out != nullptr);
   const auto* cpp_lhs =
       reinterpret_cast<const xls::dslx::ParametricEnv*>(lhs);
   const auto* cpp_rhs =
       reinterpret_cast<const xls::dslx::ParametricEnv*>(rhs);
-  *result_out = *cpp_lhs == *cpp_rhs;
-  return true;
+  return *cpp_lhs == *cpp_rhs;
 }
 
 bool xls_dslx_parametric_env_less_than(
     const struct xls_dslx_parametric_env* lhs,
-    const struct xls_dslx_parametric_env* rhs, bool* result_out) {
+    const struct xls_dslx_parametric_env* rhs) {
   CHECK(lhs != nullptr);
   CHECK(rhs != nullptr);
-  CHECK(result_out != nullptr);
   const auto* cpp_lhs =
       reinterpret_cast<const xls::dslx::ParametricEnv*>(lhs);
   const auto* cpp_rhs =
@@ -154,34 +148,35 @@ bool xls_dslx_parametric_env_less_than(
     const auto& lhs_item = lhs_bindings[i];
     const auto& rhs_item = rhs_bindings[i];
     if (lhs_item.identifier < rhs_item.identifier) {
-      *result_out = true;
       return true;
     }
     if (rhs_item.identifier < lhs_item.identifier) {
-      *result_out = false;
-      return true;
+      return false;
     }
     if (lhs_item.value < rhs_item.value) {
-      *result_out = true;
       return true;
     }
     if (rhs_item.value < lhs_item.value) {
-      *result_out = false;
-      return true;
+      return false;
     }
   }
-  *result_out = lhs_bindings.size() < rhs_bindings.size();
-  return true;
+  return lhs_bindings.size() < rhs_bindings.size();
 }
 
-bool xls_dslx_parametric_env_hash(
-    const struct xls_dslx_parametric_env* env, uint64_t* result_out) {
+uint64_t xls_dslx_parametric_env_hash(
+    const struct xls_dslx_parametric_env* env) {
   CHECK(env != nullptr);
-  CHECK(result_out != nullptr);
   const auto* cpp_env =
       reinterpret_cast<const xls::dslx::ParametricEnv*>(env);
-  *result_out = static_cast<uint64_t>(absl::HashOf(*cpp_env));
-  return true;
+  return static_cast<uint64_t>(absl::HashOf(*cpp_env));
+}
+
+char* xls_dslx_parametric_env_to_string(
+    const struct xls_dslx_parametric_env* env) {
+  CHECK(env != nullptr);
+  const auto* cpp_env =
+      reinterpret_cast<const xls::dslx::ParametricEnv*>(env);
+  return xls::ToOwnedCString(cpp_env->ToString());
 }
 
 void xls_dslx_parametric_env_free(struct xls_dslx_parametric_env* env) {
@@ -279,16 +274,13 @@ bool xls_dslx_interp_value_make_array(
   return true;
 }
 
-bool xls_dslx_interp_value_clone(
-    const struct xls_dslx_interp_value* value,
-    struct xls_dslx_interp_value** result_out) {
-  CHECK(result_out != nullptr);
+struct xls_dslx_interp_value* xls_dslx_interp_value_clone(
+    const struct xls_dslx_interp_value* value) {
   CHECK(value != nullptr);
   const auto* cpp_interp_value =
       reinterpret_cast<const xls::dslx::InterpValue*>(value);
   auto* heap = new xls::dslx::InterpValue(*cpp_interp_value);
-  *result_out = reinterpret_cast<xls_dslx_interp_value*>(heap);
-  return true;
+  return reinterpret_cast<xls_dslx_interp_value*>(heap);
 }
 
 struct xls_dslx_import_data* xls_dslx_import_data_create(
