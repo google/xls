@@ -288,6 +288,9 @@ int64_t xls_dslx_module_get_type_definition_count(
 // Note: return value is owned by the caller, free via `xls_c_str_free`.
 char* xls_dslx_module_get_name(struct xls_dslx_module*);
 
+// Note: return value is owned by the caller, free via `xls_c_str_free`.
+char* xls_dslx_module_to_string(struct xls_dslx_module* module);
+
 xls_dslx_type_definition_kind xls_dslx_module_get_type_definition_kind(
     struct xls_dslx_module* module, int64_t i);
 

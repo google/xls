@@ -697,6 +697,11 @@ char* xls_dslx_module_get_name(struct xls_dslx_module* module) {
   return xls::ToOwnedCString(result);
 }
 
+char* xls_dslx_module_to_string(struct xls_dslx_module* module) {
+  auto* cpp_module = reinterpret_cast<xls::dslx::Module*>(module);
+  return xls::ToOwnedCString(cpp_module->ToString());
+}
+
 struct xls_dslx_struct_def* xls_dslx_module_get_type_definition_as_struct_def(
     struct xls_dslx_module* module, int64_t i) {
   auto* cpp_module = reinterpret_cast<xls::dslx::Module*>(module);
