@@ -179,8 +179,8 @@ pub struct FseTableRecord {
     base: u16
 }
 
-pub struct FseRemainder { value: u1, valid: bool }
-pub struct FseProbaFreqDecoderCtrl { remainder: FseRemainder, finished: bool }
+pub struct Remainder { value: u1, valid: bool }
+pub struct FseProbaFreqDecoderCtrl { remainder: Remainder, finished: bool }
 
 pub struct FseTableCreatorCtrl {
     accuracy_log: FseAccuracyLog,
@@ -313,11 +313,14 @@ pub enum LookupDecoderStatus: u1 {
     ERROR = u1:1,
 }
 
-pub struct LookupDecoderReq {}
+pub struct LookupDecoderReq {
+    remainder: Remainder
+}
 
 pub struct LookupDecoderResp {
     status: LookupDecoderStatus,
     accuracy_log: FseAccuracyLog,
+    remainder: Remainder,
 }
 
 pub struct DataArray<BITS_PER_WORD: u32, LENGTH: u32>{

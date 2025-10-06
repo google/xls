@@ -2724,6 +2724,7 @@ xls_dslx_verilog(
         "generator": "pipeline",
         "delay_model": "asap7",
         "pipeline_stages": "6",
+        "worst_case_throughput": "2",
         "reset": "rst",
         "use_system_verilog": "false",
         "multi_proc": "true",
@@ -2742,6 +2743,7 @@ xls_benchmark_ir(
     src = ":fse_lookup_ctrl_verilog.opt.ir",
     benchmark_ir_args = {
         "delay_model": "asap7",
+        "worst_case_throughput": "2",
         "pipeline_stages": "6",
     },
 )
