@@ -4259,14 +4259,14 @@ proc main {
   next(state: ()) { }
 })";
 
-  ConvertOptions options;
-  options.emit_positions = false;
-  options.verify_ir = false;
-  options.lower_to_proc_scoped_channels = true;
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertOneFunctionForTest(kProgram, "main", import_data, options));
+      ConvertOneFunctionForTest(kProgram, "main", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
   ExpectIr(converted);
 }
 
@@ -4373,13 +4373,6 @@ pub proc main {
 }
 
 TEST_P(ProcScopedChannelsIrConverterTest, ConfigWithParam) {
-  // This only works with tiv2 at the moment. With v1, an error is thrown in
-  // ConstexprEvaluator.HandleNumber because (I think) it hasn't noted the u32:1
-  // in init as a constant.
-  if (GetParam() == TypeInferenceVersion::kVersion1) {
-    return;
-  }
-
   constexpr std::string_view kProgram = R"(
 proc adder {
   amount: u32;
@@ -4518,7 +4511,7 @@ pub proc main {
 TEST_P(ProcScopedChannelsIrConverterTest, ConstantInFn) {
   constexpr std::string_view kProgram = R"(
 fn f(input: u16) -> u16 {
-    all_ones!<u16>() + input
+  all_ones!<u16>() + input
 }
 
 fn main() -> u16 {
@@ -4540,7 +4533,7 @@ fn main() -> u16 {
 TEST_P(ProcScopedChannelsIrConverterTest, ParametricConstantInFn) {
   constexpr std::string_view kProgram = R"(
 fn f<N:u32>(input: uN[N]) -> uN[N] {
-    all_ones!<uN[N]>() + input
+  all_ones!<uN[N]>() + input
 }
 
 fn main() -> u16 {
@@ -4558,6 +4551,7 @@ fn main() -> u16 {
                                 }));
   ExpectIr(converted);
 }
+
 TEST_P(ProcScopedChannelsIrConverterTest,
        ParametricSimpleSpawnDifferentParametrics) {
   constexpr std::string_view kProgram = R"(
@@ -4955,11 +4949,6 @@ pub proc main {
 }
 
 TEST_P(ProcScopedChannelsIrConverterTest, InvalidConfigParam) {
-  if (GetParam() == TypeInferenceVersion::kVersion1) {
-    // v1 fails figuring out the param type for some reason.
-    return;
-  }
-
   constexpr std::string_view kProgram = R"(
 proc invalid {
   init { }
@@ -5210,11 +5199,6 @@ proc producer {
 }
 
 TEST_P(ProcScopedChannelsIrConverterTest, InvalidChannelArrayParam) {
-  if (GetParam() == TypeInferenceVersion::kVersion1) {
-    // v1 fails figuring out the param type for some reason.
-    return;
-  }
-
   constexpr std::string_view kProgram = R"(
 proc invalid {
   init { }
@@ -5240,11 +5224,6 @@ pub proc main {
 }
 
 TEST_P(ProcScopedChannelsIrConverterTest, InvalidConfigArrayParam) {
-  if (GetParam() == TypeInferenceVersion::kVersion1) {
-    // v1 fails figuring out the param type for some reason.
-    return;
-  }
-
   constexpr std::string_view kProgram = R"(
 proc invalid {
   init { }
@@ -5814,6 +5793,26 @@ proc main {
                                     .emit_positions = false,
                                     .lower_to_proc_scoped_channels = true,
                                 }));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, UnrollFor) {
+  // Based on UnrollForWithoutIndexAccTypeAnnotation
+  constexpr std::string_view kProgram = R"(
+proc SomeProc {
+  init { () }
+  config() { }
+  next(state: ()) {
+    unroll_for! (i, a) in u32:0..u32:4 {
+      a + i
+    }(u32:0);
+  }
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(
+          kProgram, ConvertOptions{.emit_positions = false,
+                                   .lower_to_proc_scoped_channels = true}));
   ExpectIr(converted);
 }
 
