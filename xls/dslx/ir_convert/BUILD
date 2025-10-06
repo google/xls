@@ -353,6 +353,7 @@ cc_library(
         "//xls/ir:value_utils",
         "//xls/ir:verifier",
         "//xls/ir:xls_ir_interface_cc_proto",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
