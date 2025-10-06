@@ -1207,9 +1207,10 @@ TEST(ReplaceInvocationsTest, ParametricToEnvNonEnumTypeAnnotationErrors) {
 struct S {
   a: u32,
 }
+const DEFAULT_S = S { a: u32:0 };
 fn f<N: S>(x: u32) -> u32 { x }
 fn g<N: S>(x: u32) -> u32 { x }
-fn caller(x: u32) -> u32 { f(x) }
+fn caller(x: u32) -> u32 { f<DEFAULT_S>(x) }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(ParseTypecheckResult pt, ParseTypecheck(kText));
   Module* m = pt.tm.module;
