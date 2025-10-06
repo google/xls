@@ -22,6 +22,7 @@ load(
     "//xls/build_rules:xls_common_rules.bzl",
     "append_default_to_args",
     "args_to_string",
+    "fixup_extra_args",
     "get_input_infos",
     "get_output_filename_value",
     "get_runfiles_for_xls",
@@ -431,7 +432,7 @@ def xls_ir_verilog_impl(ctx, src, conv_info):
     final_args += " --scheduling_options_used_textproto_file={}".format(
         sched_config_textproto_file.path,
     )
-    for v in ctx.attr._extra_codegen_flags[BuildSettingInfo].value:
+    for v in fixup_extra_args(ctx.attr._extra_codegen_flags[BuildSettingInfo].value):
         final_args += " " + v
 
     if "local" in ctx.attr.tags:

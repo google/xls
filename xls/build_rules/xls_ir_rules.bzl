@@ -22,6 +22,7 @@ load(
     "append_cmd_line_args_to",
     "append_default_to_args",
     "args_to_string",
+    "fixup_extra_args",
     "get_original_input_files_for_xls",
     "get_output_filename_value",
     "get_runfiles_for_xls",
@@ -319,7 +320,7 @@ def _optimize_ir(ctx, src, original_input_files):
         outs.append(pprof_file)
         extra_outs.append(pprof_file)
     runfiles = get_runfiles_for_xls(ctx, [], [src.ir_file] + ram_rewrite_files + debug_src_files + original_input_files)
-    for v in ctx.attr._extra_opt_flags[BuildSettingInfo].value:
+    for v in fixup_extra_args(ctx.attr._extra_opt_flags[BuildSettingInfo].value):
         args.add(v)
     ctx.actions.run(
         outputs = outs,

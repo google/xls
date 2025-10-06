@@ -332,3 +332,47 @@ def get_transitive_built_files_for_xls(ctx, additional_target_list = []):
         return None
 
     return transitive_built_files
+
+def _count_trailing(full, piece):
+    """Counts the number of trailing occurrences of 'piece' in 'full'.
+
+    Args:
+      full: The string to search within.
+      piece: The character or substring to count at the end of 'full'.
+
+    Returns:
+      The number of times 'piece' appears at the end of 'full'.
+    """
+    i = 0
+    for x in reversed(full):
+        if x != piece:
+            return i
+        i += 1
+    return i
+
+def fixup_extra_args(inp):
+    """Fixes up extra arguments by concatenating those ending in a single backslash.
+
+    Iterates through the input list of strings. If an element ends with a single
+    backslash, it is concatenated with the *next* element using a comma.
+    Elements ending with double backslashes are treated as normal.
+
+    Example:
+      fixup_extra_args(["--a=1", "--b=c=4\\", "d=2", "--c=3"]) -> ["--a=1", "--b=c=4,d=2", "--c=3"]
+      fixup_extra_args(["--a=\\", "--b=\\", "2"]) -> ["--a=, --b=,2"]
+      fixup_extra_args(["--a=\\\\", "--b=2"]) -> ["--a=\\\\", "--b=2"]
+
+    Args:
+      inp: A list of strings representing command line arguments.
+
+    Returns:
+      A list of strings with backslash-escaped arguments concatenated.
+    """
+    res = []
+    for v in inp:
+        if not res or _count_trailing(full = res[-1], piece = "\\") % 2 == 0:
+            # No previous element or last element doesn't end with an escaped '\'.
+            res.append(v)
+        else:
+            res[-1] = res[-1][:-1] + "," + v
+    return res
