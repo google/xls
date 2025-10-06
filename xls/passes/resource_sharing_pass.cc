@@ -2757,6 +2757,16 @@ FoldingGraph::FoldingGraph(
   // Allocate the graph
   graph_ = std::make_unique<Graph>();
 
+  // Ensure deterministic construction of FoldingGraph
+  std::sort(foldable_actions.begin(), foldable_actions.end(),
+            [](const std::unique_ptr<BinaryFoldingAction>& a,
+               const std::unique_ptr<BinaryFoldingAction>& b) {
+              if (a->GetFrom()->id() == b->GetFrom()->id()) {
+                return a->GetTo()->id() < b->GetTo()->id();
+              }
+              return a->GetFrom()->id() < b->GetFrom()->id();
+            });
+
   // Add the nodes
   AddNodes(foldable_actions);
 
