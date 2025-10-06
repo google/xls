@@ -863,9 +863,9 @@ pub const var_2 = u16:0xbeef;
 
 import std;
 
-pub const var_3 = std::clog2(s32:1024 as uN[32]) as s32;  // s32:10
-pub const var_4 = std::clog2(s32:1025 as uN[32]) as s32;  // s32:11
-pub const var_5 = std::clog2(s32:2048 as uN[32]) as s32;  // s32:11
+pub const var_3 = std::clog2(s32:1024 as bits[32]) as s32;  // s32:10
+pub const var_4 = std::clog2(s32:1025 as bits[32]) as s32;  // s32:11
+pub const var_5 = std::clog2(s32:2048 as bits[32]) as s32;  // s32:11
 pub const var_6 = u16:0xbeef;
 pub const var_7 = -s32:0xbeef as u16;
 )";

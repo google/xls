@@ -28,11 +28,10 @@
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
-#include "xls/dslx/interp_bindings.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/parse_and_typecheck.h"
-#include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/type_system_v2/type_inference_error_handler.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/format_preference.h"
@@ -143,14 +142,14 @@ class DslxBuilder {
   // operands).
   absl::StatusOr<dslx::Expr*> CastToInferredVastType(
       verilog::Expression* vast_expr, dslx::Expr* expr,
-      bool cast_enum_to_builtin = false);
+      bool force_cast_user_defined = false);
 
   // Returns `expr` casted to the equivalent of the specified `vast_type`. If
   // `cast_enum_to_builtin` is true, then the corresponding DSLX built-in type
   // will be used for any VAST enum type.
   absl::StatusOr<dslx::Expr*> Cast(verilog::DataType* vast_type,
                                    dslx::Expr* expr,
-                                   bool cast_enum_to_builtin = false);
+                                   bool force_cast_user_defined = false);
 
   dslx::Unop* HandleUnaryOperator(const dslx::Span& span,
                                   dslx::UnopKind unop_kind, dslx::Expr* arg);
@@ -183,8 +182,6 @@ class DslxBuilder {
   absl::StatusOr<std::string> FormatModule();
 
   dslx::ImportData& import_data() { return import_data_; }
-  dslx::DeduceCtx& deduce_ctx() { return deduce_ctx_; }
-  dslx::TypeInfo& type_info() { return *type_info_; }
   dslx::Module& module() { return module_; }
   dslx::FileTable& file_table() { return import_data_.file_table(); }
 
@@ -206,7 +203,8 @@ class DslxBuilder {
 
   absl::StatusOr<dslx::TypecheckedModule> RoundTrip(
       const dslx::Module& module, std::string_view path,
-      dslx::ImportData& import_data);
+      dslx::ImportData& import_data,
+      dslx::TypeInferenceErrorHandler error_handler = nullptr);
 
   dslx::ImportData CreateImportData();
 
@@ -218,9 +216,6 @@ class DslxBuilder {
   DslxResolver* const resolver_;
   dslx::WarningCollector warnings_;
   dslx::TypeInfo* const type_info_;
-
-  dslx::DeduceCtx deduce_ctx_;
-  dslx::InterpBindings bindings_;
 
   const absl::flat_hash_map<verilog::Expression*, verilog::DataType*>&
       vast_type_map_;

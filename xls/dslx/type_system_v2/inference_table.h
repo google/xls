@@ -96,6 +96,9 @@ class TypeInferenceFlag {
   // want to solve for).
   static const TypeInferenceFlag kFormalMemberType;
 
+  // Indicates the formal type of a function.
+  static const TypeInferenceFlag kFormalFunctionType;
+
   bool HasFlag(const TypeInferenceFlag& value) const {
     if (value.flags_ == kNone.flags_) {
       return flags_ == kNone.flags_;
@@ -110,8 +113,9 @@ class TypeInferenceFlag {
     // 1. Zero or one flag is set (except those we specifically allow combining
     // with others).
     // 2. Both kMinSize and kHasPrefix are set.
-    const uint8_t combo_allowed_flags =
-        kSliceContainerSize.flags_ | kFormalMemberType.flags_;
+    const uint8_t combo_allowed_flags = kSliceContainerSize.flags_ |
+                                        kFormalMemberType.flags_ |
+                                        kFormalFunctionType.flags_;
     CHECK((flags_ & (flags_ - 1) & ~combo_allowed_flags) == 0 ||
           flags_ == (kMinSize.flags_ | kHasPrefix.flags_));
   }

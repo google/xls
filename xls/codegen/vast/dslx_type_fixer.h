@@ -18,7 +18,10 @@
 #include <memory>
 
 #include "xls/dslx/frontend/ast_cloner.h"
+#include "xls/dslx/frontend/module.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/type_system_v2/type_inference_error_handler.h"
 
 namespace xls {
 
@@ -31,13 +34,24 @@ class DslxTypeFixer {
  public:
   virtual ~DslxTypeFixer() = default;
 
+  // Returns an error handler that can fix type errors in the draft of the
+  // generated DSLX. After running type inference with this handler, the
+  // replacer returned by GetReplacer() injects any needed fixes that were
+  // discovered by the error handler.
+  virtual dslx::TypeInferenceErrorHandler GetErrorHandler() = 0;
+
   // Deals out a `CloneReplacer` that can be used to transform the draft AST
   // into a fixed AST.
-  virtual dslx::CloneReplacer GetReplacer(const dslx::TypeInfo* ti) = 0;
+  virtual dslx::CloneReplacer GetErrorFixReplacer(const dslx::TypeInfo* ti) = 0;
+
+  // Deals out a `CloneReplacer` that can be used to transform the draft AST
+  // into a fixed AST.
+  virtual dslx::CloneReplacer GetSimplifyReplacer(const dslx::TypeInfo* ti) = 0;
 };
 
 // Deals out a type fixer.
-std::unique_ptr<DslxTypeFixer> CreateDslxTypeFixer();
+std::unique_ptr<DslxTypeFixer> CreateDslxTypeFixer(
+    dslx::Module& original_module, const dslx::ImportData& import_data);
 
 }  // namespace xls
 
