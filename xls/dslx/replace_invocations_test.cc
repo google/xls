@@ -1210,8 +1210,7 @@ pub enum E : u2 {
 }
 )";
   const std::string kTest = R"(// test.x
-#![feature(use_syntax)]
-use base;
+import base;
 fn f<N: base::E>(x: u32) -> u32 { x }
 fn g<N: base::E>(x: u32) -> u32 { x }
 fn caller(x: u32) -> u32 { f<base::E::B>(x) }
