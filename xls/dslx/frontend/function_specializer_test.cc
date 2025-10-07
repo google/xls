@@ -31,6 +31,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/replace_invocations.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/typecheck_module.h"
 #include "xls/dslx/warning_collector.h"
@@ -219,6 +220,154 @@ fn twice<N: u32>(x: bits[N]) -> bits[N] {
     EXPECT_EQ(param->span().GetFilename(files), specialized_filename);
     EXPECT_TRUE(specialized->span().Contains(param->span()));
   }
+}
+
+TEST(FunctionSpecializerTest, SpecializedInvocationParametricsAreConcrete) {
+  constexpr std::string_view kProgram =
+      R"(fn repeat<COUNT: u32, N: u32>(x: uN[N]) -> uN[N][COUNT] {
+  uN[N][COUNT]:[x, ...]
+}
+
+fn select_poly<N: u32>(polys: uN[6][N], selector: uN[N]) -> uN[6] {
+  let repeated = repeat<N, N>(selector);
+  let first = repeated[u32:0];
+  if first == selector { polys[u32:0] } else { polys[u32:1] }
+}
+)";
+
+  std::unique_ptr<ImportData> import_data = CreateImportDataPtrForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule typechecked,
+                           ParseAndTypecheck(kProgram, "invocation_test.x",
+                                             "invocation_test",
+                                             import_data.get()));
+
+  Module* module = typechecked.module;
+  ASSERT_NE(module, nullptr);
+
+  auto functions = module->GetFunctionByName();
+  ASSERT_TRUE(functions.contains("select_poly"));
+  Function* select_poly = functions.at("select_poly");
+
+  // Ensure the file table knows about the module path used below.
+  module->file_table()->GetOrCreate("invocation_test.x");
+
+  ASSERT_FALSE(select_poly->parametric_bindings().empty());
+  const ParametricBinding* binding = select_poly->parametric_bindings().front();
+  absl::flat_hash_map<std::string, InterpValue> env_bindings;
+  env_bindings.emplace(binding->identifier(),
+                       InterpValue::MakeUBits(/*bit_count=*/32, 34));
+  ParametricEnv env(env_bindings);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * specialized,
+                           InsertFunctionSpecialization(select_poly, env,
+                                                        "select_poly_34"));
+
+  StatementBlock* body = specialized->body();
+  ASSERT_NE(body, nullptr);
+  ASSERT_FALSE(body->statements().empty());
+
+  const Statement::Wrapped& first_wrapped =
+      body->statements().front()->wrapped();
+  ASSERT_TRUE(std::holds_alternative<Let*>(first_wrapped));
+  Let* repeated_let = std::get<Let*>(first_wrapped);
+
+  Expr* rhs = repeated_let->rhs();
+  auto* invocation = dynamic_cast<Invocation*>(rhs);
+  ASSERT_NE(invocation, nullptr);
+
+  const std::vector<ExprOrType>& parametrics =
+      invocation->explicit_parametrics();
+  ASSERT_FALSE(parametrics.empty());
+  ASSERT_TRUE(std::holds_alternative<Expr*>(parametrics.front()));
+  Expr* param_expr = std::get<Expr*>(parametrics.front());
+  auto* number = dynamic_cast<Number*>(param_expr);
+  ASSERT_NE(number, nullptr);
+  EXPECT_EQ(number->text(), "0x22");
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> cloned_module,
+                           CloneModule(*module));
+  std::unique_ptr<ImportData> tc_import_data = CreateImportDataPtrForTest();
+  std::filesystem::path module_path = module->fs_path().value_or(
+      std::filesystem::path("invocation_test.x"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule retyped,
+      TypecheckModule(std::move(cloned_module), module_path.string(),
+                      tc_import_data.get()));
+  EXPECT_NE(retyped.type_info, nullptr);
+
+  const Function* caller = retyped.module->GetFunction("select_poly").value();
+  const Function* callee = retyped.module->GetFunction("repeat").value();
+  const Function* callers_arr[] = {caller};
+
+  InvocationRewriteRule rule;
+  rule.from_callee = callee;
+  rule.to_callee = callee;
+  const InvocationRewriteRule rules_arr[] = {rule};
+
+  absl::StatusOr<TypecheckedModule> rewritten = ReplaceInvocationsInModule(
+      retyped, absl::MakeSpan(callers_arr), absl::MakeSpan(rules_arr),
+      *tc_import_data, "invocation_test.rewrite");
+  ASSERT_TRUE(rewritten.ok()) << rewritten.status();
+}
+
+TEST(FunctionSpecializerTest, SpecializedInvocationSupportsRewrite) {
+  constexpr std::string_view kProgram =
+      R"(fn repeat<COUNT: u32, N: u32>(x: uN[N]) -> uN[N][COUNT] {
+  uN[N][COUNT]:[x, ...]
+}
+
+fn select_poly<N: u32>(polys: uN[6][N], selector: uN[N]) -> uN[6] {
+  let repeated = repeat<N, N>(selector);
+  let first = repeated[u32:0];
+  if first == selector { polys[u32:0] } else { polys[u32:1] }
+}
+)";
+
+  std::unique_ptr<ImportData> import_data = CreateImportDataPtrForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule typechecked,
+                           ParseAndTypecheck(kProgram, "rewrite_test.x",
+                                             "rewrite_test",
+                                             import_data.get()));
+
+  Module* module = typechecked.module;
+  ASSERT_NE(module, nullptr);
+
+  Function* select_poly = module->GetFunctionByName().at("select_poly");
+  const ParametricBinding* binding = select_poly->parametric_bindings().front();
+  absl::flat_hash_map<std::string, InterpValue> env_bindings;
+  env_bindings.emplace(binding->identifier(),
+                       InterpValue::MakeUBits(/*bit_count=*/32, 12));
+  ParametricEnv env(env_bindings);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * specialized,
+                           InsertFunctionSpecialization(select_poly, env,
+                                                        "select_poly_12"));
+  ASSERT_NE(specialized, nullptr);
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> cloned_module,
+                           CloneModule(*module));
+  std::unique_ptr<ImportData> rewrite_import_data =
+      CreateImportDataPtrForTest();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule retyped,
+      TypecheckModule(std::move(cloned_module), "rewrite_test.x",
+                      rewrite_import_data.get()));
+
+  const Function* caller = retyped.module->GetFunction("select_poly").value();
+  const Function* callee = retyped.module->GetFunction("repeat").value();
+  const Function* callers_arr[] = {caller};
+
+  InvocationRewriteRule rule;
+  rule.from_callee = callee;
+  rule.to_callee = callee;
+  const InvocationRewriteRule rules_arr[] = {rule};
+
+  absl::StatusOr<TypecheckedModule> replaced = ReplaceInvocationsInModule(
+      retyped, absl::MakeSpan(callers_arr), absl::MakeSpan(rules_arr),
+      *rewrite_import_data, "rewrite_test.rewrite");
+  ASSERT_TRUE(replaced.ok()) << replaced.status();
 }
 
 }  // namespace

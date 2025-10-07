@@ -14,7 +14,6 @@
 
 #include "xls/dslx/frontend/function_specializer.h"
 
-#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -51,6 +50,8 @@ class SyntheticSpanAllocator {
     }
   }
 
+  bool enabled() const { return file_table_ != nullptr; }
+
   Span Assign(AstNode* node) {
     if (node == nullptr || file_table_ == nullptr) {
       return Span::Fake();
@@ -59,20 +60,14 @@ class SyntheticSpanAllocator {
   }
 
   Span Enclose(absl::Span<const Span> spans) const {
-    if (file_table_ == nullptr || spans.empty()) {
+    if (!enabled() || spans.empty()) {
       return Span::Fake();
     }
-    Pos start = spans.front().start();
-    Pos limit = spans.front().limit();
-    for (const Span& span : spans) {
-      if (span.start() < start) {
-        start = span.start();
-      }
-      if (limit < span.limit()) {
-        limit = span.limit();
-      }
+    Span result = spans.front();
+    for (size_t i = 1; i < spans.size(); ++i) {
+      result = MergeSpans(result, spans[i]);
     }
-    return Span(start, limit);
+    return result;
   }
 
  private:
@@ -86,21 +81,19 @@ class SyntheticSpanAllocator {
       if (!aggregate.has_value()) {
         aggregate = child_span;
       } else {
-        Pos start = aggregate->start();
-        if (child_span.start() < start) {
-          start = child_span.start();
-        }
-        Pos limit = aggregate->limit();
-        if (limit < child_span.limit()) {
-          limit = child_span.limit();
-        }
-        aggregate = Span(start, limit);
+        aggregate = MergeSpans(*aggregate, child_span);
       }
     }
 
     Span result = aggregate.has_value() ? *aggregate : AllocateLeafSpan();
     ApplySpan(node, result);
     return result;
+  }
+
+  Span MergeSpans(const Span& a, const Span& b) const {
+    Pos start = a.start() < b.start() ? a.start() : b.start();
+    Pos limit = a.limit() < b.limit() ? b.limit() : a.limit();
+    return Span(start, limit);
   }
 
   Span AllocateLeafSpan() {
@@ -170,6 +163,9 @@ absl::StatusOr<Number*> CreateLiteralFromValue(Module* module, const Span& span,
 
   XLS_ASSIGN_OR_RETURN(const Bits& bits, value.GetBits());
   std::string text = BitsToString(bits, FormatPreference::kHex);
+  if (text.empty()) {
+    text = "0x0";
+  }
   return module->Make<Number>(span, text, NumberKind::kOther,
                               /*type=*/nullptr);
 }
@@ -190,6 +186,7 @@ absl::StatusOr<Function*> InsertFunctionSpecialization(
 
   auto binding_values =
       std::make_shared<absl::flat_hash_map<const NameDef*, InterpValue>>();
+  absl::flat_hash_map<const NameDef*, TypeAnnotation*> binding_types;
   for (ParametricBinding* binding : source_function->parametric_bindings()) {
     std::optional<InterpValue> value = param_env.GetValue(binding->name_def());
     if (!value.has_value()) {
@@ -198,12 +195,15 @@ absl::StatusOr<Function*> InsertFunctionSpecialization(
           binding->identifier(), source_function->identifier()));
     }
     binding_values->emplace(binding->name_def(), *value);
+    if (binding->type_annotation() != nullptr) {
+      binding_types.emplace(binding->name_def(), binding->type_annotation());
+    }
   }
 
-  auto make_replacer = [binding_values](
+  auto make_replacer = [binding_values, binding_types](
                             const absl::flat_hash_map<const NameDef*, NameDef*>*
                                 param_name_replacements) -> CloneReplacer {
-    return [binding_values, param_name_replacements](
+    return [binding_values, binding_types, param_name_replacements](
                const AstNode* original, Module* target_module,
                const absl::flat_hash_map<const AstNode*, AstNode*>& old_to_new)
                -> absl::StatusOr<std::optional<AstNode*>> {
@@ -229,6 +229,12 @@ absl::StatusOr<Function*> InsertFunctionSpecialization(
                                CreateLiteralFromValue(target_module,
                                                       name_ref->span(),
                                                       binding_it->second));
+          auto type_it = binding_types.find(def);
+          if (type_it != binding_types.end() && type_it->second != nullptr) {
+            XLS_ASSIGN_OR_RETURN(TypeAnnotation * cloned_type,
+                                 CloneNode<TypeAnnotation>(type_it->second));
+            literal->SetTypeAnnotation(cloned_type);
+          }
           return std::optional<AstNode*>(literal);
         }
       }
@@ -266,24 +272,19 @@ absl::StatusOr<Function*> InsertFunctionSpecialization(
 
   SyntheticSpanAllocator span_allocator(module, source_function,
                                         specialized_name);
-  std::vector<Span> function_component_spans;
-  function_component_spans.reserve(1 + new_params.size() +
-                                   (new_return_type != nullptr ? 1 : 0) + 1);
-
-  function_component_spans.push_back(span_allocator.Assign(new_name_def));
+  std::vector<Span> function_spans;
+  function_spans.push_back(span_allocator.Assign(new_name_def));
   for (Param* param : new_params) {
-    function_component_spans.push_back(span_allocator.Assign(param));
+    function_spans.push_back(span_allocator.Assign(param));
   }
   if (new_return_type != nullptr) {
-    function_component_spans.push_back(
-        span_allocator.Assign(new_return_type));
+    function_spans.push_back(span_allocator.Assign(new_return_type));
   }
-  function_component_spans.push_back(span_allocator.Assign(new_body));
+  function_spans.push_back(span_allocator.Assign(new_body));
 
-  Span function_span = span_allocator.Enclose(
-      absl::MakeSpan(function_component_spans));
-  if (function_span == Span::Fake()) {
-    function_span = source_function->span();
+  Span function_span = source_function->span();
+  if (span_allocator.enabled()) {
+    function_span = span_allocator.Enclose(function_spans);
   }
 
   Function* new_function = module->Make<Function>(
