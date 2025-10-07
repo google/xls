@@ -153,6 +153,76 @@ fn caller() -> (u8, u16) {
   EXPECT_EQ(id_uses, 1);
 }
 
+TEST(ReplaceInvocationsTest, HigherOrderMapKeepsOuterCallee) {
+  const std::string kText = R"(// test
+fn predicate(xy: (u6, u6)) -> bool {
+  let (pattern, payload) = xy;
+  pattern == payload
+}
+
+fn predicate_alias(xy: (u6, u6)) -> bool {
+  predicate(xy)
+}
+
+fn repeat<N: u32>(x: u6) -> u6[N] {
+  u6[N]:[x, ...]
+}
+
+fn select_mask(xs: u6[2], selector: u6) -> bool[2] {
+  let reps = repeat<u32:2>(selector);
+  let pairs = zip(xs, reps);
+  map(pairs, predicate)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(ParseTypecheckResult pt, ParseTypecheck(kText));
+  Module* m = pt.tm.module;
+
+  Function* select_mask = m->GetFunction("select_mask").value();
+  Function* predicate = m->GetFunction("predicate").value();
+  Function* predicate_alias = m->GetFunction("predicate_alias").value();
+
+  InvocationRewriteRule rule;
+  rule.from_callee = predicate;
+  rule.to_callee = predicate_alias;
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule new_tm,
+      ReplaceInvocationsInModule(pt.tm, select_mask, rule, *pt.import_data,
+                                 "test.rw"));
+  Function* select_mask_new =
+      new_tm.module->GetFunction("select_mask").value();
+
+  int map_invocations = 0;
+  int rewritten_invocations = 0;
+  int predicate_alias_refs = 0;
+  int predicate_refs = 0;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto nodes, CollectUnder(select_mask_new->body(), /*want_types=*/false));
+  for (AstNode* n : nodes) {
+    if (auto* inv = dynamic_cast<Invocation*>(n)) {
+      std::string callee = inv->callee()->ToString();
+      if (callee == "map") {
+        map_invocations++;
+      }
+      if (callee == "predicate_alias") {
+        rewritten_invocations++;
+      }
+    }
+    if (auto* nr = dynamic_cast<NameRef*>(n)) {
+      if (nr->identifier() == "predicate_alias") {
+        predicate_alias_refs++;
+      }
+      if (nr->identifier() == "predicate") {
+        predicate_refs++;
+      }
+    }
+  }
+  EXPECT_EQ(map_invocations, 1);
+  EXPECT_EQ(rewritten_invocations, 0);
+  EXPECT_GE(predicate_alias_refs, 1);
+  EXPECT_EQ(predicate_refs, 0);
+}
+
 TEST(ReplaceInvocationsTest,
      ParametricReplacementNoToEnvRetainsExplicitParams) {
   const std::string kText = R"(// test

@@ -14,8 +14,10 @@
 
 #include "xls/dslx/replace_invocations.h"
 
+#include <optional>
 #include <string>
 #include <utility>
+#include <variant>
 
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
@@ -434,9 +436,7 @@ absl::StatusOr<TypecheckedModule> ReplaceInvocationsInModule(
     auto it_nd = old_to_new.find(old_target);
     XLS_RET_CHECK(it_nd != old_to_new.end());
     auto* new_target = down_cast<NameDef*>(it_nd->second);
-    NameRef* new_callee = target_module->Make<NameRef>(
-        inv->callee()->span(), new_target->identifier(), new_target,
-        inv->callee()->in_parens());
+    const NameDef* from_name_def = matched_rule->from_callee->name_def();
 
     // Pre-built the name def map to avoid rebuilding it for each invocation.
     absl::flat_hash_map<const NameDef*, NameDef*> name_def_map =
@@ -446,9 +446,36 @@ absl::StatusOr<TypecheckedModule> ReplaceInvocationsInModule(
       return CloneExprIntoModule(e, target_module, old_to_new, name_def_map);
     };
 
+    auto maybe_replace_expr = [&](Expr* candidate) -> std::optional<Expr*> {
+      auto* nr = dynamic_cast<NameRef*>(candidate);
+      if (nr == nullptr || nr->IsBuiltin()) {
+        return std::nullopt;
+      }
+      if (!std::holds_alternative<const NameDef*>(nr->name_def()) ||
+          std::get<const NameDef*>(nr->name_def()) != from_name_def) {
+        return std::nullopt;
+      }
+      return std::optional<Expr*>(target_module->Make<NameRef>(
+          nr->span(), new_target->identifier(), new_target, nr->in_parens()));
+    };
+
+    Expr* original_callee = inv->callee();
+    Expr* new_callee = nullptr;
+    if (std::optional<Expr*> replaced = maybe_replace_expr(original_callee);
+        replaced.has_value()) {
+      new_callee = *replaced;
+    } else {
+      XLS_ASSIGN_OR_RETURN(new_callee, clone_expr_into(original_callee));
+    }
+
     std::vector<Expr*> new_args;
     new_args.reserve(inv->args().size());
     for (Expr* arg : inv->args()) {
+      if (std::optional<Expr*> replaced = maybe_replace_expr(arg);
+          replaced.has_value()) {
+        new_args.push_back(*replaced);
+        continue;
+      }
       XLS_ASSIGN_OR_RETURN(Expr * cloned, clone_expr_into(arg));
       new_args.push_back(cloned);
     }
@@ -479,6 +506,8 @@ absl::StatusOr<TypecheckedModule> ReplaceInvocationsInModule(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> cloned,
                        CloneModule(module, std::move(replacer)));
   XLS_RET_CHECK_OK(VerifyClone(&module, cloned.get(), *module.file_table()));
+
+  std::cout << "Cloned module: " << cloned->ToString();
 
   return TypecheckAndInstallCloned(std::move(cloned), tm, import_data,
                                    install_subject);
