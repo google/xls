@@ -22,12 +22,12 @@
 #include <utility>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -98,7 +98,8 @@ static absl::StatusOr<InterpValue> Interpret(
     std::string_view program, std::string_view entry,
     const std::vector<InterpValue>& args = {},
     const BytecodeInterpreterOptions& options = BytecodeInterpreterOptions(),
-    ImportData* import_data = nullptr) {
+    ImportData* import_data = nullptr,
+    std::optional<DslxInterpreterEvents*> events = std::nullopt) {
   std::optional<ImportData> local_import_data;
   if (import_data == nullptr) {
     local_import_data.emplace(CreateImportDataForTest());
@@ -121,7 +122,7 @@ static absl::StatusOr<InterpValue> Interpret(
 
   return BytecodeInterpreter::Interpret(import_data, bf.get(), args,
                                         /*channel_manager=*/std::nullopt,
-                                        options);
+                                        options, events);
 }
 
 static const Pos kFakePos(Fileno(0), 0, 0);
@@ -167,14 +168,13 @@ fn main() -> () {
   trace!(u32:42);
 }
 )";
-  std::vector<std::string> trace_output;
+  DslxInterpreterEvents events;
   XLS_ASSERT_OK_AND_ASSIGN(
-      InterpValue value, Interpret(kProgram, "main", /*args=*/{},
-                                   BytecodeInterpreterOptions().trace_hook(
-                                       [&](const Span&, std::string_view s) {
-                                         trace_output.push_back(std::string{s});
-                                       })));
-  EXPECT_THAT(trace_output, testing::ElementsAre("trace of u32:42: 42"));
+      InterpValue value,
+      Interpret(kProgram, "main", /*args=*/{}, BytecodeInterpreterOptions(),
+                nullptr, &events));
+  EXPECT_THAT(events.GetTraceMessageStrings(),
+              testing::ElementsAre("trace of u32:42: 42"));
   EXPECT_EQ(value, InterpValue::MakeUnit());
 }
 
@@ -184,16 +184,15 @@ fn main() -> () {
   trace!(u32:42);
 }
 )";
-  std::vector<std::string> trace_output;
+  DslxInterpreterEvents events;
   XLS_ASSERT_OK_AND_ASSIGN(
       InterpValue value,
       Interpret(kProgram, "main", /*args=*/{},
-                BytecodeInterpreterOptions()
-                    .trace_hook([&](const Span&, std::string_view s) {
-                      trace_output.push_back(std::string{s});
-                    })
-                    .format_preference(FormatPreference::kHex)));
-  EXPECT_THAT(trace_output, testing::ElementsAre("trace of u32:42: 0x2a"));
+                BytecodeInterpreterOptions().format_preference(
+                    FormatPreference::kHex),
+                nullptr, &events));
+  EXPECT_THAT(events.GetTraceMessageStrings(),
+              testing::ElementsAre("trace of u32:42: 0x2a"));
   EXPECT_EQ(value, InterpValue::MakeUnit());
 }
 
@@ -213,14 +212,12 @@ fn main() -> () {
   trace_fmt!("{}", u32:42);
 }
 )";
-  std::vector<std::string> trace_output;
+  DslxInterpreterEvents events;
   XLS_ASSERT_OK_AND_ASSIGN(
-      InterpValue value, Interpret(kProgram, "main", /*args=*/{},
-                                   BytecodeInterpreterOptions().trace_hook(
-                                       [&](const Span&, std::string_view s) {
-                                         trace_output.push_back(std::string{s});
-                                       })));
-  EXPECT_THAT(trace_output, testing::ElementsAre("42"));
+      InterpValue value,
+      Interpret(kProgram, "main", /*args=*/{}, BytecodeInterpreterOptions(),
+                nullptr, &events));
+  EXPECT_THAT(events.GetTraceMessageStrings(), testing::ElementsAre("42"));
   EXPECT_EQ(value, InterpValue::MakeUnit());
 }
 
@@ -230,16 +227,14 @@ fn main() -> () {
   trace_fmt!("{}", u32:42);
 }
 )";
-  std::vector<std::string> trace_output;
+  DslxInterpreterEvents events;
   XLS_ASSERT_OK_AND_ASSIGN(
       InterpValue value,
       Interpret(kProgram, "main", /*args=*/{},
-                BytecodeInterpreterOptions()
-                    .trace_hook([&](const Span&, std::string_view s) {
-                      trace_output.push_back(std::string{s});
-                    })
-                    .format_preference(FormatPreference::kHex)));
-  EXPECT_THAT(trace_output, testing::ElementsAre("0x2a"));
+                BytecodeInterpreterOptions().format_preference(
+                    FormatPreference::kHex),
+                nullptr, &events));
+  EXPECT_THAT(events.GetTraceMessageStrings(), testing::ElementsAre("0x2a"));
   EXPECT_EQ(value, InterpValue::MakeUnit());
 }
 
@@ -249,16 +244,15 @@ fn main() -> () {
   trace_fmt!("{}", u32:42);
 }
 )";
-  std::vector<std::string> trace_output;
+  DslxInterpreterEvents events;
   XLS_ASSERT_OK_AND_ASSIGN(
       InterpValue value,
       Interpret(kProgram, "main", /*args=*/{},
-                BytecodeInterpreterOptions()
-                    .trace_hook([&](const Span&, std::string_view s) {
-                      trace_output.push_back(std::string{s});
-                    })
-                    .format_preference(FormatPreference::kBinary)));
-  EXPECT_THAT(trace_output, testing::ElementsAre("0b10_1010"));
+                BytecodeInterpreterOptions().format_preference(
+                    FormatPreference::kBinary),
+                nullptr, &events));
+  EXPECT_THAT(events.GetTraceMessageStrings(),
+              testing::ElementsAre("0b10_1010"));
   EXPECT_EQ(value, InterpValue::MakeUnit());
 }
 
@@ -273,14 +267,12 @@ fn main() -> () {
   trace_fmt!("{}", p);
 }
 )";
-  std::vector<std::string> trace_output;
+  DslxInterpreterEvents events;
   XLS_ASSERT_OK_AND_ASSIGN(
-      InterpValue value, Interpret(kProgram, "main", /*args=*/{},
-                                   BytecodeInterpreterOptions().trace_hook(
-                                       [&](const Span&, std::string_view s) {
-                                         trace_output.push_back(std::string{s});
-                                       })));
-  EXPECT_THAT(trace_output, testing::ElementsAre(R"(Point {
+      InterpValue value,
+      Interpret(kProgram, "main", /*args=*/{}, BytecodeInterpreterOptions(),
+                nullptr, &events));
+  EXPECT_THAT(events.GetTraceMessageStrings(), testing::ElementsAre(R"(Point {
     x: 42,
     y: 64
 })"));
@@ -298,16 +290,14 @@ fn main() -> () {
   trace_fmt!("{}", p);
 }
 )";
-  std::vector<std::string> trace_output;
+  DslxInterpreterEvents events;
   XLS_ASSERT_OK_AND_ASSIGN(
       InterpValue value,
       Interpret(kProgram, "main", /*args=*/{},
-                BytecodeInterpreterOptions()
-                    .trace_hook([&](const Span&, std::string_view s) {
-                      trace_output.push_back(std::string{s});
-                    })
-                    .format_preference(FormatPreference::kHex)));
-  EXPECT_THAT(trace_output, testing::ElementsAre(R"(Point {
+                BytecodeInterpreterOptions().format_preference(
+                    FormatPreference::kHex),
+                nullptr, &events));
+  EXPECT_THAT(events.GetTraceMessageStrings(), testing::ElementsAre(R"(Point {
     x: 0x2a,
     y: 0x40
 })"));
@@ -325,16 +315,14 @@ fn main() -> () {
   trace_fmt!("{}", p);
 }
 )";
-  std::vector<std::string> trace_output;
+  DslxInterpreterEvents events;
   XLS_ASSERT_OK_AND_ASSIGN(
       InterpValue value,
       Interpret(kProgram, "main", /*args=*/{},
-                BytecodeInterpreterOptions()
-                    .trace_hook([&](const Span&, std::string_view s) {
-                      trace_output.push_back(std::string{s});
-                    })
-                    .format_preference(FormatPreference::kBinary)));
-  EXPECT_THAT(trace_output, testing::ElementsAre(R"(Point {
+                BytecodeInterpreterOptions().format_preference(
+                    FormatPreference::kBinary),
+                nullptr, &events));
+  EXPECT_THAT(events.GetTraceMessageStrings(), testing::ElementsAre(R"(Point {
     x: 0b10_1010,
     y: 0b100_0000
 })"));
@@ -358,14 +346,12 @@ fn main() -> () {
   trace_fmt!("{}", p);
 }
 )";
-  std::vector<std::string> trace_output;
+  DslxInterpreterEvents events;
   XLS_ASSERT_OK_AND_ASSIGN(
-      InterpValue value, Interpret(kProgram, "main", /*args=*/{},
-                                   BytecodeInterpreterOptions().trace_hook(
-                                       [&](const Span&, std::string_view s) {
-                                         trace_output.push_back(std::string{s});
-                                       })));
-  EXPECT_THAT(trace_output, testing::ElementsAre(R"(Foo {
+      InterpValue value,
+      Interpret(kProgram, "main", /*args=*/{}, BytecodeInterpreterOptions(),
+                nullptr, &events));
+  EXPECT_THAT(events.GetTraceMessageStrings(), testing::ElementsAre(R"(Foo {
     p: Point {
         x: 42,
         y: 64
@@ -392,17 +378,14 @@ fn main() -> () {
   trace_fmt!("{}", p);
 }
 )";
-  std::vector<std::string> trace_output;
+  DslxInterpreterEvents events;
   XLS_ASSERT_OK_AND_ASSIGN(
       InterpValue value,
       Interpret(kProgram, "main", /*args=*/{},
-                BytecodeInterpreterOptions()
-                    .trace_hook([&](const Span&, std::string_view s) {
-                      trace_output.push_back(std::string{s});
-                    })
-                    .format_preference(FormatPreference::kHex)));
-
-  EXPECT_THAT(trace_output, testing::ElementsAre(R"(Foo {
+                BytecodeInterpreterOptions().format_preference(
+                    FormatPreference::kHex),
+                nullptr, &events));
+  EXPECT_THAT(events.GetTraceMessageStrings(), testing::ElementsAre(R"(Foo {
     p: Point {
         x: 0x2a,
         y: 0x40
