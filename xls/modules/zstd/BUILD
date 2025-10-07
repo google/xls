@@ -14,9 +14,11 @@
 
 # Build rules for XLS ZSTD codec implementation.
 
-load("@rules_hdl//place_and_route:build_defs.bzl", "place_and_route")
+# pytype binary, library
+load("@rules_hdl//place_and_route:build_defs.bzl", "collect_benchmark_reports", "place_and_route")
 load("@rules_hdl//synthesis:build_defs.bzl", "benchmark_synth", "synthesize_rtl")
 load("@rules_hdl//verilog:providers.bzl", "verilog_library")
+load("@xls_pip_deps//:requirements.bzl", "requirement")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "xls_benchmark_ir",
@@ -24,6 +26,7 @@ load(
     "xls_dslx_library",
     "xls_dslx_test",
     "xls_dslx_verilog",
+    "xls_dslx_fmt_test",
 )
 load("//xls/common:openroad_warnings.bzl", "ASAP7_SUPPPRESSED_WARNINGS")
 
@@ -448,6 +451,7 @@ xls_dslx_library(
         "block_header.x",
     ],
     deps = [
+        "//xls/modules/zstd/memory:mem_writer_dslx",
         ":common_dslx",
     ],
 )
@@ -457,6 +461,61 @@ xls_dslx_test(
     dslx_test_args = {"compare": "jit"},
     library = ":block_header_dslx",
     tags = ["manual"],
+)
+
+xls_dslx_verilog(
+    name = "block_header_verilog",
+    codegen_args = COMMON_CODEGEN_ARGS | {
+        "module_name": "BlockHeaderWriter",
+    },
+    dslx_top = "BlockHeaderWriterInst",
+    library = ":block_header_dslx",
+    tags = ["manual"],
+    verilog_file = "block_header.v",
+)
+
+xls_benchmark_ir(
+    name = "block_header_opt_ir_benchmark",
+    src = ":block_header_verilog.opt.ir",
+    benchmark_ir_args = COMMON_CODEGEN_ARGS,
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "block_header_verilog_lib",
+    srcs = [
+        ":block_header.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "block_header_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "BlockHeaderWriter",
+    deps = [
+        ":block_header_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "block_header_benchmark_synth",
+    synth_target = ":block_header_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "block_header_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":block_header_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
 )
 
 xls_dslx_library(
@@ -837,7 +896,7 @@ SEQUENCE_EXECUTOR_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "delay_model": "asap7",
     "ram_configurations": ",".join([
         "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-            latency = 5,
+            latency = 1,
             ram_name = "ram{}".format(num),
             rd_req = "sequence_executor__rd_req_m{}_s".format(num),
             rd_resp = "sequence_executor__rd_resp_m{}_r".format(num),
@@ -1184,7 +1243,7 @@ xls_dslx_verilog(
         "delay_model": "asap7",
         # FIXME: update ram rewrite
         #"ram_configurations": "ram:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-        #    latency = 5,
+        #    latency = 1,
         #    rd_req = "fse_proba_freq_dec__rd_req_s",
         #    rd_resp = "fse_proba_freq_dec__rd_resp_r",
         #    wr_req = "fse_proba_freq_dec__wr_req_s",
@@ -1210,7 +1269,7 @@ xls_benchmark_ir(
         "reset": "rst",
         # FIXME: update ram rewrite
         #"ram_configurations": "ram:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-        #    latency = 5,
+        #    latency = 1,
         #    rd_req = "fse_proba_freq_dec__rd_req_s",
         #    rd_resp = "fse_proba_freq_dec__rd_resp_r",
         #    wr_req = "fse_proba_freq_dec__wr_req_s",
@@ -1444,6 +1503,28 @@ xls_dslx_test(
     ],
 )
 
+py_binary(
+    name = "zstd_test_frames_generator",
+    srcs = ["zstd_frame_dslx.py"],
+    imports = ["."],
+    main = "zstd_frame_dslx.py",
+    tags = ["manual"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        "//xls/common:runfiles",
+        "//xls/modules/zstd/cocotb:data_generator",
+        "@com_google_protobuf//:protobuf_python",
+    ],
+)
+
+genrule(
+    name = "zstd_test_frames_generate",
+    srcs = [],
+    outs = ["zstd_frame_testcases.x"],
+    cmd = "$(location :zstd_test_frames_generator) --seed 36 -n 1 --btype COMPRESSED -o $@",
+    tools = [":zstd_test_frames_generator"],
+)
+
 zstd_dec_deps = [
     ":axi_csr_accessor_dslx",
     ":block_header_dec_dslx",
@@ -1475,7 +1556,7 @@ xls_dslx_library(
 
 xls_dslx_test(
     name = "zstd_dec_dslx_test",
-    size = "large",
+    size = "enormous",
     srcs = [
         "data/comp_frame.x",
         "data/comp_frame_fse_comp.x",
@@ -1490,6 +1571,169 @@ xls_dslx_test(
         "manual",
     ],
     deps = zstd_dec_deps,
+)
+
+ZSTD_DEC_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
+    "module_name": "ZstdDecoder",
+    "clock_period_ps": "0",
+    "pipeline_stages": "16",
+    "worst_case_throughput": "6",
+    # "flop_inputs_kind": "skid",
+    # "flop_outputs_kind": "skid",
+    "materialize_internal_fifos": "false",  # TODO: remove once this option works with loopback channels
+    "ram_configurations": ",".join([
+        ",".join([
+            "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+                latency = 1,
+                ram_name = "history_buffer_ram{}".format(num),
+                rd_req = "zstd_dec__ram_rd_req_{}_s".format(num),
+                rd_resp = "zstd_dec__ram_rd_resp_{}_r".format(num),
+                wr_req = "zstd_dec__ram_wr_req_{}_s".format(num),
+                wr_resp = "zstd_dec__ram_wr_resp_{}_r".format(num),
+            )
+            for num in range(8)
+        ]),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "dpd_ram",
+            rd_req = "zstd_dec__dpd_rd_req_s",
+            rd_resp = "zstd_dec__dpd_rd_resp_r",
+            wr_req = "zstd_dec__dpd_wr_req_s",
+            wr_resp = "zstd_dec__dpd_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "fse_tmp_ram",
+            rd_req = "zstd_dec__tmp_rd_req_s",
+            rd_resp = "zstd_dec__tmp_rd_resp_r",
+            wr_req = "zstd_dec__tmp_wr_req_s",
+            wr_resp = "zstd_dec__tmp_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "fse_tmp2_ram",
+            rd_req = "zstd_dec__tmp2_rd_req_s",
+            rd_resp = "zstd_dec__tmp2_rd_resp_r",
+            wr_req = "zstd_dec__tmp2_wr_req_s",
+            wr_resp = "zstd_dec__tmp2_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "ll_def_fse_ram",
+            rd_req = "zstd_dec__ll_def_fse_rd_req_s",
+            rd_resp = "zstd_dec__ll_def_fse_rd_resp_r",
+            wr_req = "zstd_dec__ll_def_fse_wr_req_s",
+            wr_resp = "zstd_dec__ll_def_fse_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "ll_fse_ram",
+            rd_req = "zstd_dec__ll_fse_rd_req_s",
+            rd_resp = "zstd_dec__ll_fse_rd_resp_r",
+            wr_req = "zstd_dec__ll_fse_wr_req_s",
+            wr_resp = "zstd_dec__ll_fse_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "ml_def_fse_ram",
+            rd_req = "zstd_dec__ml_def_fse_rd_req_s",
+            rd_resp = "zstd_dec__ml_def_fse_rd_resp_r",
+            wr_req = "zstd_dec__ml_def_fse_wr_req_s",
+            wr_resp = "zstd_dec__ml_def_fse_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "ml_fse_ram",
+            rd_req = "zstd_dec__ml_fse_rd_req_s",
+            rd_resp = "zstd_dec__ml_fse_rd_resp_r",
+            wr_req = "zstd_dec__ml_fse_wr_req_s",
+            wr_resp = "zstd_dec__ml_fse_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "of_def_fse_ram",
+            rd_req = "zstd_dec__of_def_fse_rd_req_s",
+            rd_resp = "zstd_dec__of_def_fse_rd_resp_r",
+            wr_req = "zstd_dec__of_def_fse_wr_req_s",
+            wr_resp = "zstd_dec__of_def_fse_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "of_fse_ram",
+            rd_req = "zstd_dec__of_fse_rd_req_s",
+            rd_resp = "zstd_dec__of_fse_rd_resp_r",
+            wr_req = "zstd_dec__of_fse_wr_req_s",
+            wr_resp = "zstd_dec__of_fse_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "huffman_literals_prescan_ram",
+            rd_req = "zstd_dec__huffman_lit_prescan_mem_rd_req_s",
+            rd_resp = "zstd_dec__huffman_lit_prescan_mem_rd_resp_r",
+            wr_req = "zstd_dec__huffman_lit_prescan_mem_wr_req_s",
+            wr_resp = "zstd_dec__huffman_lit_prescan_mem_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "huffman_literals_weights_dpd_ram",
+            rd_req = "zstd_dec__huffman_lit_weights_dpd_rd_req_s",
+            rd_resp = "zstd_dec__huffman_lit_weights_dpd_rd_resp_r",
+            wr_req = "zstd_dec__huffman_lit_weights_dpd_wr_req_s",
+            wr_resp = "zstd_dec__huffman_lit_weights_dpd_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "huffman_literals_weights_tmp_ram",
+            rd_req = "zstd_dec__huffman_lit_weights_tmp_rd_req_s",
+            rd_resp = "zstd_dec__huffman_lit_weights_tmp_rd_resp_r",
+            wr_req = "zstd_dec__huffman_lit_weights_tmp_wr_req_s",
+            wr_resp = "zstd_dec__huffman_lit_weights_tmp_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "huffman_literals_weights_tmp2_ram",
+            rd_req = "zstd_dec__huffman_lit_weights_tmp2_rd_req_s",
+            rd_resp = "zstd_dec__huffman_lit_weights_tmp2_rd_resp_r",
+            wr_req = "zstd_dec__huffman_lit_weights_tmp2_wr_req_s",
+            wr_resp = "zstd_dec__huffman_lit_weights_tmp2_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "huffman_literals_weights_fse_ram",
+            rd_req = "zstd_dec__huffman_lit_weights_fse_rd_req_s",
+            rd_resp = "zstd_dec__huffman_lit_weights_fse_rd_resp_r",
+            wr_req = "zstd_dec__huffman_lit_weights_fse_wr_req_s",
+            wr_resp = "zstd_dec__huffman_lit_weights_fse_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "huffman_literals_weights_mem_ram",
+            rd_req = "zstd_dec__huffman_lit_weights_mem_rd_req_s",
+            rd_resp = "zstd_dec__huffman_lit_weights_mem_rd_resp_r",
+            wr_req = "zstd_dec__huffman_lit_weights_mem_wr_req_s",
+            wr_resp = "zstd_dec__huffman_lit_weights_mem_wr_resp_r",
+        ),
+        ",".join([
+            "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+                latency = 1,
+                ram_name = "literals_buffer_ram{}".format(num),
+                rd_req = "zstd_dec__litbuf_rd_req_s__{}".format(num),
+                rd_resp = "zstd_dec__litbuf_rd_resp_r__{}".format(num),
+                wr_req = "zstd_dec__litbuf_wr_req_s__{}".format(num),
+                wr_resp = "zstd_dec__litbuf_wr_resp_r__{}".format(num),
+            )
+            for num in range(8)
+        ]),
+    ]),
+}
+
+xls_dslx_verilog(
+    name = "zstd_dec_verilog",
+    codegen_args = ZSTD_DEC_CODEGEN_ARGS,
+    dslx_top = "ZstdDecoderInst",
+    library = ":zstd_dec_dslx",
+    tags = ["manual"],
+    verilog_file = "zstd_dec.v",
 )
 
 ZSTD_DEC_INTERNAL_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
@@ -1549,6 +1793,138 @@ place_and_route(
     synthesized_rtl = ":zstd_dec_internal_synth_asap7",
     tags = ["manual"],
     target_die_utilization_percentage = "10",
+)
+
+verilog_library(
+    name = "zstd_dec_verilog_lib",
+    srcs = [
+        ":zstd_dec.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "zstd_dec_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "ZstdDecoder",
+    deps = [
+        ":zstd_dec_verilog_lib",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "zstd_dec_benchmark_synth",
+    synth_target = ":zstd_dec_synth_asap7",
+    tags = ["manual"],
+)
+
+#place_and_route(
+#    name = "zstd_dec_place_and_route",
+#    clock_period = CLOCK_PERIOD_PS,
+#    core_padding_microns = 2,
+#    min_pin_distance = "0.4",
+#    placement_density = "0.1",
+#    stop_after_step = "global_routing",
+#    synthesized_rtl = ":zstd_dec_synth_asap7",
+#    tags = ["manual"],
+#    target_die_utilization_percentage = "1",
+#)
+
+filegroup(
+    name = "zstd_dec_xx_fse_default",
+    srcs = [
+        "zstd_dec_ll_fse_default.mem",
+        "zstd_dec_ml_fse_default.mem",
+        "zstd_dec_of_fse_default.mem",
+    ],
+)
+
+genrule(
+    name = "axi_crossbar_wrapper",
+    outs = ["axi_crossbar_wrapper.v"],
+    cmd = "$(location @com_github_alexforencich_verilog_axi//:axi_crossbar_wrap) -p 15 1 -n axi_crossbar_wrapper -o  $(OUTS)",
+    tools = [
+        "@com_github_alexforencich_verilog_axi//:axi_crossbar_wrap",
+    ],
+)
+
+py_test(
+    name = "zstd_dec_cocotb_test",
+    srcs = ["zstd_dec_cocotb_test.py"],
+    data = [
+        "data/comp_frame.zst",
+        "data/comp_frame_fse_comp.zst",
+        "data/comp_frame_fse_repeated.zst",
+        "data/comp_frame_huffman.zst",
+        "data/comp_frame_huffman_fse.zst",
+        "data/fse_huffman_literals_predefined_sequences_seed_107958.zst",
+        "data/fse_huffman_literals_predefined_sequences_seed_204626.zst",
+        "data/fse_huffman_literals_predefined_sequences_seed_210872.zst",
+        "data/fse_huffman_literals_predefined_sequences_seed_299289.zst",
+        "data/fse_huffman_literals_predefined_sequences_seed_319146.zst",
+        "data/fse_huffman_literals_predefined_sequences_seed_331938.zst",
+        "data/fse_huffman_literals_predefined_sequences_seed_333824.zst",
+        "data/pregenerated_compressed_minimal.zst",
+        "data/pregenerated_compressed_random_1.zst",
+        "data/pregenerated_compressed_random_2.zst",
+        "data/pregenerated_compressed_raw_1.zst",
+        "data/pregenerated_compressed_raw_2.zst",
+        "data/pregenerated_compressed_rle_1.zst",
+        "data/pregenerated_compressed_rle_2.zst",
+        "data/pregenerated_uncompressed.zst",
+        "data/raw_literals_compressed_sequences_seed_903062.zst",
+        "data/raw_literals_predefined_sequences_seed_422473.zst",
+        "data/raw_literals_predefined_sequences_seed_436965.zst",
+        "data/raw_literals_predefined_sequences_seed_462302.zst",
+        "data/raw_literals_rle_sequences_seed_700216.zst",
+        "data/rle_literals_compressed_sequences_seed_701326.zst",
+        "data/rle_literals_predefined_sequences_seed_406229.zst",
+        "data/rle_literals_predefined_sequences_seed_411034.zst",
+        "data/rle_literals_predefined_sequences_seed_413015.zst",
+        "data/rle_literals_predefined_sequences_seed_436165.zst",
+        "data/rle_literals_predefined_sequences_seed_464057.zst",
+        "data/rle_literals_predefined_sequences_seed_466803.zst",
+        "data/rle_literals_rle_sequences_seed_2.zst",
+        "data/rle_raw_literals_predefined_sequences_seed_408158.zst",
+        "data/rle_raw_literals_predefined_sequences_seed_499212.zst",
+        "data/treeless_huffman_literals_compressed_sequences_seed_400077.zst",
+        "data/treeless_huffman_literals_predefined_rle_compressed_sequences_seed_400025.zst",
+        "data/treeless_huffman_literals_predefined_rle_compressed_sequences_seed_400061.zst",
+        "data/treeless_huffman_literals_rle_sequences_seed_403927.zst",
+        ":axi_crossbar_wrapper.v",
+        ":zstd_dec.v",
+        ":zstd_dec_xx_fse_default",
+        "//xls/modules/zstd/rtl:ram_1r1w.sv",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
+        "//xls/modules/zstd/rtl:zstd_dec_wrapper.sv",
+        "@com_github_alexforencich_verilog_axi//:rtl/arbiter.v",
+        "@com_github_alexforencich_verilog_axi//:rtl/axi_crossbar.v",
+        "@com_github_alexforencich_verilog_axi//:rtl/axi_crossbar_addr.v",
+        "@com_github_alexforencich_verilog_axi//:rtl/axi_crossbar_rd.v",
+        "@com_github_alexforencich_verilog_axi//:rtl/axi_crossbar_wr.v",
+        "@com_github_alexforencich_verilog_axi//:rtl/axi_register_rd.v",
+        "@com_github_alexforencich_verilog_axi//:rtl/axi_register_wr.v",
+        "@com_github_alexforencich_verilog_axi//:rtl/priority_encoder.v",
+        "@com_icarus_iverilog//:iverilog",
+        "@com_icarus_iverilog//:vvp",
+    ],
+    tags = ["manual"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        requirement("cocotb"),
+        requirement("cocotbext-axi"),
+        "//xls/common:runfiles",
+        "//xls/modules/zstd/cocotb:channel",
+        "//xls/modules/zstd/cocotb:data_generator",
+        "//xls/modules/zstd/cocotb:memory",
+        "//xls/modules/zstd/cocotb:utils",
+        "//xls/modules/zstd/cocotb:xlsstruct",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
+        "@com_google_protobuf//:protobuf_python",
+    ],
 )
 
 xls_dslx_library(
@@ -1884,7 +2260,7 @@ RAM_DEMUX_CODEGEN_ARGS = {
     "worst_case_throughput": "6",
     "ram_configurations": ",".join([
         "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-            latency = 5,
+            latency = 1,
             ram_name = "ram{}".format(num),
             rd_req = "ram_demux__rd_req{}_s".format(num),
             rd_resp = "ram_demux__rd_resp{}_r".format(num),
@@ -1896,6 +2272,7 @@ RAM_DEMUX_CODEGEN_ARGS = {
     "clock_period_ps": "750",
     "reset": "rst",
     "use_system_verilog": "false",
+    "streaming_channel_data_suffix": "_data",
     "materialize_internal_fifos": "true",
 }
 
@@ -1952,7 +2329,7 @@ place_and_route(
     target_die_utilization_percentage = "5",
 )
 
-ram_demux_naive_codegen_args = {
+RAM_DEMUX_NAIVE_CODEGEN_ARGS = {
     "module_name": "RamDemuxNaive",
     "generator": "pipeline",
     "delay_model": "asap7",
@@ -1973,9 +2350,37 @@ ram_demux_naive_codegen_args = {
     "materialize_internal_fifos": "true",
 }
 
+py_test(
+    name = "ram_demux_cocotb_test",
+    srcs = ["ram_demux_cocotb_test.py"],
+    data = [
+        "//xls/modules/zstd:ram_demux.v",
+        "//xls/modules/zstd/rtl:ram_1r1w.sv",
+        "//xls/modules/zstd/rtl:ram_demux_wrapper.sv",
+        "@com_icarus_iverilog//:iverilog",
+        "@com_icarus_iverilog//:vvp",
+    ],
+    env = {
+        "PYTHONUNBUFFERED": "1",
+    },
+    imports = ["."],
+    tags = ["manual"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        requirement("cocotb"),
+        requirement("cocotbext-axi"),
+        "//xls/common:runfiles",
+        "//xls/modules/zstd/cocotb:channel",
+        "//xls/modules/zstd/cocotb:data_generator",
+        "//xls/modules/zstd/cocotb:memory",
+        "//xls/modules/zstd/cocotb:utils",
+        "//xls/modules/zstd/cocotb:xlsstruct",
+    ],
+)
+
 xls_dslx_verilog(
     name = "ram_demux_naive_verilog",
-    codegen_args = ram_demux_naive_codegen_args,
+    codegen_args = RAM_DEMUX_NAIVE_CODEGEN_ARGS,
     dslx_top = "RamDemuxNaiveWrappedInst",
     library = ":ram_demux_dslx",
     tags = ["manual"],
@@ -1985,7 +2390,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "ram_demux_naive_opt_ir_benchmark",
     src = "ram_demux_naive_verilog.opt.ir",
-    codegen_args = ram_demux_naive_codegen_args,
+    codegen_args = RAM_DEMUX_NAIVE_CODEGEN_ARGS,
     tags = ["manual"],
 )
 
@@ -2175,7 +2580,7 @@ xls_dslx_verilog(
         "delay_model": "asap7",
         "ram_configurations": ",".join([
             "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-                latency = 5,
+                latency = 1,
                 ram_name = "ram{}".format(num),
                 rd_req = "ram_demux3__rd_req{}_s".format(num),
                 rd_resp = "ram_demux3__rd_resp{}_r".format(num),
@@ -2586,7 +2991,7 @@ xls_dslx_verilog(
         "delay_model": "asap7",
         "ram_configurations": ",".join([
             "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-                latency = 5,
+                latency = 1,
                 ram_name = "ram{}".format(num),
                 rd_req = "literals_buffer__rd_req_m{}_s".format(num),
                 rd_resp = "literals_buffer__rd_resp_m{}_r".format(num),
@@ -2753,7 +3158,7 @@ LITERALS_DECODER_CODEGEN_ARGS = {
     "delay_model": "asap7",
     "ram_configurations": ",".join([
         "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-            latency = 5,
+            latency = 1,
             ram_name = "ram{}".format(num),
             rd_req = "literals_decoder__rd_req_m{}_s".format(num),
             rd_resp = "literals_decoder__rd_resp_m{}_r".format(num),
@@ -3006,7 +3411,7 @@ benchmark_synth(
 )
 
 place_and_route(
-    name = "huffman_code_builder_place_and_route",
+    name = "huffman_code_builder_place_and_route_skip",
     clock_period = CLOCK_PERIOD_PS,
     core_padding_microns = 2,
     min_pin_distance = "0.5",
@@ -3528,4 +3933,1396 @@ xls_dslx_library(
 xls_dslx_test(
     name = "refilling_shift_buffer_mux_dslx_test",
     library = ":refilling_shift_buffer_mux_dslx",
+)
+
+collect_benchmark_reports(
+    name = "all_banchmark_reports",
+    srcs = [
+        ":window_buffer_place_and_route",
+        ":shift_buffer_aligner_place_and_route",
+        ":shift_buffer_storage_place_and_route",
+        ":shift_buffer_place_and_route",
+        ":frame_header_dec_place_and_route",
+        ":block_header_dec_place_and_route",
+        ":raw_block_dec_place_and_route",
+        ":rle_block_dec_place_and_route",
+        ":dec_mux_place_and_route",
+        ":sequence_executor_place_and_route",
+        ":axi_csr_accessor_place_and_route",
+        ":csr_config_place_and_route",
+        ":ram_rw_handler_place_and_route",
+        ":fse_proba_freq_dec_place_and_route",
+        ":refilling_shift_buffer_internal_place_and_route",
+        ":zstd_dec_internal_place_and_route",
+        ":fse_table_iterator_place_and_route",
+        ":fse_table_creator_place_and_route",
+        ":command_constructor_place_and_route",
+        ":ram_demux_place_and_route",
+        ":ram_demux_naive_place_and_route",
+        ":fse_dec_place_and_route",
+        ":ram_demux3_place_and_route",
+        ":rle_literals_dec_place_and_route",
+        ":raw_literals_dec_place_and_route",
+        ":literals_buffer_place_and_route",
+        ":literals_decoder_ctrl_place_and_route",
+        # ":literals_decoder_place_and_route",
+        ":huffman_prescan_place_and_route",
+        # ":huffman_code_builder_place_and_route",
+        ":huffman_axi_reader_place_and_route",
+        # ":huffman_data_preprocessor_place_and_route",
+        # ":huffman_decoder_place_and_route",
+        ":huffman_ctrl_place_and_route",
+        ":huffman_weights_dec_place_and_route",
+        # ":huffman_literals_dec_place_and_route",
+        # ":zstd_dec_place_and_route",
+    ],
+)
+
+xls_dslx_library(
+    name = "hash_table_dslx",
+    srcs = [
+        "hash_table.x",
+    ],
+    deps = [
+        "//xls/examples:ram_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "hash_table_dslx_test",
+    library = ":hash_table_dslx",
+)
+
+HASH_TABLE_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
+    "module_name": "HashTable",
+    "pipeline_stages": "16",
+}
+
+xls_dslx_verilog(
+    name = "hash_table_verilog",
+    codegen_args = HASH_TABLE_CODEGEN_ARGS | {
+        "ram_configurations": "ram:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 5,
+            rd_req = "hash_table__ram_read_req_s",
+            rd_resp = "hash_table__ram_read_resp_r",
+            wr_req = "hash_table__ram_write_req_s",
+            wr_resp = "hash_table__ram_write_resp_r",
+        ),
+    },
+    dslx_top = "HashTableInst",
+    library = ":hash_table_dslx",
+    verilog_file = "hash_table.v",
+)
+
+xls_benchmark_ir(
+    name = "hash_table_opt_ir_benchmark",
+    src = ":hash_table_verilog.opt.ir",
+    benchmark_ir_args = HASH_TABLE_CODEGEN_ARGS,
+)
+
+xls_benchmark_verilog(
+    name = "hash_table_verilog_benchmark",
+    verilog_target = "hash_table_verilog",
+)
+
+verilog_library(
+    name = "hash_table_verilog_lib",
+    srcs = [
+        ":hash_table.v",
+    ],
+)
+
+synthesize_rtl(
+    name = "hash_table_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    top_module = "HashTable",
+    deps = [
+        ":hash_table_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "hash_table_benchmark_synth",
+    synth_target = ":hash_table_asap7",
+)
+
+place_and_route(
+    name = "hash_table_place_and_route",
+    clock_period = "750",
+    core_padding_microns = 2,
+    min_pin_distance = "0.09",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":hash_table_asap7",
+    target_die_utilization_percentage = "10",
+)
+
+xls_dslx_library(
+    name = "aligned_parallel_ram_dslx",
+    srcs = [
+        "aligned_parallel_ram.x",
+    ],
+    deps = [
+        ":common_dslx",
+        "//xls/examples:ram_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "aligned_parallel_ram_dslx_test",
+    dslx_test_args = {"compare": "jit"},
+    library = ":aligned_parallel_ram_dslx",
+    tags = ["manual"],
+)
+
+ALIGNED_PARALLEL_RAM_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
+    "module_name": "AlignedParallelRam",
+    "clock_period_ps": "750",
+    "pipeline_stages": "8",
+    "worst_case_throughput": "1",
+}
+
+xls_dslx_verilog(
+    name = "aligned_parallel_ram_verilog",
+    codegen_args = ALIGNED_PARALLEL_RAM_CODEGEN_ARGS,
+    dslx_top = "AlignedParallelRamInst",
+    library = ":aligned_parallel_ram_dslx",
+    tags = ["manual"],
+    verilog_file = "aligned_parallel_ram.v",
+)
+
+xls_benchmark_ir(
+    name = "aligned_parallel_ram_opt_ir_benchmark",
+    src = ":aligned_parallel_ram_verilog.opt.ir",
+    benchmark_ir_args = ALIGNED_PARALLEL_RAM_CODEGEN_ARGS,
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "aligned_parallel_ram_verilog_lib",
+    srcs = [
+        ":aligned_parallel_ram.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "aligned_parallel_ram_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "AlignedParallelRam",
+    deps = [
+        ":aligned_parallel_ram_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "aligned_parallel_ram_benchmark_synth",
+    synth_target = ":aligned_parallel_ram_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "aligned_parallel_ram_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":aligned_parallel_ram_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
+
+xls_dslx_library(
+    name = "history_buffer_dslx",
+    srcs = [
+        "history_buffer.x",
+    ],
+    deps = [
+        ":common_dslx",
+        ":aligned_parallel_ram_dslx",
+        "//xls/examples:ram_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "history_buffer_dslx_test",
+    dslx_test_args = {"compare": "jit"},
+    library = ":history_buffer_dslx",
+    tags = ["manual"],
+)
+
+HISTORY_BUFFER_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
+    "module_name": "HistoryBuffer",
+    "clock_period_ps": CLOCK_PERIOD_PS,
+    "ram_configurations": ",".join([
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 5,
+            ram_name = "ram{}".format(num),
+            rd_req = "history_buffer__ram_read_req_s__{}".format(num),
+            rd_resp = "history_buffer__ram_read_resp_r__{}".format(num),
+            wr_req = "history_buffer__ram_write_req_s__{}".format(num),
+            wr_resp = "history_buffer__ram_write_resp_r__{}".format(num),
+        )
+        for num in range(8)
+    ]),
+}
+
+xls_dslx_verilog(
+    name = "history_buffer_verilog",
+    codegen_args = HISTORY_BUFFER_CODEGEN_ARGS,
+    dslx_top = "HistoryBufferInst",
+    library = ":history_buffer_dslx",
+    tags = ["manual"],
+    verilog_file = "history_buffer.v",
+)
+
+xls_benchmark_ir(
+    name = "history_buffer_opt_ir_benchmark",
+    src = ":history_buffer_verilog.opt.ir",
+    benchmark_ir_args = HISTORY_BUFFER_CODEGEN_ARGS,
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "history_buffer_verilog_lib",
+    srcs = [
+        ":history_buffer.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "history_buffer_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "HistoryBuffer",
+    deps = [
+        ":history_buffer_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "history_buffer_benchmark_synth",
+    synth_target = ":history_buffer_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "history_buffer_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":history_buffer_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
+
+xls_dslx_library(
+    name = "match_finder_dslx",
+    srcs = [
+        "match_finder.x",
+    ],
+    deps = [
+        "//xls/modules/zstd/memory:mem_reader_dslx",
+        "//xls/modules/zstd/memory:mem_writer_dslx",
+        "//xls/modules/zstd/memory:axi_dslx",
+        "//xls/modules/zstd/memory:axi_ram_reader_dslx",
+        "//xls/modules/zstd/memory:axi_ram_writer_dslx",
+        "//xls/modules/zstd/memory:mem_writer_data_downscaler_dslx",
+        ":mem_reader_simple_arbiter_dslx",
+        ":mem_writer_simple_arbiter_dslx",
+        ":hash_table_dslx",
+        ":history_buffer_dslx",
+        ":sequence_encoder_dslx"
+    ],
+)
+
+xls_dslx_test(
+    name = "match_finder_dslx_test",
+    library = ":match_finder_dslx",
+)
+
+MATCH_FINDER_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
+    "module_name": "MatchFinder",
+    "worst_case_throughput": "6",
+    "clock_period_ps": CLOCK_PERIOD_PS,
+}
+
+xls_dslx_verilog(
+    name = "match_finder_verilog",
+    codegen_args = MATCH_FINDER_CODEGEN_ARGS,
+    dslx_top = "MatchFinderInst",
+    library = ":match_finder_dslx",
+    verilog_file = "match_finder.v",
+)
+
+MATCH_FINDER_COCOTB_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
+    "module_name": "MatchFinder",
+    "clock_period_ps": CLOCK_PERIOD_PS,
+    "worst_case_throughput": "6",
+    "ram_configurations": ",".join([
+       "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+           latency = 1,
+           ram_name = "hb_ram{}".format(num),
+           rd_req = "match_finder__hb_ram_rd_req_s__{}".format(num),
+           rd_resp = "match_finder__hb_ram_rd_resp_r__{}".format(num),
+           wr_req = "match_finder__hb_ram_wr_req_s__{}".format(num),
+           wr_resp = "match_finder__hb_ram_wr_resp_r__{}".format(num),
+       )
+       for num in range(8)
+    ] + [
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+           latency = 1,
+           ram_name = "ht_ram",
+           rd_req = "match_finder__ht_ram_rd_req_s",
+           rd_resp = "match_finder__ht_ram_rd_resp_r",
+           wr_req = "match_finder__ht_ram_wr_req_s",
+           wr_resp = "match_finder__ht_ram_wr_resp_r",
+    )])
+}
+
+xls_dslx_verilog(
+    name = "match_finder_cocotb_verilog",
+    codegen_args = MATCH_FINDER_COCOTB_CODEGEN_ARGS,
+    dslx_top = "MatchFinderCocotbInst",
+    library = ":match_finder_dslx",
+    verilog_file = "match_finder_cocotb.v",
+)
+
+xls_benchmark_ir(
+    name = "match_finder_opt_ir_benchmark",
+    codegen_args = MATCH_FINDER_CODEGEN_ARGS,
+    src = ":match_finder_verilog.opt.ir",
+)
+
+xls_benchmark_verilog(
+    name = "match_finder_verilog_benchmark",
+    verilog_target = "match_finder_verilog",
+)
+
+verilog_library(
+    name = "match_finder_verilog_lib",
+    srcs = [
+        ":match_finder.v",
+    ],
+)
+
+synthesize_rtl(
+    name = "match_finder_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    top_module = "MatchFinder",
+    deps = [
+        ":match_finder_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "match_finder_benchmark_synth",
+    synth_target = ":match_finder_asap7",
+)
+
+place_and_route(
+    name = "match_finder_place_and_route",
+    clock_period = "750",
+    core_padding_microns = 2,
+    min_pin_distance = "0.09",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":match_finder_asap7",
+    target_die_utilization_percentage = "10",
+)
+
+py_test(
+    name = "match_finder_cocotb_test",
+    srcs = ["match_finder_cocotb_test.py"],
+    data = [
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
+        "//xls/modules/zstd/rtl:match_finder_wrapper.sv",
+        "//xls/modules/zstd/rtl:ram_1r1w.sv",
+        ":match_finder_cocotb.v",
+        "@com_icarus_iverilog//:iverilog",
+        "@com_icarus_iverilog//:vvp",
+    ],
+    env = {"BUILD_WORKING_DIRECTORY": "sim_build"},
+    imports = ["."],
+    tags = ["manual"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        requirement("cocotb"),
+        requirement("cocotbext-axi"),
+        "//xls/common:runfiles",
+        "//xls/modules/zstd/cocotb:channel",
+        "//xls/modules/zstd/cocotb:memory",
+        "//xls/modules/zstd/cocotb:utils",
+        "//xls/modules/zstd/cocotb:xlsstruct",
+        "@com_google_protobuf//:protobuf_python",
+    ],
+)
+
+xls_dslx_library(
+    name = "mem_writer_mux_dslx",
+    srcs = [
+        "mem_writer_mux.x",
+    ],
+    deps = [
+        "//xls/modules/zstd/memory:mem_writer_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "mem_writer_mux_dslx_test",
+    library = ":mem_writer_mux_dslx",
+)
+
+
+MEM_WRITER_MUX_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
+    "module_name": "MemWriterMux",
+    "clock_period_ps": "750",
+    "pipeline_stages": "8",
+    "worst_case_throughput": "1",
+}
+
+
+xls_dslx_verilog(
+    name = "mem_writer_mux_verilog",
+    codegen_args = MEM_WRITER_MUX_CODEGEN_ARGS,
+    dslx_top = "MemWriterMuxInst",
+    library = ":mem_writer_mux_dslx",
+    tags = ["manual"],
+    verilog_file = "mem_writer_mux.v",
+)
+
+xls_benchmark_ir(
+    name = "mem_writer_mux_opt_ir_benchmark",
+    src = ":mem_writer_mux_verilog.opt.ir",
+    codegen_args = MEM_WRITER_MUX_CODEGEN_ARGS,
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "mem_writer_mux_verilog_lib",
+    srcs = [
+        ":mem_writer_mux.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "mem_writer_mux_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "MemWriterMux",
+    deps = [
+        ":mem_writer_mux_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "mem_writer_mux_benchmark_synth",
+    synth_target = ":mem_writer_mux_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "mem_writer_mux_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":mem_writer_mux_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "5",
+)
+
+xls_dslx_library(
+    name = "mem_reader_mux_dslx",
+    srcs = [
+        "mem_reader_mux.x",
+    ],
+    deps = [
+        "//xls/modules/zstd/memory:mem_reader_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "mem_reader_mux_dslx_test",
+    library = ":mem_reader_mux_dslx",
+)
+
+MEM_READER_MUX_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
+    "module_name": "MemReaderMux",
+    "clock_period_ps": "750",
+    "pipeline_stages": "8",
+    "worst_case_throughput": "1",
+}
+
+
+xls_dslx_verilog(
+    name = "mem_reader_mux_verilog",
+    codegen_args = MEM_READER_MUX_CODEGEN_ARGS,
+    dslx_top = "MemReaderMuxInst",
+    library = ":mem_reader_mux_dslx",
+    tags = ["manual"],
+    verilog_file = "mem_reader_mux.v",
+)
+
+xls_benchmark_ir(
+    name = "mem_reader_mux_opt_ir_benchmark",
+    src = ":mem_reader_mux_verilog.opt.ir",
+    codegen_args = MEM_READER_MUX_CODEGEN_ARGS,
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "mem_reader_mux_verilog_lib",
+    srcs = [
+        ":mem_reader_mux.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "mem_reader_mux_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "MemReaderMux",
+    deps = [
+        ":mem_reader_mux_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "mem_reader_mux_benchmark_synth",
+    synth_target = ":mem_reader_mux_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "mem_reader_mux_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":mem_reader_mux_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "5",
+)
+
+xls_dslx_library(
+    name = "literal_encoder_dslx",
+    srcs = [
+        "literal_encoder.x",
+    ],
+    deps = [
+        ":mem_writer_simple_arbiter_dslx",
+        ":mem_reader_simple_arbiter_dslx",
+        ":mem_copy_dslx",
+        ":rle_block_encoder_dslx",
+        "//xls/modules/zstd/memory:axi_dslx",
+        "//xls/modules/zstd/memory:axi_ram_reader_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "literal_encoder_dslx_test",
+    library = ":literal_encoder_dslx",
+)
+
+xls_dslx_library(
+    name = "mem_writer_simple_arbiter_dslx",
+    srcs = [
+        "mem_writer_simple_arbiter.x",
+    ],
+    deps = [
+        ":mem_writer_mux_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "mem_writer_simple_arbiter_dslx_test",
+    library = ":mem_writer_simple_arbiter_dslx",
+)
+
+MEM_WRITER_SIMPLE_ARBITER_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
+    "module_name": "MemWriterSimpleArbiter",
+    "clock_period_ps": "750",
+    "pipeline_stages": "8",
+    "worst_case_throughput": "1",
+}
+
+
+xls_dslx_verilog(
+    name = "mem_writer_simple_arbiter_verilog",
+    codegen_args = MEM_WRITER_SIMPLE_ARBITER_CODEGEN_ARGS,
+    dslx_top = "MemWriterSimpleArbiterInst",
+    library = ":mem_writer_simple_arbiter_dslx",
+    tags = ["manual"],
+    verilog_file = "mem_writer_simple_arbiter.v",
+)
+
+xls_benchmark_ir(
+    name = "mem_writer_simple_arbiter_opt_ir_benchmark",
+    src = ":mem_writer_simple_arbiter_verilog.opt.ir",
+    codegen_args = MEM_WRITER_SIMPLE_ARBITER_CODEGEN_ARGS,
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "mem_writer_simple_arbiter_verilog_lib",
+    srcs = [
+        ":mem_writer_simple_arbiter.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "mem_writer_simple_arbiter_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "MemWriterSimpleArbiter",
+    deps = [
+        ":mem_writer_simple_arbiter_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "mem_writer_simple_arbiter_benchmark_synth",
+    synth_target = ":mem_writer_simple_arbiter_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "mem_writer_simple_arbiter_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":mem_writer_simple_arbiter_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "5",
+)
+
+xls_dslx_library(
+    name = "mem_reader_simple_arbiter_dslx",
+    srcs = [
+        "mem_reader_simple_arbiter.x",
+    ],
+    deps = [
+        ":mem_reader_mux_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "mem_reader_simple_arbiter_dslx_test",
+    library = ":mem_reader_simple_arbiter_dslx",
+)
+
+
+MEM_READER_SIMPLE_ARBITER_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
+    "module_name": "MemReaderSimpleArbiter",
+    "clock_period_ps": "750",
+    "pipeline_stages": "8",
+    "worst_case_throughput": "1",
+}
+
+
+xls_dslx_verilog(
+    name = "mem_reader_simple_arbiter_verilog",
+    codegen_args = MEM_READER_SIMPLE_ARBITER_CODEGEN_ARGS,
+    dslx_top = "MemReaderSimpleArbiterInst",
+    library = ":mem_reader_simple_arbiter_dslx",
+    tags = ["manual"],
+    verilog_file = "mem_reader_simple_arbiter.v",
+)
+
+xls_benchmark_ir(
+    name = "mem_reader_simple_arbiter_opt_ir_benchmark",
+    src = ":mem_reader_simple_arbiter_verilog.opt.ir",
+    codegen_args = MEM_READER_SIMPLE_ARBITER_CODEGEN_ARGS,
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "mem_reader_simple_arbiter_verilog_lib",
+    srcs = [
+        ":mem_reader_simple_arbiter.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "mem_reader_simple_arbiter_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "MemReaderSimpleArbiter",
+    deps = [
+        ":mem_reader_simple_arbiter_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "mem_reader_simple_arbiter_benchmark_synth",
+    synth_target = ":mem_reader_simple_arbiter_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "mem_reader_simple_arbiter_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":mem_reader_simple_arbiter_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "5",
+)
+
+xls_dslx_library(
+    name = "sequence_header_writer_dslx",
+    srcs = [
+        "sequence_conf_enc.x",
+    ],
+    deps = [
+        ":mem_writer_simple_arbiter_dslx",
+        ":common_dslx"
+    ],
+)
+
+xls_dslx_test(
+    name = "sequence_header_writer_dslx_test",
+    library = ":sequence_header_writer_dslx",
+)
+
+SEQUENCE_HEADER_WRITER_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
+    "module_name": "SequenceHeaderWriter",
+    "clock_period_ps": "750",
+    "pipeline_stages": "8",
+    "worst_case_throughput": "1",
+    "materialize_internal_fifos": "true",
+}
+
+xls_dslx_verilog(
+    name = "sequence_header_writer_verilog",
+    codegen_args = SEQUENCE_HEADER_WRITER_CODEGEN_ARGS,
+    dslx_top = "SequenceHeaderWriterInst",
+    library = ":sequence_header_writer_dslx",
+    tags = ["manual"],
+    verilog_file = "sequence_conf_enc.v",
+)
+
+
+xls_benchmark_ir(
+    name = "sequence_header_writer_opt_ir_benchmark",
+    src = ":sequence_header_writer_verilog.opt.ir",
+    codegen_args = SEQUENCE_HEADER_WRITER_CODEGEN_ARGS,
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "sequence_header_writer_verilog_lib",
+    srcs = [
+        ":sequence_conf_enc.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "sequence_header_writer_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "SequenceHeaderWriter",
+    deps = [
+        ":sequence_header_writer_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "sequence_header_writer_benchmark_synth",
+    synth_target = ":sequence_header_writer_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "sequence_header_writer_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":sequence_header_writer_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
+
+xls_dslx_library(
+    name = "mem_copy_dslx",
+    srcs = [
+        "mem_copy.x",
+    ],
+    deps = [
+        "//xls/modules/zstd/memory:mem_reader_dslx",
+        "//xls/modules/zstd/memory:mem_writer_dslx",
+    ],
+)
+
+xls_dslx_verilog(
+    name = "mem_copy_verilog",
+    codegen_args = COMMON_CODEGEN_ARGS | {
+        "module_name": "RawMemcopyInst",
+    },
+    dslx_top = "RawMemcopyInst",
+    library = ":mem_copy_dslx",
+    tags = ["manual"],
+    verilog_file = "mem_copy.v",
+)
+
+xls_benchmark_ir(
+    name = "mem_copy_opt_ir_benchmark",
+    src = ":mem_copy_verilog.opt.ir",
+    benchmark_ir_args = COMMON_CODEGEN_ARGS,
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "mem_copy_verilog_lib",
+    srcs = [
+        ":mem_copy.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "mem_copy_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "RawMemcopyInst",
+    deps = [
+        ":mem_copy_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "mem_copy_benchmark_synth",
+    synth_target = ":mem_copy_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "mem_copy_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.3",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":mem_copy_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "8",
+)
+
+xls_dslx_library(
+    name = "block_size_dslx",
+    srcs = ["block_size.x"],
+    deps = [
+        "//xls/modules/zstd:common_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "block_size_dslx_test",
+    library = ":block_size_dslx",
+    tags = ["manual"],
+)
+
+xls_dslx_library(
+    name = "frame_header_enc_dslx",
+    srcs = ["frame_header_enc.x"],
+    deps = [
+        ":frame_header_dec_dslx",
+        "//xls/modules/zstd/memory:mem_writer_dslx",
+        "//xls/modules/zstd/memory:mem_writer_data_downscaler_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "frame_header_enc_dslx_test",
+    library = ":frame_header_enc_dslx",
+)
+
+FRAME_HEADER_ENC_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
+    "module_name": "FrameHeaderEncoder",
+    "worst_case_throughput": "2",
+}
+
+xls_dslx_verilog(
+    name = "frame_header_enc_verilog",
+    codegen_args = FRAME_HEADER_ENC_CODEGEN_ARGS,
+    dslx_top = "FrameHeaderEncoderInst",
+    library = ":frame_header_enc_dslx",
+    tags = ["manual"],
+    verilog_file = "frame_header_enc.v",
+)
+
+xls_benchmark_ir(
+    name = "frame_header_enc_opt_ir_benchmark",
+    src = ":frame_header_enc_verilog.opt.ir",
+    benchmark_ir_args = FRAME_HEADER_ENC_CODEGEN_ARGS,
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "frame_header_enc_verilog_lib",
+    srcs = [
+        ":frame_header_enc.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "frame_header_enc_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "FrameHeaderEncoder",
+    deps = [
+        ":frame_header_enc_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "frame_header_enc_benchmark_synth",
+    synth_target = ":frame_header_enc_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "frame_header_enc_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.20",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":frame_header_enc_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
+
+xls_dslx_library(
+    name = "zstd_encoder_dslx",
+    srcs = [
+        "zstd_enc.x",
+    ],
+    deps = [
+        ":block_size_dslx",
+        ":mem_writer_simple_arbiter_dslx",
+        ":comp_block_enc_dslx",
+        ":mem_reader_simple_arbiter_dslx",
+        ":frame_header_dec_dslx",
+        ":frame_header_enc_dslx",
+        ":rle_block_encoder_dslx",
+        ":block_header_dslx",
+        ":mem_copy_dslx",
+        "//xls/modules/zstd/memory:axi_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "zstd_encoder_dslx_test",
+    srcs = [
+        "zstd_enc_test.x"
+    ],
+    deps = [
+        ":zstd_encoder_dslx",
+        "//xls/modules/zstd/memory:axi_dslx",
+        "//xls/modules/zstd/memory:axi_ram_reader_dslx",
+        "//xls/modules/zstd/memory:axi_ram_writer_dslx",
+    ]
+)
+
+ZSTD_ENCODER_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
+    "module_name": "ZstdEncoder",
+    "worst_case_throughput": "5",
+    "clock_period_ps": "900"
+}
+
+xls_dslx_verilog(
+    name = "zstd_encoder_verilog",
+    codegen_args = ZSTD_ENCODER_CODEGEN_ARGS,
+    dslx_top = "ZstdEncoderInst",
+    library = ":zstd_encoder_dslx",
+    tags = ["manual"],
+    verilog_file = "zstd_enc.v",
+)
+
+ZSTD_ENCODER_COCOTB_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
+    "module_name": "ZstdEncoder",
+    "clock_period_ps": "900",
+    "worst_case_throughput": "5",
+    "ram_configurations": ",".join([
+       "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+           latency = 1,
+           ram_name = "hb_ram{}".format(num),
+           rd_req = "zstd_enc__hb_ram_rd_req_s__{}".format(num),
+           rd_resp = "zstd_enc__hb_ram_rd_resp_r__{}".format(num),
+           wr_req = "zstd_enc__hb_ram_wr_req_s__{}".format(num),
+           wr_resp = "zstd_enc__hb_ram_wr_resp_r__{}".format(num),
+       )
+       for num in range(8)
+    ] + [
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+           latency = 1,
+           ram_name = "ht_ram",
+           rd_req = "zstd_enc__ht_ram_rd_req_s",
+           rd_resp = "zstd_enc__ht_ram_rd_resp_r",
+           wr_req = "zstd_enc__ht_ram_wr_req_s",
+           wr_resp = "zstd_enc__ht_ram_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+           latency = 1,
+           ram_name = "ll_ctable_ram",
+           rd_req = "zstd_enc__ll_ctable_ram_rd_req_s",
+           rd_resp = "zstd_enc__ll_ctable_ram_rd_resp_r",
+           wr_req = "zstd_enc__ll_ctable_ram_wr_req_s",
+           wr_resp = "zstd_enc__ll_ctable_ram_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+           latency = 1,
+           ram_name = "ml_ctable_ram",
+           rd_req = "zstd_enc__ml_ctable_ram_rd_req_s",
+           rd_resp = "zstd_enc__ml_ctable_ram_rd_resp_r",
+           wr_req = "zstd_enc__ml_ctable_ram_wr_req_s",
+           wr_resp = "zstd_enc__ml_ctable_ram_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+           latency = 1,
+           ram_name = "of_ctable_ram",
+           rd_req = "zstd_enc__of_ctable_ram_rd_req_s",
+           rd_resp = "zstd_enc__of_ctable_ram_rd_resp_r",
+           wr_req = "zstd_enc__of_ctable_ram_wr_req_s",
+           wr_resp = "zstd_enc__of_ctable_ram_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+           latency = 1,
+           ram_name = "ll_ttable_ram",
+           rd_req = "zstd_enc__ll_ttable_ram_rd_req_s",
+           rd_resp = "zstd_enc__ll_ttable_ram_rd_resp_r",
+           wr_req = "zstd_enc__ll_ttable_ram_wr_req_s",
+           wr_resp = "zstd_enc__ll_ttable_ram_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+           latency = 1,
+           ram_name = "ml_ttable_ram",
+           rd_req = "zstd_enc__ml_ttable_ram_rd_req_s",
+           rd_resp = "zstd_enc__ml_ttable_ram_rd_resp_r",
+           wr_req = "zstd_enc__ml_ttable_ram_wr_req_s",
+           wr_resp = "zstd_enc__ml_ttable_ram_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+           latency = 1,
+           ram_name = "of_ttable_ram",
+           rd_req = "zstd_enc__of_ttable_ram_rd_req_s",
+           rd_resp = "zstd_enc__of_ttable_ram_rd_resp_r",
+           wr_req = "zstd_enc__of_ttable_ram_wr_req_s",
+           wr_resp = "zstd_enc__of_ttable_ram_wr_resp_r",
+        ),
+    ])
+}
+
+xls_dslx_verilog(
+    name = "zstd_encoder_benchmark_verilog",
+    codegen_args = ZSTD_ENCODER_COCOTB_CODEGEN_ARGS,
+    dslx_top = "ZstdEncoderCocotbInst",
+    library = ":zstd_encoder_dslx",
+    tags = ["manual"],
+    verilog_file = "zstd_enc_cocotb.v",
+)
+
+xls_benchmark_ir(
+    name = "zstd_encoder_opt_ir_benchmark",
+    src = ":zstd_encoder_verilog.opt.ir",
+    benchmark_ir_args = ZSTD_ENCODER_CODEGEN_ARGS,
+    tags = ["manual"],
+)
+
+xls_benchmark_ir(
+    name = "zstd_encoder_benchmark_opt_ir_benchmark",
+    src = ":zstd_encoder_benchmark_verilog.opt.ir",
+    benchmark_ir_args = ZSTD_ENCODER_CODEGEN_ARGS,
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "zstd_encoder_verilog_lib",
+    srcs = [
+        ":zstd_enc.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "zstd_encoder_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "ZstdEncoder",
+    deps = [
+        ":zstd_encoder_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "zstd_encoder_benchmark_synth",
+    synth_target = ":zstd_encoder_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "zstd_encoder_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":zstd_encoder_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
+
+py_test(
+    name = "zstd_enc_cocotb_test",
+    srcs = ["zstd_enc_cocotb_test.py"],
+    data = [
+        ":zstd_enc_cocotb.v",
+        "//xls/modules/zstd/rtl:zstd_enc_wrapper.sv",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
+        "//xls/modules/zstd/rtl:ram_1r1w.sv",
+        "//xls/modules/zstd:zstd_enc_xx_xtable_default_default",
+        "data/enc_pregenerated_200B",
+        "data/enc_pregenerated_300B",
+        "data/enc_pregenerated_500B",
+        "data/enc_pregenerated_1024B",
+        "data/enc_pregenerated_1030B",
+        "data/enc_pregenerated_2000B",
+        "@com_icarus_iverilog//:iverilog",
+        "@com_icarus_iverilog//:vvp",
+    ],
+    env = {"BUILD_WORKING_DIRECTORY": "sim_build"},
+    imports = ["."],
+    tags = ["manual"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        requirement("cocotb"),
+        requirement("cocotbext-axi"),
+        "//xls/common:runfiles",
+        "//xls/modules/zstd/cocotb:channel",
+        "//xls/modules/zstd/cocotb:memory",
+        "//xls/modules/zstd/cocotb:utils",
+        "//xls/modules/zstd/cocotb:xlsstruct",
+        "//xls/modules/zstd/cocotb:data_generator",
+        "@com_google_protobuf//:protobuf_python",
+    ],
+)
+
+xls_dslx_library(
+    name = "rle_block_encoder_dslx",
+    srcs = [
+        "rle_block_encoder.x",
+    ],
+    deps = [
+        ":mem_reader_simple_arbiter_dslx",
+        ":common_dslx",
+        "//xls/modules/zstd/memory:axi_dslx",
+        "//xls/modules/zstd/memory:axi_ram_reader_dslx",
+        "//xls/modules/zstd/memory:axi_ram_writer_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "rle_block_encoder_dslx_test",
+    library = "rle_block_encoder_dslx",
+)
+
+RLE_BLOCK_ENCODER_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
+    "module_name": "RleBlockEncoder",
+    "worst_case_throughput": "3",
+}
+
+xls_dslx_verilog(
+    name = "rle_block_encoder_verilog",
+    codegen_args = RLE_BLOCK_ENCODER_CODEGEN_ARGS,
+    dslx_top = "RleBlockEncoderInst",
+    library = ":rle_block_encoder_dslx",
+    tags = ["manual"],
+    verilog_file = "rle_block_encoder.v",
+)
+
+xls_benchmark_ir(
+    name = "rle_block_encoder_opt_ir_benchmark",
+    src = ":rle_block_encoder_verilog.opt.ir",
+    benchmark_ir_args = RLE_BLOCK_ENCODER_CODEGEN_ARGS,
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "rle_block_encoder_verilog_lib",
+    srcs = [
+        ":rle_block_encoder.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "rle_block_encoder_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "RleBlockEncoder",
+    deps = [
+        ":rle_block_encoder_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "rle_block_encoder_benchmark_synth",
+    synth_target = ":rle_block_encoder_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "rle_block_encoder_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":rle_block_encoder_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
+
+xls_dslx_library(
+    name = "sequence_encoder_dslx",
+    srcs = [
+        "sequence_encoder.x",
+    ],
+    deps = [
+        ":common_dslx",
+        ":sequence_header_writer_dslx",
+        ":mem_reader_simple_arbiter_dslx",
+        ":mem_writer_simple_arbiter_dslx",
+        "//xls/modules/zstd/memory:axi_dslx",
+        "//xls/modules/zstd/memory:axi_ram_reader_dslx",
+        "//xls/modules/zstd/memory:axi_ram_writer_dslx",
+        "//xls/modules/zstd/memory:mem_reader_dslx",
+        "//xls/modules/zstd/memory:mem_writer_dslx",
+        "//xls/modules/zstd/memory:mem_reader_data_upscaler_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "sequence_encoder_dslx_test",
+    library = "sequence_encoder_dslx",
+)
+
+SEQUENCE_ENCODER_BUFFER_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
+    "module_name": "SequenceEncoderBuffer",
+    "clock_period_ps": "900",
+    "worst_case_throughput": "1",
+}
+
+xls_dslx_verilog(
+    name = "sequence_encoder_buffer_verilog",
+    codegen_args = SEQUENCE_ENCODER_BUFFER_CODEGEN_ARGS,
+    dslx_top = "SequenceEncoderBufferInst",
+    library = ":sequence_encoder_dslx",
+    tags = ["manual"],
+    verilog_file = "sequence_encoder_buffer.v",
+)
+
+xls_benchmark_ir(
+    name = "sequence_encoder_buffer_opt_ir_benchmark",
+    src = ":sequence_encoder_buffer_verilog.opt.ir",
+    benchmark_ir_args = SEQUENCE_ENCODER_BUFFER_CODEGEN_ARGS,
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "sequence_encoder_buffer_verilog_lib",
+    srcs = [
+        ":sequence_encoder_buffer.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "sequence_encoder_buffer_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "SequenceEncoderBuffer",
+    deps = [
+        ":sequence_encoder_buffer_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "sequence_encoder_buffer_benchmark_synth",
+    synth_target = ":sequence_encoder_buffer_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "sequence_encoder_buffer_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":sequence_encoder_buffer_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
+
+xls_dslx_library(
+    name = "comp_block_enc_dslx",
+    srcs = [
+        "comp_block_enc.x",
+    ],
+    deps = [
+        ":common_dslx",
+        ":sequence_encoder_dslx",
+        ":match_finder_dslx",
+        ":literal_encoder_dslx",
+        ":mem_reader_simple_arbiter_dslx",
+        ":mem_writer_simple_arbiter_dslx",
+        "//xls/modules/zstd/memory:axi_dslx",
+        "//xls/modules/zstd/memory:axi_ram_reader_dslx",
+        "//xls/modules/zstd/memory:axi_ram_writer_dslx",
+        "//xls/modules/zstd/memory:mem_reader_dslx",
+        "//xls/modules/zstd/memory:mem_writer_dslx",
+    ],
+)
+
+filegroup(
+    name = "zstd_enc_xx_xtable_default_default",
+    srcs = [
+        "zstd_enc_ll_ctable_default.mem",
+        "zstd_enc_ml_ctable_default.mem",
+        "zstd_enc_of_ctable_default.mem",
+        "zstd_enc_ll_ttable_default.mem",
+        "zstd_enc_ml_ttable_default.mem",
+        "zstd_enc_of_ttable_default.mem",
+    ]
+)
+
+xls_dslx_fmt_test(
+    name = "comp_block_enc_fmt_test",
+    src = "comp_block_enc.x"
 )
