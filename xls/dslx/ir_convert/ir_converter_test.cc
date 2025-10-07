@@ -180,7 +180,7 @@ absl::StatusOr<std::string> ConvertOneFunctionForTest(
 
 absl::StatusOr<std::string> ConvertOneFunctionForTest(
     std::string_view program, std::string_view fn_name,
-    const ConvertOptions& options = ConvertOptions{},
+    const ConvertOptions& options = kNoPosOptions,
     std::optional<TypeInferenceVersion> force_typecheck_version =
         std::nullopt) {
   auto import_data = CreateImportDataForTest();
@@ -189,7 +189,7 @@ absl::StatusOr<std::string> ConvertOneFunctionForTest(
 }
 
 absl::StatusOr<std::string> ConvertModuleForTest(
-    std::string_view program, const ConvertOptions& options = ConvertOptions{},
+    std::string_view program, const ConvertOptions& options = kNoPosOptions,
     ImportData* import_data = nullptr,
     std::optional<TypeInferenceVersion> force_typecheck_version =
         std::nullopt) {
@@ -220,14 +220,13 @@ class IrConverterWithBothTypecheckVersionsTest
 
   absl::StatusOr<std::string> ConvertOneFunctionForTest(
       std::string_view program, std::string_view fn_name,
-      const ConvertOptions& options = ConvertOptions{}) {
+      const ConvertOptions& options = kNoPosOptions) {
     return ::xls::dslx::ConvertOneFunctionForTest(program, fn_name, options,
                                                   GetParam());
   }
 
   absl::StatusOr<std::string> ConvertModuleForTest(
-      std::string_view program,
-      const ConvertOptions& options = ConvertOptions{},
+      std::string_view program, const ConvertOptions& options = kNoPosOptions,
       ImportData* import_data = nullptr) {
     return ::xls::dslx::ConvertModuleForTest(program, options, import_data,
                                              GetParam());
@@ -1356,12 +1355,8 @@ fn test(x:u32, y:u32) -> u32 {
                              ConvertModuleForTest(kProgram, kNoPosOptions));
     ExpectVersionSpecificIr(converted, TypeInferenceVersion::kVersion2);
   } else {
-    ConvertOptions options;
-    options.emit_fail_as_assert = false;
-    options.emit_positions = false;
-    options.verify_ir = false;
     EXPECT_THAT(
-        ConvertOneFunctionForTest(kProgram, "main", import_data, options),
+        ConvertOneFunctionForTest(kProgram, "main", import_data, kNoPosOptions),
         StatusIs(
             absl::StatusCode::kInvalidArgument,
             HasSubstr("unroll_for! must use a constexpr iterable expression")));
@@ -1383,12 +1378,8 @@ fn test() -> u32 {
                              ConvertModuleForTest(kProgram, kNoPosOptions));
     ExpectVersionSpecificIr(converted, TypeInferenceVersion::kVersion2);
   } else {
-    ConvertOptions options;
-    options.emit_fail_as_assert = false;
-    options.emit_positions = false;
-    options.verify_ir = false;
     EXPECT_THAT(
-        ConvertOneFunctionForTest(kProgram, "main", import_data, options),
+        ConvertOneFunctionForTest(kProgram, "main", import_data, kNoPosOptions),
         StatusIs(absl::StatusCode::kInvalidArgument,
                  HasSubstr("unroll_for! must iterate through a range or "
                            "aggregate type whose elements are all bits")));
@@ -2616,8 +2607,8 @@ proc main {
 )";
 
   ConvertOptions options;
-  options.emit_fail_as_assert = false;
   options.emit_positions = false;
+  // This test won't pass with verify_ir set to true
   options.verify_ir = false;
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -2664,14 +2655,10 @@ proc main {
 }
 )";
 
-  ConvertOptions options;
-  options.emit_fail_as_assert = false;
-  options.emit_positions = false;
-  options.verify_ir = false;
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertOneFunctionForTest(kProgram, "main", import_data, options));
+      ConvertOneFunctionForTest(kProgram, "main", import_data, kNoPosOptions));
   ExpectIr(converted);
 }
 
@@ -2694,14 +2681,10 @@ proc P {
 }
 )";
 
-  ConvertOptions options;
-  options.emit_fail_as_assert = false;
-  options.emit_positions = false;
-  options.verify_ir = false;
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertOneFunctionForTest(kProgram, "P", import_data, options));
+      ConvertOneFunctionForTest(kProgram, "P", import_data, kNoPosOptions));
   ExpectIr(converted);
 }
 
@@ -2768,15 +2751,10 @@ proc A {
 }
 )";
 
-  ConvertOptions options;
-  options.emit_fail_as_assert = false;
-  options.emit_positions = false;
-  options.verify_ir = true;
   auto import_data = CreateImportDataForTest();
-
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertOneFunctionForTest(kProgram, "A", import_data, options));
+      ConvertOneFunctionForTest(kProgram, "A", import_data, kNoPosOptions));
   ExpectIr(converted);
 }
 
@@ -2826,14 +2804,10 @@ proc main {
   next(state: ()) { () }
 })";
 
-  ConvertOptions options;
-  options.emit_fail_as_assert = false;
-  options.emit_positions = false;
-  options.verify_ir = false;
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertOneFunctionForTest(kProgram, "main", import_data, options));
+      ConvertOneFunctionForTest(kProgram, "main", import_data, kNoPosOptions));
   ExpectIr(converted);
 }
 
@@ -2879,8 +2853,8 @@ proc main {
 )";
 
   ConvertOptions options;
-  options.emit_fail_as_assert = false;
   options.emit_positions = false;
+  // This test won't pass with verify_ir set to true
   options.verify_ir = false;
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -2909,14 +2883,10 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, BoundaryChannels) {
   }
 })";
 
-  ConvertOptions options;
-  options.emit_fail_as_assert = false;
-  options.emit_positions = false;
-  options.verify_ir = false;
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertOneFunctionForTest(kProgram, "foo", import_data, options));
+      ConvertOneFunctionForTest(kProgram, "foo", import_data, kNoPosOptions));
   ExpectIr(converted);
 }
 
@@ -2960,14 +2930,12 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest,
     }
   }
   )";
-  ConvertOptions options;
-  options.emit_fail_as_assert = false;
-  options.emit_positions = false;
-  options.verify_ir = false;
+
   auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertOneFunctionForTest(kProgram, "YetAnotherProc",
-                                                     import_data, options));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "YetAnotherProc", import_data,
+                                kNoPosOptions));
   ExpectIr(converted);
 }
 
@@ -3015,14 +2983,12 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest,
     }
   }
   )";
-  ConvertOptions options;
-  options.emit_fail_as_assert = false;
-  options.emit_positions = false;
-  options.verify_ir = false;
+
   auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertOneFunctionForTest(kProgram, "YetAnotherProc",
-                                                     import_data, options));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "YetAnotherProc", import_data,
+                                kNoPosOptions));
   // Note: version-specific IR is due to unroll_for!.
   ExpectVersionSpecificIr(converted, GetParam());
 }
@@ -3050,14 +3016,11 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest,
   }
   )";
 
-  ConvertOptions options;
-  options.emit_fail_as_assert = false;
-  options.emit_positions = false;
-  options.verify_ir = false;
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertOneFunctionForTest(kProgram, "SomeProc", import_data, options));
+      ConvertOneFunctionForTest(kProgram, "SomeProc", import_data,
+                                kNoPosOptions));
   ExpectIr(converted);
 }
 
@@ -3096,14 +3059,10 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, DealOutChannelSubarray) {
   }
   )";
 
-  ConvertOptions options;
-  options.emit_fail_as_assert = false;
-  options.emit_positions = false;
-  options.verify_ir = false;
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertOneFunctionForTest(kProgram, "A", import_data, options));
+      ConvertOneFunctionForTest(kProgram, "A", import_data, kNoPosOptions));
   // Note: the v2 IR is different due to unroll_for!.
   ExpectVersionSpecificIr(converted, GetParam());
 }
@@ -3143,12 +3102,9 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest,
   }
   )";
 
-  ConvertOptions options;
-  options.emit_fail_as_assert = false;
-  options.emit_positions = false;
-  options.verify_ir = false;
   auto import_data = CreateImportDataForTest();
-  XLS_EXPECT_OK(ConvertOneFunctionForTest(kProgram, "A", import_data, options));
+  XLS_EXPECT_OK(
+      ConvertOneFunctionForTest(kProgram, "A", import_data, kNoPosOptions));
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, LetChannelSubarrayInConfig) {
@@ -3189,14 +3145,10 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, LetChannelSubarrayInConfig) {
   }
   )";
 
-  ConvertOptions options;
-  options.emit_fail_as_assert = false;
-  options.emit_positions = false;
-  options.verify_ir = false;
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertOneFunctionForTest(kProgram, "A", import_data, options));
+      ConvertOneFunctionForTest(kProgram, "A", import_data, kNoPosOptions));
   // Note: the v2 IR is different due to unroll_for!.
   ExpectVersionSpecificIr(converted, GetParam());
 }
@@ -3228,14 +3180,11 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, LetChannelSubarrayInNext) {
   }
   )";
 
-  ConvertOptions options;
-  options.emit_fail_as_assert = false;
-  options.emit_positions = false;
-  options.verify_ir = false;
   auto import_data = CreateImportDataForTest();
-  EXPECT_THAT(ConvertOneFunctionForTest(kProgram, "A", import_data, options),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Invalid channel subarray use")));
+  EXPECT_THAT(
+      ConvertOneFunctionForTest(kProgram, "A", import_data, kNoPosOptions),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Invalid channel subarray use")));
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, TopProcWithState) {
@@ -3249,14 +3198,10 @@ proc main {
   next(state: (u32, u32[4])) { state }
 })";
 
-  ConvertOptions options;
-  options.emit_fail_as_assert = false;
-  options.emit_positions = false;
-  options.verify_ir = false;
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertOneFunctionForTest(kProgram, "main", import_data, options));
+      ConvertOneFunctionForTest(kProgram, "main", import_data, kNoPosOptions));
   ExpectIr(converted);
 }
 
@@ -3264,14 +3209,11 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, FormatMacro) {
   constexpr std::string_view kProgram = R"(fn main() {
   trace_fmt!("Look! I don't explode!");
 })";
-  ConvertOptions options;
-  options.emit_fail_as_assert = false;
-  options.emit_positions = false;
-  options.verify_ir = false;
+
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertOneFunctionForTest(kProgram, "main", import_data, options));
+      ConvertOneFunctionForTest(kProgram, "main", import_data, kNoPosOptions));
   ExpectIr(converted);
 }
 
@@ -3286,14 +3228,11 @@ fn main() {
   let p = Point{x: u32:42, y: s8:7};
   trace_fmt!("Look! I don't explode *and* I can trace a struct: {}", p);
 })";
-  ConvertOptions options;
-  options.emit_fail_as_assert = false;
-  options.emit_positions = false;
-  options.verify_ir = true;
+
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertOneFunctionForTest(kProgram, "main", import_data, options));
+      ConvertOneFunctionForTest(kProgram, "main", import_data, kNoPosOptions));
   ExpectIr(converted);
 }
 
@@ -3312,14 +3251,11 @@ fn main() {
   let p = Point{x: U32Wrapper{v: u32:42}, y: s8:7};
   trace_fmt!("Look! I don't explode *and* I can trace a nested struct: {}", p);
 })";
-  ConvertOptions options;
-  options.emit_fail_as_assert = false;
-  options.emit_positions = false;
-  options.verify_ir = true;
+
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertOneFunctionForTest(kProgram, "main", import_data, options));
+      ConvertOneFunctionForTest(kProgram, "main", import_data, kNoPosOptions));
   ExpectIr(converted);
 }
 
@@ -3341,14 +3277,11 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest,
     foo
   }
   )";
-  ConvertOptions options;
-  options.emit_fail_as_assert = false;
-  options.emit_positions = false;
-  options.verify_ir = false;
+
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(kProgram, options, &import_data));
+      ConvertModuleForTest(kProgram, kNoPosOptions, &import_data));
   ExpectIr(converted);
 }
 
@@ -3357,14 +3290,12 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, InvalidChannelDecl) {
   let _ = chan<u8>("my_chan");
   ()
   })";
-  ConvertOptions options;
-  options.emit_fail_as_assert = false;
-  options.emit_positions = false;
-  options.verify_ir = false;
+
   auto import_data = CreateImportDataForTest();
-  EXPECT_THAT(ConvertOneFunctionForTest(kProgram, "main", import_data, options),
-              StatusIs(absl::StatusCode::kInternal,
-                       HasSubstr("Channels can only be declared in")));
+  EXPECT_THAT(
+      ConvertOneFunctionForTest(kProgram, "main", import_data, kNoPosOptions),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("Channels can only be declared in")));
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, InvalidSpawn) {
@@ -3379,14 +3310,12 @@ fn main() {
   spawn p();
 }
 )";
-  ConvertOptions options;
-  options.emit_fail_as_assert = false;
-  options.emit_positions = false;
-  options.verify_ir = false;
+
   auto import_data = CreateImportDataForTest();
-  EXPECT_THAT(ConvertOneFunctionForTest(kProgram, "main", import_data, options),
-              StatusIs(absl::StatusCode::kInternal,
-                       HasSubstr("Functions cannot spawn procs")));
+  EXPECT_THAT(
+      ConvertOneFunctionForTest(kProgram, "main", import_data, kNoPosOptions),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("Functions cannot spawn procs")));
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
@@ -3394,11 +3323,11 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest,
   constexpr std::string_view kProgram = R"(fn main() -> u8[1] {
   "\x80"  // -128 in signed char interpretation
 })";
-  ConvertOptions options;
+
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertOneFunctionForTest(kProgram, "main", import_data, options));
+      ConvertOneFunctionForTest(kProgram, "main", import_data, kNoPosOptions));
   ExpectIr(converted);
 }
 
@@ -3409,14 +3338,12 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, EmptyArray) {
       u32[0]:[]
     }
 )";
-  ConvertOptions options;
-  options.emit_fail_as_assert = false;
-  options.emit_positions = false;
-  options.verify_ir = false;
+
   auto import_data = CreateImportDataForTest();
-  EXPECT_THAT(ConvertOneFunctionForTest(kProgram, "main", import_data, options),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Array u32[0]:[] was empty")));
+  EXPECT_THAT(
+      ConvertOneFunctionForTest(kProgram, "main", import_data, kNoPosOptions),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Array u32[0]:[] was empty")));
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, TraceFmt) {
@@ -3446,14 +3373,10 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, TraceFmt) {
     }
 )";
 
-  ConvertOptions options;
-  options.emit_fail_as_assert = true;
-  options.emit_positions = false;
-  options.verify_ir = true;
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertOneFunctionForTest(kProgram, "main", import_data, options));
+      ConvertOneFunctionForTest(kProgram, "main", import_data, kNoPosOptions));
   ExpectIr(converted);
 }
 
@@ -3509,13 +3432,10 @@ fn main(x: u8) -> u32 {
   x_32 + widening_cast<u32>(x_4)
 }
 )";
-  ConvertOptions options;
-  options.emit_fail_as_assert = false;
-  options.emit_positions = false;
-  options.verify_ir = false;
+
   auto import_data = CreateImportDataForTest();
   EXPECT_THAT(
-      ConvertOneFunctionForTest(kProgram, "main", import_data, options),
+      ConvertOneFunctionForTest(kProgram, "main", import_data, kNoPosOptions),
       StatusIs(absl::StatusCode::kInvalidArgument,
                AllOf(HasSubstrInV1(GetParam(),
                                    "Can not cast from type uN[32] (32 bits) to "
@@ -3553,14 +3473,12 @@ proc main {
   }
 }
 )";
-  ConvertOptions options;
-  options.emit_fail_as_assert = false;
-  options.emit_positions = false;
-  options.verify_ir = false;
+
   auto import_data = CreateImportDataForTest();
-  EXPECT_THAT(ConvertOneFunctionForTest(kProgram, "main", import_data, options),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("tokens cannot be placed in arrays.")));
+  EXPECT_THAT(
+      ConvertOneFunctionForTest(kProgram, "main", import_data, kNoPosOptions),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("tokens cannot be placed in arrays.")));
 }
 
 TEST(IrConverterTest, ArrayOfTupleWithTokenError) {
@@ -3575,14 +3493,11 @@ proc main {
   }
 }
 )";
-  ConvertOptions options;
-  options.emit_fail_as_assert = false;
-  options.emit_positions = false;
-  options.verify_ir = false;
   auto import_data = CreateImportDataForTest();
-  EXPECT_THAT(ConvertOneFunctionForTest(kProgram, "main", import_data, options),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("tokens cannot be placed in arrays.")));
+  EXPECT_THAT(
+      ConvertOneFunctionForTest(kProgram, "main", import_data, kNoPosOptions),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("tokens cannot be placed in arrays.")));
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ArraySizeBuiltin) {
@@ -3918,7 +3833,7 @@ fn main() -> u8 {
   bool printed_error = false;
   absl::StatusOr<PackageConversionData> result =
       ConvertFilesToPackage({dslx_str_path},
-                            /*stdlib_path=*/"", {temp.path()}, ConvertOptions{},
+                            /*stdlib_path=*/"", {temp.path()}, kNoPosOptions,
                             /*top=*/"main",
                             /*package_name=*/std::nullopt, &printed_error);
   if (kDefaultTypeInferenceVersion == TypeInferenceVersion::kVersion2) {
