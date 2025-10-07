@@ -146,6 +146,11 @@ constexpr ConvertOptions kNoPosOptions = {
     .emit_positions = false,
 };
 
+constexpr ConvertOptions kProcScopedChannelOptions = {
+    .emit_positions = false,
+    .lower_to_proc_scoped_channels = true,
+};
+
 void ExpectIr(std::string_view got) {
   return ::xls::dslx::ExpectIr(got, TestName(), "ir_converter_test");
 }
@@ -4178,10 +4183,7 @@ proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -4204,10 +4206,7 @@ proc p2 {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "p2", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -4221,10 +4220,7 @@ proc main {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(kProgram, ConvertOptions{
-                                         .emit_positions = false,
-                                         .lower_to_proc_scoped_channels = true,
-                                     }));
+      ConvertModuleForTest(kProgram, kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -4249,10 +4245,7 @@ pub proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -4280,10 +4273,7 @@ pub proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -4304,11 +4294,7 @@ pub proc main {
 )";
 
   EXPECT_THAT(
-      ConvertOneFunctionForTest(kProgram, "main",
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }),
+      ConvertOneFunctionForTest(kProgram, "main", kProcScopedChannelOptions),
       StatusIs(absl::StatusCode::kInternal,
                HasSubstr("Use a parametric on the proc instead.")));
 }
@@ -4334,10 +4320,7 @@ pub proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -4375,10 +4358,7 @@ pub proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -4416,10 +4396,7 @@ pub proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -4438,10 +4415,7 @@ fn main() -> u16 {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -4460,10 +4434,7 @@ fn main() -> u16 {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -4489,10 +4460,7 @@ pub proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -4522,10 +4490,7 @@ pub proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -4569,10 +4534,7 @@ pub proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -4589,10 +4551,7 @@ proc spawnee {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "spawnee", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -4609,10 +4568,7 @@ proc spawnee {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "spawnee", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -4635,10 +4591,7 @@ pub proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -4658,10 +4611,7 @@ pub proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -4690,10 +4640,7 @@ pub proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -4725,10 +4672,7 @@ pub proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -4761,10 +4705,7 @@ pub proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -4785,10 +4726,7 @@ pub proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -4805,11 +4743,7 @@ pub proc main {
 )";
 
   EXPECT_THAT(
-      ConvertOneFunctionForTest(kProgram, "main",
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }),
+      ConvertOneFunctionForTest(kProgram, "main", kProcScopedChannelOptions),
       StatusIs(absl::StatusCode::kInternal,
                HasSubstr("Must assign a channel declaration to a 2-tuple")));
 }
@@ -4834,10 +4768,7 @@ proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -4854,11 +4785,7 @@ pub proc main {
 )";
 
   EXPECT_THAT(
-      ConvertOneFunctionForTest(kProgram, "main",
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }),
+      ConvertOneFunctionForTest(kProgram, "main", kProcScopedChannelOptions),
       StatusIs(absl::StatusCode::kInternal,
                HasSubstr("Channels can only be declared in")));
 }
@@ -4879,11 +4806,7 @@ proc main {
 )";
 
   EXPECT_THAT(
-      ConvertOneFunctionForTest(kProgram, "main",
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }),
+      ConvertOneFunctionForTest(kProgram, "main", kProcScopedChannelOptions),
       StatusIs(absl::StatusCode::kInternal,
                HasSubstr("Cannot have non-channel parameters")));
 }
@@ -4906,10 +4829,7 @@ pub proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -4951,10 +4871,7 @@ pub proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -4971,10 +4888,7 @@ pub proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -4995,10 +4909,7 @@ pub proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -5028,10 +4939,7 @@ pub proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -5059,11 +4967,7 @@ proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .verify_ir = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -5105,11 +5009,7 @@ proc producer {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "producer", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .verify_ir = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -5129,11 +5029,7 @@ pub proc main {
 )";
 
   EXPECT_THAT(
-      ConvertOneFunctionForTest(kProgram, "main",
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }),
+      ConvertOneFunctionForTest(kProgram, "main", kProcScopedChannelOptions),
       StatusIs(absl::StatusCode::kInternal,
                HasSubstr("Cannot have non-channel parameters")));
 }
@@ -5154,11 +5050,7 @@ pub proc main {
 )";
 
   EXPECT_THAT(
-      ConvertOneFunctionForTest(kProgram, "main",
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }),
+      ConvertOneFunctionForTest(kProgram, "main", kProcScopedChannelOptions),
       StatusIs(absl::StatusCode::kInternal,
                HasSubstr("Cannot have non-channel parameters")));
 }
@@ -5185,10 +5077,7 @@ pub proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -5223,10 +5112,7 @@ pub proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -5252,10 +5138,7 @@ pub proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -5291,10 +5174,7 @@ pub proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -5336,10 +5216,7 @@ pub proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -5362,10 +5239,7 @@ proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -5387,10 +5261,7 @@ proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -5414,10 +5285,7 @@ proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -5441,10 +5309,7 @@ proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -5468,10 +5333,7 @@ proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -5495,10 +5357,7 @@ proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -5522,10 +5381,7 @@ proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -5550,10 +5406,7 @@ proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -5586,10 +5439,7 @@ proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -5631,10 +5481,7 @@ proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -5676,10 +5523,7 @@ proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -5704,10 +5548,7 @@ proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -5725,9 +5566,7 @@ proc SomeProc {
 })";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(
-          kProgram, ConvertOptions{.emit_positions = false,
-                                   .lower_to_proc_scoped_channels = true}));
+      ConvertModuleForTest(kProgram, kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -5782,11 +5621,7 @@ TEST_P(ProcScopedChannelsIrConverterTest, ProcScopedChannelsConvertTestProc) {
 TEST_P(ProcScopedChannelsIrConverterTest, ProcScopedChannelsNoTestProc) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(kTestProc, ConvertOptions{
-                                          .emit_positions = false,
-                                          .convert_tests = false,
-                                          .lower_to_proc_scoped_channels = true,
-                                      }));
+      ConvertModuleForTest(kTestProc, kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -5813,11 +5648,7 @@ TEST_P(ProcScopedChannelsIrConverterTest, ProcScopedChannelsConvertTestFn) {
 TEST_P(ProcScopedChannelsIrConverterTest, ProcScopedChannelsNoTestFn) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(kTestFn, ConvertOptions{
-                                        .emit_positions = false,
-                                        .convert_tests = false,
-                                        .lower_to_proc_scoped_channels = true,
-                                    }));
+      ConvertModuleForTest(kTestFn, kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
