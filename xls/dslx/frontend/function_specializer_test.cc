@@ -370,5 +370,83 @@ fn select_poly<N: u32>(polys: uN[6][N], selector: uN[N]) -> uN[6] {
   ASSERT_TRUE(replaced.ok()) << replaced.status();
 }
 
+TEST(FunctionSpecializerTest, TypeAnnotationsSubstituteParametricBindings) {
+  constexpr std::string_view kProgram =
+      R"(fn slice<M: u32>(x: bits[M]) -> bits[M + 8] {
+  let y: bits[M + 8] = x ++ u8:0;
+  y
+}
+)";
+
+  std::unique_ptr<ImportData> import_data = CreateImportDataPtrForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule typechecked,
+                           ParseAndTypecheck(kProgram, "ta_module.x",
+                                             "ta_module", import_data.get()));
+
+  Module* module = typechecked.module;
+  ASSERT_NE(module, nullptr);
+
+  std::optional<Function*> slice_fn = module->GetFunction("slice");
+  ASSERT_TRUE(slice_fn.has_value());
+
+  const ParametricBinding* binding =
+      slice_fn.value()->parametric_bindings().front();
+  InterpValue binding_value = InterpValue::MakeUBits(/*bit_count=*/32, 16);
+  absl::flat_hash_map<std::string, InterpValue> env_bindings;
+  env_bindings.emplace(binding->identifier(), binding_value);
+  ParametricEnv env(env_bindings);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * specialized,
+      InsertFunctionSpecialization(slice_fn.value(), env, "slice_M16"));
+
+  ASSERT_EQ(specialized->params().size(), 1);
+  Param* specialized_param = specialized->params()[0];
+  auto* param_type =
+      down_cast<ArrayTypeAnnotation*>(specialized_param->type_annotation());
+  ASSERT_NE(param_type, nullptr);
+  auto* param_dim = dynamic_cast<Number*>(param_type->dim());
+  ASSERT_NE(param_dim, nullptr);
+  EXPECT_EQ(param_dim->text(), "0x10");
+
+  auto* return_type =
+      down_cast<ArrayTypeAnnotation*>(specialized->return_type());
+  ASSERT_NE(return_type, nullptr);
+  auto* return_dim = dynamic_cast<Binop*>(return_type->dim());
+  ASSERT_NE(return_dim, nullptr);
+  EXPECT_EQ(return_dim->binop_kind(), BinopKind::kAdd);
+  auto* return_dim_lhs = dynamic_cast<Number*>(return_dim->lhs());
+  ASSERT_NE(return_dim_lhs, nullptr);
+  EXPECT_EQ(return_dim_lhs->text(), "0x10");
+  auto* return_dim_rhs = dynamic_cast<Number*>(return_dim->rhs());
+  ASSERT_NE(return_dim_rhs, nullptr);
+  ASSERT_NE(module->file_table(), nullptr);
+  const FileTable& file_table = *module->file_table();
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t return_dim_rhs_value,
+                           return_dim_rhs->GetAsUint64(file_table));
+  EXPECT_EQ(return_dim_rhs_value, 8);
+
+  StatementBlock* body = specialized->body();
+  ASSERT_EQ(body->statements().size(), 2);
+  const Statement::Wrapped& let_wrapped =
+      body->statements().front()->wrapped();
+  ASSERT_TRUE(std::holds_alternative<Let*>(let_wrapped));
+  auto* let_stmt = std::get<Let*>(let_wrapped);
+  auto* let_type =
+      down_cast<ArrayTypeAnnotation*>(let_stmt->type_annotation());
+  ASSERT_NE(let_type, nullptr);
+  auto* let_dim = dynamic_cast<Binop*>(let_type->dim());
+  ASSERT_NE(let_dim, nullptr);
+  EXPECT_EQ(let_dim->binop_kind(), BinopKind::kAdd);
+  auto* let_dim_lhs = dynamic_cast<Number*>(let_dim->lhs());
+  ASSERT_NE(let_dim_lhs, nullptr);
+  EXPECT_EQ(let_dim_lhs->text(), "0x10");
+  auto* let_dim_rhs = dynamic_cast<Number*>(let_dim->rhs());
+  ASSERT_NE(let_dim_rhs, nullptr);
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t let_dim_rhs_value,
+                           let_dim_rhs->GetAsUint64(file_table));
+  EXPECT_EQ(let_dim_rhs_value, 8);
+}
+
 }  // namespace
 }  // namespace xls::dslx

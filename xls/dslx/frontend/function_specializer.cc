@@ -27,6 +27,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/module.h"
@@ -175,9 +176,11 @@ absl::StatusOr<Number*> CreateLiteralFromValue(Module* module, const Span& span,
 absl::StatusOr<Function*> InsertFunctionSpecialization(
     Function* source_function, const ParametricEnv& param_env,
     std::string_view specialized_name) {
-  CHECK_NE(source_function, nullptr);
+  XLS_RET_CHECK_NE(source_function, nullptr)
+      << "InsertFunctionSpecialization requires a non-null source function";
   Module* module = source_function->owner();
-  CHECK_NE(module, nullptr);
+  XLS_RET_CHECK_NE(module, nullptr) << absl::StrFormat(
+      "Source function %s has no owning module", source_function->identifier());
 
   if (!source_function->IsParametric()) {
     return absl::InvalidArgumentError(absl::StrFormat(
@@ -186,7 +189,8 @@ absl::StatusOr<Function*> InsertFunctionSpecialization(
 
   auto binding_values =
       std::make_shared<absl::flat_hash_map<const NameDef*, InterpValue>>();
-  absl::flat_hash_map<const NameDef*, TypeAnnotation*> binding_types;
+  auto binding_types =
+      std::make_shared<absl::flat_hash_map<const NameDef*, TypeAnnotation*>>();
   for (ParametricBinding* binding : source_function->parametric_bindings()) {
     std::optional<InterpValue> value = param_env.GetValue(binding->name_def());
     if (!value.has_value()) {
@@ -196,13 +200,13 @@ absl::StatusOr<Function*> InsertFunctionSpecialization(
     }
     binding_values->emplace(binding->name_def(), *value);
     if (binding->type_annotation() != nullptr) {
-      binding_types.emplace(binding->name_def(), binding->type_annotation());
+      binding_types->emplace(binding->name_def(), binding->type_annotation());
     }
   }
 
   auto make_replacer = [binding_values, binding_types](
-                            const absl::flat_hash_map<const NameDef*, NameDef*>*
-                                param_name_replacements) -> CloneReplacer {
+                           const absl::flat_hash_map<const NameDef*, NameDef*>*
+                               param_name_replacements) -> CloneReplacer {
     return [binding_values, binding_types, param_name_replacements](
                const AstNode* original, Module* target_module,
                const absl::flat_hash_map<const AstNode*, AstNode*>& old_to_new)
@@ -217,20 +221,19 @@ absl::StatusOr<Function*> InsertFunctionSpecialization(
           auto param_it = param_name_replacements->find(def);
           if (param_it != param_name_replacements->end()) {
             NameDef* replacement = param_it->second;
-            return std::optional<AstNode*>(
-                target_module->Make<NameRef>(name_ref->span(),
-                                             name_ref->identifier(),
-                                             replacement, name_ref->in_parens()));
+            return std::optional<AstNode*>(target_module->Make<NameRef>(
+                name_ref->span(), name_ref->identifier(), replacement,
+                name_ref->in_parens()));
           }
         }
         auto binding_it = binding_values->find(def);
         if (binding_it != binding_values->end()) {
-          XLS_ASSIGN_OR_RETURN(Number * literal,
-                               CreateLiteralFromValue(target_module,
-                                                      name_ref->span(),
-                                                      binding_it->second));
-          auto type_it = binding_types.find(def);
-          if (type_it != binding_types.end() && type_it->second != nullptr) {
+          XLS_ASSIGN_OR_RETURN(
+              Number * literal,
+              CreateLiteralFromValue(target_module, name_ref->span(),
+                                     binding_it->second));
+          auto type_it = binding_types->find(def);
+          if (type_it != binding_types->end() && type_it->second != nullptr) {
             XLS_ASSIGN_OR_RETURN(TypeAnnotation * cloned_type,
                                  CloneNode<TypeAnnotation>(type_it->second));
             literal->SetTypeAnnotation(cloned_type);
@@ -246,9 +249,10 @@ absl::StatusOr<Function*> InsertFunctionSpecialization(
   new_params.reserve(source_function->params().size());
   absl::flat_hash_map<const NameDef*, NameDef*> param_name_replacements;
   for (Param* param : source_function->params()) {
-    XLS_ASSIGN_OR_RETURN(Param * cloned_param,
-                         CloneNode<Param>(param,
-                                          make_replacer(/*param_name_replacements=*/nullptr)));
+    XLS_ASSIGN_OR_RETURN(
+        Param * cloned_param,
+        CloneNode<Param>(param,
+                         make_replacer(/*param_name_replacements=*/nullptr)));
     param_name_replacements.emplace(param->name_def(),
                                     cloned_param->name_def());
     new_params.push_back(cloned_param);
@@ -256,9 +260,10 @@ absl::StatusOr<Function*> InsertFunctionSpecialization(
 
   TypeAnnotation* new_return_type = nullptr;
   if (source_function->return_type() != nullptr) {
-    XLS_ASSIGN_OR_RETURN(new_return_type,
-                         CloneNode<TypeAnnotation>(source_function->return_type(),
-                                                   make_replacer(&param_name_replacements)));
+    XLS_ASSIGN_OR_RETURN(
+        new_return_type,
+        CloneNode<TypeAnnotation>(source_function->return_type(),
+                                  make_replacer(&param_name_replacements)));
   }
 
   XLS_ASSIGN_OR_RETURN(
@@ -266,9 +271,9 @@ absl::StatusOr<Function*> InsertFunctionSpecialization(
       CloneNode<StatementBlock>(source_function->body(),
                                 make_replacer(&param_name_replacements)));
 
-  NameDef* new_name_def = module->Make<NameDef>(
-      Span::Fake(), std::string(specialized_name),
-      /*definer=*/nullptr);
+  NameDef* new_name_def =
+      module->Make<NameDef>(Span::Fake(), std::string(specialized_name),
+                            /*definer=*/nullptr);
 
   SyntheticSpanAllocator span_allocator(module, source_function,
                                         specialized_name);

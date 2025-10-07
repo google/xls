@@ -63,6 +63,7 @@ cc_library(
         ":ast",
         ":ast_cloner",
         ":module",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir:bits_ops",
         "//xls/ir:format_preference",
