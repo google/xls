@@ -301,6 +301,46 @@ fn main2() -> u32 { f<u32:1>() + f<u32:0>() + f<u32:2>() }
   }
 }
 
+TEST(TypeInfoTest, GetAllInvocationCalleeDataMultipleParametricCalls) {
+  const std::string kInvocation = R"(
+fn f<N: u32>() -> u32 { u32:42 }
+fn main() -> u32 { f<u32:0>() + f<u32:0>() + f<u32:1>() }
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, Typecheck(kInvocation));
+
+  std::optional<Function*> f = result.tm.module->GetFunction("f");
+  ASSERT_TRUE(f.has_value());
+
+  auto all_invocations =
+      result.tm.type_info->GetAllInvocationCalleeData(*f);
+  ASSERT_EQ(all_invocations.size(), 3);
+  EXPECT_EQ(all_invocations[0].callee_bindings,
+            ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{{
+                "N", InterpValue::MakeU32(0),
+            }}));
+  EXPECT_EQ(all_invocations[1].callee_bindings,
+            ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{{
+                "N", InterpValue::MakeU32(0),
+            }}));
+  EXPECT_EQ(all_invocations[2].callee_bindings,
+            ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{{
+                "N", InterpValue::MakeU32(1),
+            }}));
+  EXPECT_NE(all_invocations[0].invocation, all_invocations[1].invocation);
+
+  auto unique_invocations =
+      result.tm.type_info->GetUniqueInvocationCalleeData(*f);
+  ASSERT_EQ(unique_invocations.size(), 2);
+  EXPECT_EQ(unique_invocations[0].callee_bindings,
+            ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{{
+                "N", InterpValue::MakeU32(0),
+            }}));
+  EXPECT_EQ(unique_invocations[1].callee_bindings,
+            ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{{
+                "N", InterpValue::MakeU32(1),
+            }}));
+}
+
 TEST(TypeInfoTest, GetUniqueInvocationCalleeDataParametricProc) {
   const std::string kInvocation = R"(
 proc spawnee<N: u32>{

@@ -1005,6 +1005,19 @@ xls_dslx_type_info_get_unique_invocation_callee_data(
   return reinterpret_cast<xls_dslx_invocation_callee_data_array*>(array);
 }
 
+struct xls_dslx_invocation_callee_data_array*
+xls_dslx_type_info_get_all_invocation_callee_data(
+    struct xls_dslx_type_info* type_info, struct xls_dslx_function* function) {
+  CHECK(type_info != nullptr);
+  CHECK(function != nullptr);
+  auto* cpp_type_info = reinterpret_cast<xls::dslx::TypeInfo*>(type_info);
+  auto* cpp_function = reinterpret_cast<xls::dslx::Function*>(function);
+  std::vector<xls::dslx::InvocationCalleeData> entries =
+      cpp_type_info->GetAllInvocationCalleeData(cpp_function);
+  auto* array = new InvocationCalleeDataArray(std::move(entries));
+  return reinterpret_cast<xls_dslx_invocation_callee_data_array*>(array);
+}
+
 struct xls_dslx_invocation_data* xls_dslx_type_info_get_root_invocation_data(
     struct xls_dslx_type_info* type_info,
     struct xls_dslx_invocation* invocation) {

@@ -459,6 +459,16 @@ std::vector<InvocationCalleeData> TypeInfo::GetUniqueInvocationCalleeData(
   return result;
 }
 
+std::vector<InvocationCalleeData> TypeInfo::GetAllInvocationCalleeData(
+    const Function* f) const {
+  const TypeInfo* top = GetRoot();
+  auto entries = top->callee_data_.find(f);
+  if (entries == top->callee_data_.end()) {
+    return {};
+  }
+  return entries->second;
+}
+
 std::optional<Type*> TypeInfo::GetItem(const AstNode* key) const {
   CHECK_EQ(key->owner(), module_) << absl::StreamFormat(
       "attempted to get type information for AST node: `%s` at `%s`; but it is "

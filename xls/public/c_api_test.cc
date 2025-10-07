@@ -3176,6 +3176,7 @@ TEST(XlsCApiTest, DslxInvocationCalleeDataIntrospection) {
 fn id<N: u32>(x: bits[N]) -> bits[N] { x }
 
 fn caller<N: u32>(x: bits[N]) -> bits[N] {
+  let _ = id(x);
   id(x)
 }
 
@@ -3239,12 +3240,12 @@ fn main() -> u32 {
       xls_dslx_invocation_callee_data_array_get_count(unique_array);
   ASSERT_EQ(unique_count, 1);
 
-  xls_dslx_invocation_callee_data* callee_data =
+  xls_dslx_invocation_callee_data* callee_data_unique =
       xls_dslx_invocation_callee_data_array_get(unique_array, 0);
-  ASSERT_NE(callee_data, nullptr);
+  ASSERT_NE(callee_data_unique, nullptr);
 
   const xls_dslx_parametric_env* callee_env =
-      xls_dslx_invocation_callee_data_get_callee_bindings(callee_data);
+      xls_dslx_invocation_callee_data_get_callee_bindings(callee_data_unique);
   ASSERT_NE(callee_env, nullptr);
   EXPECT_EQ(xls_dslx_parametric_env_get_binding_count(callee_env), 1);
   const char* callee_identifier =
@@ -3261,7 +3262,7 @@ fn main() -> u32 {
   EXPECT_EQ(std::string_view{callee_value_string}, "u32:32");
 
   const xls_dslx_parametric_env* caller_env =
-      xls_dslx_invocation_callee_data_get_caller_bindings(callee_data);
+      xls_dslx_invocation_callee_data_get_caller_bindings(callee_data_unique);
   ASSERT_NE(caller_env, nullptr);
   EXPECT_EQ(xls_dslx_parametric_env_get_binding_count(caller_env), 1);
   const char* caller_identifier =
@@ -3270,11 +3271,12 @@ fn main() -> u32 {
   EXPECT_STREQ(caller_identifier, "N");
 
   xls_dslx_type_info* derived_type_info =
-      xls_dslx_invocation_callee_data_get_derived_type_info(callee_data);
+      xls_dslx_invocation_callee_data_get_derived_type_info(
+          callee_data_unique);
   ASSERT_NE(derived_type_info, nullptr);
 
   xls_dslx_invocation* invocation =
-      xls_dslx_invocation_callee_data_get_invocation(callee_data);
+      xls_dslx_invocation_callee_data_get_invocation(callee_data_unique);
   ASSERT_NE(invocation, nullptr);
 
   xls_dslx_invocation_data* invocation_data =
@@ -3285,6 +3287,28 @@ fn main() -> u32 {
   EXPECT_EQ(xls_dslx_invocation_data_get_caller(invocation_data), caller_fn);
   EXPECT_EQ(xls_dslx_invocation_data_get_invocation(invocation_data),
             invocation);
+
+  xls_dslx_invocation_callee_data_array* all_array =
+      xls_dslx_type_info_get_all_invocation_callee_data(type_info, id_fn);
+  ASSERT_NE(all_array, nullptr);
+  absl::Cleanup free_all_array(
+      [all_array] { xls_dslx_invocation_callee_data_array_free(all_array); });
+  int64_t all_count =
+      xls_dslx_invocation_callee_data_array_get_count(all_array);
+  ASSERT_EQ(all_count, 2);
+  xls_dslx_invocation_callee_data* callee_data_all_0 =
+      xls_dslx_invocation_callee_data_array_get(all_array, 0);
+  ASSERT_NE(callee_data_all_0, nullptr);
+  xls_dslx_invocation_callee_data* callee_data_all_1 =
+      xls_dslx_invocation_callee_data_array_get(all_array, 1);
+  ASSERT_NE(callee_data_all_1, nullptr);
+  xls_dslx_invocation* invocation0 =
+      xls_dslx_invocation_callee_data_get_invocation(callee_data_all_0);
+  xls_dslx_invocation* invocation1 =
+      xls_dslx_invocation_callee_data_get_invocation(callee_data_all_1);
+  ASSERT_NE(invocation0, nullptr);
+  ASSERT_NE(invocation1, nullptr);
+  EXPECT_NE(invocation0, invocation1);
 }
 
 TEST(XlsCApiTest, DslxFunctionParamIntrospection) {

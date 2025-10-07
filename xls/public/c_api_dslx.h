@@ -446,6 +446,10 @@ struct xls_dslx_invocation_callee_data_array*
 xls_dslx_type_info_get_unique_invocation_callee_data(
     struct xls_dslx_type_info* type_info, struct xls_dslx_function* function);
 
+struct xls_dslx_invocation_callee_data_array*
+xls_dslx_type_info_get_all_invocation_callee_data(
+    struct xls_dslx_type_info* type_info, struct xls_dslx_function* function);
+
 struct xls_dslx_invocation_data* xls_dslx_type_info_get_root_invocation_data(
     struct xls_dslx_type_info* type_info,
     struct xls_dslx_invocation* invocation);

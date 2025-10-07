@@ -388,6 +388,11 @@ class TypeInfo {
   std::vector<InvocationCalleeData> GetUniqueInvocationCalleeData(
       const Function*) const;
 
+  // Returns all InvocationCalleeData for the given function, including
+  // duplicates for identical parametric environments.
+  std::vector<InvocationCalleeData> GetAllInvocationCalleeData(
+      const Function*) const;
+
   const absl::flat_hash_map<ImportSubject, ImportedInfo>& GetRootImports()
       const {
     return GetRoot()->imports();
