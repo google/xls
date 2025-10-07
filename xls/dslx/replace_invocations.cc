@@ -507,8 +507,6 @@ absl::StatusOr<TypecheckedModule> ReplaceInvocationsInModule(
                        CloneModule(module, std::move(replacer)));
   XLS_RET_CHECK_OK(VerifyClone(&module, cloned.get(), *module.file_table()));
 
-  std::cout << "Cloned module: " << cloned->ToString();
-
   return TypecheckAndInstallCloned(std::move(cloned), tm, import_data,
                                    install_subject);
 }
