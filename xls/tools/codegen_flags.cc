@@ -210,6 +210,9 @@ ABSL_FLAG(std::string, reference_residual_data_path, "",
 ABSL_FLAG(std::string, block_metrics_path, "",
           "The filename to write the metrics, including the bill of "
           "materials, for the generated Verilog file");
+ABSL_FLAG(std::string, source_annotation_strategy, "none",
+          "What strategy to use annotating generated code with references "
+          "the DSLX source code. Options are 'none', 'comment', 'directive'");
 
 struct SeedSeq {
   std::vector<int32_t> elements;
@@ -274,6 +277,23 @@ absl::StatusOr<RegisterMergeStrategyProto> MergeStrategyFromString(
   }
   return absl::InvalidArgumentError(absl::StrFormat(
       "Invalid register merge strategy %s. choices: identity, none", s));
+}
+
+absl::StatusOr<SourceAnnotationStrategyProto>
+SourceAnnotationStrategyFromString(std::string_view s) {
+  if (s == "none") {
+    return ANNOTATION_STRATEGY_NONE;
+  }
+  if (s == "comment") {
+    return ANNOTATION_STRATEGY_COMMENT;
+  }
+  if (s == "directive") {
+    return ANNOTATION_STRATEGY_DIRECTIVE;
+  }
+  return absl::InvalidArgumentError(
+      absl::StrFormat("Invalid source annotation strategy %s. choices: none, "
+                      "comment, directive",
+                      s));
 }
 
 // Converts flag-provided values for I/O kinds to its proto enum value.
@@ -386,6 +406,13 @@ static absl::StatusOr<bool> SetOptionsFromFlags(CodegenFlagsProto& proto) {
       MergeStrategyFromString(absl::GetFlag(FLAGS_register_merge_strategy)));
   any_flags_set |= FLAGS_register_merge_strategy.IsSpecifiedOnCommandLine();
   proto.set_register_merge_strategy(merge_strategy);
+
+  XLS_ASSIGN_OR_RETURN(SourceAnnotationStrategyProto source_annotation_strategy,
+                       SourceAnnotationStrategyFromString(
+                           absl::GetFlag(FLAGS_source_annotation_strategy)));
+
+  any_flags_set |= FLAGS_source_annotation_strategy.IsSpecifiedOnCommandLine();
+  proto.set_source_annotation_strategy(source_annotation_strategy);
 
   // Misc
   if (FLAGS_randomize_order_seed.IsSpecifiedOnCommandLine()) {

@@ -222,6 +222,12 @@ CodegenOptions& CodegenOptions::register_merge_strategy(
   return *this;
 }
 
+CodegenOptions& CodegenOptions::source_annotation_strategy(
+    CodegenOptions::SourceAnnotationStrategy strategy) {
+  source_annotation_strategy_ = strategy;
+  return *this;
+}
+
 CodegenOptions& CodegenOptions::add_invariant_assertions(bool value) {
   add_invariant_assertions_ = value;
   return *this;

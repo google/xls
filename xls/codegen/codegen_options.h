@@ -90,6 +90,17 @@ class CodegenOptions {
     kDefault = kDontMerge,
   };
 
+  enum class SourceAnnotationStrategy : int8_t {
+    // Do not annotate
+    kNone,
+    // Generate comments with source information
+    kComment,
+    // Generate SystemVerilog `line directives
+    kLineDirective,
+
+    kDefault = kNone,
+  };
+
   // The name of the top-level function or proc to generate a Verilog module
   // for. Required.
   // TODO(meheff): 2021/04/21 As this is required, perhaps this should be made a
@@ -269,6 +280,11 @@ class CodegenOptions {
     return register_merge_strategy_;
   }
 
+  CodegenOptions& source_annotation_strategy(SourceAnnotationStrategy strategy);
+  SourceAnnotationStrategy source_annotation_strategy() const {
+    return source_annotation_strategy_;
+  }
+
   int64_t max_trace_verbosity() const { return max_trace_verbosity_; }
   CodegenOptions& set_max_trace_verbosity(int64_t value) {
     max_trace_verbosity_ = value;
@@ -396,6 +412,8 @@ class CodegenOptions {
   int64_t max_trace_verbosity_ = 0;
   RegisterMergeStrategy register_merge_strategy_ =
       RegisterMergeStrategy::kDefault;
+  SourceAnnotationStrategy source_annotation_strategy_ =
+      SourceAnnotationStrategy::kNone;
   std::optional<PackageInterfaceProto> package_interface_;
   std::vector<std::string> includes_;
   bool emit_sv_types_ = true;
