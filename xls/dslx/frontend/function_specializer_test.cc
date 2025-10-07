@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/strings/match.h"
 #include "gtest/gtest.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
@@ -154,6 +155,70 @@ TEST(FunctionSpecializerTest, SpecializedParametersRebindNameRefs) {
                       tc_import_data.get(), &warnings));
   EXPECT_NE(module_info->type_info(), nullptr);
   EXPECT_TRUE(module_info->module().GetFunction("passthrough_N8").has_value());
+}
+
+TEST(FunctionSpecializerTest, SpecializedFunctionReceivesSyntheticSpans) {
+  constexpr std::string_view kProgram =
+      R"(fn add_one<N: u32>(x: bits[N]) -> bits[N] {
+  x + uN[N]:1
+}
+
+fn twice<N: u32>(x: bits[N]) -> bits[N] {
+  add_one<N>(add_one<N>(x))
+}
+)";
+
+  std::unique_ptr<ImportData> import_data = CreateImportDataPtrForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule typechecked,
+                           ParseAndTypecheck(kProgram, "span_test.x",
+                                             "span_test", import_data.get()));
+
+  Module* module = typechecked.module;
+  ASSERT_NE(module, nullptr);
+
+  auto functions = module->GetFunctionByName();
+  ASSERT_TRUE(functions.contains("add_one"));
+  Function* add_one = functions.at("add_one");
+
+  ASSERT_FALSE(add_one->parametric_bindings().empty());
+  const ParametricBinding* binding = add_one->parametric_bindings().front();
+  absl::flat_hash_map<std::string, InterpValue> env_bindings;
+  env_bindings.emplace(binding->identifier(),
+                       InterpValue::MakeUBits(/*bit_count=*/32, 4));
+  ParametricEnv env(env_bindings);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * specialized,
+                           InsertFunctionSpecialization(add_one, env,
+                                                        "add_one_N4"));
+
+  ASSERT_NE(specialized, nullptr);
+  FileTable& files = *module->file_table();
+  std::string_view original_filename = add_one->span().GetFilename(files);
+  std::string_view specialized_filename = specialized->span().GetFilename(files);
+
+  EXPECT_NE(original_filename, specialized_filename);
+  EXPECT_TRUE(absl::StrContains(specialized_filename, "<specialization:"));
+
+  // The specialized function span should enclose its body span.
+  ASSERT_NE(specialized->body(), nullptr);
+  EXPECT_TRUE(specialized->span().Contains(specialized->body()->span()));
+
+  // All statements in the body should be in the synthetic file and contained
+  // within the function span.
+  for (Statement* stmt : specialized->body()->statements()) {
+    ASSERT_NE(stmt, nullptr);
+    std::optional<Span> stmt_span = stmt->GetSpan();
+    ASSERT_TRUE(stmt_span.has_value());
+    EXPECT_EQ(stmt_span->GetFilename(files), specialized_filename);
+    EXPECT_TRUE(specialized->span().Contains(*stmt_span));
+  }
+
+  // Function parameters should also be placed in the synthetic file.
+  for (Param* param : specialized->params()) {
+    ASSERT_NE(param, nullptr);
+    EXPECT_EQ(param->span().GetFilename(files), specialized_filename);
+    EXPECT_TRUE(specialized->span().Contains(param->span()));
+  }
 }
 
 }  // namespace

@@ -14,6 +14,7 @@
 
 #include "xls/dslx/frontend/function_specializer.h"
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -36,6 +37,123 @@
 namespace xls::dslx {
 
 namespace {
+
+class SyntheticSpanAllocator {
+ public:
+  SyntheticSpanAllocator(Module* module, const Function* source_function,
+                         std::string_view specialized_name)
+      : module_(module),
+        file_table_(module != nullptr ? module->file_table() : nullptr) {
+    if (file_table_ != nullptr) {
+      synthetic_file_ = file_table_->GetOrCreate(absl::StrFormat(
+          "<specialization:%s:%s@%p>", module_->name(), specialized_name,
+          static_cast<const void*>(source_function)));
+    }
+  }
+
+  Span Assign(AstNode* node) {
+    if (node == nullptr || file_table_ == nullptr) {
+      return Span::Fake();
+    }
+    return AssignInternal(node);
+  }
+
+  Span Enclose(absl::Span<const Span> spans) const {
+    if (file_table_ == nullptr || spans.empty()) {
+      return Span::Fake();
+    }
+    Pos start = spans.front().start();
+    Pos limit = spans.front().limit();
+    for (const Span& span : spans) {
+      if (span.start() < start) {
+        start = span.start();
+      }
+      if (limit < span.limit()) {
+        limit = span.limit();
+      }
+    }
+    return Span(start, limit);
+  }
+
+ private:
+  Span AssignInternal(AstNode* node) {
+    std::optional<Span> aggregate;
+    for (AstNode* child : node->GetChildren(/*want_types=*/true)) {
+      if (child == nullptr) {
+        continue;
+      }
+      Span child_span = AssignInternal(child);
+      if (!aggregate.has_value()) {
+        aggregate = child_span;
+      } else {
+        Pos start = aggregate->start();
+        if (child_span.start() < start) {
+          start = child_span.start();
+        }
+        Pos limit = aggregate->limit();
+        if (limit < child_span.limit()) {
+          limit = child_span.limit();
+        }
+        aggregate = Span(start, limit);
+      }
+    }
+
+    Span result = aggregate.has_value() ? *aggregate : AllocateLeafSpan();
+    ApplySpan(node, result);
+    return result;
+  }
+
+  Span AllocateLeafSpan() {
+    Pos start(synthetic_file_, next_line_, 0);
+    Pos limit(synthetic_file_, next_line_, 1);
+    ++next_line_;
+    return Span(start, limit);
+  }
+
+  void ApplySpan(AstNode* node, const Span& span) {
+    if (auto* expr = dynamic_cast<Expr*>(node)) {
+      const_cast<Span&>(expr->span()) = span;
+      return;
+    }
+    if (auto* type = dynamic_cast<TypeAnnotation*>(node)) {
+      const_cast<Span&>(type->span()) = span;
+      return;
+    }
+    if (auto* type_ref = dynamic_cast<TypeRef*>(node)) {
+      const_cast<Span&>(type_ref->span()) = span;
+      return;
+    }
+    if (auto* name_def = dynamic_cast<NameDef*>(node)) {
+      const_cast<Span&>(name_def->span()) = span;
+      return;
+    }
+    if (auto* name_def_tree = dynamic_cast<NameDefTree*>(node)) {
+      const_cast<Span&>(name_def_tree->span()) = span;
+      return;
+    }
+    if (auto* param = dynamic_cast<Param*>(node)) {
+      const_cast<Span&>(param->span()) = span;
+      return;
+    }
+    if (auto* let_node = dynamic_cast<Let*>(node)) {
+      const_cast<Span&>(let_node->span()) = span;
+      return;
+    }
+    if (auto* match_arm = dynamic_cast<MatchArm*>(node)) {
+      const_cast<Span&>(match_arm->span()) = span;
+      return;
+    }
+    if (auto* param_binding = dynamic_cast<ParametricBinding*>(node)) {
+      const_cast<Span&>(param_binding->name_def()->span()) = span;
+      return;
+    }
+  }
+
+  Module* module_;
+  FileTable* file_table_;
+  Fileno synthetic_file_ = Fileno(0);
+  int64_t next_line_ = 0;
+};
 
 absl::StatusOr<Number*> CreateLiteralFromValue(Module* module, const Span& span,
                                                const InterpValue& value) {
@@ -143,11 +261,33 @@ absl::StatusOr<Function*> InsertFunctionSpecialization(
                                 make_replacer(&param_name_replacements)));
 
   NameDef* new_name_def = module->Make<NameDef>(
-      source_function->name_def()->span(), std::string(specialized_name),
+      Span::Fake(), std::string(specialized_name),
       /*definer=*/nullptr);
 
+  SyntheticSpanAllocator span_allocator(module, source_function,
+                                        specialized_name);
+  std::vector<Span> function_component_spans;
+  function_component_spans.reserve(1 + new_params.size() +
+                                   (new_return_type != nullptr ? 1 : 0) + 1);
+
+  function_component_spans.push_back(span_allocator.Assign(new_name_def));
+  for (Param* param : new_params) {
+    function_component_spans.push_back(span_allocator.Assign(param));
+  }
+  if (new_return_type != nullptr) {
+    function_component_spans.push_back(
+        span_allocator.Assign(new_return_type));
+  }
+  function_component_spans.push_back(span_allocator.Assign(new_body));
+
+  Span function_span = span_allocator.Enclose(
+      absl::MakeSpan(function_component_spans));
+  if (function_span == Span::Fake()) {
+    function_span = source_function->span();
+  }
+
   Function* new_function = module->Make<Function>(
-      source_function->span(), new_name_def,
+      function_span, new_name_def,
       /*parametric_bindings=*/std::vector<ParametricBinding*>{}, new_params,
       new_return_type, new_body, source_function->tag(),
       source_function->is_public(), source_function->is_test_utility());

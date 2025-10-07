@@ -93,6 +93,7 @@ cc_test(
         "//xls/dslx/type_system:parametric_env",
         "//xls/dslx/type_system:typecheck_module",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/strings",
         "@googletest//:gtest",
     ],
 )
