@@ -401,7 +401,7 @@ TypeInfo::GetFunctionCallGraph() const {
   const TypeInfo* top = GetRoot();
   absl::flat_hash_map<const Function*, absl::flat_hash_set<const Function*>>
       grouped;
-  for (const auto& [invocation, invocation_data] : top->invocations_) {
+  for (const auto& [_, invocation_data] : top->invocations_) {
     const Function* caller = invocation_data->caller();
     const Function* callee = invocation_data->callee();
     if (caller == nullptr || callee == nullptr) {
@@ -411,18 +411,19 @@ TypeInfo::GetFunctionCallGraph() const {
   }
 
   absl::flat_hash_map<const Function*, std::vector<const Function*>> result;
+  // Ensure that all top-level functions are in the graph.
+  for (const ModuleMember& member : module()->top()) {
+    if (std::holds_alternative<Function*>(member)) {
+      const Function* function = std::get<Function*>(member);
+      result[function] = {};
+    }
+  }
+
   for (auto& [caller, callees] : grouped) {
     std::vector<const Function*>& vec = result[caller];
     vec.reserve(callees.size());
     for (const Function* callee : callees) {
       vec.push_back(callee);
-    }
-  }
-
-  for (const ModuleMember& member : module()->top()) {
-    if (std::holds_alternative<Function*>(member)) {
-      const Function* function = std::get<Function*>(member);
-      (void)result[function];
     }
   }
   return result;

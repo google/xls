@@ -41,6 +41,7 @@ namespace {
 using ::absl_testing::StatusIs;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
+using ::testing::UnorderedElementsAre;
 
 TEST(TypeInfoTest, Instantiate) {
   FileTable file_table;
@@ -129,9 +130,7 @@ fn main() -> u32 { f<u32:0>() }
 
 TEST(TypeInfoTest, FunctionCallGraphBasic) {
   ImportData import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(R"(
+  const std::string kProgram = R"(
 fn leaf(x: u32) -> u32 { x }
 
 fn caller(x: u32) -> u32 {
@@ -139,8 +138,10 @@ fn caller(x: u32) -> u32 {
 }
 
 fn unused(x: u32) -> u32 { x }
-)",
-                       "graph.x", "graph", &import_data));
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "graph.x", "graph", &import_data));
 
   auto graph = tm.type_info->GetFunctionCallGraph();
   const Function* leaf = tm.module->GetFunction("leaf").value();
@@ -157,9 +158,7 @@ fn unused(x: u32) -> u32 { x }
 
 TEST(TypeInfoTest, FunctionCallGraphHandlesMapAndIgnoresBuiltins) {
   ImportData import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(R"(
+  const std::string kProgram = R"(
 fn inc(x: u32) -> u32 { x + u32:1 }
 
 fn apply(xs: u32[3]) -> u32[3] {
@@ -167,8 +166,10 @@ fn apply(xs: u32[3]) -> u32[3] {
 }
 
 fn uses_builtin(x: u32) -> u32 { clz(x) }
-)",
-                       "graph_map.x", "graph_map", &import_data));
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "graph_map.x", "graph_map", &import_data));
 
   auto graph = tm.type_info->GetFunctionCallGraph();
   const Function* inc = tm.module->GetFunction("inc").value();
@@ -179,6 +180,73 @@ fn uses_builtin(x: u32) -> u32 { clz(x) }
   const Function* uses_builtin = tm.module->GetFunction("uses_builtin").value();
   ASSERT_TRUE(graph.contains(uses_builtin));
   EXPECT_TRUE(graph.at(uses_builtin).empty());
+}
+
+TEST(TypeInfoTest, FunctionCallGraphHandlesIntermoduleInvocations) {
+  ImportData import_data = CreateImportDataForTest();
+  const std::string kImported = R"(
+pub fn increment(x: u32) -> u32 { x + u32:1 }
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule imported_tm,
+      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+
+  const std::string kProgram = R"(
+import imported;
+
+fn local_call(x: u32) -> u32 { imported::increment(x) }
+
+fn entry(x: u32) -> u32 { local_call(x) }
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "main.x", "main", &import_data));
+
+  auto graph = tm.type_info->GetFunctionCallGraph();
+  const Function* local_call = tm.module->GetFunction("local_call").value();
+  const Function* entry = tm.module->GetFunction("entry").value();
+  const Function* imported_increment =
+      imported_tm.module->GetFunction("increment").value();
+
+  ASSERT_TRUE(graph.contains(local_call));
+  EXPECT_THAT(graph.at(local_call), ElementsAre(imported_increment));
+  ASSERT_TRUE(graph.contains(entry));
+  EXPECT_THAT(graph.at(entry), ElementsAre(local_call));
+}
+
+TEST(TypeInfoTest, FunctionCallGraphIncludesProcSpawns) {
+  ImportData import_data = CreateImportDataForTest();
+  const std::string kProgram = R"(
+proc worker<N: u32> {
+  value: uN[N];
+  init { zero!<uN[N]>() }
+  config(value: uN[N]) { (value,) }
+  next(state: uN[N]) { state }
+}
+
+proc main {
+  init { () }
+  config() {
+    spawn worker<u32:8>(u8:0);
+    ()
+  }
+  next(state: ()) { state }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm,
+                           ParseAndTypecheck(kProgram, "spawn_graph.x",
+                                             "spawn_graph", &import_data));
+
+  auto graph = tm.type_info->GetFunctionCallGraph();
+  const Function* main_config = tm.module->GetFunction("main.config").value();
+  const Function* worker_config =
+      tm.module->GetFunction("worker.config").value();
+  const Function* worker_init = tm.module->GetFunction("worker.init").value();
+  const Function* worker_next = tm.module->GetFunction("worker.next").value();
+
+  ASSERT_TRUE(graph.contains(main_config));
+  EXPECT_THAT(graph.at(main_config),
+              UnorderedElementsAre(worker_config, worker_init, worker_next));
 }
 
 TEST(TypeInfoTest, GetUniqueInvocationCalleeDataMultipleParametricCalls) {
