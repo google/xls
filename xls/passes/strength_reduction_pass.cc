@@ -22,7 +22,6 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
-#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -48,32 +47,6 @@
 
 namespace xls {
 namespace {
-
-// Finds and returns the set of adds which may be safely strength-reduced to
-// ORs. These are determined ahead of time rather than being transformed inline
-// to avoid problems with stale information in QueryEngine.
-absl::StatusOr<absl::flat_hash_set<Node*>> FindReducibleAdds(
-    FunctionBase* f, const QueryEngine& query_engine) {
-  absl::flat_hash_set<Node*> reducible_adds;
-  for (Node* node : f->nodes()) {
-    // An add can be reduced to an OR if there is at least one zero in every bit
-    // position amongst the operands of the add.
-    if (node->op() == Op::kAdd) {
-      bool reducible = true;
-      for (int64_t i = 0; i < node->BitCountOrDie(); ++i) {
-        if (!query_engine.IsZero(TreeBitLocation(node->operand(0), i)) &&
-            !query_engine.IsZero(TreeBitLocation(node->operand(1), i))) {
-          reducible = false;
-          break;
-        }
-      }
-      if (reducible) {
-        reducible_adds.insert(node);
-      }
-    }
-  }
-  return std::move(reducible_adds);
-}
 
 absl::StatusOr<bool> MaybeSinkOperationIntoSelect(
     Node* node, const QueryEngine& query_engine, Select* select_val) {
@@ -135,11 +108,9 @@ absl::StatusOr<bool> MaybeSinkOperationIntoSelect(
 }
 
 // Attempts to strength-reduce the given node. Returns true if successful.
-// 'reducible_adds' is the set of add operations which may be safely replaced
-// with an OR.
-absl::StatusOr<bool> StrengthReduceNode(
-    Node* node, const absl::flat_hash_set<Node*>& reducible_adds,
-    const QueryEngine& query_engine, int64_t opt_level) {
+absl::StatusOr<bool> StrengthReduceNode(Node* node,
+                                        const QueryEngine& query_engine,
+                                        int64_t opt_level) {
   if (!std::all_of(node->operands().begin(), node->operands().end(),
                    [](Node* n) { return n->GetType()->IsBits(); }) ||
       !node->GetType()->IsBits()) {
@@ -160,13 +131,52 @@ absl::StatusOr<bool> StrengthReduceNode(
     return true;
   }
 
-  if (reducible_adds.contains(node)) {
-    XLS_RET_CHECK_EQ(node->op(), Op::kAdd);
-    XLS_RETURN_IF_ERROR(
-        node->ReplaceUsesWithNew<NaryOp>(
-                std::vector<Node*>{node->operand(0), node->operand(1)}, Op::kOr)
-            .status());
-    return true;
+  if (node->op() == Op::kAdd) {
+    // If one operand is zero, replace the add with the other operand.
+    Node* nonzero_operand = nullptr;
+    if (query_engine.IsAllZeros(node->operand(0))) {
+      nonzero_operand = node->operand(1);
+    } else if (query_engine.IsAllZeros(node->operand(1))) {
+      nonzero_operand = node->operand(0);
+    }
+    if (nonzero_operand != nullptr) {
+      XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(nonzero_operand));
+      return true;
+    }
+
+    // If no carries are possible, replace the add with an OR.
+    bool can_carry = false;
+    for (int64_t i = 0; i < node->BitCountOrDie(); ++i) {
+      if (!query_engine.IsZero(TreeBitLocation(node->operand(0), i)) &&
+          !query_engine.IsZero(TreeBitLocation(node->operand(1), i))) {
+        can_carry = true;
+        break;
+      }
+    }
+    if (!can_carry) {
+      XLS_RETURN_IF_ERROR(
+          node->ReplaceUsesWithNew<NaryOp>(
+                  absl::MakeConstSpan({node->operand(0), node->operand(1)}),
+                  Op::kOr)
+              .status());
+      return true;
+    }
+  }
+
+  // If the LHS of a subtraction is all ones, the answer is the NOT of the RHS.
+  // If the RHS is all zeros, the answer is the LHS.
+  if (node->op() == Op::kSub) {
+    Node* lhs = node->operand(0);
+    Node* rhs = node->operand(1);
+    if (query_engine.IsAllZeros(rhs)) {
+      XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(lhs));
+      return true;
+    }
+    if (query_engine.IsAllOnes(lhs)) {
+      XLS_RETURN_IF_ERROR(
+          node->ReplaceUsesWithNew<UnOp>(rhs, Op::kNot).status());
+      return true;
+    }
   }
 
   // And(x, mask) => Concat(0, Slice(x), 0)
@@ -433,6 +443,71 @@ absl::StatusOr<bool> StrengthReduceNode(
       return true;
     }
   }
+  if (SplitsEnabled(opt_level) && node->op() == Op::kSub) {
+    auto lsb_known_zero_count = [&](Node* n) {
+      for (int64_t i = 0; i < n->BitCountOrDie(); ++i) {
+        if (!query_engine.IsZero(TreeBitLocation(n, i))) {
+          return i;
+        }
+      }
+      return n->BitCountOrDie();
+    };
+    auto lsb_known_one_count = [&](Node* n) {
+      for (int64_t i = 0; i < n->BitCountOrDie(); ++i) {
+        if (!query_engine.IsOne(TreeBitLocation(n, i))) {
+          return i;
+        }
+      }
+      return n->BitCountOrDie();
+    };
+    Node* lhs = node->operand(0);
+    Node* rhs = node->operand(1);
+    int64_t lhs_known_one = lsb_known_one_count(lhs);
+    int64_t rhs_known_zero = lsb_known_zero_count(rhs);
+    if (lhs_known_one > rhs_known_zero) {
+      auto narrow = [&](Node* n) -> absl::StatusOr<Node*> {
+        return node->function_base()->MakeNode<BitSlice>(
+            node->loc(), n, /*start=*/lhs_known_one,
+            /*width=*/n->BitCountOrDie() - lhs_known_one);
+      };
+      XLS_ASSIGN_OR_RETURN(Node * lhs_narrowed, narrow(lhs));
+      XLS_ASSIGN_OR_RETURN(Node * rhs_narrowed, narrow(rhs));
+      XLS_ASSIGN_OR_RETURN(
+          Node * narrowed_sub,
+          node->function_base()->MakeNode<BinOp>(node->loc(), lhs_narrowed,
+                                                 rhs_narrowed, Op::kSub));
+      XLS_ASSIGN_OR_RETURN(Node * not_lsb,
+                           node->function_base()->MakeNode<BitSlice>(
+                               node->loc(), rhs, /*start=*/0,
+                               /*width=*/lhs_known_one));
+      XLS_ASSIGN_OR_RETURN(Node * lsb, node->function_base()->MakeNode<UnOp>(
+                                           node->loc(), not_lsb, Op::kNot));
+      XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<Concat>(
+                                  std::vector<Node*>{narrowed_sub, lsb})
+                              .status());
+      return true;
+    } else if (rhs_known_zero > 0) {
+      auto narrow = [&](Node* n) -> absl::StatusOr<Node*> {
+        return node->function_base()->MakeNode<BitSlice>(
+            node->loc(), n, /*start=*/rhs_known_zero,
+            /*width=*/n->BitCountOrDie() - rhs_known_zero);
+      };
+      XLS_ASSIGN_OR_RETURN(Node * lhs_narrowed, narrow(lhs));
+      XLS_ASSIGN_OR_RETURN(Node * rhs_narrowed, narrow(rhs));
+      XLS_ASSIGN_OR_RETURN(
+          Node * narrowed_sub,
+          node->function_base()->MakeNode<BinOp>(node->loc(), lhs_narrowed,
+                                                 rhs_narrowed, Op::kSub));
+      XLS_ASSIGN_OR_RETURN(Node * lsb,
+                           node->function_base()->MakeNode<BitSlice>(
+                               node->loc(), lhs, /*start=*/0,
+                               /*width=*/rhs_known_zero));
+      XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<Concat>(
+                                  std::vector<Node*>{narrowed_sub, lsb})
+                              .status());
+      return true;
+    }
+  }
 
   // Transform arithmetic operation with exactly one unknown-bit in all of its
   // operands into a select on that one unknown bit.
@@ -576,13 +651,11 @@ absl::StatusOr<bool> StrengthReductionPass::RunOnFunctionBaseInternal(
 
   XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
 
-  XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Node*> reducible_adds,
-                       FindReducibleAdds(f, query_engine));
   bool modified = false;
   for (Node* node : context.TopoSort(f)) {
-    XLS_ASSIGN_OR_RETURN(bool node_modified,
-                         StrengthReduceNode(node, reducible_adds, query_engine,
-                                            options.opt_level));
+    XLS_ASSIGN_OR_RETURN(
+        bool node_modified,
+        StrengthReduceNode(node, query_engine, options.opt_level));
     modified |= node_modified;
   }
   return modified;

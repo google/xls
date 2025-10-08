@@ -2840,6 +2840,7 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:op",
         "//xls/solvers:z3_ir_equivalence",
+        "//xls/solvers:z3_ir_equivalence_testutils",
         "//xls/solvers:z3_ir_translator",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",
