@@ -441,7 +441,7 @@ are removed as they will never trigger. This pass is implemented in file
 `xls/passes/useless_assert_removel_pass.*` and is rather trivial. Again,
 it shows in a simple way how to navigate the IR:
 
-https://github.com/google/xls/blob/main/xls/passes/useless_assert_removal_pass.cc#L27-L43
+https://github.com/google/xls/blob/main/xls/passes/useless_assert_removal_pass.cc
 
 ### IO Simplifications
 
