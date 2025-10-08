@@ -95,6 +95,10 @@ ABSL_FLAG(std::string, evaluator, "dslx-interpreter",
           "the XLS-IR JIT. ir-interpreter' is the XLS-IR interpreter.");
 ABSL_FLAG(std::optional<bool>, type_inference_v2, std::nullopt,
           "Whether to use type system v2 when type checking the input.");
+ABSL_FLAG(
+    bool, run_quickcheck_when_interpreting, false,
+    "Whether to run quickchecks when using the IR interpreter. By default, "
+    "this flag is off because the IR interpreter is too slow.");
 // LINT.ThenChange(//xls/build_rules/xls_dslx_rules.bzl)
 
 namespace xls::dslx {
@@ -169,16 +173,39 @@ absl::StatusOr<TestResult> RealMain(
   XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(entry_module_path));
 
   std::unique_ptr<AbstractRunComparator> run_comparator;
-  switch (compare_flag) {
-    case CompareFlag::kNone:
-      break;
-    case CompareFlag::kJit:
+  // When comparison is on, use the same mode (JIT/interpreter) as the
+  // comparator. Otherwise, use the same mode as the evaluator flag. Using the
+  // IR interpreter requires --run_quickcheck_when_interpreting.
+  std::unique_ptr<AbstractRunComparator> quickcheck_runner;
+  if (compare_flag == CompareFlag::kNone) {
+    if (evaluator == EvaluatorType::kIrJit) {
+      quickcheck_runner = std::make_unique<RunComparator>(CompareMode::kJit);
+    } else if (evaluator == EvaluatorType::kIrInterpreter) {
+      if (absl::GetFlag(FLAGS_run_quickcheck_when_interpreting)) {
+        quickcheck_runner =
+            std::make_unique<RunComparator>(CompareMode::kInterpreter);
+      }
+    } else {
+      // Quickcheck is never run with the DSLX interpreter.
+    }
+  } else {
+    if (evaluator != EvaluatorType::kDslxInterpreter) {
+      return absl::InvalidArgumentError(
+          "Comparison is only supported if the evaluator is the DSLX "
+          "interpreter");
+    }
+    if (compare_flag == CompareFlag::kJit) {
       run_comparator = std::make_unique<RunComparator>(CompareMode::kJit);
-      break;
-    case CompareFlag::kInterpreter:
+      quickcheck_runner = std::make_unique<RunComparator>(CompareMode::kJit);
+    } else {
+      CHECK(compare_flag == CompareFlag::kInterpreter);
       run_comparator =
           std::make_unique<RunComparator>(CompareMode::kInterpreter);
-      break;
+      if (absl::GetFlag(FLAGS_run_quickcheck_when_interpreting)) {
+        quickcheck_runner =
+            std::make_unique<RunComparator>(CompareMode::kInterpreter);
+      }
+    }
   }
 
   std::optional<RE2> test_filter_re;
@@ -206,6 +233,7 @@ absl::StatusOr<TestResult> RealMain(
       .test_filter = test_filter_re_ptr,
       .format_preference = format_preference,
       .run_comparator = run_comparator.get(),
+      .quickcheck_runner = quickcheck_runner.get(),
       .execute = execute,
       .seed = seed,
       .trace_channels = trace_channels,

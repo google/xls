@@ -101,6 +101,7 @@ struct ParseAndTestOptions {
   const RE2* test_filter = nullptr;
   FormatPreference format_preference = FormatPreference::kDefault;
   AbstractRunComparator* run_comparator = nullptr;
+  AbstractRunComparator* quickcheck_runner = nullptr;
   bool execute = true;
   std::optional<int64_t> seed = std::nullopt;
   ConvertOptions convert_options;
@@ -292,7 +293,7 @@ struct QuickCheckResults {
 absl::StatusOr<QuickCheckResults> DoQuickCheck(
     bool requires_implicit_token, dslx::FunctionType* dslx_fn_type,
     xls::Function* ir_function, std::string_view ir_name,
-    AbstractRunComparator* run_comparator, int64_t seed,
+    AbstractRunComparator* quickcheck_runner, int64_t seed,
     QuickCheckTestCases test_cases);
 
 }  // namespace xls::dslx

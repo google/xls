@@ -411,7 +411,7 @@ static bool ValuesAreValid(absl::Span<const Value> values,
 absl::StatusOr<QuickCheckResults> DoQuickCheck(
     bool requires_implicit_token, dslx::FunctionType* dslx_fn_type,
     xls::Function* ir_function, std::string_view ir_name,
-    AbstractRunComparator* run_comparator, int64_t seed,
+    AbstractRunComparator* quickcheck_runner, int64_t seed,
     QuickCheckTestCases test_cases) {
   QuickCheckResults results;
   std::minstd_rand rng_engine(seed);
@@ -482,7 +482,7 @@ absl::StatusOr<QuickCheckResults> DoQuickCheck(
     // failures, flag-controlled, ...).
     absl::Span<const Value> this_arg_set = results.arg_sets.back();
     XLS_ASSIGN_OR_RETURN(xls::Value result,
-                         DropInterpreterEvents(run_comparator->RunIrFunction(
+                         DropInterpreterEvents(quickcheck_runner->RunIrFunction(
                              ir_name, ir_function, this_arg_set)));
 
     // In the case of an implicit token signature we get (token, bool) as the
@@ -546,7 +546,7 @@ static absl::StatusOr<QuickcheckIrFn> FindQuickcheckIrFn(Function* dslx_fn,
                       absl::StrJoin(ir_package->GetFunctionNames(), ", ")));
 }
 
-static absl::Status RunQuickCheck(AbstractRunComparator* run_comparator,
+static absl::Status RunQuickCheck(AbstractRunComparator* quickcheck_runner,
                                   Package* ir_package, QuickCheck* quickcheck,
                                   TypeInfo* type_info, int64_t seed) {
   // Note: DSLX function.
@@ -573,8 +573,8 @@ static absl::Status RunQuickCheck(AbstractRunComparator* run_comparator,
       QuickCheckResults qc_results,
       DoQuickCheck(
           qc_fn.calling_convention == CallingConvention::kImplicitToken,
-          dslx_fn_type, qc_fn.ir_function, qc_fn.ir_name, run_comparator, seed,
-          quickcheck->test_cases()));
+          dslx_fn_type, qc_fn.ir_function, qc_fn.ir_name, quickcheck_runner,
+          seed, quickcheck->test_cases()));
 
   // Extract the (inputs, outputs) from the results.
   const auto& [inputs, outputs] = qc_results;
@@ -627,15 +627,17 @@ static absl::Status RunQuickCheck(AbstractRunComparator* run_comparator,
       *dslx_fn->owner()->file_table());
 }
 
-static absl::Status RunQuickChecksIfJitEnabled(
+static absl::Status RunQuickChecksIfEnabled(
     const RE2* test_filter, Module* entry_module, TypeInfo* type_info,
-    AbstractRunComparator* run_comparator, Package* ir_package,
+    AbstractRunComparator* quickcheck_runner, Package* ir_package,
     std::optional<int64_t> seed, TestResultData& result,
     VirtualizableFilesystem& vfs) {
-  if (run_comparator == nullptr) {
+  if (quickcheck_runner == nullptr) {
     // TODO(leary): 2024-02-08 Note that this skips /all/ the quickchecks so we
     // don't make an entry for it right now in the test XML.
-    std::cerr << "[ SKIPPING QUICKCHECKS  ] (JIT is disabled)" << "\n";
+    std::cerr << "[ SKIPPING QUICKCHECKS  ] (JIT is disabled and quickcheck is "
+                 "not enabled with the interpreter)"
+              << "\n";
     return absl::OkStatus();
   }
   if (!seed.has_value()) {
@@ -671,8 +673,8 @@ static absl::Status RunQuickChecksIfJitEnabled(
     }
     std::cerr << "[ RUN QUICKCHECK        ] " << quickcheck_name
               << " cases: " << quickcheck->test_cases().ToString() << "\n";
-    const absl::Status status =
-        RunQuickCheck(run_comparator, ir_package, quickcheck, type_info, *seed);
+    const absl::Status status = RunQuickCheck(quickcheck_runner, ir_package,
+                                              quickcheck, type_info, *seed);
     const absl::Duration duration = absl::Now() - test_case_start;
     if (!status.ok()) {
       HandleError(result, status, quickcheck_name, start_pos, test_case_start,
@@ -952,7 +954,8 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
   // with the interpreter.
   std::unique_ptr<Package> ir_package;
   PostFnEvalHook post_fn_eval_hook;
-  if (options.run_comparator != nullptr) {
+  if (options.run_comparator != nullptr ||
+      options.quickcheck_runner != nullptr) {
     absl::StatusOr<dslx::PackageConversionData> ir_package_conversion_data =
         ConvertModuleToPackage(entry_module, &import_data,
                                options.convert_options);
@@ -967,21 +970,23 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
                 "turning off comparison with `--compare=none`: ";
     }
     ir_package = (*std::move(ir_package_conversion_data)).package;
-    post_fn_eval_hook = [&ir_package, &import_data, &options](
-                            const Function* f,
-                            absl::Span<const InterpValue> args,
-                            const ParametricEnv* parametric_env,
-                            const InterpValue& got) -> absl::Status {
-      XLS_RET_CHECK(f != nullptr);
-      std::optional<bool> requires_implicit_token =
-          import_data.GetRootTypeInfoForNode(f)
-              .value()
-              ->GetRequiresImplicitToken(*f);
-      XLS_RET_CHECK(requires_implicit_token.has_value());
-      return options.run_comparator->RunComparison(ir_package.get(),
-                                                   *requires_implicit_token, f,
-                                                   args, parametric_env, got);
-    };
+    if (options.run_comparator != nullptr) {
+      post_fn_eval_hook = [&ir_package, &import_data, &options](
+                              const Function* f,
+                              absl::Span<const InterpValue> args,
+                              const ParametricEnv* parametric_env,
+                              const InterpValue& got) -> absl::Status {
+        XLS_RET_CHECK(f != nullptr);
+        std::optional<bool> requires_implicit_token =
+            import_data.GetRootTypeInfoForNode(f)
+                .value()
+                ->GetRequiresImplicitToken(*f);
+        XLS_RET_CHECK(requires_implicit_token.has_value());
+        return options.run_comparator->RunComparison(
+            ir_package.get(), *requires_implicit_token, f, args, parametric_env,
+            got);
+      };
+    }
   }
 
   XLS_ASSIGN_OR_RETURN(
@@ -1050,9 +1055,9 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
 
   // Run quickchecks, but only if the JIT is enabled.
   if (!entry_module->GetQuickChecks().empty()) {
-    XLS_RETURN_IF_ERROR(RunQuickChecksIfJitEnabled(
+    XLS_RETURN_IF_ERROR(RunQuickChecksIfEnabled(
         options.test_filter, entry_module, tm->type_info,
-        options.run_comparator, ir_package.get(), options.seed, result,
+        options.quickcheck_runner, ir_package.get(), options.seed, result,
         import_data.vfs()));
   }
 
