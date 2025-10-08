@@ -2182,7 +2182,7 @@ e.g.,
     instantiate a `proc` with template parameters. For example see the
     [proc_iota.x](https://github.com/google/xls/tree/main/xls/examples/proc_iota.x) program
     and the
-    [associated build targets](https://github.com/google/xls/tree/main/xls/examples/BUILD;l=377).
+    [associated build targets](https://github.com/google/xls/tree/main/xls/examples/BUILD#L571).
     Note how the `proc`s `spawn`ed by main are manually `opt_ir`d using the mangled
     identifiers in the build-files instead of simply using the existing 'main'
     `proc` to spawn them both. In almost all cases simply picking any random `proc`

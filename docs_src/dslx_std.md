@@ -266,7 +266,7 @@ fn configured_value_or<T: type, N: u32>(label: u8[N], default_value: T) -> T;
 ```
 
 Bazel Target:
-[`xls/examples/BUILD`](https://github.com/google/xls/tree/main/xls/examples/BUILD;l=119)
+[`xls/examples/BUILD`](https://github.com/google/xls/tree/main/xls/examples/BUILD#L124)
 
 Example usage:
 [`xls/examples/configured_value_or.x`](https://github.com/google/xls/tree/main/xls/examples/configured_value_or.x).
