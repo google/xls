@@ -152,26 +152,8 @@ class CloneProcAsFunctionVisitor : public DfsVisitorWithDefault {
   }
 
   absl::Status HandleReceive(Receive* receive) override {
-    // Get the param type of the receive.
-    Type* channel_type;
-    if (proc_->is_new_style_proc()) {
-      XLS_ASSIGN_OR_RETURN(
-          ChannelInterface * channel_ref,
-          proc_->GetChannelInterface(receive->channel_name(),
-                                     ChannelDirection::kReceive));
-      channel_type = channel_ref->type();
-    } else {
-      XLS_ASSIGN_OR_RETURN(Channel * channel,
-                           p_->GetChannel(receive->channel_name()));
-      channel_type = channel->type();
-    }
-    Type* param_type =
-        receive->is_blocking()
-            ? p_->GetTupleType({p_->GetTokenType(), channel_type})
-            : p_->GetTupleType(
-                  {p_->GetTokenType(), channel_type, p_->GetBitsType(1)});
     XLS_ASSIGN_OR_RETURN(Node * param, non_synth_function_->MakeNode<Param>(
-                                           receive->loc(), param_type));
+                                           receive->loc(), receive->GetType()));
     node_map_[receive] = param;
     args_.push_back(receive);
     return absl::OkStatus();
