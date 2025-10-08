@@ -30,12 +30,12 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_record.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/status_payload.pb.h"
+#include "xls/dslx/status_payload_utils.h"
 #include "xls/dslx/type_system/type.h"
 
 namespace xls::dslx {
 namespace {
-
-constexpr std::string_view kLabelPayloadName = "label";
 
 template <typename TypeOrAnnotation>
 absl::Status TypeInferenceErrorStatusInternal(
@@ -72,18 +72,19 @@ absl::Status FailureErrorStatusForAssertion(const Span& span,
                                             std::string_view message,
                                             const FileTable& file_table) {
   absl::Status error = FailureErrorStatus(span, message, file_table);
-  error.SetPayload(kLabelPayloadName, absl::Cord(label));
+  StatusPayloadProto payload;
+  payload.set_label(label);
+  SetStatusPayload(error, payload);
   return error;
 }
 
 std::optional<std::string> GetAssertionLabelFromError(
     const absl::Status& status) {
-  std::optional<absl::Cord> label_opt = status.GetPayload(kLabelPayloadName);
-  if (label_opt.has_value()) {
-    return std::string(*label_opt);
-  } else {
-    return std::nullopt;
+  std::optional<StatusPayloadProto> payload = GetStatusPayload(status);
+  if (payload.has_value() && payload->has_label()) {
+    return payload->label();
   }
+  return std::nullopt;
 }
 
 absl::Status ProofErrorStatus(const Span& span, std::string_view message,
@@ -117,10 +118,15 @@ absl::Status TypeInferenceErrorStatusForAnnotation(
 absl::Status SignednessMismatchErrorStatus(const TypeAnnotation* annotation1,
                                            const TypeAnnotation* annotation2,
                                            const FileTable& file_table) {
-  return absl::InvalidArgumentError(absl::Substitute(
+  absl::Status status = absl::InvalidArgumentError(absl::Substitute(
       "TypeInferenceError: signed vs. unsigned mismatch: $0 at $1 vs. $2 at $3",
       annotation1->ToString(), annotation1->span().ToString(file_table),
       annotation2->ToString(), annotation2->span().ToString(file_table)));
+  StatusPayloadProto payload;
+  *payload.add_spans() = ToProto(annotation1->span(), file_table);
+  *payload.add_spans() = ToProto(annotation2->span(), file_table);
+  SetStatusPayload(status, payload);
+  return status;
 }
 
 absl::Status SignednessMismatchErrorStatus(const Type& type1, const Type& type2,

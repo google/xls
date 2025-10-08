@@ -28,6 +28,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/strong_int.h"
+#include "xls/dslx/type_system/type_info.pb.h"
 
 namespace xls::dslx {
 
@@ -248,6 +249,15 @@ inline std::string SpanToString(const std::optional<Span>& span,
 
 // Returns a "fake" span suitable for use in creating testing ASTs.
 Span FakeSpan();
+
+// Converts a Pos object to its protobuf representation.
+PosProto ToProto(const Pos& pos, const FileTable& file_table);
+
+// Converts a Span object to its protobuf representation.
+SpanProto ToProto(const Span& span, const FileTable& file_table);
+
+// Converts a SpanProto object to its human-readable string representation.
+std::string ToHumanString(const SpanProto& proto, bool v2 = false);
 
 }  // namespace xls::dslx
 

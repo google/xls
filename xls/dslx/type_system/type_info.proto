@@ -19,6 +19,8 @@ syntax = "proto3";
 
 package xls.dslx;
 
+// TODO(nelsonliang): Move PosProto and SpanProto out of type_info.proto so the
+// parser doesn't need to depend on type inference.
 message PosProto {
   optional string filename = 1;
   optional int32 lineno = 2;

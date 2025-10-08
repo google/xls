@@ -14,6 +14,8 @@
 
 # Domain Specific Language implementation for HW construction that mimics Rust.
 
+# Load proto_library
+# cc_proto_library is used in this file
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 
 # pytype tests are present in this file
@@ -140,6 +142,8 @@ cc_library(
     deps = [
         ":import_record",
         ":interp_value",
+        ":status_payload_cc_proto",
+        ":status_payload_utils",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_node",
         "//xls/dslx/frontend:pos",
@@ -156,9 +160,14 @@ cc_test(
     srcs = ["errors_test.cc"],
     deps = [
         ":errors",
+        ":status_payload_utils",
+        "//xls/common:proto_test_utils",
         "//xls/common:xls_gunit_main",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:type",
+        "//xls/dslx/type_system:type_info_cc_proto",
         "@com_google_absl//absl/status",
         "@googletest//:gtest",
     ],
@@ -862,6 +871,17 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "status_payload_utils",
+    srcs = ["status_payload_utils.cc"],
+    hdrs = ["status_payload_utils.h"],
+    deps = [
+        ":status_payload_cc_proto",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:cord",
+    ],
+)
+
 cc_test(
     name = "error_test_utils_test",
     srcs = ["error_test_utils_test.cc"],
@@ -917,6 +937,17 @@ py_test(
 )
 
 # -- Generated stdlib built-ins
+
+proto_library(
+    name = "status_payload_proto",
+    srcs = ["status_payload.proto"],
+    deps = ["//xls/dslx/type_system:type_info_proto"],
+)
+
+cc_proto_library(
+    name = "status_payload_cc_proto",
+    deps = [":status_payload_proto"],
+)
 
 cc_binary(
     name = "generate_stdlib_builtins_main",

@@ -24,6 +24,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
+#include "xls/dslx/status_payload.pb.h"
 #include "re2/re2.h"
 
 namespace xls::dslx {
@@ -80,6 +81,34 @@ Fileno FileTable::GetOrCreate(std::string_view path) {
 Span FakeSpan() {
   Pos fake_pos(Fileno(0), 0, 0);
   return Span(fake_pos, fake_pos);
+}
+
+PosProto ToProto(const Pos& pos, const FileTable& file_table) {
+  PosProto proto;
+  proto.set_filename(pos.GetFilename(file_table));
+  proto.set_lineno(static_cast<int32_t>(pos.lineno()));
+  proto.set_colno(static_cast<int32_t>(pos.colno()));
+  return proto;
+}
+
+SpanProto ToProto(const Span& span, const FileTable& file_table) {
+  SpanProto proto;
+  *proto.mutable_start() = ToProto(span.start(), file_table);
+  *proto.mutable_limit() = ToProto(span.limit(), file_table);
+  return proto;
+}
+
+std::string ToHumanString(const SpanProto& proto, bool v2) {
+  if (v2) {
+    return absl::StrFormat(
+        "%s:%d:%d-%d:%d", proto.start().filename(), proto.start().lineno() + 1,
+        proto.start().colno() + 1, proto.limit().lineno() + 1,
+        proto.limit().colno() + 1);
+  } else {
+    return absl::StrFormat("%d:%d-%d:%d", proto.start().lineno(),
+                           proto.start().colno(), proto.limit().lineno(),
+                           proto.limit().colno());
+  }
 }
 
 }  // namespace xls::dslx
