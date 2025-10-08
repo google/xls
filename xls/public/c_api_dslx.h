@@ -82,6 +82,7 @@ struct xls_dslx_type_dim;
 struct xls_dslx_parametric_env;
 struct xls_dslx_interp_value;
 struct xls_bits;
+struct xls_dslx_call_graph;
 
 struct xls_dslx_parametric_env_item {
   const char* identifier;
@@ -194,6 +195,27 @@ struct xls_dslx_type_annotation* xls_dslx_param_get_type_annotation(
 
 // Note: return value is owned by the caller, free via `xls_c_str_free`.
 char* xls_dslx_function_to_string(struct xls_dslx_function* fn);
+
+// -- call_graph
+
+bool xls_dslx_type_info_build_function_call_graph(
+    struct xls_dslx_type_info* type_info, char** error_out,
+    struct xls_dslx_call_graph** result_out);
+
+void xls_dslx_call_graph_free(struct xls_dslx_call_graph* call_graph);
+
+int64_t xls_dslx_call_graph_get_function_count(
+    struct xls_dslx_call_graph* call_graph);
+
+struct xls_dslx_function* xls_dslx_call_graph_get_function(
+    struct xls_dslx_call_graph* call_graph, int64_t index);
+
+int64_t xls_dslx_call_graph_get_callee_count(
+    struct xls_dslx_call_graph* call_graph, struct xls_dslx_function* caller);
+
+struct xls_dslx_function* xls_dslx_call_graph_get_callee_function(
+    struct xls_dslx_call_graph* call_graph, struct xls_dslx_function* caller,
+    int64_t callee_index);
 
 // Returns the QuickCheck AST node from the given module member. The caller
 // should ensure the module member kind is

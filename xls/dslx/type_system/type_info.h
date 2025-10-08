@@ -376,6 +376,9 @@ class TypeInfo {
     return dict_;
   }
 
+  absl::flat_hash_map<const Function*, std::vector<const Function*>>
+  GetFunctionCallGraph() const;
+
   const FileTable& file_table() const;
   FileTable& file_table();
 

@@ -39,6 +39,7 @@ namespace xls::dslx {
 namespace {
 
 using ::absl_testing::StatusIs;
+using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 
 TEST(TypeInfoTest, Instantiate) {
@@ -124,6 +125,60 @@ fn main() -> u32 { f<u32:0>() }
 
   auto invocations = result.tm.type_info->GetUniqueInvocationCalleeData(*f);
   EXPECT_EQ(invocations.size(), 1);
+}
+
+TEST(TypeInfoTest, FunctionCallGraphBasic) {
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(R"(
+fn leaf(x: u32) -> u32 { x }
+
+fn caller(x: u32) -> u32 {
+  leaf(x) + leaf(x)
+}
+
+fn unused(x: u32) -> u32 { x }
+)",
+                       "graph.x", "graph", &import_data));
+
+  auto graph = tm.type_info->GetFunctionCallGraph();
+  const Function* leaf = tm.module->GetFunction("leaf").value();
+  const Function* caller = tm.module->GetFunction("caller").value();
+  ASSERT_TRUE(graph.contains(caller));
+  EXPECT_THAT(graph.at(caller), ElementsAre(leaf));
+  ASSERT_TRUE(graph.contains(leaf));
+  EXPECT_TRUE(graph.at(leaf).empty());
+
+  const Function* unused = tm.module->GetFunction("unused").value();
+  ASSERT_TRUE(graph.contains(unused));
+  EXPECT_TRUE(graph.at(unused).empty());
+}
+
+TEST(TypeInfoTest, FunctionCallGraphHandlesMapAndIgnoresBuiltins) {
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(R"(
+fn inc(x: u32) -> u32 { x + u32:1 }
+
+fn apply(xs: u32[3]) -> u32[3] {
+  map(xs, inc)
+}
+
+fn uses_builtin(x: u32) -> u32 { clz(x) }
+)",
+                       "graph_map.x", "graph_map", &import_data));
+
+  auto graph = tm.type_info->GetFunctionCallGraph();
+  const Function* inc = tm.module->GetFunction("inc").value();
+  const Function* apply = tm.module->GetFunction("apply").value();
+  ASSERT_TRUE(graph.contains(apply));
+  EXPECT_THAT(graph.at(apply), ElementsAre(inc));
+
+  const Function* uses_builtin = tm.module->GetFunction("uses_builtin").value();
+  ASSERT_TRUE(graph.contains(uses_builtin));
+  EXPECT_TRUE(graph.at(uses_builtin).empty());
 }
 
 TEST(TypeInfoTest, GetUniqueInvocationCalleeDataMultipleParametricCalls) {

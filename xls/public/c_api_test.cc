@@ -70,6 +70,86 @@ TEST(XlsCApiTest, ConvertDslxToIrSimple) {
   EXPECT_THAT(ir_out, HasSubstr("fn __my_module__id"));
 }
 
+TEST(XlsCApiTest, DslxBuildFunctionCallGraph) {
+  constexpr std::string_view kProgram = R"DSLX(
+fn callee(x: u32) -> u32 {
+  x
+}
+
+fn caller(x: u32) -> u32 {
+  callee(x) + callee(x)
+}
+
+fn apply_map(xs: u32[2]) -> u32[2] {
+  map(xs, callee)
+}
+)DSLX";
+
+  const char* additional_search_paths[] = {};
+  std::string dslx_stdlib_path = std::string(xls::kDefaultDslxStdlibPath);
+  xls_dslx_import_data* import_data = xls_dslx_import_data_create(
+      dslx_stdlib_path.c_str(), additional_search_paths, 0);
+  ASSERT_NE(import_data, nullptr);
+  absl::Cleanup free_import_data(
+      [import_data] { xls_dslx_import_data_free(import_data); });
+
+  char* error_out = nullptr;
+  xls_dslx_typechecked_module* tm = nullptr;
+  ASSERT_TRUE(xls_dslx_parse_and_typecheck(
+      std::string(kProgram).c_str(), "call_graph.x", "call_graph",
+      import_data, &error_out, &tm));
+  absl::Cleanup free_tm([tm] { xls_dslx_typechecked_module_free(tm); });
+  xls_c_str_free(error_out);
+  error_out = nullptr;
+
+  xls_dslx_type_info* type_info =
+      xls_dslx_typechecked_module_get_type_info(tm);
+  ASSERT_NE(type_info, nullptr);
+  xls_dslx_call_graph* graph = nullptr;
+  ASSERT_TRUE(xls_dslx_type_info_build_function_call_graph(type_info, &error_out,
+                                                          &graph));
+  absl::Cleanup free_graph([graph] { xls_dslx_call_graph_free(graph); });
+  ASSERT_EQ(error_out, nullptr);
+  ASSERT_NE(graph, nullptr);
+
+  ASSERT_EQ(xls_dslx_call_graph_get_function_count(graph), 3);
+
+  auto get_fn_name = [](xls_dslx_function* fn) {
+    char* identifier = xls_dslx_function_get_identifier(fn);
+    std::string result(identifier);
+    xls_c_str_free(identifier);
+    return result;
+  };
+
+  xls_dslx_function* fn0 = xls_dslx_call_graph_get_function(graph, 0);
+  ASSERT_NE(fn0, nullptr);
+  EXPECT_EQ(get_fn_name(fn0), "callee");
+
+  xls_dslx_function* fn1 = xls_dslx_call_graph_get_function(graph, 1);
+  ASSERT_NE(fn1, nullptr);
+  EXPECT_EQ(get_fn_name(fn1), "caller");
+
+  xls_dslx_function* fn2 = xls_dslx_call_graph_get_function(graph, 2);
+  ASSERT_NE(fn2, nullptr);
+  EXPECT_EQ(get_fn_name(fn2), "apply_map");
+
+  EXPECT_EQ(xls_dslx_call_graph_get_callee_count(graph, fn0), 0);
+
+  ASSERT_EQ(xls_dslx_call_graph_get_callee_count(graph, fn1), 1);
+  xls_dslx_function* caller_callee =
+      xls_dslx_call_graph_get_callee_function(graph, fn1, 0);
+  ASSERT_NE(caller_callee, nullptr);
+  EXPECT_EQ(get_fn_name(caller_callee), "callee");
+
+  ASSERT_EQ(xls_dslx_call_graph_get_callee_count(graph, fn2), 1);
+  xls_dslx_function* mapped_fn =
+      xls_dslx_call_graph_get_callee_function(graph, fn2, 0);
+  ASSERT_NE(mapped_fn, nullptr);
+  EXPECT_EQ(get_fn_name(mapped_fn), "callee");
+
+  xls_c_str_free(error_out);
+}
+
 // -- Bits comparisons
 
 TEST(XlsCApiTest, BitsUnsignedComparisonsMixedWidths) {
