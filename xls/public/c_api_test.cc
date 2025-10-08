@@ -199,8 +199,9 @@ fn id() { let x = u32:1; })";
         /*dslx_stdlib_path=*/dslx_stdlib_path.c_str(), additional_search_paths,
         0,
         /*enable_warnings=*/nullptr, 0, /*disable_warnings=*/nullptr, 0,
-        /*warnings_as_errors=*/true, &warnings, &warnings_count, &error_out,
-        &ir_out);
+        /*warnings_as_errors=*/true,
+        /*force_implicit_token_calling_convention=*/false, &warnings,
+        &warnings_count, &error_out, &ir_out);
 
     // Check we got the warning data even though the return code is non-ok.
     ASSERT_EQ(warnings_count, 1);
@@ -232,6 +233,7 @@ fn id() { let x = u32:1; })";
         kProgram.c_str(), "my_module.x", "my_module",
         /*dslx_stdlib_path=*/dslx_stdlib_path.c_str(), additional_search_paths,
         0, enable_warnings, 0, disable_warnings, 1, /*warnings_as_errors=*/true,
+        /*force_implicit_token_calling_convention=*/false,
         /*warnings_out=*/nullptr, /*warnings_out_count=*/nullptr, &error_out,
         &ir_out);
     ASSERT_TRUE(ok);
@@ -261,8 +263,9 @@ TEST(XlsCApiTest, ConvertWithNoWarnings) {
       kProgram.c_str(), "my_module.x", "my_module",
       /*dslx_stdlib_path=*/dslx_stdlib_path.c_str(), additional_search_paths, 0,
       /*enable_warnings=*/nullptr, 0, /*disable_warnings=*/nullptr, 0,
-      /*warnings_as_errors=*/true, &warnings, &warnings_count, &error_out,
-      &ir_out);
+      /*warnings_as_errors=*/true,
+      /*force_implicit_token_calling_convention=*/false, &warnings,
+      &warnings_count, &error_out, &ir_out);
   ASSERT_TRUE(ok);
   ASSERT_EQ(error_out, nullptr);
   ASSERT_NE(ir_out, nullptr);
@@ -271,6 +274,32 @@ TEST(XlsCApiTest, ConvertWithNoWarnings) {
   // nullptr value populating our warnings ptr.
   ASSERT_EQ(warnings_count, 0);
   ASSERT_EQ(warnings, nullptr);
+}
+
+TEST(XlsCApiTest, ConvertWithForcedImplicitToken) {
+  const std::string kProgram = "fn id(x: u32) -> u32 { x }";
+  const std::string dslx_stdlib_path = std::string(xls::kDefaultDslxStdlibPath);
+  const char* additional_search_paths[] = {};
+  char* error_out = nullptr;
+  char* ir_out = nullptr;
+
+  absl::Cleanup free_cstrs([&] {
+    xls_c_str_free(error_out);
+    xls_c_str_free(ir_out);
+  });
+
+  bool ok = xls_convert_dslx_to_ir_with_warnings(
+      kProgram.c_str(), "my_module.x", "my_module",
+      /*dslx_stdlib_path=*/dslx_stdlib_path.c_str(), additional_search_paths, 0,
+      /*enable_warnings=*/nullptr, 0, /*disable_warnings=*/nullptr, 0,
+      /*warnings_as_errors=*/false,
+      /*force_implicit_token_calling_convention=*/true,
+      /*warnings_out=*/nullptr, /*warnings_out_count=*/nullptr, &error_out,
+      &ir_out);
+  ASSERT_TRUE(ok);
+  ASSERT_EQ(error_out, nullptr);
+  ASSERT_NE(ir_out, nullptr);
+  EXPECT_THAT(ir_out, HasSubstr("fn __itok__my_module__id"));
 }
 
 TEST(XlsCApiTest, ConvertDslxToIrError) {
