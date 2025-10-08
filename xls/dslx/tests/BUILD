@@ -922,6 +922,13 @@ dslx_lang_test(
 )
 
 dslx_lang_test(
+    name = "assert_fmt",
+    # TODO(https://github.com/google/xls/issues/1346): We can't lower IR assert to Z3, so we can't
+    # do opt/unopt equivalence testing yet.
+    test_ir_equivalence = False,
+)
+
+dslx_lang_test(
     name = "quickcheck_fn_with_fail",
     # Primarily a #[quickcheck] function.
     convert_to_ir = False,

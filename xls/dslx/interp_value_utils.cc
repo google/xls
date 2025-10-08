@@ -38,6 +38,7 @@
 #include "xls/dslx/type_system/type.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/format_preference.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/value.h"
 
@@ -455,6 +456,14 @@ absl::StatusOr<std::pair<InterpValue, InterpValue>> CreateChannelReferencePair(
                             ChannelDirection::kOut, channel_instance_id),
                         InterpValue::MakeChannelReference(ChannelDirection::kIn,
                                                           channel_instance_id));
+}
+
+absl::StatusOr<std::string> FormatInterpValue(const InterpValue& value,
+                                              FormatPreference preference) {
+  if (value.IsBits()) {
+    return BitsToString(value.GetBitsOrDie(), preference);
+  }
+  return value.ToString();
 }
 
 }  // namespace xls::dslx

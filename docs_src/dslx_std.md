@@ -745,6 +745,28 @@ The associated label (e.g., the first argument to `fail!`) must be a valid
 Verilog identifier and is used for identifying the failure when lowered to
 SystemVerilog. At higher levels in the stack, it's unused.
 
+### `assert_fmt!`: assertion failure with constexpr formatting
+
+In some circumstances, users may want to substitute constexpr values into the
+Verilog identifier for an assertion. This is especially helpful when needing to
+make your assert labels unique and meaningful inside an `unroll_for!` loop. DSLX
+supports this via the `assert_fmt!` built-in, which takes a boolean condition
+(like `assert!`) and a format string, along with any format args.
+
+The format string is used to generate the label, which must be a valid Verilog
+identifier and is used for identifying the failure when lowered to
+SystemVerilog. At higher levels in the stack, it's unused.
+
+Example `assert_fmt!`:
+
+```dslx
+fn main(x: u32) -> u32 {
+    const BANNED_VALUE = u32:42;
+    assert_fmt!(x != BANNED_VALUE, "x_never_{}", BANNED_VALUE);
+    x - u32:42
+}
+```
+
 ### `cover!`
 
 !!! NOTE

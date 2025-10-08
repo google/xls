@@ -682,7 +682,14 @@ class Parser : public TokenParser {
   absl::StatusOr<Expr*> BuildFormatMacro(
       const Span& span, std::string_view name, std::vector<Expr*> args,
       const std::vector<ExprOrType>& parametrics,
+      std::optional<Expr*> condition = std::nullopt,
       std::optional<Expr*> verbosity = std::nullopt);
+
+  // Helper function that builds an `AssertFmtMacro` corresponding to a DSLX
+  // invocation like assert_fmt!(...).
+  absl::StatusOr<Expr*> BuildAssertFmtMacro(
+      const Span& span, std::string_view name, std::vector<Expr*> args,
+      const std::vector<ExprOrType>& parametrics);
 
   // Parses a proc config function.
   //

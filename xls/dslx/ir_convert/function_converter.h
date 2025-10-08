@@ -375,6 +375,7 @@ class FunctionConverter {
   absl::Status HandleConstantDef(const ConstantDef* node);
 
   absl::Status HandleFor(const For* node);
+  absl::Status HandleFormatMacro(const FormatMacro* node);
 
   // Helper that adds a parameter for the induction variable node for a ranged
   // for loop, e.g. when we have a pattern like: `for (i, accum) in 1..10` this
@@ -412,7 +413,6 @@ class FunctionConverter {
                                        FunctionConverter& body_converter,
                                        int64_t trip_count);
 
-  absl::Status HandleFormatMacro(const FormatMacro* node);
   absl::Status HandleIndex(const Index* node);
   absl::Status HandleInvocation(const Invocation* node);
   absl::Status HandleLambda(const Lambda* node);

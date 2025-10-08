@@ -515,6 +515,31 @@ fn main() -> u32{
                                       HasSubstr("rhs: u32:0b1010"))));
 }
 
+TEST_F(BytecodeInterpreterTest, AssertFmtPass) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> u32 {
+  assert_fmt!(true, "pass");
+  u32:5
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
+  EXPECT_EQ(value, InterpValue::MakeU32(5));
+}
+
+TEST_F(BytecodeInterpreterTest, AssertFmtFail) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> u32 {
+  assert_fmt!(false, "fail: {}", u32:42);
+  u32:5
+})";
+  absl::StatusOr<InterpValue> value = Interpret(kProgram, "main");
+  EXPECT_THAT(
+      value.status(),
+      StatusIs(
+          absl::StatusCode::kInternal,
+          HasSubstr("Assertion failure via assert_fmt! @ test.x:3:14-3:41: "
+                    "fail: 42")));
+}
+
 // TODO(meheff): 2024/06/25 Enable auto-formatting of assert_eq messages in
 // structs.
 TEST(DISABLED_BytecodeInterpreterTest, AssertEqFailStructAutoFormatMixed) {

@@ -16,11 +16,13 @@
 
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
@@ -28,6 +30,8 @@
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/warning_collector.h"
+#include "xls/ir/format_preference.h"
+#include "xls/ir/format_strings.h"
 
 namespace xls::dslx {
 
@@ -179,6 +183,16 @@ std::string EnvMapToString(
 // Evaluates a Number AST node to an InterpValue.
 absl::StatusOr<InterpValue> EvaluateNumber(const Number& expr,
                                            const Type& type);
+
+// Evaluates a format string with constexpr arguments to a string.
+absl::StatusOr<std::string> EvaluateFormatString(
+    ImportData* import_data, TypeInfo* type_info,
+    WarningCollector* warning_collector, const ParametricEnv& parametric_env,
+    const std::vector<FormatStep>& steps, absl::Span<Expr* const> args);
+
+// Formats an InterpValue to a string according to format preference.
+absl::StatusOr<std::string> FormatInterpValue(const InterpValue& value,
+                                              FormatPreference preference);
 
 }  // namespace xls::dslx
 
