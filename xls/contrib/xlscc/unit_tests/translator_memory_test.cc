@@ -141,10 +141,12 @@ TEST_F(TranslatorMemoryTest, MemoryReadIOOpSubroutine) {
 
 TEST_F(TranslatorMemoryTest, MemoryWriteIOOp) {
   const std::string content = R"(
-       #include "/xls_builtin.h"
+       template <typename T, int N>
+       using Sram = __xls_memory<T, N>;
+
        #pragma hls_top
        void my_package(__xls_channel<int>& in,
-                       __xls_memory<short, 32>& memory) {
+                       Sram<short, 32>& memory) {
          const int addr = in.read();
          memory[addr] = 44;
        })";
@@ -155,6 +157,126 @@ TEST_F(TranslatorMemoryTest, MemoryWriteIOOp) {
   IOTest(content,
          /*inputs=*/{IOOpTest("in", 5, true)},
          /*outputs=*/{IOOpTest("memory__write", memory_write_tuple, true)});
+}
+
+TEST_F(TranslatorMemoryTest, MemoryWriteIOOpObject) {
+  const std::string content = R"(
+       template <typename T, int N>
+       using Sram = __xls_memory<T, N>;
+
+       struct [[hls_synthetic_int]] Addr {
+         Addr() {}
+         Addr(int addr) : addr_(addr) {}
+         operator long long()const {
+           return addr_;
+         }
+         Addr operator = (long long x) {
+           addr_ = x;
+           return *this;
+         }
+         int addr_ = -1;
+       };
+
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       Sram<Addr, 32>& memory) {
+         const int addr_i = in.read();
+         const Addr addr(addr_i);
+         memory[addr] = 44;
+       })";
+
+  auto memory_write_tuple = xls::Value::Tuple(
+      {xls::Value(xls::SBits(5, 5)), xls::Value(xls::SBits(44, 32))});
+
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 5, true)},
+         /*outputs=*/{IOOpTest("memory__write", memory_write_tuple, true)});
+}
+
+TEST_F(TranslatorMemoryTest, MemoryWriteIOOpObject2) {
+  const std::string content = R"(
+       template <typename T, int N>
+       using Sram = __xls_memory<T, N>;
+
+       struct [[hls_synthetic_int]] Addr {
+         Addr() {}
+         Addr(int addr) : addr_(addr) {}
+         operator long long()const {
+           return addr_;
+         }
+         Addr operator = (long long x) {
+           addr_ = x;
+           return *this;
+         }
+         int addr_ = -1;
+       };
+
+       class Test {
+        public:
+          __xls_channel<int, __xls_channel_dir_In>& in;
+          Sram<Addr, 32>& memory;
+
+          #pragma hls_top
+          void my_package() {
+            const int addr_i = in.read();
+            const Addr addr(addr_i);
+            memory[memory[addr]] = 44;
+          }
+      };)";
+
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/false));
+  package_ = std::make_unique<xls::Package>("my_package");
+  HLSBlock block_spec;
+  auto ret =
+      translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec);
+  ASSERT_THAT(ret.status(),
+              absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                     testing::HasSubstr("reads and writes")));
+}
+
+TEST_F(TranslatorMemoryTest, MemoryWriteIOOpObject3) {
+  const std::string content = R"(
+       template <typename T, int N>
+       using Sram = __xls_memory<T, N>;
+
+       struct [[hls_synthetic_int]] Addr {
+         Addr() {}
+         Addr(int addr) : addr_(addr) {}
+         operator long long()const {
+           return addr_;
+         }
+         Addr operator = (long long x) {
+           addr_ = x;
+           return *this;
+         }
+         int addr_ = -1;
+       };
+
+       class Test {
+        public:
+          __xls_channel<int, __xls_channel_dir_In>& in;
+          Sram<Addr, 32>& memory;
+
+          #pragma hls_top
+          void my_package() {
+            const int addr_i = in.read();
+            const Addr addr(addr_i);
+            memory[memory[addr] = 33] = 44;
+          }
+      };)";
+
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/false));
+  package_ = std::make_unique<xls::Package>("my_package");
+  HLSBlock block_spec;
+  auto ret =
+      translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec);
+  ASSERT_THAT(ret.status(),
+              absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                     testing::HasSubstr("nested writes")));
 }
 
 TEST_F(TranslatorMemoryTest, MemoryWriteStructIOOp) {

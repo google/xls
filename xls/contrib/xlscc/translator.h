@@ -252,6 +252,8 @@ struct TranslationContext {
 
   bool allow_default_pad = false;
 
+  const clang::Expr* do_not_intercept_call = nullptr;
+
   // Number of times a variable is accessed
   // Always propagates up
   absl::flat_hash_map<const clang::NamedDecl*, int64_t> variables_accessed;
@@ -1025,7 +1027,7 @@ class Translator final : public GeneratorBase,
   // Returns permanent IOOp pointer
   absl::StatusOr<IOOp*> AddOpToChannel(IOOp& op, IOChannel* channel_param,
                                        const xls::SourceInfo& loc,
-                                       bool mask = false,
+                                       bool do_default_mask = false,
                                        bool no_before_slice = false);
 
   bool OpIsMasked(const IOOp& op);

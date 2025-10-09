@@ -3232,11 +3232,30 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(const clang::CallExpr* call,
     }
   }
 
+  auto callee_op_call = clang::dyn_cast<const clang::CXXOperatorCallExpr>(call);
+
   if (this_expr != nullptr) {
     MaskAssignmentsGuard guard_assignments(*this, /*engage=*/add_this_return);
     MaskMemoryWritesGuard guard_writes(*this, /*engage=*/add_this_return);
     MaskIOOtherThanMemoryWritesGuard guard_io(*this,
                                               /*engage=*/call->isLValue());
+
+    auto before_do_not_intercept = context().do_not_intercept_call;
+
+    // operator[]= is ambiguous for memory writes. It will get generated as a
+    // read and not masked in this block, and not be masked.
+    //
+    // This avoids the operator[] being turned into an IO op at all here.
+    if (callee_op_call != nullptr &&
+        callee_op_call->getOperator() == clang::OO_Equal) {
+      auto sub_op_call = clang::dyn_cast<const clang::CXXOperatorCallExpr>(
+          callee_op_call->getArg(0));
+
+      if (sub_op_call != nullptr &&
+          sub_op_call->getOperator() == clang::OO_Subscript) {
+        context().do_not_intercept_call = sub_op_call;
+      }
+    }
 
     {
       // The Assign() statement below will take care of any assignments
@@ -3265,6 +3284,8 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(const clang::CallExpr* call,
 
     thisval = this_value_orig.rvalue();
     pthisval = &thisval;
+
+    context().do_not_intercept_call = before_do_not_intercept;
   }
 
   std::vector<const clang::Expr*> args;
@@ -3277,6 +3298,13 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(const clang::CallExpr* call,
       GenerateIR_Call(funcdecl, args, pthisval, &this_lval, loc));
 
   if (add_this_return) {
+    const int64_t reads_masked_before =
+        std::count(context().sf->masked_op_types.begin(),
+                   context().sf->masked_op_types.end(), OpType::kRead);
+    const int64_t writes_masked_before =
+        std::count(context().sf->masked_op_types.begin(),
+                   context().sf->masked_op_types.end(), OpType::kWrite);
+
     MaskIOOtherThanMemoryWritesGuard guard(*this);
     XLSCC_CHECK(pthisval, loc);
 
@@ -3284,6 +3312,28 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(const clang::CallExpr* call,
                                CValue(thisval, this_value_orig.type(),
                                       /*disable_type_check=*/false, this_lval),
                                loc));
+
+    const int64_t reads_masked_after =
+        std::count(context().sf->masked_op_types.begin(),
+                   context().sf->masked_op_types.end(), OpType::kRead);
+    const int64_t writes_masked_after =
+        std::count(context().sf->masked_op_types.begin(),
+                   context().sf->masked_op_types.end(), OpType::kWrite);
+
+    if (reads_masked_before != reads_masked_after) {
+      XLSCC_CHECK_GT(reads_masked_after, reads_masked_before, loc);
+      return absl::UnimplementedError(
+          ErrorMessage(loc,
+                       "Memory reads and writes in a single statement are not "
+                       "supported. Break into multiple lines."));
+    }
+    if (writes_masked_before != writes_masked_after) {
+      XLSCC_CHECK_GT(writes_masked_after, writes_masked_before, loc);
+      return absl::UnimplementedError(
+          ErrorMessage(loc,
+                       "Masked / nested writes single statement are not "
+                       "supported. Break into multiple lines."));
+    }
   }
 
   return call_res;

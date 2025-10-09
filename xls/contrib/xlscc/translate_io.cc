@@ -67,7 +67,7 @@ absl::StatusOr<TrackedBValue> Translator::GetIOOpRetValueFromSlice(
 
 absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
                                                  const xls::SourceInfo& loc,
-                                                 bool mask,
+                                                 bool do_default_mask,
                                                  bool no_before_slice) {
   context().any_side_effects_requested = true;
   context().any_io_ops_requested = true;
@@ -76,7 +76,9 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
         op.op == OpType::kLoopEndJump || channel != nullptr);
   CHECK_EQ(op.channel, nullptr);
 
-  if (mask || OpIsMasked(op)) {
+  const bool masked = OpIsMasked(op);
+
+  if (do_default_mask || masked) {
     IOOpReturn ret;
     ret.generate_expr = false;
     if (op.op != OpType::kTrace && op.op != OpType::kLoopBegin &&
@@ -97,6 +99,11 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
 
       op.input_value = CValue(default_bval, channel->item_type);
     }
+
+    if (masked) {
+      context().sf->masked_op_types.push_back(op.op);
+    }
+
     return nullptr;
   }
 
@@ -410,8 +417,17 @@ absl::StatusOr<std::shared_ptr<CChannelType>> Translator::GetChannelType(
 
 absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
     const clang::Expr* expr, const xls::SourceInfo& loc,
-    const CValue assignment_value) {
+    CValue assignment_value) {
   const IOOpReturn no_op_return = {.generate_expr = true};
+
+  if (expr == context().do_not_intercept_call) {
+    IOOpReturn ret;
+    ret.generate_expr = false;
+    XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> ret_ctype,
+                         TranslateTypeFromClang(expr->getType(), loc));
+    XLS_ASSIGN_OR_RETURN(ret.value, CreateDefaultCValue(ret_ctype, loc));
+    return ret;
+  }
 
   TrackedBValue op_condition = context().full_condition_bval(loc);
   CHECK(op_condition.valid());
@@ -649,8 +665,9 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
           ErrorMessage(loc, "Unsupported IO op: %s", op_name));
     }
 
-    XLS_ASSIGN_OR_RETURN(IOOp * op_ptr,
-                         AddOpToChannel(op, channel, loc, /*mask=*/do_default));
+    XLS_ASSIGN_OR_RETURN(
+        IOOp * op_ptr,
+        AddOpToChannel(op, channel, loc, /*do_default_mask=*/do_default));
     (void)op_ptr;
 
     if (!ret.value.valid()) {

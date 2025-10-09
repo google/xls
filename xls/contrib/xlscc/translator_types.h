@@ -1112,6 +1112,9 @@ struct GeneratedFunction {
   // Use list for safe pointers to values
   std::list<IOOp> io_ops;
 
+  // Masked IO operations not added to io_ops
+  std::vector<OpType> masked_op_types;
+
   // Number of non-channel ops added
   int no_channel_op_count = 0;
 
