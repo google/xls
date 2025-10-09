@@ -363,12 +363,6 @@ bool DoesErase(Node* node, uint32_t case_number,
     return true;
   }
 
-  // If there is only one selector bit, and we could not prove erasure assuming
-  // that bit is false, we cannot prove @node erases @source.
-  if (selector_bits.length() == 1) {
-    return false;
-  }
-
   // Check for erasure assuming one other selector bit is set. If this is found
   // to be true for all other selector bits, then @node erases @source.
   for (const auto &[t_number, t] : iter::enumerate(selector_bits)) {
@@ -387,6 +381,15 @@ bool DoesErase(Node* node, uint32_t case_number,
       // We cannot guarantee @node erases @source.
       return false;
     }
+  }
+
+  // Check the above is also true when the default case is selected.
+  assumed_values.clear();
+  for (const auto& selector_bit : selector_bits) {
+    assumed_values.push_back(std::make_pair(selector_bit, false));
+  }
+  if (InfluencedBySource(node, source, bdd_engine, assumed_values)) {
+    return false;
   }
 
   // @node erases @source

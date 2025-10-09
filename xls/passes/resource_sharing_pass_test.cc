@@ -639,7 +639,7 @@ TEST_F(ResourceSharingPassTest, NotPossibleFolding4) {
 }
 
 TEST_F(ResourceSharingPassTest,
-       MergeMultiplicationsThatAreNotPostDominatedBySelect) {
+       SkipMultiplicationsThatAreNotPostDominatedBySelectAndNotErased) {
   // Create the function builder
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -682,6 +682,63 @@ TEST_F(ResourceSharingPassTest,
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            fb.BuildWithReturnValue(post_select_add));
 
+  // We expect the transformation does not apply (both multiplies are used)
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+
+  // We expect the result function has both multiplications still in its body
+  uint64_t number_of_muls = NumberOfMultiplications(f);
+  EXPECT_EQ(number_of_muls, 2);
+
+  // We expect the resource sharing optimization to have preserved the
+  // inputs/outputs pairs we know to be valid.
+  InterpretAndCheck(f, {0, 2, 3, 0, 0}, 6);
+  InterpretAndCheck(f, {1, 0, 0, 2, 3}, 10);
+  InterpretAndCheck(f, {2, 999, 999, 2, 3}, 5);
+}
+
+TEST_F(ResourceSharingPassTest,
+       MergeMultiplicationsThatAreNotPostDominatedBySelectButAreErased) {
+  // Create the function builder
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  // Fetch the types
+  Type* u32_type = p->GetBitsType(32);
+
+  // Create the parameters of the IR function
+  BValue op = fb.Param("op", u32_type);
+  BValue i = fb.Param("i", u32_type);
+  BValue j = fb.Param("j", u32_type);
+  BValue k = fb.Param("k", u32_type);
+  BValue z = fb.Param("z", u32_type);
+
+  // Create the IR body
+  //
+  // Step 0: constants
+  BValue k0 = fb.Literal(UBits(0, 32));
+  BValue k1 = fb.Literal(UBits(1, 32));
+  BValue kNeg1 = fb.Literal(UBits(4294967295, 32));
+
+  // Step 1: results
+  BValue mulIJ = fb.UMul(i, j);
+  BValue mulKZ = fb.UMul(k, z);
+  BValue add = fb.Add(mulKZ, kNeg1);
+
+  // Step 2: select the result to return
+  BValue isOp0 = fb.Eq(op, k0);
+  BValue isOp1 = fb.Eq(op, k1);
+  BValue selector = fb.Concat({isOp1, isOp0});
+  BValue select = fb.PrioritySelect(selector, {mulIJ, add}, k0);
+
+  // Step 3: post-select computation
+  BValue is1Extended = fb.SignExtend(isOp1, 32);
+  BValue post_select_and = fb.And(add, is1Extended);
+  BValue post_select_add = fb.Add(select, post_select_and);
+
+  // Create the function
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(post_select_add));
+
   // We expect the transformation successfully completed and it returned true
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
 
@@ -693,6 +750,7 @@ TEST_F(ResourceSharingPassTest,
   // inputs/outputs pairs we know to be valid.
   InterpretAndCheck(f, {0, 2, 3, 0, 0}, 6);
   InterpretAndCheck(f, {1, 0, 0, 2, 3}, 10);
+  InterpretAndCheck(f, {2, 999, 999, 2, 3}, 0);
 }
 
 TEST_F(ResourceSharingPassTest,
