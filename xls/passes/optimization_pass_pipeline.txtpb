@@ -191,16 +191,6 @@ compound_passes: [
     comment: "Prepare proc state for further analysis by removing arrays and tuples."
   },
   {
-    # TODO(allight): We shouldn't need to make a compound pass for just this.
-    long_name: "max-3 next value optimization"
-    short_name: "next_value_opt(3)"
-    passes: ["next_value_opt"]
-    options: {
-      cap_opt_level: 3
-    }
-    comment: "Next value opt capped at 3"
-  },
-  {
     long_name: "post-inlining optimization passes"
     short_name: "post-inlining-opt"
     passes: [
@@ -255,7 +245,7 @@ compound_passes: [
       "proc_state_tuple_flat",
       "ident_remove",
       "dataflow",
-      "next_value_opt(3)",
+      "next_value_opt",
       "dce",
       #
       "proc_state_narrow",
@@ -302,7 +292,7 @@ compound_passes: [
       #
       "useless_assert_remove",
       "useless_io_remove",
-      "next_value_opt(3)",
+      "next_value_opt",
       # TODO(allight): We might want another proc-narrowing pass here but it's
       # not clear if it will be likely to find anything and we'd need more
       # cleanup passes if we did to take advantage of the narrower state.

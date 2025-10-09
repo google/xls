@@ -701,34 +701,6 @@ Pass which tries to optimize `next_value` nodes.
 
 
 
-## next_value_opt(3) - max-3 next value optimization {#next_value_opt3}
-
-
-Next value opt capped at 3
-
-
-[Text-proto](http://github.com/google/xls/tree/main/xls/passes/optimization_pass_pipeline.txtpb)
-
-
-### Options Set
-
-
-
-
-
-
-Cap opt level: 3
-
-
-
-
-### Invoked Passes
-
-
-- [next_value_opt](#next_value_opt)
-
-
-
 ## non_synth_separation - Non-Synthesizable Separation {#non_synth_separation}
 
 
@@ -832,7 +804,7 @@ Passes performed after inlining
 - [proc_state_tuple_flat](#proc_state_tuple_flat)
 - [ident_remove](#ident_remove)
 - [dataflow](#dataflow)
-- [next_value_opt(3)](#next_value_opt3)
+- [next_value_opt](#next_value_opt)
 - [dce](#dce)
 - [proc_state_narrow](#proc_state_narrow)
 - [dce](#dce)
@@ -868,7 +840,7 @@ Passes performed after inlining
 - [fixedpoint_simp(3)](#fixedpoint_simp3)
 - [useless_assert_remove](#useless_assert_remove)
 - [useless_io_remove](#useless_io_remove)
-- [next_value_opt(3)](#next_value_opt3)
+- [next_value_opt](#next_value_opt)
 - [proc_state_opt](#proc_state_opt)
 - [dce](#dce)
 - [cond_spec(Bdd)](#cond_specBdd)
