@@ -475,6 +475,28 @@ absl::StatusOr<Node*> RemoveNodeFromBooleanExpression(Node* to_remove,
                                                       Node* expression,
                                                       bool favored_outcome);
 
+// Takes a node with a tuple type and creates and returns a node which contains
+// the 'count' elements of the tuple starting at 'start'.
+absl::StatusOr<Node*> SliceTuple(Node* tuple, int64_t start,
+                                 std::optional<int64_t> count = std::nullopt);
+// Place 'value' into the tuple at the given index. The current element at that
+// index is replaced.
+//
+// All values along the index must be a tuple.
+absl::StatusOr<Node*> SetTupleIndex(Node* tuple, Node* value,
+                                    absl::Span<int64_t const> indices);
+// Place 'value' into the tuple at the given index. All elements within the
+// final tuple are moved to a later index if their current index is after the
+// inserted values index.
+//
+// All values along the index must be a tuple.
+absl::StatusOr<Node*> InsertIntoTuple(Node* tuple, Node* value,
+                                      absl::Span<int64_t const> indices);
+// Remove the tuple element at index, move later elements in the same tuple up.
+//
+// All values along the index must be a tuple.
+absl::StatusOr<Node*> RemoveFromTuple(Node* tuple,
+                                      absl::Span<int64_t const> indices);
 }  // namespace xls
 
 #endif  // XLS_IR_NODE_UTIL_H_

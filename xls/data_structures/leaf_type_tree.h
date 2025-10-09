@@ -21,6 +21,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -1063,6 +1064,29 @@ absl::Status ForEachSubArray(
       ltt.type(), ltt.elements(), ltt.leaf_types(), index_depth, f);
 }
 
+// Returns the first leaf index for which 'matcher' returns true. The
+// indexes are searched in lexicographical order. Returns std::nullopt if no
+// matching index is found.
+template <typename T, typename Matcher>
+  requires(std::is_invocable_r_v<absl::StatusOr<bool>, Matcher, Type*, const T&,
+                                 absl::Span<int64_t const>>)
+absl::StatusOr<std::optional<std::vector<int64_t>>> FindMatchingIndex(
+    LeafTypeTreeView<T> view, Matcher matcher) {
+  std::optional<std::vector<int64_t>> results;
+  XLS_RETURN_IF_ERROR(
+      ForEachIndex(view,
+                   [&](Type* t, const T& v,
+                       absl::Span<int64_t const> index) -> absl::Status {
+                     if (!results) {
+                       XLS_ASSIGN_OR_RETURN(auto res, matcher(t, v, index));
+                       if (res) {
+                         results.emplace(index.begin(), index.end());
+                       }
+                     }
+                     return absl::OkStatus();
+                   }));
+  return results;
+}
 }  // namespace leaf_type_tree
 
 template <typename T>

@@ -14,24 +14,31 @@
 
 #include "xls/passes/non_synth_separation_pass.h"
 
+#include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <tuple>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
+#include "cppitertools/reversed.hpp"
 #include "xls/common/status/status_macros.h"
-#include "xls/ir/bits.h"
+#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/name_uniquer.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
@@ -128,44 +135,94 @@ absl::Status MakeFunctionReturnUseless(Function* f) {
 }
 
 // This visitor creates a new function from a proc with all of the same nodes
-// except proc only nodes which get passed to the new function as parameters.
+// except proc only nodes which get their values passed to the new function as
+// parameters.
 class CloneProcAsFunctionVisitor : public DfsVisitorWithDefault {
  public:
-  explicit CloneProcAsFunctionVisitor(Proc* proc, Function* non_synth_function,
-                                      Package* p)
-      : proc_(proc), non_synth_function_(non_synth_function), p_(p) {}
+  explicit CloneProcAsFunctionVisitor(Function* non_synth_function)
+      : non_synth_function_(non_synth_function) {}
 
-  // Add a param to the new function that has the same type as the send node
-  // return value. The send node return value is then passed to the new function
-  // as an argument.
-  // TODO: Reconsider not changing the token graph in the scenario that a
-  // send/receive depends on an assert/trace token.
+  // Track the send token graph.
+  //
+  // TODO(allight): If we end up creating a 'try_send' as has been suggested
+  // this will need to be updated to take the result of that send.
   absl::Status HandleSend(Send* send) override {
-    XLS_ASSIGN_OR_RETURN(Node * param,
-                         non_synth_function_->MakeNode<Param>(
-                             send->loc(), send->package()->GetTokenType()));
-    // Map the send node to the param node in the new function.
-    node_map_[send] = param;
-    // Prepare the send node as an argument used by the invoke.
-    args_.push_back(send);
+    node_map_[send] = node_map_[send->token()];
     return absl::OkStatus();
   }
 
   absl::Status HandleReceive(Receive* receive) override {
-    XLS_ASSIGN_OR_RETURN(Node * param, non_synth_function_->MakeNode<Param>(
-                                           receive->loc(), receive->GetType()));
-    node_map_[receive] = param;
-    args_.push_back(receive);
+    // We don't need to hold the token itself.
+    Type* inp_type = receive->package()->GetTupleType(
+        receive->GetType()->AsTupleOrDie()->element_types().subspan(1));
+    std::string param_name =
+        receive->HasAssignedName()
+            ? absl::StrCat(receive->GetNameView(), "_param")
+            : absl::StrFormat("recv_%d_param", receive->id());
+    XLS_ASSIGN_OR_RETURN(Node * param,
+                         non_synth_function_->MakeNodeWithName<Param>(
+                             receive->loc(), inp_type, param_name));
+    // Splice in the token.
+    XLS_ASSIGN_OR_RETURN(
+        node_map_[receive],
+        InsertIntoTuple(param, node_map_[receive->token()], {0}));
+    // Make the invoke arg.
+    XLS_ASSIGN_OR_RETURN(Node * sliced_recv, SliceTuple(receive, 1));
+    args_.push_back(sliced_recv);
     return absl::OkStatus();
   }
 
+  // Slice out any token.
   absl::Status HandleStateRead(StateRead* state_read) override {
-    XLS_ASSIGN_OR_RETURN(
-        Node * param,
-        non_synth_function_->MakeNode<Param>(
-            state_read->loc(), state_read->state_element()->type()));
+    std::string param_name =
+        state_read->HasAssignedName()
+            ? absl::StrCat(state_read->GetNameView(), "_param")
+            : absl::StrFormat("state_read_%d_param", state_read->id());
+    if (!TypeHasToken(state_read->GetType())) {
+      XLS_ASSIGN_OR_RETURN(
+          Node * param, non_synth_function_->MakeNodeWithName<Param>(
+                            state_read->loc(),
+                            state_read->state_element()->type(), param_name));
+      node_map_[state_read] = param;
+      args_.push_back(state_read);
+      return absl::OkStatus();
+    }
+    // Assert/trace/cover ordering is not really observable at the proc/func
+    // level and the scheduler has significant freedom to reorder them during
+    // codegen. This means we can simply break all cross activation token edges
+    // feeding the asserts/trace/covers and just give them all a new token to
+    // order themselves with.
+    //
+    // TODO(allight): We should consider collapsing all tokens in state elements
+    // together in some cases.
+    Node* inp = state_read;
+    std::vector<std::vector<int64_t>> removed_tokens;
+    while (true) {
+      LeafTypeTree<std::monostate> ltt(inp->GetType(), std::monostate{});
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<std::vector<int64_t>> token_indexes,
+          leaf_type_tree::FindMatchingIndex<std::monostate>(
+              ltt.AsView(),
+              [](Type* t, auto& v, auto idx) -> absl::StatusOr<bool> {
+                return t->IsToken();
+              }));
+      if (!token_indexes) {
+        break;
+      }
+      XLS_ASSIGN_OR_RETURN(inp, RemoveFromTuple(inp, *token_indexes));
+      removed_tokens.push_back(*std::move(token_indexes));
+    }
+    XLS_ASSIGN_OR_RETURN(Node * param,
+                         non_synth_function_->MakeNodeWithName<Param>(
+                             state_read->loc(), inp->GetType(), param_name));
+    // Restore the tokens. Just use literal token for all of them.
+    XLS_ASSIGN_OR_RETURN(Node * token, non_synth_function_->MakeNode<Literal>(
+                                           param->loc(), Value::Token()));
+    for (absl::Span<int64_t const> indices : iter::reversed(removed_tokens)) {
+      XLS_ASSIGN_OR_RETURN(param, InsertIntoTuple(param, token, indices));
+    }
     node_map_[state_read] = param;
-    args_.push_back(state_read);
+    args_.push_back(inp);
     return absl::OkStatus();
   }
 
@@ -189,19 +246,20 @@ class CloneProcAsFunctionVisitor : public DfsVisitorWithDefault {
   std::vector<Node*> args() { return args_; }
 
  private:
-  Proc* proc_;
   Function* non_synth_function_;
-  Package* p_;
   absl::flat_hash_map<Node*, Node*> node_map_;
   std::vector<Node*> args_;
 };
 
 absl::StatusOr<std::pair<Function*, std::vector<Node*>>> CloneProcAsFunction(
-    Proc* proc, std::string_view non_synth_function_name, Package* p) {
+    Proc* proc, std::string_view non_synth_function_name, Package* p,
+    OptimizationContext& context) {
   Function* f =
       p->AddFunction(std::make_unique<Function>(non_synth_function_name, p));
-  CloneProcAsFunctionVisitor clone_function_visitor(proc, f, p);
-  XLS_RETURN_IF_ERROR(proc->Accept(&clone_function_visitor));
+  CloneProcAsFunctionVisitor clone_function_visitor(f);
+  for (Node* n : context.TopoSort(proc)) {
+    XLS_RETURN_IF_ERROR(n->VisitSingleNode(&clone_function_visitor));
+  }
   return std::make_pair(clone_function_visitor.f(),
                         clone_function_visitor.args());
 }
@@ -249,7 +307,7 @@ absl::StatusOr<bool> NonSynthSeparationPass::RunInternal(
       // values from new function parameters.
       XLS_ASSIGN_OR_RETURN(
           std::tie(non_synth_function, non_synth_args),
-          CloneProcAsFunction(proc, non_synth_function_name, p));
+          CloneProcAsFunction(proc, non_synth_function_name, p, context));
       // Add a useless return type to the function.
       XLS_RETURN_IF_ERROR(MakeFunctionReturnUseless(non_synth_function));
       // Create an invoke in the proc to the non-synthesizable function. Pass

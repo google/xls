@@ -1143,4 +1143,122 @@ absl::StatusOr<Node*> RestoreKnownBits(Node* split,
                          split->loc());
 }
 
+absl::StatusOr<Node*> SliceTuple(Node* tuple, int64_t start,
+                                 std::optional<int64_t> count) {
+  XLS_RET_CHECK(tuple->GetType()->IsTuple()) << "Not a tuple: " << tuple;
+  TupleType* type = tuple->GetType()->AsTupleOrDie();
+  int64_t limit = type->size();
+  if (count.has_value()) {
+    limit = std::min(limit, start + *count);
+  }
+  std::string result_name =
+      tuple->HasAssignedName()
+          ? absl::StrFormat("%s_%d_to_%d", tuple->GetNameView(), start, limit)
+          : "";
+  if (start >= type->size() || count == 0) {
+    return tuple->function_base()->MakeNodeWithName<Literal>(
+        tuple->loc(), Value::Tuple({}), result_name);
+  }
+  std::vector<Node*> elements;
+  elements.reserve(count.value_or(type->size() - start));
+  for (int64_t i = start; i < limit; ++i) {
+    XLS_ASSIGN_OR_RETURN(std::back_inserter(elements),
+                         GetNodeAtIndex(tuple, {i}));
+  }
+  return tuple->function_base()->MakeNodeWithName<Tuple>(tuple->loc(), elements,
+                                                         result_name);
+}
+
+absl::StatusOr<Node*> SetTupleIndex(Node* tuple, Node* value,
+                                    absl::Span<int64_t const> indices) {
+  XLS_RET_CHECK(!indices.empty());
+  XLS_RET_CHECK(tuple->GetType()->IsTuple()) << "Not a tuple: " << tuple;
+  TupleType* type = tuple->GetType()->AsTupleOrDie();
+  XLS_RET_CHECK_GT(type->size(), indices.front())
+      << "No element addressed in " << tuple;
+  std::vector<Node*> elements;
+  elements.reserve(type->size());
+  for (int64_t i = 0; i < type->size(); ++i) {
+    if (i != indices.front()) {
+      XLS_ASSIGN_OR_RETURN(std::back_inserter(elements),
+                           GetNodeAtIndex(tuple, {i}));
+    } else if (indices.size() == 1) {
+      elements.push_back(value);
+    } else {
+      XLS_ASSIGN_OR_RETURN(Node * front,
+                           GetNodeAtIndex(tuple, {indices.front()}));
+      XLS_ASSIGN_OR_RETURN(std::back_inserter(elements),
+                           SetTupleIndex(front, value, indices.subspan(1)),
+                           _ << "Failed to set tuple index " << indices.front()
+                             << " for " << tuple);
+    }
+  }
+  return tuple->function_base()->MakeNodeWithName<Tuple>(tuple->loc(), elements,
+                                                         tuple->GetNameView());
+}
+
+absl::StatusOr<Node*> InsertIntoTuple(Node* tuple, Node* value,
+                                      absl::Span<int64_t const> indices) {
+  XLS_RET_CHECK(!indices.empty());
+  XLS_RET_CHECK(tuple->GetType()->IsTuple()) << "Not a tuple: " << tuple;
+  TupleType* type = tuple->GetType()->AsTupleOrDie();
+  XLS_RET_CHECK_GE(type->size(), indices.front())
+      << "No element addressed in " << tuple;
+  bool inserted = false;
+  std::vector<Node*> elements;
+  elements.reserve(type->size());
+  for (int64_t i = 0; i < type->size(); ++i) {
+    if (inserted || i != indices.front()) {
+      XLS_ASSIGN_OR_RETURN(std::back_inserter(elements),
+                           GetNodeAtIndex(tuple, {i}));
+    } else {
+      // NB This can only be run at most once since we set 'inserted' which
+      // forces us into the simple append state above.
+      inserted = true;
+      if (indices.size() == 1) {
+        // This is the actual location we are inserting things.
+        elements.push_back(value);
+        inserted = true;
+        // Insert the i'th element we are pushing back.
+        i--;
+      } else {
+        // We are inserting into the tuple at this index.
+        XLS_ASSIGN_OR_RETURN(Node * front,
+                             GetNodeAtIndex(tuple, {indices.front()}));
+        XLS_ASSIGN_OR_RETURN(std::back_inserter(elements),
+                             SetTupleIndex(front, value, indices.subspan(1)),
+                             _ << "Failed to set tuple index "
+                               << indices.front() << " for " << tuple);
+      }
+    }
+  }
+  return tuple->function_base()->MakeNodeWithName<Tuple>(tuple->loc(), elements,
+                                                         tuple->GetNameView());
+}
+
+absl::StatusOr<Node*> RemoveFromTuple(Node* tuple,
+                                      absl::Span<int64_t const> indices) {
+  XLS_RET_CHECK(!indices.empty());
+  XLS_RET_CHECK(tuple->GetType()->IsTuple()) << "Not a tuple: " << tuple;
+  TupleType* type = tuple->GetType()->AsTupleOrDie();
+  XLS_RET_CHECK_GT(type->size(), indices.front())
+      << "No element addressed in " << tuple;
+  std::vector<Node*> elements;
+  elements.reserve(type->size());
+  for (int64_t i = 0; i < type->size(); ++i) {
+    if (i != indices.front()) {
+      XLS_ASSIGN_OR_RETURN(std::back_inserter(elements),
+                           GetNodeAtIndex(tuple, {i}));
+    } else if (indices.size() != 1) {
+      XLS_ASSIGN_OR_RETURN(Node * front,
+                           GetNodeAtIndex(tuple, {indices.front()}));
+      XLS_ASSIGN_OR_RETURN(std::back_inserter(elements),
+                           RemoveFromTuple(front, indices.subspan(1)),
+                           _ << "Failed to remove element from tuple index "
+                             << indices.front() << " for " << tuple);
+    }
+  }
+  return tuple->function_base()->MakeNodeWithName<Tuple>(tuple->loc(), elements,
+                                                         tuple->GetNameView());
+}
 }  // namespace xls

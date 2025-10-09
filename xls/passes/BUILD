@@ -4104,10 +4104,11 @@ xls_pass(
         ":optimization_pass",
         ":pass_base",
         "//xls/common/status:status_macros",
+        "//xls/data_structures:leaf_type_tree",
         "//xls/ir",
-        "//xls/ir:bits",
         "//xls/ir:channel",
         "//xls/ir:name_uniquer",
+        "//xls/ir:node_util",
         "//xls/ir:op",
         "//xls/ir:type",
         "//xls/ir:value",
@@ -4116,7 +4117,10 @@ xls_pass(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+        "@cppitertools",
     ],
 )
 

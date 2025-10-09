@@ -362,6 +362,95 @@ TEST_F(NodeUtilTest, ReplaceTupleIndicesFailsWithDependentReplacement) {
                        HasSubstr("Replacement index 1 (lhs) depends on")));
 }
 
+TEST_F(NodeUtilTest, SliceTuple) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue in =
+      fb.Param("in", p->GetTupleType({p->GetBitsType(8), p->GetBitsType(16),
+                                      p->GetBitsType(32)}));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * slice_0_0, SliceTuple(in.node(), 0, 0));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * slice_1_1, SliceTuple(in.node(), 1, 1));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * slice_1_none, SliceTuple(in.node(), 1));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * slice_3_none, SliceTuple(in.node(), 3));
+  XLS_ASSERT_OK(fb.Build().status());
+
+  EXPECT_THAT(slice_0_0, m::Literal(Value::Tuple({})));
+  EXPECT_THAT(slice_1_1, m::Tuple(m::TupleIndex(m::Param("in"), 1)));
+  EXPECT_THAT(slice_1_none, m::Tuple(m::TupleIndex(m::Param("in"), 1),
+                                     m::TupleIndex(m::Param("in"), 2)));
+  EXPECT_THAT(slice_3_none, m::Literal(Value::Tuple({})));
+}
+
+TEST_F(NodeUtilTest, SetTupleInex) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue in = fb.Param(
+      "in", p->GetTupleType(
+                {p->GetBitsType(8),
+                 p->GetTupleType({p->GetBitsType(16), p->GetBitsType(32)})}));
+  BValue repl8 = fb.Param("repl8", p->GetBitsType(8));
+  BValue repl16 = fb.Param("repl16", p->GetBitsType(16));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * set_0,
+                           SetTupleIndex(in.node(), repl8.node(), {0}));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * set_1_0,
+                           SetTupleIndex(in.node(), repl16.node(), {1, 0}));
+  XLS_ASSERT_OK(fb.Build().status());
+
+  EXPECT_THAT(set_0,
+              m::Tuple(m::Param("repl8"), m::TupleIndex(m::Param("in"), 1)));
+  EXPECT_THAT(
+      set_1_0,
+      m::Tuple(m::TupleIndex(m::Param("in"), 0),
+               m::Tuple(m::Param("repl16"),
+                        m::TupleIndex(m::TupleIndex(m::Param("in"), 1), 1))));
+}
+
+TEST_F(NodeUtilTest, InsertIntoTuple) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue in = fb.Param(
+      "in", p->GetTupleType(
+                {p->GetBitsType(8),
+                 p->GetTupleType({p->GetBitsType(16), p->GetBitsType(32)})}));
+  BValue repl8 = fb.Param("repl8", p->GetBitsType(8));
+  BValue repl16 = fb.Param("repl16", p->GetBitsType(16));
+  // insert if index size == 1
+  XLS_ASSERT_OK_AND_ASSIGN(Node * insert_0,
+                           InsertIntoTuple(in.node(), repl8.node(), {0}));
+  // acts as SetTupleInex in this case
+  XLS_ASSERT_OK_AND_ASSIGN(Node * insert_1_0,
+                           InsertIntoTuple(in.node(), repl16.node(), {1, 0}));
+  XLS_ASSERT_OK(fb.Build().status());
+
+  EXPECT_THAT(insert_0,
+              m::Tuple(m::Param("repl8"), m::TupleIndex(m::Param("in"), 0),
+                       m::TupleIndex(m::Param("in"), 1)));
+  EXPECT_THAT(
+      insert_1_0,
+      m::Tuple(m::TupleIndex(m::Param("in"), 0),
+               m::Tuple(m::Param("repl16"),
+                        m::TupleIndex(m::TupleIndex(m::Param("in"), 1), 1))));
+}
+
+TEST_F(NodeUtilTest, RemoveFromTuple) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue in = fb.Param(
+      "in", p->GetTupleType(
+                {p->GetBitsType(8),
+                 p->GetTupleType({p->GetBitsType(16), p->GetBitsType(32)})}));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * remove_0, RemoveFromTuple(in.node(), {0}));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * remove_1_0,
+                           RemoveFromTuple(in.node(), {1, 0}));
+  XLS_ASSERT_OK(fb.Build().status());
+
+  EXPECT_THAT(remove_0, m::Tuple(m::TupleIndex(m::Param("in"), 1)));
+  EXPECT_THAT(
+      remove_1_0,
+      m::Tuple(m::TupleIndex(m::Param("in"), 0),
+               m::Tuple(m::TupleIndex(m::TupleIndex(m::Param("in"), 1), 1))));
+}
+
 TEST_F(NodeUtilTest, AndReduceTrailing) {
   Package p("my_package");
   FunctionBuilder b(TestName(), &p);

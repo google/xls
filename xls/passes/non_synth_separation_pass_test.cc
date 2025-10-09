@@ -122,9 +122,10 @@ TEST_F(NonSynthSeparationPassTest, ProcIsClonedWithSend) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(Function * non_synth_proc1,
                            p->GetFunction("non_synth_proc1"));
-  XLS_ASSERT_OK_AND_ASSIGN(Node * identity_node,
-                           non_synth_proc1->GetNode("identity.14"));
-  EXPECT_THAT(identity_node, m::Identity(m::Param()));
+  // Don't actually give the sends parameters.
+  EXPECT_THAT(non_synth_proc1->GetType()->parameters(), testing::IsEmpty());
+  EXPECT_THAT(non_synth_proc1->nodes(),
+              testing::Contains(m::Identity(m::Literal(Value::Token()))));
 }
 
 TEST_F(NonSynthSeparationPassTest, ProcIsClonedWithReceive) {
@@ -134,16 +135,16 @@ TEST_F(NonSynthSeparationPassTest, ProcIsClonedWithReceive) {
   XLS_ASSERT_OK_AND_ASSIGN(
       auto channel,
       p->CreateSingleValueChannel("channel", ChannelOps::kReceiveOnly,
-                                  p->GetBitsType(1)));
+                                  p->GetBitsType(12)));
   BValue receive = pb.Receive(channel, pb.Literal(Value::Token()));
   pb.Identity(receive);
   XLS_ASSERT_OK(pb.Build());
+  ScopedRecordIr sri(p.get());
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(Function * non_synth_proc1,
                            p->GetFunction("non_synth_proc1"));
-  XLS_ASSERT_OK_AND_ASSIGN(Node * identity_node,
-                           non_synth_proc1->GetNode("identity.12"));
-  EXPECT_THAT(identity_node, m::Identity(m::Param()));
+  EXPECT_THAT(non_synth_proc1->nodes(),
+              testing::Contains(m::Identity(m::Type("(token, bits[12])"))));
 }
 
 TEST_F(NonSynthSeparationPassTest, ProcIsClonedWithStateRead) {
@@ -234,10 +235,11 @@ TEST_F(NonSynthSeparationPassTest, InvokeToNonSynthProcIsInsertedWithParams) {
   BValue receive = pb.Receive(channel, pb.Literal(Value::Token()));
   pb.Identity(receive);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc1, pb.Build());
+  ScopedRecordIr sri(p.get());
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   XLS_ASSERT_OK(p->GetFunction("non_synth_proc1"));
-  XLS_ASSERT_OK_AND_ASSIGN(Node * invoke_node, proc1->GetNode("invoke.14"));
-  EXPECT_THAT(invoke_node, m::Invoke(m::Receive()));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * invoke_node, proc1->GetNode("invoke.18"));
+  EXPECT_THAT(invoke_node, m::Invoke(m::Tuple(m::TupleIndex(m::Receive()))));
 }
 
 // This test fails if the nodes are not topologically sorted.
