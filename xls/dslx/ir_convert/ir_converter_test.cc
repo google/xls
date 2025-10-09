@@ -247,7 +247,7 @@ class IrConverterWithBothTypecheckVersionsTest
 };
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, NamedConstant) {
-  constexpr std::string_view program =
+  const char* program =
       R"(fn f() -> u32 {
   let foo: u32 = u32:42;
   foo
@@ -259,7 +259,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, NamedConstant) {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, Concat) {
-  constexpr std::string_view program =
+  const char* program =
       R"(fn f(x: bits[31]) -> u32 {
   bits[1]:1 ++ x
 }
@@ -294,7 +294,7 @@ top fn __test_module__my_fun(baz: bits[32] id=1) -> bits[32] {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, TwoPlusTwo) {
-  constexpr std::string_view program =
+  const char* program =
       R"(fn two_plus_two() -> u32 {
   u32:2 + u32:2
 }
@@ -305,7 +305,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, TwoPlusTwo) {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, SignedDiv) {
-  constexpr std::string_view program =
+  const char* program =
       R"(fn signed_div(x: s32, y: s32) -> s32 {
   x / y
 })";
@@ -315,7 +315,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, SignedDiv) {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, NegativeX) {
-  constexpr std::string_view program =
+  const char* program =
       R"(fn negate(x: u32) -> u32 {
   -x
 })";
@@ -325,7 +325,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, NegativeX) {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, LetBinding) {
-  constexpr std::string_view program =
+  const char* program =
       R"(fn f() -> u32 {
   let x: u32 = u32:2;
   x+x
@@ -336,7 +336,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, LetBinding) {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, LetTupleBinding) {
-  constexpr std::string_view program =
+  const char* program =
       R"(fn f() -> u32 {
   let t = (u32:2, u32:3);
   let (x, y) = t;
@@ -348,7 +348,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, LetTupleBinding) {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, LetTupleBindingNested) {
-  constexpr std::string_view program =
+  const char* program =
       R"(fn f() -> u32 {
   let t = (u32:2, (u32:3, (u32:4,), u32:5));
   let (x, (y, (z,), a)) = t;
@@ -362,7 +362,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, LetTupleBindingNested) {
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
        LetTupleBindingRestOfTupleNestedNone) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 #[test]
 fn f() {
@@ -379,7 +379,7 @@ fn f() {
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
        LetTupleBindingRestOfTupleNested) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 #[test]
 fn f() {
@@ -396,7 +396,7 @@ fn f() {
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
        LetTupleBindingWildcardNested) {
-  constexpr std::string_view program =
+  const char* program =
       R"(fn f() -> u32 {
   let t = (u32:2, u32:3, (u32:4, u32:5, (u32:6,u32:7), u32:8));
   let (x, _, (y, _, (z, _), a)) = t;
@@ -409,7 +409,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest,
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, LetTupleBindingWildcard) {
-  constexpr std::string_view program =
+  const char* program =
       R"(fn f() -> u32 {
   let t = (u32:2, u32:3);
   let (x, _) = t;
@@ -422,7 +422,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, LetTupleBindingWildcard) {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, LetTupleBindingRestOfTuple) {
-  constexpr std::string_view program =
+  const char* program =
       R"(fn f() -> u32 {
   let t = (u32:2, u32:3, u32:4);
   let (x, ..) = t;
@@ -436,7 +436,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, LetTupleBindingRestOfTuple) {
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
        LetTupleBindingRestOfTupleNone) {
-  constexpr std::string_view program =
+  const char* program =
       R"(fn f() -> u32 {
   let t = (u32:2,);
   let (x, ..) = t;
@@ -450,7 +450,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest,
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
        LetTupleBindingRestOfTupleBeginning) {
-  constexpr std::string_view program =
+  const char* program =
       R"(fn f() -> u32 {
   let t = (u32:2, u32:3, u32:4);
   let (.., x) = t;
@@ -464,7 +464,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest,
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
        LetTupleBindingRestOfTupleSkipsMiddle) {
-  constexpr std::string_view program =
+  const char* program =
       R"(fn f() -> u32 {
   let t = (u32:1, u32:2, u32:3, u32:4);
   let (x, .., y) = t;
@@ -477,7 +477,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest,
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, MatchRestOfTupleBeginning) {
-  constexpr std::string_view program =
+  const char* program =
       R"(fn f() -> u32 {
   let t = (u32:1, u32:2, u32:3, u32:4);
   match t {
@@ -493,7 +493,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, MatchRestOfTupleBeginning) {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, MatchRestOfTupleMiddle) {
-  constexpr std::string_view program =
+  const char* program =
       R"(fn f() -> u32 {
   let t = (u32:1, u32:2, u32:3, u32:4);
   match t {
@@ -509,7 +509,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, MatchRestOfTupleMiddle) {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, MatchRestOfTupleEnd) {
-  constexpr std::string_view program =
+  const char* program =
       R"(fn f() -> u32 {
   let t = (u32:1, u32:2, u32:3, u32:4);
   match t {
@@ -526,7 +526,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, MatchRestOfTupleEnd) {
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
        MatchTupleOfTuplesRestOfTuple) {
-  constexpr std::string_view program =
+  const char* program =
       R"(fn f() -> u32 {
   let t = (u32:1, (u32:2, u32:3, u32:4), u32:5, u32:6);
   match t {
@@ -547,7 +547,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest,
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
        MatchRestOfTupleAsTrailingArm) {
-  constexpr std::string_view program =
+  const char* program =
       R"(fn f() -> u32 {
   let t = (u32:1, u32:2);
   match t {
@@ -562,7 +562,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest,
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, Struct) {
-  constexpr std::string_view program =
+  const char* program =
       R"(struct S {
   zub: u8,
   qux: u8,
@@ -580,7 +580,7 @@ fn f(a: S, b: S) -> u8 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, Index) {
-  constexpr std::string_view program =
+  const char* program =
       R"(fn f(x: uN[32][4]) -> u32 {
   x[u32:0]
 })";
@@ -590,7 +590,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, Index) {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, TupleOfParameters) {
-  constexpr std::string_view program =
+  const char* program =
       R"(fn f(x: u8, y: u8) -> (u8, u8) {
   (x, y)
 }
@@ -601,7 +601,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, TupleOfParameters) {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, TupleOfLiterals) {
-  constexpr std::string_view program =
+  const char* program =
       R"(fn f() -> (u8, u8) {
   (u8:0xaa, u8:0x55)
 }
@@ -617,7 +617,7 @@ TEST(IrConverterTest, CountedForWithRangeFunction) {
     return;
   }
 
-  constexpr std::string_view program =
+  const char* program =
       R"(fn f() -> u32 {
   for (i, accum): (u32, u32) in range(u32:0, u32:4) {
     accum + i
@@ -631,7 +631,7 @@ TEST(IrConverterTest, CountedForWithRangeFunction) {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, CountedFor) {
-  constexpr std::string_view program =
+  const char* program =
       R"(fn f() -> u32 {
   for (i, accum): (u32, u32) in u32:0..u32:4 {
     accum + i
@@ -645,7 +645,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, CountedFor) {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ForOverArrayOfItems) {
-  constexpr std::string_view program = R"(
+  const std::string_view program = R"(
 fn main(a: (u7, u7)[3]) -> u7 {
   for (t, accum): ((u7, u7), u7) in a {
     accum + t.0 + t.1
@@ -658,7 +658,7 @@ fn main(a: (u7, u7)[3]) -> u7 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ForOverArrayLiteral) {
-  constexpr std::string_view program = R"(
+  const std::string_view program = R"(
 fn main() -> u7 {
   for (t, accum): ((u7, u7), u7) in (u7, u7)[2]:[(u7:0, u7:1), (u7:2, u7:3)] {
     accum + t.0 + t.1
@@ -671,7 +671,7 @@ fn main() -> u7 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, CountedForDestructuring) {
-  constexpr std::string_view program =
+  const char* program =
       R"(fn f() -> u32 {
   let t = for (i, (x, y)): (u32, (u32, u8)) in u32:0..u32:4 {
     (x + i, y)
@@ -686,7 +686,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, CountedForDestructuring) {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, CountedForParametricConst) {
-  constexpr std::string_view program =
+  const char* program =
       R"(fn f<N: u32>(x: bits[N]) -> u32 {
   for (i, accum): (u32, u32) in u32:0..N {
     accum + i
@@ -703,7 +703,7 @@ fn main() -> u32 {
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
        CountedForInvokingFunctionFromBody) {
-  constexpr std::string_view program =
+  const char* program =
       R"(fn my_id(x: u32) -> u32 { x }
 fn f() -> u32 {
   for (i, accum): (u32, u32) in u32:0..u32:4 {
@@ -717,7 +717,7 @@ fn f() -> u32 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, CountedForVariableRange) {
-  constexpr std::string_view program =
+  const char* program =
       R"(fn f(x:u32) -> u32 {
   for (i, accum): (u32, u32) in u32:0..x {
     accum + i
@@ -729,7 +729,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, CountedForVariableRange) {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ExtendConversions) {
-  constexpr std::string_view program =
+  const char* program =
       R"(fn main(x: u8, y: s8) -> (u32, u32, s32, s32) {
   (x as u32, y as u32, x as s32, y as s32)
 }
@@ -740,7 +740,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, ExtendConversions) {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, TupleIndex) {
-  constexpr std::string_view program =
+  const char* program =
       R"(fn main() -> u8 {
   let t = (u32:3, u8:4);
   t.1
@@ -752,7 +752,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, TupleIndex) {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, BasicStruct) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 struct Point {
   x: u32,
@@ -769,7 +769,7 @@ fn f(xy: u32) -> Point {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, InvokeNullary) {
-  constexpr std::string_view program =
+  const char* program =
       R"(fn callee() -> u32 {
   u32:42
 }
@@ -783,7 +783,7 @@ fn caller() -> u32 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, Match) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 fn f(x: u8) -> u2 {
   match x {
@@ -799,7 +799,7 @@ fn f(x: u8) -> u2 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, MatchDefaultOnly) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 fn f(x: u8) -> u2 {
   match x {
@@ -813,7 +813,7 @@ fn f(x: u8) -> u2 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, MatchDense) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 fn f(x: u2) -> u8 {
   match x {
@@ -830,7 +830,7 @@ fn f(x: u2) -> u8 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, EnumUse) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 enum Foo : u32 {
   THING = 0,
@@ -846,7 +846,7 @@ fn f(x: Foo) -> Foo {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ArrayEllipsis) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 fn main() -> u8[2] {
   u8[2]:[0, ...]
@@ -858,7 +858,7 @@ fn main() -> u8[2] {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, NonConstArrayEllipsis) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 fn main(x: bits[8]) -> u8[4] {
   u8[4]:[u8:0, x, ...]
@@ -870,7 +870,7 @@ fn main(x: bits[8]) -> u8[4] {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ArrayUpdate) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 fn main(input: u8[2]) -> u8[2] {
   update(input, u32:1, u8:0x42)
@@ -884,7 +884,7 @@ fn main(input: u8[2]) -> u8[2] {
 // TODO(https://github.com/google/xls/issues/1289): Need to be able to convert
 // enumerate builtin.
 TEST(IrConverterTest, DISABLED_ArrayEnumerate) {
-  constexpr std::string_view program = R"(
+  const std::string_view program = R"(
 fn main(array: u8[4]) -> (u32, u8)[4]) {
   enumerate(array)
 }
@@ -895,7 +895,7 @@ fn main(array: u8[4]) -> (u32, u8)[4]) {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, SplatStructInstance) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 struct Point {
   x: u32,
@@ -912,7 +912,7 @@ fn f(p: Point, new_y: u32) -> Point {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, BoolLiterals) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 fn f(x: u8) -> bool {
   if x == u8:42 { true } else { false }
@@ -924,7 +924,7 @@ fn f(x: u8) -> bool {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, MatchIdentity) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 fn f(x: u8) -> u2 {
   match x {
@@ -939,7 +939,7 @@ fn f(x: u8) -> u2 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, Conditional) {
-  constexpr std::string_view program =
+  const char* program =
       R"(fn main(x: bool) -> u8 {
   if x { u8:42 } else { u8:24 }
 }
@@ -950,7 +950,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, Conditional) {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ConditionalsPlusStuff) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 fn foo(a: bool) -> u8 {
   let x = if a { u8:42 } else { u8:24 } + u8:1;
@@ -966,7 +966,7 @@ fn foo(a: bool) -> u8 {
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
        ConstantsWithConditionalsPlusStuff) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 const A = true;
 const X = if A { u8:42 } else { u8:24 } + u8:1;
@@ -980,7 +980,7 @@ fn main(x: bool) -> u8 { X + Y + Z }
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, MatchPackageLevelConstant) {
-  constexpr std::string_view program =
+  const char* program =
       R"(const FOO = u8:0xff;
 fn f(x: u8) -> u2 {
   match x {
@@ -995,7 +995,7 @@ fn f(x: u8) -> u2 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ParametricInvocation) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 fn parametric_id<N: u32>(x: bits[N]) -> bits[N] {
   x+(N as bits[N])
@@ -1011,7 +1011,7 @@ fn main(x: u8) -> u8 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, MatchUnderLet) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 fn main(x: u8) -> u8 {
   let t = match x {
@@ -1027,7 +1027,7 @@ fn main(x: u8) -> u8 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, WidthSlice) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 fn f(x: u32, y: u32) -> u8 {
   x[2+:u8]+x[y+:u8]
@@ -1039,7 +1039,7 @@ fn f(x: u32, y: u32) -> u8 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, SingleElementBitsArrayParam) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 fn f(x: u32[1]) -> u32[1] {
   x
@@ -1051,7 +1051,7 @@ fn f(x: u32[1]) -> u32[1] {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, SingleElementEnumArrayParam) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 enum Foo : u2 {}
 fn f(x: Foo[1]) -> Foo[1] {
@@ -1064,7 +1064,7 @@ fn f(x: Foo[1]) -> Foo[1] {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, BitSliceCast) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 fn main(x: u2) -> u1 {
   x as u1
@@ -1076,7 +1076,7 @@ fn main(x: u2) -> u1 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, MatchDenseConsts) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 type MyU2 = u2;
 const ZERO = MyU2:0;
@@ -1097,7 +1097,7 @@ fn f(x: u2) -> u8 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, CountedForWithLoopInvariants) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 fn f(outer_thing_1: u32, outer_thing_2: u32) -> u32 {
   let outer_thing_3: u32 = u32:42;
@@ -1113,7 +1113,7 @@ fn f(outer_thing_1: u32, outer_thing_2: u32) -> u32 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ParametricDefaultInStruct) {
-  constexpr std::string_view program = R"(
+  const char* program = R"(
 struct Foo <X: u32, Y: u32 = {X + u32:1}, Z: u32 = {Y + u32:1}> {
     a: uN[X],
     b: uN[Y],
@@ -1137,7 +1137,7 @@ fn test() -> Foo<u32:5> {
 // See https://github.com/google/xls/issues/1615
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
        ParametricStructReverseOrderParametrics) {
-  constexpr std::string_view program = R"(
+  const char* program = R"(
 struct Foo<X: u32, Y: u32, Z:u32 = {X}> {
     a: uN[X],
     b: uN[Y],
@@ -1160,7 +1160,7 @@ fn test() -> Foo<u32:6, u32:5> {
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
        ParametricDefaultClog2InStruct) {
-  constexpr std::string_view program = R"(
+  const char* program = R"(
 import std;
 
 struct Foo <X: u32, Y: u32 = {std::clog2(X)}> {
@@ -1191,7 +1191,7 @@ TEST(IrConverterTest, UseOfClog2InModuleScopedConstantDefinition) {
     return;
   }
 
-  constexpr std::string_view program = R"(#![feature(use_syntax)]
+  const char* program = R"(#![feature(use_syntax)]
 use std::clog2;
 
 const MAX_BITS: u32 = clog2(u32:256);
@@ -1207,7 +1207,7 @@ fn main() -> u32 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, UnrollForSimple) {
-  constexpr std::string_view program = R"(
+  const char* program = R"(
 fn test() -> u32 {
   unroll_for!(i, acc): (u32, u32) in u32:0..u32:4 {
     i + acc
@@ -1221,7 +1221,7 @@ fn test() -> u32 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, UnrollForNonU32) {
-  constexpr std::string_view program = R"(
+  const char* program = R"(
 fn test() -> u8 {
   unroll_for!(i, acc): (u8, u8) in u8:0..u8:4 {
     i + acc
@@ -1235,7 +1235,7 @@ fn test() -> u8 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, UnrollForWithSignedIterable) {
-  constexpr std::string_view program = R"(
+  const char* program = R"(
 fn test() -> s32 {
   unroll_for!(i, acc): (s32, s32) in [-s32:2, s32:0, s32:5] {
     i + acc
@@ -1249,7 +1249,7 @@ fn test() -> s32 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, UnrollForWithoutIndexName) {
-  constexpr std::string_view program = R"(
+  const char* program = R"(
 fn test() -> u32 {
   unroll_for!(_, acc): (u32, u32) in u32:0..u32:4 {
     acc + u32:2
@@ -1263,7 +1263,7 @@ fn test() -> u32 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, UnrollForWithoutAccName) {
-  constexpr std::string_view program = R"(
+  const char* program = R"(
 fn test() -> u32 {
   unroll_for!(i, _): (u32, u32) in u32:0..u32:4 {
     trace_fmt!("{}", i);
@@ -1279,7 +1279,7 @@ fn test() -> u32 {
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
        UnrollForWithoutIndexAccTypeAnnotation) {
-  constexpr std::string_view program = R"(
+  const char* program = R"(
 proc SomeProc {
   init { () }
   config() { }
@@ -1295,7 +1295,7 @@ proc SomeProc {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, UnrollForNested) {
-  constexpr std::string_view program = R"(
+  const char* program = R"(
 fn test() -> u32 {
   unroll_for!(i, acc): (u32, u32) in u32:0..u32:4 {
     let x = unroll_for!(j, acc2): (u32, u32) in u32:3..u32:6 {
@@ -1317,7 +1317,7 @@ TEST(IrConverterTest, UnrollForWithRangeBuiltin) {
     return;
   }
 
-  constexpr std::string_view program = R"(
+  const char* program = R"(
 fn test() -> u32 {
   unroll_for!(i, acc): (u32, u32) in range(u32:3, u32:6) {
     i + acc
@@ -1331,7 +1331,7 @@ fn test() -> u32 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, UnrollForWithArrayAsIterable) {
-  constexpr std::string_view program = R"(
+  const char* program = R"(
 fn test() -> u32 {
   unroll_for!(i, acc): (u32, u32) in [u32:3, u32:4, u32:1] {
     i + acc
@@ -1346,7 +1346,7 @@ fn test() -> u32 {
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
        UnrollForWithNonConstexprIterable) {
-  constexpr std::string_view program = R"(
+  const char* program = R"(
 fn test(x:u32, y:u32) -> u32 {
   unroll_for!(i, acc): (u32, u32) in [x, y] {
     i + acc
@@ -1369,7 +1369,7 @@ fn test(x:u32, y:u32) -> u32 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, UnrollForWithNonBitsIterable) {
-  constexpr std::string_view program = R"(
+  const char* program = R"(
 fn test() -> u32 {
   unroll_for!(i, acc): ((u32, u32), u32) in [(u32:0, u32:5)] {
     i.0 + acc
@@ -1392,7 +1392,7 @@ fn test() -> u32 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, UnrollForWithParametric) {
-  constexpr std::string_view program = R"(
+  const char* program = R"(
 fn test<SIZE:u32>() -> bits[SIZE] {
   unroll_for!(i, acc): (bits[SIZE], bits[SIZE]) in bits[SIZE]:0..bits[SIZE]:4 {
     i + acc
@@ -1411,7 +1411,7 @@ fn foo() -> u8 {
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
        UnrollForWithTupleAccumulator) {
-  constexpr std::string_view program = R"(
+  const char* program = R"(
 fn test() -> (u32, u32) {
   unroll_for!(i, (acc1, acc2)): (u32, (u32, u32)) in u32:0..u32:4 {
     (i + acc1, i + acc2)
@@ -1426,7 +1426,7 @@ fn test() -> (u32, u32) {
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
        CountedForWithTupleAccumulator) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 fn f() -> (u32, u32) {
   for (i, (a, b)): (u32, (u32, u32)) in u32:0..u32:4 {
@@ -1440,7 +1440,7 @@ fn f() -> (u32, u32) {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, InvokeMultipleArgs) {
-  constexpr std::string_view program =
+  const char* program =
       R"(fn callee(x: bits[32], y: bits[32]) -> bits[32] {
   x + y
 }
@@ -1454,7 +1454,7 @@ fn caller() -> u32 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, CastOfAdd) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 fn main(x: u8, y: u8) -> u32 {
   (x + y) as u32
@@ -1466,7 +1466,7 @@ fn main(x: u8, y: u8) -> u32 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, IdentityFinalArg) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 fn main(x0: u19, x3: u29) -> u29 {
   let x15: u29 = u29:0;
@@ -1480,7 +1480,7 @@ fn main(x0: u19, x3: u29) -> u29 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ModuleLevelConstantDims) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 const BATCH_SIZE = u32:17;
 
@@ -1494,7 +1494,7 @@ fn main(x: u32[BATCH_SIZE]) -> u32 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, Signex) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 fn main(x: u8) -> u32 {
   signex(x, u32:0)
@@ -1531,7 +1531,7 @@ fn main(x: u10, y: u10) -> u10 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, OneHotSelSplat) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 fn main(s: u2) -> u32 {
   one_hot_sel(s, u32[2]:[2, 3])
@@ -1547,7 +1547,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, OneHotSelNonArrayNode) {
   // is not an Array node, but rather a name that refers to an Array.
   //
   // See https://github.com/google/xls/issues/1303
-  constexpr std::string_view program =
+  const char* program =
       R"(
 fn main(s: u2) -> u32 {
   let cases = u32[2]:[2, 3];
@@ -1560,7 +1560,7 @@ fn main(s: u2) -> u32 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, PrioritySelSplat) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 fn main(s: u2) -> u32 {
   priority_sel(s, u32[2]:[u32:2, u32:3], u32:4)
@@ -1577,7 +1577,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, PrioritySelNonArrayNode) {
   //
   // See https://github.com/google/xls/issues/1303
 
-  constexpr std::string_view program =
+  const char* program =
       R"(
 fn main(s: u2) -> u32 {
   let cases = u32[2]:[2, 3];
@@ -1590,7 +1590,7 @@ fn main(s: u2) -> u32 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, BitSliceSyntax) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 fn f(x: u4) -> u2 {
   x[:2]+x[-2:]+x[1:3]+x[-3:-1]+x[0:-2]
@@ -1602,7 +1602,7 @@ fn f(x: u4) -> u2 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, InvocationMultiSymbol) {
-  constexpr std::string_view program =
+  const char* program =
       R"(fn parametric<M: u32, N: u32, R: u32 = {M + N}>(x: bits[M], y: bits[N]) -> bits[R] {
   x ++ y
 }
@@ -1616,7 +1616,7 @@ fn main() -> u8 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ArrayConcat0) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 fn f(in1: u32[2]) -> u32 {
   let x : u32[4] = in1 ++ in1;
@@ -1629,7 +1629,7 @@ fn f(in1: u32[2]) -> u32 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, PackageLevelConstantArray) {
-  constexpr std::string_view program =
+  const char* program =
       R"(const FOO = u8[2]:[1, 2];
 fn f() -> u8[2] { FOO }
 fn g() -> u8[2] { FOO }
@@ -1640,7 +1640,7 @@ fn g() -> u8[2] { FOO }
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, MatchWithlet) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 fn f(x: u8) -> u2 {
   match x {
@@ -1657,7 +1657,7 @@ fn f(x: u8) -> u2 {
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
        SignexAcceptsSignedOutputType) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 fn main(x: u8) -> s32 {
   signex(x, s32:0)
@@ -1669,7 +1669,7 @@ fn main(x: u8) -> s32 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, StructWithConstSizedArray) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 const THING_COUNT = u32:2;
 type Foo = (
@@ -1688,7 +1688,7 @@ fn get_thing(x: Foo, i: u32) -> u32 {
 // Tests that a simple constexpr function can be evaluated at compile time
 // (which we observe at IR conversion time).
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ConstexprFunction) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 const MY_CONST = u32:5;
 fn constexpr_fn(arg: u32) -> u32 {
@@ -1706,7 +1706,7 @@ fn f() -> u32 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, NestedTupleSignature) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
     type Foo = u3;
 
@@ -1732,7 +1732,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, NestedTupleSignature) {
 }
 
 TEST(IrConverterTest, ArrayUpdateInLoop) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 fn main() -> u8[2] {
   for (i, accum): (u32, u8[2]) in u32:0..u32:2 {
@@ -1746,7 +1746,7 @@ fn main() -> u8[2] {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, Identity) {
-  constexpr std::string_view program =
+  const char* program =
       R"(fn main(x: u8) -> u8 {
   x
 })";
@@ -1759,7 +1759,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, Identity) {
 // conversion time.
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
        TypeErrorInUninstantiatedParametric) {
-  constexpr std::string_view program = R"(fn f<N: u32>(x: u8) -> u8 { 42(x) })";
+  const char* program = R"(fn f<N: u32>(x: u8) -> u8 { 42(x) })";
   absl::StatusOr<std::string> converted =
       ConvertModuleForTest(program, kNoPosOptions);
   XLS_EXPECT_OK(converted.status());
@@ -1767,7 +1767,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest,
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
        PackageLevelConstantArrayAccess) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 const FOO = u8[2]:[1, 2];
 fn f() -> u8 { FOO[u32:0] }
@@ -1780,7 +1780,7 @@ fn g() -> u8 { FOO[u32:1] }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
        TransitiveParametricInvocation) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 fn parametric_id<N: u32>(x: bits[N]) -> bits[N] {
   x+(N as bits[N])
@@ -1798,7 +1798,7 @@ fn main(x: u8) -> u8 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ParametricIrConversion) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 fn parametric<N: u32>(x: bits[N]) -> u32 {
   N
@@ -1814,7 +1814,7 @@ fn main() -> u32 {
 }
 
 TEST(IrConverterTest, UnconditionalFail) {
-  constexpr std::string_view program = R"(
+  const char* program = R"(
 fn main() -> u32 {
   fail!("failure", u32:42)
 }
@@ -1825,7 +1825,7 @@ fn main() -> u32 {
 }
 
 TEST(IrConverterTest, FailInTernaryConsequent) {
-  constexpr std::string_view program = R"(
+  const char* program = R"(
 fn main(x: u32) -> u32 {
   if x == u32:0 { fail!("failure", x) } else { x }
 }
@@ -1836,7 +1836,7 @@ fn main(x: u32) -> u32 {
 }
 
 TEST(IrConverterTest, FailInTernaryAlternate) {
-  constexpr std::string_view program = R"(
+  const char* program = R"(
 fn main(x: u32) -> u32 {
   if x == u32:0 { x } else { fail!("failure", x) }
 }
@@ -1848,7 +1848,7 @@ fn main(x: u32) -> u32 {
 
 // Fail within one arm of a match expression.
 TEST(IrConverterTest, FailInMatch) {
-  constexpr std::string_view program = R"(
+  const char* program = R"(
 fn main(x: u32) -> u32 {
   match x {
     u32:42 => fail!("failure", x),
@@ -1862,7 +1862,7 @@ fn main(x: u32) -> u32 {
 }
 
 TEST(IrConverterTest, FailInMatchInvocation) {
-  constexpr std::string_view program = R"(
+  const char* program = R"(
 fn do_fail(x: u32) -> u32 {
   fail!("failure", x)
 }
@@ -1880,7 +1880,7 @@ fn main(x: u32) -> u32 {
 }
 
 TEST(IrConverterTest, MatchMultiFail) {
-  constexpr std::string_view program = R"(
+  const char* program = R"(
 fn main(x: u32) -> u32 {
   match x {
     u32:42 => fail!("failure_0", x),
@@ -1894,7 +1894,7 @@ fn main(x: u32) -> u32 {
 }
 
 TEST(IrConverterTest, InvokeMethodThatFails) {
-  constexpr std::string_view program = R"(
+  const char* program = R"(
 fn does_fail() -> u32 {
   fail!("failure", u32:42)
 }
@@ -1909,7 +1909,7 @@ fn main(x: u32) -> u32 {
 }
 
 TEST(IrConverterTest, InvokeParametricThatFails) {
-  constexpr std::string_view program = R"(
+  const char* program = R"(
 fn does_fail<N: u32>() -> bits[N] {
   fail!("failure", bits[N]:42)
 }
@@ -1924,7 +1924,7 @@ fn main(x: u32) -> u32 {
 }
 
 TEST(IrConverterTest, InvokeParametricThatInvokesFailing) {
-  constexpr std::string_view program = R"(
+  const char* program = R"(
 fn does_fail() -> u32 {
   fail!("failure", u32:42)
 }
@@ -1943,7 +1943,7 @@ fn main(x: u32) -> u32 {
 }
 
 TEST(IrConverterTest, FailInsideFor) {
-  constexpr std::string_view program = R"(
+  const char* program = R"(
 fn main(x: u32) -> u32 {
   for (i, x): (u32, u32) in u32:0..u32:1 {
     fail!("failure", x)
@@ -1959,7 +1959,7 @@ fn main(x: u32) -> u32 {
 // the `for` to be capable of failing, since the fallibility marking happens at
 // the function scope.
 TEST(IrConverterTest, FailOutsideFor) {
-  constexpr std::string_view program = R"(
+  const char* program = R"(
 fn main(x: u32) -> u32 {
   let x = for (i, x): (u32, u32) in u32:0..u32:1 {
     x
@@ -1973,7 +1973,7 @@ fn main(x: u32) -> u32 {
 }
 
 TEST(IrConverterTest, FailInsideForWithTupleAccum) {
-  constexpr std::string_view program = R"(
+  const char* program = R"(
 fn main(x: u32) -> (u32, u32) {
   for (i, (x, y)): (u32, (u32, u32)) in u32:0..u32:1 {
     fail!("failure", (x, y))
@@ -1987,7 +1987,7 @@ fn main(x: u32) -> (u32, u32) {
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
        CountedForParametricRefInBody) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 fn f<N:u32>(init: bits[N]) -> bits[N] {
   for (i, accum): (u32, bits[N]) in u32:0..u32:4 {
@@ -2006,7 +2006,7 @@ fn main() -> u32 {
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
        SignedComparisonsViaSignedNumbers) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 fn main(x: s32, y: s32) -> bool {
   x > y && x < y && x >= y && x <= y
@@ -2020,7 +2020,7 @@ fn main(x: s32, y: s32) -> bool {
 // Tests that a parametric constexpr function can be evaluated at compile time
 // (IR conversion time).
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ParametricConstexprFn) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 pub const MY_CONST = u32:5;
 fn constexpr_fn<N:u32>(arg: bits[N]) -> bits[N] {
@@ -2040,7 +2040,7 @@ fn f() -> u32 {
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ConstexprImport) {
   // Place the *imported* module into the import cache.
   auto import_data = CreateImportDataForTest();
-  constexpr std::string_view imported_program = R"(
+  const char* imported_program = R"(
 import std;
 
 pub const MY_CONST = bits[32]:5;
@@ -2050,9 +2050,11 @@ pub fn constexpr_fn(arg: u32) -> u32 {
   arg * MY_CONST
 }
 )";
-  XLS_ASSERT_OK(ParseAndTypecheck(imported_program, "fake/imported/stuff.x",
-                                  "fake.imported.stuff", &import_data));
-  constexpr std::string_view importer_program = R"(
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(imported_program, "fake/imported/stuff.x",
+                        "fake.imported.stuff", &import_data));
+  const char* importer_program = R"(
 import fake.imported.stuff;
 
 fn f() -> u32 {
@@ -2060,6 +2062,7 @@ fn f() -> u32 {
   x
 }
 )";
+  (void)tm;  // Module is in the import cache.
 
   // Convert the *importer* module to IR.
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -2072,11 +2075,11 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest,
        ZeroMacroImportedStructInProcInit) {
   ImportData import_data = CreateImportDataForTest();
 
-  constexpr std::string_view imported = R"(
+  constexpr std::string_view kImported = R"(
 pub struct S { field: u32 }
   )";
   XLS_EXPECT_OK(
-      ParseAndTypecheck(imported, "imported.x", "imported", &import_data));
+      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
 
   constexpr std::string_view program = R"(
 import imported;
@@ -2103,12 +2106,12 @@ proc main {
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, MapImportedFunction) {
   auto import_data = CreateImportDataForTest();
-  constexpr std::string_view imported_program = R"(
+  const char* imported_program = R"(
 pub fn some_function(x: u32) -> u32 { x }
 )";
   XLS_EXPECT_OK(ParseAndTypecheck(imported_program, "fake/imported/stuff.x",
                                   "fake.imported.stuff", &import_data));
-  constexpr std::string_view importer_program = R"(
+  const char* importer_program = R"(
 import fake.imported.stuff;
 
 fn main() -> u32[2] {
@@ -2125,12 +2128,12 @@ fn main() -> u32[2] {
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
        MapImportedParametricFunction) {
   auto import_data = CreateImportDataForTest();
-  constexpr std::string_view imported_program = R"(
+  const char* imported_program = R"(
 pub fn some_function<N: u32>(x: uN[N]) -> uN[N] { uN[N]:0 }
 )";
   XLS_EXPECT_OK(ParseAndTypecheck(imported_program, "fake/imported/stuff.x",
                                   "fake.imported.stuff", &import_data));
-  constexpr std::string_view importer_program = R"(
+  const char* importer_program = R"(
 import fake.imported.stuff;
 
 fn main() -> u4[2] {
@@ -2147,12 +2150,12 @@ fn main() -> u4[2] {
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
        ImportedParametricFnWithDefault) {
   auto import_data = CreateImportDataForTest();
-  constexpr std::string_view imported_program = R"(
+  const char* imported_program = R"(
 pub fn some_function<N: u32, M: u32 = {N + u32:1}>() -> uN[M] { uN[M]:0 }
 )";
   XLS_EXPECT_OK(ParseAndTypecheck(imported_program, "fake/imported/stuff.x",
                                   "fake.imported.stuff", &import_data));
-  constexpr std::string_view importer_program = R"(
+  const char* importer_program = R"(
 import fake.imported.stuff;
 
 fn main() -> u5 {
@@ -2175,15 +2178,15 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest,
   // "imported" module that creates it, IR conversion will fail.
 
   auto import_data = CreateImportDataForTest();
-  constexpr std::string_view imported = R"(
+  constexpr std::string_view kImported = R"(
 fn bar<N: u32>(a: uN[N]) -> uN[N] { a }
 
 pub fn foo<A: u32>(a: uN[A]) -> uN[A] { bar(a) }
 
 )";
-  XLS_EXPECT_OK(ParseAndTypecheck(imported, "fake/imported/stuff.x",
+  XLS_EXPECT_OK(ParseAndTypecheck(kImported, "fake/imported/stuff.x",
                                   "fake.imported.stuff", &import_data));
-  constexpr std::string_view importer = R"(
+  constexpr std::string_view kImporter = R"(
 import fake.imported.stuff as imported;
 
 fn baz<N: u32>(a: uN[N]) -> uN[N] { imported::foo(a) }
@@ -2196,19 +2199,19 @@ fn main() {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(importer, kNoPosOptions, &import_data));
+      ConvertModuleForTest(kImporter, kNoPosOptions, &import_data));
   ExpectIr(converted);
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ImportConstantArray) {
   auto import_data = CreateImportDataForTest();
-  constexpr std::string_view imported_program = R"(
+  const char* imported_program = R"(
 const SIZE = u32:5;
 pub const ARRAY = u32[SIZE]:[1, 2, 3, 4, 5];
 )";
   XLS_EXPECT_OK(ParseAndTypecheck(imported_program, "fake/imported/stuff.x",
                                   "fake.imported.stuff", &import_data));
-  constexpr std::string_view importer_program = R"(
+  const char* importer_program = R"(
 import fake.imported.stuff;
 
 fn main() -> u32[5] {
@@ -2225,12 +2228,12 @@ fn main() -> u32[5] {
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ImportStruct) {
   auto import_data = CreateImportDataForTest();
-  constexpr std::string_view imported_program = R"(
+  const char* imported_program = R"(
 pub struct S { x: u5[2] }
 )";
   XLS_EXPECT_OK(ParseAndTypecheck(imported_program, "fake/imported/stuff.x",
                                   "fake.imported.stuff", &import_data));
-  constexpr std::string_view importer_program = R"(
+  const char* importer_program = R"(
 import fake.imported.stuff;
 
 fn main() -> u5 {
@@ -2247,7 +2250,7 @@ fn main() -> u5 {
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ImportStructImpl) {
   auto import_data = CreateImportDataForTest();
-  constexpr std::string_view imported_program = R"(
+  const char* imported_program = R"(
 pub struct S { x: u5 }
 
 impl S {
@@ -2256,7 +2259,7 @@ impl S {
 )";
   XLS_EXPECT_OK(ParseAndTypecheck(imported_program, "fake/imported/stuff.x",
                                   "fake.imported.stuff", &import_data));
-  constexpr std::string_view importer_program = R"(
+  const char* importer_program = R"(
 import fake.imported.stuff;
 
 fn main() -> u5 {
@@ -2273,14 +2276,14 @@ fn main() -> u5 {
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ChainOfImports) {
   auto import_data = CreateImportDataForTest();
-  constexpr std::string_view first_imported_program = R"(
+  const char* first_imported_program = R"(
 pub const SOME_CONSTANT = u32:1;
 )";
   XLS_EXPECT_OK(ParseAndTypecheck(first_imported_program,
                                   "fake/imported/first.x",
                                   "fake.imported.first", &import_data));
 
-  constexpr std::string_view second_imported_program = R"(
+  const char* second_imported_program = R"(
 import fake.imported.first;
 
 pub fn get_const() -> u32 {
@@ -2291,7 +2294,7 @@ pub fn get_const() -> u32 {
                                   "fake/imported/second.x",
                                   "fake.imported.second", &import_data));
 
-  constexpr std::string_view importer_program = R"(
+  const char* importer_program = R"(
 import fake.imported.second;
 
 fn main() -> u1 {
@@ -2309,7 +2312,7 @@ fn main() -> u1 {
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ParametricConstexprImport) {
   // Place the *imported* module into the import cache.
   auto import_data = CreateImportDataForTest();
-  constexpr std::string_view imported_program = R"(
+  const char* imported_program = R"(
 pub const MY_CONST = bits[32]:5;
 
 pub fn constexpr_fn<N:u32>(arg: bits[N]) -> bits[N] {
@@ -2317,10 +2320,11 @@ pub fn constexpr_fn<N:u32>(arg: bits[N]) -> bits[N] {
 }
 
 )";
-  XLS_ASSERT_OK(ParseAndTypecheck(imported_program, "fake/imported/stuff.x",
-                                  "fake.imported.stuff", &import_data));
-
-  constexpr std::string_view importer_program = R"(
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(imported_program, "fake/imported/stuff.x",
+                        "fake.imported.stuff", &import_data));
+  const char* importer_program = R"(
 import fake.imported.stuff;
 
 fn f() -> u32 {
@@ -2328,6 +2332,7 @@ fn f() -> u32 {
   x
 }
 )";
+  (void)tm;  // Already placed in import cache.
 
   // Convert the *importer* module to IR.
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -2337,7 +2342,7 @@ fn f() -> u32 {
 }
 
 TEST(IrConverterTest, BitSliceUpdate) {
-  constexpr std::string_view program =
+  const char* program =
       R"(
 fn main(x: u32, y: u16, z: u8) -> u32 {
   bit_slice_update(x, y, z)
@@ -2349,7 +2354,7 @@ fn main(x: u32, y: u16, z: u8) -> u32 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, TokenIdentityFunction) {
-  constexpr std::string_view program = "fn main(x: token) -> token { x }";
+  std::string_view program = "fn main(x: token) -> token { x }";
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
                            ConvertModuleForTest(program, kNoPosOptions));
   ExpectIr(converted);
@@ -2358,7 +2363,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, TokenIdentityFunction) {
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ImportEnumValue) {
   auto import_data = CreateImportDataForTest();
 
-  constexpr std::string_view import_module = R"(
+  const std::string kImportModule = R"(
 import std;
 
 pub const MY_CONST = u32:5;
@@ -2368,10 +2373,13 @@ pub enum ImportEnum : u16 {
   TRIPLE_MY_CONST = (MY_CONST * u32:3) as u16,
 }
 )";
-  XLS_ASSERT_OK(ParseAndTypecheck(import_module, "fake/imported/stuff.x",
-                                  "fake.imported.stuff", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kImportModule, "fake/imported/stuff.x",
+                        "fake.imported.stuff", &import_data));
+  (void)tm;  // Already placed in import cache.
 
-  constexpr std::string_view importer_module = R"(
+  const std::string kImporterModule = R"(
 import fake.imported.stuff;
 
 type ImportedEnum = stuff::ImportEnum;
@@ -2385,21 +2393,21 @@ fn main(x: u32) -> u32 {
   // Convert the importer module to IR.
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(importer_module, kNoPosOptions, &import_data));
+      ConvertModuleForTest(kImporterModule, kNoPosOptions, &import_data));
   ExpectIr(converted);
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ConvertOneFunctionWithImport) {
   auto import_data = CreateImportDataForTest();
-  constexpr std::string_view import_module = R"(
+  const std::string kImportModule = R"(
 pub fn a() -> u32 {
   u32:42
 }
 )";
   XLS_ASSERT_OK(
-      ParseAndTypecheck(import_module, "a.x", "a", &import_data).status());
+      ParseAndTypecheck(kImportModule, "a.x", "a", &import_data).status());
 
-  constexpr std::string_view importer_module = R"(
+  const std::string kImporterModule = R"(
 import a;
 
 fn main(x: u32) -> u32 {
@@ -2409,13 +2417,13 @@ fn main(x: u32) -> u32 {
   // Convert the importer module to IR.
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertOneFunctionForTest(importer_module, "main", import_data,
+      ConvertOneFunctionForTest(kImporterModule, "main", import_data,
                                 kNoPosOptions));
   ExpectIr(converted);
 }
 
 TEST(IrConverterTest, ConvertCoverOp) {
-  constexpr std::string_view program = R"(
+  const std::string program = R"(
 fn main(x: u32, y: u32) {
   let foo = x == y;
   cover!("x_equals_y", foo)
@@ -2428,7 +2436,7 @@ fn main(x: u32, y: u32) {
 }
 
 TEST(IrConverterTest, ConvertCoverOpWithConditionalGuard) {
-  constexpr std::string_view program = R"(
+  const std::string program = R"(
 fn f(x: u32) -> u32 {
     cover!("x_less_than_0", x < u32:0);
     x
@@ -2449,7 +2457,7 @@ fn main(y: u32) -> u32 {
 }
 
 TEST(IrConverterTest, ConvertAssertOpWithConditionalGuard) {
-  constexpr std::string_view program = R"(
+  const std::string program = R"(
 fn f(x: u32) -> u32 {
     assert!(x < u32:5, "x_less_than_5");
     x
@@ -2470,7 +2478,7 @@ fn main(y: u32) -> u32 {
 }
 
 TEST(IrConverterTest, ConvertGateOp) {
-  constexpr std::string_view program = R"(
+  const std::string program = R"(
 fn main(p: bool, x: u32) -> u32 {
   gate!(p, x)
 }
@@ -2482,7 +2490,7 @@ fn main(p: bool, x: u32) -> u32 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ConvertRangeOpUnsigned) {
-  constexpr std::string_view program = R"(
+  const std::string program = R"(
 fn main() -> u32[5] {
   u32:2..u32:7
 }
@@ -2494,7 +2502,7 @@ fn main() -> u32[5] {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ConvertRangeOpSigned) {
-  constexpr std::string_view program = R"(
+  const std::string program = R"(
 fn main() -> s32[4] {
   s32:-2..s32:2
 }
@@ -2507,7 +2515,7 @@ fn main() -> s32[4] {
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
        ConvertRangeOpUnsignedInclusiveEnd) {
-  constexpr std::string_view program = R"(
+  const std::string program = R"(
 fn main() -> u4[16] {
   u4:0..=u4:15
 }
@@ -2520,7 +2528,7 @@ fn main() -> u4[16] {
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
        ConvertRangeOpSignedInclusiveEnd) {
-  constexpr std::string_view program = R"(
+  const std::string program = R"(
 fn main() -> s4[16] {
   s4:-8..=s4:7
 }
@@ -2533,7 +2541,7 @@ fn main() -> s4[16] {
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
        ConvertRangeOpInclusiveEndSameValue) {
-  constexpr std::string_view program = R"(
+  const std::string program = R"(
 fn main() -> s32[1] {
   s32:0x80000000..=s32:0x80000000
 }
@@ -2545,7 +2553,7 @@ fn main() -> s32[1] {
 }
 
 TEST(IrConverterTest, PublicFnGetsTokenWrapper) {
-  constexpr std::string_view program = R"(
+  const std::string program = R"(
 fn callee_callee(x:u32) -> u32 {
   fail!("failure", x > u32:3);
   x
@@ -2566,7 +2574,7 @@ fn callee(x:u32) -> u32 {
 }
 
 TEST(IrConverterTest, NonpublicFnDoesNotGetTokenWrapper) {
-  constexpr std::string_view program = R"(
+  const std::string program = R"(
 fn callee_callee(x:u32) -> u32 {
   fail!("failure", x > u32:3);
   x
@@ -2587,7 +2595,7 @@ fn callee(x:u32) -> u32 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, HandlesChannelDecls) {
-  constexpr std::string_view program = R"(
+  const std::string program = R"(
 proc main {
   init { () }
   config() {
@@ -2615,7 +2623,7 @@ proc main {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, HandlesBasicProc) {
-  constexpr std::string_view program = R"(
+  const std::string program = R"(
 proc producer {
   c: chan<u32> out;
   init { u32:1 }
@@ -2660,7 +2668,7 @@ proc main {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, HandlesProcWithTypeAlias) {
-  constexpr std::string_view program = R"(
+  const std::string program = R"(
 proc P {
     type MyU32 = u32;
 
@@ -2686,7 +2694,7 @@ proc P {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, HandlesProcWithMultipleSpawn) {
-  constexpr std::string_view program = R"(
+  const std::string program = R"(
 proc C {
     s: chan<u32> in;
 
@@ -4180,7 +4188,7 @@ proc main {
 }
 
 TEST_P(ProcScopedChannelsIrConverterTest, MultipleSimpleProcs) {
-  // Tests that it properly assigns p2 as the top.
+  // Tests that it properly assigns p2 as the top and ignores p1.
   constexpr std::string_view program = R"(
 proc p1 {
   init { }
@@ -4210,9 +4218,11 @@ proc main {
   next(state: u32) { state }
 })";
 
+  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, kProcScopedChannelOptions));
+      ConvertOneFunctionForTest(program, "main", import_data,
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -4430,6 +4440,8 @@ fn main() -> u16 {
   ExpectIr(converted);
 }
 
+// DBP failing with Function/proc/block with name
+// __test_module__spawnee_0__3_next is not unique within package test_module
 TEST_P(ProcScopedChannelsIrConverterTest,
        ParametricSimpleSpawnDifferentParametrics) {
   constexpr std::string_view program = R"(
@@ -4483,6 +4495,39 @@ pub proc main {
       std::string converted,
       ConvertOneFunctionForTest(program, "main", import_data,
                                 kProcScopedChannelOptions));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest,
+       ParametricMultipleSpawnDifferentParametrics) {
+  constexpr std::string_view program = R"(
+proc spawnee1<M:u32> {
+  init { }
+  config(sender: chan<uN[M]> out, receiver: chan<uN[M]> in) { () }
+  next(_: ()) { () }
+}
+
+pub proc main {
+  init { }
+  config() {
+    let (sender, receiver) = chan<u1>("data_0");
+    spawn spawnee1<u32:1>(sender, receiver);
+    let (sender, receiver) = chan<u2>("data_1");
+    spawn spawnee1<u32:2>(sender, receiver);
+    ()
+  }
+  next(_: ()) { () }
+})";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "main", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .verify_ir = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
   ExpectIr(converted);
 }
 
@@ -4741,7 +4786,7 @@ pub proc main {
 }
 
 TEST_P(ProcScopedChannelsIrConverterTest, ChannelDeclsWithTypes) {
-  constexpr std::string_view program = R"(
+  const std::string program = R"(
 proc main {
   init { () }
   config() {
@@ -4792,7 +4837,10 @@ proc invalid {
 
 proc main {
   init { }
-  config() { () }
+  config() {
+    spawn invalid(u32:0);
+    ()
+  }
   next(state: ()) { state }
 }
 )";
@@ -4801,6 +4849,26 @@ proc main {
       ConvertOneFunctionForTest(program, "main", kProcScopedChannelOptions),
       StatusIs(absl::StatusCode::kInternal,
                HasSubstr("Cannot have non-channel parameters")));
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, InvalidConfigParamTop) {
+  constexpr std::string_view program = R"(
+proc invalid {
+  init { }
+  config(a: u32) { () }
+  next(state: ()) { state }
+}
+)";
+
+  EXPECT_THAT(
+      ConvertOneFunctionForTest(program, "invalid",
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Cannot convert proc 'invalid' due to non-channel "
+                         "config arguments: 'a: u32'")));
 }
 
 TEST_P(ProcScopedChannelsIrConverterTest, ChannelArrayDecl) {
@@ -5015,7 +5083,10 @@ proc invalid {
 
 pub proc main {
   init { }
-  config() { () }
+  config(chans: chan<u32>[3] in) {
+    spawn invalid(chans, u32:0);
+    ()
+  }
   next(state: ()) { state }
 }
 )";
@@ -5036,7 +5107,10 @@ proc invalid {
 
 pub proc main {
   init { }
-  config() { () }
+  config() {
+    spawn invalid([u32:0, u32:1, u32:2]);
+    ()
+  }
   next(state: ()) { state }
 }
 )";
@@ -5540,6 +5614,46 @@ proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(program, "main", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
+  ExpectIr(converted);
+}
+
+// This is not supported yet.
+TEST_P(ProcScopedChannelsIrConverterTest, DISABLED_MultipleSpawns) {
+  constexpr std::string_view program = R"(
+proc producer {
+  c: chan<u32> out;
+  init { u32:0 }
+  config(output_c: chan<u32> out) {
+    (output_c,)
+  }
+  next(i: u32) {
+    let tok = send(join(), c, i);
+    i + u32:1
+  }
+}
+
+proc main {
+  init { () }
+  config() {
+    let (p, _) = chan<u32>("my_chan0");
+    spawn producer(p);
+
+    let (p, _) = chan<u32>("my_chan1");
+    spawn producer(p);
+    ()
+  }
+  next(state: ()) { () }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "main", import_data,
                                 kProcScopedChannelOptions));
   ExpectIr(converted);
 }
@@ -5556,9 +5670,12 @@ proc SomeProc {
     }(u32:0);
   }
 })";
+
+  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, kProcScopedChannelOptions));
+      ConvertOneFunctionForTest(program, "SomeProc", import_data,
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -5600,21 +5717,30 @@ proc TestProc {
 })";
 
 TEST_P(ProcScopedChannelsIrConverterTest, ProcScopedChannelsConvertTestProc) {
+  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(kTestProc, ConvertOptions{
-                                          .emit_positions = false,
-                                          .convert_tests = true,
-                                          .lower_to_proc_scoped_channels = true,
-                                      }));
+      ConvertOneFunctionForTest(kTestProc, "TestProc", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .convert_tests = true,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
   ExpectIr(converted);
 }
 
 TEST_P(ProcScopedChannelsIrConverterTest, ProcScopedChannelsNoTestProc) {
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::string converted,
-      ConvertModuleForTest(kTestProc, kProcScopedChannelOptions));
-  ExpectIr(converted);
+  auto import_data = CreateImportDataForTest();
+  EXPECT_THAT(
+      ConvertOneFunctionForTest(kTestProc, "TestProc", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .convert_tests = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("IR conversion of tests is disabled, but conversion "
+                         "of a test proc")));
 }
 
 constexpr std::string_view kTestFn = R"(
@@ -5641,6 +5767,41 @@ TEST_P(ProcScopedChannelsIrConverterTest, ProcScopedChannelsNoTestFn) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(kTestFn, kProcScopedChannelOptions));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, SpawnImportedProc) {
+  ImportData import_data = CreateImportDataForTest();
+
+  constexpr std::string_view kImported = R"(
+pub proc importee {
+  init { }
+  config() { () }
+  next(_: ()) { () }
+}
+)";
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+pub proc main {
+  init { }
+  config() {
+    spawn imported::importee();
+    ()
+  }
+  next(_: ()) { () }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
   ExpectIr(converted);
 }
 
