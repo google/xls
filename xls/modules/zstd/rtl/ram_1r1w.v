@@ -81,7 +81,9 @@ assign wr_data_masked = (mem[wr_addr] & ~wr_exp_mask) | (wr_data & wr_exp_mask);
 always @(posedge clk) begin
     if (rd_en) begin
         rd_data <= rd_data_masked;
-    end else if (wr_en) begin
+    end
+
+    if (wr_en) begin
         mem[wr_addr] <= wr_data_masked;
     end
 end
