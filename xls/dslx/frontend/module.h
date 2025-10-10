@@ -166,6 +166,11 @@ class Module : public AstNode {
   absl::Status AddTop(ModuleMember member,
                       const MakeCollisionError& make_collision_error);
 
+  // Inserts a top-level member immediately after `target_member`. Behaves like
+  // `AddTop` with respect to collision checks.
+  absl::Status InsertTopAfter(const AstNode* target_member, ModuleMember member,
+                              const MakeCollisionError& make_collision_error);
+
   // Gets the element in this module with the given target_name, or returns a
   // NotFoundError.
   template <typename T>
@@ -384,6 +389,8 @@ class Module : public AstNode {
     }
     return result;
   }
+
+  std::vector<std::string> GetMemberNames(const ModuleMember& member) const;
 
   std::string name_;  // Name of this module.
 
