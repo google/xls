@@ -19,6 +19,7 @@
 #include <filesystem>
 #include <memory>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -52,6 +53,7 @@ struct ParseAndTypecheckOptions {
   std::optional<TypeInferenceVersion> type_inference_version;
   bool warnings_as_errors = true;
   WarningKindSet warnings = kDefaultWarningsSet;
+  std::vector<std::string> configured_values;
 };
 
 // Note: these will be owned by the import_data used in ParseAndTypecheck()

@@ -133,6 +133,18 @@ xls_dslx_opt_ir(
     dslx_top = "main",
 )
 
+xls_dslx_test(
+    name = "configured_value_or_test",
+    srcs = ["configured_value_or.x"],
+    configured_values = {
+        "b_override": "true",
+        "u32_override": "123",
+        "s32_override": "-200",
+        "enum_override": "MyEnum::B",
+        "inside_test_override": "123",
+    },
+)
+
 cc_xls_ir_jit_wrapper(
     name = "configured_value_or_jit_wrapper",
     src = ":configured_value_or",

@@ -32,3 +32,14 @@ fn main() -> (bool, u32, s32, MyEnum, bool, u32, s32, MyEnum) {
     let e_override = configured_value_or<MyEnum>("enum_override", MyEnum::C);
     (b_default, u_default, s_default, e_default, b_override, u_override, s_override, e_override)
 }
+
+#[test]
+fn test() {
+    assert_eq((false, u32:42, s32:-100, MyEnum::C, true, u32:123, s32:-200, MyEnum::B), main());
+}
+
+#[test]
+fn test_override() {
+    let x = configured_value_or<u32>("inside_test_override", u32:42);
+    assert_eq(u32:123, x);
+}

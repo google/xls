@@ -99,6 +99,8 @@ ABSL_FLAG(
     bool, run_quickcheck_when_interpreting, false,
     "Whether to run quickchecks when using the IR interpreter. By default, "
     "this flag is off because the IR interpreter is too slow.");
+ABSL_FLAG(std::string, configured_values, "",
+          "Configured values to use in DSLX parsing.");
 // LINT.ThenChange(//xls/build_rules/xls_dslx_rules.bzl)
 
 namespace xls::dslx {
@@ -152,7 +154,8 @@ absl::StatusOr<TestResult> RealMain(
     FormatPreference format_preference, CompareFlag compare_flag, bool execute,
     bool warnings_as_errors, std::optional<int64_t> seed, bool trace_channels,
     bool trace_calls, std::optional<int64_t> max_ticks,
-    std::optional<std::string_view> xml_output_file, EvaluatorType evaluator) {
+    std::optional<std::string_view> xml_output_file, EvaluatorType evaluator,
+    const std::vector<std::string>& configured_values) {
   XLS_ASSIGN_OR_RETURN(
       WarningKindSet warnings,
       GetWarningsSetFromFlags(absl::GetFlag(FLAGS_enable_warnings),
@@ -227,6 +230,7 @@ absl::StatusOr<TestResult> RealMain(
       .type_inference_version = type_inference_version,
       .warnings_as_errors = warnings_as_errors,
       .warnings = warnings,
+      .configured_values = configured_values,
   };
   ParseAndTestOptions options = {
       .parse_and_typecheck_options = parse_and_typecheck_options,
@@ -359,10 +363,17 @@ int main(int argc, char* argv[]) {
   std::filesystem::path dslx_stdlib_path =
       absl::GetFlag(FLAGS_dslx_stdlib_path);
 
+  std::string configured_values_str = absl::GetFlag(FLAGS_configured_values);
+  std::vector<std::string> configured_values;
+  if (!configured_values_str.empty()) {
+    configured_values = absl::StrSplit(configured_values_str, ',');
+  }
+
   absl::StatusOr<xls::dslx::TestResult> test_result = xls::dslx::RealMain(
       args[0], dslx_paths, dslx_stdlib_path, test_filter, preference,
       compare_flag, execute, warnings_as_errors, seed, trace_channels,
-      trace_calls, max_ticks, xml_output_file, evaluator.value());
+      trace_calls, max_ticks, xml_output_file, evaluator.value(),
+      configured_values);
   if (!test_result.ok()) {
     return xls::ExitStatus(test_result.status());
   }

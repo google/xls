@@ -109,6 +109,7 @@ def _get_dslx_test_cmdline(ctx, src, all_srcs, append_cmd_line_args = True):
         "enable_warnings",
         "max_ticks",
         "format_preference",
+        "configured_values",
     )
 
     dslx_test_args = dict(_dslx_test_args)
@@ -128,6 +129,11 @@ def _get_dslx_test_cmdline(ctx, src, all_srcs, append_cmd_line_args = True):
         ctx.genfiles_dir.path + ":" + ctx.bin_dir.path +
         dslx_srcs_wsroot_path + wsroot_dslx_path
     )
+    if ctx.attr.configured_values:
+        formatted_values = []
+        for k, v in ctx.attr.configured_values.items():
+            formatted_values.append("{}:{}".format(k, v))
+        dslx_test_args["configured_values"] = ",".join(formatted_values)
     is_args_valid(dslx_test_args, DSLX_TEST_FLAGS)
     dslx_test_args["evaluator"] = ctx.attr.evaluator
     my_args = args_to_string(dslx_test_args)
@@ -296,6 +302,10 @@ xls_dslx_library_as_input_attrs = {
 
 # Common attributes for DSLX testing.
 xls_dslx_test_common_attrs = {
+    "configured_values": attr.string_dict(
+        doc = "Dictionary of overrides to use for overridable constants " +
+              "in DSLX processing. Format is \"key\":\"value\" pairs.",
+    ),
     "dslx_test_args": attr.string_dict(
         doc = "Arguments of the DSLX interpreter executable. For details " +
               "on the arguments, refer to the interpreter_main " +

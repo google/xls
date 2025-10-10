@@ -916,9 +916,11 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
                        parse_and_typecheck_options.warnings, std::move(vfs));
   FileTable& file_table = import_data.file_table();
 
-  absl::StatusOr<TypecheckedModule> tm =
-      ParseAndTypecheck(program, filename, module_name, &import_data, nullptr,
-                        parse_and_typecheck_options.type_inference_version);
+  absl::StatusOr<TypecheckedModule> tm = ParseAndTypecheck(
+      program, filename, module_name, &import_data, nullptr,
+      parse_and_typecheck_options.type_inference_version,
+      ConvertOptions{.configured_values =
+                         parse_and_typecheck_options.configured_values});
   if (!tm.ok()) {
     if (TryPrintError(tm.status(), import_data.file_table(),
                       import_data.vfs())) {
