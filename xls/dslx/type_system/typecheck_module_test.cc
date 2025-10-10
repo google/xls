@@ -5294,6 +5294,53 @@ fn builtins() -> (u1, u1, u1, u32, u32, u32, $VALUE_TYPE) {
   }
 }
 
+TEST_P(TypecheckBothVersionsTest, AssertFmtOk) {
+  XLS_EXPECT_OK(Typecheck(R"(fn main() {
+  assert_fmt!(true, "it's true");
+})"));
+}
+
+TEST_P(TypecheckBothVersionsTest, AssertFmtOkWithConstexprArg) {
+  XLS_EXPECT_OK(Typecheck(R"(
+  const FIVE = u32:5;
+  fn main() {
+    assert_fmt!(true, "it's {}", FIVE);
+})"));
+}
+
+TEST_P(TypecheckBothVersionsTest, AssertFmtNonBoolCondition) {
+  EXPECT_THAT(
+      Typecheck(R"(fn main() {
+  assert_fmt!(u32:5, "this is not bool");
+})"),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          AllOf(HasSubstrInV1(GetParam(),
+                              "assert_fmt! condition must be a boolean value"),
+                HasSizeMismatchInV2(GetParam(), "u32", "bool"))));
+}
+
+TEST_P(TypecheckBothVersionsTest, AssertFmtNonConstexprArg) {
+  constexpr std::string_view kProgram = R"(fn main(x: u32) {
+  assert_fmt!(true, "x is {}", x);
+})";
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       AllOf(HasSubstr("NotConstantError:"),
+                             HasSubstr("expr `x` is not constexpr"))));
+}
+
+TEST_P(TypecheckBothVersionsTest, AssertFmtArgCountMismatch) {
+  constexpr std::string_view kProgram = R"(fn main() {
+  assert_fmt!(true, "{} {}", u32:5);
+})";
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("assert_fmt! macro expects 2 argument(s) from format "
+                         "but has 1 argument(s)")));
+}
+
 INSTANTIATE_TEST_SUITE_P(TypecheckBothVersionsTestSuite,
                          TypecheckBothVersionsTest,
                          testing::Values(TypeInferenceVersion::kVersion1,

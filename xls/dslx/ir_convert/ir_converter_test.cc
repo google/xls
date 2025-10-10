@@ -3256,6 +3256,20 @@ fn main() {
   ExpectIr(converted);
 }
 
+TEST_P(IrConverterWithBothTypecheckVersionsTest, AssertFmt) {
+  constexpr std::string_view program = R"(
+fn main(x: u32) -> u32 {
+  const VALUE = u32:42;
+  assert_fmt!(x != VALUE, "x_is_not_{}", VALUE);
+  x
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program, kNoPosOptions));
+  EXPECT_THAT(converted, HasSubstr("assert"));
+  EXPECT_THAT(converted, HasSubstr("x_is_not_42"));
+}
+
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
        ParameterShadowingModuleLevelConstant) {
   constexpr std::string_view program = R"(
