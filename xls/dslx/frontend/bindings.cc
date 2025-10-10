@@ -73,8 +73,11 @@ absl::StatusOr<PositionalErrorData> GetPositionalErrorData(
 
   std::optional<StatusPayloadProto> payload = GetStatusPayload(status);
   if (payload.has_value() && payload->spans_size() > 0) {
-    Span span = FromProto(payload->spans(0), file_table);
-    return PositionalErrorData{{span}, std::string(s), type_indicator};
+    std::vector<Span> spans;
+    for (const auto& span_proto : payload->spans()) {
+      spans.push_back(FromProto(span_proto, file_table));
+    }
+    return PositionalErrorData{spans, std::string(s), type_indicator};
   }
 
   std::vector<std::string_view> pieces =

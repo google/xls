@@ -53,7 +53,7 @@ bool TryPrintError(const absl::Status& status, FileTable& file_table,
   }
   bool is_tty = isatty(fileno(stderr)) != 0;
   absl::Status print_status = PrintPositionalError(
-      data->span, absl::StrFormat("%s: %s", data->error_type, data->message),
+      data->spans, absl::StrFormat("%s: %s", data->error_type, data->message),
       std::cerr,
       is_tty ? PositionalErrorColor::kErrorColor
              : PositionalErrorColor::kNoColor,

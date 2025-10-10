@@ -3830,7 +3830,7 @@ fn f(s: S) -> S { S{x: u32:4, y: u32:8, ..s} }
             "consider removing the `..s`");
   UniformContentFilesystem vfs(program);
   XLS_ASSERT_OK(PrintPositionalError(
-      tm.warnings.warnings().at(0).span, tm.warnings.warnings().at(0).message,
+      {tm.warnings.warnings().at(0).span}, tm.warnings.warnings().at(0).message,
       std::cerr, PositionalErrorColor::kWarningColor,
       tr.import_data->file_table(), vfs));
 }
@@ -3855,8 +3855,9 @@ fn f(x: u32) -> u32 {
             "is no need for a `let` binding here");
   UniformContentFilesystem vfs(program);
   XLS_ASSERT_OK(PrintPositionalError(
-      tm.warnings.warnings().at(0).span, tm.warnings.warnings().at(0).message,
-      std::cerr, PositionalErrorColor::kWarningColor, file_table, vfs));
+      {tm.warnings.warnings().at(0).span}, tm.warnings.warnings().at(0).message,
+      std::cerr, PositionalErrorColor::kWarningColor, file_table, vfs,
+      /*error_context_line_count=*/5));
 }
 
 TEST(TypecheckTest, UselessTrailingNilGivesWarning) {
@@ -3879,8 +3880,9 @@ fn f() -> () {
             "is implied, please remove it");
   UniformContentFilesystem vfs(program);
   XLS_ASSERT_OK(PrintPositionalError(
-      tm.warnings.warnings().at(0).span, tm.warnings.warnings().at(0).message,
-      std::cerr, PositionalErrorColor::kWarningColor, file_table, vfs));
+      {tm.warnings.warnings().at(0).span}, tm.warnings.warnings().at(0).message,
+      std::cerr, PositionalErrorColor::kWarningColor, file_table, vfs,
+      /*error_context_line_count=*/5));
 }
 
 TEST_P(TypecheckBothVersionsTest, NonstandardConstantNamingGivesWarning) {

@@ -42,7 +42,7 @@ TEST(BindingsTest, ParseErrorGetData) {
   XLS_ASSERT_OK_AND_ASSIGN(
       PositionalErrorData got,
       GetPositionalErrorData(status, std::nullopt, file_table));
-  EXPECT_EQ(got.span, span);
+  EXPECT_EQ(got.spans[0], span);
   EXPECT_EQ(got.message, "my message");
   EXPECT_EQ(got.error_type, "ParseError");
 }
@@ -59,8 +59,8 @@ TEST(BindingsTest, ParseErrorFakeSpanGetData) {
       PositionalErrorData got,
       GetPositionalErrorData(status, "ParseError", file_table));
 
-  EXPECT_EQ(got.span.fileno(), span.fileno());
-  EXPECT_EQ(got.span, span);
+  EXPECT_EQ(got.spans[0].fileno(), span.fileno());
+  EXPECT_EQ(got.spans[0], span);
   EXPECT_EQ(got.message, "my message");
   EXPECT_EQ(got.error_type, "ParseError");
 }
@@ -81,8 +81,8 @@ TEST(BindingsTest, PositionalErrorNotTargetType) {
       "ParseError: fake_file.x:1:1-2:2 message goes here");
   Span span = {Pos{fileno, 0, 0}, Pos{fileno, 1, 1}};
   EXPECT_THAT(GetPositionalErrorData(status, std::nullopt, file_table),
-              IsOkAndHolds(PositionalErrorData{span, "message goes here",
-                                               "ParseError"}));
+              IsOkAndHolds(PositionalErrorData{
+                  {span}, "message goes here", "ParseError"}));
   EXPECT_THAT(
       GetPositionalErrorData(status, /*target_type=*/"ShoobaDoobaError",
                              file_table),

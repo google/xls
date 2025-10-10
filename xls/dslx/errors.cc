@@ -119,9 +119,8 @@ absl::Status SignednessMismatchErrorStatus(const TypeAnnotation* annotation1,
                                            const TypeAnnotation* annotation2,
                                            const FileTable& file_table) {
   absl::Status status = absl::InvalidArgumentError(absl::Substitute(
-      "TypeInferenceError: signed vs. unsigned mismatch: $0 at $1 vs. $2 at $3",
-      annotation1->ToString(), annotation1->span().ToString(file_table),
-      annotation2->ToString(), annotation2->span().ToString(file_table)));
+      "TypeInferenceError: signed vs. unsigned mismatch: $0 vs. $1",
+      annotation1->ToString(), annotation2->ToString()));
   StatusPayloadProto payload;
   *payload.add_spans() = ToProto(annotation1->span(), file_table);
   *payload.add_spans() = ToProto(annotation2->span(), file_table);
@@ -132,46 +131,66 @@ absl::Status SignednessMismatchErrorStatus(const TypeAnnotation* annotation1,
 absl::Status SignednessMismatchErrorStatus(const Type& type1, const Type& type2,
                                            const Span& span1, const Span& span2,
                                            const FileTable& file_table) {
-  return absl::InvalidArgumentError(absl::Substitute(
-      "TypeInferenceError: signed vs. unsigned mismatch: $0 at $1 vs. $2 at $3",
-      type1.ToString(), span1.ToString(file_table), type2.ToString(),
-      span2.ToString(file_table)));
+  absl::Status status = absl::InvalidArgumentError(absl::Substitute(
+      "TypeInferenceError: signed vs. unsigned mismatch: $0 vs. $1",
+      type1.ToString(), type2.ToString()));
+  StatusPayloadProto payload;
+  *payload.add_spans() = ToProto(span1, file_table);
+  *payload.add_spans() = ToProto(span2, file_table);
+  SetStatusPayload(status, payload);
+  return status;
 }
 
 absl::Status BitCountMismatchErrorStatus(const TypeAnnotation* annotation1,
                                          const TypeAnnotation* annotation2,
                                          const FileTable& file_table) {
-  return absl::InvalidArgumentError(absl::Substitute(
-      "TypeInferenceError: size mismatch: $0 at $1 vs. $2 at $3",
-      annotation1->ToString(), annotation1->span().ToString(file_table),
-      annotation2->ToString(), annotation2->span().ToString(file_table)));
+  absl::Status status = absl::InvalidArgumentError(
+      absl::Substitute("TypeInferenceError: size mismatch: $0 vs. $1",
+                       annotation1->ToString(), annotation2->ToString()));
+  StatusPayloadProto payload;
+  *payload.add_spans() = ToProto(annotation1->span(), file_table);
+  *payload.add_spans() = ToProto(annotation2->span(), file_table);
+  SetStatusPayload(status, payload);
+  return status;
 }
 
 absl::Status BitCountMismatchErrorStatus(const Type& type1, const Type& type2,
                                          const Span& span1, const Span& span2,
                                          const FileTable& file_table) {
-  return absl::InvalidArgumentError(absl::Substitute(
-      "TypeInferenceError: size mismatch: $0 at $1 vs. $2 at $3",
-      type1.ToString(), span1.ToString(file_table), type2.ToString(),
-      span2.ToString(file_table)));
+  absl::Status status = absl::InvalidArgumentError(
+      absl::Substitute("TypeInferenceError: size mismatch: $0 vs. $1",
+                       type1.ToString(), type2.ToString()));
+  StatusPayloadProto payload;
+  *payload.add_spans() = ToProto(span1, file_table);
+  *payload.add_spans() = ToProto(span2, file_table);
+  SetStatusPayload(status, payload);
+  return status;
 }
 
 absl::Status TypeMismatchErrorStatus(const TypeAnnotation* annotation1,
                                      const TypeAnnotation* annotation2,
                                      const FileTable& file_table) {
-  return absl::InvalidArgumentError(absl::Substitute(
-      "TypeInferenceError: type mismatch: $0 at $1 vs. $2 at $3",
-      annotation1->ToString(), annotation1->span().ToString(file_table),
-      annotation2->ToString(), annotation2->span().ToString(file_table)));
+  absl::Status status = absl::InvalidArgumentError(
+      absl::Substitute("TypeInferenceError: type mismatch: $0 vs. $1",
+                       annotation1->ToString(), annotation2->ToString()));
+  StatusPayloadProto payload;
+  *payload.add_spans() = ToProto(annotation1->span(), file_table);
+  *payload.add_spans() = ToProto(annotation2->span(), file_table);
+  SetStatusPayload(status, payload);
+  return status;
 }
 
 absl::Status TypeMismatchErrorStatus(const Type& type1, const Type& type2,
                                      const Span& span1, const Span& span2,
                                      const FileTable& file_table) {
-  return absl::InvalidArgumentError(absl::Substitute(
-      "TypeInferenceError: type mismatch: $0 at $1 vs. $2 at $3",
-      type1.ToString(), span1.ToString(file_table), type2.ToString(),
-      span2.ToString(file_table)));
+  absl::Status status = absl::InvalidArgumentError(
+      absl::Substitute("TypeInferenceError: type mismatch: $0 vs. $1",
+                       type1.ToString(), type2.ToString()));
+  StatusPayloadProto payload;
+  *payload.add_spans() = ToProto(span1, file_table);
+  *payload.add_spans() = ToProto(span2, file_table);
+  SetStatusPayload(status, payload);
+  return status;
 }
 
 absl::Status TypeMissingErrorStatus(const AstNode& node, const AstNode* user,

@@ -139,7 +139,7 @@ class InterpreterTest(test_base.TestCase):
     """)
     stderr = self._parse_and_test(program, want_error=True)
     self.assertRegex(
-        stderr, 'TypeInferenceError: size mismatch: bits\\[2\\] at .* vs\\. u3'
+        stderr, r'TypeInferenceError: size mismatch: bits\[2\] vs. u3'
     )
 
   def test_fail_incomplete_match(self):

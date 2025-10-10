@@ -132,7 +132,7 @@ void HandleError(TestResultData& result, const absl::Status& status,
   std::string one_liner;
   std::string suffix;
   if (data.ok()) {
-    CHECK_OK(PrintPositionalError(data->span, data->GetMessageWithType(),
+    CHECK_OK(PrintPositionalError(data->spans, data->GetMessageWithType(),
                                   std::cerr, PositionalErrorColor::kErrorColor,
                                   file_table, vfs));
     one_liner = data->GetMessageWithType();

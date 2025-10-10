@@ -79,7 +79,7 @@ void AppendDiagnosticFromStatus(
   }
   const PositionalErrorData& err = *extracted_error;
   diagnostic_sink->push_back(verible::lsp::Diagnostic{
-      .range = ConvertSpanToLspRange(err.span),
+      .range = ConvertSpanToLspRange(err.spans[0]),
       .severity = verible::lsp::DiagnosticSeverity::kError,
       .has_severity = true,
       .source = kSource,
