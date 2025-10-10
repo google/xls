@@ -230,10 +230,10 @@ cc_library(
         "//xls/dslx/type_system:unwrap_meta_type",
         "//xls/ir:bits",
         "//xls/ir:value",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/types:variant",
     ],
 )
 

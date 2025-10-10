@@ -24,10 +24,10 @@
 #include <variant>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/types/variant.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/frontend/ast.h"
@@ -48,6 +48,14 @@
 #include "xls/public/c_api_impl_helpers.h"
 
 namespace {
+
+struct CallGraphHolder {
+  xls::dslx::TypeInfo* type_info;
+  std::vector<const xls::dslx::Function*> functions;
+  absl::flat_hash_map<const xls::dslx::Function*,
+                      std::vector<const xls::dslx::Function*>>
+      graph;
+};
 
 const struct xls_dslx_type* GetMetaTypeHelper(
     struct xls_dslx_type_info* type_info, xls::dslx::AstNode* cpp_node) {
@@ -404,6 +412,99 @@ struct xls_dslx_type_annotation* xls_dslx_param_get_type_annotation(
 char* xls_dslx_function_to_string(struct xls_dslx_function* fn) {
   auto* cpp_function = reinterpret_cast<xls::dslx::Function*>(fn);
   return xls::ToOwnedCString(cpp_function->ToString());
+}
+
+bool xls_dslx_type_info_build_function_call_graph(
+    struct xls_dslx_type_info* type_info, char** error_out,
+    struct xls_dslx_call_graph** result_out) {
+  CHECK(type_info != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(result_out != nullptr);
+  *error_out = nullptr;
+  *result_out = nullptr;
+
+  auto* cpp_type_info = reinterpret_cast<xls::dslx::TypeInfo*>(type_info);
+  auto graph = cpp_type_info->GetFunctionCallGraph();
+  auto holder = std::make_unique<CallGraphHolder>();
+  holder->type_info = cpp_type_info;
+  holder->graph = std::move(graph);
+
+  xls::dslx::Module* module = cpp_type_info->module();
+  for (xls::dslx::ModuleMember& member : module->top()) {
+    if (std::holds_alternative<xls::dslx::Function*>(member)) {
+      const xls::dslx::Function* fn = std::get<xls::dslx::Function*>(member);
+      holder->functions.push_back(fn);
+      if (!holder->graph.contains(fn)) {
+        holder->graph.emplace(fn, std::vector<const xls::dslx::Function*>{});
+      }
+    }
+  }
+
+  *result_out = reinterpret_cast<xls_dslx_call_graph*>(holder.release());
+  return true;
+}
+
+void xls_dslx_call_graph_free(struct xls_dslx_call_graph* call_graph) {
+  delete reinterpret_cast<CallGraphHolder*>(call_graph);
+}
+
+int64_t xls_dslx_call_graph_get_function_count(
+    struct xls_dslx_call_graph* call_graph) {
+  if (call_graph == nullptr) {
+    return 0;
+  }
+  auto* holder = reinterpret_cast<CallGraphHolder*>(call_graph);
+  return static_cast<int64_t>(holder->functions.size());
+}
+
+struct xls_dslx_function* xls_dslx_call_graph_get_function(
+    struct xls_dslx_call_graph* call_graph, int64_t index) {
+  if (call_graph == nullptr) {
+    return nullptr;
+  }
+  auto* holder = reinterpret_cast<CallGraphHolder*>(call_graph);
+  if (index < 0 || index >= static_cast<int64_t>(holder->functions.size())) {
+    return nullptr;
+  }
+  const xls::dslx::Function* fn = holder->functions.at(index);
+  return reinterpret_cast<xls_dslx_function*>(
+      const_cast<xls::dslx::Function*>(fn));
+}
+
+int64_t xls_dslx_call_graph_get_callee_count(
+    struct xls_dslx_call_graph* call_graph, struct xls_dslx_function* caller) {
+  if (call_graph == nullptr || caller == nullptr) {
+    return 0;
+  }
+  auto* holder = reinterpret_cast<CallGraphHolder*>(call_graph);
+  auto* cpp_function = reinterpret_cast<xls::dslx::Function*>(caller);
+  auto it = holder->graph.find(cpp_function);
+  if (it == holder->graph.end()) {
+    return 0;
+  }
+  return static_cast<int64_t>(it->second.size());
+}
+
+struct xls_dslx_function* xls_dslx_call_graph_get_callee_function(
+    struct xls_dslx_call_graph* call_graph, struct xls_dslx_function* caller,
+    int64_t callee_index) {
+  if (call_graph == nullptr || caller == nullptr) {
+    return nullptr;
+  }
+  auto* holder = reinterpret_cast<CallGraphHolder*>(call_graph);
+  auto* cpp_function = reinterpret_cast<xls::dslx::Function*>(caller);
+  auto it = holder->graph.find(cpp_function);
+  if (it == holder->graph.end()) {
+    return nullptr;
+  }
+  const std::vector<const xls::dslx::Function*>& callees = it->second;
+  if (callee_index < 0 ||
+      callee_index >= static_cast<int64_t>(callees.size())) {
+    return nullptr;
+  }
+  const xls::dslx::Function* fn = callees.at(callee_index);
+  return reinterpret_cast<xls_dslx_function*>(
+      const_cast<xls::dslx::Function*>(fn));
 }
 
 struct xls_dslx_quickcheck* xls_dslx_module_member_get_quickcheck(
