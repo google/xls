@@ -17,16 +17,17 @@
 #include <optional>
 #include <string>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/substitute.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/builtin_stubs_utils.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
@@ -156,7 +157,7 @@ fn unused(x: u32) -> u32 { x }
   EXPECT_TRUE(graph.at(unused).empty());
 }
 
-TEST(TypeInfoTest, FunctionCallGraphHandlesMapAndIgnoresBuiltins) {
+TEST(TypeInfoTest, FunctionCallGraphHandlesMapAndIncludesBuiltins) {
   ImportData import_data = CreateImportDataForTest();
   const std::string kProgram = R"(
 fn inc(x: u32) -> u32 { x + u32:1 }
@@ -169,7 +170,8 @@ fn uses_builtin(x: u32) -> u32 { clz(x) }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "graph_map.x", "graph_map", &import_data));
+      ParseAndTypecheck(kProgram, "graph_map.x", "graph_map", &import_data,
+                        nullptr, {TypeInferenceVersion::kVersion2}));
 
   auto graph = tm.type_info->GetFunctionCallGraph();
   const Function* inc = tm.module->GetFunction("inc").value();
@@ -179,7 +181,12 @@ fn uses_builtin(x: u32) -> u32 { clz(x) }
 
   const Function* uses_builtin = tm.module->GetFunction("uses_builtin").value();
   ASSERT_TRUE(graph.contains(uses_builtin));
-  EXPECT_TRUE(graph.at(uses_builtin).empty());
+  const std::vector<const Function*>& uses_builtin_callees =
+      graph.at(uses_builtin);
+  ASSERT_THAT(uses_builtin_callees, testing::SizeIs(1));
+  const Function* builtin_callee = uses_builtin_callees.front();
+  EXPECT_EQ(builtin_callee->identifier(), "clz");
+  EXPECT_EQ(builtin_callee->owner()->name(), kBuiltinStubsModuleName);
 }
 
 TEST(TypeInfoTest, FunctionCallGraphHandlesIntermoduleInvocations) {
