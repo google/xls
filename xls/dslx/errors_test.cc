@@ -17,6 +17,7 @@
 #include <memory>
 #include <optional>
 
+#include "xls/dslx/status_payload.pb.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
@@ -26,7 +27,6 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/status_payload_utils.h"
 #include "xls/dslx/type_system/type.h"
-#include "xls/dslx/type_system/type_info.pb.h"
 
 namespace xls::dslx {
 namespace {

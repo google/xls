@@ -914,6 +914,7 @@ cc_library(
         ":orc_jit",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/interpreter:evaluator_options",
         "//xls/interpreter:observer",
         "//xls/interpreter:proc_evaluator",
         "//xls/ir",

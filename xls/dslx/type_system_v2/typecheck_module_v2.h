@@ -16,11 +16,9 @@
 #define XLS_DSLX_TYPE_SYSTEM_V2_TYPECHECK_MODULE_V2_H_
 
 #include <filesystem>
-#include <functional>
 #include <memory>
 
 #include "absl/status/statusor.h"
-#include "absl/types/span.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/module.h"

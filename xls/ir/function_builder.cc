@@ -32,7 +32,6 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/substitute.h"
 #include "absl/types/span.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"

@@ -15,6 +15,7 @@
 #ifndef XLS_JIT_JIT_EVALUATOR_OPTIONS_H_
 #define XLS_JIT_JIT_EVALUATOR_OPTIONS_H_
 
+#include <utility>
 #include <cstdint>
 #include <string>
 

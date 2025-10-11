@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "z3/src/api/z3_ast_containers.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/cleanup/cleanup.h"

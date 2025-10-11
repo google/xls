@@ -89,7 +89,6 @@ cc_library(
         "//xls/ir:register",
         "//xls/ir:value",
         "//xls/ir:value_utils",
-        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",

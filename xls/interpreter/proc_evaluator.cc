@@ -19,6 +19,7 @@
 #include <string>
 #include <vector>
 
+#include "xls/interpreter/evaluator_options.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
