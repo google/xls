@@ -26,6 +26,7 @@
 #include <utility>
 #include <vector>
 
+#include "xls/interpreter/evaluator_options.h"
 #include "absl/algorithm/container.h"
 #include "absl/base/casts.h"
 #include "absl/container/btree_map.h"

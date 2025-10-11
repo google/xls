@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include "xls/ir/fileno.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"

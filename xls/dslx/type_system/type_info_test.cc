@@ -14,6 +14,7 @@
 
 #include "xls/dslx/type_system/type_info.h"
 
+#include <vector>
 #include <optional>
 #include <string>
 

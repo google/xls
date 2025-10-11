@@ -15,6 +15,7 @@
 #ifndef XLS_INTERPRETER_PROC_RUNTIME_H_
 #define XLS_INTERPRETER_PROC_RUNTIME_H_
 
+#include <string>
 #include <cstdint>
 #include <memory>
 #include <optional>

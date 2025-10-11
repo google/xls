@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "xls/common/fuzzing/fuzztest.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"

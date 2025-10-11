@@ -19,6 +19,7 @@
 #include <string_view>
 #include <vector>
 
+#include "xls/dslx/ir_convert/conversion_record.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"

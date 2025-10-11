@@ -379,7 +379,6 @@ cc_library(
     hdrs = ["pos.h"],
     deps = [
         "//xls/common:strong_int",
-        "//xls/dslx:status_payload_cc_proto",
         "//xls/dslx/type_system:type_info_cc_proto",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
@@ -685,7 +684,6 @@ cc_library(
         ":token_utils",
         "//xls/common:casts",
         "//xls/common/status:status_macros",
-        "//xls/dslx:import_data",
         "//xls/dslx:warning_collector",
         "//xls/dslx:warning_kind",
         "//xls/dslx/type_system:deduce_utils",

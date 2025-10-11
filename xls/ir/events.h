@@ -15,12 +15,14 @@
 #ifndef XLS_IR_EVENTS_H_
 #define XLS_IR_EVENTS_H_
 
+#include <utility>
 #include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include "absl/status/status.h"
+#include "google/protobuf/repeated_ptr_field.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"

@@ -20,6 +20,7 @@
 #include <utility>
 #include <vector>
 
+#include "xls/jit/jit_evaluator_options.h"
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
