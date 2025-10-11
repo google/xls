@@ -1993,6 +1993,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     XLS_ASSIGN_OR_RETURN(refs, CollectReferencedUnder(type));
     absl::flat_hash_map<const NameDef*, ExprOrType> values;
     for (const auto& [ref, def] : refs) {
+      if (ref->parent() && ref->parent()->kind() == AstNodeKind::kColonRef) {
+        continue;
+      }
       std::optional<InterpValue> value = ti.GetConstExprOption(def);
       if (value.has_value()) {
         std::optional<Number*> literal =
