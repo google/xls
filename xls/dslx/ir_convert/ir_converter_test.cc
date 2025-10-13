@@ -4216,6 +4216,28 @@ proc p2 {
   ExpectIr(converted);
 }
 
+TEST_P(ProcScopedChannelsIrConverterTest, MultipleSimpleProcsOneTop) {
+  // Tests that it properly assigns top as the top.
+  constexpr std::string_view program = R"(
+proc p1 {
+  init { }
+  config() { () }
+  next(state: ()) { () }
+}
+
+proc top {
+  init { }
+  config() { () }
+  next(state: ()) { () }
+})";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, kProcScopedChannelOptions));
+  ExpectIr(converted);
+}
+
 TEST_P(ProcScopedChannelsIrConverterTest, ProcNextInitOnly) {
   constexpr std::string_view program = R"(
 proc main {

@@ -185,6 +185,7 @@ proc top {
   EXPECT_EQ(order[2].f()->identifier(), "top.next");
   EXPECT_EQ(order[2].invocation(), nullptr);
   EXPECT_EQ(order[2].parametric_env(), ParametricEnv());
+  EXPECT_TRUE(order[2].IsTop());
 }
 
 TEST(GetConversionRecordsTest, TransitiveParametric) {

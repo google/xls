@@ -218,10 +218,20 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
 absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecords(
     Module* module, TypeInfo* type_info, bool include_tests) {
   ProcIdFactory proc_id_factory;
-  // TODO: https://github.com/google/xls/issues/2078 - properly set
-  // top instead of setting to nullptr.
+  std::optional<ModuleMember*> top_member = module->FindMemberWithName("top");
+  AstNode* top = nullptr;
+  if (top_member.has_value()) {
+    if (std::holds_alternative<Function*>(**top_member)) {
+      top = std::get<Function*>(**top_member);
+    }
+    if (std::holds_alternative<Proc*>(**top_member)) {
+      auto top_proc = std::get<Proc*>(**top_member);
+      top = &top_proc->next();
+    }
+  }
+
   ConversionRecordVisitor visitor(module, type_info, include_tests,
-                                  proc_id_factory, /*top=*/nullptr);
+                                  proc_id_factory, top);
   XLS_RETURN_IF_ERROR(module->Accept(&visitor));
 
   return visitor.records();
