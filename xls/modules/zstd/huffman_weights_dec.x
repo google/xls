@@ -1641,30 +1641,8 @@ const TEST_TMP2_RAM_NUM_PARTITIONS = ram::num_partitions(TEST_TMP2_RAM_WORD_PART
 // RAW weights
 const TEST_RAW_INPUT_ADDR = uN[TEST_AXI_ADDR_W]:0x40;
 
-const TEST_RAW_TREE_DESCRIPTION_SIZE = u32:15; // (header + weight stream)
-
-const TEST_RAW_DATA = u8[19]:[
-        u8:155,  // header
-        // weights stream
-        u8:0x75, u8:0x66, u8:0x66, u8:0x66,
-        u8:0x66, u8:0x66, u8:0x55, u8:0x55,
-        u8:0x44, u8:0x44, u8:0x33, u8:0x31,
-        u8:0x11, u8:0x00,
-        // dummy leftover
-        u8:0xDE, u8:0xAD, u8:0xBE, u8:0xEF,
-];
-
 const_assert!(TEST_WEIGHTS_RAM_DATA_W == u32:32);
 const TEST_RAW_RAM_PACKET_COUNT = TEST_WEIGHTS_RAM_SIZE / TEST_WEIGHTS_RAM_PARTITION_SIZE;
-
-const TEST_RAW_EXPECTED_WEIGHT_RAM = uN[TEST_WEIGHTS_RAM_DATA_W][TEST_RAW_RAM_PACKET_COUNT]:[
-        uN[TEST_WEIGHTS_RAM_DATA_W]:0x75666666,
-        uN[TEST_WEIGHTS_RAM_DATA_W]:0x66665555,
-        uN[TEST_WEIGHTS_RAM_DATA_W]:0x44443331,
-        uN[TEST_WEIGHTS_RAM_DATA_W]:0x11001000,
-        //                                ^- last weight
-        uN[TEST_WEIGHTS_RAM_DATA_W]:0x0, ...
-];
 
 // FSE weights
 const TEST_FSE_INPUT_ADDR = uN[TEST_AXI_ADDR_W]:0x200;
@@ -2136,65 +2114,139 @@ proc HuffmanWeightsDecoder_test {
 
         let tok = join();
 
-        // RAW weights
+        // RAW tests
+        const TEST_MAX_WEIGHTS_STREAM = u32:21;
+        const TEST_NUM_OF_RAW_CASES = u32:3;
+        let raw_tests: (u32, u8[TEST_MAX_WEIGHTS_STREAM], uN[TEST_WEIGHTS_RAM_DATA_W][TEST_RAW_RAM_PACKET_COUNT])[TEST_NUM_OF_RAW_CASES] = [
+            (
+                // normal case
+                u32:15, // (header + weight stream)
+                u8[TEST_MAX_WEIGHTS_STREAM]:[
+                    u8:155, // header
+                    // weights stream
+                    u8:0x75, u8:0x66, u8:0x66, u8:0x66,
+                    u8:0x66, u8:0x66, u8:0x55, u8:0x55,
+                    u8:0x44, u8:0x44, u8:0x33, u8:0x31,
+                    u8:0x11, u8:0x00,
+                    // dummy leftover
+                                      u8:0x00, u8:0x00,
+                    u8:0xDE, u8:0xAD, u8:0xBE, u8:0xEF, ...
+                ],
+                uN[TEST_WEIGHTS_RAM_DATA_W][TEST_RAW_RAM_PACKET_COUNT]:[
+                    uN[TEST_WEIGHTS_RAM_DATA_W]:0x75666666,
+                    uN[TEST_WEIGHTS_RAM_DATA_W]:0x66665555,
+                    uN[TEST_WEIGHTS_RAM_DATA_W]:0x44443331,
+                    uN[TEST_WEIGHTS_RAM_DATA_W]:0x11001000,
+                    //                                ^- last weight
+                    uN[TEST_WEIGHTS_RAM_DATA_W]:0x0, ...
+                ]
+            ),
+            (
+                // case with last weight at modulo index 0
+                u32:17, // (header + weight stream)
+                u8[TEST_MAX_WEIGHTS_STREAM]:[
+                    u8:159, // header
+                    // weights stream
+                    u8:0x75, u8:0x55, u8:0x66, u8:0x66,
+                    u8:0x66, u8:0x66, u8:0x65, u8:0x55,
+                    u8:0x55, u8:0x43, u8:0x33, u8:0x21,
+                    u8:0x21, u8:0x11, u8:0x11, u8:0x01,
+                    // dummy leftover
+                    u8:0xDE, u8:0xAD, u8:0xBE, u8:0xEF, ...
+                ],
+                uN[TEST_WEIGHTS_RAM_DATA_W][TEST_RAW_RAM_PACKET_COUNT]:[
+                    uN[TEST_WEIGHTS_RAM_DATA_W]:0x75556666,
+                    uN[TEST_WEIGHTS_RAM_DATA_W]:0x66666555,
+                    uN[TEST_WEIGHTS_RAM_DATA_W]:0x55433321,
+                    uN[TEST_WEIGHTS_RAM_DATA_W]:0x21111101,
+                    uN[TEST_WEIGHTS_RAM_DATA_W]:0x10000000,
+                    //                            ^- last weight
+                    uN[TEST_WEIGHTS_RAM_DATA_W]:0x0, ...
+                ]
+            ),
+            (
+                // case with last weight at modulo index 8 (middle position of the received weights packet)
+                u32:13, // (header + weight stream)
+                u8[TEST_MAX_WEIGHTS_STREAM]:[
+                    u8:0x97, // header
+                    // weights stream
+                    u8:0x86, u8:0x66, u8:0x66, u8:0x66,
+                    u8:0x66, u8:0x55, u8:0x55, u8:0x43,
+                    u8:0x43, u8:0x11, u8:0x21, u8:0x11,
+                    // dummy leftover
+                    u8:0xDE, u8:0xAD, u8:0xBE, u8:0xEF, ...
+                ],
+                uN[TEST_WEIGHTS_RAM_DATA_W][TEST_RAW_RAM_PACKET_COUNT]:[
+                    uN[TEST_WEIGHTS_RAM_DATA_W]:0x86666666,
+                    uN[TEST_WEIGHTS_RAM_DATA_W]:0x66555543,
+                    uN[TEST_WEIGHTS_RAM_DATA_W]:0x43112111,
+                    uN[TEST_WEIGHTS_RAM_DATA_W]:0x10000000,
+                    //                            ^- last weight
+                    uN[TEST_WEIGHTS_RAM_DATA_W]:0x0, ...
+                ]
+            )
+        ];
 
-        // Fill input RAM
-        for (i, tok) in u32:0..(array_size(TEST_RAW_DATA) + TEST_DATA_PER_RAM_WRITE - u32:1) / TEST_DATA_PER_RAM_WRITE {
-            let ram_data = for (j, ram_data) in u32:0..TEST_DATA_PER_RAM_WRITE {
-                let data_idx = i * TEST_DATA_PER_RAM_WRITE + j;
-                if (data_idx < array_size(TEST_RAW_DATA)) {
-                    ram_data | ((TEST_RAW_DATA[data_idx] as uN[TEST_RAM_DATA_W]) << (u32:8 * j))
-                } else {
-                    ram_data
-                }
-            }(uN[TEST_RAM_DATA_W]:0);
+        let tok = for ((_, (data_length, weights_stream, expected)), tok): ((u32, (u32, u8[TEST_MAX_WEIGHTS_STREAM], uN[TEST_WEIGHTS_RAM_DATA_W][TEST_RAW_RAM_PACKET_COUNT])), token) in enumerate(raw_tests) {
+            // Fill input RAM
+            for (i, tok) in u32:0..(array_size(weights_stream) + TEST_DATA_PER_RAM_WRITE - u32:1) / TEST_DATA_PER_RAM_WRITE {
+                let ram_data = for (j, ram_data) in u32:0..TEST_DATA_PER_RAM_WRITE {
+                    let data_idx = i * TEST_DATA_PER_RAM_WRITE + j;
+                    if (data_idx < array_size(weights_stream)) {
+                        ram_data | ((weights_stream[data_idx] as uN[TEST_RAM_DATA_W]) << (u32:8 * j))
+                    } else {
+                        ram_data
+                    }
+                }(uN[TEST_RAM_DATA_W]:0);
 
-            let input_ram_wr_req = InputBufferRamWrReq {
-                addr: (TEST_RAW_INPUT_ADDR / u32:8) + i as uN[TEST_RAM_ADDR_W],
-                data: ram_data,
-                mask: !uN[TEST_RAM_NUM_PARTITIONS]:0,
-            };
+                let input_ram_wr_req = InputBufferRamWrReq {
+                    addr: (TEST_RAW_INPUT_ADDR / u32:8) + i as uN[TEST_RAM_ADDR_W],
+                    data: ram_data,
+                    mask: !uN[TEST_RAM_NUM_PARTITIONS]:0,
+                };
 
-            let tok = unroll_for! (i, tok) in u32:0..TEST_RAM_N {
-                let tok = send(tok, input_ram_wr_req_s[i], input_ram_wr_req);
-                let (tok, _) = recv(tok, input_ram_wr_resp_r[i]);
+                let tok = unroll_for! (i, tok) in u32:0..TEST_RAM_N {
+                    let tok = send(tok, input_ram_wr_req_s[i], input_ram_wr_req);
+                    let (tok, _) = recv(tok, input_ram_wr_resp_r[i]);
+                    tok
+                }(tok);
+
+                trace_fmt!("[TEST] Sent RAM write request to input RAMs {:#x}", input_ram_wr_req);
+
                 tok
             }(tok);
 
-            trace_fmt!("[TEST] Sent RAM write request to input RAMs {:#x}", input_ram_wr_req);
-
-            tok
-        }(tok);
-
-        // Send decoding request
-        let req = Req {
-            addr: TEST_RAW_INPUT_ADDR,
-        };
-        let tok = send(tok, req_s, req);
-        trace_fmt!("[TEST] Sent request {:#x}", req);
-
-        // Receive response
-        let (tok, resp) = recv(tok, resp_r);
-        trace_fmt!("[TEST] Received respose {:#x}", resp);
-        assert_eq(HuffmanWeightsDecoderStatus::OKAY, resp.status);
-        assert_eq(TEST_RAW_TREE_DESCRIPTION_SIZE as uN[TEST_AXI_ADDR_W], resp.tree_description_size);
-
-        // Check output RAM
-        let tok = for (i, tok) in u32:0..array_size(TEST_RAW_EXPECTED_WEIGHT_RAM) {
-            let expected_value = TEST_RAW_EXPECTED_WEIGHT_RAM[i];
-            let weights_ram_rd_req = WeightsRamRdReq {
-                addr: i as uN[TEST_WEIGHTS_RAM_ADDR_W],
-                mask: !uN[TEST_WEIGHTS_RAM_NUM_PARTITIONS]:0,
+            // Send decoding request
+            let req = Req {
+                addr: TEST_RAW_INPUT_ADDR,
             };
-            let tok = send(tok, weights_ram_rd_req_s, weights_ram_rd_req);
-            let (tok, weights_ram_rd_resp) = recv(tok, weights_ram_rd_resp_r);
-            trace_fmt!("[TEST] Weights RAM content - addr: {:#x} data: expected {:#x}, got {:#x}", i, expected_value, weights_ram_rd_resp.data);
+            let tok = send(tok, req_s, req);
+            trace_fmt!("[TEST] Sent request {:#x}", req);
 
-            assert_eq(expected_value, weights_ram_rd_resp.data);
+            // Receive response
+            let (tok, resp) = recv(tok, resp_r);
+            trace_fmt!("[TEST] Received respose {:#x}", resp);
+            assert_eq(HuffmanWeightsDecoderStatus::OKAY, resp.status);
+            assert_eq(data_length as uN[TEST_AXI_ADDR_W], resp.tree_description_size);
+
+            // Check output RAM
+            let tok = for (i, tok) in u32:0..array_size(expected) {
+                let expected_value = expected[i];
+                let weights_ram_rd_req = WeightsRamRdReq {
+                    addr: i as uN[TEST_WEIGHTS_RAM_ADDR_W],
+                    mask: !uN[TEST_WEIGHTS_RAM_NUM_PARTITIONS]:0,
+                };
+                let tok = send(tok, weights_ram_rd_req_s, weights_ram_rd_req);
+                let (tok, weights_ram_rd_resp) = recv(tok, weights_ram_rd_resp_r);
+                trace_fmt!("[TEST] Weights RAM content - addr: {:#x} data: expected {:#x}, got {:#x}", i, expected_value, weights_ram_rd_resp.data);
+
+                assert_eq(expected_value, weights_ram_rd_resp.data);
+
+                tok
+            }(tok);
 
             tok
         }(tok);
-
 
         // FSE-encoded weights
         unroll_for! (i, tok) in u32:0..array_size(TESTCASES_FSE) {
