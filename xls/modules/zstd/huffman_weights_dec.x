@@ -206,10 +206,6 @@ proc HuffmanRawWeightsDecoder<
             trace_fmt!("[RAW] Weights: {:#x}", weights);
         } else {};
 
-        if do_recv_data && mem_rd_resp_valid {
-            trace_fmt!("[RAW] Weights: {:#x}", weights);
-        } else {};
-
         let (buffer, buffer_len) = if do_recv_data && mem_rd_resp_valid {
             (
                 buffer | ((weights as uN[BUFF_LEN] << (BUFF_LEN - AXI_DATA_W - buffer_len as u32))),
