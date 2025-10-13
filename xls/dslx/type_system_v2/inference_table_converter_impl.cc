@@ -948,6 +948,18 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       }
     }
     if (node->kind() == AstNodeKind::kFormatMacro) {
+      const auto* fmt = down_cast<const FormatMacro*>(node);
+      if (fmt->macro() == "assert_fmt!") {
+        for (int i = 0; i < fmt->args().size(); ++i) {
+          if (!ConstexprEvaluator::EvaluateToValue(
+                   &import_data_, ti, &warning_collector_,
+                   table_.GetParametricEnv(parametric_context), fmt->args()[i])
+                   .ok()) {
+            return NotConstantErrorStatus(fmt->args()[i]->span(),
+                                          fmt->args()[i], file_table_);
+          }
+        }
+      }
       // `FormatMacro` is essentially an invocation of a "parametric builtin"
       // represented with a custom node, so it meets the condition in
       // `ConvertInvocation` for the caller to require an implicit token.

@@ -1564,11 +1564,13 @@ std::string AllOnesMacro::ToStringInternal() const {
 FormatMacro::FormatMacro(Module* owner, Span span, std::string macro,
                          std::vector<FormatStep> format,
                          std::vector<Expr*> args,
+                         std::optional<Expr*> condition,
                          std::optional<Expr*> verbosity)
     : Expr(owner, std::move(span)),
       macro_(std::move(macro)),
       format_(std::move(format)),
       args_(std::move(args)),
+      condition_(condition),
       verbosity_(std::move(verbosity)) {}
 
 FormatMacro::~FormatMacro() = default;
@@ -1576,6 +1578,9 @@ FormatMacro::~FormatMacro() = default;
 std::vector<AstNode*> FormatMacro::GetChildren(bool want_types) const {
   std::vector<AstNode*> results;
   results.reserve(args_.size());
+  if (condition_.has_value()) {
+    results.push_back(*condition_);
+  }
   for (Expr* arg : args_) {
     results.push_back(arg);
   }
@@ -1587,6 +1592,9 @@ std::vector<AstNode*> FormatMacro::GetChildren(bool want_types) const {
 
 std::string FormatMacro::ToStringInternal() const {
   std::string result = absl::StrCat(macro_, "(");
+  if (condition_.has_value()) {
+    absl::StrAppendFormat(&result, "%s, ", (*condition_)->ToString());
+  }
   if (verbosity_.has_value()) {
     absl::StrAppendFormat(&result, "%s, ", (*verbosity_)->ToString());
   }

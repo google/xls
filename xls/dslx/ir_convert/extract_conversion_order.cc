@@ -184,6 +184,9 @@ class InvocationVisitor : public ExprVisitor {
   }
 
   absl::Status HandleFormatMacro(const FormatMacro* expr) override {
+    if (expr->condition().has_value()) {
+      XLS_RETURN_IF_ERROR(expr->condition().value()->AcceptExpr(this));
+    }
     for (const Expr* arg : expr->args()) {
       XLS_RETURN_IF_ERROR(arg->AcceptExpr(this));
     }

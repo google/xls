@@ -338,11 +338,15 @@ class AstCloner : public AstNodeVisitor {
     if (n->verbosity().has_value()) {
       new_verbosity = down_cast<Expr*>(old_to_new_.at(*n->verbosity()));
     }
+    std::optional<Expr*> new_condition;
+    if (n->condition().has_value()) {
+      new_condition = down_cast<Expr*>(old_to_new_.at(*n->condition()));
+    }
 
     old_to_new_[n] = module(n)->Make<FormatMacro>(
         n->span(), n->macro(),
         std::vector<FormatStep>(n->format().begin(), n->format().end()),
-        new_args, new_verbosity);
+        new_args, new_condition, new_verbosity);
     return absl::OkStatus();
   }
 

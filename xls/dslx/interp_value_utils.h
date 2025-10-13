@@ -27,6 +27,7 @@
 #include "xls/dslx/channel_direction.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/type.h"
+#include "xls/ir/format_preference.h"
 #include "xls/ir/value.h"
 
 namespace xls::dslx {
@@ -130,6 +131,10 @@ absl::StatusOr<std::pair<InterpValue, InterpValue>> CreateChannelReferencePair(
     const Type* type,
     std::optional<absl::FunctionRef<int64_t()>> channel_instance_allocator =
         std::nullopt);
+
+// Formats an InterpValue to a string according to format preference.
+absl::StatusOr<std::string> FormatInterpValue(const InterpValue& value,
+                                              FormatPreference preference);
 
 }  // namespace xls::dslx
 

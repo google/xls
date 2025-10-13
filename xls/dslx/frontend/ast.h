@@ -2770,6 +2770,7 @@ class FormatMacro : public Expr {
  public:
   FormatMacro(Module* owner, Span span, std::string macro,
               std::vector<FormatStep> format, std::vector<Expr*> args,
+              std::optional<Expr*> condition = std::nullopt,
               std::optional<Expr*> verbosity = std::nullopt);
 
   ~FormatMacro() override;
@@ -2791,6 +2792,7 @@ class FormatMacro : public Expr {
   const std::string& macro() const { return macro_; }
   absl::Span<Expr* const> args() const { return args_; }
   absl::Span<const FormatStep> format() const { return format_; }
+  std::optional<Expr*> condition() const { return condition_; }
   std::optional<Expr*> verbosity() const { return verbosity_; }
 
   Precedence GetPrecedenceWithoutParens() const final {
@@ -2803,6 +2805,7 @@ class FormatMacro : public Expr {
   std::string macro_;
   std::vector<FormatStep> format_;
   std::vector<Expr*> args_;
+  std::optional<Expr*> condition_;
   std::optional<Expr*> verbosity_;
 };
 

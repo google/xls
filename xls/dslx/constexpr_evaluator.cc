@@ -34,6 +34,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -59,6 +60,8 @@
 #include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/format_preference.h"
+#include "xls/ir/format_strings.h"
 
 namespace xls::dslx {
 
@@ -764,6 +767,30 @@ std::string EnvMapToString(
         absl::StrAppend(out, item->first, ": ", item->second.ToString());
       });
   return absl::StrCat("{", guts, "}");
+}
+
+absl::StatusOr<std::string> EvaluateFormatString(
+    ImportData* import_data, TypeInfo* type_info,
+    WarningCollector* warning_collector, const ParametricEnv& parametric_env,
+    const std::vector<FormatStep>& steps, absl::Span<Expr* const> args) {
+  std::string result;
+  int64_t arg_i = 0;
+  for (const FormatStep& step : steps) {
+    if (std::holds_alternative<std::string>(step)) {
+      absl::StrAppend(&result, std::get<std::string>(step));
+    } else {
+      FormatPreference preference = std::get<FormatPreference>(step);
+      Expr* arg = args[arg_i++];
+      XLS_ASSIGN_OR_RETURN(
+          InterpValue value,
+          ConstexprEvaluator::EvaluateToValue(
+              import_data, type_info, warning_collector, parametric_env, arg));
+      XLS_ASSIGN_OR_RETURN(std::string formatted,
+                           FormatInterpValue(value, preference));
+      absl::StrAppend(&result, formatted);
+    }
+  }
+  return result;
 }
 
 }  // namespace xls::dslx

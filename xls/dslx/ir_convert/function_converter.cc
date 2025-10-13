@@ -70,9 +70,11 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/fileno.h"
 #include "xls/ir/foreign_function.h"
+#include "xls/ir/format_strings.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/lsb_or_msb.h"
+#include "xls/ir/name_uniquer.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
@@ -2411,8 +2413,46 @@ absl::Status FunctionConverter::HandleAssertBuiltin(const Invocation* node,
 
 absl::Status FunctionConverter::HandleFormatMacro(const FormatMacro* node) {
   XLS_RET_CHECK(implicit_token_data_.has_value())
-      << "Invoking trace_fmt!(), but no implicit token is present for caller @ "
+      << "Invoking " << node->macro()
+      << "(), but no implicit token is present for caller @ "
       << node->span().ToString(file_table());
+  if (node->macro() == "assert_fmt!") {
+    XLS_RETURN_IF_ERROR(Visit(node->condition().value()));
+    XLS_ASSIGN_OR_RETURN(BValue predicate, Use(node->condition().value()));
+
+    XLS_ASSIGN_OR_RETURN(
+        std::string label,
+        EvaluateFormatString(import_data_, current_type_info_,
+                             kNoWarningCollector, GetParametricEnv(),
+                             std::vector<FormatStep>(node->format().begin(),
+                                                     node->format().end()),
+                             node->args()));
+    if (!NameUniquer::IsValidIdentifier(label)) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "assert_fmt! label must be a valid identifier; got: \"%s\"", label));
+    }
+
+    BValue result_token = implicit_token_data_->entry_token;
+    if (options_.emit_fail_as_assert) {
+      XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
+      BValue control_predicate =
+          implicit_token_data_->create_control_predicate();
+      BValue ok = function_builder_->Or(
+          function_builder_->Not(control_predicate), predicate);
+      std::string message =
+          absl::StrFormat("Assertion failure via assert_fmt! @ %s: %s",
+                          node->span().ToString(file_table()), label);
+      result_token = function_builder_->Assert(
+          implicit_token_data_->entry_token, ok, message, label);
+      implicit_token_data_->control_tokens.push_back(result_token);
+    }
+
+    Def(node, [&](const SourceInfo& loc) { return result_token; });
+    tokens_.push_back(result_token);
+
+    return absl::OkStatus();
+  }
+
   XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
   BValue control_predicate = implicit_token_data_->create_control_predicate();
 

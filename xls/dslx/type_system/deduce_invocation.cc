@@ -18,17 +18,20 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <string>
 #include <utility>
 #include <variant>
 #include <vector>
 
 #include "absl/log/log.h"
+#include "absl/log/vlog_is_on.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_utils.h"
@@ -508,6 +511,46 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceFormatMacro(const FormatMacro* node,
         ctx->file_table());
   }
 
+  if (node->macro() == "assert_fmt!") {
+    // assert_fmt!-like macro.
+    VLOG(5) << "DeduceFormatMacro (assert_fmt!-like): " << node->ToString();
+    UseImplicitToken(ctx);
+
+    Expr* condition = node->condition().value();
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> condition_type,
+                         ctx->Deduce(condition));
+    std::unique_ptr<Type> u1 = BitsType::MakeU1();
+    if (*condition_type != *u1) {
+      return ctx->TypeMismatchError(
+          condition->span(), nullptr, *condition_type, nullptr, *u1,
+          "assert_fmt! condition must be a boolean value.");
+    }
+
+    for (Expr* arg : node->args()) {
+      XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
+                           ctx->DeduceAndResolve(arg));
+      if (!ctx->type_info()->IsKnownConstExpr(arg)) {
+        return NotConstantErrorStatus(arg->span(), arg, ctx->file_table());
+      }
+      XLS_RETURN_IF_ERROR(
+          ValidateFormatMacroArgument(*type, arg->span(), ctx->file_table()));
+    }
+
+    if (VLOG_IS_ON(5)) {
+      XLS_ASSIGN_OR_RETURN(
+          std::string formatted_msg,
+          EvaluateFormatString(ctx->import_data(), ctx->type_info(),
+                               ctx->warnings(), ctx->GetCurrentParametricEnv(),
+                               std::vector<FormatStep>(node->format().begin(),
+                                                       node->format().end()),
+                               node->args()));
+      VLOG(5) << "assert_fmt! formatted message: " << formatted_msg;
+    }
+
+    return Type::MakeUnit();
+  }
+
+  // trace_fmt!-like macro.
   for (Expr* arg : node->args()) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
                          ctx->DeduceAndResolve(arg));

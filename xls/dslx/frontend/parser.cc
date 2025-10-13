@@ -72,6 +72,7 @@ namespace {
 constexpr std::string_view kSelfOutsideImplError =
     "Type `Self` cannot be used outside of an `impl`";
 constexpr std::string_view kConstAssertIdentifier = "const_assert!";
+constexpr std::string_view kAssertFmtMacroIdentifier = "assert_fmt!";
 
 absl::StatusOr<std::vector<ExprOrType>> CloneParametrics(
     absl::Span<const ExprOrType> eots) {
@@ -2577,12 +2578,13 @@ absl::StatusOr<Expr*> Parser::BuildFormatMacroWithVerbosityArgument(
   // Extract the verbosity argument and pass on the remainder of the arguments.
   Expr* verbosity = args[0];
   args.erase(args.begin());
-  return BuildFormatMacro(span, name, std::move(args), parametrics, verbosity);
+  return BuildFormatMacro(span, name, std::move(args), parametrics,
+                          /*condition=*/std::nullopt, verbosity);
 }
 
 absl::StatusOr<Expr*> Parser::BuildFormatMacro(
     const Span& span, std::string_view name, std::vector<Expr*> args,
-    const std::vector<ExprOrType>& parametrics,
+    const std::vector<ExprOrType>& parametrics, std::optional<Expr*> condition,
     std::optional<Expr*> verbosity) {
   if (!parametrics.empty()) {
     return ParseErrorStatus(
@@ -2615,7 +2617,50 @@ absl::StatusOr<Expr*> Parser::BuildFormatMacro(
   // Remove the format string argument before building the macro call.
   args.erase(args.begin());
   return module_->Make<FormatMacro>(span, std::string(name), *format_result,
-                                    args, verbosity);
+                                    args, condition, verbosity);
+}
+
+absl::StatusOr<Expr*> Parser::BuildAssertFmtMacro(
+    const Span& span, std::string_view name, std::vector<Expr*> args,
+    const std::vector<ExprOrType>& parametrics) {
+  if (!parametrics.empty()) {
+    return ParseErrorStatus(
+        span, absl::Substitute("$0 macro does not expect parametric arguments.",
+                               name));
+  }
+
+  if (args.size() < 2) {
+    return ParseErrorStatus(
+        span,
+        absl::Substitute("$0 macro must have at least 2 arguments: condition "
+                         "and format string.",
+                         name));
+  }
+
+  Expr* condition = args[0];
+  Expr* format_arg = args[1];
+  String* format_string = dynamic_cast<String*>(format_arg);
+  if (!format_string) {
+    return ParseErrorStatus(
+        span,
+        absl::Substitute(
+            "Expected a literal format string as second argument; got `$0`",
+            format_arg->ToString()));
+  }
+
+  const std::string& format_text = format_string->text();
+  absl::StatusOr<std::vector<FormatStep>> format_result =
+      ParseFormatString(format_text);
+  if (!format_result.ok()) {
+    return ParseErrorStatus(format_string->span(),
+                            format_result.status().message());
+  }
+
+  // Remove condition and format string arguments before building the macro
+  // call.
+  args.erase(args.begin(), args.begin() + 2);
+  return module_->Make<FormatMacro>(span, std::string(name), *format_result,
+                                    args, condition);
 }
 
 absl::StatusOr<Expr*> Parser::BuildMacroOrInvocation(
@@ -2626,6 +2671,9 @@ absl::StatusOr<Expr*> Parser::BuildMacroOrInvocation(
       std::string name = builtin->identifier();
       if (name == "trace_fmt!") {
         return BuildFormatMacro(span, name, args, parametrics);
+      }
+      if (name == kAssertFmtMacroIdentifier) {
+        return BuildAssertFmtMacro(span, name, args, parametrics);
       }
 
       if (name == "vtrace_fmt!") {

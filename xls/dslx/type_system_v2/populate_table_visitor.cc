@@ -1678,14 +1678,28 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
           file_table_);
     }
 
+    if (node->macro() == "assert_fmt!") {
+      // Condition must be bool.
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+          node->condition().value(),
+          CreateBoolAnnotation(module_, node->condition().value()->span())));
+      XLS_RETURN_IF_ERROR(
+          DefineAndSetTypeVariable(node->condition().value(), "assert_cond"));
+    }
+
     // Each arg has an independent unification context.
     for (int i = 0; i < node->args().size(); i++) {
       XLS_RETURN_IF_ERROR(
           DefineAndSetTypeVariable(node->args()[i], absl::StrCat("arg", i)));
     }
 
-    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-        node, CreateTokenTypeAnnotation(module_, node->span())));
+    if (node->macro() == "assert_fmt!") {
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+          node, CreateUnitTupleAnnotation(module_, node->span())));
+    } else {
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+          node, CreateTokenTypeAnnotation(module_, node->span())));
+    }
     return DefaultHandler(node);
   }
 

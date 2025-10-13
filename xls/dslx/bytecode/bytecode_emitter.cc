@@ -1002,6 +1002,43 @@ absl::Status BytecodeEmitter::HandleAllOnesMacro(const AllOnesMacro* node) {
 }
 
 absl::Status BytecodeEmitter::HandleFormatMacro(const FormatMacro* node) {
+  if (node->condition().has_value()) {
+    XLS_RETURN_IF_ERROR(node->condition().value()->AcceptExpr(this));
+
+    CHECK_EQ(node->macro(), "assert_fmt!");
+    size_t jump_if_true_idx = bytecode_.size();
+    bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kJumpRelIf,
+                                 Bytecode::kPlaceholderJumpAmount));
+
+    std::string formatted_msg;
+    int64_t arg_i = 0;
+    for (const FormatStep& step : node->format()) {
+      if (std::holds_alternative<std::string>(step)) {
+        absl::StrAppend(&formatted_msg, std::get<std::string>(step));
+      } else {
+        FormatPreference preference = std::get<FormatPreference>(step);
+        Expr* arg = node->args()[arg_i++];
+        XLS_ASSIGN_OR_RETURN(InterpValue value, type_info_->GetConstExpr(arg));
+        XLS_ASSIGN_OR_RETURN(std::string formatted,
+                             FormatInterpValue(value, preference));
+        absl::StrAppend(&formatted_msg, formatted);
+      }
+    }
+
+    std::vector<FormatStep> steps;
+    steps.push_back(
+        absl::StrFormat("Assertion failure via %s @ %s: %s", node->macro(),
+                        node->span().ToString(file_table()), formatted_msg));
+    Add(Bytecode(node->span(), Bytecode::Op::kFail,
+                 Bytecode::TraceData(steps, {})));
+    size_t jump_dest_idx = bytecode_.size();
+    bytecode_.at(jump_if_true_idx)
+        .PatchJumpTarget(jump_dest_idx - jump_if_true_idx);
+    Add(Bytecode::MakeJumpDest(node->span()));
+    Add(Bytecode::MakeLiteral(node->span(), InterpValue::MakeUnit()));
+    return absl::OkStatus();
+  }
+
   for (const Expr* arg : node->args()) {
     XLS_RETURN_IF_ERROR(arg->AcceptExpr(this));
   }
@@ -1027,6 +1064,8 @@ absl::Status BytecodeEmitter::HandleFormatMacro(const FormatMacro* node) {
     value_fmt_descs.push_back(std::move(value_fmt_desc));
   }
 
+  CHECK(node->macro() == "trace_fmt!" || node->macro() == "vtrace_fmt!")
+      << "Expected trace_fmt! or vtrace_fmt! but got: " << node->macro();
   Bytecode::TraceData trace_data(
       std::vector<FormatStep>(node->format().begin(), node->format().end()),
       std::move(value_fmt_descs));
