@@ -1838,4 +1838,43 @@ absl::StatusOr<std::shared_ptr<const Package>> DslxPackageCache::import(
   return package;
 }
 
+void PopulateSchedulingOptionsFromAttr(
+    SchedulingOptions attr, ::xls::SchedulingOptionsFlagsProto& proto) {
+  proto.set_clock_period_ps(attr.getClockPeriodPs());
+  proto.set_pipeline_stages(attr.getPipelineStages());
+  if (auto delay_model = attr.getDelayModel()) {
+    proto.set_delay_model(delay_model.getValue().str());
+  }
+  proto.set_clock_margin_percent(attr.getClockMarginPercent());
+  proto.set_worst_case_throughput(attr.getWorstCaseThroughput());
+  proto.set_multi_proc(attr.getMultiProc());
+}
+
+void PopulateOptOptionsFromAttr(OptimizationOptions attr,
+                                ::xls::tools::OptOptions& options) {
+  options.opt_level = attr.getOptLevel();
+  options.convert_array_index_to_select = attr.getConvertArrayIndexToSelect();
+  options.use_context_narrowing_analysis =
+      attr.getUseContextNarrowingAnalysis();
+  options.optimize_for_best_case_throughput =
+      attr.getOptimizeForBestCaseThroughput();
+  options.enable_resource_sharing = attr.getEnableResourceSharing();
+  options.force_resource_sharing = attr.getForceResourceSharing();
+  if (auto pass_pipeline_str = attr.getPassPipeline()) {
+    // TODO(jpienaar): This should be verified on the attribute so that when
+    // we get here, it can't fail.
+    ::xls::PassPipelineProto pass_pipeline;
+    CHECK(google::protobuf::TextFormat::ParseFromString(
+        pass_pipeline_str.getValue().str(), &pass_pipeline));
+    options.pass_pipeline = pass_pipeline;
+  }
+}
+
+void PopulateCodegenFlagsFromAttr(CodegenOptions attr,
+                                  ::xls::CodegenFlagsProto& proto) {
+  proto.set_use_system_verilog(attr.getUseSystemVerilog());
+  proto.set_array_index_bounds_checking(attr.getArrayIndexBoundsChecking());
+  proto.set_gate_recvs(attr.getGateRecvs());
+}
+
 }  // namespace mlir::xls
