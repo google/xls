@@ -28,6 +28,7 @@ import xls.modules.zstd.math;
 
 const HUFFMAN_FSE_MAX_ACCURACY_LOG = u32:9;
 const HUFFMAN_FSE_ACCURACY_W = std::clog2(HUFFMAN_FSE_MAX_ACCURACY_LOG + u32:1);
+const BITS_PER_RAW_WEIGHT = u32:4;
 
 struct HuffmanRawWeightsDecoderReq<AXI_ADDR_W: u32> {
     addr: uN[AXI_ADDR_W],
@@ -43,11 +44,12 @@ struct HuffmanRawWeightsDecoderResp {
     status: HuffmanRawWeightsDecoderStatus,
 }
 
-enum HuffmanRawWeightsDecoderFSM : u2 {
+enum HuffmanRawWeightsDecoderFSM : u3 {
     IDLE = 0,
     DECODING = 1,
-    FILL_ZERO = 2,
-    RESP = 3,
+    SENDING_LAST_WEIGHT = 2,
+    FILL_ZERO = 3,
+    RESP = 4,
 }
 
 struct HuffmanRawWeightsDecoderState<
@@ -63,6 +65,7 @@ struct HuffmanRawWeightsDecoderState<
     buffer: uN[BUFF_LEN],
     buffer_len: uN[BUFF_LEN_LOG2],
     ram_wr_resp_to_handle: u4,
+    pending_last_weight: bool,
     sum: u32, // The sum of 2^(weight-1) from HTD
 }
 
@@ -192,21 +195,34 @@ proc HuffmanRawWeightsDecoder<
             _ => fail!("unsupported_axi_data_width", uN[AXI_DATA_W]:0),
         } as u4[MAX_WEIGHTS_IN_PACKET];
 
-        let weights = if (state.req.n_symbols > u8:0 && (mem_rd_resp_valid && mem_rd_resp.last)) {
+        let received_last_data = mem_rd_resp_valid && mem_rd_resp.last;
+        let last_weight_index = state.req.n_symbols % MAX_WEIGHTS_IN_PACKET as u8;
+        let pending_last_weight = (state.req.n_symbols % (WEIGHTS_RAM_DATA_W / BITS_PER_RAW_WEIGHT) as u8) == u8:0 && received_last_data;
+
+        let weights = if (state.req.n_symbols > u8:0 && received_last_data && last_weight_index > u8:0) || state.pending_last_weight {
          trace_fmt!("[RAW] The sum of weight's powers of 2's: {}", state.sum);
          trace_fmt!("[RAW] The last weight: {}", last_weight);
          trace_fmt!("[RAW] MAX_WEIGHTS: {}", MAX_WEIGHTS_IN_PACKET);
-         trace_fmt!("[RAW] Injected {:#x} into weights[{}]", last_weight, (state.req.n_symbols % MAX_WEIGHTS_IN_PACKET as u8));
-         update(weights, (state.req.n_symbols % MAX_WEIGHTS_IN_PACKET as u8), last_weight)
+         trace_fmt!("[RAW] Injected {:#x} into weights[{}]", last_weight, last_weight_index);
+         update(weights, last_weight_index, last_weight)
         } else {
             weights
         } as uN[AXI_DATA_W];
 
-        if do_recv_data && mem_rd_resp_valid {
+        if do_recv_data && mem_rd_resp_valid || state.pending_last_weight {
             trace_fmt!("[RAW] Weights: {:#x}", weights);
         } else {};
 
-        let (buffer, buffer_len) = if do_recv_data && mem_rd_resp_valid {
+        let state = if (pending_last_weight) {
+            State {
+                pending_last_weight,
+                ..state
+            }
+        } else {
+            state
+        };
+
+        let (buffer, buffer_len) = if (do_recv_data && mem_rd_resp_valid) || state.fsm == FSM::SENDING_LAST_WEIGHT {
             (
                 buffer | ((weights as uN[BUFF_LEN] << (BUFF_LEN - AXI_DATA_W - buffer_len as u32))),
                 buffer_len + (AXI_DATA_W as uN[BUFF_LEN_LOG2]),
@@ -218,7 +234,7 @@ proc HuffmanRawWeightsDecoder<
             )
         };
         // Send to RAM
-        let do_send_data = state.fsm == FSM::DECODING && buffer_len >= (WEIGHTS_RAM_DATA_W as uN[BUFF_LEN_LOG2]);
+        let do_send_data = (state.fsm == FSM::DECODING || state.fsm == FSM::SENDING_LAST_WEIGHT) && buffer_len >= (WEIGHTS_RAM_DATA_W as uN[BUFF_LEN_LOG2]);
         let weights_ram_wr_req = WeightsRamWrReq {
             addr: state.ram_addr,
             data: buffer[-(WEIGHTS_RAM_DATA_W as s32):] as uN[WEIGHTS_RAM_DATA_W],
@@ -226,6 +242,7 @@ proc HuffmanRawWeightsDecoder<
         };
         let tok = send_if(tok, weights_ram_wr_req_s, do_send_data, weights_ram_wr_req);
         if do_send_data {
+            trace_fmt!("[RAW] Buffer: {}", buffer);
             trace_fmt!("[RAW] Buffer length: {}", buffer_len);
             trace_fmt!("[RAW] Sent RAM write request {:#x}", weights_ram_wr_req);
         } else  {};
@@ -298,10 +315,20 @@ proc HuffmanRawWeightsDecoder<
                     }
                 } else {
                     State {
-                        fsm: FSM::FILL_ZERO,
+                        fsm: if state.pending_last_weight { FSM::SENDING_LAST_WEIGHT } else { FSM::FILL_ZERO },
                         ram_addr: state.ram_addr + (data_decoded / WEIGHTS_RAM_DATA_W as uN[AXI_ADDR_W]) as uN[WEIGHTS_RAM_ADDR_W],
+                        buffer: buffer,
+                        buffer_len: buffer_len,
                         ..state
                     }
+                }
+            },
+            FSM::SENDING_LAST_WEIGHT => {
+                State {
+                    fsm: FSM::FILL_ZERO,
+                    ram_addr: state.ram_addr + uN[WEIGHTS_RAM_ADDR_W]:1,
+                    pending_last_weight: false,
+                    ..state
                 }
             },
             FSM::FILL_ZERO => {
