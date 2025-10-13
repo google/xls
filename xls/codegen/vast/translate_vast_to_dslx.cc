@@ -614,19 +614,16 @@ class VastToDslxTranslator {
           dslx::Import * std,
           dslx_builder_->GetOrImportModule(dslx::ImportTokens({"std"})));
 
-      XLS_ASSIGN_OR_RETURN(std::unique_ptr<dslx::Type> ct,
-                           deduce_ctx().Deduce(args[0]));
-
+      const verilog::DataType* dt = vast_type_map_.at((*vast_call->args())[0]);
       dslx::Span span = CreateNodeSpan(vast_call);
-      dslx::BitsType* bt = down_cast<dslx::BitsType*>(ct.get());
       auto* ubits_type = module().Make<dslx::BuiltinTypeAnnotation>(
           span, dslx::BuiltinType::kUN,
           module().GetOrCreateBuiltinNameDef(dslx::BuiltinType::kUN));
 
-      XLS_ASSIGN_OR_RETURN(int64_t bit_width, bt->size().GetAsInt64());
+      XLS_ASSIGN_OR_RETURN(int64_t bit_width, dt->FlatBitCountAsInt64());
       auto* bits_size = module().Make<dslx::Number>(
           span, absl::StrCat(bit_width), dslx::NumberKind::kOther, nullptr);
-      if (bt->is_signed()) {
+      if (dt->is_signed()) {
         auto* unsigned_type = module().Make<dslx::ArrayTypeAnnotation>(
             span, ubits_type, bits_size);
         args[0] = module().Make<dslx::Cast>(span, args[0], unsigned_type);
@@ -638,7 +635,6 @@ class VastToDslxTranslator {
 
       XLS_ASSIGN_OR_RETURN(
           result, dslx_builder_->CastToInferredVastType(vast_call, result));
-      XLS_RETURN_IF_ERROR(deduce_ctx().Deduce(result).status());
       return result;
     }
     return absl::InvalidArgumentError(
