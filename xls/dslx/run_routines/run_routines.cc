@@ -65,6 +65,7 @@
 #include "xls/dslx/interp_value_utils.h"
 #include "xls/dslx/ir_convert/conversion_info.h"
 #include "xls/dslx/ir_convert/convert_options.h"
+#include "xls/dslx/ir_convert/function_converter.h"
 #include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/parse_and_typecheck.h"
@@ -979,14 +980,12 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
                               const ParametricEnv* parametric_env,
                               const InterpValue& got) -> absl::Status {
         XLS_RET_CHECK(f != nullptr);
-        std::optional<bool> requires_implicit_token =
-            import_data.GetRootTypeInfoForNode(f)
-                .value()
-                ->GetRequiresImplicitToken(*f);
-        XLS_RET_CHECK(requires_implicit_token.has_value());
-        return options.run_comparator->RunComparison(
-            ir_package.get(), *requires_implicit_token, f, args, parametric_env,
-            got);
+
+        bool requires_implicit_token =
+            GetRequiresImplicitToken(*f, &import_data, options.convert_options);
+        return options.run_comparator->RunComparison(ir_package.get(),
+                                                     requires_implicit_token, f,
+                                                     args, parametric_env, got);
       };
     }
   }

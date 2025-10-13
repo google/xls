@@ -41,4 +41,5 @@ message IrConverterOptionsFlagsProto {
   optional bool type_inference_v2 = 16;
   optional bool lower_to_proc_scoped_channels = 17;
   repeated string configured_values = 18;
+  optional bool force_implicit_token_calling_convention = 19;
 }

@@ -27,6 +27,7 @@
 ABSL_DECLARE_FLAG(std::optional<std::string>, enable_warnings);
 ABSL_DECLARE_FLAG(std::optional<std::string>, disable_warnings);
 ABSL_DECLARE_FLAG(bool, warnings_as_errors);
+ABSL_DECLARE_FLAG(bool, force_implicit_token_calling_convention);
 
 namespace xls {
 
@@ -37,6 +38,8 @@ TEST(IrConverterOptionsFlagsTest, WarningOptionsNoFlagSettings) {
   EXPECT_TRUE(options.disable_warnings().empty());
   EXPECT_TRUE(options.has_warnings_as_errors());
   EXPECT_EQ(options.warnings_as_errors(), true);
+  EXPECT_TRUE(options.has_force_implicit_token_calling_convention());
+  EXPECT_FALSE(options.force_implicit_token_calling_convention());
 }
 
 TEST(IrConverterOptionsFlagsTest,
@@ -64,6 +67,19 @@ TEST(IrConverterOptionsFlagsTest,
             "already_exhaustive_match,should_use_assert");
   EXPECT_EQ(options.disable_warnings(), "constant_naming,member_naming");
   EXPECT_EQ(options.warnings_as_errors(), false);
+}
+
+TEST(IrConverterOptionsFlagsTest, ForceImplicitTokenFlagSet) {
+  ASSERT_FALSE(absl::GetFlag(FLAGS_force_implicit_token_calling_convention));
+  absl::SetFlag(&FLAGS_force_implicit_token_calling_convention, true);
+  absl::Cleanup reset_flag([] {
+    absl::SetFlag(&FLAGS_force_implicit_token_calling_convention, false);
+  });
+
+  XLS_ASSERT_OK_AND_ASSIGN(IrConverterOptionsFlagsProto options,
+                           GetIrConverterOptionsFlagsProto());
+  EXPECT_TRUE(options.has_force_implicit_token_calling_convention());
+  EXPECT_TRUE(options.force_implicit_token_calling_convention());
 }
 
 }  // namespace xls

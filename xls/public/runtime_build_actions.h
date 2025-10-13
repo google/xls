@@ -59,6 +59,7 @@ struct ConvertDslxToIrOptions {
   absl::Span<const std::string_view> disable_warnings;
   bool warnings_as_errors = true;
   std::vector<std::string>* warnings_out = nullptr;
+  bool force_implicit_token_calling_convention = false;
 };
 
 // Converts the specified DSLX text into XLS IR text.

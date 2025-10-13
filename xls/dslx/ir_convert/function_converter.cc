@@ -178,6 +178,9 @@ absl::StatusOr<xls::Function*> EmitImplicitTokenEntryWrapper(
 
 bool GetRequiresImplicitToken(const dslx::Function& f, ImportData* import_data,
                               const ConvertOptions& options) {
+  if (options.force_implicit_token_calling_convention) {
+    return true;
+  }
   std::optional<bool> requires_opt =
       import_data->GetRootTypeInfo(f.owner()).value()->GetRequiresImplicitToken(
           f);

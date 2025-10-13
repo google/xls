@@ -84,6 +84,9 @@ ABSL_FLAG(bool, lower_to_proc_scoped_channels, false,
           "false, generates global channels. This is a temporary flag that "
           "will not be used after the full implementation is complete. Cannot "
           "be combined with proc_scoped_channels");
+ABSL_FLAG(bool, force_implicit_token_calling_convention, false,
+          "Force every DSLX function to use the implicit-token calling "
+          "convention during IR conversion.");
 ABSL_FLAG(
     std::optional<std::vector<std::string>>, configured_values, std::nullopt,
     "Dictionary of overrides to use for overridable constants "
@@ -140,6 +143,7 @@ absl::StatusOr<bool> SetOptionsFromFlags(IrConverterOptionsFlagsProto& proto) {
   POPULATE_OPTIONAL_FLAG(interface_textproto_file);
   POPULATE_FLAG(type_inference_v2);
   POPULATE_FLAG(lower_to_proc_scoped_channels);
+  POPULATE_FLAG(force_implicit_token_calling_convention);
   POPULATE_REPEATED_FLAG(configured_values);
 
 #undef POPULATE_FLAG
