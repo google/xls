@@ -481,6 +481,7 @@ cc_test(
     name = "extract_conversion_order_test",
     srcs = ["extract_conversion_order_test.cc"],
     deps = [
+        ":conversion_record",
         ":extract_conversion_order",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
