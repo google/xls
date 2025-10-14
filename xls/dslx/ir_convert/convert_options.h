@@ -36,6 +36,12 @@ struct ConvertOptions {
   // Whether to emit fail!() operations as predicated assertion IR nodes.
   bool emit_fail_as_assert = true;
 
+  // Whether to emit trace operations.
+  bool emit_trace = true;
+
+  // Whether to emit cover operations.
+  bool emit_cover = true;
+
   // Should the generated IR be verified?
   bool verify_ir = true;
 

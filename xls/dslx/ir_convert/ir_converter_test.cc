@@ -5699,6 +5699,48 @@ fn test_func() {
                          "but test conversion is disabled")));
 }
 
+TEST_P(IrConverterWithBothTypecheckVersionsTest, NonSynthNoAssert) {
+  constexpr std::string_view program =
+      R"(fn f() -> u32 {
+  let x = u32:42;
+  assert!(x > u32:11, "bang");
+  x
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "f",
+                                ConvertOptions{.emit_fail_as_assert = false}));
+  ExpectIr(converted);
+}
+
+TEST_P(IrConverterWithBothTypecheckVersionsTest, NonSynthNoTrace) {
+  constexpr std::string_view program =
+      R"(fn f() -> u32 {
+  let x = u32:42;
+  trace_fmt!("bang {}", x);
+  x
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "f",
+                                ConvertOptions{.emit_trace = false}));
+  ExpectIr(converted);
+}
+
+TEST_P(IrConverterWithBothTypecheckVersionsTest, NonSynthNoCover) {
+  constexpr std::string_view program =
+      R"(fn f() -> u32 {
+  let x = u32:42;
+  cover!("bang", x > u32:11);
+  x
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "f",
+                                ConvertOptions{.emit_cover = false}));
+  ExpectIr(converted);
+}
+
 INSTANTIATE_TEST_SUITE_P(IrConverterWithBothTypecheckVersionsTestSuite,
                          IrConverterWithBothTypecheckVersionsTest,
                          testing::Values(TypeInferenceVersion::kVersion1,

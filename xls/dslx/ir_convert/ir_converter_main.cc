@@ -103,6 +103,8 @@ absl::Status RealMain(absl::Span<const std::string_view> paths) {
   bool type_inference_v2 = ir_converter_options.type_inference_v2();
   bool force_implicit_token_calling_convention =
       ir_converter_options.force_implicit_token_calling_convention();
+  bool emit_trace = ir_converter_options.emit_trace();
+  bool emit_cover = ir_converter_options.emit_cover();
 
   // Start with the default set, then enable the to-enable and then disable the
   // to-disable.
@@ -119,6 +121,8 @@ absl::Status RealMain(absl::Span<const std::string_view> paths) {
   const ConvertOptions convert_options = {
       .emit_positions = true,
       .emit_fail_as_assert = emit_fail_as_assert,
+      .emit_trace = emit_trace,
+      .emit_cover = emit_cover,
       .verify_ir = verify_ir,
       .warnings_as_errors = warnings_as_errors,
       .warnings = warnings,

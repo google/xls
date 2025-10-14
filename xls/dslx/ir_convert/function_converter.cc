@@ -2459,6 +2459,14 @@ absl::Status FunctionConverter::HandleFormatMacro(const FormatMacro* node) {
   XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
   BValue control_predicate = implicit_token_data_->create_control_predicate();
 
+  // Don't generate anything if no traces.
+  if (!options_.emit_trace) {
+    Def(node, [&](const SourceInfo& loc) {
+      return implicit_token_data_->entry_token;
+    });
+    return absl::OkStatus();
+  }
+
   // We have to rewrite the format string if a struct is present.
   //
   // Traverse through the original format steps, and if we encounter a struct,
@@ -2531,6 +2539,14 @@ absl::Status FunctionConverter::HandleCoverBuiltin(const Invocation* node,
         << node->span().ToString(file_table());
     XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
     BValue control_predicate = implicit_token_data_->create_control_predicate();
+
+    // Don't generate anything if no traces.
+    if (!options_.emit_cover) {
+      Def(node, [&](const SourceInfo& loc) {
+        return implicit_token_data_->entry_token;
+      });
+      return absl::OkStatus();
+    }
 
     // Variables:
     // * we got to the control point (CP)

@@ -48,6 +48,10 @@ ABSL_FLAG(
 
 ABSL_FLAG(bool, emit_fail_as_assert, true,
           "Feature flag for emitting fail!() in the DSL as an assert IR op.");
+ABSL_FLAG(bool, emit_trace, true,
+          "Feature flag for emitting trace!() in the DSL as a trace IR op.");
+ABSL_FLAG(bool, emit_cover, true,
+          "Feature flag for emitting cover!() in the DSL as a cover IR op.");
 ABSL_FLAG(bool, convert_tests, false,
           "Feature flag for emitting test procs/functions to IR.");
 ABSL_FLAG(bool, verify, true,
@@ -145,6 +149,8 @@ absl::StatusOr<bool> SetOptionsFromFlags(IrConverterOptionsFlagsProto& proto) {
   POPULATE_FLAG(lower_to_proc_scoped_channels);
   POPULATE_FLAG(force_implicit_token_calling_convention);
   POPULATE_REPEATED_FLAG(configured_values);
+  POPULATE_FLAG(emit_trace);
+  POPULATE_FLAG(emit_cover);
 
 #undef POPULATE_FLAG
 
