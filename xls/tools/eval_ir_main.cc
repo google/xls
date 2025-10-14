@@ -605,6 +605,9 @@ absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
 // Parse the given string as a semi-colon separated list of Values.
 absl::StatusOr<ArgSet> ArgSetFromString(std::string_view args_string) {
   ArgSet arg_set;
+  if (args_string.empty()) {
+    return arg_set;
+  }
   for (const std::string_view& value_string :
        absl::StrSplit(args_string, ';')) {
     XLS_ASSIGN_OR_RETURN(Value arg, Parser::ParseTypedValue(value_string));
