@@ -64,13 +64,18 @@ _CHECK_EQUIV = flags.DEFINE_bool(
         "extremely slow.)"
     ),
 )
+_KEEP_TEMPS = flags.DEFINE_bool(
+    name="keep_temps",
+    default=False,
+    help="If true, don't delete the temporary directory.",
+)
 
 
 def main(argv: Sequence[str]) -> None:
   if len(argv) > 1:
     raise app.UsageError("Too many command-line arguments.")
 
-  with tempfile.TemporaryDirectory() as tmpdir:
+  with tempfile.TemporaryDirectory(delete=not _KEEP_TEMPS.value) as tmpdir:
     subprocess.run(
         [
             _TO_IR_BIN,
@@ -122,6 +127,8 @@ exit $?
         + options,
         check=True,
     )
+    if _KEEP_TEMPS.value:
+      print(f"Temp directory: {tmpdir}")
 
 
 if __name__ == "__main__":
