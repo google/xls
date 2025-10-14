@@ -32,6 +32,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/channel_queue.h"
+#include "xls/interpreter/evaluator_options.h"
 #include "xls/interpreter/ir_interpreter.h"
 #include "xls/interpreter/observer.h"
 #include "xls/interpreter/proc_evaluator.h"

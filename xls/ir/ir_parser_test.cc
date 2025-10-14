@@ -24,6 +24,7 @@
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/strings/ascii.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/substitute.h"
 #include "xls/common/casts.h"
 #include "xls/common/source_location.h"

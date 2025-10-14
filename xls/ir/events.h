@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/status/status.h"
@@ -25,6 +26,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "google/protobuf/repeated_ptr_field.h"
 #include "xls/ir/evaluator_result.pb.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/value.h"

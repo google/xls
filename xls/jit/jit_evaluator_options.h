@@ -17,6 +17,7 @@
 
 #include <cstdint>
 #include <string>
+#include <utility>
 
 #include "xls/jit/llvm_compiler.h"
 #include "xls/jit/observer.h"

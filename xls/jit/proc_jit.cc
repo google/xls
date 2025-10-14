@@ -35,6 +35,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/interpreter/evaluator_options.h"
 #include "xls/interpreter/observer.h"
 #include "xls/interpreter/proc_evaluator.h"
 #include "xls/ir/channel.h"

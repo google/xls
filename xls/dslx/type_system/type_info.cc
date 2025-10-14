@@ -14,12 +14,12 @@
 
 #include "xls/dslx/type_system/type_info.h"
 
-#include <algorithm>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"

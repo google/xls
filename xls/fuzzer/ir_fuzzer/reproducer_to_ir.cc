@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "xls/common/fuzzing/fuzztest.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"

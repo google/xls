@@ -16,6 +16,7 @@
 
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

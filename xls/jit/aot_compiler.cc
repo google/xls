@@ -51,6 +51,7 @@
 #include "llvm/include/llvm/Transforms/Utils/Cloning.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/jit/jit_emulated_tls.h"
+#include "xls/jit/jit_evaluator_options.h"
 #include "xls/jit/llvm_compiler.h"
 #include "xls/jit/observer.h"
 

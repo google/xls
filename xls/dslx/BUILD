@@ -214,6 +214,7 @@ cc_test(
     srcs = ["errors_test.cc"],
     deps = [
         ":errors",
+        ":status_payload_cc_proto",
         ":status_payload_utils",
         "//xls/common:proto_test_utils",
         "//xls/common:xls_gunit_main",
@@ -221,7 +222,6 @@ cc_test(
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:type",
-        "//xls/dslx/type_system:type_info_cc_proto",
         "@com_google_absl//absl/status",
         "@googletest//:gtest",
     ],

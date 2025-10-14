@@ -31,6 +31,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/fileno.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/number_parser.h"
 #include "xls/ir/source_location.h"

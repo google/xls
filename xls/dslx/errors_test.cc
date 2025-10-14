@@ -24,9 +24,9 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/status_payload.pb.h"
 #include "xls/dslx/status_payload_utils.h"
 #include "xls/dslx/type_system/type.h"
-#include "xls/dslx/type_system/type_info.pb.h"
 
 namespace xls::dslx {
 namespace {

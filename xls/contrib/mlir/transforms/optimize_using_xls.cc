@@ -17,7 +17,6 @@
 #include <string>
 
 #include "absl/status/status.h"
-#include "llvm/include/llvm/Support/CommandLine.h"
 #include "llvm/include/llvm/Support/DebugLog.h"
 #include "mlir/include/mlir/IR/BuiltinOps.h"
 #include "mlir/include/mlir/IR/Diagnostics.h"

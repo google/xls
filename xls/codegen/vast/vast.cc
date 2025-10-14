@@ -42,6 +42,7 @@
 #include "xls/common/visitor.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/code_template.h"
+#include "xls/ir/fileno.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/source_location.h"
 

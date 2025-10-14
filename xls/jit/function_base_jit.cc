@@ -51,6 +51,7 @@
 #include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/interpreter/evaluator_options.h"
 #include "xls/ir/block.h"
 #include "xls/ir/call_graph.h"
 #include "xls/ir/events.h"

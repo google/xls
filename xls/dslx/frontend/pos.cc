@@ -24,7 +24,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
-#include "xls/dslx/status_payload.pb.h"
+#include "xls/dslx/type_system/type_info.pb.h"
 #include "re2/re2.h"
 
 namespace xls::dslx {

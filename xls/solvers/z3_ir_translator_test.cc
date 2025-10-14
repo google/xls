@@ -49,6 +49,7 @@
 #include "xls/solvers/z3_utils.h"
 #include "z3/src/api/z3.h"  // IWYU pragma: keep
 #include "z3/src/api/z3_api.h"
+#include "z3/src/api/z3_ast_containers.h"
 
 namespace xls {
 namespace {
