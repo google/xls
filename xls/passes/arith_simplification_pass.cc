@@ -334,9 +334,10 @@ absl::StatusOr<bool> MatchComparisonOfInjectiveOp(
     int64_t op_width = compare->operand->BitCountOrDie();
     std::optional<SharedLeafTypeTree<TernaryVector>> op_ternary =
         query_engine.GetTernary(binary_op->operand);
-    int64_t op_size = op_ternary.has_value()
-                          ? ternary_ops::MinimumBitCount(op_ternary->Get({}))
-                          : binary_op->operand->BitCountOrDie();
+    int64_t op_size =
+        op_ternary.has_value()
+            ? ternary_ops::MinimumUnsignedBitCount(op_ternary->Get({}))
+            : binary_op->operand->BitCountOrDie();
     int64_t const_size = binary_op->constant.bits().bit_count() -
                          binary_op->constant.bits().CountLeadingZeros();
     // If op_width is greater than or equal to the combined sizes of the

@@ -2289,6 +2289,23 @@ TEST_F(ArithSimplificationPassTest, AddSignExtPlusConstant) {
               m::Select(m::Param("c"), {m::Literal(3), m::Literal(2)}));
 }
 
+TEST_F(ArithSimplificationPassTest, UmulOverflowDecode) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+fn FuzzTest() -> bits[1] {
+  literal.268: bits[1] = literal(value=0, id=268)
+  literal.1: bits[64] = literal(value=15625477333024561368, id=1)
+  literal.2: bits[808] = literal(value=0x0, id=2)
+  concat.5: bits[873] = concat(literal.268, literal.1, literal.2, id=5)
+  umul.6: bits[359] = umul(concat.5, literal.1, id=6)
+  ret decode.11: bits[1] = decode(umul.6, width=1, id=11)
+}
+  )",
+                                                       p.get()));
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+}
+
 void IrFuzzArithSimplification(FuzzPackageWithArgs fuzz_package_with_args) {
   ArithSimplificationPass pass;
   OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);

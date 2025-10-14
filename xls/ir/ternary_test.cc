@@ -75,6 +75,29 @@ TEST(Ternary, NumberOfKnownBits) {
   EXPECT_EQ(ternary_ops::NumberOfKnownBits(TernaryVector()), 0);
 }
 
+TEST(Ternary, MinimumUnsignedBitCount) {
+  // Basic test of functionality
+  EXPECT_EQ(ternary_ops::MinimumUnsignedBitCount(
+                *StringToTernaryVector("0b1101X1X001")),
+            10);
+  // Empty ternary vector should be handled correctly
+  EXPECT_EQ(ternary_ops::MinimumUnsignedBitCount(TernaryVector()), 0);
+  EXPECT_EQ(ternary_ops::MinimumUnsignedBitCount(
+                *StringToTernaryVector("0b00X1X1X001")),
+            8);
+  EXPECT_EQ(ternary_ops::MinimumUnsignedBitCount(
+                *StringToTernaryVector("0b0000000000")),
+            0);
+  EXPECT_EQ(ternary_ops::MinimumUnsignedBitCount(
+                *StringToTernaryVector("0b1000000000")),
+            10);
+  EXPECT_EQ(ternary_ops::MinimumUnsignedBitCount(
+                *StringToTernaryVector("0b0100000000")),
+            9);
+  EXPECT_EQ(ternary_ops::MinimumUnsignedBitCount(
+                *StringToTernaryVector("0b0X00000000")),
+            9);
+}
 MATCHER_P(ToVector, m,
           testing::DescribeMatcher<std::vector<Bits>>(m, negation)) {
   return testing::ExplainMatchResult(

@@ -285,14 +285,14 @@ bool IsCompatible(TernarySpan a, TernarySpan b) {
   return true;
 }
 
-int64_t MinimumBitCount(TernarySpan t) {
-  int64_t len = t.size();
-  for (int64_t i = 0; i < t.size(); ++i) {
-    if (t.crbegin()[i] == TernaryValue::kKnownZero) {
-      len--;
+int64_t MinimumUnsignedBitCount(TernarySpan t) {
+  for (int64_t len = t.size(); len > 0; --len) {
+    if (t[len - 1] != TernaryValue::kKnownZero) {
+      return len;
     }
   }
-  return len;
+  // Every element is known zero.
+  return 0;
 }
 
 void UpdateWithIntersection(TernaryVector& lhs, TernarySpan rhs) {
