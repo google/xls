@@ -337,6 +337,109 @@ endmodule
   EXPECT_EQ(std::string_view{emitted}, kWantEmitted);
 }
 
+// Adds module parameters and uses them in expressions.
+TEST(XlsCApiTest, VastModuleParameters) {
+  const std::string_view kWantEmitted = R"(module param_module;
+  parameter WIDTH = 8;
+  wire [7:0] a;
+  wire [7:0] b;
+  assign b = a << WIDTH;
+endmodule
+)";
+
+  xls_vast_verilog_file* f =
+      xls_vast_make_verilog_file(xls_vast_file_type_verilog);
+  ASSERT_NE(f, nullptr);
+  absl::Cleanup free_file([&] { xls_vast_verilog_file_free(f); });
+
+  xls_vast_verilog_module* m =
+      xls_vast_verilog_file_add_module(f, "param_module");
+  ASSERT_NE(m, nullptr);
+
+  // parameter WIDTH = 8;
+  xls_vast_literal* literal_8 = xls_vast_verilog_file_make_plain_literal(f, 8);
+  ASSERT_NE(literal_8, nullptr);
+  auto* width_param = xls_vast_verilog_module_add_parameter(
+      m, "WIDTH", xls_vast_literal_as_expression(literal_8));
+  ASSERT_NE(width_param, nullptr);
+
+  // wire [7:0] a; wire [7:0] b;
+  xls_vast_data_type* u8 =
+      xls_vast_verilog_file_make_bit_vector_type(f, 8, /*is_signed=*/false);
+  xls_vast_logic_ref* a_ref = xls_vast_verilog_module_add_wire(m, "a", u8);
+  ASSERT_NE(a_ref, nullptr);
+  xls_vast_logic_ref* b_ref = xls_vast_verilog_module_add_wire(m, "b", u8);
+  ASSERT_NE(b_ref, nullptr);
+
+  // assign b = a << WIDTH;
+  xls_vast_expression* shift_expr = xls_vast_verilog_file_make_binary(
+      f, xls_vast_logic_ref_as_expression(a_ref),
+      xls_vast_parameter_ref_as_expression(width_param),
+      xls_vast_operator_kind_shll);
+  ASSERT_NE(shift_expr, nullptr);
+  xls_vast_continuous_assignment* assignment =
+      xls_vast_verilog_file_make_continuous_assignment(
+          f, xls_vast_logic_ref_as_expression(b_ref), shift_expr);
+  ASSERT_NE(assignment, nullptr);
+  xls_vast_verilog_module_add_member_continuous_assignment(m, assignment);
+
+  char* emitted = xls_vast_verilog_file_emit(f);
+  ASSERT_NE(emitted, nullptr);
+  absl::Cleanup free_emitted([&] { xls_c_str_free(emitted); });
+  EXPECT_EQ(std::string_view{emitted}, kWantEmitted);
+}
+
+// Makes module parameters with explicit types via Def: logic bit-vector and
+// integer.
+TEST(XlsCApiTest, VastModuleParameterTypes) {
+  const std::string_view kWantEmitted = R"(module param_types;
+  parameter logic [15:0] P = 5;
+  parameter integer I = -1;
+endmodule
+)";
+
+  xls_vast_verilog_file* f =
+      xls_vast_make_verilog_file(xls_vast_file_type_verilog);
+  ASSERT_NE(f, nullptr);
+  absl::Cleanup free_file([&] { xls_vast_verilog_file_free(f); });
+
+  xls_vast_verilog_module* m =
+      xls_vast_verilog_file_add_module(f, "param_types");
+  ASSERT_NE(m, nullptr);
+
+  // parameter logic [15:0] P = 5;
+  xls_vast_data_type* u16 =
+      xls_vast_verilog_file_make_bit_vector_type(f, 16, /*is_signed=*/false);
+  xls_vast_def* p_def =
+      xls_vast_verilog_file_make_def(f, "P", xls_vast_data_kind_logic, u16);
+  ASSERT_NE(p_def, nullptr);
+  xls_vast_literal* lit5 = xls_vast_verilog_file_make_plain_literal(f, 5);
+  ASSERT_NE(lit5, nullptr);
+  auto* p_ref = xls_vast_verilog_module_add_parameter_with_def(
+      m, p_def, xls_vast_literal_as_expression(lit5));
+  ASSERT_NE(p_ref, nullptr);
+
+  // parameter integer I = -1;
+  xls_vast_data_type* integer_type =
+      xls_vast_verilog_file_make_integer_type(f, /*is_signed=*/true);
+  ASSERT_NE(integer_type, nullptr);
+  xls_vast_def* i_def = xls_vast_verilog_file_make_def(
+      f, "I", xls_vast_data_kind_integer, integer_type);
+  ASSERT_NE(i_def, nullptr);
+  xls_vast_literal* lit1 = xls_vast_verilog_file_make_plain_literal(f, 1);
+  ASSERT_NE(lit1, nullptr);
+  xls_vast_expression* neg1 = xls_vast_verilog_file_make_unary(
+      f, xls_vast_literal_as_expression(lit1), xls_vast_operator_kind_negate);
+  ASSERT_NE(neg1, nullptr);
+  auto* i_ref = xls_vast_verilog_module_add_parameter_with_def(m, i_def, neg1);
+  ASSERT_NE(i_ref, nullptr);
+
+  char* emitted = xls_vast_verilog_file_emit(f);
+  ASSERT_NE(emitted, nullptr);
+  absl::Cleanup free_emitted([&] { xls_c_str_free(emitted); });
+  EXPECT_EQ(std::string_view{emitted}, kWantEmitted);
+}
+
 // Tests that we can assign a 128-bit output wire using a 128-bit literal
 // value.
 TEST(XlsCApiTest, ContinuousAssignmentOf128BitLiteral) {
