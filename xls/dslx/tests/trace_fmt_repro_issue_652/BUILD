@@ -40,7 +40,7 @@ xls_dslx_opt_ir(
     # Don't emit asserts until they are emitted in a format which is expected by
     # the project consuming the Verilog.
     ir_conv_args = {
-        "emit_fail_as_assert": "false",
+        "emit_assert": "false",
     },
     library = ":trace_fmt_repro_dslx",
 )

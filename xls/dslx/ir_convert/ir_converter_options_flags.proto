@@ -28,7 +28,7 @@ message IrConverterOptionsFlagsProto {
   optional string dslx_stdlib_path = 3;
   optional string dslx_path = 4;
   optional string package_name = 5;
-  optional bool emit_fail_as_assert = 6;
+  optional bool emit_fail_as_assert = 6 [deprecated = true];
   optional bool verify = 7;
   optional bool convert_tests = 8;
   optional string disable_warnings = 9;
@@ -46,4 +46,6 @@ message IrConverterOptionsFlagsProto {
   optional bool emit_trace = 20;
   // If true will emit cover operations.
   optional bool emit_cover = 21;
+  // If true will emit assert operations.
+  optional bool emit_assert = 22;
 }

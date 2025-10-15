@@ -34,7 +34,7 @@ struct ConvertOptions {
   bool emit_positions = true;
 
   // Whether to emit fail!() operations as predicated assertion IR nodes.
-  bool emit_fail_as_assert = true;
+  bool emit_assert = true;
 
   // Whether to emit trace operations.
   bool emit_trace = true;

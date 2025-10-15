@@ -2317,7 +2317,7 @@ FunctionConverter::GetAssertionLabel(std::string_view caller_name,
 absl::Status FunctionConverter::HandleFailBuiltin(const Invocation* node,
                                                   Expr* label_expr,
                                                   BValue arg) {
-  if (options_.emit_fail_as_assert) {
+  if (options_.emit_assert) {
     // For a fail node we both create a predicate that corresponds to the
     // "control" leading to this DSL program point.
     XLS_RET_CHECK(implicit_token_data_.has_value())
@@ -2381,7 +2381,7 @@ absl::Status FunctionConverter::HandleAssertEqBuiltin(const Invocation* node,
 absl::Status FunctionConverter::HandleAssertBuiltin(const Invocation* node,
                                                     BValue assert_predicate,
                                                     Expr* label_expr) {
-  if (options_.emit_fail_as_assert) {
+  if (options_.emit_assert) {
     // For a fail node we both create a predicate that corresponds to the
     // "control" leading to this DSL program point.
     XLS_RET_CHECK(implicit_token_data_.has_value())
@@ -2437,7 +2437,7 @@ absl::Status FunctionConverter::HandleFormatMacro(const FormatMacro* node) {
     }
 
     BValue result_token = implicit_token_data_->entry_token;
-    if (options_.emit_fail_as_assert) {
+    if (options_.emit_assert) {
       XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
       BValue control_predicate =
           implicit_token_data_->create_control_predicate();
@@ -2532,7 +2532,7 @@ absl::Status FunctionConverter::HandleCoverBuiltin(const Invocation* node,
   // TODO(https://github.com/google/xls/issues/232): 2021-05-21: Control cover!
   // emission with the same flag as fail!, since they share a good amount of
   // infra and conceptually are related in how they lower to Verilog.
-  if (options_.emit_fail_as_assert) {
+  if (options_.emit_assert) {
     // For a cover node we both create a predicate that corresponds to the
     // "control" leading to this DSL program point.
     XLS_RET_CHECK(implicit_token_data_.has_value())
@@ -3282,7 +3282,7 @@ absl::Status FunctionConverter::HandleFunction(
 
   if (requires_implicit_token) {
     // Now join all the assertion tokens together to make the output token.
-    // This set may be empty if "emit_fail_as_assert" is false.
+    // This set may be empty if "emit_assert" is false.
     BValue join_token =
         function_builder_->AfterAll(implicit_token_data_->control_tokens);
     std::vector<BValue> elements = {join_token, return_value};

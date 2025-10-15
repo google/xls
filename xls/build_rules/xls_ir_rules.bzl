@@ -146,6 +146,7 @@ def _convert_to_ir(ctx, src):
     IR_CONV_FLAGS = (
         "dslx_path",
         "emit_fail_as_assert",
+        "emit_assert",
         "emit_trace",
         "emit_cover",
         "warnings_as_errors",
@@ -180,6 +181,16 @@ def _convert_to_ir(ctx, src):
     is_args_valid(ir_conv_args, IR_CONV_FLAGS)
 
     ir_conv_args["top"] = ctx.attr.dslx_top
+
+    if "emit_fail_as_assert" in ir_conv_args:
+        if "emit_assert" in ir_conv_args:
+            fail("emit_fail_as_assert is deprecated, use emit_assert instead. Do not use both at the same time.")
+
+        # buildifier: disable=print
+        print("WARNING: %s emit_fail_as_assert is deprecated, use emit_assert instead." % ctx.label)
+        ir_conv_args["emit_assert"] = ir_conv_args["emit_fail_as_assert"]
+        ir_conv_args.pop("emit_fail_as_assert")
+
     my_args = ctx.actions.args()
     for flag, value in ir_conv_args.items():
         # NB Using format because some of the values are 'true/false' which

@@ -46,8 +46,11 @@ ABSL_FLAG(
     "Package name to use for output (required when multiple input .x files "
     "are given).");
 
-ABSL_FLAG(bool, emit_fail_as_assert, true,
-          "Feature flag for emitting fail!() in the DSL as an assert IR op.");
+ABSL_RETIRED_FLAG(bool, emit_fail_as_assert, true,
+                  "Use --emit_assert instead.");
+ABSL_FLAG(bool, emit_assert, true,
+          "Feature flag for emitting fail!() and assert!() in the DSL as an "
+          "assert IR op.");
 ABSL_FLAG(bool, emit_trace, true,
           "Feature flag for emitting trace!() in the DSL as a trace IR op.");
 ABSL_FLAG(bool, emit_cover, true,
@@ -136,7 +139,6 @@ absl::StatusOr<bool> SetOptionsFromFlags(IrConverterOptionsFlagsProto& proto) {
   POPULATE_FLAG(dslx_stdlib_path);
   POPULATE_OPTIONAL_FLAG(dslx_path);
   POPULATE_OPTIONAL_FLAG(package_name);
-  POPULATE_FLAG(emit_fail_as_assert);
   POPULATE_FLAG(verify);
   POPULATE_FLAG(convert_tests);
   POPULATE_OPTIONAL_FLAG(disable_warnings);
@@ -149,6 +151,7 @@ absl::StatusOr<bool> SetOptionsFromFlags(IrConverterOptionsFlagsProto& proto) {
   POPULATE_FLAG(lower_to_proc_scoped_channels);
   POPULATE_FLAG(force_implicit_token_calling_convention);
   POPULATE_REPEATED_FLAG(configured_values);
+  POPULATE_FLAG(emit_assert);
   POPULATE_FLAG(emit_trace);
   POPULATE_FLAG(emit_cover);
 

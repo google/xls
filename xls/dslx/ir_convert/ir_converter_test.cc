@@ -5709,7 +5709,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, NonSynthNoAssert) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(program, "f",
-                                ConvertOptions{.emit_fail_as_assert = false}));
+                                ConvertOptions{.emit_assert = false}));
   ExpectIr(converted);
 }
 

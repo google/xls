@@ -212,7 +212,7 @@ absl::StatusOr<std::unique_ptr<AbstractParsedTestRunner>> MakeRunner(
     std::function<absl::StatusOr<std::unique_ptr<ProcRuntime>>(xls::Package*)>
         proc) {
   ConvertOptions base_option{
-      .emit_fail_as_assert = true,
+      .emit_assert = true,
       .verify_ir = false,
       .warnings_as_errors = false,
       .warnings = kNoWarningsSet,

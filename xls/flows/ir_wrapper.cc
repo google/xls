@@ -204,7 +204,7 @@ absl::StatusOr<IrWrapper> IrWrapper::Create(
 
   // Convert into IR
   const dslx::ConvertOptions convert_options = {
-      .emit_positions = true, .emit_fail_as_assert = true, .verify_ir = true};
+      .emit_positions = true, .emit_assert = true, .verify_ir = true};
 
   dslx::PackageConversionData data{
       .package = std::make_unique<Package>(ir_package_name)};

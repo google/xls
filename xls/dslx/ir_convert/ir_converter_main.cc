@@ -95,7 +95,7 @@ absl::Status RealMain(absl::Span<const std::string_view> paths) {
                              ir_converter_options.configured_values().end());
   }
 
-  bool emit_fail_as_assert = ir_converter_options.emit_fail_as_assert();
+  bool emit_assert = ir_converter_options.emit_assert();
   bool verify_ir = ir_converter_options.verify();
   bool convert_tests = ir_converter_options.convert_tests();
   bool warnings_as_errors = ir_converter_options.warnings_as_errors();
@@ -120,7 +120,7 @@ absl::Status RealMain(absl::Span<const std::string_view> paths) {
   }
   const ConvertOptions convert_options = {
       .emit_positions = true,
-      .emit_fail_as_assert = emit_fail_as_assert,
+      .emit_assert = emit_assert,
       .emit_trace = emit_trace,
       .emit_cover = emit_cover,
       .verify_ir = verify_ir,
