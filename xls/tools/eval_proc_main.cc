@@ -299,7 +299,8 @@ static absl::Status EvaluateProcs(
       XLS_ASSIGN_OR_RETURN(memory_model,
                            memory_model::CreateAbstractProcMemoryModel(
                                ram_rewrite, queue_manager));
-    } else if (ram_rewrite.to_config().kind() == RamKindProto::RAM_1RW) {
+    } else if (ram_rewrite.to_config().kind() == RamKindProto::RAM_1RW ||
+               ram_rewrite.to_config().kind() == RamKindProto::RAM_1R1W) {
       XLS_ASSIGN_OR_RETURN(memory_model,
                            memory_model::CreateRewrittenProcMemoryModel(
                                ram_rewrite, queue_manager));
@@ -597,7 +598,7 @@ InterpretBlockSignature(
   // If channels aren't around we are interpreting a 'fn' so need to get the
   // inputs directly from the data ports. Luckily we don't need to worry about
   // R/V signaling for fns.
-  if (channel_info.empty()) {
+  if (channel_info.empty() && ram_rewrites.rewrites().empty()) {
     for (const verilog::PortProto& port : signature.data_ports()) {
       channel_info[port.name()] = ChannelInfo{
           .width = port.width(),
@@ -1034,7 +1035,7 @@ static absl::Status RunBlock(
     }
     if (all_output_queues_empty) {
       if (absl::GetFlag(FLAGS_show_trace)) {
-        LOG(INFO) << "Finished at cycle " << cycle;
+        LOG(INFO) << "Finished at cycle " << cycle << " (all outputs produced)";
       }
       break;
     }
