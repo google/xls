@@ -344,7 +344,7 @@ def _count_trailing(full, piece):
       The number of times 'piece' appears at the end of 'full'.
     """
     i = 0
-    for x in reversed(full):
+    for x in reversed(full.elems()):
         if x != piece:
             return i
         i += 1
