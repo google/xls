@@ -15,6 +15,7 @@
 """Tests for xls.tools.delay_info_main."""
 
 import subprocess
+import textwrap
 
 from xls.common import runfiles
 from xls.common import test_base
@@ -61,13 +62,12 @@ class DelayInfoMainTest(test_base.TestCase):
     self.assertIn('2ps (+  1ps): not_sum: bits[32]', optimized_ir)
     self.assertIn('1ps (+  1ps): sum: bits[32] = add', optimized_ir)
     self.assertIn(
-        """
-# Delay of all nodes:
-x               :     0ps
-y               :     0ps
-sum             :     1ps
-not_sum         :     1ps
-""",
+        textwrap.dedent("""\
+            # Delay of all nodes:
+            x               :     0ps
+            y               :     0ps
+            sum             :     1ps
+            not_sum         :     1ps"""),
         optimized_ir,
     )
 
@@ -90,14 +90,40 @@ not_sum         :     1ps
     self.assertIn('# Critical path for stage 1', optimized_ir)
     self.assertIn('2ps (+  1ps): not_sum', optimized_ir)
     self.assertIn(
-        """
-# Delay of all nodes:
-x               :     0ps
-y               :     0ps
-sum             :     1ps
-not_sum         :     1ps
-""",
+        textwrap.dedent("""\
+            # Delay of all nodes:
+            x               :     0ps
+            y               :     0ps
+            sum             :     1ps
+            not_sum         :     1ps"""),
         optimized_ir,
+    )
+
+  def test_with_schedule_flag(self):
+    """Test tool with specifying --schedule."""
+    ir_file = self.create_tempfile(content=NOT_ADD_IR)
+    # The unit delay model assigns 1ps to add and 1ps to not.
+    # Scheduling with 2 stages should result in params in stage 0, and
+    # add/not in stage 1, for a critical path of 2ps in stage 1.
+    output = subprocess.check_output([
+        DELAY_INFO_MAIN_PATH,
+        '--delay_model=unit',
+        '--schedule',
+        '--pipeline_stages=2',
+        ir_file.full_path,
+    ]).decode('utf-8')
+
+    self.assertIn('# Critical path for stage 0', output)
+    self.assertIn('# Critical path for stage 1', output)
+    self.assertIn('1ps (+  1ps): not_sum', output)
+    self.assertIn(
+        textwrap.dedent("""\
+            # Delay of all nodes:
+            x               :     0ps
+            y               :     0ps
+            sum             :     1ps
+            not_sum         :     1ps"""),
+        output,
     )
 
 
