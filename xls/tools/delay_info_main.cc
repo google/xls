@@ -36,7 +36,6 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/delay_model/analyze_critical_path.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
-#include "xls/estimators/delay_model/delay_estimators.h"
 #include "xls/estimators/delay_model/delay_info.pb.h"
 #include "xls/fdo/grpc_synthesizer.h"
 #include "xls/fdo/synthesized_delay_diff_utils.h"
@@ -50,6 +49,10 @@
 #include "xls/ir/topo_sort.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
+#include "xls/scheduling/scheduling_options.h"
+#include "xls/scheduling/scheduling_result.h"
+#include "xls/tools/codegen.h"
+#include "xls/tools/scheduling_options_flags.h"
 
 static constexpr std::string_view kUsage = R"(
 
@@ -71,11 +74,12 @@ ABSL_FLAG(
     std::string, top, "",
     "The name of the top entity. Currently, only functions are supported. "
     "Function to emit delay information about.");
-ABSL_FLAG(std::string, delay_model, "",
-          "Delay model name to use from registry.");
 ABSL_FLAG(std::string, schedule_path, "",
           "Optional path to a pipeline schedule to use for emitting per-stage "
           "critical paths.");
+ABSL_FLAG(bool, schedule, false,
+          "Run scheduling to generate a schedule for delay analysis, rather "
+          "than reading a schedule via --schedule_path.");
 ABSL_FLAG(bool, compare_to_synthesis, false,
           "Whether to compare the delay info from the XLS delay model to "
           "synthesizer output.");
@@ -116,8 +120,11 @@ absl::Status RealMain(std::string_view input_path) {
                          p->GetFunctionBaseByName(absl::GetFlag(FLAGS_top)));
   }
 
+  XLS_ASSIGN_OR_RETURN(
+      SchedulingOptionsFlagsProto scheduling_options_flags_proto,
+      xls::GetSchedulingOptionsFlagsProto());
   XLS_ASSIGN_OR_RETURN(DelayEstimator * delay_estimator,
-                       GetDelayEstimator(absl::GetFlag(FLAGS_delay_model)));
+                       SetUpDelayEstimator(scheduling_options_flags_proto));
   std::unique_ptr<synthesis::Synthesizer> synthesizer;
   if (absl::GetFlag(FLAGS_compare_to_synthesis)) {
     synthesis::GrpcSynthesizerParameters parameters(
@@ -132,7 +139,8 @@ absl::Status RealMain(std::string_view input_path) {
     delay_proto.emplace();
   }
   std::optional<synthesis::SynthesizedDelayDiff> total_diff;
-  if (absl::GetFlag(FLAGS_schedule_path).empty()) {
+  if (absl::GetFlag(FLAGS_schedule_path).empty() &&
+      !absl::GetFlag(FLAGS_schedule)) {
     XLS_ASSIGN_OR_RETURN(
         std::vector<CriticalPathEntry> critical_path,
         AnalyzeCriticalPath(top, /*clock_period_ps=*/std::nullopt,
@@ -152,9 +160,24 @@ absl::Status RealMain(std::string_view input_path) {
     }
     std::cout << "\n";
   } else {
-    XLS_ASSIGN_OR_RETURN(PackageScheduleProto proto,
-                         ParseTextProtoFile<PackageScheduleProto>(
-                             absl::GetFlag(FLAGS_schedule_path)));
+    PackageScheduleProto proto;
+    if (absl::GetFlag(FLAGS_schedule)) {
+      if (!absl::GetFlag(FLAGS_schedule_path).empty()) {
+        return absl::InvalidArgumentError(
+            "Cannot specify both --schedule and --schedule_path.");
+      }
+      XLS_ASSIGN_OR_RETURN(
+          SchedulingOptions scheduling_options,
+          SetUpSchedulingOptions(scheduling_options_flags_proto, p.get()));
+      XLS_ASSIGN_OR_RETURN(
+          SchedulingResult result,
+          Schedule(p.get(), scheduling_options, delay_estimator));
+      proto = result.package_schedule;
+    } else {
+      XLS_ASSIGN_OR_RETURN(proto, ParseTextProtoFile<PackageScheduleProto>(
+                                      absl::GetFlag(FLAGS_schedule_path)));
+    }
+
     XLS_ASSIGN_OR_RETURN(PipelineSchedule schedule,
                          PipelineSchedule::FromProto(top, proto));
     XLS_RETURN_IF_ERROR(schedule.Verify());
