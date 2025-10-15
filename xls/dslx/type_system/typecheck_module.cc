@@ -340,6 +340,10 @@ absl::Status TypecheckModuleMember(const ModuleMember& member, Module* module,
             // next functions (see the previous else/if arm).
             return absl::OkStatus();
           },
+          [](ProcAlias* alias) -> absl::Status {
+            return absl::UnimplementedError(
+                "Proc aliases are not implemented in TIv1.");
+          },
           [ctx](QuickCheck* qc) -> absl::Status {
             return TypecheckQuickcheck(qc, ctx);
           },

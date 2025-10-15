@@ -770,6 +770,10 @@ class FindTypeVisitor : public AstNodeVisitorWithDefault {
     return absl::InternalError("ColonRef are not supported by the fuzzer.");
   }
 
+  absl::Status HandleProcAlias(const ProcAlias* proc_alias) override {
+    return absl::InternalError("ProcAlias is not supported by the fuzzer.");
+  }
+
  private:
   absl::Status HandleStructDefBaseInternal(const StructDefBase* struct_def) {
     for (const StructMemberNode* member : struct_def->members()) {

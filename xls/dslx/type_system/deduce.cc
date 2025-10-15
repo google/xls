@@ -2022,6 +2022,7 @@ class DeduceVisitor : public AstNodeVisitor {
   absl::Status HandleAnyTypeAnnotation(const AnyTypeAnnotation* n) override {
     return Fatal(n);
   }
+  absl::Status HandleProcAlias(const ProcAlias* n) override { return Fatal(n); }
 
   absl::Status HandleFunctionRef(const FunctionRef* n) override {
     // Builtin AST-node macros like zero!/all_ones! referenced with explicit

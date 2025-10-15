@@ -63,6 +63,7 @@ class Formatter {
   DocRef Format(const ParametricBinding& n);
   DocRef Format(const ParametricBinding* n);
   DocRef Format(const Proc& n, bool is_test = false);
+  DocRef Format(const ProcAlias& n);
   DocRef Format(const ProcDef& n);
   DocRef Format(const ProcMember& n);
   DocRef Format(const QuickCheck& n);

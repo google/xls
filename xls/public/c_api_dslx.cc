@@ -286,6 +286,9 @@ xls_dslx_module_member_kind xls_dslx_module_member_get_kind(
           [](xls::dslx::Proc*&) -> xls_dslx_module_member_kind {
             return xls_dslx_module_member_kind_proc;
           },
+          [](xls::dslx::ProcAlias*&) -> xls_dslx_module_member_kind {
+            return xls_dslx_module_member_kind_proc_alias;
+          },
           [](xls::dslx::TestFunction*&) -> xls_dslx_module_member_kind {
             return xls_dslx_module_member_kind_test_function;
           },

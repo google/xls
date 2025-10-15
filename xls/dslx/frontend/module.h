@@ -45,8 +45,8 @@ namespace xls::dslx {
 
 using ModuleMember =
     std::variant<Function*, Proc*, TestFunction*, TestProc*, QuickCheck*,
-                 TypeAlias*, StructDef*, ProcDef*, ConstantDef*, EnumDef*,
-                 Import*, Use*, ConstAssert*, Impl*, VerbatimNode*>;
+                 TypeAlias*, StructDef*, ProcAlias*, ProcDef*, ConstantDef*,
+                 EnumDef*, Import*, Use*, ConstAssert*, Impl*, VerbatimNode*>;
 
 // Returns all the NameDefs defined by the given module member.
 //

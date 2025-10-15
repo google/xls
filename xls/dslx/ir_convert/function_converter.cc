@@ -401,6 +401,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(NameDef)
   INVALID(NameDefTree)
   INVALID(ParametricBinding)
+  INVALID(ProcAlias)
   INVALID(RestOfTuple)
   INVALID(Slice)
   INVALID(TestFunction)

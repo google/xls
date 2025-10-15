@@ -61,6 +61,7 @@ cc_test(
     deps = [
         ":ast",
         ":ast_cloner",
+        ":ast_node",
         ":ast_utils",
         ":module",
         ":pos",

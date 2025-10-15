@@ -1125,24 +1125,23 @@ DocRef FmtExprOrType(const ExprOrType& n, Comments& comments, DocArena& arena) {
       n);
 }
 
-std::optional<DocRef> FmtExplicitParametrics(const Instantiation& n,
-                                             Comments& comments,
-                                             DocArena& arena) {
-  if (n.explicit_parametrics().empty()) {
+std::optional<DocRef> FmtExplicitParametrics(
+    absl::Span<const ExprOrType> parametrics, Comments& comments,
+    DocArena& arena) {
+  if (parametrics.empty()) {
     return std::nullopt;
   }
-  return ConcatNGroup(
-      arena, {arena.oangle(), arena.break0(),
-              FmtJoin<ExprOrType>(absl::MakeConstSpan(n.explicit_parametrics()),
-                                  Joiner::kCommaSpace, FmtParametricArg,
-                                  comments, arena),
-              arena.cangle()});
+  return ConcatNGroup(arena,
+                      {arena.oangle(), arena.break0(),
+                       FmtJoin<ExprOrType>(parametrics, Joiner::kCommaSpace,
+                                           FmtParametricArg, comments, arena),
+                       arena.cangle()});
 }
 
 DocRef Fmt(const FunctionRef& n, Comments& comments, DocArena& arena) {
   DocRef callee_doc = Fmt(*n.callee(), comments, arena);
-  std::optional<DocRef> parametrics_doc =
-      FmtExplicitParametrics(n, comments, arena);
+  std::optional<DocRef> parametrics_doc = FmtExplicitParametrics(
+      absl::MakeConstSpan(n.explicit_parametrics()), comments, arena);
   return parametrics_doc.has_value()
              ? ConcatN(arena, {callee_doc, *parametrics_doc})
              : callee_doc;
@@ -1151,7 +1150,7 @@ DocRef Fmt(const FunctionRef& n, Comments& comments, DocArena& arena) {
 DocRef Fmt(const Invocation& n, Comments& comments, DocArena& arena) {
   DocRef callee_doc = Fmt(*n.callee(), comments, arena);
   std::optional<DocRef> parametrics_doc =
-      FmtExplicitParametrics(n, comments, arena);
+      FmtExplicitParametrics(n.explicit_parametrics(), comments, arena);
 
   DocRef args_doc_internal =
       FmtJoin<const Expr*>(n.args(), Joiner::kCommaBreak1AsGroupNoTrailingComma,
@@ -2898,6 +2897,36 @@ DocRef Formatter::Format(const TypeAlias& n) {
   return JoinWithAttr(attr, ConcatNGroup(arena_, pieces), arena_);
 }
 
+DocRef Formatter::Format(const ProcAlias& n) {
+  std::vector<DocRef> pieces;
+  std::optional<DocRef> attr;
+  if (n.is_public()) {
+    pieces.push_back(arena_.Make(Keyword::kPub));
+    pieces.push_back(arena_.space());
+  }
+  pieces.push_back(arena_.Make(Keyword::kProc));
+  pieces.push_back(arena_.space());
+  pieces.push_back(arena_.MakeText(n.identifier()));
+  pieces.push_back(arena_.space());
+  pieces.push_back(arena_.equals());
+  pieces.push_back(arena_.break1());
+
+  ProcAlias::Target target = n.target();
+  if (std::holds_alternative<NameRef*>(target)) {
+    pieces.push_back(Fmt(*std::get<NameRef*>(target), comments_, arena_));
+  } else {
+    pieces.push_back(Fmt(*std::get<ColonRef*>(target), comments_, arena_));
+  }
+
+  std::optional<DocRef> parametrics_doc = FmtExplicitParametrics(
+      absl::MakeConstSpan(n.parametrics()), comments_, arena_);
+  if (parametrics_doc.has_value()) {
+    pieces.push_back(*parametrics_doc);
+  }
+
+  return JoinWithAttr(attr, ConcatNGroup(arena_, pieces), arena_);
+}
+
 DocRef Formatter::Format(const ModuleMember& n) {
   return absl::visit(Visitor{
                          [&](const Function* n) { return Format(*n); },
@@ -2906,6 +2935,9 @@ DocRef Formatter::Format(const ModuleMember& n) {
                          [&](const TestProc* n) { return Format(*n); },
                          [&](const QuickCheck* n) { return Format(*n); },
                          [&](const TypeAlias* n) {
+                           return arena_.MakeConcat(Format(*n), arena_.semi());
+                         },
+                         [&](const ProcAlias* n) {
                            return arena_.MakeConcat(Format(*n), arena_.semi());
                          },
                          [&](const StructDef* n) { return Format(*n); },

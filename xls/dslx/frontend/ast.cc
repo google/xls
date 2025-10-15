@@ -223,6 +223,8 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
       return "function";
     case AstNodeKind::kProc:
       return "proc";
+    case AstNodeKind::kProcAlias:
+      return "proc alias";
     case AstNodeKind::kProcMember:
       return "proc member";
     case AstNodeKind::kNameRef:
@@ -2770,6 +2772,8 @@ absl::StatusOr<Bits> Number::GetBits(int64_t bit_count,
       "Invalid NumberKind: %d", static_cast<int64_t>(number_kind_)));
 }
 
+// -- class TypeAlias
+
 TypeAlias::TypeAlias(Module* owner, Span span, NameDef& name_def,
                      TypeAnnotation& type, bool is_public)
     : AstNode(owner),
@@ -2784,6 +2788,36 @@ std::string TypeAlias::ToString() const {
   return absl::StrFormat(
       "%s%stype %s = %s;", MakeExternTypeAttr(extern_type_name_),
       is_public_ ? "pub " : "", identifier(), type_annotation_.ToString());
+}
+
+// -- class ProcAlias
+
+ProcAlias::ProcAlias(Module* owner, Span span, NameDef* name_def, Target target,
+                     bool is_public, const std::vector<ExprOrType>& parametrics)
+    : AstNode(owner),
+      span_(span),
+      name_def_(name_def),
+      target_(target),
+      is_public_(is_public),
+      parametrics_(parametrics) {}
+
+ProcAlias::~ProcAlias() = default;
+
+std::string ProcAlias::ToString() const {
+  std::string str = absl::Substitute("proc $0 = $1", identifier(),
+                                     ToAstNode(target_)->ToString());
+  if (is_public_) {
+    str = absl::StrCat("pub ", str);
+  }
+  if (parametrics_.empty()) {
+    return absl::StrCat(str, ";");
+  }
+  std::vector<std::string> parametrics;
+  parametrics.reserve(parametrics_.size());
+  for (ExprOrType next : parametrics_) {
+    parametrics.push_back(ToAstNode(next)->ToString());
+  }
+  return absl::Substitute("$0<$1>;", str, absl::StrJoin(parametrics, ", "));
 }
 
 // -- class Array

@@ -101,6 +101,7 @@
   X(Param)                        \
   X(ParametricBinding)            \
   X(Proc)                         \
+  X(ProcAlias)                    \
   X(ProcDef)                      \
   X(ProcMember)                   \
   X(QuickCheck)                   \
@@ -1499,6 +1500,51 @@ class String : public Expr {
   std::string ToStringInternal() const final;
 
   std::string text_;
+};
+
+// An alias to a non-impl-based proc. This is similar to a type alias, but not a
+// type, since non-impl-based procs are not types.
+class ProcAlias : public AstNode {
+ public:
+  static std::string_view GetDebugTypeName() { return "proc alias"; }
+
+  using Target = std::variant<NameRef*, ColonRef*>;
+
+  ProcAlias(Module* owner, Span span, NameDef* name_def, Target target,
+            bool is_public, const std::vector<ExprOrType>& parametrics);
+
+  ~ProcAlias() override;
+
+  AstNodeKind kind() const override { return AstNodeKind::kProcAlias; }
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleProcAlias(this);
+  }
+
+  std::string_view GetNodeTypeName() const override { return "ProcAlias"; }
+
+  const std::string& identifier() const { return name_def_->identifier(); }
+
+  std::string ToString() const override;
+
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    return {name_def_, ToAstNode(target_)};
+  }
+
+  NameDef* name_def() const { return name_def_; }
+  Target target() const { return target_; }
+  bool is_public() const { return is_public_; }
+  const Span& span() const { return span_; }
+  std::optional<Span> GetSpan() const override { return span_; }
+
+  const std::vector<ExprOrType>& parametrics() const { return parametrics_; }
+
+ private:
+  Span span_;
+  NameDef* name_def_;
+  Target target_;
+  bool is_public_;
+  std::vector<ExprOrType> parametrics_;
 };
 
 // Represents a user-defined-type definition; e.g.

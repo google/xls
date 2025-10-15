@@ -58,6 +58,7 @@ enum {
   xls_dslx_module_member_kind_impl,
   xls_dslx_module_member_kind_verbatim_node,
   xls_dslx_module_member_kind_use,
+  xls_dslx_module_member_kind_proc_alias,
 };
 
 // Opaque structs.

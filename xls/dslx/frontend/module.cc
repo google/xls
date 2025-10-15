@@ -353,34 +353,8 @@ absl::Status Module::AddTop(ModuleMember member,
   // Get name
   std::vector<std::string> member_names = absl::visit(
       Visitor{
-          [](Function* f) { return std::vector<std::string>{f->identifier()}; },
-          [](Proc* p) { return std::vector<std::string>{p->identifier()}; },
-          [](TestFunction* tf) {
-            return std::vector<std::string>{tf->identifier()};
-          },
-          [](TestProc* tp) {
-            return std::vector<std::string>{tp->proc()->identifier()};
-          },
-          [](QuickCheck* qc) {
-            return std::vector<std::string>{qc->identifier()};
-          },
-          [](TypeAlias* td) {
-            return std::vector<std::string>{td->identifier()};
-          },
-          [](StructDef* sd) {
-            return std::vector<std::string>{sd->identifier()};
-          },
-          [](ProcDef* pd) {
-            return std::vector<std::string>{pd->identifier()};
-          },
+          [](auto* m) { return std::vector<std::string>{m->identifier()}; },
           [](Impl* id) { return std::vector<std::string>{}; },
-          [](ConstantDef* cd) {
-            return std::vector<std::string>{cd->identifier()};
-          },
-          [](EnumDef* ed) {
-            return std::vector<std::string>{ed->identifier()};
-          },
-          [](Import* i) { return std::vector<std::string>{i->identifier()}; },
           [](Use* u) {
             return std::vector<std::string>{u->GetLeafIdentifiers()};
           },
@@ -422,6 +396,7 @@ std::string_view GetModuleMemberTypeName(const ModuleMember& module_member) {
                          [](QuickCheck*) { return "quick-check"; },
                          [](TypeAlias*) { return "type-alias"; },
                          [](StructDef*) { return "struct-definition"; },
+                         [](ProcAlias*) { return "proc-alias"; },
                          [](ProcDef*) { return "proc-definition"; },
                          [](Impl*) { return "impl"; },
                          [](ConstantDef*) { return "constant-definition"; },

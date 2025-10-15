@@ -2425,6 +2425,20 @@ TEST_F(ModuleFmtTest, SimpleProcWithTypeAlias) {
 )");
 }
 
+TEST_F(ModuleFmtTest, ProcAlias) {
+  DoFmt(
+      R"(pub proc Foo<A: u32, B: u32> {
+    config() {  }
+
+    init { () }
+
+    next(state: ()) { state }
+}
+
+pub proc Bar = Foo<3, 4>;
+)");
+}
+
 // Based on report in https://github.com/google/xls/issues/1216
 TEST_F(ModuleFmtTest, ProcSpawnImported) {
   DoFmt(

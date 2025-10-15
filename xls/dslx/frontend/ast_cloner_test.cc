@@ -36,6 +36,7 @@
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
@@ -976,6 +977,30 @@ TEST(AstClonerTest, TypeAlias) {
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(type_alias));
   EXPECT_EQ(kProgram, clone->ToString());
   XLS_ASSERT_OK(VerifyClone(type_alias, clone, file_table));
+}
+
+TEST(AstClonerTest, ProcAlias) {
+  constexpr std::string_view kProgram =
+      R"(
+pub proc Foo<A: u32, B: u32> {
+    config() {}
+    init {
+        ()
+    }
+    next(state: ()) {
+        state
+    }
+}
+pub proc Bar = Foo<3, 4>;
+)";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(ProcAlias * proc_alias,
+                           module->GetMemberOrError<ProcAlias>("Bar"));
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(proc_alias));
+  XLS_ASSERT_OK(VerifyClone(proc_alias, clone, file_table));
 }
 
 // This is an interesting case because the start and limit of the slice are

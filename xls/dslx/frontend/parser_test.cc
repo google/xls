@@ -2599,6 +2599,76 @@ TEST_F(ParserTest, ParametricColonRefInvocation) {
 }
 
 TEST_F(ParserTest, ModuleWithTypeAlias) { RoundTrip("type MyType = u32;"); }
+
+TEST_F(ParserTest, ModuleWithProcAlias) {
+  RoundTrip(R"(proc Foo {
+    config() {}
+    init {
+        ()
+    }
+    next(state: ()) {
+        state
+    }
+}
+proc Bar = Foo;)");
+}
+
+TEST_F(ParserTest, ModuleWithParametricProcAlias) {
+  RoundTrip(R"(proc Foo<A: u32, B: u32> {
+    config() {}
+    init {
+        ()
+    }
+    next(state: ()) {
+        state
+    }
+}
+proc Bar = Foo<3, 4>;)");
+}
+
+TEST_F(ParserTest, ModuleWithPublicParametricProcAlias) {
+  RoundTrip(R"(pub proc Foo<A: u32, B: u32> {
+    config() {}
+    init {
+        ()
+    }
+    next(state: ()) {
+        state
+    }
+}
+pub proc Bar = Foo<3, 4>;)");
+}
+
+TEST_F(ParserTest, ModuleWithProcAssignedToNumber) {
+  constexpr std::string_view kProgram = "proc Bar = 4;";
+
+  FileTable file_table;
+  Scanner s{file_table, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
+  EXPECT_THAT(module.status(),
+              IsPosError("ParseError",
+                         HasSubstr("Expected 'identifier', got 'number'")));
+}
+
+TEST_F(ParserTest, ModuleWithProcAssignedToInvocation) {
+  constexpr std::string_view kProgram = R"(
+fn foo<N: u32>(a: uN[N]) -> uN[N] { a }
+proc Bar = foo<4>();
+)";
+
+  FileTable file_table;
+  Scanner s{file_table, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
+  EXPECT_THAT(
+      module.status(),
+      IsPosError(
+          "ParseError",
+          HasSubstr(
+              "Expected ';' for construct starting with 'keyword:proc'")));
+}
+
 TEST_F(ParserTest, ModuleWithTypeAliasSvType) {
   RoundTrip(R"(#[sv_type("cool")]
 type MyType = u32;)");

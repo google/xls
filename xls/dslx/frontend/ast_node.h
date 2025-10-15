@@ -67,6 +67,7 @@ enum class AstNodeKind : uint8_t {
   kParam,
   kParametricBinding,
   kProc,
+  kProcAlias,
   kProcDef,
   kProcMember,
   kQuickCheck,

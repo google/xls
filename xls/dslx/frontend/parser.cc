@@ -3081,6 +3081,21 @@ absl::StatusOr<ModuleMember> Parser::ParseProcLike(const Pos& start_pos,
                                                    Keyword keyword) {
   XLS_ASSIGN_OR_RETURN(Token leading_token, PopKeywordOrError(keyword));
   XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDef(outer_bindings));
+  XLS_ASSIGN_OR_RETURN(bool is_alias, TryDropToken(TokenKind::kEquals));
+  if (is_alias) {
+    std::variant<NameRef*, ColonRef*> target;
+    XLS_ASSIGN_OR_RETURN(target, ParseNameOrColonRef(outer_bindings));
+    XLS_ASSIGN_OR_RETURN(bool has_parametrics, PeekTokenIs(TokenKind::kOAngle));
+    std::vector<ExprOrType> parametrics;
+    if (has_parametrics) {
+      XLS_ASSIGN_OR_RETURN(parametrics, ParseParametrics(outer_bindings));
+    }
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi, &leading_token,
+                                         "';' at end of proc alias"));
+    Span span(start_pos, GetPos());
+    return module_->Make<ProcAlias>(span, name_def, target, is_public,
+                                    parametrics);
+  }
 
   // Bindings for "within the proc" scope.
   //

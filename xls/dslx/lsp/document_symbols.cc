@@ -115,6 +115,10 @@ std::vector<verible::lsp::DocumentSymbol> ToDocumentSymbols(const Module& m) {
                           // TODO(google/xls#1080): Complete the set of symbols.
                           return std::vector<verible::lsp::DocumentSymbol>{};
                         },
+                        [](ProcAlias*) {
+                          // TODO(google/xls#1080): Complete the set of symbols.
+                          return std::vector<verible::lsp::DocumentSymbol>{};
+                        },
                         [](Impl*) {
                           // TODO(google/xls#1080): Complete the set of symbols.
                           return std::vector<verible::lsp::DocumentSymbol>{};
