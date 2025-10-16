@@ -90,14 +90,14 @@ void StatusBuilder::ConditionallyLog(const absl::Status& status) const {
       };
       static auto* vlog_sites = new LogSites();
 
-      vlog_sites->mutex.Lock();
+      vlog_sites->mutex.lock();
       // This assumes that loc_.file_name() is a compile time constant in order
       // to satisfy the lifetime constraints imposed by VLogSite. The
       // constructors of SourceLocation guarantee that for us.
       auto [iter, unused] = vlog_sites->sites_by_file.try_emplace(
           loc_.file_name(), loc_.file_name());
       auto& site = iter->second;
-      vlog_sites->mutex.Unlock();
+      vlog_sites->mutex.unlock();
 
       if (!site.IsEnabled(rep_->verbose_level)) {
         return;
@@ -114,11 +114,11 @@ void StatusBuilder::ConditionallyLog(const absl::Status& status) const {
       };
       static auto* log_every_n_sites = new LogSites();
 
-      log_every_n_sites->mutex.Lock();
+      log_every_n_sites->mutex.lock();
       const uint32_t count =
           log_every_n_sites
               ->counts_by_file_and_line[{loc_.file_name(), loc_.line()}]++;
-      log_every_n_sites->mutex.Unlock();
+      log_every_n_sites->mutex.unlock();
 
       if (count % rep_->n != 0) {
         return;
@@ -134,7 +134,7 @@ void StatusBuilder::ConditionallyLog(const absl::Status& status) const {
       static auto* log_every_sites = new LogSites();
 
       const auto now = absl::Now();
-      absl::MutexLock lock(&log_every_sites->mutex);
+      absl::MutexLock lock(log_every_sites->mutex);
       absl::Time& next_log =
           log_every_sites
               ->next_log_by_file_and_line[{loc_.file_name(), loc_.line()}];
