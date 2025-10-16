@@ -298,20 +298,13 @@ class ModuleBuilder {
     Expression* expression;
     BitsType* xls_type;
   };
-  absl::Status EmitArrayCopyAndUpdate(IndexableExpression* lhs,
-                                      IndexableExpression* rhs,
-                                      Expression* update_value,
-                                      absl::Span<const IndexType> indices,
-                                      IndexMatch index_match, Type* xls_type);
 
   // Emits a copy-and-update of an array using a generate loop, which avoids
   // unnecessary bloat in the output code size.
-  absl::Status EmitArrayCopyAndUpdateViaGenerate1D(std::string_view op_name,
-                                                   IndexableExpression* lhs,
-                                                   IndexableExpression* rhs,
-                                                   Expression* update_value,
-                                                   IndexType index_type,
-                                                   Type* xls_type);
+  absl::Status EmitArrayCopyAndUpdateViaGenerate(
+      std::string_view op_name, IndexableExpression* lhs,
+      IndexableExpression* rhs, Expression* update_value,
+      absl::Span<const ModuleBuilder::IndexType> indices, Type* xls_type);
 
   // Assigns the arbitrarily-typed Value 'value' to 'lhs'. Depending upon the
   // type this may require multiple assignment statements. The function
