@@ -131,6 +131,36 @@ absl::StatusOr<bool> StrengthReduceNode(Node* node,
     return true;
   }
 
+  // Sink operations into selects in some circumstances.
+  //
+  // If we have an operation where all operands except for one select are
+  // known-constant and the select has a constant value in each of its cases we
+  // can move the operation into the select in order to allow other
+  // narrowing/constant propagation passes to calculate the resulting value.
+  //
+  // v1 := Select(<variable>, [<const1>, <const2>])
+  // v2 := Op(v1, <const3>)
+  //
+  // Transforms to
+  //
+  // v1_c1 := Op(<const1>, <const3>)
+  // v1_c2 := Op(<const2>, <const3>)
+  // v2 := Select(<variable>, [v1_c1, v1_c2])
+  if (!query_engine.IsFullyKnown(node)) {
+    auto operands = node->operands();
+    auto is_select_with_known_branches_unknown_selector = [&](Node* n) {
+      return n->Is<Select>() && !query_engine.IsFullyKnown(n) &&
+             n->As<Select>()->AllCases(
+                 [&](Node* c) -> bool { return query_engine.IsFullyKnown(c); });
+    };
+    auto select_it = absl::c_find_if(
+        operands, is_select_with_known_branches_unknown_selector);
+    if (select_it != operands.end()) {
+      return MaybeSinkOperationIntoSelect(node, query_engine,
+                                          (*select_it)->As<Select>());
+    }
+  }
+
   if (node->op() == Op::kAdd) {
     // If one operand is zero, replace the add with the other operand.
     Node* nonzero_operand = nullptr;
@@ -509,6 +539,108 @@ absl::StatusOr<bool> StrengthReduceNode(Node* node,
     }
   }
 
+  // If we have an adder where we know carries can't propagate through a
+  // particular bit, we can split the adder into two smaller adders and reduce
+  // the overall delay.
+  auto get_ternary = [&](Node* n) {
+    CHECK(n->GetType()->IsBits());
+    std::optional<SharedTernaryTree> ternary_tree = query_engine.GetTernary(n);
+    if (!ternary_tree.has_value()) {
+      return TernaryVector(n->BitCountOrDie(), TernaryValue::kUnknown);
+    }
+    return ternary_tree->Get({});
+  };
+  if (SplitsEnabled(opt_level) && node->op() == Op::kAdd) {
+    Node* add = node;
+    Node* lhs = node->operand(0);
+    Node* rhs = node->operand(1);
+
+    TernaryVector propagate_carry =
+        ternary_ops::Or(get_ternary(lhs), get_ternary(rhs));
+    if (auto non_propagate_it =
+            absl::c_find(propagate_carry, TernaryValue::kKnownZero);
+        non_propagate_it != propagate_carry.end() &&
+        non_propagate_it != propagate_carry.end() - 1) {
+      int64_t split_point =
+          std::distance(propagate_carry.begin(), non_propagate_it) + 1;
+      VLOG(2) << "Add cannot propagate carries to bit " << split_point
+              << "; replacing with two adders: " << add->ToString();
+
+      XLS_ASSIGN_OR_RETURN(Node * trailing_lhs,
+                           node->function_base()->MakeNode<BitSlice>(
+                               node->loc(), lhs, 0, split_point));
+      XLS_ASSIGN_OR_RETURN(Node * leading_lhs,
+                           node->function_base()->MakeNode<BitSlice>(
+                               node->loc(), lhs, split_point,
+                               lhs->BitCountOrDie() - split_point));
+      XLS_ASSIGN_OR_RETURN(Node * trailing_rhs,
+                           node->function_base()->MakeNode<BitSlice>(
+                               node->loc(), rhs, 0, split_point));
+      XLS_ASSIGN_OR_RETURN(Node * leading_rhs,
+                           node->function_base()->MakeNode<BitSlice>(
+                               node->loc(), rhs, split_point,
+                               rhs->BitCountOrDie() - split_point));
+
+      XLS_ASSIGN_OR_RETURN(Node * leading_add,
+                           add->function_base()->MakeNode<BinOp>(
+                               add->loc(), leading_lhs, leading_rhs, Op::kAdd));
+      XLS_ASSIGN_OR_RETURN(
+          Node * trailing_add,
+          add->function_base()->MakeNode<BinOp>(add->loc(), trailing_lhs,
+                                                trailing_rhs, Op::kAdd));
+      XLS_RETURN_IF_ERROR(
+          add->ReplaceUsesWithNew<Concat>(
+                 absl::Span<Node* const>{leading_add, trailing_add})
+              .status());
+      return true;
+    }
+  }
+  if (SplitsEnabled(opt_level) && node->op() == Op::kSub) {
+    Node* sub = node;
+    Node* lhs = node->operand(0);
+    Node* rhs = node->operand(1);
+
+    TernaryVector borrow_stop =
+        ternary_ops::And(get_ternary(lhs), ternary_ops::Not(get_ternary(rhs)));
+    if (auto borrow_stop_it =
+            absl::c_find(borrow_stop, TernaryValue::kKnownOne);
+        borrow_stop_it != borrow_stop.end() &&
+        borrow_stop_it != borrow_stop.end() - 1) {
+      int64_t split_point =
+          std::distance(borrow_stop.begin(), borrow_stop_it) + 1;
+      VLOG(2) << "Sub cannot propagate borrows to bit " << split_point
+              << "; replacing with two subtractors: " << sub->ToString();
+
+      XLS_ASSIGN_OR_RETURN(Node * trailing_lhs,
+                           node->function_base()->MakeNode<BitSlice>(
+                               node->loc(), lhs, 0, split_point));
+      XLS_ASSIGN_OR_RETURN(Node * leading_lhs,
+                           node->function_base()->MakeNode<BitSlice>(
+                               node->loc(), lhs, split_point,
+                               lhs->BitCountOrDie() - split_point));
+      XLS_ASSIGN_OR_RETURN(Node * trailing_rhs,
+                           node->function_base()->MakeNode<BitSlice>(
+                               node->loc(), rhs, 0, split_point));
+      XLS_ASSIGN_OR_RETURN(Node * leading_rhs,
+                           node->function_base()->MakeNode<BitSlice>(
+                               node->loc(), rhs, split_point,
+                               rhs->BitCountOrDie() - split_point));
+
+      XLS_ASSIGN_OR_RETURN(Node * leading_sub,
+                           sub->function_base()->MakeNode<BinOp>(
+                               sub->loc(), leading_lhs, leading_rhs, Op::kSub));
+      XLS_ASSIGN_OR_RETURN(
+          Node * trailing_sub,
+          sub->function_base()->MakeNode<BinOp>(sub->loc(), trailing_lhs,
+                                                trailing_rhs, Op::kSub));
+      XLS_RETURN_IF_ERROR(
+          sub->ReplaceUsesWithNew<Concat>(
+                 absl::Span<Node* const>{leading_sub, trailing_sub})
+              .status());
+      return true;
+    }
+  }
+
   // Transform arithmetic operation with exactly one unknown-bit in all of its
   // operands into a select on that one unknown bit.
   constexpr std::array<Op, 6> kExpensiveArithOps = {
@@ -598,42 +730,6 @@ absl::StatusOr<bool> StrengthReduceNode(Node* node,
       XLS_RETURN_IF_ERROR(replace_with_select(
           unknown_operand, zero_value.bits(), zero_result, one_result));
       return true;
-    }
-  }
-
-  // Sink operations into selects in some circumstances.
-  //
-  // If we have an operation where all operands except for one select are
-  // known-constant and the select has a constant value in each of its cases we
-  // can move the operation into the select in order to allow other
-  // narrowing/constant propagation passes to calculate the resulting value.
-  //
-  // v1 := Select(<variable>, [<const1>, <const2>])
-  // v2 := Op(v1, <const3>)
-  //
-  // Transforms to
-  //
-  // v1_c1 := Op(<const1>, <const3>)
-  // v1_c2 := Op(<const2>, <const3>)
-  // v2 := Select(<variable>, [v1_c1, v1_c2])
-  if (!query_engine.IsFullyKnown(node)) {
-    auto operands = node->operands();
-    // Find a non-fully-known select
-    auto is_select_with_known_branches_unknown_selector = [&](Node* n) {
-      return n->Is<Select>() && !query_engine.IsFullyKnown(n) &&
-             n->As<Select>()->AllCases(
-                 [&](Node* c) -> bool { return query_engine.IsFullyKnown(c); });
-    };
-    auto select_it = absl::c_find_if(
-        operands, is_select_with_known_branches_unknown_selector);
-    // We need both an unknown select and all other operands to be fully known.
-    if (select_it != operands.end()) {
-      XLS_ASSIGN_OR_RETURN(bool changed,
-                           MaybeSinkOperationIntoSelect(
-                               node, query_engine, (*select_it)->As<Select>()));
-      if (changed) {
-        return true;
-      }
     }
   }
 
