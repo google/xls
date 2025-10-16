@@ -184,7 +184,7 @@ class ClangTidyRunner {
       for (;;) {
         filepath_contenthash_t work;
         {
-          absl::MutexLock lock(&queue_access_lock);
+          absl::MutexLock lock(queue_access_lock);
           if (work_queue.empty()) {
             return;
           }
