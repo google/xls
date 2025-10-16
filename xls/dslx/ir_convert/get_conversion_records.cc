@@ -68,9 +68,10 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
       ParametricEnv caller_bindings, bool is_top,
       std::optional<ProcId> proc_id) {
     if (invocation != nullptr) {
-      VLOG(5) << "Processing invocation " << invocation->ToString();
+      VLOG(5) << "InvocationToConversionRecord processing invocation "
+              << invocation->ToString();
     } else {
-      VLOG(5) << "Processing fn " << f->ToString();
+      VLOG(5) << "InvocationToConversionRecord processing fn " << f->ToString();
     }
     // Note, it's possible there is no config invocation if it's a
     // top proc or some other reason.
@@ -116,6 +117,7 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status AddFunction(const Function* f) {
+    VLOG(5) << "AddFunction " << f->ToString();
     std::optional<ProcId> proc_id;
     if (f->proc().has_value()) {
       proc_id = proc_id_factory_.CreateProcId(
@@ -163,6 +165,7 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleFunction(const Function* f) override {
+    VLOG(5) << "HandleFunction " << f->ToString();
     if (f->tag() == FunctionTag::kProcInit ||
         f->tag() == FunctionTag::kProcConfig ||
         f->tag() == FunctionTag::kProcNext) {
@@ -175,6 +178,7 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleInvocation(const Invocation* invocation) override {
+    VLOG(5) << "HandleInvocation " << invocation->ToString();
     auto root_invocation_data = type_info_->GetRootInvocationData(invocation);
     XLS_RET_CHECK(root_invocation_data.has_value());
     const InvocationData* invocation_data = *root_invocation_data;
@@ -192,6 +196,7 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleSpawn(const Spawn* spawn) override {
+    VLOG(5) << "HandleSpawn " << spawn->ToString();
     Invocation* invocation = spawn->config();
 
     auto root_invocation_data = type_info_->GetRootInvocationData(invocation);
@@ -211,18 +216,23 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
 
   absl::Status HandleTestFunction(const TestFunction* tf) override {
     if (!include_tests_) {
+      VLOG(5) << "include_tests_ is false; skipping HandleTestFunction "
+              << tf->ToString();
       return absl::OkStatus();
     }
+    VLOG(5) << "HandleTestFunction " << tf->ToString();
     return DefaultHandler(tf);
   }
 
   absl::Status HandleQuickCheck(const QuickCheck* qc) override {
+    VLOG(5) << "HandleQuickCheck " << qc->ToString();
     Function* f = qc->fn();
     XLS_RET_CHECK(!f->IsParametric()) << f->ToString();
     return DefaultHandler(qc);
   }
 
   absl::Status HandleProc(const Proc* p) override {
+    VLOG(5) << "HandleProc " << p->ToString();
     const Function* next_fn = &p->next();
 
     // This is required in order to process cross-module spawns; otherwise it
@@ -260,8 +270,11 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
 
   absl::Status HandleTestProc(const TestProc* tp) override {
     if (!include_tests_) {
+      VLOG(5) << "include_tests_ is false; skipping HandleTestProc "
+              << tp->ToString();
       return absl::OkStatus();
     }
+    VLOG(5) << "HandleTestProc " << tp->ToString();
     return DefaultHandler(tp);
   }
 
