@@ -56,7 +56,7 @@ use_repo(pip, "xls_pip_deps")
 
 # Root module dependencies.
 # Note: some WORKSPACE dependencies still require repo_name aliases.
-bazel_dep(name = "abseil-cpp", version = "20250512.0", repo_name = "com_google_absl")
+bazel_dep(name = "abseil-cpp", version = "20250814.1", repo_name = "com_google_absl")
 bazel_dep(name = "abseil-py", version = "2.1.0")
 bazel_dep(name = "bazel_features", version = "1.30.0")
 bazel_dep(name = "bazel_skylib", version = "1.7.1")
