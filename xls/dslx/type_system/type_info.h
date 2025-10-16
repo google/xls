@@ -73,6 +73,14 @@ struct InvocationCalleeData {
   const Invocation* invocation;
 };
 
+// The information for a `ProcAlias` that is resolved during type inference.
+struct ResolvedProcAlias {
+  Proc* proc;
+  ParametricEnv env;
+  TypeInfo* config_type_info;
+  TypeInfo* next_type_info;
+};
+
 // Parametric instantiation information related to an invocation AST node.
 struct InvocationData {
  public:
@@ -228,6 +236,18 @@ class TypeInfo {
   void SetItem(const AstNode* key, std::unique_ptr<Type> value) {
     CHECK_EQ(key->owner(), module_);
     dict_[key] = std::move(value);
+  }
+
+  // Used by type inference to set the resolved data for a `ProcAlias`.
+  void SetResolvedProcAlias(const ProcAlias* alias,
+                            ResolvedProcAlias resolved) {
+    resolved_proc_aliases_[alias] = std::move(resolved);
+  }
+
+  // Used by phases downstream of type inference to retrieve a proc alias
+  // resolution result.
+  const ResolvedProcAlias& GetResolvedProcAlias(const ProcAlias* alias) {
+    return resolved_proc_aliases_.at(alias);
   }
 
   // Attempts to resolve AST node 'key' in the node-to-type dictionary.
@@ -451,6 +471,9 @@ class TypeInfo {
 
   // Maps a Proc to the TypeInfo used for its top-level typechecking.
   absl::flat_hash_map<const Proc*, TypeInfo*> top_level_proc_type_info_;
+
+  absl::flat_hash_map<const ProcAlias*, ResolvedProcAlias>
+      resolved_proc_aliases_;
 
   TypeInfo* parent_;  // Note: may be nullptr.
 };

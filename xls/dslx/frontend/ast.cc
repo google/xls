@@ -2803,6 +2803,15 @@ ProcAlias::ProcAlias(Module* owner, Span span, NameDef* name_def, Target target,
 
 ProcAlias::~ProcAlias() = default;
 
+std::vector<AstNode*> ProcAlias::GetChildren(bool want_types) const {
+  std::vector<AstNode*> result{name_def_, ToAstNode(target_)};
+  result.reserve(result.size() + parametrics_.size());
+  for (ExprOrType next : parametrics_) {
+    result.push_back(ToAstNode(next));
+  }
+  return result;
+}
+
 std::string ProcAlias::ToString() const {
   std::string str = absl::Substitute("proc $0 = $1", identifier(),
                                      ToAstNode(target_)->ToString());

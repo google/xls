@@ -92,7 +92,8 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(
 //  f: The top level function.
 //  type_info: Mapping from node to type.
 absl::StatusOr<std::vector<ConversionRecord>> GetOrderForEntry(
-    std::variant<Function*, Proc*> entry, TypeInfo* type_info);
+    std::variant<Function*, Proc*> entry, TypeInfo* type_info,
+    std::optional<ResolvedProcAlias> resolved_proc_alias = std::nullopt);
 
 // Top level procs are procs where their config or next function is not invoked
 // within the module.

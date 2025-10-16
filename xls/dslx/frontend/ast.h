@@ -1527,9 +1527,7 @@ class ProcAlias : public AstNode {
 
   std::string ToString() const override;
 
-  std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {name_def_, ToAstNode(target_)};
-  }
+  std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   NameDef* name_def() const { return name_def_; }
   Target target() const { return target_; }

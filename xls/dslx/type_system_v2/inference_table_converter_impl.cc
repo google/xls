@@ -110,6 +110,8 @@ class ProcTypeInfoFrame {
   ProcTypeInfoFrame& operator=(const ProcTypeInfoFrame&) = delete;
   ProcTypeInfoFrame& operator=(ProcTypeInfoFrame&&) = default;
 
+  TypeInfo* type_info() { return ti_; }
+
   ~ProcTypeInfoFrame() {
     CHECK(!stack_->empty() && stack_->top() == ti_);
     stack_->pop();
@@ -821,12 +823,16 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
 
   absl::StatusOr<std::unique_ptr<ProcTypeInfoFrame>> PushProcTypeInfo(
       const Proc* proc) {
+    XLS_ASSIGN_OR_RETURN(TypeInfo * base_type_info_for_proc_module,
+                         import_data_.GetRootTypeInfo(proc->owner()));
     absl::StatusOr<TypeInfo*> ti =
-        base_type_info_->GetTopLevelProcTypeInfo(proc);
+        base_type_info_for_proc_module->GetTopLevelProcTypeInfo(proc);
     if (!ti.ok()) {
-      XLS_ASSIGN_OR_RETURN(
-          ti, import_data_.type_info_owner().New(&module_, base_type_info_));
-      XLS_RETURN_IF_ERROR(base_type_info_->SetTopLevelProcTypeInfo(proc, *ti));
+      XLS_ASSIGN_OR_RETURN(ti,
+                           import_data_.type_info_owner().New(
+                               proc->owner(), base_type_info_for_proc_module));
+      XLS_RETURN_IF_ERROR(
+          base_type_info_for_proc_module->SetTopLevelProcTypeInfo(proc, *ti));
     }
     return ProcTypeInfoFrame::Push(&proc_type_info_stack_, *ti);
   }
@@ -876,6 +882,15 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
 
     XLS_ASSIGN_OR_RETURN(TypeInfo * ti,
                          GetTypeInfo(node->owner(), parametric_context));
+
+    if (node->kind() == AstNodeKind::kProcAlias) {
+      const auto* alias = down_cast<const ProcAlias*>(node);
+      XLS_ASSIGN_OR_RETURN(ResolvedProcAlias resolved,
+                           ResolveProcAlias(ti, alias));
+      ti->SetResolvedProcAlias(alias, resolved);
+      return absl::OkStatus();
+    }
+
     std::optional<const TypeAnnotation*> annotation = pre_unified_type;
 
     // Resolve and unify the type information for the node, if it was not
@@ -2331,6 +2346,118 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           ")"));
     }
     return absl::OkStatus();
+  }
+
+  absl::StatusOr<ResolvedProcAlias> ResolveProcAlias(TypeInfo* alias_ti,
+                                                     const ProcAlias* alias) {
+    // Determine the target proc.
+    AstNode* target_node = nullptr;
+    if (std::holds_alternative<NameRef*>(alias->target())) {
+      const NameDef* def = std::get<const NameDef*>(
+          std::get<NameRef*>(alias->target())->name_def());
+      target_node = def->definer();
+    } else {
+      std::optional<const AstNode*> target =
+          table_.GetColonRefTarget(std::get<ColonRef*>(alias->target()));
+      if (target.has_value()) {
+        target_node = const_cast<AstNode*>(*target);
+      }
+    }
+
+    if (target_node == nullptr || target_node->kind() != AstNodeKind::kProc) {
+      return TypeInferenceErrorStatus(
+          alias->span(), nullptr, "Proc alias must have a proc as a target.",
+          file_table_);
+    }
+
+    Proc* proc = down_cast<Proc*>(target_node);
+
+    // For now, require all parametrics to be specified.
+    // TODO: Support default exprs here.
+    if (alias->parametrics().size() != proc->parametric_bindings().size()) {
+      return ArgCountMismatchErrorStatus(
+          alias->span(),
+          absl::Substitute("Expected $0 parametrics to be specified by alias "
+                           "for proc $1; got $2.",
+                           proc->parametric_bindings().size(),
+                           proc->identifier(), alias->parametrics().size()),
+          file_table_);
+    }
+
+    // Establish the proc base type info.
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ProcTypeInfoFrame> frame,
+                         PushProcTypeInfo(proc));
+    TypeInfo* ti = frame->type_info();
+
+    // For a non-parametric proc, that's it.
+    if (alias->parametrics().empty()) {
+      return ResolvedProcAlias{.proc = proc,
+                               .env = ParametricEnv{},
+                               .config_type_info = ti,
+                               .next_type_info = ti};
+    }
+
+    // For a parametric proc, we need to create a `ParametricContext` and
+    // `ParametricEnv` and then actually convert the proc functions and members
+    // in that context.
+    XLS_ASSIGN_OR_RETURN(TypeInfo * config_ti,
+                         import_data_.type_info_owner().New(proc->owner(), ti));
+    XLS_ASSIGN_OR_RETURN(TypeInfo * next_ti,
+                         import_data_.type_info_owner().New(proc->owner(), ti));
+    absl::flat_hash_map<std::string, InterpValue> parametrics;
+    std::vector<Expr*> parametric_exprs;
+    parametric_exprs.reserve(alias->parametrics().size());
+    for (int i = 0; i < alias->parametrics().size(); i++) {
+      const ParametricBinding* binding = proc->parametric_bindings()[i];
+      ExprOrType value_node = alias->parametrics()[i];
+      if (!std::holds_alternative<Expr*>(value_node)) {
+        return TypeInferenceErrorStatus(
+            *ToAstNode(value_node)->GetSpan(), nullptr,
+            "Expected expression but got type for proc alias parametric.",
+            file_table_);
+      }
+      Expr* value_expr = std::get<Expr*>(value_node);
+      parametric_exprs.push_back(value_expr);
+      XLS_ASSIGN_OR_RETURN(
+          InterpValue value,
+          evaluator_->Evaluate(std::nullopt, alias_ti,
+                               binding->type_annotation(), value_expr));
+      XLS_ASSIGN_OR_RETURN(
+          std::unique_ptr<Type> binding_type,
+          Concretize(binding->type_annotation(), std::nullopt));
+
+      config_ti->SetItem(binding->name_def(), *binding_type);
+      next_ti->SetItem(binding->name_def(), *binding_type);
+      config_ti->NoteConstExpr(binding->name_def(), value);
+      next_ti->NoteConstExpr(binding->name_def(), value);
+      parametrics.emplace(binding->identifier(), std::move(value));
+    }
+
+    ParametricEnv env(parametrics);
+    XLS_ASSIGN_OR_RETURN(
+        ParametricContext * config_context,
+        table_.AddProcAliasParametricContext(*alias, env, parametric_exprs,
+                                             proc->config(), config_ti));
+    XLS_ASSIGN_OR_RETURN(
+        ParametricContext * next_context,
+        table_.AddProcAliasParametricContext(*alias, env, parametric_exprs,
+                                             proc->next(), next_ti));
+
+    XLS_RETURN_IF_ERROR(
+        ConvertSubtree(&proc->config(), &proc->config(), config_context));
+    XLS_RETURN_IF_ERROR(
+        ConvertSubtree(&proc->init(), &proc->init(), next_context));
+    XLS_RETURN_IF_ERROR(
+        ConvertSubtree(&proc->next(), &proc->next(), next_context));
+    for (const ProcMember* member : proc->members()) {
+      XLS_RETURN_IF_ERROR(ConvertSubtree(member, std::nullopt, config_context));
+      XLS_RETURN_IF_ERROR(ConvertSubtree(member, std::nullopt, next_context));
+    }
+
+    return ResolvedProcAlias{.proc = proc,
+                             .env = env,
+                             .config_type_info = config_ti,
+                             .next_type_info = next_ti};
   }
 
   // Get the cached concretized type for a (node, parametric_context) pair.

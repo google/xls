@@ -2658,6 +2658,102 @@ proc main {
   ExpectIr(converted);
 }
 
+TEST_P(IrConverterWithBothTypecheckVersionsTest, HandlesBasicProcAlias) {
+  if (GetParam() == TypeInferenceVersion::kVersion1) {
+    // Proc aliases are not supported in TIv1.
+    return;
+  }
+
+  constexpr std::string_view program = R"(
+proc Foo {
+  c: chan<u32> out;
+  init { u32:1 }
+  config(output_c: chan<u32> out) {
+    (output_c,)
+  }
+  next(i: u32) {
+    let tok = send(join(), c, i);
+    i + u32:2
+  }
+}
+
+pub proc FooAlias = Foo;
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "FooAlias", import_data,
+                                kNoPosOptions));
+  ExpectIr(converted);
+}
+
+TEST_P(IrConverterWithBothTypecheckVersionsTest, HandlesParametricProcAlias) {
+  if (GetParam() == TypeInferenceVersion::kVersion1) {
+    // Proc aliases are not supported in TIv1.
+    return;
+  }
+
+  constexpr std::string_view program = R"(
+proc Foo<N: u32> {
+  c: chan<uN[N]> out;
+  init { uN[N]:1 }
+  config(output_c: chan<uN[N]> out) {
+    (output_c,)
+  }
+  next(i: uN[N]) {
+    let tok = send(join(), c, i);
+    i + uN[N]:2
+  }
+}
+
+pub proc FooAlias = Foo<16>;
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "FooAlias", import_data,
+                                kNoPosOptions));
+  ExpectIr(converted);
+}
+
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       HandlesProcAliasToImportedProc) {
+  if (GetParam() == TypeInferenceVersion::kVersion1) {
+    // Proc aliases are not supported in TIv1.
+    return;
+  }
+
+  ImportData import_data = CreateImportDataForTest();
+
+  constexpr std::string_view imported = R"(
+pub proc Foo<N: u32> {
+  c: chan<uN[N]> out;
+  init { uN[N]:1 }
+  config(output_c: chan<uN[N]> out) {
+    (output_c,)
+  }
+  next(i: uN[N]) {
+    let tok = send(join(), c, i);
+    i + uN[N]:2
+  }
+}
+  )";
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(imported, "imported.x", "imported", &import_data));
+
+  constexpr std::string_view program = R"(
+import imported;
+pub proc FooAlias = imported::Foo<16>;
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "FooAlias", import_data,
+                                kNoPosOptions));
+  ExpectIr(converted);
+}
+
 TEST_P(IrConverterWithBothTypecheckVersionsTest, HandlesProcWithTypeAlias) {
   constexpr std::string_view program = R"(
 proc P {

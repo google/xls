@@ -361,6 +361,36 @@ class InferenceTableImpl : public InferenceTable {
     return result;
   }
 
+  absl::StatusOr<ParametricContext*> AddProcAliasParametricContext(
+      const ProcAlias& alias, const ParametricEnv& env,
+      const std::vector<Expr*>& parametrics, const Function& config_or_next,
+      TypeInfo* ti) override {
+    VLOG(5) << "Add proc alias context: " << alias.ToString();
+    auto context = std::make_unique<ParametricContext>(
+        parametric_contexts_.size(), &alias,
+        ParametricInvocationDetails{.callee = &config_or_next,
+                                    .caller = std::nullopt},
+        ti,
+        /*parent_context=*/std::nullopt, /*self_type=*/std::nullopt);
+    const std::vector<ParametricBinding*>& bindings =
+        config_or_next.parametric_bindings();
+    MutableParametricContextData mutable_data;
+    for (int i = 0; i < bindings.size(); i++) {
+      const ParametricBinding* binding = bindings[i];
+      const InferenceVariable* variable =
+          variables_.at(binding->name_def()).get();
+      XLS_RET_CHECK(i < parametrics.size());
+      mutable_data.parametric_values.emplace(
+          variable, ParametricContextScopedExpr(/*parent_context=*/std::nullopt,
+                                                binding->type_annotation(),
+                                                parametrics[i]));
+    }
+    ParametricContext* result = context.get();
+    parametric_contexts_.push_back(std::move(context));
+    mutable_parametric_context_data_.emplace(result, std::move(mutable_data));
+    return result;
+  }
+
   bool MapToCanonicalInvocationTypeInfo(ParametricContext* parametric_context,
                                         ParametricEnv env) override {
     CHECK(parametric_context->is_invocation());

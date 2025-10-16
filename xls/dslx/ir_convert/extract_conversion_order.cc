@@ -636,7 +636,8 @@ static absl::Status ProcessCallees(absl::Span<const Callee> orig_callees,
 }
 
 static absl::StatusOr<std::vector<ConversionRecord>> GetOrderForProc(
-    std::variant<Proc*, TestProc*> entry, TypeInfo* type_info, bool is_top) {
+    std::variant<Proc*, TestProc*> entry, TypeInfo* type_info, bool is_top,
+    std::optional<ResolvedProcAlias> resolved_proc_alias = std::nullopt) {
   std::vector<ConversionRecord> ready;
   Proc* p;
   if (std::holds_alternative<TestProc*>(entry)) {
@@ -645,15 +646,24 @@ static absl::StatusOr<std::vector<ConversionRecord>> GetOrderForProc(
     p = std::get<Proc*>(entry);
   }
 
+  TypeInfo* config_ti = type_info;
+  TypeInfo* next_ti = type_info;
+  ParametricEnv env;
+  if (resolved_proc_alias.has_value()) {
+    config_ti = resolved_proc_alias->config_type_info;
+    next_ti = resolved_proc_alias->next_type_info;
+    env = resolved_proc_alias->env;
+  }
+
   // The next function of a proc is the entry function when converting a proc to
   // IR.
   XLS_RETURN_IF_ERROR(
       AddToReady(&p->next(),
-                 /*invocation=*/nullptr, p->owner(), type_info, ParametricEnv(),
-                 &ready, ProcId{.proc_instance_stack = {{p, 0}}}, is_top));
+                 /*invocation=*/nullptr, p->owner(), next_ti, env, &ready,
+                 ProcId{.proc_instance_stack = {{p, 0}}}, is_top));
   XLS_RETURN_IF_ERROR(AddToReady(&p->config(),
-                                 /*invocation=*/nullptr, p->owner(), type_info,
-                                 ParametricEnv(), &ready,
+                                 /*invocation=*/nullptr, p->owner(), config_ti,
+                                 env, &ready,
                                  ProcId{.proc_instance_stack = {{p, 0}}}));
 
   // Constants and "member" vars are assigned and defined in Procs' "config'"
@@ -785,7 +795,8 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
 }
 
 absl::StatusOr<std::vector<ConversionRecord>> GetOrderForEntry(
-    std::variant<Function*, Proc*> entry, TypeInfo* type_info) {
+    std::variant<Function*, Proc*> entry, TypeInfo* type_info,
+    std::optional<ResolvedProcAlias> resolved_proc_alias) {
   std::vector<ConversionRecord> ready;
   if (std::holds_alternative<Function*>(entry)) {
     Function* f = std::get<Function*>(entry);
@@ -804,7 +815,8 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrderForEntry(
   Proc* p = std::get<Proc*>(entry);
   XLS_ASSIGN_OR_RETURN(TypeInfo * new_ti,
                        type_info->GetTopLevelProcTypeInfo(p));
-  XLS_ASSIGN_OR_RETURN(ready, GetOrderForProc(p, new_ti, /*is_top=*/true));
+  XLS_ASSIGN_OR_RETURN(
+      ready, GetOrderForProc(p, new_ti, /*is_top=*/true, resolved_proc_alias));
   RemoveFunctionDuplicates(&ready);
   return ready;
 }

@@ -215,8 +215,6 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
       // For proc scoped channels, we will defer the init evaluation to later.
       Proc* p = f->proc().value();
       // If there's no value in the map, then this should be a top-level proc.
-      // Verify that there are no parametric bindings.
-      XLS_RET_CHECK(record.parametric_env().empty());
       XLS_ASSIGN_OR_RETURN(
           InterpValue iv,
           ConstexprEvaluator::EvaluateToValue(
@@ -399,14 +397,15 @@ absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecords(
 
 template <typename BlockT>
 absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecords(
-    BlockT* block, TypeInfo* type_info, const ConvertOptions& options) {
+    BlockT* block, TypeInfo* type_info, const ConvertOptions& options,
+    std::optional<ResolvedProcAlias> resolved_proc_alias) {
   // TODO: https://github.com/google/xls/issues/2078 - Remove this `if` after
   // lower_to_proc_scoped_channels is turned on everywhere, and call
   // GetConversionRecordsForEntry unconditionally.
   if (options.lower_to_proc_scoped_channels) {
     return GetConversionRecordsForEntry(block, type_info);
   }
-  return GetOrderForEntry(block, type_info);
+  return GetOrderForEntry(block, type_info, resolved_proc_alias);
 }
 
 }  // namespace
@@ -472,12 +471,14 @@ absl::Status CheckAcceptableTopProc(Proc* proc) {
 
 template <typename BlockT>
 absl::Status ConvertOneFunctionIntoPackageInternal(
-    BlockT* block, ImportData* import_data, const ParametricEnv* parametric_env,
-    const ConvertOptions& options, PackageConversionData* conv) {
+    BlockT* block, ImportData* import_data, const ConvertOptions& options,
+    PackageConversionData* conv,
+    std::optional<ResolvedProcAlias> resolved_proc_alias = std::nullopt) {
   XLS_ASSIGN_OR_RETURN(TypeInfo * func_type_info,
                        import_data->GetRootTypeInfoForNode(block));
   XLS_ASSIGN_OR_RETURN(std::vector<ConversionRecord> order,
-                       GetConversionRecords(block, func_type_info, options));
+                       GetConversionRecords(block, func_type_info, options,
+                                            resolved_proc_alias));
   PackageData package_data{.conversion_info = conv};
   XLS_RETURN_IF_ERROR(
       ConvertCallGraph(order, import_data, options, package_data));
@@ -486,11 +487,10 @@ absl::Status ConvertOneFunctionIntoPackageInternal(
 
 absl::Status ConvertOneFunctionIntoPackage(Function* fn,
                                            ImportData* import_data,
-                                           const ParametricEnv* parametric_env,
+                                           const ParametricEnv*,
                                            const ConvertOptions& options,
                                            PackageConversionData* conv) {
-  return ConvertOneFunctionIntoPackageInternal(fn, import_data, parametric_env,
-                                               options, conv);
+  return ConvertOneFunctionIntoPackageInternal(fn, import_data, options, conv);
 }
 
 absl::Status ConvertOneFunctionIntoPackage(Module* module,
@@ -508,7 +508,7 @@ absl::Status ConvertOneFunctionIntoPackage(Module* module,
           entry_function_name, module->name()));
     }
     return ConvertOneFunctionIntoPackageInternal(&(*test_fn)->fn(), import_data,
-                                                 parametric_env, options, conv);
+                                                 options, conv);
   }
 
   std::optional<Function*> fn_or = module->GetFunction(entry_function_name);
@@ -520,8 +520,8 @@ absl::Status ConvertOneFunctionIntoPackage(Module* module,
           entry_function_name, module->name()));
     }
 
-    return ConvertOneFunctionIntoPackageInternal(*fn_or, import_data,
-                                                 parametric_env, options, conv);
+    return ConvertOneFunctionIntoPackageInternal(*fn_or, import_data, options,
+                                                 conv);
   }
 
   absl::StatusOr<TestProc*> test_proc =
@@ -534,16 +534,26 @@ absl::Status ConvertOneFunctionIntoPackage(Module* module,
                           "of a test proc \"%s\" from module %s was requested.",
                           entry_function_name, module->name()));
     }
-    return ConvertOneFunctionIntoPackageInternal(
-        (*test_proc)->proc(), import_data, parametric_env, options, conv);
+    return ConvertOneFunctionIntoPackageInternal((*test_proc)->proc(),
+                                                 import_data, options, conv);
   }
 
   absl::StatusOr<Proc*> proc =
       module->GetMemberOrError<Proc>(entry_function_name);
   if (proc.ok()) {
     XLS_RETURN_IF_ERROR(CheckAcceptableTopProc(*proc));
-    return ConvertOneFunctionIntoPackageInternal(*proc, import_data,
-                                                 parametric_env, options, conv);
+    return ConvertOneFunctionIntoPackageInternal(*proc, import_data, options,
+                                                 conv);
+  }
+
+  absl::StatusOr<ProcAlias*> proc_alias =
+      module->GetMemberOrError<ProcAlias>(entry_function_name);
+  if (proc_alias.ok()) {
+    XLS_ASSIGN_OR_RETURN(TypeInfo * ti, import_data->GetRootTypeInfo((module)));
+    ResolvedProcAlias resolved_alias = ti->GetResolvedProcAlias(*proc_alias);
+    XLS_RETURN_IF_ERROR(CheckAcceptableTopProc(resolved_alias.proc));
+    return ConvertOneFunctionIntoPackageInternal(
+        resolved_alias.proc, import_data, options, conv, resolved_alias);
   }
 
   return absl::InvalidArgumentError(
