@@ -1813,7 +1813,7 @@ LogicalResult MlirXlsToXlsTranslate(
 absl::StatusOr<std::shared_ptr<const Package>> DslxPackageCache::import(
     const std::string& fileName,
     absl::Span<const std::filesystem::path> additional_search_paths) {
-  absl::MutexLock lock(&mutex);
+  absl::MutexLock lock(mutex);
   auto it = cache.find(fileName);
   if (it != cache.end()) {
     return it->second;
