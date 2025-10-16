@@ -95,9 +95,9 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
               << "` via bindings: " << caller_bindings;
           XLS_ASSIGN_OR_RETURN(
               ConversionRecord cr,
-              MakeConversionRecord(const_cast<Function*>(f), module_,
-                                   *config_type_info, callee_bindings, proc_id,
-                                   config_invocation,
+              MakeConversionRecord(const_cast<Function*>(&config_fn),
+                                   config_fn.owner(), *config_type_info,
+                                   callee_bindings, proc_id, config_invocation,
                                    // config functions can never be 'top'
                                    /*is_top=*/false));
           config_record = std::make_unique<ConversionRecord>(std::move(cr));
@@ -108,7 +108,7 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
 
     XLS_ASSIGN_OR_RETURN(
         ConversionRecord cr,
-        MakeConversionRecord(const_cast<Function*>(f), module_,
+        MakeConversionRecord(const_cast<Function*>(f), f->owner(),
                              instantiation_type_info, callee_bindings, proc_id,
                              invocation, is_top, std::move(config_record)));
     return cr;
@@ -162,6 +162,24 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     return AddFunction(f);
   }
 
+  absl::Status HandleSpawn(const Spawn* spawn) override {
+    Invocation* invocation = spawn->config();
+
+    auto root_invocation_data = type_info_->GetRootInvocationData(invocation);
+    XLS_RET_CHECK(root_invocation_data.has_value());
+
+    const InvocationData* invocation_data = *root_invocation_data;
+    const Function* config_fn = invocation_data->callee();
+    if (config_fn->owner() == module_) {
+      // We will convert this proc, so there's no need to do any more processing
+      // here.
+      return absl::OkStatus();
+    }
+    XLS_RET_CHECK(config_fn->proc().has_value());
+    Proc* proc = config_fn->proc().value();
+    return HandleProc(proc);
+  }
+
   absl::Status HandleTestFunction(const TestFunction* tf) override {
     if (!include_tests_) {
       return absl::OkStatus();
@@ -178,6 +196,10 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
   absl::Status HandleProc(const Proc* p) override {
     const Function* next_fn = &p->next();
 
+    // This is required in order to process cross-module spawns; otherwise it
+    // will never add procs from imported modules to the list of functions to
+    // convert.
+    XLS_RETURN_IF_ERROR(DefaultHandler(&p->config()));
     if (p->IsParametric()) {
       std::optional<ProcId> proc_id = proc_id_factory_.CreateProcId(
           /*parent=*/std::nullopt, const_cast<Proc*>(p),
@@ -204,7 +226,7 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
       // spawns, we still want to convert it.
       return AddFunction(next_fn);
     }
-    return absl::OkStatus();
+    return DefaultHandler(p);
   }
 
   absl::Status HandleTestProc(const TestProc* tp) override {

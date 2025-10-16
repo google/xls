@@ -3344,7 +3344,6 @@ absl::Status FunctionConverter::HandleSpawn(const Spawn* node) {
   }
 
   const Invocation* invocation = node->config();
-  XLS_RET_CHECK(package_data_.invocation_to_ir_proc.contains(invocation));
 
   std::vector<ChannelInterface*> channel_args;
   channel_args.reserve(invocation->args().size());
@@ -3373,6 +3372,7 @@ absl::Status FunctionConverter::HandleSpawn(const Spawn* node) {
     }
   }
 
+  XLS_RET_CHECK(package_data_.invocation_to_ir_proc.contains(invocation));
   xls::Proc* ir_proc = package_data_.invocation_to_ir_proc[invocation];
   xls::Proc* current_proc = builder_ptr->proc();
   XLS_RETURN_IF_ERROR(

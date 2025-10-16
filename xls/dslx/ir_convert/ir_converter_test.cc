@@ -5753,6 +5753,41 @@ TEST_P(ProcScopedChannelsIrConverterTest, ProcScopedChannelsNoTestFn) {
   ExpectIr(converted);
 }
 
+TEST_P(ProcScopedChannelsIrConverterTest, SpawnImportedProc) {
+  ImportData import_data = CreateImportDataForTest();
+
+  constexpr std::string_view kImported = R"(
+pub proc importee {
+  init { }
+  config() { () }
+  next(_: ()) { () }
+}
+)";
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+pub proc main {
+  init { }
+  config() {
+    spawn imported::importee();
+    ()
+  }
+  next(_: ()) { () }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
+  ExpectIr(converted);
+}
+
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ConvertWithoutTests) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
