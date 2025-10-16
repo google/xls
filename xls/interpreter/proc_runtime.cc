@@ -246,7 +246,7 @@ ProcRuntime::GetJitChannelQueueManager() {
 }
 
 InterpreterEvents ProcRuntime::GetGlobalEvents() const {
-  absl::MutexLock lock(&global_events_mutex_);
+  absl::MutexLock lock(global_events_mutex_);
   return global_events_;
 }
 
@@ -255,13 +255,13 @@ void ProcRuntime::ClearInterpreterEvents() {
     continuation->ClearEvents();
   }
   {
-    absl::MutexLock lock(&global_events_mutex_);
+    absl::MutexLock lock(global_events_mutex_);
     global_events_.Clear();
   }
 }
 
 void ProcRuntime::AddTraceMessage(int64_t verbosity, std::string message) {
-  absl::MutexLock lock(&global_events_mutex_);
+  absl::MutexLock lock(global_events_mutex_);
   global_events_.AddTraceStatementMessage(verbosity, std::move(message));
 }
 
