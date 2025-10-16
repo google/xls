@@ -212,6 +212,10 @@ def _convert_to_ir(ctx, src):
     interface_proto = ctx.actions.declare_file(ctx.attr.name + ".interface.binpb")
     my_args.add("-interface_proto_file", interface_proto.path)
     my_args.add("-output_file", ir_file.path)
+
+    for v in fixup_extra_args(ctx.attr._extra_ir_convert_flags[BuildSettingInfo].value):
+        my_args.add(v)
+
     my_args.add(src.path)
 
     # Get runfiles
@@ -668,6 +672,10 @@ xls_ir_common_attrs = {
 xls_dslx_ir_attrs = dicts.add(
     xls_dslx_library_as_input_attrs,
     {
+        "_extra_ir_convert_flags": attr.label(
+            doc = "Extra flags to pass to the IR converter tool.",
+            default = Label("//xls/common/config:extra_ir_convert_args"),
+        ),
         "configured_values": attr.string_dict(
             doc = "Dictionary of overrides to use for overridable constants " +
                   "in IR conversion. Format is \"key\":\"value\" pairs, e.g. " +

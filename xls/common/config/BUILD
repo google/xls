@@ -61,6 +61,12 @@ bool_flag(
     build_setting_default = False,
 )
 
+# Tell ir_convert-rules to pass additional arguments
+string_list_flag(
+    name = "extra_ir_convert_args",
+    build_setting_default = [],
+)
+
 # Tell opt-rules to pass additional arguments
 string_list_flag(
     name = "extra_opt_args",
