@@ -547,9 +547,10 @@ absl::Status TypeInfo::AddInvocationTypeInfo(const Invocation& invocation,
   }
   VLOG(3) << "Adding to existing invocation data.";
   InvocationData* invocation_data = it->second.get();
-  return invocation_data->Add(
-      caller_env,
-      InvocationCalleeData{callee_env, caller_env, derived_type_info});
+  InvocationCalleeData callee_data{callee_env, caller_env, derived_type_info,
+                                   &invocation};
+  top->callee_data_[callee].push_back(callee_data);
+  return invocation_data->Add(caller_env, callee_data);
 }
 
 std::optional<bool> TypeInfo::GetRequiresImplicitToken(

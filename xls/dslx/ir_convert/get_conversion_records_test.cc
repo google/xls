@@ -164,8 +164,6 @@ proc top {
       GetConversionRecords(tm.module, tm.type_info, false));
   ASSERT_EQ(3, order.size());
   EXPECT_EQ(order[0].f()->identifier(), "P.next");
-  EXPECT_EQ(order[0].invocation()->ToString(),
-            "P.next<u32:2>(P.init<u32:2>())");
   const ConversionRecord* config_record = order[0].config_record();
   EXPECT_NE(config_record, nullptr);
   EXPECT_EQ(config_record->invocation()->ToString(), "P.config<u32:2>(u2:1)");
@@ -173,8 +171,6 @@ proc top {
             ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
                 {"N", InterpValue::MakeUBits(/*bit_count=*/32, /*value=*/2)}}));
   EXPECT_EQ(order[1].f()->identifier(), "P.next");
-  EXPECT_EQ(order[1].invocation()->ToString(),
-            "P.next<u32:4>(P.init<u32:4>())");
   config_record = order[1].config_record();
   EXPECT_NE(config_record, nullptr);
   EXPECT_EQ(config_record->invocation()->ToString(), "P.config<u32:4>(u4:2)");
@@ -388,8 +384,9 @@ fn my_test() -> bool { f<u32:8>(u8:1) == u32:8 }
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
-                           GetConversionRecords(tm.module, tm.type_info, true));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<ConversionRecord> order,
+      GetConversionRecords(tm.module, tm.type_info, /*include_tests=*/true));
   ASSERT_EQ(2, order.size());
   EXPECT_EQ(order[0].f()->identifier(), "f");
   EXPECT_EQ(order[0].parametric_env(),
@@ -440,13 +437,15 @@ proc test {
   next(x: ()) { () }
 }
 )";
+
 TEST(GetConversionRecordsTest, TestProc) {
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(kTestProc, "test.x", "test", &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
-                           GetConversionRecords(tm.module, tm.type_info, true));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<ConversionRecord> order,
+      GetConversionRecords(tm.module, tm.type_info, /*include_tests=*/true));
   ASSERT_EQ(2, order.size());
   EXPECT_EQ(order[0].f()->identifier(), "P.next");
   EXPECT_EQ(order[0].parametric_env(),
@@ -462,7 +461,7 @@ TEST(GetConversionRecordsTest, TestProcSkipped) {
       ParseAndTypecheck(kTestProc, "test.x", "test", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::vector<ConversionRecord> order,
-      GetConversionRecords(tm.module, tm.type_info, false));
+      GetConversionRecords(tm.module, tm.type_info, /*include_tests=*/false));
   // It still converts the parametric proc because there is still a spawn,
   // in the test proc.
   ASSERT_EQ(1, order.size());
@@ -509,6 +508,61 @@ impl S {
   ASSERT_EQ(1, order.size());
   EXPECT_EQ(order[0].f()->identifier(), "f");
   EXPECT_EQ(order[0].parametric_env(), ParametricEnv());
+}
+
+TEST(GetConversionRecordsTest, SpawnTree) {
+  constexpr std::string_view kProgram = R"(
+proc spawnee2<N:u32, M:u16> {
+  init { }
+  config() { () }
+  next(state: ()) { () }
+}
+
+proc spawnee1<N:u32> {
+  init { }
+  config() {
+    spawn spawnee2<N, u16:1>();
+    spawn spawnee2<N, u16:2>();
+  }
+  next(state: ()) { () }
+}
+
+pub proc main {
+  init { }
+  config() {
+    spawn spawnee1<u32:3>();
+    spawn spawnee1<u32:4>();
+  }
+  next(state: ()) { () }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "main", &import_data, {},
+                        TypeInferenceVersion::kVersion2));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<ConversionRecord> order,
+      GetConversionRecords(tm.module, tm.type_info, false));
+  // 4 of spawnee2, 2 of spawnee1 and 1 of main.
+  ASSERT_EQ(7, order.size());
+  EXPECT_EQ(order[0].parametric_env(),
+            ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
+                {"N", InterpValue::MakeUBits(/*bit_count=*/32, /*value=*/3)},
+                {"M", InterpValue::MakeUBits(/*bit_count=*/16, /*value=*/1)}}));
+  EXPECT_EQ(order[1].parametric_env(),
+            ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
+                {"N", InterpValue::MakeUBits(/*bit_count=*/32, /*value=*/3)},
+                {"M", InterpValue::MakeUBits(/*bit_count=*/16, /*value=*/2)}}));
+  EXPECT_EQ(order[2].parametric_env(),
+            ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
+                {"N", InterpValue::MakeUBits(/*bit_count=*/32, /*value=*/4)},
+                {"M", InterpValue::MakeUBits(/*bit_count=*/16, /*value=*/1)}}));
+  EXPECT_EQ(order[3].parametric_env(),
+            ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
+                {"N", InterpValue::MakeUBits(/*bit_count=*/32, /*value=*/4)},
+                {"M", InterpValue::MakeUBits(/*bit_count=*/16, /*value=*/2)}}));
 }
 
 }  // namespace

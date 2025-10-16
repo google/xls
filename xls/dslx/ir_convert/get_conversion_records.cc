@@ -20,6 +20,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -70,12 +71,6 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     } else {
       VLOG(5) << "Processing fn " << f->ToString();
     }
-    // TODO: davidplass - change this to gather invocations from *spawns*
-    // instead of *functions*. This will allow function_converter to emit
-    // multiple IR procs with the same parametrics but different config
-    // parameters. Then, HandleFunction would only have to handle procs
-    // that are not spawned explicitly, like test or top procs.
-
     // Note, it's possible there is no config invocation if it's a
     // top proc or some other reason.
     std::unique_ptr<ConversionRecord> config_record;
@@ -124,16 +119,13 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     if (f->proc().has_value()) {
       proc_id = proc_id_factory_.CreateProcId(
           /*parent=*/std::nullopt, f->proc().value(),
-          // TODO: davidplass - For parametric procs we have to decide if this
-          // is a new instance if it has been called with the same parametrics
-          // before. Otherwise it needs a new procid.
           /*count_as_new_instance=*/false);
     }
     std::vector<InvocationCalleeData> calls =
         type_info_->GetUniqueInvocationCalleeData(f);
     if (f->IsParametric() && calls.empty()) {
       VLOG(5) << "No calls to parametric proc " << f->name_def()->ToString();
-      return absl::OkStatus();
+      return DefaultHandler(f);
     }
     for (auto& callee_data : calls) {
       XLS_ASSIGN_OR_RETURN(
@@ -184,7 +176,35 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleProc(const Proc* p) override {
-    return AddFunction(&p->next());
+    const Function* next_fn = &p->next();
+
+    if (p->IsParametric()) {
+      std::optional<ProcId> proc_id = proc_id_factory_.CreateProcId(
+          /*parent=*/std::nullopt, const_cast<Proc*>(p),
+          /*count_as_new_instance=*/false);
+
+      std::vector<InvocationCalleeData> next_calls =
+          type_info_->GetUniqueInvocationCalleeData(next_fn);
+      for (auto& callee_data : next_calls) {
+        XLS_ASSIGN_OR_RETURN(
+            ConversionRecord cr,
+            InvocationToConversionRecord(
+                next_fn, callee_data.invocation, callee_data.derived_type_info,
+                callee_data.callee_bindings, callee_data.caller_bindings,
+                // Since this proc is being spawned, it's certainly not top.
+                /* is_top= */ false, proc_id));
+        records_.push_back(std::move(cr));
+      }
+    }
+    if (top_ == next_fn || !p->IsParametric()) {
+      // "top" procs won't have spawns referencing them so they won't
+      // otherwise be added to the list, so we have to manually do it here.
+
+      // Similarly, if a proc is not parametric, while it might not have any
+      // spawns, we still want to convert it.
+      return AddFunction(next_fn);
+    }
+    return absl::OkStatus();
   }
 
   absl::Status HandleTestProc(const TestProc* tp) override {
@@ -215,6 +235,20 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
 
 }  // namespace
 
+// Filters duplicate conversion records from the given vector and returns a new
+// vector without duplicates.
+std::vector<ConversionRecord> RemoveFunctionDuplicates(
+    std::vector<ConversionRecord>& ready) {
+  absl::flat_hash_set<std::pair<Function*, ParametricEnv>> records;
+  std::vector<ConversionRecord> result;
+  for (auto& record : ready) {
+    if (records.emplace(record.f(), record.parametric_env()).second) {
+      result.push_back(std::move(record));
+    }
+  }
+  return result;
+}
+
 absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecords(
     Module* module, TypeInfo* type_info, bool include_tests) {
   ProcIdFactory proc_id_factory;
@@ -224,7 +258,8 @@ absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecords(
                                   proc_id_factory, /*top=*/nullptr);
   XLS_RETURN_IF_ERROR(module->Accept(&visitor));
 
-  return visitor.records();
+  std::vector<ConversionRecord> records = visitor.records();
+  return RemoveFunctionDuplicates(records);
 }
 
 absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecordsForEntry(
@@ -238,7 +273,9 @@ absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecordsForEntry(
     ConversionRecordVisitor visitor(m, type_info, /*include_tests=*/true,
                                     proc_id_factory, f);
     XLS_RETURN_IF_ERROR(m->Accept(&visitor));
-    return visitor.records();
+
+    std::vector<ConversionRecord> records = visitor.records();
+    return RemoveFunctionDuplicates(records);
   }
 
   Proc* p = std::get<Proc*>(entry);
@@ -250,6 +287,8 @@ absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecordsForEntry(
   ConversionRecordVisitor visitor(m, new_ti, /*include_tests=*/true,
                                   proc_id_factory, &p->next());
   XLS_RETURN_IF_ERROR(m->Accept(&visitor));
-  return visitor.records();
+
+  std::vector<ConversionRecord> records = visitor.records();
+  return RemoveFunctionDuplicates(records);
 }
 }  // namespace xls::dslx
