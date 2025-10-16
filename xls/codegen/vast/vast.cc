@@ -576,38 +576,43 @@ std::string StatementBlock::Emit(LineInfo* line_info) const {
   return result;
 }
 
-GenerateLoop::GenerateLoop(LogicRef* genvar, Expression* init,
-                           Expression* limit,
-                           std::optional<std::string_view> label,
-                           VerilogFile* file, const SourceInfo& loc)
-    : Statement(file, loc),
-      genvar_(genvar),
-      init_(init),
-      limit_(limit),
-      label_(label) {
-  genvar_def_ = dynamic_cast<GenvarDef*>(genvar->def());
-}
-
 std::string GenerateLoop::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
   std::vector<std::string> lines;
   lines.push_back(absl::StrFormat("generate"));
   LineInfoIncrease(line_info, 1);
-  std::string label_suffix =
-      label_.has_value() ? absl::StrCat(" : ", label_.value()) : "";
-  lines.push_back(Indent(absl::StrFormat(
-      "for (%s = %s; %s < %s; %s = %s + 1) begin%s", genvar_->Emit(line_info),
-      init_->Emit(line_info), genvar_->Emit(line_info), limit_->Emit(line_info),
-      genvar_->Emit(line_info), genvar_->Emit(line_info), label_suffix)));
-  for (const auto& node : body_) {
-    std::string pre_emit = node->PreEmit(line_info);
+  int indent_level = 1;
+  for (const GenerateLoopIterationSpec& iteration : iterations_) {
+    std::string label_suffix =
+        iteration.label.has_value()
+            ? absl::StrCat(" : ", iteration.label.value())
+            : "";
+    lines.push_back(Indent(
+        absl::StrFormat(
+            "for (%s = %s; %s < %s; %s = %s + 1) begin%s",
+            iteration.genvar->Emit(line_info), iteration.init->Emit(line_info),
+            iteration.genvar->Emit(line_info), iteration.limit->Emit(line_info),
+            iteration.genvar->Emit(line_info),
+            iteration.genvar->Emit(line_info), label_suffix),
+        indent_level * kDefaultIndentSpaces));
+    LineInfoIncrease(line_info, 1);
+    indent_level++;
+  }
+  for (Statement* statement : statements_) {
+    std::string pre_emit = statement->PreEmit(line_info);
     if (!pre_emit.empty()) {
-      lines.push_back(Indent(Indent(pre_emit)));
+      lines.push_back(Indent(pre_emit, indent_level * kDefaultIndentSpaces));
+      LineInfoIncrease(line_info, 1);
     }
-    lines.push_back(Indent(Indent(node->Emit(line_info))));
+    lines.push_back(Indent(statement->Emit(line_info),
+                           indent_level * kDefaultIndentSpaces));
     LineInfoIncrease(line_info, 1);
   }
-  lines.push_back(Indent("end"));
+  for (const GenerateLoopIterationSpec& _ : iterations_) {
+    indent_level--;
+    lines.push_back(Indent("end", indent_level * kDefaultIndentSpaces));
+    LineInfoIncrease(line_info, 1);
+  }
   lines.push_back("endgenerate");
   LineInfoEnd(line_info, this);
   return absl::StrJoin(lines, "\n");
@@ -680,7 +685,8 @@ std::string VerilogFunction::Emit(LineInfo* line_info) const {
       return_value_def_->data_type()->EmitWithIdentifier(line_info, name());
   if (return_value_def_->data_type()->IsScalar() &&
       file()->use_system_verilog()) {
-    // Preface the return type with "logic", so there's always a type provided.
+    // Preface the return type with "logic", so there's always a type
+    // provided.
     return_type =
         absl::StrCat(DataKindToString(DataKind::kLogic), " ", return_type);
   }
@@ -986,7 +992,8 @@ std::string FourValueBinaryLiteral::Emit(LineInfo* line_info) const {
 // Returns a string representation of the given expression minus one.
 static std::string WidthToLimit(LineInfo* line_info, Expression* expr) {
   if (expr->IsLiteral()) {
-    // If the expression is a literal, then we can emit the value - 1 directly.
+    // If the expression is a literal, then we can emit the value - 1
+    // directly.
     uint64_t value = expr->AsLiteralOrDie()->bits().ToUint64().value();
     return absl::StrCat(value - 1);
   }
@@ -1087,8 +1094,8 @@ std::string PackedArrayType::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
   std::string result = element_type()->Emit(line_info);
   if (element_type()->IsUserDefined()) {
-    // Imitate the space that a bit vector emits between the kind and innermost
-    // dimension.
+    // Imitate the space that a bit vector emits between the kind and
+    // innermost dimension.
     absl::StrAppend(&result, " ");
   }
   for (Expression* dim : dims()) {
@@ -1334,7 +1341,8 @@ std::string DeferredImmediateAssertion::Emit(LineInfo* line_info) const {
 
 std::string Cover::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
-  // Coverpoints don't work without clock sources. Don't emit them in that case.
+  // Coverpoints don't work without clock sources. Don't emit them in that
+  // case.
   LineInfoIncrease(line_info, NumberOfNewlines(label_));
   std::string clock = clk_->Emit(line_info);
   std::string condition = condition_->Emit(line_info);
@@ -1510,7 +1518,8 @@ std::string Slice::Emit(LineInfo* line_info) const {
     // If subject is scalar (no width given in declaration) then avoid slicing
     // as this is invalid Verilog. The only valid hi/lo values are zero.
     // TODO(https://github.com/google/xls/issues/43): Avoid this special case
-    // and perform the equivalent logic at a higher abstraction level than VAST.
+    // and perform the equivalent logic at a higher abstraction level than
+    // VAST.
     CHECK(hi_->IsLiteralWithValue(0)) << hi_->Emit(nullptr);
     CHECK(lo_->IsLiteralWithValue(0)) << lo_->Emit(nullptr);
     std::string result = subject_->Emit(line_info);
@@ -1536,10 +1545,12 @@ std::string PartSelect::Emit(LineInfo* line_info) const {
 std::string Index::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
   if (IsScalarLogicRef(subject_)) {
-    // If subject is scalar (no width given in declaration) then avoid indexing
-    // as this is invalid Verilog. The only valid index values are zero.
+    // If subject is scalar (no width given in declaration) then avoid
+    // indexing as this is invalid Verilog. The only valid index values are
+    // zero.
     // TODO(https://github.com/google/xls/issues/43): Avoid this special case
-    // and perform the equivalent logic at a higher abstraction level than VAST.
+    // and perform the equivalent logic at a higher abstraction level than
+    // VAST.
     CHECK(index_->IsLiteralWithValue(0)) << absl::StreamFormat(
         "%s[%s]", subject_->Emit(nullptr), index_->Emit(nullptr));
     std::string result = subject_->Emit(line_info);
@@ -1722,9 +1733,9 @@ std::string BinaryInfix::Emit(LineInfo* line_info) const {
     return e->IsUnary() && e->AsUnaryOrDie()->IsReduction();
   };
 
-  // Equal precedence operators are evaluated left-to-right so LHS only needs to
-  // be wrapped if its precedence is strictly less than this operators. The RHS,
-  // however, must be wrapped if its less than or equal precedence. Unary
+  // Equal precedence operators are evaluated left-to-right so LHS only needs
+  // to be wrapped if its precedence is strictly less than this operators. The
+  // RHS, however, must be wrapped if its less than or equal precedence. Unary
   // reduction operations should be wrapped in parenthesis unconditionally
   // because some consumers of verilog emit warnings/errors for this
   // error-prone construct (e.g., `|x || |y`)
@@ -1840,8 +1851,8 @@ Conditional::Conditional(Expression* condition, VerilogFile* file,
       consequent_(file->Make<StatementBlock>(SourceInfo())) {}
 
 StatementBlock* Conditional::AddAlternate(Expression* condition) {
-  // The conditional must not have been previously closed with an unconditional
-  // alternate ("else").
+  // The conditional must not have been previously closed with an
+  // unconditional alternate ("else").
   CHECK(alternates_.empty() || alternates_.back().first != nullptr);
   alternates_.push_back(
       {condition, file()->Make<StatementBlock>(SourceInfo())});

@@ -698,24 +698,33 @@ class StatementBlock final : public VastNode {
 //   end
 // endgenerate
 // ```
+//
+// Multiple nested loops are supported but the body must be a single statement.
+struct GenerateLoopIterationSpec {
+  LogicRef* genvar;
+  Expression* init;
+  Expression* limit;
+  std::optional<std::string> label;
+};
+
 class GenerateLoop final : public Statement {
  public:
   GenerateLoop(LogicRef* genvar, Expression* init, Expression* limit,
-               std::optional<std::string_view> label, VerilogFile* file,
-               const SourceInfo& loc);
-
-  void AddBodyNode(VastNode* node) { body_.push_back(node); }
+               std::optional<std::string> label, VerilogFile* file,
+               const SourceInfo& loc)
+      : GenerateLoop({GenerateLoopIterationSpec{genvar, init, limit, label}},
+                     file, loc) {}
+  GenerateLoop(absl::Span<const GenerateLoopIterationSpec> iterations,
+               VerilogFile* file, const SourceInfo& loc)
+      : Statement(file, loc),
+        iterations_(iterations.begin(), iterations.end()) {}
+  void AddStatement(Statement* statement) { statements_.push_back(statement); }
 
   std::string Emit(LineInfo* line_info) const final;
 
  private:
-  LogicRef* genvar_;
-  GenvarDef* genvar_def_;
-
-  Expression* init_;
-  Expression* limit_;
-  std::vector<VastNode*> body_;
-  std::optional<std::string> label_;
+  std::vector<GenerateLoopIterationSpec> iterations_;
+  std::vector<Statement*> statements_;
 };
 
 // Similar to statement block,  but for use if `ifdef `else `endif blocks (no
@@ -1864,11 +1873,11 @@ class Ternary final : public Expression {
 // expressions; e.g.
 //
 //    assign {x, y, z} = {a, b, c};
-class ContinuousAssignment final : public VastNode {
+class ContinuousAssignment final : public Statement {
  public:
   ContinuousAssignment(Expression* lhs, Expression* rhs, VerilogFile* file,
                        const SourceInfo& loc)
-      : VastNode(file, loc), lhs_(lhs), rhs_(rhs) {}
+      : Statement(file, loc), lhs_(lhs), rhs_(rhs) {}
 
   std::string Emit(LineInfo* line_info) const final;
   std::string PreEmit(LineInfo* line_info) override;

@@ -17,11 +17,11 @@
 #include <cstdint>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/types/span.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/vast/vast.h"
 #include "xls/common/status/matchers.h"
@@ -847,6 +847,85 @@ TEST_P(ModuleBuilderTest, ArrayUpdate1D) {
                            mb.AddInputPort("value", package.GetBitsType(32)));
   XLS_ASSERT_OK(mb.EmitAsAssignment("updated_array", updated_array.node(),
                                     {array_ref, index_ref, value_ref})
+                    .status());
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 file.Emit());
+}
+
+TEST_P(ModuleBuilderTest, ArrayUpdate4D) {
+  VerilogFile file = NewVerilogFile();
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  // 4D array of shape [4][3][2][5] with element type u32
+  Type* u32 = package.GetBitsType(32);
+  Type* d3 = package.GetArrayType(5, u32);
+  Type* d2 = package.GetArrayType(2, d3);
+  Type* d1 = package.GetArrayType(3, d2);
+  ArrayType* array_type = package.GetArrayType(4, d1);
+
+  // Parameters: 4D array, two indices (for the first two dimensions), and a 2D
+  // value
+  BValue array = fb.Param("array", array_type);
+  BValue idx0 = fb.Param("idx0", package.GetBitsType(2));  // for dim size 4
+  BValue idx1 = fb.Param("idx1", package.GetBitsType(2));  // for dim size 3
+  BValue value = fb.Param("value", d2);                    // 2D subarray [2][5]
+
+  // Update slice array[idx0][idx1][*][*] with 2D value
+  BValue updated_array = fb.ArrayUpdate(array, value, /*indices=*/{idx0, idx1});
+  XLS_ASSERT_OK(fb.Build());
+
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options());
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * array_ref,
+                           mb.AddInputPort("array", array_type));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * idx0_ref,
+                           mb.AddInputPort("idx0", package.GetBitsType(2)));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * idx1_ref,
+                           mb.AddInputPort("idx1", package.GetBitsType(2)));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * value_ref, mb.AddInputPort("value", d2));
+  // Emit with inputs ordered to match ArrayUpdate operands: array, value,
+  // indices...
+  XLS_ASSERT_OK(mb.EmitAsAssignment("updated_array", updated_array.node(),
+                                    {array_ref, value_ref, idx0_ref, idx1_ref})
+                    .status());
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 file.Emit());
+}
+
+TEST_P(ModuleBuilderTest, ArrayUpdateWithTupleWithNestedArray) {
+  VerilogFile file = NewVerilogFile();
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  // Make a 1D array of tuples. Each tuple has:
+  //  - a 1D array of 4 elements of u8, and
+  //  - a single u16 scalar.
+  Type* u8 = package.GetBitsType(8);
+  Type* u16 = package.GetBitsType(16);
+  ArrayType* inner_array_type = package.GetArrayType(4, u8);
+  TupleType* tuple_type = package.GetTupleType({inner_array_type, u16});
+  ArrayType* array_type = package.GetArrayType(3, tuple_type);
+
+  // Parameters: the array, an index into the 1D array, and a tuple value to
+  // replace the array element at that index.
+  BValue array = fb.Param("array", array_type);
+  BValue idx = fb.Param("idx", package.GetBitsType(2));  // for dim size 3
+  BValue value = fb.Param("value", tuple_type);
+
+  // Update array[idx] with the tuple value.
+  BValue updated_array = fb.ArrayUpdate(array, value, /*indices=*/{idx});
+  XLS_ASSERT_OK(fb.Build());
+
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options());
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * array_ref,
+                           mb.AddInputPort("array", array_type));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * idx_ref,
+                           mb.AddInputPort("idx", package.GetBitsType(2)));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * value_ref,
+                           mb.AddInputPort("value", tuple_type));
+  // Emit with inputs ordered to match ArrayUpdate operands: array, value, idx.
+  XLS_ASSERT_OK(mb.EmitAsAssignment("updated_array", updated_array.node(),
+                                    {array_ref, value_ref, idx_ref})
                     .status());
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),

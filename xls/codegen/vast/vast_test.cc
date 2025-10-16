@@ -21,14 +21,14 @@
 #include <utility>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/fileno.h"
@@ -2658,7 +2658,7 @@ TEST_P(VastTest, SimpleGenerateLoop) {
   // This is not generally necessary but shows a simple legal case.
   auto* generate_loop = m->Add<GenerateLoop>(
       si, i, f.PlainLiteral(0, si), f.PlainLiteral(32, si), "gen_loop");
-  generate_loop->AddBodyNode(f.Make<ContinuousAssignment>(
+  generate_loop->AddStatement(f.Make<ContinuousAssignment>(
       si, f.Make<Index>(si, output, i), f.Make<Index>(si, input, i)));
 
   LineInfo line_info;
@@ -2671,6 +2671,49 @@ TEST_P(VastTest, SimpleGenerateLoop) {
   generate
     for (i = 0; i < 32; i = i + 1) begin : gen_loop
       assign my_output[i] = my_input[i];
+    end
+  endgenerate
+endmodule)");
+}
+
+TEST_P(VastTest, NestedGenerateLoop) {
+  VerilogFile f(GetFileType());
+  const SourceInfo si;
+  Module* m = f.AddModule("top", si);
+
+  // Create two 2D packed array wires: src and dst with dimensions [4][3].
+  DataType* array_type = f.PackedArrayType(/*element_bit_count=*/1, {4, 3}, si);
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * src, m->AddWire("src", array_type, si));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * dst, m->AddWire("dst", array_type, si));
+
+  // Create two genvars for nested generate loops.
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * i, m->AddGenvar("i", si));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * j, m->AddGenvar("j", si));
+
+  // Add a doubly nested generate loop that assigns dst[i][j] = src[i][j].
+  GenerateLoopIterationSpec outer{i, f.PlainLiteral(0, si),
+                                  f.PlainLiteral(4, si), "outer"};
+  GenerateLoopIterationSpec inner{j, f.PlainLiteral(0, si),
+                                  f.PlainLiteral(3, si), "inner"};
+  std::vector<GenerateLoopIterationSpec> iterations = {outer, inner};
+  auto* generate_loop =
+      m->Add<GenerateLoop>(si, absl::MakeConstSpan(iterations));
+  generate_loop->AddStatement(f.Make<ContinuousAssignment>(
+      si, f.Make<Index>(si, f.Make<Index>(si, dst, i), j),
+      f.Make<Index>(si, f.Make<Index>(si, src, i), j)));
+
+  LineInfo line_info;
+  EXPECT_EQ(m->Emit(&line_info),
+            R"(module top;
+  wire [0:0][3:0][2:0] src;
+  wire [0:0][3:0][2:0] dst;
+  genvar i;
+  genvar j;
+  generate
+    for (i = 0; i < 4; i = i + 1) begin : outer
+      for (j = 0; j < 3; j = j + 1) begin : inner
+        assign dst[i][j] = src[i][j];
+      end
     end
   endgenerate
 endmodule)");

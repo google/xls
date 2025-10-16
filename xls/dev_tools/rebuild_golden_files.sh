@@ -1,4 +1,4 @@
-#!/bin/sh -ex
+#!/bin/bash -ex
 
 # Rebuilds the golden files of all tests using
 # `xls/common/golden_files.h` infrastructure.
@@ -10,7 +10,8 @@ if [[ "$@" ]]
 then
   TARGETS=($@)
 else
-  TARGETS=($(bazel query "kind(cc_test, rdeps(//xls/..., //xls/common:golden_files))"))
+  # Keep-going and ignore failures as the query hits irrelevant errors in OSS.
+  TARGETS=($(bazel query "kind(cc_test, rdeps(//xls/..., //xls/common:golden_files) except //xls/common:golden_files_test)" --keep_going || /bin/true))
 fi
 
 if [[ ! -f "$(pwd)/WORKSPACE" ]]
