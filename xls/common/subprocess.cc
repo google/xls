@@ -320,7 +320,7 @@ absl::StatusOr<SubprocessResult> InvokeSubprocess(
       *optional_timeout > absl::ZeroDuration()) {
     auto watchdog = [pid, timeout = optional_timeout.value(), &watchdog_mutex,
                      &release_watchdog, &timeout_expired]() {
-      absl::MutexLock lock(&watchdog_mutex);
+      absl::MutexLock lock(watchdog_mutex);
       auto condition_lambda = [](void* release_val) {
         return *static_cast<bool*>(release_val);
       };
@@ -352,7 +352,7 @@ absl::StatusOr<SubprocessResult> InvokeSubprocess(
   XLS_ASSIGN_OR_RETURN(int wait_status, WaitForPid(pid));
 
   if (watchdog_thread != std::nullopt) {
-    absl::MutexLock lock(&watchdog_mutex);
+    absl::MutexLock lock(watchdog_mutex);
     release_watchdog = true;
   }
 
