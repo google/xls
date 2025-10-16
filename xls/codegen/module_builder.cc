@@ -645,37 +645,105 @@ absl::StatusOr<Expression*> ModuleBuilder::EmitAsInlineExpression(
   return NodeToExpression(node, inputs, file_, options_);
 }
 
-absl::Status ModuleBuilder::EmitArrayCopyAndUpdateViaGenerate1D(
+absl::Status ModuleBuilder::EmitArrayCopyAndUpdateViaGenerate(
     std::string_view op_name, IndexableExpression* lhs,
-    IndexableExpression* rhs, Expression* update_value, IndexType index_type,
-    Type* xls_type) {
-  ArrayType* array_type = xls_type->AsArrayOrDie();
+    IndexableExpression* rhs, Expression* update_value,
+    absl::Span<const ModuleBuilder::IndexType> indices, Type* xls_type) {
+  std::vector<GenerateLoopIterationSpec> iteration_specs;
+  // Genvars for the index space of `indices`.
+  std::vector<LogicRef*> index_genvars;
+  // Genvars for the index space of the updated value. This will be non-empty
+  // only if the update value is an array.
+  std::vector<LogicRef*> update_genvars;
 
-  // Create names derived from the unique operation name to ensure the derived
-  // names are unique. We namespace via double underscore in an attempt to
-  // reserve the suffixes and avoid collisions.
-  std::string genvar_name =
-      SanitizeAndUniquifyName(absl::StrCat(op_name, "__index"));
-  std::string generate_loop_name =
-      SanitizeAndUniquifyName(absl::StrCat(op_name, "__gen"));
+  // Create the iteration space for `indices`.
+  Type* iter_type = xls_type;
+  for (int64_t dim_index = 0; dim_index < indices.size(); ++dim_index) {
+    ArrayType* current_array = iter_type->AsArrayOrDie();
+    int64_t dim_size = current_array->size();
 
-  XLS_ASSIGN_OR_RETURN(auto* genvar,
-                       module_->AddGenvar(genvar_name, SourceInfo()));
+    std::string genvar_name =
+        SanitizeAndUniquifyName(absl::StrCat(op_name, "__index_", dim_index));
+    XLS_ASSIGN_OR_RETURN(LogicRef * genvar,
+                         module_->AddGenvar(genvar_name, SourceInfo()));
+    index_genvars.push_back(genvar);
+    iteration_specs.push_back(GenerateLoopIterationSpec{
+        genvar, file_->PlainLiteral(0, SourceInfo()),
+        file_->PlainLiteral(dim_size, SourceInfo()),
+        std::optional<std::string>(SanitizeAndUniquifyName(
+            absl::StrCat(op_name, "__gen_", dim_index)))});
 
-  GenerateLoop* generate_loop = module_->Add<GenerateLoop>(
-      SourceInfo(), genvar, file_->PlainLiteral(0, SourceInfo()),
-      file_->PlainLiteral(array_type->size(), SourceInfo()),
-      generate_loop_name);
+    iter_type = current_array->element_type();
+  }
 
-  // In the body there is a conditional where we choose to either assign the rhs
-  // index directly or the updated value.
-  Expression* index_is_match =
-      file_->Equals(index_type.expression, genvar, SourceInfo());
-  Expression* rhs_at_index = file_->Index(rhs, genvar, SourceInfo());
-  generate_loop->AddBodyNode(file_->Make<ContinuousAssignment>(
-      SourceInfo(), file_->Make<Index>(SourceInfo(), lhs, genvar),
-      file_->Ternary(index_is_match, update_value, rhs_at_index,
-                     SourceInfo())));
+  // Create the iteration space for the update value.
+  Type* update_leaf_type = iter_type;
+  int64_t update_dim = 0;
+  while (update_leaf_type->IsArray()) {
+    ArrayType* current_array = update_leaf_type->AsArrayOrDie();
+    int64_t dim_size = current_array->size();
+
+    std::string genvar_name =
+        SanitizeAndUniquifyName(absl::StrCat(op_name, "__update_", update_dim));
+    XLS_ASSIGN_OR_RETURN(LogicRef * genvar,
+                         module_->AddGenvar(genvar_name, SourceInfo()));
+    update_genvars.push_back(genvar);
+    iteration_specs.push_back(GenerateLoopIterationSpec{
+        genvar, file_->PlainLiteral(0, SourceInfo()),
+        file_->PlainLiteral(dim_size, SourceInfo()),
+        std::optional<std::string>(SanitizeAndUniquifyName(
+            absl::StrCat(op_name, "__gen_up_", update_dim)))});
+
+    update_leaf_type = current_array->element_type();
+    ++update_dim;
+  }
+
+  XLS_RET_CHECK(update_leaf_type->IsBits());
+
+  GenerateLoop* generate_loop =
+      module_->Add<GenerateLoop>(SourceInfo(), iteration_specs);
+
+  // Build the index match condition.
+  Expression* indices_match = nullptr;
+  for (int64_t i = 0; i < indices.size(); ++i) {
+    Expression* eq =
+        file_->Equals(indices[i].expression, index_genvars[i], SourceInfo());
+    indices_match = (indices_match == nullptr)
+                        ? eq
+                        : file_->LogicalAnd(indices_match, eq, SourceInfo());
+  }
+
+  // Build lhs and rhs indexed by all loop genvars (index + update dims).
+  IndexableExpression* lhs_indexed = lhs;
+  IndexableExpression* rhs_indexed = rhs;
+  for (LogicRef* v : index_genvars) {
+    lhs_indexed = file_->Index(lhs_indexed, v, SourceInfo());
+    rhs_indexed = file_->Index(rhs_indexed, v, SourceInfo());
+  }
+  for (LogicRef* v : update_genvars) {
+    lhs_indexed = file_->Index(lhs_indexed, v, SourceInfo());
+    rhs_indexed = file_->Index(rhs_indexed, v, SourceInfo());
+  }
+
+  // Build update_value indexed by its own loop genvars.
+  Expression* update_indexed = update_value;
+  if (!update_genvars.empty()) {
+    IndexableExpression* update_idx =
+        update_value->AsIndexableExpressionOrDie();
+    for (LogicRef* v : update_genvars) {
+      update_idx = file_->Index(update_idx, v, SourceInfo());
+    }
+    update_indexed = update_idx;
+  }
+
+  // Emit the assignment inside the generate loop body.
+  Expression* assignment_rhs =
+      indices_match == nullptr ? update_indexed
+                               : file_->Ternary(indices_match, update_indexed,
+                                                rhs_indexed, SourceInfo());
+  generate_loop->AddStatement(file_->Make<ContinuousAssignment>(
+      SourceInfo(), lhs_indexed, assignment_rhs));
+
   return absl::OkStatus();
 }
 
@@ -965,18 +1033,22 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
               IndexType{inputs[i], node->operand(i)->GetType()->AsBitsOrDie()});
         }
 
-        // We use a generate loop in the simple case where the array is 1D and
-        // the element type is bits.
-        if (index_types.size() == 1 &&
-            node->GetType()->AsArrayOrDie()->element_type()->IsBits()) {
-          XLS_RETURN_IF_ERROR(EmitArrayCopyAndUpdateViaGenerate1D(
+        Type* base_type = node->GetType();
+        while (base_type->IsArray()) {
+          base_type = base_type->AsArrayOrDie()->element_type();
+        }
+        // Use `generate` to emit the assignment if the base type of the array
+        // is bits.
+        if (base_type->IsBits()) {
+          XLS_RETURN_IF_ERROR(EmitArrayCopyAndUpdateViaGenerate(
               /*op_name=*/node->GetName(),
               /*lhs=*/ref,
               /*rhs=*/inputs[0]->AsIndexableExpressionOrDie(),
               /*update_value=*/inputs[1],
-              /*index_type=*/index_types[0],
+              /*indices=*/index_types,
               /*xls_type=*/array_type));
         } else {
+          // Fall back to a sequence of assignments.
           XLS_RETURN_IF_ERROR(EmitArrayCopyAndUpdate(
               /*lhs=*/ref,
               /*rhs=*/inputs[0]->AsIndexableExpressionOrDie(),

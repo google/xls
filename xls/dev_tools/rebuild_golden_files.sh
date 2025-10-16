@@ -1,4 +1,4 @@
-#!/bin/sh -ex
+#!/bin/bash -ex
 
 # Rebuilds the golden files of all tests using
 # `xls/common/golden_files.h` infrastructure.

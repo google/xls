@@ -7,11 +7,9 @@ module pipelined_proc(
       bit_slice_update_w10_10b_2b = start >= 10'h00a ? to_update : {8'h00, update_value} << start | ~(10'h003 << start) & to_update;
     end
   endfunction
-  wire [1:0] literal_33;
   wire [9:0] bit_slice_update_42;
   wire [9:0] bit_slice_update_52;
-  assign literal_33 = 2'h2;
-  assign bit_slice_update_42 = bit_slice_update_w10_10b_2b(bit_slice_update_w10_10b_2b(bit_slice_update_w10_10b_2b(bit_slice_update_w10_10b_2b(bit_slice_update_w10_10b_2b(x, 10'h000, literal_33), 10'h001, literal_33), 10'h002, literal_33), 10'h003, literal_33), 10'h004, literal_33);
-  assign bit_slice_update_52 = bit_slice_update_w10_10b_2b(bit_slice_update_w10_10b_2b(bit_slice_update_w10_10b_2b(bit_slice_update_w10_10b_2b(bit_slice_update_w10_10b_2b(bit_slice_update_42, 10'h005, literal_33), 10'h006, literal_33), 10'h007, literal_33), 10'h008, literal_33), 10'h009, literal_33);
+  assign bit_slice_update_42 = bit_slice_update_w10_10b_2b(bit_slice_update_w10_10b_2b(bit_slice_update_w10_10b_2b(bit_slice_update_w10_10b_2b(bit_slice_update_w10_10b_2b(x, 10'h000, 2'h2), 10'h001, 2'h2), 10'h002, 2'h2), 10'h003, 2'h2), 10'h004, 2'h2);
+  assign bit_slice_update_52 = bit_slice_update_w10_10b_2b(bit_slice_update_w10_10b_2b(bit_slice_update_w10_10b_2b(bit_slice_update_w10_10b_2b(bit_slice_update_w10_10b_2b(bit_slice_update_42, 10'h005, 2'h2), 10'h006, 2'h2), 10'h007, 2'h2), 10'h008, 2'h2), 10'h009, 2'h2);
   assign out = bit_slice_update_52;
 endmodule
