@@ -5788,6 +5788,41 @@ pub proc main {
   ExpectIr(converted);
 }
 
+TEST_P(ProcScopedChannelsIrConverterTest, ProcScopedImport) {
+  auto import_data = CreateImportDataForTest();
+  constexpr std::string_view imported_program = R"(
+import std;
+
+pub const MY_CONST = bits[32]:5;
+pub const MY_OTHER_CONST = std::clog2(MY_CONST);
+
+pub fn constexpr_fn(arg: u32) -> u32 {
+  arg * MY_CONST
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(imported_program, "fake/imported/stuff.x",
+                        "fake.imported.stuff", &import_data));
+  constexpr std::string_view importer_program = R"(
+import fake.imported.stuff;
+
+fn f() -> u32 {
+  let x = stuff::constexpr_fn(stuff::MY_OTHER_CONST);
+  x
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(
+          importer_program,
+          ConvertOptions{.emit_positions = false,
+                         .lower_to_proc_scoped_channels = true},
+          &import_data));
+  ExpectIr(converted);
+}
+
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ConvertWithoutTests) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,

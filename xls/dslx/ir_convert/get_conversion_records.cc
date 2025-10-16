@@ -28,6 +28,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
+#include "xls/dslx/frontend/builtin_stubs_utils.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/proc_id.h"
 #include "xls/dslx/ir_convert/conversion_record.h"
@@ -96,7 +97,7 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
           XLS_ASSIGN_OR_RETURN(
               ConversionRecord cr,
               MakeConversionRecord(const_cast<Function*>(&config_fn),
-                                   config_fn.owner(), *config_type_info,
+                                   f->owner(), *config_type_info,
                                    callee_bindings, proc_id, config_invocation,
                                    // config functions can never be 'top'
                                    /*is_top=*/false));
@@ -121,11 +122,18 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
           /*parent=*/std::nullopt, f->proc().value(),
           /*count_as_new_instance=*/false);
     }
+    // Process the child nodes first, so that function invocations or proc
+    // spawns that _we_ make are added to the list _before us_. This only
+    // matters to invocations to functions outside our module; functions inside
+    // our module should have already been added to the list.
+    XLS_RETURN_IF_ERROR(DefaultHandler(f));
+
     std::vector<InvocationCalleeData> calls =
         type_info_->GetUniqueInvocationCalleeData(f);
     if (f->IsParametric() && calls.empty()) {
-      VLOG(5) << "No calls to parametric proc " << f->name_def()->ToString();
-      return DefaultHandler(f);
+      VLOG(5) << "No calls to parametric function "
+              << f->name_def()->ToString();
+      return absl::OkStatus();
     }
     for (auto& callee_data : calls) {
       XLS_ASSIGN_OR_RETURN(
@@ -139,12 +147,16 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     }
     if (calls.empty()) {
       // We can still convert this function even though it's never been called.
-      XLS_ASSIGN_OR_RETURN(
-          ConversionRecord cr,
-          InvocationToConversionRecord(f, /* invocation= */ nullptr, type_info_,
-                                       /* callee_bindings= */ ParametricEnv(),
-                                       /* caller_bindings= */ ParametricEnv(),
-                                       /* is_top= */ f == top_, proc_id));
+      // Make sure we are using the right type info for imported functions.
+      TypeInfo* invocation_ti =
+          f->owner() == module_ ? type_info_
+                                : *type_info_->GetImportedTypeInfo(f->owner());
+      XLS_ASSIGN_OR_RETURN(ConversionRecord cr,
+                           InvocationToConversionRecord(
+                               f, /* invocation= */ nullptr, invocation_ti,
+                               /* callee_bindings= */ ParametricEnv(),
+                               /* caller_bindings= */ ParametricEnv(),
+                               /* is_top= */ f == top_, proc_id));
       records_.push_back(std::move(cr));
     }
     return DefaultHandler(f);
@@ -162,6 +174,23 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     return AddFunction(f);
   }
 
+  absl::Status HandleInvocation(const Invocation* invocation) override {
+    auto root_invocation_data = type_info_->GetRootInvocationData(invocation);
+    XLS_RET_CHECK(root_invocation_data.has_value());
+    const InvocationData* invocation_data = *root_invocation_data;
+    const Function* f = invocation_data->callee();
+    if (f == nullptr || IsBuiltin(f)) {
+      return DefaultHandler(invocation);
+    }
+
+    if (f->owner() == module_) {
+      // Since this function is inside this module, we will convert this
+      // function, so there's no need to do any more processing here.
+      return absl::OkStatus();
+    }
+    return HandleFunction(f);
+  }
+
   absl::Status HandleSpawn(const Spawn* spawn) override {
     Invocation* invocation = spawn->config();
 
@@ -171,8 +200,8 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     const InvocationData* invocation_data = *root_invocation_data;
     const Function* config_fn = invocation_data->callee();
     if (config_fn->owner() == module_) {
-      // We will convert this proc, so there's no need to do any more processing
-      // here.
+      // Since this proc is inside this module, We will convert this proc, so
+      // there's no need to do any more processing here.
       return absl::OkStatus();
     }
     XLS_RET_CHECK(config_fn->proc().has_value());
