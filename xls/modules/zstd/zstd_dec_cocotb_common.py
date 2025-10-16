@@ -676,7 +676,9 @@ async def check_output(expected_packet_count, memory, reference_memory, output_m
         hex(mem_contents),
         hex(exp_mem_contents),
       )
-    print(f'[cocotb] Got correct packet (addr: {hex(current_addr)}, data: {hex(mem_contents)}, clk: {get_clock_time(clock)})', file=sys.stderr)
+
+    if read_op % 0x10000 == 0:
+      print(f'[cocotb] Got correct packet (addr: {hex(current_addr)}, data: {hex(mem_contents)}, clk: {get_clock_time(clock)})', file=sys.stderr)
 
   decode_last_packet = get_clock_time(clock)
   return (decode_start, decode_first_packet, decode_last_packet)
