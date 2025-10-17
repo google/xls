@@ -1,0 +1,36 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+proc __test_module__producer_0_next<output_c: bits[32] out>(__state: bits[32], init={0}) {
+  chan_interface output_c(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  __state: bits[32] = state_read(state_element=__state, id=2)
+  literal.8: bits[32] = literal(value=1, id=8)
+  output_c: bits[32] = send_channel_end(id=4)
+  after_all.6: token = after_all(id=6)
+  literal.3: bits[1] = literal(value=1, id=3)
+  add.9: bits[32] = add(__state, literal.8, id=9)
+  __token: token = literal(value=token, id=1)
+  tuple.5: (bits[32]) = tuple(output_c, id=5)
+  tok: token = send(after_all.6, __state, predicate=literal.3, channel=output_c, id=7)
+  next_value.10: () = next_value(param=__state, value=add.9, id=10)
+}
+
+top proc __test_module__main_0_next<>(__state: (), init={()}) {
+  chan my_chan0(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+  chan_interface my_chan0(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface my_chan0(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan my_chan1(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+  chan_interface my_chan1(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface my_chan1(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  proc_instantiation __test_module__producer_0_next_inst(my_chan0, proc=__test_module__producer_0_next)
+  proc_instantiation __test_module__producer_0_next_inst_1(my_chan1, proc=__test_module__producer_0_next)
+  __state: () = state_read(state_element=__state, id=12)
+  tuple.17: () = tuple(id=17)
+  __token: token = literal(value=token, id=11)
+  literal.13: bits[1] = literal(value=1, id=13)
+  my_chan0: bits[32] = send_channel_end(id=14)
+  my_chan1: bits[32] = send_channel_end(id=15)
+  tuple.16: () = tuple(id=16)
+  next_value.18: () = next_value(param=__state, value=tuple.17, id=18)
+}

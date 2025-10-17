@@ -51,6 +51,7 @@
 #include "xls/ir/fileno.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/name_uniquer.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
@@ -634,6 +635,10 @@ class FunctionConverter {
   // The last tuple converted. Used for mapping the return tuple of a proc
   // `config` method to actual proc members.
   std::vector<IrValue> last_tuple_;
+
+  // Used to uniquify proc instantiation node names when lowering to
+  // proc-scoped channels
+  NameUniquer name_uniquer_;
 };
 
 }  // namespace xls::dslx
