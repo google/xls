@@ -48,7 +48,6 @@
 namespace xls::dslx {
 namespace {
 
-
 bool operator==(const SignednessAndSize& x, const SignednessAndSize& y) {
   return x.flag == y.flag && x.is_signed == y.is_signed && x.size == y.size;
 }
@@ -69,6 +68,11 @@ std::optional<const TypeAnnotation*> GetSliceContainerSize(
     }
   }
   return std::nullopt;
+}
+
+bool IsArrayTypeWithMinSize(const TypeAnnotation* annotation) {
+  return annotation->annotation_kind() == TypeAnnotationKind::kArray &&
+         down_cast<const ArrayTypeAnnotation*>(annotation)->dim_is_min();
 }
 
 absl::Status MinSizeLargerThanStandardSizeError(
@@ -121,7 +125,7 @@ class Unifier {
     if (annotations.empty()) {
       return module_.Make<AnyTypeAnnotation>(/*multiple=*/true);
     }
-    if (annotations.size() == 1 &&
+    if (annotations.size() == 1 && !IsArrayTypeWithMinSize(annotations[0]) &&
         !table_.GetAnnotationFlag(annotations[0])
              .HasFlag(TypeInferenceFlag::kFormalMemberType)) {
       XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,

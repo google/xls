@@ -1124,6 +1124,29 @@ TEST(TypecheckV2Test, GlobalArrayConstantWithEllipsisAndNoElementsFails) {
                                        "without an element to repeat")));
 }
 
+TEST(TypecheckV2Test, EllipsisArrayWithNoDeclaredSizeFails) {
+  EXPECT_THAT(
+      R"(
+fn bar(x: u32[5]) -> u32 {
+  x[4]
+}
+
+fn foo() -> u32 {
+  let a = u32:1;
+  let b = u32:2;
+  let y = [a, b, a, ...];
+  bar(y)
+}
+
+#[test]
+fn foo_test() {
+  assert_eq(foo(), u32:1);
+}
+)",
+      TypecheckFails(HasSubstr(
+          "Array has ellipsis (`...`) but does not have a type annotation.")));
+}
+
 TEST(TypecheckV2Test, GlobalArrayConstantEmptyWithoutAnnotationFails) {
   EXPECT_THAT(
       "const X = [];",
