@@ -828,22 +828,21 @@ absl::Status FunctionConverter::HandleExternNameRef(
       imported_info->module->FindMemberWithName(node->identifier());
   XLS_RET_CHECK(member.has_value());
   return absl::visit(
-      Visitor{
-          [&](Function* f) { return DefAlias(f, /*to=*/node); },
-          [&](ConstantDef* c) -> absl::Status {
-            XLS_RET_CHECK(node_to_ir_.contains(c->value()))
-                << absl::StreamFormat(
-                       "ConstantDef `%s` not found in node_to_ir_ map",
-                       c->ToString());
-            return DefAlias(c->value(), /*to=*/node);
-          },
-          [&](auto) {
-            return absl::UnimplementedError(absl::StrFormat(
-                "Unsupported module member type %s for external name "
-                "reference: `%s` @ %s",
-                GetModuleMemberTypeName(*member.value()), node->identifier(),
-                node->span().ToString(file_table())));
-          }},
+      Visitor{[&](Function* f) { return DefAlias(f, /*to=*/node); },
+              [&](ConstantDef* c) -> absl::Status {
+                XLS_RET_CHECK(node_to_ir_.contains(c->value()))
+                    << absl::StreamFormat(
+                           "ConstantDef `%s` not found in node_to_ir_ map",
+                           c->ToString());
+                return DefAlias(c->value(), /*to=*/node);
+              },
+              [&](auto) {
+                return absl::UnimplementedError(absl::StrFormat(
+                    "Unsupported module member type %s for external name "
+                    "reference: `%s` @ %s",
+                    GetModuleMemberTypeName(*member.value()),
+                    node->identifier(), node->span().ToString(file_table())));
+              }},
       *member.value());
 }
 
@@ -3466,11 +3465,23 @@ absl::Status FunctionConverter::HandleProcNextFunction(
             << initial_element.ToHumanString();
   }
 
-  XLS_ASSIGN_OR_RETURN(
-      std::string mangled_name,
-      MangleDslxName(module_->name(), proc_id.ToString(),
-                     CallingConvention::kProcNext, f->GetFreeParametricKeySet(),
-                     parametric_env));
+  std::string mangled_name;
+  if (proc_id.alias_name.has_value() &&
+      proc_id.proc_instance_stack.size() == 1) {
+    // Don't include the parametrics for the target proc in the mangled name of
+    // a proc alias.
+    XLS_ASSIGN_OR_RETURN(
+        mangled_name, MangleDslxName(module_->name(), proc_id.ToString(),
+                                     CallingConvention::kProcNext,
+                                     absl::btree_set<std::string>{}, nullptr));
+  } else {
+    XLS_ASSIGN_OR_RETURN(
+        mangled_name,
+        MangleDslxName(module_->name(), proc_id.ToString(),
+                       CallingConvention::kProcNext,
+                       f->GetFreeParametricKeySet(), parametric_env));
+  }
+
   std::string token_name = "__token";
   std::string state_name = "__state";
 

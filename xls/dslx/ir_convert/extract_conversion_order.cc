@@ -649,22 +649,25 @@ static absl::StatusOr<std::vector<ConversionRecord>> GetOrderForProc(
   TypeInfo* config_ti = type_info;
   TypeInfo* next_ti = type_info;
   ParametricEnv env;
+  std::optional<std::string> alias_name;
   if (resolved_proc_alias.has_value()) {
     config_ti = resolved_proc_alias->config_type_info;
     next_ti = resolved_proc_alias->next_type_info;
     env = resolved_proc_alias->env;
+    alias_name = resolved_proc_alias->name;
   }
 
   // The next function of a proc is the entry function when converting a proc to
   // IR.
-  XLS_RETURN_IF_ERROR(
-      AddToReady(&p->next(),
-                 /*invocation=*/nullptr, p->owner(), next_ti, env, &ready,
-                 ProcId{.proc_instance_stack = {{p, 0}}}, is_top));
-  XLS_RETURN_IF_ERROR(AddToReady(&p->config(),
-                                 /*invocation=*/nullptr, p->owner(), config_ti,
-                                 env, &ready,
-                                 ProcId{.proc_instance_stack = {{p, 0}}}));
+  XLS_RETURN_IF_ERROR(AddToReady(
+      &p->next(),
+      /*invocation=*/nullptr, p->owner(), next_ti, env, &ready,
+      ProcId{.proc_instance_stack = {{p, 0}}, .alias_name = alias_name},
+      is_top));
+  XLS_RETURN_IF_ERROR(AddToReady(
+      &p->config(),
+      /*invocation=*/nullptr, p->owner(), config_ti, env, &ready,
+      ProcId{.proc_instance_stack = {{p, 0}}, .alias_name = alias_name}));
 
   // Constants and "member" vars are assigned and defined in Procs' "config'"
   // functions, so we need to execute those before their "next" functions.

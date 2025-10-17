@@ -75,6 +75,7 @@ struct InvocationCalleeData {
 
 // The information for a `ProcAlias` that is resolved during type inference.
 struct ResolvedProcAlias {
+  std::string name;
   Proc* proc;
   ParametricEnv env;
   TypeInfo* config_type_info;

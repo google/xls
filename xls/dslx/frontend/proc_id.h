@@ -53,10 +53,18 @@ struct ProcId {
   //    [{A, 0}, {E, 0}, {B, 0}, {C, 0}]
   std::vector<std::pair<Proc*, int>> proc_instance_stack;
 
+  // The name of the proc alias, in a situation where we are converting a proc
+  // to IR via an alias to it.
+  std::optional<std::string> alias_name;
+
   std::string ToString() const {
     if (proc_instance_stack.empty()) {
       return "";
     }
+    if (proc_instance_stack.size() == 1 && alias_name.has_value()) {
+      return *alias_name;
+    }
+
     // The first proc in a chain never needs an instance count. Leaving it out
     // specifically when the chain length is more than 1 gets us the historical
     // output in most cases (where there was only an instance count at the end

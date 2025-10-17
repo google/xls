@@ -2391,7 +2391,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
 
     // For a non-parametric proc, that's it.
     if (alias->parametrics().empty()) {
-      return ResolvedProcAlias{.proc = proc,
+      return ResolvedProcAlias{.name = alias->identifier(),
+                               .proc = proc,
                                .env = ParametricEnv{},
                                .config_type_info = ti,
                                .next_type_info = ti};
@@ -2454,7 +2455,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       XLS_RETURN_IF_ERROR(ConvertSubtree(member, std::nullopt, next_context));
     }
 
-    return ResolvedProcAlias{.proc = proc,
+    return ResolvedProcAlias{.name = alias->identifier(),
+                             .proc = proc,
                              .env = env,
                              .config_type_info = config_ti,
                              .next_type_info = next_ti};
