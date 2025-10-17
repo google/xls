@@ -3586,10 +3586,6 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     ScopedTypeInfoSwap stis(this, config_type_info);
 
     Function& config_fn = proc->config();
-    // This probably was checked already but might as well double-check it.
-    XLS_RET_CHECK(invocation != nullptr || !f->IsParametric())
-        << "Cannot lower a parametric proc without an invocation";
-
     proc_scoped_channel_scope = std::make_unique<ProcScopedChannelScope>(
         package_data_.conversion_info, import_data, options_, builder_ptr);
     proc_scoped_channel_scope->EnterFunctionContext(current_type_info_,

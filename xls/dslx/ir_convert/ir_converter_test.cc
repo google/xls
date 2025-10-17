@@ -5877,10 +5877,7 @@ pub proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
@@ -5911,11 +5908,88 @@ fn f() -> u32 {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(
-          importer_program,
-          ConvertOptions{.emit_positions = false,
-                         .lower_to_proc_scoped_channels = true},
-          &import_data));
+      ConvertModuleForTest(importer_program, kProcScopedChannelOptions,
+                           &import_data));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, ProcScopedBasicProcAlias) {
+  constexpr std::string_view program = R"(
+proc Foo {
+  c: chan<u32> out;
+  init { u32:1 }
+  config(output_c: chan<u32> out) {
+    (output_c,)
+  }
+  next(i: u32) {
+    let tok = send(join(), c, i);
+    i + u32:2
+  }
+}
+
+pub proc FooAlias = Foo;
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "FooAlias", import_data,
+                                kProcScopedChannelOptions));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, ProcScopedParametricProcAlias) {
+  constexpr std::string_view program = R"(
+proc Foo<N: u32> {
+  c: chan<uN[N]> out;
+  init { uN[N]:1 }
+  config(output_c: chan<uN[N]> out) {
+    (output_c,)
+  }
+  next(i: uN[N]) {
+    let tok = send(join(), c, i);
+    i + uN[N]:2
+  }
+}
+
+pub proc FooAlias = Foo<16>;
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "FooAlias", import_data,
+                                kProcScopedChannelOptions));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, ProcScopedProcAliasToImportedProc) {
+  ImportData import_data = CreateImportDataForTest();
+
+  constexpr std::string_view imported = R"(
+pub proc Foo<N: u32> {
+  c: chan<uN[N]> out;
+  init { uN[N]:1 }
+  config(output_c: chan<uN[N]> out) {
+    (output_c,)
+  }
+  next(i: uN[N]) {
+    let tok = send(join(), c, i);
+    i + uN[N]:2
+  }
+}
+  )";
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(imported, "imported.x", "imported", &import_data));
+
+  constexpr std::string_view program = R"(
+import imported;
+pub proc FooAlias = imported::Foo<16>;
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "FooAlias", import_data,
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 

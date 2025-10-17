@@ -55,12 +55,14 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
  public:
   ConversionRecordVisitor(Module* module, TypeInfo* type_info,
                           bool include_tests, ProcIdFactory proc_id_factory,
-                          AstNode* top)
+                          AstNode* top,
+                          std::optional<ResolvedProcAlias> resolved_proc_alias)
       : module_(module),
         type_info_(type_info),
         include_tests_(include_tests),
         proc_id_factory_(proc_id_factory),
-        top_(top) {}
+        top_(top),
+        resolved_proc_alias_(resolved_proc_alias) {}
 
   absl::StatusOr<ConversionRecord> InvocationToConversionRecord(
       const Function* f, const Invocation* invocation,
@@ -235,6 +237,30 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     VLOG(5) << "HandleProc " << p->ToString();
     const Function* next_fn = &p->next();
 
+    if (top_ == next_fn && resolved_proc_alias_.has_value()) {
+      ProcId proc_id = proc_id_factory_.CreateProcId(
+          /*parent=*/std::nullopt, const_cast<Proc*>(p),
+          /*count_as_new_instance=*/false);
+      proc_id.alias_name = resolved_proc_alias_->name;
+      XLS_ASSIGN_OR_RETURN(
+          ConversionRecord config_record,
+          MakeConversionRecord(
+              const_cast<Function*>(&p->config()), top_->owner(),
+              resolved_proc_alias_->config_type_info, resolved_proc_alias_->env,
+              proc_id, /*invocation=*/nullptr,
+              /*is_top=*/false));
+      XLS_ASSIGN_OR_RETURN(
+          ConversionRecord next_record,
+          MakeConversionRecord(
+              const_cast<Function*>(&p->next()), top_->owner(),
+              resolved_proc_alias_->next_type_info, resolved_proc_alias_->env,
+              proc_id, /*invocation=*/nullptr,
+              /*is_top=*/true,
+              std::make_unique<ConversionRecord>(std::move(config_record))));
+      records_.push_back(std::move(next_record));
+      return absl::OkStatus();
+    }
+
     // This is required in order to process cross-module spawns; otherwise it
     // will never add procs from imported modules to the list of functions to
     // convert.
@@ -294,6 +320,9 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
   ProcIdFactory proc_id_factory_;
   AstNode* top_;
 
+  // The proc alias that was used to specify the top proc, if any.
+  std::optional<ResolvedProcAlias> resolved_proc_alias_;
+
   std::vector<ConversionRecord> records_;
 };
 
@@ -319,7 +348,8 @@ absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecords(
   // TODO: https://github.com/google/xls/issues/2078 - properly set
   // top instead of setting to nullptr.
   ConversionRecordVisitor visitor(module, type_info, include_tests,
-                                  proc_id_factory, /*top=*/nullptr);
+                                  proc_id_factory, /*top=*/nullptr,
+                                  /*resolved_proc_alias=*/std::nullopt);
   XLS_RETURN_IF_ERROR(module->Accept(&visitor));
 
   std::vector<ConversionRecord> records = visitor.records();
@@ -327,15 +357,18 @@ absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecords(
 }
 
 absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecordsForEntry(
-    std::variant<Proc*, Function*> entry, TypeInfo* type_info) {
+    std::variant<Proc*, Function*> entry, TypeInfo* type_info,
+    std::optional<ResolvedProcAlias> resolved_proc_alias) {
   ProcIdFactory proc_id_factory;
   if (std::holds_alternative<Function*>(entry)) {
+    XLS_RET_CHECK(!resolved_proc_alias.has_value());
     Function* f = std::get<Function*>(entry);
     Module* m = f->owner();
     // We are only ever called for tests, so we set include_tests to
     // true, and make sure that this function is top.
     ConversionRecordVisitor visitor(m, type_info, /*include_tests=*/true,
-                                    proc_id_factory, f);
+                                    proc_id_factory, f,
+                                    /*resolved_proc_alias=*/std::nullopt);
     XLS_RETURN_IF_ERROR(m->Accept(&visitor));
 
     std::vector<ConversionRecord> records = visitor.records();
@@ -349,7 +382,8 @@ absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecordsForEntry(
   // We are only ever called for tests, so we set include_tests to true,
   // and make sure that this proc's next function is top.
   ConversionRecordVisitor visitor(m, new_ti, /*include_tests=*/true,
-                                  proc_id_factory, &p->next());
+                                  proc_id_factory, &p->next(),
+                                  resolved_proc_alias);
   XLS_RETURN_IF_ERROR(m->Accept(&visitor));
 
   std::vector<ConversionRecord> records = visitor.records();

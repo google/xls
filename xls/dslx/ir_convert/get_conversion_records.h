@@ -15,6 +15,7 @@
 #ifndef XLS_DSLX_IR_CONVERT_GET_CONVERSION_RECORDS_H_
 #define XLS_DSLX_IR_CONVERT_GET_CONVERSION_RECORDS_H_
 
+#include <optional>
 #include <variant>
 #include <vector>
 
@@ -39,7 +40,8 @@ absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecords(
 //  entry: Proc or Function to start from (the top)
 //  type_info: Mapping from node to type.
 absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecordsForEntry(
-    std::variant<Proc*, Function*> entry, TypeInfo* type_info);
+    std::variant<Proc*, Function*> entry, TypeInfo* type_info,
+    std::optional<ResolvedProcAlias> resolved_proc_alias);
 
 }  // namespace xls::dslx
 

@@ -403,7 +403,7 @@ absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecords(
   // lower_to_proc_scoped_channels is turned on everywhere, and call
   // GetConversionRecordsForEntry unconditionally.
   if (options.lower_to_proc_scoped_channels) {
-    return GetConversionRecordsForEntry(block, type_info);
+    return GetConversionRecordsForEntry(block, type_info, resolved_proc_alias);
   }
   return GetOrderForEntry(block, type_info, resolved_proc_alias);
 }
