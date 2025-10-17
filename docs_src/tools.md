@@ -114,6 +114,44 @@ building the LLVM tools using `bazel build` from the XLS repo.
 
 Tool for reducing IR to a minimal test case based on an external test.
 
+Supports three modes of operation:
+
+1.  Minimizing an example that shows a difference between interpreter and JIT
+    output. For instance:
+
+    ```shell
+    $ ir_minimizer_main --test_llvm_jit --use_optimization_pipeline \
+        --input='bits[32]:42; bits[1]:0' IR_FILE
+    ```
+
+    will start with the given `IR_FILE`, check that the interpreter and JIT do
+    not agree on the output for the given input, and then try to reduce the IR
+    as far as possible while maintaining the disagreement.
+
+2.  Minimizing an example that shows a difference between optimized and
+    unoptimized output. For instance:
+
+    ```shell
+    $ ir_minimizer_main --test_optimizer --use_optimization_pipeline \
+        --input='bits[32]:42; bits[1]:0' IR_FILE
+    ```
+
+    will start with the given `IR_FILE`, check that the optimized & unoptimized
+    output disagree, and then try to reduce the IR as far as possible while
+    maintaining the disagreement between the optimized & unoptimized results.
+
+3.  (the most general) Minimizing an example that causes an external test script
+    to return 0. For instance, assuming `/foo/test.sh` is an executable taking
+    one command-line parameter:
+
+    ```shell
+    $ ir_minimizer_main --test_executable=/foo/test.sh IR_FILE
+    ```
+
+    will start with the given `IR_FILE`, check that `/foo/test.sh IR_FILE`
+    returns 0, and then try to reduce the IR as far as possible while still
+    ensuring that `/foo/test.sh REDUCED_IR_FILE` returns 0.
+
 ## [`ir_stats_main`](https://github.com/google/xls/tree/main/xls/dev_tools/ir_stats_main.cc)
 
 Prints summary information/stats on an IR [Package] file. An example:
