@@ -13,6 +13,7 @@
 // limitations under the License.
 #include "xls/dslx/frontend/ast_cloner.h"
 
+#include <array>
 #include <cstdint>
 #include <filesystem>
 #include <memory>
@@ -23,12 +24,12 @@
 #include <variant>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
@@ -47,7 +48,9 @@ namespace xls::dslx {
 namespace {
 
 using ::absl_testing::StatusIs;
+using ::testing::HasSubstr;
 using ::testing::IsEmpty;
+using ::testing::Not;
 
 std::optional<TypeRef*> FindFirstTypeRef(AstNode* node) {
   if (auto type_ref = dynamic_cast<TypeRef*>(node); type_ref) {
@@ -2369,6 +2372,218 @@ fn main() -> u32 { foo::D }
   std::vector<UseSubject> subjects = use->LinearizeToSubjects();
   ASSERT_EQ(subjects.size(), 1);
   EXPECT_EQ(subjects[0].name_def().definer(), &subjects[0].use_tree_entry());
+}
+
+TEST(AstClonerTest, CloneModuleIgnoreMembersDropsRequestedMembers) {
+  constexpr std::string_view kProgram = R"(
+const CONST_KEEP = u32:1;
+const CONST_DROP = u32:2;
+
+fn main() -> u32 {
+    CONST_KEEP
+}
+)";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto module, ParseModule(kProgram, "drop.x", "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(ConstantDef * const_drop,
+                           module->GetMemberOrError<ConstantDef>("CONST_DROP"));
+  const std::array<const AstNode*, 1> ignored = {const_drop};
+  XLS_ASSERT_OK_AND_ASSIGN(auto clone,
+                           CloneModuleIgnoreMembers(*module, ignored));
+  EXPECT_THAT(clone->ToString(), HasSubstr("const CONST_KEEP"));
+  EXPECT_THAT(clone->ToString(), Not(HasSubstr("CONST_DROP")));
+  EXPECT_THAT(clone->GetConstantDef("CONST_KEEP"),
+              StatusIs(absl::StatusCode::kOk));
+  EXPECT_THAT(clone->GetConstantDef("CONST_DROP"),
+              StatusIs(absl::StatusCode::kNotFound));
+}
+
+TEST(AstClonerTest, CloneModuleIgnoreMembersFailsOnDanglingNameRefs) {
+  constexpr std::string_view kProgram = R"(
+const VALUE = u32:7;
+
+fn helper() -> u32 {
+    VALUE
+}
+
+fn main() -> u32 {
+    helper()
+}
+)";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto module, ParseModule(kProgram, "dep.x", "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * helper,
+                           module->GetMemberOrError<Function>("helper"));
+  const std::array<const AstNode*, 1> ignored = {helper};
+  EXPECT_THAT(
+      CloneModuleIgnoreMembers(*module, ignored),
+      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("helper")));
+}
+
+TEST(AstClonerTest, CloneModuleIgnoreMembersFailsOnDanglingTypeRefs) {
+  constexpr std::string_view kProgram = R"(
+struct Foo {
+    x: u32,
+}
+
+fn make() -> Foo {
+    Foo { x: u32:0 }
+}
+)";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "type_dep.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(StructDef * foo,
+                           module->GetMemberOrError<StructDef>("Foo"));
+  const std::array<const AstNode*, 1> ignored = {foo};
+  EXPECT_THAT(CloneModuleIgnoreMembers(*module, ignored),
+              StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("Foo")));
+}
+
+TEST(AstClonerTest, CloneModuleIgnoreMembersFailsOnDanglingUseTypeRefs) {
+  constexpr std::string_view kProgram = R"(
+#![feature(use_syntax)]
+use foo::{Bar};
+
+fn make(x: Bar) -> Bar {
+    x
+}
+)";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "use_type.x",
+                                                    "the_module", file_table));
+  Use* use_member = nullptr;
+  for (const ModuleMember& member : module->top()) {
+    if (std::holds_alternative<Use*>(member)) {
+      use_member = std::get<Use*>(member);
+      break;
+    }
+  }
+  ASSERT_NE(use_member, nullptr);
+  const std::array<const AstNode*, 1> ignored = {use_member};
+  EXPECT_THAT(CloneModuleIgnoreMembers(*module, ignored),
+              StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("Bar")));
+}
+
+TEST(AstClonerTest, CloneModuleIgnoreMembersRebindsNameRefs) {
+  constexpr std::string_view kProgram = R"(
+fn helper(x: u32) -> u32 {
+    x + u32:1
+}
+
+fn main(x: u32) -> u32 {
+    helper(x)
+}
+)";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "ref_bug.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * original_helper,
+                           module->GetMemberOrError<Function>("helper"));
+  const std::array<const AstNode*, 0> ignored = {};
+  XLS_ASSERT_OK_AND_ASSIGN(auto clone,
+                           CloneModuleIgnoreMembers(*module, ignored));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * clone_helper,
+                           clone->GetMemberOrError<Function>("helper"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * clone_main,
+                           clone->GetMemberOrError<Function>("main"));
+
+  std::optional<NameRef*> maybe_ref =
+      FindFirstNameRefWithId(clone_main, "helper");
+  ASSERT_TRUE(maybe_ref.has_value());
+  NameRef* name_ref = *maybe_ref;
+  ASSERT_TRUE(std::holds_alternative<const NameDef*>(name_ref->name_def()));
+  const NameDef* ref_def = std::get<const NameDef*>(name_ref->name_def());
+
+  EXPECT_NE(clone_helper->name_def(), original_helper->name_def());
+  EXPECT_EQ(ref_def, clone_helper->name_def());
+}
+
+TEST(AstClonerTest, CloneModuleIgnoreMembersSupportsMultipleIgnores) {
+  constexpr std::string_view kProgram = R"(
+fn helper(x: u32) -> u32 {
+    x + u32:1
+}
+
+fn wrapper(x: u32) -> u32 {
+    helper(x)
+}
+
+fn main(x: u32) -> u32 {
+    x
+}
+)";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto module, ParseModule(kProgram, "multi.x", "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * helper,
+                           module->GetMemberOrError<Function>("helper"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * wrapper,
+                           module->GetMemberOrError<Function>("wrapper"));
+  const std::array<const AstNode*, 2> ignored = {helper, wrapper};
+  XLS_ASSERT_OK_AND_ASSIGN(auto clone,
+                           CloneModuleIgnoreMembers(*module, ignored));
+  // Ensure only `main` remains and it still typechecks.
+  EXPECT_EQ(clone->top().size(), 1);
+  XLS_ASSERT_OK(clone->GetMemberOrError<Function>("main"));
+}
+
+TEST(AstClonerTest, CloneModuleIgnoreMembersRemovesStruct) {
+  constexpr std::string_view kProgram = R"(
+struct Foo {
+    x: u32,
+}
+
+fn make() -> Foo {
+    Foo { x: u32:0 }
+}
+
+fn main() -> u32 {
+    u32:1
+}
+)";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "struct_remove.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(StructDef * foo,
+                           module->GetMemberOrError<StructDef>("Foo"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * make_fn,
+                           module->GetMemberOrError<Function>("make"));
+  const std::array<const AstNode*, 2> ignored = {foo, make_fn};
+  XLS_ASSERT_OK_AND_ASSIGN(auto clone,
+                           CloneModuleIgnoreMembers(*module, ignored));
+  EXPECT_EQ(clone->top().size(), 1);
+  XLS_ASSERT_OK(clone->GetMemberOrError<Function>("main"));
+}
+
+TEST(AstClonerTest, CloneModuleIgnoreMembersFailsWhenStructReferenced) {
+  constexpr std::string_view kProgram = R"(
+struct Foo {
+    x: u32,
+}
+
+fn make() -> Foo {
+    Foo { x: u32:0 }
+}
+)";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "struct_fail.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(StructDef * foo,
+                           module->GetMemberOrError<StructDef>("Foo"));
+  const std::array<const AstNode*, 1> ignored = {foo};
+  EXPECT_THAT(CloneModuleIgnoreMembers(*module, ignored),
+              StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("Foo")));
 }
 
 }  // namespace
