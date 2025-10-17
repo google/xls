@@ -51,6 +51,7 @@ struct xls_vast_statement;
 struct xls_vast_statement_block;
 struct xls_vast_module_port;
 struct xls_vast_def;
+struct xls_vast_parameter_ref;
 
 // Note: We define the enum with a fixed width integer type for clarity of the
 // exposed ABI.
@@ -115,6 +116,9 @@ struct xls_vast_data_type* xls_vast_verilog_file_make_scalar_type(
 struct xls_vast_data_type* xls_vast_verilog_file_make_bit_vector_type(
     struct xls_vast_verilog_file* f, int64_t bit_count, bool is_signed);
 
+struct xls_vast_data_type* xls_vast_verilog_file_make_integer_type(
+    struct xls_vast_verilog_file* f, bool is_signed);
+
 struct xls_vast_data_type* xls_vast_verilog_file_make_extern_package_type(
     struct xls_vast_verilog_file* f, const char* package_name,
     const char* entity_name);
@@ -143,6 +147,12 @@ struct xls_vast_logic_ref* xls_vast_verilog_module_add_wire(
     struct xls_vast_verilog_module* m, const char* name,
     struct xls_vast_data_type* type);
 // TODO(cdleary): 2024-09-05 Add xls_vast_verilog_module_add_wire_with_expr
+
+// Adds a module parameter with the given name and RHS expression.
+// Returns a handle to the created parameter reference.
+struct xls_vast_parameter_ref* xls_vast_verilog_module_add_parameter(
+    struct xls_vast_verilog_module* m, const char* name,
+    struct xls_vast_expression* rhs);
 
 // Note: returned value is owned by the caller, free via `xls_c_str_free`.
 char* xls_vast_verilog_module_get_name(struct xls_vast_verilog_module* m);
@@ -195,6 +205,19 @@ enum {
   xls_vast_data_kind_untyped_enum,
   xls_vast_data_kind_genvar,
 };
+
+// Creates a generic definition (Def) with the given name, data kind, and type.
+// Useful for creating typed parameters via
+// xls_vast_verilog_module_add_parameter_with_def.
+struct xls_vast_def* xls_vast_verilog_file_make_def(
+    struct xls_vast_verilog_file* f, const char* name, xls_vast_data_kind kind,
+    struct xls_vast_data_type* type);
+
+// Adds a module parameter with an explicit Def (type/kind) and RHS expression.
+// Returns a handle to the created parameter reference.
+struct xls_vast_parameter_ref* xls_vast_verilog_module_add_parameter_with_def(
+    struct xls_vast_verilog_module* m, struct xls_vast_def* def,
+    struct xls_vast_expression* rhs);
 
 // Frees the ports array returned by `xls_vast_verilog_module_get_ports`.
 void xls_vast_verilog_module_free_ports(struct xls_vast_module_port** ports,
@@ -277,6 +300,8 @@ struct xls_vast_expression* xls_vast_concat_as_expression(
     struct xls_vast_concat* v);
 struct xls_vast_expression* xls_vast_index_as_expression(
     struct xls_vast_index* v);
+struct xls_vast_expression* xls_vast_parameter_ref_as_expression(
+    struct xls_vast_parameter_ref* v);
 
 struct xls_vast_indexable_expression*
 xls_vast_logic_ref_as_indexable_expression(
