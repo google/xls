@@ -1765,6 +1765,13 @@ benchmark_synth(
 #    target_die_utilization_percentage = "1",
 #)
 
+py_library(
+    name = "perf_report",
+    srcs = ["perf_report.py"],
+    tags = ["manual"],
+    visibility = ["//xls:xls_users"],
+)
+
 filegroup(
     name = "zstd_dec_xx_fse_default",
     srcs = [
@@ -1791,6 +1798,7 @@ py_library(
         ":axi_crossbar_wrapper.v",
         ":patch_zstd_dec",
         ":zstd_dec_xx_fse_default",
+        ":perf_report",
         "//xls/modules/zstd:zstd_test_debugger",
         "//xls/modules/zstd/rtl:ram_1r1w.v",
         "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",

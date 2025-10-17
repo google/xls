@@ -17,6 +17,7 @@ import math
 import enum
 import tempfile
 import sys
+import os
 
 import cocotb
 from cocotb import triggers
@@ -58,12 +59,15 @@ from xls.modules.zstd.zstd_test_debugger import debug_file
 from xls.modules.zstd.cocotb import data_generator
 from xls.modules.zstd.cocotb.memory import AxiRamFromFile
 from xls.modules.zstd.cocotb import xlsstruct
+from xls.modules.zstd.perf_report import report_test_result
 
 AXI_DATA_W = 64
 AXI_DATA_W_BYTES = AXI_DATA_W // 8
 MAX_ENCODED_FRAME_SIZE_B = 2**32
 NOTIFY_CHANNEL = "notify"
 RESET_CHANNEL = "reset"
+
+CLOCK_PERIOD_PS = 750
 
 # Override default widths of AXI response signals
 signal_widths = {"bresp": 3}
@@ -723,16 +727,23 @@ async def test_decoder(dut, axi_buses, cpu, clock, encoded_file):
   decode_end = get_clock_time(clock)
 
   latency = decode_first_packet - decode_start
-  throughput_repacketizer = expected_packet_count / (decode_end - decode_first_packet)
-  throughput_bytes = throughput_repacketizer * AXI_DATA_W_BYTES
-  print(f"Decoding latency: {latency} cycles")
-  print(
-    f"Decoding throughput: {throughput_bytes}B/cycle ({throughput_repacketizer} packets/cycle)"
-  )
+
+  duration = decode_end - decode_start
+  total_decoded_bytes = expected_packet_count * AXI_DATA_W_BYTES
+  bytes_per_clock = total_decoded_bytes / duration
+  CLOCK_PERIOD_PS = 750
+  CLOCKS_PER_SECOND = 1e12 / CLOCK_PERIOD_PS
+  BYTES_IN_GIGABYTE = 1024 * 1024 * 1024
+  gigabytes_per_second = bytes_per_clock * CLOCKS_PER_SECOND / BYTES_IN_GIGABYTE
+
+  print(f"Duration: {duration} cycles")
+  print(f"Latency (clocks till first data): {latency} cycles")
+  print(f"Total decoded bytes: {total_decoded_bytes} bytes")
+  print(f"Decoding throughput: {gigabytes_per_second:.04f} GB/second")
 
   await ClockCycles(dut.clk, 20)
 
-  return (latency, throughput_bytes, throughput_repacketizer)
+  return (duration, latency, total_decoded_bytes, gigabytes_per_second)
 
 async def wait_for_status(cpu, timeout=100):
   status = None
@@ -818,13 +829,12 @@ async def randomized_testing_routine(
       print(
         f"\nusing randomly generated (seed={seed}) input file for decoder: {input_file.name}\n"
       )
-      measurements.append(await test_decoder(dut, axi_buses, cpu, clock, input_file))
+      test_measurements = await test_decoder(dut, axi_buses, cpu, clock, input_file)
+      measurements.append(test_measurements)
 
   print("Decoding {} ZSTD frames done".format(block_type.name))
   for measurement in measurements:
-    print(
-      f"Frame #{frame_id}: latency: {measurement[0]} cycles; throughput: {measurement[1]} B/cycle ({measurement[2]} packets/cycle)"
-    )
+    report_test_result(f"{block_type.name}{frame_id}", measurement[0], measurement[1], measurement[2], measurement[3])
     frame_id += 1
 
 
@@ -857,10 +867,9 @@ async def pregenerated_testing_routine(
 
   with open(pregenerated_path, 'rb') as input_file:
     measurement = await test_decoder(dut, axi_buses, cpu, clock, input_file)
+    test_name = os.path.basename(pregenerated_path)
+    report_test_result(f"{test_name}", measurement[0], measurement[1], measurement[2], measurement[3])
 
-  print(
-    f"Frame #0: latency: {measurement[0]} cycles; throughput: {measurement[1]} B/cycle ({measurement[2]} packets/cycle)"
-  )
 
 async def test_expected_status(
   dut,
