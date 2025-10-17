@@ -32,6 +32,9 @@ py_test(
     data = glob(["*.x"]) + [
         "//xls/dslx:interpreter_main",
     ],
+    # As of 2025-10-16, this test was timing out under asan. Increase sharding to reduce the
+    # likelihood of timeout.
+    shard_count = 4,
     deps = [
         "//xls/common:runfiles",
         "//xls/common:test_base",
