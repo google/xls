@@ -1,5 +1,6 @@
 import math
 import cocotb
+import os
 
 from pathlib import Path
 from enum import IntEnum
@@ -18,9 +19,11 @@ from xls.modules.zstd.zstd_dec_cocotb_common import (
     configure_decoder, start_decoder, reset_dut, run_test,
     prepare_test_environment, check_ram_contents,
     reverse_expected_huffman_codes, fields_as_array, FseTableRecord,
-    print_fse_ram_contents, check_status, check_output
+    print_fse_ram_contents, check_status, check_output, get_clock_time,
+    CLOCK_PERIOD_PS
 )
 from xls.modules.zstd.cocotb.memory import AxiRamFromFile
+from xls.modules.zstd.perf_report import report_test_result
 
 def check_if_ram_contents_are_valid(mem, expected, name="") -> bool:
   for i, value in enumerate(expected):
@@ -675,5 +678,22 @@ async def detailed_testing_routine(dut,
     if block_header.last:
       break
 
+  decode_times = await check_output_thread
+  (decode_start, decode_first_packet, decode_last_packet) = decode_times
   await check_status_thread
-  await check_output_thread
+
+  decode_end = get_clock_time(clock)
+  latency = decode_first_packet - decode_start
+  duration = decode_end - decode_start
+  total_decoded_bytes = expected_packet_count * AXI_DATA_W_BYTES
+  bytes_per_clock = total_decoded_bytes / duration
+  BYTES_IN_GIGABYTE = 1024 * 1024 * 1024
+  CLOCKS_PER_SECOND = 1e12 / CLOCK_PERIOD_PS
+  gigabytes_per_second = bytes_per_clock * CLOCKS_PER_SECOND / BYTES_IN_GIGABYTE
+  print(f"Duration: {duration} cycles")
+  print(f"Latency (clocks till first data): {latency} cycles")
+  print(f"Total decoded bytes: {total_decoded_bytes} bytes")
+  print(f"Decoding throughput: {gigabytes_per_second:.04f} GB/s")
+
+  test_name = os.path.basename(pregenerated_path)
+  report_test_result(test_name, duration, latency, total_decoded_bytes, gigabytes_per_second)
