@@ -24,6 +24,7 @@
 #include "xls/common/fuzzing/fuzztest.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/ir/bits.h"
@@ -33,8 +34,10 @@
 #include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
+#include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/pass_test_helpers.h"
 #include "xls/solvers/z3_ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
@@ -55,14 +58,19 @@ class NextValueOptimizationPassTest : public IrTestBase {
       Package* p,
       std::optional<int64_t> split_next_value_selects = std::nullopt,
       std::optional<int64_t> split_depth_limit = std::nullopt) {
+    OptimizationCompoundPass passes("test", TestName());
+    bool changed = false;
+    passes.Add<RecordIfPassChanged<NextValueOptimizationPass>>(
+        &changed, split_depth_limit.value_or(
+                      NextValueOptimizationPass::kDefaultMaxSplitDepth));
+    passes.Add<DeadCodeEliminationPass>();
+
     PassResults results;
     OptimizationPassOptions options;
     options.split_next_value_selects = split_next_value_selects;
     OptimizationContext context;
-    return NextValueOptimizationPass(
-               split_depth_limit.value_or(
-                   NextValueOptimizationPass::kDefaultMaxSplitDepth))
-        .Run(p, options, &results, context);
+    XLS_RETURN_IF_ERROR(passes.Run(p, options, &results, context).status());
+    return changed;
   }
 };
 
@@ -117,19 +125,17 @@ TEST_F(NextValueOptimizationPassTest, PrioritySelectNextValue) {
   solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
                                                 /*include_state=*/true);
 
+  ScopedRecordIr sri(p.get());
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
       proc->next_values(),
       UnorderedElementsAre(
           m::Next(m::StateRead(), m::Literal(2),
-                  m::BitSlice(m::StateRead(), 0, 1)),
+                  m::Eq(m::BitSlice(m::StateRead(), 0, 1), m::Literal(0b1))),
           m::Next(m::StateRead(), m::Literal(1),
-                  m::And(m::BitSlice(m::StateRead(), 1, 1),
-                         m::Not(m::BitSlice(m::StateRead(), 0, 1)))),
-          m::Next(
-              m::StateRead(), m::Literal(2),
-              m::And(m::BitSlice(m::StateRead(), 2, 1),
-                     m::Not(m::OrReduce(m::BitSlice(m::StateRead(), 0, 2))))),
+                  m::Eq(m::BitSlice(m::StateRead(), 0, 2), m::Literal(0b10))),
+          m::Next(m::StateRead(), m::Literal(2),
+                  m::Eq(m::BitSlice(m::StateRead(), 0, 3), m::Literal(0b100))),
           m::Next(m::StateRead(), m::Literal(0),
                   m::Eq(m::StateRead(), m::Literal(0)))));
 }
@@ -242,7 +248,7 @@ TEST_F(NextValueOptimizationPassTest, CascadingSmallSelectsNextValue) {
   // TODO: https://github.com/google/xls/issues/1374 - State elements a & b
   // removed so can't use z3 proving.
 
-  EXPECT_THAT(Run(p.get(), /*split_next_value_selects=*/2), IsOkAndHolds(true));
+  ASSERT_THAT(Run(p.get(), /*split_next_value_selects=*/2), IsOkAndHolds(true));
   EXPECT_THAT(proc->next_values(),
               UnorderedElementsAre(
                   m::Next(m::StateRead("x"), m::Literal(2),
@@ -275,7 +281,8 @@ TEST_F(NextValueOptimizationPassTest,
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
   // State elements a & b removed so can't use z3 proving.
 
-  EXPECT_THAT(
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(
       Run(p.get(), /*split_next_value_selects=*/2, /*split_depth_limit=*/1),
       IsOkAndHolds(true));
   EXPECT_THAT(
