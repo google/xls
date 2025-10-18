@@ -887,6 +887,18 @@ struct xls_vast_statement* xls_vast_verilog_file_make_nonblocking_assignment(
   return reinterpret_cast<xls_vast_statement*>(cpp_assignment);
 }
 
+struct xls_vast_statement* xls_vast_verilog_file_make_blocking_assignment(
+    struct xls_vast_verilog_file* f, struct xls_vast_expression* lhs,
+    struct xls_vast_expression* rhs) {
+  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
+  auto* cpp_lhs = reinterpret_cast<xls::verilog::Expression*>(lhs);
+  auto* cpp_rhs = reinterpret_cast<xls::verilog::Expression*>(rhs);
+  xls::verilog::BlockingAssignment* cpp_assignment =
+      cpp_file->Make<xls::verilog::BlockingAssignment>(xls::SourceInfo(),
+                                                       cpp_lhs, cpp_rhs);
+  return reinterpret_cast<xls_vast_statement*>(cpp_assignment);
+}
+
 struct xls_vast_statement_block* xls_vast_always_base_get_statement_block(
     struct xls_vast_always_base* always_base) {
   auto* cpp_always_base =
@@ -949,6 +961,64 @@ struct xls_vast_statement* xls_vast_statement_block_add_continuous_assignment(
       cpp_block->Add<xls::verilog::ContinuousAssignment>(xls::SourceInfo(),
                                                          cpp_lhs, cpp_rhs);
   return reinterpret_cast<xls_vast_statement*>(cpp_assignment);
+}
+
+struct xls_vast_conditional* xls_vast_statement_block_add_conditional(
+    struct xls_vast_statement_block* block, struct xls_vast_expression* cond) {
+  auto* cpp_block = reinterpret_cast<xls::verilog::StatementBlock*>(block);
+  auto* cpp_cond_expr = reinterpret_cast<xls::verilog::Expression*>(cond);
+  xls::verilog::Conditional* cpp_cond =
+      cpp_block->Add<xls::verilog::Conditional>(xls::SourceInfo(),
+                                                cpp_cond_expr);
+  return reinterpret_cast<xls_vast_conditional*>(cpp_cond);
+}
+
+struct xls_vast_statement_block* xls_vast_conditional_get_then_block(
+    struct xls_vast_conditional* cond) {
+  auto* cpp_cond = reinterpret_cast<xls::verilog::Conditional*>(cond);
+  return reinterpret_cast<xls_vast_statement_block*>(cpp_cond->consequent());
+}
+
+struct xls_vast_statement_block* xls_vast_conditional_add_else_if(
+    struct xls_vast_conditional* cond, struct xls_vast_expression* expr_cond) {
+  auto* cpp_cond = reinterpret_cast<xls::verilog::Conditional*>(cond);
+  auto* cpp_cond_expr = reinterpret_cast<xls::verilog::Expression*>(expr_cond);
+  xls::verilog::StatementBlock* block = cpp_cond->AddAlternate(cpp_cond_expr);
+  return reinterpret_cast<xls_vast_statement_block*>(block);
+}
+
+struct xls_vast_statement_block* xls_vast_conditional_add_else(
+    struct xls_vast_conditional* cond) {
+  auto* cpp_cond = reinterpret_cast<xls::verilog::Conditional*>(cond);
+  xls::verilog::StatementBlock* block = cpp_cond->AddAlternate(nullptr);
+  return reinterpret_cast<xls_vast_statement_block*>(block);
+}
+
+struct xls_vast_case_statement* xls_vast_statement_block_add_case(
+    struct xls_vast_statement_block* block,
+    struct xls_vast_expression* selector) {
+  auto* cpp_block = reinterpret_cast<xls::verilog::StatementBlock*>(block);
+  auto* cpp_selector = reinterpret_cast<xls::verilog::Expression*>(selector);
+  xls::verilog::Case* cpp_case =
+      cpp_block->Add<xls::verilog::Case>(xls::SourceInfo(), cpp_selector);
+  return reinterpret_cast<xls_vast_case_statement*>(cpp_case);
+}
+
+struct xls_vast_statement_block* xls_vast_case_statement_add_item(
+    struct xls_vast_case_statement* case_stmt,
+    struct xls_vast_expression* match_expr) {
+  auto* cpp_case = reinterpret_cast<xls::verilog::Case*>(case_stmt);
+  auto* cpp_match = reinterpret_cast<xls::verilog::Expression*>(match_expr);
+  xls::verilog::StatementBlock* block = cpp_case->AddCaseArm(cpp_match);
+  return reinterpret_cast<xls_vast_statement_block*>(block);
+}
+
+struct xls_vast_statement_block* xls_vast_case_statement_add_default(
+    struct xls_vast_case_statement* case_stmt) {
+  auto* cpp_case = reinterpret_cast<xls::verilog::Case*>(case_stmt);
+  xls::verilog::StatementBlock* block =
+      cpp_case->AddCaseArm(xls::verilog::DefaultSentinel{});
+  return reinterpret_cast<xls_vast_statement_block*>(block);
 }
 
 struct xls_vast_module_port** xls_vast_verilog_module_get_ports(
