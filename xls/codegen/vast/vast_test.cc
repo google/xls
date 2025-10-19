@@ -21,14 +21,14 @@
 #include <utility>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/fileno.h"
@@ -1605,12 +1605,12 @@ end)");
 TEST_P(VastTest, ParameterAndLocalParam) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
-  ParameterRef* ref = m->AddParameter(
+  ParameterRef* ref = m->AddParameterPort(
       "ClocksPerBaud",
       f.Make<MacroRef>(SourceInfo(), "DEFAULT_CLOCKS_PER_BAUD"), SourceInfo());
   EXPECT_EQ(ref->parameter()->GetName(), "ClocksPerBaud");
   EXPECT_EQ(ref->parameter()->rhs()->Emit(nullptr), "`DEFAULT_CLOCKS_PER_BAUD");
-  ParameterRef* ref2 = m->AddParameter(
+  ParameterRef* ref2 = m->AddParameterPort(
       f.Make<Def>(SourceInfo(), "ParamWithDef", DataKind::kLogic,
                   f.BitVectorType(16, SourceInfo())),
       f.PlainLiteral(5, SourceInfo()), SourceInfo());
@@ -1618,6 +1618,7 @@ TEST_P(VastTest, ParameterAndLocalParam) {
   EXPECT_EQ(ref2->parameter()->def()->Emit(nullptr),
             "logic [15:0] ParamWithDef;");
   EXPECT_EQ(ref2->parameter()->rhs()->Emit(nullptr), "5");
+  m->AddParameter("FooParam", f.PlainLiteral(42, SourceInfo()), SourceInfo());
   LocalParam* p = m->Add<LocalParam>(SourceInfo());
   LocalParamItemRef* idle =
       p->AddItem("StateIdle", f.Literal(0, 2, SourceInfo()), SourceInfo());
@@ -1636,9 +1637,11 @@ TEST_P(VastTest, ParameterAndLocalParam) {
   (void)state;  // unused
 
   EXPECT_EQ(m->Emit(nullptr),
-            R"(module top;
-  parameter ClocksPerBaud = `DEFAULT_CLOCKS_PER_BAUD;
-  parameter logic [15:0] ParamWithDef = 5;
+            R"(module top #(
+  parameter ClocksPerBaud = `DEFAULT_CLOCKS_PER_BAUD,
+  parameter logic [15:0] ParamWithDef = 5
+);
+  parameter FooParam = 42;
   localparam
     StateIdle = 2'h0,
     StateGotByte = 2'h1,
@@ -2670,6 +2673,58 @@ TEST_P(VastTest, SimpleGenerateLoop) {
       assign my_output[i] = my_input[i];
     end
   endgenerate
+endmodule)");
+}
+
+TEST_P(VastTest, ModuleParametersPortsNoIo) {
+  VerilogFile f(GetFileType());
+  Module* m = f.AddModule("top", SourceInfo());
+
+  // Add one typed parameter with a default and one untyped parameter.
+  m->AddParameterPort(f.Make<Def>(SourceInfo(), "TypedParam", DataKind::kLogic,
+                                  f.BitVectorType(8, SourceInfo())),
+                      f.PlainLiteral(5, SourceInfo()), SourceInfo());
+  m->AddParameterPort("UntypedParam", f.PlainLiteral(7, SourceInfo()),
+                      SourceInfo());
+
+  EXPECT_EQ(m->Emit(nullptr),
+            R"(module top #(
+  parameter logic [7:0] TypedParam = 5,
+  parameter UntypedParam = 7
+);
+
+endmodule)");
+}
+
+TEST_P(VastTest, ModuleParameterPortsWithIo) {
+  VerilogFile f(GetFileType());
+  Module* m = f.AddModule("top", SourceInfo());
+
+  // Add one typed parameter with a default and one untyped parameter.
+  m->AddParameterPort(f.Make<Def>(SourceInfo(), "TypedParam", DataKind::kLogic,
+                                  f.BitVectorType(8, SourceInfo())),
+                      f.PlainLiteral(5, SourceInfo()), SourceInfo());
+  m->AddParameterPort("UntypedParam", f.PlainLiteral(7, SourceInfo()),
+                      SourceInfo());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * a,
+      m->AddInput("a", f.BitVectorType(8, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * y,
+      m->AddOutput("y", f.BitVectorType(8, SourceInfo()), SourceInfo()));
+  (void)a;  // unused
+  (void)y;  // unused
+
+  EXPECT_EQ(m->Emit(nullptr),
+            R"(module top #(
+  parameter logic [7:0] TypedParam = 5,
+  parameter UntypedParam = 7
+) (
+  input wire [7:0] a,
+  output wire [7:0] y
+);
+
 endmodule)");
 }
 
