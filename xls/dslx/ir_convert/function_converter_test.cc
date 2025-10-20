@@ -353,6 +353,75 @@ fn f() {
                   )pb")));
 }
 
+TEST(FunctionConverterTest,
+     ConvertsLastExprAndImplicitTokenWithoutErrorWithProcScopedChannels) {
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(R"(
+fn f() {
+    let acc: u32 = u32:0;
+    for (i, acc): (u32, u32) in u32:0..u32:8 {
+        let acc = acc + i;
+        trace_fmt!("Do nothing");
+        acc
+    }(acc);
+}
+)",
+                        "test_module.x", "test_module", &import_data));
+
+  Function* f = tm.module->GetFunction("f").value();
+  ASSERT_NE(f, nullptr);
+  EXPECT_FALSE(f->extern_verilog_module().has_value());
+
+  const ConvertOptions convert_options = {.lower_to_proc_scoped_channels =
+                                              true};
+  PackageConversionData package = MakeConversionData("test_module_package");
+  PackageData package_data{&package};
+  FunctionConverter converter(package_data, tm.module, &import_data,
+                              convert_options, /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr,
+                              /*is_top=*/true);
+  XLS_ASSERT_OK(
+      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  EXPECT_THAT(package.interface.functions(),
+              testing::UnorderedElementsAre(
+                  EqualsProto(R"pb(
+                    base { top: true name: "__itok__test_module__f" }
+                    parameters {
+                      name: "__token"
+                      type { type_enum: TOKEN }
+                    }
+                    parameters {
+                      name: "__activated"
+                      type { type_enum: BITS bit_count: 1 }
+                    }
+                    result_type {
+                      type_enum: TUPLE
+                      tuple_elements { type_enum: TOKEN }
+                      tuple_elements { type_enum: TUPLE }
+                    })pb"),
+                  EqualsProto(R"pb(
+                    base { name: "____itok__test_module__f_counted_for_0_body" }
+                    parameters {
+                      name: "i"
+                      type { type_enum: BITS bit_count: 32 }
+                    }
+                    parameters {
+                      name: "__token_wrapped"
+                      type {
+                        type_enum: TUPLE
+                        tuple_elements { type_enum: TOKEN }
+                        tuple_elements { type_enum: BITS bit_count: 1 }
+                        tuple_elements { type_enum: BITS bit_count: 32 }
+                      }
+                    }
+                  )pb"),
+                  EqualsProto(R"pb(
+                    base { name: "__test_module__f" }
+                  )pb")));
+}
+
 TEST(FunctionConverterTest, ConvertsFunctionWithZipBuiltin) {
   ImportData import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(

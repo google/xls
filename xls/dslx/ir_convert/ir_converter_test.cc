@@ -4272,6 +4272,48 @@ proc Proc {
 class ProcScopedChannelsIrConverterTest
     : public IrConverterWithBothTypecheckVersionsTest {};
 
+TEST_P(ProcScopedChannelsIrConverterTest, MapInvocationWithImplicitToken) {
+  constexpr std::string_view program =
+      R"(
+fn f(x: u32) -> u64 {
+    assert!(x != u32:42, "foobar");
+    u16:0 ++ x ++ u16:4
+}
+
+fn main() -> u64[4] {
+    map(u32[4]:[0, 1, 2, 3], f)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, kProcScopedChannelOptions));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, ImplicitTokenFalseDoesntClobberTrue) {
+  constexpr std::string_view program =
+      R"(
+fn foo(x: u32) -> u32 {
+  trace_fmt!("x is {}", x);
+  x
+}
+
+fn bar() {}
+
+fn main() {
+  bar();
+  foo(u32:2);
+  bar();
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, kProcScopedChannelOptions));
+  ExpectIr(converted);
+}
+
 TEST_P(ProcScopedChannelsIrConverterTest, ProcNextOnly) {
   constexpr std::string_view program = R"(
 proc main {
