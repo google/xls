@@ -507,7 +507,8 @@ FunctionConverter::FunctionConverter(PackageData& package_data, Module* module,
                      : xls::Fileno(0)),
       proc_data_(proc_data),
       channel_scope_(channel_scope),
-      is_top_(is_top) {
+      is_top_(is_top),
+      name_uniquer_("_") {
   VLOG(5) << "Constructed IR converter: " << this;
 }
 
@@ -987,13 +988,48 @@ absl::Status FunctionConverter::HandleLet(const Let* node) {
           << "`; rhs: `" << node->rhs()->ToString() << "`";
   XLS_RETURN_IF_ERROR(Visit(node->rhs()));
 
-  // This must be skipped in case of channel arrays because the rhs
-  // isn't a bvalue, it's a ChannelArray.
   BValue rhs;
+
+  // This must be skipped in case of channel decls because the rhs
+  // has to be handled differently.
   if (dynamic_cast<ChannelDecl*>(node->rhs()) == nullptr) {
-    XLS_ASSIGN_OR_RETURN(rhs, Use(node->rhs()));
-    XLS_RET_CHECK(rhs.valid());
-    XLS_RETURN_IF_ERROR(DefAlias(node->rhs(), /*to=*/node));
+    auto process_channel_rhs = [&](auto) -> absl::Status {
+      if (current_fn_tag_ == FunctionTag::kNormal) {
+        return IrConversionErrorStatus(
+            node->span(), "Can only assign from channels when in a Proc",
+            file_table());
+      }
+      if (!node->name_def_tree()->is_leaf()) {
+        return absl::UnimplementedError(
+            "Destructuring let bindings are not yet supported in Proc "
+            "config methods.");
+      }
+
+      // Let statements must have a corresponding BValue (see HandleStatement)
+      // even though in the case of channel declarations, the BValue isn't used
+      // in favor of looking up the channel in ChannelScope.
+      SetNodeToIr(node, BValue());
+      return absl::OkStatus();
+    };
+
+    // We can only use Use if the RHS is a BValue or CValue so we have to it
+    // manually.
+    std::optional<IrValue> rhs_value = GetNodeToIr(node->rhs());
+    XLS_RET_CHECK(rhs_value.has_value())
+        << "rhs " << node->rhs()->ToString() << " has no IR value";
+    IrValue value = rhs_value.value();
+    XLS_RETURN_IF_ERROR(absl::visit(
+        Visitor{[&](ChannelInterface* ci) { return process_channel_rhs(ci); },
+                [&](ChannelArray* ca) { return process_channel_rhs(ca); },
+                [&](Channel* c) { return process_channel_rhs(c); },
+                [&](auto) -> absl::Status {
+                  // BValue, CValue
+                  XLS_ASSIGN_OR_RETURN(rhs, Use(node->rhs()));
+                  XLS_RET_CHECK(rhs.valid());
+                  XLS_RETURN_IF_ERROR(DefAlias(node->rhs(), /*to=*/node));
+                  return absl::OkStatus();
+                }},
+        value));
   }
 
   if (node->name_def_tree()->is_leaf()) {
@@ -2132,6 +2168,7 @@ absl::StatusOr<BValue> FunctionConverter::HandleMap(const Invocation* node) {
 }
 
 absl::Status FunctionConverter::HandleIndex(const Index* node) {
+  VLOG(5) << "HandleIndex: " << node->ToString();
   if (proc_id_.has_value()) {
     absl::StatusOr<ChannelOrArray> channel_or_array =
         channel_scope_->GetChannelOrArrayForArrayIndex(*proc_id_, node);
@@ -3351,18 +3388,31 @@ absl::Status FunctionConverter::HandleSpawn(const Spawn* node) {
     std::optional<IrValue> arg_value_opt = GetNodeToIr(arg);
     XLS_RET_CHECK(arg_value_opt.has_value());
     IrValue arg_value = *arg_value_opt;
+    XLS_ASSIGN_OR_RETURN(Type * type, current_type_info_->GetItemOrError(arg));
     if (std::holds_alternative<ChannelArray*>(arg_value)) {
       // Get all the channel interfaces of this array and
       // add them to the channel_args
       ChannelArray* channel_array = std::get<ChannelArray*>(arg_value);
-      for (ChannelRef channel : channel_array->channels()) {
-        XLS_RET_CHECK(std::holds_alternative<ChannelInterface*>(channel));
-        channel_args.push_back(std::get<ChannelInterface*>(channel));
+      for (ChannelRef channel_ref : channel_array->channels()) {
+        XLS_ASSIGN_OR_RETURN(
+            ChannelInterface * channel_interface,
+            absl::visit(
+                Visitor{
+                    [&](Channel* c) -> absl::StatusOr<ChannelInterface*> {
+                      const ArrayType& array_type = type->AsArray();
+                      const ChannelType& channel_type =
+                          dynamic_cast<const ChannelType&>(
+                              array_type.GetInnermostElementType()
+                                  .element_type);
+                      return ChannelToInterface(c, channel_type.direction());
+                    },
+                    [&](ChannelInterface* ci)
+                        -> absl::StatusOr<ChannelInterface*> { return ci; }},
+                channel_ref));
+        channel_args.push_back(channel_interface);
       }
     } else {
       // Channel or ChannelInterface.
-      XLS_ASSIGN_OR_RETURN(Type * type,
-                           current_type_info_->GetItemOrError(arg));
       ChannelType* channel_type = dynamic_cast<ChannelType*>(type);
       XLS_ASSIGN_OR_RETURN(
           ChannelInterface * channel_interface,
@@ -3371,14 +3421,21 @@ absl::Status FunctionConverter::HandleSpawn(const Spawn* node) {
     }
   }
 
-  XLS_RET_CHECK(package_data_.invocation_to_ir_proc.contains(invocation));
-  xls::Proc* ir_proc = package_data_.invocation_to_ir_proc[invocation];
+  XLS_RET_CHECK(package_data_.invocation_to_ir_proc.contains(
+      {invocation, GetParametricEnv()}))
+      << invocation->ToString() << " env " << GetParametricEnv();
+  xls::Proc* ir_proc =
+      package_data_.invocation_to_ir_proc[{invocation, GetParametricEnv()}];
   xls::Proc* current_proc = builder_ptr->proc();
-  XLS_RETURN_IF_ERROR(
-      current_proc
-          ->AddProcInstantiation(absl::StrFormat("%s_inst", ir_proc->name()),
-                                 absl::MakeSpan(channel_args), ir_proc)
-          .status());
+  // Give each proc_instantiation a unique name. Since this method may be called
+  // multiple times per config method with the same uniquifier, this guarantees
+  // uniqueness within a proc, but not across oprocs, which is acceptable.
+  XLS_RETURN_IF_ERROR(current_proc
+                          ->AddProcInstantiation(
+                              name_uniquer_.GetSanitizedUniqueName(
+                                  absl::StrFormat("%s_inst", ir_proc->name())),
+                              absl::MakeSpan(channel_args), ir_proc)
+                          .status());
   // Spawn is an Invocation, which is an Instantiation, which is
   // technically an Expr, so it needs to have an Ir value in the map, even
   // though that value is never read.
@@ -3410,12 +3467,7 @@ absl::Status FunctionConverter::HandleChannelDecl(const ChannelDecl* node) {
 
   XLS_ASSIGN_OR_RETURN(ChannelOrArray channel_or_array,
                        channel_scope_->DefineChannelOrArray(node));
-  std::visit(Visitor{
-                 [&](Channel* c) { SetNodeToIr(node, c); },
-                 [&](ChannelInterface* ci) { SetNodeToIr(node, ci); },
-                 [&](ChannelArray* ca) { SetNodeToIr(node, ca); },
-             },
-             channel_or_array);
+  std::visit(Visitor{[&](auto* c) { SetNodeToIr(node, c); }}, channel_or_array);
   return absl::OkStatus();
 }
 
@@ -3734,10 +3786,22 @@ absl::Status FunctionConverter::HandleProcNextFunction(
   package_data_.ir_to_dslx[p] = f;
   if (record.config_record() != nullptr) {
     // The invocation is actually the "next", but we need the "config".
-    package_data_.invocation_to_ir_proc[record.config_record()->invocation()] =
-        p;
+    // Get all the invocations of the 'config' function given the current
+    // parametrics.
+    for (const auto& invocation_callee_data :
+         record.type_info()->GetInvocationCalleeData(
+             record.config_record()->f(), record.parametric_env())) {
+      package_data_
+          .invocation_to_ir_proc[{invocation_callee_data.invocation,
+                                  invocation_callee_data.caller_bindings}] = p;
+    }
+    // Always use the given invocation, because it may be outside this module,
+    // and the call to GetInvocationCalleeData won't return it.
+    package_data_.invocation_to_ir_proc[{record.config_record()->invocation(),
+                                         record.parametric_env()}] = p;
   }
-  package_data_.invocation_to_ir_proc[invocation] = p;
+  package_data_.invocation_to_ir_proc[{invocation, record.parametric_env()}] =
+      p;
   return absl::OkStatus();
 }
 

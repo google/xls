@@ -1,0 +1,36 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+proc __test_module__second_0_next<outs: bits[32] out, ins: bits[32] in>(__state: (), init={()}) {
+  chan_interface outs(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface ins(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  literal.7: token = literal(value=token, id=7)
+  literal.8: bits[32] = literal(value=0, id=8)
+  literal.3: bits[1] = literal(value=1, id=3)
+  tok: token = send(literal.7, literal.8, predicate=literal.3, channel=outs, id=9)
+  outs: bits[32] = send_channel_end(id=4)
+  ins: bits[32] = recv_channel_end(id=5)
+  receive.10: (token, bits[32]) = receive(tok, predicate=literal.3, channel=ins, id=10)
+  __state: () = state_read(state_element=__state, id=2)
+  tuple.12: () = tuple(id=12)
+  __token: token = literal(value=token, id=1)
+  tuple.6: (bits[32], bits[32]) = tuple(outs, ins, id=6)
+  tuple_index.11: token = tuple_index(receive.10, index=0, id=11)
+  next_value.13: () = next_value(param=__state, value=tuple.12, id=13)
+}
+
+top proc __test_module__first_0_next<>(__state: (), init={()}) {
+  chan the_channel__0(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+  chan_interface the_channel__0(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface the_channel__0(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan the_channel__1(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+  chan_interface the_channel__1(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface the_channel__1(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  proc_instantiation __test_module__second_0_next_inst(the_channel__0, the_channel__1, proc=__test_module__second_0_next)
+  __state: () = state_read(state_element=__state, id=15)
+  __token: token = literal(value=token, id=14)
+  literal.16: bits[1] = literal(value=1, id=16)
+  tuple.17: () = tuple(id=17)
+  next_value.18: () = next_value(param=__state, value=__state, id=18)
+}
