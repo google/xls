@@ -9,3 +9,4 @@ user.bazelrc
 .vscode
 .cache
 docs/
+.jj/
