@@ -1,10 +1,10 @@
 # NOTE: We try to support Ubuntu 22.04 environment as it is the latest Ubuntu
 # LTS release.
 
-ARG SKIP_TESTS=0
-
 # Download base image ubuntu 22.04
 FROM ubuntu:22.04
+
+ARG SKIP_TESTS=0
 
 # LABEL about the custom image
 LABEL version="0.1"
