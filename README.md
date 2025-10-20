@@ -136,6 +136,8 @@ Please see the two corresponding command lines below -- we start by assuming
 ~/xls$ bazel test -c opt -- //xls/...
 ```
 
+### Docker Build
+
 Reference build/test environment setups are also provided via `Dockerfile`s, if
 you have difficulty setting up the (limited set of) dependencies shown above in
 your environment:
@@ -143,7 +145,17 @@ your environment:
 ```console
 ~$ git clone https://github.com/google/xls.git
 ~$ cd xls
-~/xls$ docker build . -f Dockerfile-ubuntu-22.04  # Performs optimized build-and-test.
+~/xls$ # Build and run xls tests.
+~/xls$ docker build . -f Dockerfile-ubuntu-22.04
+~/xls$ # Setup the xls build environment and allow for manual testing/building
+~/xls$ docker build . -f Dockerfile-ubuntu-22.04 \
+                      -t xls-build-docker        \
+                      --build-arg SKIP_TESTS=1
+...
+~/xls$ docker run -it --rm xls-build-docker /bin/bash
+...
+xls-developer@de12154edf52:~/xls$ bazel build --verbose_failures -c opt //xls/jit:jit_channel_queue_test
+...
 ```
 
 ### Adding Additional Build Caching
