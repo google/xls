@@ -24,6 +24,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -38,6 +39,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/visitor.h"
 #include "xls/data_structures/inline_bitmap.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
@@ -1260,5 +1262,117 @@ absl::StatusOr<Node*> RemoveFromTuple(Node* tuple,
   }
   return tuple->function_base()->MakeNodeWithName<Tuple>(tuple->loc(), elements,
                                                          tuple->GetNameView());
+}
+// Create and return a new node which is true if case 'i' is selected.
+absl::StatusOr<Node*> GenericSelect::MakePredicateForCase(int64_t i) const {
+  FunctionBase* fb = AsNode()->function_base();
+  auto append_name = [&](std::string_view sv) -> std::string {
+    if (AsNode()->HasAssignedName()) {
+      return absl::StrCat(AsNode()->GetNameView(), "_", sv);
+    }
+    return "";
+  };
+  std::string case_name = append_name(absl::StrFormat("%d_case_value", i));
+  std::string cmp_name = append_name(absl::StrFormat("%d_case_cmp", i));
+  return std::visit(
+      Visitor{
+          [&](OneHotSelect* select) -> absl::StatusOr<Node*> {
+            return fb->MakeNodeWithName<BitSlice>(AsNode()->loc(), selector(),
+                                                  /*start=*/i, /*count=*/1,
+                                                  cmp_name);
+          },
+          [&](Select* select) -> absl::StatusOr<Node*> {
+            if (Bits::MinBitCountUnsigned(i) > selector()->BitCountOrDie()) {
+              return fb->MakeNode<Literal>(AsNode()->loc(), Value(UBits(0, 1)));
+            }
+            XLS_ASSIGN_OR_RETURN(
+                Node * i_const,
+                fb->MakeNodeWithName<Literal>(
+                    AsNode()->loc(),
+                    Value(UBits(i, selector()->BitCountOrDie())), case_name));
+            return fb->MakeNodeWithName<CompareOp>(AsNode()->loc(), selector(),
+                                                   i_const, Op::kEq, cmp_name);
+          },
+          [&](PrioritySelect* select) -> absl::StatusOr<Node*> {
+            XLS_RET_CHECK_LT(i, selector()->BitCountOrDie());
+            XLS_ASSIGN_OR_RETURN(
+                Node * slice,
+                fb->MakeNodeWithName<BitSlice>(
+                    AsNode()->loc(), selector(),
+                    /*start=*/0, /*count=*/i + 1,
+                    append_name(absl::StrFormat("predicate_piece_%d", i))));
+            InlineBitmap tgt(i + 1);
+            tgt.Set(i, true);
+            XLS_ASSIGN_OR_RETURN(
+                Node * target_value,
+                fb->MakeNodeWithName<Literal>(
+                    AsNode()->loc(), Value(Bits::FromBitmap(std::move(tgt))),
+                    case_name));
+            return fb->MakeNodeWithName<CompareOp>(
+                AsNode()->loc(), slice, target_value, Op::kEq, cmp_name);
+          }},
+      sel_);
+}
+
+// Create and return a new node which is true if the default case is selected.
+absl::StatusOr<Node*> GenericSelect::MakePredicateForDefault() const {
+  FunctionBase* fb = AsNode()->function_base();
+  auto append_name = [&](std::string_view sv) -> std::string {
+    if (AsNode()->HasAssignedName()) {
+      return absl::StrCat(AsNode()->GetNameView(), "_", sv);
+    }
+    return "";
+  };
+  std::string case_name = append_name("default_case_value");
+  std::string cmp_name = append_name("default_case_cmp");
+  return std::visit(
+      Visitor{
+          [&](OneHotSelect* select) -> absl::StatusOr<Node*> {
+            return fb->MakeNode<Literal>(AsNode()->loc(), Value(UBits(0, 1)));
+          },
+          [&](Select* select) -> absl::StatusOr<Node*> {
+            if (!select->default_value()) {
+              return fb->MakeNode<Literal>(AsNode()->loc(), Value(UBits(0, 1)));
+            }
+            if (select->cases().empty()) {
+              return fb->MakeNode<Literal>(AsNode()->loc(), Value(UBits(1, 1)));
+            }
+            XLS_ASSIGN_OR_RETURN(Node * i_const,
+                                 fb->MakeNodeWithName<Literal>(
+                                     AsNode()->loc(),
+                                     Value(UBits(select->cases().size() - 1,
+                                                 selector()->BitCountOrDie())),
+                                     case_name));
+            return fb->MakeNodeWithName<CompareOp>(AsNode()->loc(), selector(),
+                                                   i_const, Op::kUGt, cmp_name);
+          },
+          [&](PrioritySelect* select) -> absl::StatusOr<Node*> {
+            if (!select->default_value()) {
+              return fb->MakeNode<Literal>(AsNode()->loc(), Value(UBits(0, 1)));
+            }
+            if (select->cases().empty()) {
+              return fb->MakeNode<Literal>(AsNode()->loc(), Value(UBits(1, 1)));
+            }
+            XLS_ASSIGN_OR_RETURN(
+                Node * const_val,
+                fb->MakeNode<Literal>(selector()->loc(),
+                                      ZeroOfType(selector()->GetType())));
+            return fb->MakeNodeWithName<CompareOp>(
+                AsNode()->loc(), selector(), const_val, Op::kEq, cmp_name);
+          }},
+      sel_);
+}
+/* static */ absl::StatusOr<GenericSelect> GenericSelect::From(Node* n) {
+  switch (n->op()) {
+    case Op::kOneHotSel:
+      return GenericSelect(n->As<OneHotSelect>());
+    case Op::kSel:
+      return GenericSelect(n->As<Select>());
+    case Op::kPrioritySel:
+      return GenericSelect(n->As<PrioritySelect>());
+    default:
+      return absl::InvalidArgumentError(
+          absl::StrFormat("%s is not a select like operation.", n->ToString()));
+  }
 }
 }  // namespace xls

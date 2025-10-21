@@ -1376,6 +1376,7 @@ cc_library(
         ":type_manager",
         ":value",
         ":value_utils",
+        "//xls/common:visitor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/data_structures:inline_bitmap",

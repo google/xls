@@ -23,6 +23,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -31,6 +32,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "xls/common/visitor.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
@@ -40,6 +42,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/ternary.h"
+#include "xls/ir/type.h"
 #include "xls/ir/type_manager.h"
 #include "xls/ir/value.h"
 
@@ -497,6 +500,108 @@ absl::StatusOr<Node*> InsertIntoTuple(Node* tuple, Node* value,
 // All values along the index must be a tuple.
 absl::StatusOr<Node*> RemoveFromTuple(Node* tuple,
                                       absl::Span<int64_t const> indices);
+
+// A helper struct to work generically over both priority-select and standard
+// select nodes.
+class GenericSelect {
+ public:
+  // noop constructor for lists and such
+  GenericSelect() : sel_(static_cast<Select*>(nullptr)) {}
+  explicit GenericSelect(Select* select) : sel_(select) {}
+  explicit GenericSelect(PrioritySelect* select) : sel_(select) {}
+  explicit GenericSelect(OneHotSelect* select) : sel_(select) {}
+
+  // Move and copy constructors/assignment operators.
+  GenericSelect(const GenericSelect&) = default;
+  GenericSelect(GenericSelect&&) = default;
+  GenericSelect& operator=(const GenericSelect&) = default;
+  GenericSelect& operator=(GenericSelect&&) = default;
+  static absl::StatusOr<GenericSelect> From(Node* n);
+
+  // Assignment operators from underlying types.
+  GenericSelect& operator=(Select* select) {
+    sel_ = select;
+    return *this;
+  }
+  GenericSelect& operator=(OneHotSelect* select) {
+    sel_ = select;
+    return *this;
+  }
+  GenericSelect& operator=(PrioritySelect* select) {
+    sel_ = select;
+    return *this;
+  }
+
+  Node* AsNode() const {
+    return std::visit(Visitor{[](auto* sel) -> Node* { return sel; }}, sel_);
+  }
+
+  template <typename NodeTy>
+  NodeTy* As() const {
+    return AsNode()->template As<NodeTy>();
+  }
+
+  template <typename NodeTy>
+  NodeTy* Is() const {
+    return AsNode()->template Is<NodeTy>();
+  }
+
+  bool valid() const { return AsNode() != nullptr; }
+  absl::Span<Node* const> cases() const {
+    return std::visit(
+        Visitor{
+            [](auto* sel) -> absl::Span<Node* const> { return sel->cases(); },
+        },
+        sel_);
+  }
+  Node* selector() const {
+    return std::visit(
+        Visitor{[](auto* sel) -> Node* { return sel->selector(); }}, sel_);
+  }
+  std::optional<Node*> default_value() const {
+    return std::visit(Visitor{
+                          [](PrioritySelect* sel) -> std::optional<Node*> {
+                            return sel->default_value();
+                          },
+                          [](Select* sel) -> std::optional<Node*> {
+                            return sel->default_value();
+                          },
+                          [](OneHotSelect* sel) -> std::optional<Node*> {
+                            return std::nullopt;
+                          },
+                      },
+                      sel_);
+  }
+
+  // Create and return a new node which is true if case 'i' is selected. For
+  // one-hot it simply creates a predicate that the case is selected not
+  // necessarily that it is the only one selected.
+  absl::StatusOr<Node*> MakePredicateForCase(int64_t i) const;
+
+  // Make and return a new node which is true if the default case is selected.
+  absl::StatusOr<Node*> MakePredicateForDefault() const;
+
+  friend bool operator==(const GenericSelect& lhs, const GenericSelect& rhs) {
+    return lhs.AsNode() == rhs.AsNode();
+  }
+
+  template <typename H>
+  friend H AbslHashValue(H h, const GenericSelect& s) {
+    return H::combine(std::move(h), s.AsNode());
+  }
+
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink, const GenericSelect& s) {
+    if (!s.valid()) {
+      absl::Format(&sink, "Invalid GenericSelect");
+      return;
+    }
+    absl::Format(&sink, "%s", s.AsNode()->ToString());
+  }
+
+ private:
+  std::variant<Select*, PrioritySelect*, OneHotSelect*> sel_;
+};
 }  // namespace xls
 
 #endif  // XLS_IR_NODE_UTIL_H_

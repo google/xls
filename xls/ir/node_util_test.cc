@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <ostream>
 #include <string_view>
 #include <utility>
@@ -69,6 +70,7 @@ namespace {
 using ::absl_testing::IsOk;
 using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
+using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::Key;
 using ::testing::Not;
@@ -1081,6 +1083,101 @@ FUZZ_TEST(NodeUtilFuzzTest, RemoveRestoreKnownBits)
               fuzztest::Just(ty), ArbitraryValue(ty), ArbitraryValue(ty));
         },
         TypeDomain(/*max_bit_count=*/10, /*max_elements=*/5)));
+
+TEST_F(NodeUtilTest, GenericSelectSelect) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue sel = fb.Param("sel", p->GetBitsType(2));
+  BValue c0 = fb.Param("c0", p->GetBitsType(8));
+  BValue c1 = fb.Param("c1", p->GetBitsType(8));
+  BValue c2 = fb.Param("c2", p->GetBitsType(8));
+  BValue d = fb.Param("d", p->GetBitsType(8));
+  BValue select = fb.Select(sel, {c0, c1, c2}, d);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
+  GenericSelect gs(select.node()->As<Select>());
+  ASSERT_TRUE(gs.valid());
+  EXPECT_EQ(gs.AsNode(), select.node());
+  EXPECT_EQ(gs.selector(), sel.node());
+  EXPECT_THAT(gs.cases(), ElementsAre(c0.node(), c1.node(), c2.node()));
+  EXPECT_EQ(gs.default_value(), d.node());
+
+  XLS_ASSERT_OK_AND_ASSIGN(Node * case0_pred, gs.MakePredicateForCase(0));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * case1_pred, gs.MakePredicateForCase(1));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * case2_pred, gs.MakePredicateForCase(2));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * default_pred, gs.MakePredicateForDefault());
+
+  EXPECT_THAT(case0_pred, m::Eq(m::Param("sel"), m::Literal(0)));
+  EXPECT_THAT(case1_pred, m::Eq(m::Param("sel"), m::Literal(1)));
+  EXPECT_THAT(case2_pred, m::Eq(m::Param("sel"), m::Literal(2)));
+  EXPECT_THAT(default_pred, m::UGt(m::Param("sel"), m::Literal(2)));
+  RecordProperty("ir", f->DumpIr());
+}
+
+TEST_F(NodeUtilTest, GenericSelectPrioritySelect) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue sel = fb.Param("sel", p->GetBitsType(3));
+  BValue c0 = fb.Param("c0", p->GetBitsType(8));
+  BValue c1 = fb.Param("c1", p->GetBitsType(8));
+  BValue c2 = fb.Param("c2", p->GetBitsType(8));
+  BValue d = fb.Param("d", p->GetBitsType(8));
+  BValue prio_sel = fb.PrioritySelect(sel, {c0, c1, c2}, d);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(prio_sel));
+  GenericSelect gs(prio_sel.node()->As<PrioritySelect>());
+  ASSERT_TRUE(gs.valid());
+  EXPECT_EQ(gs.AsNode(), prio_sel.node());
+  EXPECT_EQ(gs.selector(), sel.node());
+  EXPECT_THAT(gs.cases(), ElementsAre(c0.node(), c1.node(), c2.node()));
+  EXPECT_EQ(gs.default_value(), d.node());
+
+  XLS_ASSERT_OK_AND_ASSIGN(Node * case0_pred, gs.MakePredicateForCase(0));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * case1_pred, gs.MakePredicateForCase(1));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * case2_pred, gs.MakePredicateForCase(2));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * default_pred, gs.MakePredicateForDefault());
+
+  EXPECT_THAT(case0_pred,
+              m::Eq(m::BitSlice(m::Param("sel"), /*start=*/0, /*width=*/1),
+                    m::Literal(1)));
+  EXPECT_THAT(case1_pred,
+              m::Eq(m::BitSlice(m::Param("sel"), /*start=*/0, /*width=*/2),
+                    m::Literal(2)));
+  EXPECT_THAT(case2_pred,
+              m::Eq(m::BitSlice(m::Param("sel"), /*start=*/0, /*width=*/3),
+                    m::Literal(4)));
+  EXPECT_THAT(default_pred, m::Eq(m::Param("sel"), m::Literal(0)));
+  RecordProperty("ir", f->DumpIr());
+}
+
+TEST_F(NodeUtilTest, GenericSelectOneHotSelect) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue sel = fb.Param("sel", p->GetBitsType(3));
+  BValue c0 = fb.Param("c0", p->GetBitsType(8));
+  BValue c1 = fb.Param("c1", p->GetBitsType(8));
+  BValue c2 = fb.Param("c2", p->GetBitsType(8));
+  BValue ohs = fb.OneHotSelect(sel, {c0, c1, c2});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ohs));
+  GenericSelect gs(ohs.node()->As<OneHotSelect>());
+  ASSERT_TRUE(gs.valid());
+  EXPECT_EQ(gs.AsNode(), ohs.node());
+  EXPECT_EQ(gs.selector(), sel.node());
+  EXPECT_THAT(gs.cases(), ElementsAre(c0.node(), c1.node(), c2.node()));
+  EXPECT_EQ(gs.default_value(), std::nullopt);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Node * case0_pred, gs.MakePredicateForCase(0));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * case1_pred, gs.MakePredicateForCase(1));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * case2_pred, gs.MakePredicateForCase(2));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * default_pred, gs.MakePredicateForDefault());
+
+  EXPECT_THAT(case0_pred,
+              m::BitSlice(m::Param("sel"), /*start=*/0, /*width=*/1));
+  EXPECT_THAT(case1_pred,
+              m::BitSlice(m::Param("sel"), /*start=*/1, /*width=*/1));
+  EXPECT_THAT(case2_pred,
+              m::BitSlice(m::Param("sel"), /*start=*/2, /*width=*/1));
+  EXPECT_THAT(default_pred, m::Literal(0));
+  RecordProperty("ir", f->DumpIr());
+}
 
 }  // namespace
 }  // namespace xls
