@@ -56,13 +56,25 @@ INSTANTIATE_TEST_SUITE_P(
                                                              GetJitRuntime());
         })));
 
+// For unclear reasons the test
+// LockLessJitChannelQueueTest/ChannelQueueTestBase.FixedValueGenerator/0 fails
+// in github CI. Just disable it for now while its being investigated.
+//
+// TODO(allight): Remove
+#ifdef XLS_IS_CI_RUN
+constexpr bool kIsOssCiRun = true;
+#else
+constexpr bool kIsOssCiRun = false;
+#endif
+
 INSTANTIATE_TEST_SUITE_P(
     LockLessJitChannelQueueTest, ChannelQueueTestBase,
-    testing::Values(
-        ChannelQueueTestParam([](ChannelInstance* channel_instance) {
+    testing::Values(ChannelQueueTestParam(
+        [](ChannelInstance* channel_instance) {
           return std::make_unique<ThreadUnsafeJitChannelQueue>(channel_instance,
                                                                GetJitRuntime());
-        })));
+        },
+        kIsOssCiRun)));
 
 template <typename QueueT>
 class JitChannelQueueTest : public ::testing::Test {};

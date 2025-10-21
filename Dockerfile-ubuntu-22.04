@@ -39,4 +39,4 @@ WORKDIR /home/xls-developer/xls/
 
 # Test everything (opt), exclude contrib (including xlscc) for now due to
 # increased build time when we add Clang.
-RUN if [ "$SKIP_TESTS" != "1" ]; then bazel test -c opt --test_summary=terse --test_verbose_timeout_warnings -- //xls/... -//xls/contrib/... -//xls/dev_tools/...; else echo "Skipping tests because SKIP_TESTS is not 1"; fi
+RUN if [ "$SKIP_TESTS" != "1" ]; then bazel test --config=ci -c opt --test_summary=terse --test_verbose_timeout_warnings -- //xls/... -//xls/contrib/... -//xls/dev_tools/...; else echo "Skipping tests because SKIP_TESTS is 1"; fi

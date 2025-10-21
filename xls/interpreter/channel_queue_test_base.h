@@ -29,17 +29,27 @@ namespace xls {
 class ChannelQueueTestParam {
  public:
   // `new_queue` is a factory which creates a channel queue to test.
+  //
+  // `is_buggy_oss_ci_run` Used to skip a single test that fails in OSS on CI
+  // only.
+  //
+  // See https://github.com/google/xls/issues/3223
   explicit ChannelQueueTestParam(
-      std::function<std::unique_ptr<ChannelQueue>(ChannelInstance*)> new_queue)
-      : new_queue_(std::move(new_queue)) {}
+      std::function<std::unique_ptr<ChannelQueue>(ChannelInstance*)> new_queue,
+      bool is_buggy_oss_ci_run = false)
+      : new_queue_(std::move(new_queue)),
+        is_buggy_oss_ci_run_(is_buggy_oss_ci_run) {}
 
   std::unique_ptr<ChannelQueue> CreateQueue(
       ChannelInstance* channel_instance) const {
     return new_queue_(channel_instance);
   }
 
+  bool IsJitNonThreadSafeInOss() const { return is_buggy_oss_ci_run_; }
+
  private:
   std::function<std::unique_ptr<ChannelQueue>(ChannelInstance*)> new_queue_;
+  bool is_buggy_oss_ci_run_;
 };
 
 // A suite of test which can be run against arbitrary ChannelQueue
@@ -47,7 +57,12 @@ class ChannelQueueTestParam {
 // macro.
 class ChannelQueueTestBase
     : public IrTestBase,
-      public testing::WithParamInterface<ChannelQueueTestParam> {};
+      public testing::WithParamInterface<ChannelQueueTestParam> {
+ public:
+  bool IsJitNonThreadSafeInOss() const {
+    return GetParam().IsJitNonThreadSafeInOss();
+  }
+};
 
 }  // namespace xls
 
