@@ -154,6 +154,9 @@ cc_library(
     hdrs = [
         "IR/xls_ops.h",
     ],
+    data = [
+        "//gdm/hw/mlir/hwir/codegen/snippets:relu15_bf16.mlir",
+    ],
     deps = [
         "@llvm-project//llvm:Support",
         "@llvm-project//mlir:FuncDialect",
@@ -223,8 +226,10 @@ cc_library(
         ":xls_transforms_passes_inc_gen",
         "@llvm-project//llvm:Support",
         "@llvm-project//mlir:ArithDialect",
+        "@llvm-project//mlir:FuncDialect",
         "@llvm-project//mlir:IR",
         "@llvm-project//mlir:MathDialect",
+        "@llvm-project//mlir:Parser",
         "@llvm-project//mlir:Pass",
         "@llvm-project//mlir:Rewrite",
         "@llvm-project//mlir:Support",
