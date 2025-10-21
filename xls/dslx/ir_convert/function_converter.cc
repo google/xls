@@ -507,7 +507,8 @@ FunctionConverter::FunctionConverter(PackageData& package_data, Module* module,
                      : xls::Fileno(0)),
       proc_data_(proc_data),
       channel_scope_(channel_scope),
-      is_top_(is_top) {
+      is_top_(is_top),
+      name_uniquer_("_") {
   VLOG(5) << "Constructed IR converter: " << this;
 }
 
@@ -3371,14 +3372,21 @@ absl::Status FunctionConverter::HandleSpawn(const Spawn* node) {
     }
   }
 
-  XLS_RET_CHECK(package_data_.invocation_to_ir_proc.contains(invocation));
-  xls::Proc* ir_proc = package_data_.invocation_to_ir_proc[invocation];
+  XLS_RET_CHECK(package_data_.invocation_to_ir_proc.contains(
+      {invocation, GetParametricEnv()}))
+      << invocation->ToString() << " env " << GetParametricEnv();
+  xls::Proc* ir_proc =
+      package_data_.invocation_to_ir_proc[{invocation, GetParametricEnv()}];
   xls::Proc* current_proc = builder_ptr->proc();
-  XLS_RETURN_IF_ERROR(
-      current_proc
-          ->AddProcInstantiation(absl::StrFormat("%s_inst", ir_proc->name()),
-                                 absl::MakeSpan(channel_args), ir_proc)
-          .status());
+  // Give each proc_instantiation a unique name. Since this method may be called
+  // multiple times per config method with the same uniquifier, this guarantees
+  // uniqueness within a proc, but not across oprocs, which is acceptable.
+  XLS_RETURN_IF_ERROR(current_proc
+                          ->AddProcInstantiation(
+                              name_uniquer_.GetSanitizedUniqueName(
+                                  absl::StrFormat("%s_inst", ir_proc->name())),
+                              absl::MakeSpan(channel_args), ir_proc)
+                          .status());
   // Spawn is an Invocation, which is an Instantiation, which is
   // technically an Expr, so it needs to have an Ir value in the map, even
   // though that value is never read.
@@ -3734,10 +3742,22 @@ absl::Status FunctionConverter::HandleProcNextFunction(
   package_data_.ir_to_dslx[p] = f;
   if (record.config_record() != nullptr) {
     // The invocation is actually the "next", but we need the "config".
-    package_data_.invocation_to_ir_proc[record.config_record()->invocation()] =
-        p;
+    // Get all the invocations of the 'config' function given the current
+    // parametrics.
+    for (const auto& invocation_callee_data :
+         record.type_info()->GetInvocationCalleeData(
+             record.config_record()->f(), record.parametric_env())) {
+      package_data_
+          .invocation_to_ir_proc[{invocation_callee_data.invocation,
+                                  invocation_callee_data.caller_bindings}] = p;
+    }
+    // Always use the given invocation, because it may be outside this module,
+    // and the call to GetInvocationCalleeData won't return it.
+    package_data_.invocation_to_ir_proc[{record.config_record()->invocation(),
+                                         record.parametric_env()}] = p;
   }
-  package_data_.invocation_to_ir_proc[invocation] = p;
+  package_data_.invocation_to_ir_proc[{invocation, record.parametric_env()}] =
+      p;
   return absl::OkStatus();
 }
 

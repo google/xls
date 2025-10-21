@@ -385,6 +385,12 @@ class TypeInfo {
   std::vector<InvocationCalleeData> GetUniqueInvocationCalleeData(
       const Function*) const;
 
+  // Returns all InvocationCalleeData objects for the given function and callee
+  // env, if present in this TypeInfo's root. If there are no matching
+  // invocations, an empty container is returned.
+  std::vector<InvocationCalleeData> GetInvocationCalleeData(
+      const Function*, const ParametricEnv& env) const;
+
   const absl::flat_hash_map<ImportSubject, ImportedInfo>& GetRootImports()
       const {
     return GetRoot()->imports();
