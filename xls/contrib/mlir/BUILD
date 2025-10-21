@@ -154,9 +154,6 @@ cc_library(
     hdrs = [
         "IR/xls_ops.h",
     ],
-    data = [
-        "//gdm/hw/mlir/hwir/codegen/snippets:relu15_bf16.mlir",
-    ],
     deps = [
         "@llvm-project//llvm:Support",
         "@llvm-project//mlir:FuncDialect",
