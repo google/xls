@@ -18,8 +18,11 @@
 #include <string_view>
 #include <vector>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/frontend/ast.h"
@@ -30,6 +33,9 @@
 
 namespace xls::dslx {
 namespace {
+
+using ::absl_testing::StatusIs;
+using ::testing::HasSubstr;
 
 TEST(GetConversionRecordsTest, SimpleLinearCallgraph) {
   constexpr std::string_view kProgram = R"(
@@ -396,7 +402,7 @@ fn my_test() -> bool { f<u32:8>(u8:1) == u32:8 }
   EXPECT_EQ(order[1].parametric_env(), ParametricEnv());
 }
 
-TEST(GetConversionRecordsTest, TestFunctionSkipped) {
+TEST(GetConversionRecordsTest, TestFunctionOutputsErrorWhenDisabled) {
   constexpr std::string_view kProgram = R"(
 fn f<N: u32>(x: bits[N]) -> u32 { N }
 
@@ -407,16 +413,11 @@ fn my_test() -> bool { f<u32:8>(u8:1) == u32:8 }
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::vector<ConversionRecord> order,
-      GetConversionRecords(tm.module, tm.type_info, false));
-  ASSERT_EQ(1, order.size());
-  // Even though the function is called from a test and the test is ignored,
-  // there are still types in the type info for the parametric to be evaluated.
-  EXPECT_EQ(order[0].f()->identifier(), "f");
-  EXPECT_EQ(order[0].parametric_env(),
-            ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
-                {"N", InterpValue::MakeUBits(/*bit_count=*/32, /*value=*/8)}}));
+  EXPECT_THAT(
+      GetConversionRecords(tm.module, tm.type_info, false),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Parametric function `f` is only called from test "
+                         "code, but test conversion is disabled")));
 }
 
 constexpr std::string_view kTestProc = R"(
@@ -454,21 +455,16 @@ TEST(GetConversionRecordsTest, TestProc) {
   EXPECT_EQ(order[1].f()->identifier(), "test.next");
 }
 
-TEST(GetConversionRecordsTest, TestProcSkipped) {
+TEST(GetConversionRecordsTest, TestProcOutputsErrorWhenDisabled) {
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(kTestProc, "test.x", "test", &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::vector<ConversionRecord> order,
-      GetConversionRecords(tm.module, tm.type_info, /*include_tests=*/false));
-  // It still converts the parametric proc because there is still a spawn,
-  // in the test proc.
-  ASSERT_EQ(1, order.size());
-  EXPECT_EQ(order[0].f()->identifier(), "P.next");
-  EXPECT_EQ(order[0].parametric_env(),
-            ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
-                {"N", InterpValue::MakeUBits(/*bit_count=*/32, /*value=*/4)}}));
+  EXPECT_THAT(
+      GetConversionRecords(tm.module, tm.type_info, /*include_tests=*/false),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Parametric proc `P` is only called from test "
+                         "code, but test conversion is disabled")));
 }
 
 TEST(GetConversionRecordsTest, Quickcheck) {

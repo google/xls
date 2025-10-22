@@ -16,6 +16,7 @@
 
 #include <memory>
 #include <optional>
+#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -24,6 +25,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
@@ -47,6 +49,31 @@ absl::StatusOr<ConversionRecord> MakeConversionRecord(
     std::unique_ptr<ConversionRecord> config_record = nullptr) {
   return ConversionRecord::Make(f, invocation, m, type_info, bindings, proc_id,
                                 is_top, std::move(config_record));
+}
+
+// Returns true if the given function is a test function.
+bool IsTest(const Function* f) {
+  if (f == nullptr) {
+    return false;
+  }
+
+  Module* module = f->owner();
+  for (const auto& test_func : module->GetTestNames()) {
+    if (test_func == f->name_def()->identifier()) {
+      return true;
+    }
+  }
+
+  if (f->proc().has_value()) {
+    const Proc* p = f->proc().value();
+    for (const auto& test_proc : module->GetTestProcs()) {
+      if (test_proc->proc() == p) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 // An AstNodeVisitor that creates ConversionRecords from appropriate AstNodes
@@ -134,11 +161,18 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
 
     std::vector<InvocationCalleeData> calls =
         type_info_->GetUniqueInvocationCalleeData(f);
+
     if (f->IsParametric() && calls.empty()) {
       VLOG(5) << "No calls to parametric function "
               << f->name_def()->ToString();
       return absl::OkStatus();
     }
+
+    if (f->IsParametric() && !include_tests_) {
+      XLS_RETURN_IF_ERROR(CheckIfCalledOnlyFromTestCode(
+          calls, /*is_proc=*/false, f->identifier()));
+    }
+
     for (auto& callee_data : calls) {
       XLS_ASSIGN_OR_RETURN(
           ConversionRecord cr,
@@ -266,6 +300,17 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     // convert.
     XLS_RETURN_IF_ERROR(DefaultHandler(&p->config()));
     if (p->IsParametric()) {
+      std::vector<InvocationCalleeData> config_calls =
+          type_info_->GetUniqueInvocationCalleeData(&p->config());
+      if (config_calls.empty()) {
+        VLOG(5) << "No calls to parametric proc " << p->name_def()->ToString();
+        return absl::OkStatus();
+      }
+      if (!include_tests_) {
+        XLS_RETURN_IF_ERROR(CheckIfCalledOnlyFromTestCode(
+            config_calls, /*is_proc=*/true, p->identifier()));
+      }
+
       std::optional<ProcId> proc_id = proc_id_factory_.CreateProcId(
           /*parent=*/std::nullopt, const_cast<Proc*>(p),
           /*count_as_new_instance=*/false);
@@ -314,6 +359,27 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
   std::vector<ConversionRecord> records() { return std::move(records_); }
 
  private:
+  absl::Status CheckIfCalledOnlyFromTestCode(
+      const std::vector<InvocationCalleeData>& calls, bool is_proc,
+      std::string_view identifier) {
+    bool called_from_outside_test = false;
+    for (auto& callee_data : calls) {
+      std::optional<const InvocationData*> invocation_data =
+          type_info_->GetRootInvocationData(callee_data.invocation);
+      XLS_RET_CHECK(invocation_data.has_value());
+      if (!IsTest((*invocation_data)->caller())) {
+        called_from_outside_test = true;
+        break;
+      }
+    }
+    if (!called_from_outside_test) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Parametric %s `%s` is only called from test code, but "
+          "test conversion is disabled.",
+          is_proc ? "proc" : "function", identifier));
+    }
+    return absl::OkStatus();
+  }
   Module* const module_;
   TypeInfo* const type_info_;
   const bool include_tests_;

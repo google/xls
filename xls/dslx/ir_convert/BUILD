@@ -512,6 +512,8 @@ cc_library(
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/strings:string_view",
     ],
 )
 
@@ -529,6 +531,8 @@ cc_test(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/type_system:parametric_env",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:status_matchers",
         "@googletest//:gtest",
     ],
 )

@@ -6035,6 +6035,124 @@ pub proc FooAlias = imported::Foo<16>;
   ExpectIr(converted);
 }
 
+constexpr std::string_view kParametricTestProc = R"(
+proc TestUtilityProc<N: u32> {
+    req_r: chan<uN[N]> in;
+    resp_s: chan<uN[N]> out;
+    config(req_r: chan<uN[N]> in, resp_s: chan<uN[N]> out) { (req_r, resp_s) }
+    init { }
+    next(state: ()) {
+        let (tok, data) = recv(join(), req_r);
+        send(tok, resp_s, data);
+    }
+}
+
+#[test_proc]
+proc TestProc {
+    terminator: chan<bool> out;
+    tester_req_s: chan<u8> out;
+    tester_resp_r: chan<u8> in;
+
+    config(terminator: chan<bool> out) {
+        let (tester_req_s, tester_req_r) = chan<u8>("tester_req");
+        let (tester_resp_s, tester_resp_r) = chan<u8>("tester_resp");
+
+        spawn TestUtilityProc<u32:8>(tester_req_r, tester_resp_s);
+
+        (terminator, tester_req_s, tester_resp_r)
+    }
+
+    init {}
+
+    next(state: ()) {
+        let tok = send(join(), tester_req_s, u8:0);
+        let (tok, _) = recv(join(), tester_resp_r);
+
+        send(tok, terminator, true);
+    }
+}
+)";
+
+TEST_P(ProcScopedChannelsIrConverterTest,
+       ParametricProcScopedChannelsConvertTestProc) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kParametricTestProc,
+                           ConvertOptions{
+                               .emit_positions = false,
+                               .convert_tests = true,
+                               .lower_to_proc_scoped_channels = true,
+                           }));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest,
+       ParametricProcScopedChannelsNoTestProc) {
+  auto import_data = CreateImportDataForTest();
+  EXPECT_THAT(
+      ConvertOneFunctionForTest(kParametricTestProc, "TestProc", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .convert_tests = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("IR conversion of tests is disabled, but conversion "
+                         "of a test proc")));
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest,
+       ParametricProcScopedChannelsNoTestProcModule) {
+  EXPECT_THAT(
+      ConvertModuleForTest(kParametricTestProc,
+                           ConvertOptions{
+                               .emit_positions = false,
+                               .convert_tests = false,
+                               .lower_to_proc_scoped_channels = true,
+                           }),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Parametric proc `TestUtilityProc` is only called "
+                         "from test code, but test conversion is disabled")));
+}
+
+constexpr std::string_view kParametricTestFn = R"(
+fn foo<N: u32>(input: uN[N]) -> uN[N] {
+  input
+}
+
+#[test]
+fn calls_foo() {
+  foo<u32:32>(u32:42);
+}
+)";
+
+TEST_P(ProcScopedChannelsIrConverterTest,
+       ParametricProcScopedChannelsConvertTestFn) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kParametricTestFn,
+                           ConvertOptions{
+                               .emit_positions = false,
+                               .convert_tests = true,
+                               .lower_to_proc_scoped_channels = true,
+                           }));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest,
+       ParametricProcScopedChannelsNoTestFn) {
+  EXPECT_THAT(
+      ConvertModuleForTest(kParametricTestFn,
+                           ConvertOptions{
+                               .emit_positions = false,
+                               .convert_tests = false,
+                               .lower_to_proc_scoped_channels = true,
+                           }),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Parametric function `foo` is only called from test "
+                         "code, but test conversion is disabled")));
+}
+
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ConvertWithoutTests) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
