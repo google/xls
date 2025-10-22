@@ -52,6 +52,9 @@ class NameUniquer {
 
   void Reset() { generated_names_.clear(); }
 
+  // Allow the name 'sv' to be generated again.
+  absl::Status ReleaseIdentifier(std::string_view sv);
+
  private:
   // Used to track and generate new identifiers for the same instruction name
   // root.
@@ -83,6 +86,9 @@ class NameUniquer {
 
     // Returns the next available unique ID.
     int64_t NextId() { return RegisterId(next_); }
+    // Allow the 'id' to be used again. Does not move the incrementing 'next'
+    // backwards.
+    absl::Status Release(int64_t id);
 
    private:
     // The next identifier to be tried.

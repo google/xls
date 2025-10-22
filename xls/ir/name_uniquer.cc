@@ -21,9 +21,12 @@
 #include <string_view>
 
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
+#include "xls/common/status/ret_check.h"
 
 namespace xls {
 
@@ -62,26 +65,36 @@ std::string SanitizeName(
   return result;
 }
 
+// Strip away a numeric suffix. For example, grab "foo" from "foo__42". This
+// avoids the possibility of a given prefix (e.g., prefix is "foo__42")
+// colliding with a uniquified name (e.g., GetSanitizedUniqueName("foo")
+// returns "foo__42")
+std::optional<int64_t> ParseNumericSuffix(std::string_view name,
+                                          std::string_view separator,
+                                          std::string_view* prefix) {
+  size_t separator_index = name.rfind(separator);
+  *prefix = name;
+  if (separator_index == std::string::npos) {
+    return std::nullopt;
+  }
+  std::string_view suffix = name.substr(separator_index + separator.size());
+  int64_t i;
+  if (absl::SimpleAtoi(suffix, &i)) {
+    // Remove numeric suffix from root.
+    *prefix = name.substr(0, separator_index);
+    return i;
+  }
+  return std::nullopt;
+}
+
 }  // namespace
 
 std::string NameUniquer::GetSanitizedUniqueName(std::string_view prefix) {
-  std::string root = SanitizeName(prefix, reserved_names_);
+  std::string sanitized = SanitizeName(prefix, reserved_names_);
 
-  // Strip away a numeric suffix. For example, grab "foo" from "foo__42". This
-  // avoids the possibility of a given prefix (e.g., prefix is "foo__42")
-  // colliding with a uniquified name (e.g., GetSanitizedUniqueName("foo")
-  // returns "foo__42")
-  std::optional<int64_t> numeric_suffix;
-  size_t separator_index = root.rfind(separator_);
-  if (separator_index != std::string::npos) {
-    std::string suffix = root.substr(separator_index + separator_.size());
-    int64_t i;
-    if (absl::SimpleAtoi(suffix, &i)) {
-      numeric_suffix = i;
-      // Remove numeric suffix from root.
-      root = root.substr(0, separator_index);
-    }
-  }
+  std::string_view root;
+  std::optional<int64_t> numeric_suffix =
+      ParseNumericSuffix(sanitized, separator_, &root);
 
   // If the root is empty after stripping off the suffix, use a generic name.
   root = root.empty() ? "name" : root;
@@ -102,7 +115,7 @@ std::string NameUniquer::GetSanitizedUniqueName(std::string_view prefix) {
 
   // Root has not been seen before and there is no suffix. Just return it.
   prefix_tracker.bare_prefix_taken = true;
-  return root;
+  return std::string(root);
 }
 
 /* static */ bool NameUniquer::IsValidIdentifier(std::string_view str) {
@@ -118,6 +131,30 @@ std::string NameUniquer::GetSanitizedUniqueName(std::string_view prefix) {
     }
   }
   return true;
+}
+
+absl::Status NameUniquer::ReleaseIdentifier(std::string_view sv) {
+  if (auto it = generated_names_.find(sv); it != generated_names_.end()) {
+    // this is an unadorned name.
+    it->second.bare_prefix_taken = false;
+    return absl::OkStatus();
+  }
+  std::string_view root;
+  std::optional<int64_t> suffix = ParseNumericSuffix(sv, separator_, &root);
+  XLS_RET_CHECK(suffix)
+      << "Name '" << sv
+      << "' was not a bare identifier and didn't have a numeric suffix?";
+  auto it = generated_names_.find(root);
+  XLS_RET_CHECK(it != generated_names_.end())
+      << "Name '" << sv
+      << "' was not a bare identifier and didn't have a numeric suffix?";
+  return it->second.generator.Release(*suffix);
+}
+
+absl::Status NameUniquer::SequentialIdGenerator::Release(int64_t id) {
+  XLS_RET_CHECK(used_.contains(id)) << id << " is not marked as in use";
+  used_.erase(id);
+  return absl::OkStatus();
 }
 
 }  // namespace xls

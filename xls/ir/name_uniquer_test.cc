@@ -14,10 +14,15 @@
 
 #include "xls/ir/name_uniquer.h"
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status_matchers.h"
 
 namespace xls {
 namespace {
+
+using absl_testing::IsOk;
+using testing::Not;
 
 TEST(NameUniquerTest, SimpleUniquer) {
   NameUniquer uniquer("__");
@@ -128,6 +133,47 @@ TEST(NameUniquerTest, IsValidIdentifier) {
   EXPECT_FALSE(NameUniquer::IsValidIdentifier("foo bar"));
   EXPECT_FALSE(NameUniquer::IsValidIdentifier("foo&bar"));
   EXPECT_FALSE(NameUniquer::IsValidIdentifier("foo+bar"));
+}
+
+TEST(NameUniquerTest, ReleaseIdentifier) {
+  NameUniquer uniquer("__");
+
+  EXPECT_EQ("foo", uniquer.GetSanitizedUniqueName("foo"));
+  EXPECT_EQ("foo__1", uniquer.GetSanitizedUniqueName("foo"));
+  EXPECT_EQ("foo__2", uniquer.GetSanitizedUniqueName("foo"));
+  EXPECT_EQ("bar", uniquer.GetSanitizedUniqueName("bar"));
+  EXPECT_EQ("bar__1", uniquer.GetSanitizedUniqueName("bar"));
+
+  // Release a bare name.
+  EXPECT_THAT(uniquer.ReleaseIdentifier("foo"), IsOk());
+  EXPECT_EQ("foo", uniquer.GetSanitizedUniqueName("foo"));
+  // foo__1 and foo__2 are still used. Next should be foo__3
+  EXPECT_EQ("foo__3", uniquer.GetSanitizedUniqueName("foo"));
+
+  // Release a name with suffix.
+  EXPECT_THAT(uniquer.ReleaseIdentifier("foo__1"), IsOk());
+  // Requesting 'foo' again gets the next available sequential id.
+  EXPECT_EQ("foo__4", uniquer.GetSanitizedUniqueName("foo"));
+  // Requesting 'foo__1' re-uses the released identifier.
+  EXPECT_EQ("foo__1", uniquer.GetSanitizedUniqueName("foo__1"));
+  // But requesting 'foo__1' again will be uniquified.
+  EXPECT_EQ("foo__5", uniquer.GetSanitizedUniqueName("foo__1"));
+
+  // Release bar and bar__1
+  EXPECT_THAT(uniquer.ReleaseIdentifier("bar"), IsOk());
+  EXPECT_THAT(uniquer.ReleaseIdentifier("bar__1"), IsOk());
+  EXPECT_EQ("bar", uniquer.GetSanitizedUniqueName("bar"));
+  EXPECT_EQ("bar__1", uniquer.GetSanitizedUniqueName("bar__1"));
+  EXPECT_EQ("bar__2", uniquer.GetSanitizedUniqueName("bar"));
+
+  // Releasing something not generated should fail.
+  // This fails because 'dne' is not a registered bare name and it doesn't have
+  // a numeric suffix.
+  EXPECT_THAT(uniquer.ReleaseIdentifier("dne"), Not(IsOk()));
+  // This fails because 'dne' is not a registered root.
+  EXPECT_THAT(uniquer.ReleaseIdentifier("dne__1"), Not(IsOk()));
+  // This fails because foo__123 was never generated.
+  EXPECT_THAT(uniquer.ReleaseIdentifier("foo__123"), Not(IsOk()));
 }
 
 }  // namespace
