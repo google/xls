@@ -3611,11 +3611,13 @@ absl::Status FunctionConverter::HandleProcNextFunction(
                 << innermost_type.ToString();
         const ChannelType* channel_type =
             dynamic_cast<const ChannelType*>(&innermost_type);
-        XLS_RET_CHECK_NE(channel_type, nullptr)
-            << "Cannot have non-channel parameters to a `config` function "
-               "with proc-scoped channels. Use a parametric on the proc "
-               "instead. Was: "
-            << param->ToString();
+        if (channel_type == nullptr) {
+          return absl::InvalidArgumentError(absl::StrCat(
+              "Cannot have non-channel parameters to a `config` function "
+              "with proc-scoped channels. Use a parametric on the proc "
+              "instead. Was: ",
+              param->ToString()));
+        }
 
         // TODO: davidplass - Use DefineBoundaryChannelOrArray for both
         // array and non-array params. Currently this causes a timeout
@@ -3629,11 +3631,13 @@ absl::Status FunctionConverter::HandleProcNextFunction(
                     std::get<ChannelArray*>(channel_or_array));
       } else {
         ChannelType* channel_type = dynamic_cast<ChannelType*>(type);
-        XLS_RET_CHECK_NE(channel_type, nullptr)
-            << "Cannot have non-channel parameters to a `config` function "
-               "with proc-scoped channels. Use a parametric on the proc "
-               "instead. Was: "
-            << param->ToString();
+        if (channel_type == nullptr) {
+          return absl::InvalidArgumentError(absl::StrCat(
+              "Cannot have non-channel parameters to a `config` function "
+              "with proc-scoped channels. Use a parametric on the proc "
+              "instead. Was: ",
+              param->ToString()));
+        }
         // TOOD: davidplass - figure out how to get strictness, flow control,
         // kind instead of defaults. These will likely vary depending on if it's
         // a boundary or a loopback channel.

@@ -4440,8 +4440,10 @@ pub proc main {
 
   EXPECT_THAT(
       ConvertOneFunctionForTest(program, "main", kProcScopedChannelOptions),
-      StatusIs(absl::StatusCode::kInternal,
-               HasSubstr("Use a parametric on the proc instead.")));
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Cannot have non-channel parameters to a `config` "
+                         "function with proc-scoped channels. Use a parametric "
+                         "on the proc instead. Was: input: u32")));
 }
 
 TEST_P(ProcScopedChannelsIrConverterTest, ParametricSimpleSpawn) {
@@ -4974,8 +4976,10 @@ proc main {
 
   EXPECT_THAT(
       ConvertOneFunctionForTest(program, "main", kProcScopedChannelOptions),
-      StatusIs(absl::StatusCode::kInternal,
-               HasSubstr("Cannot have non-channel parameters")));
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Cannot have non-channel parameters to a `config` "
+                         "function with proc-scoped channels. Use a parametric "
+                         "on the proc instead. Was: a: u32")));
 }
 
 TEST_P(ProcScopedChannelsIrConverterTest, InvalidConfigParamTop) {
@@ -5217,8 +5221,10 @@ pub proc main {
 
   EXPECT_THAT(
       ConvertOneFunctionForTest(program, "main", kProcScopedChannelOptions),
-      StatusIs(absl::StatusCode::kInternal,
-               HasSubstr("Cannot have non-channel parameters")));
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Cannot have non-channel parameters to a `config` "
+                         "function with proc-scoped channels. Use a parametric "
+                         "on the proc instead. Was: invalid: u32")));
 }
 
 TEST_P(ProcScopedChannelsIrConverterTest, InvalidConfigArrayParam) {
@@ -5238,8 +5244,10 @@ pub proc main {
 
   EXPECT_THAT(
       ConvertOneFunctionForTest(program, "main", kProcScopedChannelOptions),
-      StatusIs(absl::StatusCode::kInternal,
-               HasSubstr("Cannot have non-channel parameters")));
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Cannot have non-channel parameters to a `config` "
+                         "function with proc-scoped channels. Use a parametric "
+                         "on the proc instead. Was: invalid: u32[3]")));
 }
 
 TEST_P(ProcScopedChannelsIrConverterTest, ChannelArrayMembers) {
