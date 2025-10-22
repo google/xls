@@ -187,6 +187,7 @@ TEST_P(ProcStateFlatteningPassTest, EmptyTupleAndBitsState) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, BuildProc(pb, {x, y, z, pb.Add(q, q)}));
 
   EXPECT_EQ(proc->GetStateElementCount(), 4);
+  ScopedRecordIr sri(p.get());
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
 

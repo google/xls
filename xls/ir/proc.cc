@@ -163,152 +163,6 @@ std::optional<int64_t> Proc::MaybeGetStateElementIndex(
   return std::nullopt;
 }
 
-absl::Status Proc::ReplaceState(
-    absl::Span<const std::string> requested_state_names,
-    absl::Span<const Value> init_values) {
-  for (int64_t i = GetStateElementCount() - 1; i >= 0; --i) {
-    XLS_RETURN_IF_ERROR(RemoveStateElement(i));
-  }
-  state_name_uniquer_.Reset();
-  if (requested_state_names.size() != init_values.size()) {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Must specify equal number of state names (%d) and initial values (%d)",
-        requested_state_names.size(), init_values.size()));
-  }
-  for (int64_t i = 0; i < requested_state_names.size(); ++i) {
-    XLS_RETURN_IF_ERROR(AppendStateElement(requested_state_names[i],
-                                           init_values[i],
-                                           /*read_predicate=*/std::nullopt,
-                                           /*next_state=*/std::nullopt)
-                            .status());
-  }
-  return absl::OkStatus();
-}
-
-absl::Status Proc::ReplaceState(
-    absl::Span<const std::string> requested_state_names,
-    absl::Span<const Value> init_values,
-    absl::Span<const std::optional<Node*>> read_predicates) {
-  for (int64_t i = GetStateElementCount() - 1; i >= 0; --i) {
-    XLS_RETURN_IF_ERROR(RemoveStateElement(i));
-  }
-  state_name_uniquer_.Reset();
-  if (requested_state_names.size() != init_values.size()) {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Must specify equal number of state names (%d) and initial values (%d)",
-        requested_state_names.size(), init_values.size()));
-  }
-  for (int64_t i = 0; i < requested_state_names.size(); ++i) {
-    XLS_RETURN_IF_ERROR(AppendStateElement(requested_state_names[i],
-                                           init_values[i], read_predicates[i],
-                                           /*next_state=*/std::nullopt)
-                            .status());
-  }
-  return absl::OkStatus();
-}
-
-absl::Status Proc::ReplaceState(
-    absl::Span<const std::string> requested_state_names,
-    absl::Span<const Value> init_values,
-    absl::Span<const std::optional<Node*>> read_predicates,
-    absl::Span<Node* const> next_state) {
-  for (int64_t i = GetStateElementCount() - 1; i >= 0; --i) {
-    std::vector<Next*> old_nexts(next_values(GetStateRead(i)).begin(),
-                                 next_values(GetStateRead(i)).end());
-    for (Next* next : old_nexts) {
-      XLS_RETURN_IF_ERROR(
-          next->ReplaceUsesWithNew<Literal>(Value::Tuple({})).status());
-      XLS_RETURN_IF_ERROR(RemoveNode(next));
-    }
-    XLS_RETURN_IF_ERROR(RemoveStateElement(i));
-  }
-  state_name_uniquer_.Reset();
-  // Verify next values match the type of the initial values.
-  if (requested_state_names.size() != next_state.size() ||
-      requested_state_names.size() != init_values.size() ||
-      requested_state_names.size() != read_predicates.size()) {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Must specify equal number of state names (%d), next state values (%d) "
-        "and initial values (%d)",
-        requested_state_names.size(), next_state.size(), init_values.size()));
-  }
-  for (int64_t i = 0; i < requested_state_names.size(); ++i) {
-    XLS_RETURN_IF_ERROR(AppendStateElement(requested_state_names[i],
-                                           init_values[i], read_predicates[i],
-                                           next_state[i])
-                            .status());
-  }
-  return absl::OkStatus();
-}
-
-absl::StatusOr<StateRead*> Proc::ReplaceStateElement(
-    int64_t index, std::string_view requested_state_name,
-    const Value& init_value, std::optional<Node*> next_state) {
-  XLS_RET_CHECK_LT(index, GetStateElementCount());
-
-  // Check that it's safe to remove the current state read node.
-  StateElement* old_state_element = GetStateElement(index);
-  StateRead* old_state_read = state_reads_.at(old_state_element);
-  if (!absl::c_all_of(old_state_read->users(), [&](Node* user) {
-        return user->Is<Next>() &&
-               user->As<Next>()->state_read() == old_state_read;
-      })) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("Cannot remove state element %d of proc %s, existing "
-                        "state read %s has uses",
-                        index, name(), old_state_read->GetName()));
-  }
-
-  std::vector<Next*> old_nexts(next_values(old_state_read).begin(),
-                               next_values(old_state_read).end());
-  for (Next* next : old_nexts) {
-    XLS_RETURN_IF_ERROR(
-        next->ReplaceUsesWithNew<Literal>(Value::Tuple({})).status());
-    XLS_RETURN_IF_ERROR(RemoveNode(next));
-  }
-
-  // Unless we're directly reusing the previous name, it needs to be uniqued.
-  // Also, copy name to a local variable to avoid the use-after-free footgun of
-  // `requested_state_name` referring to the existing to-be-removed state
-  // element.
-  std::string state_name;
-  if (requested_state_name == old_state_element->name()) {
-    state_name = requested_state_name;
-  } else {
-    state_name = UniquifyStateName(requested_state_name);
-  }
-
-  XLS_RETURN_IF_ERROR(RemoveNode(old_state_read));
-
-  state_elements_[state_name] = std::make_unique<StateElement>(
-      state_name, package()->GetTypeForValue(init_value), init_value);
-  StateElement* new_state_element = state_elements_.at(state_name).get();
-  state_vec_[index] = new_state_element;
-
-  // Construct the new state-read node, and update all trackers.
-  XLS_ASSIGN_OR_RETURN(
-      StateRead * state_read,
-      MakeNodeWithName<StateRead>(SourceInfo(), new_state_element,
-                                  /*predicate=*/std::nullopt, state_name));
-  state_reads_[new_state_element] = state_read;
-  if (next_state.has_value() &&
-      !ValueConformsToType(init_value, next_state.value()->GetType())) {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Cannot add state element at %d, next state value %s (type %s) does "
-        "not match type of initial value: %s",
-        index, next_state.value()->GetName(),
-        next_state.value()->GetType()->ToString(), init_value.ToString()));
-  }
-
-  if (next_state.has_value()) {
-    XLS_RETURN_IF_ERROR(MakeNode<Next>(SourceInfo(), state_read, *next_state,
-                                       /*predicate=*/std::nullopt)
-                            .status());
-  }
-
-  return state_read;
-}
-
 absl::Status Proc::RemoveStateElement(int64_t index) {
   XLS_RET_CHECK_LT(index, GetStateElementCount());
   for (auto& [_, state_element] : state_elements_) {
@@ -321,17 +175,38 @@ absl::Status Proc::RemoveStateElement(int64_t index) {
   }
 
   StateElement* old_state_element = GetStateElement(index);
-  StateRead* old_state_read = state_reads_.at(old_state_element);
-  if (!old_state_read->users().empty()) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("Cannot remove state element %d of proc %s, existing "
-                        "state read %s has uses",
-                        index, name(), old_state_read->GetNameView()));
+  auto old_state_read_it = state_reads_.find(old_state_element);
+  XLS_RET_CHECK(old_state_read_it != state_reads_.end());
+  if (!old_state_read_it->second->users().empty()) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Cannot remove state element %d of proc %s, existing "
+        "state read %s has uses",
+        index, name(), old_state_read_it->second->GetNameView()));
   }
-  XLS_RETURN_IF_ERROR(RemoveNode(old_state_read));
+  XLS_RETURN_IF_ERROR(RemoveNode(old_state_read_it->second));
+  // TODO(allight): This should ideally not need to be done manually.
+  state_reads_.erase(old_state_read_it);
 
   state_elements_.erase(old_state_element->name());
   state_vec_.erase(state_vec_.begin() + index);
+  return absl::OkStatus();
+}
+
+absl::Status Proc::RemoveAllStateElements() {
+  // TODO(allight): This relies on side tables being valid. For now just let it
+  // go.
+  for (const auto& [elem, read] : state_reads_) {
+    if (read != nullptr) {
+      XLS_RETURN_IF_ERROR(RemoveNode(read))
+          << "Cannot remove " << elem->ToString() << " of proc " << name()
+          << " because read '" << read->ToString() << "' could not be removed.";
+    }
+    XLS_RETURN_IF_ERROR(state_name_uniquer_.ReleaseIdentifier(elem->name()))
+        << "Cannot release name of " << elem->ToString();
+  }
+  state_vec_.clear();
+  state_reads_.clear();
+  state_elements_.clear();
   return absl::OkStatus();
 }
 

@@ -116,45 +116,6 @@ class Proc : public FunctionBase {
     return StateElements().at(index)->type();
   }
 
-  // Replace all state elements with new state parameters and the given initial
-  // values. The next state nodes are set to the newly created state parameter
-  // nodes.
-  absl::Status ReplaceState(absl::Span<const std::string> requested_state_names,
-                            absl::Span<const Value> init_values);
-
-  // Replace all state elements with new state parameters and the given initial
-  // values, using the given read predicates. The next state nodes are set to
-  // the newly created state parameter nodes. This is defined as an overload
-  // rather than as a std::optional `read_predicates` argument because
-  // initializer lists do not explicitly convert to std::optional<absl::Span>
-  // making callsites verbose.
-  absl::Status ReplaceState(
-      absl::Span<const std::string> requested_state_names,
-      absl::Span<const Value> init_values,
-      absl::Span<const std::optional<Node*>> read_predicates);
-
-  // Replace all state elements with new state parameters and the given initial
-  // values, using the given read predicates and the given next state values.
-  // This is defined as an overload rather than as a std::optional `next_state`
-  // argument because initializer lists do not explicitly convert to
-  // std::optional<absl::Span> making callsites verbose.
-  //
-  // Provided as a convenience function for the common case of replacing each
-  // state element with a single next value.
-  absl::Status ReplaceState(
-      absl::Span<const std::string> requested_state_names,
-      absl::Span<const Value> init_values,
-      absl::Span<const std::optional<Node*>> read_predicates,
-      absl::Span<Node* const> next_state);
-
-  // Replace the state element at the given index with a new state parameter,
-  // initial value, and next state value. If `next_state` is not given then the
-  // next state node for this state element is set to the newly created state
-  // parameter node. Returns the newly created parameter node.
-  absl::StatusOr<StateRead*> ReplaceStateElement(
-      int64_t index, std::string_view requested_state_name,
-      const Value& init_value, std::optional<Node*> next_state = std::nullopt);
-
   // A set of callbacks to help one replace a state element with one of a
   // different type.
   class StateElementTransformer {
@@ -213,6 +174,9 @@ class Proc : public FunctionBase {
   // `index` are shifted down one to fill the hole. The state parameter at the
   // index must have no uses.
   absl::Status RemoveStateElement(int64_t index);
+
+  // Remove all state elements currently present.
+  absl::Status RemoveAllStateElements();
 
   // Appends a state element with the given name (if possible), next state
   // value, and initial value. If `next_state` is not given then the next state

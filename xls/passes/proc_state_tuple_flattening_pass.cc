@@ -153,27 +153,30 @@ absl::Status ReplaceProcState(Proc* proc,
   std::vector<std::string> names;
   std::vector<Value> init_values;
   std::vector<std::optional<Node*>> read_predicates;
-  names.reserve(elements.size());
-  init_values.reserve(elements.size());
-  read_predicates.reserve(elements.size());
-  for (const AbstractStateElement& element : elements) {
-    names.push_back(element.name);
-    init_values.push_back(element.initial_value);
-    read_predicates.push_back(element.read_predicate);
+  XLS_ASSIGN_OR_RETURN(Node * tup_lit,
+                       proc->MakeNode<Literal>(SourceInfo(), Value::Tuple({})));
+  for (Node* next : proc->next_values()) {
+    XLS_RETURN_IF_ERROR(next->ReplaceUsesWith(tup_lit));
+    XLS_RETURN_IF_ERROR(proc->RemoveNode(next));
   }
-  XLS_RETURN_IF_ERROR(proc->ReplaceState(names, init_values, read_predicates));
-  for (int64_t i = 0; i < elements.size(); ++i) {
-    for (const NextValue& next_value : elements[i].next_values) {
+  XLS_RETURN_IF_ERROR(proc->RemoveAllStateElements());
+  for (const AbstractStateElement& element : elements) {
+    XLS_ASSIGN_OR_RETURN(
+        StateRead * read,
+        proc->AppendStateElement(element.name, element.initial_value,
+                                 element.read_predicate,
+                                 /*next_state=*/std::nullopt));
+    read->SetLoc(element.placeholder->loc());
+    for (const NextValue& next_value : element.next_values) {
       XLS_RETURN_IF_ERROR(
           proc->MakeNodeWithName<Next>(next_value.loc,
-                                       /*state_read=*/proc->GetStateRead(i),
+                                       /*state_read=*/read,
                                        /*value=*/next_value.value,
                                        /*predicate=*/next_value.predicate,
                                        next_value.name)
               .status());
+      XLS_RETURN_IF_ERROR(element.placeholder->ReplaceUsesWith(read));
     }
-    XLS_RETURN_IF_ERROR(
-        elements[i].placeholder->ReplaceUsesWith(proc->GetStateRead(i)));
   }
   return absl::OkStatus();
 }

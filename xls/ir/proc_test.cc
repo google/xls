@@ -93,20 +93,6 @@ TEST_F(ProcTest, MutateProc) {
   Next* next_st = *proc->next_values(proc->GetStateRead(1)).begin();
   XLS_ASSERT_OK(proc->RemoveNode(next_st));
   EXPECT_THAT(proc->next_values(proc->GetStateRead(1)), IsEmpty());
-
-  // Replace the state with a new type. First need to delete the (dead) use of
-  // the existing state read.
-  XLS_ASSERT_OK(proc->RemoveNode(add.node()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Node * new_state,
-      proc->MakeNode<Literal>(SourceInfo(), Value(UBits(100, 100))));
-  XLS_ASSERT_OK(proc->ReplaceStateElement(1, "new_state",
-                                          Value(UBits(100, 100)), new_state));
-
-  EXPECT_THAT(proc->next_values(proc->GetStateRead(1)),
-              ElementsAre(m::Next(m::StateRead("new_state"),
-                                  m::Literal(UBits(100, 100)))));
-  EXPECT_THAT(proc->GetStateRead(1), m::Type("bits[100]"));
 }
 
 TEST_F(ProcTest, AddAndRemoveState) {
@@ -187,17 +173,10 @@ TEST_F(ProcTest, AddAndRemoveState) {
 
   XLS_ASSERT_OK(
       proc->RemoveNode(*proc->next_values(proc->GetStateRead(3)).begin()));
-  XLS_ASSERT_OK(proc->ReplaceStateElement(3, "baz", Value::Tuple({})));
-  EXPECT_EQ(proc->GetStateElementCount(), 5);
-  EXPECT_EQ(proc->GetStateElement(0)->name(), "foo");
-  EXPECT_EQ(proc->GetStateElement(1)->name(), "tkn");
-  EXPECT_EQ(proc->GetStateElement(2)->name(), "x");
-  EXPECT_EQ(proc->GetStateElement(3)->name(), "baz");
-  EXPECT_EQ(proc->GetStateElement(4)->name(), "bar");
-
-  EXPECT_THAT(proc->DumpIr(),
-              HasSubstr("proc p(foo: bits[32], tkn: token, x: bits[32], baz: "
-                        "(), bar: bits[64], init={123, token, 42, (), 1}"));
+  EXPECT_THAT(
+      proc->DumpIr(),
+      HasSubstr("proc p(foo: bits[32], tkn: token, x: bits[32], z: "
+                "bits[32], bar: bits[64], init={123, token, 42, 123, 1}"));
   EXPECT_THAT(proc->next_values(proc->GetStateRead(int64_t{0})), IsEmpty());
   EXPECT_THAT(
       proc->next_values(proc->GetStateRead(1)),
@@ -206,31 +185,6 @@ TEST_F(ProcTest, AddAndRemoveState) {
               ElementsAre(m::Next(m::StateRead("x"), m::Name("my_add"))));
   EXPECT_THAT(proc->next_values(proc->GetStateRead(3)), IsEmpty());
   EXPECT_THAT(proc->next_values(proc->GetStateRead(4)), IsEmpty());
-}
-
-TEST_F(ProcTest, ReplaceState) {
-  auto p = CreatePackage();
-  ProcBuilder pb("p", p.get());
-  pb.StateElement("x", Value(UBits(42, 32)));
-  BValue forty_two = pb.Literal(UBits(42, 32), SourceInfo(), "forty_two");
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({forty_two}));
-
-  XLS_ASSERT_OK(proc->ReplaceState(
-      {"foo", "bar", "baz"},
-      {Value(UBits(1, 32)), Value(UBits(2, 32)), Value(UBits(2, 32))},
-      {std::nullopt, std::nullopt, std::nullopt},
-      {forty_two.node(), forty_two.node(), forty_two.node()}));
-
-  EXPECT_THAT(proc->DumpIr(),
-              HasSubstr("proc p(foo: bits[32], bar: bits[32], baz: "
-                        "bits[32], init={1, 2, 2})"));
-
-  EXPECT_THAT(proc->next_values(proc->GetStateRead(int64_t{0})),
-              ElementsAre(m::Next(m::StateRead("foo"), m::Literal(42, 32))));
-  EXPECT_THAT(proc->next_values(proc->GetStateRead(1)),
-              ElementsAre(m::Next(m::StateRead("bar"), m::Literal(42, 32))));
-  EXPECT_THAT(proc->next_values(proc->GetStateRead(2)),
-              ElementsAre(m::Next(m::StateRead("baz"), m::Literal(42, 32))));
 }
 
 TEST_F(ProcTest, StatelessProc) {
@@ -242,24 +196,6 @@ TEST_F(ProcTest, StatelessProc) {
   EXPECT_EQ(proc->GetStateFlatBitCount(), 0);
 
   EXPECT_EQ(proc->DumpIr(), "proc p() {\n}\n");
-}
-
-TEST_F(ProcTest, ReplaceStateThatStillHasUse) {
-  // Don't call CreatePackage which creates a VerifiedPackage because we
-  // intentionally create a malformed proc.
-  Package p(TestName());
-  ProcBuilder pb("p", &p);
-  BValue state = pb.StateElement("st", Value(UBits(42, 32)));
-  BValue add = pb.Add(pb.Literal(UBits(1, 32)), state);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({add}));
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Node * new_state,
-      proc->MakeNode<Literal>(SourceInfo(), Value(UBits(100, 100))));
-  EXPECT_THAT(proc->ReplaceStateElement(0, "new_state", Value(UBits(100, 100)),
-                                        new_state),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("state read st has uses")));
 }
 
 TEST_F(ProcTest, RemoveStateThatStillHasUse) {
@@ -274,24 +210,6 @@ TEST_F(ProcTest, RemoveStateThatStillHasUse) {
   EXPECT_THAT(proc->RemoveStateElement(0),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("state read st has uses")));
-}
-
-TEST_F(ProcTest, ReplaceStateWithWrongInitValueType) {
-  // Don't call CreatePackage which creates a VerifiedPackage because we
-  // intentionally create a malformed proc.
-  Package p(TestName());
-  ProcBuilder pb("p", &p);
-  pb.StateElement("st", Value(UBits(42, 32)));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.Literal(UBits(1, 32))}));
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Node * new_state,
-      proc->MakeNode<Literal>(SourceInfo(), Value(UBits(100, 100))));
-  EXPECT_THAT(
-      proc->ReplaceStateElement(0, "new_state",
-                                /*init_value=*/Value(UBits(0, 42)), new_state),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("does not match type of initial value")));
 }
 
 TEST_F(ProcTest, Clone) {
