@@ -639,10 +639,10 @@ class Unifier {
     // `UnifySignednessAndSize`, and not necessarily the current call.
     auto update_annotation = [&](const SignednessAndSize& signedness_and_size,
                                  const TypeAnnotation* annotation) {
-      return signedness_and_size.flag.HasFlag(TypeInferenceFlag::kNone)
-                 ? annotation
-                 : SignednessAndSizeToAnnotation(module_, signedness_and_size,
-                                                 annotation->span());
+      return signedness_and_size.flag.HasNonExplicitTypeSemantics()
+                 ? SignednessAndSizeToAnnotation(module_, signedness_and_size,
+                                                 annotation->span())
+                 : annotation;
     };
     auto signedness_mismatch_error = [&] {
       return error_generator_.SignednessMismatchError(

@@ -1471,7 +1471,7 @@ class ImportModuleWithTypeErrorTest(parameterized.TestCase):
         type_inference_v2=type_inference_v2,
     )
     if type_inference_v2:
-      self._assert_size_mismatch('uN[3]', 'u2', stderr)
+      self._assert_size_mismatch('uN[3]', 'uN[2]', stderr)
     else:
       self.assertIn('XlsTypeError:', stderr)
       self.assertIn(
@@ -1553,7 +1553,7 @@ class ImportModuleWithTypeErrorTest(parameterized.TestCase):
         type_inference_v2=type_inference_v2,
     )
     if type_inference_v2:
-      self._assert_size_mismatch('u17', 'u5', stderr)
+      self._assert_size_mismatch('u17', 'uN[5]', stderr)
     else:
       self.assertIn('XlsTypeError:', stderr)
       self.assertIn(

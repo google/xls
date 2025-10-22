@@ -68,6 +68,10 @@ const TypeInferenceFlag TypeInferenceFlag::kBitsLikeType(1 << 4,
                                                          "bits-like-type");
 const TypeInferenceFlag TypeInferenceFlag::kFormalMemberType(
     1 << 5, "formal-member-type");
+const TypeInferenceFlag TypeInferenceFlag::kFormalFunctionType(
+    1 << 6, "formal-function-type");
+const TypeInferenceFlag TypeInferenceFlag::kDeclarationType(1 << 7,
+                                                            "declaration-type");
 
 namespace {
 
@@ -296,6 +300,9 @@ class InferenceTableImpl : public InferenceTable {
       XLS_ASSIGN_OR_RETURN(const InferenceVariable* variable,
                            GetVariable(name_ref));
       declaration_type_annotations_.emplace(variable, *declaration_annotation);
+      TypeInferenceFlag flag = GetAnnotationFlag(*declaration_annotation);
+      flag.SetFlag(TypeInferenceFlag::kDeclarationType);
+      SetAnnotationFlag(*declaration_annotation, flag);
     }
     return name_ref;
   }

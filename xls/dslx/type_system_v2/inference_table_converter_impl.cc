@@ -531,6 +531,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           ft_annotation =
               ExpandVarargs(module_, ft_annotation, actual_args.size());
         }
+        table_.SetAnnotationFlag(ft_annotation,
+                                 TypeInferenceFlag::kFormalFunctionType);
         XLS_RETURN_IF_ERROR(
             table_.SetTypeAnnotation(invocation->callee(), ft_annotation));
       }
@@ -717,6 +719,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                                CreateFunctionTypeAnnotation(module_, *function),
                                value_exprs, invocation_context->self_type(),
                                /*clone_if_no_parametrics=*/true));
+      table_.SetAnnotationFlag(parametric_free_type,
+                               TypeInferenceFlag::kFormalFunctionType);
       XLS_RETURN_IF_ERROR(
           ConvertSubtree(parametric_free_type, caller, caller_context));
 
@@ -741,7 +745,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
 
       parametric_free_function_type =
           down_cast<const FunctionTypeAnnotation*>(parametric_free_type);
-
+      table_.SetAnnotationFlag(parametric_free_function_type,
+                               TypeInferenceFlag::kFormalFunctionType);
       invocation_context->SetParametricFreeFunctionType(
           parametric_free_function_type);
     }

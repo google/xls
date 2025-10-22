@@ -146,6 +146,19 @@ TEST_F(InferenceTableTest, SetTypeVariableToNonType) {
               StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
+TEST_F(InferenceTableTest, DeclarationTypeFlag) {
+  NameDef* t = module_->Make<NameDef>(Span::Fake(), "T", /*definer=*/nullptr);
+  const TypeAnnotation* annotation =
+      CreateU32Annotation(*module_, Span::Fake());
+  XLS_ASSERT_OK(
+      table_
+          ->DefineInternalVariable(InferenceVariableKind::kType, t, "T",
+                                   /*declaration_annotation=*/annotation)
+          .status());
+  EXPECT_TRUE(table_->GetAnnotationFlag(annotation)
+                  .HasFlag(TypeInferenceFlag::kDeclarationType));
+}
+
 TEST_F(InferenceTableTest, AddAnnotationsWithConflictingSignedness) {
   // Apply the same type variable to the LHS and RHS of an addition, then claim
   // that the LHS (x) is annotated as u32 and the RHS (y) is annotated as s32.

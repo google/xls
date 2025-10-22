@@ -1372,6 +1372,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     // non-parametric. This is to avoid leaking types like `uN[N]` into type
     // variables that are outside the function.
     if (!node->IsParametric()) {
+      table_.SetAnnotationFlag(function_type_annotation,
+                               TypeInferenceFlag::kFormalFunctionType);
       XLS_RETURN_IF_ERROR(
           table_.SetTypeAnnotation(node, function_type_annotation));
       XLS_RETURN_IF_ERROR(
@@ -1588,6 +1590,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
               std::get<TypeAnnotation*>(node->explicit_parametrics().front());
           auto* fn_type = module_.Make<FunctionTypeAnnotation>(
               /*param_types=*/std::vector<const TypeAnnotation*>{}, ret_type);
+          table_.SetAnnotationFlag(fn_type,
+                                   TypeInferenceFlag::kFormalFunctionType);
           XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(node, fn_type));
           return DefaultHandler(node);
         }
@@ -1652,6 +1656,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
             table_.SetTypeVariable(value.value, value_type_variable));
       }
       if (node->type_annotation()) {
+        table_.SetAnnotationFlag(node->type_annotation(),
+                                 TypeInferenceFlag::kFormalMemberType);
         XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(node->values()[0].value,
                                                      node->type_annotation()));
       }

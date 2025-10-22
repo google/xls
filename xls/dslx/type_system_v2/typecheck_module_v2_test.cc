@@ -1802,7 +1802,7 @@ struct S<N: u32> {
 fn foo() -> S<24> { S { x: u25:5 } }
 const X = foo();
 )",
-      TypecheckFails(HasSizeMismatch("u25", "u24")));
+      TypecheckFails(HasSizeMismatch("u25", "uN[24]")));
 }
 
 TEST(TypecheckV2Test,

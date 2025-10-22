@@ -96,6 +96,22 @@ class TypeInferenceFlag {
   // want to solve for).
   static const TypeInferenceFlag kFormalMemberType;
 
+  // Indicates the formal type of a function.
+  static const TypeInferenceFlag kFormalFunctionType;
+
+  // Indicates the type annotation on the LHS of a declaration. For example, in
+  // `const A: u32 = 0;`, the `u32` is a declaration type. This flag is set in
+  // any context where there is a declaration with an LHS type, such as a local
+  // variable, loop variables, etc.
+  static const TypeInferenceFlag kDeclarationType;
+
+  // Returns true if this object has any flag set which implies that the
+  // associated type annotation is non-explicit, i.e. auto-determined.
+  bool HasNonExplicitTypeSemantics() const {
+    return (flags_ & (TypeInferenceFlag::kMinSize.flags_ |
+                      TypeInferenceFlag::kStandardType.flags_)) != 0;
+  }
+
   bool HasFlag(const TypeInferenceFlag& value) const {
     if (value.flags_ == kNone.flags_) {
       return flags_ == kNone.flags_;
@@ -111,7 +127,8 @@ class TypeInferenceFlag {
     // with others).
     // 2. Both kMinSize and kHasPrefix are set.
     const uint8_t combo_allowed_flags =
-        kSliceContainerSize.flags_ | kFormalMemberType.flags_;
+        kSliceContainerSize.flags_ | kFormalMemberType.flags_ |
+        kFormalFunctionType.flags_ | kDeclarationType.flags_;
     CHECK((flags_ & (flags_ - 1) & ~combo_allowed_flags) == 0 ||
           flags_ == (kMinSize.flags_ | kHasPrefix.flags_));
   }

@@ -846,11 +846,11 @@ class StatefulResolver : public TypeAnnotationResolver {
         table_.GetTypeAnnotationsForTypeVariable(parametric_context,
                                                  type_variable);
     return annotations.ok() &&
-           absl::c_any_of(*annotations,
-                          [this](const TypeAnnotation* annotation) {
-                            return table_.GetAnnotationFlag(annotation) ==
-                                   TypeInferenceFlag::kNone;
-                          });
+           absl::c_any_of(
+               *annotations, [this](const TypeAnnotation* annotation) {
+                 TypeInferenceFlag flag = table_.GetAnnotationFlag(annotation);
+                 return !flag.HasNonExplicitTypeSemantics();
+               });
   }
 
   // Helper for `ReplaceIndirectTypeAnnotations`. A visitor instance is intended
