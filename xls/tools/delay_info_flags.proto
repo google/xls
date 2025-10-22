@@ -1,0 +1,17 @@
+edition = "2023";
+
+package xls;
+
+// Proto representation of command line flags for delay_info_main and similar
+// tools. See delay_info_flags.cc for flag descriptions.
+message DelayInfoFlagsProto {
+  string top = 1;
+  string schedule_path = 2;
+  bool schedule = 3;
+  bool compare_to_synthesis = 4;
+  string synthesis_server = 5;
+  int32 abs_delay_diff_min_ps = 6;
+  int32 stage = 7;
+  string proto_out = 8;
+  string input_path = 9;
+}

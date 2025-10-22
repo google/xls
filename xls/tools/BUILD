@@ -1014,14 +1014,39 @@ cc_binary(
     ],
 )
 
-cc_binary(
-    name = "delay_info_main",
-    srcs = ["delay_info_main.cc"],
+proto_library(
+    name = "delay_info_flags_proto",
+    srcs = ["delay_info_flags.proto"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+    ],
+)
+
+cc_proto_library(
+    name = "delay_info_flags_cc_proto",
+    visibility = ["//xls:xls_users"],
+    deps = [":delay_info_flags_proto"],
+)
+
+cc_library(
+    name = "delay_info_flags",
+    srcs = ["delay_info_flags.cc"],
+    hdrs = ["delay_info_flags.h"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        ":delay_info_flags_cc_proto",
+        "@com_google_absl//absl/flags:flag",
+    ],
+)
+
+cc_library(
+    name = "delay_info_printer",
+    srcs = ["delay_info_printer.cc"],
+    hdrs = ["delay_info_printer.h"],
     deps = [
         ":codegen",
+        ":delay_info_flags_cc_proto",
         ":scheduling_options_flags",
-        "//xls/common:exit_status",
-        "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/status:status_macros",
         "//xls/estimators/delay_model:analyze_critical_path",
@@ -1038,10 +1063,27 @@ cc_binary(
         "//xls/scheduling:pipeline_schedule_cc_proto",
         "//xls/scheduling:scheduling_options",
         "//xls/scheduling:scheduling_result",
-        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_binary(
+    name = "delay_info_main",
+    srcs = ["delay_info_main.cc"],
+    deps = [
+        ":delay_info_flags",
+        ":delay_info_flags_cc_proto",
+        ":delay_info_printer",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/status:status_macros",
+        "//xls/estimators/delay_model:delay_info_cc_proto",
+        "//xls/fdo:grpc_synthesizer",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
     ],
 )
