@@ -21,14 +21,14 @@
 #include <utility>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/fileno.h"
@@ -1551,6 +1551,34 @@ TEST_P(VastTest, InstantiationWithEmptyPort) {
             R"(uart_transmitter tx (
   .clk()
 );)");
+}
+
+TEST_P(VastTest, ModuleWithLogicDataKind) {
+  if (GetFileType() != FileType::kSystemVerilog) {
+    GTEST_SKIP();
+  }
+
+  VerilogFile f(GetFileType());
+  Module* m = f.AddModule("top", SourceInfo());
+
+  XLS_ASSERT_OK(m->AddInput("a", f.ScalarType(SourceInfo()), SourceInfo(),
+                            DataKind::kLogic)
+                    .status());
+  XLS_ASSERT_OK(m->AddOutput("y", f.BitVectorType(32, SourceInfo()),
+                             SourceInfo(), DataKind::kLogic)
+                    .status());
+
+  XLS_ASSERT_OK(
+      m->AddLogic("foo", f.BitVectorType(8, SourceInfo()), SourceInfo())
+          .status());
+
+  EXPECT_EQ(m->Emit(nullptr),
+            R"(module top(
+  input logic a,
+  output logic [31:0] y
+);
+  logic [7:0] foo;
+endmodule)");
 }
 
 TEST_P(VastTest, TemplateInstantiationTest) {

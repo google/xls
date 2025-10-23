@@ -163,6 +163,28 @@ struct xls_vast_logic_ref* xls_vast_verilog_module_add_output(
   return reinterpret_cast<xls_vast_logic_ref*>(logic_ref.value());
 }
 
+struct xls_vast_logic_ref* xls_vast_verilog_module_add_logic_input(
+    struct xls_vast_verilog_module* m, const char* name,
+    struct xls_vast_data_type* type) {
+  auto* cpp_module = reinterpret_cast<xls::verilog::Module*>(m);
+  auto* cpp_type = reinterpret_cast<xls::verilog::DataType*>(type);
+  absl::StatusOr<xls::verilog::LogicRef*> logic_ref = cpp_module->AddInput(
+      name, cpp_type, xls::SourceInfo(), xls::verilog::DataKind::kLogic);
+  CHECK_OK(logic_ref.status());
+  return reinterpret_cast<xls_vast_logic_ref*>(logic_ref.value());
+}
+
+struct xls_vast_logic_ref* xls_vast_verilog_module_add_logic_output(
+    struct xls_vast_verilog_module* m, const char* name,
+    struct xls_vast_data_type* type) {
+  auto* cpp_module = reinterpret_cast<xls::verilog::Module*>(m);
+  auto* cpp_type = reinterpret_cast<xls::verilog::DataType*>(type);
+  absl::StatusOr<xls::verilog::LogicRef*> logic_ref = cpp_module->AddOutput(
+      name, cpp_type, xls::SourceInfo(), xls::verilog::DataKind::kLogic);
+  CHECK_OK(logic_ref.status());
+  return reinterpret_cast<xls_vast_logic_ref*>(logic_ref.value());
+}
+
 struct xls_vast_logic_ref* xls_vast_verilog_module_add_wire(
     struct xls_vast_verilog_module* m, const char* name,
     struct xls_vast_data_type* type) {
@@ -609,6 +631,23 @@ bool xls_vast_verilog_module_add_always_at(
   return true;
 }
 
+bool xls_vast_verilog_module_add_always_comb(
+    struct xls_vast_verilog_module* m,
+    struct xls_vast_always_base** out_always_comb, char** error_out) {
+  auto* cpp_module = reinterpret_cast<xls::verilog::Module*>(m);
+  xls::verilog::AlwaysComb* cpp_always_comb =
+      cpp_module->Add<xls::verilog::AlwaysComb>(xls::SourceInfo());
+  if (cpp_always_comb == nullptr) {
+    *error_out = xls::ToOwnedCString(
+        "Failed to create always_comb block in Verilog module.");
+    *out_always_comb = nullptr;
+    return false;
+  }
+  *out_always_comb = reinterpret_cast<xls_vast_always_base*>(cpp_always_comb);
+  *error_out = nullptr;
+  return true;
+}
+
 bool xls_vast_verilog_module_add_reg(struct xls_vast_verilog_module* m,
                                      const char* name,
                                      struct xls_vast_data_type* type,
@@ -624,6 +663,25 @@ bool xls_vast_verilog_module_add_reg(struct xls_vast_verilog_module* m,
     return false;
   }
   *out_reg_ref =
+      reinterpret_cast<xls_vast_logic_ref*>(cpp_logic_ref_status.value());
+  *error_out = nullptr;
+  return true;
+}
+
+bool xls_vast_verilog_module_add_logic(
+    struct xls_vast_verilog_module* m, const char* name,
+    struct xls_vast_data_type* type, struct xls_vast_logic_ref** out_logic_ref,
+    char** error_out) {
+  auto* cpp_module = reinterpret_cast<xls::verilog::Module*>(m);
+  auto* cpp_data_type = reinterpret_cast<xls::verilog::DataType*>(type);
+  absl::StatusOr<xls::verilog::LogicRef*> cpp_logic_ref_status =
+      cpp_module->AddLogic(name, cpp_data_type, xls::SourceInfo());
+  if (!cpp_logic_ref_status.ok()) {
+    *error_out = xls::ToOwnedCString(cpp_logic_ref_status.status().ToString());
+    *out_logic_ref = nullptr;
+    return false;
+  }
+  *out_logic_ref =
       reinterpret_cast<xls_vast_logic_ref*>(cpp_logic_ref_status.value());
   *error_out = nullptr;
   return true;
@@ -671,6 +729,18 @@ struct xls_vast_statement* xls_vast_statement_block_add_nonblocking_assignment(
   xls::verilog::NonblockingAssignment* cpp_assignment =
       cpp_block->Add<xls::verilog::NonblockingAssignment>(xls::SourceInfo(),
                                                           cpp_lhs, cpp_rhs);
+  return reinterpret_cast<xls_vast_statement*>(cpp_assignment);
+}
+
+struct xls_vast_statement* xls_vast_statement_block_add_blocking_assignment(
+    struct xls_vast_statement_block* block, struct xls_vast_expression* lhs,
+    struct xls_vast_expression* rhs) {
+  auto* cpp_block = reinterpret_cast<xls::verilog::StatementBlock*>(block);
+  auto* cpp_lhs = reinterpret_cast<xls::verilog::Expression*>(lhs);
+  auto* cpp_rhs = reinterpret_cast<xls::verilog::Expression*>(rhs);
+  xls::verilog::BlockingAssignment* cpp_assignment =
+      cpp_block->Add<xls::verilog::BlockingAssignment>(xls::SourceInfo(),
+                                                       cpp_lhs, cpp_rhs);
   return reinterpret_cast<xls_vast_statement*>(cpp_assignment);
 }
 
