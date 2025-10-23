@@ -11,17 +11,17 @@ module ii_greater_than_one(
   output wire [31:0] out,
   output wire out_vld
 );
-  reg [31:0] __st;
-  reg __st_full;
-  reg p0_valid;
-  reg __out_has_been_sent_reg;
-  reg __in_out_has_been_sent_reg;
-  reg [31:0] __in_reg;
-  reg __in_valid_reg;
-  reg [31:0] __out_reg;
-  reg __out_valid_reg;
-  reg [31:0] __in_out_reg;
-  reg __in_out_valid_reg;
+  logic [31:0] __st;
+  logic __st_full;
+  logic p0_valid;
+  logic __out_has_been_sent_reg;
+  logic __in_out_has_been_sent_reg;
+  logic [31:0] __in_reg;
+  logic __in_valid_reg;
+  logic [31:0] __out_reg;
+  logic __out_valid_reg;
+  logic [31:0] __in_out_reg;
+  logic __in_out_valid_reg;
   wire __in_out_vld_buf;
   wire __in_out_not_has_been_sent;
   wire in_out_valid_inv;

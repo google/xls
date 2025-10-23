@@ -4,7 +4,7 @@ module SimpleFsm(
   input wire ready_in,
   output wire done_out
 );
-  reg done;
+  logic done;
   assign done_out = done;
 
   // SimpleFsm FSM:
@@ -13,8 +13,8 @@ module SimpleFsm(
     StateIdle = 0,
     StateBusy = 1,
     StateDone = 2;
-  reg [StateBits - 1:0] state = StateIdle;
-  reg [StateBits - 1:0] state_next = StateIdle;
+  logic [StateBits - 1:0] state = StateIdle;
+  logic [StateBits - 1:0] state_next = StateIdle;
 
   // FSM state transition logic.
   always_comb begin

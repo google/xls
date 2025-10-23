@@ -8,10 +8,10 @@ module CounterFsm(
     StateFoo = 0,
     StateBar = 1,
     StateQux = 2;
-  reg [StateBits - 1:0] state = StateFoo;
-  reg [StateBits - 1:0] state_next = StateFoo;
-  reg [5:0] counter;
-  reg [5:0] counter_next;
+  logic [StateBits - 1:0] state = StateFoo;
+  logic [StateBits - 1:0] state_next = StateFoo;
+  logic [5:0] counter;
+  logic [5:0] counter_next;
 
   // FSM state transition logic.
   always_comb begin

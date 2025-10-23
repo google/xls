@@ -12,12 +12,12 @@ module ValidSignal(
   // ===== Pipe stage 0:
 
   // Registers for pipe stage 0:
-  reg p0_valid;
-  reg [1:0] p0_s;
-  reg [7:0] p0_x;
-  reg [7:0] p0_y;
-  reg [7:0] p0_z;
-  reg [7:0] p0_a;
+  logic p0_valid;
+  logic [1:0] p0_s;
+  logic [7:0] p0_x;
+  logic [7:0] p0_y;
+  logic [7:0] p0_z;
+  logic [7:0] p0_a;
   always_ff @ (posedge clk) begin
     p0_valid <= in_valid;
     p0_s <= in_valid ? s : p0_s;
@@ -32,8 +32,8 @@ module ValidSignal(
   assign p1_sel_22_comb = p0_s == 2'h0 ? p0_x : (p0_s == 2'h1 ? p0_y : (p0_s == 2'h2 ? p0_z : p0_a));
 
   // Registers for pipe stage 1:
-  reg p1_valid;
-  reg [7:0] p1_sel_22;
+  logic p1_valid;
+  logic [7:0] p1_sel_22;
   always_ff @ (posedge clk) begin
     p1_valid <= p0_valid;
     p1_sel_22 <= p0_valid ? p1_sel_22_comb : p1_sel_22;

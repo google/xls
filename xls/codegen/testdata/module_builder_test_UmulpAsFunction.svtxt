@@ -4,8 +4,8 @@ module UmulpAsFunction(
   input wire [31:0] z
 );
   // lint_off MULTIPLY
-  function automatic [63:0] umulp32b_32b_x_32b (input reg [31:0] lhs, input reg [31:0] rhs);
-    reg [31:0] result;
+  function automatic [63:0] umulp32b_32b_x_32b (input logic [31:0] lhs, input logic [31:0] rhs);
+    logic [31:0] result;
     begin
       result = lhs * rhs;
       umulp32b_32b_x_32b = {32'h43ff_ffff, result - 32'h43ff_ffff};

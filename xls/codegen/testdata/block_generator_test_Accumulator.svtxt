@@ -4,7 +4,7 @@ module Accumulator(
   input wire [31:0] in,
   output wire [31:0] out
 );
-  reg [31:0] accum;
+  logic [31:0] accum;
   wire [31:0] add_4;
   assign add_4 = in + accum;
   always_ff @ (posedge clk) begin

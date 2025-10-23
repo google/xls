@@ -4,15 +4,15 @@ module DynamicBitSliceAsFunction(
   input wire [31:0] z,
   input wire [15:0] w
 );
-  function automatic [4:0] dynamic_bit_slice_w5_32b_32b (input reg [31:0] operand, input reg [31:0] start);
-    reg [36:0] extended_operand;
+  function automatic [4:0] dynamic_bit_slice_w5_32b_32b (input logic [31:0] operand, input logic [31:0] start);
+    logic [36:0] extended_operand;
     begin
       extended_operand = {5'h00, operand};
       dynamic_bit_slice_w5_32b_32b = start >= 6'h20 ? 5'h00 : extended_operand[start +: 5];
     end
   endfunction
-  function automatic [9:0] dynamic_bit_slice_w10_16b_32b (input reg [15:0] operand, input reg [31:0] start);
-    reg [25:0] extended_operand;
+  function automatic [9:0] dynamic_bit_slice_w10_16b_32b (input logic [15:0] operand, input logic [31:0] start);
+    logic [25:0] extended_operand;
     begin
       extended_operand = {10'h000, operand};
       dynamic_bit_slice_w10_16b_32b = start >= 5'h10 ? 10'h000 : extended_operand[start +: 10];

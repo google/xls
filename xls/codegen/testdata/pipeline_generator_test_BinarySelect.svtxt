@@ -8,9 +8,9 @@ module BinarySelect(
   // ===== Pipe stage 0:
 
   // Registers for pipe stage 0:
-  reg p0_s;
-  reg [7:0] p0_x;
-  reg [7:0] p0_y;
+  logic p0_s;
+  logic [7:0] p0_x;
+  logic [7:0] p0_y;
   always_ff @ (posedge clk) begin
     p0_s <= s;
     p0_x <= x;
@@ -22,7 +22,7 @@ module BinarySelect(
   assign p1_sel_14_comb = p0_s ? p0_x : p0_y;
 
   // Registers for pipe stage 1:
-  reg [7:0] p1_sel_14;
+  logic [7:0] p1_sel_14;
   always_ff @ (posedge clk) begin
     p1_sel_14 <= p1_sel_14_comb;
   end

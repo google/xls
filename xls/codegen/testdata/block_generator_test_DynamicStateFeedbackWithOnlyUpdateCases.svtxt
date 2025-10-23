@@ -5,14 +5,14 @@ module pipelined_proc(
   output wire [31:0] out_data,
   output wire out_valid
 );
-  reg [31:0] __counter;
-  reg __odd_iteration;
-  reg [31:0] p0_incremented_counter;
-  reg p0_even_iteration;
-  reg __counter_full;
-  reg p0_valid;
-  reg [31:0] __out_data_reg;
-  reg __out_data_valid_reg;
+  logic [31:0] __counter;
+  logic __odd_iteration;
+  logic [31:0] p0_incremented_counter;
+  logic p0_even_iteration;
+  logic __counter_full;
+  logic p0_valid;
+  logic [31:0] __out_data_reg;
+  logic __out_data_valid_reg;
   wire p1_all_active_states_valid;
   wire p1_stage_valid;
   wire p1_all_active_inputs_valid;

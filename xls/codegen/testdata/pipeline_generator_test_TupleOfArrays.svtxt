@@ -6,7 +6,7 @@ module TupleOfArrays(
   // ===== Pipe stage 0:
 
   // Registers for pipe stage 0:
-  reg [55:0] p0_x;
+  logic [55:0] p0_x;
   always_ff @ (posedge clk) begin
     p0_x <= x;
   end
@@ -21,8 +21,8 @@ module TupleOfArrays(
   assign p1_tuple_index_9_comb[2] = p0_x[55:48];
 
   // Registers for pipe stage 1:
-  reg [15:0] p1_tuple_index_8[2];
-  reg [7:0] p1_tuple_index_9[3];
+  logic [15:0] p1_tuple_index_8[2];
+  logic [7:0] p1_tuple_index_9[3];
   always_ff @ (posedge clk) begin
     p1_tuple_index_8 <= p1_tuple_index_8_comb;
     p1_tuple_index_9 <= p1_tuple_index_9_comb;
@@ -31,8 +31,8 @@ module TupleOfArrays(
   // ===== Pipe stage 2:
 
   // Registers for pipe stage 2:
-  reg [15:0] p2_tuple_index_8[2];
-  reg [7:0] p2_tuple_index_9[3];
+  logic [15:0] p2_tuple_index_8[2];
+  logic [7:0] p2_tuple_index_9[3];
   always_ff @ (posedge clk) begin
     p2_tuple_index_8 <= p1_tuple_index_8;
     p2_tuple_index_9 <= p1_tuple_index_9;
@@ -43,7 +43,7 @@ module TupleOfArrays(
   assign p3_tuple_18_comb = {{p2_tuple_index_8[1], p2_tuple_index_8[0]}, {p2_tuple_index_9[2], p2_tuple_index_9[1], p2_tuple_index_9[0]}};
 
   // Registers for pipe stage 3:
-  reg [55:0] p3_tuple_18;
+  logic [55:0] p3_tuple_18;
   always_ff @ (posedge clk) begin
     p3_tuple_18 <= p3_tuple_18_comb;
   end

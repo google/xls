@@ -3,7 +3,7 @@ module my_register(
   input wire [31:0] a,
   output wire [31:0] result
 );
-  reg [31:0] my_register__1;
+  logic [31:0] my_register__1;
   always_ff @ (posedge clk) begin
     my_register__1 <= a;
   end
