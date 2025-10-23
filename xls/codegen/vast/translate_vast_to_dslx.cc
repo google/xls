@@ -114,8 +114,8 @@ class VastToDslxTranslator {
         node = std::get<verilog::VerilogFunction*>(member);
       } else if (std::holds_alternative<verilog::Typedef*>(member)) {
         node = std::get<verilog::Typedef*>(member);
-      } else if (std::holds_alternative<verilog::Parameter*>(member)) {
-        node = std::get<verilog::Parameter*>(member);
+      } else if (std::holds_alternative<verilog::ParameterStatement*>(member)) {
+        node = std::get<verilog::ParameterStatement*>(member)->parameter();
       }
       if (node) {
         absl::Status status =

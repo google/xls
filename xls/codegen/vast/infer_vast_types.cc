@@ -140,9 +140,9 @@ class TypeInferenceVisitor {
       } else if (std::holds_alternative<verilog::Typedef*>(member)) {
         XLS_RETURN_IF_ERROR(
             TraverseTypedef(std::get<verilog::Typedef*>(member)));
-      } else if (std::holds_alternative<verilog::Parameter*>(member)) {
-        XLS_RETURN_IF_ERROR(
-            TraverseParameter(std::get<verilog::Parameter*>(member)));
+      } else if (std::holds_alternative<verilog::ParameterStatement*>(member)) {
+        XLS_RETURN_IF_ERROR(TraverseParameter(
+            std::get<verilog::ParameterStatement*>(member)->parameter()));
       }
     }
     return absl::OkStatus();

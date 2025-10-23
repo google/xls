@@ -1164,6 +1164,21 @@ class Parameter final : public NamedTrait {
   Expression* rhs_;
 };
 
+// Declaration of a parameter (as in a package).
+class ParameterStatement final : public Statement {
+ public:
+  ParameterStatement(Parameter* parameter, VerilogFile* file,
+                     const SourceInfo& loc)
+      : Statement(file, loc), parameter_(parameter) {}
+
+  std::string Emit(LineInfo* line_info) const final;
+
+  Parameter* parameter() const { return parameter_; }
+
+ private:
+  Parameter* parameter_;
+};
+
 // A user-defined type that gives a new name to another type, perhaps with some
 // value set constraints, e.g. an enum or typedef.
 class UserDefinedAliasType : public DataType {
@@ -2161,7 +2176,7 @@ class ModuleConditionalDirective;
 using ModuleMember =
     std::variant<Def*,                     // Logic definition.
                  LocalParam*,              // Module-local parameter.
-                 Parameter*,               // Module parameter.
+                 ParameterStatement*,      // Module parameter in body..
                  Instantiation*,           // module instantiation.
                  ContinuousAssignment*,    // Continuous assignment.
                  StructuredProcedure*,     // Initial or always comb block.
@@ -2300,9 +2315,17 @@ class Module final : public VastNode {
                                       const SourceInfo& loc,
                                       ModuleSection* section = nullptr);
 
+  // Adds a parameter statement to the module body.
   ParameterRef* AddParameter(std::string_view name, Expression* rhs,
                              const SourceInfo& loc);
   ParameterRef* AddParameter(Def* def, Expression* rhs, const SourceInfo& loc);
+
+  // Adds a parameter port to the module. Example:
+  //   my_module #(myparam=42) {...}
+  ParameterRef* AddParameterPort(std::string_view name, Expression* rhs,
+                                 const SourceInfo& loc);
+  ParameterRef* AddParameterPort(Def* def, Expression* rhs,
+                                 const SourceInfo& loc);
 
   Typedef* AddTypedef(Def* def, const SourceInfo& loc);
 
@@ -2315,6 +2338,9 @@ class Module final : public VastNode {
 
   ModuleSection* top() { return &top_; }
 
+  absl::Span<Parameter* const> parameter_ports() const {
+    return parameter_ports_;
+  }
   absl::Span<const ModulePort> ports() const { return ports_; }
   const std::string& name() const { return name_; }
 
@@ -2353,6 +2379,7 @@ class Module final : public VastNode {
 
   std::string name_;
   std::vector<ModulePort> ports_;
+  std::vector<Parameter*> parameter_ports_;
   absl::flat_hash_set<std::string> defined_names_;
 
   ModuleSection top_;
@@ -2362,7 +2389,7 @@ class VerilogPackageSection;
 
 // Represents a member of a package.
 using VerilogPackageMember =
-    std::variant<Parameter*,               // Package parameter/constant.
+    std::variant<ParameterStatement*,      // Package parameter/constant.
                  Comment*,                 // Comment text.
                  BlankLine*,               // Blank line.
                  InlineVerilogStatement*,  // InlineVerilog string statement.
