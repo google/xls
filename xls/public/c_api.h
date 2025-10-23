@@ -21,7 +21,7 @@
 #include "xls/public/c_api_dslx.h"
 #include "xls/public/c_api_format_preference.h"
 #include "xls/public/c_api_ir_builder.h"
-#include "xls/public/c_api_vast.h"
+#include "xls/public/c_api_vast.h"  // IWYU pragma: export
 
 // C API that exposes the functionality in various public headers in a way that
 // C-based FFI facilities can easily wrap.

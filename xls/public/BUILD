@@ -217,7 +217,6 @@ cc_library(
         "//xls/dslx:import_data",
         "//xls/dslx:interp_value",
         "//xls/dslx:interp_value_from_string",
-        "//xls/dslx:interp_value_utils",
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx:replace_invocations",
         "//xls/dslx:virtualizable_file_system",
@@ -235,6 +234,8 @@ cc_library(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+        "@com_google_absl//absl/types:variant",
     ],
 )
 
