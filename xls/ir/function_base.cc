@@ -178,6 +178,10 @@ absl::Status FunctionBase::RemoveNode(Node* node) {
   for (ChangeListener* listener : change_listeners_) {
     listener->NodeDeleted(node);
   }
+  // Clear the name.
+  if (node->HasAssignedName()) {
+    XLS_RETURN_IF_ERROR(node_name_uniquer_.ReleaseIdentifier(node->GetName()));
+  }
   auto node_it = node_iterators_.find(node);
   XLS_RET_CHECK(node_it != node_iterators_.end());
   nodes_.erase(node_it->second);

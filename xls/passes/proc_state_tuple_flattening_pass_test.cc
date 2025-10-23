@@ -193,16 +193,14 @@ TEST_P(ProcStateFlatteningPassTest, EmptyTupleAndBitsState) {
 
   EXPECT_EQ(proc->GetStateElementCount(), 2);
 
-  // The name uniquer thinks the names "y" and "q" are already taken (as they
-  // were the names of previously deleted nodes). So the new state params get
-  // suffixes.
-  // TODO(meheff): 2022/4/7 Figure out how to preserve the names.
-  EXPECT_EQ(proc->GetStateRead(int64_t{0})->GetName(), "y__1");
+  // The name uniquer is told the names "y" and "q" are already released. So the
+  // new state params get the same name.
+  EXPECT_EQ(proc->GetStateRead(int64_t{0})->GetName(), "y");
   EXPECT_EQ(proc->GetStateElement(0)->initial_value(), Value(UBits(0, 32)));
   EXPECT_THAT(proc->next_values(proc->GetStateRead(int64_t{0})),
               ElementsAre(m::Next(m::StateRead("y"), m::StateRead("y"))));
 
-  EXPECT_EQ(proc->GetStateRead(1)->GetName(), "q__1");
+  EXPECT_EQ(proc->GetStateRead(1)->GetName(), "q");
   EXPECT_EQ(proc->GetStateElement(1)->initial_value(), Value(UBits(0, 64)));
   EXPECT_THAT(
       proc->next_values(proc->GetStateRead(1)),
@@ -222,7 +220,7 @@ TEST_P(ProcStateFlatteningPassTest, TrivialTupleState) {
 
   EXPECT_EQ(proc->GetStateElementCount(), 1);
 
-  EXPECT_EQ(proc->GetStateRead(int64_t{0})->GetName(), "x__1");
+  EXPECT_EQ(proc->GetStateRead(int64_t{0})->GetName(), "x");
   EXPECT_EQ(proc->GetStateElement(0)->initial_value(), Value(UBits(42, 32)));
   EXPECT_THAT(
       proc->next_values(proc->GetStateRead(int64_t{0})),
@@ -242,7 +240,7 @@ TEST_P(ProcStateFlatteningPassTest, TrivialTupleStateWithNextExpression) {
 
   EXPECT_EQ(proc->GetStateElementCount(), 1);
 
-  EXPECT_EQ(proc->GetStateRead(int64_t{0})->GetName(), "x__1");
+  EXPECT_EQ(proc->GetStateRead(int64_t{0})->GetName(), "x");
   EXPECT_EQ(proc->GetStateElement(0)->initial_value(), Value(UBits(42, 32)));
   EXPECT_THAT(proc->next_values(proc->GetStateRead(int64_t{0})),
               UnorderedElementsAre(
@@ -287,7 +285,7 @@ TEST_P(ProcStateFlatteningPassTest, ComplicatedState) {
       proc->next_values(proc->GetStateRead(2)),
       UnorderedElementsAre(m::Next(m::StateRead("a_2"), m::StateRead("c_1"))));
 
-  EXPECT_EQ(proc->GetStateRead(3)->GetName(), "b__1");
+  EXPECT_EQ(proc->GetStateRead(3)->GetName(), "b");
   EXPECT_THAT(
       proc->next_values(proc->GetStateRead(3)),
       UnorderedElementsAre(m::Next(m::StateRead("b"), m::StateRead("a_0"))));
