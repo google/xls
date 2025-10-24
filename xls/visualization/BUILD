@@ -13,6 +13,8 @@
 # limitations under the License.
 
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -77,5 +79,34 @@ cc_binary(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@re2",
+    ],
+)
+
+cc_library(
+    name = "math_notation",
+    srcs = ["math_notation.cc"],
+    hdrs = ["math_notation.h"],
+    deps = [
+        "//xls/ir",
+        "//xls/ir:op",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "math_notation_test",
+    srcs = ["math_notation_test.cc"],
+    deps = [
+        ":math_notation",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:op",
+        "//xls/ir:source_location",
+        "@googletest//:gtest",
     ],
 )
