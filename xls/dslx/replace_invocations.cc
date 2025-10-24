@@ -14,11 +14,22 @@
 
 #include "xls/dslx/replace_invocations.h"
 
+#include <string_view>
+#include <memory>
+#include <vector>
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <utility>
 #include <variant>
 
+#include "absl/types/variant.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/common/casts.h"
+#include "xls/dslx/interp_value.h"
+#include "xls/dslx/frontend/pos.h"
+#include "absl/types/span.h"
+#include "absl/status/status.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
