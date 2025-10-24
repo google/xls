@@ -255,7 +255,10 @@ class InvocationVisitor : public ExprVisitor {
     std::optional<ProcId> proc_id;
     auto maybe_proc = callee_info->callee->proc();
     if (maybe_proc.has_value()) {
-      XLS_RET_CHECK(proc_id_.has_value()) << "Functions cannot spawn procs.";
+      if (!proc_id_.has_value()) {
+        return absl::UnimplementedError(
+            absl::StrFormat("Functions cannot spawn procs."));
+      }
 
       // Only count `next` as a new instance, so that `config` and `next` have
       // the same ID. This assumes that we call a proc's `config` and `next` in

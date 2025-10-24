@@ -3333,13 +3333,16 @@ absl::Status FunctionConverter::HandleSpawn(const Spawn* node) {
   }
   ProcBuilder* builder_ptr =
       dynamic_cast<ProcBuilder*>(function_builder_.get());
-  XLS_RET_CHECK_NE(builder_ptr, nullptr)
-      << "Spawn nodes should only be encountered during proc conversion; "
-         "we seem to be in function conversion.";
+  if (builder_ptr == nullptr) {
+    return absl::UnimplementedError(
+        absl::StrFormat("IrConversionError: %s Functions cannot spawn procs.",
+                        node->span().ToString(file_table())));
+  }
   if (current_fn_tag_ != FunctionTag::kProcConfig) {
-    return IrConversionErrorStatus(
-        node->span(), "Procs can only be spawned in a proc `config` method.",
-        file_table());
+    return absl::UnimplementedError(absl::StrFormat(
+        "IrConversionError: %s Procs can only be spawned in a proc `config` "
+        "method.",
+        node->span().ToString(file_table())));
   }
 
   const Invocation* invocation = node->config();

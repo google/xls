@@ -3420,8 +3420,52 @@ fn main() {
   auto import_data = CreateImportDataForTest();
   EXPECT_THAT(
       ConvertOneFunctionForTest(program, "main", import_data, kNoPosOptions),
-      StatusIs(absl::StatusCode::kInternal,
-               HasSubstr("Functions cannot spawn procs")));
+      StatusIs(absl::StatusCode::kUnimplemented,
+               HasSubstr("Functions cannot spawn procs.")));
+}
+
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       InvalidSpawnProcScopedChannel) {
+  constexpr std::string_view program = R"(
+proc p {
+  init { () }
+  config() { () }
+  next(state: ()) { state }
+}
+
+fn main() {
+  spawn p();
+}
+)";
+  auto import_data = CreateImportDataForTest();
+  EXPECT_THAT(ConvertOneFunctionForTest(program, "main", import_data,
+                                        kProcScopedChannelOptions),
+              StatusIs(absl::StatusCode::kUnimplemented,
+                       HasSubstr("Functions cannot spawn procs.")));
+}
+
+TEST_P(IrConverterWithBothTypecheckVersionsTest, InvalidSpawnInNextProcScoped) {
+  constexpr std::string_view program = R"(
+proc p {
+  init { () }
+  config() { () }
+  next(state: ()) { state }
+}
+
+proc main {
+  init { () }
+  config() { () }
+  next(state: ()) {
+    spawn p();
+  }
+}
+)";
+  auto import_data = CreateImportDataForTest();
+  EXPECT_THAT(ConvertOneFunctionForTest(program, "main", import_data,
+                                        kProcScopedChannelOptions),
+              StatusIs(absl::StatusCode::kUnimplemented,
+                       HasSubstr("Procs can only be spawned in a proc `config` "
+                                 "method.")));
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
