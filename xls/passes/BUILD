@@ -2076,6 +2076,7 @@ xls_pass(
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
+        "//xls/ir:interval_set",
         "//xls/ir:node_util",
         "//xls/ir:op",
         "//xls/ir:source_location",
