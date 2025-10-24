@@ -39,6 +39,7 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -47,6 +48,7 @@
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/codegen_result.h"
+#include "xls/codegen/ram_configuration.h"
 #include "xls/common/casts.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
@@ -1473,6 +1475,100 @@ TEST_F(BlockConversionTest, OneToTwoProc) {
       IsOkAndHolds(UnorderedElementsAre(Pair("a", 123), Pair("b_vld", 0),
                                         Pair("in_rdy", 0), Pair("a_vld", 1),
                                         Pair("b", 123))));
+}
+
+TEST_F(BlockConversionTest, RamChannelsAreNotFlopped) {
+  // Test that RAM channels are not flopped even when flop_inputs/outputs is set
+  auto package = CreatePackage();
+  Type* u32 = package->GetBitsType(32);
+  Type* u1 = package->GetBitsType(1);
+  Type* empty_tuple_type = package->GetTupleType({});
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StreamingChannel * ram_req_ch,
+      package->CreateStreamingChannel(
+          "ram_req", ChannelOps::kSendOnly,
+          package->GetTupleType(
+              {u32, u32, empty_tuple_type, empty_tuple_type, u1, u1})));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StreamingChannel * ram_resp_ch,
+      package->CreateStreamingChannel("ram_resp", ChannelOps::kReceiveOnly,
+                                      package->GetTupleType({u32})));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StreamingChannel * ram_wr_comp_ch,
+      package->CreateStreamingChannel("ram_wr_comp", ChannelOps::kReceiveOnly,
+                                      empty_tuple_type));
+  XLS_ASSERT_OK_AND_ASSIGN(StreamingChannel * other_in_ch,
+                           package->CreateStreamingChannel(
+                               "other_in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StreamingChannel * other_out_ch,
+      package->CreateStreamingChannel("other_out", ChannelOps::kSendOnly, u32));
+
+  ProcBuilder pb("my_proc", package.get());
+  BValue st = pb.StateElement("st", Value::Tuple({}));
+
+  // RAM ops
+  BValue lit10 = pb.Literal(UBits(10, 32));
+  BValue lit11 = pb.Literal(UBits(11, 32));
+  BValue empty_tuple_val = pb.Literal(Value::Tuple({}));
+  BValue lit1_u1 = pb.Literal(UBits(1, 1));
+  BValue req_tuple = pb.Tuple(
+      {lit10, lit11, empty_tuple_val, empty_tuple_val, lit1_u1, lit1_u1});
+  BValue send_req_tok = pb.Send(ram_req_ch, pb.AfterAll({}), req_tuple);
+
+  pb.Receive(ram_resp_ch, send_req_tok);
+  pb.Receive(ram_wr_comp_ch, send_req_tok);
+
+  // Other ops
+  BValue rcv_other_pair = pb.Receive(other_in_ch, pb.AfterAll({}));
+  BValue rcv_other_tok = pb.TupleIndex(rcv_other_pair, 0);
+  BValue rcv_other_data = pb.TupleIndex(rcv_other_pair, 1);
+  pb.Send(other_out_ch, rcv_other_tok, rcv_other_data);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({/*next_st=*/st}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(3)));
+
+  CodegenOptions options = codegen_options();
+  options.flop_inputs(true).flop_outputs(true).clock_name("clk").reset(
+      "rst", false, false, false);
+  options.module_name("with_ram");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      RamConfiguration ram_config,
+      ParseRamConfiguration("ram:1RW:ram_req:ram_resp:ram_wr_comp"));
+  options.ram_configurations({ram_config});
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      CodegenContext context,
+      FunctionBaseToPipelinedBlock(schedule, options, proc));
+  Block* block = context.top_block();
+
+  // We check for a flop register with the given substring, excluding the
+  // "has_been_sent" registers which are created by the one-shot logic for
+  // non-mutually exclusive sends.
+  auto has_reg_with_substr = [](Block* b, std::string_view s) {
+    for (Register* reg : b->GetRegisters()) {
+      // The one-shot logic for non-mutually exclusive sends also creates
+      // registers containing the channel name. Exclude these as they are not
+      // flopping-related.
+      if (absl::StrContains(reg->name(), s) &&
+          !absl::StrContains(reg->name(), "has_been_sent")) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  EXPECT_TRUE(has_reg_with_substr(block, "other_in"));
+  EXPECT_TRUE(has_reg_with_substr(block, "other_out"));
+
+  // No flop registers should be created for RAM channels.
+  EXPECT_FALSE(has_reg_with_substr(block, "ram_req"));
+  EXPECT_FALSE(has_reg_with_substr(block, "ram_resp"));
+  EXPECT_FALSE(has_reg_with_substr(block, "ram_wr_comp"));
 }
 
 TEST_F(BlockConversionTest, FlopSingleValueChannelProc) {

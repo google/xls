@@ -39,6 +39,7 @@
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/conversion_utils.h"
+#include "xls/codegen/ram_configuration.h"
 #include "xls/common/casts.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/ret_check.h"
@@ -1268,6 +1269,36 @@ static absl::Status AddRegisterBeforeStreamingOutput(
   }
 }
 
+// Returns the set of all names of channels used for RAMs.
+// These channels are handled specially by RamRewritePass and should be excluded
+// from some codegen logic (especially I/O flopping).
+static absl::flat_hash_set<std::string> GetRamChannelNames(
+    const CodegenOptions& options) {
+  absl::flat_hash_set<std::string> ram_channel_names;
+  for (const RamConfiguration& ram_config : options.ram_configurations()) {
+    if (std::holds_alternative<Ram1RWConfiguration>(ram_config)) {
+      const auto& config = std::get<Ram1RWConfiguration>(ram_config);
+      ram_channel_names.insert(
+          config.rw_port_configuration().request_channel_name);
+      ram_channel_names.insert(
+          config.rw_port_configuration().response_channel_name);
+      ram_channel_names.insert(
+          config.rw_port_configuration().write_completion_channel_name);
+    } else if (std::holds_alternative<Ram1R1WConfiguration>(ram_config)) {
+      const auto& config = std::get<Ram1R1WConfiguration>(ram_config);
+      ram_channel_names.insert(
+          config.r_port_configuration().request_channel_name);
+      ram_channel_names.insert(
+          config.r_port_configuration().response_channel_name);
+      ram_channel_names.insert(
+          config.w_port_configuration().request_channel_name);
+      ram_channel_names.insert(
+          config.w_port_configuration().write_completion_channel_name);
+    }
+  }
+  return ram_channel_names;
+}
+
 // Adds an input and/or output flop and related signals.
 // For streaming inputs, data/valid are registered, but the ready signal
 // remains as a feed-through pass.
@@ -1278,6 +1309,11 @@ static absl::Status AddRegisterBeforeStreamingOutput(
 static absl::Status AddInputOutputFlops(
     const CodegenOptions& options, StreamingIOPipeline& streaming_io,
     Block* block, std::vector<std::optional<Node*>>& valid_nodes) {
+  // RAM channels are handled by RamRewritePass, which adds the appropriate
+  // buffering. Do not flop them here.
+  absl::flat_hash_set<std::string> ram_channel_names =
+      GetRamChannelNames(options);
+
   absl::flat_hash_set<Node*> handled_io_nodes;
   auto maybe_mark_node_handled = [&](std::optional<Node*> n) {
     if (n.has_value()) {
@@ -1288,6 +1324,12 @@ static absl::Status AddInputOutputFlops(
   // Flop streaming inputs.
   for (auto& vec : streaming_io.inputs) {
     for (StreamingInput& input : vec) {
+      if (ram_channel_names.contains(input.GetChannelName())) {
+        maybe_mark_node_handled(input.GetDataPort());
+        maybe_mark_node_handled(input.GetValidPort());
+        maybe_mark_node_handled(input.GetReadyPort());
+        continue;
+      }
       // TODO(https://github.com/google/xls/issues/1803): This is super hacky.
       // We really should have a different pass that configures all the channels
       // in a separate lowering step.
@@ -1319,6 +1361,12 @@ static absl::Status AddInputOutputFlops(
   // Flop streaming outputs.
   for (auto& vec : streaming_io.outputs) {
     for (StreamingOutput& output : vec) {
+      if (ram_channel_names.contains(output.GetChannelName())) {
+        maybe_mark_node_handled(output.GetDataPort());
+        maybe_mark_node_handled(output.GetValidPort());
+        maybe_mark_node_handled(output.GetReadyPort());
+        continue;
+      }
       // TODO(https://github.com/google/xls/issues/1803): This is super hacky.
       // We really should have a different pass that configures all the channels
       // in a separate lowering step.
