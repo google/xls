@@ -1035,6 +1035,24 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "folding_graph",
+    srcs = ["folding_graph.cc"],
+    hdrs = ["folding_graph.h"],
+    deps = [
+        "//xls/ir",
+        "//xls/ir:function_builder",
+        "//xls/ir:op",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/types:span",
+        "@com_google_ortools//ortools/graph",
+        "@com_google_ortools//ortools/graph:cliques",
+    ],
+)
+
 xls_pass(
     name = "resource_sharing_pass",
     srcs = ["resource_sharing_pass.cc"],
@@ -1042,6 +1060,7 @@ xls_pass(
     pass_class = "ResourceSharingPass",
     deps = [
         ":bdd_query_engine",
+        ":folding_graph",
         ":optimization_pass",
         ":pass_base",
         ":post_dominator_analysis",
@@ -4252,6 +4271,24 @@ cc_test(
         "//xls/ir:value",
         "@com_google_absl//absl/status:status_matchers",
         "@cppitertools",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "folding_graph_test",
+    srcs = ["folding_graph_test.cc"],
+    deps = [
+        ":folding_graph",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/fuzzing:fuzztest",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:op",
+        "@com_google_absl//absl/types:span",
         "@googletest//:gtest",
     ],
 )
