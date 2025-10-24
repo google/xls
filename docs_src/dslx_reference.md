@@ -737,6 +737,24 @@ fn test_main() {
 }
 ```
 
+Multidimensional array sizes are declared from the innermost dimension to the
+outermost dimension (`arr: u32[INNER_DIMENSION][OUTER_DIMENSION]`) and indexed
+from the outermost dimension to the innermost dimension
+(`arr[OUTER_DIMENSION][INNER_DIMENSION]`).
+
+```dslx
+fn make_array() -> u32[3][2] { u32[3][2]:[[u32:1, u32:2, u32:3], [u32:4, u32:5, u32:6]] }
+
+#[test]
+fn test_make_array() {
+    assert_eq(u32:3, make_array()[0][2]);
+    assert_eq(u32:4, make_array()[1][0]);
+}
+```
+
+Note: alternative future syntax for multidimensional array indexing is being
+discussed in [google/xls#616](https://github.com/google/xls/issues/616).
+
 Because arrays with repeated trailing elements are common, the DSL supports
 ellipsis (`...`) at the end of an array to fill the remainder of the array with
 the last noted element. Because the compiler must know how many elements to
@@ -753,9 +771,9 @@ fn test_make_array() {
 }
 ```
 
-Note [google/xls#917](https://github.com/google/xls/issues/917): arrays with
-length zero will typecheck, but fail to work in most circumstances. Eventually,
-XLS should support them but they can't be used currently.
+Note: arrays with length zero will typecheck, but fail to work in most
+circumstances. Eventually, XLS should support them but they can't be used
+currently (see [google/xls#917](https://github.com/google/xls/issues/917)).
 
 <!--
 TODO(meheff): Explain arrays and the intricacies of our bits type interpretation
