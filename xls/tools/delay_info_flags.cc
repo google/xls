@@ -70,10 +70,12 @@ DelayInfoFlagsProto GetDelayInfoFlagsProto(std::string_view input_path) {
   POPULATE_FLAG(schedule_path)
   POPULATE_FLAG(schedule)
   POPULATE_FLAG(compare_to_synthesis)
-  POPULATE_FLAG(synthesis_server)
   POPULATE_FLAG(abs_delay_diff_min_ps)
   POPULATE_OPTIONAL_FLAG(stage)
   POPULATE_OPTIONAL_FLAG(proto_out)
+
+  // We want this even when defaulted (which is most common).
+  proto.set_synthesis_server(absl::GetFlag(FLAGS_synthesis_server));
   return proto;
 
 #undef POPULATE_OPTIONAL_FLAG
