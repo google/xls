@@ -1075,6 +1075,9 @@ absl::StatusOr<std::optional<Function*>> ImplFnFromCallee(
 }
 
 bool IsAcceptableCast(const Type& from, const Type& to) {
+  if (from == to) {
+    return true;
+  }
   auto is_enum = [](const Type& ct) -> bool {
     return dynamic_cast<const EnumType*>(&ct) != nullptr;
   };

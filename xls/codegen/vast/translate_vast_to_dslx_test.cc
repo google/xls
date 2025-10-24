@@ -792,6 +792,9 @@ TEST_F(TranslateVastToDslxTest, Clog2) {
   //
   // parameter logic[$clog2(32767):0] var_6 = 32'shbeef;
   // parameter logic[$clog2(32767):0] var_7 = -32'shbeef;
+  // parameter int a = 512;
+  // parameter int b = 2;
+  // parameter int wrapped_clog = $clog2($clog2(a / b));
   //
   // endpackage
   VerilogFileHelper f = CreateFile();
@@ -854,6 +857,24 @@ TEST_F(TranslateVastToDslxTest, Clog2) {
                                       /*declared_as_signed=*/true),
                 f.NextLoc()),
       f.NextLoc());
+  ParameterRef* a =
+      p->AddParameter(f->Make<Def>(f.NextLoc(), "a", DataKind::kInteger,
+                                   f->Make<IntegerType>(f.NextLoc())),
+                      f.BareLiteral(512), f.NextLoc());
+  ParameterRef* b =
+      p->AddParameter(f->Make<Def>(f.NextLoc(), "b", DataKind::kInteger,
+                                   f->Make<IntegerType>(f.NextLoc())),
+                      f.BareLiteral(2), f.NextLoc());
+  p->AddParameter(
+      f->Make<Def>(f.NextLoc(), "clog_div", DataKind::kInteger,
+                   f->Make<IntegerType>(f.NextLoc())),
+
+      f->Make<SystemFunctionCall>(
+          f.NextLoc(), "clog2",
+          std::vector<Expression*>{f->Make<SystemFunctionCall>(
+              f.NextLoc(), "clog2",
+              std::vector<Expression*>{f->Div(a, b, f.NextLoc())})}),
+      f.NextLoc());
 
   const std::string kExpected = R"(#![allow(nonstandard_constant_naming)]
 #![allow(nonstandard_member_naming)]
@@ -868,6 +889,9 @@ pub const var_4 = std::clog2(s32:1025 as uN[32]) as s32;  // s32:11
 pub const var_5 = std::clog2(s32:2048 as uN[32]) as s32;  // s32:11
 pub const var_6 = u16:0xbeef;
 pub const var_7 = -s32:0xbeef as u16;
+pub const a = s32:512;
+pub const b = s32:2;
+pub const clog_div = std::clog2(std::clog2((a / b) as uN[32])) as s32;  // s32:3
 )";
 
   XLS_EXPECT_VAST_TRANSLATION(f, kExpected);

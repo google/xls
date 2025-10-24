@@ -1069,7 +1069,8 @@ PackedArrayType::PackedArrayType(DataType* element_type,
                     file, loc) {}
 
 absl::StatusOr<int64_t> PackedArrayType::FlatBitCountAsInt64() const {
-  XLS_ASSIGN_OR_RETURN(int64_t bit_count, WidthAsInt64());
+  XLS_ASSIGN_OR_RETURN(int64_t bit_count,
+                       element_type()->FlatBitCountAsInt64());
   for (Expression* dim : dims()) {
     if (!dim->IsLiteral()) {
       return absl::FailedPreconditionError(

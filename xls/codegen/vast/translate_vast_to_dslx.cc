@@ -32,7 +32,6 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/codegen/vast/dslx_builder.h"
 #include "xls/codegen/vast/fold_vast_constants.h"
@@ -47,10 +46,7 @@
 #include "xls/dslx/frontend/token.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/trait_visitor.h"
-#include "xls/dslx/type_system/deduce_ctx.h"
-#include "xls/dslx/type_system/type.h"
-#include "xls/dslx/type_system/type_info.h"
-#include "xls/dslx/type_system/unwrap_meta_type.h"
+#include "xls/dslx/type_system_v2/type_annotation_utils.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
 #include "xls/ir/source_location.h"
@@ -145,9 +141,6 @@ class VastToDslxTranslator {
                          TranslateType(def->data_type()));
     auto* param = module().Make<dslx::Param>(name_def, annot);
     name_def->set_definer(param);
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<dslx::Type> type,
-                         deduce_ctx().Deduce(param));
-    deduce_ctx().type_info()->SetItem(param->name_def(), *type);
     return param;
   }
 
@@ -199,20 +192,6 @@ class VastToDslxTranslator {
     }
 
     if (!result) {
-      XLS_ASSIGN_OR_RETURN(auto lhs_type, deduce_ctx().Deduce(lhs));
-      XLS_ASSIGN_OR_RETURN(auto rhs_type, deduce_ctx().Deduce(rhs));
-
-      if (*lhs_type != *rhs_type) {
-        // Generally, compatible but not identical types (like an enum value vs.
-        // generic value) will be coerced to be identical via VAST type
-        // inference and the insertion of casts based on that during translation
-        // of the LHS and RHS. In the event that this somehow gets it wrong or
-        // fails to appease DSLX deduction, we can't keep the expr.
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "Cannot translate binop \"%s\": arguments have different types: "
-            "%s vs %s",
-            op->Emit(nullptr), lhs_type->ToString(), rhs_type->ToString()));
-      }
       // Note it uses the same span for the whole node and the operand;
       // the only time the operand span is used is for formatting, and
       // this node won't be used for formatting.
@@ -227,36 +206,16 @@ class VastToDslxTranslator {
     }
     dslx::Expr* result = nullptr;
     for (verilog::Expression* next : concat->args()) {
-      // DSLX wants concat operands to be both arrays or both bits. To satisfy
-      // DSLX:
-      // - We must coerce enums to bits here.
-      // - Typedefs to bits will work fine with normal VAST-DSLX casting rules.
-      // - Structs will fail because you can't even cast them to bits.
-      // See https://github.com/google/xls/issues/1498.
       XLS_ASSIGN_OR_RETURN(dslx::Expr * dslx_expr, TranslateExpression(next));
       XLS_ASSIGN_OR_RETURN(dslx_expr,
                            dslx_builder_->CastToInferredVastType(
-                               next, dslx_expr, /*cast_enum_to_builtin=*/true));
-      XLS_ASSIGN_OR_RETURN(auto expr_type, deduce_ctx().Deduce(dslx_expr));
-      bool is_signed = false;
-      int64_t size = 0;
-      auto* enum_type = dynamic_cast<dslx::EnumType*>(expr_type.get());
-      if (enum_type) {
-        is_signed = enum_type->is_signed();
-        XLS_ASSIGN_OR_RETURN(size, enum_type->GetTotalBitCount()->GetAsInt64());
-      } else {
-        dslx::BitsType* bits_type =
-            dynamic_cast<dslx::BitsType*>(expr_type.get());
-        if (bits_type == nullptr) {
-          return absl::InvalidArgumentError(
-              absl::StrCat("Cannot translate concat \"%s\": all arguments must "
-                           "be bits-typed.",
-                           concat->Emit(nullptr)));
-        }
-        is_signed = bits_type->is_signed();
-        XLS_ASSIGN_OR_RETURN(size, bits_type->size().GetAsInt64());
-      }
+                               next, dslx_expr, /*force_cast_enum=*/true));
+      verilog::DataType* vast_type = vast_type_map_.at(next);
+      bool is_signed = vast_type->is_signed();
       if (is_signed) {
+        XLS_ASSIGN_OR_RETURN(
+            int64_t size,
+            dslx_builder_->BitCountWithConstantFolding(vast_type));
         dslx::Span span = dslx_expr->span();
         dslx::TypeAnnotation* annot =
             module().Make<dslx::BuiltinTypeAnnotation>(
@@ -325,7 +284,6 @@ class VastToDslxTranslator {
     enum_def->set_extern_type_name(vast_name);
     XLS_RETURN_IF_ERROR(
         module().AddTop(enum_def, /*make_collision_error=*/nullptr));
-    XLS_RETURN_IF_ERROR(deduce_ctx().Deduce(enum_def).status());
     return enum_def;
   }
 
@@ -395,10 +353,15 @@ class VastToDslxTranslator {
   absl::StatusOr<dslx::TypeAnnotation*> TranslateType(
       verilog::DataType* data_type) {
     dslx::Span span = CreateNodeSpan(data_type);
-    if (dynamic_cast<verilog::IntegerType*>(data_type)) {
-      return module().Make<dslx::BuiltinTypeAnnotation>(
-          span, dslx::BuiltinType::kS32,
-          module().GetOrCreateBuiltinNameDef(dslx::BuiltinType::kS32));
+    if (const auto* int_type = dynamic_cast<verilog::IntegerType*>(data_type)) {
+      return int_type->is_signed() ? module().Make<dslx::BuiltinTypeAnnotation>(
+                                         span, dslx::BuiltinType::kS32,
+                                         module().GetOrCreateBuiltinNameDef(
+                                             dslx::BuiltinType::kS32))
+                                   : module().Make<dslx::BuiltinTypeAnnotation>(
+                                         span, dslx::BuiltinType::kU32,
+                                         module().GetOrCreateBuiltinNameDef(
+                                             dslx::BuiltinType::kU32));
     }
     if (auto* typedef_type = dynamic_cast<verilog::TypedefType*>(data_type);
         typedef_type) {
@@ -483,25 +446,8 @@ class VastToDslxTranslator {
           number_value->SetTypeAnnotation(enum_type_annotation);
         }
         auto* expr = down_cast<dslx::Expr*>(constant_value);
-        XLS_ASSIGN_OR_RETURN(std::unique_ptr<dslx::Type> member_expr_type,
-                             deduce_ctx().Deduce(expr));
-        XLS_ASSIGN_OR_RETURN(std::unique_ptr<dslx::Type> enum_type,
-                             deduce_ctx().Deduce(enum_type_annotation));
-        XLS_ASSIGN_OR_RETURN(
-            enum_type,
-            UnwrapMetaType(std::move(enum_type), enum_type_annotation->span(),
-                           "enum type", file_table()));
-
-        XLS_ASSIGN_OR_RETURN(bool member_signedness,
-                             IsSigned(*member_expr_type));
-        XLS_ASSIGN_OR_RETURN(bool enum_signedness, IsSigned(*enum_type));
-
-        // We need a cast here, for example, if the member is an unsigned
-        // expression (e.g. a concatenation) but the enum type is signed.
-        if (member_signedness != enum_signedness) {
-          expr = module().Make<dslx::Cast>(CreateNodeSpan(member), expr,
-                                           enum_type_annotation);
-        }
+        expr = module().Make<dslx::Cast>(CreateNodeSpan(member), expr,
+                                         enum_type_annotation);
         members.push_back({name_def, expr});
       } else {
         members.push_back(
@@ -591,12 +537,15 @@ class VastToDslxTranslator {
   absl::StatusOr<dslx::Expr*> TranslateTernary(verilog::Ternary* ternary) {
     XLS_ASSIGN_OR_RETURN(dslx::Expr * test,
                          TranslateExpression(ternary->test()));
+    dslx::Expr* casted_test = module().Make<dslx::Cast>(
+        test->span(), test, dslx::CreateBoolAnnotation(module(), test->span()));
     XLS_ASSIGN_OR_RETURN(dslx::Expr * consequent,
                          TranslateExpression(ternary->consequent()));
     XLS_ASSIGN_OR_RETURN(dslx::Expr * alternate,
                          TranslateExpression(ternary->alternate()));
-    return MakeTernary(&module(), CreateNodeSpan(ternary), test, consequent,
-                       alternate);
+    return dslx_builder_->CastToInferredVastType(
+        ternary, MakeTernary(&module(), CreateNodeSpan(ternary), casted_test,
+                             consequent, alternate));
   }
 
   absl::StatusOr<dslx::Expr*> TranslateSystemFunctionCall(
@@ -614,19 +563,18 @@ class VastToDslxTranslator {
           dslx::Import * std,
           dslx_builder_->GetOrImportModule(dslx::ImportTokens({"std"})));
 
-      XLS_ASSIGN_OR_RETURN(std::unique_ptr<dslx::Type> ct,
-                           deduce_ctx().Deduce(args[0]));
-
+      const verilog::DataType* ct = vast_type_map_.at((*vast_call->args())[0]);
       dslx::Span span = CreateNodeSpan(vast_call);
-      dslx::BitsType* bt = down_cast<dslx::BitsType*>(ct.get());
       auto* ubits_type = module().Make<dslx::BuiltinTypeAnnotation>(
           span, dslx::BuiltinType::kUN,
           module().GetOrCreateBuiltinNameDef(dslx::BuiltinType::kUN));
 
-      XLS_ASSIGN_OR_RETURN(int64_t bit_width, bt->size().GetAsInt64());
+      XLS_ASSIGN_OR_RETURN(int64_t bit_width,
+                           dslx_builder_->BitCountWithConstantFolding(
+                               const_cast<verilog::DataType*>(ct)));
       auto* bits_size = module().Make<dslx::Number>(
           span, absl::StrCat(bit_width), dslx::NumberKind::kOther, nullptr);
-      if (bt->is_signed()) {
+      if (ct->is_signed()) {
         auto* unsigned_type = module().Make<dslx::ArrayTypeAnnotation>(
             span, ubits_type, bits_size);
         args[0] = module().Make<dslx::Cast>(span, args[0], unsigned_type);
@@ -638,7 +586,6 @@ class VastToDslxTranslator {
 
       XLS_ASSIGN_OR_RETURN(
           result, dslx_builder_->CastToInferredVastType(vast_call, result));
-      XLS_RETURN_IF_ERROR(deduce_ctx().Deduce(result).status());
       return result;
     }
     return absl::InvalidArgumentError(
@@ -771,8 +718,6 @@ class VastToDslxTranslator {
   // need to use in any depth.
 
   dslx::Module& module() { return dslx_builder_->module(); }
-  dslx::DeduceCtx& deduce_ctx() { return dslx_builder_->deduce_ctx(); }
-  dslx::TypeInfo& type_info() { return dslx_builder_->type_info(); }
   dslx::ImportData& import_data() { return dslx_builder_->import_data(); }
   dslx::FileTable& file_table() { return import_data().file_table(); }
 
