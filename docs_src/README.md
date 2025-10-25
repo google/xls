@@ -337,6 +337,7 @@ if you're interested in contributing, or reach out via
 -   [Albert Magyar](https://github.com/albert-magyar)
 -   [Alex Light](https://github.com/allight)
 -   [Amin Kalantar](https://github.com/aminiok1)
+-   [Angelo Matni](https://github.com/angelomatni1)
 -   [Balint Christian](https://github.com/cbalint13)
 -   [Blaok](https://github.com/Blaok)
 -   [Brandon Jiang](https://github.com/brajiang)
