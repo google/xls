@@ -352,6 +352,7 @@ cc_library(
     hdrs = ["channel_queue_test_base.h"],
     deps = [
         ":channel_queue",
+        "//xls/common:pointer_utils",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:bits",
