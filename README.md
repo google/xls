@@ -378,6 +378,7 @@ if you're interested in contributing, or reach out via
 -   [Rob Springer](https://github.com/RobSpringer)
 -   [Sameer Agarwal](https://github.com/sandwichmaker)
 -   [Sean Purser-Haskell](https://github.com/spurserh)
+-   [Simone Campanoni](https://github.com/scampanoni)
 -   [Ted Hong](https://github.com/hongted)
 -   [Ted Xie](https://github.com/ted-xie)
 -   [Tim Callahan](https://github.com/tcal-x)
