@@ -14,12 +14,22 @@
 
 #include "xls/dslx/replace_invocations.h"
 
+#include <filesystem>
+#include <variant>
+#include <tuple>
 #include <memory>
 #include <optional>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "gmock/gmock.h"
+#include "xls/dslx/warning_kind.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/dslx/import_data.h"
+#include "xls/dslx/interp_value.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/statusor.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"

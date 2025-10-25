@@ -25,9 +25,7 @@
 #include "xls/common/exit_status.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/estimators/delay_model/delay_info.pb.h"
 #include "xls/tools/delay_info_flags.h"
-#include "xls/tools/delay_info_flags.pb.h"
 #include "xls/tools/delay_info_printer.h"
 
 static constexpr std::string_view kUsage = R"(
