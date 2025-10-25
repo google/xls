@@ -41,7 +41,7 @@ using ::testing::HasSubstr;
 
 // Instantiate and run all the tests in channel_queue_test_base.cc.
 INSTANTIATE_TEST_SUITE_P(ChannelQueueTest, ChannelQueueTestBase,
-                         testing::Values(ChannelQueueTestParam(
+                         testing::Values(ChannelQueueTestParam::Basic(
                              [](ChannelInstance* channel_instance) {
                                return std::make_unique<ChannelQueue>(
                                    channel_instance);
