@@ -153,10 +153,6 @@ TEST_P(ChannelQueueTestBase, IotaGenerator) {
 }
 
 TEST_P(ChannelQueueTestBase, FixedValueGenerator) {
-  // TODO(allight): Remove. See https://github.com/google/xls/issues/3223
-  if (IsJitNonThreadSafeInOss()) {
-    GTEST_SKIP() << "Skipping test for JIT non-thread-safe mode.";
-  }
   Package package(TestName());
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * channel,

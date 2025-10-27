@@ -18,13 +18,16 @@
 #include <cstring>
 #include <memory>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
+#include "xls/common/pointer_utils.h"
 #include "xls/common/status/matchers.h"
+#include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/channel_queue_test_base.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
@@ -41,40 +44,41 @@ namespace {
 using ::absl_testing::StatusIs;
 using ::testing::HasSubstr;
 
-JitRuntime* GetJitRuntime() {
-  static auto orc_jit = OrcJit::Create().value();
-  static auto jit_runtime =
-      std::make_unique<JitRuntime>(orc_jit->CreateDataLayout().value());
-  return jit_runtime.get();
+template <typename JitQueue>
+struct JitRuntimeInfo {
+  std::unique_ptr<OrcJit> orc_jit;
+  std::unique_ptr<JitRuntime> jit_runtime;
+  std::unique_ptr<JitQueue> jit_queue;
+
+  JitRuntimeInfo(const JitRuntimeInfo&) = delete;
+  JitRuntimeInfo& operator=(const JitRuntimeInfo&) = delete;
+  JitRuntimeInfo(JitRuntimeInfo&&) = default;
+  JitRuntimeInfo& operator=(JitRuntimeInfo&&) = default;
+
+  explicit JitRuntimeInfo(ChannelInstance* instance)
+      : orc_jit(OrcJit::Create().value()),
+        jit_runtime(
+            std::make_unique<JitRuntime>(orc_jit->CreateDataLayout().value())),
+        jit_queue(std::make_unique<JitQueue>(instance, jit_runtime.get())) {}
+};
+
+template <typename JitQueue>
+ChannelQueueTestData CreateTestData(ChannelInstance* channel_instance) {
+  auto info = std::make_unique<JitRuntimeInfo<JitQueue>>(channel_instance);
+  ChannelQueue* queue = info->jit_queue.get();
+  return ChannelQueueTestData{
+      .data_holder_ = EraseType(std::move(info)),
+      .queue = queue,
+  };
 }
 
-INSTANTIATE_TEST_SUITE_P(
-    ThreadSafeJitChannelQueueTest, ChannelQueueTestBase,
-    testing::Values(
-        ChannelQueueTestParam([](ChannelInstance* channel_instance) {
-          return std::make_unique<ThreadSafeJitChannelQueue>(channel_instance,
-                                                             GetJitRuntime());
-        })));
+INSTANTIATE_TEST_SUITE_P(ThreadSafeJitChannelQueueTest, ChannelQueueTestBase,
+                         testing::Values(ChannelQueueTestParam(
+                             CreateTestData<ThreadSafeJitChannelQueue>)));
 
-// For unclear reasons the test
-// LockLessJitChannelQueueTest/ChannelQueueTestBase.FixedValueGenerator/0 fails
-// in github CI. Just disable it for now while its being investigated.
-//
-// TODO(allight): Remove
-#ifdef XLS_IS_CI_RUN
-constexpr bool kIsOssCiRun = true;
-#else
-constexpr bool kIsOssCiRun = false;
-#endif
-
-INSTANTIATE_TEST_SUITE_P(
-    LockLessJitChannelQueueTest, ChannelQueueTestBase,
-    testing::Values(ChannelQueueTestParam(
-        [](ChannelInstance* channel_instance) {
-          return std::make_unique<ThreadUnsafeJitChannelQueue>(channel_instance,
-                                                               GetJitRuntime());
-        },
-        kIsOssCiRun)));
+INSTANTIATE_TEST_SUITE_P(LockLessJitChannelQueueTest, ChannelQueueTestBase,
+                         testing::Values(ChannelQueueTestParam(
+                             CreateTestData<ThreadUnsafeJitChannelQueue>)));
 
 template <typename QueueT>
 class JitChannelQueueTest : public ::testing::Test {};
@@ -93,8 +97,9 @@ TYPED_TEST(JitChannelQueueTest, ChannelWithEmptyTuple) {
   XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elaboration,
                            ProcElaboration::ElaborateOldStylePackage(&package));
 
-  TypeParam queue(elaboration.GetUniqueInstance(channel).value(),
-                  GetJitRuntime());
+  JitRuntimeInfo<TypeParam> info(
+      elaboration.GetUniqueInstance(channel).value());
+  TypeParam& queue = *info.jit_queue;
 
   EXPECT_TRUE(queue.IsEmpty());
   std::vector<uint8_t> send_buffer(0);
@@ -128,8 +133,9 @@ TYPED_TEST(JitChannelQueueTest, BasicAccess) {
   XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elaboration,
                            ProcElaboration::ElaborateOldStylePackage(&package));
 
-  TypeParam queue(elaboration.GetUniqueInstance(channel).value(),
-                  GetJitRuntime());
+  JitRuntimeInfo<TypeParam> info(
+      elaboration.GetUniqueInstance(channel).value());
+  TypeParam& queue = *info.jit_queue;
 
   EXPECT_TRUE(queue.IsEmpty());
   std::vector<uint8_t> send_buffer(4);
@@ -167,8 +173,9 @@ TYPED_TEST(JitChannelQueueTest, IotaGeneratorWithRawApi) {
   XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elaboration,
                            ProcElaboration::ElaborateOldStylePackage(&package));
 
-  TypeParam queue(elaboration.GetUniqueInstance(channel).value(),
-                  GetJitRuntime());
+  JitRuntimeInfo<TypeParam> info(
+      elaboration.GetUniqueInstance(channel).value());
+  TypeParam& queue = *info.jit_queue;
 
   int64_t counter = 42;
   XLS_ASSERT_OK(queue.AttachGenerator(

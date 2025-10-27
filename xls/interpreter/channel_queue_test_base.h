@@ -20,36 +20,54 @@
 #include <utility>
 
 #include "gtest/gtest.h"
+#include "xls/common/pointer_utils.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/proc_elaboration.h"
 
 namespace xls {
 
+// Helper which deals with destruction of the queue in a type-erased way.
+struct ChannelQueueTestData {
+  // Opaque holder that must keep 'queue' alive and do any cleanup in the
+  // destructor.
+  TypeErasedUniquePtr data_holder_;
+  ChannelQueue* queue;
+
+  // Transparent forwarding.
+  ChannelQueue* operator->() { return queue; }
+  const ChannelQueue* operator->() const { return queue; }
+};
+
 class ChannelQueueTestParam {
  public:
   // `new_queue` is a factory which creates a channel queue to test.
-  //
-  // `is_buggy_oss_ci_run` Used to skip a single test that fails in OSS on CI
-  // only.
-  //
-  // See https://github.com/google/xls/issues/3223
   explicit ChannelQueueTestParam(
-      std::function<std::unique_ptr<ChannelQueue>(ChannelInstance*)> new_queue,
-      bool is_buggy_oss_ci_run = false)
-      : new_queue_(std::move(new_queue)),
-        is_buggy_oss_ci_run_(is_buggy_oss_ci_run) {}
+      std::function<ChannelQueueTestData(ChannelInstance*)> new_queue)
+      : new_queue_(std::move(new_queue)) {}
 
-  std::unique_ptr<ChannelQueue> CreateQueue(
-      ChannelInstance* channel_instance) const {
+  // Create a param that doesn't need any specific destructor.
+  static ChannelQueueTestParam Basic(
+      std::function<std::unique_ptr<ChannelQueue>(ChannelInstance*)>
+          new_queue) {
+    return ChannelQueueTestParam(
+        [new_queue = std::move(new_queue)](
+            ChannelInstance* channel_instance) -> ChannelQueueTestData {
+          auto queue = new_queue(channel_instance);
+          auto* ptr = queue.get();
+          return ChannelQueueTestData{
+              .data_holder_ = EraseType(std::move(queue)),
+              .queue = ptr,
+          };
+        });
+  }
+
+  ChannelQueueTestData CreateQueue(ChannelInstance* channel_instance) const {
     return new_queue_(channel_instance);
   }
 
-  bool IsJitNonThreadSafeInOss() const { return is_buggy_oss_ci_run_; }
-
  private:
-  std::function<std::unique_ptr<ChannelQueue>(ChannelInstance*)> new_queue_;
-  bool is_buggy_oss_ci_run_;
+  std::function<ChannelQueueTestData(ChannelInstance*)> new_queue_;
 };
 
 // A suite of test which can be run against arbitrary ChannelQueue
@@ -57,12 +75,7 @@ class ChannelQueueTestParam {
 // macro.
 class ChannelQueueTestBase
     : public IrTestBase,
-      public testing::WithParamInterface<ChannelQueueTestParam> {
- public:
-  bool IsJitNonThreadSafeInOss() const {
-    return GetParam().IsJitNonThreadSafeInOss();
-  }
-};
+      public testing::WithParamInterface<ChannelQueueTestParam> {};
 
 }  // namespace xls
 

@@ -663,3 +663,8 @@ bzl_library(
     name = "openroad_warnings_bzl",
     srcs = ["openroad_warnings.bzl"],
 )
+
+cc_library(
+    name = "pointer_utils",
+    hdrs = ["pointer_utils.h"],
+)
