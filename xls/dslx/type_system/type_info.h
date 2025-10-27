@@ -221,6 +221,9 @@ class TypeInfo {
   absl::StatusOr<TypeInfo*> GetInvocationTypeInfoOrError(
       const Invocation* invocation, const ParametricEnv& caller) const;
 
+  // Retrieves the Function of the given Invocation.
+  absl::StatusOr<const Function*> GetCallee(const Invocation* invocation) const;
+
   // Sets the type info for the given proc when typechecked at top-level (i.e.,
   // not via an instantiation). Can only be called on the module root TypeInfo.
   absl::Status SetTopLevelProcTypeInfo(const Proc* p, TypeInfo* ti);

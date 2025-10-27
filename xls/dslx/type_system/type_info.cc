@@ -637,6 +637,17 @@ absl::StatusOr<TypeInfo*> TypeInfo::GetTopLevelProcTypeInfo(const Proc* p) {
   return top_level_proc_type_info_.at(p);
 }
 
+absl::StatusOr<const Function*> TypeInfo::GetCallee(
+    const Invocation* invocation) const {
+  const TypeInfo* top = GetRoot();
+  auto it = top->invocations().find(invocation);
+  if (it == top->invocations().end()) {
+    return absl::NotFoundError(
+        absl::StrCat("Could not find invocation ", invocation->ToString()));
+  }
+  return it->second->callee();
+}
+
 std::optional<const ParametricEnv*> TypeInfo::GetInvocationCalleeBindings(
     const Invocation* invocation, const ParametricEnv& caller) const {
   CHECK_EQ(invocation->owner(), module_)

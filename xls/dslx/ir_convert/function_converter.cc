@@ -507,7 +507,8 @@ FunctionConverter::FunctionConverter(PackageData& package_data, Module* module,
                      : xls::Fileno(0)),
       proc_data_(proc_data),
       channel_scope_(channel_scope),
-      is_top_(is_top) {
+      is_top_(is_top),
+      name_uniquer_("_") {
   VLOG(5) << "Constructed IR converter: " << this;
 }
 
@@ -3374,13 +3375,33 @@ absl::Status FunctionConverter::HandleSpawn(const Spawn* node) {
     }
   }
 
-  XLS_RET_CHECK(package_data_.invocation_to_ir_proc.contains(invocation));
-  xls::Proc* ir_proc = package_data_.invocation_to_ir_proc[invocation];
+  // Figure out the function and callee parametric env from this invocation:
+  XLS_ASSIGN_OR_RETURN(const dslx::Function* callee,
+                       current_type_info_->GetCallee(invocation));
+  std::optional<const ParametricEnv*> stored_callee_bindings =
+      current_type_info_->GetInvocationCalleeBindings(invocation,
+                                                      GetParametricEnv());
+  const ParametricEnv& callee_bindings = stored_callee_bindings.has_value()
+                                             ? **stored_callee_bindings
+                                             : ParametricEnv{};
+  const auto proc_it =
+      package_data_.callee_to_ir_proc.find({callee, callee_bindings});
+  XLS_RET_CHECK(proc_it != package_data_.callee_to_ir_proc.end())
+      << "Expected to have an IR proc for " << invocation->ToString() << " at "
+      << invocation->span().start().ToStringNoFile() << " with bindings "
+      << callee_bindings.ToString();
+  xls::Proc* spawned_proc = proc_it->second;
+
   xls::Proc* current_proc = builder_ptr->proc();
+  // Give each proc_instantiation a unique name. Since this method may be called
+  // multiple times per config method with the same uniquifier, this guarantees
+  // uniqueness within a proc, but not across procs, which is acceptable.
   XLS_RETURN_IF_ERROR(
       current_proc
-          ->AddProcInstantiation(absl::StrFormat("%s_inst", ir_proc->name()),
-                                 absl::MakeSpan(channel_args), ir_proc)
+          ->AddProcInstantiation(
+              name_uniquer_.GetSanitizedUniqueName(
+                  absl::StrFormat("%s_inst", spawned_proc->name())),
+              absl::MakeSpan(channel_args), spawned_proc)
           .status());
   // Spawn is an Invocation, which is an Instantiation, which is
   // technically an Expr, so it needs to have an Ir value in the map, even
@@ -3740,11 +3761,10 @@ absl::Status FunctionConverter::HandleProcNextFunction(
 
   package_data_.ir_to_dslx[p] = f;
   if (record.config_record() != nullptr) {
-    // The invocation is actually the "next", but we need the "config".
-    package_data_.invocation_to_ir_proc[record.config_record()->invocation()] =
-        p;
+    package_data_.callee_to_ir_proc[{record.config_record()->f(),
+                                     record.parametric_env()}] = p;
   }
-  package_data_.invocation_to_ir_proc[invocation] = p;
+  package_data_.callee_to_ir_proc[{record.f(), record.parametric_env()}] = p;
   return absl::OkStatus();
 }
 

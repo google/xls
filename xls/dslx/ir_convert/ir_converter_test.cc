@@ -4688,19 +4688,19 @@ pub proc main {
 TEST_P(ProcScopedChannelsIrConverterTest,
        ParametricMultipleSpawnDifferentParametrics) {
   constexpr std::string_view program = R"(
-proc spawnee1<M:u32> {
+proc second<M:u32> {
   init { }
   config(sender: chan<uN[M]> out, receiver: chan<uN[M]> in) { () }
   next(_: ()) { () }
 }
 
-pub proc main {
+pub proc first {
   init { }
   config() {
-    let (sender, receiver) = chan<u1>("data_0");
-    spawn spawnee1<u32:1>(sender, receiver);
-    let (sender, receiver) = chan<u2>("data_1");
-    spawn spawnee1<u32:2>(sender, receiver);
+    let (sender, receiver) = chan<u16>("data_0");
+    spawn second<u32:16>(sender, receiver);
+    let (sender, receiver) = chan<u64>("data_1");
+    spawn second<u32:64>(sender, receiver);
     ()
   }
   next(_: ()) { () }
@@ -4709,35 +4709,62 @@ pub proc main {
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertOneFunctionForTest(program, "main", import_data,
+      ConvertOneFunctionForTest(program, "first", import_data,
+                                kProcScopedChannelOptions));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest,
+       ParametricMultipleSpawnSameParametrics) {
+  constexpr std::string_view program = R"(
+proc second<M:u32> {
+  init { }
+  config(sender: chan<uN[M]> out, receiver: chan<uN[M]> in) { () }
+  next(_: ()) { () }
+}
+
+pub proc first {
+  init { }
+  config() {
+    let (sender, receiver) = chan<u16>("data_0");
+    spawn second<u32:16>(sender, receiver);
+    let (sender, receiver) = chan<u16>("data_1");
+    spawn second<u32:16>(sender, receiver);
+    ()
+  }
+  next(_: ()) { () }
+})";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "first", import_data,
                                 kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
 TEST(ProcScopedChannelsIrConverterTest, SpawnTree) {
-  // This is a more complex case than the above test, since the spawn tree
-  // needs to be "expanded" for each call of the intermediate proc.
   constexpr std::string_view program = R"(
-proc spawnee2<N:u32, M:u32> {
+proc third<N:u32, M:u32> {
   init { }
   config() { () }
   next(state: ()) { () }
 }
 
-proc spawnee1<N:u32> {
+proc second<N:u32> {
   init { }
   config() {
-    spawn spawnee2<N, u32:1>();
-    spawn spawnee2<N, u32:2>();
+    spawn third<N, u32:16>();
+    spawn third<N, u32:32>();
   }
   next(state: ()) { () }
 }
 
-pub proc main {
+pub proc first {
   init { }
   config() {
-    spawn spawnee1<u32:3>();
-    spawn spawnee1<u32:4>();
+    spawn second<u32:64>();
+    spawn second<u32:128>();
   }
   next(state: ()) { () }
 }
@@ -4746,7 +4773,41 @@ pub proc main {
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertOneFunctionForTest(program, "main", import_data,
+      ConvertOneFunctionForTest(program, "first", import_data,
+                                kProcScopedChannelOptions));
+  ExpectIr(converted);
+}
+
+TEST(ProcScopedChannelsIrConverterTest, ParametricNetwork) {
+  constexpr std::string_view program = R"(
+proc third<N:u32> {
+  init { }
+  config() { () }
+  next(state: ()) { () }
+}
+
+proc second<N:u32> {
+  init { }
+  config() {
+    spawn third<N>();
+  }
+  next(state: ()) { () }
+}
+
+pub proc first {
+  init { }
+  config() {
+    spawn second<u32:16>();
+    spawn second<u32:32>();
+  }
+  next(state: ()) { () }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "first", import_data,
                                 kProcScopedChannelOptions));
   ExpectIr(converted);
 }
@@ -5787,15 +5848,73 @@ proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(program, "main", import_data,
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }));
+                                kProcScopedChannelOptions));
   ExpectIr(converted);
 }
 
-// This is not supported yet.
-TEST_P(ProcScopedChannelsIrConverterTest, DISABLED_MultipleSpawns) {
+TEST_P(ProcScopedChannelsIrConverterTest,
+       ProcScopedChannelAttributesMultipleSpawns) {
+  constexpr std::string_view program = R"(#![feature(channel_attributes)]
+proc producer {
+  c: chan<u32> out;
+  init {
+    u32:0
+  }
+  config(input_c: chan<u32> out) {
+    (input_c,)
+  }
+  next(i: u32) {
+    let tok = send(join(), c, i);
+    i + u32:1
+  }
+}
+
+proc consumer {
+  c: chan<u32> in;
+  init {
+    u32:0
+  }
+  config(input_c: chan<u32> in) {
+    (input_c,)
+  }
+  next(i: u32) {
+    let (tok, i) = recv(join(), c);
+    i + i
+  }
+}
+
+proc main {
+  init { () }
+  config() {
+    let (p, c) =
+    #[channel(depth=0)]
+    chan<u32>("my_chan0");
+    spawn producer(p);
+    spawn consumer(c);
+
+    let (p, c) =
+    #[channel(depth=1, register_push_outputs=true, register_pop_outputs=true, bypass=false)]
+    chan<u32>("my_chan1");
+    spawn producer(p);
+    spawn consumer(c);
+
+    let (p, c) =
+    #[channel(depth=0, input_flop_kind=zero_latency, output_flop_kind=flop)]
+    chan<u32>("my_chan2");
+    spawn producer(p);
+    spawn consumer(c);
+    ()
+  }
+  next(state: ()) { () }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, kProcScopedChannelOptions));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, MultipleSpawnsNoParametric) {
   constexpr std::string_view program = R"(
 proc producer {
   c: chan<u32> out;
