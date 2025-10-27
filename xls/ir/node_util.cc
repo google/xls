@@ -633,7 +633,7 @@ absl::StatusOr<Node*> GetNodeAtIndex(Node* base,
     XLS_ASSIGN_OR_RETURN(
         Node * nxt,
         fb->MakeNodeWithName<ArrayIndex>(
-            base->loc(), base, idxs,
+            base->loc(), base, idxs, /*assumed_in_bounds=*/true,
             base->HasAssignedName()
                 ? absl::StrFormat("%s_arr%s", base->GetName(),
                                   absl::StrJoin(index.subspan(0, dims), "_"))

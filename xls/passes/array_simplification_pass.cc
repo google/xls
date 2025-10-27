@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <deque>
+#include <iterator>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -37,6 +38,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
@@ -1627,6 +1629,54 @@ absl::StatusOr<SimplifyResult> SimplifySelectOfArrays(Node* select) {
   return SimplifyResult::ChangedFromVector(std::move(selected_elements));
 }
 
+// Simplify various forms of array-slice operations.
+absl::StatusOr<SimplifyResult> SimplifyArraySlice(
+    ArraySlice* array_slice, const QueryEngine& query_engine) {
+  // Convert an array-slice with a literal 'start' to just the exact array
+  // elements selected. This generates cleaner verilog and avoids any need to
+  // handle known OOB elements in codegen.
+  IntervalSet start_bound =
+      query_engine.GetIntervals(array_slice->start()).Get({});
+  if (start_bound.IsPrecise() &&
+      start_bound.GetPreciseValue()->FitsInNBitsSigned(63)) {
+    std::vector<Node*> elements;
+    elements.reserve(array_slice->GetType()->AsArrayOrDie()->size());
+    XLS_ASSIGN_OR_RETURN(int64_t start,
+                         start_bound.GetPreciseValue()->ToUint64());
+    for (int64_t i = 0;
+         i < array_slice->width() &&
+         start + i < array_slice->array()->GetType()->AsArrayOrDie()->size();
+         ++i) {
+      XLS_ASSIGN_OR_RETURN(std::back_inserter(elements),
+                           GetNodeAtIndex(array_slice->array(), {i + start}));
+    }
+    if (elements.size() < array_slice->width()) {
+      XLS_ASSIGN_OR_RETURN(
+          Node * last_element,
+          GetNodeAtIndex(
+              array_slice->array(),
+              {array_slice->array()->GetType()->AsArrayOrDie()->size() - 1}));
+      elements.resize(array_slice->width(), last_element);
+    }
+    XLS_ASSIGN_OR_RETURN(
+        Node * new_array,
+        array_slice->ReplaceUsesWithNew<Array>(
+            elements, array_slice->GetType()->AsArrayOrDie()->element_type()));
+    VLOG(2) << "Replacing " << array_slice->ToStringWithOperandTypes()
+            << " with " << new_array;
+    if (VLOG_IS_ON(3)) {
+      VLOG(3) << "  args are: ";
+      for (Node* n : elements) {
+        VLOG(3) << "    " << n
+                << " (idx: " << n->operand(1)->As<Literal>()->value() << ")";
+      }
+    }
+    elements.push_back(new_array);
+    return SimplifyResult::ChangedFromVector(std::move(elements));
+  }
+  return SimplifyResult::Unchanged();
+}
+
 // Simplify various forms of a select of array-typed values.
 absl::StatusOr<SimplifyResult> SimplifySelect(Node* select,
                                               const QueryEngine& query_engine) {
@@ -1707,7 +1757,7 @@ absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBaseInternal(
   for (Node* node : context.ReverseTopoSort(func)) {
     if (!node->IsDead() &&
         node->OpIn({Op::kArray, Op::kArrayIndex, Op::kArrayUpdate, Op::kSel,
-                    Op::kPrioritySel})) {
+                    Op::kPrioritySel, Op::kArraySlice})) {
       add_to_worklist(node, false);
     }
   }
@@ -1735,6 +1785,9 @@ absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBaseInternal(
                            SimplifyArray(node->As<Array>(), query_engine));
     } else if (node->Is<Select>() || node->Is<PrioritySelect>()) {
       XLS_ASSIGN_OR_RETURN(result, SimplifySelect(node, query_engine));
+    } else if (node->Is<ArraySlice>()) {
+      XLS_ASSIGN_OR_RETURN(
+          result, SimplifyArraySlice(node->As<ArraySlice>(), query_engine));
     }
 
     // Add newly changed nodes to the worklist.

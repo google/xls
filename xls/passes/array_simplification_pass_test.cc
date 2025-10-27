@@ -1652,6 +1652,54 @@ TEST_F(ArraySimplificationPassTest, ArrayUpdateIndexInBounds) {
   EXPECT_THAT(f->return_value(), m::Param("val"));
 }
 
+TEST_F(ArraySimplificationPassTest, ArraySliceLiteral) {
+  Package* p = GetPackage();
+  FunctionBuilder fb(TestName(), p);
+  BValue arr = fb.Param("array", p->GetArrayType(10, p->GetBitsType(32)));
+  BValue start = fb.Literal(UBits(5, 32));
+  fb.ArraySlice(arr, {start}, 3);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ScopedRecordIr sri(p);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Array(m::ArrayIndex(m::Param("array"), {m::Literal(5)}),
+                       m::ArrayIndex(m::Param("array"), {m::Literal(6)}),
+                       m::ArrayIndex(m::Param("array"), {m::Literal(7)})));
+}
+
+TEST_F(ArraySimplificationPassTest, ArraySliceLiteralOOB) {
+  Package* p = GetPackage();
+  FunctionBuilder fb(TestName(), p);
+  BValue arr = fb.Param("array", p->GetArrayType(10, p->GetBitsType(32)));
+  BValue start = fb.Literal(UBits(8, 32));
+  fb.ArraySlice(arr, {start}, 3);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ScopedRecordIr sri(p);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Array(m::ArrayIndex(m::Param("array"), {m::Literal(8)}),
+                       m::ArrayIndex(m::Param("array"), {m::Literal(9)}),
+                       m::ArrayIndex(m::Param("array"), {m::Literal(9)})));
+}
+
+TEST_F(ArraySimplificationPassTest, ArraySliceLiteralOOBAll) {
+  Package* p = GetPackage();
+  FunctionBuilder fb(TestName(), p);
+  BValue arr = fb.Param("array", p->GetArrayType(10, p->GetBitsType(32)));
+  BValue start = fb.Literal(UBits(12, 32));
+  fb.ArraySlice(arr, {start}, 3);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ScopedRecordIr sri(p);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Array(m::ArrayIndex(m::Param("array"), {m::Literal(9)}),
+                       m::ArrayIndex(m::Param("array"), {m::Literal(9)}),
+                       m::ArrayIndex(m::Param("array"), {m::Literal(9)})));
+}
+
 void IrFuzzArraySimplification(FuzzPackageWithArgs fuzz_package_with_args) {
   ArraySimplificationPass pass;
   OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
