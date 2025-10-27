@@ -718,6 +718,7 @@ cc_library(
     srcs = ["llvm_type_converter.cc"],
     hdrs = ["llvm_type_converter.h"],
     deps = [
+        ":llvm_helpers",
         ":type_buffer_metadata",
         ":type_layout",
         "//xls/common:math_util",
@@ -1465,4 +1466,15 @@ bzl_library(
     srcs = ["aot_test_helper.bzl"],
     visibility = ["//visibility:private"],
     deps = ["//xls/build_rules:xls_providers_bzl"],
+)
+
+cc_library(
+    name = "llvm_helpers",
+    srcs = ["llvm_helpers.cc"],
+    hdrs = ["llvm_helpers.h"],
+    deps = [
+        "@com_google_absl//absl/strings:str_format",
+        "@llvm-project//llvm:Support",
+        "@llvm-project//llvm:ir_headers",
+    ],
 )

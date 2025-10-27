@@ -40,6 +40,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/jit/llvm_helpers.h"  // IWYU pragma: keep
 #include "xls/jit/type_buffer_metadata.h"
 #include "xls/jit/type_layout.h"
 
@@ -61,6 +62,9 @@ int64_t LlvmTypeConverter::GetLlvmBitCount(int64_t xls_bit_count) const {
 
 llvm::Type* LlvmTypeConverter::ConvertToLlvmType(const Type* xls_type) {
   if (auto it = type_cache_.find(xls_type); it != type_cache_.end()) {
+    VLOG(4) << "Cache hit for xls type " << xls_type
+            << "(ptr: " << static_cast<const void*>(xls_type) << ") to "
+            << *it->second;
     return it->second;
   }
   llvm::Type* llvm_type;
@@ -92,6 +96,9 @@ llvm::Type* LlvmTypeConverter::ConvertToLlvmType(const Type* xls_type) {
                                xls_type->ToString());
   }
   type_cache_.emplace(xls_type, llvm_type);
+  VLOG(3) << "Mapping xls type " << xls_type
+          << "(ptr: " << static_cast<const void*>(xls_type) << ") to "
+          << *llvm_type;
   return llvm_type;
 }
 
