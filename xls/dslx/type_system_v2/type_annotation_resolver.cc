@@ -590,9 +590,12 @@ class StatefulResolver : public TypeAnnotationResolver {
       }
     }
     if (!member.has_value()) {
-      return absl::InvalidArgumentError(absl::Substitute(
-          "No member `$0` in struct `$1`.", member_type->member_name(),
-          struct_def->identifier()));
+      return TypeInferenceErrorStatus(
+          member_type->span(), nullptr,
+          absl::Substitute("No member `$0` in struct `$1`.",
+                           member_type->member_name(),
+                           struct_def->identifier()),
+          file_table_);
     }
     // If the simplified member type annotation is known, such as when we
     // process the members of a non-parametric StructDef, use it.

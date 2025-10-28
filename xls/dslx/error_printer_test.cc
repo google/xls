@@ -348,5 +348,30 @@ line 7)";
             "~~~~~~^--^\n");
 }
 
+TEST(PrintPositionalErrorTest, StructMemberNotFoundTest) {
+  const std::string filename = "struct_member_not_found.x";
+  const std::string content = R"(
+struct Params {
+  x: u32,
+}
+
+fn main() -> u32 {
+  let p = Params { x: 1 };
+  p.invalid_field
+})";
+  UniformContentFilesystem vfs(content);
+  FileTable file_table;
+  Fileno fileno = file_table.GetOrCreate(filename);
+  const Span error_span1(Pos(fileno, 7, 2), Pos(fileno, 7, 17));
+  std::stringstream ss;
+  XLS_ASSERT_OK(PrintPositionalError({error_span1}, "my error message", ss,
+                                     /*color=*/PositionalErrorColor::kNoColor,
+                                     file_table, vfs,
+                                     /*error_context_line_count=*/1));
+  EXPECT_EQ(ss.str(),
+            "struct_member_not_found.x:8:3-8:18\n"
+            "0008:   p.invalid_field\n"
+            "~~~~~~~~^-------------^ my error message\n");
+}
 }  // namespace
 }  // namespace xls::dslx
