@@ -23,8 +23,8 @@
 #include <utility>
 #include <vector>
 
-#include "gtest/gtest.h"
 #include "absl/cleanup/cleanup.h"
+#include "gtest/gtest.h"
 #include "xls/public/c_api.h"
 #include "xls/public/c_api_format_preference.h"
 
@@ -389,6 +389,39 @@ endmodule
   EXPECT_EQ(std::string_view{emitted}, kWantEmitted);
 }
 
+TEST(XlsCApiTest, VastUnsizedLiteralsParameters) {
+  const std::string_view kWantEmitted = R"(module top;
+  parameter P0 = '0;
+  parameter P1 = '1;
+  parameter P2 = 'X;
+endmodule
+)";
+
+  xls_vast_verilog_file* f =
+      xls_vast_make_verilog_file(xls_vast_file_type_verilog);
+  ASSERT_NE(f, nullptr);
+  absl::Cleanup free_file([&] { xls_vast_verilog_file_free(f); });
+
+  xls_vast_verilog_module* m = xls_vast_verilog_file_add_module(f, "top");
+  ASSERT_NE(m, nullptr);
+
+  // parameter P0 = '0; parameter P1 = '1; parameter P2 = 'X;
+  ASSERT_NE(xls_vast_verilog_module_add_parameter(
+                m, "P0", xls_vast_verilog_file_make_unsized_zero_literal(f)),
+            nullptr);
+  ASSERT_NE(xls_vast_verilog_module_add_parameter(
+                m, "P1", xls_vast_verilog_file_make_unsized_one_literal(f)),
+            nullptr);
+  ASSERT_NE(xls_vast_verilog_module_add_parameter(
+                m, "P2", xls_vast_verilog_file_make_unsized_x_literal(f)),
+            nullptr);
+
+  char* emitted = xls_vast_verilog_file_emit(f);
+  ASSERT_NE(emitted, nullptr);
+  absl::Cleanup free_emitted([&] { xls_c_str_free(emitted); });
+  EXPECT_EQ(std::string_view{emitted}, kWantEmitted);
+}
+
 // Makes module parameters with explicit types via Def: logic bit-vector and
 // integer.
 TEST(XlsCApiTest, VastModuleParameterTypes) {
@@ -433,6 +466,71 @@ endmodule
   ASSERT_NE(neg1, nullptr);
   auto* i_ref = xls_vast_verilog_module_add_parameter_with_def(m, i_def, neg1);
   ASSERT_NE(i_ref, nullptr);
+
+  char* emitted = xls_vast_verilog_file_emit(f);
+  ASSERT_NE(emitted, nullptr);
+  absl::Cleanup free_emitted([&] { xls_c_str_free(emitted); });
+  EXPECT_EQ(std::string_view{emitted}, kWantEmitted);
+}
+
+TEST(XlsCApiTest, VastLocalparamKinds) {
+  const std::string_view kWantEmitted = R"(module top;
+  localparam Foo = 42;
+  localparam int Baz = 42;
+  localparam logic [7:0] Bar = 8'h42;
+endmodule
+)";
+
+  xls_vast_verilog_file* f =
+      xls_vast_make_verilog_file(xls_vast_file_type_system_verilog);
+  ASSERT_NE(f, nullptr);
+  absl::Cleanup free_file([&] { xls_vast_verilog_file_free(f); });
+
+  xls_vast_verilog_module* m = xls_vast_verilog_file_add_module(f, "top");
+  ASSERT_NE(m, nullptr);
+
+  // localparam Foo = 42;
+  ASSERT_NE(xls_vast_verilog_module_add_localparam(
+                m, "Foo",
+                xls_vast_literal_as_expression(
+                    xls_vast_verilog_file_make_plain_literal(f, 42))),
+            nullptr);
+
+  // localparam int Baz = 42;
+  xls_vast_def* baz_def =
+      xls_vast_verilog_file_make_int_def(f, "Baz", /*is_signed=*/true);
+  ASSERT_NE(baz_def, nullptr);
+  ASSERT_NE(xls_vast_verilog_module_add_localparam_with_def(
+                m, baz_def,
+                xls_vast_literal_as_expression(
+                    xls_vast_verilog_file_make_plain_literal(f, 42))),
+            nullptr);
+
+  // localparam logic [7:0] Bar = 8'h42;
+  xls_vast_data_type* u8 =
+      xls_vast_verilog_file_make_bit_vector_type(f, 8, /*is_signed=*/false);
+  xls_vast_def* bar_def =
+      xls_vast_verilog_file_make_def(f, "Bar", xls_vast_data_kind_logic, u8);
+  ASSERT_NE(bar_def, nullptr);
+
+  // Build 8'h42 literal via bits API to ensure hex with bit count.
+  struct xls_bits* bits = nullptr;
+  char* error_out = nullptr;
+  ASSERT_TRUE(
+      xls_bits_make_ubits(/*bit_count=*/8, /*value=*/0x42, &error_out, &bits));
+  ASSERT_EQ(error_out, nullptr);
+  absl::Cleanup free_bits([&] { xls_bits_free(bits); });
+
+  xls_vast_literal* lit = nullptr;
+  ASSERT_TRUE(xls_vast_verilog_file_make_literal(
+      f, bits, xls_format_preference_hex, /*emit_bit_count=*/true, &error_out,
+      &lit));
+  ASSERT_EQ(error_out, nullptr);
+  ASSERT_NE(lit, nullptr);
+
+  ASSERT_NE(xls_vast_verilog_module_add_localparam_with_def(
+                m, bar_def, xls_vast_literal_as_expression(lit)),
+            nullptr);
 
   char* emitted = xls_vast_verilog_file_emit(f);
   ASSERT_NE(emitted, nullptr);

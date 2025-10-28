@@ -118,27 +118,6 @@ void LineInfoIncrease(LineInfo* line_info, int64_t delta) {
   }
 }
 
-// Converts a `DataKind` to its SystemVerilog name, if any. Emitting a data type
-// in most contexts requires the containing entity to emit both the `DataKind`
-// and the `DataType`, at least one of which should emit as nonempty.
-std::string DataKindToString(DataKind kind) {
-  switch (kind) {
-    case DataKind::kReg:
-      return "reg";
-    case DataKind::kWire:
-      return "wire";
-    case DataKind::kLogic:
-      return "logic";
-    case DataKind::kInteger:
-      return "integer";
-    case DataKind::kGenvar:
-      return "genvar";
-    default:
-      // For any other type, the `DataType->Emit()` output is sufficient.
-      return "";
-  }
-}
-
 std::string EmitNothing(const VastNode* node, LineInfo* line_info) {
   LineInfoStart(line_info, node);
   LineInfoEnd(line_info, node);
@@ -207,6 +186,29 @@ static absl::Status NoteDefined(absl::flat_hash_set<std::string>* defined_names,
 }
 
 }  // namespace
+
+// Converts a `DataKind` to its SystemVerilog name, if any. Emitting a data type
+// in most contexts requires the containing entity to emit both the `DataKind`
+// and the `DataType`, at least one of which should emit as nonempty.
+std::string DataKindToString(DataKind kind) {
+  switch (kind) {
+    case DataKind::kReg:
+      return "reg";
+    case DataKind::kWire:
+      return "wire";
+    case DataKind::kLogic:
+      return "logic";
+    case DataKind::kInteger:
+      return "integer";
+    case DataKind::kInt:
+      return "int";
+    case DataKind::kGenvar:
+      return "genvar";
+    default:
+      // For any other type, the `DataType->Emit()` output is sufficient.
+      return "";
+  }
+}
 
 int Precedence(OperatorKind kind) {
   switch (kind) {
@@ -439,6 +441,17 @@ std::string IntegerType::Emit(LineInfo* line_info) const {
   return "unsigned";
 }
 
+std::string IntType::Emit(LineInfo* line_info) const {
+  // The `DataKind` preceding the type is enough if it's signed, which is the
+  // default.
+  if (is_signed_) {
+    return EmitNothing(this, line_info);
+  }
+  LineInfoStart(line_info, this);
+  LineInfoEnd(line_info, this);
+  return "unsigned";
+}
+
 std::string MacroRef::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
   LineInfoIncrease(line_info, NumberOfNewlines(name_));
@@ -528,6 +541,11 @@ std::string VerilogFile::Emit(LineInfo* line_info) const {
 LocalParamItemRef* LocalParam::AddItem(std::string_view name, Expression* value,
                                        const SourceInfo& loc) {
   items_.push_back(file()->Make<LocalParamItem>(loc, name, value));
+  return file()->Make<LocalParamItemRef>(loc, items_.back());
+}
+LocalParamItemRef* LocalParam::AddItem(Def* def, Expression* value,
+                                       const SourceInfo& loc) {
+  items_.push_back(file()->Make<LocalParamItem>(loc, def, value));
   return file()->Make<LocalParamItemRef>(loc, items_.back());
 }
 
@@ -1170,6 +1188,13 @@ IntegerDef::IntegerDef(std::string_view name, DataType* data_type,
                        const SourceInfo& loc)
     : Def(name, DataKind::kInteger, data_type, init, file, loc) {}
 
+IntDef::IntDef(std::string_view name, VerilogFile* file, const SourceInfo& loc)
+    : Def(name, DataKind::kInt, file->IntType(loc), file, loc) {}
+
+IntDef::IntDef(std::string_view name, DataType* data_type, Expression* init,
+               VerilogFile* file, const SourceInfo& loc)
+    : Def(name, DataKind::kInt, data_type, init, file, loc) {}
+
 GenvarDef::GenvarDef(std::string_view name, VerilogFile* file,
                      const SourceInfo& loc)
     : Def(name, DataKind::kGenvar, file->IntegerType(loc), file, loc) {}
@@ -1466,17 +1491,28 @@ std::string Literal::Emit(LineInfo* line_info) const {
         "%s%s", prefix,
         BitsToString(bits_, FormatPreference::kUnsignedDecimal));
   }
-  if (format_ == FormatPreference::kBinary) {
+
+  if (format_ == FormatPreference::kBinary ||
+      format_ == FormatPreference::kPlainBinary) {
+    std::string size_prefix = format_ == FormatPreference::kPlainBinary
+                                  ? ""
+                                  : absl::StrCat(effective_bit_count_);
     return absl::StrFormat(
-        "%d'b%s", effective_bit_count_,
-        BitsToRawDigits(bits_, format_, /*emit_leading_zeros=*/true));
+        "%s'b%s", size_prefix,
+        BitsToRawDigits(bits_, format_, /*emit_leading_zeros=*/format_ ==
+                                            FormatPreference::kBinary));
   }
-  CHECK_EQ(format_, FormatPreference::kHex);
-  const std::string raw_digits = BitsToRawDigits(bits_, FormatPreference::kHex,
-                                                 /*emit_leading_zeros=*/true);
+  CHECK(format_ == FormatPreference::kHex ||
+        format_ == FormatPreference::kPlainHex);
+  std::string size_prefix = format_ == FormatPreference::kPlainHex
+                                ? ""
+                                : absl::StrCat(effective_bit_count_);
+  const std::string raw_digits =
+      BitsToRawDigits(bits_, FormatPreference::kHex,
+                      /*emit_leading_zeros=*/format_ == FormatPreference::kHex);
   return declared_as_signed_
-             ? absl::StrFormat("%d'sh%s", effective_bit_count_, raw_digits)
-             : absl::StrFormat("%d'h%s", effective_bit_count_, raw_digits);
+             ? absl::StrFormat("%s'sh%s", size_prefix, raw_digits)
+             : absl::StrFormat("%s'h%s", size_prefix, raw_digits);
 }
 
 bool Literal::IsLiteralWithValue(int64_t target) const {
@@ -1687,7 +1723,13 @@ std::string Struct::Emit(LineInfo* line_info) const {
 std::string LocalParamItem::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
   LineInfoIncrease(line_info, NumberOfNewlines(name_));
-  std::string result = absl::StrFormat("%s = %s", name_, rhs_->Emit(line_info));
+  std::string result;
+  if (def_.has_value()) {
+    result = absl::StrFormat("%s = %s", def_.value()->EmitNoSemi(line_info),
+                             rhs_->Emit(line_info));
+  } else {
+    result = absl::StrFormat("%s = %s", name_, rhs_->Emit(line_info));
+  }
   LineInfoEnd(line_info, this);
   return result;
 }

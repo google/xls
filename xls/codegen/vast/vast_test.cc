@@ -21,14 +21,14 @@
 #include <utility>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/fileno.h"
@@ -1628,6 +1628,16 @@ TEST_P(VastTest, ParameterAndLocalParam) {
   LocalParamItemRef* state_bits =
       m->Add<LocalParam>(SourceInfo())
           ->AddItem("StateBits", f.Literal(2, 2, SourceInfo()), SourceInfo());
+  m->Add<LocalParam>(SourceInfo())
+      ->AddItem(f.Make<IntDef>(SourceInfo(), "Foo"),
+                f.PlainLiteral(42, SourceInfo()), SourceInfo());
+  m->Add<LocalParam>(SourceInfo())
+      ->AddItem(f.Make<IntegerDef>(SourceInfo(), "Bar"),
+                f.PlainLiteral(42, SourceInfo()), SourceInfo());
+  m->Add<LocalParam>(SourceInfo())
+      ->AddItem(f.Make<LogicDef>(SourceInfo(), "Baz",
+                                 f.BitVectorType(4, SourceInfo())),
+                f.Literal(4, 4, SourceInfo()), SourceInfo());
   XLS_ASSERT_OK_AND_ASSIGN(
       LogicRef * state,
       m->AddReg(
@@ -1647,7 +1657,40 @@ TEST_P(VastTest, ParameterAndLocalParam) {
     StateGotByte = 2'h1,
     StateError = 2'h2;
   localparam StateBits = 2'h2;
+  localparam int Foo = 42;
+  localparam integer Bar = 42;
+  localparam logic [3:0] Baz = 4'h4;
   reg [StateBits - 1:0] state = StateIdle;
+endmodule)");
+}
+
+TEST_P(VastTest, LocalparamPlainBaseLiterals) {
+  VerilogFile f(GetFileType());
+  Module* m = f.AddModule("top", SourceInfo());
+
+  // localparam PlainDecimal = 42;
+  m->Add<LocalParam>(SourceInfo())
+      ->AddItem("PlainDecimal", f.PlainLiteral(42, SourceInfo()), SourceInfo());
+
+  // localparam PlainHex = 'h42;
+  m->Add<LocalParam>(SourceInfo())
+      ->AddItem(
+          "PlainHex",
+          f.Literal(UBits(0x42, 32), SourceInfo(), FormatPreference::kPlainHex),
+          SourceInfo());
+
+  // localparam PlainBinary = 'b1010;
+  m->Add<LocalParam>(SourceInfo())
+      ->AddItem("PlainBinary",
+                f.Literal(UBits(0b1010, 32), SourceInfo(),
+                          FormatPreference::kPlainBinary),
+                SourceInfo());
+
+  EXPECT_EQ(m->Emit(nullptr),
+            R"(module top;
+  localparam PlainDecimal = 42;
+  localparam PlainHex = 'h42;
+  localparam PlainBinary = 'b1010;
 endmodule)");
 }
 
@@ -1832,6 +1875,23 @@ TEST_P(VastTest, TestbenchClock) {
   end
 endmodule
 )");
+}
+
+TEST_P(VastTest, ParametersTickZeroOneX) {
+  VerilogFile f(GetFileType());
+  Module* m = f.AddModule("top", SourceInfo());
+
+  // parameter P0 = '0; parameter P1 = '1; parameter P2 = 'X;
+  m->AddParameter("P0", f.Make<UnsizedZeroLiteral>(SourceInfo()), SourceInfo());
+  m->AddParameter("P1", f.Make<UnsizedOneLiteral>(SourceInfo()), SourceInfo());
+  m->AddParameter("P2", f.Make<UnsizedXLiteral>(SourceInfo()), SourceInfo());
+
+  EXPECT_EQ(m->Emit(nullptr),
+            R"(module top;
+  parameter P0 = '0;
+  parameter P1 = '1;
+  parameter P2 = 'X;
+endmodule)");
 }
 
 TEST_P(VastTest, TestbenchDisplayAndMonitor) {
