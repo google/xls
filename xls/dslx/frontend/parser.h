@@ -71,6 +71,7 @@ inline T TryGet(const std::variant<Types...>& v) {
 enum class ExprRestriction : uint8_t {
   kNone = 0,
   kNoStructLiteral = 1,
+  kNoConst = 2,
 };
 
 // Flag set of ExprRestriction values.

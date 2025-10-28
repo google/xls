@@ -2208,7 +2208,8 @@ class Conditional : public Expr {
  public:
   Conditional(Module* owner, Span span, Expr* test, StatementBlock* consequent,
               std::variant<StatementBlock*, Conditional*> alternate,
-              bool in_parens = false, bool has_else = true);
+              bool in_parens = false, bool has_else = true,
+              bool is_const = false);
 
   ~Conditional() override;
 
@@ -2236,6 +2237,8 @@ class Conditional : public Expr {
     return alternate_;
   }
 
+  bool IsConst() const { return is_const_; }
+
   bool HasElse() const { return has_else_; }
 
   bool HasElseIf() const {
@@ -2260,6 +2263,7 @@ class Conditional : public Expr {
   StatementBlock* consequent_;
   std::variant<StatementBlock*, Conditional*> alternate_;
   bool has_else_;
+  bool is_const_;
 };
 
 // Represents a member in a parametric binding list.

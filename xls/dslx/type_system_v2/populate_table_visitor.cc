@@ -500,10 +500,26 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     // the same type as 'D'. The test 'a' must be a bool, so we annotate it as
     // such.
     const NameRef* type_variable = *table_.GetTypeVariable(node);
-    XLS_RETURN_IF_ERROR(
-        table_.SetTypeVariable(node->consequent(), type_variable));
-    XLS_RETURN_IF_ERROR(
-        table_.SetTypeVariable(ToAstNode(node->alternate()), type_variable));
+    if (!node->IsConst()) {
+      // In the example `const D = if (a) {b} else {c};`, the `ConstantDef`
+      // establishes a type variable that is just propagated down to `b` and
+      // `c` here, meaning that `b`, `c`, and the result must ultimately be
+      // the same type as 'D'. The test 'a' must be a bool, so we annotate it as
+      // such.
+      XLS_RETURN_IF_ERROR(
+          table_.SetTypeVariable(node->consequent(), type_variable));
+      XLS_RETURN_IF_ERROR(
+          table_.SetTypeVariable(ToAstNode(node->alternate()), type_variable));
+    } else {
+      // For constexpr if we create separate variables for each if branch.
+      // Later during the generation of TypeInfo, after resolving parametrics,
+      // and evaluating the test condition, we force the type of the selected
+      // if branch on the conditional node.
+      XLS_RETURN_IF_ERROR(
+          DefineAndSetTypeVariable(node->consequent(), "consequent"));
+      XLS_RETURN_IF_ERROR(
+          DefineAndSetTypeVariable(ToAstNode(node->alternate()), "alternate"));
+    }
 
     // Mark the test as bool.
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(

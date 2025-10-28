@@ -1706,6 +1706,18 @@ absl::Status BytecodeEmitter::HandleXlsTuple(const XlsTuple* node) {
 }
 
 absl::Status BytecodeEmitter::HandleConditional(const Conditional* node) {
+  // constexpr if selects one branch of the if to handle. No additonal bytecode
+  // is emitted. We just pass the visitor to the selected if branch.
+  if (node->IsConst()) {
+    XLS_ASSIGN_OR_RETURN(InterpValue test_value,
+                         type_info_->GetConstExpr(node->test()));
+    if (test_value.IsTrue()) {
+      XLS_RETURN_IF_ERROR(node->consequent()->AcceptExpr(this));
+    } else {
+      XLS_RETURN_IF_ERROR(ToExprNode(node->alternate())->AcceptExpr(this));
+    }
+    return absl::OkStatus();
+  }
   // Structure is:
   //
   //  $test
