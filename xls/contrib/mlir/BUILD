@@ -223,8 +223,10 @@ cc_library(
         ":xls_transforms_passes_inc_gen",
         "@llvm-project//llvm:Support",
         "@llvm-project//mlir:ArithDialect",
+        "@llvm-project//mlir:FuncDialect",  # buildcleaner: keep
         "@llvm-project//mlir:IR",
         "@llvm-project//mlir:MathDialect",
+        "@llvm-project//mlir:Parser",  # buildcleaner: keep
         "@llvm-project//mlir:Pass",
         "@llvm-project//mlir:Rewrite",
         "@llvm-project//mlir:Support",
