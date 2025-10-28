@@ -72,6 +72,17 @@ class TypecheckBothVersionsTest
   std::unique_ptr<ImportData> import_data_;
 };
 
+TEST_P(TypecheckBothVersionsTest, TestFunctionMustHaveUnitSignature) {
+  constexpr std::string_view kProgram = R"(
+#[test]
+fn o() -> u32 { u32:2 }
+)";
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Test functions must have function type `() -> ()`")));
+}
+
 TEST_P(TypecheckBothVersionsTest, EnumItemSelfReference) {
   std::string_view text = "enum E:u2{ITEM=E::ITEM}";
   EXPECT_THAT(Typecheck(text),

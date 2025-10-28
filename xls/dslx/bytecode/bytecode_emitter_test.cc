@@ -58,10 +58,11 @@ absl::StatusOr<std::unique_ptr<BytecodeFunction>> EmitBytecodes(
       TypecheckedModule tm,
       ParseAndTypecheck(program, "test.x", "test", import_data));
 
-  XLS_ASSIGN_OR_RETURN(TestFunction * tf, tm.module->GetTest(fn_name));
+  // Retrieve the function by name (without relying on a  wrapper).
+  XLS_ASSIGN_OR_RETURN(Function * f,
+                       tm.module->GetMemberOrError<Function>(fn_name));
 
-  return BytecodeEmitter::Emit(import_data, tm.type_info, tf->fn(),
-                               std::nullopt);
+  return BytecodeEmitter::Emit(import_data, tm.type_info, *f, std::nullopt);
 }
 
 // Verifies that a baseline translation - of a nearly-minimal test case -
@@ -115,8 +116,8 @@ TEST(BytecodeEmitterTest, SimpleTranslation) {
 
 // Validates emission of AssertEq builtins.
 TEST(BytecodeEmitterTest, AssertEq) {
-  constexpr std::string_view kProgram = R"(#[test]
-fn expect_fail() -> u32{
+  constexpr std::string_view kProgram = R"(
+fn expect_fail() -> u32 {
   let foo = u32:3;
   assert_eq(foo, u32:2);
   foo
@@ -140,7 +141,7 @@ fn expect_fail() -> u32{
 }
 
 TEST(BytecodeEmitterTest, DestructuringLet) {
-  constexpr std::string_view kProgram = R"(#[test]
+  constexpr std::string_view kProgram = R"(
 fn has_name_def_tree() -> (u32, u64, uN[128]) {
   let (a, b, (c, d)) = (u4:0, u8:1, (u16:2, (u32:3, u64:4, uN[128]:5)));
   assert_eq(a, u4:0);
@@ -199,7 +200,7 @@ fn has_name_def_tree() -> (u32, u64, uN[128]) {
 }
 
 TEST(BytecodeEmitterTest, DestructuringLetWithRestOfTuple) {
-  constexpr std::string_view kProgram = R"(#[test]
+  constexpr std::string_view kProgram = R"(
 fn destructuring_let_with_rest_of_tuple() -> (u32, u64, uN[128]) {
   let (a, b, .., (c, d)) = (u4:0, u8:1, u9:2, (u16:3, (u32:4, u64:5, uN[128]:6)));
   assert_eq(a, u4:0);
@@ -220,7 +221,7 @@ fn destructuring_let_with_rest_of_tuple() -> (u32, u64, uN[128]) {
 }
 
 TEST(BytecodeEmitterTest, DestructuringLetWithRestOfTupleNested) {
-  constexpr std::string_view kProgram = R"(#[test]
+  constexpr std::string_view kProgram = R"(
 fn destructuring_let_with_rest_of_tuple_nested() -> (u32, u64, uN[128]) {
   let (a, b, .., (c, .., d)) = (u4:0, u8:1, u9:2, (u16:2, u10:4, (u32:5, u64:6, uN[128]:7)));
   assert_eq(a, u4:0);
@@ -236,7 +237,7 @@ fn destructuring_let_with_rest_of_tuple_nested() -> (u32, u64, uN[128]) {
 }
 
 TEST(BytecodeEmitterTest, DestructuringNonConstantTuple) {
-  constexpr std::string_view kProgram = R"(#[test]
+  constexpr std::string_view kProgram = R"(
 fn destructuring_non_constant_tuple() -> (u32, u64, uN[128]) {
   let t = (u4:0, u8:1, u9:2, (u16:2, u10:4, (u32:5, u64:6, uN[128]:7)));
   let (a, b, .., (c, .., d)) = t;
@@ -253,7 +254,7 @@ fn destructuring_non_constant_tuple() -> (u32, u64, uN[128]) {
 }
 
 TEST(BytecodeEmitterTest, Ternary) {
-  constexpr std::string_view kProgram = R"(#[test]
+  constexpr std::string_view kProgram = R"(
 fn do_ternary() -> u32 {
   if true { u32:42 } else { u32:64 }
 })";
@@ -274,22 +275,15 @@ fn do_ternary() -> u32 {
 }
 
 TEST(BytecodeEmitterTest, CastToXbits) {
-  constexpr std::string_view kProgram = R"(#[test]
+  constexpr std::string_view kProgram = R"(
 fn main(x: u1) -> s1 {
   x as xN[true][1]
 })";
 
   ImportData import_data(CreateImportDataForTest());
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-
-  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf, tm.module->GetTest("main"));
-
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
-                           BytecodeEmitter::Emit(&import_data, tm.type_info,
-                                                 tf->fn(), std::nullopt));
+                           EmitBytecodes(&import_data, kProgram, "main"));
 
   if (kDefaultTypeInferenceVersion == TypeInferenceVersion::kVersion2) {
     EXPECT_EQ(BytecodesToString(bf->bytecodes(), /*source_locs=*/false,
@@ -305,7 +299,7 @@ fn main(x: u1) -> s1 {
 }
 
 TEST(BytecodeEmitterTest, Shadowing) {
-  constexpr std::string_view kProgram = R"(#[test]
+  constexpr std::string_view kProgram = R"(
 fn f() -> u32 {
   let x = u32:42;
   let x = u32:64;
@@ -326,7 +320,7 @@ fn f() -> u32 {
 }
 
 TEST(BytecodeEmitterTest, MatchTuplesWithRestOfTuple) {
-  constexpr std::string_view kProgram = R"(#[test]
+  constexpr std::string_view kProgram = R"(
 fn match_tuple() -> u32 {
   let x = (u32:42, u32:64, u32:128);
   let y = match x {
@@ -348,7 +342,7 @@ fn match_tuple() -> u32 {
 }
 
 TEST(BytecodeEmitterTest, MatchSimpleArms) {
-  constexpr std::string_view kProgram = R"(#[test]
+  constexpr std::string_view kProgram = R"(
 fn do_match() -> u32 {
   let x = u32:77;
   match x {
@@ -413,7 +407,7 @@ TEST(BytecodeEmitterTest, BytecodesFromString) {
 
 // Tests emission of all of the supported binary operators.
 TEST(BytecodeEmitterTest, Binops) {
-  constexpr std::string_view kProgram = R"(#[test]
+  constexpr std::string_view kProgram = R"(
 fn binops_galore() {
   let a = u32:4;
   let b = u32:2;
@@ -500,7 +494,7 @@ fn binops_galore() {
 
 // Tests emission of all of the supported binary operators.
 TEST(BytecodeEmitterTest, Unops) {
-  constexpr std::string_view kProgram = R"(#[test]
+  constexpr std::string_view kProgram = R"(
 fn unops() {
   let a = s32:32;
   let b = !a;
@@ -523,7 +517,7 @@ fn unops() {
 
 // Tests array creation.
 TEST(BytecodeEmitterTest, Arrays) {
-  constexpr std::string_view kProgram = R"(#[test]
+  constexpr std::string_view kProgram = R"(
 fn arrays(a: u32) -> u32[3] {
   u32[3]:[u32:0, u32:1, a]
 }
@@ -545,7 +539,7 @@ fn arrays(a: u32) -> u32[3] {
 
 // Tests large constexpr 2D array creation doesn't create a skillion bytecodes.
 TEST(BytecodeEmitterTest, TwoDimensionalArrayLiteral) {
-  constexpr std::string_view kProgram = R"(#[test]
+  constexpr std::string_view kProgram = R"(
 fn make_2d_array() -> u32[1024][1024] {
   const A: u32[1024][1024] = u32[1024][1024]:[u32[1024]:[0, ...], ...];
   A
@@ -563,7 +557,7 @@ fn make_2d_array() -> u32[1024][1024] {
 
 // Tests emission of kIndex ops on arrays.
 TEST(BytecodeEmitterTest, IndexArray) {
-  constexpr std::string_view kProgram = R"(#[test]
+  constexpr std::string_view kProgram = R"(
 fn index_array() -> u32 {
   let a = u32[3]:[0, 1, 2];
   let b = bits[32][3]:[3, 4, 5];
@@ -603,7 +597,7 @@ uadd)";
 
 // Tests emission of kIndex ops on tuples.
 TEST(BytecodeEmitterTest, IndexTuple) {
-  constexpr std::string_view kProgram = R"(#[test]
+  constexpr std::string_view kProgram = R"(
 fn index_tuple() -> u32 {
   let a = (u16:0, u32:1, u64:2);
   let b = (bits[128]:3, bits[32]:4);
@@ -628,7 +622,7 @@ fn index_tuple() -> u32 {
 
 // Tests a regular a[x:y] slice op.
 TEST(BytecodeEmitterTest, SimpleSlice) {
-  constexpr std::string_view kProgram = R"(#[test]
+  constexpr std::string_view kProgram = R"(
 fn simple_slice() -> u16 {
   let a = u32:0xdeadbeef;
   a[16:32]
@@ -654,7 +648,7 @@ fn simple_slice() -> u16 {
 
 // Tests a slice from the start: a[-x:].
 TEST(BytecodeEmitterTest, NegativeStartSlice) {
-  constexpr std::string_view kProgram = R"(#[test]
+  constexpr std::string_view kProgram = R"(
 fn negative_start_slice() -> u16 {
   let a = u32:0xdeadbeef;
   a[-16:]
@@ -680,7 +674,7 @@ fn negative_start_slice() -> u16 {
 
 // Tests a slice from the end: a[:-x].
 TEST(BytecodeEmitterTest, NegativeEndSlice) {
-  constexpr std::string_view kProgram = R"(#[test]
+  constexpr std::string_view kProgram = R"(
 fn negative_end_slice() -> u16 {
   let a = u32:0xdeadbeef;
   a[:-16]
@@ -706,7 +700,7 @@ fn negative_end_slice() -> u16 {
 
 // Tests a slice from both ends: a[-x:-y].
 TEST(BytecodeEmitterTest, BothNegativeSlice) {
-  constexpr std::string_view kProgram = R"(#[test]
+  constexpr std::string_view kProgram = R"(
 fn both_negative_slice() -> u8 {
   let a = u32:0xdeadbeef;
   a[-16:-8]
@@ -732,7 +726,7 @@ fn both_negative_slice() -> u8 {
 
 // Tests the width slice op.
 TEST(BytecodeEmitterTest, WidthSlice) {
-  constexpr std::string_view kProgram = R"(#[test]
+  constexpr std::string_view kProgram = R"(
 fn width_slice() -> u16 {
   let a = u32:0xdeadbeef;
   a[u32:8 +: bits[16]]
@@ -759,7 +753,6 @@ TEST(BytecodeEmitterTest, LocalEnumRef) {
   VAL_2 = 2,
 }
 
-#[test]
 fn local_enum_ref() -> MyEnum {
   MyEnum::VAL_1
 }
@@ -790,7 +783,6 @@ TEST(BytecodeEmitterTest, ImportedEnumRef) {
   constexpr std::string_view kBaseProgram = R"(
 import import_0;
 
-#[test]
 fn imported_enum_ref() -> import_0::ImportedEnum {
   import_0::ImportedEnum::VAL_2
 }
@@ -805,14 +797,8 @@ fn imported_enum_ref() -> import_0::ImportedEnum {
   }
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kBaseProgram, "test.x", "test", &import_data));
-
-  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
-                           tm.module->GetTest("imported_enum_ref"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
-                           BytecodeEmitter::Emit(&import_data, tm.type_info,
-                                                 tf->fn(), ParametricEnv()));
+      std::unique_ptr<BytecodeFunction> bf,
+      EmitBytecodes(&import_data, kBaseProgram, "imported_enum_ref"));
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 1);
@@ -832,7 +818,6 @@ impl Empty {
   const MY_CONST = u4:7;
 }
 
-#[test]
 fn struct_const_ref() -> u4 {
   Empty::MY_CONST
 }
@@ -840,14 +825,8 @@ fn struct_const_ref() -> u4 {
 
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kBaseProgram, "test.x", "test", &import_data));
-
-  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
-                           tm.module->GetTest("struct_const_ref"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
-                           BytecodeEmitter::Emit(&import_data, tm.type_info,
-                                                 tf->fn(), ParametricEnv()));
+      std::unique_ptr<BytecodeFunction> bf,
+      EmitBytecodes(&import_data, kBaseProgram, "struct_const_ref"));
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 1);
@@ -867,7 +846,6 @@ impl Empty<N> {
   const MY_CONST = uN[N]:7;
 }
 
-#[test]
 fn struct_const_ref() -> u4 {
   type MyEmpty = Empty<u32:4>;
   MyEmpty::MY_CONST
@@ -876,14 +854,8 @@ fn struct_const_ref() -> u4 {
 
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kBaseProgram, "test.x", "test", &import_data));
-
-  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
-                           tm.module->GetTest("struct_const_ref"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
-                           BytecodeEmitter::Emit(&import_data, tm.type_info,
-                                                 tf->fn(), ParametricEnv()));
+      std::unique_ptr<BytecodeFunction> bf,
+      EmitBytecodes(&import_data, kBaseProgram, "struct_const_ref"));
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 1);
@@ -907,7 +879,6 @@ impl Empty<N> {
   constexpr std::string_view kBaseProgram = R"(
 import import_0;
 
-#[test]
 fn struct_const_ref() -> u4 {
   type MyEmpty = import_0::Empty<u32:4>;
   MyEmpty::MY_CONST
@@ -923,14 +894,8 @@ fn struct_const_ref() -> u4 {
   }
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kBaseProgram, "test.x", "test", &import_data));
-
-  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
-                           tm.module->GetTest("struct_const_ref"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
-                           BytecodeEmitter::Emit(&import_data, tm.type_info,
-                                                 tf->fn(), ParametricEnv()));
+      std::unique_ptr<BytecodeFunction> bf,
+      EmitBytecodes(&import_data, kBaseProgram, "struct_const_ref"));
 }
 
 TEST(BytecodeEmitterTest, ImportedStructAliasWithConstant) {
@@ -951,7 +916,6 @@ pub type MyEmpty = import_0::Empty<u32:4>;
   constexpr std::string_view kBaseProgram = R"(
 import import_1;
 
-#[test]
 fn struct_const_ref() -> u4 {
   import_1::MyEmpty::MY_CONST
 }
@@ -971,14 +935,8 @@ fn struct_const_ref() -> u4 {
   }
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kBaseProgram, "test.x", "test", &import_data));
-
-  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
-                           tm.module->GetTest("struct_const_ref"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
-                           BytecodeEmitter::Emit(&import_data, tm.type_info,
-                                                 tf->fn(), ParametricEnv()));
+      std::unique_ptr<BytecodeFunction> bf,
+      EmitBytecodes(&import_data, kBaseProgram, "struct_const_ref"));
 }
 
 TEST(BytecodeEmitterTest, ImportedConstant) {
@@ -986,7 +944,6 @@ TEST(BytecodeEmitterTest, ImportedConstant) {
   constexpr std::string_view kBaseProgram = R"(
 import import_0;
 
-#[test]
 fn imported_enum_ref() -> u3 {
   import_0::MY_CONST
 }
@@ -1001,14 +958,8 @@ fn imported_enum_ref() -> u3 {
   }
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kBaseProgram, "test.x", "test", &import_data));
-
-  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
-                           tm.module->GetTest("imported_enum_ref"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
-                           BytecodeEmitter::Emit(&import_data, tm.type_info,
-                                                 tf->fn(), ParametricEnv()));
+      std::unique_ptr<BytecodeFunction> bf,
+      EmitBytecodes(&import_data, kBaseProgram, "imported_enum_ref"));
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 1);
@@ -1023,7 +974,6 @@ fn imported_enum_ref() -> u3 {
 TEST(BytecodeEmitterTest, HandlesConstantRefs) {
   constexpr std::string_view kProgram = R"(const kFoo = u32:100;
 
-#[test]
 fn handles_const_refs() -> u32 {
   let a = u32:200;
   a + kFoo
@@ -1049,7 +999,6 @@ TEST(BytecodeEmitterTest, HandlesStructInstances) {
   y: u64,
 }
 
-#[test]
 fn handles_struct_instances() -> MyStruct {
   let x = u32:2;
   MyStruct { x: x, y: u64:3 }
@@ -1071,7 +1020,6 @@ TEST(BytecodeEmitterTest, HandlesAttr) {
   y: u64,
 }
 
-#[test]
 fn handles_attr() -> u64 {
   MyStruct { x: u32:0, y: u64:0xbeef }.y
 })";
@@ -1087,7 +1035,7 @@ fn handles_attr() -> u64 {
 }
 
 TEST(BytecodeEmitterTest, CastBitsToBits) {
-  constexpr std::string_view kProgram = R"(#[test]
+  constexpr std::string_view kProgram = R"(
 fn cast_bits_to_bits() -> u64 {
   let a = s16:-4;
   a as u64
@@ -1105,7 +1053,7 @@ fn cast_bits_to_bits() -> u64 {
 }
 
 TEST(BytecodeEmitterTest, CastArrayToBits) {
-  constexpr std::string_view kProgram = R"(#[test]
+  constexpr std::string_view kProgram = R"(
 fn cast_array_to_bits() -> u32 {
   let a = u8[4]:[0xc, 0xa, 0xf, 0xe];
   a as u32
@@ -1133,7 +1081,7 @@ cast uN[32])";
 }
 
 TEST(BytecodeEmitterTest, CastBitsToArray) {
-  constexpr std::string_view kProgram = R"(#[test]
+  constexpr std::string_view kProgram = R"(
 fn cast_bits_to_array() -> u8 {
   let a = u32:0x0c0a0f0e;
   let b = a as u8[4];
@@ -1158,7 +1106,6 @@ TEST(BytecodeEmitterTest, CastEnumToBits) {
   VAL_3 = 3,
 }
 
-#[test]
 fn cast_enum_to_bits() -> u3 {
   let a = MyEnum::VAL_3;
   a as u3
@@ -1182,7 +1129,6 @@ TEST(BytecodeEmitterTest, CastBitsToEnum) {
   VAL_3 = 3,
 }
 
-#[test]
 fn cast_bits_to_enum() -> MyEnum {
   let a = u3:2;
   a as MyEnum
@@ -1205,7 +1151,6 @@ TEST(BytecodeEmitterTest, HandlesSplatStructInstances) {
   z: u64,
 }
 
-#[test]
 fn handles_struct_instances() -> MyStruct {
   let a = u16:2;
   let b = MyStruct { z: u64:0xbeef, x: a, y: u32:3 };
@@ -1292,7 +1237,6 @@ fn has_params(x: u32, y: u64) -> u48 {
 
 TEST(BytecodeEmitterTest, Strings) {
   constexpr std::string_view kProgram = R"(
-#[test]
 fn main() -> u8[13] {
   "tofu sandwich"
 })";
@@ -1318,7 +1262,6 @@ fn foo<N: u32>(x: uN[N]) -> uN[N] {
   x * x
 }
 
-#[test]
 fn main() -> u32 {
   let a = foo<u32:16>(u16:4);
   let b = foo(u32:8);
@@ -1347,7 +1290,7 @@ fn main() -> u32 {
 }
 
 TEST(BytecodeEmitterTest, SimpleFor) {
-  constexpr std::string_view kProgram = R"(#[test]
+  constexpr std::string_view kProgram = R"(
 fn main() -> u32 {
   for (i, accum) : (u32, u32) in u32:0..u32:8 {
     accum + i
@@ -1407,7 +1350,7 @@ struct SomeStruct {
   some_bool: bool
 }
 
-#[test]
+
 fn test_main(s: SomeStruct) {
   for  (_, ()) in u32:0..u32:4 {
     let _ = cover!("whee", s.some_bool);
@@ -1464,7 +1407,7 @@ jump_dest)";
 }
 
 TEST(BytecodeEmitterTest, Range) {
-  constexpr std::string_view kProgram = R"(#[test]
+  constexpr std::string_view kProgram = R"(
 fn main() -> u32[8] {
   let x = u32:8;
   let y = u32:16;
@@ -1481,7 +1424,7 @@ fn main() -> u32[8] {
 }
 
 TEST(BytecodeEmitterTest, ShlAndShr) {
-  constexpr std::string_view kProgram = R"(#[test]
+  constexpr std::string_view kProgram = R"(
 fn main() -> u32 {
   let x = u32:8;
   let y = u32:16;
@@ -1511,7 +1454,6 @@ struct T<N: u32> {
   a: uN[N]
 }
 
-#[test]
 fn main() -> u32 {
   bit_count<u32>() +
   bit_count<s64>() +
@@ -1562,7 +1504,6 @@ struct T<N: u32> {
   a: uN[N]
 }
 
-#[test]
 fn main() -> u32 {
   element_count<u32>() +
   element_count<s64>() +
@@ -1613,7 +1554,6 @@ enum MyEnum : u2 {
   C = 2,
 }
 
-#[test]
 fn main() -> (bool, u32, s32, MyEnum, bool, u32, s32, MyEnum) {
   let b_default = configured_value_or<bool>("b_default", false);
   let u_default = configured_value_or<u32>("u32_default", u32:42);
@@ -1667,11 +1607,12 @@ create_tuple 8)";
                         /*comments=*/nullptr,
                         /*force_version=*/std::nullopt, options));
 
-  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf, tm.module->GetTest("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("main"));
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
-                           BytecodeEmitter::Emit(&import_data, tm.type_info,
-                                                 tf->fn(), std::nullopt));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      BytecodeEmitter::Emit(&import_data, tm.type_info, *f, std::nullopt));
 
   std::string got = absl::StrJoin(
       bf->bytecodes(), "\n",
@@ -1701,7 +1642,6 @@ import imported;
 type MyEnum = imported::ImportedEnum;
 type MyStruct = imported::ImportedStruct<16>;
 
-#[test]
 fn main() -> u32 {
   let foo = MyStruct { x: u16:100 };
   foo.x as u32 + (MyEnum::VEGGIES as u32)
@@ -1721,11 +1661,12 @@ fn main() -> u32 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf, tm.module->GetTest("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("main"));
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
-                           BytecodeEmitter::Emit(&import_data, tm.type_info,
-                                                 tf->fn(), ParametricEnv()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      BytecodeEmitter::Emit(&import_data, tm.type_info, *f, ParametricEnv()));
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 10);
@@ -1923,7 +1864,7 @@ pub const MY_CONST = u32:4;
   constexpr std::string_view kProgram = R"(
 import imported as mod;
 
-#[test]
+
 fn main() -> u32 {
   mod::MY_CONST + u32:1
 }
@@ -1941,8 +1882,9 @@ fn main() -> u32 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf, tm.module->GetTest("main"));
-  Function& f = tf->fn();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f_ptr,
+                           tm.module->GetMemberOrError<Function>("main"));
+  Function& f = *f_ptr;
   Expr* body = f.body();
 
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
