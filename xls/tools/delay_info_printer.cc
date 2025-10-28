@@ -26,7 +26,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -52,6 +51,7 @@
 #include "xls/tools/codegen.h"
 #include "xls/tools/delay_info_flags.pb.h"
 #include "xls/tools/scheduling_options_flags.h"
+#include "xls/tools/scheduling_options_flags.pb.h"
 
 namespace xls::tools {
 namespace {

@@ -22,7 +22,6 @@
 
 #include "gtest/gtest.h"
 #include "xls/common/fuzzing/fuzztest.h"
-#include "absl/log/check.h"
 #include "absl/types/span.h"
 #include "xls/common/math_util.h"
 #include "xls/ir/bits.h"
