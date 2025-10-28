@@ -1390,3 +1390,65 @@ build_test(
     name = "xls_pipeline_build_test",
     targets = [":xls_pipeline"],
 )
+
+xls_dslx_library(
+    name = "const_if_dslx",
+    srcs = ["const_if.x"],
+)
+
+xls_dslx_test(
+    name = "const_if_test",
+    dslx_test_args = {"compare": "jit"},
+    library = ":const_if_dslx",
+)
+
+xls_dslx_ir(
+    name = "const_if_ir",
+    dslx_top = "const_if",
+    ir_file = "const_if.ir",
+    library = ":const_if_dslx",
+)
+
+xls_dslx_verilog(
+    name = "const_if_verilog",
+    codegen_args = {
+        "module_name": "const_if",
+        "delay_model": "unit",
+        "pipeline_stages": "1",
+        "reset": "rst",
+    },
+    dslx_top = "const_if",
+    library = ":const_if_dslx",
+    verilog_file = "const_if.sv",
+)
+
+xls_dslx_ir(
+    name = "normal_if_ir",
+    dslx_top = "normal_if",
+    ir_file = "normal_if.ir",
+    library = ":const_if_dslx",
+)
+
+xls_dslx_verilog(
+    name = "normal_if_verilog",
+    codegen_args = {
+        "module_name": "normal_if",
+        "delay_model": "unit",
+        "pipeline_stages": "1",
+        "reset": "rst",
+    },
+    dslx_top = "normal_if",
+    library = ":const_if_dslx",
+    verilog_file = "normal_if.sv",
+)
+
+xls_dslx_library(
+    name = "const_if_spawn_dslx",
+    srcs = ["const_if_spawn.x"],
+)
+
+xls_dslx_test(
+    name = "const_if_spawn_test",
+    dslx_test_args = {"compare": "jit"},
+    library = ":const_if_spawn_dslx",
+)
