@@ -2374,7 +2374,7 @@ fn main() -> u32 { foo::D }
   EXPECT_EQ(subjects[0].name_def().definer(), &subjects[0].use_tree_entry());
 }
 
-TEST(AstClonerTest, CloneModuleIgnoreMembersDropsRequestedMembers) {
+TEST(AstClonerTest, CloneModuleRemovingMembersDropsRequestedMembers) {
   constexpr std::string_view kProgram = R"(
 const CONST_KEEP = u32:1;
 const CONST_DROP = u32:2;
@@ -2389,9 +2389,9 @@ fn main() -> u32 {
       auto module, ParseModule(kProgram, "drop.x", "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(ConstantDef * const_drop,
                            module->GetMemberOrError<ConstantDef>("CONST_DROP"));
-  const std::array<const AstNode*, 1> ignored = {const_drop};
+  const std::array<const AstNode*, 1> removed = {const_drop};
   XLS_ASSERT_OK_AND_ASSIGN(auto clone,
-                           CloneModuleIgnoreMembers(*module, ignored));
+                           CloneModuleRemovingMembers(*module, removed));
   EXPECT_THAT(clone->ToString(), HasSubstr("const CONST_KEEP"));
   EXPECT_THAT(clone->ToString(), Not(HasSubstr("CONST_DROP")));
   EXPECT_THAT(clone->GetConstantDef("CONST_KEEP"),
@@ -2400,7 +2400,7 @@ fn main() -> u32 {
               StatusIs(absl::StatusCode::kNotFound));
 }
 
-TEST(AstClonerTest, CloneModuleIgnoreMembersFailsOnDanglingNameRefs) {
+TEST(AstClonerTest, CloneModuleRemovingMembersFailsOnDanglingNameRefs) {
   constexpr std::string_view kProgram = R"(
 const VALUE = u32:7;
 
@@ -2418,13 +2418,13 @@ fn main() -> u32 {
       auto module, ParseModule(kProgram, "dep.x", "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(Function * helper,
                            module->GetMemberOrError<Function>("helper"));
-  const std::array<const AstNode*, 1> ignored = {helper};
+  const std::array<const AstNode*, 1> removed = {helper};
   EXPECT_THAT(
-      CloneModuleIgnoreMembers(*module, ignored),
+      CloneModuleRemovingMembers(*module, removed),
       StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("helper")));
 }
 
-TEST(AstClonerTest, CloneModuleIgnoreMembersFailsOnDanglingTypeRefs) {
+TEST(AstClonerTest, CloneModuleRemovingMembersFailsOnDanglingTypeRefs) {
   constexpr std::string_view kProgram = R"(
 struct Foo {
     x: u32,
@@ -2440,12 +2440,12 @@ fn make() -> Foo {
                                                     "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(StructDef * foo,
                            module->GetMemberOrError<StructDef>("Foo"));
-  const std::array<const AstNode*, 1> ignored = {foo};
-  EXPECT_THAT(CloneModuleIgnoreMembers(*module, ignored),
+  const std::array<const AstNode*, 1> removed = {foo};
+  EXPECT_THAT(CloneModuleRemovingMembers(*module, removed),
               StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("Foo")));
 }
 
-TEST(AstClonerTest, CloneModuleIgnoreMembersFailsOnDanglingUseTypeRefs) {
+TEST(AstClonerTest, CloneModuleRemovingMembersFailsOnDanglingUseTypeRefs) {
   constexpr std::string_view kProgram = R"(
 #![feature(use_syntax)]
 use foo::{Bar};
@@ -2466,12 +2466,12 @@ fn make(x: Bar) -> Bar {
     }
   }
   ASSERT_NE(use_member, nullptr);
-  const std::array<const AstNode*, 1> ignored = {use_member};
-  EXPECT_THAT(CloneModuleIgnoreMembers(*module, ignored),
+  const std::array<const AstNode*, 1> removed = {use_member};
+  EXPECT_THAT(CloneModuleRemovingMembers(*module, removed),
               StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("Bar")));
 }
 
-TEST(AstClonerTest, CloneModuleIgnoreMembersRebindsNameRefs) {
+TEST(AstClonerTest, CloneModuleRemovingMembersRebindsNameRefs) {
   constexpr std::string_view kProgram = R"(
 fn helper(x: u32) -> u32 {
     x + u32:1
@@ -2487,9 +2487,9 @@ fn main(x: u32) -> u32 {
                                                     "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(Function * original_helper,
                            module->GetMemberOrError<Function>("helper"));
-  const std::array<const AstNode*, 0> ignored = {};
+  const std::array<const AstNode*, 0> removed = {};
   XLS_ASSERT_OK_AND_ASSIGN(auto clone,
-                           CloneModuleIgnoreMembers(*module, ignored));
+                           CloneModuleRemovingMembers(*module, removed));
   XLS_ASSERT_OK_AND_ASSIGN(Function * clone_helper,
                            clone->GetMemberOrError<Function>("helper"));
   XLS_ASSERT_OK_AND_ASSIGN(Function * clone_main,
@@ -2506,7 +2506,7 @@ fn main(x: u32) -> u32 {
   EXPECT_EQ(ref_def, clone_helper->name_def());
 }
 
-TEST(AstClonerTest, CloneModuleIgnoreMembersSupportsMultipleIgnores) {
+TEST(AstClonerTest, CloneModuleRemovingMembersSupportsRemovingMultipleMembers) {
   constexpr std::string_view kProgram = R"(
 fn helper(x: u32) -> u32 {
     x + u32:1
@@ -2528,15 +2528,15 @@ fn main(x: u32) -> u32 {
                            module->GetMemberOrError<Function>("helper"));
   XLS_ASSERT_OK_AND_ASSIGN(Function * wrapper,
                            module->GetMemberOrError<Function>("wrapper"));
-  const std::array<const AstNode*, 2> ignored = {helper, wrapper};
+  const std::array<const AstNode*, 2> removed = {helper, wrapper};
   XLS_ASSERT_OK_AND_ASSIGN(auto clone,
-                           CloneModuleIgnoreMembers(*module, ignored));
+                           CloneModuleRemovingMembers(*module, removed));
   // Ensure only `main` remains and it still typechecks.
   EXPECT_EQ(clone->top().size(), 1);
   XLS_ASSERT_OK(clone->GetMemberOrError<Function>("main"));
 }
 
-TEST(AstClonerTest, CloneModuleIgnoreMembersRemovesStruct) {
+TEST(AstClonerTest, CloneModuleRemovingMembersRemovesStruct) {
   constexpr std::string_view kProgram = R"(
 struct Foo {
     x: u32,
@@ -2558,14 +2558,14 @@ fn main() -> u32 {
                            module->GetMemberOrError<StructDef>("Foo"));
   XLS_ASSERT_OK_AND_ASSIGN(Function * make_fn,
                            module->GetMemberOrError<Function>("make"));
-  const std::array<const AstNode*, 2> ignored = {foo, make_fn};
+  const std::array<const AstNode*, 2> removed = {foo, make_fn};
   XLS_ASSERT_OK_AND_ASSIGN(auto clone,
-                           CloneModuleIgnoreMembers(*module, ignored));
+                           CloneModuleRemovingMembers(*module, removed));
   EXPECT_EQ(clone->top().size(), 1);
   XLS_ASSERT_OK(clone->GetMemberOrError<Function>("main"));
 }
 
-TEST(AstClonerTest, CloneModuleIgnoreMembersFailsWhenStructReferenced) {
+TEST(AstClonerTest, CloneModuleRemovingMembersFailsWhenStructReferenced) {
   constexpr std::string_view kProgram = R"(
 struct Foo {
     x: u32,
@@ -2581,8 +2581,8 @@ fn make() -> Foo {
                                                     "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(StructDef * foo,
                            module->GetMemberOrError<StructDef>("Foo"));
-  const std::array<const AstNode*, 1> ignored = {foo};
-  EXPECT_THAT(CloneModuleIgnoreMembers(*module, ignored),
+  const std::array<const AstNode*, 1> removed = {foo};
+  EXPECT_THAT(CloneModuleRemovingMembers(*module, removed),
               StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("Foo")));
 }
 

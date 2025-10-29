@@ -1684,7 +1684,7 @@ TEST(XlsCApiTest, DslxModuleMembers) {
   }
 }
 
-TEST(XlsCApiTest, DslxCloneTypecheckedModuleIgnoreMembersSuccess) {
+TEST(XlsCApiTest, DslxCloneTypecheckedModuleRemovingMembersSuccess) {
   const std::string_view kProgram = R"(
 fn helper(x: u32) -> u32 {
     x + u32:1
@@ -1736,10 +1736,10 @@ fn main(x: u32) -> u32 {
   xls_dslx_function* unused_fn = find_function("unused");
   ASSERT_NE(unused_fn, nullptr);
 
-  xls_dslx_function* ignored[] = {unused_fn};
+  xls_dslx_function* removed[] = {unused_fn};
   xls_dslx_typechecked_module* cloned_tm = nullptr;
-  ASSERT_TRUE(xls_dslx_typechecked_module_clone_ignore_functions(
-      tm, ignored, ABSL_ARRAYSIZE(ignored), "top_clone", import_data, &error,
+  ASSERT_TRUE(xls_dslx_typechecked_module_clone_removing_functions(
+      tm, removed, ABSL_ARRAYSIZE(removed), "top_clone", import_data, &error,
       &cloned_tm));
   ASSERT_EQ(error, nullptr);
   absl::Cleanup free_cloned_tm(
@@ -1761,7 +1761,7 @@ fn main(x: u32) -> u32 {
   EXPECT_EQ(std::string_view{module_name}, "top_clone");
 }
 
-TEST(XlsCApiTest, DslxCloneTypecheckedModuleIgnoreMembersFailure) {
+TEST(XlsCApiTest, DslxCloneTypecheckedModuleRemovingMembersFailure) {
   const std::string_view kProgram = R"(
 fn helper(x: u32) -> u32 {
     x + u32:1
@@ -1809,10 +1809,10 @@ fn main(x: u32) -> u32 {
   xls_dslx_function* helper_fn = find_function("helper");
   ASSERT_NE(helper_fn, nullptr);
 
-  xls_dslx_function* ignored[] = {helper_fn};
+  xls_dslx_function* removed[] = {helper_fn};
   xls_dslx_typechecked_module* cloned_tm = nullptr;
-  EXPECT_FALSE(xls_dslx_typechecked_module_clone_ignore_functions(
-      tm, ignored, ABSL_ARRAYSIZE(ignored), "top", import_data, &error,
+  EXPECT_FALSE(xls_dslx_typechecked_module_clone_removing_functions(
+      tm, removed, ABSL_ARRAYSIZE(removed), "top", import_data, &error,
       &cloned_tm));
   EXPECT_NE(error, nullptr);
   absl::Cleanup free_error([&] { xls_c_str_free(error); });

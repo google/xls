@@ -270,7 +270,7 @@ bool xls_dslx_parse_and_typecheck(
   return false;
 }
 
-bool xls_dslx_typechecked_module_clone_ignore_functions(
+bool xls_dslx_typechecked_module_clone_removing_functions(
     struct xls_dslx_typechecked_module* tm,
     struct xls_dslx_function* functions[], size_t function_count,
     const char* install_subject, struct xls_dslx_import_data* import_data,
@@ -294,8 +294,8 @@ bool xls_dslx_typechecked_module_clone_ignore_functions(
     return false;
   }
 
-  std::vector<const xls::dslx::AstNode*> nodes_to_ignore;
-  nodes_to_ignore.reserve(function_count);
+  std::vector<const xls::dslx::AstNode*> nodes_to_remove;
+  nodes_to_remove.reserve(function_count);
   for (size_t i = 0; i < function_count; ++i) {
     if (functions == nullptr || functions[i] == nullptr) {
       *error_out = xls::ToOwnedCString("functions array contains null entry");
@@ -307,11 +307,11 @@ bool xls_dslx_typechecked_module_clone_ignore_functions(
           "function does not belong to the provided module");
       return false;
     }
-    nodes_to_ignore.push_back(fn);
+    nodes_to_remove.push_back(fn);
   }
 
   absl::StatusOr<std::unique_ptr<xls::dslx::Module>> cloned_module_or =
-      xls::dslx::CloneModuleIgnoreMembers(*cpp_tm->module, nodes_to_ignore);
+      xls::dslx::CloneModuleRemovingMembers(*cpp_tm->module, nodes_to_remove);
   if (!cloned_module_or.ok()) {
     *error_out = xls::ToOwnedCString(cloned_module_or.status().ToString());
     return false;

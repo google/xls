@@ -152,7 +152,7 @@ bool xls_dslx_parse_and_typecheck(
     struct xls_dslx_import_data* import_data, char** error_out,
     struct xls_dslx_typechecked_module** result_out);
 
-bool xls_dslx_typechecked_module_clone_ignore_functions(
+bool xls_dslx_typechecked_module_clone_removing_functions(
     struct xls_dslx_typechecked_module* tm,
     struct xls_dslx_function* functions[], size_t function_count,
     const char* install_subject, struct xls_dslx_import_data* import_data,
