@@ -82,6 +82,12 @@ struct SourceInfo {
     }
     return absl::StrFormat("[%s]", absl::StrJoin(strings, ", "));
   }
+
+  SourceInfo Extend(const SourceLocation& location) const {
+    SourceInfo extended = *this;
+    extended.locations.push_back(location);
+    return extended;
+  }
 };
 
 }  // namespace xls
