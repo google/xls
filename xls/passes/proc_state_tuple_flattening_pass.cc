@@ -144,6 +144,7 @@ struct AbstractStateElement {
   Node* placeholder;
   std::optional<Node*> read_predicate;
   std::vector<NextValue> next_values;
+  bool non_synthesizable;
 };
 
 // Replaces the state of the given proc with the given state elements. The
@@ -167,6 +168,9 @@ absl::Status ReplaceProcState(Proc* proc,
                                  element.read_predicate,
                                  /*next_state=*/std::nullopt));
     read->SetLoc(element.placeholder->loc());
+    if (element.non_synthesizable) {
+      read->state_element()->SetNonSynthesizable();
+    }
     for (const NextValue& next_value : element.next_values) {
       XLS_RETURN_IF_ERROR(
           proc->MakeNodeWithName<Next>(next_value.loc,
@@ -211,6 +215,7 @@ absl::Status FlattenState(Proc* proc) {
       // one if the old state param decomposes into a single element (eg., its
       // a bits type). Otherwise append a numeric suffix.
       element.name = absl::StrCat(state_element->name(), component_suffix(i));
+      element.non_synthesizable = state_element->non_synthesizable();
       element.initial_value = init_values[i];
       XLS_ASSIGN_OR_RETURN(
           element.placeholder,

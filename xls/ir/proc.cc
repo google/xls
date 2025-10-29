@@ -790,6 +790,9 @@ absl::StatusOr<StateRead*> Proc::TransformStateElement(
                          init_value, read_predicate,
                          /*next_state=*/std::nullopt));
   new_state_read->SetLoc(old_state_read->loc());
+  if (old_state_read->state_element()->non_synthesizable()) {
+    new_state_read->state_element()->SetNonSynthesizable();
+  }
   StateElement* new_state_element = new_state_read->state_element();
   std::string temp_name = new_state_element->name();
 
