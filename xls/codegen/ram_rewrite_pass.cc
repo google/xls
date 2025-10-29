@@ -822,6 +822,14 @@ absl::StatusOr<bool> RamRewrite(Package* package,
       ram_configuration);
 }
 
+int64_t RamLatency(const RamConfiguration& ram_configuration) {
+  return absl::visit(
+      Visitor{
+          [&](const Ram1RWConfiguration& config) { return config.latency(); },
+          [&](const Ram1R1WConfiguration& config) { return config.latency(); }},
+      ram_configuration);
+}
+
 }  // namespace
 
 // This function finds all the ports related to each channel specified in
@@ -836,6 +844,11 @@ absl::StatusOr<bool> RamRewritePass::RunInternal(
 
   for (const RamConfiguration& ram_configuration :
        options.codegen_options.ram_configurations()) {
+    int64_t latency = RamLatency(ram_configuration);
+    if (latency != 1) {
+      return absl::UnimplementedError(absl::StrFormat(
+          "Only RAMs with latency 1 are supported, got %d.", latency));
+    }
     VLOG(2) << "Rewriting channels for ram "
             << RamConfigurationRamName(ram_configuration) << ".";
     XLS_ASSIGN_OR_RETURN(

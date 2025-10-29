@@ -352,7 +352,7 @@ axi_ram_reader_codegen_args = common_codegen_args | {
     "module_name": "axi_ram_reader",
     "clock_period_ps": AXI_RAM_READER_CLOCK_PERIOD_PS,
     "ram_configurations": "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-        latency = 5,
+        latency = 1,
         ram_name = "ram",
         rd_req = "axi_ram_reader__rd_req_s",
         rd_resp = "axi_ram_reader__rd_resp_r",

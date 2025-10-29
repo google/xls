@@ -837,7 +837,7 @@ SEQUENCE_EXECUTOR_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "delay_model": "asap7",
     "ram_configurations": ",".join([
         "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-            latency = 5,
+            latency = 1,
             ram_name = "ram{}".format(num),
             rd_req = "sequence_executor__rd_req_m{}_s".format(num),
             rd_resp = "sequence_executor__rd_resp_m{}_r".format(num),
@@ -1884,7 +1884,7 @@ RAM_DEMUX_CODEGEN_ARGS = {
     "worst_case_throughput": "6",
     "ram_configurations": ",".join([
         "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-            latency = 5,
+            latency = 1,
             ram_name = "ram{}".format(num),
             rd_req = "ram_demux__rd_req{}_s".format(num),
             rd_resp = "ram_demux__rd_resp{}_r".format(num),
@@ -2175,7 +2175,7 @@ xls_dslx_verilog(
         "delay_model": "asap7",
         "ram_configurations": ",".join([
             "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-                latency = 5,
+                latency = 1,
                 ram_name = "ram{}".format(num),
                 rd_req = "ram_demux3__rd_req{}_s".format(num),
                 rd_resp = "ram_demux3__rd_resp{}_r".format(num),
@@ -2586,7 +2586,7 @@ xls_dslx_verilog(
         "delay_model": "asap7",
         "ram_configurations": ",".join([
             "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-                latency = 5,
+                latency = 1,
                 ram_name = "ram{}".format(num),
                 rd_req = "literals_buffer__rd_req_m{}_s".format(num),
                 rd_resp = "literals_buffer__rd_resp_m{}_r".format(num),
@@ -2753,7 +2753,7 @@ LITERALS_DECODER_CODEGEN_ARGS = {
     "delay_model": "asap7",
     "ram_configurations": ",".join([
         "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-            latency = 5,
+            latency = 1,
             ram_name = "ram{}".format(num),
             rd_req = "literals_decoder__rd_req_m{}_s".format(num),
             rd_resp = "literals_decoder__rd_resp_m{}_r".format(num),
@@ -2868,9 +2868,9 @@ PRESCAN_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "ram_configurations": "InternalRam:1R1W:huffman_prescan__internal_read_req_s" +
                           ":huffman_prescan__internal_read_rsp_r:" +
                           "huffman_prescan__internal_write_req_s:" +
-                          "huffman_prescan__internal_write_rsp_r:5",
+                          "huffman_prescan__internal_write_rsp_r:1",
     "io_constraints": "huffman_prescan__read_req_s:send:" +
-                      "huffman_prescan__read_rsp_r:recv:5:5",
+                      "huffman_prescan__read_rsp_r:recv:1:1",
     "materialize_internal_fifos": "false",  # TODO: remove once this option works with loopback channels
 }
 
