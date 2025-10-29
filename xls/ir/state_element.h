@@ -30,17 +30,23 @@ namespace xls {
 // contained in and owned by Procs.
 class StateElement {
  public:
-  StateElement(std::string_view name, Type* type, Value initial_value)
-      : name_(name), type_(type), initial_value_(initial_value) {
+  StateElement(std::string_view name, Type* type, Value initial_value,
+               bool non_synthesizable = false)
+      : name_(name),
+        type_(type),
+        initial_value_(initial_value),
+        non_synthesizable_(non_synthesizable) {
     CHECK(ValueConformsToType(initial_value, type));
   }
 
   const std::string& name() const { return name_; }
   Type* type() const { return type_; }
   const Value& initial_value() const { return initial_value_; }
+  bool non_synthesizable() const { return non_synthesizable_; }
 
   void SetName(std::string_view name) { name_ = name; }
   void SetName(std::string&& name) { name_ = std::move(name); }
+  void SetNonSynthesizable() { non_synthesizable_ = true; }
 
   std::string ToString() const;
 
@@ -48,7 +54,22 @@ class StateElement {
   std::string name_;
   Type* type_;
   Value initial_value_;
+  bool non_synthesizable_;
 };
+
+template <typename Sink>
+void AbslStringify(Sink& sink, const StateElement& element) {
+  sink.Append(element.ToString());
+}
+
+template <typename Sink>
+void AbslStringify(Sink& sink, const StateElement* element) {
+  if (element == nullptr) {
+    sink.Append("nullptr");
+    return;
+  }
+  sink.Append(element->ToString());
+}
 
 }  // namespace xls
 

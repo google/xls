@@ -21,11 +21,14 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/fuzzing/fuzztest.h"
+#include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
+#include "xls/interpreter/interpreter_proc_runtime.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/function.h"
@@ -34,6 +37,7 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
@@ -44,6 +48,7 @@ namespace xls {
 namespace {
 
 using ::absl_testing::IsOkAndHolds;
+using ::absl_testing::StatusIs;
 
 namespace m = xls::op_matchers;
 
@@ -154,11 +159,12 @@ TEST_F(NonSynthSeparationPassTest, ProcIsClonedWithStateRead) {
   BValue state_read = pb.StateElement("state_read", UBits(0, 1));
   pb.Identity(state_read);
   XLS_ASSERT_OK(pb.Build());
+  ScopedRecordIr sri(p.get());
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(Function * non_synth_proc1,
                            p->GetFunction("non_synth_proc1"));
   XLS_ASSERT_OK_AND_ASSIGN(Node * identity_node,
-                           non_synth_proc1->GetNode("identity.10"));
+                           non_synth_proc1->GetNode("identity.11"));
   EXPECT_THAT(identity_node, m::Identity(m::Param()));
 }
 
@@ -307,6 +313,44 @@ TEST_F(NonSynthSeparationPassTest, GateNodesAreReplacedWithSelects) {
   EXPECT_THAT(select_node,
               m::Select(m::Literal(UBits(0, 1)), {m::Literal(UBits(0, 2))},
                         m::Literal(UBits(0, 2))));
+}
+
+TEST_F(NonSynthSeparationPassTest, ProcHasSameAssertBehavior) {
+  auto p = CreatePackage();
+  ProcBuilder pb("proc1", p.get());
+  BValue read = pb.StateElement("foo", UBits(4, 32));
+  pb.Assert(pb.Literal(Value::Token(), SourceInfo(), "tok"),
+            pb.Ne(pb.Literal(UBits(7, 32)), read), "foobar");
+  pb.Next(read, pb.Add(read, pb.Literal(UBits(1, 32))));
+  XLS_ASSERT_OK(pb.Build().status());
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  XLS_ASSERT_OK_AND_ASSIGN(auto eval,
+                           CreateInterpreterSerialProcRuntime(p.get()));
+  XLS_ASSERT_OK(eval->Tick());
+  XLS_ASSERT_OK(eval->Tick());
+  XLS_ASSERT_OK(eval->Tick());
+  ASSERT_THAT(eval->Tick(), StatusIs(absl::StatusCode::kAborted, "foobar"));
+}
+
+TEST_F(NonSynthSeparationPassTest, ProcHasSameTraceBehavior) {
+  auto p = CreatePackage();
+  ProcBuilder pb("proc1", p.get());
+  BValue read = pb.StateElement("foo", UBits(4, 32));
+  pb.Trace(pb.Literal(Value::Token(), SourceInfo(), "tok"),
+           pb.Literal(UBits(1, 1), SourceInfo(), "true"), {read},
+           "value_is_{}");
+  pb.Next(read, pb.Add(read, pb.Literal(UBits(1, 32))));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  XLS_ASSERT_OK_AND_ASSIGN(auto eval,
+                           CreateInterpreterSerialProcRuntime(p.get()));
+  XLS_ASSERT_OK(eval->Tick());
+  XLS_ASSERT_OK(eval->Tick());
+  XLS_ASSERT_OK(eval->Tick());
+  EXPECT_THAT(eval->GetInterpreterEvents(proc).GetTraceMessageStrings(),
+              testing::ElementsAre("value_is_4", "value_is_5", "value_is_6"));
 }
 
 void IrFuzzNonSynthSeparation(FuzzPackageWithArgs fuzz_package_with_args) {

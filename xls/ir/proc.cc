@@ -83,6 +83,23 @@ std::string Proc::DumpIr() const {
         &res, ", init={%s}",
         absl::StrJoin(StateElements(), ", ", initial_value_formatter));
   }
+  if (!StateElements().empty() &&
+      absl::c_any_of(StateElements(), [](StateElement* state) -> bool {
+        return state->non_synthesizable();
+      })) {
+    absl::StrAppend(&res, ", non_synth={");
+    bool first = true;
+    for (StateElement* state : StateElements()) {
+      if (state->non_synthesizable()) {
+        if (!first) {
+          absl::StrAppend(&res, ", ");
+        }
+        absl::StrAppendFormat(&res, "%s", state->name());
+        first = false;
+      }
+    }
+    absl::StrAppend(&res, "}");
+  }
   absl::StrAppend(&res, ") {\n");
 
   if (is_new_style_proc()) {

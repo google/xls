@@ -26,22 +26,27 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "cppitertools/reversed.hpp"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/dfs_visitor.h"
+#include "xls/ir/fileno.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/name_uniquer.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/source_location.h"
+#include "xls/ir/state_element.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
@@ -139,8 +144,11 @@ absl::Status MakeFunctionReturnUseless(Function* f) {
 // parameters.
 class CloneProcAsFunctionVisitor : public DfsVisitorWithDefault {
  public:
-  explicit CloneProcAsFunctionVisitor(Function* non_synth_function)
-      : non_synth_function_(non_synth_function) {}
+  CloneProcAsFunctionVisitor(Function* non_synth_function,
+                             std::string_view loc_name)
+      : non_synth_function_(non_synth_function),
+        non_synth_loc_(non_synth_function_->package()->AddSourceLocation(
+            loc_name, Lineno(0), Colno(0))) {}
 
   // Track the send token graph.
   //
@@ -178,13 +186,31 @@ class CloneProcAsFunctionVisitor : public DfsVisitorWithDefault {
         state_read->HasAssignedName()
             ? absl::StrCat(state_read->GetNameView(), "_param")
             : absl::StrFormat("state_read_%d_param", state_read->id());
+    std::string nonsynth_read_name =
+        state_read->HasAssignedName()
+            ? absl::StrCat(state_read->GetNameView(), "_non_synth_read")
+            : absl::StrFormat("state_read_%d_non_synth", state_read->id());
+    std::string nonsynth_element_name =
+        absl::StrCat(state_read->state_element()->name(), "_non_synth");
+    // First clone the state-read and state element to get a non-synth element.
+    Proc* src_proc = state_read->function_base()->AsProcOrDie();
+    XLS_ASSIGN_OR_RETURN(
+        StateElement * non_synth_element,
+        GetOrAddNonSynthStateElement(src_proc, state_read->state_element()));
+    XLS_ASSIGN_OR_RETURN(StateRead * non_synth_read,
+                         src_proc->MakeNodeWithName<StateRead>(
+                             state_read->loc(), non_synth_element,
+                             state_read->predicate(), nonsynth_read_name));
+    non_synth_reads_map_[state_read] = non_synth_read;
+    XLS_RET_CHECK(non_synth_element->non_synthesizable()) << non_synth_element;
+    VLOG(2) << "Created non-synth element: " << non_synth_element->ToString();
     if (!TypeHasToken(state_read->GetType())) {
       XLS_ASSIGN_OR_RETURN(
           Node * param, non_synth_function_->MakeNodeWithName<Param>(
-                            state_read->loc(),
+                            state_read->loc().Extend(non_synth_loc_),
                             state_read->state_element()->type(), param_name));
       node_map_[state_read] = param;
-      args_.push_back(state_read);
+      args_.push_back(non_synth_read);
       return absl::OkStatus();
     }
     // Assert/trace/cover ordering is not really observable at the proc/func
@@ -195,7 +221,7 @@ class CloneProcAsFunctionVisitor : public DfsVisitorWithDefault {
     //
     // TODO(allight): We should consider collapsing all tokens in state elements
     // together in some cases.
-    Node* inp = state_read;
+    Node* inp = non_synth_read;
     std::vector<std::vector<int64_t>> removed_tokens;
     while (true) {
       LeafTypeTree<std::monostate> ltt(inp->GetType(), std::monostate{});
@@ -214,10 +240,13 @@ class CloneProcAsFunctionVisitor : public DfsVisitorWithDefault {
     }
     XLS_ASSIGN_OR_RETURN(Node * param,
                          non_synth_function_->MakeNodeWithName<Param>(
-                             state_read->loc(), inp->GetType(), param_name));
+                             state_read->loc().Extend(non_synth_loc_),
+                             inp->GetType(), param_name));
     // Restore the tokens. Just use literal token for all of them.
-    XLS_ASSIGN_OR_RETURN(Node * token, non_synth_function_->MakeNode<Literal>(
-                                           param->loc(), Value::Token()));
+    XLS_ASSIGN_OR_RETURN(
+        Node * token, non_synth_function_->MakeNode<Literal>(
+                          param->loc().Extend(non_synth_loc_), Value::Token()));
+
     for (absl::Span<int64_t const> indices : iter::reversed(removed_tokens)) {
       XLS_ASSIGN_OR_RETURN(param, InsertIntoTuple(param, token, indices));
     }
@@ -226,8 +255,28 @@ class CloneProcAsFunctionVisitor : public DfsVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  // Do not transfer the next node to the new function.
-  absl::Status HandleNext(Next* next) override { return absl::OkStatus(); }
+  // Do not transfer the next node to the new function. We do need to hook up
+  // the next_value for the non-synth state element however.
+  absl::Status HandleNext(Next* next) override {
+    XLS_RET_CHECK(
+        non_synth_reads_map_.contains(next->state_read()->As<StateRead>()))
+        << "Did not create a non_synth state read for " << next;
+    XLS_RET_CHECK(non_synth_element_map_.contains(
+        next->state_read()->As<StateRead>()->state_element()))
+        << "Did not create a non_synth state element for " << next;
+    StateRead* non_synth =
+        non_synth_reads_map_[next->state_read()->As<StateRead>()];
+    std::string non_synth_name =
+        next->HasAssignedName()
+            ? absl::StrFormat("%s_non_synth", next->GetNameView())
+            : "";
+    XLS_RETURN_IF_ERROR(
+        next->function_base()
+            ->MakeNodeWithName<Next>(next->loc(), non_synth, next->value(),
+                                     next->predicate(), non_synth_name)
+            .status());
+    return absl::OkStatus();
+  }
 
   // Clone all other nodes to the new function.
   absl::Status DefaultHandler(Node* node) override {
@@ -238,6 +287,7 @@ class CloneProcAsFunctionVisitor : public DfsVisitorWithDefault {
     XLS_ASSIGN_OR_RETURN(
         Node * new_node,
         node->CloneInNewFunction(new_operands, non_synth_function_));
+    new_node->SetLoc(new_node->loc().Extend(non_synth_loc_));
     node_map_[node] = new_node;
     return absl::OkStatus();
   }
@@ -246,9 +296,27 @@ class CloneProcAsFunctionVisitor : public DfsVisitorWithDefault {
   std::vector<Node*> args() { return args_; }
 
  private:
+  absl::StatusOr<StateElement*> GetOrAddNonSynthStateElement(
+      Proc* proc, StateElement* state_element) {
+    if (auto it = non_synth_element_map_.find(state_element);
+        it != non_synth_element_map_.end()) {
+      return it->second;
+    }
+    std::string name = absl::StrCat(state_element->name(), "_non_synth");
+    XLS_ASSIGN_OR_RETURN(
+        StateElement * new_element,
+        proc->AppendUnreadStateElement(name, state_element->initial_value()));
+    new_element->SetNonSynthesizable();
+    non_synth_element_map_[state_element] = new_element;
+    return new_element;
+  }
+
   Function* non_synth_function_;
+  SourceLocation non_synth_loc_;
   absl::flat_hash_map<Node*, Node*> node_map_;
   std::vector<Node*> args_;
+  absl::flat_hash_map<StateElement*, StateElement*> non_synth_element_map_;
+  absl::flat_hash_map<StateRead*, StateRead*> non_synth_reads_map_;
 };
 
 absl::StatusOr<std::pair<Function*, std::vector<Node*>>> CloneProcAsFunction(
@@ -256,7 +324,9 @@ absl::StatusOr<std::pair<Function*, std::vector<Node*>>> CloneProcAsFunction(
     OptimizationContext& context) {
   Function* f =
       p->AddFunction(std::make_unique<Function>(non_synth_function_name, p));
-  CloneProcAsFunctionVisitor clone_function_visitor(f);
+  CloneProcAsFunctionVisitor clone_function_visitor(
+      f, /*loc_name=*/absl::StrFormat(
+          "<Generated non-synthesizable function for %s>", proc->name()));
   for (Node* n : context.TopoSort(proc)) {
     XLS_RETURN_IF_ERROR(n->VisitSingleNode(&clone_function_visitor));
   }
@@ -314,6 +384,7 @@ absl::StatusOr<bool> NonSynthSeparationPass::RunInternal(
       // the proc only nodes as arguments.
       XLS_RETURN_IF_ERROR(
           InsertInvokeInProc(proc, non_synth_function, non_synth_args));
+      XLS_RETURN_IF_ERROR(proc->RebuildSideTables());
     }
     // Replace gate nodes in the non-synthesizable function with equivalent
     // select nodes because gates are special power-optimization nodes that we

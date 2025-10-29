@@ -1938,7 +1938,8 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
     absl::flat_hash_map<std::string, BValue>* name_to_value, Package* package) {
   // Proc definition begins with something like:
   //
-  //   proc foo(tok: token, state0: bits[32], state1: bits[42], init={42, 33}) {
+  //   proc foo(tok: token, state0: bits[32], state1: bits[42], init={42, 33},
+  //            non_synth={state1}) {
   //     ...
   //
   // OR for "new-style" procs with proc-scoped channels:
@@ -2022,6 +2023,25 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
     }
     return absl::OkStatus();
   };
+  absl::flat_hash_set<std::string> non_synthesizable_states;
+  handlers["non_synth"] = [&]() -> absl::Status {
+    // Parse "{state1, state2, ...}"
+    XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kCurlOpen,
+                                                  "start of non_synth_states"));
+    while (!scanner_.TryDropToken(LexicalTokenType::kCurlClose)) {
+      if (!non_synthesizable_states.empty()) {
+        XLS_RETURN_IF_ERROR(
+            scanner_.DropTokenOrError(LexicalTokenType::kComma));
+      }
+      XLS_ASSIGN_OR_RETURN(
+          Token state_name,
+          scanner_.PopTokenOrError(LexicalTokenType::kIdent, "state name"));
+      XLS_RET_CHECK(!non_synthesizable_states.contains(state_name.value()))
+          << "multiple instances of state name: " << state_name.value();
+      non_synthesizable_states.insert(state_name.value());
+    }
+    return absl::OkStatus();
+  };
 
   std::vector<std::string> mandatory_keywords;
   if (!state_params.empty()) {
@@ -2071,6 +2091,12 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
         builder->StateElement(state_params[i].name, init_values[i]);
     (*name_to_value)[state_params[i].name] = param_bvalue;
     param_bvalue.node()->SetId(state_params[i].id.value_or(kUnassignedNodeId));
+    if (non_synthesizable_states.contains(state_params[i].name)) {
+      param_bvalue.node()
+          ->As<StateRead>()
+          ->state_element()
+          ->SetNonSynthesizable();
+    }
   }
 
   return std::move(builder);
