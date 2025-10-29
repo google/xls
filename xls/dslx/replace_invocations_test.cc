@@ -104,10 +104,16 @@ fn caller(x: u32) -> u32 { b(x) + b(x) }
       auto nodes, CollectUnder(caller_new->body(), /*want_types=*/false));
   for (AstNode* n : nodes) {
     auto* inv = dynamic_cast<Invocation*>(n);
-    if (inv == nullptr) continue;
+    if (inv == nullptr) {
+      continue;
+    }
     std::string callee_s = inv->callee()->ToString();
-    if (callee_s == "a") a_uses++;
-    if (callee_s == "b") b_uses++;
+    if (callee_s == "a") {
+      a_uses++;
+    }
+    if (callee_s == "b") {
+      b_uses++;
+    }
   }
   EXPECT_EQ(a_uses, 2);
   EXPECT_EQ(b_uses, 0);
@@ -155,10 +161,16 @@ fn caller() -> (u8, u16) {
       auto nodes, CollectUnder(caller_new->body(), /*want_types=*/false));
   for (AstNode* n : nodes) {
     auto* inv = dynamic_cast<Invocation*>(n);
-    if (inv == nullptr) continue;
+    if (inv == nullptr) {
+      continue;
+    }
     std::string callee_s = inv->callee()->ToString();
-    if (callee_s == "id") id_uses++;
-    if (callee_s == "id2") id2_uses++;
+    if (callee_s == "id") {
+      id_uses++;
+    }
+    if (callee_s == "id2") {
+      id2_uses++;
+    }
   }
   EXPECT_EQ(id2_uses, 1);
   EXPECT_EQ(id_uses, 1);
@@ -266,8 +278,12 @@ fn caller() -> u8 { id<u32:8>(u8:1) }
       auto nodes, CollectUnder(caller_new->body(), /*want_types=*/false));
   for (AstNode* n : nodes) {
     auto* inv = dynamic_cast<Invocation*>(n);
-    if (inv == nullptr) continue;
-    if (inv->callee()->ToString() != "id2") continue;
+    if (inv == nullptr) {
+      continue;
+    }
+    if (inv->callee()->ToString() != "id2") {
+      continue;
+    }
     EXPECT_FALSE(inv->explicit_parametrics().empty());
     num_checked++;
   }
@@ -305,8 +321,12 @@ fn caller() -> u8 { id<u32:8>(u8:1) }
       auto nodes, CollectUnder(caller_new->body(), /*want_types=*/false));
   for (AstNode* n : nodes) {
     auto* inv = dynamic_cast<Invocation*>(n);
-    if (inv == nullptr) continue;
-    if (inv->callee()->ToString() != "id2") continue;
+    if (inv == nullptr) {
+      continue;
+    }
+    if (inv->callee()->ToString() != "id2") {
+      continue;
+    }
     EXPECT_TRUE(inv->explicit_parametrics().empty());
     num_checked++;
   }
@@ -344,7 +364,9 @@ fn caller(x: u32) -> u32 { id(x) }
   int num_id2 = 0;
   for (AstNode* n : nodes) {
     auto* inv = dynamic_cast<Invocation*>(n);
-    if (inv == nullptr) continue;
+    if (inv == nullptr) {
+      continue;
+    }
     if (inv->callee()->ToString() == "id2") {
       EXPECT_TRUE(inv->explicit_parametrics().empty());
       num_id2++;
@@ -383,10 +405,16 @@ fn caller(x: u32) -> u32 { b(x) + b(x) }
       auto nodes, CollectUnder(caller_new->body(), /*want_types=*/false));
   for (AstNode* n : nodes) {
     auto* inv = dynamic_cast<Invocation*>(n);
-    if (inv == nullptr) continue;
+    if (inv == nullptr) {
+      continue;
+    }
     std::string callee_s = inv->callee()->ToString();
-    if (callee_s == "a") a_uses++;
-    if (callee_s == "b") b_uses++;
+    if (callee_s == "a") {
+      a_uses++;
+    }
+    if (callee_s == "b") {
+      b_uses++;
+    }
   }
   EXPECT_EQ(a_uses, 2);
   EXPECT_EQ(b_uses, 0);
@@ -451,10 +479,16 @@ fn caller() -> (u8, u16) {
       auto nodes, CollectUnder(caller_new->body(), /*want_types=*/false));
   for (AstNode* n : nodes) {
     auto* inv = dynamic_cast<Invocation*>(n);
-    if (inv == nullptr) continue;
+    if (inv == nullptr) {
+      continue;
+    }
     std::string callee_s = inv->callee()->ToString();
-    if (callee_s == "id") id_uses++;
-    if (callee_s == "id2") id2_uses++;
+    if (callee_s == "id") {
+      id_uses++;
+    }
+    if (callee_s == "id2") {
+      id2_uses++;
+    }
   }
   EXPECT_EQ(id2_uses, 1);
   EXPECT_EQ(id_uses, 1);
@@ -507,9 +541,13 @@ fn caller(x: u32) -> (u32, u32) {
       auto nodes, CollectUnder(caller_new->body(), /*want_types=*/false));
   for (AstNode* n : nodes) {
     auto* inv = dynamic_cast<Invocation*>(n);
-    if (inv == nullptr) continue;
+    if (inv == nullptr) {
+      continue;
+    }
     std::string callee_s = inv->callee()->ToString();
-    if (callee_s == "f") count_f++;
+    if (callee_s == "f") {
+      count_f++;
+    }
     if (callee_s == "g") {
       count_g++;
       EXPECT_EQ(inv->explicit_parametrics().size(), 1);
@@ -560,9 +598,13 @@ fn caller(x: u32) -> u32 { f<E::B>(x) }
       auto nodes, CollectUnder(caller_new->body(), /*want_types=*/false));
   for (AstNode* n : nodes) {
     auto* inv = dynamic_cast<Invocation*>(n);
-    if (inv == nullptr) continue;
+    if (inv == nullptr) {
+      continue;
+    }
     std::string callee_s = inv->callee()->ToString();
-    if (callee_s == "f") count_f++;
+    if (callee_s == "f") {
+      count_f++;
+    }
     if (callee_s == "g") {
       count_g++;
       EXPECT_EQ(inv->explicit_parametrics().size(), 1);
@@ -700,8 +742,12 @@ fn caller(x: u32) -> u32 { f<base::E::B>(x) }
       auto nodes, CollectUnder(caller_new->body(), /*want_types=*/false));
   for (AstNode* n : nodes) {
     auto* inv = dynamic_cast<Invocation*>(n);
-    if (inv == nullptr) continue;
-    if (inv->callee()->ToString() != "g") continue;
+    if (inv == nullptr) {
+      continue;
+    }
+    if (inv->callee()->ToString() != "g") {
+      continue;
+    }
     EXPECT_EQ(inv->explicit_parametrics().size(), 1);
     // The subject should be a qualified colon ref: base::E::A
     EXPECT_NE(inv->ToString().find("base::E::A"), std::string::npos);
@@ -739,10 +785,14 @@ fn caller() -> (u8, u16) { (id<u32:8>(u8:1), id<u32:16>(u16:2)) }
       auto nodes, CollectUnder(caller_new->body(), /*want_types=*/false));
   for (AstNode* n : nodes) {
     auto* inv = dynamic_cast<Invocation*>(n);
-    if (inv == nullptr) continue;
+    if (inv == nullptr) {
+      continue;
+    }
     if (inv->callee()->ToString() == "id2") {
       id2_uses++;
-      if (!inv->explicit_parametrics().empty()) with_explicit++;
+      if (!inv->explicit_parametrics().empty()) {
+        with_explicit++;
+      }
     }
   }
   EXPECT_EQ(id2_uses, 2);
@@ -782,10 +832,14 @@ fn caller() -> (u8, u16) {
       auto nodes, CollectUnder(caller_new->body(), /*want_types=*/false));
   for (AstNode* n : nodes) {
     auto* inv = dynamic_cast<Invocation*>(n);
-    if (inv == nullptr) continue;
+    if (inv == nullptr) {
+      continue;
+    }
     if (inv->callee()->ToString() == "id2") {
       id2_uses++;
-      if (!inv->explicit_parametrics().empty()) num_with_params++;
+      if (!inv->explicit_parametrics().empty()) {
+        num_with_params++;
+      }
     }
   }
   EXPECT_EQ(id2_uses, 2);
@@ -826,8 +880,12 @@ fn caller(x: u32) -> u32 { f<u32:1>(x) }
       auto nodes, CollectUnder(caller_new->body(), /*want_types=*/false));
   for (AstNode* n : nodes) {
     auto* inv = dynamic_cast<Invocation*>(n);
-    if (inv == nullptr) continue;
-    if (inv->callee()->ToString() != "g") continue;
+    if (inv == nullptr) {
+      continue;
+    }
+    if (inv->callee()->ToString() != "g") {
+      continue;
+    }
     EXPECT_EQ(inv->explicit_parametrics().size(), 1);
     EXPECT_NE(inv->ToString().find("u32:8"), std::string::npos);
     num_checked++;
@@ -868,10 +926,16 @@ fn caller() -> u32 { id<u32:1, u32:2>(u32:0) }
       auto nodes, CollectUnder(caller_new->body(), /*want_types=*/false));
   for (AstNode* n : nodes) {
     auto* inv = dynamic_cast<Invocation*>(n);
-    if (inv == nullptr) continue;
+    if (inv == nullptr) {
+      continue;
+    }
     std::string s = inv->callee()->ToString();
-    if (s == "id") id_uses++;
-    if (s == "id2") id2_uses++;
+    if (s == "id") {
+      id_uses++;
+    }
+    if (s == "id2") {
+      id2_uses++;
+    }
   }
   EXPECT_EQ(id_uses, 0);
   EXPECT_EQ(id2_uses, 1);
@@ -1000,11 +1064,19 @@ fn caller2(x: u32) -> u32 { f(x) + h(x) }
                              CollectUnder(c->body(), /*want_types=*/false));
     for (AstNode* n : nodes) {
       auto* inv = dynamic_cast<Invocation*>(n);
-      if (inv == nullptr) continue;
+      if (inv == nullptr) {
+        continue;
+      }
       std::string s = inv->callee()->ToString();
-      if (s == "f") f_uses++;
-      if (s == "g") g_uses++;
-      if (s == "h") h_uses++;
+      if (s == "f") {
+        f_uses++;
+      }
+      if (s == "g") {
+        g_uses++;
+      }
+      if (s == "h") {
+        h_uses++;
+      }
     }
     EXPECT_EQ(f_uses, expect_f);
     EXPECT_EQ(g_uses, expect_g);
@@ -1063,11 +1135,19 @@ fn caller2() -> (u16, u8) { (id<u32:16>(u16:3), id<u32:8>(u8:4)) }
     auto nodes = nodes_or.value();
     for (AstNode* n : nodes) {
       auto* inv = dynamic_cast<Invocation*>(n);
-      if (inv == nullptr) continue;
+      if (inv == nullptr) {
+        continue;
+      }
       std::string s = inv->callee()->ToString();
-      if (s == "id") id_uses++;
-      if (s == "id2") id2_uses++;
-      if (s == "id3") id3_uses++;
+      if (s == "id") {
+        id_uses++;
+      }
+      if (s == "id2") {
+        id2_uses++;
+      }
+      if (s == "id3") {
+        id3_uses++;
+      }
     }
     return std::tuple<int, int, int>{id_uses, id2_uses, id3_uses};
   };
@@ -1124,8 +1204,12 @@ fn caller(x: u32) -> u32 { f<Alias::B>(x) }
       auto nodes, CollectUnder(caller_new->body(), /*want_types=*/false));
   for (AstNode* n : nodes) {
     auto* inv = dynamic_cast<Invocation*>(n);
-    if (inv == nullptr) continue;
-    if (inv->callee()->ToString() != "g") continue;
+    if (inv == nullptr) {
+      continue;
+    }
+    if (inv->callee()->ToString() != "g") {
+      continue;
+    }
     EXPECT_EQ(inv->explicit_parametrics().size(), 1);
     EXPECT_NE(inv->ToString().find("Alias::A"), std::string::npos);
     num_checked++;
@@ -1210,8 +1294,12 @@ fn caller(x: u32) -> u32 { f<Alias::B>(x) }
       auto nodes, CollectUnder(caller_new->body(), /*want_types=*/false));
   for (AstNode* n : nodes) {
     auto* inv = dynamic_cast<Invocation*>(n);
-    if (inv == nullptr) continue;
-    if (inv->callee()->ToString() != "g") continue;
+    if (inv == nullptr) {
+      continue;
+    }
+    if (inv->callee()->ToString() != "g") {
+      continue;
+    }
     EXPECT_EQ(inv->explicit_parametrics().size(), 1);
     EXPECT_NE(inv->ToString().find("Alias::A"), std::string::npos);
     num_checked++;
@@ -1282,8 +1370,12 @@ fn caller(x: u32) -> u32 { f<base::E::B>(x) }
       auto nodes, CollectUnder(caller_new->body(), /*want_types=*/false));
   for (AstNode* n : nodes) {
     auto* inv = dynamic_cast<Invocation*>(n);
-    if (inv == nullptr) continue;
-    if (inv->callee()->ToString() != "g") continue;
+    if (inv == nullptr) {
+      continue;
+    }
+    if (inv->callee()->ToString() != "g") {
+      continue;
+    }
     EXPECT_EQ(inv->explicit_parametrics().size(), 1);
     EXPECT_NE(inv->ToString().find("E::A"), std::string::npos);
     num_checked++;
