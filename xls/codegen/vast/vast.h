@@ -267,7 +267,7 @@ class ScalarType final : public DataType {
   bool is_signed_;
 };
 
-// Represents an integer type. Example:
+// Represents an `integer` type (4-value integer type). Example:
 //   integer foo;
 class IntegerType final : public DataType {
  public:
@@ -291,8 +291,8 @@ class IntegerType final : public DataType {
   bool is_signed_;
 };
 
-// Represents an integer type. Example:
-//   integer foo;
+// Represents an `int` type (2-value integer value). Example:
+//   int foo;
 class IntType final : public DataType {
  public:
   IntType(bool is_signed, VerilogFile* file, const SourceInfo& loc)
