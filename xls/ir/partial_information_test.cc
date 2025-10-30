@@ -184,5 +184,25 @@ TEST(PartialInformationTest, ExtremelyCloseImpossibleCombination) {
   EXPECT_TRUE(info.IsImpossible());
 }
 
+// Found by fuzzing; shifting left by an unknown amount bounded away from zero
+// should identify that some trailing bits are zero, while shifting right by an
+// unknown amount bounded away from zero should correctly identify that some
+// leading bits are zero. (Previous bug caused us to instead claim that some
+// trailing bits were zero in the right-shift case too.)
+TEST(PartialInformationTest, Shifts) {
+  PartialInformation x = PartialInformation::Precise(Bits::AllOnes(128));
+  PartialInformation y(IntervalSet::Of({Interval(UBits(2, 8), UBits(255, 8))}));
+
+  TernaryVector expected_shll(128, TernaryValue::kUnknown);
+  expected_shll[0] = TernaryValue::kKnownZero;
+  expected_shll[1] = TernaryValue::kKnownZero;
+  EXPECT_EQ(x.Shll(y), PartialInformation(expected_shll));
+
+  TernaryVector expected_shrl(128, TernaryValue::kUnknown);
+  expected_shrl[127] = TernaryValue::kKnownZero;
+  expected_shrl[126] = TernaryValue::kKnownZero;
+  EXPECT_EQ(x.Shrl(y), PartialInformation(expected_shrl));
+}
+
 }  // namespace
 }  // namespace xls

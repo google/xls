@@ -438,10 +438,13 @@ std::optional<TernaryVector> ShiftTernary(TernaryVector original,
         shift_range.LowerBound()->IsZero()) {
       return std::nullopt;
     }
-    return ShiftTernary(
-        TernaryVector(original.size(), TernaryValue::kUnknown),
-        bits_ops::UnsignedBitsToSaturatedInt64(*shift_range.LowerBound()),
-        fill_value);
+    int64_t min_shift =
+        bits_ops::UnsignedBitsToSaturatedInt64(*shift_range.LowerBound());
+    if (direction == ShiftDirection::kRight) {
+      min_shift = -min_shift;
+    }
+    return ShiftTernary(TernaryVector(original.size(), TernaryValue::kUnknown),
+                        min_shift, fill_value);
   }
 
   TernaryVector result;
