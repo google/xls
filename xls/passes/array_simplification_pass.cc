@@ -1638,11 +1638,11 @@ absl::StatusOr<SimplifyResult> SimplifyArraySlice(
   IntervalSet start_bound =
       query_engine.GetIntervals(array_slice->start()).Get({});
   if (start_bound.IsPrecise() &&
-      start_bound.GetPreciseValue()->FitsInNBitsSigned(63)) {
+      start_bound.GetPreciseValue()->FitsInInt64Unsigned()) {
     std::vector<Node*> elements;
     elements.reserve(array_slice->GetType()->AsArrayOrDie()->size());
     XLS_ASSIGN_OR_RETURN(int64_t start,
-                         start_bound.GetPreciseValue()->ToUint64());
+                         start_bound.GetPreciseValue()->UnsignedToInt64());
     for (int64_t i = 0;
          i < array_slice->width() &&
          start + i < array_slice->array()->GetType()->AsArrayOrDie()->size();
