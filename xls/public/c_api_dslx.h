@@ -110,6 +110,27 @@ bool xls_dslx_parametric_env_create(
     const struct xls_dslx_parametric_env_item* items, size_t items_count,
     char** error_out, struct xls_dslx_parametric_env** env_out);
 
+// Clones an existing parametric environment.
+struct xls_dslx_parametric_env* xls_dslx_parametric_env_clone(
+    const struct xls_dslx_parametric_env* env);
+
+// Returns whether the given parametric environments are equal.
+bool xls_dslx_parametric_env_equals(const struct xls_dslx_parametric_env* lhs,
+                                    const struct xls_dslx_parametric_env* rhs);
+
+// Returns true if lhs is lexicographically less than rhs.
+bool xls_dslx_parametric_env_less_than(
+    const struct xls_dslx_parametric_env* lhs,
+    const struct xls_dslx_parametric_env* rhs);
+
+// Computes a 64-bit hash value for the given parametric environment.
+uint64_t xls_dslx_parametric_env_hash(
+    const struct xls_dslx_parametric_env* env);
+
+// Returns a newly allocated string describing the parametric environment.
+char* xls_dslx_parametric_env_to_string(
+    const struct xls_dslx_parametric_env* env);
+
 // Frees a previously created parametric environment.
 void xls_dslx_parametric_env_free(struct xls_dslx_parametric_env*);
 
@@ -135,6 +156,10 @@ bool xls_dslx_interp_value_make_tuple(
 bool xls_dslx_interp_value_make_array(
     size_t element_count, struct xls_dslx_interp_value** elements,
     char** error_out, struct xls_dslx_interp_value** result_out);
+
+// Clones an InterpValue.
+struct xls_dslx_interp_value* xls_dslx_interp_value_clone(
+    const struct xls_dslx_interp_value* value);
 
 // Parses an InterpValue from DSLX text using the parser/evaluator.
 bool xls_dslx_interp_value_from_string(
@@ -261,6 +286,9 @@ int64_t xls_dslx_module_get_type_definition_count(
 
 // Note: return value is owned by the caller, free via `xls_c_str_free`.
 char* xls_dslx_module_get_name(struct xls_dslx_module*);
+
+// Note: return value is owned by the caller, free via `xls_c_str_free`.
+char* xls_dslx_module_to_string(struct xls_dslx_module* module);
 
 xls_dslx_type_definition_kind xls_dslx_module_get_type_definition_kind(
     struct xls_dslx_module* module, int64_t i);
@@ -393,7 +421,7 @@ char* xls_dslx_type_alias_to_string(struct xls_dslx_type_alias*);
 // Note: return value is owned by the caller, free via `xls_c_str_free`.
 char* xls_dslx_interp_value_to_string(struct xls_dslx_interp_value*);
 
-bool xls_dslx_interp_value_convert_to_ir(struct xls_dslx_interp_value* v,
+bool xls_dslx_interp_value_convert_to_ir(const struct xls_dslx_interp_value* v,
                                          char** error_out,
                                          struct xls_value** result_out);
 

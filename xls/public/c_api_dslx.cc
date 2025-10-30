@@ -14,6 +14,7 @@
 
 #include "xls/public/c_api_dslx.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -25,6 +26,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/hash/hash.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -106,6 +108,66 @@ bool xls_dslx_parametric_env_create(
   *env_out = reinterpret_cast<xls_dslx_parametric_env*>(
       new xls::dslx::ParametricEnv(absl::MakeSpan(v)));
   return true;
+}
+
+struct xls_dslx_parametric_env* xls_dslx_parametric_env_clone(
+    const struct xls_dslx_parametric_env* env) {
+  CHECK(env != nullptr);
+  const auto* cpp_env = reinterpret_cast<const xls::dslx::ParametricEnv*>(env);
+  auto* heap = new xls::dslx::ParametricEnv(*cpp_env);
+  return reinterpret_cast<xls_dslx_parametric_env*>(heap);
+}
+
+bool xls_dslx_parametric_env_equals(const struct xls_dslx_parametric_env* lhs,
+                                    const struct xls_dslx_parametric_env* rhs) {
+  CHECK(lhs != nullptr);
+  CHECK(rhs != nullptr);
+  const auto* cpp_lhs = reinterpret_cast<const xls::dslx::ParametricEnv*>(lhs);
+  const auto* cpp_rhs = reinterpret_cast<const xls::dslx::ParametricEnv*>(rhs);
+  return *cpp_lhs == *cpp_rhs;
+}
+
+bool xls_dslx_parametric_env_less_than(
+    const struct xls_dslx_parametric_env* lhs,
+    const struct xls_dslx_parametric_env* rhs) {
+  CHECK(lhs != nullptr);
+  CHECK(rhs != nullptr);
+  const auto* cpp_lhs = reinterpret_cast<const xls::dslx::ParametricEnv*>(lhs);
+  const auto* cpp_rhs = reinterpret_cast<const xls::dslx::ParametricEnv*>(rhs);
+  const auto& lhs_bindings = cpp_lhs->bindings();
+  const auto& rhs_bindings = cpp_rhs->bindings();
+  const int64_t common = std::min(lhs_bindings.size(), rhs_bindings.size());
+  for (int64_t i = 0; i < common; ++i) {
+    const auto& lhs_item = lhs_bindings[i];
+    const auto& rhs_item = rhs_bindings[i];
+    if (lhs_item.identifier < rhs_item.identifier) {
+      return true;
+    }
+    if (rhs_item.identifier < lhs_item.identifier) {
+      return false;
+    }
+    if (lhs_item.value < rhs_item.value) {
+      return true;
+    }
+    if (rhs_item.value < lhs_item.value) {
+      return false;
+    }
+  }
+  return lhs_bindings.size() < rhs_bindings.size();
+}
+
+uint64_t xls_dslx_parametric_env_hash(
+    const struct xls_dslx_parametric_env* env) {
+  CHECK(env != nullptr);
+  const auto* cpp_env = reinterpret_cast<const xls::dslx::ParametricEnv*>(env);
+  return static_cast<uint64_t>(absl::HashOf(*cpp_env));
+}
+
+char* xls_dslx_parametric_env_to_string(
+    const struct xls_dslx_parametric_env* env) {
+  CHECK(env != nullptr);
+  const auto* cpp_env = reinterpret_cast<const xls::dslx::ParametricEnv*>(env);
+  return xls::ToOwnedCString(cpp_env->ToString());
 }
 
 void xls_dslx_parametric_env_free(struct xls_dslx_parametric_env* env) {
@@ -201,6 +263,15 @@ bool xls_dslx_interp_value_make_array(
   *result_out = reinterpret_cast<xls_dslx_interp_value*>(
       new xls::dslx::InterpValue(std::move(*arr)));
   return true;
+}
+
+struct xls_dslx_interp_value* xls_dslx_interp_value_clone(
+    const struct xls_dslx_interp_value* value) {
+  CHECK(value != nullptr);
+  const auto* cpp_interp_value =
+      reinterpret_cast<const xls::dslx::InterpValue*>(value);
+  auto* heap = new xls::dslx::InterpValue(*cpp_interp_value);
+  return reinterpret_cast<xls_dslx_interp_value*>(heap);
 }
 
 struct xls_dslx_import_data* xls_dslx_import_data_create(
@@ -617,6 +688,11 @@ char* xls_dslx_module_get_name(struct xls_dslx_module* module) {
   return xls::ToOwnedCString(result);
 }
 
+char* xls_dslx_module_to_string(struct xls_dslx_module* module) {
+  auto* cpp_module = reinterpret_cast<xls::dslx::Module*>(module);
+  return xls::ToOwnedCString(cpp_module->ToString());
+}
+
 struct xls_dslx_struct_def* xls_dslx_module_get_type_definition_as_struct_def(
     struct xls_dslx_module* module, int64_t i) {
   auto* cpp_module = reinterpret_cast<xls::dslx::Module*>(module);
@@ -970,10 +1046,11 @@ void xls_dslx_interp_value_free(struct xls_dslx_interp_value* v) {
   delete cpp_interp_value;
 }
 
-bool xls_dslx_interp_value_convert_to_ir(struct xls_dslx_interp_value* v,
+bool xls_dslx_interp_value_convert_to_ir(const struct xls_dslx_interp_value* v,
                                          char** error_out,
                                          struct xls_value** result_out) {
-  auto* cpp_interp_value = reinterpret_cast<xls::dslx::InterpValue*>(v);
+  const auto* cpp_interp_value =
+      reinterpret_cast<const xls::dslx::InterpValue*>(v);
   absl::StatusOr<xls::Value> ir_value = cpp_interp_value->ConvertToIr();
   if (!ir_value.ok()) {
     *error_out = xls::ToOwnedCString(ir_value.status().ToString());
