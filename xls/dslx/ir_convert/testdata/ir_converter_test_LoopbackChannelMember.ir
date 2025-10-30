@@ -6,11 +6,9 @@ top proc __test_module__main_0_next<>(__state: (), init={()}) {
   chan data_0(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
   chan_interface data_0(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
   chan_interface data_0(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
-  data_0: bits[32] = send_channel_end(id=4)
-  data_0__1: bits[32] = recv_channel_end(id=5)
   __state: () = state_read(state_element=__state, id=2)
   __token: token = literal(value=token, id=1)
   literal.3: bits[1] = literal(value=1, id=3)
-  tuple.6: (bits[32], bits[32]) = tuple(data_0, data_0__1, id=6)
-  next_value.7: () = next_value(param=__state, value=__state, id=7)
+  tuple.4: () = tuple(id=4)
+  next_value.5: () = next_value(param=__state, value=__state, id=5)
 }

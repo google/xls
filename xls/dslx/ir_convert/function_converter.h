@@ -278,6 +278,7 @@ class FunctionConverter {
   absl::StatusOr<BValue> Use(const AstNode* node) const;
 
   void SetNodeToIr(const AstNode* node, IrValue value);
+  void SetNodeToChannelOrArray(const AstNode* node, ChannelOrArray value);
   std::optional<IrValue> GetNodeToIr(const AstNode* node) const;
 
   // Returns the constant value corresponding to the IrValue of "node", or
