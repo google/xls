@@ -38,6 +38,7 @@
 #include "absl/types/variant.h"
 #include "xls/codegen/vast/verilog_keywords.h"
 #include "xls/common/indent.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/ir/bits_ops.h"
@@ -729,37 +730,49 @@ LogicRef* Module::AddPortDef(ModulePortDirection direction, Def* def,
 }
 
 LogicRef* Module::AddInputInternal(std::string_view name, DataType* type,
-                                   const SourceInfo& loc) {
-  return AddPortDef(
-      ModulePortDirection::kInput,
-      type->IsUserDefined()
-          ? static_cast<Def*>(file()->Make<UserDefinedDef>(loc, name, type))
-          : static_cast<Def*>(file()->Make<WireDef>(loc, name, type)),
-      loc);
+                                   DataKind data_kind, const SourceInfo& loc) {
+  Def* def;
+  if (type->IsUserDefined()) {
+    def = static_cast<Def*>(file()->Make<UserDefinedDef>(loc, name, type));
+  } else if (data_kind == DataKind::kWire) {
+    def = static_cast<Def*>(file()->Make<WireDef>(loc, name, type));
+  } else {
+    CHECK_EQ(data_kind, DataKind::kLogic);
+    def = static_cast<Def*>(file()->Make<LogicDef>(loc, name, type));
+  }
+  return AddPortDef(ModulePortDirection::kInput, def, loc);
 }
 
 LogicRef* Module::AddOutputInternal(std::string_view name, DataType* type,
-                                    const SourceInfo& loc) {
-  return AddPortDef(
-      ModulePortDirection::kOutput,
-      type->IsUserDefined()
-          ? static_cast<Def*>(file()->Make<UserDefinedDef>(loc, name, type))
-          : static_cast<Def*>(file()->Make<WireDef>(loc, name, type)),
-      loc);
+                                    DataKind data_kind, const SourceInfo& loc) {
+  Def* def;
+  if (type->IsUserDefined()) {
+    def = static_cast<Def*>(file()->Make<UserDefinedDef>(loc, name, type));
+  } else if (data_kind == DataKind::kWire) {
+    def = static_cast<Def*>(file()->Make<WireDef>(loc, name, type));
+  } else {
+    CHECK_EQ(data_kind, DataKind::kLogic);
+    def = static_cast<Def*>(file()->Make<LogicDef>(loc, name, type));
+  }
+  return AddPortDef(ModulePortDirection::kOutput, def, loc);
 }
 
 absl::StatusOr<LogicRef*> Module::AddInput(std::string_view name,
                                            DataType* type,
-                                           const SourceInfo& loc) {
+                                           const SourceInfo& loc,
+                                           DataKind data_kind) {
+  XLS_RET_CHECK(data_kind == DataKind::kWire || data_kind == DataKind::kLogic);
   XLS_RETURN_IF_ERROR(NoteDefined(&defined_names_, name, "input"));
-  return AddInputInternal(name, type, loc);
+  return AddInputInternal(name, type, data_kind, loc);
 }
 
 absl::StatusOr<LogicRef*> Module::AddOutput(std::string_view name,
                                             DataType* type,
-                                            const SourceInfo& loc) {
+                                            const SourceInfo& loc,
+                                            DataKind data_kind) {
+  XLS_RET_CHECK(data_kind == DataKind::kWire || data_kind == DataKind::kLogic);
   XLS_RETURN_IF_ERROR(NoteDefined(&defined_names_, name, "output"));
-  return AddOutputInternal(name, type, loc);
+  return AddOutputInternal(name, type, data_kind, loc);
 }
 
 LogicRef* Module::AddRegInternal(std::string_view name, DataType* type,
@@ -794,6 +807,17 @@ absl::StatusOr<LogicRef*> Module::AddWire(std::string_view name, DataType* type,
                                           ModuleSection* section) {
   XLS_RETURN_IF_ERROR(NoteDefined(&defined_names_, name, "wire"));
   return AddWireInternal(name, type, loc, section);
+}
+
+absl::StatusOr<LogicRef*> Module::AddLogic(std::string_view name,
+                                           DataType* type,
+                                           const SourceInfo& loc,
+                                           ModuleSection* section) {
+  XLS_RETURN_IF_ERROR(NoteDefined(&defined_names_, name, "logic"));
+  if (section == nullptr) {
+    section = &top_;
+  }
+  return file()->Make<LogicRef>(loc, section->Add<LogicDef>(loc, name, type));
 }
 
 LogicRef* Module::AddWireInternal(std::string_view name, DataType* type,

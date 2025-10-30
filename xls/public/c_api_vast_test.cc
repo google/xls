@@ -23,8 +23,8 @@
 #include <utility>
 #include <vector>
 
-#include "gtest/gtest.h"
 #include "absl/cleanup/cleanup.h"
+#include "gtest/gtest.h"
 #include "xls/public/c_api.h"
 #include "xls/public/c_api_format_preference.h"
 
@@ -1034,6 +1034,83 @@ endmodule
 
 INSTANTIATE_TEST_SUITE_P(VastSequentialBlockTestSuite, VastSequentialBlockTest,
                          testing::Bool());
+
+TEST(XlsCApiTest, VastAlwaysComb) {
+  xls_vast_verilog_file* f =
+      xls_vast_make_verilog_file(xls_vast_file_type_system_verilog);
+  ASSERT_NE(f, nullptr);
+  absl::Cleanup free_file([&] { xls_vast_verilog_file_free(f); });
+
+  xls_vast_verilog_module* m =
+      xls_vast_verilog_file_add_module(f, "test_module");
+  ASSERT_NE(m, nullptr);
+
+  xls_vast_data_type* scalar_type = xls_vast_verilog_file_make_scalar_type(f);
+  ASSERT_NE(scalar_type, nullptr);
+  xls_vast_logic_ref* a_ref =
+      xls_vast_verilog_module_add_logic_input(m, "a", scalar_type);
+  ASSERT_NE(a_ref, nullptr);
+  xls_vast_logic_ref* b_ref =
+      xls_vast_verilog_module_add_logic_output(m, "b", scalar_type);
+  ASSERT_NE(b_ref, nullptr);
+
+  char* error_out = nullptr;
+  xls_vast_data_type* u32 =
+      xls_vast_verilog_file_make_bit_vector_type(f, 32, /*is_signed=*/false);
+  ASSERT_NE(u32, nullptr);
+  xls_vast_logic_ref* c_ref =
+      xls_vast_verilog_module_add_logic_input(m, "c", u32);
+  ASSERT_NE(c_ref, nullptr);
+  xls_vast_logic_ref* tmp_ref = nullptr;
+  ASSERT_TRUE(
+      xls_vast_verilog_module_add_logic(m, "tmp", u32, &tmp_ref, &error_out));
+  ASSERT_EQ(error_out, nullptr);
+  ASSERT_NE(tmp_ref, nullptr);
+
+  xls_vast_always_base* always_comb_block = nullptr;
+  ASSERT_TRUE(xls_vast_verilog_module_add_always_comb(m, &always_comb_block,
+                                                      &error_out));
+  ASSERT_EQ(error_out, nullptr);
+  ASSERT_NE(always_comb_block, nullptr);
+
+  xls_vast_statement_block* stmt_block =
+      xls_vast_always_base_get_statement_block(always_comb_block);
+  ASSERT_NE(stmt_block, nullptr);
+  xls_vast_expression* a_expr = xls_vast_logic_ref_as_expression(a_ref);
+  ASSERT_NE(a_expr, nullptr);
+  xls_vast_expression* b_expr = xls_vast_logic_ref_as_expression(b_ref);
+  ASSERT_NE(b_expr, nullptr);
+  xls_vast_expression* c_expr = xls_vast_logic_ref_as_expression(c_ref);
+  ASSERT_NE(c_expr, nullptr);
+  xls_vast_expression* tmp_expr = xls_vast_logic_ref_as_expression(tmp_ref);
+  ASSERT_NE(tmp_expr, nullptr);
+  xls_vast_statement* assign_stmt =
+      xls_vast_statement_block_add_blocking_assignment(stmt_block, a_expr,
+                                                       b_expr);
+  ASSERT_NE(assign_stmt, nullptr);
+  xls_vast_statement* assign_tmp_to_c =
+      xls_vast_statement_block_add_blocking_assignment(stmt_block, tmp_expr,
+                                                       c_expr);
+  ASSERT_NE(assign_tmp_to_c, nullptr);
+
+  char* emitted = xls_vast_verilog_file_emit(f);
+  ASSERT_NE(emitted, nullptr);
+  absl::Cleanup free_emitted([&] { xls_c_str_free(emitted); });
+
+  const std::string_view kWant = R"(module test_module(
+  input logic a,
+  output logic b,
+  input logic [31:0] c
+);
+  logic [31:0] tmp;
+  always_comb begin
+    a = b;
+    tmp = c;
+  end
+endmodule
+)";
+  EXPECT_EQ(std::string_view{emitted}, kWant);
+}
 
 // Tests enumeration and inspection of module ports.
 TEST(XlsCApiTest, VastModulePortEnumerationAndInspection) {
