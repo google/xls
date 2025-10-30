@@ -349,6 +349,15 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     return DefaultHandler(tp);
   }
 
+  absl::Status HandleUnrollFor(const UnrollFor* unroll_for) override {
+    std::optional<Expr*> unrolled =
+        type_info_->GetUnrolledLoop(unroll_for, ParametricEnv());
+    if (unrolled.has_value()) {
+      return unrolled.value()->Accept(this);
+    }
+    return absl::OkStatus();
+  }
+
   absl::Status DefaultHandler(const AstNode* node) override {
     for (auto child : node->GetChildren(false)) {
       XLS_RETURN_IF_ERROR(child->Accept(this));
