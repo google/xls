@@ -601,8 +601,18 @@ def _xls_dslx_prove_quickcheck_test_impl(ctx):
         ),
     ]
 
-xls_dslx_test = rule(
-    doc = """A dslx test executes the tests and quick checks of a DSLX source file.
+_xls_dslx_test = rule(
+    implementation = _xls_dslx_test_impl,
+    attrs = dicts.add(
+        xls_dslx_library_as_input_attrs,
+        xls_dslx_test_common_attrs,
+        dicts.pick(xls_toolchain_attrs, ["_xls_dslx_interpreter_tool"]),
+    ),
+    test = True,
+)
+
+def xls_dslx_test(**kwargs):
+    """A dslx test executes the tests and quick checks of a DSLX source file.
 
 Examples:
 
@@ -634,18 +644,25 @@ Examples:
         library = "b_dslx",
     )
     ```
-    """,
-    implementation = _xls_dslx_test_impl,
+    """
+    tags = kwargs.get("tags", [])
+
+    # Only makes sense to run in opt and no-*san mode.
+    kwargs["tags"] = list(tags) + ["optonly", "noasan", "nomsan"]
+    _xls_dslx_test(**kwargs)
+
+_xls_dslx_prove_quickcheck_test = rule(
+    implementation = _xls_dslx_prove_quickcheck_test_impl,
     attrs = dicts.add(
         xls_dslx_library_as_input_attrs,
-        xls_dslx_test_common_attrs,
-        dicts.pick(xls_toolchain_attrs, ["_xls_dslx_interpreter_tool"]),
+        xls_dslx_prove_quickcheck_test_common_attrs,
+        dicts.pick(xls_toolchain_attrs, ["_xls_dslx_prove_quickcheck_tool"]),
     ),
     test = True,
 )
 
-xls_dslx_prove_quickcheck_test = rule(
-    doc = """Attempts to prove DSLX quickcheck properties with a SAT solver.
+def xls_dslx_prove_quickcheck_test(**kwargs):
+    """Attempts to prove DSLX quickcheck properties with a SAT solver.
 
 Examples:
 
@@ -677,15 +694,12 @@ Examples:
         library = "b_dslx",
     )
     ```
-    """,
-    implementation = _xls_dslx_prove_quickcheck_test_impl,
-    attrs = dicts.add(
-        xls_dslx_library_as_input_attrs,
-        xls_dslx_prove_quickcheck_test_common_attrs,
-        dicts.pick(xls_toolchain_attrs, ["_xls_dslx_prove_quickcheck_tool"]),
-    ),
-    test = True,
-)
+    """
+    tags = kwargs.get("tags", [])
+
+    # Only makes sense to run in opt and no-*san mode.
+    kwargs["tags"] = list(tags) + ["optonly", "noasan", "nomsan"]
+    _xls_dslx_prove_quickcheck_test(**kwargs)
 
 def _xls_dslx_generate_cpp_type_files_impl(ctx):
     """The implementation of the 'xls_dslx_generate_cpp_sources' rule.
