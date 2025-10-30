@@ -73,6 +73,8 @@ ProcConfigIrConverter::ProcConfigIrConverter(Function* f, TypeInfo* type_info,
       bindings_(bindings),
       proc_id_(proc_id),
       final_tuple_(nullptr) {
+  VLOG(4) << "ProcConfigIrConverter::Ctor: type_info"
+          << type_info->GetTypeInfoTreeString();
   proc_data->id_to_members[proc_id_] = {};
 }
 
@@ -267,6 +269,9 @@ absl::Status ProcConfigIrConverter::HandleSpawn(const Spawn* node) {
   if (!node->next()->args().empty()) {
     // Note: warning_collector is nullptr since all warnings should have been
     // flagged in typechecking.
+    VLOG(4) << "ProcConfigIrConverter::HandleSpawn : evaluating init "
+            << node->next()->args()[0]->ToString() << " type_info_ "
+            << type_info_->GetTypeInfoTreeString();
     XLS_ASSIGN_OR_RETURN(
         InterpValue value,
         ConstexprEvaluator::EvaluateToValue(

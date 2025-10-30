@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_DSLX_IR_CONVERSION_RECORD_H_
-#define XLS_DSLX_IR_CONVERSION_RECORD_H_
+#ifndef XLS_DSLX_IR_CONVERT_CONVERSION_RECORD_H_
+#define XLS_DSLX_IR_CONVERT_CONVERSION_RECORD_H_
 
 #include <memory>
 #include <optional>
@@ -50,8 +50,8 @@ class ConversionRecord {
   // Note: performs ValidateParametrics() to potentially return an error status.
   static absl::StatusOr<ConversionRecord> Make(
       Function* f, const Invocation* invocation, Module* module,
-      TypeInfo* type_info, ParametricEnv parametric_env,
-      std::optional<ProcId> proc_id, bool is_top,
+      TypeInfo* type_info, TypeInfo* invocation_type_info,
+      ParametricEnv parametric_env, std::optional<ProcId> proc_id, bool is_top,
       std::unique_ptr<ConversionRecord> config_record = nullptr);
 
   // Integrity-checks that the parametric_env provided are sufficient to
@@ -64,6 +64,7 @@ class ConversionRecord {
   const Invocation* invocation() const { return invocation_; }
   Module* module() const { return module_; }
   TypeInfo* type_info() const { return type_info_; }
+  TypeInfo* invocation_type_info() const { return invocation_type_info_; }
   const ParametricEnv& parametric_env() const { return parametric_env_; }
   std::optional<ProcId> proc_id() const { return proc_id_; }
   bool IsTop() const { return is_top_; }
@@ -73,13 +74,14 @@ class ConversionRecord {
 
  private:
   ConversionRecord(Function* f, const Invocation* invocation, Module* module,
-                   TypeInfo* type_info, ParametricEnv parametric_env,
-                   std::optional<ProcId> proc_id, bool is_top,
-                   std::unique_ptr<ConversionRecord> config_record)
+                   TypeInfo* type_info, TypeInfo* invocation_type_info,
+                   ParametricEnv parametric_env, std::optional<ProcId> proc_id,
+                   bool is_top, std::unique_ptr<ConversionRecord> config_record)
       : f_(f),
         invocation_(invocation),
         module_(module),
         type_info_(type_info),
+        invocation_type_info_(invocation_type_info),
         parametric_env_(std::move(parametric_env)),
         proc_id_(std::move(proc_id)),
         is_top_(is_top),
@@ -89,6 +91,7 @@ class ConversionRecord {
   const Invocation* invocation_;
   Module* module_;
   TypeInfo* type_info_;
+  TypeInfo* invocation_type_info_;
   ParametricEnv parametric_env_;
   std::optional<ProcId> proc_id_;
   bool is_top_;
@@ -100,4 +103,4 @@ std::string ConversionRecordsToString(
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_IR_CONVERSION_RECORD_H_
+#endif  // XLS_DSLX_IR_CONVERT_CONVERSION_RECORD_H_

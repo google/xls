@@ -215,6 +215,8 @@ class TypeInfo {
   // particular type-information for the callee.
   std::optional<TypeInfo*> GetInvocationTypeInfo(
       const Invocation* invocation, const ParametricEnv& caller) const;
+  std::optional<TypeInfo*> GetInvocationTypeInfoByCallee(
+      const Invocation* invocation, const ParametricEnv& callee) const;
 
   // As above, but returns a NotFound error if the invocation does not have
   // associated type information.

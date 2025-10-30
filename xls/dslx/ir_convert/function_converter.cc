@@ -875,23 +875,23 @@ absl::Status FunctionConverter::HandleNameRef(const NameRef* node) {
     for (const auto& [k, v] : proc_data_->id_to_members.at(proc_id_.value())) {
       if (k == node->identifier()) {
         if (std::holds_alternative<Value>(v)) {
-          VLOG(4) << "Reference to Proc member: " << k
+          VLOG(6) << "Reference to Proc member: " << k
                   << " : Value : " << std::get<Value>(v).ToString();
           CValue cvalue;
           cvalue.ir_value = std::get<Value>(v);
           cvalue.value = function_builder_->Literal(cvalue.ir_value);
           SetNodeToIr(from, cvalue);
         } else if (std::holds_alternative<ChannelArray*>(v)) {
-          VLOG(4) << "Reference to Proc member: " << k << " : Chan array : "
+          VLOG(6) << "Reference to Proc member: " << k << " : Chan array : "
                   << std::get<ChannelArray*>(v)->ToString();
           SetNodeToIr(from, std::get<ChannelArray*>(v));
         } else if (std::holds_alternative<Channel*>(v)) {
-          VLOG(4) << "Reference to Proc member: " << k
+          VLOG(6) << "Reference to Proc member: " << k
                   << " : Chan  : " << std::get<Channel*>(v)->ToString();
           SetNodeToIr(from, std::get<Channel*>(v));
         } else {
           // Channel interface
-          VLOG(4) << "Reference to Proc member: " << k << " : ChanInterface : "
+          VLOG(6) << "Reference to Proc member: " << k << " : ChanInterface : "
                   << std::get<ChannelInterface*>(v)->ToString();
           SetNodeToIr(from, std::get<ChannelInterface*>(v));
         }
@@ -937,6 +937,8 @@ absl::Status FunctionConverter::HandleLetChannelDecl(const Let* node) {
       << "Channel declarations should only be encountered during proc "
          "conversion; we seem to be in function conversion.";
 
+  XLS_RET_CHECK(!node->name_def_tree()->is_leaf())
+      << "Must assign a channel declaration to a 2-tuple; was leaf";
   std::vector<NameDefTree::Leaf> leaves = node->name_def_tree()->Flatten();
   XLS_RET_CHECK_EQ(leaves.size(), 2)
       << "Must assign a channel declaration to a 2-tuple";
@@ -967,27 +969,59 @@ absl::Status FunctionConverter::HandleLet(const Let* node) {
           << "`; rhs: `" << node->rhs()->ToString() << "`";
   XLS_RETURN_IF_ERROR(Visit(node->rhs()));
 
-  // This must be skipped in case of channel arrays because the rhs
-  // isn't a bvalue, it's a ChannelArray.
-  BValue rhs;
-  if (dynamic_cast<ChannelDecl*>(node->rhs()) == nullptr) {
-    XLS_ASSIGN_OR_RETURN(rhs, Use(node->rhs()));
-    XLS_RET_CHECK(rhs.valid());
-    XLS_RETURN_IF_ERROR(DefAlias(node->rhs(), /*to=*/node));
+  // For channel declarations (i.e., `let (x, r) = chan<()>("name");`
+  // we defer to HandleLetChannelDecl.
+  if (dynamic_cast<ChannelDecl*>(node->rhs()) != nullptr) {
+    return HandleLetChannelDecl(node);
   }
+
+  // Makes sure it's a valid right-hand-side if it's a channel assignment.
+  auto process_channel_rhs = [&](auto) -> absl::Status {
+    if (current_fn_tag_ == FunctionTag::kNormal) {
+      return IrConversionErrorStatus(
+          node->span(), "Can only assign from channels when in a Proc",
+          file_table());
+    }
+    if (!node->name_def_tree()->is_leaf()) {
+      return absl::UnimplementedError(
+          "Destructuring let bindings are not yet supported in Proc "
+          "config methods.");
+    }
+
+    // `let` statements must have a BValue but in the case of channel
+    // assignments, the BValue isn't used in favor of looking up the channel in
+    // ChannelScope. So we insert an empty BValue.
+    SetNodeToIr(node, BValue());
+    return absl::OkStatus();
+  };
+
+  // Previously we just would call Use(node->rhs()) but this will fail
+  // if the rhs is a channel type. So we call GetNodeToIr and switch
+  // as appropriate.
+  std::optional<IrValue> rhs_value = GetNodeToIr(node->rhs());
+  XLS_RET_CHECK(rhs_value.has_value())
+      << "rhs " << node->rhs()->ToString() << " has no IR value";
+  IrValue value = rhs_value.value();
+  BValue rhs;
+  XLS_RETURN_IF_ERROR(absl::visit(
+      Visitor{[&](ChannelInterface* ci) { return process_channel_rhs(ci); },
+              [&](ChannelArray* ca) { return process_channel_rhs(ca); },
+              [&](Channel* c) { return process_channel_rhs(c); },
+              [&](auto) -> absl::Status {
+                // BValue, CValue
+                XLS_ASSIGN_OR_RETURN(rhs, Use(node->rhs()));
+                XLS_RET_CHECK(rhs.valid());
+                XLS_RETURN_IF_ERROR(DefAlias(node->rhs(), /*to=*/node));
+                return absl::OkStatus();
+              }},
+      value));
 
   if (node->name_def_tree()->is_leaf()) {
     // Alias so that the RHS expression is now known as the name definition it
     // is bound to.
     XLS_RETURN_IF_ERROR(
         DefAlias(node->rhs(), /*to=*/ToAstNode(node->name_def_tree()->leaf())));
-    XLS_RET_CHECK_EQ(dynamic_cast<ChannelDecl*>(node->rhs()), nullptr)
-        << "Must assign a channel declaration to a 2-tuple";
   } else {
-    if (dynamic_cast<ChannelDecl*>(node->rhs()) != nullptr) {
-      return HandleLetChannelDecl(node);
-    }
-
     // TODO: https://github.com/google/xls/issues/1459 - Rewrite this to be
     // actually recursive (instead of "effectively recursive" via the `levels`
     // and `delta_at_level` vectors).
@@ -1598,7 +1632,7 @@ FunctionConverter::HandleForLexicalScope(const For* node,
         dynamic_cast<TypeAlias*>(definer) != nullptr) {
       continue;
     }
-    VLOG(5) << "Converting freevar name: " << freevar_name_def->ToString();
+    VLOG(6) << "Converting freevar name: " << freevar_name_def->ToString();
 
     std::optional<IrValue> ir_value = GetNodeToIr(freevar_name_def);
     if (!ir_value.has_value() &&
@@ -2112,10 +2146,13 @@ absl::StatusOr<BValue> FunctionConverter::HandleMap(const Invocation* node) {
 }
 
 absl::Status FunctionConverter::HandleIndex(const Index* node) {
+  VLOG(5) << "HandleIndex: " << node->ToString();
   if (proc_id_.has_value()) {
     absl::StatusOr<ChannelOrArray> channel_or_array =
         channel_scope_->GetChannelOrArrayForArrayIndex(*proc_id_, node);
     if (channel_or_array.ok()) {
+      VLOG(5) << "HandleIndex for proc channel_or_array ok: "
+              << node->ToString();
       return absl::visit(
           Visitor{
               [&](ChannelArray* ca) {
@@ -2148,6 +2185,7 @@ absl::Status FunctionConverter::HandleIndex(const Index* node) {
           *channel_or_array);
     }
   }
+  VLOG(5) << "HandleIndex not for proc: " << node->ToString();
   XLS_RETURN_IF_ERROR(Visit(node->lhs()));
   XLS_ASSIGN_OR_RETURN(BValue lhs, Use(node->lhs()));
 
@@ -3212,7 +3250,7 @@ absl::Status FunctionConverter::HandleFunction(
   FfiPartialValueSubstituteHelper const_prefill(f.extern_verilog_module());
 
   for (ParametricBinding* parametric_binding : f.parametric_bindings()) {
-    VLOG(5) << "Resolving parametric binding: "
+    VLOG(6) << "Resolving parametric binding: "
             << parametric_binding->ToString();
 
     std::optional<InterpValue> parametric_value =
@@ -3239,7 +3277,7 @@ absl::Status FunctionConverter::HandleFunction(
       "FunctionBuilder %p function `%s` has %d constant deps", ir_builder_ptr,
       f.identifier(), constant_deps_.size());
   for (ConstantDef* dep : constant_deps_) {
-    VLOG(5) << "Visiting constant dep: " << dep->ToString();
+    VLOG(6) << "Visiting constant dep: " << dep->ToString();
 
     // The constant dep may be from a different module than the module for the
     // function we're currently converting.
@@ -3254,7 +3292,7 @@ absl::Status FunctionConverter::HandleFunction(
     XLS_RETURN_IF_ERROR(Visit(dep));
   }
 
-  VLOG(5) << "body: " << f.body()->ToString();
+  VLOG(6) << "body: " << f.body()->ToString();
   XLS_RETURN_IF_ERROR(Visit(f.body()));
 
   XLS_ASSIGN_OR_RETURN(BValue return_value, Use(f.body()));
@@ -3334,18 +3372,31 @@ absl::Status FunctionConverter::HandleSpawn(const Spawn* node) {
     std::optional<IrValue> arg_value_opt = GetNodeToIr(arg);
     XLS_RET_CHECK(arg_value_opt.has_value());
     IrValue arg_value = *arg_value_opt;
+    XLS_ASSIGN_OR_RETURN(Type * type, current_type_info_->GetItemOrError(arg));
     if (std::holds_alternative<ChannelArray*>(arg_value)) {
       // Get all the channel interfaces of this array and
       // add them to the channel_args
       ChannelArray* channel_array = std::get<ChannelArray*>(arg_value);
-      for (ChannelRef channel : channel_array->channels()) {
-        XLS_RET_CHECK(std::holds_alternative<ChannelInterface*>(channel));
-        channel_args.push_back(std::get<ChannelInterface*>(channel));
+      for (ChannelRef channel_ref : channel_array->channels()) {
+        XLS_ASSIGN_OR_RETURN(
+            ChannelInterface * channel_interface,
+            absl::visit(
+                Visitor{
+                    [&](Channel* c) -> absl::StatusOr<ChannelInterface*> {
+                      const ArrayType& array_type = type->AsArray();
+                      const ChannelType& channel_type =
+                          dynamic_cast<const ChannelType&>(
+                              array_type.GetInnermostElementType()
+                                  .element_type);
+                      return ChannelToInterface(c, channel_type.direction());
+                    },
+                    [&](ChannelInterface* ci)
+                        -> absl::StatusOr<ChannelInterface*> { return ci; }},
+                channel_ref));
+        channel_args.push_back(channel_interface);
       }
     } else {
       // Channel or ChannelInterface.
-      XLS_ASSIGN_OR_RETURN(Type * type,
-                           current_type_info_->GetItemOrError(arg));
       ChannelType* channel_type = dynamic_cast<ChannelType*>(type);
       XLS_ASSIGN_OR_RETURN(
           ChannelInterface * channel_interface,
@@ -3413,12 +3464,7 @@ absl::Status FunctionConverter::HandleChannelDecl(const ChannelDecl* node) {
 
   XLS_ASSIGN_OR_RETURN(ChannelOrArray channel_or_array,
                        channel_scope_->DefineChannelOrArray(node));
-  std::visit(Visitor{
-                 [&](Channel* c) { SetNodeToIr(node, c); },
-                 [&](ChannelInterface* ci) { SetNodeToIr(node, ci); },
-                 [&](ChannelArray* ca) { SetNodeToIr(node, ca); },
-             },
-             channel_or_array);
+  std::visit(Visitor{[&](auto* c) { SetNodeToIr(node, c); }}, channel_or_array);
   return absl::OkStatus();
 }
 
@@ -3431,6 +3477,7 @@ absl::Status FunctionConverter::HandleProcNextFunction(
 
   Function* f = record.f();
   ProcId proc_id = record.proc_id().value();
+  proc_id_ = proc_id;
   VLOG(5) << "HandleProcNextFunction: " << f->ToString() << " proc id "
           << proc_id.ToString();
   const Invocation* invocation = record.invocation();
@@ -3456,14 +3503,21 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     VLOG(5) << "HandleProcNextFunction: previously established initial element "
             << initial_element.ToHumanString();
   } else if (options_.lower_to_proc_scoped_channels) {
-    VLOG(5) << "HandleProcNextFunction: evaluating init "
-            << proc->init().body()->ToString();
+    Expr* body = proc->init().body();
+    TypeInfo* invocation_ti = record.invocation_type_info();
+    if (invocation != nullptr) {
+      if (!invocation->args().empty()) {
+        body = invocation->args()[0];
+      }
+    }
+    VLOG(5) << "HandleProcNextFunction: evaluating init " << body->ToString()
+            << " type_info " << invocation_ti->GetTypeInfoTreeString();
+
     XLS_ASSIGN_OR_RETURN(InterpValue value,
                          ConstexprEvaluator::EvaluateToValue(
-                             import_data, type_info, kNoWarningCollector,
-                             *parametric_env, proc->init().body()));
+                             import_data, invocation_ti, kNoWarningCollector,
+                             *parametric_env, body));
     XLS_ASSIGN_OR_RETURN(initial_element, InterpValueToValue(value));
-    proc_data_->id_to_initial_value[proc_id] = initial_element;
     VLOG(5) << "HandleProcNextFunction: initial element now "
             << initial_element.ToHumanString();
   }
@@ -3536,10 +3590,8 @@ absl::Status FunctionConverter::HandleProcNextFunction(
   XLS_RET_CHECK_EQ(f->params().size(), 1);
   SetNodeToIr(f->params()[0]->name_def(), state);
 
-  proc_id_ = proc_id;
-
   for (ParametricBinding* parametric_binding : f->parametric_bindings()) {
-    VLOG(5) << "Resolving parametric binding: "
+    VLOG(6) << "Resolving parametric binding: "
             << parametric_binding->ToString();
 
     std::optional<InterpValue> parametric_value =
@@ -3567,7 +3619,7 @@ absl::Status FunctionConverter::HandleProcNextFunction(
         DefAlias(parametric_binding, /*to=*/parametric_binding->name_def()));
   }
 
-  VLOG(3) << "Proc has " << constant_deps_.size() << " constant deps";
+  VLOG(5) << "Proc has " << constant_deps_.size() << " constant deps";
   for (ConstantDef* dep : constant_deps_) {
     VLOG(5) << "Visiting constant dep: " << dep->ToString();
 
