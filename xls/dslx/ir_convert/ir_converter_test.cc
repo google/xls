@@ -6324,6 +6324,47 @@ TEST_P(ProcScopedChannelsIrConverterTest,
                          "code, but test conversion is disabled")));
 }
 
+// This test should pass but it looks like the root_invocation_data is not
+// being set correctly.
+// It seems that the unroll_for is not triggering a proc invocation, so the
+// initial values are not being set correctly.
+TEST_P(ProcScopedChannelsIrConverterTest, ProcScopedSpawnInUnrollFor) {
+  constexpr std::string_view program = R"(
+  proc SubProc {
+    out_ch: chan<u32> out;
+    in_ch: chan<u32> in;
+    init { }
+    config(my_out: chan<u32> out, my_in: chan<u32> in) {
+      (my_out, my_in)
+    }
+    next(state: ()) {
+      let (tok, d) = recv(token(), in_ch);
+      let tok = send(tok, out_ch, d+u32:1);
+      ()
+    }
+  }
+
+  proc Top {
+    init {}
+    config() {
+      let (outs, ins) = chan<u32>[4]("chans");
+      unroll_for!(i, _) : (u32, ()) in u32:0..u32:4 {
+        spawn SubProc(outs[i], ins[i]);
+      }(());
+      ()
+    }
+    next(state: ()) { state }
+  }
+  )";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "Top", import_data,
+                                kProcScopedChannelOptions));
+  ExpectIr(converted);
+}
+
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ConvertWithoutTests) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
