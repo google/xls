@@ -112,6 +112,13 @@ CloneAstAndGetAllPairs(const AstNode* root,
 absl::StatusOr<std::unique_ptr<Module>> CloneModule(
     const Module& module, CloneReplacer replacer = &NoopCloneReplacer);
 
+// Returns a clone of `module` that omits any top-level members whose
+// definitions appear in `members_to_remove`. References to those members are
+// not validated or rewritten; the caller is responsible for handling any
+// resulting dangling references.
+absl::StatusOr<std::unique_ptr<Module>> CloneModuleRemovingMembers(
+    const Module& module, absl::Span<const AstNode* const> members_to_remove);
+
 // Returns a CloneReplacer that runs `first` and then runs `second` on the
 // preliminary result, short-circuiting if `first` returns an error.
 CloneReplacer ChainCloneReplacers(CloneReplacer first, CloneReplacer second);

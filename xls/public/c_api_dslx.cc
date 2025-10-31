@@ -375,6 +375,74 @@ bool xls_dslx_parse_and_typecheck(
   return false;
 }
 
+bool xls_dslx_typechecked_module_clone_removing_functions(
+    struct xls_dslx_typechecked_module* tm,
+    struct xls_dslx_function* functions[], size_t function_count,
+    const char* install_subject, struct xls_dslx_import_data* import_data,
+    char** error_out, struct xls_dslx_typechecked_module** result_out) {
+  CHECK(error_out != nullptr);
+  CHECK(result_out != nullptr);
+  *error_out = nullptr;
+  *result_out = nullptr;
+
+  if (tm == nullptr || import_data == nullptr) {
+    *error_out = xls::ToOwnedCString("null argument provided");
+    return false;
+  }
+
+  auto* cpp_tm = reinterpret_cast<xls::dslx::TypecheckedModule*>(tm);
+  auto* cpp_import_data = reinterpret_cast<xls::dslx::ImportData*>(import_data);
+
+  std::string subject = std::string(install_subject);
+  if (subject.empty()) {
+    *error_out = xls::ToOwnedCString("install_subject must not be empty");
+    return false;
+  }
+
+  std::vector<const xls::dslx::AstNode*> nodes_to_remove;
+  nodes_to_remove.reserve(function_count);
+  for (size_t i = 0; i < function_count; ++i) {
+    if (functions == nullptr || functions[i] == nullptr) {
+      *error_out = xls::ToOwnedCString("functions array contains null entry");
+      return false;
+    }
+    auto* fn = reinterpret_cast<xls::dslx::Function*>(functions[i]);
+    if (fn->owner() != cpp_tm->module) {
+      *error_out = xls::ToOwnedCString(
+          "function does not belong to the provided module");
+      return false;
+    }
+    nodes_to_remove.push_back(fn);
+  }
+
+  absl::StatusOr<std::unique_ptr<xls::dslx::Module>> cloned_module_or =
+      xls::dslx::CloneModuleRemovingMembers(*cpp_tm->module, nodes_to_remove);
+  if (!cloned_module_or.ok()) {
+    *error_out = xls::ToOwnedCString(cloned_module_or.status().ToString());
+    return false;
+  }
+
+  std::unique_ptr<xls::dslx::Module> cloned_module =
+      std::move(cloned_module_or).value();
+  if (cloned_module->name() != subject) {
+    cloned_module->SetName(subject);
+  }
+  std::string path = cpp_tm->module->fs_path().has_value()
+                         ? cpp_tm->module->fs_path()->string()
+                         : std::string(cpp_tm->module->name());
+
+  absl::StatusOr<xls::dslx::TypecheckedModule> retyped =
+      xls::dslx::TypecheckModule(std::move(cloned_module), path,
+                                 cpp_import_data);
+  if (!retyped.ok()) {
+    *error_out = xls::ToOwnedCString(retyped.status().ToString());
+    return false;
+  }
+  auto* new_tm = new xls::dslx::TypecheckedModule{std::move(retyped).value()};
+  *result_out = reinterpret_cast<xls_dslx_typechecked_module*>(new_tm);
+  return true;
+}
+
 int64_t xls_dslx_module_get_member_count(struct xls_dslx_module* module) {
   CHECK(module != nullptr);
   auto* cpp_module = reinterpret_cast<xls::dslx::Module*>(module);
