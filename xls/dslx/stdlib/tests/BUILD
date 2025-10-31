@@ -229,6 +229,12 @@ cc_test(
     ],
 )
 
+xls_dslx_test(
+    name = "round_dslx_test",
+    srcs = ["round_tests.x"],
+    deps = ["//xls/dslx/stdlib:round_dslx"],
+)
+
 cc_test(
     name = "float32_test",
     srcs = ["float32_test.cc"],
