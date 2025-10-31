@@ -209,12 +209,11 @@ Examples:
         dslx_interpreter_tool = ":custom_dslx_interpreter_tool",
     )
 
-    xls_dslx_library(
-        name = "a_user_defined_xls_toolchain_dslx",
+    filegroup(
+        name = "custom_xls_release_files",
         srcs = [
-            "a.x",
+            ":user_defined_xls_toolchain",
         ],
-        xls_toolchain = ":user_defined_xls_toolchain",
     )
     ```
     """,
