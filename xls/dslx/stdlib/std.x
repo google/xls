@@ -959,8 +959,7 @@ pub fn pow<S: bool, N: u32>(x: xN[S][N], n: uN[N]) -> xN[S][N] {
 
     let work = for (i, (n, p, result)) in u32:0..N {
         let result = if (n & uN[N]:1) == uN[N]:1 { result * p } else { result };
-
-        (n >> 1, p * p, result)
+        (n >> 1, if n == uN[N]:0 { p } else { p * p }, result)
     }((n, p, result));
     work.2
 }
