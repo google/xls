@@ -502,6 +502,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_node_visitor_with_default",
+        "//xls/dslx/frontend:ast_utils",
         "//xls/dslx/frontend:builtin_stubs_utils",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:proc_id",

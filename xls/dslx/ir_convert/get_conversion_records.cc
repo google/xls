@@ -44,11 +44,13 @@ namespace {
 
 // Makes the conversion record from the pieces.
 absl::StatusOr<ConversionRecord> MakeConversionRecord(
-    Function* f, Module* m, TypeInfo* type_info, const ParametricEnv& bindings,
+    Function* f, Module* m, TypeInfo* callee_type_info,
+    TypeInfo* caller_type_info, const ParametricEnv& bindings,
     std::optional<ProcId> proc_id, const Invocation* invocation, bool is_top,
     std::unique_ptr<ConversionRecord> config_record = nullptr) {
-  return ConversionRecord::Make(f, invocation, m, type_info, bindings, proc_id,
-                                is_top, std::move(config_record));
+  return ConversionRecord::Make(f, invocation, m, callee_type_info,
+                                caller_type_info, bindings, proc_id, is_top,
+                                std::move(config_record));
 }
 
 // Returns true if the given function is a test function.
@@ -93,19 +95,27 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
 
   absl::StatusOr<ConversionRecord> InvocationToConversionRecord(
       const Function* f, const Invocation* invocation,
-      TypeInfo* instantiation_type_info, ParametricEnv callee_bindings,
-      ParametricEnv caller_bindings, bool is_top,
+      TypeInfo* callee_type_info, TypeInfo* caller_type_info,
+      ParametricEnv callee_bindings, ParametricEnv caller_bindings, bool is_top,
       std::optional<ProcId> proc_id) {
     if (invocation != nullptr) {
       VLOG(5) << "InvocationToConversionRecord processing invocation "
-              << invocation->ToString();
+              << invocation->ToString() << " caller_type_info "
+              << caller_type_info->GetTypeInfoTreeString();
     } else {
       VLOG(5) << "InvocationToConversionRecord processing fn " << f->ToString();
     }
     // Note, it's possible there is no config invocation if it's a
     // top proc or some other reason.
     std::unique_ptr<ConversionRecord> config_record;
+    TypeInfo* invocation_type_info = callee_type_info;
     if (f->tag() == FunctionTag::kProcNext) {
+      if (invocation != nullptr && invocation->owner() != f->owner() &&
+          f->proc().value()->IsParametric()) {
+        // We will have to evaluate the init method within the caller's type
+        // info.
+        invocation_type_info = caller_type_info;
+      }
       // If this is a proc next function, find the corresponding config
       // invocation (spawn) with the same parametrics and put it in the
       // conversion record.
@@ -124,11 +134,14 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
               << "Could not find instantiation for `"
               << config_invocation->ToString()
               << "` via bindings: " << caller_bindings;
+          VLOG(5) << "InvocationToConversionRecord config type info "
+                  << (*config_type_info)->GetTypeInfoTreeString();
           XLS_ASSIGN_OR_RETURN(
               ConversionRecord cr,
               MakeConversionRecord(const_cast<Function*>(&config_fn),
                                    f->owner(), *config_type_info,
-                                   callee_bindings, proc_id, config_invocation,
+                                   *config_type_info, callee_bindings, proc_id,
+                                   config_invocation,
                                    // config functions can never be 'top'
                                    /*is_top=*/false));
           config_record = std::make_unique<ConversionRecord>(std::move(cr));
@@ -140,8 +153,9 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     XLS_ASSIGN_OR_RETURN(
         ConversionRecord cr,
         MakeConversionRecord(const_cast<Function*>(f), f->owner(),
-                             instantiation_type_info, callee_bindings, proc_id,
-                             invocation, is_top, std::move(config_record)));
+                             callee_type_info, invocation_type_info,
+                             callee_bindings, proc_id, invocation, is_top,
+                             std::move(config_record)));
     return cr;
   }
 
@@ -159,8 +173,9 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     // our module should have already been added to the list.
     XLS_RETURN_IF_ERROR(DefaultHandler(f));
 
+    TypeInfo* invocation_type_info = GetPossiblyImportedTypeInfo(f);
     std::vector<InvocationCalleeData> calls =
-        type_info_->GetUniqueInvocationCalleeData(f);
+        invocation_type_info->GetUniqueInvocationCalleeData(f);
 
     if (f->IsParametric() && calls.empty()) {
       VLOG(5) << "No calls to parametric function "
@@ -178,7 +193,8 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
           ConversionRecord cr,
           InvocationToConversionRecord(
               f, callee_data.invocation, callee_data.derived_type_info,
-              callee_data.callee_bindings, callee_data.caller_bindings,
+              callee_data.derived_type_info, callee_data.callee_bindings,
+              callee_data.caller_bindings,
               // Parametric functions can never be top.
               /* is_top= */ !f->IsParametric() && f == top_, proc_id));
       records_.push_back(std::move(cr));
@@ -186,12 +202,10 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     if (calls.empty()) {
       // We can still convert this function even though it's never been called.
       // Make sure we are using the right type info for imported functions.
-      TypeInfo* invocation_ti =
-          f->owner() == module_ ? type_info_
-                                : *type_info_->GetImportedTypeInfo(f->owner());
       XLS_ASSIGN_OR_RETURN(ConversionRecord cr,
                            InvocationToConversionRecord(
-                               f, /* invocation= */ nullptr, invocation_ti,
+                               f, /* invocation= */ nullptr,
+                               invocation_type_info, invocation_type_info,
                                /* callee_bindings= */ ParametricEnv(),
                                /* caller_bindings= */ ParametricEnv(),
                                /* is_top= */ f == top_, proc_id));
@@ -213,6 +227,12 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     return AddFunction(f);
   }
 
+  TypeInfo* GetPossiblyImportedTypeInfo(const AstNode* node) {
+    return node->owner() == module_
+               ? type_info_
+               : *type_info_->GetImportedTypeInfo(node->owner());
+  }
+
   absl::Status HandleInvocation(const Invocation* invocation) override {
     VLOG(5) << "HandleInvocation " << invocation->ToString();
     auto root_invocation_data = type_info_->GetRootInvocationData(invocation);
@@ -224,8 +244,8 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     }
 
     if (f->owner() == module_) {
-      // Since this function is inside this module, we will convert this
-      // function, so there's no need to do any more processing here.
+      // Since this function is inside this module, we will convert it via
+      // AddFunction, so there's no need to do any more processing here.
       return absl::OkStatus();
     }
     return HandleFunction(f);
@@ -234,20 +254,22 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
   absl::Status HandleSpawn(const Spawn* spawn) override {
     VLOG(5) << "HandleSpawn " << spawn->ToString();
     Invocation* invocation = spawn->config();
+    TypeInfo* invocation_type_info = GetPossiblyImportedTypeInfo(spawn);
 
-    auto root_invocation_data = type_info_->GetRootInvocationData(invocation);
+    auto root_invocation_data =
+        invocation_type_info->GetRootInvocationData(invocation);
     XLS_RET_CHECK(root_invocation_data.has_value());
 
     const InvocationData* invocation_data = *root_invocation_data;
     const Function* config_fn = invocation_data->callee();
     if (config_fn->owner() == module_) {
-      // Since this proc is inside this module, We will convert this proc, so
+      // Since this proc is inside this module, we will convert this proc, so
       // there's no need to do any more processing here.
       return absl::OkStatus();
     }
     XLS_RET_CHECK(config_fn->proc().has_value());
     Proc* proc = config_fn->proc().value();
-    return HandleProc(proc);
+    return HandleProc(proc, invocation_type_info);
   }
 
   absl::Status HandleTestFunction(const TestFunction* tf) override {
@@ -268,6 +290,10 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleProc(const Proc* p) override {
+    return HandleProc(p, type_info_);
+  }
+
+  absl::Status HandleProc(const Proc* p, TypeInfo* invocation_type_info) {
     VLOG(5) << "HandleProc " << p->ToString();
     const Function* next_fn = &p->next();
 
@@ -280,6 +306,7 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
           ConversionRecord config_record,
           MakeConversionRecord(
               const_cast<Function*>(&p->config()), top_->owner(),
+              resolved_proc_alias_->config_type_info,
               resolved_proc_alias_->config_type_info, resolved_proc_alias_->env,
               proc_id, /*invocation=*/nullptr,
               /*is_top=*/false));
@@ -287,6 +314,7 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
           ConversionRecord next_record,
           MakeConversionRecord(
               const_cast<Function*>(&p->next()), top_->owner(),
+              resolved_proc_alias_->next_type_info,
               resolved_proc_alias_->next_type_info, resolved_proc_alias_->env,
               proc_id, /*invocation=*/nullptr,
               /*is_top=*/true,
@@ -322,7 +350,8 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
             ConversionRecord cr,
             InvocationToConversionRecord(
                 next_fn, callee_data.invocation, callee_data.derived_type_info,
-                callee_data.callee_bindings, callee_data.caller_bindings,
+                invocation_type_info, callee_data.callee_bindings,
+                callee_data.caller_bindings,
                 // Since this proc is being spawned, it's certainly not top.
                 /* is_top= */ false, proc_id));
         records_.push_back(std::move(cr));
@@ -348,6 +377,21 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     VLOG(5) << "HandleTestProc " << tp->ToString();
     return DefaultHandler(tp);
   }
+
+#define OK_HANDLER(TYPE) \
+  absl::Status Handle##TYPE(const TYPE*) override { return absl::OkStatus(); }
+
+  // These may have function invocations in parametric expressions, but we don't
+  // want to add them to the list of functions to convert, since they are
+  // required to be constexprs. So instead of calling DefaultHandler, which
+  // would process the invocation, we just return OK.
+  // keep-sorted start
+  OK_HANDLER(ConstAssert)
+  OK_HANDLER(EnumDef)
+  OK_HANDLER(StructDef)
+  OK_HANDLER(TypeAlias)
+  // keep-sorted end
+#undef DEFAULT_HANDLE
 
   absl::Status DefaultHandler(const AstNode* node) override {
     for (auto child : node->GetChildren(false)) {

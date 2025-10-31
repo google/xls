@@ -607,10 +607,12 @@ static absl::Status AddToReady(std::variant<Function*, TestFunction*> f,
   }
 
   auto* fn = std::get<Function*>(f);
-  VLOG(3) << "Adding to ready sequence: " << fn->identifier();
-  XLS_ASSIGN_OR_RETURN(ConversionRecord cr,
-                       ConversionRecord::Make(fn, invocation, m, type_info,
-                                              bindings, proc_id, is_top));
+  VLOG(3) << "Adding to ready sequence: " << fn->identifier() << " type_info "
+          << type_info->GetTypeInfoTreeString();
+  XLS_ASSIGN_OR_RETURN(
+      ConversionRecord cr,
+      ConversionRecord::Make(fn, invocation, m, type_info, type_info, bindings,
+                             proc_id, is_top));
   ready->push_back(std::move(cr));
   return absl::OkStatus();
 }
