@@ -1065,6 +1065,7 @@ xls_pass(
         ":pass_base",
         ":post_dominator_analysis",
         ":query_engine",
+        ":reachability_analysis",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/estimators/area_model:area_estimator",
@@ -1083,8 +1084,6 @@ xls_pass(
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
-        "@com_google_ortools//ortools/graph",
-        "@com_google_ortools//ortools/graph:cliques",
         "@cppitertools",
     ],
 )
@@ -1503,6 +1502,34 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:op",
         "@com_google_absl//absl/status:statusor",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "reachability_analysis",
+    srcs = ["reachability_analysis.cc"],
+    hdrs = ["reachability_analysis.h"],
+    deps = [
+        ":lazy_node_data",
+        "//xls/ir",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "reachability_analysis_test",
+    srcs = ["reachability_analysis_test.cc"],
+    deps = [
+        ":reachability_analysis",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:op",
         "@googletest//:gtest",
     ],
 )
@@ -4310,6 +4337,7 @@ cc_test(
         ":optimization_pass",
         ":pass_base",
         ":query_engine",
+        ":reachability_analysis",
         ":resource_sharing_pass",
         "//xls/common:xls_gunit_main",
         "//xls/common/fuzzing:fuzztest",
