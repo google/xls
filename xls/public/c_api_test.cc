@@ -3171,6 +3171,146 @@ fn no_token(x: u32) -> u32 {
   EXPECT_EQ(error, nullptr);
 }
 
+TEST(XlsCApiTest, DslxInvocationCalleeDataIntrospection) {
+  const std::string kProgram = R"(
+fn id<N: u32>(x: bits[N]) -> bits[N] { x }
+
+fn caller<N: u32>(x: bits[N]) -> bits[N] {
+  let _ = id(x);
+  id(x)
+}
+
+fn main() -> u32 {
+  caller(u32:42)
+})";
+
+  const char* additional_search_paths[] = {};
+  xls_dslx_import_data* import_data = xls_dslx_import_data_create(
+      std::string{xls::kDefaultDslxStdlibPath}.c_str(), additional_search_paths,
+      0);
+  ASSERT_NE(import_data, nullptr);
+  absl::Cleanup free_import_data(
+      [=] { xls_dslx_import_data_free(import_data); });
+
+  xls_dslx_typechecked_module* tm = nullptr;
+  char* error = nullptr;
+  bool ok = xls_dslx_parse_and_typecheck(kProgram.c_str(), "test.x", "test",
+                                         import_data, &error, &tm);
+  absl::Cleanup free_tm([=] { xls_dslx_typechecked_module_free(tm); });
+  ASSERT_TRUE(ok) << "error: " << (error == nullptr ? "<none>" : error);
+  ASSERT_NE(tm, nullptr);
+
+  xls_dslx_module* module = xls_dslx_typechecked_module_get_module(tm);
+  xls_dslx_type_info* type_info = xls_dslx_typechecked_module_get_type_info(tm);
+  ASSERT_NE(module, nullptr);
+  ASSERT_NE(type_info, nullptr);
+
+  xls_dslx_function* id_fn = nullptr;
+  xls_dslx_function* caller_fn = nullptr;
+  int64_t member_count = xls_dslx_module_get_member_count(module);
+  for (int64_t i = 0; i < member_count; ++i) {
+    xls_dslx_module_member* member = xls_dslx_module_get_member(module, i);
+    if (member == nullptr) {
+      continue;
+    }
+    xls_dslx_function* fn = xls_dslx_module_member_get_function(member);
+    if (fn == nullptr) {
+      continue;
+    }
+    char* name = xls_dslx_function_get_identifier(fn);
+    ASSERT_NE(name, nullptr);
+    absl::Cleanup free_name([name] { xls_c_str_free(name); });
+    if (std::string_view{name} == "id") {
+      id_fn = fn;
+    } else if (std::string_view{name} == "caller") {
+      caller_fn = fn;
+    }
+  }
+
+  ASSERT_NE(id_fn, nullptr);
+  ASSERT_NE(caller_fn, nullptr);
+
+  xls_dslx_invocation_callee_data_array* unique_array =
+      xls_dslx_type_info_get_unique_invocation_callee_data(type_info, id_fn);
+  ASSERT_NE(unique_array, nullptr);
+  absl::Cleanup free_unique_array([unique_array] {
+    xls_dslx_invocation_callee_data_array_free(unique_array);
+  });
+
+  int64_t unique_count =
+      xls_dslx_invocation_callee_data_array_get_count(unique_array);
+  ASSERT_EQ(unique_count, 1);
+
+  xls_dslx_invocation_callee_data* callee_data_unique =
+      xls_dslx_invocation_callee_data_array_get(unique_array, 0);
+  ASSERT_NE(callee_data_unique, nullptr);
+
+  const xls_dslx_parametric_env* callee_env =
+      xls_dslx_invocation_callee_data_get_callee_bindings(callee_data_unique);
+  ASSERT_NE(callee_env, nullptr);
+  EXPECT_EQ(xls_dslx_parametric_env_get_binding_count(callee_env), 1);
+  const char* callee_identifier =
+      xls_dslx_parametric_env_get_binding_identifier(callee_env, 0);
+  ASSERT_NE(callee_identifier, nullptr);
+  EXPECT_STREQ(callee_identifier, "N");
+  xls_dslx_interp_value* callee_value =
+      xls_dslx_parametric_env_get_binding_value(callee_env, 0);
+  ASSERT_NE(callee_value, nullptr);
+  char* callee_value_string = xls_dslx_interp_value_to_string(callee_value);
+  ASSERT_NE(callee_value_string, nullptr);
+  absl::Cleanup free_callee_value_string(
+      [callee_value_string] { xls_c_str_free(callee_value_string); });
+  EXPECT_EQ(std::string_view{callee_value_string}, "u32:32");
+
+  const xls_dslx_parametric_env* caller_env =
+      xls_dslx_invocation_callee_data_get_caller_bindings(callee_data_unique);
+  ASSERT_NE(caller_env, nullptr);
+  EXPECT_EQ(xls_dslx_parametric_env_get_binding_count(caller_env), 1);
+  const char* caller_identifier =
+      xls_dslx_parametric_env_get_binding_identifier(caller_env, 0);
+  ASSERT_NE(caller_identifier, nullptr);
+  EXPECT_STREQ(caller_identifier, "N");
+
+  xls_dslx_type_info* derived_type_info =
+      xls_dslx_invocation_callee_data_get_derived_type_info(callee_data_unique);
+  ASSERT_NE(derived_type_info, nullptr);
+
+  xls_dslx_invocation* invocation =
+      xls_dslx_invocation_callee_data_get_invocation(callee_data_unique);
+  ASSERT_NE(invocation, nullptr);
+
+  xls_dslx_invocation_data* invocation_data =
+      xls_dslx_type_info_get_root_invocation_data(type_info, invocation);
+  ASSERT_NE(invocation_data, nullptr);
+
+  EXPECT_EQ(xls_dslx_invocation_data_get_callee(invocation_data), id_fn);
+  EXPECT_EQ(xls_dslx_invocation_data_get_caller(invocation_data), caller_fn);
+  EXPECT_EQ(xls_dslx_invocation_data_get_invocation(invocation_data),
+            invocation);
+
+  xls_dslx_invocation_callee_data_array* all_array =
+      xls_dslx_type_info_get_all_invocation_callee_data(type_info, id_fn);
+  ASSERT_NE(all_array, nullptr);
+  absl::Cleanup free_all_array(
+      [all_array] { xls_dslx_invocation_callee_data_array_free(all_array); });
+  int64_t all_count =
+      xls_dslx_invocation_callee_data_array_get_count(all_array);
+  ASSERT_EQ(all_count, 2);
+  xls_dslx_invocation_callee_data* callee_data_all_0 =
+      xls_dslx_invocation_callee_data_array_get(all_array, 0);
+  ASSERT_NE(callee_data_all_0, nullptr);
+  xls_dslx_invocation_callee_data* callee_data_all_1 =
+      xls_dslx_invocation_callee_data_array_get(all_array, 1);
+  ASSERT_NE(callee_data_all_1, nullptr);
+  xls_dslx_invocation* invocation0 =
+      xls_dslx_invocation_callee_data_get_invocation(callee_data_all_0);
+  xls_dslx_invocation* invocation1 =
+      xls_dslx_invocation_callee_data_get_invocation(callee_data_all_1);
+  ASSERT_NE(invocation0, nullptr);
+  ASSERT_NE(invocation1, nullptr);
+  EXPECT_NE(invocation0, invocation1);
+}
+
 TEST(XlsCApiTest, DslxFunctionParamIntrospection) {
   const char kProgram[] = R"(enum MyE : u3 { A = u3:0, B = u3:1 }
 fn top(x: u32, y: MyE) -> u32 { x }
