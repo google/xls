@@ -18,6 +18,7 @@
 #include <cmath>
 #include <cstdint>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -60,8 +61,6 @@ namespace {
 
 using DelayMap = absl::flat_hash_map<Node*, int64_t>;
 namespace math_opt = ::operations_research::math_opt;
-
-constexpr double kObjectiveScaling = 1024;
 
 // A helper function to compute each node's delay by calling the delay
 // estimator; treats all dead-after-synthesis nodes as having a delay of 0.
@@ -681,7 +680,42 @@ absl::Status SDCSchedulingModel::AddSameChannelConstraint(
   return absl::OkStatus();
 }
 
+namespace {
+
+// Returns the inverse of the next normal power of two > |x|.
+double InvertNextPowerOfTwo(double x) {
+  if (std::isfinite(x)) {
+    if (!std::isnormal(x) || x == 0.0) {
+      // The next normal power of two is the smallest normal number; we need to
+      // return its inverse. Thankfully, that is itself a normal number!
+      return 1.0 / std::numeric_limits<double>::min();
+    }
+    int exponent;
+    std::frexp(x, &exponent);
+    return std::ldexp(1.0, -exponent);
+  }
+  CHECK(std::isnan(x) || (std::isinf(x) && x > 0));
+  return x;
+}
+
+}  // namespace
+
 void SDCSchedulingModel::SetObjective(std::optional<double> throughput_weight) {
+  // The scaling factor guarantees that our ASAP tie-breaker will never win over
+  // an area or throughput improvement, and is a power of two so that there's no
+  // imprecision (just add to exponent).
+  constexpr double kAssumedMaxStages = 1024;
+  const double max_stage_change =
+      std::min(last_stage_.upper_bound(), kAssumedMaxStages);
+  const double num_nodes = graph_.nodes().size();
+  const double asap_factor_sum_ub = std::min(1.0, max_stage_change * num_nodes);
+  // If we're optimizing weakly for throughput, scale the ASAP tie-breaker so
+  // that we still prioritize throughput improvements over ASAP schedules.
+  const double asap_factor_sum_ub_scaled =
+      asap_factor_sum_ub / std::min(1.0, throughput_weight.value_or(1.0));
+  const double asap_scaling_factor =
+      std::min(1.0, InvertNextPowerOfTwo(asap_factor_sum_ub_scaled));
+
   math_opt::LinearExpression objective;
   for (const ScheduleNode& schedule_node : graph_.nodes()) {
     Node* node = schedule_node.node;
@@ -697,18 +731,16 @@ void SDCSchedulingModel::SetObjective(std::optional<double> throughput_weight) {
           node->function_base()
               ->next_values(node->As<Next>()->state_read()->As<StateRead>())
               .size();
-      objective += (kObjectiveScaling * *throughput_weight / num_paths) *
+      objective += (*throughput_weight / num_paths) *
                    unwanted_inverse_throughput_var_.at(node);
     }
+    // Minimize node lifetimes.
+    objective += static_cast<double>(node->GetType()->GetFlatBitCount()) *
+                 lifetime_var_.at(node);
+
     // This acts as a tie-breaker for under-constrained problems, favoring ASAP
     // schedules.
-    objective += cycle_var_.at(node);
-    // Minimize node lifetimes.
-    // The scaling makes the tie-breaker small in comparison, and is a power
-    // of two so that there's no imprecision (just add to exponent).
-    objective += kObjectiveScaling *
-                 static_cast<double>(node->GetType()->GetFlatBitCount()) *
-                 lifetime_var_.at(node);
+    objective += asap_scaling_factor * cycle_var_.at(node);
   }
   model_.Minimize(objective);
 }
