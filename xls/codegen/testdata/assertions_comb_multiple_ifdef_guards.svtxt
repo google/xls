@@ -4,18 +4,16 @@ module assertions_top(
 );
   wire [30:0] add_195;
   wire ult_202;
-  wire [31:0] literal_200;
   wire [30:0] add_209;
   wire ult_206;
   wire nand_211;
   wire nand_212;
   assign add_195 = y[31:1] + 31'h7fff_fffb;
   assign ult_202 = y < 32'h0000_0014;
-  assign literal_200 = 32'h0000_0004;
   assign add_209 = y[31:1] + 31'h0000_000f;
   assign ult_206 = y < 32'h0000_000a;
-  assign nand_211 = ~(y > 32'h0000_0009 & ult_202 & {add_195, y[0]} > literal_200);
-  assign nand_212 = ~(ult_206 & y > literal_200);
+  assign nand_211 = ~(y > 32'h0000_0009 & ult_202 & {add_195, y[0]} > 32'h0000_0004);
+  assign nand_212 = ~(ult_206 & y > 32'h0000_0004);
   assign out = ult_206 ? {add_209, y[0]} : y & {32{ult_202}};
   `ifdef ASSERT_ON
   `ifndef SYNTHESIS

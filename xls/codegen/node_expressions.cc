@@ -730,7 +730,8 @@ absl::StatusOr<Expression*> NodeToExpression(
 
 bool ShouldInlineExpressionIntoMultipleUses(Node* node) {
   return node->Is<BitSlice>() || node->op() == Op::kNot ||
-         node->op() == Op::kNeg;
+         node->op() == Op::kNeg ||
+         (node->Is<xls::Literal>() && node->GetType()->IsBits());
 }
 
 absl::StatusOr<IndexableExpression*> ArrayIndexExpression(

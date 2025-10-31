@@ -527,13 +527,63 @@ class BlockGenerator {
     return false;
   }
 
+  // Returns whether the given operand appears multiple times in the emitted
+  // verilog expression/statement(s) for the given node.
+  bool OperandAppearsMultipleTimesInExpression(Node* n, int64_t operand_no) {
+    switch (n->op()) {
+      case Op::kArraySlice:
+      case Op::kArrayUpdate:
+      case Op::kArrayConcat:
+        return true;
+      // Select operations have multiple comparisons to the selector. Priority
+      // select is emitted as a separate function and doesn't have this
+      // property.
+      case Op::kSel:
+        return n->As<Select>()->cases().size() > 2 &&
+               operand_no == Select::kSelectorOperand;
+      case Op::kOneHotSel:
+        return operand_no == OneHotSelect::kSelectorOperand;
+      case Op::kEncode:
+      case Op::kReverse:
+        return true;
+      case Op::kEq:
+      case Op::kNe:
+        return !n->GetType()->IsBits();
+      case Op::kAssert:
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  // Returns whether the expression for the given node will be duplicated if
+  // inlined into its uses.
+  bool InlinedExpressionWillBeDuplicated(Node* n) {
+    if (n->users().size() == 0) {
+      return false;
+    } else if (n->users().size() > 1) {
+      return true;
+    }
+    Node* user = n->users().front();
+    std::optional<int64_t> operand_no;
+    for (int64_t i = 0; i < user->operand_count(); i++) {
+      if (user->operand(i) == n) {
+        if (operand_no.has_value()) {
+          return true;
+        }
+        operand_no = i;
+      }
+    }
+    return OperandAppearsMultipleTimesInExpression(user, operand_no.value());
+  }
+
   // Returns true if the given node should be emitted as an assignment
   // for readability purposes. This is a soft constraint / suggestion.
   bool ShouldEmitAsAssignment(Node* const n, int64_t inline_depth) {
-    return (
-        n->HasAssignedName() ||
-        (n->users().size() > 1 && !ShouldInlineExpressionIntoMultipleUses(n)) ||
-        inline_depth > options_.max_inline_depth());
+    return (n->HasAssignedName() ||
+            (InlinedExpressionWillBeDuplicated(n) &&
+             !ShouldInlineExpressionIntoMultipleUses(n)) ||
+            inline_depth > options_.max_inline_depth());
   }
 
   // Name of the node if it gets emitted as a separate assignment.
@@ -906,8 +956,8 @@ class BlockGenerator {
   // Emit each instantiation in the block into the separate instantiation module
   // section.
   absl::Status EmitInstantiations() {
-    // Since instantiations are emitted at the end, and not the pipeline stages
-    // they are in, separate with headline to reduce confusion.
+    // Since instantiations are emitted at the end, and not the pipeline
+    // stages they are in, separate with headline to reduce confusion.
     if (!block_->GetInstantiations().empty()) {
       mb_.declaration_section()->Add<BlankLine>(SourceInfo());
       mb_.instantiation_section()->Add<Comment>(SourceInfo(),

@@ -7,7 +7,9 @@ module main(
 );
   wire [1:0] one_hot_15;
   wire [2:0] one_hot_18;
+  wire eq_20;
   assign one_hot_15 = {!p, p};
   assign one_hot_18 = {one_hot_15[1:0] == 2'h0, one_hot_15[1] && !one_hot_15[0], one_hot_15[0]};
+  assign eq_20 = one_hot_15 == one_hot_18[1:0];
   assign out = x & {16{one_hot_15[0]}} | y & {16{one_hot_15[1]}};
 endmodule

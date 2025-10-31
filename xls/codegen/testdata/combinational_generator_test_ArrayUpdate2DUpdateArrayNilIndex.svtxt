@@ -18,6 +18,14 @@ module ArrayUpdate2DUpdateArrayNilIndex(
   assign value_unflattened[1][1] = value[39:32];
   assign value_unflattened[1][2] = value[47:40];
   wire [7:0] array_update_6[2][3];
-  assign array_update_6 = value_unflattened;
   assign out = {{array_update_6[1][2], array_update_6[1][1], array_update_6[1][0]}, {array_update_6[0][2], array_update_6[0][1], array_update_6[0][0]}};
+  genvar array_update_6__update_0;
+  genvar array_update_6__update_1;
+  generate
+    for (array_update_6__update_0 = 0; array_update_6__update_0 < 2; array_update_6__update_0 = array_update_6__update_0 + 1) begin : array_update_6__gen_up_0
+      for (array_update_6__update_1 = 0; array_update_6__update_1 < 3; array_update_6__update_1 = array_update_6__update_1 + 1) begin : array_update_6__gen_up_1
+        assign array_update_6[array_update_6__update_0][array_update_6__update_1] = value_unflattened[array_update_6__update_0][array_update_6__update_1];
+      end
+    end
+  endgenerate
 endmodule
