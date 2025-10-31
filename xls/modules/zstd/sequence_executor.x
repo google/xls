@@ -371,7 +371,7 @@ pub proc SequenceExecutor<HISTORY_BUFFER_SIZE_KB: u32,
                     parallel_rams::literal_packet_to_write_reqs<HISTORY_BUFFER_SIZE_KB>(state.hyp_ptr, packet);
                 let new_repeat_req = packet.length == CopyOrMatchLength:0;
                 let hb_add = packet.length as HistoryBufferLength;
-                let new_hb_len = std::mod_pow2(state.hb_len + hb_add, RAM_SIZE_TOTAL as uN[RAM_ADDR_WIDTH + RAM_NUM_CLOG2]);
+                let new_hb_len = std::min(state.hb_len + hb_add, parallel_rams::ram_size(HISTORY_BUFFER_SIZE_KB) as HistoryBufferLength);
 
                 (
                     write_reqs, ZERO_READ_REQS, RamReadStart:0, RamReadLen:0,
@@ -436,7 +436,7 @@ pub proc SequenceExecutor<HISTORY_BUFFER_SIZE_KB: u32,
                 let (write_reqs, new_hyp_ptr) =
                     parallel_rams::literal_packet_to_write_reqs<HISTORY_BUFFER_SIZE_KB>(state.hyp_ptr, packet);
                 let hb_add = packet.length as HistoryBufferLength;
-                let new_hb_len = std::mod_pow2(state.hb_len + hb_add, RAM_SIZE_TOTAL as uN[RAM_ADDR_WIDTH + RAM_NUM_CLOG2]);
+                let new_hb_len = std::min(state.hb_len + hb_add, parallel_rams::ram_size(HISTORY_BUFFER_SIZE_KB) as HistoryBufferLength);
 
                 (
                     write_reqs, ZERO_READ_REQS, RamReadStart:0, RamReadLen:0,
