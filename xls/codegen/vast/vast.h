@@ -267,7 +267,7 @@ class ScalarType final : public DataType {
   bool is_signed_;
 };
 
-// Represents an integer type. Example:
+// Represents an `integer` type (4-value integer type). Example:
 //   integer foo;
 class IntegerType final : public DataType {
  public:
@@ -276,6 +276,30 @@ class IntegerType final : public DataType {
 
   IntegerType(VerilogFile* file, const SourceInfo& loc)
       : IntegerType(/*is_signed=*/true, file, loc) {}
+
+  bool IsScalar() const final { return false; }
+  absl::StatusOr<int64_t> WidthAsInt64() const final {
+    return absl::InvalidArgumentError("Cannot get width of integer types");
+  }
+  absl::StatusOr<int64_t> FlatBitCountAsInt64() const final { return 32; }
+  std::optional<Expression*> width() const final { return std::nullopt; }
+  std::string Emit(LineInfo* line_info) const final;
+
+  bool is_signed() const final { return is_signed_; }
+
+ private:
+  bool is_signed_;
+};
+
+// Represents an `int` type (2-value integer value). Example:
+//   int foo;
+class IntType final : public DataType {
+ public:
+  IntType(bool is_signed, VerilogFile* file, const SourceInfo& loc)
+      : DataType(file, loc), is_signed_(is_signed) {}
+
+  IntType(VerilogFile* file, const SourceInfo& loc)
+      : IntType(/*is_signed=*/true, file, loc) {}
 
   bool IsScalar() const final { return false; }
   absl::StatusOr<int64_t> WidthAsInt64() const final {
@@ -451,6 +475,7 @@ enum class DataKind : int8_t {
   kWire,
   kLogic,
   kInteger,
+  kInt,
   // Any user-defined type, such as a typedef, struct, or enum.
   kUser,
   // The data kind of an enum definition itself that has no specified kind, i.e.
@@ -459,6 +484,13 @@ enum class DataKind : int8_t {
   // Used as an integer during elaboration to evaluate a generate loop.
   kGenvar,
 };
+
+std::string DataKindToString(DataKind kind);
+
+inline std::ostream& operator<<(std::ostream& os, DataKind kind) {
+  os << DataKindToString(kind);
+  return os;
+}
 
 // Represents the definition of a variable or net.
 class Def : public Statement {
@@ -561,6 +593,15 @@ class IntegerDef final : public Def {
   IntegerDef(std::string_view name, VerilogFile* file, const SourceInfo& loc);
   IntegerDef(std::string_view name, DataType* data_type, Expression* init,
              VerilogFile* file, const SourceInfo& loc);
+};
+
+// Int variable definition. Example:
+//   int foo;
+class IntDef final : public Def {
+ public:
+  IntDef(std::string_view name, VerilogFile* file, const SourceInfo& loc);
+  IntDef(std::string_view name, DataType* data_type, Expression* init,
+         VerilogFile* file, const SourceInfo& loc);
 };
 
 // Represents a genvar definition, for use in generate loops. Example:
@@ -1395,6 +1436,10 @@ class LocalParamItem final : public NamedTrait {
                  const SourceInfo& loc)
       : NamedTrait(file, loc), name_(name), rhs_(rhs) {}
 
+  LocalParamItem(Def* def, Expression* rhs, VerilogFile* file,
+                 const SourceInfo& loc)
+      : NamedTrait(file, loc), name_(def->GetName()), def_(def), rhs_(rhs) {}
+
   std::string GetName() const final { return name_; }
 
   std::string Emit(LineInfo* line_info) const final;
@@ -1403,6 +1448,7 @@ class LocalParamItem final : public NamedTrait {
 
  private:
   std::string name_;
+  std::optional<Def*> def_;
   Expression* rhs_;
 };
 
@@ -1424,6 +1470,8 @@ class LocalParam final : public VastNode {
  public:
   using VastNode::VastNode;
   LocalParamItemRef* AddItem(std::string_view name, Expression* value,
+                             const SourceInfo& loc);
+  LocalParamItemRef* AddItem(Def* def, Expression* value,
                              const SourceInfo& loc);
 
   std::string Emit(LineInfo* line_info) const final;
@@ -1766,18 +1814,25 @@ class QuotedString final : public Expression {
   std::string str_;
 };
 
-class XLiteral final : public Expression {
+class UnsizedXLiteral final : public Expression {
  public:
   using Expression::Expression;
 
   std::string Emit(LineInfo* line_info) const final { return "'X"; }
 };
 
-class ZeroLiteral final : public Expression {
+class UnsizedZeroLiteral final : public Expression {
  public:
   using Expression::Expression;
 
   std::string Emit(LineInfo* line_info) const final { return "'0"; }
+};
+
+class UnsizedOneLiteral final : public Expression {
+ public:
+  using Expression::Expression;
+
+  std::string Emit(LineInfo* line_info) const final { return "'1"; }
 };
 
 // Represents a Verilog slice expression; e.g.
@@ -2698,10 +2753,12 @@ class VerilogFile {
 
   // Only for use in testing.
   BinaryInfix* NotEqualsX(Expression* lhs, const SourceInfo& loc) {
-    return Make<BinaryInfix>(loc, lhs, XLiteral(loc), OperatorKind::kNeX);
+    return Make<BinaryInfix>(loc, lhs, UnsizedXLiteral(loc),
+                             OperatorKind::kNeX);
   }
   BinaryInfix* EqualsX(Expression* lhs, const SourceInfo& loc) {
-    return Make<BinaryInfix>(loc, lhs, XLiteral(loc), OperatorKind::kEqX);
+    return Make<BinaryInfix>(loc, lhs, UnsizedXLiteral(loc),
+                             OperatorKind::kEqX);
   }
 
   verilog::Ternary* Ternary(Expression* cond, Expression* consequent,
@@ -2709,8 +2766,14 @@ class VerilogFile {
     return Make<verilog::Ternary>(loc, cond, consequent, alternate);
   }
 
-  verilog::XLiteral* XLiteral(const SourceInfo& loc) {
-    return Make<verilog::XLiteral>(loc);
+  verilog::UnsizedXLiteral* UnsizedXLiteral(const SourceInfo& loc) {
+    return Make<verilog::UnsizedXLiteral>(loc);
+  }
+  verilog::UnsizedOneLiteral* UnsizedOneLiteral(const SourceInfo& loc) {
+    return Make<verilog::UnsizedOneLiteral>(loc);
+  }
+  verilog::UnsizedZeroLiteral* UnsizedZeroLiteral(const SourceInfo& loc) {
+    return Make<verilog::UnsizedZeroLiteral>(loc);
   }
 
   // Creates an literal with the given value and bit_count.
@@ -2750,10 +2813,13 @@ class VerilogFile {
     return Make<verilog::ScalarType>(loc);
   }
 
-  // Returns an integer type. Example:
+  // Returns an integer/int type. Example:
   //   integer foo;
   DataType* IntegerType(const SourceInfo& loc) {
     return Make<verilog::IntegerType>(loc);
+  }
+  DataType* IntType(const SourceInfo& loc) {
+    return Make<verilog::IntType>(loc);
   }
 
   // Returns a bit vector type for widths greater than one, and a scalar type

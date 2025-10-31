@@ -207,6 +207,18 @@ struct xls_vast_parameter_ref* xls_vast_verilog_module_add_parameter(
   return reinterpret_cast<xls_vast_parameter_ref*>(param_ref);
 }
 
+struct xls_vast_localparam_ref* xls_vast_verilog_module_add_localparam(
+    struct xls_vast_verilog_module* m, const char* name,
+    struct xls_vast_expression* rhs) {
+  auto* cpp_module = reinterpret_cast<xls::verilog::Module*>(m);
+  auto* cpp_rhs = reinterpret_cast<xls::verilog::Expression*>(rhs);
+  xls::verilog::LocalParam* lp =
+      cpp_module->Add<xls::verilog::LocalParam>(xls::SourceInfo());
+  xls::verilog::LocalParamItemRef* item_ref =
+      lp->AddItem(name, cpp_rhs, xls::SourceInfo());
+  return reinterpret_cast<xls_vast_localparam_ref*>(item_ref);
+}
+
 struct xls_vast_parameter_ref* xls_vast_verilog_module_add_parameter_with_def(
     struct xls_vast_verilog_module* m, struct xls_vast_def* def,
     struct xls_vast_expression* rhs) {
@@ -216,6 +228,19 @@ struct xls_vast_parameter_ref* xls_vast_verilog_module_add_parameter_with_def(
   xls::verilog::ParameterRef* param_ref =
       cpp_module->AddParameter(cpp_def, cpp_rhs, xls::SourceInfo());
   return reinterpret_cast<xls_vast_parameter_ref*>(param_ref);
+}
+
+struct xls_vast_localparam_ref* xls_vast_verilog_module_add_localparam_with_def(
+    struct xls_vast_verilog_module* m, struct xls_vast_def* def,
+    struct xls_vast_expression* rhs) {
+  auto* cpp_module = reinterpret_cast<xls::verilog::Module*>(m);
+  auto* cpp_def = reinterpret_cast<xls::verilog::Def*>(def);
+  auto* cpp_rhs = reinterpret_cast<xls::verilog::Expression*>(rhs);
+  xls::verilog::LocalParam* lp =
+      cpp_module->Add<xls::verilog::LocalParam>(xls::SourceInfo());
+  xls::verilog::LocalParamItemRef* item_ref =
+      lp->AddItem(cpp_def, cpp_rhs, xls::SourceInfo());
+  return reinterpret_cast<xls_vast_localparam_ref*>(item_ref);
 }
 
 char* xls_vast_verilog_file_emit(const struct xls_vast_verilog_file* f) {
@@ -257,6 +282,34 @@ struct xls_vast_data_type* xls_vast_verilog_file_make_integer_type(
   xls::verilog::DataType* type =
       cpp_file->Make<xls::verilog::IntegerType>(xls::SourceInfo(), is_signed);
   return reinterpret_cast<xls_vast_data_type*>(type);
+}
+
+struct xls_vast_data_type* xls_vast_verilog_file_make_int_type(
+    struct xls_vast_verilog_file* f, bool is_signed) {
+  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
+  xls::verilog::DataType* type =
+      cpp_file->Make<xls::verilog::IntType>(xls::SourceInfo(), is_signed);
+  return reinterpret_cast<xls_vast_data_type*>(type);
+}
+
+struct xls_vast_def* xls_vast_verilog_file_make_integer_def(
+    struct xls_vast_verilog_file* f, const char* name, bool is_signed) {
+  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
+  xls::verilog::DataType* type =
+      cpp_file->Make<xls::verilog::IntegerType>(xls::SourceInfo(), is_signed);
+  xls::verilog::Def* def = cpp_file->Make<xls::verilog::Def>(
+      xls::SourceInfo(), name, xls::verilog::DataKind::kInteger, type);
+  return reinterpret_cast<xls_vast_def*>(def);
+}
+
+struct xls_vast_def* xls_vast_verilog_file_make_int_def(
+    struct xls_vast_verilog_file* f, const char* name, bool is_signed) {
+  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
+  xls::verilog::DataType* type =
+      cpp_file->Make<xls::verilog::IntType>(xls::SourceInfo(), is_signed);
+  xls::verilog::Def* def = cpp_file->Make<xls::verilog::Def>(
+      xls::SourceInfo(), name, xls::verilog::DataKind::kInt, type);
+  return reinterpret_cast<xls_vast_def*>(def);
 }
 
 struct xls_vast_data_type* xls_vast_verilog_file_make_extern_package_type(
@@ -340,6 +393,30 @@ bool xls_vast_verilog_file_make_literal(struct xls_vast_verilog_file* f,
   *error_out = nullptr;
   *literal_out = reinterpret_cast<xls_vast_literal*>(cpp_literal);
   return true;
+}
+
+struct xls_vast_expression* xls_vast_verilog_file_make_unsized_one_literal(
+    struct xls_vast_verilog_file* f) {
+  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
+  auto* cpp_expr =
+      cpp_file->Make<xls::verilog::UnsizedOneLiteral>(xls::SourceInfo());
+  return reinterpret_cast<xls_vast_expression*>(cpp_expr);
+}
+
+struct xls_vast_expression* xls_vast_verilog_file_make_unsized_zero_literal(
+    struct xls_vast_verilog_file* f) {
+  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
+  auto* cpp_expr =
+      cpp_file->Make<xls::verilog::UnsizedZeroLiteral>(xls::SourceInfo());
+  return reinterpret_cast<xls_vast_expression*>(cpp_expr);
+}
+
+struct xls_vast_expression* xls_vast_verilog_file_make_unsized_x_literal(
+    struct xls_vast_verilog_file* f) {
+  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
+  auto* cpp_expr =
+      cpp_file->Make<xls::verilog::UnsizedXLiteral>(xls::SourceInfo());
+  return reinterpret_cast<xls_vast_expression*>(cpp_expr);
 }
 
 struct xls_vast_continuous_assignment*
@@ -433,6 +510,13 @@ struct xls_vast_expression* xls_vast_index_as_expression(
 struct xls_vast_expression* xls_vast_parameter_ref_as_expression(
     struct xls_vast_parameter_ref* v) {
   auto* cpp_v = reinterpret_cast<xls::verilog::ParameterRef*>(v);
+  auto* cpp_expression = static_cast<xls::verilog::Expression*>(cpp_v);
+  return reinterpret_cast<xls_vast_expression*>(cpp_expression);
+}
+
+struct xls_vast_expression* xls_vast_localparam_ref_as_expression(
+    struct xls_vast_localparam_ref* v) {
+  auto* cpp_v = reinterpret_cast<xls::verilog::LocalParamItemRef*>(v);
   auto* cpp_expression = static_cast<xls::verilog::Expression*>(cpp_v);
   return reinterpret_cast<xls_vast_expression*>(cpp_expression);
 }

@@ -225,7 +225,7 @@ absl::StatusOr<VerilogFunction*> DefinePrioritySelectFunction(
   Expression* x_literal;
   if (options.use_system_verilog()) {
     // Use 'X when generating SystemVerilog.
-    x_literal = file->Make<XLiteral>(loc);
+    x_literal = file->Make<UnsizedXLiteral>(loc);
   } else {
     // Verilog doesn't support 'X, so use the less desirable 16'dxxxx format.
     x_literal = file->Make<XSentinel>(loc, tpe->GetFlatBitCount());
