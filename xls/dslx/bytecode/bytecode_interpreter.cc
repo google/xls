@@ -523,7 +523,7 @@ absl::Status BytecodeInterpreter::EvalAdd(const Bytecode& bytecode,
           make_big_int(lhs.GetBitsOrDie()) + make_big_int(rhs.GetBitsOrDie()) !=
           make_big_int(output.GetBitsOrDie());
       if (rollover) {
-        options_.rollover_hook()(bytecode.source_span());
+        options_.rollover_hook()(CreateRolloverEvent(bytecode, lhs, rhs));
       }
     }
 
@@ -1101,6 +1101,18 @@ absl::StatusOr<bool> BytecodeInterpreter::MatchArmEqualsInterpValue(
   }
 }
 
+RolloverEvent BytecodeInterpreter::CreateRolloverEvent(const Bytecode& bytecode,
+                                                       const InterpValue& lhs,
+                                                       const InterpValue& rhs) {
+  std::vector<const Frame*> frames;
+  frames.reserve(frames_.size());
+  for (const Frame& frame : frames_) {
+    frames.push_back(&frame);
+  }
+  return RolloverEvent{
+      .span = bytecode.source_span(), .frames = frames, .lhs = lhs, .rhs = rhs};
+}
+
 absl::Status BytecodeInterpreter::EvalMatchArm(const Bytecode& bytecode) {
   // Puts true on the stack if the items are equal and false otherwise.
   XLS_ASSIGN_OR_RETURN(const Bytecode::MatchArmItem* item,
@@ -1128,7 +1140,7 @@ absl::Status BytecodeInterpreter::EvalMul(const Bytecode& bytecode,
           make_big_int(lhs.GetBitsOrDie()) * make_big_int(rhs.GetBitsOrDie()) !=
           make_big_int(output.GetBitsOrDie());
       if (rollover) {
-        options_.rollover_hook()(bytecode.source_span());
+        options_.rollover_hook()(CreateRolloverEvent(bytecode, lhs, rhs));
       }
     }
 
@@ -1353,7 +1365,7 @@ absl::Status BytecodeInterpreter::EvalSub(const Bytecode& bytecode,
           make_big_int(lhs.GetBitsOrDie()) - make_big_int(rhs.GetBitsOrDie()) !=
           make_big_int(output.GetBitsOrDie());
       if (rollover) {
-        options_.rollover_hook()(bytecode.source_span());
+        options_.rollover_hook()(CreateRolloverEvent(bytecode, lhs, rhs));
       }
     }
 

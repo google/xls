@@ -200,6 +200,7 @@ cc_library(
     name = "bytecode_interpreter_options",
     hdrs = ["bytecode_interpreter_options.h"],
     deps = [
+        ":frame",
         "//xls/dslx:interp_value",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:pos",

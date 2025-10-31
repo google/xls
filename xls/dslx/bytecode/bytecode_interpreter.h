@@ -251,6 +251,10 @@ class BytecodeInterpreter {
 
   absl::StatusOr<InterpValue> Pop() { return stack_.Pop(); }
 
+  RolloverEvent CreateRolloverEvent(const Bytecode& bytecode,
+                                    const InterpValue& lhs,
+                                    const InterpValue& rhs);
+
   ImportData* const import_data_;
   const std::optional<ProcId> proc_id_;
 

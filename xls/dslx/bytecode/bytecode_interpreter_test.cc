@@ -2468,14 +2468,15 @@ fn main(x: u2, y: u2) -> u2 {
     std::vector<Span> source_spans;
     XLS_ASSERT_OK_AND_ASSIGN(
         InterpValue result,
-        Interpret(kProgram, "main",
-                  {
-                      InterpValue::MakeUBits(2, x),
-                      InterpValue::MakeUBits(2, y),
-                  },
-                  BytecodeInterpreterOptions().rollover_hook(
-                      [&](const Span& s) { source_spans.push_back(s); }),
-                  &import_data));
+        Interpret(
+            kProgram, "main",
+            {
+                InterpValue::MakeUBits(2, x),
+                InterpValue::MakeUBits(2, y),
+            },
+            BytecodeInterpreterOptions().rollover_hook(
+                [&](const RolloverEvent e) { source_spans.push_back(e.span); }),
+            &import_data));
     VLOG(1) << "flat: " << std::hex << flat << " x: " << x << " y: " << y
             << " result: " << result.ToString();
 
@@ -2513,7 +2514,7 @@ fn main(x: u2, y: u2) -> u2 {
                       InterpValue::MakeUBits(2, y),
                   },
                   BytecodeInterpreterOptions().rollover_hook(
-                      [&](const Span& s) { source_spans.push_back(s); }),
+                      [&](RolloverEvent e) { source_spans.push_back(e.span); }),
                   &import_data));
     VLOG(1) << "flat: " << std::hex << flat << " x: " << x << " y: " << y
             << " result: " << result.ToString();
@@ -2553,7 +2554,7 @@ fn main(x: u2, y: u2) -> u2 {
                       InterpValue::MakeUBits(2, y),
                   },
                   BytecodeInterpreterOptions().rollover_hook(
-                      [&](const Span& s) { source_spans.push_back(s); }),
+                      [&](RolloverEvent e) { source_spans.push_back(e.span); }),
                   &import_data));
     VLOG(1) << "flat: " << std::hex << flat << " x: " << x << " y: " << y
             << " result: " << result.ToString();
@@ -2585,14 +2586,15 @@ fn main(x: s2, y: s2) -> s2 {
       std::vector<Span> source_spans;
       XLS_ASSERT_OK_AND_ASSIGN(
           InterpValue result,
-          Interpret(kProgram, "main",
-                    {
-                        InterpValue::MakeSBits(2, x),
-                        InterpValue::MakeSBits(2, y),
-                    },
-                    BytecodeInterpreterOptions().rollover_hook(
-                        [&](const Span& s) { source_spans.push_back(s); }),
-                    &import_data));
+          Interpret(
+              kProgram, "main",
+              {
+                  InterpValue::MakeSBits(2, x),
+                  InterpValue::MakeSBits(2, y),
+              },
+              BytecodeInterpreterOptions().rollover_hook(
+                  [&](RolloverEvent e) { source_spans.push_back(e.span); }),
+              &import_data));
 
       XLS_ASSERT_OK_AND_ASSIGN(int64_t got, result.GetBitValueViaSign());
       bool rollover = x * y != got;

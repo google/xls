@@ -20,9 +20,11 @@
 #include <optional>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "absl/status/status.h"
 #include "absl/types/span.h"
+#include "xls/dslx/bytecode/frame.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
@@ -38,7 +40,16 @@ using PostFnEvalHook = std::function<absl::Status(
 using TraceHook =
     std::function<void(const Span& source_location, std::string_view message)>;
 
-using RolloverHook = std::function<void(const Span&)>;
+// A detected rollover that a `RolloverHook` is being informed about. Pointers
+// are only valid until the hook returns.
+struct RolloverEvent {
+  Span span;
+  std::vector<const Frame*> frames;
+  InterpValue lhs;
+  InterpValue rhs;
+};
+
+using RolloverHook = std::function<void(RolloverEvent)>;
 
 class BytecodeInterpreterOptions {
  public:

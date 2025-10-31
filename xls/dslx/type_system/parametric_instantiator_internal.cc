@@ -135,7 +135,7 @@ absl::StatusOr<InterpValue> InterpretExpr(DeduceCtx* ctx, Expr* expr,
 
   std::vector<Span> rollovers;
   BytecodeInterpreterOptions options;
-  options.rollover_hook([&](const Span& s) { rollovers.push_back(s); });
+  options.rollover_hook([&](RolloverEvent e) { rollovers.push_back(e.span); });
 
   XLS_ASSIGN_OR_RETURN(
       InterpValue value,

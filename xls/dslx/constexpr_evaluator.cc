@@ -34,6 +34,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/substitute.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
@@ -43,6 +44,7 @@
 #include "xls/dslx/bytecode/bytecode_emitter.h"
 #include "xls/dslx/bytecode/bytecode_interpreter.h"
 #include "xls/dslx/bytecode/bytecode_interpreter_options.h"
+#include "xls/dslx/bytecode/frame.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_utils.h"
@@ -64,6 +66,33 @@
 #include "xls/ir/format_strings.h"
 
 namespace xls::dslx {
+namespace {
+
+// Creates a stack trace for an interpreter error, starting with the top (most
+// immediate) frame. The input is a call frame vector in bottom-to-top order,
+// plus a span string indicating the DSLX node being evaluated when the error
+// was encountered, which this function includes in the returned string as the
+// bottom of the stack. Note that currently `Frame::initial_args()` is
+// unreliable due to deeper problems than just not being populated in some
+// cases, so we don't try to display the arguments.
+std::string CallStackToString(std::string_view root_span_string,
+                              const std::vector<const Frame*>& frames) {
+  std::string result;
+  for (int i = frames.size() - 1; i >= 0; --i) {
+    const Frame* next = frames[i];
+    if (i == 0 && next->bf()->source_fn() == nullptr) {
+      break;
+    }
+    absl::StrAppendFormat(&result, "in %s\n",
+                          next->bf()->source_fn() == nullptr
+                              ? "<unknown>"
+                              : next->bf()->source_fn()->identifier());
+  }
+  absl::StrAppendFormat(&result, "from %s", root_span_string);
+  return result;
+}
+
+}  // namespace
 
 /* static */ absl::Status ConstexprEvaluator::Evaluate(
     ImportData* import_data, TypeInfo* type_info,
@@ -655,9 +684,6 @@ absl::Status ConstexprEvaluator::InterpretExpr(const Expr* expr) {
       BytecodeEmitter::EmitExpression(import_data_, type_info_, expr,
                                       constexpr_env_data.env, bindings_));
 
-  std::vector<Span> rollovers;
-  BytecodeInterpreterOptions options;
-  options.rollover_hook([&](const Span& s) { rollovers.push_back(s); });
   // TODO(williamjhuang) - The previous code has a bug here that
   // BytecodeInterpreter does not uses the rollover_hook even one is intended to
   // be used. In TIv1 this ended up only implicit parametric bindings are being
@@ -665,19 +691,26 @@ absl::Status ConstexprEvaluator::InterpretExpr(const Expr* expr) {
   // where constexpr is expected. We are matching this behavior in TIv2 for now
   // because a lot of code in stdlib has potentially overflowing immediate
   // expressions, so we cannot enable this warning universally.
+  BytecodeInterpreterOptions options;
+  if (warning_collector_ && warn_rollover_) {
+    options.rollover_hook([&](RolloverEvent e) {
+      warning_collector_->Add(
+          e.span, WarningKind::kConstexprEvalRollover,
+          absl::Substitute("constexpr evaluation detected rollover in "
+                           "operation with left-hand value `$0` and right-hand "
+                           "value `$1`\n$2",
+                           e.lhs.ToString(/*humanize=*/true),
+                           e.rhs.ToString(/*humanize=*/true),
+                           CallStackToString(expr->span().ToString(
+                                                 *expr->owner()->file_table()),
+                                             e.frames)));
+    });
+  }
   XLS_ASSIGN_OR_RETURN(
       InterpValue constexpr_value,
       BytecodeInterpreter::Interpret(
           import_data_, bf.get(),
-          /*args=*/{}, /*channel_manager=*/std::nullopt,
-          warn_rollover_ ? options : BytecodeInterpreterOptions()));
-  if (warning_collector_ != nullptr) {
-    for (const Span& s : rollovers) {
-      warning_collector_->Add(
-          s, WarningKind::kConstexprEvalRollover,
-          "constexpr evaluation detected rollover in operation");
-    }
-  }
+          /*args=*/{}, /*channel_manager=*/std::nullopt, options));
   type_info_->NoteConstExpr(expr, constexpr_value);
 
   return absl::OkStatus();

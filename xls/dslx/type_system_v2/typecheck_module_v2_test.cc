@@ -9021,15 +9021,21 @@ fn f(A: (u32, u32)[5]) -> (u32, u32) {
 // on implicit parametric bindings, but not anywhere else.
 TEST(TypecheckV2Test, ImplicitParametricBindingRollover) {
   XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
-fn p<N: u32, M: u32 = {N - (u32:1 << 31) - u32:1}>() {
+fn bar(n: u32) -> u32 { n - (u32:1 << 31) - u32:1 }
+fn foo(n: u32) -> u32 { bar(n) }
+fn p<N: u32, M: u32 = {foo(N)}>() {
 }
 
 fn main() {
   p<u32:0>();  // <-- cause an underflow to occur
 }
 )"));
-  EXPECT_EQ(result.tm.warnings.warnings()[0].message,
-            "constexpr evaluation detected rollover in operation");
+  EXPECT_THAT(
+      result.tm.warnings.warnings()[0].message,
+      AllOf(HasSubstr("constexpr evaluation detected rollover in operation"),
+            HasSubstr("left-hand value `0`"),
+            HasSubstr("right-hand value `2147483648`"),
+            HasSubstr("in bar\nin foo\nfrom fake.x:6:27-6:30")));
 }
 
 TEST(TypecheckV2Test, ParametricTypeRolloverOk) {
