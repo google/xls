@@ -2140,6 +2140,7 @@ struct Point {
   XLS_ASSERT_OK_AND_ASSIGN(StructDef * point,
                            module->GetMemberOrError<StructDef>("Point"));
   const MemberTypeAnnotation* annotation = module->Make<MemberTypeAnnotation>(
+      Span::Fake(),
       module->Make<TypeRefTypeAnnotation>(
           Span::Fake(), module->Make<TypeRef>(Span::Fake(), point),
           /*parametrics=*/std::vector<ExprOrType>()),

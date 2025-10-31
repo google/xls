@@ -554,7 +554,8 @@ class MemberTypeAnnotation : public TypeAnnotation {
   static constexpr TypeAnnotationKind kAnnotationKind =
       TypeAnnotationKind::kMember;
 
-  MemberTypeAnnotation(Module* owner, const TypeAnnotation* struct_type,
+  MemberTypeAnnotation(Module* owner, Span span,
+                       const TypeAnnotation* struct_type,
                        std::string_view member_name);
 
   absl::Status Accept(AstNodeVisitor* v) const override {

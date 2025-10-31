@@ -36,6 +36,25 @@
 
 namespace xls::dslx {
 
+// Returns a span covering only the attribute identifier of an attribute-access
+// node (e.g. Attr or ColonRef).
+// E.g. Given struct Params {
+//   x: u32,
+// }
+//
+// fn main() -> u32 {
+//   let p = Params { x: 1 };
+//   p.invalid_field
+// }
+// For the expression `p.invalid_field`, this helper function would return a
+// span covering only "invalid_field".
+template <typename NodeT>
+Span AttrSpan(const NodeT* node) {
+  return Span(Pos(node->span().limit().fileno(), node->span().limit().lineno(),
+                  node->span().limit().colno() - node->attr().size()),
+              node->span().limit());
+}
+
 // Returns true if `callee` refers to a builtin function. If `callee` isn't a
 // NameRef, then this always returns false.
 //

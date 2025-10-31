@@ -1083,10 +1083,10 @@ std::string TypeVariableTypeAnnotation::ToString() const {
 
 // -- class MemberTypeAnnotation
 
-MemberTypeAnnotation::MemberTypeAnnotation(Module* owner,
+MemberTypeAnnotation::MemberTypeAnnotation(Module* owner, Span span,
                                            const TypeAnnotation* struct_type,
                                            std::string_view member_name)
-    : TypeAnnotation(owner, struct_type->span(), kAnnotationKind),
+    : TypeAnnotation(owner, span, kAnnotationKind),
       struct_type_(struct_type),
       member_name_(member_name) {}
 

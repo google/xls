@@ -260,7 +260,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
           // parametrics to be resolved properly.
           return table_.SetTypeAnnotation(
               node, module_.Make<MemberTypeAnnotation>(
-                        *struct_ref->type_ref_type_annotation, node->attr()));
+                        AttrSpan(node), *struct_ref->type_ref_type_annotation,
+                        node->attr()));
         } else if (def.has_value()) {
           return PropagateDefToRef(*def, node);
         }
@@ -273,8 +274,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
                              CreateBuiltinTypeAnnotation(
                                  module_, builtin_name_def, node->span()));
         return table_.SetTypeAnnotation(
-            node, module_.Make<MemberTypeAnnotation>(builtin_type_annotation,
-                                                     node->attr()));
+            node, module_.Make<MemberTypeAnnotation>(
+                      AttrSpan(node), builtin_type_annotation, node->attr()));
       }
 
       // Built-in member of a built-in type being accessed via a type alias.
@@ -283,8 +284,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
         XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
             ToAstNode(node->subject()), &alias->type_annotation()));
         return table_.SetTypeAnnotation(
-            node, module_.Make<MemberTypeAnnotation>(&alias->type_annotation(),
-                                                     node->attr()));
+            node, module_.Make<MemberTypeAnnotation>(
+                      AttrSpan(node), &alias->type_annotation(), node->attr()));
       }
     }
 
@@ -313,7 +314,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
           // would not be dealt with properly.
           return table_.SetTypeAnnotation(
               node, module_.Make<MemberTypeAnnotation>(
-                        *struct_ref->type_ref_type_annotation, node->attr()));
+                        AttrSpan(node), *struct_ref->type_ref_type_annotation,
+                        node->attr()));
         }
         return SetCrossModuleTypeAnnotation(node, *ref);
       }
@@ -339,7 +341,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
                                 .status());
       }
       return table_.SetTypeAnnotation(
-          node, module_.Make<MemberTypeAnnotation>(annotation, node->attr()));
+          node, module_.Make<MemberTypeAnnotation>(AttrSpan(node), annotation,
+                                                   node->attr()));
     }
 
     // Any imported_module::entity case not covered above.
@@ -996,6 +999,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
         node,
         module_.Make<MemberTypeAnnotation>(
+            AttrSpan(node),
             module_.Make<TypeVariableTypeAnnotation>(struct_type_variable),
             node->attr())));
     return DefaultHandler(node);
@@ -2077,7 +2081,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     for (const auto& [name, actual_member] : node->members()) {
       const StructMemberNode* formal_member = formal_member_map.at(name);
       const TypeAnnotation* formal_member_type =
-          module_.Make<MemberTypeAnnotation>(struct_variable_type,
+          module_.Make<MemberTypeAnnotation>(formal_member->name_def()->span(),
+                                             struct_variable_type,
                                              formal_member->name());
       table_.SetAnnotationFlag(formal_member_type,
                                TypeInferenceFlag::kFormalMemberType);
