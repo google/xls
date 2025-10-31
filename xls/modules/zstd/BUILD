@@ -14,9 +14,11 @@
 
 # Build rules for XLS ZSTD codec implementation.
 
-load("@rules_hdl//place_and_route:build_defs.bzl", "place_and_route")
+# pytype binary, library
+load("@rules_hdl//place_and_route:build_defs.bzl", "collect_benchmark_reports", "place_and_route")
 load("@rules_hdl//synthesis:build_defs.bzl", "benchmark_synth", "synthesize_rtl")
 load("@rules_hdl//verilog:providers.bzl", "verilog_library")
+load("@xls_pip_deps//:requirements.bzl", "requirement")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "xls_benchmark_ir",
@@ -1184,7 +1186,7 @@ xls_dslx_verilog(
         "delay_model": "asap7",
         # FIXME: update ram rewrite
         #"ram_configurations": "ram:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-        #    latency = 5,
+        #    latency = 1,
         #    rd_req = "fse_proba_freq_dec__rd_req_s",
         #    rd_resp = "fse_proba_freq_dec__rd_resp_r",
         #    wr_req = "fse_proba_freq_dec__wr_req_s",
@@ -1210,7 +1212,7 @@ xls_benchmark_ir(
         "reset": "rst",
         # FIXME: update ram rewrite
         #"ram_configurations": "ram:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-        #    latency = 5,
+        #    latency = 1,
         #    rd_req = "fse_proba_freq_dec__rd_req_s",
         #    rd_resp = "fse_proba_freq_dec__rd_resp_r",
         #    wr_req = "fse_proba_freq_dec__wr_req_s",
@@ -1444,6 +1446,28 @@ xls_dslx_test(
     ],
 )
 
+py_binary(
+    name = "zstd_test_frames_generator",
+    srcs = ["zstd_frame_dslx.py"],
+    imports = ["."],
+    main = "zstd_frame_dslx.py",
+    tags = ["manual"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        "//xls/common:runfiles",
+        "//xls/modules/zstd/cocotb:data_generator",
+        "@com_google_protobuf//:protobuf_python",
+    ],
+)
+
+genrule(
+    name = "zstd_test_frames_generate",
+    srcs = [],
+    outs = ["zstd_frame_testcases.x"],
+    cmd = "$(location :zstd_test_frames_generator) --seed 36 -n 1 --btype COMPRESSED -o $@",
+    tools = [":zstd_test_frames_generator"],
+)
+
 zstd_dec_deps = [
     ":axi_csr_accessor_dslx",
     ":block_header_dec_dslx",
@@ -1475,7 +1499,7 @@ xls_dslx_library(
 
 xls_dslx_test(
     name = "zstd_dec_dslx_test",
-    size = "large",
+    size = "enormous",
     srcs = [
         "data/comp_frame.x",
         "data/comp_frame_fse_comp.x",
@@ -1490,6 +1514,169 @@ xls_dslx_test(
         "manual",
     ],
     deps = zstd_dec_deps,
+)
+
+ZSTD_DEC_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
+    "module_name": "ZstdDecoder",
+    "clock_period_ps": "0",
+    "pipeline_stages": "16",
+    "worst_case_throughput": "6",
+    # "flop_inputs_kind": "skid",
+    # "flop_outputs_kind": "skid",
+    "materialize_internal_fifos": "false",  # TODO: remove once this option works with loopback channels
+    "ram_configurations": ",".join([
+        ",".join([
+            "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+                latency = 1,
+                ram_name = "history_buffer_ram{}".format(num),
+                rd_req = "zstd_dec__ram_rd_req_{}_s".format(num),
+                rd_resp = "zstd_dec__ram_rd_resp_{}_r".format(num),
+                wr_req = "zstd_dec__ram_wr_req_{}_s".format(num),
+                wr_resp = "zstd_dec__ram_wr_resp_{}_r".format(num),
+            )
+            for num in range(8)
+        ]),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "dpd_ram",
+            rd_req = "zstd_dec__dpd_rd_req_s",
+            rd_resp = "zstd_dec__dpd_rd_resp_r",
+            wr_req = "zstd_dec__dpd_wr_req_s",
+            wr_resp = "zstd_dec__dpd_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "fse_tmp_ram",
+            rd_req = "zstd_dec__tmp_rd_req_s",
+            rd_resp = "zstd_dec__tmp_rd_resp_r",
+            wr_req = "zstd_dec__tmp_wr_req_s",
+            wr_resp = "zstd_dec__tmp_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "fse_tmp2_ram",
+            rd_req = "zstd_dec__tmp2_rd_req_s",
+            rd_resp = "zstd_dec__tmp2_rd_resp_r",
+            wr_req = "zstd_dec__tmp2_wr_req_s",
+            wr_resp = "zstd_dec__tmp2_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "ll_def_fse_ram",
+            rd_req = "zstd_dec__ll_def_fse_rd_req_s",
+            rd_resp = "zstd_dec__ll_def_fse_rd_resp_r",
+            wr_req = "zstd_dec__ll_def_fse_wr_req_s",
+            wr_resp = "zstd_dec__ll_def_fse_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "ll_fse_ram",
+            rd_req = "zstd_dec__ll_fse_rd_req_s",
+            rd_resp = "zstd_dec__ll_fse_rd_resp_r",
+            wr_req = "zstd_dec__ll_fse_wr_req_s",
+            wr_resp = "zstd_dec__ll_fse_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "ml_def_fse_ram",
+            rd_req = "zstd_dec__ml_def_fse_rd_req_s",
+            rd_resp = "zstd_dec__ml_def_fse_rd_resp_r",
+            wr_req = "zstd_dec__ml_def_fse_wr_req_s",
+            wr_resp = "zstd_dec__ml_def_fse_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "ml_fse_ram",
+            rd_req = "zstd_dec__ml_fse_rd_req_s",
+            rd_resp = "zstd_dec__ml_fse_rd_resp_r",
+            wr_req = "zstd_dec__ml_fse_wr_req_s",
+            wr_resp = "zstd_dec__ml_fse_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "of_def_fse_ram",
+            rd_req = "zstd_dec__of_def_fse_rd_req_s",
+            rd_resp = "zstd_dec__of_def_fse_rd_resp_r",
+            wr_req = "zstd_dec__of_def_fse_wr_req_s",
+            wr_resp = "zstd_dec__of_def_fse_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "of_fse_ram",
+            rd_req = "zstd_dec__of_fse_rd_req_s",
+            rd_resp = "zstd_dec__of_fse_rd_resp_r",
+            wr_req = "zstd_dec__of_fse_wr_req_s",
+            wr_resp = "zstd_dec__of_fse_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "huffman_literals_prescan_ram",
+            rd_req = "zstd_dec__huffman_lit_prescan_mem_rd_req_s",
+            rd_resp = "zstd_dec__huffman_lit_prescan_mem_rd_resp_r",
+            wr_req = "zstd_dec__huffman_lit_prescan_mem_wr_req_s",
+            wr_resp = "zstd_dec__huffman_lit_prescan_mem_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "huffman_literals_weights_dpd_ram",
+            rd_req = "zstd_dec__huffman_lit_weights_dpd_rd_req_s",
+            rd_resp = "zstd_dec__huffman_lit_weights_dpd_rd_resp_r",
+            wr_req = "zstd_dec__huffman_lit_weights_dpd_wr_req_s",
+            wr_resp = "zstd_dec__huffman_lit_weights_dpd_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "huffman_literals_weights_tmp_ram",
+            rd_req = "zstd_dec__huffman_lit_weights_tmp_rd_req_s",
+            rd_resp = "zstd_dec__huffman_lit_weights_tmp_rd_resp_r",
+            wr_req = "zstd_dec__huffman_lit_weights_tmp_wr_req_s",
+            wr_resp = "zstd_dec__huffman_lit_weights_tmp_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "huffman_literals_weights_tmp2_ram",
+            rd_req = "zstd_dec__huffman_lit_weights_tmp2_rd_req_s",
+            rd_resp = "zstd_dec__huffman_lit_weights_tmp2_rd_resp_r",
+            wr_req = "zstd_dec__huffman_lit_weights_tmp2_wr_req_s",
+            wr_resp = "zstd_dec__huffman_lit_weights_tmp2_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "huffman_literals_weights_fse_ram",
+            rd_req = "zstd_dec__huffman_lit_weights_fse_rd_req_s",
+            rd_resp = "zstd_dec__huffman_lit_weights_fse_rd_resp_r",
+            wr_req = "zstd_dec__huffman_lit_weights_fse_wr_req_s",
+            wr_resp = "zstd_dec__huffman_lit_weights_fse_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "huffman_literals_weights_mem_ram",
+            rd_req = "zstd_dec__huffman_lit_weights_mem_rd_req_s",
+            rd_resp = "zstd_dec__huffman_lit_weights_mem_rd_resp_r",
+            wr_req = "zstd_dec__huffman_lit_weights_mem_wr_req_s",
+            wr_resp = "zstd_dec__huffman_lit_weights_mem_wr_resp_r",
+        ),
+        ",".join([
+            "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+                latency = 1,
+                ram_name = "literals_buffer_ram{}".format(num),
+                rd_req = "zstd_dec__litbuf_rd_req_s__{}".format(num),
+                rd_resp = "zstd_dec__litbuf_rd_resp_r__{}".format(num),
+                wr_req = "zstd_dec__litbuf_wr_req_s__{}".format(num),
+                wr_resp = "zstd_dec__litbuf_wr_resp_r__{}".format(num),
+            )
+            for num in range(8)
+        ]),
+    ]),
+}
+
+xls_dslx_verilog(
+    name = "zstd_dec_verilog",
+    codegen_args = ZSTD_DEC_CODEGEN_ARGS,
+    dslx_top = "ZstdDecoderInst",
+    library = ":zstd_dec_dslx",
+    tags = ["manual"],
+    verilog_file = "zstd_dec.v",
 )
 
 ZSTD_DEC_INTERNAL_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
@@ -1549,6 +1736,138 @@ place_and_route(
     synthesized_rtl = ":zstd_dec_internal_synth_asap7",
     tags = ["manual"],
     target_die_utilization_percentage = "10",
+)
+
+verilog_library(
+    name = "zstd_dec_verilog_lib",
+    srcs = [
+        ":zstd_dec.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "zstd_dec_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "ZstdDecoder",
+    deps = [
+        ":zstd_dec_verilog_lib",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "zstd_dec_benchmark_synth",
+    synth_target = ":zstd_dec_synth_asap7",
+    tags = ["manual"],
+)
+
+#place_and_route(
+#    name = "zstd_dec_place_and_route",
+#    clock_period = CLOCK_PERIOD_PS,
+#    core_padding_microns = 2,
+#    min_pin_distance = "0.4",
+#    placement_density = "0.1",
+#    stop_after_step = "global_routing",
+#    synthesized_rtl = ":zstd_dec_synth_asap7",
+#    tags = ["manual"],
+#    target_die_utilization_percentage = "1",
+#)
+
+filegroup(
+    name = "zstd_dec_xx_fse_default",
+    srcs = [
+        "zstd_dec_ll_fse_default.mem",
+        "zstd_dec_ml_fse_default.mem",
+        "zstd_dec_of_fse_default.mem",
+    ],
+)
+
+genrule(
+    name = "axi_crossbar_wrapper",
+    outs = ["axi_crossbar_wrapper.v"],
+    cmd = "$(location @com_github_alexforencich_verilog_axi//:axi_crossbar_wrap) -p 15 1 -n axi_crossbar_wrapper -o  $(OUTS)",
+    tools = [
+        "@com_github_alexforencich_verilog_axi//:axi_crossbar_wrap",
+    ],
+)
+
+py_test(
+    name = "zstd_dec_cocotb_test",
+    srcs = ["zstd_dec_cocotb_test.py"],
+    data = [
+        "data/comp_frame.zst",
+        "data/comp_frame_fse_comp.zst",
+        "data/comp_frame_fse_repeated.zst",
+        "data/comp_frame_huffman.zst",
+        "data/comp_frame_huffman_fse.zst",
+        "data/fse_huffman_literals_predefined_sequences_seed_107958.zst",
+        "data/fse_huffman_literals_predefined_sequences_seed_204626.zst",
+        "data/fse_huffman_literals_predefined_sequences_seed_210872.zst",
+        "data/fse_huffman_literals_predefined_sequences_seed_299289.zst",
+        "data/fse_huffman_literals_predefined_sequences_seed_319146.zst",
+        "data/fse_huffman_literals_predefined_sequences_seed_331938.zst",
+        "data/fse_huffman_literals_predefined_sequences_seed_333824.zst",
+        "data/pregenerated_compressed_minimal.zst",
+        "data/pregenerated_compressed_random_1.zst",
+        "data/pregenerated_compressed_random_2.zst",
+        "data/pregenerated_compressed_raw_1.zst",
+        "data/pregenerated_compressed_raw_2.zst",
+        "data/pregenerated_compressed_rle_1.zst",
+        "data/pregenerated_compressed_rle_2.zst",
+        "data/pregenerated_uncompressed.zst",
+        "data/raw_literals_compressed_sequences_seed_903062.zst",
+        "data/raw_literals_predefined_sequences_seed_422473.zst",
+        "data/raw_literals_predefined_sequences_seed_436965.zst",
+        "data/raw_literals_predefined_sequences_seed_462302.zst",
+        "data/raw_literals_rle_sequences_seed_700216.zst",
+        "data/rle_literals_compressed_sequences_seed_701326.zst",
+        "data/rle_literals_predefined_sequences_seed_406229.zst",
+        "data/rle_literals_predefined_sequences_seed_411034.zst",
+        "data/rle_literals_predefined_sequences_seed_413015.zst",
+        "data/rle_literals_predefined_sequences_seed_436165.zst",
+        "data/rle_literals_predefined_sequences_seed_464057.zst",
+        "data/rle_literals_predefined_sequences_seed_466803.zst",
+        "data/rle_literals_rle_sequences_seed_2.zst",
+        "data/rle_raw_literals_predefined_sequences_seed_408158.zst",
+        "data/rle_raw_literals_predefined_sequences_seed_499212.zst",
+        "data/treeless_huffman_literals_compressed_sequences_seed_400077.zst",
+        "data/treeless_huffman_literals_predefined_rle_compressed_sequences_seed_400025.zst",
+        "data/treeless_huffman_literals_predefined_rle_compressed_sequences_seed_400061.zst",
+        "data/treeless_huffman_literals_rle_sequences_seed_403927.zst",
+        ":axi_crossbar_wrapper.v",
+        ":zstd_dec.v",
+        ":zstd_dec_xx_fse_default",
+        "//xls/modules/zstd/rtl:ram_1r1w.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
+        "//xls/modules/zstd/rtl:zstd_dec_wrapper.sv",
+        "@com_github_alexforencich_verilog_axi//:rtl/arbiter.v",
+        "@com_github_alexforencich_verilog_axi//:rtl/axi_crossbar.v",
+        "@com_github_alexforencich_verilog_axi//:rtl/axi_crossbar_addr.v",
+        "@com_github_alexforencich_verilog_axi//:rtl/axi_crossbar_rd.v",
+        "@com_github_alexforencich_verilog_axi//:rtl/axi_crossbar_wr.v",
+        "@com_github_alexforencich_verilog_axi//:rtl/axi_register_rd.v",
+        "@com_github_alexforencich_verilog_axi//:rtl/axi_register_wr.v",
+        "@com_github_alexforencich_verilog_axi//:rtl/priority_encoder.v",
+        "@com_icarus_iverilog//:iverilog",
+        "@com_icarus_iverilog//:vvp",
+    ],
+    tags = ["manual"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        requirement("cocotb"),
+        requirement("cocotbext-axi"),
+        "//xls/common:runfiles",
+        "//xls/modules/zstd/cocotb:channel",
+        "//xls/modules/zstd/cocotb:data_generator",
+        "//xls/modules/zstd/cocotb:memory",
+        "//xls/modules/zstd/cocotb:utils",
+        "//xls/modules/zstd/cocotb:xlsstruct",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
+        "@com_google_protobuf//:protobuf_python",
+    ],
 )
 
 xls_dslx_library(
@@ -1896,6 +2215,7 @@ RAM_DEMUX_CODEGEN_ARGS = {
     "clock_period_ps": "750",
     "reset": "rst",
     "use_system_verilog": "false",
+    "streaming_channel_data_suffix": "_data",
     "materialize_internal_fifos": "true",
 }
 
@@ -1972,6 +2292,34 @@ ram_demux_naive_codegen_args = {
     "use_system_verilog": "false",
     "materialize_internal_fifos": "true",
 }
+
+py_test(
+    name = "ram_demux_cocotb_test",
+    srcs = ["ram_demux_cocotb_test.py"],
+    data = [
+        "//xls/modules/zstd:ram_demux.v",
+        "//xls/modules/zstd/rtl:ram_1r1w.v",
+        "//xls/modules/zstd/rtl:ram_demux_wrapper.v",
+        "@com_icarus_iverilog//:iverilog",
+        "@com_icarus_iverilog//:vvp",
+    ],
+    env = {
+        "PYTHONUNBUFFERED": "1",
+    },
+    imports = ["."],
+    tags = ["manual"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        requirement("cocotb"),
+        requirement("cocotbext-axi"),
+        "//xls/common:runfiles",
+        "//xls/modules/zstd/cocotb:channel",
+        "//xls/modules/zstd/cocotb:data_generator",
+        "//xls/modules/zstd/cocotb:memory",
+        "//xls/modules/zstd/cocotb:utils",
+        "//xls/modules/zstd/cocotb:xlsstruct",
+    ],
+)
 
 xls_dslx_verilog(
     name = "ram_demux_naive_verilog",
@@ -3006,7 +3354,7 @@ benchmark_synth(
 )
 
 place_and_route(
-    name = "huffman_code_builder_place_and_route",
+    name = "huffman_code_builder_place_and_route_skip",
     clock_period = CLOCK_PERIOD_PS,
     core_padding_microns = 2,
     min_pin_distance = "0.5",
@@ -3528,4 +3876,47 @@ xls_dslx_library(
 xls_dslx_test(
     name = "refilling_shift_buffer_mux_dslx_test",
     library = ":refilling_shift_buffer_mux_dslx",
+)
+
+collect_benchmark_reports(
+    name = "all_banchmark_reports",
+    srcs = [
+        ":window_buffer_place_and_route",
+        ":shift_buffer_aligner_place_and_route",
+        ":shift_buffer_storage_place_and_route",
+        ":shift_buffer_place_and_route",
+        ":frame_header_dec_place_and_route",
+        ":block_header_dec_place_and_route",
+        ":raw_block_dec_place_and_route",
+        ":rle_block_dec_place_and_route",
+        ":dec_mux_place_and_route",
+        ":sequence_executor_place_and_route",
+        ":axi_csr_accessor_place_and_route",
+        ":csr_config_place_and_route",
+        ":ram_rw_handler_place_and_route",
+        ":fse_proba_freq_dec_place_and_route",
+        ":refilling_shift_buffer_internal_place_and_route",
+        ":zstd_dec_internal_place_and_route",
+        ":fse_table_iterator_place_and_route",
+        ":fse_table_creator_place_and_route",
+        ":command_constructor_place_and_route",
+        ":ram_demux_place_and_route",
+        ":ram_demux_naive_place_and_route",
+        ":fse_dec_place_and_route",
+        ":ram_demux3_place_and_route",
+        ":rle_literals_dec_place_and_route",
+        ":raw_literals_dec_place_and_route",
+        ":literals_buffer_place_and_route",
+        ":literals_decoder_ctrl_place_and_route",
+        # ":literals_decoder_place_and_route",
+        ":huffman_prescan_place_and_route",
+        # ":huffman_code_builder_place_and_route",
+        ":huffman_axi_reader_place_and_route",
+        # ":huffman_data_preprocessor_place_and_route",
+        # ":huffman_decoder_place_and_route",
+        ":huffman_ctrl_place_and_route",
+        ":huffman_weights_dec_place_and_route",
+        # ":huffman_literals_dec_place_and_route",
+        # ":zstd_dec_place_and_route",
+    ],
 )
