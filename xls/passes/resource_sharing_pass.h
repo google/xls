@@ -26,6 +26,7 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
+#include "xls/passes/reachability_analysis.h"
 
 namespace xls {
 
@@ -63,7 +64,8 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
 };
 
 bool InfluencedBySource(
-    Node* node, Node* source, const BddQueryEngine& bdd_engine,
+    Node* node, Node* source, const ReachabilityAnalysis& reachability,
+    const BddQueryEngine& bdd_engine,
     const std::vector<std::pair<TreeBitLocation, bool>>& assumptions);
 
 }  // namespace xls
