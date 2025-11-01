@@ -1768,6 +1768,55 @@ TEST_P(VastTest, SignedOperation) {
 endmodule)");
 }
 
+TEST_P(VastTest, WidthCastEmission) {
+  const SourceInfo si;
+  VerilogFile f(GetFileType());
+  Module* m = f.AddModule("top", si);
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * a,
+                           m->AddInput("a", f.BitVectorType(8, si), si));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * b,
+                           m->AddInput("b", f.BitVectorType(4, si), si));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * out_literal,
+      m->AddOutput("out_literal", f.BitVectorType(8, si), si));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * out_param,
+      m->AddOutput("out_param", f.BitVectorType(12, si), si));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * out_expr,
+      m->AddOutput("out_expr", f.BitVectorType(16, si), si));
+
+  ParameterRef* width_param =
+      m->AddParameter("WidthParam", f.PlainLiteral(12, si), si);
+
+  m->Add<ContinuousAssignment>(
+      si, out_literal,
+      f.Make<WidthCast>(si, f.PlainLiteral(8, si),
+                        f.Add(a, f.PlainLiteral(1, si), si)));
+  m->Add<ContinuousAssignment>(
+      si, out_param, f.Make<WidthCast>(si, width_param, f.Concat({a, b}, si)));
+
+  Expression* complex_width = f.Add(width_param, f.PlainLiteral(4, si), si);
+  Expression* complex_value =
+      f.BitwiseXor(a, f.Concat({b, f.Literal(3, 2, si)}, si), si);
+  m->Add<ContinuousAssignment>(
+      si, out_expr, f.Make<WidthCast>(si, complex_width, complex_value));
+
+  EXPECT_EQ(m->Emit(nullptr),
+            R"(module top(
+  input wire [7:0] a,
+  input wire [3:0] b,
+  output wire [7:0] out_literal,
+  output wire [11:0] out_param,
+  output wire [15:0] out_expr
+);
+  parameter WidthParam = 12;
+  assign out_literal = 8'(a + 1);
+  assign out_param = WidthParam'({a, b});
+  assign out_expr = (WidthParam + 4)'(a ^ {b, 2'h3});
+endmodule)");
+}
+
 TEST_P(VastTest, ComplexConditional) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
