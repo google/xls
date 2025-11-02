@@ -595,44 +595,40 @@ std::string StatementBlock::Emit(LineInfo* line_info) const {
   return result;
 }
 
+GenerateLoop::GenerateLoop(std::string_view genvar_name, Expression* init,
+                           Expression* limit, std::optional<std::string> label,
+                           VerilogFile* file, const SourceInfo& loc)
+    : Statement(file, loc),
+      genvar_(file->Make<LogicRef>(
+          loc, file->Make<GenvarDef>(loc, std::string(genvar_name)))),
+      init_(init),
+      limit_(limit),
+      label_(std::move(label)),
+      body_(file->Make<StatementBlock>(loc)) {}
+
 std::string GenerateLoop::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
   std::vector<std::string> lines;
-  lines.push_back(absl::StrFormat("generate"));
+  std::string label_suffix =
+      label_.has_value() ? absl::StrCat(" : ", label_.value()) : "";
+  std::string genvar_str = genvar_->Emit(line_info);
+  std::string init_str = init_->Emit(line_info);
+  std::string limit_str = limit_->Emit(line_info);
+  lines.push_back(absl::StrFormat(
+      "for (genvar %s = %s; %s < %s; %s = %s + 1) begin%s", genvar_str,
+      init_str, genvar_str, limit_str, genvar_str, genvar_str, label_suffix));
   LineInfoIncrease(line_info, 1);
-  int indent_level = 1;
-  for (const GenerateLoopIterationSpec& iteration : iterations_) {
-    std::string label_suffix =
-        iteration.label.has_value()
-            ? absl::StrCat(" : ", iteration.label.value())
-            : "";
-    lines.push_back(Indent(
-        absl::StrFormat(
-            "for (%s = %s; %s < %s; %s = %s + 1) begin%s",
-            iteration.genvar->Emit(line_info), iteration.init->Emit(line_info),
-            iteration.genvar->Emit(line_info), iteration.limit->Emit(line_info),
-            iteration.genvar->Emit(line_info),
-            iteration.genvar->Emit(line_info), label_suffix),
-        indent_level * kDefaultIndentSpaces));
-    LineInfoIncrease(line_info, 1);
-    indent_level++;
-  }
-  for (Statement* statement : statements_) {
+  for (Statement* statement : body_->statements()) {
     std::string pre_emit = statement->PreEmit(line_info);
     if (!pre_emit.empty()) {
-      lines.push_back(Indent(pre_emit, indent_level * kDefaultIndentSpaces));
+      lines.push_back(Indent(pre_emit, kDefaultIndentSpaces));
       LineInfoIncrease(line_info, 1);
     }
-    lines.push_back(Indent(statement->Emit(line_info),
-                           indent_level * kDefaultIndentSpaces));
+    lines.push_back(Indent(statement->Emit(line_info), kDefaultIndentSpaces));
     LineInfoIncrease(line_info, 1);
   }
-  for (const GenerateLoopIterationSpec& _ : iterations_) {
-    indent_level--;
-    lines.push_back(Indent("end", indent_level * kDefaultIndentSpaces));
-    LineInfoIncrease(line_info, 1);
-  }
-  lines.push_back("endgenerate");
+  lines.push_back("end");
+  LineInfoIncrease(line_info, 1);
   LineInfoEnd(line_info, this);
   return absl::StrJoin(lines, "\n");
 }

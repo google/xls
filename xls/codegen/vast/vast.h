@@ -733,39 +733,34 @@ class StatementBlock final : public VastNode {
 
 // Represents a generate loop construct. Example:
 // ```verilog
-// generate
-//   for (i = 0; i < 32; i++) begin
-//     assign output[i] = input[i];
-//   end
-// endgenerate
+// for (genvar i = 0; i < 32; i = i + 1) begin : gen_loop
+//   assign output[i] = input[i];
+// end
 // ```
 //
-// Multiple nested loops are supported but the body must be a single statement.
-struct GenerateLoopIterationSpec {
-  LogicRef* genvar;
-  Expression* init;
-  Expression* limit;
-  std::optional<std::string> label;
-};
-
 class GenerateLoop final : public Statement {
  public:
-  GenerateLoop(LogicRef* genvar, Expression* init, Expression* limit,
-               std::optional<std::string> label, VerilogFile* file,
-               const SourceInfo& loc)
-      : GenerateLoop({GenerateLoopIterationSpec{genvar, init, limit, label}},
-                     file, loc) {}
-  GenerateLoop(absl::Span<const GenerateLoopIterationSpec> iterations,
-               VerilogFile* file, const SourceInfo& loc)
-      : Statement(file, loc),
-        iterations_(iterations.begin(), iterations.end()) {}
-  void AddStatement(Statement* statement) { statements_.push_back(statement); }
+  GenerateLoop(std::string_view genvar_name, Expression* init,
+               Expression* limit, std::optional<std::string> label,
+               VerilogFile* file, const SourceInfo& loc);
+
+  LogicRef* genvar() const { return genvar_; }
+  Expression* init() const { return init_; }
+  Expression* limit() const { return limit_; }
+  const std::optional<std::string>& label() const { return label_; }
+  StatementBlock* body() const { return body_; }
+  absl::Span<Statement* const> statements() const {
+    return body_->statements();
+  }
 
   std::string Emit(LineInfo* line_info) const final;
 
  private:
-  std::vector<GenerateLoopIterationSpec> iterations_;
-  std::vector<Statement*> statements_;
+  LogicRef* genvar_;
+  Expression* init_;
+  Expression* limit_;
+  std::optional<std::string> label_;
+  StatementBlock* body_;
 };
 
 // Similar to statement block,  but for use if `ifdef `else `endif blocks (no

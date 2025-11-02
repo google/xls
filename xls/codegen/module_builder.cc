@@ -25,7 +25,6 @@
 #include <string>
 #include <string_view>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #include "absl/log/check.h"
@@ -649,12 +648,26 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdateViaGenerate(
     std::string_view op_name, IndexableExpression* lhs,
     IndexableExpression* rhs, Expression* update_value,
     absl::Span<const ModuleBuilder::IndexType> indices, Type* xls_type) {
-  std::vector<GenerateLoopIterationSpec> iteration_specs;
-  // Genvars for the index space of `indices`.
-  std::vector<LogicRef*> index_genvars;
-  // Genvars for the index space of the updated value. This will be non-empty
+  // Loops for the index space of `indices`.
+  std::vector<GenerateLoop*> index_loops;
+  // Loops for the index space of the updated value. This will be non-empty
   // only if the update value is an array.
-  std::vector<LogicRef*> update_genvars;
+  std::vector<GenerateLoop*> update_loops;
+
+  GenerateLoop* innermost_loop = nullptr;
+  auto add_loop = [&](const std::string& genvar_name, Expression* init,
+                      Expression* limit, std::optional<std::string> label) {
+    GenerateLoop* loop = nullptr;
+    if (innermost_loop == nullptr) {
+      loop = module_->Add<GenerateLoop>(SourceInfo(), genvar_name, init, limit,
+                                        std::move(label));
+    } else {
+      loop = innermost_loop->body()->Add<GenerateLoop>(
+          SourceInfo(), genvar_name, init, limit, std::move(label));
+    }
+    innermost_loop = loop;
+    return loop;
+  };
 
   // Create the iteration space for `indices`.
   Type* iter_type = xls_type;
@@ -662,17 +675,14 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdateViaGenerate(
     ArrayType* current_array = iter_type->AsArrayOrDie();
     int64_t dim_size = current_array->size();
 
-    std::string genvar_name =
-        SanitizeAndUniquifyName(absl::StrCat(op_name, "__index_", dim_index));
-    XLS_ASSIGN_OR_RETURN(LogicRef * genvar,
-                         module_->AddGenvar(genvar_name, SourceInfo()));
-    index_genvars.push_back(genvar);
-    iteration_specs.push_back(GenerateLoopIterationSpec{
-        genvar, file_->PlainLiteral(0, SourceInfo()),
-        file_->PlainLiteral(dim_size, SourceInfo()),
-        std::optional<std::string>(SanitizeAndUniquifyName(
-            absl::StrCat(op_name, "__gen_", dim_index)))});
-
+    std::string genvar_name = SanitizeAndUniquifyName(
+        absl::StrCat("__i", dim_index), /*remember_name=*/false);
+    GenerateLoop* loop =
+        add_loop(genvar_name, file_->PlainLiteral(0, SourceInfo()),
+                 file_->PlainLiteral(dim_size, SourceInfo()),
+                 std::optional<std::string>(SanitizeAndUniquifyName(
+                     absl::StrCat("gen__", op_name, "_", dim_index))));
+    index_loops.push_back(loop);
     iter_type = current_array->element_type();
   }
 
@@ -683,29 +693,24 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdateViaGenerate(
     ArrayType* current_array = update_leaf_type->AsArrayOrDie();
     int64_t dim_size = current_array->size();
 
-    std::string genvar_name =
-        SanitizeAndUniquifyName(absl::StrCat(op_name, "__update_", update_dim));
-    XLS_ASSIGN_OR_RETURN(LogicRef * genvar,
-                         module_->AddGenvar(genvar_name, SourceInfo()));
-    update_genvars.push_back(genvar);
-    iteration_specs.push_back(GenerateLoopIterationSpec{
-        genvar, file_->PlainLiteral(0, SourceInfo()),
-        file_->PlainLiteral(dim_size, SourceInfo()),
-        std::optional<std::string>(SanitizeAndUniquifyName(
-            absl::StrCat(op_name, "__gen_up_", update_dim)))});
+    std::string genvar_name = SanitizeAndUniquifyName(
+        absl::StrCat("__j", update_dim), /*remember_name=*/false);
+    GenerateLoop* loop =
+        add_loop(genvar_name, file_->PlainLiteral(0, SourceInfo()),
+                 file_->PlainLiteral(dim_size, SourceInfo()),
+                 std::optional<std::string>(SanitizeAndUniquifyName(
+                     absl::StrCat("gen__", op_name, "_", update_dim))));
+    update_loops.push_back(loop);
 
     update_leaf_type = current_array->element_type();
     ++update_dim;
   }
 
-  GenerateLoop* generate_loop =
-      module_->Add<GenerateLoop>(SourceInfo(), iteration_specs);
-
   // Build the index match condition.
   Expression* indices_match = nullptr;
   for (int64_t i = 0; i < indices.size(); ++i) {
-    Expression* eq =
-        file_->Equals(indices[i].expression, index_genvars[i], SourceInfo());
+    Expression* eq = file_->Equals(indices[i].expression,
+                                   index_loops[i]->genvar(), SourceInfo());
     indices_match = (indices_match == nullptr)
                         ? eq
                         : file_->LogicalAnd(indices_match, eq, SourceInfo());
@@ -714,22 +719,22 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdateViaGenerate(
   // Build lhs and rhs indexed by all loop genvars (index + update dims).
   IndexableExpression* lhs_indexed = lhs;
   IndexableExpression* rhs_indexed = rhs;
-  for (LogicRef* v : index_genvars) {
-    lhs_indexed = file_->Index(lhs_indexed, v, SourceInfo());
-    rhs_indexed = file_->Index(rhs_indexed, v, SourceInfo());
+  for (GenerateLoop* loop : index_loops) {
+    lhs_indexed = file_->Index(lhs_indexed, loop->genvar(), SourceInfo());
+    rhs_indexed = file_->Index(rhs_indexed, loop->genvar(), SourceInfo());
   }
-  for (LogicRef* v : update_genvars) {
-    lhs_indexed = file_->Index(lhs_indexed, v, SourceInfo());
-    rhs_indexed = file_->Index(rhs_indexed, v, SourceInfo());
+  for (GenerateLoop* loop : update_loops) {
+    lhs_indexed = file_->Index(lhs_indexed, loop->genvar(), SourceInfo());
+    rhs_indexed = file_->Index(rhs_indexed, loop->genvar(), SourceInfo());
   }
 
   // Build update_value indexed by its own loop genvars.
   Expression* update_indexed = update_value;
-  if (!update_genvars.empty()) {
+  if (!update_loops.empty()) {
     IndexableExpression* update_idx =
         update_value->AsIndexableExpressionOrDie();
-    for (LogicRef* v : update_genvars) {
-      update_idx = file_->Index(update_idx, v, SourceInfo());
+    for (GenerateLoop* loop : update_loops) {
+      update_idx = file_->Index(update_idx, loop->genvar(), SourceInfo());
     }
     update_indexed = update_idx;
   }
@@ -739,8 +744,15 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdateViaGenerate(
       indices_match == nullptr ? update_indexed
                                : file_->Ternary(indices_match, update_indexed,
                                                 rhs_indexed, SourceInfo());
-  generate_loop->AddStatement(file_->Make<ContinuousAssignment>(
-      SourceInfo(), lhs_indexed, assignment_rhs));
+  if (innermost_loop == nullptr) {
+    // This can only happen for a degenerate ArrayUpdate where the entire value
+    // is replaced.
+    assignment_section()->Add<ContinuousAssignment>(SourceInfo(), lhs_indexed,
+                                                    assignment_rhs);
+  } else {
+    innermost_loop->body()->Add<ContinuousAssignment>(SourceInfo(), lhs_indexed,
+                                                      assignment_rhs);
+  }
 
   return absl::OkStatus();
 }
@@ -756,10 +768,14 @@ bool ModuleBuilder::CanEmitAsserts() const {
          options_.GetOpOverride(Op::kAssert).has_value();
 }
 
-std::string ModuleBuilder::SanitizeAndUniquifyName(std::string_view name) {
+std::string ModuleBuilder::SanitizeAndUniquifyName(std::string_view name,
+                                                   bool remember_name) {
   std::string n =
       SanitizeVerilogIdentifier(name_uniquer_.GetSanitizedUniqueName(name),
                                 options_.use_system_verilog());
+  if (!remember_name) {
+    CHECK_OK(name_uniquer_.ReleaseIdentifier(n));
+  }
   return n;
 }
 

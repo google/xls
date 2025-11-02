@@ -17,11 +17,11 @@
 #include <cstdint>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/types/span.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/vast/vast.h"
 #include "xls/common/status/matchers.h"
@@ -847,6 +847,64 @@ TEST_P(ModuleBuilderTest, ArrayUpdate1D) {
                            mb.AddInputPort("value", package.GetBitsType(32)));
   XLS_ASSERT_OK(mb.EmitAsAssignment("updated_array", updated_array.node(),
                                     {array_ref, index_ref, value_ref})
+                    .status());
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 file.Emit());
+}
+
+TEST_P(ModuleBuilderTest, ArrayUpdateRepeatedUse) {
+  VerilogFile file = NewVerilogFile();
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  ArrayType* array_type = package.GetArrayType(4, package.GetBitsType(32));
+  BValue array = fb.Param("array", array_type);
+  BValue index = fb.Param("index", package.GetBitsType(2));
+  BValue value = fb.Param("value", package.GetBitsType(32));
+  BValue updated_array = fb.ArrayUpdate(array, value, /*indices=*/{index});
+  XLS_ASSERT_OK(fb.Build());
+
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options());
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * array_ref,
+                           mb.AddInputPort("array", array_type));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * index_ref,
+                           mb.AddInputPort("index", package.GetBitsType(2)));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * value_ref,
+                           mb.AddInputPort("value", package.GetBitsType(32)));
+
+  XLS_ASSERT_OK(mb.EmitAsAssignment("updated_array_a", updated_array.node(),
+                                    {array_ref, index_ref, value_ref})
+                    .status());
+  XLS_ASSERT_OK(mb.EmitAsAssignment("updated_array_b", updated_array.node(),
+                                    {array_ref, index_ref, value_ref})
+                    .status());
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 file.Emit());
+}
+
+TEST_P(ModuleBuilderTest, ArrayUpdateGenvarCollision) {
+  VerilogFile file = NewVerilogFile();
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  ArrayType* array_type = package.GetArrayType(4, package.GetBitsType(1));
+  BValue array = fb.Param("array", array_type);
+  BValue index = fb.Param("index", package.GetBitsType(2));
+  BValue colliding_value = fb.Param("__i0", package.GetBitsType(1));
+  BValue updated_array =
+      fb.ArrayUpdate(array, colliding_value, /*indices=*/{index});
+  XLS_ASSERT_OK(fb.Build());
+
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options());
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * array_ref,
+                           mb.AddInputPort("array", array_type));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * index_ref,
+                           mb.AddInputPort("index", package.GetBitsType(2)));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * colliding_ref,
+                           mb.AddInputPort("__i0", package.GetBitsType(1)));
+
+  XLS_ASSERT_OK(mb.EmitAsAssignment("updated_array", updated_array.node(),
+                                    {array_ref, colliding_ref, index_ref})
                     .status());
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),

@@ -14,13 +14,9 @@ module ArrayUpdate2DVariableIndex(
   assign a_unflattened[1][2] = a[47:40];
   wire [7:0] array_update_10[2][3];
   assign out = {{array_update_10[1][2], array_update_10[1][1], array_update_10[1][0]}, {array_update_10[0][2], array_update_10[0][1], array_update_10[0][0]}};
-  genvar array_update_10__index_0;
-  genvar array_update_10__index_1;
-  generate
-    for (array_update_10__index_0 = 0; array_update_10__index_0 < 2; array_update_10__index_0 = array_update_10__index_0 + 1) begin : array_update_10__gen_0
-      for (array_update_10__index_1 = 0; array_update_10__index_1 < 3; array_update_10__index_1 = array_update_10__index_1 + 1) begin : array_update_10__gen_1
-        assign array_update_10[array_update_10__index_0][array_update_10__index_1] = idx0 == array_update_10__index_0 && idx1 == array_update_10__index_1 ? value : a_unflattened[array_update_10__index_0][array_update_10__index_1];
-      end
+  for (genvar __i0 = 0; __i0 < 2; __i0 = __i0 + 1) begin : gen__array_update_10_0
+    for (genvar __i1 = 0; __i1 < 3; __i1 = __i1 + 1) begin : gen__array_update_10_1
+      assign array_update_10[__i0][__i1] = idx0 == __i0 && idx1 == __i1 ? value : a_unflattened[__i0][__i1];
     end
-  endgenerate
+  end
 endmodule

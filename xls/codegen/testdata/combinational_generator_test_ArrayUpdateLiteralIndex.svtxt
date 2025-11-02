@@ -9,10 +9,7 @@ module ArrayUpdateLiteralIndex(
   assign a_unflattened[2] = a[23:16];
   wire [7:0] array_update_8[3];
   assign out = {array_update_8[2], array_update_8[1], array_update_8[0]};
-  genvar array_update_8__index_0;
-  generate
-    for (array_update_8__index_0 = 0; array_update_8__index_0 < 3; array_update_8__index_0 = array_update_8__index_0 + 1) begin : array_update_8__gen_0
-      assign array_update_8[array_update_8__index_0] = 16'h0001 == array_update_8__index_0 ? value : a_unflattened[array_update_8__index_0];
-    end
-  endgenerate
+  for (genvar __i0 = 0; __i0 < 3; __i0 = __i0 + 1) begin : gen__array_update_8_0
+    assign array_update_8[__i0] = 16'h0001 == __i0 ? value : a_unflattened[__i0];
+  end
 endmodule
