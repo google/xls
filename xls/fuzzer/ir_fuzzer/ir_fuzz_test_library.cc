@@ -14,11 +14,11 @@
 
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
 #include <ostream>
-#include <sstream>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -31,6 +31,8 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "google/protobuf/text_format.h"
 #include "xls/common/file/filesystem.h"
@@ -75,43 +77,38 @@ absl::StatusOr<std::vector<InterpreterResult<Value>>> EvaluateArgSets(
   return results;
 }
 
-// Returns true if the results are different.
-bool DoResultsChange(absl::Span<const InterpreterResult<Value>> before_results,
-                     absl::Span<const InterpreterResult<Value>> after_results) {
-  for (int64_t i = 0; i < before_results.size(); i += 1) {
-    if (before_results[i].value != after_results[i].value) {
-      return true;
-    }
-  }
-  return false;
+// Returns a human-readable string representation of the argument set.
+std::string StringifyArgSet(absl::Span<const Value> arg_set) {
+  return absl::StrCat("[",
+                      absl::StrJoin(arg_set, "; ",
+                                    [](std::string* out, Value v) {
+                                      absl::StrAppend(out, v.ToString());
+                                    }),
+                      "]");
 }
 
 // Returns a human-readable string representation of the argument sets.
 std::string StringifyArgSets(absl::Span<const std::vector<Value>> arg_sets) {
-  std::stringstream ss;
-  ss << "[";
-  // Iterate over the number of param sets.
-  for (int64_t i = 0; i < arg_sets.size(); i += 1) {
-    // Iterate over the param set elements.
-    for (int64_t j = 0; j < arg_sets[i].size(); j += 1) {
-      ss << (arg_sets[i][j].ToHumanString())
-         << (j != arg_sets[i].size() - 1 ? ", " : "");
-    }
-    ss << (i != arg_sets.size() - 1 ? "], [" : "]");
-  }
-  return ss.str();
+  return absl::StrCat(
+      "[",
+      absl::StrJoin(arg_sets, ", ",
+                    [](std::string* out, absl::Span<const Value> arg_set) {
+                      absl::StrAppend(out, StringifyArgSet(arg_set));
+                    }),
+      "]");
 }
 
 // Returns a human-readable string representation of the results.
 std::string StringifyResults(
     absl::Span<const InterpreterResult<Value>> results) {
-  std::stringstream ss;
-  ss << "[";
-  for (int64_t i = 0; i < results.size(); i += 1) {
-    ss << results[i].value;
-    ss << (i != results.size() - 1 ? ", " : "]");
-  }
-  return ss.str();
+  return absl::StrCat(
+      "[",
+      absl::StrJoin(
+          results, "; ",
+          [](std::string* out, const InterpreterResult<Value>& result) {
+            absl::StrAppend(out, result.value.ToString());
+          }),
+      "]");
 }
 
 }  // namespace
@@ -119,14 +116,12 @@ std::string StringifyResults(
 namespace {
 void RecordFuzzInfoString(std::string_view package,
                           std::optional<std::string_view> args) {
-  std::ostringstream oss;
-  oss << "IR: \n";
-  oss << package << "\n";
+  std::string info = absl::StrCat("IR: \n", package, "\n");
   if (args) {
-    oss << "args: " << *args << "\n";
+    absl::StrAppend(&info, "args: ", *args, "\n");
   }
-  auto status = AppendStringToFile(
-      absl::GetFlag(FLAGS_print_ir_fuzzer_info_file), std::move(oss).str());
+  auto status =
+      AppendStringToFile(absl::GetFlag(FLAGS_print_ir_fuzzer_info_file), info);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to write output: " << status;
   }
@@ -217,21 +212,17 @@ void OptimizationPassChangesOutputs(FuzzPackageWithArgs fuzz_package_with_args,
   VLOG(3) << "IR Fuzzer-7: After Pass Results: "
           << StringifyResults(after_pass_results) << "\n";
   // Check if the results are the same before and after optimization.
-  bool results_changed =
-      DoResultsChange(before_pass_results, after_pass_results);
-  VLOG(3) << "IR Fuzzer-8: Results Changed: "
-          << (results_changed ? "TRUE" : "FALSE") << "\n";
-  EXPECT_FALSE(results_changed)
-      << "\n"
-      << "Args: " << StringifyArgSets(arg_sets) << "\n"
-      << "Expected: " << StringifyResults(before_pass_results) << "\n"
-      << "Actual:   " << StringifyResults(after_pass_results) << "\n"
-      << "Before Pass IR:\n"
-      << pre_ir << "\n"
-      << "After Pass IR:\n"
-      << p->DumpIr() << "\n"
-      << "Fuzz Protobuf:\n"
-      << fuzz_program.DebugString() << "\n";
+  for (size_t i = 0; i < before_pass_results.size(); ++i) {
+    EXPECT_EQ(before_pass_results[i].value, after_pass_results[i].value)
+        << "Mismatch for inputs #" << i << ";\n"
+        << "Args: " << StringifyArgSet(arg_sets[i]) << "\n"
+        << "Before Pass IR:\n"
+        << pre_ir << "\n"
+        << "After Pass IR:\n"
+        << p->DumpIr() << "\n"
+        << "Fuzz Protobuf:\n"
+        << fuzz_program.DebugString() << "\n";
+  }
 }
 
 // Accepts a FuzzProgramProto string and runs the given optimization pass over
