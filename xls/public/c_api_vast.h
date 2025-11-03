@@ -157,6 +157,13 @@ struct xls_vast_logic_ref* xls_vast_verilog_module_add_input(
 struct xls_vast_logic_ref* xls_vast_verilog_module_add_output(
     struct xls_vast_verilog_module* m, const char* name,
     struct xls_vast_data_type* type);
+// Adds input/output ports using SystemVerilog `logic` for the declaration.
+struct xls_vast_logic_ref* xls_vast_verilog_module_add_logic_input(
+    struct xls_vast_verilog_module* m, const char* name,
+    struct xls_vast_data_type* type);
+struct xls_vast_logic_ref* xls_vast_verilog_module_add_logic_output(
+    struct xls_vast_verilog_module* m, const char* name,
+    struct xls_vast_data_type* type);
 struct xls_vast_logic_ref* xls_vast_verilog_module_add_wire(
     struct xls_vast_verilog_module* m, const char* name,
     struct xls_vast_data_type* type);
@@ -364,6 +371,12 @@ struct xls_vast_statement* xls_vast_statement_block_add_nonblocking_assignment(
     struct xls_vast_statement_block* block, struct xls_vast_expression* lhs,
     struct xls_vast_expression* rhs);
 
+// Adds a blocking assignment statement (lhs = rhs) to a statement block and
+// returns a pointer to the created statement.
+struct xls_vast_statement* xls_vast_statement_block_add_blocking_assignment(
+    struct xls_vast_statement_block* block, struct xls_vast_expression* lhs,
+    struct xls_vast_expression* rhs);
+
 // Emits/formats the contents of the given verilog file to a string.
 //
 // Note: caller owns the returned string, to be freed by `xls_c_str_free`.
@@ -391,6 +404,13 @@ bool xls_vast_verilog_module_add_always_at(
     size_t sensitivity_list_count, struct xls_vast_always_base** out_always_at,
     char** error_out);
 
+// Adds an always_comb block to the module (SystemVerilog).
+// Returns true on success. On failure, returns false and sets error_out. The
+// caller is responsible for freeing error_out if it is not NULL.
+bool xls_vast_verilog_module_add_always_comb(
+    struct xls_vast_verilog_module* m,
+    struct xls_vast_always_base** out_always_comb, char** error_out);
+
 // Adds a register (reg) definition to the module.
 // Returns true on success. On failure, returns false and sets error_out.
 // The caller is responsible for freeing error_out if it is not NULL.
@@ -399,6 +419,14 @@ bool xls_vast_verilog_module_add_reg(struct xls_vast_verilog_module* m,
                                      struct xls_vast_data_type* type,
                                      struct xls_vast_logic_ref** out_reg_ref,
                                      char** error_out);
+
+// Adds a `logic` variable definition to the module.
+// Returns true on success. On failure, returns false and sets error_out.
+// The caller is responsible for freeing error_out if it is not NULL.
+bool xls_vast_verilog_module_add_logic(
+    struct xls_vast_verilog_module* m, const char* name,
+    struct xls_vast_data_type* type, struct xls_vast_logic_ref** out_logic_ref,
+    char** error_out);
 
 // Creates a positive edge expression (e.g., "posedge clk").
 // 'signal_expr' is typically a logic_ref_as_expression.

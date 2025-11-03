@@ -2356,10 +2356,15 @@ class Module final : public VastNode {
   template <typename T, typename... Args>
   inline T* Add(const SourceInfo& loc, Args&&... args);
 
+  // Add an input or output port to the module. `data_kind` must be either kWire
+  // or kLogic and indicates whether to use `wire` or `logic` when defining the
+  // port if `type` is a bit vector or scalar type.
   absl::StatusOr<LogicRef*> AddInput(std::string_view name, DataType* type,
-                                     const SourceInfo& loc);
+                                     const SourceInfo& loc,
+                                     DataKind data_kind = DataKind::kWire);
   absl::StatusOr<LogicRef*> AddOutput(std::string_view name, DataType* type,
-                                      const SourceInfo& loc);
+                                      const SourceInfo& loc,
+                                      DataKind data_kind = DataKind::kWire);
 
   absl::StatusOr<LogicRef*> AddReg(std::string_view name, DataType* type,
                                    const SourceInfo& loc,
@@ -2368,6 +2373,10 @@ class Module final : public VastNode {
   absl::StatusOr<LogicRef*> AddWire(std::string_view name, DataType* type,
                                     const SourceInfo& loc,
                                     ModuleSection* section = nullptr);
+  absl::StatusOr<LogicRef*> AddLogic(std::string_view name, DataType* type,
+                                     const SourceInfo& loc,
+                                     ModuleSection* section = nullptr);
+
   // Variation of AddWire that takes an initializer expression.
   absl::StatusOr<LogicRef*> AddWire(std::string_view name, DataType* type,
                                     Expression* init, const SourceInfo& loc,
@@ -2416,9 +2425,9 @@ class Module final : public VastNode {
   // Adds a (wire) port to this module with the given name and type. Returns
   // a reference to that wire.
   LogicRef* AddInputInternal(std::string_view name, DataType* type,
-                             const SourceInfo& loc);
+                             DataKind data_kind, const SourceInfo& loc);
   LogicRef* AddOutputInternal(std::string_view name, DataType* type,
-                              const SourceInfo& loc);
+                              DataKind data_kind, const SourceInfo& loc);
 
   // Adds a reg/wire definition to the module with the given type and, for regs,
   // initialized with the given value. Returns a reference to the definition.
