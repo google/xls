@@ -6324,6 +6324,121 @@ TEST_P(ProcScopedChannelsIrConverterTest,
                          "code, but test conversion is disabled")));
 }
 
+TEST_P(ProcScopedChannelsIrConverterTest, ChannelArrayIndexInConfig) {
+  constexpr std::string_view program = R"(
+proc second {
+  outs: chan<u32>[2] out;
+  ins: chan<u32>[2] in;
+  init {}
+
+  config(outs: chan<u32>[2] out, ins: chan<u32>[2] in) {
+    (outs, ins)
+  }
+
+  next(state: ()) {
+    let tok = send(token(), outs[1], 0);
+    recv(tok, ins[0]);
+  }
+}
+
+proc first {
+  init {}
+
+  config() {
+    let (outs, ins) = chan<u32>[2][2]("the_channel");
+    spawn second(outs[0], ins[1]);
+  }
+
+  next(state: ()) { state }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "first", import_data,
+                                kProcScopedChannelOptions));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, ChannelArrayIndexLetToArrayInConfig) {
+  constexpr std::string_view program = R"(
+proc second {
+  outs: chan<u32>[2] out;
+  ins: chan<u32>[2] in;
+  init {}
+
+  config(outs: chan<u32>[2] out, ins: chan<u32>[2] in) {
+    (outs, ins)
+  }
+
+  next(state: ()) {
+    let tok = send(token(), outs[1], 0);
+    recv(tok, ins[0]);
+  }
+}
+
+proc first {
+  init {}
+
+  config() {
+    let (outs, ins) = chan<u32>[2][2]("the_channel");
+    let outs0 = outs[0];
+    let ins1 = ins[1];
+    spawn second(outs0, ins1);
+  }
+
+  next(state: ()) { state }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "first", import_data,
+                                kProcScopedChannelOptions));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, ChannelArrayIndexLetInConfig) {
+  constexpr std::string_view program = R"(
+proc second {
+  outs: chan<u32> out;
+  ins: chan<u32> in;
+  init {}
+
+  config(outs: chan<u32> out, ins: chan<u32> in) {
+    (outs, ins)
+  }
+
+  next(state: ()) {
+    let tok = send(token(), outs, 0);
+    recv(tok, ins);
+  }
+}
+
+proc first {
+  init {}
+
+  config() {
+    let (outs, ins) = chan<u32>[2]("the_channel");
+    let outs0 = outs[0];
+    let ins1 = ins[1];
+    spawn second(outs0, ins1);
+  }
+
+  next(state: ()) { state }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "first", import_data,
+                                kProcScopedChannelOptions));
+  ExpectIr(converted);
+}
+
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ConvertWithoutTests) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
