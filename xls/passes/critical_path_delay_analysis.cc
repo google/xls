@@ -48,6 +48,23 @@ CriticalPathDelayAnalysis::Create(const AnalysisOptions& options) {
   }
 }
 
+Node* CriticalPathDelayAnalysis::NodeAtEndOfCriticalPath(
+    FunctionBase* f) const {
+  Node* max_delay_node = nullptr;
+  int64_t max_delay = 0;
+  for (Node* node : f->nodes()) {
+    if (!node->users().empty()) {
+      continue;
+    }
+    int64_t delay = *GetInfo(node);
+    if (max_delay < delay) {
+      max_delay_node = node;
+      max_delay = delay;
+    }
+  }
+  return max_delay_node;
+}
+
 int64_t CriticalPathDelayAnalysis::ComputeInfo(
     Node* node, absl::Span<const int64_t* const> operand_infos) const {
   int64_t max_operand_arrival_time = 0;
