@@ -1,0 +1,29 @@
+package test_module
+
+file_number 0 "imported.x"
+file_number 1 "test_module.x"
+
+chan test_module__chan0(bits[16], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+
+fn __imported__Importee.init__16() -> bits[16] {
+  N: bits[32] = literal(value=16, id=1)
+  ret literal.2: bits[16] = literal(value=123, id=2)
+}
+
+top proc __test_module__Importer_0_next(__state: (), init={()}) {
+  __state: () = state_read(state_element=__state, id=4)
+  tuple.6: () = tuple(id=6)
+  __token: token = literal(value=token, id=3)
+  literal.5: bits[1] = literal(value=1, id=5)
+  next_value.7: () = next_value(param=__state, value=tuple.6, id=7)
+}
+
+proc __imported__Importer__Importee_0__16_next(__state: bits[16], init={123}) {
+  literal.12: token = literal(value=token, id=12)
+  __state: bits[16] = state_read(state_element=__state, id=9)
+  literal.10: bits[1] = literal(value=1, id=10)
+  __token: token = literal(value=token, id=8)
+  N: bits[32] = literal(value=16, id=11)
+  send.13: token = send(literal.12, __state, predicate=literal.10, channel=test_module__chan0, id=13)
+  next_value.14: () = next_value(param=__state, value=__state, id=14)
+}

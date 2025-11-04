@@ -4746,18 +4746,18 @@ pub proc first {
 TEST(ProcScopedChannelsIrConverterTest, SpawnTree) {
   constexpr std::string_view program = R"(
 proc third<N:u32, M:u32> {
-  init { }
+  init { (uN[M]:1, uN[N]:2) }
   config() { () }
-  next(state: ()) { () }
+  next(state: (uN[M], uN[N])) { state }
 }
 
 proc second<N:u32> {
-  init { }
+  init { uN[N]:3 }
   config() {
     spawn third<N, u32:16>();
     spawn third<N, u32:32>();
   }
-  next(state: ()) { () }
+  next(state: uN[N]) { state }
 }
 
 pub proc first {
@@ -5097,11 +5097,7 @@ proc invalid {
 )";
 
   EXPECT_THAT(
-      ConvertOneFunctionForTest(program, "invalid",
-                                ConvertOptions{
-                                    .emit_positions = false,
-                                    .lower_to_proc_scoped_channels = true,
-                                }),
+      ConvertOneFunctionForTest(program, "invalid", kProcScopedChannelOptions),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Cannot convert proc 'invalid' due to non-channel "
                          "config arguments: 'a: u32'")));
@@ -5791,20 +5787,23 @@ proc spawnee2<N: u32> {
   in_chan: chan<uN[N]> in;
   out_chan: chan<uN[N]> out;
 
-  init { }
+  init { uN[N]:2 }
   config(in_param2: chan<uN[N]> in, out_param2: chan<uN[N]> out) {
     (in_param2, out_param2)
   }
-  next(state: ()) { state }
+  next(state: uN[N]) {
+    send(token(), out_chan, uN[N]:1);
+    state
+  }
 }
 
 proc spawnee<M: u32> {
-  init { }
+  init { uN[M]:3}
   config(in_param: chan<uN[M]> in, out_param: chan<uN[M]> out) {
     spawn spawnee2<M>(in_param, out_param);
     ()
   }
-  next(state: ()) { state }
+  next(state: uN[M]) { state }
 }
 
 proc main {
@@ -6090,6 +6089,57 @@ pub proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data,
+                                kProcScopedChannelOptions));
+  ExpectIr(converted);
+}
+
+constexpr std::string_view kImported = R"(
+pub proc Importee<N: u32> {
+  c: chan<uN[N]> out;
+  init { uN[N]:123 }
+  config(output_c: chan<uN[N]> out) {
+    (output_c,)
+  }
+  next(state: uN[N]) {
+    send(token(), c, state);
+    state
+  }
+}
+  )";
+constexpr std::string_view kProgram = R"(
+import imported;
+
+pub proc Importer {
+    init {}
+    config() {
+      let (s, _) = chan<u16>("chan0");
+      spawn imported::Importee<u32:16>(s);
+      ()
+    }
+    next(_: ()) { () }
+  }
+)";
+
+TEST_P(ProcScopedChannelsIrConverterTest,
+       SpawnImportedParametricProcGlobalChannels) {
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(
+          kProgram, "Importer", import_data,
+          ConvertOptions{.emit_positions = false, .verify_ir = false}));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, SpawnImportedParametricProc) {
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "Importer", import_data,
                                 kProcScopedChannelOptions));
   ExpectIr(converted);
 }
@@ -6435,6 +6485,34 @@ proc first {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(program, "first", import_data,
+                                kProcScopedChannelOptions));
+  ExpectIr(converted);
+}
+
+// TODO: davidplass - Fix this; it's probably because of the built-in
+// invocation.
+TEST_P(ProcScopedChannelsIrConverterTest,
+       DISABLED_ProcScopedParametricDefaultInStruct) {
+  constexpr std::string_view program = R"(
+import std;
+
+struct Foo <X: u32, Y: u32 = {std::clog2(X)}> {
+    a: uN[X],
+    b: uN[Y],
+}
+
+fn make_zero_foo<X: u32>() -> Foo<X> {
+  zero!<Foo<X>>()
+}
+
+fn test() -> Foo<u32:5> {
+ make_zero_foo<u32:5>()
+}
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "test", import_data,
                                 kProcScopedChannelOptions));
   ExpectIr(converted);
 }
