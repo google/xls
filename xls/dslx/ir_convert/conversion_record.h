@@ -26,6 +26,7 @@
 #include "absl/types/span.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/proc_id.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
 
@@ -52,7 +53,8 @@ class ConversionRecord {
       Function* f, const Invocation* invocation, Module* module,
       TypeInfo* type_info, ParametricEnv parametric_env,
       std::optional<ProcId> proc_id, bool is_top,
-      std::unique_ptr<ConversionRecord> config_record = nullptr);
+      std::unique_ptr<ConversionRecord> config_record = nullptr,
+      std::optional<InterpValue> init_value = std::nullopt);
 
   // Integrity-checks that the parametric_env provided are sufficient to
   // instantiate f (i.e. if it is parametric). Returns an internal error status
@@ -68,14 +70,15 @@ class ConversionRecord {
   std::optional<ProcId> proc_id() const { return proc_id_; }
   bool IsTop() const { return is_top_; }
   const ConversionRecord* config_record() const { return config_record_.get(); }
-
+  std::optional<InterpValue> init_value() const { return init_value_; }
   std::string ToString() const;
 
  private:
   ConversionRecord(Function* f, const Invocation* invocation, Module* module,
                    TypeInfo* type_info, ParametricEnv parametric_env,
                    std::optional<ProcId> proc_id, bool is_top,
-                   std::unique_ptr<ConversionRecord> config_record)
+                   std::unique_ptr<ConversionRecord> config_record,
+                   std::optional<InterpValue> init_value)
       : f_(f),
         invocation_(invocation),
         module_(module),
@@ -83,7 +86,8 @@ class ConversionRecord {
         parametric_env_(std::move(parametric_env)),
         proc_id_(std::move(proc_id)),
         is_top_(is_top),
-        config_record_(std::move(config_record)) {}
+        config_record_(std::move(config_record)),
+        init_value_(init_value) {}
 
   Function* f_;
   const Invocation* invocation_;
@@ -93,6 +97,7 @@ class ConversionRecord {
   std::optional<ProcId> proc_id_;
   bool is_top_;
   std::unique_ptr<ConversionRecord> config_record_;
+  std::optional<InterpValue> init_value_;
 };
 
 std::string ConversionRecordsToString(

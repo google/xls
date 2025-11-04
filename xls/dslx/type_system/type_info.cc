@@ -628,6 +628,53 @@ absl::StatusOr<TypeInfo*> TypeInfo::GetInvocationTypeInfoOrError(
                       invocation->ToString(), caller.ToString()));
 }
 
+absl::Status TypeInfo::AddSpawn(const Proc* proc, ParametricEnv env, bool test,
+                                const Invocation* config_invocation,
+                                const Invocation* next_invocation,
+                                TypeInfo* config_type_info,
+                                TypeInfo* next_type_info,
+                                InterpValue init_value) {
+  XLS_RET_CHECK_EQ(proc->owner(), module_);
+  spawns_[proc].push_back(
+      SpawnData{proc, std::move(env), test, config_invocation, next_invocation,
+                config_type_info, next_type_info, std::move(init_value)});
+  return absl::OkStatus();
+}
+
+absl::StatusOr<std::vector<SpawnData>> TypeInfo::GetSpawns(
+    const Proc* proc) const {
+  if (parent_ != nullptr) {
+    return parent_->GetSpawns(proc);
+  }
+  XLS_RET_CHECK_EQ(proc->owner(), module_);
+  const auto it = spawns_.find(proc);
+  return it == spawns_.end() ? std::vector<SpawnData>{} : it->second;
+}
+
+absl::StatusOr<std::vector<SpawnData>> TypeInfo::GetUniqueSpawns(
+    const Proc* proc) const {
+  if (parent_ != nullptr) {
+    return parent_->GetUniqueSpawns(proc);
+  }
+  XLS_RET_CHECK_EQ(proc->owner(), module_);
+  const auto it = spawns_.find(proc);
+  if (it == spawns_.end()) {
+    return std::vector<SpawnData>{};
+  }
+  absl::flat_hash_map<ParametricEnv, bool> env_to_index;
+  std::vector<SpawnData> result;
+  for (const SpawnData& next : it->second) {
+    const auto it = env_to_index.find(next.env);
+    if (it == env_to_index.end()) {
+      env_to_index.emplace_hint(it, next.env, result.size());
+      result.push_back(next);
+    } else {
+      result[it->second].test &= next.test;
+    }
+  }
+  return result;
+}
+
 absl::Status TypeInfo::SetTopLevelProcTypeInfo(const Proc* p, TypeInfo* ti) {
   if (parent_ != nullptr) {
     return absl::InvalidArgumentError(

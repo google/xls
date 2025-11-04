@@ -110,6 +110,30 @@ bool IsImportedModuleReference(const NameRef* n) {
   return parent != nullptr && parent->kind() == AstNodeKind::kImport;
 }
 
+bool IsTestFn(const Function* f) {
+  if (f == nullptr) {
+    return false;
+  }
+
+  Module* module = f->owner();
+  for (const auto& test_func : module->GetTestNames()) {
+    if (test_func == f->name_def()->identifier()) {
+      return true;
+    }
+  }
+
+  if (f->proc().has_value()) {
+    const Proc* p = f->proc().value();
+    for (const auto& test_proc : module->GetTestProcs()) {
+      if (test_proc->proc() == p) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 bool IsBuiltinFn(Expr* callee, std::optional<std::string_view> target) {
   BuiltinNameDef* bnd = GetBuiltinNameDef(callee);
   if (bnd == nullptr) {

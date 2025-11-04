@@ -55,6 +55,9 @@ Span AttrSpan(const NodeT* node) {
               node->span().limit());
 }
 
+// Returns true if `fn` is a test function or part of a test proc.
+bool IsTestFn(const Function* fn);
+
 // Returns true if `callee` refers to a builtin function. If `callee` isn't a
 // NameRef, then this always returns false.
 //

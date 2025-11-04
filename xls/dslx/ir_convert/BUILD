@@ -38,6 +38,7 @@ cc_library(
     hdrs = ["conversion_record.h"],
     deps = [
         "//xls/common/status:status_macros",
+        "//xls/dslx:interp_value",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_node",
         "//xls/dslx/frontend:module",
@@ -501,8 +502,10 @@ cc_library(
         ":conversion_record",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/dslx:interp_value",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_node_visitor_with_default",
+        "//xls/dslx/frontend:ast_utils",
         "//xls/dslx/frontend:builtin_stubs_utils",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:proc_id",

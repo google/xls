@@ -32,6 +32,7 @@
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/proc_id.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
 
@@ -83,12 +84,13 @@ std::string ConversionRecordsToString(
     Function* f, const Invocation* invocation, Module* module,
     TypeInfo* type_info, ParametricEnv parametric_env,
     std::optional<ProcId> proc_id, bool is_top,
-    std::unique_ptr<ConversionRecord> config_record) {
+    std::unique_ptr<ConversionRecord> config_record,
+    std::optional<InterpValue> init_value) {
   XLS_RETURN_IF_ERROR(ConversionRecord::ValidateParametrics(f, parametric_env));
 
   return ConversionRecord(f, invocation, module, type_info,
                           std::move(parametric_env), std::move(proc_id), is_top,
-                          std::move(config_record));
+                          std::move(config_record), std::move(init_value));
 }
 
 std::string ConversionRecord::ToString() const {

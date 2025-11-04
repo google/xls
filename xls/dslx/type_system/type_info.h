@@ -73,6 +73,18 @@ struct InvocationCalleeData {
   const Invocation* invocation;
 };
 
+// The type information about a concrete spawn of a proc.
+struct SpawnData {
+  const Proc* proc;
+  ParametricEnv env;
+  bool test;
+  const Invocation* config_invocation;
+  const Invocation* next_invocation;
+  TypeInfo* config_type_info;
+  TypeInfo* next_type_info;
+  InterpValue init_value;
+};
+
 // The information for a `ProcAlias` that is resolved during type inference.
 struct ResolvedProcAlias {
   std::string name;
@@ -209,6 +221,22 @@ class TypeInfo {
   // Add data for a non-parametric invocation.
   absl::Status AddInvocation(const Invocation& invocation,
                              const Function* callee, const Function* caller);
+
+  // Adds data for a concrete spawn of a proc.
+  absl::Status AddSpawn(const Proc* proc, ParametricEnv env, bool test,
+                        const Invocation* config_invocation,
+                        const Invocation* next_invocation,
+                        TypeInfo* config_type_info, TypeInfo* next_type_info,
+                        InterpValue init_value);
+
+  // Gets all the concrete spawns of the given proc.
+  absl::StatusOr<std::vector<SpawnData>> GetSpawns(const Proc* proc) const;
+
+  // Gets the concrete spawns excluding duplicates that have the same `env`
+  // value. In case of duplicates, an arbitrary one of the duplicates is
+  // returned, and the test flag is true only if it's true on all the originals.
+  absl::StatusOr<std::vector<SpawnData>> GetUniqueSpawns(
+      const Proc* proc) const;
 
   // Attempts to retrieve "instantiation" type information -- that is, when
   // there's an invocation with parametrics in a caller, it may map to
@@ -483,6 +511,7 @@ class TypeInfo {
 
   absl::flat_hash_map<const ProcAlias*, ResolvedProcAlias>
       resolved_proc_aliases_;
+  absl::flat_hash_map<const Proc*, std::vector<SpawnData>> spawns_;
 
   TypeInfo* parent_;  // Note: may be nullptr.
 };

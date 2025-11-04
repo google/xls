@@ -18,6 +18,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <ios>
 #include <memory>
 #include <optional>
 #include <string>
@@ -3474,7 +3475,7 @@ absl::Status FunctionConverter::HandleProcNextFunction(
   Function* f = record.f();
   ProcId proc_id = record.proc_id().value();
   VLOG(5) << "HandleProcNextFunction: " << f->ToString() << " proc id "
-          << proc_id.ToString();
+          << proc_id.ToString() << "; TI " << std::hex << type_info;
   const Invocation* invocation = record.invocation();
   if (invocation != nullptr) {
     VLOG(5) << "HandleProcNextFunction: invocation " << invocation->ToString();
@@ -3493,20 +3494,17 @@ absl::Status FunctionConverter::HandleProcNextFunction(
   Proc* proc = f->proc().value();
 
   Value initial_element = Value::Tuple({});
-  if (proc_data_->id_to_initial_value.contains(proc_id)) {
-    initial_element = proc_data_->id_to_initial_value.at(proc_id);
-    VLOG(5) << "HandleProcNextFunction: previously established initial element "
-            << initial_element.ToHumanString();
-  } else if (options_.lower_to_proc_scoped_channels) {
-    VLOG(5) << "HandleProcNextFunction: evaluating init "
-            << proc->init().body()->ToString();
-    XLS_ASSIGN_OR_RETURN(InterpValue value,
-                         ConstexprEvaluator::EvaluateToValue(
-                             import_data, type_info, kNoWarningCollector,
-                             *parametric_env, proc->init().body()));
-    XLS_ASSIGN_OR_RETURN(initial_element, InterpValueToValue(value));
+  std::optional<InterpValue> const_init_value = record.init_value();
+  if (const_init_value.has_value()) {
+    // Note that this is the branch we take for any spawned proc.
+    XLS_ASSIGN_OR_RETURN(initial_element,
+                         InterpValueToValue(*const_init_value));
     proc_data_->id_to_initial_value[proc_id] = initial_element;
     VLOG(5) << "HandleProcNextFunction: initial element now "
+            << initial_element.ToString();
+  } else if (proc_data_->id_to_initial_value.contains(proc_id)) {
+    initial_element = proc_data_->id_to_initial_value.at(proc_id);
+    VLOG(5) << "HandleProcNextFunction: previously established initial element "
             << initial_element.ToHumanString();
   }
 
@@ -3626,8 +3624,8 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     TypeInfo* config_type_info = record.config_record() != nullptr
                                      ? record.config_record()->type_info()
                                      : type_info;
-    VLOG(5) << "Lowering to PSC, config typeinfo: "
-            << config_type_info->GetTypeInfoTreeString();
+    VLOG(5) << "Lowering to PSC, config typeinfo: " << std::hex
+            << config_type_info;
     ScopedTypeInfoSwap stis(this, config_type_info);
 
     Function& config_fn = proc->config();

@@ -796,7 +796,36 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     }
     XLS_RETURN_IF_ERROR(NoteIfRequiresImplicitToken(
         caller, function_and_target_object.function, invocation->callee()));
-    return GenerateTypeInfo(caller_context, invocation);
+    XLS_RETURN_IF_ERROR(GenerateTypeInfo(caller_context, invocation));
+
+    if (function->tag() == FunctionTag::kProcNext) {
+      // Part of the `TypeInfo` contract is that we need to populate `SpawnData`
+      // for any proc next invocation in a spawn.
+      XLS_ASSIGN_OR_RETURN(
+          TypeInfo * callee_root_type_info,
+          import_data_.GetRootTypeInfo((*function->proc())->owner()));
+      XLS_RET_CHECK(invocation->parent() != nullptr);
+      XLS_RET_CHECK_EQ(invocation->parent()->kind(), AstNodeKind::kSpawn);
+      // The parser should rig the init() result up as an argument passed in the
+      // next() invocation.
+      XLS_RET_CHECK_GE(invocation->args().size(), 1);
+      Invocation* config_invocation =
+          down_cast<Spawn*>(invocation->parent())->config();
+      ParametricEnv caller_env = table_.GetParametricEnv(caller_context);
+      ParametricEnv callee_env = table_.GetParametricEnv(invocation_context);
+      std::optional<TypeInfo*> config_ti =
+          base_type_info_->GetInvocationTypeInfo(config_invocation, caller_env);
+      XLS_RET_CHECK(config_ti.has_value());
+      XLS_ASSIGN_OR_RETURN(TypeInfo * actual_arg_ti,
+                           GetTypeInfo(&module_, caller_context));
+      XLS_ASSIGN_OR_RETURN(InterpValue init_value,
+                           actual_arg_ti->GetConstExpr(invocation->args()[0]));
+      XLS_RETURN_IF_ERROR(callee_root_type_info->AddSpawn(
+          *function->proc(), std::move(callee_env), IsTestFn(*caller),
+          config_invocation, invocation, *config_ti, invocation_type_info,
+          init_value));
+    }
+    return absl::OkStatus();
   }
 
   // Gets the output `TypeInfo` corresponding to the given
