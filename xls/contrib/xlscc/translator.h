@@ -1444,22 +1444,22 @@ class Translator final : public GeneratorBase,
                                       const xls::SourceInfo& loc);
   // Creates an BValue for a struct of type stype from field BValues given in
   //  order within bvals.
-  TrackedBValue MakeStructXLS(const std::vector<TrackedBValue>& bvals,
-                              const CStructType& stype,
-                              const xls::SourceInfo& loc);
+  TrackedBValue MakeStruct(const std::vector<TrackedBValue>& bvals,
+                           const CStructType& stype,
+                           const xls::SourceInfo& loc);
 
   // Creates a Value for a struct of type stype from field BValues given in
   //  order within bvals.
-  xls::Value MakeStructXLS(const std::vector<xls::Value>& vals,
-                           const CStructType& stype);
+  xls::Value MakeStruct(const std::vector<xls::Value>& vals,
+                        const CStructType& stype);
 
   // Returns the BValue for the field with index "index" from a BValue for a
   //  struct of type "type"
   // This version cannot be static because it needs access to the
   //  FunctionBuilder from the context
-  TrackedBValue GetStructFieldXLS(TrackedBValue val, int64_t index,
-                                  const CStructType& type,
-                                  const xls::SourceInfo& loc) final;
+  TrackedBValue GetStructField(TrackedBValue val, int64_t index,
+                               const CStructType& type,
+                               const xls::SourceInfo& loc) final;
 
   // Returns a BValue for a copy of array_to_update with slice_to_write replaced
   // at start_index.

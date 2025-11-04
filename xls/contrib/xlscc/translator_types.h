@@ -764,9 +764,9 @@ class TranslatorTypeInterface {
   virtual absl::StatusOr<std::shared_ptr<CType>> ResolveTypeInstance(
       std::shared_ptr<CType> t) = 0;
 
-  virtual TrackedBValue GetStructFieldXLS(TrackedBValue val, int64_t index,
-                                          const CStructType& type,
-                                          const xls::SourceInfo& loc) = 0;
+  virtual TrackedBValue GetStructField(TrackedBValue val, int64_t index,
+                                       const CStructType& type,
+                                       const xls::SourceInfo& loc) = 0;
   virtual absl::StatusOr<std::shared_ptr<CType>> TranslateTypeFromClang(
       clang::QualType t, const xls::SourceInfo& loc,
       bool array_as_tuple = false) = 0;
@@ -775,8 +775,8 @@ class TranslatorTypeInterface {
       const std::shared_ptr<CInstantiableTypeAlias>& alias) = 0;
 
   // This version is public because it needs to be accessed by CStructType
-  static absl::StatusOr<xls::Value> GetStructFieldXLS(xls::Value val, int index,
-                                                      const CStructType& type);
+  static absl::StatusOr<xls::Value> GetStructField(xls::Value val, int index,
+                                                   const CStructType& type);
 
   virtual void AppendMessageTraces(std::string* message,
                                    const xls::SourceInfo& loc) = 0;

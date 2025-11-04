@@ -467,7 +467,7 @@ absl::StatusOr<CValue> Translator::StructUpdate(
     XLS_ASSIGN_OR_RETURN(bool has_lvals, fp->type()->ContainsLValues(*this));
     TrackedBValue bval;
     if (fp->index() != cfield.index()) {
-      bval = GetStructFieldXLS(struct_before.rvalue(), fp->index(), stype, loc);
+      bval = GetStructField(struct_before.rvalue(), fp->index(), stype, loc);
     } else {
       bval = rvalue.rvalue().valid()
                  ? rvalue.rvalue()
@@ -479,7 +479,7 @@ absl::StatusOr<CValue> Translator::StructUpdate(
     bvals.push_back(bval);
   }
 
-  TrackedBValue new_tuple = MakeStructXLS(bvals, stype, loc);
+  TrackedBValue new_tuple = MakeStruct(bvals, stype, loc);
 
   std::shared_ptr<LValue> lval;
 
@@ -497,7 +497,7 @@ absl::StatusOr<CValue> Translator::StructUpdate(
   return ret;
 }
 
-TrackedBValue Translator::MakeStructXLS(
+TrackedBValue Translator::MakeStruct(
     const std::vector<TrackedBValue>& bvals_reverse, const CStructType& stype,
     const xls::SourceInfo& loc) {
   std::vector<TrackedBValue> bvals = bvals_reverse;
@@ -510,8 +510,8 @@ TrackedBValue Translator::MakeStructXLS(
   return ret;
 }
 
-xls::Value Translator::MakeStructXLS(
-    const std::vector<xls::Value>& vals_reverse, const CStructType& stype) {
+xls::Value Translator::MakeStruct(const std::vector<xls::Value>& vals_reverse,
+                                  const CStructType& stype) {
   std::vector<xls::Value> vals = vals_reverse;
   std::reverse(vals.begin(), vals.end());
   CHECK_EQ(vals.size(), stype.fields().size());
@@ -519,9 +519,9 @@ xls::Value Translator::MakeStructXLS(
   return ret;
 }
 
-TrackedBValue Translator::GetStructFieldXLS(TrackedBValue val, int64_t index,
-                                            const CStructType& type,
-                                            const xls::SourceInfo& loc) {
+TrackedBValue Translator::GetStructField(TrackedBValue val, int64_t index,
+                                         const CStructType& type,
+                                         const xls::SourceInfo& loc) {
   XLSCC_CHECK_LT(index, type.fields().size(), loc);
   return type.no_tuple_flag()
              ? val
@@ -758,8 +758,8 @@ absl::Status Translator::GenerateThisLValues(
     XLS_ASSIGN_OR_RETURN(bool field_must_have_rvalue,
                          TypeMustHaveRValue(*field_type));
     if (field_must_have_rvalue) {
-      prev_field_rvalue = GetStructFieldXLS(prev_this_cval.rvalue(),
-                                            field->index(), *struct_type, loc);
+      prev_field_rvalue = GetStructField(prev_this_cval.rvalue(),
+                                         field->index(), *struct_type, loc);
     }
 
     CValue new_field_cval(prev_field_rvalue, field_type,
@@ -4499,8 +4499,8 @@ absl::StatusOr<CValue> Translator::ResolveCast(
     XLSCC_CHECK(inheritance.resolved_struct != nullptr, loc);
 
     TrackedBValue val =
-        GetStructFieldXLS(sub.rvalue(), inheritance.base_field->index(),
-                          *inheritance.resolved_struct, loc);
+        GetStructField(sub.rvalue(), inheritance.base_field->index(),
+                       *inheritance.resolved_struct, loc);
 
     return CValue(val, to_type);
   }
@@ -5082,7 +5082,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_MemberExpr(
       leftval.lvalue()->get_compound_or_null(cfield.index()) != nullptr) {
     lval = leftval.lvalue()->get_compound_or_null(cfield.index());
   } else if (leftval.rvalue().valid()) {
-    bval = GetStructFieldXLS(leftval.rvalue(), cfield.index(), *sitype, loc);
+    bval = GetStructField(leftval.rvalue(), cfield.index(), *sitype, loc);
   }
 
   XLS_ASSIGN_OR_RETURN(bool type_contains_lval,
@@ -5172,7 +5172,7 @@ absl::StatusOr<xls::Value> Translator::CreateDefaultRawValue(
                            CreateDefaultRawValue(field->type(), loc));
       args.push_back(fval);
     }
-    return MakeStructXLS(args, *it);
+    return MakeStruct(args, *it);
   }
   if (t->Is<CInternalTuple>()) {
     auto it = t->As<CInternalTuple>();

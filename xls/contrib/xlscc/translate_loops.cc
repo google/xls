@@ -755,8 +755,8 @@ absl::Status Translator::GenerateIR_PipelinedLoopOldFSM(
         context_out_fields, /*no_tuple=*/false, /*synthetic_int=*/false);
 
     CValue context_struct_out =
-        CValue(MakeStructXLS(context_out_tuple_values,
-                             *context_out_cvars_struct_ctype, loc),
+        CValue(MakeStruct(context_out_tuple_values,
+                          *context_out_cvars_struct_ctype, loc),
                context_out_cvars_struct_ctype);
 
     std::vector<std::shared_ptr<CType>> context_tuple_elem_types;
@@ -917,8 +917,8 @@ absl::Status Translator::GenerateIR_PipelinedLoopOldFSM(
 
       const CValue prev_cval = context().variables.at(decl);
 
-      const CValue cval(GetStructFieldXLS(context_tuple_recvd, field_idx,
-                                          *context_in_cvars_struct_ctype, loc),
+      const CValue cval(GetStructField(context_tuple_recvd, field_idx,
+                                       *context_in_cvars_struct_ctype, loc),
                         prev_cval.type(), /*disable_type_check=*/false,
                         lvalues_out.at(decl));
       XLS_RETURN_IF_ERROR(Assign(decl, cval, loc));
@@ -1054,8 +1054,8 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
       if (context_field_indices.contains(decl)) {
         const uint64_t field_idx = context_field_indices.at(decl);
         param_bval =
-            GetStructFieldXLS(context_struct_val, static_cast<int>(field_idx),
-                              *context_cvars_struct_ctype, loc);
+            GetStructField(context_struct_val, static_cast<int>(field_idx),
+                           *context_cvars_struct_ctype, loc);
       }
 
       std::shared_ptr<LValue> inner_lval;
@@ -1157,7 +1157,7 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
     }
 
     TrackedBValue ret_ctx =
-        MakeStructXLS(tuple_values, *context_cvars_struct_ctype, loc);
+        MakeStruct(tuple_values, *context_cvars_struct_ctype, loc);
     std::vector<TrackedBValue> return_bvals = {ret_ctx, do_break,
                                                initial_loop_cond};
 
@@ -1430,8 +1430,8 @@ Translator::GenerateIR_PipelinedLoopContents(
         const uint64_t context_out_field_idx =
             context_out_field_indices.at(decl);
         context_values[context_field_idx] =
-            GetStructFieldXLS(received_context, context_out_field_idx,
-                              *context_out_cvars_struct_ctype, loc);
+            GetStructField(received_context, context_out_field_idx,
+                           *context_out_cvars_struct_ctype, loc);
       } else {
         auto field_type =
             context_cvars_struct_ctype->fields().at(context_field_idx)->type();
@@ -1455,7 +1455,7 @@ Translator::GenerateIR_PipelinedLoopContents(
       context_values[field_idx] = selected_val;
     }
     selected_context =
-        MakeStructXLS(context_values, *context_cvars_struct_ctype, loc);
+        MakeStruct(context_values, *context_cvars_struct_ctype, loc);
   }
 
   for (const IOOp& op : generated_func.io_ops) {
@@ -1578,8 +1578,8 @@ Translator::GenerateIR_PipelinedLoopContents(
       continue;
     }
     const uint64_t field_idx = context_field_indices.at(decl);
-    TrackedBValue val = GetStructFieldXLS(updated_context, field_idx,
-                                          *context_cvars_struct_ctype, loc);
+    TrackedBValue val = GetStructField(updated_context, field_idx,
+                                       *context_cvars_struct_ctype, loc);
 
     NextStateValue next_state_value = {
         .priority = nesting_level, .extra_label = name_prefix, .value = val};
@@ -1610,7 +1610,7 @@ Translator::GenerateIR_PipelinedLoopContents(
   }
 
   TrackedBValue out_tuple =
-      MakeStructXLS(out_tuple_values, *context_in_cvars_struct_ctype, loc);
+      MakeStruct(out_tuple_values, *context_in_cvars_struct_ctype, loc);
 
   for (const clang::NamedDecl* namedecl :
        prepared.xls_func->GetDeterministicallyOrderedStaticValues()) {

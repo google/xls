@@ -62,7 +62,7 @@ using ::std::vector;
 
 namespace xlscc {
 
-absl::StatusOr<xls::Value> TranslatorTypeInterface::GetStructFieldXLS(
+absl::StatusOr<xls::Value> TranslatorTypeInterface::GetStructField(
     xls::Value val, int index, const CStructType& type) {
   CHECK_LT(index, type.fields().size());
   if (type.no_tuple_flag()) {
@@ -589,7 +589,7 @@ absl::Status CStructType::GetMetadataValue(
     name_out->set_name(field.first->getNameAsString());
     name_out->set_id(reinterpret_cast<uint64_t>(field.first));
     XLS_ASSIGN_OR_RETURN(xls::Value elem_value,
-                         TranslatorTypeInterface::GetStructFieldXLS(
+                         TranslatorTypeInterface::GetStructField(
                              const_value.rvalue(), i, *this));
     XLS_RETURN_IF_ERROR(field.second->type()->GetMetadataValue(
         translator, ConstValue(elem_value, field.second->type()),
