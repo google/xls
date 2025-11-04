@@ -13,13 +13,12 @@
 # limitations under the License.
 
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
-
-# pytype test and library
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_python//python:proto.bzl", "py_proto_library")
 load("@xls_pip_deps//:requirements.bzl", "requirement")
+load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_contrib_test", "pytype_strict_library")
 
 # Load proto_library
 load("//xls/build_rules:xls_build_defs.bzl", "xls_dslx_library")
@@ -48,7 +47,7 @@ dslx_strip_comments(
     visibility = ["//xls:xls_internal"],
 )
 
-py_library(
+pytype_strict_library(
     name = "cli_utils",
     srcs = ["cli_utils.py"],
 )
@@ -668,7 +667,7 @@ cc_binary(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "find_failing_input_main_test",
     srcs = ["find_failing_input_main_test.py"],
     data = [
@@ -695,7 +694,7 @@ proto_library(
     srcs = ["sample_summary.proto"],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "run_fuzz_multiprocess_test",
     timeout = "long",
     srcs = ["run_fuzz_multiprocess_test.py"],
@@ -706,7 +705,7 @@ py_test(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "fuzz_coverage_test",
     timeout = "eternal",
     srcs = ["fuzz_coverage_test.py"],

@@ -14,11 +14,11 @@
 
 # Public (exported) XLS APIs.
 
-# pytype binary only
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
-load("//xls/public:xls_public_macros.oss.bzl", "libxls_dylib_binary", "pytype_test_test_c_api_symbols")
+load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary")
+load("//xls/public:xls_public_macros.oss.bzl", "libxls_dylib_binary", "py_test_c_api_symbols")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -129,7 +129,7 @@ cc_library(
     ],
 )
 
-py_binary(
+pytype_strict_binary(
     name = "verify_checksum",
     srcs = ["verify_checksum.py"],
     deps = [
@@ -384,4 +384,4 @@ cc_library(
 
 libxls_dylib_binary()
 
-pytype_test_test_c_api_symbols()
+py_test_c_api_symbols()

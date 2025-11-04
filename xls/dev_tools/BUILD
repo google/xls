@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pytype binary, test, library
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
+load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary", "pytype_strict_contrib_test", "pytype_strict_library")
 load("//xls/build_rules:xls_build_defs.bzl", "xls_ir_equivalence_test")
 
 package(
@@ -69,7 +69,7 @@ cc_binary(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "tool_timeout_test",
     srcs = ["tool_timeout_test.py"],
     data = [":tool_timeout_test_main"],
@@ -79,7 +79,7 @@ py_test(
     ],
 )
 
-py_binary(
+pytype_strict_binary(
     name = "package_bazel_build",
     srcs = ["package_bazel_build.py"],
     deps = [
@@ -97,7 +97,7 @@ sh_test(
     ],
 )
 
-py_binary(
+pytype_strict_binary(
     name = "generate_vvp_runner",
     srcs = ["generate_vvp_runner.py"],
     deps = [
@@ -179,7 +179,7 @@ cc_binary(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "extract_sample_points_from_ir_main_test",
     srcs = ["extract_sample_points_from_ir_main_test.py"],
     data = [":extract_sample_points_from_ir_main"],
@@ -234,7 +234,7 @@ cc_binary(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "extract_segment_main_test",
     srcs = ["extract_segment_main_test.py"],
     data = [":extract_segment_main"],
@@ -348,7 +348,7 @@ cc_binary(
     ],
 )
 
-py_binary(
+pytype_strict_binary(
     name = "dump_llvm_artifacts",
     srcs = ["dump_llvm_artifacts_main.py"],
     data = [
@@ -367,7 +367,7 @@ py_binary(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "dump_llvm_artifacts_main_test",
     srcs = ["dump_llvm_artifacts_main_test.py"],
     data = [
@@ -486,7 +486,7 @@ cc_binary(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "check_ir_equivalence_main_test",
     srcs = ["check_ir_equivalence_main_test.py"],
     data = [
@@ -587,7 +587,7 @@ cc_binary(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "ir_minimizer_main_test",
     srcs = ["ir_minimizer_main_test.py"],
     data = ["ir_minimizer_main"],
@@ -708,7 +708,7 @@ cc_binary(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "benchmark_codegen_main_test",
     srcs = ["benchmark_codegen_main_test.py"],
     data = [
@@ -919,7 +919,7 @@ filegroup(
     visibility = ["//xls:xls_users"],
 )
 
-py_library(
+pytype_strict_library(
     name = "check_cpp_includes",
     srcs = ["check_cpp_includes.py"],
 )

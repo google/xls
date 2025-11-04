@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pytype binary, test, library
 load("@rules_python//python:proto.bzl", "py_proto_library")
 # Load proto_library
 # cc_proto_library is used in this file
 
 load("@xls_pip_deps//:requirements.bzl", "requirement")
+load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary", "pytype_strict_contrib_test", "pytype_strict_library")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -40,7 +40,7 @@ py_proto_library(
     deps = [":estimator_model_proto"],
 )
 
-py_library(
+pytype_strict_library(
     name = "estimator_model",
     srcs = ["estimator_model.py"],
     deps = [
@@ -50,7 +50,7 @@ py_library(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "estimator_model_test",
     srcs = ["estimator_model_test.py"],
     tags = ["nomsan"],  # scipy seems not to be msan-clean.
@@ -62,7 +62,7 @@ py_test(
     ],
 )
 
-py_library(
+pytype_strict_library(
     name = "op_module_generator",
     srcs = ["op_module_generator.py"],
     data = [
@@ -76,7 +76,7 @@ py_library(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "op_module_generator_test",
     srcs = ["op_module_generator_test.py"],
     data = glob(["testdata/*"]),
@@ -87,7 +87,7 @@ py_test(
     ],
 )
 
-py_binary(
+pytype_strict_binary(
     name = "estimator_model_join",
     srcs = ["estimator_model_join.py"],
     deps = [
@@ -101,7 +101,7 @@ py_binary(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "estimator_model_join_test",
     srcs = ["estimator_model_join_test.py"],
     data = [
@@ -114,13 +114,13 @@ py_test(
     ],
 )
 
-py_library(
+pytype_strict_library(
     name = "estimator_model_utils",
     srcs = ["estimator_model_utils.py"],
     deps = [":estimator_model_py_pb2"],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "estimator_model_utils_test",
     srcs = ["estimator_model_utils_test.py"],
     deps = [
@@ -132,7 +132,7 @@ py_test(
     ],
 )
 
-py_binary(
+pytype_strict_binary(
     name = "extract_sample_points_from_estimator_model",
     srcs = ["extract_sample_points_from_estimator_model.py"],
     deps = [
@@ -144,7 +144,7 @@ py_binary(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "extract_sample_points_from_estimator_model_test",
     srcs = ["extract_sample_points_from_estimator_model_test.py"],
     data = [
@@ -157,7 +157,7 @@ py_test(
     ],
 )
 
-py_binary(
+pytype_strict_binary(
     name = "estimator_model_stats",
     srcs = ["estimator_model_stats.py"],
     deps = [
@@ -171,7 +171,7 @@ py_binary(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "estimator_model_stats_test",
     srcs = ["estimator_model_stats_test.py"],
     data = [
@@ -194,7 +194,7 @@ py_test(
     ],
 )
 
-py_binary(
+pytype_strict_binary(
     name = "run_op_characterization",
     srcs = ["run_op_characterization.py"],
     deps = [

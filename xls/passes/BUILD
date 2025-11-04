@@ -14,12 +14,12 @@
 
 # Optimization passes, pass managers.
 
-# pytype binary only
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_python//python:proto.bzl", "py_proto_library")
 load("@xls_pip_deps//:requirements.bzl", "requirement")
+load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary")
 
 # Load proto_library
 load(
@@ -4487,7 +4487,7 @@ cc_test(
     ],
 )
 
-py_binary(
+pytype_strict_binary(
     name = "bit_count_query_engine_proofs_z3",
     srcs = ["bit_count_query_engine_proofs_z3.py"],
     deps = [

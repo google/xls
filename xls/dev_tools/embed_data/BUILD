@@ -14,9 +14,9 @@
 
 # Templates for embeding binary data into a c file. Needs a build file to make it a visible target.
 
-# pytype binary only
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@xls_pip_deps//:requirements.bzl", "requirement")
+load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -24,7 +24,7 @@ package(
     licenses = ["notice"],  # Apache 2.0
 )
 
-py_binary(
+pytype_strict_binary(
     name = "create_source_files",
     srcs = ["create_source_files.py"],
     data = [

@@ -14,9 +14,9 @@
 
 # Delay models.
 
-# pytype binary only
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
+load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary")
 load("//xls/estimators/delay_model:build_defs.bzl", "delay_model")
 
 package(
@@ -28,7 +28,7 @@ package(
     licenses = ["notice"],  # Apache 2.0
 )
 
-py_binary(
+pytype_strict_binary(
     name = "area_characterization_client_main",
     srcs = ["area_characterization_client_main.py"],
     deps = [

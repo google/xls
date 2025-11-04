@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pytype binary, test, library
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_python//python:proto.bzl", "py_proto_library")
 # Load proto_library
 # cc_proto_library is used in this file
 
 load("@xls_pip_deps//:requirements.bzl", "requirement")
+load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary", "pytype_strict_contrib_test", "pytype_strict_library")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -50,7 +50,7 @@ cc_binary(
     ],
 )
 
-py_library(
+pytype_strict_library(
     name = "xls_ir_to_networkx",
     srcs = ["xls_ir_to_networkx.py"],
     data = [":xls_ir_to_cytoscape"],
@@ -64,7 +64,7 @@ py_library(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "xls_ir_to_networkx_test",
     srcs = ["xls_ir_to_networkx_test.py"],
     data = ["//xls/examples:riscv_simple.opt.ir"],
@@ -76,7 +76,7 @@ py_test(
     ],
 )
 
-py_library(
+pytype_strict_library(
     name = "ir_diff",
     srcs = ["ir_diff.py"],
     deps = [
@@ -84,7 +84,7 @@ py_library(
     ],
 )
 
-py_library(
+pytype_strict_library(
     name = "ir_diff_utils",
     srcs = ["ir_diff_utils.py"],
     deps = [
@@ -94,7 +94,7 @@ py_library(
     ],
 )
 
-py_library(
+pytype_strict_library(
     name = "ir_patch_gen",
     srcs = ["ir_patch_gen.py"],
     deps = [
@@ -105,13 +105,13 @@ py_library(
     ],
 )
 
-py_library(
+pytype_strict_library(
     name = "xls_types",
     srcs = ["xls_types.py"],
     deps = ["//xls/ir:xls_type_py_pb2"],
 )
 
-py_library(
+pytype_strict_library(
     name = "xls_values",
     srcs = ["xls_values.py"],
     deps = [
@@ -120,7 +120,7 @@ py_library(
     ],
 )
 
-py_library(
+pytype_strict_library(
     name = "ir_diff_main_lib",
     srcs = ["ir_diff_main.py"],
     deps = [
@@ -133,13 +133,13 @@ py_library(
     ],
 )
 
-py_binary(
+pytype_strict_binary(
     name = "ir_diff_main",
     srcs = ["ir_diff_main.py"],
     deps = [":ir_diff_main_lib"],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "ir_diff_main_test",
     srcs = ["ir_diff_main_test.py"],
     data = [

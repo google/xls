@@ -17,12 +17,11 @@
 # Load proto_library
 # cc_proto_library is used in this file
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
-
-# pytype tests are present in this file
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@xls_pip_deps//:requirements.bzl", "requirement")
+load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_contrib_test")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -741,7 +740,7 @@ cc_binary(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "highlight_main_test",
     srcs = ["highlight_main_test.py"],
     data = [
@@ -772,7 +771,7 @@ cc_binary(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "strip_comments_main_test",
     srcs = ["strip_comments_main_test.py"],
     data = [
@@ -785,7 +784,7 @@ py_test(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "interpreter_test",
     srcs = ["interpreter_test.py"],
     data = [":interpreter_main"],
@@ -795,7 +794,7 @@ py_test(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "prove_quickcheck_test",
     srcs = ["prove_quickcheck_test.py"],
     data = [":prove_quickcheck_main"],
@@ -991,7 +990,7 @@ cc_binary(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "dslx_fmt_test",
     srcs = ["dslx_fmt_test.py"],
     data = [

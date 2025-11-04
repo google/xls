@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pytype tests are present in this file
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@xls_pip_deps//:requirements.bzl", "requirement")
+load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_contrib_test")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -104,7 +104,7 @@ cc_binary(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "yosys_server_test",
     srcs = ["yosys_server_test.py"],
     data = [

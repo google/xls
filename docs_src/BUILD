@@ -14,9 +14,8 @@
 
 # Targets for documentation files.
 
-# pytype tests are present in this file
-
 load("@xls_pip_deps//:requirements.bzl", "requirement")
+load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_contrib_test")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -56,7 +55,7 @@ filegroup(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "check_nav",
     srcs = ["check_nav.py"],
     data = [

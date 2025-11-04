@@ -15,11 +15,10 @@
 # cc_proto_library is used in this file
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
-
-# pytype binary only
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_python//python:proto.bzl", "py_proto_library")
 load("@xls_pip_deps//:requirements.bzl", "requirement")
+load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary")
 
 # Load proto_library
 load(
@@ -189,7 +188,7 @@ cc_library(
     ],
 )
 
-py_binary(
+pytype_strict_binary(
     name = "generate_documentation_md",
     srcs = ["generate_documentation_md.py"],
     deps = [

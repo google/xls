@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pytype tests are present in this file
+load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_contrib_test")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -44,7 +44,7 @@ package(
     ]
 ]
 
-py_test(
+pytype_strict_contrib_test(
     name = "artifact_analyzability_test",
     srcs = ["artifact_analyzability_test.py"],
     data = [
@@ -66,7 +66,7 @@ py_test(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "eval_proc_main_test",
     srcs = ["eval_proc_main_test.py"],
     data = [

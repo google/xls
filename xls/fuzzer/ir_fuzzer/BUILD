@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pytype binary only
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_python//python:proto.bzl", "py_proto_library")
 # Load proto_library
 # cc_proto_library is used in this file
+
+load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -89,7 +90,7 @@ py_proto_library(
     deps = [":fuzzer_arg_list_proto"],
 )
 
-py_binary(
+pytype_strict_binary(
     name = "minimize_fuzz_failure",
     testonly = 1,
     srcs = ["minimize_fuzz_failure.py"],

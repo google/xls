@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pytype binary, test, library
 load("@grpc//bazel:cc_grpc_library.bzl", "cc_grpc_library")
 load("@grpc//bazel:python_rules.bzl", "py_grpc_library")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
@@ -22,6 +21,7 @@ load("@rules_python//python:proto.bzl", "py_proto_library")
 # cc_proto_library is used in this file
 
 load("@xls_pip_deps//:requirements.bzl", "requirement")
+load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary", "pytype_strict_contrib_test", "pytype_strict_library")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -83,7 +83,7 @@ py_grpc_library(
     deps = [":synthesis_service_py_pb2"],
 )
 
-py_binary(
+pytype_strict_binary(
     name = "synthesis_client_py",
     srcs = ["synthesis_client_main.py"],
     main = "synthesis_client_main.py",
@@ -97,7 +97,7 @@ py_binary(
     ],
 )
 
-py_binary(
+pytype_strict_binary(
     name = "op_characterization_client_main",
     srcs = ["op_characterization_client_main.py"],
     deps = [
@@ -109,7 +109,7 @@ py_binary(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "op_characterization_client_test",
     srcs = ["op_characterization_client_test.py"],
     deps = [
@@ -136,7 +136,7 @@ cc_binary(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "synthesis_server_test",
     srcs = ["synthesis_server_test.py"],
     data = [
@@ -164,13 +164,13 @@ cc_library(
     ],
 )
 
-py_library(
+pytype_strict_library(
     name = "client_credentials",
     srcs = ["client_credentials.py"],
     deps = ["@grpc//src/python/grpcio/grpc:grpcio"],
 )
 
-py_library(
+pytype_strict_library(
     name = "synthesis_utils",
     srcs = ["synthesis_utils.py"],
     deps = [
@@ -180,7 +180,7 @@ py_library(
     ],
 )
 
-py_library(
+pytype_strict_library(
     name = "op_characterization_client",
     srcs = ["op_characterization_client.py"],
     data = [
@@ -201,7 +201,7 @@ py_library(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "synthesis_utils_test",
     srcs = ["synthesis_utils_test.py"],
     data = [":fake_synthesis_server_main"],

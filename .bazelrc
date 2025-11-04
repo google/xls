@@ -16,10 +16,6 @@ common:ci --lockfile_mode=error
 # Tell that this is an oss ci run. NB This only disables it on the every-cl run.
 build:ci --copt="-DXLS_IS_CI_RUN=1"
 
-# Disable rules_python Starlark rules for Bazel 7+.
-# See https://github.com/bazelbuild/rules_python/issues/1069#issuecomment-1942053014.
-build --action_env=RULES_PYTHON_ENABLE_PYSTAR=0
-
 # Disable automatic generation of __init__.py files. This allows
 # namespace packages (such as `google`) to work correctly.
 # https://github.com/bazelbuild/bazel/issues/10076

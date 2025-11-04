@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pytype binary, test, library
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_hdl//dependency_support/com_google_skywater_pdk:cells_info.bzl", "for_each_sky130_cells")
 load("@rules_hdl//dependency_support/org_theopenroadproject_asap7_pdk_r1p7:cells_info.bzl", "for_each_asap7_cells")
 load("@xls_pip_deps//:requirements.bzl", "requirement")
+load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary", "pytype_strict_contrib_test", "pytype_strict_library")
 load("//xls/build_rules:xls_build_defs.bzl", "xls_model_generation")
 
 package(
@@ -91,13 +91,13 @@ cc_test(
     ],
 )
 
-py_library(
+pytype_strict_library(
     name = "area_model_utils",
     srcs = ["area_model_utils.py"],
     deps = ["//xls/estimators:estimator_model"],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "area_model_utils_test",
     srcs = ["area_model_utils_test.py"],
     data = [
@@ -113,7 +113,7 @@ py_test(
     ],
 )
 
-py_binary(
+pytype_strict_binary(
     name = "generate_area_lookup",
     srcs = ["generate_area_lookup.py"],
     data = ["generate_area_lookup.tmpl"],

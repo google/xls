@@ -14,7 +14,7 @@
 
 # Tests for DSLX files that have various forms of errors.
 
-# pytype tests are present in this file
+load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_contrib_test")
 load("//xls/dslx:strip_comments.bzl", "dslx_strip_comments")
 
 package(
@@ -26,7 +26,7 @@ package(
     licenses = ["notice"],  # Apache 2.0
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "error_modules_test",
     srcs = ["error_modules_test.py"],
     data = glob(["*.x"]) + [

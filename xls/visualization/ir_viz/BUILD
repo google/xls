@@ -13,14 +13,13 @@
 # limitations under the License.
 
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
-
-# pytype binary and test
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_closure//closure:defs.bzl", "closure_js_binary", "closure_js_library")
 load("@rules_python//python:proto.bzl", "py_proto_library")
 load("@xls_pip_deps//:requirements.bzl", "requirement")
+load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary", "pytype_strict_contrib_test")
 
 # Load proto_library
 load("//xls/examples:list_filegroup_files.bzl", "list_filegroup_files")
@@ -50,7 +49,7 @@ list_filegroup_files(
     out = "ir_examples_file_list.txt",
 )
 
-py_binary(
+pytype_strict_binary(
     name = "app",
     srcs = ["app.py"],
     data = [
@@ -149,7 +148,7 @@ cc_library(
     ],
 )
 
-py_binary(
+pytype_strict_binary(
     name = "ir_to_cytoscape",
     srcs = ["ir_to_cytoscape.py"],
     data = [":ir_to_proto_main"],

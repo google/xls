@@ -18,8 +18,8 @@ This module contains build macros that are specific to XLS's OSS release.
 This module is intended to be loaded by the xls/public/BUILD file.
 """
 
-# pytype tests are present in this file
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_python//python:py_test.bzl", "py_test")
 
 def libxls_dylib_binary(name = "libxls.dylib"):
     # Create a variant of the c_api_symbols.txt file that has leading
@@ -54,8 +54,8 @@ def libxls_dylib_binary(name = "libxls.dylib"):
         ],
     )
 
-def pytype_test_test_c_api_symbols(name = "test_c_api_symbols"):
-    native.py_test(
+def py_test_c_api_symbols(name = "test_c_api_symbols"):
+    py_test(
         name = name,
         srcs = ["test_c_api_symbols.py"],
         data = [

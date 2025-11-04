@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pytype binary and test
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
@@ -21,6 +20,7 @@ load("@rules_python//python:proto.bzl", "py_proto_library")
 # cc_proto_library is used in this file
 
 load("@xls_pip_deps//:requirements.bzl", "requirement")
+load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary", "pytype_strict_contrib_test")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -451,7 +451,7 @@ cc_binary(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "opt_main_test",
     srcs = ["opt_main_test.py"],
     data = [
@@ -469,7 +469,7 @@ py_test(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "mul_folding_overlarge",
     srcs = ["run_opt_main.py"],
     args = ["xls/tools/testdata/mul_folding_overlarge.ir"],
@@ -485,7 +485,7 @@ py_test(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "sub_folding_overlarge",
     srcs = ["run_opt_main.py"],
     args = ["xls/tools/testdata/sub_folding_overlarge.ir"],
@@ -501,7 +501,7 @@ py_test(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "sub_add_folding_overlarge",
     srcs = ["run_opt_main.py"],
     args = ["xls/tools/testdata/sub_add_folding_overlarge.ir"],
@@ -517,7 +517,7 @@ py_test(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "shll_folding_overlarge",
     srcs = ["run_opt_main.py"],
     args = ["xls/tools/testdata/shll_folding_overlarge.ir"],
@@ -533,7 +533,7 @@ py_test(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "add_folding_overlarge",
     srcs = ["run_opt_main.py"],
     args = ["xls/tools/testdata/add_folding_overlarge.ir"],
@@ -835,7 +835,7 @@ cc_binary(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "simulate_module_main_test",
     srcs = ["simulate_module_main_test.py"],
     data = [
@@ -853,7 +853,7 @@ py_test(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "block_to_verilog_main_test",
     srcs = ["block_to_verilog_main_test.py"],
     data = [
@@ -869,7 +869,7 @@ py_test(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "codegen_main_test",
     srcs = ["codegen_main_test.py"],
     data = [
@@ -892,7 +892,7 @@ py_test(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "eval_ir_main_test",
     srcs = ["eval_ir_main_test.py"],
     data = [
@@ -910,7 +910,7 @@ py_test(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "eval_ir_main_llvm_test",
     srcs = ["eval_ir_main_llvm_test.py"],
     data = [
@@ -927,7 +927,7 @@ py_test(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "eval_proc_main_test",
     srcs = ["eval_proc_main_test.py"],
     data = [
@@ -1107,7 +1107,7 @@ cc_binary(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "delay_info_main_test",
     srcs = ["delay_info_main_test.py"],
     data = [
@@ -1135,7 +1135,7 @@ py_proto_library(
     deps = [":design_stats_proto"],
 )
 
-py_binary(
+pytype_strict_binary(
     name = "gather_design_stats",
     srcs = ["gather_design_stats.py"],
     visibility = ["//xls:xls_utility_users"],
@@ -1148,7 +1148,7 @@ py_binary(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "gather_design_stats_test",
     srcs = ["gather_design_stats_test.py"],
     data = [

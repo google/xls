@@ -17,13 +17,12 @@
 # cc_proto_library is used in this file
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
-
-# pytype binary and test
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_python//python:proto.bzl", "py_proto_library")
 load("@xls_pip_deps//:requirements.bzl", "requirement")
+load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary", "pytype_strict_contrib_test")
 
 # Load proto_library
 load(
@@ -139,7 +138,7 @@ cc_binary(
     ],
 )
 
-py_binary(
+pytype_strict_binary(
     name = "aot_basic_function_entrypoint_main",
     srcs = ["aot_basic_function_entrypoint_main.py"],
     data = [
@@ -308,7 +307,7 @@ cc_library(
     ],
 )
 
-py_binary(
+pytype_strict_binary(
     name = "jit_wrapper_generator_main",
     srcs = ["jit_wrapper_generator_main.py"],
     data = [
@@ -1413,7 +1412,7 @@ cc_binary(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "type_layout_main_test",
     srcs = ["type_layout_main_test.py"],
     data = [":type_layout_main"],
@@ -1424,7 +1423,7 @@ py_test(
     ],
 )
 
-py_binary(
+pytype_strict_binary(
     name = "aot_main_wrapper_main",
     srcs = ["aot_main_wrapper_main.py"],
     data = [

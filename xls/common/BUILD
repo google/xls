@@ -16,13 +16,13 @@
 
 # cc_proto_library is used in this file
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
-
-# pytype test and library
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 # Load proto_library
+
+load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_contrib_test", "pytype_strict_library")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -163,7 +163,7 @@ cc_test(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "xls_gunit_sample_test",
     srcs = ["xls_gunit_sample_test.py"],
     data = [":xls_gunit_sample"],
@@ -519,12 +519,12 @@ cc_test(
     ],
 )
 
-py_library(
+pytype_strict_library(
     name = "xls_error",
     srcs = ["xls_error.py"],
 )
 
-py_library(
+pytype_strict_library(
     name = "memoize",
     srcs = ["memoize.py"],
 )
@@ -539,7 +539,7 @@ cc_library(
     hdrs = ["test_macros.h"],
 )
 
-py_library(
+pytype_strict_library(
     name = "runfiles",
     srcs = ["runfiles.py"],
     deps = [
@@ -547,13 +547,13 @@ py_library(
     ],
 )
 
-py_library(
+pytype_strict_library(
     name = "multiprocess",
     srcs = ["multiprocess.py"],
     deps = ["@abseil-py//absl:app"],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "runfiles_test",
     srcs = ["runfiles_test.py"],
     data = [
@@ -566,7 +566,7 @@ py_test(
     ],
 )
 
-py_library(
+pytype_strict_library(
     name = "test_base",
     srcs = ["test_base.py"],
     deps = ["@abseil-py//absl/testing:absltest"],
@@ -579,7 +579,7 @@ cc_library(
     deps = ["@com_google_absl//absl/flags:flag"],
 )
 
-py_library(
+pytype_strict_library(
     name = "gfile",
     srcs = ["gfile.py"],
 )

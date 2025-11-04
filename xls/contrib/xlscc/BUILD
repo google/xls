@@ -21,10 +21,10 @@ load("@bazel_skylib//rules:build_test.bzl", "build_test")
 # Load proto_library
 # cc_proto_library is used in this file
 
-# pytype binary only
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_python//python:proto.bzl", "py_proto_library")
+load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -85,7 +85,7 @@ build_test(
     ],
 )
 
-py_binary(
+pytype_strict_binary(
     name = "get_top_func_from_proto",
     srcs = ["get_top_func_from_proto.py"],
     visibility = ["//xls:xls_users"],
@@ -378,7 +378,7 @@ cc_binary(
     ],
 )
 
-py_binary(
+pytype_strict_binary(
     name = "instrument_ir",
     srcs = ["instrument_ir.py"],
     data = [

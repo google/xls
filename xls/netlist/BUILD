@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pytype tests are present in this file
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 # Load proto_library
 # cc_proto_library is used in this file
+
+load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_contrib_test")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -446,7 +447,7 @@ netlist_interpreter_main_test_data = [
     "testdata/simple_cell.lib",
 ]
 
-py_test(
+pytype_strict_contrib_test(
     name = "netlist_interpreter_main_test",
     srcs = ["netlist_interpreter_main_test.py"],
     data = glob(netlist_interpreter_main_test_data) + [

@@ -14,12 +14,13 @@
 
 # Frontend type-system and associated data structures.
 
-# pytype tests are present in this file
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 # Load proto_library
 # cc_proto_library is used in this file
+
+load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_contrib_test")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -755,7 +756,7 @@ cc_binary(
     ],
 )
 
-py_test(
+pytype_strict_contrib_test(
     name = "typecheck_main_test",
     srcs = ["typecheck_main_test.py"],
     data = [

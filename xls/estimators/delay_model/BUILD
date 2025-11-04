@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pytype binary only
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_hdl//dependency_support/com_google_skywater_pdk:cells_info.bzl", "for_each_sky130_cells")
 load("@rules_hdl//dependency_support/org_theopenroadproject_asap7_pdk_r1p7:cells_info.bzl", "for_each_asap7_cells")
 load("@rules_python//python:proto.bzl", "py_proto_library")
 load("@xls_pip_deps//:requirements.bzl", "requirement")
+load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary")
 
 # Load proto_library
 load("//xls/build_rules:xls_build_defs.bzl", "xls_model_generation")
@@ -201,7 +201,7 @@ cc_library(
     ],
 )
 
-py_binary(
+pytype_strict_binary(
     name = "generate_delay_lookup",
     srcs = ["generate_delay_lookup.py"],
     data = ["generate_delay_lookup.tmpl"],
