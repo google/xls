@@ -23,8 +23,8 @@
 #include <utility>
 #include <vector>
 
-#include "gtest/gtest.h"
 #include "absl/cleanup/cleanup.h"
+#include "gtest/gtest.h"
 #include "xls/public/c_api.h"
 #include "xls/public/c_api_format_preference.h"
 
@@ -200,16 +200,6 @@ endmodule
 }
 
 TEST(XlsCApiTest, VastGenerateLoopElementwiseAssignment) {
-  const std::string_view kWantEmitted = R"(module top(
-  input wire [7:0] in,
-  output wire [7:0] out
-);
-  for (genvar i = 0; i < 8; i = i + 1) begin : gen
-    assign out[i] = in[i];
-  end
-endmodule
-)";
-
   xls_vast_verilog_file* f =
       xls_vast_make_verilog_file(xls_vast_file_type_verilog);
   ASSERT_NE(f, nullptr);
@@ -238,23 +228,45 @@ endmodule
   xls_vast_expression* genvar_expr =
       xls_vast_logic_ref_as_expression(genvar_ref);
 
-  xls_vast_statement_block* loop_body = xls_vast_generate_loop_get_body(loop);
-  ASSERT_NE(loop_body, nullptr);
-
   xls_vast_index* out_index = xls_vast_verilog_file_make_index(
       f, xls_vast_logic_ref_as_indexable_expression(out_ref), genvar_expr);
   xls_vast_index* in_index = xls_vast_verilog_file_make_index(
       f, xls_vast_logic_ref_as_indexable_expression(in_ref), genvar_expr);
 
-  xls_vast_statement_block_add_continuous_assignment(
-      loop_body, xls_vast_index_as_expression(out_index),
-      xls_vast_index_as_expression(in_index));
+  xls_vast_statement* assignment_stmt =
+      xls_vast_generate_loop_add_continuous_assignment(
+          loop, xls_vast_index_as_expression(out_index),
+          xls_vast_index_as_expression(in_index));
+  ASSERT_NE(assignment_stmt, nullptr);
+
+  // Add a blank line, a comment, an inline verilog statement, and an empty
+  // instantiation inside the generate loop.
+  xls_vast_generate_loop_add_blank_line(loop);
+  xls_vast_comment* comment =
+      xls_vast_verilog_file_make_comment(f, "This is a comment.");
+  xls_vast_generate_loop_add_comment(loop, comment);
+  xls_vast_inline_verilog_statement* inline_stmt =
+      xls_vast_verilog_file_make_inline_verilog_statement(
+          f, "inline_verilog_statement;");
+  xls_vast_generate_loop_add_inline_verilog_statement(loop, inline_stmt);
 
   char* emitted = xls_vast_verilog_file_emit(f);
   ASSERT_NE(emitted, nullptr);
   absl::Cleanup free_emitted([&] { xls_c_str_free(emitted); });
 
-  EXPECT_EQ(std::string_view{emitted}, kWantEmitted);
+  const std::string_view kWantEmittedWithExtras = R"(module top(
+  input wire [7:0] in,
+  output wire [7:0] out
+);
+  for (genvar i = 0; i < 8; i = i + 1) begin : gen
+    assign out[i] = in[i];
+
+    // This is a comment.
+    inline_verilog_statement;
+  end
+endmodule
+)";
+  EXPECT_EQ(std::string_view{emitted}, kWantEmittedWithExtras);
 }
 
 // Tests that we can reference a slice of a multidimensional packed array on
@@ -1828,4 +1840,139 @@ TEST(XlsCApiTest, ModuleWithParameterPort) {
 endmodule
 )";
   EXPECT_EQ(std::string_view{emitted}, kWant);
+}
+
+TEST(XlsCApiTest, VastGenerateLoopWithAlwaysBlocks) {
+  const std::string_view kWantEmitted = R"(module top(
+  input wire clk
+);
+  for (genvar i = 0; i < 8; i = i + 1) begin : gen
+    always_comb begin end
+    always_ff @ (posedge clk) begin end
+  end
+endmodule
+)";
+
+  xls_vast_verilog_file* f =
+      xls_vast_make_verilog_file(xls_vast_file_type_verilog);
+  ASSERT_NE(f, nullptr);
+  absl::Cleanup free_file([&] { xls_vast_verilog_file_free(f); });
+
+  xls_vast_verilog_module* m = xls_vast_verilog_file_add_module(f, "top");
+  ASSERT_NE(m, nullptr);
+
+  // IO
+  xls_vast_data_type* clk_t = xls_vast_verilog_file_make_scalar_type(f);
+  xls_vast_logic_ref* clk = xls_vast_verilog_module_add_input(m, "clk", clk_t);
+  ASSERT_NE(clk, nullptr);
+
+  // Generate loop 0..8 with label "gen".
+  xls_vast_literal* zero_lit = xls_vast_verilog_file_make_plain_literal(f, 0);
+  xls_vast_literal* eight_lit = xls_vast_verilog_file_make_plain_literal(f, 8);
+  xls_vast_expression* zero_expr = xls_vast_literal_as_expression(zero_lit);
+  xls_vast_expression* eight_expr = xls_vast_literal_as_expression(eight_lit);
+  xls_vast_generate_loop* loop = xls_vast_verilog_module_add_generate_loop(
+      m, "i", zero_expr, eight_expr, "gen");
+  ASSERT_NE(loop, nullptr);
+
+  // Add empty always_comb inside the generate loop.
+  xls_vast_always_base* out_ac = nullptr;
+  char* err = nullptr;
+  ASSERT_TRUE(xls_vast_generate_loop_add_always_comb(loop, &out_ac, &err));
+  ASSERT_NE(out_ac, nullptr);
+  ASSERT_EQ(err, nullptr);
+
+  // Add empty always_ff @ (posedge clk) inside the generate loop.
+  xls_vast_expression* sens_list[1];
+  sens_list[0] = xls_vast_verilog_file_make_pos_edge(
+      f, xls_vast_logic_ref_as_expression(clk));
+  xls_vast_always_base* out_aff = nullptr;
+  char* err2 = nullptr;
+  ASSERT_TRUE(xls_vast_generate_loop_add_always_ff(loop, sens_list, 1, &out_aff,
+                                                   &err2));
+  ASSERT_NE(out_aff, nullptr);
+  ASSERT_EQ(err2, nullptr);
+
+  // Emit and compare.
+  char* emitted = xls_vast_verilog_file_emit(f);
+  ASSERT_NE(emitted, nullptr);
+  absl::Cleanup free_emitted([&] { xls_c_str_free(emitted); });
+  EXPECT_EQ(std::string_view{emitted}, kWantEmitted);
+}
+
+TEST(XlsCApiTest, VastNestedGenerateLoops) {
+  const std::string_view kWantEmitted = R"(module top;
+  wire [3:0][2:0] src;
+  wire [3:0][2:0] dst;
+  for (genvar i = 0; i < 4; i = i + 1) begin : outer
+    for (genvar j = 0; j < 3; j = j + 1) begin : inner
+      assign dst[i][j] = src[i][j];
+    end
+  end
+endmodule
+)";
+
+  xls_vast_verilog_file* f =
+      xls_vast_make_verilog_file(xls_vast_file_type_verilog);
+  ASSERT_NE(f, nullptr);
+  absl::Cleanup free_file([&] { xls_vast_verilog_file_free(f); });
+
+  xls_vast_verilog_module* m = xls_vast_verilog_file_add_module(f, "top");
+  ASSERT_NE(m, nullptr);
+
+  // Create packed array type with element bit width 1 and dimensions [4][3].
+  xls_vast_data_type* u1 =
+      xls_vast_verilog_file_make_bit_vector_type(f, 1, /*is_signed=*/false);
+  const std::vector<int64_t> dims = {4, 3};
+  xls_vast_data_type* arr_t = xls_vast_verilog_file_make_packed_array_type(
+      f, u1, dims.data(), dims.size());
+
+  xls_vast_logic_ref* src = xls_vast_verilog_module_add_wire(m, "src", arr_t);
+  xls_vast_logic_ref* dst = xls_vast_verilog_module_add_wire(m, "dst", arr_t);
+  ASSERT_NE(src, nullptr);
+  ASSERT_NE(dst, nullptr);
+
+  // Add outer and inner generate loops.
+  xls_vast_literal* zero_lit = xls_vast_verilog_file_make_plain_literal(f, 0);
+  xls_vast_literal* four_lit = xls_vast_verilog_file_make_plain_literal(f, 4);
+  xls_vast_literal* three_lit = xls_vast_verilog_file_make_plain_literal(f, 3);
+  xls_vast_expression* zero_expr = xls_vast_literal_as_expression(zero_lit);
+  xls_vast_expression* four_expr = xls_vast_literal_as_expression(four_lit);
+  xls_vast_expression* three_expr = xls_vast_literal_as_expression(three_lit);
+
+  xls_vast_generate_loop* outer = xls_vast_verilog_module_add_generate_loop(
+      m, "i", zero_expr, four_expr, "outer");
+  ASSERT_NE(outer, nullptr);
+
+  xls_vast_logic_ref* i_ref = xls_vast_generate_loop_get_genvar(outer);
+  ASSERT_NE(i_ref, nullptr);
+  xls_vast_expression* i_expr = xls_vast_logic_ref_as_expression(i_ref);
+
+  xls_vast_generate_loop* inner = xls_vast_generate_loop_add_generate_loop(
+      outer, "j", zero_expr, three_expr, "inner");
+  ASSERT_NE(inner, nullptr);
+  xls_vast_logic_ref* j_ref = xls_vast_generate_loop_get_genvar(inner);
+  ASSERT_NE(j_ref, nullptr);
+  xls_vast_expression* j_expr = xls_vast_logic_ref_as_expression(j_ref);
+
+  // Add assign dst[i][j] = src[i][j]; inside inner loop.
+  xls_vast_index* dst_i = xls_vast_verilog_file_make_index(
+      f, xls_vast_logic_ref_as_indexable_expression(dst), i_expr);
+  xls_vast_index* dst_ij = xls_vast_verilog_file_make_index(
+      f, xls_vast_index_as_indexable_expression(dst_i), j_expr);
+  xls_vast_index* src_i = xls_vast_verilog_file_make_index(
+      f, xls_vast_logic_ref_as_indexable_expression(src), i_expr);
+  xls_vast_index* src_ij = xls_vast_verilog_file_make_index(
+      f, xls_vast_index_as_indexable_expression(src_i), j_expr);
+
+  xls_vast_statement* assign_stmt =
+      xls_vast_generate_loop_add_continuous_assignment(
+          inner, xls_vast_index_as_expression(dst_ij),
+          xls_vast_index_as_expression(src_ij));
+  ASSERT_NE(assign_stmt, nullptr);
+
+  char* emitted = xls_vast_verilog_file_emit(f);
+  ASSERT_NE(emitted, nullptr);
+  absl::Cleanup free_emitted([&] { xls_c_str_free(emitted); });
+  EXPECT_EQ(std::string_view{emitted}, kWantEmitted);
 }

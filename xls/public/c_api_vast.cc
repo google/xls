@@ -479,6 +479,15 @@ struct xls_vast_comment* xls_vast_verilog_file_make_comment(
   return reinterpret_cast<xls_vast_comment*>(cpp_comment);
 }
 
+struct xls_vast_inline_verilog_statement*
+xls_vast_verilog_file_make_inline_verilog_statement(
+    struct xls_vast_verilog_file* f, const char* text) {
+  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
+  auto* cpp_stmt = cpp_file->Make<xls::verilog::InlineVerilogStatement>(
+      xls::SourceInfo(), text);
+  return reinterpret_cast<xls_vast_inline_verilog_statement*>(cpp_stmt);
+}
+
 struct xls_vast_instantiation* xls_vast_verilog_file_make_instantiation(
     struct xls_vast_verilog_file* f, const char* module_name,
     const char* instance_name, const char** parameter_port_names,
@@ -584,10 +593,142 @@ struct xls_vast_logic_ref* xls_vast_generate_loop_get_genvar(
   return reinterpret_cast<xls_vast_logic_ref*>(cpp_loop->genvar());
 }
 
-struct xls_vast_statement_block* xls_vast_generate_loop_get_body(
+struct xls_vast_generate_loop* xls_vast_generate_loop_add_generate_loop(
+    struct xls_vast_generate_loop* loop, const char* genvar_name,
+    struct xls_vast_expression* init, struct xls_vast_expression* limit,
+    const char* label) {
+  CHECK_NE(genvar_name, nullptr);
+  auto* cpp_loop = reinterpret_cast<xls::verilog::GenerateLoop*>(loop);
+  auto* cpp_init = reinterpret_cast<xls::verilog::Expression*>(init);
+  auto* cpp_limit = reinterpret_cast<xls::verilog::Expression*>(limit);
+  std::optional<std::string> cpp_label =
+      label == nullptr ? std::nullopt : std::optional<std::string>(label);
+  xls::verilog::GenerateLoop* cpp_inner_loop =
+      cpp_loop->Add<xls::verilog::GenerateLoop>(xls::SourceInfo(),
+                                                std::string_view(genvar_name),
+                                                cpp_init, cpp_limit, cpp_label);
+  return reinterpret_cast<xls_vast_generate_loop*>(cpp_inner_loop);
+}
+
+void xls_vast_generate_loop_add_blank_line(
     struct xls_vast_generate_loop* loop) {
   auto* cpp_loop = reinterpret_cast<xls::verilog::GenerateLoop*>(loop);
-  return reinterpret_cast<xls_vast_statement_block*>(cpp_loop->body());
+  cpp_loop->Add<xls::verilog::BlankLine>(xls::SourceInfo());
+}
+
+void xls_vast_generate_loop_add_comment(struct xls_vast_generate_loop* loop,
+                                        struct xls_vast_comment* comment) {
+  auto* cpp_loop = reinterpret_cast<xls::verilog::GenerateLoop*>(loop);
+  auto* cpp_comment = reinterpret_cast<xls::verilog::Comment*>(comment);
+  cpp_loop->AddMember(cpp_comment);
+}
+
+void xls_vast_generate_loop_add_instantiation(
+    struct xls_vast_generate_loop* loop,
+    struct xls_vast_instantiation* instantiation) {
+  auto* cpp_loop = reinterpret_cast<xls::verilog::GenerateLoop*>(loop);
+  auto* cpp_inst =
+      reinterpret_cast<xls::verilog::Instantiation*>(instantiation);
+  cpp_loop->AddMember(cpp_inst);
+}
+
+void xls_vast_generate_loop_add_inline_verilog_statement(
+    struct xls_vast_generate_loop* loop,
+    struct xls_vast_inline_verilog_statement* stmt) {
+  auto* cpp_loop = reinterpret_cast<xls::verilog::GenerateLoop*>(loop);
+  auto* cpp_stmt =
+      reinterpret_cast<xls::verilog::InlineVerilogStatement*>(stmt);
+  cpp_loop->AddMember(cpp_stmt);
+}
+
+bool xls_vast_generate_loop_add_always_comb(
+    struct xls_vast_generate_loop* loop,
+    struct xls_vast_always_base** out_always_comb, char** error_out) {
+  auto* cpp_loop = reinterpret_cast<xls::verilog::GenerateLoop*>(loop);
+  xls::verilog::AlwaysComb* cpp_always_comb =
+      cpp_loop->Add<xls::verilog::AlwaysComb>(xls::SourceInfo());
+  if (cpp_always_comb == nullptr) {
+    *error_out = xls::ToOwnedCString(
+        "Failed to create always_comb block in generate loop.");
+    *out_always_comb = nullptr;
+    return false;
+  }
+  *out_always_comb = reinterpret_cast<xls_vast_always_base*>(cpp_always_comb);
+  *error_out = nullptr;
+  return true;
+}
+
+bool xls_vast_generate_loop_add_always_ff(
+    struct xls_vast_generate_loop* loop,
+    struct xls_vast_expression** sensitivity_list_elements,
+    size_t sensitivity_list_count, struct xls_vast_always_base** out_always_ff,
+    char** error_out) {
+  auto* cpp_loop = reinterpret_cast<xls::verilog::GenerateLoop*>(loop);
+  std::vector<xls::verilog::SensitivityListElement> cpp_elements;
+  cpp_elements.reserve(sensitivity_list_count);
+  for (size_t i = 0; i < sensitivity_list_count; ++i) {
+    auto* expr = reinterpret_cast<xls::verilog::Expression*>(
+        sensitivity_list_elements[i]);
+    if (auto* pe = dynamic_cast<xls::verilog::PosEdge*>(expr)) {
+      cpp_elements.push_back(pe);
+    } else if (auto* ne = dynamic_cast<xls::verilog::NegEdge*>(expr)) {
+      cpp_elements.push_back(ne);
+    } else if (auto* lr = dynamic_cast<xls::verilog::LogicRef*>(expr)) {
+      cpp_elements.push_back(lr);
+    } else {
+      std::string err_msg = absl::StrCat(
+          "Unsupported expression type passed to sensitivity list for "
+          "always_ff at index ",
+          i,
+          ". Only Posedge, Negedge, or LogicRef expressions are supported "
+          "through this C API path.");
+      *error_out = xls::ToOwnedCString(err_msg);
+      *out_always_ff = nullptr;
+      return false;
+    }
+  }
+  xls::verilog::AlwaysFf* cpp_always_ff =
+      cpp_loop->Add<xls::verilog::AlwaysFf>(xls::SourceInfo(), cpp_elements);
+  *out_always_ff = reinterpret_cast<xls_vast_always_base*>(cpp_always_ff);
+  *error_out = nullptr;
+  return true;
+}
+
+struct xls_vast_localparam_ref* xls_vast_generate_loop_add_localparam(
+    struct xls_vast_generate_loop* loop, const char* name,
+    struct xls_vast_expression* rhs) {
+  auto* cpp_loop = reinterpret_cast<xls::verilog::GenerateLoop*>(loop);
+  auto* cpp_rhs = reinterpret_cast<xls::verilog::Expression*>(rhs);
+  xls::verilog::LocalParam* lp =
+      cpp_loop->Add<xls::verilog::LocalParam>(xls::SourceInfo());
+  xls::verilog::LocalParamItemRef* item_ref =
+      lp->AddItem(name, cpp_rhs, xls::SourceInfo());
+  return reinterpret_cast<xls_vast_localparam_ref*>(item_ref);
+}
+
+struct xls_vast_localparam_ref* xls_vast_generate_loop_add_localparam_with_def(
+    struct xls_vast_generate_loop* loop, struct xls_vast_def* def,
+    struct xls_vast_expression* rhs) {
+  auto* cpp_loop = reinterpret_cast<xls::verilog::GenerateLoop*>(loop);
+  auto* cpp_def = reinterpret_cast<xls::verilog::Def*>(def);
+  auto* cpp_rhs = reinterpret_cast<xls::verilog::Expression*>(rhs);
+  xls::verilog::LocalParam* lp =
+      cpp_loop->Add<xls::verilog::LocalParam>(xls::SourceInfo());
+  xls::verilog::LocalParamItemRef* item_ref =
+      lp->AddItem(cpp_def, cpp_rhs, xls::SourceInfo());
+  return reinterpret_cast<xls_vast_localparam_ref*>(item_ref);
+}
+
+struct xls_vast_statement* xls_vast_generate_loop_add_continuous_assignment(
+    struct xls_vast_generate_loop* loop, struct xls_vast_expression* lhs,
+    struct xls_vast_expression* rhs) {
+  auto* cpp_loop = reinterpret_cast<xls::verilog::GenerateLoop*>(loop);
+  auto* cpp_lhs = reinterpret_cast<xls::verilog::Expression*>(lhs);
+  auto* cpp_rhs = reinterpret_cast<xls::verilog::Expression*>(rhs);
+  xls::verilog::ContinuousAssignment* cpp_assignment =
+      cpp_loop->Add<xls::verilog::ContinuousAssignment>(xls::SourceInfo(),
+                                                        cpp_lhs, cpp_rhs);
+  return reinterpret_cast<xls_vast_statement*>(cpp_assignment);
 }
 
 struct xls_vast_indexable_expression* xls_vast_index_as_indexable_expression(
@@ -731,42 +872,6 @@ struct xls_vast_index* xls_vast_verilog_file_make_index(
   return reinterpret_cast<xls_vast_index*>(result);
 }
 
-bool xls_vast_verilog_module_add_always_ff(
-    struct xls_vast_verilog_module* m,
-    struct xls_vast_expression** sensitivity_list_elements,
-    size_t sensitivity_list_count, struct xls_vast_always_base** out_always_ff,
-    char** error_out) {
-  auto* cpp_module = reinterpret_cast<xls::verilog::Module*>(m);
-  std::vector<xls::verilog::SensitivityListElement> cpp_elements;
-  cpp_elements.reserve(sensitivity_list_count);
-  for (size_t i = 0; i < sensitivity_list_count; ++i) {
-    auto* expr = reinterpret_cast<xls::verilog::Expression*>(
-        sensitivity_list_elements[i]);
-    if (auto* pe = dynamic_cast<xls::verilog::PosEdge*>(expr)) {
-      cpp_elements.push_back(pe);
-    } else if (auto* ne = dynamic_cast<xls::verilog::NegEdge*>(expr)) {
-      cpp_elements.push_back(ne);
-    } else if (auto* lr = dynamic_cast<xls::verilog::LogicRef*>(expr)) {
-      cpp_elements.push_back(lr);
-    } else {
-      std::string err_msg = absl::StrCat(
-          "Unsupported expression type passed to sensitivity list for "
-          "always_ff at index ",
-          i,
-          ". Only Posedge, Negedge, or LogicRef expressions are supported "
-          "through this C API path.");
-      *error_out = xls::ToOwnedCString(err_msg);
-      *out_always_ff = nullptr;
-      return false;
-    }
-  }
-  xls::verilog::AlwaysFf* cpp_always_ff =
-      cpp_module->Add<xls::verilog::AlwaysFf>(xls::SourceInfo(), cpp_elements);
-  *out_always_ff = reinterpret_cast<xls_vast_always_base*>(cpp_always_ff);
-  *error_out = nullptr;
-  return true;
-}
-
 bool xls_vast_verilog_module_add_always_at(
     struct xls_vast_verilog_module* m,
     struct xls_vast_expression** sensitivity_list_elements,
@@ -805,6 +910,41 @@ bool xls_vast_verilog_module_add_always_at(
     return false;
   }
   *out_always_at = reinterpret_cast<xls_vast_always_base*>(cpp_always_at);
+  *error_out = nullptr;
+  return true;
+}
+
+bool xls_vast_verilog_module_add_always_ff(
+    struct xls_vast_verilog_module* m,
+    struct xls_vast_expression** sensitivity_list_elements,
+    size_t sensitivity_list_count, struct xls_vast_always_base** out_always_ff,
+    char** error_out) {
+  auto* cpp_module = reinterpret_cast<xls::verilog::Module*>(m);
+  std::vector<xls::verilog::SensitivityListElement> cpp_elements;
+  cpp_elements.reserve(sensitivity_list_count);
+  for (size_t i = 0; i < sensitivity_list_count; ++i) {
+    auto* expr = reinterpret_cast<xls::verilog::Expression*>(
+        sensitivity_list_elements[i]);
+    if (auto* pe = dynamic_cast<xls::verilog::PosEdge*>(expr)) {
+      cpp_elements.push_back(pe);
+    } else if (auto* ne = dynamic_cast<xls::verilog::NegEdge*>(expr)) {
+      cpp_elements.push_back(ne);
+    } else if (auto* lr = dynamic_cast<xls::verilog::LogicRef*>(expr)) {
+      cpp_elements.push_back(lr);
+    } else {
+      std::string err_msg = absl::StrCat(
+          "Unsupported expression type passed to sensitivity list for ",
+          "always_ff at index ", i,
+          ". Only Posedge, Negedge, or LogicRef expressions are supported ",
+          "through this C API path.");
+      *error_out = xls::ToOwnedCString(err_msg);
+      *out_always_ff = nullptr;
+      return false;
+    }
+  }
+  xls::verilog::AlwaysFf* cpp_always_ff =
+      cpp_module->Add<xls::verilog::AlwaysFf>(xls::SourceInfo(), cpp_elements);
+  *out_always_ff = reinterpret_cast<xls_vast_always_base*>(cpp_always_ff);
   *error_out = nullptr;
   return true;
 }
@@ -931,35 +1071,6 @@ struct xls_vast_statement* xls_vast_statement_block_add_blocking_assignment(
   xls::verilog::BlockingAssignment* cpp_assignment =
       cpp_block->Add<xls::verilog::BlockingAssignment>(xls::SourceInfo(),
                                                        cpp_lhs, cpp_rhs);
-  return reinterpret_cast<xls_vast_statement*>(cpp_assignment);
-}
-
-struct xls_vast_generate_loop* xls_vast_statement_block_add_generate_loop(
-    struct xls_vast_statement_block* block, const char* genvar_name,
-    struct xls_vast_expression* init, struct xls_vast_expression* limit,
-    const char* label) {
-  CHECK_NE(genvar_name, nullptr);
-  auto* cpp_block = reinterpret_cast<xls::verilog::StatementBlock*>(block);
-  auto* cpp_init = reinterpret_cast<xls::verilog::Expression*>(init);
-  auto* cpp_limit = reinterpret_cast<xls::verilog::Expression*>(limit);
-  std::optional<std::string> cpp_label =
-      label == nullptr ? std::nullopt : std::optional<std::string>(label);
-  xls::verilog::GenerateLoop* cpp_loop =
-      cpp_block->Add<xls::verilog::GenerateLoop>(
-          xls::SourceInfo(), std::string_view(genvar_name), cpp_init, cpp_limit,
-          cpp_label);
-  return reinterpret_cast<xls_vast_generate_loop*>(cpp_loop);
-}
-
-struct xls_vast_statement* xls_vast_statement_block_add_continuous_assignment(
-    struct xls_vast_statement_block* block, struct xls_vast_expression* lhs,
-    struct xls_vast_expression* rhs) {
-  auto* cpp_block = reinterpret_cast<xls::verilog::StatementBlock*>(block);
-  auto* cpp_lhs = reinterpret_cast<xls::verilog::Expression*>(lhs);
-  auto* cpp_rhs = reinterpret_cast<xls::verilog::Expression*>(rhs);
-  xls::verilog::ContinuousAssignment* cpp_assignment =
-      cpp_block->Add<xls::verilog::ContinuousAssignment>(xls::SourceInfo(),
-                                                         cpp_lhs, cpp_rhs);
   return reinterpret_cast<xls_vast_statement*>(cpp_assignment);
 }
 

@@ -603,8 +603,7 @@ GenerateLoop::GenerateLoop(std::string_view genvar_name, Expression* init,
           loc, file->Make<GenvarDef>(loc, std::string(genvar_name)))),
       init_(init),
       limit_(limit),
-      label_(std::move(label)),
-      body_(file->Make<StatementBlock>(loc)) {}
+      label_(std::move(label)) {}
 
 std::string GenerateLoop::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
@@ -618,13 +617,15 @@ std::string GenerateLoop::Emit(LineInfo* line_info) const {
       "for (genvar %s = %s; %s < %s; %s = %s + 1) begin%s", genvar_str,
       init_str, genvar_str, limit_str, genvar_str, genvar_str, label_suffix));
   LineInfoIncrease(line_info, 1);
-  for (Statement* statement : body_->statements()) {
-    std::string pre_emit = statement->PreEmit(line_info);
+  for (const ModuleMember& member : members_) {
+    std::string pre_emit =
+        absl::visit([=](auto* m) { return m->PreEmit(line_info); }, member);
     if (!pre_emit.empty()) {
       lines.push_back(Indent(pre_emit, kDefaultIndentSpaces));
       LineInfoIncrease(line_info, 1);
     }
-    lines.push_back(Indent(statement->Emit(line_info), kDefaultIndentSpaces));
+    lines.push_back(Indent(
+        absl::visit([=](auto* m) { return m->Emit(line_info); }, member)));
     LineInfoIncrease(line_info, 1);
   }
   lines.push_back("end");
