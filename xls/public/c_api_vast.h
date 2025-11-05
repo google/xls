@@ -309,6 +309,11 @@ struct xls_vast_expression* xls_vast_verilog_file_make_width_cast(
     struct xls_vast_verilog_file* f, struct xls_vast_expression* width,
     struct xls_vast_expression* value);
 
+// Creates a SystemVerilog type cast expression: <type>'(<value>)
+struct xls_vast_expression* xls_vast_verilog_file_make_type_cast(
+    struct xls_vast_verilog_file* f, struct xls_vast_data_type* type,
+    struct xls_vast_expression* value);
+
 struct xls_vast_index* xls_vast_verilog_file_make_index_i64(
     struct xls_vast_verilog_file* f,
     struct xls_vast_indexable_expression* subject, int64_t index);

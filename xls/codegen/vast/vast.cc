@@ -715,6 +715,14 @@ std::string WidthCast::Emit(LineInfo* line_info) const {
   return absl::StrFormat("(%s)'(%s)", width_expr, value_->Emit(line_info));
 }
 
+std::string TypeCast::Emit(LineInfo* line_info) const {
+  LineInfoStart(line_info, this);
+  LineInfoEnd(line_info, this);
+  // Unlike WidthCast, the type must never be wrapped in parentheses.
+  return absl::StrFormat("%s'(%s)", type_->Emit(line_info),
+                         value_->Emit(line_info));
+}
+
 VerilogFunction::VerilogFunction(std::string_view name, DataType* result_type,
                                  VerilogFile* file, const SourceInfo& loc)
     : VastNode(file, loc),

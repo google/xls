@@ -21,14 +21,14 @@
 #include <utility>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/fileno.h"
@@ -1814,6 +1814,45 @@ TEST_P(VastTest, WidthCastEmission) {
   assign out_literal = 8'(a + 1);
   assign out_param = WidthParam'({a, b});
   assign out_expr = (WidthParam + 4)'(a ^ {b, 2'h3});
+endmodule)");
+}
+
+TEST_P(VastTest, TypeCastEmission) {
+  const SourceInfo si;
+  VerilogFile f(GetFileType());
+  Module* m = f.AddModule("top", si);
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * a,
+                           m->AddInput("a", f.BitVectorType(8, si), si));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * out_foo,
+      m->AddOutput("out_foo",
+                   f.Make<ExternType>(si, f.BitVectorType(8, si), "foobar"),
+                   si));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * out_pkg,
+      m->AddOutput("out_pkg",
+                   f.Make<ExternPackageType>(si, "my_pkg", "my_type_t"), si));
+
+  // assign out_foo = foobar'(a + 1);
+  m->Add<ContinuousAssignment>(
+      si, out_foo,
+      f.Make<TypeCast>(si,
+                       f.Make<ExternType>(si, f.BitVectorType(8, si), "foobar"),
+                       f.Add(a, f.PlainLiteral(1, si), si)));
+  // assign out_pkg = my_pkg::my_type_t'(a);
+  m->Add<ContinuousAssignment>(
+      si, out_pkg,
+      f.Make<TypeCast>(si, f.Make<ExternPackageType>(si, "my_pkg", "my_type_t"),
+                       a));
+
+  EXPECT_EQ(m->Emit(nullptr),
+            R"(module top(
+  input wire [7:0] a,
+  output foobar out_foo,
+  output my_pkg::my_type_t out_pkg
+);
+  assign out_foo = foobar'(a + 1);
+  assign out_pkg = my_pkg::my_type_t'(a);
 endmodule)");
 }
 

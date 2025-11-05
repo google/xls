@@ -2179,6 +2179,24 @@ class WidthCast final : public Expression {
   Expression* value_;
 };
 
+// A SystemVerilog cast-to-type expression. Examples:
+//   int'(42)
+//   my_pkg::my_type_t'(MyOtherParam + 2)
+class TypeCast final : public Expression {
+ public:
+  TypeCast(DataType* type, Expression* value, VerilogFile* file,
+           const SourceInfo& loc)
+      : Expression(file, loc), type_(type), value_(value) {}
+
+  std::string Emit(LineInfo* line_info) const final;
+  DataType* type() const { return type_; }
+  Expression* value() const { return value_; }
+
+ private:
+  DataType* type_;
+  Expression* value_;
+};
+
 // Represents the definition of a Verilog function.
 class VerilogFunction final : public VastNode {
  public:
