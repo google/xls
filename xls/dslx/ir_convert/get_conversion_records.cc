@@ -147,9 +147,9 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
           ConversionRecord cr,
           MakeConversionRecord(const_cast<Function*>(f), f->owner(),
                                invocation_ti,
-                               /* callee_bindings= */ ParametricEnv(), proc_id,
+                               /*bindings=*/ParametricEnv(), proc_id,
                                /*invocation=*/nullptr,
-                               /* is_top= */ f == top_));
+                               /*is_top=*/f == top_));
       records_.push_back(std::move(cr));
     }
     return DefaultHandler(f);
