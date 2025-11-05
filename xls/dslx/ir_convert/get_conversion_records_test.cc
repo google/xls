@@ -23,9 +23,11 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
+#include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/ir_convert/conversion_record.h"
 #include "xls/dslx/parse_and_typecheck.h"
@@ -37,7 +39,18 @@ namespace {
 using ::absl_testing::StatusIs;
 using ::testing::HasSubstr;
 
-TEST(GetConversionRecordsTest, SimpleLinearCallgraph) {
+class GetConversionRecordsTest : public ::testing::Test {
+ public:
+  absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
+      std::string_view text, std::string_view path,
+      std::string_view module_name, ImportData* import_data) {
+    return xls::dslx::ParseAndTypecheck(text, path, module_name, import_data,
+                                        /* comments= */ nullptr,
+                                        TypeInferenceVersion::kVersion2);
+  }
+};
+
+TEST_F(GetConversionRecordsTest, SimpleLinearCallgraph) {
   constexpr std::string_view kProgram = R"(
 fn g() -> u32 { u32:42 }
 fn f() -> u32 { g() }
@@ -56,7 +69,7 @@ fn main() -> u32 { f() }
   EXPECT_EQ(order[2].f()->identifier(), "main");
 }
 
-TEST(GetConversionRecordsTest, MultipleCallsToSameFunction) {
+TEST_F(GetConversionRecordsTest, MultipleCallsToSameFunction) {
   constexpr std::string_view kProgram = R"(
 fn g() -> u32 { u32:42 }
 fn main() -> u32 { g() + g() }
@@ -73,7 +86,7 @@ fn main() -> u32 { g() + g() }
   EXPECT_EQ(order[1].f()->identifier(), "main");
 }
 
-TEST(GetConversionRecordsTest, ParametricFn) {
+TEST_F(GetConversionRecordsTest, ParametricFn) {
   constexpr std::string_view kProgram = R"(
 fn f<N: u32>(x: bits[N]) -> u32 { N }
 fn main() -> u32 { f(u2:0) }
@@ -94,7 +107,7 @@ fn main() -> u32 { f(u2:0) }
   EXPECT_EQ(order[1].parametric_env(), ParametricEnv());
 }
 
-TEST(GetConversionRecordsTest, ParametricFnCalledTwice) {
+TEST_F(GetConversionRecordsTest, ParametricFnCalledTwice) {
   constexpr std::string_view kProgram = R"(
 fn f<N: u32>(x: bits[N]) -> u32 { N }
 fn main() -> u32 { f(u2:0) + f(u2:1) }
@@ -115,7 +128,7 @@ fn main() -> u32 { f(u2:0) + f(u2:1) }
   EXPECT_EQ(order[1].parametric_env(), ParametricEnv());
 }
 
-TEST(GetConversionRecordsTest, ParametricFnCalledDifferentParametrics) {
+TEST_F(GetConversionRecordsTest, ParametricFnCalledDifferentParametrics) {
   constexpr std::string_view kProgram = R"(
 fn f<N: u32>(x: bits[N]) -> u32 { N }
 fn main() -> u32 { f(u2:0) + f(u3:1) }
@@ -141,7 +154,7 @@ fn main() -> u32 { f(u2:0) + f(u3:1) }
   EXPECT_EQ(order[2].parametric_env(), ParametricEnv());
 }
 
-TEST(GetConversionRecordsTest, ParametricProc) {
+TEST_F(GetConversionRecordsTest, ParametricProc) {
   constexpr std::string_view kProgram = R"(
 proc P<N: u32> {
   x: uN[N];
@@ -189,7 +202,7 @@ proc top {
   EXPECT_EQ(order[2].parametric_env(), ParametricEnv());
 }
 
-TEST(GetConversionRecordsTest, TransitiveParametric) {
+TEST_F(GetConversionRecordsTest, TransitiveParametric) {
   constexpr std::string_view kProgram = R"(
 fn g<M: u32>(x: bits[M]) -> u32 { M }
 fn f<N: u32>(x: bits[N]) -> u32 { g(x) }
@@ -215,7 +228,7 @@ fn main() -> u32 { f(u2:0) }
   EXPECT_EQ(order[2].parametric_env(), ParametricEnv());
 }
 
-TEST(GetConversionRecordsTest, BuiltinIsElided) {
+TEST_F(GetConversionRecordsTest, BuiltinIsElided) {
   constexpr std::string_view kProgram = R"(
 fn main() -> u32 { fail!("failure", u32:0) }
 )";
@@ -231,7 +244,7 @@ fn main() -> u32 { fail!("failure", u32:0) }
   EXPECT_EQ(order[0].parametric_env(), ParametricEnv());
 }
 
-TEST(GetConversionRecordsTest, BasicProc) {
+TEST_F(GetConversionRecordsTest, BasicProc) {
   constexpr std::string_view kProgram = R"(
 proc foo {
   init { () }
@@ -260,7 +273,7 @@ proc main {
   EXPECT_EQ(order[1].f()->identifier(), "main.next");
 }
 
-TEST(GetConversionRecordsTest, ProcNetwork) {
+TEST_F(GetConversionRecordsTest, ProcNetwork) {
   constexpr std::string_view kProgram = R"(
 fn f0() -> u32 {
   u32:42
@@ -331,7 +344,7 @@ proc main {
   EXPECT_EQ(order[5].f()->identifier(), "main.next");
 }
 
-TEST(GetConversionRecordsTest, ProcNetworkWithTwoTopLevelProcs) {
+TEST_F(GetConversionRecordsTest, ProcNetworkWithTwoTopLevelProcs) {
   constexpr std::string_view kProgram = R"(
 proc p2 {
   init { () }
@@ -379,7 +392,7 @@ proc main {
   EXPECT_EQ(order[3].f()->identifier(), "main.next");
 }
 
-TEST(GetConversionRecordsTest, TestFunction) {
+TEST_F(GetConversionRecordsTest, TestFunction) {
   constexpr std::string_view kProgram = R"(
 fn f<N: u32>(x: bits[N]) -> u32 { N }
 
@@ -402,7 +415,7 @@ fn my_test() { assert_eq(f<u32:8>(u8:1), u32:8) }
   EXPECT_EQ(order[1].parametric_env(), ParametricEnv());
 }
 
-TEST(GetConversionRecordsTest, TestFunctionOutputsErrorWhenDisabled) {
+TEST_F(GetConversionRecordsTest, TestFunctionOutputsErrorWhenDisabled) {
   constexpr std::string_view kProgram = R"(
 fn f<N: u32>(x: bits[N]) -> u32 { N }
 
@@ -439,7 +452,7 @@ proc test {
 }
 )";
 
-TEST(GetConversionRecordsTest, TestProc) {
+TEST_F(GetConversionRecordsTest, TestProc) {
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
@@ -455,7 +468,7 @@ TEST(GetConversionRecordsTest, TestProc) {
   EXPECT_EQ(order[1].f()->identifier(), "test.next");
 }
 
-TEST(GetConversionRecordsTest, TestProcOutputsErrorWhenDisabled) {
+TEST_F(GetConversionRecordsTest, TestProcOutputsErrorWhenDisabled) {
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
@@ -467,7 +480,7 @@ TEST(GetConversionRecordsTest, TestProcOutputsErrorWhenDisabled) {
                          "code, but test conversion is disabled")));
 }
 
-TEST(GetConversionRecordsTest, Quickcheck) {
+TEST_F(GetConversionRecordsTest, Quickcheck) {
   constexpr std::string_view kProgram = R"(
 #[quickcheck]
 fn identity(x: u32) -> bool { x == x }
@@ -484,7 +497,7 @@ fn identity(x: u32) -> bool { x == x }
   EXPECT_EQ(order[0].parametric_env(), ParametricEnv());
 }
 
-TEST(GetConversionRecordsTest, ImplWithFn) {
+TEST_F(GetConversionRecordsTest, ImplWithFn) {
   constexpr std::string_view kProgram = R"(
 struct S {
   field: u32
@@ -506,7 +519,7 @@ impl S {
   EXPECT_EQ(order[0].parametric_env(), ParametricEnv());
 }
 
-TEST(GetConversionRecordsTest, SpawnTree) {
+TEST_F(GetConversionRecordsTest, SpawnTree) {
   constexpr std::string_view kProgram = R"(
 proc spawnee2<N:u32, M:u16> {
   init { }
@@ -536,8 +549,7 @@ pub proc main {
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "main", &import_data, {},
-                        TypeInferenceVersion::kVersion2));
+      ParseAndTypecheck(kProgram, "test.x", "main", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::vector<ConversionRecord> order,
       GetConversionRecords(tm.module, tm.type_info, false));
