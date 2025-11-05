@@ -356,6 +356,9 @@ class BitVectorType final : public DataType {
 
   bool is_signed() const final { return is_signed_; }
   std::string Emit(LineInfo* line_info) const final;
+  // Returns a string of the bounds of the bitvector type, for example:
+  // `[7:0]`.
+  std::string DimensionsString() const;
 
  private:
   Expression* size_expr_;
@@ -2359,6 +2362,7 @@ class ModuleConditionalDirective final : public VastNode {
 enum class ModulePortDirection {
   kInput,
   kOutput,
+  kInOut,
 };
 
 std::string ToString(ModulePortDirection direction);
@@ -2398,6 +2402,11 @@ class Module final : public VastNode {
   absl::StatusOr<LogicRef*> AddOutput(std::string_view name, DataType* type,
                                       const SourceInfo& loc,
                                       DataKind data_kind = DataKind::kWire);
+
+  // Adds an inout port to the module.
+  absl::StatusOr<LogicRef*> AddInOut(std::string_view name, DataType* type,
+                                     const SourceInfo& loc,
+                                     DataKind data_kind = DataKind::kWire);
 
   absl::StatusOr<LogicRef*> AddReg(std::string_view name, DataType* type,
                                    const SourceInfo& loc,
@@ -2461,6 +2470,8 @@ class Module final : public VastNode {
                              DataKind data_kind, const SourceInfo& loc);
   LogicRef* AddOutputInternal(std::string_view name, DataType* type,
                               DataKind data_kind, const SourceInfo& loc);
+  LogicRef* AddInOutInternal(std::string_view name, DataType* type,
+                             DataKind data_kind, const SourceInfo& loc);
 
   // Adds a reg/wire definition to the module with the given type and, for regs,
   // initialized with the given value. Returns a reference to the definition.
