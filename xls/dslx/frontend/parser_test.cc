@@ -53,16 +53,19 @@ using ::testing::HasSubstr;
 
 class ParserTest : public ::testing::Test {
  public:
-  absl::StatusOr<std::unique_ptr<Module>> Parse(std::string_view program) {
+  absl::StatusOr<std::unique_ptr<Module>> Parse(std::string_view program,
+                                                bool parse_fn_stubs = false) {
     scanner_.emplace(file_table_, Fileno(0), std::string(program));
-    parser_.emplace("test", &*scanner_);
+    parser_.emplace("test", &*scanner_, parse_fn_stubs);
     return parser_->ParseModule();
   }
 
   std::unique_ptr<Module> RoundTrip(
       std::string_view program,
-      std::optional<std::string_view> target = std::nullopt) {
-    absl::StatusOr<std::unique_ptr<Module>> module = Parse(program);
+      std::optional<std::string_view> target = std::nullopt,
+      bool parse_fn_stubs = false) {
+    absl::StatusOr<std::unique_ptr<Module>> module =
+        Parse(program, parse_fn_stubs);
     if (!module.ok()) {
       UniformContentFilesystem vfs(program);
       TryPrintError(module.status(), file_table_, vfs);
@@ -328,6 +331,47 @@ impl foo {
 })");
 }
 
+TEST_F(ParserTest, EmptyTrait) {
+  RoundTrip(R"(pub trait Foo {
+})",
+            /*target=*/std::nullopt, /*parse_fn_stubs=*/true);
+}
+
+TEST_F(ParserTest, TraitWithFunctions) {
+  RoundTrip(R"(pub trait Foo {
+    fn foo(a: u32) -> u32;
+    fn bar(self) -> uN[bit_count<Self>()];
+})",
+            /*target=*/std::nullopt, /*parse_fn_stubs=*/true);
+}
+
+TEST_F(ParserTest, NonPublicTrait) {
+  RoundTrip(R"(trait Foo {
+    fn foo(a: u32) -> u32;
+    fn bar(self) -> uN[bit_count<Self>()];
+})",
+            /*target=*/std::nullopt, /*parse_fn_stubs=*/true);
+}
+
+TEST_F(ParserTest, TraitWithNoNameFails) {
+  EXPECT_THAT(Parse(R"(pub trait {
+    fn foo(a: u32) -> u32;
+    fn bar(self) -> uN[bit_count<Self>()];
+})",
+                    /*parse_fn_stubs=*/true),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Expected 'identifier', got '{'")));
+}
+
+TEST_F(ParserTest, TraitWithConstantFails) {
+  EXPECT_THAT(Parse(R"(pub trait Foo {
+    const FOO = u32:1;
+})",
+                    /*parse_fn_stubs=*/true),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Only functions are supported in traits.")));
+}
+
 TEST(ParserErrorTest, LetMut) {
   constexpr std::string_view kProgram = R"(fn main() -> u32 {
     let mut x = u32:0;
@@ -410,9 +454,8 @@ TEST(ParserErrorTest, SelfParamOutsideImpl) {
   absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
   EXPECT_THAT(
       module.status(),
-      IsPosError(
-          "ParseError",
-          HasSubstr("`self` parameter cannot be used outside of an `impl`")));
+      IsPosError("ParseError", HasSubstr("`self` parameter cannot be used "
+                                         "outside of a `trait` or `impl`")));
 }
 
 TEST(ParserErrorTest, SelfTypeOutsideImplReturnType) {
@@ -423,8 +466,10 @@ TEST(ParserErrorTest, SelfTypeOutsideImplReturnType) {
   absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
   EXPECT_THAT(
       module.status(),
-      IsPosError("ParseError",
-                 HasSubstr("Type `Self` cannot be used outside of an `impl`")));
+      IsPosError(
+          "ParseError",
+          HasSubstr(
+              "Type `Self` cannot be used outside of a `trait` or `impl`")));
 }
 
 TEST(ParserErrorTest, RecursionInReturnTypeDefinition) {

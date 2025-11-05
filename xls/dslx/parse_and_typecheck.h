@@ -82,7 +82,8 @@ absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
 // given to the returned `TypecheckedModule::module`.
 absl::StatusOr<std::unique_ptr<Module>> ParseModule(
     std::string_view text, std::string_view path, std::string_view module_name,
-    FileTable& file_table, std::vector<CommentData>* comments = nullptr);
+    FileTable& file_table, std::vector<CommentData>* comments = nullptr,
+    bool parse_fn_stubs = false);
 
 // Helper that parses and created a new Module from the given DSLX file path.
 //   path - path to the file to read and parse.

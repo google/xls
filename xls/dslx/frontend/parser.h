@@ -506,8 +506,7 @@ class Parser : public TokenParser {
   absl::StatusOr<Conditional*> ParseConditionalNode(
       Bindings& bindings, ExprRestrictions restrictions);
 
-  absl::StatusOr<Param*> ParseParam(Bindings& bindings,
-                                    TypeAnnotation* struct_ref = nullptr);
+  absl::StatusOr<Param*> ParseParam(Bindings& bindings);
 
   // Parses a member declaration in the body of a `proc` definition.
   absl::StatusOr<ProcMember*> ParseProcMember(Bindings& bindings,
@@ -517,8 +516,7 @@ class Parser : public TokenParser {
   // after ')' is consumed.
   //
   // Permits trailing commas.
-  absl::StatusOr<std::vector<Param*>> ParseParams(
-      Bindings& bindings, TypeAnnotation* struct_ref = nullptr);
+  absl::StatusOr<std::vector<Param*>> ParseParams(Bindings& bindings);
 
   absl::StatusOr<NameDefTree*> ParseTuplePattern(const Pos& start_pos,
                                                  Bindings& bindings);
@@ -574,6 +572,9 @@ class Parser : public TokenParser {
   absl::StatusOr<Impl*> ParseImpl(const Pos& start_pos, bool is_public,
                                   Bindings& bindings);
 
+  absl::StatusOr<Trait*> ParseTrait(const Pos& start_pos, bool is_public,
+                                    Bindings& bindings);
+
   // Parses parametric bindings that lead a function.
   //
   // For example:
@@ -603,9 +604,10 @@ class Parser : public TokenParser {
   absl::StatusOr<ExprOrType> ParseParametricArg(Bindings& bindings);
 
   // Parses a function out of the token stream.
-  absl::StatusOr<Function*> ParseFunctionInternal(
-      const Pos& start_pos, bool is_public, bool is_test_utility,
-      Bindings& outer_bindings, TypeAnnotation* struct_ref = nullptr);
+  absl::StatusOr<Function*> ParseFunctionInternal(const Pos& start_pos,
+                                                  bool is_public,
+                                                  bool is_test_utility,
+                                                  Bindings& outer_bindings);
 
   // Parses an import statement into an `Import` AST node.
   absl::StatusOr<Import*> ParseImport(Bindings& bindings);

@@ -403,6 +403,7 @@ std::string_view GetModuleMemberTypeName(const ModuleMember& module_member) {
                          [](EnumDef*) { return "enum-definition"; },
                          [](Import*) { return "import"; },
                          [](Use*) { return "use"; },
+                         [](Trait*) { return "trait"; },
                          [](VerbatimNode*) { return "verbatim"; },
                          [](ConstAssert*) { return "const-assert"; },
                      },

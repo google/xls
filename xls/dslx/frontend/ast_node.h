@@ -90,6 +90,7 @@ enum class AstNodeKind : uint8_t {
   kStructMember,
   kTestFunction,
   kTestProc,
+  kTrait,
   kTupleIndex,
   kTypeAlias,
   kTypeAnnotation,

@@ -1253,14 +1253,19 @@ TEST_F(FunctionFmtTest, SingletonTupleWithLeadingComment) {
 
 class ModuleFmtTest : public testing::Test {
  public:
+  void DoFmtWithFunctionStubs(std::string input) {
+    DoFmt(input, std::nullopt, kDslxDefaultTextWidth, true, true);
+  }
+
   void DoFmt(std::string input,
              std::optional<std::string_view> want = std::nullopt,
              int64_t text_width = kDslxDefaultTextWidth,
-             bool opportunistic_postcondition = true) {
+             bool opportunistic_postcondition = true,
+             bool parse_fn_stubs = false) {
     std::vector<CommentData> comments_vec;
-    XLS_ASSERT_OK_AND_ASSIGN(
-        std::unique_ptr<Module> m,
-        ParseModule(input, "fake.x", "fake", file_table_, &comments_vec));
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                             ParseModule(input, "fake.x", "fake", file_table_,
+                                         &comments_vec, parse_fn_stubs));
     Comments comments = Comments::Create(comments_vec);
     AllErrorsFilesystem vfs;
     XLS_ASSERT_OK_AND_ASSIGN(std::string got,
@@ -1792,6 +1797,40 @@ impl MyStruct {
     const SOME_CONST = u32:3;  // three
     // Something else.
     const ANOTHER = "another";
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, EmptyTrait) {
+  DoFmtWithFunctionStubs("pub trait Foo {}\n");
+}
+
+TEST_F(ModuleFmtTest, TraitWithFunctions) {
+  DoFmtWithFunctionStubs(R"(pub trait Foo {
+    fn foo(a: u32) -> u32;
+
+    fn bar(self) -> uN[bit_count<Self>()];
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, NonPublicTrait) {
+  DoFmtWithFunctionStubs(R"(trait Foo {
+    fn foo(a: u32) -> u32;
+
+    fn bar(self) -> uN[bit_count<Self>()];
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, TraitWithComments) {
+  DoFmtWithFunctionStubs(R"(// This is the standard way of doing Foo.
+pub trait Foo {
+    // Foo-ifies `a`.
+    fn foo(a: u32) -> u32;
+
+    // Bar-ifies this object.
+    fn bar(self) -> uN[bit_count<Self>()];
 }
 )");
 }

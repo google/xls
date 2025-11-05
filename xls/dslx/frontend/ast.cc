@@ -305,6 +305,8 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
       return "function-ref";
     case AstNodeKind::kStatementBlock:
       return "statement-block";
+    case AstNodeKind::kTrait:
+      return "trait";
     case AstNodeKind::kCast:
       return "cast";
     case AstNodeKind::kConstantDef:
@@ -1810,6 +1812,39 @@ std::optional<Function*> Impl::GetFunction(std::string_view name) const {
   return GetMemberOfType<Function*>(name);
 }
 
+// -- class Trait
+
+Trait::Trait(Module* owner, Span span, NameDef* name_def,
+             std::vector<Function*> members, bool is_public)
+    : AstNode(owner),
+      span_(std::move(span)),
+      name_def_(name_def),
+      members_(std::move(members)),
+      public_(is_public) {}
+
+Trait::~Trait() = default;
+
+std::string Trait::ToString() const {
+  std::string result =
+      absl::Substitute("$0trait $1 {\n", public_ ? "pub " : "", identifier());
+  for (const auto& member : members_) {
+    absl::StrAppendFormat(
+        &result, "%s\n",
+        Indent(ToAstNode(member)->ToString(), kRustSpacesPerIndent));
+  }
+  absl::StrAppend(&result, "}");
+  return result;
+}
+
+std::vector<AstNode*> Trait::GetChildren(bool want_types) const {
+  std::vector<AstNode*> results = {name_def_};
+  results.reserve(members_.size() + 1);
+  for (auto& member : members_) {
+    results.push_back(ToAstNode(member));
+  }
+  return results;
+}
+
 // -- class StructInstanceBase
 
 StructInstanceBase::StructInstanceBase(
@@ -2126,7 +2161,7 @@ Function::Function(Module* owner, Span span, NameDef* name_def,
                    std::vector<ParametricBinding*> parametric_bindings,
                    std::vector<Param*> params, TypeAnnotation* return_type,
                    StatementBlock* body, FunctionTag tag, bool is_public,
-                   bool is_test_utility)
+                   bool is_test_utility, bool is_stub)
     : AstNode(owner),
       span_(std::move(span)),
       name_def_(name_def),
@@ -2136,7 +2171,8 @@ Function::Function(Module* owner, Span span, NameDef* name_def,
       body_(body),
       tag_(tag),
       is_public_(is_public),
-      is_test_utility_(is_test_utility) {
+      is_test_utility_(is_test_utility),
+      is_stub_(is_stub) {
   for (const ParametricBinding* pb : parametric_bindings_) {
     CHECK(parametric_keys_.insert(pb->identifier()).second)
         << "Duplicate parametric binding: " << pb->identifier();
@@ -2206,9 +2242,9 @@ std::string Function::ToString() const {
       });
   std::string return_type_str = " ";
   if (return_type_ != nullptr) {
-    return_type_str = " -> " + return_type_->ToString() + " ";
+    return_type_str = " -> " + return_type_->ToString() + (is_stub_ ? "" : " ");
   }
-  std::string pub_str = is_public() ? "pub " : "";
+  std::string pub_str = is_public() && !is_stub_ ? "pub " : "";
   std::string annotation_str;
 
   if (is_test_utility()) {
@@ -2219,7 +2255,7 @@ std::string Function::ToString() const {
   }
   return absl::StrFormat("%s%sfn %s%s(%s)%s%s", annotation_str, pub_str,
                          name_def_->ToString(), parametric_str, params_str,
-                         return_type_str, body_->ToString());
+                         return_type_str, is_stub_ ? ";" : body_->ToString());
 }
 
 std::string Function::ToUndecoratedString(std::string_view identifier) const {

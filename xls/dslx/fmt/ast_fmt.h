@@ -51,6 +51,10 @@ class Formatter {
   // keep-sorted end
 
  private:
+  template <typename T>
+  DocRef FormatImplOrTrait(const T& n, Keyword keyword,
+                           DocRef name_or_struct_ref);
+
   // keep-sorted start
   DocRef Format(const ConstAssert& n);
   DocRef Format(const ConstantDef& n);
@@ -70,6 +74,7 @@ class Formatter {
   DocRef Format(const StructDef& n);
   DocRef Format(const TestFunction& n);
   DocRef Format(const TestProc& n);
+  DocRef Format(const Trait& n);
   DocRef Format(const TypeAlias& n);
   DocRef Format(const Use& n);
   DocRef FormatParams(absl::Span<const Param* const> params);

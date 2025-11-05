@@ -70,7 +70,7 @@ namespace xls::dslx {
 namespace {
 
 constexpr std::string_view kSelfOutsideImplError =
-    "Type `Self` cannot be used outside of an `impl`";
+    "Type `Self` cannot be used outside of a `trait` or `impl`";
 constexpr std::string_view kConstAssertIdentifier = "const_assert!";
 constexpr std::string_view kAssertFmtMacroIdentifier = "assert_fmt!";
 
@@ -219,13 +219,6 @@ absl::StatusOr<BuiltinType> Parser::TokenToBuiltinType(const Token& tok) {
 absl::Status Parser::ParseErrorStatus(const Span& span,
                                       std::string_view message) const {
   return xls::dslx::ParseErrorStatus(span, message, file_table());
-}
-
-absl::StatusOr<Function*> Parser::ParseImplFunction(
-    const Pos& start_pos, bool is_public, Bindings& bindings,
-    TypeAnnotation* struct_ref) {
-  return ParseFunctionInternal(start_pos, is_public, /*is_test_utility=*/false,
-                               bindings, struct_ref);
 }
 
 absl::StatusOr<Function*> Parser::ParseFunction(
@@ -430,6 +423,15 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
         continue;
       }
 
+      if (peek->IsKeyword(Keyword::kTrait) && parse_fn_stubs_) {
+        XLS_RET_CHECK(bindings != nullptr);
+        XLS_ASSIGN_OR_RETURN(
+            Trait * trait,
+            ParseTrait(start_pos, /*is_public=*/dropped_pub, *bindings));
+        XLS_RETURN_IF_ERROR(module_->AddTop(trait, make_collision_error));
+        continue;
+      }
+
       return ParseErrorStatus(peek->span(),
                               "Expect a function, proc, struct, enum, or type "
                               "after 'pub' keyword.");
@@ -572,7 +574,13 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
         XLS_RETURN_IF_ERROR(module_->AddTop(impl, make_collision_error));
         break;
       }
-
+      case Keyword::kTrait: {
+        XLS_ASSIGN_OR_RETURN(
+            Trait * trait,
+            ParseTrait(start_pos, /*is_public=*/dropped_pub, *bindings));
+        XLS_RETURN_IF_ERROR(module_->AddTop(trait, make_collision_error));
+        break;
+      }
       default:
         return top_level_error();
     }
@@ -1128,11 +1136,17 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
   VLOG(5) << "ParseTypeAnnotation; popped: " << tok.ToString()
           << " is type keyword? " << tok.IsTypeKeyword();
 
-  if (tok.IsTypeKeyword()) {  // Builtin types.
-    Pos start_pos = tok.span().start();
-    if (tok.GetKeyword() == Keyword::kSelfType) {
+  if (tok.IsKeyword(Keyword::kSelfType)) {
+    if (!bindings.HasSelf()) {
       return ParseErrorStatus(tok.span(), kSelfOutsideImplError);
     }
+    std::optional<TypeAnnotation*> self = bindings.GetImplSelf();
+    return module_->Make<SelfTypeAnnotation>(
+        tok.span(), /*explicit_type=*/true, self.has_value() ? *self : nullptr);
+  }
+
+  if (tok.IsTypeKeyword()) {  // Builtin types.
+    Pos start_pos = tok.span().start();
     if (tok.GetKeyword() == Keyword::kType) {
       if (allow_generic_type) {
         return module_->Make<GenericTypeAnnotation>(tok.span());
@@ -1999,7 +2013,7 @@ absl::StatusOr<Import*> Parser::ParseImport(Bindings& bindings) {
 
 absl::StatusOr<Function*> Parser::ParseFunctionInternal(
     const Pos& start_pos, bool is_public, bool is_test_utility,
-    Bindings& outer_bindings, TypeAnnotation* struct_ref) {
+    Bindings& outer_bindings) {
   XLS_ASSIGN_OR_RETURN(Token fn_tok, PopKeywordOrError(Keyword::kFn));
 
   // Do not add the function name to bindings until after the signature is
@@ -2017,24 +2031,12 @@ absl::StatusOr<Function*> Parser::ParseFunctionInternal(
                          ParseParametricBindings(bindings));
   }
 
-  XLS_ASSIGN_OR_RETURN(std::vector<Param*> params,
-                       ParseParams(bindings, struct_ref));
+  XLS_ASSIGN_OR_RETURN(std::vector<Param*> params, ParseParams(bindings));
 
   XLS_ASSIGN_OR_RETURN(bool dropped_arrow, TryDropToken(TokenKind::kArrow));
   TypeAnnotation* return_type = nullptr;
   if (dropped_arrow) {
-    XLS_ASSIGN_OR_RETURN(bool is_self, PeekTokenIs(Keyword::kSelfType));
-    if (is_self) {
-      XLS_ASSIGN_OR_RETURN(Token self_tok,
-                           PopKeywordOrError(Keyword::kSelfType));
-      if (struct_ref == nullptr) {
-        return ParseErrorStatus(self_tok.span(), kSelfOutsideImplError);
-      }
-      return_type = module_->Make<SelfTypeAnnotation>(
-          self_tok.span(), /*explicit_type=*/true, struct_ref);
-    } else {
-      XLS_ASSIGN_OR_RETURN(return_type, ParseTypeAnnotation(bindings));
-    }
+    XLS_ASSIGN_OR_RETURN(return_type, ParseTypeAnnotation(bindings));
   }
 
   StatementBlock* body = nullptr;
@@ -2054,10 +2056,10 @@ absl::StatusOr<Function*> Parser::ParseFunctionInternal(
   } else {
     XLS_ASSIGN_OR_RETURN(body, ParseBlockExpression(bindings));
   }
-  Function* f = module_->Make<Function>(Span(start_pos, GetPos()), name_def,
-                                        std::move(parametric_bindings), params,
-                                        return_type, body, FunctionTag::kNormal,
-                                        is_public, is_test_utility);
+  Function* f = module_->Make<Function>(
+      Span(start_pos, GetPos()), name_def, std::move(parametric_bindings),
+      params, return_type, body, FunctionTag::kNormal, is_public,
+      is_test_utility, parse_fn_stubs_);
   name_def->set_definer(f);
   return f;
 }
@@ -3712,19 +3714,20 @@ Parser::ParseNameDefOrWildcard(Bindings& bindings) {
   return ParseNameDef(bindings);
 }
 
-absl::StatusOr<Param*> Parser::ParseParam(Bindings& bindings,
-                                          TypeAnnotation* struct_ref) {
+absl::StatusOr<Param*> Parser::ParseParam(Bindings& bindings) {
   TypeAnnotation* type;
   XLS_ASSIGN_OR_RETURN(NameDef * name, ParseNameDef(bindings));
   XLS_ASSIGN_OR_RETURN(bool peek_is_colon, PeekTokenIs(TokenKind::kColon));
   if (name->identifier() == KeywordToString(Keyword::kSelf)) {
-    if (struct_ref == nullptr) {
+    if (!bindings.HasSelf()) {
       return ParseErrorStatus(
-          name->span(), "`self` parameter cannot be used outside of an `impl`");
+          name->span(),
+          "`self` parameter cannot be used outside of a `trait` or `impl`");
     }
     bool explicit_type = peek_is_colon;
-    type = module_->Make<SelfTypeAnnotation>(name->span(), explicit_type,
-                                             struct_ref);
+    std::optional<TypeAnnotation*> self = bindings.GetImplSelf();
+    type = module_->Make<SelfTypeAnnotation>(
+        name->span(), explicit_type, self.has_value() ? *self : nullptr);
     if (peek_is_colon) {
       XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kColon));
       XLS_RETURN_IF_ERROR(DropKeywordOrError(Keyword::kSelfType));
@@ -3733,20 +3736,7 @@ absl::StatusOr<Param*> Parser::ParseParam(Bindings& bindings,
     XLS_RETURN_IF_ERROR(
         DropTokenOrError(TokenKind::kColon, /*start=*/nullptr,
                          "Expect type annotation on parameters"));
-    XLS_ASSIGN_OR_RETURN(bool next_is_self_type,
-                         PeekTokenIs(Keyword::kSelfType));
-    if (next_is_self_type) {
-      XLS_ASSIGN_OR_RETURN(Token self_tok,
-                           PopKeywordOrError(Keyword::kSelfType));
-      if (struct_ref == nullptr) {
-        return ParseErrorStatus(self_tok.span(), kSelfOutsideImplError);
-      }
-      type =
-          module_->Make<SelfTypeAnnotation>(self_tok.span(),
-                                            /*explicit_type=*/true, struct_ref);
-    } else {
-      XLS_ASSIGN_OR_RETURN(type, ParseTypeAnnotation(bindings));
-    }
+    XLS_ASSIGN_OR_RETURN(type, ParseTypeAnnotation(bindings));
   }
   if (dynamic_cast<SelfTypeAnnotation*>(type) &&
       name->identifier() != KeywordToString(Keyword::kSelf)) {
@@ -3770,10 +3760,9 @@ absl::StatusOr<ProcMember*> Parser::ParseProcMember(
   return member;
 }
 
-absl::StatusOr<std::vector<Param*>> Parser::ParseParams(
-    Bindings& bindings, TypeAnnotation* struct_ref) {
+absl::StatusOr<std::vector<Param*>> Parser::ParseParams(Bindings& bindings) {
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
-  auto sub_production = [&] { return ParseParam(bindings, struct_ref); };
+  auto sub_production = [&] { return ParseParam(bindings); };
   XLS_ASSIGN_OR_RETURN(
       std::vector<Param*> params,
       ParseCommaSeq<Param*>(sub_production, TokenKind::kCParen));
@@ -3879,6 +3868,7 @@ absl::StatusOr<Impl*> Parser::ParseImpl(const Pos& start_pos, bool is_public,
   XLS_RETURN_IF_ERROR(DropKeywordOrError(Keyword::kImpl));
   XLS_ASSIGN_OR_RETURN(TypeAnnotation * type,
                        ParseTypeAnnotation(impl_bindings));
+  impl_bindings.AddStructAsSelf(type);
 
   absl::Status wrong_type_error = ParseErrorStatus(
       type->span(), "'impl' can only be defined for a 'struct'");
@@ -3915,9 +3905,10 @@ absl::StatusOr<Impl*> Parser::ParseImpl(const Pos& start_pos, bool is_public,
           ParseConstantDef(member_start_pos, next_is_public, impl_bindings));
       members.push_back(constant);
     } else if (peek->IsKeyword(Keyword::kFn)) {
-      XLS_ASSIGN_OR_RETURN(Function * function,
-                           ParseImplFunction(member_start_pos, next_is_public,
-                                             impl_bindings, type));
+      XLS_ASSIGN_OR_RETURN(
+          Function * function,
+          ParseFunctionInternal(member_start_pos, next_is_public,
+                                /*is_test_utility=*/false, impl_bindings));
       members.push_back(function);
     } else {
       return ParseErrorStatus(
@@ -3931,6 +3922,41 @@ absl::StatusOr<Impl*> Parser::ParseImpl(const Pos& start_pos, bool is_public,
     f->set_impl(impl);
   }
   return impl;
+}
+
+absl::StatusOr<Trait*> Parser::ParseTrait(const Pos& start_pos, bool is_public,
+                                          Bindings& bindings) {
+  VLOG(5) << "ParseTrait @ " << GetPos();
+
+  Bindings trait_bindings(&bindings);
+  XLS_RETURN_IF_ERROR(DropKeywordOrError(Keyword::kTrait));
+  XLS_ASSIGN_OR_RETURN(Token name_tok, PopTokenOrError(TokenKind::kIdentifier));
+  NameDef* name_def = module_->Make<NameDef>(
+      name_tok.span(), name_tok.GetStringValue(), nullptr);
+  trait_bindings.AddTraitAsSelf(name_def);
+  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace, /*start=*/nullptr,
+                                       "Opening brace for trait."));
+  std::vector<Function*> members;
+  while (true) {
+    XLS_ASSIGN_OR_RETURN(bool found_cbrace, TryDropToken(TokenKind::kCBrace));
+    if (found_cbrace) {
+      break;
+    }
+    Pos member_start_pos = GetPos();
+    XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
+    if (peek->IsKeyword(Keyword::kFn)) {
+      XLS_ASSIGN_OR_RETURN(
+          Function * function,
+          ParseFunctionInternal(member_start_pos, /*is_public=*/true,
+                                /*is_test_utility=*/false, trait_bindings));
+      members.push_back(function);
+    } else {
+      return ParseErrorStatus(peek->span(),
+                              "Only functions are supported in traits.");
+    }
+  }
+  Span span(start_pos, GetPos());
+  return module_->Make<Trait>(span, name_def, std::move(members), is_public);
 }
 
 absl::StatusOr<NameDefTree*> Parser::ParseTuplePattern(const Pos& start_pos,

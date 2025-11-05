@@ -2129,7 +2129,10 @@ DocRef Formatter::Format(const ParametricBinding* n) {
 
 DocRef Formatter::Format(const Function& n, bool is_test) {
   std::vector<DocRef> signature_pieces;
-  if (n.is_public()) {
+
+  // Note that the functions in a trait are implicitly public.
+  if (n.is_public() && (!n.IsStub() || n.parent() == nullptr ||
+                        n.parent()->kind() != AstNodeKind::kTrait)) {
     signature_pieces.push_back(arena_.Make(Keyword::kPub));
     signature_pieces.push_back(arena_.space());
   }
@@ -2174,18 +2177,25 @@ DocRef Formatter::Format(const Function& n, bool is_test) {
     params_pieces.push_back(FormatParams(n.params()));
 
     if (n.return_type() == nullptr) {
-      params_pieces.push_back(arena_.break1());
-      params_pieces.push_back(arena_.ocurl());
+      if (n.IsStub()) {
+        params_pieces.push_back(arena_.semi());
+      } else {
+        params_pieces.push_back(arena_.break1());
+        params_pieces.push_back(arena_.ocurl());
+      }
     } else {
-      params_pieces.push_back(
-          ConcatNGroup(arena_, {
-                                   arena_.break1(),
-                                   arena_.arrow(),
-                                   arena_.space(),
-                                   Fmt(*n.return_type(), comments_, arena_),
-                                   arena_.space(),
-                                   arena_.ocurl(),
-                               }));
+      std::vector<DocRef> return_pieces;
+      return_pieces.push_back(arena_.break1());
+      return_pieces.push_back(arena_.arrow());
+      return_pieces.push_back(arena_.space());
+      return_pieces.push_back(Fmt(*n.return_type(), comments_, arena_));
+      if (n.IsStub()) {
+        return_pieces.push_back(arena_.semi());
+      } else {
+        return_pieces.push_back(arena_.space());
+        return_pieces.push_back(arena_.ocurl());
+      }
+      params_pieces.push_back(ConcatNGroup(arena_, return_pieces));
     }
 
     signature_pieces.push_back(
@@ -2213,22 +2223,23 @@ DocRef Formatter::Format(const Function& n, bool is_test) {
                         }));
   }
 
-  if (n.body()->empty()) {
-    // For empty function we don't put spaces between the curls.
-    fn_pieces.push_back(ConcatNGroup(arena_, signature_pieces));
-    fn_pieces.push_back(
-        FmtBlock(*n.body(), comments_, arena_, /*add_curls=*/false));
-    fn_pieces.push_back(arena_.ccurl());
-  } else {
-    // For non-empty functions, we break after the signature and before
-    // the ccurl.
-    fn_pieces.push_back(ConcatNGroup(arena_, signature_pieces));
-    fn_pieces.push_back(arena_.break1());
-    fn_pieces.push_back(
-        FmtBlock(*n.body(), comments_, arena_, /*add_curls=*/false));
-    fn_pieces.push_back(arena_.break1());
-    fn_pieces.push_back(arena_.ccurl());
-  };
+  fn_pieces.push_back(ConcatNGroup(arena_, signature_pieces));
+  if (!n.IsStub()) {
+    if (n.body()->empty()) {
+      // For empty function we don't put spaces between the curls.
+      fn_pieces.push_back(
+          FmtBlock(*n.body(), comments_, arena_, /*add_curls=*/false));
+      fn_pieces.push_back(arena_.ccurl());
+    } else {
+      // For non-empty functions, we break after the signature and before
+      // the ccurl.
+      fn_pieces.push_back(arena_.break1());
+      fn_pieces.push_back(
+          FmtBlock(*n.body(), comments_, arena_, /*add_curls=*/false));
+      fn_pieces.push_back(arena_.break1());
+      fn_pieces.push_back(arena_.ccurl());
+    }
+  }
 
   return ConcatNGroup(arena_, fn_pieces);
 }
@@ -2622,16 +2633,18 @@ DocRef Formatter::Format(const ImplMember& n) {
                      n);
 }
 
-DocRef Formatter::Format(const Impl& n) {
+template <typename T>
+DocRef Formatter::FormatImplOrTrait(const T& n, Keyword keyword,
+                                    DocRef name_or_struct_ref) {
   std::vector<DocRef> pieces;
   std::optional<DocRef> attr;
   if (n.is_public()) {
     pieces.push_back(arena_.Make(Keyword::kPub));
     pieces.push_back(arena_.space());
   }
-  pieces.push_back(arena_.Make(Keyword::kImpl));
+  pieces.push_back(arena_.Make(keyword));
   pieces.push_back(arena_.space());
-  pieces.push_back(Fmt(*n.struct_ref(), comments_, arena_));
+  pieces.push_back(name_or_struct_ref);
   pieces.push_back(arena_.space());
   pieces.push_back(arena_.ocurl());
   if (!n.members().empty()) {
@@ -2675,6 +2688,16 @@ DocRef Formatter::Format(const Impl& n) {
   pieces.push_back(arena_.ccurl());
 
   return JoinWithAttr(attr, ConcatNGroup(arena_, pieces), arena_);
+}
+
+DocRef Formatter::Format(const Impl& n) {
+  return FormatImplOrTrait(n, Keyword::kImpl,
+                           Fmt(*n.struct_ref(), comments_, arena_));
+}
+
+DocRef Formatter::Format(const Trait& n) {
+  return FormatImplOrTrait(n, Keyword::kTrait,
+                           Fmt(*n.name_def(), comments_, arena_));
 }
 
 DocRef Formatter::Format(const EnumMember& n) {
@@ -2943,6 +2966,7 @@ DocRef Formatter::Format(const ModuleMember& n) {
                          [&](const StructDef* n) { return Format(*n); },
                          [&](const ProcDef* n) { return Format(*n); },
                          [&](const Impl* n) { return Format(*n); },
+                         [&](const Trait* n) { return Format(*n); },
                          [&](const ConstantDef* n) { return Format(*n); },
                          [&](const EnumDef* n) { return Format(*n); },
                          [&](const Import* n) { return Format(*n); },

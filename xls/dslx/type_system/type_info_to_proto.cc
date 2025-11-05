@@ -175,6 +175,8 @@ AstNodeKindProto ToProto(AstNodeKind kind) {
       return AST_NODE_KIND_TUPLE_INDEX;
     case AstNodeKind::kStatementBlock:
       return AST_NODE_KIND_STATEMENT_BLOCK;
+    case AstNodeKind::kTrait:
+      return AST_NODE_KIND_TRAIT;
     case AstNodeKind::kStatement:
       return AST_NODE_KIND_STATEMENT;
     case AstNodeKind::kUnrollFor:
@@ -845,6 +847,8 @@ absl::StatusOr<AstNodeKind> FromProto(AstNodeKindProto p) {
       return AstNodeKind::kTupleIndex;
     case AST_NODE_KIND_STATEMENT_BLOCK:
       return AstNodeKind::kStatementBlock;
+    case AST_NODE_KIND_TRAIT:
+      return AstNodeKind::kTrait;
     case AST_NODE_KIND_UNROLL_FOR:
       return AstNodeKind::kUnrollFor;
     case AST_NODE_KIND_STATEMENT:

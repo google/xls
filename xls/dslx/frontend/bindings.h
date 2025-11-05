@@ -148,6 +148,40 @@ class Bindings {
     local_bindings_[std::move(name)] = binding;
   }
 
+  // Returns whether `self` has been set to anything on this object or one of
+  // its parents.
+  bool HasSelf() {
+    return self_.has_value() || (parent_ != nullptr && parent_->HasSelf());
+  }
+
+  // Returns the `TypeAnnotation` for the struct that `self` indicates in the
+  // current context. This only returns an annotation in an `impl`. In a trait
+  // or other context, it returns `nullopt`.
+  std::optional<TypeAnnotation*> GetImplSelf() {
+    if (!self_.has_value() && parent_ != nullptr) {
+      return parent_->GetImplSelf();
+    }
+    if (self_.has_value() && std::holds_alternative<TypeAnnotation*>(*self_)) {
+      return std::get<TypeAnnotation*>(*self_);
+    }
+    return std::nullopt;
+  }
+
+  // Indicates that `self` should be understood in this context as the object
+  // implementing the trait whose name is `trait_name_def`. This means `self` is
+  // valid but we don't have an actual `TypeAnnotation` for it.
+  void AddTraitAsSelf(NameDef* trait_name_def) {
+    CHECK(!HasSelf());
+    self_ = trait_name_def;
+  }
+
+  // Indicates that `self` should be understood in this context as some instance
+  // of `struct_ref`.
+  void AddStructAsSelf(TypeAnnotation* struct_ref) {
+    CHECK(!HasSelf());
+    self_ = struct_ref;
+  }
+
   // fail! labels must be unique within a function.
   //
   // The labels are used in Verilog assertion labels, though they are given as
@@ -237,6 +271,10 @@ class Bindings {
 
   // Note: only the function-scoped bindings will have fail_labels_.
   std::optional<absl::flat_hash_set<std::string>> fail_labels_;
+
+  // This is a TypeAnnotation* when we are inside an impl; NameDef* when we are
+  // inside a trait; nullopt otherwise.
+  std::optional<std::variant<TypeAnnotation*, NameDef*>> self_;
 };
 
 // Returns the name definition node (either builtin or user-defined) associated

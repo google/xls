@@ -36,6 +36,7 @@
   X(kSelf, SELF, "self")                   \
   X(kSpawn, SPAWN, "spawn")                \
   X(kStruct, STRUCT, "struct")             \
+  X(kTrait, TRAIT, "trait")                \
   X(kTrue, TRUE, "true")                   \
   X(kType, TYPE, "type")                   \
   X(kUnrollFor, UNROLL_FOR, "unroll_for!") \

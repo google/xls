@@ -106,6 +106,7 @@ enum AstNodeKindProto {
   AST_NODE_KIND_LAMBDA = 70;
   reserved 71;
   AST_NODE_KIND_PROC_ALIAS = 72;
+  AST_NODE_KIND_TRAIT = 73;
 }
 
 message BitsValueProto {

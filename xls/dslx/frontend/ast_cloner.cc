@@ -86,11 +86,13 @@ class AstCloner : public AstNodeVisitor {
   absl::Status HandleSelfTypeAnnotation(const SelfTypeAnnotation* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
-    if (!old_to_new_.contains(n->struct_ref())) {
+    if (n->struct_ref() && !old_to_new_.contains(n->struct_ref())) {
       XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->struct_ref()));
     }
     TypeAnnotation* new_struct_ref =
-        down_cast<TypeAnnotation*>(old_to_new_.at(n->struct_ref()));
+        n->struct_ref()
+            ? down_cast<TypeAnnotation*>(old_to_new_.at(n->struct_ref()))
+            : nullptr;
     old_to_new_[n] = module(n)->Make<SelfTypeAnnotation>(
         n->span(), n->explicit_type(), new_struct_ref);
     return absl::OkStatus();
@@ -407,7 +409,7 @@ class AstCloner : public AstNodeVisitor {
     auto new_function = module(n)->Make<Function>(
         n->span(), new_name_def, new_parametric_bindings, new_params,
         new_return_type, new_body, n->tag(), n->is_public(),
-        n->is_test_utility());
+        n->is_test_utility(), n->IsStub());
     if (n->extern_verilog_module().has_value()) {
       new_function->set_extern_verilog_module(*n->extern_verilog_module());
     }
@@ -905,6 +907,20 @@ class AstCloner : public AstNodeVisitor {
       }
     }
     new_impl->set_members(new_members);
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleTrait(const Trait* n) override {
+    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->name_def()));
+    NameDef* new_name_def = down_cast<NameDef*>(old_to_new_[n->name_def()]);
+    std::vector<Function*> new_members;
+    new_members.reserve(n->members().size());
+    for (Function* member : n->members()) {
+      XLS_RETURN_IF_ERROR(ReplaceOrVisit(member));
+      new_members.push_back(down_cast<Function*>(old_to_new_[member]));
+    }
+    old_to_new_[n] = module(n)->Make<Trait>(n->span(), new_name_def,
+                                            new_members, n->is_public());
     return absl::OkStatus();
   }
 

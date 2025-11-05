@@ -396,6 +396,10 @@ absl::Status TypecheckModuleMember(const ModuleMember& member, Module* module,
           [ctx](Impl* member) -> absl::Status {
             return ctx->Deduce(ToAstNode(member)).status();
           },
+          [](Trait* trait) -> absl::Status {
+            return absl::UnimplementedError(
+                "Traits are not supported in TIv1.");
+          },
           [ctx](ProcDef* proc_def) -> absl::Status {
             VLOG(2) << "Typechecking impl-style proc: " << proc_def->ToString();
             XLS_RETURN_IF_ERROR(ctx->Deduce(ToAstNode(proc_def)).status());

@@ -112,6 +112,7 @@
   X(StructMemberNode)             \
   X(TestFunction)                 \
   X(TestProc)                     \
+  X(Trait)                        \
   X(TypeAlias)                    \
   X(TypeRef)                      \
   X(Use)                          \
@@ -857,6 +858,8 @@ class SelfTypeAnnotation : public TypeAnnotation {
 
  private:
   bool explicit_type_;
+
+  // Note that this is nullptr for annotations within traits.
   TypeAnnotation* struct_ref_;
 };
 
@@ -2348,7 +2351,7 @@ class Function : public AstNode {
            std::vector<ParametricBinding*> parametric_bindings,
            std::vector<Param*> params, TypeAnnotation* return_type,
            StatementBlock* body, FunctionTag tag, bool is_public,
-           bool is_test_utility);
+           bool is_test_utility, bool is_stub = false);
 
   ~Function() override;
   AstNodeKind kind() const override { return AstNodeKind::kFunction; }
@@ -2382,6 +2385,7 @@ class Function : public AstNode {
   bool is_public() const { return is_public_; }
   bool is_test_utility() const { return is_test_utility_; }
   bool IsMethod() const;
+  bool IsStub() const { return is_stub_; }
 
   // Returns all of the parametric identifiers that must be bound by the caller
   // in an invocation; i.e. they have no default expression.
@@ -2455,6 +2459,7 @@ class Function : public AstNode {
 
   const bool is_public_;
   const bool is_test_utility_;
+  const bool is_stub_;
   std::optional<ForeignFunctionData> extern_verilog_module_;
   bool disable_format_ = false;
 };
@@ -3329,6 +3334,40 @@ class Impl : public AstNode {
 
   template <typename T>
   std::vector<T> GetMembersOfType() const;
+};
+
+class Trait : public AstNode {
+ public:
+  Trait(Module* owner, Span span, NameDef* name_def,
+        std::vector<Function*> members, bool is_public);
+
+  ~Trait() override;
+
+  AstNodeKind kind() const override { return AstNodeKind::kTrait; }
+  const std::string& identifier() const { return name_def_->identifier(); }
+  NameDef* name_def() const { return name_def_; }
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleTrait(this);
+  }
+
+  std::string_view GetNodeTypeName() const override { return "Trait"; }
+
+  std::string ToString() const override;
+
+  std::vector<AstNode*> GetChildren(bool want_types) const override;
+
+  bool is_public() const { return public_; }
+  const Span& span() const { return span_; }
+  std::optional<Span> GetSpan() const override { return span_; }
+
+  const std::vector<Function*>& members() const { return members_; }
+
+ private:
+  Span span_;
+  NameDef* name_def_;
+  std::vector<Function*> members_;
+  bool public_;
 };
 
 // A virtual base class for nodes that directly instantiate a struct.

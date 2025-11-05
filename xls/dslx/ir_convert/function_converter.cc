@@ -445,6 +445,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(QuickCheck)
   INVALID(StructDef)
   INVALID(StructMemberNode)
+  INVALID(Trait)
   INVALID(TypeAlias)
   INVALID(Use)
   INVALID(UseTreeEntry)

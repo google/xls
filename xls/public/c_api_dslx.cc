@@ -500,6 +500,9 @@ xls_dslx_module_member_kind xls_dslx_module_member_get_kind(
           [](xls::dslx::Impl*&) -> xls_dslx_module_member_kind {
             return xls_dslx_module_member_kind_impl;
           },
+          [](xls::dslx::Trait*&) -> xls_dslx_module_member_kind {
+            return xls_dslx_module_member_kind_trait;
+          },
           [](xls::dslx::VerbatimNode*&) -> xls_dslx_module_member_kind {
             return xls_dslx_module_member_kind_verbatim_node;
           },
