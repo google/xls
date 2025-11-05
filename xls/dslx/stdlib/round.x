@@ -1,5 +1,3 @@
-#![feature(type_inference_v2)]
-
 // Copyright 2025 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,6 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+#![feature(type_inference_v2)]
 
 // Implements rounding for all rounding modes defined by the IEEE 754 standard.
 //
