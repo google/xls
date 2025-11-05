@@ -1,4 +1,4 @@
-module ArrayUpdate1D(
+module ArrayUpdateRepeatedUse(
   input wire [127:0] array,
   input wire [1:0] index,
   input wire [31:0] value
@@ -8,8 +8,12 @@ module ArrayUpdate1D(
   assign array_unflattened[1] = array[63:32];
   assign array_unflattened[2] = array[95:64];
   assign array_unflattened[3] = array[127:96];
-  wire [31:0] updated_array[4];
+  wire [31:0] updated_array_a[4];
+  wire [31:0] updated_array_b[4];
   for (genvar __i0 = 0; __i0 < 4; __i0 = __i0 + 1) begin : gen__array_update_4_0
-    assign updated_array[__i0] = value == __i0 ? index : array_unflattened[__i0];
+    assign updated_array_a[__i0] = value == __i0 ? index : array_unflattened[__i0];
+  end
+  for (genvar __i0 = 0; __i0 < 4; __i0 = __i0 + 1) begin : gen__array_update_4_0__1
+    assign updated_array_b[__i0] = value == __i0 ? index : array_unflattened[__i0];
   end
 endmodule

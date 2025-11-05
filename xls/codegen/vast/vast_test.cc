@@ -2828,14 +2828,14 @@ TEST_P(VastTest, SimpleGenerateLoop) {
       LogicRef * output,
       m->AddOutput("my_output", f.BitVectorType(32, si), si));
 
-  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * i, m->AddGenvar("i", si));
-
   // Add a generate loop that assigns the output to be the input at index i.
   // This is not generally necessary but shows a simple legal case.
-  auto* generate_loop = m->Add<GenerateLoop>(
-      si, i, f.PlainLiteral(0, si), f.PlainLiteral(32, si), "gen_loop");
-  generate_loop->AddStatement(f.Make<ContinuousAssignment>(
-      si, f.Make<Index>(si, output, i), f.Make<Index>(si, input, i)));
+  auto* generate_loop =
+      m->Add<GenerateLoop>(si, std::string("i"), f.PlainLiteral(0, si),
+                           f.PlainLiteral(32, si), "gen_loop");
+  LogicRef* i = generate_loop->genvar();
+  generate_loop->body()->Add<ContinuousAssignment>(
+      si, f.Make<Index>(si, output, i), f.Make<Index>(si, input, i));
 
   LineInfo line_info;
   EXPECT_EQ(m->Emit(&line_info),
@@ -2843,12 +2843,9 @@ TEST_P(VastTest, SimpleGenerateLoop) {
   input wire [31:0] my_input,
   output wire [31:0] my_output
 );
-  genvar i;
-  generate
-    for (i = 0; i < 32; i = i + 1) begin : gen_loop
-      assign my_output[i] = my_input[i];
-    end
-  endgenerate
+  for (genvar i = 0; i < 32; i = i + 1) begin : gen_loop
+    assign my_output[i] = my_input[i];
+  end
 endmodule)");
 }
 
@@ -2862,36 +2859,29 @@ TEST_P(VastTest, NestedGenerateLoop) {
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * src, m->AddWire("src", array_type, si));
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * dst, m->AddWire("dst", array_type, si));
 
-  // Create two genvars for nested generate loops.
-  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * i, m->AddGenvar("i", si));
-  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * j, m->AddGenvar("j", si));
-
   // Add a doubly nested generate loop that assigns dst[i][j] = src[i][j].
-  GenerateLoopIterationSpec outer{i, f.PlainLiteral(0, si),
-                                  f.PlainLiteral(4, si), "outer"};
-  GenerateLoopIterationSpec inner{j, f.PlainLiteral(0, si),
-                                  f.PlainLiteral(3, si), "inner"};
-  std::vector<GenerateLoopIterationSpec> iterations = {outer, inner};
-  auto* generate_loop =
-      m->Add<GenerateLoop>(si, absl::MakeConstSpan(iterations));
-  generate_loop->AddStatement(f.Make<ContinuousAssignment>(
+  auto* outer_loop =
+      m->Add<GenerateLoop>(si, std::string("i"), f.PlainLiteral(0, si),
+                           f.PlainLiteral(4, si), "outer");
+  LogicRef* i = outer_loop->genvar();
+  auto* inner_loop = outer_loop->body()->Add<GenerateLoop>(
+      si, std::string("j"), f.PlainLiteral(0, si), f.PlainLiteral(3, si),
+      "inner");
+  LogicRef* j = inner_loop->genvar();
+  inner_loop->body()->Add<ContinuousAssignment>(
       si, f.Make<Index>(si, f.Make<Index>(si, dst, i), j),
-      f.Make<Index>(si, f.Make<Index>(si, src, i), j)));
+      f.Make<Index>(si, f.Make<Index>(si, src, i), j));
 
   LineInfo line_info;
   EXPECT_EQ(m->Emit(&line_info),
             R"(module top;
   wire [0:0][3:0][2:0] src;
   wire [0:0][3:0][2:0] dst;
-  genvar i;
-  genvar j;
-  generate
-    for (i = 0; i < 4; i = i + 1) begin : outer
-      for (j = 0; j < 3; j = j + 1) begin : inner
-        assign dst[i][j] = src[i][j];
-      end
+  for (genvar i = 0; i < 4; i = i + 1) begin : outer
+    for (genvar j = 0; j < 3; j = j + 1) begin : inner
+      assign dst[i][j] = src[i][j];
     end
-  endgenerate
+  end
 endmodule)");
 }
 

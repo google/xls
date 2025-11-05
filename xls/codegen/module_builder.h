@@ -342,8 +342,11 @@ class ModuleBuilder {
   // Returns true if the module builder is configured to emit asserts.
   bool CanEmitAsserts() const;
 
-  // Sanitize and uniquify the given name for use as a Verilog identifier.
-  std::string SanitizeAndUniquifyName(std::string_view name);
+  // Sanitize and uniquify the given name for use as a Verilog identifier. If
+  // remember name is false the name is uniquified but is not remembered for
+  // future uniquification (useful for narrowly scoped names).
+  std::string SanitizeAndUniquifyName(std::string_view name,
+                                      bool remember_name = true);
 
   std::string module_name_;
   VerilogFile* file_;

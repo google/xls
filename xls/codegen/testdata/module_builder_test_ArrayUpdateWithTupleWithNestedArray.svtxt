@@ -8,10 +8,7 @@ module ArrayUpdateWithTupleWithNestedArray(
   assign array_unflattened[1] = array[95:48];
   assign array_unflattened[2] = array[143:96];
   wire [47:0] updated_array[3];
-  genvar array_update_4__index_0;
-  generate
-    for (array_update_4__index_0 = 0; array_update_4__index_0 < 3; array_update_4__index_0 = array_update_4__index_0 + 1) begin : array_update_4__gen_0
-      assign updated_array[array_update_4__index_0] = idx == array_update_4__index_0 ? value : array_unflattened[array_update_4__index_0];
-    end
-  endgenerate
+  for (genvar __i0 = 0; __i0 < 3; __i0 = __i0 + 1) begin : gen__array_update_4_0
+    assign updated_array[__i0] = idx == __i0 ? value : array_unflattened[__i0];
+  end
 endmodule

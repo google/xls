@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/log/check.h"
@@ -194,6 +195,23 @@ struct xls_vast_logic_ref* xls_vast_verilog_module_add_wire(
       cpp_module->AddWire(name, cpp_type, xls::SourceInfo());
   CHECK_OK(logic_ref.status());
   return reinterpret_cast<xls_vast_logic_ref*>(logic_ref.value());
+}
+
+struct xls_vast_generate_loop* xls_vast_verilog_module_add_generate_loop(
+    struct xls_vast_verilog_module* m, const char* genvar_name,
+    struct xls_vast_expression* init, struct xls_vast_expression* limit,
+    const char* label) {
+  CHECK_NE(genvar_name, nullptr);
+  auto* cpp_module = reinterpret_cast<xls::verilog::Module*>(m);
+  auto* cpp_init = reinterpret_cast<xls::verilog::Expression*>(init);
+  auto* cpp_limit = reinterpret_cast<xls::verilog::Expression*>(limit);
+  std::optional<std::string> cpp_label =
+      label == nullptr ? std::nullopt : std::optional<std::string>(label);
+  xls::verilog::GenerateLoop* cpp_loop =
+      cpp_module->Add<xls::verilog::GenerateLoop>(
+          xls::SourceInfo(), std::string_view(genvar_name), cpp_init, cpp_limit,
+          cpp_label);
+  return reinterpret_cast<xls_vast_generate_loop*>(cpp_loop);
 }
 
 struct xls_vast_expression* xls_vast_verilog_module_add_parameter_port(
@@ -560,6 +578,18 @@ xls_vast_logic_ref_as_indexable_expression(
       cpp_indexable_expression);
 }
 
+struct xls_vast_logic_ref* xls_vast_generate_loop_get_genvar(
+    struct xls_vast_generate_loop* loop) {
+  auto* cpp_loop = reinterpret_cast<xls::verilog::GenerateLoop*>(loop);
+  return reinterpret_cast<xls_vast_logic_ref*>(cpp_loop->genvar());
+}
+
+struct xls_vast_statement_block* xls_vast_generate_loop_get_body(
+    struct xls_vast_generate_loop* loop) {
+  auto* cpp_loop = reinterpret_cast<xls::verilog::GenerateLoop*>(loop);
+  return reinterpret_cast<xls_vast_statement_block*>(cpp_loop->body());
+}
+
 struct xls_vast_indexable_expression* xls_vast_index_as_indexable_expression(
     struct xls_vast_index* index) {
   auto* cpp_index = reinterpret_cast<xls::verilog::Index*>(index);
@@ -889,6 +919,35 @@ struct xls_vast_statement* xls_vast_statement_block_add_blocking_assignment(
   xls::verilog::BlockingAssignment* cpp_assignment =
       cpp_block->Add<xls::verilog::BlockingAssignment>(xls::SourceInfo(),
                                                        cpp_lhs, cpp_rhs);
+  return reinterpret_cast<xls_vast_statement*>(cpp_assignment);
+}
+
+struct xls_vast_generate_loop* xls_vast_statement_block_add_generate_loop(
+    struct xls_vast_statement_block* block, const char* genvar_name,
+    struct xls_vast_expression* init, struct xls_vast_expression* limit,
+    const char* label) {
+  CHECK_NE(genvar_name, nullptr);
+  auto* cpp_block = reinterpret_cast<xls::verilog::StatementBlock*>(block);
+  auto* cpp_init = reinterpret_cast<xls::verilog::Expression*>(init);
+  auto* cpp_limit = reinterpret_cast<xls::verilog::Expression*>(limit);
+  std::optional<std::string> cpp_label =
+      label == nullptr ? std::nullopt : std::optional<std::string>(label);
+  xls::verilog::GenerateLoop* cpp_loop =
+      cpp_block->Add<xls::verilog::GenerateLoop>(
+          xls::SourceInfo(), std::string_view(genvar_name), cpp_init, cpp_limit,
+          cpp_label);
+  return reinterpret_cast<xls_vast_generate_loop*>(cpp_loop);
+}
+
+struct xls_vast_statement* xls_vast_statement_block_add_continuous_assignment(
+    struct xls_vast_statement_block* block, struct xls_vast_expression* lhs,
+    struct xls_vast_expression* rhs) {
+  auto* cpp_block = reinterpret_cast<xls::verilog::StatementBlock*>(block);
+  auto* cpp_lhs = reinterpret_cast<xls::verilog::Expression*>(lhs);
+  auto* cpp_rhs = reinterpret_cast<xls::verilog::Expression*>(rhs);
+  xls::verilog::ContinuousAssignment* cpp_assignment =
+      cpp_block->Add<xls::verilog::ContinuousAssignment>(xls::SourceInfo(),
+                                                         cpp_lhs, cpp_rhs);
   return reinterpret_cast<xls_vast_statement*>(cpp_assignment);
 }
 

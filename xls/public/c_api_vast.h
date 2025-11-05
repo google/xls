@@ -49,6 +49,7 @@ struct xls_vast_comment;
 struct xls_vast_always_base;
 struct xls_vast_statement;
 struct xls_vast_statement_block;
+struct xls_vast_generate_loop;
 struct xls_vast_module_port;
 struct xls_vast_def;
 struct xls_vast_parameter_ref;
@@ -167,6 +168,10 @@ struct xls_vast_logic_ref* xls_vast_verilog_module_add_logic_output(
 struct xls_vast_logic_ref* xls_vast_verilog_module_add_wire(
     struct xls_vast_verilog_module* m, const char* name,
     struct xls_vast_data_type* type);
+struct xls_vast_generate_loop* xls_vast_verilog_module_add_generate_loop(
+    struct xls_vast_verilog_module* m, const char* genvar_name,
+    struct xls_vast_expression* init, struct xls_vast_expression* limit,
+    const char* label);
 struct xls_vast_expression* xls_vast_verilog_module_add_parameter_port(
     struct xls_vast_verilog_module* m, const char* name,
     struct xls_vast_expression* rhs);
@@ -364,6 +369,10 @@ struct xls_vast_expression* xls_vast_indexable_expression_as_expression(
 struct xls_vast_indexable_expression*
 xls_vast_logic_ref_as_indexable_expression(
     struct xls_vast_logic_ref* logic_ref);
+struct xls_vast_logic_ref* xls_vast_generate_loop_get_genvar(
+    struct xls_vast_generate_loop* loop);
+struct xls_vast_statement_block* xls_vast_generate_loop_get_body(
+    struct xls_vast_generate_loop* loop);
 
 // Note: returned value is owned by the caller, free via `xls_c_str_free`.
 char* xls_vast_logic_ref_get_name(struct xls_vast_logic_ref* logic_ref);
@@ -379,6 +388,13 @@ struct xls_vast_statement_block* xls_vast_always_base_get_statement_block(
 // Adds a non-blocking assignment statement (lhs <= rhs) to a statement block
 // and returns a pointer to the created statement.
 struct xls_vast_statement* xls_vast_statement_block_add_nonblocking_assignment(
+    struct xls_vast_statement_block* block, struct xls_vast_expression* lhs,
+    struct xls_vast_expression* rhs);
+struct xls_vast_generate_loop* xls_vast_statement_block_add_generate_loop(
+    struct xls_vast_statement_block* block, const char* genvar_name,
+    struct xls_vast_expression* init, struct xls_vast_expression* limit,
+    const char* label);
+struct xls_vast_statement* xls_vast_statement_block_add_continuous_assignment(
     struct xls_vast_statement_block* block, struct xls_vast_expression* lhs,
     struct xls_vast_expression* rhs);
 

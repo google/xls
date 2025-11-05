@@ -16,13 +16,9 @@ module ArrayUpdate2DUpdateArrayLiteralIndex(
   assign value_unflattened[2] = value[23:16];
   wire [7:0] array_update_8[0:1][0:2];
   assign out = {{array_update_8[1][2], array_update_8[1][1], array_update_8[1][0]}, {array_update_8[0][2], array_update_8[0][1], array_update_8[0][0]}};
-  genvar array_update_8__index_0;
-  genvar array_update_8__update_0;
-  generate
-    for (array_update_8__index_0 = 0; array_update_8__index_0 < 2; array_update_8__index_0 = array_update_8__index_0 + 1) begin : array_update_8__gen_0
-      for (array_update_8__update_0 = 0; array_update_8__update_0 < 3; array_update_8__update_0 = array_update_8__update_0 + 1) begin : array_update_8__gen_up_0
-        assign array_update_8[array_update_8__index_0][array_update_8__update_0] = 14'h0001 == array_update_8__index_0 ? value_unflattened[array_update_8__update_0] : a_unflattened[array_update_8__index_0][array_update_8__update_0];
-      end
+  for (genvar __i0 = 0; __i0 < 2; __i0 = __i0 + 1) begin : gen__array_update_8_0
+    for (genvar __j0 = 0; __j0 < 3; __j0 = __j0 + 1) begin : gen__array_update_8_0__1
+      assign array_update_8[__i0][__j0] = 14'h0001 == __i0 ? value_unflattened[__j0] : a_unflattened[__i0][__j0];
     end
-  endgenerate
+  end
 endmodule

@@ -1,0 +1,15 @@
+module ArrayUpdateGenvarCollision(
+  input wire [3:0] array,
+  input wire [1:0] index,
+  input wire __i0
+);
+  wire array_unflattened[4];
+  assign array_unflattened[0] = array[0:0];
+  assign array_unflattened[1] = array[1:1];
+  assign array_unflattened[2] = array[2:2];
+  assign array_unflattened[3] = array[3:3];
+  wire updated_array[4];
+  for (genvar __i0__1 = 0; __i0__1 < 4; __i0__1 = __i0__1 + 1) begin : gen__array_update_4_0
+    assign updated_array[__i0__1] = index == __i0__1 ? __i0 : array_unflattened[__i0__1];
+  end
+endmodule

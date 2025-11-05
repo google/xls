@@ -199,6 +199,64 @@ endmodule
   EXPECT_EQ(std::string_view{emitted}, kWantEmitted);
 }
 
+TEST(XlsCApiTest, VastGenerateLoopElementwiseAssignment) {
+  const std::string_view kWantEmitted = R"(module top(
+  input wire [7:0] in,
+  output wire [7:0] out
+);
+  for (genvar i = 0; i < 8; i = i + 1) begin : gen
+    assign out[i] = in[i];
+  end
+endmodule
+)";
+
+  xls_vast_verilog_file* f =
+      xls_vast_make_verilog_file(xls_vast_file_type_verilog);
+  ASSERT_NE(f, nullptr);
+  absl::Cleanup free_file([&] { xls_vast_verilog_file_free(f); });
+
+  xls_vast_verilog_module* m = xls_vast_verilog_file_add_module(f, "top");
+  ASSERT_NE(m, nullptr);
+
+  xls_vast_data_type* u8 =
+      xls_vast_verilog_file_make_bit_vector_type(f, 8, /*is_signed=*/false);
+  xls_vast_logic_ref* in_ref = xls_vast_verilog_module_add_input(m, "in", u8);
+  xls_vast_logic_ref* out_ref =
+      xls_vast_verilog_module_add_output(m, "out", u8);
+
+  xls_vast_literal* zero_lit = xls_vast_verilog_file_make_plain_literal(f, 0);
+  xls_vast_literal* eight_lit = xls_vast_verilog_file_make_plain_literal(f, 8);
+  xls_vast_expression* zero_expr = xls_vast_literal_as_expression(zero_lit);
+  xls_vast_expression* eight_expr = xls_vast_literal_as_expression(eight_lit);
+
+  xls_vast_generate_loop* loop = xls_vast_verilog_module_add_generate_loop(
+      m, "i", zero_expr, eight_expr, "gen");
+  ASSERT_NE(loop, nullptr);
+
+  xls_vast_logic_ref* genvar_ref = xls_vast_generate_loop_get_genvar(loop);
+  ASSERT_NE(genvar_ref, nullptr);
+  xls_vast_expression* genvar_expr =
+      xls_vast_logic_ref_as_expression(genvar_ref);
+
+  xls_vast_statement_block* loop_body = xls_vast_generate_loop_get_body(loop);
+  ASSERT_NE(loop_body, nullptr);
+
+  xls_vast_index* out_index = xls_vast_verilog_file_make_index(
+      f, xls_vast_logic_ref_as_indexable_expression(out_ref), genvar_expr);
+  xls_vast_index* in_index = xls_vast_verilog_file_make_index(
+      f, xls_vast_logic_ref_as_indexable_expression(in_ref), genvar_expr);
+
+  xls_vast_statement_block_add_continuous_assignment(
+      loop_body, xls_vast_index_as_expression(out_index),
+      xls_vast_index_as_expression(in_index));
+
+  char* emitted = xls_vast_verilog_file_emit(f);
+  ASSERT_NE(emitted, nullptr);
+  absl::Cleanup free_emitted([&] { xls_c_str_free(emitted); });
+
+  EXPECT_EQ(std::string_view{emitted}, kWantEmitted);
+}
+
 // Tests that we can reference a slice of a multidimensional packed array on
 // the LHS or RHS of an assign statement; e.g.
 // ```
