@@ -543,6 +543,13 @@ struct xls_vast_expression* xls_vast_localparam_ref_as_expression(
   return reinterpret_cast<xls_vast_expression*>(cpp_expression);
 }
 
+struct xls_vast_expression* xls_vast_indexable_expression_as_expression(
+    struct xls_vast_indexable_expression* v) {
+  auto* cpp_v = reinterpret_cast<xls::verilog::IndexableExpression*>(v);
+  auto* cpp_expression = static_cast<xls::verilog::Expression*>(cpp_v);
+  return reinterpret_cast<xls_vast_expression*>(cpp_expression);
+}
+
 struct xls_vast_indexable_expression*
 xls_vast_logic_ref_as_indexable_expression(
     struct xls_vast_logic_ref* logic_ref) {
@@ -624,6 +631,28 @@ struct xls_vast_expression* xls_vast_verilog_file_make_ternary(
   auto* cpp_alternate = reinterpret_cast<xls::verilog::Expression*>(alternate);
   xls::verilog::Expression* result = cpp_file->Make<xls::verilog::Ternary>(
       xls::SourceInfo(), cpp_cond, cpp_consequent, cpp_alternate);
+  return reinterpret_cast<xls_vast_expression*>(result);
+}
+
+struct xls_vast_expression* xls_vast_verilog_file_make_width_cast(
+    struct xls_vast_verilog_file* f, struct xls_vast_expression* width,
+    struct xls_vast_expression* value) {
+  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
+  auto* cpp_width = reinterpret_cast<xls::verilog::Expression*>(width);
+  auto* cpp_value = reinterpret_cast<xls::verilog::Expression*>(value);
+  xls::verilog::Expression* result = cpp_file->Make<xls::verilog::WidthCast>(
+      xls::SourceInfo(), cpp_width, cpp_value);
+  return reinterpret_cast<xls_vast_expression*>(result);
+}
+
+struct xls_vast_expression* xls_vast_verilog_file_make_type_cast(
+    struct xls_vast_verilog_file* f, struct xls_vast_data_type* type,
+    struct xls_vast_expression* value) {
+  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
+  auto* cpp_type = reinterpret_cast<xls::verilog::DataType*>(type);
+  auto* cpp_value = reinterpret_cast<xls::verilog::Expression*>(value);
+  xls::verilog::Expression* result = cpp_file->Make<xls::verilog::TypeCast>(
+      xls::SourceInfo(), cpp_type, cpp_value);
   return reinterpret_cast<xls_vast_expression*>(result);
 }
 

@@ -2159,6 +2159,44 @@ class UnsignedCast final : public SystemFunctionCall {
       : SystemFunctionCall("unsigned", {value}, file, loc) {}
 };
 
+// A SystemVerilog cast-to-width expression. Examples:
+//   17'(42)
+//   MyParam'(MyOtherParam + 2)
+//   (MyParam + 1)'(x)
+class WidthCast final : public Expression {
+ public:
+  WidthCast(Expression* width, Expression* value, VerilogFile* file,
+            const SourceInfo& loc)
+      : Expression(file, loc), width_(width), value_(value) {}
+
+  std::string Emit(LineInfo* line_info) const final;
+
+  Expression* width() const { return width_; }
+  Expression* value() const { return value_; }
+
+ private:
+  Expression* width_;
+  Expression* value_;
+};
+
+// A SystemVerilog cast-to-type expression. Examples:
+//   int'(42)
+//   my_pkg::my_type_t'(MyOtherParam + 2)
+class TypeCast final : public Expression {
+ public:
+  TypeCast(DataType* type, Expression* value, VerilogFile* file,
+           const SourceInfo& loc)
+      : Expression(file, loc), type_(type), value_(value) {}
+
+  std::string Emit(LineInfo* line_info) const final;
+  DataType* type() const { return type_; }
+  Expression* value() const { return value_; }
+
+ private:
+  DataType* type_;
+  Expression* value_;
+};
+
 // Represents the definition of a Verilog function.
 class VerilogFunction final : public VastNode {
  public:

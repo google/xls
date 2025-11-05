@@ -389,6 +389,218 @@ endmodule
   EXPECT_EQ(std::string_view{emitted}, kWantEmitted);
 }
 
+TEST(XlsCApiTest, VastWidthCast) {
+  const std::string_view kWantEmitted = R"(module top(
+  input wire [7:0] a,
+  input wire [3:0] b,
+  output wire [7:0] out_literal,
+  output wire [11:0] out_param,
+  output wire [15:0] out_expr
+);
+  parameter WidthParam = 12;
+  assign out_literal = 8'(a + 1);
+  assign out_param = WidthParam'({a, b});
+  assign out_expr = (WidthParam + 4)'(a ^ {b, 2'h3});
+endmodule
+)";
+
+  xls_vast_verilog_file* f =
+      xls_vast_make_verilog_file(xls_vast_file_type_verilog);
+  ASSERT_NE(f, nullptr);
+  absl::Cleanup free_file([&] { xls_vast_verilog_file_free(f); });
+
+  xls_vast_verilog_module* m = xls_vast_verilog_file_add_module(f, "top");
+  ASSERT_NE(m, nullptr);
+
+  xls_vast_data_type* u8 =
+      xls_vast_verilog_file_make_bit_vector_type(f, 8, /*is_signed=*/false);
+  xls_vast_data_type* u4 =
+      xls_vast_verilog_file_make_bit_vector_type(f, 4, /*is_signed=*/false);
+  xls_vast_data_type* u12 =
+      xls_vast_verilog_file_make_bit_vector_type(f, 12, /*is_signed=*/false);
+  xls_vast_data_type* u16 =
+      xls_vast_verilog_file_make_bit_vector_type(f, 16, /*is_signed=*/false);
+
+  xls_vast_logic_ref* a_ref = xls_vast_verilog_module_add_input(m, "a", u8);
+  ASSERT_NE(a_ref, nullptr);
+  xls_vast_logic_ref* b_ref = xls_vast_verilog_module_add_input(m, "b", u4);
+  ASSERT_NE(b_ref, nullptr);
+  xls_vast_logic_ref* out_literal_ref =
+      xls_vast_verilog_module_add_output(m, "out_literal", u8);
+  ASSERT_NE(out_literal_ref, nullptr);
+  xls_vast_logic_ref* out_param_ref =
+      xls_vast_verilog_module_add_output(m, "out_param", u12);
+  ASSERT_NE(out_param_ref, nullptr);
+  xls_vast_logic_ref* out_expr_ref =
+      xls_vast_verilog_module_add_output(m, "out_expr", u16);
+  ASSERT_NE(out_expr_ref, nullptr);
+
+  xls_vast_literal* literal_12 =
+      xls_vast_verilog_file_make_plain_literal(f, 12);
+  ASSERT_NE(literal_12, nullptr);
+  xls_vast_parameter_ref* width_param = xls_vast_verilog_module_add_parameter(
+      m, "WidthParam", xls_vast_literal_as_expression(literal_12));
+  ASSERT_NE(width_param, nullptr);
+  xls_vast_expression* width_param_expr =
+      xls_vast_parameter_ref_as_expression(width_param);
+
+  xls_vast_literal* literal_8 = xls_vast_verilog_file_make_plain_literal(f, 8);
+  ASSERT_NE(literal_8, nullptr);
+  xls_vast_literal* literal_1 = xls_vast_verilog_file_make_plain_literal(f, 1);
+  ASSERT_NE(literal_1, nullptr);
+  xls_vast_expression* a_expr = xls_vast_logic_ref_as_expression(a_ref);
+  ASSERT_NE(a_expr, nullptr);
+  xls_vast_expression* a_plus_one = xls_vast_verilog_file_make_binary(
+      f, a_expr, xls_vast_literal_as_expression(literal_1),
+      xls_vast_operator_kind_add);
+  ASSERT_NE(a_plus_one, nullptr);
+
+  xls_vast_expression* width_cast_literal =
+      xls_vast_verilog_file_make_width_cast(
+          f, xls_vast_literal_as_expression(literal_8), a_plus_one);
+  ASSERT_NE(width_cast_literal, nullptr);
+  xls_vast_continuous_assignment* assign_literal =
+      xls_vast_verilog_file_make_continuous_assignment(
+          f, xls_vast_logic_ref_as_expression(out_literal_ref),
+          width_cast_literal);
+  ASSERT_NE(assign_literal, nullptr);
+  xls_vast_verilog_module_add_member_continuous_assignment(m, assign_literal);
+
+  std::vector<xls_vast_expression*> param_concat_args = {
+      xls_vast_logic_ref_as_expression(a_ref),
+      xls_vast_logic_ref_as_expression(b_ref)};
+  xls_vast_concat* param_concat = xls_vast_verilog_file_make_concat(
+      f, param_concat_args.data(), param_concat_args.size());
+  ASSERT_NE(param_concat, nullptr);
+  xls_vast_expression* width_cast_param = xls_vast_verilog_file_make_width_cast(
+      f, width_param_expr, xls_vast_concat_as_expression(param_concat));
+  ASSERT_NE(width_cast_param, nullptr);
+  xls_vast_continuous_assignment* assign_param =
+      xls_vast_verilog_file_make_continuous_assignment(
+          f, xls_vast_logic_ref_as_expression(out_param_ref), width_cast_param);
+  ASSERT_NE(assign_param, nullptr);
+  xls_vast_verilog_module_add_member_continuous_assignment(m, assign_param);
+
+  xls_vast_literal* literal_4 = xls_vast_verilog_file_make_plain_literal(f, 4);
+  ASSERT_NE(literal_4, nullptr);
+  xls_vast_expression* complex_width = xls_vast_verilog_file_make_binary(
+      f, width_param_expr, xls_vast_literal_as_expression(literal_4),
+      xls_vast_operator_kind_add);
+  ASSERT_NE(complex_width, nullptr);
+
+  struct xls_bits* bits = nullptr;
+  char* error_out = nullptr;
+  ASSERT_TRUE(
+      xls_bits_make_ubits(/*bit_count=*/2, /*value=*/3, &error_out, &bits));
+  ASSERT_EQ(error_out, nullptr);
+  absl::Cleanup free_bits([&] { xls_bits_free(bits); });
+
+  xls_vast_literal* literal_2h3 = nullptr;
+  ASSERT_TRUE(xls_vast_verilog_file_make_literal(
+      f, bits, xls_format_preference_hex, /*emit_bit_count=*/true, &error_out,
+      &literal_2h3));
+  ASSERT_EQ(error_out, nullptr);
+  ASSERT_NE(literal_2h3, nullptr);
+
+  std::vector<xls_vast_expression*> tail_concat_args = {
+      xls_vast_logic_ref_as_expression(b_ref),
+      xls_vast_literal_as_expression(literal_2h3)};
+  xls_vast_concat* tail_concat = xls_vast_verilog_file_make_concat(
+      f, tail_concat_args.data(), tail_concat_args.size());
+  ASSERT_NE(tail_concat, nullptr);
+
+  xls_vast_expression* complex_value = xls_vast_verilog_file_make_binary(
+      f, a_expr, xls_vast_concat_as_expression(tail_concat),
+      xls_vast_operator_kind_bitwise_xor);
+  ASSERT_NE(complex_value, nullptr);
+
+  xls_vast_expression* width_cast_complex =
+      xls_vast_verilog_file_make_width_cast(f, complex_width, complex_value);
+  ASSERT_NE(width_cast_complex, nullptr);
+  xls_vast_continuous_assignment* assign_complex =
+      xls_vast_verilog_file_make_continuous_assignment(
+          f, xls_vast_logic_ref_as_expression(out_expr_ref),
+          width_cast_complex);
+  ASSERT_NE(assign_complex, nullptr);
+  xls_vast_verilog_module_add_member_continuous_assignment(m, assign_complex);
+
+  char* emitted = xls_vast_verilog_file_emit(f);
+  ASSERT_NE(emitted, nullptr);
+  absl::Cleanup free_emitted([&] { xls_c_str_free(emitted); });
+  EXPECT_EQ(std::string_view{emitted}, kWantEmitted);
+}
+
+TEST(XlsCApiTest, VastTypeCast) {
+  const std::string_view kWantEmitted = R"(module top(
+  input wire [7:0] a,
+  output work::foobar out_foo,
+  output my_pkg::my_type_t out_pkg
+);
+  assign out_foo = work::foobar'(a + 1);
+  assign out_pkg = my_pkg::my_type_t'(a);
+endmodule
+)";
+
+  xls_vast_verilog_file* f =
+      xls_vast_make_verilog_file(xls_vast_file_type_verilog);
+  ASSERT_NE(f, nullptr);
+  absl::Cleanup free_file([&] { xls_vast_verilog_file_free(f); });
+
+  xls_vast_verilog_module* m = xls_vast_verilog_file_add_module(f, "top");
+  ASSERT_NE(m, nullptr);
+
+  xls_vast_data_type* u8 =
+      xls_vast_verilog_file_make_bit_vector_type(f, 8, /*is_signed=*/false);
+  ASSERT_NE(u8, nullptr);
+
+  xls_vast_logic_ref* a_ref = xls_vast_verilog_module_add_input(m, "a", u8);
+  ASSERT_NE(a_ref, nullptr);
+
+  xls_vast_data_type* work_foobar =
+      xls_vast_verilog_file_make_extern_package_type(f, "work", "foobar");
+  ASSERT_NE(work_foobar, nullptr);
+  xls_vast_logic_ref* out_foo_ref =
+      xls_vast_verilog_module_add_output(m, "out_foo", work_foobar);
+  ASSERT_NE(out_foo_ref, nullptr);
+
+  xls_vast_data_type* mypkg_mytype =
+      xls_vast_verilog_file_make_extern_package_type(f, "my_pkg", "my_type_t");
+  ASSERT_NE(mypkg_mytype, nullptr);
+  xls_vast_logic_ref* out_pkg_ref =
+      xls_vast_verilog_module_add_output(m, "out_pkg", mypkg_mytype);
+  ASSERT_NE(out_pkg_ref, nullptr);
+
+  xls_vast_literal* lit1 = xls_vast_verilog_file_make_plain_literal(f, 1);
+  ASSERT_NE(lit1, nullptr);
+  xls_vast_expression* a_plus_one = xls_vast_verilog_file_make_binary(
+      f, xls_vast_logic_ref_as_expression(a_ref),
+      xls_vast_literal_as_expression(lit1), xls_vast_operator_kind_add);
+  ASSERT_NE(a_plus_one, nullptr);
+
+  xls_vast_expression* cast_foo =
+      xls_vast_verilog_file_make_type_cast(f, work_foobar, a_plus_one);
+  ASSERT_NE(cast_foo, nullptr);
+  xls_vast_continuous_assignment* assign_foo =
+      xls_vast_verilog_file_make_continuous_assignment(
+          f, xls_vast_logic_ref_as_expression(out_foo_ref), cast_foo);
+  ASSERT_NE(assign_foo, nullptr);
+  xls_vast_verilog_module_add_member_continuous_assignment(m, assign_foo);
+
+  xls_vast_expression* cast_pkg = xls_vast_verilog_file_make_type_cast(
+      f, mypkg_mytype, xls_vast_logic_ref_as_expression(a_ref));
+  ASSERT_NE(cast_pkg, nullptr);
+  xls_vast_continuous_assignment* assign_pkg =
+      xls_vast_verilog_file_make_continuous_assignment(
+          f, xls_vast_logic_ref_as_expression(out_pkg_ref), cast_pkg);
+  ASSERT_NE(assign_pkg, nullptr);
+  xls_vast_verilog_module_add_member_continuous_assignment(m, assign_pkg);
+
+  char* emitted = xls_vast_verilog_file_emit(f);
+  ASSERT_NE(emitted, nullptr);
+  absl::Cleanup free_emitted([&] { xls_c_str_free(emitted); });
+  EXPECT_EQ(std::string_view{emitted}, kWantEmitted);
+}
+
 TEST(XlsCApiTest, VastUnsizedLiteralsParameters) {
   const std::string_view kWantEmitted = R"(module top;
   parameter P0 = '0;
