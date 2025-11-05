@@ -400,11 +400,11 @@ class ArrayTypeBase : public DataType {
   DataType* element_type() const { return element_type_; }
 
   // Returns the dimensions for the type, excluding the element type. For
-  // example, the net type for "wire [7:0][42:0][3:0] foo;" has {43, 4} as the
+  // example, the net type for "wire [42:0][3:0][7:0] foo;" has {43, 4} as the
   // array dimensions. The inner-most dimension (of the contained
   // `BitVectorType`) is not included as that is considered for type purposes as
   // the underlying array element type ("wire [7:0]"). Similarly, for an
-  // unpacked array, the net type for "wire [7:0][42:0] foo [123][7];" has {123,
+  // unpacked array, the net type for "wire [42:0][7:0] foo [123][7];" has {123,
   // 7} as the unpacked dimensions. The ordering of indices matches the order in
   // which they are emitted in the emitted Verilog.
   absl::Span<Expression* const> dims() const { return dims_; }
@@ -445,7 +445,7 @@ class PackedArrayType final : public ArrayTypeBase {
 };
 
 // Represents an unpacked array of bit-vectors or packed array types. Example:
-//   wire [7:0][42:0][3:0] foo [1:0];
+//   wire [42:0][3:0][7:0] foo [1:0];
 // Where [1:0] is the unpacked array dimensions.
 class UnpackedArrayType final : public ArrayTypeBase {
  public:
@@ -2903,8 +2903,11 @@ class VerilogFile {
                                                 const SourceInfo& loc,
                                                 bool is_signed = false);
 
-  // Returns a packed array type. Example:
-  //   wire [7:0][41:0][122:0] foo;
+  // Returns a packed array type. Example, PackedArrayType(8, {42, 123})
+  // produces:
+  //   wire [41:0][122:0][7:0] foo;
+  //
+  // Dimensions are specified in major to minor order.
   verilog::PackedArrayType* PackedArrayType(int64_t element_bit_count,
                                             absl::Span<const int64_t> dims,
                                             const SourceInfo& loc,

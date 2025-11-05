@@ -500,7 +500,7 @@ PackedArrayType* VerilogFile::PackedArrayType(int64_t element_bit_count,
   // For packed arrays we always use a bitvector (non-scalar) for the element
   // type when the element bit width is 1. For example, if element bit width is
   // one and dims is {42} we generate the following type:
-  //   reg [0:0][41:0] foo;
+  //   reg [41:0][0:0] foo;
   // If we emitted a scalar type, it would look like:
   //   reg [41:0] foo;
   // Which would generate invalid verilog if we index into an element
