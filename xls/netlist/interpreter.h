@@ -72,10 +72,10 @@ class AbstractInterpreter {
   ~AbstractInterpreter() {
     if (threads_.empty() == false) {
       // Wake up threads
-      input_queue_guard_.Lock();
+      input_queue_guard_.lock();
       threads_should_exit_.store(true);
       input_queue_cond_.SignalAll();
-      input_queue_guard_.Unlock();
+      input_queue_guard_.unlock();
       // Wait for exit
       for (auto& t : threads_) {
         t->Join();
@@ -306,13 +306,13 @@ AbstractInterpreter<EvalT>::InterpretModule(
       while (!output_queue_.empty()) {
         QueueEntry entry = std::move(output_queue_.front());
         output_queue_.pop();
-        output_queue_guard_.Unlock();
+        output_queue_guard_.unlock();
         num_pending_outputs--;
         UpdateProcessedState(processed_cells, active_wires, outputs, module,
                              dump_cell_set, entry.cell, entry.wires);
-        output_queue_guard_.Lock();
+        output_queue_guard_.lock();
       }
-      output_queue_guard_.Unlock();
+      output_queue_guard_.unlock();
     }
 
     rtl::AbstractNetRef<EvalT> wire = active_wires.front();
@@ -331,18 +331,24 @@ AbstractInterpreter<EvalT>::InterpretModule(
         // process InterpretCell only if the cell is itself a Module, there is
         // only one worker thread left, and all other threads are processing
         // modules as well.
-        if (!threads_.empty() && num_available_threads_.load() > 0) {
-          input_queue_guard_.Lock();
-          QueueEntry entry;
-          entry.cell = cell;
-          entry.wires = std::move(processed_cell_state->inputs);
-          input_queue_.push(std::move(entry));
-          input_queue_cond_.Signal();
-          num_available_threads_--;
-          num_pending_outputs++;
-          input_queue_guard_.Unlock();
-          VLOG(2) << "Dispatched cell: " << cell->name();
-        } else {
+        bool dispatched = false;
+        if (!threads_.empty()) {
+          input_queue_guard_.lock();
+          if (num_available_threads_ > 0) {
+            QueueEntry entry;
+            entry.cell = cell;
+            entry.wires = std::move(processed_cell_state->inputs);
+            input_queue_.push(std::move(entry));
+            input_queue_cond_.Signal();
+            num_available_threads_--;
+            num_pending_outputs++;
+            dispatched = true;
+            VLOG(2) << "Dispatched cell: " << cell->name();
+          }
+          input_queue_guard_.unlock();
+        }
+
+        if (!dispatched) {
           VLOG(2) << "Processing locally cell: " << cell->name();
           XLS_ASSIGN_OR_RETURN(
               auto results, InterpretCell(cell, processed_cell_state->inputs));
@@ -494,26 +500,26 @@ AbstractInterpreter<EvalT>::InterpretCell(
 template <typename EvalT>
 absl::Status AbstractInterpreter<EvalT>::ThreadBody() {
   while (true) {
-    input_queue_guard_.Lock();
+    input_queue_guard_.lock();
     num_available_threads_++;
     while (input_queue_.empty() && threads_should_exit_ == false) {
       input_queue_cond_.Wait(&input_queue_guard_);
     }
     if (threads_should_exit_) {
-      input_queue_guard_.Unlock();
+      input_queue_guard_.unlock();
       break;
     }
     QueueEntry entry = input_queue_.front();
     input_queue_.pop();
-    input_queue_guard_.Unlock();
+    input_queue_guard_.unlock();
 
     XLS_ASSIGN_OR_RETURN(auto results,
                          InterpretCell(entry.cell, std::move(entry.wires)));
 
     entry.wires = std::move(results);
-    output_queue_guard_.Lock();
+    output_queue_guard_.lock();
     output_queue_.push(entry);
-    output_queue_guard_.Unlock();
+    output_queue_guard_.unlock();
   }
 
   return absl::OkStatus();
