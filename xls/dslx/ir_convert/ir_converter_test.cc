@@ -4743,7 +4743,7 @@ pub proc first {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, SpawnTree) {
+TEST_P(ProcScopedChannelsIrConverterTest, SpawnTree) {
   constexpr std::string_view program = R"(
 proc third<N:u32, M:u32> {
   init { (uN[M]:1, uN[N]:2) }
@@ -4778,7 +4778,7 @@ pub proc first {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, ParametricNetwork) {
+TEST_P(ProcScopedChannelsIrConverterTest, ParametricNetwork) {
   constexpr std::string_view program = R"(
 proc third<N:u32> {
   init { }
