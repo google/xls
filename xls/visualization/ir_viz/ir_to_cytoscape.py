@@ -138,7 +138,7 @@ def main(argv: Sequence[str]) -> None:
       capture_output=True,
   )
   if run_result.stderr:
-    print(f'stderr:\n{run_result.stderr.decode('utf-8')}', file=sys.stderr)
+    print(f'stderr:\n{run_result.stderr.decode("utf-8")}', file=sys.stderr)
   if run_result.returncode != 0:
     print(f'stderr: {run_result.stderr}', file=sys.stderr)
     run_result.check_returncode()
