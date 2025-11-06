@@ -130,9 +130,9 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
           ConversionRecord cr,
           MakeConversionRecord(const_cast<Function*>(f), f->owner(),
                                callee_data.derived_type_info,
-                               callee_data.callee_bindings,
+                               callee_data.callee_bindings, proc_id,
+                               callee_data.invocation,
                                // Parametric functions can never be top.
-                               proc_id, callee_data.invocation,
                                /* is_top= */ !f->IsParametric() && f == top_));
       records_.push_back(std::move(cr));
     }
@@ -171,7 +171,8 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
   absl::Status HandleInvocation(const Invocation* invocation) override {
     VLOG(5) << "HandleInvocation " << invocation->ToString();
     auto root_invocation_data = type_info_->GetRootInvocationData(invocation);
-    XLS_RET_CHECK(root_invocation_data.has_value());
+    XLS_RET_CHECK(root_invocation_data.has_value())
+        << " no root invocation data for " << invocation->ToString();
     const InvocationData* invocation_data = *root_invocation_data;
     const Function* f = invocation_data->callee();
     if (f == nullptr || IsBuiltin(f)) {
@@ -191,7 +192,8 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     Invocation* invocation = spawn->config();
 
     auto root_invocation_data = type_info_->GetRootInvocationData(invocation);
-    XLS_RET_CHECK(root_invocation_data.has_value());
+    XLS_RET_CHECK(root_invocation_data.has_value())
+        << " no root invocation data for " << invocation->ToString();
 
     const InvocationData* invocation_data = *root_invocation_data;
     const Function* config_fn = invocation_data->callee();
@@ -300,6 +302,24 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     return DefaultHandler(tp);
   }
 
+#define OK_HANDLER(TYPE) \
+  absl::Status Handle##TYPE(const TYPE*) override { return absl::OkStatus(); }
+
+  // These may have (built-in) function invocations in parametric expressions,
+  // but they shouldn't be added to the list of functions to convert, since
+  // they are required to be constexprs. So instead of calling DefaultHandler,
+  // which would process the invocations, just return OK.
+
+  // keep-sorted start
+  OK_HANDLER(ConstAssert)
+  OK_HANDLER(EnumDef)
+  OK_HANDLER(ParametricBinding)
+  OK_HANDLER(ProcDef)
+  OK_HANDLER(StructDef)
+  OK_HANDLER(TypeAlias)
+  // keep-sorted end
+#undef DEFAULT_HANDLE
+
   absl::Status DefaultHandler(const AstNode* node) override {
     for (auto child : node->GetChildren(false)) {
       XLS_RETURN_IF_ERROR(child->Accept(this));
@@ -317,7 +337,9 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     for (auto& callee_data : calls) {
       std::optional<const InvocationData*> invocation_data =
           type_info_->GetRootInvocationData(callee_data.invocation);
-      XLS_RET_CHECK(invocation_data.has_value());
+      XLS_RET_CHECK(invocation_data.has_value())
+          << " no root invocation data for "
+          << callee_data.invocation->ToString();
       if (!IsTestFn((*invocation_data)->caller())) {
         called_from_outside_test = true;
         break;

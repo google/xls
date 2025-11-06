@@ -1158,30 +1158,6 @@ fn test() -> Foo<u32:6, u32:5> {
   ExpectIr(converted);
 }
 
-TEST_P(IrConverterWithBothTypecheckVersionsTest,
-       ParametricDefaultClog2InStruct) {
-  constexpr std::string_view program = R"(
-import std;
-
-struct Foo <X: u32, Y: u32 = {std::clog2(X)}> {
-    a: uN[X],
-    b: uN[Y],
-}
-
-fn make_zero_foo<X: u32>() -> Foo<X> {
-  zero!<Foo<X>>()
-}
-
-fn test() -> Foo<u32:5> {
- make_zero_foo<u32:5>()
-}
-)";
-
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program, kNoPosOptions));
-  ExpectIr(converted);
-}
-
 // This is an example where we use an externally-defined parametric function
 // into module scope and invoke it at module scope.
 TEST(IrConverterTest, UseOfClog2InModuleScopedConstantDefinition) {
@@ -6489,11 +6465,7 @@ proc first {
   ExpectIr(converted);
 }
 
-// TODO: davidplass - Fix this; it's probably because of the built-in
-// invocation.
-TEST_P(ProcScopedChannelsIrConverterTest,
-       DISABLED_ProcScopedParametricDefaultInStruct) {
-  constexpr std::string_view program = R"(
+constexpr std::string_view kParametricDefaultClog2 = R"(
 import std;
 
 struct Foo <X: u32, Y: u32 = {std::clog2(X)}> {
@@ -6509,11 +6481,122 @@ fn test() -> Foo<u32:5> {
  make_zero_foo<u32:5>()
 }
 )";
-  auto import_data = CreateImportDataForTest();
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       ParametricDefaultClog2InStruct) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertOneFunctionForTest(program, "test", import_data,
+      ConvertModuleForTest(kParametricDefaultClog2, kNoPosOptions));
+  ExpectIr(converted);
+}
+
+// This has the same name as the global channels test because it should
+// generate the same IR.
+TEST_P(ProcScopedChannelsIrConverterTest, ParametricDefaultClog2InStruct) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kParametricDefaultClog2, kProcScopedChannelOptions));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, InvokeImportedParametricFn) {
+  ImportData import_data = CreateImportDataForTest();
+  constexpr std::string_view imported = R"(
+pub fn importee<N: u32>(i: uN[N]) -> uN[N] { i }
+)";
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(imported, "imported.x", "imported", &import_data));
+  constexpr std::string_view program = R"(
+import imported;
+
+pub fn importer() -> u24 {
+  let _ = imported::importee<u32:8>(u8:1);
+  let _ = imported::importee<u32:16>(u16:2);
+  imported::importee<u32:24>(u24:3)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "importer", import_data,
                                 kProcScopedChannelOptions));
+  ExpectIr(converted);
+}
+
+// This has the same name as the global channels test because it should
+// generate the same IR.
+TEST_P(ProcScopedChannelsIrConverterTest, ImportedParametricFnWithDefault) {
+  auto import_data = CreateImportDataForTest();
+  constexpr std::string_view imported_program = R"(
+pub fn some_function<N: u32, M: u32 = {N + u32:1}>() -> uN[M] { uN[M]:0 }
+)";
+  XLS_EXPECT_OK(ParseAndTypecheck(imported_program, "fake/imported/stuff.x",
+                                  "fake.imported.stuff", &import_data));
+  constexpr std::string_view importer_program = R"(
+import fake.imported.stuff;
+
+fn main() -> u5 {
+  let var = stuff::some_function<u32:4>();
+  var
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(importer_program, kProcScopedChannelOptions,
+                           &import_data));
+  ExpectIr(converted);
+}
+
+// This has the same name as the global channels test because it should
+// generate the same IR.
+TEST_P(ProcScopedChannelsIrConverterTest, MapImportedParametricFunction) {
+  auto import_data = CreateImportDataForTest();
+  constexpr std::string_view imported_program = R"(
+pub fn some_function<N: u32>(x: uN[N]) -> uN[N] { uN[N]:0 }
+)";
+  XLS_EXPECT_OK(ParseAndTypecheck(imported_program, "fake/imported/stuff.x",
+                                  "fake.imported.stuff", &import_data));
+  constexpr std::string_view importer_program = R"(
+import fake.imported.stuff;
+
+fn main() -> u4[2] {
+  map([u4:1, u4:2], stuff::some_function<u32:4>)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(importer_program, kProcScopedChannelOptions,
+                           &import_data));
+  ExpectIr(converted);
+}
+
+// This has the same name as the global channels test because it should
+// generate the same IR.
+TEST_P(ProcScopedChannelsIrConverterTest, ParametricConstexprImport) {
+  auto import_data = CreateImportDataForTest();
+  constexpr std::string_view imported_program = R"(
+pub const MY_CONST = bits[32]:5;
+
+pub fn constexpr_fn<N:u32>(arg: bits[N]) -> bits[N] {
+  arg * MY_CONST
+}
+
+)";
+  XLS_ASSERT_OK(ParseAndTypecheck(imported_program, "fake/imported/stuff.x",
+                                  "fake.imported.stuff", &import_data));
+  constexpr std::string_view importer_program = R"(
+import fake.imported.stuff;
+
+fn f() -> u32 {
+  let x = stuff::constexpr_fn(stuff::MY_CONST);
+  x
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(importer_program, kProcScopedChannelOptions,
+                           &import_data));
   ExpectIr(converted);
 }
 

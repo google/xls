@@ -1,0 +1,28 @@
+package test_module
+
+file_number 0 "imported.x"
+file_number 1 "test_module.x"
+
+fn __imported__importee__8(i: bits[8] id=1) -> bits[8] {
+  N: bits[32] = literal(value=8, id=2)
+  ret i: bits[8] = param(name=i, id=1)
+}
+
+fn __imported__importee__16(i: bits[16] id=3) -> bits[16] {
+  N: bits[32] = literal(value=16, id=4)
+  ret i: bits[16] = param(name=i, id=3)
+}
+
+fn __imported__importee__24(i: bits[24] id=5) -> bits[24] {
+  N: bits[32] = literal(value=24, id=6)
+  ret i: bits[24] = param(name=i, id=5)
+}
+
+top fn __test_module__importer() -> bits[24] {
+  literal.7: bits[8] = literal(value=1, id=7)
+  literal.9: bits[16] = literal(value=2, id=9)
+  literal.11: bits[24] = literal(value=3, id=11)
+  invoke.8: bits[8] = invoke(literal.7, to_apply=__imported__importee__8, id=8)
+  invoke.10: bits[16] = invoke(literal.9, to_apply=__imported__importee__16, id=10)
+  ret invoke.12: bits[24] = invoke(literal.11, to_apply=__imported__importee__24, id=12)
+}
