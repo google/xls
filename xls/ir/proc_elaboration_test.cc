@@ -726,7 +726,6 @@ TEST_F(ElaborationTest, GraphMultipleEdgesOldStyle) {
   // A -> I
   // A -> I
   auto p = CreatePackage();
-  Proc* initiator;
   Proc* subproc;
   Type* s32 = p->GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -763,7 +762,7 @@ TEST_F(ElaborationTest, GraphMultipleEdgesOldStyle) {
     ib.Send(c3, ib.Literal(UBits(3, 32)));
     ib.Receive(c4);
     ib.Receive(c5);
-    XLS_ASSERT_OK_AND_ASSIGN(initiator, ib.Build({}));
+    XLS_ASSERT_OK(ib.Build({}));
   }
   RecordProperty("ir", p->DumpIr());
   XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
