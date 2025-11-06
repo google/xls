@@ -559,7 +559,7 @@ class BlockGenerator {
   // Returns whether the expression for the given node will be duplicated if
   // inlined into its uses.
   bool InlinedExpressionWillBeDuplicated(Node* n) {
-    if (n->users().size() == 0) {
+    if (n->users().empty()) {
       return false;
     } else if (n->users().size() > 1) {
       return true;
