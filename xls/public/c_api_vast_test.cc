@@ -1609,6 +1609,186 @@ TEST(XlsCApiTest, VastDataTypeAccessors) {
   EXPECT_EQ(std::string_view{def_name}, "arr");
 }
 
+TEST(XlsCApiTest, VastProceduralControlAndBlocking) {
+  const std::string_view kWantEmitted = R"XLS(module pc_block(
+  input wire clk,
+  input wire pred1,
+  input wire pred2,
+  input wire sel,
+  input wire a_in,
+  input wire b_in
+);
+  reg a;
+  reg b;
+  always @ (posedge clk) begin
+    a = b;
+    if (pred1) begin
+      a = 1;
+    end else if (pred1 & pred2) begin
+      a = 0;
+    end else begin
+      a = b;
+    end
+    case (sel)
+      1: begin
+        a = b;
+      end
+      default: begin
+        a = 0;
+      end
+    endcase
+    b <= a_in;
+  end
+endmodule
+)XLS";
+
+  xls_vast_verilog_file* f =
+      xls_vast_make_verilog_file(xls_vast_file_type_verilog);
+  ASSERT_NE(f, nullptr);
+  absl::Cleanup free_file([&] { xls_vast_verilog_file_free(f); });
+
+  xls_vast_verilog_module* m = xls_vast_verilog_file_add_module(f, "pc_block");
+  ASSERT_NE(m, nullptr);
+
+  xls_vast_data_type* scalar = xls_vast_verilog_file_make_scalar_type(f);
+  ASSERT_NE(scalar, nullptr);
+
+  xls_vast_logic_ref* clk = xls_vast_verilog_module_add_input(m, "clk", scalar);
+  xls_vast_logic_ref* pred1 =
+      xls_vast_verilog_module_add_input(m, "pred1", scalar);
+  xls_vast_logic_ref* pred2 =
+      xls_vast_verilog_module_add_input(m, "pred2", scalar);
+  xls_vast_logic_ref* sel = xls_vast_verilog_module_add_input(m, "sel", scalar);
+  xls_vast_logic_ref* a_in =
+      xls_vast_verilog_module_add_input(m, "a_in", scalar);
+  xls_vast_logic_ref* b_in =
+      xls_vast_verilog_module_add_input(m, "b_in", scalar);
+  ASSERT_NE(clk, nullptr);
+  ASSERT_NE(pred1, nullptr);
+  ASSERT_NE(pred2, nullptr);
+  ASSERT_NE(sel, nullptr);
+  ASSERT_NE(a_in, nullptr);
+  ASSERT_NE(b_in, nullptr);
+
+  xls_vast_logic_ref* a_reg = nullptr;
+  char* error_out = nullptr;
+  ASSERT_TRUE(
+      xls_vast_verilog_module_add_reg(m, "a", scalar, &a_reg, &error_out));
+  ASSERT_EQ(error_out, nullptr);
+  ASSERT_NE(a_reg, nullptr);
+  xls_vast_logic_ref* b_reg = nullptr;
+  ASSERT_TRUE(
+      xls_vast_verilog_module_add_reg(m, "b", scalar, &b_reg, &error_out));
+  ASSERT_EQ(error_out, nullptr);
+  ASSERT_NE(b_reg, nullptr);
+
+  xls_vast_expression* clk_expr = xls_vast_logic_ref_as_expression(clk);
+  xls_vast_expression* pos_clk =
+      xls_vast_verilog_file_make_pos_edge(f, clk_expr);
+  xls_vast_expression* sens_list[] = {pos_clk};
+  xls_vast_always_base* always_block = nullptr;
+  ASSERT_TRUE(xls_vast_verilog_module_add_always_at(m, sens_list, 1,
+                                                    &always_block, &error_out));
+  ASSERT_EQ(error_out, nullptr);
+  ASSERT_NE(always_block, nullptr);
+
+  xls_vast_statement_block* block =
+      xls_vast_always_base_get_statement_block(always_block);
+  ASSERT_NE(block, nullptr);
+
+  // blocking: a = b;
+  xls_vast_expression* a_expr = xls_vast_logic_ref_as_expression(a_reg);
+  xls_vast_expression* b_expr = xls_vast_logic_ref_as_expression(b_reg);
+  ASSERT_NE(a_expr, nullptr);
+  ASSERT_NE(b_expr, nullptr);
+  ASSERT_NE(
+      xls_vast_statement_block_add_blocking_assignment(block, a_expr, b_expr),
+      nullptr);
+
+  // if (pred1) { a = 1; } else if (pred1 & pred2) { a = 0; } else { a = b; }
+  xls_vast_conditional* cond = xls_vast_statement_block_add_conditional(
+      block, xls_vast_logic_ref_as_expression(pred1));
+  ASSERT_NE(cond, nullptr);
+  xls_vast_statement_block* then_block =
+      xls_vast_conditional_get_then_block(cond);
+  ASSERT_NE(then_block, nullptr);
+  xls_vast_statement* then_assign =
+      xls_vast_statement_block_add_blocking_assignment(
+          then_block, a_expr,
+          xls_vast_literal_as_expression(
+              xls_vast_verilog_file_make_plain_literal(f, 1)));
+  ASSERT_NE(then_assign, nullptr);
+
+  xls_vast_expression* and_expr = xls_vast_verilog_file_make_binary(
+      f, xls_vast_logic_ref_as_expression(pred1),
+      xls_vast_logic_ref_as_expression(pred2),
+      xls_vast_operator_kind_bitwise_and);
+  xls_vast_statement_block* elseif_block =
+      xls_vast_conditional_add_else_if(cond, and_expr);
+  ASSERT_NE(elseif_block, nullptr);
+  ASSERT_NE(xls_vast_statement_block_add_blocking_assignment(
+                elseif_block, a_expr,
+                xls_vast_literal_as_expression(
+                    xls_vast_verilog_file_make_plain_literal(f, 0))),
+            nullptr);
+
+  xls_vast_statement_block* else_block = xls_vast_conditional_add_else(cond);
+  ASSERT_NE(else_block, nullptr);
+  ASSERT_NE(xls_vast_statement_block_add_blocking_assignment(else_block, a_expr,
+                                                             b_expr),
+            nullptr);
+
+  // case (sel) 1: a = b; default: a = 0; endcase
+  xls_vast_case_statement* case_stmt = xls_vast_statement_block_add_case(
+      block, xls_vast_logic_ref_as_expression(sel));
+  ASSERT_NE(case_stmt, nullptr);
+  xls_vast_statement_block* item_block = xls_vast_case_statement_add_item(
+      case_stmt, xls_vast_literal_as_expression(
+                     xls_vast_verilog_file_make_plain_literal(f, 1)));
+  ASSERT_NE(item_block, nullptr);
+  ASSERT_NE(xls_vast_statement_block_add_blocking_assignment(item_block, a_expr,
+                                                             b_expr),
+            nullptr);
+  xls_vast_statement_block* default_block =
+      xls_vast_case_statement_add_default(case_stmt);
+  ASSERT_NE(default_block, nullptr);
+  ASSERT_NE(xls_vast_statement_block_add_blocking_assignment(
+                default_block, a_expr,
+                xls_vast_literal_as_expression(
+                    xls_vast_verilog_file_make_plain_literal(f, 0))),
+            nullptr);
+
+  // nonblocking: b <= a_in;
+  ASSERT_NE(xls_vast_statement_block_add_nonblocking_assignment(
+                block, xls_vast_logic_ref_as_expression(b_reg),
+                xls_vast_logic_ref_as_expression(a_in)),
+            nullptr);
+
+  char* emitted = xls_vast_verilog_file_emit(f);
+  ASSERT_NE(emitted, nullptr);
+  absl::Cleanup free_emitted([&] { xls_c_str_free(emitted); });
+  EXPECT_EQ(std::string_view{emitted}, kWantEmitted);
+}
+
+// Covers the file-level factory path for blocking assignments.
+// The grouped procedural test exercises only the block-level adder.
+// Context/rationale: parity with the existing nonblocking factory; supports
+// prebuild-and-pass of a Statement* for APIs that may accept statements; and
+// validates allocation/identity when creating a statement owned by the file
+// before insertion. This path is not exercised elsewhere.
+TEST(XlsCApiTest, VastMakeBlockingAssignmentFactorySmoke) {
+  xls_vast_verilog_file* f =
+      xls_vast_make_verilog_file(xls_vast_file_type_verilog);
+  ASSERT_NE(f, nullptr);
+  absl::Cleanup free_file([&] { xls_vast_verilog_file_free(f); });
+
+  xls_vast_literal* lit0 = xls_vast_verilog_file_make_plain_literal(f, 0);
+  xls_vast_statement* stmt = xls_vast_verilog_file_make_blocking_assignment(
+      f, xls_vast_literal_as_expression(lit0),
+      xls_vast_literal_as_expression(lit0));
+  ASSERT_NE(stmt, nullptr);
+}
+
 TEST(XlsCApiTest, ModuleWithParameterPort) {
   xls_vast_verilog_file* f =
       xls_vast_make_verilog_file(xls_vast_file_type_verilog);

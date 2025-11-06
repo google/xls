@@ -53,6 +53,8 @@ struct xls_vast_generate_loop;
 struct xls_vast_module_port;
 struct xls_vast_def;
 struct xls_vast_parameter_ref;
+struct xls_vast_conditional;
+struct xls_vast_case_statement;
 struct xls_vast_localparam_ref;
 // Note: We define the enum with a fixed width integer type for clarity of the
 // exposed ABI.
@@ -404,6 +406,12 @@ struct xls_vast_statement* xls_vast_statement_block_add_blocking_assignment(
     struct xls_vast_statement_block* block, struct xls_vast_expression* lhs,
     struct xls_vast_expression* rhs);
 
+// Adds a blocking assignment statement (lhs = rhs) to a statement block and
+// returns a pointer to the created statement.
+struct xls_vast_statement* xls_vast_statement_block_add_blocking_assignment(
+    struct xls_vast_statement_block* block, struct xls_vast_expression* lhs,
+    struct xls_vast_expression* rhs);
+
 // Emits/formats the contents of the given verilog file to a string.
 //
 // Note: caller owns the returned string, to be freed by `xls_c_str_free`.
@@ -464,6 +472,47 @@ struct xls_vast_expression* xls_vast_verilog_file_make_pos_edge(
 struct xls_vast_statement* xls_vast_verilog_file_make_nonblocking_assignment(
     struct xls_vast_verilog_file* f, struct xls_vast_expression* lhs,
     struct xls_vast_expression* rhs);
+
+// Creates a blocking assignment statement (lhs = rhs).
+struct xls_vast_statement* xls_vast_verilog_file_make_blocking_assignment(
+    struct xls_vast_verilog_file* f, struct xls_vast_expression* lhs,
+    struct xls_vast_expression* rhs);
+
+// Adds a conditional (if) with the given condition to a statement block and
+// returns a handle to the created conditional.
+struct xls_vast_conditional* xls_vast_statement_block_add_conditional(
+    struct xls_vast_statement_block* block, struct xls_vast_expression* cond);
+
+// Returns the 'then' statement block of the given conditional.
+struct xls_vast_statement_block* xls_vast_conditional_get_then_block(
+    struct xls_vast_conditional* cond);
+
+// Adds an else-if clause to the given conditional with the provided
+// condition and returns the associated statement block.
+struct xls_vast_statement_block* xls_vast_conditional_add_else_if(
+    struct xls_vast_conditional* cond, struct xls_vast_expression* expr_cond);
+
+// Adds an else clause (no condition) to the given conditional and returns the
+// associated statement block. Must be called at most once.
+struct xls_vast_statement_block* xls_vast_conditional_add_else(
+    struct xls_vast_conditional* cond);
+
+// Adds a case statement with the given selector to a statement block and
+// returns a handle to the created case statement.
+struct xls_vast_case_statement* xls_vast_statement_block_add_case(
+    struct xls_vast_statement_block* block,
+    struct xls_vast_expression* selector);
+
+// Adds a case item with the given match expression to the case statement and
+// returns the associated statement block for that item.
+struct xls_vast_statement_block* xls_vast_case_statement_add_item(
+    struct xls_vast_case_statement* case_stmt,
+    struct xls_vast_expression* match_expr);
+
+// Adds a default case item to the case statement and returns the associated
+// statement block. Must be called at most once.
+struct xls_vast_statement_block* xls_vast_case_statement_add_default(
+    struct xls_vast_case_statement* case_stmt);
 
 }  // extern "C"
 
