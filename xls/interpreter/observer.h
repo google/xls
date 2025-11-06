@@ -30,6 +30,12 @@ class EvaluationObserver {
  public:
   virtual ~EvaluationObserver() = default;
   virtual void NodeEvaluated(Node* n, const Value& v) = 0;
+
+  // Called at the beginning of a "tick" for whatever notion applies to the
+  // underlying evaluator. For a block, each tick is a single cycle. For a proc,
+  // each tick is a single call to proc.Tick().
+  virtual void Tick() = 0;
+
   // Convert this to an observer capable of accepting jit values if possible.
   virtual std::optional<RuntimeObserver*> AsRawObserver() {
     return std::nullopt;
@@ -42,6 +48,8 @@ class CollectingEvaluationObserver : public EvaluationObserver {
   void NodeEvaluated(Node* n, const Value& v) override {
     values_.try_emplace(n).first->second.push_back(v);
   }
+  // No-op for collecting observer.
+  void Tick() override {}
 
   absl::flat_hash_map<Node*, std::vector<Value>>& values() { return values_; }
 

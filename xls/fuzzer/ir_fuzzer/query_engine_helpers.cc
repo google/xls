@@ -21,6 +21,7 @@
 #include "absl/status/statusor.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/interpreter/evaluator_options.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/interpreter/observer.h"
 #include "xls/ir/function.h"
@@ -35,6 +36,7 @@ namespace {
 class Observer : public EvaluationObserver {
  public:
   void NodeEvaluated(Node* n, const Value& v) override { values_[n] = v; }
+  void Tick() override {}
   const absl::flat_hash_map<Node*, Value>& values() const& { return values_; }
   absl::flat_hash_map<Node*, Value> values() && { return std::move(values_); }
 

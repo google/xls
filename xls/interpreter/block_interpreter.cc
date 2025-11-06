@@ -1051,6 +1051,9 @@ class StatelessBlockContinuation final : public BlockContinuation {
 
   absl::Status RunOneCycle(
       const absl::flat_hash_map<std::string, Value>& inputs) final {
+    if (observer_.has_value()) {
+      (*observer_)->Tick();
+    }
     // Run to get the next value of all registers.
     XLS_ASSIGN_OR_RETURN(last_result_, BlockRun(inputs, last_result_.reg_state,
                                                 elaboration_, observer_));

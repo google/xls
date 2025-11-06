@@ -277,6 +277,7 @@ cc_library(
         "//xls/common/status:matchers",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/interpreter:evaluator_options",
         "//xls/interpreter:ir_interpreter",
         "//xls/interpreter:observer",
         "//xls/ir",

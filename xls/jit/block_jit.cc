@@ -40,6 +40,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/block_evaluator.h"
+#include "xls/interpreter/evaluator_options.h"
 #include "xls/interpreter/observer.h"
 #include "xls/ir/block.h"
 #include "xls/ir/block_elaboration.h"
@@ -502,6 +503,10 @@ absl::Status BlockJit::ReconcileMultipleRegisterWrites(
 }
 
 absl::Status BlockJit::RunOneCycle(BlockJitContinuation& continuation) {
+  if (RuntimeObserver* observer = continuation.observer();
+      observer != nullptr) {
+    observer->Tick();
+  }
   // Run to update the registers
   InterpreterEvents fake_events;
   function_.RunJittedFunction(

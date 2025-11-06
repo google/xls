@@ -274,6 +274,10 @@ std::unique_ptr<ProcContinuation> ProcInterpreter::NewContinuation(
 
 absl::StatusOr<TickResult> ProcInterpreter::Tick(
     ProcContinuation& continuation) const {
+  if (std::optional<EvaluationObserver*> observer = continuation.GetObserver();
+      observer.has_value()) {
+    (*observer)->Tick();
+  }
   ProcInterpreterContinuation* cont =
       dynamic_cast<ProcInterpreterContinuation*>(&continuation);
   XLS_RET_CHECK_NE(cont, nullptr) << "ProcInterpreter requires a continuation "

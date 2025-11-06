@@ -48,6 +48,8 @@ class CoverageEvalObserver final : public EvaluationObserver,
     return std::nullopt;
   }
   void RecordNodeValue(int64_t node_ptr, const uint8_t* data) override;
+  // No-op for coverage observer.
+  void Tick() override {}
 
   // Prepare for proto conversion.
   absl::Status Finalize();

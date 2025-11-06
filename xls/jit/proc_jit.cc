@@ -128,6 +128,11 @@ class ProcJitContinuation : public ProcContinuation {
       Value val = owner_->jit_runtime_->UnpackBuffer(data, node->GetType());
       owner_->GetObserver().value()->NodeEvaluated(node, val);
     }
+    void Tick() override {
+      if (owner_->GetObserver()) {
+        (*owner_->GetObserver())->Tick();
+      }
+    }
 
    private:
     ProcJitContinuation* owner_;
@@ -366,6 +371,10 @@ std::unique_ptr<ProcContinuation> ProcJit::NewContinuation(
 }
 
 absl::StatusOr<TickResult> ProcJit::Tick(ProcContinuation& continuation) const {
+  if (std::optional<EvaluationObserver*> observer = continuation.GetObserver();
+      observer.has_value()) {
+    (*observer)->Tick();
+  }
   ProcJitContinuation* cont = dynamic_cast<ProcJitContinuation*>(&continuation);
   XLS_RET_CHECK_NE(cont, nullptr)
       << "ProcJit requires a continuation of type ProcJitContinuation";

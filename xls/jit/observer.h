@@ -85,6 +85,7 @@ class RuntimeObserver {
  public:
   virtual ~RuntimeObserver() = default;
   virtual void RecordNodeValue(int64_t node_ptr, const uint8_t* data) = 0;
+  virtual void Tick() = 0;
 };
 
 // A translator that lets one easily convert from a jit runtime observer to the
@@ -115,6 +116,7 @@ class RuntimeEvaluationObserverAdapter final
   void NodeEvaluated(Node* n, const Value& v) override {
     real_->NodeEvaluated(n, v);
   }
+  void Tick() override { real_->Tick(); }
 
  private:
   EvaluationObserver* real_;
