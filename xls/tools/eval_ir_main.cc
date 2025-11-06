@@ -63,6 +63,10 @@
 #include "llvm/include/llvm/Support/raw_ostream.h"
 #include "llvm/include/llvm/Target/TargetMachine.h"
 #include "google/protobuf/text_format.h"
+#include "riegeli/base/maker.h"
+#include "riegeli/bytes/fd_writer.h"
+#include "riegeli/records/record_writer.h"
+#include "riegeli/zstd/zstd_writer.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
@@ -77,9 +81,11 @@
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/virtualizable_file_system.h"
 #include "xls/dslx/warning_kind.h"
+#include "xls/interpreter/evaluator_options.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/interpreter/observer.h"
 #include "xls/interpreter/random_value.h"
+#include "xls/interpreter/tracing_observer.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/evaluator_result.pb.h"
 #include "xls/ir/events.h"
@@ -215,11 +221,18 @@ ABSL_FLAG(std::string, dslx_path, "",
 ABSL_FLAG(int64_t, input_validator_limit, 1024,
           "Maximum number of tries to generate a valid random input before "
           "giving up. Only used if \"input_validator\" is set.");
+ABSL_FLAG(std::string, trace_output, "",
+          "If non-empty, record an execution trace to this file.");
 
 ABSL_FLAG(
     std::string, test_only_inject_jit_result, "",
     "Test-only flag for injecting the result produced by the JIT. Used to "
     "force mismatches between JIT and interpreter for testing purposed.");
+ABSL_FLAG(int64_t, trace_zstd_compression_level,
+          riegeli::ZstdWriterBase::Options::kDefaultCompressionLevel,
+          "Zstd compression level for trace output.");
+ABSL_FLAG(std::optional<int64_t>, trace_zstd_window_log, std::nullopt,
+          "Zstd log of window size for trace output.");
 // LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
 
 // TODO(allight): It might be nice to allow one to specify these in build files.
@@ -509,9 +522,43 @@ class EvalInvariantChecker : public OptimizationInvariantChecker {
 absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
   XLS_ASSIGN_OR_RETURN(Function * f, package->GetTopAsFunction());
   // TODO(allight): Use the specialized jit-abi coverage observer.
+
+  bool trace_enabled = !absl::GetFlag(FLAGS_trace_output).empty();
+  bool coverage_enabled =
+      absl::GetFlag(FLAGS_output_node_coverage_stats_proto).has_value() ||
+      absl::GetFlag(FLAGS_output_node_coverage_stats_textproto).has_value();
+
+  // TODO: google/xls#3307 - remove when multiple observers are supported.
+  if (trace_enabled && coverage_enabled) {
+    return absl::InvalidArgumentError(
+        "Cannot specify both --trace_output and node coverage flags.");
+  }
+
   ScopedRecordNodeCoverage cov(
-      absl::GetFlag(FLAGS_output_node_coverage_stats_proto),
-      absl::GetFlag(FLAGS_output_node_coverage_stats_textproto));
+      coverage_enabled ? absl::GetFlag(FLAGS_output_node_coverage_stats_proto)
+                       : std::nullopt,
+      coverage_enabled
+          ? absl::GetFlag(FLAGS_output_node_coverage_stats_textproto)
+          : std::nullopt);
+  std::unique_ptr<ScopedTracingObserver> tracing_observer;
+  std::optional<EvaluationObserver*> observer;
+
+  if (trace_enabled) {
+    riegeli::RecordWriterBase::Options options;
+    options.set_zstd(absl::GetFlag(FLAGS_trace_zstd_compression_level));
+    if (std::optional<int64_t> window_log =
+            absl::GetFlag(FLAGS_trace_zstd_window_log);
+        window_log.has_value()) {
+      options.set_window_log(*window_log);
+    }
+    tracing_observer = std::make_unique<ScopedTracingObserver>(
+        std::make_unique<riegeli::RecordWriter<riegeli::FdWriter<>>>(
+            riegeli::Maker(absl::GetFlag(FLAGS_trace_output)), options));
+    observer = tracing_observer.get();
+  } else if (coverage_enabled) {
+    observer = cov.observer();
+  }
+
   // Copy the input ArgSets because we want to write in expected values if they
   // do not exist.
   std::vector<ArgSet> arg_sets(arg_sets_in.begin(), arg_sets_in.end());
@@ -521,7 +568,7 @@ absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
         << "Cannot specify both --test_llvm_jit and --optimize_ir";
     XLS_ASSIGN_OR_RETURN(
         std::vector<Value> interpreter_results,
-        Eval(f, arg_sets, /*use_jit=*/false, /*eval_observer=*/std::nullopt));
+        Eval(f, arg_sets, /*use_jit=*/false, /*eval_observer=*/observer));
     for (int64_t i = 0; i < arg_sets.size(); ++i) {
       QCHECK(!arg_sets[i].expected.has_value())
           << "Cannot specify expected values when using --test_llvm_jit";
@@ -532,8 +579,8 @@ absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
         absl::GetFlag(FLAGS_output_results_proto).empty() ? nullptr
                                                           : &results_proto;
     XLS_RETURN_IF_ERROR(Eval(f, arg_sets, /*use_jit=*/true,
-                             /*eval_observer=*/cov.observer(), "JIT",
-                             "interpreter", out_ptr)
+                             /*eval_observer=*/observer, "JIT", "interpreter",
+                             out_ptr)
                             .status());
     if (out_ptr != nullptr) {
       std::string text;
@@ -554,7 +601,7 @@ absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
                                                         : &results_proto;
   XLS_ASSIGN_OR_RETURN(
       std::vector<Value> results,
-      Eval(f, arg_sets, absl::GetFlag(FLAGS_use_llvm_jit), cov.observer(),
+      Eval(f, arg_sets, absl::GetFlag(FLAGS_use_llvm_jit), observer,
            /*actual_src=*/"actual", /*expected_src=*/"expected", out_ptr));
   for (int64_t i = 0; i < arg_sets.size(); ++i) {
     if (!arg_sets[i].expected.has_value()) {
@@ -586,7 +633,7 @@ absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
             .status());
 
     XLS_RETURN_IF_ERROR(Eval(f, arg_sets, absl::GetFlag(FLAGS_use_llvm_jit),
-                             cov.observer(), "after optimizations",
+                             observer, "after optimizations",
                              "before optimizations", /*results_out=*/nullptr)
                             .status());
   } else {
@@ -839,6 +886,26 @@ int main(int argc, char** argv) {
     LOG(QFATAL) << absl::StreamFormat("Expected invocation: %s <ir-path>",
                                       argv[0]);
   }
+
+  QCHECK_GE(absl::GetFlag(FLAGS_trace_zstd_compression_level),
+            riegeli::ZstdWriterBase::Options::kMinCompressionLevel)
+      << "Invalid --trace_zstd_compression_level, must be >= "
+      << riegeli::ZstdWriterBase::Options::kMinCompressionLevel;
+  QCHECK_LE(absl::GetFlag(FLAGS_trace_zstd_compression_level),
+            riegeli::ZstdWriterBase::Options::kMaxCompressionLevel)
+      << "Invalid --trace_zstd_compression_level, must be <= "
+      << riegeli::ZstdWriterBase::Options::kMaxCompressionLevel;
+  if (absl::GetFlag(FLAGS_trace_zstd_window_log).has_value()) {
+    QCHECK_GE(*absl::GetFlag(FLAGS_trace_zstd_window_log),
+              riegeli::ZstdWriterBase::Options::kMinWindowLog)
+        << "Invalid --trace_zstd_window_log, must be >= "
+        << riegeli::ZstdWriterBase::Options::kMinWindowLog;
+    QCHECK_LE(*absl::GetFlag(FLAGS_trace_zstd_window_log),
+              riegeli::ZstdWriterBase::Options::kMaxWindowLog)
+        << "Invalid --trace_zstd_window_log, must be <= "
+        << riegeli::ZstdWriterBase::Options::kMaxWindowLog;
+  }
+
   QCHECK(absl::GetFlag(FLAGS_input_validator_expr).empty() ||
          absl::GetFlag(FLAGS_input_validator_path).empty())
       << "At most one one of 'input_validator' or 'input_validator_path' may "

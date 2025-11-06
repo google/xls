@@ -443,6 +443,9 @@ def get_eval_ir_test_cmd(ctx, src, append_cmd_line_args = True):
         "llvm_opt_level",
         "test_only_inject_jit_result",
         "dslx_path",
+        "trace_output",
+        "trace_zstd_compression_level",
+        "trace_zstd_window_log",
     )
 
     # With runs outside a monorepo, the execution root for the workspace of

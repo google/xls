@@ -201,9 +201,11 @@ cc_binary(
         "//xls/dslx:warning_kind",
         "//xls/dslx/ir_convert:conversion_info",
         "//xls/dslx/ir_convert:ir_converter",
+        "//xls/interpreter:evaluator_options",
         "//xls/interpreter:ir_interpreter",
         "//xls/interpreter:observer",
         "//xls/interpreter:random_value",
+        "//xls/interpreter:tracing_observer",
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:evaluator_result_cc_proto",
@@ -241,6 +243,10 @@ cc_binary(
         "@llvm-project//llvm:Support",
         "@llvm-project//llvm:Target",
         "@llvm-project//llvm:ir_headers",
+        "@riegeli//riegeli/base:initializer",
+        "@riegeli//riegeli/bytes:fd_writer",
+        "@riegeli//riegeli/records:record_writer",
+        "@riegeli//riegeli/zstd:zstd_writer",
     ],
 )
 
@@ -902,11 +908,12 @@ pytype_strict_contrib_test(
         ":node_coverage_stats_py_pb2",
         "//xls/common:runfiles",
         "//xls/common:test_base",
+        "//xls/interpreter:trace_py_pb2",
         "//xls/ir:evaluator_result_py_pb2",
         "//xls/ir:xls_value_py_pb2",
-        "@abseil-py//absl/testing:absltest",
         "@abseil-py//absl/testing:parameterized",
         "@com_google_protobuf//:protobuf_python",
+        "@riegeli//python/riegeli",
     ],
 )
 

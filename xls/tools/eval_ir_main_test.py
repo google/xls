@@ -14,13 +14,17 @@
 # limitations under the License.
 
 import ctypes
+import os
 import struct
 import subprocess
+
+import riegeli
 
 from google.protobuf import text_format
 from absl.testing import parameterized
 from xls.common import runfiles
 from xls.common import test_base
+from xls.interpreter import trace_pb2
 from xls.ir import evaluator_result_pb2
 from xls.ir import xls_value_pb2
 from xls.tools import node_coverage_stats_pb2
@@ -457,6 +461,47 @@ top fn foo(x: bits[8]) -> bits[8] {
             ),
         ],
     )
+
+  @parameterized_proc_backends
+  def test_trace_output(self, backend):
+    ir_file = self.create_tempfile(content=ADD_IR)
+    trace_file = self.create_tempfile()
+    trace_path = trace_file.full_path
+    # Ensure the file does not exist initially
+    if os.path.exists(trace_path):
+      os.remove(trace_path)
+
+    subprocess.check_output(
+        [
+            EVAL_IR_MAIN_PATH,
+            '--input=bits[32]:0x42; bits[32]:0x123',
+            f'--trace_output={trace_path}',
+            ir_file.full_path,
+        ]
+        + backend
+    )
+
+    self.assertTrue(os.path.exists(trace_path))
+    file_stat = os.stat(trace_path)
+    self.assertGreater(file_stat.st_size, 0)
+
+    # Basic check that it's a valid proto
+    with riegeli.RecordReader(open(trace_path, 'rb')) as reader:
+      packets = list(reader.read_messages(trace_pb2.TracePacketProto))
+    self.assertNotEmpty(packets)
+
+  def test_no_trace_output(self):
+    ir_file = self.create_tempfile(content=ADD_IR)
+    # Get a path in the temp dir, but don't create the file
+    trace_path = os.path.join(self.create_tempdir().full_path, 'no_trace.trace')
+
+    subprocess.check_output([
+        EVAL_IR_MAIN_PATH,
+        '--input=bits[32]:0x42; bits[32]:0x123',
+        '--use_llvm_jit=false',  # Use interpreter
+        ir_file.full_path,
+    ])
+    self.assertFalse(os.path.exists(trace_path))
 
 
 if __name__ == '__main__':
