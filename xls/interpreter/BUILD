@@ -14,6 +14,9 @@
 
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
+load("@rules_python//python:proto.bzl", "py_proto_library")
+# Load proto_library
+# cc_proto_library is used in this file
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -565,5 +568,67 @@ cc_library(
         "//xls/ir",
         "//xls/ir:value",
         "@com_google_absl//absl/container:flat_hash_map",
+    ],
+)
+
+proto_library(
+    name = "trace_proto",
+    srcs = ["trace.proto"],
+    deps = [
+        "//xls/ir:xls_value_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+cc_proto_library(
+    name = "trace_cc_proto",
+    deps = [":trace_proto"],
+)
+
+py_proto_library(
+    name = "trace_py_pb2",
+    deps = [":trace_proto"],
+)
+
+cc_library(
+    name = "trace_recorder",
+    srcs = ["trace_recorder.cc"],
+    hdrs = ["trace_recorder.h"],
+    deps = [
+        ":trace_cc_proto",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:value",
+        "//xls/ir:xls_value_cc_proto",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_protobuf//:time_util",
+        "@com_google_protobuf//:timestamp_cc_proto",
+        "@riegeli//riegeli/records:record_writer",
+    ],
+)
+
+cc_test(
+    name = "trace_recorder_test",
+    srcs = ["trace_recorder_test.cc"],
+    deps = [
+        ":trace_cc_proto",
+        ":trace_recorder",
+        "//xls/common:proto_test_utils",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:value",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@googletest//:gtest",
+        "@riegeli//riegeli/bytes:string_reader",
+        "@riegeli//riegeli/bytes:string_writer",
+        "@riegeli//riegeli/records:record_reader",
+        "@riegeli//riegeli/records:record_writer",
     ],
 )

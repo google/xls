@@ -1,0 +1,61 @@
+// Copyright 2025 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+edition = "2023";
+
+package xls;
+
+import "google/protobuf/timestamp.proto";
+import "xls/ir/xls_value.proto";
+
+// A timestamp in a particular simulation's notion of time.
+message SimulationTimestampProto {
+  oneof tick {
+    int64 block_cycle = 1;
+    int64 proc_tick = 2;
+  }
+}
+
+message NodeIdNameMappingProto {
+  string name = 1;
+  int64 id = 2;
+}
+
+// Different notions of time for trace events.
+message TimeProto {
+  // Wall clock time.
+  google.protobuf.Timestamp wall_time = 1;
+  // Simulation time.
+  SimulationTimestampProto simulation_time = 2;
+  // Sequential order of node evaluation.
+  int64 evaluation_order = 3;
+}
+
+// Represents a single event in a trace.
+message NodeTraceProto {
+  // Node ID- must have a corresponding entry in the node_id_name_mapping.
+  int64 node_id = 2;
+  // Timing information for this event.
+  TimeProto time = 3;
+  // The value of the node.
+  xls.ValueProto value = 4;
+}
+
+// A packet in the trace, which can be one of several event types.
+message TracePacketProto {
+  oneof event {
+    NodeIdNameMappingProto node_id_name_mapping = 1;
+    NodeTraceProto node_value = 2;
+  }
+}
