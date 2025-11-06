@@ -23,6 +23,7 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/passes/bdd_query_engine.h"
+#include "xls/passes/node_dependency_analysis.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
@@ -63,7 +64,8 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
 };
 
 bool InfluencedBySource(
-    Node* node, Node* source, const BddQueryEngine& bdd_engine,
+    Node* node, Node* source, const NodeForwardDependencyAnalysis& nda,
+    const BddQueryEngine& bdd_engine,
     const std::vector<std::pair<TreeBitLocation, bool>>& assumptions);
 
 }  // namespace xls

@@ -27,6 +27,7 @@
 #include "absl/algorithm/container.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -178,7 +179,7 @@ struct SelectorAndArm {
 
 struct EquivalenceSet {
   std::vector<PredicateState> equivalent_states;
-  InlineBitmap interesting_nodes;
+  absl::flat_hash_set<Node*> interesting_nodes;
 };
 
 // Helper to perform the actual analysis and hold together all data needed.
@@ -187,8 +188,8 @@ struct EquivalenceSet {
 class Analysis {
  public:
   struct InterestingStatesAndNodeList {
-    absl::flat_hash_map<Node*, int64_t> node_indices;
-    std::vector<std::pair<PredicateState, InlineBitmap>> state_and_nodes;
+    std::vector<std::pair<PredicateState, absl::flat_hash_set<Node*>>>
+        state_and_nodes;
   };
   Analysis(
       RangeQueryEngine& base_range,
@@ -230,18 +231,11 @@ class Analysis {
     absl::flat_hash_map<SelectorAndArm, EquivalenceSet> equivalences;
     equivalences.reserve(interesting.state_and_nodes.size());
     for (const auto& [state, interesting_nodes] : interesting.state_and_nodes) {
-      EquivalenceSet& cur =
-          equivalences
-              .try_emplace(
-                  SelectorAndArm{
-                      .selector = state.node()->As<Select>()->selector(),
-                      .arm = state.arm()},
-                  EquivalenceSet{
-                      .equivalent_states = {},
-                      .interesting_nodes = InlineBitmap(f->node_count())})
-              .first->second;
-      cur.equivalent_states.push_back(state);
-      cur.interesting_nodes.Union(interesting_nodes);
+      equivalences.try_emplace(
+          SelectorAndArm{.selector = state.node()->As<Select>()->selector(),
+                         .arm = state.arm()},
+          EquivalenceSet{.equivalent_states = {state},
+                         .interesting_nodes = interesting_nodes});
     }
     // NB We don't care what order we examine each equivalence (since all are
     // disjoint).
@@ -253,8 +247,7 @@ class Analysis {
       // to be true at a time.
       XLS_ASSIGN_OR_RETURN(auto tmp,
                            CalculateRangeGiven(states.equivalent_states.back(),
-                                               states.interesting_nodes,
-                                               interesting.node_indices));
+                                               states.interesting_nodes));
       auto result =
           arena_
               .emplace_back(std::make_unique<RangeQueryEngine>(std::move(tmp)))
@@ -286,44 +279,45 @@ class Analysis {
       absl::c_copy(interesting, std::back_inserter(select_nodes));
       selectee_nodes.push_back(s.value());
     }
-    NodeDependencyAnalysis forward_interesting(
-        NodeDependencyAnalysis::ForwardDependents(f, select_nodes));
-    NodeDependencyAnalysis backwards_interesting(
-        NodeDependencyAnalysis::BackwardDependents(f, selectee_nodes));
-    std::vector<std::pair<PredicateState, InlineBitmap>> interesting_states;
+    NodeForwardDependencyAnalysis forward_deps;
+    NodeBackwardDependencyAnalysis backward_deps;
+    std::vector<std::pair<PredicateState, absl::flat_hash_set<Node*>>>
+        interesting_states;
     interesting_states.reserve(states.size());
     for (const PredicateState& ps : states) {
       // If there's any node which is both an input into the select value and
       // affected by something the conditional specialization can discover we
       // consider it interesting.
-      InlineBitmap forward_bm(f->node_count(), false);
+      absl::flat_hash_set<Node*> depending_on_selector;
       // What nodes do we care about for this specific run. Since this basically
       // only depends on the input node no need to memoize it.
       XLS_ASSIGN_OR_RETURN(
           std::vector<Node*> interesting,
           InterestingNodeFinder::Execute(base_range_, ps.selector()));
-      for (Node* n : interesting) {
-        XLS_ASSIGN_OR_RETURN(auto deps, forward_interesting.GetDependents(n));
-        forward_bm.Union(deps.bitmap());
-      }
-      XLS_ASSIGN_OR_RETURN(auto backwards_bm,
-                           backwards_interesting.GetDependents(ps.value()));
       // Nodes that the selector affects & nodes the selected value is affected
       // by is the set of nodes with potentially changed conditional ranges.
-      InlineBitmap final_bm = forward_bm;
-      final_bm.Intersect(backwards_bm.bitmap());
-      if (!final_bm.IsAllZeroes()) {
+      absl::flat_hash_set<Node*> depended_on_by_value =
+          forward_deps.NodesDependedOnBy(ps.value());
+      absl::flat_hash_set<Node*> final_deps;
+      for (Node* n : interesting) {
+        auto deps = backward_deps.NodesDependingOn(n);
+        depending_on_selector.insert(deps.begin(), deps.end());
+        for (Node* dep : deps) {
+          if (depended_on_by_value.contains(dep)) {
+            final_deps.insert(dep);
+          }
+        }
+      }
+      if (!final_deps.empty()) {
         // nodes affected by the known data are the ones we need to recalculate.
-        interesting_states.push_back({ps, std::move(forward_bm)});
+        interesting_states.push_back({ps, std::move(depending_on_selector)});
       }
     }
-    return InterestingStatesAndNodeList{
-        .node_indices = backwards_interesting.node_indices(),
-        .state_and_nodes = interesting_states};
+    return InterestingStatesAndNodeList{.state_and_nodes = interesting_states};
   }
   absl::StatusOr<RangeQueryEngine> CalculateRangeGiven(
-      PredicateState s, const InlineBitmap& interesting_nodes,
-      const absl::flat_hash_map<Node*, int64_t>& node_ids) const {
+      PredicateState s,
+      const absl::flat_hash_set<Node*>& interesting_nodes) const {
     RangeQueryEngine result;
     XLS_ASSIGN_OR_RETURN(
         (std::optional<absl::flat_hash_map<Node*, RangeData>> known_data),
@@ -337,7 +331,7 @@ class Analysis {
     ContextGivens givens(
         topo_sort_, s.node(), *known_data,
         [&](Node* n) -> std::optional<RangeData> {
-          if (interesting_nodes.Get(node_ids.at(n))) {
+          if (interesting_nodes.contains(n)) {
             // Affected by known data.
             return std::nullopt;
           }

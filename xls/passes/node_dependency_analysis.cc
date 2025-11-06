@@ -14,108 +14,55 @@
 
 #include "xls/passes/node_dependency_analysis.h"
 
-#include <cstdint>
-#include <tuple>
-
-#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
-#include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "xls/data_structures/inline_bitmap.h"
-#include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
-#include "xls/ir/topo_sort.h"
 
 namespace xls {
 
-namespace {
-
-// Perform actual analysis.
-// f is the function to analyze. We only care about getting results for
-// 'interesting_nodes' if the set is non-empty (otherwise all nodes are
-// searched). Succs returns the nodes that depend on the argument. iter is the
-// iterator to walk the function in the topological order defined by preds.
-template <typename Successors>
-std::tuple<absl::flat_hash_map<Node*, InlineBitmap>,
-           absl::flat_hash_map<Node*, int64_t>>
-AnalyzeDependents(FunctionBase* f,
-                  const absl::flat_hash_set<Node*>& interesting_nodes,
-                  Successors succs, absl::Span<Node* const> topo_sort) {
-  absl::flat_hash_map<Node*, int64_t> node_ids;
-  node_ids.reserve(f->node_count());
-  int64_t cnt = 0;
-  for (Node* n : f->nodes()) {
-    node_ids[n] = cnt++;
+absl::flat_hash_set<Node*> NodeForwardDependencyAnalysis::ComputeInfo(
+    Node* to,
+    absl::Span<const absl::flat_hash_set<Node*>* const> operand_infos) const {
+  int max_size = 0;
+  for (const absl::flat_hash_set<Node*>* operand_info : operand_infos) {
+    max_size += operand_info->size();
   }
-  auto is_interesting = [&](Node* n) {
-    return interesting_nodes.empty() || interesting_nodes.contains(n);
-  };
-  int64_t seen_interesting_nodes_count = 0;
-  auto is_last_interesting_node = [&](Node* node) {
-    if (interesting_nodes.empty()) {
-      return false;
-    }
-    if (interesting_nodes.contains(node)) {
-      ++seen_interesting_nodes_count;
-    }
-    return seen_interesting_nodes_count == interesting_nodes.size();
-  };
-  VLOG(3) << "Analyzing dependents of " << f->node_count() << " nodes with "
-          << interesting_nodes.size() << " interesting.";
-  int64_t bitmap_size = f->node_count();
-  absl::flat_hash_map<Node*, InlineBitmap> results;
-  results.reserve(f->node_count());
-  for (Node* n : topo_sort) {
-    auto [it, inserted] = results.try_emplace(n, bitmap_size);
-    InlineBitmap& bm = it->second;
-    bm.Set(node_ids[n]);
-    for (Node* succ : succs(n)) {
-      auto [s_it, s_new] = results.try_emplace(succ, bm);
-      if (!s_new) {
-        s_it->second.Union(bm);
-      }
-    }
-    if (!is_interesting(n)) {
-      results.erase(n);
-    } else if (is_last_interesting_node(n)) {
-      break;
-    }
+  absl::flat_hash_set<Node*> can_reach_to{to};
+  can_reach_to.reserve(max_size + 1);
+  for (const absl::flat_hash_set<Node*>* operand_info : operand_infos) {
+    can_reach_to.insert(operand_info->begin(), operand_info->end());
   }
-  // To avoid any bugs delete everything that's not specifically requested.
-  absl::erase_if(results,
-                 [&](auto& pair) { return !is_interesting(pair.first); });
-  return {results, node_ids};
+  return can_reach_to;
 }
 
-}  // namespace
+absl::Status NodeForwardDependencyAnalysis::MergeWithGiven(
+    absl::flat_hash_set<Node*>& info,
+    const absl::flat_hash_set<Node*>& given) const {
+  info.insert(given.begin(), given.end());
+  return absl::OkStatus();
+}
 
-absl::StatusOr<DependencyBitmap> NodeDependencyAnalysis::GetDependents(
-    Node* node) const {
-  if (!IsAnalyzed(node)) {
-    return absl::InvalidArgumentError("Node is not analyzed");
+absl::flat_hash_set<Node*> NodeBackwardDependencyAnalysis::ComputeInfo(
+    Node* from,
+    absl::Span<const absl::flat_hash_set<Node*>* const> user_infos) const {
+  int max_size = 0;
+  for (const absl::flat_hash_set<Node*>* user_info : user_infos) {
+    max_size += user_info->size();
   }
-  return DependencyBitmap(dependents_.at(node), node_indices_);
+  absl::flat_hash_set<Node*> can_reach_from{from};
+  can_reach_from.reserve(max_size + 1);
+  for (const absl::flat_hash_set<Node*>* user_info : user_infos) {
+    can_reach_from.insert(user_info->begin(), user_info->end());
+  }
+  return can_reach_from;
 }
 
-NodeDependencyAnalysis NodeDependencyAnalysis::BackwardDependents(
-    FunctionBase* fb, absl::Span<Node* const> nodes) {
-  absl::flat_hash_set<Node*> interesting(nodes.begin(), nodes.end());
-  auto [dependents, node_ids] = AnalyzeDependents(
-      fb, interesting, /*succs=*/[](Node* node) { return node->users(); },
-      TopoSort(fb));
-  return NodeDependencyAnalysis(/*is_forwards=*/false, dependents, node_ids);
-}
-
-NodeDependencyAnalysis NodeDependencyAnalysis::ForwardDependents(
-    FunctionBase* fb, absl::Span<Node* const> nodes) {
-  absl::flat_hash_set<Node*> interesting(nodes.begin(), nodes.end());
-  auto [dependents, node_ids] = AnalyzeDependents(
-      fb, interesting, /*succs=*/[](Node* node) { return node->operands(); },
-      ReverseTopoSort(fb));
-  return NodeDependencyAnalysis(/*is_forwards=*/true, dependents, node_ids);
+absl::Status NodeBackwardDependencyAnalysis::MergeWithGiven(
+    absl::flat_hash_set<Node*>& info,
+    const absl::flat_hash_set<Node*>& given) const {
+  info.insert(given.begin(), given.end());
+  return absl::OkStatus();
 }
 
 }  // namespace xls

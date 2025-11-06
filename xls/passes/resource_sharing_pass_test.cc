@@ -42,6 +42,7 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 #include "xls/passes/bdd_query_engine.h"
+#include "xls/passes/node_dependency_analysis.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
@@ -1273,6 +1274,7 @@ TEST_F(ResourceSharingPassTest, InfluencedBySourceAndOp) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(both));
 
   OptimizationContext context;
+  NodeForwardDependencyAnalysis nda;
   const BddQueryEngine* bdd = context.SharedQueryEngine<BddQueryEngine>(f);
   XLS_ASSERT_OK_AND_ASSIGN(Node * i_node, f->GetNode("i"));
   XLS_ASSERT_OK_AND_ASSIGN(Node * j_node, f->GetNode("j"));
@@ -1280,13 +1282,13 @@ TEST_F(ResourceSharingPassTest, InfluencedBySourceAndOp) {
   XLS_ASSERT_OK_AND_ASSIGN(Node * nand_node, f->GetNode("nand_node"));
 
   for (const auto& bool_op : {and_node, nand_node}) {
-    EXPECT_TRUE(InfluencedBySource(bool_op, i_node, *bdd, {}));
+    EXPECT_TRUE(InfluencedBySource(bool_op, i_node, nda, *bdd, {}));
     EXPECT_FALSE(InfluencedBySource(
-        bool_op, i_node, *bdd,
+        bool_op, i_node, nda, *bdd,
         {std::make_pair(TreeBitLocation{j_node, 0}, false)}));
-    EXPECT_TRUE(InfluencedBySource(bool_op, j_node, *bdd, {}));
+    EXPECT_TRUE(InfluencedBySource(bool_op, j_node, nda, *bdd, {}));
     EXPECT_FALSE(InfluencedBySource(
-        bool_op, j_node, *bdd,
+        bool_op, j_node, nda, *bdd,
         {std::make_pair(TreeBitLocation{i_node, 0}, false)}));
   }
 }
@@ -1303,6 +1305,7 @@ TEST_F(ResourceSharingPassTest, InfluencedBySourceOrOp) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(both));
 
   OptimizationContext context;
+  NodeForwardDependencyAnalysis nda;
   const BddQueryEngine* bdd = context.SharedQueryEngine<BddQueryEngine>(f);
   XLS_ASSERT_OK_AND_ASSIGN(Node * i_node, f->GetNode("i"));
   XLS_ASSERT_OK_AND_ASSIGN(Node * j_node, f->GetNode("j"));
@@ -1310,13 +1313,13 @@ TEST_F(ResourceSharingPassTest, InfluencedBySourceOrOp) {
   XLS_ASSERT_OK_AND_ASSIGN(Node * nor_node, f->GetNode("nor_node"));
 
   for (const auto& bool_op : {or_node, nor_node}) {
-    EXPECT_TRUE(InfluencedBySource(bool_op, i_node, *bdd, {}));
+    EXPECT_TRUE(InfluencedBySource(bool_op, i_node, nda, *bdd, {}));
     EXPECT_FALSE(
-        InfluencedBySource(bool_op, i_node, *bdd,
+        InfluencedBySource(bool_op, i_node, nda, *bdd,
                            {std::make_pair(TreeBitLocation{j_node, 0}, true)}));
-    EXPECT_TRUE(InfluencedBySource(bool_op, j_node, *bdd, {}));
+    EXPECT_TRUE(InfluencedBySource(bool_op, j_node, nda, *bdd, {}));
     EXPECT_FALSE(
-        InfluencedBySource(bool_op, j_node, *bdd,
+        InfluencedBySource(bool_op, j_node, nda, *bdd,
                            {std::make_pair(TreeBitLocation{i_node, 0}, true)}));
   }
 }

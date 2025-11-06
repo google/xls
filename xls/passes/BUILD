@@ -953,6 +953,7 @@ cc_library(
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -1061,6 +1062,7 @@ xls_pass(
     deps = [
         ":bdd_query_engine",
         ":folding_graph",
+        ":node_dependency_analysis",
         ":optimization_pass",
         ":pass_base",
         ":post_dominator_analysis",
@@ -1083,8 +1085,6 @@ xls_pass(
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
-        "@com_google_ortools//ortools/graph",
-        "@com_google_ortools//ortools/graph:cliques",
         "@cppitertools",
     ],
 )
@@ -1354,16 +1354,10 @@ cc_library(
     srcs = ["node_dependency_analysis.cc"],
     hdrs = ["node_dependency_analysis.h"],
     deps = [
-        "//xls/common/status:status_macros",
-        "//xls/data_structures:inline_bitmap",
+        ":lazy_node_data",
         "//xls/ir",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
     ],
 )
@@ -4342,6 +4336,7 @@ cc_test(
     srcs = ["resource_sharing_pass_test.cc"],
     deps = [
         ":bdd_query_engine",
+        ":node_dependency_analysis",
         ":optimization_pass",
         ":pass_base",
         ":query_engine",

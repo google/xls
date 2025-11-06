@@ -49,6 +49,7 @@
 #include "xls/ir/op.h"
 #include "xls/passes/bdd_query_engine.h"
 #include "xls/passes/folding_graph.h"
+#include "xls/passes/node_dependency_analysis.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/post_dominator_analysis.h"
@@ -71,45 +72,12 @@ class TimingAnalysis {
   absl::flat_hash_map<NaryFoldingAction *, double> delay_spread_;
 };
 
-bool UsesSource(Node* node, Node* source) {
-  if (node == source) {
-    return true;
-  }
-
-  absl::flat_hash_set<Node*> visited;
-  std::vector<Node*> worklist;
-  for (Node* operand : node->operands()) {
-    if (operand == source) {
-      return true;
-    }
-    if (visited.insert(operand).second) {
-      worklist.push_back(operand);
-    }
-  }
-
-  // Find if @source is used by @node transitively.
-  while (!worklist.empty()) {
-    Node* current = worklist.back();
-    worklist.pop_back();
-
-    for (Node* operand : current->operands()) {
-      if (operand == source) {
-        return true;  // Found source transitively.
-      }
-      if (visited.insert(operand).second) {
-        worklist.push_back(operand);
-      }
-    }
-  }
-
-  return false;
-}
-
 // InfluencedBySource returns true if @node has any operand in the def-use chain
 // of @source that has any influence on the value of @node under the provided
 // @assumptions for the bit values of nodes.
 bool InfluencedBySource(
-    Node* node, Node* source, const BddQueryEngine& bdd_engine,
+    Node* node, Node* source, const NodeForwardDependencyAnalysis& nda,
+    const BddQueryEngine& bdd_engine,
     const std::vector<std::pair<TreeBitLocation, bool>>& assumptions) {
   // If an "and" operation has an operand known to have a value of "0" where the
   // operand is not in the def-use chain of @source, then @source can have any
@@ -117,7 +85,7 @@ bool InfluencedBySource(
   if (node->op() == Op::kAnd || node->op() == Op::kNand) {
     for (Node* op : node->operands()) {
       std::optional<Bits> value = bdd_engine.ImpliedNodeValue(assumptions, op);
-      if (value && value->IsZero() && !UsesSource(op, source)) {
+      if (value && value->IsZero() && !nda.IsDependent(source, op)) {
         return false;
       }
     }
@@ -127,7 +95,7 @@ bool InfluencedBySource(
   if (node->op() == Op::kOr || node->op() == Op::kNor) {
     for (Node* op : node->operands()) {
       std::optional<Bits> value = bdd_engine.ImpliedNodeValue(assumptions, op);
-      if (value && value->IsAllOnes() && !UsesSource(op, source)) {
+      if (value && value->IsAllOnes() && !nda.IsDependent(source, op)) {
         return false;
       }
     }
@@ -147,6 +115,7 @@ bool InfluencedBySource(
 // the select case @case_number.
 bool DoesErase(Node* node, uint32_t case_number,
                absl::Span<const TreeBitLocation> selector_bits, Node* source,
+               const NodeForwardDependencyAnalysis& nda,
                const BddQueryEngine& bdd_engine,
                absl::flat_hash_map<Node*, bool>& nodes_with_side_effects,
                absl::flat_hash_map<Node*, absl::flat_hash_map<uint32_t, bool>>&
@@ -155,7 +124,7 @@ bool DoesErase(Node* node, uint32_t case_number,
   // @case_number is unset.
   std::vector<std::pair<TreeBitLocation, bool>> assumed_values;
   assumed_values.push_back(std::make_pair(selector_bits[case_number], false));
-  if (!InfluencedBySource(node, source, bdd_engine, assumed_values)) {
+  if (!InfluencedBySource(node, source, nda, bdd_engine, assumed_values)) {
     // Memoize the result of the analysis
     nodes_with_side_effects[node] = false;
 
@@ -176,7 +145,7 @@ bool DoesErase(Node* node, uint32_t case_number,
     assumed_values.push_back(std::make_pair(selector_bits[case_number], false));
 
     // Check if the current def-use chain gets erased.
-    if (InfluencedBySource(node, source, bdd_engine, assumed_values)) {
+    if (InfluencedBySource(node, source, nda, bdd_engine, assumed_values)) {
       // We cannot guarantee @node erases @source.
       return false;
     }
@@ -187,7 +156,7 @@ bool DoesErase(Node* node, uint32_t case_number,
   for (const auto& selector_bit : selector_bits) {
     assumed_values.push_back(std::make_pair(selector_bit, false));
   }
-  if (InfluencedBySource(node, source, bdd_engine, assumed_values)) {
+  if (InfluencedBySource(node, source, nda, bdd_engine, assumed_values)) {
     return false;
   }
 
@@ -206,13 +175,14 @@ bool DoesErase(Node* node, uint32_t case_number,
 // This function performs the analysis following all def-use chains that go from
 // @source and go through @node.
 absl::StatusOr<bool> HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
-    Node *source, Node *node, Node *select, uint32_t case_number,
+    Node* source, Node* node, Node* select, uint32_t case_number,
     absl::Span<const TreeBitLocation> selector_bits,
-    const BddQueryEngine &bdd_engine,
-    absl::flat_hash_map<Node *, bool> &nodes_with_side_effects,
-    absl::flat_hash_map<Node *, absl::flat_hash_map<uint32_t, bool>>
-        &nodes_with_side_effects_at_case,
-    std::stack<Node *> &def_use_chain) {
+    const NodeForwardDependencyAnalysis& reachability,
+    const BddQueryEngine& bdd_engine,
+    absl::flat_hash_map<Node*, bool>& nodes_with_side_effects,
+    absl::flat_hash_map<Node*, absl::flat_hash_map<uint32_t, bool>>&
+        nodes_with_side_effects_at_case,
+    std::stack<Node*>& def_use_chain) {
   // Check if we have already analyzed the current node
   auto it = nodes_with_side_effects.find(node);
   if (it != nodes_with_side_effects.end()) {
@@ -250,8 +220,9 @@ absl::StatusOr<bool> HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
     Next *next_node = node->As<Next>();
     std::optional<Node *> predicate = next_node->predicate();
     if (predicate.has_value()) {
-      if (DoesErase(*predicate, case_number, selector_bits, source, bdd_engine,
-                    nodes_with_side_effects, nodes_with_side_effects_at_case)) {
+      if (DoesErase(*predicate, case_number, selector_bits, source,
+                    reachability, bdd_engine, nodes_with_side_effects,
+                    nodes_with_side_effects_at_case)) {
         return false;
       }
     }
@@ -260,8 +231,9 @@ absl::StatusOr<bool> HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
   // Check if the current node of the current def-use chain erases the
   // computation specified by @source
   if ((source != nullptr) &&
-      DoesErase(node, case_number, selector_bits, source, bdd_engine,
-                nodes_with_side_effects, nodes_with_side_effects_at_case)) {
+      DoesErase(node, case_number, selector_bits, source, reachability,
+                bdd_engine, nodes_with_side_effects,
+                nodes_with_side_effects_at_case)) {
     return false;
   }
 
@@ -301,7 +273,7 @@ absl::StatusOr<bool> HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
     XLS_ASSIGN_OR_RETURN(bool has_side_effects,
                          HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
                              node, user, select, case_number, selector_bits,
-                             bdd_engine, nodes_with_side_effects,
+                             reachability, bdd_engine, nodes_with_side_effects,
                              nodes_with_side_effects_at_case, def_use_chain));
     if (has_side_effects) {
       // We found a def-use chain through @user that reaches the end without
@@ -371,26 +343,11 @@ bool AreMutuallyExclusive(
   return false;
 }
 
-// This function returns true if @node_to_check reaches @point_in_the_graph,
-// false otherwise.
-bool DoesReach(const absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>>
-                   &reachability_result,
-               Node *point_in_the_graph, Node *node_to_check) {
-  // Fetch the set of nodes that reach @point_in_the_graph
-  auto iter = reachability_result.find(point_in_the_graph);
-  CHECK(iter != reachability_result.end());
-  const absl::flat_hash_set<Node *> &reaching_nodes = iter->second;
-
-  // Check if the specified node reaches @point_in_the_graph
-  return reaching_nodes.contains(node_to_check);
-}
-
 std::optional<uint32_t> GetSelectCaseNumberOfNode(
-    const absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>>
-        &reachability_result,
-    Node *node, Node *select_case, uint32_t select_case_number) {
+    const NodeForwardDependencyAnalysis& nda, Node* node, Node* select_case,
+    uint32_t select_case_number) {
   // Check if @node reaches the select case given as input
-  if (!DoesReach(reachability_result, select_case, node)) {
+  if (!nda.IsDependent(node, select_case)) {
     return {};
   }
 
@@ -409,9 +366,8 @@ std::optional<uint32_t> GetSelectCaseNumberOfNode(
 // compute (and therefore which inputs to forward to the single resulting node
 // can be determined) can be determined by @select.
 std::optional<std::unique_ptr<BinaryFoldingAction>> CanMapInto(
-    Node *node_to_map, Node *folding_destination, Node *select,
-    const absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>>
-        &reachability_result) {
+    Node* node_to_map, Node* folding_destination, Node* select,
+    const NodeForwardDependencyAnalysis& nda) {
   // We currently only handled PrioritySelect
   if (!select->Is<PrioritySelect>()) {
     return {};
@@ -447,8 +403,7 @@ std::optional<std::unique_ptr<BinaryFoldingAction>> CanMapInto(
        iter::enumerate(GetCases(select))) {
     // Check @node_to_map
     std::optional<uint32_t> node_to_map_case_number_opt =
-        GetSelectCaseNumberOfNode(reachability_result, node_to_map,
-                                  current_case, case_number);
+        GetSelectCaseNumberOfNode(nda, node_to_map, current_case, case_number);
     if (node_to_map_case_number_opt.has_value()) {
       if (node_to_map_found) {
         VLOG(5) << "  The source of a potential folding reaches multiple cases "
@@ -465,8 +420,8 @@ std::optional<std::unique_ptr<BinaryFoldingAction>> CanMapInto(
 
     // Check @folding_destination
     std::optional<uint32_t> folding_destination_case_number_opt =
-        GetSelectCaseNumberOfNode(reachability_result, folding_destination,
-                                  current_case, case_number);
+        GetSelectCaseNumberOfNode(nda, folding_destination, current_case,
+                                  case_number);
     if (folding_destination_case_number_opt.has_value()) {
       if (folding_destination_found) {
         VLOG(5) << "  The destination of a potential folding reaches multiple "
@@ -550,9 +505,8 @@ bool ShouldTarget(Node *n) {
 
 // Check if we are currently capable to potentially handle the node given as
 // input for folding.
-bool CanTarget(Node *n, Node *selector,
-               const absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>>
-                   &reachability_result) {
+bool CanTarget(Node* n, Node* selector,
+               const NodeForwardDependencyAnalysis& nda) {
   // We currently handle only multiplications
   if (!CanTarget(n)) {
     return false;
@@ -560,35 +514,7 @@ bool CanTarget(Node *n, Node *selector,
 
   // Check if @n reaches the selector.
   // In this case, @n cannot be considered for this select
-  if (!DoesReach(reachability_result, selector, n)) {
-    return true;
-  }
-  return false;
-}
-
-// Compute the reachability analysis.
-// This analysis associates a node n with the set of nodes that belong to the
-// def-use chain reaching n (including n)
-absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>>
-ComputeReachabilityAnalysis(FunctionBase *f, OptimizationContext &context) {
-  absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>> reachability_result;
-  for (Node *node : context.TopoSort(f)) {
-    // A node always reaches itself
-    reachability_result[node].insert(node);
-
-    // Iterate over the users of the current node and propagate the fact that
-    // @node reaches them.
-    for (Node *const user : node->users()) {
-      // Add everything that reached @node to all its users
-      reachability_result[user].insert(reachability_result[node].begin(),
-                                       reachability_result[node].end());
-
-      // Add @node to it
-      reachability_result[user].insert(node);
-    }
-  }
-
-  return reachability_result;
+  return !nda.IsDependent(n, selector);
 }
 
 // This function returns true if there is a def-use chain from @n that can reach
@@ -629,13 +555,13 @@ ComputeReachabilityAnalysis(FunctionBase *f, OptimizationContext &context) {
 // reach @select or get erased). As such, improving this function with a more
 // accurate analysis means reducing the number of false positives.
 absl::StatusOr<bool> HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
-    Node *n, Node *select, uint32_t case_number,
+    Node* n, Node* select, uint32_t case_number,
     absl::Span<const TreeBitLocation> selector_bits,
-    const BddQueryEngine &bdd_engine, FunctionBase *f,
-    PostDominatorAnalysis &post_dominators,
-    absl::flat_hash_map<Node *, bool> &nodes_with_side_effects,
-    absl::flat_hash_map<Node *, absl::flat_hash_map<uint32_t, bool>>
-        &nodes_with_side_effects_at_case) {
+    const NodeForwardDependencyAnalysis& nda, const BddQueryEngine& bdd_engine,
+    FunctionBase* f, PostDominatorAnalysis& post_dominators,
+    absl::flat_hash_map<Node*, bool>& nodes_with_side_effects,
+    absl::flat_hash_map<Node*, absl::flat_hash_map<uint32_t, bool>>&
+        nodes_with_side_effects_at_case) {
   // If @n is post-dominated by @select, then all def-use chains that
   // go through @n are guaranteed to reach @select.
   // Hence, we can return false without exploring all def-use chains.
@@ -656,7 +582,7 @@ absl::StatusOr<bool> HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
   std::stack<Node *> def_use_chain;
   XLS_ASSIGN_OR_RETURN(bool has_side_effects,
                        HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
-                           nullptr, n, select, case_number, selector_bits,
+                           nullptr, n, select, case_number, selector_bits, nda,
                            bdd_engine, nodes_with_side_effects,
                            nodes_with_side_effects_at_case, def_use_chain));
 
@@ -674,11 +600,9 @@ absl::StatusOr<bool> HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
 // detected by this analysis.
 // Hence, this analysis can be improved in the future.
 absl::StatusOr<absl::flat_hash_map<
-    Node *, absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>>>>
-ComputeMutualExclusionAnalysis(
-    FunctionBase *f, OptimizationContext &context,
-    absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>>
-        &reachability_result) {
+    Node*, absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>>>
+ComputeMutualExclusionAnalysis(FunctionBase* f, OptimizationContext& context,
+                               const NodeForwardDependencyAnalysis& nda) {
   absl::flat_hash_map<Node *,
                       absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>>>
       mutual_exclusivity_relation;
@@ -703,26 +627,22 @@ ComputeMutualExclusionAnalysis(
                        PostDominatorAnalysis::Run(f));
 
   // Compute the mutual exclusion binary relation between instructions
-  for (const auto &[n, s] : reachability_result) {
+  for (Node* select : f->nodes()) {
     // Find the next select.
     //
     // At the moment, we only handle priority selects. We should extend the
     // analysis to include other selects.
-    if (!n->Is<PrioritySelect>()) {
+    if (!select->Is<PrioritySelect>()) {
       continue;
     }
 
-    // Avoid considering a select that has no nodes-of-interest reaching it
-    if (s.empty()) {
-      continue;
-    }
-    VLOG(4) << "Select = " << n->ToString();
+    VLOG(4) << "Select = " << select->ToString();
 
     // Prepare the TreeBitLocation for all bits of the selector.
     // This will be used by the BDD query engine to identify nodes that stop the
     // propagation of a node in a def-use chain.
-    Node *selector = GetSelector(n);
-    absl::Span<Node *const> cases = GetCases(n);
+    Node* selector = GetSelector(select);
+    absl::Span<Node* const> cases = GetCases(select);
     std::vector<TreeBitLocation> selector_bits;
     selector_bits.reserve(cases.length());
     for (uint32_t case_number = 0; case_number < cases.length();
@@ -743,11 +663,10 @@ ComputeMutualExclusionAnalysis(
 
       // Check if any of the nodes that reach the current case (including it)
       // are mutually exclusive with the nodes that reach the next cases
-      for (Node *current_case_reaching_node :
-           reachability_result[current_case]) {
+      for (Node* current_case_reaching_node :
+           nda.NodesDependedOnBy(current_case)) {
         // Do not bother looking at nodes that we will not be able to fold
-        if (!CanTarget(current_case_reaching_node, selector,
-                       reachability_result)) {
+        if (!CanTarget(current_case_reaching_node, selector, nda)) {
           continue;
         }
 
@@ -764,8 +683,8 @@ ComputeMutualExclusionAnalysis(
         XLS_ASSIGN_OR_RETURN(
             bool has_side_effects,
             HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
-                current_case_reaching_node, n, case_number, selector_bits,
-                *bdd_engine, f, *post_dominators, nodes_with_side_effects,
+                current_case_reaching_node, select, case_number, selector_bits,
+                nda, *bdd_engine, f, *post_dominators, nodes_with_side_effects,
                 nodes_with_side_effects_at_case));
         if (has_side_effects) {
           VLOG(4) << "      Its def-use chains force us to be conservative and "
@@ -780,8 +699,7 @@ ComputeMutualExclusionAnalysis(
         for (uint32_t case_number_2 = case_number + 1;
              case_number_2 < cases.length(); case_number_2++) {
           Node *current_case_2 = cases[case_number_2];
-          if (DoesReach(reachability_result, current_case_2,
-                        current_case_reaching_node)) {
+          if (nda.IsDependent(current_case_reaching_node, current_case_2)) {
             VLOG(5)
                 << "      The following node reaches the other's select case = "
                 << current_case_2->ToString();
@@ -800,11 +718,10 @@ ComputeMutualExclusionAnalysis(
           // Add as mutually-exclusive all reaching nodes of the current other
           // case @current_case_2 that also do not reach
           // @current_case_reaching_node.
-          for (Node *other_case_reaching_node :
-               reachability_result[current_case_2]) {
+          for (Node* other_case_reaching_node :
+               nda.NodesDependedOnBy(current_case_2)) {
             // Do not bother looking at nodes that we will not be able to fold
-            if (!CanTarget(other_case_reaching_node, selector,
-                           reachability_result)) {
+            if (!CanTarget(other_case_reaching_node, selector, nda)) {
               continue;
             }
 
@@ -817,8 +734,7 @@ ComputeMutualExclusionAnalysis(
 
             // If @other_case_reaching_node reaches @current_case, then it
             // cannot be mutually exclusive with @current_case_reaching_node
-            if (DoesReach(reachability_result, current_case,
-                          other_case_reaching_node)) {
+            if (nda.IsDependent(other_case_reaching_node, current_case)) {
               VLOG(5) << "      The following node reaches the other's select "
                          "case = "
                       << other_case_reaching_node->ToString();
@@ -832,9 +748,9 @@ ComputeMutualExclusionAnalysis(
             XLS_ASSIGN_OR_RETURN(
                 bool has_side_effects,
                 HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
-                    other_case_reaching_node, n, case_number_2, selector_bits,
-                    *bdd_engine, f, *post_dominators, nodes_with_side_effects,
-                    nodes_with_side_effects_at_case));
+                    other_case_reaching_node, select, case_number_2,
+                    selector_bits, nda, *bdd_engine, f, *post_dominators,
+                    nodes_with_side_effects, nodes_with_side_effects_at_case));
             if (has_side_effects) {
               VLOG(4) << "            Its def-use chains force us to be "
                          "conservative and skip the node "
@@ -845,10 +761,10 @@ ComputeMutualExclusionAnalysis(
 
             // @current_case_reaching_node and @other_case_reaching_node are
             // mutually exclusive.
-            mutual_exclusivity_relation[n][current_case_reaching_node].insert(
-                other_case_reaching_node);
-            mutual_exclusivity_relation[n][other_case_reaching_node].insert(
-                current_case_reaching_node);
+            mutual_exclusivity_relation[select][current_case_reaching_node]
+                .insert(other_case_reaching_node);
+            mutual_exclusivity_relation[select][other_case_reaching_node]
+                .insert(current_case_reaching_node);
           }
         }
       }
@@ -873,11 +789,10 @@ ComputeMutualExclusionAnalysis(
 // This function returns all possible folding actions that we can legally
 // perform.
 std::vector<std::unique_ptr<BinaryFoldingAction>> ComputeFoldableActions(
-    absl::flat_hash_map<
-        Node *, absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>>>
-        &mutual_exclusivity_relation,
-    absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>>
-        &reachability_result) {
+    absl::flat_hash_map<Node*,
+                        absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>>&
+        mutual_exclusivity_relation,
+    const NodeForwardDependencyAnalysis& nda) {
   std::vector<std::unique_ptr<BinaryFoldingAction>> foldable_actions;
 
   // Identify as many folding actions that are legal as possible by our current
@@ -918,12 +833,12 @@ std::vector<std::unique_ptr<BinaryFoldingAction>> ComputeFoldableActions(
         //
         // Check if we can fold one into the other
         std::optional<std::unique_ptr<BinaryFoldingAction>> f_0_1 =
-            CanMapInto(n0, n1, select, reachability_result);
+            CanMapInto(n0, n1, select, nda);
         if (f_0_1.has_value()) {
           foldable_actions.push_back(std::move(*f_0_1));
         }
         std::optional<std::unique_ptr<BinaryFoldingAction>> f_1_0 =
-            CanMapInto(n1, n0, select, reachability_result);
+            CanMapInto(n1, n0, select, nda);
         if (f_1_0.has_value()) {
           foldable_actions.push_back(std::move(*f_1_0));
         }
@@ -2411,21 +2326,18 @@ absl::StatusOr<bool> ResourceSharingPass::RunOnFunctionBaseInternal(
   // Get the delay model
   XLS_ASSIGN_OR_RETURN(DelayEstimator * delay_model, GetDelayEstimator("unit"));
 
-  // Perform the reachability analysis.
-  absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>> reachability_result =
-      ComputeReachabilityAnalysis(f, context);
+  NodeForwardDependencyAnalysis nda;
 
   // Compute the mutually exclusive binary relation between IR instructions
-  absl::flat_hash_map<Node *,
-                      absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>>>
+  absl::flat_hash_map<Node*,
+                      absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>>
       mutual_exclusivity_relation;
-  XLS_ASSIGN_OR_RETURN(
-      mutual_exclusivity_relation,
-      ComputeMutualExclusionAnalysis(f, context, reachability_result));
+  XLS_ASSIGN_OR_RETURN(mutual_exclusivity_relation,
+                       ComputeMutualExclusionAnalysis(f, context, nda));
 
   // Identify the set of legal folding actions
   std::vector<std::unique_ptr<BinaryFoldingAction>> foldable_actions =
-      ComputeFoldableActions(mutual_exclusivity_relation, reachability_result);
+      ComputeFoldableActions(mutual_exclusivity_relation, nda);
 
   // Organize the folding actions into a graph
   FoldingGraph folding_graph{f, std::move(foldable_actions)};

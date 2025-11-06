@@ -103,7 +103,7 @@ class ProcStateEvolutionGivens : public ProcStateGivens {
   ProcStateEvolutionGivens(absl::Span<Node* const> reverse_topo_sort,
                            Node* target,
                            absl::flat_hash_map<Node*, IntervalSet> intervals,
-                           const DependencyBitmap& interesting_nodes)
+                           const absl::flat_hash_set<Node*>& interesting_nodes)
       : ProcStateGivens(target->function_base()->AsProcOrDie(),
                         std::move(intervals)),
         reverse_topo_sort_(reverse_topo_sort),
@@ -115,9 +115,7 @@ class ProcStateEvolutionGivens : public ProcStateGivens {
          it != reverse_topo_sort_.crend(); ++it) {
       // Don't bother filling in information for nodes which don't lead to the
       // 'next' we're looking at.
-      XLS_ASSIGN_OR_RETURN(bool interesting,
-                           interesting_nodes_.IsDependent(*it));
-      if (interesting) {
+      if (interesting_nodes_.contains(*it)) {
         XLS_RETURN_IF_ERROR((*it)->VisitSingleNode(visitor)) << *it;
       }
       if (*it == target_) {
@@ -131,14 +129,14 @@ class ProcStateEvolutionGivens : public ProcStateGivens {
  private:
   absl::Span<Node* const> reverse_topo_sort_;
   Node* target_;
-  const DependencyBitmap& interesting_nodes_;
+  const absl::flat_hash_set<Node*>& interesting_nodes_;
 };
 
 absl::StatusOr<std::optional<std::pair<TernaryVector, IntervalSet>>>
 ExtractContextSensitiveRange(
     Proc* proc, Next* next, const RangeQueryEngine& rqe,
     absl::Span<Node* const> reverse_topo_sort,
-    const NodeDependencyAnalysis& next_dependent_information) {
+    const NodeForwardDependencyAnalysis& next_dependent_information) {
   Node* pred = *next->predicate();
   XLS_ASSIGN_OR_RETURN(
       (absl::flat_hash_map<Node*, IntervalSet> results),
@@ -161,8 +159,8 @@ ExtractContextSensitiveRange(
   // TODO(allight): A heuristic to avoid doing this in some cases (such as none
   // of the discovered facts are in the predecessors of value) might be
   // worthwhile here.
-  XLS_ASSIGN_OR_RETURN(DependencyBitmap dependencies,
-                       next_dependent_information.GetDependents(next));
+  absl::flat_hash_set<Node*> dependencies =
+      next_dependent_information.NodesDependedOnBy(next);
   ProcStateEvolutionGivens givens(reverse_topo_sort, next->value(),
                                   std::move(results), dependencies);
   RangeQueryEngine contextual_range;
@@ -180,29 +178,29 @@ ExtractContextSensitiveRange(
 class SegmentRangeData : public RangeDataProvider {
  public:
   static absl::StatusOr<SegmentRangeData> Create(
-      const NodeDependencyAnalysis& nda,
+      const NodeForwardDependencyAnalysis& nda,
       const absl::flat_hash_map<StateElement*, RangeData>& ground_truth,
       StateRead* data_source, absl::Span<Node* const> topo_sort) {
-    XLS_RET_CHECK(!nda.IsForward());
-    std::vector<DependencyBitmap> bitmaps;
     auto nexts =
         data_source->function_base()->AsProcOrDie()->next_values(data_source);
-    bitmaps.reserve(nexts.size());
+    absl::flat_hash_set<Node*> dependencies;
+    int64_t max_size = 0;
     for (Next* n : nexts) {
-      XLS_ASSIGN_OR_RETURN(DependencyBitmap bm, nda.GetDependents(n));
-      bitmaps.push_back(bm);
+      max_size += nda.GetInfo(n)->size();
     }
-    return SegmentRangeData(bitmaps, ground_truth, data_source, topo_sort);
+    dependencies.reserve(max_size);
+    for (Next* n : nexts) {
+      auto prevs = nda.NodesDependedOnBy(n);
+      dependencies.insert(prevs.begin(), prevs.end());
+    }
+    return SegmentRangeData(dependencies, ground_truth, data_source, topo_sort);
   }
 
   void SetParamIntervals(const IntervalSet& is) { current_segments_ = is; }
 
   bool IsInteresting(Node* n) const {
     return (n->Is<Next>() && n->As<Next>()->state_read() == data_source_) ||
-           absl::c_any_of(dependencies_,
-                          [&](const DependencyBitmap& d) -> bool {
-                            return d.IsDependent(n).value_or(false);
-                          });
+           dependencies_.contains(n);
   }
 
   std::optional<RangeData> GetKnownIntervals(Node* node) final {
@@ -244,7 +242,7 @@ class SegmentRangeData : public RangeDataProvider {
 
  private:
   SegmentRangeData(
-      std::vector<DependencyBitmap> dependencies,
+      absl::flat_hash_set<Node*> dependencies,
       const absl::flat_hash_map<StateElement*, RangeData>& ground_truth,
       StateRead* data_source, absl::Span<Node* const> topo_sort)
       : dependencies_(std::move(dependencies)),
@@ -252,7 +250,7 @@ class SegmentRangeData : public RangeDataProvider {
         data_source_(data_source),
         current_segments_(data_source->BitCountOrDie()),
         topo_sort_(topo_sort) {}
-  std::vector<DependencyBitmap> dependencies_;
+  absl::flat_hash_set<Node*> dependencies_;
   const absl::flat_hash_map<StateElement*, RangeData>& ground_truth_;
   StateRead* data_source_;
   IntervalSet current_segments_;
@@ -479,29 +477,29 @@ class ConstantValueIrInterpreter
 // constants which update the given param.
 absl::StatusOr<absl::flat_hash_set<Bits>> FindConstantUpdateValues(
     Proc* proc, StateElement* orig_state_element,
-    absl::Span<Node* const> topo_sort, const NodeDependencyAnalysis& nda) {
+    absl::Span<Node* const> topo_sort,
+    const NodeForwardDependencyAnalysis& nda) {
   ConstantValueIrInterpreter interp;
-  std::vector<DependencyBitmap> next_deps;
+  absl::flat_hash_set<Node*> next_deps;
   absl::flat_hash_set<Node*> visited_next_values;
   XLS_RET_CHECK(orig_state_element->type()->IsBits());
   StateRead* orig_state_read = proc->GetStateRead(orig_state_element);
-  next_deps.reserve(proc->next_values(orig_state_read).size());
+  int64_t max_size = 0;
+  for (Next* n : proc->next_values(orig_state_read)) {
+    max_size += nda.GetInfo(n)->size();
+  }
+  next_deps.reserve(max_size);
   visited_next_values.reserve(proc->next_values(orig_state_read).size());
   for (Next* n : proc->next_values(orig_state_read)) {
     if (auto [it, inserted] = visited_next_values.insert(n->value());
         !inserted) {
       continue;
     }
-    XLS_ASSIGN_OR_RETURN(DependencyBitmap bm, nda.GetDependents(n->value()));
-    next_deps.push_back(bm);
+    auto prevs = nda.NodesDependedOnBy(n->value());
+    next_deps.insert(prevs.begin(), prevs.end());
   }
-  auto is_interesting = [&](Node* n) {
-    return absl::c_any_of(next_deps, [&](const DependencyBitmap& d) {
-      return *d.IsDependent(n);
-    });
-  };
   for (Node* n : topo_sort) {
-    if (!is_interesting(n)) {
+    if (!next_deps.contains(n)) {
       continue;
     }
     XLS_RETURN_IF_ERROR(n->VisitSingleNode(&interp));
@@ -540,7 +538,7 @@ absl::StatusOr<absl::flat_hash_set<Bits>> FindConstantUpdateValues(
 // small number of runs.
 absl::StatusOr<std::optional<RangeData>> NarrowUsingSegments(
     Proc* proc, StateElement* state_element, const IntervalSet& intervals,
-    absl::Span<Node* const> topo_sort, const NodeDependencyAnalysis& nda,
+    absl::Span<Node* const> topo_sort, const NodeForwardDependencyAnalysis& nda,
     const absl::flat_hash_map<StateElement*, RangeData>& ground_truth) {
   VLOG(3) << "Doing segment walk for " << state_element->ToString() << " on "
           << intervals;
@@ -655,7 +653,7 @@ absl::StatusOr<std::optional<RangeData>> NarrowUsingSegments(
 absl::StatusOr<absl::flat_hash_map<StateElement*, RangeData>>
 FindContextualRanges(Proc* proc, const QueryEngine& qe,
                      const RangeQueryEngine& rqe,
-                     const NodeDependencyAnalysis& dependency_analysis,
+                     const NodeForwardDependencyAnalysis& dependency_analysis,
                      absl::Span<Node* const> reverse_topo_sort) {
   // List of all the next instructions that change the param for each param.
   absl::flat_hash_map<StateElement*, std::vector<Next*>>
@@ -779,8 +777,7 @@ absl::StatusOr<ReachedFixpoint> ProcStateRangeQueryEngine ::Populate(
     interesting_nodes.push_back(n);
     interesting_nodes.push_back(n->value());
   }
-  NodeDependencyAnalysis next_node_sources =
-      NodeDependencyAnalysis::BackwardDependents(proc, interesting_nodes);
+  NodeForwardDependencyAnalysis next_node_sources;
 
   // TODO(allight): We could repeat the below and the loop until we hit a
   // fixed-point to fully incorporate all cross-param knowledge. This could be

@@ -15,12 +15,12 @@
 #include "xls/dev_tools/extract_segment.h"
 
 #include <memory>
-#include <optional>
 #include <string_view>
 #include <vector>
 
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -46,37 +46,27 @@ absl::StatusOr<BValue> ExtractSegmentInto(
     absl::flat_hash_map<Node*, Node*>* old_to_new_map,
     bool next_nodes_are_tuples) {
   // Get node dependency information.
-  std::optional<NodeDependencyAnalysis> forward_analysis;
-  std::optional<NodeDependencyAnalysis> backward_analysis;
-  std::vector<DependencyBitmap> forward_bitmaps;
-  std::vector<DependencyBitmap> backward_bitmaps;
+  absl::flat_hash_set<Node*> forward_deps;
+  absl::flat_hash_set<Node*> backward_deps;
   if (!source_nodes.empty()) {
-    forward_analysis =
-        NodeDependencyAnalysis::ForwardDependents(full, source_nodes);
+    NodeBackwardDependencyAnalysis backward_analysis;
     for (auto n : source_nodes) {
-      XLS_ASSIGN_OR_RETURN(auto dep, forward_analysis->GetDependents(n));
-      forward_bitmaps.push_back(dep);
+      auto tos = backward_analysis.NodesDependingOn(n);
+      backward_deps.insert(tos.begin(), tos.end());
     }
   }
   if (!sink_nodes.empty()) {
-    backward_analysis =
-        NodeDependencyAnalysis::BackwardDependents(full, sink_nodes);
+    NodeForwardDependencyAnalysis forward_analysis;
     for (auto n : sink_nodes) {
-      XLS_ASSIGN_OR_RETURN(auto dep, backward_analysis->GetDependents(n));
-      backward_bitmaps.push_back(dep);
+      auto froms = forward_analysis.NodesDependedOnBy(n);
+      forward_deps.insert(froms.begin(), froms.end());
     }
   }
   auto is_forward_dep = [&](Node* n) -> bool {
-    return forward_bitmaps.empty() ||
-           absl::c_any_of(forward_bitmaps, [&](DependencyBitmap db) {
-             return *db.IsDependent(n);
-           });
+    return forward_deps.empty() || forward_deps.contains(n);
   };
   auto is_backward_dep = [&](Node* n) -> bool {
-    return backward_bitmaps.empty() ||
-           absl::c_any_of(backward_bitmaps, [&](DependencyBitmap db) {
-             return *db.IsDependent(n);
-           });
+    return backward_deps.empty() || backward_deps.contains(n);
   };
   auto is_dep = [&](Node* n) -> bool {
     return is_forward_dep(n) && is_backward_dep(n);
