@@ -40,13 +40,11 @@
 
 namespace xls {
 
-namespace {
-
-absl::StatusOr<BValue> ExtractSegmentInto(FunctionBuilder& dest,
-                                          FunctionBase* full,
-                                          absl::Span<Node* const> source_nodes,
-                                          absl::Span<Node* const> sink_nodes,
-                                          bool next_nodes_are_tuples) {
+absl::StatusOr<BValue> ExtractSegmentInto(
+    FunctionBuilder& dest, FunctionBase* full,
+    absl::Span<Node* const> source_nodes, absl::Span<Node* const> sink_nodes,
+    absl::flat_hash_map<Node*, Node*>* old_to_new_map,
+    bool next_nodes_are_tuples) {
   // Get node dependency information.
   std::optional<NodeDependencyAnalysis> forward_analysis;
   std::optional<NodeDependencyAnalysis> backward_analysis;
@@ -89,7 +87,11 @@ absl::StatusOr<BValue> ExtractSegmentInto(FunctionBuilder& dest,
   };
   Package* dest_pkg = dest.function()->package();
   std::vector<Node*> outputs;
-  absl::flat_hash_map<Node*, Node*> old_to_new;
+  absl::flat_hash_map<Node*, Node*> old_to_new_local;
+  if (old_to_new_map == nullptr) {
+    old_to_new_map = &old_to_new_local;
+  }
+  absl::flat_hash_map<Node*, Node*>& old_to_new = *old_to_new_map;
   for (Node* n : TopoSort(full)) {
     if (!is_dep(n)) {
       if (is_used_by_dep(n)) {
@@ -197,8 +199,6 @@ absl::StatusOr<BValue> ExtractSegmentInto(FunctionBuilder& dest,
   return dest.Tuple(res);
 }
 
-}  // namespace
-
 absl::StatusOr<std::unique_ptr<Package>> ExtractSegmentInNewPackage(
     FunctionBase* full, absl::Span<Node* const> source_nodes,
     absl::Span<Node* const> sink_nodes, std::string_view extracted_package_name,
@@ -206,9 +206,10 @@ absl::StatusOr<std::unique_ptr<Package>> ExtractSegmentInNewPackage(
   std::unique_ptr<Package> pkg =
       std::make_unique<Package>(extracted_package_name);
   FunctionBuilder fb(extracted_function_name, pkg.get());
-  XLS_ASSIGN_OR_RETURN(auto res,
-                       ExtractSegmentInto(fb, full, source_nodes, sink_nodes,
-                                          next_nodes_are_tuples));
+  XLS_ASSIGN_OR_RETURN(
+      auto res,
+      ExtractSegmentInto(fb, full, source_nodes, sink_nodes,
+                         /*old_to_new_map=*/nullptr, next_nodes_are_tuples));
   XLS_RETURN_IF_ERROR(fb.SetAsTop());
   XLS_RETURN_IF_ERROR(fb.BuildWithReturnValue(res).status());
   return pkg;
@@ -219,9 +220,10 @@ absl::StatusOr<Function*> ExtractSegment(
     absl::Span<Node* const> sink_nodes,
     std::string_view extracted_function_name, bool next_nodes_are_tuples) {
   FunctionBuilder fb(extracted_function_name, full->package());
-  XLS_ASSIGN_OR_RETURN(auto res,
-                       ExtractSegmentInto(fb, full, source_nodes, sink_nodes,
-                                          next_nodes_are_tuples));
+  XLS_ASSIGN_OR_RETURN(
+      auto res,
+      ExtractSegmentInto(fb, full, source_nodes, sink_nodes,
+                         /*old_to_new_map=*/nullptr, next_nodes_are_tuples));
   return fb.BuildWithReturnValue(res);
 }
 }  // namespace xls

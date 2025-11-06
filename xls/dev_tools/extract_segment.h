@@ -18,10 +18,12 @@
 #include <memory>
 #include <string_view>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/function_builder.h"
 #include "xls/ir/node.h"
 #include "xls/ir/package.h"
 
@@ -51,6 +53,26 @@ absl::StatusOr<Function*> ExtractSegment(
     FunctionBase* full, absl::Span<Node* const> source_nodes,
     absl::Span<Node* const> sink_nodes,
     std::string_view extracted_function_name,
+    bool next_nodes_are_tuples = true);
+
+// Fill the function being built by fb with nodes in 'full' which are dominated
+// by some 'source_nodes' and dominate some 'sink_nodes'. If no source or sink
+// nodes are present all nodes are considered to be in the set. If the
+// 'next_nodes_are_tuples' is true then 'next' nodes are considered to return a
+// tuple containing the arguments.
+//
+// Each 'source_node' is added as a parameter to 'fb'.
+//
+// If passed 'old_to_new_map' will be filled with the mapping of each node in
+// the 'full' function to the corresponding node in the segment function if a
+// corresponding node exists.
+//
+// The function returns a BValue in 'fb' which is a tuple of all the sink nodes
+// in the order they are given.
+absl::StatusOr<BValue> ExtractSegmentInto(
+    FunctionBuilder& dest, FunctionBase* full,
+    absl::Span<Node* const> source_nodes, absl::Span<Node* const> sink_nodes,
+    absl::flat_hash_map<Node*, Node*>* old_to_new_map = nullptr,
     bool next_nodes_are_tuples = true);
 }  // namespace xls
 

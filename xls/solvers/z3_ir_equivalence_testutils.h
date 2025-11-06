@@ -17,12 +17,15 @@
 
 #include <cstdint>
 #include <memory>
+#include <string>
 
+#include "absl/status/statusor.h"
 #include "absl/time/time.h"
 #include "xls/common/source_location.h"
 #include "xls/ir/function.h"
 #include "xls/ir/node.h"
 #include "xls/ir/package.h"
+#include "xls/solvers/z3_ir_translator.h"
 
 namespace xls::solvers::z3 {
 
@@ -90,6 +93,11 @@ class ScopedVerifyProcEquivalence {
   std::unique_ptr<Package> clone_package_;
   Proc* original_p_;
 };
+
+// Print a function with each node annotated with its value in the given
+// counterexample.
+absl::StatusOr<std::string> DumpWithNodeValues(Function* func,
+                                               const ProvenFalse& fail);
 
 }  // namespace xls::solvers::z3
 

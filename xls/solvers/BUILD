@@ -139,6 +139,7 @@ cc_library(
         "//xls/ir",
         "//xls/ir:proc_testutils",
         "//xls/ir:value",
+        "//xls/ir:value_utils",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
@@ -147,6 +148,25 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "z3_ir_equivalence_testutils_test",
+    srcs = ["z3_ir_equivalence_testutils_test.cc"],
+    deps = [
+        ":z3_ir_equivalence_testutils",
+        ":z3_ir_translator",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:value",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status:status_matchers",
         "@googletest//:gtest",
     ],
 )
@@ -396,5 +416,44 @@ cc_binary(
         "//xls/ir:ir_parser",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
+    ],
+)
+
+cc_library(
+    name = "z3_assert_testutils",
+    testonly = True,
+    srcs = ["z3_assert_testutils.cc"],
+    hdrs = ["z3_assert_testutils.h"],
+    deps = [
+        ":z3_ir_equivalence_testutils",
+        ":z3_ir_translator",
+        ":z3_ir_translator_matchers",
+        "//xls/common:visitor",
+        "//xls/common/status:status_macros",
+        "//xls/dev_tools:extract_segment",
+        "//xls/ir",
+        "//xls/ir:function_builder",
+        "//xls/ir:value",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status:status_matchers",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "z3_assert_testutils_test",
+    srcs = ["z3_assert_testutils_test.cc"],
+    deps = [
+        ":z3_assert_testutils",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:value",
+        "@googletest//:gtest",
     ],
 )

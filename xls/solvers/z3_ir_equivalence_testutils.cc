@@ -44,6 +44,7 @@
 #include "xls/ir/proc.h"
 #include "xls/ir/proc_testutils.h"
 #include "xls/ir/value.h"
+#include "xls/ir/value_utils.h"
 #include "xls/solvers/z3_ir_equivalence.h"
 #include "xls/solvers/z3_ir_translator.h"
 #include "xls/solvers/z3_ir_translator_matchers.h"
@@ -73,6 +74,8 @@ class FuncInterpreter final : public IrInterpreter {
  private:
   const absl::flat_hash_map<std::string_view, Value>& param_vals_;
 };
+}  // namespace
+
 absl::StatusOr<std::string> DumpWithNodeValues(Function* func,
                                                const ProvenFalse& fail) {
   XLS_ASSIGN_OR_RETURN(
@@ -83,6 +86,12 @@ absl::StatusOr<std::string> DumpWithNodeValues(Function* func,
   for (const auto& [param, val] : param_counterexample) {
     name_counterexample[param->name()] = val;
   }
+  // Ensure everything has a type.
+  for (Param* p : func->params()) {
+    if (!name_counterexample.contains(p->name())) {
+      name_counterexample[p->name()] = ZeroOfType(p->GetType());
+    }
+  }
   FuncInterpreter interp(name_counterexample);
   XLS_RETURN_IF_ERROR(func->Accept(&interp));
 
@@ -91,7 +100,6 @@ absl::StatusOr<std::string> DumpWithNodeValues(Function* func,
         return interp.ResolveAsValue(n).ToHumanString();
       });
 }
-}  // namespace
 
 using ::absl_testing::IsOkAndHolds;
 
