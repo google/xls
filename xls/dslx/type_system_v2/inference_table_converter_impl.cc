@@ -979,6 +979,31 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           return absl::OkStatus();
         }
       } else {
+        if (node->kind() == AstNodeKind::kConditional) {
+          const auto* conditional = down_cast<const Conditional*>(node);
+          if (conditional->IsConst()) {
+            absl::StatusOr<InterpValue> evaluated_value =
+                ConstexprEvaluator::EvaluateToValue(
+                    &import_data_, ti, &warning_collector_,
+                    table_.GetParametricEnv(parametric_context),
+                    conditional->test());
+            if (evaluated_value.ok()) {
+              ti->NoteConstExpr(conditional->test(), *evaluated_value);
+              const AstNode* selected_branch =
+                  (*evaluated_value).IsTrue()
+                      ? conditional->consequent()
+                      : ToExprNode(conditional->alternate());
+              XLS_ASSIGN_OR_RETURN(
+                  std::optional<const TypeAnnotation*> selected_annotation,
+                  resolver->ResolveAndUnifyTypeAnnotationsForNode(
+                      parametric_context, selected_branch,
+                      type_annotation_filter));
+              XLS_RETURN_IF_ERROR(
+                  table_.SetTypeAnnotation(node, selected_annotation.value()));
+            }
+          }
+        }
+
         // In most cases, come up with a unified type annotation using the
         // table (or the table of the owning module).
         XLS_ASSIGN_OR_RETURN(

@@ -648,12 +648,13 @@ NameDef::~NameDef() = default;
 Conditional::Conditional(Module* owner, Span span, Expr* test,
                          StatementBlock* consequent,
                          std::variant<StatementBlock*, Conditional*> alternate,
-                         bool in_parens, bool has_else)
+                         bool in_parens, bool has_else, bool is_const)
     : Expr(owner, std::move(span), in_parens),
       test_(test),
       consequent_(consequent),
       alternate_(alternate),
-      has_else_(has_else) {}
+      has_else_(has_else),
+      is_const_(is_const) {}
 
 Conditional::~Conditional() = default;
 
@@ -673,22 +674,31 @@ std::vector<StatementBlock*> Conditional::GatherBlocks() {
 }
 
 std::string Conditional::ToStringInternal() const {
-  std::string inline_str = absl::StrFormat(
-      R"(if %s %s%s)", test_->ToInlineString(), consequent_->ToInlineString(),
-      has_else_
-          ? absl::StrFormat(" else %s", ToAstNode(alternate_)->ToInlineString())
-          : std::string());
+  const absl::string_view const_prefix = is_const_ ? "const " : "";
 
+  auto make_string = [&](std::string (AstNode::*to_str_fn)()
+                             const) -> std::string {
+    std::string test_str = (test_->*to_str_fn)();
+    std::string then_str = (consequent_->*to_str_fn)();
+
+    std::string else_part = " ";
+    if (has_else_) {
+      std::string else_str = (ToAstNode(alternate_)->*to_str_fn)();
+      absl::string_view view = else_str;
+      absl::ConsumePrefix(&view, const_prefix);
+      else_part = absl::StrFormat(" else %s", view);
+    }
+
+    return absl::StrFormat("%sif %s %s%s", const_prefix, test_str, then_str,
+                           else_part);
+  };
+
+  std::string inline_str = make_string(&AstNode::ToInlineString);
   if (inline_str.size() <= kTargetLineChars) {
     return inline_str;
   }
 
-  return absl::StrFormat(
-      R"(if %s %s%s)", test_->ToString(), consequent_->ToString(),
-      has_else_ ? absl::StrFormat(" else %s", ToAstNode(alternate_)->ToString())
-                : std::string()
-
-  );
+  return make_string(&AstNode::ToString);
 }
 
 bool Conditional::HasMultiStatementBlocks() const {
