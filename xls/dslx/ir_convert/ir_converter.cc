@@ -620,11 +620,11 @@ absl::Status AddContentsToPackage(
                                  /*filename=*/path_value, printed_error));
   XLS_RETURN_IF_ERROR(
       module->SetConfiguredValues(convert_options.configured_values));
-  absl::StatusOr<TypecheckedModule> typechecked_module =
-      TypecheckModule(std::move(module), path_value, import_data,
-                      convert_options.type_inference_v2
-                          ? std::make_optional(TypeInferenceVersion::kVersion2)
-                          : std::nullopt);
+  absl::StatusOr<TypecheckedModule> typechecked_module = TypecheckModule(
+      std::move(module), path_value, import_data,
+      convert_options.type_inference_v2
+          ? std::make_optional(TypeInferenceVersion::kVersion2)
+          : std::make_optional(TypeInferenceVersion::kVersion1));
   if (!typechecked_module.ok()) {
     *printed_error =
         TryPrintError(typechecked_module.status(), import_data->file_table(),

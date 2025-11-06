@@ -37,6 +37,7 @@
 #include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/ir_convert/ir_converter_options_flags.h"
 #include "xls/dslx/ir_convert/ir_converter_options_flags.pb.h"
+#include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/warning_kind.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/package.h"
@@ -100,7 +101,11 @@ absl::Status RealMain(absl::Span<const std::string_view> paths) {
   bool convert_tests = ir_converter_options.convert_tests();
   bool warnings_as_errors = ir_converter_options.warnings_as_errors();
   bool proc_scoped_channels = ir_converter_options.proc_scoped_channels();
-  bool type_inference_v2 = ir_converter_options.type_inference_v2();
+  bool type_inference_v2 =
+      ir_converter_options.has_type_inference_v2()
+          ? ir_converter_options.type_inference_v2()
+          : kDefaultTypeInferenceVersion == TypeInferenceVersion::kVersion2;
+
   bool lower_to_proc_scoped_channels =
       ir_converter_options.lower_to_proc_scoped_channels();
   bool force_implicit_token_calling_convention =
@@ -169,7 +174,8 @@ absl::Status RealMain(absl::Span<const std::string_view> paths) {
   }
   if (ir_converter_options.has_interface_textproto_file()) {
     std::string res;
-    XLS_RET_CHECK(google::protobuf::TextFormat::PrintToString(result.interface, &res));
+    XLS_RET_CHECK(
+        google::protobuf::TextFormat::PrintToString(result.interface, &res));
     XLS_RETURN_IF_ERROR(
         SetFileContents(ir_converter_options.interface_textproto_file(), res));
   }

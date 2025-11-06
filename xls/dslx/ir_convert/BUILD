@@ -621,6 +621,7 @@ cc_binary(
         "//xls/common/file:filesystem",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/dslx:parse_and_typecheck",
         "//xls/dslx:warning_kind",
         "//xls/ir",
         "//xls/ir:channel",

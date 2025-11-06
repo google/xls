@@ -84,7 +84,7 @@ ABSL_FLAG(
     "Whether to convert to proc-scoped channels after a regular IR "
     "conversion; if false, generates global channels. Cannot be combined with"
     "lower_to_proc_scoped_channels");
-ABSL_FLAG(bool, type_inference_v2, false,
+ABSL_FLAG(std::optional<bool>, type_inference_v2, std::nullopt,
           "Whether to use type system v2 when type checking the input.");
 ABSL_FLAG(bool, lower_to_proc_scoped_channels, false,
           "Whether to generate proc-scoped channels as it goes along; if "
@@ -147,7 +147,7 @@ absl::StatusOr<bool> SetOptionsFromFlags(IrConverterOptionsFlagsProto& proto) {
   POPULATE_FLAG(proc_scoped_channels);
   POPULATE_OPTIONAL_FLAG(interface_proto_file);
   POPULATE_OPTIONAL_FLAG(interface_textproto_file);
-  POPULATE_FLAG(type_inference_v2);
+  POPULATE_OPTIONAL_FLAG(type_inference_v2);
   POPULATE_FLAG(lower_to_proc_scoped_channels);
   POPULATE_FLAG(force_implicit_token_calling_convention);
   POPULATE_REPEATED_FLAG(configured_values);
