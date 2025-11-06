@@ -16,6 +16,8 @@
 
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
+# Load proto_library
+# cc_proto_library is used in this file
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -379,6 +381,7 @@ cc_library(
     srcs = ["pos.cc"],
     hdrs = ["pos.h"],
     deps = [
+        ":pos_cc_proto",
         "//xls/common:strong_int",
         "//xls/dslx/type_system:type_info_cc_proto",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -390,6 +393,16 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@re2",
     ],
+)
+
+proto_library(
+    name = "pos_proto",
+    srcs = ["pos.proto"],
+)
+
+cc_proto_library(
+    name = "pos_cc_proto",
+    deps = [":pos_proto"],
 )
 
 cc_test(

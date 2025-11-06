@@ -1,4 +1,4 @@
-// Copyright 2021 The XLS Authors
+// Copyright 2025 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,13 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-syntax = "proto3";
+edition = "2023";
 
 package xls.dslx;
 
-import "xls/dslx/frontend/pos.proto";
+// Proto representation of a `Pos` object, i.e. a position in a source file.
+message PosProto {
+  string filename = 1;
+  int32 lineno = 2;
+  int32 colno = 3;
+}
 
-message StatusPayloadProto {
-  repeated SpanProto spans = 1;
-  optional string label = 2;
+// Proto representation of a `Span` object, i.e. a span of text in a source
+// file.
+message SpanProto {
+  PosProto start = 1;
+  PosProto limit = 2;
 }

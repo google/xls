@@ -18,6 +18,7 @@
 #include <optional>
 
 #include "absl/status/status.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/status_payload.pb.h"
 
 namespace xls::dslx {
@@ -27,6 +28,12 @@ void SetStatusPayload(absl::Status& status, const StatusPayloadProto& payload);
 
 // Retrieves a `StatusPayloadProto` from `status`, if one is attached.
 std::optional<StatusPayloadProto> GetStatusPayload(const absl::Status& status);
+
+// Adds the given span to the status payload in `status`. If `status` has no
+// payload, creates one. If `span` is already present or `nullopt`, then this
+// does nothing.
+void AddSpanToStatusPayload(absl::Status& status, std::optional<Span> span,
+                            FileTable& file_table);
 
 }  // namespace xls::dslx
 

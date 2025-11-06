@@ -552,6 +552,9 @@ cc_library(
 proto_library(
     name = "type_info_proto",
     srcs = ["type_info.proto"],
+    deps = [
+        "//xls/dslx/frontend:pos_proto",
+    ],
 )
 
 cc_proto_library(

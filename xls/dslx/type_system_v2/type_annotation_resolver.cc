@@ -43,6 +43,7 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/status_payload_utils.h"
 #include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system_v2/evaluator.h"
@@ -368,7 +369,12 @@ class StatefulResolver : public TypeAnnotationResolver {
     }
 
     if (!result.ok()) {
-      return result.status();
+      absl::Status status = result.status();
+      if (context_node.has_value()) {
+        AddSpanToStatusPayload(status, (*context_node)->GetSpan(),
+                               const_cast<FileTable&>(file_table_));
+      }
+      return status;
     }
 
     trace.SetResult(*result);

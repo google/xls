@@ -19,6 +19,7 @@
 
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/status_payload.pb.h"
 
 namespace xls::dslx {
@@ -41,6 +42,25 @@ std::optional<StatusPayloadProto> GetStatusPayload(const absl::Status& status) {
     }
   }
   return std::nullopt;
+}
+
+void AddSpanToStatusPayload(absl::Status& status, std::optional<Span> span,
+                            FileTable& file_table) {
+  if (!span.has_value()) {
+    return;
+  }
+  StatusPayloadProto new_payload;
+  std::optional<StatusPayloadProto> payload = GetStatusPayload(status);
+  if (payload.has_value()) {
+    for (const SpanProto& existing_span : payload->spans()) {
+      if (FromProto(existing_span, file_table) == *span) {
+        return;
+      }
+    }
+    new_payload = *payload;
+  }
+  *new_payload.add_spans() = ToProto(*span, file_table);
+  SetStatusPayload(status, new_payload);
 }
 
 }  // namespace xls::dslx

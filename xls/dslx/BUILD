@@ -944,6 +944,8 @@ cc_library(
     hdrs = ["status_payload_utils.h"],
     deps = [
         ":status_payload_cc_proto",
+        "//xls/dslx/frontend:pos",
+        "//xls/dslx/frontend:pos_cc_proto",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:cord",
     ],
@@ -1008,7 +1010,9 @@ pytype_strict_contrib_test(
 proto_library(
     name = "status_payload_proto",
     srcs = ["status_payload.proto"],
-    deps = ["//xls/dslx/type_system:type_info_proto"],
+    deps = [
+        "//xls/dslx/frontend:pos_proto",
+    ],
 )
 
 cc_proto_library(

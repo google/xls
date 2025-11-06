@@ -733,6 +733,7 @@ cc_library(
         "//xls/dslx:errors",
         "//xls/dslx:import_data",
         "//xls/dslx:interp_value",
+        "//xls/dslx:status_payload_utils",
         "//xls/dslx:warning_collector",
         "//xls/dslx:warning_kind",
         "//xls/dslx/frontend:ast",
@@ -761,6 +762,8 @@ cc_library(
     deps = [
         ":type_system_test_utils",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx:status_payload_cc_proto",
+        "//xls/dslx:status_payload_utils",
         "//xls/dslx/type_system:typecheck_test_utils",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",

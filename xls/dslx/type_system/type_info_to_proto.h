@@ -29,9 +29,6 @@ namespace xls::dslx {
 // serialization.
 absl::StatusOr<TypeInfoProto> TypeInfoToProto(const TypeInfo& type_info);
 
-// Converts span proto to Span object.
-Span FromProto(const SpanProto& p, FileTable& file_table);
-
 // Converts the given protobuf representation of an AST node in module "m" into
 // a human readable string suitable for debugging and convenient testing.
 absl::StatusOr<std::string> ToHumanString(const AstNodeTypeInfoProto& antip,

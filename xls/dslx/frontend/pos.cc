@@ -91,11 +91,21 @@ PosProto ToProto(const Pos& pos, const FileTable& file_table) {
   return proto;
 }
 
+Pos FromProto(const PosProto& p, FileTable& file_table) {
+  Fileno fileno = file_table.GetOrCreate(p.filename());
+  return Pos(fileno, p.lineno(), p.colno());
+}
+
 SpanProto ToProto(const Span& span, const FileTable& file_table) {
   SpanProto proto;
   *proto.mutable_start() = ToProto(span.start(), file_table);
   *proto.mutable_limit() = ToProto(span.limit(), file_table);
   return proto;
+}
+
+Span FromProto(const SpanProto& p, FileTable& file_table) {
+  return Span(FromProto(p.start(), file_table),
+              FromProto(p.limit(), file_table));
 }
 
 std::string ToHumanString(const SpanProto& proto, bool v2) {

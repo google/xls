@@ -9068,5 +9068,18 @@ pub fn sum_elements_2(elements: u32[2]) -> u32 {
       TypecheckSucceeds(HasNodeWithType("sum_elements(elements)", "uN[32]")));
 }
 
+TEST(TypecheckV2Test, NodeSpanInStatusPayload) {
+  EXPECT_THAT(R"(
+struct Foo {
+  a: u32
+}
+
+const C = u33:4;
+const F = Foo { a: C };
+)",
+              TypecheckFailsWithPayload(HasSizeMismatch("u32", "u33"),
+                                        HasSpan(8, 19, 8, 20)));
+}
+
 }  // namespace
 }  // namespace xls::dslx

@@ -19,18 +19,7 @@ syntax = "proto3";
 
 package xls.dslx;
 
-// TODO(nelsonliang): Move PosProto and SpanProto out of type_info.proto so the
-// parser doesn't need to depend on type inference.
-message PosProto {
-  optional string filename = 1;
-  optional int32 lineno = 2;
-  optional int32 colno = 3;
-}
-
-message SpanProto {
-  optional PosProto start = 1;
-  optional PosProto limit = 2;
-}
+import "xls/dslx/frontend/pos.proto";
 
 enum AstNodeKindProto {
   AST_NODE_KIND_INVALID = 0;

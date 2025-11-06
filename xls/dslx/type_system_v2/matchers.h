@@ -16,6 +16,7 @@
 #define XLS_DSLX_TYPE_SYSTEM_V2_MATCHERS_H_
 
 #include <cstddef>
+#include <optional>
 #include <string>
 
 #include "gmock/gmock.h"
@@ -25,6 +26,8 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/substitute.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/status_payload.pb.h"
+#include "xls/dslx/status_payload_utils.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 #include "xls/dslx/type_system_v2/type_system_test_utils.h"
 
@@ -76,6 +79,21 @@ MATCHER_P3(HasRepeatedNodeWithType, node, type, n, "") {
       arg, result_listener);
 }
 
+// Verifies that a StatusPayloadProto contains the given span.
+MATCHER_P4(HasSpan, start_line, start_col, end_line, end_col, "") {
+  for (const SpanProto& next : arg.spans()) {
+    if (next.start().lineno() == start_line &&
+        next.start().colno() == start_col &&
+        next.limit().lineno() == end_line && next.limit().colno() == end_col) {
+      return true;
+    }
+    *result_listener << "Span `" << next.DebugString()
+                     << "` is not the expected one.";
+  }
+
+  return false;
+}
+
 // Verifies the type produced by `TypecheckV2`, for the topmost node only, in a
 // simple AST (typically a one-liner). The `arg` is the DSLX code and `expected`
 // is the type string.
@@ -119,6 +137,25 @@ MATCHER_P(TypecheckFails, matcher, "") {
   return ExplainMatchResult(
       StatusIs(absl::StatusCode::kInvalidArgument, matcher), TypecheckV2(arg),
       result_listener);
+}
+
+// Verifies that `TypecheckV2` fails for the given DSLX code, using
+// `text_matcher` for the error string and `payload_matcher` for the
+// StatusPayloadProto attached to the error. The `arg` is the DSLX code.
+MATCHER_P2(TypecheckFailsWithPayload, text_matcher, payload_matcher, "") {
+  absl::StatusOr<TypecheckResult> result = TypecheckV2(arg);
+  bool matched = ExplainMatchResult(
+      StatusIs(absl::StatusCode::kInvalidArgument, text_matcher), result,
+      result_listener);
+  if (!matched) {
+    return false;
+  }
+  std::optional<StatusPayloadProto> payload = GetStatusPayload(result.status());
+  if (!payload.has_value()) {
+    *result_listener << "No payload in status: " << arg;
+    return false;
+  }
+  return ExplainMatchResult(payload_matcher, *payload, result_listener);
 }
 
 template <typename M>

@@ -522,11 +522,6 @@ std::string ToHumanString(AstNodeKindProto kind) {
       std::string_view("AST_NODE_KIND_").size());
 }
 
-Pos FromProto(const PosProto& p, FileTable& file_table) {
-  Fileno fileno = file_table.GetOrCreate(p.filename());
-  return Pos(fileno, p.lineno(), p.colno());
-}
-
 absl::Span<const uint8_t> ToU8Span(const std::string& s) {
   return absl::Span<const uint8_t>(reinterpret_cast<const uint8_t*>(s.data()),
                                    s.size());
@@ -886,11 +881,6 @@ absl::StatusOr<AstNodeKind> FromProto(AstNodeKindProto p) {
 }
 
 }  // namespace
-
-Span FromProto(const SpanProto& p, FileTable& file_table) {
-  return Span(FromProto(p.start(), file_table),
-              FromProto(p.limit(), file_table));
-}
 
 absl::StatusOr<std::string> ToHumanString(const AstNodeTypeInfoProto& antip,
                                           const ImportData& import_data,
