@@ -13,15 +13,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import struct
 import subprocess
 import textwrap
 
 from absl import logging
+import riegeli
 
 from absl.testing import absltest
 from absl.testing import parameterized
 from xls.common import runfiles
+from xls.interpreter import trace_pb2
 from xls.ir import xls_value_pb2
 from xls.tools import node_coverage_stats_pb2
 from xls.tools import proc_channel_values_pb2
@@ -1243,6 +1246,42 @@ out: {
         24,
     )
 
+    @parameterized_block_backends
+    def test_trace_output_block(self, backend):
+      ir_file = self.create_tempfile(content=OBSERVER_IR)
+      sig_file = self.create_tempfile(content=OBSERVER_BLOCK_SIG)
+      inp_file = self.create_tempfile(content=OBSERVER_INPUT_CHANNEL_VALUES)
+      out_file = self.create_tempfile(
+          content=OBSERVER_OUTPUT_BLOCK_CHANNEL_VALUES
+      )
+      trace_file = self.create_tempfile()
+      trace_path = trace_file.full_path
+      if os.path.exists(trace_path):
+        os.remove(trace_path)
+
+      run_command(
+          [
+              EVAL_PROC_MAIN_PATH,
+              ir_file.full_path,
+              f"--inputs_for_all_channels={inp_file.full_path}",
+              f"--expected_outputs_for_all_channels={out_file.full_path}",
+              f"--block_signature_proto={sig_file.full_path}",
+              "--alsologtostderr",
+              "--ticks=5",
+              f"--trace_output={trace_path}",
+          ]
+          + backend
+      )
+
+      self.assertTrue(os.path.exists(trace_path))
+      file_stat = os.stat(trace_path)
+      self.assertGreater(file_stat.st_size, 0)
+
+      # Basic check that it's a valid proto
+      with riegeli.RecordReader(open(trace_path, "rb")) as reader:
+        packets = list(reader.read_messages(trace_pb2.TracePacketProto))
+      self.assertNotEmpty(packets)
+
   @parameterized_proc_backends
   def test_observe_proc(self, backend):
     ir_file = self.create_tempfile(content=OBSERVER_IR)
@@ -1301,6 +1340,38 @@ out: {
         ],
     )
     self.assertLen(node_coverage.nodes, 7)
+
+  @parameterized_proc_backends
+  def test_trace_output_proc(self, backend):
+    ir_file = self.create_tempfile(content=OBSERVER_IR)
+    inp_file = self.create_tempfile(content=OBSERVER_INPUT_CHANNEL_VALUES)
+    out_file = self.create_tempfile(content=OBSERVER_OUTPUT_PROC_CHANNEL_VALUES)
+    trace_file = self.create_tempfile()
+    trace_path = trace_file.full_path
+    if os.path.exists(trace_path):
+      os.remove(trace_path)
+
+    run_command(
+        [
+            EVAL_PROC_MAIN_PATH,
+            ir_file.full_path,
+            f"--inputs_for_all_channels={inp_file.full_path}",
+            f"--expected_outputs_for_all_channels={out_file.full_path}",
+            "--alsologtostderr",
+            "--ticks=4",
+            f"--trace_output={trace_path}",
+        ]
+        + backend
+    )
+
+    self.assertTrue(os.path.exists(trace_path))
+    file_stat = os.stat(trace_path)
+    self.assertGreater(file_stat.st_size, 0)
+
+    # Basic check that it's a valid proto
+    with riegeli.RecordReader(open(trace_path, "rb")) as reader:
+      packets = list(reader.read_messages(trace_pb2.TracePacketProto))
+    self.assertNotEmpty(packets)
 
   @parameterized_proc_backends
   def test_multi_proc(self, backend):

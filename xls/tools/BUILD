@@ -327,6 +327,7 @@ cc_binary(
         "//xls/codegen:module_signature_cc_proto",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
+        "//xls/common:visitor",
         "//xls/common/file:filesystem",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -336,8 +337,10 @@ cc_binary(
         "//xls/interpreter:evaluator_options",
         "//xls/interpreter:interpreter_proc_runtime",
         "//xls/interpreter:ir_interpreter",
+        "//xls/interpreter:observer",
         "//xls/interpreter:random_value",
         "//xls/interpreter:serial_proc_runtime",
+        "//xls/interpreter:tracing_observer",
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:block_elaboration",
@@ -367,6 +370,11 @@ cc_binary(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
+        "@com_google_absl//absl/types:variant",
+        "@riegeli//riegeli/base:initializer",
+        "@riegeli//riegeli/bytes:fd_writer",
+        "@riegeli//riegeli/records:record_writer",
+        "@riegeli//riegeli/zstd:zstd_writer",
     ],
 )
 
@@ -961,10 +969,12 @@ pytype_strict_contrib_test(
         ":node_coverage_stats_py_pb2",
         ":proc_channel_values_py_pb2",
         "//xls/common:runfiles",
+        "//xls/interpreter:trace_py_pb2",
         "//xls/ir:xls_value_py_pb2",
         "@abseil-py//absl/logging",
         "@abseil-py//absl/testing:absltest",
         "@abseil-py//absl/testing:parameterized",
+        "@riegeli//python/riegeli",
     ],
 )
 

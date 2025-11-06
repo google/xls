@@ -27,6 +27,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -49,20 +50,28 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "absl/types/variant.h"
+#include "riegeli/base/maker.h"
+#include "riegeli/bytes/fd_writer.h"
+#include "riegeli/records/record_writer.h"
+#include "riegeli/zstd/zstd_writer.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/visitor.h"
 #include "xls/dev_tools/tool_timeout.h"
 #include "xls/interpreter/block_evaluator.h"
 #include "xls/interpreter/block_interpreter.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/evaluator_options.h"
 #include "xls/interpreter/interpreter_proc_runtime.h"
+#include "xls/interpreter/observer.h"
 #include "xls/interpreter/random_value.h"
 #include "xls/interpreter/serial_proc_runtime.h"
+#include "xls/interpreter/tracing_observer.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
 #include "xls/ir/block_elaboration.h"
@@ -204,14 +213,21 @@ ABSL_FLAG(std::string, ram_rewrites_textproto, "",
           "Path to ram rewrites textproto, which is used to create memory "
           "models. Blank is default, in which case no memory models are added "
           "to the simulation.");
+ABSL_FLAG(std::string, trace_output, "",
+          "If non-empty, record an execution trace to this file.");
+ABSL_FLAG(int64_t, trace_zstd_compression_level,
+          riegeli::ZstdWriterBase::Options::kDefaultCompressionLevel,
+          "Zstd compression level for trace output.");
+ABSL_FLAG(std::optional<int64_t>, trace_zstd_window_log, std::nullopt,
+          "Zstd log of window size for trace output.");
 
 namespace xls {
 
 namespace {
 
-static absl::Status LogInterpreterEvents(
-    std::string_view entity_name, const InterpreterEvents& events,
-    std::optional<int> cycle = std::nullopt) {
+absl::Status LogInterpreterEvents(std::string_view entity_name,
+                                  const InterpreterEvents& events,
+                                  std::optional<int> cycle = std::nullopt) {
   const std::string cycle_str =
       cycle.has_value() ? absl::StrFormat("Cycle[%d]: ", cycle.value()) : "";
 
@@ -235,27 +251,52 @@ static absl::Status LogInterpreterEvents(
   return absl::OkStatus();
 }
 
+// We use a variant here because:
+// 1. ScopedRecordNodeCoverage has a SetPaused() function we invoke and a
+//    variant is easier to manage than a dynamic_cast<>.
+// 2. We use "scoped" observers whose lifetimes should not extend past the
+//    lifetime of the xls::Package+runtime. It doesn't suffice to pass around an
+//    EvaluationObserver* + std::optional<ScopedRecordNodeCoverage>& or
+//    something like that because we want the observer's lifetime to be tied to
+//    the end of Evaluate*() function.
+using ScopedObserver =
+    std::variant<std::monostate, std::unique_ptr<EvaluationObserver>,
+                 std::unique_ptr<ScopedRecordNodeCoverage>>;
+
+EvaluationObserver* GetEvaluationObserver(const ScopedObserver& observer) {
+  return absl::visit(
+      Visitor{
+          [](const std::monostate&) -> EvaluationObserver* { return nullptr; },
+          [](const std::unique_ptr<EvaluationObserver>& o) { return o.get(); },
+          [](const std::unique_ptr<ScopedRecordNodeCoverage>& o) {
+            CHECK(o->observer().has_value())
+                << "The ScopedObserver should only ever hold a "
+                   "ScopedRecordNodeCoverage when it holds an observer.";
+            return *o->observer();
+          }},
+      observer);
+}
+
 struct EvaluateProcsOptions {
   bool use_jit = false;
   bool fail_on_assert = false;
   std::vector<int64_t> ticks = {-1};
   std::optional<std::string> top = std::nullopt;
+  ScopedObserver observer;
 };
 
-static absl::Status EvaluateProcs(
+absl::Status EvaluateProcs(
     Package* package,
     const absl::btree_map<std::string, std::vector<Value>>& inputs_for_channels,
     absl::btree_map<std::string, std::vector<Value>>&
         expected_outputs_for_channels,
-    const RamRewritesProto& ram_rewrites,
-    const EvaluateProcsOptions& options = {}) {
+    const RamRewritesProto& ram_rewrites, const EvaluateProcsOptions& options) {
   std::unique_ptr<SerialProcRuntime> runtime;
   std::optional<JitRuntime*> jit;
   EvaluatorOptions evaluator_options;
   evaluator_options.set_trace_channels(absl::GetFlag(FLAGS_trace_channels));
   bool uses_observers =
-      absl::GetFlag(FLAGS_output_node_coverage_stats_proto).has_value() ||
-      absl::GetFlag(FLAGS_output_node_coverage_stats_textproto).has_value();
+      !std::holds_alternative<std::monostate>(options.observer);
   if (options.top) {
     XLS_ASSIGN_OR_RETURN(Proc * proc, package->GetProc(*options.top));
     if (proc != package->GetTop()) {
@@ -273,12 +314,9 @@ static absl::Status EvaluateProcs(
     XLS_ASSIGN_OR_RETURN(runtime, CreateInterpreterSerialProcRuntime(
                                       package, evaluator_options));
   }
-  ScopedRecordNodeCoverage cov(
-      absl::GetFlag(FLAGS_output_node_coverage_stats_proto),
-      absl::GetFlag(FLAGS_output_node_coverage_stats_textproto), jit);
-  if (cov.observer()) {
-    XLS_RETURN_IF_ERROR(runtime->SetObserver(*cov.observer()));
-    LOG(ERROR) << "Set observer!";
+  if (uses_observers) {
+    XLS_RETURN_IF_ERROR(
+        runtime->SetObserver(GetEvaluationObserver(options.observer)));
   }
 
   ChannelQueueManager& queue_manager = runtime->queue_manager();
@@ -638,8 +676,8 @@ InterpretBlockSignature(
   return channel_info;
 }
 
-static xls::Type* GetOutputPortSampleTimeOrNull(Block* block,
-                                                std::string_view port_name) {
+xls::Type* GetOutputPortSampleTimeOrNull(Block* block,
+                                         std::string_view port_name) {
   for (const InputPort* port : block->GetInputPorts()) {
     if (port->name() == port_name) {
       return port->GetType();
@@ -648,7 +686,7 @@ static xls::Type* GetOutputPortSampleTimeOrNull(Block* block,
   return nullptr;
 }
 
-struct RunBlockOptions {
+struct EvaluateBlockOptions {
   bool use_jit = false;
   std::vector<int64_t> ticks = {-1};
   int64_t max_cycles_no_output = 100;
@@ -657,6 +695,7 @@ struct RunBlockOptions {
   double prob_input_valid_assert;
   bool show_trace;
   bool fail_on_assert;
+  ScopedObserver observer;
 };
 
 // Helper to hold various commonly needed port names for a particular ram.
@@ -708,13 +747,13 @@ absl::StatusOr<absl::flat_hash_map<std::string, StandardRamInfo>> GetRamInfoMap(
   return all_infos;
 }
 
-static absl::Status RunBlock(
+absl::Status EvaluateBlock(
     Package* package, const verilog::ModuleSignatureProto& signature,
     const absl::btree_map<std::string, std::vector<Value>>& inputs_for_channels,
     absl::btree_map<std::string, std::vector<Value>>&
         expected_outputs_for_channels,
     const RamRewritesProto& ram_rewrites, std::string_view output_stats_path,
-    const RunBlockOptions& options = {}) {
+    const EvaluateBlockOptions& options) {
   Block* block;
   if (options.top) {
     XLS_ASSIGN_OR_RETURN(block, package->GetBlock(*options.top));
@@ -801,8 +840,7 @@ static absl::Status RunBlock(
   }
 
   bool needs_observer =
-      absl::GetFlag(FLAGS_output_node_coverage_stats_proto).has_value() ||
-      absl::GetFlag(FLAGS_output_node_coverage_stats_textproto).has_value();
+      !std::holds_alternative<std::monostate>(options.observer);
   const BlockEvaluator& continuation_factory =
       options.use_jit
           ? reinterpret_cast<const BlockEvaluator&>(
@@ -816,12 +854,13 @@ static absl::Status RunBlock(
     XLS_ASSIGN_OR_RETURN(jit,
                          kJitBlockEvaluator.GetRuntime(continuation.get()));
   }
-  ScopedRecordNodeCoverage cov(
-      absl::GetFlag(FLAGS_output_node_coverage_stats_proto),
-      absl::GetFlag(FLAGS_output_node_coverage_stats_textproto), jit);
-
-  if (cov.observer()) {
-    XLS_RETURN_IF_ERROR(continuation->SetObserver(*cov.observer()));
+  bool is_coverage_observer =
+      std::holds_alternative<std::unique_ptr<ScopedRecordNodeCoverage>>(
+          options.observer);
+  if (needs_observer) {
+    EvaluationObserver* eval_observer = GetEvaluationObserver(options.observer);
+    CHECK_NE(eval_observer, nullptr);
+    XLS_RETURN_IF_ERROR(continuation->SetObserver(eval_observer));
   }
 
   int64_t last_output_cycle = 0;
@@ -836,7 +875,10 @@ static absl::Status RunBlock(
     const bool resetting = (cycle == 0);
     // We don't want the cycle where we are initially resetting the registers to
     // be counted in coverage since its unlikely to be valuable.
-    cov.SetPaused(resetting);
+    if (is_coverage_observer) {
+      std::get<std::unique_ptr<ScopedRecordNodeCoverage>>(options.observer)
+          ->SetPaused(resetting);
+    }
 
     if (options.show_trace && ((cycle < 30) || (cycle % 100 == 0))) {
       LOG(INFO) << "Cycle[" << cycle << "]: resetting? " << resetting
@@ -1084,7 +1126,7 @@ static absl::Status RunBlock(
   return absl::OkStatus();
 }
 
-static absl::StatusOr<absl::flat_hash_map<std::string, std::string>>
+absl::StatusOr<absl::flat_hash_map<std::string, std::string>>
 ParseChannelFilenames(absl::Span<const std::string> files_raw) {
   absl::flat_hash_map<std::string, std::string> ret;
   for (const std::string& file : files_raw) {
@@ -1099,7 +1141,7 @@ ParseChannelFilenames(absl::Span<const std::string> files_raw) {
   return ret;
 }
 
-static absl::StatusOr<absl::btree_map<std::string, std::vector<Value>>>
+absl::StatusOr<absl::btree_map<std::string, std::vector<Value>>>
 GetValuesForEachChannels(
     absl::Span<const std::string> filenames_for_each_channel,
     const int64_t total_ticks) {
@@ -1153,7 +1195,7 @@ GenerateRandomInputsForPackage(Package* package, int64_t total_ticks,
   return res;
 }
 
-static absl::Status RealMain(
+absl::Status RealMain(
     std::string_view ir_file, std::string_view backend,
     std::string_view block_signature_proto, std::vector<int64_t> ticks,
     const int64_t max_cycles_no_output,
@@ -1167,7 +1209,7 @@ static absl::Status RealMain(
     const std::string& expected_proto_outputs_for_all_channels,
     const int random_seed, const double prob_input_valid_assert,
     bool show_trace, std::string_view output_stats_path, bool fail_on_assert,
-    bool random_inputs) {
+    bool random_inputs, ScopedObserver&& observer) {
   auto timeout = StartTimeoutTimer();
   // Don't waste time and memory parsing more input than can possibly be
   // consumed.
@@ -1227,7 +1269,7 @@ static absl::Status RealMain(
   }
 
   if (backend.starts_with("block")) {
-    RunBlockOptions block_options = {
+    EvaluateBlockOptions block_options = {
         .ticks = ticks,
         .max_cycles_no_output = max_cycles_no_output,
         .top = absl::GetFlag(FLAGS_top),
@@ -1242,11 +1284,12 @@ static absl::Status RealMain(
     } else {
       LOG(QFATAL) << "Unknown backend type";
     }
+    block_options.observer = std::move(observer);
     verilog::ModuleSignatureProto proto;
     CHECK_OK(ParseTextProtoFile(block_signature_proto, &proto));
-    return RunBlock(package.get(), proto, inputs_for_channels,
-                    expected_outputs_for_channels, ram_rewrites,
-                    output_stats_path, block_options);
+    return EvaluateBlock(package.get(), proto, inputs_for_channels,
+                         expected_outputs_for_channels, ram_rewrites,
+                         output_stats_path, block_options);
   }
 
   // Not block sim
@@ -1254,6 +1297,7 @@ static absl::Status RealMain(
       .fail_on_assert = fail_on_assert,
       .ticks = ticks,
       .top = absl::GetFlag(FLAGS_top),
+      .observer = std::move(observer),
   };
 
   if (backend == "serial_jit") {
@@ -1274,6 +1318,26 @@ static absl::Status RealMain(
 int main(int argc, char* argv[]) {
   std::vector<std::string_view> positional_args =
       xls::InitXls(kUsage, argc, argv);
+
+  QCHECK_GE(absl::GetFlag(FLAGS_trace_zstd_compression_level),
+            riegeli::ZstdWriterBase::Options::kMinCompressionLevel)
+      << "Invalid --trace_zstd_compression_level, must be >= "
+      << riegeli::ZstdWriterBase::Options::kMinCompressionLevel;
+  QCHECK_LE(absl::GetFlag(FLAGS_trace_zstd_compression_level),
+            riegeli::ZstdWriterBase::Options::kMaxCompressionLevel)
+      << "Invalid --trace_zstd_compression_level, must be <= "
+      << riegeli::ZstdWriterBase::Options::kMaxCompressionLevel;
+  if (absl::GetFlag(FLAGS_trace_zstd_window_log).has_value()) {
+    QCHECK_GE(*absl::GetFlag(FLAGS_trace_zstd_window_log),
+              riegeli::ZstdWriterBase::Options::kMinWindowLog)
+        << "Invalid --trace_zstd_window_log, must be >= "
+        << riegeli::ZstdWriterBase::Options::kMinWindowLog;
+    QCHECK_LE(*absl::GetFlag(FLAGS_trace_zstd_window_log),
+              riegeli::ZstdWriterBase::Options::kMaxWindowLog)
+        << "Invalid --trace_zstd_window_log, must be <= "
+        << riegeli::ZstdWriterBase::Options::kMaxWindowLog;
+  }
+
   if (positional_args.size() != 1) {
     LOG(QFATAL) << "One (and only one) IR file must be given.";
   }
@@ -1329,7 +1393,37 @@ int main(int argc, char* argv[]) {
     LOG(QFATAL) << "expected output cannot be used with --random_inputs";
   }
 
-  return xls::ExitStatus(xls::RealMain(
+  bool trace_enabled = !absl::GetFlag(FLAGS_trace_output).empty();
+  bool coverage_enabled =
+      absl::GetFlag(FLAGS_output_node_coverage_stats_proto).has_value() ||
+      absl::GetFlag(FLAGS_output_node_coverage_stats_textproto).has_value();
+
+  if (trace_enabled && coverage_enabled) {
+    LOG(QFATAL)
+        << "Cannot specify both --trace_output and node coverage flags.";
+  }
+
+  xls::ScopedObserver observer;
+  if (trace_enabled) {
+    riegeli::RecordWriterBase::Options options;
+    options.set_zstd(absl::GetFlag(FLAGS_trace_zstd_compression_level));
+    if (std::optional<int64_t> window_log =
+            absl::GetFlag(FLAGS_trace_zstd_window_log);
+        window_log.has_value()) {
+      options.set_window_log(*window_log);
+    }
+    auto writer = std::make_unique<riegeli::RecordWriter<riegeli::FdWriter<>>>(
+        riegeli::Maker(absl::GetFlag(FLAGS_trace_output)), options);
+    CHECK_OK(writer->status());
+    observer = std::make_unique<xls::ScopedTracingObserver>(std::move(writer));
+  }
+  if (coverage_enabled) {
+    observer = std::make_unique<xls::ScopedRecordNodeCoverage>(
+        absl::GetFlag(FLAGS_output_node_coverage_stats_proto),
+        absl::GetFlag(FLAGS_output_node_coverage_stats_textproto));
+  }
+
+  absl::Status status = xls::RealMain(
       positional_args[0], backend, absl::GetFlag(FLAGS_block_signature_proto),
       ticks, absl::GetFlag(FLAGS_max_cycles_no_output),
       absl::GetFlag(FLAGS_inputs_for_channels),
@@ -1343,5 +1437,8 @@ int main(int argc, char* argv[]) {
       absl::GetFlag(FLAGS_random_seed),
       absl::GetFlag(FLAGS_prob_input_valid_assert),
       absl::GetFlag(FLAGS_show_trace), absl::GetFlag(FLAGS_output_stats_path),
-      absl::GetFlag(FLAGS_fail_on_assert), absl::GetFlag(FLAGS_random_inputs)));
+      absl::GetFlag(FLAGS_fail_on_assert), absl::GetFlag(FLAGS_random_inputs),
+      std::move(observer));
+
+  return xls::ExitStatus(status);
 }
