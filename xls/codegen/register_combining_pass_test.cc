@@ -20,13 +20,13 @@
 #include "gtest/gtest.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "xls/codegen/block_conversion.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
@@ -38,12 +38,14 @@
 #include "xls/ir/state_element.h"
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/pipeline_schedule.h"
+#include "xls/solvers/z3_ir_equivalence_testutils.h"
 
 namespace m = xls::op_matchers;
 namespace xls::verilog {
 namespace {
 
 using ::absl_testing::IsOkAndHolds;
+using solvers::z3::ScopedVerifyBlockEquivalence;
 using ::testing::AnyOf;
 using ::testing::MatchesRegex;
 using ::testing::UnorderedElementsAre;
@@ -106,6 +108,10 @@ class RegisterCombiningPassTest : public IrTestBase {
     }
     return Reg(MatchesRegex(absl::StrFormat("p%d_%s", s, NodeName(v))));
   }
+  auto ChanSentMatcher(ChannelRef c) {
+    return Reg(MatchesRegex(
+        absl::StrFormat("__%s_d_has_been_sent_reg", ChannelRefName(c))));
+  }
 };
 
 TEST_F(RegisterCombiningPassTest, CombineBasic) {
@@ -113,13 +119,16 @@ TEST_F(RegisterCombiningPassTest, CombineBasic) {
   // ~100 nodes to write out manually and all the codegen-pass-unit metadata
   // too. Just use the proc-builder and block-converter instead.
   auto p = CreatePackage();
-  TokenlessProcBuilder pb(TestName(), "tok", p.get());
+  TokenlessProcBuilder pb(NewStyleProc(), TestName(), "tok", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(auto chan,
+                           pb.AddOutputChannel("chan", p->GetBitsType(32)));
   auto tok = pb.InitialToken();
   auto st = pb.StateElement("foo", UBits(1, 32));
   auto lit_1 = pb.Literal(UBits(1, 32));
   auto lit_2 = pb.Literal(UBits(2, 32));
   auto add_1 = pb.Add(st, lit_1);
   auto mul_2 = pb.UMul(add_1, lit_2);
+  auto send = pb.Send(chan, mul_2);
   auto nxt = pb.Next(st, mul_2);
 
   XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build());
@@ -131,6 +140,7 @@ TEST_F(RegisterCombiningPassTest, CombineBasic) {
                              {add_1.node(), 4},
                              {lit_2.node(), 8},
                              {mul_2.node(), 8},
+                             {send.node(), 10},
                              {nxt.node(), 12},
                          },
                          13);
@@ -165,6 +175,9 @@ TEST_F(RegisterCombiningPassTest, CombineBasic) {
       << "Register names changed. Test needs to be updated for "
          "block-conversion changes";
 
+  ScopedVerifyBlockEquivalence svbe(context.top_block(),
+                                    /*tick_count=*/25);
+  svbe.SetZeroInvalidChannelData();
   EXPECT_THAT(Run(p.get(), context), IsOkAndHolds(true));
   RecordProperty("result", p->DumpIr());
 
@@ -182,7 +195,7 @@ TEST_F(RegisterCombiningPassTest, CombineBasic) {
 
 TEST_F(RegisterCombiningPassTest, CombineOverlap) {
   auto p = CreatePackage();
-  TokenlessProcBuilder pb(TestName(), "tok", p.get());
+  TokenlessProcBuilder pb(NewStyleProc(), TestName(), "tok", p.get());
   auto tok = pb.InitialToken();
   auto st1 = pb.StateElement("foo", UBits(1, 32));
   auto st2 = pb.StateElement("bar", UBits(1, 32));
@@ -196,6 +209,12 @@ TEST_F(RegisterCombiningPassTest, CombineOverlap) {
   auto add_2 = pb.Add(mul_1, lit_4, SourceInfo(), "add_2");
   auto nxt1 = pb.Next(st1, mul_2);
   auto nxt2 = pb.Next(st2, add_2);
+  XLS_ASSERT_OK_AND_ASSIGN(auto chan_add,
+                           pb.AddOutputChannel("chan_add", p->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(auto chan_mul,
+                           pb.AddOutputChannel("chan_mul", p->GetBitsType(32)));
+  auto snd_mul = pb.Send(chan_mul, mul_2);
+  auto snd_add = pb.Send(chan_add, add_2);
 
   XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build());
   PipelineSchedule sched(proc,
@@ -206,12 +225,14 @@ TEST_F(RegisterCombiningPassTest, CombineOverlap) {
                              {add_1.node(), 3},
                              {lit_2.node(), 6},
                              {mul_2.node(), 6},
+                             {snd_mul.node(), 6},
                              {nxt1.node(), 9},
                              {st2.node(), 5},
                              {lit_3.node(), 8},
                              {mul_1.node(), 8},
                              {lit_4.node(), 11},
                              {add_2.node(), 11},
+                             {snd_add.node(), 11},
                              {nxt2.node(), 14},
                          },
                          15);
@@ -243,6 +264,7 @@ TEST_F(RegisterCombiningPassTest, CombineOverlap) {
           NodeToRegMatcher(mul_1, 8), NodeToRegMatcher(mul_1, 9),
           NodeToRegMatcher(mul_1, 10), NodeToRegMatcher(add_2, 11),
           NodeToRegMatcher(add_2, 12), NodeToRegMatcher(add_2, 13),
+          ChanSentMatcher(chan_add), ChanSentMatcher(chan_mul),
           StageValidMatcher(0), StageValidMatcher(1), StageValidMatcher(2),
           StageValidMatcher(3), StageValidMatcher(4), StageValidMatcher(5),
           StageValidMatcher(6), StageValidMatcher(7), StageValidMatcher(8),
@@ -251,6 +273,8 @@ TEST_F(RegisterCombiningPassTest, CombineOverlap) {
       << "Register names changed. Test needs to be updated for "
          "block-conversion changes";
 
+  ScopedVerifyBlockEquivalence svbe(context.top_block(), /*tick_count=*/25);
+  svbe.SetZeroInvalidChannelData();
   EXPECT_THAT(Run(p.get(), context), IsOkAndHolds(true));
   RecordProperty("result", p->DumpIr());
 
@@ -262,6 +286,7 @@ TEST_F(RegisterCombiningPassTest, CombineOverlap) {
           NodeToRegMatcher(add_1, 3), NodeToRegMatcher(mul_2, 6),
           StateToRegMatcher(st2), StateToRegFullMatcher(st2),
           NodeToRegMatcher(mul_1, 8), NodeToRegMatcher(add_2, 11),
+          ChanSentMatcher(chan_add), ChanSentMatcher(chan_mul),
           StageValidMatcher(0), StageValidMatcher(1), StageValidMatcher(2),
           StageValidMatcher(3), StageValidMatcher(4), StageValidMatcher(5),
           StageValidMatcher(6), StageValidMatcher(7), StageValidMatcher(8),
@@ -271,7 +296,7 @@ TEST_F(RegisterCombiningPassTest, CombineOverlap) {
 
 TEST_F(RegisterCombiningPassTest, CombineWithRegisterSwap) {
   auto p = CreatePackage();
-  TokenlessProcBuilder pb(TestName(), "tok", p.get());
+  TokenlessProcBuilder pb(NewStyleProc(), TestName(), "tok", p.get());
   auto tok = pb.InitialToken();
   auto st1 = pb.StateElement("foo", UBits(1, 32));
   auto st2 = pb.StateElement("bar", UBits(1, 32));
@@ -286,6 +311,12 @@ TEST_F(RegisterCombiningPassTest, CombineWithRegisterSwap) {
   auto add_3 = pb.Add(add_2, add_1, SourceInfo(), "add_3");
   auto nxt1 = pb.Next(st1, mul_2);
   auto nxt2 = pb.Next(st2, add_3);
+  XLS_ASSERT_OK_AND_ASSIGN(auto chan_mul,
+                           pb.AddOutputChannel("chan_mul", p->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(auto chan_add,
+                           pb.AddOutputChannel("chan_add", p->GetBitsType(32)));
+  auto snd_mul = pb.Send(chan_mul, mul_2);
+  auto snd_add = pb.Send(chan_add, add_2);
 
   XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build());
   PipelineSchedule sched(proc,
@@ -296,6 +327,7 @@ TEST_F(RegisterCombiningPassTest, CombineWithRegisterSwap) {
                              {add_1.node(), 3},
                              {lit_2.node(), 6},
                              {mul_2.node(), 6},
+                             {snd_mul.node(), 6},
                              {nxt1.node(), 9},
                              {st2.node(), 5},
                              {lit_3.node(), 8},
@@ -303,6 +335,7 @@ TEST_F(RegisterCombiningPassTest, CombineWithRegisterSwap) {
                              {lit_4.node(), 11},
                              {add_2.node(), 11},
                              {add_3.node(), 13},
+                             {snd_add.node(), 13},
                              {nxt2.node(), 15},
                          },
                          16);
@@ -338,6 +371,7 @@ TEST_F(RegisterCombiningPassTest, CombineWithRegisterSwap) {
           NodeToRegMatcher(mul_1, 9), NodeToRegMatcher(mul_1, 10),
           NodeToRegMatcher(add_2, 11), NodeToRegMatcher(add_2, 12),
           NodeToRegMatcher(add_3, 13), NodeToRegMatcher(add_3, 14),
+          ChanSentMatcher(chan_mul), ChanSentMatcher(chan_add),
           StageValidMatcher(0), StageValidMatcher(1), StageValidMatcher(2),
           StageValidMatcher(3), StageValidMatcher(4), StageValidMatcher(5),
           StageValidMatcher(6), StageValidMatcher(7), StageValidMatcher(8),
@@ -346,6 +380,8 @@ TEST_F(RegisterCombiningPassTest, CombineWithRegisterSwap) {
       << "Register names changed. Test needs to be updated for "
          "block-conversion changes";
 
+  ScopedVerifyBlockEquivalence svbe(context.top_block(), /*tick_count=*/30);
+  svbe.SetZeroInvalidChannelData();
   EXPECT_THAT(Run(p.get(), context), IsOkAndHolds(true));
   RecordProperty("result", p->DumpIr());
 
@@ -361,6 +397,7 @@ TEST_F(RegisterCombiningPassTest, CombineWithRegisterSwap) {
           NodeToRegMatcher(mul_2, 6), StateToRegMatcher(st2),
           StateToRegFullMatcher(st2), NodeToRegMatcher(mul_1, 8),
           NodeToRegMatcher(add_2, 11), NodeToRegMatcher(add_3, 13),
+          ChanSentMatcher(chan_mul), ChanSentMatcher(chan_add),
           StageValidMatcher(0), StageValidMatcher(1), StageValidMatcher(2),
           StageValidMatcher(3), StageValidMatcher(4), StageValidMatcher(5),
           StageValidMatcher(6), StageValidMatcher(7), StageValidMatcher(8),
@@ -370,7 +407,7 @@ TEST_F(RegisterCombiningPassTest, CombineWithRegisterSwap) {
 
 TEST_F(RegisterCombiningPassTest, AppliesToPredicatedWrites) {
   auto p = CreatePackage();
-  TokenlessProcBuilder pb(TestName(), "tok", p.get());
+  TokenlessProcBuilder pb(NewStyleProc(), TestName(), "tok", p.get());
   auto tok = pb.InitialToken();
   auto st = pb.StateElement("foo", UBits(1, 32));
   auto lit_1 = pb.Literal(UBits(1, 32));
@@ -379,6 +416,9 @@ TEST_F(RegisterCombiningPassTest, AppliesToPredicatedWrites) {
   auto mul_2 = pb.UMul(add_1, lit_2);
   auto nxt_pred = pb.Literal(UBits(0, 1));
   auto nxt = pb.Next(st, mul_2, /*pred=*/nxt_pred);
+  XLS_ASSERT_OK_AND_ASSIGN(auto chan_mul,
+                           pb.AddOutputChannel("chan_mul", p->GetBitsType(32)));
+  auto snd_mul = pb.Send(chan_mul, mul_2);
 
   XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build());
   PipelineSchedule sched(proc,
@@ -389,6 +429,7 @@ TEST_F(RegisterCombiningPassTest, AppliesToPredicatedWrites) {
                              {add_1.node(), 4},
                              {lit_2.node(), 8},
                              {mul_2.node(), 8},
+                             {snd_mul.node(), 8},
                              {nxt_pred.node(), 12},
                              {nxt.node(), 12},
                          },
@@ -424,6 +465,8 @@ TEST_F(RegisterCombiningPassTest, AppliesToPredicatedWrites) {
       << "Register names changed. Test needs to be updated for "
          "block-conversion changes";
 
+  ScopedVerifyBlockEquivalence svbe(context.top_block(), /*tick_count=*/25);
+  svbe.SetZeroInvalidChannelData();
   EXPECT_THAT(Run(p.get(), context), IsOkAndHolds(true));
   RecordProperty("result", p->DumpIr());
 

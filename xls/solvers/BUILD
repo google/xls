@@ -137,6 +137,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/interpreter:ir_interpreter",
         "//xls/ir",
+        "//xls/ir:block_testutils",
         "//xls/ir:proc_testutils",
         "//xls/ir:value",
         "//xls/ir:value_utils",

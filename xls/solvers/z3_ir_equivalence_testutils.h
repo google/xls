@@ -94,6 +94,77 @@ class ScopedVerifyProcEquivalence {
   Proc* original_p_;
 };
 
+// A helper to verify that block behavior (as measured by the port-values per
+// cycle) has not changed.
+//
+// Note this has several limitations that users must be aware of. First, by
+// default the simulation has very limited awareness of 'ready/valid/data'
+// signaling and considers all data to be unconditionally consumed. If
+// 'SetZeroInvalidChannelData' is called with the default argument value of
+// true, then any invalid channel data is forced to zero if the corresponding
+// valid bit is not set. This relies on metadata created during block conversion
+// to be present and correct however.
+//
+// This checker does not perform temporal reasoning about the continued
+// evolution of the port values or register state and cannot be used as a
+// general equivalence proof. This is meant for test use and basic correctness
+// checking only.
+//
+// The user should also be sure to pick an appropriate tick count since this is
+// used internally. If some interesting state cannot come around until after
+// 'tick_count' ticks it will not be explored. Note that the time it takes for
+// z3 to prove facts about the block can increase rapidly as the tick count
+// increases.
+//
+// If 'SetIncludeRegState' is called then the register state at each tick will
+// also be compared. The registers are correlated based on the order they appear
+// in the block.
+//
+// NB Internally this works by transforming the block into a function with
+// each tick unrolled.
+class ScopedVerifyBlockEquivalence {
+ public:
+  ScopedVerifyBlockEquivalence(ScopedVerifyBlockEquivalence&&) = default;
+  ScopedVerifyBlockEquivalence(const ScopedVerifyBlockEquivalence&) = delete;
+  ScopedVerifyBlockEquivalence& operator=(ScopedVerifyBlockEquivalence&&) =
+      delete;
+  ScopedVerifyBlockEquivalence& operator=(const ScopedVerifyBlockEquivalence&) =
+      delete;
+
+  ScopedVerifyBlockEquivalence(
+      Block* b, int64_t tick_count, bool zero_invalid_channel_data = false,
+      bool include_reg_state = false,
+      absl::Duration timeout = absl::InfiniteDuration(),
+      xabsl::SourceLocation loc = xabsl::SourceLocation::current());
+
+  ~ScopedVerifyBlockEquivalence();
+
+  ScopedVerifyBlockEquivalence& SetZeroInvalidChannelData(
+      bool zero_invalid_channel_data = true) {
+    zero_invalid_channel_data_ = zero_invalid_channel_data;
+    return *this;
+  }
+
+  ScopedVerifyBlockEquivalence& SetIncludeRegState(
+      bool include_reg_state = true) {
+    include_reg_state_ = include_reg_state;
+    return *this;
+  }
+
+ private:
+  void RunBlockVerification();
+
+  Block* const b_;
+  int64_t tick_count_;
+  bool zero_invalid_channel_data_;
+  bool include_reg_state_;
+  absl::Duration timeout_;
+  const xabsl::SourceLocation loc_;
+
+  std::unique_ptr<Package> clone_package_;
+  Block* original_b_;
+};
+
 // Print a function with each node annotated with its value in the given
 // counterexample.
 absl::StatusOr<std::string> DumpWithNodeValues(Function* func,

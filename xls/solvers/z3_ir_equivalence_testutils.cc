@@ -37,6 +37,8 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/ir_interpreter.h"
+#include "xls/ir/block.h"
+#include "xls/ir/block_testutils.h"
 #include "xls/ir/function.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
@@ -198,6 +200,64 @@ void ScopedVerifyProcEquivalence::RunProcVerification() {
     testing::Test::RecordProperty("original",
                                   original_ir.value_or(original_p_->DumpIr()));
     testing::Test::RecordProperty("final", p_->DumpIr());
+  }
+}
+
+ScopedVerifyBlockEquivalence::ScopedVerifyBlockEquivalence(
+    Block* b, int64_t tick_count, bool zero_invalid_channel_data,
+    bool include_reg_state, absl::Duration timeout, xabsl::SourceLocation loc)
+    : b_(b),
+      tick_count_(tick_count),
+      zero_invalid_channel_data_(zero_invalid_channel_data),
+      include_reg_state_(include_reg_state),
+      timeout_(timeout),
+      loc_(loc) {
+  clone_package_ = std::make_unique<Package>(
+      absl::StrFormat("%s_original", b->package()->name()));
+  absl::StatusOr<Block*> cloned = b_->Clone(
+      absl::StrFormat("%s_original", b->name()), clone_package_.get());
+  CHECK_OK(cloned.status());
+  original_b_ = *std::move(cloned);
+}
+
+ScopedVerifyBlockEquivalence::~ScopedVerifyBlockEquivalence() {
+  // XLS_ASSERT_OK_AND_ASSIGN doesn't like being used in destructors for some
+  // reason?
+  RunBlockVerification();
+}
+
+void ScopedVerifyBlockEquivalence::RunBlockVerification() {
+  testing::ScopedTrace trace(
+      loc_.file_name(), loc_.line(),
+      absl::StrCat("ScopedVerifyBlockEquivalence failed to prove equivalence "
+                   "of block ",
+                   b_->name(), " before & after changes"));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * final_b_cloned,
+                           b_->Clone(absl::StrFormat("%s_modified", b_->name()),
+                                     clone_package_.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * original_f,
+      UnrollBlockToFunction(original_b_, tick_count_, include_reg_state_,
+                            zero_invalid_channel_data_));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f,
+      UnrollBlockToFunction(final_b_cloned, tick_count_, include_reg_state_,
+                            zero_invalid_channel_data_));
+  auto equiv = TryProveEquivalence(original_f, f, timeout_);
+  EXPECT_THAT(equiv, IsOkAndHolds(IsProvenTrue()));
+  if (testing::Test::HasFailure()) {
+    testing::Test::RecordProperty("original", original_b_->DumpIr());
+    testing::Test::RecordProperty("final", final_b_cloned->DumpIr());
+    if (equiv.ok()) {
+      testing::Test::RecordProperty(
+          "original_unrolled_annotated",
+          DumpWithNodeValues(original_f, std::get<ProvenFalse>(*equiv))
+              .value_or("<FAILED TO DUMP>"));
+      testing::Test::RecordProperty(
+          "final_unrolled_annotated",
+          DumpWithNodeValues(f, std::get<ProvenFalse>(*equiv))
+              .value_or("<FAILED TO DUMP>"));
+    }
   }
 }
 
