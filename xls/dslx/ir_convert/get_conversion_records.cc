@@ -96,67 +96,6 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     return next_record;
   }
 
-  // TODO: davidplass - inline this into HandleFunction since it's only
-  // ever called from there now.
-  absl::Status AddFunction(const Function* f) {
-    VLOG(5) << "AddFunction " << f->ToString();
-    std::optional<ProcId> proc_id;
-    if (f->proc().has_value()) {
-      proc_id = proc_id_factory_.CreateProcId(
-          /*parent=*/std::nullopt, f->proc().value(),
-          /*count_as_new_instance=*/false);
-    }
-    // Process the child nodes first, so that function invocations or proc
-    // spawns that _we_ make are added to the list _before us_. This only
-    // matters to invocations to functions outside our module; functions inside
-    // our module should have already been added to the list.
-    XLS_RETURN_IF_ERROR(DefaultHandler(f));
-
-    std::vector<InvocationCalleeData> calls =
-        type_info_->GetUniqueInvocationCalleeData(f);
-
-    if (f->IsParametric() && calls.empty()) {
-      VLOG(5) << "No calls to parametric function "
-              << f->name_def()->ToString();
-      return absl::OkStatus();
-    }
-
-    if (f->IsParametric() && !include_tests_) {
-      XLS_RETURN_IF_ERROR(CheckIfCalledOnlyFromTestCode(
-          calls, /*is_proc=*/false, f->identifier()));
-    }
-
-    for (auto& callee_data : calls) {
-      VLOG(5) << "Processing invocation " << callee_data.invocation->ToString();
-      XLS_ASSIGN_OR_RETURN(
-          ConversionRecord cr,
-          MakeConversionRecord(const_cast<Function*>(f), f->owner(),
-                               callee_data.derived_type_info,
-                               callee_data.callee_bindings, proc_id,
-                               callee_data.invocation,
-                               // Parametric functions can never be top.
-                               /* is_top= */ !f->IsParametric() && f == top_));
-      records_.push_back(std::move(cr));
-    }
-    if (calls.empty()) {
-      // We can still convert this function even though it's never been called.
-      // Make sure we are using the right type info for imported functions.
-      TypeInfo* invocation_ti =
-          f->owner() == module_ ? type_info_
-                                : *type_info_->GetImportedTypeInfo(f->owner());
-      VLOG(5) << "Processing fn " << f->ToString();
-      XLS_ASSIGN_OR_RETURN(
-          ConversionRecord cr,
-          MakeConversionRecord(const_cast<Function*>(f), f->owner(),
-                               invocation_ti,
-                               /*bindings=*/ParametricEnv(), proc_id,
-                               /*invocation=*/nullptr,
-                               /*is_top=*/f == top_));
-      records_.push_back(std::move(cr));
-    }
-    return DefaultHandler(f);
-  }
-
   absl::Status HandleFunction(const Function* f) override {
     VLOG(5) << "HandleFunction " << f->ToString();
     if (f->tag() == FunctionTag::kProcInit ||
@@ -167,7 +106,57 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
       return absl::OkStatus();
     }
 
-    return AddFunction(f);
+    // Process the child nodes first, so that function invocations or proc
+    // spawns that _we_ make are added to the list _before us_. This only
+    // matters to invocations to functions outside our module; functions inside
+    // our module should have already been added to the list.
+    XLS_RETURN_IF_ERROR(DefaultHandler(f));
+
+    std::vector<InvocationCalleeData> calls =
+        type_info_->GetUniqueInvocationCalleeData(f);
+
+    if (f->IsParametric()) {
+      if (calls.empty()) {
+        VLOG(5) << "No calls to parametric function "
+                << f->name_def()->ToString();
+        return absl::OkStatus();
+      }
+
+      if (!include_tests_) {
+        XLS_RETURN_IF_ERROR(CheckIfCalledOnlyFromTestCode(
+            calls, /*is_proc=*/false, f->identifier()));
+      }
+    }
+
+    for (auto& callee_data : calls) {
+      VLOG(5) << "Processing invocation " << callee_data.invocation->ToString();
+      XLS_ASSIGN_OR_RETURN(
+          ConversionRecord cr,
+          MakeConversionRecord(const_cast<Function*>(f), f->owner(),
+                               callee_data.derived_type_info,
+                               callee_data.callee_bindings,
+                               /*proc_id=*/std::nullopt, callee_data.invocation,
+                               // Parametric functions can never be top.
+                               /*is_top=*/!f->IsParametric() && f == top_));
+      records_.push_back(std::move(cr));
+    }
+    if (calls.empty()) {
+      // We can still convert this function even though it's never been called.
+      // Make sure we are using the right type info for imported functions.
+      TypeInfo* invocation_ti =
+          f->owner() == module_ ? type_info_
+                                : *type_info_->GetImportedTypeInfo(f->owner());
+      VLOG(5) << "Processing fn " << f->ToString();
+      XLS_ASSIGN_OR_RETURN(ConversionRecord cr,
+                           MakeConversionRecord(const_cast<Function*>(f),
+                                                f->owner(), invocation_ti,
+                                                /*bindings=*/ParametricEnv(),
+                                                /*proc_id=*/std::nullopt,
+                                                /*invocation=*/nullptr,
+                                                /*is_top=*/f == top_));
+      records_.push_back(std::move(cr));
+    }
+    return absl::OkStatus();
   }
 
   absl::Status HandleInvocation(const Invocation* invocation) override {
