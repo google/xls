@@ -781,6 +781,7 @@ cc_binary(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dev_tools:tool_timeout",
+        "//xls/fdo:grpc_synthesizer",
         "//xls/ir:ir_parser",
         "//xls/ir:verifier",
         "//xls/scheduling:pipeline_schedule",
