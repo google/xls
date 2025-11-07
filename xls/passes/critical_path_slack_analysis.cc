@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <limits>
+#include <vector>
 
 #include "absl/status/status.h"
 #include "absl/types/span.h"
@@ -36,15 +37,15 @@ int64_t CriticalPathSlackAnalysis::SlackFromCriticalPath(Node* node) const {
 
 int64_t CriticalPathSlackAnalysis::ComputeInfo(
     Node* node, absl::Span<const int64_t* const> user_infos) const {
-  Node* end_of_critical_path =
-      critical_path_delay_analysis_->NodeAtEndOfCriticalPath(
+  std::vector<Node*> ends_of_critical_path =
+      critical_path_delay_analysis_->NodesAtEndOfCriticalPath(
           node->function_base());
-  if (!end_of_critical_path) {
+  if (ends_of_critical_path.empty()) {
     return 0;
   }
 
   int64_t critical_path_delay =
-      *critical_path_delay_analysis_->GetInfo(end_of_critical_path);
+      *critical_path_delay_analysis_->GetInfo(ends_of_critical_path[0]);
   int64_t node_delay = *critical_path_delay_analysis_->GetInfo(node);
   if (node->users().empty()) {
     return std::max((int64_t)0, critical_path_delay - node_delay);

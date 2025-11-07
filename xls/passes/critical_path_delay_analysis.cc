@@ -17,7 +17,9 @@
 #include <algorithm>
 #include <cstdint>
 #include <memory>
+#include <vector>
 
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -48,21 +50,27 @@ CriticalPathDelayAnalysis::Create(const AnalysisOptions& options) {
   }
 }
 
-Node* CriticalPathDelayAnalysis::NodeAtEndOfCriticalPath(
+std::vector<Node*> CriticalPathDelayAnalysis::NodesAtEndOfCriticalPath(
     FunctionBase* f) const {
-  Node* max_delay_node = nullptr;
-  int64_t max_delay = 0;
+  int64_t max_delay = -1;
+  absl::flat_hash_set<Node*> terminal_nodes;
   for (Node* node : f->nodes()) {
     if (!node->users().empty()) {
       continue;
     }
+    terminal_nodes.insert(node);
     int64_t delay = *GetInfo(node);
     if (max_delay < delay) {
-      max_delay_node = node;
       max_delay = delay;
     }
   }
-  return max_delay_node;
+  std::vector<Node*> max_delay_nodes;
+  for (Node* node : terminal_nodes) {
+    if (*GetInfo(node) == max_delay) {
+      max_delay_nodes.push_back(node);
+    }
+  }
+  return max_delay_nodes;
 }
 
 int64_t CriticalPathDelayAnalysis::ComputeInfo(

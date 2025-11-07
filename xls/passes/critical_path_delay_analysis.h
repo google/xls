@@ -17,6 +17,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -35,7 +36,7 @@ class CriticalPathDelayAnalysis : public LazyNodeData<int64_t> {
   static absl::StatusOr<std::shared_ptr<CriticalPathDelayAnalysis>> Create(
       const AnalysisOptions& options);
 
-  Node* NodeAtEndOfCriticalPath(FunctionBase* f) const;
+  std::vector<Node*> NodesAtEndOfCriticalPath(FunctionBase* f) const;
 
  protected:
   int64_t ComputeInfo(
