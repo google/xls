@@ -445,6 +445,10 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
     options.codegen_version(p.codegen_version());
   }
 
+  if (p.has_ir_dump_path()) {
+    options.set_ir_dump_path(p.ir_dump_path());
+  }
+
   return options;
 }
 

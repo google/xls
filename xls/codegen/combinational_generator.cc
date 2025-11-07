@@ -45,10 +45,11 @@ absl::StatusOr<CodegenResult> GenerateCombinationalModule(
   XLS_ASSIGN_OR_RETURN(CodegenContext context,
                        FunctionBaseToCombinationalBlock(module, options));
 
-  const CodegenPassOptions codegen_pass_options = {
+  CodegenPassOptions codegen_pass_options = {
       .codegen_options = options,
       .delay_estimator = delay_estimator,
   };
+  codegen_pass_options.ir_dump_path = options.ir_dump_path().value_or("");
 
   PassResults results;
   OptimizationContext opt_context;
@@ -70,9 +71,9 @@ absl::StatusOr<CodegenResult> GenerateCombinationalModule(
       ModuleSignature::FromProto(*context.top_block()->GetSignature()));
 
   XlsMetricsProto metrics;
-  XLS_ASSIGN_OR_RETURN(
-      *metrics.mutable_block_metrics(),
-      GenerateBlockMetrics(context.top_block(), /*delay_estimator=*/nullptr));
+  XLS_ASSIGN_OR_RETURN(*metrics.mutable_block_metrics(),
+                       GenerateBlockMetrics(context.top_block(),
+                                            /*delay_estimator=*/nullptr));
 
   // TODO: google/xls#1323 - add all block signatures to ModuleGeneratorResult,
   // not just top.
@@ -82,7 +83,7 @@ absl::StatusOr<CodegenResult> GenerateCombinationalModule(
                        .block_metrics = metrics,
                        .residual_data = residual_data,
                        .pass_pipeline_metrics = results.ToProto()};
-}
+}  // namespace verilog
 
 }  // namespace verilog
 }  // namespace xls

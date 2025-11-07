@@ -16,8 +16,8 @@ syntax = "proto3";
 
 package xls;
 
-import "xls/ir/xls_ir_interface.proto";
 import "xls/codegen/codegen_residual_data.proto";
+import "xls/ir/xls_ir_interface.proto";
 
 enum GeneratorKind {
   GENERATOR_KIND_INVALID = 0;
@@ -113,4 +113,7 @@ message CodegenFlagsProto {
   optional verilog.CodegenResidualData reference_residual_data = 43;
 
   optional SourceAnnotationStrategyProto source_annotation_strategy = 44;
+
+  // Debugging flag to cause the block conversion to dump its pass results.
+  optional string ir_dump_path = 45;
 }

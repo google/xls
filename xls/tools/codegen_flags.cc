@@ -234,6 +234,10 @@ ABSL_FLAG(
     "An optional proto which includes details from the original DSLX about the "
     "interface. For example it holds the sv types we want modules to generate");
 
+// This flag should only be specified by the user manually on the command line.
+ABSL_FLAG(std::optional<std::string>, ir_dump_path, std::nullopt,
+          "Location to dump the ir after each pass");
+
 // Returns a textual flag value corresponding to the SeedSeq `seed_seq`.
 std::string AbslUnparseFlag(const SeedSeq& seed_seq) {
   return absl::StrJoin(seed_seq.elements, ",",
@@ -429,6 +433,11 @@ static absl::StatusOr<bool> SetOptionsFromFlags(CodegenFlagsProto& proto) {
         proto.mutable_package_interface()->ParseFromString(interface_bytes));
     any_flags_set = true;
     CHECK(proto.has_package_interface());
+  }
+
+  if (absl::GetFlag(FLAGS_ir_dump_path)) {
+    *proto.mutable_ir_dump_path() = *absl::GetFlag(FLAGS_ir_dump_path);
+    any_flags_set = true;
   }
 
   // If a reference residual data path is provided, parse it and attach to

@@ -382,6 +382,14 @@ class CodegenOptions {
     return residual_data_;
   }
 
+  CodegenOptions& set_ir_dump_path(std::string_view path) {
+    ir_dump_path_ = path;
+    return *this;
+  }
+  const std::optional<std::string>& ir_dump_path() const {
+    return ir_dump_path_;
+  }
+
  private:
   std::optional<std::string> entry_;
   std::optional<std::string> module_name_;
@@ -424,6 +432,7 @@ class CodegenOptions {
   std::string nodata_fifo_module_ = "";
   std::vector<int32_t> randomize_order_seed_;
   std::optional<CodegenResidualData> residual_data_;
+  std::optional<std::string> ir_dump_path_;
 };
 
 template <typename Sink>
