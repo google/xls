@@ -96,6 +96,8 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     return next_record;
   }
 
+  // TODO: davidplass - inline this into HandleFunction since it's only
+  // ever called from there now.
   absl::Status AddFunction(const Function* f) {
     VLOG(5) << "AddFunction " << f->ToString();
     std::optional<ProcId> proc_id;
@@ -228,10 +230,10 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     VLOG(5) << "HandleProc " << p->ToString();
     const Function* next_fn = &p->next();
 
+    ProcId proc_id = proc_id_factory_.CreateProcId(
+        /*parent=*/std::nullopt, const_cast<Proc*>(p),
+        /*count_as_new_instance=*/false);
     if (top_ == next_fn && resolved_proc_alias_.has_value()) {
-      ProcId proc_id = proc_id_factory_.CreateProcId(
-          /*parent=*/std::nullopt, const_cast<Proc*>(p),
-          /*count_as_new_instance=*/false);
       proc_id.alias_name = resolved_proc_alias_->name;
       XLS_ASSIGN_OR_RETURN(
           ConversionRecord config_record,
@@ -240,6 +242,7 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
               resolved_proc_alias_->config_type_info, resolved_proc_alias_->env,
               proc_id, /*invocation=*/nullptr,
               /*is_top=*/false));
+      // TODO: Set up the initial value
       XLS_ASSIGN_OR_RETURN(
           ConversionRecord next_record,
           MakeConversionRecord(
@@ -274,9 +277,6 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
             p->identifier()));
       }
 
-      ProcId proc_id = proc_id_factory_.CreateProcId(
-          /*parent=*/std::nullopt, const_cast<Proc*>(p),
-          /*count_as_new_instance=*/false);
       XLS_ASSIGN_OR_RETURN(ConversionRecord cr,
                            SpawnDataToConversionRecord(spawn, proc_id));
       records_.push_back(std::move(cr));
@@ -287,7 +287,29 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
 
       // Similarly, if a proc is not parametric, while it might not have any
       // spawns, we still want to convert it.
-      return AddFunction(next_fn);
+
+      // Picks up any function calls inside `next`
+      XLS_RETURN_IF_ERROR(DefaultHandler(next_fn));
+
+      // Get the initial value for this proc; since there might not be a spawn,
+      // there isn't SpawnData for it.
+      Expr* init_body = p->init().body();
+
+      XLS_ASSIGN_OR_RETURN(InterpValue initial_value,
+                           proc_owner_ti->GetConstExpr(init_body));
+
+      VLOG(5) << "HandleProc: initial element "
+              << initial_value.ToHumanString();
+      XLS_ASSIGN_OR_RETURN(
+          ConversionRecord cr,
+          MakeConversionRecord(const_cast<Function*>(next_fn), p->owner(),
+                               proc_owner_ti,
+                               /*bindings=*/ParametricEnv(), proc_id,
+                               /*invocation=*/nullptr,
+                               /*is_top=*/top_ == next_fn,
+                               /*config_record=*/nullptr, initial_value));
+      records_.push_back(std::move(cr));
+      return absl::OkStatus();
     }
     return DefaultHandler(p);
   }

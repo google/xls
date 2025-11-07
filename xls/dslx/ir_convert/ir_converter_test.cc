@@ -3726,46 +3726,6 @@ fn main(x: u32[4]) -> u32[4] {
   ExpectIr(converted);
 }
 
-TEST_P(IrConverterWithBothTypecheckVersionsTest,
-       InvokeParametricFunctionInBothFuncAndProc) {
-  constexpr std::string_view program =
-      R"(
-fn square<IMPL: bool>(x:u32) -> u32 {
-  x * x
-}
-
-fn square_zero() -> u32 {
-  square<false>(u32:0)
-}
-
-proc Counter {
-  in_ch: chan<u32> in;
-  out_ch: chan<u32> out;
-
-  init {
-    u32:0
-  }
-
-  config(in_ch: chan<u32> in, out_ch: chan<u32> out) {
-    (in_ch, out_ch)
-  }
-
-  next(state: u32) {
-    let (tok, in_data) = recv(join(), in_ch);
-    let x = square<false>(in_data);
-    let next_state = state + x;
-    let tok = send(tok, out_ch, next_state);
-
-     next_state
-  }
-}
-)";
-
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program, kNoPosOptions));
-  ExpectIr(converted);
-}
-
 TEST_P(IrConverterWithBothTypecheckVersionsTest, BitCount) {
   constexpr std::string_view program = R"(
 struct S {
@@ -4384,7 +4344,95 @@ proc main {
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertOneFunctionForTest(program, "main", import_data,
+      ConvertModuleForTest(program, kProcScopedChannelOptions));
+  ExpectIr(converted);
+}
+
+constexpr std::string_view kInvokeParametricFunctionInFuncAndProc =
+    R"(
+fn square<IMPL: bool>(x:u32) -> u32 {
+  x * x
+}
+
+fn square_zero() -> u32 {
+  square<false>(u32:0)
+}
+
+proc Counter {
+  in_ch: chan<u32> in;
+  out_ch: chan<u32> out;
+
+  init {
+    u32:0
+  }
+
+  config(in_ch: chan<u32> in, out_ch: chan<u32> out) {
+    (in_ch, out_ch)
+  }
+
+  next(state: u32) {
+    let (tok, in_data) = recv(join(), in_ch);
+    let x = square<false>(in_data);
+    let next_state = state + x;
+    let tok = send(tok, out_ch, next_state);
+
+    next_state
+  }
+}
+)";
+
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       InvokeParametricFunctionInBothFuncAndProc) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kInvokeParametricFunctionInFuncAndProc,
+                           kNoPosOptions));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest,
+       ProcScopedInvokeParametricInFnAndProc) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kInvokeParametricFunctionInFuncAndProc,
+                           kProcScopedChannelOptions));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, InvokeImportedParametricFnInProc) {
+  ImportData import_data = CreateImportDataForTest();
+  constexpr std::string_view imported = R"(
+pub fn square<N: u32>(x:uN[N]) -> uN[N] { x * x }
+)";
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(imported, "imported.x", "imported", &import_data));
+
+  constexpr std::string_view program = R"(
+import imported;
+
+proc Counter {
+  in_ch: chan<u10> in;
+  out_ch: chan<u10> out;
+
+  init { imported::square<u32:10>(u10:2) }
+
+  config(in_ch: chan<u10> in, out_ch: chan<u10> out) {
+    (in_ch, out_ch)
+  }
+
+  next(state: u10) {
+    let (tok, in_data) = recv(join(), in_ch);
+    let x = imported::square<u32:10>(in_data);
+    let next_state = state + x;
+    let tok = send(tok, out_ch, next_state);
+
+    next_state
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "Counter", import_data,
                                 kProcScopedChannelOptions));
   ExpectIr(converted);
 }

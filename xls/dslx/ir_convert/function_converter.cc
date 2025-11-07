@@ -3500,7 +3500,6 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     // Note that this is the branch we take for any spawned proc.
     XLS_ASSIGN_OR_RETURN(initial_element,
                          InterpValueToValue(*const_init_value));
-    proc_data_->id_to_initial_value[proc_id] = initial_element;
     VLOG(5) << "HandleProcNextFunction: initial element now "
             << initial_element.ToString();
   } else if (proc_data_->id_to_initial_value.contains(proc_id)) {
