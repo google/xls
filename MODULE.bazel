@@ -63,7 +63,7 @@ bazel_dep(name = "bazel_skylib", version = "1.8.1")
 bazel_dep(name = "boringssl", version = "0.20250114.0")
 bazel_dep(name = "cppitertools", version = "2.2")
 bazel_dep(name = "googleapis", version = "0.0.0-20240819-fe8ba054a")
-bazel_dep(name = "grpc", version = "1.71.0")
+bazel_dep(name = "grpc", version = "1.74.1")
 bazel_dep(name = "nlohmann_json", version = "3.11.3.bcr.1")
 bazel_dep(name = "or-tools", version = "9.12", repo_name = "com_google_ortools")
 bazel_dep(name = "platforms", version = "1.0.0")
@@ -75,6 +75,43 @@ bazel_dep(name = "rules_closure", version = "0.15.0")
 bazel_dep(name = "rules_license", version = "1.0.0")
 bazel_dep(name = "rules_proto", version = "7.1.0")
 bazel_dep(name = "verible", version = "0.0.3933")
+
+# TODO: bazelbuild/bazel-central-registry#1020 - revisit when perfetto is in BCR.
+perfetto_ext = use_extension("//dependency_support/perfetto:extension.bzl", "perfetto_extension")
+use_repo(perfetto_ext, "perfetto")
+use_repo(perfetto_ext, "perfetto_cfg")
+
+# Perfetto requires this to get through bazel analysis, but seems unused for our use.
+bazel_dep(name = "rules_android", version = "0.6.0")
+
+# Pin this as otherwise we encounter some bazel analysis failure.
+bazel_dep(name = "rules_jvm_external", version = "6.8")
+
+# Pinning some maven versions seems necessary to make things resolve correctly.
+# As of 2025-11-07, this seems necessary. If unspecified, junit and mockito have
+# some issue with being a testonly dep of a non-test target. I (rigge@) would
+# have thought marking them both as an exclusion (like mockito below) would
+# solve this, but somehow it didn't for junit. Specifying a specific version of
+# junit seems to make things work.
+# TODO: bazelbuild/bazel-central-registry#1020 - revisit when perfetto is in BCR.
+maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
+maven.install(
+    artifacts = ["junit:junit:4.13.2"],
+    known_contributing_modules = [
+        "bazel_worker_java",
+        "grpc-java",
+        "or-tools",
+        "rules_closure",
+        "rules_web_testing_java",
+        "xls",
+    ],
+)
+maven.artifact(
+    artifact = "closure-stylesheets",
+    exclusions = ["org.mockito:mockito-core"],
+    group = "com.google.closure-stylesheets",
+    version = "1.5.0",
+)
 
 # Used both by XLS and rules_hdl.
 bazel_dep(name = "rules_pkg", version = "1.0.1")
@@ -92,7 +129,7 @@ bazel_dep(name = "rules_m4", version = "0.3")
 
 # Dev dependencies
 bazel_dep(name = "fuzztest", version = "20250805.0", dev_dependency = True, repo_name = "com_google_fuzztest")
-bazel_dep(name = "google_benchmark", version = "1.9.1", dev_dependency = True)
+bazel_dep(name = "google_benchmark", version = "1.9.4", dev_dependency = True)
 bazel_dep(name = "googletest", version = "1.17.0", dev_dependency = True)
 
 # Repositories we don't really depend on directly, but we need to provide

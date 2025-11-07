@@ -14,7 +14,7 @@ repos:
         entry: xls/dev_tools/check_cpp_includes.py
         language: python
         files: ^xls/.*\.(h|cc)$
-        exclude: ^xls/contrib/
+        exclude: '(^xls/contrib/|^xls/tools/trace_to_perfetto)'
         types: [text]
   - repo: https://github.com/pylint-dev/pylint
     rev: v3.3.4

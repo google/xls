@@ -1235,3 +1235,66 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
     ],
 )
+
+cc_library(
+    name = "trace_to_perfetto",
+    srcs = ["trace_to_perfetto.cc"],
+    hdrs = ["trace_to_perfetto.h"],
+    features = ["-layering_check"],
+    deps = [
+        "//xls/common/status:status_macros",
+        "//xls/interpreter:trace_cc_proto",
+        "//xls/ir:value",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/time",
+        "@com_google_absl//absl/types:span",
+        "@com_google_protobuf//:timestamp_cc_proto",
+        "@perfetto//:trace_cc_proto",
+        "@riegeli//riegeli/records:record_reader",
+    ],
+)
+
+cc_binary(
+    name = "trace_to_perfetto_main",
+    srcs = ["trace_to_perfetto_main.cc"],
+    features = ["-layering_check"],
+    deps = [
+        ":trace_to_perfetto",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/interpreter:trace_cc_proto",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log:check",
+        "@perfetto//:trace_cc_proto",
+        "@riegeli//riegeli/bytes:fd_reader",
+        "@riegeli//riegeli/records:record_reader",
+    ],
+)
+
+cc_test(
+    name = "trace_to_perfetto_test",
+    srcs = ["trace_to_perfetto_test.cc"],
+    data = ["//xls/tools/testdata:eval_proc_main_test_trace"],
+    features = ["-layering_check"],
+    deps = [
+        ":trace_to_perfetto",
+        "//xls/common:proto_test_utils",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/status:matchers",
+        "//xls/interpreter:trace_cc_proto",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log:check",
+        "@googletest//:gtest",
+        "@perfetto//:trace_cc_proto",
+        "@riegeli//riegeli/bytes:fd_reader",
+        "@riegeli//riegeli/bytes:string_reader",
+        "@riegeli//riegeli/bytes:string_writer",
+        "@riegeli//riegeli/records:record_reader",
+        "@riegeli//riegeli/records:record_writer",
+    ],
+)

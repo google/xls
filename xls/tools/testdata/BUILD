@@ -84,6 +84,17 @@ xls_ir_opt_ir(
     opt_ir_file = "eval_proc_main_test.opt.ir",
 )
 
+genrule(
+    name = "eval_proc_main_test_trace",
+    srcs = [
+        "eval_proc_main_test.opt.ir",
+        "eval_proc_main_test_inputs.txt",
+    ],
+    outs = ["eval_proc_main_test.tr"],
+    cmd = "$(location //xls/tools:eval_proc_main) $(location eval_proc_main_test.opt.ir) --ticks=2 --inputs_for_all_channels=$(location eval_proc_main_test_inputs.txt) --trace_output=$@",
+    tools = ["//xls/tools:eval_proc_main"],
+)
+
 xls_ir_verilog(
     name = "eval_proc_main_test_sv",
     src = ":eval_proc_main_test_opt_ir",
