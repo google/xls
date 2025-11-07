@@ -29,14 +29,13 @@ def repo():
         sha256 = "fd9e99f6ccb9e946755f9bc444abefbdd1eedb32c372c56dcacc7eb486aed178",
     )
 
-    # Current as of 2025-08-13
-    git_hash = "5223ac62cf6f56667ae9bfd2b7a24064252acf66"
-    archive_sha256 = "02589270abb13ff114b166d67010c8df096c9f14ddd5d189044e2068afe2f00c"
+    # Current as of 2025-11-07
+    git_hash = "d17bb1646fa36e6172b349cc59af8d31a427cf23"
 
     maybe(
         http_archive,
         name = "rules_hdl",
-        sha256 = archive_sha256,
+        integrity = "sha256-aWjEZVtMMTiO80C3a2c3WBtKJA0WzUgUzqMkA0QLsjs=",
         strip_prefix = "bazel_rules_hdl-%s" % git_hash,
         urls = [
             "https://github.com/hdl/bazel_rules_hdl/archive/%s.tar.gz" % git_hash,
