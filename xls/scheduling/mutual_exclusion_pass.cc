@@ -935,9 +935,9 @@ absl::StatusOr<std::optional<bool>> Predicates::QueryMutuallyExclusive(
   // theres no benefit there.
 
   if (required_for_compilation) {
-    LOG(INFO) << "Removing Z3's rlimit for mutex check on " << pred_a->GetName()
-              << " and " << pred_b->GetName()
-              << " as mutual exclusion is required for compilation.";
+    VLOG(1) << "Removing Z3's rlimit for mutex check on " << pred_a->GetName()
+            << " and " << pred_b->GetName()
+            << " as mutual exclusion is required for compilation.";
     solver->SetRlimit(0);
   } else {
     solver->SetRlimit(translator.z3_rlimit());
