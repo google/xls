@@ -52,5 +52,21 @@ TEST_F(Z3IrEquivalenceTestutilsTest, DumpWithNodeValues) {
                          ContainsRegex("y: bits\\[32\\] id=[0-9]+ \\(0\\)"))));
 }
 
+TEST_F(Z3IrEquivalenceTestutilsTest, EquivWithAssert) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  fb.Assert(fb.Literal(Value::Token()), fb.Eq(x, y), "foo");
+  BValue add = fb.Add(x, y);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f, /*ignore_asserts=*/true);
+  XLS_ASSERT_OK(
+      add.node()
+          ->ReplaceUsesWithNew<BinOp>(y.node(), x.node(), add.node()->op())
+          .status());
+  XLS_ASSERT_OK(f->RemoveNode(add.node()));
+}
+
 }  // namespace
 }  // namespace xls::solvers::z3

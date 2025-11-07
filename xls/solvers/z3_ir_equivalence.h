@@ -47,8 +47,13 @@ absl::StatusOr<ProverResult> TryProveEquivalence(
 //
 // Returns 'true' if the pass does not cause the result to change.
 absl::StatusOr<ProverResult> TryProveEquivalence(
-    Function* a, Function* b,
+    Function* a, Function* b, bool ignore_asserts,
     absl::Duration timeout = absl::InfiniteDuration());
+inline absl::StatusOr<ProverResult> TryProveEquivalence(
+    Function* a, Function* b,
+    absl::Duration timeout = absl::InfiniteDuration()) {
+  return TryProveEquivalence(a, b, /*ignore_asserts=*/false, timeout);
+}
 
 }  // namespace xls::solvers::z3
 

@@ -33,12 +33,25 @@ class ScopedVerifyEquivalence {
  public:
   explicit ScopedVerifyEquivalence(
       Function* f, absl::Duration timeout = absl::InfiniteDuration(),
+      xabsl::SourceLocation loc = xabsl::SourceLocation::current())
+      : ScopedVerifyEquivalence(f, /*ignore_asserts=*/false, timeout, loc) {}
+
+  explicit ScopedVerifyEquivalence(
+      Function* f, bool ignore_asserts,
+      absl::Duration timeout = absl::InfiniteDuration(),
       xabsl::SourceLocation loc = xabsl::SourceLocation::current());
+
+  // If set to true will simply ignore asserts instead of erroring.
+  ScopedVerifyEquivalence& SetIgnoreAsserts(bool ignore_asserts = true) {
+    ignore_asserts_ = ignore_asserts;
+    return *this;
+  }
 
   ~ScopedVerifyEquivalence();
 
  private:
   Function* const f_;
+  bool ignore_asserts_;
   absl::Duration timeout_;
   const xabsl::SourceLocation loc_;
 
@@ -75,11 +88,22 @@ class ScopedVerifyProcEquivalence {
       delete;
 
   ScopedVerifyProcEquivalence(
-      Proc* p, int64_t activation_count, bool include_state,
+      Proc* p, int64_t activation_count, bool include_state = false,
       absl::Duration timeout = absl::InfiniteDuration(),
       xabsl::SourceLocation loc = xabsl::SourceLocation::current());
 
   ~ScopedVerifyProcEquivalence();
+
+  // If set to true will simply ignore asserts instead of erroring.
+  ScopedVerifyProcEquivalence& SetIgnoreAsserts(bool ignore_asserts = true) {
+    ignore_asserts_ = ignore_asserts;
+    return *this;
+  }
+
+  ScopedVerifyProcEquivalence& SetIncludeState(bool include_state = true) {
+    include_state_ = include_state;
+    return *this;
+  }
 
  private:
   void RunProcVerification();
@@ -87,6 +111,7 @@ class ScopedVerifyProcEquivalence {
   Proc* const p_;
   int64_t activation_count_;
   bool include_state_;
+  bool ignore_asserts_ = false;
   absl::Duration timeout_;
   const xabsl::SourceLocation loc_;
 
@@ -151,6 +176,12 @@ class ScopedVerifyBlockEquivalence {
     return *this;
   }
 
+  // If set to true will simply ignore asserts instead of erroring.
+  ScopedVerifyBlockEquivalence& SetIgnoreAsserts(bool ignore_asserts = true) {
+    ignore_asserts_ = ignore_asserts;
+    return *this;
+  }
+
  private:
   void RunBlockVerification();
 
@@ -158,6 +189,7 @@ class ScopedVerifyBlockEquivalence {
   int64_t tick_count_;
   bool zero_invalid_channel_data_;
   bool include_reg_state_;
+  bool ignore_asserts_ = false;
   absl::Duration timeout_;
   const xabsl::SourceLocation loc_;
 

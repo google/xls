@@ -38,11 +38,38 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/value.h"
+#include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 #include "xls/solvers/z3_ir_translator.h"
 
 namespace xls::solvers::z3 {
 
+namespace {
+
+class RemoveAssertsPass : public OptimizationFunctionBasePass {
+ public:
+  RemoveAssertsPass()
+      : OptimizationFunctionBasePass(
+            "remove_asserts", "remove asserts for z3 equivalence checking") {}
+
+ protected:
+  absl::StatusOr<bool> RunOnFunctionBaseInternal(
+      FunctionBase* f, const OptimizationPassOptions& options,
+      PassResults* results, OptimizationContext& ctx) const override {
+    bool changed = false;
+    for (Node* n : ctx.TopoSort(f)) {
+      if (n->Is<Assert>()) {
+        XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
+        XLS_RETURN_IF_ERROR(f->RemoveNode(n));
+        changed = true;
+      }
+    }
+    return changed;
+  }
+};
+}  // namespace
 absl::StatusOr<ProverResult> TryProveEquivalence(Function* a, Function* b,
+                                                 bool ignore_asserts,
                                                  absl::Duration timeout) {
   std::unique_ptr<Package> to_test = std::make_unique<Package>(
       absl::StrFormat("%s_tester", a->package()->name()));
@@ -103,6 +130,14 @@ absl::StatusOr<ProverResult> TryProveEquivalence(Function* a, Function* b,
       SourceInfo(), original_result, transformed_result, Op::kEq, "TestCheck",
       to_test_func));
   XLS_RETURN_IF_ERROR(to_test_func->set_return_value(new_ret));
+  // Remove asserts if requested.
+  if (ignore_asserts) {
+    OptimizationContext ctx;
+    PassResults res;
+    RemoveAssertsPass rap;
+    XLS_RETURN_IF_ERROR(rap.Run(to_test.get(), {}, &res, ctx).status())
+        << "Unable to remove asserts from function!";
+  }
   // Run prover
   XLS_ASSIGN_OR_RETURN(
       ProverResult base_result,

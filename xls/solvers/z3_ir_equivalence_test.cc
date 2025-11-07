@@ -407,5 +407,25 @@ TEST_F(EquivalenceTest, MultiFunctionDetectsDifference) {
   EXPECT_THAT(TryProveEquivalence(f1, f2), IsOkAndHolds(IsProvenFalse()));
 }
 
+TEST_F(EquivalenceTest, MultiFunctionIgnoresAssert) {
+  std::unique_ptr<Package> p1 = CreatePackage();
+  FunctionBuilder fb1(TestName(), p1.get());
+  BValue y1 = fb1.Param("y", p1->GetBitsType(32));
+  fb1.Assert(fb1.Literal(Value::Token()), fb1.Eq(y1, y1), "foobar");
+  fb1.Add(fb1.Param("x", p1->GetBitsType(32)), y1);
+
+  std::unique_ptr<Package> p2 = CreatePackage();
+  FunctionBuilder fb2(TestName(), p2.get());
+  BValue y2 = fb2.Param("y", p2->GetBitsType(32));
+  fb2.Assert(fb2.Literal(Value::Token()), fb2.Eq(y2, y2), "foobar");
+  fb2.Add(y2, fb2.Param("x", p2->GetBitsType(32)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f1, fb1.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f2, fb2.Build());
+
+  EXPECT_THAT(TryProveEquivalence(f1, f2, /*ignore_asserts=*/true),
+              IsOkAndHolds(IsProvenTrue()));
+}
+
 }  // namespace
 }  // namespace xls::solvers::z3
