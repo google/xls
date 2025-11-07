@@ -13,19 +13,7 @@
 // limitations under the License.
 // BEGIN_CONFIG
 // # proto-message: xls.fuzzer.CrasherConfigurationProto
-// exception: "SampleError: Result miscompare for sample 0:\nargs: bits[57]:0x10;
-// bits[24]:0xc6_c3c1; bits[50]:0x2_0000_0000\nevaluated opt IR (JIT), evaluated opt IR
-// (interpreter), interpreted DSLX, simulated, simulated_ng =\n   (bits[57]:0x34,
-// [bits[19]:0x7_ffff, bits[19]:0x7_ffff, bits[19]:0x7_fff0, bits[19]:0x0, bits[19]:0x18,
-// bits[19]:0x6_c3f5, bits[19]:0x0, bits[19]:0x0, bits[19]:0x10, bits[19]:0x0, bits[19]:0x18,
-// bits[19]:0x6_c3f5, bits[19]:0x7_ffff, bits[19]:0x7_ffff, bits[19]:0x7_fff0, bits[19]:0x0,
-// bits[19]:0x18, bits[19]:0x6_c3f5, bits[19]:0x0, bits[19]:0x0, bits[19]:0x10, bits[19]:0x0,
-// bits[19]:0x18, bits[19]:0x6_c3f5], bits[3]:0x0, bits[57]:0x34)\nevaluated unopt IR (JIT) =\n
-// (bits[57]:0x34, [bits[19]:0x7_ffff, bits[19]:0x7_ffff, bits[19]:0x7_fff0, bits[19]:0x3_0300,
-// bits[19]:0x18, bits[19]:0x6_c3f5, bits[19]:0x0, bits[19]:0x0, bits[19]:0x10, bits[19]:0x0,
-// bits[19]:0x18, bits[19]:0x6_c3f5, bits[19]:0x7_ffff, bits[19]:0x7_ffff, bits[19]:0x7_fff0,
-// bits[19]:0x3_0300, bits[19]:0x18, bits[19]:0x6_c3f5, bits[19]:0x0, bits[19]:0x0, bits[19]:0x10,
-// bits[19]:0x0, bits[19]:0x18, bits[19]:0x6_c3f5], bits[3]:0x0, bits[57]:0x34)"
+// exception: "SampleError: Result miscompare for sample 0:\nargs: bits[57]:0x10; bits[24]:0xc6_c3c1; bits[50]:0x2_0000_0000\nevaluated opt IR (JIT), evaluated opt IR (interpreter), interpreted DSLX, simulated, simulated_ng =\n   (bits[57]:0x34, [bits[19]:0x7_ffff, bits[19]:0x7_ffff, bits[19]:0x7_fff0, bits[19]:0x0, bits[19]:0x18, bits[19]:0x6_c3f5, bits[19]:0x0, bits[19]:0x0, bits[19]:0x10, bits[19]:0x0, bits[19]:0x18, bits[19]:0x6_c3f5, bits[19]:0x7_ffff, bits[19]:0x7_ffff, bits[19]:0x7_fff0, bits[19]:0x0, bits[19]:0x18, bits[19]:0x6_c3f5, bits[19]:0x0, bits[19]:0x0, bits[19]:0x10, bits[19]:0x0, bits[19]:0x18, bits[19]:0x6_c3f5], bits[3]:0x0, bits[57]:0x34)\nevaluated unopt IR (JIT) =\n (bits[57]:0x34, [bits[19]:0x7_ffff, bits[19]:0x7_ffff, bits[19]:0x7_fff0, bits[19]:0x3_0300, bits[19]:0x18, bits[19]:0x6_c3f5, bits[19]:0x0, bits[19]:0x0, bits[19]:0x10, bits[19]:0x0, bits[19]:0x18, bits[19]:0x6_c3f5, bits[19]:0x7_ffff, bits[19]:0x7_ffff, bits[19]:0x7_fff0, bits[19]:0x3_0300, bits[19]:0x18, bits[19]:0x6_c3f5, bits[19]:0x0, bits[19]:0x0, bits[19]:0x10, bits[19]:0x0, bits[19]:0x18, bits[19]:0x6_c3f5], bits[3]:0x0, bits[57]:0x34)"
 // issue: "https://github.com/google/xls/issues/3330"
 // sample_options {
 //   input_is_dslx: true
