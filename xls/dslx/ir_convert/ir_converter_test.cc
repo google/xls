@@ -6600,6 +6600,147 @@ fn f() -> u32 {
   ExpectIr(converted);
 }
 
+TEST_P(ProcScopedChannelsIrConverterTest, SpawnInTopLevelUnrollFor) {
+  constexpr std::string_view program = R"(
+proc SubProc {
+  out_ch: chan<u32> out;
+  in_ch: chan<u32> in;
+  init { }
+  config(my_out: chan<u32> out, my_in: chan<u32> in) {
+    (my_out, my_in)
+  }
+  next(state: ()) {()}
+}
+
+proc Top {
+  init {}
+  config() {
+    let (outs, ins) = chan<u32>[4]("chans");
+    unroll_for!(i, _) : (u32, ()) in u32:0..u32:4 {
+      spawn SubProc(outs[i], ins[i]);
+    }(());
+    ()
+  }
+  next(state: ()) { state }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "Top", import_data,
+                                kProcScopedChannelOptions));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, SpawnInParametricProcUnrollFor) {
+  constexpr std::string_view program = R"(
+proc SubProc<N: u32> {
+  out_ch: chan<uN[N]> out;
+  in_ch: chan<uN[N]> in;
+  init { }
+  config(my_out: chan<uN[N]> out, my_in: chan<uN[N]> in) {
+    (my_out, my_in)
+  }
+  next(state: ()) { () }
+}
+
+proc Top {
+  init {}
+  config() {
+    let (outs, ins) = chan<u32>[4]("chans");
+    unroll_for!(i, _) : (u32, ()) in u32:0..u32:4 {
+      spawn SubProc<u32:32>(outs[i], ins[i]);
+    }(());
+    ()
+  }
+  next(state: ()) { state }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "Top", import_data,
+                                kProcScopedChannelOptions));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, SendRecvInUnrollFor) {
+  constexpr std::string_view program = R"(
+proc Top {
+  outs: chan<u32>[4] out;
+  ins: chan<u32>[4] in;
+  init {}
+  config(outs: chan<u32>[4] out, ins: chan<u32>[4] in) {
+    (outs, ins)
+  }
+  next(state: ()) {
+    unroll_for!(i, tok) : (u32, token) in u32:0..u32:4 {
+      let tok = send(token(), outs[i], i);
+      let (tok, _) = recv(tok, ins[i]);
+      tok
+    }(token());
+  }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "Top", import_data,
+                                kProcScopedChannelOptions));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest,
+       ParentChildSpawnInUnrolledParametricProc) {
+  constexpr std::string_view program = R"(
+proc Leaf<X: u32> {
+  out_ch: chan<uN[X]> out;
+  in_ch: chan<uN[X]> in;
+  init { }
+  config(my_out: chan<uN[X]> out, my_in: chan<uN[X]> in) {
+    (my_out, my_in)
+  }
+  next(state: ()) { () }
+}
+
+proc Branch<I: u32> {
+  out_ch: chan<uN[I]> out;
+  in_ch: chan<uN[I]> in;
+  init { }
+  config(my_out: chan<uN[I]> out, my_in: chan<uN[I]> in) {
+    let (outs, ins) = chan<uN[I]>[2]("chans");
+    unroll_for!(i, _) : (u32, ()) in u32:0..u32:2 {
+      spawn Leaf<I>(outs[i], ins[i]);
+    }(());
+    (my_out, my_in)
+  }
+  next(state: ()) { () }
+}
+
+proc Top {
+  init {}
+  config() {
+    let (outs, ins) = chan<u32>[3]("chans");
+    unroll_for!(i, _) : (u32, ()) in u32:0..u32:3 {
+      spawn Branch<u32:32>(outs[i], ins[i]);
+    }(());
+    ()
+  }
+  next(state: ()) { state }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "Top", import_data,
+                                kProcScopedChannelOptions));
+  ExpectIr(converted);
+}
+
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ConvertWithoutTests) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,

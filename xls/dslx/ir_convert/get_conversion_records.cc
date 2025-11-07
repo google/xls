@@ -317,6 +317,7 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
   OK_HANDLER(ProcDef)
   OK_HANDLER(StructDef)
   OK_HANDLER(TypeAlias)
+  OK_HANDLER(UnrollFor)
   // keep-sorted end
 #undef DEFAULT_HANDLE
 
