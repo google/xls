@@ -6546,6 +6546,42 @@ TEST_P(ProcScopedChannelsIrConverterTest, ParametricDefaultClog2InStruct) {
   ExpectIr(converted);
 }
 
+constexpr std::string_view kParametricDefaultBuiltin = R"(
+struct Foo <X: u32, Y: u32 = {clz(X)}> {
+    a: uN[X],
+    b: uN[Y],
+}
+
+fn make_zero_foo<X: u32>() -> Foo<X> {
+  zero!<Foo<X>>()
+}
+
+fn test() -> Foo<u32:5> {
+ make_zero_foo<u32:5>()
+}
+)";
+
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       ParametricDefaultBuiltinInStruct) {
+  if (GetParam() != TypeInferenceVersion::kVersion2) {
+    // TIV1 fails with "Cannot convert expression to parametric: clz(X)
+    return;
+  }
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kParametricDefaultBuiltin, kNoPosOptions));
+  ExpectIr(converted);
+}
+
+// This has the same name as the global channels test because it should
+// generate the same IR.
+TEST_P(ProcScopedChannelsIrConverterTest, ParametricDefaultBuiltinInStruct) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kParametricDefaultBuiltin,
+                                                kProcScopedChannelOptions));
+  ExpectIr(converted);
+}
+
 TEST_P(ProcScopedChannelsIrConverterTest, InvokeImportedParametricFn) {
   ImportData import_data = CreateImportDataForTest();
   constexpr std::string_view imported = R"(
