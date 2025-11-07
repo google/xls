@@ -53,6 +53,8 @@ namespace {
 // Converts the AstNodeKind (C++ enum class) to its protobuf form.
 AstNodeKindProto ToProto(AstNodeKind kind) {
   switch (kind) {
+    case AstNodeKind::kAttribute:
+      return AST_NODE_KIND_ATTRIBUTE;
     case AstNodeKind::kConstAssert:
       return AST_NODE_KIND_CONST_ASSERT;
     case AstNodeKind::kJoin:
@@ -726,6 +728,8 @@ absl::StatusOr<std::string> ToHumanString(const TypeProto& ctp,
 
 absl::StatusOr<AstNodeKind> FromProto(AstNodeKindProto p) {
   switch (p) {
+    case AST_NODE_KIND_ATTRIBUTE:
+      return AstNodeKind::kAttribute;
     case AST_NODE_KIND_JOIN:
       return AstNodeKind::kJoin;
     case AST_NODE_KIND_TYPE_ANNOTATION:

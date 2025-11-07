@@ -102,7 +102,9 @@ dslx::CommentData CommentAtBeginning(const dslx::AstNode* node,
   std::optional<dslx::Span> span = node->GetSpan();
   QCHECK(span.has_value());
   dslx::Span comment_span(
-      span->start(), dslx::Pos(span->fileno(), span->start().lineno() + 1, 0));
+      span->start(),
+      dslx::Pos(span->fileno(),
+                span->start().lineno() + 1 + node->attributes().size(), 0));
   return dslx::CommentData{.span = comment_span, .text = comment};
 }
 

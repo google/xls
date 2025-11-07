@@ -83,6 +83,14 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleAttribute(const Attribute* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+
+    old_to_new_[n] = module(n)->Make<Attribute>(*n->GetSpan(), n->GetArgSpan(),
+                                                n->attribute_kind(), n->args());
+    return absl::OkStatus();
+  }
+
   absl::Status HandleSelfTypeAnnotation(const SelfTypeAnnotation* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
@@ -408,8 +416,8 @@ class AstCloner : public AstNodeVisitor {
         CastIfNotVerbatim<StatementBlock*>(old_to_new_.at(n->body())));
     auto new_function = module(n)->Make<Function>(
         n->span(), new_name_def, new_parametric_bindings, new_params,
-        new_return_type, new_body, n->tag(), n->is_public(),
-        n->is_test_utility(), n->IsStub());
+        new_return_type, new_body, n->tag(), n->is_public(), n->IsStub());
+    new_function->set_test_utility(n->is_test_utility());
     if (n->extern_verilog_module().has_value()) {
       new_function->set_extern_verilog_module(*n->extern_verilog_module());
     }
@@ -990,8 +998,10 @@ class AstCloner : public AstNodeVisitor {
 
     XLS_ASSIGN_OR_RETURN(Proc * new_proc,
                          CastIfNotVerbatim<Proc*>(old_to_new_.at(n->proc())));
-    old_to_new_[n] =
-        module(n)->Make<TestProc>(new_proc, n->expected_fail_label());
+
+    TestProc* new_tp = module(n)->Make<TestProc>(new_proc);
+    new_tp->set_expected_fail_label(n->expected_fail_label());
+    old_to_new_[n] = new_tp;
     return absl::OkStatus();
   }
 
@@ -1261,7 +1271,20 @@ class AstCloner : public AstNodeVisitor {
       old_to_new_[node] = *replacement;
       return absl::OkStatus();
     }
-    return node->Accept(this);
+
+    std::vector<Attribute*> new_attributes;
+    new_attributes.reserve(node->attributes().size());
+    for (const Attribute* attribute : node->attributes()) {
+      XLS_RETURN_IF_ERROR(ReplaceOrVisit(attribute));
+      new_attributes.push_back(
+          down_cast<Attribute*>(old_to_new_.at(attribute)));
+    }
+    XLS_RETURN_IF_ERROR(node->Accept(this));
+    const auto it = old_to_new_.find(node);
+    if (it != old_to_new_.end()) {
+      it->second->SetAttributes(new_attributes);
+    }
+    return absl::OkStatus();
   }
 
   std::vector<ExprOrType> CloneParametrics(

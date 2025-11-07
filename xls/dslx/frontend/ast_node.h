@@ -20,6 +20,7 @@
 #include <ostream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -36,6 +37,7 @@ enum class AstNodeKind : uint8_t {
   kAllOnesMacro,
   kArray,
   kAttr,
+  kAttribute,
   kBinop,
   kBuiltinNameDef,
   kCast,
@@ -122,6 +124,7 @@ inline std::ostream& operator<<(std::ostream& os, AstNodeKind kind) {
 // Forward decls.
 class Module;
 class AstNodeVisitor;
+class Attribute;
 
 // Abstract base class for AST nodes.
 class AstNode {
@@ -177,6 +180,11 @@ class AstNode {
   void SetEnclosing(AstNode* enclosing) { enclosing_ = enclosing; }
   AstNode* GetEnclosing() const { return enclosing_; }
 
+  void SetAttributes(std::vector<Attribute*> attributes) {
+    attributes_ = std::move(attributes);
+  }
+  const std::vector<Attribute*>& attributes() const { return attributes_; }
+
  private:
   void set_parent(AstNode* parent) { parent_ = parent; }
 
@@ -193,6 +201,9 @@ class AstNode {
   // upwards, e.g. `Conditional` nest else-if ladders under a primordial
   // `Condition` that started the if-else ladder.
   AstNode* enclosing_ = nullptr;
+
+  // Set by the parser before passing the AST on to later stages.
+  std::vector<Attribute*> attributes_;
 };
 
 // Visits transitively from the root down using post-order visitation (visit

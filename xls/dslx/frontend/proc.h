@@ -209,11 +209,7 @@ class TestProc : public AstNode {
  public:
   static std::string_view GetDebugTypeName() { return "test proc"; }
 
-  TestProc(Module* owner, Proc* proc,
-           std::optional<std::string> expected_fail_label = std::nullopt)
-      : AstNode(owner),
-        proc_(proc),
-        expected_fail_label_(expected_fail_label) {}
+  TestProc(Module* owner, Proc* proc) : AstNode(owner), proc_(proc) {}
   ~TestProc() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kTestProc; }
@@ -231,6 +227,11 @@ class TestProc : public AstNode {
   std::optional<Span> GetSpan() const override { return proc_->span(); }
 
   const std::string& identifier() const { return proc_->identifier(); }
+
+  void set_expected_fail_label(std::optional<std::string> expected_fail_label) {
+    expected_fail_label_ = expected_fail_label;
+  }
+
   std::optional<std::string> expected_fail_label() const {
     return expected_fail_label_;
   }

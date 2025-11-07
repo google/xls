@@ -19,7 +19,7 @@
 1:72-1:83: TYPE_ANNOTATION :: `bool[COUNT]` :: typeof(uN[1][COUNT])
 1:77-1:82: NAME_REF :: `COUNT` :: uN[32]
 1:88-1:92: TYPE_ANNOTATION :: `bool` :: typeof(uN[1])
-4:0-6:1: FUNCTION :: `fn test_simple_nondistinct() {
+3:0-6:1: FUNCTION :: `fn test_simple_nondistinct() {
     assert_eq(distinct(u2[2]:[1, 1], bool[2]:[true, true]), false)
 }` :: () -> ()
 4:3-4:26: NAME_DEF :: `test_simple_nondistinct` :: () -> ()

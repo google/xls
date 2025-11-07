@@ -111,6 +111,7 @@ cc_library(
     deps = [
         ":ast",
         ":ast_cloner",
+        ":ast_node",
         ":ast_utils",
         ":bindings",
         ":builtins_metadata",

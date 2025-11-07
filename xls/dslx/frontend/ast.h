@@ -86,6 +86,7 @@
 // XLS_DSLX_EXPR_NODE_EACH).
 #define XLS_DSLX_AST_NODE_EACH(X) \
   /* keep-sorted start */      \
+  X(Attribute)                    \
   X(BuiltinNameDef)               \
   X(ConstAssert)                  \
   X(ConstantDef)                  \
@@ -313,6 +314,58 @@ enum class TypeAnnotationKind : uint8_t {
   kTuple,
   kTypeRef,
   kTypeVariable
+};
+
+enum class AttributeKind : uint8_t {
+  kCfg,
+  kDslxFormatDisable,
+  kExternVerilog,
+  kSvType,
+  kTest,
+  kTestProc,
+  kQuickcheck
+};
+
+// One of the `#[foo]`-like nodes preceding some entity.
+class Attribute : public AstNode {
+ public:
+  using StringKeyValueArgument = std::pair<std::string, std::string>;
+  using IntKeyValueArgument = std::pair<std::string, int64_t>;
+  using Argument =
+      std::variant<std::string, StringKeyValueArgument, IntKeyValueArgument>;
+
+  Attribute(Module* owner, Span span, std::optional<Span> arg_span,
+            AttributeKind kind, std::vector<Argument> args)
+      : AstNode(owner),
+        span_(span),
+        arg_span_(arg_span),
+        kind_(kind),
+        args_(std::move(args)) {}
+
+  AstNodeKind kind() const override { return AstNodeKind::kAttribute; }
+  AttributeKind attribute_kind() const { return kind_; }
+
+  std::optional<Span> GetSpan() const override { return span_; }
+  std::optional<Span> GetArgSpan() const { return arg_span_; }
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleAttribute(this);
+  }
+
+  std::string_view GetNodeTypeName() const override { return "Attribute"; }
+  const std::vector<Argument>& args() const { return args_; }
+
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    return {};
+  };
+
+  std::string ToString() const override;
+
+ private:
+  const Span span_;
+  const std::optional<Span> arg_span_;
+  const AttributeKind kind_;
+  const std::vector<Argument> args_;
 };
 
 // Abstract base class for type annotations.
@@ -2350,8 +2403,7 @@ class Function : public AstNode {
   Function(Module* owner, Span span, NameDef* name_def,
            std::vector<ParametricBinding*> parametric_bindings,
            std::vector<Param*> params, TypeAnnotation* return_type,
-           StatementBlock* body, FunctionTag tag, bool is_public,
-           bool is_test_utility, bool is_stub = false);
+           StatementBlock* body, FunctionTag tag, bool is_public, bool is_stub);
 
   ~Function() override;
   AstNodeKind kind() const override { return AstNodeKind::kFunction; }
@@ -2384,6 +2436,7 @@ class Function : public AstNode {
   bool IsParametric() const { return !parametric_bindings_.empty(); }
   bool is_public() const { return is_public_; }
   bool is_test_utility() const { return is_test_utility_; }
+  void set_test_utility(bool value) { is_test_utility_ = value; }
   bool IsMethod() const;
   bool IsStub() const { return is_stub_; }
 
@@ -2458,7 +2511,7 @@ class Function : public AstNode {
   std::optional<Impl*> impl_;
 
   const bool is_public_;
-  const bool is_test_utility_;
+  bool is_test_utility_ = false;  // Set by the parser on applying attributes.
   const bool is_stub_;
   std::optional<ForeignFunctionData> extern_verilog_module_;
   bool disable_format_ = false;

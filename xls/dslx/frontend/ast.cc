@@ -187,6 +187,8 @@ ExprOrType ToExprOrType(AstNode* n) {
 
 std::string_view AstNodeKindToString(AstNodeKind kind) {
   switch (kind) {
+    case AstNodeKind::kAttribute:
+      return "attribute";
     case AstNodeKind::kConstAssert:
       return "const assert";
     case AstNodeKind::kStatement:
@@ -630,6 +632,47 @@ std::string BinopKindToString(BinopKind kind) {
 #undef CASIFY
   }
   return absl::StrFormat("<invalid BinopKind(%d)>", static_cast<int>(kind));
+}
+
+std::string AttributeKindToString(AttributeKind kind) {
+  switch (kind) {
+    case AttributeKind::kCfg:
+      return "cfg";
+    case AttributeKind::kDslxFormatDisable:
+      return "dslx_format_disable";
+    case AttributeKind::kExternVerilog:
+      return "extern_verilog";
+    case AttributeKind::kSvType:
+      return "sv_type";
+    case AttributeKind::kTest:
+      return "test";
+    case AttributeKind::kTestProc:
+      return "test_proc";
+    case AttributeKind::kQuickcheck:
+      return "quickcheck";
+  }
+}
+
+// -- class Attribute
+
+std::string Attribute::ToString() const {
+  std::string args;
+  if (!args_.empty()) {
+    absl::StrAppend(&args, "(");
+    for (Argument next : args_) {
+      absl::StrAppend(&args,
+                      absl::visit(Visitor{
+                                      [](auto arg) {
+                                        return absl::Substitute(
+                                            "$0 = $1", arg.first, arg.second);
+                                      },
+                                      [](std::string arg) { return arg; },
+                                  },
+                                  next));
+    }
+    absl::StrAppend(&args, ")");
+  }
+  return absl::Substitute("#[$0$1]", AttributeKindToString(kind_), args);
 }
 
 // -- class NameDef
@@ -2161,7 +2204,7 @@ Function::Function(Module* owner, Span span, NameDef* name_def,
                    std::vector<ParametricBinding*> parametric_bindings,
                    std::vector<Param*> params, TypeAnnotation* return_type,
                    StatementBlock* body, FunctionTag tag, bool is_public,
-                   bool is_test_utility, bool is_stub)
+                   bool is_stub)
     : AstNode(owner),
       span_(std::move(span)),
       name_def_(name_def),
@@ -2171,7 +2214,6 @@ Function::Function(Module* owner, Span span, NameDef* name_def,
       body_(body),
       tag_(tag),
       is_public_(is_public),
-      is_test_utility_(is_test_utility),
       is_stub_(is_stub) {
   for (const ParametricBinding* pb : parametric_bindings_) {
     CHECK(parametric_keys_.insert(pb->identifier()).second)

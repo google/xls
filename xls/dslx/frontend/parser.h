@@ -121,8 +121,7 @@ class Parser : public TokenParser {
   FileTable& file_table() { return scanner().file_table(); }
 
   absl::StatusOr<Function*> ParseFunction(
-      const Pos& start_pos, bool is_public, bool is_test_utility,
-      Bindings& bindings,
+      const Pos& start_pos, bool is_public, Bindings& bindings,
       absl::flat_hash_map<std::string, Function*>* name_to_fn = nullptr);
 
   absl::StatusOr<Function*> ParseImplFunction(const Pos& start_pos,
@@ -133,7 +132,6 @@ class Parser : public TokenParser {
   absl::StatusOr<Lambda*> ParseLambda(Bindings& bindings);
 
   absl::StatusOr<ModuleMember> ParseProc(const Pos& start_pos, bool is_public,
-                                         bool is_test_utility,
                                          Bindings& bindings);
 
   absl::StatusOr<std::unique_ptr<Module>> ParseModule(
@@ -606,7 +604,6 @@ class Parser : public TokenParser {
   // Parses a function out of the token stream.
   absl::StatusOr<Function*> ParseFunctionInternal(const Pos& start_pos,
                                                   bool is_public,
-                                                  bool is_test_utility,
                                                   Bindings& outer_bindings);
 
   // Parses an import statement into an `Import` AST node.
@@ -619,47 +616,40 @@ class Parser : public TokenParser {
   // Parses a use statement into a `Use` AST node.
   absl::StatusOr<Use*> ParseUse(Bindings& bindings);
 
-  // Returns TestFunction AST node by parsing new-style unit test construct.
-  absl::StatusOr<TestFunction*> ParseTestFunction(Bindings& bindings,
-                                                  const Span& attribute_span);
-
-  absl::StatusOr<TestProc*> ParseTestProc(
-      Bindings& bindings, std::optional<std::string> expected_fail_label);
-
   // Parses a constant definition (e.g. at the top level of a module). Token
   // cursor should be over the `const` keyword.
   absl::StatusOr<ConstantDef*> ParseConstantDef(const Pos& start_pos,
                                                 bool is_public,
                                                 Bindings& bindings);
 
-  absl::StatusOr<QuickCheck*> ParseQuickCheck(
-      absl::flat_hash_map<std::string, Function*>* name_to_fn,
-      Bindings& bindings, const Pos& hash_pos);
-
-  // Parses the test count configuration for a quickcheck attribute.
-  absl::StatusOr<QuickCheckTestCases> ParseQuickCheckConfig();
-
   // Parses a module-level attribute -- cursor should be over the open bracket.
   //
   // Side-effect: module_ is tagged with the parsed attribute on success.
   absl::Status ParseModuleAttribute();
 
-  // Parses DSLX attributes, analogous to Rust's attributes.
-  //
-  // This accepts the following:
-  // #[test] Expects a 'fn', returns TestFunction*
-  // #[extern_verilog(...)] Expects a fn, returns Function*
-  // #[test_proc] Expects a proc, returns TestProc*
-  // #[quickcheck(...)] Expects a fn, returns QuickCheck*
-  // #[sv_type(...)] Expects a TypeDefinition, returns TypeDefinition
-  // #[cfg(...)] Expects a fn, returns Function*
-  absl::StatusOr<std::variant<TestFunction*, Function*, TestProc*, Proc*,
-                              QuickCheck*, TypeDefinition, std::nullptr_t>>
-  ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
-                 Bindings& bindings, const Pos& hash_pos);
+  // Parses DSLX attributes, analogous to Rust's attributes. Currently this is
+  // only used for attributes on top-level module members, not expressions or
+  // modules themselves.
+  absl::StatusOr<Attribute*> ParseAttribute(const Pos& hash_pos);
 
   absl::StatusOr<ChannelConfig> ParseExprAttribute(Bindings& bindings,
                                                    const Pos& hash_pos);
+  absl::StatusOr<std::vector<Attribute::Argument>> ParseAttributeArguments();
+  absl::StatusOr<ModuleMember> ApplyFunctionAttributes(
+      Function* fn, std::vector<Attribute*> attributes);
+  absl::StatusOr<ModuleMember> ApplyProcAttributes(
+      Proc* p, std::vector<Attribute*> attributes);
+  absl::Status ApplyExternVerilogAttribute(Function* fn, const Attribute& attr);
+  absl::StatusOr<bool> IsTestConfig(const Attribute& cfg);
+  absl::Status UnsupportedAttributeError(const Attribute& attribute);
+  absl::Status CheckForDuplicateAttributes(
+      const std::vector<Attribute*>& attributes);
+
+  template <typename T>
+  absl::Status ApplyTypeAttributes(T* node, std::vector<Attribute*> attributes);
+
+  absl::StatusOr<QuickCheckTestCases> GetQuickCheckTestCases(
+      const Attribute& attribute);
 
   // Parses a "spawn" statement, which creates & initializes a proc.
   absl::StatusOr<Spawn*> ParseSpawn(Bindings& bindings);
@@ -701,15 +691,15 @@ class Parser : public TokenParser {
   absl::StatusOr<Function*> ParseProcConfig(
       Bindings& bindings, std::vector<ParametricBinding*> parametric_bindings,
       const std::vector<ProcMember*>& proc_members, std::string_view proc_name,
-      bool is_public, bool is_test_utility);
+      bool is_public);
 
   absl::StatusOr<Function*> ParseProcNext(
       Bindings& bindings, std::vector<ParametricBinding*> parametric_bindings,
-      std::string_view proc_name, bool is_public, bool is_test_utility);
+      std::string_view proc_name, bool is_public);
 
   absl::StatusOr<Function*> ParseProcInit(
       Bindings& bindings, std::vector<ParametricBinding*> parametric_bindings,
-      std::string_view proc_name, bool is_public, bool is_test_utility);
+      std::string_view proc_name, bool is_public);
 
   // Parses a proc-like entity (i.e. either a Proc or a Block). This will yield
   // a node of type `T` unless the entity parsed is actually an impl-style
@@ -717,7 +707,6 @@ class Parser : public TokenParser {
   template <typename T>
   absl::StatusOr<ModuleMember> ParseProcLike(const Pos& start_pos,
                                              bool is_public,
-                                             bool is_test_utility,
                                              Bindings& outer_bindings,
                                              Keyword keyword);
 

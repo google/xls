@@ -2991,6 +2991,10 @@ static bool AreGroupedMembers(const ModuleMember& above,
     return false;
   }
 
+  if (!ToAstNode(below)->attributes().empty()) {
+    return false;
+  }
+
   const auto* above_member = std::get<MemberT*>(above);
   const auto* below_member = std::get<MemberT*>(below);
   const Pos& above_limit = above_member->span().limit();
