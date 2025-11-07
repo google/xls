@@ -34,6 +34,7 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc_conversion.h"
 #include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
 #include "xls/passes/cse_pass.h"
@@ -61,50 +62,58 @@ class SimplificationPass : public OptimizationCompoundPass {
   }
 };
 
-using MutualExclusionPassTest = IrTestBase;
-
-absl::StatusOr<bool> RunMutualExclusionPass(
-    Package* package, SchedulingContext&& context,
-    const SchedulingPassOptions& options = SchedulingPassOptions()) {
-  PassResults results;
-  bool changed = false;
-  bool subpass_changed;
-  {
-    PassResults scheduling_results;
-    XLS_ASSIGN_OR_RETURN(subpass_changed,
-                         MutualExclusionPass().Run(
-                             package, options, &scheduling_results, context));
+class MutualExclusionPassTest : public IrTestBase,
+                                public ::testing::WithParamInterface<bool> {
+ public:
+  absl::StatusOr<bool> RunMutualExclusionPass(
+      Package* package, SchedulingContext&& context,
+      const SchedulingPassOptions& options = SchedulingPassOptions()) {
+    PassResults results;
+    bool changed = false;
+    bool subpass_changed;
+    // The param here indicates whether we are testing with proc-scoped
+    // channels.
+    if (GetParam()) {
+      XLS_RETURN_IF_ERROR(ConvertPackageToNewStyleProcs(package));
+    }
+    {
+      PassResults scheduling_results;
+      XLS_ASSIGN_OR_RETURN(subpass_changed,
+                           MutualExclusionPass().Run(
+                               package, options, &scheduling_results, context));
+      changed = changed || subpass_changed;
+    }
+    OptimizationContext opt_context;
+    XLS_ASSIGN_OR_RETURN(
+        subpass_changed,
+        SimplificationPass().Run(package, OptimizationPassOptions(), &results,
+                                 opt_context));
     changed = changed || subpass_changed;
+    return changed;
   }
-  OptimizationContext opt_context;
-  XLS_ASSIGN_OR_RETURN(subpass_changed, SimplificationPass().Run(
-                                            package, OptimizationPassOptions(),
-                                            &results, opt_context));
-  changed = changed || subpass_changed;
-  return changed;
-}
 
-absl::StatusOr<bool> RunMutualExclusionPass(
-    Package* p,
-    const SchedulingPassOptions& options = SchedulingPassOptions()) {
-  return RunMutualExclusionPass(p, SchedulingContext::CreateForWholePackage(p),
-                                options);
-}
-absl::StatusOr<bool> RunMutualExclusionPass(
-    FunctionBase* f,
-    const SchedulingPassOptions& options = SchedulingPassOptions()) {
-  return RunMutualExclusionPass(
-      f->package(), SchedulingContext::CreateForSingleFunction(f), options);
-}
+  absl::StatusOr<bool> RunMutualExclusionPass(
+      Package* p,
+      const SchedulingPassOptions& options = SchedulingPassOptions()) {
+    return RunMutualExclusionPass(
+        p, SchedulingContext::CreateForWholePackage(p), options);
+  }
+  absl::StatusOr<bool> RunMutualExclusionPass(
+      FunctionBase* f,
+      const SchedulingPassOptions& options = SchedulingPassOptions()) {
+    return RunMutualExclusionPass(
+        f->package(), SchedulingContext::CreateForSingleFunction(f), options);
+  }
 
-absl::StatusOr<bool> RunMutualExclusionPass(FunctionBase* f,
-                                            const SchedulingOptions& options) {
-  SchedulingPassOptions pass_options;
-  pass_options.scheduling_options = options;
-  return RunMutualExclusionPass(f->package(),
-                                SchedulingContext::CreateForSingleFunction(f),
-                                pass_options);
-}
+  absl::StatusOr<bool> RunMutualExclusionPass(
+      FunctionBase* f, const SchedulingOptions& options) {
+    SchedulingPassOptions pass_options;
+    pass_options.scheduling_options = options;
+    return RunMutualExclusionPass(f->package(),
+                                  SchedulingContext::CreateForSingleFunction(f),
+                                  pass_options);
+  }
+};
 
 absl::StatusOr<Proc*> CreateTwoParallelSendsProc(Package* p,
                                                  std::string_view name,
@@ -144,7 +153,7 @@ int64_t NumberOfOp(FunctionBase* f, Op op) {
   return result;
 }
 
-TEST_F(MutualExclusionPassTest, TwoParallelSends) {
+TEST_P(MutualExclusionPassTest, TwoParallelSends) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * test_channel,
@@ -152,12 +161,13 @@ TEST_F(MutualExclusionPassTest, TwoParallelSends) {
                                 p->GetBitsType(32)));
   XLS_ASSERT_OK_AND_ASSIGN(
       Proc * proc, CreateTwoParallelSendsProc(p.get(), "main", test_channel));
+  XLS_ASSERT_OK(p->SetTop(proc));
   EXPECT_THAT(RunMutualExclusionPass(proc), IsOkAndHolds(true));
   EXPECT_EQ(NumberOfOp(proc, Op::kSend), 1);
   XLS_EXPECT_OK(VerifyProc(proc, true));
 }
 
-TEST_F(MutualExclusionPassTest,
+TEST_P(MutualExclusionPassTest,
        TwoParallelSendsWithSmallRlimitAndRequiredMerging) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -166,6 +176,7 @@ TEST_F(MutualExclusionPassTest,
                                 p->GetBitsType(32)));
   XLS_ASSERT_OK_AND_ASSIGN(
       Proc * proc, CreateTwoParallelSendsProc(p.get(), "main", test_channel));
+  XLS_ASSERT_OK(p->SetTop(proc));
   EXPECT_THAT(RunMutualExclusionPass(
                   proc, SchedulingOptions().mutual_exclusion_z3_rlimit(1)),
               IsOkAndHolds(true));
@@ -173,7 +184,7 @@ TEST_F(MutualExclusionPassTest,
   XLS_EXPECT_OK(VerifyProc(proc, true));
 }
 
-TEST_F(MutualExclusionPassTest,
+TEST_P(MutualExclusionPassTest,
        TwoParallelSendsWithSmallRlimitAndOptionalMerging) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -185,13 +196,14 @@ TEST_F(MutualExclusionPassTest,
           /*strictness=*/ChannelStrictness::kArbitraryStaticOrder));
   XLS_ASSERT_OK_AND_ASSIGN(
       Proc * proc, CreateTwoParallelSendsProc(p.get(), "main", test_channel));
+  XLS_ASSERT_OK(p->SetTop(proc));
   EXPECT_THAT(RunMutualExclusionPass(
                   proc, SchedulingOptions().mutual_exclusion_z3_rlimit(1)),
               IsOkAndHolds(false));
   EXPECT_EQ(NumberOfOp(proc, Op::kSend), 2);
 }
 
-TEST_F(MutualExclusionPassTest, ThreeParallelSends) {
+TEST_P(MutualExclusionPassTest, ThreeParallelSends) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p, ParsePackage(R"(
      package test_module
 
@@ -232,7 +244,7 @@ TEST_F(MutualExclusionPassTest, ThreeParallelSends) {
                        *proc->GetNode("literal.4")}));
 }
 
-TEST_F(MutualExclusionPassTest, TwoSequentialSends) {
+TEST_P(MutualExclusionPassTest, TwoSequentialSends) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p, ParsePackage(R"(
      package test_module
 
@@ -255,7 +267,7 @@ TEST_F(MutualExclusionPassTest, TwoSequentialSends) {
   EXPECT_EQ(NumberOfOp(proc, Op::kSend), 1);
 }
 
-TEST_F(MutualExclusionPassTest, TwoSequentialSendsWithInterveningIO) {
+TEST_P(MutualExclusionPassTest, TwoSequentialSendsWithInterveningIO) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p, ParsePackage(R"(
      package test_module
 
@@ -283,7 +295,7 @@ TEST_F(MutualExclusionPassTest, TwoSequentialSendsWithInterveningIO) {
   EXPECT_EQ(NumberOfOp(proc, Op::kSend), 3);
 }
 
-TEST_F(MutualExclusionPassTest, Complex) {
+TEST_P(MutualExclusionPassTest, Complex) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p, ParsePackage(R"(
      package test_module
 
@@ -317,7 +329,7 @@ TEST_F(MutualExclusionPassTest, Complex) {
   EXPECT_EQ(NumberOfOp(proc, Op::kSend), 3);
 }
 
-TEST_F(MutualExclusionPassTest, TwoParallelReceives) {
+TEST_P(MutualExclusionPassTest, TwoParallelReceives) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p, ParsePackage(R"(
      package test_module
 
@@ -346,7 +358,7 @@ TEST_F(MutualExclusionPassTest, TwoParallelReceives) {
   XLS_EXPECT_OK(VerifyProc(proc, true));
 }
 
-TEST_F(MutualExclusionPassTest, TwoSequentialReceives) {
+TEST_P(MutualExclusionPassTest, TwoSequentialReceives) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p, ParsePackage(R"(
      package test_module
 
@@ -374,7 +386,7 @@ TEST_F(MutualExclusionPassTest, TwoSequentialReceives) {
   EXPECT_EQ(NumberOfOp(proc, Op::kReceive), 1);
 }
 
-TEST_F(MutualExclusionPassTest, TwoSequentialReceivesWithInterveningIO) {
+TEST_P(MutualExclusionPassTest, TwoSequentialReceivesWithInterveningIO) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p, ParsePackage(R"(
      package test_module
 
@@ -407,7 +419,7 @@ TEST_F(MutualExclusionPassTest, TwoSequentialReceivesWithInterveningIO) {
   EXPECT_EQ(NumberOfOp(proc, Op::kReceive), 2);
 }
 
-TEST_F(MutualExclusionPassTest, TwoSequentialReceivesWithDataDep) {
+TEST_P(MutualExclusionPassTest, TwoSequentialReceivesWithDataDep) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p, ParsePackage(R"(
      package test_module
 
@@ -436,7 +448,7 @@ TEST_F(MutualExclusionPassTest, TwoSequentialReceivesWithDataDep) {
   EXPECT_EQ(NumberOfOp(proc, Op::kReceive), 2);
 }
 
-TEST_F(MutualExclusionPassTest, TwoReceivesDependingOnReceive) {
+TEST_P(MutualExclusionPassTest, TwoReceivesDependingOnReceive) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p, ParsePackage(R"(
      package test_module
 
@@ -472,7 +484,7 @@ TEST_F(MutualExclusionPassTest, TwoReceivesDependingOnReceive) {
   EXPECT_EQ(NumberOfOp(proc, Op::kReceive), 2);
 }
 
-TEST_F(MutualExclusionPassTest, TwoProcsBothHavingTwoParallelSends) {
+TEST_P(MutualExclusionPassTest, TwoProcsBothHavingTwoParallelSends) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * test_channel0,
@@ -486,6 +498,7 @@ TEST_F(MutualExclusionPassTest, TwoProcsBothHavingTwoParallelSends) {
                                              p.get(), "proc0", test_channel0));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc1, CreateTwoParallelSendsProc(
                                              p.get(), "proc1", test_channel1));
+  XLS_ASSERT_OK(p->SetTop(proc0));
   EXPECT_THAT(RunMutualExclusionPass(p.get()), IsOkAndHolds(true));
   EXPECT_EQ(NumberOfOp(proc0, Op::kSend), 1);
   EXPECT_EQ(NumberOfOp(proc1, Op::kSend), 1);
@@ -493,7 +506,7 @@ TEST_F(MutualExclusionPassTest, TwoProcsBothHavingTwoParallelSends) {
   XLS_EXPECT_OK(VerifyProc(proc1, true));
 }
 
-TEST_F(MutualExclusionPassTest, RequiredMergeFails) {
+TEST_P(MutualExclusionPassTest, RequiredMergeFails) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p, ParsePackage(R"(
      package test_module
 
@@ -522,7 +535,7 @@ TEST_F(MutualExclusionPassTest, RequiredMergeFails) {
                        HasSubstr("without creating a cycle")));
 }
 
-TEST_F(MutualExclusionPassTest, AvoidsCycles) {
+TEST_P(MutualExclusionPassTest, AvoidsCycles) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p, ParsePackage(R"(
      package test_module
 
@@ -553,7 +566,7 @@ TEST_F(MutualExclusionPassTest, AvoidsCycles) {
 
 // Make sure that we finish in a reasonable amount of time even if we have an
 // inordinate number of channels assuming few conflict.
-TEST_F(MutualExclusionPassTest, MassiveNumberOfChannels) {
+TEST_P(MutualExclusionPassTest, MassiveNumberOfChannels) {
   auto p = CreatePackage();
   ProcBuilder pb(TestName(), p.get());
   BValue state = pb.StateElement("val", UBits(0, 1));
@@ -577,12 +590,13 @@ TEST_F(MutualExclusionPassTest, MassiveNumberOfChannels) {
   }
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(p->SetTop(proc));
 
   EXPECT_THAT(RunMutualExclusionPass(p.get()), IsOkAndHolds(true));
   EXPECT_EQ(NumberOfOp(proc, Op::kSend), kNumChannels);
 }
 
-TEST_F(MutualExclusionPassTest, MassiveNumberOfChannelsNoChange) {
+TEST_P(MutualExclusionPassTest, MassiveNumberOfChannelsNoChange) {
   auto p = CreatePackage();
   ProcBuilder pb(TestName(), p.get());
   BValue state = pb.StateElement("val", UBits(0, 1));
@@ -605,10 +619,14 @@ TEST_F(MutualExclusionPassTest, MassiveNumberOfChannelsNoChange) {
   }
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(p->SetTop(proc));
 
   EXPECT_THAT(RunMutualExclusionPass(p.get()), IsOkAndHolds(false));
   EXPECT_EQ(NumberOfOp(proc, Op::kSend), kNumChannels);
 }
+
+INSTANTIATE_TEST_SUITE_P(MutualExclusionPassTestSuite, MutualExclusionPassTest,
+                         testing::Values(false, true));
 
 }  // namespace
 }  // namespace xls

@@ -606,6 +606,7 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/ir:op",
+        "//xls/ir:proc_conversion",
         "//xls/ir:value",
         "//xls/ir:verifier",
         "//xls/passes:cse_pass",

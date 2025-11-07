@@ -830,28 +830,24 @@ absl::StatusOr<bool> MergeNodes(Predicates* p, FunctionBase* f,
 
 // Returns the set of proven_mutually_exclusive channels that have operations
 // predicated by `node`.
-absl::StatusOr<absl::flat_hash_set<Channel*>>
+absl::StatusOr<absl::flat_hash_set<ChannelRef>>
 GetControlledProvenMutuallyExclusiveChannels(Node* node, const Predicates& p) {
-  FunctionBase* f = node->function_base();
-  absl::flat_hash_set<Channel*> controlled_channels;
+  absl::flat_hash_set<ChannelRef> controlled_channels;
   for (Node* predicated_node : p.GetNodesPredicatedBy(node)) {
-    Channel* channel = nullptr;
+    ChannelRef channel;
     if (predicated_node->Is<Send>()) {
       XLS_ASSIGN_OR_RETURN(channel,
-                           f->package()->GetChannel(
-                               predicated_node->As<Send>()->channel_name()));
+                           predicated_node->As<Send>()->GetChannelRef());
     } else if (predicated_node->Is<Receive>()) {
       XLS_ASSIGN_OR_RETURN(channel,
-                           f->package()->GetChannel(
-                               predicated_node->As<Receive>()->channel_name()));
+                           predicated_node->As<Receive>()->GetChannelRef());
     } else {
       continue;
     }
-
-    if (channel->kind() != ChannelKind::kStreaming) {
+    if (ChannelRefKind(channel) != ChannelKind::kStreaming) {
       continue;
     }
-    if (down_cast<StreamingChannel*>(channel)->GetStrictness() ==
+    if (ChannelRefStrictness(channel) ==
         ChannelStrictness::kProvenMutuallyExclusive) {
       controlled_channels.insert(channel);
     }
@@ -928,10 +924,10 @@ absl::StatusOr<std::optional<bool>> Predicates::QueryMutuallyExclusive(
   Z3_context ctx = solver->ctx();
   solvers::z3::ScopedErrorHandler seh(ctx);
   XLS_ASSIGN_OR_RETURN(
-      absl::flat_hash_set<Channel*> channels_a,
+      absl::flat_hash_set<ChannelRef> channels_a,
       GetControlledProvenMutuallyExclusiveChannels(pred_a, *this));
   XLS_ASSIGN_OR_RETURN(
-      absl::flat_hash_set<Channel*> channels_b,
+      absl::flat_hash_set<ChannelRef> channels_b,
       GetControlledProvenMutuallyExclusiveChannels(pred_b, *this));
   bool required_for_compilation = HasIntersection(channels_a, channels_b);
 
@@ -976,8 +972,8 @@ absl::StatusOr<std::optional<bool>> Predicates::QueryMutuallyExclusive(
           "exclusive.",
           pred_a->GetName(), pred_b->GetName(),
           absl::StrJoin(Intersection(channels_a, channels_b), ", ",
-                        [](std::string* out, Channel* channel) {
-                          absl::StrAppend(out, channel->name());
+                        [](std::string* out, ChannelRef channel) {
+                          absl::StrAppend(out, ChannelRefName(channel));
                         })));
     }
     return false;
@@ -992,8 +988,8 @@ absl::StatusOr<std::optional<bool>> Predicates::QueryMutuallyExclusive(
           "exclusive.",
           pred_a->GetName(), pred_b->GetName(),
           absl::StrJoin(Intersection(channels_a, channels_b), ", ",
-                        [](std::string* out, Channel* channel) {
-                          absl::StrAppend(out, channel->name());
+                        [](std::string* out, ChannelRef channel) {
+                          absl::StrAppend(out, ChannelRefName(channel));
                         })));
     }
     return std::nullopt;
