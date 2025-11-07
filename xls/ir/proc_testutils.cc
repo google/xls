@@ -158,10 +158,6 @@ class UnrollProcVisitor final : public DfsVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleAssert(Assert* a) override {
-    return absl::UnimplementedError(
-        "UnrollProcVisitor: assert is not supported");
-  }
   absl::Status HandleCover(Cover* c) override {
     return absl::UnimplementedError(
         "UnrollProcVisitor: cover is not supported");

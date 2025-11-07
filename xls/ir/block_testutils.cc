@@ -140,10 +140,6 @@ class UnrollBlockVisitor final : public DfsVisitorWithDefault {
     return absl::FailedPreconditionError("Blocks cannot have recv!");
   }
 
-  absl::Status HandleAssert(Assert* a) override {
-    return absl::UnimplementedError(
-        "UnrollBlockVisitor: assert is not supported");
-  }
   absl::Status HandleCover(Cover* c) override {
     return absl::UnimplementedError(
         "UnrollBlockVisitor: cover is not supported");

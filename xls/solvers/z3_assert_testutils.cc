@@ -15,6 +15,7 @@
 #include "xls/solvers/z3_assert_testutils.h"
 
 #include <cstdint>
+#include <optional>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -28,10 +29,11 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dev_tools/extract_segment.h"
-#include "xls/ir/function.h"
+#include "xls/ir/block_testutils.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc_testutils.h"
 #include "xls/ir/value.h"
 #include "xls/solvers/z3_ir_equivalence_testutils.h"
 #include "xls/solvers/z3_ir_translator.h"
@@ -40,16 +42,55 @@
 namespace xls::solvers::z3 {
 namespace internal {
 
-bool DoIsAssertClean(Function* arg,
+bool DoIsAssertClean(FunctionBase* fb, std::optional<int64_t> activations,
                      testing::MatchResultListener* result_listener) {
-  absl::StatusOr<ProverResult> result = internal::TryProveAssertClean(arg);
+  if (!activations && !fb->IsFunction()) {
+    *result_listener << fb->name()
+                     << " is not a function but activation count is not given";
+    return false;
+  }
+  Package test_pkg("TestPackage");
+  Function* arg;
+  if (fb->IsFunction()) {
+    arg = fb->AsFunctionOrDie();
+  } else if (fb->IsProc()) {
+    auto cpy = fb->AsProcOrDie()->Clone("func_clone", &test_pkg);
+    if (!cpy.ok()) {
+      *result_listener << "Failed to clone proc: " << cpy.status();
+      return false;
+    }
+    auto proc_or =
+        UnrollProcToFunction(*cpy, *activations, /*include_state=*/false);
+    if (!proc_or.ok()) {
+      *result_listener << "Failed to translate proc to function: "
+                       << proc_or.status();
+      return false;
+    }
+    arg = *proc_or;
+  } else {
+    auto cpy = fb->AsBlockOrDie()->Clone("block_clone", &test_pkg);
+    if (!cpy.ok()) {
+      *result_listener << "Failed to clone block: " << cpy.status();
+      return false;
+    }
+    auto block_or =
+        UnrollBlockToFunction(*cpy, *activations, /*include_state=*/false,
+                              /*zero_invalid_outputs=*/false);
+    if (!block_or.ok()) {
+      *result_listener << "Failed to translate block to function: "
+                       << block_or.status();
+      return false;
+    }
+    arg = *block_or;
+  }
+  absl::StatusOr<ProverResult> result = TryProveAssertClean(arg);
   bool matches = testing::ExplainMatchResult(
       absl_testing::IsOkAndHolds(IsProvenTrue()), result, result_listener);
-  if (!matches && result.ok()) {
+  if (!matches && result.ok() && fb->IsFunction()) {
     testing::Test::RecordProperty(
-        "failing_example",
-        DumpWithNodeValues(arg, std::get<ProvenFalse>(*result))
-            .value_or(arg->DumpIr()));
+        "failing_example", DumpWithNodeValues(arg->AsFunctionOrDie(),
+                                              std::get<ProvenFalse>(*result))
+                               .value_or(arg->DumpIr()));
   }
   return matches;
 }
