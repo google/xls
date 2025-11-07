@@ -414,7 +414,6 @@
     "https://bcr.bazel.build/modules/rules_cc/0.0.9/MODULE.bazel": "836e76439f354b89afe6a911a7adf59a6b2518fafb174483ad78a2a2fde7b1c5",
     "https://bcr.bazel.build/modules/rules_cc/0.1.0/MODULE.bazel": "2fef03775b9ba995ec543868840041cc69e8bc705eb0cb6604a36eee18c87d8b",
     "https://bcr.bazel.build/modules/rules_cc/0.1.1/MODULE.bazel": "2f0222a6f229f0bf44cd711dc13c858dad98c62d52bd51d8fc3a764a83125513",
-    "https://bcr.bazel.build/modules/rules_cc/0.1.2/MODULE.bazel": "557ddc3a96858ec0d465a87c0a931054d7dcfd6583af2c7ed3baf494407fd8d0",
     "https://bcr.bazel.build/modules/rules_cc/0.2.0/MODULE.bazel": "b5c17f90458caae90d2ccd114c81970062946f49f355610ed89bebf954f5783c",
     "https://bcr.bazel.build/modules/rules_cc/0.2.0/source.json": "5f7f4e578e950adbf194217d4b607237a8197fc53ba46c367b3d61a86ecf35c2",
     "https://bcr.bazel.build/modules/rules_closure/0.15.0/MODULE.bazel": "2346f8f2daefe805bb12d5a97218d33cd02fd10732eb2de8e94ca88b00efdd68",
@@ -2259,13 +2258,13 @@
     },
     "@@rules_python~//python/extensions:pip.bzl%pip": {
       "general": {
-        "bzlTransitiveDigest": "lyAPG3R65Ohxy764m6JJdPLTQDB4uR9PheZhDu26g2c=",
-        "usagesDigest": "IcZ69/QInV7UhHIH+XS9SmQyfJvyR6WVbeyfbicXICs=",
+        "bzlTransitiveDigest": "IydMzRepgVhGbwD4WBQd4WuJDipgbSZjrF0OvB+JldA=",
+        "usagesDigest": "H56lgBvBUJclgW+1/pbBfJuj7TgbdKoBKP9P2OvhU4g=",
         "recordedFileInputs": {
           "@@or-tools~//bazel/ortools_requirements.txt": "37e22395e78ef3572ab57b7717fd8f54851919bb73ca404f367536dc15a8e3eb",
           "@@pybind11_abseil~//pybind11_abseil/requirements/requirements_lock_3_11.txt": "7d1074311e9f32f25ca112fc86fbec98bc024d820a8dc00f94e8679a7e6b480c",
           "@@rules_python~//tools/publish/requirements_linux.txt": "8175b4c8df50ae2f22d1706961884beeb54e7da27bd2447018314a175981997d",
-          "@@//dependency_support/pip_requirements_lock.txt": "baf52b0d0a1517a4d5e7a59709bd020ed560610bbcd49ee241f40ae151d4d3d2",
+          "@@//dependency_support/pip_requirements_lock.txt": "e813fef63629aaca3c070b25f1265afb21da8400c4dc846646f3056965670718",
           "@@or-tools~//bazel/notebook_requirements.txt": "ca78fad693f1b35eed8bb7c54e5ddf7ad255c4b9d94ce18efa55859759a8fb70",
           "@@protoc-gen-validate~//python/requirements.txt": "6a540bc029bbf3a5f78f9f9282bd30e2965c98eeb150f2cfc5facccbd8a98297",
           "@@pybind11_protobuf~//pybind11_protobuf/requirements/requirements_lock_3_10.txt": "afd6f9406f4e80a504f1575121a937f4c15388aec4a17393f0cb1ac9f09d18dd",
@@ -14538,277 +14537,277 @@
               ]
             }
           },
-          "xls_pip_deps_311_blinker": {
+          "xls_pip_deps_312_blinker": {
             "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
             "ruleClassName": "whl_library",
             "attributes": {
               "dep_template": "@xls_pip_deps//{name}:{target}",
-              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
-              "repo": "xls_pip_deps_311",
+              "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
+              "repo": "xls_pip_deps_312",
               "requirement": "blinker==1.6.2     --hash=sha256:4afd3de66ef3a9f8067559fb7a1cbe555c17dcbe15971b05d1b625c3e7abe213     --hash=sha256:c3d739772abb7bc2860abf5f2ec284223d9ad5c76da018234f6f50d6f31ab1f0",
               "timeout": 600000
             }
           },
-          "xls_pip_deps_311_click": {
+          "xls_pip_deps_312_click": {
             "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
             "ruleClassName": "whl_library",
             "attributes": {
               "dep_template": "@xls_pip_deps//{name}:{target}",
-              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
-              "repo": "xls_pip_deps_311",
+              "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
+              "repo": "xls_pip_deps_312",
               "requirement": "click==8.1.3     --hash=sha256:7682dc8afb30297001674575ea00d1814d808d6a36af415a82bd481d37ba7b8e     --hash=sha256:bb4d8133cb15a609f44e8213d9b391b0809795062913b383c62be0ee95b1db48",
               "timeout": 600000
             }
           },
-          "xls_pip_deps_311_contourpy": {
+          "xls_pip_deps_312_contourpy": {
             "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
             "ruleClassName": "whl_library",
             "attributes": {
               "dep_template": "@xls_pip_deps//{name}:{target}",
-              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
-              "repo": "xls_pip_deps_311",
+              "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
+              "repo": "xls_pip_deps_312",
               "requirement": "contourpy==1.3.1     --hash=sha256:041b640d4ec01922083645a94bb3b2e777e6b626788f4095cf21abbe266413c1     --hash=sha256:05e806338bfeaa006acbdeba0ad681a10be63b26e1b17317bfac3c5d98f36cda     --hash=sha256:08d9d449a61cf53033612cb368f3a1b26cd7835d9b8cd326647efe43bca7568d     --hash=sha256:0ffa84be8e0bd33410b17189f7164c3589c229ce5db85798076a3fa136d0e509     --hash=sha256:113231fe3825ebf6f15eaa8bc1f5b0ddc19d42b733345eae0934cb291beb88b6     --hash=sha256:14c102b0eab282427b662cb590f2e9340a9d91a1c297f48729431f2dcd16e14f     --hash=sha256:174e758c66bbc1c8576992cec9599ce8b6672b741b5d336b5c74e35ac382b18e     --hash=sha256:19c1555a6801c2f084c7ddc1c6e11f02eb6a6016ca1318dd5452ba3f613a1751     --hash=sha256:19d40d37c1c3a4961b4619dd9d77b12124a453cc3d02bb31a07d58ef684d3d86     --hash=sha256:1bf98051f1045b15c87868dbaea84f92408337d4f81d0e449ee41920ea121d3b     --hash=sha256:20914c8c973f41456337652a6eeca26d2148aa96dd7ac323b74516988bea89fc     --hash=sha256:287ccc248c9e0d0566934e7d606201abd74761b5703d804ff3df8935f523d546     --hash=sha256:2ba94a401342fc0f8b948e57d977557fbf4d515f03c67682dd5c6191cb2d16ec     --hash=sha256:31c1b55c1f34f80557d3830d3dd93ba722ce7e33a0b472cba0ec3b6535684d8f     --hash=sha256:36987a15e8ace5f58d4d5da9dca82d498c2bbb28dff6e5d04fbfcc35a9cb3a82     --hash=sha256:3a04ecd68acbd77fa2d39723ceca4c3197cb2969633836ced1bea14e219d077c     --hash=sha256:3e8b974d8db2c5610fb4e76307e265de0edb655ae8169e8b21f41807ccbeec4b     --hash=sha256:3ea9924d28fc5586bf0b42d15f590b10c224117e74409dd7a0be3b62b74a501c     --hash=sha256:4318af1c925fb9a4fb190559ef3eec206845f63e80fb603d47f2d6d67683901c     --hash=sha256:44a29502ca9c7b5ba389e620d44f2fbe792b1fb5734e8b931ad307071ec58c53     --hash=sha256:47734d7073fb4590b4a40122b35917cd77be5722d80683b249dac1de266aac80     --hash=sha256:4d76d5993a34ef3df5181ba3c92fabb93f1eaa5729504fb03423fcd9f3177242     --hash=sha256:4dbbc03a40f916a8420e420d63e96a1258d3d1b58cbdfd8d1f07b49fcbd38e85     --hash=sha256:500360b77259914f7805af7462e41f9cb7ca92ad38e9f94d6c8641b089338124     --hash=sha256:523a8ee12edfa36f6d2a49407f705a6ef4c5098de4f498619787e272de93f2d5     --hash=sha256:573abb30e0e05bf31ed067d2f82500ecfdaec15627a59d63ea2d95714790f5c2     --hash=sha256:5b75aa69cb4d6f137b36f7eb2ace9280cfb60c55dc5f61c731fdf6f037f958a3     --hash=sha256:61332c87493b00091423e747ea78200659dc09bdf7fd69edd5e98cef5d3e9a8d     --hash=sha256:805617228ba7e2cbbfb6c503858e626ab528ac2a32a04a2fe88ffaf6b02c32bc     --hash=sha256:841ad858cff65c2c04bf93875e384ccb82b654574a6d7f30453a04f04af71342     --hash=sha256:89785bb2a1980c1bd87f0cb1517a71cde374776a5f150936b82580ae6ead44a1     --hash=sha256:8eb96e79b9f3dcadbad2a3891672f81cdcab7f95b27f28f1c67d75f045b6b4f1     --hash=sha256:974d8145f8ca354498005b5b981165b74a195abfae9a8129df3e56771961d595     --hash=sha256:9ddeb796389dadcd884c7eb07bd14ef12408aaae358f0e2ae24114d797eede30     --hash=sha256:a045f341a77b77e1c5de31e74e966537bba9f3c4099b35bf4c2e3939dd54cdab     --hash=sha256:a0cffcbede75c059f535725c1680dfb17b6ba8753f0c74b14e6a9c68c29d7ea3     --hash=sha256:a761d9ccfc5e2ecd1bf05534eda382aa14c3e4f9205ba5b1684ecfe400716ef2     --hash=sha256:a7895f46d47671fa7ceec40f31fae721da51ad34bdca0bee83e38870b1f47ffd     --hash=sha256:a9fa36448e6a3a1a9a2ba23c02012c43ed88905ec80163f2ffe2421c7192a5d7     --hash=sha256:ab29962927945d89d9b293eabd0d59aea28d887d4f3be6c22deaefbb938a7277     --hash=sha256:abbb49fb7dac584e5abc6636b7b2a7227111c4f771005853e7d25176daaf8453     --hash=sha256:ac4578ac281983f63b400f7fe6c101bedc10651650eef012be1ccffcbacf3697     --hash=sha256:adce39d67c0edf383647a3a007de0a45fd1b08dedaa5318404f1a73059c2512b     --hash=sha256:ade08d343436a94e633db932e7e8407fe7de8083967962b46bdfc1b0ced39454     --hash=sha256:b2bdca22a27e35f16794cf585832e542123296b4687f9fd96822db6bae17bfc9     --hash=sha256:b2f926efda994cdf3c8d3fdb40b9962f86edbc4457e739277b961eced3d0b4c1     --hash=sha256:b457d6430833cee8e4b8e9b6f07aa1c161e5e0d52e118dc102c8f9bd7dd060d6     --hash=sha256:c414fc1ed8ee1dbd5da626cf3710c6013d3d27456651d156711fa24f24bd1291     --hash=sha256:cb76c1a154b83991a3cbbf0dfeb26ec2833ad56f95540b442c73950af2013750     --hash=sha256:dfd97abd83335045a913e3bcc4a09c0ceadbe66580cf573fe961f4a825efa699     --hash=sha256:e914a8cb05ce5c809dd0fe350cfbb4e881bde5e2a38dc04e3afe1b3e58bd158e     --hash=sha256:ece6df05e2c41bd46776fbc712e0996f7c94e0d0543af1656956d150c4ca7c81     --hash=sha256:efa874e87e4a647fd2e4f514d5e91c7d493697127beb95e77d2f7561f6905bd9     --hash=sha256:f611e628ef06670df83fce17805c344710ca5cde01edfdc72751311da8585375",
               "timeout": 600000
             }
           },
-          "xls_pip_deps_311_cycler": {
+          "xls_pip_deps_312_cycler": {
             "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
             "ruleClassName": "whl_library",
             "attributes": {
               "dep_template": "@xls_pip_deps//{name}:{target}",
-              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
-              "repo": "xls_pip_deps_311",
+              "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
+              "repo": "xls_pip_deps_312",
               "requirement": "cycler==0.12.1     --hash=sha256:85cef7cff222d8644161529808465972e51340599459b8ac3ccbac5a854e0d30     --hash=sha256:88bb128f02ba341da8ef447245a9e138fae777f6a23943da4540077d3601eb1c",
               "timeout": 600000
             }
           },
-          "xls_pip_deps_311_flask": {
+          "xls_pip_deps_312_flask": {
             "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
             "ruleClassName": "whl_library",
             "attributes": {
               "dep_template": "@xls_pip_deps//{name}:{target}",
-              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
-              "repo": "xls_pip_deps_311",
+              "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
+              "repo": "xls_pip_deps_312",
               "requirement": "flask==2.3.2     --hash=sha256:77fd4e1249d8c9923de34907236b747ced06e5467ecac1a7bb7115ae0e9670b0     --hash=sha256:8c2f9abd47a9e8df7f0c3f091ce9497d011dc3b31effcf4c85a6e2b50f4114ef",
               "timeout": 600000
             }
           },
-          "xls_pip_deps_311_fonttools": {
+          "xls_pip_deps_312_fonttools": {
             "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
             "ruleClassName": "whl_library",
             "attributes": {
               "dep_template": "@xls_pip_deps//{name}:{target}",
-              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
-              "repo": "xls_pip_deps_311",
+              "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
+              "repo": "xls_pip_deps_312",
               "requirement": "fonttools==4.55.8     --hash=sha256:01ea3901b0802fc5f9e854f5aeb5bc27770dd9dd24c28df8f74ba90f8b3f5915     --hash=sha256:02c41322e5bdcb484b61b776fcea150215c83619b39c96aa0b44d4fd87bb5574     --hash=sha256:03c2b50b54e6e8b3564b232e57e8f58be217cf441cf0155745d9e44a76f9c30f     --hash=sha256:07636dae94f7fe88561f9da7a46b13d8e3f529f87fdb221b11d85f91eabceeb7     --hash=sha256:0f38bfb6b7a39c4162c3eb0820a0bdf8e3bdd125cd54e10ba242397d15e32439     --hash=sha256:1e10efc8ee10d6f1fe2931d41bccc90cd4b872f2ee4ff21f2231a2c293b2dbf8     --hash=sha256:2232012a1502b2b8ab4c6bc1d3524bfe90238c0c1a50ac94a0a2085aa87a58a5     --hash=sha256:243cbfc0b7cb1c307af40e321f8343a48d0a080bc1f9466cf2b5468f776ef108     --hash=sha256:285c1ac10c160fbdff6d05358230e66c4f98cbbf271f3ec7eb34e967771543e8     --hash=sha256:302e1003a760b222f711d5ba6d1ad7fd5f7f713eb872cd6a3eb44390bc9770af     --hash=sha256:332883b6280b9d90d2ba7e9e81be77cf2ace696161e60cdcf40cfcd2b3ed06fa     --hash=sha256:3461347016c94cb42b36caa907e11565878c4c2c375604f3651d11dc06d1ab3e     --hash=sha256:3d20f152de7625a0008ba1513f126daaaa0de3b4b9030aa72dd5c27294992260     --hash=sha256:450c354c04a6e12a3db968e915fe05730f79ff3d39560947ef8ee6eaa2ab2212     --hash=sha256:466a78984f0572305c3c48377f4e3f7f4e909f1209f45ef8e7041d5c8a744a56     --hash=sha256:4dfae7c94987149bdaa0388e6c937566aa398fa0eec973b17952350a069cff4e     --hash=sha256:54d481d456dcd59af25d4a9c56b2c4c3f20e9620b261b84144e5950f33e8df17     --hash=sha256:604c805b41241b4880e2dc86cf2d4754c06777371c8299799ac88d836cb18c3b     --hash=sha256:63403ee0f2fa4e1de28e539f8c24f2bdca1d8ecb503fa9ea2d231d9f1e729809     --hash=sha256:65cb8f97eed7906dcf19bc2736b70c6239e9d7e77aad7c6110ba7239ae082e81     --hash=sha256:67df1c3935838fb9e56f227d7f506c9043b149a4a3b667bef17929c7a1114d19     --hash=sha256:6b8d7c149d47b47de7ec81763396c8266e5ebe2e0b14aa9c3ccf29e52260ab2f     --hash=sha256:708cb17b2590b7f6c6854999df0039ff1140dda9e6f56d67c3599ba6f968fab5     --hash=sha256:8abd135e427d88e461a4833c03cf96cfb9028c78c15d58123291f22398e25492     --hash=sha256:9164f44add0acec0f12fce682824c040dc52e483bfe3838c37142897150c8364     --hash=sha256:95f5a1d4432b3cea6571f5ce4f4e9b25bf36efbd61c32f4f90130a690925d6ee     --hash=sha256:9b5f05ef72e846e9f49ccdd74b9da4309901a4248434c63c1ee9321adcb51d65     --hash=sha256:9b6fcff4dc755b32faff955d989ee26394ddad3a90ea7d558db17a4633c8390c     --hash=sha256:a0fe12f06169af2fdc642d26a8df53e40adc3beedbd6ffedb19f1c5397b63afd     --hash=sha256:a19059aa892676822c1f05cb5a67296ecdfeb267fe7c47d4758f3e8e942c2b2a     --hash=sha256:a7230f7590f9570d26ee903b6a4540274494e200fae978df0d9325b7b9144529     --hash=sha256:acfec948de41cd5e640d5c15d0200e8b8e7c5c6bb82afe1ca095cbc4af1188ee     --hash=sha256:b99d4fd2b6d0a00c7336c8363fccc7a11eccef4b17393af75ca6e77cf93ff413     --hash=sha256:b9f9fce3c9b2196e162182ec5db8af8eb3acd0d76c2eafe9fdba5f370044e556     --hash=sha256:ba45b637da80a262b55b7657aec68da2ac54b8ae7891cd977a5dbe5fd26db429     --hash=sha256:bf4b5b3496ddfdd4e57112e77ec51f1ab388d35ac17322c1248addb2eb0d429a     --hash=sha256:c96f2506ce1a0beeaa9595f9a8b7446477eb133f40c0e41fc078744c28149f80     --hash=sha256:cb121d6dd34625cece32234a5fa0359475bb118838b6b4295ffdb13b935edb04     --hash=sha256:ccf8ae02918f431953d338db4d0a675a395faf82bab3a76025582cf32a2f3b7b     --hash=sha256:cfe9cf30f391a0f2875247a3e5e44d8dcb61596e5cf89b360cdffec8a80e9961     --hash=sha256:d11600f5343092697d7434f3bf77a393c7ae74be206fe30e577b9a195fd53165     --hash=sha256:d2248ebfbcea0d0b3cb459d76a9f67f2eadc10ec0d07e9cadab8777d3f016bf2     --hash=sha256:d39f0c977639be0f9f5505d4c7c478236737f960c567a35f058649c056e41434     --hash=sha256:d5a3ff5bb95fd5a3962b2754f8435e6d930c84fc9e9921c51e802dddf40acd56     --hash=sha256:d637e4d33e46619c79d1a6c725f74d71b574cd15fb5bbb9b6f3eba8f28363573     --hash=sha256:de78d6d0dbe32561ce059265437021f4746e56073c4799f0f1095828ae7232bd     --hash=sha256:e72a7816ff8a759be9ca36ca46934f8ccf4383711ef597d9240306fe1878cb8d     --hash=sha256:edcffaeadba9a334c1c3866e275d7dd495465e7dbd296f688901bdbd71758113     --hash=sha256:f089e8da0990cfe2d67e81d9cf581ff372b48dc5acf2782701844211cd1f0eb3     --hash=sha256:f971aa5f50c22dc4b63a891503624ae2c77330429b34ead32f23c2260c5618cd",
               "timeout": 600000
             }
           },
-          "xls_pip_deps_311_itsdangerous": {
+          "xls_pip_deps_312_itsdangerous": {
             "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
             "ruleClassName": "whl_library",
             "attributes": {
               "dep_template": "@xls_pip_deps//{name}:{target}",
-              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
-              "repo": "xls_pip_deps_311",
+              "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
+              "repo": "xls_pip_deps_312",
               "requirement": "itsdangerous==2.1.2     --hash=sha256:2c2349112351b88699d8d4b6b075022c0808887cb7ad10069318a8b0bc88db44     --hash=sha256:5dbbc68b317e5e42f327f9021763545dc3fc3bfe22e6deb96aaf1fc38874156a",
               "timeout": 600000
             }
           },
-          "xls_pip_deps_311_jinja2": {
+          "xls_pip_deps_312_jinja2": {
             "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
             "ruleClassName": "whl_library",
             "attributes": {
               "dep_template": "@xls_pip_deps//{name}:{target}",
-              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
-              "repo": "xls_pip_deps_311",
+              "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
+              "repo": "xls_pip_deps_312",
               "requirement": "jinja2==3.1.5     --hash=sha256:8fefff8dc3034e27bb80d67c671eb8a9bc424c0ef4c0826edbff304cceff43bb     --hash=sha256:aba0f4dc9ed8013c424088f68a5c226f7d6097ed89b246d7749c2ec4175c6adb",
               "timeout": 600000
             }
           },
-          "xls_pip_deps_311_kiwisolver": {
+          "xls_pip_deps_312_kiwisolver": {
             "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
             "ruleClassName": "whl_library",
             "attributes": {
               "dep_template": "@xls_pip_deps//{name}:{target}",
-              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
-              "repo": "xls_pip_deps_311",
+              "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
+              "repo": "xls_pip_deps_312",
               "requirement": "kiwisolver==1.4.8     --hash=sha256:01c3d31902c7db5fb6182832713d3b4122ad9317c2c5877d0539227d96bb2e50     --hash=sha256:034d2c891f76bd3edbdb3ea11140d8510dca675443da7304205a2eaa45d8334c     --hash=sha256:085940635c62697391baafaaeabdf3dd7a6c3643577dde337f4d66eba021b2b8     --hash=sha256:08e77738ed7538f036cd1170cbed942ef749137b1311fa2bbe2a7fda2f6bf3cc     --hash=sha256:111793b232842991be367ed828076b03d96202c19221b5ebab421ce8bcad016f     --hash=sha256:11e1022b524bd48ae56c9b4f9296bce77e15a2e42a502cceba602f804b32bb79     --hash=sha256:151dffc4865e5fe6dafce5480fab84f950d14566c480c08a53c663a0020504b6     --hash=sha256:16523b40aab60426ffdebe33ac374457cf62863e330a90a0383639ce14bf44b2     --hash=sha256:1732e065704b47c9afca7ffa272f845300a4eb959276bf6970dc07265e73b605     --hash=sha256:1c8ceb754339793c24aee1c9fb2485b5b1f5bb1c2c214ff13368431e51fc9a09     --hash=sha256:23454ff084b07ac54ca8be535f4174170c1094a4cff78fbae4f73a4bcc0d4dab     --hash=sha256:23d5f023bdc8c7e54eb65f03ca5d5bb25b601eac4d7f1a042888a1f45237987e     --hash=sha256:257af1622860e51b1a9d0ce387bf5c2c4f36a90594cb9514f55b074bcc787cfc     --hash=sha256:286b18e86682fd2217a48fc6be6b0f20c1d0ed10958d8dc53453ad58d7be0bf8     --hash=sha256:291331973c64bb9cce50bbe871fb2e675c4331dab4f31abe89f175ad7679a4d7     --hash=sha256:2f0121b07b356a22fb0414cec4666bbe36fd6d0d759db3d37228f496ed67c880     --hash=sha256:3452046c37c7692bd52b0e752b87954ef86ee2224e624ef7ce6cb21e8c41cc1b     --hash=sha256:34d142fba9c464bc3bbfeff15c96eab0e7310343d6aefb62a79d51421fcc5f1b     --hash=sha256:369b75d40abedc1da2c1f4de13f3482cb99e3237b38726710f4a793432b1c5ff     --hash=sha256:36dbbfd34838500a31f52c9786990d00150860e46cd5041386f217101350f0d3     --hash=sha256:370fd2df41660ed4e26b8c9d6bbcad668fbe2560462cba151a721d49e5b6628c     --hash=sha256:3a96c0e790ee875d65e340ab383700e2b4891677b7fcd30a699146f9384a2bb0     --hash=sha256:3b9b4d2892fefc886f30301cdd80debd8bb01ecdf165a449eb6e78f79f0fabd6     --hash=sha256:3cd3bc628b25f74aedc6d374d5babf0166a92ff1317f46267f12d2ed54bc1d30     --hash=sha256:3ddc373e0eef45b59197de815b1b28ef89ae3955e7722cc9710fb91cd77b7f47     --hash=sha256:4191ee8dfd0be1c3666ccbac178c5a05d5f8d689bbe3fc92f3c4abec817f8fe0     --hash=sha256:54a62808ac74b5e55a04a408cda6156f986cefbcf0ada13572696b507cc92fa1     --hash=sha256:577facaa411c10421314598b50413aa1ebcf5126f704f1e5d72d7e4e9f020d90     --hash=sha256:641f2ddf9358c80faa22e22eb4c9f54bd3f0e442e038728f500e3b978d00aa7d     --hash=sha256:65ea09a5a3faadd59c2ce96dc7bf0f364986a315949dc6374f04396b0d60e09b     --hash=sha256:68269e60ee4929893aad82666821aaacbd455284124817af45c11e50a4b42e3c     --hash=sha256:69b5637c3f316cab1ec1c9a12b8c5f4750a4c4b71af9157645bf32830e39c03a     --hash=sha256:7506488470f41169b86d8c9aeff587293f530a23a23a49d6bc64dab66bedc71e     --hash=sha256:768cade2c2df13db52475bd28d3a3fac8c9eff04b0e9e2fda0f3760f20b3f7fc     --hash=sha256:77e6f57a20b9bd4e1e2cedda4d0b986ebd0216236f0106e55c28aea3d3d69b16     --hash=sha256:782bb86f245ec18009890e7cb8d13a5ef54dcf2ebe18ed65f795e635a96a1c6a     --hash=sha256:7a3ad337add5148cf51ce0b55642dc551c0b9d6248458a757f98796ca7348712     --hash=sha256:7cd2785b9391f2873ad46088ed7599a6a71e762e1ea33e87514b1a441ed1da1c     --hash=sha256:7e9a60b50fe8b2ec6f448fe8d81b07e40141bfced7f896309df271a0b92f80f3     --hash=sha256:84a2f830d42707de1d191b9490ac186bf7997a9495d4e9072210a1296345f7dc     --hash=sha256:856b269c4d28a5c0d5e6c1955ec36ebfd1651ac00e1ce0afa3e28da95293b561     --hash=sha256:858416b7fb777a53f0c59ca08190ce24e9abbd3cffa18886a5781b8e3e26f65d     --hash=sha256:87b287251ad6488e95b4f0b4a79a6d04d3ea35fde6340eb38fbd1ca9cd35bbbc     --hash=sha256:88c6f252f6816a73b1f8c904f7bbe02fd67c09a69f7cb8a0eecdbf5ce78e63db     --hash=sha256:893f5525bb92d3d735878ec00f781b2de998333659507d29ea4466208df37bed     --hash=sha256:89c107041f7b27844179ea9c85d6da275aa55ecf28413e87624d033cf1f6b751     --hash=sha256:918139571133f366e8362fa4a297aeba86c7816b7ecf0bc79168080e2bd79957     --hash=sha256:99cea8b9dd34ff80c521aef46a1dddb0dcc0283cf18bde6d756f1e6f31772165     --hash=sha256:a17b7c4f5b2c51bb68ed379defd608a03954a1845dfed7cc0117f1cc8a9b7fd2     --hash=sha256:a3c44cb68861de93f0c4a8175fbaa691f0aa22550c331fefef02b618a9dcb476     --hash=sha256:a4d3601908c560bdf880f07d94f31d734afd1bb71e96585cace0e38ef44c6d84     --hash=sha256:a5ce1e481a74b44dd5e92ff03ea0cb371ae7a0268318e202be06c8f04f4f1246     --hash=sha256:a66f60f8d0c87ab7f59b6fb80e642ebb29fec354a4dfad687ca4092ae69d04f4     --hash=sha256:b21dbe165081142b1232a240fc6383fd32cdd877ca6cc89eab93e5f5883e1c25     --hash=sha256:b47a465040146981dc9db8647981b8cb96366fbc8d452b031e4f8fdffec3f26d     --hash=sha256:b5773efa2be9eb9fcf5415ea3ab70fc785d598729fd6057bea38d539ead28271     --hash=sha256:b83dc6769ddbc57613280118fb4ce3cd08899cc3369f7d0e0fab518a7cf37fdb     --hash=sha256:bade438f86e21d91e0cf5dd7c0ed00cda0f77c8c1616bd83f9fc157fa6760d31     --hash=sha256:bcb1ebc3547619c3b58a39e2448af089ea2ef44b37988caf432447374941574e     --hash=sha256:be4816dc51c8a471749d664161b434912eee82f2ea66bd7628bd14583a833e85     --hash=sha256:c07b29089b7ba090b6f1a669f1411f27221c3662b3a1b7010e67b59bb5a6f10b     --hash=sha256:c2b9a96e0f326205af81a15718a9073328df1173a2619a68553decb7097fd5d7     --hash=sha256:c5020c83e8553f770cb3b5fc13faac40f17e0b205bd237aebd21d53d733adb03     --hash=sha256:c72941acb7b67138f35b879bbe85be0f6c6a70cab78fe3ef6db9c024d9223e5b     --hash=sha256:c8bf637892dc6e6aad2bc6d4d69d08764166e5e3f69d469e55427b6ac001b19d     --hash=sha256:cc978a80a0db3a66d25767b03688f1147a69e6237175c0f4ffffaaedf744055a     --hash=sha256:ce2cf1e5688edcb727fdf7cd1bbd0b6416758996826a8be1d958f91880d0809d     --hash=sha256:d47b28d1dfe0793d5e96bce90835e17edf9a499b53969b03c6c47ea5985844c3     --hash=sha256:d47cfb2650f0e103d4bf68b0b5804c68da97272c84bb12850d877a95c056bd67     --hash=sha256:d5536185fce131780ebd809f8e623bf4030ce1b161353166c49a3c74c287897f     --hash=sha256:d561d2d8883e0819445cfe58d7ddd673e4015c3c57261d7bdcd3710d0d14005c     --hash=sha256:d6af5e8815fd02997cb6ad9bbed0ee1e60014438ee1a5c2444c96f87b8843502     --hash=sha256:d6d6bd87df62c27d4185de7c511c6248040afae67028a8a22012b010bc7ad062     --hash=sha256:dace81d28c787956bfbfbbfd72fdcef014f37d9b48830829e488fdb32b49d954     --hash=sha256:e063ef9f89885a1d68dd8b2e18f5ead48653176d10a0e324e3b0030e3a69adeb     --hash=sha256:e7a019419b7b510f0f7c9dceff8c5eae2392037eae483a7f9162625233802b0a     --hash=sha256:eaa973f1e05131de5ff3569bbba7f5fd07ea0595d3870ed4a526d486fe57fa1b     --hash=sha256:eb158fe28ca0c29f2260cca8c43005329ad58452c36f0edf298204de32a9a3ed     --hash=sha256:ed33ca2002a779a2e20eeb06aea7721b6e47f2d4b8a8ece979d8ba9e2a167e34     --hash=sha256:fc2ace710ba7c1dfd1a3b42530b62b9ceed115f19a1656adefce7b1782a37794",
               "timeout": 600000
             }
           },
-          "xls_pip_deps_311_markupsafe": {
+          "xls_pip_deps_312_markupsafe": {
             "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
             "ruleClassName": "whl_library",
             "attributes": {
               "dep_template": "@xls_pip_deps//{name}:{target}",
-              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
-              "repo": "xls_pip_deps_311",
+              "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
+              "repo": "xls_pip_deps_312",
               "requirement": "markupsafe==2.1.1     --hash=sha256:0212a68688482dc52b2d45013df70d169f542b7394fc744c02a57374a4207003     --hash=sha256:089cf3dbf0cd6c100f02945abeb18484bd1ee57a079aefd52cffd17fba910b88     --hash=sha256:10c1bfff05d95783da83491be968e8fe789263689c02724e0c691933c52994f5     --hash=sha256:33b74d289bd2f5e527beadcaa3f401e0df0a89927c1559c8566c066fa4248ab7     --hash=sha256:3799351e2336dc91ea70b034983ee71cf2f9533cdff7c14c90ea126bfd95d65a     --hash=sha256:3ce11ee3f23f79dbd06fb3d63e2f6af7b12db1d46932fe7bd8afa259a5996603     --hash=sha256:421be9fbf0ffe9ffd7a378aafebbf6f4602d564d34be190fc19a193232fd12b1     --hash=sha256:43093fb83d8343aac0b1baa75516da6092f58f41200907ef92448ecab8825135     --hash=sha256:46d00d6cfecdde84d40e572d63735ef81423ad31184100411e6e3388d405e247     --hash=sha256:4a33dea2b688b3190ee12bd7cfa29d39c9ed176bda40bfa11099a3ce5d3a7ac6     --hash=sha256:4b9fe39a2ccc108a4accc2676e77da025ce383c108593d65cc909add5c3bd601     --hash=sha256:56442863ed2b06d19c37f94d999035e15ee982988920e12a5b4ba29b62ad1f77     --hash=sha256:671cd1187ed5e62818414afe79ed29da836dde67166a9fac6d435873c44fdd02     --hash=sha256:694deca8d702d5db21ec83983ce0bb4b26a578e71fbdbd4fdcd387daa90e4d5e     --hash=sha256:6a074d34ee7a5ce3effbc526b7083ec9731bb3cbf921bbe1d3005d4d2bdb3a63     --hash=sha256:6d0072fea50feec76a4c418096652f2c3238eaa014b2f94aeb1d56a66b41403f     --hash=sha256:6fbf47b5d3728c6aea2abb0589b5d30459e369baa772e0f37a0320185e87c980     --hash=sha256:7f91197cc9e48f989d12e4e6fbc46495c446636dfc81b9ccf50bb0ec74b91d4b     --hash=sha256:86b1f75c4e7c2ac2ccdaec2b9022845dbb81880ca318bb7a0a01fbf7813e3812     --hash=sha256:8dc1c72a69aa7e082593c4a203dcf94ddb74bb5c8a731e4e1eb68d031e8498ff     --hash=sha256:8e3dcf21f367459434c18e71b2a9532d96547aef8a871872a5bd69a715c15f96     --hash=sha256:8e576a51ad59e4bfaac456023a78f6b5e6e7651dcd383bcc3e18d06f9b55d6d1     --hash=sha256:96e37a3dc86e80bf81758c152fe66dbf60ed5eca3d26305edf01892257049925     --hash=sha256:97a68e6ada378df82bc9f16b800ab77cbf4b2fada0081794318520138c088e4a     --hash=sha256:99a2a507ed3ac881b975a2976d59f38c19386d128e7a9a18b7df6fff1fd4c1d6     --hash=sha256:a49907dd8420c5685cfa064a1335b6754b74541bbb3706c259c02ed65b644b3e     --hash=sha256:b09bf97215625a311f669476f44b8b318b075847b49316d3e28c08e41a7a573f     --hash=sha256:b7bd98b796e2b6553da7225aeb61f447f80a1ca64f41d83612e6139ca5213aa4     --hash=sha256:b87db4360013327109564f0e591bd2a3b318547bcef31b468a92ee504d07ae4f     --hash=sha256:bcb3ed405ed3222f9904899563d6fc492ff75cce56cba05e32eff40e6acbeaa3     --hash=sha256:d4306c36ca495956b6d568d276ac11fdd9c30a36f1b6eb928070dc5360b22e1c     --hash=sha256:d5ee4f386140395a2c818d149221149c54849dfcfcb9f1debfe07a8b8bd63f9a     --hash=sha256:dda30ba7e87fbbb7eab1ec9f58678558fd9a6b8b853530e176eabd064da81417     --hash=sha256:e04e26803c9c3851c931eac40c695602c6295b8d432cbe78609649ad9bd2da8a     --hash=sha256:e1c0b87e09fa55a220f058d1d49d3fb8df88fbfab58558f1198e08c1e1de842a     --hash=sha256:e72591e9ecd94d7feb70c1cbd7be7b3ebea3f548870aa91e2732960fa4d57a37     --hash=sha256:e8c843bbcda3a2f1e3c2ab25913c80a3c5376cd00c6e8c4a86a89a28c8dc5452     --hash=sha256:efc1913fd2ca4f334418481c7e595c00aad186563bbc1ec76067848c7ca0a933     --hash=sha256:f121a1420d4e173a5d96e47e9a0c0dcff965afdf1626d28de1460815f7c4ee7a     --hash=sha256:fc7b548b17d238737688817ab67deebb30e8073c95749d55538ed473130ec0c7",
               "timeout": 600000
             }
           },
-          "xls_pip_deps_311_matplotlib": {
+          "xls_pip_deps_312_matplotlib": {
             "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
             "ruleClassName": "whl_library",
             "attributes": {
               "dep_template": "@xls_pip_deps//{name}:{target}",
-              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
-              "repo": "xls_pip_deps_311",
+              "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
+              "repo": "xls_pip_deps_312",
               "requirement": "matplotlib==3.10.0     --hash=sha256:01d2b19f13aeec2e759414d3bfe19ddfb16b13a1250add08d46d5ff6f9be83c6     --hash=sha256:12eaf48463b472c3c0f8dbacdbf906e573013df81a0ab82f0616ea4b11281908     --hash=sha256:2c5829a5a1dd5a71f0e31e6e8bb449bc0ee9dbfb05ad28fc0c6b55101b3a4be6     --hash=sha256:2fbbabc82fde51391c4da5006f965e36d86d95f6ee83fb594b279564a4c5d0d2     --hash=sha256:3547d153d70233a8496859097ef0312212e2689cdf8d7ed764441c77604095ae     --hash=sha256:359f87baedb1f836ce307f0e850d12bb5f1936f70d035561f90d41d305fdacea     --hash=sha256:3b427392354d10975c1d0f4ee18aa5844640b512d5311ef32efd4dd7db106ede     --hash=sha256:4659665bc7c9b58f8c00317c3c2a299f7f258eeae5a5d56b4c64226fca2f7c59     --hash=sha256:4673ff67a36152c48ddeaf1135e74ce0d4bce1bbf836ae40ed39c29edf7e2765     --hash=sha256:503feb23bd8c8acc75541548a1d709c059b7184cde26314896e10a9f14df5f12     --hash=sha256:5439f4c5a3e2e8eab18e2f8c3ef929772fd5641876db71f08127eed95ab64683     --hash=sha256:5cdbaf909887373c3e094b0318d7ff230b2ad9dcb64da7ade654182872ab2593     --hash=sha256:5e6c6461e1fc63df30bf6f80f0b93f5b6784299f721bc28530477acd51bfc3d1     --hash=sha256:5fd41b0ec7ee45cd960a8e71aea7c946a28a0b8a4dcee47d2856b2af051f334c     --hash=sha256:607b16c8a73943df110f99ee2e940b8a1cbf9714b65307c040d422558397dac5     --hash=sha256:7e8632baebb058555ac0cde75db885c61f1212e47723d63921879806b40bec6a     --hash=sha256:81713dd0d103b379de4516b861d964b1d789a144103277769238c732229d7f03     --hash=sha256:845d96568ec873be63f25fa80e9e7fae4be854a66a7e2f0c8ccc99e94a8bd4ef     --hash=sha256:95b710fea129c76d30be72c3b38f330269363fbc6e570a5dd43580487380b5ff     --hash=sha256:96f2886f5c1e466f21cc41b70c5a0cd47bfa0015eb2d5793c88ebce658600e25     --hash=sha256:994c07b9d9fe8d25951e3202a68c17900679274dadfc1248738dcfa1bd40d7f3     --hash=sha256:9ade1003376731a971e398cc4ef38bb83ee8caf0aee46ac6daa4b0506db1fd06     --hash=sha256:9b0558bae37f154fffda54d779a592bc97ca8b4701f1c710055b609a3bac44c8     --hash=sha256:a2a43cbefe22d653ab34bb55d42384ed30f611bcbdea1f8d7f431011a2e1c62e     --hash=sha256:a994f29e968ca002b50982b27168addfd65f0105610b6be7fa515ca4b5307c95     --hash=sha256:ad2e15300530c1a94c63cfa546e3b7864bd18ea2901317bae8bbf06a5ade6dcf     --hash=sha256:ae80dc3a4add4665cf2faa90138384a7ffe2a4e37c58d83e115b54287c4f06ef     --hash=sha256:b886d02a581b96704c9d1ffe55709e49b4d2d52709ccebc4be42db856e511278     --hash=sha256:c40ba2eb08b3f5de88152c2333c58cee7edcead0a2a0d60fcafa116b17117adc     --hash=sha256:c55b20591ced744aa04e8c3e4b7543ea4d650b6c3c4b208c08a05b4010e8b442     --hash=sha256:c58a9622d5dbeb668f407f35f4e6bfac34bb9ecdcc81680c04d0258169747997     --hash=sha256:d44cb942af1693cced2604c33a9abcef6205601c445f6d0dc531d813af8a2f5a     --hash=sha256:d907fddb39f923d011875452ff1eca29a9e7f21722b873e90db32e5d8ddff12e     --hash=sha256:fd44fc75522f58612ec4a33958a7e5552562b7705b42ef1b4f8c0818e304a363",
               "timeout": 600000
             }
           },
-          "xls_pip_deps_311_networkx": {
+          "xls_pip_deps_312_networkx": {
             "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
             "ruleClassName": "whl_library",
             "attributes": {
               "dep_template": "@xls_pip_deps//{name}:{target}",
-              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
-              "repo": "xls_pip_deps_311",
+              "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
+              "repo": "xls_pip_deps_312",
               "requirement": "networkx==3.3     --hash=sha256:0c127d8b2f4865f59ae9cb8aafcd60b5c70f3241ebd66f7defad7c4ab90126c9     --hash=sha256:28575580c6ebdaf4505b22c6256a2b9de86b316dc63ba9e93abde3d78dfdbcf2",
               "timeout": 600000
             }
           },
-          "xls_pip_deps_311_numpy": {
+          "xls_pip_deps_312_numpy": {
             "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
             "ruleClassName": "whl_library",
             "attributes": {
               "dep_template": "@xls_pip_deps//{name}:{target}",
-              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
-              "repo": "xls_pip_deps_311",
-              "requirement": "numpy==1.24.4     --hash=sha256:04640dab83f7c6c85abf9cd729c5b65f1ebd0ccf9de90b270cd61935eef0197f     --hash=sha256:1452241c290f3e2a312c137a9999cdbf63f78864d63c79039bda65ee86943f61     --hash=sha256:222e40d0e2548690405b0b3c7b21d1169117391c2e82c378467ef9ab4c8f0da7     --hash=sha256:2541312fbf09977f3b3ad449c4e5f4bb55d0dbf79226d7724211acc905049400     --hash=sha256:31f13e25b4e304632a4619d0e0777662c2ffea99fcae2029556b17d8ff958aef     --hash=sha256:4602244f345453db537be5314d3983dbf5834a9701b7723ec28923e2889e0bb2     --hash=sha256:4979217d7de511a8d57f4b4b5b2b965f707768440c17cb70fbf254c4b225238d     --hash=sha256:4c21decb6ea94057331e111a5bed9a79d335658c27ce2adb580fb4d54f2ad9bc     --hash=sha256:6620c0acd41dbcb368610bb2f4d83145674040025e5536954782467100aa8835     --hash=sha256:692f2e0f55794943c5bfff12b3f56f99af76f902fc47487bdfe97856de51a706     --hash=sha256:7215847ce88a85ce39baf9e89070cb860c98fdddacbaa6c0da3ffb31b3350bd5     --hash=sha256:79fc682a374c4a8ed08b331bef9c5f582585d1048fa6d80bc6c35bc384eee9b4     --hash=sha256:7ffe43c74893dbf38c2b0a1f5428760a1a9c98285553c89e12d70a96a7f3a4d6     --hash=sha256:80f5e3a4e498641401868df4208b74581206afbee7cf7b8329daae82676d9463     --hash=sha256:95f7ac6540e95bc440ad77f56e520da5bf877f87dca58bd095288dce8940532a     --hash=sha256:9667575fb6d13c95f1b36aca12c5ee3356bf001b714fc354eb5465ce1609e62f     --hash=sha256:a5425b114831d1e77e4b5d812b69d11d962e104095a5b9c3b641a218abcc050e     --hash=sha256:b4bea75e47d9586d31e892a7401f76e909712a0fd510f58f5337bea9572c571e     --hash=sha256:b7b1fc9864d7d39e28f41d089bfd6353cb5f27ecd9905348c24187a768c79694     --hash=sha256:befe2bf740fd8373cf56149a5c23a0f601e82869598d41f8e188a0e9869926f8     --hash=sha256:c0bfb52d2169d58c1cdb8cc1f16989101639b34c7d3ce60ed70b19c63eba0b64     --hash=sha256:d11efb4dbecbdf22508d55e48d9c8384db795e1b7b51ea735289ff96613ff74d     --hash=sha256:dd80e219fd4c71fc3699fc1dadac5dcf4fd882bfc6f7ec53d30fa197b8ee22dc     --hash=sha256:e2926dac25b313635e4d6cf4dc4e51c8c0ebfed60b801c799ffc4c32bf3d1254     --hash=sha256:e98f220aa76ca2a977fe435f5b04d7b3470c0a2e6312907b37ba6068f26787f2     --hash=sha256:ed094d4f0c177b1b8e7aa9cba7d6ceed51c0e569a5318ac0ca9a090680a6a1b1     --hash=sha256:f136bab9c2cfd8da131132c2cf6cc27331dd6fae65f95f69dcd4ae3c3639c810     --hash=sha256:f3a86ed21e4f87050382c7bc96571755193c4c1392490744ac73d660e8f564a9",
+              "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
+              "repo": "xls_pip_deps_312",
+              "requirement": "numpy==2.3.4     --hash=sha256:035796aaaddfe2f9664b9a9372f089cfc88bd795a67bd1bfe15e6e770934cf64     --hash=sha256:043885b4f7e6e232d7df4f51ffdef8c36320ee9d5f227b380ea636722c7ed12e     --hash=sha256:04a69abe45b49c5955923cf2c407843d1c85013b424ae8a560bba16c92fe44a0     --hash=sha256:0f2bcc76f1e05e5ab58893407c63d90b2029908fa41f9f1cc51eecce936c3365     --hash=sha256:13b9062e4f5c7ee5c7e5be96f29ba71bc5a37fed3d1d77c37390ae00724d296d     --hash=sha256:15eea9f306b98e0be91eb344a94c0e630689ef302e10c2ce5f7e11905c704f9c     --hash=sha256:15fb27364ed84114438fff8aaf998c9e19adbeba08c0b75409f8c452a8692c52     --hash=sha256:1b219560ae2c1de48ead517d085bc2d05b9433f8e49d0955c82e8cd37bd7bf36     --hash=sha256:22758999b256b595cf0b1d102b133bb61866ba5ceecf15f759623b64c020c9ec     --hash=sha256:2ec646892819370cf3558f518797f16597b4e4669894a2ba712caccc9da53f1f     --hash=sha256:3634093d0b428e6c32c3a69b78e554f0cd20ee420dcad5a9f3b2a63762ce4197     --hash=sha256:36dc13af226aeab72b7abad501d370d606326a0029b9f435eacb3b8c94b8a8b7     --hash=sha256:3da3491cee49cf16157e70f607c03a217ea6647b1cea4819c4f48e53d49139b9     --hash=sha256:40cc556d5abbc54aabe2b1ae287042d7bdb80c08edede19f0c0afb36ae586f37     --hash=sha256:4121c5beb58a7f9e6dfdee612cb24f4df5cd4db6e8261d7f4d7450a997a65d6a     --hash=sha256:4635239814149e06e2cb9db3dd584b2fa64316c96f10656983b8026a82e6e4db     --hash=sha256:4c01835e718bcebe80394fd0ac66c07cbb90147ebbdad3dcecd3f25de2ae7e2c     --hash=sha256:4ee6a571d1e4f0ea6d5f22d6e5fbd6ed1dc2b18542848e1e7301bd190500c9d7     --hash=sha256:56209416e81a7893036eea03abcb91c130643eb14233b2515c90dcac963fe99d     --hash=sha256:5e199c087e2aa71c8f9ce1cb7a8e10677dc12457e7cc1be4798632da37c3e86e     --hash=sha256:62b2198c438058a20b6704351b35a1d7db881812d8512d67a69c9de1f18ca05f     --hash=sha256:64c5825affc76942973a70acf438a8ab618dbd692b84cd5ec40a0a0509edc09a     --hash=sha256:65611ecbb00ac9846efe04db15cbe6186f562f6bb7e5e05f077e53a599225d16     --hash=sha256:6d34ed9db9e6395bb6cd33286035f73a59b058169733a9db9f85e650b88df37e     --hash=sha256:6d9cd732068e8288dbe2717177320723ccec4fb064123f0caf9bbd90ab5be868     --hash=sha256:6e274603039f924c0fe5cb73438fa9246699c78a6df1bd3decef9ae592ae1c05     --hash=sha256:77b84453f3adcb994ddbd0d1c5d11db2d6bda1a2b7fd5ac5bd4649d6f5dc682e     --hash=sha256:7c26b0b2bf58009ed1f38a641f3db4be8d960a417ca96d14e5b06df1506d41ff     --hash=sha256:7fd09cc5d65bda1e79432859c40978010622112e9194e581e3415a3eccc7f43f     --hash=sha256:817e719a868f0dacde4abdfc5c1910b301877970195db9ab6a5e2c4bd5b121f7     --hash=sha256:81b3a59793523e552c4a96109dde028aa4448ae06ccac5a76ff6532a85558a7f     --hash=sha256:81c3e6d8c97295a7360d367f9f8553973651b76907988bb6066376bc2252f24e     --hash=sha256:838f045478638b26c375ee96ea89464d38428c69170360b23a1a50fa4baa3562     --hash=sha256:84f01a4d18b2cc4ade1814a08e5f3c907b079c847051d720fad15ce37aa930b6     --hash=sha256:85597b2d25ddf655495e2363fe044b0ae999b75bc4d630dc0d886484b03a5eb0     --hash=sha256:85d9fb2d8cd998c84d13a79a09cc0c1091648e848e4e6249b0ccd7f6b487fa26     --hash=sha256:85e071da78d92a214212cacea81c6da557cab307f2c34b5f85b628e94803f9c0     --hash=sha256:863e3b5f4d9915aaf1b8ec79ae560ad21f0b8d5e3adc31e73126491bb86dee1d     --hash=sha256:86966db35c4040fdca64f0816a1c1dd8dbd027d90fca5a57e00e1ca4cd41b879     --hash=sha256:8ab1c5f5ee40d6e01cbe96de5863e39b215a4d24e7d007cad56c7184fdf4aeef     --hash=sha256:8b5a9a39c45d852b62693d9b3f3e0fe052541f804296ff401a72a1b60edafb29     --hash=sha256:8dc20bde86802df2ed8397a08d793da0ad7a5fd4ea3ac85d757bf5dd4ad7c252     --hash=sha256:957e92defe6c08211eb77902253b14fe5b480ebc5112bc741fd5e9cd0608f847     --hash=sha256:962064de37b9aef801d33bc579690f8bfe6c5e70e29b61783f60bcba838a14d6     --hash=sha256:985f1e46358f06c2a09921e8921e2c98168ed4ae12ccd6e5e87a4f1857923f32     --hash=sha256:9984bd645a8db6ca15d850ff996856d8762c51a2239225288f08f9050ca240a0     --hash=sha256:9cb177bc55b010b19798dc5497d540dea67fd13a8d9e882b2dae71de0cf09eb3     --hash=sha256:9d729d60f8d53a7361707f4b68a9663c968882dd4f09e0d58c044c8bf5faee7b     --hash=sha256:a13fc473b6db0be619e45f11f9e81260f7302f8d180c49a22b6e6120022596b3     --hash=sha256:a49d797192a8d950ca59ee2d0337a4d804f713bb5c3c50e8db26d49666e351dc     --hash=sha256:a700a4031bc0fd6936e78a752eefb79092cecad2599ea9c8039c548bc097f9bc     --hash=sha256:a7b2f9a18b5ff9824a6af80de4f37f4ec3c2aab05ef08f51c77a093f5b89adda     --hash=sha256:a7d018bfedb375a8d979ac758b120ba846a7fe764911a64465fd87b8729f4a6a     --hash=sha256:b6c231c9c2fadbae4011ca5e7e83e12dc4a5072f1a1d85a0a7b3ed754d145a40     --hash=sha256:bafa7d87d4c99752d07815ed7a2c0964f8ab311eb8168f41b910bd01d15b6032     --hash=sha256:bd0c630cf256b0a7fd9d0a11c9413b42fef5101219ce6ed5a09624f5a65392c7     --hash=sha256:c090d4860032b857d94144d1a9976b8e36709e40386db289aaf6672de2a81966     --hash=sha256:c2f91f496a87235c6aaf6d3f3d89b17dba64996abadccb289f48456cff931ca9     --hash=sha256:d149aee5c72176d9ddbc6803aef9c0f6d2ceeea7626574fc68518da5476fa346     --hash=sha256:d5e081bc082825f8b139f9e9fe42942cb4054524598aaeb177ff476cc76d09d2     --hash=sha256:d7315ed1dab0286adca467377c8381cd748f3dc92235f22a7dfc42745644a96a     --hash=sha256:dabc42f9c6577bcc13001b8810d300fe814b4cfbe8a92c873f269484594f9786     --hash=sha256:e1708fac43ef8b419c975926ce1eaf793b0c13b7356cfab6ab0dc34c0a02ac0f     --hash=sha256:e73d63fd04e3a9d6bc187f5455d81abfad05660b212c8804bf3b407e984cd2bc     --hash=sha256:e78aecd2800b32e8347ce49316d3eaf04aed849cd5b38e0af39f829a4e59f5eb     --hash=sha256:e8370eb6925bb8c1c4264fec52b0384b44f675f191df91cbe0140ec9f0955646     --hash=sha256:ecb63014bb7f4ce653f8be7f1df8cbc6093a5a2811211770f6606cc92b5a78fd     --hash=sha256:ed759bf7a70342f7817d88376eb7142fab9fef8320d6019ef87fae05a99874e1     --hash=sha256:ef1b5a3e808bc40827b5fa2c8196151a4c5abe110e1726949d7abddfe5c7ae11     --hash=sha256:f77e5b3d3da652b474cc80a14084927a5e86a5eccf54ca8ca5cbd697bf7f2667     --hash=sha256:faba246fb30ea2a526c2e9645f61612341de1a83fb1e0c5edf4ddda5a9c10996     --hash=sha256:fc8a63918b04b8571789688b2780ab2b4a33ab44bfe8ccea36d3eba51228c953     --hash=sha256:fdebe771ca06bb8d6abce84e51dca9f7921fe6ad34a0c914541b063e9a68928b     --hash=sha256:fea80f4f4cf83b54c3a051f2f727870ee51e22f0248d3114b8e755d160b38cfb",
               "timeout": 600000
             }
           },
-          "xls_pip_deps_311_packaging": {
+          "xls_pip_deps_312_packaging": {
             "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
             "ruleClassName": "whl_library",
             "attributes": {
               "dep_template": "@xls_pip_deps//{name}:{target}",
-              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
-              "repo": "xls_pip_deps_311",
+              "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
+              "repo": "xls_pip_deps_312",
               "requirement": "packaging==24.2     --hash=sha256:09abb1bccd265c01f4a3aa3f7a7db064b36514d2cba19a2f694fe6150451a759     --hash=sha256:c228a6dc5e932d346bc5739379109d49e8853dd8223571c7c5b55260edc0b97f",
               "timeout": 600000
             }
           },
-          "xls_pip_deps_311_pillow": {
+          "xls_pip_deps_312_pillow": {
             "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
             "ruleClassName": "whl_library",
             "attributes": {
               "dep_template": "@xls_pip_deps//{name}:{target}",
-              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
-              "repo": "xls_pip_deps_311",
+              "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
+              "repo": "xls_pip_deps_312",
               "requirement": "pillow==11.1.0     --hash=sha256:015c6e863faa4779251436db398ae75051469f7c903b043a48f078e437656f83     --hash=sha256:0a2f91f8a8b367e7a57c6e91cd25af510168091fb89ec5146003e424e1558a96     --hash=sha256:11633d58b6ee5733bde153a8dafd25e505ea3d32e261accd388827ee987baf65     --hash=sha256:2062ffb1d36544d42fcaa277b069c88b01bb7298f4efa06731a7fd6cc290b81a     --hash=sha256:31eba6bbdd27dde97b0174ddf0297d7a9c3a507a8a1480e1e60ef914fe23d352     --hash=sha256:3362c6ca227e65c54bf71a5f88b3d4565ff1bcbc63ae72c34b07bbb1cc59a43f     --hash=sha256:368da70808b36d73b4b390a8ffac11069f8a5c85f29eff1f1b01bcf3ef5b2a20     --hash=sha256:36ba10b9cb413e7c7dfa3e189aba252deee0602c86c309799da5a74009ac7a1c     --hash=sha256:3764d53e09cdedd91bee65c2527815d315c6b90d7b8b79759cc48d7bf5d4f114     --hash=sha256:3a5fe20a7b66e8135d7fd617b13272626a28278d0e578c98720d9ba4b2439d49     --hash=sha256:3cdcdb0b896e981678eee140d882b70092dac83ac1cdf6b3a60e2216a73f2b91     --hash=sha256:4637b88343166249fe8aa94e7c4a62a180c4b3898283bb5d3d2fd5fe10d8e4e0     --hash=sha256:4db853948ce4e718f2fc775b75c37ba2efb6aaea41a1a5fc57f0af59eee774b2     --hash=sha256:4dd43a78897793f60766563969442020e90eb7847463eca901e41ba186a7d4a5     --hash=sha256:54251ef02a2309b5eec99d151ebf5c9904b77976c8abdcbce7891ed22df53884     --hash=sha256:54ce1c9a16a9561b6d6d8cb30089ab1e5eb66918cb47d457bd996ef34182922e     --hash=sha256:593c5fd6be85da83656b93ffcccc2312d2d149d251e98588b14fbc288fd8909c     --hash=sha256:5bb94705aea800051a743aa4874bb1397d4695fb0583ba5e425ee0328757f196     --hash=sha256:67cd427c68926108778a9005f2a04adbd5e67c442ed21d95389fe1d595458756     --hash=sha256:70ca5ef3b3b1c4a0812b5c63c57c23b63e53bc38e758b37a951e5bc466449861     --hash=sha256:73ddde795ee9b06257dac5ad42fcb07f3b9b813f8c1f7f870f402f4dc54b5269     --hash=sha256:758e9d4ef15d3560214cddbc97b8ef3ef86ce04d62ddac17ad39ba87e89bd3b1     --hash=sha256:7d33d2fae0e8b170b6a6c57400e077412240f6f5bb2a342cf1ee512a787942bb     --hash=sha256:7fdadc077553621911f27ce206ffcbec7d3f8d7b50e0da39f10997e8e2bb7f6a     --hash=sha256:8000376f139d4d38d6851eb149b321a52bb8893a88dae8ee7d95840431977081     --hash=sha256:837060a8599b8f5d402e97197d4924f05a2e0d68756998345c829c33186217b1     --hash=sha256:89dbdb3e6e9594d512780a5a1c42801879628b38e3efc7038094430844e271d8     --hash=sha256:8c730dc3a83e5ac137fbc92dfcfe1511ce3b2b5d7578315b63dbbb76f7f51d90     --hash=sha256:8e275ee4cb11c262bd108ab2081f750db2a1c0b8c12c1897f27b160c8bd57bbc     --hash=sha256:9044b5e4f7083f209c4e35aa5dd54b1dd5b112b108648f5c902ad586d4f945c5     --hash=sha256:93a18841d09bcdd774dcdc308e4537e1f867b3dec059c131fde0327899734aa1     --hash=sha256:9409c080586d1f683df3f184f20e36fb647f2e0bc3988094d4fd8c9f4eb1b3b3     --hash=sha256:96f82000e12f23e4f29346e42702b6ed9a2f2fea34a740dd5ffffcc8c539eb35     --hash=sha256:9aa9aeddeed452b2f616ff5507459e7bab436916ccb10961c4a382cd3e03f47f     --hash=sha256:9ee85f0696a17dd28fbcfceb59f9510aa71934b483d1f5601d1030c3c8304f3c     --hash=sha256:a07dba04c5e22824816b2615ad7a7484432d7f540e6fa86af60d2de57b0fcee2     --hash=sha256:a3cd561ded2cf2bbae44d4605837221b987c216cff94f49dfeed63488bb228d2     --hash=sha256:a697cd8ba0383bba3d2d3ada02b34ed268cb548b369943cd349007730c92bddf     --hash=sha256:a76da0a31da6fcae4210aa94fd779c65c75786bc9af06289cd1c184451ef7a65     --hash=sha256:a85b653980faad27e88b141348707ceeef8a1186f75ecc600c395dcac19f385b     --hash=sha256:a8d65b38173085f24bc07f8b6c505cbb7418009fa1a1fcb111b1f4961814a442     --hash=sha256:aa8dd43daa836b9a8128dbe7d923423e5ad86f50a7a14dc688194b7be5c0dea2     --hash=sha256:ab8a209b8485d3db694fa97a896d96dd6533d63c22829043fd9de627060beade     --hash=sha256:abc56501c3fd148d60659aae0af6ddc149660469082859fa7b066a298bde9482     --hash=sha256:ad5db5781c774ab9a9b2c4302bbf0c1014960a0a7be63278d13ae6fdf88126fe     --hash=sha256:ae98e14432d458fc3de11a77ccb3ae65ddce70f730e7c76140653048c71bfcbc     --hash=sha256:b20be51b37a75cc54c2c55def3fa2c65bb94ba859dde241cd0a4fd302de5ae0a     --hash=sha256:b523466b1a31d0dcef7c5be1f20b942919b62fd6e9a9be199d035509cbefc0ec     --hash=sha256:b5d658fbd9f0d6eea113aea286b21d3cd4d3fd978157cbf2447a6035916506d3     --hash=sha256:b6123aa4a59d75f06e9dd3dac5bf8bc9aa383121bb3dd9a7a612e05eabc9961a     --hash=sha256:bd165131fd51697e22421d0e467997ad31621b74bfc0b75956608cb2906dda07     --hash=sha256:bf902d7413c82a1bfa08b06a070876132a5ae6b2388e2712aab3a7cbc02205c6     --hash=sha256:c12fc111ef090845de2bb15009372175d76ac99969bdf31e2ce9b42e4b8cd88f     --hash=sha256:c1eec9d950b6fe688edee07138993e54ee4ae634c51443cfb7c1e7613322718e     --hash=sha256:c640e5a06869c75994624551f45e5506e4256562ead981cce820d5ab39ae2192     --hash=sha256:cc1331b6d5a6e144aeb5e626f4375f5b7ae9934ba620c0ac6b3e43d5e683a0f0     --hash=sha256:cfd5cd998c2e36a862d0e27b2df63237e67273f2fc78f47445b14e73a810e7e6     --hash=sha256:d3d8da4a631471dfaf94c10c85f5277b1f8e42ac42bade1ac67da4b4a7359b73     --hash=sha256:d44ff19eea13ae4acdaaab0179fa68c0c6f2f45d66a4d8ec1eda7d6cecbcc15f     --hash=sha256:dd0052e9db3474df30433f83a71b9b23bd9e4ef1de13d92df21a52c0303b8ab6     --hash=sha256:dd0e081319328928531df7a0e63621caf67652c8464303fd102141b785ef9547     --hash=sha256:dda60aa465b861324e65a78c9f5cf0f4bc713e4309f83bc387be158b077963d9     --hash=sha256:e06695e0326d05b06833b40b7ef477e475d0b1ba3a6d27da1bb48c23209bf457     --hash=sha256:e1abe69aca89514737465752b4bcaf8016de61b3be1397a8fc260ba33321b3a8     --hash=sha256:e267b0ed063341f3e60acd25c05200df4193e15a4a5807075cd71225a2386e26     --hash=sha256:e5449ca63da169a2e6068dd0e2fcc8d91f9558aba89ff6d02121ca8ab11e79e5     --hash=sha256:e63e4e5081de46517099dc30abe418122f54531a6ae2ebc8680bcd7096860eab     --hash=sha256:f189805c8be5ca5add39e6f899e6ce2ed824e65fb45f3c28cb2841911da19070     --hash=sha256:f7955ecf5609dee9442cbface754f2c6e541d9e6eda87fad7f7a989b0bdb9d71     --hash=sha256:f86d3a7a9af5d826744fabf4afd15b9dfef44fe69a98541f666f66fbb8d3fef9     --hash=sha256:fbd43429d0d7ed6533b25fc993861b8fd512c42d04514a0dd6337fb3ccf22761",
               "timeout": 600000
             }
           },
-          "xls_pip_deps_311_portpicker": {
+          "xls_pip_deps_312_portpicker": {
             "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
             "ruleClassName": "whl_library",
             "attributes": {
               "dep_template": "@xls_pip_deps//{name}:{target}",
-              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
-              "repo": "xls_pip_deps_311",
+              "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
+              "repo": "xls_pip_deps_312",
               "requirement": "portpicker==1.3.1     --hash=sha256:d2cdc776873635ed421315c4d22e63280042456bbfa07397817e687b142b9667",
               "timeout": 600000
             }
           },
-          "xls_pip_deps_311_psutil": {
+          "xls_pip_deps_312_psutil": {
             "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
             "ruleClassName": "whl_library",
             "attributes": {
               "dep_template": "@xls_pip_deps//{name}:{target}",
-              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
-              "repo": "xls_pip_deps_311",
+              "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
+              "repo": "xls_pip_deps_312",
               "requirement": "psutil==5.7.0     --hash=sha256:1413f4158eb50e110777c4f15d7c759521703bd6beb58926f1d562da40180058     --hash=sha256:298af2f14b635c3c7118fd9183843f4e73e681bb6f01e12284d4d70d48a60953     --hash=sha256:60b86f327c198561f101a92be1995f9ae0399736b6eced8f24af41ec64fb88d4     --hash=sha256:685ec16ca14d079455892f25bd124df26ff9137664af445563c1bd36629b5e0e     --hash=sha256:73f35ab66c6c7a9ce82ba44b1e9b1050be2a80cd4dcc3352cc108656b115c74f     --hash=sha256:75e22717d4dbc7ca529ec5063000b2b294fc9a367f9c9ede1f65846c7955fd38     --hash=sha256:a02f4ac50d4a23253b68233b07e7cdb567bd025b982d5cf0ee78296990c22d9e     --hash=sha256:d008ddc00c6906ec80040d26dc2d3e3962109e40ad07fd8a12d0284ce5e0e4f8     --hash=sha256:d84029b190c8a66a946e28b4d3934d2ca1528ec94764b180f7d6ea57b0e75e26     --hash=sha256:e2d0c5b07c6fe5a87fa27b7855017edb0d52ee73b71e6ee368fae268605cc3f5     --hash=sha256:f344ca230dd8e8d5eee16827596f1c22ec0876127c28e800d7ae20ed44c4b310",
               "timeout": 600000
             }
           },
-          "xls_pip_deps_311_pyparsing": {
+          "xls_pip_deps_312_pyparsing": {
             "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
             "ruleClassName": "whl_library",
             "attributes": {
               "dep_template": "@xls_pip_deps//{name}:{target}",
-              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
-              "repo": "xls_pip_deps_311",
+              "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
+              "repo": "xls_pip_deps_312",
               "requirement": "pyparsing==3.2.1     --hash=sha256:506ff4f4386c4cec0590ec19e6302d3aedb992fdc02c761e90416f158dacf8e1     --hash=sha256:61980854fd66de3a90028d679a954d5f2623e83144b5afe5ee86f43d762e5f0a",
               "timeout": 600000
             }
           },
-          "xls_pip_deps_311_python_dateutil": {
+          "xls_pip_deps_312_python_dateutil": {
             "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
             "ruleClassName": "whl_library",
             "attributes": {
               "dep_template": "@xls_pip_deps//{name}:{target}",
-              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
-              "repo": "xls_pip_deps_311",
+              "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
+              "repo": "xls_pip_deps_312",
               "requirement": "python-dateutil==2.9.0.post0     --hash=sha256:37dd54208da7e1cd875388217d5e00ebd4179249f90fb72437e91a35459a0ad3     --hash=sha256:a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427",
               "timeout": 600000
             }
           },
-          "xls_pip_deps_311_pyyaml": {
+          "xls_pip_deps_312_pyyaml": {
             "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
             "ruleClassName": "whl_library",
             "attributes": {
               "dep_template": "@xls_pip_deps//{name}:{target}",
-              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
-              "repo": "xls_pip_deps_311",
+              "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
+              "repo": "xls_pip_deps_312",
               "requirement": "pyyaml==6.0.1     --hash=sha256:04ac92ad1925b2cff1db0cfebffb6ffc43457495c9b3c39d3fcae417d7125dc5     --hash=sha256:062582fca9fabdd2c8b54a3ef1c978d786e0f6b3a1510e0ac93ef59e0ddae2bc     --hash=sha256:0d3304d8c0adc42be59c5f8a4d9e3d7379e6955ad754aa9d6ab7a398b59dd1df     --hash=sha256:1635fd110e8d85d55237ab316b5b011de701ea0f29d07611174a1b42f1444741     --hash=sha256:184c5108a2aca3c5b3d3bf9395d50893a7ab82a38004c8f61c258d4428e80206     --hash=sha256:18aeb1bf9a78867dc38b259769503436b7c72f7a1f1f4c93ff9a17de54319b27     --hash=sha256:1d4c7e777c441b20e32f52bd377e0c409713e8bb1386e1099c2415f26e479595     --hash=sha256:1e2722cc9fbb45d9b87631ac70924c11d3a401b2d7f410cc0e3bbf249f2dca62     --hash=sha256:1fe35611261b29bd1de0070f0b2f47cb6ff71fa6595c077e42bd0c419fa27b98     --hash=sha256:28c119d996beec18c05208a8bd78cbe4007878c6dd15091efb73a30e90539696     --hash=sha256:326c013efe8048858a6d312ddd31d56e468118ad4cdeda36c719bf5bb6192290     --hash=sha256:40df9b996c2b73138957fe23a16a4f0ba614f4c0efce1e9406a184b6d07fa3a9     --hash=sha256:42f8152b8dbc4fe7d96729ec2b99c7097d656dc1213a3229ca5383f973a5ed6d     --hash=sha256:49a183be227561de579b4a36efbb21b3eab9651dd81b1858589f796549873dd6     --hash=sha256:4fb147e7a67ef577a588a0e2c17b6db51dda102c71de36f8549b6816a96e1867     --hash=sha256:50550eb667afee136e9a77d6dc71ae76a44df8b3e51e41b77f6de2932bfe0f47     --hash=sha256:510c9deebc5c0225e8c96813043e62b680ba2f9c50a08d3724c7f28a747d1486     --hash=sha256:5773183b6446b2c99bb77e77595dd486303b4faab2b086e7b17bc6bef28865f6     --hash=sha256:596106435fa6ad000c2991a98fa58eeb8656ef2325d7e158344fb33864ed87e3     --hash=sha256:6965a7bc3cf88e5a1c3bd2e0b5c22f8d677dc88a455344035f03399034eb3007     --hash=sha256:69b023b2b4daa7548bcfbd4aa3da05b3a74b772db9e23b982788168117739938     --hash=sha256:6c22bec3fbe2524cde73d7ada88f6566758a8f7227bfbf93a408a9d86bcc12a0     --hash=sha256:704219a11b772aea0d8ecd7058d0082713c3562b4e271b849ad7dc4a5c90c13c     --hash=sha256:7e07cbde391ba96ab58e532ff4803f79c4129397514e1413a7dc761ccd755735     --hash=sha256:81e0b275a9ecc9c0c0c07b4b90ba548307583c125f54d5b6946cfee6360c733d     --hash=sha256:855fb52b0dc35af121542a76b9a84f8d1cd886ea97c84703eaa6d88e37a2ad28     --hash=sha256:8d4e9c88387b0f5c7d5f281e55304de64cf7f9c0021a3525bd3b1c542da3b0e4     --hash=sha256:9046c58c4395dff28dd494285c82ba00b546adfc7ef001486fbf0324bc174fba     --hash=sha256:9eb6caa9a297fc2c2fb8862bc5370d0303ddba53ba97e71f08023b6cd73d16a8     --hash=sha256:a0cd17c15d3bb3fa06978b4e8958dcdc6e0174ccea823003a106c7d4d7899ac5     --hash=sha256:afd7e57eddb1a54f0f1a974bc4391af8bcce0b444685d936840f125cf046d5bd     --hash=sha256:b1275ad35a5d18c62a7220633c913e1b42d44b46ee12554e5fd39c70a243d6a3     --hash=sha256:b786eecbdf8499b9ca1d697215862083bd6d2a99965554781d0d8d1ad31e13a0     --hash=sha256:ba336e390cd8e4d1739f42dfe9bb83a3cc2e80f567d8805e11b46f4a943f5515     --hash=sha256:baa90d3f661d43131ca170712d903e6295d1f7a0f595074f151c0aed377c9b9c     --hash=sha256:bc1bf2925a1ecd43da378f4db9e4f799775d6367bdb94671027b73b393a7c42c     --hash=sha256:bd4af7373a854424dabd882decdc5579653d7868b8fb26dc7d0e99f823aa5924     --hash=sha256:bf07ee2fef7014951eeb99f56f39c9bb4af143d8aa3c21b1677805985307da34     --hash=sha256:bfdf460b1736c775f2ba9f6a92bca30bc2095067b8a9d77876d1fad6cc3b4a43     --hash=sha256:c8098ddcc2a85b61647b2590f825f3db38891662cfc2fc776415143f599bb859     --hash=sha256:d2b04aac4d386b172d5b9692e2d2da8de7bfb6c387fa4f801fbf6fb2e6ba4673     --hash=sha256:d483d2cdf104e7c9fa60c544d92981f12ad66a457afae824d146093b8c294c54     --hash=sha256:d858aa552c999bc8a8d57426ed01e40bef403cd8ccdd0fc5f6f04a00414cac2a     --hash=sha256:e7d73685e87afe9f3b36c799222440d6cf362062f78be1013661b00c5c6f678b     --hash=sha256:f003ed9ad21d6a4713f0a9b5a7a0a79e08dd0f221aff4525a2be4c346ee60aab     --hash=sha256:f22ac1c3cac4dbc50079e965eba2c1058622631e526bd9afd45fedd49ba781fa     --hash=sha256:faca3bdcf85b2fc05d06ff3fbc1f83e1391b3e724afa3feba7d13eeab355484c     --hash=sha256:fca0e3a251908a499833aa292323f32437106001d436eca0e6e7833256674585     --hash=sha256:fd1592b3fdf65fff2ad0004b5e363300ef59ced41c2e6b3a99d4089fa8c5435d     --hash=sha256:fd66fc5d0da6d9815ba2cebeb4205f95818ff4b79c3ebe268e75d961704af52f",
               "timeout": 600000
             }
           },
-          "xls_pip_deps_311_scipy": {
+          "xls_pip_deps_312_scipy": {
             "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
             "ruleClassName": "whl_library",
             "attributes": {
               "dep_template": "@xls_pip_deps//{name}:{target}",
-              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
-              "repo": "xls_pip_deps_311",
-              "requirement": "scipy==1.10.1     --hash=sha256:049a8bbf0ad95277ffba9b3b7d23e5369cc39e66406d60422c8cfef40ccc8415     --hash=sha256:07c3457ce0b3ad5124f98a86533106b643dd811dd61b548e78cf4c8786652f6f     --hash=sha256:0f1564ea217e82c1bbe75ddf7285ba0709ecd503f048cb1236ae9995f64217bd     --hash=sha256:1553b5dcddd64ba9a0d95355e63fe6c3fc303a8fd77c7bc91e77d61363f7433f     --hash=sha256:15a35c4242ec5f292c3dd364a7c71a61be87a3d4ddcc693372813c0b73c9af1d     --hash=sha256:1b4735d6c28aad3cdcf52117e0e91d6b39acd4272f3f5cd9907c24ee931ad601     --hash=sha256:2cf9dfb80a7b4589ba4c40ce7588986d6d5cebc5457cad2c2880f6bc2d42f3a5     --hash=sha256:39becb03541f9e58243f4197584286e339029e8908c46f7221abeea4b749fa88     --hash=sha256:43b8e0bcb877faf0abfb613d51026cd5cc78918e9530e375727bf0625c82788f     --hash=sha256:4b3f429188c66603a1a5c549fb414e4d3bdc2a24792e061ffbd607d3d75fd84e     --hash=sha256:4c0ff64b06b10e35215abce517252b375e580a6125fd5fdf6421b98efbefb2d2     --hash=sha256:51af417a000d2dbe1ec6c372dfe688e041a7084da4fdd350aeb139bd3fb55353     --hash=sha256:5678f88c68ea866ed9ebe3a989091088553ba12c6090244fdae3e467b1139c35     --hash=sha256:79c8e5a6c6ffaf3a2262ef1be1e108a035cf4f05c14df56057b64acc5bebffb6     --hash=sha256:7ff7f37b1bf4417baca958d254e8e2875d0cc23aaadbe65b3d5b3077b0eb23ea     --hash=sha256:aaea0a6be54462ec027de54fca511540980d1e9eea68b2d5c1dbfe084797be35     --hash=sha256:bce5869c8d68cf383ce240e44c1d9ae7c06078a9396df68ce88a1230f93a30c1     --hash=sha256:cd9f1027ff30d90618914a64ca9b1a77a431159df0e2a195d8a9e8a04c78abf9     --hash=sha256:d925fa1c81b772882aa55bcc10bf88324dadb66ff85d548c71515f6689c6dac5     --hash=sha256:e7354fd7527a4b0377ce55f286805b34e8c54b91be865bac273f527e1b839019     --hash=sha256:fae8a7b898c42dffe3f7361c40d5952b6bf32d10c4569098d276b4c547905ee1",
+              "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
+              "repo": "xls_pip_deps_312",
+              "requirement": "scipy==1.16.3     --hash=sha256:0151a0749efeaaab78711c78422d413c583b8cdd2011a3c1d6c794938ee9fdb2     --hash=sha256:01e87659402762f43bd2fee13370553a17ada367d42e7487800bf2916535aecb     --hash=sha256:03192a35e661470197556de24e7cb1330d84b35b94ead65c46ad6f16f6b28f2a     --hash=sha256:0553371015692a898e1aa858fed67a3576c34edefa6b7ebdb4e9dde49ce5c203     --hash=sha256:062246acacbe9f8210de8e751b16fc37458213f124bef161a5a02c7a39284304     --hash=sha256:0c3b4dd3d9b08dbce0f3440032c52e9e2ab9f96ade2d3943313dfe51a7056959     --hash=sha256:0c623a54f7b79dd88ef56da19bc2873afec9673a48f3b85b18e4d402bdd29a5a     --hash=sha256:16b8bc35a4cc24db80a0ec836a9286d0e31b2503cb2fd7ff7fb0e0374a97081d     --hash=sha256:1fb2472e72e24d1530debe6ae078db70fb1605350c88a3d14bc401d6306dbffe     --hash=sha256:21d9d6b197227a12dcbf9633320a4e34c6b0e51c57268df255a0942983bac562     --hash=sha256:2a207a6ce9c24f1951241f4693ede2d393f59c07abc159b2cb2be980820e01fb     --hash=sha256:2b71d93c8a9936046866acebc915e2af2e292b883ed6e2cbe5c34beb094b82d9     --hash=sha256:2d1ae2cf0c350e7705168ff2429962a89ad90c2d49d1dd300686d8b2a5af22fc     --hash=sha256:3a4c460301fb2cffb7f88528f30b3127742cff583603aa7dc964a52c463b385d     --hash=sha256:3d4a07a8e785d80289dfe66b7c27d8634a773020742ec7187b85ccc4b0e7b686     --hash=sha256:40be6cf99e68b6c4321e9f8782e7d5ff8265af28ef2cd56e9c9b2638fa08ad97     --hash=sha256:4aff59800a3b7f786b70bfd6ab551001cb553244988d7d6b8299cb1ea653b353     --hash=sha256:50a3dbf286dbc7d84f176f9a1574c705f277cb6565069f88f60db9eafdbe3ee2     --hash=sha256:532fb5ad6a87e9e9cd9c959b106b73145a03f04c7d57ea3e6f6bb60b86ab0876     --hash=sha256:53c3844d527213631e886621df5695d35e4f6a75f620dca412bcd292f6b87d78     --hash=sha256:56edc65510d1331dae01ef9b658d428e33ed48b4f77b1d51caf479a0253f96dc     --hash=sha256:57d01cb6f85e34f0946b33caa66e892aae072b64b034183f3d87c4025802a119     --hash=sha256:5803c5fadd29de0cf27fa08ccbfe7a9e5d741bf63e4ab1085437266f12460ff9     --hash=sha256:6020470b9d00245926f2d5bb93b119ca0340f0d564eb6fbaad843eaebf9d690f     --hash=sha256:63d3cdacb8a824a295191a723ee5e4ea7768ca5ca5f2838532d9f2e2b3ce2135     --hash=sha256:663b8d66a8748051c3ee9c96465fb417509315b99c71550fda2591d7dd634234     --hash=sha256:72d1717fd3b5e6ec747327ce9bda32d5463f472c9dce9f54499e81fbd50245a1     --hash=sha256:7dc1360c06535ea6116a2220f760ae572db9f661aba2d88074fe30ec2aa1ff88     --hash=sha256:7f68154688c515cdb541a31ef8eb66d8cd1050605be9dcd74199cbd22ac739bc     --hash=sha256:81fc5827606858cf71446a5e98715ba0e11f0dbc83d71c7409d05486592a45d6     --hash=sha256:875555ce62743e1d54f06cdf22c1e0bc47b91130ac40fe5d783b6dfa114beeb6     --hash=sha256:8b3c820ddb80029fe9f43d61b81d8b488d3ef8ca010d15122b152db77dc94c22     --hash=sha256:8be1ca9170fcb6223cc7c27f4305d680ded114a1567c0bd2bfcbf947d1b17511     --hash=sha256:8d09d72dc92742988b0e7750bddb8060b0c7079606c0d24a8cc8e9c9c11f9079     --hash=sha256:9452781bd879b14b6f055b26643703551320aa8d79ae064a71df55c00286a184     --hash=sha256:96491a6a54e995f00a28a3c3badfff58fd093bf26cd5fb34a2188c8c756a3a2c     --hash=sha256:9b9c9c07b6d56a35777a1b4cc8966118fb16cfd8daf6743867d17d36cfad2d40     --hash=sha256:a8a26c78ef223d3e30920ef759e25625a0ecdd0d60e5a8818b7513c3e5384cf2     --hash=sha256:aadd23f98f9cb069b3bd64ddc900c4d277778242e961751f77a8cb5c4b946fb0     --hash=sha256:b7180967113560cca57418a7bc719e30366b47959dd845a93206fbed693c867e     --hash=sha256:b7c5f1bda1354d6a19bc6af73a649f8285ca63ac6b52e64e658a5a11d4d69800     --hash=sha256:b81c27fc41954319a943d43b20e07c40bdcd3ff7cf013f4fb86286faefe546c4     --hash=sha256:bb61878c18a470021fb515a843dc7a76961a8daceaaaa8bad1332f1bf4b54657     --hash=sha256:bea0a62734d20d67608660f69dcda23e7f90fb4ca20974ab80b6ed40df87a005     --hash=sha256:c5192722cffe15f9329a3948c4b1db789fbb1f05c97899187dcf009b283aea70     --hash=sha256:c97176013d404c7346bf57874eaac5187d969293bf40497140b0a2b2b7482e07     --hash=sha256:cd13e354df9938598af2be05822c323e97132d5e6306b83a3b4ee6724c6e522e     --hash=sha256:d2ec56337675e61b312179a1ad124f5f570c00f920cc75e1000025451b88241c     --hash=sha256:d3837938ae715fc0fe3c39c0202de3a8853aff22ca66781ddc2ade7554b7e2cc     --hash=sha256:d9f48cafc7ce94cf9b15c6bffdc443a81a27bf7075cf2dcd5c8b40f85d10c4e7     --hash=sha256:da7763f55885045036fabcebd80144b757d3db06ab0861415d1c3b7c69042146     --hash=sha256:deb3841c925eeddb6afc1e4e4a45e418d19ec7b87c5df177695224078e8ec733     --hash=sha256:e1d27cbcb4602680a49d787d90664fa4974063ac9d4134813332a8c53dbe667c     --hash=sha256:e5d42a9472e7579e473879a1990327830493a7047506d58d73fc429b84c1d49d     --hash=sha256:e7efa2681ea410b10dde31a52b18b0154d66f2485328830e45fdf183af5aefc6     --hash=sha256:eab43fae33a0c39006a88096cd7b4f4ef545ea0447d250d5ac18202d40b6611d     --hash=sha256:f2622206f5559784fa5c4b53a950c3c7c1cf3e84ca1b9c4b6c03f062f289ca26     --hash=sha256:f379b54b77a597aa7ee5e697df0d66903e41b9c85a6dd7946159e356319158e8     --hash=sha256:f667a4542cc8917af1db06366d3f78a5c8e83badd56409f94d1eac8d8d9133fa     --hash=sha256:fb4b29f4cf8cc5a8d628bc8d8e26d12d7278cd1f219f22698a378c3d67db5e4b     --hash=sha256:ffa6eea95283b2b8079b821dc11f50a17d0571c92b43e2b5b12764dc5f9b285d",
               "timeout": 600000
             }
           },
-          "xls_pip_deps_311_six": {
+          "xls_pip_deps_312_six": {
             "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
             "ruleClassName": "whl_library",
             "attributes": {
               "dep_template": "@xls_pip_deps//{name}:{target}",
-              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
-              "repo": "xls_pip_deps_311",
+              "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
+              "repo": "xls_pip_deps_312",
               "requirement": "six==1.17.0     --hash=sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274     --hash=sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81",
               "timeout": 600000
             }
           },
-          "xls_pip_deps_311_termcolor": {
+          "xls_pip_deps_312_termcolor": {
             "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
             "ruleClassName": "whl_library",
             "attributes": {
               "dep_template": "@xls_pip_deps//{name}:{target}",
-              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
-              "repo": "xls_pip_deps_311",
+              "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
+              "repo": "xls_pip_deps_312",
               "requirement": "termcolor==1.1.0     --hash=sha256:1d6d69ce66211143803fbc56652b41d73b4a400a2891d7bf7a1cdf4c02de613b",
               "timeout": 600000
             }
           },
-          "xls_pip_deps_311_werkzeug": {
+          "xls_pip_deps_312_werkzeug": {
             "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
             "ruleClassName": "whl_library",
             "attributes": {
               "dep_template": "@xls_pip_deps//{name}:{target}",
-              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
-              "repo": "xls_pip_deps_311",
+              "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
+              "repo": "xls_pip_deps_312",
               "requirement": "werkzeug==3.0.6     --hash=sha256:1bc0c2310d2fbb07b1dd1105eba2f7af72f322e1e455f2f93c993bee8c8a5f17     --hash=sha256:a8dd59d4de28ca70471a34cba79bed5f7ef2e036a76b3ab0835474246eb41f8d",
               "timeout": 600000
             }
           },
-          "xls_pip_deps_311_z3_solver": {
+          "xls_pip_deps_312_z3_solver": {
             "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
             "ruleClassName": "whl_library",
             "attributes": {
               "dep_template": "@xls_pip_deps//{name}:{target}",
-              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
-              "repo": "xls_pip_deps_311",
+              "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
+              "repo": "xls_pip_deps_312",
               "requirement": "z3-solver==4.14.0.0     --hash=sha256:3c505692caa21925c9be65ccc168535e51f5a241ddda9f8a7ee1c0ae26f8fcfd     --hash=sha256:76415f15d3eec998be99bba181c43d33435c0e4b123f20cc16cb33a0504c303e     --hash=sha256:83736086dc73f6309a7bb9e45e6a0b6b73de8510b606247b366038f5f40899b4     --hash=sha256:855bd6936411616fab9427569d730c566f3b1cac4e3856311f396def82c5f52a     --hash=sha256:899d61e9ed2bb8b3516307e07cd195abcec1aa6c7e24e18902864fbc54c9f2e3     --hash=sha256:c10f899c6a876e3a50e9b2c4927604c2c3da3cca672b8ed3b7db1bc97259e47f     --hash=sha256:e6ae32bc1cf4d25b96f790755d790a23118e8a09b9b6060e32238fe6ff43606d",
               "timeout": 600000
             }
@@ -15345,31 +15344,31 @@
               "repo_name": "xls_pip_deps",
               "extra_hub_aliases": {},
               "whl_map": {
-                "blinker": "{\"xls_pip_deps_311_blinker\":[{\"version\":\"3.11\"}]}",
-                "click": "{\"xls_pip_deps_311_click\":[{\"version\":\"3.11\"}]}",
-                "contourpy": "{\"xls_pip_deps_311_contourpy\":[{\"version\":\"3.11\"}]}",
-                "cycler": "{\"xls_pip_deps_311_cycler\":[{\"version\":\"3.11\"}]}",
-                "flask": "{\"xls_pip_deps_311_flask\":[{\"version\":\"3.11\"}]}",
-                "fonttools": "{\"xls_pip_deps_311_fonttools\":[{\"version\":\"3.11\"}]}",
-                "itsdangerous": "{\"xls_pip_deps_311_itsdangerous\":[{\"version\":\"3.11\"}]}",
-                "jinja2": "{\"xls_pip_deps_311_jinja2\":[{\"version\":\"3.11\"}]}",
-                "kiwisolver": "{\"xls_pip_deps_311_kiwisolver\":[{\"version\":\"3.11\"}]}",
-                "markupsafe": "{\"xls_pip_deps_311_markupsafe\":[{\"version\":\"3.11\"}]}",
-                "matplotlib": "{\"xls_pip_deps_311_matplotlib\":[{\"version\":\"3.11\"}]}",
-                "networkx": "{\"xls_pip_deps_311_networkx\":[{\"version\":\"3.11\"}]}",
-                "numpy": "{\"xls_pip_deps_311_numpy\":[{\"version\":\"3.11\"}]}",
-                "packaging": "{\"xls_pip_deps_311_packaging\":[{\"version\":\"3.11\"}]}",
-                "pillow": "{\"xls_pip_deps_311_pillow\":[{\"version\":\"3.11\"}]}",
-                "portpicker": "{\"xls_pip_deps_311_portpicker\":[{\"version\":\"3.11\"}]}",
-                "psutil": "{\"xls_pip_deps_311_psutil\":[{\"version\":\"3.11\"}]}",
-                "pyparsing": "{\"xls_pip_deps_311_pyparsing\":[{\"version\":\"3.11\"}]}",
-                "python_dateutil": "{\"xls_pip_deps_311_python_dateutil\":[{\"version\":\"3.11\"}]}",
-                "pyyaml": "{\"xls_pip_deps_311_pyyaml\":[{\"version\":\"3.11\"}]}",
-                "scipy": "{\"xls_pip_deps_311_scipy\":[{\"version\":\"3.11\"}]}",
-                "six": "{\"xls_pip_deps_311_six\":[{\"version\":\"3.11\"}]}",
-                "termcolor": "{\"xls_pip_deps_311_termcolor\":[{\"version\":\"3.11\"}]}",
-                "werkzeug": "{\"xls_pip_deps_311_werkzeug\":[{\"version\":\"3.11\"}]}",
-                "z3_solver": "{\"xls_pip_deps_311_z3_solver\":[{\"version\":\"3.11\"}]}"
+                "blinker": "{\"xls_pip_deps_312_blinker\":[{\"version\":\"3.12\"}]}",
+                "click": "{\"xls_pip_deps_312_click\":[{\"version\":\"3.12\"}]}",
+                "contourpy": "{\"xls_pip_deps_312_contourpy\":[{\"version\":\"3.12\"}]}",
+                "cycler": "{\"xls_pip_deps_312_cycler\":[{\"version\":\"3.12\"}]}",
+                "flask": "{\"xls_pip_deps_312_flask\":[{\"version\":\"3.12\"}]}",
+                "fonttools": "{\"xls_pip_deps_312_fonttools\":[{\"version\":\"3.12\"}]}",
+                "itsdangerous": "{\"xls_pip_deps_312_itsdangerous\":[{\"version\":\"3.12\"}]}",
+                "jinja2": "{\"xls_pip_deps_312_jinja2\":[{\"version\":\"3.12\"}]}",
+                "kiwisolver": "{\"xls_pip_deps_312_kiwisolver\":[{\"version\":\"3.12\"}]}",
+                "markupsafe": "{\"xls_pip_deps_312_markupsafe\":[{\"version\":\"3.12\"}]}",
+                "matplotlib": "{\"xls_pip_deps_312_matplotlib\":[{\"version\":\"3.12\"}]}",
+                "networkx": "{\"xls_pip_deps_312_networkx\":[{\"version\":\"3.12\"}]}",
+                "numpy": "{\"xls_pip_deps_312_numpy\":[{\"version\":\"3.12\"}]}",
+                "packaging": "{\"xls_pip_deps_312_packaging\":[{\"version\":\"3.12\"}]}",
+                "pillow": "{\"xls_pip_deps_312_pillow\":[{\"version\":\"3.12\"}]}",
+                "portpicker": "{\"xls_pip_deps_312_portpicker\":[{\"version\":\"3.12\"}]}",
+                "psutil": "{\"xls_pip_deps_312_psutil\":[{\"version\":\"3.12\"}]}",
+                "pyparsing": "{\"xls_pip_deps_312_pyparsing\":[{\"version\":\"3.12\"}]}",
+                "python_dateutil": "{\"xls_pip_deps_312_python_dateutil\":[{\"version\":\"3.12\"}]}",
+                "pyyaml": "{\"xls_pip_deps_312_pyyaml\":[{\"version\":\"3.12\"}]}",
+                "scipy": "{\"xls_pip_deps_312_scipy\":[{\"version\":\"3.12\"}]}",
+                "six": "{\"xls_pip_deps_312_six\":[{\"version\":\"3.12\"}]}",
+                "termcolor": "{\"xls_pip_deps_312_termcolor\":[{\"version\":\"3.12\"}]}",
+                "werkzeug": "{\"xls_pip_deps_312_werkzeug\":[{\"version\":\"3.12\"}]}",
+                "z3_solver": "{\"xls_pip_deps_312_z3_solver\":[{\"version\":\"3.12\"}]}"
               },
               "packages": [
                 "blinker",

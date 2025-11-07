@@ -28,7 +28,7 @@ single_version_override(
     version = "1.0.0",
 )
 
-PYTHON_VERSION = "3.11"
+PYTHON_VERSION = "3.12"
 
 PYTHON_VERSION_NAME = PYTHON_VERSION.replace(".", "_")
 
