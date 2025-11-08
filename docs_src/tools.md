@@ -85,6 +85,32 @@ channel names into the block ready/valid/data ports.
 with information about which bits of every node were observed set. This can be
 used to validate transformations and gain insights into how the code performs.
 
+### Execution Tracing
+
+`eval_ir_main` and `eval_proc_main` can record execution traces using the
+`--trace_output={file}` flag. This generates a trace file in
+[Riegeli](https://riegeli.org/) format containing
+[`xls.TracePacketProto`](https://github.com/google/xls/tree/main/xls/interpreter/trace.proto)
+messages, which record node evaluations over time. Tracing is incompatible with
+node coverage collection and enabling both will result in an error.
+
+The trace output can be compressed using zstd with
+`--trace_zstd_compression_level` and `--trace_zstd_window_log` flags.
+
+XLS execution traces can be converted to [Perfetto](https://perfetto.dev/)
+format for visualization. The tool
+[`trace_to_perfetto_main`](https://github.com/google/xls/tree/main/xls/tools/trace_to_perfetto_main.cc)
+converts an XLS trace to a Perfetto trace:
+
+```shell
+bazel run //xls/tools:trace_to_perfetto_main -- \
+  --input_trace=/tmp/my_trace.riegeli --output_trace=/tmp/my_trace.perfetto
+```
+
+The resulting `/tmp/my_trace.perfetto` file can be opened in the Perfetto web UI
+at [ui.perfetto.dev](https://ui.perfetto.dev/) via the "Open trace file" link on
+the left.
+
 ## Jit Inspection {#jit-inspection}
 
 One can use the `jit:aot_compiler_main` to inspect the jit code produced by our
