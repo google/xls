@@ -1479,25 +1479,25 @@ TEST_F(PipelineScheduleTest, SuggestIncreasedClockPeriodWhenNecessary) {
 TEST_F(PipelineScheduleTest, OptimizeForDynamicThroughput) {
   Package package = Package(TestName());
   Type* u1 = package.GetBitsType(1);
-  Type* u10 = package.GetBitsType(10);
+  Type* u2 = package.GetBitsType(2);
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch_in,
       package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u1));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch_out,
-      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u10));
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u2));
 
   ProcBuilder pb(TestName(), &package);
   BValue tkn = pb.Literal(Value::Token());
-  BValue state = pb.StateElement("state", Value(Bits(10)));
+  BValue state = pb.StateElement("state", Value(Bits(1)));
   BValue recv = pb.Receive(ch_in, tkn);
   BValue recv_tkn = pb.TupleIndex(recv, 0);
   BValue change = pb.TupleIndex(recv, 1);
-  BValue collapsed_value = pb.Xor(pb.OrReduce(state), change);
-  BValue next_state = pb.SignExtend(collapsed_value, 10);
+  BValue extended_value = pb.SignExtend(pb.Xor(state, change), 2);
+  BValue next_state = pb.OrReduce(extended_value);
   pb.Next(state, next_state);
-  pb.Send(ch_out, pb.MinDelay(recv_tkn, 1), next_state);
+  pb.Send(ch_out, pb.MinDelay(recv_tkn, 1), extended_value);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
