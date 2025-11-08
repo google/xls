@@ -2831,6 +2831,7 @@ TEST_P(VastTest, SimpleGenerateLoop) {
                                            f.Make<Index>(si, input, i));
   generate_loop->Add<BlankLine>(si);
   generate_loop->Add<Comment>(si, "This is a comment.");
+  generate_loop->Add<Comment>(si, "");
   generate_loop->Add<InlineVerilogStatement>(si, "inline_verilog_statement;");
 
   LineInfo line_info;
@@ -2843,6 +2844,7 @@ TEST_P(VastTest, SimpleGenerateLoop) {
     assign my_output[i] = my_input[i];
 
     // This is a comment.
+    //
     inline_verilog_statement;
   end
 endmodule)");
