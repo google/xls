@@ -1143,16 +1143,49 @@ class TemplateInstantiation final : public Instantiation {
   std::string template_text_;
 };
 
-// Represents a reference to an already-defined macro. For example: `MY_MACRO.
+// Represents a reference to an already-defined macro. Examples:
+//
+//  `MY_MACRO             // Arguments not given.
+//  `MY_MACRO(arg1, arg2) // Two argments.
+//  `MY_MACRO()           // Arguments given, but empty.
 class MacroRef final : public Expression {
  public:
   MacroRef(std::string_view name, VerilogFile* file, const SourceInfo& loc)
       : Expression(file, loc), name_(name) {}
+  MacroRef(std::string_view name, absl::Span<Expression* const> args,
+           VerilogFile* file, const SourceInfo& loc)
+      : Expression(file, loc),
+        name_(name),
+        args_(std::vector<Expression*>(args.begin(), args.end())) {}
 
   std::string Emit(LineInfo* line_info) const final;
 
  private:
   std::string name_;
+  std::optional<std::vector<Expression*>> args_;
+};
+
+// A macro in a statement position. Example:
+//
+//   `MY_MACRO;
+//   `MY_OTHER_MACRO()
+//
+// The emitted text is the member MacroRef optionally followed by a semicolon.
+class MacroStatement final : public Statement {
+ public:
+  MacroStatement(MacroRef* macro_ref, bool emit_semicolon, VerilogFile* file,
+                 const SourceInfo& loc)
+      : Statement(file, loc),
+        macro_ref_(macro_ref),
+        emit_semicolon_(emit_semicolon) {}
+
+  std::string Emit(LineInfo* line_info) const final {
+    return macro_ref_->Emit(line_info) + (emit_semicolon_ ? ";" : "");
+  }
+
+ private:
+  MacroRef* macro_ref_;
+  bool emit_semicolon_;
 };
 
 // Defines a module parameter. A parameter must be assigned to an expression,
@@ -1243,13 +1276,15 @@ class Typedef final : public VastNode {
   Def* def_;
 };
 
-// A type that is defined in an external package, where we may not know the
-// underlying bit vector count as we request in `ExternType`.
-class ExternPackageType : public DataType {
+// A type that is defined elsewhere including in an external package.
+class ExternType : public DataType {
  public:
-  explicit ExternPackageType(std::string_view package_name,
-                             std::string_view type_name, VerilogFile* file,
-                             const SourceInfo& loc)
+  ExternType(std::string_view type_name, VerilogFile* file,
+             const SourceInfo& loc)
+      : DataType(file, loc), type_name_(type_name) {}
+  // A type from a external package (e.g, `the_pkg::the_type`).
+  ExternType(std::string_view package_name, std::string_view type_name,
+             VerilogFile* file, const SourceInfo& loc)
       : DataType(file, loc),
         package_name_(package_name),
         type_name_(type_name) {}
@@ -1270,7 +1305,7 @@ class ExternPackageType : public DataType {
   bool is_signed() const final { return false; }
 
  private:
-  std::string package_name_;
+  std::optional<std::string> package_name_;
   std::string type_name_;
 };
 
@@ -1289,19 +1324,6 @@ class TypedefType final : public UserDefinedAliasType {
 
  private:
   Typedef* type_def_;
-};
-
-class ExternType final : public UserDefinedAliasType {
- public:
-  explicit ExternType(DataType* bitvec_repr, std::string_view name,
-                      VerilogFile* file, const SourceInfo& loc)
-      : UserDefinedAliasType(bitvec_repr, file, loc), name_(name) {}
-
-  // Just emits the name_
-  std::string Emit(LineInfo* line_info) const final;
-
- private:
-  std::string name_;
 };
 
 // Represents the definition of a member of an enum.
@@ -2261,7 +2283,7 @@ using ModuleMember =
                  ModuleSection*,
                  // Generate loop, can effectively generate more module members
                  // at elaboration time
-                 GenerateLoop*>;
+                 GenerateLoop*, MacroStatement*>;
 
 // Represents a generate loop construct. Example:
 // ```verilog
@@ -2893,8 +2915,7 @@ class VerilogFile {
   DataType* BitVectorType(int64_t bit_count, const SourceInfo& loc,
                           bool is_signed = false);
 
-  DataType* ExternType(DataType* punable_type, std::string_view name,
-                       const SourceInfo& loc);
+  DataType* ExternType(std::string_view name, const SourceInfo& loc);
 
   // As above, but does not produce a scalar value when the bit_count is 1.
   //

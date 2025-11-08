@@ -21,14 +21,14 @@
 #include <utility>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/fileno.h"
@@ -556,11 +556,8 @@ TEST_P(VastTest, ModuleWithUserDataTypes) {
   Module* module = f.Make<Module>(SourceInfo(), "my_module");
   XLS_ASSERT_OK_AND_ASSIGN(
       LogicRef * out_ref,
-      module->AddOutput(
-          "out",
-          f.Make<ExternType>(SourceInfo(), f.BitVectorType(64, SourceInfo()),
-                             "foobar"),
-          SourceInfo()));
+      module->AddOutput("out", f.Make<ExternType>(SourceInfo(), "foobar"),
+                        SourceInfo()));
   module->Add<ContinuousAssignment>(SourceInfo(), out_ref,
                                     f.Literal(UBits(32, 64), SourceInfo()));
   if (UseSystemVerilog()) {
@@ -1825,25 +1822,21 @@ TEST_P(VastTest, TypeCastEmission) {
                            m->AddInput("a", f.BitVectorType(8, si), si));
   XLS_ASSERT_OK_AND_ASSIGN(
       LogicRef * out_foo,
-      m->AddOutput("out_foo",
-                   f.Make<ExternType>(si, f.BitVectorType(8, si), "foobar"),
-                   si));
+      m->AddOutput("out_foo", f.Make<ExternType>(si, "foobar"), si));
   XLS_ASSERT_OK_AND_ASSIGN(
       LogicRef * out_pkg,
-      m->AddOutput("out_pkg",
-                   f.Make<ExternPackageType>(si, "my_pkg", "my_type_t"), si));
+      m->AddOutput("out_pkg", f.Make<ExternType>(si, "my_pkg", "my_type_t"),
+                   si));
 
   // assign out_foo = foobar'(a + 1);
   m->Add<ContinuousAssignment>(
       si, out_foo,
-      f.Make<TypeCast>(si,
-                       f.Make<ExternType>(si, f.BitVectorType(8, si), "foobar"),
+      f.Make<TypeCast>(si, f.Make<ExternType>(si, "foobar"),
                        f.Add(a, f.PlainLiteral(1, si), si)));
   // assign out_pkg = my_pkg::my_type_t'(a);
   m->Add<ContinuousAssignment>(
       si, out_pkg,
-      f.Make<TypeCast>(si, f.Make<ExternPackageType>(si, "my_pkg", "my_type_t"),
-                       a));
+      f.Make<TypeCast>(si, f.Make<ExternType>(si, "my_pkg", "my_type_t"), a));
 
   EXPECT_EQ(m->Emit(nullptr),
             R"(module top(
@@ -2673,7 +2666,7 @@ TEST_P(VastTest, EnumAssignment) {
       enum_type->AddMember("RED", f.PlainLiteral(0, si), si);
 
   // Note that this is an externally defined type.
-  DataType* extern_enum_type = f.ExternType(enum_type, "color_e", si);
+  DataType* extern_enum_type = f.ExternType("color_e", si);
 
   XLS_ASSERT_OK_AND_ASSIGN(
       LogicRef * signal, m->AddWire("signal", extern_enum_type, SourceInfo()));
@@ -2699,7 +2692,7 @@ TEST_P(VastTest, ExternTypePort) {
       enum_type->AddMember("RED", f.PlainLiteral(0, si), si);
 
   // Note that this is an externally defined type.
-  DataType* extern_enum_type = f.ExternType(enum_type, "color_e", si);
+  DataType* extern_enum_type = f.ExternType("color_e", si);
 
   // Declare a port of the extern type.
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * input,
@@ -2729,7 +2722,7 @@ TEST_P(VastTest, ExternalPackageTypePort) {
   Module* m = f.AddModule("top", si);
 
   // Make an extern package type to use in the `input` construction.
-  auto* data_type = f.Make<ExternPackageType>(si, "mypack", "mystruct_t");
+  auto* data_type = f.Make<ExternType>(si, "mypack", "mystruct_t");
 
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * input,
                            m->AddInput("my_input", data_type, si));
@@ -2753,7 +2746,7 @@ TEST_P(VastTest, ExternalPackageTypePackedArrayPort) {
   Module* m = f.AddModule("top", si);
 
   // Make an extern package type to use in the `input` construction.
-  auto* data_type = f.Make<ExternPackageType>(si, "mypack", "mystruct_t");
+  auto* data_type = f.Make<ExternType>(si, "mypack", "mystruct_t");
   const std::vector<int64_t> packed_dims = {2, 3, 4};
   const bool dims_are_max = false;
   auto* packed_array =
@@ -2940,6 +2933,42 @@ TEST_P(VastTest, ModuleParameterPortsWithIo) {
   output wire [7:0] y
 );
 
+endmodule)");
+}
+
+TEST_P(VastTest, MacroStatements) {
+  VerilogFile f(GetFileType());
+  Module* m = f.AddModule("top", SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * a,
+      m->AddInput("a", f.BitVectorType(8, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * b,
+      m->AddInput("b", f.BitVectorType(8, SourceInfo()), SourceInfo()));
+
+  m->Add<MacroStatement>(SourceInfo(),
+                         f.Make<MacroRef>(SourceInfo(), "MY_MACRO1"),
+                         /*emit_semicolon=*/true);
+  m->Add<MacroStatement>(
+      SourceInfo(),
+      f.Make<MacroRef>(SourceInfo(), "MY_MACRO2", std::vector<Expression*>{}),
+      /*emit_semicolon=*/false);
+  m->Add<MacroStatement>(
+      SourceInfo(),
+      f.Make<MacroRef>(SourceInfo(), "MY_MACRO3", std::vector<Expression*>{a}),
+      /*emit_semicolon=*/false);
+  m->Add<MacroStatement>(SourceInfo(),
+                         f.Make<MacroRef>(SourceInfo(), "MY_MACRO4",
+                                          std::vector<Expression*>{a, b}),
+                         /*emit_semicolon=*/true);
+  EXPECT_EQ(m->Emit(nullptr), R"(module top(
+  input wire [7:0] a,
+  input wire [7:0] b
+);
+  `MY_MACRO1;
+  `MY_MACRO2()
+  `MY_MACRO3(a)
+  `MY_MACRO4(a, b);
 endmodule)");
 }
 
