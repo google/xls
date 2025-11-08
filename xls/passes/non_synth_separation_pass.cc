@@ -182,6 +182,14 @@ class CloneProcAsFunctionVisitor : public DfsVisitorWithDefault {
 
   // Slice out any token.
   absl::Status HandleStateRead(StateRead* state_read) override {
+    // Don't bother to create anything for pure token state elements.
+    if (state_read->GetType()->IsToken()) {
+      XLS_ASSIGN_OR_RETURN(
+          node_map_[state_read],
+          non_synth_function_->MakeNode<Literal>(
+              state_read->loc().Extend(non_synth_loc_), Value::Token()));
+      return absl::OkStatus();
+    }
     std::string param_name =
         state_read->HasAssignedName()
             ? absl::StrCat(state_read->GetNameView(), "_param")
@@ -258,6 +266,10 @@ class CloneProcAsFunctionVisitor : public DfsVisitorWithDefault {
   // Do not transfer the next node to the new function. We do need to hook up
   // the next_value for the non-synth state element however.
   absl::Status HandleNext(Next* next) override {
+    if (next->state_read()->GetType()->IsToken()) {
+      // We didn't need to copy anything so can just ignore this.
+      return absl::OkStatus();
+    }
     XLS_RET_CHECK(
         non_synth_reads_map_.contains(next->state_read()->As<StateRead>()))
         << "Did not create a non_synth state read for " << next;

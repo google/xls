@@ -352,6 +352,20 @@ TEST_F(NonSynthSeparationPassTest, ProcHasSameTraceBehavior) {
   EXPECT_THAT(eval->GetInterpreterEvents(proc).GetTraceMessageStrings(),
               testing::ElementsAre("value_is_4", "value_is_5", "value_is_6"));
 }
+TEST_F(NonSynthSeparationPassTest, ProcWithTokenStateElement) {
+  auto p = CreatePackage();
+  ProcBuilder pb("proc1", p.get());
+  BValue read = pb.StateElement("foo", Value::Token());
+  BValue v1 = pb.StateElement("bar", UBits(3, 32));
+  pb.Next(read, pb.Literal(Value::Token()));
+  pb.Next(v1, pb.Literal(UBits(1, 32)));
+  pb.Assert(read, pb.Eq(v1, pb.Literal(UBits(1, 32))), "foobar");
+  XLS_ASSERT_OK(pb.Build().status());
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * ns, p->GetFunction("non_synth_proc1"));
+  EXPECT_THAT(ns->params(), testing::ElementsAre(m::Type("bits[32]")));
+}
 
 void IrFuzzNonSynthSeparation(FuzzPackageWithArgs fuzz_package_with_args) {
   NonSynthSeparationPass pass;
