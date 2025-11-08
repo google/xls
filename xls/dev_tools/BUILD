@@ -924,3 +924,33 @@ pytype_strict_library(
     name = "check_cpp_includes",
     srcs = ["check_cpp_includes.py"],
 )
+
+cc_binary(
+    name = "dump_call_trace",
+    srcs = ["dump_call_trace.cc"],
+    deps = [
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/ir:evaluator_result_cc_proto",
+        "//xls/ir:value",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_protobuf//:protobuf",
+    ],
+)
+
+py_test(
+    name = "dump_call_trace_test",
+    srcs = ["dump_call_trace_test.py"],
+    data = [
+        ":dump_call_trace",
+        "//xls/dslx:interpreter_main",
+    ],
+    deps = [
+        "//xls/common:runfiles",
+        "@abseil-py//absl/testing:absltest",
+    ],
+)

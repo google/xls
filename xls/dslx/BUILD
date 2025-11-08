@@ -350,6 +350,7 @@ cc_test(
         "//xls/dslx/frontend:pos",
         "//xls/ir:bits",
         "//xls/ir:format_preference",
+        "//xls/ir:value",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
@@ -658,6 +659,7 @@ cc_binary(
         "//xls/dslx/run_routines:ir_test_runner",
         "//xls/dslx/run_routines:run_comparator",
         "//xls/dslx/run_routines:test_xml",
+        "//xls/ir:evaluator_result_cc_proto",
         "//xls/ir:format_preference",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
@@ -668,6 +670,7 @@ cc_binary(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
+        "@com_google_protobuf//:protobuf",
         "@re2",
     ],
 )

@@ -1840,7 +1840,7 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
 
   Def(node, [&](const SourceInfo& loc) {
     BValue result = function_builder_->CountedFor(
-        init, trip_count, /*stride=*/1, ir_body_function, invariant_args);
+        init, trip_count, /*stride=*/1, ir_body_function, invariant_args, loc);
     // If a token was threaded through, we grab it and note it's an assertion
     // token.
     if (implicit_token_data_.has_value()) {

@@ -36,6 +36,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "xls/common/logging/log_lines.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/bytecode/builtins.h"
@@ -44,6 +45,7 @@
 #include "xls/dslx/bytecode/bytecode_interpreter_options.h"
 #include "xls/dslx/bytecode/frame.h"
 #include "xls/dslx/bytecode/interpreter_stack.h"
+#include "xls/dslx/channel_direction.h"
 #include "xls/dslx/dslx_builtins.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
@@ -137,19 +139,167 @@ absl::StatusOr<InterpValue> ResizeBitsValue(const InterpValue& from,
 
 }  // namespace
 
+bool DslxInterpreterEvents::operator==(
+    const DslxInterpreterEvents& other) const {
+  if (proto_.trace_msgs_size() != other.proto_.trace_msgs_size() ||
+      proto_.assert_msgs_size() != other.proto_.assert_msgs_size()) {
+    return false;
+  }
+  for (int i = 0; i < proto_.trace_msgs_size(); i++) {
+    if (proto_.trace_msgs(i).message() !=
+        other.proto_.trace_msgs(i).message()) {
+      return false;
+    }
+  }
+  for (int i = 0; i < proto_.assert_msgs_size(); i++) {
+    if (proto_.assert_msgs(i).message() !=
+        other.proto_.assert_msgs(i).message()) {
+      return false;
+    }
+  }
+  return true;
+}
+
 // How much to indent the data value in the trace emitted when sending/receiving
 // over a channel.
 constexpr int64_t kChannelTraceIndentation = 2;
+
+static void SetLocationProto(::xls::SourceLocationProto* loc,
+                             const FileTable& file_table,
+                             const Span& source_location) {
+  loc->set_filename(source_location.GetFilename(file_table));
+  loc->set_line(source_location.start().lineno());
+  loc->set_column(source_location.start().colno());
+}
+
+void DslxInterpreterEvents::AddTraceStatementMessage(
+    const FileTable& file_table, const Span& source_location,
+    std::string_view msg) {
+  TraceMessageProto* tm = proto_.add_trace_msgs();
+  tm->set_message(std::string{msg});
+  SetLocationProto(tm->mutable_location(), file_table, source_location);
+  NoteTraceMessageString(file_table, source_location, msg);
+}
+
+void DslxInterpreterEvents::AddTraceCallMessage(
+    const FileTable& file_table, const Span& source_location,
+    std::string_view function_name, absl::Span<const InterpValue> args,
+    int64_t call_depth, FormatPreference format_preference) {
+  std::string args_str = absl::StrJoin(
+      args, ", ", [format_preference](std::string* out, const InterpValue& v) {
+        out->append(v.ToString(/*humanize=*/false, format_preference));
+      });
+  std::string indent(call_depth * 2, ' ');
+  std::string msg = absl::StrCat(indent, function_name, "(", args_str, ")");
+
+  TraceMessageProto* tm = proto_.add_trace_msgs();
+  tm->set_message(std::string{msg});
+  tm->mutable_call()->set_function_name(std::string{function_name});
+  tm->mutable_call()->set_call_depth(call_depth);
+  for (const InterpValue& v : args) {
+    *tm->mutable_call()->add_args() = v.AsProto().value();
+  }
+  SetLocationProto(tm->mutable_location(), file_table, source_location);
+  NoteTraceMessageString(file_table, source_location, msg);
+}
+
+void DslxInterpreterEvents::AddTraceCallReturnMessage(
+    const FileTable& file_table, const Span& source_location,
+    std::string_view function_name, int64_t call_depth,
+    FormatPreference format_preference, const InterpValue& return_value) {
+  std::string indent(call_depth * 2, ' ');
+  std::string ret_str =
+      return_value.ToString(/*humanize=*/false, format_preference);
+  std::string msg =
+      absl::StrCat(indent, function_name, "(...)", " => ", ret_str);
+
+  TraceMessageProto* tm = proto_.add_trace_msgs();
+  tm->set_message(std::string{msg});
+  tm->mutable_call_return()->set_function_name(std::string{function_name});
+  tm->mutable_call_return()->set_call_depth(call_depth);
+  *tm->mutable_call_return()->mutable_return_value() =
+      return_value.AsProto().value();
+  SetLocationProto(tm->mutable_location(), file_table, source_location);
+  NoteTraceMessageString(file_table, source_location, msg);
+}
+
+void DslxInterpreterEvents::AddTraceChannelMessage(
+    const FileTable& file_table, const Span& source_location,
+    std::string_view channel_name, const InterpValue& value,
+    ChannelDirection direction,
+    const ValueFormatDescriptor& format_descriptor) {
+  std::string formatted_data =
+      ToStringMaybeFormatted(value, format_descriptor, kChannelTraceIndentation)
+          .value();
+  const char* verb = direction == ChannelDirection::kIn ? "Received" : "Sent";
+  std::string msg = absl::StrFormat("%s data on channel `%s`:\n%s", verb,
+                                    channel_name, formatted_data);
+  // TODO(meheff): Add trace channel proto variant and use here.
+  TraceMessageProto* tm = proto_.add_trace_msgs();
+  tm->set_message(msg);
+  SetLocationProto(tm->mutable_location(), file_table, source_location);
+  NoteTraceMessageString(file_table, source_location, std::move(msg));
+}
+
+void DslxInterpreterEvents::AddAssertMessage(const FileTable& file_table,
+                                             const Span& source_location,
+                                             std::string_view msg) {
+  AssertMessageProto* am = proto_.add_assert_msgs();
+  am->set_message(std::string{msg});
+  SetLocationProto(am->mutable_location(), file_table, source_location);
+}
+
+std::vector<std::string> DslxInterpreterEvents::GetTraceMessageStrings() const {
+  std::vector<std::string> messages;
+  messages.reserve(proto_.trace_msgs_size());
+  for (const TraceMessageProto& t : proto_.trace_msgs()) {
+    messages.push_back(t.message());
+  }
+  return messages;
+}
+
+std::vector<std::string> DslxInterpreterEvents::GetAssertMessageStrings()
+    const {
+  std::vector<std::string> messages;
+  messages.reserve(proto_.assert_msgs_size());
+  for (const AssertMessageProto& a : proto_.assert_msgs()) {
+    messages.push_back(a.message());
+  }
+  return messages;
+}
+
+/* static */ DslxInterpreterEvents DslxInterpreterEvents::FromProto(
+    const EvaluatorEventsProto& proto) {
+  DslxInterpreterEvents events;
+  events.proto_ = proto;
+  return events;
+}
+
+void InfoLoggingDslxInterpreterEvents::NoteTraceMessageString(
+    const FileTable& file_table, const Span& source_location,
+    std::string_view msg) {
+  XLS_LOG_LINES_LOC(INFO, msg, source_location.GetFilename(file_table),
+                    source_location.start().GetHumanLineno());
+  DslxInterpreterEvents::NoteTraceMessageString(file_table, source_location,
+                                                std::move(msg));
+}
 
 /* static */ absl::StatusOr<InterpValue> BytecodeInterpreter::Interpret(
     ImportData* import_data, BytecodeFunction* bf,
     const std::vector<InterpValue>& args,
     std::optional<InterpValueChannelManager*> channel_manager,
-    const BytecodeInterpreterOptions& options) {
+    const BytecodeInterpreterOptions& options,
+    std::optional<DslxInterpreterEvents*> events) {
   BytecodeInterpreter interpreter(import_data,
                                   /*proc_id=*/std::nullopt, channel_manager,
-                                  options);
+                                  options, events);
   XLS_RETURN_IF_ERROR(interpreter.InitFrame(bf, args, bf->type_info()));
+  if (options.trace_calls() && events.has_value()) {
+    (*events)->AddTraceCallMessage(
+        import_data->file_table(), bf->source_fn()->span(),
+        bf->source_fn()->identifier(), args,
+        /*call_depth=*/0, options.format_preference());
+  }
   XLS_RETURN_IF_ERROR(interpreter.Run());
   if (options.validate_final_stack_depth()) {
     XLS_RET_CHECK_EQ(interpreter.stack_.size(), 1);
@@ -160,12 +310,14 @@ constexpr int64_t kChannelTraceIndentation = 2;
 BytecodeInterpreter::BytecodeInterpreter(
     ImportData* import_data, const std::optional<ProcId>& proc_id,
     std::optional<InterpValueChannelManager*> channel_manager,
-    const BytecodeInterpreterOptions& options)
+    const BytecodeInterpreterOptions& options,
+    std::optional<DslxInterpreterEvents*> events)
     : import_data_(ABSL_DIE_IF_NULL(import_data)),
       proc_id_(proc_id),
       stack_(import_data_->file_table()),
       channel_manager_(channel_manager),
-      options_(options) {}
+      options_(options),
+      events_(events) {}
 
 absl::Status BytecodeInterpreter::InitFrame(BytecodeFunction* bf,
                                             absl::Span<const InterpValue> args,
@@ -188,9 +340,10 @@ BytecodeInterpreter::CreateUnique(
     ImportData* import_data, const std::optional<ProcId>& proc_id,
     BytecodeFunction* bf, const std::vector<InterpValue>& args,
     std::optional<InterpValueChannelManager*> channel_manager,
-    const BytecodeInterpreterOptions& options) {
-  auto interp = absl::WrapUnique(
-      new BytecodeInterpreter(import_data, proc_id, channel_manager, options));
+    const BytecodeInterpreterOptions& options,
+    std::optional<DslxInterpreterEvents*> events) {
+  auto interp = absl::WrapUnique(new BytecodeInterpreter(
+      import_data, proc_id, channel_manager, options, events));
   XLS_RETURN_IF_ERROR(interp->InitFrame(bf, args, bf->type_info()));
   return interp;
 }
@@ -243,6 +396,16 @@ absl::Status BytecodeInterpreter::Run(bool* progress_made) {
               source_fn, frame->initial_args(), bindings, stack_.PeekOrDie()));
         }
       }
+    }
+
+    // Emit a call-return trace message at function exit.
+    if (options_.trace_calls() && events_.has_value() && source_fn != nullptr) {
+      int64_t call_depth = static_cast<int64_t>(frames_.size()) - 1;
+      const InterpValue& ret = stack_.PeekOrDie();
+      (*events_)->AddTraceCallReturnMessage(import_data_->file_table(),
+                                            source_fn->span(),
+                                            source_fn->identifier(), call_depth,
+                                            options_.format_preference(), ret);
     }
 
     // We've reached the end of a function. Time to load the next frame up!
@@ -653,18 +816,12 @@ absl::Status BytecodeInterpreter::EvalCall(const Bytecode& bytecode) {
     args.insert(args.begin(), *first_arg);
   }
 
-  // Optionally emit a trace message of the function name and arguments.
-  if (options_.trace_calls() && options_.trace_hook()) {
-    std::vector<std::string> arg_strs;
-    arg_strs.reserve(args.size());
-    for (const InterpValue& a : args) {
-      arg_strs.push_back(
-          a.ToString(/*humanize=*/false, options_.format_preference()));
-    }
-    std::string message = absl::StrFormat("%*s%s(%s)", 2 * frames_.size(), "",
-                                          user_fn_data.function->identifier(),
-                                          absl::StrJoin(arg_strs, ", "));
-    options_.trace_hook()(bytecode.source_span(), message);
+  // Emit a call trace message with function name and arguments at call time.
+  if (options_.trace_calls() && events_.has_value()) {
+    (*events_)->AddTraceCallMessage(
+        import_data_->file_table(), bytecode.source_span(),
+        user_fn_data.function->identifier(), args, frames_.size(),
+        options_.format_preference());
   }
 
   std::vector<InterpValue> args_copy = args;
@@ -1193,16 +1350,11 @@ absl::Status BytecodeInterpreter::EvalRecvNonBlocking(
                        bytecode.channel_data());
   if (condition.IsTrue() && !channel.IsEmpty()) {
     InterpValue value = channel.Read();
-    if (options_.trace_channels() && options_.trace_hook()) {
-      XLS_ASSIGN_OR_RETURN(
-          std::string formatted_data,
-          ToStringMaybeFormatted(value, channel_data->value_fmt_desc(),
-                                 kChannelTraceIndentation));
-      options_.trace_hook()(
-          bytecode.source_span(),
-          absl::StrFormat("Received data on channel `%s`:\n%s",
-                          FormatChannelNameForTracing(*channel_data),
-                          formatted_data));
+    if (options_.trace_channels() && events_.has_value()) {
+      (*events_)->AddTraceChannelMessage(
+          import_data_->file_table(), bytecode.source_span(),
+          FormatChannelNameForTracing(*channel_data), value,
+          ChannelDirection::kIn, channel_data->value_fmt_desc());
     }
     stack_.Push(InterpValue::MakeTuple(
         {token, std::move(value), InterpValue::MakeBool(true)}));
@@ -1243,16 +1395,11 @@ absl::Status BytecodeInterpreter::EvalRecv(const Bytecode& bytecode) {
 
     XLS_ASSIGN_OR_RETURN(InterpValue token, Pop());
     InterpValue value = channel.Read();
-    if (options_.trace_channels() && options_.trace_hook()) {
-      XLS_ASSIGN_OR_RETURN(
-          std::string formatted_data,
-          ToStringMaybeFormatted(value, channel_data->value_fmt_desc(),
-                                 kChannelTraceIndentation));
-      options_.trace_hook()(
-          bytecode.source_span(),
-          absl::StrFormat("Received data on channel `%s`:\n%s",
-                          FormatChannelNameForTracing(*channel_data),
-                          formatted_data));
+    if (options_.trace_channels() && events_.has_value()) {
+      (*events_)->AddTraceChannelMessage(
+          import_data_->file_table(), bytecode.source_span(),
+          FormatChannelNameForTracing(*channel_data), value,
+          ChannelDirection::kIn, channel_data->value_fmt_desc());
     }
     stack_.Push(InterpValue::MakeTuple({token, std::move(value)}));
   } else {
@@ -1277,18 +1424,13 @@ absl::Status BytecodeInterpreter::EvalSend(const Bytecode& bytecode) {
   InterpValueChannel& channel = (*channel_manager_)->GetChannel(channel_id);
 
   if (condition.IsTrue()) {
-    if (options_.trace_channels() && options_.trace_hook()) {
+    if (options_.trace_channels() && events_.has_value()) {
       XLS_ASSIGN_OR_RETURN(const Bytecode::ChannelData* channel_data,
                            bytecode.channel_data());
-      XLS_ASSIGN_OR_RETURN(
-          std::string formatted_data,
-          ToStringMaybeFormatted(payload, channel_data->value_fmt_desc(),
-                                 kChannelTraceIndentation));
-      options_.trace_hook()(
-          bytecode.source_span(),
-          absl::StrFormat("Sent data on channel `%s`:\n%s",
-                          FormatChannelNameForTracing(*channel_data),
-                          formatted_data));
+      (*events_)->AddTraceChannelMessage(
+          import_data_->file_table(), bytecode.source_span(),
+          FormatChannelNameForTracing(*channel_data), payload,
+          ChannelDirection::kOut, channel_data->value_fmt_desc());
     }
     channel.Write(payload);
   }
@@ -1435,8 +1577,9 @@ absl::Status BytecodeInterpreter::EvalTraceFmt(const Bytecode& bytecode) {
                        bytecode.trace_data());
   XLS_ASSIGN_OR_RETURN(std::string message,
                        TraceDataToString(*trace_data, stack_));
-  if (options_.trace_hook()) {
-    options_.trace_hook()(bytecode.source_span(), message);
+  if (events_.has_value()) {
+    (*events_)->AddTraceStatementMessage(import_data_->file_table(),
+                                         bytecode.source_span(), message);
   }
   stack_.Push(InterpValue::MakeToken());
   return absl::OkStatus();
@@ -1450,8 +1593,9 @@ absl::Status BytecodeInterpreter::EvalTraceArg(const Bytecode& bytecode) {
   InterpValue value = stack_.PeekOrDie();
   XLS_ASSIGN_OR_RETURN(std::string message,
                        TraceDataToString(*trace_data, stack_));
-  if (options_.trace_hook()) {
-    options_.trace_hook()(bytecode.source_span(), message);
+  if (events_.has_value()) {
+    (*events_)->AddTraceStatementMessage(import_data_->file_table(),
+                                         bytecode.source_span(), message);
   }
   stack_.Push(value);
   return absl::OkStatus();

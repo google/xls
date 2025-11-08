@@ -32,7 +32,6 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/functional/bind_front.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -43,6 +42,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "re2/re2.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/inline_bitmap.h"
@@ -89,7 +89,6 @@
 #include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/passes/pass_base.h"
 #include "xls/solvers/z3_ir_translator.h"
-#include "re2/re2.h"
 
 namespace xls::dslx {
 namespace {
@@ -166,7 +165,8 @@ void HandleError(TestResultData& result, const absl::Status& status,
 
 absl::Status RunDslxTestFunction(ImportData* import_data, TypeInfo* type_info,
                                  const Module* module, TestFunction* tf,
-                                 const BytecodeInterpreterOptions& options) {
+                                 const BytecodeInterpreterOptions& options,
+                                 std::optional<DslxInterpreterEvents*> events) {
   auto cache = std::make_unique<BytecodeCache>();
   import_data->SetBytecodeCache(std::move(cache));
   XLS_ASSIGN_OR_RETURN(
@@ -177,7 +177,7 @@ absl::Status RunDslxTestFunction(ImportData* import_data, TypeInfo* type_info,
                                      options.format_preference()}));
   return BytecodeInterpreter::Interpret(import_data, bf.get(), /*args=*/{},
                                         /*channel_manager=*/std::nullopt,
-                                        options)
+                                        options, events)
       .status();
 }
 
@@ -283,10 +283,12 @@ DslxInterpreterTestRunner ::CreateTestRunner(ImportData* import_data,
                                                            type_info, module);
 }
 absl::StatusOr<RunResult> DslxInterpreterParsedTestRunner::RunTestFunction(
-    std::string_view name, const BytecodeInterpreterOptions& options) {
+    std::string_view name, const BytecodeInterpreterOptions& options,
+    std::optional<DslxInterpreterEvents*> events) {
   XLS_ASSIGN_OR_RETURN(TestFunction * tf, entry_module_->GetTest(name));
-  return RunResult{.result = RunDslxTestFunction(import_data_, type_info_,
-                                                 entry_module_, tf, options)};
+  return RunResult{.result =
+                       RunDslxTestFunction(import_data_, type_info_,
+                                           entry_module_, tf, options, events)};
 }
 
 absl::StatusOr<RunResult> DslxInterpreterParsedTestRunner::RunTestProc(
@@ -1015,20 +1017,41 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
     std::cerr << "[ RUN UNITTEST  ] " << test_name << '\n';
     RunResult out;
     BytecodeInterpreterOptions interpreter_options;
+
+    // If requested, create a result entry and capture trace messages.
+    xls::EvaluatorResultProto* result_proto = nullptr;
+    if (options.results_out != nullptr) {
+      result_proto = options.results_out->add_results();
+    }
+
+    // Create an events collector for this specific test run.
+    InfoLoggingDslxInterpreterEvents test_events;
+
     interpreter_options.post_fn_eval_hook(post_fn_eval_hook)
-        .trace_hook(absl::bind_front(InfoLoggingTraceHook, file_table))
         .trace_channels(options.trace_channels)
         .trace_calls(options.trace_calls)
         .max_ticks(options.max_ticks)
         .format_preference(options.format_preference);
     if (std::holds_alternative<TestFunction*>(*member)) {
       XLS_ASSIGN_OR_RETURN(
-          out, runner->RunTestFunction(test_name, interpreter_options));
+          out, runner->RunTestFunction(test_name, interpreter_options,
+                                       /*events=*/&test_events));
     } else {
+      if (options.results_out != nullptr) {
+        return absl::UnimplementedError(
+            "Collecting EvaluatorResultsProto for proc tests is not yet "
+            "implemented");
+      }
       XLS_ASSIGN_OR_RETURN(out,
                            runner->RunTestProc(test_name, interpreter_options));
     }
     auto test_case_end = absl::Now();
+
+    // If collecting results, copy the events into the result proto for this
+    // test invocation.
+    if (result_proto != nullptr) {
+      *result_proto->mutable_events() = test_events.AsProto();
+    }
 
     if (out.result.ok()) {
       // Add to the tracking data.
@@ -1042,6 +1065,11 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
           .timestamp = test_case_start});
       std::cerr << "[            OK ]" << '\n';
     } else {
+      if (result_proto != nullptr) {
+        xls::AssertMessageProto* am =
+            result_proto->mutable_events()->add_assert_msgs();
+        am->set_message(std::string(out.result.message()));
+      }
       HandleError(result, out.result, test_name, start_pos, test_case_start,
                   test_case_end - test_case_start,
                   /*is_quickcheck=*/false, file_table, import_data.vfs());

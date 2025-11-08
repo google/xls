@@ -68,17 +68,26 @@
 
 namespace xls::dslx {
 namespace {
+
+EvaluatorOptions BytecodeInterpreterOptionsToEvaluatorOptions(
+    const BytecodeInterpreterOptions& options) {
+  return EvaluatorOptions()
+      .set_trace_channels(options.trace_channels())
+      .set_trace_calls(options.trace_calls())
+      .set_format_preference(options.format_preference());
+}
+
+using FuncRunner = std::function<absl::StatusOr<InterpreterResult<Value>>(
+    xls::Function* f, absl::Span<Value const>, const EvaluatorOptions&)>;
+using ProcRunner = std::function<absl::StatusOr<std::unique_ptr<ProcRuntime>>(
+    xls::Package*, const EvaluatorOptions&)>;
+
 class IrRunner : public AbstractParsedTestRunner {
  public:
   IrRunner(
       absl::flat_hash_map<std::string, std::unique_ptr<Package>>&& packages,
       absl::flat_hash_map<std::string, std::string>&& finish_chan_names,
-      std::function<absl::StatusOr<std::unique_ptr<ProcRuntime>>(xls::Package*)>
-          proc_runner,
-      std::function<absl::StatusOr<InterpreterResult<Value>>(
-          xls::Function* f, absl::Span<Value const>)>
-          func_runner,
-      ImportData* import_data)
+      ProcRunner proc_runner, FuncRunner func_runner, ImportData* import_data)
       : packages_(std::move(packages)),
         finish_chan_names_(std::move(finish_chan_names)),
         proc_runner_(std::move(proc_runner)),
@@ -99,12 +108,10 @@ class IrRunner : public AbstractParsedTestRunner {
     VLOG(2) << "Test finished in " << result.value() << " ticks";
     std::vector<std::string> asserts;
     for (xls::ProcInstance* instance : rt->elaboration().proc_instances()) {
-      const InterpreterEvents& events = rt->GetInterpreterEvents(instance);
-      for (const std::string& msg : events.GetTraceMessageStrings()) {
-        options.trace_hook()(
-            Span::FromString(msg, file_table()).value_or(Span{}), msg);
-      }
-      absl::c_copy(events.GetAssertMessages(), std::back_inserter(asserts));
+      const InterpreterEvents& instance_events =
+          rt->GetInterpreterEvents(instance);
+      absl::c_copy(instance_events.GetAssertMessages(),
+                   std::back_inserter(asserts));
     }
     if (asserts.empty()) {
       std::optional<Value> proc_result =
@@ -128,8 +135,10 @@ class IrRunner : public AbstractParsedTestRunner {
       const BytecodeInterpreterOptions& options) {
     XLS_RET_CHECK(options.post_fn_eval_hook() == nullptr)
         << "hooks not supported using non-dslx interpreters";
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ProcRuntime> rt,
-                         proc_runner_(proc->package()));
+    XLS_ASSIGN_OR_RETURN(
+        std::unique_ptr<ProcRuntime> rt,
+        proc_runner_(proc->package(),
+                     BytecodeInterpreterOptionsToEvaluatorOptions(options)));
     rt->ResetState();
     if (proc->is_new_style_proc()) {
       ProcInstance* top_instance = rt->elaboration().top();
@@ -159,8 +168,8 @@ class IrRunner : public AbstractParsedTestRunner {
     XLS_RET_CHECK(finish_chan_names_.contains(name)) << name << " not found.";
     std::string_view finish_name = finish_chan_names_.at(name);
     auto package = packages_.at(name).get();
-    // TODO(https://github.com/google/xls/issues/1592) To avoid any issues with
-    // empty-procs or unrelated making deadlock detection not work due to
+    // TODO(https://github.com/google/xls/issues/1592) To avoid any issues
+    // with empty-procs or unrelated making deadlock detection not work due to
     // entering livelock we run DFE on the package.
     DeadFunctionEliminationPass dfe;
     PassResults pr;
@@ -172,17 +181,19 @@ class IrRunner : public AbstractParsedTestRunner {
   }
 
   absl::StatusOr<RunResult> RunTestFunction(
-      std::string_view name,
-      const BytecodeInterpreterOptions& options) override {
+      std::string_view name, const BytecodeInterpreterOptions& options,
+      std::optional<DslxInterpreterEvents*> events) override {
     auto* func_package = packages_.at(name).get();
     XLS_ASSIGN_OR_RETURN(xls::Function * f, func_package->GetTopAsFunction());
     XLS_RET_CHECK(f->GetType()->return_type()->IsTuple()) << f->GetType();
     XLS_RET_CHECK_EQ(f->GetType()->return_type()->AsTupleOrDie()->size(), 0)
         << f->GetType();
-    XLS_ASSIGN_OR_RETURN(InterpreterResult<Value> v, this->func_runner_(f, {}));
-    for (const std::string& msg : v.events.GetTraceMessageStrings()) {
-      options.trace_hook()(Span::FromString(msg, file_table()).value_or(Span{}),
-                           msg);
+    XLS_ASSIGN_OR_RETURN(
+        InterpreterResult<Value> v,
+        this->func_runner_(
+            f, {}, BytecodeInterpreterOptionsToEvaluatorOptions(options)));
+    if (events.has_value()) {
+      *(events.value()) = DslxInterpreterEvents::FromProto(v.events.AsProto());
     }
     if (v.events.GetAssertMessages().empty()) {
       return RunResult{.result = absl::OkStatus()};
@@ -196,21 +207,14 @@ class IrRunner : public AbstractParsedTestRunner {
 
   absl::flat_hash_map<std::string, std::unique_ptr<Package>> packages_;
   absl::flat_hash_map<std::string, std::string> finish_chan_names_;
-  std::function<absl::StatusOr<std::unique_ptr<ProcRuntime>>(xls::Package*)>
-      proc_runner_;
-  std::function<absl::StatusOr<InterpreterResult<Value>>(
-      xls::Function* f, absl::Span<Value const>)>
-      func_runner_;
+  ProcRunner proc_runner_;
+  FuncRunner func_runner_;
   ImportData* import_data_;
 };
 
 absl::StatusOr<std::unique_ptr<AbstractParsedTestRunner>> MakeRunner(
     ImportData* import_data, TypeInfo* type_info, Module* module,
-    std::function<absl::StatusOr<InterpreterResult<Value>>(
-        xls::Function* f, absl::Span<Value const>)>
-        func,
-    std::function<absl::StatusOr<std::unique_ptr<ProcRuntime>>(xls::Package*)>
-        proc) {
+    FuncRunner func_runner, ProcRunner proc_runner) {
   ConvertOptions base_option{
       .emit_assert = true,
       .verify_ir = false,
@@ -241,8 +245,8 @@ absl::StatusOr<std::unique_ptr<AbstractParsedTestRunner>> MakeRunner(
     packages[name] = std::move(package_data.package);
   }
   return std::make_unique<IrRunner>(
-      std::move(packages), std::move(finish_chan_names), std::move(proc),
-      std::move(func), import_data);
+      std::move(packages), std::move(finish_chan_names), std::move(proc_runner),
+      std::move(func_runner), import_data);
 }
 }  // namespace
 
@@ -251,17 +255,19 @@ IrJitTestRunner::CreateTestRunner(ImportData* import_data, TypeInfo* type_info,
                                   Module* module) const {
   return MakeRunner(
       import_data, type_info, module,
-      [](xls::Function* f,
-         auto args) -> absl::StatusOr<InterpreterResult<Value>> {
-        XLS_ASSIGN_OR_RETURN(auto jit, FunctionJit::Create(f));
+      [](xls::Function* f, absl::Span<Value const> args,
+         const EvaluatorOptions& options)
+          -> absl::StatusOr<InterpreterResult<Value>> {
+        XLS_ASSIGN_OR_RETURN(auto jit, FunctionJit::Create(f, options));
         return jit->Run(args);
       },
-      [](xls::Package* p) -> absl::StatusOr<std::unique_ptr<ProcRuntime>> {
+      [](xls::Package* p, const EvaluatorOptions& options)
+          -> absl::StatusOr<std::unique_ptr<ProcRuntime>> {
         if (p->ChannelsAreProcScoped()) {
           XLS_ASSIGN_OR_RETURN(auto* top, p->GetTopAsProc());
-          return CreateJitSerialProcRuntime(top, EvaluatorOptions());
+          return CreateJitSerialProcRuntime(top, options);
         } else {
-          return CreateJitSerialProcRuntime(p, EvaluatorOptions());
+          return CreateJitSerialProcRuntime(p, options);
         }
       });
 }
@@ -272,15 +278,17 @@ IrInterpreterTestRunner::CreateTestRunner(ImportData* import_data,
                                           Module* module) const {
   return MakeRunner(
       import_data, type_info, module,
-      [&](xls::Function* f, absl::Span<Value const> args) {
-        return InterpretFunction(f, args);
+      [&](xls::Function* f, absl::Span<Value const> args,
+          const EvaluatorOptions& options) {
+        return InterpretFunction(f, args, options);
       },
-      [](xls::Package* p) -> absl::StatusOr<std::unique_ptr<ProcRuntime>> {
+      [](xls::Package* p, const EvaluatorOptions& options)
+          -> absl::StatusOr<std::unique_ptr<ProcRuntime>> {
         if (p->ChannelsAreProcScoped()) {
           XLS_ASSIGN_OR_RETURN(auto* top, p->GetTopAsProc());
-          return CreateInterpreterSerialProcRuntime(top, EvaluatorOptions());
+          return CreateInterpreterSerialProcRuntime(top, options);
         } else {
-          return CreateInterpreterSerialProcRuntime(p, EvaluatorOptions());
+          return CreateInterpreterSerialProcRuntime(p, options);
         }
       });
 }

@@ -572,6 +572,7 @@ cc_library(
     deps = [
         ":evaluator_result_cc_proto",
         ":format_preference",
+        ":source_location",
         ":value",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",

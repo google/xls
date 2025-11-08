@@ -28,11 +28,11 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "xls/common/logging/log_lines.h"
 #include "xls/dslx/bytecode/bytecode.h"
 #include "xls/dslx/bytecode/bytecode_interpreter_options.h"
 #include "xls/dslx/bytecode/frame.h"
 #include "xls/dslx/bytecode/interpreter_stack.h"
+#include "xls/dslx/channel_direction.h"
 #include "xls/dslx/dslx_builtins.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
@@ -41,6 +41,8 @@
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/value_format_descriptor.h"
+#include "xls/ir/evaluator_result.pb.h"
 
 namespace xls::dslx {
 
@@ -48,13 +50,81 @@ using PostFnEvalHook = std::function<absl::Status(
     const Function* f, absl::Span<const InterpValue> args, const ParametricEnv*,
     const InterpValue& got)>;
 
-// Trace hook which logs trace messages to INFO.
-inline void InfoLoggingTraceHook(const FileTable& file_table,
-                                 const Span& source_location,
-                                 std::string_view message) {
-  XLS_LOG_LINES_LOC(INFO, message, source_location.GetFilename(file_table),
-                    source_location.start().GetHumanLineno());
+// A data structure which records trace and assert message in the DSLX
+// interpreter.
+class DslxInterpreterEvents {
+ public:
+  virtual ~DslxInterpreterEvents() = default;
+
+  virtual void AddTraceStatementMessage(const FileTable& file_table,
+                                        const Span& source_location,
+                                        std::string_view msg);
+  virtual void AddTraceCallMessage(const FileTable& file_table,
+                                   const Span& source_location,
+                                   std::string_view function_name,
+                                   absl::Span<const InterpValue> args,
+                                   int64_t call_depth,
+                                   FormatPreference format_preference);
+  virtual void AddTraceCallReturnMessage(const FileTable& file_table,
+                                         const Span& source_location,
+                                         std::string_view function_name,
+                                         int64_t call_depth,
+                                         FormatPreference format_preference,
+                                         const InterpValue& return_value);
+  virtual void AddTraceChannelMessage(
+      const FileTable& file_table, const Span& source_location,
+      std::string_view channel_name, const InterpValue& value,
+      ChannelDirection direction,
+      const ValueFormatDescriptor& format_descriptor);
+  virtual void AddAssertMessage(const FileTable& file_table,
+                                const Span& source_location,
+                                std::string_view msg);
+  std::vector<std::string> GetTraceMessageStrings() const;
+  std::vector<std::string> GetAssertMessageStrings() const;
+
+  static DslxInterpreterEvents FromProto(const EvaluatorEventsProto& proto);
+  const EvaluatorEventsProto& AsProto() const { return proto_; }
+
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink, const DslxInterpreterEvents& events) {
+    for (const std::string& s : events.GetTraceMessageStrings()) {
+      absl::Format(&sink, "%s\n", s);
+    }
+    for (const std::string& s : events.GetAssertMessageStrings()) {
+      absl::Format(&sink, "%s\n", s);
+    }
+  }
+  bool operator==(const DslxInterpreterEvents& other) const;
+
+  bool operator!=(const DslxInterpreterEvents& other) const {
+    return !(*this == other);
+  }
+
+ protected:
+  // Method called for each trace message string that is recorded. Can be
+  // overridden.
+  virtual void NoteTraceMessageString(const FileTable& file_table,
+                                      const Span& source_location,
+                                      std::string_view msg) {}
+
+  EvaluatorEventsProto proto_;
+};
+
+inline std::ostream& operator<<(std::ostream& os,
+                                const DslxInterpreterEvents& events) {
+  return os << absl::StrCat(events);
 }
+
+// A DslxInterpreterEvents implementation that logs trace messages to INFO.
+class InfoLoggingDslxInterpreterEvents : public DslxInterpreterEvents {
+ public:
+  ~InfoLoggingDslxInterpreterEvents() override = default;
+
+ protected:
+  void NoteTraceMessageString(const FileTable& file_table,
+                              const Span& source_location,
+                              std::string_view msg) override;
+};
 
 // Stores name and use-location of a blocked channel, for error messaging.
 struct BlockedChannelInfo {
@@ -109,7 +179,8 @@ class BytecodeInterpreter {
       ImportData* import_data, BytecodeFunction* bf,
       const std::vector<InterpValue>& args,
       std::optional<InterpValueChannelManager*> channel_manager = std::nullopt,
-      const BytecodeInterpreterOptions& options = BytecodeInterpreterOptions());
+      const BytecodeInterpreterOptions& options = BytecodeInterpreterOptions(),
+      std::optional<DslxInterpreterEvents*> events = std::nullopt);
 
   virtual ~BytecodeInterpreter() = default;
 
@@ -131,6 +202,7 @@ class BytecodeInterpreter {
   const std::optional<BlockedChannelInfo>& blocked_channel_info() const {
     return blocked_channel_info_;
   }
+  const std::optional<ProcId>& proc_id() const { return proc_id_; }
 
   // Sets `progress_made` to true (if not null) if at least a single bytecode
   // executed.  Progress can be stalled on blocked receive operations.
@@ -141,17 +213,18 @@ class BytecodeInterpreter {
       ImportData* import_data, const std::optional<ProcId>& proc_id,
       BytecodeFunction* bf, const std::vector<InterpValue>& args,
       std::optional<InterpValueChannelManager*> channel_manager,
-      const BytecodeInterpreterOptions& options);
+      const BytecodeInterpreterOptions& options,
+      std::optional<DslxInterpreterEvents*> events = std::nullopt);
 
  protected:
-  BytecodeInterpreter(ImportData* import_data,
-                      const std::optional<ProcId>& proc_id,
-                      std::optional<InterpValueChannelManager*> channel_manager,
-                      const BytecodeInterpreterOptions& options);
+  BytecodeInterpreter(
+      ImportData* import_data, const std::optional<ProcId>& proc_id,
+      std::optional<InterpValueChannelManager*> channel_manager,
+      const BytecodeInterpreterOptions& options,
+      std::optional<DslxInterpreterEvents*> events = std::nullopt);
 
   std::vector<Frame>& frames() { return frames_; }
   ImportData* import_data() { return import_data_; }
-  const std::optional<ProcId>& proc_id() const { return proc_id_; }
 
   // Pops `count` arguments to a function or spawn, assuming they were pushed in
   // left-to-right order and must be popped in right-to-left order.
@@ -270,6 +343,7 @@ class BytecodeInterpreter {
   // separate continuation data structure which encapsulates the entire
   // execution state including this value.
   std::optional<BlockedChannelInfo> blocked_channel_info_;
+  std::optional<DslxInterpreterEvents*> events_;
 };
 
 }  // namespace xls::dslx
