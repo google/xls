@@ -330,7 +330,7 @@ cc_library(
         "//xls/ir:format_preference",
         "//xls/ir:ir_parser",
         "//xls/ir:value",
-        "//xls/public:runtime_build_actions",
+        "//xls/public:runtime_dslx_actions",
         "//xls/simulation:check_simulator",
         "//xls/tests:testvector_cc_proto",
         "//xls/tools:eval_utils",

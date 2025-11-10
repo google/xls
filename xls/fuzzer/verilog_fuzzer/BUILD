@@ -33,7 +33,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/fuzzer/ir_fuzzer:ir_fuzz_domain",
         "//xls/ir",
-        "//xls/public:runtime_build_actions",
+        "//xls/public:runtime_codegen_actions",
         "//xls/tools:codegen_flags_cc_proto",
         "//xls/tools:scheduling_options_flags_cc_proto",
         "@com_google_absl//absl/log:check",

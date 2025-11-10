@@ -75,7 +75,7 @@
 #include "xls/ir/format_preference.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/value.h"
-#include "xls/public/runtime_build_actions.h"
+#include "xls/public/runtime_dslx_actions.h"
 #include "xls/simulation/check_simulator.h"
 #include "xls/tests/testvector.pb.h"
 #include "xls/tools/eval_utils.h"

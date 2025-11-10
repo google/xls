@@ -12,20 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/public/runtime_build_actions.h"
+#include "xls/public/runtime_dslx_actions.h"
 
 #include <filesystem>
 #include <memory>
 #include <string>
 #include <string_view>
-#include <utility>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
-#include "xls/codegen/codegen_result.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/create_import_data.h"
@@ -41,14 +39,7 @@
 #include "xls/dslx/virtualizable_file_system.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
-#include "xls/ir/package.h"
-#include "xls/passes/optimization_pass.h"
-#include "xls/scheduling/scheduling_result.h"
-#include "xls/tools/codegen.h"
-#include "xls/tools/codegen_flags.pb.h"
-#include "xls/tools/opt.h"
 #include "xls/tools/proto_to_dslx.h"
-#include "xls/tools/scheduling_options_flags.pb.h"
 
 namespace xls {
 
@@ -104,15 +95,6 @@ absl::StatusOr<std::string> ConvertDslxPathToIr(
   return ConvertDslxToIr(dslx, std::string{path}, module_name, options);
 }
 
-absl::StatusOr<std::string> OptimizeIr(std::string_view ir,
-                                       std::string_view top) {
-  const tools::OptOptions options = {
-      .opt_level = xls::kMaxOptLevel,
-      .top = std::string(top),
-  };
-  return tools::OptimizeIrForTop(ir, options);
-}
-
 absl::StatusOr<std::string> MangleDslxName(std::string_view module_name,
                                            std::string_view function_name) {
   return dslx::MangleDslxName(module_name, function_name,
@@ -130,18 +112,6 @@ absl::StatusOr<std::string> ProtoToDslx(std::string_view proto_def,
                        ProtoToDslxViaText(proto_def, message_name, text_proto,
                                           binding_name, file_table));
   return module->ToString();
-}
-
-absl::StatusOr<ScheduleAndCodegenResult> ScheduleAndCodegenPackage(
-    Package* p,
-    const SchedulingOptionsFlagsProto& scheduling_options_flags_proto,
-    const CodegenFlagsProto& codegen_flags_proto, bool with_delay_model) {
-  std::pair<SchedulingResult, verilog::CodegenResult> result;
-  XLS_ASSIGN_OR_RETURN(
-      result, ScheduleAndCodegen(p, scheduling_options_flags_proto,
-                                 codegen_flags_proto, with_delay_model));
-  return ScheduleAndCodegenResult{.scheduling_result = result.first,
-                                  .codegen_result = result.second};
 }
 
 }  // namespace xls

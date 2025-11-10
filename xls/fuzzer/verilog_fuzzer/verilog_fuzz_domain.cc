@@ -26,7 +26,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
 #include "xls/ir/package.h"
-#include "xls/public/runtime_build_actions.h"
+#include "xls/public/runtime_codegen_actions.h"
 #include "xls/tools/codegen_flags.pb.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 

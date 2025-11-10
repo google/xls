@@ -79,7 +79,8 @@
 #include "xls/public/function_builder.h"
 #include "xls/public/ir.h"
 #include "xls/public/ir_parser.h"
-#include "xls/public/runtime_build_actions.h"
+#include "xls/public/runtime_codegen_actions.h"
+#include "xls/public/runtime_dslx_actions.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
 #include "xls/tools/opt.h"
 

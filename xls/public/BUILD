@@ -31,16 +31,13 @@ package(
 )
 
 cc_library(
-    name = "runtime_build_actions",
-    srcs = ["runtime_build_actions.cc"],
-    hdrs = ["runtime_build_actions.h"],
+    name = "runtime_dslx_actions",
+    srcs = ["runtime_dslx_actions.cc"],
+    hdrs = ["runtime_dslx_actions.h"],
     data = [
         "//xls/dslx/ir_convert:ir_converter_main",
-        "//xls/tools:opt_main",
     ],
     deps = [
-        ":ir",
-        "//xls/codegen:codegen_result",
         "//xls/common/file:filesystem",
         "//xls/common/status:status_macros",
         "//xls/dslx:create_import_data",
@@ -56,19 +53,55 @@ cc_library(
         "//xls/dslx/frontend:pos",
         "//xls/dslx/ir_convert:convert_options",
         "//xls/dslx/ir_convert:ir_converter",
-        "//xls/ir",
-        "//xls/passes:optimization_pass",
-        "//xls/scheduling:scheduling_result",
-        "//xls/tools:codegen",
-        "//xls/tools:codegen_flags_cc_proto",
-        "//xls/tools:opt",
         "//xls/tools:proto_to_dslx",
-        "//xls/tools:scheduling_options_flags_cc_proto",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "runtime_ir_opt_actions",
+    srcs = ["runtime_ir_opt_actions.cc"],
+    hdrs = ["runtime_ir_opt_actions.h"],
+    data = [
+        "//xls/tools:opt_main",
+    ],
+    deps = [
+        "//xls/passes:optimization_pass",
+        "//xls/tools:opt",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
+    name = "runtime_codegen_actions",
+    srcs = ["runtime_codegen_actions.cc"],
+    hdrs = ["runtime_codegen_actions.h"],
+    deps = [
+        ":ir",
+        "//xls/codegen:codegen_result",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/scheduling:scheduling_result",
+        "//xls/tools:codegen",
+        "//xls/tools:codegen_flags_cc_proto",
+        "//xls/tools:scheduling_options_flags_cc_proto",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
+    name = "runtime_build_actions",
+    hdrs = ["runtime_build_actions.h"],
+    deprecation = "Use the runtime_{ir_opt,dslx,codegen}_actions targets instead.",
+    deps = [
+        ":runtime_codegen_actions",
+        ":runtime_dslx_actions",
+        ":runtime_ir_opt_actions",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
 
@@ -266,7 +299,9 @@ cc_library(
         ":c_api_impl_helpers",
         ":c_api_ir_builder",
         ":c_api_vast",
-        ":runtime_build_actions",
+        ":runtime_codegen_actions",
+        ":runtime_dslx_actions",
+        ":runtime_ir_opt_actions",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/dslx:mangle",
