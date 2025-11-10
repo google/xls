@@ -139,47 +139,6 @@ std::vector<const AstNode*> Module::FindContained(const Span& target) const {
   return found;
 }
 
-std::optional<Function*> Module::GetFunction(
-    std::string_view target_name) const {
-  for (const ModuleMember& member : top_) {
-    if (std::holds_alternative<Function*>(member)) {
-      Function* f = std::get<Function*>(member);
-      if (f->identifier() == target_name) {
-        return f;
-      }
-    }
-  }
-  return std::nullopt;
-}
-
-absl::StatusOr<TestFunction*> Module::GetTest(
-    std::string_view target_name) const {
-  for (const ModuleMember& member : top_) {
-    if (std::holds_alternative<TestFunction*>(member)) {
-      TestFunction* t = std::get<TestFunction*>(member);
-      if (t->identifier() == target_name) {
-        return t;
-      }
-    }
-  }
-  return absl::NotFoundError(absl::StrFormat(
-      "No test in module %s with name \"%s\"", name_, target_name));
-}
-
-absl::StatusOr<TestProc*> Module::GetTestProc(
-    std::string_view target_name) const {
-  for (const ModuleMember& member : top_) {
-    if (std::holds_alternative<TestProc*>(member)) {
-      auto* t = std::get<TestProc*>(member);
-      if (t->proc()->identifier() == target_name) {
-        return t;
-      }
-    }
-  }
-  return absl::NotFoundError(absl::StrFormat(
-      "No test proc in module %s with name \"%s\"", name_, target_name));
-}
-
 std::vector<std::string> Module::GetTestNames() const {
   std::vector<std::string> result;
   for (auto& member : top_) {

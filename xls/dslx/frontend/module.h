@@ -167,30 +167,41 @@ class Module : public AstNode {
   absl::Status AddTop(ModuleMember member,
                       const MakeCollisionError& make_collision_error);
 
+  // Gets the element in this module with the given target_name, or returns
+  // `nullopt`.
+  template <typename T>
+  std::optional<T*> GetMember(std::string_view target_name) const {
+    const auto it = top_by_name_.find(target_name);
+    return it == top_by_name_.end() || !std::holds_alternative<T*>(it->second)
+               ? std::nullopt
+               : std::make_optional(std::get<T*>(it->second));
+  }
+
   // Gets the element in this module with the given target_name, or returns a
   // NotFoundError.
   template <typename T>
-  absl::StatusOr<T*> GetMemberOrError(std::string_view target_name) {
-    for (ModuleMember& member : top_) {
-      if (std::holds_alternative<T*>(member)) {
-        T* t = std::get<T*>(member);
-        if (t->identifier() == target_name) {
-          return t;
-        }
-      }
+  absl::StatusOr<T*> GetMemberOrError(std::string_view target_name) const {
+    std::optional<T*> result = GetMember<T>(target_name);
+    if (!result.has_value()) {
+      return absl::NotFoundError(
+          absl::StrFormat("No %s in module `%s` with name `%s`",
+                          T::GetDebugTypeName(), name_, target_name));
     }
-
-    return absl::NotFoundError(
-        absl::StrFormat("No %s in module `%s` with name `%s`",
-                        T::GetDebugTypeName(), name_, target_name));
+    return *result;
   }
 
-  std::optional<Function*> GetFunction(std::string_view target_name) const;
+  std::optional<Function*> GetFunction(std::string_view target_name) const {
+    return GetMember<Function>(target_name);
+  }
 
   // Gets a test construct in this module with the given "target_name", or
   // returns a NotFoundError.
-  absl::StatusOr<TestFunction*> GetTest(std::string_view target_name) const;
-  absl::StatusOr<TestProc*> GetTestProc(std::string_view target_name) const;
+  absl::StatusOr<TestFunction*> GetTest(std::string_view target_name) const {
+    return GetMemberOrError<TestFunction>(target_name);
+  }
+  absl::StatusOr<TestProc*> GetTestProc(std::string_view target_name) const {
+    return GetMemberOrError<TestProc>(target_name);
+  }
 
   absl::Span<ModuleMember const> top() const { return top_; }
   absl::Span<ModuleMember> top() { return absl::MakeSpan(top_); }
