@@ -220,9 +220,6 @@ absl::StatusOr<verilog::CodegenResult> CodegenFromMetadata(
 
   XLS_RETURN_IF_ERROR(VerifyPackage(p, /*codegen=*/true));
 
-  PackageScheduleProto package_pipeline_schedules_proto =
-      package_schedule_2.ToProto(*metadata.delay_estimator);
-
   return verilog::GenerateModuleText(package_schedule_2, p,
                                      metadata.codegen_options,
                                      metadata.delay_estimator);
