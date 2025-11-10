@@ -104,8 +104,8 @@ bool TypeProtoSizeInRange(const TypeProto& type_proto, int64_t min_size,
 inline Domain<TypeProto> TypeDomainWithSizeInRange(
     int64_t min_size, int64_t max_size, const Domain<TypeProto>& type_domain) {
   return Filter(
-      [max_size](const TypeProto& type_proto) {
-        return TypeProtoSizeInRange(type_proto, /*min_size=*/1,
+      [min_size, max_size](const TypeProto& type_proto) {
+        return TypeProtoSizeInRange(type_proto, /*min_size=*/min_size,
                                     /*max_size=*/max_size);
       },
       type_domain);
