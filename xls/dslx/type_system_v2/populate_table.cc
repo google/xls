@@ -73,7 +73,8 @@ absl::Status PopulateBuiltinStubs(ImportData* import_data,
   std::unique_ptr<ModuleInfo> builtins_module_info =
       std::make_unique<ModuleInfo>(std::move(builtins_module),
                                    builtins_type_info, builtins_path,
-                                   std::move(builtins_converter));
+                                   std::move(builtins_converter),
+                                   /*builtin_stubs=*/true);
   return import_data->Put(builtin_tokens, std::move(builtins_module_info))
       .status();
 }

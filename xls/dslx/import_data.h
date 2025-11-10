@@ -50,10 +50,12 @@ class ModuleInfo {
   ModuleInfo(std::unique_ptr<Module> module, TypeInfo* type_info,
              std::filesystem::path path,
              std::unique_ptr<InferenceTableConverter>
-                 inference_table_converter = nullptr)
+                 inference_table_converter = nullptr,
+             bool builtin_stubs = false)
       : module_(std::move(module)),
         type_info_(type_info),
         inference_table_converter_(std::move(inference_table_converter)),
+        builtin_stubs_(builtin_stubs),
         path_(std::move(path)) {}
 
   const Module& module() const { return *module_; }
@@ -61,6 +63,8 @@ class ModuleInfo {
   const TypeInfo* type_info() const { return type_info_; }
   TypeInfo* type_info() { return type_info_; }
   const std::filesystem::path& path() const { return path_; }
+  bool builtin_stubs() const { return builtin_stubs_; }
+
   // TODO: erinzmoore - Once typechecking is complete, bar use of the inference
   // objects.
   InferenceTableConverter* inference_table_converter() {
@@ -71,6 +75,7 @@ class ModuleInfo {
   std::unique_ptr<Module> module_;
   TypeInfo* type_info_;
   std::unique_ptr<InferenceTableConverter> inference_table_converter_;
+  bool builtin_stubs_;
   std::filesystem::path path_;
 };
 
@@ -190,6 +195,7 @@ class ImportData {
   // imported with type inference v2.
   absl::StatusOr<InferenceTableConverter*> GetInferenceTableConverter(
       std::string_view module_name);
+  absl::StatusOr<Module*> GetBuiltinStubsModule() const;
 
   TypeInfoOwner& type_info_owner() { return type_info_owner_; }
 
@@ -320,6 +326,7 @@ class ImportData {
   std::unique_ptr<InferenceTable> inference_table_;
   absl::flat_hash_map<Module*, InferenceTableConverter*>
       module_to_inference_table_converter_;
+  Module* builtin_stubs_module_ = nullptr;
 
   std::unique_ptr<VirtualizableFilesystem> vfs_;
 };

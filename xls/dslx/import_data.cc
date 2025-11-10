@@ -71,6 +71,13 @@ absl::StatusOr<InferenceTableConverter*> ImportData::GetInferenceTableConverter(
   return it->second;
 }
 
+absl::StatusOr<Module*> ImportData::GetBuiltinStubsModule() const {
+  if (builtin_stubs_module_ == nullptr) {
+    return absl::NotFoundError("Builtin stubs module not loaded yet.");
+  }
+  return builtin_stubs_module_;
+}
+
 absl::StatusOr<InferenceTableConverter*> ImportData::GetInferenceTableConverter(
     std::string_view module_name) {
   XLS_ASSIGN_OR_RETURN(ImportTokens import_tokens,
@@ -92,6 +99,9 @@ absl::StatusOr<ModuleInfo*> ImportData::Put(
                                pmodule_info->inference_table_converter());
   }
   path_to_module_info_[std::string{pmodule_info->path()}] = pmodule_info;
+  if (pmodule_info->builtin_stubs()) {
+    builtin_stubs_module_ = &pmodule_info->module();
+  }
   return pmodule_info;
 }
 

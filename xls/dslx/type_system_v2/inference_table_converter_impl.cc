@@ -62,6 +62,7 @@
 #include "xls/dslx/type_system_v2/evaluator.h"
 #include "xls/dslx/type_system_v2/fast_concretizer.h"
 #include "xls/dslx/type_system_v2/flatten_in_type_order.h"
+#include "xls/dslx/type_system_v2/function_resolver.h"
 #include "xls/dslx/type_system_v2/import_utils.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/inference_table_converter.h"
@@ -159,6 +160,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
               return TryConvertInvocationForUnification(parametric_context,
                                                         invocation);
             })),
+        function_resolver_(
+            CreateFunctionResolver(module, import_data, table,
+                                   /*converter=*/*this, *resolver_,
+                                   /*parametric_struct_instantiator=*/*this)),
         constant_collector_(CreateConstantCollector(
             table_, module_, import_data_, warning_collector_, file_table_,
             /*converter=*/*this, *evaluator_,
@@ -479,7 +484,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
             << " in context: " << ToString(caller_context);
     XLS_ASSIGN_OR_RETURN(
         const FunctionAndTargetObject function_and_target_object,
-        ResolveFunction(invocation->callee(), caller, caller_context));
+        function_resolver_->ResolveFunction(invocation->callee(), caller,
+                                            caller_context));
     table_.SetCalleeInCallerContext(invocation, caller_context,
                                     function_and_target_object.function);
 
@@ -1429,122 +1435,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     VLOG(5) << "Concretized: " << annotation->ToString()
             << " to signed: " << signedness << ", bit count: " << bit_count;
     return std::make_unique<BitsType>(signedness, bit_count);
-  }
-
-  absl::StatusOr<const FunctionAndTargetObject> ResolveFunction(
-      const Expr* callee, std::optional<const Function*> caller_function,
-      std::optional<const ParametricContext*> caller_context) override {
-    const AstNode* function_node = nullptr;
-    std::optional<Expr*> target_object;
-    std::optional<const ParametricContext*> target_struct_context =
-        caller_context.has_value() && (*caller_context)->is_struct()
-            ? caller_context
-            : std::nullopt;
-    if (callee->kind() == AstNodeKind::kColonRef) {
-      const auto* colon_ref = down_cast<const ColonRef*>(callee);
-      std::optional<const AstNode*> target =
-          table_.GetColonRefTarget(colon_ref);
-      if (target.has_value()) {
-        function_node = *target;
-      }
-    } else if (callee->kind() == AstNodeKind::kNameRef) {
-      // Either a local function or a built-in function call.
-      const auto* name_ref = down_cast<const NameRef*>(callee);
-      if (std::holds_alternative<const NameDef*>(name_ref->name_def())) {
-        const NameDef* def = std::get<const NameDef*>(name_ref->name_def());
-        function_node = def->definer();
-      } else if (std::holds_alternative<BuiltinNameDef*>(
-                     name_ref->name_def())) {
-        if (module_.name() != kBuiltinStubsModuleName) {
-          VLOG(5) << "ResolveFunction of builtin; delegating";
-          XLS_ASSIGN_OR_RETURN(InferenceTableConverter * builtins_converter,
-                               import_data_.GetInferenceTableConverter(
-                                   std::string(kBuiltinStubsModuleName)));
-          // Delegate to builtins converter.
-          return builtins_converter->ResolveFunction(callee, caller_function,
-                                                     caller_context);
-        }
-        // Look it up in our module
-        BuiltinNameDef* def = std::get<BuiltinNameDef*>(name_ref->name_def());
-        auto fn_name = def->identifier();
-        std::optional<Function*> builtin_fn = module_.GetFunction(fn_name);
-        if (builtin_fn.has_value()) {
-          function_node = *builtin_fn;
-        } else {
-          return TypeInferenceErrorStatus(
-              name_ref->span(), nullptr,
-              absl::Substitute("Cannot find built-in method `$0`", fn_name),
-              file_table_);
-        }
-      }
-    } else if (callee->kind() == AstNodeKind::kAttr) {
-      const auto* attr = down_cast<const Attr*>(callee);
-
-      // Disallow the form `module.fn()`. If they really want to do that, it
-      // should be `module::fn()`.
-      if (attr->lhs()->kind() == AstNodeKind::kNameRef &&
-          IsImportedModuleReference(down_cast<NameRef*>(attr->lhs()))) {
-        return TypeInferenceErrorStatus(
-            attr->span(), nullptr,
-            "An invocation callee must be a function, with a possible scope.",
-            file_table_);
-      }
-
-      XLS_RETURN_IF_ERROR(
-          ConvertSubtree(attr->lhs(), caller_function, caller_context));
-      target_object = attr->lhs();
-      XLS_ASSIGN_OR_RETURN(
-          std::optional<const TypeAnnotation*> target_object_type,
-          resolver_->ResolveAndUnifyTypeAnnotationsForNode(caller_context,
-                                                           *target_object));
-      XLS_ASSIGN_OR_RETURN(
-          std::optional<StructOrProcRef> struct_or_proc_ref,
-          GetStructOrProcRef(*target_object_type, import_data_));
-      if (!struct_or_proc_ref.has_value()) {
-        return TypeInferenceErrorStatus(
-            attr->span(), nullptr,
-            absl::Substitute(
-                "Cannot invoke method `$0` on non-struct type `$1`",
-                attr->attr(), (*target_object_type)->ToString()),
-            file_table_);
-      }
-      if (struct_or_proc_ref->def->IsParametric()) {
-        XLS_ASSIGN_OR_RETURN(target_struct_context,
-                             GetOrCreateParametricStructContext(
-                                 caller_context, *struct_or_proc_ref, callee));
-      }
-      std::optional<Impl*> impl = struct_or_proc_ref->def->impl();
-      XLS_RET_CHECK(impl.has_value());
-      std::optional<Function*> instance_method =
-          (*impl)->GetFunction(attr->attr());
-      if (instance_method.has_value()) {
-        function_node = *instance_method;
-      } else {
-        return TypeInferenceErrorStatusForAnnotation(
-            callee->span(), *target_object_type,
-            absl::Substitute(
-                "Name '$0' is not defined by the impl for struct '$1'.",
-                attr->attr(), struct_or_proc_ref->def->identifier()),
-            file_table_);
-      }
-    }
-
-    if (function_node != nullptr) {
-      const auto* fn = dynamic_cast<const Function*>(function_node);
-      if (fn == nullptr) {
-        return TypeInferenceErrorStatus(
-            callee->span(), nullptr,
-            absl::Substitute("Invocation callee `$0` is not a function",
-                             callee->ToString()),
-            file_table_);
-      }
-      return FunctionAndTargetObject{fn, target_object, target_struct_context};
-    }
-    return TypeInferenceErrorStatus(
-        callee->span(), nullptr,
-        "An invocation callee must be a function, with a possible scope "
-        "indicated using `::` or `.`",
-        file_table_);
   }
 
  private:
@@ -2577,6 +2467,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   TypeInferenceErrorHandler error_handler_;
   std::unique_ptr<Evaluator> evaluator_;
   std::unique_ptr<TypeAnnotationResolver> resolver_;
+  std::unique_ptr<FunctionResolver> function_resolver_;
   std::unique_ptr<ConstantCollector> constant_collector_;
   std::unique_ptr<FastConcretizer> fast_concretizer_;
   absl::flat_hash_map<std::optional<const ParametricContext*>,

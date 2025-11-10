@@ -27,15 +27,6 @@
 
 namespace xls::dslx {
 
-// The result of resolving the target of a function call. If the `target_object`
-// is specified, then it is an instance method being invoked on `target_object`.
-// Otherwise, it is a static function which may or may not be a member.
-struct FunctionAndTargetObject {
-  const Function* function = nullptr;
-  const std::optional<Expr*> target_object;
-  std::optional<const ParametricContext*> target_struct_context;
-};
-
 class SemanticsAnalysis;
 
 // Class that facilitates the conversion of an `InferenceTable` to
@@ -73,11 +64,6 @@ class InferenceTableConverter {
       std::optional<const ParametricContext*> parametric_context,
       bool needs_conversion_before_eval,
       std::optional<const AstNode*> node = std::nullopt) = 0;
-
-  // Determines what function is being invoked by a `callee` expression.
-  virtual absl::StatusOr<const FunctionAndTargetObject> ResolveFunction(
-      const Expr* callee, std::optional<const Function*> caller_function,
-      std::optional<const ParametricContext*> caller_context) = 0;
 
   // Returns the resulting base type info for the entire conversion.
   virtual TypeInfo* GetBaseTypeInfo() = 0;

@@ -64,6 +64,32 @@ cc_library(
 )
 
 cc_library(
+    name = "function_resolver",
+    srcs = ["function_resolver.cc"],
+    hdrs = ["function_resolver.h"],
+    deps = [
+        ":import_utils",
+        ":inference_table",
+        ":inference_table_converter",
+        ":parametric_struct_instantiator",
+        ":type_annotation_resolver",
+        ":type_annotation_utils",
+        "//xls/common:casts",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:errors",
+        "//xls/dslx:import_data",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_utils",
+        "//xls/dslx/frontend:builtin_stubs_utils",
+        "//xls/dslx/frontend:pos",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
     name = "inference_table",
     srcs = ["inference_table.cc"],
     hdrs = ["inference_table.h"],
@@ -119,6 +145,7 @@ cc_library(
         ":evaluator",
         ":fast_concretizer",
         ":flatten_in_type_order",
+        ":function_resolver",
         ":import_utils",
         ":inference_table",
         ":inference_table_converter",
