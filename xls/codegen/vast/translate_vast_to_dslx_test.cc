@@ -1258,7 +1258,8 @@ TEST_F(TranslateVastToDslxTest, PackedMultiDimArray) {
                           f->Make<BitVectorType>(
                               f.NextLoc(), f.BareLiteral(8),
                               /*is_signed=*/false, /*size_expr_is_max=*/true),
-                          std::vector<Expression*>{f.BareLiteral(3)},
+                          std::vector<Expression*>{f.BareLiteral(3),
+                                                   f.BareLiteral(1)},
                           /*dims_are_max=*/true)),
                   f->Make<Def>(
                       f.NextLoc(), "b", DataKind::kUser,
@@ -1275,8 +1276,8 @@ pub type my_typedef_t = bits[26];
 
 #[sv_type("a::foo_t")]
 pub struct foo_t {
-    // 452 bits
-    a: bits[4][9],
+    // 488 bits
+    a: bits[9][2][4],
     b: my_typedef_t[8][2],
 }
 )";

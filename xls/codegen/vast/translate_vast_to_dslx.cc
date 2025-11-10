@@ -415,7 +415,7 @@ class VastToDslxTranslator {
         XLS_ASSIGN_OR_RETURN(annot, TranslateType(array_type->element_type()));
         dims_are_max = array_type->dims_are_max();
       }
-      dims.insert(dims.begin(), array_type->dims().rbegin(),
+      dims.insert(dims.end(), array_type->dims().rbegin(),
                   array_type->dims().rend());
     }
     for (verilog::Expression* dim : dims) {

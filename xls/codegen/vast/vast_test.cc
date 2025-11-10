@@ -182,11 +182,11 @@ TEST_P(VastTest, DataTypes) {
   EXPECT_TRUE(packed_array->dims()[1]->IsLiteralWithValue(2));
   EXPECT_FALSE(packed_array->IsUserDefined());
   EXPECT_EQ(packed_array->EmitWithIdentifier(nullptr, "foo"),
-            "[9:0][2:0][1:0] foo");
+            "[2:0][1:0][9:0] foo");
   EXPECT_THAT(packed_array->WidthAsInt64(), IsOkAndHolds(10));
   EXPECT_THAT(packed_array->FlatBitCountAsInt64(), IsOkAndHolds(60));
   EXPECT_FALSE(packed_array->is_signed());
-  EXPECT_EQ(packed_array->Emit(nullptr), "[9:0][2:0][1:0]");
+  EXPECT_EQ(packed_array->Emit(nullptr), "[2:0][1:0][9:0]");
 
   Enum* enum_def = f.Make<Enum>(SourceInfo(), DataKind::kLogic,
                                 f.BitVectorType(32, SourceInfo()));
@@ -275,20 +275,20 @@ TEST_P(VastTest, DataTypes) {
 } [5:0][2:0] foo)");
 
   EXPECT_EQ(packed_array->EmitWithIdentifier(nullptr, "foo"),
-            "[9:0][2:0][1:0] foo");
+            "[2:0][1:0][9:0] foo");
   EXPECT_THAT(packed_array->WidthAsInt64(), IsOkAndHolds(10));
   EXPECT_THAT(packed_array->FlatBitCountAsInt64(), IsOkAndHolds(60));
   EXPECT_FALSE(packed_array->is_signed());
-  EXPECT_EQ(packed_array->Emit(nullptr), "[9:0][2:0][1:0]");
+  EXPECT_EQ(packed_array->Emit(nullptr), "[2:0][1:0][9:0]");
 
   DataType* spacked_array =
       f.PackedArrayType(10, {3, 2}, SourceInfo(), /*is_signed=*/true);
   EXPECT_EQ(spacked_array->EmitWithIdentifier(nullptr, "foo"),
-            "signed [9:0][2:0][1:0] foo");
+            "signed [2:0][1:0][9:0] foo");
   EXPECT_THAT(spacked_array->WidthAsInt64(), IsOkAndHolds(10));
   EXPECT_THAT(spacked_array->FlatBitCountAsInt64(), IsOkAndHolds(60));
   EXPECT_TRUE(spacked_array->is_signed());
-  EXPECT_EQ(spacked_array->Emit(nullptr), "signed [9:0][2:0][1:0]");
+  EXPECT_EQ(spacked_array->Emit(nullptr), "signed [2:0][1:0][9:0]");
   UnpackedArrayType* unpacked_array =
       f.UnpackedArrayType(10, {3, 2}, SourceInfo());
   EXPECT_FALSE(unpacked_array->dims_are_max());
@@ -425,18 +425,18 @@ TEST_P(VastTest, ModuleWithManyVariableDefinitions) {
             R"(module my_module(
   input wire a,
   output wire [3:0] b,
-  input wire [7:0][41:0][2:0] array
+  input wire [41:0][2:0][7:0] array
 );
   reg r1;
   reg [1:0] r2;
   reg [0:0] r1_init = 1;
   reg [41:0] s;
   reg [41:0] s_init = 42'h000_0000_007b;
-  reg [41:0][7:0][8 + 42 - 1:0] t;
+  reg [7:0][8 + 42 - 1:0][41:0] t;
   reg signed [7:0] signed_foo;
   wire x;
   wire y;
-  wire signed [3 * 3 - 1:0][7:0][8 + 42 - 1:0] z;
+  wire signed [7:0][8 + 42 - 1:0][3 * 3 - 1:0] z;
   integer i;
   assign b = {a, a, a, a};
 endmodule)");
@@ -537,7 +537,7 @@ TEST_P(VastTest, ModuleWithUnpackedArrayRegWithPackedDims) {
               R"(module my_module(
   output wire [63:0] out
 );
-  reg [3:0][41:0][6:0] arr[8][64];
+  reg [41:0][6:0][3:0] arr[8][64];
   assign out = arr[2][1];
 endmodule)");
   } else {
@@ -545,7 +545,7 @@ endmodule)");
               R"(module my_module(
   output wire [63:0] out
 );
-  reg [3:0][41:0][6:0] arr[0:7][0:63];
+  reg [41:0][6:0][3:0] arr[0:7][0:63];
   assign out = arr[2][1];
 endmodule)");
   }
@@ -2458,15 +2458,15 @@ TEST_P(VastTest, VerilogFunctionWithComplicatedTypes) {
   LineInfo line_info;
   EXPECT_EQ(m->Emit(&line_info),
             R"(module top;
-  function automatic signed [5:0][2:0][32:0] func (input reg foo, input reg signed [6 + 6 - 1:0][110:0] bar, input reg signed [32:0] baz);
+  function automatic signed [2:0][32:0][5:0] func (input reg foo, input reg signed [110:0][6 + 6 - 1:0] bar, input reg signed [32:0] baz);
     begin
       func = 0;
     end
   endfunction
   reg a;
-  wire signed [6 + 6 - 1:0][110:0] b;
+  wire signed [110:0][6 + 6 - 1:0] b;
   wire signed [32:0] c;
-  wire signed [5:0][2:0][32:0] qux;
+  wire signed [2:0][32:0][5:0] qux;
   assign qux = func(a, b, c);
 endmodule)");
 
@@ -2527,15 +2527,15 @@ TEST_P(VastTest, RegAndWireDefWithInit) {
   LineInfo line_info;
   EXPECT_EQ(m->Emit(&line_info),
             R"(module top;
-  function automatic signed [5:0][2:0][32:0] func (input reg foo, input reg signed [6 + 6 - 1:0][110:0] bar, input reg signed [32:0] baz);
+  function automatic signed [2:0][32:0][5:0] func (input reg foo, input reg signed [110:0][6 + 6 - 1:0] bar, input reg signed [32:0] baz);
     begin
       func = 0;
     end
   endfunction
   reg a = 1'h0;
-  wire signed [6 + 6 - 1:0][110:0] b = 0;
+  wire signed [110:0][6 + 6 - 1:0] b = 0;
   wire signed [32:0] c = 33'h0_0000_0000;
-  wire signed [5:0][2:0][32:0] qux = func(a, b, c);
+  wire signed [2:0][32:0][5:0] qux = func(a, b, c);
 endmodule)");
 
   EXPECT_EQ(line_info.LookupNode(m).value(),
@@ -2808,7 +2808,7 @@ TEST_P(VastTest, SliceOfMultidimensionalPackedArrayOnLhsAndRhs) {
   LineInfo line_info;
   EXPECT_EQ(m->Emit(&line_info),
             R"(module top;
-  wire [1:0][2:0][4:0] a;
+  wire [2:0][4:0][1:0] a;
   wire [1:0] b;
   wire [2:0] c;
   assign a[1][2][3:4] = b[1:0];
@@ -2875,8 +2875,8 @@ TEST_P(VastTest, NestedGenerateLoop) {
   LineInfo line_info;
   EXPECT_EQ(m->Emit(&line_info),
             R"(module top;
-  wire [0:0][3:0][2:0] src;
-  wire [0:0][3:0][2:0] dst;
+  wire [3:0][2:0][0:0] src;
+  wire [3:0][2:0][0:0] dst;
   for (genvar i = 0; i < 4; i = i + 1) begin : outer
     for (genvar j = 0; j < 3; j = j + 1) begin : inner
       assign dst[i][j] = src[i][j];

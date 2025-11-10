@@ -826,6 +826,17 @@ bool xls_vast_verilog_module_add_always_comb(
   return true;
 }
 
+struct xls_vast_logic_ref* xls_vast_verilog_module_add_inout(
+    struct xls_vast_verilog_module* m, const char* name,
+    struct xls_vast_data_type* type) {
+  auto* cpp_module = reinterpret_cast<xls::verilog::Module*>(m);
+  auto* cpp_type = reinterpret_cast<xls::verilog::DataType*>(type);
+  absl::StatusOr<xls::verilog::LogicRef*> logic_ref =
+      cpp_module->AddInOut(name, cpp_type, xls::SourceInfo());
+  CHECK_OK(logic_ref.status());
+  return reinterpret_cast<xls_vast_logic_ref*>(logic_ref.value());
+}
+
 bool xls_vast_verilog_module_add_reg(struct xls_vast_verilog_module* m,
                                      const char* name,
                                      struct xls_vast_data_type* type,
@@ -1057,6 +1068,8 @@ xls_vast_module_port_direction xls_vast_verilog_module_port_get_direction(
       return xls_vast_module_port_direction_input;
     case xls::verilog::ModulePortDirection::kOutput:
       return xls_vast_module_port_direction_output;
+    case xls::verilog::ModulePortDirection::kInOut:
+      return xls_vast_module_port_direction_inout;
   }
   LOG(FATAL) << "Invalid ModulePortDirection encountered.";
 }

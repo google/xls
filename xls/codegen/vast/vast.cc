@@ -145,8 +145,10 @@ bool CannotStripWhitespace(std::string_view s) {
 // inserting spaces appropriately in this routine.
 std::string CombineKindAndDataType(std::string_view kind_str,
                                    std::string_view data_type_str) {
-  CHECK(CannotStripWhitespace(kind_str));
-  CHECK(CannotStripWhitespace(data_type_str));
+  CHECK(CannotStripWhitespace(kind_str))
+      << "Kind string cannot have whitespace: `" << kind_str << "`";
+  CHECK(CannotStripWhitespace(data_type_str))
+      << "Data type string cannot have whitespace: `" << data_type_str << "`";
 
   std::string result;
   if (kind_str.empty()) {
@@ -417,7 +419,8 @@ std::string DataType::EmitWithIdentifier(LineInfo* line_info,
   if (base.empty()) {
     return std::string{identifier};
   }
-  CHECK(CannotStripWhitespace(base));
+  CHECK(CannotStripWhitespace(base))
+      << "Base type string cannot have whitespace: `" << base << "`";
   return absl::StrCat(base, " ", identifier);
 }
 
@@ -497,7 +500,7 @@ PackedArrayType* VerilogFile::PackedArrayType(int64_t element_bit_count,
   // For packed arrays we always use a bitvector (non-scalar) for the element
   // type when the element bit width is 1. For example, if element bit width is
   // one and dims is {42} we generate the following type:
-  //   reg [0:0][41:0] foo;
+  //   reg [41:0][0:0] foo;
   // If we emitted a scalar type, it would look like:
   //   reg [41:0] foo;
   // Which would generate invalid verilog if we index into an element
@@ -654,6 +657,8 @@ std::string ToString(ModulePortDirection direction) {
       return "input";
     case ModulePortDirection::kOutput:
       return "output";
+    case ModulePortDirection::kInOut:
+      return "inout";
     default:
       return "<invalid direction>";
   }
@@ -827,6 +832,20 @@ LogicRef* Module::AddOutputInternal(std::string_view name, DataType* type,
   return AddPortDef(ModulePortDirection::kOutput, def, loc);
 }
 
+LogicRef* Module::AddInOutInternal(std::string_view name, DataType* type,
+                                   DataKind data_kind, const SourceInfo& loc) {
+  Def* def;
+  if (type->IsUserDefined()) {
+    def = static_cast<Def*>(file()->Make<UserDefinedDef>(loc, name, type));
+  } else if (data_kind == DataKind::kWire) {
+    def = static_cast<Def*>(file()->Make<WireDef>(loc, name, type));
+  } else {
+    CHECK_EQ(data_kind, DataKind::kLogic);
+    def = static_cast<Def*>(file()->Make<LogicDef>(loc, name, type));
+  }
+  return AddPortDef(ModulePortDirection::kInOut, def, loc);
+}
+
 absl::StatusOr<LogicRef*> Module::AddInput(std::string_view name,
                                            DataType* type,
                                            const SourceInfo& loc,
@@ -843,6 +862,15 @@ absl::StatusOr<LogicRef*> Module::AddOutput(std::string_view name,
   XLS_RET_CHECK(data_kind == DataKind::kWire || data_kind == DataKind::kLogic);
   XLS_RETURN_IF_ERROR(NoteDefined(&defined_names_, name, "output"));
   return AddOutputInternal(name, type, data_kind, loc);
+}
+
+absl::StatusOr<LogicRef*> Module::AddInOut(std::string_view name,
+                                           DataType* type,
+                                           const SourceInfo& loc,
+                                           DataKind data_kind) {
+  XLS_RET_CHECK(data_kind == DataKind::kWire || data_kind == DataKind::kLogic);
+  XLS_RETURN_IF_ERROR(NoteDefined(&defined_names_, name, "inout"));
+  return AddInOutInternal(name, type, data_kind, loc);
 }
 
 LogicRef* Module::AddRegInternal(std::string_view name, DataType* type,
@@ -1113,12 +1141,15 @@ absl::StatusOr<int64_t> BitVectorType::FlatBitCountAsInt64() const {
 std::string BitVectorType::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
   std::string result = is_signed_ ? "signed " : "";
-  absl::StrAppendFormat(&result, "[%s:0]",
-                        size_expr_is_max_
-                            ? size_expr_->Emit(line_info)
-                            : WidthToLimit(line_info, size_expr_));
+  absl::StrAppend(&result, DimensionsString());
   LineInfoEnd(line_info, this);
   return result;
+}
+
+std::string BitVectorType::DimensionsString() const {
+  return absl::StrFormat("[%s:0]", size_expr_is_max_
+                                       ? size_expr_->Emit(nullptr)
+                                       : WidthToLimit(nullptr, size_expr_));
 }
 
 ArrayTypeBase::ArrayTypeBase(DataType* element_type,
@@ -1180,16 +1211,23 @@ absl::StatusOr<int64_t> PackedArrayType::FlatBitCountAsInt64() const {
 
 std::string PackedArrayType::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
-  std::string result = element_type()->Emit(line_info);
-  if (element_type()->IsUserDefined()) {
-    // Imitate the space that a bit vector emits between the kind and
-    // innermost dimension.
-    absl::StrAppend(&result, " ");
+  std::string result;
+  auto bit_vector_type = dynamic_cast<BitVectorType*>(element_type());
+  if (bit_vector_type == nullptr) {
+    std::string element_type_str = element_type()->Emit(line_info);
+    if (!element_type_str.empty()) {
+      absl::StrAppend(&result, element_type_str + " ");
+    }
+  } else {
+    absl::StrAppend(&result, bit_vector_type->is_signed() ? "signed " : "");
   }
   for (Expression* dim : dims()) {
     absl::StrAppendFormat(
         &result, "[%s:0]",
         dims_are_max() ? dim->Emit(line_info) : WidthToLimit(line_info, dim));
+  }
+  if (bit_vector_type != nullptr) {
+    absl::StrAppend(&result, bit_vector_type->DimensionsString());
   }
   LineInfoEnd(line_info, this);
   return result;
@@ -1502,14 +1540,15 @@ std::string Module::Emit(LineInfo* line_info) const {
     LineInfoIncrease(line_info, 1);
     absl::StrAppend(
         &result,
-        absl::StrJoin(ports_, ",\n  ",
-                      [=](std::string* out, const ModulePort& port) {
-                        std::string wire_str = port.wire->EmitNoSemi(line_info);
-                        CHECK(CannotStripWhitespace(wire_str));
-                        absl::StrAppendFormat(
-                            out, "%s %s", ToString(port.direction), wire_str);
-                        LineInfoIncrease(line_info, 1);
-                      }));
+        absl::StrJoin(
+            ports_, ",\n  ", [=](std::string* out, const ModulePort& port) {
+              std::string wire_str = port.wire->EmitNoSemi(line_info);
+              CHECK(CannotStripWhitespace(wire_str))
+                  << "Wire string cannot have whitespace: `" << wire_str << "`";
+              absl::StrAppendFormat(out, "%s %s", ToString(port.direction),
+                                    wire_str);
+              LineInfoIncrease(line_info, 1);
+            }));
     absl::StrAppend(&result, "\n);\n");
     LineInfoIncrease(line_info, 1);
   }

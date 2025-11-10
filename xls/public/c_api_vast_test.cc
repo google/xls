@@ -69,6 +69,33 @@ endmodule
   EXPECT_EQ(std::string_view{emitted}, kWant);
 }
 
+TEST(XlsCApiTest, VastModuleWithInOutPort) {
+  const std::string_view kWantEmitted = R"(module top(
+  inout wire [7:0] io
+);
+
+endmodule
+)";
+
+  xls_vast_verilog_file* f =
+      xls_vast_make_verilog_file(xls_vast_file_type_verilog);
+  ASSERT_NE(f, nullptr);
+  absl::Cleanup free_file([&] { xls_vast_verilog_file_free(f); });
+
+  xls_vast_verilog_module* m = xls_vast_verilog_file_add_module(f, "top");
+  ASSERT_NE(m, nullptr);
+
+  xls_vast_data_type* u8 =
+      xls_vast_verilog_file_make_bit_vector_type(f, 8, /*is_signed=*/false);
+  xls_vast_logic_ref* io = xls_vast_verilog_module_add_inout(m, "io", u8);
+  ASSERT_NE(io, nullptr);
+
+  char* emitted = xls_vast_verilog_file_emit(f);
+  ASSERT_NE(emitted, nullptr);
+  absl::Cleanup free_emitted([&] { xls_c_str_free(emitted); });
+  EXPECT_EQ(std::string_view{emitted}, kWantEmitted);
+}
+
 // Test that instantiates a module with the ports tied to literal zero.
 TEST(XlsCApiTest, VastInstantiate) {
   xls_vast_verilog_file* f =
@@ -264,7 +291,7 @@ endmodule
 // assign a[3:4] = c[2:1];
 TEST(XlsCApiTest, VastPackedArraySliceAssignment) {
   const std::string_view kWantEmitted = R"(module top;
-  wire [1:0][2:0][4:0] a;
+  wire [2:0][4:0][1:0] a;
   wire [1:0] b;
   wire [2:0] c;
   assign a[1][2][3:4] = b[1:0];

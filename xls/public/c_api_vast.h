@@ -208,6 +208,7 @@ typedef int32_t xls_vast_module_port_direction;
 enum {
   xls_vast_module_port_direction_input,
   xls_vast_module_port_direction_output,
+  xls_vast_module_port_direction_inout,
 };
 
 xls_vast_module_port_direction xls_vast_verilog_module_port_get_direction(
@@ -445,6 +446,11 @@ bool xls_vast_verilog_module_add_always_at(
 bool xls_vast_verilog_module_add_always_comb(
     struct xls_vast_verilog_module* m,
     struct xls_vast_always_base** out_always_comb, char** error_out);
+
+// Adds an inout port to the module.
+struct xls_vast_logic_ref* xls_vast_verilog_module_add_inout(
+    struct xls_vast_verilog_module* m, const char* name,
+    struct xls_vast_data_type* type);
 
 // Adds a register (reg) definition to the module.
 // Returns true on success. On failure, returns false and sets error_out.
