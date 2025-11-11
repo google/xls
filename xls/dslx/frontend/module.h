@@ -81,6 +81,8 @@ enum class ModuleAttribute : uint8_t {
 
   // Enable #channel() attributes for this module.
   kChannelAttributes,
+
+  kGenerics,
 };
 
 // Represents a syntactic module in the AST.

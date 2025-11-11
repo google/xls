@@ -160,6 +160,9 @@ class Flattener : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleStructDef(const StructDef* node) override {
+    if (node->IsParametric() && node != root_) {
+      return absl::OkStatus();
+    }
     // StructDefBase::GetChildren does not return StructMemberNodes, this is
     // blocked by https://github.com/google/xls/issues/1756.
     nodes_.push_back(node->name_def());

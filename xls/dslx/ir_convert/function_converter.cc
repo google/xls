@@ -3252,21 +3252,25 @@ absl::Status FunctionConverter::HandleFunction(
     VLOG(5) << "Resolving parametric binding: "
             << parametric_binding->ToString();
 
-    std::optional<InterpValue> parametric_value =
-        GetParametricBinding(parametric_binding->identifier());
-    XLS_RET_CHECK(parametric_value.has_value());
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> parametric_type,
-                         ResolveType(parametric_binding->name_def()));
-    XLS_RET_CHECK(!parametric_type->IsMeta());
-    XLS_ASSIGN_OR_RETURN(TypeDim parametric_width_ctd,
-                         parametric_type->GetTotalBitCount());
-    XLS_ASSIGN_OR_RETURN(Value param_value,
-                         InterpValueToValue(*parametric_value));
-    const CValue evaluated = DefConst(parametric_binding, param_value);
-    const_prefill.SetNamedValue(parametric_binding->name_def()->identifier(),
-                                evaluated.ir_value);
-    XLS_RETURN_IF_ERROR(
-        DefAlias(parametric_binding, /*to=*/parametric_binding->name_def()));
+    if (!parametric_binding->type_annotation()
+             ->IsAnnotation<GenericTypeAnnotation>()) {
+      std::optional<InterpValue> parametric_value =
+          GetParametricBinding(parametric_binding->identifier());
+      XLS_RET_CHECK(parametric_value.has_value());
+      XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> parametric_type,
+                           ResolveType(parametric_binding->name_def()));
+      XLS_RET_CHECK(!parametric_type->IsMeta());
+      XLS_ASSIGN_OR_RETURN(TypeDim parametric_width_ctd,
+                           parametric_type->GetTotalBitCount());
+
+      XLS_ASSIGN_OR_RETURN(Value param_value,
+                           InterpValueToValue(*parametric_value));
+      const CValue evaluated = DefConst(parametric_binding, param_value);
+      const_prefill.SetNamedValue(parametric_binding->name_def()->identifier(),
+                                  evaluated.ir_value);
+      XLS_RETURN_IF_ERROR(
+          DefAlias(parametric_binding, /*to=*/parametric_binding->name_def()));
+    }
   }
 
   // If there is foreign function data, all constant values are replaced now.

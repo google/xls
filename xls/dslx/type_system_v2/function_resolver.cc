@@ -165,6 +165,12 @@ class FunctionResolverImpl : public FunctionResolver {
                              callee->ToString()),
             file_table_);
       }
+      if (fn->parent() == nullptr ||
+          fn->parent()->kind() != AstNodeKind::kImpl) {
+        // A call like `std::clog2(X)` that is a default expr for a struct
+        // parametric does not count as being in that struct's context.
+        target_struct_context = std::nullopt;
+      }
       return FunctionAndTargetObject{fn, target_object, target_struct_context};
     }
     return TypeInferenceErrorStatus(

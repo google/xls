@@ -310,6 +310,8 @@ absl::Status Parser::ParseModuleAttribute() {
     } else if (feature == "channel_attributes") {
       module_->AddAttribute(ModuleAttribute::kChannelAttributes,
                             attribute_span);
+    } else if (feature == "generics") {
+      module_->AddAttribute(ModuleAttribute::kGenerics, attribute_span);
     } else {
       return ParseErrorStatus(
           attribute_span,
@@ -4114,10 +4116,14 @@ absl::StatusOr<std::vector<ParametricBinding*>> Parser::ParseParametricBindings(
     XLS_RETURN_IF_ERROR(
         DropTokenOrError(TokenKind::kColon, /*start=*/nullptr,
                          "Expect type annotation on parametric"));
-    XLS_ASSIGN_OR_RETURN(TypeAnnotation * type,
-                         ParseTypeAnnotation(bindings,
-                                             /*first=*/std::nullopt,
-                                             /*allow_generic_type=*/true));
+    XLS_ASSIGN_OR_RETURN(
+        TypeAnnotation * type,
+        ParseTypeAnnotation(
+            bindings,
+            /*first=*/std::nullopt,
+            /*allow_generic_type=*/
+            parse_fn_stubs_ ||
+                module_->attributes().contains(ModuleAttribute::kGenerics)));
     if (GenericTypeAnnotation* gta =
             dynamic_cast<GenericTypeAnnotation*>(type)) {
       name_def->set_definer(gta);
@@ -4220,6 +4226,17 @@ absl::StatusOr<ExprOrType> Parser::ParseParametricArg(Bindings& bindings) {
                                        std::get<ColonRef*>(nocr)),
                 /*dims=*/{}, /*parametrics=*/{}));
         return ParseCast(bindings, type_annotation);
+      }
+    }
+    if (auto name_ref = std::get_if<NameRef*>(&nocr); name_ref) {
+      // In a case like foo<T>(), the `nocr` for `T` is  a `NameRef` to the type
+      // variable, and what we want to yield is a TVTA for that.
+      AnyNameDef any_name_def = (*name_ref)->name_def();
+      if (auto name_def = std::get_if<const NameDef*>(&any_name_def);
+          name_def && (*name_def)->definer() &&
+          (*name_def)->definer()->kind() == AstNodeKind::kTypeAnnotation) {
+        return module_->Make<TypeVariableTypeAnnotation>(*name_ref,
+                                                         /*internal=*/false);
       }
     }
     // Otherwise, it's a value or an unadorned imported type.

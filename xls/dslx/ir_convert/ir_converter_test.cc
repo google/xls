@@ -4249,6 +4249,124 @@ proc Proc {
               "Accessing proc member in non-unrolled loop is unsupported")));
 }
 
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       GenericTypePassthroughFunction) {
+  if (GetParam() == TypeInferenceVersion::kVersion1) {
+    return;
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(R"(
+#![feature(generics)]
+
+struct S { a: u32 }
+
+fn foo<T: type>(a: T) -> T { a }
+
+type MyInt = u34;
+
+enum MyEnum { A = 0 }
+
+fn main() {
+  const C = foo<u32>(5);
+  const D = foo<u16[3]>([1, 2, 3]);
+  const E = foo((s8:5, s8:6));
+  const F = foo<S>(S { a: 5 });
+  const G = foo<MyInt>(10);
+  const H = foo(MyEnum::A);
+}
+)",
+                                                kNoPosOptions));
+  ExpectIr(converted);
+}
+
+TEST_P(IrConverterWithBothTypecheckVersionsTest, SquareAnythingFunction) {
+  if (GetParam() == TypeInferenceVersion::kVersion1) {
+    return;
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(R"(
+#![feature(generics)]
+
+fn square<T: type>(a: T) -> T { a * a }
+
+fn main() -> (u32, s64) {
+  (square(u32:5), square<s64>(-12))
+}
+)",
+                                                kNoPosOptions));
+  ExpectIr(converted);
+}
+
+TEST_P(IrConverterWithBothTypecheckVersionsTest, OptionalStruct) {
+  if (GetParam() == TypeInferenceVersion::kVersion1) {
+    return;
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(R"(
+#![feature(generics)]
+
+struct Optional<T: type> {
+  has_value: bool,
+  value: T
+}
+
+fn make_optional<T: type>(value: T) -> Optional<T> {
+  Optional<T> { has_value: true, value: value }
+}
+
+fn make_nullopt<T: type>() -> Optional<T> {
+  zero!<Optional<T>>()
+}
+
+fn main() -> (Optional<u32>, Optional<u32>, Optional<u32[3]>,
+              Optional<Optional<u32>>) {
+  (make_optional(u32:5),
+   make_nullopt<u32>(),
+   make_optional<u32[3]>([1, 2, 3]),
+   make_optional(make_optional(u32:5)))
+}
+)",
+                                                kNoPosOptions));
+  ExpectIr(converted);
+}
+
+// TODO(https://github.com/google/xls/issues/3345) - FunctionConverter needs
+// better handling of impl invocations to handle generic dispatch.
+TEST_P(IrConverterWithBothTypecheckVersionsTest, DISABLED_CallFooOnAnything) {
+  if (GetParam() == TypeInferenceVersion::kVersion1) {
+    return;
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(R"(
+#![feature(generics)]
+
+struct U32Wrapper { a: u32 }
+struct S64Wrapper { a: s64 }
+
+impl U32Wrapper {
+  fn foo(self) -> u32 { self.a + 5 }
+}
+
+impl S64Wrapper {
+  fn foo(self) -> s64 { self.a * self.a }
+}
+
+fn call_foo<R: type, T: type>(value: T) -> R {
+  value.foo()
+}
+
+fn main() -> (u32, s64) {
+  (call_foo<u32>(U32Wrapper { a: 10 }), call_foo<s64>(S64Wrapper { a: -2 }))
+}
+)",
+                                                kNoPosOptions));
+  ExpectIr(converted);
+}
+
 class ProcScopedChannelsIrConverterTest
     : public IrConverterWithBothTypecheckVersionsTest {};
 

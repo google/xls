@@ -550,6 +550,11 @@ class InferenceTable {
       std::optional<const ParametricContext*> parametric_context,
       const NameRef* variable) const = 0;
 
+  // Retrieves the actual type of the given generic type in the given context.
+  virtual absl::StatusOr<TypeAnnotation*> GetGenericType(
+      std::optional<const ParametricContext*> parametric_context,
+      const NameDef* variable) = 0;
+
   // Returns the `Invocation` nodes that feed information into the given type
   // variable.
   virtual absl::StatusOr<std::vector<const Invocation*>>

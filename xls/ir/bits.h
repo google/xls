@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -82,6 +83,11 @@ class Bits {
   // are ignored.
   static Bits FromBytes(absl::Span<const uint8_t> bytes, int64_t bit_count) {
     return Bits(InlineBitmap::FromBytes(bit_count, bytes));
+  }
+
+  // Variant of FromBytes for converting a string.
+  static Bits FromBytes(std::string_view string) {
+    return Bits(InlineBitmap::FromBytes(string));
   }
 
   // Constructs a Bits object from a bitmap.

@@ -2584,15 +2584,20 @@ TEST_F(ParserTest, ModuleWithParametric) {
 }
 
 TEST_F(ParserTest, ModuleWithGenericType) {
-  RoundTrip(R"(fn parametric<T: type>() -> u32 {
+  RoundTrip(R"(#![feature(generics)]
+
+fn parametric<T: type>() -> u32 {
     zero!<T>()
 })");
 }
 
 TEST_F(ParserTest, ModuleWithInvalidGenericType) {
-  constexpr std::string_view text = R"(fn non_parametric(T: type) -> u32 {
+  constexpr std::string_view text = R"(#![feature(generics)]
+
+fn non_parametric(T: type) -> u32 {
     zero!<T>()
-})";
+}
+)";
   Scanner s{file_table_, Fileno(0), std::string{text}};
   Parser parser{"test", &s};
   auto module_status = parser.ParseModule();

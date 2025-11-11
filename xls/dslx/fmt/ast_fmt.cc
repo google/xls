@@ -3093,6 +3093,10 @@ absl::StatusOr<DocRef> Formatter::Format(const Module& n) {
           pieces.push_back(arena_.MakeText("#![feature(channel_attributes)]"));
           pieces.push_back(arena_.hard_line());
           break;
+        case ModuleAttribute::kGenerics:
+          pieces.push_back(arena_.MakeText("#![feature(generics)]"));
+          pieces.push_back(arena_.hard_line());
+          break;
       }
     }
     pieces.push_back(arena_.hard_line());

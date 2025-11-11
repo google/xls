@@ -6144,15 +6144,6 @@ TEST(TypecheckV2Test, ValueTypeParametricMismatch) {
       TypecheckFails(HasSubstr("Expected parametric value, saw `u32`")));
 }
 
-TEST(TypecheckV2Test, TypeValueParametricMismatch) {
-  EXPECT_THAT(
-      R"(
-  fn fake_decode<T: type>(x: u32) -> u32 { x }
-
-  const Y = fake_decode<u32:32>(u32:1);)",
-      TypecheckFails(HasSubstr("Expected parametric type, saw `u32:32`")));
-}
-
 TEST(TypecheckV2Test, ForArray) {
   EXPECT_THAT(
       R"(

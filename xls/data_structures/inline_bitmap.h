@@ -21,6 +21,7 @@
 #include <cstring>
 #include <iterator>
 #include <optional>
+#include <string_view>
 #include <utility>
 
 #include "absl/base/casts.h"
@@ -75,6 +76,19 @@ class InlineBitmap {
     // the memcpy with a check that the span is not empty.
     if (!result.data_.empty()) {
       std::memcpy(result.data_.data(), bytes.data(), byte_count);
+    }
+    result.MaskLastWord();
+    return result;
+  }
+
+  // Variant of FromBytes for converting a string.
+  static InlineBitmap FromBytes(std::string_view bytes) {
+    InlineBitmap result(bytes.size() * 8, false);
+    // memcpy() requires valid pointers even when the number of bytes copied is
+    // zero, and an empty absl::Span's data() pointer may not be valid. Guard
+    // the memcpy with a check that the span is not empty.
+    if (!result.data_.empty()) {
+      std::memcpy(result.data_.data(), bytes.data(), bytes.size());
     }
     result.MaskLastWord();
     return result;

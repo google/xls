@@ -500,22 +500,28 @@ class Unifier {
       }
       for (int i = 0; i < struct_or_proc_ref->parametrics.size(); i++) {
         ExprOrType parametric = struct_or_proc_ref->parametrics[i];
+        std::optional<InterpValue> value;
         const ParametricBinding* binding = struct_def.parametric_bindings()[i];
-        XLS_RET_CHECK(std::holds_alternative<Expr*>(parametric));
-        auto* expr = std::get<Expr*>(parametric);
-        XLS_ASSIGN_OR_RETURN(
-            InterpValue value,
-            evaluator_.Evaluate(ParametricContextScopedExpr(
-                parametric_context_, binding->type_annotation(), expr)));
+        if (std::holds_alternative<TypeAnnotation*>(parametric)) {
+          value = InterpValue::MakeTypeReference(
+              std::get<TypeAnnotation*>(parametric));
+        } else {
+          auto* expr = std::get<Expr*>(parametric);
+          XLS_ASSIGN_OR_RETURN(
+              value,
+              evaluator_.Evaluate(ParametricContextScopedExpr(
+                  parametric_context_, binding->type_annotation(), expr)));
+        }
+
         if (i == explicit_parametrics.size()) {
-          explicit_parametrics.push_back(value);
-        } else if (value != explicit_parametrics[i]) {
+          explicit_parametrics.push_back(*value);
+        } else if (*value != explicit_parametrics[i]) {
           return TypeInferenceErrorStatusForAnnotation(
               annotation->span(), annotation,
               absl::Substitute("Value mismatch for parametric `$0` of struct "
                                "`$1`: $2 vs. $3",
                                binding->identifier(), struct_def.identifier(),
-                               value.ToString(),
+                               value->ToString(),
                                explicit_parametrics[i].ToString()),
               file_table_);
         }

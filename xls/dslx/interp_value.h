@@ -54,6 +54,7 @@ enum class InterpValueTag : uint8_t {
   kFunction,
   kToken,
   kChannelReference,
+  kTypeReference,
 };
 
 std::string TagToString(InterpValueTag tag);
@@ -169,6 +170,14 @@ class InterpValue {
     return InterpValue(InterpValueTag::kToken, std::make_shared<TokenData>());
   }
 
+  static InterpValue MakeTypeReference(const TypeAnnotation* annotation) {
+    std::string string = annotation->ToString();
+    return InterpValue(InterpValueTag::kTypeReference,
+                       TypeReference{.annotation = annotation,
+                                     .string = string,
+                                     .bits = Bits::FromBytes(string)});
+  }
+
   // Queries
 
   bool IsTuple() const { return tag_ == InterpValueTag::kTuple; }
@@ -186,6 +195,9 @@ class InterpValue {
   bool IsTraceBuiltin() const {
     return IsBuiltinFunction() &&
            std::get<Builtin>(GetFunctionOrDie()) == Builtin::kTrace;
+  }
+  bool IsTypeReference() const {
+    return tag_ == InterpValueTag::kTypeReference;
   }
 
   bool IsFalse() const { return IsBool() && GetBitsOrDie().IsZero(); }
@@ -344,6 +356,7 @@ class InterpValue {
   const FnData& GetFunctionOrDie() const { return *GetFunction().value(); }
   absl::StatusOr<Bits> GetBits() const;
   const Bits& GetBitsOrDie() const;
+  absl::StatusOr<const TypeAnnotation*> GetTypeReference() const;
   absl::StatusOr<ChannelReference> GetChannelReference() const;
   ChannelReference GetChannelReferenceOrDie() const {
     return std::get<ChannelReference>(payload_);
@@ -370,7 +383,8 @@ class InterpValue {
   // apply to enum values as well.
   bool HasBits() const {
     return std::holds_alternative<Bits>(payload_) ||
-           std::holds_alternative<EnumData>(payload_);
+           std::holds_alternative<EnumData>(payload_) ||
+           std::holds_alternative<TypeReference>(payload_);
   }
 
   bool HasValues() const {
@@ -427,8 +441,15 @@ class InterpValue {
   //
   // TODO(leary): 2020-02-10 When all Python bindings are eliminated we can more
   // easily make an interpreter scoped lifetime that InterpValues can live in.
-  using Payload = std::variant<Bits, EnumData, std::vector<InterpValue>, FnData,
-                               std::shared_ptr<TokenData>, ChannelReference>;
+  struct TypeReference {
+    const TypeAnnotation* annotation;
+    std::string string;
+    Bits bits;
+  };
+
+  using Payload =
+      std::variant<Bits, EnumData, std::vector<InterpValue>, FnData,
+                   std::shared_ptr<TokenData>, ChannelReference, TypeReference>;
 
   InterpValue(InterpValueTag tag, Payload payload)
       : tag_(tag), payload_(std::move(payload)) {}

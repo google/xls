@@ -931,6 +931,10 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     for (int i = 0; i < struct_def->parametric_bindings().size(); i++) {
       const ParametricBinding* binding = struct_def->parametric_bindings()[i];
       if (i < struct_or_proc_ref->parametrics.size()) {
+        if (std::holds_alternative<TypeAnnotation*>(
+                struct_or_proc_ref->parametrics[i])) {
+          continue;
+        }
         const Expr* actual_expr =
             i < struct_or_proc_ref->parametrics.size()
                 ? std::get<Expr*>(struct_or_proc_ref->parametrics[i])

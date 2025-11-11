@@ -16,7 +16,6 @@
 
 #include <memory>
 #include <optional>
-#include <string>
 #include <string_view>
 #include <variant>
 #include <vector>
@@ -28,6 +27,7 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/substitute.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
@@ -58,7 +58,8 @@ class SolveForParametricsTest : public ::testing::Test {
 
   absl::StatusOr<std::unique_ptr<Module>> Parse(std::string_view program,
                                                 bool parse_fn_stubs = false) {
-    scanner_.emplace(file_table_, Fileno(0), std::string(program));
+    scanner_.emplace(file_table_, Fileno(0),
+                     absl::StrCat("#![feature(generics)]\n\n", program));
     parser_.emplace("test", &*scanner_, parse_fn_stubs);
     return parser_->ParseModule();
   }

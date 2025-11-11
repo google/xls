@@ -24,6 +24,7 @@
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -47,6 +48,19 @@ std::string MangleInterpValue(const InterpValue& value) {
     // Negatives are not valid characters in IR symbols so replace leading '-'
     // with 'm'.
     return absl::StrReplaceAll(s, {{"-", "m"}});
+  }
+
+  if (value.IsTypeReference()) {
+    std::string result =
+        absl::StrReplaceAll(value.ToString(), {{"[", "__dim_"},
+                                               {"]", ""},
+                                               {"(", "__tuple_"},
+                                               {")", ""},
+                                               {",", "__"},
+                                               {" ", ""},
+                                               {"<", "__type_"},
+                                               {">", ""}});
+    return absl::StartsWith(result, "__") ? result.substr(2) : result;
   }
 
   CHECK(value.IsArray() || value.IsTuple())

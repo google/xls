@@ -66,6 +66,8 @@ std::string TagToString(InterpValueTag tag) {
       return "token";
     case InterpValueTag::kChannelReference:
       return "channel_reference";
+    case InterpValueTag::kTypeReference:
+      return "type_reference";
   }
   return absl::StrFormat("<invalid InterpValueTag(%d)>",
                          static_cast<int64_t>(tag));
@@ -187,7 +189,8 @@ std::string InterpValue::ToString(bool humanize,
       tag_ == InterpValueTag::kSBits || tag_ == InterpValueTag::kTuple ||
       tag_ == InterpValueTag::kArray || tag_ == InterpValueTag::kEnum ||
       tag_ == InterpValueTag::kFunction || tag_ == InterpValueTag::kToken ||
-      tag_ == InterpValueTag::kChannelReference) {
+      tag_ == InterpValueTag::kChannelReference ||
+      tag_ == InterpValueTag::kTypeReference) {
     return result;
   }
   LOG(FATAL) << "Unhandled tag: " << tag_;
@@ -240,6 +243,8 @@ std::string InterpValue::ToStringInternal(bool humanize,
           GetChannelReferenceOrDie().GetChannelId().has_value()
               ? absl::StrCat(*GetChannelReferenceOrDie().GetChannelId())
               : "none");
+    case InterpValueTag::kTypeReference:
+      return std::get<TypeReference>(payload_).string;
   }
   return "<INVALID>";
 }
@@ -426,6 +431,7 @@ bool InterpValue::Eq(const InterpValue& other) const {
     // bit value can be used in any place an enum type is annotated.
     case InterpValueTag::kSBits:
     case InterpValueTag::kUBits:
+    case InterpValueTag::kTypeReference:
     case InterpValueTag::kEnum: {
       return other.HasBits() && GetBitsOrDie() == other.GetBitsOrDie();
     }
@@ -472,6 +478,7 @@ bool InterpValue::operator==(const InterpValue& rhs) const { return Eq(rhs); }
   }
   switch (lhs.tag_) {
     case InterpValueTag::kUBits:
+    case InterpValueTag::kTypeReference:
       return MakeBool(ucmp(lhs.GetBitsOrDie(), rhs.GetBitsOrDie()));
     case InterpValueTag::kSBits:
       return MakeBool(scmp(lhs.GetBitsOrDie(), rhs.GetBitsOrDie()));
@@ -759,8 +766,18 @@ const Bits& InterpValue::GetBitsOrDie() const {
   if (std::holds_alternative<Bits>(payload_)) {
     return std::get<Bits>(payload_);
   }
+  if (auto* ref = std::get_if<TypeReference>(&payload_)) {
+    return ref->bits;
+  }
 
   return std::get<EnumData>(payload_).value;
+}
+
+absl::StatusOr<const TypeAnnotation*> InterpValue::GetTypeReference() const {
+  if (std::holds_alternative<TypeReference>(payload_)) {
+    return std::get<TypeReference>(payload_).annotation;
+  }
+  return absl::InvalidArgumentError("Value does not contain a type reference.");
 }
 
 absl::StatusOr<InterpValue::ChannelReference> InterpValue::GetChannelReference()
@@ -1030,6 +1047,10 @@ absl::StatusOr<xls::Value> InterpValue::ConvertToIr() const {
     case InterpValueTag::kChannelReference: {
       return absl::InvalidArgumentError(absl::StrFormat(
           "Cannot convert channel-reference-typed values to IR."));
+    }
+    case InterpValueTag::kTypeReference: {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Cannot convert type-reference-typed values to IR."));
     }
   }
   LOG(FATAL) << "Unhandled tag: " << tag_;

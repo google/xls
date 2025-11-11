@@ -1122,6 +1122,10 @@ TypeVariableTypeAnnotation::TypeVariableTypeAnnotation(
       internal_(internal) {}
 
 std::string TypeVariableTypeAnnotation::ToString() const {
+  if (!internal_) {
+    return type_variable_->ToString();
+  }
+
   return absl::StrCat("TypeVariableTypeAnnotation: ",
                       type_variable_->ToString());
 }

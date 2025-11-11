@@ -94,6 +94,9 @@ std::string Module::ToString() const {
             case ModuleAttribute::kChannelAttributes:
               absl::StrAppend(out, "#![feature(channel_attributes)]");
               break;
+            case ModuleAttribute::kGenerics:
+              absl::StrAppend(out, "#![feature(generics)]");
+              break;
           }
         });
     return absl::StrCat(header, "\n\n", body);

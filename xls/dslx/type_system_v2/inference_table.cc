@@ -466,6 +466,19 @@ class InferenceTableImpl : public InferenceTable {
     mutable_parametric_context_data_.emplace(result,
                                              MutableParametricContextData{});
     converted_parametric_envs_.emplace(result, parametric_env);
+
+    for (const ParametricBinding* binding : struct_def->parametric_bindings()) {
+      if (binding->type_annotation()->IsAnnotation<GenericTypeAnnotation>()) {
+        std::optional<InterpValue> value =
+            parametric_env.GetValue(binding->name_def());
+        if (value.has_value()) {
+          XLS_ASSIGN_OR_RETURN(const TypeAnnotation* type,
+                               value->GetTypeReference());
+          XLS_RETURN_IF_ERROR(AddTypeAnnotationToVariableForParametricContext(
+              result, binding, type));
+        }
+      }
+    }
     return StructContextResult{.context = result, .created_new = true};
   }
 
@@ -585,11 +598,29 @@ class InferenceTableImpl : public InferenceTable {
     return it->second;
   }
 
+  absl::StatusOr<TypeAnnotation*> GetGenericType(
+      std::optional<const ParametricContext*> parametric_context,
+      const NameDef* variable) override {
+    XLS_ASSIGN_OR_RETURN(
+        std::vector<const TypeAnnotation*> annotations,
+        GetTypeAnnotationsForTypeVariable(parametric_context, variable));
+    XLS_RET_CHECK_EQ(annotations.size(), 1);
+    return const_cast<TypeAnnotation*>(annotations[0]);
+  }
+
   absl::StatusOr<std::vector<const TypeAnnotation*>>
   GetTypeAnnotationsForTypeVariable(
       std::optional<const ParametricContext*> parametric_context,
       const NameRef* ref) const override {
-    XLS_ASSIGN_OR_RETURN(const InferenceVariable* variable, GetVariable(ref));
+    return GetTypeAnnotationsForTypeVariable(
+        parametric_context, std::get<const NameDef*>(ref->name_def()));
+  }
+
+  absl::StatusOr<std::vector<const TypeAnnotation*>>
+  GetTypeAnnotationsForTypeVariable(
+      std::optional<const ParametricContext*> parametric_context,
+      const NameDef* def) const {
+    XLS_ASSIGN_OR_RETURN(const InferenceVariable* variable, GetVariable(def));
     const auto it = type_annotations_per_type_variable_.find(variable);
     std::vector<const TypeAnnotation*> result =
         (it == type_annotations_per_type_variable_.end())

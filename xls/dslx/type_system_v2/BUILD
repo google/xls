@@ -448,6 +448,21 @@ cc_test(
 )
 
 cc_test(
+    name = "typecheck_module_v2_generics_test",
+    srcs = ["typecheck_module_v2_generics_test.cc"],
+    deps = [
+        ":matchers",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:import_data",
+        "//xls/dslx/type_system:typecheck_test_utils",
+        "@com_google_absl//absl/status:status_matchers",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
     name = "typecheck_module_v2_stdlib_test",
     srcs = ["typecheck_module_v2_stdlib_test.cc"],
     deps = [
