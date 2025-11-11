@@ -3584,6 +3584,11 @@ absl::Status FunctionConverter::HandleProcNextFunction(
   proc_id_ = proc_id;
 
   for (ParametricBinding* parametric_binding : f->parametric_bindings()) {
+    if (parametric_binding->type_annotation()
+            ->IsAnnotation<GenericTypeAnnotation>()) {
+      continue;
+    }
+
     VLOG(5) << "Resolving parametric binding: "
             << parametric_binding->ToString();
 

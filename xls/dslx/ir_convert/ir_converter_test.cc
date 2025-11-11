@@ -4367,6 +4367,55 @@ fn main() -> (u32, s64) {
   ExpectIr(converted);
 }
 
+TEST_P(IrConverterWithBothTypecheckVersionsTest, GenericProc) {
+  if (GetParam() == TypeInferenceVersion::kVersion1) {
+    return;
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(R"(
+#![feature(generics)]
+
+proc P<T: type> {
+  c: chan<T> out;
+
+  init {
+    zero!<T>()
+  }
+  config(input_c: chan<T> out) {
+    (input_c,)
+  }
+  next(i: T) {
+    let tok = send(join(), c, i);
+    i + 1
+  }
+}
+
+proc Main {
+  in_c_u32: chan<u32> in;
+  in_c_s64: chan<s64> in;
+
+  init {
+    (u32:0, s64:0)
+  }
+  config() {
+    let (out_c_u32, in_c_u32) = chan<u32>("c_u32");
+    let (out_c_s64, in_c_s64) = chan<s64>("c_s64");
+    spawn P<u32>(out_c_u32);
+    spawn P<s64>(out_c_s64);
+    (in_c_u32, in_c_s64)
+  }
+  next(i: (u32, s64)) {
+    let (tok, i_u32) = recv(join(), in_c_u32);
+    let (tok, i_s64) = recv(tok, in_c_s64);
+    (i_u32, i_s64)
+  }
+}
+)",
+                                                kNoPosOptions));
+  ExpectIr(converted);
+}
+
 class ProcScopedChannelsIrConverterTest
     : public IrConverterWithBothTypecheckVersionsTest {};
 
