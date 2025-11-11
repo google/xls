@@ -79,6 +79,8 @@ message NodeAttributes {
 
   // If present the interval-set of the node.
   optional string ranges = 32;
+  // If present the number of known leading sign bits.
+  optional int64 leading_signs = 34;
 }
 
 message SourceLocation {

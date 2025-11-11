@@ -44,6 +44,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/passes/bdd_query_engine.h"
+#include "xls/passes/bit_count_query_engine.h"
 #include "xls/passes/partial_info_query_engine.h"
 #include "xls/passes/proc_state_range_query_engine.h"
 #include "xls/passes/query_engine.h"
@@ -115,6 +116,10 @@ absl::StatusOr<viz::NodeAttributes> NodeAttributes(
   if (query_engine.IsTracked(node)) {
     attributes.set_known_bits(query_engine.ToString(node));
     attributes.set_ranges(query_engine.GetIntervals(node).ToString());
+    auto leading_signs = query_engine.KnownLeadingSignBits(node);
+    if (leading_signs) {
+      attributes.set_leading_signs(*leading_signs);
+    }
   }
   if (std::optional<int64_t> state_index = MaybeGetStateReadIndex(node);
       state_index.has_value()) {
@@ -197,9 +202,10 @@ absl::StatusOr<viz::FunctionBase> FunctionBaseToVisualizationProto(
     }
   }
 
-  auto query_engine = UnionQueryEngine::Of(
-      BddQueryEngine(BddQueryEngine::kDefaultPathLimit),
-      PartialInfoQueryEngine(), ProcStateRangeQueryEngine());
+  auto query_engine =
+      UnionQueryEngine::Of(BddQueryEngine(BddQueryEngine::kDefaultPathLimit),
+                           PartialInfoQueryEngine(),
+                           ProcStateRangeQueryEngine(), BitCountQueryEngine());
   XLS_RETURN_IF_ERROR(query_engine.Populate(function).status());
 
   using NodeDAG =
