@@ -52,6 +52,8 @@
 namespace xls::dslx {
 namespace {
 
+using ::testing::ElementsAre;
+
 absl::StatusOr<TypecheckedModule> ParseAndTypecheckOrPrintError(
     std::string_view program, ImportData* import_data) {
   // Parse/typecheck and print a helpful error.
@@ -174,7 +176,7 @@ fn main() -> () {
                                        [&](const Span&, std::string_view s) {
                                          trace_output.push_back(std::string{s});
                                        })));
-  EXPECT_THAT(trace_output, testing::ElementsAre("trace of u32:42: 42"));
+  EXPECT_THAT(trace_output, ElementsAre("trace of u32:42: 42"));
   EXPECT_EQ(value, InterpValue::MakeUnit());
 }
 
@@ -193,7 +195,7 @@ fn main() -> () {
                       trace_output.push_back(std::string{s});
                     })
                     .format_preference(FormatPreference::kHex)));
-  EXPECT_THAT(trace_output, testing::ElementsAre("trace of u32:42: 0x2a"));
+  EXPECT_THAT(trace_output, ElementsAre("trace of u32:42: 0x2a"));
   EXPECT_EQ(value, InterpValue::MakeUnit());
 }
 
@@ -220,7 +222,7 @@ fn main() -> () {
                                        [&](const Span&, std::string_view s) {
                                          trace_output.push_back(std::string{s});
                                        })));
-  EXPECT_THAT(trace_output, testing::ElementsAre("42"));
+  EXPECT_THAT(trace_output, ElementsAre("42"));
   EXPECT_EQ(value, InterpValue::MakeUnit());
 }
 
@@ -239,7 +241,7 @@ fn main() -> () {
                       trace_output.push_back(std::string{s});
                     })
                     .format_preference(FormatPreference::kHex)));
-  EXPECT_THAT(trace_output, testing::ElementsAre("0x2a"));
+  EXPECT_THAT(trace_output, ElementsAre("0x2a"));
   EXPECT_EQ(value, InterpValue::MakeUnit());
 }
 
@@ -258,7 +260,7 @@ fn main() -> () {
                       trace_output.push_back(std::string{s});
                     })
                     .format_preference(FormatPreference::kBinary)));
-  EXPECT_THAT(trace_output, testing::ElementsAre("0b10_1010"));
+  EXPECT_THAT(trace_output, ElementsAre("0b10_1010"));
   EXPECT_EQ(value, InterpValue::MakeUnit());
 }
 
@@ -280,7 +282,7 @@ fn main() -> () {
                                        [&](const Span&, std::string_view s) {
                                          trace_output.push_back(std::string{s});
                                        })));
-  EXPECT_THAT(trace_output, testing::ElementsAre(R"(Point {
+  EXPECT_THAT(trace_output, ElementsAre(R"(Point {
     x: 42,
     y: 64
 })"));
@@ -307,7 +309,7 @@ fn main() -> () {
                       trace_output.push_back(std::string{s});
                     })
                     .format_preference(FormatPreference::kHex)));
-  EXPECT_THAT(trace_output, testing::ElementsAre(R"(Point {
+  EXPECT_THAT(trace_output, ElementsAre(R"(Point {
     x: 0x2a,
     y: 0x40
 })"));
@@ -334,7 +336,7 @@ fn main() -> () {
                       trace_output.push_back(std::string{s});
                     })
                     .format_preference(FormatPreference::kBinary)));
-  EXPECT_THAT(trace_output, testing::ElementsAre(R"(Point {
+  EXPECT_THAT(trace_output, ElementsAre(R"(Point {
     x: 0b10_1010,
     y: 0b100_0000
 })"));
@@ -365,7 +367,7 @@ fn main() -> () {
                                        [&](const Span&, std::string_view s) {
                                          trace_output.push_back(std::string{s});
                                        })));
-  EXPECT_THAT(trace_output, testing::ElementsAre(R"(Foo {
+  EXPECT_THAT(trace_output, ElementsAre(R"(Foo {
     p: Point {
         x: 42,
         y: 64
@@ -402,7 +404,7 @@ fn main() -> () {
                     })
                     .format_preference(FormatPreference::kHex)));
 
-  EXPECT_THAT(trace_output, testing::ElementsAre(R"(Foo {
+  EXPECT_THAT(trace_output, ElementsAre(R"(Foo {
     p: Point {
         x: 0x2a,
         y: 0x40
@@ -2657,6 +2659,134 @@ fn g() -> u32[3] {
   XLS_ASSERT_OK_AND_ASSIGN(element, result.Index(InterpValue::MakeU32(2)));
   XLS_ASSERT_OK_AND_ASSIGN(bit_value, element.GetBitValueViaSign());
   EXPECT_EQ(bit_value, 8);
+}
+
+TEST_F(BytecodeInterpreterTest, GenericTypePassthroughFunction) {
+  constexpr std::string_view kProgram = R"(
+#![feature(generics)]
+
+struct S { a: u32 }
+
+fn foo<T: type>(a: T) -> T { a }
+
+type MyInt = u34;
+
+fn main() -> (u32, u16[3], (s8, s8), S, MyInt) {
+  (foo<u32>(5),
+   foo<u16[3]>([1, 2, 3]),
+   foo((s8:5, s8:6)),
+   foo<S>(S { a: 5 }),
+   foo<MyInt>(10))
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue result, Interpret(kProgram, "main", {}));
+  XLS_ASSERT_OK_AND_ASSIGN(const std::vector<InterpValue>* values,
+                           result.GetValues());
+  EXPECT_THAT(
+      *values,
+      ElementsAre(
+          InterpValue::MakeU32(5),
+          *InterpValue::MakeArray(std::vector<InterpValue>{
+              InterpValue::MakeUBits(16, 1), InterpValue::MakeUBits(16, 2),
+              InterpValue::MakeUBits(16, 3)}),
+          InterpValue::MakeTuple(std::vector<InterpValue>{
+              InterpValue::MakeSBits(8, 5), InterpValue::MakeSBits(8, 6)}),
+          InterpValue::MakeTuple(
+              std::vector<InterpValue>{InterpValue::MakeU32(5)}),
+          InterpValue::MakeUBits(34, 10)));
+}
+
+TEST_F(BytecodeInterpreterTest, GenericSquareFunction) {
+  constexpr std::string_view kProgram = R"(
+#![feature(generics)]
+
+fn square<T: type>(a: T) -> T { a * a }
+
+fn main() -> (u32, s64) {
+  (square(u32:5), square<s64>(-12))
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue result, Interpret(kProgram, "main", {}));
+  XLS_ASSERT_OK_AND_ASSIGN(const std::vector<InterpValue>* values,
+                           result.GetValues());
+  EXPECT_THAT(*values, ElementsAre(InterpValue::MakeU32(25),
+                                   InterpValue::MakeSBits(64, 144)));
+}
+
+TEST_F(BytecodeInterpreterTest, GenericStruct) {
+  constexpr std::string_view kProgram = R"(
+#![feature(generics)]
+
+struct Optional<T: type> {
+  has_value: bool,
+  value: T
+}
+
+fn make_optional<T: type>(value: T) -> Optional<T> {
+  Optional<T> { has_value: true, value: value }
+}
+
+fn make_nullopt<T: type>() -> Optional<T> {
+  zero!<Optional<T>>()
+}
+
+fn main() -> (Optional<u32>, Optional<u32>, Optional<u32[3]>,
+              Optional<Optional<u32>>) {
+  (make_optional(u32:5),
+   make_nullopt<u32>(),
+   make_optional<u32[3]>([1, 2, 3]),
+   make_optional(make_optional(u32:5)))
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue result, Interpret(kProgram, "main", {}));
+  XLS_ASSERT_OK_AND_ASSIGN(const std::vector<InterpValue>* values,
+                           result.GetValues());
+  EXPECT_THAT(
+      *values,
+      ElementsAre(
+          InterpValue::MakeTuple(std::vector<InterpValue>{
+              InterpValue::MakeBool(true), InterpValue::MakeU32(5)}),
+          InterpValue::MakeTuple(std::vector<InterpValue>{
+              InterpValue::MakeBool(false), InterpValue::MakeU32(0)}),
+          InterpValue::MakeTuple(std::vector<InterpValue>{
+              InterpValue::MakeBool(true),
+              *InterpValue::MakeArray(std::vector<InterpValue>{
+                  InterpValue::MakeU32(1), InterpValue::MakeU32(2),
+                  InterpValue::MakeU32(3)})}),
+          InterpValue::MakeTuple(std::vector<InterpValue>{
+              InterpValue::MakeBool(true),
+              InterpValue::MakeTuple(std::vector<InterpValue>{
+                  InterpValue::MakeBool(true), InterpValue::MakeU32(5)})})));
+}
+
+TEST_F(BytecodeInterpreterTest, GenericImplDispatch) {
+  constexpr std::string_view kProgram = R"(
+#![feature(generics)]
+
+struct U32Wrapper { a: u32 }
+struct S64Wrapper { a: s64 }
+
+impl U32Wrapper {
+  fn foo(self) -> u32 { self.a + 5 }
+}
+
+impl S64Wrapper {
+  fn foo(self) -> s64 { self.a * self.a }
+}
+
+fn call_foo<R: type, T: type>(value: T) -> R {
+  value.foo()
+}
+
+fn main() -> (u32, s64) {
+  (call_foo<u32>(U32Wrapper { a: 10 }), call_foo<s64>(S64Wrapper { a: -2 }))
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue result, Interpret(kProgram, "main", {}));
+  XLS_ASSERT_OK_AND_ASSIGN(const std::vector<InterpValue>* values,
+                           result.GetValues());
+  EXPECT_THAT(*values,
+              ElementsAre(InterpValue::MakeU32(15), InterpValue::MakeS64(4)));
 }
 
 }  // namespace
