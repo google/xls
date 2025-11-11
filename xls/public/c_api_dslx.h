@@ -78,6 +78,7 @@ struct xls_dslx_function;
 struct xls_dslx_quickcheck;
 struct xls_dslx_function;
 struct xls_dslx_param;
+struct xls_dslx_parametric_binding;
 struct xls_dslx_expr;
 struct xls_dslx_invocation;
 struct xls_dslx_invocation_callee_data;
@@ -237,17 +238,31 @@ struct xls_dslx_function* xls_dslx_module_member_get_function(
 // Returns whether the given DSLX function is parametric.
 bool xls_dslx_function_is_parametric(struct xls_dslx_function*);
 
+// Returns whether the given DSLX function is declared `pub`.
+bool xls_dslx_function_is_public(struct xls_dslx_function*);
+
 // Note: return value is owned by the caller, free via `xls_c_str_free`.
 char* xls_dslx_function_get_identifier(struct xls_dslx_function*);
 
 // Returns the number of parameters for the given DSLX function.
 int64_t xls_dslx_function_get_param_count(struct xls_dslx_function* fn);
 
+// Returns the number of parametric bindings declared by the given DSLX
+// function.
+int64_t xls_dslx_function_get_parametric_binding_count(
+    struct xls_dslx_function* fn);
+
 // Returns the i-th parameter of the given DSLX function.
 // The returned pointer is borrowed and tied to the lifetime of the underlying
 // function/module objects.
 struct xls_dslx_param* xls_dslx_function_get_param(struct xls_dslx_function* fn,
                                                    int64_t index);
+
+// Returns the i-th parametric binding of the given DSLX function.
+// The returned pointer is borrowed and tied to the lifetime of the underlying
+// function/module objects.
+struct xls_dslx_parametric_binding* xls_dslx_function_get_parametric_binding(
+    struct xls_dslx_function* fn, int64_t index);
 
 // Note: return value is owned by the caller, free via `xls_c_str_free`.
 char* xls_dslx_param_get_name(struct xls_dslx_param* p);
@@ -257,8 +272,30 @@ char* xls_dslx_param_get_name(struct xls_dslx_param* p);
 struct xls_dslx_type_annotation* xls_dslx_param_get_type_annotation(
     struct xls_dslx_param* p);
 
+// Returns the function body as an expression (statement block).
+struct xls_dslx_expr* xls_dslx_function_get_body(struct xls_dslx_function* fn);
+
+// Returns the return-type annotation for the given function, or nullptr if none
+// was written in the source.
+struct xls_dslx_type_annotation* xls_dslx_function_get_return_type(
+    struct xls_dslx_function* fn);
+
+// Note: return value is owned by the caller, free via `xls_c_str_free`.
+char* xls_dslx_parametric_binding_get_identifier(
+    struct xls_dslx_parametric_binding* binding);
+
+struct xls_dslx_type_annotation*
+xls_dslx_parametric_binding_get_type_annotation(
+    struct xls_dslx_parametric_binding* binding);
+
+struct xls_dslx_expr* xls_dslx_parametric_binding_get_expr(
+    struct xls_dslx_parametric_binding* binding);
+
 // Note: return value is owned by the caller, free via `xls_c_str_free`.
 char* xls_dslx_function_to_string(struct xls_dslx_function* fn);
+
+// Note: return value is owned by the caller, free via `xls_c_str_free`.
+char* xls_dslx_expr_to_string(struct xls_dslx_expr* expr);
 
 // -- call_graph
 

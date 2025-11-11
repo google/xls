@@ -561,6 +561,11 @@ bool xls_dslx_function_is_parametric(struct xls_dslx_function* fn) {
   return cpp_function->IsParametric();
 }
 
+bool xls_dslx_function_is_public(struct xls_dslx_function* fn) {
+  auto* cpp_function = reinterpret_cast<xls::dslx::Function*>(fn);
+  return cpp_function->is_public();
+}
+
 char* xls_dslx_function_get_identifier(struct xls_dslx_function* fn) {
   auto* cpp_function = reinterpret_cast<xls::dslx::Function*>(fn);
   const std::string& result = cpp_function->identifier();
@@ -572,11 +577,26 @@ int64_t xls_dslx_function_get_param_count(struct xls_dslx_function* fn) {
   return static_cast<int64_t>(cpp_function->params().size());
 }
 
+int64_t xls_dslx_function_get_parametric_binding_count(
+    struct xls_dslx_function* fn) {
+  auto* cpp_function = reinterpret_cast<xls::dslx::Function*>(fn);
+  return static_cast<int64_t>(cpp_function->parametric_bindings().size());
+}
+
 struct xls_dslx_param* xls_dslx_function_get_param(struct xls_dslx_function* fn,
                                                    int64_t index) {
   auto* cpp_function = reinterpret_cast<xls::dslx::Function*>(fn);
   xls::dslx::Param* cpp_param = cpp_function->params().at(index);
   return reinterpret_cast<xls_dslx_param*>(cpp_param);
+}
+
+struct xls_dslx_parametric_binding*
+xls_dslx_function_get_parametric_binding(struct xls_dslx_function* fn,
+                                         int64_t index) {
+  auto* cpp_function = reinterpret_cast<xls::dslx::Function*>(fn);
+  xls::dslx::ParametricBinding* cpp_binding =
+      cpp_function->parametric_bindings().at(index);
+  return reinterpret_cast<xls_dslx_parametric_binding*>(cpp_binding);
 }
 
 char* xls_dslx_param_get_name(struct xls_dslx_param* p) {
@@ -591,9 +611,51 @@ struct xls_dslx_type_annotation* xls_dslx_param_get_type_annotation(
   return reinterpret_cast<xls_dslx_type_annotation*>(cpp_ta);
 }
 
+struct xls_dslx_expr* xls_dslx_function_get_body(struct xls_dslx_function* fn) {
+  auto* cpp_function = reinterpret_cast<xls::dslx::Function*>(fn);
+  xls::dslx::StatementBlock* cpp_body = cpp_function->body();
+  return reinterpret_cast<xls_dslx_expr*>(cpp_body);
+}
+
+struct xls_dslx_type_annotation* xls_dslx_function_get_return_type(
+    struct xls_dslx_function* fn) {
+  auto* cpp_function = reinterpret_cast<xls::dslx::Function*>(fn);
+  xls::dslx::TypeAnnotation* cpp_return_type = cpp_function->return_type();
+  return reinterpret_cast<xls_dslx_type_annotation*>(cpp_return_type);
+}
+
+char* xls_dslx_parametric_binding_get_identifier(
+    struct xls_dslx_parametric_binding* binding) {
+  auto* cpp_binding =
+      reinterpret_cast<xls::dslx::ParametricBinding*>(binding);
+  return xls::ToOwnedCString(cpp_binding->identifier());
+}
+
+struct xls_dslx_type_annotation*
+xls_dslx_parametric_binding_get_type_annotation(
+    struct xls_dslx_parametric_binding* binding) {
+  auto* cpp_binding =
+      reinterpret_cast<xls::dslx::ParametricBinding*>(binding);
+  xls::dslx::TypeAnnotation* cpp_type = cpp_binding->type_annotation();
+  return reinterpret_cast<xls_dslx_type_annotation*>(cpp_type);
+}
+
+struct xls_dslx_expr* xls_dslx_parametric_binding_get_expr(
+    struct xls_dslx_parametric_binding* binding) {
+  auto* cpp_binding =
+      reinterpret_cast<xls::dslx::ParametricBinding*>(binding);
+  xls::dslx::Expr* cpp_expr = cpp_binding->expr();
+  return reinterpret_cast<xls_dslx_expr*>(cpp_expr);
+}
+
 char* xls_dslx_function_to_string(struct xls_dslx_function* fn) {
   auto* cpp_function = reinterpret_cast<xls::dslx::Function*>(fn);
   return xls::ToOwnedCString(cpp_function->ToString());
+}
+
+char* xls_dslx_expr_to_string(struct xls_dslx_expr* expr) {
+  auto* cpp_expr = reinterpret_cast<xls::dslx::Expr*>(expr);
+  return xls::ToOwnedCString(cpp_expr->ToString());
 }
 
 bool xls_dslx_type_info_build_function_call_graph(
