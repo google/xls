@@ -624,6 +624,124 @@ struct xls_dslx_type_annotation* xls_dslx_function_get_return_type(
   return reinterpret_cast<xls_dslx_type_annotation*>(cpp_return_type);
 }
 
+int64_t xls_dslx_function_get_attribute_count(struct xls_dslx_function* fn) {
+  auto* cpp_function = reinterpret_cast<xls::dslx::Function*>(fn);
+  return static_cast<int64_t>(cpp_function->attributes().size());
+}
+
+struct xls_dslx_attribute* xls_dslx_function_get_attribute(
+    struct xls_dslx_function* fn, int64_t index) {
+  auto* cpp_function = reinterpret_cast<xls::dslx::Function*>(fn);
+  xls::dslx::Attribute* cpp_attribute = cpp_function->attributes().at(index);
+  return reinterpret_cast<xls_dslx_attribute*>(cpp_attribute);
+}
+
+xls_dslx_attribute_kind xls_dslx_attribute_get_kind(
+    struct xls_dslx_attribute* attribute) {
+  auto* cpp_attribute = reinterpret_cast<xls::dslx::Attribute*>(attribute);
+  switch (cpp_attribute->attribute_kind()) {
+    case xls::dslx::AttributeKind::kCfg:
+      return xls_dslx_attribute_kind_cfg;
+    case xls::dslx::AttributeKind::kDslxFormatDisable:
+      return xls_dslx_attribute_kind_dslx_format_disable;
+    case xls::dslx::AttributeKind::kExternVerilog:
+      return xls_dslx_attribute_kind_extern_verilog;
+    case xls::dslx::AttributeKind::kSvType:
+      return xls_dslx_attribute_kind_sv_type;
+    case xls::dslx::AttributeKind::kTest:
+      return xls_dslx_attribute_kind_test;
+    case xls::dslx::AttributeKind::kTestProc:
+      return xls_dslx_attribute_kind_test_proc;
+    case xls::dslx::AttributeKind::kQuickcheck:
+      return xls_dslx_attribute_kind_quickcheck;
+    default:
+      CHECK(false) << "Unhandled attribute kind";
+  }
+  return xls_dslx_attribute_kind_cfg;
+}
+
+int64_t xls_dslx_attribute_get_argument_count(
+    struct xls_dslx_attribute* attribute) {
+  auto* cpp_attribute = reinterpret_cast<xls::dslx::Attribute*>(attribute);
+  return static_cast<int64_t>(cpp_attribute->args().size());
+}
+
+xls_dslx_attribute_argument_kind xls_dslx_attribute_get_argument_kind(
+    struct xls_dslx_attribute* attribute, int64_t index) {
+  auto* cpp_attribute = reinterpret_cast<xls::dslx::Attribute*>(attribute);
+  const xls::dslx::Attribute::Argument& argument =
+      cpp_attribute->args().at(index);
+  if (std::holds_alternative<std::string>(argument)) {
+    return xls_dslx_attribute_argument_kind_string;
+  }
+  if (std::holds_alternative<xls::dslx::Attribute::StringKeyValueArgument>(
+          argument)) {
+    return xls_dslx_attribute_argument_kind_string_key_value;
+  }
+  if (std::holds_alternative<xls::dslx::Attribute::IntKeyValueArgument>(
+          argument)) {
+    return xls_dslx_attribute_argument_kind_int_key_value;
+  }
+  CHECK(false) << "Unexpected attribute argument kind";
+  return xls_dslx_attribute_argument_kind_string;
+}
+
+char* xls_dslx_attribute_get_string_argument(
+    struct xls_dslx_attribute* attribute, int64_t index) {
+  auto* cpp_attribute = reinterpret_cast<xls::dslx::Attribute*>(attribute);
+  const xls::dslx::Attribute::Argument& argument =
+      cpp_attribute->args().at(index);
+  const std::string* value = std::get_if<std::string>(&argument);
+  CHECK(value != nullptr) << "Attribute argument is not a string";
+  return xls::ToOwnedCString(*value);
+}
+
+char* xls_dslx_attribute_get_key_value_argument_key(
+    struct xls_dslx_attribute* attribute, int64_t index) {
+  auto* cpp_attribute = reinterpret_cast<xls::dslx::Attribute*>(attribute);
+  const xls::dslx::Attribute::Argument& argument =
+      cpp_attribute->args().at(index);
+  if (const auto* kv =
+          std::get_if<xls::dslx::Attribute::StringKeyValueArgument>(
+              &argument)) {
+    return xls::ToOwnedCString(kv->first);
+  }
+  if (const auto* kv =
+          std::get_if<xls::dslx::Attribute::IntKeyValueArgument>(&argument)) {
+    return xls::ToOwnedCString(kv->first);
+  }
+  CHECK(false) << "Attribute argument is not key/value";
+  return nullptr;
+}
+
+char* xls_dslx_attribute_get_key_value_string_argument_value(
+    struct xls_dslx_attribute* attribute, int64_t index) {
+  auto* cpp_attribute = reinterpret_cast<xls::dslx::Attribute*>(attribute);
+  const xls::dslx::Attribute::Argument& argument =
+      cpp_attribute->args().at(index);
+  const auto* kv =
+      std::get_if<xls::dslx::Attribute::StringKeyValueArgument>(&argument);
+  CHECK(kv != nullptr)
+      << "Attribute argument is not a string key/value argument";
+  return xls::ToOwnedCString(kv->second);
+}
+
+int64_t xls_dslx_attribute_get_key_value_int_argument_value(
+    struct xls_dslx_attribute* attribute, int64_t index) {
+  auto* cpp_attribute = reinterpret_cast<xls::dslx::Attribute*>(attribute);
+  const xls::dslx::Attribute::Argument& argument =
+      cpp_attribute->args().at(index);
+  const auto* kv =
+      std::get_if<xls::dslx::Attribute::IntKeyValueArgument>(&argument);
+  CHECK(kv != nullptr) << "Attribute argument is not an int key/value argument";
+  return kv->second;
+}
+
+char* xls_dslx_attribute_to_string(struct xls_dslx_attribute* attribute) {
+  auto* cpp_attribute = reinterpret_cast<xls::dslx::Attribute*>(attribute);
+  return xls::ToOwnedCString(cpp_attribute->ToString());
+}
+
 char* xls_dslx_parametric_binding_get_identifier(
     struct xls_dslx_parametric_binding* binding) {
   auto* cpp_binding =

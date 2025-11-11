@@ -62,6 +62,24 @@ enum {
   xls_dslx_module_member_kind_proc_alias,
 };
 
+typedef int32_t xls_dslx_attribute_kind;
+enum {
+  xls_dslx_attribute_kind_cfg,
+  xls_dslx_attribute_kind_dslx_format_disable,
+  xls_dslx_attribute_kind_extern_verilog,
+  xls_dslx_attribute_kind_sv_type,
+  xls_dslx_attribute_kind_test,
+  xls_dslx_attribute_kind_test_proc,
+  xls_dslx_attribute_kind_quickcheck,
+};
+
+typedef int32_t xls_dslx_attribute_argument_kind;
+enum {
+  xls_dslx_attribute_argument_kind_string,
+  xls_dslx_attribute_argument_kind_string_key_value,
+  xls_dslx_attribute_argument_kind_int_key_value,
+};
+
 // Opaque structs.
 struct xls_dslx_typechecked_module;
 struct xls_dslx_import_data;
@@ -90,6 +108,7 @@ struct xls_dslx_parametric_env;
 struct xls_dslx_interp_value;
 struct xls_bits;
 struct xls_dslx_call_graph;
+struct xls_dslx_attribute;
 
 // Rule for rewriting invocations in bulk API.
 struct xls_dslx_invocation_rewrite_rule {
@@ -279,6 +298,52 @@ struct xls_dslx_expr* xls_dslx_function_get_body(struct xls_dslx_function* fn);
 // was written in the source.
 struct xls_dslx_type_annotation* xls_dslx_function_get_return_type(
     struct xls_dslx_function* fn);
+
+// Returns the number of attributes attached to the function.
+int64_t xls_dslx_function_get_attribute_count(struct xls_dslx_function* fn);
+
+// Returns the attribute at the given index.
+// The returned pointer is borrowed and tied to the lifetime of the underlying
+// function/module objects.
+struct xls_dslx_attribute* xls_dslx_function_get_attribute(
+    struct xls_dslx_function* fn, int64_t index);
+
+// Returns the attribute kind.
+xls_dslx_attribute_kind xls_dslx_attribute_get_kind(
+    struct xls_dslx_attribute* attribute);
+
+// Returns the number of arguments carried by the attribute.
+int64_t xls_dslx_attribute_get_argument_count(
+    struct xls_dslx_attribute* attribute);
+
+// Returns the kind of the attribute argument at `index`.
+xls_dslx_attribute_argument_kind xls_dslx_attribute_get_argument_kind(
+    struct xls_dslx_attribute* attribute, int64_t index);
+
+// Returns the argument value when the argument kind is
+// `xls_dslx_attribute_argument_kind_string`.
+// Note: return value is owned by the caller, free via `xls_c_str_free`.
+char* xls_dslx_attribute_get_string_argument(struct xls_dslx_attribute* attribute,
+                                             int64_t index);
+
+// Returns the argument key when the argument kind is a key/value variant.
+// Note: return value is owned by the caller, free via `xls_c_str_free`.
+char* xls_dslx_attribute_get_key_value_argument_key(
+    struct xls_dslx_attribute* attribute, int64_t index);
+
+// Returns the string value when the argument kind is
+// `xls_dslx_attribute_argument_kind_string_key_value`.
+// Note: return value is owned by the caller, free via `xls_c_str_free`.
+char* xls_dslx_attribute_get_key_value_string_argument_value(
+    struct xls_dslx_attribute* attribute, int64_t index);
+
+// Returns the integer value when the argument kind is
+// `xls_dslx_attribute_argument_kind_int_key_value`.
+int64_t xls_dslx_attribute_get_key_value_int_argument_value(
+    struct xls_dslx_attribute* attribute, int64_t index);
+
+// Note: return value is owned by the caller, free via `xls_c_str_free`.
+char* xls_dslx_attribute_to_string(struct xls_dslx_attribute* attribute);
 
 // Note: return value is owned by the caller, free via `xls_c_str_free`.
 char* xls_dslx_parametric_binding_get_identifier(
