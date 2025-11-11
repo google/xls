@@ -2677,6 +2677,27 @@ TEST_F(ParserTest, ModuleWithParametricProcAlias) {
 proc Bar = Foo<3, 4>;)");
 }
 
+TEST_F(ParserTest, ModuleWithParametricProcAliasCallingParametricFn) {
+  RoundTrip(R"(fn bar<Y: u32>(i: uN[Y]) -> uN[Y] {
+    i + i
+}
+proc Foo<N: u32> {
+    c: chan<uN[N]> out;
+    config(output_c: chan<uN[N]> out) {
+        (output_c,)
+    }
+    init {
+        uN[N]:1
+    }
+    next(i: uN[N]) {
+        let result = bar<N>(i);
+        let tok = send(join(), c, result);
+        result + uN[N]:1
+    }
+}
+proc Bar = Foo<16>;)");
+}
+
 TEST_F(ParserTest, ModuleWithPublicParametricProcAlias) {
   RoundTrip(R"(pub proc Foo<A: u32, B: u32> {
     config() {}
