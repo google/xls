@@ -83,6 +83,9 @@ enum class ModuleAttribute : uint8_t {
   kChannelAttributes,
 
   kGenerics,
+
+  // Enable `trait` declarations.
+  kTraits,
 };
 
 // Represents a syntactic module in the AST.

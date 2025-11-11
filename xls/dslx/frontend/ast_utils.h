@@ -277,6 +277,12 @@ class ParametricBindings {
 std::vector<ParametricBinding*> GetRequiredParametricBindings(
     const std::vector<ParametricBinding*>& bindings);
 
+// Returns the first attribute of the given kind from the given node, or
+// `nullopt` if it does not have the requested kind of attribute. Note that
+// generally the parser does not permit multiple ones of the same kind.
+std::optional<const Attribute*> GetAttribute(const AstNode* node,
+                                             AttributeKind kind);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_FRONTEND_AST_UTILS_H_

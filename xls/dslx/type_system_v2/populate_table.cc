@@ -16,6 +16,7 @@
 
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string_view>
 #include <utility>
 
@@ -65,7 +66,8 @@ absl::Status PopulateBuiltinStubs(ImportData* import_data,
                                     *warnings, import_data->file_table(),
                                     TypeSystemTracer::Create(/*active=*/false),
                                     /*semantics_analysis=*/nullptr,
-                                    /*error_handler=*/nullptr));
+                                    /*error_handler=*/nullptr,
+                                    /*trait_deriver=*/std::nullopt));
   XLS_ASSIGN_OR_RETURN(TypeInfo * builtins_type_info,
                        import_data->GetRootTypeInfo(builtins_ptr));
 

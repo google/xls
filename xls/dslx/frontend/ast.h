@@ -318,6 +318,7 @@ enum class TypeAnnotationKind : uint8_t {
 
 enum class AttributeKind : uint8_t {
   kCfg,
+  kDerive,
   kDslxFormatDisable,
   kExternVerilog,
   kSvType,
@@ -908,6 +909,7 @@ class SelfTypeAnnotation : public TypeAnnotation {
   bool explicit_type() const { return explicit_type_; }
 
   TypeAnnotation* struct_ref() const { return struct_ref_; }
+  void set_struct_ref(TypeAnnotation* struct_ref) { struct_ref_ = struct_ref; }
 
  private:
   bool explicit_type_;
@@ -2432,13 +2434,16 @@ class Function : public AstNode {
   // The body of the function is a block (sequence of statements that yields a
   // final expression).
   StatementBlock* body() const { return body_; }
+  void set_body(StatementBlock* body) { body_ = body; }
 
   bool IsParametric() const { return !parametric_bindings_.empty(); }
   bool is_public() const { return is_public_; }
   bool is_test_utility() const { return is_test_utility_; }
   void set_test_utility(bool value) { is_test_utility_ = value; }
+  void set_compiler_derived(bool value) { is_compiler_derived_ = value; }
   bool IsMethod() const;
   bool IsStub() const { return is_stub_; }
+  bool IsCompilerDerived() const { return is_compiler_derived_; }
 
   // Returns all of the parametric identifiers that must be bound by the caller
   // in an invocation; i.e. they have no default expression.
@@ -2512,6 +2517,7 @@ class Function : public AstNode {
 
   const bool is_public_;
   bool is_test_utility_ = false;  // Set by the parser on applying attributes.
+  bool is_compiler_derived_ = false;  // Set by type inference upon deriving.
   const bool is_stub_;
   std::optional<ForeignFunctionData> extern_verilog_module_;
   bool disable_format_ = false;
@@ -3294,9 +3300,19 @@ class StructDef : public StructDefBase {
     return extern_type_name_;
   }
 
+  // Set by type inference when it has finished deriving any traits for this
+  // struct and stored the derivations in the associated `Impl`.
+  void set_trait_derivation_completed(bool value) {
+    trait_derivation_completed_ = value;
+  }
+  bool trait_derivation_completed() const {
+    return trait_derivation_completed_;
+  }
+
  private:
   // The external verilog type name
   std::optional<std::string> extern_type_name_;
+  bool trait_derivation_completed_ = false;
 };
 
 // Represents a proc declared with struct-like syntax, with the functions in an
@@ -3375,6 +3391,9 @@ class Impl : public AstNode {
 
   // Returns the function with the given name if present.
   std::optional<Function*> GetFunction(std::string_view name) const;
+
+  // Used by trait derivation to add derived members.
+  void AddMember(Function* member) { members_.push_back(member); }
 
  private:
   Span span_;

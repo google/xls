@@ -97,6 +97,9 @@ std::string Module::ToString() const {
             case ModuleAttribute::kGenerics:
               absl::StrAppend(out, "#![feature(generics)]");
               break;
+            case ModuleAttribute::kTraits:
+              absl::StrAppend(out, "#![feature(traits)]");
+              break;
           }
         });
     return absl::StrCat(header, "\n\n", body);

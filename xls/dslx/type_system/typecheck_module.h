@@ -17,6 +17,7 @@
 
 #include <filesystem>
 #include <memory>
+#include <optional>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -25,6 +26,7 @@
 #include "xls/dslx/frontend/semantics_analysis.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system_v2/type_inference_error_handler.h"
+#include "xls/dslx/type_system_v2/typecheck_module_v2.h"
 #include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
@@ -45,7 +47,8 @@ absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModule(
     std::unique_ptr<Module> module, std::filesystem::path path,
     ImportData* import_data, WarningCollector* warnings,
     std::unique_ptr<SemanticsAnalysis> /*unused*/ = nullptr,
-    TypeInferenceErrorHandler /*unused*/ = nullptr);
+    TypeInferenceErrorHandler /*unused*/ = nullptr,
+    std::optional<TraitDeriver*> /*unused*/ = std::nullopt);
 
 // Forward decl for the internal declarations below.
 class DeduceCtx;

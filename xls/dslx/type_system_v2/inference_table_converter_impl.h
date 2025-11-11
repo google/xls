@@ -25,6 +25,7 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/inference_table_converter.h"
+#include "xls/dslx/type_system_v2/trait_deriver.h"
 #include "xls/dslx/type_system_v2/type_inference_error_handler.h"
 #include "xls/dslx/type_system_v2/type_system_tracer.h"
 #include "xls/dslx/warning_collector.h"
@@ -38,7 +39,8 @@ CreateInferenceTableConverter(
     WarningCollector& warning_collector, const FileTable& file_table,
     std::unique_ptr<TypeSystemTracer> tracer,
     std::unique_ptr<SemanticsAnalysis> semantics_analysis,
-    TypeInferenceErrorHandler error_handler);
+    TypeInferenceErrorHandler error_handler,
+    std::optional<TraitDeriver*> trait_deriver);
 
 }  // namespace xls::dslx
 

@@ -638,6 +638,8 @@ std::string AttributeKindToString(AttributeKind kind) {
   switch (kind) {
     case AttributeKind::kCfg:
       return "cfg";
+    case AttributeKind::kDerive:
+      return "derive";
     case AttributeKind::kDslxFormatDisable:
       return "dslx_format_disable";
     case AttributeKind::kExternVerilog:

@@ -28,6 +28,7 @@
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/inference_table_converter.h"
 #include "xls/dslx/type_system_v2/parametric_struct_instantiator.h"
+#include "xls/dslx/type_system_v2/trait_deriver.h"
 #include "xls/dslx/type_system_v2/type_annotation_resolver.h"
 
 namespace xls::dslx {
@@ -54,7 +55,8 @@ std::unique_ptr<FunctionResolver> CreateFunctionResolver(
     Module& module, ImportData& import_data, InferenceTable& table,
     InferenceTableConverter& converter,
     TypeAnnotationResolver& type_annotation_resolver,
-    ParametricStructInstantiator& parametric_struct_instantiator);
+    ParametricStructInstantiator& parametric_struct_instantiator,
+    std::optional<TraitDeriver*> trait_deriver);
 
 }  // namespace xls::dslx
 

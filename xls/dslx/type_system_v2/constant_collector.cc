@@ -582,7 +582,13 @@ class Visitor : public AstNodeVisitorWithDefault {
     if (!IsBuiltinFn(invocation->callee())) {
       std::optional<const Function*> f =
           table_.GetCalleeInCallerContext(invocation, parametric_context_);
-      if (f.has_value() && (*f)->tag() == FunctionTag::kProcInit) {
+      // It's basically a performance optimization that we only try this for
+      // some functions. A proc `init` ultimately must be constexpr, which is
+      // enforced at IR conversion time. A compiler-derived trait function has a
+      // good chance of being constexpr, and straightforward testing of
+      // derivation requires const asserts on their output.
+      if (f.has_value() && ((*f)->tag() == FunctionTag::kProcInit ||
+                            (*f)->IsCompilerDerived())) {
         XLS_RETURN_IF_ERROR(EvaluateAndNoteExpr(invocation));
       }
       return absl::OkStatus();

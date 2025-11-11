@@ -214,6 +214,7 @@ absl::StatusOr<AttributeKind> ParseAttributeKind(Token token,
                                                  const FileTable& file_table) {
   static const auto* map = new absl::flat_hash_map<std::string, AttributeKind>{
       {"cfg", AttributeKind::kCfg},
+      {"derive", AttributeKind::kDerive},
       {"dslx_format_disable", AttributeKind::kDslxFormatDisable},
       {"extern_verilog", AttributeKind::kExternVerilog},
       {"sv_type", AttributeKind::kSvType},
@@ -312,6 +313,8 @@ absl::Status Parser::ParseModuleAttribute() {
                             attribute_span);
     } else if (feature == "generics") {
       module_->AddAttribute(ModuleAttribute::kGenerics, attribute_span);
+    } else if (feature == "traits") {
+      module_->AddAttribute(ModuleAttribute::kTraits, attribute_span);
     } else {
       return ParseErrorStatus(
           attribute_span,
@@ -554,6 +557,11 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
         break;
       }
       case Keyword::kTrait: {
+        if (!parse_fn_stubs_ &&
+            !module_->attributes().contains(ModuleAttribute::kTraits)) {
+          return ParseErrorStatus(peek->span(),
+                                  "Traits are not yet supported.");
+        }
         XLS_ASSIGN_OR_RETURN(Trait * trait, ParseTrait(*module_member_start_pos,
                                                        is_public, *bindings));
         XLS_RETURN_IF_ERROR(verify_no_attributes());
@@ -821,6 +829,10 @@ absl::StatusOr<QuickCheckTestCases> Parser::GetQuickCheckTestCases(
 absl::Status Parser::UnsupportedAttributeError(const Attribute& attribute) {
   Span span = *attribute.GetSpan();
   switch (attribute.attribute_kind()) {
+    case AttributeKind::kDerive:
+      return ParseErrorStatus(
+          span,
+          absl::StrCat(attribute.ToString(), " is only valid on a struct."));
     case AttributeKind::kDslxFormatDisable:
     case AttributeKind::kExternVerilog:
     case AttributeKind::kTest:
@@ -956,6 +968,26 @@ absl::Status Parser::ApplyTypeAttributes(T* node,
                                          std::vector<Attribute*> attributes) {
   for (Attribute* next : attributes) {
     switch (next->attribute_kind()) {
+      case AttributeKind::kDerive: {
+        if (node->kind() != AstNodeKind::kStructDef) {
+          return UnsupportedAttributeError(*next);
+        }
+        if (next->args().empty()) {
+          return ParseErrorStatus(
+              *next->GetSpan(), "derive attribute requires a list of traits.");
+        }
+        for (const Attribute::Argument& arg : next->args()) {
+          // Note that actual name resolution is deferred until type inference.
+          if (!std::holds_alternative<std::string>(arg)) {
+            return ParseErrorStatus(
+                *next->GetSpan(),
+                "derive attribute arguments must be trait names.");
+          }
+        }
+        // No conversion of the `Attribute` to a legacy field is needed.
+        break;
+      }
+
       case AttributeKind::kSvType: {
         if (next->args().size() != 1 ||
             !std::holds_alternative<std::string>(next->args()[0])) {
@@ -2159,7 +2191,7 @@ absl::StatusOr<Function*> Parser::ParseFunctionInternal(
   outer_bindings.Add(name_def->identifier(), name_def);
   bindings.Add(name_def->identifier(), name_def);
 
-  if (parse_fn_stubs_) {
+  if (parse_fn_stubs_ || bindings.IsInTrait()) {
     // Must have a semicolon
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi));
     body = module_->Make<StatementBlock>(Span(start_pos, GetPos()),

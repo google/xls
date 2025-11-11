@@ -17,6 +17,7 @@
 
 #include <filesystem>
 #include <memory>
+#include <optional>
 
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
@@ -24,6 +25,7 @@
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/semantics_analysis.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/type_system_v2/trait_deriver.h"
 #include "xls/dslx/type_system_v2/type_inference_error_handler.h"
 #include "xls/dslx/warning_collector.h"
 
@@ -35,7 +37,8 @@ absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
     std::unique_ptr<Module> module, std::filesystem::path path,
     ImportData* import_data, WarningCollector* warnings,
     std::unique_ptr<SemanticsAnalysis> semantics_analysis,
-    TypeInferenceErrorHandler error_handler);
+    TypeInferenceErrorHandler error_handler,
+    std::optional<TraitDeriver*> trait_deriver);
 
 }  // namespace xls::dslx
 

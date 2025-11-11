@@ -72,6 +72,8 @@ cc_library(
         ":inference_table",
         ":inference_table_converter",
         ":parametric_struct_instantiator",
+        ":populate_table_visitor",
+        ":trait_deriver",
         ":type_annotation_resolver",
         ":type_annotation_utils",
         "//xls/common:casts",
@@ -80,10 +82,13 @@ cc_library(
         "//xls/dslx:errors",
         "//xls/dslx:import_data",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_cloner",
         "//xls/dslx/frontend:ast_utils",
         "//xls/dslx/frontend:builtin_stubs_utils",
         "//xls/dslx/frontend:pos",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
     ],
@@ -153,6 +158,7 @@ cc_library(
         ":populate_table_visitor",
         ":simplified_type_annotation_cache",
         ":solve_for_parametrics",
+        ":trait_deriver",
         ":type_annotation_filter",
         ":type_annotation_resolver",
         ":type_annotation_utils",
@@ -275,6 +281,15 @@ cc_library(
 )
 
 cc_library(
+    name = "trait_deriver",
+    hdrs = ["trait_deriver.h"],
+    deps = [
+        "//xls/dslx/frontend:ast",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
     name = "type_inference_error_handler",
     hdrs = ["type_inference_error_handler.h"],
     deps = [
@@ -296,6 +311,7 @@ cc_library(
         ":inference_table_converter",
         ":inference_table_converter_impl",
         ":populate_table",
+        ":trait_deriver",
         ":type_inference_error_handler",
         ":type_system_tracer",
         "//xls/common/file:filesystem",
@@ -470,6 +486,25 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx/type_system:typecheck_test_utils",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "typecheck_module_v2_trait_test",
+    srcs = ["typecheck_module_v2_trait_test.cc"],
+    shard_count = 4,
+    deps = [
+        ":matchers",
+        ":type_annotation_utils",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:pos",
+        "//xls/dslx/type_system:typecheck_test_utils",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
         "@googletest//:gtest",
     ],
 )

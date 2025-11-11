@@ -84,6 +84,10 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return invocation->Accept(this);
   }
 
+  absl::Status PopulateFromFunction(const Function* function) override {
+    return function->Accept(this);
+  }
+
   absl::Status PopulateFromUnrolledLoopBody(
       const StatementBlock* root) override {
     XLS_RET_CHECK(!handle_proc_functions_);
@@ -1340,6 +1344,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
                   node->index())));
     return DefaultHandler(node);
   }
+
+  absl::Status HandleTrait(const Trait*) override { return absl::OkStatus(); }
 
   absl::Status HandleFunction(const Function* node) override {
     // Proc functions are reachable via both the `Module` and the `Proc`, as an

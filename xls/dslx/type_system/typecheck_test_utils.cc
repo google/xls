@@ -37,7 +37,8 @@ namespace xls::dslx {
 absl::StatusOr<TypecheckResult> Typecheck(
     std::string_view program, std::string_view module_name,
     ImportData* import_data, bool add_version_attribute,
-    TypeInferenceErrorHandler error_handler) {
+    TypeInferenceErrorHandler error_handler,
+    std::unique_ptr<TraitDeriver> trait_deriver) {
   std::unique_ptr<ImportData> owned_import_data;
   if (import_data == nullptr) {
     owned_import_data = CreateImportDataPtrForTest();
@@ -50,7 +51,8 @@ absl::StatusOr<TypecheckResult> Typecheck(
   absl::StatusOr<TypecheckedModule> tm = ParseAndTypecheck(
       program_with_version_attribute, absl::StrCat(module_name, ".x"),
       module_name, import_data, /*comments=*/nullptr,
-      /*force_version=*/std::nullopt, ConvertOptions{}, error_handler);
+      /*force_version=*/std::nullopt, ConvertOptions{}, error_handler,
+      std::move(trait_deriver));
 
   if (!tm.ok()) {
     UniformContentFilesystem vfs(program_with_version_attribute);
@@ -69,6 +71,19 @@ absl::StatusOr<TypecheckResult> TypecheckV2(
   return Typecheck(absl::StrCat("#![feature(type_inference_v2)]\n\n", program),
                    /*module_name=*/"fake", /*import_data=*/nullptr,
                    /*add_version_attribute=*/false, error_handler);
+}
+
+absl::StatusOr<TypecheckResult> TypecheckV2(
+    std::string_view program, std::unique_ptr<TraitDeriver> trait_deriver) {
+  // Note: using a trait deriver doesn't require the module to opt into traits,
+  // but test code that uses a deriver generally also declares fake traits, and
+  // those declarations require the module attribute.
+  return Typecheck(
+      absl::StrCat("#![feature(type_inference_v2)]\n#![feature(traits)]\n\n",
+                   program),
+      /*module_name=*/"fake", /*import_data=*/nullptr,
+      /*add_version_attribute=*/false, /*error_handler=*/nullptr,
+      std::move(trait_deriver));
 }
 
 absl::StatusOr<TypecheckResult> TypecheckV2(std::string_view program,

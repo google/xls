@@ -148,16 +148,21 @@ class Bindings {
     local_bindings_[std::move(name)] = binding;
   }
 
+  // Returns whether the bindings are for a context that is inside a trait.
+  bool IsInTrait() const {
+    return in_trait_ || (parent_ != nullptr && parent_->IsInTrait());
+  }
+
   // Returns whether `self` has been set to anything on this object or one of
   // its parents.
-  bool HasSelf() {
+  bool HasSelf() const {
     return self_.has_value() || (parent_ != nullptr && parent_->HasSelf());
   }
 
   // Returns the `TypeAnnotation` for the struct that `self` indicates in the
   // current context. This only returns an annotation in an `impl`. In a trait
   // or other context, it returns `nullopt`.
-  std::optional<TypeAnnotation*> GetImplSelf() {
+  std::optional<TypeAnnotation*> GetImplSelf() const {
     if (!self_.has_value() && parent_ != nullptr) {
       return parent_->GetImplSelf();
     }
@@ -173,6 +178,7 @@ class Bindings {
   void AddTraitAsSelf(NameDef* trait_name_def) {
     CHECK(!HasSelf());
     self_ = trait_name_def;
+    in_trait_ = true;
   }
 
   // Indicates that `self` should be understood in this context as some instance
@@ -275,6 +281,7 @@ class Bindings {
   // This is a TypeAnnotation* when we are inside an impl; NameDef* when we are
   // inside a trait; nullopt otherwise.
   std::optional<std::variant<TypeAnnotation*, NameDef*>> self_;
+  bool in_trait_ = false;
 };
 
 // Returns the name definition node (either builtin or user-defined) associated

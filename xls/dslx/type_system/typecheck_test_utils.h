@@ -1,3 +1,6 @@
+#include <optional>
+
+#include "xls/dslx/type_system_v2/trait_deriver.h"
 // Copyright 2023 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -46,7 +49,8 @@ struct TypecheckResult {
 absl::StatusOr<TypecheckResult> Typecheck(
     std::string_view program, std::string_view module_name = "fake",
     ImportData* import_data = nullptr, bool add_version_attribute = true,
-    TypeInferenceErrorHandler error_handler = nullptr);
+    TypeInferenceErrorHandler error_handler = nullptr,
+    std::unique_ptr<TraitDeriver> trait_deriver = nullptr);
 
 // Variant that prepends the `type_inference_v2` DSLX module attribute to
 // `program` to force the use of type_system_v2.
@@ -58,6 +62,11 @@ absl::StatusOr<TypecheckResult> TypecheckV2(
 // `program` to force the use of type_system_v2.
 absl::StatusOr<TypecheckResult> TypecheckV2(
     std::string_view program, TypeInferenceErrorHandler error_handler);
+
+// Variant that prepends the `type_inference_v2` DSLX module attribute to
+// `program` to force the use of type_system_v2.
+absl::StatusOr<TypecheckResult> TypecheckV2(
+    std::string_view program, std::unique_ptr<TraitDeriver> trait_deriver);
 
 // Verifies that a failed typecheck status message indicates a type mismatch
 // between the given two types in string format.

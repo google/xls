@@ -70,6 +70,7 @@
 #include "xls/dslx/type_system_v2/populate_table_visitor.h"
 #include "xls/dslx/type_system_v2/simplified_type_annotation_cache.h"
 #include "xls/dslx/type_system_v2/solve_for_parametrics.h"
+#include "xls/dslx/type_system_v2/trait_deriver.h"
 #include "xls/dslx/type_system_v2/type_annotation_filter.h"
 #include "xls/dslx/type_system_v2/type_annotation_resolver.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
@@ -137,7 +138,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       WarningCollector& warning_collector, TypeInfo* base_type_info,
       const FileTable& file_table, std::unique_ptr<TypeSystemTracer> tracer,
       std::unique_ptr<SemanticsAnalysis> semantics_analysis,
-      TypeInferenceErrorHandler error_handler)
+      TypeInferenceErrorHandler error_handler,
+      std::optional<TraitDeriver*> trait_deriver)
       : table_(table),
         module_(module),
         import_data_(import_data),
@@ -160,10 +162,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
               return TryConvertInvocationForUnification(parametric_context,
                                                         invocation);
             })),
-        function_resolver_(
-            CreateFunctionResolver(module, import_data, table,
-                                   /*converter=*/*this, *resolver_,
-                                   /*parametric_struct_instantiator=*/*this)),
+        function_resolver_(CreateFunctionResolver(
+            module, import_data, table,
+            /*converter=*/*this, *resolver_,
+            /*parametric_struct_instantiator=*/*this, trait_deriver)),
         constant_collector_(CreateConstantCollector(
             table_, module_, import_data_, warning_collector_, file_table_,
             /*converter=*/*this, *evaluator_,
@@ -2587,14 +2589,16 @@ CreateInferenceTableConverter(
     WarningCollector& warning_collector, const FileTable& file_table,
     std::unique_ptr<TypeSystemTracer> tracer,
     std::unique_ptr<SemanticsAnalysis> semantics_analysis,
-    TypeInferenceErrorHandler error_handler) {
+    TypeInferenceErrorHandler error_handler,
+    std::optional<TraitDeriver*> trait_deriver) {
   VLOG(1) << "CreateInferenceTableConverter: module " << &module;
 
   XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
                        import_data.type_info_owner().New(&module));
   return std::make_unique<InferenceTableConverterImpl>(
       table, module, import_data, warning_collector, type_info, file_table,
-      std::move(tracer), std::move(semantics_analysis), error_handler);
+      std::move(tracer), std::move(semantics_analysis), error_handler,
+      trait_deriver);
 }
 
 }  // namespace xls::dslx

@@ -3097,6 +3097,10 @@ absl::StatusOr<DocRef> Formatter::Format(const Module& n) {
           pieces.push_back(arena_.MakeText("#![feature(generics)]"));
           pieces.push_back(arena_.hard_line());
           break;
+        case ModuleAttribute::kTraits:
+          pieces.push_back(arena_.MakeText("#[feature(traits)]"));
+          pieces.push_back(arena_.hard_line());
+          break;
       }
     }
     pieces.push_back(arena_.hard_line());

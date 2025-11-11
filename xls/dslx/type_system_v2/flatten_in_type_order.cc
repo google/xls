@@ -191,6 +191,8 @@ class Flattener : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  absl::Status HandleTrait(const Trait*) override { return absl::OkStatus(); }
+
   absl::Status DefaultHandler(const AstNode* node) override {
     // Prefer conversion of invocations before nodes that may use them.
     std::vector<const AstNode*> invocations;

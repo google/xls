@@ -50,6 +50,7 @@
 #include "xls/dslx/type_system/typecheck_invocation.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
 #include "xls/dslx/type_system_v2/type_inference_error_handler.h"
+#include "xls/dslx/type_system_v2/typecheck_module_v2.h"
 #include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
@@ -423,7 +424,8 @@ absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModule(
     std::unique_ptr<Module> module, std::filesystem::path path,
     ImportData* import_data, WarningCollector* warnings,
     std::unique_ptr<SemanticsAnalysis> /*unused*/,
-    TypeInferenceErrorHandler /*unused*/) {
+    TypeInferenceErrorHandler /*unused*/,
+    std::optional<TraitDeriver*> /*unused*/) {
   XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
                        import_data->type_info_owner().New(module.get()));
 

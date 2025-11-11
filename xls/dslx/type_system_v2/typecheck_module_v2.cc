@@ -50,7 +50,8 @@ absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
     std::unique_ptr<Module> module, std::filesystem::path path,
     ImportData* import_data, WarningCollector* warnings,
     std::unique_ptr<SemanticsAnalysis> semantics_analysis,
-    TypeInferenceErrorHandler error_handler) {
+    TypeInferenceErrorHandler error_handler,
+    std::optional<TraitDeriver*> trait_deriver) {
   std::string_view module_name = module->name();
   const bool top_module = !import_data->HasInferenceTable();
   if (top_module) {
@@ -62,19 +63,21 @@ absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
   std::unique_ptr<TypeSystemTracer> tracer =
       TypeSystemTracer::Create(flags.dump_traces(), flags.time_every_action());
   auto& tracer_ref = *tracer;
-  auto typecheck_imported_module = [import_data, warnings, error_handler](
-                                       std::unique_ptr<Module> module,
-                                       std::filesystem::path path) {
-    return TypecheckModuleV2(std::move(module), path, import_data, warnings,
-                             /*semantics_analysis=*/nullptr, error_handler);
-  };
+  auto typecheck_imported_module =
+      [import_data, warnings, error_handler, trait_deriver](
+          std::unique_ptr<Module> module, std::filesystem::path path) {
+        return TypecheckModuleV2(std::move(module), path, import_data, warnings,
+                                 /*semantics_analysis=*/nullptr, error_handler,
+                                 trait_deriver);
+      };
   XLS_RETURN_IF_ERROR(PopulateTable(table, module.get(), import_data, warnings,
                                     typecheck_imported_module));
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<InferenceTableConverter> converter,
       CreateInferenceTableConverter(
           *table, *module, *import_data, *warnings, import_data->file_table(),
-          std::move(tracer), std::move(semantics_analysis), error_handler));
+          std::move(tracer), std::move(semantics_analysis), error_handler,
+          trait_deriver));
   import_data->SetInferenceTableConverter(module.get(), converter.get());
 
   absl::Status status =
