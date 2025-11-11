@@ -101,6 +101,23 @@ xls_dslx_opt_ir(
     visibility = ["//xls:xls_internal"],
 )
 
+xls_dslx_opt_ir(
+    name = "manual_chan_caps_streaming_configured_opt_ir_proc_scoped",
+    # Note: The optimized ir has different top since the channels are used to determine proc
+    # liveness instead of spawn tree. This is done to avoid having to deal with mangled names.
+    dslx_top = "manual_chan_caps_specialized",
+    ir_conv_args = {
+        "proc_scoped_channels": "true",
+        # Set fifo config for multi-proc codegen.
+        # It needs to know what configuration to use for the fifo.
+        "default_fifo_config": "depth: 4, bypass: true, " +
+                               "register_push_outputs: false, register_pop_outputs: false",
+    },
+    ir_file = "manual_chan_caps_streaming_configured_proc_scoped.ir",
+    library = ":some_caps_streaming_configured",
+    visibility = ["//xls:xls_internal"],
+)
+
 xls_ir_verilog(
     name = "manual_chan_caps_streaming_configured_multiproc_verilog",
     src = ":manual_chan_caps_streaming_configured_opt_ir",
@@ -127,6 +144,35 @@ xls_ir_verilog(
     },
     module_sig_file = "manual_chan_caps_streaming_configured_multiproc.sig.textproto",
     verilog_file = "manual_chan_caps_streaming_configured_multiproc.sv",
+    visibility = ["//xls:xls_internal"],
+)
+
+xls_ir_verilog(
+    name = "manual_chan_caps_streaming_configured_multiproc_verilog_proc_scoped",
+    src = ":manual_chan_caps_streaming_configured_opt_ir_proc_scoped",
+    block_ir_file = "manual_chan_caps_streaming_configured_multiproc_proc_scoped.block.ir",
+    codegen_args = {
+        "module_name": "manual_chan_caps_streaming",
+        "generator": "pipeline",
+        "pipeline_stages": "4",
+        "delay_model": "unit",
+        "reset": "rst",
+        "reset_data_path": "false",
+        "reset_active_low": "false",
+        "reset_asynchronous": "false",
+        "flop_inputs": "false",
+        "flop_single_value_channels": "false",
+        "flop_outputs": "false",
+        "add_idle_output": "false",
+        "streaming_channel_data_suffix": "_data",
+        "streaming_channel_ready_suffix": "_ready",
+        "streaming_channel_valid_suffix": "_valid",
+        "use_system_verilog": "true",
+        "assert_format": "\\;",
+        "multi_proc": "true",
+    },
+    module_sig_file = "manual_chan_caps_streaming_configured_multiproc_proc_scoped.sig.textproto",
+    verilog_file = "manual_chan_caps_streaming_configured_multiproc_proc_scoped.sv",
     visibility = ["//xls:xls_internal"],
 )
 

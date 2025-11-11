@@ -73,9 +73,22 @@ xls_dslx_library(
 )
 
 xls_dslx_ir(
+    name = "eval_proc_main_test_ir_proc_scoped",
+    dslx_top = "test_proc",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
+    library = ":eval_proc_main_test",
+)
+
+xls_dslx_ir(
     name = "eval_proc_main_test_ir",
     dslx_top = "test_proc",
     library = ":eval_proc_main_test",
+)
+
+xls_ir_opt_ir(
+    name = "eval_proc_main_test_opt_ir_proc_scoped",
+    src = ":eval_proc_main_test_ir_proc_scoped",
+    opt_ir_file = "eval_proc_main_test_proc_scoped.opt.ir",
 )
 
 xls_ir_opt_ir(
@@ -93,6 +106,31 @@ genrule(
     outs = ["eval_proc_main_test.tr"],
     cmd = "$(location //xls/tools:eval_proc_main) $(location eval_proc_main_test.opt.ir) --ticks=2 --inputs_for_all_channels=$(location eval_proc_main_test_inputs.txt) --trace_output=$@",
     tools = ["//xls/tools:eval_proc_main"],
+)
+
+xls_ir_verilog(
+    name = "eval_proc_main_test_sv_proc_scoped",
+    src = ":eval_proc_main_test_opt_ir_proc_scoped",
+    codegen_args = {
+        "module_name": "test_block",
+        "generator": "pipeline",
+        "delay_model": "unit",
+        "pipeline_stages": "4",
+        "reset": "rst",
+        "reset_data_path": "true",
+        "reset_active_low": "false",
+        "reset_asynchronous": "false",
+        "flop_inputs": "false",
+        "flop_single_value_channels": "false",
+        "flop_outputs": "false",
+        "add_idle_output": "false",
+        "streaming_channel_data_suffix": "_data",
+        "streaming_channel_ready_suffix": "_ready",
+        "streaming_channel_valid_suffix": "_valid",
+        "use_system_verilog": "true",
+        "worst_case_throughput": "3",
+    },
+    verilog_file = "eval_proc_main_test_proc_scoped.sv",
 )
 
 xls_ir_verilog(
@@ -131,10 +169,23 @@ xls_dslx_ir(
     library = ":eval_proc_main_zero_size_test",
 )
 
+xls_dslx_ir(
+    name = "eval_proc_main_zero_size_test_ir_proc_scoped",
+    dslx_top = "test_proc",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
+    library = ":eval_proc_main_zero_size_test",
+)
+
 xls_ir_opt_ir(
     name = "eval_proc_main_zero_size_test_opt_ir",
     src = ":eval_proc_main_zero_size_test_ir",
     opt_ir_file = "eval_proc_main_zero_size_test.opt.ir",
+)
+
+xls_ir_opt_ir(
+    name = "eval_proc_main_zero_size_test_opt_ir_proc_scoped",
+    src = ":eval_proc_main_zero_size_test_ir_proc_scoped",
+    opt_ir_file = "eval_proc_main_zero_size_test_proc_scoped.opt.ir",
 )
 
 xls_ir_verilog(
@@ -162,6 +213,31 @@ xls_ir_verilog(
     verilog_file = "eval_proc_main_zero_size_test.sv",
 )
 
+xls_ir_verilog(
+    name = "eval_proc_main_zero_size_test_sv_proc_scoped",
+    src = ":eval_proc_main_zero_size_test_opt_ir_proc_scoped",
+    codegen_args = {
+        "module_name": "test_block",
+        "generator": "pipeline",
+        "delay_model": "unit",
+        "pipeline_stages": "4",
+        "reset": "rst",
+        "reset_data_path": "true",
+        "reset_active_low": "false",
+        "reset_asynchronous": "false",
+        "flop_inputs": "false",
+        "flop_single_value_channels": "false",
+        "flop_outputs": "false",
+        "add_idle_output": "false",
+        "streaming_channel_data_suffix": "_data",
+        "streaming_channel_ready_suffix": "_ready",
+        "streaming_channel_valid_suffix": "_valid",
+        "use_system_verilog": "true",
+        "worst_case_throughput": "3",
+    },
+    verilog_file = "eval_proc_main_zero_size_test_proc_scoped.sv",
+)
+
 xls_dslx_library(
     name = "eval_proc_main_conditional_test",
     srcs = ["eval_proc_main_conditional_test.x"],
@@ -173,10 +249,32 @@ xls_dslx_ir(
     library = ":eval_proc_main_conditional_test",
 )
 
+xls_dslx_ir(
+    name = "eval_proc_main_conditional_test_ir_proc_scoped",
+    dslx_top = "test_proc",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
+    library = ":eval_proc_main_conditional_test",
+)
+
 xls_ir_opt_ir(
     name = "eval_proc_main_conditional_test_opt_ir",
     src = ":eval_proc_main_conditional_test_ir",
     opt_ir_file = "eval_proc_main_conditional_test.opt.ir",
+)
+
+xls_ir_opt_ir(
+    name = "eval_proc_main_conditional_test_opt_ir_proc_scoped",
+    src = ":eval_proc_main_conditional_test_ir_proc_scoped",
+    opt_ir_file = "eval_proc_main_conditional_test_proc_scoped.opt.ir",
+)
+
+genrule(
+    name = "add_trace_to_eval_proc_main_test_blk_proc_scoped",
+    testonly = True,
+    srcs = [":eval_proc_main_test_proc_scoped.block.ir"],
+    outs = ["eval_proc_main_test_with_trace_proc_scoped.block.ir"],
+    cmd = "$(location :add_reset_trace_main) --reset_name rst $< > $@",
+    tools = [":add_reset_trace_main"],
 )
 
 genrule(
@@ -195,6 +293,15 @@ genrule(
     srcs = [":eval_proc_main_test.block.ir"],
     outs = ["eval_proc_main_test_broken.block.ir"],
     cmd = "$(location :disable_port_main) --port_name eval_proc_main_test__out_ch_2_valid $< > $@",
+    tools = [":disable_port_main"],
+)
+
+genrule(
+    name = "break_eval_proc_main_test_blk_proc_scoped",
+    testonly = True,
+    srcs = [":eval_proc_main_test_proc_scoped.block.ir"],
+    outs = ["eval_proc_main_test_broken_proc_scoped.block.ir"],
+    cmd = "$(location :disable_port_main) --port_name out_ch_2_valid $< > $@",
     tools = [":disable_port_main"],
 )
 
@@ -235,6 +342,22 @@ xls_dslx_ir(
     library = ":eval_proc_main_test_memory_lib",
 )
 
+xls_dslx_ir(
+    name = "eval_proc_main_test_memory_proc_scoped",
+    dslx_top = "test_proc",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
+    library = ":eval_proc_main_test_memory_lib",
+)
+
+xls_ir_opt_ir(
+    name = "eval_proc_main_test_memory_opt_ir_proc_scoped",
+    src = ":eval_proc_main_test_memory_proc_scoped",
+    opt_ir_file = "eval_proc_main_test_memory_proc_scoped.opt.ir",
+    ram_rewrites = [
+        "//xls/tools/testdata:eval_proc_main_test_memory_proc_scoped.ram_rewrites.textproto",
+    ],
+)
+
 xls_ir_opt_ir(
     name = "eval_proc_main_test_memory_opt_ir",
     src = ":eval_proc_main_test_memory",
@@ -242,6 +365,18 @@ xls_ir_opt_ir(
     ram_rewrites = [
         "//xls/tools/testdata:eval_proc_main_test_memory.ram_rewrites.textproto",
     ],
+)
+
+xls_ir_verilog(
+    name = "eval_proc_main_test_memory_block_ir_proc_scoped",
+    src = ":eval_proc_main_test_memory_opt_ir_proc_scoped",
+    block_ir_file = "eval_proc_main_test_memory_proc_scoped.block.ir",
+    codegen_args = {
+        "pipeline_stages": "2",
+        "reset": "rst",
+        "ram_configurations": "mem:1RW:mem_req:mem_resp:mem_write_completion",
+    },
+    verilog_file = "eval_proc_main_test_memory_proc_scoped.sv",
 )
 
 xls_ir_verilog(

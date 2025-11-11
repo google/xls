@@ -292,6 +292,7 @@ cc_library(
     srcs = ["channel_queue.cc"],
     hdrs = ["channel_queue.h"],
     deps = [
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:channel",

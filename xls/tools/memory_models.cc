@@ -215,17 +215,21 @@ absl::StatusOr<std::unique_ptr<ProcMemoryModel>> CreateAbstractProcMemoryModel(
   for (const auto& [logical_name, physical_name] :
        ram_rewrite.from_channels_logical_to_physical()) {
     if (logical_name == "abstract_read_req") {
-      XLS_ASSIGN_OR_RETURN(read_request_queue,
-                           queue_manager.GetQueueByName(physical_name));
+      XLS_ASSIGN_OR_RETURN(
+          read_request_queue,
+          queue_manager.GetQueueByName(physical_name, ram_rewrite.proc_name()));
     } else if (logical_name == "abstract_read_resp") {
-      XLS_ASSIGN_OR_RETURN(read_response_queue,
-                           queue_manager.GetQueueByName(physical_name));
+      XLS_ASSIGN_OR_RETURN(
+          read_response_queue,
+          queue_manager.GetQueueByName(physical_name, ram_rewrite.proc_name()));
     } else if (logical_name == "abstract_write_req") {
-      XLS_ASSIGN_OR_RETURN(write_request_queue,
-                           queue_manager.GetQueueByName(physical_name));
+      XLS_ASSIGN_OR_RETURN(
+          write_request_queue,
+          queue_manager.GetQueueByName(physical_name, ram_rewrite.proc_name()));
     } else if (logical_name == "write_completion") {
-      XLS_ASSIGN_OR_RETURN(write_response_queue,
-                           queue_manager.GetQueueByName(physical_name));
+      XLS_ASSIGN_OR_RETURN(
+          write_response_queue,
+          queue_manager.GetQueueByName(physical_name, ram_rewrite.proc_name()));
     } else {
       return absl::UnimplementedError(
           absl::StrFormat("Unsupported logical name in RAM rewrite %s: %s",
@@ -266,13 +270,16 @@ absl::StatusOr<std::unique_ptr<ProcMemoryModel>> CreateRewrittenProcMemoryModel(
     const RamRewriteProto& ram_rewrite, ChannelQueueManager& queue_manager) {
   XLS_ASSIGN_OR_RETURN(
       ChannelQueue * request_queue,
-      queue_manager.GetQueueByName(ram_rewrite.to_name_prefix() + "_req"));
+      queue_manager.GetQueueByName(ram_rewrite.to_name_prefix() + "_req",
+                                   ram_rewrite.proc_name()));
   XLS_ASSIGN_OR_RETURN(
       ChannelQueue * response_queue,
-      queue_manager.GetQueueByName(ram_rewrite.to_name_prefix() + "_resp"));
+      queue_manager.GetQueueByName(ram_rewrite.to_name_prefix() + "_resp",
+                                   ram_rewrite.proc_name()));
   XLS_ASSIGN_OR_RETURN(ChannelQueue * write_completion_queue,
                        queue_manager.GetQueueByName(
-                           ram_rewrite.to_name_prefix() + "_write_completion"));
+                           ram_rewrite.to_name_prefix() + "_write_completion",
+                           ram_rewrite.proc_name()));
 
   if (request_queue == nullptr) {
     return absl::InvalidArgumentError(

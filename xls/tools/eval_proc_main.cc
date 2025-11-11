@@ -82,6 +82,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/proc_elaboration.h"
 #include "xls/ir/ram_rewrite.pb.h"
 #include "xls/ir/register.h"
 #include "xls/ir/value.h"
@@ -285,6 +286,23 @@ struct EvaluateProcsOptions {
   ScopedObserver observer;
 };
 
+static absl::StatusOr<std::unique_ptr<SerialProcRuntime>> GetRuntime(
+    Package* package, bool use_jit, EvaluatorOptions evaluator_options) {
+  if (package->ChannelsAreProcScoped()) {
+    XLS_RET_CHECK(package->HasTop());
+    XLS_ASSIGN_OR_RETURN(Proc * top, package->GetTopAsProc());
+    if (use_jit) {
+      return CreateJitSerialProcRuntime(top, evaluator_options);
+    }
+    return CreateInterpreterSerialProcRuntime(top, evaluator_options);
+  }
+  if (use_jit) {
+    return CreateJitSerialProcRuntime(package, evaluator_options);
+  }
+
+  return CreateInterpreterSerialProcRuntime(package, evaluator_options);
+}
+
 absl::Status EvaluateProcs(
     Package* package,
     const absl::btree_map<std::string, std::vector<Value>>& inputs_for_channels,
@@ -305,14 +323,11 @@ absl::Status EvaluateProcs(
     }
   }
   evaluator_options.set_support_observers(uses_observers);
+  XLS_ASSIGN_OR_RETURN(runtime,
+                       GetRuntime(package, options.use_jit, evaluator_options));
   if (options.use_jit) {
-    XLS_ASSIGN_OR_RETURN(
-        runtime, CreateJitSerialProcRuntime(package, evaluator_options));
     XLS_ASSIGN_OR_RETURN(auto jit_queue, runtime->GetJitChannelQueueManager());
     jit = &jit_queue->runtime();
-  } else {
-    XLS_ASSIGN_OR_RETURN(runtime, CreateInterpreterSerialProcRuntime(
-                                      package, evaluator_options));
   }
   if (uses_observers) {
     XLS_RETURN_IF_ERROR(
@@ -354,7 +369,7 @@ absl::Status EvaluateProcs(
 
   for (const auto& [channel_name, values] : inputs_for_channels) {
     XLS_ASSIGN_OR_RETURN(ChannelQueue * in_queue,
-                         queue_manager.GetQueueByName(channel_name));
+                         queue_manager.GetBoundaryQueueByName(channel_name));
     for (const Value& value : values) {
       XLS_RETURN_IF_ERROR(in_queue->Write(value));
     }
@@ -386,13 +401,15 @@ absl::Status EvaluateProcs(
         std::ostringstream ostr;
         for (const auto& [channel_name, values] :
              expected_outputs_for_channels) {
-          XLS_ASSIGN_OR_RETURN(ChannelQueue * out_queue,
-                               queue_manager.GetQueueByName(channel_name));
+          XLS_ASSIGN_OR_RETURN(
+              ChannelQueue * out_queue,
+              queue_manager.GetBoundaryQueueByName(channel_name));
           ostr << channel_name << "[" << out_queue->GetSize() << "] " << " ";
         }
         for (const auto& [channel_name, values] : inputs_for_channels) {
-          XLS_ASSIGN_OR_RETURN(ChannelQueue * in_queue,
-                               queue_manager.GetQueueByName(channel_name));
+          XLS_ASSIGN_OR_RETURN(
+              ChannelQueue * in_queue,
+              queue_manager.GetBoundaryQueueByName(channel_name));
           ostr << channel_name << "[" << in_queue->GetSize() << "] " << " ";
         }
         LOG(INFO) << "Tick " << i << ": " << ostr.str();
@@ -404,16 +421,18 @@ absl::Status EvaluateProcs(
       if (!tick_ret.ok()) {
         for (const auto& [channel_name, values] :
              expected_outputs_for_channels) {
-          XLS_ASSIGN_OR_RETURN(ChannelQueue * out_queue,
-                               queue_manager.GetQueueByName(channel_name));
+          XLS_ASSIGN_OR_RETURN(
+              ChannelQueue * out_queue,
+              queue_manager.GetBoundaryQueueByName(channel_name));
 
           LOG(INFO) << absl::StreamFormat(
               "out_queue[%s]: size %li, reference values %li", channel_name,
               out_queue->GetSize(), values.size());
         }
         for (const auto& [channel_name, values] : inputs_for_channels) {
-          XLS_ASSIGN_OR_RETURN(ChannelQueue * in_queue,
-                               queue_manager.GetQueueByName(channel_name));
+          XLS_ASSIGN_OR_RETURN(
+              ChannelQueue * in_queue,
+              queue_manager.GetBoundaryQueueByName(channel_name));
 
           LOG(INFO) << absl::StreamFormat(
               "in_queue[%s]: size %li, reference values %li", channel_name,
@@ -471,8 +490,9 @@ absl::Status EvaluateProcs(
         bool all_outputs_produced = true;
         for (const auto& [channel_name, values] :
              expected_outputs_for_channels) {
-          XLS_ASSIGN_OR_RETURN(ChannelQueue * out_queue,
-                               queue_manager.GetQueueByName(channel_name));
+          XLS_ASSIGN_OR_RETURN(
+              ChannelQueue * out_queue,
+              queue_manager.GetBoundaryQueueByName(channel_name));
           if (out_queue->GetSize() < values.size()) {
             all_outputs_produced = false;
           }
@@ -480,8 +500,9 @@ absl::Status EvaluateProcs(
         if (all_outputs_produced) {
           absl::btree_map<std::string, std::vector<Value>> unconsumed_inputs;
           for (const auto& [channel_name, _] : inputs_for_channels) {
-            XLS_ASSIGN_OR_RETURN(ChannelQueue * in_queue,
-                                 queue_manager.GetQueueByName(channel_name));
+            XLS_ASSIGN_OR_RETURN(
+                ChannelQueue * in_queue,
+                queue_manager.GetBoundaryQueueByName(channel_name));
             // Ignore single value channels in this check
             if (in_queue->channel()->kind() == ChannelKind::kSingleValue) {
               continue;
@@ -507,7 +528,7 @@ absl::Status EvaluateProcs(
   std::vector<std::string> errors;
   for (const auto& [channel_name, values] : expected_outputs_for_channels) {
     XLS_ASSIGN_OR_RETURN(ChannelQueue * out_queue,
-                         queue_manager.GetQueueByName(channel_name));
+                         queue_manager.GetBoundaryQueueByName(channel_name));
     uint64_t processed_count = 0;
     for (const Value& value : values) {
       std::optional<Value> out_val = out_queue->Read();
@@ -541,20 +562,20 @@ absl::Status EvaluateProcs(
   }
 
   if (expected_outputs_for_channels.empty()) {
-    for (const Channel* channel : package->channels()) {
-      if (!channel->CanSend()) {
+    for (const ChannelInstance* channel_instance :
+         queue_manager.elaboration().channel_instances()) {
+      if (!channel_instance->channel->CanSend()) {
         continue;
       }
-      XLS_ASSIGN_OR_RETURN(ChannelQueue * out_queue,
-                           queue_manager.GetQueueByName(channel->name()));
-      std::vector<Value> channel_values(out_queue->GetSize());
+      ChannelQueue& out_queue = queue_manager.GetQueue(channel_instance);
+      std::vector<Value> channel_values(out_queue.GetSize());
       int64_t index = 0;
-      while (!out_queue->IsEmpty()) {
-        std::optional<Value> out_val = out_queue->Read();
+      while (!out_queue.IsEmpty()) {
+        std::optional<Value> out_val = out_queue.Read();
         channel_values[index++] = out_val.value();
       }
       expected_outputs_for_channels.insert(
-          {std::string{channel->name()}, channel_values});
+          {std::string{out_queue.channel()->name()}, channel_values});
     }
     std::cout << ChannelValuesToString(expected_outputs_for_channels);
   }

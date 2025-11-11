@@ -30,6 +30,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/package.h"
@@ -207,11 +208,30 @@ absl::StatusOr<ChannelQueue*> ChannelQueueManager::GetQueueById(
 }
 
 absl::StatusOr<ChannelQueue*> ChannelQueueManager::GetQueueByName(
-    std::string_view name) {
+    std::string_view name, std::string_view proc_name) {
+  // Packages with proc-scoped channels must provide a proc_name in order to
+  // retrieve the channel.
+  XLS_RET_CHECK(!package()->ChannelsAreProcScoped() || !proc_name.empty());
+  if (package()->ChannelsAreProcScoped()) {
+    XLS_ASSIGN_OR_RETURN(Proc * top, package()->GetProc(proc_name));
+    XLS_ASSIGN_OR_RETURN(ChannelInstance * instance,
+                         elaboration().GetChannelInstance(name, top->name()));
+    return &GetQueue(instance);
+  }
   XLS_ASSIGN_OR_RETURN(Channel * channel, package()->GetChannel(name));
   XLS_ASSIGN_OR_RETURN(ChannelInstance * instance,
                        elaboration().GetUniqueInstance(channel));
   return queues_.at(instance).get();
+}
+
+absl::StatusOr<ChannelQueue*> ChannelQueueManager::GetBoundaryQueueByName(
+    std::string_view name) {
+  if (package()->ChannelsAreProcScoped()) {
+    XLS_RET_CHECK(package()->HasTop());
+    XLS_ASSIGN_OR_RETURN(Proc * top, package()->GetTopAsProc());
+    return GetQueueByName(name, top->name());
+  }
+  return GetQueueByName(name);
 }
 
 }  // namespace xls

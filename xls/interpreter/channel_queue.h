@@ -174,7 +174,7 @@ class ChannelQueueManager {
       ProcElaboration elaboration);
 
   // Get the channel queue associated with the channel with the given id/name.
-  ChannelQueue& GetQueue(ChannelInstance* channel_instance) {
+  ChannelQueue& GetQueue(const ChannelInstance* channel_instance) {
     return *queues_.at(channel_instance);
   }
   ChannelQueue& GetQueue(Channel* channel) {
@@ -187,7 +187,12 @@ class ChannelQueueManager {
   // Returns the queue associated with the channel with the given
   // ID/name. Returns an error if no such channel exists.
   absl::StatusOr<ChannelQueue*> GetQueueById(int64_t channel_id);
-  absl::StatusOr<ChannelQueue*> GetQueueByName(std::string_view name);
+  absl::StatusOr<ChannelQueue*> GetQueueByName(std::string_view name,
+                                               std::string_view proc_name = "");
+
+  // Return the queue associated with the boundary channel with the given name.
+  // For proc-scoped channels, boundary channels are scoped to the top proc.
+  absl::StatusOr<ChannelQueue*> GetBoundaryQueueByName(std::string_view name);
 
   const ProcElaboration& elaboration() const { return elaboration_; }
   Package* package() const { return elaboration_.package(); }
