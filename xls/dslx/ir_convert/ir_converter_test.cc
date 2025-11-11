@@ -2695,6 +2695,42 @@ pub proc FooAlias = Foo<16>;
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       HandlesParametricProcAliasCallingParametricFn) {
+  if (GetParam() == TypeInferenceVersion::kVersion1) {
+    // Proc aliases are not supported in TIv1.
+    return;
+  }
+
+  constexpr std::string_view program = R"(
+fn bar<Y: u32>(i: uN[Y]) -> uN[Y] {
+  i+i
+}
+
+proc Foo<N: u32> {
+  c: chan<uN[N]> out;
+  init { uN[N]:1 }
+  config(output_c: chan<uN[N]> out) {
+    (output_c,)
+  }
+  next(i: uN[N]) {
+    let result = bar<N>(i);
+    let tok = send(join(), c, result);
+    result + uN[N]:1
+  }
+}
+
+pub proc FooAlias = Foo<16>;
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "FooAlias", import_data,
+                                kNoPosOptions));
+  ExpectIr(converted);
+}
+
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
        HandlesProcAliasToImportedProc) {
   if (GetParam() == TypeInferenceVersion::kVersion1) {
     // Proc aliases are not supported in TIv1.
@@ -2727,6 +2763,83 @@ pub proc FooAlias = imported::Foo<16>;
       std::string converted,
       ConvertOneFunctionForTest(program, "FooAlias", import_data,
                                 kNoPosOptions));
+  ExpectIr(converted);
+}
+
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       HandlesProcAliasToNonBitsParametricProc) {
+  if (GetParam() == TypeInferenceVersion::kVersion1) {
+    // Proc aliases are not supported in TIv1.
+    return;
+  }
+
+  constexpr std::string_view program = R"(
+struct MyStruct {
+  a: u32,
+  b: u32,
+}
+
+pub proc Foo<CONFIG: MyStruct> {
+  c: chan<uN[CONFIG.a]> out;
+  init { uN[CONFIG.a]:1 }
+  config(output_c: chan<uN[CONFIG.a]> out) {
+    (output_c,)
+  }
+  next(i: uN[CONFIG.a]) {
+    let tok = send(join(), c, i);
+    i + CONFIG.b as uN[CONFIG.a]
+  }
+}
+
+const CONFIG = MyStruct{a: u32:32, b: u32:2};
+proc FooAlias = Foo<CONFIG>;
+)";
+
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "FooAlias", import_data,
+                                kNoPosOptions));
+  ExpectIr(converted);
+}
+
+// TODO: google/xls#3353 - enable this test when all the issues have been fixed.
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       DISABLED_HandlesSpawnOfNonBitsParametricProc) {
+  constexpr std::string_view program = R"(
+struct MyStruct {
+  a: u32,
+  b: u32,
+}
+
+proc Foo<CONFIG: MyStruct> {
+  c: chan<uN[CONFIG.a]> out;
+  init { uN[CONFIG.a]:1 }
+  config(output_c: chan<uN[CONFIG.a]> out) {
+    (output_c,)
+  }
+  next(i: uN[CONFIG.a]) {
+    let tok = send(join(), c, i);
+    i + CONFIG.b as uN[CONFIG.a]
+  }
+}
+
+const CONFIG = MyStruct{a: u32:32, b: u32:2};
+proc Top {
+  init { () }
+  config() {
+    let (p, c) = chan<uN[CONFIG.a]>("my_chan");
+    spawn Foo<CONFIG>(p);
+    ()
+  }
+  next(state: ()) { () }
+}
+)";
+
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "Top", import_data, kNoPosOptions));
   ExpectIr(converted);
 }
 
@@ -6354,6 +6467,37 @@ proc Foo<N: u32> {
   next(i: uN[N]) {
     let tok = send(join(), c, i);
     i + uN[N]:2
+  }
+}
+
+pub proc FooAlias = Foo<16>;
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "FooAlias", import_data,
+                                kProcScopedChannelOptions));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest,
+       ProcScopedParametricProcAliasCallingParametricFn) {
+  constexpr std::string_view program = R"(
+fn bar<Y: u32>(i: uN[Y]) -> uN[Y] {
+  i+i
+}
+
+proc Foo<N: u32> {
+  c: chan<uN[N]> out;
+  init { uN[N]:1 }
+  config(output_c: chan<uN[N]> out) {
+    (output_c,)
+  }
+  next(i: uN[N]) {
+    let result = bar<N>(i);
+    let tok = send(join(), c, result);
+    result + uN[N]:1
   }
 }
 

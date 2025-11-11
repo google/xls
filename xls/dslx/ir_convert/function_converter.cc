@@ -3598,14 +3598,18 @@ absl::Status FunctionConverter::HandleProcNextFunction(
                          parametric_type->GetTotalBitCount());
     XLS_ASSIGN_OR_RETURN(int64_t bit_count, parametric_width_ctd.GetAsInt64());
     Value param_value;
-    if (parametric_value->IsSigned()) {
-      XLS_ASSIGN_OR_RETURN(int64_t bit_value,
-                           parametric_value->GetBitValueViaSign());
-      param_value = Value(SBits(bit_value, bit_count));
+    if (parametric_value->IsBits()) {
+      if (parametric_value->IsSigned()) {
+        XLS_ASSIGN_OR_RETURN(int64_t bit_value,
+                             parametric_value->GetBitValueViaSign());
+        param_value = Value(SBits(bit_value, bit_count));
+      } else {
+        XLS_ASSIGN_OR_RETURN(uint64_t bit_value,
+                             parametric_value->GetBitValueViaSign());
+        param_value = Value(UBits(bit_value, bit_count));
+      }
     } else {
-      XLS_ASSIGN_OR_RETURN(uint64_t bit_value,
-                           parametric_value->GetBitValueViaSign());
-      param_value = Value(UBits(bit_value, bit_count));
+      XLS_ASSIGN_OR_RETURN(param_value, InterpValueToValue(*parametric_value));
     }
     DefConst(parametric_binding, param_value);
     XLS_RETURN_IF_ERROR(

@@ -395,6 +395,7 @@ class InferenceTableImpl : public InferenceTable {
     ParametricContext* result = context.get();
     parametric_contexts_.push_back(std::move(context));
     mutable_parametric_context_data_.emplace(result, std::move(mutable_data));
+    SetParametricEnv(result, env);
     return result;
   }
 
