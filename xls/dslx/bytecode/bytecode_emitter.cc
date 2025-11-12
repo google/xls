@@ -744,9 +744,8 @@ absl::Status BytecodeEmitter::HandleBuiltinBitCount(const Invocation* node) {
   VLOG(5) << "BytecodeEmitter::HandleInvocation - BitCount @ "
           << node->span().ToString(file_table());
 
-  const auto* annotation =
-      std::get<TypeAnnotation*>(node->explicit_parametrics()[0]);
-  XLS_ASSIGN_OR_RETURN(Type * type, GetTypeOfNode(annotation, type_info_));
+  const auto* arg = ToAstNode(node->explicit_parametrics()[0]);
+  XLS_ASSIGN_OR_RETURN(Type * type, GetTypeOfNode(arg, type_info_));
   XLS_ASSIGN_OR_RETURN(InterpValue bit_count, GetBitCountAsInterpValue(type));
   bytecode_.push_back(
       Bytecode(node->span(), Bytecode::Op::kLiteral, bit_count));
@@ -766,9 +765,8 @@ absl::Status BytecodeEmitter::HandleBuiltinElementCount(
   VLOG(5) << "BytecodeEmitter::HandleInvocation - ElementCount @ "
           << node->span().ToString(file_table());
 
-  const auto* annotation =
-      std::get<TypeAnnotation*>(node->explicit_parametrics()[0]);
-  XLS_ASSIGN_OR_RETURN(Type * type, GetTypeOfNode(annotation, type_info_));
+  const auto* arg = ToAstNode(node->explicit_parametrics()[0]);
+  XLS_ASSIGN_OR_RETURN(Type * type, GetTypeOfNode(arg, type_info_));
   XLS_ASSIGN_OR_RETURN(InterpValue element_count,
                        GetElementCountAsInterpValue(type));
   bytecode_.push_back(

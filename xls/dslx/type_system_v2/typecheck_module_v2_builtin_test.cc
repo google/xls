@@ -285,8 +285,7 @@ pub enum X : u3 {
 )";
   constexpr std::string_view kProgram = R"(
 import imported;
-const Y = bit_count<imported::X>();
-const_assert!(Y == 3);
+const_assert!(bit_count<imported::X>() == 3);
 )";
   ImportData import_data = CreateImportDataForTest();
   XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
@@ -630,8 +629,7 @@ pub type T = u32[10];
 )";
   constexpr std::string_view kProgram = R"(
 import imported;
-const Y = element_count<imported::T>();
-const_assert!(Y == 10);
+const_assert!(element_count<imported::T>() == 10);
 )";
   ImportData import_data = CreateImportDataForTest();
   XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
