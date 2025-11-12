@@ -2695,6 +2695,42 @@ pub proc FooAlias = Foo<16>;
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       HandlesParametricProcAliasCallingParametricFn) {
+  if (GetParam() == TypeInferenceVersion::kVersion1) {
+    // Proc aliases are not supported in TIv1.
+    return;
+  }
+
+  constexpr std::string_view program = R"(
+fn bar<Y: u32>(i: uN[Y]) -> uN[Y] {
+  i+i
+}
+
+proc Foo<N: u32> {
+  c: chan<uN[N]> out;
+  init { uN[N]:1 }
+  config(output_c: chan<uN[N]> out) {
+    (output_c,)
+  }
+  next(i: uN[N]) {
+    let result = bar<N>(i);
+    let tok = send(join(), c, result);
+    result + uN[N]:1
+  }
+}
+
+pub proc FooAlias = Foo<16>;
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "FooAlias", import_data,
+                                kNoPosOptions));
+  ExpectIr(converted);
+}
+
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
        HandlesProcAliasToImportedProc) {
   if (GetParam() == TypeInferenceVersion::kVersion1) {
     // Proc aliases are not supported in TIv1.
@@ -6403,6 +6439,37 @@ proc Foo<N: u32> {
   next(i: uN[N]) {
     let tok = send(join(), c, i);
     i + uN[N]:2
+  }
+}
+
+pub proc FooAlias = Foo<16>;
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "FooAlias", import_data,
+                                kProcScopedChannelOptions));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest,
+       ProcScopedParametricProcAliasCallingParametricFn) {
+  constexpr std::string_view program = R"(
+fn bar<Y: u32>(i: uN[Y]) -> uN[Y] {
+  i+i
+}
+
+proc Foo<N: u32> {
+  c: chan<uN[N]> out;
+  init { uN[N]:1 }
+  config(output_c: chan<uN[N]> out) {
+    (output_c,)
+  }
+  next(i: uN[N]) {
+    let result = bar<N>(i);
+    let tok = send(join(), c, result);
+    result + uN[N]:1
   }
 }
 

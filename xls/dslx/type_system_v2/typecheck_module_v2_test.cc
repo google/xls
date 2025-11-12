@@ -7959,6 +7959,27 @@ proc main {
                   HasNodeWithType("spawn imported::Counter(p, 50)", "()"))));
 }
 
+TEST(TypecheckV2Test, ModuleWithParametricProcAliasCallingParametricFn) {
+  XLS_EXPECT_OK(TypecheckV2(R"(fn bar<Y: u32>(i: uN[Y]) -> uN[Y] {
+    i + i
+}
+proc Foo<N: u32> {
+    c: chan<uN[N]> out;
+    config(output_c: chan<uN[N]> out) {
+        (output_c,)
+    }
+    init {
+        uN[N]:1
+    }
+    next(i: uN[N]) {
+        let result = bar<N>(i);
+        let tok = send(join(), c, result);
+        result + uN[N]:1
+    }
+}
+proc Bar = Foo<16>;)"));
+}
+
 TEST(TypecheckV2Test, ImportStructAsTypeTwoLevels) {
   constexpr std::string_view kFirst = R"(
 pub struct S { x: u5 }
