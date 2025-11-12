@@ -137,6 +137,71 @@ std::optional<Bits> PartialInformation::GetPuncturedValue() const {
   return std::nullopt;
 }
 
+// Gets the number of leading (high bit) ones known.
+int64_t PartialInformation::KnownLeadingOnes() const {
+  if (IsImpossible()) {
+    return 0;
+  }
+  if (IsUnconstrained()) {
+    return 0;
+  }
+  int64_t tern_count = 0;
+  if (ternary_) {
+    tern_count = std::find_if_not(ternary_->rbegin(), ternary_->rend(),
+                                  [](TernaryValue v) {
+                                    return v == TernaryValue::kKnownOne;
+                                  }) -
+                 ternary_->rbegin();
+  }
+  int64_t range_count = 0;
+  if (range_) {
+    range_count = range_->LowerBound()->CountLeadingOnes();
+  }
+  return std::max(range_count, tern_count);
+}
+// Gets the number of leading (high bit) zeros known.
+int64_t PartialInformation::KnownLeadingZeros() const {
+  if (IsImpossible()) {
+    return 0;
+  }
+  if (IsUnconstrained()) {
+    return 0;
+  }
+  int64_t tern_count = 0;
+  if (ternary_) {
+    tern_count = std::find_if_not(ternary_->rbegin(), ternary_->rend(),
+                                  [](TernaryValue v) {
+                                    return v == TernaryValue::kKnownZero;
+                                  }) -
+                 ternary_->rbegin();
+  }
+  int64_t range_count = 0;
+  if (range_) {
+    range_count = range_->UpperBound()->CountLeadingZeros();
+  }
+  return std::max(range_count, tern_count);
+}
+// Gets the number of leading sign bits known.
+int64_t PartialInformation::KnownLeadingSignBits() const {
+  if (IsImpossible()) {
+    return 0;
+  }
+  if (IsUnconstrained()) {
+    return 1;
+  }
+  if (ternary_ && ternary_->back() != TernaryValue::kUnknown) {
+    // Count from ternary.
+    return std::find_if_not(
+               ternary_->rbegin(), ternary_->rend(),
+               [&](TernaryValue v) { return v == ternary_->back(); }) -
+           ternary_->rbegin();
+  }
+  if (!range_) {
+    return 1;
+  }
+  return 1 + bit_count_ - interval_ops::MinimumSignedBitCount(*range_);
+}
+
 std::string PartialInformation::ToString() const {
   if (IsUnconstrained()) {
     return "unconstrained";
@@ -616,6 +681,17 @@ void PartialInformation::ReconcileInformation() {
       CHECK(!range_->IsEmpty());
     } else if (!ternary_range.IsMaximal()) {
       range_ = std::move(ternary_range);
+    }
+  }
+
+  if (range_.has_value()) {
+    // Transfer as much information as we can into the ternary one last time to
+    // finish unification.
+    TernaryVector range_ternary = interval_ops::ExtractTernaryVector(*range_);
+    if (ternary_.has_value()) {
+      CHECK(ternary_ops::TryUpdateWithUnion(*ternary_, range_ternary));
+    } else if (!ternary_ops::AllUnknown(range_ternary)) {
+      ternary_ = std::move(range_ternary);
     }
   }
 }

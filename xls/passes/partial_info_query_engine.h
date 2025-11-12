@@ -15,6 +15,7 @@
 #ifndef XLS_PASSES_PARTIAL_INFO_QUERY_ENGINE_H_
 #define XLS_PASSES_PARTIAL_INFO_QUERY_ENGINE_H_
 
+#include <cstdint>
 #include <optional>
 #include <utility>
 
@@ -58,6 +59,10 @@ class PartialInfoQueryEngine : public LazyQueryEngine<PartialInformation> {
       Node* node) const override {
     return std::nullopt;
   }
+
+  std::optional<int64_t> KnownLeadingOnes(Node* n) const override;
+  std::optional<int64_t> KnownLeadingZeros(Node* n) const override;
+  std::optional<int64_t> KnownLeadingSignBits(Node* n) const override;
 
  protected:
   LeafTypeTree<PartialInformation> ComputeInfo(

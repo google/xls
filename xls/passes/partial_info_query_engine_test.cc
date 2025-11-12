@@ -26,8 +26,12 @@
 #include "xls/common/fuzzing/fuzztest.h"
 #include "absl/log/check.h"
 #include "absl/types/span.h"
+#include "cppitertools/zip.hpp"
 #include "xls/common/status/matchers.h"
 #include "xls/data_structures/leaf_type_tree.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
+#include "xls/fuzzer/ir_fuzzer/query_engine_helpers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/function.h"
@@ -42,6 +46,8 @@
 #include "xls/ir/ternary.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_builder.h"
+#include "xls/ir/value_utils.h"
+#include "xls/passes/query_engine.h"
 #include "xls/passes/range_query_engine.h"
 
 namespace xls {
@@ -2186,6 +2192,68 @@ TEST_F(PartialInfoQueryEngineTest, ZeroExtend) {
   EXPECT_EQ(engine.GetIntervals(expr.node()).Get({}),
             CreateIntervalSet(40, {{500, 700}}));
 }
+
+TEST_F(PartialInfoQueryEngineTest, LeadingBits) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(20));
+  BValue zero = fb.ZeroExtend(x, 40);
+  BValue sign = fb.SignExtend(x, 40);
+  BValue ones = fb.Concat({fb.Literal(SBits(-1, 20)), x});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  PartialInfoQueryEngine engine;
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  EXPECT_EQ(engine.KnownLeadingOnes(ones.node()), 20);
+  EXPECT_EQ(engine.KnownLeadingZeros(zero.node()), 20);
+  EXPECT_EQ(engine.KnownLeadingSignBits(sign.node()), 21);
+}
+
+void CheckConsistency(const FuzzPackageWithArgs& fuzz) {
+  CheckQueryEngineConsistency<PartialInfoQueryEngine>(
+      fuzz,
+      [](const PartialInfoQueryEngine& qe, Node* n, const Value& v) -> bool {
+        auto tern = qe.GetTernary(n);
+        auto ltt = ValueToLeafTypeTree(v, n->GetType());
+        if (!ltt.ok()) {
+          ADD_FAILURE() << "Unable to parse " << v << " into ltt";
+          return false;
+        }
+        if (tern) {
+          for (const auto& [tern_bits, val] :
+               iter::zip(tern->elements(), ltt->elements())) {
+            EXPECT_TRUE(!val.IsBits() ||
+                        ternary_ops::IsCompatible(tern_bits, val.bits()))
+                << val << " not compatible with " << ToString(tern_bits);
+          }
+        }
+        auto range = qe.GetIntervals(n);
+        for (const auto& [range, val] :
+             iter::zip(range.elements(), ltt->elements())) {
+          if (val.IsBits()) {
+            EXPECT_TRUE(range.Covers(val.bits()))
+                << range << " does not cover " << val;
+          }
+        }
+        auto lead_zero = qe.KnownLeadingZeros(n);
+        if (lead_zero) {
+          EXPECT_LE(*lead_zero, v.bits().CountLeadingZeros());
+        }
+        auto lead_one = qe.KnownLeadingOnes(n);
+        if (lead_one) {
+          EXPECT_LE(*lead_one, v.bits().CountLeadingOnes());
+        }
+        auto lead_sign = qe.KnownLeadingSignBits(n);
+        if (lead_sign) {
+          EXPECT_LE(*lead_sign, v.bits().msb() ? v.bits().CountLeadingOnes()
+                                               : v.bits().CountLeadingZeros());
+        }
+        return true;
+      });
+}
+
+FUZZ_TEST(PartialInfoQueryEngineFuzzTest, CheckConsistency)
+    .WithDomains(PackageWithArgsDomainBuilder(10).Build());
 
 }  // namespace
 }  // namespace xls

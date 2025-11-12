@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <ostream>
 #include <tuple>
 #include <utility>
 
@@ -142,6 +143,45 @@ void ImpossibleAndUnconstrained(std::tuple<std::optional<TernaryVector>,
 FUZZ_TEST(PartialInformationFuzzTest, ImpossibleAndUnconstrained)
     .WithDomains(ArbitraryTernaryAndNormalizedIntervalSet());
 
+void LeadingBitsIsCorrect(std::tuple<std::optional<TernaryVector>,
+                                     std::optional<IntervalSet>, int64_t>
+                              inputs) {
+  const auto& [ternary, range, bit_count] = inputs;
+  PartialInformation info(bit_count, ternary, range);
+  if (info.IsImpossible()) {
+    EXPECT_EQ(info.KnownLeadingOnes(), 0);
+    EXPECT_EQ(info.KnownLeadingZeros(), 0);
+    EXPECT_EQ(info.KnownLeadingSignBits(), 0);
+  } else if (info.IsUnconstrained()) {
+    EXPECT_EQ(info.KnownLeadingOnes(), 0);
+    EXPECT_EQ(info.KnownLeadingZeros(), 0);
+    EXPECT_EQ(info.KnownLeadingSignBits(), 1);
+  } else if (info.KnownLeadingZeros() != 0) {
+    EXPECT_EQ(info.KnownLeadingSignBits(), info.KnownLeadingZeros());
+    EXPECT_EQ(info.KnownLeadingOnes(), 0);
+    ASSERT_TRUE(info.Ternary().has_value())
+        << info << ": Failed to unify even though some bits are known";
+    EXPECT_EQ(
+        info.KnownLeadingZeros(),
+        ternary_ops::ToKnownBitsValues(*info.Ternary(), /*default_set=*/true)
+            .CountLeadingZeros())
+        << info;
+  } else if (info.KnownLeadingOnes()) {
+    EXPECT_EQ(info.KnownLeadingSignBits(), info.KnownLeadingOnes());
+    EXPECT_EQ(info.KnownLeadingZeros(), 0);
+    ASSERT_TRUE(info.Ternary().has_value())
+        << info << ": Failed to unify even though some bits are known";
+    EXPECT_EQ(
+        info.KnownLeadingOnes(),
+        ternary_ops::ToKnownBitsValues(*info.Ternary(), /*default_set=*/false)
+            .CountLeadingOnes())
+        << info;
+  }
+}
+
+FUZZ_TEST(PartialInformationFuzzTest, LeadingBitsIsCorrect)
+    .WithDomains(ArbitraryTernaryAndNormalizedIntervalSet());
+
 // Detected by fuzzing; this regression test is a combination of a ternary and
 // an interval set that is extremely close to being compatible, to the point
 // where our original reconciliation logic failed due to imprecision in
@@ -202,6 +242,35 @@ TEST(PartialInformationTest, Shifts) {
   expected_shrl[127] = TernaryValue::kKnownZero;
   expected_shrl[126] = TernaryValue::kKnownZero;
   EXPECT_EQ(x.Shrl(y), PartialInformation(expected_shrl));
+}
+
+TEST(PartialInformationTest, LeadingOnes) {
+  PartialInformation x = PartialInformation(
+      IntervalSet::Of({Interval(UBits(0b11110000, 8), UBits(0b11111000, 8)),
+                       Interval(UBits(0b11100000, 8), UBits(0b11100011, 8))}));
+  EXPECT_EQ(x.KnownLeadingSignBits(), 3);
+  EXPECT_EQ(x.KnownLeadingZeros(), 0);
+  EXPECT_EQ(x.KnownLeadingOnes(), 3);
+}
+
+TEST(PartialInformationTest, LeadingZero) {
+  PartialInformation x = PartialInformation(
+      IntervalSet::Of({Interval(UBits(0b00000111, 8), UBits(0b00001111, 8)),
+                       Interval(UBits(0b00011100, 8), UBits(0b00011111, 8))}));
+  EXPECT_EQ(x.KnownLeadingSignBits(), 3);
+  EXPECT_EQ(x.KnownLeadingZeros(), 3);
+  EXPECT_EQ(x.KnownLeadingOnes(), 0);
+}
+
+TEST(PartialInformationTest, LeadingSign) {
+  PartialInformation x = PartialInformation(
+      IntervalSet::Of({Interval(UBits(0b00000111, 8), UBits(0b00001111, 8)),
+                       Interval(UBits(0b00011100, 8), UBits(0b00011111, 8)),
+                       Interval(UBits(0b11110000, 8), UBits(0b11111000, 8)),
+                       Interval(UBits(0b11100000, 8), UBits(0b11100011, 8))}));
+  EXPECT_EQ(x.KnownLeadingSignBits(), 3);
+  EXPECT_EQ(x.KnownLeadingZeros(), 0);
+  EXPECT_EQ(x.KnownLeadingOnes(), 0);
 }
 
 }  // namespace

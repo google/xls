@@ -133,6 +133,13 @@ class PartialInformation {
   // represents the exclusion of a single value.
   std::optional<Bits> GetPuncturedValue() const;
 
+  // Gets the number of leading (high bit) ones known.
+  int64_t KnownLeadingOnes() const;
+  // Gets the number of leading (high bit) zeros known.
+  int64_t KnownLeadingZeros() const;
+  // Gets the number of leading sign bits known.
+  int64_t KnownLeadingSignBits() const;
+
   std::string ToString() const;
 
   template <typename Sink>

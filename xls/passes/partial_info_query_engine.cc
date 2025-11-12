@@ -851,4 +851,39 @@ bool PartialInfoQueryEngine::Covers(Node* node, const Bits& value) const {
   return info_tree->Get({}).IsCompatibleWith(value);
 }
 
+std::optional<int64_t> PartialInfoQueryEngine::KnownLeadingOnes(Node* n) const {
+  if (!n->GetType()->IsBits()) {
+    return std::nullopt;
+  }
+  std::optional<SharedLeafTypeTree<PartialInformation>> info_tree = GetInfo(n);
+  if (!info_tree.has_value()) {
+    return std::nullopt;
+  }
+  return info_tree->Get({}).KnownLeadingOnes();
+}
+
+std::optional<int64_t> PartialInfoQueryEngine::KnownLeadingZeros(
+    Node* n) const {
+  if (!n->GetType()->IsBits()) {
+    return std::nullopt;
+  }
+  std::optional<SharedLeafTypeTree<PartialInformation>> info_tree = GetInfo(n);
+  if (!info_tree.has_value()) {
+    return std::nullopt;
+  }
+  return info_tree->Get({}).KnownLeadingZeros();
+}
+
+std::optional<int64_t> PartialInfoQueryEngine::KnownLeadingSignBits(
+    Node* n) const {
+  if (!n->GetType()->IsBits() || n->BitCountOrDie() == 0) {
+    return std::nullopt;
+  }
+  std::optional<SharedLeafTypeTree<PartialInformation>> info_tree = GetInfo(n);
+  if (!info_tree.has_value()) {
+    return std::nullopt;
+  }
+  return info_tree->Get({}).KnownLeadingSignBits();
+}
+
 }  // namespace xls
