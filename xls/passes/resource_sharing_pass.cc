@@ -60,16 +60,16 @@ namespace xls {
 class TimingAnalysis {
  public:
   TimingAnalysis(
-      const std::vector<std::unique_ptr<NaryFoldingAction>> &folding_actions,
-      const absl::flat_hash_map<Node *, uint64_t> &delay_to_node);
+      const std::vector<std::unique_ptr<NaryFoldingAction>>& folding_actions,
+      const absl::flat_hash_map<Node*, uint64_t>& delay_to_node);
 
-  uint64_t GetDelayIncrease(NaryFoldingAction *folding_action) const;
+  uint64_t GetDelayIncrease(NaryFoldingAction* folding_action) const;
 
-  double GetDelaySpread(NaryFoldingAction *folding_action) const;
+  double GetDelaySpread(NaryFoldingAction* folding_action) const;
 
  private:
-  absl::flat_hash_map<NaryFoldingAction *, uint64_t> delay_increase_;
-  absl::flat_hash_map<NaryFoldingAction *, double> delay_spread_;
+  absl::flat_hash_map<NaryFoldingAction*, uint64_t> delay_increase_;
+  absl::flat_hash_map<NaryFoldingAction*, double> delay_spread_;
 };
 
 // InfluencedBySource returns true if @node has any operand in the def-use chain
@@ -133,7 +133,7 @@ bool DoesErase(Node* node, uint32_t case_number,
 
   // Check for erasure assuming one other selector bit is set. If this is found
   // to be true for all other selector bits, then @node erases @source.
-  for (const auto &[t_number, t] : iter::enumerate(selector_bits)) {
+  for (const auto& [t_number, t] : iter::enumerate(selector_bits)) {
     if (t_number == case_number) {
       continue;
     }
@@ -193,7 +193,7 @@ absl::StatusOr<bool> HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
   }
   auto it_case = nodes_with_side_effects_at_case.find(node);
   if (it_case != nodes_with_side_effects_at_case.end()) {
-    absl::flat_hash_map<uint32_t, bool> &analysis_results_for_node =
+    absl::flat_hash_map<uint32_t, bool>& analysis_results_for_node =
         it_case->second;
     auto it_case_for_node = analysis_results_for_node.find(case_number);
     if (it_case_for_node != analysis_results_for_node.end()) {
@@ -217,8 +217,8 @@ absl::StatusOr<bool> HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
   // Check if we reached a next node that has no effects when the select case is
   // taken.
   if (node->Is<Next>()) {
-    Next *next_node = node->As<Next>();
-    std::optional<Node *> predicate = next_node->predicate();
+    Next* next_node = node->As<Next>();
+    std::optional<Node*> predicate = next_node->predicate();
     if (predicate.has_value()) {
       if (DoesErase(*predicate, case_number, selector_bits, source,
                     reachability, bdd_engine, nodes_with_side_effects,
@@ -240,7 +240,7 @@ absl::StatusOr<bool> HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
   // We did not find @select yet and we did not find a node that erases @source.
   // Now it is the time to check if we have reached the end of the def-use
   // chain.
-  absl::Span<Node *const> users = node->users();
+  absl::Span<Node* const> users = node->users();
   if (users.empty()) {
     // We reached the end of the def-use chain, which means we didn't encounter
     // the following nodes through this def-use chain:
@@ -252,7 +252,7 @@ absl::StatusOr<bool> HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
     VLOG(5) << "     Found a problematic def-use chain";
     VLOG(5) << node->ToString();
     while (!def_use_chain.empty()) {
-      Node *tmp_node = def_use_chain.top();
+      Node* tmp_node = def_use_chain.top();
       VLOG(5) << tmp_node->ToString();
       def_use_chain.pop();
     }
@@ -267,7 +267,7 @@ absl::StatusOr<bool> HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
   // We are not at the end of the def-use chain.
   // Therefore, we need to continue the search through this def-use chain by
   // going through all users of @node, one by one.
-  for (Node *user : node->users()) {
+  for (Node* user : node->users()) {
     // Check all def-use chains that go from @node through @user.
     def_use_chain.push(node);
     XLS_ASSIGN_OR_RETURN(bool has_side_effects,
@@ -293,7 +293,7 @@ absl::StatusOr<bool> HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
   return false;
 }
 
-absl::Span<Node *const> GetCases(Node *select) {
+absl::Span<Node* const> GetCases(Node* select) {
   if (select->Is<PrioritySelect>()) {
     return select->As<PrioritySelect>()->cases();
   }
@@ -319,21 +319,21 @@ Node* GetSelector(Node* select) {
 // the select @select, false otherwise.
 bool AreMutuallyExclusive(
     const absl::flat_hash_map<
-        Node *, absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>>>
-        &mutual_exclusivity_relation,
-    Node *n0, Node *n1, Node *select) {
+        Node*, absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>>&
+        mutual_exclusivity_relation,
+    Node* n0, Node* n1, Node* select) {
   // Fetch the relation created by the select given as input
   if (!mutual_exclusivity_relation.contains(select)) {
     return false;
   }
-  const absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>>
-      &relation_due_to_select = mutual_exclusivity_relation.at(select);
+  const absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>&
+      relation_due_to_select = mutual_exclusivity_relation.at(select);
 
   // Get the nodes that are mutually exclusive with @n0
   if (!relation_due_to_select.contains(n0)) {
     return false;
   }
-  const absl::flat_hash_set<Node *> &mutually_exclusive_nodes_of_n0 =
+  const absl::flat_hash_set<Node*>& mutually_exclusive_nodes_of_n0 =
       relation_due_to_select.at(n0);
 
   // Check if the nodes are mutually exclusive
@@ -399,7 +399,7 @@ std::optional<std::unique_ptr<BinaryFoldingAction>> CanMapInto(
   uint32_t node_to_map_case_number = 0;
   bool folding_destination_found = false;
   uint32_t folding_destination_case_number = 0;
-  for (const auto &[case_number, current_case] :
+  for (const auto& [case_number, current_case] :
        iter::enumerate(GetCases(select))) {
     // Check @node_to_map
     std::optional<uint32_t> node_to_map_case_number_opt =
@@ -468,7 +468,7 @@ std::optional<std::unique_ptr<BinaryFoldingAction>> CanMapInto(
 
 // Check if we are currently capable to potentially handle the node given as
 // input for folding.
-bool CanTarget(Node *n) {
+bool CanTarget(Node* n) {
   // We handle multipliers and adders
   if (n->OpIn({Op::kUMul, Op::kSMul, Op::kAdd, Op::kSub, Op::kShrl, Op::kShra,
                Op::kShll, Op::kDynamicBitSlice})) {
@@ -480,7 +480,7 @@ bool CanTarget(Node *n) {
 
 // Check if we should consider the node given as input for folding.
 // This is part of the profitability guard of the resource sharing pass.
-bool ShouldTarget(Node *n) {
+bool ShouldTarget(Node* n) {
   // Additions are not always worth folding
   if (n->OpIn({Op::kAdd})) {
     // They are worth folding only if their bit-width is big enough
@@ -579,7 +579,7 @@ absl::StatusOr<bool> HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
   // Run the more expensive analysis to understand whether @n can be used
   // directly or indirectly on nodes after @select without going through
   // @select.
-  std::stack<Node *> def_use_chain;
+  std::stack<Node*> def_use_chain;
   XLS_ASSIGN_OR_RETURN(bool has_side_effects,
                        HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
                            nullptr, n, select, case_number, selector_bits, nda,
@@ -603,12 +603,12 @@ absl::StatusOr<absl::flat_hash_map<
     Node*, absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>>>
 ComputeMutualExclusionAnalysis(FunctionBase* f, OptimizationContext& context,
                                const NodeForwardDependencyAnalysis& nda) {
-  absl::flat_hash_map<Node *,
-                      absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>>>
+  absl::flat_hash_map<Node*,
+                      absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>>
       mutual_exclusivity_relation;
 
   // Run the BDD analysis
-  BddQueryEngine *bdd_engine = context.SharedQueryEngine<BddQueryEngine>(f);
+  BddQueryEngine* bdd_engine = context.SharedQueryEngine<BddQueryEngine>(f);
 
   // Run the post-dominance analysis.
   //
@@ -651,12 +651,12 @@ ComputeMutualExclusionAnalysis(FunctionBase* f, OptimizationContext& context,
     }
 
     // Identify the mutually-exclusive instructions created by the select @n
-    absl::flat_hash_map<Node *, bool> nodes_with_side_effects;
-    absl::flat_hash_map<Node *, absl::flat_hash_map<uint32_t, bool>>
+    absl::flat_hash_map<Node*, bool> nodes_with_side_effects;
+    absl::flat_hash_map<Node*, absl::flat_hash_map<uint32_t, bool>>
         nodes_with_side_effects_at_case;
     for (uint32_t case_number = 0; case_number < cases.length();
          case_number++) {
-      Node *current_case = cases[case_number];
+      Node* current_case = cases[case_number];
       VLOG(4) << "  Case number = " << case_number;
       VLOG(4) << "  Selection condition = " << selector_bits[case_number];
       VLOG(4) << "  Case " << current_case->ToString();
@@ -698,7 +698,7 @@ ComputeMutualExclusionAnalysis(FunctionBase* f, OptimizationContext& context,
         // Check if the current reaching node reaches the other cases
         for (uint32_t case_number_2 = case_number + 1;
              case_number_2 < cases.length(); case_number_2++) {
-          Node *current_case_2 = cases[case_number_2];
+          Node* current_case_2 = cases[case_number_2];
           if (nda.IsDependent(current_case_reaching_node, current_case_2)) {
             VLOG(5)
                 << "      The following node reaches the other's select case = "
@@ -773,9 +773,9 @@ ComputeMutualExclusionAnalysis(FunctionBase* f, OptimizationContext& context,
 
   // Print the mutual exclusivity relation
   VLOG(3) << "Mutually exclusive graph";
-  for (const auto &mer : mutual_exclusivity_relation) {
+  for (const auto& mer : mutual_exclusivity_relation) {
     VLOG(3) << "  Select: " << mer.first->ToString();
-    for (const auto &[n0, s0] : mer.second) {
+    for (const auto& [n0, s0] : mer.second) {
       VLOG(3) << "  " << n0->ToString();
       for (auto n1 : s0) {
         VLOG(3) << "    <-> " << n1->ToString();
@@ -797,9 +797,9 @@ std::vector<std::unique_ptr<BinaryFoldingAction>> ComputeFoldableActions(
 
   // Identify as many folding actions that are legal as possible by our current
   // analyses.
-  for (const auto &mer : mutual_exclusivity_relation) {
-    Node *select = mer.first;
-    for (const auto &[n0, s0] : mer.second) {
+  for (const auto& mer : mutual_exclusivity_relation) {
+    Node* select = mer.first;
+    for (const auto& [n0, s0] : mer.second) {
       // Skip nodes that cannot be folded
       if (!CanTarget(n0)) {
         continue;
@@ -811,7 +811,7 @@ std::vector<std::unique_ptr<BinaryFoldingAction>> ComputeFoldableActions(
       }
 
       // Find nodes that n0 can fold into
-      for (Node *n1 : s0) {
+      for (Node* n1 : s0) {
         // Since the mutual exclusive relation is symmetric, use only one side
         // of it
         if (n1->id() < n0->id()) {
@@ -848,7 +848,7 @@ std::vector<std::unique_ptr<BinaryFoldingAction>> ComputeFoldableActions(
 
   // Print the folding actions found
   VLOG(3) << "Possible folding actions";
-  for (const std::unique_ptr<BinaryFoldingAction> &folding : foldable_actions) {
+  for (const std::unique_ptr<BinaryFoldingAction>& folding : foldable_actions) {
     VLOG(3) << "  From " << folding->GetFrom()->ToString();
     VLOG(3) << "  To " << folding->GetTo()->ToString();
     VLOG(3) << "    Select = " << folding->GetSelect()->ToString();
@@ -867,22 +867,22 @@ std::vector<std::unique_ptr<BinaryFoldingAction>> ComputeFoldableActions(
 // For example, when only multiplications that have the same bit-widths are
 // considered.
 absl::StatusOr<std::vector<std::unique_ptr<NaryFoldingAction>>>
-SelectFoldingActionsBasedOnCliques(FoldingGraph *folding_graph) {
+SelectFoldingActionsBasedOnCliques(FoldingGraph* folding_graph) {
   std::vector<std::unique_ptr<NaryFoldingAction>> folding_actions_to_perform;
 
   // Choose all of them matching the maximum cliques of the folding graph
-  for (const absl::flat_hash_set<BinaryFoldingAction *> &clique :
+  for (const absl::flat_hash_set<BinaryFoldingAction*>& clique :
        folding_graph->GetEdgeCliques()) {
     VLOG(3) << "  New clique";
 
     // Get the destination that is shared among all elements in the clique
-    BinaryFoldingAction *first_action = *clique.begin();
-    Node *to = first_action->GetTo();
+    BinaryFoldingAction* first_action = *clique.begin();
+    Node* to = first_action->GetTo();
     VLOG(3) << "    To: " << to->ToString();
     uint32_t to_case_number = first_action->GetToCaseNumber();
 
     // Get the select
-    Node *select = first_action->GetSelect();
+    Node* select = first_action->GetSelect();
 
     // Get the nodes to map into the destination
     //
@@ -891,9 +891,9 @@ SelectFoldingActionsBasedOnCliques(FoldingGraph *folding_graph) {
     // For now, we choose a random element of the clique as the center of the
     // start. Later, we should find a good heuristic to pick a candidate that
     // lead to a better PPA.
-    std::vector<std::pair<Node *, uint32_t>> froms;
+    std::vector<std::pair<Node*, uint32_t>> froms;
     froms.reserve(clique.size());
-    for (BinaryFoldingAction *binary_folding : clique) {
+    for (BinaryFoldingAction* binary_folding : clique) {
       XLS_RET_CHECK_EQ(binary_folding->GetSelect(), select);
       if (binary_folding->GetTo() != to) {
         // We can skip this binary folding because it doesn't target the
@@ -912,8 +912,8 @@ SelectFoldingActionsBasedOnCliques(FoldingGraph *folding_graph) {
   }
 
   // Sort the cliques based on their size
-  auto size_comparator = [](std::unique_ptr<NaryFoldingAction> &f0,
-                            std::unique_ptr<NaryFoldingAction> &f1) -> bool {
+  auto size_comparator = [](std::unique_ptr<NaryFoldingAction>& f0,
+                            std::unique_ptr<NaryFoldingAction>& f1) -> bool {
     return f0->GetNumberOfFroms() > f1->GetNumberOfFroms();
   };
   absl::c_sort(folding_actions_to_perform, size_comparator);
@@ -922,9 +922,9 @@ SelectFoldingActionsBasedOnCliques(FoldingGraph *folding_graph) {
 }
 
 absl::StatusOr<double> EstimateAreaForSelectingASingleInput(
-    BinaryFoldingAction *folding, AreaEstimator &ae) {
+    BinaryFoldingAction* folding, AreaEstimator& ae) {
   // Get the required information from the folding action
-  Node *destination = folding->GetTo();
+  Node* destination = folding->GetTo();
 
   // Get the type of the input that will need to be forwarded.
   //
@@ -954,7 +954,7 @@ absl::StatusOr<double> EstimateAreaForSelectingASingleInput(
   return area_select;
 }
 
-absl::StatusOr<double> EstimateAreaForNegatingNode(Node *n, AreaEstimator &ae) {
+absl::StatusOr<double> EstimateAreaForNegatingNode(Node* n, AreaEstimator& ae) {
   Package p("area_check");
   FunctionBuilder fb("area_check", &p);
   XLS_ASSIGN_OR_RETURN(Type * input_type,
@@ -971,11 +971,11 @@ absl::StatusOr<double> EstimateAreaForNegatingNode(Node *n, AreaEstimator &ae) {
 // Return the list of legal n-ary folding actions that target a given node
 absl::StatusOr<std::vector<std::unique_ptr<NaryFoldingAction>>>
 ListOfAllFoldingActionsWithDestination(
-    Node *n, FoldingGraph *folding_graph,
-    absl::flat_hash_map<
-        Node *, absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>>>
-        &mutual_exclusivity_relation,
-    AreaEstimator &ae) {
+    Node* n, FoldingGraph* folding_graph,
+    absl::flat_hash_map<Node*,
+                        absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>>&
+        mutual_exclusivity_relation,
+    AreaEstimator& ae) {
   std::vector<std::unique_ptr<NaryFoldingAction>>
       potential_folding_actions_to_perform;
 
@@ -988,7 +988,7 @@ ListOfAllFoldingActionsWithDestination(
   VLOG(3) << "    [In-degree=" << n_in_degree << "] " << n->ToString();
 
   // Get all edges that end to @n
-  std::vector<BinaryFoldingAction *> edges_to_n = folding_graph->GetEdgesTo(n);
+  std::vector<BinaryFoldingAction*> edges_to_n = folding_graph->GetEdgesTo(n);
   XLS_RET_CHECK_GT(edges_to_n.size(), 0);
   XLS_RET_CHECK_EQ(edges_to_n.size(), n_in_degree);
 
@@ -998,10 +998,10 @@ ListOfAllFoldingActionsWithDestination(
   // higher bit-width operations.
   //
   // Step 0: Sort the folding actions based on the bit-width of the source
-  auto source_bitwidth_comparator = [](BinaryFoldingAction *a0,
-                                       BinaryFoldingAction *a1) -> bool {
-    Node *a0_source = a0->GetFrom();
-    Node *a1_source = a1->GetFrom();
+  auto source_bitwidth_comparator = [](BinaryFoldingAction* a0,
+                                       BinaryFoldingAction* a1) -> bool {
+    Node* a0_source = a0->GetFrom();
+    Node* a1_source = a1->GetFrom();
     int64_t a0_bitwidth = a0_source->BitCountOrDie();
     int64_t a1_bitwidth = a1_source->BitCountOrDie();
     if (a0_bitwidth > a1_bitwidth) {
@@ -1031,20 +1031,20 @@ ListOfAllFoldingActionsWithDestination(
   // solutions with (potentially) fewer sources, but higher bit-widths. This is
   // obtaining by iterating over @edges_to_n that has been sorted in descending
   // order based on the bit-width of the sources of the binary folding actions.
-  std::vector<BinaryFoldingAction *> subset_of_edges_to_n;
+  std::vector<BinaryFoldingAction*> subset_of_edges_to_n;
   subset_of_edges_to_n.reserve(edges_to_n.size());
   VLOG(4) << "      Excluding the sources that would make an illegal n-ary "
              "folding";
-  for (BinaryFoldingAction *a : edges_to_n) {
+  for (BinaryFoldingAction* a : edges_to_n) {
     // Fetch the source of the current folding action
-    Node *a_source = a->GetFrom();
+    Node* a_source = a->GetFrom();
 
     // Check if @a_source is mutually-exclusive with all other nodes already
     // confirmed (i.e., the sources of @subset_of_edges_to_n)
     bool is_a_mutually_exclusive = absl::c_all_of(
-        subset_of_edges_to_n, [&](BinaryFoldingAction *previous_action) {
-          Node *previous_node = previous_action->GetFrom();
-          Node *select = previous_action->GetSelect();
+        subset_of_edges_to_n, [&](BinaryFoldingAction* previous_action) {
+          Node* previous_node = previous_action->GetFrom();
+          Node* select = previous_action->GetSelect();
           if (select != a->GetSelect()) {
             VLOG(4)
                 << "        Excluding the following source because it does "
@@ -1076,11 +1076,11 @@ ListOfAllFoldingActionsWithDestination(
 
   // Estimate the area saved by the n-ary folding action.
   double area_saved = 0;
-  for (BinaryFoldingAction *folding : subset_of_edges_to_n) {
+  for (BinaryFoldingAction* folding : subset_of_edges_to_n) {
     XLS_RET_CHECK_EQ(n, folding->GetTo());
 
     // Get the source of the binary folding
-    Node *from = folding->GetFrom();
+    Node* from = folding->GetFrom();
     VLOG(4) << "        From " << from->ToString();
 
     // Estimate the area this folding will save
@@ -1118,7 +1118,7 @@ ListOfAllFoldingActionsWithDestination(
       // In both cases, we need to negate the second operand.
       //
       // Check if the negated value is already available
-      Node *from_operand = from->operand(1);
+      Node* from_operand = from->operand(1);
       if (from_operand->op() != Op::kNeg) {
         // We actually need to negate the value
         XLS_ASSIGN_OR_RETURN(double negate_area,
@@ -1168,7 +1168,7 @@ ListOfFoldingActionsWithDestination(
   VLOG(3) << "    [In-degree=" << n_in_degree << "] " << n->ToString();
 
   // Get all edges that end to @n
-  std::vector<BinaryFoldingAction *> edges_to_n = folding_graph->GetEdgesTo(n);
+  std::vector<BinaryFoldingAction*> edges_to_n = folding_graph->GetEdgesTo(n);
   XLS_RET_CHECK_GT(edges_to_n.size(), 0);
   XLS_RET_CHECK_EQ(edges_to_n.size(), n_in_degree);
 
@@ -1178,10 +1178,10 @@ ListOfFoldingActionsWithDestination(
   // higher bit-width operations.
   //
   // Step 0: Sort the folding actions based on the bit-width of the source
-  auto source_bitwidth_comparator = [](BinaryFoldingAction *a0,
-                                       BinaryFoldingAction *a1) -> bool {
-    Node *a0_source = a0->GetFrom();
-    Node *a1_source = a1->GetFrom();
+  auto source_bitwidth_comparator = [](BinaryFoldingAction* a0,
+                                       BinaryFoldingAction* a1) -> bool {
+    Node* a0_source = a0->GetFrom();
+    Node* a1_source = a1->GetFrom();
     int64_t a0_bitwidth = a0_source->BitCountOrDie();
     int64_t a1_bitwidth = a1_source->BitCountOrDie();
     if (a0_bitwidth > a1_bitwidth) {
@@ -1211,13 +1211,13 @@ ListOfFoldingActionsWithDestination(
   // solutions with (potentially) fewer sources, but higher bit-widths. This is
   // obtaining by iterating over @edges_to_n that has been sorted in descending
   // order based on the bit-width of the sources of the binary folding actions.
-  std::vector<BinaryFoldingAction *> subset_of_edges_to_n;
+  std::vector<BinaryFoldingAction*> subset_of_edges_to_n;
   subset_of_edges_to_n.reserve(edges_to_n.size());
   VLOG(4) << "      Excluding the sources that would make an illegal n-ary "
              "folding";
-  for (BinaryFoldingAction *a : edges_to_n) {
+  for (BinaryFoldingAction* a : edges_to_n) {
     // Fetch the source of the current folding action
-    Node *a_source = a->GetFrom();
+    Node* a_source = a->GetFrom();
     if (!valid_sources.contains(a_source)) {
       continue;
     }
@@ -1225,9 +1225,9 @@ ListOfFoldingActionsWithDestination(
     // Check if @a_source is mutually-exclusive with all other nodes already
     // confirmed (i.e., the sources of @subset_of_edges_to_n)
     bool is_a_mutually_exclusive = absl::c_all_of(
-        subset_of_edges_to_n, [&](BinaryFoldingAction *previous_action) {
-          Node *previous_node = previous_action->GetFrom();
-          Node *select = previous_action->GetSelect();
+        subset_of_edges_to_n, [&](BinaryFoldingAction* previous_action) {
+          Node* previous_node = previous_action->GetFrom();
+          Node* select = previous_action->GetSelect();
           if (select != a->GetSelect()) {
             VLOG(4)
                 << "        Excluding the following source because it does "
@@ -1263,13 +1263,13 @@ ListOfFoldingActionsWithDestination(
   // Select the sub-set of the edges that will result in a profitable folding
   VLOG(4) << "      Select the sub-set of the possible binary folding actions, "
              "which will generate a profitable outcome";
-  std::vector<BinaryFoldingAction *> selected_subset_of_edges_to_n;
+  std::vector<BinaryFoldingAction*> selected_subset_of_edges_to_n;
   double area_saved = 0;
-  for (BinaryFoldingAction *folding : subset_of_edges_to_n) {
+  for (BinaryFoldingAction* folding : subset_of_edges_to_n) {
     XLS_RET_CHECK_EQ(n, folding->GetTo());
 
     // Get the source of the binary folding
-    Node *from = folding->GetFrom();
+    Node* from = folding->GetFrom();
     VLOG(4) << "        From " << from->ToString();
 
     // Estimate the area this folding will save
@@ -1305,7 +1305,7 @@ ListOfFoldingActionsWithDestination(
       // In both cases, we need to negate the second operand.
       //
       // Check if the negated value is already available
-      Node *from_operand = from->operand(1);
+      Node* from_operand = from->operand(1);
       if (from_operand->op() != Op::kNeg) {
         // We actually need to negate the value
         XLS_ASSIGN_OR_RETURN(double negate_area,
@@ -1361,10 +1361,10 @@ absl::StatusOr<std::vector<std::unique_ptr<NaryFoldingAction>>>
 LegalizeSequenceOfFolding(
     absl::Span<const std::unique_ptr<NaryFoldingAction>>
         potential_folding_actions_to_perform,
-    absl::flat_hash_map<
-        Node *, absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>>>
-        &mutual_exclusivity_relation,
-    AreaEstimator &ae) {
+    absl::flat_hash_map<Node*,
+                        absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>>&
+        mutual_exclusivity_relation,
+    AreaEstimator& ae) {
   std::vector<std::unique_ptr<NaryFoldingAction>> folding_actions_to_perform;
 
   // Remove folding actions (via removing either a whole n-ary folding or a
@@ -1375,10 +1375,10 @@ LegalizeSequenceOfFolding(
   // descending order based on the amount of area they save to give priority to
   // those that will have a bigger positive impact.
   VLOG(3) << "  Remove overlapping folding actions";
-  absl::flat_hash_map<Node *, NaryFoldingAction *>
+  absl::flat_hash_map<Node*, NaryFoldingAction*>
       nodes_already_selected_as_folding_sources;
-  absl::flat_hash_map<Node *, NaryFoldingAction *> prior_folding_of_destination;
-  for (const std::unique_ptr<NaryFoldingAction> &folding :
+  absl::flat_hash_map<Node*, NaryFoldingAction*> prior_folding_of_destination;
+  for (const std::unique_ptr<NaryFoldingAction>& folding :
        potential_folding_actions_to_perform) {
     // Print the n-ary folding
     VLOG(4) << "";
@@ -1391,8 +1391,8 @@ LegalizeSequenceOfFolding(
     VLOG(2) << "      Area savings = " << *folding->area_saved();
 
     // Check the destination
-    Node *to_node = folding->GetTo();
-    Node *select = folding->GetSelect();
+    Node* to_node = folding->GetTo();
+    Node* select = folding->GetSelect();
     auto it = nodes_already_selected_as_folding_sources.find(to_node);
     if (it != nodes_already_selected_as_folding_sources.end()) {
       // The destination of the current n-ary folding (i.e., @to_node) was used
@@ -1404,9 +1404,9 @@ LegalizeSequenceOfFolding(
       // Let us also assume that the current n-ary folding is from n_k to n_i;
       // this current folding is legal only if n_k is mutually exclusive with
       // n_j since the previous folding will happen before the current one.
-      NaryFoldingAction *prior_folding = it->second;
+      NaryFoldingAction* prior_folding = it->second;
       XLS_RET_CHECK_NE(prior_folding, nullptr);
-      Node *prior_folding_destination = prior_folding->GetTo();
+      Node* prior_folding_destination = prior_folding->GetTo();
       XLS_RET_CHECK_NE(prior_folding_destination, to_node);
       bool skip_current_folding = false;
       for (auto [source, source_case_number] : folding->GetFrom()) {
@@ -1430,7 +1430,7 @@ LegalizeSequenceOfFolding(
     }
 
     // Check all sources of the current n-ary folding
-    std::vector<std::pair<Node *, uint32_t>> legal_froms;
+    std::vector<std::pair<Node*, uint32_t>> legal_froms;
     legal_froms.reserve(folding->GetNumberOfFroms());
     std::optional<double> optional_area_saved = folding->area_saved();
     XLS_RET_CHECK_EQ(optional_area_saved.has_value(), true);
@@ -1463,7 +1463,7 @@ LegalizeSequenceOfFolding(
       // if done after node_a -> node_b.
       if (auto it = prior_folding_of_destination.find(source);
           it != prior_folding_of_destination.end()) {
-        NaryFoldingAction *prior_folding = (*it).second;
+        NaryFoldingAction* prior_folding = (*it).second;
 
         // The node @source was used as destination on a prior n-ary folding.
         //
@@ -1540,10 +1540,10 @@ LegalizeSequenceOfFolding(
 // This function sorts the folding actions given as input in descending order
 // based on the amount of area they save.
 void SortFoldingActionsInDescendingOrderOfTheirAreaSavings(
-    std::vector<std::unique_ptr<NaryFoldingAction>> &folding_actions,
-    TimingAnalysis &ta) {
-  auto area_comparator = [&ta](std::unique_ptr<NaryFoldingAction> &f0,
-                               std::unique_ptr<NaryFoldingAction> &f1) -> bool {
+    std::vector<std::unique_ptr<NaryFoldingAction>>& folding_actions,
+    TimingAnalysis& ta) {
+  auto area_comparator = [&ta](std::unique_ptr<NaryFoldingAction>& f0,
+                               std::unique_ptr<NaryFoldingAction>& f1) -> bool {
     // Prioritize folding actions that save more area
     std::optional<double> area_f0 = f0->area_saved();
     std::optional<double> area_f1 = f1->area_saved();
@@ -1599,9 +1599,9 @@ void SortFoldingActionsInDescendingOrderOfTheirAreaSavings(
 
 // This function sorts the IR nodes in @nodes based on their in-degree withing
 // the folding graph.
-void SortNodesInDescendingOrderOfTheirInDegree(std::vector<Node *> &nodes,
-                                               FoldingGraph *folding_graph) {
-  auto node_degree_comparator = [folding_graph](Node *n0, Node *n1) {
+void SortNodesInDescendingOrderOfTheirInDegree(std::vector<Node*>& nodes,
+                                               FoldingGraph* folding_graph) {
+  auto node_degree_comparator = [folding_graph](Node* n0, Node* n1) {
     // Nodes with higher in-degree comes first
     uint64_t n0_in_degree = folding_graph->GetInDegree(n0);
     uint64_t n1_in_degree = folding_graph->GetInDegree(n1);
@@ -1630,17 +1630,17 @@ void SortNodesInDescendingOrderOfTheirInDegree(std::vector<Node *> &nodes,
   absl::c_sort(nodes, node_degree_comparator);
 }
 
-absl::StatusOr<absl::flat_hash_map<Node *, uint64_t>> ComputeDelayPathToNode(
-    OptimizationContext &context, FunctionBase *f, DelayEstimator &de) {
-  absl::flat_hash_map<Node *, uint64_t> delay_path_node;
+absl::StatusOr<absl::flat_hash_map<Node*, uint64_t>> ComputeDelayPathToNode(
+    OptimizationContext& context, FunctionBase* f, DelayEstimator& de) {
+  absl::flat_hash_map<Node*, uint64_t> delay_path_node;
 
   // Set the critical path latency up to a node, for every node within @f.
-  for (Node *node : context.TopoSort(f)) {
+  for (Node* node : context.TopoSort(f)) {
     VLOG(5) << "Node = " << node->ToString();
 
     // Identify the critical path up to @node, excluding @node.
     uint64_t critical_path_latency_between_operands = 0;
-    for (Node *operand : node->operands()) {
+    for (Node* operand : node->operands()) {
       VLOG(5) << "  Input operand = " << operand->ToString();
       critical_path_latency_between_operands = std::max(
           critical_path_latency_between_operands, delay_path_node.at(operand));
@@ -1659,8 +1659,8 @@ absl::StatusOr<absl::flat_hash_map<Node *, uint64_t>> ComputeDelayPathToNode(
 }
 
 uint64_t GetDelayPathToNode(
-    Node *node, absl::flat_hash_map<Node *, uint64_t> &delay_path_node,
-    DelayEstimator &de) {
+    Node* node, absl::flat_hash_map<Node*, uint64_t>& delay_path_node,
+    DelayEstimator& de) {
   return delay_path_node.at(node);
 }
 
@@ -1684,7 +1684,7 @@ SelectFoldingActionsBasedOnInDegree(
                         absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>>&
         mutual_exclusivity_relation) {
   // Get the nodes of the folding graph
-  std::vector<Node *> nodes = folding_graph->GetNodes();
+  std::vector<Node*> nodes = folding_graph->GetNodes();
 
   // Prioritize folding actions where the target is a node with higher
   // in-degree.
@@ -1703,7 +1703,7 @@ SelectFoldingActionsBasedOnInDegree(
   std::vector<std::unique_ptr<NaryFoldingAction>>
       potential_folding_actions_to_perform;
   absl::flat_hash_set<Node*> valid_sources{nodes.begin(), nodes.end()};
-  for (Node *n : nodes) {
+  for (Node* n : nodes) {
     // Generate the list of profitable n-ary folding actions that have @n as
     // destination.
     XLS_ASSIGN_OR_RETURN(
@@ -1713,7 +1713,7 @@ SelectFoldingActionsBasedOnInDegree(
                                             mutual_exclusivity_relation, ae));
 
     // Append such list to the list of all profitable n-ary folding actions.
-    for (std::unique_ptr<NaryFoldingAction> &folding :
+    for (std::unique_ptr<NaryFoldingAction>& folding :
          foldings_with_n_as_destination) {
       if (folding->area_saved() >= ResourceSharingPass::kMinAreaSavings) {
         potential_folding_actions_to_perform.push_back(std::move(folding));
@@ -1724,7 +1724,7 @@ SelectFoldingActionsBasedOnInDegree(
   // Perform timing analysis, which will be used to decide which folding actions
   // to perform to maximize area while minimizing the risk of making the
   // overall critical path unacceptably worst.
-  absl::flat_hash_map<Node *, uint64_t> delay_to_node;
+  absl::flat_hash_map<Node*, uint64_t> delay_to_node;
   XLS_ASSIGN_OR_RETURN(
       delay_to_node,
       ComputeDelayPathToNode(context, folding_graph->function(), de));
@@ -1735,7 +1735,7 @@ SelectFoldingActionsBasedOnInDegree(
       potential_folding_actions_to_perform_without_timing_problems;
   potential_folding_actions_to_perform_without_timing_problems.reserve(
       potential_folding_actions_to_perform.size());
-  for (std::unique_ptr<NaryFoldingAction> &folding :
+  for (std::unique_ptr<NaryFoldingAction>& folding :
        potential_folding_actions_to_perform) {
     if (ta.GetDelaySpread(folding.get()) <=
         ResourceSharingPass::kMaxDelaySpread) {
@@ -1750,7 +1750,7 @@ SelectFoldingActionsBasedOnInDegree(
       potential_folding_actions_to_perform_without_timing_problems, ta);
   if (VLOG_IS_ON(5)) {
     VLOG(3) << "  List of all possible n-ary folding actions";
-    for (const std::unique_ptr<NaryFoldingAction> &folding :
+    for (const std::unique_ptr<NaryFoldingAction>& folding :
          potential_folding_actions_to_perform_without_timing_problems) {
       VLOG(5) << "";
       VLOG(5) << "    To [case number=" << folding->GetToCaseNumber()
@@ -1799,13 +1799,13 @@ SelectFoldingActionsBasedOnInDegree(
 // sequence returned by this function.
 absl::StatusOr<std::vector<std::unique_ptr<NaryFoldingAction>>>
 SelectAllFoldingActions(
-    OptimizationContext &context, FoldingGraph *folding_graph,
-    AreaEstimator &ae, DelayEstimator &de,
-    absl::flat_hash_map<
-        Node *, absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>>>
-        &mutual_exclusivity_relation) {
+    OptimizationContext& context, FoldingGraph* folding_graph,
+    AreaEstimator& ae, DelayEstimator& de,
+    absl::flat_hash_map<Node*,
+                        absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>>&
+        mutual_exclusivity_relation) {
   // Get the nodes of the folding graph
-  std::vector<Node *> nodes = folding_graph->GetNodes();
+  std::vector<Node*> nodes = folding_graph->GetNodes();
 
   // Prioritize folding actions where the target is a node with higher
   // in-degree.
@@ -1823,7 +1823,7 @@ SelectAllFoldingActions(
   VLOG(3) << "  Generate a list of possible n-ary folding actions to perform";
   std::vector<std::unique_ptr<NaryFoldingAction>>
       potential_folding_actions_to_perform;
-  for (Node *n : nodes) {
+  for (Node* n : nodes) {
     // Generate the list of profitable n-ary folding actions that have @n as
     // destination.
     XLS_ASSIGN_OR_RETURN(
@@ -1833,14 +1833,14 @@ SelectAllFoldingActions(
             n, folding_graph, mutual_exclusivity_relation, ae));
 
     // Append such list to the list of all profitable n-ary folding actions.
-    for (std::unique_ptr<NaryFoldingAction> &folding :
+    for (std::unique_ptr<NaryFoldingAction>& folding :
          foldings_with_n_as_destination) {
       potential_folding_actions_to_perform.push_back(std::move(folding));
     }
   }
   if (VLOG_IS_ON(5)) {
     VLOG(3) << "  List of all possible n-ary folding actions";
-    for (const std::unique_ptr<NaryFoldingAction> &folding :
+    for (const std::unique_ptr<NaryFoldingAction>& folding :
          potential_folding_actions_to_perform) {
       VLOG(5) << "";
       VLOG(5) << "    To [case number=" << folding->GetToCaseNumber() << "] "
@@ -1855,7 +1855,7 @@ SelectAllFoldingActions(
 
   // Sort the list of n-ary folding actions to give priority to those that will
   // save more area
-  absl::flat_hash_map<Node *, uint64_t> delay_to_node;
+  absl::flat_hash_map<Node*, uint64_t> delay_to_node;
   XLS_ASSIGN_OR_RETURN(
       delay_to_node,
       ComputeDelayPathToNode(context, folding_graph->function(), de));
@@ -1882,11 +1882,11 @@ SelectAllFoldingActions(
 // legal folding actions to perform. This function is a profitability guard of
 // the resource sharing optimization.
 absl::StatusOr<std::vector<std::unique_ptr<NaryFoldingAction>>>
-SelectRandomlyFoldingActions(FoldingGraph *folding_graph) {
+SelectRandomlyFoldingActions(FoldingGraph* folding_graph) {
   std::vector<std::unique_ptr<NaryFoldingAction>> folding_actions_to_perform;
 
   // Get all edges of the folding graph
-  std::vector<BinaryFoldingAction *> edges = folding_graph->GetEdges();
+  std::vector<BinaryFoldingAction*> edges = folding_graph->GetEdges();
 
   // Compute the number of edges we will choose
   uint64_t target_edges = edges.size() * 0.1;
@@ -1895,7 +1895,7 @@ SelectRandomlyFoldingActions(FoldingGraph *folding_graph) {
   absl::BitGen prvg;
 
   // Select the sub-set of the edges chosen randomly
-  absl::flat_hash_map<Node *, std::vector<uint64_t>> indexes_of_selected_edges;
+  absl::flat_hash_map<Node*, std::vector<uint64_t>> indexes_of_selected_edges;
   for (uint64_t i = 0; i < target_edges; i++) {
     // Choose a new edge
     //
@@ -1903,25 +1903,25 @@ SelectRandomlyFoldingActions(FoldingGraph *folding_graph) {
     // the uniform distribution for the PRVG.
     uint64_t index = absl::Uniform(prvg, 0u, edges.size());
     XLS_RET_CHECK_LT(index, edges.size());
-    BinaryFoldingAction *edge = edges[index];
+    BinaryFoldingAction* edge = edges[index];
 
     // Keep track of the current edge
-    Node *destination = edge->GetTo();
+    Node* destination = edge->GetTo();
     indexes_of_selected_edges[destination].push_back(index);
   }
 
   // Merge chosen binary folding actions that have the same destination
-  std::vector<std::pair<Node *, uint32_t>> froms;
+  std::vector<std::pair<Node*, uint32_t>> froms;
   froms.reserve(indexes_of_selected_edges.size());
-  for (auto &[destination, indexes] : indexes_of_selected_edges) {
+  for (auto& [destination, indexes] : indexes_of_selected_edges) {
     XLS_RET_CHECK_GT(indexes.size(), 0);
 
     // Collect all sources that target @destination
-    Node *select = nullptr;
+    Node* select = nullptr;
     uint32_t to_case_number;
     for (uint64_t index : indexes) {
       // Fetch the edge
-      BinaryFoldingAction *edge = edges[index];
+      BinaryFoldingAction* edge = edges[index];
 
       // Keep track of the select
       if (select == nullptr) {
@@ -1997,7 +1997,7 @@ SelectFoldingActions(
   if (VLOG_IS_ON(2)) {
     VLOG(2) << "  We selected " << folding_actions_to_perform.size()
             << " folding actions to perform";
-    for (const std::unique_ptr<NaryFoldingAction> &folding :
+    for (const std::unique_ptr<NaryFoldingAction>& folding :
          folding_actions_to_perform) {
       VLOG(2) << "    To [case number=" << folding->GetToCaseNumber() << "] "
               << folding->GetTo()->ToString();
@@ -2019,34 +2019,34 @@ SelectFoldingActions(
 // This function performs the folding actions specified in its input following
 // the order specified.
 absl::StatusOr<bool> PerformFoldingActions(
-    FunctionBase *f, const std::vector<std::unique_ptr<NaryFoldingAction>>
-                         &folding_actions_to_perform) {
+    FunctionBase* f, const std::vector<std::unique_ptr<NaryFoldingAction>>&
+                         folding_actions_to_perform) {
   bool modified = false;
   VLOG(2) << "There are " << folding_actions_to_perform.size()
           << " folding actions to perform";
 
   // Perform the folding actions specified
-  absl::flat_hash_map<Node *, std::pair<Node *, Node *>>
+  absl::flat_hash_map<Node*, std::pair<Node*, Node*>>
       renaming_done_by_previous_folding;
-  for (const std::unique_ptr<NaryFoldingAction> &folding :
+  for (const std::unique_ptr<NaryFoldingAction>& folding :
        folding_actions_to_perform) {
     modified = true;
 
     // Get the destination of the folding.
     // This might have been renamed by previous folding actions already
     // performed.
-    Node *select = folding->GetSelect();
-    Node *to_node = folding->GetTo();
+    Node* select = folding->GetSelect();
+    Node* to_node = folding->GetTo();
     if (renaming_done_by_previous_folding.contains(to_node)) {
       // Rename the destination of @folding
-      std::pair<Node *, Node *> new_name_and_prior_select =
+      std::pair<Node*, Node*> new_name_and_prior_select =
           renaming_done_by_previous_folding[to_node];
       to_node = new_name_and_prior_select.first;
 
       // If the destination of the folding was already involved in a prior
       // folding related to a different select, then @folding cannot be done
       // safely.
-      Node *prior_select = new_name_and_prior_select.second;
+      Node* prior_select = new_name_and_prior_select.second;
       XLS_RET_CHECK_NE(prior_select, nullptr);
       if (prior_select != select) {
         continue;
@@ -2055,13 +2055,13 @@ absl::StatusOr<bool> PerformFoldingActions(
     XLS_RET_CHECK_NE(to_node, nullptr);
 
     // Fetch the nodes to fold that have not been folded already
-    std::vector<std::pair<Node *, uint32_t>> froms_to_use;
+    std::vector<std::pair<Node*, uint32_t>> froms_to_use;
     for (auto [from_node, from_node_case_number] : folding->GetFrom()) {
-      Node *renamed_node = from_node;
+      Node* renamed_node = from_node;
       if (renaming_done_by_previous_folding.contains(from_node)) {
-        std::pair<Node *, Node *> new_name_and_prior_select =
+        std::pair<Node*, Node*> new_name_and_prior_select =
             renaming_done_by_previous_folding[from_node];
-        Node *prior_select = new_name_and_prior_select.second;
+        Node* prior_select = new_name_and_prior_select.second;
         XLS_RET_CHECK_NE(prior_select, nullptr);
         XLS_RET_CHECK_EQ(prior_select, select);
         renamed_node = new_name_and_prior_select.first;
@@ -2086,8 +2086,8 @@ absl::StatusOr<bool> PerformFoldingActions(
 
     // Sort the from nodes in ascending order based on their select case number.
     // This will help us synthesize the correct selector to use
-    auto from_comparator = [](std::pair<Node *, uint32_t> p0,
-                              std::pair<Node *, uint32_t> p1) -> bool {
+    auto from_comparator = [](std::pair<Node*, uint32_t> p0,
+                              std::pair<Node*, uint32_t> p1) -> bool {
       return p0.second < p1.second;
     };
     absl::c_sort(froms_to_use, from_comparator);
@@ -2110,8 +2110,8 @@ absl::StatusOr<bool> PerformFoldingActions(
     // the selector of the select that made the sources and destination mutually
     // exclusive.
     VLOG(3) << "      Step 0: generate the new selector";
-    Node *selector = folding->GetSelector();
-    std::vector<Node *> from_bits;
+    Node* selector = folding->GetSelector();
+    std::vector<Node*> from_bits;
     from_bits.reserve(froms_to_use.size());
     for (auto [from_node, from_node_case_number] : froms_to_use) {
       VLOG(4) << "        Source: " << from_node->ToString();
@@ -2121,7 +2121,7 @@ absl::StatusOr<bool> PerformFoldingActions(
       // We currently avoid generating a bitslice node only if a concat has
       // 1-bit operands.
       // This can be extended to a multi-bits operands concats in the future.
-      Node *from_bit = nullptr;
+      Node* from_bit = nullptr;
       if (selector->Is<Concat>() &&
           (selector->BitCountOrDie() == selector->operand_count())) {
         VLOG(4) << "          No need for bitslice";
@@ -2139,7 +2139,7 @@ absl::StatusOr<bool> PerformFoldingActions(
       // Keep track of the bit that enables @from_node
       from_bits.push_back(from_bit);
     }
-    Node *new_selector = nullptr;
+    Node* new_selector = nullptr;
     if (from_bits.size() > 1) {
       absl::c_reverse(from_bits);
       XLS_ASSIGN_OR_RETURN(new_selector,
@@ -2153,13 +2153,13 @@ absl::StatusOr<bool> PerformFoldingActions(
     // - Step 1: Create a new select for each input
     VLOG(3) << "      Step 1: generate the priority selects, one per input of "
                "the folding target";
-    std::vector<Node *> new_operands;
+    std::vector<Node*> new_operands;
     Op extension_op = folding->IsSigned() ? Op::kSignExt : Op::kZeroExt;
     for (uint32_t op_id = 0; op_id < to_node->operand_count(); op_id++) {
       VLOG(4) << "        Operand " << op_id;
 
       // Fetch the current operand for the target of the folding action.
-      Node *to_operand = to_node->operand(op_id);
+      Node* to_operand = to_node->operand(op_id);
       int64_t to_operand_bitwidth = to_operand->BitCountOrDie();
 
       // Check if all sources have the same operand of the destination.
@@ -2187,17 +2187,17 @@ absl::StatusOr<bool> PerformFoldingActions(
       // destination of the folding).
       //
       // Generate all select cases, one for each source of the folding action.
-      std::vector<Node *> operand_select_cases;
+      std::vector<Node*> operand_select_cases;
       for (auto [from_node, from_node_case_number] : froms_to_use) {
         VLOG(4) << "          Source from " << from_node->ToString();
 
         // Fetch the operand of the current source of the folding action
-        Node *from_operand = from_node->operand(op_id);
+        Node* from_operand = from_node->operand(op_id);
         XLS_RET_CHECK_LE(from_operand->BitCountOrDie(),
                          to_operand->BitCountOrDie());
 
         // Check if we need to negate it
-        Node *from_operand_negated = from_operand;
+        Node* from_operand_negated = from_operand;
         if ((to_node->op() != from_node->op()) &&
             to_node->OpIn({Op::kAdd, Op::kSub}) &&
             from_node->OpIn({Op::kAdd, Op::kSub}) && (op_id == 1)) {
@@ -2228,7 +2228,7 @@ absl::StatusOr<bool> PerformFoldingActions(
         }
 
         // Check if we need to cast it
-        Node *from_operand_casted = from_operand_negated;
+        Node* from_operand_casted = from_operand_negated;
         if (from_operand->BitCountOrDie() < to_operand->BitCountOrDie()) {
           VLOG(4) << "            It needs to be casted to "
                   << to_operand_bitwidth << " bits";
@@ -2277,7 +2277,7 @@ absl::StatusOr<bool> PerformFoldingActions(
       XLS_RET_CHECK_LE(from_node->BitCountOrDie(), to_node->BitCountOrDie());
 
       // Check if we need to take a slice of the result
-      Node *to_node_to_use = to_node;
+      Node* to_node_to_use = to_node;
       if (from_node->BitCountOrDie() < to_node->BitCountOrDie()) {
         // Take a slice of the result of the target of the folding action
         XLS_ASSIGN_OR_RETURN(to_node_to_use,
@@ -2309,8 +2309,8 @@ absl::StatusOr<bool> PerformFoldingActions(
 // This folding operation is performed for all multiplication instructions that
 // allow it (i.e., the transformation is legal).
 absl::StatusOr<bool> ResourceSharingPass::RunOnFunctionBaseInternal(
-    FunctionBase *f, const OptimizationPassOptions &options,
-    PassResults *results, OptimizationContext &context) const {
+    FunctionBase* f, const OptimizationPassOptions& options,
+    PassResults* results, OptimizationContext& context) const {
   // Check if the pass is enabled
   if (!options.enable_resource_sharing) {
     return false;
@@ -2359,13 +2359,12 @@ absl::StatusOr<bool> ResourceSharingPass::RunOnFunctionBaseInternal(
   return modified;
 }
 
-
 TimingAnalysis::TimingAnalysis(
-    const std::vector<std::unique_ptr<NaryFoldingAction>> &folding_actions,
-    const absl::flat_hash_map<Node *, uint64_t> &delay_to_node) {
-  for (const std::unique_ptr<NaryFoldingAction> &folding : folding_actions) {
+    const std::vector<std::unique_ptr<NaryFoldingAction>>& folding_actions,
+    const absl::flat_hash_map<Node*, uint64_t>& delay_to_node) {
+  for (const std::unique_ptr<NaryFoldingAction>& folding : folding_actions) {
     // Get the information about the destination of the folding
-    Node *to = folding->GetTo();
+    Node* to = folding->GetTo();
     uint64_t to_delay = delay_to_node.at(to);
 
     // Compute the spread of the delays between the sources and the destination
@@ -2407,12 +2406,12 @@ TimingAnalysis::TimingAnalysis(
   }
 }
 
-double TimingAnalysis::GetDelaySpread(NaryFoldingAction *folding_action) const {
+double TimingAnalysis::GetDelaySpread(NaryFoldingAction* folding_action) const {
   return delay_spread_.at(folding_action);
 }
 
 uint64_t TimingAnalysis::GetDelayIncrease(
-    NaryFoldingAction *folding_action) const {
+    NaryFoldingAction* folding_action) const {
   return delay_increase_.at(folding_action);
 }
 
