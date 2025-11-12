@@ -41,7 +41,8 @@ using SaturatingBddNodeIndex = std::variant<BddNodeIndex, TooManyPaths>;
 using SaturatingBddNodeVector = std::vector<SaturatingBddNodeIndex>;
 
 inline bool HasTooManyPaths(const SaturatingBddNodeIndex& input) {
-  return std::holds_alternative<TooManyPaths>(input);
+  return std::holds_alternative<TooManyPaths>(input) ||
+         std::get<BddNodeIndex>(input) == BinaryDecisionDiagram::kInfeasible;
 }
 
 inline bool HasTooManyPaths(const SaturatingBddNodeVector& input) {
@@ -83,7 +84,8 @@ class SaturatingBddEvaluator
       return TooManyPaths();
     }
     BddNodeIndex result = bdd_->Not(std::get<BddNodeIndex>(input));
-    if (path_limit_ > 0 && bdd_->path_count(result) > path_limit_) {
+    if (result == BinaryDecisionDiagram::kInfeasible ||
+        (path_limit_ > 0 && bdd_->path_count(result) > path_limit_)) {
       return TooManyPaths();
     }
     return result;
@@ -96,7 +98,8 @@ class SaturatingBddEvaluator
     }
     BddNodeIndex result =
         bdd_->And(std::get<BddNodeIndex>(a), std::get<BddNodeIndex>(b));
-    if (path_limit_ > 0 && bdd_->path_count(result) > path_limit_) {
+    if (result == BinaryDecisionDiagram::kInfeasible ||
+        (path_limit_ > 0 && bdd_->path_count(result) > path_limit_)) {
       return TooManyPaths();
     }
     return result;
@@ -109,7 +112,8 @@ class SaturatingBddEvaluator
     }
     BddNodeIndex result =
         bdd_->Or(std::get<BddNodeIndex>(a), std::get<BddNodeIndex>(b));
-    if (path_limit_ > 0 && bdd_->path_count(result) > path_limit_) {
+    if (result == BinaryDecisionDiagram::kInfeasible ||
+        (path_limit_ > 0 && bdd_->path_count(result) > path_limit_)) {
       return TooManyPaths();
     }
     return result;
@@ -125,7 +129,8 @@ class SaturatingBddEvaluator
     BddNodeIndex result = bdd_->IfThenElse(std::get<BddNodeIndex>(sel),
                                            std::get<BddNodeIndex>(consequent),
                                            std::get<BddNodeIndex>(alternate));
-    if (path_limit_ > 0 && bdd_->path_count(result) > path_limit_) {
+    if (result == BinaryDecisionDiagram::kInfeasible ||
+        (path_limit_ > 0 && bdd_->path_count(result) > path_limit_)) {
       return TooManyPaths();
     }
     return result;

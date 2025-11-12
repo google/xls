@@ -31,10 +31,15 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "xls/common/math_util.h"
 
 namespace xls {
 
-BinaryDecisionDiagram::BinaryDecisionDiagram() {
+BinaryDecisionDiagram::BinaryDecisionDiagram()
+    : BinaryDecisionDiagram(kDefaultMaxPaths) {}
+
+BinaryDecisionDiagram::BinaryDecisionDiagram(int64_t max_paths)
+    : max_paths_(max_paths) {
   // Leaf node 0.
   nodes_.push_back(BddNode(BddVariable(-1), BddNodeIndex(-1), BddNodeIndex(-1),
                            /*p=*/1));
@@ -109,18 +114,22 @@ BddNodeIndex BinaryDecisionDiagram::IfThenElse(BddNodeIndex cond,
   if (if_true == if_false) {
     return if_true;
   }
+  if (cond == kInfeasible || if_true == kInfeasible ||
+      if_false == kInfeasible) {
+    return kInfeasible;
+  }
   auto key = std::make_tuple(cond, if_true, if_false);
   auto it = ite_map_.find(key);
   if (it != ite_map_.end()) {
     return it->second;
   }
 
-  // The expression is non-trivial and has not been computed before. Recursively
-  // decompose the expression by peeling away the first variable and performing
-  // a Shannon decomposition.
+  // The expression is non-trivial and has not been computed before.
+  // Recursively decompose the expression by peeling away the first variable
+  // and performing a Shannon decomposition.
 
-  // First, find the lowest-index variable amongst all expressions. In all paths
-  // through the BDD the variable indices are strictly increasing.
+  // First, find the lowest-index variable amongst all expressions. In all
+  // paths through the BDD the variable indices are strictly increasing.
   BddVariable min_var = GetNode(cond).variable;
   // Only non-leaf nodes (not zero or one) have associated variables.
   if (if_true != zero() && if_true != one()) {
@@ -142,9 +151,20 @@ BddNodeIndex BinaryDecisionDiagram::IfThenElse(BddNodeIndex cond,
                                            Restrict(if_true, min_var, false),
                                            Restrict(if_false, min_var, false));
 
+  if (true_cofactor == kInfeasible || false_cofactor == kInfeasible) {
+    return kInfeasible;
+  }
   if (true_cofactor == false_cofactor) {
+    if (path_count(true_cofactor) > max_paths_) {
+      return kInfeasible;
+    }
     ite_map_[key] = true_cofactor;
     return true_cofactor;
+  }
+  SaturatedResult<int64_t> total_path_count =
+      SaturatingAdd(path_count(true_cofactor), path_count(false_cofactor));
+  if (total_path_count.did_overflow || total_path_count.result > max_paths_) {
+    return kInfeasible;
   }
   BddNodeIndex expr = GetOrCreateNode(min_var, true_cofactor, false_cofactor);
   ite_map_[key] = expr;
@@ -220,6 +240,9 @@ BddNodeIndex BinaryDecisionDiagram::Implies(BddNodeIndex a, BddNodeIndex b) {
 absl::StatusOr<bool> BinaryDecisionDiagram::Evaluate(
     BddNodeIndex expr,
     const absl::flat_hash_map<BddNodeIndex, bool>& variable_values) const {
+  if (expr == kInfeasible) {
+    return absl::InvalidArgumentError("BDD expression is infeasible");
+  }
   BddNodeIndex result = expr;
   VLOG(2) << "Evaluating node: " << static_cast<int64_t>(expr);
   VLOG(2) << "  expression = " << ToStringDnf(expr, /*minterm_limit=*/5);

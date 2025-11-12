@@ -94,7 +94,9 @@ class BddQueryEngine
                               node_filter = std::nullopt)
       : path_limit_(path_limit),
         node_filter_(node_filter),
-        bdd_(std::make_unique<BinaryDecisionDiagram>()),
+        bdd_(std::make_unique<BinaryDecisionDiagram>(
+            path_limit > 0 ? path_limit
+                           : BinaryDecisionDiagram::kDefaultMaxPaths)),
         evaluator_(
             std::make_unique<SaturatingBddEvaluator>(path_limit, bdd_.get())) {}
 
@@ -209,7 +211,7 @@ class BddQueryEngine
     if (path_limit_ <= 0) {
       return false;
     }
-    if (std::holds_alternative<TooManyPaths>(node)) {
+    if (HasTooManyPaths(node)) {
       return true;
     }
     return bdd().path_count(std::get<BddNodeIndex>(node)) > path_limit_;

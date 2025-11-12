@@ -220,7 +220,7 @@ TEST(BinaryDecisionDiagramTest, MultiwayAndOr) {
 
 TEST(BinaryDecisionDiagramTest, Parity) {
   // Construct and test a 64-bit even parity expression.
-  BinaryDecisionDiagram bdd;
+  BinaryDecisionDiagram bdd(std::numeric_limits<int64_t>::max());
   std::vector<BddNodeIndex> variables;
   variables.reserve(64);
   for (int64_t i = 0; i < 64; ++i) {

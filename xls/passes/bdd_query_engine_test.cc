@@ -130,7 +130,7 @@ TEST_F(BddQueryEngineTest, BitValuesImplyNodeValueSimple) {
 
   auto result =
       query_engine.ImpliedNodeValue({{{x.node(), 0}, true}}, concat.node());
-  EXPECT_TRUE(result.has_value());
+  ASSERT_TRUE(result.has_value());
   EXPECT_THAT(result.value().ToBitVector(), testing::ElementsAre(false, true));
 }
 
@@ -154,7 +154,7 @@ TEST_F(BddQueryEngineTest, BitValuesImplyNodeValueComplex) {
   auto result = query_engine.ImpliedNodeValue(
       {{{a_and_b.node(), 0}, true}, {{c_xor_d.node(), 0}, true}},
       concat.node());
-  EXPECT_TRUE(result.has_value());
+  ASSERT_TRUE(result.has_value());
   EXPECT_THAT(result.value().ToBitVector(), testing::ElementsAre(false, true));
 }
 
@@ -174,7 +174,7 @@ TEST_F(BddQueryEngineTest, BitValuesImplyNodeValueFalsePredice) {
   auto result = query_engine.ImpliedNodeValue(
       {{{a_and_b.node(), 0}, false}, {{a_or_b.node(), 0}, true}},
       a_xor_b.node());
-  EXPECT_TRUE(result.has_value());
+  ASSERT_TRUE(result.has_value());
   EXPECT_THAT(result.value().ToBitVector(), testing::ElementsAre(true));
 }
 

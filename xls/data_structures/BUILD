@@ -181,6 +181,7 @@ cc_library(
     srcs = ["binary_decision_diagram.cc"],
     hdrs = ["binary_decision_diagram.h"],
     deps = [
+        "//xls/common:math_util",
         "//xls/common:strong_int",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",

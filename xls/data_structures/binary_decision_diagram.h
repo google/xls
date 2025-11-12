@@ -16,6 +16,7 @@
 #define XLS_DATA_STRUCTURES_BINARY_DECISION_DIAGRAM_H_
 
 #include <cstdint>
+#include <limits>
 #include <string>
 #include <tuple>
 #include <vector>
@@ -60,9 +61,15 @@ struct BddNode {
 
 class BinaryDecisionDiagram {
  public:
+  static constexpr int64_t kDefaultMaxPaths =
+      std::numeric_limits<int32_t>::max() - 1;
+
+  static constexpr BddNodeIndex kInfeasible = BddNodeIndex(-1);
+
   // Creates an empty BDD. Initialize the BDD contains only the nodes
   // corresponding to zero and one.
-  BinaryDecisionDiagram();
+  explicit BinaryDecisionDiagram();
+  explicit BinaryDecisionDiagram(int64_t max_paths);
 
   // Adds a new variable to the BDD and returns the node corresponding the
   // variable's value.
@@ -109,6 +116,9 @@ class BinaryDecisionDiagram {
 
   // Returns the number of paths in the given expression.
   int64_t path_count(BddNodeIndex expr) const {
+    if (expr == kInfeasible) {
+      return max_paths_;
+    }
     return GetNode(expr).path_count;
   }
 
@@ -169,6 +179,8 @@ class BinaryDecisionDiagram {
   // enables fast lookup for expressions.
   using IteKey = std::tuple<BddNodeIndex, BddNodeIndex, BddNodeIndex>;
   absl::flat_hash_map<IteKey, BddNodeIndex> ite_map_;
+
+  int64_t max_paths_;
 };
 
 }  // namespace xls
