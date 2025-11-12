@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <sstream>
 #include <string_view>
 #include <vector>
 
@@ -315,6 +316,30 @@ TEST_F(AllValuesTest, AllValuesEmptyTypes) {
                                        " ((), (), [[(), (), ()], [(), (), ()]])"
                                        ")",
                                        complex_empty_type))));
+}
+
+TEST(TernaryTest, FuzzTestPrintSourceCode) {
+  std::stringstream ss;
+  FuzzTestPrintSourceCode(TernaryValue::kKnownZero, &ss);
+  EXPECT_EQ(ss.str(), "TernaryValue::kKnownZero");
+
+  ss.str("");
+  FuzzTestPrintSourceCode(TernaryValue::kKnownOne, &ss);
+  EXPECT_EQ(ss.str(), "TernaryValue::kKnownOne");
+
+  ss.str("");
+  FuzzTestPrintSourceCode(TernaryValue::kUnknown, &ss);
+  EXPECT_EQ(ss.str(), "TernaryValue::kUnknown");
+
+  ss.str("");
+  XLS_ASSERT_OK_AND_ASSIGN(TernaryVector vec, StringToTernaryVector("0b01X"));
+  FuzzTestPrintSourceCode(vec, &ss);
+  EXPECT_EQ(ss.str(), "ternary_ops::StringToTernaryVector(\"0b01X\").value()");
+
+  ss.str("");
+  TernarySpan span(vec);
+  FuzzTestPrintSourceCode(span, &ss);
+  EXPECT_EQ(ss.str(), "ternary_ops::StringToTernaryVector(\"0b01X\").value()");
 }
 
 }  // namespace

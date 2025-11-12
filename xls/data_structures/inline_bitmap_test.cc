@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <ios>
 #include <limits>
+#include <sstream>
 #include <utility>
 #include <vector>
 
@@ -556,6 +557,34 @@ TEST(InlineBitmapTest, WithSize) {
       EXPECT_EQ(b1.Get(i), b2.Get(i));
     }
   }
+}
+
+TEST(InlineBitmapTest, FuzzTestPrintSourceCode) {
+  std::stringstream ss;
+  InlineBitmap bm0(0);
+  FuzzTestPrintSourceCode(bm0, &ss);
+  EXPECT_EQ(ss.str(), "InlineBitmap::FromBytes(0, {})");
+
+  ss.str("");
+  InlineBitmap bm1(1);
+  bm1.Set(0, true);
+  FuzzTestPrintSourceCode(bm1, &ss);
+  EXPECT_EQ(ss.str(), "InlineBitmap::FromBytes(1, {0x01})");
+
+  ss.str("");
+  InlineBitmap bm3 = UBits(5, 3).bitmap();
+  FuzzTestPrintSourceCode(bm3, &ss);
+  EXPECT_EQ(ss.str(), "InlineBitmap::FromBytes(3, {0x05})");
+
+  ss.str("");
+  InlineBitmap bm4 = bits_ops::Concat({UBits(0xfedcba9876543210, 64),
+                                       UBits(0x0123456789abcdef, 64)})
+                         .bitmap();
+  FuzzTestPrintSourceCode(bm4, &ss);
+  // little-endian
+  EXPECT_EQ(ss.str(),
+            "InlineBitmap::FromBytes(128, {0xef, 0xcd, 0xab, 0x89, 0x67, 0x45, "
+            "0x23, 0x01, 0x10, 0x32, 0x54, 0x76, 0x98, 0xba, 0xdc, 0xfe})");
 }
 
 }  // namespace

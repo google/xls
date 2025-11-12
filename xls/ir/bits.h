@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <ostream>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -266,6 +267,9 @@ class Bits {
 
   InlineBitmap bitmap_;
 };
+
+// Let fuzz-tests pretty-print reproducers.
+void FuzzTestPrintSourceCode(const Bits& bits, std::ostream* os);
 
 // Helper for "stringing together" bits objects into a final result, avoiding
 // intermediate allocations.

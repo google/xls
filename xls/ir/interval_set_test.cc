@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <limits>
 #include <optional>
+#include <sstream>
 #include <utility>
 #include <vector>
 
@@ -745,6 +746,18 @@ void BM_Combine(benchmark::State& state) {
 }
 BENCHMARK(BM_CombineOracle);
 BENCHMARK(BM_Combine);
+
+TEST(IntervalSetTest, FuzzTestPrintSourceCode) {
+  std::stringstream ss;
+  FuzzTestPrintSourceCode(IntervalSet(8), &ss);
+  EXPECT_EQ(ss.str(), "IntervalSet::Of({})");
+
+  ss.str("");
+  FuzzTestPrintSourceCode(FromRanges({{10, 20}, {30, 40}}, 8), &ss);
+  EXPECT_EQ(ss.str(),
+            "IntervalSet::Of({Interval(UBits(10, 8), UBits(20, 8)), "
+            "Interval(UBits(30, 8), UBits(40, 8))})");
+}
 
 }  // namespace
 }  // namespace xls

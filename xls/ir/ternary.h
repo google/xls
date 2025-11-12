@@ -376,6 +376,10 @@ absl::StatusOr<std::vector<Value>> AllValues(
     LeafTypeTreeView<TernaryVector> ltt);
 
 }  // namespace ternary_ops
+
+void FuzzTestPrintSourceCode(const TernaryValue& tv, std::ostream* os);
+void FuzzTestPrintSourceCode(const TernarySpan& tv, std::ostream* os);
+void FuzzTestPrintSourceCode(const TernaryVector& tv, std::ostream* os);
 }  // namespace xls
 
 #endif  // XLS_IR_TERNARY_H_

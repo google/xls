@@ -21,6 +21,7 @@
 #include <cstring>
 #include <iterator>
 #include <optional>
+#include <ostream>
 #include <string_view>
 #include <utility>
 
@@ -517,6 +518,9 @@ class BitmapView {
   int64_t start_bit_;
   int64_t bit_count_;
 };
+
+// Let fuzz-tests pretty-print reproducers.
+void FuzzTestPrintSourceCode(const InlineBitmap& bm, std::ostream* os);
 
 }  // namespace xls
 

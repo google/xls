@@ -436,6 +436,9 @@ inline std::ostream& operator<<(std::ostream& os,
   return os;
 }
 
+// Let fuzz-tests pretty-print reproducers.
+void FuzzTestPrintSourceCode(const IntervalSet& is, std::ostream* os);
+
 }  // namespace xls
 
 #endif  // XLS_IR_INTERVAL_SET_H_
