@@ -662,8 +662,8 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdateViaGenerate(
       loop = module_->Add<GenerateLoop>(SourceInfo(), genvar_name, init, limit,
                                         std::move(label));
     } else {
-      loop = innermost_loop->body()->Add<GenerateLoop>(
-          SourceInfo(), genvar_name, init, limit, std::move(label));
+      loop = innermost_loop->Add<GenerateLoop>(SourceInfo(), genvar_name, init,
+                                               limit, std::move(label));
     }
     innermost_loop = loop;
     return loop;
@@ -750,8 +750,8 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdateViaGenerate(
     assignment_section()->Add<ContinuousAssignment>(SourceInfo(), lhs_indexed,
                                                     assignment_rhs);
   } else {
-    innermost_loop->body()->Add<ContinuousAssignment>(SourceInfo(), lhs_indexed,
-                                                      assignment_rhs);
+    innermost_loop->Add<ContinuousAssignment>(SourceInfo(), lhs_indexed,
+                                              assignment_rhs);
   }
 
   return absl::OkStatus();
