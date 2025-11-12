@@ -1133,6 +1133,7 @@ cc_binary(
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/status:status_macros",
+        "//xls/dev_tools:tool_timeout",
         "//xls/fdo:grpc_synthesizer",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",

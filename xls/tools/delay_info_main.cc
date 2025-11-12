@@ -25,6 +25,7 @@
 #include "xls/common/exit_status.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dev_tools/tool_timeout.h"
 #include "xls/tools/delay_info_flags.h"
 #include "xls/tools/delay_info_printer.h"
 
@@ -48,6 +49,7 @@ namespace xls::tools {
 namespace {
 
 absl::Status RealMain(std::string_view input_path) {
+  auto timeout = StartTimeoutTimer();
   std::unique_ptr<DelayInfoPrinter> printer = CreateDelayInfoPrinter();
   XLS_RETURN_IF_ERROR(printer->Init(GetDelayInfoFlagsProto(input_path)));
   return printer->GenerateApplicableInfo();
