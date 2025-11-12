@@ -1160,6 +1160,11 @@ bool BddQueryEngine::IsKnown(const TreeBitLocation& bit,
   return KnownValue(bit, assumption).has_value();
 }
 
+bool BddQueryEngine::IsFullyUnconstrained(Node* node) const {
+  auto it = node_variables_.find(NodeRef(node));
+  return it != node_variables_.end() && it->second->type() == node->GetType();
+}
+
 std::optional<bool> BddQueryEngine::KnownValue(
     const TreeBitLocation& bit, std::optional<BddNodeIndex> assumption) const {
   if (!assumption.has_value()) {

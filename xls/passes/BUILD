@@ -1538,6 +1538,52 @@ cc_test(
 )
 
 cc_library(
+    name = "visibility_analysis",
+    srcs = ["visibility_analysis.cc"],
+    hdrs = ["visibility_analysis.h"],
+    deps = [
+        ":bdd_evaluator",
+        ":bdd_query_engine",
+        ":lazy_node_data",
+        ":node_dependency_analysis",
+        ":query_engine",
+        "//xls/data_structures:binary_decision_diagram",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:op",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "visibility_analysis_test",
+    srcs = ["visibility_analysis_test.cc"],
+    deps = [
+        ":bdd_evaluator",
+        ":bdd_query_engine",
+        ":node_dependency_analysis",
+        ":query_engine",
+        ":visibility_analysis",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/data_structures:binary_decision_diagram",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "lazy_query_engine",
     hdrs = [
         "lazy_query_engine.h",

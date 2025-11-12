@@ -100,6 +100,8 @@ class BddQueryEngine
         evaluator_(
             std::make_unique<SaturatingBddEvaluator>(path_limit, bdd_.get())) {}
 
+  int64_t path_limit() const { return path_limit_; }
+
   std::optional<SharedLeafTypeTree<TernaryVector>> GetTernary(
       Node* node) const override;
 
@@ -129,6 +131,7 @@ class BddQueryEngine
   bool IsFullyKnown(Node* n) const override {
     return QueryEngine::IsFullyKnown(n);
   }
+  bool IsFullyUnconstrained(Node* node) const;
   bool IsKnown(const TreeBitLocation& bit) const override {
     return KnownValue(bit).has_value();
   }
@@ -143,6 +146,8 @@ class BddQueryEngine
   // TODO(meheff): Enable queries on a BDD without mutating the BDD itself.
   BinaryDecisionDiagram& bdd() const { return *bdd_; }
 
+  SaturatingBddEvaluator& evaluator() const { return *evaluator_; }
+
   // Returns the BDD node associated with the given bit, if there is one;
   // otherwise returns std::nullopt.
   std::optional<BddNodeIndex> GetBddNode(
@@ -155,6 +160,20 @@ class BddQueryEngine
         info->Get(location.tree_index()).at(location.bit_index());
     if (std::holds_alternative<TooManyPaths>(node)) {
       return std::nullopt;
+    }
+    return std::get<BddNodeIndex>(node);
+  }
+
+  std::optional<BddNodeIndex> GetBddNodeOrVariable(
+      const TreeBitLocation& location) const {
+    std::optional<SharedBddTree> info = GetInfo(location.node());
+    if (!info.has_value()) {
+      return std::nullopt;
+    }
+    SaturatingBddNodeIndex node =
+        info->Get(location.tree_index()).at(location.bit_index());
+    if (std::holds_alternative<TooManyPaths>(node)) {
+      return GetVariableFor(location);
     }
     return std::get<BddNodeIndex>(node);
   }
