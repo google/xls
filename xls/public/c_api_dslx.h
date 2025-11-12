@@ -200,6 +200,12 @@ bool xls_dslx_typechecked_module_clone_removing_functions(
     const char* install_subject, struct xls_dslx_import_data* import_data,
     char** error_out, struct xls_dslx_typechecked_module** result_out);
 
+bool xls_dslx_typechecked_module_clone_removing_members(
+    struct xls_dslx_typechecked_module* tm,
+    struct xls_dslx_module_member* members[], size_t member_count,
+    const char* install_subject, struct xls_dslx_import_data* import_data,
+    char** error_out, struct xls_dslx_typechecked_module** result_out);
+
 void xls_dslx_typechecked_module_free(struct xls_dslx_typechecked_module* tm);
 
 struct xls_dslx_module* xls_dslx_typechecked_module_get_module(
@@ -233,6 +239,30 @@ struct xls_dslx_type_alias* xls_dslx_module_member_get_type_alias(
 // function; otherwise returns nullptr.
 struct xls_dslx_function* xls_dslx_module_member_get_function(
     struct xls_dslx_module_member*);
+
+// Returns the QuickCheck AST node from the given module member. The caller
+// should ensure the module member kind is
+// `xls_dslx_module_member_kind_quick_check`.
+struct xls_dslx_quickcheck* xls_dslx_module_member_get_quickcheck(
+    struct xls_dslx_module_member*);
+
+struct xls_dslx_module_member *xls_dslx_module_member_from_constant_def(
+    struct xls_dslx_constant_def* constant_def);
+
+struct xls_dslx_module_member *xls_dslx_module_member_from_struct_def(
+    struct xls_dslx_struct_def* struct_def);
+
+struct xls_dslx_module_member *xls_dslx_module_member_from_enum_def(
+    struct xls_dslx_enum_def* enum_def);
+
+struct xls_dslx_module_member *xls_dslx_module_member_from_type_alias(
+    struct xls_dslx_type_alias* type_alias);
+
+struct xls_dslx_module_member *xls_dslx_module_member_from_function(
+    struct xls_dslx_function* function);
+
+struct xls_dslx_module_member *xls_dslx_module_member_from_quickcheck(
+    struct xls_dslx_quickcheck* quickcheck);
 
 // Returns whether the given DSLX function is parametric.
 bool xls_dslx_function_is_parametric(struct xls_dslx_function*);
@@ -280,12 +310,6 @@ int64_t xls_dslx_call_graph_get_callee_count(
 struct xls_dslx_function* xls_dslx_call_graph_get_callee_function(
     struct xls_dslx_call_graph* call_graph, struct xls_dslx_function* caller,
     int64_t callee_index);
-
-// Returns the QuickCheck AST node from the given module member. The caller
-// should ensure the module member kind is
-// `xls_dslx_module_member_kind_quick_check`.
-struct xls_dslx_quickcheck* xls_dslx_module_member_get_quickcheck(
-    struct xls_dslx_module_member*);
 
 // Retrieves the underlying function associated with the given QuickCheck.
 struct xls_dslx_function* xls_dslx_quickcheck_get_function(
