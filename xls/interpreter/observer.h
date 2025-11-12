@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/types/span.h"
 #include "xls/ir/node.h"
 #include "xls/ir/value.h"
 
@@ -55,6 +56,34 @@ class CollectingEvaluationObserver : public EvaluationObserver {
 
  private:
   absl::flat_hash_map<Node*, std::vector<Value>> values_;
+};
+
+// Forwards callbacks to multiple observers.
+class CompositeEvaluationObserver : public EvaluationObserver {
+ public:
+  CompositeEvaluationObserver() = default;
+  explicit CompositeEvaluationObserver(
+      absl::Span<EvaluationObserver* const> observers)
+      : observers_(observers.begin(), observers.end()) {}
+
+  void SetObservers(absl::Span<EvaluationObserver* const> observers) {
+    observers_.assign(observers.begin(), observers.end());
+  }
+
+  void NodeEvaluated(Node* n, const Value& v) override {
+    for (EvaluationObserver* observer : observers_) {
+      observer->NodeEvaluated(n, v);
+    }
+  }
+
+  void Tick() override {
+    for (EvaluationObserver* observer : observers_) {
+      observer->Tick();
+    }
+  }
+
+ private:
+  std::vector<EvaluationObserver*> observers_;
 };
 
 }  // namespace xls

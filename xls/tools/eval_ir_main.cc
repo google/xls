@@ -528,12 +528,6 @@ absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
       absl::GetFlag(FLAGS_output_node_coverage_stats_proto).has_value() ||
       absl::GetFlag(FLAGS_output_node_coverage_stats_textproto).has_value();
 
-  // TODO: google/xls#3307 - remove when multiple observers are supported.
-  if (trace_enabled && coverage_enabled) {
-    return absl::InvalidArgumentError(
-        "Cannot specify both --trace_output and node coverage flags.");
-  }
-
   ScopedRecordNodeCoverage cov(
       coverage_enabled ? absl::GetFlag(FLAGS_output_node_coverage_stats_proto)
                        : std::nullopt,
@@ -541,7 +535,9 @@ absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
           ? absl::GetFlag(FLAGS_output_node_coverage_stats_textproto)
           : std::nullopt);
   std::unique_ptr<ScopedTracingObserver> tracing_observer;
+  std::unique_ptr<CompositeEvaluationObserver> composite_observer;
   std::optional<EvaluationObserver*> observer;
+  std::vector<EvaluationObserver*> observer_ptrs;
 
   if (trace_enabled) {
     riegeli::RecordWriterBase::Options options;
@@ -554,9 +550,22 @@ absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
     tracing_observer = std::make_unique<ScopedTracingObserver>(
         std::make_unique<riegeli::RecordWriter<riegeli::FdWriter<>>>(
             riegeli::Maker(absl::GetFlag(FLAGS_trace_output)), options));
-    observer = tracing_observer.get();
-  } else if (coverage_enabled) {
-    observer = cov.observer();
+    observer_ptrs.push_back(tracing_observer.get());
+  }
+  if (coverage_enabled) {
+    if (auto cov_observer = cov.observer(); cov_observer.has_value()) {
+      observer_ptrs.push_back(*cov_observer);
+    }
+  }
+
+  if (!observer_ptrs.empty()) {
+    if (observer_ptrs.size() == 1) {
+      observer = observer_ptrs.front();
+    } else {
+      composite_observer =
+          std::make_unique<CompositeEvaluationObserver>(observer_ptrs);
+      observer = composite_observer.get();
+    }
   }
 
   // Copy the input ArgSets because we want to write in expected values if they
