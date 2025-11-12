@@ -92,6 +92,9 @@ class LazyNodeData : public ChangeListener,
     if (f_ != nullptr) {
       f_->UnregisterChangeListener(this);
     }
+    f_ = nullptr;
+    cache_.Clear();
+    givens_.clear();
   }
 
   LazyNodeData(const LazyNodeData<CacheValueT>& other)
@@ -304,6 +307,12 @@ class LazyNodeData : public ChangeListener,
 
   void OperandRemoved(Node* node, Node* old_operand) override {
     cache_.MarkUnverified(node);
+  }
+
+  void FunctionBaseDeleted(FunctionBase* fb) override {
+    f_ = nullptr;
+    cache_.Clear();
+    givens_.clear();
   }
 
   void OperandAdded(Node* node) override { cache_.MarkUnverified(node); }

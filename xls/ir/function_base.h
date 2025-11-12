@@ -63,7 +63,11 @@ class FunctionBase {
   FunctionBase(const FunctionBase& other) = delete;
   void operator=(const FunctionBase& other) = delete;
 
-  virtual ~FunctionBase() = default;
+  virtual ~FunctionBase() {
+    for (ChangeListener* listener : change_listeners_) {
+      listener->FunctionBaseDeleted(this);
+    }
+  }
 
   Package* package() const { return package_; }
   const std::string& name() const { return name_; }

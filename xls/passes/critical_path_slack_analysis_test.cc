@@ -61,13 +61,15 @@ TEST_F(CriticalPathSlackAnalysisTest, SlackFromCriticalPathSimple) {
   auto e1 = fb.And(a2, y, SourceInfo(), "e1");
   auto e2 = fb.And(e1, z, SourceInfo(), "e2");
   auto return_val = fb.Tuple({d5, e2});
-  XLS_ASSERT_OK(fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * delay_estimator,
                            GetDelayEstimator("unit"));
 
   CriticalPathDelayAnalysis critical_path_delay(delay_estimator);
   CriticalPathSlackAnalysis critical_path_slack(&critical_path_delay);
+  XLS_ASSERT_OK(critical_path_slack.Attach(f));
+  XLS_ASSERT_OK(critical_path_delay.Attach(f));
 
   EXPECT_EQ(critical_path_slack.SlackFromCriticalPath(return_val.node()), 0);
   EXPECT_EQ(critical_path_slack.SlackFromCriticalPath(c1.node()), 2);
@@ -98,7 +100,8 @@ TEST_F(CriticalPathSlackAnalysisTest, IndependentPathsStillInvalidateTheOther) {
 
   CriticalPathDelayAnalysis critical_path_delay(delay_estimator);
   CriticalPathSlackAnalysis critical_path_slack(&critical_path_delay);
-  f->RegisterChangeListener(&critical_path_slack);
+  XLS_ASSERT_OK(critical_path_slack.Attach(f));
+  XLS_ASSERT_OK(critical_path_delay.Attach(f));
 
   EXPECT_EQ(critical_path_slack.SlackFromCriticalPath(a1.node()), 1);
   EXPECT_EQ(critical_path_slack.SlackFromCriticalPath(a2.node()), 1);

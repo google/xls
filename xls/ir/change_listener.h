@@ -21,6 +21,7 @@
 
 namespace xls {
 
+class FunctionBase;
 class Function;
 class Node;
 class Proc;
@@ -52,6 +53,8 @@ class ChangeListener {
                                   Node* old_return_value) {}
   virtual void NextStateElementChanged(Proc* proc, int64_t state_index,
                                        Node* old_next_state_element) {}
+
+  virtual void FunctionBaseDeleted(FunctionBase* fb) {}
 };
 
 }  // namespace xls
