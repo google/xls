@@ -982,227 +982,211 @@ module zstd_dec_wrapper #(
 
 
   // RAM instance for history_buffer_ram0
-  logic [7:0] history_buffer_ram0_wr_data;
-  logic [12:0] history_buffer_ram0_wr_addr;
-  logic history_buffer_ram0_wr_en;
-  logic history_buffer_ram0_wr_mask;
-  logic [7:0] history_buffer_ram0_rd_data;
-  logic [12:0] history_buffer_ram0_rd_addr;
-  logic history_buffer_ram0_rd_en;
-  logic history_buffer_ram0_rd_mask;
+  logic [7:0] history_buffer_ram0_data[2];
+  logic [12:0] history_buffer_ram0_addr[2];
+  logic history_buffer_ram0_wr_en[2];
+  logic history_buffer_ram0_rd_en[2];
+  logic [7:0] history_buffer_ram0_rd_data[2];
 
-  ram_1r1w #(
+  ram_2rw #(
       .DATA_WIDTH(8),
       .SIZE(8192),
-      .NUM_PARTITIONS(1),
       .ADDR_WIDTH(13)
   ) history_buffer_ram0_ram (
       .clk(clk),
       .rst(rst),
-      .wr_data(history_buffer_ram0_wr_data),
-      .wr_addr(history_buffer_ram0_wr_addr),
-      .wr_en(history_buffer_ram0_wr_en),
-      .wr_mask(history_buffer_ram0_wr_mask),
-      .rd_data(history_buffer_ram0_rd_data),
-      .rd_addr(history_buffer_ram0_rd_addr),
-      .rd_en(history_buffer_ram0_rd_en),
-      .rd_mask(history_buffer_ram0_rd_mask)
+      .data_0(history_buffer_ram0_data[0]),
+      .addr_0(history_buffer_ram0_addr[0]),
+      .wr_en_0(history_buffer_ram0_wr_en[0]),
+      .rd_en_0(history_buffer_ram0_rd_en[0]),
+      .rd_data_0(history_buffer_ram0_rd_data[0]),
+      .data_1(history_buffer_ram0_data[1]),
+      .addr_1(history_buffer_ram0_addr[1]),
+      .wr_en_1(history_buffer_ram0_wr_en[1]),
+      .rd_en_1(history_buffer_ram0_rd_en[1]),
+      .rd_data_1(history_buffer_ram0_rd_data[1])
   );
 
   // RAM instance for history_buffer_ram1
-  logic [7:0] history_buffer_ram1_wr_data;
-  logic [12:0] history_buffer_ram1_wr_addr;
-  logic history_buffer_ram1_wr_en;
-  logic history_buffer_ram1_wr_mask;
-  logic [7:0] history_buffer_ram1_rd_data;
-  logic [12:0] history_buffer_ram1_rd_addr;
-  logic history_buffer_ram1_rd_en;
-  logic history_buffer_ram1_rd_mask;
+  logic [7:0] history_buffer_ram1_data[2];
+  logic [12:0] history_buffer_ram1_addr[2];
+  logic history_buffer_ram1_wr_en[2];
+  logic history_buffer_ram1_rd_en[2];
+  logic [7:0] history_buffer_ram1_rd_data[2];
 
-  ram_1r1w #(
+  ram_2rw #(
       .DATA_WIDTH(8),
       .SIZE(8192),
-      .NUM_PARTITIONS(1),
       .ADDR_WIDTH(13)
   ) history_buffer_ram1_ram (
       .clk(clk),
       .rst(rst),
-      .wr_data(history_buffer_ram1_wr_data),
-      .wr_addr(history_buffer_ram1_wr_addr),
-      .wr_en(history_buffer_ram1_wr_en),
-      .wr_mask(history_buffer_ram1_wr_mask),
-      .rd_data(history_buffer_ram1_rd_data),
-      .rd_addr(history_buffer_ram1_rd_addr),
-      .rd_en(history_buffer_ram1_rd_en),
-      .rd_mask(history_buffer_ram1_rd_mask)
+      .data_0(history_buffer_ram1_data[0]),
+      .addr_0(history_buffer_ram1_addr[0]),
+      .wr_en_0(history_buffer_ram1_wr_en[0]),
+      .rd_en_0(history_buffer_ram1_rd_en[0]),
+      .rd_data_0(history_buffer_ram1_rd_data[0]),
+      .data_1(history_buffer_ram1_data[1]),
+      .addr_1(history_buffer_ram1_addr[1]),
+      .wr_en_1(history_buffer_ram1_wr_en[1]),
+      .rd_en_1(history_buffer_ram1_rd_en[1]),
+      .rd_data_1(history_buffer_ram1_rd_data[1])
   );
 
   // RAM instance for history_buffer_ram2
-  logic [7:0] history_buffer_ram2_wr_data;
-  logic [12:0] history_buffer_ram2_wr_addr;
-  logic history_buffer_ram2_wr_en;
-  logic history_buffer_ram2_wr_mask;
-  logic [7:0] history_buffer_ram2_rd_data;
-  logic [12:0] history_buffer_ram2_rd_addr;
-  logic history_buffer_ram2_rd_en;
-  logic history_buffer_ram2_rd_mask;
+  logic [7:0] history_buffer_ram2_data[2];
+  logic [12:0] history_buffer_ram2_addr[2];
+  logic history_buffer_ram2_wr_en[2];
+  logic history_buffer_ram2_rd_en[2];
+  logic [7:0] history_buffer_ram2_rd_data[2];
 
-  ram_1r1w #(
+  ram_2rw #(
       .DATA_WIDTH(8),
       .SIZE(8192),
-      .NUM_PARTITIONS(1),
       .ADDR_WIDTH(13)
   ) history_buffer_ram2_ram (
       .clk(clk),
       .rst(rst),
-      .wr_data(history_buffer_ram2_wr_data),
-      .wr_addr(history_buffer_ram2_wr_addr),
-      .wr_en(history_buffer_ram2_wr_en),
-      .wr_mask(history_buffer_ram2_wr_mask),
-      .rd_data(history_buffer_ram2_rd_data),
-      .rd_addr(history_buffer_ram2_rd_addr),
-      .rd_en(history_buffer_ram2_rd_en),
-      .rd_mask(history_buffer_ram2_rd_mask)
+      .data_0(history_buffer_ram2_data[0]),
+      .addr_0(history_buffer_ram2_addr[0]),
+      .wr_en_0(history_buffer_ram2_wr_en[0]),
+      .rd_en_0(history_buffer_ram2_rd_en[0]),
+      .rd_data_0(history_buffer_ram2_rd_data[0]),
+      .data_1(history_buffer_ram2_data[1]),
+      .addr_1(history_buffer_ram2_addr[1]),
+      .wr_en_1(history_buffer_ram2_wr_en[1]),
+      .rd_en_1(history_buffer_ram2_rd_en[1]),
+      .rd_data_1(history_buffer_ram2_rd_data[1])
   );
 
   // RAM instance for history_buffer_ram3
-  logic [7:0] history_buffer_ram3_wr_data;
-  logic [12:0] history_buffer_ram3_wr_addr;
-  logic history_buffer_ram3_wr_en;
-  logic history_buffer_ram3_wr_mask;
-  logic [7:0] history_buffer_ram3_rd_data;
-  logic [12:0] history_buffer_ram3_rd_addr;
-  logic history_buffer_ram3_rd_en;
-  logic history_buffer_ram3_rd_mask;
+  logic [7:0] history_buffer_ram3_data[2];
+  logic [12:0] history_buffer_ram3_addr[2];
+  logic history_buffer_ram3_wr_en[2];
+  logic history_buffer_ram3_rd_en[2];
+  logic [7:0] history_buffer_ram3_rd_data[2];
 
-  ram_1r1w #(
+  ram_2rw #(
       .DATA_WIDTH(8),
       .SIZE(8192),
-      .NUM_PARTITIONS(1),
       .ADDR_WIDTH(13)
   ) history_buffer_ram3_ram (
       .clk(clk),
       .rst(rst),
-      .wr_data(history_buffer_ram3_wr_data),
-      .wr_addr(history_buffer_ram3_wr_addr),
-      .wr_en(history_buffer_ram3_wr_en),
-      .wr_mask(history_buffer_ram3_wr_mask),
-      .rd_data(history_buffer_ram3_rd_data),
-      .rd_addr(history_buffer_ram3_rd_addr),
-      .rd_en(history_buffer_ram3_rd_en),
-      .rd_mask(history_buffer_ram3_rd_mask)
+      .data_0(history_buffer_ram3_data[0]),
+      .addr_0(history_buffer_ram3_addr[0]),
+      .wr_en_0(history_buffer_ram3_wr_en[0]),
+      .rd_en_0(history_buffer_ram3_rd_en[0]),
+      .rd_data_0(history_buffer_ram3_rd_data[0]),
+      .data_1(history_buffer_ram3_data[1]),
+      .addr_1(history_buffer_ram3_addr[1]),
+      .wr_en_1(history_buffer_ram3_wr_en[1]),
+      .rd_en_1(history_buffer_ram3_rd_en[1]),
+      .rd_data_1(history_buffer_ram3_rd_data[1])
   );
 
   // RAM instance for history_buffer_ram4
-  logic [7:0] history_buffer_ram4_wr_data;
-  logic [12:0] history_buffer_ram4_wr_addr;
-  logic history_buffer_ram4_wr_en;
-  logic history_buffer_ram4_wr_mask;
-  logic [7:0] history_buffer_ram4_rd_data;
-  logic [12:0] history_buffer_ram4_rd_addr;
-  logic history_buffer_ram4_rd_en;
-  logic history_buffer_ram4_rd_mask;
+  logic [7:0] history_buffer_ram4_data[2];
+  logic [12:0] history_buffer_ram4_addr[2];
+  logic history_buffer_ram4_wr_en[2];
+  logic history_buffer_ram4_rd_en[2];
+  logic [7:0] history_buffer_ram4_rd_data[2];
 
-  ram_1r1w #(
+  ram_2rw #(
       .DATA_WIDTH(8),
       .SIZE(8192),
-      .NUM_PARTITIONS(1),
       .ADDR_WIDTH(13)
   ) history_buffer_ram4_ram (
       .clk(clk),
       .rst(rst),
-      .wr_data(history_buffer_ram4_wr_data),
-      .wr_addr(history_buffer_ram4_wr_addr),
-      .wr_en(history_buffer_ram4_wr_en),
-      .wr_mask(history_buffer_ram4_wr_mask),
-      .rd_data(history_buffer_ram4_rd_data),
-      .rd_addr(history_buffer_ram4_rd_addr),
-      .rd_en(history_buffer_ram4_rd_en),
-      .rd_mask(history_buffer_ram4_rd_mask)
+      .data_0(history_buffer_ram4_data[0]),
+      .addr_0(history_buffer_ram4_addr[0]),
+      .wr_en_0(history_buffer_ram4_wr_en[0]),
+      .rd_en_0(history_buffer_ram4_rd_en[0]),
+      .rd_data_0(history_buffer_ram4_rd_data[0]),
+      .data_1(history_buffer_ram4_data[1]),
+      .addr_1(history_buffer_ram4_addr[1]),
+      .wr_en_1(history_buffer_ram4_wr_en[1]),
+      .rd_en_1(history_buffer_ram4_rd_en[1]),
+      .rd_data_1(history_buffer_ram4_rd_data[1])
   );
 
   // RAM instance for history_buffer_ram5
-  logic [7:0] history_buffer_ram5_wr_data;
-  logic [12:0] history_buffer_ram5_wr_addr;
-  logic history_buffer_ram5_wr_en;
-  logic history_buffer_ram5_wr_mask;
-  logic [7:0] history_buffer_ram5_rd_data;
-  logic [12:0] history_buffer_ram5_rd_addr;
-  logic history_buffer_ram5_rd_en;
-  logic history_buffer_ram5_rd_mask;
+  logic [7:0] history_buffer_ram5_data[2];
+  logic [12:0] history_buffer_ram5_addr[2];
+  logic history_buffer_ram5_wr_en[2];
+  logic history_buffer_ram5_rd_en[2];
+  logic [7:0] history_buffer_ram5_rd_data[2];
 
-  ram_1r1w #(
+  ram_2rw #(
       .DATA_WIDTH(8),
       .SIZE(8192),
-      .NUM_PARTITIONS(1),
       .ADDR_WIDTH(13)
   ) history_buffer_ram5_ram (
       .clk(clk),
       .rst(rst),
-      .wr_data(history_buffer_ram5_wr_data),
-      .wr_addr(history_buffer_ram5_wr_addr),
-      .wr_en(history_buffer_ram5_wr_en),
-      .wr_mask(history_buffer_ram5_wr_mask),
-      .rd_data(history_buffer_ram5_rd_data),
-      .rd_addr(history_buffer_ram5_rd_addr),
-      .rd_en(history_buffer_ram5_rd_en),
-      .rd_mask(history_buffer_ram5_rd_mask)
+      .data_0(history_buffer_ram5_data[0]),
+      .addr_0(history_buffer_ram5_addr[0]),
+      .wr_en_0(history_buffer_ram5_wr_en[0]),
+      .rd_en_0(history_buffer_ram5_rd_en[0]),
+      .rd_data_0(history_buffer_ram5_rd_data[0]),
+      .data_1(history_buffer_ram5_data[1]),
+      .addr_1(history_buffer_ram5_addr[1]),
+      .wr_en_1(history_buffer_ram5_wr_en[1]),
+      .rd_en_1(history_buffer_ram5_rd_en[1]),
+      .rd_data_1(history_buffer_ram5_rd_data[1])
   );
 
   // RAM instance for history_buffer_ram6
-  logic [7:0] history_buffer_ram6_wr_data;
-  logic [12:0] history_buffer_ram6_wr_addr;
-  logic history_buffer_ram6_wr_en;
-  logic history_buffer_ram6_wr_mask;
-  logic [7:0] history_buffer_ram6_rd_data;
-  logic [12:0] history_buffer_ram6_rd_addr;
-  logic history_buffer_ram6_rd_en;
-  logic history_buffer_ram6_rd_mask;
+  logic [7:0] history_buffer_ram6_data[2];
+  logic [12:0] history_buffer_ram6_addr[2];
+  logic history_buffer_ram6_wr_en[2];
+  logic history_buffer_ram6_rd_en[2];
+  logic [7:0] history_buffer_ram6_rd_data[2];
 
-  ram_1r1w #(
+  ram_2rw #(
       .DATA_WIDTH(8),
       .SIZE(8192),
-      .NUM_PARTITIONS(1),
       .ADDR_WIDTH(13)
   ) history_buffer_ram6_ram (
       .clk(clk),
       .rst(rst),
-      .wr_data(history_buffer_ram6_wr_data),
-      .wr_addr(history_buffer_ram6_wr_addr),
-      .wr_en(history_buffer_ram6_wr_en),
-      .wr_mask(history_buffer_ram6_wr_mask),
-      .rd_data(history_buffer_ram6_rd_data),
-      .rd_addr(history_buffer_ram6_rd_addr),
-      .rd_en(history_buffer_ram6_rd_en),
-      .rd_mask(history_buffer_ram6_rd_mask)
+      .data_0(history_buffer_ram6_data[0]),
+      .addr_0(history_buffer_ram6_addr[0]),
+      .wr_en_0(history_buffer_ram6_wr_en[0]),
+      .rd_en_0(history_buffer_ram6_rd_en[0]),
+      .rd_data_0(history_buffer_ram6_rd_data[0]),
+      .data_1(history_buffer_ram6_data[1]),
+      .addr_1(history_buffer_ram6_addr[1]),
+      .wr_en_1(history_buffer_ram6_wr_en[1]),
+      .rd_en_1(history_buffer_ram6_rd_en[1]),
+      .rd_data_1(history_buffer_ram6_rd_data[1])
   );
 
   // RAM instance for history_buffer_ram7
-  logic [7:0] history_buffer_ram7_wr_data;
-  logic [12:0] history_buffer_ram7_wr_addr;
-  logic history_buffer_ram7_wr_en;
-  logic history_buffer_ram7_wr_mask;
-  logic [7:0] history_buffer_ram7_rd_data;
-  logic [12:0] history_buffer_ram7_rd_addr;
-  logic history_buffer_ram7_rd_en;
-  logic history_buffer_ram7_rd_mask;
+  logic [7:0] history_buffer_ram7_data[2];
+  logic [12:0] history_buffer_ram7_addr[2];
+  logic history_buffer_ram7_wr_en[2];
+  logic history_buffer_ram7_rd_en[2];
+  logic [7:0] history_buffer_ram7_rd_data[2];
 
-  ram_1r1w #(
+  ram_2rw #(
       .DATA_WIDTH(8),
       .SIZE(8192),
-      .NUM_PARTITIONS(1),
       .ADDR_WIDTH(13)
   ) history_buffer_ram7_ram (
       .clk(clk),
       .rst(rst),
-      .wr_data(history_buffer_ram7_wr_data),
-      .wr_addr(history_buffer_ram7_wr_addr),
-      .wr_en(history_buffer_ram7_wr_en),
-      .wr_mask(history_buffer_ram7_wr_mask),
-      .rd_data(history_buffer_ram7_rd_data),
-      .rd_addr(history_buffer_ram7_rd_addr),
-      .rd_en(history_buffer_ram7_rd_en),
-      .rd_mask(history_buffer_ram7_rd_mask)
+      .data_0(history_buffer_ram7_data[0]),
+      .addr_0(history_buffer_ram7_addr[0]),
+      .wr_en_0(history_buffer_ram7_wr_en[0]),
+      .rd_en_0(history_buffer_ram7_rd_en[0]),
+      .rd_data_0(history_buffer_ram7_rd_data[0]),
+      .data_1(history_buffer_ram7_data[1]),
+      .addr_1(history_buffer_ram7_addr[1]),
+      .wr_en_1(history_buffer_ram7_wr_en[1]),
+      .rd_en_1(history_buffer_ram7_rd_en[1]),
+      .rd_data_1(history_buffer_ram7_rd_data[1])
   );
 
   // RAM instance for dpd_ram
@@ -1976,77 +1960,86 @@ module zstd_dec_wrapper #(
         .huffman_literals_weights_fse_ram_wr_en(huffman_literals_weights_fse_ram_wr_en),
 
         // History buffers memories
-        .history_buffer_ram0_rd_data(history_buffer_ram0_rd_data),
-        .history_buffer_ram0_rd_addr(history_buffer_ram0_rd_addr),
-        .history_buffer_ram0_rd_mask(history_buffer_ram0_rd_mask),
-        .history_buffer_ram0_rd_en(history_buffer_ram0_rd_en),
-        .history_buffer_ram0_wr_addr(history_buffer_ram0_wr_addr),
-        .history_buffer_ram0_wr_data(history_buffer_ram0_wr_data),
-        .history_buffer_ram0_wr_mask(history_buffer_ram0_wr_mask),
-        .history_buffer_ram0_wr_en(history_buffer_ram0_wr_en),
-
-        .history_buffer_ram1_rd_data(history_buffer_ram1_rd_data),
-        .history_buffer_ram1_rd_addr(history_buffer_ram1_rd_addr),
-        .history_buffer_ram1_rd_mask(history_buffer_ram1_rd_mask),
-        .history_buffer_ram1_rd_en(history_buffer_ram1_rd_en),
-        .history_buffer_ram1_wr_addr(history_buffer_ram1_wr_addr),
-        .history_buffer_ram1_wr_data(history_buffer_ram1_wr_data),
-        .history_buffer_ram1_wr_mask(history_buffer_ram1_wr_mask),
-        .history_buffer_ram1_wr_en(history_buffer_ram1_wr_en),
-
-        .history_buffer_ram2_rd_data(history_buffer_ram2_rd_data),
-        .history_buffer_ram2_rd_addr(history_buffer_ram2_rd_addr),
-        .history_buffer_ram2_rd_mask(history_buffer_ram2_rd_mask),
-        .history_buffer_ram2_rd_en(history_buffer_ram2_rd_en),
-        .history_buffer_ram2_wr_addr(history_buffer_ram2_wr_addr),
-        .history_buffer_ram2_wr_data(history_buffer_ram2_wr_data),
-        .history_buffer_ram2_wr_mask(history_buffer_ram2_wr_mask),
-        .history_buffer_ram2_wr_en(history_buffer_ram2_wr_en),
-
-        .history_buffer_ram3_rd_data(history_buffer_ram3_rd_data),
-        .history_buffer_ram3_rd_addr(history_buffer_ram3_rd_addr),
-        .history_buffer_ram3_rd_mask(history_buffer_ram3_rd_mask),
-        .history_buffer_ram3_rd_en(history_buffer_ram3_rd_en),
-        .history_buffer_ram3_wr_addr(history_buffer_ram3_wr_addr),
-        .history_buffer_ram3_wr_data(history_buffer_ram3_wr_data),
-        .history_buffer_ram3_wr_mask(history_buffer_ram3_wr_mask),
-        .history_buffer_ram3_wr_en(history_buffer_ram3_wr_en),
-
-        .history_buffer_ram4_rd_data(history_buffer_ram4_rd_data),
-        .history_buffer_ram4_rd_addr(history_buffer_ram4_rd_addr),
-        .history_buffer_ram4_rd_mask(history_buffer_ram4_rd_mask),
-        .history_buffer_ram4_rd_en(history_buffer_ram4_rd_en),
-        .history_buffer_ram4_wr_addr(history_buffer_ram4_wr_addr),
-        .history_buffer_ram4_wr_data(history_buffer_ram4_wr_data),
-        .history_buffer_ram4_wr_mask(history_buffer_ram4_wr_mask),
-        .history_buffer_ram4_wr_en(history_buffer_ram4_wr_en),
-
-        .history_buffer_ram5_rd_data(history_buffer_ram5_rd_data),
-        .history_buffer_ram5_rd_addr(history_buffer_ram5_rd_addr),
-        .history_buffer_ram5_rd_mask(history_buffer_ram5_rd_mask),
-        .history_buffer_ram5_rd_en(history_buffer_ram5_rd_en),
-        .history_buffer_ram5_wr_addr(history_buffer_ram5_wr_addr),
-        .history_buffer_ram5_wr_data(history_buffer_ram5_wr_data),
-        .history_buffer_ram5_wr_mask(history_buffer_ram5_wr_mask),
-        .history_buffer_ram5_wr_en(history_buffer_ram5_wr_en),
-
-        .history_buffer_ram6_rd_data(history_buffer_ram6_rd_data),
-        .history_buffer_ram6_rd_addr(history_buffer_ram6_rd_addr),
-        .history_buffer_ram6_rd_mask(history_buffer_ram6_rd_mask),
-        .history_buffer_ram6_rd_en(history_buffer_ram6_rd_en),
-        .history_buffer_ram6_wr_addr(history_buffer_ram6_wr_addr),
-        .history_buffer_ram6_wr_data(history_buffer_ram6_wr_data),
-        .history_buffer_ram6_wr_mask(history_buffer_ram6_wr_mask),
-        .history_buffer_ram6_wr_en(history_buffer_ram6_wr_en),
-
-        .history_buffer_ram7_rd_data(history_buffer_ram7_rd_data),
-        .history_buffer_ram7_rd_addr(history_buffer_ram7_rd_addr),
-        .history_buffer_ram7_rd_mask(history_buffer_ram7_rd_mask),
-        .history_buffer_ram7_rd_en(history_buffer_ram7_rd_en),
-        .history_buffer_ram7_wr_addr(history_buffer_ram7_wr_addr),
-        .history_buffer_ram7_wr_data(history_buffer_ram7_wr_data),
-        .history_buffer_ram7_wr_mask(history_buffer_ram7_wr_mask),
-        .history_buffer_ram7_wr_en(history_buffer_ram7_wr_en),
+        .ram0_0_addr(history_buffer_ram0_addr[0]),
+        .ram0_0_wr_data(history_buffer_ram0_data[0]),
+        .ram0_0_we(history_buffer_ram0_wr_en[0]),
+        .ram0_0_re(history_buffer_ram0_rd_en[0]),
+        .ram0_0_rd_data(history_buffer_ram0_rd_data[0]),
+        .ram1_0_addr(history_buffer_ram1_addr[0]),
+        .ram1_0_wr_data(history_buffer_ram1_data[0]),
+        .ram1_0_we(history_buffer_ram1_wr_en[0]),
+        .ram1_0_re(history_buffer_ram1_rd_en[0]),
+        .ram1_0_rd_data(history_buffer_ram1_rd_data[0]),
+        .ram2_0_addr(history_buffer_ram2_addr[0]),
+        .ram2_0_wr_data(history_buffer_ram2_data[0]),
+        .ram2_0_we(history_buffer_ram2_wr_en[0]),
+        .ram2_0_re(history_buffer_ram2_rd_en[0]),
+        .ram2_0_rd_data(history_buffer_ram2_rd_data[0]),
+        .ram3_0_addr(history_buffer_ram3_addr[0]),
+        .ram3_0_wr_data(history_buffer_ram3_data[0]),
+        .ram3_0_we(history_buffer_ram3_wr_en[0]),
+        .ram3_0_re(history_buffer_ram3_rd_en[0]),
+        .ram3_0_rd_data(history_buffer_ram3_rd_data[0]),
+        .ram4_0_addr(history_buffer_ram4_addr[0]),
+        .ram4_0_wr_data(history_buffer_ram4_data[0]),
+        .ram4_0_we(history_buffer_ram4_wr_en[0]),
+        .ram4_0_re(history_buffer_ram4_rd_en[0]),
+        .ram4_0_rd_data(history_buffer_ram4_rd_data[0]),
+        .ram5_0_addr(history_buffer_ram5_addr[0]),
+        .ram5_0_wr_data(history_buffer_ram5_data[0]),
+        .ram5_0_we(history_buffer_ram5_wr_en[0]),
+        .ram5_0_re(history_buffer_ram5_rd_en[0]),
+        .ram5_0_rd_data(history_buffer_ram5_rd_data[0]),
+        .ram6_0_addr(history_buffer_ram6_addr[0]),
+        .ram6_0_wr_data(history_buffer_ram6_data[0]),
+        .ram6_0_we(history_buffer_ram6_wr_en[0]),
+        .ram6_0_re(history_buffer_ram6_rd_en[0]),
+        .ram6_0_rd_data(history_buffer_ram6_rd_data[0]),
+        .ram7_0_addr(history_buffer_ram7_addr[0]),
+        .ram7_0_wr_data(history_buffer_ram7_data[0]),
+        .ram7_0_we(history_buffer_ram7_wr_en[0]),
+        .ram7_0_re(history_buffer_ram7_rd_en[0]),
+        .ram7_0_rd_data(history_buffer_ram7_rd_data[0]),
+        .ram0_1_addr(history_buffer_ram0_addr[1]),
+        .ram0_1_wr_data(history_buffer_ram0_data[1]),
+        .ram0_1_we(history_buffer_ram0_wr_en[1]),
+        .ram0_1_re(history_buffer_ram0_rd_en[1]),
+        .ram0_1_rd_data(history_buffer_ram0_rd_data[1]),
+        .ram1_1_addr(history_buffer_ram1_addr[1]),
+        .ram1_1_wr_data(history_buffer_ram1_data[1]),
+        .ram1_1_we(history_buffer_ram1_wr_en[1]),
+        .ram1_1_re(history_buffer_ram1_rd_en[1]),
+        .ram1_1_rd_data(history_buffer_ram1_rd_data[1]),
+        .ram2_1_addr(history_buffer_ram2_addr[1]),
+        .ram2_1_wr_data(history_buffer_ram2_data[1]),
+        .ram2_1_we(history_buffer_ram2_wr_en[1]),
+        .ram2_1_re(history_buffer_ram2_rd_en[1]),
+        .ram2_1_rd_data(history_buffer_ram2_rd_data[1]),
+        .ram3_1_addr(history_buffer_ram3_addr[1]),
+        .ram3_1_wr_data(history_buffer_ram3_data[1]),
+        .ram3_1_we(history_buffer_ram3_wr_en[1]),
+        .ram3_1_re(history_buffer_ram3_rd_en[1]),
+        .ram3_1_rd_data(history_buffer_ram3_rd_data[1]),
+        .ram4_1_addr(history_buffer_ram4_addr[1]),
+        .ram4_1_wr_data(history_buffer_ram4_data[1]),
+        .ram4_1_we(history_buffer_ram4_wr_en[1]),
+        .ram4_1_re(history_buffer_ram4_rd_en[1]),
+        .ram4_1_rd_data(history_buffer_ram4_rd_data[1]),
+        .ram5_1_addr(history_buffer_ram5_addr[1]),
+        .ram5_1_wr_data(history_buffer_ram5_data[1]),
+        .ram5_1_we(history_buffer_ram5_wr_en[1]),
+        .ram5_1_re(history_buffer_ram5_rd_en[1]),
+        .ram5_1_rd_data(history_buffer_ram5_rd_data[1]),
+        .ram6_1_addr(history_buffer_ram6_addr[1]),
+        .ram6_1_wr_data(history_buffer_ram6_data[1]),
+        .ram6_1_we(history_buffer_ram6_wr_en[1]),
+        .ram6_1_re(history_buffer_ram6_rd_en[1]),
+        .ram6_1_rd_data(history_buffer_ram6_rd_data[1]),
+        .ram7_1_addr(history_buffer_ram7_addr[1]),
+        .ram7_1_wr_data(history_buffer_ram7_data[1]),
+        .ram7_1_we(history_buffer_ram7_wr_en[1]),
+        .ram7_1_re(history_buffer_ram7_rd_en[1]),
+        .ram7_1_rd_data(history_buffer_ram7_rd_data[1]),
 
         .dpd_ram_rd_data(dpd_ram_rd_data),
         .dpd_ram_rd_addr(dpd_ram_rd_addr),

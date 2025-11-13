@@ -57,7 +57,7 @@ pub struct BlockDataPacket {
     length: BlockPacketLength,
 }
 
-pub enum SequenceExecutorMessageType : u1 {
+pub enum SequenceExecutorMessageType: u1 {
     LITERAL = 0,
     SEQUENCE = 1,
 }

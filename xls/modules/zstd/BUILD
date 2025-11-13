@@ -791,118 +791,6 @@ xls_dslx_test(
 )
 
 xls_dslx_library(
-    name = "sequence_executor_dslx",
-    srcs = [
-        "sequence_executor.x",
-    ],
-    deps = [
-        ":common_dslx",
-        ":parallel_rams_dslx",
-        ":ram_printer_dslx",
-        "//xls/examples:ram_dslx",
-        "//xls/modules/zstd/memory:mem_writer_dslx",
-    ],
-)
-
-xls_dslx_test(
-    name = "sequence_executor_dslx_test",
-    dslx_test_args = {
-        "compare": "none",
-    },
-    library = ":sequence_executor_dslx",
-)
-
-SEQUENCE_EXECUTOR_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
-    "module_name": "sequence_executor",
-    "clock_period_ps": "0",
-    "generator": "pipeline",
-    "delay_model": "asap7",
-    "ram_configurations": ",".join([
-        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-            latency = 1,
-            ram_name = "ram{}".format(num),
-            rd_req = "sequence_executor__rd_req_m{}_s".format(num),
-            rd_resp = "sequence_executor__rd_resp_m{}_r".format(num),
-            wr_req = "sequence_executor__wr_req_m{}_s".format(num),
-            wr_resp = "sequence_executor__wr_resp_m{}_r".format(num),
-        )
-        for num in range(7)
-    ]),
-    "pipeline_stages": "6",
-    "reset": "rst",
-    "reset_data_path": "true",
-    "reset_active_low": "false",
-    "reset_asynchronous": "true",
-    "flop_inputs": "false",
-    "flop_single_value_channels": "false",
-    "flop_outputs": "false",
-}
-
-xls_dslx_verilog(
-    name = "sequence_executor_verilog",
-    codegen_args = SEQUENCE_EXECUTOR_CODEGEN_ARGS,
-    dslx_top = "SequenceExecutorZstd",
-    library = ":sequence_executor_dslx",
-    tags = ["manual"],
-    verilog_file = "sequence_executor.v",
-)
-
-xls_benchmark_ir(
-    name = "sequence_executor_opt_ir_benchmark",
-    src = ":sequence_executor_verilog.opt.ir",
-    benchmark_ir_args = SEQUENCE_EXECUTOR_CODEGEN_ARGS | {
-        "pipeline_stages": "10",
-    },
-    tags = ["manual"],
-)
-
-xls_benchmark_verilog(
-    name = "sequence_executor_verilog_benchmark",
-    tags = ["manual"],
-    verilog_target = "sequence_executor_verilog",
-)
-
-verilog_library(
-    name = "sequence_executor_lib",
-    srcs = [
-        ":sequence_executor.v",
-        "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
-    ],
-    tags = ["manual"],
-)
-
-synthesize_rtl(
-    name = "sequence_executor_asap7",
-    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
-    tags = ["manual"],
-    top_module = "sequence_executor",
-    deps = [
-        ":sequence_executor_lib",
-    ],
-)
-
-benchmark_synth(
-    name = "sequence_executor_benchmark_synth",
-    synth_target = ":sequence_executor_asap7",
-    tags = ["manual"],
-)
-
-place_and_route(
-    name = "sequence_executor_place_and_route",
-    clock_period = CLOCK_PERIOD_PS,
-    core_padding_microns = 2,
-    die_height_microns = 120,
-    die_width_microns = 120,
-    min_pin_distance = "0.4",
-    placement_density = "0.30",
-    stop_after_step = "global_routing",
-    suppress_warnings = ASAP7_SUPPPRESSED_WARNINGS,
-    synthesized_rtl = ":sequence_executor_asap7",
-    tags = ["manual"],
-    target_die_utilization_percentage = "10",
-)
-
-xls_dslx_library(
     name = "axi_csr_accessor_dslx",
     srcs = [
         "axi_csr_accessor.x",
@@ -1438,7 +1326,7 @@ zstd_dec_deps = [
     ":raw_block_dec_dslx",
     ":rle_block_dec_dslx",
     ":comp_block_dec_dslx",
-    ":sequence_executor_dslx",
+    "//xls/modules/zstd/sequence_executor:sequence_executor_dslx",
     ":huffman_literals_dec_dslx",
     ":literals_buffer_dslx",
     ":parallel_rams_dslx",
@@ -1485,13 +1373,20 @@ ZSTD_DEC_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "materialize_internal_fifos": "false",
     "ram_configurations": ",".join([
         ",".join([
-            "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-                latency = 1,
-                ram_name = "history_buffer_ram{}".format(num),
-                rd_req = "zstd_dec__ram_rd_req_{}_s".format(num),
-                rd_resp = "zstd_dec__ram_rd_resp_{}_r".format(num),
-                wr_req = "zstd_dec__ram_wr_req_{}_s".format(num),
-                wr_resp = "zstd_dec__ram_wr_resp_{}_r".format(num),
+            "{ram_name}_0:1RW:{req}:{resp}:{comp}".format(
+                ram_name = "ram{}".format(num),
+                req = "zstd_dec__rw_req_s_0__{}".format(num),
+                resp = "zstd_dec__rw_resp_r_0__{}".format(num),
+                comp = "zstd_dec__rw_wr_comp_r_0__{}".format(num),
+            )
+            for num in range(8)
+        ]),
+        ",".join([
+            "{ram_name}_1:1RW:{req}:{resp}:{comp}".format(
+                ram_name = "ram{}".format(num),
+                req = "zstd_dec__rw_req_s_1__{}".format(num),
+                resp = "zstd_dec__rw_resp_r_1__{}".format(num),
+                comp = "zstd_dec__rw_wr_comp_r_1__{}".format(num),
             )
             for num in range(8)
         ]),
@@ -1782,6 +1677,7 @@ py_library(
         ":perf_report",
         "//xls/modules/zstd:zstd_test_debugger",
         "//xls/modules/zstd/rtl:ram_1r1w.v",
+        "//xls/modules/zstd/rtl:ram_2rw.v",
         "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
         "//xls/modules/zstd/rtl:zstd_dec_wrapper.sv",
         "//xls/modules/zstd/rtl:cocotb_public_vars.vlt",
@@ -1832,6 +1728,28 @@ py_test(
         "//xls/modules/zstd/cocotb:data_generator",
     ],
     toolchains=["@rules_perl//:current_toolchain"],
+)
+
+py_test(
+    name = "ram_cocotb_test",
+    srcs = ["ram_cocotb_test.py"],
+    data = [
+        "//xls/modules/zstd/rtl:ram_2rw.v",
+        "@com_icarus_iverilog//:iverilog",
+        "@com_icarus_iverilog//:vvp",
+    ],
+    env = {
+        "BUILD_WORKING_DIRECTORY": "sim_build",
+        "PYTHONUNBUFFERED": "1",
+    },
+    imports = ["."],
+    tags = ["manual"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        requirement("cocotb"),
+        "//xls/common:runfiles",
+        "//xls/modules/zstd/cocotb:utils",
+    ],
 )
 
 py_library(
@@ -3842,7 +3760,6 @@ collect_benchmark_reports(
         ":raw_block_dec_place_and_route",
         ":rle_block_dec_place_and_route",
         ":dec_mux_place_and_route",
-        ":sequence_executor_place_and_route",
         ":axi_csr_accessor_place_and_route",
         ":csr_config_place_and_route",
         ":ram_rw_handler_place_and_route",

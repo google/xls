@@ -33,213 +33,43 @@ type ExtendedBlockDataPacket = common::ExtendedBlockDataPacket;
 type BlockSyncData = common::BlockSyncData;
 type BlockDataPacket = common::BlockDataPacket;
 
-enum Status : u1 {
-    RECV_COMMAND = 0,
-    RECV_LITERALS = 1,
-}
-
-struct State {
-    status: Status,
-    received_literals: CopyOrMatchLength,
-    literals_to_receive: CopyOrMatchLength,
-    command: CommandConstructorData,
-}
-
 pub proc CommandConstructor {
     sequence_decoder_r: chan<CommandConstructorData> in;
     command_aggregator_s: chan<ExtendedBlockDataPacket> out;
-    literals_buffer_resp_r: chan<SequenceExecutorPacket> in;
-    literals_buffer_req_s: chan<LiteralsBufferCtrl> out;
 
     config(sequence_decoder_r: chan<CommandConstructorData> in,
-           command_aggregator_s: chan<ExtendedBlockDataPacket> out,
-           literals_buffer_resp_r: chan<SequenceExecutorPacket> in,
-           literals_buffer_req_s: chan<LiteralsBufferCtrl> out) {
-        (sequence_decoder_r, command_aggregator_s, literals_buffer_resp_r, literals_buffer_req_s)
+           command_aggregator_s: chan<ExtendedBlockDataPacket> out) {
+        (sequence_decoder_r, command_aggregator_s)
     }
 
-    init { zero!<State>() }
+    init { }
 
-    next(state: State) {
+    next(state: ()) {
         let tok0 = join();
 
-        let recv_command = state.status == Status::RECV_COMMAND;
-        let (tok1_0, command) = recv_if(tok0, sequence_decoder_r, recv_command, state.command);
-        if recv_command {
-            trace_fmt!("[CommandConstructor] Received command: {:#x}", command);
-        } else {};
+        let (tok0, sequence_command) = recv(tok0, sequence_decoder_r);
+        trace_fmt!("[CommandConstructor] Received sequence command: {:#x}", sequence_command);
 
-        let recv_literals = state.status == Status::RECV_LITERALS;
-        let (tok1_1, literals) = recv_if(tok0, literals_buffer_resp_r, recv_literals, zero!<SequenceExecutorPacket>());
-        if recv_literals {
-            trace_fmt!("[CommandConstructor] Received literals: {:#x}", literals);
-        } else {};
-
-        let tok1 = join(tok1_0, tok1_1);
-
-        let (new_state, do_send_command, do_send_literals_req) = match (state.status) {
-            Status::RECV_COMMAND => {
-                if (command.data.msg_type == SequenceExecutorMessageType::LITERAL) &&
-                   (command.data.length != CopyOrMatchLength:0) {
-                    (
-                        State {
-                            status: Status::RECV_LITERALS,
-                            received_literals: CopyOrMatchLength:0,
-                            literals_to_receive: command.data.length,
-                            command: command,
-                        }, false, true,
-                    )
-                } else {
-                    (zero!<State>(), true, false)
-                }
+        let resp = ExtendedBlockDataPacket {
+            msg_type: SequenceExecutorMessageType::SEQUENCE,
+            packet: BlockDataPacket {
+                last: sequence_command.data.last,
+                last_block: sequence_command.sync.last_block,
+                id: sequence_command.sync.id,
+                data: sequence_command.data.content,
+                length: sequence_command.data.length as u32,
             },
-            Status::RECV_LITERALS => {
-                let received_literals = state.received_literals + literals.length;
-                if received_literals < state.literals_to_receive {
-                    (State { received_literals, ..state }, true, false)
-                } else {
-                    assert!(
-                        received_literals >= state.literals_to_receive,
-                        "Too many literals received");
-                    (zero!<State>(), true, false)
-                }
-            },
-            _ => fail!("impossible_case", (zero!<State>(), false, false)),
         };
 
-        let req = LiteralsBufferCtrl { length: command.data.length as u32, last: command.data.last};
-        send_if(tok1, literals_buffer_req_s, do_send_literals_req, req);
-
-        let resp = match(state.status) {
-            // sent only if the original message was of type SEQUENCE
-            Status::RECV_COMMAND => ExtendedBlockDataPacket {
-                msg_type: command.data.msg_type,
-                packet: BlockDataPacket {
-                    last: command.data.last,
-                    last_block: command.sync.last_block,
-                    id: command.sync.id,
-                    data: command.data.content,
-                    length: command.data.length as u32,
-                }
-            },
-            Status::RECV_LITERALS => ExtendedBlockDataPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
-                packet: BlockDataPacket {
-                    last: literals.last & command.data.last,
-                    last_block: command.sync.last_block,
-                    id: command.sync.id,
-                    data: literals.content,
-                    length: literals.length as u32,
-                }
-            },
-            _ => fail!("resp_match_unreachable", zero!<ExtendedBlockDataPacket>())
-        };
-        send_if(tok1, command_aggregator_s, do_send_command, resp);
-        if do_send_command {
-            trace_fmt!("[CommandConstructor] Sending command: {:#x}", resp);
-        } else {};
-
-        new_state
-    }
-}
-
-// Tests
-
-enum FakeLiteralsBufferStatus : u1 {
-    RECV = 0,
-    SEND = 1,
-}
-
-struct FakeLiteralsBufferState {
-    status: FakeLiteralsBufferStatus,
-    literals_left_to_send: CopyOrMatchLength,
-}
-
-pub fn get_dummy_content(length: CopyOrMatchLength) -> CopyOrMatchContent {
-    let value = std::unsigned_max_value<u32:64>() >> (CopyOrMatchLength:64 - length);
-    value as CopyOrMatchContent
-}
-
-proc FakeLiteralsBuffer {
-    literals_buffer_resp_s: chan<SequenceExecutorPacket> out;
-    literals_buffer_req_r: chan<LiteralsBufferCtrl> in;
-
-    config(literals_buffer_resp_s: chan<SequenceExecutorPacket> out,
-           literals_buffer_req_r: chan<LiteralsBufferCtrl> in) {
-        (literals_buffer_resp_s, literals_buffer_req_r)
-    }
-
-    init { zero!<FakeLiteralsBufferState>() }
-
-    next(state: FakeLiteralsBufferState) {
-        let tok = join();
-        let do_recv_req = state.status == FakeLiteralsBufferStatus::RECV;
-        let (tok, resp) =
-            recv_if(tok, literals_buffer_req_r, do_recv_req, zero!<LiteralsBufferCtrl>());
-
-        let (new_state, do_send, resp) = match (state.status) {
-            FakeLiteralsBufferStatus::RECV => {
-                (
-                    FakeLiteralsBufferState {
-                        status: FakeLiteralsBufferStatus::SEND,
-                        literals_left_to_send: resp.length as u64
-                    }, false, zero!<SequenceExecutorPacket>(),
-                )
-                },
-            FakeLiteralsBufferStatus::SEND => {
-                let length = std::min(state.literals_left_to_send, CopyOrMatchLength:64);
-                let next_left_to_send = state.literals_left_to_send - length;
-                let last = next_left_to_send == CopyOrMatchLength:0;
-                let resp = SequenceExecutorPacket {
-                    msg_type: SequenceExecutorMessageType::LITERAL,
-                    content: get_dummy_content(length),
-                    length,
-                    last
-                };
-
-                if last {
-                    (
-                        FakeLiteralsBufferState {
-                            status: FakeLiteralsBufferStatus::RECV,
-                            literals_left_to_send: CopyOrMatchLength:0
-                        }, true, resp,
-                    )
-                } else {
-                    (
-                        FakeLiteralsBufferState {
-                            status: FakeLiteralsBufferStatus::SEND,
-                            literals_left_to_send: next_left_to_send
-                        }, true, resp,
-                    )
-                }
-            },
-            _ => {
-                fail!(
-                    "impossible_case",
-                    (zero!<FakeLiteralsBufferState>(), false, zero!<SequenceExecutorPacket>()))
-                },
-        };
-
-        send_if(tok, literals_buffer_resp_s, do_send, resp);
-        new_state
-    }
-}
-
-fn cmd_constr_to_ext_block(data: CommandConstructorData) -> ExtendedBlockDataPacket {
-    ExtendedBlockDataPacket {
-        msg_type: data.data.msg_type,
-        packet: BlockDataPacket {
-            last: data.data.last,
-            last_block: data.sync.last_block,
-            id: data.sync.id,
-            data: data.data.content,
-            length: data.data.length as u32,
-        }
+        let tok0 = send(tok0, command_aggregator_s, resp);
+        trace_fmt!("[CommandConstructor] Sending command: {:#x}", resp);
     }
 }
 
 #[test_proc]
 proc CommandConstructorTest {
+    type SequenceExecutorPacket = common::SequenceExecutorPacket<common::SYMBOL_WIDTH>;
+
     terminator: chan<bool> out;
     sequence_decoder_s: chan<CommandConstructorData> out;
     command_aggregator_r: chan<ExtendedBlockDataPacket> in;
@@ -248,13 +78,7 @@ proc CommandConstructorTest {
         let (sequence_decoder_s, sequence_decoder_r) = chan<CommandConstructorData>("sequence_decoder");
         let (command_aggregator_s, command_aggregator_r) = chan<ExtendedBlockDataPacket>("command_aggregator");
 
-        let (literals_buffer_resp_s, literals_buffer_resp_r) = chan<SequenceExecutorPacket>("literals_buffer_resp");
-        let (literals_buffer_req_s, literals_buffer_req_r) = chan<LiteralsBufferCtrl>("literals_buffer_req");
-
-        spawn CommandConstructor(
-            sequence_decoder_r, command_aggregator_s, literals_buffer_resp_r, literals_buffer_req_s);
-
-        spawn FakeLiteralsBuffer(literals_buffer_resp_s, literals_buffer_req_r);
+        spawn CommandConstructor(sequence_decoder_r, command_aggregator_s);
 
         (terminator, sequence_decoder_s, command_aggregator_r)
     }
@@ -262,16 +86,14 @@ proc CommandConstructorTest {
     init {  }
 
     next(state: ()) {
-        const EMPTY_PACKET = zero!<SequenceExecutorPacket>();
-
         let tok = join();
 
         let sequence_packet1 = CommandConstructorData {
             data: SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
-                content: CopyOrMatchContent:11,
-                length: CopyOrMatchLength:4,
-                last: true,
+                content: CopyOrMatchContent:0x1005b,
+                length: CopyOrMatchLength:9,
+                last: false,
             },
             sync: BlockSyncData {
                 id: u32:1234,
@@ -280,67 +102,18 @@ proc CommandConstructorTest {
         };
         let tok = send(tok, sequence_decoder_s, sequence_packet1);
         let (tok, resp) = recv(tok, command_aggregator_r);
-        assert_eq(cmd_constr_to_ext_block(sequence_packet1), resp);
 
-        let literals_packet1 = CommandConstructorData {
-            data: SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL, length: CopyOrMatchLength:4,
-            ..EMPTY_PACKET
-            },
-            sync: BlockSyncData {
+        trace_fmt!("[CommandConstructorTest] Received command: {:#x}", resp);
+        assert_eq(resp, ExtendedBlockDataPacket {
+            msg_type: SequenceExecutorMessageType::SEQUENCE,
+            packet: BlockDataPacket {
+                last: u1:0,
+                last_block: u1:0,
                 id: u32:1234,
-                last_block: false,
+                data: u64:0x1005b,
+                length: u32:9,
             },
-        };
-        let tok = send(tok, sequence_decoder_s, literals_packet1);
-        let (tok, resp) = recv(tok, command_aggregator_r);
-        assert_eq(get_dummy_content(CopyOrMatchLength:4), resp.packet.data);
-
-        let literals_packet2 = CommandConstructorData {
-            data: SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL, length: CopyOrMatchLength:65,
-            ..EMPTY_PACKET
-            },
-            sync: BlockSyncData {
-                id: u32:1234,
-                last_block: false,
-            },
-        };
-        let tok = send(tok, sequence_decoder_s, literals_packet2);
-        let (tok, resp) = recv(tok, command_aggregator_r);
-        assert_eq(get_dummy_content(CopyOrMatchLength:64), resp.packet.data);
-        let (tok, resp) = recv(tok, command_aggregator_r);
-        assert_eq(get_dummy_content(CopyOrMatchLength:1), resp.packet.data);
-
-        let literals_packet3 = CommandConstructorData {
-            data: SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL, length: CopyOrMatchLength:64,
-            ..EMPTY_PACKET
-            },
-            sync: BlockSyncData {
-                id: u32:1234,
-                last_block: false,
-            },
-        };
-        let tok = send(tok, sequence_decoder_s, literals_packet3);
-        let (tok, resp) = recv(tok, command_aggregator_r);
-        assert_eq(get_dummy_content(CopyOrMatchLength:64), resp.packet.data);
-
-        let literals_packet4 = CommandConstructorData {
-            data: SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL, length: CopyOrMatchLength:128,
-            ..EMPTY_PACKET
-            },
-            sync: BlockSyncData {
-                id: u32:1234,
-                last_block: false,
-            },
-        };
-        let tok = send(tok, sequence_decoder_s, literals_packet4);
-        let (tok, resp) = recv(tok, command_aggregator_r);
-        assert_eq(get_dummy_content(CopyOrMatchLength:64), resp.packet.data);
-        let (tok, resp) = recv(tok, command_aggregator_r);
-        assert_eq(get_dummy_content(CopyOrMatchLength:64), resp.packet.data);
+        });
 
         let tok = send(tok, terminator, true);
     }

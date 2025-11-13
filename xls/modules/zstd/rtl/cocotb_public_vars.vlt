@@ -3,6 +3,7 @@
 // Signals needed for tests of decoder "internals"
 
 public_flat_rd -module "ram_1r1w" -var "mem"
+public_flat_rd -module "ram_2rw" -var "mem"
 
 public_flat_rd -module "xls_modules_zstd_sequence_dec__ZstdDecoderInst__ZstdDecoder_0__CompressBlockDecoder_0__SequenceDecoder_0__SequenceDecoderCtrl_0__FseLookupCtrl_0_next" -var "*"
 public_flat_rd -module "xls_modules_zstd_comp_lookup_dec__ZstdDecoderInst__ZstdDecoder_0__CompressBlockDecoder_0__LiteralsDecoder_0__HuffmanLiteralsDecoder_0__HuffmanWeightsDecoder_0__HuffmanFseWeightsDecoder_0__CompLookupDecoder_0__64_8_16_1_15_8_32_1_7_9_8_1_8_16_1_next" -var "*"

@@ -17,7 +17,7 @@ import xls.examples.ram;
 import xls.modules.zstd.common;
 import xls.modules.zstd.memory.axi;
 import xls.modules.zstd.csr_config;
-import xls.modules.zstd.sequence_executor;
+import xls.modules.zstd.sequence_executor.sequence_executor;
 import xls.modules.zstd.memory.axi_ram_reader;
 import xls.modules.zstd.zstd_dec;
 import xls.modules.zstd.comp_block_dec;
@@ -50,10 +50,10 @@ const TEST_HB_ADDR_W = sequence_executor::ZSTD_RAM_ADDR_WIDTH;
 const TEST_HB_DATA_W = sequence_executor::RAM_DATA_WIDTH;
 const TEST_HB_NUM_PARTITIONS = sequence_executor::RAM_NUM_PARTITIONS;
 const TEST_HB_SIZE_B = sequence_executor::ZSTD_HISTORY_BUFFER_SIZE_KB as u64 * u64:1024;
-const TEST_HB_RAM_SIZE = sequence_executor::ZSTD_RAM_SIZE;
+const TEST_HB_RAM_SIZE = sequence_executor::ZSTD_RAM_SIZE as u32;
 const TEST_HB_RAM_WORD_PARTITION_SIZE = sequence_executor::RAM_WORD_PARTITION_SIZE;
-const TEST_HB_RAM_SIMULTANEOUS_READ_WRITE_BEHAVIOR = sequence_executor::TEST_RAM_SIMULTANEOUS_READ_WRITE_BEHAVIOR;
-const TEST_HB_RAM_INITIALIZED = sequence_executor::TEST_RAM_INITIALIZED;
+const TEST_HB_RAM_SIMULTANEOUS_READ_WRITE_BEHAVIOR = ram::SimultaneousReadWriteBehavior::READ_BEFORE_WRITE;
+const TEST_HB_RAM_INITIALIZED = true;
 const TEST_HB_RAM_ASSERT_VALID_READ:bool = false;
 
 const TEST_RAM_DATA_W:u32 = TEST_AXI_DATA_W;
@@ -174,10 +174,8 @@ proc ZstdDecoderTester<FRAMES: TestFrames, DECOMPRESSED_FRAMES: TestFrames> {
     type MemAxiW = axi::AxiW<TEST_AXI_DATA_W, TEST_AXI_DATA_W_DIV8>;
     type MemAxiB = axi::AxiB<TEST_AXI_ID_W>;
 
-    type RamRdReqHB = ram::ReadReq<TEST_HB_ADDR_W, TEST_HB_NUM_PARTITIONS>;
-    type RamRdRespHB = ram::ReadResp<TEST_HB_DATA_W>;
-    type RamWrReqHB = ram::WriteReq<TEST_HB_ADDR_W, TEST_HB_DATA_W, TEST_HB_NUM_PARTITIONS>;
-    type RamWrRespHB = ram::WriteResp;
+    type RWRamReq = ram::RWRamReq<TEST_HB_ADDR_W, TEST_HB_RAM_WORD_PARTITION_SIZE>;
+    type RWRamResp = ram::RWRamResp<TEST_HB_RAM_WORD_PARTITION_SIZE>;
 
     type RamRdReq = ram::ReadReq<TEST_RAM_ADDR_W, TEST_RAM_NUM_PARTITIONS>;
     type RamRdResp = ram::ReadResp<TEST_RAM_DATA_W>;
@@ -290,11 +288,6 @@ proc ZstdDecoderTester<FRAMES: TestFrames, DECOMPRESSED_FRAMES: TestFrames> {
     output_axi_w_r: chan<MemAxiW> in;
     output_axi_b_s: chan<MemAxiB> out;
 
-    hb_ram_rd_req_r: chan<RamRdReqHB>[8] in;
-    hb_ram_rd_resp_s: chan<RamRdRespHB>[8] out;
-    hb_ram_wr_req_r: chan<RamWrReqHB>[8] in;
-    hb_ram_wr_resp_s: chan<RamWrRespHB>[8] out;
-
     ll_sel_test_req_s: chan<u1> out;
     ll_sel_test_resp_r: chan<()> in;
     ll_def_test_rd_req_s: chan<FseRamRdReq> out;
@@ -353,10 +346,13 @@ proc ZstdDecoderTester<FRAMES: TestFrames, DECOMPRESSED_FRAMES: TestFrames> {
         let (output_axi_w_s, output_axi_w_r) = chan<MemAxiW>("output_axi_w");
         let (output_axi_b_s, output_axi_b_r) = chan<MemAxiB>("output_axi_b");
 
-        let (hb_ram_rd_req_s, hb_ram_rd_req_r) = chan<RamRdReqHB>[8]("hb_ram_rd_req");
-        let (hb_ram_rd_resp_s, hb_ram_rd_resp_r) = chan<RamRdRespHB>[8]("hb_ram_rd_resp");
-        let (hb_ram_wr_req_s, hb_ram_wr_req_r) = chan<RamWrReqHB>[8]("hb_ram_wr_req");
-        let (hb_ram_wr_resp_s, hb_ram_wr_resp_r) = chan<RamWrRespHB>[8]("hb_ram_wr_resp");
+        let (hb_ram_rd_req_s_0, hb_ram_rd_req_r_0) = chan<RWRamReq>[8]("hb_ram_rd_req_0");
+        let (hb_ram_rd_resp_s_0, hb_ram_rd_resp_r_0) = chan<RWRamResp>[8]("hb_ram_rd_resp_0");
+        let (hb_ram_wr_comp_s_0, hb_ram_wr_comp_r_0) = chan<()>[8]("hb_ram_rd_resp_0");
+
+        let (hb_ram_rd_req_s_1, hb_ram_rd_req_r_1) = chan<RWRamReq>[8]("hb_ram_rd_req_1");
+        let (hb_ram_rd_resp_s_1, hb_ram_rd_resp_r_1) = chan<RWRamResp>[8]("hb_ram_rd_resp_1");
+        let (hb_ram_wr_comp_s_1, hb_ram_wr_comp_r_1) = chan<()>[8]("hb_ram_rd_resp_1");
 
         let (notify_s, notify_r) = chan<()>("notify");
 
@@ -652,24 +648,21 @@ proc ZstdDecoderTester<FRAMES: TestFrames, DECOMPRESSED_FRAMES: TestFrames> {
             output_axi_aw_s, output_axi_w_s, output_axi_b_r,
 
             // RAMs for SequenceExecutor
-            hb_ram_rd_req_s[0], hb_ram_rd_req_s[1], hb_ram_rd_req_s[2], hb_ram_rd_req_s[3],
-            hb_ram_rd_req_s[4], hb_ram_rd_req_s[5], hb_ram_rd_req_s[6], hb_ram_rd_req_s[7],
-            hb_ram_rd_resp_r[0], hb_ram_rd_resp_r[1], hb_ram_rd_resp_r[2], hb_ram_rd_resp_r[3],
-            hb_ram_rd_resp_r[4], hb_ram_rd_resp_r[5], hb_ram_rd_resp_r[6], hb_ram_rd_resp_r[7],
-            hb_ram_wr_req_s[0], hb_ram_wr_req_s[1], hb_ram_wr_req_s[2], hb_ram_wr_req_s[3],
-            hb_ram_wr_req_s[4], hb_ram_wr_req_s[5], hb_ram_wr_req_s[6], hb_ram_wr_req_s[7],
-            hb_ram_wr_resp_r[0], hb_ram_wr_resp_r[1], hb_ram_wr_resp_r[2], hb_ram_wr_resp_r[3],
-            hb_ram_wr_resp_r[4], hb_ram_wr_resp_r[5], hb_ram_wr_resp_r[6], hb_ram_wr_resp_r[7],
+            hb_ram_rd_req_s_0, hb_ram_rd_resp_r_0, hb_ram_wr_comp_r_0,
+            hb_ram_rd_req_s_1, hb_ram_rd_resp_r_1, hb_ram_wr_comp_r_1,
 
             notify_s,
         );
 
         unroll_for! (i, ()): (u32, ()) in u32:0..u32:8 {
-            spawn ram::RamModel<
-                TEST_HB_DATA_W, TEST_HB_RAM_SIZE, TEST_HB_RAM_WORD_PARTITION_SIZE,
-                TEST_HB_RAM_SIMULTANEOUS_READ_WRITE_BEHAVIOR, TEST_HB_RAM_INITIALIZED,
-                TEST_HB_RAM_ASSERT_VALID_READ
-            >(hb_ram_rd_req_r[i], hb_ram_rd_resp_s[i], hb_ram_wr_req_r[i], hb_ram_wr_resp_s[i]);
+            spawn ram::RamModel2RW<
+                TEST_HB_RAM_WORD_PARTITION_SIZE, TEST_HB_RAM_SIZE,
+                TEST_HB_RAM_WORD_PARTITION_SIZE, TEST_HB_RAM_SIMULTANEOUS_READ_WRITE_BEHAVIOR,
+                TEST_HB_ADDR_W, TEST_HB_NUM_PARTITIONS
+            >(
+                hb_ram_rd_req_r_0[i], hb_ram_rd_resp_s_0[i], hb_ram_wr_comp_s_0[i],
+                hb_ram_rd_req_r_1[i], hb_ram_rd_resp_s_1[i], hb_ram_wr_comp_s_1[i]
+            )
         }(());
 
 
@@ -711,7 +704,6 @@ proc ZstdDecoderTester<FRAMES: TestFrames, DECOMPRESSED_FRAMES: TestFrames> {
             raw_axi_ar_r, raw_axi_r_s, raw_ram_wr_req_s, raw_ram_wr_resp_r,
             comp_ram_wr_req_s, comp_ram_wr_resp_r,
             output_axi_aw_r, output_axi_w_r, output_axi_b_s,
-            hb_ram_rd_req_r, hb_ram_rd_resp_s, hb_ram_wr_req_r, hb_ram_wr_resp_s,
             ll_sel_test_req_s, ll_sel_test_resp_r,
             ll_def_test_rd_req_s, ll_def_test_rd_resp_r, ll_def_test_wr_req_s, ll_def_test_wr_resp_r,
             of_sel_test_req_s, of_sel_test_resp_r,
