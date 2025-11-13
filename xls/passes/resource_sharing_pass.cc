@@ -2327,6 +2327,7 @@ absl::StatusOr<bool> ResourceSharingPass::RunOnFunctionBaseInternal(
   XLS_ASSIGN_OR_RETURN(DelayEstimator * delay_model, GetDelayEstimator("unit"));
 
   NodeForwardDependencyAnalysis nda;
+  XLS_RETURN_IF_ERROR(nda.Attach(f).status());
 
   // Compute the mutually exclusive binary relation between IR instructions
   absl::flat_hash_map<Node*,

@@ -1275,6 +1275,7 @@ TEST_F(ResourceSharingPassTest, InfluencedBySourceAndOp) {
 
   OptimizationContext context;
   NodeForwardDependencyAnalysis nda;
+  XLS_ASSERT_OK(nda.Attach(f).status());
   const BddQueryEngine* bdd = context.SharedQueryEngine<BddQueryEngine>(f);
   XLS_ASSERT_OK_AND_ASSIGN(Node * i_node, f->GetNode("i"));
   XLS_ASSERT_OK_AND_ASSIGN(Node * j_node, f->GetNode("j"));
@@ -1306,6 +1307,7 @@ TEST_F(ResourceSharingPassTest, InfluencedBySourceOrOp) {
 
   OptimizationContext context;
   NodeForwardDependencyAnalysis nda;
+  XLS_ASSERT_OK(nda.Attach(f).status());
   const BddQueryEngine* bdd = context.SharedQueryEngine<BddQueryEngine>(f);
   XLS_ASSERT_OK_AND_ASSIGN(Node * i_node, f->GetNode("i"));
   XLS_ASSERT_OK_AND_ASSIGN(Node * j_node, f->GetNode("j"));

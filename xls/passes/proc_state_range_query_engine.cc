@@ -778,6 +778,7 @@ absl::StatusOr<ReachedFixpoint> ProcStateRangeQueryEngine ::Populate(
     interesting_nodes.push_back(n->value());
   }
   NodeForwardDependencyAnalysis next_node_sources;
+  XLS_RETURN_IF_ERROR(next_node_sources.Attach(proc).status());
 
   // TODO(allight): We could repeat the below and the loop until we hit a
   // fixed-point to fully incorporate all cross-param knowledge. This could be

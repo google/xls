@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -23,6 +24,8 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/types/span.h"
+#include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/data_structures/binary_decision_diagram.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/node.h"
@@ -35,6 +38,21 @@
 #include "xls/passes/query_engine.h"
 
 namespace xls {
+
+/* static */ absl::StatusOr<VisibilityAnalysis> VisibilityAnalysis::Create(
+    const NodeForwardDependencyAnalysis* nda,
+    BddQueryEngine* bdd_query_engine) {
+  return Create(kDefaultTermLimitForNodeToUserEdge, nda, bdd_query_engine);
+}
+/* static */ absl::StatusOr<VisibilityAnalysis> VisibilityAnalysis::Create(
+    int64_t edge_term_limit, const NodeForwardDependencyAnalysis* nda,
+    BddQueryEngine* bdd_query_engine) {
+  FunctionBase* f = nda->bound_function();
+  XLS_RET_CHECK_EQ(f, bdd_query_engine->info().bound_function());
+  VisibilityAnalysis visibility(edge_term_limit, nda, bdd_query_engine);
+  XLS_RETURN_IF_ERROR(visibility.Attach(f).status());
+  return std::move(visibility);
+}
 
 VisibilityAnalysis::VisibilityAnalysis(const NodeForwardDependencyAnalysis* nda,
                                        BddQueryEngine* bdd_query_engine)

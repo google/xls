@@ -106,12 +106,15 @@ TEST_F(VisibilityAnalysisTest, VisibilityThroughPrioritySelect) {
   BValue selector = fb.Param("y", p->GetBitsType(2));
   BValue add = fb.Add(x, fb.Literal(UBits(1, 4)));
   BValue select = fb.PrioritySelect(selector, {x, add}, x);
-  XLS_ASSERT_OK(fb.BuildWithReturnValue(select));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
 
   NodeForwardDependencyAnalysis nda;
+  XLS_ASSERT_OK(nda.Attach(f));
   std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
+  XLS_ASSERT_OK(bdd_engine->Populate(f));
   BinaryDecisionDiagram& bdd = bdd_engine->bdd();
-  VisibilityAnalysis visibility(&nda, bdd_engine.get());
+  XLS_ASSERT_OK_AND_ASSIGN(auto visibility,
+                           VisibilityAnalysis::Create(&nda, bdd_engine.get()));
   BddNodeIndex and_visible = *visibility.GetInfo(add.node());
 
   // the selector bit determines the visibility of add
@@ -135,12 +138,15 @@ TEST_F(VisibilityAnalysisTest, VisibilityThroughSelect) {
   BValue add = fb.Add(x, fb.Literal(UBits(1, 4)));
   BValue sub = fb.Subtract(x, fb.Literal(UBits(1, 4)));
   BValue select = fb.Select(selector, {add, sub}, x);
-  XLS_ASSERT_OK(fb.BuildWithReturnValue(select));
+  XLS_ASSERT_OK_AND_ASSIGN(auto f, fb.BuildWithReturnValue(select));
 
   NodeForwardDependencyAnalysis nda;
+  XLS_ASSERT_OK(nda.Attach(f));
   std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
+  XLS_ASSERT_OK(bdd_engine->Populate(f));
   BinaryDecisionDiagram& bdd = bdd_engine->bdd();
-  VisibilityAnalysis visibility(&nda, bdd_engine.get());
+  XLS_ASSERT_OK_AND_ASSIGN(auto visibility,
+                           VisibilityAnalysis::Create(&nda, bdd_engine.get()));
   BddNodeIndex add_visible = *visibility.GetInfo(add.node());
   BddNodeIndex sub_visible = *visibility.GetInfo(sub.node());
 
@@ -166,12 +172,16 @@ TEST_F(VisibilityAnalysisTest, VisibilityThroughAnd) {
   BValue z = fb.Param("z", p->GetBitsType(2));
   BValue and_xy = fb.And(x, y);
   BValue and_xyz = fb.And(and_xy, z);
-  XLS_ASSERT_OK(fb.BuildWithReturnValue(and_xyz));
+  XLS_ASSERT_OK_AND_ASSIGN(auto f, fb.BuildWithReturnValue(and_xyz));
 
   NodeForwardDependencyAnalysis nda;
+  XLS_ASSERT_OK(nda.Attach(f));
+
   std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
+  XLS_ASSERT_OK(bdd_engine->Populate(f));
   BinaryDecisionDiagram& bdd = bdd_engine->bdd();
-  VisibilityAnalysis visibility(&nda, bdd_engine.get());
+  XLS_ASSERT_OK_AND_ASSIGN(auto visibility,
+                           VisibilityAnalysis::Create(&nda, bdd_engine.get()));
   BddNodeIndex z_visible = *visibility.GetInfo(z.node());
 
   XLS_ASSERT_OK_AND_ASSIGN(BddNodeIndex not_y, AllZeros(y.node(), *bdd_engine));
@@ -201,12 +211,15 @@ TEST_F(VisibilityAnalysisTest, VisibilityHandlesIrrelevantUnknown) {
   BValue mul_y_other = fb.UMul(y, other);
   BValue or_xy = fb.Or(x, mul_y_other);
   BValue or_xyz = fb.Or({y, or_xy, z});
-  XLS_ASSERT_OK(fb.BuildWithReturnValue(or_xyz));
+  XLS_ASSERT_OK_AND_ASSIGN(auto f, fb.BuildWithReturnValue(or_xyz));
 
   NodeForwardDependencyAnalysis nda;
+  XLS_ASSERT_OK(nda.Attach(f));
   std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
+  XLS_ASSERT_OK(bdd_engine->Populate(f));
   BinaryDecisionDiagram& bdd = bdd_engine->bdd();
-  VisibilityAnalysis visibility(&nda, bdd_engine.get());
+  XLS_ASSERT_OK_AND_ASSIGN(auto visibility,
+                           VisibilityAnalysis::Create(&nda, bdd_engine.get()));
   BddNodeIndex z_visible = *visibility.GetInfo(z.node());
 
   XLS_ASSERT_OK_AND_ASSIGN(BddNodeIndex all_x, AllOnes(x.node(), *bdd_engine));
@@ -227,13 +240,16 @@ TEST_F(VisibilityAnalysisTest, VisibilityTreatExpensiveConditionAsVariable) {
              fb.And({fb.ULt(x, fb.Literal(UBits(7, 4))),
                      fb.ULt(y, fb.Literal(UBits(7, 4)))})});
   BValue expensive_select = fb.Select(expensive_condition, select, x);
-  XLS_ASSERT_OK(fb.BuildWithReturnValue(expensive_select));
+  XLS_ASSERT_OK_AND_ASSIGN(auto f, fb.BuildWithReturnValue(expensive_select));
 
   NodeForwardDependencyAnalysis nda;
+  XLS_ASSERT_OK(nda.Attach(f));
   std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
+  XLS_ASSERT_OK(bdd_engine->Populate(f));
   BinaryDecisionDiagram& bdd = bdd_engine->bdd();
   // Set term limit to significantly fewer terms than the expensive cond needs
-  VisibilityAnalysis visibility(2, &nda, bdd_engine.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto visibility, VisibilityAnalysis::Create(2, &nda, bdd_engine.get()));
   BddNodeIndex add_visible = *visibility.GetInfo(add.node());
 
   XLS_ASSERT_OK_AND_ASSIGN(BddNodeIndex op_bit,
@@ -259,10 +275,12 @@ TEST_F(VisibilityAnalysisTest, VisibilityAvoidsSaturatingOnOperands) {
       fb.SignExtend(fb.ULe(fb.BitSlice(x, 0, 2), fb.Literal(UBits(2, 2))), 4);
   BValue simple = fb.SignExtend(op, 4);
   BValue use_add = fb.Or({add, unknown, lots_of_terms, simple, fewer_terms});
-  XLS_ASSERT_OK(fb.BuildWithReturnValue(use_add));
+  XLS_ASSERT_OK_AND_ASSIGN(auto f, fb.BuildWithReturnValue(use_add));
 
   NodeForwardDependencyAnalysis nda;
+  XLS_ASSERT_OK(nda.Attach(f));
   std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
+  XLS_ASSERT_OK(bdd_engine->Populate(f));
   BinaryDecisionDiagram& bdd = bdd_engine->bdd();
 
   XLS_ASSERT_OK_AND_ASSIGN(BddNodeIndex simple_bit,
@@ -282,7 +300,9 @@ TEST_F(VisibilityAnalysisTest, VisibilityAvoidsSaturatingOnOperands) {
   ASSERT_TRUE(bdd_engine->bdd().path_count(fewer_terms_bit) <
               bdd_engine->bdd().path_count(lots_of_terms_bit));
 
-  VisibilityAnalysis visibility(term_limit, &nda, bdd_engine.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto visibility,
+      VisibilityAnalysis::Create(term_limit, &nda, bdd_engine.get()));
   BddNodeIndex add_visible = *visibility.GetInfo(add.node());
   VLOG(3) << "add_visible: " << bdd.ToStringDnf(add_visible);
   VLOG(3) << "lots_of_terms: " << bdd.ToStringDnf(lots_of_terms_bit);
@@ -312,20 +332,27 @@ TEST_F(VisibilityAnalysisTest, VisibilityAssumeAlwaysUsedIfTooManyUsers) {
   for (int i = 0; i < 100; ++i) {
     select = fb.Select(op, {select}, add);
   }
-  XLS_ASSERT_OK(fb.BuildWithReturnValue(select));
+  XLS_ASSERT_OK_AND_ASSIGN(auto f, fb.BuildWithReturnValue(select));
 
   NodeForwardDependencyAnalysis nda;
+  XLS_ASSERT_OK(nda.Attach(f));
 
   std::unique_ptr<BddQueryEngine> bdd_engine_small =
       std::make_unique<BddQueryEngine>(200, IsCheapForBdds);
+  XLS_ASSERT_OK(bdd_engine_small->Populate(f));
   BinaryDecisionDiagram& bdd_small = bdd_engine_small->bdd();
-  VisibilityAnalysis visibility_small(&nda, bdd_engine_small.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto visibility_small,
+      VisibilityAnalysis::Create(&nda, bdd_engine_small.get()));
   EXPECT_EQ(*visibility_small.GetInfo(add.node()), bdd_small.one());
 
   std::unique_ptr<BddQueryEngine> bdd_engine_large =
       std::make_unique<BddQueryEngine>(201, IsCheapForBdds);
+  XLS_ASSERT_OK(bdd_engine_large->Populate(f));
   BinaryDecisionDiagram& bdd_large = bdd_engine_large->bdd();
-  VisibilityAnalysis visibility_large(&nda, bdd_engine_large.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto visibility_large,
+      VisibilityAnalysis ::Create(&nda, bdd_engine_large.get()));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<BddNodeIndex> op_bits,
                            GetNodeBits(op.node(), *bdd_engine_large));
   EXPECT_NE(*visibility_large.GetInfo(add.node()), bdd_small.one());
@@ -347,11 +374,14 @@ TEST_F(VisibilityAnalysisTest, MutuallyExclusivePrioritySelectCases) {
   BValue add = fb.Add(x, y);
   BValue sub = fb.Subtract(x, y);
   BValue select = fb.PrioritySelect(op, {add}, sub);
-  XLS_ASSERT_OK(fb.BuildWithReturnValue(select));
+  XLS_ASSERT_OK_AND_ASSIGN(auto f, fb.BuildWithReturnValue(select));
 
   NodeForwardDependencyAnalysis nda;
+  XLS_ASSERT_OK(nda.Attach(f));
   std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
-  VisibilityAnalysis visibility(&nda, bdd_engine.get());
+  XLS_ASSERT_OK(bdd_engine->Populate(f));
+  XLS_ASSERT_OK_AND_ASSIGN(auto visibility,
+                           VisibilityAnalysis::Create(&nda, bdd_engine.get()));
 
   EXPECT_TRUE(visibility.IsMutuallyExclusive(add.node(), sub.node()));
 }
@@ -366,11 +396,15 @@ TEST_F(VisibilityAnalysisTest, MutuallyExclusiveMultipleSelects) {
   BValue sub = fb.Subtract(x, y);
   BValue select = fb.PrioritySelect(op, {add}, sub);
   BValue select2 = fb.Select(op, std::vector<BValue>{sub}, add);
-  XLS_ASSERT_OK(fb.BuildWithReturnValue(fb.Tuple({select, select2})));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto f, fb.BuildWithReturnValue(fb.Tuple({select, select2})));
 
   NodeForwardDependencyAnalysis nda;
+  XLS_ASSERT_OK(nda.Attach(f));
   std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
-  VisibilityAnalysis visibility(&nda, bdd_engine.get());
+  XLS_ASSERT_OK(bdd_engine->Populate(f));
+  XLS_ASSERT_OK_AND_ASSIGN(auto visibility,
+                           VisibilityAnalysis::Create(&nda, bdd_engine.get()));
 
   EXPECT_TRUE(visibility.IsMutuallyExclusive(add.node(), sub.node()));
 }
@@ -449,12 +483,15 @@ TEST_F(VisibilityAnalysisTest, VisibilityThroughManyAndsSelects) {
       {fb.ArrayIndex(array, {lit0_32}, true), fb.TupleIndex(tuple, 1)});
 
   BValue lit105_16 = fb.Literal(UBits(105, 16));
-  XLS_ASSERT_OK(fb.BuildWithReturnValue(result));
+  XLS_ASSERT_OK_AND_ASSIGN(auto f, fb.BuildWithReturnValue(result));
 
   NodeForwardDependencyAnalysis nda;
+  XLS_ASSERT_OK(nda.Attach(f));
   std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
+  XLS_ASSERT_OK(bdd_engine->Populate(f));
   BinaryDecisionDiagram& bdd = bdd_engine->bdd();
-  VisibilityAnalysis visibility(&nda, bdd_engine.get());
+  XLS_ASSERT_OK_AND_ASSIGN(auto visibility,
+                           VisibilityAnalysis::Create(&nda, bdd_engine.get()));
 
   // assert visibility on later mul expression on 'op' value
   BddNodeIndex mul_survived_visible = *visibility.GetInfo(mul_survived.node());

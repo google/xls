@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/data_structures/binary_decision_diagram.h"
 #include "xls/ir/node.h"
@@ -39,13 +40,12 @@ namespace xls {
 class VisibilityAnalysis : public LazyNodeData<BddNodeIndex> {
  public:
   static constexpr int64_t kDefaultTermLimitForNodeToUserEdge = 32;
-
-  explicit VisibilityAnalysis(const NodeForwardDependencyAnalysis* nda,
-                              BddQueryEngine* bdd_query_engine);
-
-  explicit VisibilityAnalysis(int64_t edge_term_limit,
-                              const NodeForwardDependencyAnalysis* nda,
-                              BddQueryEngine* bdd_query_engine);
+  static absl::StatusOr<VisibilityAnalysis> Create(
+      const NodeForwardDependencyAnalysis* nda,
+      BddQueryEngine* bdd_query_engine);
+  static absl::StatusOr<VisibilityAnalysis> Create(
+      int64_t edge_term_limit, const NodeForwardDependencyAnalysis* nda,
+      BddQueryEngine* bdd_query_engine);
 
   // Two nodes are mutually exclusive if, at most, only one of them ever
   // propagates outside of the function or proc.
@@ -71,6 +71,13 @@ class VisibilityAnalysis : public LazyNodeData<BddNodeIndex> {
   }
 
  private:
+  explicit VisibilityAnalysis(const NodeForwardDependencyAnalysis* nda,
+                              BddQueryEngine* bdd_query_engine);
+
+  explicit VisibilityAnalysis(int64_t edge_term_limit,
+                              const NodeForwardDependencyAnalysis* nda,
+                              BddQueryEngine* bdd_query_engine);
+
   const NodeForwardDependencyAnalysis* nda_;
   BddQueryEngine* bdd_query_engine_;
   int64_t edge_term_limit_;

@@ -194,6 +194,10 @@ class LazyNodeData : public ChangeListener,
   // ignored. In general AddGiven is a better choice.
   absl::StatusOr<ReachedFixpoint> SetForced(Node* node,
                                             CacheValueT forced_value) {
+    XLS_RET_CHECK_EQ(node->function_base(), f_)
+        << "Must be attached to " << node->function_base()->name()
+        << " in order to replace/set forced for " << node
+        << ". Currently attached to " << (f_ ? f_->name() : "<nothing>");
     XLS_RET_CHECK(givens_.find(node) == givens_.end())
         << node << " already has given information.";
     if (cache_.GetCacheState(node) == CacheState::kForced &&
@@ -205,6 +209,10 @@ class LazyNodeData : public ChangeListener,
   }
 
   absl::StatusOr<ReachedFixpoint> RemoveForced(Node* node) {
+    XLS_RET_CHECK_EQ(node->function_base(), f_)
+        << "Must be attached to " << node->function_base()->name()
+        << " in order to replace/set forced for " << node
+        << ". Currently attached to " << (f_ ? f_->name() : "<nothing>");
     XLS_RET_CHECK_EQ(cache_.GetCacheState(node), CacheState::kForced)
         << node << " has no forced value associated with it.";
     if (cache_.GetCacheState(node) != CacheState::kForced) {
@@ -225,6 +233,10 @@ class LazyNodeData : public ChangeListener,
   // 'Forced' and 'Given' data associated with it at the same time.
   absl::StatusOr<ReachedFixpoint> AddGiven(Node* node,
                                            CacheValueT given_value) {
+    XLS_RET_CHECK_EQ(node->function_base(), f_)
+        << "Must be attached to " << node->function_base()->name()
+        << " in order to replace/set given for " << node
+        << ". Currently attached to " << (f_ ? f_->name() : "<nothing>");
     XLS_RET_CHECK_NE(cache_.GetCacheState(node), CacheState::kForced)
         << node << " has a forced value associated with it.";
     auto it = givens_.find(node);
@@ -238,6 +250,10 @@ class LazyNodeData : public ChangeListener,
     return ReplaceGiven(node, std::move(new_given));
   }
   ReachedFixpoint RemoveGiven(Node* node) {
+    CHECK_EQ(node->function_base(), f_)
+        << "Must be attached to " << node->function_base()->name()
+        << " in order to remove given from " << node
+        << ". Currently attached to " << (f_ ? f_->name() : "<nothing>");
     auto it = givens_.find(node);
     if (it == givens_.end()) {
       return ReachedFixpoint::Unchanged;
@@ -248,6 +264,10 @@ class LazyNodeData : public ChangeListener,
   }
 
   absl::StatusOr<ReachedFixpoint> ReplaceGiven(Node* node, CacheValueT given) {
+    XLS_RET_CHECK_EQ(node->function_base(), f_)
+        << "Must be attached to " << node->function_base()->name()
+        << " in order to replace/set given for " << node
+        << ". Currently attached to " << (f_ ? f_->name() : "<nothing>");
     auto it = givens_.find(node);
     if (it == givens_.end()) {
       XLS_RET_CHECK_NE(cache_.GetCacheState(node), CacheState::kForced)
@@ -262,15 +282,29 @@ class LazyNodeData : public ChangeListener,
   }
 
   const CacheValueT* GetInfo(Node* node) const {
+    CHECK_EQ(node->function_base(), f_)
+        << "Must be attached to " << node->function_base()->name()
+        << " in order to get info from " << node << ". Currently attached to "
+        << (f_ ? f_->name() : "<nothing>");
     return cache_.QueryValue(node);
   }
 
   // No action necessary on NodeAdded.
 
-  void NodeDeleted(Node* node) override { cache_.Forget(node); }
+  void NodeDeleted(Node* node) override {
+    CHECK_EQ(node->function_base(), f_)
+        << "Received notification for unattached function "
+        << node->function_base()->name() << ". Currently attached to "
+        << (f_ ? f_->name() : "<nothing>");
+    cache_.Forget(node);
+  }
 
   void OperandChanged(Node* node, Node* old_operand,
                       absl::Span<const int64_t> operand_nos) override {
+    CHECK_EQ(node->function_base(), f_)
+        << "Received notification for unattached function "
+        << node->function_base()->name() << ". Currently attached to "
+        << (f_ ? f_->name() : "<nothing>");
     CacheState prev_state = cache_.GetCacheState(node);
     if (prev_state != CacheState::kKnown &&
         prev_state != CacheState::kInputsUnverified) {
@@ -306,18 +340,35 @@ class LazyNodeData : public ChangeListener,
   }
 
   void OperandRemoved(Node* node, Node* old_operand) override {
+    CHECK_EQ(node->function_base(), f_)
+        << "Received notification for unattached function "
+        << node->function_base()->name() << ". Currently attached to "
+        << (f_ ? f_->name() : "<nothing>");
     cache_.MarkUnverified(node);
   }
 
   void FunctionBaseDeleted(FunctionBase* fb) override {
+    CHECK_EQ(fb, f_) << "Received notification for unattached function";
     f_ = nullptr;
     cache_.Clear();
     givens_.clear();
   }
 
-  void OperandAdded(Node* node) override { cache_.MarkUnverified(node); }
+  void OperandAdded(Node* node) override {
+    CHECK_EQ(node->function_base(), f_)
+        << "Received notification for unattached function "
+        << node->function_base()->name() << ". Currently attached to "
+        << (f_ ? f_->name() : "<nothing>");
+    cache_.MarkUnverified(node);
+  }
 
-  void ForceRecompute(Node* node) { cache_.MarkUnverified(node); }
+  void ForceRecompute(Node* node) {
+    CHECK_EQ(node->function_base(), f_)
+        << "Received recompute request for " << node
+        << " of unattached function " << node->function_base()->name()
+        << ". Currently attached to " << (f_ ? f_->name() : "<nothing>");
+    cache_.MarkUnverified(node);
+  }
 
   void ClearCache() { cache_.Clear(); }
 
@@ -342,12 +393,24 @@ class LazyNodeData : public ChangeListener,
 
   // Implementation for LazyDagCache::DagProvider.
   std::string GetName(Node* const& node) const override {
+    DCHECK_EQ(node->function_base(), f_)
+        << "Received notification for unattached function "
+        << node->function_base()->name() << ". Currently attached to "
+        << (f_ ? f_->name() : "<nothing>");
     return node->GetName();
   }
   absl::Span<Node* const> GetInputs(Node* const& node) const override {
+    DCHECK_EQ(node->function_base(), f_)
+        << "Received notification for unattached function "
+        << node->function_base()->name() << ". Currently attached to "
+        << (f_ ? f_->name() : "<nothing>");
     return node->operands();
   }
   absl::Span<Node* const> GetUsers(Node* const& node) const override {
+    DCHECK_EQ(node->function_base(), f_)
+        << "Received notification for unattached function "
+        << node->function_base()->name() << ". Currently attached to "
+        << (f_ ? f_->name() : "<nothing>");
     return node->users();
   }
   absl::StatusOr<CacheValueT> ComputeValue(

@@ -22,6 +22,7 @@
 #include "benchmark/benchmark.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/check.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/benchmark_support.h"
@@ -70,8 +71,9 @@ TEST_F(NodeDependencyAnalysisTest, BasicBackwards) {
   std::array<BValue, 2> layer2{target1,                    // influences target1
                                target2};                   // influences target2
   std::array<BValue, 1> layer3{fb.Add(target1, target2)};  // influences none
-  XLS_ASSERT_OK(fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   NodeBackwardDependencyAnalysis nda;
+  XLS_ASSERT_OK(nda.Attach(f).status());
   EXPECT_EQ(nda.NodesDependingOn(layer3[0].node()).size(), 1);
   EXPECT_TRUE(
       nda.NodesDependingOn(layer3[0].node()).contains(layer3[0].node()));
@@ -115,8 +117,9 @@ TEST_F(NodeDependencyAnalysisTest, BasicForwards) {
   std::array<BValue, 2> layer2{fb.Add(layer1[0], layer1[1]),   // uses target1
                                fb.Add(layer1[2], layer1[3])};  // uses target1
   std::array<BValue, 1> layer3{fb.Add(layer2[0], layer2[1])};  // uses both
-  XLS_ASSERT_OK(fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   NodeForwardDependencyAnalysis nda;
+  XLS_ASSERT_OK(nda.Attach(f).status());
   auto depends_on1 = DependentOn(&nda, target1);
   auto depends_on2 = DependentOn(&nda, target2);
   auto depends_on_both = testing::AllOf(depends_on1, depends_on2);
@@ -152,8 +155,9 @@ TEST_F(NodeDependencyAnalysisTest, SeparateForwards) {
   BValue b1 = fb.Not(x);
   BValue b2 = fb.Not(b1);
   BValue finish = fb.Add(a2, b2);
-  XLS_ASSERT_OK(fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   NodeForwardDependencyAnalysis nda;
+  XLS_ASSERT_OK(nda.Attach(f).status());
   auto all_nodes = std::array{x, a1, b1, a2, b2, finish};
   EXPECT_THAT(all_nodes, testing::Each(DependedOnBy(&nda, finish)));
   auto a_nodes = std::array{a1, a2};
@@ -177,8 +181,9 @@ TEST_F(NodeDependencyAnalysisTest, SeparateBackwards) {
   BValue b1 = fb.Not(x);
   BValue b2 = fb.Not(b1);
   BValue finish = fb.Add(a2, b2);
-  XLS_ASSERT_OK(fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   NodeBackwardDependencyAnalysis nda;
+  XLS_ASSERT_OK(nda.Attach(f).status());
   auto all_nodes = std::array{x, a1, b1, a2, b2, finish};
   EXPECT_THAT(all_nodes, testing::Each(DependedOnBy(&nda, finish)));
   auto a_nodes = std::array{a1, a2};
@@ -198,8 +203,9 @@ TEST_F(NodeDependencyAnalysisTest, InputUsedMultipleTimesForwards) {
   FunctionBuilder fb(TestName(), p.get());
   BValue x = fb.Param("x", p->GetBitsType(8));
   BValue multisel = fb.Select(x, {x, x, x, x}, x);
-  XLS_ASSERT_OK(fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   NodeForwardDependencyAnalysis nda;
+  XLS_ASSERT_OK(nda.Attach(f).status());
   EXPECT_THAT(multisel, DependentOn(&nda, x));
 }
 
@@ -208,8 +214,9 @@ TEST_F(NodeDependencyAnalysisTest, InputUsedMultipleTimesBackwards) {
   FunctionBuilder fb(TestName(), p.get());
   BValue x = fb.Param("x", p->GetBitsType(8));
   BValue multisel = fb.Select(x, {x, x, x, x}, x);
-  XLS_ASSERT_OK(fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   NodeBackwardDependencyAnalysis nda;
+  XLS_ASSERT_OK(nda.Attach(f).status());
   EXPECT_THAT(x, DependedOnBy(&nda, multisel));
 }
 
@@ -236,6 +243,7 @@ void BM_NDABinaryTreeForward(benchmark::State& state) {
   BM_NDABinaryTree(
       [](auto f) {
         NodeForwardDependencyAnalysis nda;
+        CHECK_OK(nda.Attach(f).status());
         nda.GetInfo(f->return_value());
         return nda;
       },
@@ -245,6 +253,7 @@ void BM_NDABinaryTreeBackward(benchmark::State& state) {
   BM_NDABinaryTree(
       [](auto f) {
         NodeBackwardDependencyAnalysis nda;
+        CHECK_OK(nda.Attach(f).status());
         for (Node* n : f->nodes()) {
           nda.GetInfo(n);
         }
@@ -278,6 +287,7 @@ void BM_NDADenseForward(benchmark::State& state) {
   BM_NDADense(
       [](auto f) {
         NodeForwardDependencyAnalysis nda;
+        CHECK_OK(nda.Attach(f).status());
         nda.GetInfo(f->return_value());
         return nda;
       },
@@ -287,6 +297,7 @@ void BM_NDADenseBackward(benchmark::State& state) {
   BM_NDADense(
       [](auto f) {
         NodeBackwardDependencyAnalysis nda;
+        CHECK_OK(nda.Attach(f).status());
         for (Node* n : f->params()) {
           nda.GetInfo(n);
         }
@@ -318,6 +329,7 @@ void BM_NDALadderForward(benchmark::State& state) {
   BM_NDALadder(
       [](auto f) {
         NodeForwardDependencyAnalysis nda;
+        CHECK_OK(nda.Attach(f).status());
         nda.GetInfo(f->return_value());
         return nda;
       },
@@ -327,6 +339,7 @@ void BM_NDALadderBackward(benchmark::State& state) {
   BM_NDALadder(
       [](auto f) {
         NodeBackwardDependencyAnalysis nda;
+        CHECK_OK(nda.Attach(f).status());
         for (Node* n : f->params()) {
           nda.GetInfo(n);
         }

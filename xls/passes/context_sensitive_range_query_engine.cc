@@ -281,6 +281,8 @@ class Analysis {
     }
     NodeForwardDependencyAnalysis forward_deps;
     NodeBackwardDependencyAnalysis backward_deps;
+    XLS_RETURN_IF_ERROR(forward_deps.Attach(f).status());
+    XLS_RETURN_IF_ERROR(backward_deps.Attach(f).status());
     std::vector<std::pair<PredicateState, absl::flat_hash_set<Node*>>>
         interesting_states;
     interesting_states.reserve(states.size());

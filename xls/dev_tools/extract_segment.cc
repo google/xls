@@ -50,6 +50,7 @@ absl::StatusOr<BValue> ExtractSegmentInto(
   absl::flat_hash_set<Node*> backward_deps;
   if (!source_nodes.empty()) {
     NodeBackwardDependencyAnalysis backward_analysis;
+    XLS_RETURN_IF_ERROR(backward_analysis.Attach(full).status());
     for (auto n : source_nodes) {
       auto tos = backward_analysis.NodesDependingOn(n);
       backward_deps.insert(tos.begin(), tos.end());
@@ -57,6 +58,7 @@ absl::StatusOr<BValue> ExtractSegmentInto(
   }
   if (!sink_nodes.empty()) {
     NodeForwardDependencyAnalysis forward_analysis;
+    XLS_RETURN_IF_ERROR(forward_analysis.Attach(full).status());
     for (auto n : sink_nodes) {
       auto froms = forward_analysis.NodesDependedOnBy(n);
       forward_deps.insert(froms.begin(), froms.end());
