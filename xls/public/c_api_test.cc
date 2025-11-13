@@ -1625,6 +1625,9 @@ TEST(XlsCApiTest, DslxModuleMembers) {
         xls_dslx_module_get_member(module, 0);
     xls_dslx_struct_def* struct_def =
         xls_dslx_module_member_get_struct_def(struct_def_member);
+    xls_dslx_module_member* struct_def_via_from =
+        xls_dslx_module_member_from_struct_def(struct_def);
+    EXPECT_EQ(struct_def_via_from, struct_def_member);
     char* struct_def_identifier =
         xls_dslx_struct_def_get_identifier(struct_def);
     absl::Cleanup free_struct_def_identifier(
@@ -1638,6 +1641,9 @@ TEST(XlsCApiTest, DslxModuleMembers) {
         xls_dslx_module_get_member(module, 1);
     xls_dslx_enum_def* enum_def =
         xls_dslx_module_member_get_enum_def(enum_def_member);
+    xls_dslx_module_member* enum_def_via_from =
+        xls_dslx_module_member_from_enum_def(enum_def);
+    EXPECT_EQ(enum_def_via_from, enum_def_member);
     char* enum_def_identifier = xls_dslx_enum_def_get_identifier(enum_def);
     absl::Cleanup free_enum_def_identifier(
         [&] { xls_c_str_free(enum_def_identifier); });
@@ -1650,6 +1656,9 @@ TEST(XlsCApiTest, DslxModuleMembers) {
         xls_dslx_module_get_member(module, 2);
     xls_dslx_type_alias* type_alias =
         xls_dslx_module_member_get_type_alias(type_alias_member);
+    xls_dslx_module_member* type_alias_via_from =
+        xls_dslx_module_member_from_type_alias(type_alias);
+    EXPECT_EQ(type_alias_via_from, type_alias_member);
     char* type_alias_identifier =
         xls_dslx_type_alias_get_identifier(type_alias);
     absl::Cleanup free_type_alias_identifier(
@@ -1663,6 +1672,9 @@ TEST(XlsCApiTest, DslxModuleMembers) {
         xls_dslx_module_get_member(module, 3);
     xls_dslx_constant_def* constant_def =
         xls_dslx_module_member_get_constant_def(constant_def_member);
+    xls_dslx_module_member* constant_def_via_from =
+        xls_dslx_module_member_from_constant_def(constant_def);
+    EXPECT_EQ(constant_def_via_from, constant_def_member);
     char* constant_def_name = xls_dslx_constant_def_get_name(constant_def);
     absl::Cleanup free_constant_def_name(
         [&] { xls_c_str_free(constant_def_name); });
@@ -1715,7 +1727,8 @@ fn main(x: u32) -> u32 {
   absl::Cleanup free_tm([=] { xls_dslx_typechecked_module_free(tm); });
 
   xls_dslx_module* module = xls_dslx_typechecked_module_get_module(tm);
-  auto find_function = [&](std::string_view target) -> xls_dslx_function* {
+  auto find_function_member =
+      [&](std::string_view target) -> xls_dslx_module_member* {
     int64_t member_count = xls_dslx_module_get_member_count(module);
     for (int64_t i = 0; i < member_count; ++i) {
       xls_dslx_module_member* member = xls_dslx_module_get_member(module, i);
@@ -1726,20 +1739,24 @@ fn main(x: u32) -> u32 {
       char* identifier = xls_dslx_function_get_identifier(fn);
       absl::Cleanup free_identifier([&] { xls_c_str_free(identifier); });
       if (std::string_view{identifier} == target) {
-        return fn;
+        return member;
       }
     }
     return nullptr;
   };
 
-  xls_dslx_function* unused_fn = find_function("unused");
+  xls_dslx_module_member* unused_member = find_function_member("unused");
+  ASSERT_NE(unused_member, nullptr);
+  xls_dslx_function* unused_fn =
+      xls_dslx_module_member_get_function(unused_member);
   ASSERT_NE(unused_fn, nullptr);
+  EXPECT_EQ(xls_dslx_module_member_from_function(unused_fn), unused_member);
 
-  xls_dslx_function* removed[] = {unused_fn};
+  xls_dslx_module_member* removed[] = {unused_member};
   xls_dslx_typechecked_module* cloned_tm = nullptr;
-  ASSERT_TRUE(xls_dslx_typechecked_module_clone_removing_functions(
-      tm, removed, ABSL_ARRAYSIZE(removed), "top_clone", import_data, &error,
-      &cloned_tm));
+  ASSERT_TRUE(xls_dslx_typechecked_module_clone_removing_members(
+      tm, removed, ABSL_ARRAYSIZE(removed), "top_clone_members", import_data,
+      &error, &cloned_tm));
   ASSERT_EQ(error, nullptr);
   absl::Cleanup free_cloned_tm(
       [=] { xls_dslx_typechecked_module_free(cloned_tm); });
@@ -1752,12 +1769,41 @@ fn main(x: u32) -> u32 {
   xls_dslx_function* helper_fn =
       xls_dslx_module_member_get_function(first_member);
   ASSERT_NE(helper_fn, nullptr);
+  EXPECT_EQ(xls_dslx_module_member_from_function(helper_fn), first_member);
   char* helper_name = xls_dslx_function_get_identifier(helper_fn);
   absl::Cleanup free_helper_name([&] { xls_c_str_free(helper_name); });
   EXPECT_EQ(std::string_view{helper_name}, "helper");
   char* module_name = xls_dslx_module_get_name(cloned_module);
   absl::Cleanup free_module_name([&] { xls_c_str_free(module_name); });
-  EXPECT_EQ(std::string_view{module_name}, "top_clone");
+  EXPECT_EQ(std::string_view{module_name}, "top_clone_members");
+
+  xls_dslx_function* removed_functions[] = {unused_fn};
+  xls_dslx_typechecked_module* cloned_tm_functions = nullptr;
+  ASSERT_TRUE(xls_dslx_typechecked_module_clone_removing_functions(
+      tm, removed_functions, ABSL_ARRAYSIZE(removed_functions),
+      "top_clone_functions", import_data, &error, &cloned_tm_functions));
+  ASSERT_EQ(error, nullptr);
+  absl::Cleanup free_cloned_tm_functions(
+      [=] { xls_dslx_typechecked_module_free(cloned_tm_functions); });
+
+  xls_dslx_module* cloned_module_functions =
+      xls_dslx_typechecked_module_get_module(cloned_tm_functions);
+  EXPECT_EQ(xls_dslx_module_get_member_count(cloned_module_functions), 2);
+  xls_dslx_module_member* first_member_functions =
+      xls_dslx_module_get_member(cloned_module_functions, 0);
+  xls_dslx_function* helper_fn_functions =
+      xls_dslx_module_member_get_function(first_member_functions);
+  ASSERT_NE(helper_fn_functions, nullptr);
+  char* helper_name_functions =
+      xls_dslx_function_get_identifier(helper_fn_functions);
+  absl::Cleanup free_helper_name_functions(
+      [&] { xls_c_str_free(helper_name_functions); });
+  EXPECT_EQ(std::string_view{helper_name_functions}, "helper");
+  char* module_name_functions =
+      xls_dslx_module_get_name(cloned_module_functions);
+  absl::Cleanup free_module_name_functions(
+      [&] { xls_c_str_free(module_name_functions); });
+  EXPECT_EQ(std::string_view{module_name_functions}, "top_clone_functions");
 }
 
 TEST(XlsCApiTest, DslxCloneTypecheckedModuleRemovingMembersFailure) {
@@ -3238,6 +3284,7 @@ fn prop(x: u8) -> bool {
   // Retrieve the QuickCheck node.
   xls_dslx_quickcheck* qc = xls_dslx_module_member_get_quickcheck(member);
   ASSERT_NE(qc, nullptr);
+  EXPECT_EQ(xls_dslx_module_member_from_quickcheck(qc), member);
 
   // Inspect the associated function.
   xls_dslx_function* fn = xls_dslx_quickcheck_get_function(qc);
