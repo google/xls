@@ -934,11 +934,7 @@ absl::Status FunctionConverter::HandleLetChannelDecl(const Let* node) {
   XLS_RET_CHECK(options_.lower_to_proc_scoped_channels)
       << "Should only call FunctionConverter::HandleLetChannelDecl when "
          "lowering to proc-scoped channels";
-  ProcBuilder* builder_ptr =
-      dynamic_cast<ProcBuilder*>(function_builder_.get());
-  XLS_RET_CHECK_NE(builder_ptr, nullptr)
-      << "Channel declarations should only be encountered during proc "
-         "conversion; we seem to be in function conversion.";
+  XLS_RETURN_IF_ERROR(ValidateProcState("chan", node));
 
   XLS_RET_CHECK(!node->name_def_tree()->is_leaf())
       << "Must assign a channel declaration to a 2-tuple; was leaf";
@@ -2806,7 +2802,7 @@ absl::StatusOr<ChannelInterface*> FunctionConverter::ChannelToInterface(
   ProcBuilder* builder_ptr =
       dynamic_cast<ProcBuilder*>(function_builder_.get());
   XLS_RET_CHECK_NE(builder_ptr, nullptr)
-      << "Send nodes should only be encountered during Proc conversion; "
+      << "Channel nodes should only be encountered during Proc conversion; "
          "we seem to be in function conversion.";
   if (direction == ChannelDirection::kIn) {
     return builder_ptr->GetReceiveChannelInterface(channel->name());
@@ -2846,12 +2842,38 @@ absl::StatusOr<ChannelInterface*> FunctionConverter::IrValueToChannelInterface(
   return absl::InvalidArgumentError("Expected Channel, got BValue or CValue.");
 }
 
-absl::Status FunctionConverter::HandleBuiltinSend(const Invocation* node) {
+bool InForLoop(const AstNode* node) {
+  const AstNode* parent = node->parent();
+  while (parent != nullptr) {
+    if (parent->kind() == AstNodeKind::kFor) {
+      return true;
+    }
+    parent = parent->parent();
+  }
+
+  return false;
+}
+
+absl::Status FunctionConverter::ValidateProcState(std::string_view kind,
+                                                  const AstNode* node) const {
+  if (InForLoop(node)) {
+    return absl::UnimplementedError(absl::StrFormat(
+        "Accessing proc member in non-unrolled loop is unsupported: %s",
+        node->ToString()));
+  }
   ProcBuilder* builder_ptr =
       dynamic_cast<ProcBuilder*>(function_builder_.get());
   XLS_RET_CHECK_NE(builder_ptr, nullptr)
-      << "Send nodes should only be encountered during Proc conversion; "
-         "we seem to be in function conversion.";
+      << kind
+      << " statements should only be inside procs; we seem to be in a "
+         "function.";
+  return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::HandleBuiltinSend(const Invocation* node) {
+  XLS_RETURN_IF_ERROR(ValidateProcState("send", node));
+  ProcBuilder* builder_ptr =
+      dynamic_cast<ProcBuilder*>(function_builder_.get());
 
   Expr* token = node->args()[0];
   Expr* channel = node->args()[1];
@@ -2883,11 +2905,9 @@ absl::Status FunctionConverter::HandleBuiltinSend(const Invocation* node) {
 }
 
 absl::Status FunctionConverter::HandleBuiltinSendIf(const Invocation* node) {
+  XLS_RETURN_IF_ERROR(ValidateProcState("send", node));
   ProcBuilder* builder_ptr =
       dynamic_cast<ProcBuilder*>(function_builder_.get());
-  XLS_RET_CHECK_NE(builder_ptr, nullptr)
-      << "Send nodes should only be encountered during Proc conversion; "
-         "we seem to be in function conversion.";
 
   Expr* token = node->args()[0];
   Expr* channel = node->args()[1];
@@ -2958,11 +2978,9 @@ absl::Status FunctionConverter::HandleRange(const Range* node) {
 }
 
 absl::Status FunctionConverter::HandleBuiltinRecv(const Invocation* node) {
+  XLS_RETURN_IF_ERROR(ValidateProcState("recv", node));
   ProcBuilder* builder_ptr =
       dynamic_cast<ProcBuilder*>(function_builder_.get());
-  XLS_RET_CHECK_NE(builder_ptr, nullptr)
-      << "Recv nodes should only be encountered during Proc conversion; "
-         "we seem to be in function conversion.";
 
   Expr* token = node->args()[0];
   Expr* channel = node->args()[1];
@@ -2992,11 +3010,9 @@ absl::Status FunctionConverter::HandleBuiltinRecv(const Invocation* node) {
 
 absl::Status FunctionConverter::HandleBuiltinRecvNonBlocking(
     const Invocation* node) {
+  XLS_RETURN_IF_ERROR(ValidateProcState("recv_non_blocking", node));
   ProcBuilder* builder_ptr =
       dynamic_cast<ProcBuilder*>(function_builder_.get());
-  XLS_RET_CHECK_NE(builder_ptr, nullptr)
-      << "Recv nodes should only be encountered during Proc conversion; "
-         "we seem to be in function conversion.";
 
   Expr* token = node->args()[0];
   Expr* channel = node->args()[1];
@@ -3040,11 +3056,9 @@ absl::Status FunctionConverter::HandleBuiltinRecvNonBlocking(
 }
 
 absl::Status FunctionConverter::HandleBuiltinRecvIf(const Invocation* node) {
+  XLS_RETURN_IF_ERROR(ValidateProcState("recv_if", node));
   ProcBuilder* builder_ptr =
       dynamic_cast<ProcBuilder*>(function_builder_.get());
-  XLS_RET_CHECK_NE(builder_ptr, nullptr)
-      << "Recv nodes should only be encountered during Proc conversion; "
-         "we seem to be in function conversion.";
 
   Expr* token = node->args()[0];
   Expr* channel = node->args()[1];
@@ -3090,11 +3104,9 @@ absl::Status FunctionConverter::HandleBuiltinRecvIf(const Invocation* node) {
 
 absl::Status FunctionConverter::HandleBuiltinRecvIfNonBlocking(
     const Invocation* node) {
+  XLS_RETURN_IF_ERROR(ValidateProcState("recv_if_non_blocking", node));
   ProcBuilder* builder_ptr =
       dynamic_cast<ProcBuilder*>(function_builder_.get());
-  XLS_RET_CHECK_NE(builder_ptr, nullptr)
-      << "Recv nodes should only be encountered during Proc conversion; "
-         "we seem to be in function conversion.";
 
   Expr* token = node->args()[0];
   Expr* channel = node->args()[1];
@@ -3142,11 +3154,9 @@ absl::Status FunctionConverter::HandleBuiltinRecvIfNonBlocking(
 }
 
 absl::Status FunctionConverter::HandleBuiltinJoin(const Invocation* node) {
+  XLS_RETURN_IF_ERROR(ValidateProcState("Join", node));
   ProcBuilder* builder_ptr =
       dynamic_cast<ProcBuilder*>(function_builder_.get());
-  XLS_RET_CHECK_NE(builder_ptr, nullptr)
-      << "Join nodes should only be encountered during Proc conversion; "
-         "we seem to be in function conversion.";
 
   std::vector<BValue> ir_tokens;
   ir_tokens.reserve(node->args().size());
@@ -3162,13 +3172,11 @@ absl::Status FunctionConverter::HandleBuiltinJoin(const Invocation* node) {
 }
 
 absl::Status FunctionConverter::HandleBuiltinToken(const Invocation* node) {
+  XLS_RETURN_IF_ERROR(ValidateProcState("Token", node));
   ProcBuilder* builder_ptr =
       dynamic_cast<ProcBuilder*>(function_builder_.get());
-  XLS_RET_CHECK_NE(builder_ptr, nullptr)
-      << "Token nodes should only be encountered during Proc conversion; "
-         "we seem to be in function conversion.";
 
-  BValue value = function_builder_->Literal(Value::Token());
+  BValue value = builder_ptr->Literal(Value::Token());
   node_to_ir_[node] = value;
   tokens_.push_back(value);
   return absl::OkStatus();
@@ -3359,6 +3367,7 @@ absl::Status FunctionConverter::HandleSpawn(const Spawn* node) {
         absl::StrFormat("IrConversionError: %s Functions cannot spawn procs.",
                         node->span().ToString(file_table())));
   }
+  XLS_RETURN_IF_ERROR(ValidateProcState("spawn", node));
   if (current_fn_tag_ != FunctionTag::kProcConfig) {
     return absl::UnimplementedError(absl::StrFormat(
         "IrConversionError: %s Procs can only be spawned in a proc `config` "
@@ -3454,6 +3463,7 @@ absl::Status FunctionConverter::HandleChannelDecl(const ChannelDecl* node) {
         "Channels can only be declared in a proc `config` method.",
         file_table());
   }
+  XLS_RETURN_IF_ERROR(ValidateProcState("chan", node));
   XLS_RET_CHECK(options_.lower_to_proc_scoped_channels)
       << "Should only call FunctionConverter::HandleChannelDecl when lowering "
          "to proc-scoped channels";

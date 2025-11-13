@@ -567,6 +567,11 @@ class FunctionConverter {
     return package_data_.conversion_info->package.get();
   }
 
+  // Validates that we're in a ProcBuilder, and that the node call is not
+  // within a non-unrolled for.
+  absl::Status ValidateProcState(std::string_view kind,
+                                 const AstNode* node) const;
+
   // Package that IR is being generated into.
   PackageData& package_data_;
 
