@@ -15,6 +15,7 @@
 #ifndef XLS_INTERPRETER_OBSERVER_H_
 #define XLS_INTERPRETER_OBSERVER_H_
 
+#include <algorithm>
 #include <optional>
 #include <vector>
 
@@ -69,6 +70,26 @@ class CompositeEvaluationObserver : public EvaluationObserver {
   void SetObservers(absl::Span<EvaluationObserver* const> observers) {
     observers_.assign(observers.begin(), observers.end());
   }
+
+  void AddObserver(EvaluationObserver* observer) {
+    if (observer == nullptr) {
+      return;
+    }
+    observers_.push_back(observer);
+  }
+
+  void RemoveObserver(EvaluationObserver* observer) {
+    auto it = std::find(observers_.begin(), observers_.end(), observer);
+    if (it != observers_.end()) {
+      observers_.erase(it);
+    }
+  }
+
+  absl::Span<EvaluationObserver* const> observers() const {
+    return absl::Span<EvaluationObserver* const>(observers_);
+  }
+
+  bool empty() const { return observers_.empty(); }
 
   void NodeEvaluated(Node* n, const Value& v) override {
     for (EvaluationObserver* observer : observers_) {

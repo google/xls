@@ -249,8 +249,8 @@ absl::Status LogInterpreterEvents(std::string_view entity_name,
   return absl::OkStatus();
 }
 
-// Helper class that keeps observer lifetimes tied to evaluation routines while
-// allowing callers to register multiple observers at once.
+// Helper that keeps observers alive and registered with a composite fan-out
+// observer.
 class ScopedObserver {
  public:
   ScopedObserver() = default;
@@ -263,28 +263,25 @@ class ScopedObserver {
     if (!observer) {
       return;
     }
+    composite_.AddObserver(observer.get());
     eval_observers_.push_back(std::move(observer));
-    active_observers_.push_back(eval_observers_.back().get());
-    RefreshActiveObserver();
   }
 
-  void Add(std::unique_ptr<ScopedRecordNodeCoverage> observer) {
+  void AddCoverage(std::unique_ptr<ScopedRecordNodeCoverage> observer) {
     if (!observer) {
       return;
     }
-    if (observer->observer().has_value()) {
-      coverage_observers_.push_back(std::move(observer));
-      active_observers_.push_back(
-          *coverage_observers_.back()->observer());
-    } else {
-      coverage_observers_.push_back(std::move(observer));
+    if (auto eval_observer = observer->observer(); eval_observer.has_value()) {
+      composite_.AddObserver(*eval_observer);
     }
-    RefreshActiveObserver();
+    coverage_observers_.push_back(std::move(observer));
   }
 
-  bool empty() const { return active_observers_.empty(); }
+  bool empty() const { return composite_.empty(); }
 
-  EvaluationObserver* get() const { return active_observer_; }
+  EvaluationObserver* get() const {
+    return composite_.empty() ? nullptr : &composite_;
+  }
 
   bool has_coverage() const { return !coverage_observers_.empty(); }
 
@@ -295,32 +292,9 @@ class ScopedObserver {
   }
 
  private:
-  void RefreshActiveObserver() {
-    if (active_observers_.empty()) {
-      active_observer_ = nullptr;
-      composite_observer_.reset();
-      return;
-    }
-    if (active_observers_.size() == 1) {
-      active_observer_ = active_observers_.front();
-      composite_observer_.reset();
-      return;
-    }
-    if (!composite_observer_) {
-      composite_observer_ = std::make_unique<CompositeEvaluationObserver>(
-          absl::Span<EvaluationObserver* const>(active_observers_));
-    } else {
-      composite_observer_->SetObservers(
-          absl::Span<EvaluationObserver* const>(active_observers_));
-    }
-    active_observer_ = composite_observer_.get();
-  }
-
+  mutable CompositeEvaluationObserver composite_;
   std::vector<std::unique_ptr<EvaluationObserver>> eval_observers_;
   std::vector<std::unique_ptr<ScopedRecordNodeCoverage>> coverage_observers_;
-  std::vector<EvaluationObserver*> active_observers_;
-  std::unique_ptr<CompositeEvaluationObserver> composite_observer_;
-  EvaluationObserver* active_observer_ = nullptr;
 };
 
 struct EvaluateProcsOptions {
@@ -1474,7 +1448,7 @@ int main(int argc, char* argv[]) {
         std::make_unique<xls::ScopedTracingObserver>(std::move(writer)));
   }
   if (coverage_enabled) {
-    observer.Add(std::make_unique<xls::ScopedRecordNodeCoverage>(
+    observer.AddCoverage(std::make_unique<xls::ScopedRecordNodeCoverage>(
         absl::GetFlag(FLAGS_output_node_coverage_stats_proto),
         absl::GetFlag(FLAGS_output_node_coverage_stats_textproto)));
   }
