@@ -41,7 +41,7 @@ nav:
     - Ir Visualization:
       - Web Visualizer: 'ir_visualization.md'
       - Cytoscape: 'ir_to_cytoscape.md'
-    - Native JIT:
+    - Native JIT/AOT:
       - Overview: 'ir_jit.md'
       - Data Layout: 'data_layout.md'
     - Formal: 'solvers.md'

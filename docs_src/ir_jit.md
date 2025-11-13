@@ -1,9 +1,7 @@
 # IR JIT Compiler
 
-[TOC]
-
-XLS provides a JIT compiler for evaluating functions written in the [XLS]
-compiler intermediate representation (IR) at native machine speed.
+XLS provides a JIT and AOT compiler for evaluating functions written in the
+[XLS] compiler intermediate representation (IR) at native machine speed.
 
 ## Usage
 
@@ -11,7 +9,9 @@ Given a DSLX file and build target, one can build and run it through the JIT by:
 
 1.  Declaring a
     [`cc_xls_ir_jit_wrapper`](https://github.com/google/xls/tree/main/xls/build_rules/xls_build_defs.bzl)
-    target matching the DSLX build target.
+    target matching the DSLX build target. Note this actually compiles the IR
+    ahead-of-time (AOT) so there is minimal start-up time. The 'jit' name is
+    historical and may be changed in the future.
 
 1.  Creating a JIT object and calling its `Run()` method. Using the 2-way
     floating-point adder as an example:
@@ -28,10 +28,8 @@ Given a DSLX file and build target, one can build and run it through the JIT by:
      }
     ```
 
-The advantages of JIT compilation (or any compilation, for that matter) only
-come into play when repeatedly using the compiled object, so programs should be
-structured to create a JIT wrapper once and to reuse it many times, e.g., to
-test a module across many - or even exhaustively, across all possible - inputs.
+Because these objects are AOT they are relatively cheap to create however they
+do have some fixed setup costs so objects should be reused if possible.
 
 ### Specialized matching
 
@@ -137,3 +135,12 @@ apply, as an array index isn't necessarily a constant value. Uniformly managing
 arrays as allocas doesn't scale well (consider the case of arrays of arrays of
 tuples...), so for `ArrayIndex` nodes, we lazily create allocas for *only the
 array of interest* and load the requested index from there.
+
+### AOT Compilation
+
+The compiler is largely identical for both the AOT and JIT paths with the main
+difference being that the JIT path compiles into memory while the AOT one
+compiles to standard object files.
+
+Generally the AOT code will be accessed through the 'wrapper' targets which
+provide helpers to setup and drive the compiled implementation.
