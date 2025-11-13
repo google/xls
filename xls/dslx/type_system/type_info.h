@@ -405,9 +405,9 @@ class TypeInfo {
   // are) suitable for debugging.
   std::string GetTypeInfoTreeString() const;
 
-  // Returns the InvocationData for the given invocation, if present in this
-  // TypeInfo's root.
-  std::optional<const InvocationData*> GetRootInvocationData(
+  // Returns the InvocationData for the given invocation, if present in the
+  // TypeInfo tree.
+  std::optional<const InvocationData*> GetInvocationData(
       const Invocation* invocation) const;
 
   // Returns unique InvocationCalleeData for the given function, if present in

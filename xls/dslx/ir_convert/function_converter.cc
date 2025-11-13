@@ -3932,7 +3932,7 @@ absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
   }
 
   std::optional<const InvocationData*> inv_data =
-      current_type_info_->GetRootInvocationData(node);
+      current_type_info_->GetInvocationData(node);
   XLS_RET_CHECK(inv_data.has_value() && (*inv_data)->callee() != nullptr);
 
   const Function* f = (*inv_data)->callee();

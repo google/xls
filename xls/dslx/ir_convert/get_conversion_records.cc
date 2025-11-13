@@ -161,11 +161,10 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
 
   absl::Status HandleInvocation(const Invocation* invocation) override {
     VLOG(5) << "HandleInvocation " << invocation->ToString();
-    auto root_invocation_data = type_info_->GetRootInvocationData(invocation);
-    XLS_RET_CHECK(root_invocation_data.has_value())
+    auto invocation_data = type_info_->GetInvocationData(invocation);
+    XLS_RET_CHECK(invocation_data.has_value())
         << " no root invocation data for " << invocation->ToString();
-    const InvocationData* invocation_data = *root_invocation_data;
-    const Function* f = invocation_data->callee();
+    const Function* f = (*invocation_data)->callee();
     if (f == nullptr || IsBuiltin(f)) {
       return DefaultHandler(invocation);
     }
@@ -182,12 +181,11 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     VLOG(5) << "HandleSpawn " << spawn->ToString();
     Invocation* invocation = spawn->config();
 
-    auto root_invocation_data = type_info_->GetRootInvocationData(invocation);
-    XLS_RET_CHECK(root_invocation_data.has_value())
-        << " no root invocation data for " << invocation->ToString();
+    auto invocation_data = type_info_->GetInvocationData(invocation);
+    XLS_RET_CHECK(invocation_data.has_value())
+        << " no invocation data for " << invocation->ToString();
 
-    const InvocationData* invocation_data = *root_invocation_data;
-    const Function* config_fn = invocation_data->callee();
+    const Function* config_fn = (*invocation_data)->callee();
     if (config_fn->owner() == module_) {
       // Since this proc is inside this module, We will convert this proc, so
       // there's no need to do any more processing here.
@@ -348,7 +346,7 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     bool called_from_outside_test = false;
     for (auto& callee_data : calls) {
       std::optional<const InvocationData*> invocation_data =
-          type_info_->GetRootInvocationData(callee_data.invocation);
+          type_info_->GetInvocationData(callee_data.invocation);
       XLS_RET_CHECK(invocation_data.has_value())
           << " no root invocation data for "
           << callee_data.invocation->ToString();

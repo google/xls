@@ -429,12 +429,15 @@ TypeInfo::GetFunctionCallGraph() const {
   return result;
 }
 
-std::optional<const InvocationData*> TypeInfo::GetRootInvocationData(
+std::optional<const InvocationData*> TypeInfo::GetInvocationData(
     const Invocation* invocation) const {
-  const TypeInfo* top = GetRoot();
-  auto it = top->invocations_.find(invocation);
-  if (it == top->invocations_.end()) {
-    return std::nullopt;
+  auto it = invocations_.find(invocation);
+  if (it == invocations_.end()) {
+    const TypeInfo* top = GetRoot();
+    it = top->invocations_.find(invocation);
+    if (it == top->invocations_.end()) {
+      return std::nullopt;
+    }
   }
   return it->second.get();
 }
@@ -503,16 +506,20 @@ absl::Status TypeInfo::AddInvocation(const Invocation& invocation,
                                      const Function* caller) {
   CHECK_EQ(invocation.owner(), module_);
 
-  // We keep all instantiation info on the top-level type info. The "context
+  // We keep most instantiation info on the top-level type info. The "context
   // stack" doesn't matter so it creates a more understandable tree to flatten
-  // it all against the top level.
-  TypeInfo* top = GetRoot();
-  auto it = top->invocations_.find(&invocation);
-  if (it != top->invocations_.end()) {
+  // it all against the top level. The exception is impl functions, because if
+  // the identity of the target struct is generified, or the callee is derived
+  // from a trait, then the context affects the identity of the callee. Note
+  // that only TIv1 uses nullptr callees.
+  TypeInfo* ti =
+      callee != nullptr && callee->impl().has_value() ? this : GetRoot();
+  auto it = ti->invocations_.find(&invocation);
+  if (it != ti->invocations_.end()) {
     XLS_RET_CHECK(it->second->callee() == callee);
     return absl::OkStatus();
   }
-  top->invocations_.emplace(
+  ti->invocations_.emplace(
       &invocation,
       std::make_unique<InvocationData>(
           &invocation, callee, caller,
@@ -528,30 +535,29 @@ absl::Status TypeInfo::AddInvocationTypeInfo(const Invocation& invocation,
                                              TypeInfo* derived_type_info) {
   CHECK_EQ(invocation.owner(), module_);
 
-  // We keep all instantiation info on the top-level type info. The "context
-  // stack" doesn't matter so it creates a more understandable tree to flatten
-  // it all against the top level.
-  TypeInfo* top = GetRoot();
+  // The rationale for this is the same as in AddInvocation().
+  TypeInfo* ti =
+      callee != nullptr && callee->impl().has_value() ? this : GetRoot();
 
-  VLOG(3) << "Type info " << top
+  VLOG(3) << "Type info " << ti
           << " adding instantiation call bindings for invocation: `"
           << invocation.ToString() << "` @ "
           << invocation.span().ToString(file_table())
           << " caller_env: " << caller_env.ToString()
           << " callee_env: " << callee_env.ToString();
-  auto it = top->invocations_.find(&invocation);
-  if (it == top->invocations_.end()) {
+  auto it = ti->invocations_.find(&invocation);
+  if (it == ti->invocations_.end()) {
     // No data for this invocation yet.
     absl::flat_hash_map<ParametricEnv, InvocationCalleeData> env_to_callee_data;
     InvocationCalleeData callee_data{callee_env, caller_env, derived_type_info,
                                      &invocation};
     env_to_callee_data[caller_env] = callee_data;
 
-    top->invocations_.emplace(&invocation, std::make_unique<InvocationData>(
-                                               &invocation, callee, caller,
-                                               std::move(env_to_callee_data)));
+    ti->invocations_.emplace(&invocation, std::make_unique<InvocationData>(
+                                              &invocation, callee, caller,
+                                              std::move(env_to_callee_data)));
     // Add the parametric env to the vector for this function
-    top->callee_data_[callee].push_back(callee_data);
+    ti->callee_data_[callee].push_back(callee_data);
 
     return absl::OkStatus();
   }
@@ -559,7 +565,7 @@ absl::Status TypeInfo::AddInvocationTypeInfo(const Invocation& invocation,
   InvocationData* invocation_data = it->second.get();
   InvocationCalleeData callee_data{callee_env, caller_env, derived_type_info,
                                    &invocation};
-  top->callee_data_[callee].push_back(callee_data);
+  ti->callee_data_[callee].push_back(callee_data);
   return invocation_data->Add(caller_env, callee_data);
 }
 
@@ -593,18 +599,18 @@ std::optional<TypeInfo*> TypeInfo::GetInvocationTypeInfo(
     const Invocation* invocation, const ParametricEnv& caller) const {
   CHECK_EQ(invocation->owner(), module_)
       << invocation->owner()->name() << " vs " << module_->name();
-  const TypeInfo* top = GetRoot();
 
   // Find the data for this invocation node.
-  auto it = top->invocations_.find(invocation);
-  if (it == top->invocations_.end()) {
+  std::optional<const InvocationData*> invocation_data_opt =
+      GetInvocationData(invocation);
+  if (!invocation_data_opt.has_value()) {
     VLOG(5) << "Could not find instantiation for invocation: "
             << invocation->ToString();
     return std::nullopt;
   }
 
+  const InvocationData& invocation_data = **invocation_data_opt;
   // Find the callee data given the caller's parametric environment.
-  const InvocationData& invocation_data = *it->second;
   VLOG(5) << "Invocation " << invocation->ToString()
           << " caller bindings: " << caller
           << " invocation data: " << invocation_data.ToString();
@@ -696,13 +702,13 @@ absl::StatusOr<TypeInfo*> TypeInfo::GetTopLevelProcTypeInfo(const Proc* p) {
 
 absl::StatusOr<const Function*> TypeInfo::GetCallee(
     const Invocation* invocation) const {
-  const TypeInfo* top = GetRoot();
-  auto it = top->invocations().find(invocation);
-  if (it == top->invocations().end()) {
+  std::optional<const InvocationData*> invocation_data =
+      GetInvocationData(invocation);
+  if (!invocation_data.has_value()) {
     return absl::NotFoundError(
         absl::StrCat("Could not find invocation ", invocation->ToString()));
   }
-  return it->second->callee();
+  return (*invocation_data)->callee();
 }
 
 std::optional<const ParametricEnv*> TypeInfo::GetInvocationCalleeBindings(
@@ -718,13 +724,16 @@ std::optional<const ParametricEnv*> TypeInfo::GetInvocationCalleeBindings(
       "TypeInfo %p getting instantiation symbolic bindings: %p %s @ %s %s", top,
       invocation, invocation->ToString(),
       invocation->span().ToString(file_table()), caller.ToString());
-  auto it = top->invocations().find(invocation);
-  if (it == top->invocations().end()) {
+
+  std::optional<const InvocationData*> invocation_data_opt =
+      GetInvocationData(invocation);
+  if (!invocation_data_opt.has_value()) {
     VLOG(3) << "Could not find instantiation " << invocation
             << " in top-level type info: " << top;
     return std::nullopt;
   }
-  const InvocationData& invocation_data = *it->second;
+
+  const InvocationData& invocation_data = **invocation_data_opt;
   auto it2 = invocation_data.env_to_callee_data().find(caller);
   if (it2 == invocation_data.env_to_callee_data().end()) {
     VLOG(3) << "Could not find caller symbolic bindings in instantiation data: "
@@ -902,7 +911,6 @@ TypeInfo::~TypeInfo() {
   // Only the root type information contains certain data.
   if (!IsRoot()) {
     CHECK(imports_.empty());
-    CHECK(invocations_.empty());
     CHECK(slices_.empty());
     CHECK(imports_.empty());
     CHECK(requires_implicit_token_.empty());

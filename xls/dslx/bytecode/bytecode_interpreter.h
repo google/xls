@@ -226,7 +226,7 @@ class BytecodeInterpreter {
           const InterpValue& lhs, const InterpValue& rhs)>& op);
 
   absl::StatusOr<BytecodeFunction*> GetBytecodeFn(
-      Function& function, const Invocation* invocation,
+      const Function& function, const Invocation* invocation,
       const ParametricEnv& caller_bindings);
 
   absl::StatusOr<std::optional<int64_t>> EvalJumpRelIf(

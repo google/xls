@@ -4369,9 +4369,7 @@ fn main() -> (Optional<u32>, Optional<u32>, Optional<u32[3]>,
   ExpectIr(converted);
 }
 
-// TODO(https://github.com/google/xls/issues/3345) - FunctionConverter needs
-// better handling of impl invocations to handle generic dispatch.
-TEST_P(IrConverterWithBothTypecheckVersionsTest, DISABLED_CallFooOnAnything) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, CallFooOnAnything) {
   if (GetParam() == TypeInferenceVersion::kVersion1) {
     return;
   }

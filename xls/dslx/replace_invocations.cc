@@ -432,7 +432,7 @@ absl::StatusOr<TypecheckedModule> ReplaceInvocationsInModule(
     }
 
     std::optional<const InvocationData*> data_opt =
-        type_info.GetRootInvocationData(inv);
+        type_info.GetInvocationData(inv);
     if (!data_opt.has_value()) {
       return std::nullopt;
     }

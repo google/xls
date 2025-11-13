@@ -222,7 +222,7 @@ class InvocationVisitor : public ExprVisitor {
     }
 
     std::optional<const InvocationData*> inv_data =
-        type_info_->GetRootInvocationData(node);
+        type_info_->GetInvocationData(node);
 
     // TODO: erinzmoore - Once v1 is removed, delete if/else clause here and
     // require that `inv_data` is present and complete.

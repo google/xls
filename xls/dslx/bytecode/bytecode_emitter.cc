@@ -287,16 +287,6 @@ absl::Status BytecodeEmitter::HandleAttr(const Attr* node) {
   // Will place a struct instance on the stack.
   XLS_RETURN_IF_ERROR(node->lhs()->AcceptExpr(this));
 
-  // If the attr references an `impl` function, then add the relevant function.
-  XLS_ASSIGN_OR_RETURN(std::optional<Function*> func,
-                       ImplFnFromCallee(node, type_info_));
-  if (func.has_value()) {
-    Add(Bytecode::MakeLiteral(
-        node->span(), InterpValue::MakeFunction(
-                          InterpValue::UserFnData{(*func)->owner(), *func})));
-    return absl::OkStatus();
-  }
-
   // Now we need the index of the attr NameRef in the struct def.
   XLS_ASSIGN_OR_RETURN(StructType * struct_type,
                        type_info_->GetItemAs<StructType>(node->lhs()));
@@ -1206,7 +1196,20 @@ absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
     XLS_RETURN_IF_ERROR(arg->AcceptExpr(this));
   }
 
-  XLS_RETURN_IF_ERROR(node->callee()->AcceptExpr(this));
+  if (node->callee()->kind() == AstNodeKind::kAttr) {
+    // Place the struct instance on the stack as the self argument.
+    XLS_RETURN_IF_ERROR(
+        down_cast<const Attr*>(node->callee())->lhs()->AcceptExpr(this));
+
+    // Dispatch to the function implementation that was decided by type
+    // inference.
+    XLS_ASSIGN_OR_RETURN(const Function* func, type_info_->GetCallee(node));
+    Add(Bytecode::MakeLiteral(
+        node->span(), InterpValue::MakeFunction(
+                          InterpValue::UserFnData{func->owner(), func})));
+  } else {
+    XLS_RETURN_IF_ERROR(node->callee()->AcceptExpr(this));
+  }
 
   std::optional<ParametricEnv> callee_bindings;
   if (caller_bindings_.has_value()) {

@@ -73,7 +73,7 @@ class InterpValue {
  public:
   struct UserFnData {
     Module* module;
-    Function* function;
+    const Function* function;
   };
   using FnData = std::variant<Builtin, UserFnData>;
 

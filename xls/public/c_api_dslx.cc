@@ -1349,7 +1349,7 @@ struct xls_dslx_invocation_data* xls_dslx_type_info_get_root_invocation_data(
   auto* cpp_type_info = reinterpret_cast<xls::dslx::TypeInfo*>(type_info);
   auto* cpp_invocation = reinterpret_cast<xls::dslx::Invocation*>(invocation);
   std::optional<const xls::dslx::InvocationData*> result =
-      cpp_type_info->GetRootInvocationData(cpp_invocation);
+      cpp_type_info->GetInvocationData(cpp_invocation);
   if (!result.has_value()) {
     return nullptr;
   }

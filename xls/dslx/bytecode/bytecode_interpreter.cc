@@ -538,7 +538,7 @@ absl::Status BytecodeInterpreter::EvalAnd(const Bytecode& bytecode) {
 }
 
 absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
-    Function& f, const Invocation* invocation,
+    const Function& f, const Invocation* invocation,
     const ParametricEnv& caller_bindings) {
   const Frame& frame = frames_.back();
   const TypeInfo* caller_type_info = frame.type_info();
@@ -551,7 +551,7 @@ absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
   TypeInfo* callee_type_info = nullptr;
   if (f.IsParametric() || f.tag() == FunctionTag::kProcInit) {
     std::optional<const InvocationData*> invocation_data_opt =
-        caller_type_info->GetRootInvocationData(invocation);
+        caller_type_info->GetInvocationData(invocation);
     if (!invocation_data_opt.has_value()) {
       return absl::InternalError(absl::StrFormat(
           "BytecodeInterpreter::GetBytecodeFn; could not find information for "
