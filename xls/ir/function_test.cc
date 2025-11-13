@@ -25,9 +25,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
-#include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/function_base.h"
@@ -37,6 +35,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/scheduled_builder.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
@@ -450,16 +449,11 @@ fn graph(p: bits[42], q: bits[42]) -> bits[42] {
 class ScheduledFunctionTest : public IrTestBase {
  protected:
   absl::StatusOr<ScheduledFunction*> CreateScheduledFunction(Package* p) {
-    FunctionBuilder fb("f", p, ScheduledFunctionTag());
-    fb.function()->AddEmptyStages(1);
+    ScheduledFunctionBuilder fb("f", p);
     BValue x = fb.Param("x", p->GetBitsType(32));
-    XLS_RETURN_IF_ERROR(fb.function()->AddNodeToStage(0, x.node()).status());
     BValue y = fb.Param("y", p->GetBitsType(32));
-    XLS_RETURN_IF_ERROR(fb.function()->AddNodeToStage(0, y.node()).status());
     BValue add = fb.Add(x, y);
-    XLS_RETURN_IF_ERROR(fb.function()->AddNodeToStage(0, add.node()).status());
-    XLS_ASSIGN_OR_RETURN(Function * func, fb.BuildWithReturnValue(add));
-    return down_cast<ScheduledFunction*>(func);
+    return fb.BuildWithReturnValue(add);
   }
 };
 

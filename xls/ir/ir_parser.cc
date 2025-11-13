@@ -67,6 +67,7 @@
 #include "xls/ir/proc.h"
 #include "xls/ir/proc_instantiation.h"
 #include "xls/ir/register.h"
+#include "xls/ir/scheduled_builder.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -1914,9 +1915,8 @@ Parser::ParseFunctionSignature(
   // enables the parser to parse and construct malformed IR for tests.
   std::unique_ptr<FunctionBuilder> fb;
   if (scheduled) {
-    fb = std::make_unique<FunctionBuilder>(name.value(), package,
-                                           ScheduledFunctionTag(),
-                                           /*should_verify=*/false);
+    fb = std::make_unique<ScheduledFunctionBuilder>(name.value(), package,
+                                                    /*should_verify=*/false);
   } else {
     fb = std::make_unique<FunctionBuilder>(name.value(), package,
                                            /*should_verify=*/false);
@@ -2079,9 +2079,9 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
   std::unique_ptr<ProcBuilder> builder;
   if (is_new_style_proc) {
     if (scheduled) {
-      builder = std::make_unique<ProcBuilder>(NewStyleProc(), name.value(),
-                                              package, ScheduledProcTag(),
-                                              /*should_verify=*/false);
+      builder = std::make_unique<ScheduledProcBuilder>(NewStyleProc(),
+                                                       name.value(), package,
+                                                       /*should_verify=*/false);
     } else {
       builder =
           std::make_unique<ProcBuilder>(NewStyleProc(), name.value(), package,
@@ -2101,9 +2101,8 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
       }
     }
   } else if (scheduled) {
-    builder =
-        std::make_unique<ProcBuilder>(name.value(), package, ScheduledProcTag(),
-                                      /*should_verify=*/false);
+    builder = std::make_unique<ScheduledProcBuilder>(name.value(), package,
+                                                     /*should_verify=*/false);
   } else {
     builder = std::make_unique<ProcBuilder>(name.value(), package,
                                             /*should_verify=*/false);

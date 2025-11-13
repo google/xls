@@ -22,6 +22,7 @@
 // To this end, DO NOT add node/function headers here.
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <ostream>
@@ -41,7 +42,6 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/foreign_function_data.pb.h"
 #include "xls/ir/format_strings.h"
-#include "xls/ir/function.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/nodes.h"
@@ -664,6 +664,9 @@ class BuilderBase {
  protected:
   BValue SetError(std::string_view msg, const SourceInfo& loc);
   bool ErrorPending() const { return error_pending_; }
+  void SetNodeAddedCallback(std::function<void(Node*)> callback) {
+    node_added_callback_ = callback;
+  }
 
   // Constructs and adds a node to the function and returns a corresponding
   // BValue.
@@ -687,6 +690,9 @@ class BuilderBase {
   std::string error_msg_;
   std::string error_stacktrace_;
   SourceInfo error_loc_;
+
+  // Callback to invoke when a node is added via AddNode.
+  std::function<void(Node*)> node_added_callback_ = nullptr;
 };
 
 // Tags to distinguish scheduled vs non-scheduled Functions/Procs in builders.
