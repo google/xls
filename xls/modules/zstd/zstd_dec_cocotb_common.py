@@ -506,16 +506,6 @@ async def report_fse_decoder_work(dut, clk):
 
   cocotb.start_soon(await_state_cycle(clk, fse_state, report, start_states, end_states))
 
-async def report_sequence_executor_work(dut, clk):
-  state = dut.ZstdDecoder.xls_modules_zstd_sequence_executor__ZstdDecoderInst__ZstdDecoder_0__SequenceExecutor_0__32_64_64_0_0_0_13_8192_65536_next_inst150.p2_____state_0__1
-  start_states = [1, 2]
-  end_states = [0]
-
-  def report(value):
-    print(f'Sequence executor finished after {value} cycles')
-
-  cocotb.start_soon(await_state_cycle(clk, state, report, start_states, end_states))
-
 async def report_fse_table_creator_work(dut, clk):
   state = dut.ZstdDecoder.xls_modules_zstd_fse_table_creator__ZstdDecoderInst__ZstdDecoder_0__CompressBlockDecoder_0__SequenceDecoder_0__FseLookupDecoder_0__CompLookupDecoder_0__FseTableCreator_0__8_16_1_15_32_1_9_8_1_8_16_1_next_inst16.p3_____state_0__1
   start_states = [1]
@@ -680,7 +670,7 @@ async def check_output(expected_packet_count, memory, reference_memory, output_m
         hex(exp_mem_contents),
       )
 
-    if read_op % 0x10000 == 0:
+    if read_op % 0x1000 == 0:
       print(f'[cocotb] Got correct packet (addr: {hex(current_addr)}, data: {hex(mem_contents)}, clk: {get_clock_time(clock)})', file=sys.stderr)
 
   decode_last_packet = get_clock_time(clock)
@@ -877,7 +867,6 @@ async def test_expected_status(
   (axi_buses, cpu, clock) = prepare_test_environment(dut)
   print(f"\nusing pregenerated input file for decoder: {pregenerated_path}\n")
   await report_fse_decoder_work(dut, clock)
-  await report_sequence_executor_work(dut, clock)
   await report_fse_table_creator_work(dut, clock)
 
   with open(pregenerated_path, 'rb') as input_file:
@@ -900,6 +889,7 @@ def run_test(test_module, build_args=[], sim="icarus"):
     "external/com_github_alexforencich_verilog_axi/rtl/arbiter.v",
     "external/com_github_alexforencich_verilog_axi/rtl/priority_encoder.v",
     "xls/modules/zstd/rtl/ram_1r1w.v",
+    "xls/modules/zstd/rtl/ram_2rw.v",
   ]
 
   if sim == "verilator":

@@ -99,22 +99,21 @@ enum FseDecoderFSM : u4 {
     SEND_FINISH = 9,
 }
 
-enum FseDecoderCommandFSM : u2 {
+enum FseDecoderCommandFSM : u1 {
     IDLE = 0,
-    LITERAL = 1,
-    SEQUENCE = 2,
+    SEQUENCE = 1,
 }
 
 struct FseDecoderCommandReq {
     send_second: bool,
-    cmd0: CommandConstructorData,
-    cmd1: CommandConstructorData,
+    sequence_command: CommandConstructorData,
 }
 
-struct FseDecoderCommandState { fsm: FseDecoderCommandFSM, req: FseDecoderCommandReq }
+fn pack_offset_and_match_length(offset: u32, match_length: u32) -> u32 {
+    (offset << 16) | (match_length & u32:0xFFFF)
+}
 
 proc FseDecoderCommand {
-    type State = FseDecoderCommandState;
     type Req = FseDecoderCommandReq;
     type Fsm = FseDecoderCommandFSM;
     req_r: chan<Req> in;
@@ -122,27 +121,12 @@ proc FseDecoderCommand {
 
     config(req_r: chan<Req> in, command_s: chan<CommandConstructorData> out) { (req_r, command_s) }
 
-    init { zero!<State>() }
+    init { }
 
-    next(state: State) {
+    next(state: ()) {
         let tok = join();
-        match (state.fsm) {
-            Fsm::IDLE => {
-                let (tok, req) = recv(tok, req_r);
-                State { fsm: Fsm::LITERAL, req }
-            },
-            Fsm::LITERAL => {
-                let tok = send(tok, command_s, state.req.cmd0);
-                State {
-                    fsm: if state.req.send_second { Fsm::SEQUENCE } else { Fsm::IDLE },
-                    ..state
-                }
-            },
-            Fsm::SEQUENCE => {
-                let tok = send(tok, command_s, state.req.cmd1);
-                zero!<State>()
-            },
-        }
+        let (tok, req) = recv(tok, req_r);
+        let tok = send(tok, command_s, req.sequence_command);
     }
 }
 
@@ -325,34 +309,25 @@ u32 = {
         let do_send_command = (state.fsm == FseDecoderFSM::SEND_COMMAND ||
                               state.fsm == FseDecoderFSM::SEND_LEFTOVER_LITERALS_REQ);
 
+        let last = (state.sequences_count == u24:1) &&
+                   (state.literals_count == state.ctrl.literals_count);
         let command = if state.fsm == FseDecoderFSM::SEND_COMMAND {
             FseDecoderCommandReq {
-                send_second: true,
-                cmd0: CommandConstructorData {
-                    sync: state.ctrl.sync,
-                    data: SequenceExecutorPacket {
-                        msg_type: SequenceExecutorMessageType::LITERAL,
-                        length: state.ll,
-                        content: CopyOrMatchContent:0,
-                        last: false,
-                    },
-                },
-                cmd1: CommandConstructorData {
+                send_second: !last,
+                sequence_command: CommandConstructorData {
                     sync: state.ctrl.sync,
                     data: SequenceExecutorPacket {
                         msg_type: SequenceExecutorMessageType::SEQUENCE,
-                        length: state.ml,
-                        content: state.of,
-                        last:
-                            (state.sequences_count == u24:1) &&
-                            (state.literals_count == state.ctrl.literals_count),
+                        length: state.ll,
+                        content: pack_offset_and_match_length(state.of as u32, state.ml as u32) as u64,
+                        last,
                     },
                 },
             }
         } else {
             FseDecoderCommandReq {
                 send_second: false,
-                cmd0: CommandConstructorData {
+                sequence_command: CommandConstructorData {
                     sync: state.ctrl.sync,
                     data: SequenceExecutorPacket {
                         msg_type: SequenceExecutorMessageType::LITERAL,
@@ -362,7 +337,6 @@ u32 = {
                         last: true,
                     },
                 },
-                cmd1: zero!<CommandConstructorData>(),
             }
         };
 
