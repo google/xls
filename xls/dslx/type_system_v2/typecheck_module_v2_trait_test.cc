@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -22,8 +23,10 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 #include "xls/dslx/type_system_v2/matchers.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
@@ -35,12 +38,16 @@ class TestDeriver : public TraitDeriver {
  public:
   absl::StatusOr<StatementBlock*> DeriveFunctionBody(
       Module& module, const Trait& trait, const StructDef& struct_def,
-      const Function& function) override {
+      const StructType& struct_type, const Function& function) override {
     if (function.identifier() == "contains") {
       return DeriveContains(module, trait, struct_def, function);
     }
     if (function.identifier() == "has_nonzero_foo") {
       return DeriveHasNonzeroFooField(module, trait, struct_def, function);
+    }
+    if (function.identifier() == "has_array_of_size_3") {
+      return DeriveHasArrayOfSize3(module, trait, struct_def, struct_type,
+                                   function);
     }
     return absl::UnimplementedError("not implemented");
   }
@@ -91,6 +98,32 @@ class TestDeriver : public TraitDeriver {
       }
     }
     Statement* statement = module.Make<Statement>(*expr);
+    return module.Make<StatementBlock>(Span::None(),
+                                       std::vector<Statement*>{statement},
+                                       /*trailing_semi=*/false);
+  }
+
+  absl::StatusOr<StatementBlock*> DeriveHasArrayOfSize3(
+      Module& module, const Trait& trait, const StructDef& struct_def,
+      const StructType& struct_type, const Function& function) {
+    Expr* result = nullptr;
+    for (const std::unique_ptr<Type>& member : struct_type.members()) {
+      if (member->IsArray()) {
+        XLS_ASSIGN_OR_RETURN(int64_t size,
+                             member->AsArray().size().GetAsInt64());
+        if (size == 3) {
+          result = module.Make<Number>(Span::None(), "true", NumberKind::kBool,
+                                       nullptr, false);
+        }
+      }
+    }
+
+    if (result == nullptr) {
+      result = module.Make<Number>(Span::None(), "false", NumberKind::kBool,
+                                   nullptr, false);
+    }
+
+    Statement* statement = module.Make<Statement>(result);
     return module.Make<StatementBlock>(Span::None(),
                                        std::vector<Statement*>{statement},
                                        /*trailing_semi=*/false);
@@ -202,6 +235,36 @@ const F = Foo { a: 3 };
 const_assert!(F.contains(3));
 const_assert!(F.get_a_verbosely() == 3);
 const_assert!(F.check_contains_verbosely(3));
+)",
+                            std::make_unique<TestDeriver>()));
+}
+
+TEST(TypecheckV2TraitTest, DeriveHasArrayOfSize3) {
+  XLS_ASSERT_OK(TypecheckV2(R"(
+trait HasArrayOfSize3 {
+  // Based on static knowledge of the concrete struct type.
+  fn has_array_of_size_3(self) -> bool;
+}
+
+#[derive(HasArrayOfSize3)]
+struct Foo<N: u32> {
+  a: u32,
+  b: u32[N],
+  c: u32
+}
+
+#[derive(HasArrayOfSize3)]
+struct Bar {
+  field: s64[3]
+}
+
+const F1 = Foo {a: 5, b: [1], c: 0};
+const F2 = Foo {a: 5, b: [1, 2, 3], c: 0};
+const F3 = Bar { field: [1, 2, 3] };
+
+const_assert!(!F1.has_array_of_size_3());
+const_assert!(F2.has_array_of_size_3());
+const_assert!(F3.has_array_of_size_3());
 )",
                             std::make_unique<TestDeriver>()));
 }
