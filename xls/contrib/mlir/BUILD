@@ -508,7 +508,9 @@ cc_library(
         "tools/xls_translate/xls_translate_to_mlir.h",
     ],
     data = [
+        "stdlib/fp_abs.x",
         "stdlib/fp_ext_trunc.x",
+        "stdlib/fp_round.x",
     ],
     deps = [
         ":conversion_utils",
