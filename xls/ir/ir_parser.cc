@@ -42,6 +42,7 @@
 #include "google/protobuf/text_format.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/module_signature.pb.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
@@ -55,6 +56,7 @@
 #include "xls/ir/foreign_function_data.pb.h"
 #include "xls/ir/format_strings.h"
 #include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/ir_scanner.h"
@@ -62,6 +64,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/ir/proc.h"
 #include "xls/ir/proc_instantiation.h"
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
@@ -1902,14 +1905,22 @@ absl::StatusOr<Type*> Parser::ParseTupleType(Package* package) {
 
 absl::StatusOr<std::pair<std::unique_ptr<FunctionBuilder>, Type*>>
 Parser::ParseFunctionSignature(
-    absl::flat_hash_map<std::string, BValue>* name_to_value, Package* package) {
+    absl::flat_hash_map<std::string, BValue>* name_to_value, Package* package,
+    bool scheduled) {
   XLS_ASSIGN_OR_RETURN(
       Token name,
       scanner_.PopTokenOrError(LexicalTokenType::kIdent, "function name"));
   // The parser does its own verification so pass should_verify=false. This
   // enables the parser to parse and construct malformed IR for tests.
-  auto fb = std::make_unique<FunctionBuilder>(name.value(), package,
-                                              /*should_verify=*/false);
+  std::unique_ptr<FunctionBuilder> fb;
+  if (scheduled) {
+    fb = std::make_unique<FunctionBuilder>(name.value(), package,
+                                           ScheduledFunctionTag(),
+                                           /*should_verify=*/false);
+  } else {
+    fb = std::make_unique<FunctionBuilder>(name.value(), package,
+                                           /*should_verify=*/false);
+  }
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenOpen,
                                                 "'(' in function parameters"));
   XLS_ASSIGN_OR_RETURN(std::vector<TypedArgument> params,
@@ -1935,7 +1946,8 @@ Parser::ParseFunctionSignature(
 }
 
 absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
-    absl::flat_hash_map<std::string, BValue>* name_to_value, Package* package) {
+    absl::flat_hash_map<std::string, BValue>* name_to_value, Package* package,
+    bool scheduled) {
   // Proc definition begins with something like:
   //
   //   proc foo(tok: token, state0: bits[32], state1: bits[42], init={42, 33},
@@ -2066,9 +2078,15 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
   // enables the parser to parse and construct malformed IR for tests.
   std::unique_ptr<ProcBuilder> builder;
   if (is_new_style_proc) {
-    builder =
-        std::make_unique<ProcBuilder>(NewStyleProc(), name.value(), package,
-                                      /*should_verify=*/false);
+    if (scheduled) {
+      builder = std::make_unique<ProcBuilder>(NewStyleProc(), name.value(),
+                                              package, ScheduledProcTag(),
+                                              /*should_verify=*/false);
+    } else {
+      builder =
+          std::make_unique<ProcBuilder>(NewStyleProc(), name.value(), package,
+                                        /*should_verify=*/false);
+    }
     for (const ChannelInterfaceArg& channel_interface : channel_interfaces) {
       if (channel_interface.direction == ChannelDirection::kReceive) {
         XLS_RETURN_IF_ERROR(builder
@@ -2082,6 +2100,10 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
                                 .status());
       }
     }
+  } else if (scheduled) {
+    builder =
+        std::make_unique<ProcBuilder>(name.value(), package, ScheduledProcTag(),
+                                      /*should_verify=*/false);
   } else {
     builder = std::make_unique<ProcBuilder>(name.value(), package,
                                             /*should_verify=*/false);
@@ -3131,6 +3153,177 @@ Parser::ParsePackageNoVerify(std::string_view input_string,
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
   Parser p(std::move(scanner));
   return p.ParseValueInternal(/*expected_type=*/std::nullopt);
+}
+
+absl::StatusOr<Stage> Parser::ParseScheduledStage(
+    BuilderBase* fb, absl::flat_hash_map<std::string, BValue>* name_to_value,
+    std::optional<BValue>* func_ret_val) {
+  XLS_RETURN_IF_ERROR(scanner_.DropKeywordOrError("stage"));
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kCurlOpen));
+  Stage stage;
+  while (!scanner_.TryDropToken(LexicalTokenType::kCurlClose)) {
+    bool is_ret = scanner_.TryDropKeyword("ret");
+    XLS_ASSIGN_OR_RETURN(BValue bvalue, ParseNode(fb, name_to_value));
+    if (is_ret) {
+      if (!fb->function()->IsFunction()) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("ret keyword only supported in functions"));
+      }
+      if (func_ret_val->has_value()) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("More than one ret found"));
+      }
+      *func_ret_val = bvalue;
+    }
+    Node* node = bvalue.node();
+    if (node->Is<Receive>() || node->Is<StateRead>()) {
+      stage.active_inputs.insert(node);
+    } else if (node->Is<Send>() || node->Is<Next>()) {
+      stage.active_outputs.insert(node);
+    } else {
+      stage.logic.insert(node);
+    }
+  }
+  return stage;
+}
+
+/* static */ absl::StatusOr<ScheduledFunction*> Parser::ParseScheduledFunction(
+    std::string_view input_string, Package* package,
+    absl::Span<const IrAttribute> outer_attributes) {
+  XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
+  Parser p(std::move(scanner));
+  XLS_ASSIGN_OR_RETURN(ScheduledFunction * function,
+                       p.ParseScheduledFunction(package, outer_attributes));
+  SetUnassignedNodeIds(package, function);
+
+  // Verify the whole package because the addition of the function may break
+  // package-scoped invariants (eg, duplicate function name).
+  XLS_RETURN_IF_ERROR(VerifyAndSwapError(package));
+  return function;
+}
+
+/* static */ absl::StatusOr<ScheduledProc*> Parser::ParseScheduledProc(
+    std::string_view input_string, Package* package,
+    absl::Span<const IrAttribute> outer_attributes) {
+  XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
+  Parser p(std::move(scanner));
+  XLS_ASSIGN_OR_RETURN(ScheduledProc * proc,
+                       p.ParseScheduledProc(package, outer_attributes));
+  SetUnassignedNodeIds(package, proc);
+
+  // Verify the whole package because the addition of the proc may break
+  // package-scoped invariants (eg, duplicate proc name).
+  XLS_RETURN_IF_ERROR(VerifyAndSwapError(package));
+  return proc;
+}
+
+absl::StatusOr<ScheduledFunction*> Parser::ParseScheduledFunction(
+    Package* package, absl::Span<const IrAttribute> outer_attributes) {
+  if (AtEof()) {
+    return absl::InvalidArgumentError("Could not parse function; at EOF.");
+  }
+
+  XLS_RETURN_IF_ERROR(scanner_.DropKeywordOrError("scheduled_fn"));
+
+  absl::flat_hash_map<std::string, BValue> name_to_value;
+  XLS_ASSIGN_OR_RETURN(
+      auto function_data,
+      ParseFunctionSignature(&name_to_value, package, /*scheduled=*/true));
+  FunctionBuilder* fb = function_data.first.get();
+  ScheduledFunction* f = down_cast<ScheduledFunction*>(fb->function());
+
+  std::optional<BValue> return_value;
+  bool first_stage = true;
+  while (scanner_.PeekTokenIs(LexicalTokenType::kKeyword) &&
+         scanner_.PeekToken()->value() == "stage") {
+    XLS_ASSIGN_OR_RETURN(
+        Stage stage, ParseScheduledStage(fb, &name_to_value, &return_value));
+    if (first_stage) {
+      for (Param* p : f->params()) {
+        stage.logic.insert(p);
+      }
+      first_stage = false;
+    }
+    f->AddStage(std::move(stage));
+  }
+
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kCurlClose,
+                                                "'}' at end of function body"));
+
+  if (!return_value.has_value()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Expected 'ret' in function."));
+  }
+
+  if (return_value.value().node()->GetType() != function_data.second) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Type of return value %s does not match declared function return type "
+        "%s",
+        return_value.value().node()->GetType()->ToString(),
+        function_data.second->ToString()));
+  }
+
+  XLS_ASSIGN_OR_RETURN(Function * func,
+                       fb->BuildWithReturnValue(return_value.value()));
+  ScheduledFunction* result = down_cast<ScheduledFunction*>(func);
+  for (const IrAttribute& attribute : outer_attributes) {
+    if (std::holds_alternative<InitiationInterval>(attribute.payload)) {
+      result->SetInitiationInterval(
+          std::get<InitiationInterval>(attribute.payload).value);
+    } else if (std::holds_alternative<ForeignFunctionData>(attribute.payload)) {
+      // Dummy parse to make sure it is a valid template.
+      const ForeignFunctionData& ffi =
+          std::get<ForeignFunctionData>(attribute.payload);
+      XLS_RETURN_IF_ERROR(CodeTemplate::Create(ffi.code_template()).status());
+      result->SetForeignFunctionData(ffi);
+    } else {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Invalid attribute for function: %s", attribute.name));
+    }
+  }
+  return result;
+}
+
+absl::StatusOr<ScheduledProc*> Parser::ParseScheduledProc(
+    Package* package, absl::Span<const IrAttribute> outer_attributes) {
+  if (AtEof()) {
+    return absl::InvalidArgumentError("Could not parse proc; at EOF.");
+  }
+  XLS_RETURN_IF_ERROR(scanner_.DropKeywordOrError("scheduled_proc"));
+
+  absl::flat_hash_map<std::string, BValue> name_to_value;
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<ProcBuilder> pb,
+      ParseProcSignature(&name_to_value, package, /*scheduled=*/true));
+  ScheduledProc* p = down_cast<ScheduledProc*>(pb->proc());
+
+  std::optional<BValue> ret_val;
+  while (scanner_.PeekTokenIs(LexicalTokenType::kKeyword) &&
+         scanner_.PeekToken()->value() == "stage") {
+    XLS_ASSIGN_OR_RETURN(
+        Stage stage, ParseScheduledStage(pb.get(), &name_to_value, &ret_val));
+    p->AddStage(stage);
+  }
+  if (ret_val.has_value()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("ret keyword not supported in procs"));
+  }
+
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kCurlClose,
+                                                "'}' at end of proc body"));
+
+  XLS_ASSIGN_OR_RETURN(Proc * proc, pb->Build({}));
+  ScheduledProc* result = down_cast<ScheduledProc*>(proc);
+  for (const IrAttribute& attribute : outer_attributes) {
+    if (std::holds_alternative<InitiationInterval>(attribute.payload)) {
+      result->SetInitiationInterval(
+          std::get<InitiationInterval>(attribute.payload).value);
+    } else {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Invalid attribute for proc: %s", attribute.name));
+    }
+  }
+  return result;
 }
 
 }  // namespace xls

@@ -40,6 +40,7 @@
 #include "xls/ir/change_listener.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/name_uniquer.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
@@ -56,7 +57,8 @@
 namespace xls {
 
 std::string Proc::DumpIr() const {
-  std::string res = absl::StrFormat("proc %s", name());
+  std::string res =
+      absl::StrFormat("%sproc %s", IsScheduled() ? "scheduled_" : "", name());
   if (is_new_style_proc()) {
     absl::StrAppendFormat(
         &res, "<%s>",
@@ -124,11 +126,23 @@ std::string Proc::DumpIr() const {
       absl::StrAppendFormat(&res, "  %s\n", instantiation->ToString());
     }
   }
-  for (Node* node : TopoSort(const_cast<Proc*>(this))) {
-    if (node->op() == Op::kParam) {
-      continue;
+
+  if (IsScheduled()) {
+    const ScheduledProc* sp = down_cast<const ScheduledProc*>(this);
+    std::vector<Node*> sorted_nodes = TopoSort(const_cast<Proc*>(this));
+    for (const Stage& stage : sp->stages()) {
+      absl::StrAppend(&res, "  stage {\n");
+      for (Node* node : sorted_nodes) {
+        if (stage.contains(node)) {
+          absl::StrAppend(&res, "    ", node->ToString(), "\n");
+        }
+      }
+      absl::StrAppend(&res, "  }\n");
     }
-    absl::StrAppend(&res, "  ", node->ToString(), "\n");
+  } else {
+    for (Node* node : TopoSort(const_cast<Proc*>(this))) {
+      absl::StrAppend(&res, "  ", node->ToString(), "\n");
+    }
   }
   absl::StrAppend(&res, "}\n");
   return res;
@@ -296,13 +310,26 @@ absl::StatusOr<Proc*> Proc::Clone(
     target_package = package();
   }
   Proc* cloned_proc;
-  if (is_new_style_proc()) {
-    cloned_proc = target_package->AddProc(std::make_unique<Proc>(
-        new_name, /*interface=*/absl::Span<std::unique_ptr<ChannelInterface>>(),
-        target_package));
+  if (IsScheduled()) {
+    if (is_new_style_proc()) {
+      cloned_proc = target_package->AddProc(std::make_unique<ScheduledProc>(
+          new_name,
+          /*interface=*/absl::Span<std::unique_ptr<ChannelInterface>>(),
+          target_package));
+    } else {
+      cloned_proc = target_package->AddProc(
+          std::make_unique<ScheduledProc>(new_name, target_package));
+    }
   } else {
-    cloned_proc = target_package->AddProc(
-        std::make_unique<Proc>(new_name, target_package));
+    if (is_new_style_proc()) {
+      cloned_proc = target_package->AddProc(std::make_unique<Proc>(
+          new_name,
+          /*interface=*/absl::Span<std::unique_ptr<ChannelInterface>>(),
+          target_package));
+    } else {
+      cloned_proc = target_package->AddProc(
+          std::make_unique<Proc>(new_name, target_package));
+    }
   }
   auto remap_state_name = [&](std::string_view orig) -> std::string_view {
     if (!state_name_remapping.contains(orig)) {
@@ -489,6 +516,25 @@ absl::StatusOr<Proc*> Proc::Clone(
             node->CloneInNewFunction(cloned_operands, cloned_proc));
         break;
       }
+    }
+  }
+  if (IsScheduled()) {
+    const ScheduledProc* scheduled_proc = down_cast<const ScheduledProc*>(this);
+    ScheduledProc* cloned_scheduled_proc =
+        down_cast<ScheduledProc*>(cloned_proc);
+    cloned_scheduled_proc->ClearStages();
+    for (const Stage& stage : scheduled_proc->stages()) {
+      Stage cloned_stage;
+      for (Node* node : stage.active_inputs) {
+        cloned_stage.active_inputs.insert(original_to_clone.at(node));
+      }
+      for (Node* node : stage.logic) {
+        cloned_stage.logic.insert(original_to_clone.at(node));
+      }
+      for (Node* node : stage.active_outputs) {
+        cloned_stage.active_outputs.insert(original_to_clone.at(node));
+      }
+      cloned_scheduled_proc->AddStage(std::move(cloned_stage));
     }
   }
 

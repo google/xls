@@ -43,6 +43,7 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/foreign_function_data.pb.h"
 #include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/ir_scanner.h"
@@ -124,6 +125,16 @@ class Parser {
   static absl::StatusOr<Type*> ParseType(std::string_view input_string,
                                          Package* package);
 
+  // Parses a top-level scheduled function, including signature and body.
+  static absl::StatusOr<ScheduledFunction*> ParseScheduledFunction(
+      std::string_view input_string, Package* package,
+      absl::Span<const IrAttribute> outer_attributes = {});
+
+  // Parses a top-level scheduled proc, including signature and body.
+  static absl::StatusOr<ScheduledProc*> ParseScheduledProc(
+      std::string_view input_string, Package* package,
+      absl::Span<const IrAttribute> outer_attributes = {});
+
   // Parses the given input string as a package skipping verification. This
   // should only be used in tests when malformed IR is desired.
   static absl::StatusOr<std::unique_ptr<Package>> ParsePackageNoVerify(
@@ -160,9 +171,13 @@ class Parser {
   // Parse a function starting at the current scanner position.
   absl::StatusOr<Function*> ParseFunction(
       Package* package, absl::Span<const IrAttribute> outer_attributes = {});
+  absl::StatusOr<ScheduledFunction*> ParseScheduledFunction(
+      Package* package, absl::Span<const IrAttribute> outer_attributes = {});
 
   // Parse a proc starting at the current scanner position.
   absl::StatusOr<Proc*> ParseProc(
+      Package* package, absl::Span<const IrAttribute> outer_attributes = {});
+  absl::StatusOr<ScheduledProc*> ParseScheduledProc(
       Package* package, absl::Span<const IrAttribute> outer_attributes = {});
 
   // Parse a block starting at the current scanner position.
@@ -326,14 +341,14 @@ class Parser {
   // popped.
   absl::StatusOr<std::pair<std::unique_ptr<FunctionBuilder>, Type*>>
   ParseFunctionSignature(
-      absl::flat_hash_map<std::string, BValue>* name_to_value,
-      Package* package);
+      absl::flat_hash_map<std::string, BValue>* name_to_value, Package* package,
+      bool scheduled = false);
 
   // Parses a proc signature, starting after the 'proc' keyword up to and
   // including the opening brace. Returns the newly created builder.
   absl::StatusOr<std::unique_ptr<ProcBuilder>> ParseProcSignature(
-      absl::flat_hash_map<std::string, BValue>* name_to_value,
-      Package* package);
+      absl::flat_hash_map<std::string, BValue>* name_to_value, Package* package,
+      bool scheduled = false);
 
   // Parses a block signature, starting after the 'block' keyword up to and
   // including the opening brace. Returns the newly created builder along with
@@ -355,6 +370,11 @@ class Parser {
   //
   // And returns the name.
   absl::StatusOr<std::string> ParsePackageName();
+
+  // Parses a scheduled stage within a scheduled function or proc.
+  absl::StatusOr<Stage> ParseScheduledStage(
+      BuilderBase* fb, absl::flat_hash_map<std::string, BValue>* name_to_value,
+      std::optional<BValue>* func_ret_val);
 
   // Pops a file_number declaration out of the scanner, of the form:
   //
@@ -426,10 +446,32 @@ absl::StatusOr<std::unique_ptr<PackageT>> Parser::ParseDerivedPackageNoVerify(
       }
       continue;
     }
+    if (peek.type() == LexicalTokenType::kKeyword &&
+        peek.value() == "scheduled_fn") {
+      XLS_ASSIGN_OR_RETURN(
+          ScheduledFunction * fn,
+          parser.ParseScheduledFunction(package.get(), outer_attributes),
+          _ << "@ " << filename_str);
+      if (is_top) {
+        XLS_RETURN_IF_ERROR(package->SetTop(fn));
+      }
+      continue;
+    }
     if (peek.type() == LexicalTokenType::kKeyword && peek.value() == "proc") {
       XLS_ASSIGN_OR_RETURN(Proc * proc,
                            parser.ParseProc(package.get(), outer_attributes),
                            _ << "@ " << filename_str);
+      if (is_top) {
+        XLS_RETURN_IF_ERROR(package->SetTop(proc));
+      }
+      continue;
+    }
+    if (peek.type() == LexicalTokenType::kKeyword &&
+        peek.value() == "scheduled_proc") {
+      XLS_ASSIGN_OR_RETURN(
+          ScheduledProc * proc,
+          parser.ParseScheduledProc(package.get(), outer_attributes),
+          _ << "@ " << filename_str);
       if (is_top) {
         XLS_RETURN_IF_ERROR(package->SetTop(proc));
       }

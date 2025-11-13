@@ -73,7 +73,8 @@ class Token {
     static const absl::NoDestructor<absl::flat_hash_set<std::string>> keywords(
         {"fn", "bits", "token", "ret", "package", "proc", "chan",
          "chan_interface", "reg", "next", "block", "clock", "instantiation",
-         "top", "file_number", "proc_instantiation"});
+         "top", "file_number", "proc_instantiation", "scheduled_proc",
+         "scheduled_fn", "stage"});
     return *keywords;
   }
 

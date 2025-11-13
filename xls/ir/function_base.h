@@ -47,6 +47,18 @@ namespace xls {
 class Function;
 class Proc;
 
+// Represents a pipeline stage after scheduling.
+struct Stage {
+  absl::btree_set<Node*, Node::NodeIdLessThan> active_inputs;
+  absl::btree_set<Node*, Node::NodeIdLessThan> logic;
+  absl::btree_set<Node*, Node::NodeIdLessThan> active_outputs;
+
+  bool contains(Node* node) const {
+    return active_inputs.contains(node) || logic.contains(node) ||
+           active_outputs.contains(node);
+  }
+};
+
 // Base class for Functions and Procs. A holder of a set of nodes.
 class FunctionBase {
  protected:
@@ -203,6 +215,7 @@ class FunctionBase {
   bool IsFunction() const { return kind() == Kind::kFunction; }
   bool IsProc() const { return kind() == Kind::kProc; }
   bool IsBlock() const { return kind() == Kind::kBlock; }
+  virtual bool IsScheduled() const { return false; }
 
   const Function* AsFunctionOrDie() const;
   Function* AsFunctionOrDie();

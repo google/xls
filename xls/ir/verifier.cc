@@ -584,6 +584,79 @@ absl::Status VerifyFunction(Function* function, bool codegen) {
     }
   }
 
+  if (function->IsScheduled()) {
+    const ScheduledFunction* sf = down_cast<const ScheduledFunction*>(function);
+    absl::flat_hash_map<Node*, int64_t> node_to_stage;
+    absl::flat_hash_set<Node*>
+        all_scheduled_nodes;  // Tracks nodes across all stages
+
+    for (int64_t i = 0; i < sf->stages().size(); ++i) {
+      const Stage& stage = sf->stages()[i];
+      absl::flat_hash_set<Node*>
+          current_stage_nodes;  // Tracks nodes within this stage
+
+      auto process_node = [&](Node* node,
+                              std::string_view set_name) -> absl::Status {
+        if (!current_stage_nodes.insert(node).second) {
+          return absl::InternalError(
+              absl::StrFormat("Node %s is in multiple sets within stage %d.",
+                              node->GetName(), i));
+        }
+        if (!all_scheduled_nodes.insert(node).second) {
+          return absl::InternalError(
+              absl::StrFormat("Node %s appears in multiple stages. Found in "
+                              "stage %d and earlier stage.",
+                              node->GetName(), i));
+        }
+        node_to_stage[node] = i;
+        return absl::OkStatus();
+      };
+
+      for (Node* node : stage.active_inputs) {
+        XLS_RETURN_IF_ERROR(process_node(node, "active_inputs"));
+        if (!node->Is<Receive>()) {
+          return absl::InternalError(absl::StrFormat(
+              "Only receive nodes can be in active_inputs set of a stage, "
+              "found %s in stage %d",
+              node->GetName(), i));
+        }
+      }
+      for (Node* node : stage.active_outputs) {
+        XLS_RETURN_IF_ERROR(process_node(node, "active_outputs"));
+        if (!node->Is<Send>()) {
+          return absl::InternalError(absl::StrFormat(
+              "Only send nodes can be in active_outputs set of a stage, "
+              "found %s in stage %d",
+              node->GetName(), i));
+        }
+      }
+      for (Node* node : stage.logic) {
+        XLS_RETURN_IF_ERROR(process_node(node, "logic"));
+        if (node->Is<Receive>() || node->Is<Send>()) {
+          return absl::InternalError(
+              absl::StrFormat("Receive/send node %s in logic set of stage "
+                              "%d",
+                              node->GetName(), i));
+        }
+      }
+    }
+    for (Node* node : function->nodes()) {
+      if (!node_to_stage.contains(node)) {
+        return absl::InternalError(
+            absl::StrFormat("Node %s is not in any stage.", node->GetName()));
+      }
+      int64_t stage_idx = node_to_stage.at(node);
+      for (Node* operand : node->operands()) {
+        if (auto it = node_to_stage.find(operand);
+            it != node_to_stage.end() && it->second > stage_idx) {
+          return absl::InternalError(absl::StrFormat(
+              "Operand %s of node %s is in stage %d which is after stage %d.",
+              operand->GetName(), node->GetName(), it->second, stage_idx));
+        }
+      }
+    }
+  }
+
   return absl::OkStatus();
 }
 
@@ -762,6 +835,81 @@ absl::Status VerifyProc(Proc* proc, bool codegen) {
 
   // A Proc cannot have any parameters.
   XLS_RET_CHECK(proc->params().empty());
+
+  if (proc->IsScheduled()) {
+    const ScheduledProc* sp = down_cast<const ScheduledProc*>(proc);
+    absl::flat_hash_map<Node*, int64_t> node_to_stage;
+    absl::flat_hash_set<Node*>
+        all_scheduled_nodes;  // Tracks nodes across all stages
+
+    for (int64_t i = 0; i < sp->stages().size(); ++i) {
+      const Stage& stage = sp->stages()[i];
+      absl::flat_hash_set<Node*>
+          current_stage_nodes;  // Tracks nodes within this stage
+
+      auto process_node = [&](Node* node,
+                              std::string_view set_name) -> absl::Status {
+        if (!current_stage_nodes.insert(node).second) {
+          return absl::InternalError(
+              absl::StrFormat("Node %s is in multiple sets within stage %d.",
+                              node->GetName(), i));
+        }
+        if (!all_scheduled_nodes.insert(node).second) {
+          return absl::InternalError(
+              absl::StrFormat("Node %s appears in multiple stages. Found in "
+                              "stage %d and earlier stage.",
+                              node->GetName(), i));
+        }
+        node_to_stage[node] = i;
+        return absl::OkStatus();
+      };
+
+      for (Node* node : stage.active_inputs) {
+        XLS_RETURN_IF_ERROR(process_node(node, "active_inputs"));
+        if (!node->Is<Receive>() && !node->Is<StateRead>()) {
+          return absl::InternalError(absl::StrFormat(
+              "Only receive and state_read nodes can be in active_inputs set "
+              "of a stage, found %s in stage %d",
+              node->GetName(), i));
+        }
+      }
+      for (Node* node : stage.active_outputs) {
+        XLS_RETURN_IF_ERROR(process_node(node, "active_outputs"));
+        if (!node->Is<Send>() && node->op() != Op::kNext) {
+          return absl::InternalError(absl::StrFormat(
+              "Only send and next_value nodes can be in active_outputs set of "
+              "a stage, found %s in stage %d",
+              node->GetName(), i));
+        }
+      }
+      for (Node* node : stage.logic) {
+        XLS_RETURN_IF_ERROR(process_node(node, "logic"));
+        if (node->Is<Receive>() || node->Is<StateRead>() || node->Is<Send>() ||
+            node->op() == Op::kNext) {
+          return absl::InternalError(
+              absl::StrFormat("Receive/StateRead/Send/NextValue node %s in "
+                              "logic set of stage %d",
+                              node->GetName(), i));
+        }
+      }
+    }
+    for (Node* node : proc->nodes()) {
+      if (!node_to_stage.contains(node)) {
+        return absl::InternalError(
+            absl::StrFormat("Node %s is not in any stage.", node->GetName()));
+      }
+      int64_t stage_idx = node_to_stage.at(node);
+      for (Node* operand : node->operands()) {
+        if (auto it = node_to_stage.find(operand);
+            it != node_to_stage.end() && it->second > stage_idx) {
+          return absl::InternalError(absl::StrFormat(
+              "Operand %s of node %s is in stage %d which is after stage %d.",
+              operand->GetName(), node->GetName(), node_to_stage.at(operand),
+              stage_idx));
+        }
+      }
+    }
+  }
 
   return absl::OkStatus();
 }

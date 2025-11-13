@@ -1051,6 +1051,12 @@ FunctionBuilder::FunctionBuilder(std::string_view name, Package* package,
     : BuilderBase(std::make_unique<Function>(std::string(name), package),
                   should_verify) {}
 
+FunctionBuilder::FunctionBuilder(std::string_view function_name,
+                                 Package* package, ScheduledFunctionTag tag,
+                                 bool should_verify)
+    : BuilderBase(std::make_unique<ScheduledFunction>(function_name, package),
+                  should_verify) {}
+
 BValue FunctionBuilder::Param(std::string_view name, Type* type,
                               const SourceInfo& loc) {
   if (ErrorPending()) {
@@ -1098,6 +1104,10 @@ absl::StatusOr<Function*> FunctionBuilder::BuildWithReturnValue(
 ProcBuilder::ProcBuilder(std::string_view name, Package* package,
                          bool should_verify)
     : BuilderBase(std::make_unique<Proc>(name, package), should_verify) {}
+ProcBuilder::ProcBuilder(std::string_view proc_name, Package* package,
+                         ScheduledProcTag tag, bool should_verify)
+    : BuilderBase(std::make_unique<ScheduledProc>(proc_name, package),
+                  should_verify) {}
 
 ProcBuilder::ProcBuilder(NewStyleProc tag, std::string_view name,
                          Package* package, bool should_verify)
@@ -1106,6 +1116,15 @@ ProcBuilder::ProcBuilder(NewStyleProc tag, std::string_view name,
                       /*interface_channels=*/
                       absl::Span<std::unique_ptr<ChannelInterface>>(), package),
                   should_verify) {}
+ProcBuilder::ProcBuilder(NewStyleProc tag, std::string_view proc_name,
+                         Package* package, ScheduledProcTag stag,
+                         bool should_verify)
+    : BuilderBase(std::make_unique<ScheduledProc>(
+                      proc_name, /*interface_channels=*/
+                      absl::Span<std::unique_ptr<ChannelInterface>>(), package),
+                  should_verify) {
+  CHECK_OK(proc()->ConvertToNewStyle());
+}
 
 Proc* ProcBuilder::proc() const { return down_cast<Proc*>(function()); }
 

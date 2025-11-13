@@ -812,6 +812,35 @@ proc my_old_proc() {}
                          "channels) and old-style procs")));
 }
 
+TEST_F(VerifierTest, ScheduledProcGolden) {
+  std::string input = R"(package test
+
+scheduled_proc my_proc(st: bits[32], init={42}) {
+  stage {
+    st: bits[32] = state_read(state_element=st, id=1)
+    literal.2: bits[32] = literal(value=1, id=2)
+    add.3: bits[32] = add(literal.2, st, id=3)
+    next_value.4: () = next_value(param=st, value=add.3, id=4)
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
+  XLS_EXPECT_OK(VerifyPackage(p.get()));
+}
+
+TEST_F(VerifierTest, ScheduledFunctionGolden) {
+  std::string input = R"(package test
+
+scheduled_fn my_fn(x: bits[32], y: bits[32]) -> bits[32] {
+  stage {
+    ret add.3: bits[32] = add(x, y, id=3)
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
+  XLS_EXPECT_OK(VerifyPackage(p.get()));
+}
+
 TEST_F(VerifierTest, NewStyleProcAndGlobalChannels) {
   const std::string input = R"(package test
 

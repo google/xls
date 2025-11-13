@@ -1,0 +1,7 @@
+package my_package
+
+scheduled_fn my_fn(x: bits[32] id=4, y: bits[32] id=5) -> bits[32] {
+  stage {
+    ret add.3: bits[32] = add(x, y, id=3)
+  }
+}

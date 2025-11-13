@@ -870,6 +870,7 @@ cc_library(
         ":verifier",
         "//xls/codegen:module_signature",
         "//xls/codegen:module_signature_cc_proto",
+        "//xls/common:casts",
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",

@@ -28,7 +28,9 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/name_uniquer.h"
@@ -390,6 +392,50 @@ class Proc : public FunctionBase {
   // Channels declared in this proc indexed by channel name.
   absl::flat_hash_map<std::string, std::unique_ptr<Channel>> channels_;
   std::vector<Channel*> channel_vec_;
+};
+
+// A proc which has been scheduled and contains information about which nodes
+// execute in which pipeline stage.
+class ScheduledProc : public Proc {
+ public:
+  ScheduledProc(std::string_view name, Package* package)
+      : Proc(name, package) {}
+
+  // Creates a new-style scheduled proc which supports proc-scoped channels.
+  ScheduledProc(std::string_view name,
+                absl::Span<std::unique_ptr<ChannelInterface>> interface,
+                Package* package)
+      : Proc(name, interface, package) {}
+
+  bool IsScheduled() const override { return true; }
+
+  absl::Span<const Stage> stages() const { return stages_; }
+  absl::Span<Stage> stages() { return absl::MakeSpan(stages_); }
+  void AddStage(Stage stage) { stages_.push_back(std::move(stage)); }
+  void ClearStages() { stages_.clear(); }
+
+  // Creates a clone of the scheduled proc with the new name `new_name`. Proc is
+  // owned by `target_package`. `channel_remapping` dictates how to map channel
+  // names to new channel names in the cloned version; if a key is unavailable
+  // in `channel_remapping` it is assumed to be the identity mapping at that
+  // key.
+  absl::StatusOr<ScheduledProc*> Clone(
+      std::string_view new_name, Package* target_package = nullptr,
+      const absl::flat_hash_map<std::string, std::string>& channel_remapping =
+          {},
+      const absl::flat_hash_map<const FunctionBase*, FunctionBase*>&
+          call_remapping = {},
+      const absl::flat_hash_map<std::string, std::string>&
+          state_name_remapping = {}) const {
+    XLS_ASSIGN_OR_RETURN(
+        Proc * cloned_proc,
+        Proc::Clone(new_name, target_package, channel_remapping, call_remapping,
+                    state_name_remapping));
+    return down_cast<ScheduledProc*>(cloned_proc);
+  }
+
+ private:
+  std::vector<Stage> stages_;
 };
 
 }  // namespace xls

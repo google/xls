@@ -298,6 +298,14 @@ TEST(IrParserRoundTripTest, ParseNewStyleProcWithComplexChannelTypes) {
   ParsePackageAndCheckDump(TestName());
 }
 
+TEST(IrParserRoundTripTest, ParseScheduledProc) {
+  ParsePackageAndCheckDump(TestName());
+}
+
+TEST(IrParserRoundTripTest, ParseScheduledFunction) {
+  ParsePackageAndCheckDump(TestName());
+}
+
 TEST(IrParserRoundTripTest, ParseSimpleBlock) {
   ParsePackageAndCheckDump(TestName());
 }

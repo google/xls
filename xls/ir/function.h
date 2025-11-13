@@ -21,10 +21,15 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
+#include "xls/common/casts.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
@@ -87,6 +92,39 @@ class Function : public FunctionBase {
 
  private:
   Node* return_value_ = nullptr;
+};
+
+// A function which has been scheduled and contains information about which
+// nodes execute in which pipeline stage.
+class ScheduledFunction : public Function {
+ public:
+  ScheduledFunction(std::string_view name, Package* package)
+      : Function(name, package) {}
+
+  bool IsScheduled() const override { return true; }
+
+  absl::Span<const Stage> stages() const { return stages_; }
+  absl::Span<Stage> stages() { return absl::MakeSpan(stages_); }
+  void AddStage(Stage stage) { stages_.push_back(std::move(stage)); }
+  void ClearStages() { stages_.clear(); }
+
+  // Creates a clone of the scheduled function with the new name 'new_name'.
+  // Function is owned by target_package.  call_remapping specifies any function
+  // substitutions to be used in the cloned function, e.g. If call_remapping
+  // holds {funcA, funcB}, any references to funcA in the function will be
+  // references to funcB in the cloned function.
+  absl::StatusOr<ScheduledFunction*> Clone(
+      std::string_view new_name, Package* target_package = nullptr,
+      const absl::flat_hash_map<const Function*, Function*>& call_remapping =
+          {}) const {
+    XLS_ASSIGN_OR_RETURN(
+        Function * cloned_function,
+        Function::Clone(new_name, target_package, call_remapping));
+    return down_cast<ScheduledFunction*>(cloned_function);
+  }
+
+ private:
+  std::vector<Stage> stages_;
 };
 
 }  // namespace xls

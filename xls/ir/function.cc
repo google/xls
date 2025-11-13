@@ -20,6 +20,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -31,9 +32,11 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/change_listener.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
@@ -70,9 +73,8 @@ std::string Function::DumpIr() const {
 
 std::string Function::DumpIrWithAnnotations(
     const std::function<std::optional<std::string>(Node*)>& annotate) const {
-  std::string res;
-
-  absl::StrAppend(&res, "fn " + name() + "(");
+  std::string res =
+      absl::StrFormat("%sfn %s(", IsScheduled() ? "scheduled_" : "", name());
   absl::StrAppend(
       &res,
       absl::StrJoin(params_, ", ", [&](std::string* s, Param* const param) {
@@ -89,18 +91,39 @@ std::string Function::DumpIrWithAnnotations(
   }
   absl::StrAppend(&res, " {\n");
 
-  for (Node* node : TopoSort(const_cast<Function*>(this))) {
-    if (node->op() == Op::kParam && node == return_value()) {
-      absl::StrAppendFormat(&res, "  ret %s\n", node->ToString());
-      continue;
+  if (IsScheduled()) {
+    const ScheduledFunction* sf = down_cast<const ScheduledFunction*>(this);
+    std::vector<Node*> sorted_nodes = TopoSort(const_cast<Function*>(this));
+    for (const Stage& stage : sf->stages()) {
+      absl::StrAppend(&res, "  stage {\n");
+      for (Node* node : sorted_nodes) {
+        if (stage.contains(node)) {
+          if (node->op() == Op::kParam) {
+            continue;
+          }
+          std::optional<std::string> annotation = annotate(node);
+          absl::StrAppend(
+              &res, "    ", node == return_value() ? "ret " : "",
+              node->ToString(),
+              annotation ? absl::StrCat(" (", *annotation, ")") : "", "\n");
+        }
+      }
+      absl::StrAppend(&res, "  }\n");
     }
-    if (node->op() == Op::kParam) {
-      continue;  // Already accounted for in the signature.
+  } else {
+    for (Node* node : TopoSort(const_cast<Function*>(this))) {
+      if (node->op() == Op::kParam && node == return_value()) {
+        absl::StrAppendFormat(&res, "  ret %s\n", node->ToString());
+        continue;
+      }
+      if (node->op() == Op::kParam) {
+        continue;  // Already accounted for in the signature.
+      }
+      std::optional<std::string> annotation = annotate(node);
+      absl::StrAppend(
+          &res, "  ", node == return_value() ? "ret " : "", node->ToString(),
+          annotation ? absl::StrCat(" (", *annotation, ")") : "", "\n");
     }
-    std::optional<std::string> annotation = annotate(node);
-    absl::StrAppend(
-        &res, "  ", node == return_value() ? "ret " : "", node->ToString(),
-        annotation ? absl::StrCat(" (", *annotation, ")") : "", "\n");
   }
 
   absl::StrAppend(&res, "}\n");
@@ -179,6 +202,26 @@ absl::StatusOr<Function*> Function::Clone(
             node->CloneInNewFunction(cloned_operands, cloned_function));
         break;
       }
+    }
+  }
+  if (IsScheduled()) {
+    const ScheduledFunction* scheduled_function =
+        down_cast<const ScheduledFunction*>(this);
+    ScheduledFunction* cloned_scheduled_function =
+        down_cast<ScheduledFunction*>(cloned_function);
+    cloned_scheduled_function->ClearStages();
+    for (const Stage& stage : scheduled_function->stages()) {
+      Stage cloned_stage;
+      for (Node* node : stage.active_inputs) {
+        cloned_stage.active_inputs.insert(original_to_clone.at(node));
+      }
+      for (Node* node : stage.logic) {
+        cloned_stage.logic.insert(original_to_clone.at(node));
+      }
+      for (Node* node : stage.active_outputs) {
+        cloned_stage.active_outputs.insert(original_to_clone.at(node));
+      }
+      cloned_scheduled_function->AddStage(std::move(cloned_stage));
     }
   }
   XLS_RETURN_IF_ERROR(

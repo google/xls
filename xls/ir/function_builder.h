@@ -689,6 +689,10 @@ class BuilderBase {
   SourceInfo error_loc_;
 };
 
+// Tags to distinguish scheduled vs non-scheduled Functions/Procs in builders.
+struct ScheduledFunctionTag {};
+struct ScheduledProcTag {};
+
 // Class for building an XLS Function.
 class FunctionBuilder : public BuilderBase {
  public:
@@ -696,6 +700,8 @@ class FunctionBuilder : public BuilderBase {
   // can be set to false in tests that wish to build malformed IR.
   FunctionBuilder(std::string_view name, Package* package,
                   bool should_verify = true);
+  FunctionBuilder(std::string_view name, Package* package,
+                  ScheduledFunctionTag tag, bool should_verify = true);
   ~FunctionBuilder() override = default;
 
   // Builders are neither copyable or movable- builder values contain references
@@ -737,9 +743,13 @@ class ProcBuilder : public BuilderBase {
   // no state elements.
   ProcBuilder(std::string_view name, Package* package,
               bool should_verify = true);
+  ProcBuilder(std::string_view name, Package* package, ScheduledProcTag tag,
+              bool should_verify = true);
   // Constructor for new-style procs which have proc-scoped channels.
   ProcBuilder(NewStyleProc tag, std::string_view name, Package* package,
               bool should_verify = true);
+  ProcBuilder(NewStyleProc tag, std::string_view name, Package* package,
+              ScheduledProcTag stag, bool should_verify = true);
 
   ~ProcBuilder() override = default;
 
