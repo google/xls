@@ -15,6 +15,7 @@
 #ifndef XLS_ESTIMATORS_DELAY_MODEL_DELAY_ESTIMATOR_H_
 #define XLS_ESTIMATORS_DELAY_MODEL_DELAY_ESTIMATOR_H_
 
+#include <array>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -31,6 +32,7 @@
 #include "absl/types/span.h"
 #include "xls/common/test_macros.h"
 #include "xls/ir/node.h"
+#include "xls/ir/op.h"
 
 namespace xls {
 
@@ -45,6 +47,11 @@ class DelayEstimator {
   // Returns the estimated delay of the given node in picoseconds.
   virtual absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const = 0;
 
+  // Operations where GetLogicalEffortDelayInPs is implemented.
+  static constexpr auto kLogicalEffortEstimators =
+      std::to_array<Op>({Op::kGate, Op::kAnd, Op::kNand, Op::kNor, Op::kOr,
+                         Op::kXor, Op::kNot, Op::kAndReduce, Op::kOrReduce,
+                         Op::kXorReduce, Op::kEncode, Op::kOneHotSel});
   // Compute the delay of the given node using logical effort estimation. Only
   // relatively simple operations (kAnd, kOr, etc) are supported using this
   // method.
