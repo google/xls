@@ -27,7 +27,6 @@
 #include <string>
 #include <string_view>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -50,7 +49,6 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
-#include "absl/types/variant.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/bytes/fd_writer.h"
 #include "riegeli/records/record_writer.h"
@@ -61,7 +59,6 @@
 #include "xls/common/init_xls.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/common/visitor.h"
 #include "xls/dev_tools/tool_timeout.h"
 #include "xls/interpreter/block_evaluator.h"
 #include "xls/interpreter/block_interpreter.h"
@@ -252,31 +249,53 @@ absl::Status LogInterpreterEvents(std::string_view entity_name,
   return absl::OkStatus();
 }
 
-// We use a variant here because:
-// 1. ScopedRecordNodeCoverage has a SetPaused() function we invoke and a
-//    variant is easier to manage than a dynamic_cast<>.
-// 2. We use "scoped" observers whose lifetimes should not extend past the
-//    lifetime of the xls::Package+runtime. It doesn't suffice to pass around an
-//    EvaluationObserver* + std::optional<ScopedRecordNodeCoverage>& or
-//    something like that because we want the observer's lifetime to be tied to
-//    the end of Evaluate*() function.
-using ScopedObserver =
-    std::variant<std::monostate, std::unique_ptr<EvaluationObserver>,
-                 std::unique_ptr<ScopedRecordNodeCoverage>>;
+// Helper that keeps observers alive and registered with a composite fan-out
+// observer.
+class ScopedObserver {
+ public:
+  ScopedObserver() = default;
+  ScopedObserver(ScopedObserver&&) = default;
+  ScopedObserver& operator=(ScopedObserver&&) = default;
+  ScopedObserver(const ScopedObserver&) = delete;
+  ScopedObserver& operator=(const ScopedObserver&) = delete;
 
-EvaluationObserver* GetEvaluationObserver(const ScopedObserver& observer) {
-  return absl::visit(
-      Visitor{
-          [](const std::monostate&) -> EvaluationObserver* { return nullptr; },
-          [](const std::unique_ptr<EvaluationObserver>& o) { return o.get(); },
-          [](const std::unique_ptr<ScopedRecordNodeCoverage>& o) {
-            CHECK(o->observer().has_value())
-                << "The ScopedObserver should only ever hold a "
-                   "ScopedRecordNodeCoverage when it holds an observer.";
-            return *o->observer();
-          }},
-      observer);
-}
+  void Add(std::unique_ptr<EvaluationObserver> observer) {
+    if (!observer) {
+      return;
+    }
+    composite_.AddObserver(observer.get());
+    eval_observers_.push_back(std::move(observer));
+  }
+
+  void AddCoverage(std::unique_ptr<ScopedRecordNodeCoverage> observer) {
+    if (!observer) {
+      return;
+    }
+    if (auto eval_observer = observer->observer(); eval_observer.has_value()) {
+      composite_.AddObserver(*eval_observer);
+    }
+    coverage_observers_.push_back(std::move(observer));
+  }
+
+  bool empty() const { return composite_.empty(); }
+
+  EvaluationObserver* get() const {
+    return composite_.empty() ? nullptr : &composite_;
+  }
+
+  bool has_coverage() const { return !coverage_observers_.empty(); }
+
+  void SetCoveragePaused(bool paused) const {
+    for (const auto& observer : coverage_observers_) {
+      observer->SetPaused(paused);
+    }
+  }
+
+ private:
+  mutable CompositeEvaluationObserver composite_;
+  std::vector<std::unique_ptr<EvaluationObserver>> eval_observers_;
+  std::vector<std::unique_ptr<ScopedRecordNodeCoverage>> coverage_observers_;
+};
 
 struct EvaluateProcsOptions {
   bool use_jit = false;
@@ -313,8 +332,7 @@ absl::Status EvaluateProcs(
   std::optional<JitRuntime*> jit;
   EvaluatorOptions evaluator_options;
   evaluator_options.set_trace_channels(absl::GetFlag(FLAGS_trace_channels));
-  bool uses_observers =
-      !std::holds_alternative<std::monostate>(options.observer);
+  bool uses_observers = !options.observer.empty();
   if (options.top) {
     XLS_ASSIGN_OR_RETURN(Proc * proc, package->GetProc(*options.top));
     if (proc != package->GetTop()) {
@@ -330,8 +348,7 @@ absl::Status EvaluateProcs(
     jit = &jit_queue->runtime();
   }
   if (uses_observers) {
-    XLS_RETURN_IF_ERROR(
-        runtime->SetObserver(GetEvaluationObserver(options.observer)));
+    XLS_RETURN_IF_ERROR(runtime->SetObserver(options.observer.get()));
   }
 
   ChannelQueueManager& queue_manager = runtime->queue_manager();
@@ -860,8 +877,7 @@ absl::Status EvaluateBlock(
     }
   }
 
-  bool needs_observer =
-      !std::holds_alternative<std::monostate>(options.observer);
+  bool needs_observer = !options.observer.empty();
   const BlockEvaluator& continuation_factory =
       options.use_jit
           ? reinterpret_cast<const BlockEvaluator&>(
@@ -875,11 +891,9 @@ absl::Status EvaluateBlock(
     XLS_ASSIGN_OR_RETURN(jit,
                          kJitBlockEvaluator.GetRuntime(continuation.get()));
   }
-  bool is_coverage_observer =
-      std::holds_alternative<std::unique_ptr<ScopedRecordNodeCoverage>>(
-          options.observer);
+  bool is_coverage_observer = options.observer.has_coverage();
   if (needs_observer) {
-    EvaluationObserver* eval_observer = GetEvaluationObserver(options.observer);
+    EvaluationObserver* eval_observer = options.observer.get();
     CHECK_NE(eval_observer, nullptr);
     XLS_RETURN_IF_ERROR(continuation->SetObserver(eval_observer));
   }
@@ -897,8 +911,7 @@ absl::Status EvaluateBlock(
     // We don't want the cycle where we are initially resetting the registers to
     // be counted in coverage since its unlikely to be valuable.
     if (is_coverage_observer) {
-      std::get<std::unique_ptr<ScopedRecordNodeCoverage>>(options.observer)
-          ->SetPaused(resetting);
+      options.observer.SetCoveragePaused(resetting);
     }
 
     if (options.show_trace && ((cycle < 30) || (cycle % 100 == 0))) {
@@ -1419,11 +1432,6 @@ int main(int argc, char* argv[]) {
       absl::GetFlag(FLAGS_output_node_coverage_stats_proto).has_value() ||
       absl::GetFlag(FLAGS_output_node_coverage_stats_textproto).has_value();
 
-  if (trace_enabled && coverage_enabled) {
-    LOG(QFATAL)
-        << "Cannot specify both --trace_output and node coverage flags.";
-  }
-
   xls::ScopedObserver observer;
   if (trace_enabled) {
     riegeli::RecordWriterBase::Options options;
@@ -1436,12 +1444,13 @@ int main(int argc, char* argv[]) {
     auto writer = std::make_unique<riegeli::RecordWriter<riegeli::FdWriter<>>>(
         riegeli::Maker(absl::GetFlag(FLAGS_trace_output)), options);
     CHECK_OK(writer->status());
-    observer = std::make_unique<xls::ScopedTracingObserver>(std::move(writer));
+    observer.Add(
+        std::make_unique<xls::ScopedTracingObserver>(std::move(writer)));
   }
   if (coverage_enabled) {
-    observer = std::make_unique<xls::ScopedRecordNodeCoverage>(
+    observer.AddCoverage(std::make_unique<xls::ScopedRecordNodeCoverage>(
         absl::GetFlag(FLAGS_output_node_coverage_stats_proto),
-        absl::GetFlag(FLAGS_output_node_coverage_stats_textproto));
+        absl::GetFlag(FLAGS_output_node_coverage_stats_textproto)));
   }
 
   absl::Status status = xls::RealMain(

@@ -528,12 +528,6 @@ absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
       absl::GetFlag(FLAGS_output_node_coverage_stats_proto).has_value() ||
       absl::GetFlag(FLAGS_output_node_coverage_stats_textproto).has_value();
 
-  // TODO: google/xls#3307 - remove when multiple observers are supported.
-  if (trace_enabled && coverage_enabled) {
-    return absl::InvalidArgumentError(
-        "Cannot specify both --trace_output and node coverage flags.");
-  }
-
   ScopedRecordNodeCoverage cov(
       coverage_enabled ? absl::GetFlag(FLAGS_output_node_coverage_stats_proto)
                        : std::nullopt,
@@ -541,7 +535,7 @@ absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
           ? absl::GetFlag(FLAGS_output_node_coverage_stats_textproto)
           : std::nullopt);
   std::unique_ptr<ScopedTracingObserver> tracing_observer;
-  std::optional<EvaluationObserver*> observer;
+  CompositeEvaluationObserver composite_observer;
 
   if (trace_enabled) {
     riegeli::RecordWriterBase::Options options;
@@ -554,10 +548,18 @@ absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
     tracing_observer = std::make_unique<ScopedTracingObserver>(
         std::make_unique<riegeli::RecordWriter<riegeli::FdWriter<>>>(
             riegeli::Maker(absl::GetFlag(FLAGS_trace_output)), options));
-    observer = tracing_observer.get();
-  } else if (coverage_enabled) {
-    observer = cov.observer();
+    composite_observer.AddObserver(tracing_observer.get());
   }
+  if (coverage_enabled) {
+    if (auto cov_observer = cov.observer(); cov_observer.has_value()) {
+      composite_observer.AddObserver(*cov_observer);
+    }
+  }
+
+  std::optional<EvaluationObserver*> observer_opt =
+      composite_observer.empty()
+          ? std::nullopt
+          : std::optional<EvaluationObserver*>(&composite_observer);
 
   // Copy the input ArgSets because we want to write in expected values if they
   // do not exist.
@@ -568,7 +570,7 @@ absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
         << "Cannot specify both --test_llvm_jit and --optimize_ir";
     XLS_ASSIGN_OR_RETURN(
         std::vector<Value> interpreter_results,
-        Eval(f, arg_sets, /*use_jit=*/false, /*eval_observer=*/observer));
+        Eval(f, arg_sets, /*use_jit=*/false, /*eval_observer=*/observer_opt));
     for (int64_t i = 0; i < arg_sets.size(); ++i) {
       QCHECK(!arg_sets[i].expected.has_value())
           << "Cannot specify expected values when using --test_llvm_jit";
@@ -579,8 +581,8 @@ absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
         absl::GetFlag(FLAGS_output_results_proto).empty() ? nullptr
                                                           : &results_proto;
     XLS_RETURN_IF_ERROR(Eval(f, arg_sets, /*use_jit=*/true,
-                             /*eval_observer=*/observer, "JIT", "interpreter",
-                             out_ptr)
+                             /*eval_observer=*/observer_opt, "JIT",
+                             "interpreter", out_ptr)
                             .status());
     if (out_ptr != nullptr) {
       std::string text;
@@ -601,7 +603,7 @@ absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
                                                         : &results_proto;
   XLS_ASSIGN_OR_RETURN(
       std::vector<Value> results,
-      Eval(f, arg_sets, absl::GetFlag(FLAGS_use_llvm_jit), observer,
+      Eval(f, arg_sets, absl::GetFlag(FLAGS_use_llvm_jit), observer_opt,
            /*actual_src=*/"actual", /*expected_src=*/"expected", out_ptr));
   for (int64_t i = 0; i < arg_sets.size(); ++i) {
     if (!arg_sets[i].expected.has_value()) {
@@ -633,7 +635,7 @@ absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
             .status());
 
     XLS_RETURN_IF_ERROR(Eval(f, arg_sets, absl::GetFlag(FLAGS_use_llvm_jit),
-                             observer, "after optimizations",
+                             observer_opt, "after optimizations",
                              "before optimizations", /*results_out=*/nullptr)
                             .status());
   } else {

@@ -573,6 +573,7 @@ cc_library(
         "//xls/ir",
         "//xls/ir:value",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
