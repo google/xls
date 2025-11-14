@@ -14,6 +14,7 @@
 
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/type_system/type.h"
 
 #ifndef XLS_DSLX_TYPE_SYSTEM_V2_TRAIT_DERIVER_H_
 #define XLS_DSLX_TYPE_SYSTEM_V2_TRAIT_DERIVER_H_
@@ -29,7 +30,7 @@ class TraitDeriver {
   // Generates a body of `function` from `trait` for the given `struct_def`.
   virtual absl::StatusOr<StatementBlock*> DeriveFunctionBody(
       Module& module, const Trait& trait, const StructDef& struct_def,
-      const Function& function) = 0;
+      const StructType& struct_type, const Function& function) = 0;
 };
 
 }  // namespace xls::dslx

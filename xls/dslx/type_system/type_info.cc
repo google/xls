@@ -72,6 +72,7 @@ InvocationData::InvocationData(
     return caller->IsInProc() && caller->proc().value()->IsParametric();
   };
   if (caller != nullptr && !is_fn_in_parametric_proc() &&
+      !caller->IsCompilerDerived() &&
       !ContainedWithinFunction(*node, *caller)) {
     LOG(FATAL) << "Invocation node: `" << node->ToString() << "` @ "
                << node->span().ToString(*node->owner()->file_table())
