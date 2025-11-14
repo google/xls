@@ -601,8 +601,9 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceUnrollFor(const UnrollFor* node,
       Number* index = node->owner()->Make<Number>(
           node->iterable()->span(), element.ToString(/*humanize=*/true),
           NumberKind::kOther, index_type_annot);
-      ctx->type_info()->SetItem(index, *loop_types.iterable_element_type);
-      ctx->type_info()->NoteConstExpr(index, element);
+      ctx->type_info()->GetRoot()->SetItem(index,
+                                           *loop_types.iterable_element_type);
+      ctx->type_info()->GetRoot()->NoteConstExpr(index, element);
       index_replacer = NameRefReplacer(*index_def, index);
     }
     XLS_ASSIGN_OR_RETURN(

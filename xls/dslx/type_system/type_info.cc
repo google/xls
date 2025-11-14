@@ -263,7 +263,7 @@ void TypeInfo::NoteUnrolledLoop(const UnrollFor* loop, const ParametricEnv& env,
   VLOG(4) << "Converted unroll_for! at " << loop->span().ToString(file_table())
           << " with bindings: " << env.ToString()
           << " to: " << unrolled_expr->ToString();
-  unrolled_loops_[loop][env] = unrolled_expr;
+  GetRoot()->unrolled_loops_[loop][env] = unrolled_expr;
 }
 
 std::optional<Expr*> TypeInfo::GetUnrolledLoop(const UnrollFor* loop,
@@ -281,6 +281,19 @@ std::optional<Expr*> TypeInfo::GetUnrolledLoop(const UnrollFor* loop,
   VLOG(4) << "Loop at " << loop->span().ToString(file_table())
           << " has not been unrolled for " << env.ToString();
   return std::nullopt;
+}
+
+std::vector<Expr*> TypeInfo::GetAllUnrolledLoops(const UnrollFor* loop) const {
+  std::vector<Expr*> result;
+  const TypeInfo* root = GetRoot();
+  auto it = root->unrolled_loops_.find(loop);
+  if (it == root->unrolled_loops_.end()) {
+    return result;
+  }
+  for (const auto& [env, expr] : it->second) {
+    result.push_back(expr);
+  }
+  return result;
 }
 
 absl::StatusOr<TypeInfo::TypeSource> TypeInfo::ResolveTypeDefinition(

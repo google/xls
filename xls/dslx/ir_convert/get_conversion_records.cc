@@ -194,6 +194,14 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     return HandleProc(proc);
   }
 
+  absl::Status HandleUnrollFor(const UnrollFor* unroll_for) override {
+    std::vector<Expr*> unrolled = type_info_->GetAllUnrolledLoops(unroll_for);
+    for (const auto& expr : unrolled) {
+      XLS_RETURN_IF_ERROR(expr->Accept(this));
+    }
+    return absl::OkStatus();
+  }
+
   absl::Status HandleTestFunction(const TestFunction* tf) override {
     if (!include_tests_) {
       VLOG(5) << "include_tests_ is false; skipping HandleTestFunction "
@@ -321,7 +329,6 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
   OK_HANDLER(ProcDef)
   OK_HANDLER(StructDef)
   OK_HANDLER(TypeAlias)
-  OK_HANDLER(UnrollFor)
   // keep-sorted end
 #undef DEFAULT_HANDLE
 

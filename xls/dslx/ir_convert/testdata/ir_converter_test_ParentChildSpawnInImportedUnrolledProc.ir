@@ -1,0 +1,61 @@
+package test_module
+
+file_number 0 "imported.x"
+file_number 1 "test_module.x"
+
+proc __imported__Leaf_0_next<my_out: bits[32] out, my_in: bits[32] in>(__state: (), init={()}) {
+  chan_interface my_out(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface my_in(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  __state: () = state_read(state_element=__state, id=2)
+  tuple.5: () = tuple(id=5)
+  __token: token = literal(value=token, id=1)
+  literal.3: bits[1] = literal(value=1, id=3)
+  tuple.4: () = tuple(id=4)
+  next_value.6: () = next_value(param=__state, value=tuple.5, id=6)
+}
+
+proc __test_module__Branch_0_next<my_out: bits[32] out, my_in: bits[32] in>(__state: (), init={()}) {
+  chan_interface my_out(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface my_in(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan chans__0(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+  chan_interface chans__0(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface chans__0(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan chans__1(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+  chan_interface chans__1(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface chans__1(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  proc_instantiation __imported__Leaf_0_next_inst(chans__0, chans__0, proc=__imported__Leaf_0_next)
+  proc_instantiation __imported__Leaf_0_next_inst_1(chans__1, chans__1, proc=__imported__Leaf_0_next)
+  __state: () = state_read(state_element=__state, id=8)
+  tuple.14: () = tuple(id=14)
+  __token: token = literal(value=token, id=7)
+  literal.9: bits[1] = literal(value=1, id=9)
+  i: bits[32] = literal(value=0, id=10)
+  i__1: bits[32] = literal(value=1, id=11)
+  tuple.12: () = tuple(id=12)
+  tuple.13: () = tuple(id=13)
+  next_value.15: () = next_value(param=__state, value=tuple.14, id=15)
+}
+
+proc __test_module__Top_0_next<>(__state: (), init={()}) {
+  chan chans__0(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+  chan_interface chans__0(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface chans__0(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan chans__1(bits[32], id=3, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+  chan_interface chans__1(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface chans__1(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan chans__2(bits[32], id=4, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+  chan_interface chans__2(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface chans__2(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  proc_instantiation __test_module__Branch_0_next_inst(chans__0, chans__0, proc=__test_module__Branch_0_next)
+  proc_instantiation __test_module__Branch_0_next_inst_1(chans__1, chans__1, proc=__test_module__Branch_0_next)
+  proc_instantiation __test_module__Branch_0_next_inst_2(chans__2, chans__2, proc=__test_module__Branch_0_next)
+  __state: () = state_read(state_element=__state, id=17)
+  __token: token = literal(value=token, id=16)
+  literal.18: bits[1] = literal(value=1, id=18)
+  i: bits[32] = literal(value=0, id=19)
+  i__1: bits[32] = literal(value=1, id=20)
+  i__2: bits[32] = literal(value=2, id=21)
+  tuple.22: () = tuple(id=22)
+  tuple.23: () = tuple(id=23)
+  next_value.24: () = next_value(param=__state, value=__state, id=24)
+}

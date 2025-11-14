@@ -396,6 +396,10 @@ class TypeInfo {
   std::optional<Expr*> GetUnrolledLoop(const UnrollFor* loop,
                                        const ParametricEnv& env) const;
 
+  // Returns all concrete unrolled loop expressions for a given loop across all
+  // environments.
+  std::vector<Expr*> GetAllUnrolledLoops(const UnrollFor* loop) const;
+
   // Retrieves a string that shows the module associated with this type info and
   // which imported modules are present, suitable for debugging.
   std::string GetImportsDebugString() const;
@@ -439,6 +443,21 @@ class TypeInfo {
   const FileTable& file_table() const;
   FileTable& file_table();
 
+  // Traverses to the 'root' (AKA 'most parent') TypeInfo. This is a place to
+  // stash context-free information (e.g. that is found in a parametric
+  // instantiation context, but that we want to be accessible to other
+  // parametric instantiations).
+  TypeInfo* GetRoot() {
+    TypeInfo* t = this;
+    while (t->parent_ != nullptr) {
+      t = t->parent_;
+    }
+    return t;
+  }
+  const TypeInfo* GetRoot() const {
+    return const_cast<TypeInfo*>(this)->GetRoot();
+  }
+
  private:
   friend class TypeInfoOwner;
 
@@ -455,21 +474,6 @@ class TypeInfo {
   //    if an AST node is not resolved in the local member maps, the lookup is
   //    then performed in the parent, and so on transitively).
   explicit TypeInfo(Module* module, TypeInfo* parent = nullptr);
-
-  // Traverses to the 'root' (AKA 'most parent') TypeInfo. This is a place to
-  // stash context-free information (e.g. that is found in a parametric
-  // instantiation context, but that we want to be accessible to other
-  // parametric instantiations).
-  TypeInfo* GetRoot() {
-    TypeInfo* t = this;
-    while (t->parent_ != nullptr) {
-      t = t->parent_;
-    }
-    return t;
-  }
-  const TypeInfo* GetRoot() const {
-    return const_cast<TypeInfo*>(this)->GetRoot();
-  }
 
   // Returns whether this is the root type information for the module (vs. a
   // derived type info for e.g. a parametric instantiation context).
