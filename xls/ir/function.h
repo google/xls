@@ -21,13 +21,10 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <utility>
-#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/types/span.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function_base.h"
@@ -103,11 +100,6 @@ class ScheduledFunction : public Function {
 
   bool IsScheduled() const override { return true; }
 
-  absl::Span<const Stage> stages() const { return stages_; }
-  absl::Span<Stage> stages() { return absl::MakeSpan(stages_); }
-  void AddStage(Stage stage) { stages_.push_back(std::move(stage)); }
-  void ClearStages() { stages_.clear(); }
-
   // Creates a clone of the scheduled function with the new name 'new_name'.
   // Function is owned by target_package.  call_remapping specifies any function
   // substitutions to be used in the cloned function, e.g. If call_remapping
@@ -122,9 +114,6 @@ class ScheduledFunction : public Function {
         Function::Clone(new_name, target_package, call_remapping));
     return down_cast<ScheduledFunction*>(cloned_function);
   }
-
- private:
-  std::vector<Stage> stages_;
 };
 
 }  // namespace xls

@@ -164,6 +164,24 @@ class Node {
     return ptr;
   }
 
+  // Constructs a new node, adds it to the specified stage, and replaces all
+  // uses of 'this' with the newly constructed node. NodeT is the node subclass
+  // (e.g., 'Param') and the variadic args are the constructor arguments with
+  // the exception of the first loc argument and the final Function* argument
+  // which are inherited from this node. Returns a pointer to the newly
+  // constructed node.
+  template <typename NodeT, typename... Args>
+  absl::StatusOr<NodeT*> ReplaceUsesWithNewInStage(int64_t stage_index,
+                                                   Args&&... args) {
+    std::unique_ptr<NodeT> new_node = std::make_unique<NodeT>(
+        loc(), std::forward<Args>(args)..., /*name=*/"", function_base());
+    NodeT* ptr = new_node.get();
+    XLS_RETURN_IF_ERROR(AddNodeToFunctionAndReplace(std::move(new_node),
+                                                    /*add_to_stage=*/false));
+    XLS_RETURN_IF_ERROR(AddNodeToStageInternal(stage_index, ptr));
+    return ptr;
+  }
+
   // Replaces any implicit uses of this node with the given
   // replacement. Implicit uses include function return values and proc next
   // state and tokens. For example, if this node is the return value of a
@@ -346,8 +364,13 @@ class Node {
   absl::Status RemoveOptionalOperand(int64_t operand_no);
 
   // Adds the given node to this node's function and replaces this node's uses
-  // with the node.
-  absl::Status AddNodeToFunctionAndReplace(std::unique_ptr<Node> replacement);
+  // with the node. If add_to_stage is true and the FunctionBase is scheduled,
+  // the replacement node is added to the same stage as the original node.
+  absl::Status AddNodeToFunctionAndReplace(std::unique_ptr<Node> replacement,
+                                           bool add_to_stage = true);
+
+  // Adds the given node to the specified stage.
+  absl::Status AddNodeToStageInternal(int64_t stage_index, Node* node);
 
   void AddUser(Node* user);
   void RemoveUser(Node* user);

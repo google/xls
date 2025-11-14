@@ -128,9 +128,8 @@ std::string Proc::DumpIr() const {
   }
 
   if (IsScheduled()) {
-    const ScheduledProc* sp = down_cast<const ScheduledProc*>(this);
     std::vector<Node*> sorted_nodes = TopoSort(const_cast<Proc*>(this));
-    for (const Stage& stage : sp->stages()) {
+    for (const Stage& stage : stages()) {
       absl::StrAppend(&res, "  stage {\n");
       for (Node* node : sorted_nodes) {
         if (stage.contains(node)) {
@@ -519,22 +518,10 @@ absl::StatusOr<Proc*> Proc::Clone(
     }
   }
   if (IsScheduled()) {
-    const ScheduledProc* scheduled_proc = down_cast<const ScheduledProc*>(this);
-    ScheduledProc* cloned_scheduled_proc =
-        down_cast<ScheduledProc*>(cloned_proc);
-    cloned_scheduled_proc->ClearStages();
-    for (const Stage& stage : scheduled_proc->stages()) {
-      Stage cloned_stage;
-      for (Node* node : stage.active_inputs) {
-        cloned_stage.active_inputs.insert(original_to_clone.at(node));
-      }
-      for (Node* node : stage.logic) {
-        cloned_stage.logic.insert(original_to_clone.at(node));
-      }
-      for (Node* node : stage.active_outputs) {
-        cloned_stage.active_outputs.insert(original_to_clone.at(node));
-      }
-      cloned_scheduled_proc->AddStage(std::move(cloned_stage));
+    cloned_proc->ClearStages();
+    for (const Stage& stage : stages()) {
+      XLS_ASSIGN_OR_RETURN(Stage cloned_stage, stage.Clone(original_to_clone));
+      cloned_proc->AddStage(std::move(cloned_stage));
     }
   }
 

@@ -24,9 +24,13 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/dfs_visitor.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/node_util.h"
@@ -36,10 +40,12 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
+#include "xls/ir/value.h"
 
 namespace xls {
 namespace {
 
+using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
@@ -439,6 +445,160 @@ fn graph(p: bits[42], q: bits[42]) -> bits[42] {
                 HasSubstr(std::string("Cycle detected: [a -> c -> a]")));
     EXPECT_DEATH(TopoSort(f), HasSubstr("Cycle detected: [a -> c -> a]"));
   }
+}
+
+class ScheduledFunctionTest : public IrTestBase {
+ protected:
+  absl::StatusOr<ScheduledFunction*> CreateScheduledFunction(Package* p) {
+    FunctionBuilder fb("f", p, ScheduledFunctionTag());
+    fb.function()->AddEmptyStages(1);
+    BValue x = fb.Param("x", p->GetBitsType(32));
+    XLS_RETURN_IF_ERROR(fb.function()->AddNodeToStage(0, x.node()).status());
+    BValue y = fb.Param("y", p->GetBitsType(32));
+    XLS_RETURN_IF_ERROR(fb.function()->AddNodeToStage(0, y.node()).status());
+    BValue add = fb.Add(x, y);
+    XLS_RETURN_IF_ERROR(fb.function()->AddNodeToStage(0, add.node()).status());
+    XLS_ASSIGN_OR_RETURN(Function * func, fb.BuildWithReturnValue(add));
+    return down_cast<ScheduledFunction*>(func);
+  }
+};
+
+TEST_F(ScheduledFunctionTest, StageAddAndClear) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(ScheduledFunction * func,
+                           CreateScheduledFunction(p.get()));
+  EXPECT_EQ(func->stages().size(), 1);
+
+  Stage stage1;
+  func->AddStage(stage1);
+  EXPECT_EQ(func->stages().size(), 2);
+
+  Stage stage2;
+  func->AddStage(stage2);
+  EXPECT_EQ(func->stages().size(), 3);
+
+  func->ClearStages();
+  EXPECT_TRUE(func->stages().empty());
+
+  // Re-stage all nodes to satisfy the verifier.
+  func->AddEmptyStages(1);
+  for (Node* node : func->nodes()) {
+    XLS_ASSERT_OK(func->AddNodeToStage(0, node));
+  }
+}
+
+TEST_F(ScheduledFunctionTest, AddEmptyStages) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(ScheduledFunction * func,
+                           CreateScheduledFunction(p.get()));
+  EXPECT_EQ(func->stages().size(), 1);
+
+  func->AddEmptyStages(3);
+  EXPECT_EQ(func->stages().size(), 4);
+  for (int i = 1; i < func->stages().size(); ++i) {
+    EXPECT_TRUE(func->stages()[i].active_inputs().empty());
+    EXPECT_TRUE(func->stages()[i].logic().empty());
+    EXPECT_TRUE(func->stages()[i].active_outputs().empty());
+  }
+
+  func->AddEmptyStages(0);
+  EXPECT_EQ(func->stages().size(), 4);
+}
+
+TEST_F(ScheduledFunctionTest, GetStageIndex) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(ScheduledFunction * func,
+                           CreateScheduledFunction(p.get()));
+  func->AddEmptyStages(2);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * lit1,
+      func->MakeNodeInStage<Literal>(1, SourceInfo(), Value(UBits(1, 32))));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * lit2,
+      func->MakeNodeInStage<Literal>(2, SourceInfo(), Value(UBits(2, 32))));
+
+  EXPECT_THAT(func->GetStageIndex(lit1), IsOkAndHolds(1));
+  EXPECT_THAT(func->GetStageIndex(lit2), IsOkAndHolds(2));
+  EXPECT_THAT(func->GetStageIndex(FindNode("x", func)), IsOkAndHolds(0));
+  EXPECT_THAT(func->GetStageIndex(FindNode("add.3", func)), IsOkAndHolds(0));
+}
+
+TEST_F(ScheduledFunctionTest, AddNodeToStage) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(ScheduledFunction * func,
+                           CreateScheduledFunction(p.get()));
+  func->AddEmptyStages(1);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * lit, func->MakeNode<Literal>(SourceInfo(), Value(UBits(10, 32))));
+  XLS_ASSERT_OK_AND_ASSIGN(bool added, func->AddNodeToStage(1, lit));
+  EXPECT_TRUE(added);
+  EXPECT_THAT(func->GetStageIndex(lit), IsOkAndHolds(1));
+
+  // Adding an existing node should return false.
+  EXPECT_THAT(func->AddNodeToStage(1, lit), IsOkAndHolds(false));
+}
+
+TEST_F(ScheduledFunctionTest, MakeNodeInStage) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(ScheduledFunction * func,
+                           CreateScheduledFunction(p.get()));
+  func->AddEmptyStages(1);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Literal * literal,
+      func->MakeNodeInStage<Literal>(1, SourceInfo(), Value(UBits(42, 32))));
+  EXPECT_THAT(func->GetStageIndex(literal), IsOkAndHolds(1));
+}
+
+TEST_F(ScheduledFunctionTest, MakeNodeWithNameInStage) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(ScheduledFunction * func,
+                           CreateScheduledFunction(p.get()));
+  func->AddEmptyStages(1);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Literal * literal, func->MakeNodeWithNameInStage<Literal>(
+                             1, SourceInfo(), Value(UBits(42, 32)), "my_lit"));
+  EXPECT_THAT(func->GetStageIndex(literal), IsOkAndHolds(1));
+  EXPECT_EQ(literal->GetName(), "my_lit");
+}
+
+TEST_F(ScheduledFunctionTest, CloneScheduledFunction) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(ScheduledFunction * func,
+                           CreateScheduledFunction(p.get()));
+  func->AddEmptyStages(2);
+
+  XLS_ASSERT_OK(func->MakeNodeWithNameInStage<Literal>(
+      0, SourceInfo(), Value(UBits(1, 32)), "my_x"));
+  XLS_ASSERT_OK(func->MakeNodeWithNameInStage<Literal>(
+      0, SourceInfo(), Value(UBits(2, 32)), "my_y"));
+  XLS_ASSERT_OK(func->MakeNodeWithNameInStage<Literal>(
+      1, SourceInfo(), Value(UBits(3, 32)), "my_z"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ScheduledFunction * cloned_func,
+                           func->Clone("cloned", p.get()));
+
+  EXPECT_EQ(cloned_func->stages().size(), 3);
+  EXPECT_TRUE(cloned_func->IsScheduled());
+
+  Node* cloned_x = FindNode("my_x", cloned_func);
+  Node* cloned_y = FindNode("my_y", cloned_func);
+  Node* cloned_z = FindNode("my_z", cloned_func);
+
+  EXPECT_THAT(cloned_func->GetStageIndex(cloned_x), IsOkAndHolds(0));
+  EXPECT_THAT(cloned_func->GetStageIndex(cloned_y), IsOkAndHolds(0));
+  EXPECT_THAT(cloned_func->GetStageIndex(cloned_z), IsOkAndHolds(1));
+
+  // Verify Stage contents
+  EXPECT_TRUE(cloned_func->stages()[0].contains(cloned_x));
+  EXPECT_TRUE(cloned_func->stages()[0].contains(cloned_y));
+  EXPECT_FALSE(cloned_func->stages()[0].contains(cloned_z));
+  EXPECT_FALSE(cloned_func->stages()[1].contains(cloned_x));
+  EXPECT_FALSE(cloned_func->stages()[1].contains(cloned_y));
+  EXPECT_TRUE(cloned_func->stages()[1].contains(cloned_z));
 }
 
 }  // namespace

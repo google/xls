@@ -26,6 +26,7 @@
 
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -44,19 +45,42 @@
 
 namespace xls {
 
+class FunctionBase;
 class Function;
 class Proc;
 
 // Represents a pipeline stage after scheduling.
-struct Stage {
-  absl::btree_set<Node*, Node::NodeIdLessThan> active_inputs;
-  absl::btree_set<Node*, Node::NodeIdLessThan> logic;
-  absl::btree_set<Node*, Node::NodeIdLessThan> active_outputs;
+class Stage {
+ public:
+  // Returns the set of active inputs for this stage.
+  const absl::btree_set<Node*, Node::NodeIdLessThan>& active_inputs() const {
+    return active_inputs_;
+  }
+
+  // Returns the set of logic nodes for this stage.
+  const absl::btree_set<Node*, Node::NodeIdLessThan>& logic() const {
+    return logic_;
+  }
+
+  // Returns the set of active outputs for this stage.
+  const absl::btree_set<Node*, Node::NodeIdLessThan>& active_outputs() const {
+    return active_outputs_;
+  }
 
   bool contains(Node* node) const {
-    return active_inputs.contains(node) || logic.contains(node) ||
-           active_outputs.contains(node);
+    return active_inputs_.contains(node) || logic_.contains(node) ||
+           active_outputs_.contains(node);
   }
+
+  bool AddNode(Node* node);
+
+  absl::StatusOr<Stage> Clone(
+      const absl::flat_hash_map<Node*, Node*>& node_mapping) const;
+
+ private:
+  absl::btree_set<Node*, Node::NodeIdLessThan> active_inputs_;
+  absl::btree_set<Node*, Node::NodeIdLessThan> logic_;
+  absl::btree_set<Node*, Node::NodeIdLessThan> active_outputs_;
 };
 
 // Base class for Functions and Procs. A holder of a set of nodes.
@@ -224,6 +248,55 @@ class FunctionBase {
   const Block* AsBlockOrDie() const;
   Block* AsBlockOrDie();
 
+  // Returns the pipeline stages of the function base. Only callable on
+  // scheduled function bases.
+  absl::Span<const Stage> stages() const;
+  absl::Span<Stage> stages();
+
+  // Adds a stage to the function base. Only callable on scheduled function
+  // bases.
+  void AddStage(Stage stage);
+
+  // Adds `n` empty stages to the function base. Only callable on scheduled
+  // function bases.
+  void AddEmptyStages(int64_t n);
+
+  // Clears all stages from the function base. Only callable on scheduled
+  // function bases.
+  void ClearStages();
+
+  // Returns the index of the stage containing the given node.
+  absl::StatusOr<int64_t> GetStageIndex(Node* node) const;
+
+  // Adds a node to the specified stage.
+  absl::StatusOr<bool> AddNodeToStage(int64_t stage_index, Node* node);
+
+  // Creates a new node and adds it to the specified stage. NodeT is the node
+  // subclass (e.g., 'Param') and the variadic args are the constructor
+  // arguments with the exception of the final FunctionBase* argument. This
+  // method verifies the newly constructed node after it is added to the
+  // function. Returns a pointer to the newly constructed node.
+  template <typename NodeT, typename... Args>
+    requires(std::is_base_of_v<Node, NodeT>)
+  absl::StatusOr<NodeT*> MakeNodeInStage(int64_t stage_index, Args&&... args) {
+    XLS_ASSIGN_OR_RETURN(NodeT * new_node,
+                         MakeNode<NodeT>(std::forward<Args>(args)...));
+    XLS_ASSIGN_OR_RETURN(bool added, AddNodeToStage(stage_index, new_node));
+    CHECK(added);
+    return new_node;
+  }
+
+  template <typename NodeT, typename... Args>
+    requires(std::is_base_of_v<Node, NodeT>)
+  absl::StatusOr<NodeT*> MakeNodeWithNameInStage(int64_t stage_index,
+                                                 Args&&... args) {
+    XLS_ASSIGN_OR_RETURN(NodeT * new_node,
+                         MakeNodeWithName<NodeT>(std::forward<Args>(args)...));
+    XLS_ASSIGN_OR_RETURN(bool added, AddNodeToStage(stage_index, new_node));
+    CHECK(added);
+    return new_node;
+  }
+
   // Returns true if the given node has implicit uses in the function. Implicit
   // uses include return values of functions and the recurrent token/state in
   // procs.
@@ -284,6 +357,10 @@ class FunctionBase {
   // only data from the nodes. If data is missing or corrupted or a valid setup
   // cannot be created then an error may be returned.
   virtual absl::Status InternalRebuildSideTables() = 0;
+
+  // Rebuilds the node_to_stage_ map from the stages_.
+  virtual absl::Status RebuildStageSideTables();
+
   // Internal virtual helper for adding a node. Returns a pointer to the newly
   // added node.
   virtual Node* AddNodeInternal(std::unique_ptr<Node> node);
@@ -312,6 +389,12 @@ class FunctionBase {
   std::optional<xls::ForeignFunctionData> foreign_function_;
 
   std::vector<ChangeListener*> change_listeners_;
+
+  // Pipeline stages. Empty for unscheduled function bases.
+  std::vector<Stage> stages_;
+
+  // Maps nodes to their stage index.
+  absl::flat_hash_map<Node*, int64_t> node_to_stage_;
 };
 
 inline absl::Span<ChangeListener* const> GetChangeListeners(

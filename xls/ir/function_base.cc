@@ -26,12 +26,15 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/container/btree_set.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "google/protobuf/text_format.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
@@ -48,6 +51,47 @@
 #include "xls/ir/proc.h"
 
 namespace xls {
+
+bool Stage::AddNode(Node* node) {
+  switch (node->op()) {
+    case Op::kReceive:
+    case Op::kStateRead:
+    case Op::kRegisterRead:
+      return active_inputs_.insert(node).second;
+    case Op::kSend:
+    case Op::kNext:
+    case Op::kRegisterWrite:
+      return active_outputs_.insert(node).second;
+    default:
+      return logic_.insert(node).second;
+  }
+}
+
+absl::StatusOr<Stage> Stage::Clone(
+    const absl::flat_hash_map<Node*, Node*>& node_mapping) const {
+  auto add_node_to = [&](Node* node,
+                         absl::btree_set<Node*, Node::NodeIdLessThan>& nodes) {
+    auto it = node_mapping.find(node);
+    if (it == node_mapping.end()) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Node %s not found in node mapping.", node->GetName()));
+    }
+    nodes.insert(it->second);
+    return absl::OkStatus();
+  };
+
+  Stage cloned_stage;
+  for (Node* node : active_inputs_) {
+    XLS_RETURN_IF_ERROR(add_node_to(node, cloned_stage.active_inputs_));
+  }
+  for (Node* node : logic_) {
+    XLS_RETURN_IF_ERROR(add_node_to(node, cloned_stage.logic_));
+  }
+  for (Node* node : active_outputs_) {
+    XLS_RETURN_IF_ERROR(add_node_to(node, cloned_stage.active_outputs_));
+  }
+  return cloned_stage;
+}
 
 std::ostream& operator<<(std::ostream& os, const FunctionBase::Kind& kind) {
   switch (kind) {
@@ -182,6 +226,9 @@ absl::Status FunctionBase::RemoveNode(Node* node) {
   if (node->HasAssignedName()) {
     XLS_RETURN_IF_ERROR(node_name_uniquer_.ReleaseIdentifier(node->GetName()));
   }
+  if (IsScheduled()) {
+    node_to_stage_.erase(node);
+  }
   auto node_it = node_iterators_.find(node);
   XLS_RET_CHECK(node_it != node_iterators_.end());
   nodes_.erase(node_it->second);
@@ -283,6 +330,93 @@ std::ostream& operator<<(std::ostream& os, const FunctionBase& function) {
   return os;
 }
 
+absl::Span<const Stage> FunctionBase::stages() const {
+  CHECK(IsScheduled());
+  return stages_;
+}
+
+absl::Span<Stage> FunctionBase::stages() {
+  CHECK(IsScheduled());
+  return absl::MakeSpan(stages_);
+}
+
+void FunctionBase::AddStage(Stage stage) {
+  CHECK(IsScheduled());
+  int64_t stage_index = stages_.size();
+  auto add_node_to_map = [&](Node* node) {
+    CHECK(!node_to_stage_.contains(node))
+        << "Node " << node->GetName() << " is already in a stage.";
+    node_to_stage_[node] = stage_index;
+  };
+  for (Node* node : stage.active_inputs()) {
+    add_node_to_map(node);
+  }
+  for (Node* node : stage.logic()) {
+    add_node_to_map(node);
+  }
+  for (Node* node : stage.active_outputs()) {
+    add_node_to_map(node);
+  }
+  stages_.push_back(std::move(stage));
+}
+
+void FunctionBase::AddEmptyStages(int64_t n) {
+  CHECK(IsScheduled());
+  stages_.resize(stages_.size() + n);
+}
+
+void FunctionBase::ClearStages() {
+  CHECK(IsScheduled());
+  stages_.clear();
+  node_to_stage_.clear();
+}
+
+absl::StatusOr<int64_t> FunctionBase::GetStageIndex(Node* node) const {
+  XLS_RET_CHECK(IsScheduled());
+  auto it = node_to_stage_.find(node);
+  if (it == node_to_stage_.end()) {
+    return absl::NotFoundError(
+        absl::StrFormat("Node %s not found in any stage of FunctionBase %s",
+                        node->GetName(), name()));
+  }
+  return it->second;
+}
+
+absl::StatusOr<bool> FunctionBase::AddNodeToStage(int64_t stage_index,
+                                                  Node* node) {
+  XLS_RET_CHECK(IsScheduled());
+  XLS_RET_CHECK_LE(stage_index, stages_.size());
+  if (stage_index == stages_.size()) {
+    stages_.push_back({});
+  }
+  bool added = stages_[stage_index].AddNode(node);
+  if (added) {
+    XLS_RET_CHECK(!node_to_stage_.contains(node))
+        << "Node " << node->GetName() << " is already in a stage.";
+    node_to_stage_[node] = stage_index;
+  }
+  return added;
+}
+
+absl::Status FunctionBase::RebuildStageSideTables() {
+  if (!IsScheduled()) {
+    return absl::OkStatus();
+  }
+  node_to_stage_.clear();
+  for (int64_t i = 0; i < stages_.size(); ++i) {
+    for (Node* node : stages_[i].active_inputs()) {
+      node_to_stage_[node] = i;
+    }
+    for (Node* node : stages_[i].logic()) {
+      node_to_stage_[node] = i;
+    }
+    for (Node* node : stages_[i].active_outputs()) {
+      node_to_stage_[node] = i;
+    }
+  }
+  return absl::OkStatus();
+}
+
 absl::Status FunctionBase::RebuildSideTables() {
   // TODO(allight): The fact that there is so much crap in the function_base
   // itself is a problem. Having next's and params' in the function base doesn't
@@ -291,6 +425,7 @@ absl::Status FunctionBase::RebuildSideTables() {
   // lists are updated in proc and function respectively.
   // NB We assume that node_iterators_ never gets invalidated.
   XLS_RETURN_IF_ERROR(InternalRebuildSideTables());
+  XLS_RETURN_IF_ERROR(RebuildStageSideTables());
   return absl::OkStatus();
 }
 

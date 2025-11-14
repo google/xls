@@ -612,7 +612,7 @@ absl::Status VerifyFunction(Function* function, bool codegen) {
         return absl::OkStatus();
       };
 
-      for (Node* node : stage.active_inputs) {
+      for (Node* node : stage.active_inputs()) {
         XLS_RETURN_IF_ERROR(process_node(node, "active_inputs"));
         if (!node->Is<Receive>()) {
           return absl::InternalError(absl::StrFormat(
@@ -621,7 +621,7 @@ absl::Status VerifyFunction(Function* function, bool codegen) {
               node->GetName(), i));
         }
       }
-      for (Node* node : stage.active_outputs) {
+      for (Node* node : stage.active_outputs()) {
         XLS_RETURN_IF_ERROR(process_node(node, "active_outputs"));
         if (!node->Is<Send>()) {
           return absl::InternalError(absl::StrFormat(
@@ -630,7 +630,7 @@ absl::Status VerifyFunction(Function* function, bool codegen) {
               node->GetName(), i));
         }
       }
-      for (Node* node : stage.logic) {
+      for (Node* node : stage.logic()) {
         XLS_RETURN_IF_ERROR(process_node(node, "logic"));
         if (node->Is<Receive>() || node->Is<Send>()) {
           return absl::InternalError(
@@ -864,7 +864,7 @@ absl::Status VerifyProc(Proc* proc, bool codegen) {
         return absl::OkStatus();
       };
 
-      for (Node* node : stage.active_inputs) {
+      for (Node* node : stage.active_inputs()) {
         XLS_RETURN_IF_ERROR(process_node(node, "active_inputs"));
         if (!node->Is<Receive>() && !node->Is<StateRead>()) {
           return absl::InternalError(absl::StrFormat(
@@ -873,7 +873,7 @@ absl::Status VerifyProc(Proc* proc, bool codegen) {
               node->GetName(), i));
         }
       }
-      for (Node* node : stage.active_outputs) {
+      for (Node* node : stage.active_outputs()) {
         XLS_RETURN_IF_ERROR(process_node(node, "active_outputs"));
         if (!node->Is<Send>() && node->op() != Op::kNext) {
           return absl::InternalError(absl::StrFormat(
@@ -882,7 +882,7 @@ absl::Status VerifyProc(Proc* proc, bool codegen) {
               node->GetName(), i));
         }
       }
-      for (Node* node : stage.logic) {
+      for (Node* node : stage.logic()) {
         XLS_RETURN_IF_ERROR(process_node(node, "logic"));
         if (node->Is<Receive>() || node->Is<StateRead>() || node->Is<Send>() ||
             node->op() == Op::kNext) {

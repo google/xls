@@ -90,12 +90,24 @@ void Node::AddOptionalOperand(std::optional<Node*> operand) {
 }
 
 absl::Status Node::AddNodeToFunctionAndReplace(
-    std::unique_ptr<Node> replacement) {
+    std::unique_ptr<Node> replacement, bool add_to_stage) {
   VLOG(3) << " Adding node " << replacement->GetName() << " to replace "
           << GetName();
   Node* replacement_ptr = function_base()->AddNode(std::move(replacement));
   XLS_RETURN_IF_ERROR(VerifyNode(replacement_ptr));
+
+  if (add_to_stage && function_base()->IsScheduled()) {
+    XLS_ASSIGN_OR_RETURN(int64_t stage_index,
+                         function_base()->GetStageIndex(this));
+    XLS_RETURN_IF_ERROR(
+        function_base()->AddNodeToStage(stage_index, replacement_ptr).status());
+  }
+
   return ReplaceUsesWith(replacement_ptr);
+}
+
+absl::Status Node::AddNodeToStageInternal(int64_t stage_index, Node* node) {
+  return function_base_->AddNodeToStage(stage_index, node).status();
 }
 
 void Node::AddUser(Node* user) {

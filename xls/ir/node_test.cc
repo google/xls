@@ -630,5 +630,34 @@ TEST_F(NodeTest, MakeNodeForType) {
   static_assert(!MakeNodeWillSubstituteWith<Block::Port>::value);
 }
 
+TEST_F(NodeTest, ReplaceUsesWithNewInStage) {
+  auto p = CreatePackage();
+  // We need a scheduled FunctionBase to test stage functionality.
+  // Since FunctionBase is the base, we can use a ScheduledProc.
+  ProcBuilder pb("p", p.get(), ScheduledProcTag());
+  BValue st = pb.StateElement("st", Value(UBits(42, 32)));
+  pb.proc()->AddEmptyStages(2);
+  XLS_ASSERT_OK(pb.proc()->AddNodeToStage(0, st.node()).status());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+
+  // Add a node to a stage.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Literal * original_lit,
+      proc->MakeNodeInStage<Literal>(0, SourceInfo(), Value(UBits(10, 32))));
+  EXPECT_THAT(proc->GetStageIndex(original_lit), absl_testing::IsOkAndHolds(0));
+
+  // Create a new literal to replace the original, placing it in stage 1.
+  XLS_ASSERT_OK_AND_ASSIGN(Literal * replacement_lit,
+                           original_lit->ReplaceUsesWithNewInStage<Literal>(
+                               1, Value(UBits(20, 32))));
+
+  // Verify the replacement.
+  EXPECT_EQ(replacement_lit->As<Literal>()->value().bits(), UBits(20, 32));
+  EXPECT_THAT(proc->GetStageIndex(replacement_lit),
+              absl_testing::IsOkAndHolds(1));
+  // The original node should still be in its original stage.
+  EXPECT_THAT(proc->GetStageIndex(original_lit), absl_testing::IsOkAndHolds(0));
+}
+
 }  // namespace
 }  // namespace xls

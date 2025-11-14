@@ -24,11 +24,14 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
@@ -44,6 +47,7 @@ namespace m = ::xls::op_matchers;
 namespace xls {
 namespace {
 
+using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
@@ -384,6 +388,179 @@ TEST_F(ProcTest, TransformStateElement) {
 
   // Make sure that user is updated.
   EXPECT_THAT(user.node(), m::Tuple(m::Neg(new_st)));
+}
+
+class ScheduledProcTest : public IrTestBase {
+ protected:
+  absl::StatusOr<ScheduledProc*> CreateScheduledProc(Package* p) {
+    ProcBuilder pb("p", p, ScheduledProcTag());
+    BValue st = pb.StateElement("st", Value(UBits(42, 32)));
+    pb.proc()->AddEmptyStages(1);
+    XLS_RETURN_IF_ERROR(pb.proc()->AddNodeToStage(0, st.node()).status());
+    XLS_ASSIGN_OR_RETURN(Proc * proc, pb.Build({}));
+    XLS_RET_CHECK(proc->IsScheduled());
+    return down_cast<ScheduledProc*>(proc);
+  }
+};
+
+TEST_F(ScheduledProcTest, StageAddAndClear) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(ScheduledProc * proc, CreateScheduledProc(p.get()));
+  EXPECT_EQ(proc->stages().size(),
+            1);  // Starts with one stage from CreateScheduledProc
+
+  Stage stage1;
+  proc->AddStage(stage1);
+  EXPECT_EQ(proc->stages().size(), 2);
+
+  Stage stage2;
+  proc->AddStage(stage2);
+  EXPECT_EQ(proc->stages().size(), 3);
+
+  proc->ClearStages();
+  EXPECT_TRUE(proc->stages().empty());
+  // Re-stage the state element to satisfy the verifier.
+  XLS_ASSERT_OK(
+      proc->AddNodeToStage(0, proc->GetStateRead(int64_t{0})).status());
+}
+
+TEST_F(ScheduledProcTest, AddEmptyStages) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(ScheduledProc * proc, CreateScheduledProc(p.get()));
+  EXPECT_EQ(proc->stages().size(), 1);  // Starts with one stage
+
+  proc->AddEmptyStages(3);
+  EXPECT_EQ(proc->stages().size(), 4);  // 1 initial + 3 empty
+  for (int i = 1; i < proc->stages().size();
+       ++i) {  // Check only the added empty stages
+    EXPECT_TRUE(proc->stages()[i].active_inputs().empty());
+    EXPECT_TRUE(proc->stages()[i].logic().empty());
+    EXPECT_TRUE(proc->stages()[i].active_outputs().empty());
+  }
+
+  proc->AddEmptyStages(0);
+  EXPECT_EQ(proc->stages().size(), 4);
+}
+
+TEST_F(ScheduledProcTest, GetStageIndex) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(ScheduledProc * proc, CreateScheduledProc(p.get()));
+  // CreateScheduledProc adds "st" to stage 0.
+  proc->AddEmptyStages(2);  // Adds stage 1 and 2
+
+  XLS_ASSERT_OK_AND_ASSIGN(Node * x, proc->MakeNodeInStage<Literal>(
+                                         1, SourceInfo(), Value(UBits(1, 32))));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * y, proc->MakeNode<Literal>(SourceInfo(), Value(UBits(2, 32))));
+  ASSERT_THAT(proc->AddNodeToStage(2, y), IsOkAndHolds(true));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Node * add,
+                           proc->MakeNode<BinOp>(SourceInfo(), x, y, Op::kAdd));
+
+  EXPECT_THAT(proc->GetStageIndex(x), IsOkAndHolds(1));
+  EXPECT_THAT(proc->GetStageIndex(y), IsOkAndHolds(2));
+  EXPECT_THAT(proc->GetStageIndex(add), StatusIs(absl::StatusCode::kNotFound));
+  EXPECT_THAT(proc->GetStageIndex(proc->GetStateRead(int64_t{0})),
+              IsOkAndHolds(0));
+
+  // The verifier requires that every node be in a stage before we finish.
+  ASSERT_THAT(proc->AddNodeToStage(2, add), IsOkAndHolds(true));
+}
+
+TEST_F(ScheduledProcTest, AddNodeToStage) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(ScheduledProc * proc, CreateScheduledProc(p.get()));
+  // CreateScheduledProc adds "st" to stage 0.
+  proc->AddEmptyStages(1);  // Adds stage 1
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * x, proc->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 32))));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * y, proc->MakeNode<Literal>(SourceInfo(), Value(UBits(2, 32))));
+
+  XLS_ASSERT_OK_AND_ASSIGN(bool added_x, proc->AddNodeToStage(0, x));
+  EXPECT_TRUE(added_x);
+  EXPECT_THAT(proc->GetStageIndex(x), IsOkAndHolds(0));
+  EXPECT_TRUE(proc->stages()[0].contains(x));
+
+  XLS_ASSERT_OK_AND_ASSIGN(bool added_y, proc->AddNodeToStage(1, y));
+  EXPECT_TRUE(added_y);
+  EXPECT_EQ(proc->stages().size(), 2);
+  EXPECT_THAT(proc->GetStageIndex(y), IsOkAndHolds(1));
+  EXPECT_TRUE(proc->stages()[1].contains(y));
+
+  // Adding an existing node should return false.
+  EXPECT_THAT(proc->AddNodeToStage(0, x), IsOkAndHolds(false));
+}
+
+TEST_F(ScheduledProcTest, MakeNodeInStage) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(ScheduledProc * proc, CreateScheduledProc(p.get()));
+  proc->AddEmptyStages(1);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Literal * literal,
+      proc->MakeNodeInStage<Literal>(0, SourceInfo(), Value(UBits(42, 32))));
+  EXPECT_THAT(proc->GetStageIndex(literal), IsOkAndHolds(0));
+}
+
+TEST_F(ScheduledProcTest, MakeNodeWithNameInStage) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(ScheduledProc * proc, CreateScheduledProc(p.get()));
+  proc->AddEmptyStages(1);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Literal * literal, proc->MakeNodeWithNameInStage<Literal>(
+                             0, SourceInfo(), Value(UBits(42, 32)), "my_lit"));
+  EXPECT_THAT(proc->GetStageIndex(literal), IsOkAndHolds(0));
+  EXPECT_EQ(literal->GetName(), "my_lit");
+}
+
+// RebuildStageSideTables is implicitly tested by CloneScheduledProc.
+
+TEST_F(ScheduledProcTest, CloneScheduledProc) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(ScheduledProc * proc, CreateScheduledProc(p.get()));
+  // CreateScheduledProc adds "st" to stage 0.
+
+  proc->AddEmptyStages(2);  // Adds stage 1 and 2
+
+  XLS_ASSERT_OK(proc->MakeNodeWithNameInStage<Literal>(
+      0, SourceInfo(), Value(UBits(1, 32)), "my_x"));
+  XLS_ASSERT_OK(proc->MakeNodeWithNameInStage<Literal>(
+      0, SourceInfo(), Value(UBits(2, 32)), "my_y"));
+  XLS_ASSERT_OK(proc->MakeNodeWithNameInStage<Literal>(
+      1, SourceInfo(), Value(UBits(3, 32)), "my_z"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * cloned_proc,
+                           proc->Clone("cloned", p.get(),
+                                       /*channel_remapping=*/{},
+                                       /*call_remapping=*/{},
+                                       /*state_name_remapping=*/{}));
+
+  EXPECT_EQ(cloned_proc->stages().size(), 3);  // 1 initial + 2 added
+  EXPECT_TRUE(cloned_proc->IsScheduled());
+
+  Node* cloned_st = FindNode("st", cloned_proc);
+  Node* cloned_x = FindNode("my_x", cloned_proc);
+  Node* cloned_y = FindNode("my_y", cloned_proc);
+  Node* cloned_z = FindNode("my_z", cloned_proc);
+
+  EXPECT_THAT(cloned_proc->GetStageIndex(cloned_st), IsOkAndHolds(0));
+  EXPECT_THAT(cloned_proc->GetStageIndex(cloned_x), IsOkAndHolds(0));
+  EXPECT_THAT(cloned_proc->GetStageIndex(cloned_y), IsOkAndHolds(0));
+  EXPECT_THAT(cloned_proc->GetStageIndex(cloned_z), IsOkAndHolds(1));
+
+  // Verify Stage contents
+  EXPECT_TRUE(cloned_proc->stages()[0].contains(cloned_st));
+  EXPECT_TRUE(cloned_proc->stages()[0].contains(cloned_x));
+  EXPECT_TRUE(cloned_proc->stages()[0].contains(cloned_y));
+  EXPECT_FALSE(cloned_proc->stages()[0].contains(cloned_z));
+  EXPECT_FALSE(cloned_proc->stages()[1].contains(cloned_st));
+  EXPECT_FALSE(cloned_proc->stages()[1].contains(cloned_x));
+  EXPECT_FALSE(cloned_proc->stages()[1].contains(cloned_y));
+  EXPECT_TRUE(cloned_proc->stages()[1].contains(cloned_z));
 }
 
 }  // namespace

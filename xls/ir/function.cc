@@ -32,7 +32,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
-#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/change_listener.h"
@@ -92,9 +91,8 @@ std::string Function::DumpIrWithAnnotations(
   absl::StrAppend(&res, " {\n");
 
   if (IsScheduled()) {
-    const ScheduledFunction* sf = down_cast<const ScheduledFunction*>(this);
     std::vector<Node*> sorted_nodes = TopoSort(const_cast<Function*>(this));
-    for (const Stage& stage : sf->stages()) {
+    for (const Stage& stage : stages()) {
       absl::StrAppend(&res, "  stage {\n");
       for (Node* node : sorted_nodes) {
         if (stage.contains(node)) {
@@ -139,7 +137,9 @@ absl::StatusOr<Function*> Function::Clone(
     target_package = package();
   }
   Function* cloned_function = target_package->AddFunction(
-      std::make_unique<Function>(new_name, target_package));
+      IsScheduled()
+          ? std::make_unique<ScheduledFunction>(new_name, target_package)
+          : std::make_unique<Function>(new_name, target_package));
   cloned_function->SetForeignFunctionData(foreign_function_);
 
   // Clone parameters over first to maintain order.
@@ -205,23 +205,10 @@ absl::StatusOr<Function*> Function::Clone(
     }
   }
   if (IsScheduled()) {
-    const ScheduledFunction* scheduled_function =
-        down_cast<const ScheduledFunction*>(this);
-    ScheduledFunction* cloned_scheduled_function =
-        down_cast<ScheduledFunction*>(cloned_function);
-    cloned_scheduled_function->ClearStages();
-    for (const Stage& stage : scheduled_function->stages()) {
-      Stage cloned_stage;
-      for (Node* node : stage.active_inputs) {
-        cloned_stage.active_inputs.insert(original_to_clone.at(node));
-      }
-      for (Node* node : stage.logic) {
-        cloned_stage.logic.insert(original_to_clone.at(node));
-      }
-      for (Node* node : stage.active_outputs) {
-        cloned_stage.active_outputs.insert(original_to_clone.at(node));
-      }
-      cloned_scheduled_function->AddStage(std::move(cloned_stage));
+    cloned_function->ClearStages();
+    for (const Stage& stage : stages()) {
+      XLS_ASSIGN_OR_RETURN(Stage cloned_stage, stage.Clone(original_to_clone));
+      cloned_function->AddStage(std::move(cloned_stage));
     }
   }
   XLS_RETURN_IF_ERROR(

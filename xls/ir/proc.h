@@ -409,11 +409,6 @@ class ScheduledProc : public Proc {
 
   bool IsScheduled() const override { return true; }
 
-  absl::Span<const Stage> stages() const { return stages_; }
-  absl::Span<Stage> stages() { return absl::MakeSpan(stages_); }
-  void AddStage(Stage stage) { stages_.push_back(std::move(stage)); }
-  void ClearStages() { stages_.clear(); }
-
   // Creates a clone of the scheduled proc with the new name `new_name`. Proc is
   // owned by `target_package`. `channel_remapping` dictates how to map channel
   // names to new channel names in the cloned version; if a key is unavailable
@@ -433,9 +428,6 @@ class ScheduledProc : public Proc {
                     state_name_remapping));
     return down_cast<ScheduledProc*>(cloned_proc);
   }
-
- private:
-  std::vector<Stage> stages_;
 };
 
 }  // namespace xls

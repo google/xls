@@ -3175,14 +3175,7 @@ absl::StatusOr<Stage> Parser::ParseScheduledStage(
       }
       *func_ret_val = bvalue;
     }
-    Node* node = bvalue.node();
-    if (node->Is<Receive>() || node->Is<StateRead>()) {
-      stage.active_inputs.insert(node);
-    } else if (node->Is<Send>() || node->Is<Next>()) {
-      stage.active_outputs.insert(node);
-    } else {
-      stage.logic.insert(node);
-    }
+    XLS_RET_CHECK(stage.AddNode(bvalue.node()));
   }
   return stage;
 }
@@ -3240,7 +3233,7 @@ absl::StatusOr<ScheduledFunction*> Parser::ParseScheduledFunction(
         Stage stage, ParseScheduledStage(fb, &name_to_value, &return_value));
     if (first_stage) {
       for (Param* p : f->params()) {
-        stage.logic.insert(p);
+        XLS_RET_CHECK(stage.AddNode(p));
       }
       first_stage = false;
     }
