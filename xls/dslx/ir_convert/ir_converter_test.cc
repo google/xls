@@ -7022,6 +7022,14 @@ proc Top {
   ExpectIr(converted);
 }
 
+// Because the function is not instantiated, we should not observe the error at
+// conversion time.
+TEST_F(ProcScopedChannelsIrConverterTest, TypeErrorInUninstantiatedParametric) {
+  constexpr std::string_view program = R"(fn f<N: u32>(x: u8) -> u8 { 42(x) })";
+  absl::StatusOr<std::string> converted = ConvertModuleForTest(program);
+  XLS_EXPECT_OK(converted.status());
+}
+
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ConvertWithoutTests) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
