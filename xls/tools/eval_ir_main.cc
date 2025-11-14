@@ -556,11 +556,10 @@ absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
     }
   }
 
-  EvaluationObserver* observer =
-      composite_observer.empty() ? nullptr : &composite_observer;
   std::optional<EvaluationObserver*> observer_opt =
-      observer == nullptr ? std::nullopt
-                          : std::optional<EvaluationObserver*>(observer);
+      composite_observer.empty()
+          ? std::nullopt
+          : std::optional<EvaluationObserver*>(&composite_observer);
 
   // Copy the input ArgSets because we want to write in expected values if they
   // do not exist.
