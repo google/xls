@@ -171,6 +171,9 @@ cc_test(
         ":proc_interpreter",
         "//xls/common:xls_gunit_main",
         "//xls/ir",
+        "//xls/ir:proc_conversion",
+        "//xls/ir:proc_elaboration",
+        "@com_google_absl//absl/log:check",
         "@googletest//:gtest",
     ],
 )
@@ -408,6 +411,7 @@ cc_library(
         "//xls/ir:channel_ops",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
+        "//xls/ir:proc_conversion",
         "//xls/ir:proc_elaboration",
         "//xls/ir:value",
         "@com_google_absl//absl/status",

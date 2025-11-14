@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string_view>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -50,11 +51,20 @@ using ::testing::Optional;
 using ::testing::Pair;
 using ::testing::UnorderedElementsAre;
 
+static ChannelQueue& GetQueue(ChannelQueueManager& queue_manager,
+                              std::string_view name,
+                              std::string_view proc_name) {
+  absl::StatusOr<ChannelQueue*> queue =
+      queue_manager.GetQueueByName(name, proc_name);
+  return **queue;
+}
+
 TEST_P(ProcEvaluatorTestBase, EmptyProc) {
   auto package = CreatePackage();
 
   ProcBuilder pb(TestName(), package.get());
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+  XLS_ASSERT_OK(package->SetTop(proc));
 
   std::unique_ptr<ChannelQueueManager> queue_manager =
       GetParam().CreateQueueManager(package.get());
@@ -90,15 +100,14 @@ TEST_P(ProcEvaluatorTestBase, ProcIota) {
   pb.Send(channel, pb.Literal(Value::Token()), counter);
   BValue new_value = pb.Add(counter, pb.Literal(UBits(7, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({new_value}));
+  XLS_ASSERT_OK(package->SetTop(proc));
 
   std::unique_ptr<ChannelQueueManager> queue_manager =
       GetParam().CreateQueueManager(package.get());
   std::unique_ptr<ProcEvaluator> evaluator = GetParam().CreateEvaluator(
       FindProc("iota", package.get()), queue_manager.get());
-  ChannelQueue& ch0_queue = queue_manager->GetQueue(channel);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ChannelInstance * channel_instance,
-      queue_manager->elaboration().GetUniqueInstance(channel));
+  ChannelQueue& ch0_queue = GetQueue(*queue_manager, "iota_out", proc->name());
+  ChannelInstance* channel_instance = ch0_queue.channel_instance();
 
   ASSERT_TRUE(ch0_queue.IsEmpty());
 
@@ -192,20 +201,17 @@ TEST_P(ProcEvaluatorTestBase, ProcWhichReturnsPreviousResults) {
   BValue input = pb.TupleIndex(token_input, 1);
   pb.Send(ch_out, recv_token, prev_input);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({input}));
+  XLS_ASSERT_OK(package.SetTop(proc));
 
   std::unique_ptr<ChannelQueueManager> queue_manager =
       GetParam().CreateQueueManager(&package);
   std::unique_ptr<ProcEvaluator> evaluator =
       GetParam().CreateEvaluator(proc, queue_manager.get());
-  ChannelQueue& input_queue = queue_manager->GetQueue(ch_in);
-  ChannelQueue& output_queue = queue_manager->GetQueue(ch_out);
+  ChannelQueue& input_queue = GetQueue(*queue_manager, "in", proc->name());
+  ChannelQueue& output_queue = GetQueue(*queue_manager, "out", proc->name());
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ChannelInstance * ch_in_instance,
-      queue_manager->elaboration().GetUniqueInstance(ch_in));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ChannelInstance * ch_out_instance,
-      queue_manager->elaboration().GetUniqueInstance(ch_out));
+  ChannelInstance* ch_in_instance = input_queue.channel_instance();
+  ChannelInstance* ch_out_instance = output_queue.channel_instance();
 
   XLS_ASSERT_OK(input_queue.Write({Value(UBits(42, 32))}));
   XLS_ASSERT_OK(input_queue.Write({Value(UBits(123, 32))}));
@@ -294,28 +300,20 @@ TEST_P(ProcEvaluatorTestBase, MultipleReceives) {
   pb.Send(ch_out, pb.Add(in0, in2));
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+  XLS_ASSERT_OK(package.SetTop(proc));
 
   std::unique_ptr<ChannelQueueManager> queue_manager =
       GetParam().CreateQueueManager(&package);
   std::unique_ptr<ProcEvaluator> evaluator =
       GetParam().CreateEvaluator(proc, queue_manager.get());
-  ChannelQueue& in0_queue = queue_manager->GetQueue(ch_in0);
-  ChannelQueue& in1_queue = queue_manager->GetQueue(ch_in1);
-  ChannelQueue& in2_queue = queue_manager->GetQueue(ch_in2);
-  ChannelQueue& output_queue = queue_manager->GetQueue(ch_out);
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ChannelInstance * ch_in0_instance,
-      queue_manager->elaboration().GetUniqueInstance(ch_in0));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ChannelInstance * ch_in1_instance,
-      queue_manager->elaboration().GetUniqueInstance(ch_in1));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ChannelInstance * ch_in2_instance,
-      queue_manager->elaboration().GetUniqueInstance(ch_in2));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ChannelInstance * ch_out_instance,
-      queue_manager->elaboration().GetUniqueInstance(ch_out));
+  ChannelQueue& in0_queue = GetQueue(*queue_manager, "in0", proc->name());
+  ChannelQueue& in1_queue = GetQueue(*queue_manager, "in1", proc->name());
+  ChannelQueue& in2_queue = GetQueue(*queue_manager, "in2", proc->name());
+  ChannelQueue& output_queue = GetQueue(*queue_manager, "out", proc->name());
+  ChannelInstance* ch_in0_instance = in0_queue.channel_instance();
+  ChannelInstance* ch_in1_instance = in1_queue.channel_instance();
+  ChannelInstance* ch_in2_instance = in2_queue.channel_instance();
+  ChannelInstance* ch_out_instance = output_queue.channel_instance();
 
   // Initially should be blocked on in0.
   std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation(
@@ -405,6 +403,7 @@ TEST_P(ProcEvaluatorTestBase, ObserverTest) {
   BValue add = pb.Add(res_val, st);
   BValue nxt = pb.Next(st, add);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(p->SetTop(proc));
 
   std::unique_ptr<ChannelQueueManager> queue_manager =
       GetParam().CreateQueueManager(p.get());
@@ -414,8 +413,9 @@ TEST_P(ProcEvaluatorTestBase, ObserverTest) {
   std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation(
       queue_manager->elaboration().GetUniqueInstance(proc).value());
   XLS_ASSERT_OK(continuation->SetObserver(&observer));
-  XLS_ASSERT_OK(queue_manager->GetQueue(ch_in).Write(Value(UBits(1, 32))));
-  XLS_ASSERT_OK(queue_manager->GetQueue(ch_in).Write(Value(UBits(2, 32))));
+  ChannelQueue& in_queue = GetQueue(*queue_manager, "in", proc->name());
+  XLS_ASSERT_OK(in_queue.Write(Value(UBits(1, 32))));
+  XLS_ASSERT_OK(in_queue.Write(Value(UBits(2, 32))));
   for (int64_t i = 0; i < 4; ++i) {
     do {
       XLS_ASSERT_OK(evaluator->Tick(*continuation));
@@ -446,6 +446,8 @@ TEST_P(ProcEvaluatorTestBase, ConditionalReceiveProc) {
   Package package(TestName());
   ProcBuilder pb("conditional_send", &package);
   BValue st = pb.StateElement("st", Value(UBits(1, 1)));
+  std::string_view ch_in_name = "in";
+  std::string_view ch_out_name = "out";
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel * ch_in, package.CreateStreamingChannel(
                                                 "in", ChannelOps::kSendReceive,
@@ -462,17 +464,18 @@ TEST_P(ProcEvaluatorTestBase, ConditionalReceiveProc) {
   pb.Send(ch_out, rx_token, {rx_data});
   // Next state value is the inverse of the current state value.
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.Not(st)}));
+  XLS_ASSERT_OK(package.SetTop(proc));
 
   std::unique_ptr<ChannelQueueManager> queue_manager =
       GetParam().CreateQueueManager(&package);
   std::unique_ptr<ProcEvaluator> evaluator =
       GetParam().CreateEvaluator(proc, queue_manager.get());
-  ChannelQueue& input_queue = queue_manager->GetQueue(ch_in);
-  ChannelQueue& output_queue = queue_manager->GetQueue(ch_out);
+  ChannelQueue& input_queue =
+      GetQueue(*queue_manager, ch_in_name, proc->name());
+  ChannelQueue& output_queue =
+      GetQueue(*queue_manager, ch_out_name, proc->name());
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ChannelInstance * ch_out_instance,
-      queue_manager->elaboration().GetUniqueInstance(ch_out));
+  ChannelInstance* ch_out_instance = output_queue.channel_instance();
 
   ASSERT_TRUE(input_queue.IsEmpty());
   ASSERT_TRUE(output_queue.IsEmpty());
@@ -546,23 +549,21 @@ TEST_P(ProcEvaluatorTestBase, ConditionalSendProc) {
   pb.SendIf(channel, pb.Literal(Value::Token()), is_even, prev);
   BValue new_value = pb.Add(prev, pb.Literal(UBits(1, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({new_value}));
+  XLS_ASSERT_OK(package.SetTop(proc));
 
   std::unique_ptr<ChannelQueueManager> queue_manager =
       GetParam().CreateQueueManager(&package);
   std::unique_ptr<ProcEvaluator> evaluator = GetParam().CreateEvaluator(
       FindProc("even", &package), queue_manager.get());
 
-  ChannelQueue& queue = queue_manager->GetQueue(channel);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ChannelInstance * channel_instance,
-      queue_manager->elaboration().GetUniqueInstance(channel));
+  ChannelQueue& queue = GetQueue(*queue_manager, "even_out", proc->name());
 
   std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation(
       queue_manager->elaboration().GetUniqueInstance(proc).value());
   EXPECT_THAT(evaluator->Tick(*continuation),
               IsOkAndHolds(TickResult{
                   .execution_state = TickExecutionState::kSentOnChannel,
-                  .channel_instance = channel_instance,
+                  .channel_instance = queue.channel_instance(),
                   .progress_made = true}));
   EXPECT_THAT(
       evaluator->Tick(*continuation),
@@ -582,7 +583,7 @@ TEST_P(ProcEvaluatorTestBase, ConditionalSendProc) {
   EXPECT_THAT(evaluator->Tick(*continuation),
               IsOkAndHolds(TickResult{
                   .execution_state = TickExecutionState::kSentOnChannel,
-                  .channel_instance = channel_instance,
+                  .channel_instance = queue.channel_instance(),
                   .progress_made = true}));
   EXPECT_THAT(
       evaluator->Tick(*continuation),
@@ -601,7 +602,7 @@ TEST_P(ProcEvaluatorTestBase, ConditionalSendProc) {
   EXPECT_THAT(evaluator->Tick(*continuation),
               IsOkAndHolds(TickResult{
                   .execution_state = TickExecutionState::kSentOnChannel,
-                  .channel_instance = channel_instance,
+                  .channel_instance = queue.channel_instance(),
                   .progress_made = true}));
   EXPECT_THAT(
       evaluator->Tick(*continuation),
@@ -626,16 +627,15 @@ TEST_P(ProcEvaluatorTestBase, UnconditionalNextProc) {
   BValue incremented_counter = pb.Add(counter, pb.Literal(UBits(1, 32)));
   pb.Next(/*state_read=*/counter, /*value=*/incremented_counter);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(package.SetTop(proc));
 
   std::unique_ptr<ChannelQueueManager> queue_manager =
       GetParam().CreateQueueManager(&package);
   std::unique_ptr<ProcEvaluator> evaluator = GetParam().CreateEvaluator(
       FindProc("counter", &package), queue_manager.get());
 
-  ChannelQueue& queue = queue_manager->GetQueue(channel);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ChannelInstance * channel_instance,
-      queue_manager->elaboration().GetUniqueInstance(channel));
+  ChannelQueue& queue = GetQueue(*queue_manager, "counter_out", proc->name());
+  ChannelInstance* channel_instance = queue.channel_instance();
 
   std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation(
       queue_manager->elaboration().GetUniqueInstance(proc).value());
@@ -701,16 +701,16 @@ TEST_P(ProcEvaluatorTestBase, ConditionalNextProc) {
   pb.Next(/*state_read=*/iteration,
           /*value=*/pb.Add(iteration, pb.Literal(UBits(1, 32))));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(package.SetTop(proc));
 
   std::unique_ptr<ChannelQueueManager> queue_manager =
       GetParam().CreateQueueManager(&package);
   std::unique_ptr<ProcEvaluator> evaluator = GetParam().CreateEvaluator(
       FindProc("slow_counter", &package), queue_manager.get());
 
-  ChannelQueue& queue = queue_manager->GetQueue(channel);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ChannelInstance * channel_instance,
-      queue_manager->elaboration().GetUniqueInstance(channel));
+  ChannelQueue& queue =
+      GetQueue(*queue_manager, "slow_counter_out", proc->name());
+  ChannelInstance* channel_instance = queue.channel_instance();
 
   std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation(
       queue_manager->elaboration().GetUniqueInstance(proc).value());
@@ -803,16 +803,16 @@ TEST_P(ProcEvaluatorTestBase, CollidingNextValuesProc) {
   pb.Next(/*state_read=*/iteration,
           /*value=*/pb.Add(iteration, pb.Literal(UBits(1, 32))));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(package.SetTop(proc));
 
   std::unique_ptr<ChannelQueueManager> queue_manager =
       GetParam().CreateQueueManager(&package);
   std::unique_ptr<ProcEvaluator> evaluator = GetParam().CreateEvaluator(
       FindProc("slow_counter", &package), queue_manager.get());
 
-  ChannelQueue& queue = queue_manager->GetQueue(channel);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ChannelInstance * channel_instance,
-      queue_manager->elaboration().GetUniqueInstance(channel));
+  ChannelQueue& queue =
+      GetQueue(*queue_manager, "slow_counter_out", proc->name());
+  ChannelInstance* channel_instance = queue.channel_instance();
 
   std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation(
       queue_manager->elaboration().GetUniqueInstance(proc).value());
@@ -867,6 +867,7 @@ TEST_P(ProcEvaluatorTestBase, OneToTwoDemux) {
   pb.SendIf(ch_b, pb.Not(dir), in);
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+  XLS_ASSERT_OK(package.SetTop(proc));
 
   std::unique_ptr<ChannelQueueManager> queue_manager =
       GetParam().CreateQueueManager(&package);
@@ -874,20 +875,16 @@ TEST_P(ProcEvaluatorTestBase, OneToTwoDemux) {
       GetParam().CreateEvaluator(proc, queue_manager.get());
 
   XLS_ASSERT_OK_AND_ASSIGN(ChannelQueue * dir_queue,
-                           queue_manager->GetQueueByName("dir"));
+                           queue_manager->GetQueueByName("dir", proc->name()));
   XLS_ASSERT_OK_AND_ASSIGN(ChannelQueue * in_queue,
-                           queue_manager->GetQueueByName("in"));
+                           queue_manager->GetQueueByName("in", proc->name()));
   XLS_ASSERT_OK_AND_ASSIGN(ChannelQueue * a_queue,
-                           queue_manager->GetQueueByName("a"));
+                           queue_manager->GetQueueByName("a", proc->name()));
   XLS_ASSERT_OK_AND_ASSIGN(ChannelQueue * b_queue,
-                           queue_manager->GetQueueByName("b"));
+                           queue_manager->GetQueueByName("b", proc->name()));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ChannelInstance * ch_a_instance,
-      queue_manager->elaboration().GetUniqueInstance(ch_a));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ChannelInstance * ch_b_instance,
-      queue_manager->elaboration().GetUniqueInstance(ch_b));
+  ChannelInstance* ch_a_instance = a_queue->channel_instance();
+  ChannelInstance* ch_b_instance = b_queue->channel_instance();
 
   // Set the direction to output B and write a bunch of values.
   XLS_ASSERT_OK(dir_queue->Write(Value(UBits(0, 1))));
@@ -931,7 +928,7 @@ TEST_P(ProcEvaluatorTestBase, OneToTwoDemux) {
   // Switch direction to output A.
   XLS_ASSERT_OK(dir_queue->Write(Value(UBits(1, 1))));
 
-  // Tick twice and verify that the expectedoutputs appear at output A.
+  // Tick twice and verify that the expected outputs appear at output A.
   EXPECT_THAT(evaluator->Tick(*continuation),
               IsOkAndHolds(TickResult{
                   .execution_state = TickExecutionState::kSentOnChannel,
@@ -979,17 +976,16 @@ TEST_P(ProcEvaluatorTestBase, StatelessProc) {
   pb.Send(channel_out, pb.TupleIndex(receive, 0),
           pb.Add(pb.TupleIndex(receive, 1), pb.Literal(UBits(42, 32))));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(package->SetTop(proc));
 
   std::unique_ptr<ChannelQueueManager> queue_manager =
       GetParam().CreateQueueManager(package.get());
   std::unique_ptr<ProcEvaluator> evaluator =
       GetParam().CreateEvaluator(proc, queue_manager.get());
-  ChannelQueue& input_queue = queue_manager->GetQueue(channel_in);
-  ChannelQueue& output_queue = queue_manager->GetQueue(channel_out);
+  ChannelQueue& input_queue = GetQueue(*queue_manager, "in", proc->name());
+  ChannelQueue& output_queue = GetQueue(*queue_manager, "out", proc->name());
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ChannelInstance * channel_out_instance,
-      queue_manager->elaboration().GetUniqueInstance(channel_out));
+  ChannelInstance* channel_out_instance = output_queue.channel_instance();
 
   XLS_ASSERT_OK(input_queue.Write({Value(UBits(1, 32))}));
 
@@ -1029,6 +1025,7 @@ TEST_P(ProcEvaluatorTestBase, MultiStateElementProc) {
   BValue data = pb.TupleIndex(receive, 1);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.Add(a_state, data),
                                                   pb.Subtract(b_state, data)}));
+  XLS_ASSERT_OK(package->SetTop(proc));
 
   std::unique_ptr<ChannelQueueManager> queue_manager =
       GetParam().CreateQueueManager(package.get());
@@ -1037,7 +1034,7 @@ TEST_P(ProcEvaluatorTestBase, MultiStateElementProc) {
   std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation(
       queue_manager->elaboration().GetUniqueInstance(proc).value());
 
-  ChannelQueue& input_queue = queue_manager->GetQueue(channel_in);
+  ChannelQueue& input_queue = GetQueue(*queue_manager, "in", proc->name());
   XLS_ASSERT_OK(input_queue.Write({Value(UBits(1, 32))}));
   XLS_ASSERT_OK(input_queue.Write({Value(UBits(10, 32))}));
   XLS_ASSERT_OK(input_queue.Write({Value(UBits(20, 32))}));
@@ -1100,6 +1097,7 @@ TEST_P(ProcEvaluatorTestBase, NonBlockingReceives) {
   pb.Send(out0, sum2);
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+  XLS_ASSERT_OK(package->SetTop(proc));
 
   std::unique_ptr<ChannelQueueManager> queue_manager =
       GetParam().CreateQueueManager(package.get());
@@ -1108,14 +1106,12 @@ TEST_P(ProcEvaluatorTestBase, NonBlockingReceives) {
   std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation(
       queue_manager->elaboration().GetUniqueInstance(proc).value());
 
-  ChannelQueue& in0_queue = queue_manager->GetQueue(in0);
-  ChannelQueue& in1_queue = queue_manager->GetQueue(in1);
-  ChannelQueue& in2_queue = queue_manager->GetQueue(in2);
-  ChannelQueue& out0_queue = queue_manager->GetQueue(out0);
+  ChannelQueue& in0_queue = GetQueue(*queue_manager, "in0", proc->name());
+  ChannelQueue& in1_queue = GetQueue(*queue_manager, "in1", proc->name());
+  ChannelQueue& in2_queue = GetQueue(*queue_manager, "in2", proc->name());
+  ChannelQueue& out0_queue = GetQueue(*queue_manager, "out0", proc->name());
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ChannelInstance * out0_instance,
-      queue_manager->elaboration().GetUniqueInstance(out0));
+  ChannelInstance* out0_instance = out0_queue.channel_instance();
 
   // Initialize the single value queue.
   XLS_ASSERT_OK(in2_queue.Write(Value(UBits(10, 32))));
@@ -1228,6 +1224,7 @@ TEST_P(ProcEvaluatorTestBase, NonBlockingReceivesZeroRecv) {
   pb.Send(out0, in0_data);
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+  XLS_ASSERT_OK(package->SetTop(proc));
 
   std::unique_ptr<ChannelQueueManager> queue_manager =
       GetParam().CreateQueueManager(package.get());
@@ -1236,12 +1233,10 @@ TEST_P(ProcEvaluatorTestBase, NonBlockingReceivesZeroRecv) {
   std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation(
       queue_manager->elaboration().GetUniqueInstance(proc).value());
 
-  ChannelQueue& in0_queue = queue_manager->GetQueue(in0);
-  ChannelQueue& out0_queue = queue_manager->GetQueue(out0);
+  ChannelQueue& in0_queue = GetQueue(*queue_manager, "in0", proc->name());
+  ChannelQueue& out0_queue = GetQueue(*queue_manager, "out0", proc->name());
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ChannelInstance * out0_instance,
-      queue_manager->elaboration().GetUniqueInstance(out0));
+  ChannelInstance* out0_instance = out0_queue.channel_instance();
 
   EXPECT_TRUE(in0_queue.IsEmpty());
   EXPECT_THAT(evaluator->Tick(*continuation),
@@ -1272,15 +1267,14 @@ TEST_P(ProcEvaluatorTestBase, ProcSetState) {
   pb.Send(channel, pb.Literal(Value::Token()), counter);
   BValue new_value = pb.Add(counter, pb.Literal(UBits(7, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({new_value}));
+  XLS_ASSERT_OK(package->SetTop(proc));
 
   std::unique_ptr<ChannelQueueManager> queue_manager =
       GetParam().CreateQueueManager(package.get());
   std::unique_ptr<ProcEvaluator> evaluator = GetParam().CreateEvaluator(
       FindProc("iota", package.get()), queue_manager.get());
-  ChannelQueue& ch0_queue = queue_manager->GetQueue(channel);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ChannelInstance * channel_instance,
-      queue_manager->elaboration().GetUniqueInstance(channel));
+  ChannelQueue& ch0_queue = GetQueue(*queue_manager, "iota_out", proc->name());
+  ChannelInstance* channel_instance = ch0_queue.channel_instance();
 
   ASSERT_TRUE(ch0_queue.IsEmpty());
 

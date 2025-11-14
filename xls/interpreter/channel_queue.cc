@@ -213,9 +213,9 @@ absl::StatusOr<ChannelQueue*> ChannelQueueManager::GetQueueByName(
   // retrieve the channel.
   XLS_RET_CHECK(!package()->ChannelsAreProcScoped() || !proc_name.empty());
   if (package()->ChannelsAreProcScoped()) {
-    XLS_ASSIGN_OR_RETURN(Proc * top, package()->GetProc(proc_name));
+    XLS_ASSIGN_OR_RETURN(Proc * proc, package()->GetProc(proc_name));
     XLS_ASSIGN_OR_RETURN(ChannelInstance * instance,
-                         elaboration().GetChannelInstance(name, top->name()));
+                         elaboration().GetChannelInstance(name, proc->name()));
     return &GetQueue(instance);
   }
   XLS_ASSIGN_OR_RETURN(Channel * channel, package()->GetChannel(name));
