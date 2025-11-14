@@ -65,19 +65,16 @@ std::string CalleesToString(absl::Span<const Callee> callees) {
 // -- class Callee
 
 /* static */ absl::StatusOr<Callee> Callee::Make(
-    Function* f, const Invocation* invocation, Module* module,
-    TypeInfo* type_info, ParametricEnv parametric_env,
-    std::optional<ProcId> proc_id) {
+    Function* f, Module* module, TypeInfo* type_info,
+    ParametricEnv parametric_env, std::optional<ProcId> proc_id) {
   XLS_RETURN_IF_ERROR(ConversionRecord::ValidateParametrics(f, parametric_env));
-  return Callee(f, invocation, module, type_info, std::move(parametric_env),
+  return Callee(f, module, type_info, std::move(parametric_env),
                 std::move(proc_id));
 }
 
-Callee::Callee(Function* f, const Invocation* invocation, Module* m,
-               TypeInfo* type_info, ParametricEnv parametric_env,
-               std::optional<ProcId> proc_id)
+Callee::Callee(Function* f, Module* m, TypeInfo* type_info,
+               ParametricEnv parametric_env, std::optional<ProcId> proc_id)
     : f_(f),
-      invocation_(invocation),
       m_(m),
       type_info_(type_info),
       parametric_env_(std::move(parametric_env)),
@@ -92,11 +89,8 @@ std::string Callee::ToString() const {
   if (proc_id_.has_value()) {
     proc_id = proc_id_.value().ToString();
   }
-  return absl::StrFormat(
-      "Callee{m=%s, f=%s, i=%s, pid=%s, bindings=%s}", m_->name(),
-      f_->identifier(),
-      invocation_ == nullptr ? "<top level>" : invocation_->ToString(), proc_id,
-      parametric_env_.ToString());
+  return absl::StrFormat("Callee{m=%s, f=%s, pid=%s, bindings=%s}", m_->name(),
+                         f_->identifier(), proc_id, parametric_env_.ToString());
 }
 
 // Collects all Invocation nodes below the visited node.
@@ -300,10 +294,9 @@ class InvocationVisitor : public ExprVisitor {
 
     XLS_ASSIGN_OR_RETURN(
         auto callee,
-        Callee::Make(callee_info->callee, node, callee_info->module,
-                     callee_info->type_info,
-                     callee_bindings ? **callee_bindings : ParametricEnv(),
-                     proc_id));
+        Callee::Make(
+            callee_info->callee, callee_info->module, callee_info->type_info,
+            callee_bindings ? **callee_bindings : ParametricEnv(), proc_id));
     callees_.push_back(std::move(callee));
     return absl::OkStatus();
   }
@@ -580,8 +573,7 @@ static absl::Status ProcessCallees(absl::Span<const Callee> orig_callees,
 
 // Adds (f, bindings) to conversion order after deps have been added.
 static absl::Status AddToReady(std::variant<Function*, TestFunction*> f,
-                               const Invocation* invocation, Module* m,
-                               TypeInfo* type_info,
+                               Module* m, TypeInfo* type_info,
                                const ParametricEnv& bindings,
                                std::vector<ConversionRecord>* ready,
                                const std::optional<ProcId>& proc_id,
@@ -608,9 +600,9 @@ static absl::Status AddToReady(std::variant<Function*, TestFunction*> f,
 
   auto* fn = std::get<Function*>(f);
   VLOG(3) << "Adding to ready sequence: " << fn->identifier();
-  XLS_ASSIGN_OR_RETURN(ConversionRecord cr,
-                       ConversionRecord::Make(fn, invocation, m, type_info,
-                                              bindings, proc_id, is_top));
+  XLS_ASSIGN_OR_RETURN(
+      ConversionRecord cr,
+      ConversionRecord::Make(fn, m, type_info, bindings, proc_id, is_top));
   ready->push_back(std::move(cr));
   return absl::OkStatus();
 }
@@ -630,9 +622,9 @@ static absl::Status ProcessCallees(absl::Span<const Callee> orig_callees,
   // For all the remaining callees (that were not ready), add them to the list
   // before us, since we depend upon them.
   for (const Callee& callee : non_ready) {
-    XLS_RETURN_IF_ERROR(AddToReady(callee.f(), callee.invocation(), callee.m(),
-                                   callee.type_info(), callee.parametric_env(),
-                                   ready, callee.proc_id()));
+    XLS_RETURN_IF_ERROR(AddToReady(callee.f(), callee.m(), callee.type_info(),
+                                   callee.parametric_env(), ready,
+                                   callee.proc_id()));
   }
 
   return absl::OkStatus();
@@ -663,13 +655,11 @@ static absl::StatusOr<std::vector<ConversionRecord>> GetOrderForProc(
   // The next function of a proc is the entry function when converting a proc to
   // IR.
   XLS_RETURN_IF_ERROR(AddToReady(
-      &p->next(),
-      /*invocation=*/nullptr, p->owner(), next_ti, env, &ready,
+      &p->next(), p->owner(), next_ti, env, &ready,
       ProcId{.proc_instance_stack = {{p, 0}}, .alias_name = alias_name},
       is_top));
   XLS_RETURN_IF_ERROR(AddToReady(
-      &p->config(),
-      /*invocation=*/nullptr, p->owner(), config_ti, env, &ready,
+      &p->config(), p->owner(), config_ti, env, &ready,
       ProcId{.proc_instance_stack = {{p, 0}}, .alias_name = alias_name}));
 
   // Constants and "member" vars are assigned and defined in Procs' "config'"
@@ -719,8 +709,7 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
       return absl::OkStatus();
     }
 
-    return AddToReady(f, /*invocation=*/nullptr, module, type_info,
-                      ParametricEnv(), &ready, {});
+    return AddToReady(f, module, type_info, ParametricEnv(), &ready, {});
   };
   for (ModuleMember member : module->top()) {
     absl::Status status = absl::visit(
@@ -730,8 +719,8 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
               Function* function = quickcheck->fn();
               XLS_RET_CHECK(!function->IsParametric()) << function->ToString();
 
-              return AddToReady(function, /*invocation=*/nullptr, module,
-                                type_info, ParametricEnv(), &ready, {});
+              return AddToReady(function, module, type_info, ParametricEnv(),
+                                &ready, {});
             },
             [&](ConstantDef* constant_def) -> absl::Status {
               XLS_ASSIGN_OR_RETURN(const std::vector<Callee> callees,
@@ -811,9 +800,8 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrderForEntry(
       XLS_ASSIGN_OR_RETURN(
           type_info, type_info->GetTopLevelProcTypeInfo(f->proc().value()));
     }
-    XLS_RETURN_IF_ERROR(AddToReady(f,
-                                   /*invocation=*/nullptr, f->owner(),
-                                   type_info, ParametricEnv(), &ready, {},
+    XLS_RETURN_IF_ERROR(AddToReady(f, f->owner(), type_info, ParametricEnv(),
+                                   &ready, {},
                                    /*is_top=*/true));
     RemoveFunctionDuplicates(&ready);
     return ready;

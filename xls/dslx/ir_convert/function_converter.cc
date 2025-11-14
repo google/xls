@@ -3492,10 +3492,6 @@ absl::Status FunctionConverter::HandleProcNextFunction(
   ProcId proc_id = record.proc_id().value();
   VLOG(5) << "HandleProcNextFunction: " << f->ToString() << " proc id "
           << proc_id.ToString() << "; TI " << std::hex << type_info;
-  const Invocation* invocation = record.invocation();
-  if (invocation != nullptr) {
-    VLOG(5) << "HandleProcNextFunction: invocation " << invocation->ToString();
-  }
 
   const ParametricEnv* parametric_env = &record.parametric_env();
   if (parametric_env != nullptr) {

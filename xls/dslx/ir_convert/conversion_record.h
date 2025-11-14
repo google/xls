@@ -43,16 +43,13 @@ namespace xls::dslx {
 //   module: Module that f resides in.
 //   type_info: Node to type mapping for use in converting this
 //     function instance.
-//   callees: Function names that 'f' calls.
 //   parametric_env: Parametric bindings for this function instance.
-//   callees: Functions that this instance calls.
 class ConversionRecord {
  public:
   // Note: performs ValidateParametrics() to potentially return an error status.
   static absl::StatusOr<ConversionRecord> Make(
-      Function* f, const Invocation* invocation, Module* module,
-      TypeInfo* type_info, ParametricEnv parametric_env,
-      std::optional<ProcId> proc_id, bool is_top,
+      Function* f, Module* module, TypeInfo* type_info,
+      ParametricEnv parametric_env, std::optional<ProcId> proc_id, bool is_top,
       std::unique_ptr<ConversionRecord> config_record = nullptr,
       std::optional<InterpValue> init_value = std::nullopt);
 
@@ -63,7 +60,6 @@ class ConversionRecord {
                                           const ParametricEnv& parametric_env);
 
   Function* f() const { return f_; }
-  const Invocation* invocation() const { return invocation_; }
   Module* module() const { return module_; }
   TypeInfo* type_info() const { return type_info_; }
   const ParametricEnv& parametric_env() const { return parametric_env_; }
@@ -74,13 +70,11 @@ class ConversionRecord {
   std::string ToString() const;
 
  private:
-  ConversionRecord(Function* f, const Invocation* invocation, Module* module,
-                   TypeInfo* type_info, ParametricEnv parametric_env,
-                   std::optional<ProcId> proc_id, bool is_top,
-                   std::unique_ptr<ConversionRecord> config_record,
+  ConversionRecord(Function* f, Module* module, TypeInfo* type_info,
+                   ParametricEnv parametric_env, std::optional<ProcId> proc_id,
+                   bool is_top, std::unique_ptr<ConversionRecord> config_record,
                    std::optional<InterpValue> init_value)
       : f_(f),
-        invocation_(invocation),
         module_(module),
         type_info_(type_info),
         parametric_env_(std::move(parametric_env)),
@@ -90,7 +84,6 @@ class ConversionRecord {
         init_value_(init_value) {}
 
   Function* f_;
-  const Invocation* invocation_;
   Module* module_;
   TypeInfo* type_info_;
   ParametricEnv parametric_env_;

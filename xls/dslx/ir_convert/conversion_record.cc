@@ -81,16 +81,15 @@ std::string ConversionRecordsToString(
 }
 
 /* static */ absl::StatusOr<ConversionRecord> ConversionRecord::Make(
-    Function* f, const Invocation* invocation, Module* module,
-    TypeInfo* type_info, ParametricEnv parametric_env,
-    std::optional<ProcId> proc_id, bool is_top,
+    Function* f, Module* module, TypeInfo* type_info,
+    ParametricEnv parametric_env, std::optional<ProcId> proc_id, bool is_top,
     std::unique_ptr<ConversionRecord> config_record,
     std::optional<InterpValue> init_value) {
   XLS_RETURN_IF_ERROR(ConversionRecord::ValidateParametrics(f, parametric_env));
 
-  return ConversionRecord(f, invocation, module, type_info,
-                          std::move(parametric_env), std::move(proc_id), is_top,
-                          std::move(config_record), std::move(init_value));
+  return ConversionRecord(f, module, type_info, std::move(parametric_env),
+                          std::move(proc_id), is_top, std::move(config_record),
+                          std::move(init_value));
 }
 
 std::string ConversionRecord::ToString() const {
@@ -103,11 +102,10 @@ std::string ConversionRecord::ToString() const {
     config = config_record_->ToString();
   }
   return absl::StrFormat(
-      "ConversionRecord{m=%s, invocation=%p, f=%s, top=%s, pid=%s, "
+      "ConversionRecord{m=%s, f=%s, top=%s, pid=%s, "
       "parametric_env=%s, type_info=%p, config=%s}",
-      module_->name(), invocation_, f_->identifier(),
-      is_top_ ? "true" : "false", proc_id, parametric_env_.ToString(),
-      type_info_, config);
+      module_->name(), f_->identifier(), is_top_ ? "true" : "false", proc_id,
+      parametric_env_.ToString(), type_info_, config);
 }
 
 }  // namespace xls::dslx

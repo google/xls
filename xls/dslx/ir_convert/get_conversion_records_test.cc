@@ -185,20 +185,17 @@ proc top {
   EXPECT_EQ(order[0].f()->identifier(), "P.next");
   const ConversionRecord* config_record = order[0].config_record();
   EXPECT_NE(config_record, nullptr);
-  EXPECT_EQ(config_record->invocation()->ToString(), "P.config<u32:2>(u2:1)");
   EXPECT_EQ(order[0].parametric_env(),
             ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
                 {"N", InterpValue::MakeUBits(/*bit_count=*/32, /*value=*/2)}}));
   EXPECT_EQ(order[1].f()->identifier(), "P.next");
   config_record = order[1].config_record();
   EXPECT_NE(config_record, nullptr);
-  EXPECT_EQ(config_record->invocation()->ToString(), "P.config<u32:4>(u4:2)");
   EXPECT_NE(order[1].config_record(), nullptr);
   EXPECT_EQ(order[1].parametric_env(),
             ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
                 {"N", InterpValue::MakeUBits(/*bit_count=*/32, /*value=*/4)}}));
   EXPECT_EQ(order[2].f()->identifier(), "top.next");
-  EXPECT_EQ(order[2].invocation(), nullptr);
   EXPECT_EQ(order[2].parametric_env(), ParametricEnv());
 }
 

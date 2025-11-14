@@ -48,11 +48,11 @@ namespace {
 // Makes the conversion record from the pieces.
 absl::StatusOr<ConversionRecord> MakeConversionRecord(
     Function* f, Module* m, TypeInfo* type_info, const ParametricEnv& bindings,
-    std::optional<ProcId> proc_id, const Invocation* invocation, bool is_top,
+    std::optional<ProcId> proc_id, bool is_top,
     std::unique_ptr<ConversionRecord> config_record = nullptr,
     std::optional<InterpValue> init_value = std::nullopt) {
-  return ConversionRecord::Make(f, invocation, m, type_info, bindings, proc_id,
-                                is_top, std::move(config_record),
+  return ConversionRecord::Make(f, m, type_info, bindings, proc_id, is_top,
+                                std::move(config_record),
                                 std::move(init_value));
 }
 
@@ -83,13 +83,12 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
         ConversionRecord config_record,
         MakeConversionRecord(&spawn.proc->config(), spawn.proc->owner(),
                              spawn.config_type_info, spawn.env, proc_id,
-                             spawn.config_invocation,
                              /*is_top=*/false));
     XLS_ASSIGN_OR_RETURN(
         ConversionRecord next_record,
         MakeConversionRecord(
             &spawn.proc->next(), spawn.proc->owner(), spawn.next_type_info,
-            spawn.env, proc_id, spawn.next_invocation,
+            spawn.env, proc_id,
             /*is_top=*/false,
             std::make_unique<ConversionRecord>(std::move(config_record)),
             spawn.init_value));
@@ -135,7 +134,7 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
           MakeConversionRecord(const_cast<Function*>(f), f->owner(),
                                callee_data.derived_type_info,
                                callee_data.callee_bindings,
-                               /*proc_id=*/std::nullopt, callee_data.invocation,
+                               /*proc_id=*/std::nullopt,
                                // Parametric functions can never be top.
                                /*is_top=*/!f->IsParametric() && f == top_));
       records_.push_back(std::move(cr));
@@ -152,7 +151,6 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
                                                 f->owner(), invocation_ti,
                                                 /*bindings=*/ParametricEnv(),
                                                 /*proc_id=*/std::nullopt,
-                                                /*invocation=*/nullptr,
                                                 /*is_top=*/f == top_));
       records_.push_back(std::move(cr));
     }
@@ -227,16 +225,14 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
           MakeConversionRecord(
               const_cast<Function*>(&p->config()), top_->owner(),
               resolved_proc_alias_->config_type_info, resolved_proc_alias_->env,
-              proc_id, /*invocation=*/nullptr,
-              /*is_top=*/false));
+              proc_id, /*is_top=*/false));
       // TODO: Set up the initial value
       XLS_ASSIGN_OR_RETURN(
           ConversionRecord next_record,
           MakeConversionRecord(
               const_cast<Function*>(&p->next()), top_->owner(),
               resolved_proc_alias_->next_type_info, resolved_proc_alias_->env,
-              proc_id, /*invocation=*/nullptr,
-              /*is_top=*/true,
+              proc_id, /*is_top=*/true,
               std::make_unique<ConversionRecord>(std::move(config_record))));
       records_.push_back(std::move(next_record));
       return absl::OkStatus();
@@ -292,7 +288,6 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
           MakeConversionRecord(const_cast<Function*>(next_fn), p->owner(),
                                proc_owner_ti,
                                /*bindings=*/ParametricEnv(), proc_id,
-                               /*invocation=*/nullptr,
                                /*is_top=*/top_ == next_fn,
                                /*config_record=*/nullptr, initial_value));
       records_.push_back(std::move(cr));

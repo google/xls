@@ -42,13 +42,12 @@ class Callee {
   // This is conceptually similar to the instantiation of parametric functions,
   // except that even non-parametric Procs need instantiation details to be
   // converted to IR.
-  static absl::StatusOr<Callee> Make(Function* f, const Invocation* invocation,
-                                     Module* m, TypeInfo* type_info,
+  static absl::StatusOr<Callee> Make(Function* f, Module* m,
+                                     TypeInfo* type_info,
                                      ParametricEnv parametric_env,
                                      std::optional<ProcId> proc_id);
 
   Function* f() const { return f_; }
-  const Invocation* invocation() const { return invocation_; }
   Module* m() const { return m_; }
   TypeInfo* type_info() const { return type_info_; }
   const ParametricEnv& parametric_env() const { return parametric_env_; }
@@ -57,12 +56,10 @@ class Callee {
   std::string ToString() const;
 
  private:
-  Callee(Function* f, const Invocation* invocation, Module* m,
-         TypeInfo* type_info, ParametricEnv parametric_env,
-         std::optional<ProcId> proc_id);
+  Callee(Function* f, Module* m, TypeInfo* type_info,
+         ParametricEnv parametric_env, std::optional<ProcId> proc_id);
 
   Function* f_;
-  const Invocation* invocation_;
   Module* m_;
   TypeInfo* type_info_;
   ParametricEnv parametric_env_;
