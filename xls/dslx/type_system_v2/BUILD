@@ -76,6 +76,7 @@ cc_library(
         ":trait_deriver",
         ":type_annotation_resolver",
         ":type_annotation_utils",
+        ":type_system_tracer",
         "//xls/common:casts",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -86,7 +87,10 @@ cc_library(
         "//xls/dslx/frontend:ast_utils",
         "//xls/dslx/frontend:builtin_stubs_utils",
         "//xls/dslx/frontend:pos",
+        "//xls/dslx/type_system:type",
+        "//xls/dslx/type_system:type_info",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -285,7 +289,44 @@ cc_library(
     hdrs = ["trait_deriver.h"],
     deps = [
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/type_system:type",
         "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
+    name = "trait_deriver_dispatcher",
+    hdrs = ["trait_deriver_dispatcher.h"],
+    deps = [
+        ":trait_deriver",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/type_system:type",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "builtin_trait_deriver",
+    srcs = ["builtin_trait_deriver.cc"],
+    hdrs = ["builtin_trait_deriver.h"],
+    deps = [
+        ":trait_deriver",
+        ":trait_deriver_dispatcher",
+        ":type_annotation_utils",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:errors",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:pos",
+        "//xls/dslx/type_system:type",
+        "@com_google_absl//absl/functional:function_ref",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -496,15 +537,17 @@ cc_test(
     shard_count = 4,
     deps = [
         ":matchers",
+        ":trait_deriver_dispatcher",
         ":type_annotation_utils",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:pos",
+        "//xls/dslx/type_system:type",
         "//xls/dslx/type_system:typecheck_test_utils",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
         "@googletest//:gtest",
     ],
 )

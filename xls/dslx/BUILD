@@ -593,6 +593,7 @@ cc_library(
         "//xls/dslx/ir_convert:convert_options",
         "//xls/dslx/type_system:type_info",
         "//xls/dslx/type_system:typecheck_module",
+        "//xls/dslx/type_system_v2:builtin_trait_deriver",
         "//xls/dslx/type_system_v2:trait_deriver",
         "//xls/dslx/type_system_v2:type_inference_error_handler",
         "//xls/dslx/type_system_v2:typecheck_module_v2",

@@ -352,7 +352,6 @@ absl::Status Parser::ParseModuleAttribute() {
 absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
     Bindings* bindings) {
   const Pos module_start_pos = GetPos();
-
   std::optional<Bindings> stack_bindings;
   if (bindings == nullptr) {
     stack_bindings.emplace();
@@ -360,6 +359,9 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
   }
   XLS_RET_CHECK(bindings != nullptr);
 
+  if (parse_fn_stubs_) {
+    bindings->SetBuiltinModule(true);
+  }
   for (auto const& it : GetParametricBuiltins()) {
     std::string name(it.first);
     bindings->Add(name, module_->GetOrCreateBuiltinNameDef(name));
@@ -2191,19 +2193,20 @@ absl::StatusOr<Function*> Parser::ParseFunctionInternal(
   outer_bindings.Add(name_def->identifier(), name_def);
   bindings.Add(name_def->identifier(), name_def);
 
-  if (parse_fn_stubs_ || bindings.IsInTrait()) {
-    // Must have a semicolon
+  bool stub = false;
+  if (bindings.IsInTrait() || parse_fn_stubs_) {
+    // A trait function must be a stub.
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi));
+    stub = true;
     body = module_->Make<StatementBlock>(Span(start_pos, GetPos()),
                                          std::vector<Statement*>{},
                                          /*trailing_semi=*/true);
   } else {
     XLS_ASSIGN_OR_RETURN(body, ParseBlockExpression(bindings));
   }
-  Function* f = module_->Make<Function>(Span(start_pos, GetPos()), name_def,
-                                        std::move(parametric_bindings), params,
-                                        return_type, body, FunctionTag::kNormal,
-                                        is_public, parse_fn_stubs_);
+  Function* f = module_->Make<Function>(
+      Span(start_pos, GetPos()), name_def, std::move(parametric_bindings),
+      params, return_type, body, FunctionTag::kNormal, is_public, stub);
   name_def->set_definer(f);
   return f;
 }

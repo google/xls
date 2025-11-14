@@ -549,7 +549,8 @@ absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
   std::optional<ParametricEnv> callee_bindings;
 
   TypeInfo* callee_type_info = nullptr;
-  if (f.IsParametric() || f.tag() == FunctionTag::kProcInit) {
+  if (f.IsParametric() || f.tag() == FunctionTag::kProcInit ||
+      (f.impl().has_value() && f.IsCompilerDerived())) {
     std::optional<const InvocationData*> invocation_data_opt =
         caller_type_info->GetInvocationData(invocation);
     if (!invocation_data_opt.has_value()) {

@@ -108,3 +108,10 @@ fn xor_reduce<N: u32>(x: uN[N]) -> u1;
 
 fn zip<LHS_TYPE: type, N: u32, RHS_TYPE: type>(lhs: LHS_TYPE[N], rhs: RHS_TYPE[N]) ->
     (LHS_TYPE, RHS_TYPE)[N];
+
+// A struct declaration can use `#[derive(ToBits)]` to have the compiler implement this function.
+// In that case, any nested struct must have either `#[derive(ToBits)]` or a function with this
+// signature in its impl.
+trait ToBits {
+  fn to_bits(self) -> bits[bit_count<Self>()];
+}

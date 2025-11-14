@@ -5335,6 +5335,52 @@ const Y = S{}.foo(u32:200);
                               HasNodeWithType("Y", "uN[32]"))));
 }
 
+TEST(TypecheckV2Test, ParametricInstanceMethodUsingSelf) {
+  EXPECT_THAT(
+      R"(
+struct S {
+   a: u32
+}
+
+impl S {
+  // Originally there was a bug that self would only be resolved in here if the
+  // struct was also parametric.
+  fn foo<N: u32>(self, b: uN[N]) -> uN[N + 32] { b ++ self.a }
+}
+
+const X = S{a: 1}.foo(u16:100);
+const Y = S{a: 2}.foo(u32:200);
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[48]"),
+                              HasNodeWithType("Y", "uN[64]"))));
+}
+
+TEST(TypecheckV2Test, ParametricInstanceMethodCallingNonParametricOne) {
+  XLS_EXPECT_OK(TypecheckV2(
+      R"(
+struct T {
+   t: u32
+}
+
+impl T {
+  fn foo(self) -> u32 { self.t }
+}
+
+struct S {
+   a: T
+}
+
+impl S {
+  fn foo<N: u32>(self) -> u32 { self.a.foo() }
+}
+
+fn main() -> u32 {
+  let s = S { a: T { t: 5 } };
+  s.foo<32>()
+}
+)"));
+}
+
 TEST(TypecheckV2Test, ParametricInstanceMethodWithParametricSignedness) {
   EXPECT_THAT(
       R"(
