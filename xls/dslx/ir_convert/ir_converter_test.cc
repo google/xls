@@ -7022,6 +7022,94 @@ proc Top {
   ExpectIr(converted);
 }
 
+TEST_F(ProcScopedChannelsIrConverterTest,
+       ProcScopedTwoParametricCallsAcrossImportBoundary) {
+  auto import_data = CreateImportDataForTest();
+  constexpr std::string_view imported = R"(
+fn bar<N: u32>(a: uN[N]) -> uN[N] { a }
+
+pub fn foo<A: u32>(a: uN[A]) -> uN[A] { bar(a) }
+
+)";
+  XLS_EXPECT_OK(ParseAndTypecheck(imported, "fake/imported/stuff.x",
+                                  "fake.imported.stuff", &import_data));
+  constexpr std::string_view importer = R"(
+import fake.imported.stuff as imported;
+
+fn baz<N: u32>(a: uN[N]) -> uN[N] { imported::foo(a) }
+
+fn main() {
+  baz(u32:5);
+  baz(u24:6);
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(importer, kProcScopedChannelOptions, &import_data));
+  ExpectIr(converted);
+}
+
+TEST_F(ProcScopedChannelsIrConverterTest, SpawnTwoImportedParametricProc) {
+  ImportData import_data = CreateImportDataForTest();
+  constexpr std::string_view imported = R"(
+proc Leaf<P: u32> {
+  c: chan<uN[P]> out;
+  init { uN[P]:123 }
+  config(output_c: chan<uN[P]> out) {
+    (output_c,)
+  }
+  next(state: uN[P]) {
+    send(token(), c, state);
+    state
+  }
+}
+
+pub proc Importee<M: u32> {
+  init { uN[M]:456 }
+  config(output_c: chan<uN[M]> out) {
+    spawn Leaf<M>(output_c);
+    ()
+  }
+  next(state: uN[M]) {
+    state
+  }
+}
+  )";
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(imported, "imported.x", "imported", &import_data));
+
+  constexpr std::string_view program = R"(
+import imported;
+
+proc Local<N: u32> {
+  init { uN[N]:789 }
+  config(output_c: chan<uN[N]> out) {
+    spawn imported::Importee<N>(output_c);
+    ()
+  }
+  next(state: uN[N]) {
+    state
+  }
+}
+
+pub proc Main {
+    init {}
+    config() {
+      let (s, _) = chan<u16>("chan0");
+      spawn Local<u32:16>(s);
+      ()
+    }
+    next(_: ()) { () }
+  }
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "Main", import_data,
+                                kProcScopedChannelOptions));
+  ExpectIr(converted);
+}
+
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ConvertWithoutTests) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
