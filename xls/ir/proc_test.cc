@@ -24,9 +24,7 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
-#include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
-#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
@@ -39,6 +37,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/scheduled_builder.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 
@@ -393,13 +392,9 @@ TEST_F(ProcTest, TransformStateElement) {
 class ScheduledProcTest : public IrTestBase {
  protected:
   absl::StatusOr<ScheduledProc*> CreateScheduledProc(Package* p) {
-    ProcBuilder pb("p", p, ScheduledProcTag());
-    BValue st = pb.StateElement("st", Value(UBits(42, 32)));
-    pb.proc()->AddEmptyStages(1);
-    XLS_RETURN_IF_ERROR(pb.proc()->AddNodeToStage(0, st.node()).status());
-    XLS_ASSIGN_OR_RETURN(Proc * proc, pb.Build({}));
-    XLS_RET_CHECK(proc->IsScheduled());
-    return down_cast<ScheduledProc*>(proc);
+    ScheduledProcBuilder pb("p", p);
+    pb.StateElement("st", Value(UBits(42, 32)));
+    return pb.Build({});
   }
 };
 
