@@ -19,12 +19,14 @@
 #include <cstdint>
 #include <limits>
 #include <optional>
+#include <ostream>
 #include <string>
 #include <utility>
 
 #include "absl/algorithm/container.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
@@ -202,6 +204,23 @@ int64_t PartialInformation::KnownLeadingSignBits() const {
   return 1 + bit_count_ - interval_ops::MinimumSignedBitCount(*range_);
 }
 
+std::string PartialInformation::ToDebugString() const {
+  if (IsUnconstrained()) {
+    return "unconstrained";
+  }
+  if (IsImpossible()) {
+    return "impossible";
+  }
+  absl::InlinedVector<std::string, 2> pieces;
+  if (ternary_.has_value()) {
+    pieces.push_back(xls::ToString(*ternary_));
+  }
+  if (range_.has_value()) {
+    pieces.push_back(range_->ToString());
+  }
+  return absl::StrJoin(pieces, " ∩ ");
+}
+
 std::string PartialInformation::ToString() const {
   if (IsUnconstrained()) {
     return "unconstrained";
@@ -212,14 +231,7 @@ std::string PartialInformation::ToString() const {
   if (range_.has_value() && range_->IsPrecise()) {
     return absl::StrCat("{", BitsToString(*range_->GetPreciseValue()), "}");
   }
-  absl::InlinedVector<std::string, 2> pieces;
-  if (ternary_.has_value()) {
-    pieces.push_back(xls::ToString(*ternary_));
-  }
-  if (range_.has_value()) {
-    pieces.push_back(range_->ToString());
-  }
-  return absl::StrJoin(pieces, " ∩ ");
+  return ToDebugString();
 }
 
 PartialInformation& PartialInformation::Not() {
@@ -641,57 +653,89 @@ PartialInformation& PartialInformation::MeetWith(
   return *this;
 }
 
+std::ostream& operator<<(std::ostream& os,
+                         const std::optional<IntervalSet>& i) {
+  if (i) {
+    return os << *i;
+  }
+  return os << "<unset intervals>";
+}
+
+std::ostream& operator<<(std::ostream& os,
+                         const std::optional<TernaryVector>& t) {
+  if (t) {
+    return os << ToString(*t);
+  }
+  return os << "<unset ternary>";
+}
+
 void PartialInformation::ReconcileInformation() {
-  if (range_.has_value() && range_->IsMaximal()) {
-    range_ = std::nullopt;
-  }
-  if (ternary_.has_value() && ternary_ops::AllUnknown(*ternary_)) {
-    ternary_ = std::nullopt;
-  }
-
-  if (range_.has_value() && range_->IsEmpty()) {
-    // Standardize the "impossible" state.
-    MarkImpossible();
-    return;
-  }
-
-  // Check whether `ternary_` and `range_` are in conflict before we go any
-  // further; if they are, mark the combination impossible.
-  if (ternary_.has_value() && range_.has_value() &&
-      !interval_ops::CoversTernary(*range_, *ternary_)) {
-    MarkImpossible();
-    return;
-  }
-
-  if (range_.has_value()) {
-    // Transfer as much information as we can into the ternary.
-    TernaryVector range_ternary = interval_ops::ExtractTernaryVector(*range_);
-    if (ternary_.has_value()) {
-      CHECK(ternary_ops::TryUpdateWithUnion(*ternary_, range_ternary));
-    } else if (!ternary_ops::AllUnknown(range_ternary)) {
-      ternary_ = std::move(range_ternary);
+  bool changed = true;
+  int64_t iterations = 0;
+  while (changed) {
+    iterations++;
+    // Because X's are the place where this iteration would occur it shouldn't
+    // be possible to have more than 'bit_count * 2 + 1' iterations (since each
+    // iteration would need to remove information at a bit level, either by
+    // reducing the size of a range or removing a ternary bit degree of
+    // freedom. If they flip back and forth thats 2*bit_count_ iterations and
+    // then one more to recognize the fixedpoint has been hit).
+    //
+    // Just do a check if we get this high (with one extra since we do increment
+    // before) since it indicates there is some bug in the fixed-point code.
+    CHECK_LE(iterations, bit_count_ * 2 + 2)
+        << "Reconciliation loop exceeded " << bit_count_ << " iterations!";
+    if (iterations > bit_count_ + 2) {
+      LOG(ERROR) << "Excessive iterations of reconcile information! Got to "
+                 << iterations << " go arounds";
+      return;
     }
-  }
+    changed = false;
+    if (range_.has_value() && range_->IsMaximal()) {
+      range_ = std::nullopt;
+    }
+    if (ternary_.has_value() && ternary_ops::AllUnknown(*ternary_)) {
+      ternary_ = std::nullopt;
+    }
 
-  if (ternary_.has_value()) {
-    // Transfer as much information as we can into the range.
-    IntervalSet ternary_range = interval_ops::FromTernary(*ternary_);
+    if (range_.has_value() && range_->IsEmpty()) {
+      // Standardize the "impossible" state.
+      MarkImpossible();
+      return;
+    }
+
+    // Check whether `ternary_` and `range_` are in conflict before we go any
+    // further; if they are, mark the combination impossible.
+    if (ternary_.has_value() && range_.has_value() &&
+        !interval_ops::CoversTernary(*range_, *ternary_)) {
+      MarkImpossible();
+      return;
+    }
+
     if (range_.has_value()) {
-      range_ = IntervalSet::Intersect(ternary_range, *range_);
-      CHECK(!range_->IsEmpty());
-    } else if (!ternary_range.IsMaximal()) {
-      range_ = std::move(ternary_range);
+      // Transfer as much information as we can into the ternary.
+      TernaryVector range_ternary = interval_ops::ExtractTernaryVector(*range_);
+      if (ternary_.has_value()) {
+        CHECK(ternary_ops::TryUpdateWithUnion(*ternary_, range_ternary,
+                                              &changed));
+      } else if (!ternary_ops::AllUnknown(range_ternary)) {
+        ternary_ = std::move(range_ternary);
+        changed = true;
+      }
     }
-  }
 
-  if (range_.has_value()) {
-    // Transfer as much information as we can into the ternary one last time to
-    // finish unification.
-    TernaryVector range_ternary = interval_ops::ExtractTernaryVector(*range_);
     if (ternary_.has_value()) {
-      CHECK(ternary_ops::TryUpdateWithUnion(*ternary_, range_ternary));
-    } else if (!ternary_ops::AllUnknown(range_ternary)) {
-      ternary_ = std::move(range_ternary);
+      // Transfer as much information as we can into the range.
+      IntervalSet ternary_range = interval_ops::FromTernary(*ternary_);
+      if (range_.has_value()) {
+        IntervalSet new_range = IntervalSet::Intersect(ternary_range, *range_);
+        CHECK(!new_range.IsEmpty());
+        changed = changed || (new_range != *range_);
+        range_ = std::move(new_range);
+      } else if (!ternary_range.IsMaximal()) {
+        range_ = std::move(ternary_range);
+        changed = true;
+      }
     }
   }
 }

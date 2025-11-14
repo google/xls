@@ -115,7 +115,10 @@ absl::StatusOr<TernaryVector> Union(TernarySpan lhs, TernarySpan rhs);
 // false if `lhs` and `rhs` are incompatible (have known bits that disagree),
 // leaving `lhs` in an unspecified state. CHECK fails if `lhs` and `rhs` have
 // different lengths.
-bool TryUpdateWithUnion(TernaryVector& lhs, TernarySpan rhs);
+//
+// If changed is not nullptr it will be set to true if lhs was modified at all.
+bool TryUpdateWithUnion(TernaryVector& lhs, TernarySpan rhs,
+                        bool* changed = nullptr);
 
 // Updates `lhs` to include additional known information from `rhs`, or an error
 // if `lhs` and `rhs` are incompatible (have known bits that disagree). CHECK
