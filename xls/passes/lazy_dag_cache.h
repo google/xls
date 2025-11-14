@@ -83,7 +83,11 @@ class LazyDagCache {
   LazyDagCache<Key, Value>(DagProvider* provider,
                            const LazyDagCache<Key, Value>& other)
       : provider_(provider) {
-    cache_ = other.cache_;
+    // CacheEntry contains a unique_ptr
+    for (const auto& [key, entry] : other.cache_) {
+      cache_[key] = CacheEntry{.state = entry.state,
+                               .value = std::make_unique<Value>(*entry.value)};
+    }
   }
 
   LazyDagCache<Key, Value>(DagProvider* provider,

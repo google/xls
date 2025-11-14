@@ -874,7 +874,7 @@ class Reassociation {
       VLOG(5) << "Initial reassociations:\n"
               << fb_->AsFunctionOrDie()->DumpIrWithAnnotations(
                      [&](Node* n) -> std::optional<std::string> {
-                       auto info = *cache_.GetInfo(n);
+                       auto info = cache_.GetInfo(n);
                        if (!info.type()->IsBits()) {
                          return std::nullopt;
                        }
@@ -905,7 +905,7 @@ class Reassociation {
         }
 
         // NB Intentional copy to avoid reference invalidation.
-        SignednessPair elements = *cache_.GetInfo(node)->Get({});
+        SignednessPair elements = *cache_.GetInfo(node).Get({});
         VLOG(3) << "Examining " << node << " with " << elements;
 
         const AssociativeElements& unsigned_elements = elements.unsigned_values;
@@ -1079,7 +1079,7 @@ class Reassociation {
         VLOG(4) << "      - " << node << " has non-bits user: " << user;
         return true;
       }
-      auto user_elements = *cache_.GetInfo(user)->Get({});
+      auto user_elements = *cache_.GetInfo(user).Get({});
       // If the user can't be reassociated itself or has a different op.
       auto is_leaf_user = [&](const AssociativeElements& user_elements,
                               const AssociativeElements& elements) {
@@ -1121,7 +1121,7 @@ class Reassociation {
              if (!user->GetType()->IsBits()) {
                return true;
              }
-             auto user_elements = *cache_.GetInfo(user)->Get({});
+             auto user_elements = *cache_.GetInfo(user).Get({});
              bool unsigned_constant_fn =
                  user_elements.unsigned_values.variables().size() == 1;
              bool signed_constant_fn =
@@ -1146,7 +1146,7 @@ class Reassociation {
     // CSE will be able to merge them. Sort by bit-count, non-reassociativity,
     // negatedness then id.
     auto is_basic_candidate = [&](Node* n) -> bool {
-      auto elem = cache_.GetInfo(n)->Get({});
+      auto elem = cache_.GetInfo(n).Get({});
       return elem && (!elem->signed_values.is_leaf() ||
                       !elem->unsigned_values.is_leaf());
     };

@@ -37,14 +37,10 @@ class LazyNodeInfo : public LazyNodeData<LeafTypeTree<Info>> {
   // information into 'info'.
   virtual absl::Status MergeWithGiven(Info& info, const Info& given) const = 0;
 
-  // Shadows LazyNodeData::GetInfo to return the LeafTypeTree in the expected
-  // optional<Shared...> format.
-  std::optional<SharedLeafTypeTree<Info>> GetInfo(Node* node) const {
+  // Shadows LazyNodeData::GetInfo to return a SharedLeafTypeTree
+  SharedLeafTypeTree<Info> GetInfo(Node* node) const {
     const LeafTypeTree<Info>* info =
         LazyNodeData<LeafTypeTree<Info>>::GetInfo(node);
-    if (info == nullptr) {
-      return std::nullopt;
-    }
     return info->AsView().AsShared();
   }
 

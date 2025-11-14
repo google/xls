@@ -4564,3 +4564,42 @@ cc_library(
         "@googletest//:gtest",
     ],
 )
+
+cc_library(
+    name = "data_flow_node_info",
+    hdrs = ["data_flow_node_info.h"],
+    deps = [
+        ":lazy_node_data",
+        ":lazy_node_info",
+        "//xls/data_structures:leaf_type_tree",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:op",
+        "//xls/ir:type",
+        "//xls/ir:value",
+        "@com_google_absl//absl/container:inlined_vector",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "data_flow_node_info_test",
+    srcs = ["data_flow_node_info_test.cc"],
+    deps = [
+        ":data_flow_node_info",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/data_structures:leaf_type_tree",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:value",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+        "@googletest//:gtest",
+    ],
+)
