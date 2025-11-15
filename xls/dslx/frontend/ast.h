@@ -2434,7 +2434,10 @@ class Function : public AstNode {
   // The body of the function is a block (sequence of statements that yields a
   // final expression).
   StatementBlock* body() const { return body_; }
-  void set_body(StatementBlock* body) { body_ = body; }
+  void set_body(StatementBlock* body) {
+    body_ = body;
+    is_stub_ = false;
+  }
 
   bool IsParametric() const { return !parametric_bindings_.empty(); }
   bool is_public() const { return is_public_; }
@@ -2518,7 +2521,7 @@ class Function : public AstNode {
   const bool is_public_;
   bool is_test_utility_ = false;  // Set by the parser on applying attributes.
   bool is_compiler_derived_ = false;  // Set by type inference upon deriving.
-  const bool is_stub_;
+  bool is_stub_;
   std::optional<ForeignFunctionData> extern_verilog_module_;
   bool disable_format_ = false;
 };
@@ -3300,19 +3303,9 @@ class StructDef : public StructDefBase {
     return extern_type_name_;
   }
 
-  // Set by type inference when it has finished deriving any traits for this
-  // struct and stored the derivations in the associated `Impl`.
-  void set_trait_derivation_completed(bool value) {
-    trait_derivation_completed_ = value;
-  }
-  bool trait_derivation_completed() const {
-    return trait_derivation_completed_;
-  }
-
  private:
   // The external verilog type name
   std::optional<std::string> extern_type_name_;
-  bool trait_derivation_completed_ = false;
 };
 
 // Represents a proc declared with struct-like syntax, with the functions in an
