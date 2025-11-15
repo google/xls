@@ -811,7 +811,7 @@ class TranslatorIOInterface {
       std::optional<TrackedBValue> extra_condition = std::nullopt) = 0;
 
   virtual absl::StatusOr<TrackedBValue> GetIOOpRetValueFromSlice(
-      TrackedBValue slice_ret_val, const GeneratedFunctionSlice& slice,
+      NATIVE_BVAL slice_ret_val, const GeneratedFunctionSlice& slice,
       const xls::SourceInfo& loc) = 0;
 };
 
@@ -1022,11 +1022,6 @@ struct ContinuationValue {
   // If this is true, then the value doesn't need to be stored in a state
   // element, as it is assumed to be always available externally.
   bool direct_in = false;
-
-  // Ordered list of the BValues for the Node that feeds this output.
-  // A ContinuationValue corresponds to exactly one Node, but several
-  // BValues can point to this Node.
-  std::vector<TrackedBValue*> created_from;
 };
 
 // A value inputted to a function slice, continuing a TrackedBValue from
@@ -1052,6 +1047,7 @@ struct GeneratedFunctionSlice {
   xls::Function* function = nullptr;
   const IOOp* after_op = nullptr;
   bool is_slice_before = false;
+  bool do_add_feedbacks = true;
   std::vector<const clang::NamedDecl*> static_values;
   std::list<ContinuationValue> continuations_out;
   std::list<ContinuationInput> continuations_in;
@@ -1075,6 +1071,8 @@ struct GeneratedFunction {
 
   std::list<GeneratedFunctionSlice> slices;
 
+  // If a decl is declared multiple times, it will still increment this count,
+  // keeping the order of most recent declarations.
   int64_t declaration_count = 0;
 
   int64_t return_value_count = 0;

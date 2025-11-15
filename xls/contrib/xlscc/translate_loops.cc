@@ -1376,7 +1376,7 @@ Translator::GenerateIR_PipelinedLoopContents(
     }
   }
 
-  // For utility functions like MakeStructXls()
+  // For utility functions like MakeStruct()
   PushContextGuard pb_guard(*this, in_state_condition, loc);
 
   TrackedBValue token = token_in;

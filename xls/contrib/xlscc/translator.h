@@ -20,7 +20,6 @@
 #include <functional>
 #include <iostream>
 #include <list>
-#include <map>
 #include <memory>
 #include <optional>
 #include <set>
@@ -73,6 +72,7 @@
 #include "xls/ir/state_element.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/passes/data_flow_node_info.h"
 #include "xls/solvers/z3_ir_translator.h"
 #include "z3/src/api/z3_api.h"
 
@@ -262,6 +262,20 @@ struct TranslationContext {
 
 std::string Debug_VariablesChangedBetween(const TranslationContext& before,
                                           const TranslationContext& after);
+
+typedef absl::flat_hash_set<const xls::Param*> ParamSet;
+
+class SourcesInSetNodeInfo
+    : public xls::DataFlowLazyNodeInfo<SourcesInSetNodeInfo, ParamSet> {
+ public:
+  ParamSet ComputeInfoForBitsLiteral(
+      const xls::Bits& literal) const override final;
+
+  ParamSet ComputeInfoForLeafNode(xls::Node* node) const override final;
+
+  ParamSet MergeInfos(
+      const absl::Span<const ParamSet>& infos) const override final;
+};
 
 std::optional<std::list<const xls::Node*>> Debug_DeeplyCheckOperandsFromPrev(
     const xls::Node* node,
@@ -645,6 +659,9 @@ class Translator final : public GeneratorBase,
       functions_in_progress_;
   absl::flat_hash_set<const clang::NamedDecl*> functions_in_call_stack_;
 
+  absl::flat_hash_map<xls::FunctionBase*, std::unique_ptr<SourcesInSetNodeInfo>>
+      node_source_infos_by_function_;
+
   void print_types() {
     std::cerr << "Types {" << std::endl;
     for (const auto& var : inst_types_) {
@@ -757,28 +774,18 @@ class Translator final : public GeneratorBase,
 
   absl::Status AddIOOpForSliceForCall(
       const GeneratedFunction& func, GeneratedFunctionSlice& slice,
-      TrackedBValue last_slice_ret,
+      NATIVE_BVAL last_slice_ret,
       absl::flat_hash_map<const IOOp*, IOOp*>& caller_ops_by_callee_op,
       const absl::flat_hash_map<IOChannel*, IOChannel*>&
           caller_channels_by_callee_channel,
-      const xls::SourceInfo& loc);
-
-  absl::Status AddContinuationFeedbacksForCall(
-      const GeneratedFunction& func,
-      const std::map<const ContinuationValue*, TrackedBValue>&
-          returns_by_continuation_value,
-      absl::flat_hash_map<const IOOp*, IOOp*>& caller_ops_by_callee_op,
-      const absl::flat_hash_set<const ContinuationInput*>&
-          upstream_callee_continuation_inputs,
-      absl::flat_hash_map<const xls::Param*, xls::Param*>&
-          caller_params_by_callee_param,
+      std::optional<std::function<absl::Status(void)>> call_at_new_slice,
       const xls::SourceInfo& loc);
 
   absl::Status AddArgsForSideEffectingParams(
       const GeneratedFunction& func,
       const std::list<SideEffectingParameter>& side_effecting_parameters,
       const absl::flat_hash_map<const IOOp*, IOOp*>& caller_ops_by_callee_op,
-      std::vector<TrackedBValue>& args, int64_t& expected_returns,
+      std::vector<NATIVE_BVAL>& args, int64_t& expected_returns,
       const xls::SourceInfo& loc);
 
   absl::Status FailIfTypeHasDtors(const clang::CXXRecordDecl* cxx_record);
@@ -1025,15 +1032,16 @@ class Translator final : public GeneratorBase,
   // IOOp must have io_call, and op members filled in
   // This will add a parameter for IO input if needed,
   // Returns permanent IOOp pointer
-  absl::StatusOr<IOOp*> AddOpToChannel(IOOp& op, IOChannel* channel_param,
-                                       const xls::SourceInfo& loc,
-                                       bool do_default_mask = false,
-                                       bool no_before_slice = false);
+  absl::StatusOr<IOOp*> AddOpToChannel(
+      IOOp& op, IOChannel* channel_param, const xls::SourceInfo& loc,
+      bool do_default_mask = false, bool no_before_slice = false,
+      std::optional<std::function<absl::Status(void)>> call_at_new_slice =
+          std::nullopt);
 
   bool OpIsMasked(const IOOp& op);
 
   absl::StatusOr<TrackedBValue> GetIOOpRetValueFromSlice(
-      TrackedBValue slice_ret_val, const GeneratedFunctionSlice& slice,
+      NATIVE_BVAL slice_ret_val, const GeneratedFunctionSlice& slice,
       const xls::SourceInfo& loc);
 
   absl::StatusOr<std::optional<const IOOp*>> GetPreviousOp(
@@ -1050,12 +1058,19 @@ class Translator final : public GeneratorBase,
                                const xls::SourceInfo& loc,
                                int64_t channel_op_index,
                                bool create_slice_before, bool temp_name);
+
   std::string FormatSliceName(std::string_view op_name,
                               const xls::SourceInfo& loc,
                               int64_t channel_op_index,
                               bool create_slice_before, bool temp_name);
   absl::Status AddFeedbacksForSlice(GeneratedFunctionSlice& slice,
                                     const xls::SourceInfo& loc);
+  absl::Status GetDirectInSourcesForSlice(
+      const GeneratedFunctionSlice& slice, bool first_slice,
+      absl::flat_hash_set<const xls::Param*>& output);
+  absl::StatusOr<bool> CheckNodeSourcesInSet(
+      xls::FunctionBase* in_function, xls::Node* node,
+      absl::flat_hash_set<const xls::Param*> sources_set);
   absl::StatusOr<std::vector<NATIVE_BVAL>>
   ConvertBValuesToContinuationOutputsForCurrentSlice(
       absl::flat_hash_map<const ContinuationValue*,
@@ -1089,6 +1104,8 @@ class Translator final : public GeneratorBase,
                                const xls::SourceInfo& loc);
   absl::Status OptimizeContinuations(GeneratedFunction& func,
                                      const xls::SourceInfo& loc);
+  absl::Status MarkDirectIns(GeneratedFunction& func,
+                             const xls::SourceInfo& loc);
 
   // This function is a temporary adapter for the old FSM generation style.
   // It creates a single function containing all slices and fills it into the
@@ -1281,6 +1298,8 @@ class Translator final : public GeneratorBase,
                                                    const xls::SourceInfo& loc);
   absl::StatusOr<TrackedBValue> CreateDefaultValue(std::shared_ptr<CType> t,
                                                    const xls::SourceInfo& loc);
+  absl::StatusOr<TrackedBValue> CreateMaskedIOOpInput(
+      const IOChannel* channel, const xls::SourceInfo& loc);
   absl::StatusOr<CValue> CreateInitListValue(
       const std::shared_ptr<CType>& t, const clang::InitListExpr* init_list,
       const xls::SourceInfo& loc);
