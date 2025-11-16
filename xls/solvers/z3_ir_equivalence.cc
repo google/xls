@@ -17,13 +17,16 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
@@ -45,6 +48,92 @@
 namespace xls::solvers::z3 {
 
 namespace {
+
+std::optional<std::string> GetAssertKey(const Assert* asrt) {
+  if (asrt->label().has_value()) {
+    return asrt->label();
+  }
+  if (asrt->original_label().has_value()) {
+    return asrt->original_label();
+  }
+  return std::nullopt;
+}
+
+absl::StatusOr<std::vector<Node*>> BuildAssertChecks(
+    Function* f, const absl::flat_hash_map<Node*, Node*>& cloned_from_b) {
+  absl::flat_hash_map<std::string, Assert*> original_asserts;
+  absl::flat_hash_map<std::string, Assert*> transformed_asserts;
+  absl::flat_hash_set<Node*> b_nodes;
+  b_nodes.reserve(cloned_from_b.size());
+  for (const auto& [_, clone] : cloned_from_b) {
+    b_nodes.insert(clone);
+  }
+
+  for (Node* node : f->nodes()) {
+    if (!node->Is<Assert>()) {
+      continue;
+    }
+    if (b_nodes.contains(node)) {
+      continue;
+    }
+    std::optional<std::string> key = GetAssertKey(node->As<Assert>());
+    if (!key.has_value()) {
+      continue;
+    }
+    if (!original_asserts.emplace(*key, node->As<Assert>()).second) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Duplicate assert label `%s` in original function", *key));
+    }
+  }
+
+  for (const auto& [original_node, clone_node] : cloned_from_b) {
+    if (!original_node->Is<Assert>()) {
+      continue;
+    }
+    std::optional<std::string> key =
+        GetAssertKey(original_node->As<Assert>());
+    if (!key.has_value()) {
+      continue;
+    }
+    if (!transformed_asserts.emplace(*key, clone_node->As<Assert>()).second) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Duplicate assert label `%s` in transformed function", *key));
+    }
+  }
+
+  std::vector<Node*> checks;
+  checks.reserve(original_asserts.size() + transformed_asserts.size());
+  for (const auto& [label, original_assert] : original_asserts) {
+    auto transformed_it = transformed_asserts.find(label);
+    if (transformed_it != transformed_asserts.end()) {
+      Node* cond_a =
+          original_assert->operand(Assert::kConditionOperand);
+      Node* cond_b =
+          transformed_it->second->operand(Assert::kConditionOperand);
+      checks.push_back(f->AddNode(std::make_unique<CompareOp>(
+          SourceInfo(), cond_a, cond_b, Op::kEq,
+          absl::StrCat("assert_", label, "_match"), f)));
+      transformed_asserts.erase(transformed_it);
+    } else {
+      checks.push_back(
+          original_assert->operand(Assert::kConditionOperand));
+    }
+  }
+  for (const auto& [_, transformed_assert] : transformed_asserts) {
+    checks.push_back(
+        transformed_assert->operand(Assert::kConditionOperand));
+  }
+  return checks;
+}
+
+Node* CombineChecks(Function* f, absl::Span<Node* const> checks) {
+  XLS_DCHECK(!checks.empty());
+  if (checks.size() == 1) {
+    return checks.front();
+  }
+  return f->AddNode(std::make_unique<NaryOp>(
+      SourceInfo(), checks, Op::kAnd, "z3_equivalence_checks", f));
+}
 
 class RemoveAssertsPass : public OptimizationFunctionBasePass {
  public:
@@ -126,9 +215,16 @@ absl::StatusOr<ProverResult> TryProveEquivalence(Function* a, Function* b,
 
   Node* original_result = to_test_func->return_value();
   Node* transformed_result = node_map[b->return_value()];
-  Node* new_ret = to_test_func->AddNode(std::make_unique<CompareOp>(
+  std::vector<Node*> checks;
+  checks.push_back(to_test_func->AddNode(std::make_unique<CompareOp>(
       SourceInfo(), original_result, transformed_result, Op::kEq, "TestCheck",
-      to_test_func));
+      to_test_func)));
+  if (!ignore_asserts) {
+    XLS_ASSIGN_OR_RETURN(auto assert_checks,
+                         BuildAssertChecks(to_test_func, node_map));
+    checks.insert(checks.end(), assert_checks.begin(), assert_checks.end());
+  }
+  Node* new_ret = CombineChecks(to_test_func, checks);
   XLS_RETURN_IF_ERROR(to_test_func->set_return_value(new_ret));
   // Remove asserts if requested.
   if (ignore_asserts) {

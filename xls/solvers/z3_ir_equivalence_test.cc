@@ -427,5 +427,72 @@ TEST_F(EquivalenceTest, MultiFunctionIgnoresAssert) {
               IsOkAndHolds(IsProvenTrue()));
 }
 
+TEST_F(EquivalenceTest, DetectsMismatchedAssertCondition) {
+  std::unique_ptr<Package> package = CreatePackage();
+  FunctionBuilder fb(TestName(), package.get());
+  BValue x = fb.Param("x", package->GetBitsType(1));
+  fb.Assert(fb.Literal(Value::Token()), x, "x must be one", "label_a");
+  fb.Identity(x);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  EXPECT_THAT(
+      TryProveEquivalence(
+          f, [](Package* package, Function* func) -> absl::Status {
+            for (Node* node : func->nodes()) {
+              if (!node->Is<Assert>()) {
+                continue;
+              }
+              Node* condition = node->operand(Assert::kConditionOperand);
+              XLS_ASSIGN_OR_RETURN(Node * inverted,
+                                   func->MakeNode<UnOp>(node->loc(),
+                                                        condition, Op::kNot,
+                                                        "invert_condition"));
+              return node->ReplaceOperandNumber(Assert::kConditionOperand,
+                                                inverted);
+            }
+            return absl::InternalError("No assert found");
+          }),
+      IsOkAndHolds(IsProvenFalse()));
+}
+
+TEST_F(EquivalenceTest, ExtraAssertMustBeTautology) {
+  std::unique_ptr<Package> package = CreatePackage();
+  FunctionBuilder fb(TestName(), package.get());
+  BValue x = fb.Param("x", package->GetBitsType(1));
+  fb.Identity(x);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  auto add_assert = [](bool tautology) {
+    return [tautology](Package* package, Function* func) -> absl::Status {
+      Node* param = func->param(0);
+      XLS_ASSIGN_OR_RETURN(Node * token,
+                           func->MakeNode<Literal>(SourceInfo(),
+                                                   Value::Token(),
+                                                   "assert_token"));
+      Node* condition;
+      if (tautology) {
+        XLS_ASSIGN_OR_RETURN(condition,
+                             func->MakeNode<Literal>(SourceInfo(),
+                                                     Value(UBits(1, 1)),
+                                                     "true_condition"));
+      } else {
+        condition = param;
+      }
+      XLS_ASSIGN_OR_RETURN(
+          Node * assert_node,
+          func->MakeNodeWithName<Assert>(SourceInfo(), token, condition,
+                                         "added", "new_label", std::nullopt,
+                                         "new_assert"));
+      (void)assert_node;
+      return absl::OkStatus();
+    };
+  };
+
+  EXPECT_THAT(TryProveEquivalence(f, add_assert(/*tautology=*/false)),
+              IsOkAndHolds(IsProvenFalse()));
+  EXPECT_THAT(TryProveEquivalence(f, add_assert(/*tautology=*/true)),
+              IsOkAndHolds(IsProvenTrue()));
+}
+
 }  // namespace
 }  // namespace xls::solvers::z3
