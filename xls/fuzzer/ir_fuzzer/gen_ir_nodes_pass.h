@@ -16,8 +16,14 @@
 #define XLS_FUZZER_IR_FUZZER_GEN_IR_NODES_PASS_H_
 
 #include <cstdint>
+#include <memory>
+#include <optional>
+#include <string_view>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "google/protobuf/repeated_ptr_field.h"
 #include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_helpers.h"
@@ -35,13 +41,12 @@ namespace xls {
 // to reference previous FuzzOps through indices.
 class GenIrNodesPass : public IrFuzzVisitor {
  public:
-  GenIrNodesPass(const FuzzProgramProto& fuzz_program, Package* p,
-                 FunctionBuilder* fb, IrNodeContextList& context_list)
-      : fuzz_program_(fuzz_program),
-        p_(p),
-        fb_(fb),
-        context_list_(context_list),
-        helpers_(fuzz_program.version()) {}
+  GenIrNodesPass(Package* p, std::string_view top_name,
+                 const FuzzProgramProto& fuzz_program)
+      : p_(p), fuzz_program_(fuzz_program), helpers_(fuzz_program.version()) {
+    function_states_.emplace_back(p, top_name, fuzz_program.version(),
+                                  fuzz_program.combine_list_method());
+  }
 
   void GenIrNodes();
 
@@ -109,8 +114,49 @@ class GenIrNodesPass : public IrFuzzVisitor {
   void HandleEncode(const FuzzEncodeProto& encode) override;
   void HandleDecode(const FuzzDecodeProto& decode) override;
   void HandleGate(const FuzzGateProto& gate) override;
+  void HandleDefineFunction(
+      const FuzzDefineFunctionProto& define_function) override;
+  void HandleInvoke(const FuzzInvokeProto& invoke) override;
 
  private:
+  class FunctionState {
+   public:
+    FunctionState(Package* p, std::string_view top_name, FuzzVersion version,
+                  CombineListMethod combine_list_method,
+                  std::optional<int64_t> nodes_to_consume = std::nullopt)
+        : fb_(std::make_unique<FunctionBuilder>(top_name, p)),
+          context_list_(p, fb_.get(), IrFuzzHelpers(version)),
+          combine_list_method_(combine_list_method),
+          nodes_to_consume_(nodes_to_consume) {}
+
+    FunctionState() = delete;
+    FunctionState(const FunctionState&) = delete;
+    FunctionState& operator=(const FunctionState&) = delete;
+    FunctionState(FunctionState&&) = default;
+    FunctionState& operator=(FunctionState&&) = default;
+
+    // Destructor that sets the return value of `fb`.
+    ~FunctionState();
+
+    FunctionBuilder* fb() {
+      CHECK_NE(fb_.get(), nullptr);
+      return fb_.get();
+    }
+    IrNodeContextList& context_list() { return context_list_; }
+    CombineListMethod combine_list_method() { return combine_list_method_; }
+    std::optional<int64_t>& nodes_to_consume() { return nodes_to_consume_; }
+
+   private:
+    std::unique_ptr<FunctionBuilder> fb_;
+    IrNodeContextList context_list_;
+
+    // Used to set the return value upon destruction.
+    CombineListMethod combine_list_method_;
+
+    // If nullopt, consume all nodes.
+    std::optional<int64_t> nodes_to_consume_;
+  };
+
   BValue GetOperand(const OperandIdxProto& operand_idx);
   BValue GetBitsOperand(const BitsOperandIdxProto& operand_idx);
   BValue GetTupleOperand(const TupleOperandIdxProto& operand_idx);
@@ -144,11 +190,18 @@ class GenIrNodesPass : public IrFuzzVisitor {
       const BitsCoercedTypeProto& coerced_type, int64_t min_operand_count = 0,
       int64_t max_operand_count = -1);
 
-  const FuzzProgramProto& fuzz_program_;
+  FunctionState& state() {
+    CHECK(!function_states_.empty());
+    return function_states_.back();
+  }
+
   Package* p_;
-  FunctionBuilder* fb_;
-  IrNodeContextList& context_list_;
+  const FuzzProgramProto& fuzz_program_;
   IrFuzzHelpers helpers_;
+
+  absl::flat_hash_map<Function*, absl::flat_hash_set<Function*>>
+      caller_to_callee_;
+  std::vector<FunctionState> function_states_;
 };
 
 }  // namespace xls

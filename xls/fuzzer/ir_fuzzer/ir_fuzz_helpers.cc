@@ -279,8 +279,8 @@ BValue IrFuzzHelpers::DecreaseBitWidth(
 
 BValue IrFuzzHelpers::IncreaseBitWidth(
     FunctionBuilder* fb, BValue bvalue, int64_t new_bit_width,
-    const IncreaseWidthMethod& increase_width_method) const {
-  switch (increase_width_method) {
+    const IncreaseWidthMethod& increase_bit_width_method) const {
+  switch (increase_bit_width_method) {
     case SIGN_EXTEND_METHOD:
       return fb->SignExtend(bvalue, new_bit_width);
     case ZERO_EXTEND_METHOD:
@@ -414,9 +414,16 @@ int64_t IrFuzzHelpers::Bounded(int64_t value, int64_t left_bound,
       return value;
     }
   }
-  int64_t diff = right_bound - left_bound;
-  return left_bound +
-         (std::bit_cast<uint64_t>(value) % static_cast<uint64_t>(diff + 1));
+  int64_t diff = right_bound - left_bound + 1;
+  int64_t value_rem = value % diff;
+  int64_t left_bound_rem = left_bound % diff;
+  int64_t shifted_mod = value_rem - left_bound_rem;
+  int64_t value_mod = shifted_mod % diff;
+  if (value_mod < 0) {
+    value_mod += diff;
+    CHECK_GE(value_mod, 0);
+  }
+  return left_bound + value_mod;
 }
 
 // Returns a default bit width if it is not in range. Bit width cannot be

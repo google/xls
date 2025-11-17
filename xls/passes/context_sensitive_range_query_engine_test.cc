@@ -1844,7 +1844,7 @@ MATCHER_P(IntervalTreeCompatible, base,
                                      bool_ltt.elements(), result_listener);
 }
 void ContextIsBoundedByBaseRange(std::shared_ptr<Package> p) {
-  ASSERT_EQ(p->functions().size(), 1);
+  ASSERT_GE(p->functions().size(), 1);
   Function* f = p->functions().front().get();
   ContextSensitiveRangeQueryEngine ctx;
   XLS_ASSERT_OK(ctx.Populate(f));

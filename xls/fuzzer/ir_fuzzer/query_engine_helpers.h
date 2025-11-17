@@ -72,7 +72,8 @@ template <typename QueryEngineT, typename Checker>
            std::is_base_of_v<QueryEngine, QueryEngineT>)
 void CheckQueryEngineInstanceConsistency(const FuzzPackageWithArgs& fuzz,
                                          QueryEngineT& qe, Checker check) {
-  Function* the_func = fuzz.fuzz_package.p->functions().front().get();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * the_func,
+                           fuzz.fuzz_package.p->GetTopAsFunction());
   XLS_ASSERT_OK(qe.Populate(the_func));
   absl::flat_hash_set<std::vector<Value>> seen_values;
   std::vector<std::vector<Value>> used_values;

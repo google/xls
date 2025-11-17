@@ -25,11 +25,11 @@
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/status/status.h"
 #include "absl/types/span.h"
 #include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
-#include "xls/fuzzer/ir_fuzzer/ir_fuzz_builder.h"
+#include "xls/fuzzer/ir_fuzzer/gen_ir_nodes_pass.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
-#include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
@@ -166,6 +166,8 @@ auto RestrictOpsRecursive(auto&& domain, absl::Span<Op const> ops) {
         return std::move(domain).WithFieldUnset("shrl");
       case Op::kGate:
         return std::move(domain).WithFieldUnset("gate");
+      case Op::kInvoke:
+        return std::move(domain).WithFieldUnset("invoke");
       default:
         // Do nothing for ops not in FuzzOpProto.
         return std::move(domain);
@@ -177,7 +179,8 @@ auto RestrictOpsRecursive(auto&& domain, absl::Span<Op const> ops) {
 }
 
 auto RestrictOps(auto&& domain, absl::Span<Op const> ops, bool allow_clz,
-                 bool allow_ctz) {
+                 bool allow_ctz, bool allow_define_function,
+                 bool allow_invoke) {
   auto base = RestrictOpsRecursive(std::forward<decltype(domain)>(domain), ops);
   bool allow_match = absl::c_none_of(ops, [](Op op) {
     return op == Op::kSel || op == Op::kPrioritySel || op == Op::kOneHotSel;
@@ -188,7 +191,19 @@ auto RestrictOps(auto&& domain, absl::Span<Op const> ops, bool allow_clz,
                        "match_true");
   auto clz = allow_clz ? std::move(sel) : std::move(sel).WithFieldUnset("clz");
   auto ctz = allow_ctz ? std::move(clz) : std::move(clz).WithFieldUnset("ctz");
-  return ctz;
+  // If we restrict the invoke op (rather than through the domain builder), then
+  // disable both the define and invoke ops.
+  bool invoke_op_restricted =
+      absl::c_any_of(ops, [](Op op) { return op == Op::kInvoke; });
+  allow_define_function = allow_define_function && invoke_op_restricted;
+  allow_invoke = allow_invoke && invoke_op_restricted;
+  auto define_function = allow_define_function && allow_invoke
+                             ? std::move(ctz)
+                             : std::move(ctz).WithFieldUnset("define_function");
+  auto invoke = allow_invoke
+                    ? std::move(define_function)
+                    : std::move(define_function).WithFieldUnset("invoke");
+  return invoke;
 }
 std::vector<Op> GetRestrictedSet(absl::Span<Op const> ops, bool only_bits) {
   std::vector<Op> restricted_set;
@@ -219,12 +234,21 @@ std::vector<Op> GetRestrictedSet(absl::Span<Op const> ops, bool only_bits) {
   });
   return restricted_set;
 }
+
+absl::Status BuildIr(Package* package, std::string_view top_name,
+                     const FuzzProgramProto& fuzz_program) {
+  GenIrNodesPass pass(package, top_name, fuzz_program);
+  pass.GenIrNodes();
+  return absl::OkStatus();
+}
+
 }  // namespace
 
 fuzztest::Domain<FuzzPackage> FuzzPackageDomainBuilder::Build() && {
   fuzztest::Domain<FuzzOpProto> op_domain = RestrictOps(
       fuzztest::Arbitrary<FuzzOpProto>().WithOneofAlwaysSet("fuzz_op"),
-      GetRestrictedSet(ops_, only_bits_), allow_clz_, allow_ctz_);
+      GetRestrictedSet(ops_, only_bits_), allow_clz_, allow_ctz_,
+      allow_define_function_, allow_invoke_);
   auto args = with_args_
                   ? static_cast<fuzztest::Domain<std::string>>(
                         fuzztest::Arbitrary<std::string>().WithMinSize(1000))
@@ -234,11 +258,7 @@ fuzztest::Domain<FuzzPackage> FuzzPackageDomainBuilder::Build() && {
         // Create the package.
         std::unique_ptr<Package> p =
             std::make_unique<VerifiedPackage>(kFuzzTestName);
-        FunctionBuilder fb(kFuzzTestName, p.get());
-        // Build the IR from the FuzzProgramProto.
-        IrFuzzBuilder ir_fuzz_builder(fuzz_program, p.get(), &fb);
-        BValue ir = ir_fuzz_builder.BuildIr();
-        CHECK_OK(fb.BuildWithReturnValue(ir))
+        CHECK_OK(BuildIr(p.get(), kFuzzTestName, fuzz_program))
             << "Failed to build package from FuzzProgramProto: "
             << fuzz_program.DebugString();
         // Create the FuzzPackage object as the domain export.

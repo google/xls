@@ -40,7 +40,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
-#include "xls/fuzzer/ir_fuzzer/ir_fuzz_builder.h"
+#include "xls/fuzzer/ir_fuzzer/gen_ir_nodes_pass.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_helpers.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/bits.h"
@@ -267,9 +267,8 @@ absl::StatusOr<FuzzPackage> BuildPackageFromProtoString(
   XLS_RET_CHECK(
       google::protobuf::TextFormat::ParseFromString(proto_string, &fuzz_program));
   // Generate the IR from the proto.
-  IrFuzzBuilder ir_fuzz_builder(fuzz_program, p.get(), &fb);
-  BValue proto_ir = ir_fuzz_builder.BuildIr();
-  XLS_RET_CHECK_OK(fb.BuildWithReturnValue(proto_ir));
+  GenIrNodesPass gen_ir_nodes_pass(p.get(), kFuzzTestName, fuzz_program);
+  gen_ir_nodes_pass.GenIrNodes();
   return FuzzPackage(std::move(p), fuzz_program);
 }
 

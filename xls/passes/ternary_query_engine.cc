@@ -120,6 +120,7 @@ bool IsExpensiveToEvaluate(
       Op::kShll,
       Op::kShra,
       Op::kBitSliceUpdate,
+      Op::kInvoke,
   });
   if (is_complex_evaluation) {
     return node->GetType()->GetFlatBitCount() > kComplexEvaluationLimit;

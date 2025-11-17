@@ -238,6 +238,8 @@ message FuzzOpProto {
     FuzzEncodeProto encode = 59;
     FuzzDecodeProto decode = 60;
     FuzzGateProto gate = 61;
+    FuzzDefineFunctionProto define_function = 62;
+    FuzzInvokeProto invoke = 63;
   }
 }
 
@@ -608,4 +610,15 @@ message FuzzGateProto {
   optional BitsOperandIdxProto condition_idx = 1;
   optional BitsOperandIdxProto data_idx = 2;
   optional BitsCoercionMethodProto condition_coercion_method = 3;
+}
+
+message FuzzDefineFunctionProto {
+  CombineListMethod combine_list_method = 1;
+  int64 next_nodes_consumed = 2;
+}
+
+message FuzzInvokeProto {
+  int64 function_index = 1;
+  repeated OperandIdxProto args_idxs = 2;
+  repeated CoercionMethodProto args_coercion_methods = 3;
 }

@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <cstdint>
 #include <string>
 
 #include "gmock/gmock.h"
@@ -21,23 +20,17 @@
 #include "absl/strings/str_format.h"
 #include "xls/common/status/matchers.h"
 #include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
-#include "xls/fuzzer/ir_fuzzer/gen_ir_nodes_pass.h"
-#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
-#include "xls/fuzzer/ir_fuzzer/ir_fuzz_helpers.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
-#include "xls/fuzzer/ir_fuzzer/ir_node_context_list.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/lsb_or_msb.h"
-#include "xls/ir/package.h"
 
 namespace m = ::xls::op_matchers;
 
 namespace xls {
 namespace {
 
-TEST(IrFuzzBuilderTest, AddTwoLiterals) {
+TEST(GenIrNodesPassTest, AddTwoLiterals) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -81,7 +74,7 @@ TEST(IrFuzzBuilderTest, AddTwoLiterals) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, AddTwoParams) {
+TEST(GenIrNodesPassTest, AddTwoParams) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -121,7 +114,7 @@ TEST(IrFuzzBuilderTest, AddTwoParams) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, AddLiteralsAndParamsAndAdds) {
+TEST(GenIrNodesPassTest, AddLiteralsAndParamsAndAdds) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -210,7 +203,7 @@ TEST(IrFuzzBuilderTest, AddLiteralsAndParamsAndAdds) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, AddOutOfBoundsIdxs) {
+TEST(GenIrNodesPassTest, AddOutOfBoundsIdxs) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -252,7 +245,7 @@ TEST(IrFuzzBuilderTest, AddOutOfBoundsIdxs) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, LiteralValueOverBoundsOfSmallWidth) {
+TEST(GenIrNodesPassTest, LiteralValueOverBoundsOfSmallWidth) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -272,7 +265,7 @@ TEST(IrFuzzBuilderTest, LiteralValueOverBoundsOfSmallWidth) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, AddDifferentWidthsWithExtensions) {
+TEST(GenIrNodesPassTest, AddDifferentWidthsWithExtensions) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -338,7 +331,7 @@ TEST(IrFuzzBuilderTest, AddDifferentWidthsWithExtensions) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, AddWithSliceAndExtension) {
+TEST(GenIrNodesPassTest, AddWithSliceAndExtension) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -385,7 +378,7 @@ TEST(IrFuzzBuilderTest, AddWithSliceAndExtension) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, AddWithLargeWidths) {
+TEST(GenIrNodesPassTest, AddWithLargeWidths) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -426,7 +419,7 @@ TEST(IrFuzzBuilderTest, AddWithLargeWidths) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, TupleParam) {
+TEST(GenIrNodesPassTest, TupleParam) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -457,7 +450,7 @@ TEST(IrFuzzBuilderTest, TupleParam) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, ArrayParam) {
+TEST(GenIrNodesPassTest, ArrayParam) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -484,7 +477,7 @@ TEST(IrFuzzBuilderTest, ArrayParam) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, TupleLiteral) {
+TEST(GenIrNodesPassTest, TupleLiteral) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -515,7 +508,7 @@ TEST(IrFuzzBuilderTest, TupleLiteral) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, ArrayLiteral) {
+TEST(GenIrNodesPassTest, ArrayLiteral) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -542,7 +535,7 @@ TEST(IrFuzzBuilderTest, ArrayLiteral) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, TupleExpandCoercion) {
+TEST(GenIrNodesPassTest, TupleExpandCoercion) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -607,7 +600,7 @@ TEST(IrFuzzBuilderTest, TupleExpandCoercion) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, ArrayExpandCoercion) {
+TEST(GenIrNodesPassTest, ArrayExpandCoercion) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -668,7 +661,7 @@ TEST(IrFuzzBuilderTest, ArrayExpandCoercion) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, TupleShrinkCoercion) {
+TEST(GenIrNodesPassTest, TupleShrinkCoercion) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -730,7 +723,7 @@ TEST(IrFuzzBuilderTest, TupleShrinkCoercion) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, ArrayShrinkCoercion) {
+TEST(GenIrNodesPassTest, ArrayShrinkCoercion) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -790,7 +783,7 @@ TEST(IrFuzzBuilderTest, ArrayShrinkCoercion) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, ArraySliceCoercion) {
+TEST(GenIrNodesPassTest, ArraySliceCoercion) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -849,7 +842,7 @@ TEST(IrFuzzBuilderTest, ArraySliceCoercion) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, CategoricalTypeMismatchCoercion) {
+TEST(GenIrNodesPassTest, CategoricalTypeMismatchCoercion) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -896,7 +889,7 @@ TEST(IrFuzzBuilderTest, CategoricalTypeMismatchCoercion) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, TupleList) {
+TEST(GenIrNodesPassTest, TupleList) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: TUPLE_LIST_METHOD
@@ -923,7 +916,7 @@ TEST(IrFuzzBuilderTest, TupleList) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, ConcatOp) {
+TEST(GenIrNodesPassTest, ConcatOp) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -973,7 +966,7 @@ TEST(IrFuzzBuilderTest, ConcatOp) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, EmptyConcat) {
+TEST(GenIrNodesPassTest, EmptyConcat) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -1007,7 +1000,7 @@ TEST(IrFuzzBuilderTest, EmptyConcat) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, ConcatExceedsWidthLimit) {
+TEST(GenIrNodesPassTest, ConcatExceedsWidthLimit) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -1038,7 +1031,7 @@ TEST(IrFuzzBuilderTest, ConcatExceedsWidthLimit) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, ShiftOps) {
+TEST(GenIrNodesPassTest, ShiftOps) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -1110,7 +1103,7 @@ TEST(IrFuzzBuilderTest, ShiftOps) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, NaryOps) {
+TEST(GenIrNodesPassTest, NaryOps) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -1219,7 +1212,7 @@ TEST(IrFuzzBuilderTest, NaryOps) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, ReduceOps) {
+TEST(GenIrNodesPassTest, ReduceOps) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -1273,7 +1266,7 @@ TEST(IrFuzzBuilderTest, ReduceOps) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, MulOps) {
+TEST(GenIrNodesPassTest, MulOps) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -1348,7 +1341,7 @@ TEST(IrFuzzBuilderTest, MulOps) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, MulpOps) {
+TEST(GenIrNodesPassTest, MulpOps) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -1423,7 +1416,7 @@ TEST(IrFuzzBuilderTest, MulpOps) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, DivOps) {
+TEST(GenIrNodesPassTest, DivOps) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -1494,7 +1487,7 @@ TEST(IrFuzzBuilderTest, DivOps) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, ModOps) {
+TEST(GenIrNodesPassTest, ModOps) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -1565,7 +1558,7 @@ TEST(IrFuzzBuilderTest, ModOps) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, AssociativeOps) {
+TEST(GenIrNodesPassTest, AssociativeOps) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -1636,7 +1629,7 @@ TEST(IrFuzzBuilderTest, AssociativeOps) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, ComparisonOps) {
+TEST(GenIrNodesPassTest, ComparisonOps) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -1843,7 +1836,7 @@ TEST(IrFuzzBuilderTest, ComparisonOps) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, InvertOps) {
+TEST(GenIrNodesPassTest, InvertOps) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -1886,7 +1879,7 @@ TEST(IrFuzzBuilderTest, InvertOps) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, SelectOp) {
+TEST(GenIrNodesPassTest, SelectOp) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -1948,7 +1941,7 @@ TEST(IrFuzzBuilderTest, SelectOp) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, SelectWithLargeSelectorWidth) {
+TEST(GenIrNodesPassTest, SelectWithLargeSelectorWidth) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -1994,7 +1987,7 @@ TEST(IrFuzzBuilderTest, SelectWithLargeSelectorWidth) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, SelectWithSmallSelectorWidth) {
+TEST(GenIrNodesPassTest, SelectWithSmallSelectorWidth) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -2043,7 +2036,7 @@ TEST(IrFuzzBuilderTest, SelectWithSmallSelectorWidth) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, SelectWithUselessDefault) {
+TEST(GenIrNodesPassTest, SelectWithUselessDefault) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -2092,7 +2085,7 @@ TEST(IrFuzzBuilderTest, SelectWithUselessDefault) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, SelectNeedingDefault) {
+TEST(GenIrNodesPassTest, SelectNeedingDefault) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -2135,7 +2128,7 @@ TEST(IrFuzzBuilderTest, SelectNeedingDefault) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, OneHotOp) {
+TEST(GenIrNodesPassTest, OneHotOp) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -2209,7 +2202,7 @@ TEST(IrFuzzBuilderTest, OneHotOp) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, OneHotSelectOp) {
+TEST(GenIrNodesPassTest, OneHotSelectOp) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -2271,7 +2264,7 @@ TEST(IrFuzzBuilderTest, OneHotSelectOp) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, OneHotSelectWithLargeSelectorWidth) {
+TEST(GenIrNodesPassTest, OneHotSelectWithLargeSelectorWidth) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -2313,7 +2306,7 @@ TEST(IrFuzzBuilderTest, OneHotSelectWithLargeSelectorWidth) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, OneHotSelectWithExtraCases) {
+TEST(GenIrNodesPassTest, OneHotSelectWithExtraCases) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -2365,7 +2358,7 @@ TEST(IrFuzzBuilderTest, OneHotSelectWithExtraCases) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, PrioritySelectOp) {
+TEST(GenIrNodesPassTest, PrioritySelectOp) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -2440,7 +2433,7 @@ TEST(IrFuzzBuilderTest, PrioritySelectOp) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, PrioritySelectWithLargeSelectorWidth) {
+TEST(GenIrNodesPassTest, PrioritySelectWithLargeSelectorWidth) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -2486,7 +2479,7 @@ TEST(IrFuzzBuilderTest, PrioritySelectWithLargeSelectorWidth) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, PrioritySelectWithExtraCases) {
+TEST(GenIrNodesPassTest, PrioritySelectWithExtraCases) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -2539,7 +2532,7 @@ TEST(IrFuzzBuilderTest, PrioritySelectWithExtraCases) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, CountOps) {
+TEST(GenIrNodesPassTest, CountOps) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -2584,7 +2577,7 @@ TEST(IrFuzzBuilderTest, CountOps) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, MatchOp) {
+TEST(GenIrNodesPassTest, MatchOp) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -2668,7 +2661,7 @@ TEST(IrFuzzBuilderTest, MatchOp) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, MatchTrueOp) {
+TEST(GenIrNodesPassTest, MatchTrueOp) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -2745,7 +2738,7 @@ TEST(IrFuzzBuilderTest, MatchTrueOp) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, TupleOp) {
+TEST(GenIrNodesPassTest, TupleOp) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -2782,7 +2775,7 @@ TEST(IrFuzzBuilderTest, TupleOp) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, ArrayOp) {
+TEST(GenIrNodesPassTest, ArrayOp) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -2831,7 +2824,7 @@ TEST(IrFuzzBuilderTest, ArrayOp) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, TupleIndexOp) {
+TEST(GenIrNodesPassTest, TupleIndexOp) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -2866,7 +2859,7 @@ TEST(IrFuzzBuilderTest, TupleIndexOp) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, ArrayIndexOp) {
+TEST(GenIrNodesPassTest, ArrayIndexOp) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -2908,7 +2901,7 @@ TEST(IrFuzzBuilderTest, ArrayIndexOp) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, ArraySliceOp) {
+TEST(GenIrNodesPassTest, ArraySliceOp) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -2951,7 +2944,7 @@ TEST(IrFuzzBuilderTest, ArraySliceOp) {
   XLS_ASSERT_OK(BuildPackageFromProtoString(proto_string));
 }
 
-TEST(IrFuzzBuilderTest, ArrayUpdateOp) {
+TEST(GenIrNodesPassTest, ArrayUpdateOp) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -3050,7 +3043,7 @@ TEST(IrFuzzBuilderTest, ArrayUpdateOp) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, ArrayConcatOp) {
+TEST(GenIrNodesPassTest, ArrayConcatOp) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -3102,7 +3095,7 @@ TEST(IrFuzzBuilderTest, ArrayConcatOp) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, ArrayConcatExceedsSizeLimit) {
+TEST(GenIrNodesPassTest, ArrayConcatExceedsSizeLimit) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -3143,7 +3136,7 @@ TEST(IrFuzzBuilderTest, ArrayConcatExceedsSizeLimit) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, ReverseOp) {
+TEST(GenIrNodesPassTest, ReverseOp) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -3168,7 +3161,7 @@ TEST(IrFuzzBuilderTest, ReverseOp) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, IdentityOp) {
+TEST(GenIrNodesPassTest, IdentityOp) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -3193,7 +3186,7 @@ TEST(IrFuzzBuilderTest, IdentityOp) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, ExtendOps) {
+TEST(GenIrNodesPassTest, ExtendOps) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -3238,7 +3231,7 @@ TEST(IrFuzzBuilderTest, ExtendOps) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, BitSliceOp) {
+TEST(GenIrNodesPassTest, BitSliceOp) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -3285,7 +3278,7 @@ TEST(IrFuzzBuilderTest, BitSliceOp) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, BitSliceUpdateOp) {
+TEST(GenIrNodesPassTest, BitSliceUpdateOp) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -3335,7 +3328,7 @@ TEST(IrFuzzBuilderTest, BitSliceUpdateOp) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, DynamicBitSliceOp) {
+TEST(GenIrNodesPassTest, DynamicBitSliceOp) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -3379,7 +3372,7 @@ TEST(IrFuzzBuilderTest, DynamicBitSliceOp) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, EncodeOp) {
+TEST(GenIrNodesPassTest, EncodeOp) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -3404,7 +3397,7 @@ TEST(IrFuzzBuilderTest, EncodeOp) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, DecodeOp) {
+TEST(GenIrNodesPassTest, DecodeOp) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -3469,7 +3462,7 @@ TEST(IrFuzzBuilderTest, DecodeOp) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, GateOp) {
+TEST(GenIrNodesPassTest, GateOp) {
   std::string proto_string = absl::StrFormat(
       R"(
         combine_list_method: LAST_ELEMENT_METHOD
@@ -3512,39 +3505,216 @@ TEST(IrFuzzBuilderTest, GateOp) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-void GenIrNodesGeneratesValidSizes(const FuzzProgramProto& proto) {
-  Package p("test_package");
-  FunctionBuilder fb("test_function", &p);
-  IrNodeContextList context_list(&p, &fb,
-                                 kFuzzHelpers[kCurrentFuzzProtoVersion]);
-  GenIrNodesPass pass(proto, &p, &fb, context_list);
-  pass.GenIrNodes();
-  for (int64_t i = 0; i < context_list.GetListSize(ContextListType::BITS_LIST);
-       ++i) {
-    ASSERT_LE(context_list.GetElementAt(i, ContextListType::BITS_LIST)
-                  .BitCountOrDie(),
-              IrFuzzHelpers::kMaxFuzzBitWidth);
-  }
-  for (int64_t i = 0; i < context_list.GetListSize(ContextListType::TUPLE_LIST);
-       ++i) {
-    ASSERT_LE(context_list.GetElementAt(i, ContextListType::TUPLE_LIST)
-                  .GetType()
-                  ->AsTupleOrDie()
-                  ->size(),
-              IrFuzzHelpers::kMaxFuzzTupleSize);
-  }
-  for (int64_t i = 0; i < context_list.GetListSize(ContextListType::ARRAY_LIST);
-       ++i) {
-    ASSERT_LE(context_list.GetElementAt(i, ContextListType::ARRAY_LIST)
-                  .GetType()
-                  ->AsArrayOrDie()
-                  ->size(),
-              IrFuzzHelpers::kMaxFuzzArraySize);
-  }
+TEST(GenIrNodesPassTest, InvokeOp) {
+  std::string proto_string =
+      R"(
+        combine_list_method: LAST_ELEMENT_METHOD
+        fuzz_ops {
+          literal {
+            type {
+              bits {
+                bit_width: 32
+              }
+            }
+            value_bytes: "\x0a"
+          }
+        }
+        fuzz_ops {
+          literal {
+            type {
+              bits {
+                bit_width: 32
+              }
+            }
+            value_bytes: "\x14"
+          }
+        }
+        fuzz_ops {
+          define_function {
+            combine_list_method: LAST_ELEMENT_METHOD
+            next_nodes_consumed: 3
+          }
+        }
+        fuzz_ops {
+          param {
+            type {
+              bits {
+                bit_width: 32
+              }
+            }
+          }
+        }
+        fuzz_ops {
+          param {
+            type {
+              bits {
+                bit_width: 32
+              }
+            }
+          }
+        }
+        fuzz_ops {
+          add {
+            lhs_idx {
+              list_idx: 0
+            }
+            rhs_idx {
+              list_idx: 1
+            }
+            operands_type {
+              bit_width: 32
+            }
+          }
+        }
+        fuzz_ops {
+          invoke {
+            function_index: 0
+            args_idxs {
+              list_idx: 0
+            }
+            args_idxs {
+              list_idx: 1
+            }
+          }
+        }
+      )";
+  auto expected_ir_node =
+      m::Invoke(m::Literal(UBits(10, 32)), m::Literal(UBits(20, 32)));
+  XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-FUZZ_TEST(IrFuzzBuilderTest, GenIrNodesGeneratesValidSizes)
-    .WithDomains(fuzztest::Arbitrary<FuzzProgramProto>());
+TEST(GenIrNodesPassTest, InvokeOpWithCoercion) {
+  std::string proto_string =
+      R"(
+        combine_list_method: LAST_ELEMENT_METHOD
+        fuzz_ops {
+          literal {
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
+            value_bytes: "\x0a"
+          }
+        }
+        fuzz_ops {
+          literal {
+            type {
+              bits {
+                bit_width: 20
+              }
+            }
+            value_bytes: "\x14"
+          }
+        }
+        fuzz_ops {
+          define_function {
+            combine_list_method: LAST_ELEMENT_METHOD
+            next_nodes_consumed: 3
+          }
+        }
+        fuzz_ops {
+          param {
+            type {
+              bits {
+                bit_width: 32
+              }
+            }
+          }
+        }
+        fuzz_ops {
+          param {
+            type {
+              bits {
+                bit_width: 32
+              }
+            }
+          }
+        }
+        fuzz_ops {
+          add {
+            lhs_idx {
+              list_idx: 0
+            }
+            rhs_idx {
+              list_idx: 1
+            }
+            operands_type {
+              bit_width: 32
+            }
+          }
+        }
+        fuzz_ops {
+          invoke {
+            function_index: 0
+            args_idxs {
+              list_idx: 0
+            }
+            args_idxs {
+              list_idx: 1
+            }
+          }
+        }
+      )";
+  auto expected_ir_node = m::Invoke(m::ZeroExt(m::Literal(UBits(10, 10))),
+                                    m::ZeroExt(m::Literal(UBits(20, 20))));
+  XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
+}
+
+TEST(GenIrNodesPassTest, InvokeOpByIndex) {
+  std::string proto_string =
+      R"(
+        combine_list_method: LAST_ELEMENT_METHOD
+        fuzz_ops {
+          literal {
+            type {
+              bits {
+                bit_width: 32
+              }
+            }
+            value_bytes: "\x0a"
+          }
+        }
+        fuzz_ops {
+          define_function {
+            combine_list_method: LAST_ELEMENT_METHOD
+            next_nodes_consumed: 2
+          }
+        }
+        fuzz_ops {
+          param {
+            type {
+              bits {
+                bit_width: 32
+              }
+            }
+          }
+        }
+        fuzz_ops {
+          add {
+            lhs_idx {
+              list_idx: 0
+            }
+            rhs_idx {
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 32
+            }
+          }
+        }
+        fuzz_ops {
+          invoke {
+            function_index: 0
+            args_idxs {
+              list_idx: 0
+            }
+          }
+        }
+      )";
+  auto expected_ir_node = m::Invoke(m::Literal(UBits(10, 32)));
+  XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
+}
 
 }  // namespace
 }  // namespace xls

@@ -38,8 +38,8 @@ fuzztest::Domain<absl::StatusOr<std::string>> StatusOrVerilogFuzzDomain(
   return fuzztest::Map(
       [scheduling_options, codegen_options](
           std::shared_ptr<Package> package) -> absl::StatusOr<std::string> {
-        XLS_RET_CHECK_EQ(package->functions().size(), 1)
-            << "We expect IrFuzzDomain() to return a package with exactly one "
+        XLS_RET_CHECK_GE(package->functions().size(), 1)
+            << "We expect IrFuzzDomain() to return a package with at least one "
                "function.\n"
             << package->DumpIr();
         // Make the function the top-level module.

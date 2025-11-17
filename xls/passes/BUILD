@@ -3615,6 +3615,8 @@ cc_test(
 cc_test(
     name = "conditional_specialization_pass_test",
     srcs = ["conditional_specialization_pass_test.cc"],
+    # Stack usage is high with BDDs, disabling the stack limit during fuzzing seems necessary.
+    args = ["--fuzztest_stack_limit_kb=0"],
     deps = [
         ":conditional_specialization_pass",
         ":optimization_pass",

@@ -44,6 +44,7 @@ class QueryEngineHelpersTest : public IrTestBase {
     auto y = fb.Param("y", p->GetBitsType(arg_width));
     fb.Add(x, y);
     XLS_EXPECT_OK(fb.Build().status());
+    XLS_EXPECT_OK(p->SetTop(p->functions().front().get()));
     std::vector<std::vector<Value>> args;
     for (int64_t i = 0; i < num_samples; ++i) {
       args.push_back({

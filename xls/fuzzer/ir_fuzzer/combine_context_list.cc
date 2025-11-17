@@ -26,10 +26,10 @@ namespace xls {
 // Combines the context list of BValues into a single IR object/BValue. There
 // are multiple ways to combine the context list, based off of the
 // CombineListMethod specified in the FuzzProgramProto.
-BValue CombineContextList(const FuzzProgramProto& fuzz_program,
+BValue CombineContextList(CombineListMethod combine_list_method,
                           FunctionBuilder* fb,
                           const IrNodeContextList& context_list) {
-  switch (fuzz_program.combine_list_method()) {
+  switch (combine_list_method) {
     case CombineListMethod::TUPLE_LIST_METHOD:
       return TupleList(fb, context_list);
     case CombineListMethod::LAST_ELEMENT_METHOD:

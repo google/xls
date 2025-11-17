@@ -68,6 +68,14 @@ class FuzzPackageDomainBuilder {
     allow_ctz_ = false;
     return std::move(*this);
   }
+  FuzzPackageDomainBuilder NoDefineFunction() && {
+    allow_define_function_ = false;
+    return std::move(*this);
+  }
+  FuzzPackageDomainBuilder NoInvoke() && {
+    allow_invoke_ = false;
+    return std::move(*this);
+  }
 
  private:
   bool only_bits_ = false;
@@ -76,6 +84,8 @@ class FuzzPackageDomainBuilder {
   bool with_args_ = true;
   bool allow_clz_ = true;
   bool allow_ctz_ = true;
+  bool allow_define_function_ = true;
+  bool allow_invoke_ = true;
 };
 
 // Helper to build a package with args domain.
@@ -141,6 +151,12 @@ class PackageDomainBuilder {
   }
   PackageDomainBuilder NoCtz() && {
     return PackageDomainBuilder(std::move(base_).NoCtz());
+  }
+  PackageDomainBuilder NoDefineFunction() && {
+    return PackageDomainBuilder(std::move(base_).NoDefineFunction());
+  }
+  PackageDomainBuilder NoInvoke() && {
+    return PackageDomainBuilder(std::move(base_).NoInvoke());
   }
 
  private:

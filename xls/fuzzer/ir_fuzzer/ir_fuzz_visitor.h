@@ -92,6 +92,9 @@ class IrFuzzVisitor {
   virtual void HandleEncode(const FuzzEncodeProto& encode) = 0;
   virtual void HandleDecode(const FuzzDecodeProto& decode) = 0;
   virtual void HandleGate(const FuzzGateProto& gate) = 0;
+  virtual void HandleDefineFunction(
+      const FuzzDefineFunctionProto& define_function) = 0;
+  virtual void HandleInvoke(const FuzzInvokeProto& invoke) = 0;
 
   void VisitFuzzOp(const FuzzOpProto& fuzz_op);
 };
