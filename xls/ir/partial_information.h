@@ -141,6 +141,7 @@ class PartialInformation {
   int64_t KnownLeadingSignBits() const;
 
   std::string ToString() const;
+  std::string ToDebugString() const;
 
   template <typename Sink>
   friend void AbslStringify(Sink& sink, const PartialInformation& info) {
@@ -216,6 +217,8 @@ class PartialInformation {
   // The range information, if any; if not present, it means that the range is
   // unconstrained.
   std::optional<IntervalSet> range_;
+
+  friend void ForceReconcilePartialInformation(PartialInformation& info);
 };
 
 }  // namespace xls

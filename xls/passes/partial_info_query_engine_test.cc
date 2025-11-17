@@ -51,6 +51,11 @@
 #include "xls/passes/range_query_engine.h"
 
 namespace xls {
+
+void ForceReconcilePartialInformation(PartialInformation& info) {
+  info.ReconcileInformation();
+}
+
 namespace {
 
 using PartialInformationTree = LeafTypeTree<PartialInformation>;
@@ -2254,6 +2259,27 @@ void CheckConsistency(const FuzzPackageWithArgs& fuzz) {
 
 FUZZ_TEST(PartialInfoQueryEngineFuzzTest, CheckConsistency)
     .WithDomains(PackageWithArgsDomainBuilder(10).Build());
+
+void CheckReconcileConsistency(std::shared_ptr<Package> fuzz) {
+  PartialInfoQueryEngine qe;
+  for (FunctionBase* func : fuzz->GetFunctionBases()) {
+    XLS_ASSERT_OK(qe.Populate(func));
+
+    for (Node* node : func->nodes()) {
+      auto info = qe.GetInfo(node);
+      if (!info) {
+        continue;
+      }
+      LeafTypeTree<PartialInformation> initial = info->ToOwned();
+      LeafTypeTree<PartialInformation> post_reconcile = initial;
+      leaf_type_tree::ForEach(post_reconcile.AsMutableView(),
+                              ForceReconcilePartialInformation);
+      ASSERT_EQ(initial, post_reconcile);
+    }
+  }
+}
+FUZZ_TEST(PartialInfoQueryEngineFuzzTest, CheckReconcileConsistency)
+    .WithDomains(PackageDomainBuilder().Build());
 
 }  // namespace
 }  // namespace xls

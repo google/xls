@@ -202,21 +202,25 @@ absl::StatusOr<TernaryVector> Union(TernarySpan lhs, TernarySpan rhs) {
   return result;
 }
 
-bool TryUpdateWithUnion(TernaryVector& lhs, TernarySpan rhs) {
+bool TryUpdateWithUnion(TernaryVector& lhs, TernarySpan rhs, bool* changed) {
   CHECK_EQ(lhs.size(), rhs.size());
 
+  bool local_changed;
+  bool& lhs_difference = changed != nullptr ? *changed : local_changed;
+  lhs_difference = false;
   for (int64_t i = 0; i < lhs.size(); ++i) {
     if (rhs[i] == TernaryValue::kUnknown) {
       continue;
     }
 
     if (lhs[i] == TernaryValue::kUnknown) {
+      // NB If this wasn't a change then the above if would have been taken.
+      lhs_difference = true;
       lhs[i] = rhs[i];
     } else if (lhs[i] != rhs[i]) {
       return false;
     }
   }
-
   return true;
 }
 

@@ -18,10 +18,12 @@
 #include <optional>
 #include <sstream>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
@@ -341,6 +343,78 @@ TEST(TernaryTest, FuzzTestPrintSourceCode) {
   FuzzTestPrintSourceCode(span, &ss);
   EXPECT_EQ(ss.str(), "ternary_ops::StringToTernaryVector(\"0b01X\").value()");
 }
+
+TEST(TernaryTest, TryUpdateWithUnionNotesChanges) {
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(auto tern_a, StringToTernaryVector("0bXX"));
+    XLS_ASSERT_OK_AND_ASSIGN(auto tern_b, StringToTernaryVector("0bX1"));
+    bool changed;
+    EXPECT_TRUE(ternary_ops::TryUpdateWithUnion(tern_a, tern_b, &changed));
+    // Same as tern_b but a changed.
+    EXPECT_TRUE(changed);
+  }
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(auto tern_a, StringToTernaryVector("0b11"));
+    XLS_ASSERT_OK_AND_ASSIGN(auto tern_b, StringToTernaryVector("0bX1"));
+    bool changed;
+    EXPECT_TRUE(ternary_ops::TryUpdateWithUnion(tern_a, tern_b, &changed));
+    EXPECT_FALSE(changed);
+  }
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(auto tern_a, StringToTernaryVector("0bX1"));
+    XLS_ASSERT_OK_AND_ASSIGN(auto tern_b, StringToTernaryVector("0bX1"));
+    bool changed;
+    EXPECT_TRUE(ternary_ops::TryUpdateWithUnion(tern_a, tern_b, &changed));
+    EXPECT_FALSE(changed);
+  }
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(auto tern_a, StringToTernaryVector("0bX1"));
+    XLS_ASSERT_OK_AND_ASSIGN(auto tern_b, StringToTernaryVector("0b11"));
+    bool changed;
+    EXPECT_TRUE(ternary_ops::TryUpdateWithUnion(tern_a, tern_b, &changed));
+    // Same as tern_b but a changed.
+    EXPECT_TRUE(changed);
+  }
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(auto tern_a, StringToTernaryVector("0b1X"));
+    XLS_ASSERT_OK_AND_ASSIGN(auto tern_b, StringToTernaryVector("0bX1"));
+    bool changed;
+    EXPECT_TRUE(ternary_ops::TryUpdateWithUnion(tern_a, tern_b, &changed));
+    EXPECT_TRUE(changed);
+  }
+}
+
+void TryUpdateWithUnionNotesChanges(
+    std::tuple<TernaryVector, TernaryVector> args) {
+  bool changed = false;
+  auto [a, b] = std::move(args);
+  TernaryVector orig = a;
+  bool merge = ternary_ops::TryUpdateWithUnion(a, b, &changed);
+  if (!merge) {
+    return;
+  }
+  if (changed) {
+    EXPECT_THAT(a, testing::Not(testing::Eq(orig)))
+        << "Because changed was false";
+  } else {
+    EXPECT_THAT(a, testing::Eq(orig)) << "Because changed was true";
+  }
+}
+
+FUZZ_TEST(TernaryFuzzTest, TryUpdateWithUnionNotesChanges)
+    .WithDomains(fuzztest::FlatMap(
+        [](int64_t bit_count) {
+          return fuzztest::TupleOf(
+              fuzztest::VectorOf(fuzztest::ElementOf({TernaryValue::kKnownZero,
+                                                      TernaryValue::kKnownOne,
+                                                      TernaryValue::kUnknown}))
+                  .WithSize(bit_count),
+              fuzztest::VectorOf(fuzztest::ElementOf({TernaryValue::kKnownZero,
+                                                      TernaryValue::kKnownOne,
+                                                      TernaryValue::kUnknown}))
+                  .WithSize(bit_count));
+        },
+        fuzztest::InRange(0, 10)));
 
 }  // namespace
 }  // namespace xls

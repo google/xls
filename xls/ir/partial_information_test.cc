@@ -36,6 +36,11 @@
 #include "xls/ir/ternary.h"
 
 namespace xls {
+
+void ForceReconcilePartialInformation(PartialInformation& info) {
+  info.ReconcileInformation();
+}
+
 namespace {
 
 using ::testing::Optional;
@@ -104,7 +109,7 @@ TEST(PartialInformationTest, Mixed) {
               Optional(FromRanges({{2, 3}, {10, 11}, {18, 19}, {26, 27}}, 10)));
 }
 
-inline auto ArbitraryTernaryAndNormalizedIntervalSet() {
+inline auto ArbitraryTernaryAndNormalizedIntervalSet(int64_t num_bits = 1000) {
   return fuzztest::FlatMap(
       [](int64_t bit_count) {
         return fuzztest::TupleOf(
@@ -117,7 +122,7 @@ inline auto ArbitraryTernaryAndNormalizedIntervalSet() {
             fuzztest::OptionalOf(ArbitraryNormalizedIntervalSet(bit_count)),
             fuzztest::ElementOf({bit_count}));
       },
-      fuzztest::InRange(0, 1000));
+      fuzztest::InRange(int64_t{0}, num_bits));
 }
 
 void ImpossibleAndUnconstrained(std::tuple<std::optional<TernaryVector>,
@@ -142,6 +147,21 @@ void ImpossibleAndUnconstrained(std::tuple<std::optional<TernaryVector>,
 }
 FUZZ_TEST(PartialInformationFuzzTest, ImpossibleAndUnconstrained)
     .WithDomains(ArbitraryTernaryAndNormalizedIntervalSet());
+
+void ReconcileIsConsistent(std::tuple<std::optional<TernaryVector>,
+                                      std::optional<IntervalSet>, int64_t>
+                               inputs) {
+  const auto& [ternary, range, bit_count] = inputs;
+  PartialInformation info(bit_count, ternary, range);
+  PartialInformation initial = info;
+  PartialInformation post_reconcile = info;
+  ForceReconcilePartialInformation(post_reconcile);
+  EXPECT_EQ(initial, post_reconcile)
+      << "\ninitial: " << initial.ToDebugString()
+      << "\npost: " << post_reconcile.ToDebugString();
+}
+FUZZ_TEST(PartialInformationFuzzTest, ReconcileIsConsistent)
+    .WithDomains(ArbitraryTernaryAndNormalizedIntervalSet(10));
 
 void LeadingBitsIsCorrect(std::tuple<std::optional<TernaryVector>,
                                      std::optional<IntervalSet>, int64_t>
