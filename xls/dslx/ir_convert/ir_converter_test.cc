@@ -48,6 +48,7 @@
 namespace xls::dslx {
 namespace {
 
+using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
 using ::testing::AllOf;
 using ::testing::HasSubstr;
@@ -7108,6 +7109,22 @@ pub proc Main {
       ConvertOneFunctionForTest(program, "Main", import_data,
                                 kProcScopedChannelOptions));
   ExpectIr(converted);
+}
+
+// Because the function is not instantiated, we should not observe the error at
+// conversion time.
+TEST_F(ProcScopedChannelsIrConverterTest, TypeErrorInUninstantiatedParametric) {
+  constexpr std::string_view program = R"(fn f<N: u32>(x: u8) -> u8 { 42(x) })";
+  absl::StatusOr<std::string> converted = ConvertModuleForTest(program);
+  EXPECT_THAT(converted, IsOkAndHolds("package test_module\n"));
+}
+
+TEST_F(ProcScopedChannelsIrConverterTest,
+       IrConversionErrorChannelOutsideProcConfigInUninstantiatedParametric) {
+  constexpr std::string_view program =
+      R"(fn f<N: u32>() { let _ = chan<u8>("OutsideProc"); })";
+  absl::StatusOr<std::string> converted = ConvertModuleForTest(program);
+  EXPECT_THAT(converted, IsOkAndHolds("package test_module\n"));
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ConvertWithoutTests) {

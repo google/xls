@@ -113,26 +113,22 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
       return absl::OkStatus();
     }
 
+    std::vector<InvocationCalleeData> calls =
+        type_info_->GetUniqueInvocationCalleeData(f);
+    if (f->IsParametric() && calls.empty()) {
+      VLOG(5) << "No calls to parametric function " << f->name_def()->ToString()
+              << "; not traversing for dependencies.";
+      return absl::OkStatus();
+    }
     // Process the child nodes first, so that function invocations or proc
     // spawns that _we_ make are added to the list _before us_. This only
     // matters to invocations to functions outside our module; functions inside
     // our module should have already been added to the list.
     XLS_RETURN_IF_ERROR(DefaultHandler(f));
 
-    std::vector<InvocationCalleeData> calls =
-        type_info_->GetUniqueInvocationCalleeData(f);
-
-    if (f->IsParametric()) {
-      if (calls.empty()) {
-        VLOG(5) << "No calls to parametric function "
-                << f->name_def()->ToString();
-        return absl::OkStatus();
-      }
-
-      if (!include_tests_) {
-        XLS_RETURN_IF_ERROR(CheckIfCalledOnlyFromTestCode(
-            type_info_, calls, /*is_proc=*/false, f->identifier()));
-      }
+    if (f->IsParametric() && !include_tests_) {
+      XLS_RETURN_IF_ERROR(CheckIfCalledOnlyFromTestCode(
+          type_info_, calls, /*is_proc=*/false, f->identifier()));
     }
 
     for (auto& callee_data : calls) {
