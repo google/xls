@@ -57,7 +57,8 @@ enum class TraceKind : uint8_t {
   kCollectConstants,
   kConcretize,
   kUnroll,
-  kFilter
+  kFilter,
+  kDeriveTrait
 };
 
 struct TypeSystemTraceImpl {
@@ -79,6 +80,8 @@ struct TypeSystemTraceImpl {
   std::optional<bool> populated_cache;
   std::optional<bool> convert_for_type_variable_unification;
   std::optional<std::unique_ptr<Type>> result_type;
+  std::optional<const Trait*> trait;
+  std::optional<std::unique_ptr<Type>> trait_struct_type;
   absl::Duration duration;
 };
 
@@ -108,6 +111,8 @@ std::string TraceKindToString(TraceKind kind) {
       return "Unroll";
     case TraceKind::kFilter:
       return "Filter";
+    case TraceKind::kDeriveTrait:
+      return "DeriveTrait";
   }
 }
 
@@ -182,6 +187,13 @@ std::string TraceImplToString(const TypeSystemTraceImpl& impl) {
   if (impl.populated_cache.has_value()) {
     pieces.push_back(
         absl::StrCat("populated_global_cache: ", *impl.populated_cache));
+  }
+  if (impl.trait.has_value()) {
+    pieces.push_back(absl::StrCat("trait: ", (*impl.trait)->identifier()));
+  }
+  if (impl.trait_struct_type.has_value()) {
+    pieces.push_back(
+        absl::StrCat("struct_type: ", (*impl.trait_struct_type)->ToString()));
   }
   return absl::StrJoin(pieces, ", ");
 }
@@ -303,6 +315,17 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
                                      .kind = TraceKind::kUnroll,
                                      .address = node,
                                      .node = node});
+  }
+
+  TypeSystemTrace TraceDeriveTrait(const Trait* trait,
+                                   const StructDef* struct_def,
+                                   const StructType& struct_type) override {
+    return Trace(
+        TypeSystemTraceImpl{.parent = stack_.top(),
+                            .kind = TraceKind::kDeriveTrait,
+                            .node = struct_def,
+                            .trait = trait,
+                            .trait_struct_type = struct_type.CloneToUnique()});
   }
 
   std::string ConvertTracesToString() const override {
@@ -480,6 +503,12 @@ class NoopTracer final : public TypeSystemTracer {
   }
 
   TypeSystemTrace TraceUnroll(const AstNode* node) final { return Noop(); }
+
+  TypeSystemTrace TraceDeriveTrait(const Trait* trait,
+                                   const StructDef* struct_def,
+                                   const StructType& struct_type) final {
+    return Noop();
+  }
 
   std::string ConvertTracesToString() const final { return ""; }
   std::string ConvertStatsToString(const FileTable& file_table) const final {

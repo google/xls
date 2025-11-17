@@ -37,6 +37,7 @@ struct FunctionAndTargetObject {
   const Function* function = nullptr;
   const std::optional<Expr*> target_object;
   std::optional<const ParametricContext*> target_struct_context;
+  std::optional<const TypeAnnotation*> target_object_type;
 };
 
 // An object that determines which function is referenced by a callee
@@ -56,7 +57,7 @@ std::unique_ptr<FunctionResolver> CreateFunctionResolver(
     InferenceTableConverter& converter,
     TypeAnnotationResolver& type_annotation_resolver,
     ParametricStructInstantiator& parametric_struct_instantiator,
-    std::optional<TraitDeriver*> trait_deriver);
+    std::optional<TraitDeriver*> trait_deriver, TypeSystemTracer& tracer);
 
 }  // namespace xls::dslx
 

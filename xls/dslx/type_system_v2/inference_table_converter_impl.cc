@@ -165,7 +165,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         function_resolver_(CreateFunctionResolver(
             module, import_data, table,
             /*converter=*/*this, *resolver_,
-            /*parametric_struct_instantiator=*/*this, trait_deriver)),
+            /*parametric_struct_instantiator=*/*this, trait_deriver, *tracer_)),
         constant_collector_(CreateConstantCollector(
             table_, module_, import_data_, warning_collector_, file_table_,
             /*converter=*/*this, *evaluator_,
@@ -293,8 +293,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     VLOG(5) << "Callee env: " << callee_env.ToString();
     CHECK_NE(invocation, nullptr);
 
-    XLS_ASSIGN_OR_RETURN(TypeInfo * parent_ti,
-                         GetTypeInfo(invocation->owner(), parametric_context));
+    XLS_ASSIGN_OR_RETURN(
+        TypeInfo * parent_ti,
+        GetTypeInfo(invocation->owner(), parametric_context->parent_context()));
     XLS_RETURN_IF_ERROR(parent_ti->AddInvocationTypeInfo(
         *invocation, data.callee,
         data.caller.has_value() ? *data.caller : nullptr, parent_env,
@@ -528,8 +529,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
 
     // Note that functions in procs are treated as if they are parametric (as in
     // v1), because there needs to be a `TypeInfo` with separate const-exprs per
-    // instantiation of a proc.
-    if (!function->IsParametric() && !function->IsInProc()) {
+    // instantiation of a proc. The same holds for trait-derived impl functions,
+    // which may be specialized to a particular concrete type of the struct.
+    if (!function->IsParametric() && !function->IsInProc() &&
+        !(function->IsCompilerDerived() && function->impl().has_value())) {
       std::optional<std::string_view> builtin =
           GetBuiltinFnName(invocation->callee());
       if (builtin.has_value() || function->owner() != &module_) {
@@ -658,15 +661,11 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         TypeInfo * invocation_type_info,
         import_data_.type_info_owner().New(function->owner(), base_type_info));
 
-    XLS_ASSIGN_OR_RETURN(
-        ParametricContext * invocation_context,
-        table_.AddParametricInvocation(
-            *invocation, *function, caller, caller_context,
-            function_and_target_object.target_struct_context.has_value()
-                ? (*function_and_target_object.target_struct_context)
-                      ->self_type()
-                : std::nullopt,
-            invocation_type_info));
+    XLS_ASSIGN_OR_RETURN(ParametricContext * invocation_context,
+                         table_.AddParametricInvocation(
+                             *invocation, *function, caller, caller_context,
+                             function_and_target_object.target_object_type,
+                             invocation_type_info));
     VLOG(5) << "ConvertInvocation for: " << invocation->ToString()
             << " for module: " << module_.name()
             << " with invocation_type_info of module "
