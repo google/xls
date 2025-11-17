@@ -15,6 +15,7 @@
 #ifndef XLS_COMMON_MATH_UTIL_H_
 #define XLS_COMMON_MATH_UTIL_H_
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <functional>
@@ -268,6 +269,37 @@ constexpr SaturatedResult<IntType> SaturatingMul(IntType l, IntType r)
                                 : std::numeric_limits<IntType>::max();
   }
   return res;
+}
+
+// Perform a saturating left shift between l and r. If l << r would shift set
+// bits out of the result, std::numeric_limits<IntType>::max() is returned
+// instead and did_overflow is set to true.
+template <typename IntType>
+constexpr SaturatedResult<IntType> SaturatingLeftShift(IntType l, int64_t r)
+  requires(std::is_integral_v<IntType>)
+{
+  CHECK_GE(r, 0) << "Left shift by negative amount: " << r;
+
+  if (l == IntType{0} || r == 0) {
+    // Shifting zero by any amount gives zero (the original value).
+    // Shifting anything by zero gives the original value.
+    return {.result = l, .did_overflow = false};
+  }
+
+  constexpr int64_t num_bits = sizeof(IntType) * 8;
+  if (r >= num_bits) {
+    // Shifting a non-zero value by at least the number of bits in the type
+    // always saturates.
+    return {.result = std::numeric_limits<IntType>::max(),
+            .did_overflow = true};
+  }
+  const int64_t bits_remaining = num_bits - r;
+  const IntType mask = (~IntType{0}) << bits_remaining;
+  if ((l & mask) != IntType{0}) {
+    return {.result = std::numeric_limits<IntType>::max(),
+            .did_overflow = true};
+  }
+  return {.result = l << r, .did_overflow = false};
 }
 
 }  // namespace xls

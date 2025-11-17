@@ -34,6 +34,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
+#include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/leaf_type_tree.h"
@@ -155,9 +156,8 @@ class BooleanifierNodeEvaluator : public AbstractNodeEvaluator<BitEvaluator> {
     std::vector<LeafTypeTreeView<LeafValueT>> slices;
     slices_mem.reserve(slice->array()->GetType()->AsArrayOrDie()->size());
     slices.reserve(slice->array()->GetType()->AsArrayOrDie()->size());
-    int64_t addressable_values = slice->start()->BitCountOrDie() < 64
-                                     ? 1 << slice->start()->BitCountOrDie()
-                                     : std::numeric_limits<int64_t>::max();
+    int64_t addressable_values =
+        SaturatingLeftShift(int64_t{1}, slice->start()->BitCountOrDie()).result;
     for (int64_t i = 0; i < input_size && i < addressable_values; ++i) {
       XLS_ASSIGN_OR_RETURN(LeafTypeTree<LeafValueT> one_slice,
                            leaf_type_tree::SliceArray(array_type, array, i));
@@ -306,9 +306,8 @@ class BooleanifierNodeEvaluator : public AbstractNodeEvaluator<BitEvaluator> {
                    final.AsMutableView({real_index}).elements().begin());
       return final;
     }
-    int64_t addressable_values = indexes.front().size() < 64
-                                     ? 1 << indexes.front().size()
-                                     : std::numeric_limits<int64_t>::max();
+    int64_t addressable_values =
+        SaturatingLeftShift(int64_t{1}, indexes.front().size()).result;
     int64_t array_size = array.type()->AsArrayOrDie()->size();
     std::vector<LeafTypeTreeView<LeafValueT>> cases;
     std::vector<LeafTypeTree<LeafValueT>> cases_mem;
@@ -362,9 +361,8 @@ class BooleanifierNodeEvaluator : public AbstractNodeEvaluator<BitEvaluator> {
     int64_t array_size = source.type()->AsArrayOrDie()->size();
     std::vector<LeafTypeTreeView<LeafValueT>> cases;
     cases.reserve(array_size);
-    int64_t addressable_values = index.size() < 64
-                                     ? 1 << index.size()
-                                     : std::numeric_limits<int64_t>::max();
+    int64_t addressable_values =
+        SaturatingLeftShift(int64_t{1}, index.size()).result;
     for (int64_t i = 0; i < array_size && i < addressable_values; ++i) {
       cases.push_back(source.AsView({i}));
     }

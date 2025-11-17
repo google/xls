@@ -386,6 +386,7 @@ cc_library(
     srcs = ["booleanifier.cc"],
     hdrs = ["booleanifier.h"],
     deps = [
+        "//xls/common:math_util",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/data_structures:leaf_type_tree",

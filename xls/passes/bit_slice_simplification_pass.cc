@@ -886,10 +886,8 @@ absl::StatusOr<bool> SimplifyScaledDynamicBitSlice(DynamicBitSlice* bit_slice,
   // value (if needed) to be zero rather than clamped to the last element.
   std::optional<Node*> past_the_end = std::nullopt;
   // How many items could we select from?
-  uint64_t addressable_items = index.value()->BitCountOrDie() < 64
-                                   ? uint64_t{1}
-                                         << index.value()->BitCountOrDie()
-                                   : std::numeric_limits<uint64_t>::max();
+  uint64_t addressable_items =
+      SaturatingLeftShift(uint64_t{1}, index.value()->BitCountOrDie()).result;
   if (addressable_items > array_elements.size()) {
     XLS_ASSIGN_OR_RETURN(past_the_end,
                          bit_slice->function_base()->MakeNode<Literal>(
