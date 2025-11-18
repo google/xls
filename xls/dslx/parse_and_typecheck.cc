@@ -38,6 +38,7 @@
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/typecheck_module.h"
+#include "xls/dslx/type_system_v2/builtin_trait_deriver.h"
 #include "xls/dslx/type_system_v2/trait_deriver.h"
 #include "xls/dslx/type_system_v2/type_inference_error_handler.h"
 #include "xls/dslx/type_system_v2/typecheck_module_v2.h"
@@ -105,6 +106,10 @@ absl::StatusOr<TypecheckedModule> TypecheckModule(
     std::unique_ptr<TraitDeriver> trait_deriver) {
   XLS_RET_CHECK(module.get() != nullptr);
   XLS_RET_CHECK(import_data != nullptr);
+
+  if (trait_deriver == nullptr) {
+    trait_deriver = CreateBuiltinTraitDeriver();
+  }
 
   std::string_view module_name = module->name();
 

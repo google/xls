@@ -715,11 +715,15 @@ class StatefulResolver : public TypeAnnotationResolver {
   absl::StatusOr<const TypeAnnotation*> ResolveSelfType(
       std::optional<const ParametricContext*> parametric_context,
       const SelfTypeAnnotation* self_type) {
-    if (parametric_context.has_value() &&
-        (*parametric_context)->self_type().has_value()) {
-      return *(*parametric_context)->self_type();
+    XLS_ASSIGN_OR_RETURN(
+        (std::optional<StructOrProcRef> ref),
+        GetStructOrProcRef(self_type->struct_ref(), import_data_));
+    if ((ref.has_value() && !ref->def->IsParametric()) ||
+        !parametric_context.has_value() ||
+        !(*parametric_context)->self_type().has_value()) {
+      return self_type->struct_ref();
     }
-    return self_type->struct_ref();
+    return *(*parametric_context)->self_type();
   }
 
   absl::StatusOr<const TypeAnnotation*> ResolveSliceType(

@@ -191,7 +191,14 @@ class FunctionResolverImpl : public FunctionResolver {
       // Non-trait impl function case.
       if (function_node == nullptr) {
         std::optional<Impl*> impl = struct_or_proc_ref->def->impl();
-        XLS_RET_CHECK(impl.has_value());
+        if (!impl.has_value()) {
+          return TypeInferenceErrorStatus(
+              callee->span(), /*type=*/nullptr,
+              absl::Substitute("No function `$0` on object of type: `$1`.",
+                               function_name,
+                               (*target_object_type)->ToString()),
+              file_table_);
+        }
         std::optional<Function*> instance_method =
             (*impl)->GetFunction(attr->attr());
         if (instance_method.has_value()) {
@@ -252,7 +259,8 @@ class FunctionResolverImpl : public FunctionResolver {
   absl::Status DeriveTrait(
       std::optional<const ParametricContext*> parametric_context,
       const Span& attribute_span, StructDef& struct_def, Impl& impl,
-      const StructType& struct_type, const Trait& trait) {
+      TypeAnnotation* actual_self_type, const StructType& struct_type,
+      const Trait& trait) {
     VLOG(5) << "Deriving trait `" << trait.identifier() << "` for struct `"
             << struct_def.identifier() << "`";
     TypeSystemTrace trace =
@@ -300,7 +308,7 @@ class FunctionResolverImpl : public FunctionResolver {
                             dynamic_cast<const SelfTypeAnnotation*>(node)) {
                       return module_.Make<SelfTypeAnnotation>(
                           self_type->span(), self_type->explicit_type(),
-                          impl.struct_ref());
+                          actual_self_type);
                     }
                     return std::nullopt;
                   })));
@@ -324,6 +332,7 @@ class FunctionResolverImpl : public FunctionResolver {
                                ->DeriveFunctionBody(module_, trait, struct_def,
                                                     struct_type, *derived));
       derived->set_body(body);
+      derived->SetParentage();
 
       std::unique_ptr<PopulateTableVisitor> visitor =
           CreatePopulateTableVisitor(&module_, &table_, &import_data_,
@@ -379,11 +388,32 @@ class FunctionResolverImpl : public FunctionResolver {
       TypeAnnotation* struct_ref = module_.Make<TypeRefTypeAnnotation>(
           Span::None(), module_.Make<TypeRef>(Span::None(), &struct_def),
           std::vector<ExprOrType>(), std::nullopt);
+
       impl =
           module_.Make<Impl>(Span::None(), struct_ref,
                              std::vector<ImplMember>{}, struct_def.is_public());
       struct_def.set_impl(*impl);
     }
+
+    std::vector<ExprOrType> parametrics;
+    if (parametric_context.has_value()) {
+      XLS_ASSIGN_OR_RETURN(
+          (absl::flat_hash_map<const NameDef*, ExprOrType> parametric_map),
+          table_.GetParametricValueExprs(*parametric_context));
+      parametrics.reserve(parametric_map.size());
+      for (const ParametricBinding* binding :
+           struct_def.parametric_bindings()) {
+        const auto it = parametric_map.find(binding->name_def());
+        if (it == parametric_map.end()) {
+          break;
+        }
+        parametrics.push_back(it->second);
+      }
+    }
+
+    TypeAnnotation* actual_self_type = module_.Make<TypeRefTypeAnnotation>(
+        Span::None(), module_.Make<TypeRef>(Span::None(), &struct_def),
+        parametrics, std::nullopt);
 
     // Derive the traits for the struct.
     Span attribute_span = *(*attribute)->GetSpan();
@@ -394,7 +424,8 @@ class FunctionResolverImpl : public FunctionResolver {
           const Trait* trait,
           ResolveTrait(attribute_span, std::get<std::string>(arg)));
       XLS_RETURN_IF_ERROR(DeriveTrait(parametric_context, attribute_span,
-                                      struct_def, **impl, struct_type, *trait));
+                                      struct_def, **impl, actual_self_type,
+                                      struct_type, *trait));
     }
 
     return absl::OkStatus();

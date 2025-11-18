@@ -295,6 +295,42 @@ cc_library(
 )
 
 cc_library(
+    name = "trait_deriver_dispatcher",
+    hdrs = ["trait_deriver_dispatcher.h"],
+    deps = [
+        ":trait_deriver",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/type_system:type",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "builtin_trait_deriver",
+    srcs = ["builtin_trait_deriver.cc"],
+    hdrs = ["builtin_trait_deriver.h"],
+    deps = [
+        ":trait_deriver",
+        ":trait_deriver_dispatcher",
+        ":type_annotation_utils",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:errors",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:pos",
+        "//xls/dslx/type_system:type",
+        "@com_google_absl//absl/functional:function_ref",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
     name = "type_inference_error_handler",
     hdrs = ["type_inference_error_handler.h"],
     deps = [
@@ -501,6 +537,7 @@ cc_test(
     shard_count = 4,
     deps = [
         ":matchers",
+        ":trait_deriver_dispatcher",
         ":type_annotation_utils",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",

@@ -29,32 +29,17 @@
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 #include "xls/dslx/type_system_v2/matchers.h"
+#include "xls/dslx/type_system_v2/trait_deriver_dispatcher.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
 
 namespace xls::dslx {
 namespace {
 
-class TestDeriver : public TraitDeriver {
+class HasNonzeroFooFieldDeriver : public TraitDeriver {
  public:
   absl::StatusOr<StatementBlock*> DeriveFunctionBody(
       Module& module, const Trait& trait, const StructDef& struct_def,
-      const StructType& struct_type, const Function& function) override {
-    if (function.identifier() == "contains") {
-      return DeriveContains(module, trait, struct_def, function);
-    }
-    if (function.identifier() == "has_nonzero_foo") {
-      return DeriveHasNonzeroFooField(module, trait, struct_def, function);
-    }
-    if (function.identifier() == "has_array_of_size_3") {
-      return DeriveHasArrayOfSize3(module, trait, struct_def, struct_type,
-                                   function);
-    }
-    return absl::UnimplementedError("not implemented");
-  }
-
-  absl::StatusOr<StatementBlock*> DeriveHasNonzeroFooField(
-      Module& module, const Trait& trait, const StructDef& struct_def,
-      const Function& function) {
+      const StructType&, const Function& function) override {
     Param* self_param = function.params()[0];
     Expr* self = module.Make<NameRef>(Span::None(), self_param->identifier(),
                                       self_param->name_def());
@@ -68,11 +53,13 @@ class TestDeriver : public TraitDeriver {
                                        std::vector<Statement*>{statement},
                                        /*trailing_semi=*/false);
   }
+};
 
-  absl::StatusOr<StatementBlock*> DeriveContains(Module& module,
-                                                 const Trait& trait,
-                                                 const StructDef& struct_def,
-                                                 const Function& function) {
+class ContainsDeriver : public TraitDeriver {
+ public:
+  absl::StatusOr<StatementBlock*> DeriveFunctionBody(
+      Module& module, const Trait& trait, const StructDef& struct_def,
+      const StructType&, const Function& function) override {
     std::optional<Expr*> expr;
     if (struct_def.members().empty()) {
       expr = module.Make<Number>(Span::None(), "false", NumberKind::kBool,
@@ -102,10 +89,13 @@ class TestDeriver : public TraitDeriver {
                                        std::vector<Statement*>{statement},
                                        /*trailing_semi=*/false);
   }
+};
 
-  absl::StatusOr<StatementBlock*> DeriveHasArrayOfSize3(
+class HasArrayOfSize3Deriver : public TraitDeriver {
+ public:
+  absl::StatusOr<StatementBlock*> DeriveFunctionBody(
       Module& module, const Trait& trait, const StructDef& struct_def,
-      const StructType& struct_type, const Function& function) {
+      const StructType& struct_type, const Function& function) override {
     Expr* result = nullptr;
     for (const std::unique_ptr<Type>& member : struct_type.members()) {
       if (member->IsArray()) {
@@ -130,6 +120,17 @@ class TestDeriver : public TraitDeriver {
   }
 };
 
+std::unique_ptr<TraitDeriver> CreateTestDeriver() {
+  auto dispatcher = std::make_unique<TraitDeriverDispatcher>();
+  dispatcher->SetHandler("HasNonzeroFooField", "has_nonzero_foo",
+                         std::make_unique<HasNonzeroFooFieldDeriver>());
+  dispatcher->SetHandler("Contains", "contains",
+                         std::make_unique<ContainsDeriver>());
+  dispatcher->SetHandler("HasArrayOfSize3", "has_array_of_size_3",
+                         std::make_unique<HasArrayOfSize3Deriver>());
+  return dispatcher;
+}
+
 TEST(TypecheckV2TraitTest, DeriveContains) {
   XLS_ASSERT_OK(TypecheckV2(R"(
 trait Contains {
@@ -148,7 +149,7 @@ const_assert!(Foo {a: 5, foo: 6, c: 0}.contains(6));
 const_assert!(Foo {a: 0, foo: 5, c: 0}.contains(5));
 const_assert!(!zero!<Foo>().contains(5));
 )",
-                            std::make_unique<TestDeriver>()));
+                            CreateTestDeriver()));
 }
 
 TEST(TypecheckV2TraitTest, DeriveMultiTraits) {
@@ -157,11 +158,11 @@ trait Contains {
   fn contains(self, val: u32) -> bool;
 }
 
-trait HasNonZeroFooField {
+trait HasNonzeroFooField {
   fn has_nonzero_foo(self) -> bool;
 }
 
-#[derive(Contains, HasNonZeroFooField)]
+#[derive(Contains, HasNonzeroFooField)]
 struct Foo {
   a: u32,
   foo: u32,
@@ -172,7 +173,7 @@ const_assert!(Foo {a: 5, foo: 6, c: 0}.contains(5));
 const_assert!(Foo {a: 1, foo: 5, c: 0}.has_nonzero_foo());
 const_assert!(!zero!<Foo>().has_nonzero_foo());
 )",
-                            std::make_unique<TestDeriver>()));
+                            CreateTestDeriver()));
 }
 
 TEST(TypecheckV2TraitTest, DeriveUnknownTrait) {
@@ -186,7 +187,7 @@ impl Foo {}
 
 const C = Foo { a: 5 }.foobar();
 )",
-                          std::make_unique<TestDeriver>()),
+                          CreateTestDeriver()),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Unknown trait: `Foobar`")));
 }
@@ -209,7 +210,7 @@ impl Foo {
 
 const_assert!(Foo { a: 3 }.contains(3));
 )",
-                  std::make_unique<TestDeriver>()),
+                  CreateTestDeriver()),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Attempting to derive conflicting function `contains` "
                          "from trait `Contains`")));
@@ -236,7 +237,7 @@ const_assert!(F.contains(3));
 const_assert!(F.get_a_verbosely() == 3);
 const_assert!(F.check_contains_verbosely(3));
 )",
-                            std::make_unique<TestDeriver>()));
+                            CreateTestDeriver()));
 }
 
 TEST(TypecheckV2TraitTest, DeriveHasArrayOfSize3) {
@@ -266,7 +267,170 @@ const_assert!(!F1.has_array_of_size_3());
 const_assert!(F2.has_array_of_size_3());
 const_assert!(F3.has_array_of_size_3());
 )",
-                            std::make_unique<TestDeriver>()));
+                            CreateTestDeriver()));
+}
+
+TEST(TypecheckV2TraitTest, ToBitsSimple) {
+  XLS_ASSERT_OK(TypecheckV2(R"(
+#[derive(ToBits)]
+struct Foo {
+  a: u32,
+}
+
+#[derive(ToBits)]
+struct Bar {
+  a: s16,
+  b: u8
+}
+
+const F1 = Foo {a: 5};
+const F2 = Bar {a: 10, b: 1};
+
+const_assert!(F1.to_bits() == u32:5);
+const_assert!(F2.to_bits() == (u16:10 ++ u8:1));
+)"));
+}
+
+TEST(TypecheckV2TraitTest, ToBitsWithTuple) {
+  XLS_ASSERT_OK(TypecheckV2(R"(
+#[derive(ToBits)]
+struct Foo {
+  a: u32,
+  b: (s8, u64)
+}
+
+const F1 = Foo {a: 5, b: (-1, 0xfffffff)};
+const F2 = Foo {a: 5, b: (60, 12345)};
+
+const_assert!(F1.to_bits() == (u32:5 ++ u8:0xff ++ u64:0xfffffff));
+const_assert!(F2.to_bits() == (u32:5 ++ u8:60 ++ u64:12345));
+)"));
+}
+
+TEST(TypecheckV2TraitTest, ToBitsWithEnum) {
+  XLS_ASSERT_OK(TypecheckV2(R"(
+enum E : u8 {
+  A = 10
+}
+
+#[derive(ToBits)]
+struct Foo {
+  a: u32,
+  b: E
+}
+
+const F = Foo {a: 5, b: E::A};
+
+const_assert!(F.to_bits() == (u32:5 ++ u8:10));
+)"));
+}
+
+TEST(TypecheckV2TraitTest, ToBitsWithArray) {
+  XLS_ASSERT_OK(TypecheckV2(R"(
+#[derive(ToBits)]
+struct Foo {
+  a: u32,
+  b: u8[3]
+}
+
+const F = Foo {a: 5, b: [5, 6, 7]};
+
+const_assert!(F.to_bits() == (u32:5 ++ u8:5 ++ u8:6 ++ u8:7));
+)"));
+}
+
+TEST(TypecheckV2TraitTest, ToBitsWithSubStruct) {
+  XLS_ASSERT_OK(TypecheckV2(R"(
+#[derive(ToBits)]
+struct Foo {
+  a: u32,
+  b: u8[3]
+}
+
+#[derive(ToBits)]
+struct Bar {
+  f: Foo,
+  g: s64
+}
+
+const B = Bar {f: Foo { a: 5, b: [5, 6, 7] }, g: 0xfffffffff};
+
+const_assert!(B.to_bits() ==
+    (u32:5 ++ u8:5 ++ u8:6 ++ u8:7 ++ u64:0xfffffffff));
+)"));
+}
+
+TEST(TypecheckV2TraitTest, ToBitsWithUnsupportedSubStruct) {
+  EXPECT_THAT(R"(
+struct Foo {
+  a: u32,
+  b: u8[3]
+}
+
+#[derive(ToBits)]
+struct Bar {
+  f: Foo,
+  g: s64
+}
+
+const B = Bar {f: Foo { a: 5, b: [5, 6, 7] }, g: 0xfffffffff};
+
+const_assert!(B.to_bits() ==
+    (u32:5 ++ u8:5 ++ u8:6 ++ u8:7 ++ u64:0xfffffffff));
+)",
+              TypecheckFails(
+                  HasSubstr("No function `to_bits` on object of type: `Foo`")));
+}
+
+TEST(TypecheckV2TraitTest, ToBitsWithManuallySupportedSubStruct) {
+  XLS_EXPECT_OK(TypecheckV2(R"(
+struct Foo {
+  a: u32,
+  b: u8[3]
+}
+
+impl Foo {
+  fn to_bits(self) -> uN[56] {
+    self.b[2] ++ self.a ++ self.b[0] ++ self.b[1]
+  }
+}
+
+#[derive(ToBits)]
+struct Bar {
+  f: Foo,
+  g: s64
+}
+
+const B = Bar {f: Foo { a: 5, b: [5, 6, 7] }, g: 0xfffffffff};
+
+const_assert!(B.to_bits() ==
+    (u8:7 ++ u32:5 ++ u8:5 ++ u8:6 ++ u64:0xfffffffff));
+)"));
+}
+
+TEST(TypecheckV2TraitTest, ToBitsOnParametricStruct) {
+  XLS_ASSERT_OK(TypecheckV2(R"(
+#[derive(ToBits)]
+struct Foo<N: u32> {
+  a: uN[N],
+  b: u32[N]
+}
+
+const F1 = Foo {a: u4:2, b: [1, 2, 3, 4]};
+const F2 = Foo {a: u2:1, b: [1000, 2000]};
+
+const_assert!(F1.to_bits() == (u4:2 ++ u32:1 ++ u32:2 ++ u32:3 ++ u32:4));
+const_assert!(F2.to_bits() == (u2:1 ++ u32:1000 ++ u32:2000));
+)"));
+}
+
+TEST(TypecheckV2TraitTest, ToBitsOnEmptyStruct) {
+  XLS_ASSERT_OK(TypecheckV2(R"(
+#[derive(ToBits)]
+struct Foo {}
+
+const_assert!(Foo{}.to_bits() == bits[0]:0);
+)"));
 }
 
 }  // namespace

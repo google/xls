@@ -352,7 +352,6 @@ absl::Status Parser::ParseModuleAttribute() {
 absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
     Bindings* bindings) {
   const Pos module_start_pos = GetPos();
-
   std::optional<Bindings> stack_bindings;
   if (bindings == nullptr) {
     stack_bindings.emplace();
@@ -360,6 +359,9 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
   }
   XLS_RET_CHECK(bindings != nullptr);
 
+  if (parse_fn_stubs_) {
+    bindings->SetBuiltinModule(true);
+  }
   for (auto const& it : GetParametricBuiltins()) {
     std::string name(it.first);
     bindings->Add(name, module_->GetOrCreateBuiltinNameDef(name));

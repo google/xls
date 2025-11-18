@@ -145,7 +145,21 @@ class Bindings {
 
   // Adds a local binding.
   void Add(std::string name, BoundNode binding) {
+    // When parsing the builtins module, the parser creates normal NameDefs
+    // for what are really builtins. This is fine as long as we don't let these
+    // NameDefs shadow the corresponding BuiltinNameDefs for the same entities.
+    // Without this check, a builtin that uses another builtin in its signature
+    // would cause problems in type concretization.
+    if (IsBuiltinModule() && ResolveNode(name).has_value()) {
+      return;
+    }
     local_bindings_[std::move(name)] = binding;
+  }
+
+  void SetBuiltinModule(bool value) { builtin_module_ = value; }
+  bool IsBuiltinModule() {
+    return builtin_module_ ||
+           (parent_ != nullptr && parent_->IsBuiltinModule());
   }
 
   // Returns whether the bindings are for a context that is inside a trait.
@@ -282,6 +296,7 @@ class Bindings {
   // inside a trait; nullopt otherwise.
   std::optional<std::variant<TypeAnnotation*, NameDef*>> self_;
   bool in_trait_ = false;
+  bool builtin_module_ = false;
 };
 
 // Returns the name definition node (either builtin or user-defined) associated

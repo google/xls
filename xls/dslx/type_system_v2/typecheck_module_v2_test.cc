@@ -5355,6 +5355,32 @@ const Y = S{a: 2}.foo(u32:200);
                               HasNodeWithType("Y", "uN[64]"))));
 }
 
+TEST(TypecheckV2Test, ParametricInstanceMethodCallingNonParametricOne) {
+  XLS_EXPECT_OK(TypecheckV2(
+      R"(
+struct T {
+   t: u32
+}
+
+impl T {
+  fn foo(self) -> u32 { self.t }
+}
+
+struct S {
+   a: T
+}
+
+impl S {
+  fn foo<N: u32>(self) -> u32 { self.a.foo() }
+}
+
+fn main() -> u32 {
+  let s = S { a: T { t: 5 } };
+  s.foo<32>()
+}
+)"));
+}
+
 TEST(TypecheckV2Test, ParametricInstanceMethodWithParametricSignedness) {
   EXPECT_THAT(
       R"(
