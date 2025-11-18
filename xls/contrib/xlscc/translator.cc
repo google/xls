@@ -1750,10 +1750,6 @@ absl::StatusOr<CValue> Translator::CreateInitValue(
 
   if (initializer != nullptr) {
     LValueModeGuard lvalue_mode(*this);
-    XLS_ASSIGN_OR_RETURN(bool lvalue_result, ctype->ContainsLValues(*this));
-    if (!lvalue_result) {
-      context().lvalue_mode = false;
-    }
 
     XLS_ASSIGN_OR_RETURN(CValue cv, GenerateIR_Expr(initializer, loc));
 
@@ -1916,7 +1912,7 @@ absl::StatusOr<CValue> Translator::GetIdentifier(const clang::NamedDecl* decl,
     }
   }
   context().sf->global_values[decl] = value;
-  XLSCC_CHECK(!context().sf->declaration_order_by_name_.contains(decl), loc);
+  // Declaration order propagates up for statics
   context().sf->declaration_order_by_name_[decl] =
       ++context().sf->declaration_count;
   return value;
@@ -2413,7 +2409,6 @@ absl::Status Translator::DeclareVariable(const clang::NamedDecl* lvalue,
                                          const xls::SourceInfo& loc,
                                          bool check_unique_ids) {
   unique_decl_ids_.insert(lvalue);
-
   context().sf->declaration_order_by_name_[lvalue] =
       ++context().sf->declaration_count;
 
@@ -3850,6 +3845,12 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     }
   }
 
+  // Sorting order needs to include callee declarations
+  for (const auto [decl, _] : func->declaration_order_by_name_) {
+    context().sf->declaration_order_by_name_[decl] =
+        ++context().sf->declaration_count;
+  }
+
   // Propagate generated and internal channels up
   for (IOChannel& callee_channel : func->io_channels) {
     IOChannel* callee_channel_ptr = &callee_channel;
@@ -3928,145 +3929,250 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
   std::list<TrackedBValue> unpacked_returns;
 
   // Preserve stable TrackedBValue pointers by using std::map
-  std::map<const ContinuationValue*, TrackedBValue>
-      returns_by_continuation_value;
+  std::map<const ContinuationValue*, NATIVE_BVAL> returns_by_continuation_value;
   absl::flat_hash_set<const ContinuationInput*>
       upstream_callee_continuation_inputs;
   absl::flat_hash_map<const xls::Param*, xls::Param*>
       caller_params_by_callee_param;
 
-  TrackedBValue last_slice_ret;
-  for (auto slice_it = func->slices.begin(); slice_it != func->slices.end();
-       ++slice_it) {
-    GeneratedFunctionSlice& slice = *slice_it;
+  absl::flat_hash_map<const ContinuationValue*, ContinuationValue*>
+      caller_continuation_values_for_callee_continuation_values;
+  absl::flat_hash_map<const xls::Param*, xls::Param*>
+      caller_params_for_callee_params;
 
-    // IO mapping
-    if (slice.after_op != nullptr) {
-      XLS_RETURN_IF_ERROR(AddIOOpForSliceForCall(
-          *func, slice, last_slice_ret, caller_ops_by_callee_op,
-          caller_channels_by_callee_channel, loc));
+  struct PhiInputToInsert {
+    const ContinuationInput* callee_continuation_in = nullptr;
+    GeneratedFunctionSlice* caller_slice = nullptr;
+  };
 
-      // Set slice before name, if there is one
-      if (slice_it != func->slices.begin()) {
-        auto last_slice_it = context().sf->slices.rbegin();
-        last_slice_it++;
-        if (last_slice_it->is_slice_before &&
-            // Not masked
-            caller_ops_by_callee_op.at(slice.after_op) != nullptr) {
-          IOOp* caller_op = caller_ops_by_callee_op.at(slice.after_op);
+  std::list<PhiInputToInsert> phi_inputs_to_insert;
 
-          std::string before_slice_name =
-              FormatSliceName(Debug_OpName(*caller_op), caller_op->op_location,
-                              caller_op->channel_op_index,
-                              /*create_slice_before=*/true,
-                              /*temp_name=*/false);
+  // Add N-1 slices to the caller, where N is the number of slices in the
+  // callee. A callee with only one slice does not need to add slices to the
+  // caller. When adding caller slices, copy the (optimized) continuation
+  // structure from the callee. Preserve information such as naming and
+  // feedbacks, avoid re-deriving it where possible.
+  //
+  // Some analysis does have to be re-done, for example direct-in marking.
+  // Direct-in analysis depends on the direct-in status of the parameters to
+  // the call, and so can vary from call to call to the same function.
+  //
+  // As such, direct-in analysis is left out here, and always done in
+  // FinishLastSlice().
+  NATIVE_BVAL last_slice_ret;
+  for (auto callee_slice_it = func->slices.begin();
+       callee_slice_it != func->slices.end(); ++callee_slice_it) {
+    GeneratedFunctionSlice& callee_slice = *callee_slice_it;
+    const bool first_slice = callee_slice_it == func->slices.begin();
 
-          last_slice_it->function->SetName(before_slice_name);
+    // Invoke
+    std::vector<NATIVE_BVAL> slice_args;
+
+    GeneratedFunctionSlice* next_slice_ptr = nullptr;
+
+    // Continuation inputs
+    if (!first_slice) {
+      bool add_new_slice = !context().sf->slices.empty() &&
+                           callee_slice.after_op != nullptr &&
+                           !OpIsMasked(*callee_slice.after_op);
+
+      if (callee_slice.is_slice_before) {
+        XLSCC_CHECK_NE(&callee_slice, &func->slices.front(), loc);
+
+        // This is the callee slice!
+        auto next_slice_it = callee_slice_it;
+        ++next_slice_it;
+        XLSCC_CHECK(next_slice_it != func->slices.end(), loc);
+        XLSCC_CHECK(!next_slice_it->is_slice_before, loc);
+        GeneratedFunctionSlice& next_slice = *next_slice_it;
+        XLSCC_CHECK_NE(next_slice.after_op, nullptr, loc);
+
+        // This is the callee op!
+        if (next_slice.after_op != nullptr &&
+            !OpIsMasked(*next_slice.after_op)) {
+          add_new_slice = true;
+          next_slice_ptr = &next_slice;
         }
       }
-    } else if (slice.is_slice_before) {
-      XLSCC_CHECK_NE(&slice, &func->slices.front(), loc);
 
-      // This is the callee slice!
-      auto next_slice_it = slice_it;
-      ++next_slice_it;
-      XLSCC_CHECK(next_slice_it != func->slices.end(), loc);
-      XLSCC_CHECK(!next_slice_it->is_slice_before, loc);
-      GeneratedFunctionSlice& next_slice = *next_slice_it;
-      XLSCC_CHECK_NE(next_slice.after_op, nullptr, loc);
+      struct ParamInjection {
+        std::string param_name;
+        xls::Type* type = nullptr;
+      };
+      absl::flat_hash_map<const xls::Param*, ParamInjection>
+          param_injections_by_callee_param;
+      std::vector<const xls::Param*> params_to_inject_order;
 
-      // This is the callee op!
-      if (next_slice.after_op != nullptr && !OpIsMasked(*next_slice.after_op)) {
+      std::vector<PhiInputToInsert*> this_slice_phi_inputs_to_insert;
+
+      if (add_new_slice) {
+        // Prepare slice return values
+        GeneratedFunctionSlice* caller_slice = &context().sf->slices.back();
+
+        auto last_callee_slice_it = callee_slice_it;
+        last_callee_slice_it--;
+        const GeneratedFunctionSlice& last_callee_slice = *last_callee_slice_it;
+
+        for (const ContinuationValue& callee_continuation_out :
+             last_callee_slice.continuations_out) {
+          ContinuationValue caller_continuation_out = callee_continuation_out;
+
+          NATIVE_BVAL return_bval =
+              returns_by_continuation_value.at(&callee_continuation_out);
+
+          // ConvertBValuesToContinuationOutputsForCurrentSlice will insert the
+          // identity node
+          caller_continuation_out.output_node = return_bval.node();
+          caller_slice->continuations_out.push_back(caller_continuation_out);
+          caller_continuation_values_for_callee_continuation_values
+              [&callee_continuation_out] =
+                  &caller_slice->continuations_out.back();
+        }
+
+        for (const ContinuationInput& callee_continuation_in :
+             callee_slice.continuations_in) {
+          phi_inputs_to_insert.push_back(PhiInputToInsert{
+              .callee_continuation_in = &callee_continuation_in,
+          });
+          this_slice_phi_inputs_to_insert.push_back(
+              &phi_inputs_to_insert.back());
+
+          const xls::Param* callee_param = callee_continuation_in.input_node;
+          if (!param_injections_by_callee_param.contains(callee_param)) {
+            params_to_inject_order.push_back(callee_param);
+            param_injections_by_callee_param[callee_param] = ParamInjection{
+                .param_name =
+                    absl::StrFormat("%s_%s", callee_slice.function->name(),
+                                    callee_continuation_in.input_node->name()),
+                .type = callee_continuation_in.input_node->GetType(),
+            };
+          }
+        }
+
+        // For masked ops this is needed later
+        returns_by_continuation_value.clear();
+      } else {
+        absl::flat_hash_set<const xls::Param*> all_cont_params;
+        absl::flat_hash_set<const xls::Param*> params_added;
+
+        for (const ContinuationInput& callee_continuation_in :
+             callee_slice.continuations_in) {
+          const xls::Param* callee_param = callee_continuation_in.input_node;
+          all_cont_params.insert(callee_param);
+          if (params_added.contains(callee_param)) {
+            continue;
+          }
+          // Ignore phis for masked ops
+          if (!returns_by_continuation_value.contains(
+                  callee_continuation_in.continuation_out)) {
+            continue;
+          }
+          NATIVE_BVAL caller_bval = returns_by_continuation_value.at(
+              callee_continuation_in.continuation_out);
+          slice_args.push_back(caller_bval);
+          params_added.insert(callee_param);
+        }
+        XLSCC_CHECK_EQ(all_cont_params.size(), params_added.size(), loc);
+      }
+
+      std::function<absl::Status(void)> inject_params =
+          [this, loc, &slice_args, &caller_params_for_callee_params,
+           &param_injections_by_callee_param,
+           &params_to_inject_order]() -> absl::Status {
+        for (const xls::Param* callee_param : params_to_inject_order) {
+          const ParamInjection& param_injection =
+              param_injections_by_callee_param.at(callee_param);
+
+          NATIVE_BVAL caller_param_bval = context().fb->Param(
+              param_injection.param_name, param_injection.type);
+          XLSCC_CHECK(caller_param_bval.valid(), loc);
+          caller_params_for_callee_params[callee_param] =
+              caller_param_bval.node()->As<xls::Param>();
+          slice_args.push_back(caller_param_bval);
+        }
+        return absl::OkStatus();
+      };
+
+      if (callee_slice.after_op != nullptr) {
+        // Start new continuation?
+        XLS_RETURN_IF_ERROR(AddIOOpForSliceForCall(
+            *func, callee_slice, last_slice_ret, caller_ops_by_callee_op,
+            caller_channels_by_callee_channel, inject_params, loc));
+
+      } else if (callee_slice.is_slice_before && add_new_slice) {
+        XLSCC_CHECK_NE(next_slice_ptr, nullptr, loc);
         XLS_RETURN_IF_ERROR(
-            NewContinuation(next_slice.after_op->op,
+            NewContinuation(next_slice_ptr->after_op->op,
                             /*op_name=*/"",
                             /*op_ret_value=*/TrackedBValue(),
-                            /*loc=*/next_slice.after_op->op_location,
+                            /*loc=*/next_slice_ptr->after_op->op_location,
                             /*channel_op_index=*/-1,
                             /*create_slice_before=*/true,
                             /*temp_name=*/true));
+        XLS_RETURN_IF_ERROR(inject_params());
       }
-    }
 
-    // Invoke
-    std::vector<TrackedBValue> slice_args;
+      last_slice_ret = NATIVE_BVAL();
 
-    struct SortByParamNumber {
-      bool operator()(xls::Param* lhs, xls::Param* rhs) const {
-        CHECK_EQ(lhs->function_base(), rhs->function_base());
-        const xls::FunctionBase* func = lhs->function_base();
+      if (add_new_slice) {
+        GeneratedFunctionSlice* caller_slice = &context().sf->slices.back();
 
-        CHECK(func->GetParamIndex(lhs).ok());
-        CHECK(func->GetParamIndex(rhs).ok());
+        // This logic will add the feedbacks from the callee
+        caller_slice->do_add_feedbacks = false;
 
-        return func->GetParamIndex(lhs).value() <
-               func->GetParamIndex(rhs).value();
-      }
-    };
-    // If there is a phi, there should be exactly one input for it upstream
-    absl::btree_map<xls::Param*, const ContinuationInput*, SortByParamNumber>
-        upstream_continuation_inputs_by_param;
+        // Set slice into which to insert continuation inputs
+        for (PhiInputToInsert* phi_input : this_slice_phi_inputs_to_insert) {
+          phi_input->caller_slice = caller_slice;
+        }
 
-    for (const ContinuationInput& continuation_in : slice.continuations_in) {
-      if (!returns_by_continuation_value.contains(
-              continuation_in.continuation_out)) {
-        continue;
-      }
-      XLSCC_CHECK(!upstream_continuation_inputs_by_param.contains(
-                      continuation_in.input_node),
-                  loc);
-      upstream_continuation_inputs_by_param[continuation_in.input_node] =
-          &continuation_in;
-      upstream_callee_continuation_inputs.insert(&continuation_in);
-    }
-    for (const ContinuationInput& continuation_in : slice.continuations_in) {
-      XLSCC_CHECK(upstream_continuation_inputs_by_param.contains(
-                      continuation_in.input_node),
-                  loc);
-    }
-    for (const auto [param, continuation_in] :
-         upstream_continuation_inputs_by_param) {
-      TrackedBValue caller_bval =
-          returns_by_continuation_value.at(continuation_in->continuation_out);
-      slice_args.push_back(caller_bval);
+        // Set slice before name, if there is one
+        if (callee_slice_it != func->slices.begin()) {
+          auto last_slice_it = context().sf->slices.rbegin();
+          last_slice_it++;
+          if (last_slice_it->is_slice_before &&
+              // Not masked
+              caller_ops_by_callee_op.at(callee_slice.after_op) != nullptr) {
+            IOOp* caller_op = caller_ops_by_callee_op.at(callee_slice.after_op);
 
-      // There are two important cases here:
-      //
-      // - During loop unrolling, literal nodes will be inserted and this
-      //   code must tolerate that, or unrolling will be broken by calls.
-      //
-      // - When making a call to a function containing a pipelined loop,
-      //   feedbacks must be added. These parameters should not have
-      //   literals substituted as they are opaque outputs of the slice invoke.
-      //   - Loop unrolling has already been completed when the function was
-      //     generated.
+            std::string before_slice_name = FormatSliceName(
+                Debug_OpName(*caller_op), caller_op->op_location,
+                caller_op->channel_op_index,
+                /*create_slice_before=*/true,
+                /*temp_name=*/false);
 
-      if (caller_bval.node()->Is<xls::Param>()) {
-        caller_params_by_callee_param[param] =
-            caller_bval.node()->As<xls::Param>();
+            last_slice_it->function->SetName(before_slice_name);
+          }
+        }
       }
     }
 
     // Then parameters that should be forwarded from the top
-    if (slice_it == func->slices.begin()) {
+    if (first_slice) {
       for (int64_t arg_i = 0; arg_i < args.size(); ++arg_i) {
         TrackedBValue outer_param = args.at(arg_i);
         slice_args.push_back(outer_param);
       }
     }
 
+    // Even if a static is modified and accessed in multiple slices,
+    // this works, because it will be passed through as a continuation value.
+    //
+    // The initial value is fed into the first slice, and the next value for the
+    // static is outputted from the last slice.
     XLS_RETURN_IF_ERROR(AddArgsForSideEffectingParams(
-        *func, slice.side_effecting_parameters, caller_ops_by_callee_op,
+        *func, callee_slice.side_effecting_parameters, caller_ops_by_callee_op,
         slice_args, expected_returns, loc));
 
-    XLSCC_CHECK_EQ(slice_args.size(), slice.function->params().size(), loc);
+    XLSCC_CHECK_EQ(slice_args.size(), callee_slice.function->params().size(),
+                   loc);
 
     TrackedBValue slice_ret =
-        context().fb->Invoke(ToNativeBValues(slice_args), slice.function, loc);
+        context().fb->Invoke(slice_args, callee_slice.function, loc);
     XLSCC_CHECK(slice_ret.valid(), loc);
 
     int64_t output_idx = 0;
-    for (const ContinuationValue& continuation_out : slice.continuations_out) {
+    for (const ContinuationValue& continuation_out :
+         callee_slice.continuations_out) {
       XLSCC_CHECK(slice_ret.GetType()->IsTuple(), loc);
       XLSCC_CHECK_LT(output_idx, slice_ret.GetType()->AsTupleOrDie()->size(),
                      loc);
@@ -4078,17 +4184,27 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
       XLSCC_CHECK(out_value.GetType()->IsEqualTo(
                       continuation_out.output_node->GetType()),
                   loc);
-
       returns_by_continuation_value[&continuation_out] = out_value;
     }
 
     last_slice_ret = slice_ret;
   }
 
-  // Add feedbacks
-  XLS_RETURN_IF_ERROR(AddContinuationFeedbacksForCall(
-      *func, returns_by_continuation_value, caller_ops_by_callee_op,
-      upstream_callee_continuation_inputs, caller_params_by_callee_param, loc));
+  // Add continuation inputs
+  // This is safe to do because optimization happens after the last slice
+  // phi_inputs_to_insert
+  for (const PhiInputToInsert& phi_input : phi_inputs_to_insert) {
+    GeneratedFunctionSlice* caller_slice = phi_input.caller_slice;
+    ContinuationInput caller_continuation_in =
+        *phi_input.callee_continuation_in;
+
+    caller_continuation_in.input_node = caller_params_for_callee_params.at(
+        phi_input.callee_continuation_in->input_node);
+    caller_continuation_in.continuation_out =
+        caller_continuation_values_for_callee_continuation_values.at(
+            caller_continuation_in.continuation_out);
+    caller_slice->continuations_in.push_back(caller_continuation_in);
+  }
 
   XLSCC_CHECK(expected_returns == 0 || last_slice_ret.valid(), loc);
 
@@ -4122,6 +4238,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     if (is_on_reset) {
       continue;
     }
+
     XLS_RETURN_IF_ERROR(Assign(namedecl, CValue(static_output, initval.type()),
                                loc,
                                /*force_no_lvalue_assign=*/true));
@@ -4208,94 +4325,11 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
   return retval;
 }
 
-absl::Status Translator::AddContinuationFeedbacksForCall(
-    const GeneratedFunction& func,
-    const std::map<const ContinuationValue*, TrackedBValue>&
-        returns_by_continuation_value,
-    absl::flat_hash_map<const IOOp*, IOOp*>& caller_ops_by_callee_op,
-    const absl::flat_hash_set<const ContinuationInput*>&
-        upstream_callee_continuation_inputs,
-    absl::flat_hash_map<const xls::Param*, xls::Param*>&
-        caller_params_by_callee_param,
-
-    const xls::SourceInfo& loc) {
-  // Need caller ContinuationValues from callee ContinuationValues.
-  //
-  // Look up caller bval from callee value via returns_by_continuation_value.
-  // Find caller value that contains this caller bval in its created_from
-  //
-  // These correlations remain valid because optimization has not been run.
-  // ContiuatonValues are always created, even if the output value is literal.
-  //
-  // created_from BValues are N:1 with ContinuationValues,
-  // as one xls::Node* can have many BValues associated with it.
-  absl::flat_hash_map<const TrackedBValue*, ContinuationValue*>
-      caller_continuation_values_by_caller_bval;
-
-  absl::flat_hash_map<const xls::FunctionBase*, GeneratedFunctionSlice*>
-      caller_slice_by_slice_function;
-
-  for (GeneratedFunctionSlice& caller_slice : context().sf->slices) {
-    caller_slice_by_slice_function[caller_slice.function] = &caller_slice;
-
-    for (ContinuationValue& continuation_out : caller_slice.continuations_out) {
-      for (const TrackedBValue* bval : continuation_out.created_from) {
-        caller_continuation_values_by_caller_bval[bval] = &continuation_out;
-      }
-    }
-  }
-
-  for (const GeneratedFunctionSlice& slice : func.slices) {
-    if (slice.after_op != nullptr && OpIsMasked(*slice.after_op)) {
-      continue;
-    }
-
-    // Ignore masked operations
-    if (!caller_ops_by_callee_op.contains(slice.after_op)) {
-      continue;
-    }
-
-    for (const ContinuationInput& callee_continuation_in :
-         slice.continuations_in) {
-      // Avoid adding upstream values
-      if (upstream_callee_continuation_inputs.contains(
-              &callee_continuation_in)) {
-        continue;
-      }
-      ContinuationValue* callee_out_value =
-          callee_continuation_in.continuation_out;
-      const TrackedBValue* caller_out_bval =
-          &returns_by_continuation_value.at(callee_out_value);
-      ContinuationValue* caller_out_value =
-          caller_continuation_values_by_caller_bval.at(caller_out_bval);
-
-      xls::Param* caller_input_param =
-          caller_params_by_callee_param.at(callee_continuation_in.input_node);
-
-      ContinuationInput caller_continuation_in = {
-          .continuation_out = caller_out_value,
-          .input_node = caller_input_param,
-          .name = callee_out_value->name,
-          .decls = callee_out_value->decls};
-
-      GeneratedFunctionSlice* caller_slice = caller_slice_by_slice_function.at(
-          caller_continuation_in.input_node->function_base());
-
-      XLSCC_CHECK_EQ(caller_continuation_in.input_node->function_base(),
-                     caller_slice->function, loc);
-
-      caller_slice->continuations_in.push_back(caller_continuation_in);
-    }
-  }
-
-  return absl::OkStatus();
-}
-
 absl::Status Translator::AddArgsForSideEffectingParams(
     const GeneratedFunction& func,
     const std::list<SideEffectingParameter>& side_effecting_parameters,
     const absl::flat_hash_map<const IOOp*, IOOp*>& caller_ops_by_callee_op,
-    std::vector<TrackedBValue>& args, int64_t& expected_returns,
+    std::vector<NATIVE_BVAL>& args, int64_t& expected_returns,
     const xls::SourceInfo& loc) {
   // Pass side effecting parameters to call in the order they are declared
   for (const SideEffectingParameter& side_effecting_param :
@@ -4329,7 +4363,6 @@ absl::Status Translator::AddArgsForSideEffectingParams(
       }
       case SideEffectingParameterType::kStatic: {
         context().any_side_effects_requested = true;
-
         // May already be declared if there are multiple calls to the same
         // static-containing function
         if (!context().variables.contains(side_effecting_param.static_value)) {
@@ -4343,6 +4376,7 @@ absl::Status Translator::AddArgsForSideEffectingParams(
             CValue value,
             GetIdentifier(side_effecting_param.static_value, loc));
         XLSCC_CHECK(value.rvalue().valid(), loc);
+
         args.push_back(value.rvalue());
         // Count expected static returns
         ++expected_returns;
@@ -4359,104 +4393,112 @@ absl::Status Translator::AddArgsForSideEffectingParams(
 
 absl::Status Translator::AddIOOpForSliceForCall(
     const GeneratedFunction& func, GeneratedFunctionSlice& slice,
-    TrackedBValue last_slice_ret,
+    NATIVE_BVAL last_slice_ret,
     absl::flat_hash_map<const IOOp*, IOOp*>& caller_ops_by_callee_op,
     const absl::flat_hash_map<IOChannel*, IOChannel*>&
         caller_channels_by_callee_channel,
+    std::optional<std::function<absl::Status(void)>> call_at_new_slice,
     const xls::SourceInfo& loc) {
   if (OpIsMasked(*slice.after_op)) {
     caller_ops_by_callee_op[slice.after_op] = nullptr;
-  } else {
-    XLSCC_CHECK_NE(&slice, &func.slices.front(), loc);
-
-    const IOOp& callee_op = *slice.after_op;
-
-    XLSCC_CHECK(caller_ops_by_callee_op.find(&callee_op) ==
-                    caller_ops_by_callee_op.end(),
-                loc);
-
-    IOOp caller_op;
-
-    XLSCC_CHECK(!(callee_op.scheduling_option != IOSchedulingOption::kNone &&
-                  !callee_op.after_ops.empty()),
-                loc);
-
-    // Translate ops that must be sequenced before first
-    for (const IOOp* after_op : callee_op.after_ops) {
-      XLSCC_CHECK(caller_ops_by_callee_op.find(after_op) !=
-                      caller_ops_by_callee_op.end(),
-                  loc);
-
-      auto found_caller_op = caller_ops_by_callee_op.find(after_op);
-      XLSCC_CHECK(found_caller_op != caller_ops_by_callee_op.end(), loc);
-
-      IOOp* after_caller_op = found_caller_op->second;
-      caller_op.after_ops.push_back(after_caller_op);
+    // AddOpToChannel doesn't get called, so run this here
+    if (call_at_new_slice.has_value()) {
+      XLS_RETURN_IF_ERROR(call_at_new_slice.value()());
     }
-
-    IOChannel* caller_channel =
-        (callee_op.channel != nullptr)
-            ? caller_channels_by_callee_channel.at(callee_op.channel)
-            : nullptr;
-
-    // Add super op
-    caller_op.op = callee_op.op;
-    caller_op.is_blocking = callee_op.is_blocking;
-    caller_op.trace_type = callee_op.trace_type;
-    caller_op.trace_message_string = callee_op.trace_message_string;
-    caller_op.label_string = callee_op.label_string;
-    caller_op.scheduling_option = callee_op.scheduling_option;
-    caller_op.sub_op = &callee_op;
-
-    XLSCC_CHECK(last_slice_ret.valid(), loc);
-
-    XLS_ASSIGN_OR_RETURN(TrackedBValue op_out_value,
-                         GetIOOpRetValueFromSlice(last_slice_ret, slice, loc));
-
-    XLS_ASSIGN_OR_RETURN(
-        caller_op.ret_value,
-        AddConditionToIOReturn(/*op=*/caller_op, op_out_value, loc));
-    XLSCC_CHECK(caller_op.ret_value.valid(), loc);
-
-    // Going slice by slice, so don't generate before slice (already
-    // generated)
-    XLS_ASSIGN_OR_RETURN(
-        IOOp * caller_op_ptr,
-        AddOpToChannel(caller_op, caller_channel, callee_op.op_location,
-                       /*mask=*/false,
-                       /*no_before_slice=*/true));
-
-    // Shouldn't be here in masked mode
-    XLSCC_CHECK_NE(caller_op_ptr, nullptr, loc);
-
-    XLSCC_CHECK(caller_op_ptr->op == OpType::kTrace ||
-                    caller_op_ptr->op == OpType::kLoopBegin ||
-                    caller_op_ptr->op == OpType::kLoopEndJump ||
-                    caller_op_ptr->channel->generated.has_value() ||
-                    IOChannelInCurrentFunction(caller_op_ptr->channel, loc),
-                loc);
-
-    caller_op_ptr->full_op_location = callee_op.full_op_location;
-
-    if (!loc.locations.empty()) {
-      caller_op_ptr->full_op_location.locations.push_back(
-          loc.locations.front());
-    }
-
-    if (caller_op_ptr->op == OpType::kLoopEndJump) {
-      const IOOp* callee_loop_begin_op = callee_op.loop_op_paired;
-      XLSCC_CHECK_NE(callee_loop_begin_op, nullptr, loc);
-
-      IOOp* caller_loop_begin_op =
-          caller_ops_by_callee_op.at(callee_loop_begin_op);
-
-      caller_op_ptr->loop_op_paired = caller_loop_begin_op;
-      caller_loop_begin_op->loop_op_paired = caller_op_ptr;
-    }
-
-    caller_ops_by_callee_op.insert(
-        std::pair<const IOOp*, IOOp*>(&callee_op, caller_op_ptr));
+    return absl::OkStatus();
   }
+
+  XLSCC_CHECK_NE(&slice, &func.slices.front(), loc);
+
+  const IOOp& callee_op = *slice.after_op;
+
+  XLSCC_CHECK(
+      caller_ops_by_callee_op.find(&callee_op) == caller_ops_by_callee_op.end(),
+      loc);
+
+  IOOp caller_op;
+
+  XLSCC_CHECK(!(callee_op.scheduling_option != IOSchedulingOption::kNone &&
+                !callee_op.after_ops.empty()),
+              loc);
+
+  // Translate ops that must be sequenced before first
+  for (const IOOp* after_op : callee_op.after_ops) {
+    XLSCC_CHECK(
+        caller_ops_by_callee_op.find(after_op) != caller_ops_by_callee_op.end(),
+        loc);
+
+    auto found_caller_op = caller_ops_by_callee_op.find(after_op);
+    XLSCC_CHECK(found_caller_op != caller_ops_by_callee_op.end(), loc);
+
+    IOOp* after_caller_op = found_caller_op->second;
+    caller_op.after_ops.push_back(after_caller_op);
+  }
+
+  IOChannel* caller_channel =
+      (callee_op.channel != nullptr)
+          ? caller_channels_by_callee_channel.at(callee_op.channel)
+          : nullptr;
+
+  // Add super op
+  caller_op.op = callee_op.op;
+  caller_op.is_blocking = callee_op.is_blocking;
+  caller_op.trace_type = callee_op.trace_type;
+  caller_op.trace_message_string = callee_op.trace_message_string;
+  caller_op.label_string = callee_op.label_string;
+  caller_op.scheduling_option = callee_op.scheduling_option;
+  caller_op.sub_op = &callee_op;
+
+  XLSCC_CHECK(last_slice_ret.valid(), loc);
+
+  XLS_ASSIGN_OR_RETURN(TrackedBValue op_out_value,
+                       GetIOOpRetValueFromSlice(last_slice_ret, slice, loc));
+
+  last_slice_ret = NATIVE_BVAL();
+
+  XLS_ASSIGN_OR_RETURN(
+      caller_op.ret_value,
+      AddConditionToIOReturn(/*op=*/caller_op, op_out_value, loc));
+  XLSCC_CHECK(caller_op.ret_value.valid(), loc);
+
+  // Going slice by slice, so don't generate before slice (already
+  // generated)
+  XLS_ASSIGN_OR_RETURN(
+      IOOp * caller_op_ptr,
+      AddOpToChannel(caller_op, caller_channel, callee_op.op_location,
+                     /*mask=*/false,
+                     /*no_before_slice=*/true,
+                     /*call_at_new_slice=*/call_at_new_slice));
+
+  // Shouldn't be here in masked mode
+  XLSCC_CHECK_NE(caller_op_ptr, nullptr, loc);
+
+  XLSCC_CHECK(caller_op_ptr->op == OpType::kTrace ||
+                  caller_op_ptr->op == OpType::kLoopBegin ||
+                  caller_op_ptr->op == OpType::kLoopEndJump ||
+                  caller_op_ptr->channel->generated.has_value() ||
+                  IOChannelInCurrentFunction(caller_op_ptr->channel, loc),
+              loc);
+
+  caller_op_ptr->full_op_location = callee_op.full_op_location;
+
+  if (!loc.locations.empty()) {
+    caller_op_ptr->full_op_location.locations.push_back(loc.locations.front());
+  }
+
+  if (caller_op_ptr->op == OpType::kLoopEndJump) {
+    const IOOp* callee_loop_begin_op = callee_op.loop_op_paired;
+    XLSCC_CHECK_NE(callee_loop_begin_op, nullptr, loc);
+
+    IOOp* caller_loop_begin_op =
+        caller_ops_by_callee_op.at(callee_loop_begin_op);
+
+    caller_op_ptr->loop_op_paired = caller_loop_begin_op;
+    caller_loop_begin_op->loop_op_paired = caller_op_ptr;
+  }
+
+  caller_ops_by_callee_op.insert(
+      std::pair<const IOOp*, IOOp*>(&callee_op, caller_op_ptr));
   return absl::OkStatus();
 }
 
@@ -4834,15 +4876,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
     // Implicit dereference
     if (arr_val.type()->Is<CPointerType>()) {
       XLSCC_CHECK_NE(arr_val.lvalue(), nullptr, loc);
-      CValue arr_val_orig = arr_val;
-
       XLS_ASSIGN_OR_RETURN(arr_val, GenerateIR_Expr(arr_val.lvalue(), loc));
-
-      if (!arr_val.type()->Is<CArrayType>()) {
-        return absl::UnimplementedError(ErrorMessage(
-            loc, "Dereference didn't yield an array type, but %s from %s",
-            std::string(*arr_val.type()), std::string(*arr_val_orig.type())));
-      }
     }
 
     XLS_ASSIGN_OR_RETURN(CValue index_bval,
@@ -6056,6 +6090,8 @@ void GeneratedFunction::SortNamesDeterministically(
     std::vector<const clang::NamedDecl*>& names) const {
   std::sort(names.begin(), names.end(),
             [this](const clang::NamedDecl* a, const clang::NamedDecl* b) {
+              CHECK(declaration_order_by_name_.contains(a));
+              CHECK(declaration_order_by_name_.contains(b));
               return declaration_order_by_name_.at(a) <
                      declaration_order_by_name_.at(b);
             });

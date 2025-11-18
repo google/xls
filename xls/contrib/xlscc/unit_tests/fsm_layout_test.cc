@@ -108,10 +108,12 @@ class FSMLayoutTest : public XlsccTestBase {
     return false;
   }
 
-  bool StateSavesDecl(const NewFSMLayout& layout, int64_t slice_index,
-                      absl::flat_hash_set<int64_t> jumped_from_slice_indices,
-                      std::string_view name,
-                      std::optional<int64_t> from_slice_index = std::nullopt) {
+  // Returned the ContinuationValue saved, or nullptr if not found
+  const ContinuationValue* StateSavesDecl(
+      const NewFSMLayout& layout, int64_t slice_index,
+      absl::flat_hash_set<int64_t> jumped_from_slice_indices,
+      std::string_view name,
+      std::optional<int64_t> from_slice_index = std::nullopt) {
     std::vector<int64_t> state_indices =
         FilterStates(layout, slice_index, jumped_from_slice_indices);
     EXPECT_EQ(state_indices.size(), 1L);
@@ -124,12 +126,12 @@ class FSMLayoutTest : public XlsccTestBase {
       }
       for (const auto& decl : value->decls) {
         if (decl->getNameAsString() == name) {
-          return true;
+          return value;
         }
       }
     }
 
-    return false;
+    return nullptr;
   }
 
   int64_t StateSavesDeclCount(const NewFSMState& state, std::string_view name) {
@@ -191,9 +193,12 @@ TEST_F(FSMLayoutTest, Basic) {
 
   EXPECT_FALSE(StateSavesDecl(layout, /*slice_index=*/0,
                               /*jumped_from_slice_indices=*/{}, "x"));
-  EXPECT_TRUE(StateSavesDecl(layout, /*slice_index=*/1,
-                             /*jumped_from_slice_indices=*/{}, "x",
-                             /*from_slice_index=*/1));
+  const ContinuationValue* x_value = nullptr;
+  ASSERT_TRUE(x_value = StateSavesDecl(layout, /*slice_index=*/1,
+                                       /*jumped_from_slice_indices=*/{}, "x",
+                                       /*from_slice_index=*/1));
+  EXPECT_FALSE(layout.state_element_by_continuation_value.contains(x_value));
+
   EXPECT_TRUE(StateSavesDecl(layout, /*slice_index=*/2,
                              /*jumped_from_slice_indices=*/{}, "x",
                              /*from_slice_index=*/1));
@@ -201,6 +206,81 @@ TEST_F(FSMLayoutTest, Basic) {
                               /*jumped_from_slice_indices=*/{}, "x"));
   EXPECT_FALSE(StateSavesDecl(layout, /*slice_index=*/4,
                               /*jumped_from_slice_indices=*/{}, "x"));
+}
+
+TEST_F(FSMLayoutTest, BasicReuse) {
+  const std::string content = R"(
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      int x = in.read();
+      int y = in.read();
+      ++x;
+      out.write(y);
+      out.write(x);
+
+      x += in.read();
+      out.write(x);
+    })";
+
+  split_states_on_channel_ops_ = true;
+
+  XLS_ASSERT_OK_AND_ASSIGN(NewFSMLayout layout, GenerateTopFunction(content));
+
+  const ContinuationValue* x0_value = nullptr;
+  ASSERT_TRUE(x0_value = StateSavesDecl(layout, /*slice_index=*/2,
+                                        /*jumped_from_slice_indices=*/{}, "x",
+                                        /*from_slice_index=*/2));
+  ASSERT_TRUE(layout.state_element_by_continuation_value.contains(x0_value));
+
+  const ContinuationValue* x1_value = nullptr;
+  ASSERT_TRUE(x1_value = StateSavesDecl(layout, /*slice_index=*/4,
+                                        /*jumped_from_slice_indices=*/{}, "x",
+                                        /*from_slice_index=*/4));
+  ASSERT_TRUE(layout.state_element_by_continuation_value.contains(x1_value));
+
+  EXPECT_EQ(layout.state_element_by_continuation_value.at(x0_value),
+            layout.state_element_by_continuation_value.at(x1_value));
+}
+
+TEST_F(FSMLayoutTest, BasicReuseInSubroutine) {
+  const std::string content = R"(
+    void Subroutine(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      int x = in.read();
+      int y = in.read();
+      ++x;
+      out.write(y);
+      out.write(x);
+
+      x += in.read();
+      out.write(x);
+    }
+
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      Subroutine(in, out);
+    })";
+
+  split_states_on_channel_ops_ = true;
+
+  XLS_ASSERT_OK_AND_ASSIGN(NewFSMLayout layout, GenerateTopFunction(content));
+
+  const ContinuationValue* x0_value = nullptr;
+  ASSERT_TRUE(x0_value = StateSavesDecl(layout, /*slice_index=*/2,
+                                        /*jumped_from_slice_indices=*/{}, "x",
+                                        /*from_slice_index=*/2));
+  ASSERT_TRUE(layout.state_element_by_continuation_value.contains(x0_value));
+
+  const ContinuationValue* x1_value = nullptr;
+  ASSERT_TRUE(x1_value = StateSavesDecl(layout, /*slice_index=*/4,
+                                        /*jumped_from_slice_indices=*/{}, "x",
+                                        /*from_slice_index=*/4));
+  ASSERT_TRUE(layout.state_element_by_continuation_value.contains(x1_value));
+
+  EXPECT_EQ(layout.state_element_by_continuation_value.at(x0_value),
+            layout.state_element_by_continuation_value.at(x1_value));
 }
 
 TEST_F(FSMLayoutTest, DirectIn) {
@@ -267,15 +347,19 @@ TEST_F(FSMLayoutTest, PipelinedLoop) {
   EXPECT_FALSE(StateInputsDecl(layout, /*slice_index=*/3,
                                /*jumped_from_slice_indices=*/{}, "r"));
 
-  EXPECT_TRUE(StateSavesDecl(layout, /*slice_index=*/1,
-                             /*jumped_from_slice_indices=*/{}, "a",
-                             /*from_slice_index=*/1));
-  EXPECT_TRUE(StateSavesDecl(layout, /*slice_index=*/1,
-                             /*jumped_from_slice_indices=*/{}, "i",
-                             /*from_slice_index=*/1));
-  EXPECT_TRUE(StateSavesDecl(layout, /*slice_index=*/1,
-                             /*jumped_from_slice_indices=*/{}, "r",
-                             /*from_slice_index=*/1));
+  EXPECT_FALSE(StateSavesDecl(layout, /*slice_index=*/1,
+                              /*jumped_from_slice_indices=*/{}, "a",
+                              /*from_slice_index=*/1));
+  EXPECT_FALSE(StateSavesDecl(layout, /*slice_index=*/1,
+                              /*jumped_from_slice_indices=*/{}, "i",
+                              /*from_slice_index=*/1));
+  const ContinuationValue* r_value = nullptr;
+  ASSERT_TRUE(r_value = StateSavesDecl(layout, /*slice_index=*/1,
+                                       /*jumped_from_slice_indices=*/{}, "r",
+                                       /*from_slice_index=*/1));
+  ASSERT_TRUE(layout.state_element_by_continuation_value.contains(r_value));
+  const int64_t r_index =
+      layout.state_element_by_continuation_value.at(r_value);
 
   EXPECT_TRUE(StateSavesDecl(layout, /*slice_index=*/2,
                              /*jumped_from_slice_indices=*/{}, "a",
@@ -287,12 +371,25 @@ TEST_F(FSMLayoutTest, PipelinedLoop) {
                              /*jumped_from_slice_indices=*/{}, "r",
                              /*from_slice_index=*/1));
 
-  EXPECT_TRUE(StateSavesDecl(layout, /*slice_index=*/2,
-                             /*jumped_from_slice_indices=*/{2}, "a",
-                             /*from_slice_index=*/2));
-  EXPECT_TRUE(StateSavesDecl(layout, /*slice_index=*/2,
-                             /*jumped_from_slice_indices=*/{2}, "i",
-                             /*from_slice_index=*/2));
+  const ContinuationValue* a_value = nullptr;
+  ASSERT_TRUE(a_value = StateSavesDecl(layout, /*slice_index=*/2,
+                                       /*jumped_from_slice_indices=*/{2}, "a",
+                                       /*from_slice_index=*/2));
+  ASSERT_TRUE(layout.state_element_by_continuation_value.contains(a_value));
+  const int64_t a_index =
+      layout.state_element_by_continuation_value.at(a_value);
+  EXPECT_NE(r_index, a_index);
+
+  const ContinuationValue* i_value = nullptr;
+  ASSERT_TRUE(i_value = StateSavesDecl(layout, /*slice_index=*/2,
+                                       /*jumped_from_slice_indices=*/{2}, "i",
+                                       /*from_slice_index=*/2));
+  ASSERT_TRUE(layout.state_element_by_continuation_value.contains(i_value));
+  const int64_t i_index =
+      layout.state_element_by_continuation_value.at(i_value);
+  EXPECT_NE(i_index, a_index);
+  EXPECT_NE(i_index, r_index);
+
   EXPECT_TRUE(StateSavesDecl(layout, /*slice_index=*/2,
                              /*jumped_from_slice_indices=*/{2}, "r",
                              /*from_slice_index=*/1));
@@ -373,6 +470,72 @@ TEST_F(FSMLayoutTest, PipelinedLoopNested) {
   }
 }
 
+TEST_F(FSMLayoutTest, PipelinedLoopSerialShared) {
+  const std::string content = R"(
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      const int r = in.read();
+      int a = 0;
+      #pragma hls_pipeline_init_interval 1
+      for (int i=0;i<10;++i) {
+        a += 5;
+      }
+      #pragma hls_pipeline_init_interval 1
+      for (int i=0;i<10;++i) {
+        a += r;
+      }
+      out.write(a);
+    })";
+
+  XLS_ASSERT_OK_AND_ASSIGN(NewFSMLayout layout, GenerateTopFunction(content));
+
+  const ContinuationValue* a0_value = nullptr;
+  ASSERT_TRUE(a0_value = StateSavesDecl(layout, /*slice_index=*/2,
+                                        /*jumped_from_slice_indices=*/{}, "a",
+                                        /*from_slice_index=*/2));
+  ASSERT_TRUE(layout.state_element_by_continuation_value.contains(a0_value));
+  const int64_t a0_index =
+      layout.state_element_by_continuation_value.at(a0_value);
+
+  const ContinuationValue* a1_value = nullptr;
+  ASSERT_TRUE(a1_value = StateSavesDecl(layout, /*slice_index=*/4,
+                                        /*jumped_from_slice_indices=*/{}, "a",
+                                        /*from_slice_index=*/4));
+  ASSERT_TRUE(layout.state_element_by_continuation_value.contains(a1_value));
+  const int64_t a1_index =
+      layout.state_element_by_continuation_value.at(a1_value);
+
+  EXPECT_EQ(a0_index, a1_index);
+
+  const ContinuationValue* i0_value = nullptr;
+  ASSERT_TRUE(i0_value = StateSavesDecl(layout, /*slice_index=*/2,
+                                        /*jumped_from_slice_indices=*/{}, "i",
+                                        /*from_slice_index=*/2));
+  ASSERT_TRUE(layout.state_element_by_continuation_value.contains(i0_value));
+  const int64_t i0_index =
+      layout.state_element_by_continuation_value.at(i0_value);
+
+  const ContinuationValue* i1_value = nullptr;
+  ASSERT_TRUE(i1_value = StateSavesDecl(layout, /*slice_index=*/4,
+                                        /*jumped_from_slice_indices=*/{}, "i",
+                                        /*from_slice_index=*/4));
+  ASSERT_TRUE(layout.state_element_by_continuation_value.contains(i1_value));
+  const int64_t i1_index =
+      layout.state_element_by_continuation_value.at(i1_value);
+
+  // State element sharing is by decl
+  EXPECT_NE(i0_index, i1_index);
+
+  const ContinuationValue* r_value = nullptr;
+  ASSERT_TRUE(r_value = StateSavesDecl(layout, /*slice_index=*/1,
+                                       /*jumped_from_slice_indices=*/{}, "r",
+                                       /*from_slice_index=*/1));
+  EXPECT_TRUE(layout.state_element_by_continuation_value.contains(r_value));
+
+  EXPECT_EQ(layout.output_slice_index_by_value.at(r_value), 1);
+}
+
 TEST_F(FSMLayoutTest, IOActivationTransitions) {
   const std::string content = R"(
     #pragma hls_top
@@ -391,6 +554,12 @@ TEST_F(FSMLayoutTest, IOActivationTransitions) {
                         /*unconditional=*/true);
   ExpectSliceTransition(layout, /*from_slice_index=*/6, /*to_slice_index=*/7,
                         /*unconditional=*/true);
+
+  const ContinuationValue* x_value = nullptr;
+  ASSERT_TRUE(x_value = StateSavesDecl(layout, /*slice_index=*/2,
+                                       /*jumped_from_slice_indices=*/{}, "x",
+                                       /*from_slice_index=*/2));
+  EXPECT_TRUE(layout.state_element_by_continuation_value.contains(x_value));
 }
 
 TEST_F(FSMLayoutTest, IOActivationTransitionsMultiTransition) {

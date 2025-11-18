@@ -1252,10 +1252,11 @@ void LogContinuations(const xlscc::GeneratedFunction& func) {
                                      : Debug_OpName(*slice.after_op).c_str());
     for (const ContinuationInput& continuation_in : slice.continuations_in) {
       LOG(INFO) << absl::StrFormat(
-          "  in: %p.%s on param %s/%p top decls %s has %li users, direct-in? "
+          "  in: %p.%p (%s) on param %s/%p top decls %s has %li users, "
+          "direct-in? "
           "%i",
           slices_by_continuation_out.at(continuation_in.continuation_out),
-          continuation_in.name.c_str(),
+          continuation_in.continuation_out, continuation_in.name.c_str(),
           continuation_in.input_node->name().data(), continuation_in.input_node,
           decl_names_string(continuation_in.decls),
           continuation_in.input_node->users().size(),
@@ -1267,9 +1268,9 @@ void LogContinuations(const xlscc::GeneratedFunction& func) {
           continuation_out.output_node->GetType());
 
       LOG(INFO) << absl::StrFormat(
-          "  out: %s top decls %s has %li users, type = %s, literal = %s, "
+          "  out: %p.%s top decls %s has %li users, type = %s, literal = %s, "
           "direct-in? %i",
-          continuation_out.name.c_str(),
+          &continuation_out, continuation_out.name.c_str(),
           decl_names_string(continuation_out.decls),
           continuation_out.output_node->users().size(), type_str.c_str(),
           continuation_out.literal.has_value()

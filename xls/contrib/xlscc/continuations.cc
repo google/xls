@@ -30,6 +30,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
+#include "absl/types/span.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/tracked_bvalue.h"
@@ -37,6 +38,7 @@
 #include "xls/contrib/xlscc/translator_types.h"
 #include "xls/contrib/xlscc/xlscc_logging.h"
 #include "xls/data_structures/leaf_type_tree.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
@@ -107,6 +109,55 @@ std::string GraphvizEscape(std::string_view s) {
 
 }  // namespace
 
+ParamSet SourcesInSetNodeInfo::ComputeInfoForBitsLiteral(
+    const xls::Bits& literal) const {
+  return ParamSet();
+}
+
+ParamSet SourcesInSetNodeInfo::ComputeInfoForLeafNode(xls::Node* node) const {
+  if (node->Is<xls::Param>()) {
+    return ParamSet{node->As<xls::Param>()};
+  }
+  return ParamSet();
+}
+
+ParamSet SourcesInSetNodeInfo::MergeInfos(
+    const absl::Span<const ParamSet>& infos) const {
+  ParamSet ret;
+  for (const ParamSet& info : infos) {
+    ret.insert(info.begin(), info.end());
+  }
+  return ret;
+}
+
+absl::StatusOr<bool> Translator::CheckNodeSourcesInSet(
+    xls::FunctionBase* in_function, xls::Node* node,
+    absl::flat_hash_set<const xls::Param*> sources_set) {
+  // Save lazy node analysis for each function for efficiency
+  if (!node_source_infos_by_function_.contains(in_function)) {
+    CHECK(in_function->IsFunction());
+    auto new_info_ptr = std::make_unique<SourcesInSetNodeInfo>();
+    XLS_RETURN_IF_ERROR(new_info_ptr->Attach(in_function).status());
+    node_source_infos_by_function_[in_function] = std::move(new_info_ptr);
+  }
+
+  SourcesInSetNodeInfo& info = *node_source_infos_by_function_.at(in_function);
+
+  ParamSet param_sources = info.GetSingleInfoForNode(node);
+
+  // No param sources will return true
+  bool all_in_set = true;
+  for (const xls::Param* param : param_sources) {
+    CHECK_EQ(param->function_base(), in_function);
+    if (!sources_set.contains(param)) {
+      all_in_set = false;
+      break;
+    }
+  }
+
+  return all_in_set;
+}
+
 absl::StatusOr<std::vector<NATIVE_BVAL>>
 Translator::ConvertBValuesToContinuationOutputsForCurrentSlice(
     absl::flat_hash_map<const ContinuationValue*, std::vector<TrackedBValue*>>&
@@ -120,35 +171,6 @@ Translator::ConvertBValuesToContinuationOutputsForCurrentSlice(
   XLSCC_CHECK(!context().sf->slices.empty(), loc);
   GeneratedFunctionSlice& current_slice = context().sf->slices.back();
   std::vector<NATIVE_BVAL> ret_vals;
-
-  // For analyzing data flow to output from param, seeing through selects.
-  xls::NodeSourceDataflowVisitor visitor;
-  XLS_RETURN_IF_ERROR(context().fb->function()->Accept(&visitor));
-
-  absl::flat_hash_map<const xls::Param*, const ContinuationInput*>
-      continuation_inputs_by_param;
-
-  for (const ContinuationInput& continuation_in :
-       current_slice.continuations_in) {
-    continuation_inputs_by_param[continuation_in.input_node] = &continuation_in;
-  }
-
-  absl::flat_hash_set<const xls::Node*> direct_in_sources;
-  for (const xls::Param* param : context().fb->function()->params()) {
-    // Skip IO input
-    if (current_slice.after_op != nullptr &&
-        current_slice.after_op->input_value.rvalue().node() == param) {
-      continue;
-    }
-
-    // Skip non-direct-in continuation inputs
-    if (continuation_inputs_by_param.contains(param) &&
-        !continuation_inputs_by_param.at(param)->continuation_out->direct_in) {
-      continue;
-    }
-
-    direct_in_sources.insert(param);
-  }
 
   // Locked TrackedBValues scope
   {
@@ -188,24 +210,6 @@ Translator::ConvertBValuesToContinuationOutputsForCurrentSlice(
 
       // Filled in for name search, identity is inserted later
       continuation_out.output_node = node;
-
-      continuation_out.created_from = bvals;
-
-      xls::LeafTypeTreeView<xls::NodeSource> output_source =
-          visitor.GetValue(continuation_out.output_node);
-
-      // Mark direct in if applicable
-      bool is_direct_in = true;
-
-      for (const xls::NodeSource& output_source_elem :
-           output_source.elements()) {
-        if (!direct_in_sources.contains(output_source_elem.node())) {
-          is_direct_in = false;
-          break;
-        }
-      }
-
-      continuation_out.direct_in = is_direct_in;
 
       absl::StatusOr<xls::Value> result =
           EvaluateNode(node, loc, /*do_check=*/false);
@@ -294,20 +298,23 @@ Translator::ConvertBValuesToContinuationOutputsForCurrentSlice(
 
     for (ContinuationValue& continuation_out :
          current_slice.continuations_out) {
-      const std::vector<TrackedBValue*>& bvals =
-          bvalues_by_continuation_output.at(&continuation_out);
+      // Continuations added by subroutine calls don't need name assignment
+      if (bvalues_by_continuation_output.contains(&continuation_out)) {
+        const std::vector<TrackedBValue*>& bvals =
+            bvalues_by_continuation_output.at(&continuation_out);
 
-      std::vector<std::string> names_found;
-      names_found.reserve(bvals.size());
-      for (const TrackedBValue* bval : bvals) {
-        names_found.push_back(name_found_for_bval.at(bval));
-      }
-      continuation_out.name = absl::StrJoin(names_found, " ");
+        std::vector<std::string> names_found;
+        names_found.reserve(bvals.size());
+        for (const TrackedBValue* bval : bvals) {
+          names_found.push_back(name_found_for_bval.at(bval));
+        }
+        continuation_out.name = absl::StrJoin(names_found, " ");
 
-      static constexpr int64_t max_continuation_name_len = 32;
-      if (continuation_out.name.size() > max_continuation_name_len) {
-        continuation_out.name =
-            continuation_out.name.substr(0, max_continuation_name_len);
+        static constexpr int64_t max_continuation_name_len = 32;
+        if (continuation_out.name.size() > max_continuation_name_len) {
+          continuation_out.name =
+              continuation_out.name.substr(0, max_continuation_name_len);
+        }
       }
 
       NATIVE_BVAL identity_bval = context().fb->Identity(
@@ -319,7 +326,7 @@ Translator::ConvertBValuesToContinuationOutputsForCurrentSlice(
     }
 
     // Unregister all the TrackedBValues that are being continued
-    XLSCC_CHECK_EQ(current_slice.continuations_out.size(),
+    XLSCC_CHECK_GE(current_slice.continuations_out.size(),
                    bvalues_by_continuation_output.size(), loc);
 
     // Record top context outputs for feedbacks
@@ -362,6 +369,10 @@ absl::Status Translator::AddContinuationsToNewSlice(
       bvals_by_continuation_input;
 
   for (ContinuationValue& continuation_out : last_slice.continuations_out) {
+    if (!bvalues_by_continuation_output.contains(&continuation_out)) {
+      continue;
+    }
+
     const std::vector<TrackedBValue*>& bvals =
         bvalues_by_continuation_output.at(&continuation_out);
 
@@ -392,8 +403,8 @@ absl::Status Translator::AddContinuationsToNewSlice(
   // Each TrackedBValue gets its own input
   XLSCC_CHECK(bvals_by_continuation_input.size() == total_bvals, loc);
   XLSCC_CHECK_GE(new_slice.continuations_in.size(),
-                 last_slice.continuations_out.size(), loc);
-  XLSCC_CHECK_EQ(last_slice.continuations_out.size(),
+                 bvalues_by_continuation_output.size(), loc);
+  XLSCC_CHECK_GE(last_slice.continuations_out.size(),
                  bvalues_by_continuation_output.size(), loc);
 
   absl::flat_hash_set<TrackedBValue*> bvals_set;
@@ -504,6 +515,8 @@ absl::Status Translator::NewContinuation(
           name_found_for_bval, decls_by_bval_top_context,
           /*total_bvals_out=*/&total_bvals, loc));
 
+  GeneratedFunctionSlice& last_slice = context().sf->slices.back();
+
   // Only slices before IO operations return IO op conditions.
   //
   // If the next slice, the one this function is about to create,
@@ -523,14 +536,10 @@ absl::Status Translator::NewContinuation(
   // Finish building the current slice
   XLS_RETURN_IF_ERROR(FinishSlice(ret_bval, loc));
 
-  GeneratedFunctionSlice& last_slice = context().sf->slices.back();
-
   // Start building the next slice
   context().sf->slices.push_back(GeneratedFunctionSlice{
       .is_slice_before = create_slice_before,
   });
-
-  GeneratedFunctionSlice& new_slice = context().sf->slices.back();
 
   xls::BuilderBase* last_builder = context().fb;
 
@@ -551,6 +560,8 @@ absl::Status Translator::NewContinuation(
     }
     context.fb = function_in_progress.builder->builder();
   }
+
+  GeneratedFunctionSlice& new_slice = context().sf->slices.back();
 
   XLS_RETURN_IF_ERROR(AddContinuationsToNewSlice(
       op_type, last_slice, new_slice, bvalues_by_continuation_output,
@@ -659,9 +670,13 @@ absl::Status Translator::FinishSlice(NATIVE_BVAL return_bval,
                        function_builder->BuildWithReturnValue(return_bval));
 
   XLSCC_CHECK(!context().sf->slices.empty(), loc);
-  context().sf->slices.back().function = last_slice_function;
 
-  XLS_RETURN_IF_ERROR(AddFeedbacksForSlice(context().sf->slices.back(), loc));
+  GeneratedFunctionSlice& last_slice = context().sf->slices.back();
+  last_slice.function = last_slice_function;
+
+  if (last_slice.do_add_feedbacks) {
+    XLS_RETURN_IF_ERROR(AddFeedbacksForSlice(last_slice, loc));
+  }
 
   return absl::OkStatus();
 }
@@ -686,6 +701,8 @@ absl::Status Translator::FinishLastSlice(TrackedBValue return_bval,
   XLS_RETURN_IF_ERROR(RemoveMaskedOpParams(*context().sf, loc));
 
   XLS_RETURN_IF_ERROR(OptimizeContinuations(*context().sf, loc));
+
+  XLS_RETURN_IF_ERROR(MarkDirectIns(*context().sf, loc));
 
   if (debug_ir_trace_flags_ & DebugIrTraceFlags_FSMStates) {
     LogContinuations(*context().sf);
@@ -1211,6 +1228,75 @@ absl::Status Translator::OptimizeContinuations(GeneratedFunction& func,
     XLS_RETURN_IF_ERROR(RemoveDuplicateParams(func, changed, loc));
     XLS_RETURN_IF_ERROR(SubstituteLiterals(func, changed, loc));
   } while (changed);
+
+  return absl::OkStatus();
+}
+
+absl::Status Translator::GetDirectInSourcesForSlice(
+    const GeneratedFunctionSlice& slice, bool first_slice,
+    absl::flat_hash_set<const xls::Param*>& output) {
+  absl::flat_hash_map<const xls::Param*, const ContinuationInput*>
+      continuation_inputs_by_param;
+
+  for (const ContinuationInput& continuation_in : slice.continuations_in) {
+    continuation_inputs_by_param[continuation_in.input_node] = &continuation_in;
+  }
+
+  for (int64_t p = 0; p < slice.function->params().size(); ++p) {
+    const xls::Param* param = slice.function->params().at(p);
+
+    // All first slice inputs are safe to be treated as direct in
+    // (this, static, actual direct-ins)
+    if (!first_slice) {
+      // Continuations then IO op, which should not be treated as direct-in
+      if (!continuation_inputs_by_param.contains(param)) {
+        continue;
+      }
+
+      if (!continuation_inputs_by_param.at(param)
+               ->continuation_out->direct_in) {
+        continue;
+      }
+    }
+
+    output.insert(param);
+  }
+  return absl::OkStatus();
+}
+
+absl::Status Translator::MarkDirectIns(GeneratedFunction& func,
+                                       const xls::SourceInfo& loc) {
+  XLSCC_CHECK(!func.slices.empty(), loc);
+
+  absl::flat_hash_set<const xls::Param*> direct_in_sources;
+
+  absl::flat_hash_set<const ContinuationValue*> outputs_to_upstream;
+
+  bool first_slice = true;
+
+  for (GeneratedFunctionSlice& slice : func.slices) {
+    XLS_RETURN_IF_ERROR(GetDirectInSourcesForSlice(
+        slice, /*first_slice=*/first_slice, direct_in_sources));
+
+    // Input to a slice from itself is feedback
+    for (ContinuationInput& continuation_in : slice.continuations_in) {
+      outputs_to_upstream.insert(continuation_in.continuation_out);
+    }
+
+    for (ContinuationValue& continuation_out : slice.continuations_out) {
+      if (outputs_to_upstream.contains(&continuation_out)) {
+        continuation_out.direct_in = false;
+        continue;
+      }
+
+      XLS_ASSIGN_OR_RETURN(
+          continuation_out.direct_in,
+          CheckNodeSourcesInSet(slice.function, continuation_out.output_node,
+                                direct_in_sources));
+    }
+
+    first_slice = false;
+  }
 
   return absl::OkStatus();
 }

@@ -177,11 +177,6 @@ absl::StatusOr<NewFSMLayout> NewFSMGenerator::LayoutNewFSM(
     ret.states.push_back(std::move(state));
   }
 
-  if (debug_ir_trace_flags_ & DebugIrTraceFlags_FSMStates) {
-    LOG(INFO) << "FSM states after filtering:";
-    PrintNewFSMStates(ret);
-  }
-
   // Plan the state elements
   //
   // State elements may be shared by multiple continuation values if the values
@@ -219,6 +214,7 @@ absl::StatusOr<NewFSMLayout> NewFSMGenerator::LayoutNewFSM(
       // Try to find state elements to share by decl
       std::optional<int64_t> found_element_by_decl = std::nullopt;
       std::vector<const clang::NamedDecl*> decls;
+
       for (const clang::NamedDecl* decl : value->decls) {
         decls.push_back(decl);
       }
@@ -244,7 +240,6 @@ absl::StatusOr<NewFSMLayout> NewFSMGenerator::LayoutNewFSM(
           break;
         }
       }
-
       int64_t element_index = found_element_by_decl.value_or(-1);
 
       // Create a new state element if none were found to share
@@ -268,6 +263,11 @@ absl::StatusOr<NewFSMLayout> NewFSMGenerator::LayoutNewFSM(
         state_element_indices_by_decl[decl].push_back(element_index);
       }
     }
+  }
+
+  if (debug_ir_trace_flags_ & DebugIrTraceFlags_FSMStates) {
+    LOG(INFO) << "FSM states after state element allocation:";
+    PrintNewFSMStates(ret);
   }
 
   if (debug_ir_trace_flags_ & DebugIrTraceFlags_FSMStates) {
@@ -320,6 +320,11 @@ absl::Status NewFSMGenerator::LayoutNewFSMStates(
     const GeneratedFunctionSlice* slice = layout.slice_by_index.at(slice_index);
 
     // Get current input for each parameter (resolving phis)
+
+    // First slice cannot have continuation inputs
+    XLSCC_CHECK(!(slice_index == 0 && !slice->continuations_in.empty()),
+                body_loc);
+
     absl::flat_hash_map<xls::Param*, std::vector<const ContinuationInput*>>
         inputs_by_param;
     for (const ContinuationInput& continuation_in : slice->continuations_in) {
@@ -345,6 +350,7 @@ absl::Status NewFSMGenerator::LayoutNewFSMStates(
           latest_continuation_in = continuation_in;
         }
       }
+
       XLSCC_CHECK_GE(latest_step_produced, 0, body_loc);
       XLSCC_CHECK_NE(latest_continuation_in, nullptr, body_loc);
       new_state.current_inputs_by_input_param[input_param] =
@@ -563,9 +569,12 @@ void NewFSMGenerator::PrintNewFSMStates(const NewFSMLayout& layout) {
     LOG(INFO) << GetStateName(state) << ": " << num_bits << " bits to save";
     for (const ContinuationValue* value : state.values_to_save) {
       LOG(INFO) << absl::StrFormat(
-          "    v %s (%p) slice %li (%li bits)", value->name.c_str(), value,
-          layout.output_slice_index_by_value.at(value),
-          value->output_node->GetType()->GetFlatBitCount());
+          "    v %s (%p) slice %li (%li bits) element %li", value->name.c_str(),
+          value, layout.output_slice_index_by_value.at(value),
+          value->output_node->GetType()->GetFlatBitCount(),
+          layout.state_element_by_continuation_value.contains(value)
+              ? layout.state_element_by_continuation_value.at(value)
+              : -1L);
     }
   }
 }
@@ -1153,6 +1162,7 @@ NewFSMGenerator::GenerateInputValueInContext(
   XLSCC_CHECK_EQ(phi_values.size(), phi_conditions.size(), body_loc);
 
   if (phi_values.size() == 1) {
+    XLSCC_CHECK(phi_values.at(0).valid(), body_loc);
     return phi_values.at(0);
   }
 
@@ -1162,6 +1172,7 @@ NewFSMGenerator::GenerateInputValueInContext(
       /*name=*/
       absl::StrFormat("slice_%li_param_%s_phi", slice_index, param->name()));
 
+  XLSCC_CHECK(one_hot_select.valid(), body_loc);
   return one_hot_select;
 }
 

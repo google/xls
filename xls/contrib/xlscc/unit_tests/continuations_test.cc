@@ -1456,6 +1456,298 @@ TEST_F(ContinuationsTest, DirectInMarked) {
   EXPECT_TRUE(SliceInputsDecl(third_slice, "dval", /*direct_in=*/true));
 }
 
+TEST_F(ContinuationsTest, DirectInArithmeticWithLiteralMarked) {
+  const std::string content = R"(
+    struct DirectIn {
+      int x;
+      int y;
+    };
+
+    #pragma hls_top
+    void my_package(const DirectIn&direct_in,
+                    __xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      const int x = in.read();
+      const int dval = direct_in.x + 10;
+      out.write(x);
+      out.write(x * dval);
+    })";
+
+  XLS_ASSERT_OK_AND_ASSIGN(const xlscc::GeneratedFunction* func,
+                           GenerateTopFunction(content));
+
+  auto slice_it = func->slices.begin();
+  const xlscc::GeneratedFunctionSlice& first_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& second_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& third_slice = *slice_it;
+
+  ASSERT_EQ(func->slices.size(), 4);
+
+  EXPECT_TRUE(SliceOutputsDecl(first_slice, "direct_in", /*direct_in=*/true));
+
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "x", /*direct_in=*/false));
+  EXPECT_TRUE(SliceInputsDecl(second_slice, "direct_in", /*direct_in=*/true));
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "dval", /*direct_in=*/true));
+
+  EXPECT_TRUE(SliceInputsDecl(third_slice, "dval", /*direct_in=*/true));
+}
+
+TEST_F(ContinuationsTest, DirectInMarkedInSubroutine) {
+  const std::string content = R"(
+    struct DirectIn {
+      int x;
+      int y;
+    };
+
+    void Inner(int a,
+               const DirectIn&direct_in,
+                __xls_channel<int>& in,
+                __xls_channel<int>& out) {
+      const int x = in.read();
+      const int dval = direct_in.x;
+      out.write(x + a);
+      out.write(x * dval);
+    }
+
+    #pragma hls_top
+    void my_package(const DirectIn&direct_in,
+                    __xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      Inner(3, direct_in, in, out);
+    })";
+
+  XLS_ASSERT_OK_AND_ASSIGN(const xlscc::GeneratedFunction* func,
+                           GenerateTopFunction(content));
+
+  auto slice_it = func->slices.begin();
+  const xlscc::GeneratedFunctionSlice& first_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& second_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& third_slice = *slice_it;
+
+  ASSERT_EQ(func->slices.size(), 4);
+
+  EXPECT_TRUE(SliceOutputsDecl(first_slice, "direct_in", /*direct_in=*/true));
+
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "x", /*direct_in=*/false));
+  EXPECT_TRUE(SliceInputsDecl(second_slice, "direct_in", /*direct_in=*/true));
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "dval", /*direct_in=*/true));
+
+  EXPECT_TRUE(SliceInputsDecl(third_slice, "dval", /*direct_in=*/true));
+}
+
+TEST_F(ContinuationsTest, DirectInMarkedInSubroutineMultiCall) {
+  const std::string content = R"(
+    struct DirectIn {
+      int x;
+      int y;
+    };
+
+    void Inner(int a,
+               const DirectIn&direct_in,
+                __xls_channel<int>& in,
+                __xls_channel<int>& out) {
+      const int x = in.read();
+      const int dval = direct_in.x;
+      out.write(x + a);
+      out.write(x * dval);
+    }
+
+    #pragma hls_top
+    void my_package(const DirectIn&direct_in,
+                    __xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      Inner(3, direct_in, in, out);
+      DirectIn not_direct_in = {
+        .x = in.read(),
+        .y = in.read()
+      };
+      Inner(5, not_direct_in, in, out);
+    })";
+
+  XLS_ASSERT_OK_AND_ASSIGN(const xlscc::GeneratedFunction* func,
+                           GenerateTopFunction(content));
+
+  auto slice_it = func->slices.begin();
+  ASSERT_EQ(func->slices.size(), 9);
+
+  const xlscc::GeneratedFunctionSlice& first_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& second_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& third_slice = *slice_it;
+  ++slice_it;
+  ++slice_it;
+  ++slice_it;
+  ++slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& eighth_slice = *slice_it;
+
+  EXPECT_TRUE(SliceOutputsDecl(first_slice, "direct_in", /*direct_in=*/true));
+
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "x", /*direct_in=*/false));
+  EXPECT_TRUE(SliceInputsDecl(second_slice, "direct_in", /*direct_in=*/true));
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "dval", /*direct_in=*/true));
+
+  EXPECT_TRUE(SliceInputsDecl(third_slice, "dval", /*direct_in=*/true));
+
+  EXPECT_TRUE(SliceInputsDecl(eighth_slice, "dval", /*direct_in=*/false));
+}
+
+TEST_F(ContinuationsTest, DirectInMarkedInSubroutineNonConst) {
+  const std::string content = R"(
+    struct DirectIn {
+      int x;
+      int y;
+    };
+
+    void Inner(int a,
+               DirectIn&direct_in,
+                __xls_channel<int>& in,
+                __xls_channel<int>& out) {
+      const int x = in.read();
+      const int dval = direct_in.x;
+      out.write(x + a);
+      out.write(x * dval);
+    }
+
+    #pragma hls_top
+    void my_package(DirectIn&direct_in,
+                    __xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      Inner(3, direct_in, in, out);
+    })";
+
+  XLS_ASSERT_OK_AND_ASSIGN(const xlscc::GeneratedFunction* func,
+                           GenerateTopFunction(content));
+
+  auto slice_it = func->slices.begin();
+  const xlscc::GeneratedFunctionSlice& first_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& second_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& third_slice = *slice_it;
+
+  ASSERT_EQ(func->slices.size(), 4);
+
+  EXPECT_TRUE(SliceOutputsDecl(first_slice, "direct_in", /*direct_in=*/true));
+
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "x", /*direct_in=*/false));
+  EXPECT_TRUE(SliceInputsDecl(second_slice, "direct_in", /*direct_in=*/true));
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "dval", /*direct_in=*/true));
+
+  EXPECT_TRUE(SliceInputsDecl(third_slice, "dval", /*direct_in=*/true));
+}
+
+TEST_F(ContinuationsTest, DirectInMarkedInSubroutineNested) {
+  const std::string content = R"(
+    struct DirectIn {
+      int x;
+      int y;
+    };
+
+    void Inner2(const DirectIn&direct_in,
+                __xls_channel<int>& in,
+                __xls_channel<int>& out) {
+      const int x = in.read();
+      const int dval = direct_in.x;
+      out.write(x);
+      out.write(x * dval);
+    }
+
+    void Inner1(const DirectIn&direct_in,
+                __xls_channel<int>& in,
+                __xls_channel<int>& out) {
+      Inner2(direct_in, in, out);
+    }
+
+    #pragma hls_top
+    void my_package(const DirectIn&direct_in,
+                    __xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      Inner1(direct_in, in, out);
+    })";
+
+  XLS_ASSERT_OK_AND_ASSIGN(const xlscc::GeneratedFunction* func,
+                           GenerateTopFunction(content));
+
+  auto slice_it = func->slices.begin();
+  const xlscc::GeneratedFunctionSlice& first_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& second_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& third_slice = *slice_it;
+
+  ASSERT_EQ(func->slices.size(), 4);
+
+  EXPECT_TRUE(SliceOutputsDecl(first_slice, "direct_in", /*direct_in=*/true));
+
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "x", /*direct_in=*/false));
+  EXPECT_TRUE(SliceInputsDecl(second_slice, "direct_in", /*direct_in=*/true));
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "dval", /*direct_in=*/true));
+
+  EXPECT_TRUE(SliceInputsDecl(third_slice, "dval", /*direct_in=*/true));
+}
+
+TEST_F(ContinuationsTest, DirectInMarkedInSubroutineNested2) {
+  const std::string content = R"(
+    struct DirectIn {
+      int x;
+      int y;
+    };
+
+    void Inner3(const DirectIn&direct_in,
+                __xls_channel<int>& in,
+                __xls_channel<int>& out) {
+      const int x = in.read();
+      const int dval = direct_in.x;
+      out.write(x);
+      out.write(x * dval);
+    }
+
+    void Inner2(const DirectIn&direct_in,
+                __xls_channel<int>& in,
+                __xls_channel<int>& out) {
+      Inner3(direct_in, in, out);
+    }
+
+    void Inner1(const DirectIn&direct_in,
+                __xls_channel<int>& in,
+                __xls_channel<int>& out) {
+      Inner2(direct_in, in, out);
+    }
+
+    #pragma hls_top
+    void my_package(const DirectIn&direct_in,
+                    __xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      Inner1(direct_in, in, out);
+    })";
+
+  XLS_ASSERT_OK_AND_ASSIGN(const xlscc::GeneratedFunction* func,
+                           GenerateTopFunction(content));
+
+  auto slice_it = func->slices.begin();
+  const xlscc::GeneratedFunctionSlice& first_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& second_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& third_slice = *slice_it;
+
+  ASSERT_EQ(func->slices.size(), 4);
+
+  EXPECT_TRUE(SliceOutputsDecl(first_slice, "direct_in", /*direct_in=*/true));
+
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "x", /*direct_in=*/false));
+  EXPECT_TRUE(SliceInputsDecl(second_slice, "direct_in", /*direct_in=*/true));
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "dval", /*direct_in=*/true));
+
+  EXPECT_TRUE(SliceInputsDecl(third_slice, "dval", /*direct_in=*/true));
+}
+
 TEST_F(ContinuationsTest, SplitOnChannelOps) {
   const std::string content = R"(
     #pragma hls_top
@@ -1502,6 +1794,52 @@ TEST_F(ContinuationsTest, SplitOnChannelOps) {
   EXPECT_NE(seventh_slice.after_op, nullptr);
   EXPECT_EQ(eighth_slice.after_op, nullptr);
   EXPECT_NE(ninth_slice.after_op, nullptr);
+}
+
+TEST_F(ContinuationsTest, PipelinedLoopBackwardsPropagationInSubroutine) {
+  const std::string content = R"(
+    int accum(int ctrl) {
+      int a = 0;
+      #pragma hls_pipeline_init_interval 1
+      for(int i=1;i <= ctrl;++i) {
+        a += i;
+      }
+      return a;
+    }
+
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      int ctrl = in.read();
+      out.write(accum(ctrl));
+    })";
+
+  XLS_ASSERT_OK_AND_ASSIGN(const xlscc::GeneratedFunction* func,
+                           GenerateTopFunction(content));
+
+  ASSERT_EQ(func->slices.size(), 5);
+
+  auto slice_it = func->slices.begin();
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& second_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& third_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& fourth_slice = *slice_it;
+
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "ctrl"));
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "a", /*direct_in=*/true));
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "i", /*direct_in=*/true));
+
+  EXPECT_EQ(SliceInputsDeclCount(third_slice, "i"), 2);
+  EXPECT_EQ(SliceInputsDeclCount(third_slice, "a"), 2);
+  EXPECT_TRUE(SliceInputsDecl(third_slice, "a"));
+  EXPECT_TRUE(SliceInputsDecl(third_slice, "i"));
+  EXPECT_TRUE(SliceOutputsDecl(third_slice, "a", /*direct_in=*/false));
+  EXPECT_TRUE(SliceOutputsDecl(third_slice, "i", /*direct_in=*/false));
+
+  EXPECT_TRUE(SliceInputsDecl(fourth_slice, "a", /*direct_in=*/false));
+  EXPECT_FALSE(SliceInputsDecl(fourth_slice, "i", /*direct_in=*/false));
 }
 
 }  // namespace
