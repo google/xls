@@ -24,6 +24,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
@@ -227,6 +228,14 @@ absl::Status ProcElaboration::BuildInstanceMaps(ProcInstance* proc_instance) {
         channel_instance;
     instances_of_channel_interface_[channel_interface.get()].push_back(
         channel_instance);
+
+    // An interface here doesn't mean that the channel instance is owned by this
+    // proc, so only add to `instances_of_channel_` if it isn't already present.
+    std::vector<ChannelInstance*>& instances =
+        instances_of_channel_[channel_instance->channel];
+    if (!absl::c_linear_search(instances, channel_instance)) {
+      instances.push_back(channel_instance);
+    }
   }
 
   for (const std::unique_ptr<ProcInstance>& subinstance :

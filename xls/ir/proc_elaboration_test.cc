@@ -154,6 +154,13 @@ TEST_F(ElaborationTest, SingleProcMultipleChannels) {
   EXPECT_THAT(elab.top()->GetChannelInstance("leaf_ch2"),
               IsOkAndHolds(elab.channel_instances()[2]));
 
+  EXPECT_THAT(elab.GetUniqueInstance(elab.channel_instances()[0]->channel),
+              IsOkAndHolds(elab.channel_instances()[0]));
+  EXPECT_THAT(elab.GetUniqueInstance(elab.channel_instances()[1]->channel),
+              IsOkAndHolds(elab.channel_instances()[1]));
+  EXPECT_THAT(elab.GetUniqueInstance(elab.channel_instances()[2]->channel),
+              IsOkAndHolds(elab.channel_instances()[2]));
+
   EXPECT_EQ(elab.ToString(), "foo<leaf_ch0, leaf_ch1, leaf_ch2>");
 }
 
@@ -206,6 +213,11 @@ TEST_F(ElaborationTest, ProcInstantiatingProc) {
       elab.GetChannelInstance("leaf_ch0", leaf_instance->path().value()),
       IsOkAndHolds(leaf_instance->GetChannelInstance("leaf_ch0").value()));
 
+  for (ChannelInstance* channel_instance : elab.channel_instances()) {
+    EXPECT_THAT(elab.GetUniqueInstance(channel_instance->channel),
+                IsOkAndHolds(channel_instance));
+  }
+
   EXPECT_EQ(elab.ToString(), R"(top_proc<in_ch>
   chan the_ch
   leaf<leaf_ch0=the_ch, leaf_ch1=in_ch> [leaf_inst])");
@@ -241,6 +253,11 @@ TEST_F(ElaborationTest, ProcInstantiatingProcInstantiatedProcEtc) {
       elab.GetProcInstance("top_proc::top_inst_1->proc1::proc1_inst_proc0->"
                            "proc0::proc0_inst_foo->foo"));
   EXPECT_THAT(leaf_inst, ProcInstanceFor(leaf_proc));
+
+  for (ChannelInstance* channel_instance : elab.channel_instances()) {
+    EXPECT_THAT(elab.GetUniqueInstance(channel_instance->channel),
+                IsOkAndHolds(channel_instance));
+  }
 
   EXPECT_THAT(elab.top(), ProcInstanceFor(top));
   EXPECT_EQ(elab.top()->path()->ToString(), "top_proc");
