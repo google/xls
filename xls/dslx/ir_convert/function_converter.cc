@@ -3736,6 +3736,7 @@ absl::Status FunctionConverter::HandleProcNextFunction(
   }
 
   VLOG(5) << "Visiting body";
+  channel_scope_->EnterFunctionContext(type_info, bindings);
   XLS_RETURN_IF_ERROR(Visit(f->body()));
 
   builder_ptr->Next(state, std::get<BValue>(node_to_ir_[f->body()]));

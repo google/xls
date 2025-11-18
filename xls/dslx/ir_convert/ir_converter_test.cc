@@ -3045,60 +3045,6 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest,
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
-       PassChannelArraysAcrossMultipleSpawns) {
-  constexpr std::string_view program = R"(
-  proc SomeProc<N: u32> {
-    ins: chan<u32>[N] in;
-    init { () }
-    config(ins: chan<u32>[N] in) {
-      (ins,)
-    }
-    next(state: ()) {
-      unroll_for! (i, _): (u32, ()) in u32:0..u32:4 {
-        let (_, v) = recv(token(), ins[i]);
-        trace_fmt!("recv: {}", v);
-      }(());
-      state
-    }
-  }
-
-  proc SomeOtherProc<N: u32> {
-    init { () }
-    config(ins: chan<u32>[N] in) {
-      spawn SomeProc<N>(ins);
-    }
-    next(state: ()) {
-      ()
-    }
-  }
-
-  proc YetAnotherProc {
-    outs: chan<u32>[4] out;
-    init { () }
-    config() {
-      let (outs, ins) =  chan<u32>[4]("ins_outs");
-      spawn SomeOtherProc<u32:4>(ins);
-      (outs,)
-    }
-    next(state: ()) {
-      unroll_for! (i, _): (u32, ()) in u32:0..u32:4 {
-        send(token(), outs[i], i);
-      }(());
-      state
-    }
-  }
-  )";
-
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::string converted,
-      ConvertOneFunctionForTest(program, "YetAnotherProc", import_data,
-                                kNoPosOptions));
-  // Note: version-specific IR is due to unroll_for!.
-  ExpectVersionSpecificIr(converted, GetParam());
-}
-
-TEST_P(IrConverterWithBothTypecheckVersionsTest,
        ReceiveFromBoundaryChannelArrayElement) {
   constexpr std::string_view program = R"(
   proc SomeProc {
@@ -4531,6 +4477,69 @@ class ProcScopedChannelsIrConverterTest : public ::testing::Test {
                                              TypeInferenceVersion::kVersion2);
   }
 };
+
+constexpr std::string_view kPassChannelArraysAcrossSpawns = R"(
+  proc SomeProc<N: u32> {
+    ins: chan<u32>[N] in;
+    init { () }
+    config(ins: chan<u32>[N] in) {
+      (ins,)
+    }
+    next(state: ()) {
+      unroll_for! (i, _): (u32, ()) in u32:0..u32:4 {
+        let (_, v) = recv(token(), ins[i]);
+        trace_fmt!("recv: {}", v);
+      }(());
+      state
+    }
+  }
+
+  proc SomeOtherProc<N: u32> {
+    init { () }
+    config(ins: chan<u32>[N] in) {
+      spawn SomeProc<N>(ins);
+    }
+    next(state: ()) { () }
+  }
+
+  proc YetAnotherProc {
+    outs: chan<u32>[4] out;
+    init { () }
+    config() {
+      let (outs, ins) = chan<u32>[4]("ins_outs");
+      spawn SomeOtherProc<u32:4>(ins);
+      (outs,)
+    }
+    next(state: ()) {
+      unroll_for! (i, _): (u32, ()) in u32:0..u32:4 {
+        send(token(), outs[i], i);
+      }(());
+      state
+    }
+  }
+)";
+
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       PassChannelArraysAcrossMultipleSpawns) {
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(
+          kPassChannelArraysAcrossSpawns, "YetAnotherProc", import_data,
+          ConvertOptions{.emit_positions = false, .verify_ir = false}));
+
+  // Note: version-specific IR is due to unroll_for!.
+  ExpectVersionSpecificIr(converted, GetParam());
+}
+
+TEST_F(ProcScopedChannelsIrConverterTest,
+       ProcScopedPassChannelArraysAcrossMultipleSpawns) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kPassChannelArraysAcrossSpawns,
+                                "YetAnotherProc"));
+  ExpectIr(converted);
+}
 
 TEST_F(ProcScopedChannelsIrConverterTest, ProcMemberInDynamicLoopUnsupported) {
   constexpr std::string_view program = R"(
@@ -7179,6 +7188,51 @@ TEST_F(ProcScopedChannelsIrConverterTest,
       R"(fn f<N: u32>() { let _ = chan<u8>("OutsideProc"); })";
   absl::StatusOr<std::string> converted = ConvertModuleForTest(program);
   EXPECT_THAT(converted, IsOkAndHolds("package test_module\n"));
+}
+
+constexpr std::string_view kMemoryProc = R"(
+pub type MemWord = u32;
+pub struct MemReq {
+    is_write: bool,
+    address: u32,
+    wdata: MemWord,
+}
+
+pub const MEM_SIZE = u32:4;
+type State = MemWord[MEM_SIZE];
+
+const DEFAULT_VALUE = u32:0x12345678 as MemWord;
+
+pub proc Memory {
+    req_in: chan<MemReq> in;
+    data_out: chan<u32> out;
+
+    config(req_in: chan<MemReq> in, data_out: chan<u32> out) { (req_in, data_out) }
+
+    init { State:[DEFAULT_VALUE, ...] }
+
+    next(state: State) {
+        let (tok, req) = recv(join(), req_in);
+        let state = if req.is_write { update(state, req.address, req.wdata) } else { state };
+
+        // A read request returns a response.
+        send_if(tok, data_out, !req.is_write, state[req.address]);
+        state
+    }
+}
+)";
+
+TEST_P(IrConverterWithBothTypecheckVersionsTest, ProcWithIndex) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kMemoryProc, kNoPosOptions));
+  ExpectIr(converted);
+}
+
+TEST_F(ProcScopedChannelsIrConverterTest, ProcScopedProcWithIndex) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kMemoryProc, kProcScopedChannelOptions));
+  ExpectIr(converted);
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ConvertWithoutTests) {
