@@ -228,14 +228,14 @@ absl::StatusOr<ProverResult> TryProveEquivalence(Function* a, Function* b,
   }
   XLS_ASSIGN_OR_RETURN(Node * new_ret, CombineChecks(to_test_func, checks));
   XLS_RETURN_IF_ERROR(to_test_func->set_return_value(new_ret));
-  // Remove asserts if requested.
-  if (ignore_asserts) {
-    OptimizationContext ctx;
-    PassResults res;
-    RemoveAssertsPass rap;
-    XLS_RETURN_IF_ERROR(rap.Run(to_test.get(), {}, &res, ctx).status())
-        << "Unable to remove asserts from function!";
-  }
+  // Remove asserts prior to Z3 translation (the solver does not understand
+  // them yet). If assert semantics are being checked, those checks have been
+  // encoded into the return value already.
+  OptimizationContext ctx;
+  PassResults res;
+  RemoveAssertsPass rap;
+  XLS_RETURN_IF_ERROR(rap.Run(to_test.get(), {}, &res, ctx).status())
+      << "Unable to remove asserts from function!";
   // Run prover
   XLS_ASSIGN_OR_RETURN(
       ProverResult base_result,
