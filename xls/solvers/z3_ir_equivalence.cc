@@ -106,33 +106,32 @@ absl::StatusOr<std::vector<Node*>> BuildAssertChecks(
   for (const auto& [label, original_assert] : original_asserts) {
     auto transformed_it = transformed_asserts.find(label);
     if (transformed_it != transformed_asserts.end()) {
-      Node* cond_a =
-          original_assert->operand(Assert::kConditionOperand);
-      Node* cond_b =
-          transformed_it->second->operand(Assert::kConditionOperand);
-      checks.push_back(f->AddNode(std::make_unique<CompareOp>(
-          SourceInfo(), cond_a, cond_b, Op::kEq,
-          absl::StrCat("assert_", label, "_match"), f)));
+      XLS_ASSIGN_OR_RETURN(
+          Node * equality,
+          f->MakeNodeWithName<CompareOp>(
+              SourceInfo(), original_assert->condition(),
+              transformed_it->second->condition(), Op::kEq,
+              absl::StrCat("assert_", label, "_match")));
+      checks.push_back(equality);
       transformed_asserts.erase(transformed_it);
     } else {
-      checks.push_back(
-          original_assert->operand(Assert::kConditionOperand));
+      checks.push_back(original_assert->condition());
     }
   }
   for (const auto& [_, transformed_assert] : transformed_asserts) {
-    checks.push_back(
-        transformed_assert->operand(Assert::kConditionOperand));
+    checks.push_back(transformed_assert->condition());
   }
   return checks;
 }
 
-Node* CombineChecks(Function* f, absl::Span<Node* const> checks) {
-  XLS_DCHECK(!checks.empty());
+absl::StatusOr<Node*> CombineChecks(Function* f,
+                                    absl::Span<Node* const> checks) {
+  XLS_RET_CHECK(!checks.empty());
   if (checks.size() == 1) {
     return checks.front();
   }
-  return f->AddNode(std::make_unique<NaryOp>(
-      SourceInfo(), checks, Op::kAnd, "z3_equivalence_checks", f));
+  return f->MakeNodeWithName<NaryOp>(SourceInfo(), checks, Op::kAnd,
+                                     "z3_equivalence_checks");
 }
 
 class RemoveAssertsPass : public OptimizationFunctionBasePass {
@@ -216,15 +215,18 @@ absl::StatusOr<ProverResult> TryProveEquivalence(Function* a, Function* b,
   Node* original_result = to_test_func->return_value();
   Node* transformed_result = node_map[b->return_value()];
   std::vector<Node*> checks;
-  checks.push_back(to_test_func->AddNode(std::make_unique<CompareOp>(
-      SourceInfo(), original_result, transformed_result, Op::kEq, "TestCheck",
-      to_test_func)));
+  XLS_ASSIGN_OR_RETURN(
+      Node * result_compare,
+      to_test_func->MakeNodeWithName<CompareOp>(SourceInfo(), original_result,
+                                                transformed_result, Op::kEq,
+                                                "TestCheck"));
+  checks.push_back(result_compare);
   if (!ignore_asserts) {
     XLS_ASSIGN_OR_RETURN(auto assert_checks,
                          BuildAssertChecks(to_test_func, node_map));
     checks.insert(checks.end(), assert_checks.begin(), assert_checks.end());
   }
-  Node* new_ret = CombineChecks(to_test_func, checks);
+  XLS_ASSIGN_OR_RETURN(Node * new_ret, CombineChecks(to_test_func, checks));
   XLS_RETURN_IF_ERROR(to_test_func->set_return_value(new_ret));
   // Remove asserts if requested.
   if (ignore_asserts) {
