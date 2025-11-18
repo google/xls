@@ -17,13 +17,16 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
@@ -45,6 +48,89 @@
 namespace xls::solvers::z3 {
 
 namespace {
+
+std::optional<std::string> GetAssertKey(const Assert* asrt) {
+  if (asrt->label().has_value()) {
+    return asrt->label();
+  }
+  if (asrt->original_label().has_value()) {
+    return asrt->original_label();
+  }
+  return std::nullopt;
+}
+
+absl::StatusOr<std::vector<Node*>> BuildAssertChecks(
+    Function* f, const absl::flat_hash_map<Node*, Node*>& cloned_from_b) {
+  absl::flat_hash_map<std::string, Assert*> original_asserts;
+  absl::flat_hash_map<std::string, Assert*> transformed_asserts;
+  absl::flat_hash_set<Node*> b_nodes;
+  b_nodes.reserve(cloned_from_b.size());
+  for (const auto& [_, clone] : cloned_from_b) {
+    b_nodes.insert(clone);
+  }
+
+  for (Node* node : f->nodes()) {
+    if (!node->Is<Assert>()) {
+      continue;
+    }
+    if (b_nodes.contains(node)) {
+      continue;
+    }
+    std::optional<std::string> key = GetAssertKey(node->As<Assert>());
+    if (!key.has_value()) {
+      continue;
+    }
+    if (!original_asserts.emplace(*key, node->As<Assert>()).second) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Duplicate assert label `%s` in original function", *key));
+    }
+  }
+
+  for (const auto& [original_node, clone_node] : cloned_from_b) {
+    if (!original_node->Is<Assert>()) {
+      continue;
+    }
+    std::optional<std::string> key = GetAssertKey(original_node->As<Assert>());
+    if (!key.has_value()) {
+      continue;
+    }
+    if (!transformed_asserts.emplace(*key, clone_node->As<Assert>()).second) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Duplicate assert label `%s` in transformed function", *key));
+    }
+  }
+
+  std::vector<Node*> checks;
+  checks.reserve(original_asserts.size() + transformed_asserts.size());
+  for (const auto& [label, original_assert] : original_asserts) {
+    auto transformed_it = transformed_asserts.find(label);
+    if (transformed_it != transformed_asserts.end()) {
+      XLS_ASSIGN_OR_RETURN(Node * equality,
+                           f->MakeNodeWithName<CompareOp>(
+                               SourceInfo(), original_assert->condition(),
+                               transformed_it->second->condition(), Op::kEq,
+                               absl::StrCat("assert_", label, "_match")));
+      checks.push_back(equality);
+      transformed_asserts.erase(transformed_it);
+    } else {
+      checks.push_back(original_assert->condition());
+    }
+  }
+  for (const auto& [_, transformed_assert] : transformed_asserts) {
+    checks.push_back(transformed_assert->condition());
+  }
+  return checks;
+}
+
+absl::StatusOr<Node*> CombineChecks(Function* f,
+                                    absl::Span<Node* const> checks) {
+  XLS_RET_CHECK(!checks.empty());
+  if (checks.size() == 1) {
+    return checks.front();
+  }
+  return f->MakeNodeWithName<NaryOp>(SourceInfo(), checks, Op::kAnd,
+                                     "z3_equivalence_checks");
+}
 
 class RemoveAssertsPass : public OptimizationFunctionBasePass {
  public:
@@ -126,18 +212,27 @@ absl::StatusOr<ProverResult> TryProveEquivalence(Function* a, Function* b,
 
   Node* original_result = to_test_func->return_value();
   Node* transformed_result = node_map[b->return_value()];
-  Node* new_ret = to_test_func->AddNode(std::make_unique<CompareOp>(
-      SourceInfo(), original_result, transformed_result, Op::kEq, "TestCheck",
-      to_test_func));
-  XLS_RETURN_IF_ERROR(to_test_func->set_return_value(new_ret));
-  // Remove asserts if requested.
-  if (ignore_asserts) {
-    OptimizationContext ctx;
-    PassResults res;
-    RemoveAssertsPass rap;
-    XLS_RETURN_IF_ERROR(rap.Run(to_test.get(), {}, &res, ctx).status())
-        << "Unable to remove asserts from function!";
+  std::vector<Node*> checks;
+  XLS_ASSIGN_OR_RETURN(Node * result_compare,
+                       to_test_func->MakeNodeWithName<CompareOp>(
+                           SourceInfo(), original_result, transformed_result,
+                           Op::kEq, "TestCheck"));
+  checks.push_back(result_compare);
+  if (!ignore_asserts) {
+    XLS_ASSIGN_OR_RETURN(auto assert_checks,
+                         BuildAssertChecks(to_test_func, node_map));
+    checks.insert(checks.end(), assert_checks.begin(), assert_checks.end());
   }
+  XLS_ASSIGN_OR_RETURN(Node * new_ret, CombineChecks(to_test_func, checks));
+  XLS_RETURN_IF_ERROR(to_test_func->set_return_value(new_ret));
+  // Remove asserts prior to Z3 translation (the solver does not understand
+  // them yet). If assert semantics are being checked, those checks have been
+  // encoded into the return value already.
+  OptimizationContext ctx;
+  PassResults res;
+  RemoveAssertsPass rap;
+  XLS_RETURN_IF_ERROR(rap.Run(to_test.get(), {}, &res, ctx).status())
+      << "Unable to remove asserts from function!";
   // Run prover
   XLS_ASSIGN_OR_RETURN(
       ProverResult base_result,

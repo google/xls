@@ -427,5 +427,62 @@ TEST_F(EquivalenceTest, MultiFunctionIgnoresAssert) {
               IsOkAndHolds(IsProvenTrue()));
 }
 
+TEST_F(EquivalenceTest, DetectsMismatchedAssertCondition) {
+  std::unique_ptr<Package> original_pkg = CreatePackage();
+  FunctionBuilder fb1(TestName(), original_pkg.get());
+  BValue x1 = fb1.Param("x", original_pkg->GetBitsType(1));
+  fb1.Assert(fb1.Literal(Value::Token()), x1, "x must be one", "label_a");
+  fb1.Identity(x1);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f1, fb1.Build());
+
+  std::unique_ptr<Package> transformed_pkg = CreatePackage();
+  FunctionBuilder fb2(TestName(), transformed_pkg.get());
+  BValue x2 = fb2.Param("x", transformed_pkg->GetBitsType(1));
+  fb2.Assert(fb2.Literal(Value::Token()), fb2.Not(x2), "x must be one",
+             "label_a");
+  fb2.Identity(x2);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f2, fb2.Build());
+
+  EXPECT_THAT(TryProveEquivalence(f1, f2), IsOkAndHolds(IsProvenFalse()));
+}
+
+TEST_F(EquivalenceTest, ExtraAssertThatCanFireFails) {
+  std::unique_ptr<Package> pkg_base = CreatePackage();
+  FunctionBuilder fb_base(TestName(), pkg_base.get());
+  BValue x_base = fb_base.Param("x", pkg_base->GetBitsType(1));
+  fb_base.Identity(x_base);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * base, fb_base.Build());
+
+  std::unique_ptr<Package> pkg_extra = CreatePackage();
+  FunctionBuilder fb_extra(TestName(), pkg_extra.get());
+  BValue x_extra = fb_extra.Param("x", pkg_extra->GetBitsType(1));
+  fb_extra.Assert(fb_extra.Literal(Value::Token()), x_extra, "added",
+                  "new_label");
+  fb_extra.Identity(x_extra);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * with_assert, fb_extra.Build());
+
+  EXPECT_THAT(TryProveEquivalence(base, with_assert),
+              IsOkAndHolds(IsProvenFalse()));
+}
+
+TEST_F(EquivalenceTest, ExtraAssertThatIsTautologyPasses) {
+  std::unique_ptr<Package> pkg_base = CreatePackage();
+  FunctionBuilder fb_base(TestName(), pkg_base.get());
+  BValue x_base = fb_base.Param("x", pkg_base->GetBitsType(1));
+  fb_base.Identity(x_base);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * base, fb_base.Build());
+
+  std::unique_ptr<Package> pkg_extra = CreatePackage();
+  FunctionBuilder fb_extra(TestName(), pkg_extra.get());
+  BValue x_extra = fb_extra.Param("x", pkg_extra->GetBitsType(1));
+  fb_extra.Assert(fb_extra.Literal(Value::Token()),
+                  fb_extra.Literal(Value(UBits(1, 1))), "added", "new_label");
+  fb_extra.Identity(x_extra);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * with_assert, fb_extra.Build());
+
+  EXPECT_THAT(TryProveEquivalence(base, with_assert),
+              IsOkAndHolds(IsProvenTrue()));
+}
+
 }  // namespace
 }  // namespace xls::solvers::z3
