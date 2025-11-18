@@ -4402,6 +4402,60 @@ fn main() -> (u32, s64) {
   ExpectIr(converted);
 }
 
+TEST_P(IrConverterWithBothTypecheckVersionsTest, ToBits) {
+  if (GetParam() == TypeInferenceVersion::kVersion1) {
+    return;
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(R"(
+enum E : u16 {
+  X = 1
+}
+
+#[derive(ToBits)]
+struct Bar {
+  data: u32
+}
+
+struct Baz {
+  x: u24,
+  y: u24
+}
+
+impl Baz {
+  fn to_bits(self) -> u48 { self.y ++ self.x }
+}
+
+#[derive(ToBits)]
+struct Foo {
+  a: u32,
+  b: s64,
+  c: u8[3],
+  d: (u8, u8),
+  e: E,
+  f: Bar,
+  g: Baz
+}
+
+fn main() -> bits[bit_count<Foo>()] {
+  let f = Foo {
+    a: 5,
+    b: -1,
+    c: [10, 11, 12],
+    d: (1, 2),
+    e: E::X,
+    f: Bar { data: 100 },
+    g: Baz { x: 1, y: 2 }
+  };
+
+  f.to_bits()
+}
+)",
+                                                kNoPosOptions));
+  ExpectIr(converted);
+}
+
 TEST_P(IrConverterWithBothTypecheckVersionsTest, GenericProc) {
   if (GetParam() == TypeInferenceVersion::kVersion1) {
     return;

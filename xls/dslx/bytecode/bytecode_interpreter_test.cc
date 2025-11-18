@@ -2789,5 +2789,55 @@ fn main() -> (u32, s64) {
               ElementsAre(InterpValue::MakeU32(15), InterpValue::MakeS64(4)));
 }
 
+TEST_F(BytecodeInterpreterTest, ToBits) {
+  constexpr std::string_view kProgram = R"(
+enum E : u2 {
+  X = 1
+}
+
+#[derive(ToBits)]
+struct Bar {
+  data: u3
+}
+
+struct Baz {
+  x: u3,
+  y: u3
+}
+
+impl Baz {
+  fn to_bits(self) -> u6 { self.y ++ self.x }
+}
+
+#[derive(ToBits)]
+struct Foo {
+  a: u3,
+  b: s2,
+  c: u2[3],
+  d: (bool, bool),
+  e: E,
+  f: Bar,
+  g: Baz
+}
+
+fn main() -> bits[bit_count<Foo>()] {
+  let f = Foo {
+    a: 2,
+    b: -1,
+    c: [1, 0, 2],
+    d: (false, true),
+    e: E::X,
+    f: Bar { data: 3 },
+    g: Baz { x: 1, y: 2 }
+  };
+
+  f.to_bits()
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue result, Interpret(kProgram, "main", {}));
+  XLS_ASSERT_OK_AND_ASSIGN(Bits bits, result.GetBits());
+  EXPECT_EQ(bits, UBits(0x5a4ad1, 24));
+}
+
 }  // namespace
 }  // namespace xls::dslx
