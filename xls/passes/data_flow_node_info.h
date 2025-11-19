@@ -33,6 +33,7 @@
 #include "xls/ir/proc.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/passes/lazy_dag_cache.h"
 #include "xls/passes/lazy_node_data.h"
 #include "xls/passes/lazy_node_info.h"
 
@@ -50,7 +51,8 @@ class DataFlowLazyNodeInfo : public LazyNodeInfo<Info> {
   virtual Info ComputeInfoForLeafNode(Node* node) const = 0;
   virtual Info MergeInfos(const absl::Span<const Info>& infos) const = 0;
 
-  DataFlowLazyNodeInfo() = default;
+  DataFlowLazyNodeInfo()
+      : LazyNodeInfo<Info>(DagCacheInvalidateDirection::kInvalidatesUsers) {}
   DataFlowLazyNodeInfo(const DataFlowLazyNodeInfo& o)
       : LazyNodeInfo<Info>(o),
         parent_(o.parent_),

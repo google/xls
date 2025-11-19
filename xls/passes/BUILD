@@ -1354,6 +1354,7 @@ cc_library(
     srcs = ["node_dependency_analysis.cc"],
     hdrs = ["node_dependency_analysis.h"],
     deps = [
+        ":lazy_dag_cache",
         ":lazy_node_data",
         "//xls/ir",
         "@com_google_absl//absl/container:flat_hash_set",
@@ -1374,6 +1375,7 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
+        "//xls/ir:op",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings:str_format",
         "@google_benchmark//:benchmark",
@@ -1443,6 +1445,7 @@ cc_library(
         "//xls/ir",
         "//xls/ir:change_listener",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -1456,6 +1459,7 @@ cc_library(
         "lazy_node_info.h",
     ],
     deps = [
+        ":lazy_dag_cache",
         ":lazy_node_data",
         "//xls/data_structures:leaf_type_tree",
         "//xls/ir",
@@ -1470,6 +1474,7 @@ cc_library(
     srcs = ["critical_path_delay_analysis.cc"],
     hdrs = ["critical_path_delay_analysis.h"],
     deps = [
+        ":lazy_dag_cache",
         ":lazy_node_data",
         ":optimization_pass",
         "//xls/common/status:status_macros",
@@ -1508,6 +1513,7 @@ cc_library(
     hdrs = ["critical_path_slack_analysis.h"],
     deps = [
         ":critical_path_delay_analysis",
+        ":lazy_dag_cache",
         ":lazy_node_data",
         "//xls/ir",
         "@com_google_absl//absl/status",
@@ -1544,6 +1550,7 @@ cc_library(
     deps = [
         ":bdd_evaluator",
         ":bdd_query_engine",
+        ":lazy_dag_cache",
         ":lazy_node_data",
         ":node_dependency_analysis",
         ":query_engine",
@@ -1592,6 +1599,7 @@ cc_library(
         "lazy_query_engine.h",
     ],
     deps = [
+        ":lazy_dag_cache",
         ":lazy_node_info",
         ":query_engine",
         "//xls/data_structures:leaf_type_tree",
@@ -2103,6 +2111,7 @@ xls_pass(
     pass_class = "ReassociationPass",
     deps = [
         ":bit_count_query_engine",
+        ":lazy_dag_cache",
         ":lazy_node_info",
         ":lazy_ternary_query_engine",
         ":optimization_pass",
@@ -4571,6 +4580,7 @@ cc_library(
     name = "data_flow_node_info",
     hdrs = ["data_flow_node_info.h"],
     deps = [
+        ":lazy_dag_cache",
         ":lazy_node_data",
         ":lazy_node_info",
         "//xls/data_structures:leaf_type_tree",

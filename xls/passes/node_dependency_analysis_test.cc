@@ -29,6 +29,8 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/package.h"
 
 namespace xls {
@@ -47,6 +49,20 @@ MATCHER_P2(DependedOnBy, nda, destination,
            absl::StrFormat("%spath to %s in analysis", negation ? "no " : "",
                            destination.node()->ToString())) {
   auto res = nda->IsDependent(arg.node(), destination.node());
+  return testing::ExplainMatchResult(true, res, result_listener);
+}
+
+MATCHER_P2(DependentOnNode, nda, source,
+           absl::StrFormat("%spath from %s in analysis", negation ? "no " : "",
+                           source->ToString())) {
+  auto res = nda->IsDependent(source, arg);
+  return testing::ExplainMatchResult(true, res, result_listener);
+}
+
+MATCHER_P2(DependedOnByNode, nda, destination,
+           absl::StrFormat("%spath to %s in analysis", negation ? "no " : "",
+                           destination->ToString())) {
+  auto res = nda->IsDependent(arg, destination);
   return testing::ExplainMatchResult(true, res, result_listener);
 }
 
@@ -218,6 +234,55 @@ TEST_F(NodeDependencyAnalysisTest, InputUsedMultipleTimesBackwards) {
   NodeBackwardDependencyAnalysis nda;
   XLS_ASSERT_OK(nda.Attach(f).status());
   EXPECT_THAT(x, DependedOnBy(&nda, multisel));
+}
+
+TEST_F(NodeDependencyAnalysisTest, Invalidation) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  BValue z = fb.Param("z", p->GetBitsType(8));
+  BValue lit1 = fb.Literal(UBits(1, 8));
+  BValue add1 = fb.Add(x, lit1);
+  BValue add2 = fb.Add(add1, lit1);
+  BValue addY = fb.Add(add2, y);
+  BValue addZ = fb.Add(addY, z);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  {
+    NodeForwardDependencyAnalysis nda;
+    XLS_ASSERT_OK(nda.Attach(f).status());
+    EXPECT_THAT(add1, DependedOnBy(&nda, addZ))
+        << "initial forward dep missing: add1 -> addZ";
+    addZ.node()->ReplaceOperand(addY.node(), lit1.node());
+    EXPECT_THAT(add1, testing::Not(DependedOnBy(&nda, addZ)))
+        << "forward dep incorrectly present: add1 -> addZ";
+    addZ.node()->ReplaceOperand(lit1.node(), addY.node());
+    EXPECT_THAT(add1, DependedOnBy(&nda, addZ))
+        << "new forward dep missing: add1 -> addZ";
+  }
+  {
+    NodeBackwardDependencyAnalysis nda;
+    XLS_ASSERT_OK(nda.Attach(f).status());
+    EXPECT_THAT(add1, DependedOnBy(&nda, addZ))
+        << "initial backward dep missing: add1 -> addZ";
+    addZ.node()->ReplaceOperand(addY.node(), lit1.node());
+    EXPECT_THAT(add1, testing::Not(DependedOnBy(&nda, addZ)))
+        << "backward dep incorrectly present: add1 -> addZ";
+    addZ.node()->ReplaceOperand(lit1.node(), addY.node());
+    EXPECT_THAT(add1, DependedOnBy(&nda, addZ))
+        << "new backward dep missing: add1 -> addZ";
+
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Node * addZ2,
+        f->MakeNode<BinOp>(addZ.loc(), addY.node(), lit1.node(), Op::kAdd));
+    EXPECT_THAT(add1.node(), DependedOnByNode(&nda, addZ2))
+        << "backward dep missing: add1 -> addZ2";
+    EXPECT_EQ(nda.GetInfo(add1.node())->size(), 5)
+        << "backward dep count mismatch for 'add1' post-addZ2-created";
+    XLS_ASSERT_OK(f->RemoveNode(addZ2));
+    EXPECT_EQ(nda.GetInfo(add1.node())->size(), 4)
+        << "backward dep count mismatch for 'add1' post-addZ2-removed";
+  }
 }
 
 template <typename Iter>

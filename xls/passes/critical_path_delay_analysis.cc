@@ -28,13 +28,16 @@
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/estimators/delay_model/delay_estimators.h"
 #include "xls/ir/node.h"
+#include "xls/passes/lazy_dag_cache.h"
+#include "xls/passes/lazy_node_data.h"
 #include "xls/passes/optimization_pass.h"
 
 namespace xls {
 
 CriticalPathDelayAnalysis::CriticalPathDelayAnalysis(
     const DelayEstimator* estimator)
-    : delay_estimator_(estimator) {
+    : LazyNodeData<int64_t>(DagCacheInvalidateDirection::kInvalidatesUsers),
+      delay_estimator_(estimator) {
   CHECK(delay_estimator_ != nullptr);
 }
 

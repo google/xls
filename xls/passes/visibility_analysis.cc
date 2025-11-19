@@ -33,6 +33,7 @@
 #include "xls/ir/op.h"
 #include "xls/passes/bdd_evaluator.h"
 #include "xls/passes/bdd_query_engine.h"
+#include "xls/passes/lazy_dag_cache.h"
 #include "xls/passes/lazy_node_data.h"
 #include "xls/passes/node_dependency_analysis.h"
 #include "xls/passes/query_engine.h"
@@ -56,7 +57,8 @@ namespace xls {
 
 VisibilityAnalysis::VisibilityAnalysis(const NodeForwardDependencyAnalysis* nda,
                                        BddQueryEngine* bdd_query_engine)
-    : nda_(nda),
+    : LazyNodeData<BddNodeIndex>(DagCacheInvalidateDirection::kInvalidatesBoth),
+      nda_(nda),
       bdd_query_engine_(bdd_query_engine),
       edge_term_limit_(kDefaultTermLimitForNodeToUserEdge) {
   CHECK(bdd_query_engine_ != nullptr);
@@ -65,7 +67,8 @@ VisibilityAnalysis::VisibilityAnalysis(const NodeForwardDependencyAnalysis* nda,
 VisibilityAnalysis::VisibilityAnalysis(int64_t edge_term_limit,
                                        const NodeForwardDependencyAnalysis* nda,
                                        BddQueryEngine* bdd_query_engine)
-    : nda_(nda),
+    : LazyNodeData<BddNodeIndex>(DagCacheInvalidateDirection::kInvalidatesBoth),
+      nda_(nda),
       bdd_query_engine_(bdd_query_engine),
       edge_term_limit_(edge_term_limit) {
   CHECK(bdd_query_engine_ != nullptr);

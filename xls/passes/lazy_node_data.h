@@ -85,9 +85,13 @@ class LazyNodeData : public ChangeListener,
                      public LazyDagCache<Node*, CacheValueT>::DagProvider {
  private:
   using CacheState = LazyDagCache<Node*, CacheValueT>::CacheState;
+  using DagProvider = LazyDagCache<Node*, CacheValueT>::DagProvider;
 
  public:
-  LazyNodeData<CacheValueT>() : cache_(this) {}
+  explicit LazyNodeData<CacheValueT>(DagCacheInvalidateDirection direction)
+      : cache_(this),
+        LazyDagCache<Node*, CacheValueT>::DagProvider(direction) {}
+
   ~LazyNodeData() override {
     if (f_ != nullptr) {
       f_->UnregisterChangeListener(this);
@@ -289,7 +293,15 @@ class LazyNodeData : public ChangeListener,
     return cache_.QueryValue(node);
   }
 
-  // No action necessary on NodeAdded.
+  void NodeAdded(Node* node) override {
+    CHECK_EQ(node->function_base(), f_)
+        << "Received notification for unattached function "
+        << node->function_base()->name() << ". Currently attached to "
+        << (f_ ? f_->name() : "<nothing>");
+    if (!GetUsers(node).empty()) {
+      cache_.Forget(node);
+    }
+  }
 
   void NodeDeleted(Node* node) override {
     CHECK_EQ(node->function_base(), f_)
@@ -297,6 +309,29 @@ class LazyNodeData : public ChangeListener,
         << node->function_base()->name() << ". Currently attached to "
         << (f_ ? f_->name() : "<nothing>");
     cache_.Forget(node);
+    for (Node* user : GetUsers(node)) {
+      cache_.MarkUnverified(user);
+    }
+  }
+
+  void UserAdded(Node* node, Node* new_user) override {
+    auto direction = DagProvider::GetInvalidateDirection();
+    if (direction == DagCacheInvalidateDirection::kInvalidatesOperands ||
+        direction == DagCacheInvalidateDirection::kInvalidatesBoth) {
+      // This invalidates both 'node' and new_user's other operands.
+      cache_.MarkUsersUnverified(new_user);
+    }
+  }
+
+  void UserRemoved(Node* node, Node* old_user) override {
+    auto direction = DagProvider::GetInvalidateDirection();
+    if (direction == DagCacheInvalidateDirection::kInvalidatesOperands ||
+        direction == DagCacheInvalidateDirection::kInvalidatesBoth) {
+      // Invalidating 'node' is necessary since it is no longer one of
+      // old_user's operands.
+      cache_.MarkUnverified(node);
+      cache_.MarkUsersUnverified(old_user);
+    }
   }
 
   void OperandChanged(Node* node, Node* old_operand,
@@ -306,8 +341,10 @@ class LazyNodeData : public ChangeListener,
         << node->function_base()->name() << ". Currently attached to "
         << (f_ ? f_->name() : "<nothing>");
     CacheState prev_state = cache_.GetCacheState(node);
-    if (prev_state != CacheState::kKnown &&
-        prev_state != CacheState::kInputsUnverified) {
+    bool already_invalidated = prev_state != CacheState::kKnown &&
+                               prev_state != CacheState::kInputsUnverified;
+    if (already_invalidated) {
+      // The node is already invalidated. No further invalidation is needed.
       return;
     }
     bool operand_info_changed = false;
@@ -345,6 +382,11 @@ class LazyNodeData : public ChangeListener,
         << node->function_base()->name() << ". Currently attached to "
         << (f_ ? f_->name() : "<nothing>");
     cache_.MarkUnverified(node);
+    auto direction = DagProvider::GetInvalidateDirection();
+    if (direction == DagCacheInvalidateDirection::kInvalidatesOperands ||
+        direction == DagCacheInvalidateDirection::kInvalidatesBoth) {
+      cache_.MarkUnverified(old_operand);
+    }
   }
 
   void FunctionBaseDeleted(FunctionBase* fb) override {
@@ -413,6 +455,7 @@ class LazyNodeData : public ChangeListener,
         << (f_ ? f_->name() : "<nothing>");
     return node->users();
   }
+
   absl::StatusOr<CacheValueT> ComputeValue(
       Node* const& node,
       absl::Span<const CacheValueT* const> operand_infos) const override {

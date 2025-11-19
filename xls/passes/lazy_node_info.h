@@ -16,13 +16,13 @@
 #define XLS_PASSES_LAZY_NODE_INFO_H_
 
 #include <cstdint>
-#include <optional>
 
 #include "absl/status/status.h"
 #include "absl/types/span.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/node.h"
 #include "xls/ir/type.h"
+#include "xls/passes/lazy_dag_cache.h"
 #include "xls/passes/lazy_node_data.h"
 
 namespace xls {
@@ -32,6 +32,9 @@ namespace xls {
 template <typename Info>
 class LazyNodeInfo : public LazyNodeData<LeafTypeTree<Info>> {
  public:
+  LazyNodeInfo(DagCacheInvalidateDirection direction)
+      : LazyNodeData<LeafTypeTree<Info>>(direction) {}
+
   // Users must implement ComputeInfo (inherited) and MergeWithGiven.
   // MergeWithGiven(Info&, const Info&) is called to merge 'given' leaf
   // information into 'info'.

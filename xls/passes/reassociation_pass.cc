@@ -56,6 +56,7 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/passes/bit_count_query_engine.h"
+#include "xls/passes/lazy_dag_cache.h"
 #include "xls/passes/lazy_node_info.h"
 #include "xls/passes/lazy_ternary_query_engine.h"
 #include "xls/passes/optimization_pass.h"
@@ -827,7 +828,10 @@ class OneShotReassociationVisitor : public DfsVisitorWithDefault {
 // little less useful/more complicated but nothing all that difficult.
 class ReassociationCache : public LazyNodeInfo<std::optional<SignednessPair>> {
  public:
-  explicit ReassociationCache(const QueryEngine& qe) : qe_(qe) {}
+  explicit ReassociationCache(const QueryEngine& qe)
+      : LazyNodeInfo<std::optional<SignednessPair>>(
+            DagCacheInvalidateDirection::kInvalidatesUsers),
+        qe_(qe) {}
   const QueryEngine& query_engine() const { return qe_; }
 
  protected:

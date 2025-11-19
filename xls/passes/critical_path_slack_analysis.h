@@ -21,6 +21,7 @@
 #include "absl/types/span.h"
 #include "xls/ir/node.h"
 #include "xls/passes/critical_path_delay_analysis.h"
+#include "xls/passes/lazy_dag_cache.h"
 #include "xls/passes/lazy_node_data.h"
 
 namespace xls {
@@ -28,7 +29,9 @@ namespace xls {
 class CriticalPathSlackAnalysis : public LazyNodeData<int64_t> {
  public:
   CriticalPathSlackAnalysis(
-      const CriticalPathDelayAnalysis* critical_path_delay_analysis);
+      const CriticalPathDelayAnalysis* critical_path_delay_analysis)
+      : LazyNodeData<int64_t>(DagCacheInvalidateDirection::kInvalidatesBoth),
+        critical_path_delay_analysis_(critical_path_delay_analysis) {}
 
   int64_t SlackFromCriticalPath(Node* node) const;
 

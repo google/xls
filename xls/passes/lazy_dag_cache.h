@@ -36,6 +36,12 @@
 
 namespace xls {
 
+enum class DagCacheInvalidateDirection {
+  kInvalidatesUsers,
+  kInvalidatesOperands,
+  kInvalidatesBoth,
+};
+
 // An implementation of an invalidating/"re-validating" cache for any analysis
 // on a DAG that can be written in terms of only local information about a node
 // (represented by a `Key`) and its inputs.
@@ -67,14 +73,25 @@ class LazyDagCache {
   // A pure-virtual interface for providing information about a DAG.
   class DagProvider {
    public:
+    DagProvider()
+        : invalidate_direction_(
+              DagCacheInvalidateDirection::kInvalidatesUsers) {}
+    DagProvider(DagCacheInvalidateDirection invalidate_direction)
+        : invalidate_direction_(invalidate_direction) {}
     virtual ~DagProvider() = default;
 
     virtual std::string GetName(const Key& key) const = 0;
     virtual absl::Span<const Key> GetInputs(const Key& key) const = 0;
     virtual absl::Span<const Key> GetUsers(const Key& key) const = 0;
+    DagCacheInvalidateDirection GetInvalidateDirection() const {
+      return invalidate_direction_;
+    }
 
     virtual absl::StatusOr<Value> ComputeValue(
         const Key& key, absl::Span<const Value* const> input_values) const = 0;
+
+   protected:
+    DagCacheInvalidateDirection invalidate_direction_;
   };
 
   explicit LazyDagCache<Key, Value>(DagProvider* provider)

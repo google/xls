@@ -19,6 +19,7 @@
 #include "absl/status/status.h"
 #include "absl/types/span.h"
 #include "xls/ir/node.h"
+#include "xls/passes/lazy_dag_cache.h"
 #include "xls/passes/lazy_node_data.h"
 
 namespace xls {
@@ -26,6 +27,10 @@ namespace xls {
 class NodeForwardDependencyAnalysis
     : public LazyNodeData<absl::flat_hash_set<Node*>> {
  public:
+  explicit NodeForwardDependencyAnalysis()
+      : LazyNodeData<absl::flat_hash_set<Node*>>(
+            DagCacheInvalidateDirection::kInvalidatesUsers) {}
+
   bool IsDependent(Node* from, Node* to) const {
     return GetInfo(to)->contains(from);
   }
@@ -48,6 +53,10 @@ class NodeForwardDependencyAnalysis
 class NodeBackwardDependencyAnalysis
     : public LazyNodeData<absl::flat_hash_set<Node*>> {
  public:
+  explicit NodeBackwardDependencyAnalysis()
+      : LazyNodeData<absl::flat_hash_set<Node*>>(
+            DagCacheInvalidateDirection::kInvalidatesOperands) {}
+
   bool IsDependent(Node* from, Node* to) const {
     return GetInfo(from)->contains(to);
   }

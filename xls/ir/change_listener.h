@@ -49,6 +49,9 @@ class ChangeListener {
   // last operand in the list).
   virtual void OperandAdded(Node* node) {}
 
+  virtual void UserAdded(Node* node, Node* new_user) {}
+  virtual void UserRemoved(Node* node, Node* old_user) {}
+
   virtual void ReturnValueChanged(Function* function_base,
                                   Node* old_return_value) {}
   virtual void NextStateElementChanged(Proc* proc, int64_t state_index,

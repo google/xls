@@ -27,10 +27,6 @@
 
 namespace xls {
 
-CriticalPathSlackAnalysis::CriticalPathSlackAnalysis(
-    const CriticalPathDelayAnalysis* critical_path_delay_analysis)
-    : critical_path_delay_analysis_(critical_path_delay_analysis) {}
-
 int64_t CriticalPathSlackAnalysis::SlackFromCriticalPath(Node* node) const {
   return *GetInfo(node);
 }

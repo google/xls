@@ -27,6 +27,7 @@
 #include "xls/ir/change_listener.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
+#include "xls/passes/lazy_dag_cache.h"
 #include "xls/passes/lazy_node_info.h"
 #include "xls/passes/query_engine.h"
 
@@ -78,7 +79,8 @@ class LazyQueryEngine : public QueryEngine {
   class QueryEngineNodeInfo : public LazyNodeInfo<Info> {
    public:
     explicit QueryEngineNodeInfo(LazyQueryEngine<Info>* owner)
-        : owner_(owner) {}
+        : LazyNodeInfo<Info>(DagCacheInvalidateDirection::kInvalidatesUsers),
+          owner_(owner) {}
     QueryEngineNodeInfo(const QueryEngineNodeInfo&) = default;
     QueryEngineNodeInfo(QueryEngineNodeInfo&&) = default;
     QueryEngineNodeInfo& operator=(const QueryEngineNodeInfo&) = default;

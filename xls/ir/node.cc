@@ -69,10 +69,13 @@ void Node::AddOperand(Node* operand) {
   VLOG(3) << " Adding operand " << operand->GetName() << " as #"
           << operands_.size() << " operand of " << GetName();
   operands_.push_back(operand);
-  operand->AddUser(this);
+  bool user_added = operand->AddUser(this);
   VLOG(3) << " " << operand->GetName()
           << " user now: " << operand->GetUsersString();
   for (ChangeListener* listener : GetChangeListeners(function_base_)) {
+    if (user_added) {
+      listener->UserAdded(operand, this);
+    }
     listener->OperandAdded(this);
   }
 }
@@ -110,7 +113,7 @@ absl::Status Node::AddNodeToStageInternal(int64_t stage_index, Node* node) {
   return function_base_->AddNodeToStage(stage_index, node).status();
 }
 
-void Node::AddUser(Node* user) {
+bool Node::AddUser(Node* user) {
   absl::InlinedVector<Node*, 2>::iterator it;
   if (users_.size() < kSmallUserCount) {
     // Perform a linear search for the insertion point.
@@ -124,7 +127,9 @@ void Node::AddUser(Node* user) {
   }
   if (it == users_.end() || (*it)->id() != user->id()) {
     users_.insert(it, user);
+    return true;
   }
+  return false;
 }
 
 void Node::RemoveUser(Node* user) {
@@ -862,11 +867,13 @@ bool Node::ReplaceOperand(Node* old_operand, Node* new_operand) {
   }
   ++package()->transform_metrics().operands_replaced;
   std::vector<int64_t> replaced_operands;
+  bool user_added = false;
   for (int64_t i = 0; i < operand_count(); ++i) {
     if (operands_[i] == old_operand) {
       if (replaced_operands.empty() && new_operand != nullptr) {
         // Now we know we're definitely using this new operand.
         new_operand->AddUser(this);
+        user_added = true;
       }
       replaced_operands.push_back(i);
       operands_[i] = new_operand;
@@ -874,6 +881,10 @@ bool Node::ReplaceOperand(Node* old_operand, Node* new_operand) {
   }
   old_operand->RemoveUser(this);
   for (ChangeListener* listener : GetChangeListeners(function_base_)) {
+    if (user_added) {
+      listener->UserAdded(new_operand, this);
+    }
+    listener->UserRemoved(old_operand, this);
     listener->OperandChanged(this, old_operand, replaced_operands);
   }
   return !replaced_operands.empty();
@@ -901,6 +912,8 @@ absl::Status Node::ReplaceOperandNumber(int64_t operand_no, Node* new_operand,
     old_operand->RemoveUser(this);
   }
   for (ChangeListener* listener : GetChangeListeners(function_base_)) {
+    listener->UserAdded(new_operand, this);
+    listener->UserRemoved(old_operand, this);
     listener->OperandChanged(this, old_operand, operand_no);
   }
   return absl::OkStatus();
@@ -920,6 +933,7 @@ absl::Status Node::RemoveOptionalOperand(int64_t operand_no) {
     old_operand->RemoveUser(this);
   }
   for (ChangeListener* listener : GetChangeListeners(function_base_)) {
+    listener->UserRemoved(old_operand, this);
     listener->OperandRemoved(this, old_operand);
   }
   return absl::OkStatus();

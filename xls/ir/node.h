@@ -372,7 +372,8 @@ class Node {
   // Adds the given node to the specified stage.
   absl::Status AddNodeToStageInternal(int64_t stage_index, Node* node);
 
-  void AddUser(Node* user);
+  // Adds the user and returns if the user was not previously a user.
+  bool AddUser(Node* user);
   void RemoveUser(Node* user);
 
   // The number of users that we consider small enough to perform linear-time
