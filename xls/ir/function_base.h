@@ -52,6 +52,17 @@ class Proc;
 // Represents a pipeline stage after scheduling.
 class Stage {
  public:
+  Stage(Node* inputs_valid, Node* outputs_valid)
+      : inputs_valid_(inputs_valid), outputs_valid_(outputs_valid) {
+    CHECK_EQ(inputs_valid_ == nullptr, outputs_valid_ == nullptr);
+  }
+  Stage() : Stage(nullptr, nullptr) {}
+
+  Stage(const Stage& other) = default;
+  Stage& operator=(const Stage& other) = default;
+  Stage(Stage&& other) = default;
+  Stage& operator=(Stage&& other) = default;
+
   // Returns the set of active inputs for this stage.
   const absl::btree_set<Node*, Node::NodeIdLessThan>& active_inputs() const {
     return active_inputs_;
@@ -73,14 +84,41 @@ class Stage {
   }
 
   bool AddNode(Node* node);
+  void erase(Node* node) {
+    active_inputs_.erase(node);
+    logic_.erase(node);
+    active_outputs_.erase(node);
+  }
 
   absl::StatusOr<Stage> Clone(
       const absl::flat_hash_map<Node*, Node*>& node_mapping) const;
+
+  bool IsControlled() const {
+    return inputs_valid_ != nullptr && outputs_valid_ != nullptr;
+  }
+
+  // Returns the node that signals whether it would be valid for this stage to
+  // execute; i.e., that all passive inputs are updated for the next activation,
+  // and all active inputs are valid.
+  Node* inputs_valid() const { return inputs_valid_; }
+
+  void set_inputs_valid(Node* inputs_valid) { inputs_valid_ = inputs_valid; }
+
+  // Returns the node that signals whether the stage's outputs are valid to be
+  // read; i.e., that all logic nodes are updated by the current activation, and
+  // all active outputs have completed execution.
+  Node* outputs_valid() const { return outputs_valid_; }
+
+  void set_outputs_valid(Node* outputs_valid) {
+    outputs_valid_ = outputs_valid;
+  }
 
  private:
   absl::btree_set<Node*, Node::NodeIdLessThan> active_inputs_;
   absl::btree_set<Node*, Node::NodeIdLessThan> logic_;
   absl::btree_set<Node*, Node::NodeIdLessThan> active_outputs_;
+  Node* inputs_valid_ = nullptr;
+  Node* outputs_valid_ = nullptr;
 };
 
 // Base class for Functions and Procs. A holder of a set of nodes.
@@ -258,8 +296,8 @@ class FunctionBase {
   void AddStage(Stage stage);
 
   // Adds `n` empty stages to the function base. Only callable on scheduled
-  // function bases.
-  void AddEmptyStages(int64_t n);
+  // function bases (and not on blocks).
+  virtual void AddEmptyStages(int64_t n);
 
   // Clears all stages from the function base. Only callable on scheduled
   // function bases.

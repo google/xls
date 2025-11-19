@@ -54,6 +54,7 @@
 #include "xls/ir/proc.h"
 #include "xls/ir/proc_instantiation.h"
 #include "xls/ir/register.h"
+#include "xls/ir/scheduled_builder.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -135,6 +136,11 @@ class Parser {
       std::string_view input_string, Package* package,
       absl::Span<const IrAttribute> outer_attributes = {});
 
+  // Parses a top-level scheduled block, including signature and body.
+  static absl::StatusOr<ScheduledBlock*> ParseScheduledBlock(
+      std::string_view input_string, Package* package,
+      absl::Span<const IrAttribute> outer_attributes = {});
+
   // Parses the given input string as a package skipping verification. This
   // should only be used in tests when malformed IR is desired.
   static absl::StatusOr<std::unique_ptr<Package>> ParsePackageNoVerify(
@@ -182,6 +188,8 @@ class Parser {
 
   // Parse a block starting at the current scanner position.
   absl::StatusOr<Block*> ParseBlock(
+      Package* package, absl::Span<const IrAttribute> outer_attributes = {});
+  absl::StatusOr<ScheduledBlock*> ParseScheduledBlock(
       Package* package, absl::Span<const IrAttribute> outer_attributes = {});
 
   // Parse a channel starting at the current scanner position. If `proc` is not
@@ -376,6 +384,12 @@ class Parser {
       BuilderBase* fb, absl::flat_hash_map<std::string, BValue>* name_to_value,
       std::optional<BValue>* func_ret_val);
 
+  // Parses a controlled stage within a scheduled block.
+  absl::Status ParseControlledStage(
+      ScheduledBlockBuilder* builder,
+      absl::flat_hash_map<std::string, BValue>* name_to_value,
+      Package* package);
+
   // Pops a file_number declaration out of the scanner, of the form:
   //
   //  "file_number" <integer> <quoted-string>
@@ -481,6 +495,17 @@ absl::StatusOr<std::unique_ptr<PackageT>> Parser::ParseDerivedPackageNoVerify(
       XLS_ASSIGN_OR_RETURN(Block * block,
                            parser.ParseBlock(package.get(), outer_attributes),
                            _ << "@ " << filename_str);
+      if (is_top) {
+        XLS_RETURN_IF_ERROR(package->SetTop(block));
+      }
+      continue;
+    }
+    if (peek.type() == LexicalTokenType::kKeyword &&
+        peek.value() == "scheduled_block") {
+      XLS_ASSIGN_OR_RETURN(
+          ScheduledBlock * block,
+          parser.ParseScheduledBlock(package.get(), outer_attributes),
+          _ << "@ " << filename_str);
       if (is_top) {
         XLS_RETURN_IF_ERROR(package->SetTop(block));
       }

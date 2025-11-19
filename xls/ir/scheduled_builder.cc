@@ -19,13 +19,17 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/casts.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/block.h"
 #include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
@@ -134,6 +138,70 @@ absl::StatusOr<ScheduledProc*> ScheduledProcBuilder::Build(
     }
   }
   return Build();
+}
+
+void ScheduledBlockBuilder::StartStage(BValue stage_inputs_valid) {
+  CHECK(stage_inputs_valid.valid());
+  staging_nodes_ = true;
+  current_stage_inputs_valid_ = stage_inputs_valid.node();
+}
+
+void ScheduledBlockBuilder::EndStage(BValue stage_outputs_valid) {
+  CHECK(stage_outputs_valid.valid());
+  CHECK_NE(current_stage_inputs_valid_, nullptr);
+
+  staging_nodes_ = false;
+
+  Stage stage{current_stage_inputs_valid_, stage_outputs_valid.node()};
+  current_stage_inputs_valid_ = nullptr;
+  for (Node* node : current_stage_nodes_) {
+    stage.AddNode(node);
+  }
+  current_stage_nodes_.clear();
+
+  block()->AddStage(stage);
+  current_stage_++;
+}
+
+void ScheduledBlockBuilder::SuspendStaging() {
+  CHECK(staging_nodes_);
+  staging_nodes_ = false;
+}
+
+void ScheduledBlockBuilder::ResumeStaging() {
+  CHECK(!staging_nodes_);
+  staging_nodes_ = true;
+}
+
+absl::StatusOr<ScheduledBlock*> ScheduledBlockBuilder::Build() {
+  XLS_RET_CHECK(!staging_nodes_) << "Build() called without ending all stages.";
+  XLS_ASSIGN_OR_RETURN(Block * b, BlockBuilder::Build());
+  return down_cast<ScheduledBlock*>(b);
+}
+
+BValue ScheduledBlockBuilder::AssignNodeToStage(BValue node, int64_t stage) {
+  Node* raw_node = node.node();
+  if (block()->IsStaged(raw_node)) {
+    int64_t stage_index = *block()->GetStageIndex(raw_node);
+    if (stage_index == stage) {
+      // Node is already in the correct stage, so we're done.
+      return node;
+    }
+    CHECK_OK(block()->RemoveNodeFromStage(raw_node));
+  }
+  CHECK_OK(block()->AddNodeToStage(stage, node.node()));
+  return node;
+}
+
+BValue ScheduledBlockBuilder::RemoveNodeFromStage(BValue node) {
+  CHECK_OK(block()->RemoveNodeFromStage(node.node()));
+  return node;
+}
+
+void ScheduledBlockBuilder::OnNodeAdded(Node* node) {
+  if (staging_nodes_) {
+    current_stage_nodes_.push_back(node);
+  }
 }
 
 }  // namespace xls

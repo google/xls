@@ -71,10 +71,27 @@ class Token {
   static const absl::flat_hash_set<std::string>& GetKeywords() {
     // TODO(google/xls#1010) 2023-06-05 Verify these never used if kIdent needed
     static const absl::NoDestructor<absl::flat_hash_set<std::string>> keywords(
-        {"fn", "bits", "token", "ret", "package", "proc", "chan",
-         "chan_interface", "reg", "next", "block", "clock", "instantiation",
-         "top", "file_number", "proc_instantiation", "scheduled_proc",
-         "scheduled_fn", "stage"});
+        {"fn",
+         "bits",
+         "token",
+         "ret",
+         "package",
+         "proc",
+         "chan",
+         "chan_interface",
+         "reg",
+         "next",
+         "block",
+         "clock",
+         "instantiation",
+         "top",
+         "file_number",
+         "proc_instantiation",
+         "scheduled_proc",
+         "scheduled_fn",
+         "stage",
+         "scheduled_block",
+         "controlled_stage"});
     return *keywords;
   }
 

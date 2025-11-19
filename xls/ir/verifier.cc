@@ -34,6 +34,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "cppitertools/enumerate.hpp"
 #include "xls/common/casts.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/ret_check.h"
@@ -167,7 +168,7 @@ absl::Status VerifyFunctionBase(FunctionBase* function) {
 
 // Verify various invariants about the channels owned by the given package.
 absl::Status VerifyChannels(
-    Package* package, bool codegen,
+    Package* package, const VerifyOptions& options,
     std::function<std::vector<Node*>(FunctionBase*)> topo_sort) {
   // All channels must be proc-scoped or no channels should be proc scoped.
   bool has_global_channels = !package->channels().empty();
@@ -500,21 +501,21 @@ absl::Status VerifyBlockProvenance(Package* package) {
 }  // namespace
 
 absl::Status VerifyPackage(
-    Package* package, bool codegen,
+    Package* package, const VerifyOptions& options,
     std::function<std::vector<Node*>(FunctionBase*)> topo_sort) {
   VLOG(4) << absl::StreamFormat("Verifying package %s:\n", package->name());
   XLS_VLOG_LINES(4, package->DumpIr());
 
   for (auto& function : package->functions()) {
-    XLS_RETURN_IF_ERROR(VerifyFunction(function.get(), codegen));
+    XLS_RETURN_IF_ERROR(VerifyFunction(function.get(), options));
   }
 
   for (auto& proc : package->procs()) {
-    XLS_RETURN_IF_ERROR(VerifyProc(proc.get(), codegen));
+    XLS_RETURN_IF_ERROR(VerifyProc(proc.get(), options));
   }
 
   for (auto& block : package->blocks()) {
-    XLS_RETURN_IF_ERROR(VerifyBlock(block.get(), codegen));
+    XLS_RETURN_IF_ERROR(VerifyBlock(block.get(), options));
   }
 
   // Verify node IDs are unique within the package and uplinks point to this
@@ -559,7 +560,7 @@ absl::Status VerifyPackage(
     function_bases.insert(function_base);
   }
 
-  XLS_RETURN_IF_ERROR(VerifyChannels(package, codegen, topo_sort));
+  XLS_RETURN_IF_ERROR(VerifyChannels(package, options, topo_sort));
   XLS_RETURN_IF_ERROR(VerifyElaboration(package));
   XLS_RETURN_IF_ERROR(VerifyBlockProvenance(package));
 
@@ -571,7 +572,7 @@ absl::Status VerifyPackage(
   return absl::OkStatus();
 }
 
-absl::Status VerifyFunction(Function* function, bool codegen) {
+absl::Status VerifyFunction(Function* function, const VerifyOptions& options) {
   VLOG(4) << "Verifying function:\n";
   XLS_VLOG_LINES(4, function->DumpIr());
 
@@ -823,7 +824,7 @@ static absl::Status VerifyProcInstantiations(Proc* proc) {
   return absl::OkStatus();
 }
 
-absl::Status VerifyProc(Proc* proc, bool codegen) {
+absl::Status VerifyProc(Proc* proc, const VerifyOptions& options) {
   VLOG(4) << "Verifying proc:\n";
   XLS_VLOG_LINES(4, proc->DumpIr());
 
@@ -1163,7 +1164,7 @@ static absl::Status VerifyDelayLineInstantiation(
   return absl::OkStatus();
 }
 
-absl::Status VerifyBlock(Block* block, bool codegen) {
+absl::Status VerifyBlock(Block* block, const VerifyOptions& options) {
   VLOG(4) << "Verifying block:\n";
   XLS_VLOG_LINES(4, block->DumpIr());
 
@@ -1357,6 +1358,128 @@ absl::Status VerifyBlock(Block* block, bool codegen) {
   }
 
   XLS_RETURN_IF_ERROR(VerifyBlockChannelMetadata(block));
+
+  if (!block->IsScheduled()) {
+    return absl::OkStatus();
+  }
+
+  ScheduledBlock* scheduled_block = down_cast<ScheduledBlock*>(block);
+
+  absl::flat_hash_set<Node*>
+      all_scheduled_nodes;  // Tracks nodes across all stages
+  for (const auto& [i, stage] : iter::enumerate(scheduled_block->stages())) {
+    if (!stage.IsControlled()) {
+      std::vector<std::string> missing_controls;
+      missing_controls.reserve(2);
+      if (stage.inputs_valid() == nullptr) {
+        missing_controls.push_back("inputs_valid");
+      }
+      if (stage.outputs_valid() == nullptr) {
+        missing_controls.push_back("outputs_valid");
+      }
+      return absl::InternalError(
+          absl::StrFormat("Stage %d is not controlled; %s %s missing", i,
+                          absl::StrJoin(missing_controls, " and "),
+                          missing_controls.size() == 1 ? "is" : "are"));
+    }
+
+    Type* inputs_valid_type = stage.inputs_valid()->GetType();
+    if (inputs_valid_type == nullptr || !inputs_valid_type->IsBits() ||
+        inputs_valid_type->AsBitsOrDie()->bit_count() != 1) {
+      return absl::InternalError(absl::StrFormat(
+          "Stage %d has inputs_valid of type %s which is not bits[1]: %s", i,
+          inputs_valid_type == nullptr ? "NULL_TYPE"
+                                       : inputs_valid_type->ToString(),
+          stage.inputs_valid()->ToString()));
+    }
+
+    Type* outputs_valid_type = stage.outputs_valid()->GetType();
+    if (outputs_valid_type == nullptr || !outputs_valid_type->IsBits() ||
+        outputs_valid_type->AsBitsOrDie()->bit_count() != 1) {
+      return absl::InternalError(absl::StrFormat(
+          "Stage %d has outputs_valid of type %s which is not bits[1]: %s", i,
+          outputs_valid_type == nullptr ? "NULL_TYPE"
+                                        : outputs_valid_type->ToString(),
+          stage.outputs_valid()->ToString()));
+    }
+
+    absl::flat_hash_set<Node*>
+        current_stage_nodes;  // Tracks nodes within this stage
+
+    auto process_node = [&](Node* node,
+                            std::string_view set_name) -> absl::Status {
+      if (!current_stage_nodes.insert(node).second) {
+        return absl::InternalError(
+            absl::StrFormat("Node %s is in multiple sets within stage %d.",
+                            node->GetName(), i));
+      }
+      if (!all_scheduled_nodes.insert(node).second) {
+        return absl::InternalError(
+            absl::StrFormat("Node %s appears in multiple stages. Found in "
+                            "stage %d and earlier stage.",
+                            node->GetName(), i));
+      }
+      return absl::OkStatus();
+    };
+
+    for (Node* node : stage.active_inputs()) {
+      XLS_RETURN_IF_ERROR(process_node(node, "active_inputs"));
+      if (!node->OpIn({Op::kReceive, Op::kStateRead, Op::kRegisterRead}) ||
+          (node->Is<Receive>() && !options.incomplete_lowering)) {
+        const std::string_view allowed_ops =
+            options.incomplete_lowering
+                ? "receive, state_read, and register_read"
+                : "state_read and register_read";
+        return absl::InternalError(
+            absl::StrFormat("Only %s nodes can be in the active_inputs set of "
+                            "a stage, found %s in stage %d",
+                            allowed_ops, node->GetName(), i));
+      }
+    }
+    for (Node* node : stage.active_outputs()) {
+      XLS_RETURN_IF_ERROR(process_node(node, "active_outputs"));
+      if (!node->OpIn({Op::kSend, Op::kNext, Op::kRegisterWrite}) ||
+          (node->Is<Send>() && !options.incomplete_lowering)) {
+        const std::string_view allowed_ops =
+            options.incomplete_lowering ? "send, next_value, and register_write"
+                                        : "next_value and register_write";
+        return absl::InternalError(
+            absl::StrFormat("Only %s nodes can be in the active_outputs set of "
+                            "a stage, found %s in stage %d",
+                            allowed_ops, node->GetName(), i));
+      }
+    }
+    for (Node* node : stage.logic()) {
+      XLS_RETURN_IF_ERROR(process_node(node, "logic"));
+      if (node->OpIn({Op::kReceive, Op::kSend, Op::kStateRead, Op::kNext,
+                      Op::kRegisterRead, Op::kRegisterWrite})) {
+        return absl::InternalError(
+            absl::StrFormat("Active I/O node %s found in logic set of stage %d",
+                            node->GetName(), i));
+      }
+    }
+  }
+  NodeForwardDependencyAnalysis dep_analysis;
+  XLS_RETURN_IF_ERROR(dep_analysis.Attach(scheduled_block).status());
+  for (Node* node : scheduled_block->nodes()) {
+    if (!scheduled_block->IsStaged(node)) {
+      continue;
+    }
+    XLS_ASSIGN_OR_RETURN(int64_t stage_idx,
+                         scheduled_block->GetStageIndex(node));
+    for (Node* dep : dep_analysis.NodesDependedOnBy(node)) {
+      if (!scheduled_block->IsStaged(dep)) {
+        continue;
+      }
+      XLS_ASSIGN_OR_RETURN(int64_t dep_stage_idx,
+                           scheduled_block->GetStageIndex(dep));
+      if (dep_stage_idx > stage_idx) {
+        return absl::InternalError(absl::StrFormat(
+            "Node %s (in stage %d) has a dependency on %s (in stage %d).",
+            node->GetName(), stage_idx, dep->GetName(), dep_stage_idx));
+      }
+    }
+  }
 
   return absl::OkStatus();
 }

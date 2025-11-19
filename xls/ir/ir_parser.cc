@@ -3209,6 +3209,21 @@ absl::StatusOr<Stage> Parser::ParseScheduledStage(
   return proc;
 }
 
+/* static */ absl::StatusOr<ScheduledBlock*> Parser::ParseScheduledBlock(
+    std::string_view input_string, Package* package,
+    absl::Span<const IrAttribute> outer_attributes) {
+  XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
+  Parser p(std::move(scanner));
+  XLS_ASSIGN_OR_RETURN(ScheduledBlock * block,
+                       p.ParseScheduledBlock(package, outer_attributes));
+  SetUnassignedNodeIds(package, block);
+
+  // Verify the whole package because the addition of the block may break
+  // package-scoped invariants (eg, duplicate block name).
+  XLS_RETURN_IF_ERROR(VerifyAndSwapError(package));
+  return block;
+}
+
 absl::StatusOr<ScheduledFunction*> Parser::ParseScheduledFunction(
     Package* package, absl::Span<const IrAttribute> outer_attributes) {
   if (AtEof()) {
@@ -3316,6 +3331,102 @@ absl::StatusOr<ScheduledProc*> Parser::ParseScheduledProc(
     }
   }
   return result;
+}
+
+absl::StatusOr<ScheduledBlock*> Parser::ParseScheduledBlock(
+    Package* package, absl::Span<const IrAttribute> outer_attributes) {
+  XLS_RETURN_IF_ERROR(scanner_.DropKeywordOrError("scheduled_block"));
+  XLS_ASSIGN_OR_RETURN(BlockSignature signature, ParseBlockSignature(package));
+  // The parser does its own verification so pass should_verify=false. This
+  // enables the parser to parse and construct malformed IR for tests.
+  ScheduledBlockBuilder bb(signature.block_name, package,
+                           /*should_verify=*/false);
+  absl::flat_hash_map<std::string, BValue> name_to_value;
+
+  while (!scanner_.PeekTokenIs(LexicalTokenType::kCurlClose)) {
+    XLS_ASSIGN_OR_RETURN(Token peek, scanner_.PeekToken());
+    if (peek.type() == LexicalTokenType::kKeyword &&
+        peek.value() == "controlled_stage") {
+      XLS_RETURN_IF_ERROR(ParseControlledStage(&bb, &name_to_value, package));
+    } else if (peek.type() == LexicalTokenType::kKeyword &&
+               peek.value() == "reg") {
+      XLS_ASSIGN_OR_RETURN(Register * reg, ParseRegister(bb.block()));
+      (void)reg;
+    } else if (peek.type() == LexicalTokenType::kKeyword &&
+               peek.value() == "instantiation") {
+      XLS_ASSIGN_OR_RETURN(Instantiation * instantiation,
+                           ParseInstantiation(bb.block()));
+      (void)instantiation;
+    } else {
+      XLS_ASSIGN_OR_RETURN(BValue result, ParseNode(&bb, &name_to_value));
+      name_to_value[result.node()->GetName()] = result;
+    }
+  }
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kCurlClose));
+
+  XLS_ASSIGN_OR_RETURN(ScheduledBlock * block, bb.Build());
+
+  for (const IrAttribute& attribute : outer_attributes) {
+    if (attribute.name == "reset") {
+      const ResetAttribute& reset_attr =
+          std::get<ResetAttribute>(attribute.payload);
+      XLS_ASSIGN_OR_RETURN(InputPort * port,
+                           block->GetInputPort(reset_attr.port_name));
+      XLS_RETURN_IF_ERROR(block->SetResetPort(port, reset_attr.behavior));
+    } else if (attribute.name == "provenance") {
+      block->SetProvenance(std::get<BlockProvenance>(attribute.payload));
+    } else {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Invalid attribute for block: %s", attribute.name));
+    }
+  }
+
+  // Reorder ports to match signature.
+  std::vector<std::string> port_names;
+  port_names.reserve(signature.ports.size());
+  for (const Port& port : signature.ports) {
+    port_names.push_back(port.name);
+  }
+  XLS_RETURN_IF_ERROR(block->ReorderPorts(port_names));
+
+  return block;
+}
+
+absl::Status Parser::ParseControlledStage(
+    ScheduledBlockBuilder* builder,
+    absl::flat_hash_map<std::string, BValue>* name_to_value, Package* package) {
+  XLS_RETURN_IF_ERROR(scanner_.DropKeywordOrError("controlled_stage"));
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenOpen));
+  XLS_ASSIGN_OR_RETURN(BValue iv, ParseAndResolveIdentifier(*name_to_value));
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenClose));
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kCurlOpen));
+
+  builder->StartStage(iv);
+
+  std::optional<BValue> ov;
+  while (!scanner_.PeekTokenIs(LexicalTokenType::kCurlClose)) {
+    bool is_ret = scanner_.TryDropKeyword("ret");
+    XLS_ASSIGN_OR_RETURN(BValue result, ParseNode(builder, name_to_value));
+    (*name_to_value)[result.node()->GetName()] = result;
+    if (is_ret) {
+      if (ov.has_value()) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("More than one ret found in controlled_stage @ %s",
+                            result.node()->loc().ToString()));
+      }
+      ov = result;
+    }
+  }
+
+  if (!ov.has_value()) {
+    return absl::InvalidArgumentError(
+        "No 'ret' node found in controlled_stage");
+  }
+
+  builder->EndStage(*ov);
+
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kCurlClose));
+  return absl::OkStatus();
 }
 
 }  // namespace xls

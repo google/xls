@@ -24,17 +24,20 @@
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/golden_files.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/foreign_function_data.pb.h"
 #include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/ir_matcher.h"
@@ -43,6 +46,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/register.h"
+#include "xls/ir/scheduled_builder.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -993,6 +997,201 @@ TEST_F(BlockTest, ManipulateResetPort) {
                                   *block->GetResetBehavior()),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("already has a reset port")));
+}
+
+class ScheduledBlockTest : public IrTestBase {
+ protected:
+  // Creates a simple one-stage scheduled block containing
+  // an input 'x', output 'out', and stage controls 'iv0' and 'ov0'.
+  struct TestBlock {
+    ScheduledBlock* block;
+    Node* iv0;
+    Node* ov0;
+  };
+  absl::StatusOr<TestBlock> CreateScheduledBlock(Package* p) {
+    ScheduledBlockBuilder bb("b", p);
+    BValue iv0 = bb.Literal(UBits(1, 1), SourceInfo(), "iv0");
+    bb.StartStage(iv0);
+    BValue x = bb.InputPort("x", p->GetBitsType(32));
+    bb.OutputPort("out", x);
+    BValue ov0 = bb.Literal(UBits(1, 1), SourceInfo(), "ov0");
+    bb.EndStage(ov0);
+    XLS_ASSIGN_OR_RETURN(ScheduledBlock * block, bb.Build());
+    return TestBlock{block, iv0.node(), ov0.node()};
+  }
+
+  void ExpectIr(std::string_view got, std::string_view test_name) {
+    ExpectEqualToGoldenFile(
+        absl::StrFormat("xls/ir/testdata/scheduled_block_test_%s.ir",
+                        test_name),
+        got);
+  }
+
+  void ExpectIr(std::string_view got, std::string_view test_name,
+                std::string_view disambiq) {
+    ExpectEqualToGoldenFile(
+        absl::StrFormat("xls/ir/testdata/scheduled_block_test_%s_%s.ir",
+                        test_name, disambiq),
+        got);
+  }
+};
+
+TEST_F(ScheduledBlockTest, StageAddAndClear) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(TestBlock tb, CreateScheduledBlock(p.get()));
+  ScheduledBlock* block = tb.block;
+  EXPECT_EQ(block->stages().size(), 1);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * iv1, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * ov1, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
+  block->AddStage(Stage(iv1, ov1));
+  EXPECT_EQ(block->stages().size(), 2);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * iv2, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * ov2, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
+  block->AddStage(Stage(iv2, ov2));
+  EXPECT_EQ(block->stages().size(), 3);
+
+  block->ClearStages();
+  EXPECT_TRUE(block->stages().empty());
+
+  // Re-stage nodes to satisfy the verifier on destruction.
+  block->AddStage(Stage(tb.iv0, tb.ov0));
+  for (Node* node : block->nodes()) {
+    if (!block->IsStaged(node)) {
+      XLS_ASSERT_OK(block->AddNodeToStage(0, node).status());
+    }
+  }
+}
+
+TEST_F(ScheduledBlockTest, GetStageIndex) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(TestBlock tb, CreateScheduledBlock(p.get()));
+  ScheduledBlock* block = tb.block;
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * iv1, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * ov1, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
+  block->AddStage(Stage(iv1, ov1));  // Stage 1
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * lit1,
+      block->MakeNodeInStage<Literal>(1, SourceInfo(), Value(UBits(1, 32))));
+
+  EXPECT_THAT(block->GetStageIndex(lit1), IsOkAndHolds(1));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * x_node, block->GetInputPort("x"));
+  EXPECT_THAT(block->GetStageIndex(x_node), IsOkAndHolds(0));
+}
+
+TEST_F(ScheduledBlockTest, AddNodeToStage) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(TestBlock tb, CreateScheduledBlock(p.get()));
+  ScheduledBlock* block = tb.block;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * iv1, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * ov1, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
+  block->AddStage(Stage(iv1, ov1));  // Stage 1
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * lit, block->MakeNode<Literal>(SourceInfo(), Value(UBits(10, 32))));
+  XLS_ASSERT_OK_AND_ASSIGN(bool added, block->AddNodeToStage(1, lit));
+  EXPECT_TRUE(added);
+  EXPECT_THAT(block->GetStageIndex(lit), IsOkAndHolds(1));
+
+  // Adding an existing node should return false.
+  EXPECT_THAT(block->AddNodeToStage(1, lit), IsOkAndHolds(false));
+}
+
+TEST_F(ScheduledBlockTest, MakeNodeInStage) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(TestBlock tb, CreateScheduledBlock(p.get()));
+  ScheduledBlock* block = tb.block;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * iv1, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * ov1, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
+  block->AddStage(Stage(iv1, ov1));  // Stage 1
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Literal * literal,
+      block->MakeNodeInStage<Literal>(1, SourceInfo(), Value(UBits(42, 32))));
+  EXPECT_THAT(block->GetStageIndex(literal), IsOkAndHolds(1));
+}
+
+TEST_F(ScheduledBlockTest, MakeNodeWithNameInStage) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(TestBlock tb, CreateScheduledBlock(p.get()));
+  ScheduledBlock* block = tb.block;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * iv1, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * ov1, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
+  block->AddStage(Stage(iv1, ov1));  // Stage 1
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Literal * literal, block->MakeNodeWithNameInStage<Literal>(
+                             1, SourceInfo(), Value(UBits(42, 32)), "my_lit"));
+  EXPECT_THAT(block->GetStageIndex(literal), IsOkAndHolds(1));
+  EXPECT_EQ(literal->GetName(), "my_lit");
+}
+
+TEST_F(ScheduledBlockTest, DumpIr) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(TestBlock tb, CreateScheduledBlock(p.get()));
+  EXPECT_EQ(tb.block->stages().size(), 1);
+  ExpectIr(tb.block->DumpIr(), TestName());
+}
+
+TEST_F(ScheduledBlockTest, CloneScheduledBlock) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(TestBlock tb, CreateScheduledBlock(p.get()));
+  ScheduledBlock* block = tb.block;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * iv1, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * ov1, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
+  block->AddStage(Stage(iv1, ov1));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * iv2, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * ov2, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
+  block->AddStage(Stage(iv2, ov2));
+
+  XLS_ASSERT_OK(block->MakeNodeWithNameInStage<Literal>(
+      0, SourceInfo(), Value(UBits(1, 32)), "my_x"));
+  XLS_ASSERT_OK(block->MakeNodeWithNameInStage<Literal>(
+      0, SourceInfo(), Value(UBits(2, 32)), "my_y"));
+  XLS_ASSERT_OK(block->MakeNodeWithNameInStage<Literal>(
+      1, SourceInfo(), Value(UBits(3, 32)), "my_z"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * cloned_block,
+                           block->Clone("cloned", p.get()));
+
+  ASSERT_EQ(cloned_block->stages().size(), 3);
+  EXPECT_TRUE(cloned_block->IsScheduled());
+
+  Node* cloned_x = FindNode("my_x", cloned_block);
+  Node* cloned_y = FindNode("my_y", cloned_block);
+  Node* cloned_z = FindNode("my_z", cloned_block);
+
+  EXPECT_THAT(cloned_block->GetStageIndex(cloned_x), IsOkAndHolds(0));
+  EXPECT_THAT(cloned_block->GetStageIndex(cloned_y), IsOkAndHolds(0));
+  EXPECT_THAT(cloned_block->GetStageIndex(cloned_z), IsOkAndHolds(1));
+
+  // Verify Stage contents
+  EXPECT_TRUE(cloned_block->stages()[0].contains(cloned_x));
+  EXPECT_TRUE(cloned_block->stages()[0].contains(cloned_y));
+  EXPECT_FALSE(cloned_block->stages()[0].contains(cloned_z));
+
+  EXPECT_FALSE(cloned_block->stages()[1].contains(cloned_x));
+  EXPECT_FALSE(cloned_block->stages()[1].contains(cloned_y));
+  EXPECT_TRUE(cloned_block->stages()[1].contains(cloned_z));
 }
 
 }  // namespace

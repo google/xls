@@ -69,26 +69,33 @@ bool Stage::AddNode(Node* node) {
 
 absl::StatusOr<Stage> Stage::Clone(
     const absl::flat_hash_map<Node*, Node*>& node_mapping) const {
-  auto add_node_to = [&](Node* node,
-                         absl::btree_set<Node*, Node::NodeIdLessThan>& nodes) {
+  auto map_node = [&](Node* node) -> absl::StatusOr<Node*> {
     auto it = node_mapping.find(node);
     if (it == node_mapping.end()) {
       return absl::InvalidArgumentError(absl::StrFormat(
           "Node %s not found in node mapping.", node->GetName()));
     }
-    nodes.insert(it->second);
-    return absl::OkStatus();
+    return it->second;
   };
 
   Stage cloned_stage;
   for (Node* node : active_inputs_) {
-    XLS_RETURN_IF_ERROR(add_node_to(node, cloned_stage.active_inputs_));
+    XLS_ASSIGN_OR_RETURN(Node * mapped_node, map_node(node));
+    cloned_stage.active_inputs_.insert(mapped_node);
   }
   for (Node* node : logic_) {
-    XLS_RETURN_IF_ERROR(add_node_to(node, cloned_stage.logic_));
+    XLS_ASSIGN_OR_RETURN(Node * mapped_node, map_node(node));
+    cloned_stage.logic_.insert(mapped_node);
   }
   for (Node* node : active_outputs_) {
-    XLS_RETURN_IF_ERROR(add_node_to(node, cloned_stage.active_outputs_));
+    XLS_ASSIGN_OR_RETURN(Node * mapped_node, map_node(node));
+    cloned_stage.active_outputs_.insert(mapped_node);
+  }
+  if (inputs_valid_ != nullptr) {
+    XLS_ASSIGN_OR_RETURN(cloned_stage.inputs_valid_, map_node(inputs_valid_));
+  }
+  if (outputs_valid_ != nullptr) {
+    XLS_ASSIGN_OR_RETURN(cloned_stage.outputs_valid_, map_node(outputs_valid_));
   }
   return cloned_stage;
 }
@@ -227,7 +234,10 @@ absl::Status FunctionBase::RemoveNode(Node* node) {
     XLS_RETURN_IF_ERROR(node_name_uniquer_.ReleaseIdentifier(node->GetName()));
   }
   if (IsScheduled()) {
-    node_to_stage_.erase(node);
+    auto it = node_to_stage_.find(node);
+    CHECK_NE(it, node_to_stage_.end());
+    stages_[it->second].erase(node);
+    node_to_stage_.erase(it);
   }
   auto node_it = node_iterators_.find(node);
   XLS_RET_CHECK(node_it != node_iterators_.end());

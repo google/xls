@@ -647,6 +647,7 @@ cc_library(
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/container:fixed_array",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/container:inlined_vector",
@@ -715,6 +716,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+        "@cppitertools",
         "@re2",
     ],
 )
@@ -1896,7 +1898,10 @@ cc_test(
 cc_test(
     name = "block_test",
     srcs = ["block_test.cc"],
-    data = glob(["testdata/block_test_*.ir"]),
+    data = glob([
+        "testdata/block_test_*.ir",
+        "testdata/scheduled_block_test_*.ir",
+    ]),
     deps = [
         ":bits",
         ":channel",
@@ -1914,8 +1919,10 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "@com_google_absl//absl/types:variant",

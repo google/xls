@@ -1811,6 +1811,15 @@ BValue TokenlessProcBuilder::Assert(BValue condition, std::string_view message,
   return last_token_;
 }
 
+BlockBuilder::BlockBuilder(std::string_view name, Package* package,
+                           bool should_verify)
+    : BuilderBase(std::make_unique<Block>(std::string(name), package),
+                  should_verify) {}
+BlockBuilder::BlockBuilder(std::string_view name, Package* package,
+                           ScheduledBlockTag tag, bool should_verify)
+    : BuilderBase(std::make_unique<ScheduledBlock>(name, package),
+                  should_verify) {}
+
 BValue BlockBuilder::Param(std::string_view name, Type* type,
                            const SourceInfo& loc) {
   if (ErrorPending()) {

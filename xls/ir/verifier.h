@@ -30,15 +30,35 @@ class Block;
 class Package;
 class FunctionBase;
 
+struct VerifyOptions {
+  bool codegen = false;
+  bool incomplete_lowering = false;
+};
+
 // Verifies numerous invariants of the IR for the given IR construct. Returns a
 // error status if a violation is found.
 absl::Status VerifyPackage(
-    Package* package, bool codegen = false,
+    Package* package, const VerifyOptions& options,
     std::function<std::vector<Node*>(FunctionBase*)> topo_sort =
         [](FunctionBase* fb) { return TopoSort(fb); });
-absl::Status VerifyFunction(Function* function, bool codegen = false);
-absl::Status VerifyProc(Proc* Proc, bool codegen = false);
-absl::Status VerifyBlock(Block* Block, bool codegen = false);
+inline absl::Status VerifyPackage(
+    Package* package, bool codegen = false,
+    std::function<std::vector<Node*>(FunctionBase*)> topo_sort =
+        [](FunctionBase* fb) { return TopoSort(fb); }) {
+  return VerifyPackage(package, {.codegen = codegen}, topo_sort);
+}
+absl::Status VerifyFunction(Function* function, const VerifyOptions& options);
+inline absl::Status VerifyFunction(Function* function, bool codegen = false) {
+  return VerifyFunction(function, {.codegen = codegen});
+}
+absl::Status VerifyProc(Proc* proc, const VerifyOptions& options);
+inline absl::Status VerifyProc(Proc* proc, bool codegen = false) {
+  return VerifyProc(proc, {.codegen = codegen});
+}
+absl::Status VerifyBlock(Block* block, const VerifyOptions& options);
+inline absl::Status VerifyBlock(Block* block, bool codegen = false) {
+  return VerifyBlock(block, {.codegen = codegen});
+}
 
 }  // namespace xls
 

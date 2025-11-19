@@ -38,10 +38,12 @@
 #include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/block.h"
 #include "xls/ir/change_listener.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/format_strings.h"
 #include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/nodes.h"
@@ -986,13 +988,35 @@ absl::Status Node::ReplaceUsesWith(Node* replacement,
 }
 
 absl::StatusOr<bool> Node::ReplaceImplicitUsesWith(Node* replacement) {
+  XLS_RET_CHECK_NE(replacement, nullptr);
+  XLS_RET_CHECK_EQ(function_base(), replacement->function_base())
+      << "Attempted to replace node (from " << function_base()->name()
+      << ") with a replacement from a different function ("
+      << replacement->function_base()->name() << "): " << this->ToString()
+      << " -> " << replacement->ToString();
+
   bool changed = false;
-  // Only functions have implicitly-used nodes, for their return value.
   if (function_base()->IsFunction()) {
+    // Functions have implicitly-used nodes, for their return value.
     Function* function = function_base()->AsFunctionOrDie();
     if (this == function->return_value()) {
       XLS_RETURN_IF_ERROR(function->set_return_value(replacement));
       changed = true;
+    }
+  } else if (function_base()->IsBlock() && function_base()->IsScheduled()) {
+    // Scheduled blocks have implicitly-used nodes, for their stage valid/ready
+    // signals.
+    ScheduledBlock* block =
+        down_cast<ScheduledBlock*>(function_base()->AsBlockOrDie());
+    for (Stage& stage : block->stages()) {
+      if (this == stage.inputs_valid()) {
+        stage.set_inputs_valid(replacement);
+        changed = true;
+      }
+      if (this == stage.outputs_valid()) {
+        stage.set_outputs_valid(replacement);
+        changed = true;
+      }
     }
   }
   return changed;

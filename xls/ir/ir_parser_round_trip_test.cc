@@ -310,6 +310,10 @@ TEST(IrParserRoundTripTest, ParseSimpleBlock) {
   ParsePackageAndCheckDump(TestName());
 }
 
+TEST(IrParserRoundTripTest, ScheduledBlock) {
+  ParsePackageAndCheckDump(TestName());
+}
+
 TEST(IrParserRoundTripTest, ParseBlockWithRegister) {
   ParsePackageAndCheckDump(TestName());
 }

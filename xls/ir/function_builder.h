@@ -691,9 +691,10 @@ class BuilderBase {
   SourceInfo error_loc_;
 };
 
-// Tags to distinguish scheduled vs non-scheduled Functions/Procs in builders.
+// Tags to distinguish scheduled vs non-scheduled builders.
 struct ScheduledFunctionTag {};
 struct ScheduledProcTag {};
+struct ScheduledBlockTag {};
 
 // Class for building an XLS Function.
 class FunctionBuilder : public BuilderBase {
@@ -1017,8 +1018,9 @@ class BlockBuilder : public BuilderBase {
   // Builder for xls::Blocks. 'should_verify' is a test-only argument which can
   // be set to false in tests that wish to build malformed IR.
   BlockBuilder(std::string_view name, Package* package,
-               bool should_verify = true)
-      : BuilderBase(std::make_unique<Block>(name, package), should_verify) {}
+               bool should_verify = true);
+  BlockBuilder(std::string_view name, Package* package, ScheduledBlockTag tag,
+               bool should_verify = true);
   ~BlockBuilder() override = default;
 
   // Builders are neither copyable or movable- builder values contain references

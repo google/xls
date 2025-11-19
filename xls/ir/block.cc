@@ -29,6 +29,7 @@
 
 #include "absl/base/casts.h"
 #include "absl/container/btree_set.h"
+#include "absl/container/fixed_array.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
@@ -46,6 +47,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
@@ -278,7 +280,8 @@ std::string Block::DumpIr() const {
           std::get<OutputPort*>(port)->operand(0)->GetType()->ToString()));
     }
   }
-  absl::StrAppendFormat(&res, "block %s(%s) {\n", name(),
+  absl::StrAppendFormat(&res, "%sblock %s(%s) {\n",
+                        (IsScheduled() ? "scheduled_" : ""), name(),
                         absl::StrJoin(port_strings, ", "));
 
   if (provenance_.has_value()) {
@@ -305,8 +308,69 @@ std::string Block::DumpIr() const {
     absl::StrAppendFormat(&res, "  %s\n", reg->ToString());
   }
 
-  for (Node* node : DumpOrder()) {
-    absl::StrAppend(&res, "  ", node->ToString(), "\n");
+  if (IsScheduled()) {
+    // TODO(epastor): Dump scheduled blocks with controlled-stage information.
+    std::vector<std::pair<int64_t, Node*>> stageless_nodes;
+    absl::FixedArray<std::vector<Node*>> staged_nodes(stages_.size());
+    int64_t preceding_stage_idx = -1;
+    for (Node* node : TopoSort(const_cast<Block*>(this))) {
+      bool in_stage = false;
+      for (int64_t stage_idx = 0; stage_idx < stages_.size(); ++stage_idx) {
+        if (stages_[stage_idx].contains(node)) {
+          in_stage = true;
+          preceding_stage_idx = std::max(preceding_stage_idx, stage_idx);
+          staged_nodes[stage_idx].push_back(node);
+          break;
+        }
+      }
+      for (int64_t stage_idx = 0; stage_idx < stages_.size(); ++stage_idx) {
+        if (stages_[stage_idx].inputs_valid() == node) {
+          preceding_stage_idx = std::min(preceding_stage_idx, stage_idx - 1);
+        }
+        if (stages_[stage_idx].outputs_valid() == node) {
+          preceding_stage_idx = std::min(preceding_stage_idx, stage_idx - 1);
+        }
+      }
+      if (!in_stage) {
+        stageless_nodes.push_back({preceding_stage_idx, node});
+      }
+    }
+
+    std::stable_sort(
+        stageless_nodes.begin(), stageless_nodes.end(),
+        [](const std::pair<int64_t, Node*>& a,
+           const std::pair<int64_t, Node*>& b) { return a.first < b.first; });
+
+    auto stageless_it = stageless_nodes.begin();
+    for (int64_t stage_idx = 0; stage_idx < stages_.size(); ++stage_idx) {
+      for (; stageless_it != stageless_nodes.end() &&
+             stageless_it->first < stage_idx;
+           stageless_it++) {
+        absl::StrAppend(&res, "  ", stageless_it->second->ToString(), "\n");
+      }
+
+      const Stage& stage = stages_[stage_idx];
+      CHECK(stage.IsControlled());
+      absl::StrAppendFormat(
+          &res, "  controlled_stage(%s%s) {\n", stage.inputs_valid()->GetName(),
+          stage.contains(stage.outputs_valid())
+              ? ""
+              : absl::StrCat(", outputs_valid=",
+                             stage.outputs_valid()->GetName()));
+      for (Node* node : staged_nodes[stage_idx]) {
+        absl::StrAppendFormat(&res, "    %s%s\n",
+                              node == stage.outputs_valid() ? "ret " : "",
+                              node->ToString());
+      }
+      absl::StrAppend(&res, "  }\n");
+    }
+    for (; stageless_it != stageless_nodes.end(); stageless_it++) {
+      absl::StrAppend(&res, "  ", stageless_it->second->ToString(), "\n");
+    }
+  } else {
+    for (Node* node : DumpOrder()) {
+      absl::StrAppend(&res, "  ", node->ToString(), "\n");
+    }
   }
   absl::StrAppend(&res, "}\n");
   return res;
@@ -1064,6 +1128,17 @@ absl::StatusOr<InstantiationInput*> Block::GetInstantiationInput(
       port_name));
 }
 
+absl::StatusOr<bool> Block::RemoveNodeFromStage(Node* node) {
+  auto it = node_to_stage_.find(node);
+  if (it == node_to_stage_.end()) {
+    return false;
+  }
+  int64_t stage_index = it->second;
+  node_to_stage_.erase(it);
+  stages_[stage_index].erase(node);
+  return true;
+}
+
 absl::StatusOr<Block*> Block::Clone(
     std::string_view new_name, Package* target_package,
     const absl::flat_hash_map<std::string, std::string>& reg_name_map,
@@ -1078,7 +1153,8 @@ absl::StatusOr<Block*> Block::Clone(
   }
 
   Block* cloned_block = target_package->AddBlock(
-      std::make_unique<Block>(new_name, target_package));
+      IsScheduled() ? std::make_unique<ScheduledBlock>(new_name, target_package)
+                    : std::make_unique<Block>(new_name, target_package));
 
   std::optional<std::string> clk_port_name;
   for (const Port& port : GetPorts()) {
@@ -1238,6 +1314,14 @@ absl::StatusOr<Block*> Block::Clone(
       }
     }
     XLS_RETURN_IF_ERROR(cloned_block->ReorderPorts(correct_ordering));
+  }
+
+  if (IsScheduled()) {
+    cloned_block->ClearStages();
+    for (const Stage& stage : stages()) {
+      XLS_ASSIGN_OR_RETURN(Stage cloned_stage, stage.Clone(original_to_clone));
+      cloned_block->AddStage(std::move(cloned_stage));
+    }
   }
 
   return cloned_block;

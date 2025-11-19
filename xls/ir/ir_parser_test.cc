@@ -1100,4 +1100,77 @@ block my_block(in0: bits[32], in1: bits[32], out: bits[32]) {
   EXPECT_EQ(out->system_verilog_type(), "bar");
 }
 
+TEST(IrParserTest, ParseScheduledBlock) {
+  std::string input = R"(package test
+scheduled_block b(x: bits[32], out: bits[32]) {
+  iv0: bits[1] = literal(value=1, id=1)
+  controlled_stage(iv0) {
+    x: bits[32] = input_port(name=x, id=2)
+    out: () = output_port(x, name=out, id=3)
+    ret ov0: bits[1] = literal(value=1, id=4)
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> pkg,
+                           Parser::ParsePackage(input));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, pkg->GetBlock("b"));
+  EXPECT_TRUE(block->IsScheduled());
+  ScheduledBlock* sb = down_cast<ScheduledBlock*>(block);
+  ASSERT_EQ(sb->stages().size(), 1);
+  EXPECT_EQ(sb->stages()[0].inputs_valid(), sb->GetNode("iv0").value());
+  EXPECT_EQ(sb->stages()[0].outputs_valid(), sb->GetNode("ov0").value());
+  EXPECT_TRUE(sb->stages()[0].contains(sb->GetInputPort("x").value()));
+  EXPECT_TRUE(sb->stages()[0].contains(sb->GetOutputPort("out").value()));
+}
+
+TEST(IrParserTest, MultiStageScheduledBlock) {
+  const std::string input = R"(package test
+scheduled_block b(x: bits[32], out: bits[32]) {
+  iv0: bits[1] = literal(value=1, id=1)
+  controlled_stage(iv0) {
+    x: bits[32] = input_port(name=x, id=2)
+    ret ov0: bits[1] = literal(value=1, id=3)
+  }
+  iv1: bits[1] = literal(value=1, id=4)
+  controlled_stage(iv1) {
+    out: () = output_port(x, name=out, id=5)
+    ret ov1: bits[1] = literal(value=1, id=6)
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> pkg,
+                           Parser::ParsePackage(input));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, pkg->GetBlock("b"));
+  EXPECT_TRUE(block->IsScheduled());
+  EXPECT_EQ(block->stages().size(), 2);
+}
+
+TEST(IrParserTest, ScheduledBlockWithNoStages) {
+  const std::string input = R"(package test
+scheduled_block b() {
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> pkg,
+                           Parser::ParsePackage(input));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, pkg->GetBlock("b"));
+  EXPECT_TRUE(block->IsScheduled());
+  EXPECT_EQ(block->stages().size(), 0);
+}
+
+TEST(IrParserTest, ScheduledBlockWithEmptyStage) {
+  const std::string input = R"(package test
+scheduled_block b() {
+  iv0: bits[1] = literal(value=1, id=1)
+  controlled_stage(iv0) {
+    ret ov0: bits[1] = literal(value=1, id=2)
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> pkg,
+                           Parser::ParsePackage(input));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, pkg->GetBlock("b"));
+  EXPECT_TRUE(block->IsScheduled());
+  EXPECT_EQ(block->stages().size(), 1);
+}
+
 }  // namespace xls

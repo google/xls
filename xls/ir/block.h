@@ -24,12 +24,16 @@
 #include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/codegen/module_signature.pb.h"
+#include "xls/common/casts.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/instantiation.h"
@@ -325,7 +329,20 @@ class Block : public FunctionBase {
            instantiations_.at(instantiation->name()).get() == instantiation;
   }
 
-  bool HasImplicitUse(Node* node) const override { return false; }
+  void AddStage(Stage stage) {
+    CHECK(stage.IsControlled());
+    FunctionBase::AddStage(std::move(stage));
+  }
+
+  bool IsStaged(Node* node) const { return node_to_stage_.contains(node); }
+
+  absl::StatusOr<bool> RemoveNodeFromStage(Node* node);
+
+  bool HasImplicitUse(Node* node) const override {
+    return absl::c_any_of(stages_, [node](const Stage& stage) {
+      return stage.inputs_valid() == node || stage.outputs_valid() == node;
+    });
+  }
 
   // Creates a clone of the block with the new name 'new_name'.
   // reg_name_map is a map from old register names to new ones. If a register
@@ -447,6 +464,13 @@ class Block : public FunctionBase {
 
   Node* AddNodeInternal(std::unique_ptr<Node> node) override;
 
+  // Hides AddEmptyStages from FunctionBase, and crashes if called through the
+  // base class. Scheduled blocks use controlled stages, so it's impossible to
+  // add empty stages in bulk.
+  void AddEmptyStages(int64_t n) override {
+    LOG(FATAL) << "Cannot add empty stages to a block.";
+  }
+
   // Returns the order of emission of block nodes in the text IR
   // (Block::DumpIR() output). The order is a topological sort with additional
   // constraints for readability such that logical pipeline stages tend to get
@@ -507,6 +531,36 @@ class Block : public FunctionBase {
 
   std::optional<BlockProvenance> provenance_;
   std::optional<verilog::ModuleSignatureProto> signature_;
+};
+
+// A block which has been scheduled and contains information about which
+// nodes execute in which pipeline stage, and how the control-flow logic is
+// connected.
+class ScheduledBlock : public Block {
+ public:
+  ScheduledBlock(std::string_view name, Package* package)
+      : Block(name, package) {}
+
+  bool IsScheduled() const override { return true; }
+
+  // Creates a clone of the scheduled block with the new name 'new_name'.
+  // reg_name_map is a map from old register names to new ones. If a register
+  // name is not present it is an identity mapping.
+  //
+  // If a block is present in 'block_instantiation_map' the corresponding
+  // block is used to provide an instantiation implementation. All
+  // instantiated blocks must be present if target_package is not null and not
+  // the existing block package.
+  absl::StatusOr<ScheduledBlock*> Clone(
+      std::string_view new_name, Package* target_package = nullptr,
+      const absl::flat_hash_map<std::string, std::string>& reg_name_map = {},
+      const absl::flat_hash_map<const Block*, Block*>& block_instantiation_map =
+          {}) const {
+    XLS_ASSIGN_OR_RETURN(Block * cloned_block,
+                         Block::Clone(new_name, target_package, reg_name_map,
+                                      block_instantiation_map));
+    return down_cast<ScheduledBlock*>(cloned_block);
+  }
 };
 
 }  // namespace xls
