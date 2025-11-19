@@ -1,0 +1,17 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn __test_module__main(x: bits[2] id=1) -> bits[32] {
+  literal.2: bits[2] = literal(value=3, id=2)
+  literal.5: bits[2] = literal(value=0, id=5)
+  literal.6: bits[2] = literal(value=3, id=6)
+  eq.3: bits[1] = eq(literal.2, x, id=3)
+  uge.7: bits[1] = uge(x, literal.5, id=7)
+  ult.8: bits[1] = ult(x, literal.6, id=8)
+  concat.11: bits[1] = concat(eq.3, id=11)
+  literal.4: bits[32] = literal(value=42, id=4)
+  literal.10: bits[32] = literal(value=64, id=10)
+  and.9: bits[1] = and(uge.7, ult.8, id=9)
+  ret priority_sel.12: bits[32] = priority_sel(concat.11, cases=[literal.4], default=literal.10, id=12)
+}

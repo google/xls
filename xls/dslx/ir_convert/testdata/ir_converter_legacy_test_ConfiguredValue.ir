@@ -1,0 +1,31 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn __test_module__main() -> (bits[1], bits[32], bits[32], bits[2], bits[1], bits[32], bits[32], bits[2]) {
+  b_default: bits[1] = literal(value=0, id=3)
+  u_default: bits[32] = literal(value=42, id=6)
+  s_default: bits[32] = literal(value=4294967196, id=9)
+  e_default: bits[2] = literal(value=2, id=12)
+  b_override: bits[1] = literal(value=1, id=15)
+  u_override: bits[32] = literal(value=123, id=18)
+  s_override: bits[32] = literal(value=4294967096, id=21)
+  e_override: bits[2] = literal(value=1, id=24)
+  literal.1: bits[8][9] = literal(value=[98, 95, 100, 101, 102, 97, 117, 108, 116], id=1)
+  literal.2: bits[1] = literal(value=0, id=2)
+  literal.4: bits[8][11] = literal(value=[117, 51, 50, 95, 100, 101, 102, 97, 117, 108, 116], id=4)
+  literal.5: bits[32] = literal(value=42, id=5)
+  literal.7: bits[8][11] = literal(value=[115, 51, 50, 95, 100, 101, 102, 97, 117, 108, 116], id=7)
+  literal.8: bits[32] = literal(value=4294967196, id=8)
+  literal.10: bits[8][12] = literal(value=[101, 110, 117, 109, 95, 100, 101, 102, 97, 117, 108, 116], id=10)
+  literal.11: bits[2] = literal(value=2, id=11)
+  literal.13: bits[8][10] = literal(value=[98, 95, 111, 118, 101, 114, 114, 105, 100, 101], id=13)
+  literal.14: bits[1] = literal(value=0, id=14)
+  literal.16: bits[8][12] = literal(value=[117, 51, 50, 95, 111, 118, 101, 114, 114, 105, 100, 101], id=16)
+  literal.17: bits[32] = literal(value=42, id=17)
+  literal.19: bits[8][12] = literal(value=[115, 51, 50, 95, 111, 118, 101, 114, 114, 105, 100, 101], id=19)
+  literal.20: bits[32] = literal(value=4294967196, id=20)
+  literal.22: bits[8][13] = literal(value=[101, 110, 117, 109, 95, 111, 118, 101, 114, 114, 105, 100, 101], id=22)
+  literal.23: bits[2] = literal(value=2, id=23)
+  ret tuple.25: (bits[1], bits[32], bits[32], bits[2], bits[1], bits[32], bits[32], bits[2]) = tuple(b_default, u_default, s_default, e_default, b_override, u_override, s_override, e_override, id=25)
+}

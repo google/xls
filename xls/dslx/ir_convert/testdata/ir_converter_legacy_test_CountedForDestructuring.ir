@@ -1,0 +1,26 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn ____test_module__f_counted_for_0_body(i: bits[32] id=4, __loop_carry: (bits[32], bits[8]) id=7) -> (bits[32], bits[8]) {
+  literal.5: bits[32] = literal(value=0, id=5)
+  literal.8: bits[1] = literal(value=1, id=8)
+  literal.10: bits[1] = literal(value=1, id=10)
+  tuple_index.9: bits[32] = tuple_index(__loop_carry, index=0, id=9)
+  add.6: bits[32] = add(i, literal.5, id=6)
+  and.11: bits[1] = and(literal.8, literal.10, id=11)
+  literal.13: bits[1] = literal(value=1, id=13)
+  add.15: bits[32] = add(tuple_index.9, add.6, id=15)
+  tuple_index.12: bits[8] = tuple_index(__loop_carry, index=1, id=12)
+  and.14: bits[1] = and(and.11, literal.13, id=14)
+  ret tuple.16: (bits[32], bits[8]) = tuple(add.15, tuple_index.12, id=16)
+}
+
+top fn __test_module__f() -> bits[32] {
+  literal.1: bits[32] = literal(value=0, id=1)
+  literal.2: bits[8] = literal(value=0, id=2)
+  tuple.3: (bits[32], bits[8]) = tuple(literal.1, literal.2, id=3)
+  t: (bits[32], bits[8]) = counted_for(tuple.3, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body, id=17)
+  literal.18: bits[32] = literal(value=0, id=18)
+  ret tuple_index.19: bits[32] = tuple_index(t, index=0, id=19)
+}

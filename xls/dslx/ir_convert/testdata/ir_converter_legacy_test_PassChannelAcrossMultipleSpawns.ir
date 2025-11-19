@@ -1,0 +1,44 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+chan test_module__in_out(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+
+fn __test_module__SomeProc.init() -> () {
+  ret tuple.1: () = tuple(id=1)
+}
+
+fn __test_module__SomeOtherProc.init() -> () {
+  ret tuple.2: () = tuple(id=2)
+}
+
+top proc __test_module__YetAnotherProc_0_next(__state: (), init={()}) {
+  literal.6: token = literal(value=token, id=6)
+  literal.7: bits[32] = literal(value=0, id=7)
+  literal.5: bits[1] = literal(value=1, id=5)
+  __state: () = state_read(state_element=__state, id=4)
+  __token: token = literal(value=token, id=3)
+  send.8: token = send(literal.6, literal.7, predicate=literal.5, channel=test_module__in_out, id=8)
+  next_value.9: () = next_value(param=__state, value=__state, id=9)
+}
+
+proc __test_module__YetAnotherProc__SomeOtherProc_0__SomeProc_0_next(__state: (), init={()}) {
+  literal.13: token = literal(value=token, id=13)
+  literal.12: bits[1] = literal(value=1, id=12)
+  receive.14: (token, bits[32]) = receive(literal.13, predicate=literal.12, channel=test_module__in_out, id=14)
+  __token: token = literal(value=token, id=10)
+  v: bits[32] = tuple_index(receive.14, index=1, id=17)
+  __state: () = state_read(state_element=__state, id=11)
+  tuple_index.15: token = tuple_index(receive.14, index=0, id=15)
+  tuple_index.16: token = tuple_index(receive.14, index=0, id=16)
+  trace.18: token = trace(__token, literal.12, format="recv: {}", data_operands=[v], id=18)
+  next_value.19: () = next_value(param=__state, value=__state, id=19)
+}
+
+proc __test_module__YetAnotherProc__SomeOtherProc_0_next(__state: (), init={()}) {
+  __state: () = state_read(state_element=__state, id=21)
+  tuple.23: () = tuple(id=23)
+  __token: token = literal(value=token, id=20)
+  literal.22: bits[1] = literal(value=1, id=22)
+  next_value.24: () = next_value(param=__state, value=tuple.23, id=24)
+}

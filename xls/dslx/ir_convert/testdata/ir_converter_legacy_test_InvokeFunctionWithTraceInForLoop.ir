@@ -1,0 +1,36 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn __itok__test_module__foo(__token: token id=1, __activated: bits[1] id=2, x: bits[32] id=3, y: bits[32] id=4) -> (token, bits[32]) {
+  trace.5: token = trace(__token, __activated, format="x is {}", data_operands=[x], id=5)
+  trace.6: token = trace(__token, __activated, format="y is {}", data_operands=[y], id=6)
+  after_all.8: token = after_all(trace.5, trace.6, id=8)
+  add.7: bits[32] = add(x, y, id=7)
+  ret tuple.9: (token, bits[32]) = tuple(after_all.8, add.7, id=9)
+}
+
+fn ____itok__test_module__main_counted_for_0_body(i: bits[32] id=13, __token_wrapped: (token, bits[1], bits[32][4]) id=16, x: bits[32][4] id=20) -> (token, bits[1], bits[32][4]) {
+  literal.14: bits[32] = literal(value=0, id=14)
+  tuple_index.19: bits[32][4] = tuple_index(__token_wrapped, index=2, id=19)
+  add.15: bits[32] = add(i, literal.14, id=15)
+  tuple_index.17: token = tuple_index(__token_wrapped, index=0, id=17)
+  tuple_index.18: bits[1] = tuple_index(__token_wrapped, index=1, id=18)
+  array_index.21: bits[32] = array_index(tuple_index.19, indices=[add.15], id=21)
+  array_index.22: bits[32] = array_index(x, indices=[add.15], id=22)
+  invoke.23: (token, bits[32]) = invoke(tuple_index.17, tuple_index.18, array_index.21, array_index.22, to_apply=__itok__test_module__foo, id=23)
+  tuple_index.24: token = tuple_index(invoke.23, index=0, id=24)
+  tuple_index.25: bits[32] = tuple_index(invoke.23, index=1, id=25)
+  after_all.27: token = after_all(tuple_index.24, tuple_index.17, id=27)
+  array_update.26: bits[32][4] = array_update(x, tuple_index.25, indices=[add.15], id=26)
+  ret tuple.28: (token, bits[1], bits[32][4]) = tuple(after_all.27, tuple_index.18, array_update.26, id=28)
+}
+
+fn __itok__test_module__main(__token: token id=10, __activated: bits[1] id=11, x: bits[32][4] id=12) -> (token, bits[32][4]) {
+  tuple.29: (token, bits[1], bits[32][4]) = tuple(__token, __activated, x, id=29)
+  counted_for.30: (token, bits[1], bits[32][4]) = counted_for(tuple.29, trip_count=4, stride=1, body=____itok__test_module__main_counted_for_0_body, invariant_args=[x], id=30)
+  tuple_index.31: token = tuple_index(counted_for.30, index=0, id=31)
+  after_all.33: token = after_all(tuple_index.31, id=33)
+  tuple_index.32: bits[32][4] = tuple_index(counted_for.30, index=2, id=32)
+  ret tuple.34: (token, bits[32][4]) = tuple(after_all.33, tuple_index.32, id=34)
+}

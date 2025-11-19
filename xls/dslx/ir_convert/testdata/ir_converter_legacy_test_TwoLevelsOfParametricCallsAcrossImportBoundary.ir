@@ -1,0 +1,42 @@
+package test_module
+
+file_number 0 "fake/imported/stuff.x"
+file_number 1 "test_module.x"
+
+fn __fake_imported_stuff__bar__32(a: bits[32] id=1) -> bits[32] {
+  N: bits[32] = literal(value=32, id=2)
+  ret a: bits[32] = param(name=a, id=1)
+}
+
+fn __fake_imported_stuff__foo__32(a: bits[32] id=3) -> bits[32] {
+  A: bits[32] = literal(value=32, id=4)
+  ret invoke.5: bits[32] = invoke(a, to_apply=__fake_imported_stuff__bar__32, id=5)
+}
+
+fn __test_module__baz__32(a: bits[32] id=6) -> bits[32] {
+  N: bits[32] = literal(value=32, id=7)
+  ret invoke.8: bits[32] = invoke(a, to_apply=__fake_imported_stuff__foo__32, id=8)
+}
+
+fn __fake_imported_stuff__bar__24(a: bits[24] id=9) -> bits[24] {
+  N: bits[32] = literal(value=24, id=10)
+  ret a: bits[24] = param(name=a, id=9)
+}
+
+fn __fake_imported_stuff__foo__24(a: bits[24] id=11) -> bits[24] {
+  A: bits[32] = literal(value=24, id=12)
+  ret invoke.13: bits[24] = invoke(a, to_apply=__fake_imported_stuff__bar__24, id=13)
+}
+
+fn __test_module__baz__24(a: bits[24] id=14) -> bits[24] {
+  N: bits[32] = literal(value=24, id=15)
+  ret invoke.16: bits[24] = invoke(a, to_apply=__fake_imported_stuff__foo__24, id=16)
+}
+
+fn __test_module__main() -> () {
+  literal.17: bits[32] = literal(value=5, id=17)
+  literal.19: bits[24] = literal(value=6, id=19)
+  invoke.18: bits[32] = invoke(literal.17, to_apply=__test_module__baz__32, id=18)
+  invoke.20: bits[24] = invoke(literal.19, to_apply=__test_module__baz__24, id=20)
+  ret tuple.21: () = tuple(id=21)
+}

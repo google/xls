@@ -1,0 +1,14 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+top fn __test_module__f() -> bits[32] {
+  literal.1: bits[32] = literal(value=1, id=1)
+  literal.2: bits[32] = literal(value=2, id=2)
+  literal.3: bits[32] = literal(value=3, id=3)
+  literal.4: bits[32] = literal(value=4, id=4)
+  t: (bits[32], bits[32], bits[32], bits[32]) = tuple(literal.1, literal.2, literal.3, literal.4, id=5)
+  x: bits[32] = tuple_index(t, index=0, id=6)
+  y: bits[32] = tuple_index(t, index=3, id=7)
+  ret add.8: bits[32] = add(x, y, id=8)
+}

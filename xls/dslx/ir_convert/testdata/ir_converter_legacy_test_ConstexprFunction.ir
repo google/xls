@@ -1,0 +1,13 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn __test_module__constexpr_fn(arg: bits[32] id=1) -> bits[32] {
+  MY_CONST: bits[32] = literal(value=5, id=2)
+  ret umul.3: bits[32] = umul(arg, MY_CONST, id=3)
+}
+
+fn __test_module__f() -> bits[32] {
+  MY_CONST: bits[32] = literal(value=5, id=4)
+  ret x: bits[32] = invoke(MY_CONST, to_apply=__test_module__constexpr_fn, id=5)
+}

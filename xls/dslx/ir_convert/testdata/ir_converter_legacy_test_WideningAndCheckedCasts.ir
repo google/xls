@@ -1,0 +1,15 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn __test_module__main(x: bits[8] id=1, y: bits[8] id=2) -> bits[32] {
+  bit_slice.5: bits[7] = bit_slice(y, start=0, width=7, id=5)
+  y_16: bits[16] = sign_ext(bit_slice.5, new_bit_count=16, id=6)
+  sign_ext.7: bits[32] = sign_ext(y_16, new_bit_count=32, id=7)
+  sign_ext.8: bits[32] = sign_ext(y_16, new_bit_count=32, id=8)
+  zero_ext.3: bits[32] = zero_ext(x, new_bit_count=32, id=3)
+  y_times_two_32: bits[32] = add(sign_ext.7, sign_ext.8, id=9)
+  x_32: bits[32] = zero_ext(zero_ext.3, new_bit_count=32, id=4)
+  sign_ext.10: bits[32] = sign_ext(y_times_two_32, new_bit_count=32, id=10)
+  ret add.11: bits[32] = add(x_32, sign_ext.10, id=11)
+}

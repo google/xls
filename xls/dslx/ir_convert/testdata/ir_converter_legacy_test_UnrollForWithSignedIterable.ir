@@ -1,0 +1,13 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn __test_module__test() -> bits[32] {
+  i: bits[32] = literal(value=4294967294, id=2)
+  acc: bits[32] = literal(value=0, id=1)
+  i__1: bits[32] = literal(value=0, id=4)
+  acc__1: bits[32] = add(i, acc, id=3)
+  i__2: bits[32] = literal(value=5, id=6)
+  acc__2: bits[32] = add(i__1, acc__1, id=5)
+  ret add.7: bits[32] = add(i__2, acc__2, id=7)
+}

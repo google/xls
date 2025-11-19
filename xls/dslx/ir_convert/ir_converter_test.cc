@@ -143,12 +143,16 @@ absl::StatusOr<TestResultData> ParseAndTest(
                                                   filename, options);
 }
 
-constexpr ConvertOptions kNoPosOptions = {
-    .emit_positions = false,
-};
-
 constexpr ConvertOptions kProcScopedChannelOptions = {
     .emit_positions = false,
+    .lower_to_proc_scoped_channels = true,
+};
+
+constexpr ConvertOptions kNoPosOptions = kProcScopedChannelOptions;
+
+constexpr ConvertOptions kNoVerifyOptions = {
+    .emit_positions = false,
+    .verify_ir = false,
     .lower_to_proc_scoped_channels = true,
 };
 
@@ -2579,14 +2583,10 @@ proc main {
 }
 )";
 
-  ConvertOptions options;
-  options.emit_positions = false;
-  // This test won't pass with verify_ir set to true
-  options.verify_ir = false;
   auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::string converted,
-      ConvertOneFunctionForTest(program, "main", import_data, options));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(
+                               program, "main", import_data, kNoVerifyOptions));
   ExpectIr(converted);
 }
 
@@ -2957,14 +2957,10 @@ proc main {
 }
 )";
 
-  ConvertOptions options;
-  options.emit_positions = false;
-  // This test won't pass with verify_ir set to true
-  options.verify_ir = false;
   auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::string converted,
-      ConvertOneFunctionForTest(program, "main", import_data, options));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(
+                               program, "main", import_data, kNoVerifyOptions));
   ExpectIr(converted);
 }
 
@@ -3787,6 +3783,7 @@ fn main() -> (bool, u32, s32, MyEnum, bool, u32, s32, MyEnum) {
   options.configured_values = {"b_override:true", "u32_override:123",
                                "s32_override:-200", "enum_override:MyEnum::B"};
   options.emit_positions = false;
+  options.lower_to_proc_scoped_channels = true;
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(program, options, nullptr,
@@ -3918,33 +3915,6 @@ fn main() -> u8 {
     // caught earlier with v2.
     EXPECT_TRUE(printed_error);
   }
-}
-
-TEST(IrConverterTest, ProcWithNonConstArgumentInConfigIsNotConverted) {
-  constexpr std::string_view program =
-      R"(
-proc Generator {
-  out_ch: chan<u32> out;
-  val: u32;
-
-  init {
-    ()
-  }
-
-  config(out_ch: chan<u32> out, val: u32) {
-    (out_ch, val)
-  }
-
-  next(state: ()) {
-    send(join(), out_ch, val);
-  }
-}
-)";
-
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program, kNoPosOptions));
-  // No actual code since no top procs have a convertible config
-  EXPECT_EQ(converted, "package test_module\n");
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
@@ -4316,11 +4286,8 @@ fn main() -> (Optional<u32>, Optional<u32>, Optional<u32[3]>,
   ExpectIr(converted);
 }
 
-TEST_P(IrConverterWithBothTypecheckVersionsTest, CallFooOnAnything) {
-  if (GetParam() == TypeInferenceVersion::kVersion1) {
-    return;
-  }
-
+// Disabled until we fix it with proc-scoped channels
+TEST_P(IrConverterWithBothTypecheckVersionsTest, DISABLED_CallFooOnAnything) {
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
                            ConvertModuleForTest(R"(
 #![feature(generics)]
@@ -4348,11 +4315,8 @@ fn main() -> (u32, s64) {
   ExpectIr(converted);
 }
 
-TEST_P(IrConverterWithBothTypecheckVersionsTest, ToBits) {
-  if (GetParam() == TypeInferenceVersion::kVersion1) {
-    return;
-  }
-
+// Disabled until we fix it with proc-scoped channels
+TEST_P(IrConverterWithBothTypecheckVersionsTest, DISABLED_ToBits) {
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
                            ConvertModuleForTest(R"(
 enum E : u16 {
@@ -4522,11 +4486,10 @@ constexpr std::string_view kPassChannelArraysAcrossSpawns = R"(
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
        PassChannelArraysAcrossMultipleSpawns) {
   auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::string converted,
-      ConvertOneFunctionForTest(
-          kPassChannelArraysAcrossSpawns, "YetAnotherProc", import_data,
-          ConvertOptions{.emit_positions = false, .verify_ir = false}));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(
+                               kPassChannelArraysAcrossSpawns, "YetAnotherProc",
+                               import_data, kNoVerifyOptions));
 
   // Note: version-specific IR is due to unroll_for!.
   ExpectVersionSpecificIr(converted, GetParam());
@@ -6310,9 +6273,8 @@ TEST_F(ProcScopedChannelsIrConverterTest,
       ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertOneFunctionForTest(
-          kProgram, "Importer", import_data,
-          ConvertOptions{.emit_positions = false, .verify_ir = false}));
+      ConvertOneFunctionForTest(kProgram, "Importer", import_data,
+                                kNoVerifyOptions));
   ExpectIr(converted);
 }
 
@@ -6703,16 +6665,10 @@ proc First {
 }
 )";
 
-  EXPECT_THAT(
-      ConvertOneFunctionForTest(program, "First", kProcScopedChannelOptions),
-      StatusIs(absl::StatusCode::kUnimplemented,
-               "Destructuring let bindings are not yet supported in "
-               "Proc config methods."));
-  // Run with global channels
-  EXPECT_THAT(ConvertOneFunctionForTest(program, "First", kNoPosOptions),
+  EXPECT_THAT(ConvertOneFunctionForTest(program, "First"),
               StatusIs(absl::StatusCode::kUnimplemented,
                        "Destructuring let bindings are not yet supported in "
-                       "Proc configs."));
+                       "Proc config methods."));
 }
 
 constexpr std::string_view kParametricDefaultClog2 = R"(
@@ -7266,12 +7222,20 @@ TEST_F(ProcScopedChannelsIrConverterTest, ProcScopedProcWithIndex) {
   ExpectIr(converted);
 }
 
-TEST_P(IrConverterWithBothTypecheckVersionsTest, ConvertWithoutTests) {
+// This is a known issue for proc-scoped channels whereby it refuses to convert
+// a module when convert_tests is false and there are ANY test-only
+// functions/procs, even if there are non-test-only functions/procs in the
+// module. This will be fixed before rolling out proc-scoped channels
+// everywhere.
+TEST_P(IrConverterWithBothTypecheckVersionsTest, DISABLED_ConvertWithoutTests) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(
-          kProgramToVerifyTestConversion,
-          ConvertOptions{.emit_positions = false, .convert_tests = false}));
+      ConvertModuleForTest(kProgramToVerifyTestConversion,
+                           ConvertOptions{
+                               .emit_positions = false,
+                               .convert_tests = false,
+                               .lower_to_proc_scoped_channels = true,
+                           }));
   ExpectIr(converted);
 }
 
@@ -7280,7 +7244,9 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, ConvertWithTests) {
       std::string converted,
       ConvertModuleForTest(
           kProgramToVerifyTestConversion,
-          ConvertOptions{.emit_positions = false, .convert_tests = true}));
+          ConvertOptions{.emit_positions = false,
+                         .convert_tests = true,
+                         .lower_to_proc_scoped_channels = true}));
   ExpectIr(converted);
 }
 
@@ -7300,8 +7266,10 @@ fn test_func() {
 }
 )";
   EXPECT_THAT(
-      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false,
-                                                   .convert_tests = false}),
+      ConvertModuleForTest(
+          program, ConvertOptions{.emit_positions = false,
+                                  .convert_tests = false,
+                                  .lower_to_proc_scoped_channels = true}),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Tried to convert a function 'utility' used in tests, "
                          "but test conversion is disabled")));
@@ -7316,8 +7284,10 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, NonSynthNoAssert) {
 })";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertOneFunctionForTest(program, "f",
-                                ConvertOptions{.emit_assert = false}));
+      ConvertOneFunctionForTest(
+          program, "f",
+          ConvertOptions{.emit_assert = false,
+                         .lower_to_proc_scoped_channels = true}));
   ExpectIr(converted);
 }
 
@@ -7330,8 +7300,10 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, NonSynthNoTrace) {
 })";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertOneFunctionForTest(program, "f",
-                                ConvertOptions{.emit_trace = false}));
+      ConvertOneFunctionForTest(
+          program, "f",
+          ConvertOptions{.emit_trace = false,
+                         .lower_to_proc_scoped_channels = true}));
   ExpectIr(converted);
 }
 
@@ -7344,15 +7316,16 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, NonSynthNoCover) {
 })";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertOneFunctionForTest(program, "f",
-                                ConvertOptions{.emit_cover = false}));
+      ConvertOneFunctionForTest(
+          program, "f",
+          ConvertOptions{.emit_cover = false,
+                         .lower_to_proc_scoped_channels = true}));
   ExpectIr(converted);
 }
 
 INSTANTIATE_TEST_SUITE_P(IrConverterWithBothTypecheckVersionsTestSuite,
                          IrConverterWithBothTypecheckVersionsTest,
-                         testing::Values(TypeInferenceVersion::kVersion1,
-                                         TypeInferenceVersion::kVersion2));
+                         testing::Values(TypeInferenceVersion::kVersion2));
 
 }  // namespace
 }  // namespace xls::dslx

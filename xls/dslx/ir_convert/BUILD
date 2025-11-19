@@ -289,6 +289,32 @@ cc_test(
     ],
 )
 
+cc_test(
+    name = "ir_converter_legacy_test",
+    srcs = ["ir_converter_legacy_test.cc"],
+    data = glob(["testdata/*.ir"]),
+    deps = [
+        ":conversion_info",
+        ":convert_options",
+        ":ir_converter",
+        ":test_utils",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:temp_file",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:import_data",
+        "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx/run_routines",
+        "//xls/dslx/run_routines:run_comparator",
+        "//xls/dslx/type_system:typecheck_test_utils",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:status_matchers",
+        "@com_google_absl//absl/status:statusor",
+        "@googletest//:gtest",
+    ],
+)
+
 filegroup(
     name = "ir_converter_test_sh",
     srcs = ["ir_converter_test.sh"],

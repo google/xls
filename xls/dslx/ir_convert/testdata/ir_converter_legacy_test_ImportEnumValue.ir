@@ -1,0 +1,14 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn __test_module__main(x: bits[32] id=1) -> bits[32] {
+  literal.2: bits[16] = literal(value=15, id=2)
+  literal.4: bits[16] = literal(value=6, id=4)
+  zero_ext.3: bits[32] = zero_ext(literal.2, new_bit_count=32, id=3)
+  zero_ext.5: bits[32] = zero_ext(literal.4, new_bit_count=32, id=5)
+  literal.7: bits[16] = literal(value=5, id=7)
+  add.6: bits[32] = add(zero_ext.3, zero_ext.5, id=6)
+  zero_ext.8: bits[32] = zero_ext(literal.7, new_bit_count=32, id=8)
+  ret add.9: bits[32] = add(add.6, zero_ext.8, id=9)
+}

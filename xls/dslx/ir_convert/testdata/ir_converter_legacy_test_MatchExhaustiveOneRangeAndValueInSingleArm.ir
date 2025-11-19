@@ -1,0 +1,12 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn __test_module__main(x: bits[2] id=1) -> bits[32] {
+  literal.2: bits[2] = literal(value=0, id=2)
+  literal.3: bits[2] = literal(value=3, id=3)
+  uge.4: bits[1] = uge(x, literal.2, id=4)
+  ult.5: bits[1] = ult(x, literal.3, id=5)
+  and.6: bits[1] = and(uge.4, ult.5, id=6)
+  ret literal.7: bits[32] = literal(value=42, id=7)
+}

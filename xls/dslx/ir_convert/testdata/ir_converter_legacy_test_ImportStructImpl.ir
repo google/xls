@@ -1,0 +1,14 @@
+package test_module
+
+file_number 0 "fake/imported/stuff.x"
+file_number 1 "test_module.x"
+
+fn __fake_imported_stuff__S__X(self: (bits[5]) id=1) -> bits[5] {
+  ret self_x: bits[5] = tuple_index(self, index=0, id=2)
+}
+
+fn __test_module__main() -> bits[5] {
+  literal.3: bits[5] = literal(value=1, id=3)
+  s: (bits[5]) = tuple(literal.3, id=4)
+  ret invoke.5: bits[5] = invoke(s, to_apply=__fake_imported_stuff__S__X, id=5)
+}

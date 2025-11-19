@@ -1,0 +1,22 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn ____test_module__f_counted_for_0_body(i: bits[32] id=6, accum: bits[32] id=9, outer_thing_1: bits[32] id=10, outer_thing_2: bits[32] id=11) -> bits[32] {
+  literal.7: bits[32] = literal(value=0, id=7)
+  add.8: bits[32] = add(i, literal.7, id=8)
+  add.14: bits[32] = add(accum, add.8, id=14)
+  add.15: bits[32] = add(add.14, outer_thing_1, id=15)
+  add.16: bits[32] = add(add.15, outer_thing_2, id=16)
+  literal.12: bits[32] = literal(value=42, id=12)
+  add.17: bits[32] = add(add.16, literal.12, id=17)
+  literal.13: bits[32] = literal(value=24, id=13)
+  ret add.18: bits[32] = add(add.17, literal.13, id=18)
+}
+
+fn __test_module__f(outer_thing_1: bits[32] id=1, outer_thing_2: bits[32] id=2) -> bits[32] {
+  literal.5: bits[32] = literal(value=0, id=5)
+  outer_thing_3: bits[32] = literal(value=42, id=3)
+  outer_thing_4: bits[32] = literal(value=24, id=4)
+  ret counted_for.19: bits[32] = counted_for(literal.5, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body, invariant_args=[outer_thing_1, outer_thing_2], id=19)
+}

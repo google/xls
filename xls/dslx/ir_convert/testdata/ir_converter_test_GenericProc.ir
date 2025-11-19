@@ -2,52 +2,54 @@ package test_module
 
 file_number 0 "test_module.x"
 
-chan test_module__c_u32(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
-chan test_module__c_s64(bits[64], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
-
-fn __test_module__P.init__u32() -> bits[32] {
-  ret literal.1: bits[32] = literal(value=0, id=1)
+proc __test_module__P_0__u32_next<input_c: bits[32] out>(__state: bits[32], init={0}) {
+  chan_interface input_c(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  __state: bits[32] = state_read(state_element=__state, id=2)
+  literal.7: bits[32] = literal(value=1, id=7)
+  after_all.5: token = after_all(id=5)
+  literal.3: bits[1] = literal(value=1, id=3)
+  add.8: bits[32] = add(__state, literal.7, id=8)
+  __token: token = literal(value=token, id=1)
+  tuple.4: () = tuple(id=4)
+  tok: token = send(after_all.5, __state, predicate=literal.3, channel=input_c, id=6)
+  next_value.9: () = next_value(param=__state, value=add.8, id=9)
 }
 
-fn __test_module__P.init__s64() -> bits[64] {
-  ret literal.2: bits[64] = literal(value=0, id=2)
+proc __test_module__P_0__s64_next<input_c: bits[64] out>(__state: bits[64], init={0}) {
+  chan_interface input_c(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  __state: bits[64] = state_read(state_element=__state, id=11)
+  literal.16: bits[64] = literal(value=1, id=16)
+  after_all.14: token = after_all(id=14)
+  literal.12: bits[1] = literal(value=1, id=12)
+  add.17: bits[64] = add(__state, literal.16, id=17)
+  __token: token = literal(value=token, id=10)
+  tuple.13: () = tuple(id=13)
+  tok: token = send(after_all.14, __state, predicate=literal.12, channel=input_c, id=15)
+  next_value.18: () = next_value(param=__state, value=add.17, id=18)
 }
 
-proc __test_module__Main_0_next(__state: (bits[32], bits[64]), init={(0, 0)}) {
-  after_all.6: token = after_all(id=6)
-  literal.5: bits[1] = literal(value=1, id=5)
-  receive.7: (token, bits[32]) = receive(after_all.6, predicate=literal.5, channel=test_module__c_u32, id=7)
-  tok: token = tuple_index(receive.7, index=0, id=9)
-  receive.11: (token, bits[64]) = receive(tok, predicate=literal.5, channel=test_module__c_s64, id=11)
-  i_u32: bits[32] = tuple_index(receive.7, index=1, id=10)
-  i_s64: bits[64] = tuple_index(receive.11, index=1, id=14)
-  __state: (bits[32], bits[64]) = state_read(state_element=__state, id=4)
-  tuple.15: (bits[32], bits[64]) = tuple(i_u32, i_s64, id=15)
-  __token: token = literal(value=token, id=3)
-  tuple_index.8: token = tuple_index(receive.7, index=0, id=8)
-  tuple_index.12: token = tuple_index(receive.11, index=0, id=12)
-  tok__1: token = tuple_index(receive.11, index=0, id=13)
-  next_value.16: () = next_value(param=__state, value=tuple.15, id=16)
-}
-
-proc __test_module__Main__P_0__u32_next(__state: bits[32], init={0}) {
-  __state: bits[32] = state_read(state_element=__state, id=18)
-  literal.22: bits[32] = literal(value=1, id=22)
-  after_all.20: token = after_all(id=20)
-  literal.19: bits[1] = literal(value=1, id=19)
-  add.23: bits[32] = add(__state, literal.22, id=23)
-  __token: token = literal(value=token, id=17)
-  tok: token = send(after_all.20, __state, predicate=literal.19, channel=test_module__c_u32, id=21)
-  next_value.24: () = next_value(param=__state, value=add.23, id=24)
-}
-
-proc __test_module__Main__P_1__s64_next(__state: bits[64], init={0}) {
-  __state: bits[64] = state_read(state_element=__state, id=26)
-  literal.30: bits[64] = literal(value=1, id=30)
-  after_all.28: token = after_all(id=28)
-  literal.27: bits[1] = literal(value=1, id=27)
-  add.31: bits[64] = add(__state, literal.30, id=31)
-  __token: token = literal(value=token, id=25)
-  tok: token = send(after_all.28, __state, predicate=literal.27, channel=test_module__c_s64, id=29)
-  next_value.32: () = next_value(param=__state, value=add.31, id=32)
+proc __test_module__Main_0_next<>(__state: (bits[32], bits[64]), init={(0, 0)}) {
+  chan c_u32(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+  chan_interface c_u32(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface c_u32(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan c_s64(bits[64], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+  chan_interface c_s64(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface c_s64(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  proc_instantiation __test_module__P_0__u32_next_inst(c_u32, proc=__test_module__P_0__u32_next)
+  proc_instantiation __test_module__P_0__s64_next_inst(c_s64, proc=__test_module__P_0__s64_next)
+  after_all.23: token = after_all(id=23)
+  literal.21: bits[1] = literal(value=1, id=21)
+  receive.24: (token, bits[32]) = receive(after_all.23, predicate=literal.21, channel=c_u32, id=24)
+  tok: token = tuple_index(receive.24, index=0, id=26)
+  receive.28: (token, bits[64]) = receive(tok, predicate=literal.21, channel=c_s64, id=28)
+  i_u32: bits[32] = tuple_index(receive.24, index=1, id=27)
+  i_s64: bits[64] = tuple_index(receive.28, index=1, id=31)
+  __state: (bits[32], bits[64]) = state_read(state_element=__state, id=20)
+  tuple.32: (bits[32], bits[64]) = tuple(i_u32, i_s64, id=32)
+  __token: token = literal(value=token, id=19)
+  tuple.22: () = tuple(id=22)
+  tuple_index.25: token = tuple_index(receive.24, index=0, id=25)
+  tuple_index.29: token = tuple_index(receive.28, index=0, id=29)
+  tok__1: token = tuple_index(receive.28, index=0, id=30)
+  next_value.33: () = next_value(param=__state, value=tuple.32, id=33)
 }

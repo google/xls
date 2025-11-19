@@ -1,0 +1,27 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn __itok__test_module__do_fail(__token: token id=1, __activated: bits[1] id=2, x: bits[32] id=3) -> (token, bits[32]) {
+  not.5: bits[1] = not(__activated, id=5)
+  assert.6: token = assert(__token, not.5, message="Assertion failure via fail! @ test_module.x:3:8-3:22", label="failure", id=6)
+  after_all.8: token = after_all(assert.6, id=8)
+  identity.7: bits[32] = identity(x, id=7)
+  literal.4: bits[8][7] = literal(value=[102, 97, 105, 108, 117, 114, 101], id=4)
+  ret tuple.9: (token, bits[32]) = tuple(after_all.8, identity.7, id=9)
+}
+
+fn __itok__test_module__main(__token: token id=10, __activated: bits[1] id=11, x: bits[32] id=12) -> (token, bits[32]) {
+  literal.13: bits[32] = literal(value=42, id=13)
+  literal.15: bits[1] = literal(value=1, id=15)
+  eq.14: bits[1] = eq(literal.13, x, id=14)
+  and.16: bits[1] = and(__activated, literal.15, eq.14, id=16)
+  invoke.17: (token, bits[32]) = invoke(__token, and.16, x, to_apply=__itok__test_module__do_fail, id=17)
+  tuple_index.18: token = tuple_index(invoke.17, index=0, id=18)
+  concat.21: bits[1] = concat(eq.14, id=21)
+  tuple_index.19: bits[32] = tuple_index(invoke.17, index=1, id=19)
+  after_all.23: token = after_all(tuple_index.18, id=23)
+  priority_sel.22: bits[32] = priority_sel(concat.21, cases=[tuple_index.19], default=x, id=22)
+  literal.20: bits[1] = literal(value=1, id=20)
+  ret tuple.24: (token, bits[32]) = tuple(after_all.23, priority_sel.22, id=24)
+}

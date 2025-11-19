@@ -1,0 +1,37 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn ____itok__test_module__main_counted_for_0_body(i: bits[32] id=7, __token_wrapped: (token, bits[1], (bits[32], bits[32])) id=10) -> (token, bits[1], (bits[32], bits[32])) {
+  tuple_index.12: bits[1] = tuple_index(__token_wrapped, index=1, id=12)
+  tuple_index.13: (bits[32], bits[32]) = tuple_index(__token_wrapped, index=2, id=13)
+  tuple_index.11: token = tuple_index(__token_wrapped, index=0, id=11)
+  not.23: bits[1] = not(tuple_index.12, id=23)
+  tuple_index.15: bits[32] = tuple_index(tuple_index.13, index=0, id=15)
+  tuple_index.18: bits[32] = tuple_index(tuple_index.13, index=1, id=18)
+  literal.14: bits[1] = literal(value=1, id=14)
+  literal.16: bits[1] = literal(value=1, id=16)
+  assert.24: token = assert(tuple_index.11, not.23, message="Assertion failure via fail! @ test_module.x:4:10-4:29", label="failure", id=24)
+  tuple.22: (bits[32], bits[32]) = tuple(tuple_index.15, tuple_index.18, id=22)
+  literal.8: bits[32] = literal(value=0, id=8)
+  and.17: bits[1] = and(literal.14, literal.16, id=17)
+  literal.19: bits[1] = literal(value=1, id=19)
+  after_all.26: token = after_all(assert.24, tuple_index.11, id=26)
+  identity.25: (bits[32], bits[32]) = identity(tuple.22, id=25)
+  add.9: bits[32] = add(i, literal.8, id=9)
+  and.20: bits[1] = and(and.17, literal.19, id=20)
+  literal.21: bits[8][7] = literal(value=[102, 97, 105, 108, 117, 114, 101], id=21)
+  ret tuple.27: (token, bits[1], (bits[32], bits[32])) = tuple(after_all.26, tuple_index.12, identity.25, id=27)
+}
+
+fn __itok__test_module__main(__token: token id=1, __activated: bits[1] id=2, x: bits[32] id=3) -> (token, (bits[32], bits[32])) {
+  literal.4: bits[32] = literal(value=0, id=4)
+  literal.5: bits[32] = literal(value=0, id=5)
+  tuple.6: (bits[32], bits[32]) = tuple(literal.4, literal.5, id=6)
+  tuple.28: (token, bits[1], (bits[32], bits[32])) = tuple(__token, __activated, tuple.6, id=28)
+  counted_for.29: (token, bits[1], (bits[32], bits[32])) = counted_for(tuple.28, trip_count=1, stride=1, body=____itok__test_module__main_counted_for_0_body, id=29)
+  tuple_index.30: token = tuple_index(counted_for.29, index=0, id=30)
+  after_all.32: token = after_all(tuple_index.30, id=32)
+  tuple_index.31: (bits[32], bits[32]) = tuple_index(counted_for.29, index=2, id=31)
+  ret tuple.33: (token, (bits[32], bits[32])) = tuple(after_all.32, tuple_index.31, id=33)
+}

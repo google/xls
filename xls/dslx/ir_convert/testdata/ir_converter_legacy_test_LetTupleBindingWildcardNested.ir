@@ -1,0 +1,28 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+top fn __test_module__f() -> bits[32] {
+  literal.5: bits[32] = literal(value=6, id=5)
+  literal.6: bits[32] = literal(value=7, id=6)
+  literal.3: bits[32] = literal(value=4, id=3)
+  literal.4: bits[32] = literal(value=5, id=4)
+  tuple.7: (bits[32], bits[32]) = tuple(literal.5, literal.6, id=7)
+  literal.8: bits[32] = literal(value=8, id=8)
+  literal.1: bits[32] = literal(value=2, id=1)
+  literal.2: bits[32] = literal(value=3, id=2)
+  tuple.9: (bits[32], bits[32], (bits[32], bits[32]), bits[32]) = tuple(literal.3, literal.4, tuple.7, literal.8, id=9)
+  t: (bits[32], bits[32], (bits[32], bits[32], (bits[32], bits[32]), bits[32])) = tuple(literal.1, literal.2, tuple.9, id=10)
+  tuple_index.13: (bits[32], bits[32], (bits[32], bits[32]), bits[32]) = tuple_index(t, index=2, id=13)
+  x: bits[32] = tuple_index(t, index=0, id=11)
+  y: bits[32] = tuple_index(tuple_index.13, index=0, id=14)
+  tuple_index.16: (bits[32], bits[32]) = tuple_index(tuple_index.13, index=2, id=16)
+  add.20: bits[32] = add(x, y, id=20)
+  z: bits[32] = tuple_index(tuple_index.16, index=0, id=17)
+  add.21: bits[32] = add(add.20, z, id=21)
+  a: bits[32] = tuple_index(tuple_index.13, index=3, id=19)
+  tuple_index.12: bits[32] = tuple_index(t, index=1, id=12)
+  tuple_index.15: bits[32] = tuple_index(tuple_index.13, index=1, id=15)
+  tuple_index.18: bits[32] = tuple_index(tuple_index.16, index=1, id=18)
+  ret add.22: bits[32] = add(add.21, a, id=22)
+}

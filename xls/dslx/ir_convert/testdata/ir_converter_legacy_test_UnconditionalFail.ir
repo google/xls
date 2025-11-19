@@ -1,0 +1,20 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn __itok__test_module__main(__token: token id=1, __activated: bits[1] id=2) -> (token, bits[32]) {
+  not.5: bits[1] = not(__activated, id=5)
+  assert.6: token = assert(__token, not.5, message="Assertion failure via fail! @ test_module.x:3:8-3:27", label="failure", id=6)
+  literal.4: bits[32] = literal(value=42, id=4)
+  after_all.8: token = after_all(assert.6, id=8)
+  identity.7: bits[32] = identity(literal.4, id=7)
+  literal.3: bits[8][7] = literal(value=[102, 97, 105, 108, 117, 114, 101], id=3)
+  ret tuple.9: (token, bits[32]) = tuple(after_all.8, identity.7, id=9)
+}
+
+fn __test_module__main() -> bits[32] {
+  after_all.10: token = after_all(id=10)
+  literal.11: bits[1] = literal(value=1, id=11)
+  invoke.12: (token, bits[32]) = invoke(after_all.10, literal.11, to_apply=__itok__test_module__main, id=12)
+  ret tuple_index.13: bits[32] = tuple_index(invoke.12, index=1, id=13)
+}
