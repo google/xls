@@ -60,6 +60,7 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/verify_node.h"
+#include "xls/passes/node_dependency_analysis.h"
 #include "re2/re2.h"
 
 namespace xls {
@@ -893,6 +894,9 @@ absl::Status VerifyProc(Proc* proc, bool codegen) {
         }
       }
     }
+
+    NodeForwardDependencyAnalysis dep_analysis;
+    XLS_RETURN_IF_ERROR(dep_analysis.Attach(proc).status());
     for (Node* node : proc->nodes()) {
       if (!node_to_stage.contains(node)) {
         return absl::InternalError(
@@ -906,6 +910,20 @@ absl::Status VerifyProc(Proc* proc, bool codegen) {
               "Operand %s of node %s is in stage %d which is after stage %d.",
               operand->GetName(), node->GetName(), node_to_stage.at(operand),
               stage_idx));
+        }
+      }
+      if (node->Is<Receive>()) {
+        for (Node* dep : dep_analysis.NodesDependedOnBy(node)) {
+          if (!dep->Is<Send>()) {
+            continue;
+          }
+          if (auto it = node_to_stage.find(dep);
+              it != node_to_stage.end() && it->second == stage_idx) {
+            return absl::InternalError(absl::StrFormat(
+                "Receive node %s in stage %d depends on send node %s in "
+                "the same stage, which is currently unsupported by XLS.",
+                node->GetName(), stage_idx, dep->GetName()));
+          }
         }
       }
     }
