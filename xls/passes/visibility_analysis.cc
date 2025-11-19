@@ -15,11 +15,15 @@
 #include "xls/passes/visibility_analysis.h"
 
 #include <cstdint>
+#include <memory>
 #include <optional>
+#include <queue>
 #include <utility>
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -40,38 +44,132 @@
 
 namespace xls {
 
-/* static */ absl::StatusOr<VisibilityAnalysis> VisibilityAnalysis::Create(
-    const NodeForwardDependencyAnalysis* nda,
-    BddQueryEngine* bdd_query_engine) {
+namespace {
+
+using OperandNode = OperandVisibilityAnalysis::OperandNode;
+
+}
+
+/* static */ absl::StatusOr<OperandVisibilityAnalysis>
+OperandVisibilityAnalysis::Create(const NodeForwardDependencyAnalysis* nda,
+                                  const BddQueryEngine* bdd_query_engine) {
   return Create(kDefaultTermLimitForNodeToUserEdge, nda, bdd_query_engine);
 }
-/* static */ absl::StatusOr<VisibilityAnalysis> VisibilityAnalysis::Create(
-    int64_t edge_term_limit, const NodeForwardDependencyAnalysis* nda,
-    BddQueryEngine* bdd_query_engine) {
+/* static */ absl::StatusOr<OperandVisibilityAnalysis>
+OperandVisibilityAnalysis::Create(int64_t edge_term_limit,
+                                  const NodeForwardDependencyAnalysis* nda,
+                                  const BddQueryEngine* bdd_query_engine) {
   FunctionBase* f = nda->bound_function();
   XLS_RET_CHECK_EQ(f, bdd_query_engine->info().bound_function());
-  VisibilityAnalysis visibility(edge_term_limit, nda, bdd_query_engine);
-  XLS_RETURN_IF_ERROR(visibility.Attach(f).status());
+  OperandVisibilityAnalysis op_vis(nda, bdd_query_engine, edge_term_limit);
+  XLS_RETURN_IF_ERROR(op_vis.Attach(f).status());
+  return op_vis;
+}
+
+OperandVisibilityAnalysis::~OperandVisibilityAnalysis() {
+  if (f_ != nullptr) {
+    f_->UnregisterChangeListener(this);
+  }
+  f_ = nullptr;
+  pair_to_op_vis_.clear();
+}
+
+OperandVisibilityAnalysis::OperandVisibilityAnalysis(
+    const NodeForwardDependencyAnalysis* nda,
+    const BddQueryEngine* bdd_query_engine, int64_t edge_term_limit)
+    : nda_(nda),
+      bdd_query_engine_(bdd_query_engine),
+      edge_term_limit_(edge_term_limit),
+      pair_to_op_vis_(),
+      f_(nullptr) {
+  CHECK(bdd_query_engine_ != nullptr);
+}
+
+OperandVisibilityAnalysis::OperandVisibilityAnalysis(
+    OperandVisibilityAnalysis&& other)
+    : nda_(other.nda_),
+      bdd_query_engine_(other.bdd_query_engine_),
+      edge_term_limit_(other.edge_term_limit_),
+      pair_to_op_vis_(std::move(other.pair_to_op_vis_)),
+      f_(other.f_) {
+  if (f_ != nullptr) {
+    f_->RegisterChangeListener(this);
+  }
+}
+
+OperandVisibilityAnalysis& OperandVisibilityAnalysis::operator=(
+    OperandVisibilityAnalysis&& other) {
+  if (f_ != other.f_) {
+    if (f_ != nullptr) {
+      f_->UnregisterChangeListener(this);
+    }
+    f_ = other.f_;
+    if (other.f_ != nullptr) {
+      other.f_->UnregisterChangeListener(&other);
+      other.f_ = nullptr;
+      f_->RegisterChangeListener(this);
+    }
+  }
+  nda_ = other.nda_;
+  bdd_query_engine_ = other.bdd_query_engine_;
+  edge_term_limit_ = other.edge_term_limit_;
+  pair_to_op_vis_ = std::move(other.pair_to_op_vis_);
+  return *this;
+}
+
+/* static */ absl::StatusOr<std::unique_ptr<VisibilityAnalysis>>
+VisibilityAnalysis::Create(const OperandVisibilityAnalysis* operand_vis,
+                           const BddQueryEngine* bdd_query_engine) {
+  return VisibilityAnalysis::Create(operand_vis, bdd_query_engine, {});
+}
+
+/* static */ absl::StatusOr<std::unique_ptr<VisibilityAnalysis>>
+VisibilityAnalysis::Create(const OperandVisibilityAnalysis* operand_vis,
+                           const BddQueryEngine* bdd_query_engine,
+                           absl::flat_hash_set<OperandNode> exclusions) {
+  FunctionBase* f = operand_vis->bound_function();
+  XLS_RET_CHECK_EQ(f, bdd_query_engine->info().bound_function());
+  std::unique_ptr<VisibilityAnalysis> visibility =
+      std::make_unique<VisibilityAnalysis>(operand_vis, bdd_query_engine,
+                                           exclusions);
+  XLS_RETURN_IF_ERROR(visibility->Attach(f).status());
   return std::move(visibility);
 }
 
-VisibilityAnalysis::VisibilityAnalysis(const NodeForwardDependencyAnalysis* nda,
-                                       BddQueryEngine* bdd_query_engine)
+VisibilityAnalysis::VisibilityAnalysis(
+    const OperandVisibilityAnalysis* operand_vis,
+    const BddQueryEngine* bdd_query_engine)
+    : VisibilityAnalysis(operand_vis, bdd_query_engine, {}) {}
+
+VisibilityAnalysis::VisibilityAnalysis(
+    const OperandVisibilityAnalysis* operand_vis,
+    const BddQueryEngine* bdd_query_engine,
+    absl::flat_hash_set<OperandNode> exclusions)
     : LazyNodeData<BddNodeIndex>(DagCacheInvalidateDirection::kInvalidatesBoth),
-      nda_(nda),
+      operand_visibility_(operand_vis),
       bdd_query_engine_(bdd_query_engine),
-      edge_term_limit_(kDefaultTermLimitForNodeToUserEdge) {
+      exclusions_(exclusions) {
+  CHECK(operand_visibility_ != nullptr);
   CHECK(bdd_query_engine_ != nullptr);
 }
 
-VisibilityAnalysis::VisibilityAnalysis(int64_t edge_term_limit,
-                                       const NodeForwardDependencyAnalysis* nda,
-                                       BddQueryEngine* bdd_query_engine)
-    : LazyNodeData<BddNodeIndex>(DagCacheInvalidateDirection::kInvalidatesBoth),
-      nda_(nda),
-      bdd_query_engine_(bdd_query_engine),
-      edge_term_limit_(edge_term_limit) {
-  CHECK(bdd_query_engine_ != nullptr);
+absl::StatusOr<ReachedFixpoint> OperandVisibilityAnalysis::Attach(
+    FunctionBase* f) {
+  ReachedFixpoint rf = ReachedFixpoint::Unchanged;
+  if (f_ != f) {
+    if (f_ != nullptr) {
+      f_->UnregisterChangeListener(this);
+      pair_to_op_vis_.clear();
+      rf = ReachedFixpoint::Changed;
+    }
+
+    if (f != nullptr) {
+      f_ = f;
+      f_->RegisterChangeListener(this);
+      rf = ReachedFixpoint::Changed;
+    }
+  }
+  return rf;
 }
 
 Node* TerminalPredicate(Node* node) {
@@ -84,14 +182,15 @@ Node* TerminalPredicate(Node* node) {
   return nullptr;
 }
 
-BddNodeIndex VisibilityAnalysis::GetNodeBit(Node* node,
-                                            uint32_t bit_index) const {
+BddNodeIndex OperandVisibilityAnalysis::GetNodeBit(Node* node,
+                                                   uint32_t bit_index) const {
   return bdd_query_engine_
       ->GetBddNodeOrVariable(TreeBitLocation(node, bit_index))
       .value_or(bdd_query_engine_->bdd().NewVariable());
 }
 
-std::vector<BddNodeIndex> VisibilityAnalysis::GetNodeBits(Node* node) const {
+std::vector<BddNodeIndex> OperandVisibilityAnalysis::GetNodeBits(
+    Node* node) const {
   std::vector<BddNodeIndex> bits;
   bits.reserve(node->BitCountOrDie());
   for (int i = 0; i < node->BitCountOrDie(); ++i) {
@@ -100,8 +199,8 @@ std::vector<BddNodeIndex> VisibilityAnalysis::GetNodeBits(Node* node) const {
   return bits;
 }
 
-std::vector<SaturatingBddNodeIndex> VisibilityAnalysis::GetSaturatingNodeBits(
-    Node* node) const {
+std::vector<SaturatingBddNodeIndex>
+OperandVisibilityAnalysis::GetSaturatingNodeBits(Node* node) const {
   std::vector<SaturatingBddNodeIndex> bits;
   bits.reserve(node->BitCountOrDie());
   for (int i = 0; i < node->BitCountOrDie(); ++i) {
@@ -110,7 +209,7 @@ std::vector<SaturatingBddNodeIndex> VisibilityAnalysis::GetSaturatingNodeBits(
   return bits;
 }
 
-bool VisibilityAnalysis::IsFullyUnconstrained(Node* node) const {
+bool OperandVisibilityAnalysis::IsFullyUnconstrained(Node* node) const {
   if (node->Is<Param>()) {
     return false;
   }
@@ -118,12 +217,15 @@ bool VisibilityAnalysis::IsFullyUnconstrained(Node* node) const {
 }
 
 BddNodeIndex OrAggregate(absl::Span<const BddNodeIndex> operands,
-                         BddQueryEngine* bdd_query_engine) {
+                         const BddQueryEngine* bdd_query_engine) {
   if (operands.empty()) {
-    return BddNodeIndex(-1);
+    return BinaryDecisionDiagram::kInfeasible;
   }
   BddNodeIndex result = operands[0];
   for (int i = 1; i < operands.size(); ++i) {
+    if (operands[i] == BinaryDecisionDiagram::kInfeasible) {
+      return BinaryDecisionDiagram::kInfeasible;
+    }
     result = bdd_query_engine->bdd().Or(result, operands[i]);
   }
   return result;
@@ -131,10 +233,10 @@ BddNodeIndex OrAggregate(absl::Span<const BddNodeIndex> operands,
 
 // Removes too expensive terms, relying on the fact that a subset of the terms
 // expresses a conservative and valid claim on visibility.
-BddNodeIndex VisibilityAnalysis::AndAggregateSubsetThatFitsTermLimit(
+BddNodeIndex OperandVisibilityAnalysis::AndAggregateSubsetThatFitsTermLimit(
     absl::Span<BddNodeIndex> operands) const {
   if (operands.empty()) {
-    return BddNodeIndex(-1);
+    return BinaryDecisionDiagram::kInfeasible;
   }
 
   // Sort from least to most expensive to maximize the number of terms kept.
@@ -145,6 +247,9 @@ BddNodeIndex VisibilityAnalysis::AndAggregateSubsetThatFitsTermLimit(
 
   BddNodeIndex result = operands[0];
   for (int i = 1; i < operands.size(); ++i) {
+    if (operands[i] == BinaryDecisionDiagram::kInfeasible) {
+      continue;
+    }
     BddNodeIndex next_result =
         bdd_query_engine_->bdd().And(result, operands[i]);
     if (bdd_query_engine_->bdd().path_count(next_result) > edge_term_limit_) {
@@ -155,7 +260,7 @@ BddNodeIndex VisibilityAnalysis::AndAggregateSubsetThatFitsTermLimit(
   return result;
 }
 
-BddNodeIndex VisibilityAnalysis::ConditionOfUseWithPrioritySelect(
+BddNodeIndex OperandVisibilityAnalysis::ConditionOfUseWithPrioritySelect(
     Node* node, PrioritySelect* select) const {
   BddNodeIndex always_used = bdd_query_engine_->bdd().one();
   Node* selector = select->selector();
@@ -192,7 +297,7 @@ BddNodeIndex VisibilityAnalysis::ConditionOfUseWithPrioritySelect(
   return OrAggregate(or_cases, bdd_query_engine_);
 }
 
-BddNodeIndex VisibilityAnalysis::ConditionOfUseWithSelect(
+BddNodeIndex OperandVisibilityAnalysis::ConditionOfUseWithSelect(
     Node* node, Select* select) const {
   auto& evaluator = bdd_query_engine_->evaluator();
   BddNodeIndex always_used = bdd_query_engine_->bdd().one();
@@ -233,7 +338,7 @@ BddNodeIndex VisibilityAnalysis::ConditionOfUseWithSelect(
   return OrAggregate(or_cases, bdd_query_engine_);
 }
 
-BddNodeIndex VisibilityAnalysis::ConditionOnPredicate(
+BddNodeIndex OperandVisibilityAnalysis::ConditionOnPredicate(
     std::optional<Node*> predicate) const {
   if (predicate.has_value() && predicate.value()->BitCountOrDie() == 1) {
     return GetNodeBit(predicate.value(), 0);
@@ -241,8 +346,8 @@ BddNodeIndex VisibilityAnalysis::ConditionOnPredicate(
   return bdd_query_engine_->bdd().one();
 }
 
-BddNodeIndex VisibilityAnalysis::ConditionOfUseWithAnd(Node* node,
-                                                       NaryOp* and_node) const {
+BddNodeIndex OperandVisibilityAnalysis::ConditionOfUseWithAnd(
+    Node* node, NaryOp* and_node) const {
   std::vector<BddNodeIndex> other_ops_not_zero;
   std::vector<std::vector<BddNodeIndex>> bits_not_zero_exprs(
       and_node->BitCountOrDie(), std::vector<BddNodeIndex>{});
@@ -283,16 +388,16 @@ BddNodeIndex VisibilityAnalysis::ConditionOfUseWithAnd(Node* node,
   }
   BddNodeIndex bitwise_aggregate =
       OrAggregate(bit_not_zero_aggregates, bdd_query_engine_);
-  if (bdd_query_engine_->bdd().path_count(bitwise_aggregate) <=
-      edge_term_limit_) {
-    return bitwise_aggregate;
-  }
-  return AndAggregateSubsetThatFitsTermLimit(
-      absl::MakeSpan(other_ops_not_zero));
+  BddNodeIndex opwise_aggregate =
+      AndAggregateSubsetThatFitsTermLimit(absl::MakeSpan(other_ops_not_zero));
+  return bdd_query_engine_->bdd().path_count(bitwise_aggregate) <
+                 bdd_query_engine_->bdd().path_count(opwise_aggregate)
+             ? bitwise_aggregate
+             : opwise_aggregate;
 }
 
-BddNodeIndex VisibilityAnalysis::ConditionOfUseWithOr(Node* node,
-                                                      NaryOp* or_node) const {
+BddNodeIndex OperandVisibilityAnalysis::ConditionOfUseWithOr(
+    Node* node, NaryOp* or_node) const {
   auto& bdd = bdd_query_engine_->bdd();
   auto& evaluator = bdd_query_engine_->evaluator();
   std::vector<BddNodeIndex> other_ops_not_ones;
@@ -339,15 +444,16 @@ BddNodeIndex VisibilityAnalysis::ConditionOfUseWithOr(Node* node,
   }
   BddNodeIndex bitwise_aggregate =
       OrAggregate(bit_not_ones_aggregates, bdd_query_engine_);
-  if (bdd_query_engine_->bdd().path_count(bitwise_aggregate) <=
-      edge_term_limit_) {
-    return bitwise_aggregate;
-  }
-  return AndAggregateSubsetThatFitsTermLimit(
-      absl::MakeSpan(other_ops_not_ones));
+  BddNodeIndex opwise_aggregate =
+      AndAggregateSubsetThatFitsTermLimit(absl::MakeSpan(other_ops_not_ones));
+  return bdd_query_engine_->bdd().path_count(bitwise_aggregate) <
+                 bdd_query_engine_->bdd().path_count(opwise_aggregate)
+             ? bitwise_aggregate
+             : opwise_aggregate;
 }
 
-BddNodeIndex VisibilityAnalysis::ConditionOfUse(Node* node, Node* user) const {
+BddNodeIndex OperandVisibilityAnalysis::ConditionOfUse(Node* node,
+                                                       Node* user) const {
   if (user->Is<PrioritySelect>()) {
     return ConditionOfUseWithPrioritySelect(node, user->As<PrioritySelect>());
   } else if (user->Is<Select>()) {
@@ -366,11 +472,70 @@ BddNodeIndex VisibilityAnalysis::ConditionOfUse(Node* node, Node* user) const {
   return bdd_query_engine_->bdd().one();
 }
 
+BddNodeIndex OperandVisibilityAnalysis::OperandVisibilityThroughNode(
+    Node* operand, Node* node) const {
+  OperandNode cache_key{operand, node};
+  return OperandVisibilityThroughNode(cache_key);
+}
+
+BddNodeIndex OperandVisibilityAnalysis::OperandVisibilityThroughNode(
+    OperandNode& pair) const {
+  if (auto it = pair_to_op_vis_.find(pair); it != pair_to_op_vis_.end()) {
+    return it->second;
+  }
+  BddNodeIndex node_uses_operand = ConditionOfUse(pair.operand, pair.node);
+  if (bdd_query_engine_->bdd().path_count(node_uses_operand) >
+      edge_term_limit_) {
+    node_uses_operand = bdd_query_engine_->bdd().one();
+  }
+  pair_to_op_vis_[pair] = node_uses_operand;
+  return node_uses_operand;
+}
+
+void OperandVisibilityAnalysis::NodeAdded(Node* node) {
+  // A new node has no users
+}
+
+void OperandVisibilityAnalysis::NodeDeleted(Node* node) {
+  // A deleted node has no users
+}
+
+void OperandVisibilityAnalysis::OperandChanged(
+    Node* node, Node* old_operand, absl::Span<const int64_t> operand_nos) {
+  if (node->users().empty()) {
+    for (auto operand : node->operands()) {
+      pair_to_op_vis_.erase({operand, node});
+    }
+    return;
+  }
+  pair_to_op_vis_.clear();
+}
+
+void OperandVisibilityAnalysis::OperandRemoved(Node* node, Node* old_operand) {
+  if (node->users().empty()) {
+    for (auto operand : node->operands()) {
+      pair_to_op_vis_.erase({operand, node});
+    }
+    return;
+  }
+  pair_to_op_vis_.clear();
+}
+
+void OperandVisibilityAnalysis::OperandAdded(Node* node) {
+  if (node->users().empty()) {
+    for (auto operand : node->operands()) {
+      pair_to_op_vis_.erase({operand, node});
+    }
+    return;
+  }
+  pair_to_op_vis_.clear();
+}
+
 BddNodeIndex VisibilityAnalysis::ComputeInfo(
     Node* node, absl::Span<const BddNodeIndex* const> user_infos) const {
   if (user_infos.empty()) {
-    Node* predicate = TerminalPredicate(node);
-    if (predicate && predicate->BitCountOrDie() == 1) {
+    if (Node* predicate = TerminalPredicate(node);
+        predicate && predicate->BitCountOrDie() == 1) {
       TreeBitLocation predicate_bit(predicate, 0);
       auto bdd_node = bdd_query_engine_->GetBddNode(predicate_bit);
       if (bdd_node.has_value()) {
@@ -392,9 +557,13 @@ BddNodeIndex VisibilityAnalysis::ComputeInfo(
 
   std::vector<BddNodeIndex> user_conditions;
   for (int i = 0; i < users.size(); ++i) {
-    BddNodeIndex user_uses_node = ConditionOfUse(node, users[i]);
-    if (bdd_query_engine_->bdd().path_count(user_uses_node) >
-        edge_term_limit_) {
+    if (exclusions_.contains({node, users[i]})) {
+      user_conditions.push_back(*user_infos[i]);
+      continue;
+    }
+    BddNodeIndex user_uses_node =
+        operand_visibility_->OperandVisibilityThroughNode(node, users[i]);
+    if (user_uses_node == bdd_query_engine_->bdd().one()) {
       user_conditions.push_back(*user_infos[i]);
       continue;
     }
@@ -411,8 +580,7 @@ BddNodeIndex VisibilityAnalysis::ComputeInfo(
 
 absl::Status VisibilityAnalysis::MergeWithGiven(
     BddNodeIndex& info, const BddNodeIndex& given) const {
-  if (info != bdd_query_engine_->bdd().zero() &&
-      info != bdd_query_engine_->bdd().one()) {
+  if (given != BinaryDecisionDiagram::kInfeasible) {
     info = given;
   }
   return absl::OkStatus();
@@ -420,27 +588,149 @@ absl::Status VisibilityAnalysis::MergeWithGiven(
 
 void VisibilityAnalysis::NodeAdded(Node* node) {
   LazyNodeData<BddNodeIndex>::NodeAdded(node);
-  ClearCache();
+  // On adding a node, normal invalidation is enough; dependency analysis does
+  // not impact visibility by modifying a terminal node.
 }
 void VisibilityAnalysis::NodeDeleted(Node* node) {
   LazyNodeData<BddNodeIndex>::NodeDeleted(node);
+  // On removing a node, normal invalidation is enough; dependency analysis does
+  // not impact visibility by modifying a terminal node.
+}
+
+void VisibilityAnalysis::UserAdded(Node* node, Node* user) {
+  LazyNodeData<BddNodeIndex>::UserAdded(node, user);
+  if (user->users().empty()) {
+    // On modifying a terminal node, normal invalidation is enough; dependency
+    // analysis does not impact visibility by modifying a terminal node.
+    return;
+  }
   ClearCache();
 }
 
-void VisibilityAnalysis::OperandChanged(Node* node, Node* old_operand,
-                                        absl::Span<const int64_t> operand_nos) {
-  LazyNodeData<BddNodeIndex>::OperandChanged(node, old_operand, operand_nos);
+void VisibilityAnalysis::UserRemoved(Node* node, Node* user) {
+  LazyNodeData<BddNodeIndex>::UserRemoved(node, user);
+  if (user->users().empty()) {
+    // On modifying a terminal node, normal invalidation is enough; dependency
+    // analysis does not impact visibility by modifying a terminal node.
+    return;
+  }
   ClearCache();
 }
 
-void VisibilityAnalysis::OperandRemoved(Node* node, Node* old_operand) {
-  LazyNodeData<BddNodeIndex>::OperandRemoved(node, old_operand);
-  ClearCache();
+bool OperandVisibilityAnalysis::IsVisibilityIndependentOf(
+    Node* operand, Node* node, std::vector<Node*>& sources) const {
+  std::vector<Node*> conditions;
+  if (node->Is<PrioritySelect>()) {
+    conditions.push_back(node->As<PrioritySelect>()->selector());
+  } else if (node->Is<Select>()) {
+    conditions.push_back(node->As<Select>()->selector());
+  } else if (node->Is<Send>() && node->As<Send>()->predicate().has_value()) {
+    conditions.push_back(*node->As<Send>()->predicate());
+  } else if (node->Is<Next>() && node->As<Next>()->predicate().has_value()) {
+    conditions.push_back(*node->As<Next>()->predicate());
+  } else if (node->op() == Op::kAnd || node->op() == Op::kOr) {
+    for (Node* other_op : node->operands()) {
+      if (other_op != operand) {
+        conditions.push_back(other_op);
+      }
+    }
+  } else {
+    return true;
+  }
+
+  for (Node* condition : conditions) {
+    for (Node* source : sources) {
+      if (nda_->IsDependent(source, condition)) {
+        return false;
+      }
+    }
+  }
+  return true;
 }
 
-void VisibilityAnalysis::OperandAdded(Node* node) {
-  LazyNodeData<BddNodeIndex>::OperandAdded(node);
-  ClearCache();
+absl::StatusOr<absl::flat_hash_set<OperandNode>>
+VisibilityAnalysis::GetEdgesForMutuallyExclusiveVisibilityExpr(
+    Node* one, absl::Span<Node* const> others) const {
+  std::vector<Node*> sources;
+  sources.reserve(others.size() + 1);
+  sources.push_back(one);
+  for (Node* other : others) {
+    sources.push_back(other);
+  }
+
+  // Populate edges by computing visibility
+  BddNodeIndex one_visible = *GetInfo(one);
+  std::queue<Node*> worklist;
+  worklist.push(one);
+  absl::flat_hash_set<Node*> visited = {one};
+  std::vector<OperandNode> edges;
+  while (!worklist.empty()) {
+    Node* node = worklist.front();
+    worklist.pop();
+    for (Node* user : node->users()) {
+      if (operand_visibility_->OperandVisibilityThroughNode(node, user) !=
+          bdd_query_engine_->bdd().one()) {
+        if (operand_visibility_->IsVisibilityIndependentOf(node, user,
+                                                           sources)) {
+          edges.push_back({node, user});
+        }
+      }
+      if (visited.contains(user)) {
+        continue;
+      }
+      visited.insert(user);
+      worklist.push(user);
+    }
+  }
+
+  BinaryDecisionDiagram& bdd = bdd_query_engine_->bdd();
+  // Heuristic: prefer pruning more complex edges first to reduce the chance
+  // they are disqualified later.
+  absl::c_sort(edges, [&](OperandNode a, OperandNode b) {
+    int64_t a_path =
+        bdd.path_count(operand_visibility_->OperandVisibilityThroughNode(a));
+    int64_t b_path =
+        bdd.path_count(operand_visibility_->OperandVisibilityThroughNode(b));
+    if (a_path == b_path) {
+      return a < b;
+    }
+    return a_path > b_path;
+  });
+
+  absl::flat_hash_set<OperandNode> kept_edges;
+  absl::flat_hash_set<OperandNode> exclusions;
+  std::vector<BddNodeIndex> others_visible;
+  others_visible.reserve(others.size());
+  for (Node* other : others) {
+    others_visible.push_back(*GetInfo(other));
+  }
+
+  for (auto& edge : edges) {
+    exclusions.insert(edge);
+    XLS_ASSIGN_OR_RETURN(
+        auto simplified_vis,
+        VisibilityAnalysis::Create(operand_visibility_, bdd_query_engine_,
+                                   exclusions));
+    BddNodeIndex vis_expr = *simplified_vis->GetInfo(one);
+    if (bdd.Implies(one_visible, vis_expr) == bdd.one()) {
+      bool implies_others_invisible = true;
+      for (BddNodeIndex other_visible : others_visible) {
+        if (bdd.Implies(vis_expr, bdd.Not(other_visible)) != bdd.one()) {
+          implies_others_invisible = false;
+          break;
+        }
+      }
+      if (implies_others_invisible) {
+        continue;
+      }
+    }
+
+    // The edge is needed to ensure the visibility expression is true if 'one'
+    // is visible and NOT true when any 'other' is visible.
+    exclusions.erase(edge);
+    kept_edges.insert(edge);
+  }
+  return kept_edges;
 }
 
 }  // namespace xls
