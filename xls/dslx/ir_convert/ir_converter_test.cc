@@ -6684,6 +6684,37 @@ proc first {
   ExpectIr(converted);
 }
 
+TEST_F(ProcScopedChannelsIrConverterTest, DestructuredLetInConfigProhibited) {
+  constexpr std::string_view program = R"(
+proc Second {
+  init { }
+  config(outs: chan<u32> out, ins: chan<u32> in) { () }
+  next(_: ()) { () }
+}
+
+proc First {
+  init { }
+  config() {
+    let (outs, ins) = chan<u32>[2]("the_channel");
+    let (outs0, ins1) = (outs[0], ins[1]); // prohibited
+    spawn Second(outs0, ins1);
+  }
+  next(_: ()) { () }
+}
+)";
+
+  EXPECT_THAT(
+      ConvertOneFunctionForTest(program, "First", kProcScopedChannelOptions),
+      StatusIs(absl::StatusCode::kUnimplemented,
+               "Destructuring let bindings are not yet supported in "
+               "Proc config methods."));
+  // Run with global channels
+  EXPECT_THAT(ConvertOneFunctionForTest(program, "First", kNoPosOptions),
+              StatusIs(absl::StatusCode::kUnimplemented,
+                       "Destructuring let bindings are not yet supported in "
+                       "Proc configs."));
+}
+
 constexpr std::string_view kParametricDefaultClog2 = R"(
 import std;
 

@@ -1020,6 +1020,12 @@ absl::Status FunctionConverter::HandleLet(const Let* node) {
     XLS_RETURN_IF_ERROR(
         DefAlias(node->rhs(), /*to=*/ToAstNode(node->name_def_tree()->leaf())));
   } else {
+    if (current_fn_tag_ == FunctionTag::kProcConfig) {
+      return absl::UnimplementedError(
+          "Destructuring let bindings are not yet supported in Proc "
+          "config methods.");
+    }
+
     // TODO: https://github.com/google/xls/issues/1459 - Rewrite this to be
     // actually recursive (instead of "effectively recursive" via the `levels`
     // and `delta_at_level` vectors).
