@@ -24,12 +24,15 @@
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc_conversion.h"
 #include "xls/ir/value.h"
 #include "xls/passes/cse_pass.h"
 #include "xls/passes/dce_pass.h"
@@ -59,7 +62,9 @@ class SimplificationPass : public OptimizationCompoundPass {
   }
 };
 
-class ProcStateLegalizationPassTest : public IrTestBase {
+class ProcStateLegalizationPassTest
+    : public IrTestBase,
+      public ::testing::WithParamInterface<bool> {
  protected:
   ProcStateLegalizationPassTest() = default;
 
@@ -68,53 +73,63 @@ class ProcStateLegalizationPassTest : public IrTestBase {
     PassResults results;
     SchedulingContext context = SchedulingContext::CreateForSingleFunction(f);
     PassResults scheduling_results;
+    if (GetParam()) {
+      XLS_RET_CHECK(!f->package()->ChannelsAreProcScoped())
+          << "If channels are proc-scoped by default, remove this "
+             "parameter value";
+      XLS_RETURN_IF_ERROR(ConvertPackageToNewStyleProcs(f->package()));
+    }
     return ProcStateLegalizationPass().RunOnFunctionBase(
         f, options, &scheduling_results, context);
   }
 };
 
-TEST_F(ProcStateLegalizationPassTest, StatelessProc) {
+TEST_P(ProcStateLegalizationPassTest, StatelessProc) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(p->SetTop(proc));
 
   ASSERT_THAT(Run(proc), IsOkAndHolds(false));
 }
 
-TEST_F(ProcStateLegalizationPassTest, ProcWithUnchangingState) {
+TEST_P(ProcStateLegalizationPassTest, ProcWithUnchangingState) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 32)));
   BValue y = pb.StateElement("y", Value(UBits(0, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({x, y}));
+  XLS_ASSERT_OK(p->SetTop(proc));
 
   ASSERT_THAT(Run(proc), IsOkAndHolds(false));
   EXPECT_THAT(proc->nodes(), Each(Not(m::Assert())));
 }
 
-TEST_F(ProcStateLegalizationPassTest, ProcWithChangingState) {
+TEST_P(ProcStateLegalizationPassTest, ProcWithChangingState) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 32)));
   BValue y = pb.StateElement("y", Value(UBits(0, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({y, x}));
+  XLS_ASSERT_OK(p->SetTop(proc));
 
   ASSERT_THAT(Run(proc), IsOkAndHolds(false));
   EXPECT_THAT(proc->nodes(), Each(Not(m::Assert())));
 }
 
-TEST_F(ProcStateLegalizationPassTest, ProcWithUnconditionalNextValue) {
+TEST_P(ProcStateLegalizationPassTest, ProcWithUnconditionalNextValue) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 32)));
   BValue incremented = pb.Add(x, pb.Literal(UBits(1, 32)));
   pb.Next(x, incremented);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(p->SetTop(proc));
 
   ASSERT_THAT(Run(proc), IsOkAndHolds(false));
 }
 
-TEST_F(ProcStateLegalizationPassTest, ProcWithPredicatedNextValue) {
+TEST_P(ProcStateLegalizationPassTest, ProcWithPredicatedNextValue) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 32)));
@@ -122,6 +137,7 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithPredicatedNextValue) {
   BValue predicate = pb.Eq(x, pb.Literal(UBits(0, 32)));
   pb.Next(x, incremented, predicate);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(p->SetTop(proc));
 
   ASSERT_THAT(Run(proc), IsOkAndHolds(true));
 
@@ -132,7 +148,7 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithPredicatedNextValue) {
   EXPECT_THAT(proc->nodes(), Not(Contains(m::Assert())));
 }
 
-TEST_F(ProcStateLegalizationPassTest, ProcWithPredicatedNextValueAndDefault) {
+TEST_P(ProcStateLegalizationPassTest, ProcWithPredicatedNextValueAndDefault) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 32)));
@@ -141,6 +157,7 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithPredicatedNextValueAndDefault) {
   pb.Next(x, incremented, predicate);
   pb.Next(x, x, pb.Not(predicate));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(p->SetTop(proc));
 
   ASSERT_THAT(Run(proc), IsOkAndHolds(true));
   EXPECT_THAT(proc->next_values(),
@@ -158,7 +175,7 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithPredicatedNextValueAndDefault) {
                    m::BitSlice(m::OneHot(m::Concat()))))));
 }
 
-TEST_F(ProcStateLegalizationPassTest, ProcWithMultiplePredicatedNextValues) {
+TEST_P(ProcStateLegalizationPassTest, ProcWithMultiplePredicatedNextValues) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 32)));
@@ -169,6 +186,7 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithMultiplePredicatedNextValues) {
   pb.Next(x, incremented, predicate1);
   pb.Next(x, decremented, predicate2);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(p->SetTop(proc));
 
   ASSERT_THAT(Run(proc), IsOkAndHolds(true));
 
@@ -188,7 +206,7 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithMultiplePredicatedNextValues) {
                            m::BitSlice(m::OneHot(m::Concat()))))));
 }
 
-TEST_F(ProcStateLegalizationPassTest,
+TEST_P(ProcStateLegalizationPassTest,
        ProcWithMultiplePredicatedNextValuesAndDefault) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
@@ -201,6 +219,7 @@ TEST_F(ProcStateLegalizationPassTest,
   pb.Next(x, incremented, predicate1);
   pb.Next(x, decremented, predicate2);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(p->SetTop(proc));
 
   ASSERT_THAT(Run(proc), IsOkAndHolds(true));
   EXPECT_THAT(proc->next_values(),
@@ -223,7 +242,7 @@ TEST_F(ProcStateLegalizationPassTest,
                    m::BitSlice(m::OneHot(m::Concat()))))));
 }
 
-TEST_F(ProcStateLegalizationPassTest,
+TEST_P(ProcStateLegalizationPassTest,
        ProcWithNoExplicitDefaultNeededAndZ3Enabled) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
@@ -234,6 +253,7 @@ TEST_F(ProcStateLegalizationPassTest,
   BValue negative_predicate = pb.Ne(x, pb.Literal(UBits(5, 32)));
   pb.Next(x, incremented, negative_predicate);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(p->SetTop(proc));
 
   ASSERT_THAT(
       Run(proc, {.scheduling_options =
@@ -254,7 +274,7 @@ TEST_F(ProcStateLegalizationPassTest,
                                     m::BitSlice(m::OneHot(m::Concat()))))));
 }
 
-TEST_F(ProcStateLegalizationPassTest,
+TEST_P(ProcStateLegalizationPassTest,
        ProcWithNoExplicitDefaultNeededButZ3Disabled) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
@@ -265,6 +285,7 @@ TEST_F(ProcStateLegalizationPassTest,
   BValue negative_predicate = pb.Ne(x, pb.Literal(UBits(5, 32)));
   pb.Next(x, incremented, negative_predicate);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(p->SetTop(proc));
 
   ASSERT_THAT(Run(proc), IsOkAndHolds(true));
 
@@ -286,7 +307,7 @@ TEST_F(ProcStateLegalizationPassTest,
                                     m::BitSlice(m::OneHot(m::Concat()))))));
 }
 
-TEST_F(ProcStateLegalizationPassTest,
+TEST_P(ProcStateLegalizationPassTest,
        ProcWithPredicatedNextValueAndSmallRlimit) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
@@ -295,6 +316,7 @@ TEST_F(ProcStateLegalizationPassTest,
   BValue predicate = pb.Eq(x, pb.Literal(UBits(0, 32)));
   pb.Next(x, incremented, predicate);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(p->SetTop(proc));
 
   ASSERT_THAT(
       Run(proc, {.scheduling_options =
@@ -308,7 +330,7 @@ TEST_F(ProcStateLegalizationPassTest,
   EXPECT_THAT(proc->nodes(), Not(Contains(m::Assert())));
 }
 
-TEST_F(ProcStateLegalizationPassTest,
+TEST_P(ProcStateLegalizationPassTest,
        ProcWithNoExplicitDefaultNeededButSmallRlimit) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
@@ -319,6 +341,7 @@ TEST_F(ProcStateLegalizationPassTest,
   BValue negative_predicate = pb.Ne(x, pb.Literal(UBits(5, 32)));
   pb.Next(x, incremented, negative_predicate);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(p->SetTop(proc));
 
   ASSERT_THAT(
       Run(proc, {.scheduling_options =
@@ -343,7 +366,7 @@ TEST_F(ProcStateLegalizationPassTest,
                                     m::BitSlice(m::OneHot(m::Concat()))))));
 }
 
-TEST_F(ProcStateLegalizationPassTest, ProcWithPredicatedStateRead) {
+TEST_P(ProcStateLegalizationPassTest, ProcWithPredicatedStateRead) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 32)));
@@ -356,6 +379,7 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithPredicatedStateRead) {
   pb.Next(x, pb.Add(x, pb.Literal(UBits(1, 32))));
   pb.Next(y, pb.Add(y, pb.Literal(UBits(1, 32))), x_multiple_of_3);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(p->SetTop(proc));
 
   ScopedRecordIr sri(p.get());
   ASSERT_THAT(Run(proc), IsOkAndHolds(true));
@@ -395,7 +419,7 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithPredicatedStateRead) {
                                 m::Literal(0)))))));
 }
 
-TEST_F(ProcStateLegalizationPassTest,
+TEST_P(ProcStateLegalizationPassTest,
        ProcWithPredicatedStateReadAndPotentialCycle) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
@@ -412,6 +436,7 @@ TEST_F(ProcStateLegalizationPassTest,
   pb.Next(y, pb.Add(y, pb.Literal(UBits(1, 32))),
           pb.And(x_multiple_of_3, y_even));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(p->SetTop(proc));
 
   ScopedRecordIr sri(p.get());
   ASSERT_THAT(Run(proc), IsOkAndHolds(true));
@@ -464,7 +489,7 @@ TEST_F(ProcStateLegalizationPassTest,
                                     m::Literal(0))))))));
 }
 
-TEST_F(ProcStateLegalizationPassTest,
+TEST_P(ProcStateLegalizationPassTest,
        ProcWithCorrectlyPredicatedStateReadAndNoDefaultNextNeeded) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
@@ -479,6 +504,7 @@ TEST_F(ProcStateLegalizationPassTest,
   pb.Next(y, pb.Add(y, pb.Literal(UBits(1, 32))), x_multiple_of_3);
   pb.Next(y, y, x_not_multiple_of_3);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(p->SetTop(proc));
 
   ScopedRecordIr sri(p.get());
   ASSERT_THAT(Run(proc), IsOkAndHolds(true));
@@ -516,6 +542,10 @@ TEST_F(ProcStateLegalizationPassTest,
                                  m::UMod(m::StateRead("x"), m::Literal(3)),
                                  m::Literal(0))))))));
 }
+
+INSTANTIATE_TEST_SUITE_P(ProcStateLegalizationPassTestSuite,
+                         ProcStateLegalizationPassTest,
+                         testing::Values(false, true));
 
 }  // namespace
 }  // namespace xls
