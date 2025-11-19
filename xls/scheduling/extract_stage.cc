@@ -51,6 +51,15 @@ absl::StatusOr<Function*> ExtractStage(FunctionBase* src,
       for (Node* operand : node->operands()) {
         if (node_map.contains(operand)) {
           new_operands.push_back(node_map.at(operand));
+        } else if (operand->Is<Literal>()) {
+          // Literals are "untimed", so we haven't added them yet. We don't want
+          // to treat literals as parameters because they are specialized in the
+          // delay model. Clone literals on demand.
+          Node* new_literal = new_f->AddNode(std::make_unique<Literal>(
+              operand->loc(), operand->As<Literal>()->value(),
+              operand->GetName(), new_f.get()));
+          node_map[operand] = new_literal;
+          new_operands.push_back(new_literal);
         } else {
           Node* new_param = new_f->AddNode(
               std::make_unique<Param>(operand->loc(), operand->GetType(),
@@ -71,6 +80,14 @@ absl::StatusOr<Function*> ExtractStage(FunctionBase* src,
       } else {
         XLS_ASSIGN_OR_RETURN(
             new_node, node->CloneInNewFunction(new_operands, new_f.get()));
+        if (new_node->GetName() != node->GetName()) {
+          // When cloning nodes without names, we can and will end up with
+          // different ids. Because we're in the same package, we don't really
+          // want to set the new node's id to the name of the old node. As a
+          // compromise, we set the new node's name to the old node's name,
+          // which includes the id but has an underscore instead of a period.
+          new_node->SetName(node->GetName());
+        }
       }
       node_map[node] = new_node;
       // NB This checks whether the value is *USED* by a send or next and
