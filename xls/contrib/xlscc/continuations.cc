@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <algorithm>
 #include <cstdint>
 #include <list>
 #include <memory>
@@ -852,29 +853,24 @@ absl::Status RemovePassThroughs(GeneratedFunction& func, bool& changed,
   absl::flat_hash_map<ContinuationInput*, GeneratedFunctionSlice*>
       slice_by_continuation_input;
 
-  auto update_maps = [&]() {
-    continuation_inputs_by_input_node.clear();
-    continuation_inputs_by_output_node.clear();
-    slice_by_continuation_input.clear();
-
-    for (GeneratedFunctionSlice& slice : func.slices) {
-      for (ContinuationInput& continuation_in : slice.continuations_in) {
-        continuation_inputs_by_input_node[continuation_in.input_node].push_back(
-            &continuation_in);
-
-        continuation_inputs_by_output_node[continuation_in.continuation_out
-                                               ->output_node]
-            .push_back(&continuation_in);
-
-        CHECK(continuation_in.input_node->GetType()->IsEqualTo(
-            continuation_in.continuation_out->output_node->GetType()));
-
-        slice_by_continuation_input[&continuation_in] = &slice;
-      }
+  // Initialize the maps. They will be updated as we go.
+  for (GeneratedFunctionSlice& slice : func.slices) {
+    for (ContinuationInput& continuation_in : slice.continuations_in) {
+      continuation_inputs_by_input_node[continuation_in.input_node].push_back(
+          &continuation_in);
+      slice_by_continuation_input[&continuation_in] = &slice;
+      continuation_inputs_by_output_node[continuation_in.continuation_out
+                                             ->output_node]
+          .push_back(&continuation_in);
     }
-  };
+  }
 
-  update_maps();
+  auto remove_input_from_vector = [](std::vector<ContinuationInput*>& vec,
+                                     ContinuationInput* input) {
+    auto it = std::find(vec.begin(), vec.end(), input);
+    CHECK(it != vec.end());
+    vec.erase(it);
+  };
 
   for (GeneratedFunctionSlice& slice : func.slices) {
     for (ContinuationValue& continuation_out : slice.continuations_out) {
@@ -904,11 +900,10 @@ absl::Status RemovePassThroughs(GeneratedFunction& func, bool& changed,
 
       CHECK(continuation_inputs_by_output_node.contains(
           continuation_out.output_node));
+      // Copy this so that we can mutate the maps
       std::vector<ContinuationInput*> pass_through_to_inputs =
           continuation_inputs_by_output_node.at(continuation_out.output_node);
       CHECK_GE(pass_through_to_inputs.size(), 1);
-
-      bool maps_out_of_date = false;
 
       // In the case of phis, optimization can end up with a slice passing
       // through to itself, need to break the cycle by deleting this
@@ -920,19 +915,21 @@ absl::Status RemovePassThroughs(GeneratedFunction& func, bool& changed,
           continue;
         }
 
-        const int64_t prev_num = slice.continuations_in.size();
-        slice.continuations_in.remove_if(
-            [pass_through_to_input](const ContinuationInput& input) -> bool {
-              return &input == pass_through_to_input;
-            });
-        CHECK_EQ(slice.continuations_in.size(), prev_num - 1);
+        for (auto it = slice.continuations_in.begin();
+             it != slice.continuations_in.end(); ++it) {
+          ContinuationInput& input = *it;
+          if (&input == pass_through_to_input) {
+            slice_by_continuation_input.erase(&input);
+            remove_input_from_vector(
+                continuation_inputs_by_input_node.at(input.input_node), &input);
+            remove_input_from_vector(continuation_inputs_by_output_node.at(
+                                         input.continuation_out->output_node),
+                                     &input);
+            slice.continuations_in.erase(it);
+            break;
+          }
+        }
         changed = true;
-        maps_out_of_date = true;
-      }
-
-      if (maps_out_of_date) {
-        update_maps();
-        maps_out_of_date = false;
       }
 
       if (!continuation_inputs_by_output_node.contains(
@@ -954,7 +951,8 @@ absl::Status RemovePassThroughs(GeneratedFunction& func, bool& changed,
             *pass_through_to_input;
 
         // Get all the inputs that use this parameter
-        const std::vector<ContinuationInput*>& this_slice_inputs =
+        // Copy this so that we can mutate the maps
+        const std::vector<ContinuationInput*> this_slice_inputs =
             continuation_inputs_by_input_node.at(pass_in_param);
 
         CHECK(!this_slice_inputs.empty());
@@ -962,7 +960,7 @@ absl::Status RemovePassThroughs(GeneratedFunction& func, bool& changed,
         // The first input can simply be forwarded without creating new
         // downstream inputs
         auto this_slice_inputs_it = this_slice_inputs.begin();
-        ContinuationInput* first_this_slice_input = *this_slice_inputs_it;
+        const ContinuationInput* first_this_slice_input = *this_slice_inputs_it;
 
         CHECK_NE(pass_through_to_input->input_node, pass_in_param);
         CHECK_NE(first_this_slice_input->continuation_out, &continuation_out);
@@ -995,27 +993,30 @@ absl::Status RemovePassThroughs(GeneratedFunction& func, bool& changed,
         for (++this_slice_inputs_it;
              this_slice_inputs_it != this_slice_inputs.end();
              ++this_slice_inputs_it) {
-          ContinuationInput* this_slice_input = *this_slice_inputs_it;
+          const ContinuationInput* this_slice_input = *this_slice_inputs_it;
           CHECK(slice_by_continuation_input.contains(this_slice_input));
 
           CHECK_NE(pass_through_to_input->input_node, pass_in_param);
           CHECK_NE(this_slice_input->continuation_out, &continuation_out);
 
           ContinuationInput new_input = pass_through_to_input_org;
+
           new_input.continuation_out = this_slice_input->continuation_out;
+
           downstream_slice->continuations_in.push_back(new_input);
+          ContinuationInput* new_input_ptr =
+              &downstream_slice->continuations_in.back();
+          slice_by_continuation_input[new_input_ptr] = downstream_slice;
+          continuation_inputs_by_input_node[new_input_ptr->input_node]
+              .push_back(new_input_ptr);
+          continuation_inputs_by_output_node[new_input_ptr->continuation_out
+                                                 ->output_node]
+              .push_back(new_input_ptr);
           changed = true;
-          maps_out_of_date = true;
         }
       }
 
-      // Don't invalidate pass_through_to_inputs inside the loop
       continuation_inputs_by_output_node.erase(continuation_out.output_node);
-
-      if (maps_out_of_date) {
-        update_maps();
-        maps_out_of_date = false;
-      }
     }
   }
 
