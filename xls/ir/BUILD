@@ -743,8 +743,14 @@ cc_test(
 
 cc_library(
     name = "function_builder",
-    srcs = ["function_builder.cc"],
-    hdrs = ["function_builder.h"],
+    srcs = [
+        "function_builder.cc",
+        "scheduled_builder.cc",
+    ],
+    hdrs = [
+        "function_builder.h",
+        "scheduled_builder.h",
+    ],
     deps = [
         ":bits",
         ":channel",
@@ -764,6 +770,8 @@ cc_library(
         "//xls/common:symbolized_stacktrace",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/memory",
@@ -777,7 +785,10 @@ cc_library(
 
 cc_test(
     name = "function_builder_test",
-    srcs = ["function_builder_test.cc"],
+    srcs = [
+        "function_builder_test.cc",
+        "scheduled_builder_test.cc",
+    ],
     deps = [
         ":bits",
         ":channel_ops",
@@ -786,6 +797,7 @@ cc_test(
         ":function_builder",
         ":ir",
         ":ir_matcher",
+        ":ir_test_base",
         ":node_util",
         ":op",
         ":register",
@@ -1202,10 +1214,8 @@ cc_test(
         ":source_location",
         ":type",
         ":value",
-        "//xls/common:casts",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -1839,10 +1849,8 @@ cc_test(
         ":op",
         ":source_location",
         ":value",
-        "//xls/common:casts",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",

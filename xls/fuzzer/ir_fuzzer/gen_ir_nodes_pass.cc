@@ -31,13 +31,13 @@
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_helpers.h"
 #include "xls/fuzzer/ir_fuzzer/ir_node_context_list.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_flattening.h"
-#include "xls/ir/value_utils.h"
 
 namespace xls {
 

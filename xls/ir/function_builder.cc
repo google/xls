@@ -107,6 +107,7 @@ BValue BValue::operator+(BValue rhs) { return builder()->Add(*this, rhs); }
 BValue BValue::operator-() { return builder()->Negate(*this); }
 
 BValue BuilderBase::CreateBValue(Node* node, const SourceInfo& loc) {
+  OnNodeAdded(node);
   last_node_ = node;
   if (should_verify_) {
     absl::Status verify_status = VerifyNode(last_node_);

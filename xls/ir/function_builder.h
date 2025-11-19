@@ -41,7 +41,6 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/foreign_function_data.pb.h"
 #include "xls/ir/format_strings.h"
-#include "xls/ir/function.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/nodes.h"
@@ -664,6 +663,9 @@ class BuilderBase {
  protected:
   BValue SetError(std::string_view msg, const SourceInfo& loc);
   bool ErrorPending() const { return error_pending_; }
+
+  // Invoked as a callback after a node is added via AddNode.
+  virtual void OnNodeAdded(Node* node) {}
 
   // Constructs and adds a node to the function and returns a corresponding
   // BValue.

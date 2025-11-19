@@ -47,6 +47,7 @@
 #include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/dfs_visitor.h"
+#include "xls/ir/function.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
