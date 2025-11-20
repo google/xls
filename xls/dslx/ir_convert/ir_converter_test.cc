@@ -954,6 +954,28 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, Conditional) {
   ExpectIr(converted);
 }
 
+TEST_P(IrConverterWithBothTypecheckVersionsTest, ConstConditional) {
+  if (GetParam() != TypeInferenceVersion::kVersion2) {
+    // TIV1 does not support constexpr if
+    return;
+  }
+
+  constexpr std::string_view program =
+      R"(
+fn main() -> u32 {
+  const if true {
+    u16:42
+  } else {
+    u8:24
+  } as u32
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
+
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ConditionalsPlusStuff) {
   constexpr std::string_view program =
       R"(
