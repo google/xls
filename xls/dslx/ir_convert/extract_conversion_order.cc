@@ -347,6 +347,18 @@ class InvocationVisitor : public ExprVisitor {
   }
 
   absl::Status HandleConditional(const Conditional* expr) override {
+    // constexpr if selects only one branch of the if to handle
+    if (expr->IsConst()) {
+      XLS_ASSIGN_OR_RETURN(InterpValue test_value,
+                           type_info_->GetConstExpr(expr->test()));
+      if (test_value.IsTrue()) {
+        XLS_RETURN_IF_ERROR(expr->consequent()->AcceptExpr(this));
+      } else {
+        XLS_RETURN_IF_ERROR(ToExprNode(expr->alternate())->AcceptExpr(this));
+      }
+      return absl::OkStatus();
+    }
+
     XLS_RETURN_IF_ERROR(expr->test()->AcceptExpr(this));
     XLS_RETURN_IF_ERROR(expr->consequent()->AcceptExpr(this));
     return ToExprNode(expr->alternate())->AcceptExpr(this);

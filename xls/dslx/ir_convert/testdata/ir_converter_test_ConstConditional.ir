@@ -1,0 +1,8 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn __test_module__main() -> bits[32] {
+  literal.1: bits[16] = literal(value=42, id=1)
+  ret zero_ext.2: bits[32] = zero_ext(literal.1, new_bit_count=32, id=2)
+}
