@@ -17,6 +17,7 @@
 
 #include <memory>
 
+#include "absl/status/statusor.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/scheduling/scheduling_pass.h"
@@ -24,8 +25,9 @@
 namespace xls {
 
 // Returns the scheduling pass pipeline which runs on a package.
-std::unique_ptr<SchedulingCompoundPass> CreateSchedulingPassPipeline(
-    OptimizationContext& context, const SchedulingOptions& options);
+absl::StatusOr<std::unique_ptr<SchedulingCompoundPass>>
+CreateSchedulingPassPipeline(OptimizationContext& context,
+                             const SchedulingOptions& options);
 
 }  // namespace xls
 

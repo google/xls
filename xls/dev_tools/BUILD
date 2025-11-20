@@ -696,6 +696,7 @@ cc_binary(
         "//xls/estimators/delay_model:delay_estimator",
         "//xls/ir",
         "//xls/ir:ir_parser",
+        "//xls/passes",
         "//xls/scheduling:pipeline_schedule",
         "//xls/scheduling:scheduling_options",
         "//xls/scheduling:scheduling_result",

@@ -120,8 +120,10 @@ class SideEffectConditionPassTest
       SchedulingOptions scheduling_options = kDefaultSchedulingOptions) {
     // First, schedule.
     OptimizationContext optimization_context;
-    std::unique_ptr<SchedulingPass> scheduling_pipeline =
-        CreateSchedulingPassPipeline(optimization_context, scheduling_options);
+    XLS_ASSIGN_OR_RETURN(
+        std::unique_ptr<SchedulingPass> scheduling_pipeline,
+        CreateSchedulingPassPipeline(optimization_context, scheduling_options),
+        _ << "Unable to create scheduling pass pipeline");
     XLS_RET_CHECK(p->GetTop().has_value());
     FunctionBase* top = p->GetTop().value();
     auto scheduling_context =
