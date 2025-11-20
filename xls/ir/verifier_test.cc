@@ -15,6 +15,7 @@
 #include "xls/ir/verifier.h"
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -424,6 +425,30 @@ proc my_proc(t: token, s: bits[32], init={token, 45}) {
           HasSubstr("Channel 'ch' (id 42) has no associated receive node")));
 }
 
+TEST_F(VerifierTest, ProcScopedChannelReceiveOnSendOnlyChannel) {
+  Package package("test_package");
+  Type* u32 = package.GetBitsType(32);
+  // Build without verification because we are intentionally creating IR
+  // which should fail verification.
+  ProcBuilder pb(NewStyleProc{}, "SendOnly", &package,
+                 /*should_verify=*/false);
+  XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * send_ch,
+                           pb.AddOutputChannel("send_ch", u32));
+
+  // Manually add a receive node because ProcBuilder::Receive does not
+  // accept a SendChannelInterface.
+  pb.proc()->AddNode(std::make_unique<Receive>(
+      SourceInfo(), pb.Literal(Value::Token()).node(),
+      /*predicate=*/std::nullopt, send_ch->name(), /*is_blocking=*/true,
+      /*name=*/"receive_on_send_only", pb.proc()));
+
+  XLS_ASSERT_OK(pb.Build().status());
+  EXPECT_THAT(VerifyPackage(&package),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("No receivable channel named `send_ch`, node "
+                                 "receive_on_send_only")));
+}
+
 TEST_F(VerifierTest, SendOnReceiveOnlyChannel) {
   std::string input = R"(
 package test_package
@@ -444,6 +469,66 @@ proc my_proc(t: token, s: bits[42], init={token, 45}) {
       StatusIs(
           absl::StatusCode::kInternal,
           HasSubstr("Cannot send over channel ch, send operation: send.1")));
+}
+
+TEST_F(VerifierTest, ProcScopedChannelSendOnReceiveOnlyProc) {
+  Package package("test_package");
+  Type* u32 = package.GetBitsType(32);
+  // Build without verification because we are intentionally creating IR
+  // which should fail verification.
+  ProcBuilder pb(NewStyleProc{}, "ReceiveOnly", &package,
+                 /*should_verify=*/false);
+  XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * receive_ch,
+                           pb.AddInputChannel("receive_ch", u32));
+
+  // Manually add a send node because ProcBuilder::Send does not
+  // accept a ReceiveChannelInterface.
+  pb.proc()->AddNode(
+      std::make_unique<Send>(SourceInfo(), pb.Literal(Value::Token()).node(),
+                             pb.Literal(UBits(0, 32)).node(),
+                             /*predicate=*/std::nullopt, receive_ch->name(),
+                             /*name=*/"send_on_recv_only", pb.proc()));
+
+  XLS_ASSERT_OK(pb.Build().status());
+  EXPECT_THAT(VerifyPackage(&package),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("No sendable channel named `receive_ch`, node "
+                                 "send_on_recv_only")));
+}
+
+TEST_F(VerifierTest, ProcScopedChannelDirectionMismatch) {
+  Package package("test_package");
+  Type* u32 = package.GetBitsType(32);
+  Proc* sender_proc;
+  {
+    ProcBuilder pb(NewStyleProc{}, "sender", &package);
+    XLS_ASSERT_OK_AND_ASSIGN(auto* ch, pb.AddOutputChannel("out", u32));
+    pb.Send(ch, pb.Literal(Value::Token()), pb.Literal(UBits(0, 32)));
+    XLS_ASSERT_OK_AND_ASSIGN(sender_proc, pb.Build({}));
+  }
+
+  {
+    ProcBuilder pb(NewStyleProc{}, "top_proc", &package,
+                   /*should_verify=*/false);
+    XLS_ASSERT_OK_AND_ASSIGN(ChannelWithInterfaces int_ch,
+                             pb.AddChannel("ch", u32));
+    // Instantiate sender with receive interface of channel, should fail
+    // direction check because sender expects send channel interface.
+    XLS_ASSERT_OK(pb.InstantiateProc("sender_inst", sender_proc,
+                                     {int_ch.receive_interface}));
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc, pb.Build({}));
+    XLS_ASSERT_OK(package.SetTop(top_proc));
+  }
+  EXPECT_THAT(
+      VerifyPackage(&package),
+      StatusIs(
+          absl::StatusCode::kInternal,
+          AllOf(
+              HasSubstr(
+                  "In proc instantiation `sender_inst` in proc `top_proc`"),
+              HasSubstr(
+                  "expected direction of channel argument 0 (`ch`) to be send, "
+                  "got receive"))));
 }
 
 TEST_F(VerifierTest, DynamicCountedForBodyParameterCountMismatch) {
@@ -774,6 +859,16 @@ TEST_F(VerifierTest, NextNodeWithWrongType) {
                              HasSubstr("has type bits[1]"))));
 }
 
+TEST_F(VerifierTest, ProcScopedChannelsNextNodeWithWrongType) {
+  Package package("p");
+  ProcBuilder pb(NewStyleProc{}, "p", &package);
+  BValue s = pb.StateElement("s", Value(UBits(0, 32)));
+  pb.Next(s, pb.Literal(UBits(0, 1)));
+  EXPECT_THAT(pb.Build({}),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("must be of type bits[32]; is: bits[1]")));
+}
+
 TEST_F(VerifierTest, NextNodeWithWrongTypePredicate) {
   Package package("p");
 
@@ -797,6 +892,20 @@ TEST_F(VerifierTest, NextNodeWithWrongTypePredicate) {
                              HasSubstr("had 32 bits"))));
 }
 
+TEST_F(VerifierTest, ProcScopedChannelsNextNodeWithWrongTypePredicate) {
+  Package package("p");
+  ProcBuilder pb(NewStyleProc{}, "p", &package);
+  BValue s = pb.StateElement("s", Value(UBits(0, 32)));
+  BValue pred = pb.UGt(s, pb.Literal(UBits(10, 32)));
+  BValue not_pred = pb.ZeroExtend(pb.Not(pred), 32);
+  BValue s_plus_one = pb.Add(s, pb.Literal(UBits(1, 32)));
+  pb.Next(s, s_plus_one, not_pred);
+  EXPECT_THAT(
+      pb.Build({}),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("must be of bits type of width 1; is: bits[32]")));
+}
+
 TEST_F(VerifierTest, NewAndOldStyleProcs) {
   const std::string input = R"(package test
 
@@ -816,6 +925,26 @@ TEST_F(VerifierTest, ScheduledProcGolden) {
   std::string input = R"(package test
 
 scheduled_proc my_proc(st: bits[32], init={42}) {
+  stage {
+    st: bits[32] = state_read(state_element=st, id=1)
+    literal.2: bits[32] = literal(value=1, id=2)
+    add.3: bits[32] = add(literal.2, st, id=3)
+    next_value.4: () = next_value(param=st, value=add.3, id=4)
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
+  XLS_EXPECT_OK(VerifyPackage(p.get()));
+}
+
+// Test disabled because the golden test checks for new style procs, which
+// checks for the old style proc. Fails on [function_builder.cc:114]
+// Check failed: proc()->ConvertToNewStyle() is OK (INVALID_ARGUMENT: Cannot
+// convert a function with scheduled nodes to new style proc.
+TEST_F(VerifierTest, DISABLED_ProcScopedChannelsScheduledProcGolden) {
+  std::string input = R"(package test
+
+scheduled_proc my_proc<>(st: bits[32], init={42}) {
   stage {
     st: bits[32] = state_read(state_element=st, id=1)
     literal.2: bits[32] = literal(value=1, id=2)
