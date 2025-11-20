@@ -697,12 +697,13 @@ NameDef::~NameDef() = default;
 Conditional::Conditional(Module* owner, Span span, Expr* test,
                          StatementBlock* consequent,
                          std::variant<StatementBlock*, Conditional*> alternate,
-                         bool in_parens, bool has_else)
+                         bool in_parens, bool has_else, bool is_const)
     : Expr(owner, std::move(span), in_parens),
       test_(test),
       consequent_(consequent),
       alternate_(alternate),
-      has_else_(has_else) {}
+      has_else_(has_else),
+      is_const_(is_const) {}
 
 Conditional::~Conditional() = default;
 
@@ -721,23 +722,44 @@ std::vector<StatementBlock*> Conditional::GatherBlocks() {
   return blocks;
 }
 
-std::string Conditional::ToStringInternal() const {
-  std::string inline_str = absl::StrFormat(
-      R"(if %s %s%s)", test_->ToInlineString(), consequent_->ToInlineString(),
-      has_else_
-          ? absl::StrFormat(" else %s", ToAstNode(alternate_)->ToInlineString())
-          : std::string());
+bool Conditional::IsPartOfLadder() const {
+  if (parent() == nullptr) {
+    return false;
+  }
 
+  if (parent()->kind() == AstNodeKind::kConditional) {
+    AstNode* parent_node = parent();
+    Conditional* parent = down_cast<Conditional*>(parent_node);
+    return ToAstNode(parent->alternate()) == this;
+  }
+
+  return false;
+}
+
+std::string Conditional::ToStringInternal() const {
+  const absl::string_view const_prefix =
+      (is_const_ && !IsPartOfLadder()) ? "const " : "";
+
+  auto make_string = [&](std::string (AstNode::*to_str_fn)()
+                             const) -> std::string {
+    std::string test_str = (test_->*to_str_fn)();
+    std::string then_str = (consequent_->*to_str_fn)();
+    std::string else_str = "";
+    if (has_else_) {
+      else_str =
+          absl::StrFormat(" else %s", (ToAstNode(alternate_)->*to_str_fn)());
+    }
+
+    return absl::StrFormat("%sif %s %s%s", const_prefix, test_str, then_str,
+                           else_str);
+  };
+
+  std::string inline_str = make_string(&AstNode::ToInlineString);
   if (inline_str.size() <= kTargetLineChars) {
     return inline_str;
   }
 
-  return absl::StrFormat(
-      R"(if %s %s%s)", test_->ToString(), consequent_->ToString(),
-      has_else_ ? absl::StrFormat(" else %s", ToAstNode(alternate_)->ToString())
-                : std::string()
-
-  );
+  return make_string(&AstNode::ToString);
 }
 
 bool Conditional::HasMultiStatementBlocks() const {
@@ -1281,6 +1303,16 @@ SelfTypeAnnotation::SelfTypeAnnotation(Module* owner, Span span,
       struct_ref_(struct_ref) {}
 
 SelfTypeAnnotation::~SelfTypeAnnotation() = default;
+
+// -- class ConstConditionalTypeAnnotation
+
+ConstConditionalTypeAnnotation::ConstConditionalTypeAnnotation(
+    Module* owner, Span span, const Expr* test, TypeAnnotation* consequent_type,
+    TypeAnnotation* alternate_type)
+    : TypeAnnotation(owner, std::move(span), kAnnotationKind),
+      test_(test),
+      consequent_type_(consequent_type),
+      alternate_type_(alternate_type) {}
 
 // -- class BuiltinNameDef
 

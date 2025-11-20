@@ -71,6 +71,7 @@ inline T TryGet(const std::variant<Types...>& v) {
 enum class ExprRestriction : uint8_t {
   kNone = 0,
   kNoStructLiteral = 1,
+  kNoConst = 2,
 };
 
 // Flag set of ExprRestriction values.
@@ -502,7 +503,7 @@ class Parser : public TokenParser {
   // Parses a conditional construct and returns it -- the token cursor should be
   // hovering over the "if" keyword on invocation for this to be successful.
   absl::StatusOr<Conditional*> ParseConditionalNode(
-      Bindings& bindings, ExprRestrictions restrictions);
+      Bindings& bindings, ExprRestrictions restrictions, bool is_const = true);
 
   absl::StatusOr<Param*> ParseParam(Bindings& bindings);
 

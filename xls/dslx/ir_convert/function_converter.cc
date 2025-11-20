@@ -429,6 +429,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(TupleTypeAnnotation)
   INVALID(TypeRefTypeAnnotation)
   INVALID(TypeVariableTypeAnnotation)
+  INVALID(ConstConditionalTypeAnnotation)
   // keep-sorted end
 
   // The visitor operates within a function, so none of these should be visible.
@@ -4231,6 +4232,26 @@ absl::Status FunctionConverter::HandleStatement(const Statement* node) {
 }
 
 absl::Status FunctionConverter::HandleConditional(const Conditional* node) {
+  // constexpr if select only one branch of the if to handle
+  if (node->IsConst()) {
+    ParametricEnv bindings(parametric_env_map_);
+    XLS_ASSIGN_OR_RETURN(InterpValue test_value,
+                         ConstexprEvaluator::EvaluateToValue(
+                             import_data_, current_type_info_,
+                             kNoWarningCollector, bindings, node->test()));
+
+    BValue bvalue;
+    if (test_value.IsTrue()) {
+      XLS_RETURN_IF_ERROR(Visit(node->consequent()));
+      XLS_ASSIGN_OR_RETURN(bvalue, Use(node->consequent()));
+    } else {
+      XLS_RETURN_IF_ERROR(Visit(ToExprNode(node->alternate())));
+      XLS_ASSIGN_OR_RETURN(bvalue, Use(ToExprNode(node->alternate())));
+    }
+    SetNodeToIr(node, bvalue);
+    return absl::OkStatus();
+  }
+
   XLS_RETURN_IF_ERROR(Visit(node->test()));
   XLS_ASSIGN_OR_RETURN(BValue arg0, Use(node->test()));
 
