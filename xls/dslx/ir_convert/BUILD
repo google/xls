@@ -269,7 +269,6 @@ cc_test(
         ":convert_options",
         ":ir_converter",
         ":test_utils",
-        "//xls/common:golden_files",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:temp_file",
         "//xls/common/status:matchers",
@@ -283,9 +282,7 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings:str_format",
         "@googletest//:gtest",
-        "@re2",
     ],
 )
 
