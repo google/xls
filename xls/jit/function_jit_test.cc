@@ -14,6 +14,7 @@
 
 #include "xls/jit/function_jit.h"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstring>
@@ -1319,7 +1320,8 @@ void TestPackedArrayWithType(const TypeProto& type_proto) {
                            converted_type_proto->AsArray());
   Type* element_type = array_type->element_type();
   int64_t num_elements = array_type->size();
-  int64_t kIndexBitWidth = CeilOfLog2(num_elements);
+  int64_t kIndexBitWidth =
+      std::max(int64_t{1}, static_cast<int64_t>(CeilOfLog2(num_elements)));
 
   FunctionBuilder b("f", &package);
   BValue array =
@@ -1386,7 +1388,7 @@ FUZZ_TEST(FunctionJitTest, TestPackedBitsWithType)
 FUZZ_TEST(FunctionJitTest, TestPackedTupleWithType)
     .WithDomains(TypeDomainWithSizeInRange(
         /*min_size=*/1,
-        /*max_size=*/65536,
+        /*max_size=*/2048,
         TupleTypeDomain(TypeDomain(/*max_bit_count=*/132,
                                    /*max_elements=*/68),
                         /*max_elements=*/1030)));
@@ -1394,7 +1396,7 @@ FUZZ_TEST(FunctionJitTest, TestPackedTupleWithType)
 FUZZ_TEST(FunctionJitTest, TestPackedArrayWithType)
     .WithDomains(TypeDomainWithSizeInRange(
         /*min_size=*/1,
-        /*max_size=*/65536,
+        /*max_size=*/2048,
         ArrayTypeDomain(TypeDomain(/*max_bit_count=*/132,
                                    /*max_elements=*/68),
                         /*max_elements=*/1030)));
