@@ -22,6 +22,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
@@ -38,6 +39,7 @@
 #include "xls/interpreter/proc_runtime_test_base.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc_conversion.h"
 #include "xls/ir/proc_elaboration.h"
 #include "xls/ir/value.h"
 #include "xls/jit/jit_channel_queue.h"
@@ -160,8 +162,27 @@ INSTANTIATE_TEST_SUITE_P(
             "interpreter",
             [](Package* package, const EvaluatorOptions& options)
                 -> std::unique_ptr<ProcRuntime> {
+              CHECK(!package->ChannelsAreProcScoped())
+                  << "Remove this test parameter once all channels are "
+                     "proc-scoped";
               return CreateInterpreterSerialProcRuntime(package, options)
                   .value();
+            },
+            [](Proc* top, const EvaluatorOptions& options)
+                -> std::unique_ptr<ProcRuntime> {
+              return CreateInterpreterSerialProcRuntime(top, options).value();
+            },
+            /*supports_observers=*/true),
+        ProcRuntimeTestParam(
+            "interpreter_proc_scoped",
+            [](Package* package, const EvaluatorOptions& options)
+                -> std::unique_ptr<ProcRuntime> {
+              if (!package->ChannelsAreProcScoped()) {
+                CHECK_OK(ConvertPackageToNewStyleProcs(package));
+              }
+              Proc* top = package->GetTopAsProc().value();
+
+              return CreateInterpreterSerialProcRuntime(top, options).value();
             },
             [](Proc* top, const EvaluatorOptions& options)
                 -> std::unique_ptr<ProcRuntime> {
@@ -172,7 +193,25 @@ INSTANTIATE_TEST_SUITE_P(
             "jit",
             [](Package* package, const EvaluatorOptions& options)
                 -> std::unique_ptr<ProcRuntime> {
+              CHECK(!package->ChannelsAreProcScoped())
+                  << "Remove this test parameter once all channels are "
+                     "proc-scoped";
               return CreateJitSerialProcRuntime(package, options).value();
+            },
+            [](Proc* top, const EvaluatorOptions& options)
+                -> std::unique_ptr<ProcRuntime> {
+              return CreateJitSerialProcRuntime(top, options).value();
+            },
+            /*supports_observers=*/true),
+        ProcRuntimeTestParam(
+            "jit_proc_scoped",
+            [](Package* package, const EvaluatorOptions& options)
+                -> std::unique_ptr<ProcRuntime> {
+              if (!package->ChannelsAreProcScoped()) {
+                CHECK_OK(ConvertPackageToNewStyleProcs(package));
+              }
+              Proc* top = package->GetTopAsProc().value();
+              return CreateJitSerialProcRuntime(top, options).value();
             },
             [](Proc* top, const EvaluatorOptions& options)
                 -> std::unique_ptr<ProcRuntime> {
@@ -183,7 +222,25 @@ INSTANTIATE_TEST_SUITE_P(
             "mixed",
             [](Package* package, const EvaluatorOptions& options)
                 -> std::unique_ptr<ProcRuntime> {
+              CHECK(!package->ChannelsAreProcScoped())
+                  << "Remove this test parameter once all channels are "
+                     "proc-scoped";
               return CreateMixedSerialProcRuntime(package, options).value();
+            },
+            [](Proc* top, const EvaluatorOptions& options)
+                -> std::unique_ptr<ProcRuntime> {
+              return CreateMixedSerialProcRuntime(top, options).value();
+            },
+            /*supports_observers=*/true),
+        ProcRuntimeTestParam(
+            "mixed_proc_scoped",
+            [](Package* package, const EvaluatorOptions& options)
+                -> std::unique_ptr<ProcRuntime> {
+              if (!package->ChannelsAreProcScoped()) {
+                CHECK_OK(ConvertPackageToNewStyleProcs(package));
+              }
+              Proc* top = package->GetTopAsProc().value();
+              return CreateMixedSerialProcRuntime(top, options).value();
             },
             [](Proc* top, const EvaluatorOptions& options)
                 -> std::unique_ptr<ProcRuntime> {
