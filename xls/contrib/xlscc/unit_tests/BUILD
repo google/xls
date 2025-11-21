@@ -299,10 +299,10 @@ cc_test(
     deps = [
         ":unit_test",
         "//xls/codegen:block_conversion",
-        "//xls/codegen:block_generator",
         "//xls/codegen:codegen_pass",
         "//xls/codegen:module_signature",
         "//xls/codegen:signature_generator",
+        "//xls/codegen:verilog_conversion",
         "//xls/codegen/vast",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",

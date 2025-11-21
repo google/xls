@@ -724,7 +724,6 @@ cc_library(
     deps = [
         ":codegen_flags_cc_proto",
         ":scheduling_options_flags_cc_proto",
-        "//xls/codegen:block_generator",
         "//xls/codegen:block_metrics",
         "//xls/codegen:codegen_options",
         "//xls/codegen:codegen_residual_data_cc_proto",
@@ -735,6 +734,7 @@ cc_library(
         "//xls/codegen:pipeline_generator",
         "//xls/codegen:ram_configuration",
         "//xls/codegen:unified_generator",
+        "//xls/codegen:verilog_conversion",
         "//xls/codegen:verilog_line_map_cc_proto",
         "//xls/codegen:xls_metrics_cc_proto",
         "//xls/common/status:ret_check",

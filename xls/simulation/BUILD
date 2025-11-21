@@ -284,7 +284,6 @@ cc_test(
     deps = [
         ":module_simulator",
         ":verilog_test_base",
-        "//xls/codegen:block_generator",
         "//xls/codegen:codegen_options",
         "//xls/codegen:codegen_result",
         "//xls/codegen:combinational_generator",
@@ -292,6 +291,7 @@ cc_test(
         "//xls/codegen:module_signature_cc_proto",
         "//xls/codegen:pipeline_generator",
         "//xls/codegen:signature_generator",
+        "//xls/codegen:verilog_conversion",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/estimators/delay_model:delay_estimator",

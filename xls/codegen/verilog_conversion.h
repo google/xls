@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_CODEGEN_BLOCK_GENERATOR_H_
-#define XLS_CODEGEN_BLOCK_GENERATOR_H_
+#ifndef XLS_CODEGEN_VERILOG_CONVERSION_H_
+#define XLS_CODEGEN_VERILOG_CONVERSION_H_
 
 #include <string>
 
@@ -39,4 +39,4 @@ absl::StatusOr<std::string> GenerateVerilog(
 }  // namespace verilog
 }  // namespace xls
 
-#endif  // XLS_CODEGEN_BLOCK_GENERATOR_H_
+#endif  // XLS_CODEGEN_VERILOG_CONVERSION_H_

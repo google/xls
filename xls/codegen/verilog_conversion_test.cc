@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/codegen/block_generator.h"
+#include "xls/codegen/verilog_conversion.h"
 
 #include <cstdint>
 #include <filesystem>
@@ -92,10 +92,10 @@ namespace {
 using ::absl_testing::StatusIs;
 using ::testing::HasSubstr;
 
-constexpr char kTestName[] = "block_generator_test";
+constexpr char kTestName[] = "verilog_conversion_test";
 constexpr char kTestdataPath[] = "xls/codegen/testdata";
 
-class BlockGeneratorTest : public VerilogTestBase {
+class VerilogConversionTest : public VerilogTestBase {
  protected:
   CodegenOptions codegen_options(
       std::optional<std::string> clock_name = std::nullopt) {
@@ -236,7 +236,7 @@ class BlockGeneratorTest : public VerilogTestBase {
   }
 };
 
-TEST_P(BlockGeneratorTest, AandB) {
+TEST_P(VerilogConversionTest, AandB) {
   Package package(TestBaseName());
 
   Type* u32 = package.GetBitsType(32);
@@ -273,7 +273,7 @@ TEST_P(BlockGeneratorTest, AandB) {
   XLS_ASSERT_OK(tb->Run());
 }
 
-TEST_P(BlockGeneratorTest, PipelinedAandB) {
+TEST_P(VerilogConversionTest, PipelinedAandB) {
   Package package(TestBaseName());
 
   Type* u32 = package.GetBitsType(32);
@@ -338,7 +338,7 @@ TEST_P(BlockGeneratorTest, PipelinedAandB) {
   XLS_ASSERT_OK(tb->Run());
 }
 
-TEST_P(BlockGeneratorTest, PipelinedAandBNoReset) {
+TEST_P(VerilogConversionTest, PipelinedAandBNoReset) {
   Package package(TestBaseName());
 
   Type* u32 = package.GetBitsType(32);
@@ -386,7 +386,7 @@ TEST_P(BlockGeneratorTest, PipelinedAandBNoReset) {
   XLS_ASSERT_OK(tb->Run());
 }
 
-TEST_P(BlockGeneratorTest, Accumulator) {
+TEST_P(VerilogConversionTest, Accumulator) {
   Package package(TestBaseName());
 
   Type* u32 = package.GetBitsType(32);
@@ -445,7 +445,7 @@ TEST_P(BlockGeneratorTest, Accumulator) {
   XLS_ASSERT_OK(tb->Run());
 }
 
-TEST_P(BlockGeneratorTest, RegisterWithoutClockPort) {
+TEST_P(VerilogConversionTest, RegisterWithoutClockPort) {
   Package package(TestBaseName());
   Type* u32 = package.GetBitsType(32);
 
@@ -467,7 +467,7 @@ TEST_P(BlockGeneratorTest, RegisterWithoutClockPort) {
                        HasSubstr("Block has registers but no clock port")));
 }
 
-TEST_P(BlockGeneratorTest, BlockWithAssertNoLabel) {
+TEST_P(VerilogConversionTest, BlockWithAssertNoLabel) {
   Package package(TestBaseName());
   BlockBuilder b(TestBaseName(), &package);
   BValue rst = b.ResetPort(
@@ -537,7 +537,7 @@ TEST_P(BlockGeneratorTest, BlockWithAssertNoLabel) {
                          "{message}, {rst}")));
 }
 
-TEST_P(BlockGeneratorTest, BlockWithAssertWithLabel) {
+TEST_P(VerilogConversionTest, BlockWithAssertWithLabel) {
   Package package(TestBaseName());
   BlockBuilder b(TestBaseName(), &package);
   BValue a = b.InputPort("a", package.GetBitsType(32));
@@ -590,7 +590,7 @@ TEST_P(BlockGeneratorTest, BlockWithAssertWithLabel) {
                          "but block has no reset signal")));
 }
 
-TEST_P(BlockGeneratorTest, BlockWithAssertWithInvalidSVLabel) {
+TEST_P(VerilogConversionTest, BlockWithAssertWithInvalidSVLabel) {
   Package package(TestBaseName());
   BlockBuilder b(TestBaseName(), &package);
   BValue a = b.InputPort("a", package.GetBitsType(32));
@@ -607,7 +607,7 @@ TEST_P(BlockGeneratorTest, BlockWithAssertWithInvalidSVLabel) {
           HasSubstr("Assert label must be a valid SystemVerilog identifier.")));
 }
 
-TEST_P(BlockGeneratorTest, AssertCombinationalOrMissingClock) {
+TEST_P(VerilogConversionTest, AssertCombinationalOrMissingClock) {
   if (!UseSystemVerilog()) {
     return;
   }
@@ -647,7 +647,7 @@ TEST_P(BlockGeneratorTest, AssertCombinationalOrMissingClock) {
                          "but block has no clock signal")));
 }
 
-TEST_P(BlockGeneratorTest, AssertFmtOnlyConsumerOfReset) {
+TEST_P(VerilogConversionTest, AssertFmtOnlyConsumerOfReset) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   BValue x = fb.Param("x", package.GetBitsType(32));
@@ -684,7 +684,7 @@ TEST_P(BlockGeneratorTest, AssertFmtOnlyConsumerOfReset) {
   }
 }
 
-TEST_P(BlockGeneratorTest, BlockWithTokenPortsAndAssert) {
+TEST_P(VerilogConversionTest, BlockWithTokenPortsAndAssert) {
   Package package(TestBaseName());
   BlockBuilder b(TestBaseName(), &package);
   BValue tkn_in = b.InputPort("tkn_in", package.GetTokenType());
@@ -716,7 +716,7 @@ TEST_P(BlockGeneratorTest, BlockWithTokenPortsAndAssert) {
   }
 }
 
-TEST_P(BlockGeneratorTest, BlockWithTokenPortsAndTrace) {
+TEST_P(VerilogConversionTest, BlockWithTokenPortsAndTrace) {
   Package package(TestBaseName());
   BlockBuilder b(TestBaseName(), &package);
   BValue tkn_in = b.InputPort("tkn_in", package.GetTokenType());
@@ -739,7 +739,7 @@ TEST_P(BlockGeneratorTest, BlockWithTokenPortsAndTrace) {
   EXPECT_THAT(verilog, HasSubstr("$display(\"tracing\")"));
 }
 
-TEST_P(BlockGeneratorTest, FloppedAssert) {
+TEST_P(VerilogConversionTest, FloppedAssert) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   BValue tok = fb.Param("tok", package.GetTokenType());
@@ -769,7 +769,7 @@ TEST_P(BlockGeneratorTest, FloppedAssert) {
                                  verilog);
 }
 
-TEST_P(BlockGeneratorTest, BlockWithTrace) {
+TEST_P(VerilogConversionTest, BlockWithTrace) {
   Package package(TestBaseName());
   BlockBuilder b(TestBaseName(), &package);
   BValue a = b.InputPort("a", package.GetBitsType(32));
@@ -786,7 +786,7 @@ TEST_P(BlockGeneratorTest, BlockWithTrace) {
   }
 }
 
-TEST_P(BlockGeneratorTest, BlockWithTraceZeroPaddedBinary) {
+TEST_P(VerilogConversionTest, BlockWithTraceZeroPaddedBinary) {
   Package package(TestBaseName());
   BlockBuilder b(TestBaseName(), &package);
   BValue a = b.InputPort("a", package.GetBitsType(32));
@@ -800,7 +800,7 @@ TEST_P(BlockGeneratorTest, BlockWithTraceZeroPaddedBinary) {
               HasSubstr(R"($display("a (%b) is not greater than 42", a)"));
 }
 
-TEST_P(BlockGeneratorTest, BlockWithTraceBinary) {
+TEST_P(VerilogConversionTest, BlockWithTraceBinary) {
   Package package(TestBaseName());
   BlockBuilder b(TestBaseName(), &package);
   BValue a = b.InputPort("a", package.GetBitsType(32));
@@ -814,7 +814,7 @@ TEST_P(BlockGeneratorTest, BlockWithTraceBinary) {
               HasSubstr(R"($display("a (%0b) is not greater than 42", a)"));
 }
 
-TEST_P(BlockGeneratorTest, BlockWithTraceZeroPaddedHex) {
+TEST_P(VerilogConversionTest, BlockWithTraceZeroPaddedHex) {
   Package package(TestBaseName());
   BlockBuilder b(TestBaseName(), &package);
   BValue a = b.InputPort("a", package.GetBitsType(32));
@@ -828,7 +828,7 @@ TEST_P(BlockGeneratorTest, BlockWithTraceZeroPaddedHex) {
               HasSubstr(R"($display("a (%h) is not greater than 42", a)"));
 }
 
-TEST_P(BlockGeneratorTest, BlockWithTraceBinaryHex) {
+TEST_P(VerilogConversionTest, BlockWithTraceBinaryHex) {
   Package package(TestBaseName());
   BlockBuilder b(TestBaseName(), &package);
   BValue a = b.InputPort("a", package.GetBitsType(32));
@@ -842,7 +842,7 @@ TEST_P(BlockGeneratorTest, BlockWithTraceBinaryHex) {
               HasSubstr(R"($display("a (%0h) is not greater than 42", a)"));
 }
 
-TEST_P(BlockGeneratorTest, BlockWithExtraBracesTrace) {
+TEST_P(VerilogConversionTest, BlockWithExtraBracesTrace) {
   Package package(TestBaseName());
   BlockBuilder b(TestBaseName(), &package);
   BValue a = b.InputPort("a", package.GetBitsType(32));
@@ -860,7 +860,7 @@ TEST_P(BlockGeneratorTest, BlockWithExtraBracesTrace) {
   }
 }
 
-TEST_P(BlockGeneratorTest, PortOrderTest) {
+TEST_P(VerilogConversionTest, PortOrderTest) {
   Package package(TestBaseName());
   Type* u32 = package.GetBitsType(32);
 
@@ -878,7 +878,7 @@ TEST_P(BlockGeneratorTest, PortOrderTest) {
                         "output wire [31:0] b,\n  output wire [31:0] d"));
 }
 
-TEST_P(BlockGeneratorTest, LoadEnables) {
+TEST_P(VerilogConversionTest, LoadEnables) {
   // Construct a block with two parallel data paths: "a" and "b". Each consists
   // of a single register with a load enable. Verify that the two load enables
   // work as expected.
@@ -949,7 +949,7 @@ TEST_P(BlockGeneratorTest, LoadEnables) {
   XLS_ASSERT_OK(tb->Run());
 }
 
-TEST_P(BlockGeneratorTest, GatedBitsType) {
+TEST_P(VerilogConversionTest, GatedBitsType) {
   Package package(TestBaseName());
   BlockBuilder b(TestBaseName(), &package);
   BValue cond = b.InputPort("cond", package.GetBitsType(1));
@@ -982,7 +982,7 @@ TEST_P(BlockGeneratorTest, GatedBitsType) {
   }
 }
 
-TEST_P(BlockGeneratorTest, SmulpWithFormat) {
+TEST_P(VerilogConversionTest, SmulpWithFormat) {
   Package package(TestBaseName());
   BlockBuilder b(TestBaseName(), &package);
   Type* u32 = package.GetBitsType(32);
@@ -1035,7 +1035,7 @@ endmodule
                                  {hardmultp_definition});
 }
 
-TEST_P(BlockGeneratorTest, GatedSingleBitType) {
+TEST_P(VerilogConversionTest, GatedSingleBitType) {
   Package package(TestBaseName());
   BlockBuilder b(TestBaseName(), &package);
   BValue cond = b.InputPort("cond", package.GetBitsType(1));
@@ -1048,7 +1048,7 @@ TEST_P(BlockGeneratorTest, GatedSingleBitType) {
   EXPECT_THAT(verilog, HasSubstr(R"(assign gated_x = cond & x;)"));
 }
 
-TEST_P(BlockGeneratorTest, GatedTupleType) {
+TEST_P(VerilogConversionTest, GatedTupleType) {
   Package package(TestBaseName());
   BlockBuilder b(TestBaseName(), &package);
   BValue cond = b.InputPort("cond", package.GetBitsType(1));
@@ -1063,7 +1063,7 @@ TEST_P(BlockGeneratorTest, GatedTupleType) {
   EXPECT_THAT(verilog, HasSubstr(R"(assign gated_x = {40{cond}} & x;)"));
 }
 
-TEST_P(BlockGeneratorTest, GatedArrayType) {
+TEST_P(VerilogConversionTest, GatedArrayType) {
   Package package(TestBaseName());
   BlockBuilder b(TestBaseName(), &package);
   BValue cond = b.InputPort("cond", package.GetBitsType(1));
@@ -1077,7 +1077,7 @@ TEST_P(BlockGeneratorTest, GatedArrayType) {
                                  "tuple types, has type: bits[32][7]")));
 }
 
-TEST_P(BlockGeneratorTest, InstantiatedBlock) {
+TEST_P(VerilogConversionTest, InstantiatedBlock) {
   Package package(TestBaseName());
   Type* u32 = package.GetBitsType(32);
 
@@ -1123,7 +1123,7 @@ TEST_P(BlockGeneratorTest, InstantiatedBlock) {
   XLS_ASSERT_OK(tb->Run());
 }
 
-TEST_P(BlockGeneratorTest, InstantiatedBlockWithClockButNoClock) {
+TEST_P(VerilogConversionTest, InstantiatedBlockWithClockButNoClock) {
   Package package(TestBaseName());
   Type* u32 = package.GetBitsType(32);
 
@@ -1146,7 +1146,7 @@ TEST_P(BlockGeneratorTest, InstantiatedBlockWithClockButNoClock) {
                                  "the instantiating block has no clock.")));
 }
 
-TEST_P(BlockGeneratorTest, InstantiatedBlockWithClock) {
+TEST_P(VerilogConversionTest, InstantiatedBlockWithClock) {
   Package package(TestBaseName());
   Type* u32 = package.GetBitsType(32);
 
@@ -1195,7 +1195,7 @@ TEST_P(BlockGeneratorTest, InstantiatedBlockWithClock) {
   XLS_ASSERT_OK(tb->Run());
 }
 
-TEST_P(BlockGeneratorTest, MultiplyInstantiatedBlock) {
+TEST_P(VerilogConversionTest, MultiplyInstantiatedBlock) {
   Package package(TestBaseName());
   Type* u32 = package.GetBitsType(32);
 
@@ -1272,7 +1272,7 @@ TEST_P(BlockGeneratorTest, MultiplyInstantiatedBlock) {
   XLS_ASSERT_OK(tb->Run());
 }
 
-TEST_P(BlockGeneratorTest, InstantiatedBlockWithArrayPorts) {
+TEST_P(VerilogConversionTest, InstantiatedBlockWithArrayPorts) {
   Package package(TestBaseName());
   Type* u32 = package.GetBitsType(32);
 
@@ -1348,7 +1348,7 @@ TEST_P(BlockGeneratorTest, InstantiatedBlockWithArrayPorts) {
   XLS_ASSERT_OK(tb->Run());
 }
 
-TEST_P(BlockGeneratorTest, InstantiatedBlockWithExternStructPorts) {
+TEST_P(VerilogConversionTest, InstantiatedBlockWithExternStructPorts) {
   if (!GetParam().use_system_verilog) {
     GTEST_SKIP() << "Typedefs and packages are SystemVerilog only.";
   }
@@ -1484,7 +1484,7 @@ endpackage : pkg
   XLS_ASSERT_OK(tb->Run());
 }
 
-TEST_P(BlockGeneratorTest, DiamondDependencyInstantiations) {
+TEST_P(VerilogConversionTest, DiamondDependencyInstantiations) {
   Package package(TestBaseName());
   Type* u32 = package.GetBitsType(32);
 
@@ -1553,7 +1553,7 @@ TEST_P(BlockGeneratorTest, DiamondDependencyInstantiations) {
   XLS_ASSERT_OK(tb->Run());
 }
 
-TEST_P(BlockGeneratorTest, LoopbackFifoInstantiation) {
+TEST_P(VerilogConversionTest, LoopbackFifoInstantiation) {
   constexpr std::string_view ir_text = R"(package test
 
 chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
@@ -1661,7 +1661,7 @@ proc running_sum(first_cycle: bits[1], init={1}) {
   XLS_ASSERT_OK(tb->Run());
 }
 
-TEST_P(BlockGeneratorTest, RecvDataFeedingSendPredicate) {
+TEST_P(VerilogConversionTest, RecvDataFeedingSendPredicate) {
   Package package(TestName());
   Type* u32 = package.GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -1750,7 +1750,7 @@ TEST_P(BlockGeneratorTest, RecvDataFeedingSendPredicate) {
               absl_testing::IsOkAndHolds(expected_output_values));
 }
 
-TEST_P(BlockGeneratorTest, DynamicStateFeedbackWithNonUpdateCase) {
+TEST_P(VerilogConversionTest, DynamicStateFeedbackWithNonUpdateCase) {
   const std::string ir_text = R"(package test
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
 
@@ -1809,7 +1809,7 @@ proc slow_counter(counter: bits[32], odd_iteration: bits[1], init={0, 0}) {
                                  verilog);
 }
 
-TEST_P(BlockGeneratorTest, DynamicStateFeedbackWithOnlyUpdateCases) {
+TEST_P(VerilogConversionTest, DynamicStateFeedbackWithOnlyUpdateCases) {
   const std::string ir_text = R"(package test
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
 
@@ -1868,7 +1868,7 @@ proc bad_alternator(counter: bits[32], odd_iteration: bits[1], init={0, 0}) {
                                  verilog);
 }
 
-TEST_P(BlockGeneratorTest, TruncatedArrayIndices) {
+TEST_P(VerilogConversionTest, TruncatedArrayIndices) {
   const std::string ir_text = R"(package test
 chan out(bits[7], id=10, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
 
@@ -1925,7 +1925,7 @@ proc lookup_proc(x: bits[1], z: bits[1], init={0, 0}) {
                                  verilog);
 }
 
-TEST_P(BlockGeneratorTest, MultiProcWithInternalFifo) {
+TEST_P(VerilogConversionTest, MultiProcWithInternalFifo) {
   XLS_ASSERT_OK_AND_ASSIGN(CodegenResult result,
                            MakeMultiProc(kDepth1Fifo.config,
                                          /*data_width=*/32));
@@ -1959,7 +1959,7 @@ TEST_P(BlockGeneratorTest, MultiProcWithInternalFifo) {
               absl_testing::IsOkAndHolds(output_values));
 }
 
-TEST_P(BlockGeneratorTest, MultiProcWithInternalNoDataFifo) {
+TEST_P(VerilogConversionTest, MultiProcWithInternalNoDataFifo) {
   XLS_ASSERT_OK_AND_ASSIGN(CodegenResult result,
                            MakeMultiProc(kDepth1NoDataFifo.config,
                                          /*data_width=*/0));
@@ -1994,7 +1994,7 @@ TEST_P(BlockGeneratorTest, MultiProcWithInternalNoDataFifo) {
               absl_testing::IsOkAndHolds(output_values));
 }
 
-TEST_P(BlockGeneratorTest, MultiProcDirectConnect) {
+TEST_P(VerilogConversionTest, MultiProcDirectConnect) {
   XLS_ASSERT_OK_AND_ASSIGN(CodegenResult result,
                            MakeMultiProc(kDepth0Fifo.config,
                                          /*data_width=*/32));
@@ -2029,7 +2029,7 @@ TEST_P(BlockGeneratorTest, MultiProcDirectConnect) {
               absl_testing::IsOkAndHolds(output_values));
 }
 
-TEST_P(BlockGeneratorTest, MultiProcNoDataDirectConnect) {
+TEST_P(VerilogConversionTest, MultiProcNoDataDirectConnect) {
   XLS_ASSERT_OK_AND_ASSIGN(CodegenResult result,
                            MakeMultiProc(kDepth0NoDataFifo.config,
                                          /*data_width=*/0));
@@ -2064,7 +2064,7 @@ TEST_P(BlockGeneratorTest, MultiProcNoDataDirectConnect) {
               absl_testing::IsOkAndHolds(output_values));
 }
 
-TEST_P(BlockGeneratorTest, SelectWithTokens) {
+TEST_P(VerilogConversionTest, SelectWithTokens) {
   const std::string ir_text = R"(package test
 chan ctrl(bits[1], id=100, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
 chan in0(bits[7], id=101, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
@@ -2123,7 +2123,7 @@ proc mux_proc(tkn: token, init={token}) {
                                  verilog);
 }
 
-TEST_P(BlockGeneratorTest, DeeplyNestedExpressions) {
+TEST_P(VerilogConversionTest, DeeplyNestedExpressions) {
   const std::string ir_text = R"(package test
 
 fn deep_nesting(x: bits[10]) -> bits[10] {
@@ -2179,7 +2179,7 @@ fn deep_nesting(x: bits[10]) -> bits[10] {
                                  verilog);
 }
 
-TEST_P(BlockGeneratorTest, ArrayIndexBounds) {
+TEST_P(VerilogConversionTest, ArrayIndexBounds) {
   auto p = std::make_unique<VerifiedPackage>(TestName());
   FunctionBuilder fb(TestName(), p.get());
   // Do a basic array-read that doesn't need bounds checks.
@@ -2214,7 +2214,7 @@ TEST_P(BlockGeneratorTest, ArrayIndexBounds) {
                                  verilog);
 }
 
-TEST_P(BlockGeneratorTest, DeeplyNestedExpressionsWithDefaultLimit) {
+TEST_P(VerilogConversionTest, DeeplyNestedExpressionsWithDefaultLimit) {
   const std::string ir_text = R"(package test
 
 fn deep_nesting(x: bits[10]) -> bits[10] {
@@ -2268,7 +2268,7 @@ fn deep_nesting(x: bits[10]) -> bits[10] {
                                  verilog);
 }
 
-TEST_P(BlockGeneratorTest, DeeplyNestedExpressionsWithShallowLimit) {
+TEST_P(VerilogConversionTest, DeeplyNestedExpressionsWithShallowLimit) {
   const std::string ir_text = R"(package test
 
 fn deep_nesting(x: bits[10]) -> bits[10] {
@@ -2324,9 +2324,10 @@ fn deep_nesting(x: bits[10]) -> bits[10] {
                                  verilog);
 }
 
-INSTANTIATE_TEST_SUITE_P(BlockGeneratorTestInstantiation, BlockGeneratorTest,
+INSTANTIATE_TEST_SUITE_P(VerilogConversionTestInstantiation,
+                         VerilogConversionTest,
                          testing::ValuesIn(kDefaultSimulationTargets),
-                         ParameterizedTestName<BlockGeneratorTest>);
+                         ParameterizedTestName<VerilogConversionTest>);
 
 std::string_view ParameterizedFloppingName(
     std::tuple<bool, CodegenOptions::IOKind> param) {
@@ -2357,7 +2358,7 @@ std::string ParameterizedTestNameWithFlopping(
   return absl::StrJoin(parts, "");
 }
 
-class ZeroWidthBlockGeneratorTest
+class ZeroWidthVerilogConversionTest
     : public VerilogTestBaseWithParam<std::tuple<
           SimulationTarget, std::tuple<
                                 // (flop_inputs, flop_inputs_kind)
@@ -2403,7 +2404,7 @@ class ZeroWidthBlockGeneratorTest
   }
 };
 
-TEST_P(ZeroWidthBlockGeneratorTest, ZeroWidthRecvChannel) {
+TEST_P(ZeroWidthVerilogConversionTest, ZeroWidthRecvChannel) {
   Package package(TestName());
   Type* u0 = package.GetBitsType(0);
   Type* u32 = package.GetBitsType(32);
@@ -2453,7 +2454,7 @@ TEST_P(ZeroWidthBlockGeneratorTest, ZeroWidthRecvChannel) {
                                  verilog);
 }
 
-TEST_P(ZeroWidthBlockGeneratorTest, ZeroWidthSendChannel) {
+TEST_P(ZeroWidthVerilogConversionTest, ZeroWidthSendChannel) {
   Package package(TestName());
   Type* u0 = package.GetBitsType(0);
   Type* u32 = package.GetBitsType(32);
@@ -2506,14 +2507,14 @@ constexpr std::initializer_list<std::tuple<bool, CodegenOptions::IOKind>>
                        {true, CodegenOptions::IOKind::kZeroLatencyBuffer}};
 
 INSTANTIATE_TEST_SUITE_P(
-    ZeroWidthBlockGeneratorTestInstantiation, ZeroWidthBlockGeneratorTest,
+    ZeroWidthVerilogConversionTestInstantiation, ZeroWidthVerilogConversionTest,
     testing::Combine(testing::ValuesIn(kDefaultSimulationTargets),
                      testing::Combine(
                          // input flopping
                          testing::ValuesIn(kFloppingParams),
                          // output flopping
                          testing::ValuesIn(kFloppingParams))),
-    ParameterizedTestNameWithFlopping<ZeroWidthBlockGeneratorTest>);
+    ParameterizedTestNameWithFlopping<ZeroWidthVerilogConversionTest>);
 
 }  // namespace
 }  // namespace verilog

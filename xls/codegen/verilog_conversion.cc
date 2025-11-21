@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/codegen/block_generator.h"
+#include "xls/codegen/verilog_conversion.h"
 
 #include <algorithm>
 #include <array>

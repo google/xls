@@ -61,7 +61,6 @@ cc_library(
     hdrs = ["combinational_generator.h"],
     deps = [
         ":block_conversion",
-        ":block_generator",
         ":block_metrics",
         ":codegen_options",
         ":codegen_pass",
@@ -69,6 +68,7 @@ cc_library(
         ":codegen_residual_data_cc_proto",
         ":codegen_result",
         ":module_signature",
+        ":verilog_conversion",
         ":verilog_line_map_cc_proto",
         ":xls_metrics_cc_proto",
         "//xls/common/status:ret_check",
@@ -188,7 +188,6 @@ cc_library(
     hdrs = ["pipeline_generator.h"],
     deps = [
         ":block_conversion",
-        ":block_generator",
         ":block_metrics",
         ":codegen_options",
         ":codegen_pass",
@@ -196,6 +195,7 @@ cc_library(
         ":codegen_residual_data_cc_proto",
         ":codegen_result",
         ":module_signature",
+        ":verilog_conversion",
         ":verilog_line_map_cc_proto",
         ":xls_metrics_cc_proto",
         "//xls/common/logging:log_lines",
@@ -289,7 +289,6 @@ cc_library(
     hdrs = ["unified_generator.h"],
     deps = [
         ":block_conversion_pass_pipeline",
-        ":block_generator",
         ":block_metrics",
         ":codegen_options",
         ":codegen_pass",
@@ -297,6 +296,7 @@ cc_library(
         ":codegen_residual_data_cc_proto",
         ":codegen_result",
         ":module_signature",
+        ":verilog_conversion",
         ":verilog_line_map_cc_proto",
         ":xls_metrics_cc_proto",
         "//xls/codegen/passes_ng:stage_conversion_pass_pipeline",
@@ -763,9 +763,9 @@ cc_library(
 )
 
 cc_library(
-    name = "block_generator",
-    srcs = ["block_generator.cc"],
-    hdrs = ["block_generator.h"],
+    name = "verilog_conversion",
+    srcs = ["verilog_conversion.cc"],
+    hdrs = ["verilog_conversion.h"],
     deps = [
         ":codegen_options",
         ":codegen_residual_data_cc_proto",
@@ -1295,11 +1295,11 @@ cc_test(
         "testdata/name_legalization_pass_test_*",
     ]),
     deps = [
-        ":block_generator",
         ":codegen_options",
         ":codegen_pass",
         ":combinational_generator",
         ":name_legalization_pass",
+        ":verilog_conversion",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
@@ -1316,15 +1316,14 @@ cc_test(
 )
 
 cc_test(
-    name = "block_generator_test",
-    srcs = ["block_generator_test.cc"],
+    name = "verilog_conversion_test",
+    srcs = ["verilog_conversion_test.cc"],
     data = glob([
-        "testdata/block_generator_test_*",
+        "testdata/verilog_conversion_test_*",
     ]),
     shard_count = 10,
     deps = [
         ":block_conversion",
-        ":block_generator",
         ":codegen_options",
         ":codegen_pass",
         ":codegen_pass_pipeline",
@@ -1333,6 +1332,7 @@ cc_test(
         ":op_override",
         ":signature_generator",
         ":test_fifos",
+        ":verilog_conversion",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",

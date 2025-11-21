@@ -19,7 +19,6 @@
 
 #include "absl/status/statusor.h"
 #include "xls/codegen/block_conversion.h"
-#include "xls/codegen/block_generator.h"
 #include "xls/codegen/block_metrics.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
@@ -27,6 +26,7 @@
 #include "xls/codegen/codegen_residual_data.pb.h"
 #include "xls/codegen/codegen_result.h"
 #include "xls/codegen/module_signature.h"
+#include "xls/codegen/verilog_conversion.h"
 #include "xls/codegen/verilog_line_map.pb.h"
 #include "xls/codegen/xls_metrics.pb.h"
 #include "xls/common/status/ret_check.h"

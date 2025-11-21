@@ -119,9 +119,9 @@ cc_library(
     deps = [
         ":extract_nodes",
         "//xls/codegen:block_conversion",
-        "//xls/codegen:block_generator",
         "//xls/codegen:codegen_options",
         "//xls/codegen:codegen_pass",
+        "//xls/codegen:verilog_conversion",
         "//xls/common:casts",
         "//xls/common:thread",
         "//xls/common/status:ret_check",
