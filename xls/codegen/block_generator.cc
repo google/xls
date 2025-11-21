@@ -497,13 +497,17 @@ class BlockGenerator {
             input_port->GetName() == reset_proto_->name()) {
           // The reset signal is implicitly added by ModuleBuilder.
           node_exprs_[input_port] = mb_.reset().value().signal;
-        } else {
+        } else if (IsRepresentable(input_port->GetType())) {
           XLS_ASSIGN_OR_RETURN(
               Expression * port_expr,
               mb_.AddInputPort(input_port->GetName(), input_port->GetType(),
                                input_port->system_verilog_type(),
                                input_port->loc()));
           node_exprs_[input_port] = port_expr;
+        } else {
+          VLOG(3) << "Skipping input port " << input_port->GetName()
+                  << " with type that is not representable.";
+          node_exprs_[input_port] = UnrepresentedSentinel();
         }
       }
     }
@@ -671,19 +675,30 @@ class BlockGenerator {
         // load-enable expressions.
         case Op::kRegisterWrite: {
           RegisterWrite* reg_write = node->As<RegisterWrite>();
-          mb_registers_.at(reg_write->GetRegister()).next =
-              std::get<Expression*>(node_exprs_.at(reg_write->data()));
-          if (reg_write->load_enable().has_value()) {
-            mb_registers_.at(reg_write->GetRegister()).load_enable =
-                std::get<Expression*>(
-                    node_exprs_.at(reg_write->load_enable().value()));
+          if (IsRepresentable(
+                  reg_write->operand(RegisterWrite::kDataOperand)->GetType())) {
+            mb_registers_.at(reg_write->GetRegister()).next =
+                std::get<Expression*>(node_exprs_.at(reg_write->data()));
+            if (reg_write->load_enable().has_value()) {
+              mb_registers_.at(reg_write->GetRegister()).load_enable =
+                  std::get<Expression*>(
+                      node_exprs_.at(reg_write->load_enable().value()));
+            }
+          } else {
+            VLOG(3) << "Skipping register write for node "
+                    << reg_write->GetName()
+                    << " with operand type that is not representable.";
           }
           node_exprs_[node] = UnrepresentedSentinel();
           continue;
         }
         case Op::kRegisterRead: {
           RegisterRead* reg_read = node->As<RegisterRead>();
-          node_exprs_[node] = mb_registers_.at(reg_read->GetRegister()).ref;
+          if (IsRepresentable(reg_read->GetType())) {
+            node_exprs_[node] = mb_registers_.at(reg_read->GetRegister()).ref;
+          } else {
+            node_exprs_[node] = UnrepresentedSentinel();
+          }
           continue;
         }
         case Op::kAssert: {
@@ -862,6 +877,11 @@ class BlockGenerator {
   absl::Status DeclareRegisters(absl::Span<Register* const> registers) {
     const std::optional<verilog::Reset>& reset = mb_.reset();
     for (Register* reg : registers) {
+      if (!IsRepresentable(reg->type())) {
+        VLOG(3) << "Skipping declaration of unrepresentable register "
+                << reg->name();
+        continue;
+      }
       VLOG(3) << "Declaring register " << reg->name();
       Expression* reset_expr = nullptr;
       if (reg->reset_value().has_value()) {
@@ -895,6 +915,11 @@ class BlockGenerator {
     std::vector<ModuleBuilder::Register> registers_with_reset;
     std::vector<ModuleBuilder::Register> registers_without_reset;
     for (Register* reg : registers) {
+      if (!IsRepresentable(reg->type())) {
+        VLOG(3) << "Skipping assignment of unrepresentable register "
+                << reg->name();
+        continue;
+      }
       XLS_RET_CHECK(mb_registers_.contains(reg)) << absl::StreamFormat(
           "Register `%s` was not previously declared", reg->name());
       ModuleBuilder::Register mb_reg = mb_registers_.at(reg);
@@ -923,11 +948,12 @@ class BlockGenerator {
         OutputPort* output_port = std::get<OutputPort*>(port);
         const NodeRepresentation& output_expr =
             node_exprs_.at(output_port->operand(0));
-        XLS_RET_CHECK(std::holds_alternative<Expression*>(output_expr));
-        XLS_RETURN_IF_ERROR(mb_.AddOutputPort(
-            output_port->GetName(), output_port->operand(0)->GetType(),
-            std::get<Expression*>(output_expr),
-            output_port->system_verilog_type()));
+        if (std::holds_alternative<Expression*>(output_expr)) {
+          XLS_RETURN_IF_ERROR(mb_.AddOutputPort(
+              output_port->GetName(), output_port->operand(0)->GetType(),
+              std::get<Expression*>(output_expr),
+              output_port->system_verilog_type()));
+        }
         node_exprs_[output_port] = UnrepresentedSentinel();
       }
     }

@@ -684,6 +684,91 @@ TEST_P(BlockGeneratorTest, AssertFmtOnlyConsumerOfReset) {
   }
 }
 
+TEST_P(BlockGeneratorTest, BlockWithTokenPortsAndAssert) {
+  Package package(TestBaseName());
+  BlockBuilder b(TestBaseName(), &package);
+  BValue tkn_in = b.InputPort("tkn_in", package.GetTokenType());
+  BValue cond = b.InputPort("cond", package.GetBitsType(1));
+  BValue assert_tkn = b.Assert(tkn_in, cond, "fail");
+  b.OutputPort("tkn_out", assert_tkn);
+  XLS_ASSERT_OK(b.block()->AddClockPort("clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+
+  CodegenOptions options = codegen_options("clk");
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                           GenerateVerilog(block, options));
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
+                           GenerateSignature(options, block));
+  if (UseSystemVerilog()) {
+    EXPECT_THAT(verilog, HasSubstr("module BlockWithTokenPortsAndAssert"));
+    EXPECT_THAT(verilog, HasSubstr("input wire cond"));
+    EXPECT_THAT(verilog, Not(HasSubstr("tkn_in")));
+    EXPECT_THAT(verilog, Not(HasSubstr("tkn_out")));
+    EXPECT_THAT(verilog,
+                HasSubstr("assert property (@(posedge clk) disable iff"));
+    EXPECT_THAT(verilog, HasSubstr("fail"));
+  } else {
+    EXPECT_THAT(verilog, HasSubstr("module BlockWithTokenPortsAndAssert"));
+    EXPECT_THAT(verilog, HasSubstr("input wire cond"));
+    EXPECT_THAT(verilog, Not(HasSubstr("tkn_in")));
+    EXPECT_THAT(verilog, Not(HasSubstr("tkn_out")));
+    EXPECT_THAT(verilog, Not(HasSubstr("assert")));
+  }
+}
+
+TEST_P(BlockGeneratorTest, BlockWithTokenPortsAndTrace) {
+  Package package(TestBaseName());
+  BlockBuilder b(TestBaseName(), &package);
+  BValue tkn_in = b.InputPort("tkn_in", package.GetTokenType());
+  BValue cond = b.InputPort("cond", package.GetBitsType(1));
+  BValue trace_tkn = b.Trace(tkn_in, cond, {}, "tracing");
+  b.OutputPort("tkn_out", trace_tkn);
+  XLS_ASSERT_OK(b.block()->AddClockPort("clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+
+  CodegenOptions options = codegen_options("clk");
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                           GenerateVerilog(block, options));
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
+                           GenerateSignature(options, block));
+
+  EXPECT_THAT(verilog, HasSubstr("module BlockWithTokenPortsAndTrace"));
+  EXPECT_THAT(verilog, HasSubstr("input wire cond"));
+  EXPECT_THAT(verilog, Not(HasSubstr("tkn_in")));
+  EXPECT_THAT(verilog, Not(HasSubstr("tkn_out")));
+  EXPECT_THAT(verilog, HasSubstr("$display(\"tracing\")"));
+}
+
+TEST_P(BlockGeneratorTest, FloppedAssert) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  BValue tok = fb.Param("tok", package.GetTokenType());
+  BValue x = fb.Param("x", package.GetBitsType(32));
+  fb.Assert(tok, fb.ULt(x, fb.Literal(UBits(42, 32))),
+            "x is not greater than 42");
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(fb.Add(x, x)));
+  auto options = codegen_options("clk")
+                     .reset("rst", /*asynchronous=*/false,
+                            /*active_low=*/false,
+                            /*reset_data_path=*/false)
+                     .flop_inputs(true)
+                     .flop_outputs(true);
+  XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * estimator,
+                           GetDelayEstimator("unit"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(f, *estimator,
+                          SchedulingOptions().pipeline_stages(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenContext context,
+                           FunctionBaseToPipelinedBlock(schedule, options, f));
+  // With format string, no label.
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                           GenerateVerilog(context.top_block(), options));
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 verilog);
+}
+
 TEST_P(BlockGeneratorTest, BlockWithTrace) {
   Package package(TestBaseName());
   BlockBuilder b(TestBaseName(), &package);

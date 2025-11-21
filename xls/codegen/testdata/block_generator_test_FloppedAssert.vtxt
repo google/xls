@@ -1,0 +1,18 @@
+module FloppedAssert(
+  input wire clk,
+  input wire rst,
+  input wire [31:0] x,
+  output wire [31:0] out
+);
+  reg [31:0] p0_x;
+  reg [31:0] p1_add_17;
+  wire ult_15;
+  wire [31:0] add_17;
+  assign ult_15 = p0_x < 32'h0000_002a;
+  assign add_17 = p0_x + p0_x;
+  always @ (posedge clk) begin
+    p0_x <= x;
+    p1_add_17 <= add_17;
+  end
+  assign out = p1_add_17;
+endmodule
