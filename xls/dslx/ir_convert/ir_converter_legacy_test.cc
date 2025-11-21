@@ -139,6 +139,7 @@ absl::StatusOr<TestResultData> ParseAndTest(
 
 constexpr ConvertOptions kNoPosOptions = {
     .emit_positions = false,
+    .lower_to_proc_scoped_channels = false,
 };
 
 constexpr ConvertOptions kProcScopedChannelOptions = {
@@ -2478,6 +2479,7 @@ proc main {
   options.emit_positions = false;
   // This test won't pass with verify_ir set to true
   options.verify_ir = false;
+  options.lower_to_proc_scoped_channels = false;
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
@@ -2834,6 +2836,7 @@ proc main {
   options.emit_positions = false;
   // This test won't pass with verify_ir set to true
   options.verify_ir = false;
+  options.lower_to_proc_scoped_channels = false;
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
@@ -3645,6 +3648,7 @@ fn main() -> (bool, u32, s32, MyEnum, bool, u32, s32, MyEnum) {
   options.configured_values = {"b_override:true", "u32_override:123",
                                "s32_override:-200", "enum_override:MyEnum::B"};
   options.emit_positions = false;
+  options.lower_to_proc_scoped_channels = false;
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
                            ConvertModuleForTest(program, options));
   ExpectIr(converted);
@@ -4328,7 +4332,9 @@ TEST_F(IrConverterLegacyTest, PassChannelArraysAcrossMultipleSpawns) {
       std::string converted,
       ConvertOneFunctionForTest(
           kPassChannelArraysAcrossSpawns, "YetAnotherProc", import_data,
-          ConvertOptions{.emit_positions = false, .verify_ir = false}));
+          ConvertOptions{.emit_positions = false,
+                         .verify_ir = false,
+                         .lower_to_proc_scoped_channels = false}));
 
   ExpectIr(converted);
 }
@@ -4462,7 +4468,9 @@ TEST_F(IrConverterLegacyTest, ConvertWithoutTests) {
       std::string converted,
       ConvertModuleForTest(
           kProgramToVerifyTestConversion,
-          ConvertOptions{.emit_positions = false, .convert_tests = false}));
+          ConvertOptions{.emit_positions = false,
+                         .convert_tests = false,
+                         .lower_to_proc_scoped_channels = false}));
   ExpectIr(converted);
 }
 
@@ -4471,7 +4479,9 @@ TEST_F(IrConverterLegacyTest, ConvertWithTests) {
       std::string converted,
       ConvertModuleForTest(
           kProgramToVerifyTestConversion,
-          ConvertOptions{.emit_positions = false, .convert_tests = true}));
+          ConvertOptions{.emit_positions = false,
+                         .convert_tests = true,
+                         .lower_to_proc_scoped_channels = false}));
   ExpectIr(converted);
 }
 
@@ -4491,8 +4501,10 @@ fn test_func() {
 }
 )";
   EXPECT_THAT(
-      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false,
-                                                   .convert_tests = false}),
+      ConvertModuleForTest(
+          program, ConvertOptions{.emit_positions = false,
+                                  .convert_tests = false,
+                                  .lower_to_proc_scoped_channels = false}),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Tried to convert a function 'utility' used in tests, "
                          "but test conversion is disabled")));
@@ -4507,8 +4519,10 @@ TEST_F(IrConverterLegacyTest, NonSynthNoAssert) {
 })";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertOneFunctionForTest(program, "f",
-                                ConvertOptions{.emit_assert = false}));
+      ConvertOneFunctionForTest(
+          program, "f",
+          ConvertOptions{.emit_assert = false,
+                         .lower_to_proc_scoped_channels = false}));
   ExpectIr(converted);
 }
 
@@ -4521,8 +4535,10 @@ TEST_F(IrConverterLegacyTest, NonSynthNoTrace) {
 })";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertOneFunctionForTest(program, "f",
-                                ConvertOptions{.emit_trace = false}));
+      ConvertOneFunctionForTest(
+          program, "f",
+          ConvertOptions{.emit_trace = false,
+                         .lower_to_proc_scoped_channels = false}));
   ExpectIr(converted);
 }
 
@@ -4535,8 +4551,10 @@ TEST_F(IrConverterLegacyTest, NonSynthNoCover) {
 })";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertOneFunctionForTest(program, "f",
-                                ConvertOptions{.emit_cover = false}));
+      ConvertOneFunctionForTest(
+          program, "f",
+          ConvertOptions{.emit_cover = false,
+                         .lower_to_proc_scoped_channels = false}));
   ExpectIr(converted);
 }
 }  // namespace
