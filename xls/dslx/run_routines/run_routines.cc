@@ -276,9 +276,9 @@ class QuickCheckProveAssertsNotFiredPass final
 }  // namespace
 
 absl::StatusOr<std::unique_ptr<AbstractParsedTestRunner>>
-DslxInterpreterTestRunner ::CreateTestRunner(ImportData* import_data,
-                                             TypeInfo* type_info,
-                                             Module* module) const {
+DslxInterpreterTestRunner::CreateTestRunner(ImportData* import_data,
+                                            TypeInfo* type_info, Module* module,
+                                            ConvertOptions options) const {
   return std::make_unique<DslxInterpreterParsedTestRunner>(import_data,
                                                            type_info, module);
 }
@@ -990,9 +990,9 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
     }
   }
 
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<AbstractParsedTestRunner> runner,
-      CreateTestRunner(&import_data, tm->type_info, entry_module));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<AbstractParsedTestRunner> runner,
+                       CreateTestRunner(&import_data, tm->type_info,
+                                        entry_module, options.convert_options));
   // Run unit tests.
   for (const std::string& test_name : entry_module->GetTestNames()) {
     auto test_case_start = absl::Now();

@@ -210,14 +210,15 @@ absl::StatusOr<std::unique_ptr<AbstractParsedTestRunner>> MakeRunner(
         xls::Function* f, absl::Span<Value const>)>
         func,
     std::function<absl::StatusOr<std::unique_ptr<ProcRuntime>>(xls::Package*)>
-        proc) {
-  ConvertOptions base_option{
-      .emit_assert = true,
-      .verify_ir = false,
-      .warnings_as_errors = false,
-      .warnings = kNoWarningsSet,
-      .convert_tests = true,
-  };
+        proc,
+    ConvertOptions options) {
+  ConvertOptions test_options(options);
+  test_options.emit_assert = true;
+  test_options.verify_ir = false;
+  test_options.warnings_as_errors = false;
+  test_options.warnings = kNoWarningsSet;
+  test_options.convert_tests = true;
+
   absl::flat_hash_map<std::string, std::unique_ptr<Package>> packages;
   absl::flat_hash_map<std::string, std::string> finish_chan_names;
   for (std::string_view name : module->GetTestNames()) {
@@ -229,14 +230,19 @@ absl::StatusOr<std::unique_ptr<AbstractParsedTestRunner>> MakeRunner(
         .package = std::make_unique<Package>(
             absl::StrFormat("%s_test_for_package_%s", name, module->name()))};
     XLS_RETURN_IF_ERROR(ConvertOneFunctionIntoPackage(
-        module, name, import_data, nullptr, base_option, &package_data));
+        module, name, import_data, /*parametric_env=*/nullptr, test_options,
+        &package_data));
     if (std::holds_alternative<TestProc*>(*member)) {
       TestProc* tp = std::get<TestProc*>(*member);
       std::string dslx_chan_name =
           tp->proc()->config().params()[0]->identifier();
-      // TODO(allight): This duplicates code in the ir_convert/channel_scope.cc
-      finish_chan_names[name] =
-          absl::StrCat(package_data.package->name(), "__", dslx_chan_name);
+      // TODO: allight - This duplicates code in the ir_convert/channel_scope.cc
+      if (test_options.lower_to_proc_scoped_channels) {
+        finish_chan_names[name] = dslx_chan_name;
+      } else {
+        finish_chan_names[name] =
+            absl::StrCat(package_data.package->name(), "__", dslx_chan_name);
+      }
     }
     packages[name] = std::move(package_data.package);
   }
@@ -248,7 +254,8 @@ absl::StatusOr<std::unique_ptr<AbstractParsedTestRunner>> MakeRunner(
 
 absl::StatusOr<std::unique_ptr<AbstractParsedTestRunner>>
 IrJitTestRunner::CreateTestRunner(ImportData* import_data, TypeInfo* type_info,
-                                  Module* module) const {
+                                  Module* module,
+                                  ConvertOptions options) const {
   return MakeRunner(
       import_data, type_info, module,
       [](xls::Function* f,
@@ -263,13 +270,14 @@ IrJitTestRunner::CreateTestRunner(ImportData* import_data, TypeInfo* type_info,
         } else {
           return CreateJitSerialProcRuntime(p, EvaluatorOptions());
         }
-      });
+      },
+      options);
 }
 
 absl::StatusOr<std::unique_ptr<AbstractParsedTestRunner>>
 IrInterpreterTestRunner::CreateTestRunner(ImportData* import_data,
-                                          TypeInfo* type_info,
-                                          Module* module) const {
+                                          TypeInfo* type_info, Module* module,
+                                          ConvertOptions options) const {
   return MakeRunner(
       import_data, type_info, module,
       [&](xls::Function* f, absl::Span<Value const> args) {
@@ -282,7 +290,8 @@ IrInterpreterTestRunner::CreateTestRunner(ImportData* import_data,
         } else {
           return CreateInterpreterSerialProcRuntime(p, EvaluatorOptions());
         }
-      });
+      },
+      options);
 }
 
 }  // namespace xls::dslx

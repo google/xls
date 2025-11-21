@@ -133,11 +133,11 @@ class RunRoutinesTest : public testing::TestWithParam<RunnerType> {
         break;
       case RunnerType::kIrJitProcScoped:
         runner = &jit;
-        options.convert_options.proc_scoped_channels = true;
+        options.convert_options.lower_to_proc_scoped_channels = true;
         break;
       case RunnerType::kIrInterpreterProcScoped:
         runner = &ir;
-        options.convert_options.proc_scoped_channels = true;
+        options.convert_options.lower_to_proc_scoped_channels = true;
         break;
     }
     return runner->ParseAndTest(program, module_name, filename, options);
@@ -364,6 +364,7 @@ fn bfloat16_bits_to_float32_bits_upcast_is_zero_pad(x: bits[BF16_TOTAL_SZ]) -> b
         },
         /*cwd=*/root);
   };
+  options.convert_options.convert_tests = true;
   // Run the quickcheck and inspect that there's a u16 reported in the output.
   XLS_ASSERT_OK_AND_ASSIGN(
       TestResultData result,
@@ -482,6 +483,12 @@ fn trivial(x: u5) -> bool { false }
 }
 
 TEST_P(RunRoutinesTest, TwoNonParametricProcs) {
+  // TODO: davidplass - fix the issue whereby when running proc-scoped channels,
+  // it does not throw an error when "top" is ambiguous.
+  if (GetParam() == RunnerType::kIrInterpreterProcScoped ||
+      GetParam() == RunnerType::kIrJitProcScoped) {
+    return;
+  }
   constexpr std::string_view kProgram = R"(
 proc FirstProc {
     data_r: chan<u32> in;

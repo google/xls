@@ -221,8 +221,8 @@ class AbstractTestRunner {
 
  protected:
   virtual absl::StatusOr<std::unique_ptr<AbstractParsedTestRunner>>
-  CreateTestRunner(ImportData* import_data, TypeInfo* type_info,
-                   Module* module) const = 0;
+  CreateTestRunner(ImportData* import_data, TypeInfo* type_info, Module* module,
+                   ConvertOptions options) const = 0;
 };
 
 struct RunResult {
@@ -241,8 +241,8 @@ class AbstractParsedTestRunner {
 class DslxInterpreterTestRunner final : public AbstractTestRunner {
  protected:
   absl::StatusOr<std::unique_ptr<AbstractParsedTestRunner>> CreateTestRunner(
-      ImportData* import_data, TypeInfo* type_info,
-      Module* module) const override;
+      ImportData* import_data, TypeInfo* type_info, Module* module,
+      ConvertOptions options) const override;
 };
 
 class DslxInterpreterParsedTestRunner : public AbstractParsedTestRunner {

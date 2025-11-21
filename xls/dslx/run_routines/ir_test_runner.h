@@ -20,6 +20,7 @@
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/run_routines/run_routines.h"
 #include "xls/dslx/type_system/type_info.h"
 
@@ -28,15 +29,15 @@ namespace xls::dslx {
 class IrInterpreterTestRunner : public AbstractTestRunner {
  protected:
   absl::StatusOr<std::unique_ptr<AbstractParsedTestRunner>> CreateTestRunner(
-      ImportData* import_data, TypeInfo* type_info,
-      Module* module) const override;
+      ImportData* import_data, TypeInfo* type_info, Module* module,
+      ConvertOptions options) const override;
 };
 
 class IrJitTestRunner : public AbstractTestRunner {
  protected:
   absl::StatusOr<std::unique_ptr<AbstractParsedTestRunner>> CreateTestRunner(
-      ImportData* import_data, TypeInfo* type_info,
-      Module* module) const override;
+      ImportData* import_data, TypeInfo* type_info, Module* module,
+      ConvertOptions options) const override;
 };
 
 }  // namespace xls::dslx
