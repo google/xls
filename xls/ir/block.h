@@ -340,7 +340,9 @@ class Block : public FunctionBase {
 
   bool HasImplicitUse(Node* node) const override {
     return absl::c_any_of(stages_, [node](const Stage& stage) {
-      return stage.inputs_valid() == node || stage.outputs_valid() == node;
+      return stage.inputs_valid() == node || stage.outputs_valid() == node ||
+             stage.active_inputs_valid() == node ||
+             stage.outputs_ready() == node;
     });
   }
 

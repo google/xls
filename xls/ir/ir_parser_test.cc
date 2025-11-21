@@ -1104,10 +1104,12 @@ TEST(IrParserTest, ParseScheduledBlock) {
   std::string input = R"(package test
 scheduled_block b(x: bits[32], out: bits[32]) {
   iv0: bits[1] = literal(value=1, id=1)
-  controlled_stage(iv0) {
-    x: bits[32] = input_port(name=x, id=2)
-    out: () = output_port(x, name=out, id=3)
-    ret ov0: bits[1] = literal(value=1, id=4)
+  or0: bits[1] = literal(value=1, id=2)
+  controlled_stage(iv0, or0) {
+    x: bits[32] = input_port(name=x, id=3)
+    out: () = output_port(x, name=out, id=4)
+    active_inputs_valid aiv0: bits[1] = literal(value=1, id=5)
+    ret ov0: bits[1] = identity(aiv0, id=6)
   }
 }
 )";
@@ -1119,22 +1121,32 @@ scheduled_block b(x: bits[32], out: bits[32]) {
   ASSERT_EQ(sb->stages().size(), 1);
   EXPECT_EQ(sb->stages()[0].inputs_valid(), sb->GetNode("iv0").value());
   EXPECT_EQ(sb->stages()[0].outputs_valid(), sb->GetNode("ov0").value());
+  EXPECT_EQ(sb->stages()[0].active_inputs_valid(), sb->GetNode("aiv0").value());
+  EXPECT_EQ(sb->stages()[0].outputs_ready(), sb->GetNode("or0").value());
   EXPECT_TRUE(sb->stages()[0].contains(sb->GetInputPort("x").value()));
   EXPECT_TRUE(sb->stages()[0].contains(sb->GetOutputPort("out").value()));
+  EXPECT_FALSE(sb->stages()[0].contains(sb->GetNode("iv0").value()));
+  EXPECT_FALSE(sb->stages()[0].contains(sb->GetNode("or0").value()));
+  EXPECT_TRUE(sb->stages()[0].contains(sb->GetNode("ov0").value()));
+  EXPECT_TRUE(sb->stages()[0].contains(sb->GetNode("aiv0").value()));
 }
 
 TEST(IrParserTest, MultiStageScheduledBlock) {
   const std::string input = R"(package test
 scheduled_block b(x: bits[32], out: bits[32]) {
   iv0: bits[1] = literal(value=1, id=1)
-  controlled_stage(iv0) {
-    x: bits[32] = input_port(name=x, id=2)
-    ret ov0: bits[1] = literal(value=1, id=3)
+  or0: bits[1] = literal(value=1, id=2)
+  controlled_stage(iv0, or0) {
+    x: bits[32] = input_port(name=x, id=3)
+    active_inputs_valid aiv0: bits[1] = literal(value=1, id=4)
+    ret ov0: bits[1] = identity(aiv0, id=5)
   }
-  iv1: bits[1] = literal(value=1, id=4)
-  controlled_stage(iv1) {
-    out: () = output_port(x, name=out, id=5)
-    ret ov1: bits[1] = literal(value=1, id=6)
+  iv1: bits[1] = literal(value=1, id=6)
+  or1: bits[1] = literal(value=1, id=7)
+  controlled_stage(iv1, or1) {
+    out: () = output_port(x, name=out, id=8)
+    active_inputs_valid aiv1: bits[1] = literal(value=1, id=9)
+    ret ov1: bits[1] = identity(aiv1, id=10)
   }
 }
 )";
@@ -1161,8 +1173,10 @@ TEST(IrParserTest, ScheduledBlockWithEmptyStage) {
   const std::string input = R"(package test
 scheduled_block b() {
   iv0: bits[1] = literal(value=1, id=1)
-  controlled_stage(iv0) {
-    ret ov0: bits[1] = literal(value=1, id=2)
+  or0: bits[1] = literal(value=1, id=2)
+  controlled_stage(iv0, or0) {
+    active_inputs_valid aiv0: bits[1] = literal(value=1, id=3)
+    ret ov0: bits[1] = identity(aiv0, id=4)
   }
 }
 )";
