@@ -2,7 +2,7 @@ package test_module
 
 file_number 0 "test_module.x"
 
-proc __test_module__Memory_0_next<req_in: (bits[1], bits[32], bits[32]) in, data_out: bits[32] out>(__state: bits[32][4], init={[305419896, 305419896, 305419896, 305419896]}) {
+top proc __test_module__Memory_0_next<req_in: (bits[1], bits[32], bits[32]) in, data_out: bits[32] out>(__state: bits[32][4], init={[305419896, 305419896, 305419896, 305419896]}) {
   chan_interface req_in(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   chan_interface data_out(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   after_all.5: token = after_all(id=5)
