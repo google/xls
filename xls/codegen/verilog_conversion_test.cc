@@ -216,8 +216,6 @@ class VerilogConversionTest : public VerilogTestBase {
     codegen_flags_proto.set_reset("rst");
     codegen_flags_proto.set_reset_active_low(false);
     codegen_flags_proto.set_reset_data_path(true);
-    codegen_flags_proto.set_register_merge_strategy(
-        RegisterMergeStrategyProto::STRATEGY_DONT_MERGE);
     codegen_flags_proto.set_flop_inputs(true);
     codegen_flags_proto.set_flop_outputs(true);
     codegen_flags_proto.set_module_name("pipelined_proc");

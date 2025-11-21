@@ -505,8 +505,6 @@ void XlsccTestBase::BlockTest(
   xls::CodegenFlagsProto codegen_flags_proto;
   codegen_flags_proto.set_top(top_proc_name);
   codegen_flags_proto.set_reset(reset_port_name);
-  codegen_flags_proto.set_register_merge_strategy(
-      xls::RegisterMergeStrategyProto::STRATEGY_DONT_MERGE);
   codegen_flags_proto.set_generator(xls::GENERATOR_KIND_PIPELINE);
   codegen_flags_proto.set_streaming_channel_ready_suffix(channel_ready_suffix);
   codegen_flags_proto.set_streaming_channel_valid_suffix(channel_valid_suffix);

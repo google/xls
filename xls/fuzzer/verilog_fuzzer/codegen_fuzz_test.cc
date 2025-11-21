@@ -51,7 +51,6 @@ CodegenFlagsProto DefaultCodegenOptions() {
   codegen_options.set_module_name(kTop);
   codegen_options.set_flop_inputs(false);
   codegen_options.set_flop_outputs(false);
-  codegen_options.set_register_merge_strategy(STRATEGY_DONT_MERGE);
   return codegen_options;
 }
 

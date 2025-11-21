@@ -409,8 +409,14 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
       break;
     case STRATEGY_INVALID:
     default:
-      return absl::InvalidArgumentError(absl::StrFormat(
-          "Unknown merge strategy: %v", p.register_merge_strategy()));
+      // If unset, use the default strategy of "don't merge".
+      if (!p.has_register_merge_strategy()) {
+        options.register_merge_strategy(
+            verilog::CodegenOptions::RegisterMergeStrategy::kDontMerge);
+      } else {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Unknown merge strategy: %v", p.register_merge_strategy()));
+      }
   }
 
   if (p.has_source_annotation_strategy()) {

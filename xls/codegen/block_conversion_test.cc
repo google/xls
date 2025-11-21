@@ -6314,8 +6314,6 @@ TEST_F(ProcConversionTestFixture, SimpleMultiProcConversion) {
   codegen_options.set_streaming_channel_valid_suffix("_valid");
   codegen_options.set_streaming_channel_ready_suffix("_ready");
   codegen_options.set_module_name("p");
-  codegen_options.set_register_merge_strategy(
-      xls::RegisterMergeStrategyProto::STRATEGY_DONT_MERGE);
   codegen_options.set_generator(GeneratorKind::GENERATOR_KIND_PIPELINE);
 
   std::pair<SchedulingResult, verilog::CodegenResult> result;
@@ -6414,8 +6412,6 @@ TEST_F(ProcConversionTestFixture,
   codegen_options.set_streaming_channel_valid_suffix("_valid");
   codegen_options.set_streaming_channel_ready_suffix("_ready");
   codegen_options.set_module_name("p");
-  codegen_options.set_register_merge_strategy(
-      xls::RegisterMergeStrategyProto::STRATEGY_DONT_MERGE);
   codegen_options.set_generator(GeneratorKind::GENERATOR_KIND_PIPELINE);
 
   std::pair<SchedulingResult, verilog::CodegenResult> result;
@@ -6516,8 +6512,6 @@ TEST_F(ProcConversionTestFixture, SimpleFunctionWithProcsPresent) {
   codegen_options.set_streaming_channel_valid_suffix("_valid");
   codegen_options.set_streaming_channel_ready_suffix("_ready");
   codegen_options.set_module_name("p");
-  codegen_options.set_register_merge_strategy(
-      xls::RegisterMergeStrategyProto::STRATEGY_DONT_MERGE);
   codegen_options.set_generator(GeneratorKind::GENERATOR_KIND_PIPELINE);
 
   std::pair<SchedulingResult, verilog::CodegenResult> result;
