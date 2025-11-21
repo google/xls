@@ -28,12 +28,6 @@
 // compiler remaining stable, users should not depend on the precise output of
 // these actions remaining stable, they will evolve as the XLS system evolves.
 
-#include <filesystem>
-#include <string>
-#include <string_view>
-#include <vector>
-
-#include "absl/status/statusor.h"
 #include "xls/public/runtime_codegen_actions.h"  // IWYU pragma: export
 #include "xls/public/runtime_dslx_actions.h"  // IWYU pragma: export
 #include "xls/public/runtime_ir_opt_actions.h"  // IWYU pragma: export

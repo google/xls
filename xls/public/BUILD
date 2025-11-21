@@ -101,7 +101,6 @@ cc_library(
         ":runtime_codegen_actions",
         ":runtime_dslx_actions",
         ":runtime_ir_opt_actions",
-        "@com_google_absl//absl/status:statusor",
     ],
 )
 
