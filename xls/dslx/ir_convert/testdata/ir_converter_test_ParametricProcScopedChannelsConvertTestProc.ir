@@ -20,7 +20,7 @@ proc __test_module__TestUtilityProc_0__8_next<req_r: bits[8] in, resp_s: bits[8]
   next_value.13: () = next_value(param=__state, value=tuple.12, id=13)
 }
 
-proc __test_module__TestProc_0_next<terminator: bits[1] out>(__state: (), init={()}) {
+top proc __test_module__TestProc_0_next<terminator: bits[1] out>(__state: (), init={()}) {
   chan_interface terminator(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   chan tester_req(bits[8], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
   chan_interface tester_req(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)

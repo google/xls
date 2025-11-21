@@ -85,12 +85,14 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
         ConversionRecord config_record,
         MakeConversionRecord(&spawn.proc->config(), spawn.proc->owner(),
                              spawn.config_type_info, spawn.env, proc_id,
+                             // "config" functions can never be top
                              /*is_top=*/false));
     XLS_ASSIGN_OR_RETURN(
         ConversionRecord next_record,
         MakeConversionRecord(
             &spawn.proc->next(), spawn.proc->owner(), spawn.next_type_info,
             spawn.env, proc_id,
+            // Since it's spawned, it can't be top.
             /*is_top=*/false,
             std::make_unique<ConversionRecord>(std::move(config_record)),
             spawn.init_value));
@@ -302,12 +304,14 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
 
       VLOG(5) << "HandleProc: initial element "
               << initial_value.ToHumanString();
+      // Pick the first appropriate proc as top.
+      bool is_top = top_ == next_fn || (top_ == nullptr && !TopExists());
       XLS_ASSIGN_OR_RETURN(
           ConversionRecord cr,
           MakeConversionRecord(const_cast<Function*>(next_fn), p->owner(),
                                proc_owner_ti,
                                /*bindings=*/ParametricEnv(), proc_id,
-                               /*is_top=*/top_ == next_fn,
+                               /*is_top=*/is_top,
                                /*config_record=*/nullptr, initial_value));
       records_.push_back(std::move(cr));
       return absl::OkStatus();
@@ -351,6 +355,16 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
   }
 
  private:
+  // Returns true if any record in `records_` is marked as "top".
+  bool TopExists() const {
+    for (const auto& record : records_) {
+      if (record.IsTop()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   absl::Status CheckIfCalledOnlyFromTestCode(
       TypeInfo* type_info, const std::vector<InvocationCalleeData>& calls,
       bool is_proc, std::string_view identifier) {
@@ -391,11 +405,11 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
 // Filters duplicate conversion records from the given vector and returns a new
 // vector without duplicates.
 std::vector<ConversionRecord> RemoveFunctionDuplicates(
-    std::vector<ConversionRecord>& ready) {
-  absl::flat_hash_set<std::pair<Function*, ParametricEnv>> records;
+    std::vector<ConversionRecord>& records) {
+  absl::flat_hash_set<std::pair<Function*, ParametricEnv>> records_by_env;
   std::vector<ConversionRecord> result;
-  for (auto& record : ready) {
-    if (records.emplace(record.f(), record.parametric_env()).second) {
+  for (auto& record : records) {
+    if (records_by_env.emplace(record.f(), record.parametric_env()).second) {
       result.push_back(std::move(record));
     }
   }

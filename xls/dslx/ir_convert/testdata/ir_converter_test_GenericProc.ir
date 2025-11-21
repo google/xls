@@ -28,7 +28,7 @@ proc __test_module__P_0__s64_next<input_c: bits[64] out>(__state: bits[64], init
   next_value.18: () = next_value(param=__state, value=add.17, id=18)
 }
 
-proc __test_module__Main_0_next<>(__state: (bits[32], bits[64]), init={(0, 0)}) {
+top proc __test_module__Main_0_next<>(__state: (bits[32], bits[64]), init={(0, 0)}) {
   chan c_u32(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
   chan_interface c_u32(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
   chan_interface c_u32(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)

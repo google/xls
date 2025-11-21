@@ -38,7 +38,7 @@ proc __test_module__Branch_0__32_next<my_out: bits[32] out, my_in: bits[32] in>(
   next_value.17: () = next_value(param=__state, value=tuple.16, id=17)
 }
 
-proc __test_module__Top_0_next<>(__state: (), init={()}) {
+top proc __test_module__Top_0_next<>(__state: (), init={()}) {
   chan chans__0(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
   chan_interface chans__0(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
   chan_interface chans__0(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
