@@ -662,15 +662,17 @@ std::string Attribute::ToString() const {
   if (!args_.empty()) {
     absl::StrAppend(&args, "(");
     for (Argument next : args_) {
-      absl::StrAppend(&args,
-                      absl::visit(Visitor{
-                                      [](auto arg) {
-                                        return absl::Substitute(
-                                            "$0 = $1", arg.first, arg.second);
-                                      },
-                                      [](std::string arg) { return arg; },
-                                  },
-                                  next));
+      absl::StrAppend(
+          &args,
+          absl::visit(Visitor{
+                          [](auto arg) {
+                            return absl::Substitute("$0 = $1", arg.first,
+                                                    arg.second);
+                          },
+                          [](StringLiteralArgument arg) { return arg.text; },
+                          [](std::string arg) { return arg; },
+                      },
+                      next));
     }
     absl::StrAppend(&args, ")");
   }

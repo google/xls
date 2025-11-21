@@ -1522,13 +1522,50 @@ TEST_F(ModuleFmtTest, StructDefTwoFields) {
         32);
 }
 
-TEST_F(ModuleFmtTest, StructDefTwoFieldsSvType) {
+TEST_F(ModuleFmtTest, StructDefWithDerivedToBits) {
   const std::string kInput =
-      R"(#[sv_type("cool")] pub struct Point { x: u32, y: u64 })";
-
-  DoFmt(kInput, R"(#[sv_type("cool")]
+      R"(#[derive(ToBits)]
 pub struct Point { x: u32, y: u64 }
-)");
+)";
+
+  DoFmt(kInput);
+}
+
+TEST_F(ModuleFmtTest, MultipleStructsWithDerivedToBits) {
+  const std::string kInput =
+      R"(#[derive(ToBits)]
+pub struct A { a: u32, y: u32 }
+
+#[derive(ToBits)]
+pub struct B { x: u32, y: A }
+)";
+
+  DoFmt(kInput);
+}
+
+TEST_F(ModuleFmtTest, MultipleStructsWithDerivedAndExplicitToBits) {
+  const std::string kInput =
+      R"(pub struct A { x: u32, y: u32 }
+
+impl A {
+    fn to_bits(self) -> bits[bit_count<A>()] { self.y ++ self.x }
+}
+
+#[derive(ToBits)]
+pub struct B { x: u32, y: A }
+)";
+
+  DoFmt(kInput);
+}
+
+TEST_F(ModuleFmtTest, StructDefWithDerivedToBitsAndSvType) {
+  const std::string kInput =
+      R"(#[derive(ToBits)]
+#[sv_type("cool")]
+pub struct Point { x: u32, y: u64 }
+)";
+
+  DoFmt(kInput);
 }
 
 TEST_F(ModuleFmtTest, StructDefEmptyWithComment) {

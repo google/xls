@@ -762,6 +762,8 @@ Parser::ParseAttributeArguments() {
                                 "Expected attribute argument value.");
       }
       XLS_ASSIGN_OR_RETURN(delim, PeekToken());
+    } else if (lhs.kind() == TokenKind::kString) {
+      result.push_back(Attribute::StringLiteralArgument(lhs.GetStringValue()));
     } else {
       result.push_back(lhs.GetStringValue());
     }
@@ -882,11 +884,13 @@ absl::StatusOr<bool> Parser::IsTestConfig(const Attribute& cfg) {
 absl::Status Parser::ApplyExternVerilogAttribute(Function* fn,
                                                  const Attribute& attr) {
   if (attr.args().size() != 1 ||
-      !std::holds_alternative<std::string>(attr.args()[0])) {
+      !std::holds_alternative<Attribute::StringLiteralArgument>(
+          attr.args()[0])) {
     return ParseErrorStatus(*attr.GetSpan(),
                             "Expected extern_verilog template.");
   }
-  std::string ffi_annotation = std::get<std::string>(attr.args()[0]);
+  std::string ffi_annotation =
+      std::get<Attribute::StringLiteralArgument>(attr.args()[0]).text;
   absl::StatusOr<ForeignFunctionData> parsed_ffi_annotation =
       ForeignFunctionDataCreateFromTemplate(ffi_annotation);
   if (!parsed_ffi_annotation.ok()) {
@@ -992,12 +996,14 @@ absl::Status Parser::ApplyTypeAttributes(T* node,
 
       case AttributeKind::kSvType: {
         if (next->args().size() != 1 ||
-            !std::holds_alternative<std::string>(next->args()[0])) {
+            !std::holds_alternative<Attribute::StringLiteralArgument>(
+                next->args()[0])) {
           return ParseErrorStatus(
               *next->GetSpan(),
-              "sv_type attribute requires an identifier argument.");
+              "sv_type attribute requires a string argument.");
         }
-        node->set_extern_type_name(std::get<std::string>(next->args()[0]));
+        node->set_extern_type_name(
+            std::get<Attribute::StringLiteralArgument>(next->args()[0]).text);
         break;
       }
 

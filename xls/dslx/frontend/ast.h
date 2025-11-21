@@ -327,13 +327,24 @@ enum class AttributeKind : uint8_t {
   kQuickcheck
 };
 
+std::string AttributeKindToString(AttributeKind kind);
+
 // One of the `#[foo]`-like nodes preceding some entity.
 class Attribute : public AstNode {
  public:
   using StringKeyValueArgument = std::pair<std::string, std::string>;
   using IntKeyValueArgument = std::pair<std::string, int64_t>;
-  using Argument =
-      std::variant<std::string, StringKeyValueArgument, IntKeyValueArgument>;
+
+  // Represents a quoted string argument as opposed to a bare identifier-like
+  // string.
+  struct StringLiteralArgument {
+    std::string text;
+  };
+
+  // Note that a std::string argument is the simplest kind and looks like an
+  // unquoted identifier, like `test` in `#[cfg(test)]`.
+  using Argument = std::variant<std::string, StringLiteralArgument,
+                                StringKeyValueArgument, IntKeyValueArgument>;
 
   Attribute(Module* owner, Span span, std::optional<Span> arg_span,
             AttributeKind kind, std::vector<Argument> args)

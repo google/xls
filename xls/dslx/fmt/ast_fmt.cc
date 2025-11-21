@@ -36,6 +36,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
+#include "absl/strings/substitute.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "cppitertools/enumerate.hpp"
@@ -410,21 +411,52 @@ DocRef Fmt(const TypeAnnotation& n, Comments& comments, DocArena& arena) {
              << " type: " << n.GetNodeTypeName();
 }
 
-DocRef JoinWithAttr(std::optional<DocRef> attr, DocRef rest, DocArena& arena) {
-  if (!attr) {
+DocRef JoinWithAttrs(absl::Span<const DocRef> attrs, DocRef rest,
+                     DocArena& arena) {
+  if (attrs.empty()) {
     return rest;
   }
-  return arena.MakeConcat(*attr, rest);
+  return arena.MakeConcat(ConcatNGroup(arena, attrs), rest);
 }
 
-DocRef FmtSvTypeAttribute(std::string_view name, DocArena& arena) {
+DocRef JoinWithAttr(std::optional<DocRef> attr, DocRef rest, DocArena& arena) {
+  std::vector<DocRef> attrs;
+  if (attr.has_value()) {
+    attrs.push_back(*attr);
+  }
+  return JoinWithAttrs(attrs, rest, arena);
+}
+
+DocRef FmtAttribute(const Attribute& attribute, DocArena& arena) {
   std::vector<DocRef> pieces;
   pieces.push_back(arena.MakeText("#"));
   pieces.push_back(arena.obracket());
-  pieces.push_back(arena.MakeText("sv_type"));
-  pieces.push_back(arena.oparen());
-  pieces.push_back(arena.MakeText(absl::StrFormat("\"%s\"", name)));
-  pieces.push_back(arena.cparen());
+  pieces.push_back(
+      arena.MakeText(AttributeKindToString(attribute.attribute_kind())));
+
+  if (!attribute.args().empty()) {
+    pieces.push_back(arena.oparen());
+    for (const Attribute::Argument& arg : attribute.args()) {
+      absl::visit(
+          Visitor{
+              [&](std::string str) { pieces.push_back(arena.MakeText(str)); },
+              [&](Attribute::StringLiteralArgument arg) {
+                pieces.push_back(
+                    arena.MakeText(absl::Substitute("\"$0\"", arg.text)));
+              },
+              [&](Attribute::IntKeyValueArgument arg) {
+                pieces.push_back(arena.MakeText(
+                    absl::Substitute("$0=$1", arg.first, arg.second)));
+              },
+              [&](Attribute::StringKeyValueArgument arg) {
+                pieces.push_back(arena.MakeText(
+                    absl::Substitute("$0=$1", arg.first, arg.second)));
+              },
+          },
+          arg);
+    }
+    pieces.push_back(arena.cparen());
+  }
   pieces.push_back(arena.cbracket());
   pieces.push_back(arena.hard_line());
   return ConcatNGroup(arena, pieces);
@@ -2583,9 +2615,9 @@ DocRef Formatter::FormatStructDefBase(
     const StructDefBase& n, Keyword keyword,
     const std::optional<std::string>& extern_type_name) {
   std::vector<DocRef> pieces;
-  std::optional<DocRef> attr;
-  if (extern_type_name.has_value()) {
-    attr = FmtSvTypeAttribute(*extern_type_name, arena_);
+  std::vector<DocRef> attrs;
+  for (const Attribute* attribute : n.attributes()) {
+    attrs.push_back(FmtAttribute(*attribute, arena_));
   }
   if (n.is_public()) {
     pieces.push_back(arena_.Make(Keyword::kPub));
@@ -2612,7 +2644,7 @@ DocRef Formatter::FormatStructDefBase(
   FmtStructMembers(n, comments_, arena_, pieces);
 
   pieces.push_back(arena_.ccurl());
-  return JoinWithAttr(attr, ConcatNGroup(arena_, pieces), arena_);
+  return JoinWithAttrs(attrs, ConcatNGroup(arena_, pieces), arena_);
 }
 
 DocRef Formatter::Format(const StructDef& n) {
@@ -2709,9 +2741,9 @@ DocRef Formatter::Format(const EnumMember& n) {
 
 DocRef Formatter::Format(const EnumDef& n) {
   std::vector<DocRef> pieces;
-  std::optional<DocRef> attr;
-  if (n.extern_type_name()) {
-    attr = FmtSvTypeAttribute(*n.extern_type_name(), arena_);
+  std::vector<DocRef> attrs;
+  for (const Attribute* attribute : n.attributes()) {
+    attrs.push_back(FmtAttribute(*attribute, arena_));
   }
   if (n.is_public()) {
     pieces.push_back(arena_.Make(Keyword::kPub));
@@ -2780,7 +2812,7 @@ DocRef Formatter::Format(const EnumDef& n) {
   pieces.push_back(arena_.MakeNest(nested_ref));
   pieces.push_back(arena_.hard_line());
   pieces.push_back(arena_.ccurl());
-  return JoinWithAttr(attr, ConcatN(arena_, pieces), arena_);
+  return JoinWithAttrs(attrs, ConcatN(arena_, pieces), arena_);
 }
 
 DocRef Formatter::Format(const Import& n) {
@@ -2902,9 +2934,9 @@ DocRef Formatter::Format(const Let& n, bool trailing_semi) {
 
 DocRef Formatter::Format(const TypeAlias& n) {
   std::vector<DocRef> pieces;
-  std::optional<DocRef> attr;
-  if (n.extern_type_name()) {
-    attr = FmtSvTypeAttribute(*n.extern_type_name(), arena_);
+  std::vector<DocRef> attrs;
+  for (const Attribute* attribute : n.attributes()) {
+    attrs.push_back(FmtAttribute(*attribute, arena_));
   }
   if (n.is_public()) {
     pieces.push_back(arena_.Make(Keyword::kPub));
@@ -2917,7 +2949,7 @@ DocRef Formatter::Format(const TypeAlias& n) {
   pieces.push_back(arena_.equals());
   pieces.push_back(arena_.break1());
   pieces.push_back(Fmt(n.type_annotation(), comments_, arena_));
-  return JoinWithAttr(attr, ConcatNGroup(arena_, pieces), arena_);
+  return JoinWithAttrs(attrs, ConcatNGroup(arena_, pieces), arena_);
 }
 
 DocRef Formatter::Format(const ProcAlias& n) {
