@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_python//python:proto.bzl", "py_proto_library")
 # Load proto_library
 # cc_proto_library is used in this file
@@ -38,6 +39,19 @@ cc_proto_library(
 py_proto_library(
     name = "estimator_model_py_pb2",
     deps = [":estimator_model_proto"],
+)
+
+# Helper alias for all the configured area and delay models.
+cc_library(
+    name = "estimators",
+    # Don't remove this. It registers the models.
+    tags = ["keep_dep"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        "//xls/estimators/area_model/models",
+        "//xls/estimators/delay_model/models",
+    ],
+    alwayslink = 1,
 )
 
 pytype_strict_library(
