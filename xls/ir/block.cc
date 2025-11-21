@@ -351,16 +351,14 @@ std::string Block::DumpIr() const {
 
       const Stage& stage = stages_[stage_idx];
       CHECK(stage.IsControlled());
-      absl::StrAppendFormat(
-          &res, "  controlled_stage(%s%s) {\n", stage.inputs_valid()->GetName(),
-          stage.contains(stage.outputs_valid())
-              ? ""
-              : absl::StrCat(", outputs_valid=",
-                             stage.outputs_valid()->GetName()));
+      absl::StrAppendFormat(&res, "  controlled_stage(%s, %s) {\n",
+                            stage.inputs_valid()->GetName(),
+                            stage.outputs_ready()->GetName());
       for (Node* node : staged_nodes[stage_idx]) {
-        absl::StrAppendFormat(&res, "    %s%s\n",
-                              node == stage.outputs_valid() ? "ret " : "",
-                              node->ToString());
+        absl::StrAppend(
+            &res, "    ", (node == stage.outputs_valid() ? "ret " : ""),
+            (node == stage.active_inputs_valid() ? "active_inputs_valid " : ""),
+            node->ToString(), "\n");
       }
       absl::StrAppend(&res, "  }\n");
     }
@@ -1134,6 +1132,12 @@ absl::StatusOr<bool> Block::RemoveNodeFromStage(Node* node) {
     return false;
   }
   int64_t stage_index = it->second;
+  Stage& stage = stages_[stage_index];
+  if (stage.active_inputs_valid() == node || stage.outputs_valid() == node) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Node %s has implicit uses in stage %d and cannot be removed.",
+        node->GetName(), stage_index));
+  }
   node_to_stage_.erase(it);
   stages_[stage_index].erase(node);
   return true;

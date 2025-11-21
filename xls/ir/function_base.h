@@ -52,11 +52,16 @@ class Proc;
 // Represents a pipeline stage after scheduling.
 class Stage {
  public:
-  Stage(Node* inputs_valid, Node* outputs_valid)
-      : inputs_valid_(inputs_valid), outputs_valid_(outputs_valid) {
+  Stage(Node* inputs_valid, Node* outputs_ready, Node* active_inputs_valid,
+        Node* outputs_valid)
+      : inputs_valid_(inputs_valid),
+        outputs_ready_(outputs_ready),
+        active_inputs_valid_(active_inputs_valid),
+        outputs_valid_(outputs_valid) {
+    CHECK_EQ(inputs_valid_ == nullptr, outputs_ready_ == nullptr);
     CHECK_EQ(inputs_valid_ == nullptr, outputs_valid_ == nullptr);
   }
-  Stage() : Stage(nullptr, nullptr) {}
+  Stage() : Stage(nullptr, nullptr, nullptr, nullptr) {}
 
   Stage(const Stage& other) = default;
   Stage& operator=(const Stage& other) = default;
@@ -94,19 +99,37 @@ class Stage {
       const absl::flat_hash_map<Node*, Node*>& node_mapping) const;
 
   bool IsControlled() const {
-    return inputs_valid_ != nullptr && outputs_valid_ != nullptr;
+    return inputs_valid_ != nullptr && outputs_ready_ != nullptr &&
+           active_inputs_valid_ != nullptr && outputs_valid_ != nullptr;
   }
 
   // Returns the node that signals whether it would be valid for this stage to
-  // execute; i.e., that all passive inputs are updated for the next activation,
-  // and all active inputs are valid.
+  // execute; i.e., that all passive inputs are updated for the next activation.
   Node* inputs_valid() const { return inputs_valid_; }
 
   void set_inputs_valid(Node* inputs_valid) { inputs_valid_ = inputs_valid; }
 
-  // Returns the node that signals whether the stage's outputs are valid to be
-  // read; i.e., that all logic nodes are updated by the current activation, and
-  // all active outputs have completed execution.
+  // Returns the node that signals whether it is safe for this stage to execute;
+  // i.e., that the receiver for all passive outputs will have space to store
+  // the data.
+  Node* outputs_ready() const { return outputs_ready_; }
+
+  void set_outputs_ready(Node* outputs_ready) {
+    outputs_ready_ = outputs_ready;
+  }
+
+  // Returns the node that signals whether all active inputs to this stage are
+  // valid; i.e., that all active receives & all actively-read state values have
+  // the correct values for this activation.
+  Node* active_inputs_valid() const { return active_inputs_valid_; }
+
+  void set_active_inputs_valid(Node* active_inputs_valid) {
+    active_inputs_valid_ = active_inputs_valid;
+  }
+
+  // Returns the node that signals whether it would be safe for this stage to be
+  // done executing; i.e., that all logic nodes are updated by the current
+  // activation, and all active outputs have completed execution.
   Node* outputs_valid() const { return outputs_valid_; }
 
   void set_outputs_valid(Node* outputs_valid) {
@@ -118,6 +141,8 @@ class Stage {
   absl::btree_set<Node*, Node::NodeIdLessThan> logic_;
   absl::btree_set<Node*, Node::NodeIdLessThan> active_outputs_;
   Node* inputs_valid_ = nullptr;
+  Node* outputs_ready_ = nullptr;
+  Node* active_inputs_valid_ = nullptr;
   Node* outputs_valid_ = nullptr;
 };
 
