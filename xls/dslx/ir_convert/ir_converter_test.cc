@@ -6828,5 +6828,55 @@ TEST_F(IrConverterTest, NonSynthNoCover) {
                          .lower_to_proc_scoped_channels = true}));
   ExpectIr(converted);
 }
+
+TEST_F(IrConverterTest, FunctionCallProcessed) {
+  ImportData import_data = CreateImportDataForTest();
+  constexpr std::string_view fake_std_lib = R"(
+pub fn pow<S: bool, N: u32>(x: xN[S][N], n: uN[N]) -> xN[S][N] {
+    let result = xN[S][N]:1;
+    let p = x;
+
+    let work = for (i, (n, p, result)) in u32:0..N {
+        let result = if (n & uN[N]:1) == uN[N]:1 { result * p } else { result };
+        (n >> 1, if n == uN[N]:0 { p } else { p * p }, result)
+    }((n, p, result));
+    work.2
+}
+
+pub fn clog2<N: u32>(x: bits[N]) -> bits[N] {
+    if x >= bits[N]:1 { (N as bits[N]) - clz(x - bits[N]:1) } else { bits[N]:0 }
+}
+
+pub fn upow<N: u32>(x: uN[N], n: uN[N]) -> uN[N] { pow(x, n) }
+
+pub fn next_pow2(n: u32) -> u32 {
+    upow(u32:2, clog2(n))
+}
+)";
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(fake_std_lib, "fake_std.x", "fake_std", &import_data));
+
+  constexpr std::string_view test_program = R"(
+import fake_std;
+
+#[test]
+pub fn test_next_pow2() {
+    assert_eq(fake_std::next_pow2(u32:1), u32:1);
+}
+
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(
+          test_program,
+          ConvertOptions{.emit_positions = false,
+                         .emit_assert = true,
+                         .verify_ir = false,
+                         .convert_tests = true,
+                         .lower_to_proc_scoped_channels = true},
+          &import_data));
+  ExpectIr(converted);
+}
+
 }  // namespace
 }  // namespace xls::dslx

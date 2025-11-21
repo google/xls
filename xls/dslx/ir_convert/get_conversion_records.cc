@@ -170,18 +170,16 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
       return DefaultHandler(invocation);
     }
 
-    if (f->owner() == module_) {
-      // Since this function is inside this module, we will convert this
-      // function, so there's no need to do any more processing here.
-      return absl::OkStatus();
+    if (f->owner() != module_) {
+      // Function is outside this module; get additional conversion records from
+      // its invocation and add to our list of records.
+      ConversionRecordVisitor visitor(module_, invocation_owner_ti,
+                                      include_tests_, proc_id_factory_, top_,
+                                      resolved_proc_alias_, records_);
+      XLS_RETURN_IF_ERROR(f->Accept(&visitor));
     }
-    // Function is outside this module; get additional conversion records from
-    // its invocation and add to our list of records.
-    ConversionRecordVisitor visitor(module_, invocation_owner_ti,
-                                    include_tests_, proc_id_factory_, top_,
-                                    resolved_proc_alias_, records_);
-    XLS_RETURN_IF_ERROR(f->Accept(&visitor));
-    return absl::OkStatus();
+    // Process the children, specifically, to find invocations in parameters.
+    return DefaultHandler(invocation);
   }
 
   absl::Status HandleSpawn(const Spawn* spawn) override {

@@ -1,0 +1,91 @@
+package test_module
+
+file_number 0 "fake_std.x"
+file_number 1 "test_module.x"
+
+fn __fake_std__clog2__32(x: bits[32] id=42) -> bits[32] {
+  literal.47: bits[32] = literal(value=1, id=47)
+  sub.48: bits[32] = sub(x, literal.47, id=48)
+  reverse.49: bits[32] = reverse(sub.48, id=49)
+  one_hot.50: bits[33] = one_hot(reverse.49, lsb_prio=true, id=50)
+  N: bits[32] = literal(value=32, id=43)
+  encode.51: bits[6] = encode(one_hot.50, id=51)
+  literal.44: bits[32] = literal(value=1, id=44)
+  zero_ext.46: bits[32] = zero_ext(N, new_bit_count=32, id=46)
+  zero_ext.52: bits[32] = zero_ext(encode.51, new_bit_count=32, id=52)
+  uge.45: bits[1] = uge(x, literal.44, id=45)
+  literal.54: bits[32] = literal(value=0, id=54)
+  sub.53: bits[32] = sub(zero_ext.46, zero_ext.52, id=53)
+  ret sel.55: bits[32] = sel(uge.45, cases=[literal.54, sub.53], id=55)
+}
+
+fn ____fake_std__pow__32_0_counted_for_0_body(i: bits[32] id=7, __loop_carry: (bits[32], bits[32], bits[32]) id=10) -> (bits[32], bits[32], bits[32]) {
+  tuple_index.12: bits[32] = tuple_index(__loop_carry, index=0, id=12)
+  literal.22: bits[32] = literal(value=1, id=22)
+  literal.11: bits[1] = literal(value=1, id=11)
+  literal.13: bits[1] = literal(value=1, id=13)
+  literal.30: bits[32] = literal(value=0, id=30)
+  tuple_index.15: bits[32] = tuple_index(__loop_carry, index=1, id=15)
+  and.23: bits[32] = and(tuple_index.12, literal.22, id=23)
+  literal.24: bits[32] = literal(value=1, id=24)
+  tuple_index.18: bits[32] = tuple_index(__loop_carry, index=2, id=18)
+  and.14: bits[1] = and(literal.11, literal.13, id=14)
+  literal.16: bits[1] = literal(value=1, id=16)
+  literal.28: bits[1] = literal(value=1, id=28)
+  eq.31: bits[1] = eq(tuple_index.12, literal.30, id=31)
+  umul.32: bits[32] = umul(tuple_index.15, tuple_index.15, id=32)
+  eq.25: bits[1] = eq(and.23, literal.24, id=25)
+  umul.26: bits[32] = umul(tuple_index.18, tuple_index.15, id=26)
+  literal.8: bits[32] = literal(value=0, id=8)
+  and.17: bits[1] = and(and.14, literal.16, id=17)
+  literal.19: bits[1] = literal(value=1, id=19)
+  shrl.29: bits[32] = shrl(tuple_index.12, literal.28, id=29)
+  sel.33: bits[32] = sel(eq.31, cases=[umul.32, tuple_index.15], id=33)
+  result: bits[32] = sel(eq.25, cases=[tuple_index.18, umul.26], id=27)
+  add.9: bits[32] = add(i, literal.8, id=9)
+  and.20: bits[1] = and(and.17, literal.19, id=20)
+  literal.21: bits[32] = literal(value=32, id=21)
+  ret tuple.34: (bits[32], bits[32], bits[32]) = tuple(shrl.29, sel.33, result, id=34)
+}
+
+fn __fake_std__pow__32_0(x: bits[32] id=1, n: bits[32] id=2) -> bits[32] {
+  result: bits[32] = literal(value=1, id=5)
+  tuple.6: (bits[32], bits[32], bits[32]) = tuple(n, x, result, id=6)
+  work: (bits[32], bits[32], bits[32]) = counted_for(tuple.6, trip_count=32, stride=1, body=____fake_std__pow__32_0_counted_for_0_body, id=35)
+  S: bits[1] = literal(value=0, id=3)
+  N: bits[32] = literal(value=32, id=4)
+  literal.36: bits[32] = literal(value=2, id=36)
+  ret tuple_index.37: bits[32] = tuple_index(work, index=2, id=37)
+}
+
+fn __fake_std__upow__32(x: bits[32] id=38, n: bits[32] id=39) -> bits[32] {
+  N: bits[32] = literal(value=32, id=40)
+  ret invoke.41: bits[32] = invoke(x, n, to_apply=__fake_std__pow__32_0, id=41)
+}
+
+fn __fake_std__next_pow2(n: bits[32] id=56) -> bits[32] {
+  literal.57: bits[32] = literal(value=2, id=57)
+  invoke.58: bits[32] = invoke(n, to_apply=__fake_std__clog2__32, id=58)
+  ret invoke.59: bits[32] = invoke(literal.57, invoke.58, to_apply=__fake_std__upow__32, id=59)
+}
+
+fn __itok__test_module__test_next_pow2(__token: token id=60, __activated: bits[1] id=61) -> (token, ()) {
+  literal.62: bits[32] = literal(value=1, id=62)
+  invoke.63: bits[32] = invoke(literal.62, to_apply=__fake_std__next_pow2, id=63)
+  literal.64: bits[32] = literal(value=1, id=64)
+  not.66: bits[1] = not(__activated, id=66)
+  eq.65: bits[1] = eq(invoke.63, literal.64, id=65)
+  or.67: bits[1] = or(not.66, eq.65, id=67)
+  assert.68: token = assert(__token, or.67, message="Assertion failure via assert_eq @ test_module.x:6:14-6:49", label="assert_eq(fake_std::next_pow2(u32:1), u32:1)", id=68)
+  after_all.71: token = after_all(assert.68, id=71)
+  tuple.70: () = tuple(id=70)
+  tuple.69: () = tuple(id=69)
+  ret tuple.72: (token, ()) = tuple(after_all.71, tuple.70, id=72)
+}
+
+fn __test_module__test_next_pow2() -> () {
+  after_all.73: token = after_all(id=73)
+  literal.74: bits[1] = literal(value=1, id=74)
+  invoke.75: (token, ()) = invoke(after_all.73, literal.74, to_apply=__itok__test_module__test_next_pow2, id=75)
+  ret tuple_index.76: () = tuple_index(invoke.75, index=1, id=76)
+}
