@@ -41,6 +41,7 @@ cc_library(
         "//xls/dslx/ir_convert:conversion_info",
         "//xls/dslx/ir_convert:convert_options",
         "//xls/dslx/ir_convert:ir_converter",
+        "//xls/estimators",
         "//xls/interpreter:serial_proc_runtime",
         "//xls/ir",
         "//xls/ir:bits",

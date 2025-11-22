@@ -4420,6 +4420,7 @@ cc_test(
         "//xls/common/fuzzing:fuzztest",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
+        "//xls/estimators",
         "//xls/fuzzer/ir_fuzzer:ir_fuzz_domain",
         "//xls/fuzzer/ir_fuzzer:ir_fuzz_test_library",
         "//xls/interpreter:ir_interpreter",

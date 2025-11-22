@@ -14,7 +14,11 @@
 
 # Delay models.
 
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(
+    "//xls/build_rules:xls_estimator_rules.bzl",
+    "estimator_model_group",
+    "xls_default_area_models",
+)
 load("//xls/estimators/area_model:build_defs.bzl", "area_model")
 
 package(
@@ -27,15 +31,15 @@ package(
     licenses = ["notice"],  # Apache 2.0
 )
 
-# A srcs-less library which gathers together the models into a single
-# dependency.
-cc_library(
-    name = "models",
-    srcs = [],
-    deps = [
+# Alias for whatever the toolchain says the available area models are.
+xls_default_area_models(name = "models")
+
+estimator_model_group(
+    name = "oss_models",
+    models = [
         ":area_model_asap7",
         ":area_model_sky130",
-        ":area_model_unit",  # build_cleaner: keep
+        ":area_model_unit",
     ],
 )
 

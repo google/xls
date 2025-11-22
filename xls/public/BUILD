@@ -330,6 +330,15 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "passes_and_estimators",
+    tags = ["keep_dep"],
+    deps = [
+        "//xls/estimators",
+        "//xls/passes",
+    ],
+)
+
 cc_test(
     name = "c_api_test",
     srcs = ["c_api_test.cc"],
@@ -344,6 +353,8 @@ cc_test(
         "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",
         "//xls/dslx:default_dslx_stdlib_path",
+        "//xls/estimators",
+        "//xls/passes",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/log",
@@ -389,6 +400,25 @@ genrule(
 )
 
 cc_binary(
+    name = "libxls_min.so",
+    additional_linker_inputs = [
+        ":exported_symbols_map",
+        ":generate_linker_params",
+    ],
+    linkopts = [
+        "-Wl,--version-script=$(location :exported_symbols_map)",
+        "@$(location :generate_linker_params)",
+    ],
+    linkshared = True,
+    # We're not using any headers provided by c_api, and is not alwayslink,
+    # so make sure a build_cleaner does not accidentally remove the library
+    # we want to wrap.
+    deps = [
+        ":c_api",  # build_cleaner: keep
+    ],
+)
+
+cc_binary(
     name = "libxls.so",
     additional_linker_inputs = [
         ":exported_symbols_map",
@@ -404,6 +434,7 @@ cc_binary(
     # we want to wrap.
     deps = [
         ":c_api",  # build_cleaner: keep
+        ":passes_and_estimators",  # build_cleaner: keep
     ],
 )
 

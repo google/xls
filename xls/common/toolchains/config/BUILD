@@ -25,5 +25,7 @@ package(
 
 xls_configuration_toolchain(
     name = "default_configuration",
+    area_models = "//xls/estimators/area_model/models:oss_models",
+    delay_models = "//xls/estimators/delay_model/models:oss_models",
     pass_registry = "//xls/passes:oss_optimization_passes",
 )

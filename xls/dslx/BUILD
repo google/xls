@@ -711,6 +711,7 @@ cc_binary(
         "//xls/common/status:status_macros",
         "//xls/dslx/run_routines",
         "//xls/dslx/run_routines:test_xml",
+        "//xls/estimators/delay_model/models",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",

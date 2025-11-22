@@ -313,6 +313,16 @@ bzl_library(
     ],
 )
 
+bzl_library(
+    name = "xls_estimator_rules_bzl",
+    srcs = ["xls_estimator_rules.bzl"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":xls_providers_bzl",
+        "@rules_cc//cc/common",
+    ],
+)
+
 xls_toolchain(
     name = "default_xls_toolchain",
     visibility = ["//xls:xls_public"],

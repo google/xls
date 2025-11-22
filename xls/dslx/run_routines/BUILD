@@ -107,6 +107,8 @@ cc_test(
         "//xls/dslx:warning_kind",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/type_system:type",
+        "//xls/estimators/area_model/models",
+        "//xls/estimators/delay_model/models",
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:ir_parser",

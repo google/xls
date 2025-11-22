@@ -300,9 +300,26 @@ XlsOptimizationPassRegistryInfo = provider(
     },
 )
 
+XlsEstimatorModelInfo = provider(
+    doc = "A provider containing the implementation of a delay or area model",
+    fields = {
+        "cc_info": "CcInfo: The CcInfo of the model",
+        "default_info": "DefaultInfo: The default info for the model",
+    },
+)
+
+XlsEstimatorRegistryInfo = provider(
+    doc = "A provider containing a set of delay models to add to a registry",
+    fields = {
+        "models": "List of XlsEstimatorModelInfo: The cc info for the models. Must have been created by the 'delay_model' or 'area_info' macro",
+    },
+)
+
 XlsConfigurationToolchainInfo = provider(
     doc = "A provider containing the toolchain for an XLS configuration.",
     fields = {
         "pass_registry": "XlsOptimizationPassRegistryInfo: The pass registry to use.",
+        "area_model_registry": "XlsEstimatorRegistryInfo: The area model registry to use.",
+        "delay_model_registry": "XlsEstimatorRegistryInfo: The delay model registry to use.",
     },
 )

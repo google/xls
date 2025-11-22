@@ -49,14 +49,38 @@ absl::StatusOr<DelayEstimator*> DelayEstimatorManager::GetDelayEstimator(
     std::string_view name) const {
   if (!estimators_.contains(name)) {
     if (estimator_names_.empty()) {
-      return absl::NotFoundError(
-          absl::StrFormat("No delay estimator found named \"%s\". No "
-                          "estimators are registered. Was InitXls called?",
-                          name));
+      return absl::NotFoundError(absl::StrFormat(
+          R"TXT(No delay estimator found named "%s".
+
+No estimators are registered.
+
+This can be caused by a few different issues.
+
+1) Was InitXls called?
+
+   This needs be called early during binary startup or before running other xls
+   code.
+
+2) Were estimators linked into the binary?
+
+   Estimators need to be linked in order to be available. The standard
+   estimators are linked from '//xls/estimators/delay_model/models'
+   and are also exported as '//xls/estimators' and
+   '//xls/public:passes_and_estimators'. At least one of these must
+   be in the 'deps' tree to ensure that estimators are available.)TXT",
+          name));
     }
     return absl::NotFoundError(absl::StrFormat(
-        "No delay estimator found named \"%s\". Available estimators: %s", name,
-        absl::StrJoin(estimator_names_, ", ")));
+        R"TXT(No delay estimator found named \"%s\".
+
+Available estimators: %s
+
+It is possible you didn't link the estimator into the binary.
+
+Do you have '//xls/estimators/delay_model/models' in your dep tree?
+
+Is the estimator library a dependency of '//.../models'?)TXT",
+        name, absl::StrJoin(estimator_names_, ", ")));
   }
   return estimators_.at(name).second.get();
 }

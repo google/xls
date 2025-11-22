@@ -71,7 +71,6 @@ cc_library(
     hdrs = ["area_estimators.h"],
     deps = [
         ":area_estimator",
-        "//xls/estimators/area_model/models",
         "@com_google_absl//absl/status:statusor",
     ],
 )
@@ -84,6 +83,7 @@ cc_test(
         ":area_estimators",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/estimators/area_model/models",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "@com_google_absl//absl/status:status_matchers",

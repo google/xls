@@ -26,6 +26,19 @@ package(
     licenses = ["notice"],  # Apache 2.0
 )
 
+# Helper alias for all the configured area and delay models.
+cc_library(
+    name = "estimators",
+    # Don't remove this. It registers the models.
+    tags = ["keep_dep"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        "//xls/estimators/area_model/models",
+        "//xls/estimators/delay_model/models",
+    ],
+    alwayslink = 1,
+)
+
 proto_library(
     name = "estimator_model_proto",
     srcs = ["estimator_model.proto"],
@@ -39,19 +52,6 @@ cc_proto_library(
 py_proto_library(
     name = "estimator_model_py_pb2",
     deps = [":estimator_model_proto"],
-)
-
-# Helper alias for all the configured area and delay models.
-cc_library(
-    name = "estimators",
-    # Don't remove this. It registers the models.
-    tags = ["keep_dep"],
-    visibility = ["//xls:xls_users"],
-    deps = [
-        "//xls/estimators/area_model/models",
-        "//xls/estimators/delay_model/models",
-    ],
-    alwayslink = 1,
 )
 
 pytype_strict_library(
