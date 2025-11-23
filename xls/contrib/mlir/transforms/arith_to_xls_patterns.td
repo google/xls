@@ -23,10 +23,10 @@ def : BinaryOpOverflowPat<Arith_AddIOp, Xls_AddOp>;
 // TODO(jmolloy): Are smul and umul the equivalent as we use "normal" two's
 // complement representation?
 def : BinaryOpOverflowPat<Arith_MulIOp, Xls_UmulOp>;
-def : BinaryOpPat<Arith_DivSIOp, Xls_SdivOp>;
+def : BinaryOpOverflowPat<Arith_DivSIOp, Xls_SdivOp>;
 def : BinaryOpPat<Arith_RemSIOp, Xls_SmodOp>;
 def : BinaryOpOverflowPat<Arith_SubIOp, Xls_SubOp>;
-def : BinaryOpPat<Arith_DivUIOp, Xls_UdivOp>;
+def : BinaryOpOverflowPat<Arith_DivUIOp, Xls_UdivOp>;
 def : BinaryOpPat<Arith_RemUIOp, Xls_UmodOp>;
 def : BinaryVariadicOpPat<Arith_AndIOp, Xls_AndOp>;
 def : BinaryVariadicOpPat<Arith_OrIOp, Xls_OrOp>;
@@ -88,8 +88,8 @@ def : OppositeFCmpPat<"une", "oeq">;
 def : OppositeFCmpPat<"ord", "uno">;
 
 def : BinaryOpOverflowPat<Arith_ShLIOp, Xls_ShllOp>;
-def : BinaryOpPat<Arith_ShRUIOp, Xls_ShrlOp>;
-def : BinaryOpPat<Arith_ShRSIOp, Xls_ShraOp>;
+def : BinaryOpOverflowPat<Arith_ShRUIOp, Xls_ShrlOp>;
+def : BinaryOpOverflowPat<Arith_ShRSIOp, Xls_ShraOp>;
 
 class IntAttrBase<Pred predicate, string descr>
   : TypedAttrBase<AnyInteger, "IntegerAttr",
