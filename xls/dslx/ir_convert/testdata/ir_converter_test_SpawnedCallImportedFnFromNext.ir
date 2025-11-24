@@ -1,0 +1,28 @@
+package test_module
+
+file_number 0 "imported.x"
+file_number 1 "test_module.x"
+
+fn __imported__callee() -> bits[32] {
+  ret literal.1: bits[32] = literal(value=0, id=1)
+}
+
+proc __test_module__Spawned_0_next<>(__state: bits[32], init={1}) {
+  __state: bits[32] = state_read(state_element=__state, id=3)
+  invoke.6: bits[32] = invoke(to_apply=__imported__callee, id=6)
+  add.7: bits[32] = add(__state, invoke.6, id=7)
+  __token: token = literal(value=token, id=2)
+  literal.4: bits[1] = literal(value=1, id=4)
+  tuple.5: () = tuple(id=5)
+  next_value.8: () = next_value(param=__state, value=add.7, id=8)
+}
+
+top proc __test_module__Main_0_next<>(__state: (), init={()}) {
+  proc_instantiation __test_module__Spawned_0_next_inst(proc=__test_module__Spawned_0_next)
+  __state: () = state_read(state_element=__state, id=10)
+  tuple.13: () = tuple(id=13)
+  __token: token = literal(value=token, id=9)
+  literal.11: bits[1] = literal(value=1, id=11)
+  tuple.12: () = tuple(id=12)
+  next_value.14: () = next_value(param=__state, value=tuple.13, id=14)
+}
