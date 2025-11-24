@@ -12,7 +12,7 @@ fn __test_module__square_zero() -> bits[32] {
   ret invoke.5: bits[32] = invoke(literal.4, to_apply=__test_module__square__0, id=5)
 }
 
-proc __test_module__Counter_0_next<in_ch: bits[32] in, out_ch: bits[32] out>(__state: bits[32], init={0}) {
+top proc __test_module__Counter_0_next<in_ch: bits[32] in, out_ch: bits[32] out>(__state: bits[32], init={0}) {
   chan_interface in_ch(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   chan_interface out_ch(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   after_all.10: token = after_all(id=10)

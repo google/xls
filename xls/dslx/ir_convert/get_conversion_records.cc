@@ -302,6 +302,10 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
 
       VLOG(5) << "HandleProc: initial element "
               << initial_value.ToHumanString();
+      if (top_ == nullptr) {
+        // Pick this proc/function as top if there isn't one already.
+        top_ = const_cast<Function*>(next_fn);
+      }
       XLS_ASSIGN_OR_RETURN(
           ConversionRecord cr,
           MakeConversionRecord(const_cast<Function*>(next_fn), p->owner(),
@@ -406,8 +410,6 @@ absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecords(
     Module* module, TypeInfo* type_info, bool include_tests) {
   ProcIdFactory proc_id_factory;
   std::vector<ConversionRecord> records;
-  // TODO: https://github.com/google/xls/issues/2078 - properly set
-  // top instead of setting to nullptr.
   ConversionRecordVisitor visitor(
       module, type_info, include_tests, proc_id_factory, /*top=*/nullptr,
       /*resolved_proc_alias=*/std::nullopt, records);
