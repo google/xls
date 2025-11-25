@@ -1162,9 +1162,12 @@ absl::Status FunctionConverter::HandleCast(const Cast* node) {
     XLS_ASSIGN_OR_RETURN(bool signed_input, IsSigned(*input_type));
     auto bvalue_status = DefWithStatus(
         node,
-        [this, node, new_bit_count,
+        [this, node, new_bit_count, old_bit_count,
          signed_input](const SourceInfo& loc) -> absl::StatusOr<BValue> {
           XLS_ASSIGN_OR_RETURN(BValue input, Use(node->expr()));
+          if (old_bit_count == 0 && new_bit_count == 0) {
+            return input;
+          }
           if (signed_input) {
             return function_builder_->SignExtend(input, new_bit_count);
           }
