@@ -19,6 +19,7 @@
 #include <string>
 #include <string_view>
 
+#include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -32,13 +33,14 @@
 namespace xls::dslx {
 
 const absl::flat_hash_set<Keyword>& GetTypeKeywords() {
-  static const absl::flat_hash_set<Keyword>* singleton = ([] {
-    auto* s = new absl::flat_hash_set<Keyword>;
-#define ADD_TO_SET(__enum, ...) s->insert(Keyword::__enum);
-    XLS_DSLX_TYPE_KEYWORDS(ADD_TO_SET)
+  static const absl::NoDestructor<const absl::flat_hash_set<Keyword>> singleton(
+      [] {
+        absl::flat_hash_set<Keyword> s;
+#define ADD_TO_SET(__enum, ...) s.insert(Keyword::__enum);
+        XLS_DSLX_TYPE_KEYWORDS(ADD_TO_SET)
 #undef ADD_TO_SET
-    return s;
-  })();
+        return s;
+      }());
   return *singleton;
 }
 
