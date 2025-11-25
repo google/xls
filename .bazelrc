@@ -76,7 +76,7 @@ build --copt "-Wno-deprecated-copy-with-user-provided-copy" --host_copt "-Wno-de
 # https://github.com/google/googletest/issues/4383
 build --define absl=1
 build --incompatible_enable_cc_toolchain_resolution
-build --@llvm_zstd//:llvm_enable_zstd=false
+build --@llvm-project//third-party:llvm_enable_zstd=false
 
 # Do not use some deps from or-tools
 build --@com_google_ortools//ortools/algorithms:with_scip=false
