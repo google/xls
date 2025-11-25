@@ -335,9 +335,8 @@ dslx_lang_test(name = "for_over_range")
 
 dslx_lang_test(
     name = "enumerate",
-    compare = "none",
-    # TODO(https://github.com/google/xls/issues/1289): Need to be able to convert enumerate builtin.
-    convert_to_ir = False,
+    compare = "interpreter",
+    convert_to_ir = True,
 )
 
 dslx_lang_test(

@@ -2702,6 +2702,7 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
           {"decode", &FunctionConverter::HandleBuiltinDecode},
           {"element_count", &FunctionConverter::HandleBuiltinElementCount},
           {"encode", &FunctionConverter::HandleBuiltinEncode},
+          {"enumerate", &FunctionConverter::HandleBuiltinEnumerate},
           {"gate!", &FunctionConverter::HandleBuiltinGate},
           {"one_hot", &FunctionConverter::HandleBuiltinOneHot},
           {"one_hot_sel", &FunctionConverter::HandleBuiltinOneHotSel},
@@ -3185,6 +3186,28 @@ absl::Status FunctionConverter::HandleBuiltinToken(const Invocation* node) {
   BValue value = builder_ptr->Literal(Value::Token());
   node_to_ir_[node] = value;
   tokens_.push_back(value);
+  return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::HandleBuiltinEnumerate(const Invocation* node) {
+  XLS_RET_CHECK_EQ(node->args().size(), 1);
+  XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
+  auto* array_type = arg.GetType()->AsArrayOrDie();
+
+  Def(node, [&](const SourceInfo& loc) {
+    std::vector<BValue> elems;
+    elems.reserve(array_type->size());
+    for (int64_t i = 0; i < array_type->size(); i++) {
+      BValue index =
+          function_builder_->Literal(UBits(static_cast<uint64_t>(i), 32));
+      elems.push_back(function_builder_->Tuple(
+          {index, function_builder_->ArrayIndex(arg, {index}, loc)}));
+    }
+    xls::Type* type = package()->GetTupleType(
+        {package()->GetBitsType(32), array_type->element_type()});
+
+    return function_builder_->Array(elems, type, loc);
+  });
   return absl::OkStatus();
 }
 
