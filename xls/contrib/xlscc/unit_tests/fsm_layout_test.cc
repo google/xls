@@ -28,16 +28,23 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/generate_fsm.h"
+#include "xls/contrib/xlscc/tracked_bvalue.h"
 #include "xls/contrib/xlscc/translator_types.h"
 #include "xls/contrib/xlscc/unit_tests/unit_test.h"
+#include "xls/ir/function_builder.h"
 #include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/ir/state_element.h"
 
 namespace xlscc {
 
 class FSMLayoutTest : public XlsccTestBase {
  public:
-  absl::StatusOr<NewFSMLayout> GenerateTopFunction(std::string_view content) {
+  absl::StatusOr<NewFSMLayout> GenerateTopFunction(
+      std::string_view content,
+      absl::flat_hash_map<const clang::NamedDecl*, xls::StateElement*>*
+          state_element_for_static_out = nullptr) {
     generate_new_fsm_ = true;
 
     XLS_ASSIGN_OR_RETURN(xls::TempFile temp,
@@ -62,7 +69,24 @@ class FSMLayoutTest : public XlsccTestBase {
                               DebugIrTraceFlags_FSMStates,
                               split_states_on_channel_ops_);
 
-    return generator.LayoutNewFSM(*func, xls::SourceInfo());
+    absl::flat_hash_map<const clang::NamedDecl*, xls::StateElement*>
+        state_element_for_static;
+
+    xls::ProcBuilder pb("test", package_.get());
+
+    for (const auto& [decl, init_val] : func->static_values) {
+      NATIVE_BVAL state_read_bval = pb.StateElement(
+          decl->getNameAsString(), init_val.rvalue(), xls::SourceInfo());
+      state_element_for_static[decl] =
+          state_read_bval.node()->As<xls::StateRead>()->state_element();
+    }
+
+    if (state_element_for_static_out != nullptr) {
+      *state_element_for_static_out = state_element_for_static;
+    }
+
+    return generator.LayoutNewFSM(*func, state_element_for_static,
+                                  xls::SourceInfo());
   }
 
   std::vector<int64_t> FilterStates(
@@ -597,6 +621,32 @@ TEST_F(FSMLayoutTest, IOActivationTransitionsNoTransition) {
   XLS_ASSERT_OK_AND_ASSIGN(NewFSMLayout layout, GenerateTopFunction(content));
 
   EXPECT_TRUE(layout.transition_by_slice_from_index.empty());
+}
+
+TEST_F(FSMLayoutTest, StaticStateElementShared) {
+  const std::string content = R"(
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      static int count = 0;
+      const int x = in.read();
+      count += x;
+      const int y = in.read();
+      out.write(count + y);
+    })";
+  split_states_on_channel_ops_ = true;
+
+  absl::flat_hash_map<const clang::NamedDecl*, xls::StateElement*>
+      state_element_for_static;
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      NewFSMLayout layout,
+      GenerateTopFunction(content, &state_element_for_static));
+
+  ASSERT_EQ(layout.state_elements.size(), 1);
+  ASSERT_EQ(state_element_for_static.size(), 1);
+  EXPECT_EQ(layout.state_elements.front().existing_state_element,
+            state_element_for_static.begin()->second);
 }
 
 }  // namespace

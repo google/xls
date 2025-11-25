@@ -73,6 +73,7 @@ struct NewFSMActivationTransition {
 struct NewFSMStateElement {
   std::string name;
   xls::Type* type = nullptr;
+  xls::StateElement* existing_state_element = nullptr;
 };
 
 // Provides the necessary information to generate an FSM.
@@ -112,8 +113,11 @@ class NewFSMGenerator : public GeneratorBase {
   //
   // This layout is then intended to be followed in generating the FSM in
   // XLS IR.
-  absl::StatusOr<NewFSMLayout> LayoutNewFSM(const GeneratedFunction& func,
-                                            const xls::SourceInfo& body_loc);
+  absl::StatusOr<NewFSMLayout> LayoutNewFSM(
+      const GeneratedFunction& func,
+      const absl::flat_hash_map<const clang::NamedDecl*, xls::StateElement*>&
+          state_element_for_static,
+      const xls::SourceInfo& body_loc);
 
   // Generate the XLS IR implementation of the FSM for a translated function.
   absl::StatusOr<GenerateFSMInvocationReturn> GenerateNewFSMInvocation(

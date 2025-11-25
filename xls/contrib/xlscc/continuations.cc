@@ -1243,8 +1243,21 @@ absl::Status Translator::GetDirectInSourcesForSlice(
     continuation_inputs_by_param[continuation_in.input_node] = &continuation_in;
   }
 
+  absl::flat_hash_set<std::string> static_param_names;
+
+  for (const SideEffectingParameter& side_effecting_param :
+       slice.side_effecting_parameters) {
+    if (side_effecting_param.type == SideEffectingParameterType::kStatic) {
+      static_param_names.insert(side_effecting_param.param_name);
+    }
+  }
+
   for (int64_t p = 0; p < slice.function->params().size(); ++p) {
     const xls::Param* param = slice.function->params().at(p);
+
+    if (static_param_names.contains(param->name())) {
+      continue;
+    }
 
     // All first slice inputs are safe to be treated as direct in
     // (this, static, actual direct-ins)

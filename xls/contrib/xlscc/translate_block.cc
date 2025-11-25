@@ -585,7 +585,6 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
 
     if (!is_on_reset) {
       next_state_value.value = next_val;
-      next_state_value.condition = fsm_ret.returns_this_activation;
     } else {
       next_state_value.value =
           pb.And(prev_val,
@@ -593,15 +592,13 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
                         /*name=*/"does_not_return_this_activation"),
                  body_loc, /*name=*/"next_on_reset");
     }
+    next_state_value.condition = fsm_ret.returns_this_activation;
     next_state_values.insert({state_elem, next_state_value});
   }
 
   for (const auto& [state_elem, bval] : fsm_ret.extra_next_state_values) {
     next_state_values.insert({state_elem, bval});
   }
-
-  // fprintf(stderr, "GenerateIR_Block before states:\n%s\n",
-  // pb.proc()->DumpIr().c_str());
 
   XLS_ASSIGN_OR_RETURN(
       proc, BuildWithNextStateValueMap(pb, prepared.token, next_state_values,

@@ -80,7 +80,10 @@ absl::Status NewFSMGenerator::SetupNewFSMGenerationContext(
 }
 
 absl::StatusOr<NewFSMLayout> NewFSMGenerator::LayoutNewFSM(
-    const GeneratedFunction& func, const xls::SourceInfo& body_loc) {
+    const GeneratedFunction& func,
+    const absl::flat_hash_map<const clang::NamedDecl*, xls::StateElement*>&
+        state_element_for_static,
+    const xls::SourceInfo& body_loc) {
   NewFSMLayout ret;
 
   XLS_RETURN_IF_ERROR(SetupNewFSMGenerationContext(func, ret, body_loc));
@@ -188,6 +191,24 @@ absl::StatusOr<NewFSMLayout> NewFSMGenerator::LayoutNewFSM(
   // used to identify values that may share a state element.
   absl::flat_hash_map<const clang::NamedDecl*, std::vector<int64_t>>
       state_element_indices_by_decl;
+
+  // Inject statics: this enables state element sharing with statics
+  std::vector<const clang::NamedDecl*> static_decls =
+      func.GetDeterministicallyOrderedStaticValues();
+
+  for (const clang::NamedDecl* decl : static_decls) {
+    xls::StateElement* existing_state_element =
+        state_element_for_static.at(decl);
+
+    NewFSMStateElement state_element = {
+        .name = existing_state_element->name(),
+        .type = existing_state_element->type(),
+        .existing_state_element = existing_state_element,
+    };
+    ret.state_elements.push_back(state_element);
+    state_element_indices_by_decl[decl].push_back(ret.state_elements.size() -
+                                                  1);
+  }
 
   for (const NewFSMState& state : ret.states) {
     // Only need to save continuation values on activation transitions
@@ -593,7 +614,8 @@ NewFSMGenerator::GenerateNewFSMInvocation(
   const GeneratedFunction& func = *xls_func;
 
   NewFSMLayout layout;
-  XLS_ASSIGN_OR_RETURN(layout, LayoutNewFSM(func, body_loc));
+  XLS_ASSIGN_OR_RETURN(layout,
+                       LayoutNewFSM(func, state_element_for_static, body_loc));
 
   const int64_t num_slice_index_bits =
       xls::CeilOfLog2(1 + xls_func->slices.size());
@@ -680,6 +702,11 @@ NewFSMGenerator::GenerateNewFSMInvocation(
   absl::flat_hash_map<int64_t, std::vector<const ContinuationValue*>>
       values_by_state_element_index;
 
+  // State elements by static may not go through any continuations
+  for (int64_t i = 0; i < layout.state_elements.size(); ++i) {
+    values_by_state_element_index[i] = {};
+  }
+
   for (const auto& [value, index] :
        layout.state_element_by_continuation_value) {
     values_by_state_element_index[index].push_back(value);
@@ -692,8 +719,16 @@ NewFSMGenerator::GenerateNewFSMInvocation(
        ++state_element_index) {
     const NewFSMStateElement& state_element =
         layout.state_elements.at(state_element_index);
-    TrackedBValue xls_state_element = pb.StateElement(
-        state_element.name, xls::ZeroOfType(state_element.type), body_loc);
+    TrackedBValue xls_state_element;
+
+    if (state_element.existing_state_element == nullptr) {
+      xls_state_element = pb.StateElement(
+          state_element.name, xls::ZeroOfType(state_element.type), body_loc);
+    } else {
+      xls::StateRead* state_read =
+          pb.proc()->GetStateRead(state_element.existing_state_element);
+      xls_state_element = TrackedBValue(state_read, &pb);
+    }
 
     for (const ContinuationValue* value :
          values_by_state_element_index.at(state_element_index)) {
