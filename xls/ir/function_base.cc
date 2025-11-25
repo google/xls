@@ -94,6 +94,13 @@ absl::StatusOr<Stage> Stage::Clone(
   if (inputs_valid_ != nullptr) {
     XLS_ASSIGN_OR_RETURN(cloned_stage.inputs_valid_, map_node(inputs_valid_));
   }
+  if (outputs_ready_ != nullptr) {
+    XLS_ASSIGN_OR_RETURN(cloned_stage.outputs_ready_, map_node(outputs_ready_));
+  }
+  if (active_inputs_valid_ != nullptr) {
+    XLS_ASSIGN_OR_RETURN(cloned_stage.active_inputs_valid_,
+                         map_node(active_inputs_valid_));
+  }
   if (outputs_valid_ != nullptr) {
     XLS_ASSIGN_OR_RETURN(cloned_stage.outputs_valid_, map_node(outputs_valid_));
   }

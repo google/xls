@@ -140,20 +140,27 @@ absl::StatusOr<ScheduledProc*> ScheduledProcBuilder::Build(
   return Build();
 }
 
-void ScheduledBlockBuilder::StartStage(BValue stage_inputs_valid) {
+void ScheduledBlockBuilder::StartStage(BValue stage_inputs_valid,
+                                       BValue stage_outputs_ready) {
   CHECK(stage_inputs_valid.valid());
   staging_nodes_ = true;
   current_stage_inputs_valid_ = stage_inputs_valid.node();
+  current_stage_outputs_ready_ = stage_outputs_ready.node();
 }
 
-void ScheduledBlockBuilder::EndStage(BValue stage_outputs_valid) {
+void ScheduledBlockBuilder::EndStage(BValue active_inputs_valid,
+                                     BValue stage_outputs_valid) {
+  CHECK(active_inputs_valid.valid());
   CHECK(stage_outputs_valid.valid());
   CHECK_NE(current_stage_inputs_valid_, nullptr);
+  CHECK_NE(current_stage_outputs_ready_, nullptr);
 
   staging_nodes_ = false;
 
-  Stage stage{current_stage_inputs_valid_, stage_outputs_valid.node()};
+  Stage stage{current_stage_inputs_valid_, current_stage_outputs_ready_,
+              active_inputs_valid.node(), stage_outputs_valid.node()};
   current_stage_inputs_valid_ = nullptr;
+  current_stage_outputs_ready_ = nullptr;
   for (Node* node : current_stage_nodes_) {
     stage.AddNode(node);
   }

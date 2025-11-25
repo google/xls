@@ -1017,6 +1017,14 @@ absl::StatusOr<bool> Node::ReplaceImplicitUsesWith(Node* replacement) {
         stage.set_outputs_valid(replacement);
         changed = true;
       }
+      if (this == stage.active_inputs_valid()) {
+        stage.set_active_inputs_valid(replacement);
+        changed = true;
+      }
+      if (this == stage.outputs_ready()) {
+        stage.set_outputs_ready(replacement);
+        changed = true;
+      }
     }
   }
   return changed;

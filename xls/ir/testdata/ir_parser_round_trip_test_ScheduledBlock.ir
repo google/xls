@@ -2,9 +2,11 @@ package ir_parser_round_trip_test_ScheduledBlock
 
 scheduled_block b(x: bits[32], out: bits[32]) {
   iv0: bits[1] = literal(value=1, id=1)
-  controlled_stage(iv0) {
-    x: bits[32] = input_port(name=x, id=2)
-    out: () = output_port(x, name=out, id=3)
-    ret ov0: bits[1] = literal(value=1, id=4)
+  or0: bits[1] = literal(value=1, id=2)
+  controlled_stage(iv0, or0) {
+    x: bits[32] = input_port(name=x, id=3)
+    out: () = output_port(x, name=out, id=4)
+    active_inputs_valid aiv0: bits[1] = literal(value=1, id=5)
+    ret ov0: bits[1] = literal(value=1, id=6)
   }
 }

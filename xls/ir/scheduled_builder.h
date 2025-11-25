@@ -130,10 +130,10 @@ class ScheduledBlockBuilder : public BlockBuilder {
   }
 
   // Start a new stage.
-  void StartStage(BValue stage_inputs_valid);
+  void StartStage(BValue stage_inputs_valid, BValue stage_outputs_ready);
 
   // End the current stage.
-  void EndStage(BValue stage_outputs_valid);
+  void EndStage(BValue active_inputs_valid, BValue stage_outputs_valid);
 
   // Use to put nodes outside of stages without ending the current stage.
   void SuspendStaging();
@@ -160,6 +160,7 @@ class ScheduledBlockBuilder : public BlockBuilder {
   int64_t current_stage_ = 0;
   std::vector<Node*> current_stage_nodes_;
   Node* current_stage_inputs_valid_ = nullptr;
+  Node* current_stage_outputs_ready_ = nullptr;
 };
 
 }  // namespace xls
