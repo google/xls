@@ -51,7 +51,7 @@ absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
     ImportData* import_data, std::vector<CommentData>* comments,
     std::optional<TypeInferenceVersion> force_version,
     const ConvertOptions& options, TypeInferenceErrorHandler error_handler,
-    std::unique_ptr<TraitDeriver> trait_deriver) {
+    TraitDeriver* trait_deriver) {
   XLS_RET_CHECK(import_data != nullptr);
 
   FileTable& file_table = import_data->file_table();
@@ -71,7 +71,7 @@ absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
 
   XLS_RETURN_IF_ERROR(module->SetConfiguredValues(options.configured_values));
   return TypecheckModule(std::move(module), path, import_data, force_version,
-                         error_handler, std::move(trait_deriver));
+                         error_handler, trait_deriver);
 }
 
 absl::StatusOr<std::unique_ptr<Module>> ParseModule(
@@ -102,13 +102,12 @@ absl::StatusOr<std::unique_ptr<Module>> ParseModuleFromFileAtPath(
 absl::StatusOr<TypecheckedModule> TypecheckModule(
     std::unique_ptr<Module> module, std::string_view path,
     ImportData* import_data, std::optional<TypeInferenceVersion> force_version,
-    TypeInferenceErrorHandler error_handler,
-    std::unique_ptr<TraitDeriver> trait_deriver) {
+    TypeInferenceErrorHandler error_handler, TraitDeriver* trait_deriver) {
   XLS_RET_CHECK(module.get() != nullptr);
   XLS_RET_CHECK(import_data != nullptr);
 
   if (trait_deriver == nullptr) {
-    trait_deriver = CreateBuiltinTraitDeriver();
+    trait_deriver = import_data->GetBuiltinTraitDeriver();
   }
 
   std::string_view module_name = module->name();
@@ -151,7 +150,7 @@ absl::StatusOr<TypecheckedModule> TypecheckModule(
                           std::move(semantics_analysis), error_handler,
                           trait_deriver == nullptr
                               ? std::nullopt
-                              : std::make_optional(trait_deriver.get())));
+                              : std::make_optional(trait_deriver)));
 
   if (version_entry_point == TypecheckModuleV2) {
     XLS_RETURN_IF_ERROR(module_info->inference_table_converter()

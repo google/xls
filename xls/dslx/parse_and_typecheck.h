@@ -76,7 +76,7 @@ absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
     std::optional<TypeInferenceVersion> force_version = std::nullopt,
     const ConvertOptions& options = ConvertOptions{},
     TypeInferenceErrorHandler error_handler = nullptr,
-    std::unique_ptr<TraitDeriver> trait_deriver = nullptr);
+    TraitDeriver* trait_deriver = nullptr);
 
 // Helper that parses and creates a new module from the given "text".
 //
@@ -104,7 +104,7 @@ absl::StatusOr<TypecheckedModule> TypecheckModule(
     ImportData* import_data,
     std::optional<TypeInferenceVersion> force_version = std::nullopt,
     TypeInferenceErrorHandler error_handler = nullptr,
-    std::unique_ptr<TraitDeriver> trait_deriver = nullptr);
+    TraitDeriver* trait_deriver = nullptr);
 
 }  // namespace xls::dslx
 

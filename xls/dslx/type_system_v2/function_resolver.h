@@ -56,8 +56,7 @@ std::unique_ptr<FunctionResolver> CreateFunctionResolver(
     Module& module, ImportData& import_data, InferenceTable& table,
     InferenceTableConverter& converter,
     TypeAnnotationResolver& type_annotation_resolver,
-    ParametricStructInstantiator& parametric_struct_instantiator,
-    std::optional<TraitDeriver*> trait_deriver, TypeSystemTracer& tracer);
+    ParametricStructInstantiator& parametric_struct_instantiator);
 
 }  // namespace xls::dslx
 

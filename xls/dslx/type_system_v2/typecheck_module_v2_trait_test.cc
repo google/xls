@@ -16,6 +16,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -24,8 +25,10 @@
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/create_import_data.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 #include "xls/dslx/type_system_v2/matchers.h"
@@ -358,6 +361,38 @@ const B = Bar {f: Foo { a: 5, b: [5, 6, 7] }, g: 0xfffffffff};
 const_assert!(B.to_bits() ==
     (u32:5 ++ u8:5 ++ u8:6 ++ u8:7 ++ u64:0xfffffffff));
 )"));
+}
+
+TEST(TypecheckV2TraitTest, ToBitsOnImportedStruct) {
+  constexpr std::string_view kImported = R"(
+#[derive(ToBits)]
+pub struct Foo {
+  a: u32,
+  b: u8[3]
+}
+
+#[derive(ToBits)]
+pub struct Bar {
+  f: Foo,
+  g: s64
+}
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+const B1 = imported::Bar {
+    f: imported::Foo { a: 5, b: [5, 6, 7] }, g: 0xfffffffff};
+const B2 = imported::Bar {
+    f: imported::Foo { a: 5, b: [5, 6, 7] }, g: 0xffffffff1};
+
+const_assert!(B1.to_bits() ==
+    (u32:5 ++ u8:5 ++ u8:6 ++ u8:7 ++ u64:0xfffffffff));
+const_assert!(B2.to_bits() ==
+    (u32:5 ++ u8:5 ++ u8:6 ++ u8:7 ++ u64:0xffffffff1));
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
+  XLS_EXPECT_OK(TypecheckV2(kProgram, "main", &import_data));
 }
 
 TEST(TypecheckV2TraitTest, ToBitsWithUnsupportedSubStruct) {

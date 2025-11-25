@@ -66,6 +66,7 @@
 #include "xls/dslx/type_system_v2/import_utils.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/inference_table_converter.h"
+#include "xls/dslx/type_system_v2/module_trait_manager.h"
 #include "xls/dslx/type_system_v2/parametric_struct_instantiator.h"
 #include "xls/dslx/type_system_v2/populate_table_visitor.h"
 #include "xls/dslx/type_system_v2/simplified_type_annotation_cache.h"
@@ -162,10 +163,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
               return TryConvertInvocationForUnification(parametric_context,
                                                         invocation);
             })),
-        function_resolver_(CreateFunctionResolver(
-            module, import_data, table,
-            /*converter=*/*this, *resolver_,
-            /*parametric_struct_instantiator=*/*this, trait_deriver, *tracer_)),
+        function_resolver_(
+            CreateFunctionResolver(module, import_data, table,
+                                   /*converter=*/*this, *resolver_,
+                                   /*parametric_struct_instantiator=*/*this)),
+        module_trait_manager_(CreateModuleTraitManager(
+            module, import_data, table, trait_deriver, *tracer_)),
         constant_collector_(CreateConstantCollector(
             table_, module_, import_data_, warning_collector_, file_table_,
             /*converter=*/*this, *evaluator_,
@@ -2314,7 +2317,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           const auto* annotation = down_cast<const TypeAnnotation*>(node);
           if (real_self_type.has_value() &&
               annotation->IsAnnotation<SelfTypeAnnotation>()) {
-            return const_cast<TypeAnnotation*>(*real_self_type);
+            return table_.Clone(*real_self_type, &NoopCloneReplacer,
+                                type->owner());
           }
 
           // Generics can't rely on the `NameRefMapper` above because we
@@ -2541,6 +2545,15 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     return semantics_analysis_.get();
   }
 
+  absl::StatusOr<std::optional<Function*>> GetTraitFunction(
+      StructDef& struct_def, const StructType& concrete_struct_type,
+      std::optional<const ParametricContext*> parametric_struct_context,
+      std::string_view function_name) override {
+    return module_trait_manager_->GetTraitFunction(
+        struct_def, concrete_struct_type, parametric_struct_context,
+        function_name);
+  }
+
   InferenceTable& table_;
   Module& module_;
   ImportData& import_data_;
@@ -2553,6 +2566,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   std::unique_ptr<Evaluator> evaluator_;
   std::unique_ptr<TypeAnnotationResolver> resolver_;
   std::unique_ptr<FunctionResolver> function_resolver_;
+  std::unique_ptr<ModuleTraitManager> module_trait_manager_;
   std::unique_ptr<ConstantCollector> constant_collector_;
   std::unique_ptr<FastConcretizer> fast_concretizer_;
   absl::flat_hash_map<std::optional<const ParametricContext*>,

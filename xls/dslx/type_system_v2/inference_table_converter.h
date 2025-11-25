@@ -17,6 +17,7 @@
 
 #include <memory>
 #include <optional>
+#include <string_view>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -75,6 +76,14 @@ class InferenceTableConverter {
       std::optional<const ParametricContext*> parametric_context) = 0;
 
   virtual SemanticsAnalysis* GetSemanticsAnalysis() = 0;
+
+  // Obtains the derived trait function of the given name for the given struct.
+  // This generates the function if it has not been requested before. This
+  // converter must be the one for the owner of `struct_def`.
+  virtual absl::StatusOr<std::optional<Function*>> GetTraitFunction(
+      StructDef& struct_def, const StructType& concrete_struct_type,
+      std::optional<const ParametricContext*> parametric_struct_context,
+      std::string_view function_name) = 0;
 };
 
 }  // namespace xls::dslx

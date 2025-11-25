@@ -37,8 +37,10 @@
 #include "xls/dslx/import_record.h"
 #include "xls/dslx/interp_bindings.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/type_system_v2/builtin_trait_deriver.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/inference_table_converter.h"
+#include "xls/dslx/type_system_v2/trait_deriver.h"
 #include "xls/dslx/virtualizable_file_system.h"
 #include "xls/dslx/warning_kind.h"
 
@@ -164,6 +166,12 @@ class ImportData {
 
   absl::StatusOr<ModuleInfo*> Put(const ImportTokens& subject,
                                   std::unique_ptr<ModuleInfo> module_info);
+
+  // Returns the `TraitDeriver` to use for traits that are declared in the
+  // builtins module.
+  TraitDeriver* GetBuiltinTraitDeriver() const {
+    return builtin_trait_deriver_.get();
+  }
 
   // Creates the `InferenceTable` for the corpus, if it does not already exist,
   // and returns it. This is a data structure only used by type inference v2.
@@ -296,6 +304,7 @@ class ImportData {
         additional_search_paths_(std::vector<std::filesystem::path>(
             additional_search_paths.begin(), additional_search_paths.end())),
         enabled_warnings_(enabled_warnings),
+        builtin_trait_deriver_(CreateBuiltinTraitDeriver()),
         vfs_(std::move(vfs)) {}
 
   // Attempts to find a module owned by this ImportData according to the
@@ -327,6 +336,8 @@ class ImportData {
   absl::flat_hash_map<Module*, InferenceTableConverter*>
       module_to_inference_table_converter_;
   Module* builtin_stubs_module_ = nullptr;
+
+  std::unique_ptr<TraitDeriver> builtin_trait_deriver_;
 
   std::unique_ptr<VirtualizableFilesystem> vfs_;
 };

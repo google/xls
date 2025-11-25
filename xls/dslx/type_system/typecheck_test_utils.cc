@@ -52,7 +52,7 @@ absl::StatusOr<TypecheckResult> Typecheck(
       program_with_version_attribute, absl::StrCat(module_name, ".x"),
       module_name, import_data, /*comments=*/nullptr,
       /*force_version=*/std::nullopt, ConvertOptions{}, error_handler,
-      std::move(trait_deriver));
+      trait_deriver.get());
 
   if (!tm.ok()) {
     UniformContentFilesystem vfs(program_with_version_attribute);
