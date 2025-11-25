@@ -19,6 +19,7 @@
 #include <string_view>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "xls/common/casts.h"
 #include "xls/common/module_initializer.h"
@@ -54,7 +55,12 @@ class GrpcSynthesizer : public Synthesizer {
     }
     const int64_t clock_period_ps =
         static_cast<int64_t>(1e12) / params_.frequency_hz();
-    return response.slack_ps() == 0 ? 0 : clock_period_ps - response.slack_ps();
+    if (!response.has_slack_ps()) {
+      LOG(WARNING) << "No slack_ps returned from synthesizer (clock not "
+                      "constrained?), returning 0.";
+      return 0;
+    }
+    return clock_period_ps - response.slack_ps();
   }
 
  private:

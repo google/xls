@@ -20,6 +20,7 @@
 #include <string_view>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/casts.h"
@@ -41,14 +42,19 @@ absl::StatusOr<int64_t> YosysSynthesizer::SynthesizeVerilogAndGetDelay(
 
   synthesis::CompileResponse response;
   XLS_RETURN_IF_ERROR(service_.RunSynthesis(&request, &response));
-  return response.slack_ps() == 0 ? 0 : kClockPeriodPs - response.slack_ps();
+  if (!response.has_slack_ps()) {
+    LOG(WARNING) << "No slack_ps returned from synthesizer (clock not "
+                    "constrained?), returning 0.";
+    return 0;
+  }
+  return kClockPeriodPs - response.slack_ps();
 }
 
 absl::StatusOr<std::unique_ptr<Synthesizer>>
 YosysSynthesizerFactory::CreateSynthesizer(
-    const SynthesizerParameters &parameters) {
-  const auto &yosys_synthesizer_parameters =
-      down_cast<const YosysSynthesizerParameters &>(parameters);
+    const SynthesizerParameters& parameters) {
+  const auto& yosys_synthesizer_parameters =
+      down_cast<const YosysSynthesizerParameters&>(parameters);
   return std::make_unique<YosysSynthesizer>(
       yosys_synthesizer_parameters.yosys_path(),
       yosys_synthesizer_parameters.sta_path(),
@@ -59,7 +65,7 @@ YosysSynthesizerFactory::CreateSynthesizer(
 
 absl::StatusOr<std::unique_ptr<Synthesizer>>
 YosysSynthesizerFactory::CreateSynthesizer(
-    const SchedulingOptions &scheduling_options) {
+    const SchedulingOptions& scheduling_options) {
   if (scheduling_options.fdo_yosys_path().empty() ||
       scheduling_options.fdo_sta_path().empty() ||
       scheduling_options.fdo_synthesis_libraries().empty()) {
