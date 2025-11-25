@@ -286,13 +286,13 @@ absl::Status ConvertCallGraph(absl::Span<const ConversionRecord> order,
                               ImportData* import_data,
                               const ConvertOptions& options,
                               PackageData& package_data) {
-  VLOG(3) << "Conversion order: ["
+  VLOG(3) << "Conversion order: [\n\t"
           << absl::StrJoin(
                  order, "\n\t",
                  [](std::string* out, const ConversionRecord& record) {
                    absl::StrAppend(out, record.ToString());
                  })
-          << "]";
+          << "\n]";
   // GetOrder() (in extract_conversion_order.h) handles evaluation ordering.
   // For procs, the config block must be evaluated before the next
   // block, as config sets channels and constants needed by next. This is

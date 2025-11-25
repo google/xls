@@ -33,6 +33,7 @@
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/virtualizable_file_system.h"
 #include "xls/dslx/warning_kind.h"
@@ -151,8 +152,11 @@ TEST(IrWrapperTest, DslxProcsToIrOk) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       IrWrapper ir_wrapper,
-      IrWrapper::Create("test_package", std::move(top_module), "top_module.x",
-                        &import_data));
+      IrWrapper::Create(
+          "test_package", std::move(top_module), "top_module.x", &import_data,
+          /*other_module=*/nullptr, /*other_module_path=*/"",
+          IrWrapper::Flags::kDefault,
+          dslx::ConvertOptions{.lower_to_proc_scoped_channels = false}));
 
   // Test that modules can be retrieved.
   XLS_ASSERT_OK_AND_ASSIGN(dslx::Module * top, ir_wrapper.GetDslxModule("top"));
