@@ -30,7 +30,7 @@ proc __test_module__consumer_0_next<input_c: bits[32] in>(__state: bits[32], ini
   next_value.20: () = next_value(param=__state, value=add.19, id=20)
 }
 
-proc __test_module__main_0_next<>(__state: (), init={()}) {
+top proc __test_module__main_0_next<>(__state: (), init={()}) {
   chan my_chan0(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive, fifo_depth=0, bypass=true, register_push_outputs=false, register_pop_outputs=false)
   chan_interface my_chan0(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
   chan_interface my_chan0(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)

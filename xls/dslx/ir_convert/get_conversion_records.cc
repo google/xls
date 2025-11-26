@@ -283,7 +283,7 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
                            SpawnDataToConversionRecord(spawn, proc_id));
       records_.push_back(std::move(cr));
     }
-    if (top_ == next_fn || !p->IsParametric()) {
+    if (spawn_data.empty() && (top_ == next_fn || !p->IsParametric())) {
       // "top" procs won't have spawns referencing them so they won't
       // otherwise be added to the list, so we have to manually do it here.
 

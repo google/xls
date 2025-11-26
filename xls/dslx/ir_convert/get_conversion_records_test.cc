@@ -14,6 +14,7 @@
 
 #include "xls/dslx/ir_convert/get_conversion_records.h"
 
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -197,6 +198,7 @@ proc top {
                 {"N", InterpValue::MakeUBits(/*bit_count=*/32, /*value=*/4)}}));
   EXPECT_EQ(order[2].f()->identifier(), "top.next");
   EXPECT_EQ(order[2].parametric_env(), ParametricEnv());
+  EXPECT_TRUE(order[2].IsTop());
 }
 
 TEST_F(GetConversionRecordsTest, TransitiveParametric) {
@@ -267,6 +269,65 @@ proc main {
       GetConversionRecords(tm.module, tm.type_info, false));
   ASSERT_EQ(2, order.size());
   EXPECT_EQ(order[0].f()->identifier(), "foo.next");
+  // The first proc is spawned, so it cannot be top.
+  EXPECT_TRUE(order[1].IsTop());
+  EXPECT_EQ(order[1].f()->identifier(), "main.next");
+}
+
+TEST_F(GetConversionRecordsTest, TwoPossibleTopProcs) {
+  constexpr std::string_view kProgram = R"(
+proc foo {
+  init { () }
+  config() { () }
+  next(state: ()) { () }
+}
+
+proc main {
+  init { () }
+  config() { () }
+  next(state: ()) { () }
+}
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<ConversionRecord> order,
+      GetConversionRecords(tm.module, tm.type_info, false));
+  ASSERT_EQ(2, order.size());
+  EXPECT_EQ(order[0].f()->identifier(), "foo.next");
+  // It picks the first one as top.
+  EXPECT_TRUE(order[0].IsTop());
+  EXPECT_EQ(order[1].f()->identifier(), "main.next");
+}
+
+TEST_F(GetConversionRecordsTest, GetForEntry) {
+  constexpr std::string_view kProgram = R"(
+proc foo {
+  init { () }
+  config() { () }
+  next(state: ()) { () }
+}
+
+proc main {
+  init { () }
+  config() { () }
+  next(state: ()) { () }
+}
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           tm.module->GetMemberOrError<Proc>("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<ConversionRecord> order,
+      GetConversionRecordsForEntry(proc, tm.type_info, std::nullopt));
+  ASSERT_EQ(2, order.size());
+  EXPECT_EQ(order[0].f()->identifier(), "foo.next");
+  EXPECT_TRUE(order[1].IsTop());
   EXPECT_EQ(order[1].f()->identifier(), "main.next");
 }
 
@@ -339,6 +400,9 @@ proc main {
   EXPECT_EQ(order[3].f()->identifier(), "p1.next");
   EXPECT_EQ(order[4].f()->identifier(), "p0.next");
   EXPECT_EQ(order[5].f()->identifier(), "main.next");
+  // All the other procs are spawned, so they cannot be top, and we converted
+  // the whole module so none of the functions are top.
+  EXPECT_TRUE(order[5].IsTop());
 }
 
 TEST_F(GetConversionRecordsTest, ProcNetworkWithTwoTopLevelProcs) {
@@ -568,6 +632,8 @@ pub proc main {
             ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
                 {"N", InterpValue::MakeUBits(/*bit_count=*/32, /*value=*/4)},
                 {"M", InterpValue::MakeUBits(/*bit_count=*/16, /*value=*/2)}}));
+  EXPECT_EQ(order[6].f()->identifier(), "main.next");
+  EXPECT_TRUE(order[6].IsTop());
 }
 
 }  // namespace

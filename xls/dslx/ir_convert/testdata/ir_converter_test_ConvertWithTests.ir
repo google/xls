@@ -67,7 +67,7 @@ proc __test_module__NormalProc_0_next<req_r: () in, resp_s: () out>(__state: (),
   next_value.52: () = next_value(param=__state, value=tuple.51, id=52)
 }
 
-proc __test_module__TestProc_0_next<terminator: bits[1] out>(__state: (), init={()}) {
+top proc __test_module__TestProc_0_next<terminator: bits[1] out>(__state: (), init={()}) {
   chan_interface terminator(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   chan tester_req((), id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
   chan_interface tester_req(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
