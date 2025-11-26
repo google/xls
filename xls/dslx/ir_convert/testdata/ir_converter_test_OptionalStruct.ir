@@ -8,17 +8,17 @@ fn __test_module__make_optional__u32(value: bits[32] id=1) -> (bits[1], bits[32]
 }
 
 fn __test_module__make_nullopt__u32() -> (bits[1], bits[32]) {
-  ret literal.10: (bits[1], bits[32]) = literal(value=(0, 0), id=10)
+  ret literal.4: (bits[1], bits[32]) = literal(value=(0, 0), id=4)
 }
 
-fn __test_module__make_optional__u32__dim_3(value: bits[32][3] id=4) -> (bits[1], bits[32][3]) {
-  literal.5: bits[1] = literal(value=1, id=5)
-  ret tuple.6: (bits[1], bits[32][3]) = tuple(literal.5, value, id=6)
+fn __test_module__make_optional__u32__dim_3(value: bits[32][3] id=5) -> (bits[1], bits[32][3]) {
+  literal.6: bits[1] = literal(value=1, id=6)
+  ret tuple.7: (bits[1], bits[32][3]) = tuple(literal.6, value, id=7)
 }
 
-fn __test_module__make_optional__Optional__type_u32(value: (bits[1], bits[32]) id=7) -> (bits[1], (bits[1], bits[32])) {
-  literal.8: bits[1] = literal(value=1, id=8)
-  ret tuple.9: (bits[1], (bits[1], bits[32])) = tuple(literal.8, value, id=9)
+fn __test_module__make_optional__Optional__type_u32(value: (bits[1], bits[32]) id=8) -> (bits[1], (bits[1], bits[32])) {
+  literal.9: bits[1] = literal(value=1, id=9)
+  ret tuple.10: (bits[1], (bits[1], bits[32])) = tuple(literal.9, value, id=10)
 }
 
 fn __test_module__main() -> ((bits[1], bits[32]), (bits[1], bits[32]), (bits[1], bits[32][3]), (bits[1], (bits[1], bits[32]))) {

@@ -14,6 +14,7 @@
 
 #include "xls/dslx/ir_convert/get_conversion_records.h"
 
+#include <algorithm>
 #include <ios>
 #include <memory>
 #include <optional>
@@ -130,19 +131,6 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
       XLS_RETURN_IF_ERROR(CheckIfCalledOnlyFromTestCode(
           type_info_, calls, /*is_proc=*/false, f->identifier()));
     }
-
-    for (auto& callee_data : calls) {
-      VLOG(5) << "Processing invocation " << callee_data.invocation->ToString();
-      XLS_ASSIGN_OR_RETURN(
-          ConversionRecord cr,
-          MakeConversionRecord(const_cast<Function*>(f), f->owner(),
-                               callee_data.derived_type_info,
-                               callee_data.callee_bindings,
-                               /*proc_id=*/std::nullopt,
-                               // Parametric functions can never be top.
-                               /*is_top=*/!f->IsParametric() && f == top_));
-      records_.push_back(std::move(cr));
-    }
     if (calls.empty()) {
       // We can still convert this function even though it's never been called.
       // Make sure we are using the right type info for imported functions.
@@ -177,6 +165,34 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
                                       include_tests_, proc_id_factory_, top_,
                                       resolved_proc_alias_, records_);
       XLS_RETURN_IF_ERROR(f->Accept(&visitor));
+    } else {
+      XLS_RETURN_IF_ERROR(f->Accept(this));
+    }
+    std::vector<InvocationCalleeData> calls;
+    for (const auto& [_, callee_data] :
+         (*invocation_data)->env_to_callee_data()) {
+      calls.push_back(callee_data);
+    }
+    // Sort the calls by callee bindings so that the order is deterministic.
+    // This is primarily for testing purposes. If tests move away from
+    // golden-file comparison, the sort can probably be removed.
+    std::sort(calls.begin(), calls.end(),
+              [](const InvocationCalleeData& a, const InvocationCalleeData& b) {
+                return a.callee_bindings.ToString() <
+                       b.callee_bindings.ToString();
+              });
+
+    for (const auto& callee_data : calls) {
+      VLOG(5) << "Processing invocation " << callee_data.invocation->ToString();
+      XLS_ASSIGN_OR_RETURN(
+          ConversionRecord cr,
+          MakeConversionRecord(const_cast<Function*>(f), f->owner(),
+                               callee_data.derived_type_info,
+                               callee_data.callee_bindings,
+                               /*proc_id=*/std::nullopt,
+                               // Parametric functions can never be top.
+                               /*is_top=*/!f->IsParametric() && f == top_));
+      records_.push_back(std::move(cr));
     }
     // Process the children, specifically, to find invocations in parameters.
     return DefaultHandler(invocation);
@@ -192,15 +208,13 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
         << " no invocation data for " << invocation->ToString();
 
     const Function* config_fn = (*invocation_data)->callee();
+    XLS_RET_CHECK(config_fn->proc().has_value());
+    Proc* proc = config_fn->proc().value();
     if (config_fn->owner() == module_) {
-      // Since this proc is inside this module, We will convert this proc, so
-      // there's no need to do any more processing here.
-      return absl::OkStatus();
+      return proc->Accept(this);
     }
     // Proc is outside this module; get additional conversion records from
     // its spawning and add to our list of records.
-    XLS_RET_CHECK(config_fn->proc().has_value());
-    Proc* proc = config_fn->proc().value();
     ConversionRecordVisitor visitor(module_, spawn_owner_ti, include_tests_,
                                     proc_id_factory_, top_,
                                     resolved_proc_alias_, records_);
@@ -236,6 +250,12 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
   absl::Status HandleProc(const Proc* p) override {
     VLOG(5) << "HandleProc " << p->ToString();
     const Function* next_fn = &p->next();
+    // Handle any calls inside function bodies.
+    XLS_RETURN_IF_ERROR(DefaultHandler(next_fn));
+    // This is required in order to process cross-module spawns; otherwise it
+    // will never add procs from imported modules to the list of functions to
+    // convert.
+    XLS_RETURN_IF_ERROR(DefaultHandler(&p->config()));
 
     ProcId proc_id = proc_id_factory_.CreateProcId(
         /*parent=*/std::nullopt, const_cast<Proc*>(p),
@@ -260,10 +280,6 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
       return absl::OkStatus();
     }
 
-    // This is required in order to process cross-module spawns; otherwise it
-    // will never add procs from imported modules to the list of functions to
-    // convert.
-    XLS_RETURN_IF_ERROR(DefaultHandler(&p->config()));
     TypeInfo* proc_owner_ti = GetTypeInfo(p);
     XLS_ASSIGN_OR_RETURN(std::vector<SpawnData> spawn_data,
                          proc_owner_ti->GetUniqueSpawns(p));
@@ -289,9 +305,6 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
 
       // Similarly, if a proc is not parametric, while it might not have any
       // spawns, we still want to convert it.
-
-      // Picks up any function calls inside `next`
-      XLS_RETURN_IF_ERROR(DefaultHandler(next_fn));
 
       // Get the initial value for this proc; since there might not be a spawn,
       // there isn't SpawnData for it.
@@ -432,7 +445,7 @@ absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecordsForEntry(
     ConversionRecordVisitor visitor(
         m, type_info, /*include_tests=*/true, proc_id_factory, f,
         /*resolved_proc_alias=*/std::nullopt, records);
-    XLS_RETURN_IF_ERROR(m->Accept(&visitor));
+    XLS_RETURN_IF_ERROR(f->Accept(&visitor));
 
     return RemoveFunctionDuplicates(records);
   }
@@ -447,7 +460,7 @@ absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecordsForEntry(
   ConversionRecordVisitor visitor(m, new_ti, /*include_tests=*/true,
                                   proc_id_factory, &p->next(),
                                   resolved_proc_alias, records);
-  XLS_RETURN_IF_ERROR(m->Accept(&visitor));
+  XLS_RETURN_IF_ERROR(p->Accept(&visitor));
 
   return RemoveFunctionDuplicates(records);
 }

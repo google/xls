@@ -4260,6 +4260,25 @@ proc main {
 }
 
 TEST_F(IrConverterTest, MultipleSimpleProcs) {
+  constexpr std::string_view program = R"(
+proc p1 {
+  init { }
+  config() { () }
+  next(state: ()) { () }
+}
+
+proc p2 {
+  init { }
+  config() { () }
+  next(state: ()) { () }
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, MultipleSimpleProcsOneFunction) {
   // Tests that it properly assigns p2 as the top and ignores p1.
   constexpr std::string_view program = R"(
 proc p1 {
@@ -4960,9 +4979,9 @@ proc invalid {
   next(state: ()) { state }
 }
 
-proc main {
+pub proc main {
   init { }
-  config() { () }
+  config() { spawn invalid(u32:3); }
   next(state: ()) { state }
 }
 )";
@@ -5182,7 +5201,7 @@ proc invalid {
 
 pub proc main {
   init { }
-  config() { () }
+  config(in_chans: chan<u32>[3] in) { spawn invalid(in_chans, u32:3); }
   next(state: ()) { state }
 }
 )";
@@ -5205,7 +5224,7 @@ proc invalid {
 
 pub proc main {
   init { }
-  config() { () }
+  config() { spawn invalid(u32[3]:[3, 4, 5]); }
   next(state: ()) { state }
 }
 )";

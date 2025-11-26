@@ -70,6 +70,26 @@ fn main() -> u32 { f() }
   EXPECT_EQ(order[2].f()->identifier(), "main");
 }
 
+TEST_F(GetConversionRecordsTest, SimpleLinearCallgraphWithEntry) {
+  constexpr std::string_view kProgram = R"(
+fn g() -> u32 { u32:42 }
+fn f() -> u32 { g() }
+fn main() -> u32 { f() }
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("f"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<ConversionRecord> order,
+      GetConversionRecordsForEntry(f, tm.type_info, std::nullopt));
+  ASSERT_EQ(2, order.size());
+  EXPECT_EQ(order[0].f()->identifier(), "g");
+  EXPECT_EQ(order[1].f()->identifier(), "f");
+}
+
 TEST_F(GetConversionRecordsTest, MultipleCallsToSameFunction) {
   constexpr std::string_view kProgram = R"(
 fn g() -> u32 { u32:42 }
@@ -105,6 +125,30 @@ fn main() -> u32 { f(u2:0) }
             ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
                 {"N", InterpValue::MakeUBits(/*bit_count=*/32, /*value=*/2)}}));
   EXPECT_EQ(order[1].f()->identifier(), "main");
+  EXPECT_EQ(order[1].parametric_env(), ParametricEnv());
+}
+
+TEST_F(GetConversionRecordsTest, ParametricFnWithEntry) {
+  constexpr std::string_view kProgram = R"(
+fn f<N: u32>(x: bits[N]) -> u32 { N }
+fn g() -> u32 { f(u2:0) }
+fn main() -> u32 { f(u3:0) }
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * g,
+                           tm.module->GetMemberOrError<Function>("g"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<ConversionRecord> order,
+      GetConversionRecordsForEntry(g, tm.type_info, std::nullopt));
+  ASSERT_EQ(2, order.size());
+  EXPECT_EQ(order[0].f()->identifier(), "f");
+  EXPECT_EQ(order[0].parametric_env(),
+            ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
+                {"N", InterpValue::MakeUBits(/*bit_count=*/32, /*value=*/2)}}));
+  EXPECT_EQ(order[1].f()->identifier(), "g");
   EXPECT_EQ(order[1].parametric_env(), ParametricEnv());
 }
 
@@ -325,10 +369,49 @@ proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::vector<ConversionRecord> order,
       GetConversionRecordsForEntry(proc, tm.type_info, std::nullopt));
+  ASSERT_EQ(1, order.size());
+  EXPECT_TRUE(order[0].IsTop());
+  EXPECT_EQ(order[0].f()->identifier(), "main.next");
+}
+
+TEST_F(GetConversionRecordsTest, BasicProcWithEntry) {
+  constexpr std::string_view kProgram = R"(
+proc foo {
+  init { () }
+  config() { () }
+  next(state: ()) { () }
+}
+
+proc bar {
+  init { () }
+  config() {
+    spawn foo();
+    ()
+  }
+  next(state: ()) { () }
+}
+
+proc main {
+  init { () }
+  config() {
+    spawn foo();
+    ()
+  }
+  next(state: ()) { () }
+}
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * bar,
+                           tm.module->GetMemberOrError<Proc>("bar"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<ConversionRecord> order,
+      GetConversionRecordsForEntry(bar, tm.type_info, std::nullopt));
   ASSERT_EQ(2, order.size());
   EXPECT_EQ(order[0].f()->identifier(), "foo.next");
-  EXPECT_TRUE(order[1].IsTop());
-  EXPECT_EQ(order[1].f()->identifier(), "main.next");
+  EXPECT_EQ(order[1].f()->identifier(), "bar.next");
 }
 
 TEST_F(GetConversionRecordsTest, ProcNetwork) {
