@@ -647,6 +647,20 @@ TEST_F(IrConverterTest, CountedForVariableRange) {
   ASSERT_FALSE(status_or_ir.ok());
 }
 
+TEST_F(IrConverterTest, ZeroBitCast) {
+  constexpr std::string_view program =
+      R"(fn main(x: bits[0]) -> bits[0] {
+  x as bits[0]
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{
+                                        .lower_to_proc_scoped_channels = true,
+                                    }));
+  ExpectIr(converted);
+}
+
 TEST_F(IrConverterTest, ExtendConversions) {
   constexpr std::string_view program =
       R"(fn main(x: u8, y: s8) -> (u32, u32, s32, s32) {
