@@ -54,6 +54,8 @@ using ::xls::proto_testing::EqualsProto;
 
 constexpr std::string_view kPackageName = "the_package";
 
+// TODO: https://github.com/google/xls/issues/2078 - remove the parameter
+// and only test with lowering to proc-scoped channels.
 class ChannelScopeTest : public ::testing::TestWithParam<bool> {
  public:
   void SetUp() override {
@@ -137,16 +139,16 @@ class ChannelScopeTest : public ::testing::TestWithParam<bool> {
 };
 
 TEST_P(ChannelScopeTest, DefineChannel) {
-  if (GetParam()) {
-    GTEST_SKIP() << "Test skipped for proc-scoped channels";
-  }
-
   ChannelDecl* decl = MakeU32ChannelDecl("the_channel");
   XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray result,
                            scope_->DefineChannelOrArray(decl));
   EXPECT_TRUE(std::holds_alternative<Channel*>(result));
   Channel* channel = std::get<Channel*>(result);
-  EXPECT_EQ(channel->name(), "the_package__the_channel");
+  if (GetParam()) {
+    EXPECT_EQ(channel->name(), "the_channel");
+  } else {
+    EXPECT_EQ(channel->name(), "the_package__the_channel");
+  }
   EXPECT_EQ(channel->supported_ops(), ChannelOps::kSendReceive);
   EXPECT_TRUE(channel->type()->IsBits());
   EXPECT_THAT(channel->initial_values(), IsEmpty());
@@ -161,161 +163,92 @@ TEST_P(ChannelScopeTest, DefineChannelArray) {
 }
 
 TEST_P(ChannelScopeTest, DefineBoundaryChannel) {
-  if (GetParam()) {
-    GTEST_SKIP() << "Test skipped for proc-scoped channels";
-  }
-
   Param* param = MakeU32Param("the_channel", ChannelDirection::kIn);
   XLS_ASSERT_OK_AND_ASSIGN(
       ChannelOrArray result,
       scope_->DefineBoundaryChannelOrArray(param, type_info_));
   EXPECT_TRUE(std::holds_alternative<Channel*>(result));
-  EXPECT_THAT(conv_.interface.channels(), ElementsAre(EqualsProto(R"pb(
-                name: "the_package__the_channel"
-                type { type_enum: BITS bit_count: 32 }
-                direction: IN
-              )pb")));
+  if (GetParam()) {
+    EXPECT_THAT(conv_.interface.channels(), ElementsAre(EqualsProto(R"pb(
+                  name: "the_channel"
+                  type { type_enum: BITS bit_count: 32 }
+                  direction: IN
+                )pb")));
+  } else {
+    EXPECT_THAT(conv_.interface.channels(), ElementsAre(EqualsProto(R"pb(
+                  name: "the_package__the_channel"
+                  type { type_enum: BITS bit_count: 32 }
+                  direction: IN
+                )pb")));
+  }
 }
 
 TEST_P(ChannelScopeTest, DefineBoundaryInputChannelArray) {
-  if (GetParam()) {
-    GTEST_SKIP() << "Test skipped for proc-scoped channels";
-  }
-
   std::vector<Expr*> dims = {MakeU32("2")};
   Param* param = MakeU32Param("the_channel", ChannelDirection::kIn, dims);
   XLS_ASSERT_OK_AND_ASSIGN(
       ChannelOrArray result,
       scope_->DefineBoundaryChannelOrArray(param, type_info_));
   EXPECT_TRUE(std::holds_alternative<ChannelArray*>(result));
-  EXPECT_THAT(conv_.interface.channels(),
-              ElementsAre(EqualsProto(R"pb(
-                            name: "the_package__the_channel__0"
-                            type { type_enum: BITS bit_count: 32 }
-                            direction: IN
-                          )pb"),
-                          EqualsProto(R"pb(
-                            name: "the_package__the_channel__1"
-                            type { type_enum: BITS bit_count: 32 }
-                            direction: IN
-                          )pb")));
+  if (GetParam()) {
+    EXPECT_THAT(conv_.interface.channels(),
+                ElementsAre(EqualsProto(R"pb(
+                              name: "the_channel__0"
+                              type { type_enum: BITS bit_count: 32 }
+                              direction: IN
+                            )pb"),
+                            EqualsProto(R"pb(
+                              name: "the_channel__1"
+                              type { type_enum: BITS bit_count: 32 }
+                              direction: IN
+                            )pb")));
+  } else {
+    EXPECT_THAT(conv_.interface.channels(),
+                ElementsAre(EqualsProto(R"pb(
+                              name: "the_package__the_channel__0"
+                              type { type_enum: BITS bit_count: 32 }
+                              direction: IN
+                            )pb"),
+                            EqualsProto(R"pb(
+                              name: "the_package__the_channel__1"
+                              type { type_enum: BITS bit_count: 32 }
+                              direction: IN
+                            )pb")));
+  }
 }
 
 TEST_P(ChannelScopeTest, DefineBoundaryOutputChannelArray) {
+  std::vector<Expr*> dims = {MakeU32("2")};
+  Param* param = MakeU32Param("the_channel", ChannelDirection::kOut, dims);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ChannelOrArray result,
+      scope_->DefineBoundaryChannelOrArray(param, type_info_));
+  EXPECT_TRUE(std::holds_alternative<ChannelArray*>(result));
   if (GetParam()) {
-    GTEST_SKIP() << "Test skipped for proc-scoped channels";
+    EXPECT_THAT(conv_.interface.channels(),
+                ElementsAre(EqualsProto(R"pb(
+                              name: "the_channel__0"
+                              type { type_enum: BITS bit_count: 32 }
+                              direction: OUT
+                            )pb"),
+                            EqualsProto(R"pb(
+                              name: "the_channel__1"
+                              type { type_enum: BITS bit_count: 32 }
+                              direction: OUT
+                            )pb")));
+  } else {
+    EXPECT_THAT(conv_.interface.channels(),
+                ElementsAre(EqualsProto(R"pb(
+                              name: "the_package__the_channel__0"
+                              type { type_enum: BITS bit_count: 32 }
+                              direction: OUT
+                            )pb"),
+                            EqualsProto(R"pb(
+                              name: "the_package__the_channel__1"
+                              type { type_enum: BITS bit_count: 32 }
+                              direction: OUT
+                            )pb")));
   }
-
-  std::vector<Expr*> dims = {MakeU32("2")};
-  Param* param = MakeU32Param("the_channel", ChannelDirection::kOut, dims);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ChannelOrArray result,
-      scope_->DefineBoundaryChannelOrArray(param, type_info_));
-  EXPECT_TRUE(std::holds_alternative<ChannelArray*>(result));
-  EXPECT_THAT(conv_.interface.channels(),
-              ElementsAre(EqualsProto(R"pb(
-                            name: "the_package__the_channel__0"
-                            type { type_enum: BITS bit_count: 32 }
-                            direction: OUT
-                          )pb"),
-                          EqualsProto(R"pb(
-                            name: "the_package__the_channel__1"
-                            type { type_enum: BITS bit_count: 32 }
-                            direction: OUT
-                          )pb")));
-}
-
-TEST_P(ChannelScopeTest, DefineChannelProcScoped) {
-  if (!GetParam()) {
-    GTEST_SKIP() << "Test skipped for global-scoped channels";
-  }
-
-  ChannelDecl* decl = MakeU32ChannelDecl("the_channel");
-  XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray result,
-                           scope_->DefineChannelOrArray(decl));
-  EXPECT_TRUE(std::holds_alternative<Channel*>(result));
-  Channel* channel = std::get<Channel*>(result);
-  EXPECT_EQ(channel->name(), "the_channel");
-  EXPECT_EQ(channel->supported_ops(), ChannelOps::kSendReceive);
-  EXPECT_TRUE(channel->type()->IsBits());
-  EXPECT_THAT(channel->initial_values(), IsEmpty());
-}
-
-TEST_P(ChannelScopeTest, DefineChannelArrayProcScoped) {
-  if (!GetParam()) {
-    GTEST_SKIP() << "Test skipped for global-scoped channels";
-  }
-
-  std::vector<Expr*> dims = {MakeU32("5")};
-  ChannelDecl* decl = MakeU32ChannelDecl("the_channel", dims);
-  XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray result,
-                           scope_->DefineChannelOrArray(decl));
-  EXPECT_TRUE(std::holds_alternative<ChannelArray*>(result));
-}
-
-TEST_P(ChannelScopeTest, DefineBoundaryChannelProcScoped) {
-  if (!GetParam()) {
-    GTEST_SKIP() << "Test skipped for global-scoped channels";
-  }
-
-  Param* param = MakeU32Param("the_channel", ChannelDirection::kIn);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ChannelOrArray result,
-      scope_->DefineBoundaryChannelOrArray(param, type_info_));
-  EXPECT_TRUE(std::holds_alternative<Channel*>(result));
-  EXPECT_THAT(conv_.interface.channels(), ElementsAre(EqualsProto(R"pb(
-                name: "the_channel"
-                type { type_enum: BITS bit_count: 32 }
-                direction: IN
-              )pb")));
-}
-
-TEST_P(ChannelScopeTest, DefineBoundaryInputChannelArrayProcScoped) {
-  if (!GetParam()) {
-    GTEST_SKIP() << "Test skipped for global-scoped channels";
-  }
-
-  std::vector<Expr*> dims = {MakeU32("2")};
-  Param* param = MakeU32Param("the_channel", ChannelDirection::kIn, dims);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ChannelOrArray result,
-      scope_->DefineBoundaryChannelOrArray(param, type_info_));
-  EXPECT_TRUE(std::holds_alternative<ChannelArray*>(result));
-  EXPECT_THAT(conv_.interface.channels(),
-              ElementsAre(EqualsProto(R"pb(
-                            name: "the_channel__0"
-                            type { type_enum: BITS bit_count: 32 }
-                            direction: IN
-                          )pb"),
-                          EqualsProto(R"pb(
-                            name: "the_channel__1"
-                            type { type_enum: BITS bit_count: 32 }
-                            direction: IN
-                          )pb")));
-}
-
-TEST_P(ChannelScopeTest, DefineBoundaryOutputChannelArrayProcScoped) {
-  if (!GetParam()) {
-    GTEST_SKIP() << "Test skipped for global-scoped channels";
-  }
-
-  std::vector<Expr*> dims = {MakeU32("2")};
-  Param* param = MakeU32Param("the_channel", ChannelDirection::kOut, dims);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ChannelOrArray result,
-      scope_->DefineBoundaryChannelOrArray(param, type_info_));
-  EXPECT_TRUE(std::holds_alternative<ChannelArray*>(result));
-  EXPECT_THAT(conv_.interface.channels(),
-              ElementsAre(EqualsProto(R"pb(
-                            name: "the_channel__0"
-                            type { type_enum: BITS bit_count: 32 }
-                            direction: OUT
-                          )pb"),
-                          EqualsProto(R"pb(
-                            name: "the_channel__1"
-                            type { type_enum: BITS bit_count: 32 }
-                            direction: OUT
-                          )pb")));
 }
 
 TEST_P(ChannelScopeTest, AssociateWithExistingChannelDecl) {
@@ -371,95 +304,56 @@ TEST_P(ChannelScopeTest, AssociateWithExistingChannelArray) {
 }
 
 TEST_P(ChannelScopeTest, AssociateWithExistingChannelArrayDifferentProcIds) {
+  std::vector<Expr*> dims = {MakeU32("5")};
+  ChannelDecl* arr1_decl = MakeU32ChannelDecl("arr1", dims);
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray arr1,
+                           scope_->DefineChannelOrArray(arr1_decl));
+  ChannelDecl* arr2_decl = MakeU32ChannelDecl("arr2", dims);
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray arr2,
+                           scope_->DefineChannelOrArray(arr2_decl));
+  EXPECT_TRUE(std::holds_alternative<ChannelArray*>(arr1));
+  EXPECT_TRUE(std::holds_alternative<ChannelArray*>(arr2));
+
+  NameDef* ch_def = module_->Make<NameDef>(Span::Fake(), "ch", nullptr);
+  NameRef* ch_ref = module_->Make<NameRef>(Span::Fake(), "ch", ch_def);
+  FileTable file_table;
+  auto [proc_a_module, proc_a] = CreateEmptyProc(file_table, "A");
+  auto [proc_b_module, proc_b] = CreateEmptyProc(file_table, "B");
+  // Simulate two spawns of B from A, the first passing `arr1` for `ch` and the
+  // second passing `arr2` for `ch`.
+  ProcId proc_id1{.proc_instance_stack = {{proc_a, 0}, {proc_b, 0}}};
+  ProcId proc_id2{.proc_instance_stack = {{proc_a, 0}, {proc_b, 1}}};
+  XLS_EXPECT_OK(
+      scope_->AssociateWithExistingChannelOrArray(proc_id1, ch_def, arr1_decl));
+  XLS_EXPECT_OK(
+      scope_->AssociateWithExistingChannelOrArray(proc_id2, ch_def, arr2_decl));
+
+  // Trying to evaluate `ch[some_index]` now should give us a different object
+  // depending on the proc ID.
   if (GetParam()) {
-    GTEST_SKIP() << "Test skipped for proc-scoped channels";
+    XLS_ASSERT_OK_AND_ASSIGN(ChannelRef test_channel1_ref,
+                             scope_->GetChannelForArrayIndex(
+                                 proc_id1, CreateIndexOp(ch_ref, {"2"})));
+    EXPECT_EQ(std::get<Channel*>(test_channel1_ref)->name(), "arr1__2");
+    XLS_ASSERT_OK_AND_ASSIGN(ChannelRef test_channel2_ref,
+                             scope_->GetChannelForArrayIndex(
+                                 proc_id2, CreateIndexOp(ch_ref, {"2"})));
+    EXPECT_EQ(std::get<Channel*>(test_channel2_ref)->name(), "arr2__2");
+  } else {
+    XLS_ASSERT_OK_AND_ASSIGN(ChannelRef test_channel1_ref,
+                             scope_->GetChannelForArrayIndex(
+                                 proc_id1, CreateIndexOp(ch_ref, {"2"})));
+    EXPECT_EQ(std::get<Channel*>(test_channel1_ref)->name(),
+              "the_package__arr1__2");
+    XLS_ASSERT_OK_AND_ASSIGN(ChannelRef test_channel2_ref,
+                             scope_->GetChannelForArrayIndex(
+                                 proc_id2, CreateIndexOp(ch_ref, {"2"})));
+    EXPECT_EQ(std::get<Channel*>(test_channel2_ref)->name(),
+              "the_package__arr2__2");
   }
-
-  std::vector<Expr*> dims = {MakeU32("5")};
-  ChannelDecl* arr1_decl = MakeU32ChannelDecl("arr1", dims);
-  XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray arr1,
-                           scope_->DefineChannelOrArray(arr1_decl));
-  ChannelDecl* arr2_decl = MakeU32ChannelDecl("arr2", dims);
-  XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray arr2,
-                           scope_->DefineChannelOrArray(arr2_decl));
-  EXPECT_TRUE(std::holds_alternative<ChannelArray*>(arr1));
-  EXPECT_TRUE(std::holds_alternative<ChannelArray*>(arr2));
-
-  NameDef* ch_def = module_->Make<NameDef>(Span::Fake(), "ch", nullptr);
-  NameRef* ch_ref = module_->Make<NameRef>(Span::Fake(), "ch", ch_def);
-  FileTable file_table;
-  auto [proc_a_module, proc_a] = CreateEmptyProc(file_table, "A");
-  auto [proc_b_module, proc_b] = CreateEmptyProc(file_table, "B");
-  // Simulate two spawns of B from A, the first passing `arr1` for `ch` and the
-  // second passing `arr2` for `ch`.
-  ProcId proc_id1{.proc_instance_stack = {{proc_a, 0}, {proc_b, 0}}};
-  ProcId proc_id2{.proc_instance_stack = {{proc_a, 0}, {proc_b, 1}}};
-  XLS_EXPECT_OK(
-      scope_->AssociateWithExistingChannelOrArray(proc_id1, ch_def, arr1_decl));
-  XLS_EXPECT_OK(
-      scope_->AssociateWithExistingChannelOrArray(proc_id2, ch_def, arr2_decl));
-
-  // Trying to evaluate `ch[some_index]` now should give us a different object
-  // depending on the proc ID.
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ChannelRef test_channel1_ref,
-      scope_->GetChannelForArrayIndex(proc_id1, CreateIndexOp(ch_ref, {"2"})));
-  EXPECT_EQ(std::get<Channel*>(test_channel1_ref)->name(),
-            "the_package__arr1__2");
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ChannelRef test_channel2_ref,
-      scope_->GetChannelForArrayIndex(proc_id2, CreateIndexOp(ch_ref, {"2"})));
-  EXPECT_EQ(std::get<Channel*>(test_channel2_ref)->name(),
-            "the_package__arr2__2");
-}
-
-TEST_P(ChannelScopeTest,
-       AssociateWithExistingChannelArrayDifferentProcIdsProcScoped) {
-  if (!GetParam()) {
-    GTEST_SKIP() << "Test skipped for global-scoped channels";
-  }
-
-  std::vector<Expr*> dims = {MakeU32("5")};
-  ChannelDecl* arr1_decl = MakeU32ChannelDecl("arr1", dims);
-  XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray arr1,
-                           scope_->DefineChannelOrArray(arr1_decl));
-  ChannelDecl* arr2_decl = MakeU32ChannelDecl("arr2", dims);
-  XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray arr2,
-                           scope_->DefineChannelOrArray(arr2_decl));
-  EXPECT_TRUE(std::holds_alternative<ChannelArray*>(arr1));
-  EXPECT_TRUE(std::holds_alternative<ChannelArray*>(arr2));
-
-  NameDef* ch_def = module_->Make<NameDef>(Span::Fake(), "ch", nullptr);
-  NameRef* ch_ref = module_->Make<NameRef>(Span::Fake(), "ch", ch_def);
-  FileTable file_table;
-  auto [proc_a_module, proc_a] = CreateEmptyProc(file_table, "A");
-  auto [proc_b_module, proc_b] = CreateEmptyProc(file_table, "B");
-  // Simulate two spawns of B from A, the first passing `arr1` for `ch` and the
-  // second passing `arr2` for `ch`.
-  ProcId proc_id1{.proc_instance_stack = {{proc_a, 0}, {proc_b, 0}}};
-  ProcId proc_id2{.proc_instance_stack = {{proc_a, 0}, {proc_b, 1}}};
-  XLS_EXPECT_OK(
-      scope_->AssociateWithExistingChannelOrArray(proc_id1, ch_def, arr1_decl));
-  XLS_EXPECT_OK(
-      scope_->AssociateWithExistingChannelOrArray(proc_id2, ch_def, arr2_decl));
-
-  // Trying to evaluate `ch[some_index]` now should give us a different object
-  // depending on the proc ID.
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ChannelRef test_channel1_ref,
-      scope_->GetChannelForArrayIndex(proc_id1, CreateIndexOp(ch_ref, {"2"})));
-  EXPECT_EQ(std::get<Channel*>(test_channel1_ref)->name(), "arr1__2");
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ChannelRef test_channel2_ref,
-      scope_->GetChannelForArrayIndex(proc_id2, CreateIndexOp(ch_ref, {"2"})));
-  EXPECT_EQ(std::get<Channel*>(test_channel2_ref)->name(), "arr2__2");
 }
 
 TEST_P(ChannelScopeTest, HandleChannelIndex1DValid) {
-  if (GetParam()) {
-    GTEST_SKIP() << "Test skipped for proc-scoped channels";
-  }
-
   std::vector<Expr*> dims = {MakeU32("5")};
   ChannelDecl* decl = MakeU32ChannelDecl("the_channel", dims);
   XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray result,
@@ -468,15 +362,15 @@ TEST_P(ChannelScopeTest, HandleChannelIndex1DValid) {
   XLS_ASSERT_OK_AND_ASSIGN(
       ChannelRef channel_ref,
       scope_->GetChannelForArrayIndex(ProcId{}, CreateIndexOp(decl, {"2"})));
-  EXPECT_EQ(std::get<Channel*>(channel_ref)->name(),
-            "the_package__the_channel__2");
+  if (GetParam()) {
+    EXPECT_EQ(std::get<Channel*>(channel_ref)->name(), "the_channel__2");
+  } else {
+    EXPECT_EQ(std::get<Channel*>(channel_ref)->name(),
+              "the_package__the_channel__2");
+  }
 }
 
 TEST_P(ChannelScopeTest, HandleChannelIndex2DValid) {
-  if (GetParam()) {
-    GTEST_SKIP() << "Test skipped for proc-scoped channels";
-  }
-
   std::vector<Expr*> dims = {MakeU32("2"), MakeU32("5")};
   ChannelDecl* decl = MakeU32ChannelDecl("the_channel", dims);
   XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray result,
@@ -485,8 +379,12 @@ TEST_P(ChannelScopeTest, HandleChannelIndex2DValid) {
   XLS_ASSERT_OK_AND_ASSIGN(ChannelRef channel_ref,
                            scope_->GetChannelForArrayIndex(
                                ProcId{}, CreateIndexOp(decl, {"4", "1"})));
-  EXPECT_EQ(std::get<Channel*>(channel_ref)->name(),
-            "the_package__the_channel__4_1");
+  if (GetParam()) {
+    EXPECT_EQ(std::get<Channel*>(channel_ref)->name(), "the_channel__4_1");
+  } else {
+    EXPECT_EQ(std::get<Channel*>(channel_ref)->name(),
+              "the_package__the_channel__4_1");
+  }
 }
 
 TEST_P(ChannelScopeTest, HandleChannelIndexWithNonArray) {
@@ -522,10 +420,6 @@ TEST_P(ChannelScopeTest, HandleChannelIndexWithInsufficientIndices) {
 }
 
 TEST_P(ChannelScopeTest, HandleSubarrayIndex) {
-  if (GetParam()) {
-    GTEST_SKIP() << "Test skipped for proc-scoped channels";
-  }
-
   std::vector<Expr*> dims = {MakeU32("2"), MakeU32("5")};
   ChannelDecl* decl = MakeU32ChannelDecl("the_channel", dims);
   XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray result,
@@ -547,8 +441,12 @@ TEST_P(ChannelScopeTest, HandleSubarrayIndex) {
   XLS_ASSERT_OK_AND_ASSIGN(ChannelRef channel_ref,
                            scope_->GetChannelForArrayIndex(
                                ProcId{}, CreateIndexOp(subarray_ref, {"1"})));
-  EXPECT_EQ(std::get<Channel*>(channel_ref)->name(),
-            "the_package__the_channel__4_1");
+  if (GetParam()) {
+    EXPECT_EQ(std::get<Channel*>(channel_ref)->name(), "the_channel__4_1");
+  } else {
+    EXPECT_EQ(std::get<Channel*>(channel_ref)->name(),
+              "the_package__the_channel__4_1");
+  }
 }
 
 TEST_P(ChannelScopeTest, HandleChannelIndexWithOutOfRangeIndices) {
