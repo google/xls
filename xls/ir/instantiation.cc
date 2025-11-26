@@ -111,6 +111,35 @@ Instantiation::AsDelayLineInstantiation() {
                         /*actual=*/kind());
 }
 
+absl::Status BlockInstantiation::ReplaceBlock(Block* new_block) {
+  // Check for compatibility.
+  XLS_ASSIGN_OR_RETURN(InstantiationType type, type());
+
+  absl::flat_hash_map<std::string, Type*> new_input_ports;
+  new_input_ports.reserve(instantiated_block()->GetInputPorts().size());
+  for (InputPort* p : instantiated_block()->GetInputPorts()) {
+    new_input_ports[p->name()] = p->GetType();
+  }
+  if (new_input_ports != type.input_types()) {
+    return absl::InvalidArgumentError(
+        "Input ports are not compatible with the new block.");
+  }
+
+  absl::flat_hash_map<std::string, Type*> new_output_ports;
+  new_output_ports.reserve(instantiated_block()->GetOutputPorts().size());
+  for (OutputPort* p : instantiated_block()->GetOutputPorts()) {
+    new_output_ports[p->name()] =
+        p->operand(OutputPort::kOperandOperand)->GetType();
+  }
+  if (new_output_ports != type.output_types()) {
+    return absl::InvalidArgumentError(
+        "Output ports are not compatible with the new block.");
+  }
+
+  instantiated_block_ = new_block;
+  return absl::OkStatus();
+}
+
 std::string BlockInstantiation::ToString() const {
   return absl::StrFormat("instantiation %s(block=%s, kind=block)", name(),
                          instantiated_block()->name());

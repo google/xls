@@ -334,8 +334,6 @@ class Block : public FunctionBase {
     FunctionBase::AddStage(std::move(stage));
   }
 
-  bool IsStaged(Node* node) const { return node_to_stage_.contains(node); }
-
   absl::StatusOr<bool> RemoveNodeFromStage(Node* node);
 
   bool HasImplicitUse(Node* node) const override {
@@ -358,7 +356,8 @@ class Block : public FunctionBase {
       std::string_view new_name, Package* target_package = nullptr,
       const absl::flat_hash_map<std::string, std::string>& reg_name_map = {},
       const absl::flat_hash_map<const Block*, Block*>& block_instantiation_map =
-          {}) const;
+          {},
+      bool preserve_schedule = true) const;
 
   std::string DumpIr() const override;
 
@@ -562,6 +561,25 @@ class ScheduledBlock : public Block {
                          Block::Clone(new_name, target_package, reg_name_map,
                                       block_instantiation_map));
     return down_cast<ScheduledBlock*>(cloned_block);
+  }
+
+  // Creates a clone of the scheduled block with the new name 'new_name', but
+  // dropping the scheduling information (ending up with a regular block).
+  // reg_name_map is a map from old register names to new ones. If a register
+  // name is not present it is an identity mapping.
+  //
+  // If a block is present in 'block_instantiation_map' the corresponding
+  // block is used to provide an instantiation implementation. All
+  // instantiated blocks must be present if target_package is not null and not
+  // the existing block package.
+  absl::StatusOr<Block*> CloneWithoutSchedule(
+      std::string_view new_name, Package* target_package = nullptr,
+      const absl::flat_hash_map<std::string, std::string>& reg_name_map = {},
+      const absl::flat_hash_map<const Block*, Block*>& block_instantiation_map =
+          {}) const {
+    return Block::Clone(new_name, target_package, reg_name_map,
+                        block_instantiation_map,
+                        /*preserve_schedule=*/false);
   }
 };
 

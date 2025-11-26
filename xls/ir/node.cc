@@ -101,7 +101,7 @@ absl::Status Node::AddNodeToFunctionAndReplace(
   Node* replacement_ptr = function_base()->AddNode(std::move(replacement));
   XLS_RETURN_IF_ERROR(VerifyNode(replacement_ptr));
 
-  if (add_to_stage && function_base()->IsScheduled()) {
+  if (add_to_stage && function_base()->IsStaged(this)) {
     XLS_ASSIGN_OR_RETURN(int64_t stage_index,
                          function_base()->GetStageIndex(this));
     XLS_RETURN_IF_ERROR(
