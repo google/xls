@@ -920,4 +920,17 @@ absl::Status Proc::InternalRebuildSideTables() {
   return absl::OkStatus();
 }
 
+void Proc::MoveFrom(Proc& other) {
+  FunctionBase::MoveFrom(other);
+  is_new_style_proc_ = other.is_new_style_proc_;
+  state_elements_ = std::move(other.state_elements_);
+  state_reads_ = std::move(other.state_reads_);
+  state_vec_ = std::move(other.state_vec_);
+  channel_interfaces_ = std::move(other.channel_interfaces_);
+  interface_ = std::move(other.interface_);
+  proc_instantiations_ = std::move(other.proc_instantiations_);
+  channels_ = std::move(other.channels_);
+  channel_vec_ = std::move(other.channel_vec_);
+}
+
 }  // namespace xls

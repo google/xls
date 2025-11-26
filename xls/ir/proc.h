@@ -67,6 +67,8 @@ class Proc : public FunctionBase {
 
   ~Proc() override = default;
 
+  void MoveFrom(Proc& other);
+
   int64_t GetStateElementCount() const { return StateElements().size(); }
 
   // Returns the total number of bits in the proc state.

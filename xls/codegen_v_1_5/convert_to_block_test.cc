@@ -33,7 +33,9 @@ class ConvertToBlockTest : public IrTestBase {
     return CodegenOptions().module_name(TestName());
   }
 
-  SchedulingOptions scheduling_options() { return SchedulingOptions{}; }
+  SchedulingOptions scheduling_options() {
+    return SchedulingOptions{}.pipeline_stages(2);
+  }
 
   TestDelayEstimator delay_estimator_;
 };
@@ -43,7 +45,9 @@ TEST_F(ConvertToBlockTest, SimpleFunction) {
   FunctionBuilder fb(TestName(), p.get());
   BValue x = fb.Param("x", p->GetBitsType(32));
   BValue y = fb.Param("y", p->GetBitsType(32));
-  XLS_ASSERT_OK(fb.BuildWithReturnValue(fb.Add(x, y)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * top,
+                           fb.BuildWithReturnValue(fb.Add(x, y)));
+  XLS_ASSERT_OK(p->SetTop(top));
   TestDelayEstimator delay_estimator;
 
   XLS_ASSERT_OK(ConvertToBlock(p.get(), codegen_options(), scheduling_options(),

@@ -30,9 +30,8 @@ cc_library(
     hdrs = ["block_conversion_pass.h"],
     deps = [
         "//xls/codegen:codegen_options",
-        "//xls/estimators/delay_model:delay_estimator",
         "//xls/passes:pass_base",
-        "//xls/scheduling:scheduling_options",
+        "//xls/scheduling:pipeline_schedule_cc_proto",
     ],
 )
 
@@ -90,6 +89,8 @@ cc_library(
         "//xls/ir",
         "//xls/passes:pass_base",
         "//xls/scheduling:scheduling_options",
+        "//xls/scheduling:scheduling_result",
+        "//xls/tools:codegen",
         "@com_google_absl//absl/status",
     ],
 )
@@ -102,11 +103,10 @@ cc_test(
         "//xls/codegen:codegen_options",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "//xls/scheduling:scheduling_options",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
         "@googletest//:gtest",
     ],
 )
@@ -165,8 +165,36 @@ cc_library(
     hdrs = ["scheduling_pass.h"],
     deps = [
         ":block_conversion_pass",
+        "//xls/common:casts",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/passes:pass_base",
+        "//xls/scheduling:pipeline_schedule",
+        "//xls/scheduling:pipeline_schedule_cc_proto",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "scheduling_pass_test",
+    srcs = ["scheduling_pass_test.cc"],
+    deps = [
+        ":block_conversion_pass",
+        ":scheduling_pass",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:ir_parser",
+        "//xls/ir:ir_test_base",
+        "//xls/passes:pass_base",
+        "//xls/scheduling:scheduling_options",
+        "//xls/scheduling:scheduling_result",
+        "//xls/tools:codegen",
+        "@com_google_absl//absl/status:statusor",
+        "@googletest//:gtest",
     ],
 )

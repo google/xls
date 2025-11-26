@@ -42,7 +42,13 @@ class Function : public FunctionBase {
  public:
   Function(std::string_view name, Package* package)
       : FunctionBase(name, package) {}
+
   ~Function() override = default;
+
+  void MoveFrom(Function& other) {
+    FunctionBase::MoveFrom(other);
+    return_value_ = other.return_value();
+  }
 
   // Returns the node that serves as the return value of this function.
   Node* return_value() const { return return_value_; }

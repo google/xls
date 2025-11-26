@@ -118,6 +118,20 @@ std::ostream& operator<<(std::ostream& os, const FunctionBase::Kind& kind) {
   }
 }
 
+void FunctionBase::MoveFrom(FunctionBase& other) {
+  for (std::unique_ptr<Node>& node : other.nodes_) {
+    node->function_base_ = this;
+    AddNodeInternal(std::move(node));
+  }
+  node_to_stage_ = std::move(other.node_to_stage_);
+
+  other.nodes_.clear();
+  other.node_iterators_.clear();
+  other.next_values_by_state_read_.clear();
+  other.params_.clear();
+  other.node_to_stage_.clear();
+}
+
 std::vector<std::string> FunctionBase::AttributeIrStrings() const {
   std::vector<std::string> attribute_strings;
   if (ForeignFunctionData().has_value()) {

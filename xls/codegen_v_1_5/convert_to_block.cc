@@ -27,18 +27,21 @@
 #include "xls/ir/package.h"
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/scheduling_options.h"
+#include "xls/scheduling/scheduling_result.h"
+#include "xls/tools/codegen.h"
 
 namespace xls::codegen {
 
 absl::Status ConvertToBlock(Package* p, verilog::CodegenOptions codegen_options,
                             SchedulingOptions scheduling_options,
                             const DelayEstimator* delay_estimator) {
+  XLS_ASSIGN_OR_RETURN(SchedulingResult scheduling_result,
+                       Schedule(p, scheduling_options, delay_estimator));
   std::unique_ptr<BlockConversionCompoundPass> pipeline =
       CreateBlockConversionPassPipeline();
   BlockConversionPassOptions options{
       .codegen_options = std::move(codegen_options),
-      .scheduling_options = std::move(scheduling_options),
-      .delay_estimator = delay_estimator};
+      .package_schedule = scheduling_result.package_schedule};
   PassResults results;
   XLS_ASSIGN_OR_RETURN(bool result, pipeline->Run(p, options, &results));
   XLS_RET_CHECK(result);

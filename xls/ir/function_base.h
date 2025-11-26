@@ -415,6 +415,8 @@ class FunctionBase {
   absl::Status RebuildSideTables();
 
  protected:
+  void MoveFrom(FunctionBase& other);
+
   // Many function-types have side-tables that store various pieces of
   // information. This function should, as much as possible, rebuild any using
   // only data from the nodes. If data is missing or corrupted or a valid setup
