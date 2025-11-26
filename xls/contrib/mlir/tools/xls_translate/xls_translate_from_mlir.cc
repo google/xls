@@ -712,6 +712,11 @@ BValue convertOp(func::CallOp call, TranslationState& state, BuilderBase& fb) {
     return BValue();
   }
   BValue result = fb.Invoke(args, *func_or, state.getLoc(call));
+  if (!result.valid()) {
+    llvm::errs() << "Failed to invoke function: " << func_or.value()->name()
+                 << "\n";
+    return BValue();
+  }
 
   if (call.getNumResults() == 1) {
     return coerceFloatResult(call.getResult(0), result, *func_or, fb);
