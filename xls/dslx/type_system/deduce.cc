@@ -2008,6 +2008,10 @@ class DeduceVisitor : public AstNodeVisitor {
       const SliceTypeAnnotation* n) override {
     return Fatal(n);
   }
+  absl::Status HandleConstConditionalTypeAnnotation(
+      const ConstConditionalTypeAnnotation* n) override {
+    return Fatal(n);
+  }
   absl::Status HandleFunctionTypeAnnotation(
       const FunctionTypeAnnotation* n) override {
     return Fatal(n);
