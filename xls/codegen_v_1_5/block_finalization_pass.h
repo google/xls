@@ -12,29 +12,34 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_CODEGEN_V_1_5_BLOCK_INLINING_PASS_H_
-#define XLS_CODEGEN_V_1_5_BLOCK_INLINING_PASS_H_
+#ifndef XLS_CODEGEN_V_1_5_BLOCK_FINALIZATION_PASS_H_
+#define XLS_CODEGEN_V_1_5_BLOCK_FINALIZATION_PASS_H_
 
 #include "absl/status/statusor.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
+#include "xls/ir/block.h"
 #include "xls/ir/package.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls::codegen {
 
-class BlockInliningPass : public BlockConversionPass {
+class BlockFinalizationPass : public BlockConversionPass {
  public:
-  BlockInliningPass()
-      : BlockConversionPass(
-            "block_inlining",
-            "Scheduled block to block with inline stages pass") {}
+  BlockFinalizationPass()
+      : BlockConversionPass("block_finalization",
+                            "Convert all scheduled blocks to normal blocks") {}
 
  protected:
   absl::StatusOr<bool> RunInternal(Package* package,
                                    const BlockConversionPassOptions& options,
                                    PassResults* results) const override;
+
+ private:
+  absl::StatusOr<Block*> RemoveStages(ScheduledBlock* block, Package* package,
+                                      const BlockConversionPassOptions& options,
+                                      PassResults* results) const;
 };
 
 }  // namespace xls::codegen
 
-#endif  // XLS_CODEGEN_V_1_5_BLOCK_INLINING_PASS_H_
+#endif  // XLS_CODEGEN_V_1_5_BLOCK_FINALIZATION_PASS_H_

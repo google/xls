@@ -21,6 +21,7 @@
 #include <string>
 #include <string_view>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/package.h"
@@ -106,6 +107,8 @@ class BlockInstantiation : public Instantiation {
         instantiated_block_(instantiated_block) {}
 
   Block* instantiated_block() const { return instantiated_block_; }
+
+  absl::Status ReplaceBlock(Block* new_block);
 
   std::string ToString() const override;
   absl::StatusOr<InstantiationType> type() const override;

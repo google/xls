@@ -20,7 +20,7 @@
 #include <memory>
 
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
-#include "xls/codegen_v_1_5/block_inlining_pass.h"
+#include "xls/codegen_v_1_5/block_finalization_pass.h"
 #include "xls/codegen_v_1_5/channel_to_port_io_lowering_pass.h"
 #include "xls/codegen_v_1_5/flow_control_insertion_pass.h"
 #include "xls/codegen_v_1_5/param_and_return_value_lowering_pass.h"
@@ -54,7 +54,7 @@ CreateBlockConversionPassPipeline() {
   top->Add<PipelineRegisterInsertionPass>();
 
   // Lower scheduled block to standard block, inlining each stage.
-  top->Add<BlockInliningPass>();
+  top->Add<BlockFinalizationPass>();
 
   return top;
 }

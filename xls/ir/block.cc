@@ -1146,8 +1146,8 @@ absl::StatusOr<bool> Block::RemoveNodeFromStage(Node* node) {
 absl::StatusOr<Block*> Block::Clone(
     std::string_view new_name, Package* target_package,
     const absl::flat_hash_map<std::string, std::string>& reg_name_map,
-    const absl::flat_hash_map<const Block*, Block*>& block_instantiation_map)
-    const {
+    const absl::flat_hash_map<const Block*, Block*>& block_instantiation_map,
+    bool preserve_schedule) const {
   absl::flat_hash_map<Node*, Node*> original_to_clone;
   absl::flat_hash_map<Register*, Register*> register_map;
   absl::flat_hash_map<Instantiation*, Instantiation*> instantiation_map;
@@ -1157,8 +1157,9 @@ absl::StatusOr<Block*> Block::Clone(
   }
 
   Block* cloned_block = target_package->AddBlock(
-      IsScheduled() ? std::make_unique<ScheduledBlock>(new_name, target_package)
-                    : std::make_unique<Block>(new_name, target_package));
+      (IsScheduled() && preserve_schedule)
+          ? std::make_unique<ScheduledBlock>(new_name, target_package)
+          : std::make_unique<Block>(new_name, target_package));
 
   std::optional<std::string> clk_port_name;
   for (const Port& port : GetPorts()) {
@@ -1320,7 +1321,7 @@ absl::StatusOr<Block*> Block::Clone(
     XLS_RETURN_IF_ERROR(cloned_block->ReorderPorts(correct_ordering));
   }
 
-  if (IsScheduled()) {
+  if (IsScheduled() && preserve_schedule) {
     cloned_block->ClearStages();
     for (const Stage& stage : stages()) {
       XLS_ASSIGN_OR_RETURN(Stage cloned_stage, stage.Clone(original_to_clone));

@@ -41,7 +41,7 @@ cc_library(
     hdrs = ["block_conversion_pass_pipeline.h"],
     deps = [
         ":block_conversion_pass",
-        ":block_inlining_pass",
+        ":block_finalization_pass",
         ":channel_to_port_io_lowering_pass",
         ":flow_control_insertion_pass",
         ":param_and_return_value_lowering_pass",
@@ -52,14 +52,42 @@ cc_library(
 )
 
 cc_library(
-    name = "block_inlining_pass",
-    srcs = ["block_inlining_pass.cc"],
-    hdrs = ["block_inlining_pass.h"],
+    name = "block_finalization_pass",
+    srcs = ["block_finalization_pass.cc"],
+    hdrs = ["block_finalization_pass.h"],
     deps = [
         ":block_conversion_pass",
+        "//xls/common:casts",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
         "//xls/ir",
+        "//xls/ir:name_uniquer",
         "//xls/passes:pass_base",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "block_finalization_pass_test",
+    srcs = ["block_finalization_pass_test.cc"],
+    deps = [
+        ":block_conversion_pass",
+        ":block_finalization_pass",
+        "//xls/common:casts",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:register",
+        "//xls/ir:source_location",
+        "//xls/passes:pass_base",
+        "@com_google_absl//absl/functional:overload",
+        "@com_google_absl//absl/status:statusor",
+        "@googletest//:gtest",
     ],
 )
 
