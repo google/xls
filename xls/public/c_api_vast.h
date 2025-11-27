@@ -486,6 +486,10 @@ struct xls_vast_statement* xls_vast_generate_loop_add_continuous_assignment(
     struct xls_vast_generate_loop* loop, struct xls_vast_expression* lhs,
     struct xls_vast_expression* rhs);
 
+struct xls_vast_macro_statement* xls_vast_generate_loop_add_macro_statement(
+    struct xls_vast_generate_loop* loop,
+    struct xls_vast_macro_statement* statement);
+
 // Note: returned value is owned by the caller, free via `xls_c_str_free`.
 char* xls_vast_logic_ref_get_name(struct xls_vast_logic_ref* logic_ref);
 
