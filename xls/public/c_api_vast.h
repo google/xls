@@ -57,6 +57,9 @@ struct xls_vast_parameter_ref;
 struct xls_vast_conditional;
 struct xls_vast_case_statement;
 struct xls_vast_localparam_ref;
+struct xls_vast_blank_line;
+struct xls_vast_inline_verilog_statement;
+
 // Note: We define the enum with a fixed width integer type for clarity of the
 // exposed ABI.
 typedef int32_t xls_vast_file_type;
@@ -154,6 +157,11 @@ void xls_vast_verilog_module_add_member_continuous_assignment(
     struct xls_vast_continuous_assignment* member);
 void xls_vast_verilog_module_add_member_comment(
     struct xls_vast_verilog_module* m, struct xls_vast_comment* comment);
+void xls_vast_verilog_module_add_member_blank_line(
+    struct xls_vast_verilog_module* m, struct xls_vast_blank_line* blank);
+void xls_vast_verilog_module_add_member_inline_statement(
+    struct xls_vast_verilog_module* m,
+    struct xls_vast_inline_verilog_statement* stmt);
 
 struct xls_vast_logic_ref* xls_vast_verilog_module_add_input(
     struct xls_vast_verilog_module* m, const char* name,
@@ -197,7 +205,6 @@ struct xls_vast_localparam_ref* xls_vast_verilog_module_add_localparam(
 
 // Note: returned value is owned by the caller, free via `xls_c_str_free`.
 char* xls_vast_verilog_module_get_name(struct xls_vast_verilog_module* m);
-
 // Returns the ports that are present on the given module.
 //
 // Note: the returned array is owned by the caller, to be freed by
@@ -277,6 +284,9 @@ xls_vast_verilog_file_make_continuous_assignment(
 struct xls_vast_comment* xls_vast_verilog_file_make_comment(
     struct xls_vast_verilog_file* f, const char* text);
 
+struct xls_vast_blank_line* xls_vast_verilog_file_make_blank_line(
+    struct xls_vast_verilog_file* f);
+
 struct xls_vast_inline_verilog_statement*
 xls_vast_verilog_file_make_inline_verilog_statement(
     struct xls_vast_verilog_file* f, const char* text);
@@ -295,6 +305,17 @@ void xls_vast_verilog_file_add_include(struct xls_vast_verilog_file* f,
 struct xls_vast_concat* xls_vast_verilog_file_make_concat(
     struct xls_vast_verilog_file* f, struct xls_vast_expression** elements,
     size_t element_count);
+
+// Creates a replicated concatenation expression: {replication{elements...}}.
+// For single-element replication, pass element_count=1.
+struct xls_vast_concat* xls_vast_verilog_file_make_replicated_concat(
+    struct xls_vast_verilog_file* f, struct xls_vast_expression* replication,
+    struct xls_vast_expression** elements, size_t element_count);
+
+// Convenience: replicated concatenation with an integer replication count.
+struct xls_vast_concat* xls_vast_verilog_file_make_replicated_concat_i64(
+    struct xls_vast_verilog_file* f, int64_t replication_count,
+    struct xls_vast_expression** elements, size_t element_count);
 
 struct xls_vast_slice* xls_vast_verilog_file_make_slice_i64(
     struct xls_vast_verilog_file* f,
@@ -456,16 +477,23 @@ struct xls_vast_statement* xls_vast_statement_block_add_blocking_assignment(
     struct xls_vast_statement_block* block, struct xls_vast_expression* lhs,
     struct xls_vast_expression* rhs);
 
-// Adds a blocking assignment statement (lhs = rhs) to a statement block and
-// returns a pointer to the created statement.
-struct xls_vast_statement* xls_vast_statement_block_add_blocking_assignment(
-    struct xls_vast_statement_block* block, struct xls_vast_expression* lhs,
-    struct xls_vast_expression* rhs);
+struct xls_vast_statement* xls_vast_statement_block_add_comment_text(
+    struct xls_vast_statement_block* block, const char* text);
+
+struct xls_vast_statement* xls_vast_statement_block_add_blank_line(
+    struct xls_vast_statement_block* block);
+
+struct xls_vast_statement* xls_vast_statement_block_add_inline_text(
+    struct xls_vast_statement_block* block, const char* text);
 
 // Emits/formats the contents of the given verilog file to a string.
 //
 // Note: caller owns the returned string, to be freed by `xls_c_str_free`.
 char* xls_vast_verilog_file_emit(const struct xls_vast_verilog_file* f);
+
+// Emits an expression to a string and returns an owned C string; caller must
+// free with xls_c_str_free.
+char* xls_vast_expression_emit(struct xls_vast_expression* expr);
 
 // Adds an always_ff block to the module.
 // 'sensitivity_list_elements' is an array of expressions, typically created
