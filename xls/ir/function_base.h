@@ -31,6 +31,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
+#include "cppitertools/chain.hpp"
 #include "xls/common/iterator_range.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/change_listener.h"
@@ -93,6 +94,19 @@ class Stage {
     active_inputs_.erase(node);
     logic_.erase(node);
     active_outputs_.erase(node);
+  }
+
+  inline auto begin() {
+    return iter::chain(active_inputs_, logic_, active_outputs_).begin();
+  }
+  inline auto begin() const {
+    return iter::chain(active_inputs_, logic_, active_outputs_).begin();
+  }
+  inline auto end() {
+    return iter::chain(active_inputs_, logic_, active_outputs_).end();
+  }
+  inline auto end() const {
+    return iter::chain(active_inputs_, logic_, active_outputs_).end();
   }
 
   absl::StatusOr<Stage> Clone(
