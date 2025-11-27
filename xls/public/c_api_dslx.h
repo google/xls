@@ -78,6 +78,7 @@ enum {
   xls_dslx_attribute_argument_kind_string,
   xls_dslx_attribute_argument_kind_string_key_value,
   xls_dslx_attribute_argument_kind_int_key_value,
+  xls_dslx_attribute_argument_kind_string_literal,
 };
 
 // Opaque structs.
@@ -324,6 +325,12 @@ xls_dslx_attribute_argument_kind xls_dslx_attribute_get_argument_kind(
 // `xls_dslx_attribute_argument_kind_string`.
 // Note: return value is owned by the caller, free via `xls_c_str_free`.
 char* xls_dslx_attribute_get_string_argument(
+    struct xls_dslx_attribute* attribute, int64_t index);
+
+// Returns the argument value when the argument kind is
+// `xls_dslx_attribute_argument_kind_string_literal`.
+// Note: return value is owned by the caller, free via `xls_c_str_free`.
+char* xls_dslx_attribute_get_string_literal_argument(
     struct xls_dslx_attribute* attribute, int64_t index);
 
 // Returns the argument key when the argument kind is a key/value variant.

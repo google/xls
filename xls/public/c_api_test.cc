@@ -26,12 +26,12 @@
 #include <variant>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/base/macros.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/temp_directory.h"
 #include "xls/common/logging/log_lines.h"
@@ -3497,6 +3497,56 @@ fn top(x: u32, y: MyE) -> u32 { x }
 
   xls_dslx_typechecked_module_free(tm);
   xls_dslx_import_data_free(import_data);
+}
+
+TEST(XlsCApiTest, DslxStringLiteralAttribute) {
+  const char* kDslx = R"DSLX(
+#[dslx_format_disable("fmt-off")]
+fn fmt_fn(x: u32) -> u32 { x }
+)DSLX";
+  const char* additional_search_paths[] = {};
+  std::string dslx_stdlib_path = std::string(xls::kDefaultDslxStdlibPath);
+  xls_dslx_import_data* import_data = xls_dslx_import_data_create(
+      dslx_stdlib_path.c_str(), additional_search_paths, 0);
+  ASSERT_NE(import_data, nullptr);
+  absl::Cleanup free_import_data(
+      [&]() { xls_dslx_import_data_free(import_data); });
+  char* error = nullptr;
+  xls_dslx_typechecked_module* tm = nullptr;
+  ASSERT_TRUE(xls_dslx_parse_and_typecheck(kDslx, "attr_test.x", "attr_test",
+                                           import_data, &error, &tm))
+      << (error ? error : "");
+  absl::Cleanup free_tm([&]() { xls_dslx_typechecked_module_free(tm); });
+  xls_c_str_free(error);
+
+  xls_dslx_module* module = xls_dslx_typechecked_module_get_module(tm);
+  auto find_function = [&](std::string_view target) -> xls_dslx_function* {
+    int64_t member_count = xls_dslx_module_get_member_count(module);
+    for (int64_t i = 0; i < member_count; ++i) {
+      xls_dslx_module_member* member = xls_dslx_module_get_member(module, i);
+      xls_dslx_function* fn = xls_dslx_module_member_get_function(member);
+      if (fn) {
+        char* id = xls_dslx_function_get_identifier(fn);
+        absl::Cleanup free_id([&]() { xls_c_str_free(id); });
+        if (std::string_view(id) == target) return fn;
+      }
+    }
+    return nullptr;
+  };
+
+  xls_dslx_function* fmt_fn = find_function("fmt_fn");
+  ASSERT_NE(fmt_fn, nullptr);
+
+  ASSERT_EQ(xls_dslx_function_get_attribute_count(fmt_fn), 1);
+  xls_dslx_attribute* fmt_attr = xls_dslx_function_get_attribute(fmt_fn, 0);
+  EXPECT_EQ(xls_dslx_attribute_get_kind(fmt_attr),
+            xls_dslx_attribute_kind_dslx_format_disable);
+  ASSERT_EQ(xls_dslx_attribute_get_argument_count(fmt_attr), 1);
+  EXPECT_EQ(xls_dslx_attribute_get_argument_kind(fmt_attr, 0),
+            xls_dslx_attribute_argument_kind_string_literal);
+  char* fmt_arg = xls_dslx_attribute_get_string_literal_argument(fmt_attr, 0);
+  absl::Cleanup free_fmt_arg([&]() { xls_c_str_free(fmt_arg); });
+  EXPECT_EQ(std::string(fmt_arg), "fmt-off");
 }
 
 }  // namespace
