@@ -402,6 +402,10 @@ void FunctionBase::ClearStages() {
   node_to_stage_.clear();
 }
 
+bool FunctionBase::IsStaged(Node* node) const {
+  return node_to_stage_.contains(node);
+}
+
 absl::StatusOr<int64_t> FunctionBase::GetStageIndex(Node* node) const {
   XLS_RET_CHECK(IsScheduled());
   auto it = node_to_stage_.find(node);
