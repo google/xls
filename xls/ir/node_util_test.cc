@@ -177,6 +177,35 @@ TEST_F(NodeUtilTest, GatherAllTheBits) {
   EXPECT_THAT(f->return_value(), m::Param("x"));
 }
 
+TEST_F(NodeUtilTest, GatherTreeBits) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* ty = p->GetTupleType(
+      {p->GetTupleType({p->GetBitsType(8), p->GetBitsType(16)}),
+       p->GetTupleType({p->GetBitsType(16), p->GetBitsType(8)})});
+  fb.Param("foo", ty);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Value v, ValueBuilder::Tuple(
+                   {ValueBuilder::Tuple(
+                        {ValueBuilder::Bits(UBits(0b11110000, 8)),
+                         ValueBuilder::Bits(UBits(0b0000111100001111, 16))}),
+                    ValueBuilder::Tuple(
+                        {ValueBuilder::Bits(UBits(0b1111000011110000, 16)),
+                         ValueBuilder::Bits(UBits(0b00001111, 8))})})
+                   .Build());
+  XLS_ASSERT_OK_AND_ASSIGN(LeafTypeTree<Bits> mask,
+                           ValueToBitsLeafTypeTree(v, ty));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * n,
+                           GatherBits(f->return_value(), mask.AsView()));
+  EXPECT_THAT(n, m::Concat(m::BitSlice(m::TupleIndex(), 0, 4),
+                           m::Concat(m::BitSlice(m::TupleIndex(), 12, 4),
+                                     m::BitSlice(m::TupleIndex(), 4, 4)),
+                           m::Concat(m::BitSlice(m::TupleIndex(), 8, 4),
+                                     m::BitSlice(m::TupleIndex(), 0, 4)),
+                           m::BitSlice(m::TupleIndex(), 4, 4)));
+}
+
 TEST_F(NodeUtilTest, GatherBitsIndicesNotUnique) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());

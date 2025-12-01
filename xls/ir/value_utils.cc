@@ -148,4 +148,17 @@ absl::StatusOr<LeafTypeTree<Value>> ValueToLeafTypeTree(const Value& value,
   return LeafTypeTree<Value>::CreateFromVector(type, std::move(leaf_nodes));
 }
 
+absl::StatusOr<LeafTypeTree<Bits>> ValueToBitsLeafTypeTree(const Value& value,
+                                                           Type* type) {
+  XLS_RET_CHECK(ValueConformsToType(value, type));
+  XLS_RET_CHECK(!TypeHasToken(type)) << type << " has non-bits component";
+  XLS_ASSIGN_OR_RETURN(LeafTypeTree<Value> val,
+                       ValueToLeafTypeTree(value, type));
+  return leaf_type_tree::Map<Bits, Value>(val.AsView(),
+                                          [](const Value& v) -> Bits {
+                                            CHECK(v.IsBits());
+                                            return v.bits();
+                                          });
+}
+
 }  // namespace xls

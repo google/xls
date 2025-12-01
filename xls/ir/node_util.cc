@@ -37,6 +37,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "cppitertools/zip.hpp"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
@@ -316,54 +317,16 @@ absl::StatusOr<Node*> FromTreeOfNodes(FunctionBase* f,
 // RemoveKnownBits.
 absl::StatusOr<Node*> GatherBits(Node* node, LeafTypeTreeView<Bits> mask) {
   std::vector<Node*> gathered_bits;
-  absl::flat_hash_map<absl::Span<int64_t const>, Node*> index_access;
-  index_access[{}] = node;
-  XLS_RETURN_IF_ERROR(leaf_type_tree::ForEachIndex(
-      mask,
-      [&](Type*, const Bits& node_mask,
-          absl::Span<const int64_t> indices) -> absl::Status {
-        if (node_mask.IsZero()) {
-          // We don't need any bits from this node, so no need to index into
-          // it.
-          return absl::OkStatus();
-        }
-
-        for (int64_t i = 1; i <= indices.size(); ++i) {
-          auto it = index_access.find(indices.subspan(0, i));
-          if (it != index_access.end()) {
-            continue;
-          }
-
-          Node* accessed_node = index_access[indices.subspan(0, i - 1)];
-          if (accessed_node->GetType()->IsArray()) {
-            Bits index_bits = UBits(
-                indices.back(),
-                Bits::MinBitCountUnsigned(
-                    accessed_node->GetType()->AsArrayOrDie()->size() - 1));
-            XLS_ASSIGN_OR_RETURN(Node * literal_index,
-                                 node->function_base()->MakeNode<Literal>(
-                                     node->loc(), Value(index_bits)));
-            XLS_ASSIGN_OR_RETURN(index_access[indices.subspan(0, i)],
-                                 node->function_base()->MakeNode<ArrayIndex>(
-                                     node->loc(), accessed_node,
-                                     absl::MakeConstSpan({literal_index})));
-          } else if (accessed_node->GetType()->IsTuple()) {
-            XLS_ASSIGN_OR_RETURN(
-                index_access[indices.subspan(0, i)],
-                node->function_base()->MakeNode<TupleIndex>(
-                    node->loc(), accessed_node, indices.back()));
-          } else {
-            return absl::UnimplementedError(
-                absl::StrCat("Unsupported type for index access: ",
-                             accessed_node->GetType()->ToString()));
-          }
-        }
-
-        XLS_ASSIGN_OR_RETURN(Node * unknown_bits,
-                             GatherBits(index_access.at(indices), node_mask));
-        gathered_bits.push_back(unknown_bits);
-        return absl::OkStatus();
-      }));
+  XLS_RET_CHECK_EQ(mask.type(), node->GetType()) << "Type mismatch";
+  XLS_ASSIGN_OR_RETURN(LeafTypeTree<Node*> tree_nodes, ToTreeOfNodes(node));
+  for (const auto& [n, mask] :
+       iter::zip(tree_nodes.elements(), mask.elements())) {
+    if (mask.IsZero()) {
+      continue;
+    }
+    XLS_ASSIGN_OR_RETURN(Node * gathered, GatherBits(n, mask));
+    gathered_bits.push_back(gathered);
+  }
 
   XLS_RET_CHECK(!gathered_bits.empty());
   if (gathered_bits.size() == 1) {
