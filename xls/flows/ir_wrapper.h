@@ -28,6 +28,7 @@
 #include "absl/types/span.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/function.h"
 #include "xls/ir/package.h"
@@ -180,14 +181,16 @@ class IrWrapper {
   static absl::StatusOr<IrWrapper> Create(
       std::string_view ir_package_name, DslxModuleAndPath top_module,
       std::vector<DslxModuleAndPath> import_modules,
-      dslx::ImportData* import_data, Flags flags = Flags::kDefault);
+      dslx::ImportData* import_data, Flags flags = Flags::kDefault,
+      dslx::ConvertOptions convert_options = {});
 
   static absl::StatusOr<IrWrapper> Create(
       std::string_view ir_package_name,
       std::unique_ptr<dslx::Module> top_module,
       std::string_view top_module_path, dslx::ImportData* import_data,
       std::unique_ptr<dslx::Module> other_module = nullptr,
-      std::string_view other_module_path = "", Flags flags = Flags::kDefault);
+      std::string_view other_module_path = "", Flags flags = Flags::kDefault,
+      dslx::ConvertOptions convert_options = {});
 
  private:
   // Construct this object with a default ImportData.

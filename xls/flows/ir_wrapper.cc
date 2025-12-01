@@ -171,7 +171,8 @@ absl::StatusOr<Package*> IrWrapper::GetIrPackage() const {
 absl::StatusOr<IrWrapper> IrWrapper::Create(
     std::string_view ir_package_name, DslxModuleAndPath top_module,
     std::vector<DslxModuleAndPath> import_modules,
-    dslx::ImportData* import_data, IrWrapper::Flags flags) {
+    dslx::ImportData* import_data, IrWrapper::Flags flags,
+    dslx::ConvertOptions convert_options) {
   IrWrapper ir_wrapper(import_data);
 
   // Compile DSLX
@@ -202,14 +203,17 @@ absl::StatusOr<IrWrapper> IrWrapper::Create(
   ir_wrapper.top_module_ = top_typechecked.module;
   XLS_VLOG_LINES(3, ir_wrapper.top_module_->ToString());
 
-  // Convert into IR
-  const dslx::ConvertOptions convert_options = {
-      .emit_positions = true, .emit_assert = true, .verify_ir = true};
+  dslx::ConvertOptions updated_convert_options(convert_options);
+  updated_convert_options.emit_positions = true;
+  updated_convert_options.emit_assert = true;
+  updated_convert_options.verify_ir = true;
 
   dslx::PackageConversionData data{
       .package = std::make_unique<Package>(ir_package_name)};
+  // Convert into IR
   XLS_RET_CHECK_OK(dslx::ConvertModuleIntoPackage(
-      ir_wrapper.top_module_, ir_wrapper.import_data_, convert_options, &data));
+      ir_wrapper.top_module_, ir_wrapper.import_data_, updated_convert_options,
+      &data));
 
   ir_wrapper.package_ = std::move(data).package;
 
@@ -229,7 +233,7 @@ absl::StatusOr<IrWrapper> IrWrapper::Create(
     std::string_view ir_package_name, std::unique_ptr<Module> top_module,
     std::string_view top_module_path, dslx::ImportData* import_data,
     std::unique_ptr<Module> other_module, std::string_view other_module_path,
-    IrWrapper::Flags flags) {
+    IrWrapper::Flags flags, dslx::ConvertOptions convert_options) {
   XLS_ASSIGN_OR_RETURN(
       DslxModuleAndPath top_module_and_path,
       DslxModuleAndPath::Create(std::move(top_module), top_module_path));
@@ -245,7 +249,8 @@ absl::StatusOr<IrWrapper> IrWrapper::Create(
   }
 
   return Create(ir_package_name, std::move(top_module_and_path),
-                std::move(other_module_and_path_vec), import_data, flags);
+                std::move(other_module_and_path_vec), import_data, flags,
+                convert_options);
 }
 
 absl::StatusOr<Function*> IrWrapper::GetIrFunction(

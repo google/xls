@@ -80,6 +80,7 @@ cc_test(
         "//xls/dslx:virtualizable_file_system",
         "//xls/dslx:warning_kind",
         "//xls/dslx/frontend:module",
+        "//xls/dslx/ir_convert:convert_options",
         "//xls/interpreter:serial_proc_runtime",
         "//xls/ir",
         "//xls/ir:bits",
