@@ -13,10 +13,9 @@
 // limitations under the License.
 
 proc proc_under_test {
-    a: u32;
     input_r: chan<u32> in;
 
-    config(r: chan<u32> in) { (u32:0, r) }
+    config(r: chan<u32> in) { (r,) }
 
     init { () }
 

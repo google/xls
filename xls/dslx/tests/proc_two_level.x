@@ -28,18 +28,17 @@ proc doubler {
     }
 }
 
-proc strange_mather {
+proc strange_mather<factor: u32> {
     r: chan<u32> in;
     s: chan<u32> out;
     doubler_input_s: chan<u32> out;
     doubler_output_r: chan<u32> in;
-    factor: u32;
 
-    config(r: chan<u32> in, s: chan<u32> out, factor: u32) {
+    config(r: chan<u32> in, s: chan<u32> out) {
         let (doubler_input_s, doubler_input_r) = chan<u32>("doubler_input");
         let (doubler_output_s, doubler_output_r) = chan<u32>("doubler_output");
         spawn doubler(doubler_input_r, doubler_output_s);
-        (r, s, doubler_input_s, doubler_output_r, factor)
+        (r, s, doubler_input_s, doubler_output_r)
     }
 
     init { u32:0 }
@@ -64,7 +63,7 @@ proc test_proc {
     config(terminator: chan<bool> out) {
         let (input_s, input_r) = chan<u32>("input");
         let (output_s, output_r) = chan<u32>("output");
-        spawn strange_mather(input_r, output_s, u32:2);
+        spawn strange_mather<u32:2>(input_r, output_s);
         (terminator, input_s, output_r)
     }
 
