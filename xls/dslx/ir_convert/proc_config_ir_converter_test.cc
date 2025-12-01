@@ -162,10 +162,8 @@ proc main {
                        HasSubstr("not found in arg mapping")));
 }
 
-// TODO: https://github.com/google/xls/issues/2078 - Re-enable this test after
-// proc-scoped channels can be natively generated.
 TEST(ProcConfigIrConverterTest,
-     DISABLED_ConvertsParametricExpressionForInternalChannelFifoDepth) {
+     ConvertsParametricExpressionForInternalChannelFifoDepth) {
   constexpr std::string_view kModule = R"(
 proc passthrough {
   c_in: chan<u32> in;
@@ -221,17 +219,16 @@ proc main {
           tm.module, &import_data,
           ConvertOptions{.lower_to_proc_scoped_channels = true}));
 
-  EXPECT_THAT(conv.package->channels(), Contains(m::Channel("my_chan")));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * channel,
-                           conv.package->GetChannel("my_chan"));
-  ASSERT_EQ(channel->kind(), ChannelKind::kStreaming);
-  EXPECT_EQ(down_cast<StreamingChannel*>(channel)->GetFifoDepth(), 7);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xls::Proc * test_proc,
+      conv.package->GetProc("__test_module__test_proc_0__3_4_next"));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * my_chan, test_proc->GetChannel("my_chan"));
+  ASSERT_EQ(my_chan->kind(), ChannelKind::kStreaming);
+  EXPECT_EQ(down_cast<StreamingChannel*>(my_chan)->GetFifoDepth(), 7);
 }
 
-// TODO: https://github.com/google/xls/issues/2078 - Re-enable this test after
-// proc-scoped channels can be natively generated.
 TEST(ProcConfigIrConverterTest,
-     DISABLED_ConvertMultipleInternalChannelsWithSameNameInSameProc) {
+     ConvertMultipleInternalChannelsWithSameNameInSameProc) {
   constexpr std::string_view kModule = R"(
 proc main {
   c_in: chan<u32> in;
@@ -269,14 +266,17 @@ proc main {
           tm.module, &import_data,
           ConvertOptions{.lower_to_proc_scoped_channels = true}));
 
-  EXPECT_THAT(conv.package->channels(),
-              AllOf(Contains(m::Channel("my_chan")),
-                    Contains(m::Channel("my_chan__1"))));
+  EXPECT_THAT(conv.package->channels(), IsEmpty());
+
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Proc * proc,
+                           conv.package->GetProc("__test_module__main_0_next"));
+  std::vector<Channel*> channels = {proc->channels().begin(),
+                                    proc->channels().end()};
+  EXPECT_THAT(channels, AllOf(Contains(m::Channel("my_chan")),
+                              Contains(m::Channel("my_chan__1"))));
 }
 
-// TODO: https://github.com/google/xls/issues/2078 - Re-enable this test after
-// proc-scoped channels can be natively generated.
-TEST(ProcConfigIrConverterTest, DISABLED_ChannelArrayDestructureWithWildcard) {
+TEST(ProcConfigIrConverterTest, ChannelArrayDestructureWithWildcard) {
   constexpr std::string_view kModule = R"(
   proc SomeProc {
       some_chan_array: chan<u32>[4] in;
@@ -302,17 +302,18 @@ TEST(ProcConfigIrConverterTest, DISABLED_ChannelArrayDestructureWithWildcard) {
           tm.module, &import_data,
           ConvertOptions{.verify_ir = false,
                          .lower_to_proc_scoped_channels = true}));
-  EXPECT_THAT(conv.package->channels(),
-              UnorderedElementsAre(m::Channel("the_chan_array__0"),
-                                   m::Channel("the_chan_array__1"),
-                                   m::Channel("the_chan_array__2"),
-                                   m::Channel("the_chan_array__3")));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xls::Proc * proc,
+      conv.package->GetProc("__test_module__SomeProc_0_next"));
+  std::vector<Channel*> channels = {proc->channels().begin(),
+                                    proc->channels().end()};
+  EXPECT_THAT(channels, UnorderedElementsAre(m::Channel("the_chan_array__0"),
+                                             m::Channel("the_chan_array__1"),
+                                             m::Channel("the_chan_array__2"),
+                                             m::Channel("the_chan_array__3")));
 }
 
-// TODO: https://github.com/google/xls/issues/2078 - Re-enable this test after
-// proc-scoped channels can be natively generated.
-TEST(ProcConfigIrConverterTest,
-     DISABLED_ChannelArrayDestructureWithRestOfTuple) {
+TEST(ProcConfigIrConverterTest, ChannelArrayDestructureWithRestOfTuple) {
   constexpr std::string_view kModule = R"(
   proc SomeProc {
       some_chan_array: chan<u32>[4] in;
@@ -338,16 +339,18 @@ TEST(ProcConfigIrConverterTest,
           tm.module, &import_data,
           ConvertOptions{.verify_ir = false,
                          .lower_to_proc_scoped_channels = true}));
-  EXPECT_THAT(conv.package->channels(),
-              UnorderedElementsAre(m::Channel("the_chan_array__0"),
-                                   m::Channel("the_chan_array__1"),
-                                   m::Channel("the_chan_array__2"),
-                                   m::Channel("the_chan_array__3")));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xls::Proc * proc,
+      conv.package->GetProc("__test_module__SomeProc_0_next"));
+  std::vector<Channel*> channels = {proc->channels().begin(),
+                                    proc->channels().end()};
+  EXPECT_THAT(channels, UnorderedElementsAre(m::Channel("the_chan_array__0"),
+                                             m::Channel("the_chan_array__1"),
+                                             m::Channel("the_chan_array__2"),
+                                             m::Channel("the_chan_array__3")));
 }
 
-// TODO: https://github.com/google/xls/issues/2078 - Re-enable this test after
-// proc-scoped channels can be natively generated.
-TEST(ProcConfigIrConverterTest, DISABLED_DealOutChannelArrayElementsToSpawnee) {
+TEST(ProcConfigIrConverterTest, DealOutChannelArrayElementsToSpawnee) {
   constexpr std::string_view kModule = R"(
   proc B {
     input: chan<u32> in;
@@ -402,7 +405,11 @@ TEST(ProcConfigIrConverterTest, DISABLED_DealOutChannelArrayElementsToSpawnee) {
       ConvertModuleToPackage(
           tm.module, &import_data,
           ConvertOptions{.lower_to_proc_scoped_channels = true}));
-  EXPECT_THAT(conv.package->channels(),
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Proc * procA,
+                           conv.package->GetProc("__test_module__A_0_next"));
+  std::vector<Channel*> channels = {procA->channels().begin(),
+                                    procA->channels().end()};
+  EXPECT_THAT(channels,
               UnorderedElementsAre(
                   m::Channel("toward_a__0_0"), m::Channel("toward_a__0_1"),
                   m::Channel("toward_a__1_0"), m::Channel("toward_a__1_1"),
@@ -445,7 +452,9 @@ proc A {
       ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(
       PackageConversionData conv,
-      ConvertModuleToPackage(tm.module, &import_data, ConvertOptions{}));
+      ConvertModuleToPackage(
+          tm.module, &import_data,
+          ConvertOptions{.lower_to_proc_scoped_channels = false}));
 
   EXPECT_THAT(conv.package->procs(),
               UnorderedElementsAre(m::Proc("__test_module__A_0_next"),
@@ -501,7 +510,9 @@ proc main {
       ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(
       PackageConversionData conv,
-      ConvertModuleToPackage(tm.module, &import_data, ConvertOptions{}));
+      ConvertModuleToPackage(
+          tm.module, &import_data,
+          ConvertOptions{.lower_to_proc_scoped_channels = false}));
 
   EXPECT_THAT(conv.package->channels(),
               AllOf(Contains(m::Channel("test_module__my_chan")),
@@ -567,7 +578,8 @@ proc passthrough {
                                  std::make_unique<Package>(tm.module->name())};
   XLS_ASSERT_OK(ConvertOneFunctionIntoPackage(
       tm.module, "passthrough", &import_data,
-      /* parametric_env */ nullptr, ConvertOptions{}, &conv));
+      /* parametric_env */ nullptr,
+      ConvertOptions{.lower_to_proc_scoped_channels = false}, &conv));
   EXPECT_THAT(conv.package->channels(),
               AllOf(Contains(m::Channel("test_module__c_in")),
                     Contains(m::Channel("test_module__c_out"))));
