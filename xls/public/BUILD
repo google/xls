@@ -34,9 +34,6 @@ cc_library(
     name = "runtime_dslx_actions",
     srcs = ["runtime_dslx_actions.cc"],
     hdrs = ["runtime_dslx_actions.h"],
-    data = [
-        "//xls/dslx/ir_convert:ir_converter_main",
-    ],
     deps = [
         "//xls/common/file:filesystem",
         "//xls/common/status:status_macros",
@@ -66,9 +63,6 @@ cc_library(
     name = "runtime_ir_opt_actions",
     srcs = ["runtime_ir_opt_actions.cc"],
     hdrs = ["runtime_ir_opt_actions.h"],
-    data = [
-        "//xls/tools:opt_main",
-    ],
     deps = [
         "//xls/passes:optimization_pass",
         "//xls/tools:opt",
