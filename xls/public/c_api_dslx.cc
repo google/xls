@@ -681,6 +681,10 @@ xls_dslx_attribute_argument_kind xls_dslx_attribute_get_argument_kind(
           argument)) {
     return xls_dslx_attribute_argument_kind_int_key_value;
   }
+  if (std::holds_alternative<xls::dslx::Attribute::StringLiteralArgument>(
+          argument)) {
+    return xls_dslx_attribute_argument_kind_string_literal;
+  }
   CHECK(false) << "Unexpected attribute argument kind";
   return xls_dslx_attribute_argument_kind_string;
 }
@@ -693,6 +697,17 @@ char* xls_dslx_attribute_get_string_argument(
   const std::string* value = std::get_if<std::string>(&argument);
   CHECK(value != nullptr) << "Attribute argument is not a string";
   return xls::ToOwnedCString(*value);
+}
+
+char* xls_dslx_attribute_get_string_literal_argument(
+    struct xls_dslx_attribute* attribute, int64_t index) {
+  auto* cpp_attribute = reinterpret_cast<xls::dslx::Attribute*>(attribute);
+  const xls::dslx::Attribute::Argument& argument =
+      cpp_attribute->args().at(index);
+  const xls::dslx::Attribute::StringLiteralArgument* value =
+      std::get_if<xls::dslx::Attribute::StringLiteralArgument>(&argument);
+  CHECK(value != nullptr) << "Attribute argument is not a string literal";
+  return xls::ToOwnedCString(value->text);
 }
 
 char* xls_dslx_attribute_get_key_value_argument_key(
