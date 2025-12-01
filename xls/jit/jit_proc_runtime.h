@@ -30,13 +30,14 @@
 
 namespace xls {
 
-// Create a SerialProcRuntime composed of ProcJits. Supports old-style
+// Create a SerialProcRuntime composed of ProcJits. Works with old- or new-style
 // procs.
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateJitSerialProcRuntime(
     Package* package, const EvaluatorOptions& options = EvaluatorOptions());
 
 // Create a SerialProcRuntime composed of ProcJits. Constructed from the
-// elaboration of the given proc. Supports new-style procs.
+// elaboration of the given proc. Requires new-style (proc-scoped channel)
+// procs.
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateJitSerialProcRuntime(
     Proc* top, const EvaluatorOptions& options = EvaluatorOptions());
 
@@ -52,8 +53,6 @@ struct ProcAotEntrypoints {
 // Create a SerialProcRuntime composed of ProcJits. Constructed from the
 // elaboration of the given proc using the given impls. All procs in the
 // elaboration must have an associated entry in the entrypoints and impls lists.
-// TODO(allight): Requiring the whole package here makes a lot of things simpler
-// but it would be nice to not need to parse the package in the aot case.
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateAotSerialProcRuntime(
     Proc* top, const AotPackageEntrypointsProto& entrypoints,
     absl::Span<ProcAotEntrypoints const> impls,
@@ -69,11 +68,12 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateAotSerialProcRuntime(
     absl::Span<ProcAotEntrypoints const> impls,
     const EvaluatorOptions& options = EvaluatorOptions());
 
-// Generate AOT code for the given proc elaboration.
+// Generate AOT code for the given proc elaboration. Works with old- or
+// new-style procs.
 absl::StatusOr<JitObjectCode> CreateProcAotObjectCode(
     Package* package,
     const JitEvaluatorOptions& jit_options = JitEvaluatorOptions());
-// Generate AOT code for the given proc elaboration.
+// Generate AOT code for the given proc elaboration. Requires new-style procs.
 absl::StatusOr<JitObjectCode> CreateProcAotObjectCode(
     Proc* top, const JitEvaluatorOptions& jit_options = JitEvaluatorOptions());
 

@@ -93,5 +93,6 @@ cc_test(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "@googletest//:gtest",
+        "@re2",
     ],
 )

@@ -275,6 +275,10 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateRuntime(
 
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateJitSerialProcRuntime(
     Package* package, const EvaluatorOptions& options) {
+  if (package->ChannelsAreProcScoped()) {
+    XLS_ASSIGN_OR_RETURN(Proc * top, package->GetTopAsProc());
+    return CreateJitSerialProcRuntime(top, options);
+  }
   XLS_ASSIGN_OR_RETURN(ProcElaboration elaboration,
                        ProcElaboration::ElaborateOldStylePackage(package));
   return CreateRuntime(std::move(elaboration), options);
@@ -289,10 +293,15 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateJitSerialProcRuntime(
 
 absl::StatusOr<JitObjectCode> CreateProcAotObjectCode(
     Package* package, const JitEvaluatorOptions& jit_options) {
+  if (package->ChannelsAreProcScoped()) {
+    XLS_ASSIGN_OR_RETURN(Proc * top, package->GetTopAsProc());
+    return CreateProcAotObjectCode(top, jit_options);
+  }
   XLS_ASSIGN_OR_RETURN(ProcElaboration elaboration,
                        ProcElaboration::ElaborateOldStylePackage(package));
   return GetAotObjectCode(std::move(elaboration), jit_options);
 }
+
 absl::StatusOr<JitObjectCode> CreateProcAotObjectCode(
     Proc* top, const JitEvaluatorOptions& jit_options) {
   XLS_ASSIGN_OR_RETURN(ProcElaboration elaboration,

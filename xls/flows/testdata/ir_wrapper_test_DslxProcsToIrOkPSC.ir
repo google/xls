@@ -1,0 +1,18 @@
+package test_package
+
+file_number 0 "top_module.x"
+
+top proc __top__foo_0_next<in_0: bits[32] in, in_1: bits[32] in, output: bits[32] out>() {
+  chan_interface in_0(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface in_1(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface output(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  tok: token = after_all(id=5)
+  receive.19: (token, bits[32]) = receive(tok, channel=in_0, id=19)
+  tok__1: token = tuple_index(receive.19, index=0, id=8, pos=[(0,12,13)])
+  receive.20: (token, bits[32]) = receive(tok__1, channel=in_1, id=20)
+  a: bits[32] = tuple_index(receive.19, index=1, id=9, pos=[(0,12,18)])
+  b: bits[32] = tuple_index(receive.20, index=1, id=13, pos=[(0,13,18)])
+  tok__2: token = tuple_index(receive.20, index=0, id=12, pos=[(0,13,13)])
+  add.14: bits[32] = add(a, b, id=14, pos=[(0,14,36)])
+  tok__3: token = send(tok__2, add.14, channel=output, id=21)
+}

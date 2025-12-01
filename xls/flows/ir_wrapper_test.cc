@@ -45,21 +45,40 @@
 #include "xls/ir/value.h"
 #include "xls/ir/value_view.h"
 #include "xls/jit/function_jit.h"
+#include "re2/re2.h"
 
 namespace xls {
 namespace {
 
-void ExpectIr(std::string_view got, std::string_view test_name) {
+void ExpectVersionSpecificIr(std::string_view got, std::string_view test_name,
+                             bool proc_scoped_channels) {
+  std::string test_name_without_param(test_name);
+  RE2::GlobalReplace(&test_name_without_param, R"(/\d)", "");
   ExpectEqualToGoldenFile(
-      absl::StrFormat("xls/flows/testdata/ir_wrapper_test_%s.ir", test_name),
+      absl::StrFormat("xls/flows/testdata/ir_wrapper_test_%s%s.ir",
+                      test_name_without_param,
+                      proc_scoped_channels ? "PSC" : ""),
       got);
+}
+
+void ExpectIr(std::string_view got, std::string_view test_name) {
+  ExpectVersionSpecificIr(got, test_name, false);
 }
 
 std::string TestName() {
   return ::testing::UnitTest::GetInstance()->current_test_info()->name();
 }
 
-TEST(IrWrapperTest, DslxToIrOk) {
+class IrWrapperTest : public ::testing::TestWithParam<bool> {
+ public:
+  void SetUp() override {
+    convert_options_.lower_to_proc_scoped_channels = GetParam();
+  }
+
+  dslx::ConvertOptions convert_options_;
+};
+
+TEST_P(IrWrapperTest, DslxToIrOk) {
   constexpr std::string_view kParamsDslx = R"(pub struct ParamsProto {
     latency: sN[64],
 }
@@ -88,7 +107,8 @@ pub fn GetLatency() -> s64 {
       IrWrapper ir_wrapper,
       IrWrapper::Create("test_package", std::move(top_module), "top_module.x",
                         &import_data, std::move(params_module),
-                        "params_module.x"));
+                        "params_module.x", IrWrapper::Flags::kDefault,
+                        convert_options_));
 
   // Test that modules can be retrieved.
   XLS_ASSERT_OK_AND_ASSIGN(dslx::Module * params,
@@ -121,7 +141,7 @@ pub fn GetLatency() -> s64 {
   EXPECT_EQ(ret_val.value, Value(UBits(7, 64)));
 }
 
-TEST(IrWrapperTest, DslxProcsToIrOk) {
+TEST_P(IrWrapperTest, DslxProcsToIrOk) {
   constexpr std::string_view kTopDslx = R"(proc foo {
     in_0: chan<u32> in;
     in_1: chan<u32> in;
@@ -152,11 +172,10 @@ TEST(IrWrapperTest, DslxProcsToIrOk) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       IrWrapper ir_wrapper,
-      IrWrapper::Create(
-          "test_package", std::move(top_module), "top_module.x", &import_data,
-          /*other_module=*/nullptr, /*other_module_path=*/"",
-          IrWrapper::Flags::kDefault,
-          dslx::ConvertOptions{.lower_to_proc_scoped_channels = false}));
+      IrWrapper::Create("test_package", std::move(top_module), "top_module.x",
+                        &import_data,
+                        /*other_module=*/nullptr, /*other_module_path=*/"",
+                        IrWrapper::Flags::kDefault, convert_options_));
 
   // Test that modules can be retrieved.
   XLS_ASSERT_OK_AND_ASSIGN(dslx::Module * top, ir_wrapper.GetDslxModule("top"));
@@ -167,11 +186,17 @@ TEST(IrWrapperTest, DslxProcsToIrOk) {
   XLS_VLOG_LINES(3, top_proc->DumpIr());
 
   XLS_ASSERT_OK_AND_ASSIGN(Package * package, ir_wrapper.GetIrPackage());
-  ExpectIr(package->DumpIr(), TestName());
+  ExpectVersionSpecificIr(package->DumpIr(), TestName(), GetParam());
 
   // Test that that the jit for the proc can be retrieved and run.
   XLS_ASSERT_OK_AND_ASSIGN(SerialProcRuntime * proc_runtime,
                            ir_wrapper.GetAndMaybeCreateProcRuntime());
+  if (GetParam()) {
+    // TODO: davidplass - To support proc-scoped channels, this test has to be
+    // rewritten to use ChannelQueue and ChannelInstance, as was done
+    // in http://cl/835286514
+    GTEST_SKIP() << "TODO: update remainder of test for proc-scoped channels";
+  }
   XLS_ASSERT_OK_AND_ASSIGN(
       JitChannelQueueWrapper in_0,
       ir_wrapper.CreateJitChannelQueueWrapper("test_package__in_0"));
@@ -242,6 +267,9 @@ TEST(IrWrapperTest, DslxProcsToIrOk) {
 
   EXPECT_EQ(out_value, 40);
 }
+
+INSTANTIATE_TEST_SUITE_P(IrWrapperTestWithScopedChannels, IrWrapperTest,
+                         ::testing::Values(true, false));
 
 }  // namespace
 }  // namespace xls
