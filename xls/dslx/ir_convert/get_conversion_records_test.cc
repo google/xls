@@ -569,12 +569,11 @@ fn my_test() { assert_eq(f<u32:8>(u8:1), u32:8) }
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-  EXPECT_THAT(
-      GetConversionRecords(tm.module, tm.type_info, false),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Parametric function `f` is only called from test "
-                         "code, but test conversion is disabled")));
+      ParseAndTypecheck(kProgram, "test.x", "my_test", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto records,
+      GetConversionRecords(tm.module, tm.type_info, /*include_tests=*/false));
+  EXPECT_TRUE(records.empty());
 }
 
 constexpr std::string_view kTestProc = R"(
@@ -617,11 +616,10 @@ TEST_F(GetConversionRecordsTest, TestProcOutputsErrorWhenDisabled) {
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(kTestProc, "test.x", "test", &import_data));
-  EXPECT_THAT(
-      GetConversionRecords(tm.module, tm.type_info, /*include_tests=*/false),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Parametric proc `P` is only called from test "
-                         "code, but test conversion is disabled")));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto records,
+      GetConversionRecords(tm.module, tm.type_info, /*include_tests=*/false));
+  EXPECT_TRUE(records.empty());
 }
 
 TEST_F(GetConversionRecordsTest, Quickcheck) {

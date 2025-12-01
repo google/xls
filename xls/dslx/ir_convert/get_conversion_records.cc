@@ -136,8 +136,14 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     XLS_RETURN_IF_ERROR(DefaultHandler(f));
 
     if (f->IsParametric() && !include_tests_) {
-      XLS_RETURN_IF_ERROR(CheckIfCalledOnlyFromTestCode(
-          type_info_, calls, /*is_proc=*/false, f->identifier()));
+      absl::Status only_test = CheckIfCalledOnlyFromTestCode(
+          type_info_, calls, /*is_proc=*/false, f->identifier());
+      if (!only_test.ok()) {
+        // Just skip it if this parametric function is only called from within
+        // tests and tests were not requested.
+        VLOG(4) << only_test.message();
+        return absl::OkStatus();
+      }
     }
     if (calls.empty()) {
       // We can still convert this function even though it's never been called.
@@ -296,11 +302,11 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
       return absl::OkStatus();
     }
     for (const SpawnData& spawn : spawn_data) {
-      if (!include_tests_ && spawn.test) {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "Parametric proc `%s` is only called from test code, but "
-            "test conversion is disabled.",
-            p->identifier()));
+      if (!include_tests_ && (spawn.test || spawn.proc->is_test_utility())) {
+        VLOG(4) << "Parametric proc `" << p->identifier()
+                << "` is only called from test code, but test conversion is "
+                   "disabled.";
+        return absl::OkStatus();
       }
 
       XLS_ASSIGN_OR_RETURN(ConversionRecord cr,

@@ -45,6 +45,7 @@ cc_library(
         "//xls/interpreter:serial_proc_runtime",
         "//xls/ir",
         "//xls/ir:bits",
+        "//xls/ir:proc_elaboration",
         "//xls/ir:type",
         "//xls/ir:value",
         "//xls/jit:function_jit",

@@ -71,7 +71,7 @@ struct ConvertOptions {
 
   // Should we generate proc-scoped channels without global channels as an
   // intermediate step? See https://github.com/google/xls/issues/2078
-  bool lower_to_proc_scoped_channels = false;
+  bool lower_to_proc_scoped_channels = true;
 
   // Force every DSLX function to use the implicit-token calling convention,
   // regardless of what type inference determined.

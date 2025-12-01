@@ -171,10 +171,16 @@ class IrWrapper {
   // Retrieve JIT channel queue for the given channel name.
   absl::StatusOr<JitChannelQueue*> GetJitChannelQueue(
       std::string_view name) const;
+  // Retrieve JIT channel queue for the given channel name in the given proc.
+  absl::StatusOr<JitChannelQueue*> GetJitChannelQueue(
+      std::string_view channel_name, std::string_view proc_name) const;
 
-  // Retrieve JIT channel queue wrapper for the given channel name and jit
+  // Retrieve JIT channel queue wrapper for the given channel name
   absl::StatusOr<JitChannelQueueWrapper> CreateJitChannelQueueWrapper(
       std::string_view name) const;
+  // Retrieve JIT channel queue wrapper for the given channel and proc name.
+  absl::StatusOr<JitChannelQueueWrapper> CreateJitChannelQueueWrapper(
+      std::string_view channel_name, std::string_view proc_name) const;
 
   // Takes ownership of a set of DSLX modules, converts to IR and creates
   // an IrWrapper object.
