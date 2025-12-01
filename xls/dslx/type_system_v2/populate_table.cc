@@ -51,7 +51,7 @@ absl::Status PopulateBuiltinStubs(ImportData* import_data,
   }
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> builtins_module,
-                       LoadBuiltinStubs());
+                       LoadBuiltinStubs(import_data->file_table()));
   std::unique_ptr<PopulateTableVisitor> builtins_visitor =
       CreatePopulateTableVisitor(builtins_module.get(), table, import_data,
                                  /*typecheck_imported_module=*/nullptr);

@@ -24,6 +24,7 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/match.h"
 #include "absl/strings/substitute.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/status_payload.pb.h"
@@ -85,6 +86,19 @@ MATCHER_P4(HasSpan, start_line, start_col, end_line, end_col, "") {
     if (next.start().lineno() == start_line &&
         next.start().colno() == start_col &&
         next.limit().lineno() == end_line && next.limit().colno() == end_col) {
+      return true;
+    }
+    *result_listener << "Span `" << next.DebugString()
+                     << "` is not the expected one.";
+  }
+
+  return false;
+}
+
+// Verifies that a StatusPayloadProto contains the given file name in some span.
+MATCHER_P(HasFilenameInSpan, filename, "") {
+  for (const SpanProto& next : arg.spans()) {
+    if (absl::EndsWith(next.start().filename(), filename)) {
       return true;
     }
     *result_listener << "Span `" << next.DebugString()

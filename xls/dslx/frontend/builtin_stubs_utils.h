@@ -17,10 +17,12 @@
 
 #include <filesystem>
 #include <memory>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/pos.h"
 
 namespace xls::dslx {
 
@@ -29,10 +31,16 @@ inline constexpr std::string_view kBuiltinStubsModuleName = "<builtin_stubs>";
 absl::StatusOr<std::filesystem::path> BuiltinStubsPath();
 
 // Load the (empty) functions in the builtin_stubs.x file into a Module.
-absl::StatusOr<std::unique_ptr<Module>> LoadBuiltinStubs();
+absl::StatusOr<std::unique_ptr<Module>> LoadBuiltinStubs(FileTable& file_table);
 
 // Returns true if the given function is a builtin.
 bool IsBuiltin(const Function* node);
+
+// Returns whether the given span is the builtin stubs module.
+bool IsSpanInBuiltinStubs(const Span& span, const FileTable& file_table);
+
+// Returns the DSLX content of the builtin stubs module.
+std::string_view GetBuiltinStubsContent();
 
 }  // namespace xls::dslx
 

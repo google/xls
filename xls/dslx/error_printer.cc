@@ -32,6 +32,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/frontend/builtin_stubs_utils.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/virtualizable_file_system.h"
 #include "xls/dslx/warning_collector.h"
@@ -52,8 +53,14 @@ absl::Status PrintSingleSpanError(const Span& error_span,
                                   VirtualizableFilesystem& vfs,
                                   int64_t error_context_line_count,
                                   const ColorSpec& color_spec) {
-  XLS_ASSIGN_OR_RETURN(std::string contents,
-                       vfs.GetFileContents(error_span.GetFilename(file_table)));
+  std::string contents;
+  if (IsSpanInBuiltinStubs(error_span, file_table)) {
+    contents = GetBuiltinStubsContent();
+  } else {
+    XLS_ASSIGN_OR_RETURN(
+        contents, vfs.GetFileContents(error_span.GetFilename(file_table)));
+  }
+
   std::vector<std::string_view> lines = absl::StrSplit(contents, '\n');
   // Lines are \n-terminated, not \n-separated.
   if (lines.size() > 1 && lines.back().empty()) {

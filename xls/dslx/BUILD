@@ -549,6 +549,7 @@ cc_library(
         ":warning_collector",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/dslx/frontend:builtin_stubs_utils",
         "//xls/dslx/frontend:pos",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",

@@ -7024,6 +7024,42 @@ proc main {
                         HasNodeWithType("spawn Counter<32>(p32, 50)", "()"))));
 }
 
+TEST(TypecheckV2Test, SendIfWithHiddenChannel) {
+  EXPECT_THAT(
+      R"(
+proc Counter<T: u32> {
+  c: chan<uN[T]> out;
+  max: u32;
+  init { u32:0 }
+  config(c: chan<u32> out, max: u32) {
+    (c, max)
+  }
+
+  next(i: u32) {
+    let c = i;
+    let z = send_if(join(), c, true, c);
+    if i == max { i } else { i + u32:1 }
+  }
+}
+
+proc main {
+  c: chan<u32> in;
+  init { (join(), u32:0) }
+  config() {
+    let (p, c) = chan<u32>("my_chan");
+    spawn Counter<32>(p, u32:50);
+    (c,)
+  }
+  next(state: (token, u32)) {
+    recv(state.0, c);
+  }
+}
+)",
+      TypecheckFailsWithPayload(HasTypeMismatch("chan<Any>", "u32"),
+                                AllOf(HasFilenameInSpan("builtin_stubs.x"),
+                                      HasFilenameInSpan("fake.x"))));
+}
+
 TEST(TypecheckV2Test, ProcAsStructMemberFails) {
   EXPECT_THAT(
       R"(

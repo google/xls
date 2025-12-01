@@ -35,8 +35,8 @@ absl::StatusOr<std::filesystem::path> BuiltinStubsPath() {
   return std::filesystem::path(kBuiltinStubsPath);
 }
 
-absl::StatusOr<std::unique_ptr<Module>> LoadBuiltinStubs() {
-  FileTable file_table;
+absl::StatusOr<std::unique_ptr<Module>> LoadBuiltinStubs(
+    FileTable& file_table) {
   Fileno fileno = file_table.GetOrCreate(kBuiltinStubsPath);
   Scanner s = {file_table, fileno, std::string(kBuiltinStubs)};
   Parser parser = {std::string(kBuiltinStubsModuleName), &s, true};
@@ -46,5 +46,11 @@ absl::StatusOr<std::unique_ptr<Module>> LoadBuiltinStubs() {
 bool IsBuiltin(const Function* node) {
   return node->owner()->name() == kBuiltinStubsModuleName;
 }
+
+bool IsSpanInBuiltinStubs(const Span& span, const FileTable& file_table) {
+  return span.GetFilename(file_table) == kBuiltinStubsPath;
+}
+
+std::string_view GetBuiltinStubsContent() { return kBuiltinStubs; }
 
 }  // namespace xls::dslx

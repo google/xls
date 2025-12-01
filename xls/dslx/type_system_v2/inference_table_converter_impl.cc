@@ -1909,7 +1909,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                     actual_arg_context, expected_type, expr));
               });
       if (!resolved.ok()) {
-        VLOG(5) << "Solution failed with " << resolved.status();
+        VLOG(3) << "Solution failed with " << resolved.status();
 
         // `SolveForParametrics` does not yield user-presentable errors. When it
         // errors, it means the formal and actual argument types are not
@@ -2533,12 +2533,20 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     if (!parametric_context.has_value()) {
       return TypeMismatchErrorStatus(annotation1, annotation2, file_table_);
     }
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type1,
-                         Concretize(annotation1, parametric_context));
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type2,
-                         Concretize(annotation2, parametric_context));
-    return TypeMismatchErrorStatus(*type1, *type2, annotation1->span(),
-                                   annotation2->span(), file_table_);
+
+    // Prefer yielding an error with concretized types. In a case like failed
+    // implicit parametric solution, one of the types will have an unknown
+    // parametric in it, which will fail to concretize, and using the
+    // annotations will then yield a sensible error.
+    absl::StatusOr<std::unique_ptr<Type>> type1 =
+        Concretize(annotation1, parametric_context);
+    absl::StatusOr<std::unique_ptr<Type>> type2 =
+        Concretize(annotation2, parametric_context);
+    if (type1.ok() && type2.ok()) {
+      return TypeMismatchErrorStatus(**type1, **type2, annotation1->span(),
+                                     annotation2->span(), file_table_);
+    }
+    return TypeMismatchErrorStatus(annotation1, annotation2, file_table_);
   }
 
   SemanticsAnalysis* GetSemanticsAnalysis() override {
