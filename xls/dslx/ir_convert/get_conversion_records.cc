@@ -82,6 +82,14 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
             << "; config TI: " << std::hex << spawn.config_type_info
             << "; next TI: " << spawn.next_type_info;
 
+    ConversionRecordVisitor visitor(spawn.proc->owner(), spawn.next_type_info,
+                                    include_tests_, proc_id_factory_, top_,
+                                    resolved_proc_alias_, records_);
+    // Get additional conversion records from invocations in this proc's "next"
+    // function and add to our list of records. Don't use Accept because that
+    // will run HandleFunction, which ignores "next" functions.
+    XLS_RETURN_IF_ERROR(visitor.DefaultHandler(&spawn.proc->next()));
+
     XLS_ASSIGN_OR_RETURN(
         ConversionRecord config_record,
         MakeConversionRecord(&spawn.proc->config(), spawn.proc->owner(),
@@ -319,6 +327,8 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
         // Pick this proc/function as top if there isn't one already.
         top_ = const_cast<Function*>(next_fn);
       }
+      // TODO: Get config record, because it may be needed for function
+      // converter.
       XLS_ASSIGN_OR_RETURN(
           ConversionRecord cr,
           MakeConversionRecord(const_cast<Function*>(next_fn), p->owner(),

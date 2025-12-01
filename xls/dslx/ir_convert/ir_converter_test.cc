@@ -5917,6 +5917,134 @@ pub proc main {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, CallImportedFnFromNext) {
+  ImportData import_data = CreateImportDataForTest();
+
+  constexpr std::string_view kImported = R"( pub fn callee() -> u32 { u32:0 })";
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+proc Main {
+    init { u32:1 }
+    config() { () }
+    next(state: u32) {
+      state + imported::callee()
+    }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kProgram, kProcScopedChannelOptions, &import_data));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, SpawnedCallImportedFnFromNext) {
+  ImportData import_data = CreateImportDataForTest();
+
+  constexpr std::string_view kImported =
+      R"( pub fn callee() -> u32 { u32:0 } )";
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+proc Spawned {
+    init { u32:1 }
+    config() { () }
+    next(state: u32) {
+      state + imported::callee()
+    }
+}
+
+pub proc Main {
+    init {}
+    config() {
+      spawn Spawned();
+      ()
+    }
+    next(_: ()) { () }
+}
+
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kProgram, kProcScopedChannelOptions, &import_data));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, SpawnedCallImportedFnFromNextBoundaryChannels) {
+  ImportData import_data = CreateImportDataForTest();
+
+  constexpr std::string_view kImported =
+      R"( pub fn callee() -> u32 { u32:0 } )";
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+proc Spawned {
+    init { u32:1 }
+    config() { () }
+    next(state: u32) {
+      state + imported::callee()
+    }
+}
+
+pub proc Main {
+    init {}
+    config(ic: chan<u32>in) {
+      spawn Spawned();
+      ()
+    }
+    next(_: ()) { () }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kProgram, kProcScopedChannelOptions, &import_data));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, ParametricSpawnedCallImportedFnFromNext) {
+  ImportData import_data = CreateImportDataForTest();
+
+  constexpr std::string_view kImported =
+      R"( pub fn callee<N: u32>() -> uN[N] { uN[N]:0 } )";
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+proc Spawned<N: u32> {
+    init { uN[N]:1 }
+    config() { () }
+    next(state: uN[N]) {
+      state + imported::callee<N>()
+    }
+}
+
+pub proc Main {
+    init {}
+    config() {
+      spawn Spawned<u32:10>();
+      ()
+    }
+    next(_: ()) { () }
+}
+
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kProgram, kProcScopedChannelOptions, &import_data));
+  ExpectIr(converted);
+}
+
 constexpr std::string_view kImported = R"(
 pub proc Importee<N: u32> {
   c: chan<uN[N]> out;
