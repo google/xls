@@ -581,7 +581,7 @@ xls_dslx_library(
 xls_dslx_ir(
     name = "proc_iota_ir",
     dslx_top = "main",
-    ir_conv_args = {"proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
     ir_file = "proc_iota.ir",
     library = ":proc_iota",
 )
@@ -589,7 +589,7 @@ xls_dslx_ir(
 xls_dslx_ir(
     name = "proc_iota_ir_proc_scoped",
     dslx_top = "main",
-    ir_conv_args = {"proc_scoped_channels": "true"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     ir_file = "proc_iota_proc_scoped.ir",
     library = ":proc_iota",
 )
@@ -597,19 +597,19 @@ xls_dslx_ir(
 [
     (
         xls_ir_opt_ir(
-            name = "proc_iota_consumer%s_opt_ir" % channel_mode,
-            src = "proc_iota%s.ir" % channel_mode,
-            top = "__proc_iota__main__consumer_0__2_next",
+            name = "proc_iota_consumer%s_opt_ir" % param[0],
+            src = "proc_iota%s.ir" % param[0],
+            top = "__proc_iota__%sconsumer_0__2_next" % param[1],
         ),
         xls_ir_opt_ir(
-            name = "proc_iota_producer%s_opt_ir" % channel_mode,
-            src = "proc_iota%s.ir" % channel_mode,
-            top = "__proc_iota__main__producer_0_next",
+            name = "proc_iota_producer%s_opt_ir" % param[0],
+            src = "proc_iota%s.ir" % param[0],
+            top = "__proc_iota__%sproducer_0_next" % param[1],
         ),
     )
-    for channel_mode in [
-        "",
-        "_proc_scoped",
+    for param in [
+        ("", "main__"),
+        ("_proc_scoped", ""),
     ]
 ]
 
