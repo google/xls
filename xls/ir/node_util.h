@@ -173,6 +173,12 @@ absl::StatusOr<Node*> GatherBits(Node* node, const Bits& mask);
 // Returns an IR expression whose value is a flattened concatenation of the bits
 // of 'node' at the indices where 'mask' is true, discarding all bits where
 // 'mask' is false. 'mask' must have the same type as 'node'.
+//
+// Note that the bits are ordered so the least-significant (masked) bit on the
+// lowest ltt index is assigned the least significant bit of the output.
+//
+// So if you have `GatherBits(Tuple(Tuple(0bA, 0bB), 0bC), <all-ones-mask>)` you
+// get the result `0bCBA`.
 absl::StatusOr<Node*> GatherBits(Node* node, LeafTypeTreeView<Bits> mask);
 
 // Returns an IR expression whose value is a flattened concatenation of the bits

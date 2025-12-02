@@ -22,6 +22,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "xls/data_structures/leaf_type_tree.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -106,6 +107,11 @@ absl::StatusOr<Value> LeafTypeTreeToValue(LeafTypeTreeView<Value> tree);
 absl::StatusOr<LeafTypeTree<Value>> ValueToLeafTypeTree(const Value& value,
                                                         Type* type);
 
+// Converts a `Value` to a `LeafTypeTree<Bits>`.
+// The given `Type*` must be the type of the given `Value` and all leaves must
+// be bits.
+absl::StatusOr<LeafTypeTree<Bits>> ValueToBitsLeafTypeTree(const Value& value,
+                                                           Type* type);
 }  // namespace xls
 
 #endif  // XLS_IR_VALUE_UTILS_H_
