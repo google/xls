@@ -17,6 +17,7 @@
 
 #include "absl/status/statusor.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
+#include "xls/ir/block.h"
 #include "xls/ir/package.h"
 #include "xls/passes/pass_base.h"
 
@@ -29,6 +30,9 @@ class FlowControlInsertionPass : public BlockConversionPass {
                             "Flow control insertion pass") {}
 
  protected:
+  absl::StatusOr<bool> InsertFlowControl(
+      ScheduledBlock* block, const BlockConversionPassOptions& options) const;
+
   absl::StatusOr<bool> RunInternal(Package* package,
                                    const BlockConversionPassOptions& options,
                                    PassResults* results) const override;

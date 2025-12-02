@@ -342,6 +342,9 @@ class FunctionBase {
   // function bases.
   void ClearStages();
 
+  // Returns true if the given node is in a stage.
+  bool IsStaged(Node* node) const;
+
   // Returns the index of the stage containing the given node.
   absl::StatusOr<int64_t> GetStageIndex(Node* node) const;
 

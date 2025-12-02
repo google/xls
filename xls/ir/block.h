@@ -334,8 +334,6 @@ class Block : public FunctionBase {
     FunctionBase::AddStage(std::move(stage));
   }
 
-  bool IsStaged(Node* node) const { return node_to_stage_.contains(node); }
-
   absl::StatusOr<bool> RemoveNodeFromStage(Node* node);
 
   bool HasImplicitUse(Node* node) const override {
