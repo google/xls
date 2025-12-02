@@ -3423,7 +3423,7 @@ struct RawProduct<SIGNED_EXP: u32, WIDE_FRACTION: u32> {
 
 // Returns the full result of a floating-point multiplication, without any rounding or truncation.
 // The only exception is that input denormals are flushed to/treated as 0.
-fn raw_mul
+pub fn raw_mul
     <EXP_SZ: u32, FRACTION_SZ_X: u32, FRACTION_SZ_Y: u32, SIGNED_EXP: u32 = {EXP_SZ + u32:2},
      WIDE_FRACTION: u32 = {FRACTION_SZ_X + FRACTION_SZ_Y + u32:2}>
     (x: APFloat<EXP_SZ, FRACTION_SZ_X>, y: APFloat<EXP_SZ, FRACTION_SZ_Y>)
