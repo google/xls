@@ -483,11 +483,13 @@ fn trivial(x: u5) -> bool { false }
 }
 
 TEST_P(RunRoutinesTest, TwoNonParametricProcs) {
-  // TODO: davidplass - fix the issue whereby when running proc-scoped channels,
-  // it does not throw an error when "top" is ambiguous.
-  if (GetParam() == RunnerType::kIrInterpreterProcScoped ||
+  ParseAndTestOptions options;
+  // TODO: https://github.com/google/xls/issues/2078 - Delete this test case
+  // once proc-scoped channels are turned on everwhere.
+  if (options.convert_options.lower_to_proc_scoped_channels ||
+      GetParam() == RunnerType::kIrInterpreterProcScoped ||
       GetParam() == RunnerType::kIrJitProcScoped) {
-    return;
+    GTEST_SKIP() << "Skipping test for proc-scoped channels";
   }
   constexpr std::string_view kProgram = R"(
 proc FirstProc {
@@ -521,7 +523,6 @@ proc MyOtherProc {
 })";
 
   constexpr const char* kModuleName = "test";
-  ParseAndTestOptions options;
   RunComparator jit_comparator(CompareMode::kJit);
   options.run_comparator = &jit_comparator;
 
