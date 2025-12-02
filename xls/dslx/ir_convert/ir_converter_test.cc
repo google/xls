@@ -20,15 +20,18 @@
 
 #include "xls/dslx/ir_convert/ir_converter.h"
 
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "xls/common/casts.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
@@ -41,6 +44,9 @@
 #include "xls/dslx/run_routines/run_comparator.h"
 #include "xls/dslx/run_routines/run_routines.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
+#include "xls/ir/channel.h"
+#include "xls/ir/ir_matcher.h"
+#include "xls/ir/proc.h"
 
 namespace xls::dslx {
 namespace {
@@ -48,6 +54,10 @@ namespace {
 using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
 using ::testing::HasSubstr;
+using ::testing::IsEmpty;
+using ::testing::SizeIs;
+
+namespace m = ::xls::op_matchers;
 
 constexpr std::string_view kProgramToVerifyTestConversion = R"(
 #[cfg(test)]
@@ -7039,6 +7049,431 @@ pub fn test_next_pow2() {
                          .lower_to_proc_scoped_channels = true},
           &import_data));
   ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest,
+       ConvertsParametricExpressionForInternalChannelFifoDepth) {
+  constexpr std::string_view kModule = R"(
+proc passthrough {
+  c_in: chan<u32> in;
+  c_out: chan<u32> out;
+  init {}
+  config(c_in: chan<u32> in, c_out: chan<u32> out) {
+    (c_in, c_out)
+  }
+  next(state: ()) {
+    let (tok, data) = recv(join(), c_in);
+    let tok = send(tok, c_out, data);
+    ()
+  }
+}
+
+proc test_proc<X: u32, Y: u32> {
+  c_in: chan<u32> in;
+  c_out: chan<u32> out;
+  init {}
+  config(c_in: chan<u32> in, c_out: chan<u32> out) {
+    let (p, c) = chan<u32, {X + Y}>("my_chan");
+    spawn passthrough(c_in, p);
+    spawn passthrough(c, c_out);
+    (c_in, c_out)
+  }
+  next(state: ()) {
+    ()
+  }
+}
+
+proc main {
+  c_in: chan<u32> in;
+  c_out: chan<u32> out;
+  init { () }
+  config(c_in: chan<u32> in, c_out: chan<u32> out) {
+    spawn test_proc<u32:3, u32:4>(c_in, c_out);
+    (c_in, c_out)
+  }
+  next(state: ()) {
+    ()
+  }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PackageConversionData conv,
+      ConvertModuleToPackage(
+          tm.module, &import_data,
+          ConvertOptions{.lower_to_proc_scoped_channels = true}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xls::Proc * test_proc,
+      conv.package->GetProc("__test_module__test_proc_0__3_4_next"));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * my_chan, test_proc->GetChannel("my_chan"));
+  ASSERT_EQ(my_chan->kind(), ChannelKind::kStreaming);
+  EXPECT_EQ(down_cast<StreamingChannel*>(my_chan)->GetFifoDepth(), 7);
+}
+
+TEST_F(IrConverterTest, ConvertMultipleInternalChannelsWithSameNameInSameProc) {
+  constexpr std::string_view kModule = R"(
+proc main {
+  c_in: chan<u32> in;
+  c_out: chan<u32> out;
+  internal_in0: chan<u32> in;
+  internal_out0: chan<u32> out;
+  internal_in1: chan<u32> in;
+  internal_out1: chan<u32> out;
+  init {}
+  config(c_in: chan<u32> in, c_out: chan<u32> out) {
+    let (p0, c0) = chan<u32>("my_chan");
+    let (p1, c1) = chan<u32>("my_chan");
+    (c_in, c_out, c0, p0, c1, p1)
+  }
+  next(state: ()) {
+    let (tok, data) = recv(join(), c_in);
+    let tok = send(tok, internal_out0, data);
+    let (tok, data) = recv(tok, internal_in0);
+    let tok = send(tok, internal_out1, data);
+    let (tok, data) = recv(tok, internal_in1);
+    let tok = send(tok, c_out, data);
+    ()
+  }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PackageConversionData conv,
+      ConvertModuleToPackage(
+          tm.module, &import_data,
+          ConvertOptions{.lower_to_proc_scoped_channels = true}));
+
+  EXPECT_THAT(conv.package->channels(), IsEmpty());
+
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Proc * proc,
+                           conv.package->GetProc("__test_module__main_0_next"));
+  std::vector<Channel*> channels = {proc->channels().begin(),
+                                    proc->channels().end()};
+  EXPECT_THAT(channels, AllOf(Contains(m::Channel("my_chan")),
+                              Contains(m::Channel("my_chan__1"))));
+}
+
+TEST_F(IrConverterTest, ChannelArrayDestructureWithWildcard) {
+  constexpr std::string_view kModule = R"(
+  proc SomeProc {
+      some_chan_array: chan<u32>[4] in;
+
+      config() {
+          let (_, new_chan_array_r) = chan<u32>[4]("the_chan_array");
+          (new_chan_array_r,)
+      }
+
+      init {  }
+
+      next(state: ()) {  }
+  }
+)";
+  auto import_data = CreateImportDataForTest();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PackageConversionData conv,
+      ConvertModuleToPackage(
+          tm.module, &import_data,
+          ConvertOptions{.verify_ir = false,
+                         .lower_to_proc_scoped_channels = true}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xls::Proc * proc,
+      conv.package->GetProc("__test_module__SomeProc_0_next"));
+  std::vector<Channel*> channels = {proc->channels().begin(),
+                                    proc->channels().end()};
+  EXPECT_THAT(channels, UnorderedElementsAre(m::Channel("the_chan_array__0"),
+                                             m::Channel("the_chan_array__1"),
+                                             m::Channel("the_chan_array__2"),
+                                             m::Channel("the_chan_array__3")));
+}
+
+TEST_F(IrConverterTest, ChannelArrayDestructureWithRestOfTuple) {
+  constexpr std::string_view kModule = R"(
+  proc SomeProc {
+      some_chan_array: chan<u32>[4] in;
+
+      config() {
+          let (.., new_chan_array_r) = chan<u32>[4]("the_chan_array");
+          (new_chan_array_r,)
+      }
+
+      init {  }
+
+      next(state: ()) {  }
+  }
+)";
+  auto import_data = CreateImportDataForTest();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PackageConversionData conv,
+      ConvertModuleToPackage(
+          tm.module, &import_data,
+          ConvertOptions{.verify_ir = false,
+                         .lower_to_proc_scoped_channels = true}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xls::Proc * proc,
+      conv.package->GetProc("__test_module__SomeProc_0_next"));
+  std::vector<Channel*> channels = {proc->channels().begin(),
+                                    proc->channels().end()};
+  EXPECT_THAT(channels, UnorderedElementsAre(m::Channel("the_chan_array__0"),
+                                             m::Channel("the_chan_array__1"),
+                                             m::Channel("the_chan_array__2"),
+                                             m::Channel("the_chan_array__3")));
+}
+
+TEST_F(IrConverterTest, DealOutChannelArrayElementsToSpawnee) {
+  constexpr std::string_view kModule = R"(
+  proc B {
+    input: chan<u32> in;
+    output: chan<u32> out;
+
+    init { () }
+
+    config(input: chan<u32> in, output: chan<u32> out) {
+      (input, output)
+    }
+
+    next(state: ()) {
+      let (tok, data) = recv(join(), input);
+      let tok = send(tok, output, data);
+    }
+  }
+
+  proc A {
+    inputs: chan<u32>[2][2] in;
+    outputs: chan<u32>[2][2] out;
+
+    init { () }
+
+    config() {
+      let (output_to_b, input_from_b) = chan<u32>[2][2]("toward_b");
+      let (output_to_a, input_from_a) = chan<u32>[2][2]("toward_a");
+      unroll_for!(i, _) : (u32, ()) in u32:0..u32:2 {
+        unroll_for!(j, _) : (u32, ()) in u32:0..u32:2 {
+          spawn B(input_from_a[i][j], output_to_a[i][j]);
+        }(())
+      }(());
+      (input_from_b, output_to_b)
+    }
+
+    next(state: ()) {
+      unroll_for!(i, (tok, data)): (u32, (token, u32)) in u32:0..u32:2 {
+        unroll_for!(j, (tok, data)): (u32, (token, u32)) in u32:0..u32:2 {
+          let tok = send(tok, outputs[i][j], data);
+          let (tok, data) = recv(tok, inputs[i][j]);
+          (tok, data)
+        }((tok, data))
+      }((join(), u32:0));
+    }
+  }
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PackageConversionData conv,
+      ConvertModuleToPackage(
+          tm.module, &import_data,
+          ConvertOptions{.lower_to_proc_scoped_channels = true}));
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Proc * procA,
+                           conv.package->GetProc("__test_module__A_0_next"));
+  std::vector<Channel*> channels = {procA->channels().begin(),
+                                    procA->channels().end()};
+  EXPECT_THAT(channels,
+              UnorderedElementsAre(
+                  m::Channel("toward_a__0_0"), m::Channel("toward_a__0_1"),
+                  m::Channel("toward_a__1_0"), m::Channel("toward_a__1_1"),
+                  m::Channel("toward_b__0_0"), m::Channel("toward_b__0_1"),
+                  m::Channel("toward_b__1_0"), m::Channel("toward_b__1_1")));
+}
+
+TEST_F(IrConverterTest, MultipleNonLeafSpawnsOfSameProc) {
+  constexpr std::string_view kModule = R"(
+proc C {
+    init { () }
+    config() { () }
+    next(state: ()) { () }
+}
+
+proc B {
+    init { () }
+    config() {
+      spawn C();
+      ()
+    }
+    next(state: ()) { () }
+}
+
+proc A {
+    init { () }
+    config() {
+        spawn B();
+        spawn B();
+        ()
+    }
+    next(state: ()) { () }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PackageConversionData conv,
+      ConvertModuleToPackage(
+          tm.module, &import_data,
+          ConvertOptions{.lower_to_proc_scoped_channels = false}));
+
+  EXPECT_THAT(conv.package->procs(),
+              UnorderedElementsAre(m::Proc("__test_module__A_0_next"),
+                                   m::Proc("__test_module__A__B_0__C_0_next"),
+                                   m::Proc("__test_module__A__B_0_next"),
+                                   m::Proc("__test_module__A__B_1__C_0_next"),
+                                   m::Proc("__test_module__A__B_1_next")));
+}
+
+TEST_F(IrConverterTest, MultipleInternalChannelsWithSameNameInDifferentProcs) {
+  constexpr std::string_view kModule = R"(
+proc passthrough {
+  c_in: chan<u32> in;
+  c_out: chan<u32> out;
+  internal_in: chan<u32> in;
+  internal_out: chan<u32> out;
+  init {}
+  config(c_in: chan<u32> in, c_out: chan<u32> out) {
+    let (p, c) = chan<u32>("my_chan");
+    (c_in, c_out, c, p)
+  }
+  next(state: ()) {
+    let (tok, data) = recv(join(), c_in);
+    let tok = send(tok, internal_out, data);
+    let (tok, data) = recv(tok, internal_in);
+    let tok = send(tok, c_out, data);
+    ()
+  }
+}
+
+proc main {
+  c_out: chan<u32> out;
+  internal_in: chan<u32> in;
+  init {}
+  config(c_in: chan<u32> in, c_out: chan<u32> out) {
+    let (p, c) = chan<u32>("my_chan");
+    spawn passthrough(c_in, p);
+    (c_out, c)
+  }
+  next(state: ()) {
+    let (tok, data) = recv(join(), internal_in);
+    let tok = send(tok, c_out, data);
+    ()
+  }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PackageConversionData conv,
+      ConvertModuleToPackage(
+          tm.module, &import_data,
+          ConvertOptions{.lower_to_proc_scoped_channels = false}));
+
+  EXPECT_THAT(conv.package->channels(),
+              AllOf(Contains(m::Channel("test_module__my_chan")),
+                    Contains(m::Channel("test_module__my_chan__1"))));
+}
+
+TEST_F(IrConverterTest, ProcScopedChannels) {
+  constexpr std::string_view kModule = R"(
+proc passthrough {
+  c_in: chan<u32> in;
+  c_out: chan<u32> out;
+  init {}
+  config(c_in: chan<u32> in, c_out: chan<u32> out) {
+    (c_in, c_out)
+  }
+  next(state: ()) {
+    let (tok, data) = recv(join(), c_in);
+    let tok = send(tok, c_out, data);
+    ()
+  }
+}
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
+  PackageConversionData conv{.package =
+                                 std::make_unique<Package>(tm.module->name())};
+  XLS_ASSERT_OK(ConvertOneFunctionIntoPackage(
+      tm.module, "passthrough", &import_data,
+      /* parametric_env */ nullptr,
+      ConvertOptions{.verify_ir = true, .lower_to_proc_scoped_channels = true},
+      &conv));
+  EXPECT_THAT(conv.package->channels(), IsEmpty());
+
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Proc * proc, conv.package->GetTopAsProc());
+  EXPECT_TRUE(proc->is_new_style_proc());
+  EXPECT_THAT(proc->interface(), SizeIs(2));
+
+  ExpectIr(conv.DumpIr());
+}
+
+TEST_F(IrConverterTest, GlobalScopedChannels) {
+  constexpr std::string_view kModule = R"(
+proc passthrough {
+  c_in: chan<u32> in;
+  c_out: chan<u32> out;
+  init {}
+  config(c_in: chan<u32> in, c_out: chan<u32> out) {
+    (c_in, c_out)
+  }
+  next(state: ()) {
+    let (tok, data) = recv(join(), c_in);
+    let tok = send(tok, c_out, data);
+    ()
+  }
+}
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
+  PackageConversionData conv{.package =
+                                 std::make_unique<Package>(tm.module->name())};
+  XLS_ASSERT_OK(ConvertOneFunctionIntoPackage(
+      tm.module, "passthrough", &import_data,
+      /* parametric_env */ nullptr,
+      ConvertOptions{.lower_to_proc_scoped_channels = false}, &conv));
+  EXPECT_THAT(conv.package->channels(),
+              AllOf(Contains(m::Channel("test_module__c_in")),
+                    Contains(m::Channel("test_module__c_out"))));
+
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Proc * proc, conv.package->GetTopAsProc());
+  EXPECT_FALSE(proc->is_new_style_proc());
 }
 
 }  // namespace
