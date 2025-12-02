@@ -88,6 +88,23 @@ struct InvocationCalleeDataArray {
   std::vector<xls::dslx::InvocationCalleeData> entries;
 };
 
+template <typename T>
+xls::dslx::ModuleMember* FindModuleMemberForNode(T* node) {
+  if (node == nullptr) {
+    return nullptr;
+  }
+  xls::dslx::Module* module = node->owner();
+  if (module == nullptr) {
+    return nullptr;
+  }
+  for (xls::dslx::ModuleMember& member : module->top()) {
+    if (std::holds_alternative<T*>(member) && std::get<T*>(member) == node) {
+      return &member;
+    }
+  }
+  return nullptr;
+}
+
 }  // namespace
 
 extern "C" {
@@ -382,11 +399,45 @@ bool xls_dslx_typechecked_module_clone_removing_functions(
     char** error_out, struct xls_dslx_typechecked_module** result_out) {
   CHECK(error_out != nullptr);
   CHECK(result_out != nullptr);
+  auto fail = [&](absl::string_view message) {
+    *error_out = xls::ToOwnedCString(std::string(message));
+    *result_out = nullptr;
+    return false;
+  };
+  if (function_count != 0 && functions == nullptr) {
+    return fail("functions array is null");
+  }
+  std::vector<xls_dslx_module_member*> members;
+  members.reserve(function_count);
+  for (size_t i = 0; i < function_count; ++i) {
+    auto* fn = reinterpret_cast<xls::dslx::Function*>(functions[i]);
+    xls::dslx::ModuleMember* member = FindModuleMemberForNode(fn);
+    if (member == nullptr) {
+      return fail("function does not belong to the provided module");
+    }
+    members.push_back(reinterpret_cast<xls_dslx_module_member*>(member));
+  }
+  return xls_dslx_typechecked_module_clone_removing_members(
+      tm, members.empty() ? nullptr : members.data(), function_count,
+      install_subject, import_data, error_out, result_out);
+}
+
+bool xls_dslx_typechecked_module_clone_removing_members(
+    struct xls_dslx_typechecked_module* tm,
+    struct xls_dslx_module_member* members[], size_t member_count,
+    const char* install_subject, struct xls_dslx_import_data* import_data,
+    char** error_out, struct xls_dslx_typechecked_module** result_out) {
+  CHECK(error_out != nullptr);
+  CHECK(result_out != nullptr);
   *error_out = nullptr;
   *result_out = nullptr;
 
   if (tm == nullptr || import_data == nullptr) {
     *error_out = xls::ToOwnedCString("null argument provided");
+    return false;
+  }
+  if (member_count != 0 && members == nullptr) {
+    *error_out = xls::ToOwnedCString("members array is null");
     return false;
   }
 
@@ -400,19 +451,20 @@ bool xls_dslx_typechecked_module_clone_removing_functions(
   }
 
   std::vector<const xls::dslx::AstNode*> nodes_to_remove;
-  nodes_to_remove.reserve(function_count);
-  for (size_t i = 0; i < function_count; ++i) {
-    if (functions == nullptr || functions[i] == nullptr) {
-      *error_out = xls::ToOwnedCString("functions array contains null entry");
+  nodes_to_remove.reserve(member_count);
+  for (size_t i = 0; i < member_count; ++i) {
+    if (members[i] == nullptr) {
+      *error_out = xls::ToOwnedCString("members array contains null entry");
       return false;
     }
-    auto* fn = reinterpret_cast<xls::dslx::Function*>(functions[i]);
-    if (fn->owner() != cpp_tm->module) {
+    auto* cpp_member = reinterpret_cast<xls::dslx::ModuleMember*>(members[i]);
+    const xls::dslx::AstNode* node = xls::dslx::ToAstNode(*cpp_member);
+    if (node == nullptr || node->owner() != cpp_tm->module) {
       *error_out = xls::ToOwnedCString(
-          "function does not belong to the provided module");
+          "module member does not belong to the provided module");
       return false;
     }
-    nodes_to_remove.push_back(fn);
+    nodes_to_remove.push_back(node);
   }
 
   absl::StatusOr<std::unique_ptr<xls::dslx::Module>> cloned_module_or =
@@ -554,6 +606,56 @@ struct xls_dslx_function* xls_dslx_module_member_get_function(
     return reinterpret_cast<xls_dslx_function*>(cpp_function);
   }
   return nullptr;
+}
+
+struct xls_dslx_quickcheck* xls_dslx_module_member_get_quickcheck(
+    struct xls_dslx_module_member* member) {
+  auto* cpp_member = reinterpret_cast<xls::dslx::ModuleMember*>(member);
+  auto* cpp_qc = std::get<xls::dslx::QuickCheck*>(*cpp_member);
+  return reinterpret_cast<xls_dslx_quickcheck*>(cpp_qc);
+}
+
+struct xls_dslx_module_member* xls_dslx_module_member_from_constant_def(
+    struct xls_dslx_constant_def* constant_def) {
+  auto* cpp_constant_def =
+      reinterpret_cast<xls::dslx::ConstantDef*>(constant_def);
+  xls::dslx::ModuleMember* member = FindModuleMemberForNode(cpp_constant_def);
+  return reinterpret_cast<xls_dslx_module_member*>(member);
+}
+
+struct xls_dslx_module_member* xls_dslx_module_member_from_struct_def(
+    struct xls_dslx_struct_def* struct_def) {
+  auto* cpp_struct_def = reinterpret_cast<xls::dslx::StructDef*>(struct_def);
+  xls::dslx::ModuleMember* member = FindModuleMemberForNode(cpp_struct_def);
+  return reinterpret_cast<xls_dslx_module_member*>(member);
+}
+
+struct xls_dslx_module_member* xls_dslx_module_member_from_enum_def(
+    struct xls_dslx_enum_def* enum_def) {
+  auto* cpp_enum_def = reinterpret_cast<xls::dslx::EnumDef*>(enum_def);
+  xls::dslx::ModuleMember* member = FindModuleMemberForNode(cpp_enum_def);
+  return reinterpret_cast<xls_dslx_module_member*>(member);
+}
+
+struct xls_dslx_module_member* xls_dslx_module_member_from_type_alias(
+    struct xls_dslx_type_alias* type_alias) {
+  auto* cpp_type_alias = reinterpret_cast<xls::dslx::TypeAlias*>(type_alias);
+  xls::dslx::ModuleMember* member = FindModuleMemberForNode(cpp_type_alias);
+  return reinterpret_cast<xls_dslx_module_member*>(member);
+}
+
+struct xls_dslx_module_member* xls_dslx_module_member_from_function(
+    struct xls_dslx_function* function) {
+  auto* cpp_function = reinterpret_cast<xls::dslx::Function*>(function);
+  xls::dslx::ModuleMember* member = FindModuleMemberForNode(cpp_function);
+  return reinterpret_cast<xls_dslx_module_member*>(member);
+}
+
+struct xls_dslx_module_member* xls_dslx_module_member_from_quickcheck(
+    struct xls_dslx_quickcheck* quickcheck) {
+  auto* cpp_qc = reinterpret_cast<xls::dslx::QuickCheck*>(quickcheck);
+  xls::dslx::ModuleMember* member = FindModuleMemberForNode(cpp_qc);
+  return reinterpret_cast<xls_dslx_module_member*>(member);
 }
 
 bool xls_dslx_function_is_parametric(struct xls_dslx_function* fn) {
@@ -878,13 +980,6 @@ struct xls_dslx_function* xls_dslx_call_graph_get_callee_function(
   const xls::dslx::Function* fn = callees.at(callee_index);
   return reinterpret_cast<xls_dslx_function*>(
       const_cast<xls::dslx::Function*>(fn));
-}
-
-struct xls_dslx_quickcheck* xls_dslx_module_member_get_quickcheck(
-    struct xls_dslx_module_member* member) {
-  auto* cpp_member = reinterpret_cast<xls::dslx::ModuleMember*>(member);
-  auto* cpp_qc = std::get<xls::dslx::QuickCheck*>(*cpp_member);
-  return reinterpret_cast<xls_dslx_quickcheck*>(cpp_qc);
 }
 
 struct xls_dslx_function* xls_dslx_quickcheck_get_function(
