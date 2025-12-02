@@ -6279,16 +6279,15 @@ TEST_F(IrConverterTest, ParametricProcScopedChannelsNoTestProc) {
 }
 
 TEST_F(IrConverterTest, ParametricProcScopedChannelsNoTestProcModule) {
-  EXPECT_THAT(
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto converted,
       ConvertModuleForTest(kParametricTestProc,
                            ConvertOptions{
                                .emit_positions = false,
                                .convert_tests = false,
                                .lower_to_proc_scoped_channels = true,
-                           }),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Parametric proc `TestUtilityProc` is only called "
-                         "from test code, but test conversion is disabled")));
+                           }));
+  EXPECT_EQ(converted, "package test_module\n");
 }
 
 constexpr std::string_view kParametricTestFn = R"(
@@ -6315,16 +6314,15 @@ TEST_F(IrConverterTest, ParametricProcScopedChannelsConvertTestFn) {
 }
 
 TEST_F(IrConverterTest, ParametricProcScopedChannelsNoTestFn) {
-  EXPECT_THAT(
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
       ConvertModuleForTest(kParametricTestFn,
                            ConvertOptions{
                                .emit_positions = false,
                                .convert_tests = false,
                                .lower_to_proc_scoped_channels = true,
-                           }),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Parametric function `foo` is only called from test "
-                         "code, but test conversion is disabled")));
+                           }));
+  EXPECT_EQ(converted, "package test_module\n");
 }
 
 TEST_F(IrConverterTest, ChannelArrayIndexInConfig) {
