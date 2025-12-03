@@ -1650,6 +1650,8 @@ class ImportModuleWithTypeErrorTest(parameterized.TestCase):
       )
 
   def test_assert_in_proc(self, type_inference_v2):
+    if not type_inference_v2:
+      self.skipTest('Skipping test that should only run in tiv2.')
     stderr = self._run(
         'xls/dslx/tests/errors/assert_in_proc.x',
         type_inference_v2=type_inference_v2,
