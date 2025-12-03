@@ -78,7 +78,7 @@ absl::Status RealMain(std::string_view ir_path) {
         "Reference residual data is not supported in codegen_main; use "
         "block_to_verilog_main");
   }
-  if (!codegen_flags_proto.top().empty()) {
+  if (!codegen_flags_proto.top().empty() && !p->GetTop().has_value()) {
     XLS_RETURN_IF_ERROR(p->SetTopByName(codegen_flags_proto.top()));
   }
 

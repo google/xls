@@ -66,7 +66,7 @@ namespace {
 // the top is not set either by the flags or by the IR initially.
 absl::Status MaybeSetTop(Package* p,
                          const CodegenFlagsProto& codegen_flags_proto) {
-  if (!codegen_flags_proto.top().empty()) {
+  if (!codegen_flags_proto.top().empty() && !p->GetTop().has_value()) {
     XLS_RETURN_IF_ERROR(p->SetTopByName(codegen_flags_proto.top()));
   }
   XLS_RET_CHECK(p->GetTop().has_value())
