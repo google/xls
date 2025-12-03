@@ -178,6 +178,9 @@ class BddQueryEngine
     return std::get<BddNodeIndex>(node);
   }
 
+  std::optional<TreeBitLocation> GetTreeBitLocation(
+      BddNodeIndex bdd_node) const;
+
  protected:
   BddTree ComputeInfo(
       Node* node,
@@ -254,6 +257,9 @@ class BddQueryEngine
   mutable absl::flat_hash_map<NodeRef, std::unique_ptr<BddTree>>
       node_variables_;
   BddTreeView GetVariablesFor(NodeRef node) const;
+
+  // A reverse map from BDD variables to bit locations
+  mutable absl::flat_hash_map<BddNodeIndex, TreeBitLocation> bdd_to_bit_locs_;
 };
 
 }  // namespace xls

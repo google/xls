@@ -23,6 +23,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
+#include "xls/common/math_util.h"
 #include "xls/common/strong_int.h"
 
 namespace xls {
@@ -117,7 +118,9 @@ class BinaryDecisionDiagram {
   // Returns the number of paths in the given expression.
   int64_t path_count(BddNodeIndex expr) const {
     if (expr == kInfeasible) {
-      return max_paths_;
+      SaturatedResult<int64_t> too_many_paths =
+          SaturatingAdd(max_paths_, static_cast<int64_t>(1));
+      return too_many_paths.result;
     }
     return GetNode(expr).path_count;
   }

@@ -16,15 +16,61 @@
 #define XLS_PASSES_POST_DOMINATOR_ANALYSIS_H_
 
 #include <memory>
+#include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_util.h"
+#include "xls/passes/lazy_dag_cache.h"
+#include "xls/passes/lazy_node_data.h"
 
 namespace xls {
+
+class LazyPostDominatorAnalysis : public LazyNodeData<std::vector<Node*>> {
+ public:
+  static absl::StatusOr<std::unique_ptr<LazyPostDominatorAnalysis>> Create(
+      FunctionBase* f) {
+    std::unique_ptr<LazyPostDominatorAnalysis> analysis =
+        std::make_unique<LazyPostDominatorAnalysis>();
+    XLS_RETURN_IF_ERROR(analysis->Attach(f).status());
+    return std::move(analysis);
+  }
+
+  explicit LazyPostDominatorAnalysis()
+      : LazyNodeData<std::vector<Node*>>(
+            DagCacheInvalidateDirection::kInvalidatesOperands) {}
+
+  absl::Span<Node* const> GetPostDominators(Node* node) const {
+    return *GetInfo(node);
+  }
+
+  bool IsPostDominatedBy(Node* node, Node* post_dominator) const {
+    return absl::c_binary_search(
+        *GetInfo(node), const_cast<Node*>(post_dominator), NodeIdGreaterThan);
+  }
+
+ protected:
+  std::vector<Node*> ComputeInfo(
+      Node* node,
+      absl::Span<const std::vector<Node*>* const> user_infos) const override;
+
+  absl::Status MergeWithGiven(std::vector<Node*>& info,
+                              const std::vector<Node*>& given) const override;
+
+  absl::Span<Node* const> GetInputs(Node* const& node) const override {
+    return node->users();
+  }
+  absl::Span<Node* const> GetUsers(Node* const& node) const override {
+    return node->operands();
+  }
+};
 
 // A class for post-dominator analysis of the IR instructions in a function.
 class PostDominatorAnalysis {

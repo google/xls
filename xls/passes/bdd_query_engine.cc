@@ -1289,6 +1289,12 @@ BddNodeIndex BddQueryEngine::GetVariableFor(TreeBitLocation location) const {
           it->second->Get(location.tree_index()).at(location.bit_index()));
     } else {
       node_variables_.erase(it);
+      leaf_type_tree::ForEach(
+          it->second->AsView(), [&](const BddVector& bdd_vec) {
+            for (const auto& [bit_index, bdd_node] : iter::enumerate(bdd_vec)) {
+              bdd_to_bit_locs_.erase(ToBddNode(bdd_node));
+            }
+          });
     }
   }
   if (auto it = bit_variables_.find(location); it != bit_variables_.end()) {
@@ -1296,6 +1302,7 @@ BddNodeIndex BddQueryEngine::GetVariableFor(TreeBitLocation location) const {
   }
   BddNodeIndex result = bdd_->NewVariable();
   CHECK(bit_variables_.emplace(location, result).second);
+  CHECK(bdd_to_bit_locs_.emplace(result, location).second);
   return result;
 }
 BddTreeView BddQueryEngine::GetVariablesFor(NodeRef node) const {
@@ -1308,9 +1315,28 @@ BddTreeView BddQueryEngine::GetVariablesFor(NodeRef node) const {
   absl::StatusOr<BddTree> result =
       CreateUnknownOfType(node->GetType(), bdd_.get());
   CHECK_OK(result.status());
+  CHECK_OK(leaf_type_tree::ForEachIndex(
+      result->AsView(), [&](Type* type, const BddVector& bdd_vec,
+                            absl::Span<const int64_t> tree_index) {
+        for (const auto& [bit_index, bdd_node] : iter::enumerate(bdd_vec)) {
+          if (std::holds_alternative<BddNodeIndex>(bdd_node)) {
+            bdd_to_bit_locs_[ToBddNode(bdd_node)] =
+                TreeBitLocation(node.node(), bit_index, tree_index);
+          }
+        }
+        return absl::OkStatus();
+      }));
   return node_variables_
       .insert_or_assign(node, std::make_unique<BddTree>(*std::move(result)))
       .first->second->AsView();
+}
+
+std::optional<TreeBitLocation> BddQueryEngine::GetTreeBitLocation(
+    BddNodeIndex bdd_node) const {
+  if (auto it = bdd_to_bit_locs_.find(bdd_node); it != bdd_to_bit_locs_.end()) {
+    return it->second;
+  }
+  return std::nullopt;
 }
 
 }  // namespace xls

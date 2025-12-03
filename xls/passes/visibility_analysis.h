@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -25,6 +26,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "xls/data_structures/binary_decision_diagram.h"
 #include "xls/ir/change_listener.h"
@@ -32,8 +34,10 @@
 #include "xls/ir/nodes.h"
 #include "xls/passes/bdd_evaluator.h"
 #include "xls/passes/bdd_query_engine.h"
+#include "xls/passes/lazy_dag_cache.h"
 #include "xls/passes/lazy_node_data.h"
 #include "xls/passes/node_dependency_analysis.h"
+#include "xls/passes/post_dominator_analysis.h"
 #include "xls/passes/query_engine.h"
 
 namespace xls {
@@ -68,6 +72,10 @@ class OperandVisibilityAnalysis : public ChangeListener {
     bool operator==(const OperandNode& other) const {
       return operand == other.operand && node == other.node;
     }
+
+    std::string ToString() const {
+      return absl::StrCat(operand->GetName(), "->", node->GetName());
+    }
   };
 
   static constexpr int64_t kDefaultTermLimitForNodeToUserEdge = 32;
@@ -98,8 +106,8 @@ class OperandVisibilityAnalysis : public ChangeListener {
   BddNodeIndex OperandVisibilityThroughNode(Node* operand, Node* node) const;
   virtual BddNodeIndex OperandVisibilityThroughNode(OperandNode& pair) const;
 
-  bool IsVisibilityIndependentOf(Node* operand, Node* node,
-                                 std::vector<Node*>& sources) const;
+  absl::StatusOr<bool> IsVisibilityIndependentOf(
+      Node* operand, Node* node, std::vector<Node*>& sources) const;
 
   void NodeAdded(Node* node) override;
   void NodeDeleted(Node* node) override;
@@ -132,6 +140,40 @@ class OperandVisibilityAnalysis : public ChangeListener {
   BddNodeIndex ConditionOnPredicate(std::optional<Node*> predicate) const;
   BddNodeIndex ConditionOfUseWithAnd(Node* node, NaryOp* and_node) const;
   BddNodeIndex ConditionOfUseWithOr(Node* node, NaryOp* or_node) const;
+
+ private:
+  // For use of GetNodeBit
+  friend class SingleSelectVisibilityAnalysis;
+};
+
+// Counts the number of times a node is directly involved in the visibility of
+// another node. This is a naive heuristic that looks down the def-use chain
+// for specific uses, e.g is the selector in a select, is an operand in an
+// `and` or `or` instruction. Used to sort edges for pruning.
+class NodeImpactOnVisibilityAnalysis : public LazyNodeData<int64_t> {
+ public:
+  static absl::StatusOr<NodeImpactOnVisibilityAnalysis> Create(FunctionBase* f);
+
+  explicit NodeImpactOnVisibilityAnalysis()
+      : LazyNodeData<int64_t>(
+            DagCacheInvalidateDirection::kInvalidatesOperands) {}
+
+  int64_t NodeImpactOnVisibility(Node* node) const { return *GetInfo(node); }
+
+ protected:
+  int64_t ComputeInfo(
+      Node* node, absl::Span<const int64_t* const> user_infos) const override;
+
+  absl::Status MergeWithGiven(int64_t& info,
+                              const int64_t& given) const override;
+
+  // Propagate from users to operands
+  absl::Span<Node* const> GetInputs(Node* const& node) const override {
+    return node->users();
+  }
+  absl::Span<Node* const> GetUsers(Node* const& node) const override {
+    return node->operands();
+  }
 };
 
 // The visibility of a node is the BDD expression that, if true, indicates that
@@ -141,30 +183,31 @@ class OperandVisibilityAnalysis : public ChangeListener {
 // unless a cheap BDD expression can be derived for that node->user edge.
 class VisibilityAnalysis : public LazyNodeData<BddNodeIndex> {
  public:
+  static constexpr int64_t kDefaultMaxEdgeCountForPruning = 128;
+
   using OperandNode = OperandVisibilityAnalysis::OperandNode;
 
   static absl::StatusOr<std::unique_ptr<VisibilityAnalysis>> Create(
       const OperandVisibilityAnalysis* operand_vis,
-      const BddQueryEngine* bdd_query_engine);
+      const BddQueryEngine* bdd_query_engine,
+      const LazyPostDominatorAnalysis* post_dom_analysis,
+      int64_t max_edge_count_for_pruning = kDefaultMaxEdgeCountForPruning,
+      absl::flat_hash_set<OperandNode> exclusions = {});
 
-  explicit VisibilityAnalysis(const OperandVisibilityAnalysis* operand_vis,
-                              const BddQueryEngine* bdd_query_engine);
-
-  static absl::StatusOr<std::unique_ptr<VisibilityAnalysis>> Create(
+  explicit VisibilityAnalysis(
       const OperandVisibilityAnalysis* operand_vis,
       const BddQueryEngine* bdd_query_engine,
-      absl::flat_hash_set<OperandNode> exclusions);
+      const LazyPostDominatorAnalysis* post_dom_analysis,
+      int64_t max_edge_count_for_pruning = kDefaultMaxEdgeCountForPruning,
+      absl::flat_hash_set<OperandNode> exclusions = {});
 
-  explicit VisibilityAnalysis(const OperandVisibilityAnalysis* operand_vis,
-                              const BddQueryEngine* bdd_query_engine,
-                              absl::flat_hash_set<OperandNode> exclusions);
+  absl::StatusOr<ReachedFixpoint> AttachWithGivens(
+      FunctionBase* f,
+      absl::flat_hash_map<Node*, BddNodeIndex> givens) override;
 
   // Two nodes are mutually exclusive if, at most, only one of them ever
   // propagates outside of the function or proc.
-  bool IsMutuallyExclusive(Node* one, Node* other) const {
-    BinaryDecisionDiagram& bdd = bdd_query_engine_->bdd();
-    return bdd.Implies(*GetInfo(one), bdd.Not(*GetInfo(other))) == bdd.one();
-  }
+  bool IsMutuallyExclusive(Node* one, Node* other) const;
 
   // Returns the (node -> user) edges necessary to compute the visibility
   // expression 'E' for node 'one' such that:
@@ -177,8 +220,11 @@ class VisibilityAnalysis : public LazyNodeData<BddNodeIndex> {
   // the visibility of 'other' is not a function of which produce a conservative
   // expression for the visibility of 'one'.
   absl::StatusOr<absl::flat_hash_set<OperandNode>>
-  GetEdgesForMutuallyExclusiveVisibilityExpr(
-      Node* one, absl::Span<Node* const> others) const;
+  GetEdgesForMutuallyExclusiveVisibilityExpr(Node* one,
+                                             absl::Span<Node* const> others,
+                                             int64_t max_edges_to_handle) const;
+
+  BddNodeIndex VisibilityOfNearestPostDominator(Node* node) const;
 
  protected:
   BddNodeIndex ComputeInfo(
@@ -187,6 +233,12 @@ class VisibilityAnalysis : public LazyNodeData<BddNodeIndex> {
 
   absl::Status MergeWithGiven(BddNodeIndex& info,
                               const BddNodeIndex& given) const override;
+
+  // Produces a conservative visibility expression where if 'node' is visible,
+  // then the result is true, while retaining as many constraints as possible.
+  // Does so by pruning operand->node edges a few node->user hops from 'node'
+  // which have high path count, considering up to a configured # of edges.
+  BddNodeIndex ConservativeVisibilityByPruningEdges(Node* node) const;
 
   // Propagate from users to operands
   absl::Span<Node* const> GetInputs(Node* const& node) const override {
@@ -199,11 +251,78 @@ class VisibilityAnalysis : public LazyNodeData<BddNodeIndex> {
  private:
   const OperandVisibilityAnalysis* operand_visibility_;
   const BddQueryEngine* bdd_query_engine_;
+  const LazyPostDominatorAnalysis* post_dom_analysis_;
+  mutable NodeImpactOnVisibilityAnalysis node_impact_analysis_;
+  int64_t max_edge_count_for_pruning_;
   absl::flat_hash_set<OperandNode> exclusions_;
 
  public:
   // It is necessary to recompute visibility whenever nodes are modified
   // because reachability may have changed.
+  void NodeAdded(Node* node) override;
+  void NodeDeleted(Node* node) override;
+  void UserAdded(Node* node, Node* user) override;
+  void UserRemoved(Node* node, Node* user) override;
+};
+
+struct SingleSelectVisibility {
+  Node* source;
+  PrioritySelect* select;
+  BddNodeIndex visibility;
+
+  SingleSelectVisibility() : source(nullptr), select(nullptr), visibility{-1} {}
+
+  SingleSelectVisibility(Node* source, PrioritySelect* select,
+                         BddNodeIndex visibility)
+      : source(source), select(select), visibility(visibility) {}
+
+  bool operator==(const SingleSelectVisibility& other) const {
+    return source == other.source && select == other.select &&
+           visibility == other.visibility;
+  }
+};
+
+class SingleSelectVisibilityAnalysis
+    : public LazyNodeData<SingleSelectVisibility> {
+ public:
+  using OperandNode = OperandVisibilityAnalysis::OperandNode;
+
+  static absl::StatusOr<std::unique_ptr<SingleSelectVisibilityAnalysis>> Create(
+      const OperandVisibilityAnalysis* operand_vis,
+      const NodeForwardDependencyAnalysis* nda,
+      const BddQueryEngine* bdd_query_engine);
+
+  SingleSelectVisibilityAnalysis(const OperandVisibilityAnalysis* operand_vis,
+                                 const NodeForwardDependencyAnalysis* nda,
+                                 const BddQueryEngine* bdd_query_engine);
+
+  bool IsMutuallyExclusive(Node* one, Node* other) const;
+
+  absl::StatusOr<absl::flat_hash_set<OperandNode>> GetEdgesForVisibilityExpr(
+      Node* one) const;
+
+ protected:
+  SingleSelectVisibility ComputeInfo(
+      Node* node, absl::Span<const SingleSelectVisibility* const> user_infos)
+      const override;
+
+  absl::Status MergeWithGiven(
+      SingleSelectVisibility& info,
+      const SingleSelectVisibility& given) const override;
+
+  absl::Span<Node* const> GetInputs(Node* const& node) const override {
+    return node->users();
+  }
+  absl::Span<Node* const> GetUsers(Node* const& node) const override {
+    return node->operands();
+  }
+
+ private:
+  const OperandVisibilityAnalysis* operand_visibility_;
+  const NodeForwardDependencyAnalysis* nda_;
+  const BddQueryEngine* bdd_query_engine_;
+
+ public:
   void NodeAdded(Node* node) override;
   void NodeDeleted(Node* node) override;
   void UserAdded(Node* node, Node* user) override;

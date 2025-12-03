@@ -316,6 +316,9 @@ absl::StatusOr<Node*> ReplaceTupleElementsWith(Node* node, int64_t index,
 inline bool NodeIdLessThan(const Node* a, const Node* b) {
   return a->id() < b->id();
 }
+inline bool NodeIdGreaterThan(const Node* a, const Node* b) {
+  return a->id() > b->id();
+}
 
 // Sorts the given vector of Nodes by ID.
 template <typename NodePtrT>

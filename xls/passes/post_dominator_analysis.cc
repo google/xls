@@ -15,12 +15,15 @@
 #include "xls/passes/post_dominator_analysis.h"
 
 #include <cstdint>
+#include <iterator>
 #include <memory>
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
@@ -84,6 +87,31 @@ std::vector<NodeIndex> IntersectSortedLists(
 }
 
 }  // namespace
+
+std::vector<Node*> LazyPostDominatorAnalysis::ComputeInfo(
+    Node* node, absl::Span<const std::vector<Node*>* const> user_infos) const {
+  if (user_infos.empty() || bound_function()->HasImplicitUse(node)) {
+    return {node};
+  }
+  std::vector<Node*> post_dominators(user_infos[0]->begin(),
+                                     user_infos[0]->end());
+  for (const std::vector<Node*>* user_info : user_infos) {
+    std::vector<Node*> next_post_doms;
+    absl::c_set_intersection(post_dominators, *user_info,
+                             std::back_inserter(next_post_doms),
+                             NodeIdGreaterThan);
+    post_dominators = std::move(next_post_doms);
+  }
+  auto it = absl::c_lower_bound(post_dominators, node, NodeIdGreaterThan);
+  post_dominators.insert(it, node);
+  return post_dominators;
+}
+
+absl::Status LazyPostDominatorAnalysis::MergeWithGiven(
+    std::vector<Node*>& info, const std::vector<Node*>& given) const {
+  info = given;
+  return absl::OkStatus();
+}
 
 /* static */ absl::StatusOr<std::unique_ptr<PostDominatorAnalysis>>
 PostDominatorAnalysis::Run(FunctionBase* f) {

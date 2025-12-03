@@ -307,6 +307,9 @@ void BinaryDecisionDiagram::ToStringDnfHelper(BddNodeIndex expr,
 
 std::string BinaryDecisionDiagram::ToStringDnf(BddNodeIndex expr,
                                                int64_t minterm_limit) const {
+  if (expr == kInfeasible) {
+    return "infeasible";
+  }
   if (expr == zero()) {
     return "0";
   }

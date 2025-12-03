@@ -22,6 +22,8 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/value.h"
 
 namespace xls {
@@ -249,6 +251,75 @@ TEST_F(PostDominatorAnalysisTest, MultipleOutputs) {
               ElementsAre(y.node()));
   EXPECT_THAT(analysis->GetNodesPostDominatedByNode(z.node()),
               ElementsAre(y.node(), z.node()));
+}
+
+class LazyPostDominatorAnalysisTest : public IrTestBase {};
+
+TEST_F(LazyPostDominatorAnalysisTest, DiamondShape) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(1));
+  BValue a = fb.Not(x);
+  BValue b = fb.Not(x);
+  BValue and_op = fb.And(a, b);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<LazyPostDominatorAnalysis> analysis,
+                           LazyPostDominatorAnalysis::Create(f));
+
+  for (const BValue& bval : {x, a, b, and_op}) {
+    EXPECT_TRUE(analysis->IsPostDominatedBy(bval.node(), and_op.node()));
+  }
+  EXPECT_THAT(analysis->GetPostDominators(x.node()),
+              ElementsAre(and_op.node(), x.node()));
+}
+
+TEST_F(LazyPostDominatorAnalysisTest, MultipleOutputs) {
+  auto p = CreatePackage();
+  ProcBuilder pb("p", p.get());
+  BValue x = pb.StateElement("x", Value(UBits(0, 1)));
+  BValue y = pb.StateElement("y", Value(UBits(0, 1)));
+  BValue z = pb.And(x, y);
+  pb.Next(x, x);
+  BValue next_y = pb.Next(y, z);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<LazyPostDominatorAnalysis> analysis,
+                           LazyPostDominatorAnalysis::Create(proc));
+
+  EXPECT_THAT(analysis->GetPostDominators(x.node()), ElementsAre(x.node()));
+  EXPECT_THAT(analysis->GetPostDominators(z.node()),
+              ElementsAre(next_y.node(), z.node()));
+  EXPECT_THAT(analysis->GetPostDominators(y.node()),
+              ElementsAre(next_y.node(), y.node()));
+}
+
+TEST_F(LazyPostDominatorAnalysisTest, InvalidatesCache) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(4));
+  BValue b1 = fb.Add(x, fb.Literal(UBits(1, 4)));
+  BValue b2 = fb.Add(x, fb.Literal(UBits(2, 4)));
+  BValue c = fb.And(b1, b2);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<LazyPostDominatorAnalysis> analysis,
+                           LazyPostDominatorAnalysis::Create(f));
+
+  EXPECT_TRUE(analysis->IsPostDominatedBy(x.node(), c.node()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * d, f->MakeNode<UnOp>(c.node()->loc(), x.node(), Op::kNot));
+  EXPECT_FALSE(analysis->IsPostDominatedBy(x.node(), c.node()));
+  XLS_ASSERT_OK(f->RemoveNode(d));
+  EXPECT_TRUE(analysis->IsPostDominatedBy(x.node(), c.node()));
+
+  EXPECT_THAT(analysis->GetPostDominators(b1.node()),
+              ElementsAre(c.node(), b1.node()));
+  XLS_ASSERT_OK(b2.node()->ReplaceOperandNumber(1, b1.node()));
+  XLS_ASSERT_OK(c.node()->ReplaceOperandNumber(0, b2.node()));
+  EXPECT_THAT(analysis->GetPostDominators(b1.node()),
+              ElementsAre(c.node(), b2.node(), b1.node()));
+  XLS_ASSERT_OK(b2.node()->ReplaceOperandNumber(1, x.node()));
+  XLS_ASSERT_OK(c.node()->ReplaceOperandNumber(0, b1.node()));
+  EXPECT_THAT(analysis->GetPostDominators(b1.node()),
+              ElementsAre(c.node(), b1.node()));
 }
 
 }  // namespace
