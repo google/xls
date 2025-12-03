@@ -41,6 +41,7 @@
 #include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc_elaboration.h"
 #include "xls/ir/value.h"
 #include "xls/jit/function_jit.h"
 #include "xls/jit/jit_channel_queue.h"
@@ -298,16 +299,23 @@ absl::StatusOr<SerialProcRuntime*> IrWrapper::GetAndMaybeCreateProcRuntime() {
 }
 
 absl::StatusOr<JitChannelQueue*> IrWrapper::GetJitChannelQueue(
-    std::string_view name) const {
-  XLS_ASSIGN_OR_RETURN(Channel * channel, package_->GetChannel(name));
+    std::string_view name, std::string_view proc_name) const {
   XLS_ASSIGN_OR_RETURN(JitChannelQueueManager * jit_queue_manager,
                        proc_runtime_->GetJitChannelQueueManager());
+  if (package_->ChannelsAreProcScoped()) {
+    XLS_ASSIGN_OR_RETURN(
+        ChannelInstance * channel_instance,
+        proc_runtime_->elaboration().GetChannelInstance(name, proc_name));
+    return &jit_queue_manager->GetJitQueue(channel_instance);
+  }
+  XLS_ASSIGN_OR_RETURN(Channel * channel, package_->GetChannel(name));
   return &jit_queue_manager->GetJitQueue(channel);
 }
 
 absl::StatusOr<JitChannelQueueWrapper> IrWrapper::CreateJitChannelQueueWrapper(
-    std::string_view name) const {
-  XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue, GetJitChannelQueue(name));
+    std::string_view name, std::string_view proc_name) const {
+  XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue,
+                       GetJitChannelQueue(name, proc_name));
   XLS_ASSIGN_OR_RETURN(JitChannelQueueManager * jit_queue_manager,
                        proc_runtime_->GetJitChannelQueueManager());
   return JitChannelQueueWrapper::Create(queue, &jit_queue_manager->runtime());
