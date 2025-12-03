@@ -120,6 +120,7 @@ cc_test(
         "//xls/ir",
         "//xls/ir:ir_test_base",
         "//xls/ir:op",
+        "//xls/passes",
         "//xls/passes:optimization_pass",
         "//xls/passes:pass_base",
         "//xls/tools:scheduling_options_flags_cc_proto",
@@ -454,11 +455,12 @@ cc_library(
         ":scheduling_options",
         ":scheduling_pass",
         ":scheduling_wrapper_pass",
-        "//xls/passes",
+        "//xls/common/status:status_macros",
         "//xls/passes:dce_pass",
         "//xls/passes:optimization_pass",
         "//xls/passes:optimization_pass_pipeline",
         "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
 

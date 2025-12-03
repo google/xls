@@ -249,8 +249,9 @@ absl::StatusOr<SchedulingResult> RunSchedulingPipeline(
   sched_options.delay_estimator = delay_estimator;
   sched_options.synthesizer = synthesizer;
   OptimizationContext optimization_context;
-  std::unique_ptr<SchedulingCompoundPass> scheduling_pipeline =
-      CreateSchedulingPassPipeline(optimization_context, scheduling_options);
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<SchedulingCompoundPass> scheduling_pipeline,
+      CreateSchedulingPassPipeline(optimization_context, scheduling_options));
   XLS_RETURN_IF_ERROR(main->package()->SetTop(main));
   auto scheduling_context =
       (scheduling_options.schedule_all_procs())

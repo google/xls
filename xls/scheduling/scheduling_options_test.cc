@@ -94,8 +94,9 @@ top proc main(__state: bits[1], init={0}) {
   SchedulingContext sched_ctx =
       SchedulingContext::CreateForWholePackage(p.get());
   PassResults results;
-  XLS_ASSERT_OK(CreateSchedulingPassPipeline(opt_ctx, options)
-                    ->Run(p.get(), pass_options, &results, sched_ctx));
+  XLS_ASSERT_OK_AND_ASSIGN(auto pipeline,
+                           CreateSchedulingPassPipeline(opt_ctx, options));
+  XLS_ASSERT_OK(pipeline->Run(p.get(), pass_options, &results, sched_ctx));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_EQ(NumberOfOp(proc, Op::kSend), merge_on_mutual_exclusion ? 1 : 2);
 }

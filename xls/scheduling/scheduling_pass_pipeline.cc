@@ -21,6 +21,7 @@
 #include <utility>
 
 #include "absl/log/check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
@@ -34,8 +35,9 @@
 
 namespace xls {
 
-std::unique_ptr<SchedulingCompoundPass> CreateSchedulingPassPipeline(
-    OptimizationContext& context, const SchedulingOptions& options) {
+absl::StatusOr<std::unique_ptr<SchedulingCompoundPass>>
+CreateSchedulingPassPipeline(OptimizationContext& context,
+                             const SchedulingOptions& options) {
   auto top = std::make_unique<SchedulingCompoundPass>(
       "scheduling", "Top level scheduling pass pipeline");
   top->AddInvariantChecker<SchedulingChecker>();
@@ -53,11 +55,13 @@ std::unique_ptr<SchedulingCompoundPass> CreateSchedulingPassPipeline(
     // TODO(allight): We might want to move this pre-scheduling mutex pass (and
     // the earlier legalization pass) into the opt-main pipeline to avoid
     // needing to do this.
-    auto pipeline =
-        GetOptimizationPipelineGenerator().GeneratePipeline("scheduling-opt");
-    CHECK_OK(pipeline.status())
-        << "Unable to create scheduling-opt pass. This is a bug.";
-    top->Add<SchedulingWrapperPass>(*std::move(pipeline), context,
+    XLS_ASSIGN_OR_RETURN(
+        auto pipeline,
+        GetOptimizationPipelineGenerator().GeneratePipeline("scheduling-opt"),
+        _ << "Unable to create scheduling-opt pass. The linked passes must "
+             "include a pass named 'scheduling-opt'. Did you link "
+             "'//xls/passes'?");
+    top->Add<SchedulingWrapperPass>(std::move(pipeline), context,
                                     options.opt_level(), eliminate_noop_next);
   }
   top->Add<SchedulingWrapperPass>(std::make_unique<DeadCodeEliminationPass>(),

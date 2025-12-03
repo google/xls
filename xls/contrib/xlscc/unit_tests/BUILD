@@ -60,6 +60,7 @@ cc_library(
         "//xls/ir:state_element",
         "//xls/ir:value",
         "//xls/ir:value_utils",
+        "//xls/passes",
         "//xls/simulation:sim_test_base",
         "//xls/tools:codegen",
         "//xls/tools:codegen_flags_cc_proto",
