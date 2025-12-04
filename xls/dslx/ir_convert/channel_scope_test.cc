@@ -152,6 +152,35 @@ TEST_P(ChannelScopeTest, DefineChannel) {
   EXPECT_EQ(channel->supported_ops(), ChannelOps::kSendReceive);
   EXPECT_TRUE(channel->type()->IsBits());
   EXPECT_THAT(channel->initial_values(), IsEmpty());
+
+  StreamingChannel* streaming_channel =
+      dynamic_cast<StreamingChannel*>(channel);
+  EXPECT_TRUE(streaming_channel != nullptr);
+  EXPECT_FALSE(streaming_channel->GetFifoDepth().has_value());
+}
+
+TEST_P(ChannelScopeTest, DefineChannelWithDefaultFifoConfig) {
+  FifoConfig fifo_config(10, false, false, false);
+  options_.default_fifo_config = fifo_config;
+
+  ChannelDecl* decl = MakeU32ChannelDecl("the_channel");
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray result,
+                           scope_->DefineChannelOrArray(decl));
+  EXPECT_TRUE(std::holds_alternative<Channel*>(result));
+  Channel* channel = std::get<Channel*>(result);
+  if (GetParam()) {
+    EXPECT_EQ(channel->name(), "the_channel");
+  } else {
+    EXPECT_EQ(channel->name(), "the_package__the_channel");
+  }
+  EXPECT_EQ(channel->supported_ops(), ChannelOps::kSendReceive);
+  EXPECT_TRUE(channel->type()->IsBits());
+  EXPECT_THAT(channel->initial_values(), IsEmpty());
+
+  StreamingChannel* streaming_channel =
+      dynamic_cast<StreamingChannel*>(channel);
+  EXPECT_TRUE(streaming_channel != nullptr);
+  EXPECT_EQ(streaming_channel->GetFifoDepth().value(), 10);
 }
 
 TEST_P(ChannelScopeTest, DefineChannelArray) {
