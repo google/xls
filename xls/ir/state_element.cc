@@ -21,9 +21,8 @@
 namespace xls {
 
 std::string StateElement::ToString() const {
-  return absl::StrFormat("state %s(%s, initial_value=%s, non_synth=%s)\n",
-                         name(), type()->ToString(),
-                         initial_value().ToHumanString(),
+  return absl::StrFormat("state %s(%s, initial_value=%s, non_synth=%s)", name(),
+                         type()->ToString(), initial_value().ToHumanString(),
                          non_synthesizable() ? "true" : "false");
 }
 
