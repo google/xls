@@ -102,15 +102,21 @@ absl::StatusOr<OptOptions> OptOptionsFromFlagsProto(
 
 absl::Status OptimizeIrForTop(Package* package, const OptOptions& options,
                               OptMetadata* metadata) {
+  std::string_view top_name = options.top;
+  if (!top_name.empty() && package->HasTop()) {
+    VLOG(3) << "Top specified, but package already has top: " << top_name
+            << " vs " << (*package->GetTop())->name() << "; using package top";
+    top_name = (*package->GetTop())->name();
+  }
   if (!options.top.empty()) {
-    VLOG(3) << "OptimizeIrForEntry; top: '" << options.top
+    VLOG(3) << "OptimizeIrForEntry; top: '" << top_name
             << "'; opt_level: " << options.opt_level;
   } else {
     VLOG(3) << "OptimizeIrForEntry; opt_level: " << options.opt_level;
   }
 
-  if (!options.top.empty()) {
-    XLS_RETURN_IF_ERROR(package->SetTopByName(options.top));
+  if (!top_name.empty() && !package->HasTop()) {
+    XLS_RETURN_IF_ERROR(package->SetTopByName(top_name));
   }
   std::optional<FunctionBase*> top = package->GetTop();
   if (!top.has_value()) {
