@@ -118,8 +118,7 @@ using ChannelOrArray = std::variant<Channel*, ChannelArray*, ChannelInterface*>;
 class ChannelScope {
  public:
   ChannelScope(PackageConversionData* conversion_info, ImportData* import_data,
-               const ConvertOptions& options,
-               std::optional<FifoConfig> default_fifo_config = std::nullopt);
+               const ConvertOptions& options);
   virtual ~ChannelScope() = default;
 
   // The owner (IR converter driving the overall procedure) should invoke this
@@ -240,10 +239,6 @@ class ChannelScope {
   // Owns all arrays that are pointed to by ChannelOrArray objects dealt out by
   // this scope. A `list` is used for pointer stability.
   std::list<ChannelArray> arrays_;
-
-  // If present, the default FIFO config to use for any FIFO that does not
-  // specify a depth.
-  std::optional<FifoConfig> default_fifo_config_;
 
   absl::flat_hash_map<const ChannelDecl*, ChannelOrArray>
       decl_to_channel_or_array_;

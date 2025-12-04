@@ -32,12 +32,10 @@ namespace xls::dslx {
 
 class ProcScopedChannelScope : public ChannelScope {
  public:
-  ProcScopedChannelScope(
-      PackageConversionData* conversion_info, ImportData* import_data,
-      const ConvertOptions& options, ProcBuilder* proc_builder,
-      std::optional<FifoConfig> default_fifo_config = std::nullopt)
-      : ChannelScope(conversion_info, import_data, options,
-                     default_fifo_config),
+  ProcScopedChannelScope(PackageConversionData* conversion_info,
+                         ImportData* import_data, const ConvertOptions& options,
+                         ProcBuilder* proc_builder)
+      : ChannelScope(conversion_info, import_data, options),
         proc_builder_(proc_builder) {}
 
  protected:
