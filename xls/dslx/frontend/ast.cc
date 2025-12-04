@@ -1335,7 +1335,7 @@ std::vector<AstNode*> Match::GetChildren(bool want_types) const {
 }
 
 std::string Match::ToStringInternal() const {
-  std::string result = absl::StrFormat("match %s {\n", matched_->ToString());
+  std::string result = absl::StrFormat("%smatch %s {\n", IsConst() ? "const " : "", matched_->ToString());
   for (MatchArm* arm : arms_) {
     absl::StrAppend(&result, Indent(absl::StrCat(arm->ToString(), ",\n"),
                                     kRustSpacesPerIndent));
@@ -2392,8 +2392,8 @@ Span MatchArm::GetPatternSpan() const {
 }
 
 Match::Match(Module* owner, Span span, Expr* matched,
-             std::vector<MatchArm*> arms, bool in_parens)
-    : Expr(owner, std::move(span), in_parens),
+             std::vector<MatchArm*> arms, bool in_parens, bool is_const)
+    : Expr(owner, std::move(span), in_parens, is_const),
       matched_(matched),
       arms_(std::move(arms)) {}
 
