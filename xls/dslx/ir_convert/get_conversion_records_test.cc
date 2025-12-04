@@ -412,6 +412,47 @@ proc main {
   ASSERT_EQ(2, order.size());
   EXPECT_EQ(order[0].f()->identifier(), "foo.next");
   EXPECT_EQ(order[1].f()->identifier(), "bar.next");
+  EXPECT_TRUE(order[1].IsTop());
+}
+
+TEST_F(GetConversionRecordsTest, SpawnedProcWithEntry) {
+  constexpr std::string_view kProgram = R"(
+proc foo {
+  init { () }
+  config() { () }
+  next(state: ()) { () }
+}
+
+proc bar {
+  init { () }
+  config() {
+    spawn foo();
+    ()
+  }
+  next(state: ()) { () }
+}
+
+proc main {
+  init { () }
+  config() {
+    spawn foo();
+    ()
+  }
+  next(state: ()) { () }
+}
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * foo,
+                           tm.module->GetMemberOrError<Proc>("foo"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<ConversionRecord> order,
+      GetConversionRecordsForEntry(foo, tm.type_info, std::nullopt));
+  ASSERT_EQ(1, order.size());
+  EXPECT_EQ(order[0].f()->identifier(), "foo.next");
+  EXPECT_TRUE(order[0].IsTop());
 }
 
 TEST_F(GetConversionRecordsTest, ProcNetwork) {

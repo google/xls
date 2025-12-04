@@ -100,7 +100,7 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
         MakeConversionRecord(
             &spawn.proc->next(), spawn.proc->owner(), spawn.next_type_info,
             spawn.env, proc_id,
-            /*is_top=*/false,
+            /*is_top=*/&spawn.proc->next() == top_,
             std::make_unique<ConversionRecord>(std::move(config_record)),
             spawn.init_value));
     return next_record;
