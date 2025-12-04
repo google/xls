@@ -63,13 +63,11 @@ constexpr std::string_view kBetweenDimsSeparator = "_";
 
 ChannelScope::ChannelScope(PackageConversionData* conversion_info,
                            ImportData* import_data,
-                           const ConvertOptions& convert_options,
-                           std::optional<FifoConfig> default_fifo_config)
+                           const ConvertOptions& convert_options)
     : conversion_info_(conversion_info),
       import_data_(import_data),
       convert_options_(convert_options),
-      channel_name_uniquer_(kNameAndDimsSeparator),
-      default_fifo_config_(default_fifo_config) {
+      channel_name_uniquer_(kNameAndDimsSeparator) {
   // Populate channel name uniquer with pre-existing channel names.
   for (Channel* channel : conversion_info_->package->channels()) {
     channel_name_uniquer_.GetSanitizedUniqueName(channel->name());
@@ -395,7 +393,7 @@ absl::StatusOr<std::optional<ChannelConfig>> ChannelScope::CreateChannelConfig(
         /*register_pop_outputs=*/false));
   }
 
-  return ChannelConfig().WithFifoConfig(default_fifo_config_);
+  return ChannelConfig().WithFifoConfig(convert_options_.default_fifo_config);
 }
 
 absl::StatusOr<ChannelRef> ChannelScope::CreateChannel(
