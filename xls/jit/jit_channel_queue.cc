@@ -141,6 +141,12 @@ std::optional<Value> ThreadUnsafeJitChannelQueue::ReadInternal() {
 /* static */ absl::StatusOr<std::unique_ptr<JitChannelQueueManager>>
 JitChannelQueueManager::CreateThreadSafe(Package* package,
                                          std::unique_ptr<JitRuntime> runtime) {
+  if (package->ChannelsAreProcScoped()) {
+    XLS_ASSIGN_OR_RETURN(Proc * top, package->GetTopAsProc());
+    XLS_ASSIGN_OR_RETURN(ProcElaboration elaboration,
+                         ProcElaboration::Elaborate(top));
+    return CreateThreadSafe(std::move(elaboration), std::move(runtime));
+  }
   XLS_ASSIGN_OR_RETURN(ProcElaboration elaboration,
                        ProcElaboration::ElaborateOldStylePackage(package));
   return CreateThreadSafe(std::move(elaboration), std::move(runtime));
@@ -161,6 +167,12 @@ JitChannelQueueManager::CreateThreadSafe(ProcElaboration&& elaboration,
 /* static */ absl::StatusOr<std::unique_ptr<JitChannelQueueManager>>
 JitChannelQueueManager::CreateThreadUnsafe(
     Package* package, std::unique_ptr<JitRuntime> runtime) {
+  if (package->ChannelsAreProcScoped()) {
+    XLS_ASSIGN_OR_RETURN(Proc * top, package->GetTopAsProc());
+    XLS_ASSIGN_OR_RETURN(ProcElaboration elaboration,
+                         ProcElaboration::Elaborate(top));
+    return CreateThreadUnsafe(std::move(elaboration), std::move(runtime));
+  }
   XLS_ASSIGN_OR_RETURN(ProcElaboration elaboration,
                        ProcElaboration::ElaborateOldStylePackage(package));
   return CreateThreadUnsafe(std::move(elaboration), std::move(runtime));

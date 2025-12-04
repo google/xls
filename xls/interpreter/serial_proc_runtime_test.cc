@@ -108,16 +108,20 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateMixedSerialProcRuntime(
 }
 
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateMixedSerialProcRuntime(
-    Package* package, const EvaluatorOptions& options) {
+    Proc* top, const EvaluatorOptions& options) {
   XLS_ASSIGN_OR_RETURN(ProcElaboration elaboration,
-                       ProcElaboration::ElaborateOldStylePackage(package));
+                       ProcElaboration::Elaborate(top));
   return CreateMixedSerialProcRuntime(std::move(elaboration), options);
 }
 
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateMixedSerialProcRuntime(
-    Proc* top, const EvaluatorOptions& options) {
+    Package* package, const EvaluatorOptions& options) {
+  if (package->ChannelsAreProcScoped()) {
+    XLS_ASSIGN_OR_RETURN(Proc * top, package->GetTopAsProc());
+    return CreateMixedSerialProcRuntime(top, options);
+  }
   XLS_ASSIGN_OR_RETURN(ProcElaboration elaboration,
-                       ProcElaboration::Elaborate(top));
+                       ProcElaboration::ElaborateOldStylePackage(package));
   return CreateMixedSerialProcRuntime(std::move(elaboration), options);
 }
 

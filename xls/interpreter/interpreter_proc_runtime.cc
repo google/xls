@@ -71,6 +71,10 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateRuntime(
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>>
 CreateInterpreterSerialProcRuntime(Package* package,
                                    const EvaluatorOptions& options) {
+  if (package->ChannelsAreProcScoped()) {
+    XLS_ASSIGN_OR_RETURN(Proc * top, package->GetTopAsProc());
+    return CreateInterpreterSerialProcRuntime(top, options);
+  }
   XLS_ASSIGN_OR_RETURN(ProcElaboration elaboration,
                        ProcElaboration::ElaborateOldStylePackage(package));
   return CreateRuntime(std::move(elaboration), options);

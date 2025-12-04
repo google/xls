@@ -328,6 +328,11 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateAotSerialProcRuntime(
     Package* package, const AotPackageEntrypointsProto& entrypoints,
     absl::Span<ProcAotEntrypoints const> impls,
     const EvaluatorOptions& options) {
+  if (package->ChannelsAreProcScoped()) {
+    XLS_ASSIGN_OR_RETURN(Proc * top, package->GetTopAsProc());
+    return CreateAotSerialProcRuntime(top, entrypoints, impls, options);
+  }
+
   XLS_ASSIGN_OR_RETURN(ProcElaboration elaboration,
                        ProcElaboration::ElaborateOldStylePackage(package));
   return CreateAotRuntime(std::move(elaboration), entrypoints, impls, options);

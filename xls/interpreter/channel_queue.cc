@@ -125,6 +125,13 @@ std::optional<Value> ChannelQueue::ReadInternal() {
 
 /* static */ absl::StatusOr<std::unique_ptr<ChannelQueueManager>>
 ChannelQueueManager::Create(Package* package) {
+  if (package->ChannelsAreProcScoped()) {
+    XLS_ASSIGN_OR_RETURN(Proc * top, package->GetTopAsProc());
+    XLS_ASSIGN_OR_RETURN(ProcElaboration elaboration,
+                         ProcElaboration::Elaborate(top));
+    return Create(std::move(elaboration));
+  }
+
   XLS_ASSIGN_OR_RETURN(ProcElaboration elaboration,
                        ProcElaboration::ElaborateOldStylePackage(package));
   return Create(std::move(elaboration));
