@@ -269,6 +269,7 @@ cc_binary(
         "//xls/common/status:status_macros",
         "//xls/estimators/delay_model:delay_estimator",
         "//xls/estimators/delay_model:delay_estimators",
+        "//xls/estimators/delay_model/models",
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/scheduling:pipeline_schedule",
