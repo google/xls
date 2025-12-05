@@ -30,6 +30,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/estimators/delay_model/delay_estimators.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/package.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 
@@ -152,6 +153,34 @@ absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
     for (const SchedulingConstraint& c : scheduling_options.constraints()) {
       if (std::holds_alternative<IOConstraint>(c)) {
         IOConstraint io_constr = std::get<IOConstraint>(c);
+        if (p->ChannelsAreProcScoped()) {
+          XLS_ASSIGN_OR_RETURN(Proc * top, p->GetTopAsProc());
+          if (!top->GetChannelInterface(
+                      io_constr.SourceChannel(),
+                      (io_constr.SourceDirection() == IODirection::kSend)
+                          ? ChannelDirection::kSend
+                          : ChannelDirection::kReceive)
+                   .ok()) {
+            return absl::InvalidArgumentError(absl::StrFormat(
+                "Invalid source channel name in IO constraint: %s; "
+                "this name did not correspond to any channel interface in the "
+                "top proc %s",
+                io_constr.SourceChannel(), top->name()));
+          }
+          if (!top->GetChannelInterface(
+                      io_constr.TargetChannel(),
+                      (io_constr.TargetDirection() == IODirection::kSend)
+                          ? ChannelDirection::kSend
+                          : ChannelDirection::kReceive)
+                   .ok()) {
+            return absl::InvalidArgumentError(
+                absl::StrFormat("Invalid channel name in IO constraint: %s; "
+                                "this name did not correspond to any channel "
+                                "interface in the top proc %s",
+                                io_constr.TargetChannel(), top->name()));
+          }
+          continue;
+        }
         if (!p->GetChannel(io_constr.SourceChannel()).ok()) {
           return absl::InvalidArgumentError(absl::StrFormat(
               "Invalid channel name in IO constraint: %s; "
