@@ -2940,6 +2940,22 @@ TEST_F(ParserTest, TernaryConditional) {
                 {"really_long_identifier_so_that_this_is_too_many_chars"});
 }
 
+TEST_F(ParserTest, ConstexprTernaryConditional) {
+  Expr* e = RoundTripExpr("const if true { u32:42 } else { u32:24 }", {});
+
+  EXPECT_TRUE(down_cast<Conditional*>(e)->IsConst());
+  EXPECT_FALSE(down_cast<Conditional*>(e)->HasElseIf());
+  EXPECT_FALSE(down_cast<Conditional*>(e)->HasMultiStatementBlocks());
+
+  RoundTripExpr(
+      R"(const if really_long_identifier_so_that_this_is_too_many_chars {
+    u32:42
+} else {
+    u32:24
+})",
+      {"really_long_identifier_so_that_this_is_too_many_chars"});
+}
+
 TEST_F(ParserTest, ConditionalInBinopChain) {
   RoundTrip("const X = if true { u32:42 } else { u32:24 } + u32:1;");
   RoundTrip("const X = u32:1 + if true { u32:42 } else { u32:24 };");
