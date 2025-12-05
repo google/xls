@@ -150,6 +150,8 @@ class Stage {
     outputs_valid_ = outputs_valid;
   }
 
+  bool DependsOn(Node* node) const;
+
  private:
   absl::btree_set<Node*, Node::NodeIdLessThan> active_inputs_;
   absl::btree_set<Node*, Node::NodeIdLessThan> logic_;
@@ -433,6 +435,11 @@ class FunctionBase {
 
  protected:
   void MoveFrom(FunctionBase& other);
+
+  // Dumps the nodes in a scheduled type of `FunctionBase`, with scoping of the
+  // staged nodes. This is a helper for the DumpIr() implementation for these
+  // entities.
+  std::string DumpScheduledFunctionBaseNodes() const;
 
   // Many function-types have side-tables that store various pieces of
   // information. This function should, as much as possible, rebuild any using

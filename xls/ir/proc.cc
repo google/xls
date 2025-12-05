@@ -128,16 +128,7 @@ std::string Proc::DumpIr() const {
   }
 
   if (IsScheduled()) {
-    std::vector<Node*> sorted_nodes = TopoSort(const_cast<Proc*>(this));
-    for (const Stage& stage : stages()) {
-      absl::StrAppend(&res, "  stage {\n");
-      for (Node* node : sorted_nodes) {
-        if (stage.contains(node)) {
-          absl::StrAppend(&res, "    ", node->ToString(), "\n");
-        }
-      }
-      absl::StrAppend(&res, "  }\n");
-    }
+    absl::StrAppend(&res, DumpScheduledFunctionBaseNodes());
   } else {
     for (Node* node : TopoSort(const_cast<Proc*>(this))) {
       absl::StrAppend(&res, "  ", node->ToString(), "\n");

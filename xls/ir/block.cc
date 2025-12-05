@@ -309,62 +309,7 @@ std::string Block::DumpIr() const {
   }
 
   if (IsScheduled()) {
-    // TODO(epastor): Dump scheduled blocks with controlled-stage information.
-    std::vector<std::pair<int64_t, Node*>> stageless_nodes;
-    absl::FixedArray<std::vector<Node*>> staged_nodes(stages_.size());
-    int64_t preceding_stage_idx = -1;
-    for (Node* node : TopoSort(const_cast<Block*>(this))) {
-      bool in_stage = false;
-      for (int64_t stage_idx = 0; stage_idx < stages_.size(); ++stage_idx) {
-        if (stages_[stage_idx].contains(node)) {
-          in_stage = true;
-          preceding_stage_idx = std::max(preceding_stage_idx, stage_idx);
-          staged_nodes[stage_idx].push_back(node);
-          break;
-        }
-      }
-      for (int64_t stage_idx = 0; stage_idx < stages_.size(); ++stage_idx) {
-        if (stages_[stage_idx].inputs_valid() == node) {
-          preceding_stage_idx = std::min(preceding_stage_idx, stage_idx - 1);
-        }
-        if (stages_[stage_idx].outputs_valid() == node) {
-          preceding_stage_idx = std::min(preceding_stage_idx, stage_idx - 1);
-        }
-      }
-      if (!in_stage) {
-        stageless_nodes.push_back({preceding_stage_idx, node});
-      }
-    }
-
-    std::stable_sort(
-        stageless_nodes.begin(), stageless_nodes.end(),
-        [](const std::pair<int64_t, Node*>& a,
-           const std::pair<int64_t, Node*>& b) { return a.first < b.first; });
-
-    auto stageless_it = stageless_nodes.begin();
-    for (int64_t stage_idx = 0; stage_idx < stages_.size(); ++stage_idx) {
-      for (; stageless_it != stageless_nodes.end() &&
-             stageless_it->first < stage_idx;
-           stageless_it++) {
-        absl::StrAppend(&res, "  ", stageless_it->second->ToString(), "\n");
-      }
-
-      const Stage& stage = stages_[stage_idx];
-      CHECK(stage.IsControlled());
-      absl::StrAppendFormat(&res, "  controlled_stage(%s, %s) {\n",
-                            stage.inputs_valid()->GetName(),
-                            stage.outputs_ready()->GetName());
-      for (Node* node : staged_nodes[stage_idx]) {
-        absl::StrAppend(
-            &res, "    ", (node == stage.outputs_valid() ? "ret " : ""),
-            (node == stage.active_inputs_valid() ? "active_inputs_valid " : ""),
-            node->ToString(), "\n");
-      }
-      absl::StrAppend(&res, "  }\n");
-    }
-    for (; stageless_it != stageless_nodes.end(); stageless_it++) {
-      absl::StrAppend(&res, "  ", stageless_it->second->ToString(), "\n");
-    }
+    absl::StrAppend(&res, DumpScheduledFunctionBaseNodes());
   } else {
     for (Node* node : DumpOrder()) {
       absl::StrAppend(&res, "  ", node->ToString(), "\n");

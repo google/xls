@@ -179,12 +179,18 @@ class Parser {
       Package* package, absl::Span<const IrAttribute> outer_attributes = {});
   absl::StatusOr<ScheduledFunction*> ParseScheduledFunction(
       Package* package, absl::Span<const IrAttribute> outer_attributes = {});
+  absl::StatusOr<Function*> ParseFunctionInternal(
+      Package* package, absl::Span<const IrAttribute> outer_attributes,
+      bool scheduled);
 
   // Parse a proc starting at the current scanner position.
   absl::StatusOr<Proc*> ParseProc(
       Package* package, absl::Span<const IrAttribute> outer_attributes = {});
   absl::StatusOr<ScheduledProc*> ParseScheduledProc(
       Package* package, absl::Span<const IrAttribute> outer_attributes = {});
+  absl::StatusOr<Proc*> ParseProcInternal(
+      Package* package, absl::Span<const IrAttribute> outer_attributes,
+      bool scheduled);
 
   // Parse a block starting at the current scanner position.
   absl::StatusOr<Block*> ParseBlock(
@@ -341,7 +347,7 @@ class Parser {
   // body is a proc.
   absl::StatusOr<BodyResult> ParseBody(
       BuilderBase* fb, absl::flat_hash_map<std::string, BValue>* name_to_value,
-      Package* package);
+      Package* package, bool scheduled);
 
   // Parses a function signature, starting after the 'fn' keyword up to and
   // including the opening brace. Returns the newly created builder and the

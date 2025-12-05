@@ -1124,7 +1124,9 @@ ProcBuilder::ProcBuilder(NewStyleProc tag, std::string_view proc_name,
                       proc_name, /*interface_channels=*/
                       absl::Span<std::unique_ptr<ChannelInterface>>(), package),
                   should_verify) {
-  CHECK_OK(proc()->ConvertToNewStyle());
+  if (!proc()->is_new_style_proc()) {
+    CHECK_OK(proc()->ConvertToNewStyle());
+  }
 }
 
 Proc* ProcBuilder::proc() const { return down_cast<Proc*>(function()); }

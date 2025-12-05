@@ -27,6 +27,7 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/container/btree_set.h"
+#include "absl/container/fixed_array.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -49,6 +50,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/topo_sort.h"
 
 namespace xls {
 
@@ -65,6 +67,16 @@ bool Stage::AddNode(Node* node) {
     default:
       return logic_.insert(node).second;
   }
+}
+
+bool Stage::DependsOn(Node* node) const {
+  if (inputs_valid_ == node || outputs_ready_ == node) {
+    return true;
+  }
+  auto pred = [&](const Node* n) { return n->HasOperand(node); };
+  return absl::c_any_of(logic_, pred) || absl::c_any_of(active_inputs_, pred) ||
+         absl::c_any_of(active_outputs_, pred);
+  return false;
 }
 
 absl::StatusOr<Stage> Stage::Clone(
@@ -130,6 +142,67 @@ void FunctionBase::MoveFrom(FunctionBase& other) {
   other.next_values_by_state_read_.clear();
   other.params_.clear();
   other.node_to_stage_.clear();
+}
+
+std::string FunctionBase::DumpScheduledFunctionBaseNodes() const {
+  CHECK(IsScheduled());
+  std::string res;
+  std::vector<std::pair<int64_t, Node*>> stageless_nodes;
+  absl::FixedArray<std::vector<Node*>> staged_nodes(stages_.size());
+  int64_t preceding_stage_idx = -1;
+  for (Node* node : TopoSort(const_cast<FunctionBase*>(this))) {
+    bool in_stage = false;
+    for (int64_t stage_idx = 0; stage_idx < stages_.size(); ++stage_idx) {
+      if (stages_[stage_idx].contains(node)) {
+        in_stage = true;
+        preceding_stage_idx = std::max(preceding_stage_idx, stage_idx);
+        staged_nodes[stage_idx].push_back(node);
+        break;
+      }
+    }
+    for (int64_t stage_idx = 0; stage_idx < stages_.size(); ++stage_idx) {
+      if (stages_[stage_idx].DependsOn(node)) {
+        preceding_stage_idx = std::min(preceding_stage_idx, stage_idx - 1);
+      }
+    }
+    if (!in_stage) {
+      stageless_nodes.push_back({preceding_stage_idx, node});
+    }
+  }
+
+  std::stable_sort(
+      stageless_nodes.begin(), stageless_nodes.end(),
+      [](const std::pair<int64_t, Node*>& a,
+         const std::pair<int64_t, Node*>& b) { return a.first < b.first; });
+
+  auto stageless_it = stageless_nodes.begin();
+  for (int64_t stage_idx = 0; stage_idx < stages_.size(); ++stage_idx) {
+    for (; stageless_it != stageless_nodes.end() &&
+           stageless_it->first < stage_idx;
+         stageless_it++) {
+      absl::StrAppend(&res, "  ", stageless_it->second->ToString(), "\n");
+    }
+
+    const Stage& stage = stages_[stage_idx];
+    if (stage.IsControlled()) {
+      absl::StrAppendFormat(&res, "  controlled_stage(%s, %s) {\n",
+                            stage.inputs_valid()->GetName(),
+                            stage.outputs_ready()->GetName());
+    } else {
+      absl::StrAppendFormat(&res, "  stage {\n");
+    }
+    for (Node* node : staged_nodes[stage_idx]) {
+      absl::StrAppend(
+          &res, "    ", (node == stage.outputs_valid() ? "ret " : ""),
+          (node == stage.active_inputs_valid() ? "active_inputs_valid " : ""),
+          node->ToString(), "\n");
+    }
+    absl::StrAppend(&res, "  }\n");
+  }
+  for (; stageless_it != stageless_nodes.end(); stageless_it++) {
+    absl::StrAppend(&res, "  ", stageless_it->second->ToString(), "\n");
+  }
+  return res;
 }
 
 std::vector<std::string> FunctionBase::AttributeIrStrings() const {

@@ -1723,7 +1723,7 @@ absl::StatusOr<Instantiation*> Parser::ParseInstantiation(Block* block) {
 
 absl::StatusOr<Parser::BodyResult> Parser::ParseBody(
     BuilderBase* fb, absl::flat_hash_map<std::string, BValue>* name_to_value,
-    Package* package) {
+    Package* package, bool scheduled) {
   std::optional<BValue> return_value;
   std::optional<std::vector<BValue>> next_state;
   std::vector<ChannelInterface*> channel_interfaces;
@@ -1799,6 +1799,25 @@ absl::StatusOr<Parser::BodyResult> Parser::ParseBody(
             peek.pos().ToHumanString()));
       }
       XLS_RETURN_IF_ERROR(ParseProcInstantiation(proc).status());
+      continue;
+    }
+    if (scanner_.PeekTokenIs(LexicalTokenType::kKeyword) &&
+        scanner_.PeekToken()->value() == "stage") {
+      if (!scheduled) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "stage keyword not supported in unscheduled entities"));
+      }
+
+      XLS_ASSIGN_OR_RETURN(
+          Stage stage, ParseScheduledStage(fb, name_to_value, &return_value));
+
+      if (auto* scheduled_pb = dynamic_cast<ScheduledProcBuilder*>(fb)) {
+        down_cast<ScheduledProc*>(scheduled_pb->proc())->AddStage(stage);
+      } else {
+        // Note that `ParseScheduledBlock` does not use `ParseBody`.
+        XLS_RET_CHECK(dynamic_cast<ScheduledFunctionBuilder*>(fb) != nullptr);
+        down_cast<ScheduledFunction*>(fb->function())->AddStage(stage);
+      }
       continue;
     }
 
@@ -2205,19 +2224,27 @@ absl::Status Parser::ParseFileNumber(
 
 absl::StatusOr<Function*> Parser::ParseFunction(
     Package* package, absl::Span<const IrAttribute> outer_attributes) {
+  return ParseFunctionInternal(package, outer_attributes, /*scheduled=*/false);
+}
+
+absl::StatusOr<Function*> Parser::ParseFunctionInternal(
+    Package* package, absl::Span<const IrAttribute> outer_attributes,
+    bool scheduled) {
   if (AtEof()) {
     return absl::InvalidArgumentError("Could not parse function; at EOF.");
   }
 
-  XLS_RETURN_IF_ERROR(scanner_.DropKeywordOrError("fn"));
+  XLS_RETURN_IF_ERROR(
+      scanner_.DropKeywordOrError(scheduled ? "scheduled_fn" : "fn"));
 
   absl::flat_hash_map<std::string, BValue> name_to_value;
-  XLS_ASSIGN_OR_RETURN(auto function_data,
-                       ParseFunctionSignature(&name_to_value, package));
+  XLS_ASSIGN_OR_RETURN(
+      auto function_data,
+      ParseFunctionSignature(&name_to_value, package, scheduled));
   FunctionBuilder* fb = function_data.first.get();
 
   XLS_ASSIGN_OR_RETURN(BodyResult body_result,
-                       ParseBody(fb, &name_to_value, package));
+                       ParseBody(fb, &name_to_value, package, scheduled));
 
   XLS_RET_CHECK(std::holds_alternative<FunctionBodyResult>(body_result));
   BValue return_value = std::get<FunctionBodyResult>(body_result).return_value;
@@ -2258,17 +2285,24 @@ absl::StatusOr<Function*> Parser::ParseFunction(
 
 absl::StatusOr<Proc*> Parser::ParseProc(
     Package* package, absl::Span<const IrAttribute> outer_attributes) {
+  return ParseProcInternal(package, outer_attributes, /*scheduled=*/false);
+}
+
+absl::StatusOr<Proc*> Parser::ParseProcInternal(
+    Package* package, absl::Span<const IrAttribute> outer_attributes,
+    bool scheduled) {
   if (AtEof()) {
     return absl::InvalidArgumentError("Could not parse proc; at EOF.");
   }
-  XLS_RETURN_IF_ERROR(scanner_.DropKeywordOrError("proc"));
+  XLS_RETURN_IF_ERROR(
+      scanner_.DropKeywordOrError(scheduled ? "scheduled_proc" : "proc"));
 
   absl::flat_hash_map<std::string, BValue> name_to_value;
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ProcBuilder> pb,
-                       ParseProcSignature(&name_to_value, package));
+                       ParseProcSignature(&name_to_value, package, scheduled));
 
   XLS_ASSIGN_OR_RETURN(BodyResult body_result,
-                       ParseBody(pb.get(), &name_to_value, package));
+                       ParseBody(pb.get(), &name_to_value, package, scheduled));
 
   XLS_RET_CHECK(std::holds_alternative<ProcBodyResult>(body_result));
   ProcBodyResult proc_body_result = std::get<ProcBodyResult>(body_result);
@@ -2347,8 +2381,9 @@ absl::StatusOr<Block*> Parser::ParseBlock(
   auto bb = std::make_unique<BlockBuilder>(signature.block_name, package,
                                            /*should_verify=*/false);
   absl::flat_hash_map<std::string, BValue> name_to_value;
-  XLS_ASSIGN_OR_RETURN(BodyResult body_result,
-                       ParseBody(bb.get(), &name_to_value, package));
+  XLS_ASSIGN_OR_RETURN(
+      BodyResult body_result,
+      ParseBody(bb.get(), &name_to_value, package, /*scheduled=*/false));
   XLS_RET_CHECK(std::holds_alternative<BlockBodyResult>(body_result));
 
   XLS_ASSIGN_OR_RETURN(Block * block, bb->Build());
@@ -3226,69 +3261,10 @@ absl::StatusOr<Stage> Parser::ParseScheduledStage(
 
 absl::StatusOr<ScheduledFunction*> Parser::ParseScheduledFunction(
     Package* package, absl::Span<const IrAttribute> outer_attributes) {
-  if (AtEof()) {
-    return absl::InvalidArgumentError("Could not parse function; at EOF.");
-  }
-
-  XLS_RETURN_IF_ERROR(scanner_.DropKeywordOrError("scheduled_fn"));
-
-  absl::flat_hash_map<std::string, BValue> name_to_value;
   XLS_ASSIGN_OR_RETURN(
-      auto function_data,
-      ParseFunctionSignature(&name_to_value, package, /*scheduled=*/true));
-  FunctionBuilder* fb = function_data.first.get();
-  ScheduledFunction* f = down_cast<ScheduledFunction*>(fb->function());
-
-  std::optional<BValue> return_value;
-  bool first_stage = true;
-  while (scanner_.PeekTokenIs(LexicalTokenType::kKeyword) &&
-         scanner_.PeekToken()->value() == "stage") {
-    XLS_ASSIGN_OR_RETURN(
-        Stage stage, ParseScheduledStage(fb, &name_to_value, &return_value));
-    if (first_stage) {
-      for (Param* p : f->params()) {
-        XLS_RET_CHECK(stage.AddNode(p));
-      }
-      first_stage = false;
-    }
-    f->AddStage(std::move(stage));
-  }
-
-  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kCurlClose,
-                                                "'}' at end of function body"));
-
-  if (!return_value.has_value()) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("Expected 'ret' in function."));
-  }
-
-  if (return_value.value().node()->GetType() != function_data.second) {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Type of return value %s does not match declared function return type "
-        "%s",
-        return_value.value().node()->GetType()->ToString(),
-        function_data.second->ToString()));
-  }
-
-  XLS_ASSIGN_OR_RETURN(Function * func,
-                       fb->BuildWithReturnValue(return_value.value()));
-  ScheduledFunction* result = down_cast<ScheduledFunction*>(func);
-  for (const IrAttribute& attribute : outer_attributes) {
-    if (std::holds_alternative<InitiationInterval>(attribute.payload)) {
-      result->SetInitiationInterval(
-          std::get<InitiationInterval>(attribute.payload).value);
-    } else if (std::holds_alternative<ForeignFunctionData>(attribute.payload)) {
-      // Dummy parse to make sure it is a valid template.
-      const ForeignFunctionData& ffi =
-          std::get<ForeignFunctionData>(attribute.payload);
-      XLS_RETURN_IF_ERROR(CodeTemplate::Create(ffi.code_template()).status());
-      result->SetForeignFunctionData(ffi);
-    } else {
-      return absl::InvalidArgumentError(absl::StrFormat(
-          "Invalid attribute for function: %s", attribute.name));
-    }
-  }
-  return result;
+      Function * fn,
+      ParseFunctionInternal(package, outer_attributes, /*scheduled=*/true));
+  return down_cast<ScheduledFunction*>(fn);
 }
 
 absl::StatusOr<ScheduledProc*> Parser::ParseScheduledProc(
@@ -3296,41 +3272,10 @@ absl::StatusOr<ScheduledProc*> Parser::ParseScheduledProc(
   if (AtEof()) {
     return absl::InvalidArgumentError("Could not parse proc; at EOF.");
   }
-  XLS_RETURN_IF_ERROR(scanner_.DropKeywordOrError("scheduled_proc"));
 
-  absl::flat_hash_map<std::string, BValue> name_to_value;
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<ProcBuilder> pb,
-      ParseProcSignature(&name_to_value, package, /*scheduled=*/true));
-  ScheduledProc* p = down_cast<ScheduledProc*>(pb->proc());
-
-  std::optional<BValue> ret_val;
-  while (scanner_.PeekTokenIs(LexicalTokenType::kKeyword) &&
-         scanner_.PeekToken()->value() == "stage") {
-    XLS_ASSIGN_OR_RETURN(
-        Stage stage, ParseScheduledStage(pb.get(), &name_to_value, &ret_val));
-    p->AddStage(stage);
-  }
-  if (ret_val.has_value()) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("ret keyword not supported in procs"));
-  }
-
-  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kCurlClose,
-                                                "'}' at end of proc body"));
-
-  XLS_ASSIGN_OR_RETURN(Proc * proc, pb->Build({}));
-  ScheduledProc* result = down_cast<ScheduledProc*>(proc);
-  for (const IrAttribute& attribute : outer_attributes) {
-    if (std::holds_alternative<InitiationInterval>(attribute.payload)) {
-      result->SetInitiationInterval(
-          std::get<InitiationInterval>(attribute.payload).value);
-    } else {
-      return absl::InvalidArgumentError(
-          absl::StrFormat("Invalid attribute for proc: %s", attribute.name));
-    }
-  }
-  return result;
+  XLS_ASSIGN_OR_RETURN(Proc * proc, ParseProcInternal(package, outer_attributes,
+                                                      /*scheduled=*/true));
+  return down_cast<ScheduledProc*>(proc);
 }
 
 absl::StatusOr<ScheduledBlock*> Parser::ParseScheduledBlock(

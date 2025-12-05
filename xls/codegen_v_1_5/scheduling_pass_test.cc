@@ -57,7 +57,10 @@ class SchedulingPassTest : public IrTestBase {
     XLS_ASSIGN_OR_RETURN(bool result,
                          pass.Run(package.get(), options, &results));
     XLS_RET_CHECK(result);
-    return package->DumpIr();
+
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> round_tripped_package,
+                         Parser::ParsePackage(package->DumpIr()));
+    return round_tripped_package->DumpIr();
   }
 
   TestDelayEstimator delay_estimator_;
@@ -123,6 +126,7 @@ top scheduled_proc __test__P_0_next<a: bits[32] in, b: bits[32] in, result: bits
   chan_interface a(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   chan_interface b(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   chan_interface result(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  literal.3: bits[1] = literal(value=1, id=3)
   stage {
     after_all.5: token = after_all(id=5)
     receive.6: (token, bits[32]) = receive(after_all.5, predicate=literal.3, channel=a, id=6)
@@ -179,6 +183,7 @@ chan test__b(bits[32], id=1, kind=streaming, ops=receive_only, flow_control=read
 chan test__result(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
 
 top scheduled_proc __test__P_0_next(__state: bits[32], init={0}) {
+  literal.3: bits[1] = literal(value=1, id=3)
   stage {
     after_all.4: token = after_all(id=4)
     receive.5: (token, bits[32]) = receive(after_all.4, predicate=literal.3, channel=test__a, id=5)

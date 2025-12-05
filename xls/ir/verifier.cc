@@ -69,6 +69,10 @@ namespace {
 
 using ::absl::StrFormat;
 
+bool NodeNeedsStageInScheduledContainer(Node* node) {
+  return !node->operands().empty();
+}
+
 absl::Status VerifyNodeIdUnique(Node* node, std::vector<bool>* ids_seen,
                                 int64_t* max_id_seen) {
   const int64_t id = node->id();
@@ -643,11 +647,15 @@ absl::Status VerifyFunction(Function* function, const VerifyOptions& options) {
       }
     }
     for (Node* node : function->nodes()) {
-      if (!node_to_stage.contains(node)) {
+      if (!node_to_stage.contains(node) &&
+          NodeNeedsStageInScheduledContainer(node)) {
         return absl::InternalError(
             absl::StrFormat("Node %s is not in any stage.", node->GetName()));
       }
-      int64_t stage_idx = node_to_stage.at(node);
+      int64_t stage_idx = -1;
+      if (const auto it = node_to_stage.find(node); it != node_to_stage.end()) {
+        stage_idx = it->second;
+      }
       for (Node* operand : node->operands()) {
         if (auto it = node_to_stage.find(operand);
             it != node_to_stage.end() && it->second > stage_idx) {
@@ -899,11 +907,16 @@ absl::Status VerifyProc(Proc* proc, const VerifyOptions& options) {
     NodeForwardDependencyAnalysis dep_analysis;
     XLS_RETURN_IF_ERROR(dep_analysis.Attach(proc).status());
     for (Node* node : proc->nodes()) {
-      if (!node_to_stage.contains(node)) {
+      if (!node_to_stage.contains(node) &&
+          NodeNeedsStageInScheduledContainer(node)) {
         return absl::InternalError(
             absl::StrFormat("Node %s is not in any stage.", node->GetName()));
       }
-      int64_t stage_idx = node_to_stage.at(node);
+      int64_t stage_idx = -1;
+      if (const auto it = node_to_stage.find(node); it != node_to_stage.end()) {
+        stage_idx = it->second;
+      }
+
       for (Node* operand : node->operands()) {
         if (auto it = node_to_stage.find(operand);
             it != node_to_stage.end() && it->second > stage_idx) {
