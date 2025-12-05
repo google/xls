@@ -171,6 +171,9 @@ xls_dslx_opt_ir(
     name = "custom_schedule",
     srcs = ["custom_schedule.x"],
     dslx_top = "Accumulator",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true",
+    },
 )
 
 xls_dslx_fmt_test(
@@ -196,11 +199,14 @@ xls_dslx_verilog(
         "streaming_channel_data_suffix": "_data",
         "streaming_channel_ready_suffix": "_ready",
         "streaming_channel_valid_suffix": "_valid",
-        "io_constraints": "custom_schedule__data_in:recv:custom_schedule__old_state:send:0:0,custom_schedule__data_in:recv:custom_schedule__data_out:send:4:4,custom_schedule__data_in:recv:custom_schedule__activate:recv:8:8",
+        "io_constraints": "data_in:recv:old_state:send:0:0,data_in:recv:data_out:send:4:4,data_in:recv:activate:recv:8:8",
         "worst_case_throughput": "9",
         "pipeline_stages": "9",
     },
     dslx_top = "Accumulator",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true",
+    },
     library = ":custom_schedule",
     verilog_file = "custom_schedule.sv",
 )
