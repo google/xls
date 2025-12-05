@@ -191,21 +191,25 @@ TEST_P(IrWrapperTest, DslxProcsToIrOk) {
   // Test that that the jit for the proc can be retrieved and run.
   XLS_ASSERT_OK_AND_ASSIGN(SerialProcRuntime * proc_runtime,
                            ir_wrapper.GetAndMaybeCreateProcRuntime());
-  if (GetParam()) {
-    // TODO: davidplass - To support proc-scoped channels, this test has to be
-    // rewritten to use ChannelQueue and ChannelInstance, as was done
-    // in http://cl/835286514
-    GTEST_SKIP() << "TODO: update remainder of test for proc-scoped channels";
+
+  JitChannelQueueWrapper in_0;
+  JitChannelQueueWrapper in_1;
+  JitChannelQueueWrapper out;
+  if (!GetParam()) {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        in_0, ir_wrapper.CreateJitChannelQueueWrapper("test_package__in_0"));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        in_1, ir_wrapper.CreateJitChannelQueueWrapper("test_package__in_1"));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        out, ir_wrapper.CreateJitChannelQueueWrapper("test_package__output"));
+  } else {
+    XLS_ASSERT_OK_AND_ASSIGN(in_0, ir_wrapper.CreateJitChannelQueueWrapper(
+                                       "in_0", "__top__foo_0_next"));
+    XLS_ASSERT_OK_AND_ASSIGN(in_1, ir_wrapper.CreateJitChannelQueueWrapper(
+                                       "in_1", "__top__foo_0_next"));
+    XLS_ASSERT_OK_AND_ASSIGN(out, ir_wrapper.CreateJitChannelQueueWrapper(
+                                      "output", "__top__foo_0_next"));
   }
-  XLS_ASSERT_OK_AND_ASSIGN(
-      JitChannelQueueWrapper in_0,
-      ir_wrapper.CreateJitChannelQueueWrapper("test_package__in_0"));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      JitChannelQueueWrapper in_1,
-      ir_wrapper.CreateJitChannelQueueWrapper("test_package__in_1"));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      JitChannelQueueWrapper out,
-      ir_wrapper.CreateJitChannelQueueWrapper("test_package__output"));
 
   // Send data.
   EXPECT_TRUE(in_0.Empty());
