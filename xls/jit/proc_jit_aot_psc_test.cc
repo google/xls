@@ -58,11 +58,11 @@ int64_t proc_1(  // NOLINT
     const uint8_t* const* inputs, uint8_t* const* outputs, void* temp_buffer,
     xls::InterpreterEvents* events, xls::InstanceContext* instance_context,
     xls::JitRuntime* jit_runtime, int64_t continuation_point);
-int64_t __multi_proc__proc_ten__proc_quad_0_next(  // NOLINT
+int64_t __multi_proc__proc_quad_0_next(  // NOLINT
     const uint8_t* const* inputs, uint8_t* const* outputs, void* temp_buffer,
     xls::InterpreterEvents* events, xls::InstanceContext* instance_context,
     xls::JitRuntime* jit_runtime, int64_t continuation_point);
-int64_t __multi_proc__proc_ten__proc_double_0_next(  // NOLINT
+int64_t __multi_proc__proc_double_0_next(  // NOLINT
     const uint8_t* const* inputs, uint8_t* const* outputs, void* temp_buffer,
     xls::InterpreterEvents* events, xls::InstanceContext* instance_context,
     xls::JitRuntime* jit_runtime, int64_t continuation_point);
@@ -109,17 +109,15 @@ bool AreMultiSymbolsAsExpected() {
                                  p.function_symbol() ==
                                      "__multi_proc__proc_ten_0_next";
                         }) &&
-         absl::c_any_of(
-             v->entrypoint(),
-             [](const AotEntrypointProto& p) {
-               return p.has_function_symbol() &&
-                      p.function_symbol() ==
-                          "__multi_proc__proc_ten__proc_double_0_next";
-             }) &&
+         absl::c_any_of(v->entrypoint(),
+                        [](const AotEntrypointProto& p) {
+                          return p.has_function_symbol() &&
+                                 p.function_symbol() ==
+                                     "__multi_proc__proc_double_0_next";
+                        }) &&
          absl::c_any_of(v->entrypoint(), [](const AotEntrypointProto& p) {
            return p.has_function_symbol() &&
-                  p.function_symbol() ==
-                      "__multi_proc__proc_ten__proc_quad_0_next";
+                  p.function_symbol() == "__multi_proc__proc_quad_0_next";
          });
 }
 
@@ -268,10 +266,10 @@ TEST_F(ProcJitAotPscTest, MultipleProcsCanHitSameFunction) {
   XLS_ASSERT_OK_AND_ASSIGN(std::string pkg_text, GetFileContents(gold_file));
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(pkg_text, kMultiGoldIr));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Proc * pquad, p->GetProc("__multi_proc__proc_ten__proc_quad_0_next"));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Proc * pdouble, p->GetProc("__multi_proc__proc_ten__proc_double_0_next"));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * pquad,
+                           p->GetProc("__multi_proc__proc_quad_0_next"));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * pdouble,
+                           p->GetProc("__multi_proc__proc_double_0_next"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * ptop,
                            p->GetProc("__multi_proc__proc_ten_0_next"));
   PackageInterfaceProto::Proc pquad_interface = ExtractProcInterface(pquad);
@@ -282,25 +280,21 @@ TEST_F(ProcJitAotPscTest, MultipleProcsCanHitSameFunction) {
       CreateAotSerialProcRuntime(
           ptop, proto,
           {
-              ProcAotEntrypoints{
-                  .proc_interface_proto = pdouble_interface,
-                  .unpacked = __multi_proc__proc_ten__proc_double_0_next},
-              ProcAotEntrypoints{
-                  .proc_interface_proto = pquad_interface,
-                  .unpacked = __multi_proc__proc_ten__proc_quad_0_next},
+              ProcAotEntrypoints{.proc_interface_proto = pdouble_interface,
+                                 .unpacked = __multi_proc__proc_double_0_next},
+              ProcAotEntrypoints{.proc_interface_proto = pquad_interface,
+                                 .unpacked = __multi_proc__proc_quad_0_next},
               ProcAotEntrypoints{.proc_interface_proto = ptop_interface,
                                  .unpacked = __multi_proc__proc_ten_0_next},
           }));
   XLS_ASSERT_OK_AND_ASSIGN(JitChannelQueueManager * chan_man,
                            aot_runtime->GetJitChannelQueueManager());
   ProcInstance* top_instance = aot_runtime->elaboration().top();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ChannelInstance * input_channel,
-      top_instance->GetChannelInstance("multi_proc__bytes_src"));
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelInstance * input_channel,
+                           top_instance->GetChannelInstance("bytes_src"));
   ChannelQueue& chan_input = chan_man->GetQueue(input_channel);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ChannelInstance * output_channel,
-      top_instance->GetChannelInstance("multi_proc__bytes_result"));
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelInstance * output_channel,
+                           top_instance->GetChannelInstance("bytes_result"));
   ChannelQueue& chan_output = chan_man->GetQueue(output_channel);
 
   XLS_EXPECT_OK(chan_input.Write(Value(UBits(4, 32))));

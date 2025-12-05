@@ -99,7 +99,6 @@ absl::Status RealMain(absl::Span<const std::string_view> paths) {
   bool verify_ir = ir_converter_options.verify();
   bool convert_tests = ir_converter_options.convert_tests();
   bool warnings_as_errors = ir_converter_options.warnings_as_errors();
-  bool proc_scoped_channels = ir_converter_options.proc_scoped_channels();
   bool type_inference_v2 = ir_converter_options.type_inference_v2();
   bool lower_to_proc_scoped_channels =
       ir_converter_options.lower_to_proc_scoped_channels();
@@ -130,7 +129,6 @@ absl::Status RealMain(absl::Span<const std::string_view> paths) {
       .warnings = warnings,
       .convert_tests = convert_tests,
       .default_fifo_config = default_fifo_config,
-      .proc_scoped_channels = proc_scoped_channels,
       .type_inference_v2 = type_inference_v2,
       .lower_to_proc_scoped_channels = lower_to_proc_scoped_channels,
       .force_implicit_token_calling_convention =

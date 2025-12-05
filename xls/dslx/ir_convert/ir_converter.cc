@@ -364,16 +364,6 @@ absl::Status ConvertCallGraph(absl::Span<const ConversionRecord> order,
                                                    &channel_scope, options));
   }
 
-  if (options.proc_scoped_channels) {
-    // TODO: https://github.com/google/xls/issues/2078 - Remove this `if` after
-    // lower_to_proc_scoped_channels is turned on everywhere.
-
-    // If all channels are already proc-scoped (because
-    // lower_to_proc_scoped_channels is fully implemented), this will have no
-    // effect. Until then, this will convert any stragglers.
-    XLS_RETURN_IF_ERROR(
-        ConvertToNewStyleProcs(package_data.conversion_info->package.get()));
-  }
   if (options.verify_ir) {
     VLOG(3) << "Verifying converted package";
     XLS_RETURN_IF_ERROR(

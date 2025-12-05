@@ -153,7 +153,6 @@ def _convert_to_ir(ctx, src):
         "disable_warnings",
         "convert_tests",
         "default_fifo_config",
-        "proc_scoped_channels",
         "lower_to_proc_scoped_channels",
         "force_implicit_token_calling_convention",
     )

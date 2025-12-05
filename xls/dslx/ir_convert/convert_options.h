@@ -60,11 +60,6 @@ struct ConvertOptions {
   // specify a config.
   std::optional<FifoConfig> default_fifo_config;
 
-  // Should we convert to proc-scoped channels after IR conversion with global
-  // channels?
-  // TODO: https://github.com/google/xls/issues/2078 - Remove this after
-  // lower_to_proc_scoped_channels is turned on for all tests.
-  bool proc_scoped_channels = false;
 
   // Whether to use type system v2 to perform type checking.
   bool type_inference_v2 = false;

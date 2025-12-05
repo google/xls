@@ -578,12 +578,12 @@ xls_dslx_library(
         xls_dslx_ir(
             name = "multi_proc%s" % suffix,
             dslx_top = "proc_ten",
-            ir_conv_args = {"proc_scoped_channels": "true" if proc_scoped else "false"},
+            ir_conv_args = {"lower_to_proc_scoped_channels": "true" if lower_to_proc_scoped_channels else "false"},
             library = ":multi_proc_dslx",
         ),
         xls_aot_generate(
             name = "multi_proc_aot%s" % suffix,
-            src = ":multi_proc",
+            src = ":multi_proc%s" % suffix,
             salt_symbols = False,
             with_msan = XLS_IS_MSAN_BUILD,
         ),
@@ -631,7 +631,7 @@ xls_dslx_library(
             ],
         ),
     )
-    for (proc_scoped, suffix) in [
+    for (lower_to_proc_scoped_channels, suffix) in [
         (True, "_psc"),
         (False, ""),
     ]

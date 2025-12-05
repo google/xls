@@ -1291,7 +1291,7 @@ dslx_lang_test(
 xls_dslx_ir(
     name = "send_if_recv_if_ir",
     dslx_top = "main",
-    ir_conv_args = {"proc_scoped_channels": "true"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     library = "send_if_recv_if_dslx",
 )
 
@@ -1304,7 +1304,7 @@ dslx_lang_test(
 xls_dslx_ir(
     name = "non_blocking_receives_ir",
     dslx_top = "proc_main",
-    ir_conv_args = {"proc_scoped_channels": "true"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     library = "non_blocking_receives_dslx",
 )
 
@@ -1323,7 +1323,7 @@ dslx_lang_test(
 xls_dslx_ir(
     name = "non_blocking_receive_if_ir",
     dslx_top = "Main",
-    ir_conv_args = {"proc_scoped_channels": "true"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     library = "non_blocking_receive_if_dslx",
 )
 

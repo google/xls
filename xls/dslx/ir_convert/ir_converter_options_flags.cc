@@ -79,18 +79,14 @@ ABSL_FLAG(std::optional<std::string>, ir_converter_options_proto, std::nullopt,
 ABSL_FLAG(std::optional<std::string>, default_fifo_config, std::nullopt,
           "Textproto description of a default FifoConfigProto. If unspecified, "
           "no default FIFO config is specified and codegen may fail.");
-ABSL_FLAG(
-    bool, proc_scoped_channels, false,
-    "Whether to convert to proc-scoped channels after a regular IR "
-    "conversion; if false, generates global channels. Cannot be combined with"
-    "lower_to_proc_scoped_channels");
+ABSL_RETIRED_FLAG(bool, proc_scoped_channels, false,
+                  "Deprecated. Use lower_to_proc_scoped_channels instead.");
 ABSL_FLAG(bool, type_inference_v2, false,
           "Whether to use type system v2 when type checking the input.");
 ABSL_FLAG(bool, lower_to_proc_scoped_channels, false,
           "Whether to generate proc-scoped channels as it goes along; if "
           "false, generates global channels. This is a temporary flag that "
-          "will not be used after the full implementation is complete. Cannot "
-          "be combined with proc_scoped_channels");
+          "will not be used after the full implementation is complete. ");
 ABSL_FLAG(bool, force_implicit_token_calling_convention, false,
           "Force every DSLX function to use the implicit-token calling "
           "convention during IR conversion.");
@@ -144,7 +140,6 @@ absl::StatusOr<bool> SetOptionsFromFlags(IrConverterOptionsFlagsProto& proto) {
   POPULATE_OPTIONAL_FLAG(disable_warnings);
   POPULATE_OPTIONAL_FLAG(enable_warnings);
   POPULATE_FLAG(warnings_as_errors);
-  POPULATE_FLAG(proc_scoped_channels);
   POPULATE_OPTIONAL_FLAG(interface_proto_file);
   POPULATE_OPTIONAL_FLAG(interface_textproto_file);
   POPULATE_FLAG(type_inference_v2);
@@ -168,12 +163,6 @@ absl::StatusOr<bool> SetOptionsFromFlags(IrConverterOptionsFlagsProto& proto) {
                                          std::filesystem::path("<cmdline arg>"),
                                          proto.mutable_default_fifo_config()));
     }
-  }
-
-  if (proto.proc_scoped_channels() && proto.lower_to_proc_scoped_channels()) {
-    return absl::InvalidArgumentError(
-        "proc_scoped_channels and lower_to_proc_scoped_channels cannot be set "
-        "at the same time.");
   }
 
   return any_flags_set;
