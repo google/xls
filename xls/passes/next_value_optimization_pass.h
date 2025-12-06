@@ -33,6 +33,9 @@ namespace xls {
 // - splitting `next_value` nodes with `select`-based values (if small),
 // - splitting `next_value` nodes with `priority_sel`-based values, and
 // - splitting `next_value` nodes with `one_hot_sel`-based values (where safe).
+// - Identifies `state-element`s which are non-synth and performing an identity
+//   update operation and removes the read of the synth version in this case.
+//   (This allows for later cond-spec passes to predicate the read.)
 //
 // For best results, first modernizes old-style values on `next (...)` lines,
 // converting them to `next_value` nodes.
