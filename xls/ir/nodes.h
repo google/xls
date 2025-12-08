@@ -1266,6 +1266,7 @@ class Select final : public Node {
  public:
   static constexpr std::array<Op, 1> kOps = {Op::kSel};
   static constexpr int64_t kSelectorOperand = 0;
+  static constexpr int64_t kCasesStart = 1;
 
   Select(const SourceInfo& loc, Node* selector, absl::Span<Node* const> cases,
          std::optional<Node*> default_value, std::string_view name,

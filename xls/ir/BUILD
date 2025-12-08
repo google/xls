@@ -1068,6 +1068,7 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/estimators/area_model:area_estimator",
         "//xls/estimators/delay_model:delay_estimator",
         # Just pull in all the delay models for convenience.
         "//xls/estimators/delay_model/models",  # buildcleaner: keep

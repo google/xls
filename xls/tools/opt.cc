@@ -29,6 +29,10 @@
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/estimators/area_model/area_estimator.h"
+#include "xls/estimators/area_model/area_estimators.h"
+#include "xls/estimators/delay_model/delay_estimator.h"
+#include "xls/estimators/delay_model/delay_estimators.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
@@ -119,6 +123,15 @@ absl::Status OptimizeIrForTop(Package* package, const OptOptions& options,
   }
   VLOG(3) << "Top entity: '" << top.value()->name() << "'";
 
+  DelayEstimator* delay_estimator = nullptr;
+  if (options.delay_model.has_value()) {
+    XLS_ASSIGN_OR_RETURN(delay_estimator,
+                         GetDelayEstimator(*options.delay_model));
+  }
+
+  XLS_ASSIGN_OR_RETURN(AreaEstimator * area_estimator,
+                       GetAreaEstimator(options.area_model));
+
   std::optional<OptimizationPassRegistry> registry;
   if (options.custom_registry) {
     registry.emplace(GetOptimizationRegistry().OverridableClone());
@@ -150,6 +163,8 @@ absl::Status OptimizeIrForTop(Package* package, const OptOptions& options,
 
   OptimizationPassOptions pass_options;
   pass_options.opt_level = options.opt_level;
+  pass_options.delay_estimator = delay_estimator;
+  pass_options.area_estimator = area_estimator;
   pass_options.ir_dump_path = options.ir_dump_path;
   pass_options.skip_passes = options.skip_passes;
   pass_options.convert_array_index_to_select =

@@ -18,6 +18,8 @@
 #include <string_view>
 
 #include "absl/status/statusor.h"
+#include "xls/estimators/area_model/area_estimator.h"
+#include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/function_base.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"

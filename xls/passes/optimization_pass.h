@@ -38,6 +38,8 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/estimators/area_model/area_estimator.h"
+#include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/change_listener.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
@@ -137,6 +139,9 @@ struct OptimizationPassOptions : public PassOptionsBase {
     this->opt_level = opt_level;
     return std::move(*this);
   }
+
+  DelayEstimator* delay_estimator = nullptr;
+  AreaEstimator* area_estimator = nullptr;
 
   // Whether narrowing is enabled in this config.
   bool narrowing_enabled() const;
