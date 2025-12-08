@@ -95,6 +95,7 @@ cc_library(
         "//xls/estimators/delay_model:delay_estimator",
         "//xls/estimators/delay_model:delay_estimators",
         "//xls/ir",
+        "//xls/ir:channel",
         "//xls/passes:optimization_pass",
         "//xls/tools:scheduling_options_flags_cc_proto",
         "@com_google_absl//absl/container:flat_hash_map",
