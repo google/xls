@@ -38,6 +38,8 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/estimators/area_model/area_estimator.h"
+#include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/change_listener.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
@@ -138,6 +140,9 @@ struct OptimizationPassOptions : public PassOptionsBase {
     return std::move(*this);
   }
 
+  const DelayEstimator* delay_estimator = nullptr;
+  const AreaEstimator* area_estimator = nullptr;
+
   // Whether narrowing is enabled in this config.
   bool narrowing_enabled() const;
 
@@ -187,17 +192,10 @@ struct OptimizationPassOptions : public PassOptionsBase {
   // Force resource sharing to apply the transformation when is legal
   bool force_resource_sharing = false;
 
-  // Area model to use
-  std::string area_model = "asap7";
-
-  // If provided, passes like SelectLifting may use the named delay model
-  // (e.g., "asap7") to make timing-aware profitability decisions.
-  std::optional<std::string> delay_model;
-
-  OptimizationPassOptions WithDelayModel(
-      std::optional<std::string> delay_model) const& {
+  OptimizationPassOptions WithDelayEstimator(
+      const DelayEstimator* delay_estimator) const& {
     OptimizationPassOptions opt = *this;
-    opt.delay_model = delay_model;
+    opt.delay_estimator = delay_estimator;
     return opt;
   }
 };
@@ -244,7 +242,11 @@ class OptimizationContext {
   AnalysisT* SharedNodeData(FunctionBase* f,
                             const OptimizationPassOptions& options) {
     return SharedNodeData<AnalysisT>(
-        f, AnalysisOptions{.delay_model_name = options.delay_model});
+        f, AnalysisOptions{
+               .delay_model_name =
+                   options.delay_estimator != nullptr
+                       ? std::make_optional(options.delay_estimator->name())
+                       : std::nullopt});
   }
 
   template <typename QueryEngineT>

@@ -49,6 +49,8 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/binary_decision_diagram.h"
 #include "xls/dev_tools/pass_metrics.h"
+#include "xls/estimators/area_model/area_estimator.h"
+#include "xls/estimators/area_model/area_estimators.h"
 #include "xls/estimators/delay_model/analyze_critical_path.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/estimators/delay_model/delay_estimators.h"
@@ -277,6 +279,18 @@ absl::Status PrintTotalDelay(FunctionBase* f,
     total_delay += op_delay;
   }
   std::cout << absl::StrFormat("Total delay: %dps\n", total_delay);
+  return absl::OkStatus();
+}
+
+absl::Status PrintTotalArea(FunctionBase* f,
+                            const AreaEstimator& area_estimator) {
+  int64_t total_area = 0;
+  for (Node* node : f->nodes()) {
+    XLS_ASSIGN_OR_RETURN(double op_area,
+                         area_estimator.GetOperationAreaInSquareMicrons(node));
+    total_area += op_area;
+  }
+  std::cout << absl::StrFormat("Total area: %.4f um2\n", total_area);
   return absl::OkStatus();
 }
 
@@ -698,8 +712,9 @@ absl::Status RunInterpreterAndJit(FunctionBase* function_base,
 
 absl::Status AnalyzeAndPrintCriticalPath(
     FunctionBase* f, std::optional<int64_t> effective_clock_period_ps,
-    const DelayEstimator& delay_estimator, const QueryEngine& query_engine,
-    PackageSchedule* package_schedule, synthesis::Synthesizer* synthesizer) {
+    const DelayEstimator& delay_estimator, const AreaEstimator* area_estimator,
+    const QueryEngine& query_engine, PackageSchedule* package_schedule,
+    synthesis::Synthesizer* synthesizer) {
   XLS_ASSIGN_OR_RETURN(
       std::vector<CriticalPathEntry> critical_path,
       AnalyzeCriticalPath(f, effective_clock_period_ps, delay_estimator));
@@ -721,6 +736,9 @@ absl::Status AnalyzeAndPrintCriticalPath(
   }
   XLS_RETURN_IF_ERROR(PrintCriticalPath(f, query_engine, delay_diff));
   XLS_RETURN_IF_ERROR(PrintTotalDelay(f, delay_estimator));
+  if (area_estimator != nullptr) {
+    XLS_RETURN_IF_ERROR(PrintTotalArea(f, *area_estimator));
+  }
   return absl::OkStatus();
 }
 
@@ -766,7 +784,13 @@ absl::Status RealMain(std::string_view path) {
           : std::make_optional(split_next_value_selects);
   pass_options.use_context_narrowing_analysis =
       absl::GetFlag(FLAGS_use_context_narrowing_analysis);
-  pass_options.delay_model = scheduling_options_flags_proto.delay_model();
+  XLS_ASSIGN_OR_RETURN(pass_options.area_estimator,
+                       GetAreaEstimator(absl::GetFlag(FLAGS_area_model)));
+  if (!scheduling_options_flags_proto.delay_model().empty()) {
+    XLS_ASSIGN_OR_RETURN(
+        pass_options.delay_estimator,
+        GetDelayEstimator(scheduling_options_flags_proto.delay_model()));
+  }
   XLS_RETURN_IF_ERROR(
       RunOptimizationAndPrintStats(package.get(), pass_options));
 
@@ -789,15 +813,9 @@ absl::Status RealMain(std::string_view path) {
               100;
     }
   }
-  const DelayEstimator* pdelay_estimator;
-  if (!delay_model_flag_passed) {
-    pdelay_estimator = &GetStandardDelayEstimator();
-  } else {
-    XLS_ASSIGN_OR_RETURN(
-        pdelay_estimator,
-        GetDelayEstimator(scheduling_options_flags_proto.delay_model()));
-  }
-  const auto& delay_estimator = *pdelay_estimator;
+  const DelayEstimator& defaulted_delay_estimator =
+      pass_options.delay_estimator ? *pass_options.delay_estimator
+                                   : GetStandardDelayEstimator();
   std::unique_ptr<synthesis::Synthesizer> synthesizer;
   if (absl::GetFlag(FLAGS_compare_delay_to_synthesis)) {
     synthesis::GrpcSynthesizerParameters parameters(
@@ -815,7 +833,8 @@ absl::Status RealMain(std::string_view path) {
       scheduling_options_flags_proto.pipeline_stages() > 0;
   if (!f->IsProc() && !benchmark_codegen) {
     XLS_RETURN_IF_ERROR(AnalyzeAndPrintCriticalPath(
-        f, effective_clock_period_ps, delay_estimator, query_engine,
+        f, effective_clock_period_ps, defaulted_delay_estimator,
+        pass_options.area_estimator, query_engine,
         /*package_schedule=*/nullptr, synthesizer.get()));
   } else if (benchmark_codegen) {
     PackageSchedule package_schedule(package.get());
@@ -823,9 +842,9 @@ absl::Status RealMain(std::string_view path) {
       XLS_ASSIGN_OR_RETURN(SchedulingOptions scheduling_options,
                            SetUpSchedulingOptions(
                                scheduling_options_flags_proto, package.get()));
-      XLS_ASSIGN_OR_RETURN(
-          SchedulingResult scheduling_result,
-          Schedule(package.get(), scheduling_options, &delay_estimator));
+      XLS_ASSIGN_OR_RETURN(SchedulingResult scheduling_result,
+                           Schedule(package.get(), scheduling_options,
+                                    &defaulted_delay_estimator));
       XLS_ASSIGN_OR_RETURN(
           package_schedule,
           PackageSchedule::FromProto(package.get(),
@@ -835,11 +854,12 @@ absl::Status RealMain(std::string_view path) {
           PassPipelineDuration(scheduling_result.pass_pipeline_metrics) /
               absl::Milliseconds(1));
       XLS_RETURN_IF_ERROR(AnalyzeAndPrintCriticalPath(
-          f, effective_clock_period_ps, delay_estimator, query_engine,
-          &package_schedule, synthesizer.get()));
+          f, effective_clock_period_ps, defaulted_delay_estimator,
+          pass_options.area_estimator, query_engine, &package_schedule,
+          synthesizer.get()));
 
       XLS_RETURN_IF_ERROR(PrintScheduleInfo(
-          f, package_schedule, query_engine, delay_estimator,
+          f, package_schedule, query_engine, defaulted_delay_estimator,
           scheduling_options_flags_proto.has_clock_period_ps()
               ? std::make_optional(
                     scheduling_options_flags_proto.clock_period_ps())
