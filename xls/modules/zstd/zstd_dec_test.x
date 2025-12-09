@@ -46,12 +46,13 @@ const TEST_REGS_N = u32:5;
 const TEST_LOG2_REGS_N = std::clog2(TEST_REGS_N);
 
 const TEST_HB_RAM_N = u32:8;
-const TEST_HB_ADDR_W = sequence_executor::ZSTD_RAM_ADDR_WIDTH;
-const TEST_HB_DATA_W = sequence_executor::RAM_DATA_WIDTH;
-const TEST_HB_NUM_PARTITIONS = sequence_executor::RAM_NUM_PARTITIONS;
+const TEST_HB_ADDR_W = sequence_executor::ZSTD_HB_RAM_ADDR_W;
+const TEST_HB_SINGLE_HB_RAM_ADDR_W = sequence_executor::ZSTD_SINGLE_HB_RAM_ADDR_W;
+const TEST_HB_DATA_W = sequence_executor::ZSTD_AXI_DATA_W;
+const TEST_HB_NUM_PARTITIONS = sequence_executor::ZSTD_HB_RAM_NUM;
 const TEST_HB_SIZE_B = sequence_executor::ZSTD_HISTORY_BUFFER_SIZE_KB as u64 * u64:1024;
-const TEST_HB_RAM_SIZE = sequence_executor::ZSTD_RAM_SIZE as u32;
-const TEST_HB_RAM_WORD_PARTITION_SIZE = sequence_executor::RAM_WORD_PARTITION_SIZE;
+const TEST_HB_RAM_SIZE = sequence_executor::ZSTD_HB_RAM_SIZE_TOTAL as u32;
+const TEST_HB_RAM_WORD_PARTITION_SIZE = sequence_executor::ZSTD_SINGLE_RAM_DATA_W;
 const TEST_HB_RAM_SIMULTANEOUS_READ_WRITE_BEHAVIOR = ram::SimultaneousReadWriteBehavior::READ_BEFORE_WRITE;
 const TEST_HB_RAM_INITIALIZED = true;
 const TEST_HB_RAM_ASSERT_VALID_READ:bool = false;
@@ -174,7 +175,7 @@ proc ZstdDecoderTester<FRAMES: TestFrames, DECOMPRESSED_FRAMES: TestFrames> {
     type MemAxiW = axi::AxiW<TEST_AXI_DATA_W, TEST_AXI_DATA_W_DIV8>;
     type MemAxiB = axi::AxiB<TEST_AXI_ID_W>;
 
-    type RWRamReq = ram::RWRamReq<TEST_HB_ADDR_W, TEST_HB_RAM_WORD_PARTITION_SIZE>;
+    type RWRamReq = ram::RWRamReq<TEST_HB_SINGLE_HB_RAM_ADDR_W, TEST_HB_RAM_WORD_PARTITION_SIZE>;
     type RWRamResp = ram::RWRamResp<TEST_HB_RAM_WORD_PARTITION_SIZE>;
 
     type RamRdReq = ram::ReadReq<TEST_RAM_ADDR_W, TEST_RAM_NUM_PARTITIONS>;
@@ -609,6 +610,9 @@ proc ZstdDecoderTester<FRAMES: TestFrames, DECOMPRESSED_FRAMES: TestFrames> {
             TEST_HUFFMAN_WEIGHTS_FSE_RAM_ADDR_W, TEST_HUFFMAN_WEIGHTS_FSE_RAM_DATA_W, TEST_HUFFMAN_WEIGHTS_FSE_RAM_NUM_PARTITIONS,
 
             HISTORY_BUFFER_SIZE_KB, AXI_CHAN_N, TEST_FSE_MAX_ACCURACY_LOG,
+
+            TEST_HB_SINGLE_HB_RAM_ADDR_W,
+            TEST_HB_RAM_WORD_PARTITION_SIZE,
         >(
             csr_axi_aw_r, csr_axi_w_r, csr_axi_b_s, csr_axi_ar_r, csr_axi_r_s,
             fh_axi_ar_s, fh_axi_r_r,
@@ -658,7 +662,7 @@ proc ZstdDecoderTester<FRAMES: TestFrames, DECOMPRESSED_FRAMES: TestFrames> {
             spawn ram::RamModel2RW<
                 TEST_HB_RAM_WORD_PARTITION_SIZE, TEST_HB_RAM_SIZE,
                 TEST_HB_RAM_WORD_PARTITION_SIZE, TEST_HB_RAM_SIMULTANEOUS_READ_WRITE_BEHAVIOR,
-                TEST_HB_ADDR_W, TEST_HB_NUM_PARTITIONS
+                TEST_HB_SINGLE_HB_RAM_ADDR_W, TEST_HB_NUM_PARTITIONS
             >(
                 hb_ram_rd_req_r_0[i], hb_ram_rd_resp_s_0[i], hb_ram_wr_comp_s_0[i],
                 hb_ram_rd_req_r_1[i], hb_ram_rd_resp_s_1[i], hb_ram_wr_comp_s_1[i]

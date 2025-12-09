@@ -15,22 +15,17 @@
 import std;
 import xls.modules.zstd.common as common;
 import xls.modules.zstd.memory.mem_writer as mem_writer;
-import xls.modules.zstd.parallel_rams as parallel_rams;
 import xls.modules.zstd.sequence_executor.join_output as join_output;
 import xls.modules.zstd.sequence_executor.literals_executor as literals_executor;
 import xls.modules.zstd.sequence_executor.history_copy_executor as history_copy_executor;
 
-// Configurable RAM parameters
-pub const RAM_DATA_WIDTH = common::SYMBOL_WIDTH;
-const RAM_NUM = u32:8;
-
 type Offset = common::Offset;
-type SequenceExecutorPacket = common::SequenceExecutorPacket<RAM_DATA_WIDTH>;
+type SequenceExecutorPacket = common::SequenceExecutorPacket<common::AXI_DATA_BYTES_W>;
 type SequenceExecutorMessageType = common::SequenceExecutorMessageType;
 type JoinOutputReq = join_output::JoinOutputReq;
 
 struct SequenceExecutorPacketSimple {
-    literals: uN[64],
+    literals: uN[common::AXI_DATA_W],
     length: uN[64],
     last: bool, 
 }
@@ -46,13 +41,13 @@ fn seq_exec_packet_as_simple(packet: SequenceExecutorPacket) -> SequenceExecutor
     if packet.msg_type == SequenceExecutorMessageType::LITERAL {
         SequenceExecutorPacketSimple {
             length: packet.length as u64,
-            literals: packet.content as u64,
+            literals: packet.content as uN[common::AXI_DATA_W],
             last: packet.last,
         }
     } else {
         SequenceExecutorPacketSimple {
             length: u64:0,
-            literals: u64:0,
+            literals: uN[common::AXI_DATA_W]:0,
             last: packet.last,
         }
     }
@@ -123,11 +118,13 @@ pub fn handle_repeated_offset_for_sequences<RAM_DATA_WIDTH: u32 = {u32:8}>
 
 pub proc SequenceExecutorCtrl<
     HISTORY_BUFFER_SIZE_KB: u32,
-    RAM_ADDR_WIDTH: u32 = {parallel_rams::ram_addr_width(HISTORY_BUFFER_SIZE_KB)},
+    RAM_DATA_WIDTH: u32,
+    RAM_ADDR_WIDTH: u32,
+    RAM_SIZE_TOTAL: u64,
+    RAM_NUM: u32,
+    RAM_DATA_WIDTH_BYTES: u32 = {RAM_DATA_WIDTH / u32:8},
     INIT_HB_PTR_ADDR: u32 = {u32:0},
-    INIT_HB_LENGTH: u32 = {u32:0},
-    RAM_SIZE: u32 = {parallel_rams::ram_size(HISTORY_BUFFER_SIZE_KB)},
-    RAM_SIZE_TOTAL: u32 = {RAM_SIZE * RAM_NUM}>
+    INIT_HB_LENGTH: u64 = {u64:0}>
 {
     type SequenceExecutorState = SequenceExecutorState<RAM_ADDR_WIDTH>;
     type LiteralsExecutorReq = literals_executor::LiteralsExecutorReq;
@@ -226,7 +223,7 @@ pub proc SequenceExecutorCtrl<
         // Send request to history copy executor only if there are history copies to handle
         let history_copy_req_valid = as_comp_packet.ml != u16:0 && is_comp_packet;
         let history_copy_executor_req = HistoryCopyExecutorReq {
-            max_possible_read: std::min(as_comp_packet.of as u32, RAM_DATA_WIDTH),
+            max_possible_read: std::min(as_comp_packet.of as u32, RAM_DATA_WIDTH / u32:8),
             match_length: as_comp_packet.ml,
             source_addr: history_copy_source_addr as uN[RAM_ADDR_WIDTH],
             dest_addr: history_copy_dest_addr as uN[RAM_ADDR_WIDTH],

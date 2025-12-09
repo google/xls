@@ -16,7 +16,13 @@ import std;
 import xls.examples.ram;
 import xls.modules.zstd.shift_buffer;
 
-pub const DATA_WIDTH = u32:64;
+pub const AXI_DATA_W = u32:64;
+pub const AXI_ADDR_W = u32:32;
+pub const AXI_DATA_BYTES_W = AXI_DATA_W / u32:8;
+
+pub const SYMBOLS_IN_PACKET = AXI_DATA_W / u32:8;
+
+pub const DATA_WIDTH = AXI_DATA_W;
 pub const MAX_ID = u32::MAX;
 pub const SYMBOL_WIDTH = u32:8;
 pub const BLOCK_SIZE_WIDTH = u32:21;
@@ -33,7 +39,6 @@ pub const BUFFER_WIDTH = u32:128;
 pub const MAX_BLOCK_SIZE_KB = u32:64;
 
 pub const BLOCK_PACKET_WIDTH = u32:32;
-pub const SYMBOLS_IN_PACKET = DATA_WIDTH/SYMBOL_WIDTH;
 
 pub type BlockData = bits[DATA_WIDTH];
 pub type BlockPacketLength = bits[BLOCK_PACKET_WIDTH];
@@ -41,6 +46,7 @@ pub type BlockSize = bits[BLOCK_SIZE_WIDTH];
 pub type CopyOrMatchContent = BlockData;
 pub type CopyOrMatchLength = u64;
 pub type Offset = bits[OFFSET_WIDTH];
+pub type RefillingSBLength = uN[std::clog2(AXI_DATA_W) + u32:1];
 
 pub enum BlockType : u2 {
     RAW = 0,
@@ -253,7 +259,8 @@ pub type SeqDecShiftBufferStatus = shift_buffer::ShiftBufferStatus;
 
 pub const RLE_LITERALS_DATA_WIDTH = u32:8;
 pub const RLE_LITERALS_REPEAT_WIDTH = u32:20;
-pub const LITERALS_DATA_WIDTH = u32:64;
+pub const LITERALS_IN_PACKET = AXI_DATA_W / u32:8;
+pub const LITERALS_DATA_WIDTH = LITERALS_IN_PACKET * u32:8;
 pub const LITERALS_LENGTH_WIDTH = std::clog2(
     std::ceil_div(LITERALS_DATA_WIDTH, RLE_LITERALS_DATA_WIDTH) + u32:1
 );

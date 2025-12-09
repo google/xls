@@ -16,14 +16,15 @@ import std;
 import xls.modules.zstd.common as common;
 
 type LiteralsBufCtrl = common::LiteralsBufferCtrl;
-type SequenceExecutorPacket = common::SequenceExecutorPacket<common::SYMBOL_WIDTH>;
 
 struct PrefetchState {
     sent: u32,
     to_send: u32,
 }
 
-pub proc LiteralsPrefetch<AXI_DATA_W: u32> {
+pub proc LiteralsPrefetch<AXI_DATA_W: u32, AXI_DATA_W_BYTES: u32 = {AXI_DATA_W / u32:8}> {
+    type SequenceExecutorPacket = common::SequenceExecutorPacket<AXI_DATA_W_BYTES>;
+
     lit_buf_ctrl_r: chan<LiteralsBufCtrl> in;
     lit_buf_ctrl_s: chan<LiteralsBufCtrl> out;
     lit_buf_out_r: chan<SequenceExecutorPacket> in;
@@ -87,9 +88,12 @@ pub proc LiteralsPrefetch<AXI_DATA_W: u32> {
 }
 
 const TEST_DATA_W = u32:64;
+const TEST_DATA_W_BYTES = TEST_DATA_W / u32:8;
 
 #[test_proc]
 proc LiteralsPrefetchTest {
+    type SequenceExecutorPacket = common::SequenceExecutorPacket<TEST_DATA_W_BYTES>;
+
     lit_buf_ctrl0_s: chan<LiteralsBufCtrl> out;
     lit_buf_ctrl1_r: chan<LiteralsBufCtrl> in;
     lit_buf_out0_s: chan<SequenceExecutorPacket> out;
@@ -130,7 +134,7 @@ proc LiteralsPrefetchTest {
         let tok = send(tok, lit_buf_out0_s, SequenceExecutorPacket {
             msg_type: common::SequenceExecutorMessageType::LITERAL,
             length: common::CopyOrMatchLength:1,
-            content: u64:0x88,
+            content: uN[TEST_DATA_W]:0x88,
             last: true
         });
 
@@ -138,7 +142,7 @@ proc LiteralsPrefetchTest {
         let (tok, data) = recv(tok, lit_buf_out1_r);
         assert_eq(data.msg_type, common::SequenceExecutorMessageType::LITERAL);
         assert_eq(data.length, common::CopyOrMatchLength:1);
-        assert_eq(data.content, u64:0x88);
+        assert_eq(data.content, uN[TEST_DATA_W]:0x88);
 
         // Let's request more (17 literals).
         let tok = send(tok, lit_buf_ctrl0_s, LiteralsBufCtrl {
@@ -155,19 +159,19 @@ proc LiteralsPrefetchTest {
         let tok_feed = send(tok, lit_buf_out0_s, SequenceExecutorPacket {
             msg_type: common::SequenceExecutorMessageType::LITERAL,
             length: common::CopyOrMatchLength:8,
-            content: u64:0xffeeddccbbaafefd,
+            content: uN[TEST_DATA_W]:0xffeeddccbbaafefd,
             last: false
         });
         let tok_feed = send(tok_feed, lit_buf_out0_s, SequenceExecutorPacket {
             msg_type: common::SequenceExecutorMessageType::LITERAL,
             length: common::CopyOrMatchLength:8,
-            content: u64:0x0102030405060708,
+            content: uN[TEST_DATA_W]:0x0102030405060708,
             last: false
         });
         let tok_feed = send(tok_feed, lit_buf_out0_s, SequenceExecutorPacket {
             msg_type: common::SequenceExecutorMessageType::LITERAL,
             length: common::CopyOrMatchLength:1,
-            content: u64:0x08,
+            content: uN[TEST_DATA_W]:0x08,
             last: true
         });
 
@@ -176,18 +180,18 @@ proc LiteralsPrefetchTest {
         assert_eq(data.msg_type, common::SequenceExecutorMessageType::LITERAL);
         assert_eq(data.length, common::CopyOrMatchLength:8);
         // it must first send the literals that were prefetched eariler
-        assert_eq(data.content, u64:0xffeeddccbbaafefd);
+        assert_eq(data.content, uN[TEST_DATA_W]:0xffeeddccbbaafefd);
 
         let (tok_recv, data) = recv(tok, lit_buf_out1_r);
         assert_eq(data.msg_type, common::SequenceExecutorMessageType::LITERAL);
         assert_eq(data.length, common::CopyOrMatchLength:8);
-        assert_eq(data.content, u64:0x0102030405060708);
+        assert_eq(data.content, uN[TEST_DATA_W]:0x0102030405060708);
 
         // the last literal
         let (tok_recv, data) = recv(tok, lit_buf_out1_r);
         assert_eq(data.msg_type, common::SequenceExecutorMessageType::LITERAL);
         assert_eq(data.length, common::CopyOrMatchLength:1);
-        assert_eq(data.content, u64:0x08);
+        assert_eq(data.content, uN[TEST_DATA_W]:0x08);
 
         send(tok, terminator, true);
     }

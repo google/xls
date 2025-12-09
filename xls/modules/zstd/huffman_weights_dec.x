@@ -392,7 +392,7 @@ enum HuffmanFseDecoderFSM : u4 {
     FILL_ZEROS = 13,
     SEND_FINISH = 14,
 }
-struct HuffmanFseDecoderState<WEIGHTS_RAM_DATA_W: u32> {
+struct HuffmanFseDecoderState<WEIGHTS_RAM_DATA_W: u32, REFILLING_SB_LENGTH_W: u32> {
     fsm: HuffmanFseDecoderFSM,
     ctrl: HuffmanFseDecoderCtrl,    // decode request
     even: u8,
@@ -404,7 +404,7 @@ struct HuffmanFseDecoderState<WEIGHTS_RAM_DATA_W: u32> {
     even_state: u16,             // analogous to state1 in educational ZSTD decoder
     odd_state: u16,              // analogous to state1 in educational ZSTD decoder
                                  // https://github.com/facebook/zstd/blob/fe34776c207f3f879f386ed4158a38d927ff6d10/doc/educational_decoder/zstd_decompress.c#L2069
-    read_bits_needed: u7,        // how many bits to request from the ShiftBuffer next
+    read_bits_needed: uN[REFILLING_SB_LENGTH_W],        // how many bits to request from the ShiftBuffer next
     sent_buf_ctrl: bool,         // have we sent request to ShiftBuffer in this FSM state already?
     shift_buffer_error: bool,    // sticky flag, asserted if ShiftBuffer returns error in data
                                  // payload, cleared when going to initial state
@@ -434,7 +434,8 @@ pub proc HuffmanFseDecoder<
     type Ctrl = HuffmanFseDecoderCtrl;
     type Finish = HuffmanFseDecoderFinish;
     type Status = HuffmanFseDecoderStatus;
-    type State = HuffmanFseDecoderState<WEIGHTS_RAM_DATA_W>;
+    type State = HuffmanFseDecoderState<WEIGHTS_RAM_DATA_W, REFILLING_SB_LENGTH_W>;
+    type ShiftBufferLength = uN[REFILLING_SB_LENGTH_W];
     type FSM = HuffmanFseDecoderFSM;
 
     type FseRamRdReq = ram::ReadReq<RAM_ADDR_W, RAM_NUM_PARTITIONS>;
@@ -472,6 +473,7 @@ pub proc HuffmanFseDecoder<
         weights_wr_req_s: chan<WeightsRamWrReq> out,
         weights_wr_resp_r: chan<WeightsRamWrResp> in,
     ) {
+        const_assert!(AXI_DATA_W == REFILLING_SB_DATA_W);
         (
             ctrl_r, finish_s,
             rsb_ctrl_s, rsb_data_r,
@@ -538,12 +540,12 @@ pub proc HuffmanFseDecoder<
         let do_send_buf_ctrl = do_read_bits && !state.sent_buf_ctrl && state.stream_len > u16:0;
 
         let read_length = if state.read_bits_needed as u16 > state.stream_len {
-            state.stream_len as u7
+            state.stream_len as ShiftBufferLength
         } else {
-            state.read_bits_needed
+            state.read_bits_needed as ShiftBufferLength
         };
 
-        let state = if state.read_bits_needed > u7:0 {
+        let state = if state.read_bits_needed > ShiftBufferLength:0 {
             HuffmanFseDecoderState {
                 stream_empty: state.read_bits_needed as u16 > state.stream_len,
                 ..state
@@ -555,7 +557,7 @@ pub proc HuffmanFseDecoder<
         } else {};
 
         send_if(tok, rsb_ctrl_s, do_send_buf_ctrl, RefillingSBCtrl {
-            length: read_length,
+            length: read_length as ShiftBufferLength,
         });
 
         let state = if do_send_buf_ctrl {
@@ -615,7 +617,7 @@ pub proc HuffmanFseDecoder<
                     State {
                         fsm: FSM::PADDING,
                         ctrl: ctrl,
-                        read_bits_needed: u7:1,
+                        read_bits_needed: ShiftBufferLength:1,
                         ..state
                     }
                 } else { state }
@@ -629,7 +631,7 @@ pub proc HuffmanFseDecoder<
                     if padding_available {
                         State {
                             fsm: FSM::PADDING,
-                            read_bits_needed: u7:1,
+                            read_bits_needed: ShiftBufferLength:1,
                             padding, ..state
                         }
                     } else {
@@ -637,7 +639,7 @@ pub proc HuffmanFseDecoder<
                         trace_fmt!("[HuffmanFseDecoder] padding is: {:#x}", padding);
                         State {
                             fsm: FSM::INIT_EVEN_STATE,
-                            read_bits_needed: state.ctrl.acc_log as u7,
+                            read_bits_needed: state.ctrl.acc_log as ShiftBufferLength,
                             ..state
                         }
                     }
@@ -649,7 +651,7 @@ pub proc HuffmanFseDecoder<
                     State {
                         fsm: FSM::INIT_ODD_STATE,
                         even_state: buf_data.data as u16,
-                        read_bits_needed: state.ctrl.acc_log as u7,
+                        read_bits_needed: state.ctrl.acc_log as ShiftBufferLength,
                         ..state
                     }
                 } else { state }
@@ -660,7 +662,7 @@ pub proc HuffmanFseDecoder<
                     State {
                         fsm: FSM::SEND_RAM_EVEN_RD_REQ,
                         odd_state: buf_data.data as u16,
-                        read_bits_needed: u7:0,
+                        read_bits_needed: ShiftBufferLength:0,
                         ..state
                     }
                 } else { state }
@@ -742,7 +744,7 @@ pub proc HuffmanFseDecoder<
                             fsm: FSM::UPDATE_EVEN_STATE,
                             odd: state.odd_table_record.symbol,
                             weights_pow_of_two_sum: state.weights_pow_of_two_sum + pow,
-                            read_bits_needed: state.even_table_record.num_of_bits as u7,
+                            read_bits_needed: state.even_table_record.num_of_bits as ShiftBufferLength,
                             ..state
                         }
                     }
@@ -754,7 +756,7 @@ pub proc HuffmanFseDecoder<
                     State {
                         fsm: FSM::SEND_WEIGHT,
                         even_state: state.even_table_record.base + buf_data.data as u16,
-                        read_bits_needed: state.odd_table_record.num_of_bits as u7,
+                        read_bits_needed: state.odd_table_record.num_of_bits as ShiftBufferLength,
                         last_weight_is_odd: false,
                         ..state
                     }
@@ -763,7 +765,7 @@ pub proc HuffmanFseDecoder<
                     State {
                         fsm: FSM::UPDATE_ODD_STATE,
                         even_state: state.even_table_record.base + buf_data.data as u16,
-                        read_bits_needed: state.odd_table_record.num_of_bits as u7,
+                        read_bits_needed: state.odd_table_record.num_of_bits as ShiftBufferLength,
                         ..state
                     }
                 } else { state }
@@ -774,7 +776,7 @@ pub proc HuffmanFseDecoder<
                     State {
                         fsm: FSM::SEND_WEIGHT,
                         odd_state: state.odd_table_record.base + buf_data.data as u16,
-                        read_bits_needed: u7:0,
+                        read_bits_needed: ShiftBufferLength:0,
                         last_weight_is_odd: true,
                         ..state
                     }
@@ -783,7 +785,7 @@ pub proc HuffmanFseDecoder<
                     State {
                         fsm: FSM::SEND_WEIGHT,
                         odd_state: state.odd_table_record.base + buf_data.data as u16,
-                        read_bits_needed: u7:0,
+                        read_bits_needed: ShiftBufferLength:0,
                         ..state
                     }
                 } else { state }
@@ -1625,7 +1627,7 @@ const TEST_AXI_ID_W = u32:8;
 const TEST_RAM_DATA_W = TEST_AXI_DATA_W;
 const TEST_RAM_SIZE = u32:1024;
 const TEST_RAM_ADDR_W = TEST_AXI_ADDR_W;
-const TEST_RAM_PARTITION_SIZE = TEST_RAM_DATA_W / u32:8;
+const TEST_RAM_PARTITION_SIZE = u32:8;
 const TEST_RAM_NUM_PARTITIONS = ram::num_partitions(TEST_RAM_PARTITION_SIZE, TEST_RAM_DATA_W);
 const TEST_RAM_SIMULTANEOUS_RW_BEHAVIOR = ram::SimultaneousReadWriteBehavior::READ_BEFORE_WRITE;
 const TEST_RAM_INITIALIZED = true;

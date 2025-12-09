@@ -28,8 +28,6 @@ import xls.modules.zstd.raw_literals_dec as raw_literals_dec;
 import xls.modules.zstd.rle_literals_dec as rle_literals_dec;
 import xls.modules.zstd.huffman_literals_dec as huffman_literals_dec;
 
-type CopyOrMatchContent = common::CopyOrMatchContent;
-type CopyOrMatchLength = common::CopyOrMatchLength;
 type LitData = common::LitData;
 type LitLength = common::LitLength;
 type LiteralsBlockType = literals_block_header_dec::LiteralsBlockType;
@@ -38,7 +36,9 @@ type LiteralsData = common::LiteralsData;
 type LiteralsDataWithSync = common::LiteralsDataWithSync;
 type LiteralsPathCtrl = common::LiteralsPathCtrl;
 type SequenceExecutorMessageType = common::SequenceExecutorMessageType;
-type SequenceExecutorPacket = common::SequenceExecutorPacket<common::SYMBOL_WIDTH>;
+type SequenceExecutorPacket = common::SequenceExecutorPacket<common::LITERALS_IN_PACKET>;
+type CopyOrMatchContent = uN[common::LITERALS_IN_PACKET * u32:8];
+type CopyOrMatchLength = common::CopyOrMatchLength;
 type Streams = common::Streams;
 
 pub struct LiteralsDecoderCtrlReq<AXI_ADDR_W: u32> {
@@ -644,7 +644,7 @@ pub proc LiteralsDecoder<
     type CtrlReq = LiteralsDecoderCtrlReq<AXI_ADDR_W>;
     type CtrlResp = LiteralsDecoderCtrlResp;
     type BufferCtrl = common::LiteralsBufferCtrl;
-    type BufferOut = common::SequenceExecutorPacket<common::SYMBOL_WIDTH>;
+    type BufferOut = common::SequenceExecutorPacket<common::LITERALS_IN_PACKET>;
 
     type HuffmanWeightsReadReq    = ram::ReadReq<HUFFMAN_WEIGHTS_RAM_ADDR_WIDTH, HUFFMAN_WEIGHTS_RAM_NUM_PARTITIONS>;
     type HuffmanWeightsReadResp   = ram::ReadResp<HUFFMAN_WEIGHTS_RAM_DATA_WIDTH>;
@@ -719,38 +719,10 @@ pub proc LiteralsDecoder<
         lit_buf_out_s: chan<BufferOut> out,
 
         // Internal memory
-        rd_req_m0_s: chan<ReadReq> out,
-        rd_req_m1_s: chan<ReadReq> out,
-        rd_req_m2_s: chan<ReadReq> out,
-        rd_req_m3_s: chan<ReadReq> out,
-        rd_req_m4_s: chan<ReadReq> out,
-        rd_req_m5_s: chan<ReadReq> out,
-        rd_req_m6_s: chan<ReadReq> out,
-        rd_req_m7_s: chan<ReadReq> out,
-        rd_resp_m0_r: chan<ReadResp> in,
-        rd_resp_m1_r: chan<ReadResp> in,
-        rd_resp_m2_r: chan<ReadResp> in,
-        rd_resp_m3_r: chan<ReadResp> in,
-        rd_resp_m4_r: chan<ReadResp> in,
-        rd_resp_m5_r: chan<ReadResp> in,
-        rd_resp_m6_r: chan<ReadResp> in,
-        rd_resp_m7_r: chan<ReadResp> in,
-        wr_req_m0_s: chan<WriteReq> out,
-        wr_req_m1_s: chan<WriteReq> out,
-        wr_req_m2_s: chan<WriteReq> out,
-        wr_req_m3_s: chan<WriteReq> out,
-        wr_req_m4_s: chan<WriteReq> out,
-        wr_req_m5_s: chan<WriteReq> out,
-        wr_req_m6_s: chan<WriteReq> out,
-        wr_req_m7_s: chan<WriteReq> out,
-        wr_resp_m0_r: chan<WriteResp> in,
-        wr_resp_m1_r: chan<WriteResp> in,
-        wr_resp_m2_r: chan<WriteResp> in,
-        wr_resp_m3_r: chan<WriteResp> in,
-        wr_resp_m4_r: chan<WriteResp> in,
-        wr_resp_m5_r: chan<WriteResp> in,
-        wr_resp_m6_r: chan<WriteResp> in,
-        wr_resp_m7_r: chan<WriteResp> in,
+        rd_req_m_s: chan<ReadReq>[common::LITERALS_IN_PACKET] out,
+        rd_resp_m_r: chan<ReadResp>[common::LITERALS_IN_PACKET] in,
+        wr_req_m_s: chan<WriteReq>[common::LITERALS_IN_PACKET] out,
+        wr_resp_m_r: chan<WriteResp>[common::LITERALS_IN_PACKET] in,
 
         // Huffman weights memory
         huffman_lit_weights_mem_rd_req_s: chan<HuffmanWeightsReadReq> out,
@@ -882,14 +854,7 @@ pub proc LiteralsDecoder<
         > (
             raw_lit_output_r, rle_lit_output_r, huffman_lit_output_r,
             lit_buf_ctrl_r, lit_buf_out_s,
-            rd_req_m0_s, rd_req_m1_s, rd_req_m2_s, rd_req_m3_s,
-            rd_req_m4_s, rd_req_m5_s, rd_req_m6_s, rd_req_m7_s,
-            rd_resp_m0_r, rd_resp_m1_r, rd_resp_m2_r, rd_resp_m3_r,
-            rd_resp_m4_r, rd_resp_m5_r, rd_resp_m6_r, rd_resp_m7_r,
-            wr_req_m0_s, wr_req_m1_s, wr_req_m2_s, wr_req_m3_s,
-            wr_req_m4_s, wr_req_m5_s, wr_req_m6_s, wr_req_m7_s,
-            wr_resp_m0_r, wr_resp_m1_r, wr_resp_m2_r, wr_resp_m3_r,
-            wr_resp_m4_r, wr_resp_m5_r, wr_resp_m6_r, wr_resp_m7_r,
+            rd_req_m_s, rd_resp_m_r, wr_req_m_s, wr_resp_m_r,
         );
 
         spawn LiteralsDecoderCtrl<AXI_ADDR_W> (
@@ -964,7 +929,7 @@ proc LiteralsDecoderInst {
     type CtrlReq = LiteralsDecoderCtrlReq<INST_AXI_ADDR_W>;
     type CtrlResp = LiteralsDecoderCtrlResp;
     type BufferCtrl = common::LiteralsBufferCtrl;
-    type BufferOut = common::SequenceExecutorPacket<common::SYMBOL_WIDTH>;
+    type BufferOut = common::SequenceExecutorPacket<common::LITERALS_IN_PACKET>;
 
     type HuffmanWeightsReadReq    = ram::ReadReq<INST_HUFFMAN_WEIGHTS_RAM_ADDR_WIDTH, INST_HUFFMAN_WEIGHTS_RAM_NUM_PARTITIONS>;
     type HuffmanWeightsReadResp   = ram::ReadResp<INST_HUFFMAN_WEIGHTS_RAM_DATA_WIDTH>;
@@ -1039,38 +1004,10 @@ proc LiteralsDecoderInst {
         lit_buf_out_s: chan<BufferOut> out,
 
         // Internal memory
-        rd_req_m0_s: chan<ReadReq> out,
-        rd_req_m1_s: chan<ReadReq> out,
-        rd_req_m2_s: chan<ReadReq> out,
-        rd_req_m3_s: chan<ReadReq> out,
-        rd_req_m4_s: chan<ReadReq> out,
-        rd_req_m5_s: chan<ReadReq> out,
-        rd_req_m6_s: chan<ReadReq> out,
-        rd_req_m7_s: chan<ReadReq> out,
-        rd_resp_m0_r: chan<ReadResp> in,
-        rd_resp_m1_r: chan<ReadResp> in,
-        rd_resp_m2_r: chan<ReadResp> in,
-        rd_resp_m3_r: chan<ReadResp> in,
-        rd_resp_m4_r: chan<ReadResp> in,
-        rd_resp_m5_r: chan<ReadResp> in,
-        rd_resp_m6_r: chan<ReadResp> in,
-        rd_resp_m7_r: chan<ReadResp> in,
-        wr_req_m0_s: chan<WriteReq> out,
-        wr_req_m1_s: chan<WriteReq> out,
-        wr_req_m2_s: chan<WriteReq> out,
-        wr_req_m3_s: chan<WriteReq> out,
-        wr_req_m4_s: chan<WriteReq> out,
-        wr_req_m5_s: chan<WriteReq> out,
-        wr_req_m6_s: chan<WriteReq> out,
-        wr_req_m7_s: chan<WriteReq> out,
-        wr_resp_m0_r: chan<WriteResp> in,
-        wr_resp_m1_r: chan<WriteResp> in,
-        wr_resp_m2_r: chan<WriteResp> in,
-        wr_resp_m3_r: chan<WriteResp> in,
-        wr_resp_m4_r: chan<WriteResp> in,
-        wr_resp_m5_r: chan<WriteResp> in,
-        wr_resp_m6_r: chan<WriteResp> in,
-        wr_resp_m7_r: chan<WriteResp> in,
+        rd_req_m_s: chan<ReadReq>[literals_buffer::RAM_NUM] out,
+        rd_resp_m_r: chan<ReadResp>[literals_buffer::RAM_NUM] in,
+        wr_req_m_s: chan<WriteReq>[literals_buffer::RAM_NUM] out,
+        wr_resp_m_r: chan<WriteResp>[literals_buffer::RAM_NUM] in,
 
         // Huffman weights memory
         huffman_lit_weights_mem_rd_req_s: chan<HuffmanWeightsReadReq> out,
@@ -1134,14 +1071,8 @@ proc LiteralsDecoderInst {
             // Literals Decoder output control
             lit_buf_ctrl_r, lit_buf_out_s,
             // Internal memory
-            rd_req_m0_s, rd_req_m1_s, rd_req_m2_s, rd_req_m3_s,
-            rd_req_m4_s, rd_req_m5_s, rd_req_m6_s, rd_req_m7_s,
-            rd_resp_m0_r, rd_resp_m1_r, rd_resp_m2_r, rd_resp_m3_r,
-            rd_resp_m4_r, rd_resp_m5_r, rd_resp_m6_r, rd_resp_m7_r,
-            wr_req_m0_s, wr_req_m1_s, wr_req_m2_s, wr_req_m3_s,
-            wr_req_m4_s, wr_req_m5_s, wr_req_m6_s, wr_req_m7_s,
-            wr_resp_m0_r, wr_resp_m1_r, wr_resp_m2_r, wr_resp_m3_r,
-            wr_resp_m4_r, wr_resp_m5_r, wr_resp_m6_r, wr_resp_m7_r,
+            rd_req_m_s, rd_resp_m_r,
+            wr_req_m_s, wr_resp_m_r,
             // Huffman weights memory
             huffman_lit_weights_mem_rd_req_s, huffman_lit_weights_mem_rd_resp_r,
             huffman_lit_weights_mem_wr_req_s, huffman_lit_weights_mem_wr_resp_r,
@@ -1194,7 +1125,7 @@ const TEST_AXI_RAM_MODEL_NUM = u32:1;
 const TEST_LITERALS_BUFFER_RAM_MODEL_DATA_WIDTH:u32 = literals_buffer::RAM_DATA_WIDTH;
 const TEST_LITERALS_BUFFER_RAM_MODEL_SIZE:u32 = parallel_rams::ram_size(TEST_HISTORY_BUFFER_SIZE_KB);
 const TEST_LITERALS_BUFFER_RAM_MODEL_ADDR_WIDTH:u32 = parallel_rams::ram_addr_width(TEST_HISTORY_BUFFER_SIZE_KB);
-const TEST_LITERALS_BUFFER_RAM_MODEL_WORD_PARTITION_SIZE:u32 = literals_buffer::RAM_WORD_PARTITION_SIZE;
+const TEST_LITERALS_BUFFER_RAM_MODEL_WORD_PARTITION_SIZE:u32 = TEST_LITERALS_BUFFER_RAM_MODEL_DATA_WIDTH;
 const TEST_LITERALS_BUFFER_RAM_MODEL_NUM_PARTITIONS:u32 = literals_buffer::RAM_NUM_PARTITIONS;
 const TEST_LITERALS_BUFFER_RAM_MODEL_SIMULTANEOUS_READ_WRITE_BEHAVIOR = ram::SimultaneousReadWriteBehavior::READ_BEFORE_WRITE;
 const TEST_LITERALS_BUFFER_RAM_MODEL_INITIALIZED = true;
@@ -1316,7 +1247,7 @@ proc LiteralsDecoder_test {
     type CtrlResp = LiteralsDecoderCtrlResp;
     type CtrlStatus = LiteralsDecoderCtrlStatus;
     type BufferCtrl = common::LiteralsBufferCtrl;
-    type BufferOut = common::SequenceExecutorPacket<common::SYMBOL_WIDTH>;
+    type BufferOut = common::SequenceExecutorPacket<common::LITERALS_IN_PACKET>;
 
     type AxiRamData = uN[TEST_AXI_RAM_MODEL_DATA_WIDTH];
     type AxiRamAddr = uN[TEST_AXI_RAM_MODEL_ADDR_WIDTH];
@@ -1441,14 +1372,7 @@ proc LiteralsDecoder_test {
             huffman_weights_fse_decoder_dec_axi_ar_s, huffman_weights_fse_decoder_dec_axi_r_r,
             ctrl_req_r, ctrl_resp_s, ctrl_header_s,
             buf_ctrl_r, buf_out_s,
-            ram_rd_req_s[0], ram_rd_req_s[1], ram_rd_req_s[2], ram_rd_req_s[3],
-            ram_rd_req_s[4], ram_rd_req_s[5], ram_rd_req_s[6], ram_rd_req_s[7],
-            ram_rd_resp_r[0], ram_rd_resp_r[1], ram_rd_resp_r[2], ram_rd_resp_r[3],
-            ram_rd_resp_r[4], ram_rd_resp_r[5], ram_rd_resp_r[6], ram_rd_resp_r[7],
-            ram_wr_req_s[0], ram_wr_req_s[1], ram_wr_req_s[2], ram_wr_req_s[3],
-            ram_wr_req_s[4], ram_wr_req_s[5], ram_wr_req_s[6], ram_wr_req_s[7],
-            ram_wr_resp_r[0], ram_wr_resp_r[1], ram_wr_resp_r[2], ram_wr_resp_r[3],
-            ram_wr_resp_r[4], ram_wr_resp_r[5], ram_wr_resp_r[6], ram_wr_resp_r[7],
+            ram_rd_req_s, ram_rd_resp_r, ram_wr_req_s, ram_wr_resp_r,
             huffman_lit_weights_mem_rd_req_s, huffman_lit_weights_mem_rd_resp_r,
             huffman_lit_weights_mem_wr_req_s, huffman_lit_weights_mem_wr_resp_r,
             huffman_lit_prescan_mem_rd_req_s, huffman_lit_prescan_mem_rd_resp_r,

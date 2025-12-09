@@ -36,48 +36,48 @@ pub struct LiteralsExecutorResp {
 
 type LiteralsBufCtrl = common::LiteralsBufferCtrl;
 
-const NUM_PARTITIONS = u32:8;
-const SYMBOL_WIDTH = common::SYMBOL_WIDTH;
-
-type SequenceExecutorPacket = common::SequenceExecutorPacket<common::SYMBOL_WIDTH>;
 type SequenceExecutorMessageType = common::SequenceExecutorMessageType;
 type CopyOrMatchLength = common::CopyOrMatchLength;
 
-fn last_data_mask(literals_len: u16) -> u8 {
-    let remain = (literals_len % u16:8) as u3;
+fn last_data_mask<AXI_DATA_W: u32, AXI_DATA_BYTES_W: u32 = {AXI_DATA_W / u32:8}>(literals_len: u32) -> uN[AXI_DATA_BYTES_W] {
+    let remain = (literals_len % AXI_DATA_BYTES_W) as uN[AXI_DATA_BYTES_W];
     match remain {
-        u3:0 => u8::MAX,
-        _  => (u8:2 << (remain - u3:1)) - u8:1,
+        uN[AXI_DATA_BYTES_W]:0 => std::unsigned_max_value<AXI_DATA_BYTES_W>(),
+        _  => std::unsigned_max_value<AXI_DATA_BYTES_W>() >> (AXI_DATA_BYTES_W - (literals_len as u32 % AXI_DATA_BYTES_W)),
     }
 }
 
+const TEST_AXI_DATA_W = u32:64;
+const TEST_AXI_DATA_BYTES_W = TEST_AXI_DATA_W / u32:8;
+
 #[test]
 fn test_last_data_mask() {
-    assert_eq(last_data_mask(u16:1), u8:0b00000001);
-    assert_eq(last_data_mask(u16:2), u8:0b00000011);
-    assert_eq(last_data_mask(u16:3), u8:0b00000111);
-    assert_eq(last_data_mask(u16:7), u8:0b01111111);
-    assert_eq(last_data_mask(u16:8), u8:0b11111111);
-    assert_eq(last_data_mask(u16:63), u8:0b01111111);
-    assert_eq(last_data_mask(u16:64), u8:0b11111111);
-    assert_eq(last_data_mask(u16:65), u8:0b00000001);
+    assert_eq(last_data_mask<TEST_AXI_DATA_W>(u32:1), uN[TEST_AXI_DATA_BYTES_W]:0b00000001);
+    assert_eq(last_data_mask<TEST_AXI_DATA_W>(u32:2), uN[TEST_AXI_DATA_BYTES_W]:0b00000011);
+    assert_eq(last_data_mask<TEST_AXI_DATA_W>(u32:3), uN[TEST_AXI_DATA_BYTES_W]:0b00000111);
+    assert_eq(last_data_mask<TEST_AXI_DATA_W>(u32:7), uN[TEST_AXI_DATA_BYTES_W]:0b01111111);
+    assert_eq(last_data_mask<TEST_AXI_DATA_W>(u32:8), uN[TEST_AXI_DATA_BYTES_W]:0b11111111);
+    assert_eq(last_data_mask<TEST_AXI_DATA_W>(u32:63), uN[TEST_AXI_DATA_BYTES_W]:0b01111111);
+    assert_eq(last_data_mask<TEST_AXI_DATA_W>(u32:64), uN[TEST_AXI_DATA_BYTES_W]:0b11111111);
+    assert_eq(last_data_mask<TEST_AXI_DATA_W>(u32:65), uN[TEST_AXI_DATA_BYTES_W]:0b00000001);
 }
 
-struct LiteralsExecutorState<ADDR_W: u32> {
+struct LiteralsExecutorState<DATA_BYTES_W: u32, ADDR_W: u32> {
     iter: uN[ADDR_W],
     end_addr: uN[ADDR_W],
-    last_mask: u8
+    last_mask: uN[DATA_BYTES_W]
 }
 
 // Module responsible for fetching data from LiteralsBuffer and writing it to both HistoryBuffer and Output
-pub proc LiteralsExecutor<AXI_DATA_W: u32, AXI_ADDR_W: u32, HB_DATA_W: u32, HB_ADDR_W: u32, HB_NUM_PARTITIONS: u32 = {HB_DATA_W / u32:8}> {
+pub proc LiteralsExecutor<AXI_DATA_W: u32, AXI_ADDR_W: u32, HB_DATA_W: u32, HB_ADDR_W: u32,
+    HB_NUM_PARTITIONS: u32 = {HB_DATA_W / u32:8}, AXI_DATA_BYTES_W: u32 = {AXI_DATA_W / u32:8}> {
     type HistoryBufferReq = history_buffer::HistoryBufferReq<HB_ADDR_W, HB_DATA_W, HB_NUM_PARTITIONS>;
     type HistoryBufferResp = history_buffer::HistoryBufferResp<HB_DATA_W>;
     type HistoryBufferComp = history_buffer::HistoryBufferWrComp;
     type MemWriterDataPacket = mem_writer::MemWriterDataPacket<AXI_DATA_W, AXI_ADDR_W>;
-    type SequenceExecutorPacket = common::SequenceExecutorPacket<SYMBOL_WIDTH>;
+    type SequenceExecutorPacket = common::SequenceExecutorPacket<AXI_DATA_BYTES_W>;
     type Iter = uN[HB_ADDR_W];
-    type State = LiteralsExecutorState<HB_ADDR_W>;
+    type State = LiteralsExecutorState<AXI_DATA_BYTES_W, HB_ADDR_W>;
 
     input_r: chan<LiteralsExecutorReq> in;
     resp_s: chan<LiteralsExecutorResp> out;
@@ -124,7 +124,7 @@ pub proc LiteralsExecutor<AXI_DATA_W: u32, AXI_ADDR_W: u32, HB_DATA_W: u32, HB_A
 
     next(state: State) {
         type Iter = uN[HB_ADDR_W];
-        type State = LiteralsExecutorState<HB_ADDR_W>;
+        type State = LiteralsExecutorState<AXI_DATA_BYTES_W, HB_ADDR_W>;
 
         let tok = join();
 
@@ -137,7 +137,7 @@ pub proc LiteralsExecutor<AXI_DATA_W: u32, AXI_ADDR_W: u32, HB_DATA_W: u32, HB_A
             State {
                 iter: req.start_addr as Iter,
                 end_addr: req.start_addr as Iter + req.literal_length as Iter + req.raw_literals_length as Iter,
-                last_mask: last_data_mask(req.literal_length)
+                last_mask: last_data_mask<AXI_DATA_W>(req.literal_length as u32),
             }
         } else {
             state
@@ -160,7 +160,7 @@ pub proc LiteralsExecutor<AXI_DATA_W: u32, AXI_ADDR_W: u32, HB_DATA_W: u32, HB_A
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::LITERAL,
                 length: req.raw_literals_length as CopyOrMatchLength,
-                content: req.raw_literals as uN[SYMBOL_WIDTH * u32:8],
+                content: req.raw_literals as uN[AXI_DATA_W],
                 last: true,
             }
         } else {
@@ -172,7 +172,7 @@ pub proc LiteralsExecutor<AXI_DATA_W: u32, AXI_ADDR_W: u32, HB_DATA_W: u32, HB_A
         let wr_mask = if last {
             state.last_mask
         } else {
-            u8::MAX
+            std::unsigned_max_value<AXI_DATA_BYTES_W>()
         };
 
         // write data to history buffer
@@ -180,7 +180,7 @@ pub proc LiteralsExecutor<AXI_DATA_W: u32, AXI_ADDR_W: u32, HB_DATA_W: u32, HB_A
             addr: state.iter as uN[HB_ADDR_W],
             data: literals.content as uN[HB_DATA_W],
             write_mask: wr_mask,
-            read_mask: u8:0,
+            read_mask: uN[AXI_DATA_BYTES_W]:0,
         });
         let (tok_hb, _resp, _valid) = recv_if_non_blocking(tok_hb, hb_resp_r, false, zero!<HistoryBufferResp>());
         let (tok_hb, _resp) = recv(tok_hb, hb_comp_r);
@@ -196,11 +196,10 @@ pub proc LiteralsExecutor<AXI_DATA_W: u32, AXI_ADDR_W: u32, HB_DATA_W: u32, HB_A
 
         let tok = join(tok_out, tok_hb);
 
-        if last {
-            let tok = send(tok, resp_s, LiteralsExecutorResp {
-                status: LiteralsExecutorStatus::OK,
-            });
-        } else { };
+        let response = LiteralsExecutorResp {
+            status: LiteralsExecutorStatus::OK,
+        };
+        send_if(tok, resp_s, last, response);
 
         // iterate further
         State {
@@ -210,17 +209,20 @@ pub proc LiteralsExecutor<AXI_DATA_W: u32, AXI_ADDR_W: u32, HB_DATA_W: u32, HB_A
     }
 }
 
-const INST_HB_DATA_W = u32:64;
-const INST_HB_ADDR_W = u32:16;
-const INST_AXI_DATA_W = u32:64;
-const INST_AXI_ADDR_W = u32:16;
-const INST_NUM_PARTITIONS = u32:8;
+const INST_HB_DATA_W = common::AXI_DATA_W;
+const INST_HB_DATA_BYTES_W = common::AXI_DATA_W / u32:8;
+const INST_HB_ADDR_W = u32:32;
+const INST_AXI_DATA_W = common::AXI_DATA_W;
+const INST_AXI_DATA_BYTES_W = common::AXI_DATA_W / u32:8;
+const INST_AXI_ADDR_W = u32:32;
+const INST_NUM_PARTITIONS = INST_HB_DATA_W / u32:8;
 
 proc LiteralsExecutorInst {
     type HistoryBufferReq = history_buffer::HistoryBufferReq<INST_HB_ADDR_W, INST_HB_DATA_W, INST_NUM_PARTITIONS>;
     type HistoryBufferResp = history_buffer::HistoryBufferResp<INST_HB_DATA_W>;
     type HistoryBufferComp = history_buffer::HistoryBufferWrComp;
     type MemWriterDataPacket = mem_writer::MemWriterDataPacket<INST_AXI_DATA_W, INST_AXI_ADDR_W>;
+    type SequenceExecutorPacket = common::SequenceExecutorPacket<INST_AXI_DATA_BYTES_W>;
 
     input_r: chan<LiteralsExecutorReq> in;
     resp_s: chan<LiteralsExecutorResp> out;
@@ -266,6 +268,7 @@ proc LiteralsExecutorTest {
     type HistoryBufferResp = history_buffer::HistoryBufferResp<INST_HB_DATA_W>;
     type HistoryBufferComp = history_buffer::HistoryBufferWrComp;
     type MemWriterDataPacket = mem_writer::MemWriterDataPacket<INST_AXI_DATA_W, INST_AXI_ADDR_W>;
+    type SequenceExecutorPacket = common::SequenceExecutorPacket<INST_AXI_DATA_BYTES_W>;
 
     input_s: chan<LiteralsExecutorReq> out;
     resp_r: chan<LiteralsExecutorResp> in;
@@ -286,7 +289,7 @@ proc LiteralsExecutorTest {
         let (lit_buf_out_s, lit_buf_out_r) = chan<SequenceExecutorPacket>("lit_buf_out");
         let (mem_wr_s, mem_wr_r) = chan<MemWriterDataPacket>("mem_wr");
 
-        spawn LiteralsExecutor<INST_AXI_DATA_W, INST_AXI_ADDR_W, INST_HB_DATA_W, INST_HB_ADDR_W, INST_NUM_PARTITIONS>(
+        spawn LiteralsExecutor<INST_AXI_DATA_W, INST_AXI_ADDR_W, INST_AXI_DATA_W, INST_HB_ADDR_W, INST_NUM_PARTITIONS>(
             input_r,
             resp_s,
             hb_req_s,
@@ -306,7 +309,7 @@ proc LiteralsExecutorTest {
         let tok = join();
         let LITERAL_LENGTH = u16:5;
         let HB_START_ADDR = u32:4;
-        let LITERALS_CONTENT = uN[64]:0xfedc009876;
+        let LITERALS_CONTENT = uN[common::AXI_DATA_W]:0xfedc009876;
 
         let tok = send(tok, input_s, LiteralsExecutorReq {
             literal_length: LITERAL_LENGTH,
@@ -329,17 +332,17 @@ proc LiteralsExecutorTest {
 
         // It must write the literals to HistoryBuffer
         let (tok_hb, hb_req) = recv(tok, hb_req_r);
-        assert_eq(hb_req.write_mask, u8:0b11111);
-        assert_eq(hb_req.data, LITERALS_CONTENT as u64);
-        assert_eq(hb_req.read_mask, u8:0);
+        assert_eq(hb_req.write_mask, uN[INST_HB_DATA_BYTES_W]:0b11111);
+        assert_eq(hb_req.data, LITERALS_CONTENT as uN[INST_AXI_DATA_W]);
+        assert_eq(hb_req.read_mask, uN[INST_HB_DATA_BYTES_W]:0);
         assert_eq(hb_req.addr, HB_START_ADDR as uN[INST_HB_ADDR_W]);
 
         let tok_hb = send(tok_hb, hb_comp_s, ());
 
         // it must write the literals to output
         let (tok_mem, mem_out) = recv(tok, mem_wr_r);
-        assert_eq(mem_out.data, LITERALS_CONTENT as u64);
-        assert_eq(mem_out.length, LITERAL_LENGTH);
+        assert_eq(mem_out.data, LITERALS_CONTENT as uN[INST_AXI_DATA_W]);
+        assert_eq(mem_out.length, LITERAL_LENGTH as u32);
 
         let tok = join(tok_mem, tok_hb, tok);
 
@@ -382,8 +385,8 @@ proc LiteralsExecutorTest {
         // It must write the literals to HistoryBuffer
         let tok_hb = for (i, tok_hb) in u16:0..(LITERAL_LENGTH / u16:8) {
             let (tok_hb, hb_req) = recv(tok_hb, hb_req_r);
-            assert_eq(hb_req.write_mask, u8::MAX);
-            assert_eq(hb_req.read_mask, u8:0);
+            assert_eq(hb_req.write_mask, std::unsigned_max_value<INST_HB_DATA_BYTES_W>());
+            assert_eq(hb_req.read_mask, uN[INST_HB_DATA_BYTES_W]:0);
             // increment by 8 as 8 bytes are written each time.
             assert_eq(hb_req.addr, (HB_START_ADDR + (i as u32) * u32:8) as uN[INST_HB_ADDR_W]);
             let tok_hb = send(tok_hb, hb_comp_s, ());
@@ -391,8 +394,8 @@ proc LiteralsExecutorTest {
         }(tok);
 
         let (tok_hb, hb_req) = recv(tok_hb, hb_req_r);
-        assert_eq(hb_req.write_mask, u8:0b00001111);
-        assert_eq(hb_req.read_mask, u8:0);
+        assert_eq(hb_req.write_mask, uN[INST_HB_DATA_BYTES_W]:0b00001111);
+        assert_eq(hb_req.read_mask, uN[INST_HB_DATA_BYTES_W]:0);
         assert_eq(hb_req.data, uN[INST_HB_DATA_W]:0xdead);
         let tok_hb = send(tok_hb, hb_comp_s, ());
 

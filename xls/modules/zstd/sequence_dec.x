@@ -29,7 +29,8 @@ import xls.modules.zstd.fse_dec;
 import xls.modules.zstd.fse_table_creator;
 
 
-type SequenceExecutorPacket = common::SequenceExecutorPacket<common::SYMBOL_WIDTH>;
+type SequenceExecutorPacket = common::SequenceExecutorPacket<common::SYMBOLS_IN_PACKET>;
+type CopyOrMatchContent = common::CopyOrMatchContent;
 type SequenceExecutorMessageType = common::SequenceExecutorMessageType;
 
 type BlockSyncData = common::BlockSyncData;
@@ -1349,14 +1350,14 @@ pub proc SequenceDecoder<
 }
 
 const TEST_AXI_ADDR_W = u32:32;
-const TEST_AXI_DATA_W = u32:64;
+const TEST_AXI_DATA_W = common::AXI_DATA_W;
 const TEST_AXI_DEST_W = u32:8;
 const TEST_AXI_ID_W = u32:8;
 
 const TEST_INPUT_RAM_DATA_W = TEST_AXI_DATA_W;
 const TEST_INPUT_RAM_SIZE = u32:1024;
 const TEST_INPUT_RAM_ADDR_W = TEST_AXI_ADDR_W;
-const TEST_INPUT_RAM_WORD_PARTITION_SIZE = TEST_INPUT_RAM_DATA_W / u32:8;
+const TEST_INPUT_RAM_WORD_PARTITION_SIZE = u32:8;
 const TEST_INPUT_RAM_NUM_PARTITIONS = ram::num_partitions(TEST_INPUT_RAM_WORD_PARTITION_SIZE, TEST_INPUT_RAM_DATA_W);
 const TEST_INPUT_RAM_SIMULTANEOUS_READ_WRITE_BEHAVIOR = ram::SimultaneousReadWriteBehavior::READ_BEFORE_WRITE;
 const TEST_INPUT_RAM_INITIALIZED = true;
@@ -1411,37 +1412,37 @@ const SEQ_DEC_TESTCASES: (u32, u64[32], u32, SequenceExecutorPacket[64])[4] = [
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0004,
-                content: u64:0x000b0005,
+                content: CopyOrMatchContent:0x000b0005,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0004,
-                content: u64:0x00010006,
+                content: CopyOrMatchContent:0x00010006,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0,
-                content: u64:0x00320005,
+                content: CopyOrMatchContent:0x00320005,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0006,
-                content: u64:0x003e0009,
+                content: CopyOrMatchContent:0x003e0009,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0009,
-                content: u64:0x003d0006,
+                content: CopyOrMatchContent:0x003d0006,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0,
-                content: u64:0x0043001a,
+                content: CopyOrMatchContent:0x0043001a,
                 last: true,
             },
             zero!<SequenceExecutorPacket>(), ...
@@ -1464,79 +1465,79 @@ const SEQ_DEC_TESTCASES: (u32, u64[32], u32, SequenceExecutorPacket[64])[4] = [
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0001,
-                content: u64:0x00030003,
+                content: CopyOrMatchContent:0x00030003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0001,
-                content: u64:0x000e0003,
+                content: CopyOrMatchContent:0x000e0003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0,
-                content: u64:0x00230004,
+                content: CopyOrMatchContent:0x00230004,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0001,
-                content: u64:0x00de0004,
+                content: CopyOrMatchContent:0x00de0004,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0,
-                content: u64:0x003a0003,
+                content: CopyOrMatchContent:0x003a0003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0,
-                content: u64:0x01100003,
+                content: CopyOrMatchContent:0x01100003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0,
-                content: u64:0x00b00004,
+                content: CopyOrMatchContent:0x00b00004,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0,
-                content: u64:0x00da0003,
+                content: CopyOrMatchContent:0x00da0003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0,
-                content: u64:0x00440004,
+                content: CopyOrMatchContent:0x00440004,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0,
-                content: u64:0x013f0003,
+                content: CopyOrMatchContent:0x013f0003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0001,
-                content: u64:0x001b0003,
+                content: CopyOrMatchContent:0x001b0003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0,
-                content: u64:0x00030004,
+                content: CopyOrMatchContent:0x00030004,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0,
-                content: u64:0x00310004,
+                content: CopyOrMatchContent:0x00310004,
                 last: true,
             },
             zero!<SequenceExecutorPacket>(), ...
@@ -1559,61 +1560,61 @@ const SEQ_DEC_TESTCASES: (u32, u64[32], u32, SequenceExecutorPacket[64])[4] = [
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0002,
-                content: u64:0x00040005,
+                content: CopyOrMatchContent:0x00040005,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0003,
-                content: u64:0x000d0003,
+                content: CopyOrMatchContent:0x000d0003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0,
-                content: u64:0x00020003,
+                content: CopyOrMatchContent:0x00020003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0003,
-                content: u64:0x000d0004,
+                content: CopyOrMatchContent:0x000d0004,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0002,
-                content: u64:0x00170004,
+                content: CopyOrMatchContent:0x00170004,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0,
-                content: u64:0x00190003,
+                content: CopyOrMatchContent:0x00190003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0,
-                content: u64:0x00210004,
+                content: CopyOrMatchContent:0x00210004,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0001,
-                content: u64:0x00200003,
+                content: CopyOrMatchContent:0x00200003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0006,
-                content: u64:0x001b0004,
+                content: CopyOrMatchContent:0x001b0004,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0,
-                content: u64:0x000d0004,
+                content: CopyOrMatchContent:0x000d0004,
                 last: true,
             },
             zero!<SequenceExecutorPacket>(), ...
@@ -1635,55 +1636,55 @@ const SEQ_DEC_TESTCASES: (u32, u64[32], u32, SequenceExecutorPacket[64])[4] = [
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0002,
-                content: u64:0x00040003,
+                content: CopyOrMatchContent:0x00040003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0,
-                content: u64:0x00070003,
+                content: CopyOrMatchContent:0x00070003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0001,
-                content: u64:0x00090003,
+                content: CopyOrMatchContent:0x00090003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0005,
-                content: u64:0x00090003,
+                content: CopyOrMatchContent:0x00090003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0,
-                content: u64:0x000b0003,
+                content: CopyOrMatchContent:0x000b0003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0011,
-                content: u64:0x00120003,
+                content: CopyOrMatchContent:0x00120003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0004,
-                content: u64:0x00230003,
+                content: CopyOrMatchContent:0x00230003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0002,
-                content: u64:0x000a0003,
+                content: CopyOrMatchContent:0x000a0003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0002,
-                content: u64:0x00340003,
+                content: CopyOrMatchContent:0x00340003,
                 last: true,
             },
             zero!<SequenceExecutorPacket>(), ...
@@ -2415,7 +2416,7 @@ proc SequenceDecoderTest {
             let expected = SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::LITERAL,
                 length: ADDITIONAL_LITERALS as u64,
-                content: u64:0x0,
+                content: CopyOrMatchContent:0x0,
                 last: true,
             };
             let (tok, recv_output) = recv(tok, fd_command_r);

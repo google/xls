@@ -23,10 +23,10 @@ type BlockDataPacket = common::BlockDataPacket;
 type ExtendedBlockDataPacket = common::ExtendedBlockDataPacket;
 type BlockData = common::BlockData;
 type BlockPacketLength = common::BlockPacketLength;
-type CopyOrMatchContent = common::CopyOrMatchContent;
+type CopyOrMatchContent = uN[common::LITERALS_IN_PACKET * u32:8];
 type CopyOrMatchLength = common::CopyOrMatchLength;
 type SequenceExecutorMessageType = common::SequenceExecutorMessageType;
-type SequenceExecutorPacket = common::SequenceExecutorPacket<common::SYMBOL_WIDTH>;
+type SequenceExecutorPacket = common::SequenceExecutorPacket<common::LITERALS_IN_PACKET>;
 
 const MAX_ID = all_ones!<u32>();
 const DATA_WIDTH = common::DATA_WIDTH;
