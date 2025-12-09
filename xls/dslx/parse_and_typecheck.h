@@ -73,7 +73,6 @@ struct TypecheckedModule {
 absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
     std::string_view text, std::string_view path, std::string_view module_name,
     ImportData* import_data, std::vector<CommentData>* comments = nullptr,
-    std::optional<TypeInferenceVersion> force_version = std::nullopt,
     const ConvertOptions& options = ConvertOptions{},
     TypeInferenceErrorHandler error_handler = nullptr,
     TraitDeriver* trait_deriver = nullptr);
@@ -101,9 +100,7 @@ absl::StatusOr<std::unique_ptr<Module>> ParseModuleFromFileAtPath(
 // "import_data" is used to get-or-insert any imported modules.
 absl::StatusOr<TypecheckedModule> TypecheckModule(
     std::unique_ptr<Module> module, std::string_view path,
-    ImportData* import_data,
-    std::optional<TypeInferenceVersion> force_version = std::nullopt,
-    TypeInferenceErrorHandler error_handler = nullptr,
+    ImportData* import_data, TypeInferenceErrorHandler error_handler = nullptr,
     TraitDeriver* trait_deriver = nullptr);
 
 }  // namespace xls::dslx
