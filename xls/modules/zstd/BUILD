@@ -1368,7 +1368,7 @@ ZSTD_DEC_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "ZstdDecoder",
     "clock_period_ps": "0",
     "pipeline_stages": "16",
-    "worst_case_throughput": "6",
+    "worst_case_throughput": "5",
     "streaming_channel_data_suffix": "_data",
     "materialize_internal_fifos": "false",
     "ram_configurations": ",".join([
