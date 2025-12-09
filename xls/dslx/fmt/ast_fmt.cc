@@ -1630,7 +1630,7 @@ DocRef Fmt(const String& n, Comments& comments, DocArena& arena) {
 DocRef MakeConditionalTest(const Conditional& n, Comments& comments,
                            DocArena& arena) {
   std::vector<DocRef> pieces;
-  if (n.IsConst() && !n.IsPartOfLadder()) {
+  if (n.IsConst() && !n.IsElseIf()) {
     pieces.push_back(arena.Make(Keyword::kConst));
     pieces.push_back(arena.space());
   }
