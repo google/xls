@@ -885,7 +885,8 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleReceiveNode(
 
   XLS_RET_CHECK_EQ(ChannelRefKind(connection.channel), ChannelKind::kStreaming);
   XLS_RET_CHECK_EQ(ChannelRefFlowControl(connection.channel),
-                   FlowControl::kReadyValid);
+                   FlowControl::kReadyValid)
+      << " channel " << ChannelRefToString(connection.channel);
 
   // If blocking return a tuple of (token, data), and if non-blocking
   // return a tuple of (token, data, valid).

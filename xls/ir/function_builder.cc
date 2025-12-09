@@ -1350,33 +1350,41 @@ absl::StatusOr<ChannelWithInterfaces> ProcBuilder::AddChannel(
   return channel_interfaces;
 }
 
+void SetChannelAttributes(ChannelInterface* channel_interface,
+                          std::optional<ChannelStrictness> strictness,
+                          std::optional<FlowControl> flow_control) {
+  if (flow_control.has_value()) {
+    channel_interface->SetFlowControl(*flow_control);
+  }
+  if (strictness.has_value()) {
+    channel_interface->SetStrictness(*strictness);
+  } else if (channel_interface->kind() == ChannelKind::kStreaming) {
+    channel_interface->SetStrictness(kDefaultChannelStrictness);
+    if (!flow_control.has_value()) {
+      channel_interface->SetFlowControl(FlowControl::kReadyValid);
+    }
+  }
+}
+
 absl::StatusOr<ReceiveChannelInterface*> ProcBuilder::AddInputChannel(
     std::string_view name, Type* type, ChannelKind kind,
-    std::optional<ChannelStrictness> strictness) {
+    std::optional<ChannelStrictness> strictness,
+    std::optional<FlowControl> flow_control) {
   XLS_RET_CHECK(proc()->is_new_style_proc());
   auto channel_interface =
       std::make_unique<ReceiveChannelInterface>(name, type, kind);
-  if (strictness.has_value()) {
-    channel_interface->SetStrictness(strictness.value());
-  } else if (kind == ChannelKind::kStreaming) {
-    channel_interface->SetStrictness(kDefaultChannelStrictness);
-    channel_interface->SetFlowControl(FlowControl::kReadyValid);
-  }
+  SetChannelAttributes(channel_interface.get(), strictness, flow_control);
   return proc()->AddInputChannelInterface(std::move(channel_interface));
 }
 
 absl::StatusOr<SendChannelInterface*> ProcBuilder::AddOutputChannel(
     std::string_view name, Type* type, ChannelKind kind,
-    std::optional<ChannelStrictness> strictness) {
+    std::optional<ChannelStrictness> strictness,
+    std::optional<FlowControl> flow_control) {
   XLS_RET_CHECK(proc()->is_new_style_proc());
   auto channel_interface =
       std::make_unique<SendChannelInterface>(name, type, kind);
-  if (strictness.has_value()) {
-    channel_interface->SetStrictness(strictness.value());
-  } else if (kind == ChannelKind::kStreaming) {
-    channel_interface->SetStrictness(kDefaultChannelStrictness);
-    channel_interface->SetFlowControl(FlowControl::kReadyValid);
-  }
+  SetChannelAttributes(channel_interface.get(), strictness, flow_control);
   return proc()->AddOutputChannelInterface(std::move(channel_interface));
 }
 
