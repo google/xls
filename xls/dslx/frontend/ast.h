@@ -983,7 +983,11 @@ class ConstConditionalTypeAnnotation : public TypeAnnotation {
   const Expr* test() const { return test_; }
   TypeAnnotation* consequent_type() const { return consequent_type_; }
   TypeAnnotation* alternate_type() const { return alternate_type_; }
-  std::string ToString() const override { return "ConstConditional"; }
+  std::string ToString() const override {
+    return absl::StrFormat("ConstConditional: %s / %s",
+                           consequent_type()->ToString(),
+                           alternate_type()->ToString());
+  }
 
  private:
   const Expr* test_;
