@@ -30,6 +30,7 @@ type CopyOrMatchContent = common::CopyOrMatchContent;
 
 type RefillingSBCtrl = refilling_shift_buffer::RefillingShiftBufferCtrl;
 type RefillingSBOutput = refilling_shift_buffer::RefillingShiftBufferOutput;
+type RefillingSBLength = common::RefillingSBLength;
 
 pub enum FseDecoderStatus : u1 {
     OK = 0,
@@ -47,13 +48,13 @@ pub struct FseDecoderCtrl {
 
 pub struct FseDecoderFinish { status: FseDecoderStatus }
 
-pub fn extract_triplet(num: u64, sz0: u8, sz1: u8, sz2: u8) -> (u64, u64, u64) {
+pub fn extract_triplet<AXI_DATA_W: u32>(num: uN[AXI_DATA_W], sz0: u8, sz1: u8, sz2: u8) -> (uN[AXI_DATA_W], uN[AXI_DATA_W], uN[AXI_DATA_W]) {
     let shifted2 = num;
     let shifted1 = shifted2 >> sz2;
     let shifted0 = shifted1 >> sz1;
     (
-        shifted0 & ((u64:1 << sz0) - u64:1), shifted1 & ((u64:1 << sz1) - u64:1),
-        shifted2 & ((u64:1 << sz2) - u64:1),
+        shifted0 & ((uN[AXI_DATA_W]:1 << sz0) - uN[AXI_DATA_W]:1), shifted1 & ((uN[AXI_DATA_W]:1 << sz1) - uN[AXI_DATA_W]:1),
+        shifted2 & ((uN[AXI_DATA_W]:1 << sz2) - uN[AXI_DATA_W]:1),
     )
 }
 
@@ -130,7 +131,7 @@ proc FseDecoderCommand {
     }
 }
 
-struct FseDecoderState {
+struct FseDecoderState<AXI_DATA_W: u32> {
     fsm: FseDecoderFSM,
     ctrl: FseDecoderCtrl,
     sequences_count: u24,
@@ -147,20 +148,18 @@ struct FseDecoderState {
     of_state: u16,
     ll_state: u16,
     ml_state: u16,
-    read_bits: u64,
-    read_bits_length: u7,
-    read_bits_needed: u7,
+    read_bits: uN[AXI_DATA_W],
+    read_bits_length: RefillingSBLength,
+    read_bits_needed: RefillingSBLength,
     sent_buf_ctrl: bool,
     shift_buffer_error: bool,
     padding: u4,
 }
 
-pub proc FseDecoder<RAM_DATA_W: u32, RAM_ADDR_W: u32, RAM_NUM_PARTITIONS: u32, AXI_DATA_W: u32, REFILLING_SB_DATA_W:
-u32 = {
-    AXI_DATA_W}, REFILLING_SB_LENGTH_W:
-u32 = {
-    refilling_shift_buffer::length_width(REFILLING_SB_DATA_W)}>
+pub proc FseDecoder<RAM_DATA_W: u32, RAM_ADDR_W: u32, RAM_NUM_PARTITIONS: u32, AXI_DATA_W: u32,
+    REFILLING_SB_DATA_W: u32 = {AXI_DATA_W}, REFILLING_SB_LENGTH_W: u32 = {refilling_shift_buffer::length_width(REFILLING_SB_DATA_W)}>
 {
+    type FseDecoderState = FseDecoderState<AXI_DATA_W>;
     type FseRamRdReq = ram::ReadReq<RAM_ADDR_W, RAM_NUM_PARTITIONS>;
     type FseRamRdResp = ram::ReadResp<RAM_DATA_W>;
     type RefillingSBCtrl = refilling_shift_buffer::RefillingShiftBufferCtrl<REFILLING_SB_LENGTH_W>;
@@ -266,8 +265,8 @@ u32 = {
         let do_send_buf_ctrl = do_read_bits && !state.sent_buf_ctrl;
 
         let buf_ctrl_length =
-            if (state.read_bits_needed - state.read_bits_length) > REFILLING_SB_DATA_W as u7 {
-                REFILLING_SB_DATA_W as u7
+            if (state.read_bits_needed - state.read_bits_length) > REFILLING_SB_DATA_W as RefillingSBLength {
+                REFILLING_SB_DATA_W as RefillingSBLength
             } else {
                 state.read_bits_needed - state.read_bits_length
             };
@@ -319,7 +318,7 @@ u32 = {
                     data: SequenceExecutorPacket {
                         msg_type: SequenceExecutorMessageType::SEQUENCE,
                         length: state.ll,
-                        content: pack_offset_and_match_length(state.of as u32, state.ml as u32) as u64,
+                        content: pack_offset_and_match_length(state.of as u32, state.ml as u32) as CopyOrMatchContent,
                         last,
                     },
                 },
@@ -369,9 +368,9 @@ u32 = {
                         FseDecoderState {
                             fsm: FseDecoderFSM::PADDING,
                             ctrl,
-                            read_bits: u64:0,
-                            read_bits_length: u7:0,
-                            read_bits_needed: u7:1,
+                            read_bits: uN[AXI_DATA_W]:0,
+                            read_bits_length: RefillingSBLength:0,
+                            read_bits_needed: RefillingSBLength:1,
                             ..state
                         }
                     }
@@ -390,9 +389,9 @@ u32 = {
                     if padding_available {
                         FseDecoderState {
                             fsm: FseDecoderFSM::PADDING,
-                            read_bits: u64:0,
-                            read_bits_length: u7:0,
-                            read_bits_needed: u7:1,
+                            read_bits: uN[AXI_DATA_W]:0,
+                            read_bits_length: RefillingSBLength:0,
+                            read_bits_needed: RefillingSBLength:1,
                             padding,
                             ..state
                         }
@@ -400,11 +399,11 @@ u32 = {
                         trace_fmt!("padding is: {:#x}", padding);
                         FseDecoderState {
                             fsm: FseDecoderFSM::INIT_STATE,
-                            read_bits: u64:0,
-                            read_bits_length: u7:0,
+                            read_bits: uN[AXI_DATA_W]:0,
+                            read_bits_length: RefillingSBLength:0,
                             read_bits_needed:
-                                state.ctrl.of_acc_log + state.ctrl.ll_acc_log +
-                                state.ctrl.ml_acc_log,
+                                (state.ctrl.of_acc_log + state.ctrl.ll_acc_log +
+                                state.ctrl.ml_acc_log) as RefillingSBLength,
                             ..state
                         }
                     }
@@ -425,9 +424,9 @@ u32 = {
                         ll_state: ll_state as u16,
                         ml_state: ml_state as u16,
                         of_state: of_state as u16,
-                        read_bits: u64:0,
-                        read_bits_length: u7:0,
-                        read_bits_needed: u7:0,
+                        read_bits: uN[AXI_DATA_W]:0,
+                        read_bits_length: RefillingSBLength:0,
+                        read_bits_needed: RefillingSBLength:0,
                         ..state
                     }
                 } else {
@@ -483,13 +482,13 @@ u32 = {
                     trace_fmt!("all states received: {:#x}", state);
                     FseDecoderState {
                         fsm: FseDecoderFSM::READ_BITS,
-                        read_bits: u64:0,
-                        read_bits_length: u7:0,
+                        read_bits: uN[AXI_DATA_W]:0,
+                        read_bits_length: RefillingSBLength:0,
                         read_bits_needed:
                             (state.of_fse_table_record.symbol as u8 +
                             SEQ_MATCH_LENGTH_EXTRA_BITS[state.ml_fse_table_record.symbol] +
                             SEQ_LITERAL_LENGTH_EXTRA_BITS[state.ll_fse_table_record.symbol]) as
-                            u7,
+                            RefillingSBLength,
                         ..state
                     }
                 } else {
@@ -519,9 +518,9 @@ u32 = {
                             ml,
                             ll,
                             of_state,
-                            read_bits: u64:0,
-                            read_bits_length: u7:0,
-                            read_bits_needed: u7:0,
+                            read_bits: uN[AXI_DATA_W]:0,
+                            read_bits_length: RefillingSBLength:0,
+                            read_bits_needed: RefillingSBLength:0,
                             literals_count: state.literals_count + ll as u20,
                             ..state
                         }
@@ -531,13 +530,13 @@ u32 = {
                             of,
                             ml,
                             ll,
-                            read_bits: u64:0,
-                            read_bits_length: u7:0,
+                            read_bits: uN[AXI_DATA_W]:0,
+                            read_bits_length: RefillingSBLength:0,
                             read_bits_needed:
                                 (state.ml_fse_table_record.num_of_bits +
                                 state.of_fse_table_record.num_of_bits +
                                 state.ll_fse_table_record.num_of_bits) as
-                                u7,
+                                RefillingSBLength,
                             literals_count: state.literals_count + ll as u20,
                             ..state
                         }
@@ -562,9 +561,9 @@ u32 = {
                         ll_state,
                         ml_state,
                         of_state,
-                        read_bits: u64:0,
-                        read_bits_length: u7:0,
-                        read_bits_needed: u7:0,
+                        read_bits: uN[AXI_DATA_W]:0,
+                        read_bits_length: RefillingSBLength:0,
+                        read_bits_needed: RefillingSBLength:0,
                         ..state
                     }
                 } else {
@@ -615,7 +614,7 @@ const INST_RAM_ADDR_W = std::clog2(INST_RAM_SIZE);
 const INST_RAM_DATA_W = u32:32;
 const INST_RAM_WORD_PARTITION_SIZE = INST_RAM_DATA_W / u32:3;
 const INST_RAM_NUM_PARTITIONS = ram::num_partitions(INST_RAM_WORD_PARTITION_SIZE, INST_RAM_DATA_W);
-const INST_AXI_DATA_W = u32:64;
+const INST_AXI_DATA_W = common::AXI_DATA_W;
 const INST_REFILLING_SB_DATA_W = INST_AXI_DATA_W;
 const INST_REFILLING_SB_LENGTH_W = refilling_shift_buffer::length_width(INST_REFILLING_SB_DATA_W);
 

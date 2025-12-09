@@ -68,7 +68,7 @@ pub proc CommandConstructor {
 
 #[test_proc]
 proc CommandConstructorTest {
-    type SequenceExecutorPacket = common::SequenceExecutorPacket<common::SYMBOL_WIDTH>;
+    type SequenceExecutorPacket = common::SequenceExecutorPacket<common::SYMBOLS_IN_PACKET>;
 
     terminator: chan<bool> out;
     sequence_decoder_s: chan<CommandConstructorData> out;
@@ -110,7 +110,7 @@ proc CommandConstructorTest {
                 last: u1:0,
                 last_block: u1:0,
                 id: u32:1234,
-                data: u64:0x1005b,
+                data: CopyOrMatchContent:0x1005b,
                 length: u32:9,
             },
         });

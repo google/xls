@@ -133,7 +133,7 @@ pub proc CompLookupDecoder<
         let (fse_pf_dec_resp_s, fse_pf_dec_resp_r) = chan<FsePFDecResp, CHANNEL_DEPTH>("fse_pf_dec_resp");
 
         spawn fse_proba_freq_dec::FseProbaFreqDecoder<
-            DPD_RAM_DATA_W, DPD_RAM_ADDR_W, DPD_RAM_NUM_PARTITIONS,
+            DPD_RAM_DATA_W, DPD_RAM_ADDR_W, DPD_RAM_NUM_PARTITIONS, AXI_DATA_W, SB_LENGTH_W
         >(
             fse_pf_dec_req_r, fse_pf_dec_resp_s,
             buffer_ctrl_s, buffer_data_out_r,

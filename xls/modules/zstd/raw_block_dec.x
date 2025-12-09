@@ -166,7 +166,7 @@ pub proc RawBlockDecoderInst {
     next (state: ()) { }
 }
 
-const TEST_DATA_W = u32:64;
+const TEST_DATA_W = common::DATA_WIDTH;
 const TEST_ADDR_W = u32:32;
 
 #[test_proc]

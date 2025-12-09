@@ -265,7 +265,7 @@ proc RefillingShiftBufferInternal<
         let forward_snooped_data = snoop_data_valid && !flushing;
         let tok = send_if(tok, buffer_data_out_s, forward_snooped_data, RSBOutput {
             data: if BACKWARDS {
-                rev(snoop_data.data) >> (u32:64 - snoop_data.length as u32)
+                rev(snoop_data.data) >> (DATA_W - snoop_data.length as u32)
             } else {
                 snoop_data.data
             },
