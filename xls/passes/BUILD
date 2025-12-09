@@ -1475,6 +1475,39 @@ cc_library(
 )
 
 cc_library(
+    name = "area_accumulated_analysis",
+    srcs = ["area_accumulated_analysis.cc"],
+    hdrs = ["area_accumulated_analysis.h"],
+    deps = [
+        ":lazy_dag_cache",
+        ":lazy_node_data",
+        "//xls/estimators/area_model:area_estimator",
+        "//xls/ir",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "area_accumulated_analysis_test",
+    srcs = ["area_accumulated_analysis_test.cc"],
+    deps = [
+        ":area_accumulated_analysis",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/estimators",
+        "//xls/estimators/area_model:area_estimator",
+        "//xls/estimators/area_model:area_estimators",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "critical_path_delay_analysis",
     srcs = ["critical_path_delay_analysis.cc"],
     hdrs = ["critical_path_delay_analysis.h"],
@@ -4633,6 +4666,108 @@ cc_test(
         "//xls/ir:value",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "expression_builder",
+    srcs = ["expression_builder.cc"],
+    hdrs = ["expression_builder.h"],
+    deps = [
+        ":bdd_query_engine",
+        ":query_engine",
+        "//xls/common/status:status_macros",
+        "//xls/data_structures:inline_bitmap",
+        "//xls/ir",
+        "//xls/ir:op",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "expression_builder_test",
+    srcs = ["expression_builder_test.cc"],
+    deps = [
+        ":bdd_query_engine",
+        ":expression_builder",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:op",
+        "@com_google_absl//absl/status:statusor",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "visibility_expr_builder",
+    srcs = ["visibility_expr_builder.cc"],
+    hdrs = ["visibility_expr_builder.h"],
+    deps = [
+        ":area_accumulated_analysis",
+        ":bdd_query_engine",
+        ":critical_path_delay_analysis",
+        ":expression_builder",
+        ":node_dependency_analysis",
+        ":query_engine",
+        ":visibility_analysis",
+        "//xls/common/status:status_macros",
+        "//xls/data_structures:binary_decision_diagram",
+        "//xls/estimators/area_model:area_estimator",
+        "//xls/estimators/delay_model:delay_estimator",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:op",
+        "//xls/ir:source_location",
+        "//xls/ir:type",
+        "//xls/ir:value",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "visibility_expr_builder_test",
+    srcs = ["visibility_expr_builder_test.cc"],
+    deps = [
+        ":bdd_query_engine",
+        ":node_dependency_analysis",
+        ":post_dominator_analysis",
+        ":visibility_analysis",
+        ":visibility_expr_builder",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/estimators",
+        "//xls/estimators/area_model:area_estimator",
+        "//xls/estimators/area_model:area_estimators",
+        "//xls/estimators/delay_model:delay_estimator",
+        "//xls/estimators/delay_model:delay_estimators",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "//xls/visualization:math_notation",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status:statusor",
         "@googletest//:gtest",
     ],
 )

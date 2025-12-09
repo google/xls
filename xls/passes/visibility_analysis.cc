@@ -121,7 +121,7 @@ OperandVisibilityAnalysis::~OperandVisibilityAnalysis() {
     f_->UnregisterChangeListener(this);
   }
   f_ = nullptr;
-  pair_to_op_vis_.clear();
+  pair_to_op_vis_ = {};
 }
 
 OperandVisibilityAnalysis::OperandVisibilityAnalysis(
@@ -144,21 +144,20 @@ OperandVisibilityAnalysis::OperandVisibilityAnalysis(
       f_(other.f_) {
   if (f_ != nullptr) {
     f_->RegisterChangeListener(this);
+    f_->UnregisterChangeListener(&other);
   }
 }
 
 OperandVisibilityAnalysis& OperandVisibilityAnalysis::operator=(
     OperandVisibilityAnalysis&& other) {
-  if (f_ != other.f_) {
-    if (f_ != nullptr) {
-      f_->UnregisterChangeListener(this);
-    }
-    f_ = other.f_;
-    if (other.f_ != nullptr) {
-      other.f_->UnregisterChangeListener(&other);
-      other.f_ = nullptr;
-      f_->RegisterChangeListener(this);
-    }
+  if (f_ != nullptr) {
+    f_->UnregisterChangeListener(this);
+  }
+  f_ = other.f_;
+  if (other.f_ != nullptr) {
+    other.f_->UnregisterChangeListener(&other);
+    other.f_ = nullptr;
+    f_->RegisterChangeListener(this);
   }
   nda_ = other.nda_;
   bdd_query_engine_ = other.bdd_query_engine_;
@@ -852,6 +851,10 @@ VisibilityAnalysis::GetEdgesForMutuallyExclusiveVisibilityExpr(
   }
   if (edges.size() == 1) {
     return absl::flat_hash_set<OperandNode>{edges[0]};
+  }
+  if (others.empty() || absl::c_contains(others, one)) {
+    absl::flat_hash_set<OperandNode> edges_set(edges.begin(), edges.end());
+    return edges_set;
   }
 
   BinaryDecisionDiagram& bdd = bdd_query_engine_->bdd();
