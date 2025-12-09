@@ -109,7 +109,7 @@ absl::StatusOr<bool> StateToChannelConversionPass::RunOnProcInternal(
           proc->MakeNode<Receive>(node->loc(), info.token,
                                   /*predicate=*/state_read->predicate(),
                                   info.channel->name(),
-                                  /*is_blocking=*/true));
+                                  /*is_blocking=*/true, info.channel->type()));
       XLS_ASSIGN_OR_RETURN(Node * receive_value,
                            proc->MakeNode<TupleIndex>(node->loc(), receive, 1));
       state_read_replacements.emplace_back(node, receive_value);

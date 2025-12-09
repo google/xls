@@ -55,6 +55,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/topo_sort.h"
+#include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/passes/pass_base.h"
@@ -709,6 +710,8 @@ absl::StatusOr<bool> MergeReceives(Predicates* p, FunctionBase* f,
   }
   XLS_ASSIGN_OR_RETURN(ChannelRef channel_ref,
                        to_merge.front()->As<Receive>()->GetChannelRef());
+  XLS_ASSIGN_OR_RETURN(ReceiveChannelRef receive_channel_ref,
+                       to_merge.front()->As<Receive>()->GetReceiveChannelRef());
   bool is_blocking = to_merge.front()->As<Receive>()->is_blocking();
 
   XLS_ASSIGN_OR_RETURN(std::vector<Node*> token_inputs,
@@ -775,7 +778,8 @@ absl::StatusOr<bool> MergeReceives(Predicates* p, FunctionBase* f,
   XLS_ASSIGN_OR_RETURN(
       Node * receive,
       f->MakeNode<Receive>(merged_source_info, token, predicate,
-                           GetChannelName(channel_ref), is_blocking));
+                           GetChannelName(channel_ref), is_blocking,
+                           ChannelRefType(receive_channel_ref)));
 
   XLS_ASSIGN_OR_RETURN(Node * token_output,
                        f->MakeNode<TupleIndex>(SourceInfo(), receive, 0));

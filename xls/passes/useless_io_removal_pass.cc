@@ -133,11 +133,12 @@ absl::StatusOr<bool> UselessIORemovalPass::RunInternal(
               proc->MakeNode<Tuple>(
                   node->loc(), std::vector<Node*>{receive->token(), zero}));
         } else if (query_engine.IsAllOnes(predicate)) {
-          XLS_ASSIGN_OR_RETURN(replacement, proc->MakeNode<Receive>(
-                                                node->loc(), receive->token(),
-                                                /*predicate=*/std::nullopt,
-                                                receive->channel_name(),
-                                                receive->is_blocking()));
+          XLS_ASSIGN_OR_RETURN(
+              replacement,
+              proc->MakeNode<Receive>(
+                  node->loc(), receive->token(),
+                  /*predicate=*/std::nullopt, receive->channel_name(),
+                  receive->is_blocking(), receive->GetPayloadType()));
         }
       }
       if (replacement != nullptr) {

@@ -570,6 +570,7 @@ cc_library(
         "//xls/ir:node_util",
         "//xls/ir:op",
         "//xls/ir:source_location",
+        "//xls/ir:type",
         "//xls/ir:value",
         "//xls/ir:value_utils",
         "//xls/passes:pass_base",

@@ -198,7 +198,7 @@ class LazyNodeData : public ChangeListener,
   // ignored. In general AddGiven is a better choice.
   absl::StatusOr<ReachedFixpoint> SetForced(Node* node,
                                             CacheValueT forced_value) {
-    XLS_RET_CHECK_EQ(node->function_base(), f_)
+    XLS_RET_CHECK(f_->Contains(node))
         << "Must be attached to " << node->function_base()->name()
         << " in order to replace/set forced for " << node
         << ". Currently attached to " << (f_ ? f_->name() : "<nothing>");
@@ -213,7 +213,7 @@ class LazyNodeData : public ChangeListener,
   }
 
   absl::StatusOr<ReachedFixpoint> RemoveForced(Node* node) {
-    XLS_RET_CHECK_EQ(node->function_base(), f_)
+    XLS_RET_CHECK(f_->Contains(node))
         << "Must be attached to " << node->function_base()->name()
         << " in order to replace/set forced for " << node
         << ". Currently attached to " << (f_ ? f_->name() : "<nothing>");
@@ -237,7 +237,7 @@ class LazyNodeData : public ChangeListener,
   // 'Forced' and 'Given' data associated with it at the same time.
   absl::StatusOr<ReachedFixpoint> AddGiven(Node* node,
                                            CacheValueT given_value) {
-    XLS_RET_CHECK_EQ(node->function_base(), f_)
+    XLS_RET_CHECK(f_->Contains(node))
         << "Must be attached to " << node->function_base()->name()
         << " in order to replace/set given for " << node
         << ". Currently attached to " << (f_ ? f_->name() : "<nothing>");
@@ -254,7 +254,7 @@ class LazyNodeData : public ChangeListener,
     return ReplaceGiven(node, std::move(new_given));
   }
   ReachedFixpoint RemoveGiven(Node* node) {
-    CHECK_EQ(node->function_base(), f_)
+    CHECK(f_->Contains(node))
         << "Must be attached to " << node->function_base()->name()
         << " in order to remove given from " << node
         << ". Currently attached to " << (f_ ? f_->name() : "<nothing>");
@@ -268,7 +268,7 @@ class LazyNodeData : public ChangeListener,
   }
 
   absl::StatusOr<ReachedFixpoint> ReplaceGiven(Node* node, CacheValueT given) {
-    XLS_RET_CHECK_EQ(node->function_base(), f_)
+    XLS_RET_CHECK(f_->Contains(node))
         << "Must be attached to " << node->function_base()->name()
         << " in order to replace/set given for " << node
         << ". Currently attached to " << (f_ ? f_->name() : "<nothing>");
@@ -286,7 +286,7 @@ class LazyNodeData : public ChangeListener,
   }
 
   const CacheValueT* GetInfo(Node* node) const {
-    CHECK_EQ(node->function_base(), f_)
+    CHECK(f_->Contains(node))
         << "Must be attached to " << node->function_base()->name()
         << " in order to get info from " << node << ". Currently attached to "
         << (f_ ? f_->name() : "<nothing>");
@@ -294,7 +294,7 @@ class LazyNodeData : public ChangeListener,
   }
 
   void NodeAdded(Node* node) override {
-    CHECK_EQ(node->function_base(), f_)
+    CHECK(f_->Contains(node))
         << "Received notification for unattached function "
         << node->function_base()->name() << ". Currently attached to "
         << (f_ ? f_->name() : "<nothing>");
@@ -304,7 +304,7 @@ class LazyNodeData : public ChangeListener,
   }
 
   void NodeDeleted(Node* node) override {
-    CHECK_EQ(node->function_base(), f_)
+    CHECK(f_->Contains(node))
         << "Received notification for unattached function "
         << node->function_base()->name() << ". Currently attached to "
         << (f_ ? f_->name() : "<nothing>");
@@ -336,7 +336,7 @@ class LazyNodeData : public ChangeListener,
 
   void OperandChanged(Node* node, Node* old_operand,
                       absl::Span<const int64_t> operand_nos) override {
-    CHECK_EQ(node->function_base(), f_)
+    CHECK(f_->Contains(node))
         << "Received notification for unattached function "
         << node->function_base()->name() << ". Currently attached to "
         << (f_ ? f_->name() : "<nothing>");
@@ -377,7 +377,7 @@ class LazyNodeData : public ChangeListener,
   }
 
   void OperandRemoved(Node* node, Node* old_operand) override {
-    CHECK_EQ(node->function_base(), f_)
+    CHECK(f_->Contains(node))
         << "Received notification for unattached function "
         << node->function_base()->name() << ". Currently attached to "
         << (f_ ? f_->name() : "<nothing>");
@@ -397,7 +397,7 @@ class LazyNodeData : public ChangeListener,
   }
 
   void OperandAdded(Node* node) override {
-    CHECK_EQ(node->function_base(), f_)
+    CHECK(f_->Contains(node))
         << "Received notification for unattached function "
         << node->function_base()->name() << ". Currently attached to "
         << (f_ ? f_->name() : "<nothing>");
@@ -405,7 +405,7 @@ class LazyNodeData : public ChangeListener,
   }
 
   void ForceRecompute(Node* node) {
-    CHECK_EQ(node->function_base(), f_)
+    CHECK(f_->Contains(node))
         << "Received recompute request for " << node
         << " of unattached function " << node->function_base()->name()
         << ". Currently attached to " << (f_ ? f_->name() : "<nothing>");
@@ -435,21 +435,21 @@ class LazyNodeData : public ChangeListener,
 
   // Implementation for LazyDagCache::DagProvider.
   std::string GetName(Node* const& node) const override {
-    DCHECK_EQ(node->function_base(), f_)
+    DCHECK(f_->Contains(node))
         << "Received notification for unattached function "
         << node->function_base()->name() << ". Currently attached to "
         << (f_ ? f_->name() : "<nothing>");
     return node->GetName();
   }
   absl::Span<Node* const> GetInputs(Node* const& node) const override {
-    DCHECK_EQ(node->function_base(), f_)
+    DCHECK(f_->Contains(node))
         << "Received notification for unattached function "
         << node->function_base()->name() << ". Currently attached to "
         << (f_ ? f_->name() : "<nothing>");
     return node->operands();
   }
   absl::Span<Node* const> GetUsers(Node* const& node) const override {
-    DCHECK_EQ(node->function_base(), f_)
+    DCHECK(f_->Contains(node))
         << "Received notification for unattached function "
         << node->function_base()->name() << ". Currently attached to "
         << (f_ ? f_->name() : "<nothing>");

@@ -42,6 +42,11 @@ class ConvertToBlockTest : public IrTestBase {
 
 TEST_F(ConvertToBlockTest, SimpleFunction) {
   auto p = CreatePackage();
+
+  // TODO: https://github.com/google/xls/issues/3356 - Remove this when the
+  // pipeline lowers source entity nodes that cannot exist in a final block.
+  p->AcceptInvalid();
+
   FunctionBuilder fb(TestName(), p.get());
   BValue x = fb.Param("x", p->GetBitsType(32));
   BValue y = fb.Param("y", p->GetBitsType(32));

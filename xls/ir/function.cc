@@ -45,12 +45,15 @@
 
 namespace xls {
 
-absl::Status Function::set_return_value(Node* n) {
-  XLS_RET_CHECK_EQ(n->function_base(), this) << absl::StreamFormat(
-      "Return value node %s is not in this function %s (is in function %s)",
-      n->GetName(), name(), n->function_base()->name());
+absl::Status Function::set_return_value(Node* n, bool validate) {
+  if (validate) {
+    XLS_RET_CHECK_EQ(n->function_base(), this) << absl::StreamFormat(
+        "Return value node %s is not in this function %s (is in function %s)",
+        n->GetName(), name(), n->function_base()->name());
+  }
   Node* old_return_value = return_value_;
   return_value_ = n;
+  return_type_ = n->GetType();
   for (ChangeListener* listener : change_listeners_) {
     listener->ReturnValueChanged(this, old_return_value);
   }
@@ -62,9 +65,10 @@ FunctionType* Function::GetType() {
   for (Param* param : params()) {
     arg_types.push_back(param->GetType());
   }
-  CHECK(return_value() != nullptr);
-  return package_->GetFunctionType(arg_types, return_value()->GetType());
+  CHECK(return_type_ != nullptr);
+  return package_->GetFunctionType(arg_types, return_type_);
 }
+
 std::string Function::DumpIr() const {
   return DumpIrWithAnnotations(
       [](Node* n) -> std::optional<std::string> { return std::nullopt; });
@@ -85,13 +89,22 @@ std::string Function::DumpIrWithAnnotations(
       }));
   absl::StrAppend(&res, ") -> ");
 
-  if (return_value() != nullptr) {
-    absl::StrAppend(&res, return_value()->GetType()->ToString());
+  if (return_type() != nullptr) {
+    absl::StrAppend(&res, return_type()->ToString());
   }
   absl::StrAppend(&res, " {\n");
 
+  std::vector<Node*> sorted_nodes;
+  if (is_block_source_) {
+    sorted_nodes.reserve(nodes_.size());
+    for (const std::unique_ptr<Node>& node : nodes_) {
+      sorted_nodes.push_back(node.get());
+    }
+  } else {
+    sorted_nodes = TopoSort(const_cast<Function*>(this));
+  }
+
   if (IsScheduled()) {
-    std::vector<Node*> sorted_nodes = TopoSort(const_cast<Function*>(this));
     for (const Stage& stage : stages()) {
       absl::StrAppend(&res, "  stage {\n");
       for (Node* node : sorted_nodes) {
@@ -109,7 +122,7 @@ std::string Function::DumpIrWithAnnotations(
       absl::StrAppend(&res, "  }\n");
     }
   } else {
-    for (Node* node : TopoSort(const_cast<Function*>(this))) {
+    for (Node* node : sorted_nodes) {
       if (node->op() == Op::kParam && node == return_value()) {
         absl::StrAppendFormat(&res, "  ret %s\n", node->ToString());
         continue;

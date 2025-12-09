@@ -440,10 +440,11 @@ TEST_F(VerifierTest, ProcScopedChannelReceiveOnSendOnlyChannel) {
 
   // Manually add a receive node because ProcBuilder::Receive does not
   // accept a SendChannelInterface.
-  pb.proc()->AddNode(std::make_unique<Receive>(
-      SourceInfo(), pb.Literal(Value::Token()).node(),
-      /*predicate=*/std::nullopt, send_ch->name(), /*is_blocking=*/true,
-      /*name=*/"receive_on_send_only", pb.proc()));
+  pb.proc()->AddNode(
+      std::make_unique<Receive>(SourceInfo(), pb.Literal(Value::Token()).node(),
+                                /*predicate=*/std::nullopt, send_ch->name(),
+                                /*is_blocking=*/true, send_ch->type(),
+                                /*name=*/"receive_on_send_only", pb.proc()));
 
   XLS_ASSERT_OK(pb.Build().status());
   EXPECT_THAT(VerifyPackage(&package),

@@ -137,11 +137,11 @@ class NodeChecker : public DfsVisitor {
       XLS_RETURN_IF_ERROR(
           ExpectOperandHasBitsType(receive, 1, /*expected_bit_count=*/1));
     }
-    if (!receive->function_base()->IsProc()) {
+    if (!receive->function_base()->HasEffectiveProc()) {
       return absl::InternalError(absl::StrFormat(
           "Receive node %s is not in a proc", receive->GetName()));
     }
-    Proc* proc = receive->function_base()->AsProcOrDie();
+    Proc* proc = receive->function_base()->GetEffectiveProcOrDie();
     Type* channel_type;
     if (proc->is_new_style_proc()) {
       if (!proc->HasChannelInterface(receive->channel_name(),
@@ -194,11 +194,11 @@ class NodeChecker : public DfsVisitor {
       XLS_RETURN_IF_ERROR(
           ExpectOperandHasBitsType(send, 2, /*expected_bit_count=*/1));
     }
-    if (!send->function_base()->IsProc()) {
+    if (!send->function_base()->HasEffectiveProc()) {
       return absl::InternalError(
           absl::StrFormat("Send node %s is not in a proc", send->GetName()));
     }
-    Proc* proc = send->function_base()->AsProcOrDie();
+    Proc* proc = send->function_base()->GetEffectiveProcOrDie();
     Type* channel_type;
     bool channel_can_send = true;
     if (proc->is_new_style_proc()) {
@@ -965,12 +965,12 @@ class NodeChecker : public DfsVisitor {
                                                    /*expected_bit_count=*/1));
     }
 
-    if (!state_read->function_base()->IsProc()) {
+    if (!state_read->function_base()->HasEffectiveProc()) {
       return absl::InternalError(absl::StrFormat(
           "StateRead node %s (for state element %s) is not in a proc",
           state_read->GetName(), state_read->state_element()->name()));
     }
-    Proc* proc = state_read->function_base()->AsProcOrDie();
+    Proc* proc = state_read->function_base()->GetEffectiveProcOrDie();
     XLS_RETURN_IF_ERROR(
         proc->GetStateElementIndex(state_read->state_element()).status());
 
@@ -988,12 +988,12 @@ class NodeChecker : public DfsVisitor {
       XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(next, /*operand_no=*/2,
                                                    /*expected_bit_count=*/1));
     }
-    if (!next->function_base()->IsProc()) {
+    if (!next->function_base()->HasEffectiveProc()) {
       return absl::InternalError(absl::StrFormat(
           "Next node %s (for param %s) is not in a proc", next->GetName(),
           next->state_read()->As<StateRead>()->state_element()->name()));
     }
-    Proc* proc = next->function_base()->AsProcOrDie();
+    Proc* proc = next->function_base()->GetEffectiveProcOrDie();
     XLS_ASSIGN_OR_RETURN(
         int64_t index,
         proc->GetStateElementIndex(
@@ -1606,11 +1606,10 @@ absl::Status VerifyNode(Node* node, bool codegen) {
     XLS_RET_CHECK(operand->HasUser(node))
         << "Expected " << node->GetName() << " to be a user of "
         << operand->GetName();
-    XLS_RET_CHECK(operand->function_base() == node->function_base())
-        << absl::StrFormat(
-               "Operand %s of node %s not in same function (%s vs %s).",
-               operand->GetName(), node->GetName(),
-               operand->function_base()->name(), node->function_base()->name());
+    XLS_RET_CHECK(node->function_base()->Contains(operand)) << absl::StrFormat(
+        "Operand %s of node %s not in same function (%s vs %s).",
+        operand->GetName(), node->GetName(), operand->function_base()->name(),
+        node->function_base()->name());
   }
   for (Node* user : node->users()) {
     XLS_RET_CHECK(absl::c_linear_search(user->operands(), node))

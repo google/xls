@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <functional>
 #include <iterator>
 #include <memory>
 #include <optional>
@@ -130,18 +131,36 @@ std::ostream& operator<<(std::ostream& os, const FunctionBase::Kind& kind) {
   }
 }
 
-void FunctionBase::MoveFrom(FunctionBase& other) {
-  for (std::unique_ptr<Node>& node : other.nodes_) {
-    node->function_base_ = this;
-    AddNodeInternal(std::move(node));
+void FunctionBase::MoveFrom(FunctionBase& other,
+                            std::function<bool(const Node*)> pred) {
+  for (auto it = other.nodes_.begin(); it != other.nodes_.end();) {
+    std::unique_ptr<Node>& node = *it;
+    if (pred == nullptr || pred(node.get())) {
+      TakeOwnershipOfNode(std::move(node));
+      it = other.nodes_.erase(it);
+    } else {
+      ++it;
+    }
   }
-  node_to_stage_ = std::move(other.node_to_stage_);
+}
 
-  other.nodes_.clear();
-  other.node_iterators_.clear();
-  other.next_values_by_state_read_.clear();
-  other.params_.clear();
-  other.node_to_stage_.clear();
+void FunctionBase::TakeOwnershipOfNode(std::unique_ptr<Node>&& node) {
+  FunctionBase* old_owner = node->function_base();
+
+  if (node->Is<StateRead>()) {
+    old_owner->next_values_by_state_read_.erase(node->As<StateRead>());
+  }
+
+  old_owner->node_iterators_.erase(node.get());
+
+  if (auto it = old_owner->node_to_stage_.find(node.get());
+      it != old_owner->node_to_stage_.end()) {
+    node_to_stage_[node.get()] = it->second;
+    old_owner->node_to_stage_.erase(it);
+  }
+
+  node->function_base_ = this;
+  AddNodeInternal(std::move(node));
 }
 
 std::string FunctionBase::DumpScheduledFunctionBaseNodes() const {
@@ -191,11 +210,20 @@ std::string FunctionBase::DumpScheduledFunctionBaseNodes() const {
     } else {
       absl::StrAppendFormat(&res, "  stage {\n");
     }
+    Node* ret = nullptr;
     for (Node* node : staged_nodes[stage_idx]) {
+      if (node == stage.outputs_valid()) {
+        // Push the ret to the end.
+        ret = node;
+        continue;
+      }
       absl::StrAppend(
           &res, "    ", (node == stage.outputs_valid() ? "ret " : ""),
           (node == stage.active_inputs_valid() ? "active_inputs_valid " : ""),
           node->ToString(), "\n");
+    }
+    if (ret != nullptr) {
+      absl::StrAppend(&res, "    ret ", ret->ToString(), "\n");
     }
     absl::StrAppend(&res, "  }\n");
   }
@@ -400,6 +428,7 @@ Block* FunctionBase::AsBlockOrDie() {
 Node* FunctionBase::AddNodeInternal(std::unique_ptr<Node> node) {
   VLOG(4) << absl::StrFormat("Adding node to FunctionBase %s: %s", name(),
                              node->ToString());
+
   ++package()->transform_metrics().nodes_added;
   if (node->Is<Param>()) {
     params_.push_back(node->As<Param>());
@@ -411,7 +440,7 @@ Node* FunctionBase::AddNodeInternal(std::unique_ptr<Node> node) {
     Next* next = node->As<Next>();
     StateRead* state_read = next->state_read()->As<StateRead>();
     next_values_.push_back(node->As<Next>());
-    next_values_by_state_read_.at(state_read).insert(next);
+    next_values_by_state_read_[state_read].insert(next);
   }
   Node* ptr = node.get();
   node_iterators_[ptr] = nodes_.insert(nodes_.end(), std::move(node));

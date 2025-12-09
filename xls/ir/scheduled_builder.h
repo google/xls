@@ -16,13 +16,16 @@
 #define XLS_IR_SCHEDULED_BUILDER_H_
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/common/casts.h"
 #include "xls/ir/block.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
@@ -151,6 +154,27 @@ class ScheduledBlockBuilder : public BlockBuilder {
   // Removes the stage assignment for the given node, without affecting
   // current_stage_. Returns the node for chaining.
   BValue RemoveNodeFromStage(BValue node);
+
+  // Sets the source entity for the block. This should be done only on a block
+  // which is partially lowered and still refers to non-block constructs in the
+  // source.
+  void SetSource(std::unique_ptr<FunctionBase> source) {
+    down_cast<ScheduledBlock*>(block())->SetSource(std::move(source));
+  }
+
+  // Creates a BValue in this builder for the given node in the source entity.
+  BValue SourceNode(Node* node) { return CreateBValue(node, node->loc()); }
+
+  // Sets the source function return value in the block. This is stored directly
+  // in the block, rather than in the embedded source function, in order to
+  // avoid forward referencing in IR text.
+  void SetSourceReturnValue(Node* return_value);
+
+  // Indicates that the given state read should be considered part of the
+  // current stage. State reads are created stageless by default.
+  void AddStateReadToCurrentStage(BValue state_read) {
+    current_stage_nodes_.push_back(state_read.node());
+  }
 
  protected:
   void OnNodeAdded(Node* node);

@@ -89,25 +89,13 @@ Type* GetMapType(Node* operand, Function* to_apply) {
       to_apply->return_value()->GetType());
 }
 
-Type* GetReceivePayloadType(FunctionBase* function_base,
-                            std::string_view channel_name) {
-  return function_base->AsProcOrDie()
-      ->GetChannelReferenceType(channel_name)
-      .value();
-}
-
-Type* GetReceiveType(FunctionBase* function_base, std::string_view channel_name,
-                     bool is_blocking) {
+Type* GetReceiveType(Package* package, bool is_blocking, Type* payload_type) {
   if (is_blocking) {
-    return function_base->package()->GetTupleType(
-        {function_base->package()->GetTokenType(),
-         GetReceivePayloadType(function_base, channel_name)});
+    return package->GetTupleType({package->GetTokenType(), payload_type});
   }
 
-  return function_base->package()->GetTupleType(
-      {function_base->package()->GetTokenType(),
-       GetReceivePayloadType(function_base, channel_name),
-       function_base->package()->GetBitsType(1)});
+  return package->GetTupleType(
+      {package->GetTokenType(), payload_type, package->GetBitsType(1)});
 }
 
 }  // namespace
@@ -518,12 +506,13 @@ absl::Status ChannelNode::ReplaceChannel(std::string_view new_channel_name) {
 
 Receive::Receive(const SourceInfo& loc, Node* token,
                  std::optional<Node*> predicate, std::string_view channel_name,
-                 bool is_blocking, std::string_view name,
+                 bool is_blocking, Type* payload_type, std::string_view name,
                  FunctionBase* function)
-    : ChannelNode(loc, Op::kReceive,
-                  GetReceiveType(function, channel_name, is_blocking),
-                  channel_name, ChannelDirection::kReceive,
-                  predicate.has_value(), name, function),
+    : ChannelNode(
+          loc, Op::kReceive,
+          GetReceiveType(function->package(), is_blocking, payload_type),
+          channel_name, ChannelDirection::kReceive, predicate.has_value(), name,
+          function),
       is_blocking_(is_blocking) {
   CHECK(IsOpClass<Receive>(op_))
       << "Op `" << op_ << "` is not a valid op for Node class `Receive`.";
@@ -1380,7 +1369,7 @@ absl::StatusOr<Node*> Receive::CloneInNewFunction(
       loc(), new_operands[0],
       new_operands.size() > 1 ? std::make_optional(new_operands[1])
                               : std::nullopt,
-      channel_name(), is_blocking(), GetNameView());
+      channel_name(), is_blocking(), GetPayloadType(), GetNameView());
 }
 
 absl::StatusOr<Node*> Send::CloneInNewFunction(

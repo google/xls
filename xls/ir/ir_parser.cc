@@ -69,6 +69,7 @@
 #include "xls/ir/register.h"
 #include "xls/ir/scheduled_builder.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/state_element.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
@@ -681,13 +682,34 @@ absl::StatusOr<BlockBuilder*> CastToBlockBuilderOrError(
       absl::StrFormat("%s @ %s", error_message, pos.ToHumanString()));
 }
 
-absl::StatusOr<ProcBuilder*> CastToProcBuilderOrError(
-    BuilderBase* base_builder, std::string_view error_message, TokenPos pos) {
-  if (ProcBuilder* pb = dynamic_cast<ProcBuilder*>(base_builder)) {
-    return pb;
+absl::StatusOr<Proc*> GetEffectiveProcOrError(BuilderBase* builder,
+                                              std::string_view error_message,
+                                              TokenPos pos) {
+  if (auto* pb = dynamic_cast<ProcBuilder*>(builder)) {
+    return pb->proc();
+  }
+  if (auto* sbb = dynamic_cast<ScheduledBlockBuilder*>(builder)) {
+    FunctionBase* source = down_cast<ScheduledBlock*>(sbb->block())->source();
+    if (source != nullptr && source->IsProc()) {
+      return down_cast<Proc*>(source);
+    }
   }
   return absl::InvalidArgumentError(
       absl::StrFormat("%s @ %s", error_message, pos.ToHumanString()));
+}
+
+bool HasSendChannelRef(const Proc* proc, std::string_view name) {
+  if (proc->is_new_style_proc()) {
+    return proc->HasChannelInterface(name, ChannelDirection::kSend);
+  }
+  return proc->package()->HasChannelWithName(name);
+}
+
+bool HasReceiveChannelRef(const Proc* proc, std::string_view name) {
+  if (proc->is_new_style_proc()) {
+    return proc->HasChannelInterface(name, ChannelDirection::kReceive);
+  }
+  return proc->package()->HasChannelWithName(name);
 }
 
 }  // namespace
@@ -818,16 +840,16 @@ absl::StatusOr<BValue> Parser::ParseNode(
       break;
     }
     case Op::kNext: {
-      XLS_ASSIGN_OR_RETURN(
-          ProcBuilder * pb,
-          CastToProcBuilderOrError(
-              fb, "next operations only supported in procs", op_token.pos()));
+      XLS_RETURN_IF_ERROR(
+          GetEffectiveProcOrError(fb, "next operations only supported in procs",
+                                  op_token.pos())
+              .status());
       BValue* state_read = arg_parser.AddKeywordArg<BValue>("param");
       BValue* value = arg_parser.AddKeywordArg<BValue>("value");
       std::optional<BValue>* predicate =
           arg_parser.AddOptionalKeywordArg<BValue>("predicate");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/0));
-      bvalue = pb->Next(*state_read, *value, *predicate, *loc, node_name);
+      bvalue = fb->Next(*state_read, *value, *predicate, *loc, node_name);
       break;
     }
     case Op::kCountedFor: {
@@ -1086,8 +1108,8 @@ absl::StatusOr<BValue> Parser::ParseNode(
       break;
     }
     case Op::kReceive: {
-      XLS_ASSIGN_OR_RETURN(ProcBuilder * pb,
-                           CastToProcBuilderOrError(
+      XLS_ASSIGN_OR_RETURN(Proc * proc,
+                           GetEffectiveProcOrError(
                                fb, "receive operations only supported in procs",
                                op_token.pos()));
       std::optional<BValue>* predicate =
@@ -1098,8 +1120,8 @@ absl::StatusOr<BValue> Parser::ParseNode(
           "blocking", /*default_value=*/true);
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
       // Get the channel from the package.
-      if (!pb->HasReceiveChannelRef(channel_name->value)) {
-        if (!pb->HasSendChannelRef(channel_name->value)) {
+      if (!HasReceiveChannelRef(proc, channel_name->value)) {
+        if (!HasSendChannelRef(proc, channel_name->value)) {
           return absl::InvalidArgumentError(
               absl::StrFormat("No such channel `%s`", channel_name->value));
         }
@@ -1108,9 +1130,9 @@ absl::StatusOr<BValue> Parser::ParseNode(
       }
       ReceiveChannelRef channel_ref;
       Type* channel_type;
-      if (pb->proc()->is_new_style_proc()) {
+      if (proc->is_new_style_proc()) {
         XLS_ASSIGN_OR_RETURN(
-            channel_ref, pb->GetReceiveChannelInterface(channel_name->value));
+            channel_ref, proc->GetReceiveChannelInterface(channel_name->value));
         channel_type = std::get<ReceiveChannelInterface*>(channel_ref)->type();
       } else {
         XLS_ASSIGN_OR_RETURN(channel_ref,
@@ -1131,35 +1153,35 @@ absl::StatusOr<BValue> Parser::ParseNode(
       }
       if (predicate->has_value()) {
         if (*is_blocking) {
-          bvalue = pb->ReceiveIf(channel_ref, operands[0], predicate->value(),
+          bvalue = fb->ReceiveIf(channel_ref, operands[0], predicate->value(),
                                  *loc, node_name);
         } else {
-          bvalue = pb->ReceiveIfNonBlocking(
+          bvalue = fb->ReceiveIfNonBlocking(
               channel_ref, operands[0], predicate->value(), *loc, node_name);
         }
       } else {
         if (*is_blocking) {
-          bvalue = pb->Receive(channel_ref, operands[0], *loc, node_name);
+          bvalue = fb->Receive(channel_ref, operands[0], *loc, node_name);
         } else {
           bvalue =
-              pb->ReceiveNonBlocking(channel_ref, operands[0], *loc, node_name);
+              fb->ReceiveNonBlocking(channel_ref, operands[0], *loc, node_name);
         }
       }
       break;
     }
     case Op::kSend: {
       XLS_ASSIGN_OR_RETURN(
-          ProcBuilder * pb,
-          CastToProcBuilderOrError(
-              fb, "send operations only supported in procs", op_token.pos()));
+          Proc * proc,
+          GetEffectiveProcOrError(fb, "send operations only supported in procs",
+                                  op_token.pos()));
       std::optional<BValue>* predicate =
           arg_parser.AddOptionalKeywordArg<BValue>("predicate");
       IdentifierString* channel_name =
           arg_parser.AddKeywordArg<IdentifierString>("channel");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/2));
       // Get the channel from the package.
-      if (!pb->HasSendChannelRef(channel_name->value)) {
-        if (!pb->HasReceiveChannelRef(channel_name->value)) {
+      if (!HasSendChannelRef(proc, channel_name->value)) {
+        if (!HasReceiveChannelRef(proc, channel_name->value)) {
           return absl::InvalidArgumentError(
               absl::StrFormat("No such channel `%s`", channel_name->value));
         }
@@ -1167,19 +1189,19 @@ absl::StatusOr<BValue> Parser::ParseNode(
             "Cannot send on channel `%s`", channel_name->value));
       }
       SendChannelRef channel_ref;
-      if (pb->proc()->is_new_style_proc()) {
-        XLS_ASSIGN_OR_RETURN(channel_ref,
-                             pb->GetSendChannelInterface(channel_name->value));
+      if (proc->is_new_style_proc()) {
+        XLS_ASSIGN_OR_RETURN(
+            channel_ref, proc->GetSendChannelInterface(channel_name->value));
       } else {
         XLS_ASSIGN_OR_RETURN(channel_ref,
                              package->GetChannel(channel_name->value));
       }
       if (predicate->has_value()) {
-        bvalue = pb->SendIf(channel_ref, operands[0], predicate->value(),
+        bvalue = fb->SendIf(channel_ref, operands[0], predicate->value(),
                             operands[1], *loc, node_name);
       } else {
         bvalue =
-            pb->Send(channel_ref, operands[0], operands[1], *loc, node_name);
+            fb->Send(channel_ref, operands[0], operands[1], *loc, node_name);
       }
       break;
     }
@@ -2223,13 +2245,15 @@ absl::Status Parser::ParseFileNumber(
 }
 
 absl::StatusOr<Function*> Parser::ParseFunction(
-    Package* package, absl::Span<const IrAttribute> outer_attributes) {
-  return ParseFunctionInternal(package, outer_attributes, /*scheduled=*/false);
+    Package* package, absl::Span<const IrAttribute> outer_attributes,
+    std::unique_ptr<FunctionBase>* overridden_dest) {
+  return ParseFunctionInternal(package, outer_attributes, /*scheduled=*/false,
+                               overridden_dest);
 }
 
 absl::StatusOr<Function*> Parser::ParseFunctionInternal(
     Package* package, absl::Span<const IrAttribute> outer_attributes,
-    bool scheduled) {
+    bool scheduled, std::unique_ptr<FunctionBase>* overridden_dest) {
   if (AtEof()) {
     return absl::InvalidArgumentError("Could not parse function; at EOF.");
   }
@@ -2242,27 +2266,38 @@ absl::StatusOr<Function*> Parser::ParseFunctionInternal(
       auto function_data,
       ParseFunctionSignature(&name_to_value, package, scheduled));
   FunctionBuilder* fb = function_data.first.get();
-
-  XLS_ASSIGN_OR_RETURN(BodyResult body_result,
-                       ParseBody(fb, &name_to_value, package, scheduled));
-
-  XLS_RET_CHECK(std::holds_alternative<FunctionBodyResult>(body_result));
-  BValue return_value = std::get<FunctionBodyResult>(body_result).return_value;
-
-  if (return_value.valid() &&
-      return_value.node()->GetType() != function_data.second) {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Type of return value %s does not match declared function return type "
-        "%s",
-        return_value.node()->GetType()->ToString(),
-        function_data.second->ToString()));
+  if (overridden_dest != nullptr) {
+    fb->OverrideDestination(overridden_dest);
   }
 
-  // TODO(leary): 2019-02-19 Could be an empty function body, need to decide
-  // what to do for those. Accept that the return value can be null and handle
-  // everywhere?
-  XLS_ASSIGN_OR_RETURN(Function * result,
-                       fb->BuildWithReturnValue(return_value));
+  Function* result = nullptr;
+  if (overridden_dest == nullptr) {
+    XLS_ASSIGN_OR_RETURN(BodyResult body_result,
+                         ParseBody(fb, &name_to_value, package, scheduled));
+
+    XLS_RET_CHECK(std::holds_alternative<FunctionBodyResult>(body_result));
+    BValue return_value =
+        std::get<FunctionBodyResult>(body_result).return_value;
+
+    if (return_value.valid() &&
+        return_value.node()->GetType() != function_data.second) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Type of return value %s does not match declared "
+                          "function return type "
+                          "%s",
+                          return_value.node()->GetType()->ToString(),
+                          function_data.second->ToString()));
+    }
+
+    // TODO(leary): 2019-02-19 Could be an empty function body, need to decide
+    // what to do for those. Accept that the return value can be null and handle
+    // everywhere?
+    XLS_ASSIGN_OR_RETURN(result, fb->BuildWithReturnValue(return_value));
+  } else {
+    XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(
+        LexicalTokenType::kCurlClose, "'}' at end of function body"));
+    XLS_ASSIGN_OR_RETURN(result, fb->BuildWithNoReturnValue());
+  }
 
   for (const IrAttribute& attribute : outer_attributes) {
     if (std::holds_alternative<InitiationInterval>(attribute.payload)) {
@@ -2284,13 +2319,15 @@ absl::StatusOr<Function*> Parser::ParseFunctionInternal(
 }
 
 absl::StatusOr<Proc*> Parser::ParseProc(
-    Package* package, absl::Span<const IrAttribute> outer_attributes) {
-  return ParseProcInternal(package, outer_attributes, /*scheduled=*/false);
+    Package* package, absl::Span<const IrAttribute> outer_attributes,
+    std::unique_ptr<FunctionBase>* overridden_dest) {
+  return ParseProcInternal(package, outer_attributes, /*scheduled=*/false,
+                           overridden_dest);
 }
 
 absl::StatusOr<Proc*> Parser::ParseProcInternal(
     Package* package, absl::Span<const IrAttribute> outer_attributes,
-    bool scheduled) {
+    bool scheduled, std::unique_ptr<FunctionBase>* overridden_dest) {
   if (AtEof()) {
     return absl::InvalidArgumentError("Could not parse proc; at EOF.");
   }
@@ -2300,6 +2337,9 @@ absl::StatusOr<Proc*> Parser::ParseProcInternal(
   absl::flat_hash_map<std::string, BValue> name_to_value;
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ProcBuilder> pb,
                        ParseProcSignature(&name_to_value, package, scheduled));
+  if (overridden_dest != nullptr) {
+    pb->OverrideDestination(overridden_dest);
+  }
 
   XLS_ASSIGN_OR_RETURN(BodyResult body_result,
                        ParseBody(pb.get(), &name_to_value, package, scheduled));
@@ -3263,7 +3303,8 @@ absl::StatusOr<ScheduledFunction*> Parser::ParseScheduledFunction(
     Package* package, absl::Span<const IrAttribute> outer_attributes) {
   XLS_ASSIGN_OR_RETURN(
       Function * fn,
-      ParseFunctionInternal(package, outer_attributes, /*scheduled=*/true));
+      ParseFunctionInternal(package, outer_attributes, /*scheduled=*/true,
+                            /*overridden_dest=*/nullptr));
   return down_cast<ScheduledFunction*>(fn);
 }
 
@@ -3273,8 +3314,10 @@ absl::StatusOr<ScheduledProc*> Parser::ParseScheduledProc(
     return absl::InvalidArgumentError("Could not parse proc; at EOF.");
   }
 
-  XLS_ASSIGN_OR_RETURN(Proc * proc, ParseProcInternal(package, outer_attributes,
-                                                      /*scheduled=*/true));
+  XLS_ASSIGN_OR_RETURN(
+      Proc * proc,
+      ParseProcInternal(package, outer_attributes,
+                        /*scheduled=*/true, /*overridden_dest=*/nullptr));
   return down_cast<ScheduledProc*>(proc);
 }
 
@@ -3290,6 +3333,34 @@ absl::StatusOr<ScheduledBlock*> Parser::ParseScheduledBlock(
 
   while (!scanner_.PeekTokenIs(LexicalTokenType::kCurlClose)) {
     XLS_ASSIGN_OR_RETURN(Token peek, scanner_.PeekToken());
+    if (peek.type() == LexicalTokenType::kKeyword && peek.value() == "source") {
+      std::unique_ptr<FunctionBase> source;
+      scanner_.PopToken();
+      XLS_ASSIGN_OR_RETURN(peek, scanner_.PeekToken());
+      if (peek.type() == LexicalTokenType::kKeyword && peek.value() == "fn") {
+        XLS_ASSIGN_OR_RETURN(
+            Function * source_fn,
+            ParseFunction(package, /*outer_attributes=*/{}, &source));
+        XLS_RET_CHECK(source_fn->return_value() == nullptr);
+        for (Param* param : source_fn->params()) {
+          name_to_value.emplace(param->name(), bb.SourceNode(param));
+        }
+      } else if (peek.type() == LexicalTokenType::kKeyword &&
+                 peek.value() == "proc") {
+        XLS_ASSIGN_OR_RETURN(
+            Proc * source_proc,
+            ParseProc(package, /*outer_attributes=*/{}, &source));
+        for (StateElement* element : source_proc->StateElements()) {
+          name_to_value.emplace(
+              element->name(),
+              bb.SourceNode(source_proc->GetStateRead(element)));
+        }
+      } else {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Invalid source for scheduled_block: %s", peek.value()));
+      }
+      bb.SetSource(std::move(source));
+    }
     if (peek.type() == LexicalTokenType::kKeyword &&
         peek.value() == "controlled_stage") {
       XLS_RETURN_IF_ERROR(ParseControlledStage(&bb, &name_to_value, package));
@@ -3303,8 +3374,20 @@ absl::StatusOr<ScheduledBlock*> Parser::ParseScheduledBlock(
                            ParseInstantiation(bb.block()));
       (void)instantiation;
     } else {
-      XLS_ASSIGN_OR_RETURN(BValue result, ParseNode(&bb, &name_to_value));
-      name_to_value[result.node()->GetName()] = result;
+      if (scanner_.TryDropKeyword("ret")) {
+        XLS_ASSIGN_OR_RETURN(Token source_ret_name,
+                             scanner_.PopTokenOrError(LexicalTokenType::kIdent,
+                                                      "return value name"));
+        const auto it = name_to_value.find(source_ret_name.value());
+        if (it == name_to_value.end()) {
+          return absl::InvalidArgumentError(absl::StrCat(
+              "Source return value was undefined: ", source_ret_name.value()));
+        }
+        bb.SetSourceReturnValue(it->second.node());
+      } else {
+        XLS_ASSIGN_OR_RETURN(BValue result, ParseNode(&bb, &name_to_value));
+        name_to_value[result.node()->GetName()] = result;
+      }
     }
   }
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kCurlClose));
@@ -3333,7 +3416,6 @@ absl::StatusOr<ScheduledBlock*> Parser::ParseScheduledBlock(
     port_names.push_back(port.name);
   }
   XLS_RETURN_IF_ERROR(block->ReorderPorts(port_names));
-
   return block;
 }
 
@@ -3363,6 +3445,11 @@ absl::Status Parser::ParseControlledStage(
     }
     XLS_ASSIGN_OR_RETURN(BValue result, ParseNode(builder, name_to_value));
     (*name_to_value)[result.node()->GetName()] = result;
+    if (result.node()->Is<StateRead>()) {
+      // State reads are not created the way normal nodes are, so we need to
+      // force this.
+      builder->AddStateReadToCurrentStage(result);
+    }
     if (is_active_inputs_valid) {
       if (active_inputs_valid.has_value()) {
         return absl::InvalidArgumentError(absl::StrFormat(

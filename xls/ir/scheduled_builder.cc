@@ -211,4 +211,13 @@ void ScheduledBlockBuilder::OnNodeAdded(Node* node) {
   }
 }
 
+void ScheduledBlockBuilder::SetSourceReturnValue(Node* return_value) {
+  auto* sb = down_cast<ScheduledBlock*>(block());
+  CHECK(sb->source() != nullptr);
+  auto* source_fn = dynamic_cast<Function*>(sb->source());
+  CHECK(source_fn != nullptr);
+  sb->SetSourceReturnValue(return_value);
+  source_fn->set_return_type(return_value->GetType());
+}
+
 }  // namespace xls

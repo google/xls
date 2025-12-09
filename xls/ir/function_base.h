@@ -16,12 +16,14 @@
 #define XLS_IR_FUNCTION_BASE_H_
 
 #include <cstdint>
+#include <functional>
 #include <list>
 #include <memory>
 #include <optional>
 #include <ostream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/container/btree_set.h"
@@ -318,6 +320,10 @@ class FunctionBase {
   bool IsFunction() const { return kind() == Kind::kFunction; }
   bool IsProc() const { return kind() == Kind::kProc; }
   bool IsBlock() const { return kind() == Kind::kBlock; }
+
+  // Returns true if `this` is either a proc or a partially lowered proc.
+  virtual bool HasEffectiveProc() const { return IsProc(); }
+
   virtual bool IsScheduled() const { return false; }
 
   const Function* AsFunctionOrDie() const;
@@ -326,6 +332,14 @@ class FunctionBase {
   Proc* AsProcOrDie();
   const Block* AsBlockOrDie() const;
   Block* AsBlockOrDie();
+
+  // Returns either `this` or the proc that `this` was partially lowered from.
+  virtual const Proc* GetEffectiveProcOrDie() const {
+    CHECK(false) << "No effective proc for FunctionBase: " << name();
+  }
+  virtual Proc* GetEffectiveProcOrDie() {
+    CHECK(false) << "No effective proc for FunctionBase: " << name();
+  }
 
   // Returns the pipeline stages of the function base. Only callable on
   // scheduled function bases.
@@ -433,8 +447,32 @@ class FunctionBase {
   // configuration/definition data is embedded in the node graph.
   absl::Status RebuildSideTables();
 
+  // Moves only the actual logic from `other`; not the params, state elements,
+  // channels, or proc instantiations. The move includes the staging of the
+  // logic, if this is a scheduled entity.
+  void MoveLogicFrom(FunctionBase& other) {
+    MoveFrom(other, [](const Node* n) { return !n->Is<Param>(); });
+    other.next_values_by_state_read_.clear();
+    other.next_values_.clear();
+  }
+
+  // Indicates whether this is a skeletal source entity embedded in a scheduled
+  // block.
+  void SetIsBlockSource(bool value) { is_block_source_ = value; }
+
+  virtual bool Contains(const Node* node) const {
+    return node->function_base() == this;
+  }
+
  protected:
-  void MoveFrom(FunctionBase& other);
+  void MoveFrom(FunctionBase& other,
+                std::function<bool(const Node*)> pred = nullptr);
+
+  // Moves the given node into this `FunctionBase` from another one. This is
+  // meant to be used as part of a larger transaction like
+  // `Function::MoveInterfaceFrom`, which later cleans up the state and param
+  // vectors of the old owner; therefore, it does not update those vectors.
+  void TakeOwnershipOfNode(std::unique_ptr<Node>&& node);
 
   // Dumps the nodes in a scheduled type of `FunctionBase`, with scoping of the
   // staged nodes. This is a helper for the DumpIr() implementation for these
@@ -484,6 +522,10 @@ class FunctionBase {
 
   // Maps nodes to their stage index.
   absl::flat_hash_map<Node*, int64_t> node_to_stage_;
+
+  // Whether this `FunctionBase` is the embedded source entity of a scheduled
+  // block.
+  bool is_block_source_ = false;
 };
 
 inline absl::Span<ChangeListener* const> GetChangeListeners(

@@ -710,25 +710,26 @@ absl::Status ReplaceReceive(Proc* proc, Receive* old_receive,
                             RamLogicalChannel logical_channel,
                             const RamConfig& from_config,
                             const RamConfig& to_config, Type* data_type,
-                            std::string_view new_channel) {
+                            std::string_view new_channel,
+                            Type* new_channel_type) {
   std::optional<Node*> new_receive;
   if (from_config.kind == RamKind::kAbstract &&
       (to_config.kind == RamKind::k1RW || to_config.kind == RamKind::k1R1W)) {
     switch (logical_channel) {
       case RamLogicalChannel::kAbstractReadResp: {
-        XLS_ASSIGN_OR_RETURN(
-            new_receive,
-            proc->MakeNode<Receive>(old_receive->loc(), old_receive->token(),
-                                    old_receive->predicate(), new_channel,
-                                    old_receive->is_blocking()));
+        XLS_ASSIGN_OR_RETURN(new_receive,
+                             proc->MakeNode<Receive>(
+                                 old_receive->loc(), old_receive->token(),
+                                 old_receive->predicate(), new_channel,
+                                 old_receive->is_blocking(), new_channel_type));
         break;
       }
       case RamLogicalChannel::kWriteCompletion: {
-        XLS_ASSIGN_OR_RETURN(
-            new_receive,
-            proc->MakeNode<Receive>(old_receive->loc(), old_receive->token(),
-                                    old_receive->predicate(), new_channel,
-                                    old_receive->is_blocking()));
+        XLS_ASSIGN_OR_RETURN(new_receive,
+                             proc->MakeNode<Receive>(
+                                 old_receive->loc(), old_receive->token(),
+                                 old_receive->predicate(), new_channel,
+                                 old_receive->is_blocking(), new_channel_type));
         break;
       }
       default: {
@@ -829,12 +830,13 @@ absl::Status ReplaceChannelReferences(Package* p, OptimizationContext& context,
         RamLogicalChannel new_logical_channel,
         MapChannel(metadata.rewrite.from_config.kind, logical_channel,
                    metadata.rewrite.to_config.kind));
-    std::string_view new_channel_name =
-        ChannelRefName(to_mapping.at(new_logical_channel).channel_ref);
+    ChannelRef new_channel = to_mapping.at(new_logical_channel).channel_ref;
+    std::string_view new_channel_name = ChannelRefName(new_channel);
+    Type* new_channel_type = ChannelRefType(new_channel);
     return ReplaceReceive(receive->function_base()->AsProcOrDie(), receive,
                           logical_channel, metadata.rewrite.from_config,
                           metadata.rewrite.to_config, metadata.data_type,
-                          new_channel_name);
+                          new_channel_name, new_channel_type);
   };
 
   if (metadata.proc_scope.has_value()) {

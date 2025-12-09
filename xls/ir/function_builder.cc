@@ -1047,6 +1047,169 @@ BValue BuilderBase::Concat(absl::Span<const BValue> operands,
   return AddNode<xls::Concat>(loc, node_operands, name);
 }
 
+BValue BuilderBase::Receive(ReceiveChannelRef channel, BValue token,
+                            const SourceInfo& loc, std::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  if (!token.GetType()->IsToken()) {
+    return SetError(
+        absl::StrFormat(
+            "Token operand of receive must be of token type; is: %s",
+            token.GetType()->ToString()),
+        loc);
+  }
+  return AddNode<xls::Receive>(loc, token.node(), /*predicate=*/std::nullopt,
+                               ChannelRefName(channel), /*is_blocking=*/true,
+                               ChannelRefType(channel), name);
+}
+
+BValue BuilderBase::ReceiveNonBlocking(ReceiveChannelRef channel, BValue token,
+                                       const SourceInfo& loc,
+                                       std::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  if (!token.GetType()->IsToken()) {
+    return SetError(
+        absl::StrFormat(
+            "Token operand of receive must be of token type; is: %s",
+            token.GetType()->ToString()),
+        loc);
+  }
+  return AddNode<xls::Receive>(loc, token.node(), /*predicate=*/std::nullopt,
+                               ChannelRefName(channel), /*is_blocking=*/false,
+                               ChannelRefType(channel), name);
+}
+
+BValue BuilderBase::ReceiveIf(ReceiveChannelRef channel, BValue token,
+                              BValue pred, const SourceInfo& loc,
+                              std::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  if (!token.GetType()->IsToken()) {
+    return SetError(
+        absl::StrFormat(
+            "Token operand of receive must be of token type; is: %s",
+            token.GetType()->ToString()),
+        loc);
+  }
+  if (!pred.GetType()->IsBits() ||
+      pred.GetType()->AsBitsOrDie()->bit_count() != 1) {
+    return SetError(
+        absl::StrFormat("Predicate operand of receive_if must be of bits "
+                        "type of width 1; is: %s",
+                        pred.GetType()->ToString()),
+        loc);
+  }
+  return AddNode<xls::Receive>(
+      loc, token.node(), pred.node(), ChannelRefName(channel),
+      /*is_blocking=*/true, ChannelRefType(channel), name);
+}
+
+BValue BuilderBase::ReceiveIfNonBlocking(ReceiveChannelRef channel,
+                                         BValue token, BValue pred,
+                                         const SourceInfo& loc,
+                                         std::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  if (!token.GetType()->IsToken()) {
+    return SetError(
+        absl::StrFormat(
+            "Token operand of receive must be of token type; is: %s",
+            token.GetType()->ToString()),
+        loc);
+  }
+  if (!pred.GetType()->IsBits() ||
+      pred.GetType()->AsBitsOrDie()->bit_count() != 1) {
+    return SetError(
+        absl::StrFormat("Predicate operand of receive_if must be of bits "
+                        "type of width 1; is: %s",
+                        pred.GetType()->ToString()),
+        loc);
+  }
+  return AddNode<xls::Receive>(
+      loc, token.node(), pred.node(), ChannelRefName(channel),
+      /*is_blocking=*/false, ChannelRefType(channel), name);
+}
+
+BValue BuilderBase::Send(SendChannelRef channel, BValue token, BValue data,
+                         const SourceInfo& loc, std::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  if (!token.GetType()->IsToken()) {
+    return SetError(
+        absl::StrFormat("Token operand of send must be of token type; is: %s",
+                        token.GetType()->ToString()),
+        loc);
+  }
+  return AddNode<xls::Send>(loc, token.node(), data.node(),
+                            /*predicate=*/std::nullopt, ChannelRefName(channel),
+                            name);
+}
+
+BValue BuilderBase::SendIf(SendChannelRef channel, BValue token, BValue pred,
+                           BValue data, const SourceInfo& loc,
+                           std::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  if (!token.GetType()->IsToken()) {
+    return SetError(
+        absl::StrFormat("Token operand of send must be of token type; is: %s",
+                        token.GetType()->ToString()),
+        loc);
+  }
+  if (!pred.GetType()->IsBits() ||
+      pred.GetType()->AsBitsOrDie()->bit_count() != 1) {
+    return SetError(absl::StrFormat("Predicate operand of send must be of bits "
+                                    "type of width 1; is: %s",
+                                    pred.GetType()->ToString()),
+                    loc);
+  }
+  return AddNode<xls::Send>(loc, token.node(), data.node(), pred.node(),
+                            ChannelRefName(channel), name);
+}
+
+BValue BuilderBase::Next(BValue state_read, BValue value,
+                         std::optional<BValue> pred, const SourceInfo& loc,
+                         std::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  if (!state_read.node()->Is<xls::StateRead>()) {
+    return SetError(absl::StrFormat("next node only applies to state reads; "
+                                    "state read was given as: %v",
+                                    *state_read.node()),
+                    loc);
+  }
+  class StateElement* state_element =
+      state_read.node()->As<xls::StateRead>()->state_element();
+  if (!value.GetType()->IsEqualTo(state_element->type())) {
+    return SetError(
+        absl::StrFormat(
+            "next value for state element '%s' must be of type %s; is: %s",
+            state_read.node()->As<xls::StateRead>()->state_element()->name(),
+            state_read.GetType()->ToString(), value.GetType()->ToString()),
+        loc);
+  }
+  if (pred.has_value() && (!pred->GetType()->IsBits() ||
+                           pred->GetType()->AsBitsOrDie()->bit_count() != 1)) {
+    return SetError(absl::StrFormat("Predicate operand of next must be of bits "
+                                    "type of width 1; is: %s",
+                                    pred->GetType()->ToString()),
+                    loc);
+  }
+  return AddNode<xls::Next>(
+      loc, /*state_read=*/state_read.node(), /*value=*/value.node(),
+      /*predicate=*/pred.has_value() ? std::make_optional(pred->node())
+                                     : std::nullopt,
+      name);
+}
+
 FunctionBuilder::FunctionBuilder(std::string_view name, Package* package,
                                  bool should_verify)
     : BuilderBase(std::make_unique<Function>(std::string(name), package),
@@ -1090,12 +1253,41 @@ absl::StatusOr<Function*> FunctionBuilder::BuildWithReturnValue(
     return GetError();
   }
   XLS_RET_CHECK_EQ(return_value.builder(), this);
+
   // down_cast the FunctionBase* to Function*. We know this is safe because
   // FunctionBuilder constructs and passes a Function to BuilderBase
   // constructor so function_ is always a Function.
-  Function* f = package()->AddFunction(
-      absl::WrapUnique(down_cast<Function*>(function_.release())));
+  Function* f;
+  if (overridden_dest_ != nullptr) {
+    *overridden_dest_ = absl::WrapUnique(function_.release());
+    f = down_cast<Function*>(overridden_dest_->get());
+  } else {
+    f = package()->AddFunction(
+        absl::WrapUnique(down_cast<Function*>(function_.release())));
+  }
+
   XLS_RETURN_IF_ERROR(f->set_return_value(return_value.node()));
+  if (should_verify_) {
+    XLS_RETURN_IF_ERROR(VerifyFunction(f));
+  }
+  return f;
+}
+
+absl::StatusOr<Function*> FunctionBuilder::BuildWithNoReturnValue() {
+  if (ErrorPending()) {
+    return GetError();
+  }
+  // down_cast the FunctionBase* to Function*. We know this is safe because
+  // FunctionBuilder constructs and passes a Function to BuilderBase
+  // constructor so function_ is always a Function.
+  Function* f;
+  if (overridden_dest_ != nullptr) {
+    *overridden_dest_ = absl::WrapUnique(function_.release());
+    f = down_cast<Function*>(overridden_dest_->get());
+  } else {
+    f = package()->AddFunction(
+        absl::WrapUnique(down_cast<Function*>(function_.release())));
+  }
   if (should_verify_) {
     XLS_RETURN_IF_ERROR(VerifyFunction(f));
   }
@@ -1188,20 +1380,6 @@ absl::StatusOr<SendChannelInterface*> ProcBuilder::AddOutputChannel(
   return proc()->AddOutputChannelInterface(std::move(channel_interface));
 }
 
-bool ProcBuilder::HasSendChannelRef(std::string_view name) const {
-  if (proc()->is_new_style_proc()) {
-    return proc()->HasChannelInterface(name, ChannelDirection::kSend);
-  }
-  return package()->HasChannelWithName(name);
-}
-
-bool ProcBuilder::HasReceiveChannelRef(std::string_view name) const {
-  if (proc()->is_new_style_proc()) {
-    return proc()->HasChannelInterface(name, ChannelDirection::kReceive);
-  }
-  return package()->HasChannelWithName(name);
-}
-
 absl::StatusOr<SendChannelInterface*> ProcBuilder::GetSendChannelInterface(
     std::string_view name) {
   XLS_RET_CHECK(proc()->is_new_style_proc());
@@ -1230,8 +1408,15 @@ absl::StatusOr<Proc*> ProcBuilder::Build() {
   // down_cast the FunctionBase* to Proc*. We know this is safe because
   // ProcBuilder constructs and passes a Proc to BuilderBase constructor so
   // function_ is always a Proc.
-  Proc* proc = package()->AddProc(
-      absl::WrapUnique(down_cast<Proc*>(function_.release())));
+  Proc* proc;
+  if (overridden_dest_ != nullptr) {
+    *overridden_dest_ = absl::WrapUnique(function_.release());
+    proc = down_cast<Proc*>(overridden_dest_->get());
+  } else {
+    proc = package()->AddProc(
+        absl::WrapUnique(down_cast<Proc*>(function_.release())));
+  }
+
   if (should_verify_) {
     XLS_RETURN_IF_ERROR(VerifyProc(proc));
   }
@@ -1294,42 +1479,6 @@ BValue ProcBuilder::StateElement(std::string_view name,
   return SetError(absl::StrFormat("Unable to create initial value due to %s",
                                   built.status().ToString()),
                   loc);
-}
-
-BValue ProcBuilder::Next(BValue state_read, BValue value,
-                         std::optional<BValue> pred, const SourceInfo& loc,
-                         std::string_view name) {
-  if (ErrorPending()) {
-    return BValue();
-  }
-  if (!state_read.node()->Is<xls::StateRead>()) {
-    return SetError(absl::StrFormat("next node only applies to state reads; "
-                                    "state read was given as: %v",
-                                    *state_read.node()),
-                    loc);
-  }
-  class StateElement* state_element =
-      state_read.node()->As<xls::StateRead>()->state_element();
-  if (!value.GetType()->IsEqualTo(state_element->type())) {
-    return SetError(
-        absl::StrFormat(
-            "next value for state element '%s' must be of type %s; is: %s",
-            state_read.node()->As<xls::StateRead>()->state_element()->name(),
-            state_read.GetType()->ToString(), value.GetType()->ToString()),
-        loc);
-  }
-  if (pred.has_value() && (!pred->GetType()->IsBits() ||
-                           pred->GetType()->AsBitsOrDie()->bit_count() != 1)) {
-    return SetError(absl::StrFormat("Predicate operand of next must be of bits "
-                                    "type of width 1; is: %s",
-                                    pred->GetType()->ToString()),
-                    loc);
-  }
-  return AddNode<xls::Next>(
-      loc, /*state_read=*/state_read.node(), /*value=*/value.node(),
-      /*predicate=*/pred.has_value() ? std::make_optional(pred->node())
-                                     : std::nullopt,
-      name);
 }
 
 BValue ProcBuilder::Param(std::string_view name, Type* type,
@@ -1604,151 +1753,6 @@ BValue BuilderBase::Gate(BValue condition, BValue data, const SourceInfo& loc,
         loc);
   }
   return AddNode<xls::Gate>(loc, condition.node(), data.node(), name);
-}
-
-std::string_view ProcBuilder::GetChannelName(SendChannelRef channel) const {
-  if (std::holds_alternative<Channel*>(channel)) {
-    CHECK(!proc()->is_new_style_proc());
-    return std::get<Channel*>(channel)->name();
-  }
-  CHECK(proc()->is_new_style_proc());
-  return std::get<SendChannelInterface*>(channel)->name();
-}
-
-std::string_view ProcBuilder::GetChannelName(ReceiveChannelRef channel) const {
-  if (std::holds_alternative<Channel*>(channel)) {
-    CHECK(!proc()->is_new_style_proc());
-    return std::get<Channel*>(channel)->name();
-  }
-  CHECK(proc()->is_new_style_proc());
-  return std::get<ReceiveChannelInterface*>(channel)->name();
-}
-
-BValue ProcBuilder::Receive(ReceiveChannelRef channel, BValue token,
-                            const SourceInfo& loc, std::string_view name) {
-  if (ErrorPending()) {
-    return BValue();
-  }
-  if (!token.GetType()->IsToken()) {
-    return SetError(
-        absl::StrFormat(
-            "Token operand of receive must be of token type; is: %s",
-            token.GetType()->ToString()),
-        loc);
-  }
-  return AddNode<xls::Receive>(loc, token.node(), /*predicate=*/std::nullopt,
-                               GetChannelName(channel), /*is_blocking=*/true,
-                               name);
-}
-
-BValue ProcBuilder::ReceiveNonBlocking(ReceiveChannelRef channel, BValue token,
-                                       const SourceInfo& loc,
-                                       std::string_view name) {
-  if (ErrorPending()) {
-    return BValue();
-  }
-  if (!token.GetType()->IsToken()) {
-    return SetError(
-        absl::StrFormat(
-            "Token operand of receive must be of token type; is: %s",
-            token.GetType()->ToString()),
-        loc);
-  }
-  return AddNode<xls::Receive>(loc, token.node(), /*predicate=*/std::nullopt,
-                               GetChannelName(channel), /*is_blocking=*/false,
-                               name);
-}
-
-BValue ProcBuilder::ReceiveIf(ReceiveChannelRef channel, BValue token,
-                              BValue pred, const SourceInfo& loc,
-                              std::string_view name) {
-  if (ErrorPending()) {
-    return BValue();
-  }
-  if (!token.GetType()->IsToken()) {
-    return SetError(
-        absl::StrFormat(
-            "Token operand of receive must be of token type; is: %s",
-            token.GetType()->ToString()),
-        loc);
-  }
-  if (!pred.GetType()->IsBits() ||
-      pred.GetType()->AsBitsOrDie()->bit_count() != 1) {
-    return SetError(
-        absl::StrFormat("Predicate operand of receive_if must be of bits "
-                        "type of width 1; is: %s",
-                        pred.GetType()->ToString()),
-        loc);
-  }
-  return AddNode<xls::Receive>(loc, token.node(), pred.node(),
-                               GetChannelName(channel),
-                               /*is_blocking=*/true, name);
-}
-
-BValue ProcBuilder::ReceiveIfNonBlocking(ReceiveChannelRef channel,
-                                         BValue token, BValue pred,
-                                         const SourceInfo& loc,
-                                         std::string_view name) {
-  if (ErrorPending()) {
-    return BValue();
-  }
-  if (!token.GetType()->IsToken()) {
-    return SetError(
-        absl::StrFormat(
-            "Token operand of receive must be of token type; is: %s",
-            token.GetType()->ToString()),
-        loc);
-  }
-  if (!pred.GetType()->IsBits() ||
-      pred.GetType()->AsBitsOrDie()->bit_count() != 1) {
-    return SetError(
-        absl::StrFormat("Predicate operand of receive_if must be of bits "
-                        "type of width 1; is: %s",
-                        pred.GetType()->ToString()),
-        loc);
-  }
-  return AddNode<xls::Receive>(loc, token.node(), pred.node(),
-                               GetChannelName(channel),
-                               /*is_blocking=*/false, name);
-}
-
-BValue ProcBuilder::Send(SendChannelRef channel, BValue token, BValue data,
-                         const SourceInfo& loc, std::string_view name) {
-  if (ErrorPending()) {
-    return BValue();
-  }
-  if (!token.GetType()->IsToken()) {
-    return SetError(
-        absl::StrFormat("Token operand of send must be of token type; is: %s",
-                        token.GetType()->ToString()),
-        loc);
-  }
-  return AddNode<xls::Send>(loc, token.node(), data.node(),
-                            /*predicate=*/std::nullopt, GetChannelName(channel),
-                            name);
-}
-
-BValue ProcBuilder::SendIf(SendChannelRef channel, BValue token, BValue pred,
-                           BValue data, const SourceInfo& loc,
-                           std::string_view name) {
-  if (ErrorPending()) {
-    return BValue();
-  }
-  if (!token.GetType()->IsToken()) {
-    return SetError(
-        absl::StrFormat("Token operand of send must be of token type; is: %s",
-                        token.GetType()->ToString()),
-        loc);
-  }
-  if (!pred.GetType()->IsBits() ||
-      pred.GetType()->AsBitsOrDie()->bit_count() != 1) {
-    return SetError(absl::StrFormat("Predicate operand of send must be of bits "
-                                    "type of width 1; is: %s",
-                                    pred.GetType()->ToString()),
-                    loc);
-  }
-  return AddNode<xls::Send>(loc, token.node(), data.node(), pred.node(),
-                            GetChannelName(channel), name);
 }
 
 BValue TokenlessProcBuilder::MinDelay(int64_t delay, const SourceInfo& loc,

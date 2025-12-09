@@ -25,6 +25,7 @@
 #include "xls/codegen_v_1_5/flow_control_insertion_pass.h"
 #include "xls/codegen_v_1_5/param_and_return_value_lowering_pass.h"
 #include "xls/codegen_v_1_5/pipeline_register_insertion_pass.h"
+#include "xls/codegen_v_1_5/scheduled_block_conversion_pass.h"
 #include "xls/codegen_v_1_5/scheduling_pass.h"
 #include "xls/codegen_v_1_5/state_to_register_io_lowering_pass.h"
 
@@ -35,8 +36,11 @@ CreateBlockConversionPassPipeline() {
   auto top = std::make_unique<BlockConversionCompoundPass>(
       "block_conversion", "Top level codegen v1.5 block conversion pipeline");
 
-  // Convert IR to scheduled IR.
+  // Convert Procs and Functions ScheduledProc/ScheduledFunction.
   top->Add<SchedulingPass>();
+
+  // Convert ScheduledProc/ScheduledFunction to ScheduledBlock.
+  top->Add<ScheduledBlockConversionPass>();
 
   // Lower state reads/writes to register read/writes.
   top->Add<StateToRegisterIoLoweringPass>();

@@ -544,6 +544,55 @@ class ScheduledBlock : public Block {
 
   bool IsScheduled() const override { return true; }
 
+  // Returns the entity that this block was derived from. This is `nullptr`
+  // except during intermediate stages of lowering a proc or function to a
+  // block. In those stages, we still need to refer to parts of the source
+  // entity that cannot reside in a block. The source entity is a stripped-down
+  // skeleton that does not contain the logic. The nodes in this block may refer
+  // to state, channels, and params in the source.
+  FunctionBase* source() {
+    return source_ == nullptr ? nullptr : source_.get();
+  }
+  const FunctionBase* source() const {
+    return source_ == nullptr ? nullptr : source_.get();
+  }
+
+  // Sets the source entity that this block was derived from.
+  void SetSource(std::unique_ptr<FunctionBase> source) {
+    source_ = std::move(source);
+    source_->SetIsBlockSource(true);
+  }
+
+  // Returns the source function return value. This is `nullptr` except when
+  // `source()` yields a function. We store the return value directly in the
+  // block because it would have to be a forward reference in IR text if it
+  // resided in the source function.
+  Node* source_return_value() const { return source_return_value_; }
+  void SetSourceReturnValue(Node* value) { source_return_value_ = value; }
+
+  // Returns true if the given node is either in this block or its source
+  // entity.
+  virtual bool Contains(const Node* node) const override {
+    return node->function_base() == this ||
+           (source_ != nullptr && source_->Contains(node));
+  }
+
+  // Returns true if there is a source proc.
+  bool HasEffectiveProc() const override {
+    return Block::HasEffectiveProc() ||
+           (source_ != nullptr && source_->HasEffectiveProc());
+  }
+
+  // Returns the source proc, if any.
+  const Proc* GetEffectiveProcOrDie() const final {
+    CHECK(source_ != nullptr);
+    return source_->GetEffectiveProcOrDie();
+  }
+  Proc* GetEffectiveProcOrDie() final {
+    CHECK(source_ != nullptr);
+    return source_->GetEffectiveProcOrDie();
+  }
+
   // Creates a clone of the scheduled block with the new name 'new_name'.
   // reg_name_map is a map from old register names to new ones. If a register
   // name is not present it is an identity mapping.
@@ -581,6 +630,10 @@ class ScheduledBlock : public Block {
                         block_instantiation_map,
                         /*preserve_schedule=*/false);
   }
+
+ private:
+  std::unique_ptr<FunctionBase> source_;
+  Node* source_return_value_ = nullptr;
 };
 
 }  // namespace xls

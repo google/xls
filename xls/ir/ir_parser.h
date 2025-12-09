@@ -176,21 +176,23 @@ class Parser {
 
   // Parse a function starting at the current scanner position.
   absl::StatusOr<Function*> ParseFunction(
-      Package* package, absl::Span<const IrAttribute> outer_attributes = {});
+      Package* package, absl::Span<const IrAttribute> outer_attributes = {},
+      std::unique_ptr<FunctionBase>* overridden_dest = nullptr);
   absl::StatusOr<ScheduledFunction*> ParseScheduledFunction(
       Package* package, absl::Span<const IrAttribute> outer_attributes = {});
   absl::StatusOr<Function*> ParseFunctionInternal(
       Package* package, absl::Span<const IrAttribute> outer_attributes,
-      bool scheduled);
+      bool scheduled, std::unique_ptr<FunctionBase>* overridden_dest);
 
   // Parse a proc starting at the current scanner position.
   absl::StatusOr<Proc*> ParseProc(
-      Package* package, absl::Span<const IrAttribute> outer_attributes = {});
+      Package* package, absl::Span<const IrAttribute> outer_attributes = {},
+      std::unique_ptr<FunctionBase>* overridden_dest = nullptr);
   absl::StatusOr<ScheduledProc*> ParseScheduledProc(
       Package* package, absl::Span<const IrAttribute> outer_attributes = {});
   absl::StatusOr<Proc*> ParseProcInternal(
       Package* package, absl::Span<const IrAttribute> outer_attributes,
-      bool scheduled);
+      bool scheduled, std::unique_ptr<FunctionBase>* overridden_dest);
 
   // Parse a block starting at the current scanner position.
   absl::StatusOr<Block*> ParseBlock(

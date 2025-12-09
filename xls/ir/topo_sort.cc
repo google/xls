@@ -28,6 +28,8 @@
 #include "absl/random/bit_gen_ref.h"
 #include "absl/status/status.h"
 #include "absl/types/span.h"
+#include "xls/common/casts.h"
+#include "xls/ir/block.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
@@ -77,17 +79,28 @@ std::vector<Node*> ReverseTopoSort(FunctionBase* f,
     CHECK(remaining_users.emplace(return_value, 0).second);
     result.push_back(return_value);
   }
-  for (Node* node : f->nodes_reversed()) {
+  auto setup = [&](Node* node) {
     auto [it, inserted] = remaining_users.emplace(node, node->users().size());
     CHECK(inserted || (node == return_value && return_value->users().empty()));
     if (node == return_value) {
-      continue;
+      return;
     }
     const int64_t& node_remaining_users = it->second;
 
     if (node_remaining_users == 0) {
       VLOG(5) << "At start node was ready: " << node;
       result.push_back(node);
+    }
+  };
+  for (Node* node : f->nodes_reversed()) {
+    setup(node);
+  }
+  if (f->IsBlock() && f->IsScheduled()) {
+    const FunctionBase* source = down_cast<ScheduledBlock*>(f)->source();
+    if (source != nullptr) {
+      for (Node* node : source->nodes_reversed()) {
+        setup(node);
+      }
     }
   }
 
@@ -241,13 +254,26 @@ std::vector<Node*> StableTopoSort(FunctionBase* f,
   };
 
   std::vector<Node*> ready;
-  for (Node* node : f->nodes_reversed()) {
+  auto setup = [&](Node* node) {
     auto [it, inserted] = remaining_users.emplace(node, node->users().size());
     CHECK(inserted);
     const int64_t& node_remaining_users = it->second;
     if (node_remaining_users == 0) {
       VLOG(5) << "At start node was ready: " << node;
       ready.push_back(node);
+    }
+  };
+
+  for (Node* node : f->nodes_reversed()) {
+    setup(node);
+  }
+
+  if (f->IsBlock() && f->IsScheduled()) {
+    const FunctionBase* source = down_cast<ScheduledBlock*>(f)->source();
+    if (source != nullptr) {
+      for (Node* node : source->nodes_reversed()) {
+        setup(node);
+      }
     }
   }
 

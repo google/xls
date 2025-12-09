@@ -21,6 +21,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
@@ -48,13 +49,27 @@ class Function : public FunctionBase {
   void MoveFrom(Function& other) {
     FunctionBase::MoveFrom(other);
     return_value_ = other.return_value();
+    return_type_ = return_value_->GetType();
+  }
+
+  void MoveParamsFrom(Function& other) {
+    FunctionBase::MoveFrom(other, [](const Node* n) { return n->Is<Param>(); });
+    other.params_.clear();
   }
 
   // Returns the node that serves as the return value of this function.
   Node* return_value() const { return return_value_; }
 
+  // Return the return type from the return value, or the directly-set return
+  // type.
+  Type* return_type() const { return return_type_; };
+
   // Sets the node that serves as the return value of this function.
-  absl::Status set_return_value(Node* n);
+  absl::Status set_return_value(Node* n, bool validate = true);
+
+  // This only needs to be used directly for a nested source `Function` inside a
+  // block.
+  void set_return_type(Type* type) { return_type_ = type; }
 
   FunctionType* GetType();
 
@@ -95,6 +110,7 @@ class Function : public FunctionBase {
 
  private:
   Node* return_value_ = nullptr;
+  Type* return_type_ = nullptr;
 };
 
 // A function which has been scheduled and contains information about which

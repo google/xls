@@ -69,6 +69,10 @@ class Proc : public FunctionBase {
 
   void MoveFrom(Proc& other);
 
+  // Moves state, channels, and instantiations from `other`. Does not move any
+  // logic, including state reads/writes.
+  void MoveNonLogicFrom(Proc& other);
+
   int64_t GetStateElementCount() const { return StateElements().size(); }
 
   // Returns the total number of bits in the proc state.
@@ -100,6 +104,10 @@ class Proc : public FunctionBase {
       StateElement* state_element) const;
   std::optional<int64_t> MaybeGetStateElementIndex(
       StateElement* state_element) const;
+
+  const Proc* GetEffectiveProcOrDie() const final { return this; }
+
+  Proc* GetEffectiveProcOrDie() final { return this; }
 
   // Returns true if the given proc-scoped construct (state element) is owned by
   // this block.

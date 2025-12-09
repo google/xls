@@ -1134,7 +1134,7 @@ class Receive final : public ChannelNode {
   static constexpr int64_t kTokenOperand = 0;
 
   Receive(const SourceInfo& loc, Node* token, std::optional<Node*> predicate,
-          std::string_view channel_name, bool is_blocking,
+          std::string_view channel_name, bool is_blocking, Type* payload_type,
           std::string_view name, FunctionBase* function);
 
   absl::StatusOr<Node*> CloneInNewFunction(

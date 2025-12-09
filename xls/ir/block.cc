@@ -39,10 +39,12 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/strip.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "google/protobuf/text_format.h"
 #include "xls/common/casts.h"
+#include "xls/common/indent.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
@@ -309,7 +311,16 @@ std::string Block::DumpIr() const {
   }
 
   if (IsScheduled()) {
+    const ScheduledBlock* sb = down_cast<const ScheduledBlock*>(this);
+    if (const auto* source = sb->source(); source != nullptr) {
+      std::string source_text = source->DumpIr();
+      absl::StrAppendFormat(&res, "  source %s",
+                            absl::StripPrefix(Indent(source_text, 2), "  "));
+    }
     absl::StrAppend(&res, DumpScheduledFunctionBaseNodes());
+    if (Node* ret = sb->source_return_value(); ret != nullptr) {
+      absl::StrAppendFormat(&res, "  ret %s\n", ret->GetName());
+    }
   } else {
     for (Node* node : DumpOrder()) {
       absl::StrAppend(&res, "  ", node->ToString(), "\n");

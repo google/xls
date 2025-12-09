@@ -129,7 +129,7 @@ std::string Proc::DumpIr() const {
 
   if (IsScheduled()) {
     absl::StrAppend(&res, DumpScheduledFunctionBaseNodes());
-  } else {
+  } else if (!is_block_source_) {
     for (Node* node : TopoSort(const_cast<Proc*>(this))) {
       absl::StrAppend(&res, "  ", node->ToString(), "\n");
     }
@@ -391,6 +391,11 @@ absl::StatusOr<Proc*> Proc::Clone(
       }
       case Op::kReceive: {
         Receive* src = node->As<Receive>();
+        std::string_view channel = new_chan_name(src->channel_name());
+        XLS_ASSIGN_OR_RETURN(
+            ChannelRef channel_ref,
+            cloned_proc->GetChannelRef(channel, ChannelDirection::kReceive));
+        Type* payload_type = ChannelRefType(channel_ref);
         if (is_new_style_proc()) {
           XLS_ASSIGN_OR_RETURN(
               original_to_clone[node],
@@ -399,10 +404,8 @@ absl::StatusOr<Proc*> Proc::Clone(
                   cloned_operands.size() == 2
                       ? std::optional<Node*>(cloned_operands[1])
                       : std::nullopt,
-                  new_chan_name(src->channel_name()), src->is_blocking(),
-                  src->GetName()));
+                  channel, src->is_blocking(), payload_type, src->GetName()));
         } else {
-          std::string_view channel = new_chan_name(src->channel_name());
           XLS_ASSIGN_OR_RETURN(
               original_to_clone[node],
               cloned_proc->MakeNodeWithName<Receive>(
@@ -410,7 +413,7 @@ absl::StatusOr<Proc*> Proc::Clone(
                   cloned_operands.size() == 2
                       ? std::optional<Node*>(cloned_operands[1])
                       : std::nullopt,
-                  channel, src->is_blocking(), src->GetName()));
+                  channel, src->is_blocking(), payload_type, src->GetName()));
         }
         break;
       }
@@ -912,10 +915,13 @@ absl::Status Proc::InternalRebuildSideTables() {
 }
 
 void Proc::MoveFrom(Proc& other) {
-  FunctionBase::MoveFrom(other);
+  MoveLogicFrom(other);
+  MoveNonLogicFrom(other);
+}
+
+void Proc::MoveNonLogicFrom(Proc& other) {
   is_new_style_proc_ = other.is_new_style_proc_;
   state_elements_ = std::move(other.state_elements_);
-  state_reads_ = std::move(other.state_reads_);
   state_vec_ = std::move(other.state_vec_);
   channel_interfaces_ = std::move(other.channel_interfaces_);
   interface_ = std::move(other.interface_);

@@ -154,6 +154,12 @@ class BuilderBase {
   bool IsBlock() const { return function_->IsBlock(); }
   bool IsProc() const { return function_->IsProc(); }
 
+  // Makes it so that this builder moves the final `Function` to `dest` on
+  // `Build()` rather than adding it to the package.
+  void OverrideDestination(std::unique_ptr<FunctionBase>* dest) {
+    overridden_dest_ = dest;
+  }
+
   // Set information about foreign function if the underlying function is
   // a foreign function.
   void SetForeignFunctionData(const std::optional<ForeignFunctionData>& ff);
@@ -647,6 +653,47 @@ class BuilderBase {
   BValue Gate(BValue condition, BValue data,
               const SourceInfo& loc = SourceInfo(), std::string_view name = "");
 
+  // Add a receive operation. The type of the data value received is
+  // determined by the channel.
+  BValue Receive(ReceiveChannelRef channel, BValue token,
+                 const SourceInfo& loc = SourceInfo(),
+                 std::string_view name = "");
+
+  // Add a conditional receive operation. The receive executes conditionally on
+  // the value of the predicate "pred". The type of the data value received is
+  // determined by the channel.
+  BValue ReceiveIf(ReceiveChannelRef channel, BValue token, BValue pred,
+                   const SourceInfo& loc = SourceInfo(),
+                   std::string_view name = "");
+
+  // Add a non-blocking receive operation. The type of the data value received
+  // is determined by the channel.
+  BValue ReceiveIfNonBlocking(ReceiveChannelRef channel, BValue token,
+                              BValue pred, const SourceInfo& loc = SourceInfo(),
+                              std::string_view name = "");
+
+  // Add a non-blocking receive operation. The type of the data value received
+  // is determined by the channel.
+  BValue ReceiveNonBlocking(ReceiveChannelRef channel, BValue token,
+                            const SourceInfo& loc = SourceInfo(),
+                            std::string_view name = "");
+
+  // Add a send operation.
+  BValue Send(SendChannelRef channel, BValue token, BValue data,
+              const SourceInfo& loc = SourceInfo(), std::string_view name = "");
+
+  // Add a conditional send operation. The send executes conditionally on the
+  // value of the predicate "pred".
+  BValue SendIf(SendChannelRef channel, BValue token, BValue pred, BValue data,
+                const SourceInfo& loc = SourceInfo(),
+                std::string_view name = "");
+
+  // Adds a (conditional) next value for the named state element. Returns an
+  // empty tuple.
+  BValue Next(BValue state_read, BValue value,
+              std::optional<BValue> pred = std::nullopt,
+              const SourceInfo& loc = SourceInfo(), std::string_view name = "");
+
   Package* package() const;
 
   // Returns the last node enqueued onto this builder -- when Build() is called
@@ -685,6 +732,8 @@ class BuilderBase {
   // Whether nodes and the built function should be verified. Only false in
   // tests.
   bool should_verify_;
+
+  std::unique_ptr<FunctionBase>* overridden_dest_ = nullptr;
 
   std::string error_msg_;
   std::string error_stacktrace_;
@@ -726,6 +775,10 @@ class FunctionBuilder : public BuilderBase {
 
   // Build function using given return value.
   absl::StatusOr<Function*> BuildWithReturnValue(BValue return_value);
+
+  // Build function using no return value. This is intended for skeletal source
+  // functions nested in a partially lowered block.
+  absl::StatusOr<Function*> BuildWithNoReturnValue();
 };
 
 // Type used as special argument to ProcBuilder constructor to indicate that the
@@ -853,56 +906,12 @@ class ProcBuilder : public BuilderBase {
                         /*read_predicate=*/std::nullopt, loc);
   }
 
-  // Adds a (conditional) next value for the named state element. Returns an
-  // empty tuple.
-  BValue Next(BValue state_read, BValue value,
-              std::optional<BValue> pred = std::nullopt,
-              const SourceInfo& loc = SourceInfo(), std::string_view name = "");
-
   // Overriden Param method is explicitly disabled (returns an error). Use
   // StateElement method to add state elements.
   BValue Param(std::string_view name, Type* type,
                const SourceInfo& loc = SourceInfo()) override;
 
-  // Add a receive operation. The type of the data value received is
-  // determined by the channel.
-  BValue Receive(ReceiveChannelRef channel, BValue token,
-                 const SourceInfo& loc = SourceInfo(),
-                 std::string_view name = "");
-
-  // Add a conditional receive operation. The receive executes conditionally on
-  // the value of the predicate "pred". The type of the data value received is
-  // determined by the channel.
-  BValue ReceiveIf(ReceiveChannelRef channel, BValue token, BValue pred,
-                   const SourceInfo& loc = SourceInfo(),
-                   std::string_view name = "");
-
-  // Add a non-blocking receive operation. The type of the data value received
-  // is determined by the channel.
-  BValue ReceiveIfNonBlocking(ReceiveChannelRef channel, BValue token,
-                              BValue pred, const SourceInfo& loc = SourceInfo(),
-                              std::string_view name = "");
-
-  // Add a non-blocking receive operation. The type of the data value received
-  // is determined by the channel.
-  BValue ReceiveNonBlocking(ReceiveChannelRef channel, BValue token,
-                            const SourceInfo& loc = SourceInfo(),
-                            std::string_view name = "");
-
-  // Add a send operation.
-  BValue Send(SendChannelRef channel, BValue token, BValue data,
-              const SourceInfo& loc = SourceInfo(), std::string_view name = "");
-
-  // Add a conditional send operation. The send executes conditionally on the
-  // value of the predicate "pred".
-  BValue SendIf(SendChannelRef channel, BValue token, BValue pred, BValue data,
-                const SourceInfo& loc = SourceInfo(),
-                std::string_view name = "");
-
  private:
-  std::string_view GetChannelName(ReceiveChannelRef channel) const;
-  std::string_view GetChannelName(SendChannelRef channel) const;
-
   // The BValues of the state parameters.
   std::vector<BValue> state_params_;
 };

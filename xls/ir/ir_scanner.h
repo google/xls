@@ -91,6 +91,7 @@ class Token {
          "scheduled_fn",
          "stage",
          "scheduled_block",
+         "source",
          "controlled_stage",
          "active_inputs_valid"});
     return *keywords;

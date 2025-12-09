@@ -220,19 +220,42 @@ absl::Status VerifyChannels(
   // Verify each package-scoped channel has the appropriate send/receive node.
   absl::flat_hash_map<Channel*, std::vector<Node*>> send_nodes;
   absl::flat_hash_map<Channel*, std::vector<Node*>> receive_nodes;
+
+  std::vector<Node*> all_proc_io_nodes;
   for (auto& proc : package->procs()) {
     if (proc->is_new_style_proc()) {
       continue;
     }
     for (Node* node : topo_sort(proc.get())) {
-      if (node->Is<Send>()) {
-        XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
-        send_nodes[channel].push_back(node);
+      if (node->Is<Send>() || node->Is<Receive>()) {
+        all_proc_io_nodes.push_back(node);
       }
-      if (node->Is<Receive>()) {
-        XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
-        receive_nodes[channel].push_back(node);
+    }
+  }
+  for (auto& block : package->blocks()) {
+    if (!block->IsScheduled()) {
+      continue;
+    }
+    FunctionBase* source = down_cast<ScheduledBlock*>(block.get())->source();
+    if (source == nullptr || !source->IsProc() ||
+        source->AsProcOrDie()->is_new_style_proc()) {
+      continue;
+    }
+    for (Node* node : topo_sort(block.get())) {
+      if (node->Is<Send>() || node->Is<Receive>()) {
+        all_proc_io_nodes.push_back(node);
       }
+    }
+  }
+
+  for (Node* node : all_proc_io_nodes) {
+    if (node->Is<Send>()) {
+      XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
+      send_nodes[channel].push_back(node);
+    }
+    if (node->Is<Receive>()) {
+      XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
+      receive_nodes[channel].push_back(node);
     }
   }
 
