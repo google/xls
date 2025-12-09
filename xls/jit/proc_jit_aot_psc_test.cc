@@ -291,10 +291,10 @@ TEST_F(ProcJitAotPscTest, MultipleProcsCanHitSameFunction) {
                            aot_runtime->GetJitChannelQueueManager());
   ProcInstance* top_instance = aot_runtime->elaboration().top();
   XLS_ASSERT_OK_AND_ASSIGN(ChannelInstance * input_channel,
-                           top_instance->GetChannelInstance("bytes_src"));
+                           top_instance->GetChannelInstance("_bytes_src"));
   ChannelQueue& chan_input = chan_man->GetQueue(input_channel);
   XLS_ASSERT_OK_AND_ASSIGN(ChannelInstance * output_channel,
-                           top_instance->GetChannelInstance("bytes_result"));
+                           top_instance->GetChannelInstance("_bytes_result"));
   ChannelQueue& chan_output = chan_man->GetQueue(output_channel);
 
   XLS_EXPECT_OK(chan_input.Write(Value(UBits(4, 32))));

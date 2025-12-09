@@ -2,11 +2,11 @@ package test_module
 
 file_number 0 "test_module.x"
 
-proc __test_module__spawnee_0_next<inparam: bits[32] in>(__state: (), init={()}) {
-  chan_interface inparam(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+proc __test_module__spawnee_0_next<_inparam: bits[32] in>(__state: (), init={()}) {
+  chan_interface _inparam(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   literal.8: token = literal(value=token, id=8)
   literal.3: bits[1] = literal(value=1, id=3)
-  receive.10: (token, bits[32], bits[1]) = receive(literal.8, predicate=literal.3, channel=inparam, blocking=false, id=10)
+  receive.10: (token, bits[32], bits[1]) = receive(literal.8, predicate=literal.3, channel=_inparam, blocking=false, id=10)
   tuple_index.13: bits[1] = tuple_index(receive.10, index=2, id=13)
   literal.9: bits[32] = literal(value=4294967295, id=9)
   tuple_index.12: bits[32] = tuple_index(receive.10, index=1, id=12)
@@ -23,10 +23,10 @@ proc __test_module__spawnee_0_next<inparam: bits[32] in>(__state: (), init={()})
 }
 
 top proc __test_module__main_0_next<>(__state: (), init={()}) {
-  chan chanchan(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
-  chan_interface chanchan(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
-  chan_interface chanchan(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
-  proc_instantiation __test_module__spawnee_0_next_inst(chanchan, proc=__test_module__spawnee_0_next)
+  chan _chanchan(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+  chan_interface _chanchan(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface _chanchan(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  proc_instantiation __test_module__spawnee_0_next_inst(_chanchan, proc=__test_module__spawnee_0_next)
   literal.21: token = literal(value=token, id=21)
   literal.22: bits[32] = literal(value=1, id=22)
   literal.19: bits[1] = literal(value=1, id=19)
@@ -34,6 +34,6 @@ top proc __test_module__main_0_next<>(__state: (), init={()}) {
   tuple.24: () = tuple(id=24)
   __token: token = literal(value=token, id=17)
   tuple.20: () = tuple(id=20)
-  send.23: token = send(literal.21, literal.22, predicate=literal.19, channel=chanchan, id=23)
+  send.23: token = send(literal.21, literal.22, predicate=literal.19, channel=_chanchan, id=23)
   next_value.25: () = next_value(param=__state, value=tuple.24, id=25)
 }

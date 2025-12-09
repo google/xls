@@ -2,8 +2,8 @@ package test_module
 
 file_number 0 "test_module.x"
 
-top proc __test_module__main_0_next<out_param: bits[32] out>(__state: bits[32], init={1}) {
-  chan_interface out_param(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+top proc __test_module__main_0_next<_out_param: bits[32] out>(__state: bits[32], init={1}) {
+  chan_interface _out_param(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   __state: bits[32] = state_read(state_element=__state, id=2)
   literal.6: bits[32] = literal(value=20, id=6)
   literal.3: bits[1] = literal(value=1, id=3)
@@ -13,6 +13,6 @@ top proc __test_module__main_0_next<out_param: bits[32] out>(__state: bits[32], 
   and.9: bits[1] = and(literal.3, eq.7, id=9)
   __token: token = literal(value=token, id=1)
   tuple.4: () = tuple(id=4)
-  send.10: token = send(literal.5, literal.8, predicate=and.9, channel=out_param, id=10)
+  send.10: token = send(literal.5, literal.8, predicate=and.9, channel=_out_param, id=10)
   next_value.11: () = next_value(param=__state, value=__state, id=11)
 }

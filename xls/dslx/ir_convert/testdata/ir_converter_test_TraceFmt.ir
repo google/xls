@@ -39,8 +39,8 @@ fn __itok__test_module__assert_trace_and_add(__token: token id=18, __activated: 
   ret tuple.38: (token, bits[32]) = tuple(after_all.37, tuple_index.36, id=38)
 }
 
-top proc __test_module__main_0_next<input_c: bits[32] out>(__state: bits[32], init={0}) {
-  chan_interface input_c(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+top proc __test_module__main_0_next<_input_c: bits[32] out>(__state: bits[32], init={0}) {
+  chan_interface _input_c(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   __token: token = literal(value=token, id=39)
   literal.41: bits[1] = literal(value=1, id=41)
   __state: bits[32] = state_read(state_element=__state, id=40)
@@ -48,7 +48,7 @@ top proc __test_module__main_0_next<input_c: bits[32] out>(__state: bits[32], in
   after_all.43: token = after_all(id=43)
   tuple_index.47: bits[32] = tuple_index(invoke.45, index=1, id=47)
   tuple.42: () = tuple(id=42)
-  tok: token = send(after_all.43, __state, predicate=literal.41, channel=input_c, id=44)
+  tok: token = send(after_all.43, __state, predicate=literal.41, channel=_input_c, id=44)
   tuple_index.46: token = tuple_index(invoke.45, index=0, id=46)
   next_value.48: () = next_value(param=__state, value=tuple_index.47, id=48)
 }

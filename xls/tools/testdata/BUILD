@@ -301,7 +301,7 @@ genrule(
     testonly = True,
     srcs = [":eval_proc_main_test_proc_scoped.block.ir"],
     outs = ["eval_proc_main_test_broken_proc_scoped.block.ir"],
-    cmd = "$(location :disable_port_main) --port_name out_ch_2_valid $< > $@",
+    cmd = "$(location :disable_port_main) --port_name _out_ch_2_valid $< > $@",
     tools = [":disable_port_main"],
 )
 

@@ -2,8 +2,8 @@ package test_module
 
 file_number 0 "test_module.x"
 
-top proc __test_module__spawnee_0_next<c: bits[32] in>(__state: (), init={()}) {
-  chan_interface c(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+top proc __test_module__spawnee_0_next<_c: bits[32] in>(__state: (), init={()}) {
+  chan_interface _c(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   __state: () = state_read(state_element=__state, id=2)
   tuple.5: () = tuple(id=5)
   __token: token = literal(value=token, id=1)

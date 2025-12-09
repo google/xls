@@ -2,8 +2,8 @@ package test_module
 
 file_number 0 "test_module.x"
 
-proc __test_module__producer_0_next<input_c: bits[32] out>(__state: bits[32], init={0}) {
-  chan_interface input_c(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+proc __test_module__producer_0_next<_input_c: bits[32] out>(__state: bits[32], init={0}) {
+  chan_interface _input_c(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   __state: bits[32] = state_read(state_element=__state, id=2)
   literal.7: bits[32] = literal(value=1, id=7)
   after_all.5: token = after_all(id=5)
@@ -11,15 +11,15 @@ proc __test_module__producer_0_next<input_c: bits[32] out>(__state: bits[32], in
   add.8: bits[32] = add(__state, literal.7, id=8)
   __token: token = literal(value=token, id=1)
   tuple.4: () = tuple(id=4)
-  tok: token = send(after_all.5, __state, predicate=literal.3, channel=input_c, id=6)
+  tok: token = send(after_all.5, __state, predicate=literal.3, channel=_input_c, id=6)
   next_value.9: () = next_value(param=__state, value=add.8, id=9)
 }
 
-proc __test_module__consumer_0_next<input_c: bits[32] in>(__state: bits[32], init={0}) {
-  chan_interface input_c(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+proc __test_module__consumer_0_next<_input_c: bits[32] in>(__state: bits[32], init={0}) {
+  chan_interface _input_c(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   after_all.14: token = after_all(id=14)
   literal.12: bits[1] = literal(value=1, id=12)
-  receive.15: (token, bits[32]) = receive(after_all.14, predicate=literal.12, channel=input_c, id=15)
+  receive.15: (token, bits[32]) = receive(after_all.14, predicate=literal.12, channel=_input_c, id=15)
   i: bits[32] = tuple_index(receive.15, index=1, id=18)
   __state: bits[32] = state_read(state_element=__state, id=11)
   add.19: bits[32] = add(i, i, id=19)
@@ -31,21 +31,21 @@ proc __test_module__consumer_0_next<input_c: bits[32] in>(__state: bits[32], ini
 }
 
 top proc __test_module__main_0_next<>(__state: (), init={()}) {
-  chan my_chan0(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive, fifo_depth=0, bypass=true, register_push_outputs=false, register_pop_outputs=false)
-  chan_interface my_chan0(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
-  chan_interface my_chan0(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
-  chan my_chan1(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive, fifo_depth=1, bypass=false, register_push_outputs=true, register_pop_outputs=true)
-  chan_interface my_chan1(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
-  chan_interface my_chan1(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
-  chan my_chan2(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive, fifo_depth=0, bypass=true, register_push_outputs=false, register_pop_outputs=false, input_flop_kind=zero_latency, output_flop_kind=flop)
-  chan_interface my_chan2(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
-  chan_interface my_chan2(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
-  proc_instantiation __test_module__producer_0_next_inst(my_chan0, proc=__test_module__producer_0_next)
-  proc_instantiation __test_module__consumer_0_next_inst(my_chan0, proc=__test_module__consumer_0_next)
-  proc_instantiation __test_module__producer_0_next_inst_1(my_chan1, proc=__test_module__producer_0_next)
-  proc_instantiation __test_module__consumer_0_next_inst_1(my_chan1, proc=__test_module__consumer_0_next)
-  proc_instantiation __test_module__producer_0_next_inst_2(my_chan2, proc=__test_module__producer_0_next)
-  proc_instantiation __test_module__consumer_0_next_inst_2(my_chan2, proc=__test_module__consumer_0_next)
+  chan _my_chan0(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive, fifo_depth=0, bypass=true, register_push_outputs=false, register_pop_outputs=false)
+  chan_interface _my_chan0(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface _my_chan0(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan _my_chan1(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive, fifo_depth=1, bypass=false, register_push_outputs=true, register_pop_outputs=true)
+  chan_interface _my_chan1(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface _my_chan1(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan _my_chan2(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive, fifo_depth=0, bypass=true, register_push_outputs=false, register_pop_outputs=false, input_flop_kind=zero_latency, output_flop_kind=flop)
+  chan_interface _my_chan2(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface _my_chan2(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  proc_instantiation __test_module__producer_0_next_inst(_my_chan0, proc=__test_module__producer_0_next)
+  proc_instantiation __test_module__consumer_0_next_inst(_my_chan0, proc=__test_module__consumer_0_next)
+  proc_instantiation __test_module__producer_0_next_inst_1(_my_chan1, proc=__test_module__producer_0_next)
+  proc_instantiation __test_module__consumer_0_next_inst_1(_my_chan1, proc=__test_module__consumer_0_next)
+  proc_instantiation __test_module__producer_0_next_inst_2(_my_chan2, proc=__test_module__producer_0_next)
+  proc_instantiation __test_module__consumer_0_next_inst_2(_my_chan2, proc=__test_module__consumer_0_next)
   __state: () = state_read(state_element=__state, id=22)
   tuple.25: () = tuple(id=25)
   __token: token = literal(value=token, id=21)
