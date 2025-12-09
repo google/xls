@@ -124,7 +124,7 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
 
     std::vector<InvocationCalleeData> calls =
         type_info_->GetUniqueInvocationCalleeData(f);
-    if (f->IsParametric() && calls.empty()) {
+    if ((f->IsParametric() || f->IsCompilerDerived()) && calls.empty()) {
       VLOG(5) << "No calls to parametric function " << f->name_def()->ToString()
               << "; not traversing for dependencies.";
       return absl::OkStatus();
@@ -164,48 +164,47 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
   absl::Status HandleInvocation(const Invocation* invocation) override {
     VLOG(5) << "HandleInvocation " << invocation->ToString();
     TypeInfo* invocation_owner_ti = GetTypeInfo(invocation);
-    auto invocation_data = invocation_owner_ti->GetInvocationData(invocation);
-    XLS_RET_CHECK(invocation_data.has_value())
+    std::vector<InvocationCalleeData> calls =
+        invocation_owner_ti->GetUniqueInvocationCalleeData(invocation);
+    XLS_RET_CHECK(!calls.empty())
         << " no root invocation data for " << invocation->ToString();
-    const Function* f = (*invocation_data)->callee();
-    if (f == nullptr || IsBuiltin(f)) {
-      return DefaultHandler(invocation);
-    }
 
-    if (f->owner() != module_) {
-      // Function is outside this module; get additional conversion records from
-      // its invocation and add to our list of records.
-      ConversionRecordVisitor visitor(module_, invocation_owner_ti,
-                                      include_tests_, proc_id_factory_, top_,
-                                      resolved_proc_alias_, records_);
-      XLS_RETURN_IF_ERROR(f->Accept(&visitor));
-    } else {
-      XLS_RETURN_IF_ERROR(f->Accept(this));
-    }
-    std::vector<InvocationCalleeData> calls;
-    for (const auto& [_, callee_data] :
-         (*invocation_data)->env_to_callee_data()) {
-      calls.push_back(callee_data);
-    }
-    // Sort the calls by callee bindings so that the order is deterministic.
-    // This is primarily for testing purposes. If tests move away from
-    // golden-file comparison, the sort can probably be removed.
+    // Sort the calls by callee and callee bindings so that the order is
+    // deterministic. This is primarily for testing purposes. If tests move away
+    // from golden-file comparison, the sort can probably be removed.
     std::sort(calls.begin(), calls.end(),
               [](const InvocationCalleeData& a, const InvocationCalleeData& b) {
+                if (a.callee != b.callee) {
+                  return a.callee->identifier() < b.callee->identifier();
+                }
                 return a.callee_bindings.ToString() <
                        b.callee_bindings.ToString();
               });
 
-    for (const auto& callee_data : calls) {
-      VLOG(5) << "Processing invocation " << callee_data.invocation->ToString();
+    for (const InvocationCalleeData& call : calls) {
+      if (call.callee == nullptr || IsBuiltin(call.callee)) {
+        return DefaultHandler(invocation);
+      }
+      if (call.callee->owner() != module_) {
+        // Function is outside this module; get additional conversion records
+        // from its invocation and add to our list of records.
+        ConversionRecordVisitor visitor(module_, invocation_owner_ti,
+                                        include_tests_, proc_id_factory_, top_,
+                                        resolved_proc_alias_, records_);
+        XLS_RETURN_IF_ERROR(call.callee->Accept(&visitor));
+      } else {
+        XLS_RETURN_IF_ERROR(call.callee->Accept(this));
+      }
+
+      VLOG(5) << "Processing invocation " << invocation->ToString();
       XLS_ASSIGN_OR_RETURN(
           ConversionRecord cr,
-          MakeConversionRecord(const_cast<Function*>(f), f->owner(),
-                               callee_data.derived_type_info,
-                               callee_data.callee_bindings,
-                               /*proc_id=*/std::nullopt,
-                               // Parametric functions can never be top.
-                               /*is_top=*/!f->IsParametric() && f == top_));
+          MakeConversionRecord(
+              const_cast<Function*>(call.callee), call.callee->owner(),
+              call.derived_type_info, call.callee_bindings,
+              /*proc_id=*/std::nullopt,
+              // Parametric functions can never be top.
+              /*is_top=*/!call.callee->IsParametric() && call.callee == top_));
       records_.push_back(std::move(cr));
     }
     // Process the children, specifically, to find invocations in parameters.

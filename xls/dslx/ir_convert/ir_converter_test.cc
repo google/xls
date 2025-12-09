@@ -4082,8 +4082,7 @@ fn main() -> (Optional<u32>, Optional<u32>, Optional<u32[3]>,
   ExpectIr(converted);
 }
 
-// Disabled until we fix it with proc-scoped channels
-TEST_F(IrConverterTest, DISABLED_CallFooOnAnything) {
+TEST_F(IrConverterTest, CallFooOnAnything) {
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted, ConvertModuleForTest(R"(
 #![feature(generics)]
 
@@ -4109,8 +4108,7 @@ fn main() -> (u32, s64) {
   ExpectIr(converted);
 }
 
-// Disabled until we fix it with proc-scoped channels
-TEST_F(IrConverterTest, DISABLED_ToBits) {
+TEST_F(IrConverterTest, ToBits) {
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted, ConvertModuleForTest(R"(
 enum E : u16 {
   X = 1

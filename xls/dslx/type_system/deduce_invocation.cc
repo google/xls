@@ -481,8 +481,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceInvocation(const Invocation* node,
     callee_needs_implicit_token = callee_opt.value();
     // Parametric and proc functions will be added separately.
     if (!fn->IsParametric() && !fn->IsInProc()) {
-      XLS_RETURN_IF_ERROR(
-          ctx->type_info()->AddInvocation(*node, fn, entry.f()));
+      XLS_RETURN_IF_ERROR(ctx->type_info()->AddInvocation(*node, fn, entry.f(),
+                                                          ctx->type_info()));
     }
   }
 

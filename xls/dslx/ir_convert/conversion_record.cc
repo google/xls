@@ -103,9 +103,11 @@ std::string ConversionRecord::ToString() const {
   }
   return absl::StrFormat(
       "ConversionRecord{m=%s, f=%s, top=%s, pid=%s, "
-      "parametric_env=%s, type_info=%p, config=%s}",
+      "parametric_env=%s, type_info=%p, config=%s impl=%s}",
       module_->name(), f_->identifier(), is_top_ ? "true" : "false", proc_id,
-      parametric_env_.ToString(), type_info_, config);
+      parametric_env_.ToString(), type_info_, config,
+      f_->impl().has_value() ? (*f_->impl())->struct_ref()->ToString()
+                             : "none");
 }
 
 }  // namespace xls::dslx

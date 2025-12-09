@@ -596,6 +596,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       // `Function` object cannot even depend on generics in the caller. The
       // exception is impl functions; a caller with a generic parametric can use
       // that to dispatch the same invocation to different possible impls.
+      XLS_ASSIGN_OR_RETURN(
+          TypeInfo * function_owner_ti,
+          GetTypeInfo(function_and_target_object.function->owner(),
+                      caller_context));
       if (caller_context.has_value() &&
           function_and_target_object.target_object.has_value()) {
         auto& caller_details =
@@ -603,10 +607,11 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         XLS_RETURN_IF_ERROR(parent_ti->AddInvocationTypeInfo(
             *invocation, function, caller_details.callee,
             table_.GetParametricEnv(caller_context), ParametricEnv{},
-            parent_ti));
+            function_owner_ti));
       } else {
         XLS_RETURN_IF_ERROR(parent_ti->AddInvocation(
-            *invocation, function, caller.has_value() ? *caller : nullptr));
+            *invocation, function, caller.has_value() ? *caller : nullptr,
+            function_owner_ti));
       }
 
       if (invocation->originating_invocation().has_value()) {
@@ -616,7 +621,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                         caller_context));
         XLS_RETURN_IF_ERROR(parent_ti->AddInvocation(
             **invocation->originating_invocation(), function,
-            caller.has_value() ? *caller : nullptr));
+            caller.has_value() ? *caller : nullptr, function_owner_ti));
       }
       XLS_RETURN_IF_ERROR(NoteIfRequiresImplicitToken(
           caller, function_and_target_object.function, invocation->callee()));

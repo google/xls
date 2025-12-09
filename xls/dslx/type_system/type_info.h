@@ -67,6 +67,7 @@ struct SliceData {
 // and "derived_type_info" holds the type information that is specific to that
 // parametric instantiation.
 struct InvocationCalleeData {
+  const Function* callee;
   ParametricEnv callee_bindings;
   ParametricEnv caller_bindings;
   TypeInfo* derived_type_info;
@@ -220,7 +221,8 @@ class TypeInfo {
 
   // Add data for a non-parametric invocation.
   absl::Status AddInvocation(const Invocation& invocation,
-                             const Function* callee, const Function* caller);
+                             const Function* callee, const Function* caller,
+                             TypeInfo* derived_type_info);
 
   // Adds data for a concrete spawn of a proc.
   absl::Status AddSpawn(const Proc* proc, ParametricEnv env, bool test,
@@ -418,12 +420,16 @@ class TypeInfo {
   // this TypeInfo's root. If there are no parametric invocations, an empty
   // container is returned.
   std::vector<InvocationCalleeData> GetUniqueInvocationCalleeData(
-      const Function*) const;
+      const Function* callee) const;
+  std::vector<InvocationCalleeData> GetUniqueInvocationCalleeData(
+      const Invocation* invocation) const;
 
   // Returns all InvocationCalleeData for the given function, including
   // duplicates for identical parametric environments.
   std::vector<InvocationCalleeData> GetAllInvocationCalleeData(
-      const Function*) const;
+      const Function* callee) const;
+  std::vector<InvocationCalleeData> GetAllInvocationCalleeData(
+      const Invocation* invocation) const;
 
   const absl::flat_hash_map<ImportSubject, ImportedInfo>& GetRootImports()
       const {
@@ -507,6 +513,9 @@ class TypeInfo {
   // Non-unique callee data for this function
   absl::flat_hash_map<const Function*, std::vector<InvocationCalleeData>>
       callee_data_;
+  // Callee data per invocation node, stored in the root type info.
+  absl::flat_hash_map<const Invocation*, std::vector<InvocationCalleeData>>
+      callee_data_by_invocation_;
   absl::flat_hash_map<Slice*, SliceData> slices_;
   absl::flat_hash_map<const Function*, bool> requires_implicit_token_;
 

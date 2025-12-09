@@ -8,14 +8,14 @@ fn __test_module__U32Wrapper__foo(self: (bits[32]) id=1) -> bits[32] {
   ret add.4: bits[32] = add(self_a, literal.3, id=4)
 }
 
-fn __test_module__call_foo__u32_U32Wrapper(value: (bits[32]) id=5) -> bits[32] {
-  ret invoke.6: bits[32] = invoke(value, to_apply=__test_module__U32Wrapper__foo, id=6)
+fn __test_module__call_foo__u32_U32Wrapper(value: (bits[32]) id=9) -> bits[32] {
+  ret invoke.10: bits[32] = invoke(value, to_apply=__test_module__U32Wrapper__foo, id=10)
 }
 
-fn __test_module__S64Wrapper__foo(self: (bits[64]) id=7) -> bits[64] {
-  self_a: bits[64] = tuple_index(self, index=0, id=8)
-  self_a__1: bits[64] = tuple_index(self, index=0, id=9)
-  ret smul.10: bits[64] = smul(self_a, self_a__1, id=10)
+fn __test_module__S64Wrapper__foo(self: (bits[64]) id=5) -> bits[64] {
+  self_a: bits[64] = tuple_index(self, index=0, id=6)
+  self_a__1: bits[64] = tuple_index(self, index=0, id=7)
+  ret smul.8: bits[64] = smul(self_a, self_a__1, id=8)
 }
 
 fn __test_module__call_foo__s64_S64Wrapper(value: (bits[64]) id=11) -> bits[64] {
