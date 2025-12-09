@@ -2364,7 +2364,8 @@ class Conditional : public Expr {
   // blocks of this if/else-if.../else ladder.
   std::vector<StatementBlock*> GatherBlocks();
 
-  bool IsPartOfLadder() const;
+  // Returns true for 'else if' conditional nodes.
+  bool IsElseIf() const;
 
  private:
   std::string ToStringInternal() const final;

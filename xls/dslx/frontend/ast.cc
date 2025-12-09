@@ -722,7 +722,7 @@ std::vector<StatementBlock*> Conditional::GatherBlocks() {
   return blocks;
 }
 
-bool Conditional::IsPartOfLadder() const {
+bool Conditional::IsElseIf() const {
   if (parent() == nullptr) {
     return false;
   }
@@ -738,7 +738,7 @@ bool Conditional::IsPartOfLadder() const {
 
 std::string Conditional::ToStringInternal() const {
   const absl::string_view const_prefix =
-      (is_const_ && !IsPartOfLadder()) ? "const " : "";
+      (is_const_ && !IsElseIf()) ? "const " : "";
 
   auto make_string = [&](std::string (AstNode::*to_str_fn)()
                              const) -> std::string {
