@@ -169,18 +169,6 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     XLS_RET_CHECK(!calls.empty())
         << " no root invocation data for " << invocation->ToString();
 
-    // Sort the calls by callee and callee bindings so that the order is
-    // deterministic. This is primarily for testing purposes. If tests move away
-    // from golden-file comparison, the sort can probably be removed.
-    std::sort(calls.begin(), calls.end(),
-              [](const InvocationCalleeData& a, const InvocationCalleeData& b) {
-                if (a.callee != b.callee) {
-                  return a.callee->identifier() < b.callee->identifier();
-                }
-                return a.callee_bindings.ToString() <
-                       b.callee_bindings.ToString();
-              });
-
     for (const InvocationCalleeData& call : calls) {
       if (call.callee == nullptr || IsBuiltin(call.callee)) {
         return DefaultHandler(invocation);
