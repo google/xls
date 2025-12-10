@@ -185,6 +185,20 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
       if (call.callee == nullptr || IsBuiltin(call.callee)) {
         return DefaultHandler(invocation);
       }
+      VLOG(5) << "Processing invocation " << invocation->ToString();
+      XLS_ASSIGN_OR_RETURN(
+          ConversionRecord cr,
+          MakeConversionRecord(
+              const_cast<Function*>(call.callee), call.callee->owner(),
+              call.derived_type_info, call.callee_bindings,
+              /*proc_id=*/std::nullopt,
+              // Parametric functions can never be top.
+              /*is_top=*/!call.callee->IsParametric() && call.callee == top_));
+
+      if (std::find(records_.begin(), records_.end(), cr) != records_.end()) {
+        VLOG(5) << "Already in the list; skipping: " << cr.ToString();
+        continue;
+      }
       if (call.callee->owner() != module_) {
         // Function is outside this module; get additional conversion records
         // from its invocation and add to our list of records.
@@ -196,15 +210,6 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
         XLS_RETURN_IF_ERROR(call.callee->Accept(this));
       }
 
-      VLOG(5) << "Processing invocation " << invocation->ToString();
-      XLS_ASSIGN_OR_RETURN(
-          ConversionRecord cr,
-          MakeConversionRecord(
-              const_cast<Function*>(call.callee), call.callee->owner(),
-              call.derived_type_info, call.callee_bindings,
-              /*proc_id=*/std::nullopt,
-              // Parametric functions can never be top.
-              /*is_top=*/!call.callee->IsParametric() && call.callee == top_));
       records_.push_back(std::move(cr));
     }
     // Process the children, specifically, to find invocations in parameters.

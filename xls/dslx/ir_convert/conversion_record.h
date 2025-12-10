@@ -69,6 +69,14 @@ class ConversionRecord {
   std::optional<InterpValue> init_value() const { return init_value_; }
   std::string ToString() const;
 
+  bool operator==(const ConversionRecord& other) const {
+    if (f_ != other.f_ || module_ != other.module_ ||
+        parametric_env_ != other.parametric_env_) {
+      return false;
+    }
+    return true;
+  }
+
  private:
   ConversionRecord(Function* f, Module* module, TypeInfo* type_info,
                    ParametricEnv parametric_env, std::optional<ProcId> proc_id,
