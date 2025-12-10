@@ -1303,6 +1303,36 @@ fn test() -> (u32, u32) {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, ImportedUnrollForCallsParametric) {
+  auto import_data = CreateImportDataForTest();
+  constexpr std::string_view imported_program = R"(
+pub fn foo_param<N: u32>() -> u32 {
+  N
+}
+
+pub fn loop() -> u32 {
+  unroll_for!(i, _): (u32, u32) in u32:0..5 {
+      foo_param<i>();
+  }((u32:0))
+}
+
+)";
+  XLS_ASSERT_OK(ParseAndTypecheck(imported_program, "fake/imported/stuff.x",
+                                  "fake.imported.stuff", &import_data));
+  constexpr std::string_view program = R"(
+import fake.imported.stuff;
+
+fn main() -> u32 {
+  stuff::loop()
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(
+                               program, "main", import_data, kNoVerifyOptions));
+  ExpectIr(converted);
+}
+
 TEST_F(IrConverterTest, CountedForWithTupleAccumulator) {
   constexpr std::string_view program =
       R"(
