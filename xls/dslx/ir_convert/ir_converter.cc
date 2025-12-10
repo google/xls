@@ -76,7 +76,6 @@
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_scanner.h"
-#include "xls/ir/proc_conversion.h"
 #include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
 #include "xls/ir/xls_ir_interface.pb.h"
@@ -247,31 +246,6 @@ absl::Status CreateBoundaryChannels(absl::Span<Param* const> params,
           ChannelOrArrayToProcConfigValue(channel_or_array));
     }
   }
-  return absl::OkStatus();
-}
-
-// Converts the procs in the package to new-style procs. If the top is not
-// a proc, or there is at least one new-style proc already in the package,
-// it will not be converted.
-absl::Status ConvertToNewStyleProcs(Package* package) {
-  VLOG(3) << "Converting package " << package->name()
-          << " to new style procs/proc scoped channels";
-  if (!package->GetTop().has_value() || !package->GetTop().value()->IsProc()) {
-    VLOG(5) << "Will not convert package " << package->name()
-            << " to new style procs; package top is not a proc";
-    return absl::OkStatus();
-  }
-
-  // Make sure all are old style
-  for (const std::unique_ptr<xls::Proc>& proc : package->procs()) {
-    if (proc->is_new_style_proc()) {
-      VLOG(5) << "Will not convert package " << package->name()
-              << " to new style procs; found a new style proc already: "
-              << proc->name();
-      return absl::OkStatus();
-    }
-  }
-  XLS_RETURN_IF_ERROR(ConvertPackageToNewStyleProcs(package));
   return absl::OkStatus();
 }
 
