@@ -384,12 +384,12 @@ class StreamingChannel final : public Channel {
   }
 
   const ChannelConfig& channel_config() const { return channel_config_; }
-  void channel_config(ChannelConfig value) { channel_config_ = value; }
+  void SetChannelConfig(ChannelConfig value) { channel_config_ = value; }
 
-  FlowControl GetFlowControl() const { return flow_control_; }
+  FlowControl flow_control() const { return flow_control_; }
   void SetFlowControl(FlowControl value) { flow_control_ = value; }
 
-  ChannelStrictness GetStrictness() const { return strictness_; }
+  ChannelStrictness strictness() const { return strictness_; }
   void SetStrictness(ChannelStrictness value) { strictness_ = value; }
 
  private:

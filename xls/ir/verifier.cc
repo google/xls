@@ -343,7 +343,7 @@ absl::Status VerifyElaboration(Package* package) {
                      "no strictness value",
                      channel_interface->name(), proc->name());
           XLS_RET_CHECK_EQ(channel_interface->strictness().value(),
-                           streaming_bound_channel->GetStrictness())
+                           streaming_bound_channel->strictness())
               << absl::StreamFormat(
                      "Strictness of ChannelInterface `%s` in proc `%s` does "
                      "not match  the strictness of channel `%s` to which it is "
@@ -353,7 +353,7 @@ absl::Status VerifyElaboration(Package* package) {
                      ChannelStrictnessToString(
                          channel_interface->strictness().value()),
                      ChannelStrictnessToString(
-                         streaming_bound_channel->GetStrictness()));
+                         streaming_bound_channel->strictness()));
 
         } else {
           XLS_RET_CHECK(!channel_interface->strictness().has_value())
@@ -398,15 +398,15 @@ absl::Status VerifyElaboration(Package* package) {
               dynamic_cast<StreamingChannel*>(*channel);
           StreamingChannel* streaming_bound_channel =
               dynamic_cast<StreamingChannel*>(bound_channel);
-          XLS_RET_CHECK_EQ(streaming_channel->GetFlowControl(),
-                           streaming_bound_channel->GetFlowControl())
+          XLS_RET_CHECK_EQ(streaming_channel->flow_control(),
+                           streaming_bound_channel->flow_control())
               << absl::StreamFormat(
                      "ChannelInterface `%s` in proc `%s` bound to channels "
                      "with different flow control",
                      channel_interface->name(), proc->name());
 
-          XLS_RET_CHECK_EQ(streaming_channel->GetStrictness(),
-                           streaming_bound_channel->GetStrictness())
+          XLS_RET_CHECK_EQ(streaming_channel->strictness(),
+                           streaming_bound_channel->strictness())
               << absl::StreamFormat(
                      "ChannelInterface `%s` in proc `%s` bound to channels "
                      "with different strictness",

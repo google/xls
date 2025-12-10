@@ -874,9 +874,9 @@ absl::StatusOr<Channel*> Package::CloneChannel(
               overrides.initial_values().value_or(channel->initial_values()),
               channel_config,
               overrides.flow_control().value_or(
-                  streaming_channel->GetFlowControl()),
+                  streaming_channel->flow_control()),
               overrides.strictness().value_or(
-                  streaming_channel->GetStrictness())));
+                  streaming_channel->strictness())));
       return new_channel;
     }
   }

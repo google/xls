@@ -5574,7 +5574,7 @@ TEST_P(TranslatorProcTest, IODefaultStrictness) {
     if (channel->kind() != xls::ChannelKind::kStreaming) {
       continue;
     }
-    EXPECT_EQ(xls::down_cast<xls::StreamingChannel*>(channel)->GetStrictness(),
+    EXPECT_EQ(xls::down_cast<xls::StreamingChannel*>(channel)->strictness(),
               xls::ChannelStrictness::kProvenMutuallyExclusive)
         << "Incorrect strictness for channel: " << channel->name();
   }
@@ -5613,7 +5613,7 @@ TEST_P(TranslatorProcTest, IOWithStrictnessSpecified) {
         channel->name() == "in"
             ? xls::ChannelStrictness::kProvenMutuallyExclusive
             : xls::ChannelStrictness::kArbitraryStaticOrder;
-    EXPECT_EQ(xls::down_cast<xls::StreamingChannel*>(channel)->GetStrictness(),
+    EXPECT_EQ(xls::down_cast<xls::StreamingChannel*>(channel)->strictness(),
               expected_strictness)
         << "Incorrect strictness for channel: " << channel->name();
   }
@@ -5655,7 +5655,7 @@ TEST_P(TranslatorProcTest, IOWithStrictnessSpecifiedOnCommandLine) {
         channel->name() == "in"
             ? xls::ChannelStrictness::kProvenMutuallyExclusive
             : xls::ChannelStrictness::kArbitraryStaticOrder;
-    EXPECT_EQ(xls::down_cast<xls::StreamingChannel*>(channel)->GetStrictness(),
+    EXPECT_EQ(xls::down_cast<xls::StreamingChannel*>(channel)->strictness(),
               expected_strictness)
         << "Incorrect strictness for channel: " << channel->name();
   }

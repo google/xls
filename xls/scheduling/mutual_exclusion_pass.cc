@@ -587,7 +587,7 @@ bool IsProvenMutuallyExclusiveChannel(ChannelRef channel_ref) {
   if (std::holds_alternative<Channel*>(channel_ref)) {
     Channel* channel = std::get<Channel*>(channel_ref);
     return channel->kind() == ChannelKind::kStreaming &&
-           down_cast<StreamingChannel*>(channel)->GetStrictness() ==
+           down_cast<StreamingChannel*>(channel)->strictness() ==
                ChannelStrictness::kProvenMutuallyExclusive;
   }
 

@@ -367,8 +367,7 @@ absl::StatusOr<Proc*> Proc::Clone(
             new_chan_name(channel->name()), channel->id(),
             channel->supported_ops(), chan_type, channel->initial_values(),
             streaming_channel->channel_config(),
-            streaming_channel->GetFlowControl(),
-            streaming_channel->GetStrictness());
+            streaming_channel->flow_control(), streaming_channel->strictness());
       } else {
         new_channel = std::make_unique<SingleValueChannel>(
             new_chan_name(channel->name()), channel->id(),
@@ -569,7 +568,7 @@ absl::StatusOr<ChannelWithInterfaces> Proc::AddChannel(
   std::optional<ChannelStrictness> strictness;
   if (StreamingChannel* streaming_channel =
           dynamic_cast<StreamingChannel*>(channel_ptr)) {
-    strictness = streaming_channel->GetStrictness();
+    strictness = streaming_channel->strictness();
   }
 
   auto send_channel_interface = std::make_unique<SendChannelInterface>(

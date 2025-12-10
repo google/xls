@@ -46,13 +46,13 @@ absl::StatusOr<bool> MarkChannelFifosPass::RunInternal(
     }
     StreamingChannel* schan = down_cast<StreamingChannel*>(chan);
     if (!schan->channel_config().input_flop_kind()) {
-      schan->channel_config(schan->channel_config().WithInputFlopKind(
+      schan->SetChannelConfig(schan->channel_config().WithInputFlopKind(
           GetRealFlopKind(options.codegen_options.flop_inputs(),
                           options.codegen_options.flop_inputs_kind())));
       changed = true;
     }
     if (!schan->channel_config().output_flop_kind()) {
-      schan->channel_config(schan->channel_config().WithOutputFlopKind(
+      schan->SetChannelConfig(schan->channel_config().WithOutputFlopKind(
           GetRealFlopKind(options.codegen_options.flop_outputs(),
                           options.codegen_options.flop_outputs_kind())));
       changed = true;

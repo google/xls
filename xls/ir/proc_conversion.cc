@@ -111,8 +111,8 @@ absl::Status AddInterfaceChannel(Proc* proc, Channel* channel,
   FlowControl flow_control = FlowControl::kNone;
   if (StreamingChannel* streaming_channel =
           dynamic_cast<StreamingChannel*>(channel)) {
-    strictness = streaming_channel->GetStrictness();
-    flow_control = streaming_channel->GetFlowControl();
+    strictness = streaming_channel->strictness();
+    flow_control = streaming_channel->flow_control();
   }
   if (direction == ChannelDirection::kSend) {
     return proc

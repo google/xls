@@ -101,8 +101,8 @@ TEST(ChannelTest, ConstructStreamingChannel) {
   EXPECT_EQ(ch.type(), p.GetBitsType(32));
   EXPECT_TRUE(ch.initial_values().empty());
   EXPECT_FALSE(ch.GetFifoDepth().has_value());
-  EXPECT_EQ(ch.GetFlowControl(), FlowControl::kReadyValid);
-  EXPECT_EQ(ch.GetStrictness(), ChannelStrictness::kProvenMutuallyExclusive);
+  EXPECT_EQ(ch.flow_control(), FlowControl::kReadyValid);
+  EXPECT_EQ(ch.strictness(), ChannelStrictness::kProvenMutuallyExclusive);
 }
 
 TEST(ChannelTest, ConstructSingleValueChannel) {
@@ -126,8 +126,8 @@ TEST(ChannelTest, StreamingChannelWithInitialValues) {
   EXPECT_EQ(ch.type(), p.GetBitsType(32));
   EXPECT_THAT(ch.initial_values(),
               ElementsAre(Value(UBits(11, 32)), Value(UBits(22, 32))));
-  EXPECT_EQ(ch.GetFlowControl(), FlowControl::kNone);
-  EXPECT_EQ(ch.GetStrictness(), ChannelStrictness::kProvenMutuallyExclusive);
+  EXPECT_EQ(ch.flow_control(), FlowControl::kNone);
+  EXPECT_EQ(ch.strictness(), ChannelStrictness::kProvenMutuallyExclusive);
 }
 
 TEST(ChannelTest, StreamingChannelWithFifoDepth) {
@@ -145,8 +145,8 @@ TEST(ChannelTest, StreamingChannelWithFifoDepth) {
   EXPECT_EQ(ch.type(), p.GetBitsType(32));
   EXPECT_TRUE(ch.initial_values().empty());
   EXPECT_EQ(ch.GetFifoDepth(), 123);
-  EXPECT_EQ(ch.GetFlowControl(), FlowControl::kNone);
-  EXPECT_EQ(ch.GetStrictness(), ChannelStrictness::kProvenMutuallyExclusive);
+  EXPECT_EQ(ch.flow_control(), FlowControl::kNone);
+  EXPECT_EQ(ch.strictness(), ChannelStrictness::kProvenMutuallyExclusive);
 }
 
 TEST(ChannelTest, StreamingChannelWithFifoConfigSerializesFifoConfigCorrectly) {

@@ -504,7 +504,7 @@ TEST_F(PackageTest, CloneStreamingChannelSamePackage) {
   StreamingChannel* streaming_ch1 = down_cast<StreamingChannel*>(ch1);
   EXPECT_EQ(streaming_ch1->initial_values(), initial_values);
   EXPECT_EQ(streaming_ch1->GetFifoDepth(), 3);
-  EXPECT_EQ(streaming_ch1->GetFlowControl(), FlowControl::kReadyValid);
+  EXPECT_EQ(streaming_ch1->flow_control(), FlowControl::kReadyValid);
 }
 
 TEST_F(PackageTest, CloneStreamingChannelSetParams) {
@@ -536,8 +536,8 @@ TEST_F(PackageTest, CloneStreamingChannelSetParams) {
   EXPECT_THAT(ch1, op_matchers::ChannelWithType("bits[32]"));
   EXPECT_EQ(ch1->supported_ops(), ChannelOps::kSendOnly);
   EXPECT_EQ(ch1->GetFifoDepth(), 3);
-  EXPECT_EQ(ch1->GetFlowControl(), FlowControl::kNone);
-  EXPECT_EQ(ch1->GetStrictness(), ChannelStrictness::kProvenMutuallyExclusive);
+  EXPECT_EQ(ch1->flow_control(), FlowControl::kNone);
+  EXPECT_EQ(ch1->strictness(), ChannelStrictness::kProvenMutuallyExclusive);
 
   EXPECT_EQ(ch1->initial_values(), initial_values_override);
 
@@ -557,8 +557,8 @@ TEST_F(PackageTest, CloneStreamingChannelSetParams) {
   EXPECT_THAT(ch2, op_matchers::ChannelWithType("bits[32]"));
   EXPECT_EQ(ch2->supported_ops(), ChannelOps::kSendOnly);
   EXPECT_EQ(ch2->initial_values(), std::vector<Value>{Value(UBits(0, 32))});
-  EXPECT_EQ(ch2->GetFlowControl(), FlowControl::kNone);
-  EXPECT_EQ(ch2->GetStrictness(), ChannelStrictness::kProvenMutuallyExclusive);
+  EXPECT_EQ(ch2->flow_control(), FlowControl::kNone);
+  EXPECT_EQ(ch2->strictness(), ChannelStrictness::kProvenMutuallyExclusive);
 
   EXPECT_EQ(ch2->GetFifoDepth(), std::nullopt);
 
@@ -575,9 +575,9 @@ TEST_F(PackageTest, CloneStreamingChannelSetParams) {
   EXPECT_EQ(ch3->supported_ops(), ChannelOps::kSendOnly);
   EXPECT_EQ(ch3->initial_values(), std::vector<Value>{Value(UBits(0, 32))});
   EXPECT_EQ(ch3->GetFifoDepth(), 3);
-  EXPECT_EQ(ch3->GetStrictness(), ChannelStrictness::kProvenMutuallyExclusive);
+  EXPECT_EQ(ch3->strictness(), ChannelStrictness::kProvenMutuallyExclusive);
 
-  EXPECT_EQ(ch3->GetFlowControl(), FlowControl::kReadyValid);
+  EXPECT_EQ(ch3->flow_control(), FlowControl::kReadyValid);
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch4_base,
@@ -590,8 +590,8 @@ TEST_F(PackageTest, CloneStreamingChannelSetParams) {
   EXPECT_EQ(ch4->supported_ops(), ChannelOps::kSendOnly);
   EXPECT_EQ(ch4->initial_values(), std::vector<Value>{Value(UBits(0, 32))});
   EXPECT_EQ(ch4->GetFifoDepth(), 3);
-  EXPECT_EQ(ch4->GetFlowControl(), FlowControl::kNone);
-  EXPECT_EQ(ch4->GetStrictness(), ChannelStrictness::kProvenMutuallyExclusive);
+  EXPECT_EQ(ch4->flow_control(), FlowControl::kNone);
+  EXPECT_EQ(ch4->strictness(), ChannelStrictness::kProvenMutuallyExclusive);
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch5_base,
@@ -606,8 +606,8 @@ TEST_F(PackageTest, CloneStreamingChannelSetParams) {
   EXPECT_EQ(ch5->supported_ops(), ChannelOps::kSendOnly);
   EXPECT_EQ(ch5->initial_values(), std::vector<Value>{Value(UBits(0, 32))});
   EXPECT_EQ(ch5->GetFifoDepth(), 3);
-  EXPECT_EQ(ch5->GetFlowControl(), FlowControl::kNone);
-  EXPECT_EQ(ch5->GetStrictness(), ChannelStrictness::kArbitraryStaticOrder);
+  EXPECT_EQ(ch5->flow_control(), FlowControl::kNone);
+  EXPECT_EQ(ch5->strictness(), ChannelStrictness::kArbitraryStaticOrder);
 }
 
 TEST_F(PackageTest, CloneStreamingChannelSamePackageButDifferentOps) {
@@ -644,7 +644,7 @@ TEST_F(PackageTest, CloneStreamingChannelSamePackageButDifferentOps) {
   StreamingChannel* streaming_ch1 = down_cast<StreamingChannel*>(ch1);
   EXPECT_EQ(streaming_ch1->initial_values(), initial_values);
   EXPECT_EQ(streaming_ch1->GetFifoDepth(), 3);
-  EXPECT_EQ(streaming_ch1->GetFlowControl(), FlowControl::kReadyValid);
+  EXPECT_EQ(streaming_ch1->flow_control(), FlowControl::kReadyValid);
 }
 
 TEST_F(PackageTest, CloneStreamingChannelDifferentPackage) {
@@ -678,7 +678,7 @@ TEST_F(PackageTest, CloneStreamingChannelDifferentPackage) {
       down_cast<StreamingChannel*>(ch0_clone);
   EXPECT_EQ(streaming_ch0_clone->initial_values(), initial_values);
   EXPECT_EQ(streaming_ch0_clone->GetFifoDepth(), 3);
-  EXPECT_EQ(streaming_ch0_clone->GetFlowControl(), FlowControl::kReadyValid);
+  EXPECT_EQ(streaming_ch0_clone->flow_control(), FlowControl::kReadyValid);
 }
 
 TEST_F(PackageTest, Top) {

@@ -1344,7 +1344,7 @@ TEST_P(PipelineGeneratorTest, ProcScopedChannelsWithLoopbackChannel) {
   XLS_ASSERT_OK_AND_ASSIGN(ChannelWithInterfaces loopback,
                            pb.AddChannel("loopback", package.GetBitsType(32)));
   dynamic_cast<StreamingChannel*>(loopback.channel)
-      ->channel_config(
+      ->SetChannelConfig(
           ChannelConfig(FifoConfig(/*depth=*/2, /*bypass=*/false,
                                    /*register_push_outputs=*/true,
                                    /*register_pop_outputs=*/false)));
@@ -1544,7 +1544,7 @@ TEST_P(PipelineGeneratorTest, DeclaredChannelInProc) {
   XLS_ASSERT_OK(p.SetTop(top));
 
   dynamic_cast<StreamingChannel*>(middle_channel.channel)
-      ->channel_config(ChannelConfig(kDepth1Fifo.config));
+      ->SetChannelConfig(ChannelConfig(kDepth1Fifo.config));
 
   XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
                            ProcElaboration::Elaborate(top));

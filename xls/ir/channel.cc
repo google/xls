@@ -222,8 +222,8 @@ std::string Channel::ToString() const {
         down_cast<const StreamingChannel*>(this);
     absl::StrAppendFormat(
         &result, ", flow_control=%s, strictness=%s",
-        FlowControlToString(streaming_channel->GetFlowControl()),
-        ChannelStrictnessToString(streaming_channel->GetStrictness()));
+        FlowControlToString(streaming_channel->flow_control()),
+        ChannelStrictnessToString(streaming_channel->strictness()));
     const std::optional<ChannelConfig>& channel_config =
         streaming_channel->channel_config();
     if (channel_config.has_value()) {
@@ -399,8 +399,7 @@ std::optional<ChannelStrictness> ChannelRefStrictness(ChannelRef ref) {
   }
 
   if (std::get<Channel*>(ref)->kind() == ChannelKind::kStreaming) {
-    return down_cast<StreamingChannel*>(std::get<Channel*>(ref))
-        ->GetStrictness();
+    return down_cast<StreamingChannel*>(std::get<Channel*>(ref))->strictness();
   }
   return std::nullopt;
 }
@@ -435,7 +434,7 @@ FlowControl ChannelRefFlowControl(ChannelRef ref) {
   } else if (StreamingChannel* streaming_channel =
                  dynamic_cast<StreamingChannel*>(std::get<Channel*>(ref));
              streaming_channel != nullptr) {
-    return streaming_channel->GetFlowControl();
+    return streaming_channel->flow_control();
   }
   return FlowControl::kNone;
 }

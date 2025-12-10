@@ -166,11 +166,11 @@ TEST_P(SynchronousProcsTest, ChainedProc) {
                            pb.AddChannel("tmp3", u32));
 
   down_cast<StreamingChannel*>(tmp1_ch.channel)
-      ->channel_config(ChannelConfig(kDepth1Fifo.config));
+      ->SetChannelConfig(ChannelConfig(kDepth1Fifo.config));
   down_cast<StreamingChannel*>(tmp2_ch.channel)
-      ->channel_config(ChannelConfig(kDepth1Fifo.config));
+      ->SetChannelConfig(ChannelConfig(kDepth1Fifo.config));
   down_cast<StreamingChannel*>(tmp3_ch.channel)
-      ->channel_config(ChannelConfig(kDepth1Fifo.config));
+      ->SetChannelConfig(ChannelConfig(kDepth1Fifo.config));
 
   Proc* subproc1;
   {

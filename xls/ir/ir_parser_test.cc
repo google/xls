@@ -725,7 +725,7 @@ TEST(IrParserTest, ParseStreamingChannelWithStrictness) {
   EXPECT_EQ(ch->supported_ops(), ChannelOps::kSendReceive);
   EXPECT_EQ(ch->kind(), ChannelKind::kStreaming);
   EXPECT_EQ(ch->type(), p.GetBitsType(32));
-  EXPECT_EQ(down_cast<StreamingChannel*>(ch)->GetStrictness(),
+  EXPECT_EQ(down_cast<StreamingChannel*>(ch)->strictness(),
             ChannelStrictness::kArbitraryStaticOrder);
 }
 

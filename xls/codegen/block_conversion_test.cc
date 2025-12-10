@@ -2619,7 +2619,7 @@ TEST_P(SpecificIoKindsTest, InputChannelSpecificFlopKindsRespected) {
   // Make a copy without any channel config.
   XLS_ASSERT_OK_AND_ASSIGN(auto p2, ClonePackage(p.get()));
   down_cast<StreamingChannel*>(p2->channels().front())
-      ->channel_config(ChannelConfig());
+      ->SetChannelConfig(ChannelConfig());
 
   CodegenOptions test_options;
   test_options.flop_inputs(false).flop_outputs(false).clock_name("clk");
@@ -2703,7 +2703,7 @@ TEST_P(SpecificIoKindsTest, InputChannelDefaultFlopKindsChange) {
   // Make a copy without any channel config.
   XLS_ASSERT_OK_AND_ASSIGN(auto p2, ClonePackage(p.get()));
   down_cast<StreamingChannel*>(p2->channels().front())
-      ->channel_config(ChannelConfig());
+      ->SetChannelConfig(ChannelConfig());
 
   CodegenOptions test_options;
   test_options.flop_inputs(false).flop_outputs(false).clock_name("clk");
@@ -2782,7 +2782,7 @@ TEST_P(SpecificIoKindsTest, OutputChannelSpecificFlopKindsRespected) {
   // Make a copy without any channel config.
   XLS_ASSERT_OK_AND_ASSIGN(auto p2, ClonePackage(p.get()));
   for (auto* chan : p2->channels()) {
-    down_cast<StreamingChannel*>(chan)->channel_config(ChannelConfig());
+    down_cast<StreamingChannel*>(chan)->SetChannelConfig(ChannelConfig());
   }
 
   CodegenOptions test_options;
@@ -2868,7 +2868,7 @@ TEST_P(SpecificIoKindsTest, OutputChannelDefaultFlopKindsChange) {
   // Make a copy without any channel config.
   XLS_ASSERT_OK_AND_ASSIGN(auto p2, ClonePackage(p.get()));
   for (auto* chan : p2->channels()) {
-    down_cast<StreamingChannel*>(chan)->channel_config(ChannelConfig());
+    down_cast<StreamingChannel*>(chan)->SetChannelConfig(ChannelConfig());
   }
 
   CodegenOptions test_options;
