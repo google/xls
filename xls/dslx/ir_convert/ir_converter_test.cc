@@ -4064,10 +4064,6 @@ fn main() {
 }
 
 TEST_F(IrConverterTest, SquareAnythingFunction) {
-  if (TypeInferenceVersion::kVersion2 == TypeInferenceVersion::kVersion1) {
-    return;
-  }
-
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted, ConvertModuleForTest(R"(
 #![feature(generics)]
 
@@ -4081,10 +4077,6 @@ fn main() -> (u32, s64) {
 }
 
 TEST_F(IrConverterTest, OptionalStruct) {
-  if (TypeInferenceVersion::kVersion2 == TypeInferenceVersion::kVersion1) {
-    return;
-  }
-
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted, ConvertModuleForTest(R"(
 #![feature(generics)]
 
@@ -4187,10 +4179,6 @@ fn main() -> bits[bit_count<Foo>()] {
 }
 
 TEST_F(IrConverterTest, GenericProc) {
-  if (TypeInferenceVersion::kVersion2 == TypeInferenceVersion::kVersion1) {
-    return;
-  }
-
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted, ConvertModuleForTest(R"(
 #![feature(generics)]
 
