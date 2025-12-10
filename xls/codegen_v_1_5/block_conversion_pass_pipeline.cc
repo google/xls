@@ -23,7 +23,7 @@
 #include "xls/codegen_v_1_5/block_finalization_pass.h"
 #include "xls/codegen_v_1_5/channel_to_port_io_lowering_pass.h"
 #include "xls/codegen_v_1_5/flow_control_insertion_pass.h"
-#include "xls/codegen_v_1_5/param_and_return_value_lowering_pass.h"
+#include "xls/codegen_v_1_5/function_io_lowering_pass.h"
 #include "xls/codegen_v_1_5/pipeline_register_insertion_pass.h"
 #include "xls/codegen_v_1_5/scheduled_block_conversion_pass.h"
 #include "xls/codegen_v_1_5/scheduling_pass.h"
@@ -49,7 +49,7 @@ CreateBlockConversionPassPipeline() {
   top->Add<ChannelToPortIoLoweringPass>();
 
   // Lower params and return values to ports.
-  top->Add<ParamAndReturnValueLoweringPass>();
+  top->Add<FunctionIOLoweringPass>();
 
   // Insert flow control between stages.
   top->Add<FlowControlInsertionPass>();

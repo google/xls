@@ -24,7 +24,7 @@ namespace xls::codegen {
 absl::StatusOr<bool> ChannelToPortIoLoweringPass::RunInternal(
     Package* package, const BlockConversionPassOptions& options,
     PassResults* results) const {
-  return true;
+  return false;
 }
 
 }  // namespace xls::codegen

@@ -68,6 +68,9 @@ absl::StatusOr<std::unique_ptr<Package>> ClonePackage(
       block_map[b] = nb;
       fb_map[b] = nb;
     }
+    if (fb->IsTop()) {
+      XLS_RETURN_IF_ERROR(clone->SetTop(fb_map[fb]));
+    }
   }
   return clone;
 }

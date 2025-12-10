@@ -12,23 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_CODEGEN_V_1_5_PARAM_AND_RETURN_VALUE_LOWERING_PASS_H_
-#define XLS_CODEGEN_V_1_5_PARAM_AND_RETURN_VALUE_LOWERING_PASS_H_
+#ifndef XLS_CODEGEN_V_1_5_FUNCTION_IO_LOWERING_PASS_H_
+#define XLS_CODEGEN_V_1_5_FUNCTION_IO_LOWERING_PASS_H_
 
 #include "absl/status/statusor.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
+#include "xls/ir/block.h"
 #include "xls/ir/package.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls::codegen {
 
-class ParamAndReturnValueLoweringPass : public BlockConversionPass {
+class FunctionIOLoweringPass : public BlockConversionPass {
  public:
-  ParamAndReturnValueLoweringPass()
-      : BlockConversionPass("param_and_return_value_lowering",
-                            "Param and return value to port lowering pass") {}
+  FunctionIOLoweringPass()
+      : BlockConversionPass("function_io_lowering",
+                            "Function I/O to port lowering pass") {}
 
  protected:
+  absl::StatusOr<bool> LowerParams(
+      ScheduledBlock* block, const BlockConversionPassOptions& options) const;
+  absl::StatusOr<bool> LowerReturnValue(
+      ScheduledBlock* block, const BlockConversionPassOptions& options) const;
+
   absl::StatusOr<bool> RunInternal(Package* package,
                                    const BlockConversionPassOptions& options,
                                    PassResults* results) const override;
@@ -36,4 +42,4 @@ class ParamAndReturnValueLoweringPass : public BlockConversionPass {
 
 }  // namespace xls::codegen
 
-#endif  // XLS_CODEGEN_V_1_5_PARAM_AND_RETURN_VALUE_LOWERING_PASS_H_
+#endif  // XLS_CODEGEN_V_1_5_FUNCTION_IO_LOWERING_PASS_H_

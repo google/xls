@@ -747,6 +747,46 @@ absl::Status Block::ReorderPorts(absl::Span<const std::string> port_names) {
   });
   return absl::OkStatus();
 }
+absl::Status Block::ReorderInputPorts(
+    absl::Span<const std::string> port_names) {
+  absl::flat_hash_map<std::string, int64_t> port_order;
+  for (int64_t i = 0; i < port_names.size(); ++i) {
+    port_order[port_names[i]] = i;
+  }
+  XLS_RET_CHECK_EQ(port_order.size(), port_names.size())
+      << "Port order has duplicate names";
+  for (const Port& port : GetInputPorts()) {
+    XLS_RET_CHECK(port_order.contains(PortName(port)))
+        << absl::StreamFormat("Port order missing port \"%s\"", PortName(port));
+  }
+  XLS_RET_CHECK_EQ(port_order.size(), GetInputPorts().size())
+      << "Port order includes invalid port names";
+  std::sort(input_ports_.begin(), input_ports_.end(),
+            [&](const Port& a, const Port& b) {
+              return port_order.at(PortName(a)) < port_order.at(PortName(b));
+            });
+  return absl::OkStatus();
+}
+absl::Status Block::ReorderOutputPorts(
+    absl::Span<const std::string> port_names) {
+  absl::flat_hash_map<std::string, int64_t> port_order;
+  for (int64_t i = 0; i < port_names.size(); ++i) {
+    port_order[port_names[i]] = i;
+  }
+  XLS_RET_CHECK_EQ(port_order.size(), port_names.size())
+      << "Port order has duplicate names";
+  for (const Port& port : GetOutputPorts()) {
+    XLS_RET_CHECK(port_order.contains(PortName(port)))
+        << absl::StreamFormat("Port order missing port \"%s\"", PortName(port));
+  }
+  XLS_RET_CHECK_EQ(port_order.size(), GetOutputPorts().size())
+      << "Port order includes invalid port names";
+  std::sort(output_ports_.begin(), output_ports_.end(),
+            [&](const Port& a, const Port& b) {
+              return port_order.at(PortName(a)) < port_order.at(PortName(b));
+            });
+  return absl::OkStatus();
+}
 
 /* static */ std::string Block::PortName(const Port& port) {
   return absl::visit(Visitor{
@@ -1275,6 +1315,20 @@ absl::StatusOr<Block*> Block::Clone(
       }
     }
     XLS_RETURN_IF_ERROR(cloned_block->ReorderPorts(correct_ordering));
+  }
+  {
+    std::vector<std::string> correct_ordering;
+    for (const InputPort* port : GetInputPorts()) {
+      correct_ordering.push_back(std::string(port->name()));
+    }
+    XLS_RETURN_IF_ERROR(cloned_block->ReorderInputPorts(correct_ordering));
+  }
+  {
+    std::vector<std::string> correct_ordering;
+    for (const OutputPort* port : GetOutputPorts()) {
+      correct_ordering.push_back(std::string(port->name()));
+    }
+    XLS_RETURN_IF_ERROR(cloned_block->ReorderOutputPorts(correct_ordering));
   }
 
   if (IsScheduled() && preserve_schedule) {

@@ -188,6 +188,8 @@ class Block : public FunctionBase {
   // of the ports in a block determines their order in the emitted verilog
   // module. `port_names` must include (exactly) the name of every port.
   absl::Status ReorderPorts(absl::Span<const std::string> port_names);
+  absl::Status ReorderInputPorts(absl::Span<const std::string> port_names);
+  absl::Status ReorderOutputPorts(absl::Span<const std::string> port_names);
 
   // Returns all registers in the block in the order they were added.
   absl::Span<Register* const> GetRegisters() const { return register_vec_; }
@@ -569,6 +571,11 @@ class ScheduledBlock : public Block {
   // resided in the source function.
   Node* source_return_value() const { return source_return_value_; }
   void SetSourceReturnValue(Node* value) { source_return_value_ = value; }
+
+  bool HasImplicitUse(Node* node) const override {
+    return (source_return_value_ != nullptr && node == source_return_value_) ||
+           Block::HasImplicitUse(node);
+  }
 
   // Returns true if the given node is either in this block or its source
   // entity.
