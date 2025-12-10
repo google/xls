@@ -522,11 +522,6 @@ class StatefulResolver : public TypeAnnotationResolver {
     absl::StatusOr<bool> evaluated_value = evaluator_.EvaluateBoolOrExpr(
         parametric_context, conditional_type->test());
     if (evaluated_value.ok()) {
-      XLS_ASSIGN_OR_RETURN(TypeInfo * ti,
-                           import_data_.GetRootTypeInfoForNode(conditional));
-      ti->NoteConstExpr(conditional->test(),
-                        InterpValue::MakeBool(*evaluated_value));
-
       const AstNode* selected_branch =
           *evaluated_value ? conditional->consequent()
                            : ToExprNode(conditional->alternate());
