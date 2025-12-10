@@ -199,6 +199,9 @@ class Parser {
       Package* package, absl::Span<const IrAttribute> outer_attributes = {});
   absl::StatusOr<ScheduledBlock*> ParseScheduledBlock(
       Package* package, absl::Span<const IrAttribute> outer_attributes = {});
+  absl::StatusOr<Block*> ParseBlockInternal(
+      Package* package, absl::Span<const IrAttribute> outer_attributes,
+      bool scheduled);
 
   // Parse a channel starting at the current scanner position. If `proc` is not
   // null then this is a proc-scoped channel.

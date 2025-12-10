@@ -20,8 +20,10 @@
 #include <utility>
 #include <vector>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "xls/codegen/codegen_options.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/status_macros.h"
@@ -47,6 +49,23 @@ absl::StatusOr<Node*> AddPlaceholder(Block& block, std::string_view name) {
                                          name);
 }
 
+absl::Status AddClockAndResetPorts(const verilog::CodegenOptions& options,
+                                   Block& block) {
+  if (!options.clock_name().has_value()) {
+    return absl::InvalidArgumentError(
+        "Clock name must be specified when generating a pipelined block");
+  }
+  XLS_RETURN_IF_ERROR(block.AddClockPort(options.clock_name().value()));
+
+  if (options.reset().has_value()) {
+    XLS_RETURN_IF_ERROR(block
+                            .AddResetPort(options.reset()->name(),
+                                          options.GetResetBehavior().value())
+                            .status());
+  }
+  return absl::OkStatus();
+}
+
 }  // namespace
 
 absl::StatusOr<bool> ScheduledBlockConversionPass::RunInternal(
@@ -60,6 +79,8 @@ absl::StatusOr<bool> ScheduledBlockConversionPass::RunInternal(
 
     ScheduledBlock* block = down_cast<ScheduledBlock*>(package->AddBlock(
         std::make_unique<ScheduledBlock>(old_fb->name(), package)));
+
+    XLS_RETURN_IF_ERROR(AddClockAndResetPorts(options.codegen_options, *block));
 
     for (int i = 0; i < old_fb->stages().size(); ++i) {
       XLS_ASSIGN_OR_RETURN(

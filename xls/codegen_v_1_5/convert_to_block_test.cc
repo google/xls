@@ -55,8 +55,8 @@ TEST_F(ConvertToBlockTest, SimpleFunction) {
   XLS_ASSERT_OK(p->SetTop(top));
   TestDelayEstimator delay_estimator;
 
-  XLS_ASSERT_OK(ConvertToBlock(p.get(), codegen_options(), scheduling_options(),
-                               &delay_estimator_));
+  XLS_ASSERT_OK(ConvertToBlock(p.get(), codegen_options().clock_name("clk"),
+                               scheduling_options(), &delay_estimator_));
 
   // TODO: https://github.com/google/xls/issues/3356 - assert stuff.
 }

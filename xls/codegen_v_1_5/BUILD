@@ -311,6 +311,7 @@ cc_library(
     hdrs = ["scheduled_block_conversion_pass.h"],
     deps = [
         ":block_conversion_pass",
+        "//xls/codegen:codegen_options",
         "//xls/common:casts",
         "//xls/common/status:status_macros",
         "//xls/ir",
@@ -332,6 +333,7 @@ cc_test(
     deps = [
         ":block_conversion_pass",
         ":scheduled_block_conversion_pass",
+        "//xls/codegen:codegen_options",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:ret_check",
@@ -341,9 +343,8 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:verifier",
         "//xls/passes:pass_base",
-        "//xls/scheduling:scheduling_options",
-        "//xls/scheduling:scheduling_result",
         "//xls/tools:codegen",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@googletest//:gtest",
     ],

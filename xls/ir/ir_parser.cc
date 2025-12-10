@@ -1826,8 +1826,8 @@ absl::StatusOr<Parser::BodyResult> Parser::ParseBody(
     if (scanner_.PeekTokenIs(LexicalTokenType::kKeyword) &&
         scanner_.PeekToken()->value() == "stage") {
       if (!scheduled) {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "stage keyword not supported in unscheduled entities"));
+        return absl::InvalidArgumentError(
+            "stage keyword not supported in unscheduled entities");
       }
 
       XLS_ASSIGN_OR_RETURN(
@@ -1836,10 +1836,71 @@ absl::StatusOr<Parser::BodyResult> Parser::ParseBody(
       if (auto* scheduled_pb = dynamic_cast<ScheduledProcBuilder*>(fb)) {
         down_cast<ScheduledProc*>(scheduled_pb->proc())->AddStage(stage);
       } else {
-        // Note that `ParseScheduledBlock` does not use `ParseBody`.
+        // Note that blocks use `controlled_stage` rather than `stage`.
         XLS_RET_CHECK(dynamic_cast<ScheduledFunctionBuilder*>(fb) != nullptr);
         down_cast<ScheduledFunction*>(fb->function())->AddStage(stage);
       }
+      continue;
+    }
+    if (scanner_.PeekTokenIs(LexicalTokenType::kKeyword) &&
+        scanner_.PeekToken()->value() == "controlled_stage") {
+      ScheduledBlockBuilder* bb = dynamic_cast<ScheduledBlockBuilder*>(fb);
+      if (bb == nullptr) {
+        return absl::InvalidArgumentError(
+            "controlled_stage keyword is only allowed in scheduled blocks");
+      }
+      XLS_RETURN_IF_ERROR(ParseControlledStage(bb, name_to_value, package));
+      continue;
+    }
+    if (scanner_.PeekTokenIs(LexicalTokenType::kKeyword) &&
+        scanner_.PeekToken()->value() == "source") {
+      ScheduledBlockBuilder* bb = dynamic_cast<ScheduledBlockBuilder*>(fb);
+      if (bb == nullptr) {
+        return absl::InvalidArgumentError(
+            "source keyword is only allowed in scheduled blocks");
+      }
+      std::unique_ptr<FunctionBase> source;
+      scanner_.PopToken();
+      XLS_ASSIGN_OR_RETURN(peek, scanner_.PeekToken());
+      if (peek.type() == LexicalTokenType::kKeyword && peek.value() == "fn") {
+        XLS_ASSIGN_OR_RETURN(
+            Function * source_fn,
+            ParseFunction(package, /*outer_attributes=*/{}, &source));
+        XLS_RET_CHECK(source_fn->return_value() == nullptr);
+        for (Param* param : source_fn->params()) {
+          name_to_value->emplace(param->name(), bb->SourceNode(param));
+        }
+      } else if (peek.type() == LexicalTokenType::kKeyword &&
+                 peek.value() == "proc") {
+        XLS_ASSIGN_OR_RETURN(
+            Proc * source_proc,
+            ParseProc(package, /*outer_attributes=*/{}, &source));
+        for (StateElement* element : source_proc->StateElements()) {
+          name_to_value->emplace(
+              element->name(),
+              bb->SourceNode(source_proc->GetStateRead(element)));
+        }
+      } else {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Invalid source for scheduled_block: %s", peek.value()));
+      }
+      bb->SetSource(std::move(source));
+      continue;
+    }
+    if (scanner_.PeekTokenIs(LexicalTokenType::kKeyword) &&
+        scanner_.PeekToken()->value() == "ret" &&
+        dynamic_cast<ScheduledBlockBuilder*>(fb) != nullptr) {
+      scanner_.PopToken();
+      ScheduledBlockBuilder* bb = dynamic_cast<ScheduledBlockBuilder*>(fb);
+      XLS_ASSIGN_OR_RETURN(Token source_ret_name,
+                           scanner_.PopTokenOrError(LexicalTokenType::kIdent,
+                                                    "return value name"));
+      const auto it = name_to_value->find(source_ret_name.value());
+      if (it == name_to_value->end()) {
+        return absl::InvalidArgumentError(absl::StrCat(
+            "Source return value was undefined: ", source_ret_name.value()));
+      }
+      bb->SetSourceReturnValue(it->second.node());
       continue;
     }
 
@@ -2404,10 +2465,17 @@ absl::StatusOr<Proc*> Parser::ParseProcInternal(
 
 absl::StatusOr<Block*> Parser::ParseBlock(
     Package* package, absl::Span<const IrAttribute> outer_attributes) {
+  return ParseBlockInternal(package, outer_attributes, /*scheduled=*/false);
+}
+
+absl::StatusOr<Block*> Parser::ParseBlockInternal(
+    Package* package, absl::Span<const IrAttribute> outer_attributes,
+    bool scheduled) {
   if (AtEof()) {
     return absl::InvalidArgumentError("Could not parse block; at EOF.");
   }
-  XLS_RETURN_IF_ERROR(scanner_.DropKeywordOrError("block"));
+  XLS_RETURN_IF_ERROR(
+      scanner_.DropKeywordOrError(scheduled ? "scheduled_block" : "block"));
 
   XLS_ASSIGN_OR_RETURN(BlockSignature signature, ParseBlockSignature(package));
 
@@ -2418,12 +2486,18 @@ absl::StatusOr<Block*> Parser::ParseBlock(
 
   // The parser does its own verification so pass should_verify=false. This
   // enables the parser to parse and construct malformed IR for tests.
-  auto bb = std::make_unique<BlockBuilder>(signature.block_name, package,
-                                           /*should_verify=*/false);
+  std::unique_ptr<BlockBuilder> bb;
+  if (scheduled) {
+    bb = std::make_unique<ScheduledBlockBuilder>(signature.block_name, package,
+                                                 /*should_verify=*/false);
+  } else {
+    bb = std::make_unique<BlockBuilder>(signature.block_name, package,
+                                        /*should_verify=*/false);
+  }
+
   absl::flat_hash_map<std::string, BValue> name_to_value;
-  XLS_ASSIGN_OR_RETURN(
-      BodyResult body_result,
-      ParseBody(bb.get(), &name_to_value, package, /*scheduled=*/false));
+  XLS_ASSIGN_OR_RETURN(BodyResult body_result,
+                       ParseBody(bb.get(), &name_to_value, package, scheduled));
   XLS_RET_CHECK(std::holds_alternative<BlockBodyResult>(body_result));
 
   XLS_ASSIGN_OR_RETURN(Block * block, bb->Build());
@@ -3323,100 +3397,10 @@ absl::StatusOr<ScheduledProc*> Parser::ParseScheduledProc(
 
 absl::StatusOr<ScheduledBlock*> Parser::ParseScheduledBlock(
     Package* package, absl::Span<const IrAttribute> outer_attributes) {
-  XLS_RETURN_IF_ERROR(scanner_.DropKeywordOrError("scheduled_block"));
-  XLS_ASSIGN_OR_RETURN(BlockSignature signature, ParseBlockSignature(package));
-  // The parser does its own verification so pass should_verify=false. This
-  // enables the parser to parse and construct malformed IR for tests.
-  ScheduledBlockBuilder bb(signature.block_name, package,
-                           /*should_verify=*/false);
-  absl::flat_hash_map<std::string, BValue> name_to_value;
-
-  while (!scanner_.PeekTokenIs(LexicalTokenType::kCurlClose)) {
-    XLS_ASSIGN_OR_RETURN(Token peek, scanner_.PeekToken());
-    if (peek.type() == LexicalTokenType::kKeyword && peek.value() == "source") {
-      std::unique_ptr<FunctionBase> source;
-      scanner_.PopToken();
-      XLS_ASSIGN_OR_RETURN(peek, scanner_.PeekToken());
-      if (peek.type() == LexicalTokenType::kKeyword && peek.value() == "fn") {
-        XLS_ASSIGN_OR_RETURN(
-            Function * source_fn,
-            ParseFunction(package, /*outer_attributes=*/{}, &source));
-        XLS_RET_CHECK(source_fn->return_value() == nullptr);
-        for (Param* param : source_fn->params()) {
-          name_to_value.emplace(param->name(), bb.SourceNode(param));
-        }
-      } else if (peek.type() == LexicalTokenType::kKeyword &&
-                 peek.value() == "proc") {
-        XLS_ASSIGN_OR_RETURN(
-            Proc * source_proc,
-            ParseProc(package, /*outer_attributes=*/{}, &source));
-        for (StateElement* element : source_proc->StateElements()) {
-          name_to_value.emplace(
-              element->name(),
-              bb.SourceNode(source_proc->GetStateRead(element)));
-        }
-      } else {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "Invalid source for scheduled_block: %s", peek.value()));
-      }
-      bb.SetSource(std::move(source));
-    }
-    if (peek.type() == LexicalTokenType::kKeyword &&
-        peek.value() == "controlled_stage") {
-      XLS_RETURN_IF_ERROR(ParseControlledStage(&bb, &name_to_value, package));
-    } else if (peek.type() == LexicalTokenType::kKeyword &&
-               peek.value() == "reg") {
-      XLS_ASSIGN_OR_RETURN(Register * reg, ParseRegister(bb.block()));
-      (void)reg;
-    } else if (peek.type() == LexicalTokenType::kKeyword &&
-               peek.value() == "instantiation") {
-      XLS_ASSIGN_OR_RETURN(Instantiation * instantiation,
-                           ParseInstantiation(bb.block()));
-      (void)instantiation;
-    } else {
-      if (scanner_.TryDropKeyword("ret")) {
-        XLS_ASSIGN_OR_RETURN(Token source_ret_name,
-                             scanner_.PopTokenOrError(LexicalTokenType::kIdent,
-                                                      "return value name"));
-        const auto it = name_to_value.find(source_ret_name.value());
-        if (it == name_to_value.end()) {
-          return absl::InvalidArgumentError(absl::StrCat(
-              "Source return value was undefined: ", source_ret_name.value()));
-        }
-        bb.SetSourceReturnValue(it->second.node());
-      } else {
-        XLS_ASSIGN_OR_RETURN(BValue result, ParseNode(&bb, &name_to_value));
-        name_to_value[result.node()->GetName()] = result;
-      }
-    }
-  }
-  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kCurlClose));
-
-  XLS_ASSIGN_OR_RETURN(ScheduledBlock * block, bb.Build());
-
-  for (const IrAttribute& attribute : outer_attributes) {
-    if (attribute.name == "reset") {
-      const ResetAttribute& reset_attr =
-          std::get<ResetAttribute>(attribute.payload);
-      XLS_ASSIGN_OR_RETURN(InputPort * port,
-                           block->GetInputPort(reset_attr.port_name));
-      XLS_RETURN_IF_ERROR(block->SetResetPort(port, reset_attr.behavior));
-    } else if (attribute.name == "provenance") {
-      block->SetProvenance(std::get<BlockProvenance>(attribute.payload));
-    } else {
-      return absl::InvalidArgumentError(
-          absl::StrFormat("Invalid attribute for block: %s", attribute.name));
-    }
-  }
-
-  // Reorder ports to match signature.
-  std::vector<std::string> port_names;
-  port_names.reserve(signature.ports.size());
-  for (const Port& port : signature.ports) {
-    port_names.push_back(port.name);
-  }
-  XLS_RETURN_IF_ERROR(block->ReorderPorts(port_names));
-  return block;
+  XLS_ASSIGN_OR_RETURN(
+      Block * block,
+      ParseBlockInternal(package, outer_attributes, /*scheduled=*/true));
+  return down_cast<ScheduledBlock*>(block);
 }
 
 absl::Status Parser::ParseControlledStage(
