@@ -15,6 +15,9 @@
 #ifndef GDM_HW_MLIR_XLS_TRANSFORMS_XLS_LOWER_H_
 #define GDM_HW_MLIR_XLS_TRANSFORMS_XLS_LOWER_H_
 
+#include <optional>
+#include <string>
+
 #include "llvm/include/llvm/Support/CommandLine.h"
 #include "mlir/include/mlir/Pass/PassManager.h"
 #include "mlir/include/mlir/Pass/PassOptions.h"
@@ -50,6 +53,12 @@ struct XlsLowerPassPipelineOptions
       llvm::cl::desc(
           "If true, procify-loops is applied by default to all scf.for ops"),
       llvm::cl::init(false)};
+  PassOptions::Option<std::optional<std::string>> top_proc_name{
+      *this, "top-proc-name",
+      llvm::cl::desc("When defined, and in a module with exactly two eprocs, "
+                     "if the eproc with this name is empty, we erase it and "
+                     "give this name to the other eproc."),
+      llvm::cl::init(std::nullopt)};
 };
 
 // A Pass pipeline that lowers to a form that can be translated to XLS.

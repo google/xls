@@ -217,4 +217,26 @@ def OptimizeUsingXlsPass : Pass<"optimize-using-xls", "::mlir::ModuleOp"> {
   ];
 }
 
+def SkipEmptyTopEprocPass : Pass<"skip-empty-top-eproc", "::mlir::ModuleOp"> {
+  let summary = "Skips empty top eprocs.";
+  let description = [{
+    In a module with two eprocs, if the second one is empty, removes the
+    empty eproc and renames the other one to have the same name.
+  }];
+
+  let dependentDialects = [
+    "mlir::xls::XlsDialect",
+    "mlir::func::FuncDialect",
+  ];
+
+  let options = [
+    Option<"top_proc_name", "top-proc-name", "std::optional<std::string>",
+      /*default=*/"std::nullopt",
+      "When defined, and in a module with exactly two eprocs, if the eproc with"
+      " this name is empty, we erase it and give this name to the other eproc."
+    >
+  ];
+}
+
+
 #endif // MLIR_XLS_TRANSFORMS_PASSES

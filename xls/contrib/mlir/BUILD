@@ -329,6 +329,7 @@ cc_library(
         ":procify_loops",  # buildcleaner: keep
         ":scalarize",  # buildcleaner: keep
         ":scf_to_xls",  # buildcleaner: keep
+        ":skip_empty_top_eproc",  # buildcleaner: keep
         ":xls_transforms_passes",
         "@llvm-project//llvm:Support",
         "@llvm-project//mlir:Pass",
@@ -447,6 +448,20 @@ cc_library(
         "@llvm-project//mlir:Pass",
         "@llvm-project//mlir:Support",
         "@llvm-project//mlir:TransformUtils",
+    ],
+)
+
+cc_library(
+    name = "skip_empty_top_eproc",
+    srcs = ["transforms/skip_empty_top_eproc.cc"],
+    deps = [
+        ":mlir_xls",
+        ":xls_transforms_passes",
+        ":xls_transforms_passes_inc_gen",
+        "@llvm-project//llvm:Support",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:Pass",
+        "@llvm-project//mlir:Support",
     ],
 )
 
