@@ -29,6 +29,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
@@ -119,6 +120,20 @@ TEST_F(CsePassTest, TwoIdenticalLiterals) {
   EXPECT_EQ(f->return_value()->operand(0), f->return_value()->operand(1));
 }
 
+TEST_F(CsePassTest, PreferShorterNames) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto a = fb.Literal(UBits(0, 2), {}, "witty");
+  auto b = fb.Literal(UBits(0, 2), {}, "long-winded");
+  auto c = fb.Literal(UBits(1, 2), {}, "loquacious");
+  auto d = fb.Literal(UBits(1, 2), {}, "reserved");
+  auto ret = fb.Tuple({a, b, c, d});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_EQ(f->node_count(), 3);
+  EXPECT_THAT(ret.node(), m::Tuple(a.node(), a.node(), d.node(), d.node()));
+}
+
 TEST_F(CsePassTest, TwoIdenticalLiteralsNoLiteralCommoning) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
@@ -191,12 +206,16 @@ top fn main(x: bits[11]) -> (bits[11], bits[11], bits[11]) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * entry, p->GetTopAsFunction());
   EXPECT_EQ(entry->node_count(), 5);
 
+  ScopedRecordIr sri(p.get());
   EXPECT_THAT(Run(entry), IsOkAndHolds(true));
 
-  EXPECT_EQ(entry->node_count(), 3);
+  // Technically we could recursively check if the body functions are identical
+  // and eliminate them too but that seems unlikely to happen except in
+  // contrived examples.
+  EXPECT_EQ(entry->node_count(), 4);
   EXPECT_EQ(entry->return_value()->operand(0),
             entry->return_value()->operand(1));
-  EXPECT_EQ(entry->return_value()->operand(0),
+  EXPECT_NE(entry->return_value()->operand(0),
             entry->return_value()->operand(2));
 }
 
