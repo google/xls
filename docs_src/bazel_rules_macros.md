@@ -772,6 +772,31 @@ Examples:
 | <a id="xls_benchmark_ir-kwargs"></a>kwargs |  <p align="center"> - </p>   |  none |
 
 
+<a id="xls_diff_test"></a>
+
+## xls_diff_test
+
+<pre>
+load("//xls/build_rules:xls_build_defs.bzl", "xls_diff_test")
+
+xls_diff_test(<a href="#xls_diff_test-name">name</a>, <a href="#xls_diff_test-file">file</a>, <a href="#xls_diff_test-golden">golden</a>, <a href="#xls_diff_test-failure_message">failure_message</a>, <a href="#xls_diff_test-tags">tags</a>, <a href="#xls_diff_test-kwargs">**kwargs</a>)
+</pre>
+
+
+
+**PARAMETERS**
+
+
+| Name  | Description | Default Value |
+| :------------- | :------------- | :------------- |
+| <a id="xls_diff_test-name"></a>name |  <p align="center"> - </p>   |  none |
+| <a id="xls_diff_test-file"></a>file |  <p align="center"> - </p>   |  none |
+| <a id="xls_diff_test-golden"></a>golden |  <p align="center"> - </p>   |  none |
+| <a id="xls_diff_test-failure_message"></a>failure_message |  <p align="center"> - </p>   |  `None` |
+| <a id="xls_diff_test-tags"></a>tags |  <p align="center"> - </p>   |  `[]` |
+| <a id="xls_diff_test-kwargs"></a>kwargs |  <p align="center"> - </p>   |  none |
+
+
 <a id="xls_dslx_cpp_type_library"></a>
 
 ## xls_dslx_cpp_type_library

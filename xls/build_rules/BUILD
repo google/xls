@@ -255,6 +255,7 @@ bzl_library(
         ":xls_codegen_macros_bzl",
         ":xls_codegen_rules_bzl",
         ":xls_config_rules_bzl",
+        ":xls_diff_test_bzl",
         ":xls_dslx_rules_bzl",
         ":xls_ir_macros_bzl",
         ":xls_ir_rules_bzl",
@@ -321,6 +322,13 @@ bzl_library(
         ":xls_providers_bzl",
         "@rules_cc//cc/common",
     ],
+)
+
+bzl_library(
+    name = "xls_diff_test_bzl",
+    srcs = ["xls_diff_test.bzl"],
+    visibility = ["//visibility:private"],
+    deps = ["@bazel_skylib//rules:diff_test"],
 )
 
 xls_toolchain(

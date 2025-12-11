@@ -12,13 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_python//python:proto.bzl", "py_proto_library")
 
 # Load proto_library
-load("//xls/build_rules:xls_build_defs.bzl", "xls_ir_verilog")
+load("//xls/build_rules:xls_build_defs.bzl", "xls_diff_test", "xls_ir_verilog")
 # cc_proto_library is used in this file
 
 package(
@@ -2141,16 +2140,16 @@ xls_ir_verilog(
     verilog_file = "assertions_comb_no_ifdef_guards.sv",
 )
 
-diff_test(
+xls_diff_test(
     name = "assertions_multiple_ifdef_guards_diff_test",
-    file1 = ":assertions_comb_multiple_ifdef_guards.sv",
-    file2 = "testdata/assertions_comb_multiple_ifdef_guards.svtxt",
+    file = ":assertions_comb_multiple_ifdef_guards.sv",
+    golden = "testdata/assertions_comb_multiple_ifdef_guards.svtxt",
 )
 
-diff_test(
+xls_diff_test(
     name = "assertions_no_ifdef_guards_diff_test",
-    file1 = ":assertions_comb_no_ifdef_guards.sv",
-    file2 = "testdata/assertions_comb_no_ifdef_guards.svtxt",
+    file = ":assertions_comb_no_ifdef_guards.sv",
+    golden = "testdata/assertions_comb_no_ifdef_guards.svtxt",
 )
 
 cc_test(

@@ -32,6 +32,10 @@ load(
     _xls_benchmark_verilog = "xls_benchmark_verilog",
 )
 load(
+    "//xls/build_rules:xls_diff_test.bzl",
+    _xls_diff_test = "diff_test",
+)
+load(
     "//xls/build_rules:xls_dslx_rules.bzl",
     _xls_dslx_library = "xls_dslx_library",
     _xls_dslx_prove_quickcheck_test = "xls_dslx_prove_quickcheck_test",
@@ -117,3 +121,5 @@ xls_model_generation = _xls_model_generation
 # TODO(tcal): 2023-10-02 if this does not get reabsorbed into xls_ir_verilog,
 #             enhance it to be "...build_and_test".
 xls_ir_verilog_fdo = _xls_ir_verilog_fdo
+
+xls_diff_test = _xls_diff_test
