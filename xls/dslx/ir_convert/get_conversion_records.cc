@@ -14,7 +14,6 @@
 
 #include "xls/dslx/ir_convert/get_conversion_records.h"
 
-#include <algorithm>
 #include <ios>
 #include <memory>
 #include <optional>
@@ -61,18 +60,20 @@ absl::StatusOr<ConversionRecord> MakeConversionRecord(
 // like Function, QuickCheck, Proc, etc.
 class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
  public:
-  ConversionRecordVisitor(Module* module, TypeInfo* type_info,
-                          bool include_tests, ProcIdFactory proc_id_factory,
-                          AstNode* top,
-                          std::optional<ResolvedProcAlias> resolved_proc_alias,
-                          std::vector<ConversionRecord>& records)
+  ConversionRecordVisitor(
+      Module* module, TypeInfo* type_info, bool include_tests,
+      ProcIdFactory proc_id_factory, AstNode* top,
+      std::optional<ResolvedProcAlias> resolved_proc_alias,
+      std::vector<ConversionRecord>& records,
+      absl::flat_hash_set<const Invocation*> processed_invocations)
       : module_(module),
         type_info_(type_info),
         include_tests_(include_tests),
         proc_id_factory_(proc_id_factory),
         top_(top),
         resolved_proc_alias_(resolved_proc_alias),
-        records_(records) {}
+        records_(records),
+        processed_invocations_(processed_invocations) {}
 
   absl::StatusOr<ConversionRecord> SpawnDataToConversionRecord(
       const SpawnData& spawn, ProcId proc_id) {
@@ -84,7 +85,8 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
 
     ConversionRecordVisitor visitor(spawn.proc->owner(), spawn.next_type_info,
                                     include_tests_, proc_id_factory_, top_,
-                                    resolved_proc_alias_, records_);
+                                    resolved_proc_alias_, records_,
+                                    processed_invocations_);
     // Get additional conversion records from invocations in this proc's "next"
     // function and add to our list of records. Don't use Accept because that
     // will run HandleFunction, which ignores "next" functions.
@@ -112,6 +114,12 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
                : *type_info_->GetImportedTypeInfo(node->owner());
   }
 
+  // Generates a conversion record for the given function if it is a real
+  // function (not parametric or compiler-derived) that has no incoming calls
+  // known to `type_info_`. Also traverses such functions to ensure that
+  // outgoing calls are processed. The point is not to exclude real functions
+  // with no DSLX calls from IR conversion. The ones that do have DSLX calls are
+  // dealt with in `HandleInvocation`.
   absl::Status HandleFunction(const Function* f) override {
     VLOG(5) << "HandleFunction " << f->ToString();
     if (f->tag() == FunctionTag::kProcInit ||
@@ -145,7 +153,7 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
         return absl::OkStatus();
       }
     }
-    if (calls.empty()) {
+    if (!f->IsParametric() && calls.empty()) {
       // We can still convert this function even though it's never been called.
       // Make sure we are using the right type info for imported functions.
       TypeInfo* invocation_ti = GetTypeInfo(f);
@@ -162,12 +170,17 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleInvocation(const Invocation* invocation) override {
+    if (!processed_invocations_.insert(invocation).second) {
+      return absl::OkStatus();
+    }
+
     VLOG(5) << "HandleInvocation " << invocation->ToString();
     TypeInfo* invocation_owner_ti = GetTypeInfo(invocation);
     std::vector<InvocationCalleeData> calls =
         invocation_owner_ti->GetUniqueInvocationCalleeData(invocation);
     XLS_RET_CHECK(!calls.empty())
-        << " no root invocation data for " << invocation->ToString();
+        << " no root invocation data for " << invocation->ToString() << " in "
+        << module_->name();
 
     for (const InvocationCalleeData& call : calls) {
       if (call.callee == nullptr || IsBuiltin(call.callee)) {
@@ -176,10 +189,12 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
       if (call.callee->owner() != module_) {
         // Function is outside this module; get additional conversion records
         // from its invocation and add to our list of records.
-        ConversionRecordVisitor visitor(module_, invocation_owner_ti,
-                                        include_tests_, proc_id_factory_, top_,
-                                        resolved_proc_alias_, records_);
-        XLS_RETURN_IF_ERROR(call.callee->Accept(&visitor));
+        ConversionRecordVisitor visitor(
+            call.callee->owner(), call.derived_type_info, include_tests_,
+            proc_id_factory_, top_, resolved_proc_alias_, records_,
+            processed_invocations_);
+        // Handle outgoing calls from the function.
+        XLS_RETURN_IF_ERROR(visitor.DefaultHandler(call.callee));
       } else {
         XLS_RETURN_IF_ERROR(call.callee->Accept(this));
       }
@@ -214,11 +229,13 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     if (config_fn->owner() == module_) {
       return proc->Accept(this);
     }
+
     // Proc is outside this module; get additional conversion records from
     // its spawning and add to our list of records.
-    ConversionRecordVisitor visitor(module_, spawn_owner_ti, include_tests_,
-                                    proc_id_factory_, top_,
-                                    resolved_proc_alias_, records_);
+    ConversionRecordVisitor visitor(config_fn->owner(), GetTypeInfo(config_fn),
+                                    include_tests_, proc_id_factory_, top_,
+                                    resolved_proc_alias_, records_,
+                                    processed_invocations_);
     XLS_RETURN_IF_ERROR(proc->Accept(&visitor));
     return absl::OkStatus();
   }
@@ -226,8 +243,7 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
   absl::Status HandleUnrollFor(const UnrollFor* unroll_for) override {
     VLOG(5) << "HandleUnrollFor " << unroll_for->ToString();
 
-    std::vector<Expr*> unrolled =
-        GetTypeInfo(unroll_for)->GetAllUnrolledLoops(unroll_for);
+    std::vector<Expr*> unrolled = type_info_->GetAllUnrolledLoops(unroll_for);
     for (const auto& expr : unrolled) {
       XLS_RETURN_IF_ERROR(expr->Accept(this));
     }
@@ -407,6 +423,7 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
   std::optional<ResolvedProcAlias> resolved_proc_alias_;
 
   std::vector<ConversionRecord>& records_;
+  absl::flat_hash_set<const Invocation*> processed_invocations_;
 };
 
 }  // namespace
@@ -429,9 +446,10 @@ absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecords(
     Module* module, TypeInfo* type_info, bool include_tests) {
   ProcIdFactory proc_id_factory;
   std::vector<ConversionRecord> records;
+  absl::flat_hash_set<const Invocation*> processed_invocations;
   ConversionRecordVisitor visitor(
       module, type_info, include_tests, proc_id_factory, /*top=*/nullptr,
-      /*resolved_proc_alias=*/std::nullopt, records);
+      /*resolved_proc_alias=*/std::nullopt, records, processed_invocations);
   XLS_RETURN_IF_ERROR(module->Accept(&visitor));
 
   return RemoveFunctionDuplicates(records);
@@ -446,11 +464,12 @@ absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecordsForEntry(
     Function* f = std::get<Function*>(entry);
     Module* m = f->owner();
     std::vector<ConversionRecord> records;
+    absl::flat_hash_set<const Invocation*> processed_invocations;
     // We are only ever called for tests, so we set include_tests to
     // true, and make sure that this function is top.
     ConversionRecordVisitor visitor(
         m, type_info, /*include_tests=*/true, proc_id_factory, f,
-        /*resolved_proc_alias=*/std::nullopt, records);
+        /*resolved_proc_alias=*/std::nullopt, records, processed_invocations);
     XLS_RETURN_IF_ERROR(f->Accept(&visitor));
 
     return RemoveFunctionDuplicates(records);
@@ -461,11 +480,12 @@ absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecordsForEntry(
   XLS_ASSIGN_OR_RETURN(TypeInfo * new_ti,
                        type_info->GetTopLevelProcTypeInfo(p));
   std::vector<ConversionRecord> records;
+  absl::flat_hash_set<const Invocation*> processed_invocations;
   // We are only ever called for tests, so we set include_tests to true,
   // and make sure that this proc's next function is top.
-  ConversionRecordVisitor visitor(m, new_ti, /*include_tests=*/true,
-                                  proc_id_factory, &p->next(),
-                                  resolved_proc_alias, records);
+  ConversionRecordVisitor visitor(
+      m, new_ti, /*include_tests=*/true, proc_id_factory, &p->next(),
+      resolved_proc_alias, records, processed_invocations);
   XLS_RETURN_IF_ERROR(p->Accept(&visitor));
 
   return RemoveFunctionDuplicates(records);
