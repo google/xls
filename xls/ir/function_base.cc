@@ -362,7 +362,6 @@ absl::Status FunctionBase::RemoveNode(Node* node) {
     node_to_stage_.erase(it);
   }
   auto node_it = node_iterators_.find(node);
-  XLS_RET_CHECK(node_it != node_iterators_.end());
   nodes_.erase(node_it->second);
   node_iterators_.erase(node_it);
   return absl::OkStatus();
