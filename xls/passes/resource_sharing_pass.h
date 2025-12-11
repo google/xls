@@ -15,18 +15,19 @@
 #ifndef XLS_PASSES_RESOURCE_SHARING_PASS_H_
 #define XLS_PASSES_RESOURCE_SHARING_PASS_H_
 
+#include <cstdint>
 #include <string_view>
-#include <utility>
-#include <vector>
 
 #include "absl/status/statusor.h"
+#include "xls/estimators/area_model/area_estimator.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/passes/bdd_query_engine.h"
+#include "xls/passes/critical_path_delay_analysis.h"
 #include "xls/passes/node_dependency_analysis.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
-#include "xls/passes/query_engine.h"
+#include "xls/passes/visibility_analysis.h"
 
 namespace xls {
 
@@ -35,8 +36,15 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
   static constexpr std::string_view kName = "resource_sharing";
 
   // avoids folds with small area savings on certain ops
-  static constexpr double kMinAreaSavings = 10.0;
+  static constexpr double kMinAreaSavings = 15.0;
   static constexpr double kMaxDelaySpread = 160.0;
+  static constexpr uint64_t kMaxDelayIncrease = 20;
+  static constexpr uint64_t kMaxDelayIncreasePerFold = 4;
+
+  // avoids large visibility expressions that will likely be disqualified later
+  static constexpr int64_t kMaxEdgesToHandle = 50;
+  static constexpr int64_t kMaxPathCountForEdgeInGeneralVisibilityAnalysis = 64;
+  static constexpr int64_t kMaxPathCountForBddEngine = 4096;
 
   explicit ResourceSharingPass();
 
@@ -61,12 +69,17 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
 
  private:
   ProfitabilityGuard profitability_guard_;
-};
 
-bool InfluencedBySource(
-    Node* node, Node* source, const NodeForwardDependencyAnalysis& nda,
-    const BddQueryEngine& bdd_engine,
-    const std::vector<std::pair<TreeBitLocation, bool>>& assumptions);
+ public:
+  struct Analyses {
+    const NodeForwardDependencyAnalysis& nda;
+    const BddQueryEngine& bdd_engine;
+    const VisibilityAnalysis& visibility;
+    const SingleSelectVisibilityAnalysis& single_select_visibility;
+    const CriticalPathDelayAnalysis& critical_path_delay;
+    AreaEstimator& area_estimator;
+  };
+};
 
 }  // namespace xls
 

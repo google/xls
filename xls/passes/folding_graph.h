@@ -26,6 +26,8 @@
 #include "absl/types/span.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
+#include "xls/ir/op.h"
+#include "xls/passes/visibility_analysis.h"
 #include "ortools/graph/graph.h"
 
 namespace xls {
@@ -53,46 +55,31 @@ namespace xls {
 // (e.g., a single IR node, or a set of nodes) of the folding operation.
 class FoldingAction {
  public:
+  using VisibilityEdges =
+      absl::flat_hash_set<OperandVisibilityAnalysis::OperandNode>;
+
   // This function returns the destination of the folding action.
-  Node* GetTo() const;
+  Node* GetTo() const { return to_; }
 
-  // This function returns the select node that makes the sources and the
-  // destination of the folding action mutually exclusive.
-  Node* GetSelect() const;
-
-  // This function returns the selector of the select related to the folding
-  // action.
-  Node* GetSelector() const;
-
-  // This function returns the number of the case within the select related to
-  // the folding action of the destination of such action.
-  //
-  // For example, consider the following code:
-  //    m0 = umul(p0, p1)
-  //    m1 = umul(p2, p3)
-  //    r = select(s, cases=[m0, m1])
-  // and let us assume the folding action is from m0 to m1.
-  // Since the destination of the folding is m1, which is case 1, then this
-  // function returns "1".
-  uint32_t GetToCaseNumber() const;
+  // The (operand -> node) edges that impact visibility of the 'to' node.
+  const VisibilityEdges& GetToVisibilityEdges() const { return to_edges_; }
 
   // This function returns true if the operation performed by the nodes involved
   // is signed (e.g., smul), false otherwise (e.g., umul).
-  bool IsSigned() const;
+  bool IsSigned() const { return this->to_->op() == Op::kSMul; }
 
   // Return the estimate on the amount of area that will be saved if this
   // folding is performed
-  std::optional<double> area_saved() const;
+  std::optional<double> area_saved() const { return area_saved_; }
 
  protected:
-  // These are the constructors that sub-classes can invoke.
-  FoldingAction(Node* to, Node* select, uint32_t to_case_number,
-                std::optional<double> area_saved = std::nullopt);
+  FoldingAction(Node* to, VisibilityEdges to_edges,
+                std::optional<double> area_saved = std::nullopt)
+      : to_(to), to_edges_(to_edges), area_saved_(area_saved) {}
 
  private:
   Node* to_;
-  Node* select_;
-  uint32_t to_case_number_;
+  VisibilityEdges to_edges_;
   std::optional<double> area_saved_;
 };
 
@@ -117,16 +104,19 @@ class FoldingAction {
 //   r   = umul lhs, rhs
 class BinaryFoldingAction : public FoldingAction {
  public:
-  BinaryFoldingAction(Node* from, Node* to, Node* select,
-                      uint32_t from_case_number, uint32_t to_case_number);
+  BinaryFoldingAction(Node* from, Node* to, VisibilityEdges from_edges,
+                      VisibilityEdges to_edges)
+      : FoldingAction{to, to_edges, std::nullopt},
+        from_{from},
+        from_edges_{from_edges} {}
 
-  Node* GetFrom() const;
+  Node* GetFrom() const { return from_; }
 
-  uint32_t GetFromCaseNumber() const;
+  const VisibilityEdges& GetFromVisibilityEdges() const { return from_edges_; }
 
  private:
   Node* from_;
-  uint32_t from_case_number_;
+  VisibilityEdges from_edges_;
 };
 
 // This class represents a single folding action from a set of IR nodes into
@@ -152,23 +142,21 @@ class BinaryFoldingAction : public FoldingAction {
 //   r   = umul lhs, rhs
 class NaryFoldingAction : public FoldingAction {
  public:
-  NaryFoldingAction(absl::Span<const std::pair<Node*, uint32_t>> from, Node* to,
-                    Node* select, uint32_t to_case_number);
+  NaryFoldingAction(std::vector<std::pair<Node*, VisibilityEdges>>&& froms,
+                    Node* to, VisibilityEdges to_edges, double area_saved = 0.0)
+      : FoldingAction{to, to_edges, area_saved} {
+    from_ = std::move(froms);
+  }
 
-  NaryFoldingAction(absl::Span<const std::pair<Node*, uint32_t>> from, Node* to,
-                    Node* select, uint32_t to_case_number, double area_saved);
+  absl::Span<const std::pair<Node*, VisibilityEdges>> GetFrom() const {
+    return from_;
+  }
 
-  explicit NaryFoldingAction(const std::vector<BinaryFoldingAction*>& edges);
-
-  NaryFoldingAction(const std::vector<BinaryFoldingAction*>& edges,
-                    double area_saved);
-
-  std::vector<std::pair<Node*, uint32_t>> GetFrom() const;
-
-  uint64_t GetNumberOfFroms() const;
+  uint64_t GetNumberOfFroms() const { return from_.size(); }
 
  private:
-  std::vector<std::pair<Node*, uint32_t>> from_;
+  // holds pairs of <source, source's used expression>
+  std::vector<std::pair<Node*, VisibilityEdges>> from_;
 };
 
 // This class organizes the set of binary folding given as input into a graph

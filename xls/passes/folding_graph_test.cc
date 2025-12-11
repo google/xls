@@ -62,7 +62,8 @@ TEST_F(FoldingGraphTest, FoldingGraphIsOrdered) {
     for (Node* other : {sub.node(), mul.node(), add.node()}) {
       if (one != other) {
         foldable_actions.push_back(std::make_unique<BinaryFoldingAction>(
-            one, other, select.node(), 0, 0));
+            one, other, FoldingAction::VisibilityEdges(),
+            FoldingAction::VisibilityEdges()));
       }
     }
   }
