@@ -1106,6 +1106,19 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleConstConditionalTypeAnnotation(
+      const ConstConditionalTypeAnnotation* n) override {
+    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->consequent_type()));
+    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->alternate_type()));
+    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->test()));
+    old_to_new_[n] = module(n)->Make<ConstConditionalTypeAnnotation>(
+        n->span(),
+        down_cast<Expr*>(old_to_new_[n->test()]),
+        down_cast<TypeAnnotation*>(old_to_new_[n->consequent_type()]),
+        down_cast<TypeAnnotation*>(old_to_new_[n->alternate_type()]));
+    return absl::OkStatus();
+  }
+
   absl::Status HandleElementTypeAnnotation(
       const ElementTypeAnnotation* n) override {
     XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->container_type()));
