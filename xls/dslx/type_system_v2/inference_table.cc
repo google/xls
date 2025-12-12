@@ -388,7 +388,7 @@ class InferenceTableImpl : public InferenceTable {
           variables_.at(binding->name_def()).get();
       XLS_RET_CHECK(i < parametrics.size());
       mutable_data.parametric_values.emplace(
-          variable, ParametricContextScopedExpr(/*parent_context=*/std::nullopt,
+          variable, ParametricContextScopedExpr(/*context=*/std::nullopt,
                                                 binding->type_annotation(),
                                                 parametrics[i]));
     }
@@ -1051,13 +1051,14 @@ absl::StatusOr<Number*> MakeTypeCheckedNumber(
   // Invariant: nodes created into `module` should either have a "no-file" span
   // (for internally-fabricated nodes) or a span that points at `module`'s own
   // source file. Violating this makes downstream consumers that resolve nodes
-  // by (kind, span) fragile and can lead to confusing "could not find node" errors.
+  // by (kind, span) fragile and can lead to confusing "could not find node"
+  // errors.
   //
   // Note: not all modules have a filesystem path (e.g. in-memory modules); we
   // only enforce this when `fs_path()` is known.
   XLS_RET_CHECK(module.file_table() != nullptr);
-  std::string_view span_filename = span.GetFilename(*module.file_table());
-  if (span_filename != "<no-file>" && module.fs_path().has_value()) {
+  if (span.HasFile() && module.fs_path().has_value()) {
+    std::string_view span_filename = span.GetFilename(*module.file_table());
     XLS_RET_CHECK_EQ(span_filename, module.fs_path()->generic_string())
         << "MakeTypeCheckedNumber span filename must match module fs_path; "
         << "module name: `" << module.name() << "`; "
