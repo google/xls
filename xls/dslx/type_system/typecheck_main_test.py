@@ -38,6 +38,21 @@ class TypecheckMainTest(absltest.TestCase):
     )
     self.assertIn('TYPE_ANNOTATION :: `mod_simple_const_enum::MyEnum`', output)
 
+  def test_one_hot_does_not_crash_pretty_print(self):
+    content = """fn f(x: u8) -> u9 {
+  one_hot(x, false)
+}"""
+    f = self.create_tempfile(content=content)
+    p = subp.run(
+        [_TYPECHECK_MAIN_PATH, f.full_path],
+        encoding='utf-8',
+        check=True,
+        stdout=subp.PIPE,
+        stderr=subp.PIPE,
+    )
+    self.assertEqual(p.returncode, 0)
+    self.assertNotIn('Could not find node with kind', p.stderr)
+
   def test_disable_warnings_as_errors(self):
     content = 'fn f() { let x = u32:42; }'
     f = self.create_tempfile(content=content)

@@ -1048,6 +1048,23 @@ std::unique_ptr<InferenceTable> InferenceTable::Create() {
 absl::StatusOr<Number*> MakeTypeCheckedNumber(
     Module& module, InferenceTable& table, const Span& span,
     const InterpValue& value, const TypeAnnotation* type_annotation) {
+  // Invariant: nodes created into `module` should either have a "no-file" span
+  // (for internally-fabricated nodes) or a span that points at `module`'s own
+  // source file. Violating this makes downstream consumers that resolve nodes
+  // by (kind, span) fragile and can lead to confusing "could not find node" errors.
+  //
+  // Note: not all modules have a filesystem path (e.g. in-memory modules); we
+  // only enforce this when `fs_path()` is known.
+  XLS_RET_CHECK(module.file_table() != nullptr);
+  std::string_view span_filename = span.GetFilename(*module.file_table());
+  if (span_filename != "<no-file>" && module.fs_path().has_value()) {
+    XLS_RET_CHECK_EQ(span_filename, module.fs_path()->generic_string())
+        << "MakeTypeCheckedNumber span filename must match module fs_path; "
+        << "module name: `" << module.name() << "`; "
+        << "span: `" << span.ToString(*module.file_table()) << "`; "
+        << "module fs_path: `" << module.fs_path()->generic_string() << "`";
+  }
+
   VLOG(5) << "Creating type-checked number: " << value.ToString()
           << " of type: " << type_annotation->ToString();
   Number* number = module.Make<Number>(span, value.ToString(/*humanize=*/true),
