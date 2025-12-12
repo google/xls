@@ -196,7 +196,7 @@ class NarrowTransform final : public Proc::StateElementTransformer {
 absl::StatusOr<Bits> UnchangedBits(Proc* proc, StateElement* state_element,
                                    const Bits& initial_bits,
                                    const QueryEngine& query_engine,
-                                   const BitProvenanceAnalysis& provenance) {
+                                   BitProvenanceAnalysis& provenance) {
   Bits unchanged_bits = Bits::AllOnes(initial_bits.bit_count());
   StateRead* state_read = proc->GetStateRead(state_element);
   for (Next* next : proc->next_values(state_read)) {
@@ -221,8 +221,9 @@ absl::StatusOr<Bits> UnchangedBits(Proc* proc, StateElement* state_element,
                           initial_bits,
                           ternary_ops::ToKnownBitsValues(ternary->Get({})))))
             : Bits(initial_bits.bit_count());
-    const TreeBitSources& sources =
-        provenance.GetBitSources(next->value()).Get({});
+    XLS_ASSIGN_OR_RETURN(LeafTypeTreeView<TreeBitSources> sources_tree,
+                         provenance.GetBitSources(next->value()));
+    const TreeBitSources& sources = sources_tree.Get({});
     InlineBitmap provenance_unchanged_bm(initial_bits.bit_count());
     for (const auto& segment : sources.ranges()) {
       if (segment.source_node() == state_read &&
@@ -252,8 +253,7 @@ absl::StatusOr<bool> ProcStateProvenanceNarrowingPass::RunOnProcInternal(
     OptimizationContext& context) const {
   // Query engine to identify writes of (parts of) the initial value.
   QueryEngine* qe = context.SharedQueryEngine<LazyTernaryQueryEngine>(proc);
-  XLS_ASSIGN_OR_RETURN(BitProvenanceAnalysis provenance,
-                       BitProvenanceAnalysis::Create(proc));
+  BitProvenanceAnalysis provenance;
   bool made_changes = false;
 
   std::vector<std::tuple<StateElement*, NarrowTransform, Bits>> transforms;
