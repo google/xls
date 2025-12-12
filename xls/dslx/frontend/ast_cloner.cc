@@ -985,7 +985,7 @@ class AstCloner : public AstNodeVisitor {
     old_to_new_[n] = module(n)->Make<Conditional>(
         n->span(), down_cast<Expr*>(old_to_new_.at(n->test())),
         down_cast<StatementBlock*>(old_to_new_.at(n->consequent())),
-        new_alternate, n->in_parens(), n->HasElse());
+        new_alternate, n->in_parens(), n->HasElse(), n->IsConst());
     return absl::OkStatus();
   }
 
