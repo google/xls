@@ -22,8 +22,8 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
-#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/node.h"
@@ -73,42 +73,34 @@ TEST_F(BitProvenanceAnalysisTest, SelfGenerated) {
   BValue high = fb.Param("high_bits", p->GetBitsType(8));
   BValue low = fb.Param("low_bits", p->GetBitsType(8));
   BValue res = fb.Add(high, low);
-  XLS_ASSERT_OK(fb.Build());
-  BitProvenanceAnalysis bpa;
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(BitProvenanceAnalysis bpa,
+                           BitProvenanceAnalysis::Create(f));
   for (int i = 0; i < 8; ++i) {
-    XLS_ASSERT_OK_AND_ASSIGN(TreeBitLocation source,
-                             bpa.GetSource(TreeBitLocation(res.node(), i)));
-    EXPECT_EQ(source, TreeBitLocation(res.node(), i));
+    EXPECT_EQ(bpa.GetSource(TreeBitLocation(res.node(), i)),
+              TreeBitLocation(res.node(), i));
   }
   for (int i = 0; i < 8; ++i) {
-    XLS_ASSERT_OK_AND_ASSIGN(TreeBitLocation source,
-                             bpa.GetSource(TreeBitLocation(high.node(), i)));
-    EXPECT_EQ(source, TreeBitLocation(high.node(), i));
+    EXPECT_EQ(bpa.GetSource(TreeBitLocation(high.node(), i)),
+              TreeBitLocation(high.node(), i));
   }
   for (int i = 0; i < 8; ++i) {
-    XLS_ASSERT_OK_AND_ASSIGN(TreeBitLocation source,
-                             bpa.GetSource(TreeBitLocation(low.node(), i)));
-    EXPECT_EQ(source, TreeBitLocation(low.node(), i));
+    EXPECT_EQ(bpa.GetSource(TreeBitLocation(low.node(), i)),
+              TreeBitLocation(low.node(), i));
   }
-  XLS_ASSERT_OK_AND_ASSIGN(LeafTypeTreeView<TreeBitSources> res_sources,
-                           bpa.GetBitSources(res.node()));
-  EXPECT_THAT(res_sources.Get({}),
+  EXPECT_THAT(bpa.GetBitSources(res.node()).Get({}),
               IsTreeBitSources(ElementsAre(
                   IsBitRange(res.node(), /*source_bit_index_low=*/0,
                              /*dest_bit_index_low=*/0, /*bit_width=*/8))));
-  XLS_ASSERT_OK_AND_ASSIGN(LeafTypeTreeView<TreeBitSources> low_sources,
-                           bpa.GetBitSources(low.node()));
-  EXPECT_THAT(low_sources.Get({}),
+  EXPECT_THAT(bpa.GetBitSources(low.node()).Get({}),
               IsTreeBitSources(ElementsAre(
                   IsBitRange(low.node(), /*source_bit_index_low=*/0,
                              /*dest_bit_index_low=*/0, /*bit_width=*/8))));
-  XLS_ASSERT_OK_AND_ASSIGN(LeafTypeTreeView<TreeBitSources> high_sources,
-                           bpa.GetBitSources(high.node()));
-  EXPECT_THAT(high_sources.Get({}),
+  EXPECT_THAT(bpa.GetBitSources(high.node()).Get({}),
               IsTreeBitSources(ElementsAre(
                   IsBitRange(high.node(), /*source_bit_index_low=*/0,
                              /*dest_bit_index_low=*/0, /*bit_width=*/8))));
-  RecordProperty("res", absl::StrCat(res_sources.Get({})));
+  RecordProperty("res", absl::StrCat(bpa.GetBitSources(res.node()).Get({})));
 }
 
 TEST_F(BitProvenanceAnalysisTest, Concat) {
@@ -117,28 +109,25 @@ TEST_F(BitProvenanceAnalysisTest, Concat) {
   BValue high = fb.Param("high_bits", p->GetBitsType(8));
   BValue low = fb.Param("low_bits", p->GetBitsType(24));
   BValue res = fb.Concat({high, low});
-  XLS_ASSERT_OK(fb.Build());
-  BitProvenanceAnalysis bpa;
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(BitProvenanceAnalysis bpa,
+                           BitProvenanceAnalysis::Create(f));
   for (int i = 0; i < 24; ++i) {
-    XLS_ASSERT_OK_AND_ASSIGN(TreeBitLocation source,
-                             bpa.GetSource(TreeBitLocation(res.node(), i)));
-    EXPECT_EQ(source, TreeBitLocation(low.node(), i));
+    EXPECT_EQ(bpa.GetSource(TreeBitLocation(res.node(), i)),
+              TreeBitLocation(low.node(), i));
   }
   for (int i = 0; i < 8; ++i) {
-    XLS_ASSERT_OK_AND_ASSIGN(
-        TreeBitLocation source,
-        bpa.GetSource(TreeBitLocation(res.node(), i + 24)));
-    EXPECT_EQ(source, TreeBitLocation(high.node(), i));
+    EXPECT_EQ(bpa.GetSource(TreeBitLocation(res.node(), i + 24)),
+              TreeBitLocation(high.node(), i));
   }
-  XLS_ASSERT_OK_AND_ASSIGN(LeafTypeTreeView<TreeBitSources> res_sources,
-                           bpa.GetBitSources(res.node()));
-  EXPECT_THAT(res_sources.Get({}),
+  EXPECT_THAT(bpa.GetBitSources(res.node()).Get({}),
               IsTreeBitSources(ElementsAre(
                   IsBitRange(low.node(), /*source_bit_index_low=*/0,
                              /*dest_bit_index_low=*/0, /*bit_width=*/24),
                   IsBitRange(high.node(), /*source_bit_index_low=*/0,
                              /*dest_bit_index_low=*/24, /*bit_width=*/8))));
-  RecordProperty("res", absl::StrCat(res_sources.Get({})));
+  RecordProperty("res", absl::StrCat(bpa.GetBitSources(res.node()).Get({})));
 }
 
 TEST_F(BitProvenanceAnalysisTest, BitSlice) {
@@ -147,41 +136,32 @@ TEST_F(BitProvenanceAnalysisTest, BitSlice) {
   BValue high = fb.Param("high_bits", p->GetBitsType(32));
   BValue res = fb.BitSlice(high, 4, 8);
 
-  XLS_ASSERT_OK(fb.Build());
-  BitProvenanceAnalysis bpa;
-  XLS_ASSERT_OK_AND_ASSIGN(LeafTypeTreeView<TreeBitSources> res_sources,
-                           bpa.GetBitSources(res.node()));
-  EXPECT_THAT(res_sources.Get({}),
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(BitProvenanceAnalysis bpa,
+                           BitProvenanceAnalysis::Create(f));
+  EXPECT_THAT(bpa.GetBitSources(res.node()).Get({}),
               IsTreeBitSources(ElementsAre(
                   IsBitRange(high.node(), /*source_bit_index_low=*/4,
                              /*dest_bit_index_low=*/0, /*bit_width=*/8))));
-  RecordProperty("res", absl::StrCat(res_sources.Get({})));
+  RecordProperty("res", absl::StrCat(bpa.GetBitSources(res.node()).Get({})));
 }
 
 TEST_F(BitProvenanceAnalysisTest, SignExtend) {
   std::unique_ptr<Package> p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
-  BValue bits = fb.Param("bits", p->GetBitsType(10));
-  BValue bitslice = fb.BitSlice(bits, 2, 8);
-  BValue res = fb.SignExtend(bitslice, 12);
+  BValue bits = fb.Param("bits", p->GetBitsType(8));
+  BValue res = fb.SignExtend(bits, 32);
 
-  XLS_ASSERT_OK(fb.Build());
-  BitProvenanceAnalysis bpa;
-  XLS_ASSERT_OK_AND_ASSIGN(LeafTypeTreeView<TreeBitSources> res_sources,
-                           bpa.GetBitSources(res.node()));
-  RecordProperty("res", absl::StrCat(res_sources.Get({})));
-  EXPECT_THAT(res_sources.Get({}),
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(BitProvenanceAnalysis bpa,
+                           BitProvenanceAnalysis::Create(f));
+  EXPECT_THAT(bpa.GetBitSources(res.node()).Get({}),
               IsTreeBitSources(ElementsAre(
-                  IsBitRange(bits.node(), /*source_bit_index_low=*/2,
+                  IsBitRange(bits.node(), /*source_bit_index_low=*/0,
                              /*dest_bit_index_low=*/0, /*bit_width=*/8),
-                  IsBitRange(bits.node(), /*source_bit_index_low=*/9,
-                             /*dest_bit_index_low=*/8, /*bit_width=*/1),
-                  IsBitRange(bits.node(), /*source_bit_index_low=*/9,
-                             /*dest_bit_index_low=*/9, /*bit_width=*/1),
-                  IsBitRange(bits.node(), /*source_bit_index_low=*/9,
-                             /*dest_bit_index_low=*/10, /*bit_width=*/1),
-                  IsBitRange(bits.node(), /*source_bit_index_low=*/9,
-                             /*dest_bit_index_low=*/11, /*bit_width=*/1))));
+                  IsBitRange(res.node(), /*source_bit_index_low=*/8,
+                             /*dest_bit_index_low=*/8, /*bit_width=*/24))));
+  RecordProperty("res", absl::StrCat(bpa.GetBitSources(res.node()).Get({})));
 }
 
 TEST_F(BitProvenanceAnalysisTest, ZeroExtend) {
@@ -190,17 +170,16 @@ TEST_F(BitProvenanceAnalysisTest, ZeroExtend) {
   BValue bits = fb.Param("bits", p->GetBitsType(8));
   BValue res = fb.ZeroExtend(bits, 32);
 
-  XLS_ASSERT_OK(fb.Build());
-  BitProvenanceAnalysis bpa;
-  XLS_ASSERT_OK_AND_ASSIGN(LeafTypeTreeView<TreeBitSources> res_sources,
-                           bpa.GetBitSources(res.node()));
-  RecordProperty("res", absl::StrCat(res_sources.Get({})));
-  EXPECT_THAT(res_sources.Get({}),
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(BitProvenanceAnalysis bpa,
+                           BitProvenanceAnalysis::Create(f));
+  EXPECT_THAT(bpa.GetBitSources(res.node()).Get({}),
               IsTreeBitSources(ElementsAre(
                   IsBitRange(bits.node(), /*source_bit_index_low=*/0,
                              /*dest_bit_index_low=*/0, /*bit_width=*/8),
                   IsBitRange(res.node(), /*source_bit_index_low=*/8,
                              /*dest_bit_index_low=*/8, /*bit_width=*/24))));
+  RecordProperty("res", absl::StrCat(bpa.GetBitSources(res.node()).Get({})));
 }
 
 TEST_F(BitProvenanceAnalysisTest, Sel) {
@@ -215,14 +194,13 @@ TEST_F(BitProvenanceAnalysisTest, Sel) {
   BValue res = fb.Select(fb.Param("sel", p->GetBitsType(1)),
                          {left_concat, right_concat});
 
-  XLS_ASSERT_OK(fb.Build());
-  BitProvenanceAnalysis bpa;
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   RecordProperty("ir", p->DumpIr());
 
-  XLS_ASSERT_OK_AND_ASSIGN(LeafTypeTreeView<TreeBitSources> res_sources,
-                           bpa.GetBitSources(res.node()));
-  RecordProperty("res", absl::StrCat(res_sources.Get({})));
-  EXPECT_THAT(res_sources.Get({}),
+  XLS_ASSERT_OK_AND_ASSIGN(BitProvenanceAnalysis bpa,
+                           BitProvenanceAnalysis::Create(f));
+
+  EXPECT_THAT(bpa.GetBitSources(res.node()).Get({}),
               IsTreeBitSources(ElementsAre(
                   IsBitRange(start.node(), /*source_bit_index_low=*/0,
                              /*dest_bit_index_low=*/0, /*bit_width=*/8),
@@ -230,9 +208,7 @@ TEST_F(BitProvenanceAnalysisTest, Sel) {
                              /*dest_bit_index_low=*/8, /*bit_width=*/16),
                   IsBitRange(end.node(), /*source_bit_index_low=*/0,
                              /*dest_bit_index_low=*/24, /*bit_width=*/8))));
-  XLS_ASSERT_OK_AND_ASSIGN(LeafTypeTreeView<TreeBitSources> left_sources,
-                           bpa.GetBitSources(left_concat.node()));
-  EXPECT_THAT(left_sources.Get({}),
+  EXPECT_THAT(bpa.GetBitSources(left_concat.node()).Get({}),
               IsTreeBitSources(ElementsAre(
                   IsBitRange(start.node(), /*source_bit_index_low=*/0,
                              /*dest_bit_index_low=*/0, /*bit_width=*/8),
@@ -240,9 +216,7 @@ TEST_F(BitProvenanceAnalysisTest, Sel) {
                              /*dest_bit_index_low=*/8, /*bit_width=*/16),
                   IsBitRange(end.node(), /*source_bit_index_low=*/0,
                              /*dest_bit_index_low=*/24, /*bit_width=*/8))));
-  XLS_ASSERT_OK_AND_ASSIGN(LeafTypeTreeView<TreeBitSources> right_sources,
-                           bpa.GetBitSources(right_concat.node()));
-  EXPECT_THAT(right_sources.Get({}),
+  EXPECT_THAT(bpa.GetBitSources(right_concat.node()).Get({}),
               IsTreeBitSources(ElementsAre(
                   IsBitRange(start.node(), /*source_bit_index_low=*/0,
                              /*dest_bit_index_low=*/0, /*bit_width=*/8),
@@ -250,6 +224,7 @@ TEST_F(BitProvenanceAnalysisTest, Sel) {
                              /*dest_bit_index_low=*/8, /*bit_width=*/16),
                   IsBitRange(end.node(), /*source_bit_index_low=*/0,
                              /*dest_bit_index_low=*/24, /*bit_width=*/8))));
+  RecordProperty("res", absl::StrCat(bpa.GetBitSources(res.node()).Get({})));
 }
 
 TEST_F(BitProvenanceAnalysisTest, RangesMinimized) {
@@ -259,23 +234,18 @@ TEST_F(BitProvenanceAnalysisTest, RangesMinimized) {
   BValue low = fb.BitSlice(start, 0, 16);
   BValue high = fb.BitSlice(start, 16, 16);
   BValue res = fb.Concat({high, low});
-  XLS_ASSERT_OK(fb.Build());
-  BitProvenanceAnalysis bpa;
-  XLS_ASSERT_OK_AND_ASSIGN(LeafTypeTreeView<TreeBitSources> res_sources,
-                           bpa.GetBitSources(res.node()));
-  EXPECT_THAT(res_sources.Get({}),
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(BitProvenanceAnalysis bpa,
+                           BitProvenanceAnalysis::Create(f));
+  EXPECT_THAT(bpa.GetBitSources(res.node()).Get({}),
               IsTreeBitSources(ElementsAre(
                   IsBitRange(start.node(), /*source_bit_index_low=*/0,
                              /*dest_bit_index_low=*/0, /*bit_width=*/32))));
-  XLS_ASSERT_OK_AND_ASSIGN(LeafTypeTreeView<TreeBitSources> low_sources,
-                           bpa.GetBitSources(low.node()));
-  EXPECT_THAT(low_sources.Get({}),
+  EXPECT_THAT(bpa.GetBitSources(low.node()).Get({}),
               IsTreeBitSources(ElementsAre(
                   IsBitRange(start.node(), /*source_bit_index_low=*/0,
                              /*dest_bit_index_low=*/0, /*bit_width=*/16))));
-  XLS_ASSERT_OK_AND_ASSIGN(LeafTypeTreeView<TreeBitSources> high_sources,
-                           bpa.GetBitSources(high.node()));
-  EXPECT_THAT(high_sources.Get({}),
+  EXPECT_THAT(bpa.GetBitSources(high.node()).Get({}),
               IsTreeBitSources(ElementsAre(
                   IsBitRange(start.node(), /*source_bit_index_low=*/16,
                              /*dest_bit_index_low=*/0, /*bit_width=*/16))));
@@ -285,11 +255,10 @@ TEST_F(BitProvenanceAnalysisTest, Literal) {
   std::unique_ptr<Package> p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue st = fb.Literal(UBits(0, 32));
-  XLS_ASSERT_OK(fb.Build());
-  BitProvenanceAnalysis bpa;
-  XLS_ASSERT_OK_AND_ASSIGN(LeafTypeTreeView<TreeBitSources> st_sources,
-                           bpa.GetBitSources(st.node()));
-  EXPECT_THAT(st_sources.Get({}),
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(BitProvenanceAnalysis bpa,
+                           BitProvenanceAnalysis::Create(f));
+  EXPECT_THAT(bpa.GetBitSources(st.node()).Get({}),
               IsTreeBitSources(ElementsAre(IsBitRange(st.node(), 0, 0, 32))));
 }
 
@@ -300,11 +269,10 @@ TEST_F(BitProvenanceAnalysisTest, ZeroLenBits) {
   BValue lz = fb.Literal(UBits(0, 0));
   BValue conc = fb.Concat({l1, l1, lz, l1});
   BValue slice = fb.BitSlice(conc, 0, 2);
-  XLS_ASSERT_OK(fb.Build());
-  BitProvenanceAnalysis bpa;
-  XLS_ASSERT_OK_AND_ASSIGN(LeafTypeTreeView<TreeBitSources> slice_sources,
-                           bpa.GetBitSources(slice.node()));
-  EXPECT_THAT(slice_sources.Get({}),
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(BitProvenanceAnalysis bpa,
+                           BitProvenanceAnalysis::Create(f));
+  EXPECT_THAT(bpa.GetBitSources(slice.node()).Get({}),
               IsTreeBitSources(ElementsAre(IsBitRange(l1.node(), 0, 0, 1),
                                            IsBitRange(l1.node(), 0, 1, 1))));
 }
@@ -318,11 +286,10 @@ TEST_F(BitProvenanceAnalysisTest, MultipleConcat) {
   BValue bottom_32 = fb.BitSlice(st, 0, 32);
   BValue res = fb.Concat({top_64, value, bottom_32});
 
-  XLS_ASSERT_OK(fb.Build());
-  BitProvenanceAnalysis bpa;
-  XLS_ASSERT_OK_AND_ASSIGN(LeafTypeTreeView<TreeBitSources> res_sources,
-                           bpa.GetBitSources(res.node()));
-  EXPECT_THAT(res_sources.Get({}),
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(BitProvenanceAnalysis bpa,
+                           BitProvenanceAnalysis::Create(f));
+  EXPECT_THAT(bpa.GetBitSources(res.node()).Get({}),
               IsTreeBitSources(ElementsAre(
                   IsBitRange(st.node(), /*source_bit_index_low=*/0,
                              /*dest_bit_index_low=*/0, /*bit_width=*/32),
@@ -330,38 +297,6 @@ TEST_F(BitProvenanceAnalysisTest, MultipleConcat) {
                              /*dest_bit_index_low=*/32, /*bit_width=*/32),
                   IsBitRange(st.node(), /*source_bit_index_low=*/64,
                              /*dest_bit_index_low=*/64, /*bit_width=*/64))));
-}
-
-TEST_F(BitProvenanceAnalysisTest, ComputesLazily) {
-  std::unique_ptr<Package> p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  BValue x = fb.Param("x", p->GetBitsType(32));
-  BValue y = fb.Param("y", p->GetBitsType(32));
-  BValue x_bit0 = fb.BitSlice(x, 0, 1);
-  BValue concat_xy = fb.Concat({x, y});
-  BValue concat_xy_bits345 = fb.BitSlice(concat_xy, 3, 3);
-  BValue concat_xy_bit4 = fb.BitSlice(concat_xy_bits345, 1, 1);
-  XLS_ASSERT_OK(fb.BuildWithReturnValue(fb.Tuple({x_bit0, concat_xy_bit4})));
-  BitProvenanceAnalysis bpa;
-
-  XLS_ASSERT_OK_AND_ASSIGN(LeafTypeTreeView<TreeBitSources> bit4_source,
-                           bpa.GetBitSources(concat_xy_bit4.node()));
-  EXPECT_TRUE(bpa.IsTracked(concat_xy.node()));
-  EXPECT_TRUE(bpa.IsTracked(concat_xy_bits345.node()));
-  EXPECT_TRUE(bpa.IsTracked(concat_xy_bit4.node()));
-  EXPECT_FALSE(bpa.IsTracked(x_bit0.node()));
-  EXPECT_THAT(bit4_source.Get({}),
-              IsTreeBitSources(ElementsAre(
-                  IsBitRange(y.node(), /*source_bit_index_low=*/4,
-                             /*dest_bit_index_low=*/0, /*bit_width=*/1))));
-
-  XLS_ASSERT_OK_AND_ASSIGN(LeafTypeTreeView<TreeBitSources> x_bit0_sources,
-                           bpa.GetBitSources(x_bit0.node()));
-  EXPECT_TRUE(bpa.IsTracked(x_bit0.node()));
-  EXPECT_THAT(x_bit0_sources.Get({}),
-              IsTreeBitSources(ElementsAre(
-                  IsBitRange(x.node(), /*source_bit_index_low=*/0,
-                             /*dest_bit_index_low=*/0, /*bit_width=*/1))));
 }
 
 }  // namespace

@@ -265,7 +265,7 @@ template <typename SelectT>
            std::is_same_v<SelectT, PrioritySelect>)
 absl::StatusOr<bool> TrySqueezeSelect(SelectT* sel,
                                       const QueryEngine& query_engine,
-                                      BitProvenanceAnalysis& provenance,
+                                      const BitProvenanceAnalysis& provenance,
                                       bool with_range_analysis) {
   Node* node = sel;
   // If we have range analysis check for signed reduction. We want to see if the
@@ -315,9 +315,7 @@ absl::StatusOr<bool> TrySqueezeSelect(SelectT* sel,
     // Just a constant. Other narrowing will handle this.
     return false;
   }
-  XLS_ASSIGN_OR_RETURN(LeafTypeTreeView<TreeBitSources> sources_tree,
-                       provenance.GetBitSources(node));
-  const TreeBitSources& prov_bits = sources_tree.Get({});
+  const TreeBitSources& prov_bits = provenance.GetBitSources(node).Get({});
   int64_t prov_width = absl::c_accumulate(
       prov_bits.ranges(), int64_t{0},
       [&](int64_t v, const TreeBitSources::BitRange& r) -> int64_t {
@@ -414,9 +412,9 @@ using BitSource = std::variant<bool, TreeBitLocation>;
 
 // Traces the bit at the given node and bit index through bit slices and concats
 // and returns its source.
-absl::StatusOr<BitSource> GetBitSource(Node* node, int64_t bit_index,
-                                       const QueryEngine& query_engine,
-                                       BitProvenanceAnalysis& provenance) {
+BitSource GetBitSource(Node* node, int64_t bit_index,
+                       const QueryEngine& query_engine,
+                       const BitProvenanceAnalysis& provenance) {
   if (node->GetType()->IsBits() &&
       query_engine.IsKnown(TreeBitLocation(node, bit_index))) {
     return query_engine.IsOne(TreeBitLocation(node, bit_index));
@@ -453,17 +451,13 @@ using MatchedPairs = std::vector<std::pair<int64_t, int64_t>>;
 //  GetBitSource(e, 42) = BitSource{false}
 //
 // PairsOfBitsWithSameSource({a, b, c, d, e}, 42) would return [(0, 3), (1, 2)]
-MatchedPairs PairsOfBitsWithSameSource(absl::Span<Node* const> nodes,
-                                       int64_t bit_index,
-                                       const QueryEngine& query_engine,
-                                       BitProvenanceAnalysis& provenance) {
+MatchedPairs PairsOfBitsWithSameSource(
+    absl::Span<Node* const> nodes, int64_t bit_index,
+    const QueryEngine& query_engine, const BitProvenanceAnalysis& provenance) {
   std::vector<BitSource> bit_sources;
   for (Node* node : nodes) {
-    CHECK(provenance.IsTracked(node));
-    absl::StatusOr<BitSource> bit_source =
-        GetBitSource(node, bit_index, query_engine, provenance);
-    CHECK_OK(bit_source);
-    bit_sources.push_back(*bit_source);
+    bit_sources.push_back(
+        GetBitSource(node, bit_index, query_engine, provenance));
   }
   MatchedPairs matching_pairs;
   for (int64_t i = 0; i < bit_sources.size(); ++i) {
@@ -764,7 +758,7 @@ absl::StatusOr<Node*> SliceBitBasedSelect(Node* bbs, int64_t start,
 // 'a', and 'b' are the same (have the same BitSource).
 int64_t RunOfNonDistinctCaseBits(absl::Span<Node* const> cases, int64_t start,
                                  const QueryEngine& query_engine,
-                                 BitProvenanceAnalysis& provenance) {
+                                 const BitProvenanceAnalysis& provenance) {
   VLOG(5) << "Finding runs of non-distinct bits starting at " << start;
   // Do a reduction via intersection of the set of matching pairs within
   // 'cases'. When the intersection is empty, the run is over.
@@ -796,7 +790,7 @@ int64_t RunOfNonDistinctCaseBits(absl::Span<Node* const> cases, int64_t start,
 // bit index. For example:
 int64_t RunOfDistinctCaseBits(absl::Span<Node* const> cases, int64_t start,
                               const QueryEngine& query_engine,
-                              BitProvenanceAnalysis& provenance) {
+                              const BitProvenanceAnalysis& provenance) {
   VLOG(5) << "Finding runs of distinct case bit starting at " << start;
   int64_t i = start;
   while (
@@ -819,7 +813,7 @@ int64_t RunOfDistinctCaseBits(absl::Span<Node* const> cases, int64_t start,
 // succeeded.
 absl::StatusOr<std::vector<Node*>> MaybeSplitBitBasedSelect(
     Node* bbs, const QueryEngine& query_engine,
-    BitProvenanceAnalysis& provenance) {
+    const BitProvenanceAnalysis& provenance) {
   XLS_RET_CHECK(bbs->Is<OneHotSelect>() || bbs->Is<PrioritySelect>());
   // For *very* wide one-hot-selects this optimization can be very slow and make
   // a mess of the graph so limit it to 64 bits.
@@ -837,21 +831,14 @@ absl::StatusOr<std::vector<Node*>> MaybeSplitBitBasedSelect(
     bbs_cases.push_back(bbs->As<PrioritySelect>()->default_value());
   }
 
-  for (auto* bbs_case : bbs_cases) {
-    // Pre-analyze provenance on all cases so that later functions
-    // can assert there are no errors instead of bubbling them up.
-    XLS_RETURN_IF_ERROR(provenance.GetBitSources(bbs_case).status());
-  }
-
   VLOG(4) << "Trying to split: " << bbs->ToString();
   if (VLOG_IS_ON(4)) {
     for (int64_t i = 0; i < bbs_cases.size(); ++i) {
       Node* cas = bbs_cases[i];
       VLOG(4) << "  case (" << i << "): " << cas->ToString();
       for (int64_t j = 0; j < cas->BitCountOrDie(); ++j) {
-        XLS_ASSIGN_OR_RETURN(BitSource bit,
-                             GetBitSource(cas, j, query_engine, provenance));
-        VLOG(4) << "    bit " << j << ": " << ToString(bit);
+        VLOG(4) << "    bit " << j << ": "
+                << ToString(GetBitSource(cas, j, query_engine, provenance));
       }
     }
   }
@@ -1203,7 +1190,7 @@ absl::StatusOr<bool> MaybeReorderSelect(Node* node,
 }
 
 absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
-                                  BitProvenanceAnalysis& provenance,
+                                  const BitProvenanceAnalysis& provenance,
                                   int64_t opt_level, bool range_analysis) {
   // Select with a constant selector can be replaced with the respective
   // case.
@@ -2297,7 +2284,7 @@ absl::StatusOr<bool> SelectSimplificationPassBase::RunOnFunctionBaseInternal(
   XLS_RETURN_IF_ERROR(query_engine.Populate(func).status());
 
   XLS_ASSIGN_OR_RETURN(BitProvenanceAnalysis provenance,
-                       BitProvenanceAnalysis::CreatePrepopulated(func));
+                       BitProvenanceAnalysis::Create(func));
 
   bool changed = false;
   for (Node* node : context.TopoSort(func)) {
@@ -2316,7 +2303,8 @@ absl::StatusOr<bool> SelectSimplificationPassBase::RunOnFunctionBaseInternal(
     std::optional<BitProvenanceAnalysis> post_simplify_provenance;
     if (changed) {
       XLS_ASSIGN_OR_RETURN(post_simplify_provenance,
-                           BitProvenanceAnalysis::CreatePrepopulated(func));
+                           BitProvenanceAnalysis::Create(func));
+      XLS_RETURN_IF_ERROR(query_engine.Populate(func).status());
     } else {
       post_simplify_provenance = std::move(provenance);
     }

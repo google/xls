@@ -17,12 +17,11 @@
 #include <algorithm>
 #include <cstdint>
 #include <iterator>
-#include <memory>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
 #include "absl/algorithm/container.h"
-#include "absl/base/nullability.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -30,6 +29,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/leaf_type_tree.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/type.h"
@@ -39,9 +39,6 @@
 namespace xls {
 namespace {
 using TreeBitRange = TreeBitSources::BitRange;
-}
-
-namespace internal {
 
 class BitProvenanceVisitor final : public DataflowVisitor<TreeBitSources> {
  public:
@@ -130,46 +127,38 @@ class BitProvenanceVisitor final : public DataflowVisitor<TreeBitSources> {
                         bs->GetType(), TreeBitSources(std::move(elements))));
   }
 
-  // Sign extend extends the source by repeating the source's msb.
-  absl::Status HandleSignExtend(ExtendOp* ext) override {
-    Node* absl_nonnull source_node = ext->operand(0);
-    const TreeBitSources& bit_sources = GetValue(source_node).Get({});
-    std::vector<TreeBitRange> elements(bit_sources.ranges().begin(),
-                                       bit_sources.ranges().end());
-    int64_t new_bits = ext->new_bit_count() - source_node->BitCountOrDie();
-    int64_t last_source_bit_index = source_node->BitCountOrDie() - 1;
-    TreeBitLocation last_bit_source =
-        bit_sources.GetBitSource(last_source_bit_index);
-    for (int64_t i = 0; i < new_bits; ++i) {
-      int64_t ext_bit_index = source_node->BitCountOrDie() + i;
-      elements.push_back(TreeBitRange(
-          /*source_node=*/last_bit_source.node(),
-          /*source_bit_index_low=*/last_bit_source.bit_index(),
-          /*dest_bit_index_low=*/ext_bit_index,
-          /*bit_width=*/1));
+  // Extend ops take the low bits from the source and the high bits are
+  // self-generated.
+  absl::Status HandleExtend(ExtendOp* ext) {
+    Node* source = ext->operand(0);
+    const TreeBitSources& arg = GetValue(source).Get({});
+    if (source->BitCountOrDie() == ext->new_bit_count()) {
+      return SetValue(
+          ext,
+          LeafTypeTree<TreeBitSources>::CreateSingleElementTree(
+              ext->GetType(), TreeBitSources(std::vector<TreeBitRange>(
+                                  arg.ranges().begin(), arg.ranges().end()))));
     }
+    // All original sources stay the same
+    std::vector<TreeBitRange> elements(arg.ranges().begin(),
+                                       arg.ranges().end());
+    // Add a new one at the end of the new bits
+    elements.push_back(TreeBitRange(
+        /*source_node=*/ext, /*source_bit_index_low=*/source->BitCountOrDie(),
+        /*dest_bit_index_low=*/source->BitCountOrDie(),
+        /*bit_width=*/ext->new_bit_count() - source->BitCountOrDie()));
     return SetValue(ext,
                     LeafTypeTree<TreeBitSources>::CreateSingleElementTree(
                         ext->GetType(), TreeBitSources(std::move(elements))));
   }
 
-  // Zero extend extends the source by repeating zeros left of the source's msb.
+  absl::Status HandleSignExtend(ExtendOp* ext) override {
+    // TODO(allight): Argurably the source for the new high-bits is the old MSB
+    // in sign-extend. It's not clear this would ever really be useful however.
+    return HandleExtend(ext);
+  }
   absl::Status HandleZeroExtend(ExtendOp* ext) override {
-    Node* absl_nonnull source_node = ext->operand(0);
-    const TreeBitSources& bit_sources = GetValue(source_node).Get({});
-    std::vector<TreeBitRange> elements(bit_sources.ranges().begin(),
-                                       bit_sources.ranges().end());
-    int64_t new_bits = ext->new_bit_count() - source_node->BitCountOrDie();
-    if (new_bits > 0) {
-      elements.push_back(TreeBitRange(
-          /*source_node=*/ext,
-          /*source_bit_index_low=*/source_node->BitCountOrDie(),
-          /*dest_bit_index_low=*/source_node->BitCountOrDie(),
-          /*bit_width=*/new_bits));
-    }
-    return SetValue(ext,
-                    LeafTypeTree<TreeBitSources>::CreateSingleElementTree(
-                        ext->GetType(), TreeBitSources(std::move(elements))));
+    return HandleExtend(ext);
   }
 
  protected:
@@ -206,7 +195,7 @@ class BitProvenanceVisitor final : public DataflowVisitor<TreeBitSources> {
   // Intersect the in-progress left span with the expanded version of right.
   absl::StatusOr<std::vector<TreeBitRange>> Intersect(
       absl::Span<const TreeBitRange> left, absl::Span<const TreeBitRange> right,
-      Node* result_node, absl::Span<const int64_t> tree_idx) const {
+      Node* result_node, absl::Span<const int64_t> tree_idx = {}) const {
     if (left.empty()) {
       XLS_RET_CHECK(right.empty()) << "Type difference!";
       return std::vector<TreeBitRange>{};
@@ -259,7 +248,6 @@ class BitProvenanceVisitor final : public DataflowVisitor<TreeBitSources> {
         }));
     return res;
   }
-
   absl::StatusOr<TreeBitSources> JoinElements(
       Type* element_type, absl::Span<const TreeBitSources* const> data_sources,
       absl::Span<const LeafTypeTreeView<TreeBitSources>> control_sources,
@@ -274,50 +262,21 @@ class BitProvenanceVisitor final : public DataflowVisitor<TreeBitSources> {
   }
 };
 
-}  // namespace internal
+}  // namespace
 
 /* static */ absl::StatusOr<BitProvenanceAnalysis>
-BitProvenanceAnalysis::CreatePrepopulated(FunctionBase* func) {
-  BitProvenanceAnalysis result;
-  XLS_RETURN_IF_ERROR(result.Populate(func));
-  return result;
+BitProvenanceAnalysis::Create(FunctionBase* function) {
+  BitProvenanceVisitor prov;
+  XLS_RETURN_IF_ERROR(function->Accept(&prov));
+  return BitProvenanceAnalysis(std::move(prov).ToStoredValues());
 }
 
-BitProvenanceAnalysis::BitProvenanceAnalysis()
-    : visitor_{std::make_unique<internal::BitProvenanceVisitor>()} {}
-
-BitProvenanceAnalysis::~BitProvenanceAnalysis() {}
-
-BitProvenanceAnalysis::BitProvenanceAnalysis(BitProvenanceAnalysis&& other)
-    : visitor_(std::move(other.visitor_)) {}
-
-BitProvenanceAnalysis& BitProvenanceAnalysis::operator=(
-    BitProvenanceAnalysis&& other) {
-  visitor_ = std::move(other.visitor_);
-  return *this;
-}
-
-absl::Status BitProvenanceAnalysis::Populate(FunctionBase* func) {
-  XLS_RETURN_IF_ERROR(func->Accept(visitor_.get()));
-  return absl::OkStatus();
-}
-
-absl::StatusOr<TreeBitLocation> BitProvenanceAnalysis::GetSource(
+TreeBitLocation BitProvenanceAnalysis::GetSource(
     const TreeBitLocation& bit) const {
-  if (!IsTracked(bit.node())) {
-    XLS_RETURN_IF_ERROR(bit.node()->Accept(visitor_.get()));
-  }
-  XLS_ASSIGN_OR_RETURN(LeafTypeTreeView<TreeBitSources> sources,
-                       GetBitSources(bit.node()));
-  return sources.Get(bit.tree_index()).GetBitSource(bit.bit_index());
-}
-
-absl::StatusOr<LeafTypeTreeView<TreeBitSources>>
-BitProvenanceAnalysis::GetBitSources(Node* n) const {
-  if (!IsTracked(n)) {
-    XLS_RETURN_IF_ERROR(n->Accept(visitor_.get()));
-  }
-  return visitor_->GetValue(n).AsView();
+  CHECK(IsTracked(bit.node())) << bit;
+  return GetBitSources(bit.node())
+      .Get(bit.tree_index())
+      .GetBitSource(bit.bit_index());
 }
 
 TreeBitLocation TreeBitSources::GetBitSource(int64_t bit) const {
@@ -336,10 +295,6 @@ TreeBitLocation TreeBitSources::GetBitSource(int64_t bit) const {
       /*node=*/segment->source_node(),
       /*bit_index=*/segment->source_bit_index_low() + index_off,
       /*tree_index=*/segment->source_tree_index());
-}
-
-bool BitProvenanceAnalysis::IsTracked(Node* n) const {
-  return visitor_->IsVisited(n);
 }
 
 /* static */ std::vector<TreeBitRange> TreeBitSources::Minimize(
