@@ -2,9 +2,9 @@ package test_module
 
 file_number 0 "test_module.x"
 
-proc __test_module__SubProc_0__32_next<my_out: bits[32] out, my_in: bits[32] in>(__state: (), init={()}) {
-  chan_interface my_out(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
-  chan_interface my_in(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+proc __test_module__SubProc_0__32_next<_my_out: bits[32] out, _my_in: bits[32] in>(__state: (), init={()}) {
+  chan_interface _my_out(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _my_in(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   __state: () = state_read(state_element=__state, id=2)
   tuple.6: () = tuple(id=6)
   __token: token = literal(value=token, id=1)
@@ -15,22 +15,22 @@ proc __test_module__SubProc_0__32_next<my_out: bits[32] out, my_in: bits[32] in>
 }
 
 top proc __test_module__Top_0_next<>(__state: (), init={()}) {
-  chan chans__0(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
-  chan_interface chans__0(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
-  chan_interface chans__0(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
-  chan chans__1(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
-  chan_interface chans__1(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
-  chan_interface chans__1(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
-  chan chans__2(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
-  chan_interface chans__2(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
-  chan_interface chans__2(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
-  chan chans__3(bits[32], id=3, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
-  chan_interface chans__3(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
-  chan_interface chans__3(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
-  proc_instantiation __test_module__SubProc_0__32_next_inst(chans__0, chans__0, proc=__test_module__SubProc_0__32_next)
-  proc_instantiation __test_module__SubProc_0__32_next_inst_1(chans__1, chans__1, proc=__test_module__SubProc_0__32_next)
-  proc_instantiation __test_module__SubProc_0__32_next_inst_2(chans__2, chans__2, proc=__test_module__SubProc_0__32_next)
-  proc_instantiation __test_module__SubProc_0__32_next_inst_3(chans__3, chans__3, proc=__test_module__SubProc_0__32_next)
+  chan _chans__0(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+  chan_interface _chans__0(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface _chans__0(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan _chans__1(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+  chan_interface _chans__1(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface _chans__1(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan _chans__2(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+  chan_interface _chans__2(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface _chans__2(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan _chans__3(bits[32], id=3, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+  chan_interface _chans__3(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface _chans__3(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  proc_instantiation __test_module__SubProc_0__32_next_inst(_chans__0, _chans__0, proc=__test_module__SubProc_0__32_next)
+  proc_instantiation __test_module__SubProc_0__32_next_inst_1(_chans__1, _chans__1, proc=__test_module__SubProc_0__32_next)
+  proc_instantiation __test_module__SubProc_0__32_next_inst_2(_chans__2, _chans__2, proc=__test_module__SubProc_0__32_next)
+  proc_instantiation __test_module__SubProc_0__32_next_inst_3(_chans__3, _chans__3, proc=__test_module__SubProc_0__32_next)
   __state: () = state_read(state_element=__state, id=9)
   __token: token = literal(value=token, id=8)
   literal.10: bits[1] = literal(value=1, id=10)

@@ -2,13 +2,13 @@ package test_module
 
 file_number 0 "test_module.x"
 
-top proc __test_module__SomeProc_0_next<some_chan_array__0: bits[32] in, some_chan_array__1: bits[32] in>(__state: (), init={()}) {
-  chan_interface some_chan_array__0(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
-  chan_interface some_chan_array__1(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+top proc __test_module__SomeProc_0_next<_some_chan_array__0: bits[32] in, _some_chan_array__1: bits[32] in>(__state: (), init={()}) {
+  chan_interface _some_chan_array__0(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _some_chan_array__1(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   some_tok: token = literal(value=token, id=5)
   literal.3: bits[1] = literal(value=1, id=3)
-  receive.6: (token, bits[32]) = receive(some_tok, predicate=literal.3, channel=some_chan_array__0, id=6)
-  receive.10: (token, bits[32]) = receive(some_tok, predicate=literal.3, channel=some_chan_array__1, id=10)
+  receive.6: (token, bits[32]) = receive(some_tok, predicate=literal.3, channel=_some_chan_array__0, id=6)
+  receive.10: (token, bits[32]) = receive(some_tok, predicate=literal.3, channel=_some_chan_array__1, id=10)
   tok_0: token = tuple_index(receive.6, index=0, id=8)
   tok_1: token = tuple_index(receive.10, index=0, id=12)
   __state: () = state_read(state_element=__state, id=2)
