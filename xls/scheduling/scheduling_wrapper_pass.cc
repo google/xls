@@ -70,7 +70,7 @@ absl::StatusOr<bool> SchedulingWrapperPass::RunInternal(
                          OptimizationPassOptions(options)
                              .WithOptLevel(opt_level_)
                              .WithEliminateNoopNext(eliminate_noop_next_)
-                             .WithDelayModel(options.delay_estimator->name()),
+                             .WithDelayEstimator(options.delay_estimator),
                          results, opt_context_));
   if (!changed) {
     return false;

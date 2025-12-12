@@ -469,7 +469,8 @@ absl::StatusOr<bool> CheckLatencyIncrease(
   if (analysis == nullptr) {
     return absl::InternalError(absl::StrCat(
         "Failed to get CriticalPathDelayAnalysis for delay model: ",
-        *options.delay_model));
+        options.delay_estimator != nullptr ? options.delay_estimator->name()
+                                           : "(unspecified)"));
   }
 
   // Check the (unscheduled) critical path through the select we're optimizing
@@ -705,7 +706,7 @@ absl::StatusOr<bool> ProfitabilityGuardForBinaryOperation(
   bool default_is_literal_or_identity_or_nonexistent =
       !info.default_other_operand.has_value() || info.default_is_identity ||
       (*info.default_other_operand)->Is<Literal>();
-  if (!options.delay_model.has_value() && info.shared_is_lhs &&
+  if (options.delay_estimator == nullptr && info.shared_is_lhs &&
       (info.lifted_op == Op::kShll || info.lifted_op == Op::kShrl ||
        info.lifted_op == Op::kShra) &&
       all_other_operands_are_literals &&
@@ -779,7 +780,7 @@ absl::StatusOr<bool> ShouldLiftSelect(FunctionBase* func,
                                       OptimizationContext& context) {
   VLOG(3) << "  Checking the profitability guard";
 
-  if (options.delay_model.has_value()) {
+  if (options.delay_estimator != nullptr) {
     // If delay model is provided, check for latency increase.
     XLS_ASSIGN_OR_RETURN(
         bool latency_increases,
