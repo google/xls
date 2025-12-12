@@ -38,6 +38,6 @@ bazel test -c opt \
   --test_arg=--xls_source_dir="$(pwd)"/xls/ \
   --test_arg=--alsologtostderr \
   --nocache_test_results \
-  --test_output=errors
+  --test_output=errors || /bin/true
 
 bazel run -c opt ${RUN_TARGETS[@]}
