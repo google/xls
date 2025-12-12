@@ -385,18 +385,13 @@ class DataflowVisitor : public DfsVisitorWithDefault {
 
   // Sets the leaf type tree value associated with `node`.
   absl::Status SetValue(Node* node, LeafTypeTreeView<LeafT> value) {
-    XLS_RET_CHECK_EQ(node->GetType(), value.type());
-    map_.insert_or_assign(
-        node, std::make_unique<SharedLeafTypeTree<LeafT>>(value.AsShared()));
-    return absl::OkStatus();
+    return SetValue(node, value.AsShared());
   }
   absl::Status SetValue(Node* node, LeafTypeTree<LeafT>&& value) {
-    XLS_RET_CHECK_EQ(node->GetType(), value.type());
-    map_.insert_or_assign(node, std::make_unique<SharedLeafTypeTree<LeafT>>(
-                                    std::move(value).AsShared()));
-    return absl::OkStatus();
+    return SetValue(node, std::move(value).AsShared());
   }
-  absl::Status SetValue(Node* node, SharedLeafTypeTree<LeafT>&& value) {
+  // Base set-value function. Any overrides must call this.
+  virtual absl::Status SetValue(Node* node, SharedLeafTypeTree<LeafT>&& value) {
     XLS_RET_CHECK_EQ(node->GetType(), value.type());
     map_.insert_or_assign(
         node, std::make_unique<SharedLeafTypeTree<LeafT>>(std::move(value)));

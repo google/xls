@@ -61,6 +61,9 @@
 namespace xls {
 namespace {
 
+bool IsSideEffectingOrInvoke(Node* node) {
+  return OpIsSideEffecting(node->op()) || node->OpIn({Op::kInvoke});
+};
 absl::StatusOr<bool> RemoveZeroWidthStateElements(Proc* proc) {
   std::vector<int64_t> to_remove;
   for (int64_t i = proc->GetStateElementCount() - 1; i >= 0; --i) {
@@ -87,6 +90,8 @@ absl::StatusOr<bool> RemoveZeroWidthStateElements(Proc* proc) {
     XLS_RETURN_IF_ERROR(
         state_read->ReplaceUsesWithNew<Literal>(state_element->initial_value())
             .status());
+    VLOG(4) << "Removing state element " << proc->StateElements()[i]
+            << " for being zero width.";
     XLS_RETURN_IF_ERROR(proc->RemoveStateElement(i));
   }
   return true;
@@ -133,6 +138,8 @@ absl::StatusOr<bool> RemoveConstantStateElements(Proc* proc,
     }
     XLS_RETURN_IF_ERROR(
         state_read->ReplaceUsesWithNew<Literal>(value).status());
+    VLOG(4) << "Removing state element " << proc->StateElements()[i]
+            << " for being constant.";
     XLS_RETURN_IF_ERROR(proc->RemoveStateElement(i));
   }
   return true;
@@ -151,8 +158,7 @@ class StateDependencyVisitor : public DataflowVisitor<InlineBitmap> {
     // By default, conservatively assume that each element in `node` is
     // dependent upon all of the state elements which appear in the operands of
     // `node`.
-    return SetValue(node, LeafTypeTree<InlineBitmap>(
-                              node->GetType(), FlattenOperandBitmaps(node)));
+    return SetUnifiedValue(node, FlattenOperandBitmaps(node));
   }
 
   absl::Status HandleStateRead(StateRead* state_read) override {
@@ -161,8 +167,7 @@ class StateDependencyVisitor : public DataflowVisitor<InlineBitmap> {
                                             state_read->state_element()));
     InlineBitmap bitmap(proc_->GetStateElementCount());
     bitmap.Set(index, true);
-    return SetValue(state_read,
-                    LeafTypeTree<InlineBitmap>(state_read->GetType(), bitmap));
+    return SetUnifiedValue(state_read, std::move(bitmap));
   }
 
   // Returns the union of all of the bitmaps in the LeafTypeTree for all of the
@@ -179,6 +184,9 @@ class StateDependencyVisitor : public DataflowVisitor<InlineBitmap> {
 
   // Returns the union of all of the bitmaps in the LeafTypeTree for `node`.
   InlineBitmap FlattenNodeBitmaps(Node* node) {
+    if (node_values_.contains(node)) {
+      return node_values_.at(node);
+    }
     InlineBitmap result(proc_->GetStateElementCount());
     for (const InlineBitmap& bitmap : GetValue(node).elements()) {
       result.Union(bitmap);
@@ -206,7 +214,18 @@ class StateDependencyVisitor : public DataflowVisitor<InlineBitmap> {
     return std::move(element);
   }
 
+ private:
+  absl::Status SetUnifiedValue(Node* node, InlineBitmap&& bitmap) {
+    XLS_RETURN_IF_ERROR(
+        SetValue(node, LeafTypeTree<InlineBitmap>(node->GetType(), bitmap)));
+    node_values_.emplace(node, std::move(bitmap));
+    return absl::OkStatus();
+  }
+
   Proc* proc_;
+  // The value of the node as a whole. Since even return-less nodes can have
+  // values we want to track them separately.
+  absl::flat_hash_map<Node*, InlineBitmap> node_values_;
 };
 
 // Computes which state elements each node is dependent upon. Dependence is
@@ -218,8 +237,12 @@ ComputeStateDependencies(Proc* proc, OptimizationContext& context) {
   StateDependencyVisitor visitor(proc);
   XLS_RETURN_IF_ERROR(proc->Accept(&visitor));
   absl::flat_hash_map<Node*, InlineBitmap> state_dependencies;
+  // NB We can't just take node values because things like tuple/next nodes
+  // won't be included.
   for (Node* node : proc->nodes()) {
     state_dependencies.insert({node, visitor.FlattenNodeBitmaps(node)});
+    VLOG(5) << "Got " << node << " -> "
+            << Bits::FromBitmap(state_dependencies.at(node)).ToDebugString();
   }
   if (VLOG_IS_ON(5)) {
     VLOG(5) << "State dependencies (** side-effecting operation):";
@@ -232,7 +255,7 @@ ComputeStateDependencies(Proc* proc, OptimizationContext& context) {
       }
       VLOG(5) << absl::StrFormat("  %s : {%s}%s", node->GetName(),
                                  absl::StrJoin(dependent_elements, ", "),
-                                 OpIsSideEffecting(node->op()) ? "**" : "");
+                                 IsSideEffectingOrInvoke(node) ? "**" : "");
     }
   }
   return std::move(state_dependencies);
@@ -272,9 +295,12 @@ absl::StatusOr<bool> RemoveUnobservableStateElements(
   // Add all the side-effecting nodes as additional edges which depend on their
   // living state elements.
   for (Node* node : proc->nodes()) {
-    if (!OpIsSideEffecting(node->op()) ||
+    if (!IsSideEffectingOrInvoke(node) ||
         node->OpIn({Op::kStateRead, Op::kNext, Op::kGate})) {
       continue;
+    }
+    if (node->op() == Op::kInvoke) {
+      VLOG(4) << "Unioning " << node;
     }
     state_dependencies_matrix.back().Union(state_dependencies.at(node));
   }
@@ -330,6 +356,8 @@ absl::StatusOr<bool> RemoveUnobservableStateElements(
     VLOG(2) << absl::StreamFormat("Removing dead state element %s of type %s",
                                   proc->GetStateElement(i)->name(),
                                   proc->GetStateElement(i)->type()->ToString());
+    VLOG(4) << "Removing state element " << proc->StateElements()[i]
+            << " for being unobservable.";
     XLS_RETURN_IF_ERROR(proc->RemoveStateElement(i));
   }
   return true;
@@ -435,6 +463,8 @@ absl::Status ConstantChainToStateMachine(Proc* proc,
     indices_to_remove.insert(state_index);
   }
   for (int64_t state_index : indices_to_remove) {
+    VLOG(4) << "Removing state element " << proc->StateElements()[state_index]
+            << " for being converted to state machine.";
     XLS_RETURN_IF_ERROR(proc->RemoveStateElement(state_index));
   }
 
