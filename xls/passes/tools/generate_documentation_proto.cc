@@ -18,7 +18,6 @@
 #include <iterator>
 #include <memory>
 #include <optional>
-#include <sstream>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -31,8 +30,8 @@
 #include "absl/types/span.h"
 #include "clang/include/clang/AST/ASTConsumer.h"
 #include "clang/include/clang/AST/ASTContext.h"
-#include "clang/include/clang/AST/Comment.h"
 #include "clang/include/clang/AST/DeclCXX.h"
+#include "clang/include/clang/AST/RawCommentList.h"
 #include "clang/include/clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/include/clang/ASTMatchers/ASTMatchers.h"
 #include "clang/include/clang/Basic/FileManager.h"
@@ -42,11 +41,9 @@
 #include "clang/include/clang/Frontend/FrontendAction.h"
 #include "clang/include/clang/Tooling/Tooling.h"
 #include "llvm/include/llvm/ADT/IntrusiveRefCntPtr.h"
-#include "llvm/include/llvm/Support/Casting.h"
 #include "llvm/include/llvm/Support/VirtualFileSystem.h"
 #include "llvm/include/llvm/Support/raw_ostream.h"
 #include "xls/common/file/get_runfile_path.h"
-#include "xls/common/iterator_range.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/passes/optimization_pass.h"
@@ -97,53 +94,12 @@ class Callback : public m::MatchFinder::MatchCallback {
  private:
   std::string GetCommentFromMatch(const clang::ASTContext* context,
                                   const clang::CXXRecordDecl* clz) {
-    clang::comments::FullComment* comment =
-        context->getCommentForDecl(clz, nullptr);
-    if (comment == nullptr) {
+    const clang::RawComment* comment = context->getRawCommentForAnyRedecl(clz);
+    if (!comment) {
       return "";
     }
-    std::ostringstream oss;
-    // Mostly to help with clang's own documentation there are ~5 different
-    // types of comments. We actually only end up creating 2 because we aren't
-    // writing javadocs.
-    bool first = true;
-    for (clang::comments::Comment* c :
-         xabsl::iterator_range<decltype(comment->child_begin())>(
-             comment->child_begin(), comment->child_end())) {
-      if (!first) {
-        // Ensure an actual markdown new-line occurs.
-        oss << "\n\n";
-      }
-      ParseComment(c, oss);
-      first = false;
-    }
-    return std::move(oss).str();
-  }
-  void ParseComment(clang::comments::Comment* c, std::ostringstream& oss) {
-    // Why is getText not a member of comments::Comment?
-    if (clang::comments::TextComment* tc =
-            llvm::dyn_cast<clang::comments::TextComment>(c)) {
-      oss << std::string_view(tc->getText().begin(), tc->getText().end());
-    } else if (clang::comments::VerbatimBlockLineComment* vl =
-                   llvm::dyn_cast<clang::comments::VerbatimBlockLineComment>(
-                       c)) {
-      oss << std::string_view(vl->getText().begin(), vl->getText().end());
-    } else if (clang::comments::VerbatimBlockComment* vc =
-                   llvm::dyn_cast<clang::comments::VerbatimBlockComment>(c)) {
-      for (clang::comments::Comment* c :
-           xabsl::iterator_range<decltype(vc->child_begin())>(
-               vc->child_begin(), vc->child_end())) {
-        ParseComment(c, oss);
-        oss << "\n";
-      }
-    } else if (clang::comments::ParagraphComment* pc =
-                   llvm::dyn_cast<clang::comments::ParagraphComment>(c)) {
-      for (clang::comments::Comment* c :
-           xabsl::iterator_range<decltype(pc->child_begin())>(
-               pc->child_begin(), pc->child_end())) {
-        ParseComment(c, oss);
-      }
-    }
+    return comment->getFormattedText(context->getSourceManager(),
+                                     context->getDiagnostics());
   }
   std::optional<std::string> doc_any_;
   std::optional<std::string> doc_exact_;
