@@ -23,7 +23,6 @@
 #include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/channel.h"
-#include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
@@ -123,11 +122,11 @@ absl::StatusOr<bool> UselessIORemovalPass::RunInternal(
             channel_maps.to_receive.at(channel_ref).size() >= 2) {
           // We can remove the receive if this is not the last receive left on
           // the channel.
-          XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
           channel_maps.to_receive.at(channel_ref).erase(receive);
-          XLS_ASSIGN_OR_RETURN(Literal * zero,
-                               proc->MakeNode<Literal>(
-                                   node->loc(), ZeroOfType(channel->type())));
+          XLS_ASSIGN_OR_RETURN(
+              Literal * zero,
+              proc->MakeNode<Literal>(node->loc(),
+                                      ZeroOfType(ChannelRefType(channel_ref))));
           XLS_ASSIGN_OR_RETURN(
               replacement,
               proc->MakeNode<Tuple>(
