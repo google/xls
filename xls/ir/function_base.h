@@ -26,6 +26,8 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
+#include "absl/base/no_destructor.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
@@ -228,6 +230,23 @@ class FunctionBase {
 
   const absl::btree_set<Next*, Node::NodeIdLessThan>& next_values(
       StateRead* state_read) const {
+    if (!next_values_by_state_read_.contains(state_read)) {
+      // This should be pretty rare. Basically this should only happen in the
+      // short time before the non-updated state element is replaced. Just
+      // returning what is actually there is nicer than crashing however. Do
+      // check that this is not just some sort of weird corruption however.
+      static const absl::NoDestructor<
+          absl::btree_set<Next*, Node::NodeIdLessThan>>
+          kEmptySet;
+      CHECK(absl::c_none_of(nodes(),
+                            [state_read](Node* n) {
+                              return n->Is<Next>() &&
+                                     n->As<Next>()->state_read() == state_read;
+                            }))
+          << "Invalid side table for next values. Missing " << state_read
+          << " in " << this;
+      return *kEmptySet;
+    }
     return next_values_by_state_read_.at(state_read);
   }
 
