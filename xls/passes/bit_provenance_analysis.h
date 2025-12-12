@@ -15,18 +15,18 @@
 #ifndef XLS_PASSES_BIT_PROVENANCE_ANALYSIS_H_
 #define XLS_PASSES_BIT_PROVENANCE_ANALYSIS_H_
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <utility>
 #include <vector>
 
-#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/data_structures/leaf_type_tree.h"
-#include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/passes/query_engine.h"
 
@@ -140,36 +140,48 @@ class TreeBitSources {
   friend class BitProvenanceAnalysis;
 };
 
+namespace internal {
+
+class BitProvenanceVisitor;
+
+}  // namespace internal
+
 // A class which provides information about which (if any) node a particular
 // single bit of a value comes from. Similar information is also possible to
 // obtain from a BDD analysis but this is a significantly simplified analysis
 // only concerning itself with tracking bits that vary together precisely.
 class BitProvenanceAnalysis {
  public:
-  // Create a provenance analysis.
-  static absl::StatusOr<BitProvenanceAnalysis> Create(FunctionBase* function);
+  // Create BitProvenanceAnalysis and eagerly evaluate every node in the given
+  // function. The analysis does not own or listen to the function and becomes
+  // invalid if the function is modified.
+  static absl::StatusOr<BitProvenanceAnalysis> CreatePrepopulated(
+      FunctionBase* func);
+
+  // constructors and destructors need to be declared here and implemented in
+  // the .cc file to avoid the compiler inserting constructors and destructors
+  // in the header file and then failing to resolve the forward declared type of
+  // the BitProvenanceVisitor member field.
+  explicit BitProvenanceAnalysis();
+  ~BitProvenanceAnalysis();
+  BitProvenanceAnalysis(const BitProvenanceAnalysis& other) = delete;
+  BitProvenanceAnalysis& operator=(const BitProvenanceAnalysis& other) = delete;
+  BitProvenanceAnalysis(BitProvenanceAnalysis&& other);
+  BitProvenanceAnalysis& operator=(BitProvenanceAnalysis&& other);
+
+  absl::Status Populate(FunctionBase* func);
 
   // Get the tree-bit-location which provides the original source of the given
   // bit.
-  TreeBitLocation GetSource(const TreeBitLocation& bit) const;
+  absl::StatusOr<TreeBitLocation> GetSource(const TreeBitLocation& bit) const;
 
-  bool IsTracked(Node* n) const { return sources_.contains(n); }
+  bool IsTracked(Node* n) const;
 
   // Get all the sources for a given node.
-  LeafTypeTreeView<TreeBitSources> GetBitSources(Node* n) const {
-    CHECK(IsTracked(n)) << n;
-    return sources_.at(n)->AsView();
-  }
+  absl::StatusOr<LeafTypeTreeView<TreeBitSources>> GetBitSources(Node* n) const;
 
  private:
-  explicit BitProvenanceAnalysis(
-      absl::flat_hash_map<
-          Node*, std::unique_ptr<SharedLeafTypeTree<TreeBitSources>>>&& sources)
-      : sources_(std::move(sources)) {}
-  // Map from a node to the nodes which are the source of each of its bits.
-  absl::flat_hash_map<Node*,
-                      std::unique_ptr<SharedLeafTypeTree<TreeBitSources>>>
-      sources_;
+  std::unique_ptr<internal::BitProvenanceVisitor> visitor_;
 };
 
 }  // namespace xls
