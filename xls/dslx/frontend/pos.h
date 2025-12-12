@@ -32,6 +32,8 @@
 
 namespace xls::dslx {
 
+inline constexpr std::string_view kNoFilePath = "<no-file>";
+
 // Note that fileno 0 is generally reserved for "no known file", as in the
 // default constructor of a pos.
 XLS_DEFINE_STRONG_INT_TYPE(Fileno, uint32_t);
@@ -42,8 +44,8 @@ XLS_DEFINE_STRONG_INT_TYPE(Fileno, uint32_t);
 class FileTable {
  public:
   FileTable() {
-    number_to_path_.emplace(Fileno(0), "<no-file>");
-    path_to_number_.emplace("<no-file>", Fileno(0));
+    number_to_path_.emplace(Fileno(0), std::string(kNoFilePath));
+    path_to_number_.emplace(std::string(kNoFilePath), Fileno(0));
   }
 
   // Gets-or-creates the resolution of the given `path` to a file number.
@@ -145,6 +147,8 @@ class Pos {
 
   Fileno fileno() const { return fileno_; }
 
+  bool HasFile() const { return fileno_ != Fileno(0); }
+
   // Note: these lineno/colno values are zero-based.
   int64_t lineno() const { return lineno_; }
   int64_t colno() const { return colno_; }
@@ -197,6 +201,11 @@ class Span {
   const Pos& start() const { return start_; }
   const Pos& limit() const { return limit_; }
   Fileno fileno() const { return start().fileno(); }
+
+  bool HasFile() const {
+    CHECK_EQ(start_.fileno(), limit_.fileno());
+    return start_.HasFile();
+  }
 
   bool operator==(const Span& other) const {
     return start_ == other.start_ && limit_ == other.limit_;

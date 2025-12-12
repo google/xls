@@ -1736,7 +1736,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                                                  *binding_type);
         XLS_ASSIGN_OR_RETURN(
             Number * value_expr,
-            MakeTypeCheckedNumber(module_, table_, binding->span(), value,
+            MakeTypeCheckedNumber(module_, table_, invocation->span(), value,
                                   binding->type_annotation()));
         actual_parametrics.emplace(binding->name_def(), value_expr);
       }
@@ -2064,9 +2064,15 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           Concretize(binding->type_annotation(), parent_context));
       instance_type_info->SetItem(binding->name_def(), *binding_type);
       instance_type_info->NoteConstExpr(binding->name_def(), value);
+      // We need a span that is local to the module we are creating AST nodes
+      // in. This callback can be invoked while unifying type annotations that
+      // originate in a different file/module (e.g. due to cloning during type
+      // resolution), so we cannot assume the caller-provided `span` is in
+      // `module`.
+      const Span& module_span = module.span();
       XLS_ASSIGN_OR_RETURN(
           Number * value_expr,
-          MakeTypeCheckedNumber(module_, table_, binding->span(), value,
+          MakeTypeCheckedNumber(module, table_, module_span, value,
                                 binding->type_annotation()));
       resolved_parametrics.emplace(binding->identifier(), value_expr);
       return absl::OkStatus();

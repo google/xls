@@ -1,8 +1,4 @@
-1:12-1:17: NUMBER :: `2` :: uN[32]
-1:12-1:17: NUMBER :: `2` :: uN[32]
 1:19-1:22: TYPE_ANNOTATION :: `u32` :: typeof(uN[32])
-1:24-1:25: NUMBER :: `2` :: uN[32]
-1:32-1:33: NUMBER :: `0` :: uN[1]
 1:48-1:63: TYPE_ANNOTATION :: `xN[S]` :: typeof(uN[2])
 1:48-1:63: TYPE_ANNOTATION :: `xN[S]` :: typeof(uN[2][2])
 1:72-1:76: TYPE_ANNOTATION :: `bool` :: typeof(uN[1])
@@ -20,12 +16,16 @@
 5:13-5:66: STATEMENT :: `assert_eq(distinct(u2[2]:[1, 1], bool[2]:[true, true]), false)` :: ()
 5:14-5:22: NAME_REF :: `distinct` :: (uN[2][2], uN[1][2]) -> uN[1]
 5:22-5:58: INVOCATION :: `distinct(u2[2]:[1, 1], bool[2]:[true, true])` :: uN[1]
+5:22-5:58: NUMBER :: `0` :: uN[1]
+5:22-5:58: NUMBER :: `0` :: uN[32]
+5:22-5:58: NUMBER :: `0` :: uN[32]
+5:22-5:58: NUMBER :: `0` :: uN[32]
 5:23-5:25: TYPE_ANNOTATION :: `u2` :: typeof(uN[2])
-5:23-5:28: NUMBER :: `2` :: uN[32]
-5:23-5:28: NUMBER :: `2` :: uN[32]
 5:23-5:28: TYPE_ANNOTATION :: `u2[2]` :: typeof(uN[2][2])
 5:26-5:27: NUMBER :: `2` :: uN[32]
 5:29-5:35: ARRAY :: `u2[2]:[1, 1]` :: uN[2][2]
+5:29-5:35: NUMBER :: `2` :: uN[32]
+5:29-5:35: NUMBER :: `2` :: uN[32]
 5:29-5:35: TYPE_ANNOTATION :: `u2` :: typeof(uN[2])
 5:29-5:35: TYPE_ANNOTATION :: `u2` :: typeof(uN[2])
 5:30-5:31: NUMBER :: `1` :: uN[2]
