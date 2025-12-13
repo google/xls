@@ -264,6 +264,56 @@ TEST_F(ProcTest, Clone) {
 )");
 }
 
+TEST_F(ProcTest, CloneProcScopedChannel) {
+  auto p = CreatePackage();
+
+  ProcBuilder pb(NewStyleProc(), "p", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto inp, pb.AddInputChannel("input_chan", p->GetBitsType(32), {}));
+  XLS_ASSERT_OK_AND_ASSIGN(auto out,
+                           pb.AddOutputChannel("chan", p->GetBitsType(32), {}));
+  BValue tkn = pb.StateElement("tkn", Value::Token());
+  BValue state = pb.StateElement("st", Value(UBits(42, 32)));
+  BValue recv = pb.Receive(inp, tkn);
+  BValue add1 = pb.Add(pb.Literal(UBits(1, 32)), state);
+  BValue add2 = pb.Add(add1, pb.TupleIndex(recv, 1));
+  BValue send = pb.Send(out, pb.TupleIndex(recv, 0), add2);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({send, add2}));
+
+  auto p2 = CreatePackage();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * clone, proc->Clone("cloned", p2.get(),
+                                /*channel_remapping=*/{},
+                                /*call_remapping=*/{},
+                                /*state_name_remapping=*/{{"st", "state"}}));
+
+  EXPECT_FALSE(clone->IsFunction());
+  EXPECT_TRUE(clone->IsProc());
+
+  RecordProperty("p2", p2->DumpIr());
+
+  EXPECT_EQ(p2->DumpIr(),
+            R"IR(package CloneProcScopedChannel
+
+proc cloned<input_chan: bits[32] in, chan: bits[32] out>(tkn: token, state: bits[32], init={token, 42}) {
+  chan_interface input_chan(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface chan(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  tkn: token = state_read(state_element=tkn, id=1)
+  literal.3: bits[32] = literal(value=1, id=3)
+  state: bits[32] = state_read(state_element=state, id=2)
+  receive_3: (token, bits[32]) = receive(tkn, channel=input_chan, id=4)
+  add.5: bits[32] = add(literal.3, state, id=5)
+  tuple_index.6: bits[32] = tuple_index(receive_3, index=1, id=6)
+  tuple_index.7: token = tuple_index(receive_3, index=0, id=7)
+  add.8: bits[32] = add(add.5, tuple_index.6, id=8)
+  send_9: token = send(tuple_index.7, add.8, channel=chan, id=9)
+  next_value.10: () = next_value(param=tkn, value=send_9, id=10)
+  next_value.11: () = next_value(param=state, value=add.8, id=11)
+}
+)IR");
+}
+
 TEST_F(ProcTest, CloneNewStyle) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(NewStyleProc(), "p", "tkn", p.get());
