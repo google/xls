@@ -354,9 +354,9 @@ std::ostream& operator<<(std::ostream& os, ChannelDirection direction) {
 }
 
 std::unique_ptr<SendChannelInterface> SendChannelInterface::Clone(
-    std::optional<std::string_view> new_name) const {
-  auto clone = std::make_unique<SendChannelInterface>(new_name.value_or(name()),
-                                                      type(), kind());
+    std::optional<std::string_view> new_name, Type* new_ty) const {
+  auto clone = std::make_unique<SendChannelInterface>(
+      new_name.value_or(name()), new_ty ? new_ty : type(), kind());
   clone->SetKind(kind());
   clone->SetStrictness(strictness());
   clone->SetFlowControl(flow_control());
@@ -365,9 +365,9 @@ std::unique_ptr<SendChannelInterface> SendChannelInterface::Clone(
 }
 
 std::unique_ptr<ReceiveChannelInterface> ReceiveChannelInterface::Clone(
-    std::optional<std::string_view> new_name) const {
+    std::optional<std::string_view> new_name, Type* new_ty) const {
   auto clone = std::make_unique<ReceiveChannelInterface>(
-      new_name.value_or(name()), type(), kind());
+      new_name.value_or(name()), new_ty ? new_ty : type(), kind());
   clone->SetKind(kind());
   clone->SetStrictness(strictness());
   clone->SetFlowControl(flow_control());
