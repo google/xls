@@ -496,7 +496,8 @@ class SendChannelInterface : public ChannelInterface {
       : ChannelInterface(name, type, kind) {}
   ~SendChannelInterface() override = default;
   std::unique_ptr<SendChannelInterface> Clone(
-      std::optional<std::string_view> new_name = std::nullopt) const;
+      std::optional<std::string_view> new_name = std::nullopt,
+      Type* new_ty = nullptr) const;
   ChannelDirection direction() const override {
     return ChannelDirection::kSend;
   }
@@ -509,7 +510,8 @@ class ReceiveChannelInterface : public ChannelInterface {
       : ChannelInterface(name, type, kind) {}
   ~ReceiveChannelInterface() override = default;
   std::unique_ptr<ReceiveChannelInterface> Clone(
-      std::optional<std::string_view> new_name = std::nullopt) const;
+      std::optional<std::string_view> new_name = std::nullopt,
+      Type* new_ty = nullptr) const;
   ChannelDirection direction() const override {
     return ChannelDirection::kReceive;
   }
