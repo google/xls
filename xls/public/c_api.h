@@ -404,6 +404,9 @@ void xls_bytes_free(uint8_t* bytes);
 // Returns a string representation of the given IR package `p`.
 bool xls_package_to_string(const struct xls_package* p, char** string_out);
 
+// Returns a string representation of the given IR function `f`.
+bool xls_function_to_string(const struct xls_function* f, char** string_out);
+
 // Returns the "top" (i.e. entry point) function base (i.e. function or proc) of
 // the given package.
 struct xls_function_base* xls_package_get_top(struct xls_package* p);
