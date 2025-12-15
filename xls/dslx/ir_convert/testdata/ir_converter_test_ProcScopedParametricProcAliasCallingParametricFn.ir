@@ -7,8 +7,8 @@ fn __test_module__bar__16(i: bits[16] id=1) -> bits[16] {
   ret add.3: bits[16] = add(i, i, id=3)
 }
 
-top proc __test_module__FooAlias_next<output_c: bits[16] out>(__state: bits[16], init={1}) {
-  chan_interface output_c(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+top proc __test_module__FooAlias_next<_output_c: bits[16] out>(__state: bits[16], init={1}) {
+  chan_interface _output_c(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   __state: bits[16] = state_read(state_element=__state, id=5)
   result: bits[16] = invoke(__state, to_apply=__test_module__bar__16, id=9)
   literal.12: bits[16] = literal(value=1, id=12)
@@ -18,6 +18,6 @@ top proc __test_module__FooAlias_next<output_c: bits[16] out>(__state: bits[16],
   __token: token = literal(value=token, id=4)
   N: bits[32] = literal(value=16, id=7)
   tuple.8: () = tuple(id=8)
-  tok: token = send(after_all.10, result, predicate=literal.6, channel=output_c, id=11)
+  tok: token = send(after_all.10, result, predicate=literal.6, channel=_output_c, id=11)
   next_value.14: () = next_value(param=__state, value=add.13, id=14)
 }

@@ -521,11 +521,11 @@ class EvalProcTest(parameterized.TestCase):
         "--show_trace",
         "--logtostderr",
         "--inputs_for_channels",
-        "in_ch={infile1},in_ch_2={infile2}".format(
+        "_in_ch={infile1},_in_ch_2={infile2}".format(
             infile1=input_file.full_path, infile2=input_file_2.full_path
         ),
         "--expected_outputs_for_channels",
-        "out_ch={outfile},out_ch_2={outfile2}".format(
+        "_out_ch={outfile},_out_ch_2={outfile2}".format(
             outfile=output_file.full_path, outfile2=output_file_2.full_path
         ),
     ]
@@ -563,11 +563,11 @@ class EvalProcTest(parameterized.TestCase):
         "--show_trace",
         "--logtostderr",
         "--inputs_for_channels",
-        "in_ch={infile1},in_ch_2={infile2}".format(
+        "_in_ch={infile1},_in_ch_2={infile2}".format(
             infile1=input_file.full_path, infile2=input_file_2.full_path
         ),
         "--expected_outputs_for_channels",
-        "out_ch={outfile},out_ch_2={outfile2}".format(
+        "_out_ch={outfile},_out_ch_2={outfile2}".format(
             outfile=output_file.full_path, outfile2=output_file_2.full_path
         ),
     ]
@@ -605,11 +605,11 @@ class EvalProcTest(parameterized.TestCase):
         "--show_trace",
         "--logtostderr",
         "--inputs_for_channels",
-        "in_ch={infile1},in_ch_2={infile2}".format(
+        "_in_ch={infile1},_in_ch_2={infile2}".format(
             infile1=input_file.full_path, infile2=input_file_2.full_path
         ),
         "--expected_outputs_for_channels",
-        "out_ch={outfile},out_ch_2={outfile2}".format(
+        "_out_ch={outfile},_out_ch_2={outfile2}".format(
             outfile=output_file.full_path, outfile2=output_file_2.full_path
         ),
     ]
@@ -649,11 +649,11 @@ class EvalProcTest(parameterized.TestCase):
         "--block_signature_proto",
         BLOCK_SIG_PATH,
         "--inputs_for_channels",
-        "in_ch={infile1},in_ch_2={infile2}".format(
+        "_in_ch={infile1},_in_ch_2={infile2}".format(
             infile1=input_file.full_path, infile2=input_file_2.full_path
         ),
         "--expected_outputs_for_channels",
-        "out_ch={outfile},out_ch_2={outfile2}".format(
+        "_out_ch={outfile},_out_ch_2={outfile2}".format(
             outfile=output_file.full_path, outfile2=output_file_2.full_path
         ),
     ] + backends
@@ -694,11 +694,11 @@ class EvalProcTest(parameterized.TestCase):
         "--block_signature_proto",
         BLOCK_SIG_PATH,
         "--inputs_for_channels",
-        "in_ch={infile1},in_ch_2={infile2}".format(
+        "_in_ch={infile1},_in_ch_2={infile2}".format(
             infile1=input_file.full_path, infile2=input_file_2.full_path
         ),
         "--expected_outputs_for_channels",
-        "out_ch={outfile},out_ch_2={outfile2}".format(
+        "_out_ch={outfile},_out_ch_2={outfile2}".format(
             outfile=output_file.full_path, outfile2=output_file_2.full_path
         ),
         "--show_trace",
@@ -740,11 +740,11 @@ class EvalProcTest(parameterized.TestCase):
         "--block_signature_proto",
         BLOCK_SIG_PATH,
         "--inputs_for_channels",
-        "in_ch={infile1},in_ch_2={infile2}".format(
+        "_in_ch={infile1},_in_ch_2={infile2}".format(
             infile1=input_file.full_path, infile2=input_file_2.full_path
         ),
         "--expected_outputs_for_channels",
-        "out_ch={outfile},out_ch_2={outfile2}".format(
+        "_out_ch={outfile},_out_ch_2={outfile2}".format(
             outfile=output_file.full_path, outfile2=output_file_2.full_path
         ),
         "--output_stats_path",
@@ -788,11 +788,11 @@ class EvalProcTest(parameterized.TestCase):
         "--block_signature_proto",
         BLOCK_SIG_PATH,
         "--inputs_for_channels",
-        "in_ch={infile1},in_ch_2={infile2}".format(
+        "_in_ch={infile1},_in_ch_2={infile2}".format(
             infile1=input_file.full_path, infile2=input_file_2.full_path
         ),
         "--expected_outputs_for_channels",
-        "out_ch={outfile},out_ch_2={outfile2}".format(
+        "_out_ch={outfile},_out_ch_2={outfile2}".format(
             outfile=output_file.full_path, outfile2=output_file_2.full_path
         ),
     ] + backend
@@ -809,21 +809,21 @@ class EvalProcTest(parameterized.TestCase):
 
   def test_all_channels_in_a_single_file_proc(self):
     input_file = self.create_tempfile(content=textwrap.dedent("""
-          in_ch : {
+          _in_ch : {
             bits[64]:42
             bits[64]:101
           }
-          in_ch_2 : {
+          _in_ch_2 : {
             bits[64]:10
             bits[64]:6
           }
         """))
     output_file = self.create_tempfile(content=textwrap.dedent("""
-          out_ch : {
+          _out_ch : {
             bits[64]:62
             bits[64]:127
           }
-          out_ch_2 : {
+          _out_ch_2 : {
             bits[64]:55
             bits[64]:55
           }
@@ -852,21 +852,21 @@ class EvalProcTest(parameterized.TestCase):
   @parameterized_block_backends
   def test_all_channels_in_a_single_file_block(self, backend):
     input_file = self.create_tempfile(content=textwrap.dedent("""
-          in_ch : {
+          _in_ch : {
             bits[64]:42
             bits[64]:101
           }
-          in_ch_2 : {
+          _in_ch_2 : {
             bits[64]:10
             bits[64]:6
           }
         """))
     output_file = self.create_tempfile(content=textwrap.dedent("""
-          out_ch : {
+          _out_ch : {
             bits[64]:62
             bits[64]:127
           }
-          out_ch_2 : {
+          _out_ch_2 : {
             bits[64]:55
             bits[64]:55
           }
@@ -893,11 +893,11 @@ class EvalProcTest(parameterized.TestCase):
 
   def test_output_channels_stdout_display_proc(self):
     input_file = self.create_tempfile(content=textwrap.dedent("""
-          in_ch : {
+          _in_ch : {
             bits[64]:42
             bits[64]:101
           }
-          in_ch_2 : {
+          _in_ch_2 : {
             bits[64]:10
             bits[64]:6
           }
@@ -917,17 +917,17 @@ class EvalProcTest(parameterized.TestCase):
 
     output = run_command(shared_args + ["--backend", "ir_interpreter"])
     self.assertIn("Proc __eval_proc_main_test__test_proc_0_next", output.stderr)
-    self.assertIn("out_ch : {", output.stdout)
-    self.assertIn("out_ch_2 : {", output.stdout)
+    self.assertIn("_out_ch : {", output.stdout)
+    self.assertIn("_out_ch_2 : {", output.stdout)
 
     output = run_command(shared_args + ["--backend", "serial_jit"])
     self.assertIn("Proc __eval_proc_main_test__test_proc_0_next", output.stderr)
-    self.assertIn("out_ch : {", output.stdout)
-    self.assertIn("out_ch_2 : {", output.stdout)
+    self.assertIn("_out_ch : {", output.stdout)
+    self.assertIn("_out_ch_2 : {", output.stdout)
 
   def test_output_channels_with_no_values_stdout_display_proc(self):
     input_file = self.create_tempfile(content=textwrap.dedent("""
-          input : {
+          _input : {
             bits[8]:42
             bits[8]:42
             bits[8]:42
@@ -952,14 +952,14 @@ class EvalProcTest(parameterized.TestCase):
         "Proc __eval_proc_main_conditional_test__test_proc_0_next",
         output.stderr,
     )
-    self.assertIn("output : {\n}", output.stdout)
+    self.assertIn("_output : {\n}", output.stdout)
 
     output = run_command(shared_args + ["--backend", "serial_jit"])
     self.assertIn(
         "Proc __eval_proc_main_conditional_test__test_proc_0_next",
         output.stderr,
     )
-    self.assertIn("output : {\n}", output.stdout)
+    self.assertIn("_output : {\n}", output.stdout)
 
   @parameterized_block_backends
   def test_block_memory(self, backend):
@@ -967,7 +967,7 @@ class EvalProcTest(parameterized.TestCase):
     ram_rewrites_file = BLOCK_MEMORY_REWRITES_PATH
     signature_file = BLOCK_MEMORY_SIGNATURE_PATH
     input_file = self.create_tempfile(content=textwrap.dedent("""
-          in_ch : {
+          _in_ch : {
             bits[32]:42
             bits[32]:101
             bits[32]:50
@@ -975,7 +975,7 @@ class EvalProcTest(parameterized.TestCase):
           }
         """))
     output_file = self.create_tempfile(content=textwrap.dedent("""
-          out_ch : {
+          _out_ch : {
             bits[32]:126
             bits[32]:303
             bits[32]:150
@@ -1080,7 +1080,7 @@ rewrites {
     ir_file = PROC_ABSTRACT_MEMORY_IR_PATH
     ram_rewrites_file = BLOCK_MEMORY_REWRITES_PATH
     input_file = self.create_tempfile(content=textwrap.dedent("""
-          in_ch : {
+          _in_ch : {
             bits[32]:42
             bits[32]:101
             bits[32]:50
@@ -1088,7 +1088,7 @@ rewrites {
           }
         """))
     output_file = self.create_tempfile(content=textwrap.dedent("""
-          out_ch : {
+          _out_ch : {
             bits[32]:126
             bits[32]:303
             bits[32]:150
@@ -1123,7 +1123,7 @@ rewrites {
     ir_file = PROC_REWRITTEN_MEMORY_IR_PATH
     ram_rewrites_file = BLOCK_MEMORY_REWRITES_PATH
     input_file = self.create_tempfile(content=textwrap.dedent("""
-          in_ch : {
+          _in_ch : {
             bits[32]:42
             bits[32]:101
             bits[32]:50
@@ -1131,7 +1131,7 @@ rewrites {
           }
         """))
     output_file = self.create_tempfile(content=textwrap.dedent("""
-          out_ch : {
+          _out_ch : {
             bits[32]:126
             bits[32]:303
             bits[32]:150
@@ -1426,21 +1426,21 @@ out: {
   @parameterized_proc_backends
   def test_zero_size_proc(self, backend):
     input_file = self.create_tempfile(content=textwrap.dedent("""
-          in_ch : {
+          _in_ch : {
             bits[64]:42
             bits[64]:101
           }
-          in_ch_2 : {
+          _in_ch_2 : {
             ()
             ()
           }
         """))
     output_file = self.create_tempfile(content=textwrap.dedent("""
-          out_ch : {
+          _out_ch : {
             bits[64]:43
             bits[64]:112
           }
-          out_ch_2 : {
+          _out_ch_2 : {
             ()
             ()
           }
@@ -1464,21 +1464,21 @@ out: {
   @parameterized_block_backends
   def test_zero_size_block(self, backend):
     input_file = self.create_tempfile(content=textwrap.dedent("""
-          in_ch : {
+          _in_ch : {
             bits[64]:42
             bits[64]:101
           }
-          in_ch_2 : {
+          _in_ch_2 : {
             ()
             ()
           }
         """))
     output_file = self.create_tempfile(content=textwrap.dedent("""
-          out_ch : {
+          _out_ch : {
             bits[64]:43
             bits[64]:112
           }
-          out_ch_2 : {
+          _out_ch_2 : {
             ()
             ()
           }

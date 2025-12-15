@@ -12,12 +12,12 @@ fn __test_module__square_zero() -> bits[32] {
   ret invoke.5: bits[32] = invoke(literal.4, to_apply=__test_module__square__0, id=5)
 }
 
-top proc __test_module__Counter_0_next<in_ch: bits[32] in, out_ch: bits[32] out>(__state: bits[32], init={0}) {
-  chan_interface in_ch(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
-  chan_interface out_ch(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+top proc __test_module__Counter_0_next<_in_ch: bits[32] in, _out_ch: bits[32] out>(__state: bits[32], init={0}) {
+  chan_interface _in_ch(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _out_ch(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   after_all.10: token = after_all(id=10)
   literal.8: bits[1] = literal(value=1, id=8)
-  receive.11: (token, bits[32]) = receive(after_all.10, predicate=literal.8, channel=in_ch, id=11)
+  receive.11: (token, bits[32]) = receive(after_all.10, predicate=literal.8, channel=_in_ch, id=11)
   in_data: bits[32] = tuple_index(receive.11, index=1, id=14)
   __state: bits[32] = state_read(state_element=__state, id=7)
   x: bits[32] = invoke(in_data, to_apply=__test_module__square__0, id=15)
@@ -26,6 +26,6 @@ top proc __test_module__Counter_0_next<in_ch: bits[32] in, out_ch: bits[32] out>
   __token: token = literal(value=token, id=6)
   tuple.9: () = tuple(id=9)
   tuple_index.12: token = tuple_index(receive.11, index=0, id=12)
-  tok__1: token = send(tok, next_state, predicate=literal.8, channel=out_ch, id=17)
+  tok__1: token = send(tok, next_state, predicate=literal.8, channel=_out_ch, id=17)
   next_value.18: () = next_value(param=__state, value=next_state, id=18)
 }

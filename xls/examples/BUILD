@@ -199,7 +199,7 @@ xls_dslx_verilog(
         "streaming_channel_data_suffix": "_data",
         "streaming_channel_ready_suffix": "_ready",
         "streaming_channel_valid_suffix": "_valid",
-        "io_constraints": "data_in:recv:old_state:send:0:0,data_in:recv:data_out:send:4:4,data_in:recv:activate:recv:8:8",
+        "io_constraints": "_data_in:recv:_old_state:send:0:0,_data_in:recv:_data_out:send:4:4,_data_in:recv:_activate:recv:8:8",
         "worst_case_throughput": "9",
         "pipeline_stages": "9",
     },

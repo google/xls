@@ -3,9 +3,9 @@ package test_module
 file_number 0 "test_module.x"
 
 top proc __test_module__main_0_next<>(__state: (), init={()}) {
-  chan my_chan0(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive, fifo_depth=16, bypass=false, register_push_outputs=true, register_pop_outputs=true, input_flop_kind=zero_latency, output_flop_kind=flop)
-  chan_interface my_chan0(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
-  chan_interface my_chan0(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan _my_chan0(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive, fifo_depth=16, bypass=false, register_push_outputs=true, register_pop_outputs=true, input_flop_kind=zero_latency, output_flop_kind=flop)
+  chan_interface _my_chan0(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface _my_chan0(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
   __state: () = state_read(state_element=__state, id=2)
   tuple.5: () = tuple(id=5)
   __token: token = literal(value=token, id=1)

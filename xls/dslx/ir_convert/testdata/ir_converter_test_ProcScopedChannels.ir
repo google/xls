@@ -2,12 +2,12 @@ package test_module
 
 file_number 0 "test_module.x"
 
-top proc __test_module__passthrough_0_next<c_in: bits[32] in, c_out: bits[32] out>(__state: (), init={()}) {
-  chan_interface c_in(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
-  chan_interface c_out(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+top proc __test_module__passthrough_0_next<_c_in: bits[32] in, _c_out: bits[32] out>(__state: (), init={()}) {
+  chan_interface _c_in(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _c_out(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   after_all.5: token = after_all(id=5)
   literal.3: bits[1] = literal(value=1, id=3)
-  receive.6: (token, bits[32]) = receive(after_all.5, predicate=literal.3, channel=c_in, id=6)
+  receive.6: (token, bits[32]) = receive(after_all.5, predicate=literal.3, channel=_c_in, id=6)
   tok: token = tuple_index(receive.6, index=0, id=8, pos=[(0,9,9)])
   data: bits[32] = tuple_index(receive.6, index=1, id=9, pos=[(0,9,14)])
   __state: () = state_read(state_element=__state, id=2)
@@ -15,6 +15,6 @@ top proc __test_module__passthrough_0_next<c_in: bits[32] in, c_out: bits[32] ou
   __token: token = literal(value=token, id=1)
   tuple.4: () = tuple(id=4, pos=[(0,6,4)])
   tuple_index.7: token = tuple_index(receive.6, index=0, id=7)
-  tok__1: token = send(tok, data, predicate=literal.3, channel=c_out, id=10)
+  tok__1: token = send(tok, data, predicate=literal.3, channel=_c_out, id=10)
   next_value.12: () = next_value(param=__state, value=tuple.11, id=12)
 }

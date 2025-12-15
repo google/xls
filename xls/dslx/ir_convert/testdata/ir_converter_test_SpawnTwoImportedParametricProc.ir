@@ -3,21 +3,21 @@ package test_module
 file_number 0 "imported.x"
 file_number 1 "test_module.x"
 
-proc __imported__Leaf_0__16_next<output_c: bits[16] out>(__state: bits[16], init={123}) {
-  chan_interface output_c(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+proc __imported__Leaf_0__16_next<_output_c: bits[16] out>(__state: bits[16], init={123}) {
+  chan_interface _output_c(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   literal.6: token = literal(value=token, id=6)
   __state: bits[16] = state_read(state_element=__state, id=2)
   literal.3: bits[1] = literal(value=1, id=3)
   __token: token = literal(value=token, id=1)
   P: bits[32] = literal(value=16, id=4)
   tuple.5: () = tuple(id=5)
-  send.7: token = send(literal.6, __state, predicate=literal.3, channel=output_c, id=7)
+  send.7: token = send(literal.6, __state, predicate=literal.3, channel=_output_c, id=7)
   next_value.8: () = next_value(param=__state, value=__state, id=8)
 }
 
-proc __imported__Importee_0__16_next<output_c: bits[16] out>(__state: bits[16], init={456}) {
-  chan_interface output_c(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
-  proc_instantiation __imported__Leaf_0__16_next_inst(output_c, proc=__imported__Leaf_0__16_next)
+proc __imported__Importee_0__16_next<_output_c: bits[16] out>(__state: bits[16], init={456}) {
+  chan_interface _output_c(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  proc_instantiation __imported__Leaf_0__16_next_inst(_output_c, proc=__imported__Leaf_0__16_next)
   __state: bits[16] = state_read(state_element=__state, id=10)
   __token: token = literal(value=token, id=9)
   literal.11: bits[1] = literal(value=1, id=11)
@@ -26,9 +26,9 @@ proc __imported__Importee_0__16_next<output_c: bits[16] out>(__state: bits[16], 
   next_value.14: () = next_value(param=__state, value=__state, id=14)
 }
 
-proc __test_module__Local_0__16_next<output_c: bits[16] out>(__state: bits[16], init={789}) {
-  chan_interface output_c(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
-  proc_instantiation __imported__Importee_0__16_next_inst(output_c, proc=__imported__Importee_0__16_next)
+proc __test_module__Local_0__16_next<_output_c: bits[16] out>(__state: bits[16], init={789}) {
+  chan_interface _output_c(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  proc_instantiation __imported__Importee_0__16_next_inst(_output_c, proc=__imported__Importee_0__16_next)
   __state: bits[16] = state_read(state_element=__state, id=16)
   __token: token = literal(value=token, id=15)
   literal.17: bits[1] = literal(value=1, id=17)
@@ -38,10 +38,10 @@ proc __test_module__Local_0__16_next<output_c: bits[16] out>(__state: bits[16], 
 }
 
 top proc __test_module__Main_0_next<>(__state: (), init={()}) {
-  chan chan0(bits[16], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
-  chan_interface chan0(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
-  chan_interface chan0(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
-  proc_instantiation __test_module__Local_0__16_next_inst(chan0, proc=__test_module__Local_0__16_next)
+  chan _chan0(bits[16], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+  chan_interface _chan0(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface _chan0(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  proc_instantiation __test_module__Local_0__16_next_inst(_chan0, proc=__test_module__Local_0__16_next)
   __state: () = state_read(state_element=__state, id=22)
   tuple.25: () = tuple(id=25)
   __token: token = literal(value=token, id=21)

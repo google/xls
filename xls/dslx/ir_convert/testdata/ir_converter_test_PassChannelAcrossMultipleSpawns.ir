@@ -2,11 +2,11 @@ package test_module
 
 file_number 0 "test_module.x"
 
-proc __test_module__SomeProc_0_next<input: bits[32] in>(__state: (), init={()}) {
-  chan_interface input(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+proc __test_module__SomeProc_0_next<_input: bits[32] in>(__state: (), init={()}) {
+  chan_interface _input(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   literal.5: token = literal(value=token, id=5)
   literal.3: bits[1] = literal(value=1, id=3)
-  receive.6: (token, bits[32]) = receive(literal.5, predicate=literal.3, channel=input, id=6)
+  receive.6: (token, bits[32]) = receive(literal.5, predicate=literal.3, channel=_input, id=6)
   __token: token = literal(value=token, id=1)
   v: bits[32] = tuple_index(receive.6, index=1, id=9)
   __state: () = state_read(state_element=__state, id=2)
@@ -17,9 +17,9 @@ proc __test_module__SomeProc_0_next<input: bits[32] in>(__state: (), init={()}) 
   next_value.11: () = next_value(param=__state, value=__state, id=11)
 }
 
-proc __test_module__SomeOtherProc_0_next<input: bits[32] in>(__state: (), init={()}) {
-  chan_interface input(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
-  proc_instantiation __test_module__SomeProc_0_next_inst(input, proc=__test_module__SomeProc_0_next)
+proc __test_module__SomeOtherProc_0_next<_input: bits[32] in>(__state: (), init={()}) {
+  chan_interface _input(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  proc_instantiation __test_module__SomeProc_0_next_inst(_input, proc=__test_module__SomeProc_0_next)
   __state: () = state_read(state_element=__state, id=13)
   tuple.16: () = tuple(id=16)
   __token: token = literal(value=token, id=12)
@@ -29,16 +29,16 @@ proc __test_module__SomeOtherProc_0_next<input: bits[32] in>(__state: (), init={
 }
 
 top proc __test_module__YetAnotherProc_0_next<>(__state: (), init={()}) {
-  chan in_out(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
-  chan_interface in_out(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
-  chan_interface in_out(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
-  proc_instantiation __test_module__SomeOtherProc_0_next_inst(in_out, proc=__test_module__SomeOtherProc_0_next)
+  chan _in_out(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+  chan_interface _in_out(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface _in_out(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  proc_instantiation __test_module__SomeOtherProc_0_next_inst(_in_out, proc=__test_module__SomeOtherProc_0_next)
   literal.22: token = literal(value=token, id=22)
   literal.23: bits[32] = literal(value=0, id=23)
   literal.20: bits[1] = literal(value=1, id=20)
   __state: () = state_read(state_element=__state, id=19)
   __token: token = literal(value=token, id=18)
   tuple.21: () = tuple(id=21)
-  send.24: token = send(literal.22, literal.23, predicate=literal.20, channel=in_out, id=24)
+  send.24: token = send(literal.22, literal.23, predicate=literal.20, channel=_in_out, id=24)
   next_value.25: () = next_value(param=__state, value=__state, id=25)
 }

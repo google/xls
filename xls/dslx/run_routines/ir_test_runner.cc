@@ -238,7 +238,7 @@ absl::StatusOr<std::unique_ptr<AbstractParsedTestRunner>> MakeRunner(
           tp->proc()->config().params()[0]->identifier();
       // TODO: allight - This duplicates code in the ir_convert/channel_scope.cc
       if (test_options.lower_to_proc_scoped_channels) {
-        finish_chan_names[name] = dslx_chan_name;
+        finish_chan_names[name] = absl::StrCat("_", dslx_chan_name);
       } else {
         finish_chan_names[name] =
             absl::StrCat(package_data.package->name(), "__", dslx_chan_name);

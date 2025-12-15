@@ -145,7 +145,7 @@ TEST_P(ChannelScopeTest, DefineChannel) {
   EXPECT_TRUE(std::holds_alternative<Channel*>(result));
   Channel* channel = std::get<Channel*>(result);
   if (GetParam()) {
-    EXPECT_EQ(channel->name(), "the_channel");
+    EXPECT_EQ(channel->name(), "_the_channel");
   } else {
     EXPECT_EQ(channel->name(), "the_package__the_channel");
   }
@@ -169,7 +169,7 @@ TEST_P(ChannelScopeTest, DefineChannelWithDefaultFifoConfig) {
   EXPECT_TRUE(std::holds_alternative<Channel*>(result));
   Channel* channel = std::get<Channel*>(result);
   if (GetParam()) {
-    EXPECT_EQ(channel->name(), "the_channel");
+    EXPECT_EQ(channel->name(), "_the_channel");
   } else {
     EXPECT_EQ(channel->name(), "the_package__the_channel");
   }
@@ -199,7 +199,7 @@ TEST_P(ChannelScopeTest, DefineBoundaryChannel) {
   EXPECT_TRUE(std::holds_alternative<Channel*>(result));
   if (GetParam()) {
     EXPECT_THAT(conv_.interface.channels(), ElementsAre(EqualsProto(R"pb(
-                  name: "the_channel"
+                  name: "_the_channel"
                   type { type_enum: BITS bit_count: 32 }
                   direction: IN
                 )pb")));
@@ -222,12 +222,12 @@ TEST_P(ChannelScopeTest, DefineBoundaryInputChannelArray) {
   if (GetParam()) {
     EXPECT_THAT(conv_.interface.channels(),
                 ElementsAre(EqualsProto(R"pb(
-                              name: "the_channel__0"
+                              name: "_the_channel__0"
                               type { type_enum: BITS bit_count: 32 }
                               direction: IN
                             )pb"),
                             EqualsProto(R"pb(
-                              name: "the_channel__1"
+                              name: "_the_channel__1"
                               type { type_enum: BITS bit_count: 32 }
                               direction: IN
                             )pb")));
@@ -256,12 +256,12 @@ TEST_P(ChannelScopeTest, DefineBoundaryOutputChannelArray) {
   if (GetParam()) {
     EXPECT_THAT(conv_.interface.channels(),
                 ElementsAre(EqualsProto(R"pb(
-                              name: "the_channel__0"
+                              name: "_the_channel__0"
                               type { type_enum: BITS bit_count: 32 }
                               direction: OUT
                             )pb"),
                             EqualsProto(R"pb(
-                              name: "the_channel__1"
+                              name: "_the_channel__1"
                               type { type_enum: BITS bit_count: 32 }
                               direction: OUT
                             )pb")));
@@ -363,11 +363,11 @@ TEST_P(ChannelScopeTest, AssociateWithExistingChannelArrayDifferentProcIds) {
     XLS_ASSERT_OK_AND_ASSIGN(ChannelRef test_channel1_ref,
                              scope_->GetChannelForArrayIndex(
                                  proc_id1, CreateIndexOp(ch_ref, {"2"})));
-    EXPECT_EQ(std::get<Channel*>(test_channel1_ref)->name(), "arr1__2");
+    EXPECT_EQ(std::get<Channel*>(test_channel1_ref)->name(), "_arr1__2");
     XLS_ASSERT_OK_AND_ASSIGN(ChannelRef test_channel2_ref,
                              scope_->GetChannelForArrayIndex(
                                  proc_id2, CreateIndexOp(ch_ref, {"2"})));
-    EXPECT_EQ(std::get<Channel*>(test_channel2_ref)->name(), "arr2__2");
+    EXPECT_EQ(std::get<Channel*>(test_channel2_ref)->name(), "_arr2__2");
   } else {
     XLS_ASSERT_OK_AND_ASSIGN(ChannelRef test_channel1_ref,
                              scope_->GetChannelForArrayIndex(
@@ -392,7 +392,7 @@ TEST_P(ChannelScopeTest, HandleChannelIndex1DValid) {
       ChannelRef channel_ref,
       scope_->GetChannelForArrayIndex(ProcId{}, CreateIndexOp(decl, {"2"})));
   if (GetParam()) {
-    EXPECT_EQ(std::get<Channel*>(channel_ref)->name(), "the_channel__2");
+    EXPECT_EQ(std::get<Channel*>(channel_ref)->name(), "_the_channel__2");
   } else {
     EXPECT_EQ(std::get<Channel*>(channel_ref)->name(),
               "the_package__the_channel__2");
@@ -409,7 +409,7 @@ TEST_P(ChannelScopeTest, HandleChannelIndex2DValid) {
                            scope_->GetChannelForArrayIndex(
                                ProcId{}, CreateIndexOp(decl, {"4", "1"})));
   if (GetParam()) {
-    EXPECT_EQ(std::get<Channel*>(channel_ref)->name(), "the_channel__4_1");
+    EXPECT_EQ(std::get<Channel*>(channel_ref)->name(), "_the_channel__4_1");
   } else {
     EXPECT_EQ(std::get<Channel*>(channel_ref)->name(),
               "the_package__the_channel__4_1");
@@ -471,7 +471,7 @@ TEST_P(ChannelScopeTest, HandleSubarrayIndex) {
                            scope_->GetChannelForArrayIndex(
                                ProcId{}, CreateIndexOp(subarray_ref, {"1"})));
   if (GetParam()) {
-    EXPECT_EQ(std::get<Channel*>(channel_ref)->name(), "the_channel__4_1");
+    EXPECT_EQ(std::get<Channel*>(channel_ref)->name(), "_the_channel__4_1");
   } else {
     EXPECT_EQ(std::get<Channel*>(channel_ref)->name(),
               "the_package__the_channel__4_1");

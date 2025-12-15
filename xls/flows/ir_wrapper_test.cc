@@ -225,11 +225,11 @@ TEST_P(IrWrapperTest, DslxProcsToIrOk) {
         out, ir_wrapper.CreateJitChannelQueueWrapper("test_package__output"));
   } else {
     XLS_ASSERT_OK_AND_ASSIGN(in_0, ir_wrapper.CreateJitChannelQueueWrapper(
-                                       "in_0", "__top__foo_0_next"));
+                                       "_in_0", "__top__foo_0_next"));
     XLS_ASSERT_OK_AND_ASSIGN(in_1, ir_wrapper.CreateJitChannelQueueWrapper(
-                                       "in_1", "__top__foo_0_next"));
+                                       "_in_1", "__top__foo_0_next"));
     XLS_ASSERT_OK_AND_ASSIGN(out, ir_wrapper.CreateJitChannelQueueWrapper(
-                                      "output", "__top__foo_0_next"));
+                                      "_output", "__top__foo_0_next"));
   }
 
   // Send data.

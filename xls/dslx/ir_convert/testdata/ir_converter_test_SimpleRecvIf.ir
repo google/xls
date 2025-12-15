@@ -2,15 +2,15 @@ package test_module
 
 file_number 0 "test_module.x"
 
-top proc __test_module__main_0_next<in_param: bits[32] in>(__state: bits[32], init={1}) {
-  chan_interface in_param(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+top proc __test_module__main_0_next<_in_param: bits[32] in>(__state: bits[32], init={1}) {
+  chan_interface _in_param(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   __state: bits[32] = state_read(state_element=__state, id=2)
   literal.6: bits[32] = literal(value=20, id=6)
   literal.3: bits[1] = literal(value=1, id=3)
   eq.7: bits[1] = eq(__state, literal.6, id=7)
   literal.5: token = literal(value=token, id=5)
   and.9: bits[1] = and(literal.3, eq.7, id=9)
-  receive.10: (token, bits[32]) = receive(literal.5, predicate=and.9, channel=in_param, id=10)
+  receive.10: (token, bits[32]) = receive(literal.5, predicate=and.9, channel=_in_param, id=10)
   literal.8: bits[32] = literal(value=42, id=8)
   tuple_index.12: bits[32] = tuple_index(receive.10, index=1, id=12)
   tuple_index.11: token = tuple_index(receive.10, index=0, id=11)

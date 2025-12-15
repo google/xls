@@ -17,8 +17,8 @@ proc __test_module__Spawned_0_next<>(__state: bits[32], init={1}) {
   next_value.8: () = next_value(param=__state, value=add.7, id=8)
 }
 
-top proc __test_module__Main_0_next<ic: bits[32] in>(__state: (), init={()}) {
-  chan_interface ic(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+top proc __test_module__Main_0_next<_ic: bits[32] in>(__state: (), init={()}) {
+  chan_interface _ic(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   proc_instantiation __test_module__Spawned_0_next_inst(proc=__test_module__Spawned_0_next)
   __state: () = state_read(state_element=__state, id=10)
   tuple.13: () = tuple(id=13)

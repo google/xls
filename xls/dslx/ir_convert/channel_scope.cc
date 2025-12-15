@@ -125,9 +125,10 @@ absl::StatusOr<ChannelOrArray> ChannelScope::DefineChannelOrArrayInternal(
   std::string base_channel_name;
   if (convert_options_.lower_to_proc_scoped_channels) {
     // When using proc scoped channels the channel names do not have to be
-    // mangled with the full call stack and module, just uniquified.
+    // mangled with the full call stack and module, just uniquified with a
+    // leading underscore.
     base_channel_name =
-        channel_name_uniquer_.GetSanitizedUniqueName(short_name);
+        "_" + channel_name_uniquer_.GetSanitizedUniqueName(short_name);
   } else {
     XLS_ASSIGN_OR_RETURN(base_channel_name, CreateBaseChannelName(short_name));
   }

@@ -2,12 +2,12 @@ package test_module
 
 file_number 0 "test_module.x"
 
-top proc __test_module__Memory_0_next<req_in: (bits[1], bits[32], bits[32]) in, data_out: bits[32] out>(__state: bits[32][4], init={[305419896, 305419896, 305419896, 305419896]}) {
-  chan_interface req_in(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
-  chan_interface data_out(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+top proc __test_module__Memory_0_next<_req_in: (bits[1], bits[32], bits[32]) in, _data_out: bits[32] out>(__state: bits[32][4], init={[305419896, 305419896, 305419896, 305419896]}) {
+  chan_interface _req_in(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _data_out(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   after_all.5: token = after_all(id=5)
   literal.3: bits[1] = literal(value=1, id=3)
-  receive.6: (token, (bits[1], bits[32], bits[32])) = receive(after_all.5, predicate=literal.3, channel=req_in, id=6)
+  receive.6: (token, (bits[1], bits[32], bits[32])) = receive(after_all.5, predicate=literal.3, channel=_req_in, id=6)
   req: (bits[1], bits[32], bits[32]) = tuple_index(receive.6, index=1, id=9)
   __state: bits[32][4] = state_read(state_element=__state, id=2)
   req_wdata: bits[32] = tuple_index(req, index=2, id=12)
@@ -24,6 +24,6 @@ top proc __test_module__Memory_0_next<req_in: (bits[1], bits[32], bits[32]) in, 
   __token: token = literal(value=token, id=1)
   tuple.4: () = tuple(id=4)
   tuple_index.7: token = tuple_index(receive.6, index=0, id=7)
-  send.20: token = send(tok, array_index.18, predicate=and.19, channel=data_out, id=20)
+  send.20: token = send(tok, array_index.18, predicate=and.19, channel=_data_out, id=20)
   next_value.21: () = next_value(param=__state, value=state, id=21)
 }

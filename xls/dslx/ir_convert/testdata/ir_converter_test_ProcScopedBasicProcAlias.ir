@@ -2,8 +2,8 @@ package test_module
 
 file_number 0 "test_module.x"
 
-top proc __test_module__FooAlias_next<output_c: bits[32] out>(__state: bits[32], init={1}) {
-  chan_interface output_c(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+top proc __test_module__FooAlias_next<_output_c: bits[32] out>(__state: bits[32], init={1}) {
+  chan_interface _output_c(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   __state: bits[32] = state_read(state_element=__state, id=2)
   literal.7: bits[32] = literal(value=2, id=7)
   after_all.5: token = after_all(id=5)
@@ -11,6 +11,6 @@ top proc __test_module__FooAlias_next<output_c: bits[32] out>(__state: bits[32],
   add.8: bits[32] = add(__state, literal.7, id=8)
   __token: token = literal(value=token, id=1)
   tuple.4: () = tuple(id=4)
-  tok: token = send(after_all.5, __state, predicate=literal.3, channel=output_c, id=6)
+  tok: token = send(after_all.5, __state, predicate=literal.3, channel=_output_c, id=6)
   next_value.9: () = next_value(param=__state, value=add.8, id=9)
 }

@@ -7127,7 +7127,8 @@ proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       xls::Proc * test_proc,
       conv.package->GetProc("__test_module__test_proc_0__3_4_next"));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * my_chan, test_proc->GetChannel("my_chan"));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * my_chan,
+                           test_proc->GetChannel("_my_chan"));
   ASSERT_EQ(my_chan->kind(), ChannelKind::kStreaming);
   EXPECT_EQ(down_cast<StreamingChannel*>(my_chan)->GetFifoDepth(), 7);
 }
@@ -7176,8 +7177,8 @@ proc main {
                            conv.package->GetProc("__test_module__main_0_next"));
   std::vector<Channel*> channels = {proc->channels().begin(),
                                     proc->channels().end()};
-  EXPECT_THAT(channels, AllOf(Contains(m::Channel("my_chan")),
-                              Contains(m::Channel("my_chan__1"))));
+  EXPECT_THAT(channels, AllOf(Contains(m::Channel("_my_chan")),
+                              Contains(m::Channel("_my_chan__1"))));
 }
 
 TEST_F(IrConverterTest, ChannelArrayDestructureWithWildcard) {
@@ -7211,10 +7212,10 @@ TEST_F(IrConverterTest, ChannelArrayDestructureWithWildcard) {
       conv.package->GetProc("__test_module__SomeProc_0_next"));
   std::vector<Channel*> channels = {proc->channels().begin(),
                                     proc->channels().end()};
-  EXPECT_THAT(channels, UnorderedElementsAre(m::Channel("the_chan_array__0"),
-                                             m::Channel("the_chan_array__1"),
-                                             m::Channel("the_chan_array__2"),
-                                             m::Channel("the_chan_array__3")));
+  EXPECT_THAT(channels, UnorderedElementsAre(m::Channel("_the_chan_array__0"),
+                                             m::Channel("_the_chan_array__1"),
+                                             m::Channel("_the_chan_array__2"),
+                                             m::Channel("_the_chan_array__3")));
 }
 
 TEST_F(IrConverterTest, ChannelArrayDestructureWithRestOfTuple) {
@@ -7248,10 +7249,10 @@ TEST_F(IrConverterTest, ChannelArrayDestructureWithRestOfTuple) {
       conv.package->GetProc("__test_module__SomeProc_0_next"));
   std::vector<Channel*> channels = {proc->channels().begin(),
                                     proc->channels().end()};
-  EXPECT_THAT(channels, UnorderedElementsAre(m::Channel("the_chan_array__0"),
-                                             m::Channel("the_chan_array__1"),
-                                             m::Channel("the_chan_array__2"),
-                                             m::Channel("the_chan_array__3")));
+  EXPECT_THAT(channels, UnorderedElementsAre(m::Channel("_the_chan_array__0"),
+                                             m::Channel("_the_chan_array__1"),
+                                             m::Channel("_the_chan_array__2"),
+                                             m::Channel("_the_chan_array__3")));
 }
 
 TEST_F(IrConverterTest, DealOutChannelArrayElementsToSpawnee) {
@@ -7315,10 +7316,10 @@ TEST_F(IrConverterTest, DealOutChannelArrayElementsToSpawnee) {
                                     procA->channels().end()};
   EXPECT_THAT(channels,
               UnorderedElementsAre(
-                  m::Channel("toward_a__0_0"), m::Channel("toward_a__0_1"),
-                  m::Channel("toward_a__1_0"), m::Channel("toward_a__1_1"),
-                  m::Channel("toward_b__0_0"), m::Channel("toward_b__0_1"),
-                  m::Channel("toward_b__1_0"), m::Channel("toward_b__1_1")));
+                  m::Channel("_toward_a__0_0"), m::Channel("_toward_a__0_1"),
+                  m::Channel("_toward_a__1_0"), m::Channel("_toward_a__1_1"),
+                  m::Channel("_toward_b__0_0"), m::Channel("_toward_b__0_1"),
+                  m::Channel("_toward_b__1_0"), m::Channel("_toward_b__1_1")));
 }
 
 TEST_F(IrConverterTest, MultipleNonLeafSpawnsOfSameProc) {

@@ -2,17 +2,17 @@ package DslxProcsToIrOk
 
 file_number 0 "top_module.x"
 
-top proc __top__foo_0_next<in_0: bits[32] in, in_1: bits[32] in, output: bits[32] out>() {
-  chan_interface in_0(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
-  chan_interface in_1(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
-  chan_interface output(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+top proc __top__foo_0_next<_in_0: bits[32] in, _in_1: bits[32] in, _output: bits[32] out>() {
+  chan_interface _in_0(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _in_1(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _output(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   after_all.1: token = after_all(id=1)
-  receive.2: (token, bits[32]) = receive(after_all.1, channel=in_0, id=2)
+  receive.2: (token, bits[32]) = receive(after_all.1, channel=_in_0, id=2)
   tuple_index.3: token = tuple_index(receive.2, index=0, id=3, pos=[(0,12,13)])
-  receive.4: (token, bits[32]) = receive(tuple_index.3, channel=in_1, id=4)
+  receive.4: (token, bits[32]) = receive(tuple_index.3, channel=_in_1, id=4)
   tuple_index.5: bits[32] = tuple_index(receive.2, index=1, id=5, pos=[(0,12,18)])
   tuple_index.6: bits[32] = tuple_index(receive.4, index=1, id=6, pos=[(0,13,18)])
   tuple_index.7: token = tuple_index(receive.4, index=0, id=7, pos=[(0,13,13)])
   add.8: bits[32] = add(tuple_index.5, tuple_index.6, id=8, pos=[(0,14,36)])
-  send.9: token = send(tuple_index.7, add.8, channel=output, id=9)
+  send.9: token = send(tuple_index.7, add.8, channel=_output, id=9)
 }
