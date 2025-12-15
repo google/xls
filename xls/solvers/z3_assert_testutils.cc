@@ -130,6 +130,7 @@ absl::StatusOr<ProverResult> TryProveAssertClean(Function* func) {
     XLS_ASSIGN_OR_RETURN(z3_func, fb.BuildWithReturnValue(extracted));
   } else {
     std::vector<BValue> vals;
+    vals.reserve(assert_predicates.size());
     for (int64_t i = 0; i < assert_predicates.size(); ++i) {
       vals.push_back(fb.TupleIndex(extracted, i));
     }
