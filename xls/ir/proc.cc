@@ -339,19 +339,24 @@ absl::StatusOr<Proc*> Proc::Clone(
   }
   if (is_new_style_proc()) {
     for (ChannelInterface* channel_interface : interface()) {
+      XLS_ASSIGN_OR_RETURN(
+          Type * new_ty,
+          target_package->MapTypeFromOtherPackage(channel_interface->type()));
       if (channel_interface->direction() == ChannelDirection::kSend) {
         XLS_RETURN_IF_ERROR(
             cloned_proc
                 ->AddOutputChannelInterface(
                     dynamic_cast<SendChannelInterface*>(channel_interface)
-                        ->Clone(new_chan_name(channel_interface->name())))
+                        ->Clone(new_chan_name(channel_interface->name()),
+                                new_ty))
                 .status());
       } else {
         XLS_RETURN_IF_ERROR(
             cloned_proc
                 ->AddInputChannelInterface(
                     dynamic_cast<ReceiveChannelInterface*>(channel_interface)
-                        ->Clone(new_chan_name(channel_interface->name())))
+                        ->Clone(new_chan_name(channel_interface->name()),
+                                new_ty))
                 .status());
       }
     }
@@ -394,7 +399,9 @@ absl::StatusOr<Proc*> Proc::Clone(
         XLS_ASSIGN_OR_RETURN(
             ChannelRef channel_ref,
             cloned_proc->GetChannelRef(channel, ChannelDirection::kReceive));
-        Type* payload_type = ChannelRefType(channel_ref);
+        XLS_ASSIGN_OR_RETURN(Type * payload_type,
+                             cloned_proc->package()->MapTypeFromOtherPackage(
+                                 ChannelRefType(channel_ref)));
         if (is_new_style_proc()) {
           XLS_ASSIGN_OR_RETURN(
               original_to_clone[node],
