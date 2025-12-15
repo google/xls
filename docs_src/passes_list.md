@@ -36,7 +36,8 @@ value.
 ## arith_simp - Arithmetic Simplifications {#arith_simp}
 
 
-This pass performs various arithmetic optimizations such as replacement of divide by a constant with non-divide operations.
+This pass performs various arithmetic optimizations such as replacement of
+divide by a constant with non-divide operations.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/arith_simplification_pass.h)
@@ -49,7 +50,8 @@ This pass performs various arithmetic optimizations such as replacement of divid
 ## array_simp - Array Simplification {#array_simp}
 
 
-Pass which simplifies or eliminates some array-type operations such as ArrayIndex.
+Pass which simplifies or eliminates some array-type operations such as
+ArrayIndex.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/array_simplification_pass.h)
@@ -62,9 +64,17 @@ Pass which simplifies or eliminates some array-type operations such as ArrayInde
 ## array_untuple - Array UnTuple {#array_untuple}
 
 
-Pass which changes any (non-external) array-of-tuple into a tuple-of-arrays. We can see through tuples quite well but can't see through arrays to anywhere near the same extent. Therefore the struct-of-array representation is always superior.
+Pass which changes any (non-external) array-of-tuple into a tuple-of-arrays.
+We can see through tuples quite well but can't see through arrays to anywhere
+near the same extent. Therefore the struct-of-array representation is
+always superior.
 
- Note that this pass makes no attempt to unpack or repack arrays which escape the function-base. This means that anything which comes in through a function param, or a procs recv or escapes through a function return or a proc send is not untuple'd. TODO(allight): We could do this at the cost of a significant number of ir nodes. We should experiment to see if this is worth doing.
+Note that this pass makes no attempt to unpack or repack arrays which escape
+the function-base. This means that anything which comes in through a function
+param, or a procs recv or escapes through a function return or a proc send is
+not untuple'd.
+TODO(allight): We could do this at the cost of a significant number of ir
+nodes. We should experiment to see if this is worth doing.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/array_untuple_pass.h)
@@ -77,7 +87,13 @@ Pass which changes any (non-external) array-of-tuple into a tuple-of-arrays. We 
 ## basic_simp - Basic Simplifications {#basic_simp}
 
 
-This pass does simple pattern-matching optimizations which are ~always a good idea to do (replacing a node with a constant, removing operands of nodes, etc). They improve QoR, do not increase the number of nodes in the graph, preserve the same abstraction level, and do not impede later optimizations via obfuscation. These optimizations require no analyses beyond looking at the node and its operands. Examples include: not(not(x)) => x, x + 0 => x, etc.
+This pass does simple pattern-matching optimizations which are ~always a good
+idea to do (replacing a node with a constant, removing operands of nodes,
+etc). They improve QoR, do not increase the number of nodes in the graph,
+preserve the same abstraction level, and do not impede later optimizations
+via obfuscation. These optimizations require no analyses beyond looking at
+the node and its operands. Examples include: not(not(x)) => x, x + 0 => x,
+etc.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/basic_simplification_pass.h)
@@ -90,7 +106,8 @@ This pass does simple pattern-matching optimizations which are ~always a good id
 ## bdd_cse - BDD-based Common Subexpression Elimination {#bdd_cse}
 
 
-Pass which commons equivalent expressions in the graph using binary decision diagrams.
+Pass which commons equivalent expressions in the graph using binary decision
+diagrams.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/bdd_cse_pass.h)
@@ -103,7 +120,10 @@ Pass which commons equivalent expressions in the graph using binary decision dia
 ## bdd_simp - BDD-based Simplification {#bdd_simp}
 
 
-Runs BDD-based simplifications on the function. Currently this is a very limited set of optimization including one-hot removal and replacement of statically known values with literals. TODO(meheff): Add more BDD-based optimizations.
+Runs BDD-based simplifications on the function. Currently this is a very
+limited set of optimization including one-hot removal and replacement of
+statically known values with literals.
+TODO(meheff): Add more BDD-based optimizations.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/bdd_simplification_pass.h)
@@ -116,7 +136,10 @@ Runs BDD-based simplifications on the function. Currently this is a very limited
 ## bdd_simp(2) - BDD-based Simplification with opt_level <= 2 {#bdd_simp2}
 
 
-Runs BDD-based simplifications on the function. Currently this is a very limited set of optimization including one-hot removal and replacement of statically known values with literals. TODO(meheff): Add more BDD-based optimizations.
+Runs BDD-based simplifications on the function. Currently this is a very
+limited set of optimization including one-hot removal and replacement of
+statically known values with literals.
+TODO(meheff): Add more BDD-based optimizations.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/bdd_simplification_pass.h)
@@ -129,7 +152,10 @@ Runs BDD-based simplifications on the function. Currently this is a very limited
 ## bdd_simp(3) - BDD-based Simplification with opt_level <= 3 {#bdd_simp3}
 
 
-Runs BDD-based simplifications on the function. Currently this is a very limited set of optimization including one-hot removal and replacement of statically known values with literals. TODO(meheff): Add more BDD-based optimizations.
+Runs BDD-based simplifications on the function. Currently this is a very
+limited set of optimization including one-hot removal and replacement of
+statically known values with literals.
+TODO(meheff): Add more BDD-based optimizations.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/bdd_simplification_pass.h)
@@ -142,7 +168,8 @@ Runs BDD-based simplifications on the function. Currently this is a very limited
 ## bitslice_simp - Bit-slice simplification {#bitslice_simp}
 
 
-Pass which simplifies bit-slices. This includes collapsing sequential bit-slices, eliminating degenerate full-width slices, and others.
+Pass which simplifies bit-slices. This includes collapsing sequential
+bit-slices, eliminating degenerate full-width slices, and others.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/bit_slice_simplification_pass.h)
@@ -155,7 +182,8 @@ Pass which simplifies bit-slices. This includes collapsing sequential bit-slices
 ## bool_simp - boolean simplification {#bool_simp}
 
 
-Attempts to simplify bitwise / boolean expressions (e.g. of multiple variables).
+Attempts to simplify bitwise / boolean expressions (e.g. of multiple
+variables).
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/boolean_simplification_pass.h)
@@ -168,7 +196,11 @@ Attempts to simplify bitwise / boolean expressions (e.g. of multiple variables).
 ## canon - Canonicalization {#canon}
 
 
-class CanonicalizationPass iterates over nodes and tries to canonicalize the expressions found. For example, for an add between a node and a literal, the literal should only be the 2nd operand. This preprocessing of the IR helps to simplify later passes.
+class CanonicalizationPass iterates over nodes and tries
+to canonicalize the expressions found. For example, for an add
+between a node and a literal, the literal should only be the
+2nd operand. This preprocessing of the IR helps to simplify
+later passes.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/canonicalization_pass.h)
@@ -183,7 +215,9 @@ class CanonicalizationPass iterates over nodes and tries to canonicalize the exp
 
 Pass that legalizes multiple send/receive operations per channel.
 
- This pass adds cross-activation tokens to guarantee that later activations of a proc cannot send or receive on a channel until all previous activations have completed working with that channel.
+This pass adds cross-activation tokens to guarantee that later activations of
+a proc cannot send or receive on a channel until all previous activations
+have completed working with that channel.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/channel_legalization_pass.h)
@@ -196,9 +230,12 @@ Pass that legalizes multiple send/receive operations per channel.
 ## comparison_simp - Comparison Simplification {#comparison_simp}
 
 
-Simplifies logical operations on the results of comparison operations. For example:
+Simplifies logical operations on the results of comparison
+operations. For example:
 
-   eq(x, 0) && ne(x, 1) => eq(x, 0)   eq(x, 0) && ne(x, 0) => 0   eq(x, 0) || ne(x, 0) => 1
+  eq(x, 0) && ne(x, 1) => eq(x, 0)
+  eq(x, 0) && ne(x, 0) => 0
+  eq(x, 0) || ne(x, 0) => 1
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/comparison_simplification_pass.h)
@@ -211,7 +248,8 @@ Simplifies logical operations on the results of comparison operations. For examp
 ## concat_simp - Concat simplification {#concat_simp}
 
 
-Pass which simplifies concats. This includes removing single-operand concats, flattening trees of dependent concats, and others.
+Pass which simplifies concats. This includes removing single-operand concats,
+flattening trees of dependent concats, and others.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/concat_simplification_pass.h)
@@ -224,7 +262,8 @@ Pass which simplifies concats. This includes removing single-operand concats, fl
 ## cond_spec(Bdd) - Conditional specialization {#cond_specBdd}
 
 
-Pass which specializes arms of select operations based on their selector value.
+Pass which specializes arms of select operations based on their selector
+value.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/conditional_specialization_pass.h)
@@ -237,7 +276,8 @@ Pass which specializes arms of select operations based on their selector value.
 ## cond_spec(false) - Conditional specialization {#cond_specfalse}
 
 
-Pass which specializes arms of select operations based on their selector value.
+Pass which specializes arms of select operations based on their selector
+value.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/conditional_specialization_pass.h)
@@ -250,7 +290,8 @@ Pass which specializes arms of select operations based on their selector value.
 ## cond_spec(noBdd) - Conditional specialization {#cond_specnoBdd}
 
 
-Pass which specializes arms of select operations based on their selector value.
+Pass which specializes arms of select operations based on their selector
+value.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/conditional_specialization_pass.h)
@@ -263,7 +304,8 @@ Pass which specializes arms of select operations based on their selector value.
 ## cond_spec(true) - Conditional specialization {#cond_spectrue}
 
 
-Pass which specializes arms of select operations based on their selector value.
+Pass which specializes arms of select operations based on their selector
+value.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/conditional_specialization_pass.h)
@@ -276,7 +318,8 @@ Pass which specializes arms of select operations based on their selector value.
 ## const_fold - Constant folding {#const_fold}
 
 
-Pass which performs constant folding. Every op with only literal operands is replaced by a equivalent literal. Runs DCE after constant folding.
+Pass which performs constant folding. Every op with only literal operands is
+replaced by a equivalent literal. Runs DCE after constant folding.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/constant_folding_pass.h)
@@ -289,7 +332,9 @@ Pass which performs constant folding. Every op with only literal operands is rep
 ## cse - Common subexpression elimination {#cse}
 
 
-Pass which performs common subexpression elimination. Equivalent ops with the same operands are commoned. The pass can find arbitrarily large common expressions.
+Pass which performs common subexpression elimination. Equivalent ops with the
+same operands are commoned. The pass can find arbitrarily large common
+expressions.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/cse_pass.h)
@@ -302,13 +347,16 @@ Pass which performs common subexpression elimination. Equivalent ops with the sa
 ## dataflow - Dataflow Optimization {#dataflow}
 
 
-An optimization which uses a lattice-based dataflow analysis to find equivalent nodes in the graph and replace them with a simpler form. The analysis traces through tuples, arrays, and select operations. Optimizations which can be performed by this pass:
+An optimization which uses a lattice-based dataflow analysis to find
+equivalent nodes in the graph and replace them with a simpler form. The
+analysis traces through tuples, arrays, and select operations. Optimizations
+which can be performed by this pass:
 
-    tuple_index(tuple(x, y), index=1)  =>  y
+   tuple_index(tuple(x, y), index=1)  =>  y
 
-    select(selector, {z, z})  =>  z
+   select(selector, {z, z})  =>  z
 
-    array_index(array_update(A, x, index={42}), index={42})  =>  x
+   array_index(array_update(A, x, index={42}), index={42})  =>  x
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/dataflow_simplification_pass.h)
@@ -321,7 +369,9 @@ An optimization which uses a lattice-based dataflow analysis to find equivalent 
 ## dce - Dead Code Elimination {#dce}
 
 
-class DeadCodeEliminationPass iterates up from a functions result nodes and marks all visited node. After that, all unvisited nodes are considered dead.
+class DeadCodeEliminationPass iterates up from a functions result
+nodes and marks all visited node. After that, all unvisited nodes
+are considered dead.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/dce_pass.h)
@@ -334,7 +384,8 @@ class DeadCodeEliminationPass iterates up from a functions result nodes and mark
 ## dfe - Dead Function Elimination {#dfe}
 
 
-This pass removes unreachable procs/blocks/functions from the package. The pass requires `top` be set in order remove any constructs.
+This pass removes unreachable procs/blocks/functions from the package. The
+pass requires `top` be set in order remove any constructs.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/dfe_pass.h)
@@ -525,7 +576,9 @@ Fully inline all functions in a single step.
 ## ident_remove - Identity Removal {#ident_remove}
 
 
-class IdentityRemovalPass eliminates all identity() expressions by forward substituting it's parameters to the uses of the identity's def.
+class IdentityRemovalPass eliminates all identity() expressions
+by forward substituting it's parameters to the uses of the
+identity's def.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/identity_removal_pass.h)
@@ -540,9 +593,10 @@ class IdentityRemovalPass eliminates all identity() expressions by forward subst
 
 Inlines a package toward the `top` function/proc.
 
- If `full` then all functions are inlined into the `top`.
+If `full` then all functions are inlined into the `top`.
 
- If `leaf` then only leaf functions are inlined into their caller. This allows other passes to optimize on smaller graphs.
+If `leaf` then only leaf functions are inlined into their caller. This allows
+other passes to optimize on smaller graphs.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/inlining_pass.h)
@@ -555,7 +609,11 @@ Inlines a package toward the `top` function/proc.
 ## label-recovery - LabelRecovery {#label-recovery}
 
 
-At the end of the pass pipeline (when inlining and optimizations have been performed) attempts to recover original names for coverpoints and assertions to whatever degree possible so they're more human-readable -- we mangle them for inlining to ensure they're unique, but often those names are way overqualified.
+At the end of the pass pipeline (when inlining and optimizations have been
+performed) attempts to recover original names for coverpoints and assertions
+to whatever degree possible so they're more human-readable -- we mangle them
+for inlining to ensure they're unique, but often those names are way
+overqualified.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/label_recovery_pass.h)
@@ -570,9 +628,10 @@ At the end of the pass pipeline (when inlining and optimizations have been perfo
 
 Inlines a package toward the `top` function/proc.
 
- If `full` then all functions are inlined into the `top`.
+If `full` then all functions are inlined into the `top`.
 
- If `leaf` then only leaf functions are inlined into their caller. This allows other passes to optimize on smaller graphs.
+If `leaf` then only leaf functions are inlined into their caller. This allows
+other passes to optimize on smaller graphs.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/inlining_pass.h)
@@ -596,7 +655,8 @@ Inlines a package toward the `top` function/proc.
 ## lut_conversion - LUT Conversion {#lut_conversion}
 
 
-Pass which opportunistically converts nodes to lookup tables (selects) where we can prove it's beneficial.
+Pass which opportunistically converts nodes to lookup tables (selects) where
+we can prove it's beneficial.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/lut_conversion_pass.h)
@@ -609,7 +669,8 @@ Pass which opportunistically converts nodes to lookup tables (selects) where we 
 ## map_inlining - Inline map operations {#map_inlining}
 
 
-A pass to convert map nodes to in-line Invoke nodes. We don't directly lower maps to Verilog.
+A pass to convert map nodes to in-line Invoke nodes. We don't directly lower
+maps to Verilog.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/map_inlining_pass.h)
@@ -622,7 +683,8 @@ A pass to convert map nodes to in-line Invoke nodes. We don't directly lower map
 ## narrow - Narrowing {#narrow}
 
 
-A pass which reduces the width of operations eliminating redundant or unused bits.
+A pass which reduces the width of operations eliminating redundant or unused
+bits.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/narrowing_pass.h)
@@ -635,7 +697,8 @@ A pass which reduces the width of operations eliminating redundant or unused bit
 ## narrow(Context) - Narrowing {#narrowContext}
 
 
-A pass which reduces the width of operations eliminating redundant or unused bits.
+A pass which reduces the width of operations eliminating redundant or unused
+bits.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/narrowing_pass.h)
@@ -648,7 +711,8 @@ A pass which reduces the width of operations eliminating redundant or unused bit
 ## narrow(OptionalContext) - Narrowing {#narrowOptionalContext}
 
 
-A pass which reduces the width of operations eliminating redundant or unused bits.
+A pass which reduces the width of operations eliminating redundant or unused
+bits.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/narrowing_pass.h)
@@ -661,7 +725,8 @@ A pass which reduces the width of operations eliminating redundant or unused bit
 ## narrow(Range) - Narrowing {#narrowRange}
 
 
-A pass which reduces the width of operations eliminating redundant or unused bits.
+A pass which reduces the width of operations eliminating redundant or unused
+bits.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/narrowing_pass.h)
@@ -674,7 +739,8 @@ A pass which reduces the width of operations eliminating redundant or unused bit
 ## narrow(Ternary) - Narrowing {#narrowTernary}
 
 
-A pass which reduces the width of operations eliminating redundant or unused bits.
+A pass which reduces the width of operations eliminating redundant or unused
+bits.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/narrowing_pass.h)
@@ -689,9 +755,18 @@ A pass which reduces the width of operations eliminating redundant or unused bit
 
 Pass which tries to optimize `next_value` nodes.
 
- Optimizations include: - removing literal predicates on `next_value` nodes (removing the   `next_value` node if dead), - splitting `next_value` nodes with `select`-based values (if small), - splitting `next_value` nodes with `priority_sel`-based values, and - splitting `next_value` nodes with `one_hot_sel`-based values (where safe). - Identifies `state-element`s which are non-synth and performing an identity   update operation and removes the read of the synth version in this case.   (This allows for later cond-spec passes to predicate the read.)
+Optimizations include:
+- removing literal predicates on `next_value` nodes (removing the
+  `next_value` node if dead),
+- splitting `next_value` nodes with `select`-based values (if small),
+- splitting `next_value` nodes with `priority_sel`-based values, and
+- splitting `next_value` nodes with `one_hot_sel`-based values (where safe).
+- Identifies `state-element`s which are non-synth and performing an identity
+  update operation and removes the read of the synth version in this case.
+  (This allows for later cond-spec passes to predicate the read.)
 
- For best results, first modernizes old-style values on `next (...)` lines, converting them to `next_value` nodes.
+For best results, first modernizes old-style values on `next (...)` lines,
+converting them to `next_value` nodes.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/next_value_optimization_pass.h)
@@ -704,7 +779,12 @@ Pass which tries to optimize `next_value` nodes.
 ## non_synth_separation - Non-Synthesizable Separation {#non_synth_separation}
 
 
-Separates out non-synthesizable nodes like assert/cover/trace from the main function into a cloned function. Every function effectively has two versions, one with synthesizable nodes and one without. The synthesizable version invokes the non-synthesizable version of its function. This ensures that non-synthesizable uses of values do not affect the optimization of the synthesizable parts of the function.
+Separates out non-synthesizable nodes like assert/cover/trace from the main
+function into a cloned function. Every function effectively has two versions,
+one with synthesizable nodes and one without. The synthesizable version
+invokes the non-synthesizable version of its function. This ensures that
+non-synthesizable uses of values do not affect the optimization of the
+synthesizable parts of the function.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/non_synth_separation_pass.h)
@@ -902,7 +982,11 @@ Passes performed before each inlining.
 ## proc_state_array_flat - Proc State Array Flattening {#proc_state_array_flat}
 
 
-Pass which flattens array elements of the proc state into their constituent elements. Tuples are flattened in a different pass. Flattening improves optimizability because each state element can be considered and transformed in isolation. Flattening also gives the scheduler more flexibility; without flattening, each element in the aggregate must have the same lifetime.
+Pass which flattens array elements of the proc state into their constituent
+elements. Tuples are flattened in a different pass. Flattening improves
+optimizability because each state element can be considered and transformed
+in isolation. Flattening also gives the scheduler more flexibility; without
+flattening, each element in the aggregate must have the same lifetime.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/proc_state_array_flattening_pass.h)
@@ -915,7 +999,10 @@ Pass which flattens array elements of the proc state into their constituent elem
 ## proc_state_bits_shatter - Proc State Bits Shattering {#proc_state_bits_shatter}
 
 
-Pass which transforms Bits-type elements of the proc state into tuples of components. Only flattens where it can show that doing so will enable dynamic state feedback opportunities later (assuming it's followed by a ProcStateTupleFlatteningPass).
+Pass which transforms Bits-type elements of the proc state into tuples of
+components. Only flattens where it can show that doing so will enable dynamic
+state feedback opportunities later (assuming it's followed by a
+ProcStateTupleFlatteningPass).
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/proc_state_bits_shattering_pass.h)
@@ -928,7 +1015,9 @@ Pass which transforms Bits-type elements of the proc state into tuples of compon
 ## proc_state_narrow - Proc State Narrowing {#proc_state_narrow}
 
 
-Pass which tries to minimize the size and total number of elements of the proc state.  The optimizations include removal of dead state elements and zero-width elements.
+Pass which tries to minimize the size and total number of elements of the
+proc state.  The optimizations include removal of dead state elements and
+zero-width elements.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/proc_state_narrowing_pass.h)
@@ -941,7 +1030,9 @@ Pass which tries to minimize the size and total number of elements of the proc s
 ## proc_state_opt - Proc State Optimization {#proc_state_opt}
 
 
-Pass which tries to minimize the size and total number of elements of the proc state.  The optimizations include removal of dead state elements and zero-width elements.
+Pass which tries to minimize the size and total number of elements of the
+proc state.  The optimizations include removal of dead state elements and
+zero-width elements.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/proc_state_optimization_pass.h)
@@ -954,9 +1045,13 @@ Pass which tries to minimize the size and total number of elements of the proc s
 ## proc_state_provenance_narrow - Proc State Provenance Narrowing {#proc_state_provenance_narrow}
 
 
-Pass which tries to minimize the size and total number of elements of the proc state. This pass works by examining the provenance of the bits making up the next value to determine which (if any) bits are never actually modified.
+Pass which tries to minimize the size and total number of elements of the
+proc state. This pass works by examining the provenance of the bits making up
+the next value to determine which (if any) bits are never actually modified.
 
- NB This is a separate pass from ProcStateNarrowing for simplicity of implementation. That pass mostly assumes we'll have a range-analysis which this does not need.
+NB This is a separate pass from ProcStateNarrowing for simplicity of
+implementation. That pass mostly assumes we'll have a range-analysis which
+this does not need.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/proc_state_provenance_narrowing_pass.h)
@@ -969,7 +1064,12 @@ Pass which tries to minimize the size and total number of elements of the proc s
 ## proc_state_tuple_flat - Proc State Tuple Flattening {#proc_state_tuple_flat}
 
 
-Pass which flattens tuple elements of the proc state into their constituent components. Array elements are flattened in a different pass. Flattening improves optimizability because each state element can be considered and transformed in isolation. Flattening also gives the scheduler more flexibility; without flattening, each element in the aggregate must have the same lifetime.
+Pass which flattens tuple elements of the proc state into their constituent
+components. Array elements are flattened in a different pass. Flattening
+improves optimizability because each state element can be considered and
+transformed in isolation. Flattening also gives the scheduler more
+flexibility; without flattening, each element in the aggregate must have the
+same lifetime.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/proc_state_tuple_flattening_pass.h)
@@ -982,7 +1082,8 @@ Pass which flattens tuple elements of the proc state into their constituent comp
 ## ram_rewrite - RAM Rewrite {#ram_rewrite}
 
 
-Pass that rewrites RAMs of one type to a new type. Generally this will be some kind of lowering from more abstract to concrete RAMs.
+Pass that rewrites RAMs of one type to a new type. Generally this will be
+some kind of lowering from more abstract to concrete RAMs.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/ram_rewrite_pass.h)
@@ -995,7 +1096,9 @@ Pass that rewrites RAMs of one type to a new type. Generally this will be some k
 ## reassociation - Reassociation {#reassociation}
 
 
-Reassociates associative operations to reduce delay by transforming chains of operations to a balanced tree of operations, and gathering together constants in the expression for folding.
+Reassociates associative operations to reduce delay by transforming chains of
+operations to a balanced tree of operations, and gathering together constants
+in the expression for folding.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/reassociation_pass.h)
@@ -1008,7 +1111,9 @@ Reassociates associative operations to reduce delay by transforming chains of op
 ## recv_default - Receive default value simplification {#recv_default}
 
 
-Optimization which removes useless selects between the data value of a conditional or non-blocking receive and the default value of the receive (all zeros).
+Optimization which removes useless selects between the data value of a
+conditional or non-blocking receive and the default value of the receive (all
+zeros).
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/receive_default_value_simplification_pass.h)
@@ -1065,7 +1170,11 @@ Min opt level: 1
 ## select_lifting - Select Lifting {#select_lifting}
 
 
-Pass which replace the pattern   v = sel (c, array[i], array[j], ...) where all cases of the select reference the same array, to the code   z = sel (c, i, j, ...)   v = array[z]
+Pass which replace the pattern
+  v = sel (c, array[i], array[j], ...)
+where all cases of the select reference the same array, to the code
+  z = sel (c, i, j, ...)
+  v = array[z]
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/select_lifting_pass.h)
@@ -1089,7 +1198,9 @@ Pass which replace the pattern   v = sel (c, array[i], array[j], ...) where all 
 ## select_range_simp - Select Range Simplification {#select_range_simp}
 
 
-Pass which simplifies selects and one-hot-selects. Example optimizations include removing dead arms and eliminating selects with constant selectors. Uses range analysis to determine possible values.
+Pass which simplifies selects and one-hot-selects. Example optimizations
+include removing dead arms and eliminating selects with constant selectors.
+Uses range analysis to determine possible values.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/select_simplification_pass.h)
@@ -1102,7 +1213,9 @@ Pass which simplifies selects and one-hot-selects. Example optimizations include
 ## select_simp - Select Simplification {#select_simp}
 
 
-Pass which simplifies selects and one-hot-selects. Example optimizations include removing dead arms and eliminating selects with constant selectors. Uses ternary analysis to determine possible values.
+Pass which simplifies selects and one-hot-selects. Example optimizations
+include removing dead arms and eliminating selects with constant selectors.
+Uses ternary analysis to determine possible values.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/select_simplification_pass.h)
@@ -1306,7 +1419,10 @@ Run to a fixedpoint.
 ## sparsify_select - Sparsify Select {#sparsify_select}
 
 
-The SparsifySelectPass is a type of range analysis-informed dead code elimination that removes cases from selects when range analysis proves that they can never occur. It does this by splitting a select into many selects, each of which covers a single interval from the selector interval set.
+The SparsifySelectPass is a type of range analysis-informed dead code
+elimination that removes cases from selects when range analysis proves that
+they can never occur. It does this by splitting a select into many selects,
+each of which covers a single interval from the selector interval set.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/sparsify_select_pass.h)
@@ -1319,7 +1435,8 @@ The SparsifySelectPass is a type of range analysis-informed dead code eliminatio
 ## strength_red - Strength Reduction {#strength_red}
 
 
-Replaces operations with equivalent cheaper operations. For example, multiply by a power-of-two constant may be replaced with a shift left.
+Replaces operations with equivalent cheaper operations. For example, multiply
+by a power-of-two constant may be replaced with a shift left.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/strength_reduction_pass.h)
@@ -1332,9 +1449,19 @@ Replaces operations with equivalent cheaper operations. For example, multiply by
 ## table_switch - Table switch conversion {#table_switch}
 
 
-TableSwitchPass converts chains of Select nodes into ArrayIndex ops. These chains have the form: sel.(N)(eq.X, literal.A, literal.B) sel.(N+1)(eq.Y, sel.(N), literal.C) sel.(N+2)(eq.Z, sel.(N+1), literal.D) And so on. In these chains, eq.X, eq.Y, and eq.Z must all be comparisons of the same value against different literals.
+TableSwitchPass converts chains of Select nodes into ArrayIndex ops.
+These chains have the form:
+sel.(N)(eq.X, literal.A, literal.B)
+sel.(N+1)(eq.Y, sel.(N), literal.C)
+sel.(N+2)(eq.Z, sel.(N+1), literal.D)
+And so on. In these chains, eq.X, eq.Y, and eq.Z must all be comparisons of
+the same value against different literals.
 
- Current limitations:  - Either the start or end index in the chain must be 0.  - The increment between indices must be positive or negative 1.  - There can be no "gaps" between indices.  - The Select ops have to be binary (i.e., selecting between only two cases).
+Current limitations:
+ - Either the start or end index in the chain must be 0.
+ - The increment between indices must be positive or negative 1.
+ - There can be no "gaps" between indices.
+ - The Select ops have to be binary (i.e., selecting between only two cases).
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/table_switch_pass.h)
@@ -1347,7 +1474,10 @@ TableSwitchPass converts chains of Select nodes into ArrayIndex ops. These chain
 ## token_dependency - Convert data dependencies between effectful operations into token dependencies {#token_dependency}
 
 
-Pass which turns data dependencies between certain effectful operations into token dependencies. In particular, transitive data dependencies between receives and other effectful ops are turned into token dependencies whenever no such token dependency already exists.
+Pass which turns data dependencies between certain effectful operations into
+token dependencies. In particular, transitive data dependencies between
+receives and other effectful ops are turned into token dependencies whenever
+no such token dependency already exists.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/token_dependency_pass.h)
@@ -1360,7 +1490,10 @@ Pass which turns data dependencies between certain effectful operations into tok
 ## token_simp - Simplify token networks {#token_simp}
 
 
-Pass that simplifies token networks. For example, if an AfterAll node has operands where one operand is an ancestor of another in the token graph, then the ancestor can be omitted. Similarly, duplicate operands can be removed and AfterAlls with one operand can be replaced with their operand.
+Pass that simplifies token networks. For example, if an AfterAll node has
+operands where one operand is an ancestor of another in the token graph, then
+the ancestor can be omitted. Similarly, duplicate operands can be removed
+and AfterAlls with one operand can be replaced with their operand.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/token_simplification_pass.h)
@@ -1373,7 +1506,8 @@ Pass that simplifies token networks. For example, if an AfterAll node has operan
 ## useless_assert_remove - Remove useless (always true) asserts {#useless_assert_remove}
 
 
-Pass which removes asserts that have a literal 1 as the condition, meaning they are never triggered. Rewires tokens to ensure nothing breaks.
+Pass which removes asserts that have a literal 1 as the condition, meaning
+they are never triggered. Rewires tokens to ensure nothing breaks.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/useless_assert_removal_pass.h)
@@ -1386,7 +1520,9 @@ Pass which removes asserts that have a literal 1 as the condition, meaning they 
 ## useless_io_remove - Remove useless send/receive {#useless_io_remove}
 
 
-Pass which removes sends/receives that have literal false as their condition. Also removes the condition from sends/receives that have literal true as their condition.
+Pass which removes sends/receives that have literal false as their condition.
+Also removes the condition from sends/receives that have literal true as
+their condition.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/useless_io_removal_pass.h)

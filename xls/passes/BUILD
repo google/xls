@@ -2292,7 +2292,6 @@ xls_pass(
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:channel",
-        "//xls/ir:node_util",
         "//xls/ir:op",
         "//xls/ir:value_utils",
         "@com_google_absl//absl/container:flat_hash_map",
