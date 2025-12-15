@@ -144,8 +144,9 @@ absl::Status OptimizeIrForTop(Package* package, const OptOptions& options,
     }
     pipeline = std::move(res);
   } else {
-    pipeline = CreateOptimizationPassPipeline(options.debug_optimizations,
-                                              chosen_registry);
+    XLS_ASSIGN_OR_RETURN(
+        pipeline, TryCreateOptimizationPassPipeline(options.debug_optimizations,
+                                                    chosen_registry));
   }
 
   OptimizationPassOptions pass_options;
