@@ -351,9 +351,8 @@ class Unifier {
                          UnifyTypeAnnotations(element_type_annotations, span));
     XLS_ASSIGN_OR_RETURN(
         Number * size_expr,
-        MakeTypeCheckedNumber(
-            module_, table_, annotations[0]->span(), unified_dim->size,
-            CreateU32Annotation(module_, annotations[0]->span())));
+        MakeTypeCheckedNumber(module_, table_, span, unified_dim->size,
+                              CreateU32Annotation(module_, span)));
     return module_.Make<ArrayTypeAnnotation>(
         span, const_cast<TypeAnnotation*>(unified_element_type), size_expr);
   }
