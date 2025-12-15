@@ -143,7 +143,8 @@ std::string Function::DumpIrWithAnnotations(
 
 absl::StatusOr<Function*> Function::Clone(
     std::string_view new_name, Package* target_package,
-    const absl::flat_hash_map<const Function*, Function*>& call_remapping)
+    const absl::flat_hash_map<const Function*, Function*>& call_remapping,
+    std::optional<absl::flat_hash_map<Node*, Node*>*> original_node_to_clone)
     const {
   absl::flat_hash_map<Node*, Node*> original_to_clone;
   if (target_package == nullptr) {
@@ -226,6 +227,17 @@ absl::StatusOr<Function*> Function::Clone(
   }
   XLS_RETURN_IF_ERROR(
       cloned_function->set_return_value(original_to_clone.at(return_value())));
+
+  // Return the original-to-clone mapping if requested.
+  if (original_node_to_clone.has_value()) {
+    absl::flat_hash_map<Node*, Node*>* original_node_to_clone_ptr =
+        *original_node_to_clone;
+    XLS_RET_CHECK(original_node_to_clone_ptr != nullptr);
+    for (auto& [original_node, cloned_node] : original_to_clone) {
+      (*original_node_to_clone_ptr)[original_node] = cloned_node;
+    }
+  }
+
   return cloned_function;
 }
 
