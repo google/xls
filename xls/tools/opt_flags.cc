@@ -224,12 +224,12 @@ absl::StatusOr<bool> SetOptionsFromFlags(OptFlagsProto& proto) {
     if (protobin_path.has_value()) {
       any_flags_set |= true;
       XLS_RETURN_IF_ERROR(
-          ParseProtobinFile(*protobin_path, proto.mutable_pipeline()));
+          ParseProtobinFile(*protobin_path, proto.mutable_custom_registry()));
     }
     if (textproto_path.has_value()) {
       any_flags_set |= true;
       XLS_RETURN_IF_ERROR(
-          ParseTextProtoFile(*textproto_path, proto.mutable_pipeline()));
+          ParseTextProtoFile(*textproto_path, proto.mutable_custom_registry()));
     }
   }
   POPULATE_OPTIONAL_FLAG(passes_bisect_limit)
