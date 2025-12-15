@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <functional>
 #include <iterator>
+#include <list>
 #include <memory>
 #include <optional>
 #include <ostream>
@@ -30,6 +31,7 @@
 #include "absl/container/btree_set.h"
 #include "absl/container/fixed_array.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -51,9 +53,89 @@
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
-#include "xls/ir/topo_sort.h"
 
 namespace xls {
+namespace {
+
+// Splits a scheduled FunctionBase into sections of staged and unstaged nodes in
+// topological order, to prepare for conversion to text. There is a section
+// reserved in the output for each stage and the stageless nodes preceding it,
+// with an additional unstaged section at the end. Some of the reserved unstaged
+// sections may be empty after it runs.
+class StageSectioner : public DfsVisitorWithDefault {
+ public:
+  StageSectioner(const FunctionBase* fb)
+      : fb_(fb), sections_(fb->stages().size() * 2 + 1) {}
+
+  absl::Status Run() {
+    // Capture stages and their deps.
+    for (int i = 0; i < fb_->stages().size(); i++) {
+      const Stage& stage = fb_->stages()[i];
+      current_stage_ = i;
+
+      // Push active inputs valid to the beginning of the stage.
+      if (stage.active_inputs_valid() != nullptr) {
+        XLS_RETURN_IF_ERROR(stage.active_inputs_valid()->Accept(this));
+      }
+
+      for (Node* node : stage) {
+        if (node != stage.outputs_valid() &&
+            node != stage.active_inputs_valid()) {
+          XLS_RETURN_IF_ERROR(node->Accept(this));
+        }
+      }
+
+      // These 2 deps are in the "signature" of the stage and not included in
+      // stage node iteration.
+      if (stage.inputs_valid() != nullptr) {
+        XLS_RETURN_IF_ERROR(stage.inputs_valid()->Accept(this));
+      }
+      if (stage.outputs_ready() != nullptr) {
+        XLS_RETURN_IF_ERROR(stage.outputs_ready()->Accept(this));
+      }
+
+      // Push the stage ret value to the end of the stage.
+      if (stage.outputs_valid() != nullptr) {
+        XLS_RETURN_IF_ERROR(stage.outputs_valid()->Accept(this));
+      }
+    }
+
+    // Capture stageless nodes that are not needed by any stage.
+    current_stage_ = -1;
+    for (Node* node : fb_->nodes()) {
+      if (!fb_->IsStaged(node) && !handled_.contains(node)) {
+        XLS_RETURN_IF_ERROR(node->Accept(this));
+      }
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status DefaultHandler(Node* node) {
+    if (!fb_->IsStaged(node)) {
+      if (handled_.insert(node).second) {
+        sections_[current_stage_ == -1 ? sections_.size() - 1
+                                       : current_stage_ * 2]
+            .push_back(node);
+      }
+    } else {
+      XLS_ASSIGN_OR_RETURN(int stage, fb_->GetStageIndex(node));
+      if (stage == current_stage_ && handled_.insert(node).second) {
+        sections_[current_stage_ * 2 + 1].push_back(node);
+      }
+    }
+    return absl::OkStatus();
+  }
+
+  const std::vector<std::list<Node*>>& sections() const { return sections_; }
+
+ private:
+  const FunctionBase* fb_;
+  std::vector<std::list<Node*>> sections_;
+  int64_t current_stage_;
+  absl::flat_hash_set<Node*> handled_;
+};
+
+}  // namespace
 
 bool Stage::AddNode(Node* node) {
   switch (node->op()) {
@@ -166,69 +248,42 @@ void FunctionBase::TakeOwnershipOfNode(std::unique_ptr<Node>&& node) {
 std::string FunctionBase::DumpScheduledFunctionBaseNodes() const {
   CHECK(IsScheduled());
   std::string res;
-  std::vector<std::pair<int64_t, Node*>> stageless_nodes;
-  absl::FixedArray<std::vector<Node*>> staged_nodes(stages_.size());
-  int64_t preceding_stage_idx = -1;
-  for (Node* node : TopoSort(const_cast<FunctionBase*>(this))) {
-    bool in_stage = false;
-    for (int64_t stage_idx = 0; stage_idx < stages_.size(); ++stage_idx) {
-      if (stages_[stage_idx].contains(node)) {
-        in_stage = true;
-        preceding_stage_idx = std::max(preceding_stage_idx, stage_idx);
-        staged_nodes[stage_idx].push_back(node);
-        break;
-      }
-    }
-    for (int64_t stage_idx = 0; stage_idx < stages_.size(); ++stage_idx) {
-      if (stages_[stage_idx].DependsOn(node)) {
-        preceding_stage_idx = std::min(preceding_stage_idx, stage_idx - 1);
-      }
-    }
-    if (!in_stage) {
-      stageless_nodes.push_back({preceding_stage_idx, node});
-    }
-  }
-
-  std::stable_sort(
-      stageless_nodes.begin(), stageless_nodes.end(),
-      [](const std::pair<int64_t, Node*>& a,
-         const std::pair<int64_t, Node*>& b) { return a.first < b.first; });
-
-  auto stageless_it = stageless_nodes.begin();
-  for (int64_t stage_idx = 0; stage_idx < stages_.size(); ++stage_idx) {
-    for (; stageless_it != stageless_nodes.end() &&
-           stageless_it->first < stage_idx;
-         stageless_it++) {
-      absl::StrAppend(&res, "  ", stageless_it->second->ToString(), "\n");
+  StageSectioner sectioner(this);
+  CHECK(sectioner.Run().ok());
+  for (const std::list<Node*>& section : sectioner.sections()) {
+    if (section.empty()) {
+      continue;
     }
 
-    const Stage& stage = stages_[stage_idx];
-    if (stage.IsControlled()) {
-      absl::StrAppendFormat(&res, "  controlled_stage(%s, %s) {\n",
-                            stage.inputs_valid()->GetName(),
-                            stage.outputs_ready()->GetName());
-    } else {
-      absl::StrAppendFormat(&res, "  stage {\n");
-    }
-    Node* ret = nullptr;
-    for (Node* node : staged_nodes[stage_idx]) {
-      if (node == stage.outputs_valid()) {
-        // Push the ret to the end.
-        ret = node;
-        continue;
+    Node* first = *section.begin();
+    if (IsStaged(first)) {
+      const Stage& stage = stages()[*GetStageIndex(first)];
+      if (stage.IsControlled()) {
+        absl::StrAppendFormat(&res, "  controlled_stage(%s, %s) {\n",
+                              stage.inputs_valid()->GetName(),
+                              stage.outputs_ready()->GetName());
+      } else {
+        absl::StrAppendFormat(&res, "  stage {\n");
       }
-      absl::StrAppend(
-          &res, "    ", (node == stage.outputs_valid() ? "ret " : ""),
-          (node == stage.active_inputs_valid() ? "active_inputs_valid " : ""),
-          node->ToString(), "\n");
+
+      for (Node* node : section) {
+        std::string prefix;
+        if (node == stage.outputs_valid()) {
+          prefix = "ret ";
+        } else if (node == stage.active_inputs_valid()) {
+          prefix = "active_inputs_valid ";
+        }
+        absl::StrAppend(&res, "    ", prefix, node->ToString(), "\n");
+      }
+
+      absl::StrAppend(&res, "  }\n");
+      continue;
     }
-    if (ret != nullptr) {
-      absl::StrAppend(&res, "    ret ", ret->ToString(), "\n");
+
+    // It's one of the stageless sections.
+    for (Node* node : section) {
+      absl::StrAppend(&res, "  ", node->ToString(), "\n");
     }
-    absl::StrAppend(&res, "  }\n");
-  }
-  for (; stageless_it != stageless_nodes.end(); stageless_it++) {
-    absl::StrAppend(&res, "  ", stageless_it->second->ToString(), "\n");
   }
   return res;
 }

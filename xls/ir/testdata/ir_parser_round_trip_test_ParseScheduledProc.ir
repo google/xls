@@ -2,8 +2,8 @@ package my_package
 
 scheduled_proc my_proc(st: bits[32], init={42}) {
   stage {
-    literal.2: bits[32] = literal(value=1, id=2)
     st: bits[32] = state_read(state_element=st, id=1)
+    literal.2: bits[32] = literal(value=1, id=2)
     add.3: bits[32] = add(literal.2, st, id=3)
     next_value.4: () = next_value(param=st, value=add.3, id=4)
   }

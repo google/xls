@@ -133,9 +133,9 @@ top scheduled_proc __test__P_0_next<a: bits[32] in, b: bits[32] in, result: bits
     tok: token = tuple_index(receive.6, index=0, id=8)
     receive.10: (token, bits[32]) = receive(tok, predicate=literal.3, channel=b, id=10)
     a_value: bits[32] = tuple_index(receive.6, index=1, id=9)
+    tok__1: token = tuple_index(receive.10, index=0, id=12)
     b_value: bits[32] = tuple_index(receive.10, index=1, id=13)
     umul.14: bits[32] = umul(a_value, b_value, id=14)
-    tok__1: token = tuple_index(receive.10, index=0, id=12)
   }
   stage {
     __state: bits[32] = state_read(state_element=__state, id=2)
@@ -190,9 +190,9 @@ top scheduled_proc __test__P_0_next(__state: bits[32], init={0}) {
     tok: token = tuple_index(receive.5, index=0, id=7)
     receive.9: (token, bits[32]) = receive(tok, predicate=literal.3, channel=test__b, id=9)
     a_value: bits[32] = tuple_index(receive.5, index=1, id=8)
+    tok__1: token = tuple_index(receive.9, index=0, id=11)
     b_value: bits[32] = tuple_index(receive.9, index=1, id=12)
     umul.13: bits[32] = umul(a_value, b_value, id=13)
-    tok__1: token = tuple_index(receive.9, index=0, id=11)
   }
   stage {
     __state: bits[32] = state_read(state_element=__state, id=2)
