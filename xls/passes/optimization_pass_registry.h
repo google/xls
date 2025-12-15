@@ -42,6 +42,11 @@ inline constexpr std::string_view kDefaultPassPipelineName = "default_pipeline";
 class OptimizationPassRegistry : public OptimizationPassRegistryBase {
  public:
   using OptimizationPassRegistryBase::OptimizationPassRegistryBase;
+  OptimizationPassRegistry(OptimizationPassRegistry&&) = default;
+  OptimizationPassRegistry& operator=(OptimizationPassRegistry&&) = default;
+  OptimizationPassRegistry(const OptimizationPassRegistry&) = default;
+  OptimizationPassRegistry& operator=(const OptimizationPassRegistry&) =
+      default;
   // Register the compound passes described in the pipeline.
   absl::Status RegisterPipelineProto(const OptimizationPipelineProto& pipeline,
                                      std::string_view file);
@@ -77,7 +82,11 @@ namespace optimization_registry::internal {
 template <typename PassClass, typename... Args>
 class Adder final : public OptimizationPassGenerator {
  public:
-  explicit Adder(Args... args) : args_(std::forward_as_tuple(args...)) {}
+  explicit Adder(const OptimizationPassRegistryBase& registry,
+                 std::tuple<Args...> args)
+      : OptimizationPassGenerator(registry), args_(std::move(args)) {}
+  explicit Adder(const OptimizationPassRegistryBase& registry, Args... args)
+      : Adder(registry, std::forward_as_tuple(args...)) {}
   absl::StatusOr<std::unique_ptr<OptimizationPass>> Generate() const final {
     // Actually construct and insert the PassClass instance
     auto function = [&](auto... args) {
@@ -89,14 +98,20 @@ class Adder final : public OptimizationPassGenerator {
     return std::apply(function, args_);
   }
 
+  std::unique_ptr<OptimizationPassGenerator> Clone(
+      const OptimizationPassRegistryBase& registry) const final {
+    return std::make_unique<Adder<PassClass, Args...>>(registry, args_);
+  }
+
  private:
   // All the arguments needed to construct a PassClass instance
   std::tuple<Args...> args_;
 };
 template <typename PassType, typename... Args>
-std::unique_ptr<OptimizationPassGenerator> Pass(Args... args) {
+std::unique_ptr<OptimizationPassGenerator> Pass(
+    const OptimizationPassRegistryBase& registry, Args... args) {
   return std::make_unique<Adder<PassType, Args...>>(
-      std::forward<Args>(args)...);
+      registry, std::forward<Args>(args)...);
 }
 
 inline std::string ToHeader(std::string_view file_name) {
@@ -112,7 +127,8 @@ template <typename PassT, typename... Args>
 absl::Status RegisterOptimizationPass(std::string_view name, Args... args) {
   using optimization_registry::internal::Pass;
   return GetOptimizationRegistry().Register(
-      name, Pass<PassT>(std::forward<Args>(args)...));
+      name,
+      Pass<PassT>(GetOptimizationRegistry(), std::forward<Args>(args)...));
 }
 
 inline void RegisterOptimizationPassInfo(std::string_view name,

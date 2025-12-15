@@ -61,8 +61,13 @@ absl::StatusOr<std::unique_ptr<OptimizationPass>> WrapPassWithOptions(
 namespace {
 class CompoundPassAdder final : public OptimizationPassGenerator {
  public:
-  explicit CompoundPassAdder(OptimizationPipelineProto::CompoundPass compound)
-      : compound_(std::move(compound)) {}
+  explicit CompoundPassAdder(const OptimizationPassRegistryBase& registry,
+                             OptimizationPipelineProto::CompoundPass compound)
+      : OptimizationPassGenerator(registry), compound_(std::move(compound)) {}
+  std::unique_ptr<OptimizationPassGenerator> Clone(
+      const OptimizationPassRegistryBase& registry) const final {
+    return std::make_unique<CompoundPassAdder>(registry, compound_);
+  }
   absl::StatusOr<std::unique_ptr<OptimizationPass>> Generate() const final {
     // Actually construct and insert the PassClass instance
     std::unique_ptr<OptimizationCompoundPass> res;
@@ -74,8 +79,7 @@ class CompoundPassAdder final : public OptimizationPassGenerator {
                                                        compound_.long_name());
     }
     for (const auto& pass : compound_.passes()) {
-      XLS_ASSIGN_OR_RETURN(auto* generator,
-                           GetOptimizationRegistry().Generator(pass));
+      XLS_ASSIGN_OR_RETURN(auto* generator, registry().Generator(pass));
       XLS_ASSIGN_OR_RETURN(std::unique_ptr<OptimizationPass> pass_instance,
                            generator->Generate());
       XLS_ASSIGN_OR_RETURN(
@@ -117,11 +121,12 @@ OptimizationPassRegistry OptimizationPassRegistry::OverridableClone() const {
 absl::Status OptimizationPassRegistry::RegisterPipelineProto(
     const OptimizationPipelineProto& pipeline, std::string_view file) {
   for (const auto& compound : pipeline.compound_passes()) {
-    XLS_RETURN_IF_ERROR(Register(compound.short_name(),
-                                 std::make_unique<CompoundPassAdder>(compound)))
+    XLS_RETURN_IF_ERROR(
+        Register(compound.short_name(),
+                 std::make_unique<CompoundPassAdder>(*this, compound)))
         << "Failed to register compound pass " << compound.short_name();
-    GetOptimizationRegistry().AddRegistrationInfo(
-        compound.short_name(), "OptimizationPipelineProto.CompoundPass", file);
+    AddRegistrationInfo(compound.short_name(),
+                        "OptimizationPipelineProto.CompoundPass", file);
   }
   // Now add the default pipeline.
   OptimizationPipelineProto::CompoundPass compound;
@@ -131,8 +136,9 @@ absl::Status OptimizationPassRegistry::RegisterPipelineProto(
     compound.add_passes(pass);
   }
   AddRegistrationInfo(compound.short_name(), "OptimizationPipelineProto", file);
-  XLS_RETURN_IF_ERROR(GetOptimizationRegistry().Register(
-      compound.short_name(), std::make_unique<CompoundPassAdder>(compound)))
+  XLS_RETURN_IF_ERROR(
+      Register(compound.short_name(),
+               std::make_unique<CompoundPassAdder>(*this, compound)))
       << "Failed to register compound pass " << compound.short_name();
   return absl::OkStatus();
 }

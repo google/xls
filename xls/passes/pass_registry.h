@@ -35,14 +35,44 @@
 
 namespace xls {
 
+template <typename OptionsT, typename... ContextT>
+class PassRegistry;
 // Base class for a builder for generic passes.
 template <typename OptionsT, typename... ContextT>
 class PassGenerator {
  public:
+  PassGenerator(const PassRegistry<OptionsT, ContextT...>& registry)
+      : registry_(&registry) {}
+  PassGenerator(PassGenerator&&) = delete;
+  PassGenerator& operator=(PassGenerator&&) = delete;
+  PassGenerator(const PassGenerator&) = delete;
+  PassGenerator& operator=(const PassGenerator&) = delete;
+
   virtual ~PassGenerator() = default;
   // Create a new pass of the templated type
   virtual absl::StatusOr<std::unique_ptr<PassBase<OptionsT, ContextT...>>>
   Generate() const = 0;
+
+  virtual std::unique_ptr<PassGenerator<OptionsT, ContextT...>> Clone(
+      const PassRegistry<OptionsT, ContextT...>& registry) const = 0;
+
+ protected:
+  const PassRegistry<OptionsT, ContextT...>& registry() const {
+    return *registry_;
+  }
+  // Called if the pass-registry is moved with the new address.
+  virtual void RegistryChanged(
+      const PassRegistry<OptionsT, ContextT...>& registry) {
+    registry_ = &registry;
+  }
+
+ private:
+  // The registry which owns this generator. If this generator has to generate
+  // other passes it should use this registry to do so.
+  PassRegistry<OptionsT, ContextT...> const* registry_;
+
+  // For RegistryChanged.
+  friend class PassRegistry<OptionsT, ContextT...>;
 };
 
 // A registry for holding passes of a particular type. This allows one to
@@ -61,21 +91,40 @@ class PassRegistry {
   using GeneratorPtr = PassGenerator<OptionsT, ContextT...>*;
   constexpr PassRegistry() = default;
   constexpr ~PassRegistry() = default;
-  PassRegistry(PassRegistry&&) = default;
-  PassRegistry& operator=(PassRegistry&&) = default;
-  // Clone without copying the generators. This has a lifetime dependency on
-  // the original registry.
   PassRegistry& operator=(const PassRegistry& o ABSL_ATTRIBUTE_LIFETIME_BOUND) {
-    absl::MutexLock mu_this(&registry_lock_);
-    absl::MutexLock mu_o(&o.registry_lock_);
-    generators_ = o.generators_;
+    absl::MutexLock mu(registry_lock_);
+    absl::MutexLock mu2(o.registry_lock_);
+    allow_overwrite_ = o.allow_overwrite_;
     registration_info_ = o.registration_info_;
+    absl::flat_hash_map<GeneratorPtr, std::vector<std::string_view>> names;
+    for (const auto& [name, gen_ptr] : o.generators_) {
+      names[gen_ptr].push_back(name);
+    }
+    for (const GeneratorUniquePtr& gen : o.generators_owned_) {
+      generators_owned_.push_back(gen->Clone(*this));
+      for (std::string_view name : names[gen.get()]) {
+        generators_[name] = generators_owned_.back().get();
+      }
+    }
     return *this;
   }
   // NB can't use field constructors to maintain thread safety.
   PassRegistry(const PassRegistry& o ABSL_ATTRIBUTE_LIFETIME_BOUND) {
     *this = o;
   }
+  PassRegistry& operator=(PassRegistry&& o) {
+    absl::MutexLock mu(registry_lock_);
+    absl::MutexLock mu2(o.registry_lock_);
+    allow_overwrite_ = o.allow_overwrite_;
+    registration_info_ = std::move(o.registration_info_);
+    generators_ = std::move(o.generators_);
+    generators_owned_ = std::move(o.generators_owned_);
+    for (auto& gen : generators_owned_) {
+      gen->RegistryChanged(*this);
+    }
+    return *this;
+  }
+  PassRegistry(PassRegistry&& o) { *this = std::move(o); }
 
   // Register a generator with a given name.
   absl::Status Register(std::string_view name, GeneratorPtr gen) {

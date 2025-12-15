@@ -478,6 +478,7 @@ pytype_strict_contrib_test(
     shard_count = 3,
     deps = [
         "//xls/common:runfiles",
+        "//xls/passes:optimization_pass_pipeline_py_pb2",
         "//xls/passes:pass_pipeline_py_pb2",
         "@abseil-py//absl/testing:absltest",
         "@abseil-py//absl/testing:parameterized",

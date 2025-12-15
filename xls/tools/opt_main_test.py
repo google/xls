@@ -23,6 +23,7 @@ from typing import Optional
 from absl.testing import absltest
 from absl.testing import parameterized
 from xls.common import runfiles
+from xls.passes import optimization_pass_pipeline_pb2
 from xls.passes import pass_pipeline_pb2
 
 OPT_MAIN_PATH = runfiles.get_path('xls/tools/opt_main')
@@ -115,6 +116,34 @@ class OptMainTest(parameterized.TestCase):
 
     # Skipping DFE should leave the dead function in the IR.
     self.assertIn('dead_function', optimized_ir)
+
+  def test_pipeline_proto_level(self):
+    ir_file = self.create_tempfile(content=DEAD_FUNCTION_IR)
+    registry = optimization_pass_pipeline_pb2.OptimizationPipelineProto(
+        compound_passes=[
+            optimization_pass_pipeline_pb2.OptimizationPipelineProto.CompoundPass(
+                long_name='compound',
+                short_name='compound',
+                passes=['const_fold', 'dce'],
+            )
+        ],
+        default_pipeline=['compound'],
+    )
+    reg_file = self.create_tempfile(content=registry.SerializeToString())
+    optimized_ir = subprocess.check_output([
+        OPT_MAIN_PATH,
+        ir_file.full_path,
+        f'--pipeline_proto={reg_file.full_path}',
+    ]).decode('utf-8')
+    with self.subTest('dead function removed'):
+      self.assertIn('dead_function', optimized_ir)
+    manual_pipeline = subprocess.check_output([
+        OPT_MAIN_PATH,
+        '--passes=const_fold dce',
+        ir_file.full_path,
+    ]).decode('utf-8')
+    with self.subTest('Equivalent to manual pass runs'):
+      self.assertEqual(optimized_ir, manual_pipeline)
 
   def test_opt_level(self):
     ir_file = self.create_tempfile(content=ADD_LITERAL_IR)
