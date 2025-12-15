@@ -3528,7 +3528,9 @@ fn fmt_fn(x: u32) -> u32 { x }
       if (fn) {
         char* id = xls_dslx_function_get_identifier(fn);
         absl::Cleanup free_id([&]() { xls_c_str_free(id); });
-        if (std::string_view(id) == target) return fn;
+        if (std::string_view(id) == target) {
+          return fn;
+        }
       }
     }
     return nullptr;
