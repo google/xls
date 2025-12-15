@@ -28,6 +28,8 @@
 #include "cppitertools/zip.hpp"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/estimators/area_model/area_estimators.h"
+#include "xls/estimators/delay_model/delay_estimators.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/interpreter/function_interpreter.h"
@@ -67,6 +69,8 @@ class ResourceSharingPassTest : public IrTestBase {
     OptimizationPassOptions opts{};
     opts.enable_resource_sharing = true;
     opts.force_resource_sharing = true;
+    XLS_ASSIGN_OR_RETURN(opts.area_estimator, GetAreaEstimator("asap7"));
+    XLS_ASSIGN_OR_RETURN(opts.delay_estimator, GetDelayEstimator("asap7"));
 
     // Run the select lifting pass.
     XLS_ASSIGN_OR_RETURN(bool changed, ResourceSharingPass().RunOnFunctionBase(

@@ -23,6 +23,7 @@ CONFIG = {
 }
 
 DEFAULT_BENCHMARK_SYNTH_DELAY_MODEL = "asap7"
+DEFAULT_BENCHMARK_SYNTH_AREA_MODEL = "asap7"
 
 def enable_generated_file_wrapper(**kwargs):  # @unused
     """The function is a placeholder for enable_generated_file_wrapper.

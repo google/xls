@@ -29,6 +29,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
+#include "xls/estimators/delay_model/delay_estimators.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/ir/bits.h"
@@ -718,7 +719,8 @@ TEST_F(SelectLiftingPassTest,
   // Latency after = max(0, max(0,0,0)+30) + 10 = 40.
   // Since 40 <= 40, lifting should be permitted.
   OptimizationPassOptions opts;
-  opts.delay_model = "cheap_var_shift";
+  XLS_ASSERT_OK_AND_ASSIGN(opts.delay_estimator,
+                           GetDelayEstimator("cheap_var_shift"));
   EXPECT_THAT(Run(f, opts), absl_testing::IsOkAndHolds(true));
 }
 
@@ -744,7 +746,8 @@ TEST_F(SelectLiftingPassTest,
   // Latency after = max(0, max(0,0,0)+30) + 20 = 50.
   // Since 50 > 40, lifting should be inhibited.
   OptimizationPassOptions opts;
-  opts.delay_model = "expensive_var_shift";
+  XLS_ASSERT_OK_AND_ASSIGN(opts.delay_estimator,
+                           GetDelayEstimator("expensive_var_shift"));
   EXPECT_THAT(Run(f, opts), absl_testing::IsOkAndHolds(false));
 }
 
@@ -903,7 +906,7 @@ TEST_F(SelectLiftingPassTest, LiftMulWithIdentityWithDelayModel) {
   // With unit delay model, latency of sel(s, x*y, x) is 2, and latency of
   // x*sel(s, y, 1) is 2, so lifting is permitted.
   OptimizationPassOptions opts;
-  opts.delay_model = "unit";
+  XLS_ASSERT_OK_AND_ASSIGN(opts.delay_estimator, GetDelayEstimator("unit"));
   EXPECT_THAT(Run(f, opts), absl_testing::IsOkAndHolds(true));
 
   // Expected: x * sel(s, [y, 1])
@@ -940,7 +943,7 @@ TEST_F(SelectLiftingPassTest, DontLiftMulWithIdentityIfLatencyIncreases) {
   // Latency of x*sel(cond, y, 1) is max(0, max(1,0,0)+1) + 1 = 3.
   // Since 3 > 2, lifting should be inhibited.
   OptimizationPassOptions opts;
-  opts.delay_model = "unit";
+  XLS_ASSERT_OK_AND_ASSIGN(opts.delay_estimator, GetDelayEstimator("unit"));
   EXPECT_THAT(Run(f, opts), absl_testing::IsOkAndHolds(false));
 }
 

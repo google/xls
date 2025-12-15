@@ -215,6 +215,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/contrib/xlscc:hls_block_cc_proto",
         "//xls/contrib/xlscc:translator",
+        "//xls/estimators",
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:channel",

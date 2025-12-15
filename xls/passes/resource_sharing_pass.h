@@ -36,7 +36,7 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
 
   // avoids folds with small area savings on certain ops
   static constexpr double kMinAreaSavings = 10.0;
-  static constexpr double kMaxDelaySpread = 160.0;
+  static constexpr double kMaxDelaySpread = 320.0 * 320.0;
 
   explicit ResourceSharingPass();
 

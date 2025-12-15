@@ -31,6 +31,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/random/random.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "cppitertools/enumerate.hpp"
@@ -922,7 +923,7 @@ SelectFoldingActionsBasedOnCliques(FoldingGraph* folding_graph) {
 }
 
 absl::StatusOr<double> EstimateAreaForSelectingASingleInput(
-    BinaryFoldingAction* folding, AreaEstimator& ae) {
+    BinaryFoldingAction* folding, const AreaEstimator& ae) {
   // Get the required information from the folding action
   Node* destination = folding->GetTo();
 
@@ -954,7 +955,8 @@ absl::StatusOr<double> EstimateAreaForSelectingASingleInput(
   return area_select;
 }
 
-absl::StatusOr<double> EstimateAreaForNegatingNode(Node* n, AreaEstimator& ae) {
+absl::StatusOr<double> EstimateAreaForNegatingNode(Node* n,
+                                                   const AreaEstimator& ae) {
   Package p("area_check");
   FunctionBuilder fb("area_check", &p);
   XLS_ASSIGN_OR_RETURN(Type * input_type,
@@ -975,7 +977,7 @@ ListOfAllFoldingActionsWithDestination(
     absl::flat_hash_map<Node*,
                         absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>>&
         mutual_exclusivity_relation,
-    AreaEstimator& ae) {
+    const AreaEstimator& ae) {
   std::vector<std::unique_ptr<NaryFoldingAction>>
       potential_folding_actions_to_perform;
 
@@ -1155,7 +1157,7 @@ ListOfFoldingActionsWithDestination(
     absl::flat_hash_map<Node*,
                         absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>>&
         mutual_exclusivity_relation,
-    AreaEstimator& ae) {
+    const AreaEstimator& ae) {
   std::vector<std::unique_ptr<NaryFoldingAction>>
       potential_folding_actions_to_perform;
 
@@ -1364,7 +1366,7 @@ LegalizeSequenceOfFolding(
     absl::flat_hash_map<Node*,
                         absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>>&
         mutual_exclusivity_relation,
-    AreaEstimator& ae) {
+    const AreaEstimator& ae) {
   std::vector<std::unique_ptr<NaryFoldingAction>> folding_actions_to_perform;
 
   // Remove folding actions (via removing either a whole n-ary folding or a
@@ -1631,7 +1633,7 @@ void SortNodesInDescendingOrderOfTheirInDegree(std::vector<Node*>& nodes,
 }
 
 absl::StatusOr<absl::flat_hash_map<Node*, uint64_t>> ComputeDelayPathToNode(
-    OptimizationContext& context, FunctionBase* f, DelayEstimator& de) {
+    OptimizationContext& context, FunctionBase* f, const DelayEstimator& de) {
   absl::flat_hash_map<Node*, uint64_t> delay_path_node;
 
   // Set the critical path latency up to a node, for every node within @f.
@@ -1660,7 +1662,7 @@ absl::StatusOr<absl::flat_hash_map<Node*, uint64_t>> ComputeDelayPathToNode(
 
 uint64_t GetDelayPathToNode(
     Node* node, absl::flat_hash_map<Node*, uint64_t>& delay_path_node,
-    DelayEstimator& de) {
+    const DelayEstimator& de) {
   return delay_path_node.at(node);
 }
 
@@ -1679,7 +1681,7 @@ uint64_t GetDelayPathToNode(
 absl::StatusOr<std::vector<std::unique_ptr<NaryFoldingAction>>>
 SelectFoldingActionsBasedOnInDegree(
     OptimizationContext& context, FoldingGraph* folding_graph,
-    AreaEstimator& ae, DelayEstimator& de,
+    const AreaEstimator& ae, const DelayEstimator& de,
     absl::flat_hash_map<Node*,
                         absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>>&
         mutual_exclusivity_relation) {
@@ -1800,7 +1802,7 @@ SelectFoldingActionsBasedOnInDegree(
 absl::StatusOr<std::vector<std::unique_ptr<NaryFoldingAction>>>
 SelectAllFoldingActions(
     OptimizationContext& context, FoldingGraph* folding_graph,
-    AreaEstimator& ae, DelayEstimator& de,
+    const AreaEstimator& ae, const DelayEstimator& de,
     absl::flat_hash_map<Node*,
                         absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>>&
         mutual_exclusivity_relation) {
@@ -1954,8 +1956,8 @@ SelectRandomlyFoldingActions(FoldingGraph* folding_graph) {
 absl::StatusOr<std::vector<std::unique_ptr<NaryFoldingAction>>>
 SelectFoldingActions(
     OptimizationContext& context, FoldingGraph* folding_graph,
-    ResourceSharingPass::ProfitabilityGuard heuristics, AreaEstimator& ae,
-    DelayEstimator& de,
+    ResourceSharingPass::ProfitabilityGuard heuristics, const AreaEstimator& ae,
+    const DelayEstimator& de,
     absl::flat_hash_map<Node*,
                         absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>>&
         mutual_exclusivity_relation) {
@@ -2315,16 +2317,18 @@ absl::StatusOr<bool> ResourceSharingPass::RunOnFunctionBaseInternal(
   if (!options.enable_resource_sharing) {
     return false;
   }
+  if (options.area_estimator == nullptr) {
+    return absl::InvalidArgumentError(
+        "Enabling resource sharing requires an area estimator");
+  }
   bool modified = false;
   VLOG(2) << "Running resource sharing with the area model \""
-          << options.area_model << "\"";
-
-  // Get the area model
-  XLS_ASSIGN_OR_RETURN(AreaEstimator * ae,
-                       GetAreaEstimator(options.area_model));
+          << options.area_estimator->name() << "\"";
 
   // Get the delay model
-  XLS_ASSIGN_OR_RETURN(DelayEstimator * delay_model, GetDelayEstimator("unit"));
+  const DelayEstimator& delay_estimator = options.delay_estimator
+                                              ? *options.delay_estimator
+                                              : GetStandardDelayEstimator();
 
   NodeForwardDependencyAnalysis nda;
   XLS_RETURN_IF_ERROR(nda.Attach(f).status());
@@ -2350,8 +2354,9 @@ absl::StatusOr<bool> ResourceSharingPass::RunOnFunctionBaseInternal(
   XLS_ASSIGN_OR_RETURN(
       std::vector<std::unique_ptr<NaryFoldingAction>>
           folding_actions_to_perform,
-      SelectFoldingActions(context, &folding_graph, selection_heuristic, *ae,
-                           *delay_model, mutual_exclusivity_relation));
+      SelectFoldingActions(context, &folding_graph, selection_heuristic,
+                           *options.area_estimator, delay_estimator,
+                           mutual_exclusivity_relation));
 
   // Perform the folding
   XLS_ASSIGN_OR_RETURN(modified,
