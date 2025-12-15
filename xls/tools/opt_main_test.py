@@ -145,6 +145,38 @@ class OptMainTest(parameterized.TestCase):
     with self.subTest('Equivalent to manual pass runs'):
       self.assertEqual(optimized_ir, manual_pipeline)
 
+  def test_skip_passes_ignores_opt_levels(self):
+    # --skip_passes is not a very useful flag and has a lot of weird behaviors.
+    # While we still have it we should make sure that it will actually always
+    # skip a pass even if its in a 'min_opt_level' set.
+    ir_file = self.create_tempfile(content=DEAD_FUNCTION_IR)
+    compound_pass = (
+        optimization_pass_pipeline_pb2.OptimizationPipelineProto.CompoundPass
+    )
+    options = (
+        optimization_pass_pipeline_pb2.OptimizationPipelineProto.GlobalOptions
+    )
+    pipeline = optimization_pass_pipeline_pb2.OptimizationPipelineProto(
+        compound_passes=[
+            compound_pass(
+                long_name='test pass group',
+                short_name='test_group',
+                passes=['dfe'],
+                fixedpoint=False,
+                options=options(min_opt_level=1),
+            )
+        ],
+        default_pipeline=['test_group'],
+    )
+    pipeline_file = self.create_tempfile(content=pipeline.SerializeToString())
+    optimized_ir = subprocess.check_output([
+        OPT_MAIN_PATH,
+        '--skip_passes=dfe',
+        f'--pipeline_proto={pipeline_file.full_path}',
+        ir_file.full_path,
+    ]).decode('utf-8')
+    self.assertIn('dead_function', optimized_ir)
+
   def test_opt_level(self):
     ir_file = self.create_tempfile(content=ADD_LITERAL_IR)
 

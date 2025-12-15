@@ -154,6 +154,9 @@ class PassBase {
   virtual ~PassBase() = default;
 
   const std::string& short_name() const { return short_name_; }
+  // Get the short name of the underlying pass. Used to identify wrapper passes
+  // and so on.
+  virtual std::string_view base_short_name() const { return short_name_; }
   const std::string& long_name() const { return long_name_; }
 
   // Generate a proto that can be used to reconstitute this pass. By default is
@@ -239,6 +242,9 @@ class WrapperPassBase final : public PassBase<OptionsT, ContextT...> {
 
   absl::StatusOr<PassPipelineProto::Element> ToProto() const final {
     return base_->ToProto();
+  }
+  std::string_view base_short_name() const final {
+    return base_->base_short_name();
   }
 
  protected:
@@ -490,9 +496,10 @@ absl::StatusOr<bool> CompoundPassBase<OptionsT, ContextT...>::RunNested(
       continue;
     }
 
+    std::string_view base_short_name = pass->base_short_name();
     if (std::find_if(options.skip_passes.begin(), options.skip_passes.end(),
                      [&](const std::string& name) {
-                       return pass->short_name() == name;
+                       return base_short_name == name;
                      }) != options.skip_passes.end()) {
       VLOG(1) << "Skipping pass. Contained in skip_passes option.";
       continue;

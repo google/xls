@@ -400,32 +400,56 @@ using OptimizationPassGenerator =
     PassGenerator<OptimizationPassOptions, OptimizationContext>;
 
 namespace internal {
+
+template <typename InnerPass>
+  requires(std::is_base_of_v<OptimizationPass, InnerPass>)
+class FilterOptimizationPass : public OptimizationPass {
+ public:
+  template <typename... Args>
+  explicit FilterOptimizationPass(Args... args)
+      : OptimizationPass("short", "long"),
+        inner_(std::forward<Args>(args)...) {}
+
+  std::string_view base_short_name() const final {
+    return inner_.base_short_name();
+  }
+
+  InnerPass* inner_pass() { return &inner_; }
+
+  bool IsCompound() const override { return inner_.IsCompound(); }
+
+ protected:
+  void SetShortName(std::string_view short_name) {
+    this->short_name_ = short_name;
+  }
+
+  void SetLongName(std::string_view long_name) { this->long_name_ = long_name; }
+
+  InnerPass inner_;
+};
+
 // Wrapper that uses templates to force opt-level to a specific max value for
 // either a specific pass or a compound pass contents.
 template <typename InnerPass>
   requires(std::is_base_of_v<OptimizationPass, InnerPass>)
-class DynamicCapOptLevel : public OptimizationPass {
+class DynamicCapOptLevel : public FilterOptimizationPass<InnerPass> {
  public:
   template <typename... Args>
   explicit DynamicCapOptLevel(int64_t level, Args... args)
-      : OptimizationPass("short", "long"),
-        level_(level),
-        inner_(std::forward<Args>(args)...) {
-    short_name_ =
-        absl::StrFormat("%s(opt_level<=%d)", inner_.short_name(), level);
-    long_name_ =
-        absl::StrFormat("%s with opt_level <= %d", inner_.long_name(), level);
+      : FilterOptimizationPass<InnerPass>(std::forward<Args>(args)...),
+        level_(level) {
+    this->short_name_ =
+        absl::StrFormat("%s(opt_level<=%d)", this->inner_.short_name(), level);
+    this->long_name_ = absl::StrFormat("%s with opt_level <= %d",
+                                       this->inner_.long_name(), level);
   }
 
   absl::StatusOr<PassPipelineProto::Element> ToProto() const override {
-    XLS_ASSIGN_OR_RETURN(PassPipelineProto::Element res, inner_.ToProto());
+    XLS_ASSIGN_OR_RETURN(PassPipelineProto::Element res,
+                         this->inner_.ToProto());
     res.mutable_options()->set_max_opt_level(level_);
     return res;
   }
-
-  bool IsCompound() const override { return inner_.IsCompound(); }
-
-  InnerPass* inner_pass() { return &inner_; }
 
   absl::StatusOr<bool> RunNested(
       Package* ir, const OptimizationPassOptions& options, PassResults* results,
@@ -433,10 +457,11 @@ class DynamicCapOptLevel : public OptimizationPass {
       absl::Span<const typename OptimizationPass::InvariantChecker* const>
           invariant_checkers) const override {
     if (VLOG_IS_ON(4) && level_ < options.opt_level) {
-      VLOG(4) << "Lowering opt-level of compount pass '" << inner_.long_name()
-              << "' (" << inner_.short_name() << ") to " << level_;
+      VLOG(4) << "Lowering opt-level of compount pass '"
+              << this->inner_.long_name() << "' (" << this->inner_.short_name()
+              << ") to " << level_;
     }
-    return inner_.RunNested(
+    return this->inner_.RunNested(
         ir, options.WithOptLevel(std::min(level_, options.opt_level)), results,
         context, invocation, invariant_checkers);
   }
@@ -446,44 +471,39 @@ class DynamicCapOptLevel : public OptimizationPass {
       Package* ir, const OptimizationPassOptions& options, PassResults* results,
       OptimizationContext& context) const override {
     if (VLOG_IS_ON(4) && level_ < options.opt_level) {
-      VLOG(4) << "Lowering opt-level of pass '" << inner_.long_name() << "' ("
-              << inner_.short_name() << ") to " << level_;
+      VLOG(4) << "Lowering opt-level of pass '" << this->inner_.long_name()
+              << "' (" << this->inner_.short_name() << ") to " << level_;
     }
-    return inner_.Run(ir,
-                      options.WithOptLevel(std::min(level_, options.opt_level)),
-                      results, context);
+    return this->inner_.Run(
+        ir, options.WithOptLevel(std::min(level_, options.opt_level)), results,
+        context);
   }
 
  private:
   int64_t level_;
-  InnerPass inner_;
 };
 
 // Wrapper that disables the pass unless the opt-level is at least kLevel.
 template <typename InnerPass>
   requires(std::is_base_of_v<OptimizationPass, InnerPass>)
-class DynamicIfOptLevelAtLeast : public OptimizationPass {
+class DynamicIfOptLevelAtLeast : public FilterOptimizationPass<InnerPass> {
  public:
   template <typename... Args>
   explicit DynamicIfOptLevelAtLeast(int64_t level, Args... args)
-      : OptimizationPass("short", "long"),
-        level_(level),
-        inner_(std::forward<Args>(args)...) {
-    short_name_ =
-        absl::StrFormat("%s(opt_level>=%d)", inner_.short_name(), level);
-    long_name_ =
-        absl::StrFormat("%s when opt_level >= %d", inner_.long_name(), level);
+      : FilterOptimizationPass<InnerPass>(std::forward<Args>(args)...),
+        level_(level) {
+    this->short_name_ =
+        absl::StrFormat("%s(opt_level>=%d)", this->inner_.short_name(), level);
+    this->long_name_ = absl::StrFormat("%s when opt_level >= %d",
+                                       this->inner_.long_name(), level);
   }
 
   absl::StatusOr<PassPipelineProto::Element> ToProto() const override {
-    XLS_ASSIGN_OR_RETURN(PassPipelineProto::Element res, inner_.ToProto());
+    XLS_ASSIGN_OR_RETURN(PassPipelineProto::Element res,
+                         this->inner_.ToProto());
     res.mutable_options()->set_min_opt_level(level_);
     return res;
   }
-
-  bool IsCompound() const override { return inner_.IsCompound(); }
-
-  InnerPass* inner_pass() { return &inner_; }
 
   absl::StatusOr<bool> RunNested(
       Package* ir, const OptimizationPassOptions& options, PassResults* results,
@@ -491,14 +511,14 @@ class DynamicIfOptLevelAtLeast : public OptimizationPass {
       absl::Span<const typename OptimizationPass::InvariantChecker* const>
           invariant_checkers) const override {
     if (options.opt_level < level_) {
-      VLOG(4) << "Skipping compount pass '" << inner_.long_name() << "' ("
-              << inner_.short_name()
+      VLOG(4) << "Skipping compount pass '" << this->inner_.long_name() << "' ("
+              << this->inner_.short_name()
               << ") because opt-level is lower than minimum level of "
               << level_;
       return false;
     }
-    return inner_.RunNested(ir, options, results, context, invocation,
-                            invariant_checkers);
+    return this->inner_.RunNested(ir, options, results, context, invocation,
+                                  invariant_checkers);
   }
 
  protected:
@@ -506,18 +526,17 @@ class DynamicIfOptLevelAtLeast : public OptimizationPass {
       Package* ir, const OptimizationPassOptions& options, PassResults* results,
       OptimizationContext& context) const override {
     if (options.opt_level < level_) {
-      VLOG(4) << "Skipping pass '" << inner_.long_name() << "' ("
-              << inner_.short_name()
+      VLOG(4) << "Skipping pass '" << this->inner_.long_name() << "' ("
+              << this->inner_.short_name()
               << ") because opt-level is lower than minimum level of "
               << level_;
       return false;
     }
-    return inner_.Run(ir, options, results, context);
+    return this->inner_.Run(ir, options, results, context);
   }
 
  private:
   int64_t level_;
-  InnerPass inner_;
 };
 
 }  // namespace internal
@@ -569,19 +588,22 @@ class WithOptLevel : public InnerPass {
 // Wrapper that disables the pass unless resource sharing is enabled.
 template <typename InnerPass>
   requires(std::is_base_of_v<OptimizationPass, InnerPass>)
-class IfResourceSharingEnabled : public OptimizationPass {
+class IfResourceSharingEnabled
+    : public internal::FilterOptimizationPass<InnerPass> {
  public:
   template <typename... Args>
   explicit IfResourceSharingEnabled(Args... args)
-      : OptimizationPass("short", "long"), inner_(std::forward<Args>(args)...) {
-    short_name_ =
-        absl::StrFormat("%s(enable_resource_sharing)", inner_.short_name());
-    long_name_ = absl::StrFormat("%s when resource sharing is enabled",
-                                 inner_.long_name());
+      : internal::FilterOptimizationPass<InnerPass>(
+            std::forward<Args>(args)...) {
+    this->short_name_ = absl::StrFormat("%s(enable_resource_sharing)",
+                                        this->inner_.short_name());
+    this->long_name_ = absl::StrFormat("%s when resource sharing is enabled",
+                                       this->inner_.long_name());
   }
 
   absl::StatusOr<PassPipelineProto::Element> ToProto() const override {
-    XLS_ASSIGN_OR_RETURN(PassPipelineProto::Element res, inner_.ToProto());
+    XLS_ASSIGN_OR_RETURN(PassPipelineProto::Element res,
+                         this->inner_.ToProto());
     res.mutable_options()->set_requires_resource_sharing(true);
     return res;
   }
@@ -591,16 +613,13 @@ class IfResourceSharingEnabled : public OptimizationPass {
       Package* ir, const OptimizationPassOptions& options, PassResults* results,
       OptimizationContext& context) const override {
     if (!options.enable_resource_sharing) {
-      VLOG(4) << "Skipping pass '" << inner_.long_name() << "' ("
-              << inner_.short_name()
+      VLOG(4) << "Skipping pass '" << this->inner_.long_name() << "' ("
+              << this->inner_.short_name()
               << ") because resource sharing is disabled";
       return false;
     }
-    return inner_.Run(ir, options, results, context);
+    return this->inner_.Run(ir, options, results, context);
   }
-
- private:
-  InnerPass inner_;
 };
 
 // Whether optimizations which split operations into multiple pieces should be
