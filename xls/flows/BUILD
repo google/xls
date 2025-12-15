@@ -74,6 +74,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",
+        "//xls/dev_tools:remove_identifiers",
         "//xls/dslx:create_import_data",
         "//xls/dslx:default_dslx_stdlib_path",
         "//xls/dslx:import_data",

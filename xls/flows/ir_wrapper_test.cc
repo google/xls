@@ -29,6 +29,7 @@
 #include "xls/common/golden_files.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dev_tools/remove_identifiers.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/frontend/module.h"
@@ -50,8 +51,8 @@
 namespace xls {
 namespace {
 
-void ExpectVersionSpecificIr(std::string_view got, std::string_view test_name,
-                             bool proc_scoped_channels) {
+void ExpectIrStr(std::string_view got, std::string_view test_name,
+                 bool proc_scoped_channels = false) {
   std::string test_name_without_param(test_name);
   RE2::GlobalReplace(&test_name_without_param, R"(/\d)", "");
   ExpectEqualToGoldenFile(
@@ -61,8 +62,28 @@ void ExpectVersionSpecificIr(std::string_view got, std::string_view test_name,
       got);
 }
 
-void ExpectIr(std::string_view got, std::string_view test_name) {
-  ExpectVersionSpecificIr(got, test_name, false);
+void ExpectVersionSpecificIr(Package* actual_package,
+                             std::string_view test_name,
+                             bool proc_scoped_channels) {
+  std::string test_name_without_param(test_name);
+  RE2::GlobalReplace(&test_name_without_param, R"(/\d)", "");
+  // Remove id numbers which can be very sensitive to minor pass pipeline
+  // changes
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto strip_pkg,
+      StripPackage(actual_package,
+                   StripOptions{.new_package_name = test_name_without_param,
+                                .strip_location_info = false,
+                                .strip_node_names = true,
+                                .strip_function_names = false,
+                                .strip_chan_names = false,
+                                .strip_reg_names = false}));
+  ExpectIrStr(strip_pkg->DumpIr(), test_name_without_param,
+              proc_scoped_channels);
+}
+
+void ExpectIr(Package* p, std::string_view test_name) {
+  ExpectVersionSpecificIr(p, test_name, false);
 }
 
 std::string TestName() {
@@ -128,10 +149,10 @@ pub fn GetLatency() -> s64 {
                            ir_wrapper.GetIrFunction("GetLatency"));
 
   XLS_VLOG_LINES(3, get_latency->DumpIr());
-  ExpectIr(get_latency->DumpIr(), TestName() + "_get_latency");
+  ExpectIrStr(get_latency->DumpIr(), TestName() + "_get_latency");
 
   XLS_ASSERT_OK_AND_ASSIGN(Package * package, ir_wrapper.GetIrPackage());
-  ExpectIr(package->DumpIr(), TestName() + "_package");
+  ExpectIr(package, TestName() + "_package");
 
   // Test that that the jit for the function can be retrieved and run.
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -186,7 +207,7 @@ TEST_P(IrWrapperTest, DslxProcsToIrOk) {
   XLS_VLOG_LINES(3, top_proc->DumpIr());
 
   XLS_ASSERT_OK_AND_ASSIGN(Package * package, ir_wrapper.GetIrPackage());
-  ExpectVersionSpecificIr(package->DumpIr(), TestName(), GetParam());
+  ExpectVersionSpecificIr(package, TestName(), GetParam());
 
   // Test that that the jit for the proc can be retrieved and run.
   XLS_ASSERT_OK_AND_ASSIGN(SerialProcRuntime * proc_runtime,
