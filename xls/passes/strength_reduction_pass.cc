@@ -38,8 +38,8 @@
 #include "xls/ir/op.h"
 #include "xls/ir/ternary.h"
 #include "xls/ir/value.h"
-#include "xls/passes/lazy_ternary_query_engine.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/partial_info_query_engine.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
 #include "xls/passes/stateless_query_engine.h"
@@ -64,21 +64,65 @@ absl::StatusOr<bool> MaybeSinkOperationIntoSelect(
       std::distance(operands.begin(), absl::c_find(operands, select_val));
   XLS_RET_CHECK_NE(argument_idx, operands.size())
       << select_val->ToString() << " is not an argument of " << node;
-  // We need both an unknown select and all other operands to be fully known.
+
+  // We need both an unknown select and all other operands to be fully known -
+  // or for the operation to otherwise simplify through constant-folding.
+  //
+  // In other words, we want one of:
+  // - All non-select operands are fully known; after sinking, all operands will
+  //   be known, and the operation will resolve to a constant.
+  // - Special operands of the operation will become fully known, causing the
+  //   operation to simplify or otherwise become very cheap (e.g., an
+  //   array-index with a constant index).
   bool non_select_operands_are_constant = absl::c_all_of(
       operands,
       [&](Node* n) { return n == select_val || query_engine.IsFullyKnown(n); });
-  // We don't want to make the select mux wider unless we are pretty sure that
-  // benefit is worth it.
-  static constexpr std::array<Op, 14> kExpensiveOps{
-      Op::kAdd, Op::kSub, Op::kSDiv, Op::kUDiv, Op::kUMod, Op::kSMod, Op::kUMul,
-      Op::kSMul, Op::kUMulp, Op::kSMulp, Op::kShll, Op::kShra, Op::kShrl,
-      // Encode of a non-constant is quite slow.
-      Op::kEncode};
+  bool sunk_operation_would_simplify = non_select_operands_are_constant;
+  switch (node->op()) {
+    case Op::kArrayIndex:
+      sunk_operation_would_simplify |=
+          node->As<ArrayIndex>()->indices().size() == 1 &&
+          node->As<ArrayIndex>()->indices()[0] == select_val;
+      break;
+    case Op::kArraySlice:
+      sunk_operation_would_simplify |=
+          node->As<ArraySlice>()->start() == select_val;
+      break;
+    case Op::kBitSliceUpdate:
+      sunk_operation_would_simplify |=
+          node->As<BitSliceUpdate>()->start() == select_val;
+      break;
+    case Op::kDynamicBitSlice:
+      sunk_operation_would_simplify |=
+          node->As<DynamicBitSlice>()->start() == select_val;
+      break;
+    case Op::kSel:
+      sunk_operation_would_simplify |=
+          node->As<Select>()->selector() == select_val;
+      break;
+    case Op::kPrioritySel:
+      sunk_operation_would_simplify |=
+          node->As<PrioritySelect>()->selector() == select_val;
+      break;
+    case Op::kShll:
+    case Op::kShra:
+    case Op::kShrl: {
+      // All shifts simplify to wires if the shift amount is known.
+      sunk_operation_would_simplify |= node->operand(1) == select_val;
+      break;
+    }
+    default:
+      break;
+  }
+  // If there are no significant savings, we don't want to make the select mux
+  // wider.
+  static constexpr std::array<Op, 6> kCheapWideningOps{
+      Op::kArray,   Op::kArrayConcat, Op::kConcat,
+      Op::kSignExt, Op::kTuple,       Op::kZeroExt};
   bool sink_would_improve_ir = node->GetType()->GetFlatBitCount() <=
                                    select_val->GetType()->GetFlatBitCount() ||
-                               node->OpIn(kExpensiveOps);
-  if (non_select_operands_are_constant && sink_would_improve_ir) {
+                               !node->OpIn(kCheapWideningOps);
+  if (sunk_operation_would_simplify && sink_would_improve_ir) {
     std::vector<Node*> new_cases;
     new_cases.reserve(select_val->cases().size());
     std::optional<Node*> new_default;
@@ -111,12 +155,6 @@ absl::StatusOr<bool> MaybeSinkOperationIntoSelect(
 absl::StatusOr<bool> StrengthReduceNode(Node* node,
                                         const QueryEngine& query_engine,
                                         int64_t opt_level) {
-  if (!std::all_of(node->operands().begin(), node->operands().end(),
-                   [](Node* n) { return n->GetType()->IsBits(); }) ||
-      !node->GetType()->IsBits()) {
-    return false;
-  }
-
   if (NarrowingEnabled(opt_level) &&
       // Don't replace unused nodes. We don't want to add nodes when they will
       // get DCEd later. This can lead to an infinite loop between strength
@@ -372,6 +410,7 @@ absl::StatusOr<bool> StrengthReduceNode(Node* node,
   //    0 | 0   1
   //  x 1 | 1   0
   if ((node->op() == Op::kAdd || node->op() == Op::kNe) &&
+      node->operand(0)->GetType()->IsBits() &&
       node->operand(0)->BitCountOrDie() == 1) {
     XLS_RETURN_IF_ERROR(
         node->ReplaceUsesWithNew<NaryOp>(
@@ -419,6 +458,7 @@ absl::StatusOr<bool> StrengthReduceNode(Node* node,
   // Eq(x, 0b00) => x_0 == 0 & x_1 == 0 => ~x_0 & ~x_1 => ~(x_0 | x_1)
   //  where bits(x) <= 2
   if (NarrowingEnabled(opt_level) && node->op() == Op::kEq &&
+      node->operand(0)->GetType()->IsBits() &&
       node->operand(0)->BitCountOrDie() == 2 &&
       query_engine.IsAllZeros(node->operand(1))) {
     FunctionBase* f = node->function_base();
@@ -743,7 +783,7 @@ absl::StatusOr<bool> StrengthReductionPass::RunOnFunctionBaseInternal(
     PassResults* results, OptimizationContext& context) const {
   auto query_engine = UnionQueryEngine::Of(
       StatelessQueryEngine(),
-      GetSharedQueryEngine<LazyTernaryQueryEngine>(context, f));
+      GetSharedQueryEngine<PartialInfoQueryEngine>(context, f));
 
   XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
 

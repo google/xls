@@ -847,8 +847,8 @@ xls_pass(
     hdrs = ["strength_reduction_pass.h"],
     pass_class = "StrengthReductionPass",
     deps = [
-        ":lazy_ternary_query_engine",
         ":optimization_pass",
+        ":partial_info_query_engine",
         ":pass_base",
         ":query_engine",
         ":stateless_query_engine",

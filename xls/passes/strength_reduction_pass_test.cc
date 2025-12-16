@@ -49,6 +49,7 @@ using ::absl_testing::IsOkAndHolds;
 using ::xls::solvers::z3::ScopedVerifyEquivalence;
 
 using ::testing::_;
+using ::testing::AnyOf;
 using ::testing::Each;
 using ::testing::UnorderedElementsAre;
 using ::testing::VariantWith;
@@ -428,7 +429,8 @@ TEST_F(StrengthReductionPassTest, ArithToSelect) {
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   // Actual verification of result is done by semantics test.
   EXPECT_THAT(f->return_value()->operands(),
-              Each(m::Select(m::Eq(), {m::Literal(), m::Literal()})));
+              Each(AnyOf(m::Literal(),
+                         m::Select(m::Eq(), {m::Literal(), m::Literal()}))));
 }
 
 TEST_F(StrengthReductionPassTest, ArithToSelectOnlyWithOneBit) {
@@ -934,6 +936,92 @@ TEST_F(StrengthReductionPassTest, SubNoSplitIfBorrowMustPropagate) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(f), IsOkAndHolds(false));
+}
+
+TEST_F(StrengthReductionPassTest, SinkDynamicBitSliceWithSelectStart) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue data = fb.Param("data", u32);
+  BValue s = fb.Param("s", p->GetBitsType(1));
+  BValue start =
+      fb.Select(s, {fb.Literal(UBits(2, 32)), fb.Literal(UBits(4, 32))});
+  fb.DynamicBitSlice(data, start, 16);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedRecordIr sri(p.get());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Select(
+          m::Param("s"),
+          {m::DynamicBitSlice(m::Param("data"), m::Literal(2), /*width=*/16),
+           m::DynamicBitSlice(m::Param("data"), m::Literal(4), /*width=*/16)}));
+}
+
+TEST_F(StrengthReductionPassTest, SinkShiftWithSelectShiftAmount) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue data = fb.Param("data", u32);
+  BValue s = fb.Param("s", p->GetBitsType(1));
+  BValue shift_amt =
+      fb.Select(s, {fb.Literal(UBits(2, 32)), fb.Literal(UBits(4, 32))});
+  fb.Shll(data, shift_amt);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedRecordIr sri(p.get());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Select(m::Param("s"), {m::Shll(m::Param("data"), m::Literal(2)),
+                                m::Shll(m::Param("data"), m::Literal(4))}));
+}
+
+TEST_F(StrengthReductionPassTest, SinkArrayIndexWithSelectIndex) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  Type* arr_ty = p->GetArrayType(8, u32);
+  BValue arr = fb.Param("arr", arr_ty);
+  BValue s = fb.Param("s", p->GetBitsType(1));
+  BValue index =
+      fb.Select(s, {fb.Literal(UBits(2, 32)), fb.Literal(UBits(4, 32))});
+  fb.ArrayIndex(arr, {index});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedRecordIr sri(p.get());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Select(m::Param("s"),
+                        {m::ArrayIndex(m::Param("arr"), {m::Literal(2)}),
+                         m::ArrayIndex(m::Param("arr"), {m::Literal(4)})}));
+}
+
+TEST_F(StrengthReductionPassTest, SinkSelectWithSelectSelector) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue s = fb.Param("s", p->GetBitsType(1));
+  BValue case0 = fb.Param("case0", u32);
+  BValue case1 = fb.Param("case1", u32);
+  BValue case2 = fb.Param("case2", u32);
+  BValue case3 = fb.Param("case3", u32);
+  BValue selector =
+      fb.Select(s, {fb.Literal(UBits(3, 2)), fb.Literal(UBits(1, 2))});
+  fb.Select(selector, {case0, case1, case2, case3});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedRecordIr sri(p.get());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Select(
+          m::Param("s"),
+          {m::Select(m::Literal(3), {m::Param("case0"), m::Param("case1"),
+                                     m::Param("case2"), m::Param("case3")}),
+           m::Select(m::Literal(1), {m::Param("case0"), m::Param("case1"),
+                                     m::Param("case2"), m::Param("case3")})}));
 }
 
 void IrFuzzStrengthReduction(FuzzPackageWithArgs fuzz_package_with_args) {
