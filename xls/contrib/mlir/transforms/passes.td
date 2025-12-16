@@ -82,6 +82,11 @@ def ProcElaborationPass : Pass<"elaborate-procs", "mlir::ModuleOp"> {
   let dependentDialects = [
     "mlir::xls::XlsDialect",
   ];
+  let options = [
+    Option<"use_io_constraints_on_eprocs", "io-constraints", "bool",
+    /*default=*/"false",
+    "If true, enable the addition of io constraints during proc elaboration">
+  ];
 }
 
 def InstantiateEprocsPass : Pass<"instantiate-eprocs", "mlir::ModuleOp"> {

@@ -59,6 +59,12 @@ struct XlsLowerPassPipelineOptions
                      "if the eproc with this name is empty, we erase it and "
                      "give this name to the other eproc."),
       llvm::cl::init(std::nullopt)};
+
+  PassOptions::Option<bool> use_io_constraints_on_eprocs{
+      *this, "io-constraints",
+      llvm::cl::desc("If true, enable the addition of io constraints during "
+                     "proc elaboration."),
+      llvm::cl::init(false)};
 };
 
 // A Pass pipeline that lowers to a form that can be translated to XLS.

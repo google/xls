@@ -1,6 +1,7 @@
 #ifndef HWIR_XLS_OPS
 #define HWIR_XLS_OPS
 
+include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/BuiltinTypeInterfaces.td"
 include "mlir/IR/CommonTypeConstraints.td"
 include "mlir/IR/EnumAttr.td"
@@ -220,6 +221,49 @@ def Xls_BoundaryChannelAttr : Xls_Attr<"BoundaryChannelAttr"> {
 
 def Xls_BoundaryChannelArrayAttr :
   TypedArrayAttrBase<Xls_BoundaryChannelAttr, "array of boundary_channel">;
+
+def Xls_ChannelDirectionRecv : I32EnumAttrCase<"kSend", 0, "send">;
+def Xls_ChannelDirectionSend : I32EnumAttrCase<"kRecv", 1, "recv">;
+def Xls_ChannelDirection : I32EnumAttr<"ChannelDirection", "XLS channel direction",
+  [Xls_ChannelDirectionRecv, Xls_ChannelDirectionSend]> {
+  let genSpecializedAttr = 0;
+  let cppNamespace = "::mlir::xls";
+}
+
+def Xls_IoConstraintAttr : Xls_Attr<"IoConstraintAttr"> {
+  let summary = "IO constraint attribute";
+  let description = [{
+      Mlir Attribute for xls::IOConstraint.
+
+      See:
+      https://github.com/google/xls/blob/4c73f9c3094d1dd958e9db4cbcb99d27245124d4/xls/scheduling/scheduling_options.h#L64
+
+      This represents a constraint saying that interactions on the given
+      `source_channel` of the type specified by the given `source_direction`
+      must occur between `minimum_latency` and `maximum_latency` (inclusive)
+      cycles before interactions on the given `target_channel` of the type
+      specified by the given `target_direction`.
+  }];
+  let parameters = (ins
+    AttrOrTypeParameter<"::mlir::FlatSymbolRefAttr", "source channel">:$source_channel,
+    AttrOrTypeParameter<"ChannelDirection", "source direction">:$source_direction,
+    AttrOrTypeParameter<"::mlir::FlatSymbolRefAttr", "target channel">:$target_channel,
+    AttrOrTypeParameter<"ChannelDirection", "target direction">:$target_direction,
+    "int64_t":$min_latency,
+    "int64_t":$max_latency
+  );
+  let mnemonic = "io_constraint";
+  let assemblyFormat = "`<` struct(params) `>`";
+}
+
+def Xls_IoConstraintsAttr : ArrayOfAttr<Xls_Dialect, "IoConstraints",
+                                        "io_constraints", "IoConstraintAttr"> {
+  let summary = "Array of IO constraints";
+  let description = [{
+    Array of IO constraints.
+  }];
+  let assemblyFormat = "`{` (`}`) : ($value^ `` `}`)?";
+}
 
 class GetShapeSplat<string name> :
     StrFunc<"getShapeSplat($" # name # ".getType())">;
@@ -1660,7 +1704,8 @@ def Xls_EprocOp : Xls_Op<"eproc", [
   let arguments = (ins
     SymbolNameAttr:$sym_name,
     UnitAttr:$discardable,
-    DefaultValuedAttr<I64Attr, "1">:$min_pipeline_stages
+    DefaultValuedAttr<I64Attr, "1">:$min_pipeline_stages,
+    DefaultValuedAttr<Xls_IoConstraintsAttr, "::llvm::ArrayRef<IoConstraintAttr>{}">:$io_constraints
   );
   let regions = (region
     SizedRegion<1>:$body

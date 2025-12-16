@@ -663,6 +663,9 @@ void EprocOp::print(OpAsmPrinter& printer) {
   if (getMinPipelineStages() == 1) {
     elideAttrNames.push_back("min_pipeline_stages");
   }
+  if (getIoConstraints().empty()) {
+    elideAttrNames.push_back("io_constraints");
+  }
   printer.printOptionalAttrDictWithKeyword(getOperation()->getAttrs(),
                                            elideAttrNames);
   printer << " ";

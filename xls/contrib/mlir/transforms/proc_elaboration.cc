@@ -102,6 +102,7 @@ void replaceStructuredChannelOps(Region& region,
 class ProcElaborationPass
     : public impl::ProcElaborationPassBase<ProcElaborationPass> {
  public:
+  using ProcElaborationPassBase::ProcElaborationPassBase;
   void runOnOperation() override;
 };
 
@@ -116,8 +117,12 @@ class ElaborationContext
     : public InterpreterContext<ElaborationContext, ChanOp> {
  public:
   explicit ElaborationContext(OpBuilder& builder, SymbolTable& symbolTable,
-                              DenseMap<SprocOp, EprocAndChannels>& procCache)
-      : builder(builder), symbolTable(symbolTable), procCache(procCache) {}
+                              DenseMap<SprocOp, EprocAndChannels>& procCache,
+                              bool use_io_constraints_on_eprocs)
+      : builder(builder),
+        symbolTable(symbolTable),
+        procCache(procCache),
+        use_io_constraints_on_eprocs(use_io_constraints_on_eprocs) {}
 
   OpBuilder& getBuilder() { return builder; }
 
@@ -125,7 +130,8 @@ class ElaborationContext
   // local channels are created for the eproc and are returned.
   //
   // Eprocs are cached such that a sproc is only elaborated once.
-  EprocAndChannels createEproc(SprocOp sproc) {
+  EprocAndChannels createEproc(SprocOp sproc,
+                               ArrayRef<value_type> globalChannels) {
     if (auto it = procCache.find(sproc); it != procCache.end()) {
       return it->second;
     }
@@ -134,6 +140,9 @@ class ElaborationContext
     EprocOp eproc =
         EprocOp::create(builder, sproc.getLoc(), originalName,
                         /*discardable=*/true, sproc.getMinPipelineStages());
+
+    SmallVector<StringAttr> inChannels, outChannels;
+
     symbolTable.insert(eproc);
     IRMapping mapping;
     sproc.getNext().cloneInto(&eproc.getBody(), mapping);
@@ -142,18 +151,49 @@ class ElaborationContext
     for (auto [i, arg] : llvm::enumerate(sproc.getNextChannels())) {
       // TODO(jpienaar): Remove unnecessary default args once they are generated
       // automatically.
+      auto schan_type = cast<SchanType>(arg.getType());
       auto chan = ChanOp::create(
           builder, sproc.getLoc(),
           absl::StrFormat("%s_arg%d", eproc.getSymName().str(), i),
-          cast<SchanType>(arg.getType()).getElementType(),
+          schan_type.getElementType(),
           /*fifo_config=*/nullptr,
           /*input_flop_kind=*/nullptr,
           /*output_flop_kind=*/nullptr);
+      assert(i < globalChannels.size());
+      value_type globalChannel = globalChannels[i];
+      (schan_type.getIsInput() ? inChannels : outChannels)
+          .push_back(globalChannel.getSymNameAttr());
       eprocChannels.push_back(chan);
       chanMap[mapping.lookup(arg)] = SymbolRefAttr::get(chan.getSymNameAttr());
     }
     replaceStructuredChannelOps(eproc.getBody(), chanMap);
     eproc.getBody().front().eraseArguments(0, sproc.getNextChannels().size());
+
+    // TODO: b/461995846 - Investigate whether this should only be applied
+    // either if stages > 1, or if set explicitly or for pipeline maps only.
+    if (auto stages = sproc.getMinPipelineStages(); stages > 0) {
+      SmallVector<IoConstraintAttr> ioConstraints;
+
+      // Create io constraints between all input and output channels.
+      // It is a little unclear if we really need from all input to all outputs.
+      // Empirically, it seems that one input to all outputs does the same job.
+      for (auto inChannel : inChannels) {
+        for (auto outChannel : outChannels) {
+          auto constraint = IoConstraintAttr::get(
+              builder.getContext(),
+              /*source_channel=*/FlatSymbolRefAttr::get(inChannel),
+              /*source_direction=*/ChannelDirection::kRecv,
+              /*target_channel=*/FlatSymbolRefAttr::get(outChannel),
+              /*target_direction=*/ChannelDirection::kSend,
+              /*min_latency=*/stages, /*max_latency=*/stages);
+          ioConstraints.push_back(constraint);
+        }
+      }
+
+      if (use_io_constraints_on_eprocs) {
+        eproc.setIoConstraints(ioConstraints);
+      }
+    }
 
     EprocAndChannels result = {eproc, std::move(eprocChannels)};
     procCache[sproc] = result;
@@ -212,6 +252,7 @@ class ElaborationContext
   SymbolTable& symbolTable;
   DenseMap<SprocOp, EprocAndChannels>& procCache;
   llvm::StringMap<int> uniqueIds;
+  bool use_io_constraints_on_eprocs;
 };
 
 class ElaborationInterpreter
@@ -270,7 +311,7 @@ class ElaborationInterpreter
     }
     XLS_ASSIGN_OR_RETURN(auto results,
                          Interpret(sproc.getSpawns(), arguments, ctx));
-    auto eproc_channels = ctx.createEproc(sproc);
+    auto eproc_channels = ctx.createEproc(sproc, results);
     ctx.instantiateEproc(eproc_channels, results, op.getNameHintAttr());
     return absl::OkStatus();
   }
@@ -292,7 +333,7 @@ class ElaborationInterpreter
                          ArrayRef<ChanOp> boundaryChannels = {}) {
     XLS_ASSIGN_OR_RETURN(auto results,
                          Interpret(op.getSpawns(), boundaryChannels, ctx));
-    auto eproc_channels = ctx.createEproc(op);
+    auto eproc_channels = ctx.createEproc(op, results);
     ctx.instantiateEproc(eproc_channels, results);
     return absl::OkStatus();
   }
@@ -358,8 +399,9 @@ void ProcElaborationPass::runOnOperation() {
     }
 
     ElaborationInterpreter interpreter;
-    auto result = interpreter.InterpretTop(sproc, boundaryChannels, builder,
-                                           symbolTable, procCache);
+    auto result =
+        interpreter.InterpretTop(sproc, boundaryChannels, builder, symbolTable,
+                                 procCache, use_io_constraints_on_eprocs);
     if (!result.ok()) {
       sproc.emitError() << "failed to elaborate: " << result.message();
     }

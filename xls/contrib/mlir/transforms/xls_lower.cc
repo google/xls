@@ -29,7 +29,8 @@ void XlsLowerPassPipeline(OpPassManager& pm,
   }));
   pm.addNestedPass<xls::SprocOp>(createOptimizeSpawnsPass());
   pm.addPass(mlir::createCanonicalizerPass());
-  pm.addPass(createProcElaborationPass());
+  pm.addPass(createProcElaborationPass(
+      {.use_io_constraints_on_eprocs = options.use_io_constraints_on_eprocs}));
   pm.addPass(
       createSkipEmptyTopEprocPass({.top_proc_name = options.top_proc_name}));
   if (options.instantiate_eprocs) {

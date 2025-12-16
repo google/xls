@@ -1,46 +1,54 @@
-// RUN: xls_opt -elaborate-procs -split-input-file %s 2>&1 | FileCheck %s
-// CHECK-LABEL: xls.chan @req : i32
-// CHECK-NEXT:  xls.chan @resp {fifo_config = #xls.fifo_config<fifo_depth = 1, bypass = true, register_push_outputs = true, register_pop_outputs = false>} : i32
-// CHECK-NEXT:  xls.chan @rom1_req : i32
-// CHECK-NEXT:  xls.chan @rom1_resp : i32
-// CHECK-NEXT:  xls.eproc @rom(%arg0: i32) zeroinitializer discardable {
-// CHECK-NEXT:    %0 = xls.after_all  : !xls.token
-// CHECK-NEXT:    %tkn_out, %result = xls.blocking_receive %0, @rom_arg0 : i32
-// CHECK-NEXT:    %1 = "xls.constant_scalar"() <{value = 1 : i32}> : () -> i32
-// CHECK-NEXT:    %2 = xls.send %tkn_out, %1, @rom_arg1 : i32
-// CHECK-NEXT:    xls.yield %arg0 : i32
-// CHECK-NEXT:  }
-// CHECK-NEXT:  xls.chan @rom_arg0 : i32
-// CHECK-NEXT:  xls.chan @rom_arg1 : i32
-// CHECK-NEXT:  xls.instantiate_eproc @rom (@rom_arg0 as @rom1_req, @rom_arg1 as @rom1_resp)
-// CHECK-NEXT:  xls.chan @rom2_req : i32
-// CHECK-NEXT:  xls.chan @rom2_resp : i32
-// CHECK-NEXT:  xls.instantiate_eproc @rom as "dram" (@rom_arg0 as @rom2_req, @rom_arg1 as @rom2_resp)
-// CHECK-NEXT:  xls.eproc @proxy(%arg0: i32) zeroinitializer discardable attributes {min_pipeline_stages = 3 : i64} {
-// CHECK-NEXT:    %0 = xls.after_all  : !xls.token
-// CHECK-NEXT:    %tkn_out, %result = xls.blocking_receive %0, @proxy_arg0 : i32
-// CHECK-NEXT:    %1 = xls.send %tkn_out, %result, @proxy_arg2 : i32
-// CHECK-NEXT:    %tkn_out_0, %result_1 = xls.blocking_receive %1, @proxy_arg3 : i32
-// CHECK-NEXT:    %2 = xls.send %tkn_out_0, %result_1, @proxy_arg1 : i32
-// CHECK-NEXT:    xls.yield %arg0 : i32
-// CHECK-NEXT:  }
-// CHECK-NEXT:  xls.chan @proxy_arg0 : i32
-// CHECK-NEXT:  xls.chan @proxy_arg1 : i32
-// CHECK-NEXT:  xls.chan @proxy_arg2 : i32
-// CHECK-NEXT:  xls.chan @proxy_arg3 : i32
-// CHECK-NEXT:  xls.instantiate_eproc @proxy (@proxy_arg0 as @req, @proxy_arg1 as @resp, @proxy_arg2 as @rom1_req, @proxy_arg3 as @rom1_resp)
-// CHECK-NEXT:  xls.eproc @fetch(%arg0: i32) zeroinitializer discardable {
-// CHECK-NEXT:    %0 = xls.after_all  : !xls.token
-// CHECK-NEXT:    %1 = xls.send %0, %arg0, @fetch_arg0 : i32
-// CHECK-NEXT:    %tkn_out, %result = xls.blocking_receive %1, @fetch_arg1 : i32
-// CHECK-NEXT:    xls.yield %result : i32
-// CHECK-NEXT:  }
-// CHECK-NEXT:  xls.chan @fetch_arg0 : i32
-// CHECK-NEXT:  xls.chan @fetch_arg1 : i32
-// CHECK-NEXT:  xls.instantiate_eproc @fetch (@fetch_arg0 as @req, @fetch_arg1 as @resp)
-// CHECK-NEXT:  xls.chan @boundary1 {fifo_config = #xls.fifo_config<fifo_depth = 1, bypass = true, register_push_outputs = true, register_pop_outputs = false>, input_flop_kind = #xls<flop_kind skid>, send_supported = false} : i32
-// CHECK-NEXT:  xls.chan @boundary2 {recv_supported = false} : i32
-// CHECK-NEXT:  xls.instantiate_eproc @rom (@rom_arg0 as @boundary1, @rom_arg1 as @boundary2)
+// RUN: xls_opt -elaborate-procs=io-constraints -split-input-file %s 2>&1 | FileCheck %s
+// CHECK-LABEL:   xls.chan @req : i32
+// CHECK-NEXT:    xls.chan @resp {fifo_config = #xls.fifo_config<fifo_depth = 1, bypass = true, register_push_outputs = true, register_pop_outputs = false>} : i32
+// CHECK-NEXT:    xls.chan @rom1_req : i32
+// CHECK-NEXT:    xls.chan @rom1_resp : i32
+
+// CHECK-LABEL:   xls.eproc @rom(
+// CHECK-SAME:                   %[[ARG0:.*]]: i32) zeroinitializer discardable attributes {io_constraints = #xls<io_constraints{<source_channel = @rom1_req, source_direction = recv, target_channel = @rom1_resp, target_direction = send, min_latency = 1, max_latency = 1>}>} {
+// CHECK-NEXT:      %[[AFTER_ALL_0:.*]] = xls.after_all  : !xls.token
+// CHECK-NEXT:      %[[VAL_0:.*]], %[[BLOCKING_RECEIVE_0:.*]] = xls.blocking_receive %[[AFTER_ALL_0]], @rom_arg0 : i32
+// CHECK-NEXT:      %[[VAL_1:.*]] = "xls.constant_scalar"() <{value = 1 : i32}> : () -> i32
+// CHECK-NEXT:      %[[SEND_0:.*]] = xls.send %[[VAL_0]], %[[VAL_1]], @rom_arg1 : i32
+// CHECK-NEXT:      xls.yield %[[ARG0]] : i32
+// CHECK-NEXT:    }
+// CHECK-NEXT:    xls.chan @rom_arg0 : i32
+// CHECK-NEXT:    xls.chan @rom_arg1 : i32
+// CHECK-NEXT:    xls.instantiate_eproc @rom (@rom_arg0 as @rom1_req, @rom_arg1 as @rom1_resp)
+// CHECK-NEXT:    xls.chan @rom2_req : i32
+// CHECK-NEXT:    xls.chan @rom2_resp : i32
+// CHECK-NEXT:    xls.instantiate_eproc @rom as "dram" (@rom_arg0 as @rom2_req, @rom_arg1 as @rom2_resp)
+
+// CHECK-LABEL:   xls.eproc @proxy(
+// CHECK-SAME:                     %[[ARG0:.*]]: i32) zeroinitializer discardable attributes {io_constraints = #xls<io_constraints{<source_channel = @req, source_direction = recv, target_channel = @resp, target_direction = send, min_latency = 3, max_latency = 3>, <source_channel = @req, source_direction = recv, target_channel = @rom1_req, target_direction = send, min_latency = 3, max_latency = 3>, <source_channel = @rom1_resp, source_direction = recv, target_channel = @resp, target_direction = send, min_latency = 3, max_latency = 3>, <source_channel = @rom1_resp, source_direction = recv, target_channel = @rom1_req, target_direction = send, min_latency = 3, max_latency = 3>}>, min_pipeline_stages = 3 : i64} {
+// CHECK-NEXT:      %[[AFTER_ALL_0:.*]] = xls.after_all  : !xls.token
+// CHECK-NEXT:      %[[VAL_0:.*]], %[[BLOCKING_RECEIVE_0:.*]] = xls.blocking_receive %[[AFTER_ALL_0]], @proxy_arg0 : i32
+// CHECK-NEXT:      %[[SEND_0:.*]] = xls.send %[[VAL_0]], %[[BLOCKING_RECEIVE_0]], @proxy_arg2 : i32
+// CHECK-NEXT:      %[[VAL_1:.*]], %[[BLOCKING_RECEIVE_1:.*]] = xls.blocking_receive %[[SEND_0]], @proxy_arg3 : i32
+// CHECK-NEXT:      %[[SEND_1:.*]] = xls.send %[[VAL_1]], %[[BLOCKING_RECEIVE_1]], @proxy_arg1 : i32
+// CHECK-NEXT:      xls.yield %[[ARG0]] : i32
+// CHECK-NEXT:    }
+// CHECK-NEXT:    xls.chan @proxy_arg0 : i32
+// CHECK-NEXT:    xls.chan @proxy_arg1 : i32
+// CHECK-NEXT:    xls.chan @proxy_arg2 : i32
+// CHECK-NEXT:    xls.chan @proxy_arg3 : i32
+// CHECK-NEXT:    xls.instantiate_eproc @proxy (@proxy_arg0 as @req, @proxy_arg1 as @resp, @proxy_arg2 as @rom1_req, @proxy_arg3 as @rom1_resp)
+
+// CHECK-LABEL:   xls.eproc @fetch(
+// CHECK-SAME:                     %[[ARG0:.*]]: i32) zeroinitializer discardable attributes {io_constraints = #xls<io_constraints{<source_channel = @resp, source_direction = recv, target_channel = @req, target_direction = send, min_latency = 1, max_latency = 1>}>} {
+// CHECK-NEXT:      %[[AFTER_ALL_0:.*]] = xls.after_all  : !xls.token
+// CHECK-NEXT:      %[[SEND_0:.*]] = xls.send %[[AFTER_ALL_0]], %[[ARG0]], @fetch_arg0 : i32
+// CHECK-NEXT:      %[[VAL_0:.*]], %[[BLOCKING_RECEIVE_0:.*]] = xls.blocking_receive %[[SEND_0]], @fetch_arg1 : i32
+// CHECK-NEXT:      xls.yield %[[BLOCKING_RECEIVE_0]] : i32
+// CHECK-NEXT:    }
+// CHECK-NEXT:    xls.chan @fetch_arg0 : i32
+// CHECK-NEXT:    xls.chan @fetch_arg1 : i32
+// CHECK-NEXT:    xls.instantiate_eproc @fetch (@fetch_arg0 as @req, @fetch_arg1 as @resp)
+// CHECK-NEXT:    xls.chan @boundary1 {fifo_config = #xls.fifo_config<fifo_depth = 1, bypass = true, register_push_outputs = true, register_pop_outputs = false>, input_flop_kind = #xls<flop_kind skid>, send_supported = false} : i32
+// CHECK-NEXT:    xls.chan @boundary2 {recv_supported = false} : i32
+// CHECK-NEXT:    xls.instantiate_eproc @rom (@rom_arg0 as @boundary1, @rom_arg1 as @boundary2)
+
+
 
 xls.sproc @fetch() top {
   spawns {
