@@ -85,6 +85,8 @@
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/passes/dce_pass.h"
+#include "xls/passes/dfe_pass.h"
+#include "xls/passes/inlining_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/passes/pass_base.h"
@@ -805,9 +807,13 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
     // non-inlined function calls.
     auto pipeline = CreateOptimizationPassPipeline();
 
-    // By the time this pass executes only the single top function is left.
+    // By the time this pass executes only the single top function is left (and
+    // non-synth function).
     // Strip any remaining asserts from it and 'and' them to the quickcheck
     // goal.
+    pipeline->Add<InliningPass>();
+    pipeline->Add<DeadFunctionEliminationPass>();
+    pipeline->Add<DeadCodeEliminationPass>();
     pipeline->Add<QuickCheckProveAssertsNotFiredPass>();
     pipeline->Add<DeadCodeEliminationPass>();
     PassResults results;

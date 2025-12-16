@@ -72,6 +72,8 @@ cc_library(
         "//xls/ir:value_utils",
         "//xls/passes",
         "//xls/passes:dce_pass",
+        "//xls/passes:dfe_pass",
+        "//xls/passes:inlining_pass",
         "//xls/passes:optimization_pass",
         "//xls/passes:optimization_pass_pipeline",
         "//xls/passes:pass_base",
