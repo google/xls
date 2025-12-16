@@ -36,6 +36,7 @@
 #include "xls/passes/lazy_dag_cache.h"
 #include "xls/passes/lazy_node_data.h"
 #include "xls/passes/lazy_node_info.h"
+#include "xls/passes/query_engine.h"
 
 namespace xls {
 
@@ -47,23 +48,37 @@ namespace xls {
 template <typename Derived, typename Info>
 class DataFlowLazyNodeInfo : public LazyNodeInfo<Info> {
  public:
+  // Not used if default_to_leaf = true
   virtual Info ComputeInfoForBitsLiteral(const xls::Bits& literal) const = 0;
+  // Not used if default_to_leaf = true
   virtual Info ComputeInfoForLeafNode(Node* node) const = 0;
+  virtual xls::LeafTypeTree<Info> ComputeInfoTreeForLeafNode(
+      Node* node) const = 0;
+
   virtual Info MergeInfos(const absl::Span<const Info>& infos) const = 0;
 
-  DataFlowLazyNodeInfo()
-      : LazyNodeInfo<Info>(DagCacheInvalidateDirection::kInvalidatesUsers) {}
+  // TODO: Rename default_to_leaf
+  DataFlowLazyNodeInfo(bool default_to_leaf)
+      : LazyNodeInfo<Info>(DagCacheInvalidateDirection::kInvalidatesUsers),
+        default_to_leaf_(default_to_leaf) {}
   DataFlowLazyNodeInfo(const DataFlowLazyNodeInfo& o)
       : LazyNodeInfo<Info>(o),
+        default_to_leaf_(o.default_to_leaf_),
+        query_engine_(o.query_engine_),
         parent_(o.parent_),
         parent_node_(o.parent_node_) {
     for (const auto& [invoke, callee_info] : o.cached_callee_infos_) {
       auto new_info = std::make_unique<Derived>(*callee_info);
+      new_info->query_engine_ = query_engine_;
       if (!first_cache_for_function_.contains(invoke->to_apply())) {
         first_cache_for_function_[invoke->to_apply()] = new_info.get();
       }
       cached_callee_infos_[invoke] = std::move(new_info);
     }
+  }
+
+  void set_query_engine(QueryEngine* query_engine) {
+    query_engine_ = query_engine;
   }
 
   Info GetSingleInfoForNode(Node* node) {
@@ -111,6 +126,8 @@ class DataFlowLazyNodeInfo : public LazyNodeInfo<Info> {
   LeafTypeTree<Info> ComputeInfo(
       Node* node,
       absl::Span<const LeafTypeTree<Info>* const> operand_infos) const {
+    CHECK_NE(query_engine_, nullptr);
+
     absl::InlinedVector<const LeafTypeTree<Info>*, 1> operand_infos_out;
     for (int64_t i = 0; i < operand_infos.size(); ++i) {
       operand_infos_out.push_back(operand_infos[i]);
@@ -119,7 +136,7 @@ class DataFlowLazyNodeInfo : public LazyNodeInfo<Info> {
     xls::Type* ret_type = node->GetType();
 
     if (operand_infos.size() == 0) {
-      if (node->Is<xls::Literal>()) {
+      if (node->Is<xls::Literal>() && !default_to_leaf_) {
         absl::InlinedVector<Info, 1> infos;
         GetValueInfos(node->As<xls::Literal>()->value(), infos);
         return LeafTypeTree<Info>::CreateFromVector(ret_type, std::move(infos));
@@ -235,10 +252,12 @@ class DataFlowLazyNodeInfo : public LazyNodeInfo<Info> {
           // For efficiency: Copy the cache for the first invoke on subsequent
           if (first_cache_for_function_.contains(callee)) {
             const Derived* first_cache = first_cache_for_function_.at(callee);
-            cached_callee_infos_[invoke] =
-                std::make_unique<Derived>(*first_cache);
+            auto copy = std::make_unique<Derived>(*first_cache);
+            copy->query_engine_ = query_engine_;
+            cached_callee_infos_[invoke] = std::move(copy);
           } else {
             auto new_cache = std::make_unique<Derived>();
+            new_cache->query_engine_ = query_engine_;
             first_cache_for_function_[callee] = new_cache.get();
             cached_callee_infos_[invoke] = std::move(new_cache);
           }
@@ -267,9 +286,47 @@ class DataFlowLazyNodeInfo : public LazyNodeInfo<Info> {
 
         return callee_info_opt.ToOwned();
       }
-      default:
+      case xls::Op::kSel:
+      case xls::Op::kPrioritySel:
+      case xls::Op::kOneHotSel: {
+        static_assert(xls::Select::kSelectorOperand ==
+                      xls::PrioritySelect::kSelectorOperand);
+        static_assert(xls::Select::kSelectorOperand ==
+                      xls::OneHotSelect::kSelectorOperand);
+        operand_infos_out.clear();
+        Node* selector = node->operand(xls::Select::kSelectorOperand);
+        std::optional<Value> selector_value_known =
+            query_engine_->KnownValue(selector);
+
+        if (selector_value_known.has_value()) {
+          const Value& selector_value = selector_value_known.value();
+          CHECK(selector_value.IsBits());
+          const Bits& bits = selector_value.bits();
+          const uint64_t selector_index = bits.ToUint64().value();
+
+          // Skip the selector
+          CHECK_EQ(xls::Select::kSelectorOperand, 0);
+          CHECK_LT(selector_index, operand_infos.size() - 1);
+          operand_infos_out.push_back(operand_infos.at(1 + selector_index));
+        } else {
+          for (int64_t op = 0; op < operand_infos.size(); ++op) {
+            if (op == xls::Select::kSelectorOperand) {
+              continue;
+            }
+            operand_infos_out.push_back(operand_infos.at(op));
+          }
+        }
+
+        return MergeParallelInfos(operand_infos_out);
+      }
+      default: {
+        if (default_to_leaf_) {
+          return ComputeInfoTreeForLeafNode(node);
+        }
+
         // Fall through to merge and duplicate
         break;
+      }
     };
 
     // Merge all operand infos
@@ -347,6 +404,7 @@ class DataFlowLazyNodeInfo : public LazyNodeInfo<Info> {
     }
   }
 
+  // TODO: QueryEngine
   bool AllIndicesLiteral(
       absl::Span<Node* const> indices,
       absl::InlinedVector<int64_t, 1>& literal_indices,
@@ -374,6 +432,37 @@ class DataFlowLazyNodeInfo : public LazyNodeInfo<Info> {
     }
     return all_indices_literal;
   }
+
+  // For several trees of the same type, infos at the same element index are
+  // merged independently. For example:
+  // {{a}, {b}} + {{c}, {d}} -> {{a, c}, {b, d}}
+  LeafTypeTree<Info> MergeParallelInfos(
+      absl::Span<const LeafTypeTree<Info>* const> operand_infos) const {
+    if (operand_infos.empty()) {
+      return LeafTypeTree<Info>();
+    }
+
+    const LeafTypeTree<Info>* const first_info = operand_infos.at(0);
+
+    for (int64_t op = 0; op < operand_infos.size(); ++op) {
+      const LeafTypeTree<Info>* const this_info = operand_infos.at(op);
+      CHECK(this_info->type()->IsEqualTo(first_info->type()));
+    }
+
+    absl::InlinedVector<Info, 1> infos_out;
+    for (int64_t e = 0; e < first_info->elements().size(); ++e) {
+      absl::InlinedVector<Info, 1> infos_this_elem;
+      for (int64_t op = 0; op < operand_infos.size(); ++op) {
+        infos_this_elem.push_back(operand_infos.at(op)->elements().at(e));
+      }
+      infos_out.push_back(MergeInfos(infos_this_elem));
+    }
+    return LeafTypeTree<Info>::CreateFromVector(first_info->type(),
+                                                std::move(infos_out));
+  }
+
+  xls::QueryEngine* query_engine_ = nullptr;
+  bool default_to_leaf_ = false;
 
   DataFlowLazyNodeInfo<Derived, Info>* parent_ = nullptr;
   xls::Node* parent_node_ = nullptr;
