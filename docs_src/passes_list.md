@@ -35,7 +35,6 @@ accuracy.
 
 - [simplify-and-inline](#simplify-and-inline)
 - [post-inlining](#post-inlining)
-- [prepare-for-scheduling](#prepare-for-scheduling)
 
 
 
@@ -1312,39 +1311,6 @@ downstream optimizations.
 
 
 
-
-
-
-## canonicalize_proc_state - canonicalize proc state representation {#canonicalize_proc_state}
-
-
-Bring proc-state representation to the canonical 'flat' representationother passes expect.
-
-
-[Text-proto](http://github.com/google/xls/tree/main/xls/passes/optimization_pass_pipeline.txtpb)
-
-
-### Options Set
-
-
-Run to a fixedpoint.
-
-
-
-
-
-
-
-
-### Invoked Passes
-
-
-- [fixedpoint_proc_state_flattening](#fixedpoint_proc_state_flattening)
-- [proc_state_bits_shatter](#proc_state_bits_shatter)
-- [proc_state_tuple_flat](#proc_state_tuple_flat)
-- [ident_remove](#ident_remove)
-- [dataflow](#dataflow)
-- [dce](#dce)
 
 
 
@@ -4674,12 +4640,12 @@ Passes performed after inlining
 - [channel_legalization](#channel_legalization)
 - [token_dependency](#token_dependency)
 - [fixedpoint_simp(2)](#fixedpoint_simp2)
-- [canonicalize_proc_state](#canonicalize_proc_state)
-- [non_synth_separation](#non_synth_separation)
-- [dce](#dce)
+- [fixedpoint_proc_state_flattening](#fixedpoint_proc_state_flattening)
+- [proc_state_bits_shatter](#proc_state_bits_shatter)
+- [proc_state_tuple_flat](#proc_state_tuple_flat)
+- [ident_remove](#ident_remove)
+- [dataflow](#dataflow)
 - [next_value_opt](#next_value_opt)
-- [dce](#dce)
-- [fixedpoint_simp(2)](#fixedpoint_simp2)
 - [dce](#dce)
 - [proc_state_narrow](#proc_state_narrow)
 - [dce](#dce)
@@ -4771,42 +4737,6 @@ Passes performed before each inlining.
 - [dfe](#dfe)
 - [dce](#dce)
 - [simp(>=1,<=2)](#simp12)
-
-
-
-## prepare-for-scheduling - Prepare for scheduling optimization passes {#prepare-for-scheduling}
-
-
-Passes performed at the very end of optimization.
-
-TODO(allight): We might want to move resource sharing into here fororganizational reasons.
-
-TODO(allight): The duplication between this and [scheduling-opt](#scheduling-opt) is a massive code-smell. Significant adjustments to codegen/sched pass pipelines are likely required.
-
-
-[Text-proto](http://github.com/google/xls/tree/main/xls/passes/optimization_pass_pipeline.txtpb)
-
-
-### Options Set
-
-
-
-
-Min opt level: 1
-
-
-
-
-
-
-### Invoked Passes
-
-
-- [full-inlining](#full-inlining)
-- [dce](#dce)
-- [dfe](#dfe)
-- [fixedpoint_simp](#fixedpoint_simp)
-- [dce](#dce)
 
 
 
@@ -6057,11 +5987,6 @@ Min opt level: 1
 
 
 - [fixedpoint_simp](#fixedpoint_simp)
-- [dce](#dce)
-- [full-inlining](#full-inlining)
-- [dce](#dce)
-- [dfe](#dfe)
-- [useless_assert_remove](#useless_assert_remove)
 - [dce](#dce)
 
 
