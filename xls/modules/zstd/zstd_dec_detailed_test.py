@@ -7,20 +7,17 @@ from enum import IntEnum
 from pprint import pformat
 
 from cocotb.utils import get_sim_time
-from cocotb.triggers import RisingEdge, ClockCycles, Event, Edge
 
 from cocotbext.axi.sparse_memory import SparseMemory
 from cocotbext.axi.axi_channels import AxiWMonitor
 
 from xls.modules.zstd.cocotb import data_generator
-from xls.modules.zstd.cocotb.channel import XLSChannel, XLSChannelMonitor
+from xls.modules.zstd.cocotb.channel import XLSChannel
 from xls.modules.zstd.cocotb.xlsstruct import xls_dataclass, XLSStruct
 from xls.modules.zstd.zstd_dec_cocotb_common import (
-    configure_decoder, start_decoder, reset_dut, run_test,
-    prepare_test_environment, check_ram_contents,
-    reverse_expected_huffman_codes, fields_as_array, FseTableRecord,
-    print_fse_ram_contents, check_status, check_output, get_clock_time,
-    CLOCK_PERIOD_PS
+    configure_decoder, start_decoder, reset_dut, prepare_test_environment,
+    reverse_expected_huffman_codes, fields_as_array, print_fse_ram_contents,
+    check_status, check_output, get_clock_time, CLOCK_PERIOD_PS
 )
 from xls.modules.zstd.cocotb.memory import AxiRamFromFile
 from xls.modules.zstd.perf_report import report_test_result
@@ -293,8 +290,6 @@ async def detailed_testing_routine(dut,
 
   encoded_file = Path(pregenerated_path)
 
-  # TODO: Make this a dict
-
   BLOCK_HEADER_DECODER_INST = dut.ZstdDecoder.xls_modules_zstd_block_header_dec__ZstdDecoderInst__ZstdDecoder_0__BlockHeaderDecoder_0__32_64_next_inst2
   BLOCK_HEADER_REQ_CHANNEL_NAME = "zstd_dec__bh_req"
   BLOCK_HEADER_RESP_CHANNEL_NAME = "zstd_dec__bh_resp"
@@ -334,7 +329,7 @@ async def detailed_testing_routine(dut,
   HUFFMAN_DECODER_INST = dut.ZstdDecoder.xls_modules_zstd_huffman_decoder__ZstdDecoderInst__ZstdDecoder_0__CompressBlockDecoder_0__LiteralsDecoder_0__HuffmanLiteralsDecoder_0__HuffmanDecoder_0_next_inst26
   HUFFMAN_DECODER_DONE_CHANNEL_NAME = "zstd_dec__decoder_done"
 
-  HUFFMAN_LITERALS_WEIGHT_CODE_BUILDER_INST = dut.ZstdDecoder.xls_modules_zstd_huffman_code_builder__ZstdDecoderInst__ZstdDecoder_0__CompressBlockDecoder_0__LiteralsDecoder_0__HuffmanLiteralsDecoder_0__WeightCodeBuilder_0_next_inst20
+  HUFFMAN_LITERALS_WEIGHT_CODE_BUILDER_INST = dut.ZstdDecoder.xls_modules_zstd_huffman_code_builder__ZstdDecoderInst__ZstdDecoder_0__CompressBlockDecoder_0__LiteralsDecoder_0__HuffmanLiteralsDecoder_0__WeightCodeBuilder_0__256_8_32_7_next_inst20
   HUFFMAN_LITERALS_WEIGHT_CODES_CHANNEL_NAME = "zstd_dec__code_builder_codes"
 
   HUFFMAN_WEIGHTS_DECODER_INST = dut.ZstdDecoder.xls_modules_zstd_huffman_weights_dec__ZstdDecoderInst__ZstdDecoder_0__CompressBlockDecoder_0__LiteralsDecoder_0__HuffmanLiteralsDecoder_0__HuffmanWeightsDecoder_0__32_64_4_8_16_1_8_32_1_9_8_1_8_16_1_6_32_8_next_inst28
@@ -556,7 +551,6 @@ async def detailed_testing_routine(dut,
                   printc(f"[block {block_cnt}] Verified FSE Huffman weights, score: {score}")
                   score +=1
 
-              weight_dec_resp = await huffman_weights_resp.recv_as(HuffmanWeightsDecoderResp)
               score +=1
               printc(f"[block {block_cnt}] Decoded Huffman weights, score: {score}")
 

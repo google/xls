@@ -16,7 +16,8 @@ import std;
 
 // Return given value with m first bits masked
 pub fn mask<N: u32, M: u32>(n: bits[N], m: bits[M]) -> bits[N] {
-    n & (std::mask_bits<N>() >> (N as bits[M] - m))
+    let shift  = if m as u32 > N { bits[M]:0 } else { N as bits[M] - m };
+    n & (std::mask_bits<N>() >> shift)
 }
 
 #[test]
@@ -26,6 +27,10 @@ fn mask_test() {
     assert_eq(mask(u8:0b11111111, u4:2), u8:0b00000011);
     assert_eq(mask(u8:0b11111111, u4:4), u8:0b00001111);
     assert_eq(mask(u8:0b11111111, u4:8), u8:0b11111111);
-    assert_eq(mask(u8:0b11111111, u4:9), u8:0b00000000); // FIXME: sketchy result, I would expect
-                                                         // 0b11111111
+    assert_eq(mask(u8:0b11111111, u4:9), u8:0b11111111);
+    assert_eq(mask(u8:0b00000101, u4:0), u8:0b00000000);
+    assert_eq(mask(u8:0b00000101, u4:1), u8:0b00000001);
+    assert_eq(mask(u8:0b00000101, u4:2), u8:0b00000001);
+    assert_eq(mask(u8:0b00000101, u4:3), u8:0b00000101);
+    assert_eq(mask(u8:0b00000101, u4:4), u8:0b00000101);
 }

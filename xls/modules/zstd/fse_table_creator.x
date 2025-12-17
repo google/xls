@@ -45,7 +45,6 @@ struct FseTableCreatorState {
     status: Status,
     req: bool,
     idx: u10,
-    // TODO: num_symbs is u8, possibly other fields as well
     num_symbs: u8,
     curr_symbol: u8,
     state_desc_for_symbol: u16,

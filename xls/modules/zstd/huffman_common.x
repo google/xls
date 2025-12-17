@@ -30,27 +30,10 @@ pub struct WeightPreScanMetaData {
     weights_count:    uN[COUNTER_WIDTH][MAX_WEIGHT + u32:1],
 }
 
-// TODO: Enable once parametrics work
-//pub struct WeightPreScanMetaData <
-//    PARALLEL_ACCESS_WIDTH: u32,
-//    COUNTER_WIDTH: u32 = {std::clog2(PARALLEL_ACCESS_WIDTH + u32:1)}
-//> {
-//    occurance_number: uN[COUNTER_WIDTH][PARALLEL_ACCESS_WIDTH],
-//    valid_weights:   u1[MAX_WEIGHT + u32:1],
-//    weights_count:   uN[COUNTER_WIDTH][MAX_WEIGHT + u32:1],
-//}
-
 pub struct WeightPreScanOutput {
     weights: uN[WEIGHT_LOG][PARALLEL_ACCESS_WIDTH],
     meta_data: WeightPreScanMetaData,
 }
-// TODO: Use parametrics when they work
-//pub struct WeightPreScanOutput<
-//    PARALLEL_ACCESS_WIDTH: u32, WEIGHT_LOG: u32
-//> {
-//    weights: uN[WEIGHT_LOG][PARALLEL_ACCESS_WIDTH],
-//    meta_data: WeightPreScanMetaData,
-//}
 
 pub struct CodeBuilderToPreDecoderOutput {
     max_code_length: uN[WEIGHT_LOG],

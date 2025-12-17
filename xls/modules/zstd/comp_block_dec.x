@@ -348,9 +348,6 @@ pub proc CompressBlockDecoder<
         huffman_lit_weights_fse_wr_req_s: chan<HuffmanWeightsFseRamWrReq> out,
         huffman_lit_weights_fse_wr_resp_r: chan<HuffmanWeightsFseRamWrResp> in,
     ) {
-        // TODO: for consistency all MemReaders should be in toplevel ZSTD decoder
-        // so we should move them up in the hierarchy from LiteralsDecoder
-        // and SequenceDecoder to the toplevel
         const CHANNEL_DEPTH = u32:1;
 
         let (lit_ctrl_req_s, lit_ctrl_req_r) = chan<LiteralsDecReq, CHANNEL_DEPTH>("lit_ctrl_req");
@@ -1603,7 +1600,6 @@ proc CompressBlockDecoderTest {
         let tok = send(tok, ml_sel_test_req_s, u1:1);
         let (tok, _) = recv(tok, ml_sel_test_resp_r);
 
-        // TODO: Enable more test cases when posssible. Currently their number is limited to lower the RAM consumption
         let tok = unroll_for!(test_i, tok): (u32, token) in u32[2]:[u32:0, u32:4] {
             let (input_length, input, output_length, output) = COMP_BLOCK_DEC_TESTCASES[test_i];
 

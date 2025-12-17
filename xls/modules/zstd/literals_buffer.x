@@ -139,9 +139,6 @@ proc PacketDecoder<RAM_ADDR_WIDTH: u32> {
         }(bool[RAM_NUM]:[0, ...]);
         let literals_last = literals_lasts[literals.length - u64:1];
 
-        // TODO: Restore this check after extending request to CommandConstructor
-        // assert!(literals.last == literals_last, "Invalid packet");
-
         // Send literals data
         let literals_out = SequenceExecutorPacket<common::SYMBOL_WIDTH> {
             msg_type: SequenceExecutorMessageType::LITERAL,
@@ -459,7 +456,6 @@ proc LiteralsBufferWriter<
     }
     next (state: State) {
         let tok0 = join();
-        // TODO: Remove this workaround when fixed: https://github.com/google/xls/issues/1368
         type State = LiteralsBufferWriterState<RAM_ADDR_WIDTH>;
         type WriteReq = ram::WriteReq<RAM_ADDR_WIDTH, RAM_DATA_WIDTH, RAM_NUM_PARTITIONS>;
 
@@ -665,7 +661,6 @@ proc LiteralsBufferReader<
 
     next (state: State) {
         let tok0 = join();
-        // TODO: Remove this workaround when fixed: https://github.com/google/xls/issues/1368
         type ReadReq = ram::ReadReq<RAM_ADDR_WIDTH, RAM_NUM_PARTITIONS>;
         type State = LiteralsBufferReaderState<RAM_ADDR_WIDTH>;
 
