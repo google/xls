@@ -18,7 +18,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -31,24 +30,12 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/node.h"
-#include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "ortools/graph/cliques.h"
 
 namespace xls {
 
 namespace {
-
-Node* GetSelector(Node* select) {
-  if (select->Is<PrioritySelect>()) {
-    return select->As<PrioritySelect>()->selector();
-  }
-  if (select->Is<OneHotSelect>()) {
-    return select->As<OneHotSelect>()->selector();
-  }
-  CHECK(select->Is<Select>());
-  return select->As<Select>()->selector();
-}
 
 // This function permutes the order of the elements of the array
 // @array_to_permute following the permutations listed in @permutation.
@@ -76,82 +63,6 @@ void Permute(const IntVector& permutation, Array* array_to_permute) {
 }
 
 }  // namespace
-
-FoldingAction::FoldingAction(Node* to, Node* select, uint32_t to_case_number,
-                             std::optional<double> area_saved)
-    : to_{to},
-      select_{select},
-      to_case_number_{to_case_number},
-      area_saved_{area_saved} {}
-
-Node* FoldingAction::GetTo() const { return to_; }
-
-Node* FoldingAction::GetSelect() const { return select_; }
-
-Node* FoldingAction::GetSelector() const {
-  Node* s = ::xls::GetSelector(select_);
-  return s;
-}
-
-uint32_t FoldingAction::GetToCaseNumber() const { return to_case_number_; }
-
-bool FoldingAction::IsSigned() const { return this->to_->op() == Op::kSMul; }
-
-std::optional<double> FoldingAction::area_saved() const { return area_saved_; }
-
-BinaryFoldingAction::BinaryFoldingAction(Node* from, Node* to, Node* select,
-                                         uint32_t from_case_number,
-                                         uint32_t to_case_number)
-    : FoldingAction{to, select, to_case_number},
-      from_{from},
-      from_case_number_{from_case_number} {}
-
-Node* BinaryFoldingAction::GetFrom() const { return from_; }
-
-uint32_t BinaryFoldingAction::GetFromCaseNumber() const {
-  return from_case_number_;
-}
-
-NaryFoldingAction::NaryFoldingAction(
-    absl::Span<const std::pair<Node*, uint32_t>> from, Node* to, Node* select,
-    uint32_t to_case_number)
-    : FoldingAction{to, select, to_case_number},
-      from_{from.begin(), from.end()} {}
-
-NaryFoldingAction::NaryFoldingAction(
-    absl::Span<const std::pair<Node*, uint32_t>> from, Node* to, Node* select,
-    uint32_t to_case_number, double area_saved)
-    : FoldingAction{to, select, to_case_number} {
-  for (auto [n, i] : from) {
-    from_.push_back(std::make_pair(n, i));
-  }
-}
-
-NaryFoldingAction::NaryFoldingAction(
-    const std::vector<BinaryFoldingAction*>& edges)
-    : FoldingAction{edges[0]->GetTo(), edges[0]->GetSelect(),
-                    edges[0]->GetToCaseNumber()} {
-  for (BinaryFoldingAction* binary_folding : edges) {
-    from_.push_back(std::make_pair(binary_folding->GetFrom(),
-                                   binary_folding->GetFromCaseNumber()));
-  }
-}
-
-NaryFoldingAction::NaryFoldingAction(
-    const std::vector<BinaryFoldingAction*>& edges, double area_saved)
-    : FoldingAction{edges[0]->GetTo(), edges[0]->GetSelect(),
-                    edges[0]->GetToCaseNumber(), area_saved} {
-  for (BinaryFoldingAction* binary_folding : edges) {
-    from_.push_back(std::make_pair(binary_folding->GetFrom(),
-                                   binary_folding->GetFromCaseNumber()));
-  }
-}
-
-std::vector<std::pair<Node*, uint32_t>> NaryFoldingAction::GetFrom() const {
-  return from_;
-}
-
-uint64_t NaryFoldingAction::GetNumberOfFroms() const { return from_.size(); }
 
 FoldingGraph::FoldingGraph(
     FunctionBase* f,

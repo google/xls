@@ -153,8 +153,9 @@ class VisibilityEstimator : public VisibilityBuilder {
   VisibilityEstimator(int64_t prior_existing_id,
                       const BddQueryEngine* bdd_engine,
                       const NodeForwardDependencyAnalysis& nda,
-                      BitProvenanceAnalysis& bpa, AreaEstimator* area_estimator,
-                      DelayEstimator* delay_estimator)
+                      BitProvenanceAnalysis& bpa,
+                      const AreaEstimator* area_estimator,
+                      const DelayEstimator* delay_estimator)
       : VisibilityBuilder(prior_existing_id, bdd_engine, nda, bpa),
         area_analysis_(area_estimator),
         delay_analysis_(delay_estimator) {

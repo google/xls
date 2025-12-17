@@ -15,18 +15,14 @@
 #ifndef XLS_PASSES_RESOURCE_SHARING_PASS_H_
 #define XLS_PASSES_RESOURCE_SHARING_PASS_H_
 
+#include <cstdint>
 #include <string_view>
-#include <utility>
-#include <vector>
 
 #include "absl/status/statusor.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
-#include "xls/passes/bdd_query_engine.h"
-#include "xls/passes/node_dependency_analysis.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
-#include "xls/passes/query_engine.h"
 
 namespace xls {
 
@@ -165,9 +161,23 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
  public:
   static constexpr std::string_view kName = "resource_sharing";
 
+  // TODO: area vs. delay trade-off heuristics in resource sharing should be
+  // queried from area/delay models instead of being hard-coded on this pass.
   // avoids folds with small area savings on certain ops
-  static constexpr double kMinAreaSavings = 10.0;
-  static constexpr double kMaxDelaySpread = 320.0 * 320.0;
+  static constexpr double kMinAreaSavings = 12.0;
+  static constexpr double kMaxDelaySpreadSquared = 320.0 * 320.0;
+  // avoids folds with too large a delay increase or (delay spread)^2
+  static constexpr uint64_t kMaxDelayIncrease = 2000;
+  static constexpr uint64_t kMaxDelayIncreasePerFold = 200;
+
+  // avoids large visibility expressions that will likely be disqualified later
+  // also, pruning edges is O(edges^2), so this value should be relatively small
+  static constexpr int64_t kMaxEdgesToHandle = 50;
+  // the BDD expression path count for each edge is much more constrained than
+  // the total path count to prevent a conservatively chosen visibility
+  // expression being dominated by a single, complicated edge.
+  static constexpr int64_t kMaxPathCountForEdgeInGeneralVisibilityAnalysis = 64;
+  static constexpr int64_t kMaxPathCountForBddEngine = 4096;
 
   explicit ResourceSharingPass();
 
@@ -193,11 +203,6 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
  private:
   ProfitabilityGuard profitability_guard_;
 };
-
-bool InfluencedBySource(
-    Node* node, Node* source, const NodeForwardDependencyAnalysis& nda,
-    const BddQueryEngine& bdd_engine,
-    const std::vector<std::pair<TreeBitLocation, bool>>& assumptions);
 
 }  // namespace xls
 

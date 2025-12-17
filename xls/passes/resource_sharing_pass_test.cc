@@ -41,13 +41,9 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
-#include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
-#include "xls/passes/bdd_query_engine.h"
-#include "xls/passes/node_dependency_analysis.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
-#include "xls/passes/query_engine.h"
 #include "xls/solvers/z3_ir_equivalence_testutils.h"
 
 namespace xls {
@@ -678,9 +674,7 @@ TEST_F(ResourceSharingPassTest,
   BValue select = fb.PrioritySelect(selector, {mulIJ, add}, k0);
 
   // Step 3: post-select computation
-  BValue not0 = fb.Not(isOp0);
-  BValue not0Extended = fb.SignExtend(not0, 32);
-  BValue post_select_and = fb.And(add, not0Extended);
+  BValue post_select_and = fb.And(add, fb.SignExtend(fb.Not(isOp1), 32));
   BValue post_select_add = fb.Add(select, post_select_and);
 
   // Create the function
@@ -696,9 +690,9 @@ TEST_F(ResourceSharingPassTest,
 
   // We expect the resource sharing optimization to have preserved the
   // inputs/outputs pairs we know to be valid.
-  InterpretAndCheck(f, {0, 2, 3, 0, 0}, 6);
-  InterpretAndCheck(f, {1, 0, 0, 2, 3}, 10);
-  InterpretAndCheck(f, {2, 999, 999, 2, 3}, 5);
+  InterpretAndCheck(f, {0, 2, 3, 0, 0}, 6 - 1);
+  InterpretAndCheck(f, {1, 0, 0, 2, 3}, 5 + 0);
+  InterpretAndCheck(f, {2, 999, 999, 2, 3}, 0 + 5);
 }
 
 TEST_F(ResourceSharingPassTest,
@@ -1266,68 +1260,48 @@ TEST_F(ResourceSharingPassTest, MergeShift) {
   InterpretAndCheck(f, {0, 8, 1, 0, 0}, 16);
 }
 
-TEST_F(ResourceSharingPassTest, InfluencedBySourceAndOp) {
+TEST_F(ResourceSharingPassTest, MergeMultipliesAndAddsUsedByTwoSelects) {
+  // Create the function builder
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
-  Type* u1_type = p->GetBitsType(1);
-  BValue i = fb.Param("i", u1_type);
-  BValue j = fb.Param("j", u1_type);
-  BValue and_val = fb.And(i, j, SourceInfo(), "and_node");
-  BValue nand_val = fb.And(i, j, SourceInfo(), "nand_node");
-  BValue both = fb.Concat({and_val, nand_val});
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(both));
+  BValue op = fb.Param("op", p->GetBitsType(32));
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  BValue z = fb.Param("z", p->GetBitsType(32));
+  BValue mul1 = fb.UMul(x, y);
+  BValue mul2 = fb.UMul(x, z);
+  BValue mul3 = fb.UMul(y, z);
+  BValue k0 = fb.Literal(UBits(0, 32));
+  BValue k1 = fb.Literal(UBits(1, 32));
+  BValue k2 = fb.Literal(UBits(2, 32));
+  BValue k3 = fb.Literal(UBits(3, 32));
+  BValue mul1_inc = fb.Add(mul1, k1);
+  BValue mul2_dec = fb.Subtract(mul2, k1);
+  BValue mul3_inc = fb.Add(mul3, k1);
+  // Intent: mul1 and mul2 are mutually exclusive, but neither are with mul3.
+  // mul1 is used if: (op == k0 || op == k1)
+  // mul2 is used if: (op != k0 && op != k1 && op != k3)
+  // mul3 is used if: (op != k1 && op != k2)
+  // muls 1 and 3 are used if op == k0 ; muls 2 and 3 are used if op > k3
+  // This test intentionally uses 2 priority selects and default values.
+  BValue selector1 = fb.Concat({fb.Eq(op, k2), fb.Eq(op, k1)});
+  BValue select1 = fb.PrioritySelect(selector1, {mul1_inc, mul2_dec}, mul3_inc);
+  BValue selector2 = fb.Concat({fb.Eq(op, k3), fb.Eq(op, k1), fb.Eq(op, k0)});
+  BValue select2 = fb.PrioritySelect(selector2, {mul1, mul1, mul3}, mul2);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Add(select1, select2)));
 
-  OptimizationContext context;
-  NodeForwardDependencyAnalysis nda;
-  XLS_ASSERT_OK(nda.Attach(f).status());
-  const BddQueryEngine* bdd = context.SharedQueryEngine<BddQueryEngine>(f);
-  XLS_ASSERT_OK_AND_ASSIGN(Node * i_node, f->GetNode("i"));
-  XLS_ASSERT_OK_AND_ASSIGN(Node * j_node, f->GetNode("j"));
-  XLS_ASSERT_OK_AND_ASSIGN(Node * and_node, f->GetNode("and_node"));
-  XLS_ASSERT_OK_AND_ASSIGN(Node * nand_node, f->GetNode("nand_node"));
-
-  for (const auto& bool_op : {and_node, nand_node}) {
-    EXPECT_TRUE(InfluencedBySource(bool_op, i_node, nda, *bdd, {}));
-    EXPECT_FALSE(InfluencedBySource(
-        bool_op, i_node, nda, *bdd,
-        {std::make_pair(TreeBitLocation{j_node, 0}, false)}));
-    EXPECT_TRUE(InfluencedBySource(bool_op, j_node, nda, *bdd, {}));
-    EXPECT_FALSE(InfluencedBySource(
-        bool_op, j_node, nda, *bdd,
-        {std::make_pair(TreeBitLocation{i_node, 0}, false)}));
-  }
-}
-
-TEST_F(ResourceSharingPassTest, InfluencedBySourceOrOp) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  Type* u1_type = p->GetBitsType(1);
-  BValue i = fb.Param("i", u1_type);
-  BValue j = fb.Param("j", u1_type);
-  BValue or_val = fb.Or(i, j, SourceInfo(), "or_node");
-  BValue nor_val = fb.Or(i, j, SourceInfo(), "nor_node");
-  BValue both = fb.Concat({or_val, nor_val});
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(both));
-
-  OptimizationContext context;
-  NodeForwardDependencyAnalysis nda;
-  XLS_ASSERT_OK(nda.Attach(f).status());
-  const BddQueryEngine* bdd = context.SharedQueryEngine<BddQueryEngine>(f);
-  XLS_ASSERT_OK_AND_ASSIGN(Node * i_node, f->GetNode("i"));
-  XLS_ASSERT_OK_AND_ASSIGN(Node * j_node, f->GetNode("j"));
-  XLS_ASSERT_OK_AND_ASSIGN(Node * or_node, f->GetNode("or_node"));
-  XLS_ASSERT_OK_AND_ASSIGN(Node * nor_node, f->GetNode("nor_node"));
-
-  for (const auto& bool_op : {or_node, nor_node}) {
-    EXPECT_TRUE(InfluencedBySource(bool_op, i_node, nda, *bdd, {}));
-    EXPECT_FALSE(
-        InfluencedBySource(bool_op, i_node, nda, *bdd,
-                           {std::make_pair(TreeBitLocation{j_node, 0}, true)}));
-    EXPECT_TRUE(InfluencedBySource(bool_op, j_node, nda, *bdd, {}));
-    EXPECT_FALSE(
-        InfluencedBySource(bool_op, j_node, nda, *bdd,
-                           {std::make_pair(TreeBitLocation{i_node, 0}, true)}));
-  }
+  // TODO: Look into getting ScopedVerifyEquivalence to converge more quickly by
+  // overriding ShouldTarget to fold smaller bit-width multiplies and adds.
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_EQ(NumberOfMultiplications(f), 2);
+  // Note: this counts both the 2 remaining adders and the subtract:
+  EXPECT_EQ(NumberOfAdders(f), 3);
+  InterpretAndCheck(f, {0, 2, 3, 5}, 16 + 6);
+  InterpretAndCheck(f, {1, 2, 3, 5}, 7 + 6);
+  InterpretAndCheck(f, {2, 2, 3, 5}, 9 + 10);
+  InterpretAndCheck(f, {3, 2, 3, 5}, 16 + 15);
+  InterpretAndCheck(f, {4, 2, 3, 5}, 16 + 10);
 }
 
 void IrFuzzResourceSharing(FuzzPackageWithArgs fuzz_package_with_args) {
