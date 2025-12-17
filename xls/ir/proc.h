@@ -244,7 +244,9 @@ class Proc : public FunctionBase {
       const absl::flat_hash_map<const FunctionBase*, FunctionBase*>&
           call_remapping = {},
       const absl::flat_hash_map<std::string, std::string>&
-          state_name_remapping = {}) const;
+          state_name_remapping = {},
+      std::optional<absl::flat_hash_map<Node*, Node*>*> original_node_to_clone =
+          std::nullopt) const;
 
   std::string DumpIr() const override;
 

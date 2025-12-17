@@ -286,7 +286,8 @@ absl::StatusOr<Proc*> Proc::Clone(
     const absl::flat_hash_map<std::string, std::string>& channel_remapping,
     const absl::flat_hash_map<const FunctionBase*, FunctionBase*>&
         call_remapping,
-    const absl::flat_hash_map<std::string, std::string>& state_name_remapping)
+    const absl::flat_hash_map<std::string, std::string>& state_name_remapping,
+    std::optional<absl::flat_hash_map<Node*, Node*>*> original_node_to_clone)
     const {
   auto new_chan_name = [&](std::string_view n) -> std::string_view {
     if (channel_remapping.contains(n)) {
@@ -522,6 +523,15 @@ absl::StatusOr<Proc*> Proc::Clone(
     for (const Stage& stage : stages()) {
       XLS_ASSIGN_OR_RETURN(Stage cloned_stage, stage.Clone(original_to_clone));
       cloned_proc->AddStage(std::move(cloned_stage));
+    }
+  }
+
+  if (original_node_to_clone.has_value()) {
+    absl::flat_hash_map<Node*, Node*>* original_node_to_clone_ptr =
+        *original_node_to_clone;
+    XLS_RET_CHECK(original_node_to_clone_ptr != nullptr);
+    for (auto& [original_node, cloned_node] : original_to_clone) {
+      (*original_node_to_clone_ptr)[original_node] = cloned_node;
     }
   }
 
