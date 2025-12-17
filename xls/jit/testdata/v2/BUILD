@@ -36,6 +36,13 @@ xls_dslx_ir(
     dslx_top = "proc_ten",
 )
 
+xls_dslx_ir(
+    name = "multi_proc_ir_proc_scoped",
+    srcs = ["multi_proc.x"],
+    dslx_top = "proc_ten",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
+)
+
 cc_xls_ir_jit_wrapper(
     name = "test_jit_wrapper",
     src = ":test_ir",
@@ -51,6 +58,16 @@ cc_xls_ir_jit_wrapper(
     jit_wrapper_args = {
         "class_name": "TestProc",
         "namespace": "xls::jit_test::v2",
+    },
+    wrapper_type = "PROC",
+)
+
+cc_xls_ir_jit_wrapper(
+    name = "multi_proc_jit_wrapper_proc_scoped",
+    src = ":multi_proc_ir_proc_scoped",
+    jit_wrapper_args = {
+        "class_name": "TestProc",
+        "namespace": "xls::jit_test::v2::ProcScoped",
     },
     wrapper_type = "PROC",
 )

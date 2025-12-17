@@ -37,8 +37,10 @@
 #include "xls/jit/multi_func_block_wrapper.h"
 #include "xls/jit/multi_func_with_trace_block_wrapper.h"
 #include "xls/jit/testdata/v1/multi_proc_jit_wrapper.h"
+#include "xls/jit/testdata/v1/multi_proc_jit_wrapper_proc_scoped.h"
 #include "xls/jit/testdata/v1/test_jit_wrapper.h"
 #include "xls/jit/testdata/v2/multi_proc_jit_wrapper.h"
+#include "xls/jit/testdata/v2/multi_proc_jit_wrapper_proc_scoped.h"
 #include "xls/jit/testdata/v2/test_jit_wrapper.h"
 
 namespace xls {
@@ -62,6 +64,23 @@ TEST(JitWrapperTest, CanCallTargetsWithSameName) {
 TEST(JitWrapperTest, CanCallTargetsWithSameNameMultiProc) {
   XLS_ASSERT_OK_AND_ASSIGN(auto v1_jit, jit_test::v1::TestProc::Create());
   XLS_ASSERT_OK_AND_ASSIGN(auto v2_jit, jit_test::v2::TestProc::Create());
+  XLS_EXPECT_OK(v1_jit->SendToBytesSrc(1));
+  XLS_EXPECT_OK(v1_jit->SendToBytesSrc(20));
+  XLS_EXPECT_OK(v2_jit->SendToBytesSrc(1));
+  XLS_EXPECT_OK(v2_jit->SendToBytesSrc(20));
+  XLS_EXPECT_OK(v1_jit->TickUntilBlocked());
+  XLS_EXPECT_OK(v2_jit->TickUntilBlocked());
+  EXPECT_THAT(v1_jit->ReceiveFromBytesResult(), IsOkAndHolds(0));
+  EXPECT_THAT(v1_jit->ReceiveFromBytesResult(), IsOkAndHolds(200));
+  EXPECT_THAT(v2_jit->ReceiveFromBytesResult(), IsOkAndHolds(10));
+  EXPECT_THAT(v2_jit->ReceiveFromBytesResult(), IsOkAndHolds(0));
+}
+
+TEST(JitWrapperTest, CanCallTargetsWithSameNameMultiProcProcScoped) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto v1_jit,
+                           jit_test::v1::ProcScoped::TestProc::Create());
+  XLS_ASSERT_OK_AND_ASSIGN(auto v2_jit,
+                           jit_test::v2::ProcScoped::TestProc::Create());
   XLS_EXPECT_OK(v1_jit->SendToBytesSrc(1));
   XLS_EXPECT_OK(v1_jit->SendToBytesSrc(20));
   XLS_EXPECT_OK(v2_jit->SendToBytesSrc(1));

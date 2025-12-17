@@ -42,6 +42,9 @@ message PackageInterfaceProto {
     optional Direction direction = 3;
     // If present the corresponding sv type for this channel.
     optional string sv_type = 4;
+
+    // For proc-scoped channels, the proc containing the channel.
+    optional string proc_name = 5;
   }
 
   // Common fields to all types of executables.

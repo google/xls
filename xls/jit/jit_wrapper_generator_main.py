@@ -144,6 +144,7 @@ class JitType(enum.Enum):
 @dataclasses.dataclass(frozen=True)
 class XlsChannel:
   xls_name: str
+  proc_name: str
   camel_name: str
   packed_type: str
   unpacked_type: str
@@ -311,6 +312,7 @@ def to_chan(
 ) -> XlsChannel:
   return XlsChannel(
       xls_name=c.name,
+      proc_name=c.proc_name,
       camel_name=camelize(c.name.removeprefix(f"{package_name}__")),
       packed_type=to_packed(c.type),
       unpacked_type=to_unpacked(c.type),

@@ -116,6 +116,8 @@ cc_library(
         "//xls/ir:state_element",
         "//xls/ir:type",
         "//xls/ir:xls_ir_interface_cc_proto",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
 

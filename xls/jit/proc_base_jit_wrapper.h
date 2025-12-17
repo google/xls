@@ -143,17 +143,20 @@ class BaseProcJitWrapper {
 
   // Add 'v' onto the queue of things to be sent to the proc on the given
   // channel.
-  absl::Status SendToChannel(std::string_view chan_name, xls::Value v) {
+  absl::Status SendToChannel(std::string_view chan_name,
+                             std::string_view proc_name, xls::Value v) {
     XLS_ASSIGN_OR_RETURN(auto* man, runtime_->GetJitChannelQueueManager());
-    XLS_ASSIGN_OR_RETURN(auto* queue, man->GetQueueByName(chan_name));
+    XLS_ASSIGN_OR_RETURN(auto* queue,
+                         man->GetQueueByName(chan_name, proc_name));
     return queue->Write(v);
   }
 
   // Remove and return the oldest element in the channels queue.
   absl::StatusOr<std::optional<xls::Value>> ReceiveFromChannel(
-      std::string_view chan_name) {
+      std::string_view chan_name, std::string_view proc_name) {
     XLS_ASSIGN_OR_RETURN(auto* man, runtime_->GetJitChannelQueueManager());
-    XLS_ASSIGN_OR_RETURN(auto* queue, man->GetQueueByName(chan_name));
+    XLS_ASSIGN_OR_RETURN(auto* queue,
+                         man->GetQueueByName(chan_name, proc_name));
     return queue->Read();
   }
 
@@ -173,17 +176,21 @@ class BaseProcJitWrapper {
 
   template <typename PackedView>
   absl::Status SendToChannelPacked(std::string_view chan_name,
+                                   std::string_view proc_name,
                                    PackedView view) {
     XLS_ASSIGN_OR_RETURN(auto* man, runtime_->GetJitChannelQueueManager());
-    XLS_ASSIGN_OR_RETURN(auto* queue, man->GetQueueByName(chan_name));
+    XLS_ASSIGN_OR_RETURN(auto* queue,
+                         man->GetQueueByName(chan_name, proc_name));
     return queue->Write(
         jit_runtime_.UnpackBuffer(view.buffer(), queue->channel()->type()));
   }
 
   template <typename PackedView>
   absl::StatusOr<bool> ReceiveFromChannelPacked(std::string_view chan_name,
+                                                std::string_view proc_name,
                                                 PackedView memory) {
-    XLS_ASSIGN_OR_RETURN(std::optional<Value> v, ReceiveFromChannel(chan_name));
+    XLS_ASSIGN_OR_RETURN(std::optional<Value> v,
+                         ReceiveFromChannel(chan_name, proc_name));
     if (!v) {
       return false;
     }

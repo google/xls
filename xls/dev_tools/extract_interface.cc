@@ -14,6 +14,8 @@
 
 #include "xls/dev_tools/extract_interface.h"
 
+#include "absl/log/check.h"
+#include "absl/status/statusor.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function.h"
@@ -122,6 +124,35 @@ PackageInterfaceProto ExtractPackageInterface(Package* package) {
       dir = PackageInterfaceProto::Channel::INVALID;
     }
     chan->set_direction(dir);
+  }
+
+  // In the case of proc-scoped channels, the package interface is the top-level
+  // proc channel interfaces.
+  if (package->ChannelsAreProcScoped()) {
+    absl::StatusOr<Proc*> proc = package->GetTopAsProc();
+    CHECK_OK(proc);
+    Proc* top = *proc;
+    for (const auto& c : top->channel_interfaces()) {
+      PackageInterfaceProto::Channel::Direction dir;
+      if (c->direction() == ChannelDirection::kSend) {
+        if (top->HasChannelInterface(c->name(), ChannelDirection::kReceive)) {
+          dir = PackageInterfaceProto::Channel::INOUT;
+        } else {
+          dir = PackageInterfaceProto::Channel::OUT;
+        }
+      } else if (!top->HasChannelInterface(c->name(),
+                                           ChannelDirection::kSend)) {
+        dir = PackageInterfaceProto::Channel::IN;
+      } else {
+        // Already handled by send interfaces.
+        continue;
+      }
+      auto* chan = proto.add_channels();
+      chan->set_name(c->name());
+      chan->set_proc_name(top->name());
+      *chan->mutable_type() = c->type()->ToProto();
+      chan->set_direction(dir);
+    }
   }
   for (const auto& f : package->functions()) {
     *proto.add_functions() = ExtractFunctionInterface(f.get());
