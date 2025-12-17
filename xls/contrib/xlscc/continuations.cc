@@ -27,6 +27,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -50,6 +51,7 @@
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/node_source_analysis.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/partial_info_query_engine.h"
 #include "xls/passes/pass_base.h"
 
 namespace xlscc {
@@ -115,11 +117,18 @@ ParamSet SourcesInSetNodeInfo::ComputeInfoForBitsLiteral(
   return ParamSet();
 }
 
-ParamSet SourcesInSetNodeInfo::ComputeInfoForLeafNode(xls::Node* node) const {
+ParamSet SourcesInSetNodeInfo::ComputeInfoForNode(xls::Node* node) const {
   if (node->Is<xls::Param>()) {
     return ParamSet{node->As<xls::Param>()};
   }
   return ParamSet();
+}
+
+xls::LeafTypeTree<ParamSet> SourcesInSetNodeInfo::ComputeInfoTreeForNode(
+    xls::Node* node) const {
+  LOG(FATAL)
+      << "ComputeInfoTreeForLeafNode should be unused for SourcesInSetNodeInfo";
+  return xls::LeafTypeTree<ParamSet>();
 }
 
 ParamSet SourcesInSetNodeInfo::MergeInfos(
@@ -135,10 +144,17 @@ absl::StatusOr<bool> Translator::CheckNodeSourcesInSet(
     xls::FunctionBase* in_function, xls::Node* node,
     absl::flat_hash_set<const xls::Param*> sources_set) {
   // Save lazy node analysis for each function for efficiency
+  if (!query_engines_by_function_.contains(in_function)) {
+    auto new_query_engine_ptr = std::make_unique<xls::PartialInfoQueryEngine>();
+    XLS_RETURN_IF_ERROR(new_query_engine_ptr->Populate(in_function).status());
+    query_engines_by_function_[in_function] = std::move(new_query_engine_ptr);
+  }
   if (!node_source_infos_by_function_.contains(in_function)) {
     CHECK(in_function->IsFunction());
     auto new_info_ptr = std::make_unique<SourcesInSetNodeInfo>();
     XLS_RETURN_IF_ERROR(new_info_ptr->Attach(in_function).status());
+    new_info_ptr->set_query_engine(
+        query_engines_by_function_.at(in_function).get());
     node_source_infos_by_function_[in_function] = std::move(new_info_ptr);
   }
 

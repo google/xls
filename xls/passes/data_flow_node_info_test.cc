@@ -15,8 +15,14 @@
 #include "xls/passes/data_flow_node_info.h"
 
 #include <cstdint>
+#include <memory>
+#include <vector>
 
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
+#include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
@@ -26,19 +32,40 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/value.h"
+#include "xls/passes/node_source_analysis.h"
+#include "xls/passes/partial_info_query_engine.h"
+#include "xls/passes/query_engine.h"
 
 namespace xls {
 namespace {
 
-class TestNodeInfo : public DataFlowLazyNodeInfo<TestNodeInfo, int64_t> {
+template <bool default_info_source>
+class TestParamCountInfo
+    : public DataFlowLazyNodeInfo<TestParamCountInfo<default_info_source>,
+                                  int64_t> {
  public:
-  int64_t ComputeInfoForLeafNode(Node* node) const override final {
+  TestParamCountInfo()
+      : DataFlowLazyNodeInfo<TestParamCountInfo, int64_t>(
+            /*compute_tree_for_source=*/false,
+            /*default_info_source=*/default_info_source) {}
+
+  int64_t ComputeInfoForNode(Node* node) const override final {
+    if (node->op() == xls::Op::kAdd) {
+      return -100;
+    }
     return node->Is<xls::Param>() ? 1 : 0;
   }
   int64_t ComputeInfoForBitsLiteral(
       const xls::Bits& literal) const override final {
     return 0;
+  }
+  xls::LeafTypeTree<int64_t> ComputeInfoTreeForNode(
+      xls::Node* node) const override final {
+    LOG(FATAL)
+        << "ComputeInfoTreeForNode should be unused for TestNodeSourceInfo";
+    return xls::LeafTypeTree<int64_t>();
   }
   int64_t MergeInfos(
       const absl::Span<const int64_t>& infos) const override final {
@@ -50,7 +77,62 @@ class TestNodeInfo : public DataFlowLazyNodeInfo<TestNodeInfo, int64_t> {
   }
 };
 
-class DataFlowNodeInfoTest : public IrTestBase {};
+typedef absl::flat_hash_set<NodeSource> NodeSourceSet;
+
+template <bool default_info_source>
+class TestNodeSourceInfo
+    : public DataFlowLazyNodeInfo<TestNodeSourceInfo<default_info_source>,
+                                  NodeSourceSet> {
+ public:
+  TestNodeSourceInfo()
+      : DataFlowLazyNodeInfo<TestNodeSourceInfo, NodeSourceSet>(
+            /*compute_tree_for_source=*/true,
+            /*default_info_source=*/default_info_source) {}
+
+  NodeSourceSet ComputeInfoForNode(Node* node) const override final {
+    LOG(FATAL) << "ComputeInfoForNode should be unused for TestNodeSourceInfo";
+    return NodeSourceSet{};
+  }
+  NodeSourceSet ComputeInfoForBitsLiteral(
+      const xls::Bits& literal) const override final {
+    LOG(FATAL)
+        << "ComputeInfoForBitsLiteral should be unused for TestNodeSourceInfo";
+    return NodeSourceSet{};
+  }
+  xls::LeafTypeTree<NodeSourceSet> ComputeInfoTreeForNode(
+      xls::Node* node) const override final {
+    xls::LeafTypeTree<NodeSourceSet> result(node->GetType());
+    CHECK_OK(xls::leaf_type_tree::ForEachIndex(
+        result.AsMutableView(),
+        [&](xls::Type* element_type, NodeSourceSet& element,
+            absl::Span<const int64_t> index) {
+          element = {
+              xls::NodeSource(node, std::vector(index.begin(), index.end()))};
+          return absl::OkStatus();
+        }));
+    return result;
+  }
+
+  NodeSourceSet MergeInfos(
+      const absl::Span<const NodeSourceSet>& infos) const override final {
+    NodeSourceSet ret;
+    for (const NodeSourceSet& info : infos) {
+      ret.insert(info.begin(), info.end());
+    }
+    return ret;
+  }
+};
+
+class DataFlowNodeInfoTest : public IrTestBase {
+ public:
+  DataFlowNodeInfoTest()
+      : query_engine_(std::make_unique<PartialInfoQueryEngine>()) {}
+
+  QueryEngine* query_engine() const { return query_engine_.get(); }
+
+ private:
+  std::unique_ptr<PartialInfoQueryEngine> query_engine_;
+};
 
 TEST_F(DataFlowNodeInfoTest, Identity) {
   auto p = CreatePackage();
@@ -59,14 +141,53 @@ TEST_F(DataFlowNodeInfoTest, Identity) {
   BValue id = fb.Identity(x, SourceInfo(), "id");
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f, fb.BuildWithReturnValue(id));
 
-  TestNodeInfo node_info;
+  TestParamCountInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
   XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
   int64_t x_count = node_info.GetSingleInfoForNode(x.node());
   SharedLeafTypeTree<int64_t> x_tree = node_info.GetInfo(x.node());
 
   EXPECT_EQ(x_count, 1);
   EXPECT_EQ(x_tree, LeafTypeTree<int64_t>::CreateSingleElementTree(
                         p->GetBitsType(32), 1));
+}
+
+TEST_F(DataFlowNodeInfoTest, Literal) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue l = fb.Literal(xls::Value(xls::UBits(5, 32)));
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f, fb.BuildWithReturnValue(l));
+
+  TestParamCountInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
+  XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
+  int64_t l_count = node_info.GetSingleInfoForNode(l.node());
+  SharedLeafTypeTree<int64_t> l_tree = node_info.GetInfo(l.node());
+
+  EXPECT_EQ(l_count, 0);
+  EXPECT_EQ(l_tree, LeafTypeTree<int64_t>::CreateSingleElementTree(
+                        p->GetBitsType(32), 0));
+}
+
+TEST_F(DataFlowNodeInfoTest, LiteralTuple) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue l = fb.Literal(xls::Value::Tuple(
+      {xls::Value(xls::UBits(5, 32)), xls::Value(xls::UBits(7, 32))}));
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f, fb.BuildWithReturnValue(l));
+
+  TestParamCountInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
+  XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
+  int64_t l_count = node_info.GetSingleInfoForNode(l.node());
+  SharedLeafTypeTree<int64_t> l_tree = node_info.GetInfo(l.node());
+
+  EXPECT_EQ(l_count, 0);
+  EXPECT_EQ(l_tree,
+            LeafTypeTree<int64_t>::CreateFromVector(l.GetType(), {0, 0}));
 }
 
 TEST_F(DataFlowNodeInfoTest, Add) {
@@ -77,14 +198,37 @@ TEST_F(DataFlowNodeInfoTest, Add) {
   BValue add = fb.Add(x, y, SourceInfo(), "add");
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f, fb.BuildWithReturnValue(add));
 
-  TestNodeInfo node_info;
+  TestParamCountInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
   XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
   int64_t add_count = node_info.GetSingleInfoForNode(add.node());
   SharedLeafTypeTree<int64_t> add_tree = node_info.GetInfo(add.node());
 
   EXPECT_EQ(add_count, 2);
   EXPECT_EQ(add_tree, LeafTypeTree<int64_t>::CreateSingleElementTree(
                           p->GetBitsType(32), 2));
+}
+
+TEST_F(DataFlowNodeInfoTest, AddDefaultInfoSource) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  BValue add = fb.Add(x, y, SourceInfo(), "add");
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f, fb.BuildWithReturnValue(add));
+
+  TestParamCountInfo</*default_info_source=*/true> node_info;
+  node_info.set_query_engine(query_engine());
+  XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
+  int64_t add_count = node_info.GetSingleInfoForNode(add.node());
+  SharedLeafTypeTree<int64_t> add_tree = node_info.GetInfo(add.node());
+
+  // See TestParamCountInfo::ComputeInfoForLeafNode
+  EXPECT_EQ(add_count, -100);
+  EXPECT_EQ(add_tree, LeafTypeTree<int64_t>::CreateSingleElementTree(
+                          p->GetBitsType(32), -100));
 }
 
 TEST_F(DataFlowNodeInfoTest, ModifyNode) {
@@ -96,8 +240,10 @@ TEST_F(DataFlowNodeInfoTest, ModifyNode) {
   BValue add = fb.Add(x, y, SourceInfo(), "add");
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f, fb.BuildWithReturnValue(add));
 
-  TestNodeInfo node_info;
+  TestParamCountInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
   XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
 
   {
     int64_t add_count = node_info.GetSingleInfoForNode(add.node());
@@ -126,8 +272,10 @@ TEST_F(DataFlowNodeInfoTest, AddLiteral) {
   BValue add = fb.Add(x, l, SourceInfo(), "add");
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f, fb.BuildWithReturnValue(add));
 
-  TestNodeInfo node_info;
+  TestParamCountInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
   XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
   int64_t add_count = node_info.GetSingleInfoForNode(add.node());
   SharedLeafTypeTree<int64_t> add_tree = node_info.GetInfo(add.node());
 
@@ -148,14 +296,17 @@ TEST_F(DataFlowNodeInfoTest, Select) {
   BValue sel = fb.Select(eq, x, y, SourceInfo(), "sel");
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f, fb.BuildWithReturnValue(sel));
 
-  TestNodeInfo node_info;
+  TestParamCountInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
   XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
   int64_t sel_count = node_info.GetSingleInfoForNode(sel.node());
   SharedLeafTypeTree<int64_t> sel_tree = node_info.GetInfo(sel.node());
 
-  EXPECT_EQ(sel_count, 3);
+  // Should not include the selector
+  EXPECT_EQ(sel_count, 2);
   EXPECT_EQ(sel_tree, LeafTypeTree<int64_t>::CreateSingleElementTree(
-                          p->GetBitsType(32), 3));
+                          p->GetBitsType(32), 2));
 
   int64_t eq_count = node_info.GetSingleInfoForNode(eq.node());
   SharedLeafTypeTree<int64_t> eq_tree = node_info.GetInfo(eq.node());
@@ -163,6 +314,28 @@ TEST_F(DataFlowNodeInfoTest, Select) {
   EXPECT_EQ(eq_count, 1);
   EXPECT_EQ(eq_tree, LeafTypeTree<int64_t>::CreateSingleElementTree(
                          p->GetBitsType(1), 1));
+}
+
+TEST_F(DataFlowNodeInfoTest, SelectDefault) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue l = fb.Literal(xls::Value(xls::UBits(5, 32)));
+
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  BValue sel = fb.Select(l, {x, y}, /*default_value=*/l, SourceInfo(), "sel");
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f, fb.BuildWithReturnValue(sel));
+
+  TestParamCountInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
+  XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
+  int64_t sel_count = node_info.GetSingleInfoForNode(sel.node());
+  SharedLeafTypeTree<int64_t> sel_tree = node_info.GetInfo(sel.node());
+
+  EXPECT_EQ(sel_count, 0);
+  EXPECT_EQ(sel_tree, LeafTypeTree<int64_t>::CreateSingleElementTree(
+                          p->GetBitsType(32), 0));
 }
 
 TEST_F(DataFlowNodeInfoTest, Invoke) {
@@ -193,8 +366,10 @@ TEST_F(DataFlowNodeInfoTest, Invoke) {
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f,
                            fb.BuildWithReturnValue(sum_returned));
 
-  TestNodeInfo sub_node_info;
+  TestParamCountInfo</*default_info_source=*/false> sub_node_info;
+  sub_node_info.set_query_engine(query_engine());
   XLS_ASSERT_OK(sub_node_info.Attach(sub_fn));
+  XLS_ASSERT_OK(query_engine()->Populate(sub_fn).status());
 
   int64_t sub_ret_count = sub_node_info.GetSingleInfoForNode(sub_ret.node());
   SharedLeafTypeTree<int64_t> sub_ret_tree =
@@ -206,8 +381,10 @@ TEST_F(DataFlowNodeInfoTest, Invoke) {
                                  p->GetBitsType(32)}),
                 {1, 1, 2}));
 
-  TestNodeInfo node_info;
+  TestParamCountInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
   XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
 
   int64_t invoke_count_literal =
       node_info.GetSingleInfoForNode(invoke_literal.node());
@@ -285,8 +462,10 @@ TEST_F(DataFlowNodeInfoTest, ModifyInvoke) {
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f,
                            fb.BuildWithReturnValue(sum_returned));
 
-  TestNodeInfo node_info;
+  TestParamCountInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
   XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
 
   {
     int64_t sum_returned_count =
@@ -348,8 +527,10 @@ TEST_F(DataFlowNodeInfoTest, ModifyInvokeCallee) {
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f,
                            fb.BuildWithReturnValue(sum_returned));
 
-  TestNodeInfo node_info;
+  TestParamCountInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
   XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
 
   {
     SharedLeafTypeTree<int64_t> sum_returned_tree =
@@ -410,8 +591,10 @@ TEST_F(DataFlowNodeInfoTest, ModifyInvokeParam) {
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f,
                            fb.BuildWithReturnValue(sum_returned));
 
-  TestNodeInfo node_info;
+  TestParamCountInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
   XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
 
   {
     SharedLeafTypeTree<int64_t> sum_returned_tree =
@@ -475,8 +658,10 @@ TEST_F(DataFlowNodeInfoTest, DeleteInvoke) {
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f,
                            fb.BuildWithReturnValue(sum_returned));
 
-  TestNodeInfo node_info;
+  TestParamCountInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
   XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
 
   {
     SharedLeafTypeTree<int64_t> sum_returned_tree =
@@ -525,8 +710,10 @@ TEST_F(DataFlowNodeInfoTest, Tuple) {
   BValue tuple = fb.Tuple({x, y}, SourceInfo(), "tuple");
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f, fb.BuildWithReturnValue(tuple));
 
-  TestNodeInfo node_info;
+  TestParamCountInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
   XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
   SharedLeafTypeTree<int64_t> tuple_tree = node_info.GetInfo(tuple.node());
   int64_t tuple_node_count = node_info.GetSingleInfoForNode(tuple.node());
 
@@ -549,8 +736,10 @@ TEST_F(DataFlowNodeInfoTest, TupleOfTuples) {
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f,
                            fb.BuildWithReturnValue(tuple_outer));
 
-  TestNodeInfo node_info;
+  TestParamCountInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
   XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
 
   int64_t tuple_node_count = node_info.GetSingleInfoForNode(tuple_outer.node());
   SharedLeafTypeTree<int64_t> tuple_node_tree =
@@ -585,8 +774,10 @@ TEST_F(DataFlowNodeInfoTest, TupleParam) {
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f,
                            fb.BuildWithReturnValue(tuple_index0));
 
-  TestNodeInfo node_info;
+  TestParamCountInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
   XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
 
   int64_t x_count = node_info.GetSingleInfoForNode(x.node());
   SharedLeafTypeTree<int64_t> x_tree = node_info.GetInfo(x.node());
@@ -616,8 +807,10 @@ TEST_F(DataFlowNodeInfoTest, TupleWithLiteral) {
   BValue tuple = fb.Tuple({x, l, y}, SourceInfo(), "tuple");
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f, fb.BuildWithReturnValue(tuple));
 
-  TestNodeInfo node_info;
+  TestParamCountInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
   XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
 
   SharedLeafTypeTree<int64_t> tuple_node_tree = node_info.GetInfo(tuple.node());
   int64_t tuple_node_count = node_info.GetSingleInfoForNode(tuple.node());
@@ -639,8 +832,10 @@ TEST_F(DataFlowNodeInfoTest, TupleIdentity) {
   BValue tuple_index0 = fb.TupleIndex(id, 0, SourceInfo(), "tuple_index0");
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f, fb.BuildWithReturnValue(id));
 
-  TestNodeInfo node_info;
+  TestParamCountInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
   XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
 
   SharedLeafTypeTree<int64_t> x_count_tree = node_info.GetInfo(x.node());
   int64_t x_count = node_info.GetSingleInfoForNode(x.node());
@@ -678,8 +873,10 @@ TEST_F(DataFlowNodeInfoTest, ArrayParam) {
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f,
                            fb.BuildWithReturnValue(array_index0));
 
-  TestNodeInfo node_info;
+  TestParamCountInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
   XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
 
   SharedLeafTypeTree<int64_t> x_tree = node_info.GetInfo(x.node());
   int64_t x_count = node_info.GetSingleInfoForNode(x.node());
@@ -709,8 +906,10 @@ TEST_F(DataFlowNodeInfoTest, ArrayUpdateDynamic) {
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f,
                            fb.BuildWithReturnValue(array_update));
 
-  TestNodeInfo node_info;
+  TestParamCountInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
   XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
 
   SharedLeafTypeTree<int64_t> x_tree = node_info.GetInfo(x.node());
   int64_t x_count = node_info.GetSingleInfoForNode(x.node());
@@ -743,8 +942,10 @@ TEST_F(DataFlowNodeInfoTest, ArrayUpdateDynamic2) {
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f,
                            fb.BuildWithReturnValue(array_update));
 
-  TestNodeInfo node_info;
+  TestParamCountInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
   XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
 
   SharedLeafTypeTree<int64_t> x_tree = node_info.GetInfo(x.node());
   int64_t x_count = node_info.GetSingleInfoForNode(x.node());
@@ -776,8 +977,10 @@ TEST_F(DataFlowNodeInfoTest, ArrayUpdateLiteral) {
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f,
                            fb.BuildWithReturnValue(array_update));
 
-  TestNodeInfo node_info;
+  TestParamCountInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
   XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
 
   SharedLeafTypeTree<int64_t> x_tree = node_info.GetInfo(x.node());
   int64_t x_count = node_info.GetSingleInfoForNode(x.node());
@@ -807,8 +1010,10 @@ TEST_F(DataFlowNodeInfoTest, ArrayUpdateLiteral2) {
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f,
                            fb.BuildWithReturnValue(array_update));
 
-  TestNodeInfo node_info;
+  TestParamCountInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
   XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
 
   SharedLeafTypeTree<int64_t> x_tree = node_info.GetInfo(x.node());
   int64_t x_count = node_info.GetSingleInfoForNode(x.node());
@@ -837,8 +1042,10 @@ TEST_F(DataFlowNodeInfoTest, ArrayUpdateLiteralOutOfBounds) {
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f,
                            fb.BuildWithReturnValue(array_update));
 
-  TestNodeInfo node_info;
+  TestParamCountInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
   XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
 
   SharedLeafTypeTree<int64_t> x_tree = node_info.GetInfo(x.node());
   int64_t x_count = node_info.GetSingleInfoForNode(x.node());
@@ -877,8 +1084,10 @@ TEST_F(DataFlowNodeInfoTest, ArrayUpdateLiteralOutOfBounds2) {
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f,
                            fb.BuildWithReturnValue(array_update));
 
-  TestNodeInfo node_info;
+  TestParamCountInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
   XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
 
   SharedLeafTypeTree<int64_t> arr1_tree = node_info.GetInfo(arr1.node());
   int64_t arr1_count = node_info.GetSingleInfoForNode(arr1.node());
@@ -916,8 +1125,10 @@ TEST_F(DataFlowNodeInfoTest, ArrayWithLiteral) {
   BValue array = fb.Array({x, l, y}, x.GetType(), SourceInfo(), "array");
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f, fb.BuildWithReturnValue(array));
 
-  TestNodeInfo node_info;
+  TestParamCountInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
   XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
 
   SharedLeafTypeTree<int64_t> array_node_tree = node_info.GetInfo(array.node());
   int64_t array_node_count = node_info.GetSingleInfoForNode(array.node());
@@ -940,8 +1151,10 @@ TEST_F(DataFlowNodeInfoTest, ArrayIndexDynamic) {
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f,
                            fb.BuildWithReturnValue(array_index0));
 
-  TestNodeInfo node_info;
+  TestParamCountInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
   XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
 
   SharedLeafTypeTree<int64_t> array_node_tree = node_info.GetInfo(array.node());
   int64_t array_node_count = node_info.GetSingleInfoForNode(array.node());
@@ -976,8 +1189,10 @@ TEST_F(DataFlowNodeInfoTest, ArrayIndexWithLiteral) {
                                       SourceInfo(), "array_index1");
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f, fb.BuildWithReturnValue(array));
 
-  TestNodeInfo node_info;
+  TestParamCountInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
   XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
 
   SharedLeafTypeTree<int64_t> array_node_tree = node_info.GetInfo(array.node());
   int64_t array_node_count = node_info.GetSingleInfoForNode(array.node());
@@ -1015,8 +1230,10 @@ TEST_F(DataFlowNodeInfoTest, ArrayIndexWithLiteralOutOfBounds) {
                                       SourceInfo(), "array_index0");
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f, fb.BuildWithReturnValue(array));
 
-  TestNodeInfo node_info;
+  TestParamCountInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
   XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
 
   SharedLeafTypeTree<int64_t> array_node_tree = node_info.GetInfo(array.node());
   int64_t array_node_count = node_info.GetSingleInfoForNode(array.node());
@@ -1045,8 +1262,10 @@ TEST_F(DataFlowNodeInfoTest, TupleNested) {
   BValue tuple2 = fb.Tuple({tuple, z}, SourceInfo(), "tuple");
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f, fb.BuildWithReturnValue(tuple2));
 
-  TestNodeInfo node_info;
+  TestParamCountInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
   XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
 
   SharedLeafTypeTree<int64_t> tuple2_tree = node_info.GetInfo(tuple2.node());
   int64_t tuple2_node_count = node_info.GetSingleInfoForNode(tuple2.node());
@@ -1070,8 +1289,10 @@ TEST_F(DataFlowNodeInfoTest, TupleIndex) {
   BValue tuple_index1 = fb.TupleIndex(tuple, 1, SourceInfo(), "tuple_index1");
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f, fb.BuildWithReturnValue(tuple));
 
-  TestNodeInfo node_info;
+  TestParamCountInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
   XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
 
   SharedLeafTypeTree<int64_t> tuple_node_tree = node_info.GetInfo(tuple.node());
   int64_t tuple_node_count = node_info.GetSingleInfoForNode(tuple.node());
@@ -1108,8 +1329,10 @@ TEST_F(DataFlowNodeInfoTest, LiteralTupleIndex) {
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f,
                            fb.BuildWithReturnValue(tuple_index));
 
-  TestNodeInfo node_info;
+  TestParamCountInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
   XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
 
   SharedLeafTypeTree<int64_t> tuple_index_node_tree =
       node_info.GetInfo(tuple_index.node());
@@ -1134,8 +1357,10 @@ TEST_F(DataFlowNodeInfoTest, TupleOfArrays) {
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f,
                            fb.BuildWithReturnValue(tuple_outer));
 
-  TestNodeInfo node_info;
+  TestParamCountInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
   XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
 
   SharedLeafTypeTree<int64_t> tuple_outer_node_tree =
       node_info.GetInfo(tuple_outer.node());
@@ -1173,8 +1398,10 @@ TEST_F(DataFlowNodeInfoTest, ArrayOfTuples) {
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f,
                            fb.BuildWithReturnValue(array_index));
 
-  TestNodeInfo node_info;
+  TestParamCountInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
   XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
 
   SharedLeafTypeTree<int64_t> array_outer_node_tree =
       node_info.GetInfo(array_outer.node());
@@ -1212,8 +1439,10 @@ TEST_F(DataFlowNodeInfoTest, ArrayOfTuplesDynamicIndex) {
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f,
                            fb.BuildWithReturnValue(array_index));
 
-  TestNodeInfo node_info;
+  TestParamCountInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
   XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
 
   SharedLeafTypeTree<int64_t> array_node_tree =
       node_info.GetInfo(array_outer.node());
@@ -1248,8 +1477,10 @@ TEST_F(DataFlowNodeInfoTest, ArraySlice) {
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f,
                            fb.BuildWithReturnValue(array_slice));
 
-  TestNodeInfo node_info;
+  TestParamCountInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
   XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
 
   SharedLeafTypeTree<int64_t> x_node_tree = node_info.GetInfo(x.node());
   int64_t x_count = node_info.GetSingleInfoForNode(x.node());
@@ -1272,6 +1503,325 @@ TEST_F(DataFlowNodeInfoTest, ArraySlice) {
             LeafTypeTree<int64_t>::CreateFromVector(
                 p->GetArrayType(3, p->GetBitsType(32)), {11, 11, 11}));
 }
+
+TEST_F(DataFlowNodeInfoTest, AddComputeTreeForLeaf) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  BValue add = fb.Add(x, y, SourceInfo(), "add");
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f, fb.BuildWithReturnValue(add));
+
+  TestNodeSourceInfo</*default_info_source=*/true> node_info;
+  node_info.set_query_engine(query_engine());
+  XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
+  NodeSourceSet add_sources = node_info.GetSingleInfoForNode(add.node());
+  SharedLeafTypeTree<NodeSourceSet> add_sources_tree =
+      node_info.GetInfo(add.node());
+
+  NodeSourceSet add_ref_sources = {NodeSource(add.node(), /*tree_index=*/{})};
+
+  EXPECT_EQ(add_sources, add_ref_sources);
+  EXPECT_EQ(add_sources_tree,
+            LeafTypeTree<NodeSourceSet>::CreateSingleElementTree(
+                p->GetBitsType(32), add_ref_sources));
+}
+
+TEST_F(DataFlowNodeInfoTest, AddComputeTreeForLeafNoDefaultInfoSource) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  BValue add = fb.Add(x, y, SourceInfo(), "add");
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f, fb.BuildWithReturnValue(add));
+
+  TestNodeSourceInfo</*default_info_source=*/false> node_info;
+  node_info.set_query_engine(query_engine());
+  XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
+  NodeSourceSet add_sources = node_info.GetSingleInfoForNode(add.node());
+  SharedLeafTypeTree<NodeSourceSet> add_sources_tree =
+      node_info.GetInfo(add.node());
+
+  NodeSourceSet add_ref_sources = {NodeSource(x.node(), /*tree_index=*/{}),
+                                   NodeSource(y.node(), /*tree_index=*/{})};
+
+  EXPECT_EQ(add_sources, add_ref_sources);
+  EXPECT_EQ(add_sources_tree,
+            LeafTypeTree<NodeSourceSet>::CreateSingleElementTree(
+                p->GetBitsType(32), add_ref_sources));
+}
+
+TEST_F(DataFlowNodeInfoTest, AddInSelectComputeTreeForLeaf) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue c = fb.Param("c", p->GetBitsType(32));
+  BValue l = fb.Literal(xls::Value(xls::UBits(5, 32)));
+  BValue eq = fb.Eq(c, l, SourceInfo(), "eq");
+
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  BValue add = fb.Add(x, y, SourceInfo(), "add");
+  BValue sel = fb.Select(eq, x, add, SourceInfo(), "sel");
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f, fb.BuildWithReturnValue(sel));
+
+  TestNodeSourceInfo</*default_info_source=*/true> node_info;
+  node_info.set_query_engine(query_engine());
+  XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
+
+  NodeSourceSet sel_sources = node_info.GetSingleInfoForNode(sel.node());
+  SharedLeafTypeTree<NodeSourceSet> sel_sources_tree =
+      node_info.GetInfo(sel.node());
+
+  NodeSourceSet sel_ref_sources = {NodeSource(x.node(), /*tree_index=*/{}),
+                                   NodeSource(add.node(), /*tree_index=*/{})};
+
+  EXPECT_EQ(sel_sources, sel_ref_sources);
+  EXPECT_EQ(sel_sources_tree,
+            LeafTypeTree<NodeSourceSet>::CreateSingleElementTree(
+                p->GetBitsType(32), sel_ref_sources));
+}
+
+TEST_F(DataFlowNodeInfoTest, SelectComputeTreeForLeaf) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue c = fb.Param("c", p->GetBitsType(32));
+  BValue l = fb.Literal(xls::Value(xls::UBits(5, 32)));
+  BValue eq = fb.Eq(c, l, SourceInfo(), "eq");
+
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  BValue sel = fb.Select(eq, x, y, SourceInfo(), "sel");
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f, fb.BuildWithReturnValue(sel));
+
+  TestNodeSourceInfo</*default_info_source=*/true> node_info;
+  node_info.set_query_engine(query_engine());
+  XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
+  NodeSourceSet sel_sources = node_info.GetSingleInfoForNode(sel.node());
+  SharedLeafTypeTree<NodeSourceSet> sel_sources_tree =
+      node_info.GetInfo(sel.node());
+
+  NodeSourceSet sel_ref_sources = {NodeSource(x.node(), /*tree_index=*/{}),
+                                   NodeSource(y.node(), /*tree_index=*/{})};
+
+  // Should not include the selector
+  EXPECT_EQ(sel_sources, sel_ref_sources);
+  EXPECT_EQ(sel_sources_tree,
+            LeafTypeTree<NodeSourceSet>::CreateSingleElementTree(
+                p->GetBitsType(32), sel_ref_sources));
+}
+
+TEST_F(DataFlowNodeInfoTest, SelectConstantSelectorComputeTreeForLeaf) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue l0 = fb.Literal(xls::Value(xls::UBits(0, 1)));
+  BValue l1 = fb.Literal(xls::Value(xls::UBits(1, 1)));
+
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  BValue sel =
+      fb.Select(l1, /*on_true=*/x, /*on_false=*/y, SourceInfo(), "sel");
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f, fb.BuildWithReturnValue(sel));
+
+  TestNodeSourceInfo</*default_info_source=*/true> node_info;
+  node_info.set_query_engine(query_engine());
+  XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
+
+  {
+    NodeSourceSet sel_sources = node_info.GetSingleInfoForNode(sel.node());
+    SharedLeafTypeTree<NodeSourceSet> sel_sources_tree =
+        node_info.GetInfo(sel.node());
+
+    NodeSourceSet sel_on_1_ref_sources = {
+        NodeSource(x.node(), /*tree_index=*/{})};
+
+    EXPECT_EQ(sel_sources, sel_on_1_ref_sources);
+    EXPECT_EQ(sel_sources_tree,
+              LeafTypeTree<NodeSourceSet>::CreateSingleElementTree(
+                  p->GetBitsType(32), sel_on_1_ref_sources));
+  }
+
+  // Change the selector and check updated
+  XLS_ASSERT_OK(l1.node()->ReplaceUsesWith(l0.node()));
+
+  {
+    NodeSourceSet sel_sources = node_info.GetSingleInfoForNode(sel.node());
+    SharedLeafTypeTree<NodeSourceSet> sel_sources_tree =
+        node_info.GetInfo(sel.node());
+
+    NodeSourceSet sel_on_0_ref_sources = {
+        NodeSource(y.node(), /*tree_index=*/{})};
+
+    EXPECT_EQ(sel_sources, sel_on_0_ref_sources);
+    EXPECT_EQ(sel_sources_tree,
+              LeafTypeTree<NodeSourceSet>::CreateSingleElementTree(
+                  p->GetBitsType(32), sel_on_0_ref_sources));
+  }
+}
+
+TEST_F(DataFlowNodeInfoTest, SelectConstExprComputeTreeForLeaf) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue l0 = fb.Literal(xls::Value(xls::UBits(5, 32)));
+  BValue l1 = fb.Literal(xls::Value(xls::UBits(7, 32)));
+  BValue eq = fb.Eq(l0, l1, SourceInfo(), "eq");
+
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  BValue sel =
+      fb.Select(eq, /*on_true=*/x, /*on_false=*/y, SourceInfo(), "sel");
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f, fb.BuildWithReturnValue(sel));
+
+  TestNodeSourceInfo</*default_info_source=*/true> node_info;
+  node_info.set_query_engine(query_engine());
+  XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
+
+  NodeSourceSet sel_sources = node_info.GetSingleInfoForNode(sel.node());
+  SharedLeafTypeTree<NodeSourceSet> sel_sources_tree =
+      node_info.GetInfo(sel.node());
+
+  NodeSourceSet sel_ref_sources = {NodeSource(y.node(), /*tree_index=*/{})};
+
+  // Should not include the selector
+  EXPECT_EQ(sel_sources, sel_ref_sources);
+  EXPECT_EQ(sel_sources_tree,
+            LeafTypeTree<NodeSourceSet>::CreateSingleElementTree(
+                p->GetBitsType(32), sel_ref_sources));
+}
+
+TEST_F(DataFlowNodeInfoTest, SwizzleComputeTreeForLeaf) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue tup =
+      fb.Param("x", p->GetTupleType({p->GetBitsType(32), p->GetBitsType(32)}));
+  BValue ti0 = fb.TupleIndex(tup, 0, SourceInfo(), "ti0");
+  BValue ti1 = fb.TupleIndex(tup, 1, SourceInfo(), "ti1");
+  BValue swizzle = fb.Tuple({ti1, ti0}, SourceInfo(), "swizzle");
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f, fb.BuildWithReturnValue(swizzle));
+
+  TestNodeSourceInfo</*default_info_source=*/true> node_info;
+  node_info.set_query_engine(query_engine());
+  XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
+  NodeSourceSet tup_sources = node_info.GetSingleInfoForNode(swizzle.node());
+  SharedLeafTypeTree<NodeSourceSet> tup_sources_tree =
+      node_info.GetInfo(swizzle.node());
+
+  NodeSourceSet tup_ref_sources = {NodeSource(tup.node(), /*tree_index=*/{0}),
+                                   NodeSource(tup.node(), /*tree_index=*/{1})};
+
+  EXPECT_EQ(tup_sources, tup_ref_sources);
+  EXPECT_EQ(tup_sources_tree,
+            LeafTypeTree<NodeSourceSet>::CreateFromVector(
+                p->GetTupleType({p->GetBitsType(32), p->GetBitsType(32)}),
+                {{NodeSource(tup.node(), /*tree_index=*/{1})},
+                 {NodeSource(tup.node(), /*tree_index=*/{0})}}));
+}
+
+TEST_F(DataFlowNodeInfoTest, SelectTupleComputeTreeForLeaf) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x =
+      fb.Param("x", p->GetTupleType({p->GetBitsType(32), p->GetBitsType(32)}));
+  BValue y =
+      fb.Param("y", p->GetTupleType({p->GetBitsType(32), p->GetBitsType(32)}));
+  BValue c = fb.Param("c", p->GetBitsType(32));
+  BValue l = fb.Literal(xls::Value(xls::UBits(5, 32)));
+  BValue eq = fb.Eq(c, l, SourceInfo(), "eq");
+  BValue sel =
+      fb.Select(eq, /*on_true=*/x, /*on_false=*/y, SourceInfo(), "sel");
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f, fb.BuildWithReturnValue(sel));
+
+  TestNodeSourceInfo</*default_info_source=*/true> node_info;
+  node_info.set_query_engine(query_engine());
+  XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
+  NodeSourceSet tup_sources = node_info.GetSingleInfoForNode(sel.node());
+  SharedLeafTypeTree<NodeSourceSet> tup_sources_tree =
+      node_info.GetInfo(sel.node());
+
+  NodeSourceSet tup_ref_sources = {NodeSource(x.node(), /*tree_index=*/{0}),
+                                   NodeSource(x.node(), /*tree_index=*/{1}),
+                                   NodeSource(y.node(), /*tree_index=*/{0}),
+                                   NodeSource(y.node(), /*tree_index=*/{1})};
+
+  EXPECT_EQ(tup_sources, tup_ref_sources);
+  EXPECT_EQ(tup_sources_tree,
+            LeafTypeTree<NodeSourceSet>::CreateFromVector(
+                p->GetTupleType({p->GetBitsType(32), p->GetBitsType(32)}),
+                {{NodeSource(x.node(), /*tree_index=*/{0}),
+                  NodeSource(y.node(), /*tree_index=*/{0})},
+                 {NodeSource(x.node(), /*tree_index=*/{1}),
+                  NodeSource(y.node(), /*tree_index=*/{1})}}));
+}
+
+TEST_F(DataFlowNodeInfoTest, ArraySliceComputeTreeForLeaf) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetArrayType(10, p->GetBitsType(32)));
+  BValue s = fb.Param("s", p->GetBitsType(32));
+  BValue array_slice = fb.ArraySlice(x, /*start=*/s, /*width=*/3);
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f,
+                           fb.BuildWithReturnValue(array_slice));
+
+  TestNodeSourceInfo</*default_info_source=*/true> node_info;
+  node_info.set_query_engine(query_engine());
+  XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
+
+  NodeSourceSet ref_sources = {NodeSource(x.node(), /*tree_index=*/{0}),
+                               NodeSource(x.node(), /*tree_index=*/{1}),
+                               NodeSource(x.node(), /*tree_index=*/{2}),
+                               NodeSource(x.node(), /*tree_index=*/{3}),
+                               NodeSource(x.node(), /*tree_index=*/{4}),
+                               NodeSource(x.node(), /*tree_index=*/{5}),
+                               NodeSource(x.node(), /*tree_index=*/{6}),
+                               NodeSource(x.node(), /*tree_index=*/{7}),
+                               NodeSource(x.node(), /*tree_index=*/{8}),
+                               NodeSource(x.node(), /*tree_index=*/{9})};
+
+  SharedLeafTypeTree<NodeSourceSet> x_node_tree = node_info.GetInfo(x.node());
+  NodeSourceSet x_set = node_info.GetSingleInfoForNode(x.node());
+  EXPECT_EQ(x_set, ref_sources);
+  EXPECT_EQ(x_node_tree, LeafTypeTree<NodeSourceSet>::CreateFromVector(
+                             p->GetArrayType(10, p->GetBitsType(32)),
+                             {{NodeSource(x.node(), /*tree_index=*/{0})},
+                              {NodeSource(x.node(), /*tree_index=*/{1})},
+                              {NodeSource(x.node(), /*tree_index=*/{2})},
+                              {NodeSource(x.node(), /*tree_index=*/{3})},
+                              {NodeSource(x.node(), /*tree_index=*/{4})},
+                              {NodeSource(x.node(), /*tree_index=*/{5})},
+                              {NodeSource(x.node(), /*tree_index=*/{6})},
+                              {NodeSource(x.node(), /*tree_index=*/{7})},
+                              {NodeSource(x.node(), /*tree_index=*/{8})},
+                              {NodeSource(x.node(), /*tree_index=*/{9})}}));
+
+  // ArraySlice is unimplemented, so it defaults to combining all infos
+  NodeSourceSet slice_sources = {
+      NodeSource(array_slice.node(), /*tree_index=*/{0}),
+      NodeSource(array_slice.node(), /*tree_index=*/{1}),
+      NodeSource(array_slice.node(), /*tree_index=*/{2})};
+
+  NodeSourceSet array_slice_info =
+      node_info.GetSingleInfoForNode(array_slice.node());
+
+  EXPECT_EQ(array_slice_info, slice_sources);
+  SharedLeafTypeTree<NodeSourceSet> array_slice_node_tree =
+      node_info.GetInfo(array_slice.node());
+  EXPECT_EQ(array_slice_node_tree,
+            LeafTypeTree<NodeSourceSet>::CreateFromVector(
+                p->GetArrayType(3, p->GetBitsType(32)),
+                {{NodeSource(array_slice.node(), /*tree_index=*/{0})},
+                 {NodeSource(array_slice.node(), /*tree_index=*/{1})},
+                 {NodeSource(array_slice.node(), /*tree_index=*/{2})}}));
+}
+
+// TODO: Test other mode combos
 
 }  // namespace
 }  // namespace xls

@@ -73,6 +73,7 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/passes/data_flow_node_info.h"
+#include "xls/passes/partial_info_query_engine.h"
 #include "xls/solvers/z3_ir_translator.h"
 #include "z3/src/api/z3_api.h"
 
@@ -268,10 +269,17 @@ typedef absl::flat_hash_set<const xls::Param*> ParamSet;
 class SourcesInSetNodeInfo
     : public xls::DataFlowLazyNodeInfo<SourcesInSetNodeInfo, ParamSet> {
  public:
+  SourcesInSetNodeInfo()
+      : DataFlowLazyNodeInfo<SourcesInSetNodeInfo, ParamSet>(
+            /*compute_tree_for_leaf=*/false, /*default_info_source=*/false) {}
+
   ParamSet ComputeInfoForBitsLiteral(
       const xls::Bits& literal) const override final;
 
-  ParamSet ComputeInfoForLeafNode(xls::Node* node) const override final;
+  ParamSet ComputeInfoForNode(xls::Node* node) const override final;
+
+  xls::LeafTypeTree<ParamSet> ComputeInfoTreeForNode(
+      xls::Node* node) const override final;
 
   ParamSet MergeInfos(
       const absl::Span<const ParamSet>& infos) const override final;
@@ -661,6 +669,10 @@ class Translator final : public GeneratorBase,
 
   absl::flat_hash_map<xls::FunctionBase*, std::unique_ptr<SourcesInSetNodeInfo>>
       node_source_infos_by_function_;
+
+  absl::flat_hash_map<xls::FunctionBase*,
+                      std::unique_ptr<xls::PartialInfoQueryEngine>>
+      query_engines_by_function_;
 
   void print_types() {
     std::cerr << "Types {" << std::endl;
