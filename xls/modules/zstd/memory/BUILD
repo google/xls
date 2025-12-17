@@ -69,8 +69,6 @@ common_codegen_args = {
     "streaming_channel_data_suffix": "_data",
     "fifo_module": "",
     "materialize_internal_fifos": "true",
-
-    # TODO: This should be adjusted when per channel separation of IO options is enabled
     "flop_inputs_kind": "skid",
     "flop_outputs_kind": "skid",
 }
@@ -91,7 +89,6 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
-# FIXME: Improve the proc to achieve CLOCK_PERIOD_PS
 AXI_READER_CLOCK_PERIOD_PS = "1700"
 
 axi_reader_codegen_args = common_codegen_args | {
@@ -347,7 +344,6 @@ xls_dslx_test(
     library = ":axi_ram_reader_dslx",
 )
 
-# FIXME: Improve the proc to achieve CLOCK_PERIOD_PS
 AXI_RAM_READER_CLOCK_PERIOD_PS = "850"
 
 axi_ram_reader_codegen_args = common_codegen_args | {
@@ -434,7 +430,6 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
-# FIXME: Improve the proc to achieve CLOCK_PERIOD_PS
 MEM_READER_CLOCK_PERIOD_PS = "2600"
 
 mem_reader_codegen_args = common_codegen_args | {

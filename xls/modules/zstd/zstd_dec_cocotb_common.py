@@ -94,7 +94,6 @@ NUM_OF_BITS_W = 8
 BASE_W = 16
 
 
-# TODO replace this with fse_table_record from ./cocotb/
 @xlsstruct.xls_dataclass
 class FseTableRecord(xlsstruct.XLSStruct):
   base: BASE_W
@@ -809,7 +808,7 @@ async def randomized_testing_routine(
   (axi_buses, cpu, clock) = prepare_test_environment(dut)
   measurements = []
   frame_id = 0
-  seed = 2 # FIXME: Dehardcode
+  seed = 2
   for test_case in range(test_cases):
     if expected_fse_lookups is not None:
       await test_fse_lookup_decoder(dut, clock, expected_fse_lookups)
@@ -822,7 +821,6 @@ async def randomized_testing_routine(
     if expected_huffman_weights is not None:
       await test_huffman_weights(dut, clock, expected_huffman_weights)
 
-    # FIXME: use delete_on_close=False after moving to python 3.12
     with tempfile.NamedTemporaryFile(delete=False) as input_file:
       # Generate ZSTD frame to temporary file
       data_generator.GenerateFrame(seed, block_type, input_file.name, literal_type)

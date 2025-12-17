@@ -235,7 +235,7 @@ pub proc RamDemux<
     }
 }
 
-// FIXME: This process wraps RamDemux with additional logic as a workaround
+// This process wraps RamDemux with additional logic as a workaround
 // to prevent artificial responses on the write channel caused by RAM rewriting.
 pub proc RamDemuxWrapped<
     ADDR_WIDTH: u32,
@@ -746,7 +746,7 @@ pub proc RamDemuxNaive<
     }
 }
 
-// FIXME: This process wraps RamDemux with additional logic as a workaround
+// This process wraps RamDemux with additional logic as a workaround
 // to prevent artificial responses on the write channel caused by RAM rewriting.
 pub proc RamDemuxNaiveWrapped<
     ADDR_WIDTH: u32,

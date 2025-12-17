@@ -280,7 +280,6 @@ xls_benchmark_verilog(
     verilog_target = "shift_buffer_storage_verilog",
 )
 
-# FIXME: Improve the proc to achieve CLOCK_PERIOD_PS
 SHIFT_BUFFER_CLOCK_PERIOD_PS = "1000"
 
 SHIFT_BUFFER_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
@@ -1158,14 +1157,6 @@ xls_dslx_verilog(
         "module_name": "FseProbaFreqDec",
         "generator": "pipeline",
         "delay_model": "asap7",
-        # FIXME: update ram rewrite
-        #"ram_configurations": "ram:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-        #    latency = 1,
-        #    rd_req = "fse_proba_freq_dec__rd_req_s",
-        #    rd_resp = "fse_proba_freq_dec__rd_resp_r",
-        #    wr_req = "fse_proba_freq_dec__wr_req_s",
-        #    wr_resp = "fse_proba_freq_dec__wr_resp_r",
-        #),
         "pipeline_stages": "6",
         "reset": "rst",
         "use_system_verilog": "false",
@@ -1184,14 +1175,6 @@ xls_benchmark_ir(
         "pipeline_stages": "10",
         "delay_model": "asap7",
         "reset": "rst",
-        # FIXME: update ram rewrite
-        #"ram_configurations": "ram:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-        #    latency = 1,
-        #    rd_req = "fse_proba_freq_dec__rd_req_s",
-        #    rd_resp = "fse_proba_freq_dec__rd_resp_r",
-        #    wr_req = "fse_proba_freq_dec__wr_req_s",
-        #    wr_resp = "fse_proba_freq_dec__wr_resp_r",
-        #),
     },
     tags = ["manual"],
 )
@@ -1498,10 +1481,8 @@ ZSTD_DEC_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "clock_period_ps": "0",
     "pipeline_stages": "16",
     "worst_case_throughput": "6",
-    # "flop_inputs_kind": "skid",
-    # "flop_outputs_kind": "skid",
     "streaming_channel_data_suffix": "_data",
-    "materialize_internal_fifos": "false",  # TODO: remove once this option works with loopback channels
+    "materialize_internal_fifos": "false",
     "ram_configurations": ",".join([
         ",".join([
             "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
@@ -1753,17 +1734,17 @@ benchmark_synth(
     tags = ["manual"],
 )
 
-#place_and_route(
-#    name = "zstd_dec_place_and_route",
-#    clock_period = CLOCK_PERIOD_PS,
-#    core_padding_microns = 2,
-#    min_pin_distance = "0.4",
-#    placement_density = "0.1",
-#    stop_after_step = "global_routing",
-#    synthesized_rtl = ":zstd_dec_synth_asap7",
-#    tags = ["manual"],
-#    target_die_utilization_percentage = "1",
-#)
+place_and_route(
+   name = "zstd_dec_place_and_route_skip",
+   clock_period = CLOCK_PERIOD_PS,
+   core_padding_microns = 2,
+   min_pin_distance = "0.4",
+   placement_density = "0.1",
+   stop_after_step = "global_routing",
+   synthesized_rtl = ":zstd_dec_synth_asap7",
+   tags = ["manual"],
+   target_die_utilization_percentage = "1",
+)
 
 py_library(
     name = "perf_report",
@@ -1837,47 +1818,9 @@ py_library(
 py_test(
     name = "zstd_dec_cocotb_test",
     srcs = ["zstd_dec_cocotb_test.py"],
-    data = [
-        "data/comp_frame.zst",
-        "data/comp_frame_fse_comp.zst",
-        "data/comp_frame_fse_repeated.zst",
-        "data/comp_frame_huffman.zst",
-        "data/comp_frame_huffman_fse.zst",
-        "data/fse_huffman_literals_predefined_sequences_seed_107958.zst",
-        "data/fse_huffman_literals_predefined_sequences_seed_204626.zst",
-        "data/fse_huffman_literals_predefined_sequences_seed_210872.zst",
-        "data/fse_huffman_literals_predefined_sequences_seed_299289.zst",
-        "data/fse_huffman_literals_predefined_sequences_seed_319146.zst",
-        "data/fse_huffman_literals_predefined_sequences_seed_331938.zst",
-        "data/fse_huffman_literals_predefined_sequences_seed_333824.zst",
-        "data/pregenerated_compressed_minimal.zst",
-        "data/pregenerated_compressed_random_1.zst",
-        "data/pregenerated_compressed_random_2.zst",
-        "data/pregenerated_compressed_raw_1.zst",
-        "data/pregenerated_compressed_raw_2.zst",
-        "data/pregenerated_compressed_rle_1.zst",
-        "data/pregenerated_compressed_rle_2.zst",
-        "data/pregenerated_uncompressed.zst",
-        "data/raw_literals_compressed_sequences_seed_903062.zst",
-        "data/raw_literals_predefined_sequences_seed_422473.zst",
-        "data/raw_literals_predefined_sequences_seed_436965.zst",
-        "data/raw_literals_predefined_sequences_seed_462302.zst",
-        "data/raw_literals_rle_sequences_seed_700216.zst",
-        "data/rle_literals_compressed_sequences_seed_701326.zst",
-        "data/rle_literals_predefined_sequences_seed_406229.zst",
-        "data/rle_literals_predefined_sequences_seed_411034.zst",
-        "data/rle_literals_predefined_sequences_seed_413015.zst",
-        "data/rle_literals_predefined_sequences_seed_436165.zst",
-        "data/rle_literals_predefined_sequences_seed_464057.zst",
-        "data/rle_literals_predefined_sequences_seed_466803.zst",
-        "data/rle_literals_rle_sequences_seed_2.zst",
-        "data/rle_raw_literals_predefined_sequences_seed_408158.zst",
-        "data/rle_raw_literals_predefined_sequences_seed_499212.zst",
-        "data/treeless_huffman_literals_compressed_sequences_seed_400077.zst",
-        "data/treeless_huffman_literals_predefined_rle_compressed_sequences_seed_400025.zst",
-        "data/treeless_huffman_literals_predefined_rle_compressed_sequences_seed_400061.zst",
-        "data/treeless_huffman_literals_rle_sequences_seed_403927.zst",
-    ],
+    env = {
+        "PYTHONUNBUFFERED": "1",
+    },
     tags = [
         "manual",
         "exclusive", # Test with heavy use of multithreading. Running it in parallel results in significant performance drop
@@ -3045,7 +2988,6 @@ xls_dslx_library(
         ":literals_block_header_dec_dslx",
         ":literals_buffer_dslx",
         ":parallel_rams_dslx",
-        ":ram_printer_dslx",
         ":raw_literals_dec_dslx",
         ":rle_literals_dec_dslx",
         "//xls/examples:ram_dslx",
@@ -3137,7 +3079,7 @@ LITERALS_DECODER_CODEGEN_ARGS = {
     "reset": "rst",
     "worst_case_throughput": "3",
     "use_system_verilog": "false",
-    "materialize_internal_fifos": "false",  # TODO: set to true once this option works with loopback channels
+    "materialize_internal_fifos": "false",
 }
 
 xls_dslx_verilog(
@@ -3189,7 +3131,6 @@ benchmark_synth(
     tags = ["manual"],
 )
 
-# TODO: Remove _skip suffix after fixing long P&R time. Used now to skip this target in CI.
 place_and_route(
     name = "literals_decoder_place_and_route_skip",
     clock_period = "750",
@@ -3239,14 +3180,14 @@ PRESCAN_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
                           "huffman_prescan__internal_write_req_s:" +
                           "huffman_prescan__internal_write_rsp_r:1",
     "io_constraints": "huffman_prescan__read_req_s:send:" +
-                      "huffman_prescan__read_rsp_r:recv:1:1",
-    "materialize_internal_fifos": "false",  # TODO: remove once this option works with loopback channels
+                      "huffman_prescan__read_rsp_r:recv:5:5",
+    "materialize_internal_fifos": "false",
 }
 
 xls_dslx_verilog(
     name = "huffman_prescan_verilog",
     codegen_args = PRESCAN_CODEGEN_ARGS,
-    dslx_top = "WeightPreScan",
+    dslx_top = "WeightPreScanInst",
     library = ":huffman_prescan_dslx",
     tags = ["manual"],
     verilog_file = "huffman_prescan.v",
@@ -3329,7 +3270,7 @@ HUFFMAN_CODE_BUILDER_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
 xls_dslx_verilog(
     name = "huffman_code_builder_verilog",
     codegen_args = HUFFMAN_CODE_BUILDER_CODEGEN_ARGS,
-    dslx_top = "WeightCodeBuilder",
+    dslx_top = "WeightCodeBuilderInst",
     library = ":huffman_code_builder_dslx",
     tags = ["manual"],
     verilog_file = "huffman_code_builder.v",
@@ -3521,7 +3462,6 @@ benchmark_synth(
     tags = ["manual"],
 )
 
-# TODO: Remove _skip suffix after fixing long P&R time. Used now to skip this target in CI.
 place_and_route(
     name = "huffman_data_preprocessor_place_and_route_skip",
     clock_period = "750",
@@ -3601,7 +3541,6 @@ benchmark_synth(
     tags = ["manual"],
 )
 
-# TODO: Remove _skip suffix after fixing long P&R time. Used now to skip this target in CI.
 place_and_route(
     name = "huffman_decoder_place_and_route_skip",
     clock_period = "750",
@@ -3817,7 +3756,7 @@ HUFFMAN_LITERALS_DEC_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "clock_period_ps": "0",
     "worst_case_throughput": "0",
     "minimize_worst_case_throughput": "true",
-    "materialize_internal_fifos": "false",  # TODO: remove once this option works with loopback channels
+    "materialize_internal_fifos": "false",
 }
 
 xls_dslx_verilog(
@@ -3863,7 +3802,6 @@ benchmark_synth(
     tags = ["manual"],
 )
 
-# TODO: Remove _skip suffix after fixing long P&R time. Used now to skip this target in CI.
 place_and_route(
     name = "huffman_literals_dec_place_and_route_skip",
     clock_period = CLOCK_PERIOD_PS,
@@ -3922,15 +3860,9 @@ collect_benchmark_reports(
         ":raw_literals_dec_place_and_route",
         ":literals_buffer_place_and_route",
         ":literals_decoder_ctrl_place_and_route",
-        # ":literals_decoder_place_and_route",
         ":huffman_prescan_place_and_route",
-        # ":huffman_code_builder_place_and_route",
         ":huffman_axi_reader_place_and_route",
-        # ":huffman_data_preprocessor_place_and_route",
-        # ":huffman_decoder_place_and_route",
         ":huffman_ctrl_place_and_route",
         ":huffman_weights_dec_place_and_route",
-        # ":huffman_literals_dec_place_and_route",
-        # ":zstd_dec_place_and_route",
     ],
 )

@@ -107,7 +107,7 @@ pub proc CommandConstructor {
             _ => fail!("impossible_case", (zero!<State>(), false, false)),
         };
 
-        let req = LiteralsBufferCtrl { length: command.data.length as u32, last: command.data.last}; // FIXME: remove cast after unifying types of 'length' fields
+        let req = LiteralsBufferCtrl { length: command.data.length as u32, last: command.data.last};
         send_if(tok1, literals_buffer_req_s, do_send_literals_req, req);
 
         let resp = match(state.status) {
@@ -119,7 +119,7 @@ pub proc CommandConstructor {
                     last_block: command.sync.last_block,
                     id: command.sync.id,
                     data: command.data.content,
-                    length: command.data.length as u32, // FIXME: remove cast after unifying types of 'length' fields
+                    length: command.data.length as u32,
                 }
             },
             Status::RECV_LITERALS => ExtendedBlockDataPacket {
@@ -129,7 +129,7 @@ pub proc CommandConstructor {
                     last_block: command.sync.last_block,
                     id: command.sync.id,
                     data: literals.content,
-                    length: literals.length as u32, // FIXME: remove cast after unifying types of 'length' fields
+                    length: literals.length as u32,
                 }
             },
             _ => fail!("resp_match_unreachable", zero!<ExtendedBlockDataPacket>())
@@ -182,7 +182,7 @@ proc FakeLiteralsBuffer {
                 (
                     FakeLiteralsBufferState {
                         status: FakeLiteralsBufferStatus::SEND,
-                        literals_left_to_send: resp.length as u64 // FIXME: remove cast after unifying types of 'length' fields
+                        literals_left_to_send: resp.length as u64
                     }, false, zero!<SequenceExecutorPacket>(),
                 )
                 },

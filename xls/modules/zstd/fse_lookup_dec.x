@@ -21,8 +21,6 @@ import xls.modules.zstd.memory.mem_reader;
 import xls.modules.zstd.memory.axi_ram_reader;
 import xls.modules.zstd.fse_table_creator;
 import xls.modules.zstd.refilling_shift_buffer;
-import xls.modules.zstd.fse_proba_freq_dec;
-import xls.modules.zstd.shift_buffer;
 import xls.modules.zstd.comp_lookup_dec;
 import xls.modules.zstd.rle_lookup_dec;
 import xls.modules.zstd.refilling_shift_buffer_mux;
