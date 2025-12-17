@@ -6320,7 +6320,7 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::TranslateTypeFromClang(
             absl::StrFormat("Unsupported BuiltIn type %i", builtin->getKind()));
     }
   } else if (auto enum_type = clang::dyn_cast<const clang::EnumType>(type)) {
-    clang::EnumDecl* decl = enum_type->getOriginalDecl();
+    clang::EnumDecl* decl = enum_type->getDecl();
     int width = decl->getNumPositiveBits() + decl->getNumNegativeBits();
     bool is_signed = decl->getNumNegativeBits() > 0;
     absl::btree_map<std::string, int64_t> variants_by_name;
@@ -6340,7 +6340,7 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::TranslateTypeFromClang(
                      type)) {
     return TranslateTypeFromClang(spec_type->desugar(), loc);
   } else if (auto record = clang::dyn_cast<const clang::RecordType>(type)) {
-    clang::RecordDecl* decl = record->getOriginalDecl();
+    clang::RecordDecl* decl = record->getDecl();
 
     if (clang::isa<clang::RecordDecl>(decl)) {
       return std::shared_ptr<CType>(
