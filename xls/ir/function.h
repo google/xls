@@ -96,7 +96,9 @@ class Function : public FunctionBase {
   absl::StatusOr<Function*> Clone(
       std::string_view new_name, Package* target_package = nullptr,
       const absl::flat_hash_map<const Function*, Function*>& call_remapping =
-          {}) const;
+          {},
+      std::optional<absl::flat_hash_map<Node*, Node*>*> original_node_to_clone =
+          std::nullopt) const;
 
   // Returns true if analysis indicates that this function always produces the
   // same value as 'other' when run with the same arguments. The analysis is

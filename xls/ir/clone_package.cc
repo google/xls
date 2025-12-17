@@ -27,13 +27,15 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/node.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 
 namespace xls {
 
 absl::StatusOr<std::unique_ptr<Package>> ClonePackage(
-    const Package* p, std::optional<std::string_view> name) {
+    const Package* p, std::optional<std::string_view> name,
+    std::optional<absl::flat_hash_map<Node*, Node*>*> original_node_to_clone) {
   std::unique_ptr<Package> clone =
       std::make_unique<Package>(name.value_or(p->name()));
   absl::flat_hash_map<Channel*, Channel*> chan_map;
@@ -48,8 +50,9 @@ absl::StatusOr<std::unique_ptr<Package>> ClonePackage(
   for (FunctionBase* fb : FunctionsInPostOrder(p)) {
     if (fb->IsFunction()) {
       Function* f = fb->AsFunctionOrDie();
-      XLS_ASSIGN_OR_RETURN(Function * nf,
-                           f->Clone(f->name(), clone.get(), func_map));
+      XLS_ASSIGN_OR_RETURN(
+          Function * nf,
+          f->Clone(f->name(), clone.get(), func_map, original_node_to_clone));
       func_map[f] = nf;
       fb_map[f] = nf;
     } else if (fb->IsProc()) {
@@ -57,7 +60,7 @@ absl::StatusOr<std::unique_ptr<Package>> ClonePackage(
       XLS_ASSIGN_OR_RETURN(
           Proc * np,
           op->Clone(op->name(), clone.get(), /*channel_remapping=*/{}, fb_map,
-                    /*state_name_remapping=*/{}));
+                    /*state_name_remapping=*/{}, original_node_to_clone));
       fb_map[op] = np;
     } else {
       XLS_RET_CHECK(fb->IsBlock());
