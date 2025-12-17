@@ -15,6 +15,7 @@
 #include "xls/passes/bit_provenance_analysis.h"
 
 #include <memory>
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -362,6 +363,79 @@ TEST_F(BitProvenanceAnalysisTest, ComputesLazily) {
               IsTreeBitSources(ElementsAre(
                   IsBitRange(x.node(), /*source_bit_index_low=*/0,
                              /*dest_bit_index_low=*/0, /*bit_width=*/1))));
+}
+
+TEST_F(BitProvenanceAnalysisTest, TrimLeadingAndTrailingRepeatedSourceBits) {
+  std::unique_ptr<Package> p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue x_5 = fb.BitSlice(x, 5, 1);
+  BValue x_mid_16 = fb.BitSlice(x, 8, 16);
+  BValue padded = fb.Concat({fb.SignExtend(x_mid_16, 19), x_5, x_5});
+  XLS_ASSERT_OK(fb.Build());
+  BitProvenanceAnalysis bpa;
+  XLS_ASSERT_OK_AND_ASSIGN(LeafTypeTreeView<TreeBitSources> padded_sources,
+                           bpa.GetBitSources(padded.node()));
+  // Confirm padded = {x[23], x[23], x[23], x[8:24], x[5], x[5]}
+  EXPECT_THAT(padded_sources.Get({}),
+              IsTreeBitSources(ElementsAre(
+                  IsBitRange(x.node(), /*source_bit_index_low=*/5,
+                             /*dest_bit_index_low=*/0, /*bit_width=*/1),
+                  IsBitRange(x.node(), /*source_bit_index_low=*/5,
+                             /*dest_bit_index_low=*/1, /*bit_width=*/1),
+                  IsBitRange(x.node(), /*source_bit_index_low=*/8,
+                             /*dest_bit_index_low=*/2, /*bit_width=*/16),
+                  IsBitRange(x.node(), /*source_bit_index_low=*/23,
+                             /*dest_bit_index_low=*/18, /*bit_width=*/1),
+                  IsBitRange(x.node(), /*source_bit_index_low=*/23,
+                             /*dest_bit_index_low=*/19, /*bit_width=*/1),
+                  IsBitRange(x.node(), /*source_bit_index_low=*/23,
+                             /*dest_bit_index_low=*/20, /*bit_width=*/1))));
+
+  // Confirm trimmed = {x[8:24], x[5]}
+  EXPECT_THAT(
+      BitProvenanceAnalysis::TrimRepeatedSourceBits(std::move(padded_sources))
+          .Get({}),
+      IsTreeBitSources(
+          ElementsAre(IsBitRange(x.node(), /*source_bit_index_low=*/5,
+                                 /*dest_bit_index_low=*/1, /*bit_width=*/1),
+                      IsBitRange(x.node(), /*source_bit_index_low=*/8,
+                                 /*dest_bit_index_low=*/2, /*bit_width=*/16))));
+}
+
+TEST_F(BitProvenanceAnalysisTest, NoRepeatedSourceBitsToTrim) {
+  std::unique_ptr<Package> p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue x_3 = fb.BitSlice(x, 3, 1);
+  XLS_ASSERT_OK(fb.Build());
+  BitProvenanceAnalysis bpa;
+  XLS_ASSERT_OK_AND_ASSIGN(LeafTypeTreeView<TreeBitSources> no_repeated,
+                           bpa.GetBitSources(x_3.node()));
+  EXPECT_THAT(
+      BitProvenanceAnalysis::TrimRepeatedSourceBits(std::move(no_repeated))
+          .Get({}),
+      IsTreeBitSources(
+          ElementsAre(IsBitRange(x.node(), /*source_bit_index_low=*/3,
+                                 /*dest_bit_index_low=*/0, /*bit_width=*/1))));
+}
+
+TEST_F(BitProvenanceAnalysisTest, SingleSourceBitRepeatedMultipleTimes) {
+  std::unique_ptr<Package> p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue x_4 = fb.Concat({fb.BitSlice(x, 4, 1), fb.BitSlice(x, 4, 1),
+                          fb.BitSlice(x, 4, 1), fb.BitSlice(x, 4, 1)});
+  XLS_ASSERT_OK(fb.Build());
+  BitProvenanceAnalysis bpa;
+  XLS_ASSERT_OK_AND_ASSIGN(LeafTypeTreeView<TreeBitSources> x_4_sources,
+                           bpa.GetBitSources(x_4.node()));
+  EXPECT_THAT(
+      BitProvenanceAnalysis::TrimRepeatedSourceBits(std::move(x_4_sources))
+          .Get({}),
+      IsTreeBitSources(
+          ElementsAre(IsBitRange(x.node(), /*source_bit_index_low=*/4,
+                                 /*dest_bit_index_low=*/3, /*bit_width=*/1))));
 }
 
 }  // namespace

@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <optional>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -30,6 +31,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/binary_decision_diagram.h"
+#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/function_builder.h"
@@ -41,6 +43,7 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/passes/bdd_query_engine.h"
+#include "xls/passes/bit_provenance_analysis.h"
 #include "xls/passes/node_dependency_analysis.h"
 #include "xls/passes/query_engine.h"
 #include "xls/passes/visibility_analysis.h"
@@ -176,6 +179,38 @@ absl::StatusOr<Node*> VisibilityBuilder::GetVisibilityExprForSelect(
   return OrOperands(or_cases);
 }
 
+// Find the source bits of operand, and if unknown, use the operand itself.
+absl::StatusOr<Node*> VisibilityBuilder::GetNonRepeatedSourceOf(
+    Node* operand, FunctionBase* func) {
+  XLS_ASSIGN_OR_RETURN(auto bit_sources_tree, bpa_.GetBitSources(operand));
+  LeafTypeTree<TreeBitSources> trimmed_bit_sources_tree =
+      BitProvenanceAnalysis::TrimRepeatedSourceBits(
+          std::move(bit_sources_tree));
+  const auto& source_ranges = trimmed_bit_sources_tree.Get({}).ranges();
+  if (source_ranges.size() == 1) {
+    const TreeBitSources::BitRange& single_range = source_ranges[0];
+    Node* source = single_range.source_node();
+    // Clone the source node if building expressions in a temp function.
+    XLS_ASSIGN_OR_RETURN(source, MakeParamIfTmpFunc(source, func));
+    // If derived from a single range of contiguous bits, find or create a bit
+    // slice (skip this if the range covers the entire source node)
+    if (single_range.source_bit_index_low() != 0 ||
+        source->GetType()->GetFlatBitCount() != single_range.bit_width()) {
+      XLS_ASSIGN_OR_RETURN(
+          source,
+          FindOrMakeBitSlice(source, single_range.source_bit_index_low(),
+                             single_range.bit_width()));
+    }
+    return source;
+  }
+
+  // Default to the operand itself without further knowledge
+  // NOTE: We could concat together the multiple source ranges found instead of
+  // defaulting to the operand itself, but it isn't clear if this would help.
+  // Clone the operand if building expressions in a temp function.
+  return MakeParamIfTmpFunc(operand, func);
+}
+
 absl::StatusOr<Node*> VisibilityBuilder::GetVisibilityExprForAnd(
     Node* node, NaryOp* and_node, Node* source, FunctionBase* func) {
   std::vector<Node*> others_not_zero;
@@ -184,18 +219,16 @@ absl::StatusOr<Node*> VisibilityBuilder::GetVisibilityExprForAnd(
       continue;
     }
 
-    Node* single_bit_value = operand;
-    if (operand->op() == Op::kSignExt) {
-      single_bit_value = operand->operand(0);
-    }
-    if (single_bit_value->GetType()->GetFlatBitCount() == 1) {
-      XLS_ASSIGN_OR_RETURN(single_bit_value,
-                           MakeParamIfTmpFunc(single_bit_value, func));
-      others_not_zero.push_back(single_bit_value);
+    XLS_ASSIGN_OR_RETURN(Node * compare_val,
+                         GetNonRepeatedSourceOf(operand, func));
+
+    // If operand is derived from a single bit, we can simply check that the
+    // source bit is set to determine that @node is visible
+    if (compare_val->GetType()->GetFlatBitCount() == 1) {
+      others_not_zero.push_back(compare_val);
       continue;
     }
 
-    XLS_ASSIGN_OR_RETURN(Node * compare_val, MakeParamIfTmpFunc(operand, func));
     XLS_ASSIGN_OR_RETURN(
         Node * value_zero,
         func->MakeNode<Literal>(
@@ -217,21 +250,19 @@ absl::StatusOr<Node*> VisibilityBuilder::GetVisibilityExprForOr(
       continue;
     }
 
-    Node* single_bit_value = operand;
-    if (operand->op() == Op::kSignExt) {
-      single_bit_value = operand->operand(0);
-    }
-    if (single_bit_value->GetType()->GetFlatBitCount() == 1) {
-      XLS_ASSIGN_OR_RETURN(single_bit_value,
-                           MakeParamIfTmpFunc(single_bit_value, func));
-      XLS_ASSIGN_OR_RETURN(Node * not_single_bit_value,
-                           func->MakeNode<UnOp>(single_bit_value->loc(),
-                                                single_bit_value, Op::kNot));
+    XLS_ASSIGN_OR_RETURN(Node * compare_val,
+                         GetNonRepeatedSourceOf(operand, func));
+
+    // If operand is derived from a single bit, we can simply check that the
+    // source bit is NOT set to determine that @node is visible
+    if (compare_val->GetType()->GetFlatBitCount() == 1) {
+      XLS_ASSIGN_OR_RETURN(
+          Node * not_single_bit_value,
+          func->MakeNode<UnOp>(compare_val->loc(), compare_val, Op::kNot));
       others_not_ones.push_back(not_single_bit_value);
       continue;
     }
 
-    XLS_ASSIGN_OR_RETURN(Node * compare_val, MakeParamIfTmpFunc(operand, func));
     XLS_ASSIGN_OR_RETURN(
         Node * value_ones,
         func->MakeNode<Literal>(

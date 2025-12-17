@@ -180,6 +180,11 @@ class BitProvenanceAnalysis {
   // Get all the sources for a given node.
   absl::StatusOr<LeafTypeTreeView<TreeBitSources>> GetBitSources(Node* n) const;
 
+  // Removes ranges that repeat the first or last bit of a source; useful when
+  // intending to operate on the underlying source that was bit-extended.
+  static LeafTypeTree<TreeBitSources> TrimRepeatedSourceBits(
+      const LeafTypeTreeView<TreeBitSources>& tree);
+
  private:
   std::unique_ptr<internal::BitProvenanceVisitor> visitor_;
 };

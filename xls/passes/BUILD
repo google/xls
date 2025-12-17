@@ -4740,6 +4740,7 @@ cc_library(
     deps = [
         ":area_accumulated_analysis",
         ":bdd_query_engine",
+        ":bit_provenance_analysis",
         ":critical_path_delay_analysis",
         ":expression_builder",
         ":node_dependency_analysis",
@@ -4747,6 +4748,7 @@ cc_library(
         ":visibility_analysis",
         "//xls/common/status:status_macros",
         "//xls/data_structures:binary_decision_diagram",
+        "//xls/data_structures:leaf_type_tree",
         "//xls/estimators/area_model:area_estimator",
         "//xls/estimators/delay_model:delay_estimator",
         "//xls/ir",
@@ -4773,6 +4775,7 @@ cc_test(
     srcs = ["visibility_expr_builder_test.cc"],
     deps = [
         ":bdd_query_engine",
+        ":bit_provenance_analysis",
         ":node_dependency_analysis",
         ":post_dominator_analysis",
         ":visibility_analysis",

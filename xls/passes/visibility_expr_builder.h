@@ -30,6 +30,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/passes/area_accumulated_analysis.h"
 #include "xls/passes/bdd_query_engine.h"
+#include "xls/passes/bit_provenance_analysis.h"
 #include "xls/passes/critical_path_delay_analysis.h"
 #include "xls/passes/expression_builder.h"
 #include "xls/passes/node_dependency_analysis.h"
@@ -42,10 +43,12 @@ class VisibilityBuilder : public ExpressionBuilder {
   static constexpr int64_t kMaxCasesToCheckImplyNoPrevCase = 100;
 
   VisibilityBuilder(int64_t prior_existing_id, const BddQueryEngine* bdd_engine,
-                    const NodeForwardDependencyAnalysis& nda)
+                    const NodeForwardDependencyAnalysis& nda,
+                    BitProvenanceAnalysis& bpa)
       : ExpressionBuilder(nda.bound_function(), bdd_engine),
         prior_existing_id_(prior_existing_id),
         nda_(nda),
+        bpa_(bpa),
         visibility_expr_cache_{} {}
 
  private:
@@ -56,6 +59,7 @@ class VisibilityBuilder : public ExpressionBuilder {
   // Dependency analysis is used to prevent creating visibility expressions
   // that include the source as a term in the expression.
   const NodeForwardDependencyAnalysis& nda_;
+  BitProvenanceAnalysis& bpa_;
   absl::flat_hash_map<std::tuple<Node*, Node*, FunctionBase*>, Node*>
       visibility_expr_cache_;
 
@@ -139,6 +143,9 @@ class VisibilityBuilder : public ExpressionBuilder {
           conditional_edges,
       absl::flat_hash_map<Node*, Node*>& node_to_visibility_ir_cache,
       Literal* always_visible);
+
+  absl::StatusOr<Node*> GetNonRepeatedSourceOf(Node* operand,
+                                               FunctionBase* func);
 };
 
 class VisibilityEstimator : public VisibilityBuilder {
@@ -146,9 +153,9 @@ class VisibilityEstimator : public VisibilityBuilder {
   VisibilityEstimator(int64_t prior_existing_id,
                       const BddQueryEngine* bdd_engine,
                       const NodeForwardDependencyAnalysis& nda,
-                      AreaEstimator* area_estimator,
+                      BitProvenanceAnalysis& bpa, AreaEstimator* area_estimator,
                       DelayEstimator* delay_estimator)
-      : VisibilityBuilder(prior_existing_id, bdd_engine, nda),
+      : VisibilityBuilder(prior_existing_id, bdd_engine, nda, bpa),
         area_analysis_(area_estimator),
         delay_analysis_(delay_estimator) {
     CHECK_OK(area_analysis_.Attach(TmpFunc()).status());

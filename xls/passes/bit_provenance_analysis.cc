@@ -278,6 +278,23 @@ class BitProvenanceVisitor final : public DataflowVisitor<TreeBitSources> {
 
 }  // namespace internal
 
+namespace {
+
+// RepeatedSourceBit returns true if the outer bit range is a single bit that is
+// contiguous with the end of the inner bit range it is adjacent to, i.e:
+//   ranges = [(inner = source[:5]), (outer = source[5:6])] OR
+//   ranges = [(outer = source[0:1]), (inner = source[1:])]
+bool RepeatedSourceBit(const TreeBitSources::BitRange& outer,
+                       const TreeBitSources::BitRange& inner) {
+  return outer.source_node() == outer.source_node() &&
+         outer.source_tree_index() == outer.source_tree_index() &&
+         outer.bit_width() == 1 &&
+         (outer.source_bit_index_high() == inner.source_bit_index_low() ||
+          outer.source_bit_index_low() == inner.source_bit_index_high());
+}
+
+}  // namespace
+
 /* static */ absl::StatusOr<BitProvenanceAnalysis>
 BitProvenanceAnalysis::CreatePrepopulated(FunctionBase* func) {
   BitProvenanceAnalysis result;
@@ -342,6 +359,34 @@ TreeBitLocation TreeBitSources::GetBitSource(int64_t bit) const {
 
 bool BitProvenanceAnalysis::IsTracked(Node* n) const {
   return visitor_->IsVisited(n);
+}
+
+/* static */ LeafTypeTree<TreeBitSources>
+BitProvenanceAnalysis::TrimRepeatedSourceBits(
+    const LeafTypeTreeView<TreeBitSources>& tree) {
+  return leaf_type_tree::Map<TreeBitSources, TreeBitSources>(
+      tree.AsView(), [&](const TreeBitSources& sources_leaf) {
+        if (sources_leaf.ranges().empty()) {
+          return sources_leaf;
+        }
+        const auto& all_ranges = sources_leaf.ranges();
+        int64_t trimmed_start = 0;
+        int64_t trimmed_end = all_ranges.size() - 1;
+        while (trimmed_start + 1 < all_ranges.size() &&
+               RepeatedSourceBit(/*outer=*/all_ranges[trimmed_start],
+                                 /*inner=*/all_ranges[trimmed_start + 1])) {
+          ++trimmed_start;
+        }
+        while (trimmed_end > trimmed_start &&
+               RepeatedSourceBit(/*outer=*/all_ranges[trimmed_end],
+                                 /*inner=*/all_ranges[trimmed_end - 1])) {
+          --trimmed_end;
+        }
+        std::vector<TreeBitRange> remaining_ranges(
+            all_ranges.begin() + trimmed_start,
+            all_ranges.begin() + trimmed_end + 1);
+        return TreeBitSources(std::move(remaining_ranges));
+      });
 }
 
 /* static */ std::vector<TreeBitRange> TreeBitSources::Minimize(

@@ -34,6 +34,7 @@
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/passes/bdd_query_engine.h"
+#include "xls/passes/bit_provenance_analysis.h"
 #include "xls/passes/node_dependency_analysis.h"
 #include "xls/passes/post_dominator_analysis.h"
 #include "xls/passes/visibility_analysis.h"
@@ -74,7 +75,9 @@ class VisibilityExprBuilderTest : public IrTestBase {
     auto last_node_id = f->nodes_reversed().begin()->id();
     XLS_ASSIGN_OR_RETURN(AreaEstimator * ae, GetAreaEstimator("unit"));
     XLS_ASSIGN_OR_RETURN(DelayEstimator * de, GetDelayEstimator("unit"));
-    VisibilityEstimator estimator(last_node_id, bdd_engine.get(), nda, ae, de);
+    BitProvenanceAnalysis bpa;
+    VisibilityEstimator estimator(last_node_id, bdd_engine.get(), nda, bpa, ae,
+                                  de);
     XLS_ASSIGN_OR_RETURN(Node * expr, estimator.BuildVisibilityIRExpr(
                                           f, node, conditional_edges));
     XLS_ASSIGN_OR_RETURN(
@@ -224,6 +227,22 @@ TEST_F(VisibilityExprBuilderTest, Ands) {
   XLS_ASSERT_OK_AND_ASSIGN(is_y_used,
                            BuildDefaultVisibilityExpr(f, y.node(), {}));
   EXPECT_EQ(is_y_used.first, bit1.node());
+}
+
+TEST_F(VisibilityExprBuilderTest, FindsSourceOfOperandInComparison) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(5));
+  BValue y = fb.Param("y", p->GetBitsType(4));
+  BValue bits1234 = fb.BitSlice(x, 1, 4);
+  BValue bit3 = fb.BitSlice(bits1234, 2, 1);
+  BValue y_and_bit3 = fb.And(y, fb.SignExtend(bit3, 4));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(y_and_bit3));
+
+  std::pair<Node*, VisibilityEstimator::AreaDelay> is_y_used;
+  XLS_ASSERT_OK_AND_ASSIGN(is_y_used,
+                           BuildDefaultVisibilityExpr(f, y.node(), {}));
+  EXPECT_THAT(is_y_used.first, m::BitSlice(m::Param("x"), 3, 1));
 }
 
 TEST_F(VisibilityExprBuilderTest, NotAFunctionOfSelf) {
