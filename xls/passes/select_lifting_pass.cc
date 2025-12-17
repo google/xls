@@ -49,8 +49,8 @@ namespace {
 
 struct TransformationResult {
   bool was_code_modified;
-  absl::btree_set<Node *, Node::NodeIdLessThan> new_selects_to_consider;
-  absl::flat_hash_set<Node *> nodes_to_delete;
+  absl::btree_set<Node*, Node::NodeIdLessThan> new_selects_to_consider;
+  absl::flat_hash_set<Node*> nodes_to_delete;
 
   TransformationResult() : was_code_modified{false} {}
 };
@@ -68,7 +68,7 @@ struct LiftedOpInfo {
   bool default_is_identity;  // True if the default case is an identity.
 };
 
-std::optional<Node *> GetDefaultValue(Node *select) {
+std::optional<Node*> GetDefaultValue(Node* select) {
   if (select->Is<PrioritySelect>()) {
     return select->As<PrioritySelect>()->default_value();
   }
@@ -76,7 +76,7 @@ std::optional<Node *> GetDefaultValue(Node *select) {
   return select->As<Select>()->default_value();
 }
 
-absl::Span<Node *const> GetCases(Node *select) {
+absl::Span<Node* const> GetCases(Node* select) {
   if (select->Is<PrioritySelect>()) {
     return select->As<PrioritySelect>()->cases();
   }
@@ -84,16 +84,16 @@ absl::Span<Node *const> GetCases(Node *select) {
   return select->As<Select>()->cases();
 }
 
-bool MatchesIndexBitwidth(ArrayIndex *ai, int64_t shared_index_bitwidth) {
-  absl::Span<Node *const> current_case_indices = ai->indices();
+bool MatchesIndexBitwidth(ArrayIndex* ai, int64_t shared_index_bitwidth) {
+  absl::Span<Node* const> current_case_indices = ai->indices();
   if (current_case_indices.length() != 1) {
     // Property 1 does not hold
     VLOG(3) << "        The input \"" << ai->ToString()
             << "\" uses more than one index";
     return false;
   }
-  Node *current_case_index = current_case_indices.at(0);
-  Type *current_case_index_type = current_case_index->GetType();
+  Node* current_case_index = current_case_indices.at(0);
+  Type* current_case_index_type = current_case_index->GetType();
   int64_t current_index_bitwidth = current_case_index_type->GetFlatBitCount();
   if (current_index_bitwidth != shared_index_bitwidth) {
     // Property 1 does not hold
@@ -106,8 +106,8 @@ bool MatchesIndexBitwidth(ArrayIndex *ai, int64_t shared_index_bitwidth) {
   return true;
 }
 
-std::optional<Node *> ApplicabilityGuardForArrayIndex(
-    absl::Span<Node *const> cases, std::optional<Node *> default_case) {
+std::optional<Node*> ApplicabilityGuardForArrayIndex(
+    absl::Span<Node* const> cases, std::optional<Node*> default_case) {
   // Only "select" nodes with the following properties can be optimized by this
   // transformations.
   //
@@ -124,11 +124,11 @@ std::optional<Node *> ApplicabilityGuardForArrayIndex(
   //
   // Fetch the aspects of the first case of the "select" node that will have to
   // be shared between all the rest of the "select" inputs.
-  ArrayIndex *first_case = cases[0]->As<ArrayIndex>();
-  Node *shared_array_ref = first_case->operand(0);
-  absl::Span<Node *const> first_case_indices = first_case->indices();
-  Node *first_case_first_index = first_case_indices.at(0);
-  Type *first_case_first_index_type = first_case_first_index->GetType();
+  ArrayIndex* first_case = cases[0]->As<ArrayIndex>();
+  Node* shared_array_ref = first_case->operand(0);
+  absl::Span<Node* const> first_case_indices = first_case->indices();
+  Node* first_case_first_index = first_case_indices.at(0);
+  Type* first_case_first_index_type = first_case_first_index->GetType();
   int64_t shared_index_bitwidth =
       first_case_first_index_type->GetFlatBitCount();
 
@@ -138,7 +138,7 @@ std::optional<Node *> ApplicabilityGuardForArrayIndex(
     // Notice that this case is guaranteed to succeed as all inputs of the
     // "select" are guaranteed to have the same operation and type at this
     // point.
-    ArrayIndex *current_case = cases[index]->As<ArrayIndex>();
+    ArrayIndex* current_case = cases[index]->As<ArrayIndex>();
 
     // Check Property 0
     if (current_case->operand(0) != shared_array_ref) {
@@ -157,7 +157,7 @@ std::optional<Node *> ApplicabilityGuardForArrayIndex(
     }
   }
   if (default_case) {
-    ArrayIndex *default_case_as_array_index = (*default_case)->As<ArrayIndex>();
+    ArrayIndex* default_case_as_array_index = (*default_case)->As<ArrayIndex>();
 
     // Check Property 0
     if (default_case_as_array_index->operand(0) != shared_array_ref) {
@@ -651,19 +651,19 @@ absl::StatusOr<bool> ProfitabilityGuardForArrayIndex(FunctionBase* func,
   // as input
   //
   // Check property 2
-  Type *array_reference_type = array_reference->GetType();
-  ArrayType *array_reference_type_as_array_type =
+  Type* array_reference_type = array_reference->GetType();
+  ArrayType* array_reference_type_as_array_type =
       array_reference_type->AsArrayOrDie();
-  absl::Span<Node *const> select_cases = GetCases(select_to_optimize);
-  Type *array_element_type = array_reference_type_as_array_type->element_type();
+  absl::Span<Node* const> select_cases = GetCases(select_to_optimize);
+  Type* array_element_type = array_reference_type_as_array_type->element_type();
   int64_t array_element_bitwidth = array_element_type->GetFlatBitCount();
-  for (Node *current_select_case_as_node : select_cases) {
-    ArrayIndex *current_select_case =
+  for (Node* current_select_case_as_node : select_cases) {
+    ArrayIndex* current_select_case =
         current_select_case_as_node->As<ArrayIndex>();
-    absl::Span<Node *const> current_select_case_indices =
+    absl::Span<Node* const> current_select_case_indices =
         current_select_case->indices();
-    for (Node *current_select_case_index : current_select_case_indices) {
-      Type *current_select_case_index_type =
+    for (Node* current_select_case_index : current_select_case_indices) {
+      Type* current_select_case_index_type =
           current_select_case_index->GetType();
       if (current_select_case_index_type->GetFlatBitCount() >
           array_element_bitwidth) {
@@ -673,9 +673,9 @@ absl::StatusOr<bool> ProfitabilityGuardForArrayIndex(FunctionBase* func,
   }
 
   // Check properties 0 and 1
-  for (Node *current_select_case_as_node : select_cases) {
+  for (Node* current_select_case_as_node : select_cases) {
     // Fetch the current array access (i.e., ArrayIndex)
-    ArrayIndex *current_select_case =
+    ArrayIndex* current_select_case =
         current_select_case_as_node->As<ArrayIndex>();
 
     // Check the users
@@ -820,14 +820,14 @@ absl::StatusOr<TransformationResult> LiftSelectForArrayIndex(
   std::optional<Node*> new_default_value = info.default_other_operand;
   const std::vector<Node*>& new_cases = info.other_operands;
 
-  Node *new_select;
+  Node* new_select;
   XLS_ASSIGN_OR_RETURN(
       new_select,
       MakeSelectNode(func, select_to_optimize, new_cases, new_default_value));
 
   // Step 1: add the new array access
   VLOG(3) << "    Step 1: add the new arrayIndex node";
-  std::vector<Node *> new_indices;
+  std::vector<Node*> new_indices;
   new_indices.push_back(new_select);
   XLS_ASSIGN_OR_RETURN(
       Node * new_array_index,
@@ -850,7 +850,7 @@ absl::StatusOr<TransformationResult> LiftSelectForArrayIndex(
   // Step 4: check if new "select" nodes become optimizable. These are users of
   // the new arrayIndex node
   VLOG(3) << "    Step 4: check if more \"select\" nodes should be considered";
-  for (Node *user : new_array_index->users()) {
+  for (Node* user : new_array_index->users()) {
     if (user->OpIn({Op::kSel, Op::kPrioritySel})) {
       result.new_selects_to_consider.insert(user);
     }
@@ -961,7 +961,7 @@ absl::StatusOr<TransformationResult> LiftSelectForBinaryOperation(
   result.nodes_to_delete.insert(select_to_optimize);
 
   VLOG(3) << "    Step 6: check if more \"select\" nodes should be considered";
-  for (Node *user : new_binop->users()) {
+  for (Node* user : new_binop->users()) {
     if (user->OpIn({Op::kSel, Op::kPrioritySel})) {
       result.new_selects_to_consider.insert(user);
     }
@@ -1057,7 +1057,7 @@ absl::StatusOr<TransformationResult> LiftSelects(
   // Try to optimize all "select" nodes
   //
   // Step 0: try to shift the "select" nodes
-  for (Node *select_node : selects_to_consider) {
+  for (Node* select_node : selects_to_consider) {
     if (select_node->IsDead()) {
       continue;
     }
@@ -1078,7 +1078,7 @@ absl::StatusOr<TransformationResult> LiftSelects(
   }
 
   // Step 1: delete the old selects
-  for (Node *old_select : result.nodes_to_delete) {
+  for (Node* old_select : result.nodes_to_delete) {
     result.new_selects_to_consider.erase(old_select);
     XLS_RETURN_IF_ERROR(func->RemoveNode(old_select));
   }
@@ -1089,14 +1089,14 @@ absl::StatusOr<TransformationResult> LiftSelects(
 }  // namespace
 
 absl::StatusOr<bool> SelectLiftingPass::RunOnFunctionBaseInternal(
-    FunctionBase *func, const OptimizationPassOptions &options,
-    PassResults *results, OptimizationContext &context) const {
-  absl::btree_set<Node *, Node::NodeIdLessThan> selects_to_consider;
+    FunctionBase* func, const OptimizationPassOptions& options,
+    PassResults* results, OptimizationContext& context) const {
+  absl::btree_set<Node*, Node::NodeIdLessThan> selects_to_consider;
   bool was_code_modified = false;
 
   // Collect the "select" nodes that might be optimizable
   VLOG(3) << "Optimizing the function at level " << options.opt_level;
-  for (Node *node : func->nodes()) {
+  for (Node* node : func->nodes()) {
     // Only consider selects.
     if (!node->OpIn({Op::kSel, Op::kPrioritySel})) {
       continue;
@@ -1142,6 +1142,5 @@ absl::StatusOr<bool> SelectLiftingPass::RunOnFunctionBaseInternal(
 
   return was_code_modified;
 }
-
 
 }  // namespace xls
