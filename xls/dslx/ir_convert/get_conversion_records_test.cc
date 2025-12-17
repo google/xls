@@ -37,9 +37,6 @@
 namespace xls::dslx {
 namespace {
 
-using ::absl_testing::StatusIs;
-using ::testing::HasSubstr;
-
 class GetConversionRecordsTest : public ::testing::Test {
  public:
   absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
