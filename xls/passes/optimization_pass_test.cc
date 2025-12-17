@@ -30,20 +30,28 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/change_listener.h"
 #include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/ram_rewrite.pb.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/ternary.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/query_engine.h"
 
 namespace xls {
 namespace {
@@ -783,5 +791,164 @@ TEST(RamDatastructuresTest, RamRewritesProtoTest) {
   EXPECT_EQ(RamRewritesFromProto(proto)->at(0).to_name_prefix, "ram");
 }
 
+class OptimizationContextTest : public IrTestBase {};
+
+class TestQueryEngine final : public QueryEngine {
+ public:
+  explicit TestQueryEngine(Bits value) : value_(value) {}
+  explicit TestQueryEngine() : value_(UBits(42, 8)) {}
+  absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override {
+    return ReachedFixpoint::Changed;
+  }
+
+  bool IsTracked(Node* node) const override { return true; }
+
+  std::optional<SharedLeafTypeTree<TernaryVector>> GetTernary(
+      Node* node) const override {
+    if (!node->GetType()->IsBits() ||
+        node->BitCountOrDie() != value_.bit_count()) {
+      return std::nullopt;
+    }
+    return LeafTypeTree<TernaryVector>(node->GetType(),
+                                       ternary_ops::BitsToTernary(value_))
+        .AsShared();
+  }
+
+  bool AtMostOneTrue(absl::Span<const TreeBitLocation> bits) const override {
+    return false;
+  }
+
+  bool AtLeastOneTrue(absl::Span<const TreeBitLocation> bits) const override {
+    return false;
+  }
+
+  bool Implies(const TreeBitLocation& a,
+               const TreeBitLocation& b) const override {
+    return false;
+  }
+
+  std::optional<Bits> ImpliedNodeValue(
+      absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
+      Node* node) const override {
+    return value_;
+  }
+
+  std::optional<TernaryVector> ImpliedNodeTernary(
+      absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
+      Node* node) const override {
+    return ternary_ops::BitsToTernary(value_);
+  }
+
+  bool KnownEquals(const TreeBitLocation& a,
+                   const TreeBitLocation& b) const override {
+    return false;
+  }
+
+  bool KnownNotEquals(const TreeBitLocation& a,
+                      const TreeBitLocation& b) const override {
+    return false;
+  }
+
+ private:
+  Bits value_;
+};
+
+TEST_F(OptimizationContextTest, SharedQueryEngine) {
+  auto p = CreatePackage();
+  OptimizationContext ctx;
+  FunctionBuilder fb(TestName(), p.get());
+  BValue v = fb.Param("foo", p->GetBitsType(8));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  auto* q1 = ctx.SharedQueryEngine<TestQueryEngine>(f);
+  auto* q2 = ctx.SharedQueryEngine<TestQueryEngine>(f);
+  auto* q3 = ctx.SharedQueryEngine<TestQueryEngine>(f);
+
+  EXPECT_EQ(q1, q2);
+  EXPECT_EQ(q2, q3);
+  EXPECT_EQ(q1->KnownValueAsBits(v.node()), UBits(42, 8));
+}
+
+TEST_F(OptimizationContextTest, SharedQueryEngineWithArgs) {
+  auto p = CreatePackage();
+  OptimizationContext ctx;
+  FunctionBuilder fb(TestName(), p.get());
+  BValue v = fb.Param("foo", p->GetBitsType(8));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  auto* q1 = ctx.SharedQueryEngine<TestQueryEngine>(f, UBits(12, 8));
+  auto* q2 = ctx.SharedQueryEngine<TestQueryEngine>(f, UBits(12, 8));
+  auto* q3 = ctx.SharedQueryEngine<TestQueryEngine>(f, UBits(33, 8));
+  auto* q4 = ctx.SharedQueryEngine<TestQueryEngine>(f, UBits(33, 8));
+
+  EXPECT_EQ(q1, q2);
+  EXPECT_EQ(q3, q4);
+  EXPECT_EQ(q1->KnownValueAsBits(v.node()), UBits(12, 8));
+  EXPECT_EQ(q3->KnownValueAsBits(v.node()), UBits(33, 8));
+}
+
+class TestListener final : public ChangeListener {
+ public:
+  TestListener() : v_(42) {}
+  TestListener(int64_t v) : v_(v) {}
+  absl::StatusOr<bool> Attach(FunctionBase* f) {
+    XLS_RET_CHECK_LT(v_, 50);
+    return true;
+  }
+  int64_t v() const { return v_; }
+
+ private:
+  int64_t v_;
+};
+
+TEST_F(OptimizationContextTest, SharedAnalysis) {
+  auto p = CreatePackage();
+  OptimizationContext ctx;
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Param("foo", p->GetBitsType(8));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto* q1, ctx.SharedNodeData<TestListener>(f));
+  XLS_ASSERT_OK_AND_ASSIGN(auto* q2, ctx.SharedNodeData<TestListener>(f));
+  XLS_ASSERT_OK_AND_ASSIGN(auto* q3, ctx.SharedNodeData<TestListener>(f));
+
+  EXPECT_EQ(q1, q2);
+  EXPECT_EQ(q2, q3);
+  EXPECT_EQ(q1->v(), 42);
+}
+
+TEST_F(OptimizationContextTest, SharedAnalysisWithFailure) {
+  auto p = CreatePackage();
+  OptimizationContext ctx;
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Param("foo", p->GetBitsType(8));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto* q1, ctx.SharedNodeData<TestListener>(f, 12));
+  EXPECT_THAT(ctx.SharedNodeData<TestListener>(f, 51),
+              StatusIs(absl::StatusCode::kInternal));
+  XLS_ASSERT_OK_AND_ASSIGN(auto* q2, ctx.SharedNodeData<TestListener>(f, 12));
+
+  EXPECT_EQ(q1, q2);
+  EXPECT_EQ(q1->v(), 12);
+}
+
+TEST_F(OptimizationContextTest, SharedAnalysisWithArgs) {
+  auto p = CreatePackage();
+  OptimizationContext ctx;
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Param("foo", p->GetBitsType(8));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto* q1, ctx.SharedNodeData<TestListener>(f, 12));
+  XLS_ASSERT_OK_AND_ASSIGN(auto* q2, ctx.SharedNodeData<TestListener>(f, 12));
+  XLS_ASSERT_OK_AND_ASSIGN(auto* q3, ctx.SharedNodeData<TestListener>(f, 33));
+  XLS_ASSERT_OK_AND_ASSIGN(auto* q4, ctx.SharedNodeData<TestListener>(f, 33));
+
+  EXPECT_EQ(q1, q2);
+  EXPECT_EQ(q3, q4);
+  EXPECT_EQ(q1->v(), 12);
+  EXPECT_EQ(q3->v(), 33);
+}
 }  // namespace
 }  // namespace xls

@@ -29,7 +29,9 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
@@ -464,15 +466,13 @@ absl::StatusOr<Node*> MakeSelectNode(FunctionBase* func, Node* old_select,
 absl::StatusOr<bool> CheckLatencyIncrease(
     FunctionBase* func, Node* select_to_optimize, const LiftedOpInfo& info,
     const OptimizationPassOptions& options, OptimizationContext& context) {
-  CriticalPathDelayAnalysis* analysis =
-      context.SharedNodeData<CriticalPathDelayAnalysis>(func, options);
-  if (analysis == nullptr) {
-    return absl::InternalError(absl::StrCat(
-        "Failed to get CriticalPathDelayAnalysis for delay model: ",
-        options.delay_estimator != nullptr ? options.delay_estimator->name()
-                                           : "(unspecified)"));
-  }
-
+  const DelayEstimator* delay_estimator = options.delay_estimator;
+  XLS_RET_CHECK(delay_estimator != nullptr) << "No delay estimator configured.";
+  XLS_ASSIGN_OR_RETURN(
+      CriticalPathDelayAnalysis * analysis,
+      context.SharedNodeData<CriticalPathDelayAnalysis>(func, delay_estimator),
+      _ << "Failed to get CriticalPathDelayAnalysis for delay model: "
+        << delay_estimator->name());
   // Check the (unscheduled) critical path through the select we're optimizing
   int64_t t_before = *analysis->GetInfo(select_to_optimize);
 

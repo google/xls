@@ -16,6 +16,7 @@
 #define XLS_PASSES_OPTIMIZATION_PASS_H_
 
 #include <algorithm>
+#include <concepts>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -26,6 +27,7 @@
 #include <type_traits>
 #include <typeindex>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/base/nullability.h"
@@ -37,6 +39,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/area_model/area_estimator.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
@@ -200,69 +203,52 @@ struct OptimizationPassOptions : public PassOptionsBase {
   }
 };
 
-struct AnalysisOptions {
-  std::optional<std::string> delay_model_name;
-
-  template <typename H>
-  friend H AbslHashValue(H h, const AnalysisOptions& o) {
-    return H::combine(std::move(h), o.delay_model_name);
-  }
-
-  friend bool operator==(const AnalysisOptions& lhs,
-                         const AnalysisOptions& rhs) {
-    return lhs.delay_model_name == rhs.delay_model_name;
-  }
-  friend bool operator!=(const AnalysisOptions& lhs,
-                         const AnalysisOptions& rhs) {
-    return !(lhs == rhs);
-  }
-};
-
 class OptimizationContext {
  public:
-  template <typename AnalysisT>
-    requires(std::is_base_of_v<ChangeListener, AnalysisT>)
-  AnalysisT* SharedNodeData(FunctionBase* f,
-                            const AnalysisOptions& options = {}) {
-    std::pair<std::type_index, AnalysisOptions> key = {typeid(AnalysisT),
-                                                       options};
+  // Create or get a shared node data constructed using the given args. All args
+  // must live at least as long as the entire compilation (including keeping
+  // pointers allocated).
+  template <typename AnalysisT, typename... Args>
+    requires(std::is_base_of_v<ChangeListener, AnalysisT> &&
+             std::constructible_from<AnalysisT, Args...> &&
+             std::copyable<std::tuple<Args...>>)
+  absl::StatusOr<AnalysisT*> SharedNodeData(FunctionBase* f, Args... args) {
+    ConstructorArguments key(typeid(AnalysisT), args...);
     auto& instance_analyses = shared_lazy_node_data_[f];
     auto it = instance_analyses.find(key);
     if (it == instance_analyses.end()) {
-      auto analysis = AnalysisT::Create(options);
-      CHECK_OK(analysis.status());
-      CHECK_OK((*analysis)->Attach(f).status());
-      it = instance_analyses.emplace(key, *std::move(analysis)).first;
+      auto analysis = std::make_shared<AnalysisT>(args...);
+      XLS_RETURN_IF_ERROR(analysis->Attach(f).status());
+      it = instance_analyses.emplace(std::move(key), std::move(analysis)).first;
     }
-    return dynamic_cast<AnalysisT*>(it->second.get());
+    auto* res = dynamic_cast<AnalysisT*>(it->second.get());
+    XLS_RET_CHECK(res != nullptr) << "Dynamic cast failed";
+    return res;
   }
 
-  template <typename AnalysisT>
-    requires(std::is_base_of_v<ChangeListener, AnalysisT>)
-  AnalysisT* SharedNodeData(FunctionBase* f,
-                            const OptimizationPassOptions& options) {
-    return SharedNodeData<AnalysisT>(
-        f, AnalysisOptions{
-               .delay_model_name =
-                   options.delay_estimator != nullptr
-                       ? std::make_optional(options.delay_estimator->name())
-                       : std::nullopt});
-  }
-
-  template <typename QueryEngineT>
-    requires(std::is_base_of_v<QueryEngine, QueryEngineT>)
-  QueryEngineT* SharedQueryEngine(FunctionBase* f) {
-    absl::flat_hash_map<std::type_index, std::shared_ptr<QueryEngine>>&
+  // TODO(allight): We should refactor this to return status-or. The only reason
+  // its not already is that its used in a ton of places.
+  template <typename QueryEngineT, typename... Args>
+    requires(std::is_base_of_v<QueryEngine, QueryEngineT> &&
+             (std::constructible_from<QueryEngineT, Args...> ||
+              (sizeof...(Args) == 0 &&
+               requires { QueryEngineT::MakeDefault(); })) &&
+             std::copyable<std::tuple<Args...>>)
+  QueryEngineT* SharedQueryEngine(FunctionBase* f, Args... args) {
+    ConstructorArguments key(typeid(QueryEngineT), args...);
+    absl::flat_hash_map<ConstructorArguments, std::shared_ptr<QueryEngine>>&
         f_query_engines = shared_query_engines_[f];
-    auto it = f_query_engines.find(typeid(QueryEngineT));
+    auto it = f_query_engines.find(key);
     if (it == f_query_engines.end()) {
       bool inserted = false;
-      if constexpr (requires { QueryEngineT::MakeDefault(); }) {
+      constexpr std::size_t kArgCount = sizeof...(Args);
+      if constexpr (kArgCount == 0 &&
+                    requires { QueryEngineT::MakeDefault(); }) {
         std::tie(it, inserted) = f_query_engines.emplace(
-            typeid(QueryEngineT), QueryEngineT::MakeDefault());
+            std::move(key), QueryEngineT::MakeDefault());
       } else {
         std::tie(it, inserted) = f_query_engines.emplace(
-            typeid(QueryEngineT), std::make_unique<QueryEngineT>());
+            std::move(key), std::make_unique<QueryEngineT>(args...));
       }
       CHECK(inserted);
       CHECK_OK(it->second->Populate(f).status());
@@ -352,16 +338,99 @@ class OptimizationContext {
   };
   absl::flat_hash_map<FunctionBase*, InvalidatingVector> reverse_topo_sort_;
 
+  // Helper class to hide the actual constructor arguments needed to create an
+  // analysis.
+  class ConstructorArguments {
+   public:
+    template <typename... T>
+    explicit ConstructorArguments(std::type_index target, T... ts)
+        : target_(target),
+          options_(
+              std::make_unique<ArgsTupleImpl<T...>>(std::forward<T>(ts)...)) {}
+    // Be sure to avoid allocating things when we don't actually have any
+    // arguments to keep track of.
+    template <>
+    explicit ConstructorArguments(std::type_index target)
+        : target_(target), options_(nullptr) {}
+
+    bool operator==(const ConstructorArguments& other) const {
+      return target_ == other.target_ &&
+             ((options_ == nullptr && other.options_ == nullptr) ||
+              *options_ == *other.options_);
+    }
+    bool operator!=(const ConstructorArguments& other) const {
+      return !(*this == other);
+    }
+    template <typename H>
+    friend H AbslHashValue(H h, const ConstructorArguments& value) {
+      if (value.options_) {
+        return H::combine(std::move(h), value.target_, *value.options_);
+      }
+      return H::combine(std::move(h), value.target_);
+    }
+
+   private:
+    class ArgsTuple {
+     public:
+      explicit ArgsTuple(std::type_index idx) : idx_(idx) {}
+      virtual ~ArgsTuple() = default;
+      virtual void HashValue(absl::HashState state) const = 0;
+      virtual bool operator==(const ArgsTuple& other) const = 0;
+      bool operator!=(const ArgsTuple& other) const {
+        return !(*this == other);
+      }
+      template <typename H>
+      friend H AbslHashValue(H state, const ArgsTuple& value) {
+        value.HashValue(absl::HashState::Create(&state));
+        return std::move(state);
+      }
+
+      std::type_index type_index() const { return idx_; }
+
+     protected:
+      std::type_index idx_ = typeid(std::monostate);
+    };
+
+    template <typename... T>
+    class ArgsTupleImpl : public ArgsTuple {
+     public:
+      explicit ArgsTupleImpl(T... ts)
+          : ArgsTuple(std::type_index(typeid(ArgsTupleImpl<T...>))),
+            inner_(std::forward<T>(ts)...) {
+        CHECK(sizeof...(T) != 0) << "Zero-sized tuple allocated";
+      }
+      void HashValue(absl::HashState state) const override {
+        absl::HashState::combine(std::move(state), idx_, inner_);
+      }
+      bool operator==(const ArgsTuple& other) const {
+        if (other.type_index() != idx_) {
+          return false;
+        }
+        auto other_cast = dynamic_cast<const ArgsTupleImpl<T...>*>(&other);
+        CHECK(other_cast != nullptr) << "Illegal cast!";
+        return inner_ == other_cast->inner_;
+      }
+
+     private:
+      std::tuple<T...> inner_;
+    };
+
+    std::type_index target_;
+    // Shared to allow for movement of the key which is required by
+    // flat_hash_map.
+    std::shared_ptr<ArgsTuple> options_;
+  };
+
+  static_assert(std::copyable<ConstructorArguments>,
+                "needed to allow for use as flat_hash_map key");
+
   absl::flat_hash_map<
       FunctionBase*,
-      absl::flat_hash_map<std::type_index, std::shared_ptr<QueryEngine>>>
+      absl::flat_hash_map<ConstructorArguments, std::shared_ptr<QueryEngine>>>
       shared_query_engines_;
-  absl::flat_hash_map<
-      FunctionBase*,
-      absl::flat_hash_map<
-          std::pair<std::type_index, AnalysisOptions>,
-          std::shared_ptr<ChangeListener>,
-          absl::Hash<std::pair<std::type_index, AnalysisOptions>>>>
+  absl::flat_hash_map<FunctionBase*,
+                      absl::flat_hash_map<ConstructorArguments,
+                                          std::shared_ptr<ChangeListener>>>
       shared_lazy_node_data_;
 };
 
@@ -376,7 +445,7 @@ template <typename QueryEngineT, typename... Args>
 MaybeOwnedForwardingQueryEngine<QueryEngineT> GetSharedQueryEngine(
     OptimizationContext& ctx, FunctionBase* absl_nonnull f, Args... args) {
   return MaybeOwnedForwardingQueryEngine<QueryEngineT>(
-      ctx.SharedQueryEngine<QueryEngineT>(f));
+      ctx.SharedQueryEngine<QueryEngineT>(f, args...));
 }
 
 // An object containing information about the invocation of a pass (single call

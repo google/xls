@@ -16,7 +16,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"
@@ -24,13 +23,10 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "xls/common/status/status_macros.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
-#include "xls/estimators/delay_model/delay_estimators.h"
 #include "xls/ir/node.h"
 #include "xls/passes/lazy_dag_cache.h"
 #include "xls/passes/lazy_node_data.h"
-#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 
@@ -39,18 +35,6 @@ CriticalPathDelayAnalysis::CriticalPathDelayAnalysis(
     : LazyNodeData<int64_t>(DagCacheInvalidateDirection::kInvalidatesUsers),
       delay_estimator_(estimator) {
   CHECK(delay_estimator_ != nullptr);
-}
-
-absl::StatusOr<std::shared_ptr<CriticalPathDelayAnalysis>>
-CriticalPathDelayAnalysis::Create(const AnalysisOptions& options) {
-  if (options.delay_model_name.has_value()) {
-    XLS_ASSIGN_OR_RETURN(DelayEstimator * delay_estimator,
-                         GetDelayEstimator(*options.delay_model_name));
-    return std::make_shared<CriticalPathDelayAnalysis>(delay_estimator);
-  } else {
-    return std::make_shared<CriticalPathDelayAnalysis>(
-        &GetStandardDelayEstimator());
-  }
 }
 
 std::vector<Node*> CriticalPathDelayAnalysis::NodesAtEndOfCriticalPath(

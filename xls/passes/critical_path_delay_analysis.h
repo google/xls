@@ -16,25 +16,19 @@
 #define XLS_PASSES_CRITICAL_PATH_DELAY_ANALYSIS_H_
 
 #include <cstdint>
-#include <memory>
 #include <vector>
 
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/node.h"
 #include "xls/passes/lazy_node_data.h"
-#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 
 class CriticalPathDelayAnalysis : public LazyNodeData<int64_t> {
  public:
   explicit CriticalPathDelayAnalysis(const DelayEstimator* delay_estimator);
-
-  static absl::StatusOr<std::shared_ptr<CriticalPathDelayAnalysis>> Create(
-      const AnalysisOptions& options);
 
   std::vector<Node*> NodesAtEndOfCriticalPath(FunctionBase* f) const;
 
