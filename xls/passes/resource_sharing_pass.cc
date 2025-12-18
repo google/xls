@@ -1604,7 +1604,7 @@ SelectFoldingActions(OptimizationContext& context, FoldingGraph* folding_graph,
 // This function performs the folding actions specified in its input following
 // the order specified.
 absl::StatusOr<bool> PerformFoldingActions(
-    FunctionBase* f, int64_t next_node_id, const Analyses& analyses,
+    FunctionBase* f, int64_t next_node_id,
     VisibilityEstimator* visibility_estimator,
     const std::vector<std::unique_ptr<NaryFoldingAction>>&
         folding_actions_to_perform) {
@@ -1971,9 +1971,8 @@ absl::StatusOr<bool> ResourceSharingPass::RunOnFunctionBaseInternal(
 
   // Perform the folding
   XLS_ASSIGN_OR_RETURN(
-      modified,
-      PerformFoldingActions(f, next_node_id, analyses, &visibility_estimator,
-                            folding_actions_to_perform));
+      modified, PerformFoldingActions(f, next_node_id, &visibility_estimator,
+                                      folding_actions_to_perform));
 
   return modified;
 }
