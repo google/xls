@@ -200,6 +200,17 @@ xls_dslx_opt_ir(
     dslx_top = "mul",
     ir_file = "bfloat16_mul.ir",
     library = "bfloat16_dslx",
+    opt_ir_file = "bfloat16_mul.opt.ir",
+)
+
+cc_xls_ir_jit_wrapper(
+    name = "bfloat16_mul_jit_wrapper",
+    src = ":bfloat16_mul",
+    jit_wrapper_args = {
+        "class_name": "Bfloat16Mul",
+        "function": "mul",
+        "namespace": "xls::dslx",
+    },
 )
 
 xls_dslx_library(

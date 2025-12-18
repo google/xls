@@ -152,6 +152,29 @@ cc_test(
     ],
 )
 
+cc_test(
+    name = "bfloat16_mul_test_cc",
+    srcs = ["bfloat16_mul_test.cc"],
+    data = [
+        "//xls/dslx/stdlib:bfloat16_mul.ir",
+        "//xls/dslx/stdlib:bfloat16_mul.opt.ir",
+    ],
+    tags = ["optonly"],
+    deps = [
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/dslx/stdlib:bfloat16_mul_jit_wrapper",
+        "//xls/ir:bits",
+        "//xls/ir:value",
+        "//xls/tests:testbench",
+        "//xls/tests:testbench_builder",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/types:span",
+        "@eigen//:eigen3",
+    ],
+)
+
 xls_dslx_test(
     name = "float32_downcast_test",
     srcs = ["float32_downcast_test.x"],
