@@ -975,7 +975,7 @@ bool xls_value_to_string(const struct xls_value* v, char** string_out) {
   CHECK(v != nullptr);
   CHECK(string_out != nullptr);
   std::string s = reinterpret_cast<const xls::Value*>(v)->ToString();
-  *string_out = strdup(s.c_str());
+  *string_out = xls::ToOwnedCString(s);
   return *string_out != nullptr;
 }
 
@@ -1066,7 +1066,15 @@ bool xls_package_to_string(const struct xls_package* p, char** string_out) {
   CHECK(p != nullptr);
   CHECK(string_out != nullptr);
   std::string s = reinterpret_cast<const xls::Package*>(p)->DumpIr();
-  *string_out = strdup(s.c_str());
+  *string_out = xls::ToOwnedCString(s);
+  return *string_out != nullptr;
+}
+
+bool xls_function_to_string(const struct xls_function* f, char** string_out) {
+  CHECK(f != nullptr);
+  CHECK(string_out != nullptr);
+  std::string s = reinterpret_cast<const xls::Function*>(f)->DumpIr();
+  *string_out = xls::ToOwnedCString(s);
   return *string_out != nullptr;
 }
 

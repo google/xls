@@ -1019,6 +1019,10 @@ fn f(x: bits[32] id=3) -> bits[32] {
   ret y: bits[32] = identity(x, id=2)
 }
 )";
+  const std::string kFunction = R"(fn f(x: bits[32] id=3) -> bits[32] {
+  ret y: bits[32] = identity(x, id=2)
+}
+)";
 
   char* error = nullptr;
   struct xls_package* package = nullptr;
@@ -1047,6 +1051,12 @@ fn f(x: bits[32] id=3) -> bits[32] {
 
   struct xls_function* function = nullptr;
   ASSERT_TRUE(xls_package_get_function(package, "f", &error, &function));
+
+  char* function_dumped = nullptr;
+  ASSERT_TRUE(xls_function_to_string(function, &function_dumped));
+  absl::Cleanup free_function_dumped(
+      [function_dumped] { xls_c_str_free(function_dumped); });
+  EXPECT_EQ(std::string_view(function_dumped), kFunction);
 
   // Test out the get_name functionality on the function.
   char* name = nullptr;
