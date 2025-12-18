@@ -71,6 +71,7 @@ cc_library(
     hdrs = ["area_estimators.h"],
     deps = [
         ":area_estimator",
+        "//xls/ir",
         "@com_google_absl//absl/status:statusor",
     ],
 )

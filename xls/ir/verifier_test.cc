@@ -78,6 +78,22 @@ top fn function_0() -> bits[8][8] {
                                      HasSubstr("does not match node type")));
 }
 
+TEST_F(VerifierTest, BadNonSynth) {
+  static constexpr std::string_view input = R"(
+package subrosa
+
+#[non_synth]
+top fn function_0() -> bits[8] {
+  ret name: bits[8] = literal(value=0, id=1)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
+  ASSERT_THAT(VerifyPackage(p.get()),
+              absl_testing::StatusIs(
+                  absl::StatusCode::kInternal,
+                  HasSubstr("marked as non-synth but returns values")));
+}
+
 TEST_F(VerifierTest, PrioritySelectWithDifferentCaseTypes) {
   std::string input = R"(
 package p

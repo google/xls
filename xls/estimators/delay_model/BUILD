@@ -196,7 +196,9 @@ cc_library(
     hdrs = ["delay_estimators.h"],
     deps = [
         ":delay_estimator",
+        "//xls/ir",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 

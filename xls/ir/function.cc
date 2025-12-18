@@ -76,8 +76,12 @@ std::string Function::DumpIr() const {
 
 std::string Function::DumpIrWithAnnotations(
     const std::function<std::optional<std::string>(Node*)>& annotate) const {
-  std::string res =
-      absl::StrFormat("%sfn %s(", IsScheduled() ? "scheduled_" : "", name());
+  std::string res;
+  if (non_synth()) {
+    res = "#[non_synth]\n";
+  }
+  absl::StrAppendFormat(&res, "%sfn %s(", IsScheduled() ? "scheduled_" : "",
+                        name());
   absl::StrAppend(
       &res,
       absl::StrJoin(params_, ", ", [&](std::string* s, Param* const param) {

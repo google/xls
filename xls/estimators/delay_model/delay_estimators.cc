@@ -14,10 +14,14 @@
 
 #include "xls/estimators/delay_model/delay_estimators.h"
 
+#include <cstdint>
 #include <string_view>
 
 #include "absl/status/statusor.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
+#include "xls/ir/function.h"
+#include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 
 namespace xls {
 
@@ -31,4 +35,17 @@ const DelayEstimator& GetStandardDelayEstimator() {
               .value();
 }
 
+namespace delay_adapters {
+absl::StatusOr<int64_t> FilterNonSynth::GetOperationDelayInPs(
+    Node* node) const {
+  if (node->Is<Invoke>() && node->As<Invoke>()->non_synth()) {
+    return 0;
+  }
+  if (node->function_base()->IsFunction() &&
+      node->function_base()->AsFunctionOrDie()->non_synth()) {
+    return 0;
+  }
+  return decorated_.GetOperationDelayInPs(node);
+}
+}  // namespace delay_adapters
 }  // namespace xls

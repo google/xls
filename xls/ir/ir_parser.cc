@@ -2370,6 +2370,8 @@ absl::StatusOr<Function*> Parser::ParseFunctionInternal(
           std::get<ForeignFunctionData>(attribute.payload);
       XLS_RETURN_IF_ERROR(CodeTemplate::Create(ffi.code_template()).status());
       result->SetForeignFunctionData(ffi);
+    } else if (std::holds_alternative<NonSynthMarker>(attribute.payload)) {
+      result->set_non_synth(true);
     } else {
       return absl::InvalidArgumentError(absl::StrFormat(
           "Invalid attribute for function: %s", attribute.name));
@@ -2967,6 +2969,10 @@ absl::StatusOr<FunctionType*> Parser::ParseFunctionType(Package* package) {
 absl::StatusOr<IrAttribute> Parser::ParseAttribute(Package* package) {
   XLS_ASSIGN_OR_RETURN(Token attribute_name,
                        scanner_.PopTokenOrError(LexicalTokenType::kIdent));
+  if (attribute_name.value() == "non_synth") {
+    return IrAttribute{.name = attribute_name.value(),
+                       .payload = NonSynthMarker{}};
+  }
   if (attribute_name.value() == "initiation_interval") {
     XLS_RETURN_IF_ERROR(
         scanner_.DropTokenOrError(LexicalTokenType::kParenOpen));
@@ -3214,8 +3220,12 @@ static absl::Status VerifyAndSwapError(Package* package) {
     absl::Span<const IrAttribute> outer_attributes) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
   Parser p(std::move(scanner));
+  XLS_ASSIGN_OR_RETURN(auto more_attributes,
+                       p.MaybeParseOuterAttributes(package));
+  more_attributes.insert(more_attributes.end(), outer_attributes.begin(),
+                         outer_attributes.end());
   XLS_ASSIGN_OR_RETURN(Function * function,
-                       p.ParseFunction(package, outer_attributes));
+                       p.ParseFunction(package, more_attributes));
   SetUnassignedNodeIds(package, function);
 
   if (verify_function_only) {

@@ -458,4 +458,8 @@ TEST(IrParserRoundTripTest, BlockWithSvTypes) {
   ParsePackageAndCheckDump(TestName());
 }
 
+TEST(IrParserRoundTripTest, NonSynthFunctionTest) {
+  ParsePackageAndCheckDump(TestName());
+}
+
 }  // namespace xls

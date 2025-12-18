@@ -18,9 +18,32 @@
 
 #include "absl/status/statusor.h"
 #include "xls/estimators/area_model/area_estimator.h"
+#include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
+#include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 
 namespace xls {
 absl::StatusOr<AreaEstimator*> GetAreaEstimator(std::string_view name) {
   return GetAreaEstimatorManagerSingleton().GetAreaEstimator(name);
 }
+
+namespace area_adapters {
+absl::StatusOr<double> FilterNonSynth::GetOneBitRegisterAreaInSquareMicrons()
+    const {
+  return decorated_.GetOneBitRegisterAreaInSquareMicrons();
+}
+
+absl::StatusOr<double> FilterNonSynth::GetOperationAreaInSquareMicrons(
+    Node* node) const {
+  if (node->Is<Invoke>() && node->As<Invoke>()->non_synth()) {
+    return 0;
+  }
+  if (node->function_base()->IsFunction() &&
+      node->function_base()->AsFunctionOrDie()->non_synth()) {
+    return 0;
+  }
+  return decorated_.GetOperationAreaInSquareMicrons(node);
+}
+}  // namespace area_adapters
 }  // namespace xls

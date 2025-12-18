@@ -605,6 +605,14 @@ absl::Status VerifyFunction(Function* function, const VerifyOptions& options) {
 
   XLS_RETURN_IF_ERROR(VerifyFunctionBase(function));
 
+  if (function->non_synth()) {
+    if (function->return_type() != function->package()->GetTupleType({})) {
+      return absl::InternalError(absl::StrFormat(
+          "Function %s is marked as non-synth but returns values",
+          function->name()));
+    }
+  }
+
   for (Node* node : function->nodes()) {
     if (node->Is<Send>() || node->Is<Receive>()) {
       return absl::InternalError(absl::StrFormat(

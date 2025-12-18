@@ -1,0 +1,28 @@
+package testit
+
+file_number 0 "/tmp/testit.x"
+
+#[non_synth]
+fn non_synth___itok__testit__muladd(__token: token id=27, __activated: bits[1] id=28, a: bits[8] id=29, b: bits[8] id=30, c: bits[8] id=31) -> () {
+  not.32: bits[1] = not(__activated, id=32)
+  ugt.33: bits[1] = ugt(a, b, id=33, pos=[(0,2,10)])
+  or.34: bits[1] = or(not.32, ugt.33, id=34)
+  trace.35: token = trace(__token, __activated, format="a: {}, b: {}, c: {}", data_operands=[a, b, c], id=35)
+  assert.36: token = assert(__token, or.34, message="Assertion failure via assert! @ /tmp/testit.x:3:10-3:25", label="bang", id=36)
+  ret tuple.43: () = tuple(id=43)
+}
+
+fn __itok__testit__muladd(__token: token id=1, __activated: bits[1] id=2, a: bits[8] id=3, b: bits[8] id=4, c: bits[8] id=5) -> (token, bits[8]) {
+  umul.13: bits[8] = umul(a, b, id=13, pos=[(0,3,2)])
+  after_all.15: token = after_all(__token, __token, id=15)
+  add.14: bits[8] = add(umul.13, c, id=14, pos=[(0,3,2)])
+  invoke.44: () = invoke(__token, __activated, a, b, c, to_apply=non_synth___itok__testit__muladd, id=44)
+  ret tuple.16: (token, bits[8]) = tuple(after_all.15, add.14, id=16)
+}
+
+top fn __testit__muladd(a: bits[8] id=17, b: bits[8] id=18, c: bits[8] id=19) -> bits[8] {
+  after_all.20: token = after_all(id=20)
+  literal.21: bits[1] = literal(value=1, id=21)
+  invoke.22: (token, bits[8]) = invoke(after_all.20, literal.21, a, b, c, to_apply=__itok__testit__muladd, id=22)
+  ret tuple_index.23: bits[8] = tuple_index(invoke.22, index=1, id=23)
+}

@@ -780,6 +780,8 @@ absl::StatusOr<Node*> Invoke::CloneInNewFunction(
                                                 GetNameView());
 }
 
+bool Invoke::non_synth() const { return to_apply_->non_synth(); }
+
 bool Invoke::IsDefinitelyEqualTo(const Node* other) const {
   if (this == other) {
     return true;

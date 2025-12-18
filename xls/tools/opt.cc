@@ -162,6 +162,22 @@ absl::Status OptimizeIrForTop(Package* package, const OptOptions& options,
                                                     chosen_registry));
   }
 
+  // Since we are running during an opt the passes might be in states which the
+  // estimators might not normally expect (eg having live invoke nodes etc). We
+  // use wrappers to filter these nodes out of the estimator.
+  std::optional<delay_adapters::FilterNonSynth> delay_estimator_wrapper;
+  if (delay_estimator != nullptr) {
+    delay_estimator_wrapper.emplace(*delay_estimator);
+    delay_estimator = &*delay_estimator_wrapper;
+  }
+  std::optional<area_adapters::FilterNonSynth> area_estimator_wrapper;
+  if (area_estimator != nullptr) {
+    area_estimator_wrapper.emplace(*area_estimator);
+    area_estimator = &*area_estimator_wrapper;
+  }
+
+  // TODO(allight): Some refactoring of how we pass around these options is
+  // probably warranted. There are a lot of things here.
   OptimizationPassOptions pass_options;
   pass_options.opt_level = options.opt_level;
   pass_options.delay_estimator = delay_estimator;

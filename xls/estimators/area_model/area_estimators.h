@@ -19,11 +19,28 @@
 
 #include "absl/status/statusor.h"
 #include "xls/estimators/area_model/area_estimator.h"
+#include "xls/ir/node.h"
 
 namespace xls {
 
 // Returns the registered area estimator with the given name.
 absl::StatusOr<AreaEstimator*> GetAreaEstimator(std::string_view name);
+
+namespace area_adapters {
+// A decorator to filter out non-synth nodes for use during optimization
+class FilterNonSynth : public AreaEstimator {
+ public:
+  explicit FilterNonSynth(const AreaEstimator& decorated)
+      : AreaEstimator("non_synth_adapter"), decorated_(decorated) {}
+
+  absl::StatusOr<double> GetOneBitRegisterAreaInSquareMicrons() const override;
+  absl::StatusOr<double> GetOperationAreaInSquareMicrons(
+      Node* node) const override;
+
+ private:
+  const AreaEstimator& decorated_;
+};
+}  // namespace area_adapters
 }  // namespace xls
 
 #endif  // XLS_ESTIMATORS_AREA_MODEL_AREA_ESTIMATORS_H_

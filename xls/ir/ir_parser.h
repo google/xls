@@ -72,10 +72,12 @@ struct ResetAttribute {
   ResetBehavior behavior;
 };
 
+struct NonSynthMarker : public std::monostate {};
+
 using IrAttributePayload =
     std::variant<InitiationInterval, ChannelPortMetadata, ForeignFunctionData,
-                 ResetAttribute, BlockProvenance,
-                 verilog::ModuleSignatureProto>;
+                 ResetAttribute, BlockProvenance, verilog::ModuleSignatureProto,
+                 NonSynthMarker>;
 struct IrAttribute {
   std::string name;
   IrAttributePayload payload;

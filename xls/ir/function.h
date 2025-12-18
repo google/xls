@@ -73,6 +73,9 @@ class Function : public FunctionBase {
 
   FunctionType* GetType();
 
+  bool non_synth() const { return non_synth_; }
+  void set_non_synth(bool value) { non_synth_ = value; }
+
   // DumpIr emits the IR in a parsable, hierarchical text format.
   // Parameter:
   //   'recursive' if true, will dump counted-for body functions as well.
@@ -113,6 +116,9 @@ class Function : public FunctionBase {
  private:
   Node* return_value_ = nullptr;
   Type* return_type_ = nullptr;
+  // If true this is a non-synth function. It must have an empty-tuple return
+  // type.
+  bool non_synth_ = false;
 };
 
 // A function which has been scheduled and contains information about which

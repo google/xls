@@ -673,6 +673,8 @@ class Invoke final : public Node {
       FunctionBase* new_function) const final;
   Function* to_apply() const { return to_apply_; }
 
+  bool non_synth() const;
+
   bool IsDefinitelyEqualTo(const Node* other) const final;
 
  private:

@@ -397,7 +397,12 @@ absl::StatusOr<bool> NonSynthSeparationPass::RunInternal(
       XLS_RETURN_IF_ERROR(
           InsertInvokeInProc(proc, non_synth_function, non_synth_args));
       XLS_RETURN_IF_ERROR(proc->RebuildSideTables());
+    } else {
+      return absl::InternalError(
+          "Cannot perform non-synth separation on blocks");
     }
+    // Annotate the non-synth function.
+    non_synth_function->set_non_synth(true);
     // Replace gate nodes in the non-synthesizable function with equivalent
     // select nodes because gates are special power-optimization nodes that we
     // generally won't remove so we don't want to duplicate them.

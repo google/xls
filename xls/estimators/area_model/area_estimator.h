@@ -31,13 +31,6 @@ namespace xls {
 
 // Abstraction describing an area model for XLS operations.
 class AreaEstimator {
- private:
-  // This function returns the estimation of area of 1-bit register.
-  // This estimation comes from the sequential area of kIdentity, which has
-  // two k-bit registers, where k is the width of the output.
-  virtual absl::StatusOr<double> GetOneBitRegisterAreaInSquareMicrons()
-      const = 0;
-
  public:
   explicit AreaEstimator(std::string_view name) : name_(name) {}
   virtual ~AreaEstimator() = default;
@@ -51,6 +44,12 @@ class AreaEstimator {
   // Returns the estimated area of n-bit register
   absl::StatusOr<double> GetRegisterAreaInSquareMicrons(
       const uint64_t& register_width) const;
+
+  // This function returns the estimation of area of 1-bit register.
+  // This estimation comes from the sequential area of kIdentity, which has
+  // two k-bit registers, where k is the width of the output.
+  virtual absl::StatusOr<double> GetOneBitRegisterAreaInSquareMicrons()
+      const = 0;
 
  private:
   std::string name_;

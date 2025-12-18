@@ -15,10 +15,13 @@
 #ifndef XLS_ESTIMATORS_DELAY_MODEL_DELAY_ESTIMATORS_H_
 #define XLS_ESTIMATORS_DELAY_MODEL_DELAY_ESTIMATORS_H_
 
+#include <cstdint>
 #include <string_view>
 
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
+#include "xls/ir/node.h"
 
 namespace xls {
 
@@ -30,6 +33,23 @@ absl::StatusOr<DelayEstimator*> GetDelayEstimator(std::string_view name);
 // TODO(meheff): Remove this function and require users to specify the estimator
 // explicitly.
 const DelayEstimator& GetStandardDelayEstimator();
+
+namespace delay_adapters {
+
+// A decorator to filter out non-synth nodes for use during optimization
+class FilterNonSynth : public DelayEstimator {
+ public:
+  explicit FilterNonSynth(const DelayEstimator& decorated)
+      : DelayEstimator(
+            absl::StrFormat("filter_non_synth[%s]", decorated.name())),
+        decorated_(decorated) {}
+
+  absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const override;
+
+ private:
+  const DelayEstimator& decorated_;
+};
+}  // namespace delay_adapters
 
 }  // namespace xls
 
