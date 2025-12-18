@@ -3125,6 +3125,11 @@ absl::StatusOr<DocRef> Formatter::Format(const Module& n) {
           pieces.push_back(arena_.MakeText("#![feature(channel_attributes)]"));
           pieces.push_back(arena_.hard_line());
           break;
+        case ModuleAttribute::kExplicitStateAccess:
+          pieces.push_back(
+              arena_.MakeText("#![feature(explicit_state_access)]"));
+          pieces.push_back(arena_.hard_line());
+          break;
         case ModuleAttribute::kGenerics:
           pieces.push_back(arena_.MakeText("#![feature(generics)]"));
           pieces.push_back(arena_.hard_line());
