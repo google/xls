@@ -232,7 +232,7 @@ absl::StatusOr<Function*> Function::Clone(
   XLS_RETURN_IF_ERROR(
       cloned_function->set_return_value(original_to_clone.at(return_value())));
 
-  // Return the original-to-clone mapping if requested.
+  // Update the original-to-clone mapping if requested.
   if (original_node_to_clone.has_value()) {
     absl::flat_hash_map<Node*, Node*>* original_node_to_clone_ptr =
         *original_node_to_clone;
