@@ -18,6 +18,7 @@
 #include <cstring>
 #include <memory>
 #include <optional>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -233,6 +234,8 @@ class JitChannelQueueManager : public ChannelQueueManager {
   CreateThreadUnsafe(ProcElaboration&& elaboration,
                      std::unique_ptr<JitRuntime> runtime);
 
+  JitChannelQueue& GetJitQueueByName(std::string_view channel_name,
+                                     std::string_view proc_name);
   JitChannelQueue& GetJitQueue(Channel* channel);
   JitChannelQueue& GetJitQueue(ChannelInstance* channel_instance);
 

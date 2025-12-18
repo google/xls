@@ -88,9 +88,10 @@ static void PrintTraceMessages(const InterpreterEvents& events) {
 
 static absl::StatusOr<std::vector<Block>> XlsEncrypt(
     const SampleData& sample_data, JitData* jit_data) {
-  const std::string_view kCmdChannel = "aes_ctr__command_in";
-  const std::string_view kInputDataChannel = "aes_ctr__ptxt_in";
-  const std::string_view kOutputDataChannel = "aes_ctr__ctxt_out";
+  constexpr std::string_view kPkgName = "aes_ctr_";
+  constexpr std::string_view kCmdChannel = "_command_in";
+  constexpr std::string_view kInputDataChannel = "_ptxt_in";
+  constexpr std::string_view kOutputDataChannel = "_ctxt_out";
 
   // TODO(rspringer): Find a better way to collect queue IDs than IR inspection:
   // numbering is not guaranteed! Perhaps GetQueueByName?
@@ -118,16 +119,16 @@ static absl::StatusOr<std::vector<Block>> XlsEncrypt(
   command.initial_ctr = 0;
   command.ctr_stride = 1;
 
-  XLS_ASSIGN_OR_RETURN(Channel * cmd_channel,
-                       jit_data->package->GetChannel(kCmdChannel));
+  std::string_view prefix =
+      jit_data->package->ChannelsAreProcScoped() ? "" : kPkgName;
   XLS_ASSIGN_OR_RETURN(JitChannelQueueManager * qm,
                        jit_data->proc_runtime->GetJitChannelQueueManager());
-  JitChannelQueue& cmd_queue = qm->GetJitQueue(cmd_channel);
+  JitChannelQueue& cmd_queue = qm->GetJitQueueByName(
+      absl::StrCat(prefix, kCmdChannel), jit_data->proc->name());
   cmd_queue.WriteRaw(reinterpret_cast<uint8_t*>(&command));
 
-  XLS_ASSIGN_OR_RETURN(Channel * input_data_channel,
-                       jit_data->package->GetChannel(kInputDataChannel));
-  JitChannelQueue& input_data_queue = qm->GetJitQueue(input_data_channel);
+  JitChannelQueue& input_data_queue = qm->GetJitQueueByName(
+      absl::StrCat(prefix, kInputDataChannel), jit_data->proc->name());
   input_data_queue.WriteRaw(sample_data.input_blocks[0].data());
 
   XLS_RETURN_IF_ERROR(jit_data->proc_runtime->Tick());
@@ -143,9 +144,8 @@ static absl::StatusOr<std::vector<Block>> XlsEncrypt(
   }
 
   // Finally, read out the ciphertext.
-  XLS_ASSIGN_OR_RETURN(Channel * output_data_channel,
-                       jit_data->package->GetChannel(kOutputDataChannel));
-  JitChannelQueue& output_data_queue = qm->GetJitQueue(output_data_channel);
+  JitChannelQueue& output_data_queue = qm->GetJitQueueByName(
+      absl::StrCat(prefix, kOutputDataChannel), jit_data->proc->name());
   std::vector<Block> blocks;
   blocks.resize(num_blocks);
   for (int i = 0; i < num_blocks; i++) {

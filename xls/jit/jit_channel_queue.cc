@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -188,6 +189,16 @@ JitChannelQueueManager::CreateThreadUnsafe(
   }
   return absl::WrapUnique(new JitChannelQueueManager(
       std::move(elaboration), std::move(queues), std::move(runtime)));
+}
+
+JitChannelQueue& JitChannelQueueManager::GetJitQueueByName(
+    std::string_view channel_name, std::string_view proc_name) {
+  absl::StatusOr<ChannelQueue*> channel_queue =
+      GetQueueByName(channel_name, proc_name);
+  CHECK_OK(channel_queue);
+  JitChannelQueue* queue = dynamic_cast<JitChannelQueue*>(*channel_queue);
+  CHECK_NE(queue, nullptr);
+  return *queue;
 }
 
 JitChannelQueue& JitChannelQueueManager::GetJitQueue(Channel* channel) {
