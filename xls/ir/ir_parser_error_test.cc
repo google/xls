@@ -2174,7 +2174,7 @@ block my_block(x: bits[8], y: bits[32]) {
       Parser::ParsePackage(input).status(),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Instantiation `foo` of block `sub_block` is missing "
-                         "instantation input/output node for port `in`")));
+                         "instantiation input/output node for port `in`")));
 }
 
 TEST(IrParserErrorTest, ParseBlockWithWronglyNamedInstantiationPort) {

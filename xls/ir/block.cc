@@ -1518,7 +1518,7 @@ absl::StatusOr<Instantiation*> Block::GetInstantiationForChannel(
     }
   }
   return absl::NotFoundError(absl::StrFormat(
-      "No instantation for channel `%s` in block `%s`", channel_name, name()));
+      "No instantiation for channel `%s` in block `%s`", channel_name, name()));
 }
 
 namespace {

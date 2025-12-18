@@ -1658,7 +1658,7 @@ The type `T` of the data operand must be the same as the type of the register.
 Corresponds to a single input port of an instantiation.
 
 An instantiation is a block-scoped construct that represents a module
-instantiation at the Verilog level. Each `instantation_input` operation
+instantiation at the Verilog level. Each `instantiation_input` operation
 corresponds to a particular port of the instantiated object, so generally a
 single instantiation can have multiple associated `instantiation_input`
 operations (one for each input port).
@@ -1695,7 +1695,7 @@ input port of the instantiated object.
 Corresponds to a single output port of an instantiation.
 
 An instantiation is a block-scoped construct that represents a module
-instantiation at the Verilog level. Each `instantation_output` operation
+instantiation at the Verilog level. Each `instantiation_output` operation
 corresponds to a output particular port of the instantiated object, so generally
 a single instantiation can have multiple associated `instantiation_output`
 operations (one for each output port).

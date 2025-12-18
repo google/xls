@@ -999,7 +999,7 @@ static absl::Status VerifyPortsMatch(
                   name) == instantiation_port_names.end()) {
       return absl::InternalError(
           absl::StrFormat("Instantiation `%s` of block `%s` is missing "
-                          "instantation input/output node for port `%s`",
+                          "instantiation input/output node for port `%s`",
                           instantiation->name(),
                           instantiation->instantiated_block()->name(), name));
     }
@@ -1141,7 +1141,7 @@ static absl::Status VerifyExternInstantiation(
   Function* const fun = instantiation->function();
   if (!fun->ForeignFunctionData().has_value()) {
     return absl::NotFoundError(
-        "Extern function instantation expects ffi template information");
+        "Extern function instantiation expects ffi template information");
   }
   return VerifyForeignFunctionTemplate(fun);
 }

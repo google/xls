@@ -425,7 +425,7 @@ absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<AotCompiler> comp,
                        AotCompiler::Create(jit_options));
   XLS_ASSIGN_OR_RETURN(llvm::DataLayout data_layout, comp->CreateDataLayout());
-  // NB We could avoid doing a package clone if there are no instantations but
+  // NB We could avoid doing a package clone if there are no instantiations but
   // since this is aot anyway its easier to just not bother. The cloned package
   // isn't going to be long lived anyway.
   XLS_ASSIGN_OR_RETURN(ElaborationJitData jit_data,
