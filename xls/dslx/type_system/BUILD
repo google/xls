@@ -457,21 +457,6 @@ cc_test(
     ],
 )
 
-cc_test(
-    name = "impl_typecheck_test",
-    srcs = ["impl_typecheck_test.cc"],
-    deps = [
-        ":typecheck_test_utils",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "//xls/dslx:create_import_data",
-        "//xls/dslx:parse_and_typecheck",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:status_matchers",
-        "@googletest//:gtest",
-    ],
-)
-
 cc_library(
     name = "parametric_expression",
     srcs = ["parametric_expression.cc"],

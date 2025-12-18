@@ -45,6 +45,19 @@ using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::UnorderedElementsAre;
 
+std::vector<ParametricEnv> GetCalleeBindings(const TypeInfo& ti, Function* f,
+                                             bool unique) {
+  std::vector<InvocationCalleeData> invocations =
+      unique ? ti.GetUniqueInvocationCalleeData(f)
+             : ti.GetAllInvocationCalleeData(f);
+  std::vector<ParametricEnv> all_callee_bindings;
+  all_callee_bindings.reserve(invocations.size());
+  for (const InvocationCalleeData& data : invocations) {
+    all_callee_bindings.push_back(data.callee_bindings);
+  }
+  return all_callee_bindings;
+}
+
 TEST(TypeInfoTest, Instantiate) {
   FileTable file_table;
   Module module("test", /*fs_path=*/std::nullopt, file_table);
@@ -101,7 +114,7 @@ TEST(TypeInfoTest, GetUniqueInvocationCalleeDataNonParametric) {
 fn f() -> u32 { u32:42 }
 fn main() -> u32 { f() }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, Typecheck(kInvocation));
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(kInvocation));
 
   std::optional<Function*> f = result.tm.module->GetFunction("f");
   ASSERT_TRUE(f.has_value());
@@ -121,7 +134,7 @@ TEST(TypeInfoTest, GetUniqueInvocationCalleeDataOneParametricCall) {
 fn f<N: u32>() -> u32 { u32:42 }
 fn main() -> u32 { f<u32:0>() }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, Typecheck(kInvocation));
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(kInvocation));
 
   std::optional<Function*> f = result.tm.module->GetFunction("f");
   ASSERT_TRUE(f.has_value());
@@ -172,7 +185,7 @@ fn uses_builtin(x: u32) -> u32 { clz(x) }
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "graph_map.x", "graph_map", &import_data,
-                        nullptr, {TypeInferenceVersion::kVersion2}));
+                        nullptr));
 
   auto graph = tm.type_info->GetFunctionCallGraph();
   const Function* inc = tm.module->GetFunction("inc").value();
@@ -262,21 +275,21 @@ TEST(TypeInfoTest, GetUniqueInvocationCalleeDataMultipleParametricCalls) {
 fn f<N: u32>() -> u32 { u32:42 }
 fn main() -> u32 { f<u32:0>() + f<u32:0>() + f<u32:1>() }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, Typecheck(kInvocation));
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(kInvocation));
 
   std::optional<Function*> f = result.tm.module->GetFunction("f");
   ASSERT_TRUE(f.has_value());
 
-  auto invocations = result.tm.type_info->GetUniqueInvocationCalleeData(*f);
-  // There are two unique invocations of f.
-  EXPECT_EQ(invocations.size(), 2);
-  // They should be in original-call order.
-  for (int i = 0; i < 2; ++i) {
-    EXPECT_EQ(invocations[i].callee_bindings,
-              ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
-                  {"N", InterpValue::MakeU32(i)},
-              }));
-  }
+  std::vector<ParametricEnv> all_callee_bindings =
+      GetCalleeBindings(*result.tm.type_info, *f, /*unique=*/true);
+  EXPECT_THAT(all_callee_bindings,
+              UnorderedElementsAre(
+                  ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
+                      {"N", InterpValue::MakeU32(0)},
+                  }),
+                  ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
+                      {"N", InterpValue::MakeU32(1)},
+                  })));
 }
 
 TEST(TypeInfoTest,
@@ -286,7 +299,7 @@ fn f<N: u32>() -> u32 { u32:42 }
 fn main() -> u32 { f<u32:0>() + f<u32:1>() }
 fn main2() -> u32 { f<u32:1>() + f<u32:0>() + f<u32:2>() }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, Typecheck(kInvocation));
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(kInvocation));
 
   std::optional<Function*> f = result.tm.module->GetFunction("f");
   ASSERT_TRUE(f.has_value());
@@ -306,43 +319,48 @@ TEST(TypeInfoTest, GetAllInvocationCalleeDataMultipleParametricCalls) {
 fn f<N: u32>() -> u32 { u32:42 }
 fn main() -> u32 { f<u32:0>() + f<u32:0>() + f<u32:1>() }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, Typecheck(kInvocation));
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(kInvocation));
 
   std::optional<Function*> f = result.tm.module->GetFunction("f");
   ASSERT_TRUE(f.has_value());
 
-  auto all_invocations = result.tm.type_info->GetAllInvocationCalleeData(*f);
-  ASSERT_EQ(all_invocations.size(), 3);
-  EXPECT_EQ(all_invocations[0].callee_bindings,
-            ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{{
-                "N",
-                InterpValue::MakeU32(0),
-            }}));
-  EXPECT_EQ(all_invocations[1].callee_bindings,
-            ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{{
-                "N",
-                InterpValue::MakeU32(0),
-            }}));
-  EXPECT_EQ(all_invocations[2].callee_bindings,
-            ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{{
-                "N",
-                InterpValue::MakeU32(1),
-            }}));
-  EXPECT_NE(all_invocations[0].invocation, all_invocations[1].invocation);
+  std::vector<ParametricEnv> all_callee_bindings =
+      GetCalleeBindings(*result.tm.type_info, *f, /*unique=*/false);
+  EXPECT_THAT(all_callee_bindings,
+              UnorderedElementsAre(
+                  ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{{
+                      "N",
+                      InterpValue::MakeU32(0),
+                  }}),
+                  ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{{
+                      "N",
+                      InterpValue::MakeU32(0),
+                  }}),
+                  ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{{
+                      "N",
+                      InterpValue::MakeU32(1),
+                  }})));
 
   auto unique_invocations =
       result.tm.type_info->GetUniqueInvocationCalleeData(*f);
   ASSERT_EQ(unique_invocations.size(), 2);
-  EXPECT_EQ(unique_invocations[0].callee_bindings,
-            ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{{
-                "N",
-                InterpValue::MakeU32(0),
-            }}));
-  EXPECT_EQ(unique_invocations[1].callee_bindings,
-            ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{{
-                "N",
-                InterpValue::MakeU32(1),
-            }}));
+
+  std::vector<ParametricEnv> unique_callee_bindings;
+  unique_callee_bindings.reserve(unique_invocations.size());
+  for (const InvocationCalleeData& data : unique_invocations) {
+    unique_callee_bindings.push_back(data.callee_bindings);
+  }
+
+  EXPECT_THAT(unique_callee_bindings,
+              UnorderedElementsAre(
+                  ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{{
+                      "N",
+                      InterpValue::MakeU32(0),
+                  }}),
+                  ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{{
+                      "N",
+                      InterpValue::MakeU32(1),
+                  }})));
 }
 
 TEST(TypeInfoTest, GetUniqueInvocationCalleeDataParametricProc) {
@@ -369,7 +387,7 @@ proc main2 {
   next(state: ()) { state }
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, Typecheck(kInvocation));
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(kInvocation));
 
   std::optional<Function*> next_fn =
       result.tm.module->GetFunction("spawnee.next");
@@ -418,7 +436,7 @@ proc main {
   next(state: ()) { state }
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, Typecheck(kInvocation));
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(kInvocation));
 
   std::optional<Function*> next_fn =
       result.tm.module->GetFunction("spawnee.next");

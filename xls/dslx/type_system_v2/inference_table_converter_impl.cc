@@ -479,10 +479,17 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   absl::Status ConvertInvocation(
       const Invocation* invocation,
       std::optional<const ParametricContext*> caller_context) {
+    // Short-circuit re-processing the same invocation, except for map()
+    // invocations, whose unusual parametric resolution makes this problematic.
+    if (!converted_invocations_[caller_context].insert(invocation).second &&
+        !IsMapInvocation(invocation)) {
+      return absl::OkStatus();
+    }
+
     TypeSystemTrace trace = tracer_->TraceConvertInvocation(
         invocation, caller_context,
         /*convert_for_type_variable_unification=*/std::nullopt);
-    converted_invocations_[caller_context].insert(invocation);
+
     std::optional<const Function*> caller = GetContainingFunction(invocation);
     VLOG(5) << "Converting invocation: " << invocation->callee()->ToString()
             << " with module: " << invocation->callee()->owner()->name()

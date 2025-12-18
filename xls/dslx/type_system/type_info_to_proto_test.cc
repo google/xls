@@ -40,11 +40,9 @@ std::string TestName() {
   return ::testing::UnitTest::GetInstance()->current_test_info()->name();
 }
 
-class TypeInfoToProtoWithBothTypecheckVersionsTest
-    : public ::testing::TestWithParam<TypeInferenceVersion> {
+class TypeInfoToProtoWithBothTypecheckVersionsTest : public ::testing::Test {
  public:
-  void DoRun(std::string_view program, bool version_specific = false,
-             TypeInfoProto* proto_out = nullptr,
+  void DoRun(std::string_view program, TypeInfoProto* proto_out = nullptr,
              ImportData* import_data = nullptr) {
     std::optional<ImportData> local_import_data;
     if (import_data == nullptr) {
@@ -53,8 +51,7 @@ class TypeInfoToProtoWithBothTypecheckVersionsTest
     }
     XLS_ASSERT_OK_AND_ASSIGN(
         TypecheckedModule tm,
-        ParseAndTypecheck(program, "fake.x", "fake", import_data, nullptr,
-                          GetParam()));
+        ParseAndTypecheck(program, "fake.x", "fake", import_data, nullptr));
 
     XLS_ASSERT_OK_AND_ASSIGN(TypeInfoProto tip, TypeInfoToProto(*tm.type_info));
 
@@ -69,9 +66,6 @@ class TypeInfoToProtoWithBothTypecheckVersionsTest
     std::string test_name(TestName());
     // Remove parametric test suite suffix.
     RE2::GlobalReplace(&test_name, R"(/\d+)", "");
-    if (version_specific && GetParam() == TypeInferenceVersion::kVersion2) {
-      test_name = "v2_" + test_name;
-    }
 
     std::filesystem::path golden_file_path = absl::StrFormat(
         "xls/dslx/type_system/testdata/type_info_to_proto_test_%s.txt",
@@ -84,58 +78,58 @@ class TypeInfoToProtoWithBothTypecheckVersionsTest
   }
 };
 
-TEST_P(TypeInfoToProtoWithBothTypecheckVersionsTest, IdentityFunction) {
+TEST_F(TypeInfoToProtoWithBothTypecheckVersionsTest, IdentityFunction) {
   std::string program = R"(fn id(x: u32) -> u32 { x })";
   DoRun(program);
 }
 
-TEST_P(TypeInfoToProtoWithBothTypecheckVersionsTest,
+TEST_F(TypeInfoToProtoWithBothTypecheckVersionsTest,
        ParametricIdentityFunction) {
   std::string program = R"(
 fn pid<N: u32>(x: bits[N]) -> bits[N] { x }
 fn id(x: u32) -> u32 { pid<u32:32>(x) }
 )";
-  DoRun(program, /*version_specific=*/true);
+  DoRun(program);
 }
 
-TEST_P(TypeInfoToProtoWithBothTypecheckVersionsTest, UnitFunction) {
+TEST_F(TypeInfoToProtoWithBothTypecheckVersionsTest, UnitFunction) {
   std::string program = R"(fn f() -> () { () })";
   DoRun(program);
 }
 
-TEST_P(TypeInfoToProtoWithBothTypecheckVersionsTest, ArrayFunction) {
+TEST_F(TypeInfoToProtoWithBothTypecheckVersionsTest, ArrayFunction) {
   std::string program = R"(fn f() -> u8[2] { u8[2]:[u8:1, u8:2] })";
   DoRun(program);
 }
 
-TEST_P(TypeInfoToProtoWithBothTypecheckVersionsTest, TokenFunction) {
+TEST_F(TypeInfoToProtoWithBothTypecheckVersionsTest, TokenFunction) {
   std::string program = R"(fn f(x: token) -> token { x })";
   DoRun(program);
 }
 
-TEST_P(TypeInfoToProtoWithBothTypecheckVersionsTest,
+TEST_F(TypeInfoToProtoWithBothTypecheckVersionsTest,
        MakeStructInstanceFunction) {
   std::string program = R"(
 struct S { x: u32 }
 fn f() -> S { S { x: u32:42 } }
 )";
   TypeInfoProto tip;
-  DoRun(program, /*version_specific=*/true, &tip);
+  DoRun(program, &tip);
   EXPECT_THAT(
       tip.ShortDebugString(),
       ::testing::ContainsRegex(
           R"(struct_def \{ span \{ .*? \} identifier: "S" member_names: "x" is_public: false \})"));
 }
 
-TEST_P(TypeInfoToProtoWithBothTypecheckVersionsTest, MakeEnumFunction) {
+TEST_F(TypeInfoToProtoWithBothTypecheckVersionsTest, MakeEnumFunction) {
   std::string program = R"(
 enum E : u32 { A = 42 }
 fn f() -> E { E::A }
 )";
-  DoRun(program, /*version_specific=*/true);
+  DoRun(program);
 }
 
-TEST_P(TypeInfoToProtoWithBothTypecheckVersionsTest,
+TEST_F(TypeInfoToProtoWithBothTypecheckVersionsTest,
        ImportModuleAndTypeAliasAnEnum) {
   std::string imported = R"(
 pub enum Foo : u32 {
@@ -155,18 +149,17 @@ import my_imported_module;
 
 type MyFoo = my_imported_module::Foo;
 )";
-  DoRun(program, /*version_specific=*/true, /*proto_out=*/nullptr,
-        &import_data);
+  DoRun(program, /*proto_out=*/nullptr, &import_data);
 }
 
-TEST_P(TypeInfoToProtoWithBothTypecheckVersionsTest, ProcWithImpl) {
+TEST_F(TypeInfoToProtoWithBothTypecheckVersionsTest, ProcWithImpl) {
   std::string program = R"(
 proc Foo { a: u32 }
 )";
-  DoRun(program, /*version_specific=*/true);
+  DoRun(program);
 }
 
-TEST_P(TypeInfoToProtoWithBothTypecheckVersionsTest, BitsConstructorTypeProto) {
+TEST_F(TypeInfoToProtoWithBothTypecheckVersionsTest, BitsConstructorTypeProto) {
   std::string program = R"(
 fn distinct<COUNT: u32, N: u32, S: bool>(items: xN[S][N][COUNT], valid: bool[COUNT]) -> bool { fail!("unimplemented", zero!<bool>()) }
 
@@ -175,13 +168,8 @@ fn test_simple_nondistinct() {
     assert_eq(distinct(u2[2]:[1, 1], bool[2]:[true, true]), false)
 }
 )";
-  DoRun(program, /*version_specific=*/true);
+  DoRun(program);
 }
-
-INSTANTIATE_TEST_SUITE_P(TypeInfoToProtoWithBothTypecheckVersionsTestSuite,
-                         TypeInfoToProtoWithBothTypecheckVersionsTest,
-                         testing::Values(TypeInferenceVersion::kVersion1,
-                                         TypeInferenceVersion::kVersion2));
 
 }  // namespace
 }  // namespace xls::dslx
