@@ -80,7 +80,10 @@ absl::StatusOr<bool> ScheduledBlockConversionPass::RunInternal(
     ScheduledBlock* block = down_cast<ScheduledBlock*>(package->AddBlock(
         std::make_unique<ScheduledBlock>(old_fb->name(), package)));
 
-    XLS_RETURN_IF_ERROR(AddClockAndResetPorts(options.codegen_options, *block));
+    if (!options.codegen_options.generate_combinational()) {
+      XLS_RETURN_IF_ERROR(
+          AddClockAndResetPorts(options.codegen_options, *block));
+    }
 
     for (int i = 0; i < old_fb->stages().size(); ++i) {
       XLS_ASSIGN_OR_RETURN(

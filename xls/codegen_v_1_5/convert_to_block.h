@@ -15,18 +15,23 @@
 #ifndef XLS_CODEGEN_V_1_5_CONVERT_TO_BLOCK_H_
 #define XLS_CODEGEN_V_1_5_CONVERT_TO_BLOCK_H_
 
+#include <optional>
+
 #include "absl/status/status.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/package.h"
+#include "xls/scheduling/pipeline_schedule.pb.h"
 #include "xls/scheduling/scheduling_options.h"
 
 namespace xls::codegen {
 
-// Schedules and converts the given IR package to a standard block.
-absl::Status ConvertToBlock(Package* p, verilog::CodegenOptions codegen_options,
-                            SchedulingOptions scheduling_options,
-                            const DelayEstimator* delay_estimator);
+// Schedules and converts the given IR package to a standard block. If a
+// schedule is provided, it is used instead of computing a schedule.
+absl::Status ConvertToBlock(
+    Package* p, verilog::CodegenOptions codegen_options,
+    SchedulingOptions scheduling_options, const DelayEstimator* delay_estimator,
+    std::optional<PackageScheduleProto> schedule_override = std::nullopt);
 
 }  // namespace xls::codegen
 

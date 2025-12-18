@@ -16,6 +16,7 @@
 
 #include <memory>
 #include <optional>
+#include <string>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -24,6 +25,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function.h"
+#include "xls/ir/name_uniquer.h"
 #include "xls/ir/node.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
@@ -37,6 +39,16 @@ namespace {
 template <typename ScheduledFunctionBase>
 absl::Status ScheduleNodes(const BlockConversionPassOptions& options,
                            ScheduledFunctionBase* fb) {
+  if (options.codegen_options.generate_combinational()) {
+    fb->AddEmptyStages(1);
+    for (Node* node : fb->nodes()) {
+      XLS_ASSIGN_OR_RETURN(bool added, fb->AddNodeToStage(0, node));
+      XLS_RET_CHECK(added) << "Failed to add node to stage: "
+                           << node->ToString();
+    }
+    return absl::OkStatus();
+  }
+
   XLS_ASSIGN_OR_RETURN(
       PipelineSchedule schedule,
       PipelineSchedule::FromProto(fb, options.package_schedule));
@@ -57,13 +69,15 @@ absl::Status ScheduleNodes(const BlockConversionPassOptions& options,
 absl::StatusOr<bool> SchedulingPass::RunInternal(
     Package* package, const BlockConversionPassOptions& options,
     PassResults* results) const {
-  for (FunctionBase* old_fb : package->GetFunctionBases()) {
-    const auto schedule_it =
-        options.package_schedule.schedules().find(old_fb->name());
-    if (schedule_it == options.package_schedule.schedules().end()) {
-      continue;
-    }
+  NameUniquer uniquer("__");
+  std::optional<FunctionBase*> top = package->GetTop();
+  std::string top_name;
+  if (top.has_value()) {
+    top_name = uniquer.GetSanitizedUniqueName(
+        options.codegen_options.module_name().value_or((*top)->name()));
+  }
 
+  for (FunctionBase* old_fb : package->GetFunctionBases()) {
     FunctionBase* new_fb = nullptr;
     if (old_fb->IsFunction()) {
       Function* new_fn = package->AddFunction(
@@ -82,9 +96,11 @@ absl::StatusOr<bool> SchedulingPass::RunInternal(
     }
 
     if (new_fb != nullptr) {
-      std::optional<FunctionBase*> top = package->GetTop();
       if (top.has_value() && top == old_fb) {
+        new_fb->SetName(top_name);
         XLS_RETURN_IF_ERROR(package->SetTop(new_fb));
+      } else {
+        new_fb->SetName(uniquer.GetSanitizedUniqueName(new_fb->name()));
       }
       XLS_RETURN_IF_ERROR(package->RemoveFunctionBase(old_fb));
     }
