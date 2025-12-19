@@ -2576,6 +2576,7 @@ absl::StatusOr<Expr*> Parser::ParseTermRhs(Expr* lhs, Bindings& outer_bindings,
       break;
     }
     case TokenKind::kOAngle: {
+      Pos parametric_start = GetPos();
       // Comparison op, parametric function invocation, or parametric function
       // reference (e.g. for a `map` call).
       Transaction sub_txn(this, &outer_bindings);
@@ -2621,6 +2622,10 @@ absl::StatusOr<Expr*> Parser::ParseTermRhs(Expr* lhs, Bindings& outer_bindings,
       }
 
       if (!has_open_paren) {
+        if (lhs->kind() == AstNodeKind::kNumber) {
+          return ParseErrorStatus(Span(parametric_start, GetPos()),
+                                  "Cannot specify parametrics for a number.");
+        }
         sub_txn.CommitAndCancelCleanup(&sub_cleanup);
         return module_->Make<FunctionRef>(lhs->span(), lhs, *parametrics);
       }

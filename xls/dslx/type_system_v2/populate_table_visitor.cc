@@ -1807,6 +1807,14 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   }
 
   absl::Status HandleQuickCheck(const QuickCheck* node) override {
+    if (node->fn()->IsParametric()) {
+      return TypeInferenceErrorStatus(
+          node->fn()->span(), nullptr,
+          "Quickchecking parametric functions is unsupported; see "
+          "https://github.com/google/xls/issues/81",
+          file_table_);
+    }
+
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
         node, CreateBoolAnnotation(module_, node->span())));
     XLS_RETURN_IF_ERROR(DefineAndSetTypeVariable(node, "quickcheck"));

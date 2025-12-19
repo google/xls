@@ -53,8 +53,7 @@ using ::testing::HasSubstr;
 
 // Base class for general tests that run against both versions of type
 // inference.
-class TypecheckBothVersionsTest
-    : public ::testing::TestWithParam<TypeInferenceVersion> {
+class TypecheckV2Test : public ::testing::Test {
  public:
   absl::StatusOr<TypecheckResult> Typecheck(
       std::string_view program, std::string_view module_name = "fake",
@@ -63,16 +62,16 @@ class TypecheckBothVersionsTest
       import_data_ = CreateImportDataPtrForTest();
       import_data = import_data_.get();
     }
-    return GetParam() == TypeInferenceVersion::kVersion1
-               ? ::xls::dslx::Typecheck(program, module_name, import_data)
-               : ::xls::dslx::TypecheckV2(program, module_name, import_data);
+    return ::xls::dslx::TypecheckV2(program, module_name, import_data);
   }
+
+  TypeInferenceVersion GetParam() { return TypeInferenceVersion::kVersion2; }
 
  private:
   std::unique_ptr<ImportData> import_data_;
 };
 
-TEST_P(TypecheckBothVersionsTest, TestFunctionMustHaveUnitSignature) {
+TEST_F(TypecheckV2Test, TestFunctionMustHaveUnitSignature) {
   constexpr std::string_view kProgram = R"(
 #[test]
 fn o() -> u32 { u32:2 }
@@ -83,21 +82,21 @@ fn o() -> u32 { u32:2 }
                HasSubstr("Test functions must have function type `() -> ()`")));
 }
 
-TEST_P(TypecheckBothVersionsTest, EnumItemSelfReference) {
+TEST_F(TypecheckV2Test, EnumItemSelfReference) {
   std::string_view text = "enum E:u2{ITEM=E::ITEM}";
   EXPECT_THAT(Typecheck(text),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Cannot find a definition for name: \"E\"")));
 }
 
-TEST_P(TypecheckBothVersionsTest, TypeAliasSelfReference) {
+TEST_F(TypecheckV2Test, TypeAliasSelfReference) {
   std::string_view text = "type T=uN[T::A as u2];";
   EXPECT_THAT(Typecheck(text),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Cannot find a definition for name: \"T\"")));
 }
 
-TEST_P(TypecheckBothVersionsTest, RecvInFunction) {
+TEST_F(TypecheckV2Test, RecvInFunction) {
   std::string_view text = R"(
 fn f(tok: token, output_r: chan<u8> in, expected: u8) -> token {
   let (tok, value) = recv(tok, output_r);
@@ -113,7 +112,7 @@ fn f(tok: token, output_r: chan<u8> in, expected: u8) -> token {
                               "Cannot call `recv` outside a `proc`"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricWhoseTypeIsDeterminedByArgBinding) {
+TEST_F(TypecheckV2Test, ParametricWhoseTypeIsDeterminedByArgBinding) {
   std::string_view text = R"(
 fn p<A: u32, B: u32, C: bits[B] = {bits[B]:0}>(x: bits[B]) -> bits[B] { x }
 fn main() -> u2 { p<u32:1>(u2:0) }
@@ -121,14 +120,14 @@ fn main() -> u2 { p<u32:1>(u2:0) }
   XLS_EXPECT_OK(Typecheck(text));
 }
 
-TEST_P(TypecheckBothVersionsTest, IndexZeroSizedArray) {
+TEST_F(TypecheckV2Test, IndexZeroSizedArray) {
   std::string_view text = R"(fn f(a: u8[0], b: u3) -> u8 { a[b] })";
   EXPECT_THAT(Typecheck(text),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Zero-sized arrays cannot be indexed")));
 }
 
-TEST_P(TypecheckBothVersionsTest, ZeroMacroFunctionRefIsNotValue) {
+TEST_F(TypecheckV2Test, ZeroMacroFunctionRefIsNotValue) {
   // Bare parametric macro reference should have function type `() -> E` and
   // not be directly usable as a value of type `E`.
   std::string_view text = R"(enum E:u2{} fn a()->E{ zero!<E> })";
@@ -141,7 +140,7 @@ TEST_P(TypecheckBothVersionsTest, ZeroMacroFunctionRefIsNotValue) {
                                      HasTypeMismatch("() -> E", "E")));
 }
 
-TEST_P(TypecheckBothVersionsTest, AllOnesMacroFunctionRefIsNotValue) {
+TEST_F(TypecheckV2Test, AllOnesMacroFunctionRefIsNotValue) {
   std::string_view text = R"(enum E:u2{} fn a()->E{ all_ones!<E> })";
   constexpr const char* kV1Msg =
       "Return type of function body for 'a' did not match the annotated return "
@@ -163,8 +162,7 @@ TEST_P(TypecheckBothVersionsTest, AllOnesMacroFunctionRefIsNotValue) {
 //   argument that does work
 // * we should flag as an error that the default expression is impossible to
 //   reach because `X` is always bound via a parameter binding.
-TEST_P(TypecheckBothVersionsTest,
-       ParametricWithDefaultExpressionThatHasWrongType) {
+TEST_F(TypecheckV2Test, ParametricWithDefaultExpressionThatHasWrongType) {
   std::string_view text = R"(
 fn p<X: u32 = {u1:0}>(x: bits[X]) -> bits[X] { x }
 fn main() -> u2 { p<u32:1>(u1:0) }
@@ -178,8 +176,7 @@ fn main() -> u2 { p<u32:1>(u1:0) }
                                    "value did not match inferred type"))));
 }
 
-TEST_P(TypecheckBothVersionsTest,
-       ParametricThatWorksForTheOneBindingPresented) {
+TEST_F(TypecheckV2Test, ParametricThatWorksForTheOneBindingPresented) {
   std::string_view text = R"(
 fn p<X: u32, Y: bits[X] = {u1:0}>(x: bits[X]) -> bits[X] { x }
 fn main() -> u1 { p(u1:0) }
@@ -200,7 +197,7 @@ fn main() -> u1 { p(u1:0) }
   }
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricWrongArgCount) {
+TEST_F(TypecheckV2Test, ParametricWrongArgCount) {
   std::string_view text = R"(
 fn id<N: u32>(x: bits[N]) -> bits[N] { x }
 fn f() -> u32 { id(u8:3, u8:4) }
@@ -215,7 +212,7 @@ fn f() -> u32 { id(u8:3, u8:4) }
                                    "Expected 1 argument(s) but got 2"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricTooManyExplicitSupplied) {
+TEST_F(TypecheckV2Test, ParametricTooManyExplicitSupplied) {
   std::string_view text = R"(
 fn id<X: u32>(x: bits[X]) -> bits[X] { x }
 fn main() -> u32 { id<u32:32, u32:64>(u32:5) }
@@ -227,7 +224,7 @@ fn main() -> u32 { id<u32:32, u32:64>(u32:5) }
           HasSubstr("Too many parametric values supplied; limit: 1 given: 2")));
 }
 
-TEST_P(TypecheckBothVersionsTest, ReturnTypeMismatch) {
+TEST_F(TypecheckV2Test, ReturnTypeMismatch) {
   EXPECT_THAT(
       Typecheck("fn f(x: bits[3], y: bits[4]) -> bits[5] { y }"),
       StatusIs(
@@ -237,7 +234,7 @@ TEST_P(TypecheckBothVersionsTest, ReturnTypeMismatch) {
                 HasSubstrInV1(GetParam(), "Return type of function body"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, ReturnTypeMismatchWithImplicitUnitReturn) {
+TEST_F(TypecheckV2Test, ReturnTypeMismatchWithImplicitUnitReturn) {
   EXPECT_THAT(
       Typecheck("fn f(x: bits[1]) -> bits[1] { x; }"),
       StatusIs(
@@ -251,7 +248,7 @@ TEST_P(TypecheckBothVersionsTest, ReturnTypeMismatchWithImplicitUnitReturn) {
                 HasSubstrInV1(GetParam(), "terminated with a semicolon"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, ReturnTypeMismatchWithExplicitUnitReturn) {
+TEST_F(TypecheckV2Test, ReturnTypeMismatchWithExplicitUnitReturn) {
   EXPECT_THAT(
       Typecheck("fn f(x: bits[1]) -> bits[1] { () }"),
       StatusIs(absl::StatusCode::kInvalidArgument,
@@ -263,22 +260,22 @@ TEST_P(TypecheckBothVersionsTest, ReturnTypeMismatchWithExplicitUnitReturn) {
                          "the annotated return type"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, Identity) {
+TEST_F(TypecheckV2Test, Identity) {
   XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> u32 { x }"));
   XLS_EXPECT_OK(Typecheck("fn f(x: bits[3], y: bits[4]) -> bits[3] { x }"));
   XLS_EXPECT_OK(Typecheck("fn f(x: bits[3], y: bits[4]) -> bits[4] { y }"));
 }
 
-TEST_P(TypecheckBothVersionsTest, TokenIdentity) {
+TEST_F(TypecheckV2Test, TokenIdentity) {
   XLS_EXPECT_OK(Typecheck("fn f(x: token) -> token { x }"));
 }
 
-TEST_P(TypecheckBothVersionsTest, Unit) {
+TEST_F(TypecheckV2Test, Unit) {
   XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> () { () }"));
   XLS_EXPECT_OK(Typecheck("fn f(x: u32) { () }"));
 }
 
-TEST_P(TypecheckBothVersionsTest, Arithmetic) {
+TEST_F(TypecheckV2Test, Arithmetic) {
   // Simple add.
   XLS_EXPECT_OK(Typecheck("fn f(x: u32, y: u32) -> u32 { x + y }"));
 
@@ -312,12 +309,12 @@ TEST_P(TypecheckBothVersionsTest, Arithmetic) {
       Typecheck("fn f<N: u32>(x: bits[N], y: bits[N]) -> bits[N] { x + y }"));
 }
 
-TEST_P(TypecheckBothVersionsTest, Unary) {
+TEST_F(TypecheckV2Test, Unary) {
   XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> u32 { !x }"));
   XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> u32 { -x }"));
 }
 
-TEST_P(TypecheckBothVersionsTest, Let) {
+TEST_F(TypecheckV2Test, Let) {
   XLS_EXPECT_OK(Typecheck("fn f() -> u32 { let x: u32 = u32:2; x }"));
   EXPECT_THAT(Typecheck(
                   R"(fn f() -> u32 {
@@ -333,7 +330,7 @@ TEST_P(TypecheckBothVersionsTest, Let) {
       "fn f() -> u32 { let (x, y): (u32, bits[4]) = (u32:2, bits[4]:3); x }"));
 }
 
-TEST_P(TypecheckBothVersionsTest, LetBadRhs) {
+TEST_F(TypecheckV2Test, LetBadRhs) {
   EXPECT_THAT(
       Typecheck(
           R"(fn f() -> bits[2] {
@@ -348,7 +345,7 @@ TEST_P(TypecheckBothVersionsTest, LetBadRhs) {
                                     "bits[4]"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricInvocation) {
+TEST_F(TypecheckV2Test, ParametricInvocation) {
   constexpr std::string_view kProgram = R"(
 fn p<N: u32>(x: bits[N]) -> bits[N] { x + bits[N]:1 }
 fn f() -> u32 { p(u32:3) }
@@ -356,7 +353,7 @@ fn f() -> u32 { p(u32:3) }
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricInvocationWithTuple) {
+TEST_F(TypecheckV2Test, ParametricInvocationWithTuple) {
   constexpr std::string_view kProgram = R"(
 fn p<N: u32>(x: bits[N]) -> (bits[N], bits[N]) { (x, x) }
 fn f() -> (u32, u32) { p(u32:3) }
@@ -364,7 +361,7 @@ fn f() -> (u32, u32) { p(u32:3) }
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest, DoubleParametricInvocation) {
+TEST_F(TypecheckV2Test, DoubleParametricInvocation) {
   constexpr std::string_view kProgram = R"(
 fn p<N: u32>(x: bits[N]) -> bits[N] { x + bits[N]:1 }
 fn o<M: u32>(x: bits[M]) -> bits[M] { p(x) }
@@ -373,7 +370,7 @@ fn f() -> u32 { o(u32:3) }
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest, XbitsBinding) {
+TEST_F(TypecheckV2Test, XbitsBinding) {
   constexpr std::string_view kProgram = R"(
 fn p<S: bool, N: u32>(x: xN[S][N]) -> (bool, u32) { (S, N) }
 fn f() -> (bool, u32)[2] { [p(u4:0), p(s8:0)] }
@@ -381,7 +378,7 @@ fn f() -> (bool, u32)[2] { [p(u4:0), p(s8:0)] }
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest, XbitsCast) {
+TEST_F(TypecheckV2Test, XbitsCast) {
   constexpr std::string_view kProgram = R"(
 fn f(x: u1) -> s1 { x as xN[true][1] }
 fn g() -> s1 { u1:0 as xN[true][1] }
@@ -390,7 +387,7 @@ fn g() -> s1 { u1:0 as xN[true][1] }
 }
 
 // Previously this would flag an internal error.
-TEST_P(TypecheckBothVersionsTest, CastToXbitsBasedBoolArray) {
+TEST_F(TypecheckV2Test, CastToXbitsBasedBoolArray) {
   constexpr std::string_view kProgram = R"(
 const ARRAY_SIZE = u32:44;
 type MyXn = xN[bool:0x0][1];  // equivalent to a bool
@@ -406,7 +403,7 @@ fn main() -> bool[44] {
 
 // Various samples of actual-argument compatibility with an `xN` field within a
 // struct via a struct instantiation expression.
-TEST_P(TypecheckBothVersionsTest, StructInstantiateParametricXnField) {
+TEST_F(TypecheckV2Test, StructInstantiateParametricXnField) {
   constexpr std::string_view kProgram = R"(
 struct XnWrapper<S: bool, N: u32> {
   field: xN[S][N]
@@ -419,7 +416,7 @@ fn i() -> XnWrapper<true, u32:8> { XnWrapper<true, u32:8> { field: xN[true][8]:3
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricPlusGlobal) {
+TEST_F(TypecheckV2Test, ParametricPlusGlobal) {
   constexpr std::string_view kProgram = R"(
 const GLOBAL = u32:4;
 fn p<N: u32>() -> bits[N+GLOBAL] { bits[N+GLOBAL]:0 }
@@ -428,14 +425,14 @@ fn f() -> u32 { p<u32:28>() }
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest, TupleWithExplicitlyAnnotatedType) {
+TEST_F(TypecheckV2Test, TupleWithExplicitlyAnnotatedType) {
   constexpr std::string_view kProgram = R"(
 const MY_TUPLE = (u32, u64):(u32:32, u64:64);
 )";
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest, ProcWithImplEmpty) {
+TEST_F(TypecheckV2Test, ProcWithImplEmpty) {
   constexpr std::string_view kProgram = R"(
 proc Foo {}
 
@@ -444,7 +441,7 @@ impl Foo {}
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest, ProcWithImplAndMembers) {
+TEST_F(TypecheckV2Test, ProcWithImplAndMembers) {
   constexpr std::string_view kProgram = R"(
 proc Foo {
   foo: u32,
@@ -456,7 +453,7 @@ impl Foo {}
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest, ProcWithImplAndParametrics) {
+TEST_F(TypecheckV2Test, ProcWithImplAndParametrics) {
   constexpr std::string_view kProgram = R"(
 proc Proc<A: u32, B: u32 = {u32:32}, C:u32 = {B / u32:2}> {
   a: uN[A],
@@ -469,7 +466,7 @@ impl Proc {}
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST(TypecheckTest, ProcWithImplEmptyInstantiation) {
+TEST_F(TypecheckV2Test, ProcWithImplEmptyInstantiation) {
   constexpr std::string_view kProgram = R"(
 proc Foo {}
 
@@ -479,14 +476,13 @@ fn foo() -> Foo {
   Foo{}
 }
   )";
-  EXPECT_THAT(
-      Typecheck(kProgram),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr(
-                   "Instantiation of impl-style procs is not yet supported.")));
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Impl-style procs are a work in progress and "
+                                 "cannot yet be instantiated.")));
 }
 
-TEST(TypecheckTest, ProcWithImplInstantiation) {
+TEST_F(TypecheckV2Test, ProcWithImplInstantiation) {
   constexpr std::string_view kProgram = R"(
 proc Foo<N: u32> {
   foo: u32,
@@ -499,14 +495,13 @@ fn foo() -> Foo<u32:8> {
   Foo<u32:8> { foo: u32:5, bar: u8:6 }
 }
   )";
-  EXPECT_THAT(
-      Typecheck(kProgram),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr(
-                   "Instantiation of impl-style procs is not yet supported.")));
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Impl-style procs are a work in progress and "
+                                 "cannot yet be instantiated.")));
 }
 
-TEST(TypecheckTest, FailsOnProcWithImplZero) {
+TEST_F(TypecheckV2Test, FailsOnProcWithImplZero) {
   constexpr std::string_view kProgram = R"(
 proc Foo {
   foo: u32,
@@ -519,12 +514,14 @@ fn foo() -> Foo {
   zero!<Foo>()
 }
   )";
-  EXPECT_THAT(Typecheck(kProgram),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Cannot make a zero-value of proc type.")));
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("Expected a type argument in `zero!<Foo>()`; saw `Foo`.")));
 }
 
-TEST(TypecheckTest, FailsOnProcWithImplAsStructMember) {
+TEST_F(TypecheckV2Test, FailsOnProcWithImplAsStructMember) {
   constexpr std::string_view kProgram = R"(
 proc Foo {
   foo: u32,
@@ -546,7 +543,7 @@ fn foo() -> Foo {
                        HasSubstr("Structs cannot contain procs as members.")));
 }
 
-TEST(TypecheckTest, FailsOnProcWithImplAsStructMemberInArray) {
+TEST_F(TypecheckV2Test, FailsOnProcWithImplAsStructMemberInArray) {
   constexpr std::string_view kProgram = R"(
 proc Foo {
   foo: u32,
@@ -559,16 +556,16 @@ struct Bar {
   subprocs: Foo[2]
 }
 
-fn foo() -> Foo {
+fn foo() -> Bar {
   zero!<Bar>()
 }
   )";
   EXPECT_THAT(Typecheck(kProgram),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Structs cannot contain procs as members.")));
+                       HasSubstr("Cannot make a zero-value of proc type.")));
 }
 
-TEST(TypecheckTest, FailsOnProcWithImplAsStructMemberInTuple) {
+TEST_F(TypecheckV2Test, FailsOnProcWithImplAsStructMemberInTuple) {
   constexpr std::string_view kProgram = R"(
 proc Foo {
   foo: u32,
@@ -581,16 +578,16 @@ struct Bar {
   subprocs: (Foo, Foo)
 }
 
-fn foo() -> Foo {
+fn foo() -> Bar {
   zero!<Bar>()
 }
   )";
   EXPECT_THAT(Typecheck(kProgram),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Structs cannot contain procs as members.")));
+                       HasSubstr("Cannot make a zero-value of proc type.")));
 }
 
-TEST(TypecheckTest, ProcWithImplAsProcMember) {
+TEST_F(TypecheckV2Test, ProcWithImplAsProcMember) {
   constexpr std::string_view kProgram = R"(
 proc Foo {
   foo: u32,
@@ -606,7 +603,7 @@ proc Bar {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST(TypecheckTest, ProcWithImplAsProcMemberInArray) {
+TEST_F(TypecheckV2Test, ProcWithImplAsProcMemberInArray) {
   constexpr std::string_view kProgram = R"(
 proc Foo {
   foo: u32,
@@ -625,7 +622,7 @@ proc Bar {
 
 // Note: this previously caused a fatal error as the slice in this position is
 // handled in the AstCloner.
-TEST_P(TypecheckBothVersionsTest, ProcWithSliceOfNumber) {
+TEST_F(TypecheckV2Test, ProcWithSliceOfNumber) {
   constexpr std::string_view kProgram = R"(
 proc o {
   h: chan<u2[0[:]]> in;
@@ -637,7 +634,7 @@ proc o {
                        HasSubstr("Procs must define `init`")));
 }
 
-TEST(TypecheckTest, ProcWithImplAsProcMemberInTuple) {
+TEST_F(TypecheckV2Test, ProcWithImplAsProcMemberInTuple) {
   constexpr std::string_view kProgram = R"(
 proc Foo {
   foo: u32,
@@ -654,7 +651,7 @@ proc Bar {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest, ImportPublicFunction) {
+TEST_F(TypecheckV2Test, ImportPublicFunction) {
   constexpr std::string_view kImported = R"(
 pub fn foo(x: u32) -> u32 { x }
 )";
@@ -670,7 +667,7 @@ fn main() -> u32 {
   XLS_EXPECT_OK(Typecheck(kProgram, "main", &import_data));
 }
 
-TEST_P(TypecheckBothVersionsTest, ProcWithImplAsImportedProcMember) {
+TEST_F(TypecheckV2Test, ProcWithImplAsImportedProcMember) {
   constexpr std::string_view kImported = R"(
 pub proc Foo {
   foo: u32,
@@ -691,7 +688,7 @@ proc Bar {
   XLS_EXPECT_OK(Typecheck(kProgram, "main", &import_data));
 }
 
-TEST_P(TypecheckBothVersionsTest, UseOfConstant) {
+TEST_F(TypecheckV2Test, UseOfConstant) {
   constexpr std::string_view kImported = R"(
 pub const MY_CONSTANT: u32 = u32:42;
 )";
@@ -715,7 +712,7 @@ fn f() -> u32 {
   ;
 }
 
-TEST(TypecheckTest, UseOfStdlibModule) {
+TEST_F(TypecheckV2Test, DISABLED_UseOfStdlibModule) {
   constexpr std::string_view kProgram = R"(#![feature(use_syntax)]
 use std;
 
@@ -726,7 +723,7 @@ fn main() -> u32 {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST(TypecheckTest, FailsOnProcWithImplAsImportedStructMember) {
+TEST_F(TypecheckV2Test, FailsOnProcWithImplAsImportedStructMember) {
   constexpr std::string_view kImported = R"(
 pub proc Foo {
   foo: u32,
@@ -752,7 +749,7 @@ struct Bar {
                HasSubstr("Structs cannot contain procs as members.")));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricStructInstantiatedByGlobal) {
+TEST_F(TypecheckV2Test, ParametricStructInstantiatedByGlobal) {
   constexpr std::string_view kProgram = R"(
 struct MyStruct<WIDTH: u32> {
   f: bits[WIDTH]
@@ -766,7 +763,7 @@ fn f(s: MyStruct<GLOBAL>) -> u15 { p(s) }
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest, TopLevelConstTypeMismatch) {
+TEST_F(TypecheckV2Test, TopLevelConstTypeMismatch) {
   constexpr std::string_view kProgram = R"(
 const GLOBAL: u64 = u32:4;
 )";
@@ -780,14 +777,14 @@ const GLOBAL: u64 = u32:4;
                                    "not match its expression's type"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, TopLevelConstTypeMatch) {
+TEST_F(TypecheckV2Test, TopLevelConstTypeMatch) {
   constexpr std::string_view kProgram = R"(
 const GLOBAL: u32 = u32:4;
 )";
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest, LetTypeAnnotationIsXn) {
+TEST_F(TypecheckV2Test, LetTypeAnnotationIsXn) {
   constexpr std::string_view kProgram = "fn f() { let x: xN = u32:42; }";
   EXPECT_THAT(
       Typecheck(kProgram),
@@ -800,7 +797,7 @@ TEST_P(TypecheckBothVersionsTest, LetTypeAnnotationIsXn) {
                               "`xN` requires a specified signedness"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricIdentifierLtValue) {
+TEST_F(TypecheckV2Test, ParametricIdentifierLtValue) {
   constexpr std::string_view kProgram = R"(
 fn p<N: u32>(x: bits[N]) -> bits[N] { x }
 
@@ -820,8 +817,7 @@ fn f() -> bool { p < u32:42 }
 
 // X is not bound in this example but it's also not used anywhere. This is
 // erroneously accepted in v1 but fixed in v2.
-TEST_P(TypecheckBothVersionsTest,
-       Gh1473_UnboundButAlsoUnusedParametricNoDefaultExpr) {
+TEST_F(TypecheckV2Test, Gh1473_UnboundButAlsoUnusedParametricNoDefaultExpr) {
   constexpr std::string_view kProgram = R"(
 fn p<X: u32, Y: u32>(y: uN[Y]) -> u32 { Y }
 fn f() -> u32 { p(u7:0) }
@@ -835,8 +831,7 @@ fn f() -> u32 { p(u7:0) }
   }
 }
 
-TEST_P(TypecheckBothVersionsTest,
-       Gh1473_UnboundButAlsoUnusedParametricWithDefaultExpr) {
+TEST_F(TypecheckV2Test, Gh1473_UnboundButAlsoUnusedParametricWithDefaultExpr) {
   constexpr std::string_view kProgram = R"(
 fn p<X: u32, Y: u32 = {X+X}>(y: uN[Y]) -> u32 { Y }
 fn f() -> u32 { p(u7:0) }
@@ -854,7 +849,7 @@ fn f() -> u32 { p(u7:0) }
 
 // In this example we do not bind X via the arguments, but we try to use it in
 // forming a return type.
-TEST_P(TypecheckBothVersionsTest, Gh1473_UnboundAndUsedParametric) {
+TEST_F(TypecheckV2Test, Gh1473_UnboundAndUsedParametric) {
   constexpr std::string_view kProgram = R"(
 fn p<X: u32, Y: u32>(y: uN[Y]) -> uN[X] { Y }
 fn f() -> u32 { p(u7:0) }
@@ -872,7 +867,7 @@ fn f() -> u32 { p(u7:0) }
 
 // In this example we do not bind X via the arguments, but we try to use it in
 // the body of the function. This is erroneously accepted in v1 but fixed in v1.
-TEST_P(TypecheckBothVersionsTest, Gh1473_UnboundAndUsedParametricInBody) {
+TEST_F(TypecheckV2Test, Gh1473_UnboundAndUsedParametricInBody) {
   constexpr std::string_view kProgram = R"(
 fn p<X: u32, Y: u32>(y: uN[Y]) -> bool { uN[X]:0 == uN[X]:1 }
 fn f() -> bool { p(u7:0) }
@@ -886,7 +881,7 @@ fn f() -> bool { p(u7:0) }
   }
 }
 
-TEST_P(TypecheckBothVersionsTest, MapOfParametric) {
+TEST_F(TypecheckV2Test, MapOfParametric) {
   constexpr std::string_view kProgram = R"(
 fn p<N: u32>(x: bits[N]) -> bits[N] { x }
 
@@ -897,7 +892,7 @@ fn f() -> u32[3] {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest, MapOfParametricConst) {
+TEST_F(TypecheckV2Test, MapOfParametricConst) {
   constexpr std::string_view kProgram = R"(
 fn one<M: u32>(input: uN[M]) -> uN[M] { uN[M]:1}
 const Y = map([u30:5, u30:6], one<u32:30>);
@@ -905,7 +900,7 @@ const Y = map([u30:5, u30:6], one<u32:30>);
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest, MapOfParametricExplicit) {
+TEST_F(TypecheckV2Test, MapOfParametricExplicit) {
   constexpr std::string_view kProgram =
       R"(
 fn f<N:u32, K:u32>(x: u32) -> uN[N] { x as uN[N] + K as uN[N] }
@@ -915,8 +910,7 @@ fn main() -> u5[4] { map(u32[4]:[0, 1, 2, 3], f<u32:5, u32:17>) }
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest,
-       MapOfParametricExplicitWithWrongNumberOfArgs) {
+TEST_F(TypecheckV2Test, MapOfParametricExplicitWithWrongNumberOfArgs) {
   constexpr std::string_view kProgram =
       R"(
 fn f<N:u32, K:u32>(x: u32) -> uN[N] { x as uN[N] + K as uN[N] }
@@ -930,7 +924,7 @@ fn main() -> u5[4] { map(u32[4]:[0, 1, 2, 3], f<u32:5, u32:17, u32:18>) }
           HasSubstr("Too many parametric values supplied; limit: 2 given: 3")));
 }
 
-TEST_P(TypecheckBothVersionsTest, MapImportedNonPublicFunction) {
+TEST_F(TypecheckV2Test, MapImportedNonPublicFunction) {
   constexpr std::string_view kImported = R"(
 fn some_function(x: u32) -> u32 { x }
 )";
@@ -949,8 +943,7 @@ fn main() -> u32[3] {
       StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("not public")));
 }
 
-TEST_P(TypecheckBothVersionsTest,
-       MapImportedNonPublicInferredParametricFunction) {
+TEST_F(TypecheckV2Test, MapImportedNonPublicInferredParametricFunction) {
   constexpr std::string_view kImported = R"(
 fn some_function<N: u32>(x: bits[N]) -> bits[N] { x }
 )";
@@ -969,7 +962,7 @@ fn main() -> u32[3] {
       StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("not public")));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricInvocationConflictingArgs) {
+TEST_F(TypecheckV2Test, ParametricInvocationConflictingArgs) {
   constexpr std::string_view kProgram = R"(
 fn id<N: u32>(x: bits[N], y: bits[N]) -> bits[N] { x }
 fn f() -> u32 { id(u8:3, u32:5) }
@@ -981,7 +974,7 @@ fn f() -> u32 { id(u8:3, u32:5) }
                      HasSizeMismatchInV2(GetParam(), "bits[8]", "u32"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricWrongKind) {
+TEST_F(TypecheckV2Test, ParametricWrongKind) {
   constexpr std::string_view kProgram = R"(
 fn id<N: u32>(x: bits[N]) -> bits[N] { x }
 fn f() -> u32 { id((u8:3,)) }
@@ -993,7 +986,7 @@ fn f() -> u32 { id((u8:3,)) }
                      HasTypeMismatchInV2(GetParam(), "(u8,)", "bits[N]"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricWrongNumberOfDims) {
+TEST_F(TypecheckV2Test, ParametricWrongNumberOfDims) {
   constexpr std::string_view kProgram = R"(
 fn id<N: u32, M: u32>(x: bits[N][M]) -> bits[N][M] { x }
 fn f() -> u32 { id(u32:42) }
@@ -1007,14 +1000,14 @@ fn f() -> u32 { id(u32:42) }
                 HasTypeMismatchInV2(GetParam(), "u32", "bits[N][M]"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, RecursionCausesError) {
+TEST_F(TypecheckV2Test, RecursionCausesError) {
   constexpr std::string_view kProgram = "fn f(x: u32) -> u32 { f(x) }";
   EXPECT_THAT(Typecheck(kProgram),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Recursion of function `f` detected")));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricRecursionCausesError) {
+TEST_F(TypecheckV2Test, ParametricRecursionCausesError) {
   constexpr std::string_view kProgram = R"(
 fn f<X: u32>(x: bits[X]) -> u32 { f(x) }
 fn g() -> u32 { f(u32: 5) }
@@ -1024,7 +1017,7 @@ fn g() -> u32 { f(u32: 5) }
                        HasSubstr("Recursion of function `f` detected")));
 }
 
-TEST_P(TypecheckBothVersionsTest, HigherOrderRecursionCausesError) {
+TEST_F(TypecheckV2Test, HigherOrderRecursionCausesError) {
   constexpr std::string_view kProgram = R"(
 fn h<Y: u32>(y: bits[Y]) -> bits[Y] { h(y) }
 fn g() -> u32[3] {
@@ -1037,7 +1030,7 @@ fn g() -> u32[3] {
                        HasSubstr("Recursion of function `h` detected")));
 }
 
-TEST_P(TypecheckBothVersionsTest, InvokeWrongArg) {
+TEST_F(TypecheckV2Test, InvokeWrongArg) {
   constexpr std::string_view kProgram = R"(
 fn id_u32(x: u32) -> u32 { x }
 fn f(x: u8) -> u8 { id_u32(x) }
@@ -1051,7 +1044,7 @@ fn f(x: u8) -> u8 { id_u32(x) }
                 HasSizeMismatchInV2(GetParam(), "u32", "u8"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, InvokeNumberValue) {
+TEST_F(TypecheckV2Test, InvokeNumberValue) {
   constexpr std::string_view kProgram = R"(
 fn f(x: u8) -> u8 { 42(x) }
 )";
@@ -1063,14 +1056,14 @@ fn f(x: u8) -> u8 { 42(x) }
 }
 
 // Since the parametric is not instantiated we don't detect this type error.
-TEST_P(TypecheckBothVersionsTest, InvokeNumberValueInUninstantiatedParametric) {
+TEST_F(TypecheckV2Test, InvokeNumberValueInUninstantiatedParametric) {
   constexpr std::string_view kProgram = R"(
 fn f<N: u32>(x: u8) -> u8 { 42(x) }
 )";
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest, BadTupleType) {
+TEST_F(TypecheckV2Test, BadTupleType) {
   constexpr std::string_view kProgram = R"(
 fn f() -> u32 {
   let (a, b, c): (u32, u32) = (u32:1, u32:2, u32:3);
@@ -1137,19 +1130,18 @@ TEST_P(LogicalOpTypecheckTest, LogicalAndOnVariousInvalidTypes) {
 
 INSTANTIATE_TEST_SUITE_P(
     LogicalOpTypecheckTestInstance, LogicalOpTypecheckTest,
-    ::testing::Combine(::testing::Values(TypeInferenceVersion::kVersion1,
-                                         TypeInferenceVersion::kVersion2),
+    ::testing::Combine(::testing::Values(TypeInferenceVersion::kVersion2),
                        ::testing::Values("&&", "||")));
 
 // --
 
-TEST_P(TypecheckBothVersionsTest, LogicalAndOfComparisons) {
+TEST_F(TypecheckV2Test, LogicalAndOfComparisons) {
   XLS_EXPECT_OK(Typecheck("fn f(a: u8, b: u8) -> bool { a == b }"));
   XLS_EXPECT_OK(Typecheck(
       "fn f(a: u8, b: u8, c: u32, d: u32) -> bool { a == b && c == d }"));
 }
 
-TEST_P(TypecheckBothVersionsTest, Typedef) {
+TEST_F(TypecheckV2Test, Typedef) {
   XLS_EXPECT_OK(Typecheck(R"(
 type MyTypeAlias = (u32, u8);
 fn id(x: MyTypeAlias) -> MyTypeAlias { x }
@@ -1157,18 +1149,7 @@ fn f() -> MyTypeAlias { id((u32:42, u8:127)) }
 )"));
 }
 
-// Note: intentionally only runs in v1
-TEST(TypecheckTest, ForWithRangeFunction) {
-  XLS_EXPECT_OK(Typecheck(R"(
-fn f() -> u32 {
-  for (i, accum): (u32, u32) in range(u32:0, u32:3) {
-    let new_accum: u32 = accum + i;
-    new_accum
-  }(u32:0)
-})"));
-}
-
-TEST_P(TypecheckBothVersionsTest, For) {
+TEST_F(TypecheckV2Test, For) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f() -> u32 {
   for (i, accum): (u32, u32) in u32:0..u32:3 {
@@ -1178,7 +1159,7 @@ fn f() -> u32 {
 })"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ForInParametricInvokedTwice) {
+TEST_F(TypecheckV2Test, ForInParametricInvokedTwice) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn p<N: u32>(x: uN[N]) -> uN[N] {
     for (idx, accum) in u32:0..N {
@@ -1194,7 +1175,7 @@ fn two_invocation_test() {
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ForNoAnnotation) {
+TEST_F(TypecheckV2Test, ForNoAnnotation) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f() -> u32 {
   for (i, accum) in u32:0..u32:3 {
@@ -1203,7 +1184,7 @@ fn f() -> u32 {
 })"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ForWildcardIvar) {
+TEST_F(TypecheckV2Test, ForWildcardIvar) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f() -> u32 {
   for (_, accum) in u32:0..u32:3 {
@@ -1212,33 +1193,9 @@ fn f() -> u32 {
 })"));
 }
 
-// Note: intentionally only runs in v1
-TEST(TypecheckErrorTest, RangeBuiltinWithNonConstexprArg) {
-  EXPECT_THAT(
-      Typecheck(R"(fn f(limit: u8) -> u32 {
-  for (_, accum) in range(u32:0, limit as u32) {
-    accum
-  }(u32:0)
-}
-)"),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr(
-                   "Argument to built-in function `range` must be constexpr")));
-}
-
-// Note: intentionally only runs in v1
-TEST(TypecheckTest, RangeBuiltinWithConstexprArgViaModuleCall) {
-  XLS_EXPECT_OK(Typecheck(R"(import std;
-const MOL = u32:42;
-fn f() -> u32 {
-  for (_, accum) in range(u32:0, std::clog2(MOL)) {
-    accum
-  }(u32:0)
-}
-)"));
-}
-
-TEST(TypecheckTest, UseOfClog2InModuleScopedConstantDefinition) {
+// TODO: https://github.com/google/xls/issues/2876 - 'use' syntax is not yet
+// supported in TIv2.
+TEST_F(TypecheckV2Test, DISABLED_UseOfClog2InModuleScopedConstantDefinition) {
   XLS_EXPECT_OK(Typecheck(R"(#![feature(use_syntax)]
 use std::clog2;
 
@@ -1250,7 +1207,9 @@ fn main() -> u32 {
 )"));
 }
 
-TEST(TypecheckTest, UseOfClog2InParametricOutputType) {
+// TODO: https://github.com/google/xls/issues/2876 - 'use' syntax is not yet
+// supported in TIv2.
+TEST_F(TypecheckV2Test, DISABLED_UseOfClog2InParametricOutputType) {
   XLS_EXPECT_OK(Typecheck(R"(#![feature(use_syntax)]
 use std::{clog2, is_pow2};
 
@@ -1263,7 +1222,7 @@ fn main() -> u5 { p(u32:42) }
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ConstAssertParametricOk) {
+TEST_F(TypecheckV2Test, ConstAssertParametricOk) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn p<N: u32>() -> u32 {
   const_assert!(N == u32:42);
@@ -1274,7 +1233,7 @@ fn main() -> u32 {
 })"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ConstAssertViaConstBindings) {
+TEST_F(TypecheckV2Test, ConstAssertViaConstBindings) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn main() -> () {
   const M = u32:1;
@@ -1285,7 +1244,7 @@ fn main() -> () {
 })"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ConstAssertCallFunction) {
+TEST_F(TypecheckV2Test, ConstAssertCallFunction) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn is_mol(x: u32) -> bool {
   x == u32:42
@@ -1299,7 +1258,7 @@ fn main() -> () {
 })"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ConstAssertFalse) {
+TEST_F(TypecheckV2Test, ConstAssertFalse) {
   EXPECT_THAT(Typecheck(R"(
 fn main() -> () {
   const_assert!(false);
@@ -1308,7 +1267,7 @@ fn main() -> () {
                        HasSubstr("const_assert! failure: `false`")));
 }
 
-TEST_P(TypecheckBothVersionsTest, ConstAssertFalseExpr) {
+TEST_F(TypecheckV2Test, ConstAssertFalseExpr) {
   EXPECT_THAT(Typecheck(R"(
 fn main() -> () {
   const_assert!(u32:2 + u32:3 != u32:5);
@@ -1317,7 +1276,7 @@ fn main() -> () {
                        HasSubstr("const_assert! failure")));
 }
 
-TEST_P(TypecheckBothVersionsTest, ConstAssertNonConstexpr) {
+TEST_F(TypecheckV2Test, ConstAssertNonConstexpr) {
   EXPECT_THAT(Typecheck(R"(
 fn main(p: u32) -> () {
   const_assert!(p == u32:42);
@@ -1326,7 +1285,7 @@ fn main(p: u32) -> () {
                        HasSubstr("`p == u32:42` is not constexpr")));
 }
 
-TEST_P(TypecheckBothVersionsTest, FitsInTypeSN0) {
+TEST_F(TypecheckV2Test, FitsInTypeSN0) {
   EXPECT_THAT(Typecheck(R"(
 fn main() -> sN[0] {
   sN[0]:0xffff_ffff_ffff_ffff_ffff
@@ -1336,7 +1295,7 @@ fn main() -> sN[0] {
                                  "fit in the bitwidth of a sN[0]")));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricBindArrayToTuple) {
+TEST_F(TypecheckV2Test, ParametricBindArrayToTuple) {
   EXPECT_THAT(
       Typecheck(R"(
 fn p<N: u32>(x: (uN[N], uN[N])) -> uN[N] { x.0 }
@@ -1352,7 +1311,7 @@ fn main() -> u32 {
                 HasTypeMismatchInV2(GetParam(), "u32[2]", "(uN[N], uN[N])"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricBindNested) {
+TEST_F(TypecheckV2Test, ParametricBindNested) {
   EXPECT_THAT(
       Typecheck(R"(
 fn p<N: u32>(x: (u32, u64)[N]) -> u32 { x[0].0 }
@@ -1370,7 +1329,7 @@ fn main() -> u32 {
                             "kind 'tuple'"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, ForBuiltinInBody) {
+TEST_F(TypecheckV2Test, ForBuiltinInBody) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f() -> u32 {
   for (i, accum): (u32, u32) in u32:0..u32:3 {
@@ -1379,7 +1338,7 @@ fn f() -> u32 {
 })"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ForNestedBindings) {
+TEST_F(TypecheckV2Test, ForNestedBindings) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f(x: u32) -> (u32, u8) {
   for (i, (x, y)): (u32, (u32, u8)) in u32:0..u32:3 {
@@ -1389,7 +1348,7 @@ fn f(x: u32) -> (u32, u8) {
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ForWithBadTypeTree) {
+TEST_F(TypecheckV2Test, ForWithBadTypeTree) {
   EXPECT_THAT(
       Typecheck(R"(
 fn f(x: u32) -> (u32, u8) {
@@ -1405,7 +1364,7 @@ fn f(x: u32) -> (u32, u8) {
                      HasTypeMismatchInV2(GetParam(), "(u32, u8)", "u8"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, ForWithBadTypeAnnotation) {
+TEST_F(TypecheckV2Test, ForWithBadTypeAnnotation) {
   EXPECT_THAT(
       Typecheck(R"(
 fn f(x: u32) -> (u32, u8) {
@@ -1419,7 +1378,7 @@ fn f(x: u32) -> (u32, u8) {
                                "for the accumulator."))));
 }
 
-TEST_P(TypecheckBothVersionsTest, ForWithWrongResultType) {
+TEST_F(TypecheckV2Test, ForWithWrongResultType) {
   EXPECT_THAT(
       Typecheck(R"(
 fn f(x: u32) -> (u32, u8) {
@@ -1435,7 +1394,7 @@ fn f(x: u32) -> (u32, u8) {
                      HasTypeMismatchInV2(GetParam(), "(u32, u8)", "u32"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, ForWithWrongNumberOfArguments) {
+TEST_F(TypecheckV2Test, ForWithWrongNumberOfArguments) {
   EXPECT_THAT(
       Typecheck(R"(
 fn f(x: u32) -> u32 {
@@ -1455,7 +1414,7 @@ fn f(x: u32) -> u32 {
                     "type for the iterable and a type for the accumulator."))));
 }
 
-TEST_P(TypecheckBothVersionsTest, ForWithIndexTypeTooSmallForRange) {
+TEST_F(TypecheckV2Test, ForWithIndexTypeTooSmallForRange) {
   EXPECT_THAT(
       Typecheck(R"(
 fn test() -> u4 {
@@ -1471,7 +1430,7 @@ fn test() -> u4 {
                      HasSizeMismatchInV2(GetParam(), "u4", "u32"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, UnrollForSimple) {
+TEST_F(TypecheckV2Test, UnrollForSimple) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn test() -> u32 {
   unroll_for!(i, acc): (u32, u32) in u32:0..u32:4 {
@@ -1480,7 +1439,7 @@ fn test() -> u32 {
 })"));
 }
 
-TEST_P(TypecheckBothVersionsTest, UnrollForNestedBindings) {
+TEST_F(TypecheckV2Test, UnrollForNestedBindings) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f(x: u32) -> (u32, u8) {
   unroll_for! (_, (x, y)): (u32, (u32, u8)) in u32:0..u32:3 {
@@ -1490,7 +1449,7 @@ fn f(x: u32) -> (u32, u8) {
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, UnrollForWithBadTypeTree) {
+TEST_F(TypecheckV2Test, UnrollForWithBadTypeTree) {
   EXPECT_THAT(
       Typecheck(R"(
 fn f(x: u32) -> (u32, u8) {
@@ -1506,7 +1465,7 @@ fn f(x: u32) -> (u32, u8) {
                      HasTypeMismatchInV2(GetParam(), "(u32, u8)", "u8"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, UnrollForWithBadTypeAnnotation) {
+TEST_F(TypecheckV2Test, UnrollForWithBadTypeAnnotation) {
   EXPECT_THAT(
       Typecheck(R"(
 fn f(x: u32) -> (u32, u8) {
@@ -1520,7 +1479,7 @@ fn f(x: u32) -> (u32, u8) {
                          "for the accumulator.")));
 }
 
-TEST_P(TypecheckBothVersionsTest, UnrollForWithoutIndexAccTypeAnnotation) {
+TEST_F(TypecheckV2Test, UnrollForWithoutIndexAccTypeAnnotation) {
   XLS_EXPECT_OK(Typecheck(R"(
 proc SomeProc {
   init { () }
@@ -1533,7 +1492,7 @@ proc SomeProc {
 })"));
 }
 
-TEST_P(TypecheckBothVersionsTest, UnrollForWithWrongResultType) {
+TEST_F(TypecheckV2Test, UnrollForWithWrongResultType) {
   EXPECT_THAT(
       Typecheck(R"(
 fn f(x: u32) -> (u32, u8) {
@@ -1549,7 +1508,7 @@ fn f(x: u32) -> (u32, u8) {
                      HasTypeMismatchInV2(GetParam(), "(u32, u8)", "u32"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, UnrollForWithWrongNumberOfArguments) {
+TEST_F(TypecheckV2Test, UnrollForWithWrongNumberOfArguments) {
   EXPECT_THAT(
       Typecheck(R"(
 fn test() -> u32 {
@@ -1571,7 +1530,7 @@ fn test() -> u32 {
                     "type for the iterable and a type for the accumulator."))));
 }
 
-TEST_P(TypecheckBothVersionsTest, UnrollForWithIndexTypeTooSmallForRange) {
+TEST_F(TypecheckV2Test, UnrollForWithIndexTypeTooSmallForRange) {
   EXPECT_THAT(
       Typecheck(R"(
 fn test() -> u4 {
@@ -1588,7 +1547,7 @@ fn test() -> u4 {
 }
 
 // https://github.com/google/xls/issues/1717
-TEST(TypecheckTest, UnrollForWithInvocationInTypeAlias) {
+TEST_F(TypecheckV2Test, UnrollForWithInvocationInTypeAlias) {
   XLS_EXPECT_OK(Typecheck(R"(
 import std;
 type A = bits[std::clog2(u32:256)];
@@ -1601,7 +1560,7 @@ fn muladd(a: u8, b: u8, c: u8) -> u8 {
 })"));
 }
 
-TEST_P(TypecheckBothVersionsTest, DerivedParametricStruct) {
+TEST_F(TypecheckV2Test, DerivedParametricStruct) {
   XLS_EXPECT_OK(Typecheck(R"(
 struct StructFoo<A: u32, B: u32 = {u32:32}, C:u32 = {B / u32:2}> {
   a: uN[A],
@@ -1616,18 +1575,18 @@ fn Foo() {
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ZeroMacroSpecified) {
+TEST_F(TypecheckV2Test, ZeroMacroSpecified) {
   XLS_EXPECT_OK(Typecheck("const Y = zero!<u10>();"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ZeroMacroFromParametric) {
+TEST_F(TypecheckV2Test, ZeroMacroFromParametric) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f<N:u32>() -> uN[N] { zero!<uN[N]>() }
 const Y = f<u32:10>();
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ZeroMacroFromParametricError) {
+TEST_F(TypecheckV2Test, ZeroMacroFromParametricError) {
   constexpr std::string_view kProgram = R"(
 fn f<N:u32>() -> uN[N] { zero!<N>() }
 const Y = f<u32:10>();
@@ -1643,7 +1602,7 @@ const Y = f<u32:10>();
                   "Expected a type argument in `zero!<N>()`; saw `N`"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, ZeroMacroFromStructConstError) {
+TEST_F(TypecheckV2Test, ZeroMacroFromStructConstError) {
   constexpr std::string_view kProgram = R"(
 struct S{}
 impl S { const X = u32:10; }
@@ -1660,7 +1619,7 @@ const Y = zero!<S::X>();
                   "Expected a type argument in `zero!<S::X>()`; saw `S::X`"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, ZeroMacroImportedType) {
+TEST_F(TypecheckV2Test, ZeroMacroImportedType) {
   constexpr std::string_view kImported = R"(
 pub type foo_t = u32;
 )";
@@ -1673,7 +1632,7 @@ const Y = zero!<imported::foo_t>();
   XLS_ASSERT_OK(Typecheck(kProgram, "main", &import_data));
 }
 
-TEST_P(TypecheckBothVersionsTest, DerivedParametricStructUsingNonDefault) {
+TEST_F(TypecheckV2Test, DerivedParametricStructUsingNonDefault) {
   XLS_EXPECT_OK(Typecheck(R"(
 struct StructFoo<A: u32, B:u32 = {A * u32:2}> {
   x: uN[B],
@@ -1685,7 +1644,7 @@ fn Foo() {
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, DerivedParametricStructValueMissing) {
+TEST_F(TypecheckV2Test, DerivedParametricStructValueMissing) {
   EXPECT_THAT(
       Typecheck(R"(
 struct StructFoo<A: u32, B: u32, C:u32 = {B * u32:2}> {
@@ -1705,7 +1664,7 @@ fn Foo() {
                   "No parametric value provided for `B` in `StructFoo`"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, DerivedParametricStructNoParametrics) {
+TEST_F(TypecheckV2Test, DerivedParametricStructNoParametrics) {
   XLS_EXPECT_OK(Typecheck(R"(
 struct StructFoo<A: u32> {
   x: uN[A],
@@ -1719,8 +1678,7 @@ fn extract_field() -> u16 {
 }
 
 // See https://github.com/google/xls/issues/1615
-TEST_P(TypecheckBothVersionsTest,
-       ParametricStructWithWrongOrderParametricValues) {
+TEST_F(TypecheckV2Test, ParametricStructWithWrongOrderParametricValues) {
   EXPECT_THAT(
       Typecheck(R"(
 struct StructFoo<A: u32, B: u32> {
@@ -1746,7 +1704,7 @@ fn test() -> StructFoo<u32:32, u32:33> {
                                    "struct `StructFoo`: u32:33 vs. u32:32"))));
 }
 
-TEST_P(TypecheckBothVersionsTest,
+TEST_F(TypecheckV2Test,
        ParametricStructWithCorrectReverseOrderParametricValues) {
   XLS_EXPECT_OK(Typecheck(R"(
 struct StructFoo<A: u32, B: u32> {
@@ -1765,7 +1723,7 @@ fn test() -> StructFoo<u32:33, u32:32> {
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, DerivedExprTypeMismatch) {
+TEST_F(TypecheckV2Test, DerivedExprTypeMismatch) {
   EXPECT_THAT(
       Typecheck(R"(
 fn p<X: u32, Y: bits[4] = {X+X}>(x: bits[X]) -> bits[X] { x }
@@ -1779,7 +1737,7 @@ fn f() -> u32 { p(u32:3) }
                 HasSizeMismatchInV2(GetParam(), "uN[32]", "uN[4]"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricExpressionInBitsReturnType) {
+TEST_F(TypecheckV2Test, ParametricExpressionInBitsReturnType) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn parametric<X: u32>() -> bits[X * u32:4] {
   type Ret = bits[X * u32:4];
@@ -1789,14 +1747,14 @@ fn main() -> bits[4] { parametric<u32:1>() }
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricInstantiationVsArgOk) {
+TEST_F(TypecheckV2Test, ParametricInstantiationVsArgOk) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn parametric<X: u32 = {u32:5}> (x: bits[X]) -> bits[X] { x }
 fn main() -> bits[5] { parametric(u5:1) }
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricInstantiationVsArgError) {
+TEST_F(TypecheckV2Test, ParametricInstantiationVsArgError) {
   EXPECT_THAT(
       Typecheck(R"(
 fn foo<X: u32 = {u32:5}>(x: bits[X]) -> bits[X] { x }
@@ -1810,14 +1768,14 @@ fn bar() -> bits[10] { foo(u5:1) + foo(u10: 1) }
                      HasTypeMismatchInV2(GetParam(), "bits[5]", "bits[10]"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricInstantiationVsBodyOk) {
+TEST_F(TypecheckV2Test, ParametricInstantiationVsBodyOk) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn parametric<X: u32 = {u32:5}>() -> bits[5] { bits[X]:1 + bits[5]:1 }
 fn main() -> bits[5] { parametric() }
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricInstantiationVsBodyError) {
+TEST_F(TypecheckV2Test, ParametricInstantiationVsBodyError) {
   EXPECT_THAT(
       Typecheck(R"(
 fn foo<X: u32 = {u32:5}>() -> bits[10] { bits[X]:1 + bits[10]:1 }
@@ -1830,14 +1788,14 @@ fn bar() -> bits[10] { foo() }
                      HasSizeMismatchInV2(GetParam(), "uN[5]", "uN[10]"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricInstantiationVsReturnOk) {
+TEST_F(TypecheckV2Test, ParametricInstantiationVsReturnOk) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn parametric<X: u32 = {u32: 5}>() -> bits[5] { bits[X]: 1 }
 fn main() -> bits[5] { parametric() }
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricInstantiationVsReturnError) {
+TEST_F(TypecheckV2Test, ParametricInstantiationVsReturnError) {
   EXPECT_THAT(
       Typecheck(R"(
 fn foo<X: u32 = {u32: 5}>() -> bits[10] { bits[X]: 1 }
@@ -1851,7 +1809,7 @@ fn bar() -> bits[10] { foo() }
                 HasSizeMismatchInV2(GetParam(), "uN[5]", "uN[10]"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricIndirectInstantiationVsArgOk) {
+TEST_F(TypecheckV2Test, ParametricIndirectInstantiationVsArgOk) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn foo<X: u32>(x1: bits[X], x2: bits[X]) -> bits[X] { x1 + x2 }
 fn fazz<Y: u32>(y: bits[Y]) -> bits[Y] { foo(y, y + bits[Y]: 1) }
@@ -1859,7 +1817,7 @@ fn bar() -> bits[10] { fazz(u10: 1) }
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricInstantiationVsArgError2) {
+TEST_F(TypecheckV2Test, ParametricInstantiationVsArgError2) {
   EXPECT_THAT(
       Typecheck(R"(
 fn foo<X: u32>(x1: bits[X], x2: bits[X]) -> bits[X] { x1 + x2 }
@@ -1873,7 +1831,7 @@ fn bar() -> bits[10] { fazz(u10: 1) }
                      HasSizeMismatchInV2(GetParam(), "uN[10]", "uN[20]"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricIndirectInstantiationVsBodyOk) {
+TEST_F(TypecheckV2Test, ParametricIndirectInstantiationVsBodyOk) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn foo<X: u32, R: u32 = {X + X}>(x: bits[X]) -> bits[R] {
   let a = bits[R]: 5;
@@ -1884,7 +1842,7 @@ fn bar() -> bits[10] { fazz(u5:1) }
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricIndirectInstantiationVsBodyError) {
+TEST_F(TypecheckV2Test, ParametricIndirectInstantiationVsBodyError) {
   EXPECT_THAT(
       Typecheck(R"(
 fn foo<X: u32, D: u32 = {X + X}>(x: bits[X]) -> bits[X] {
@@ -1900,7 +1858,7 @@ fn bar() -> bits[5] { fazz(u5:1) })"),
                      HasSizeMismatchInV2(GetParam(), "uN[10]", "uN[5]"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricIndirectInstantiationVsReturnOk) {
+TEST_F(TypecheckV2Test, ParametricIndirectInstantiationVsReturnOk) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn foo<X: u32, R: u32 = {X + X}>(x: bits[X]) -> bits[R] { x++x }
 fn fazz<Y: u32, T: u32 = {Y + Y}>(y: bits[Y]) -> bits[T] { foo(y) }
@@ -1908,8 +1866,7 @@ fn bar() -> bits[10] { fazz(u5:1) }
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest,
-       ParametricIndirectInstantiationVsReturnError) {
+TEST_F(TypecheckV2Test, ParametricIndirectInstantiationVsReturnError) {
   EXPECT_THAT(
       Typecheck(R"(
 fn foo<X: u32, R: u32 = {X + X}>(x: bits[X]) -> bits[R] { x * x }
@@ -1924,14 +1881,14 @@ fn bar() -> bits[10] { fazz(u5:1) }
                 HasSizeMismatchInV2(GetParam(), "uN[5]", "uN[10]"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricDerivedInstantiationVsArgOk) {
+TEST_F(TypecheckV2Test, ParametricDerivedInstantiationVsArgOk) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn foo<X: u32, Y: u32 = {X + X}>(x: bits[X], y: bits[Y]) -> bits[X] { x }
 fn bar() -> bits[5] { foo(u5:1, u10: 2) }
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricDerivedInstantiationVsArgError) {
+TEST_F(TypecheckV2Test, ParametricDerivedInstantiationVsArgError) {
   EXPECT_THAT(
       Typecheck(R"(
 fn foo<X: u32, Y: u32 = {X + X}>(x: bits[X], y: bits[Y]) -> bits[X] { x }
@@ -1946,7 +1903,7 @@ fn bar() -> bits[5] { foo(u5:1, u11: 2) }
                 HasSizeMismatchInV2(GetParam(), "bits[10]", "u11"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricDerivedInstantiationVsBodyOk) {
+TEST_F(TypecheckV2Test, ParametricDerivedInstantiationVsBodyOk) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn foo<W: u32, Z: u32 = {W + W}>(w: bits[W]) -> bits[1] {
     let val: bits[Z] = w++w + bits[Z]: 5;
@@ -1956,7 +1913,7 @@ fn bar() -> bits[1] { foo(u5: 5) + foo(u10: 10) }
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricDerivedInstantiationVsBodyError) {
+TEST_F(TypecheckV2Test, ParametricDerivedInstantiationVsBodyError) {
   EXPECT_THAT(Typecheck(R"(
 fn foo<W: u32, Z: u32 = {W + W}>(w: bits[W]) -> bits[1] {
   let val: bits[Z] = w + w;
@@ -1968,7 +1925,7 @@ fn bar() -> bits[1] { foo(u5:5) }
                        HasSizeMismatch("uN[10]", "uN[5]")));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricDerivedInstantiationVsReturnOk) {
+TEST_F(TypecheckV2Test, ParametricDerivedInstantiationVsReturnOk) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn double<X: u32, Y: u32 = {X + X}> (x: bits[X]) -> bits[Y] { x++x }
 fn foo<W: u32, Z: u32 = {W + W}> (w: bits[W]) -> bits[Z] { double(w) }
@@ -1976,7 +1933,7 @@ fn bar() -> bits[10] { foo(u5:1) }
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricDerivedInstantiationVsReturnError) {
+TEST_F(TypecheckV2Test, ParametricDerivedInstantiationVsReturnError) {
   EXPECT_THAT(
       Typecheck(R"(
 fn double<X: u32, Y: u32 = {X + X}>(x: bits[X]) -> bits[Y] { x + x }
@@ -1991,7 +1948,7 @@ fn bar() -> bits[10] { foo(u5:1) }
                 HasSizeMismatchInV2(GetParam(), "uN[5]", "uN[10]"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricDerivedInstantiationViaFnCall) {
+TEST_F(TypecheckV2Test, ParametricDerivedInstantiationViaFnCall) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn double(n: u32) -> u32 { n * u32: 2 }
 fn foo<W: u32, Z: u32 = {double(W)}>(w: bits[W]) -> bits[Z] { w++w }
@@ -1999,7 +1956,7 @@ fn bar() -> bits[10] { foo(u5:1) }
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricFnNotAlwaysPolymorphic) {
+TEST_F(TypecheckV2Test, ParametricFnNotAlwaysPolymorphic) {
   EXPECT_THAT(
       Typecheck(R"(
 fn foo<X: u32>(x: bits[X]) -> u1 {
@@ -2017,7 +1974,7 @@ fn bar() -> bits[1] {
                      HasTypeMismatchInV2(GetParam(), "uN[5]", "uN[10]"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricWidthSliceStartError) {
+TEST_F(TypecheckV2Test, ParametricWidthSliceStartError) {
   EXPECT_THAT(
       Typecheck(R"(
 fn make_u1<N: u32>(x: bits[N]) -> u1 {
@@ -2035,7 +1992,7 @@ fn bar() -> bits[1] {
                               "large for slicing an array of size 2"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, NonParametricCallInParametricExpr) {
+TEST_F(TypecheckV2Test, NonParametricCallInParametricExpr) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn id(x: u32) -> u32 { x }
 fn p<X: u32, Y: u32 = {id(X)}>() -> u32 { Y }
@@ -2043,7 +2000,7 @@ fn main() -> u32 { p<u32:42>() }
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricCallInParametricExpr) {
+TEST_F(TypecheckV2Test, ParametricCallInParametricExpr) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn pid<N: u32>(x: bits[N]) -> bits[N] { x }
 fn p<X: u32, Y: u32 = {pid(X)}>() -> u32 { Y }
@@ -2051,7 +2008,7 @@ fn main() -> u32 { p<u32:42>() }
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricCallWithDeducedValuesFromArgs) {
+TEST_F(TypecheckV2Test, ParametricCallWithDeducedValuesFromArgs) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn umax<N: u32>(x: uN[N], y: uN[N]) -> uN[N] { if x > y { x } else { y } }
 
@@ -2066,7 +2023,7 @@ fn uadd_test() {
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, BitSliceOnParametricWidth) {
+TEST_F(TypecheckV2Test, BitSliceOnParametricWidth) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn get_middle_bits<N: u32, R: u32 = {N - u32:2}>(x: bits[N]) -> bits[R] {
   x[1:-1]
@@ -2080,7 +2037,7 @@ fn caller() {
 )"));
 }
 
-TEST(TypecheckErrorTest, WidthSliceWithANonType) {
+TEST_F(TypecheckV2Test, WidthSliceWithANonType) {
   EXPECT_THAT(
       Typecheck(R"(import float32;
 
@@ -2089,14 +2046,12 @@ fn f(x: u32) -> u2 {
 }
 )"),
       StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr(
-                   "Expected type-reference to refer to a type definition, but "
-                   "this did not resolve to a type; instead got: `uN[32]`")));
+               HasSubstr("Expected a type, got `float32::F32_EXP_SZ`.")));
 }
 
 // This test adds a literal u5 to a parametric-typed number -- which only works
 // when that parametric-type number is also coincidentally a u5.
-TEST_P(TypecheckBothVersionsTest, ParametricMapNonPolymorphic) {
+TEST_F(TypecheckV2Test, ParametricMapNonPolymorphic) {
   EXPECT_THAT(Typecheck(R"(
 fn add_one<N: u32>(x: bits[N]) -> bits[N] { x + u5:1 }
 
@@ -2110,7 +2065,7 @@ fn main() {
                        HasTypeMismatch("uN[6]", "uN[5]")));
 }
 
-TEST_P(TypecheckBothVersionsTest, LetBindingInferredDoesNotMatchAnnotation) {
+TEST_F(TypecheckV2Test, LetBindingInferredDoesNotMatchAnnotation) {
   EXPECT_THAT(
       Typecheck(R"(
 fn f() -> u32 {
@@ -2125,7 +2080,7 @@ fn f() -> u32 {
                      HasSizeMismatchInV2(GetParam(), "bits[4]", "u32"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, CoverBuiltinWrongArgc) {
+TEST_F(TypecheckV2Test, CoverBuiltinWrongArgc) {
   EXPECT_THAT(
       Typecheck(R"(
 fn f() -> () {
@@ -2140,7 +2095,7 @@ fn f() -> () {
               HasSubstrInV2(GetParam(), "Expected 2 argument(s) but got 0."))));
 }
 
-TEST_P(TypecheckBothVersionsTest, MapBuiltinWrongArgc0) {
+TEST_F(TypecheckV2Test, MapBuiltinWrongArgc0) {
   EXPECT_THAT(
       Typecheck(R"(
 fn f() {
@@ -2155,7 +2110,7 @@ fn f() {
                                    "Expected 2 argument(s) but got 0"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, MapBuiltinWrongArgc1) {
+TEST_F(TypecheckV2Test, MapBuiltinWrongArgc1) {
   EXPECT_THAT(
       Typecheck(R"(
 fn f(x: u32[3]) -> u32[3] {
@@ -2170,7 +2125,7 @@ fn f(x: u32[3]) -> u32[3] {
                                    "Expected 2 argument(s) but got 1"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, UpdateBuiltin) {
+TEST_F(TypecheckV2Test, UpdateBuiltin) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f() -> u32[3] {
   let x: u32[3] = u32[3]:[0, 1, 2];
@@ -2179,7 +2134,7 @@ fn f() -> u32[3] {
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, UpdateBuiltin2D) {
+TEST_F(TypecheckV2Test, UpdateBuiltin2D) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f() -> u32[2][3] {
   let x: u32[2][3] = u32[2][3]:[[u32:0,u32:1], [u32:2,u32:3], [u32:3,u32:4]];
@@ -2188,7 +2143,7 @@ fn f() -> u32[2][3] {
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, UpdateBuiltinNotAnIndex) {
+TEST_F(TypecheckV2Test, UpdateBuiltinNotAnIndex) {
   EXPECT_THAT(
       Typecheck(R"(
 fn f() -> u32[2][3] {
@@ -2205,7 +2160,7 @@ fn f() -> u32[2][3] {
                                    "got `uN[32][2]`"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, UpdateBuiltinIndexTupleHasSigned) {
+TEST_F(TypecheckV2Test, UpdateBuiltinIndexTupleHasSigned) {
   EXPECT_THAT(
       Typecheck(R"(
 fn f() -> u32[2][3] {
@@ -2223,7 +2178,7 @@ fn f() -> u32[2][3] {
                     "`update` index type must be unsigned; got `sN[32]`"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, UpdateBuiltinOutOfDimensions) {
+TEST_F(TypecheckV2Test, UpdateBuiltinOutOfDimensions) {
   EXPECT_THAT(
       Typecheck(R"(
 fn f() -> u32[2][3] {
@@ -2242,7 +2197,7 @@ fn f() -> u32[2][3] {
                             "than the number of indices (3); got 2"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, UpdateBuiltinTypeMismatch) {
+TEST_F(TypecheckV2Test, UpdateBuiltinTypeMismatch) {
   EXPECT_THAT(
       Typecheck(R"(
 fn f() -> u32[2][3] {
@@ -2257,7 +2212,7 @@ fn f() -> u32[2][3] {
                 HasSizeMismatchInV2(GetParam(), "uN[32]", "uN[8]"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, UpdateBuiltinEmptyIndex) {
+TEST_F(TypecheckV2Test, UpdateBuiltinEmptyIndex) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f() -> u32[2][3] {
   let x: u32[2][3] = u32[2][3]:[[u32:0,u32:1], [u32:2,u32:3], [u32:3,u32:4]];
@@ -2266,7 +2221,7 @@ fn f() -> u32[2][3] {
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, SliceBuiltin) {
+TEST_F(TypecheckV2Test, SliceBuiltin) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f() -> u32[3] {
   let x: u32[2] = u32[2]:[0, 1];
@@ -2275,7 +2230,7 @@ fn f() -> u32[3] {
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, EnumerateBuiltin) {
+TEST_F(TypecheckV2Test, EnumerateBuiltin) {
   XLS_EXPECT_OK(Typecheck(R"(
 type MyTup = (u32, u2);
 fn f(x: u2[7]) -> MyTup[7] {
@@ -2284,7 +2239,7 @@ fn f(x: u2[7]) -> MyTup[7] {
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, TernaryEmptyBlocks) {
+TEST_F(TypecheckV2Test, TernaryEmptyBlocks) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f(p: bool) -> () {
   if p { } else { }
@@ -2292,7 +2247,7 @@ fn f(p: bool) -> () {
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, TernaryNonBoolean) {
+TEST_F(TypecheckV2Test, TernaryNonBoolean) {
   EXPECT_THAT(
       Typecheck(R"(
 fn f(x: u32) -> u32 {
@@ -2307,7 +2262,7 @@ fn f(x: u32) -> u32 {
                 HasSizeMismatchInV2(GetParam(), "u32", "bool"))));
 }
 
-TEST(TypecheckTest, SizeofImportedType) {
+TEST_F(TypecheckV2Test, SizeofImportedType) {
   constexpr std::string_view kImported = R"(
 pub type foo_t = u32;
 )";
@@ -2328,7 +2283,7 @@ fn main() -> u32 {
                HasSubstr("Cannot pass a type as a function argument.")));
 }
 
-TEST(TypecheckTest, InvalidParametricTypeConstantArrayContents) {
+TEST_F(TypecheckV2Test, InvalidParametricTypeConstantArrayContents) {
   constexpr std::string_view kImported = R"(
 pub struct MyStruct<A: u32, B: u32> {
   a: bits[A],
@@ -2358,7 +2313,7 @@ const MY_ARRAY = imported::MyStruct<u32:4, u32:8>[2]:[
       << result.status();
 }
 
-TEST_P(TypecheckBothVersionsTest, ArraySizeOfBitsType) {
+TEST_F(TypecheckV2Test, ArraySizeOfBitsType) {
   EXPECT_THAT(
       Typecheck(R"(
 fn f(x: u32) -> u32 { array_size(x) }
@@ -2375,26 +2330,26 @@ fn f(x: u32) -> u32 { array_size(x) }
 // TODO: this test fails in v2: TypeInferenceError:
 // type mismatch: MyStruct[5] at fake.x:5:9-5:20 vs. Any[N] at
 // fake.x:19:35-19:39
-TEST(TypecheckTest, ArraySizeOfStructs) {
+TEST_F(TypecheckV2Test, ArraySizeOfStructs) {
   XLS_EXPECT_OK(Typecheck(R"(
 struct MyStruct {}
 fn f(x: MyStruct[5]) -> u32 { array_size(x) }
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ArraySizeOfNil) {
+TEST_F(TypecheckV2Test, ArraySizeOfNil) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f(x: ()[5]) -> u32 { array_size(x) }
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ArraySizeOfTupleArray) {
+TEST_F(TypecheckV2Test, ArraySizeOfTupleArray) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f(x: (u32, u64)[5]) -> u32 { array_size(x) }
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, BitSliceUpdateBuiltIn) {
+TEST_F(TypecheckV2Test, BitSliceUpdateBuiltIn) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f(x: u32, y: u17, z: u15) -> u32 {
   bit_slice_update(x, y, z)
@@ -2402,7 +2357,7 @@ fn f(x: u32, y: u17, z: u15) -> u32 {
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, UpdateIncompatibleValue) {
+TEST_F(TypecheckV2Test, UpdateIncompatibleValue) {
   EXPECT_THAT(
       Typecheck(R"(
 fn f(x: u32[5]) -> u32[5] {
@@ -2415,7 +2370,7 @@ fn f(x: u32[5]) -> u32[5] {
                      HasSizeMismatchInV2(GetParam(), "uN[32]", "uN[8]"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, MissingAnnotation) {
+TEST_F(TypecheckV2Test, MissingAnnotation) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f() -> u32 {
   let x = u32:2;
@@ -2424,7 +2379,7 @@ fn f() -> u32 {
 )"));
 }
 
-TEST(TypecheckTest, Index) {
+TEST_F(TypecheckV2Test, Index) {
   // Indexing a 4-element bit-constructed array with a constant index.
   XLS_EXPECT_OK(Typecheck("fn f(x: uN[32][4]) -> u32 { x[u32:0] }"));
 
@@ -2432,27 +2387,29 @@ TEST(TypecheckTest, Index) {
   XLS_EXPECT_OK(Typecheck("fn f(x: u32[5], i: u8) -> u32 { x[i] }"));
 
   // Indexing a bit value is not allowed, only arrays.
-  EXPECT_THAT(
-      Typecheck("fn f(x: u32, i: u8) -> u32 { x[i] }"),
-      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("not an array")));
+  EXPECT_THAT(Typecheck("fn f(x: u32, i: u8) -> u32 { x[i] }"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Bits-like value cannot be indexed, value to "
+                                 "index is not an array.")));
 
   // Indexing a parametric-signedness bit value is not allowed.
-  EXPECT_THAT(
-      Typecheck("fn f(x: xN[false][5], i: u8) -> u1 { x[i] }"),
-      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("not an array")));
+  // TODO: Fix this bad error message.
+  EXPECT_THAT(Typecheck("fn f(x: xN[false][5], i: u8) -> u1 { x[i] }"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("`xN` requires a specified bit count")));
 
   // Cannot use an array as an index.
   EXPECT_THAT(Typecheck("fn f(x: u32[5], i: u8[5]) -> u32 { x[i] }"),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Index is not bits typed")));
+                       HasTypeMismatch("u8[5]", "u32")));
 
   // Cannot use a signed number as an index.
   EXPECT_THAT(Typecheck("fn f(x: u32[5], i: s8) -> u32 { x[i] }"),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Index is not unsigned-bits typed")));
+                       HasSignednessMismatch("s8", "u32")));
 }
 
-TEST_P(TypecheckBothVersionsTest, OutOfRangeNumber) {
+TEST_F(TypecheckV2Test, OutOfRangeNumber) {
   XLS_EXPECT_OK(Typecheck("fn f() -> u8 { u8:255 }"));
   XLS_EXPECT_OK(Typecheck("fn f() -> s8 { s8:-1 }"));
   EXPECT_THAT(
@@ -2467,7 +2424,7 @@ TEST_P(TypecheckBothVersionsTest, OutOfRangeNumber) {
           HasSubstr("Value '256' does not fit in the bitwidth of a sN[8]")));
 }
 
-TEST_P(TypecheckBothVersionsTest, OutOfRangeNumberInConstantArray) {
+TEST_F(TypecheckV2Test, OutOfRangeNumberInConstantArray) {
   EXPECT_THAT(
       Typecheck("fn f() -> u8[3] { u8[3]:[1, 2, 256] }"),
       StatusIs(absl::StatusCode::kInvalidArgument,
@@ -2477,7 +2434,7 @@ TEST_P(TypecheckBothVersionsTest, OutOfRangeNumberInConstantArray) {
                      HasSizeMismatchInV2(GetParam(), "u9", "u8"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, BadTypeForConstantArrayOfNumbers) {
+TEST_F(TypecheckV2Test, BadTypeForConstantArrayOfNumbers) {
   EXPECT_THAT(
       Typecheck("const A = u8[3][4]:[1, 2, 3, 4];"),
       StatusIs(
@@ -2488,7 +2445,7 @@ TEST_P(TypecheckBothVersionsTest, BadTypeForConstantArrayOfNumbers) {
                 HasTypeMismatchInV2(GetParam(), "u8[3]", "uN[1]"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, ConstantArrayEmptyMembersWrongCountVsDecl) {
+TEST_F(TypecheckV2Test, ConstantArrayEmptyMembersWrongCountVsDecl) {
   auto result = Typecheck("const MY_ARRAY = u32[1]:[];");
   EXPECT_THAT(
       result,
@@ -2499,7 +2456,7 @@ TEST_P(TypecheckBothVersionsTest, ConstantArrayEmptyMembersWrongCountVsDecl) {
                      HasTypeMismatchInV2(GetParam(), "u32[0]", "u32[1]"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, MatchNoArms) {
+TEST_F(TypecheckV2Test, MatchNoArms) {
   EXPECT_THAT(
       Typecheck("fn f(x: u8) -> u8 { let _ = match x {}; x }"),
       StatusIs(
@@ -2508,7 +2465,7 @@ TEST_P(TypecheckBothVersionsTest, MatchNoArms) {
                 HasSubstrInV2(GetParam(), "`match` expression has no arms"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, MatchArmMismatch) {
+TEST_F(TypecheckV2Test, MatchArmMismatch) {
   EXPECT_THAT(
       Typecheck("fn f(x: u8) -> u8 { match x { u8:0 => u8:3, _ => u3:3 } }"),
       StatusIs(absl::StatusCode::kInvalidArgument,
@@ -2517,7 +2474,7 @@ TEST_P(TypecheckBothVersionsTest, MatchArmMismatch) {
                      HasSizeMismatchInV2(GetParam(), "u3", "u8"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, MatchOnParametricFunction) {
+TEST_F(TypecheckV2Test, MatchOnParametricFunction) {
   EXPECT_THAT(
       Typecheck(R"(
 fn p<N: u32>() -> u32 {
@@ -2538,7 +2495,7 @@ const X: u32 = p<u32:42>();
                               "Attempting to concretize `Any` type"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, MatchWithFunctionInPattern) {
+TEST_F(TypecheckV2Test, MatchWithFunctionInPattern) {
   EXPECT_THAT(Typecheck(R"(
 fn p<N: u32>(x: bool) -> u32 {
   match x {
@@ -2557,7 +2514,7 @@ const X: u32 = p<u32:42>(false);
                                  "a parametric function not being invoked"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, MatchNonExhaustive) {
+TEST_F(TypecheckV2Test, MatchNonExhaustive) {
   absl::StatusOr<TypecheckResult> result = Typecheck(R"(
 fn f(x: u32) -> u32 {
     match x {
@@ -2570,7 +2527,7 @@ fn f(x: u32) -> u32 {
                                HasSubstr("Match patterns are not exhaustive")));
 }
 
-TEST_P(TypecheckBothVersionsTest, MatchWithOneNonExhaustivePattern) {
+TEST_F(TypecheckV2Test, MatchWithOneNonExhaustivePattern) {
   absl::StatusOr<TypecheckResult> result = Typecheck(R"(
 fn f(x: u32) -> u32 {
     match x {
@@ -2582,7 +2539,7 @@ fn f(x: u32) -> u32 {
                                HasSubstr("Match patterns are not exhaustive")));
 }
 
-TEST_P(TypecheckBothVersionsTest, ArrayInconsistency) {
+TEST_F(TypecheckV2Test, ArrayInconsistency) {
   EXPECT_THAT(
       Typecheck(R"(
 type Foo = (u8, u32);
@@ -2600,7 +2557,7 @@ fn f() -> Foo {
                               "type as other members."))));
 }
 
-TEST_P(TypecheckBothVersionsTest, MatchWithRange) {
+TEST_F(TypecheckV2Test, MatchWithRange) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f(x: u32) -> u32 {
   match x {
@@ -2614,7 +2571,7 @@ const_assert!(X == u32:1);
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, MatchWithRangeInclusive) {
+TEST_F(TypecheckV2Test, MatchWithRangeInclusive) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f(x: u32) -> u32 {
   match x {
@@ -2628,7 +2585,7 @@ const_assert!(X == u32:2);
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, MatchArmDuplicated) {
+TEST_F(TypecheckV2Test, MatchArmDuplicated) {
   EXPECT_THAT(
       Typecheck(R"(
 const X = u32:1;
@@ -2644,7 +2601,7 @@ const Z = match X {
                HasSubstr("Exact-duplicate pattern match detected `u32:1`")));
 }
 
-TEST_P(TypecheckBothVersionsTest, ArrayOfConsts) {
+TEST_F(TypecheckV2Test, ArrayOfConsts) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f() -> u4 {
   let a: u4 = u4:1;
@@ -2654,7 +2611,7 @@ fn f() -> u4 {
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, EnumIdentity) {
+TEST_F(TypecheckV2Test, EnumIdentity) {
   XLS_EXPECT_OK(Typecheck(R"(
 enum MyEnum : u1 {
   A = false,
@@ -2664,7 +2621,7 @@ fn f(x: MyEnum) -> MyEnum { x }
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ImplicitWidthEnum) {
+TEST_F(TypecheckV2Test, ImplicitWidthEnum) {
   XLS_EXPECT_OK(Typecheck(R"(
 enum MyEnum {
   A = false,
@@ -2673,7 +2630,7 @@ enum MyEnum {
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ImplicitWidthEnumFromConstexprs) {
+TEST_F(TypecheckV2Test, ImplicitWidthEnumFromConstexprs) {
   XLS_EXPECT_OK(Typecheck(R"(
 const X = u8:42;
 const Y = u8:64;
@@ -2684,8 +2641,7 @@ enum MyEnum {
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest,
-       ImplicitWidthEnumWithConstexprAndBareLiteral) {
+TEST_F(TypecheckV2Test, ImplicitWidthEnumWithConstexprAndBareLiteral) {
   XLS_EXPECT_OK(Typecheck(R"(
 const X = u8:42;
 enum MyEnum {
@@ -2697,7 +2653,7 @@ const EXTRACTED_A = MyEnum::A as u8;
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ImplicitWidthEnumFromConstexprsMismatch) {
+TEST_F(TypecheckV2Test, ImplicitWidthEnumFromConstexprsMismatch) {
   EXPECT_THAT(Typecheck(R"(
 const X = u7:42;
 const Y = u8:64;
@@ -2714,7 +2670,7 @@ enum MyEnum {
                              HasTypeMismatchInV2(GetParam(), "u7", "u8"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, ImplicitWidthEnumMismatch) {
+TEST_F(TypecheckV2Test, ImplicitWidthEnumMismatch) {
   EXPECT_THAT(
       Typecheck(R"(
 enum MyEnum {
@@ -2729,7 +2685,7 @@ enum MyEnum {
                      HasTypeMismatchInV2(GetParam(), "u1", "u2"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, ExplicitWidthEnumMismatch) {
+TEST_F(TypecheckV2Test, ExplicitWidthEnumMismatch) {
   EXPECT_THAT(
       Typecheck(R"(
 enum MyEnum : u2 {
@@ -2744,12 +2700,12 @@ enum MyEnum : u2 {
                      HasSizeMismatchInV2(GetParam(), "u1", "u2"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, ArrayEllipsis) {
+TEST_F(TypecheckV2Test, ArrayEllipsis) {
   XLS_EXPECT_OK(Typecheck("fn main() -> u8[2] { u8[2]:[0, ...] }"));
 }
 
 // See https://github.com/google/xls/issues/1587 #1
-TEST_P(TypecheckBothVersionsTest, ArrayEllipsisTypeSmallerThanElements) {
+TEST_F(TypecheckV2Test, ArrayEllipsisTypeSmallerThanElements) {
   auto result =
       Typecheck("fn main() -> u32[2] { u32[2]:[u32:0, u32:1, u32:0, ...] }");
   EXPECT_THAT(
@@ -2764,12 +2720,12 @@ TEST_P(TypecheckBothVersionsTest, ArrayEllipsisTypeSmallerThanElements) {
 }
 
 // See https://github.com/google/xls/issues/1587 #2
-TEST_P(TypecheckBothVersionsTest, ArrayEllipsisTypeEqElementCount) {
+TEST_F(TypecheckV2Test, ArrayEllipsisTypeEqElementCount) {
   XLS_EXPECT_OK(
       Typecheck("fn main() -> u32[2] { u32[2]:[u32:0, u32:1, ...] }"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ArrayEllipsisNoTrailingElement) {
+TEST_F(TypecheckV2Test, ArrayEllipsisNoTrailingElement) {
   EXPECT_THAT(
       Typecheck("fn main() -> u8[2] { u8[2]:[...] }"),
       StatusIs(absl::StatusCode::kInvalidArgument,
@@ -2782,7 +2738,7 @@ TEST_P(TypecheckBothVersionsTest, ArrayEllipsisNoTrailingElement) {
                                    "without an element to repeat."))));
 }
 
-TEST_P(TypecheckBothVersionsTest, ArrayEllipsisNoLeadingTypeAnnotation) {
+TEST_F(TypecheckV2Test, ArrayEllipsisNoLeadingTypeAnnotation) {
   constexpr std::string_view kProgram = R"(fn main() -> u8[2] {
     let x: u8[2] = [u8:0, ...];
     x
@@ -2802,7 +2758,7 @@ TEST_P(TypecheckBothVersionsTest, ArrayEllipsisNoLeadingTypeAnnotation) {
   }
 }
 
-TEST_P(TypecheckBothVersionsTest, BadArrayAddition) {
+TEST_F(TypecheckV2Test, BadArrayAddition) {
   EXPECT_THAT(Typecheck(R"(
 fn f(a: bits[32][4], b: bits[32][4]) -> bits[32][4] {
   a + b
@@ -2812,7 +2768,7 @@ fn f(a: bits[32][4], b: bits[32][4]) -> bits[32][4] {
                        HasSubstr("Binary operations can only be applied")));
 }
 
-TEST_P(TypecheckBothVersionsTest, OneHotBadPrioType) {
+TEST_F(TypecheckV2Test, OneHotBadPrioType) {
   EXPECT_THAT(
       Typecheck(R"(
 fn f(x: u7, prio: u2) -> u8 {
@@ -2827,7 +2783,7 @@ fn f(x: u7, prio: u2) -> u8 {
                 HasTypeMismatchInV2(GetParam(), "u1", "u2"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, OneHotSelOfSignedValues) {
+TEST_F(TypecheckV2Test, OneHotSelOfSignedValues) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f() -> s4 {
   let a: s4 = s4:1;
@@ -2838,7 +2794,7 @@ fn f() -> s4 {
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, OverlargeEnumValue) {
+TEST_F(TypecheckV2Test, OverlargeEnumValue) {
   EXPECT_THAT(
       Typecheck(R"(
 enum Foo : u1 {
@@ -2854,7 +2810,7 @@ enum Foo : u1 {
                      HasSizeMismatchInV2(GetParam(), "u1", "u2"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, CannotAddEnums) {
+TEST_F(TypecheckV2Test, CannotAddEnums) {
   EXPECT_THAT(Typecheck(R"(
 enum Foo : u2 {
   A = 0,
@@ -2873,7 +2829,7 @@ fn f() -> Foo {
                                            "applied to bits-typed operands"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, SlicesWithMismatchedTypes) {
+TEST_F(TypecheckV2Test, SlicesWithMismatchedTypes) {
   EXPECT_THAT(
       Typecheck("fn f(x: u8) -> u8 { x[s4:0 : s5:1] }"),
       StatusIs(absl::StatusCode::kInvalidArgument,
@@ -2882,16 +2838,15 @@ TEST_P(TypecheckBothVersionsTest, SlicesWithMismatchedTypes) {
                      HasSizeMismatchInV2(GetParam(), "s4", "s5"))));
 }
 
-TEST(TypecheckTest, SliceWithOutOfRangeLimit) {
-  EXPECT_THAT(Typecheck("fn f(x: uN[128]) -> uN[128] { x[s4:0 :] }"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Slice limit does not fit in index type")));
-  EXPECT_THAT(Typecheck("fn f(x: uN[8]) -> uN[8] { x[s3:0 :] }"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Slice limit does not fit in index type")));
+TEST_F(TypecheckV2Test, SliceWithOutOfRangeLimit) {
+  // Note: v1 did not like this because it took it to imply a limit of s4:128.
+  // v2 does not consider the start type annotation applicable to the limit
+  // value.
+  XLS_EXPECT_OK(Typecheck("fn f(x: uN[128]) -> uN[128] { x[s4:0 :] }"));
+  XLS_EXPECT_OK(Typecheck("fn f(x: uN[8]) -> uN[8] { x[s3:0 :] }"));
 }
 
-TEST_P(TypecheckBothVersionsTest, SliceWithNonS32LiteralBounds) {
+TEST_F(TypecheckV2Test, SliceWithNonS32LiteralBounds) {
   // overlarge value in start
   EXPECT_THAT(
       Typecheck("fn f(x: uN[128]) -> uN[128] { x[40000000000000000000:] }"),
@@ -2916,12 +2871,12 @@ TEST_P(TypecheckBothVersionsTest, SliceWithNonS32LiteralBounds) {
                                    "bits can be used here."))));
 }
 
-TEST_P(TypecheckBothVersionsTest, WidthSlices) {
+TEST_F(TypecheckV2Test, WidthSlices) {
   XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> bits[0] { x[0+:bits[0]] }"));
   XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> u1 { x[31+:u1] }"));
 }
 
-TEST_P(TypecheckBothVersionsTest, WidthSliceTypeTooLarge) {
+TEST_F(TypecheckV2Test, WidthSliceTypeTooLarge) {
   EXPECT_THAT(
       Typecheck("fn f(x: u32) -> u33 { x[0+:u33] }"),
       StatusIs(absl::StatusCode::kInvalidArgument,
@@ -2933,7 +2888,7 @@ TEST_P(TypecheckBothVersionsTest, WidthSliceTypeTooLarge) {
                          "Slice range out of bounds for array of size 32"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, WidthSliceOutOfRangeConsideringStartIndex) {
+TEST_F(TypecheckV2Test, WidthSliceOutOfRangeConsideringStartIndex) {
   XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
                            Typecheck("fn f(x: u32) -> u2 { x[32+:u2] }"));
   if (GetParam() == TypeInferenceVersion::kVersion2) {
@@ -2945,7 +2900,7 @@ TEST_P(TypecheckBothVersionsTest, WidthSliceOutOfRangeConsideringStartIndex) {
   }
 }
 
-TEST_P(TypecheckBothVersionsTest, WidthSliceNegativeStartNumberLiteral) {
+TEST_F(TypecheckV2Test, WidthSliceNegativeStartNumberLiteral) {
   EXPECT_THAT(
       Typecheck("fn f(x: u32) -> u1 { x[-1+:u1] }"),
       StatusIs(
@@ -2973,19 +2928,19 @@ TEST_P(TypecheckBothVersionsTest, WidthSliceNegativeStartNumberLiteral) {
                 HasSignednessMismatchInV2(GetParam(), "s2", "u32")))));
 }
 
-TEST_P(TypecheckBothVersionsTest, WidthSliceEmptyStartNumber) {
+TEST_F(TypecheckV2Test, WidthSliceEmptyStartNumber) {
   // Start literal is treated as unsigned.
   XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> u31 { x[:-1] }"));
   XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> u30 { x[:-2] }"));
   XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> u29 { x[:-3] }"));
 }
 
-TEST_P(TypecheckBothVersionsTest, WidthSliceUnsignedStart) {
+TEST_F(TypecheckV2Test, WidthSliceUnsignedStart) {
   // Unsigned start literals are ok.
   XLS_EXPECT_OK(Typecheck("fn f(start: u32, x: u32) -> u3 { x[start+:u3] }"));
 }
 
-TEST_P(TypecheckBothVersionsTest, WidthSliceSignedStart) {
+TEST_F(TypecheckV2Test, WidthSliceSignedStart) {
   // We reject signed start literals.
   EXPECT_THAT(
       Typecheck("fn f(start: s32, x: u32) -> u3 { x[start+:u3] }"),
@@ -2996,7 +2951,7 @@ TEST_P(TypecheckBothVersionsTest, WidthSliceSignedStart) {
                      HasSignednessMismatchInV2(GetParam(), "s32", "u32"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, WidthSliceTupleStart) {
+TEST_F(TypecheckV2Test, WidthSliceTupleStart) {
   EXPECT_THAT(
       Typecheck("fn f(start: (s32), x: u32) -> u3 { x[start+:u3] }"),
       StatusIs(
@@ -3009,7 +2964,7 @@ TEST_P(TypecheckBothVersionsTest, WidthSliceTupleStart) {
                     "Expected slice bound to be bits-typed; got `(s32,)`"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, WidthSliceTupleSubject) {
+TEST_F(TypecheckV2Test, WidthSliceTupleSubject) {
   EXPECT_THAT(
       Typecheck("fn f(start: s32, x: (u32)) -> u3 { x[start+:u3] }"),
       StatusIs(
@@ -3020,7 +2975,7 @@ TEST_P(TypecheckBothVersionsTest, WidthSliceTupleSubject) {
                             "Expected a bits-like type; got: `(u32,)`"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, BadAttributeAccessOnTuple) {
+TEST_F(TypecheckV2Test, BadAttributeAccessOnTuple) {
   EXPECT_THAT(
       Typecheck(R"(
 fn main() -> () {
@@ -3036,7 +2991,7 @@ fn main() -> () {
                                    "type: `(u32,)`"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, BadAttributeAccessOnBits) {
+TEST_F(TypecheckV2Test, BadAttributeAccessOnBits) {
   EXPECT_THAT(
       Typecheck(R"(
 fn main() -> () {
@@ -3052,7 +3007,7 @@ fn main() -> () {
                          "Builtin type 'u32' does not have attribute 'a'"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, BadArrayLiteralType) {
+TEST_F(TypecheckV2Test, BadArrayLiteralType) {
   EXPECT_THAT(
       Typecheck("const X = s32:[1, 2];"),
       StatusIs(
@@ -3062,7 +3017,7 @@ TEST_P(TypecheckBothVersionsTest, BadArrayLiteralType) {
                 HasTypeMismatchInV2(GetParam(), "s32", "s32[2]"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, CharLiteralArray) {
+TEST_F(TypecheckV2Test, CharLiteralArray) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn main() -> u8[3] {
   u8[3]:['X', 'L', 'S']
@@ -3070,19 +3025,18 @@ fn main() -> u8[3] {
 )"));
 }
 
-TEST(TypecheckTest, BadEnumRef) {
-  EXPECT_THAT(
-      Typecheck(R"(
+TEST_F(TypecheckV2Test, BadEnumRef) {
+  EXPECT_THAT(Typecheck(R"(
 enum MyEnum : u1 { A = 0, B = 1 }
 fn f() -> MyEnum { MyEnum::C }
 )"),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Name 'C' is not defined by the enum MyEnum")));
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("name `C` in `MyEnum::C` is undefined")));
 }
 
 // Nominal typing not structural, e.g. OtherPoint cannot be passed where we want
 // a Point, even though their members are the same.
-TEST_P(TypecheckBothVersionsTest, NominalTyping) {
+TEST_F(TypecheckV2Test, NominalTyping) {
   EXPECT_THAT(
       Typecheck(R"(
 struct Point { x: s8, y: u32 }
@@ -3101,7 +3055,7 @@ fn g() -> Point {
                 HasTypeMismatchInV2(GetParam(), "OtherPoint", "Point"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricWithConstantArrayEllipsis) {
+TEST_F(TypecheckV2Test, ParametricWithConstantArrayEllipsis) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn p<N: u32>(_: bits[N]) -> u8[2] { u8[2]:[0, ...] }
 fn main() -> u8[2] { p(false) }
@@ -3112,7 +3066,7 @@ fn main() -> u8[2] { p(false) }
 // * make a call to `q`, where we give it an explicit parametric value,
 // * by invoking `r` (which is also parametric),
 // * doing that from within a parametric function `p`.
-TEST_P(TypecheckBothVersionsTest, ExplicitParametricCallInParametricFn) {
+TEST_F(TypecheckV2Test, ExplicitParametricCallInParametricFn) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn r<R: u32>(x: bits[R]) -> bits[R] { x }
 fn q<Q: u32>(x: bits[Q]) -> bits[Q] { x }
@@ -3121,7 +3075,7 @@ fn main() -> u32 { p(u32:42) }
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, BadQuickcheckFunctionRet) {
+TEST_F(TypecheckV2Test, BadQuickcheckFunctionRet) {
   EXPECT_THAT(
       Typecheck(R"(
 #[quickcheck]
@@ -3133,7 +3087,7 @@ fn f() -> u5 { u5:1 }
 }
 
 // TODO: in v2 this fails with a CHECK error.
-TEST(TypecheckErrorTest, BadQuickcheckFunctionParametrics) {
+TEST_F(TypecheckV2Test, BadQuickcheckFunctionParametrics) {
   EXPECT_THAT(
       Typecheck(R"(
 #[quickcheck]
@@ -3143,7 +3097,7 @@ fn f<N: u32>() -> bool { true }
                HasSubstr("Quickchecking parametric functions is unsupported")));
 }
 
-TEST_P(TypecheckBothVersionsTest, NumbersAreConstexpr) {
+TEST_F(TypecheckV2Test, NumbersAreConstexpr) {
   // Visitor to check all nodes in the below program to determine if all numbers
   // are indeed constexpr.
   class IsConstVisitor : public AstNodeVisitorWithDefault {
@@ -3212,7 +3166,7 @@ fn main() {
   EXPECT_EQ(visitor.nonconstexpr_numbers_seen(), 0);
 }
 
-TEST_P(TypecheckBothVersionsTest, BasicTupleIndex) {
+TEST_F(TypecheckV2Test, BasicTupleIndex) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn main() -> u18 {
   (u32:7, u24:6, u18:5, u12:4, u8:3).2
@@ -3220,7 +3174,7 @@ fn main() -> u18 {
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, DuplicateRestOfTupleError) {
+TEST_F(TypecheckV2Test, DuplicateRestOfTupleError) {
   EXPECT_THAT(Typecheck(R"(
 fn main() {
   let (x, .., ..) = (u32:7, u24:6, u18:5, u12:4, u8:3);
@@ -3230,7 +3184,7 @@ fn main() {
                        HasSubstr("can only be used once")));
 }
 
-TEST_P(TypecheckBothVersionsTest, TupleCountMismatch) {
+TEST_F(TypecheckV2Test, TupleCountMismatch) {
   EXPECT_THAT(Typecheck(R"(
 fn main() {
   let (x, y) = (u32:7, u24:6, u18:5, u12:4, u8:3);
@@ -3240,7 +3194,7 @@ fn main() {
                        HasSubstr("a 5-element tuple to 2 values")));
 }
 
-TEST_P(TypecheckBothVersionsTest, RestOfTupleCountMismatch) {
+TEST_F(TypecheckV2Test, RestOfTupleCountMismatch) {
   EXPECT_THAT(Typecheck(R"(
 fn main() {
   let (x, .., y, z) = (u32:7, u8:3);
@@ -3250,7 +3204,7 @@ fn main() {
                        HasSubstr("a 2-element tuple to 3 values")));
 }
 
-TEST_P(TypecheckBothVersionsTest, RestOfTupleCountMismatchNested) {
+TEST_F(TypecheckV2Test, RestOfTupleCountMismatchNested) {
   EXPECT_THAT(Typecheck(R"(
 fn main() {
   let (x, .., (y, .., z)) = (u32:7, u8:3, (u12:4,));
@@ -3260,7 +3214,7 @@ fn main() {
                        HasSubstr("a 1-element tuple to 2 values")));
 }
 
-TEST_P(TypecheckBothVersionsTest, TupleAssignsTypes) {
+TEST_F(TypecheckV2Test, TupleAssignsTypes) {
   constexpr std::string_view kProgram = R"(
 fn main() {
   let (x, y): (u32, s8) = (u32:7, s8:3);
@@ -3269,7 +3223,7 @@ fn main() {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest, RestOfTupleSkipsMiddle) {
+TEST_F(TypecheckV2Test, RestOfTupleSkipsMiddle) {
   constexpr std::string_view kProgram = R"(
 fn main() {
   let (x, .., y) = (u32:7, u12:4, s8:3);
@@ -3279,7 +3233,7 @@ fn main() {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest, RestOfTupleSkipsNone) {
+TEST_F(TypecheckV2Test, RestOfTupleSkipsNone) {
   constexpr std::string_view kProgram = R"(
 fn main() {
   let (x, .., y) = (u32:7, s8:3);
@@ -3289,7 +3243,7 @@ fn main() {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest, RestOfTuplekSkipsNoneWithThree) {
+TEST_F(TypecheckV2Test, RestOfTuplekSkipsNoneWithThree) {
   constexpr std::string_view kProgram = R"(
 fn main() {
   let (x, y, .., z) = (u32:7, u12:4, s8:3);
@@ -3299,7 +3253,7 @@ fn main() {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest, RestOfTupleSkipsEnd) {
+TEST_F(TypecheckV2Test, RestOfTupleSkipsEnd) {
   constexpr std::string_view kProgram = R"(
 fn main() {
   let (x, y, ..) = (u32:7, s8:3, u12:4);
@@ -3309,7 +3263,7 @@ fn main() {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest, RestOfTupleSkipsManyAtEnd) {
+TEST_F(TypecheckV2Test, RestOfTupleSkipsManyAtEnd) {
   constexpr std::string_view kProgram = R"(
 fn main() {
   let (x, y, ..) = (u32:7, s8:3, u12:4, u32:0);
@@ -3319,7 +3273,7 @@ fn main() {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest, RestOfTupleSkipsManyInMiddle) {
+TEST_F(TypecheckV2Test, RestOfTupleSkipsManyInMiddle) {
   constexpr std::string_view kProgram = R"(
 fn main() {
   let (x, .., y) = (u32:7, u8:3, u12:4, s8:3);
@@ -3329,7 +3283,7 @@ fn main() {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest, RestOfTupleSkipsBeginning) {
+TEST_F(TypecheckV2Test, RestOfTupleSkipsBeginning) {
   constexpr std::string_view kProgram = R"(
 fn main() {
   let (.., x, y) = (u12:7, u8:3, u32:4, s8:3);
@@ -3339,7 +3293,7 @@ fn main() {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest, RestOfTupleSkipsManyAtBeginning) {
+TEST_F(TypecheckV2Test, RestOfTupleSkipsManyAtBeginning) {
   constexpr std::string_view kProgram = R"(
 fn main() {
   let (.., x) = (u8:3, u12:4, u32:7);
@@ -3349,7 +3303,7 @@ fn main() {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest, RestOfTupleNested) {
+TEST_F(TypecheckV2Test, RestOfTupleNested) {
   constexpr std::string_view kProgram = R"(
 fn main() {
   let (x, .., (.., y)) = (u32:7, u8:3, u18:5, (u12:4, u11:5, s8:3));
@@ -3359,7 +3313,7 @@ fn main() {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest, RestOfTupleNestedSingleton) {
+TEST_F(TypecheckV2Test, RestOfTupleNestedSingleton) {
   constexpr std::string_view kProgram = R"(
 fn main() {
   let (x, .., (y,)) = (u32:7, u8:3, (s8:3,));
@@ -3369,7 +3323,7 @@ fn main() {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest, RestOfTupleIsLikeWildcard) {
+TEST_F(TypecheckV2Test, RestOfTupleIsLikeWildcard) {
   constexpr std::string_view kProgram = R"(
 fn main() {
   let (x, .., (.., y)) = (u32:7, u18:5, (u12:4, s8:3));
@@ -3379,7 +3333,7 @@ fn main() {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest, RestOfTupleDeeplyNested) {
+TEST_F(TypecheckV2Test, RestOfTupleDeeplyNested) {
   constexpr std::string_view kProgram = R"(
 fn main() {
   let (x, y, .., ((.., z), .., d)) = (u32:7, u8:1,
@@ -3390,7 +3344,7 @@ fn main() {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest, RestOfTupleDeeplyNestedNonConstants) {
+TEST_F(TypecheckV2Test, RestOfTupleDeeplyNestedNonConstants) {
   constexpr std::string_view kProgram = R"(
 fn main() {
   // Initial values
@@ -3403,7 +3357,7 @@ fn main() {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest, BasicRange) {
+TEST_F(TypecheckV2Test, BasicRange) {
   constexpr std::string_view kProgram = R"(#[test]
 fn main() {
   let a = u32:0..u32:4;
@@ -3415,7 +3369,7 @@ fn main() {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest, RangeInclusive) {
+TEST_F(TypecheckV2Test, RangeInclusive) {
   constexpr std::string_view kProgram = R"(
 const a:u32[5] = u32:0..=u32:4;
 const_assert!(a == u32[5]:[0, 1, 2, 3, 4]);
@@ -3438,7 +3392,7 @@ struct Point {
              : TypecheckV2(program).status();
 }
 
-TEST_P(TypecheckBothVersionsTest, AccessMissingStructMember) {
+TEST_F(TypecheckV2Test, AccessMissingStructMember) {
   EXPECT_THAT(
       TypecheckStructInstance(GetParam(), "fn f(p: Point) -> () { p.z }"),
       StatusIs(absl::StatusCode::kInvalidArgument,
@@ -3449,7 +3403,7 @@ TEST_P(TypecheckBothVersionsTest, AccessMissingStructMember) {
                                    "No member `z` in struct `Point`."))));
 }
 
-TEST_P(TypecheckBothVersionsTest, WrongTypeInStructInstanceMember) {
+TEST_F(TypecheckV2Test, WrongTypeInStructInstanceMember) {
   EXPECT_THAT(
       TypecheckStructInstance(
           GetParam(), "fn f() -> Point { Point { y: u8:42, x: s8:-1 } }"),
@@ -3458,7 +3412,7 @@ TEST_P(TypecheckBothVersionsTest, WrongTypeInStructInstanceMember) {
                      HasSizeMismatchInV2(GetParam(), "u32", "u8"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, MissingFieldXInStructInstance) {
+TEST_F(TypecheckV2Test, MissingFieldXInStructInstance) {
   EXPECT_THAT(
       TypecheckStructInstance(GetParam(),
                               "fn f() -> Point { Point { y: u32:42 } }"),
@@ -3471,7 +3425,7 @@ TEST_P(TypecheckBothVersionsTest, MissingFieldXInStructInstance) {
                     "Instance of struct `Point` is missing member(s): `x`"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, MissingFieldYInStructInstance) {
+TEST_F(TypecheckV2Test, MissingFieldYInStructInstance) {
   EXPECT_THAT(
       TypecheckStructInstance(GetParam(),
                               "fn f() -> Point { Point { x: s8: -1 } }"),
@@ -3484,12 +3438,12 @@ TEST_P(TypecheckBothVersionsTest, MissingFieldYInStructInstance) {
                     "Instance of struct `Point` is missing member(s): `y`"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, OutOfOrderStructInstanceOk) {
+TEST_F(TypecheckV2Test, OutOfOrderStructInstanceOk) {
   XLS_EXPECT_OK(TypecheckStructInstance(
       GetParam(), "fn f() -> Point { Point { y: u32:42, x: s8:-1 } }"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ProvideExtraFieldZInStructInstance) {
+TEST_F(TypecheckV2Test, ProvideExtraFieldZInStructInstance) {
   EXPECT_THAT(
       TypecheckStructInstance(
           GetParam(),
@@ -3504,7 +3458,7 @@ TEST_P(TypecheckBothVersionsTest, ProvideExtraFieldZInStructInstance) {
                                    "was provided by this instance."))));
 }
 
-TEST_P(TypecheckBothVersionsTest, DuplicateFieldYInStructInstance) {
+TEST_F(TypecheckV2Test, DuplicateFieldYInStructInstance) {
   EXPECT_THAT(
       TypecheckStructInstance(
           GetParam(),
@@ -3519,7 +3473,7 @@ TEST_P(TypecheckBothVersionsTest, DuplicateFieldYInStructInstance) {
                                    "`Point` struct instance."))));
 }
 
-TEST_P(TypecheckBothVersionsTest, StructIncompatibleWithTupleEquivalent) {
+TEST_F(TypecheckV2Test, StructIncompatibleWithTupleEquivalent) {
   EXPECT_THAT(
       TypecheckStructInstance(GetParam(), R"(
 fn f(x: (s8, u32)) -> (s8, u32) { x }
@@ -3534,7 +3488,7 @@ fn g() -> (s8, u32) {
                      HasTypeMismatchInV2(GetParam(), "(s8, u32)", "Point"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, SplatWithDuplicate) {
+TEST_F(TypecheckV2Test, SplatWithDuplicate) {
   EXPECT_THAT(
       TypecheckStructInstance(
           GetParam(),
@@ -3549,7 +3503,7 @@ TEST_P(TypecheckBothVersionsTest, SplatWithDuplicate) {
                                    "`Point` struct instance."))));
 }
 
-TEST_P(TypecheckBothVersionsTest, SplatWithExtraFieldQ) {
+TEST_F(TypecheckV2Test, SplatWithExtraFieldQ) {
   EXPECT_THAT(
       TypecheckStructInstance(
           GetParam(), "fn f(p: Point) -> Point { Point { q: u32:42, ..p } }"),
@@ -3561,7 +3515,7 @@ TEST_P(TypecheckBothVersionsTest, SplatWithExtraFieldQ) {
                               "provided by this instance."))));
 }
 
-TEST_P(TypecheckBothVersionsTest, MulExprInStructMember) {
+TEST_F(TypecheckV2Test, MulExprInStructMember) {
   const std::string_view kProgram = R"(
 struct Point<N: u32> {
   x: uN[N],
@@ -3575,7 +3529,7 @@ fn f(p: Point<3>) -> uN[6] {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest, NonU32Parametric) {
+TEST_F(TypecheckV2Test, NonU32Parametric) {
   const std::string_view kProgram = R"(
 struct Point<N: u5, N_U32: u32 = {N as u32}> {
   x: uN[N_U32],
@@ -3604,7 +3558,7 @@ struct Point<N: u32, M: u32 = {N + N}> {
              : TypecheckV2(program).status();
 }
 
-TEST(TypecheckParametricStructInstanceTest, WrongDerivedType) {
+TEST_F(TypecheckV2Test, WrongDerivedType) {
   EXPECT_THAT(
       TypecheckParametricStructInstance(
           TypeInferenceVersion::kVersion1,
@@ -3613,7 +3567,7 @@ TEST(TypecheckParametricStructInstanceTest, WrongDerivedType) {
                HasSubstr("first saw M = u32:63; then saw M = N + N = u32:64")));
 }
 
-TEST_P(TypecheckBothVersionsTest, TooManyParametricStructArgs) {
+TEST_F(TypecheckV2Test, TooManyParametricStructArgs) {
   EXPECT_THAT(
       TypecheckParametricStructInstance(
           GetParam(),
@@ -3630,7 +3584,7 @@ TEST_P(TypecheckBothVersionsTest, TooManyParametricStructArgs) {
                   "Too many parametric values supplied; limit: 2 given: 3"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, PhantomParametricStructReturnTypeMismatch) {
+TEST_F(TypecheckV2Test, PhantomParametricStructReturnTypeMismatch) {
   // Erroneous code.
   EXPECT_THAT(
       Typecheck(
@@ -3654,8 +3608,7 @@ TEST_P(TypecheckBothVersionsTest, PhantomParametricStructReturnTypeMismatch) {
       )"));
 }
 
-TEST_P(TypecheckBothVersionsTest,
-       PhantomParametricParameterizedStructReturnType) {
+TEST_F(TypecheckV2Test, PhantomParametricParameterizedStructReturnType) {
   // Erroneous code.
   EXPECT_THAT(
       Typecheck(
@@ -3681,7 +3634,7 @@ TEST_P(TypecheckBothVersionsTest,
       )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, PhantomParametricWithExpr) {
+TEST_F(TypecheckV2Test, PhantomParametricWithExpr) {
   // Erroneous code.
   EXPECT_THAT(
       Typecheck(
@@ -3705,13 +3658,13 @@ TEST_P(TypecheckBothVersionsTest, PhantomParametricWithExpr) {
       )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, OutOfOrderOk) {
+TEST_F(TypecheckV2Test, OutOfOrderOk) {
   XLS_EXPECT_OK(TypecheckParametricStructInstance(
       GetParam(),
       "fn f() -> Point<32, 64> { Point { y: u64:42, x: u32:255 } }"));
 }
 
-TEST_P(TypecheckBothVersionsTest, OkInstantiationInParametricFunction) {
+TEST_F(TypecheckV2Test, OkInstantiationInParametricFunction) {
   XLS_EXPECT_OK(TypecheckParametricStructInstance(GetParam(), R"(
 fn f<A: u32, B: u32>(x: bits[A], y: bits[B]) -> Point<A, B> { Point { x, y } }
 fn main() {
@@ -3722,7 +3675,7 @@ fn main() {
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, BadParametricStructReturnType) {
+TEST_F(TypecheckV2Test, BadParametricStructReturnType) {
   EXPECT_THAT(
       TypecheckParametricStructInstance(
           GetParam(),
@@ -3735,7 +3688,7 @@ TEST_P(TypecheckBothVersionsTest, BadParametricStructReturnType) {
 }
 
 // Bad struct type-parametric instantiation in parametric function.
-TEST(TypecheckParametricStructInstanceTest, BadParametricInstantiation) {
+TEST_F(TypecheckV2Test, BadParametricInstantiation) {
   EXPECT_THAT(
       TypecheckParametricStructInstance(TypeInferenceVersion::kVersion1, R"(
 fn f<A: u32, B: u32>(x: bits[A], y: bits[B]) -> Point<A, B> {
@@ -3754,7 +3707,7 @@ fn main() {
                     "saw M = u32:15; then saw M = N + N = u32:28")));
 }
 
-TEST_P(TypecheckBothVersionsTest, BadParametricSplatInstantiation) {
+TEST_F(TypecheckV2Test, BadParametricSplatInstantiation) {
   EXPECT_THAT(
       TypecheckParametricStructInstance(GetParam(), R"(
 fn f<A: u32, B: u32>(x: bits[A], y: bits[B]) -> Point<A, B> {
@@ -3774,13 +3727,13 @@ fn main() {
                      HasSizeMismatchInV2(GetParam(), "uN[10]", "uN[5]"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, AttrViaColonRef) {
+TEST_F(TypecheckV2Test, AttrViaColonRef) {
   XLS_EXPECT_OK(Typecheck("fn f() -> u8 { u8::ZERO }"));
   XLS_EXPECT_OK(Typecheck("fn f() -> u8 { u8::MAX }"));
   XLS_EXPECT_OK(Typecheck("fn f() -> u8 { u8::MIN }"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ColonRefTypeAlias) {
+TEST_F(TypecheckV2Test, ColonRefTypeAlias) {
   XLS_EXPECT_OK(Typecheck(R"(
 type MyU8 = u8;
 fn f() -> u8 { MyU8::MAX }
@@ -3789,28 +3742,28 @@ fn h() -> u8 { MyU8::MIN }
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, MinAttrUsedInConstAsserts) {
+TEST_F(TypecheckV2Test, MinAttrUsedInConstAsserts) {
   XLS_EXPECT_OK(Typecheck(R"(
 const_assert!(u8::MIN == u8:0);
 const_assert!(s4::MIN == s4:-8);
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, MaxAttrUsedToDefineAType) {
+TEST_F(TypecheckV2Test, MaxAttrUsedToDefineAType) {
   XLS_EXPECT_OK(Typecheck(R"(
 type MyU255 = uN[u8::MAX as u32];
 fn f() -> MyU255 { uN[255]:42 }
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ZeroAttrUsedToDefineAType) {
+TEST_F(TypecheckV2Test, ZeroAttrUsedToDefineAType) {
   XLS_EXPECT_OK(Typecheck(R"(
 type MyU0 = uN[u8::ZERO as u32];
 fn f() -> MyU0 { bits[0]:0 }
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, TypeAliasOfStructWithBoundParametrics) {
+TEST_F(TypecheckV2Test, TypeAliasOfStructWithBoundParametrics) {
   XLS_EXPECT_OK(Typecheck(R"(
 struct S<X: u32, Y: u32> {
   x: bits[X],
@@ -3821,7 +3774,7 @@ fn f() -> MyS { MyS{x: bits[3]:3, y: bits[4]:4 } }
 )"));
 }
 
-TEST(TypecheckTest, SplatWithAllStructMembersSpecifiedGivesWarning) {
+TEST_F(TypecheckV2Test, SplatWithAllStructMembersSpecifiedGivesWarning) {
   const std::string program = R"(
 struct S {
   x: u32,
@@ -3829,9 +3782,11 @@ struct S {
 }
 fn f(s: S) -> S { S{x: u32:4, y: u32:8, ..s} }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult tr, Typecheck(program));
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult tr,
+                           Typecheck(program, "fake", &import_data));
   TypecheckedModule& tm = tr.tm;
-  Fileno fileno = tr.import_data->file_table().GetOrCreate("fake.x");
+  Fileno fileno = import_data.file_table().GetOrCreate("fake.x");
 
   ASSERT_THAT(tm.warnings.warnings().size(), 1);
   EXPECT_EQ(tm.warnings.warnings().at(0).span,
@@ -3842,20 +3797,22 @@ fn f(s: S) -> S { S{x: u32:4, y: u32:8, ..s} }
   UniformContentFilesystem vfs(program);
   XLS_ASSERT_OK(PrintPositionalError(
       {tm.warnings.warnings().at(0).span}, tm.warnings.warnings().at(0).message,
-      std::cerr, PositionalErrorColor::kWarningColor,
-      tr.import_data->file_table(), vfs));
+      std::cerr, PositionalErrorColor::kWarningColor, import_data.file_table(),
+      vfs));
 }
 
-TEST(TypecheckTest, LetWithWildcardMatchGivesWarning) {
+TEST_F(TypecheckV2Test, LetWithWildcardMatchGivesWarning) {
   const std::string program = R"(
 fn f(x: u32) -> u32 {
   let _ = x + x;
   x
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult tr, Typecheck(program));
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult tr,
+                           Typecheck(program, "fake", &import_data));
   TypecheckedModule& tm = tr.tm;
-  FileTable& file_table = tr.import_data->file_table();
+  FileTable& file_table = import_data.file_table();
   Fileno fileno = file_table.GetOrCreate("fake.x");
 
   ASSERT_THAT(tm.warnings.warnings().size(), 1);
@@ -3871,16 +3828,18 @@ fn f(x: u32) -> u32 {
       /*error_context_line_count=*/5));
 }
 
-TEST(TypecheckTest, UselessTrailingNilGivesWarning) {
+TEST_F(TypecheckV2Test, UselessTrailingNilGivesWarning) {
   const std::string program = R"(
 fn f() -> () {
   trace_fmt!("oh no");
   ()
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult tr, Typecheck(program));
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult tr,
+                           Typecheck(program, "fake", &import_data));
   TypecheckedModule& tm = tr.tm;
-  FileTable& file_table = tr.import_data->file_table();
+  FileTable& file_table = import_data.file_table();
   Fileno fileno = file_table.GetOrCreate("fake.x");
 
   ASSERT_THAT(tm.warnings.warnings().size(), 1);
@@ -3896,7 +3855,7 @@ fn f() -> () {
       /*error_context_line_count=*/5));
 }
 
-TEST_P(TypecheckBothVersionsTest, NonstandardConstantNamingGivesWarning) {
+TEST_F(TypecheckV2Test, NonstandardConstantNamingGivesWarning) {
   const constexpr std::string_view kProgram = R"(const mol = u32:42;)";
   XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult tr, Typecheck(kProgram));
   TypecheckedModule& tm = tr.tm;
@@ -3906,7 +3865,7 @@ TEST_P(TypecheckBothVersionsTest, NonstandardConstantNamingGivesWarning) {
             "got: `mol`");
 }
 
-TEST_P(TypecheckBothVersionsTest, NonstandardConstantNamingOkViaAllow) {
+TEST_F(TypecheckV2Test, NonstandardConstantNamingOkViaAllow) {
   const constexpr std::string_view kProgram =
       R"(#![allow(nonstandard_constant_naming)]
 const mol = u32:42;)";
@@ -3915,7 +3874,7 @@ const mol = u32:42;)";
   ASSERT_TRUE(tm.warnings.warnings().empty());
 }
 
-TEST_P(TypecheckBothVersionsTest, BadTraceFmtWithUseOfChannel) {
+TEST_F(TypecheckV2Test, BadTraceFmtWithUseOfChannel) {
   constexpr std::string_view kProgram =
       R"(
 proc Counter {
@@ -3943,7 +3902,7 @@ proc Counter {
                HasSubstr("Cannot format an expression with channel type")));
 }
 
-TEST_P(TypecheckBothVersionsTest, BadTraceFmtWithUseOfFunction) {
+TEST_F(TypecheckV2Test, BadTraceFmtWithUseOfFunction) {
   constexpr std::string_view kProgram =
       R"(
 pub fn some_function() -> u32 { u32:0 }
@@ -3959,7 +3918,7 @@ pub fn other_function() -> u32 {
                HasSubstr("Cannot format an expression with function type")));
 }
 
-TEST(TypecheckTest, CatchesBadInvocationCallee) {
+TEST_F(TypecheckV2Test, CatchesBadInvocationCallee) {
   constexpr std::string_view kImported = R"(
 pub fn some_function() -> u32 { u32:0 }
 )";
@@ -3981,7 +3940,7 @@ fn main() -> u32 {
 }
 
 // See https://github.com/google/xls/issues/1540#issuecomment-2297711953
-TEST(TypecheckTest, ProcWithImportedEnumParametricGithubIssue1540) {
+TEST_F(TypecheckV2Test, ProcWithImportedEnumParametricGithubIssue1540) {
   constexpr std::string_view kImported = R"(
 pub enum MyEnum : bits[1] {
   kA = 0,
@@ -4014,7 +3973,7 @@ proc bar_proc {
 }
 
 // See https://github.com/google/xls/issues/1540#issuecomment-2291819096
-TEST(TypecheckTest, ImportedTypeAliasAttributeGithubIssue1540) {
+TEST_F(TypecheckV2Test, ImportedTypeAliasAttributeGithubIssue1540) {
   constexpr std::string_view kImported = R"(
 pub const W = s32:16;
 pub type T = bits[W as u32];
@@ -4035,7 +3994,7 @@ fn f() -> imported::T {
       ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data));
 }
 
-TEST_P(TypecheckBothVersionsTest, MissingWideningCastFromValueError) {
+TEST_F(TypecheckV2Test, MissingWideningCastFromValueError) {
   constexpr std::string_view kProgram = R"(
 fn main(x: u32) -> u64 {
   widening_cast<u64>()
@@ -4051,7 +4010,7 @@ fn main(x: u32) -> u64 {
                                    "Expected 1 argument(s) but got 0"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, MissingCheckedCastFromValueError) {
+TEST_F(TypecheckV2Test, MissingCheckedCastFromValueError) {
   constexpr std::string_view kProgram = R"(
 fn main(x: u32) -> u64 {
   checked_cast<u64>()
@@ -4067,7 +4026,7 @@ fn main(x: u32) -> u64 {
                                    "Expected 1 argument(s) but got 0"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, MissingWideningCastToTypeError) {
+TEST_F(TypecheckV2Test, MissingWideningCastToTypeError) {
   constexpr std::string_view kProgram = R"(
 fn main(x: u32) -> u64 {
   widening_cast(x)
@@ -4083,7 +4042,7 @@ fn main(x: u32) -> u64 {
                                    "Could not infer parametric(s): DEST"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, MissingCheckedCastToTypeError) {
+TEST_F(TypecheckV2Test, MissingCheckedCastToTypeError) {
   constexpr std::string_view kProgram = R"(
 fn main(x: u32) -> u64 {
   checked_cast(x)
@@ -4099,7 +4058,7 @@ fn main(x: u32) -> u64 {
                                    "Could not infer parametric(s): DEST"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, WideningCastToSmallerUnError) {
+TEST_F(TypecheckV2Test, WideningCastToSmallerUnError) {
   constexpr std::string_view kProgram = R"(
 fn main() {
   widening_cast<u33>(u32:0);
@@ -4120,7 +4079,7 @@ fn main() {
                               "`uN[31]` (31 bits) with widening_cast"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, WideningCastToSmallerSnError) {
+TEST_F(TypecheckV2Test, WideningCastToSmallerSnError) {
   constexpr std::string_view kProgram = R"(
 fn main() {
   widening_cast<s33>(s32:0);
@@ -4141,7 +4100,7 @@ fn main() {
                               "`sN[31]` (31 bits) with widening_cast"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, WideningCastToUnError) {
+TEST_F(TypecheckV2Test, WideningCastToUnError) {
   constexpr std::string_view kProgram = R"(
 fn main() {
   widening_cast<u4>(u3:0);
@@ -4161,7 +4120,7 @@ fn main() {
                                    "`uN[4]` (4 bits) with widening_cast"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, WideningCastsUnError2) {
+TEST_F(TypecheckV2Test, WideningCastsUnError2) {
   constexpr std::string_view kProgram =
       R"(
 fn main(x: u8) -> u32 {
@@ -4182,7 +4141,7 @@ fn main(x: u8) -> u32 {
                               "`uN[4]` (4 bits) with widening_cast"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, WideningCastToSnError1) {
+TEST_F(TypecheckV2Test, WideningCastToSnError1) {
   constexpr std::string_view kProgram = R"(
 fn main() {
   widening_cast<s4>(u3:0);
@@ -4202,7 +4161,7 @@ fn main() {
                                    "`sN[4]` (4 bits) with widening_cast"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, WideningCastsSnError2) {
+TEST_F(TypecheckV2Test, WideningCastsSnError2) {
   constexpr std::string_view kProgram =
       R"(
 fn main(x: s8) -> s32 {
@@ -4223,7 +4182,7 @@ fn main(x: s8) -> s32 {
                               "`sN[4]` (4 bits) with widening_cast"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, WideningCastsUnToSnError) {
+TEST_F(TypecheckV2Test, WideningCastsUnToSnError) {
   constexpr std::string_view kProgram =
       R"(
 fn main(x: u8) -> s32 {
@@ -4243,7 +4202,7 @@ fn main(x: u8) -> s32 {
                                    "`sN[8]` (8 bits) with widening_cast"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, WideningCastsSnToUnError) {
+TEST_F(TypecheckV2Test, WideningCastsSnToUnError) {
   constexpr std::string_view kProgram =
       R"(
 fn main(x: s8) -> s32 {
@@ -4262,7 +4221,7 @@ fn main(x: s8) -> s32 {
                                    "`uN[9]` (9 bits) with widening_cast"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, OverlargeValue80Bits) {
+TEST_F(TypecheckV2Test, OverlargeValue80Bits) {
   constexpr std::string_view kProgram =
       R"(
 fn f() {
@@ -4279,7 +4238,7 @@ fn f() {
                 HasSizeMismatchInV2(GetParam(), "sN[0]", "sN[80]"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, NegateTuple) {
+TEST_F(TypecheckV2Test, NegateTuple) {
   constexpr std::string_view kProgram =
       R"(
 fn f() -> (u32, u32) {
@@ -4297,7 +4256,7 @@ fn f() -> (u32, u32) {
                                    "bits-typed operands"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, MatchOnBitsWithEmptyTuplePattern) {
+TEST_F(TypecheckV2Test, MatchOnBitsWithEmptyTuplePattern) {
   constexpr std::string_view kProgram =
       R"(
 fn f(x: u32) -> u32 {
@@ -4316,7 +4275,7 @@ fn f(x: u32) -> u32 {
                 HasTypeMismatchInV2(GetParam(), "()", "u32"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, MatchOnBitsWithIrrefutableTuplePattern) {
+TEST_F(TypecheckV2Test, MatchOnBitsWithIrrefutableTuplePattern) {
   constexpr std::string_view kProgram =
       R"(
 fn f(x: u32) -> u32 {
@@ -4335,7 +4294,7 @@ fn f(x: u32) -> u32 {
                 HasTypeMismatchInV2(GetParam(), "(Any,)", "u32"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, MatchOnTupleWithWrongSizedTuplePattern) {
+TEST_F(TypecheckV2Test, MatchOnTupleWithWrongSizedTuplePattern) {
   constexpr std::string_view kProgram =
       R"(
 fn f(x: (u32)) -> u32 {
@@ -4354,7 +4313,7 @@ fn f(x: (u32)) -> u32 {
                               "Cannot match a 2-element tuple to 1 values."))));
 }
 
-TEST_P(TypecheckBothVersionsTest, MatchOnTupleWithRestOfTupleSkipsEnd) {
+TEST_F(TypecheckV2Test, MatchOnTupleWithRestOfTupleSkipsEnd) {
   constexpr std::string_view kProgram =
       R"(
 fn f(x: (u32, u33, u34)) -> u32 {
@@ -4366,7 +4325,7 @@ fn f(x: (u32, u33, u34)) -> u32 {
   XLS_ASSERT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest, MatchOnTupleWithRestOfTupleSkipsBeginning) {
+TEST_F(TypecheckV2Test, MatchOnTupleWithRestOfTupleSkipsBeginning) {
   constexpr std::string_view kProgram =
       R"(
 fn f(x: (u30, u31, u32)) -> u32 {
@@ -4378,8 +4337,7 @@ fn f(x: (u30, u31, u32)) -> u32 {
   XLS_ASSERT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest,
-       MatchOnTupleWithRestOfTupleSkipsBeginningThenMatches) {
+TEST_F(TypecheckV2Test, MatchOnTupleWithRestOfTupleSkipsBeginningThenMatches) {
   constexpr std::string_view kProgram =
       R"(
 fn f(x: (u29, u30, u31, u32)) -> u31 {
@@ -4391,7 +4349,7 @@ fn f(x: (u29, u30, u31, u32)) -> u31 {
   XLS_ASSERT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest, MatchOnTupleWithRestOfTupleSkipsMiddle) {
+TEST_F(TypecheckV2Test, MatchOnTupleWithRestOfTupleSkipsMiddle) {
   constexpr std::string_view kProgram =
       R"(
 fn f(x: (u30, u31, u32, u33)) -> u30 {
@@ -4403,7 +4361,7 @@ fn f(x: (u30, u31, u32, u33)) -> u30 {
   XLS_ASSERT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest, MatchOnTupleWithRestOfTupleSkipsNone) {
+TEST_F(TypecheckV2Test, MatchOnTupleWithRestOfTupleSkipsNone) {
   constexpr std::string_view kProgram =
       R"(
 fn f(x: (u32, u33)) -> u32 {
@@ -4415,7 +4373,7 @@ fn f(x: (u32, u33)) -> u32 {
   XLS_ASSERT_OK(Typecheck(kProgram));
 }
 
-TEST(TypecheckTest, UnusedBindingInBodyGivesWarning) {
+TEST_F(TypecheckV2Test, UnusedBindingInBodyGivesWarning) {
   const constexpr std::string_view kProgram = R"(
 fn f(x: u32) -> u32 {
     let y = x + u32:42;
@@ -4429,7 +4387,7 @@ fn f(x: u32) -> u32 {
             "Definition of `y` (type `uN[32]`) is not used in function `f`");
 }
 
-TEST(TypecheckTest, FiveUnusedBindingsInLetBindingPattern) {
+TEST_F(TypecheckV2Test, FiveUnusedBindingsInLetBindingPattern) {
   const constexpr std::string_view kProgram = R"(
 fn f(t: (u32, u32, u32, u32, u32)) -> u32 {
     let (a, b, c, d, e) = t;
@@ -4451,7 +4409,7 @@ fn f(t: (u32, u32, u32, u32, u32)) -> u32 {
             "Definition of `e` (type `uN[32]`) is not used in function `f`");
 }
 
-TEST(TypecheckTest, UnusedMatchBindingInBodyGivesWarning) {
+TEST_F(TypecheckV2Test, UnusedMatchBindingInBodyGivesWarning) {
   const constexpr std::string_view kProgram = R"(
 fn f(x: u32) -> u32 {
   match x {
@@ -4466,39 +4424,39 @@ fn f(x: u32) -> u32 {
             "Definition of `y` (type `uN[32]`) is not used in function `f`");
 }
 
-TEST_P(TypecheckBothVersionsTest, ConcatU1U1) {
+TEST_F(TypecheckV2Test, ConcatU1U1) {
   XLS_ASSERT_OK(Typecheck("fn f(x: u1, y: u1) -> u2 { x ++ y }"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ConcatU1S1) {
+TEST_F(TypecheckV2Test, ConcatU1S1) {
   EXPECT_THAT(Typecheck("fn f(x: u1, y: s1) -> u2 { x ++ y }").status(),
               IsPosError("TypeInferenceError",
                          HasSubstr("Concatenation requires operand "
                                    "types to both be unsigned bits")));
 }
 
-TEST_P(TypecheckBothVersionsTest, ConcatS1S1) {
+TEST_F(TypecheckV2Test, ConcatS1S1) {
   EXPECT_THAT(Typecheck("fn f(x: s1, y: s1) -> u2 { x ++ y }").status(),
               IsPosError("TypeInferenceError",
                          HasSubstr("Concatenation requires operand "
                                    "types to both be unsigned bits")));
 }
 
-TEST_P(TypecheckBothVersionsTest, ConcatU2S1) {
+TEST_F(TypecheckV2Test, ConcatU2S1) {
   EXPECT_THAT(Typecheck("fn f(x: u2, y: s1) -> u3 { x ++ y }").status(),
               IsPosError("TypeInferenceError",
                          HasSubstr("Concatenation requires operand "
                                    "types to both be unsigned bits")));
 }
 
-TEST_P(TypecheckBothVersionsTest, ConcatU1Nil) {
+TEST_F(TypecheckV2Test, ConcatU1Nil) {
   EXPECT_THAT(Typecheck("fn f(x: u1, y: ()) -> () { x ++ y }").status(),
               IsPosError("TypeInferenceError",
                          HasSubstr("Concatenation requires operand types "
                                    "to be either both-arrays or both-bits")));
 }
 
-TEST_P(TypecheckBothVersionsTest, ConcatS1Nil) {
+TEST_F(TypecheckV2Test, ConcatS1Nil) {
   EXPECT_THAT(
       Typecheck("fn f(x: s1, y: ()) -> () { x ++ y }").status(),
       IsPosError("TypeInferenceError",
@@ -4510,56 +4468,59 @@ TEST_P(TypecheckBothVersionsTest, ConcatS1Nil) {
                                      "both be unsigned bits"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, ConcatNilNil) {
+TEST_F(TypecheckV2Test, ConcatNilNil) {
   EXPECT_THAT(Typecheck("fn f(x: (), y: ()) -> () { x ++ y }").status(),
               IsPosError("TypeInferenceError",
                          HasSubstr("Concatenation requires operand types to "
                                    "be either both-arrays or both-bits")));
 }
 
-TEST(TypecheckTest, ConcatEnumU2) {
-  EXPECT_THAT(Typecheck(R"(
+TEST_F(TypecheckV2Test, ConcatEnumU2) {
+  EXPECT_THAT(
+      Typecheck(R"(
 enum MyEnum : u2 {
   A = 1,
   B = 2,
 }
 fn f(x: MyEnum, y: u2) -> () { x ++ y }
 )")
-                  .status(),
-              IsPosError("TypeInferenceError",
-                         HasSubstr("Enum values must be cast to unsigned bits "
-                                   "before concatenation")));
+          .status(),
+      IsPosError("TypeInferenceError",
+                 HasSubstr("MyEnum Concatenation requires operand types to be "
+                           "either both-arrays or both-bits; got: MyEnum")));
 }
 
-TEST(TypecheckTest, ConcatU2Enum) {
-  EXPECT_THAT(Typecheck(R"(
+TEST_F(TypecheckV2Test, ConcatU2Enum) {
+  EXPECT_THAT(
+      Typecheck(R"(
 enum MyEnum : u2 {
   A = 1,
   B = 2,
 }
 fn f(x: u2, y: MyEnum) -> () { x ++ y }
 )")
-                  .status(),
-              IsPosError("TypeInferenceError",
-                         HasSubstr("Enum values must be cast to unsigned bits "
-                                   "before concatenation")));
+          .status(),
+      IsPosError("TypeInferenceError",
+                 HasSubstr("Concatenation requires operand types to be either "
+                           "both-arrays or both-bits; got: MyEnum")));
 }
 
-TEST(TypecheckTest, ConcatEnumEnum) {
-  EXPECT_THAT(Typecheck(R"(
+TEST_F(TypecheckV2Test, ConcatEnumEnum) {
+  EXPECT_THAT(
+      Typecheck(R"(
 enum MyEnum : u2 {
   A = 1,
   B = 2,
 }
 fn f(x: MyEnum, y: MyEnum) -> () { x ++ y }
 )")
-                  .status(),
-              IsPosError("TypeInferenceError",
-                         HasSubstr("Enum values must be cast "
-                                   "to unsigned bits before concatenation")));
+          .status(),
+      IsPosError("TypeInferenceError",
+                 HasSubstr("MyEnum Concatenation requires operand types to be "
+                           "either both-arrays or both-bits; got: MyEnum")));
 }
 
-TEST_P(TypecheckBothVersionsTest, ConcatStructStruct) {
+TEST_F(TypecheckV2Test, ConcatStructStruct) {
   EXPECT_THAT(Typecheck(R"(
 struct S {}
 fn f(x: S, y: S) -> () { x ++ y }
@@ -4570,13 +4531,13 @@ fn f(x: S, y: S) -> () { x ++ y }
                                    "either both-arrays or both-bits")));
 }
 
-TEST_P(TypecheckBothVersionsTest, ConcatUnWithXn) {
+TEST_F(TypecheckV2Test, ConcatUnWithXn) {
   XLS_ASSERT_OK(Typecheck(R"(
 fn f(x: u32, y: xN[false][32]) -> xN[false][64] { x ++ y }
 )"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ConcatU1ArrayOfOneU8) {
+TEST_F(TypecheckV2Test, ConcatU1ArrayOfOneU8) {
   EXPECT_THAT(
       Typecheck("fn f(x: u1, y: u8[1]) -> u2 { x ++ y }").status(),
       IsPosError(
@@ -4585,11 +4546,11 @@ TEST_P(TypecheckBothVersionsTest, ConcatU1ArrayOfOneU8) {
               "Attempting to concatenate array/non-array values together")));
 }
 
-TEST_P(TypecheckBothVersionsTest, ConcatArrayOfThreeU8ArrayOfOneU8) {
+TEST_F(TypecheckV2Test, ConcatArrayOfThreeU8ArrayOfOneU8) {
   XLS_ASSERT_OK(Typecheck("fn f(x: u8[3], y: u8[1]) -> u8[4] { x ++ y }"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ParametricWrapperAroundBuiltin) {
+TEST_F(TypecheckV2Test, ParametricWrapperAroundBuiltin) {
   XLS_ASSERT_OK(Typecheck(R"(fn f<N: u32>(x: uN[N]) -> uN[N] { rev(x) }
 
 fn main(arg: u32) -> u32 {
@@ -4597,7 +4558,7 @@ fn main(arg: u32) -> u32 {
 })"));
 }
 
-TEST_P(TypecheckBothVersionsTest, AssertBuiltinIsUnitType) {
+TEST_F(TypecheckV2Test, AssertBuiltinIsUnitType) {
   XLS_ASSERT_OK(Typecheck(R"(fn main() {
   assert!(true, "oh_no");
 })"));
@@ -4607,29 +4568,29 @@ TEST_P(TypecheckBothVersionsTest, AssertBuiltinIsUnitType) {
 })"));
 }
 
-TEST(TypecheckTest, ConcatNilArrayOfOneU8) {
+TEST_F(TypecheckV2Test, ConcatNilArrayOfOneU8) {
   EXPECT_THAT(
       Typecheck("fn f(x: (), y: u8[1]) -> () { x ++ y }").status(),
-      IsPosError(
-          "TypeInferenceError",
-          HasSubstr(
-              "Attempting to concatenate array/non-array values together")));
+      IsPosError("TypeInferenceError",
+                 HasSubstr("Concatenation requires operand types to be either "
+                           "both-arrays or both-bits; got: ()")));
 }
 
-TEST(TypecheckTest, ParametricStructWithoutAllParametricsBoundInReturnType) {
-  EXPECT_THAT(
-      Typecheck(R"(
+TEST_F(TypecheckV2Test,
+       ParametricStructWithoutAllParametricsBoundInReturnType) {
+  EXPECT_THAT(Typecheck(R"(
 struct Point1D<N: u32> { x: bits[N] }
 
 fn f(x: Point1D) -> Point1D { x }
 )")
-          .status(),
-      IsPosError("TypeInferenceError",
-                 HasSubstr("Parametric type being returned from function")));
+                  .status(),
+              IsPosError("TypeInferenceError",
+                         HasSubstr("Could not infer parametric(s) for instance "
+                                   "of struct Point1D: N")));
 }
 
 // See https://github.com/google/xls/issues/1030
-TEST(TypecheckTest, InstantiateImportedParametricStruct) {
+TEST_F(TypecheckV2Test, InstantiateImportedParametricStruct) {
   constexpr std::string_view kImported = R"(
 pub struct my_struct<N: u32> {
     my_field: uN[N],
@@ -4650,7 +4611,7 @@ fn main() -> u5 {
       ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data));
 }
 
-TEST(TypecheckTest, InstantiateImportedParametricStructNoParametrics) {
+TEST_F(TypecheckV2Test, InstantiateImportedParametricStructNoParametrics) {
   constexpr std::string_view kImported = R"(
 pub struct my_struct<N: u32> {
     my_field: uN[N],
@@ -4671,7 +4632,7 @@ fn main() -> u5 {
       ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data));
 }
 
-TEST(TypecheckTest, InstantiateImportedParametricStructTypeAlias) {
+TEST_F(TypecheckV2Test, InstantiateImportedParametricStructTypeAlias) {
   constexpr std::string_view kImported = R"(
 pub struct my_struct<N: u32> {
     my_field: uN[N],
@@ -4698,7 +4659,7 @@ fn main() -> u5 {
       ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data));
 }
 
-TEST(TypecheckTest, InstantiateImportedParametricStructArray) {
+TEST_F(TypecheckV2Test, InstantiateImportedParametricStructArray) {
   constexpr std::string_view kImported = R"(
 pub struct my_struct<N: u32> {
     my_field: uN[N],
@@ -4723,7 +4684,7 @@ fn main() -> u5 {
       ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data));
 }
 
-TEST(TypecheckTest, InstantiateParametricStructArray) {
+TEST_F(TypecheckV2Test, InstantiateParametricStructArray) {
   constexpr std::string_view kProgram = R"(
 struct my_struct<N: u32> {
     my_field: uN[N],
@@ -4743,7 +4704,7 @@ fn main() -> u5 {
       ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data));
 }
 
-TEST(TypecheckTest, CallImportedParametricFn) {
+TEST_F(TypecheckV2Test, CallImportedParametricFn) {
   constexpr std::string_view kImported = R"(
 pub fn my_fn<N: u32>(x: uN[N]) -> uN[N] {
    x+uN[N]:1
@@ -4764,32 +4725,29 @@ fn main() -> u5 {
       ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data));
 }
 
-TEST(TypecheckErrorTest, PrioritySelectOnNonBitsType) {
-  EXPECT_THAT(
-      Typecheck(R"(
+TEST_F(TypecheckV2Test, PrioritySelectOnNonBitsType) {
+  EXPECT_THAT(Typecheck(R"(
 struct MyStruct { }
 
 fn f() {
 let default_value = MyStruct{};
 priority_sel(u2:0b00, MyStruct[2]:[MyStruct{}, MyStruct{}], default_value) }
 )")
-          .status(),
-      IsPosError(
-          "TypeInferenceError",
-          HasSubstr("Want argument 1 element type to be bits; got MyStruct")));
+                  .status(),
+              IsPosError("TypeInferenceError",
+                         HasTypeMismatch("MyStruct[2]", "xN[S][M][N]")));
 }
 
-TEST(TypecheckErrorTest, PrioritySelectDefaultWrongSize) {
+TEST_F(TypecheckV2Test, PrioritySelectDefaultWrongSize) {
   EXPECT_THAT(Typecheck(R"(
 fn f() { priority_sel(u3:0b000, u4[3]:[u4:1, u4:2, u4:4], u5:0); }
 )")
                   .status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Want argument 2 type uN[4] to match "
-                                 "argument 1 element type")));
+                       HasTypeMismatch("xN[0][4]", "u5")));
 }
 
-TEST_P(TypecheckBothVersionsTest, OperatorOnParametricBuiltin) {
+TEST_F(TypecheckV2Test, OperatorOnParametricBuiltin) {
   EXPECT_THAT(
       Typecheck(R"(
 fn f() { fail! % 2; }
@@ -4805,7 +4763,7 @@ fn f() { fail! % 2; }
                               "a parametric function not being invoked"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, InvokeATokenValueViaShadowing) {
+TEST_F(TypecheckV2Test, InvokeATokenValueViaShadowing) {
   EXPECT_THAT(
       Typecheck(R"(
 fn shadowed() {}
@@ -4819,7 +4777,7 @@ fn f(shadowed: token) {
                  HasSubstr("Invocation callee `shadowed` is not a function")));
 }
 
-TEST_P(TypecheckBothVersionsTest, InvokeATokenValueNoShadowing) {
+TEST_F(TypecheckV2Test, InvokeATokenValueNoShadowing) {
   EXPECT_THAT(
       Typecheck(R"(
 fn f(tok: token) {
@@ -4831,7 +4789,7 @@ fn f(tok: token) {
                  HasSubstr("Invocation callee `tok` is not a function")));
 }
 
-TEST_P(TypecheckBothVersionsTest, MapOfNonFunctionInTestProc) {
+TEST_F(TypecheckV2Test, MapOfNonFunctionInTestProc) {
   EXPECT_THAT(
       Typecheck(R"(
 #[test_proc]
@@ -4860,7 +4818,7 @@ proc t {
                          "Invocation callee `result_in` is not a function"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, ReferenceToBuiltinFunctionInNext) {
+TEST_F(TypecheckV2Test, ReferenceToBuiltinFunctionInNext) {
   XLS_EXPECT_OK(Typecheck(R"(
 proc t {
     config() { () }
@@ -4872,16 +4830,7 @@ proc t {
 )"));
 }
 
-TEST(TypecheckErrorTest, InstantiateALiteralNumber) {
-  constexpr std::string_view kProgram = "fn f(x:u2) { 0<> }";
-  EXPECT_THAT(Typecheck(kProgram).status(),
-              IsPosError("TypeInferenceError",
-                         HasSubstr("Could not infer a type for this number, "
-                                   "please annotate a type.")));
-}
-
-TEST_P(TypecheckBothVersionsTest,
-       SignedValueToBuiltinExpectingUNViaParametric) {
+TEST_F(TypecheckV2Test, SignedValueToBuiltinExpectingUNViaParametric) {
   EXPECT_THAT(
       Typecheck(R"(
 fn p<S: bool, N: u32>() -> u32 {
@@ -4901,7 +4850,7 @@ fn main() -> u32 {
 }
 
 // Passes a signed value to a builtin function that expects a `uN[N]`.
-TEST_P(TypecheckBothVersionsTest, SignedValueToBuiltinExpectingUN) {
+TEST_F(TypecheckV2Test, SignedValueToBuiltinExpectingUN) {
   EXPECT_THAT(
       Typecheck(R"(
 fn main() -> u32 {
@@ -4915,13 +4864,13 @@ fn main() -> u32 {
                      HasSignednessMismatchInV2(GetParam(), "uN[32]", "s32"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, DuplicateParametricBinding) {
+TEST_F(TypecheckV2Test, DuplicateParametricBinding) {
   EXPECT_THAT(
       Typecheck("fn p<N: u1, N: u2>() -> u32 { u32:42 }").status(),
       IsPosError("ParseError", HasSubstr("Duplicate parametric binding: `N`")));
 }
 
-TEST_P(TypecheckBothVersionsTest, MapOfXbitsArray) {
+TEST_F(TypecheckV2Test, MapOfXbitsArray) {
   constexpr std::string_view kProgram = R"(
 type MyXN = xN[bool:0x0][1];  // effectively a bool
 
@@ -4937,7 +4886,7 @@ fn main(u: u4) {
 
 // This test case was creating an error because it caused us to try to
 // `deduce_ctx->Resolve()` when there were no entries on the function stack.
-TEST(TypecheckTest, ResolveInTopLevelContext) {
+TEST_F(TypecheckV2Test, ResolveInTopLevelContext) {
   constexpr std::string_view kProgram = R"(
 type x51 = u40;
 fn x42<x46: xN[bool:0x0][38] = {xN[bool:0x0][38]:0x0}>(x43: u40) {}
@@ -4948,7 +4897,7 @@ fn main() { x36() }
 }
 
 // Tests that it is OK to ignore the return value of a function.
-TEST(TypecheckTest, IgnoreReturnValue) {
+TEST_F(TypecheckV2Test, IgnoreReturnValue) {
   constexpr std::string_view kProgram = R"(
 fn foo() -> u32 { u32:0 }
 
@@ -4960,7 +4909,7 @@ fn main() -> u32 {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest, UnassignedReturnValueTypeMismatchParametric) {
+TEST_F(TypecheckV2Test, UnassignedReturnValueTypeMismatchParametric) {
   constexpr std::string_view kProgram = R"(
 fn ignored<N:u32>() -> uN[N] { zero!<uN[N]>() }
 
@@ -4981,7 +4930,7 @@ fn main(x: u32) -> u32 {
 // Previously this would cause us to RET_CHECK because we were assuming we
 // wanted to grab the root type information instead of the parametric
 // invocation's type information.
-TEST_P(TypecheckBothVersionsTest, AttrViaParametricBinding) {
+TEST_F(TypecheckV2Test, AttrViaParametricBinding) {
   constexpr std::string_view kProgram = R"(
 fn f<N: u32>() -> uN[N]{
     type UN = uN[N];
@@ -4994,7 +4943,7 @@ const_assert!(f<u32:8>() == u8:255);
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST_P(TypecheckBothVersionsTest, MatchPackageLevelConstant) {
+TEST_F(TypecheckV2Test, MatchPackageLevelConstant) {
   constexpr std::string_view kProgram = R"(
 const FOO = u8:0xff;
 fn f(x: u8) -> u2 {
@@ -5027,7 +4976,7 @@ fn f(x: u8) -> u2 {
   EXPECT_EQ(const_expr->ToString(), "u8:255");
 }
 
-TEST_P(TypecheckBothVersionsTest, MatchPackageLevelConstantIntoTypeAlias) {
+TEST_F(TypecheckV2Test, MatchPackageLevelConstantIntoTypeAlias) {
   constexpr std::string_view kProgram = R"(
 const C = u32:2;
 fn f(x: u32) -> u2 {
@@ -5044,7 +4993,7 @@ fn f(x: u32) -> u2 {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST(TypecheckTest, BitCount) {
+TEST_F(TypecheckV2Test, BitCount) {
   XLS_ASSERT_OK(Typecheck(R"(
 struct S {
   a: u32
@@ -5070,7 +5019,7 @@ fn main() -> u32 {
 })"));
 }
 
-TEST(TypecheckTest, ElementCount) {
+TEST_F(TypecheckV2Test, ElementCount) {
   XLS_ASSERT_OK(Typecheck(R"(
 struct S {
   a: u32,
@@ -5099,7 +5048,7 @@ fn main() -> u32 {
 })"));
 }
 
-TEST_P(TypecheckBothVersionsTest, ConfiguredValueOr) {
+TEST_F(TypecheckV2Test, ConfiguredValueOr) {
   XLS_ASSERT_OK(Typecheck(R"(
 enum MyEnum : u2 {
   A = 0,
@@ -5120,14 +5069,14 @@ fn main() -> (bool, u32, s32, MyEnum, bool, u32, s32, MyEnum) {
 })"));
 }
 
-TEST_P(TypecheckBothVersionsTest, BitCountAsConstExpr) {
+TEST_F(TypecheckV2Test, BitCountAsConstExpr) {
   XLS_ASSERT_OK(Typecheck(R"(
 fn main() -> u64 {
   uN[bit_count<u32[2]>()]:0
 })"));
 }
 
-TEST_P(TypecheckBothVersionsTest, BitCountWithNoTypeArgument) {
+TEST_F(TypecheckV2Test, BitCountWithNoTypeArgument) {
   EXPECT_THAT(
       Typecheck(R"(
 fn main() -> u32 {
@@ -5141,7 +5090,7 @@ fn main() -> u32 {
                                    "Could not infer parametric(s): T"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, BitCountWithMultipleTypeArguments) {
+TEST_F(TypecheckV2Test, BitCountWithMultipleTypeArguments) {
   EXPECT_THAT(
       Typecheck(R"(
 fn main() -> u32 {
@@ -5158,7 +5107,7 @@ fn main() -> u32 {
                   "Too many parametric values supplied; limit: 1 given: 2"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, BitCountWithExprArgument) {
+TEST_F(TypecheckV2Test, BitCountWithExprArgument) {
   EXPECT_THAT(
       Typecheck(R"(
 fn main() -> u32 {
@@ -5176,7 +5125,7 @@ fn main() -> u32 {
 // Note: we use two different type signatures here for the two functions being
 // binop'd -- this can help show any place we assume we can "diff" the two
 // function types when they're not type-compatible.
-TEST(TypecheckTest, BinaryOpsOnFunctionType) {
+TEST_F(TypecheckV2Test, BinaryOpsOnFunctionType) {
   const std::string kProgramTemplate = R"(fn f() -> u32 { u32:42 }
 fn g() -> u8 { u8:43 }
 
@@ -5187,15 +5136,19 @@ fn main() {
   for (BinopKind binop : kAllBinopKinds) {
     std::string program = absl::StrReplaceAll(
         kProgramTemplate, {{"{op}", BinopKindFormat(binop)}});
-    EXPECT_THAT(Typecheck(program).status(),
-                StatusIs(absl::StatusCode::kInvalidArgument,
-                         AnyOf(HasSubstr("can only be applied to"),
-                               HasSubstr("requires operand types to be"),
-                               HasSubstr("Cannot use operator"))));
+    EXPECT_THAT(
+        Typecheck(program).status(),
+        StatusIs(
+            absl::StatusCode::kInvalidArgument,
+            testing::AnyOf(
+                HasSizeMismatch("u8", "u32"),
+                HasTypeMismatch("()", "() -> u32"),
+                HasSubstr("Concatenation requires operand types to be either "
+                          "both-arrays or both-bits; got: () -> uN[32]"))));
   }
 }
 
-TEST(TypecheckTest, UnaryOpsOnFunctionType) {
+TEST_F(TypecheckV2Test, UnaryOpsOnFunctionType) {
   const std::string kProgramTemplate = R"(fn f() -> u32 { u32:42 }
 fn main() -> u32 {
   {op} f
@@ -5206,15 +5159,13 @@ fn main() -> u32 {
         absl::StrReplaceAll(kProgramTemplate, {{"{op}", UnopKindFormat(unop)}});
     EXPECT_THAT(Typecheck(program).status(),
                 StatusIs(absl::StatusCode::kInvalidArgument,
-                         AnyOf(HasSubstr("can only be applied to"),
-                               HasSubstr("requires operand types to be"),
-                               HasSubstr("Cannot use operator"))));
+                         HasTypeMismatch("() -> u32", "u32")));
   }
 }
 
 // Table-oriented test that lets us validate that *types on parameters* are
 // compatible with *particular values* that should be type-compatible.
-TEST(PassValueToIdentityFnTest, ParameterVsValue) {
+TEST_F(TypecheckV2Test, ParameterVsValue) {
   constexpr std::string_view kTemplate =
       R"(fn id(x: $PARAM_TYPE) -> $PARAM_TYPE { x }
 
@@ -5305,13 +5256,13 @@ fn builtins() -> (u1, u1, u1, u32, u32, u32, $VALUE_TYPE) {
   }
 }
 
-TEST_P(TypecheckBothVersionsTest, AssertFmtOk) {
+TEST_F(TypecheckV2Test, AssertFmtOk) {
   XLS_EXPECT_OK(Typecheck(R"(fn main() {
   assert_fmt!(true, "it's true");
 })"));
 }
 
-TEST_P(TypecheckBothVersionsTest, AssertFmtOkWithConstexprArg) {
+TEST_F(TypecheckV2Test, AssertFmtOkWithConstexprArg) {
   XLS_EXPECT_OK(Typecheck(R"(
   const FIVE = u32:5;
   fn main() {
@@ -5319,7 +5270,7 @@ TEST_P(TypecheckBothVersionsTest, AssertFmtOkWithConstexprArg) {
 })"));
 }
 
-TEST_P(TypecheckBothVersionsTest, AssertFmtNonBoolCondition) {
+TEST_F(TypecheckV2Test, AssertFmtNonBoolCondition) {
   EXPECT_THAT(
       Typecheck(R"(fn main() {
   assert_fmt!(u32:5, "this is not bool");
@@ -5331,7 +5282,7 @@ TEST_P(TypecheckBothVersionsTest, AssertFmtNonBoolCondition) {
                 HasSizeMismatchInV2(GetParam(), "u32", "bool"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, AssertFmtNonConstexprArg) {
+TEST_F(TypecheckV2Test, AssertFmtNonConstexprArg) {
   constexpr std::string_view kProgram = R"(fn main(x: u32) {
   assert_fmt!(true, "x is {}", x);
 })";
@@ -5341,7 +5292,7 @@ TEST_P(TypecheckBothVersionsTest, AssertFmtNonConstexprArg) {
                              HasSubstr("expr `x` is not constexpr"))));
 }
 
-TEST_P(TypecheckBothVersionsTest, AssertFmtArgCountMismatch) {
+TEST_F(TypecheckV2Test, AssertFmtArgCountMismatch) {
   constexpr std::string_view kProgram = R"(fn main() {
   assert_fmt!(true, "{} {}", u32:5);
 })";
@@ -5351,11 +5302,6 @@ TEST_P(TypecheckBothVersionsTest, AssertFmtArgCountMismatch) {
                HasSubstr("assert_fmt! macro expects 2 argument(s) from format "
                          "but has 1 argument(s)")));
 }
-
-INSTANTIATE_TEST_SUITE_P(TypecheckBothVersionsTestSuite,
-                         TypecheckBothVersionsTest,
-                         testing::Values(TypeInferenceVersion::kVersion1,
-                                         TypeInferenceVersion::kVersion2));
 
 }  // namespace
 }  // namespace xls::dslx

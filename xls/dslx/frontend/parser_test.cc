@@ -4104,4 +4104,13 @@ proc AProc {
                     "attributes are enabled, please use the new syntax.")));
 }
 
+TEST_F(ParserTest, CannotSpecifyParametricsForNumber) {
+  constexpr std::string_view kProgram = "fn f(x:u2) { 0<> }";
+  Scanner s{file_table_, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  EXPECT_THAT(
+      parser.ParseModule().status(),
+      IsPosError("ParseError", "Cannot specify parametrics for a number."));
+}
+
 }  // namespace xls::dslx
