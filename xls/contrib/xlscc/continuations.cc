@@ -951,61 +951,61 @@ FindPassThroughs(GeneratedFunction& func, OptimizationContext& context) {
       absl::flat_hash_set<xls::Param*> allowed_sources;
 
       bool disallowed = false;
-      for (xls::leaf_type_tree_internal::LeafTypeTreeIterator it(
-               continuation_out.output_node->GetType());
-           !it.AtEnd(); it.Advance()) {
-        const int64_t e = it.linear_index();
-        const NodeSourceSet& source_set = sources.elements().at(e);
-        for (const xls::NodeSource& source : source_set) {
-          xls::Node* source_node = source.node();
+      XLS_RETURN_IF_ERROR(xls::leaf_type_tree::ForEachIndex(
+          sources.AsView(),
+          [&](xls::Type* element_type, const NodeSourceSet& source_set,
+              absl::Span<const int64_t> tree_index) -> absl::Status {
+            for (const xls::NodeSource& source : source_set) {
+              xls::Node* source_node = source.node();
 
-          if (source.tree_index() != it.type_index()) {
-            disallowed = true;
-            break;
-          }
+              if (source.tree_index() != tree_index) {
+                disallowed = true;
+                break;
+              }
 
-          if (!leaf_types_by_node.contains(source_node)) {
-            leaf_types_by_node[source_node] =
-                xls::leaf_type_tree_internal::GetLeafTypes(
-                    source_node->GetType());
-          }
+              if (!leaf_types_by_node.contains(source_node)) {
+                leaf_types_by_node[source_node] =
+                    xls::leaf_type_tree_internal::GetLeafTypes(
+                        source_node->GetType());
+              }
 
-          if (!source_node->Is<xls::Param>()) {
-            disallowed = true;
-            break;
-          }
-          xls::Param* from_param = source_node->As<xls::Param>();
-          if (!continuation_params.contains(from_param)) {
-            disallowed = true;
-            break;
-          }
-          allowed_sources.insert(from_param);
-        }
-      }
+              if (!source_node->Is<xls::Param>()) {
+                disallowed = true;
+                break;
+              }
+              xls::Param* from_param = source_node->As<xls::Param>();
+              if (!continuation_params.contains(from_param)) {
+                disallowed = true;
+                break;
+              }
+              allowed_sources.insert(from_param);
+            }
+            return absl::OkStatus();
+          }));
 
       // Ensure that every element contains all the sources
-      for (xls::leaf_type_tree_internal::LeafTypeTreeIterator it(
-               continuation_out.output_node->GetType());
-           !it.AtEnd(); it.Advance()) {
-        const int64_t e = it.linear_index();
-        const NodeSourceSet& source_set = sources.elements().at(e);
+      int64_t linear_index = 0;
+      XLS_RETURN_IF_ERROR(xls::leaf_type_tree::ForEachIndex(
+          sources.AsView(),
+          [&](xls::Type* element_type, const NodeSourceSet& source_set,
+              absl::Span<const int64_t> tree_index) -> absl::Status {
+            for (xls::Param* allowed_source : allowed_sources) {
+              std::vector<int64_t> tree_index_vec(tree_index.begin(),
+                                                  tree_index.end());
+              if (!source_set.contains(
+                      xls::NodeSource(allowed_source, tree_index_vec))) {
+                disallowed = true;
+                break;
+              }
 
-        for (xls::Param* allowed_source : allowed_sources) {
-          const absl::Span<const int64_t> tree_index = it.type_index();
-          std::vector<int64_t> tree_index_vec(tree_index.begin(),
-                                              tree_index.end());
-          if (!source_set.contains(
-                  xls::NodeSource(allowed_source, tree_index_vec))) {
-            disallowed = true;
-            break;
-          }
-
-          // Check the leaf element type
-          CHECK(disallowed || leaf_types_by_node.at(allowed_source)
-                                  .at(e)
-                                  ->IsEqualTo(leaf_types.at(e)));
-        }
-      }
+              // Check the leaf element type
+              CHECK(disallowed || leaf_types_by_node.at(allowed_source)
+                                      .at(linear_index)
+                                      ->IsEqualTo(leaf_types.at(linear_index)));
+            }
+            linear_index++;
+            return absl::OkStatus();
+          }));
 
       if (disallowed || allowed_sources.empty()) {
         continue;
