@@ -160,7 +160,7 @@ absl::Status AddWeakEmuTls(llvm::Module& module, llvm::LLVMContext* context) {
   llvm::Type* void_ptr_ty = llvm::PointerType::get(*context, 0);
   llvm::FunctionType* emutls_get_addr_type =
       llvm::FunctionType::get(void_ptr_ty, void_ptr_ty, /*isVarArg=*/false);
-  llvm::Type* void_ptr_ptr_ty = llvm::PointerType::get(void_ptr_ty, 0);
+  llvm::Type* void_ptr_ptr_ty = llvm::PointerType::get(*context, 0);
   // llvm::Type* void_ptr_ptr_ty = llvm::PointerType::get(void_ptr_ty, 0);
   // Make sure its weak linkage so other emutls can override it.
   // NB module takes ownership of the pointer.

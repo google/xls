@@ -585,8 +585,8 @@ llvm::Value* InvokeCallback(llvm::IRBuilder<>* builder, llvm::Type* return_type,
                          "callback_ptr_ptr", llvm::GEPNoWrapFlags::inBounds());
   llvm::FunctionType* fn_type =
       llvm::FunctionType::get(return_type, params_types, /*isVarArg=*/false);
-  llvm::Value* fn_ptr =
-      builder->CreateLoad(llvm::PointerType::get(fn_type, 0), fn_ptr_ptr);
+  llvm::Value* fn_ptr = builder->CreateLoad(
+      llvm::PointerType::get(builder->getContext(), 0), fn_ptr_ptr);
   return builder->CreateCall(fn_type, fn_ptr, all_args);
 }
 
