@@ -164,22 +164,23 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
   // TODO: area vs. delay trade-off heuristics in resource sharing should be
   // queried from area/delay models instead of being hard-coded on this pass.
   // avoids folds with small area savings on certain ops
-  static constexpr double kMinAreaSavings = 12.0;
-  static constexpr double kMaxDelaySpreadSquared = 320.0 * 320.0;
+  static constexpr double kDefaultMinAreaSavings = 12.0;
+  static constexpr double kDefaultMaxDelaySpread = 320.0;
+  static constexpr double kDefaultMaxDelaySpreadSquared =
+      kDefaultMaxDelaySpread * kDefaultMaxDelaySpread;
   // avoids folds with too large a delay increase or (delay spread)^2
-  static constexpr uint64_t kMaxDelayIncrease = 2000;
-  static constexpr uint64_t kMaxDelayIncreasePerFold = 200;
+  static constexpr uint64_t kDefaultMaxDelayIncrease = 2000;
+  static constexpr uint64_t kDefaultMaxDelayIncreasePerFold = 200;
 
   // avoids large visibility expressions that will likely be disqualified later
   // also, pruning edges is O(edges^2), so this value should be relatively small
-  static constexpr int64_t kMaxEdgesToHandle = 50;
+  static constexpr int64_t kDefaultMaxEdgesToHandle = 50;
   // the BDD expression path count for each edge is much more constrained than
   // the total path count to prevent a conservatively chosen visibility
   // expression being dominated by a single, complicated edge.
-  static constexpr int64_t kMaxPathCountForEdgeInGeneralVisibilityAnalysis = 64;
-  static constexpr int64_t kMaxPathCountForBddEngine = 4096;
-
-  explicit ResourceSharingPass();
+  static constexpr int64_t
+      kDefaultMaxPathCountForEdgeInGeneralVisibilityAnalysis = 64;
+  static constexpr int64_t kDefaultMaxPathCountForBddEngine = 4096;
 
   ~ResourceSharingPass() override = default;
 
@@ -195,6 +196,27 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
               // is used for testing only.
   };
 
+  explicit ResourceSharingPass(
+      ProfitabilityGuard profitability_guard = ProfitabilityGuard::kInDegree,
+      double min_area_savings = kDefaultMinAreaSavings,
+      double max_delay_spread_squared = kDefaultMaxDelaySpreadSquared,
+      uint64_t max_delay_increase = kDefaultMaxDelayIncrease,
+      uint64_t max_delay_increase_per_fold = kDefaultMaxDelayIncreasePerFold,
+      int64_t max_edges_to_handle = kDefaultMaxEdgesToHandle,
+      int64_t max_path_count_for_edge_in_general_visibility_analysis =
+          kDefaultMaxPathCountForEdgeInGeneralVisibilityAnalysis,
+      int64_t max_path_count_for_bdd_engine = kDefaultMaxPathCountForBddEngine)
+      : OptimizationFunctionBasePass(kName, "Resource Sharing"),
+        profitability_guard_(profitability_guard),
+        min_area_savings_(min_area_savings),
+        max_delay_spread_squared_(max_delay_spread_squared),
+        max_delay_increase_(max_delay_increase),
+        max_delay_increase_per_fold_(max_delay_increase_per_fold),
+        max_edges_to_handle_(max_edges_to_handle),
+        max_path_count_for_edge_in_general_visibility_analysis_(
+            max_path_count_for_edge_in_general_visibility_analysis),
+        max_path_count_for_bdd_engine_(max_path_count_for_bdd_engine) {}
+
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,
@@ -202,6 +224,13 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
 
  private:
   ProfitabilityGuard profitability_guard_;
+  const double min_area_savings_;
+  const double max_delay_spread_squared_;
+  const uint64_t max_delay_increase_;
+  const uint64_t max_delay_increase_per_fold_;
+  const int64_t max_edges_to_handle_;
+  const int64_t max_path_count_for_edge_in_general_visibility_analysis_;
+  const int64_t max_path_count_for_bdd_engine_;
 };
 
 }  // namespace xls
