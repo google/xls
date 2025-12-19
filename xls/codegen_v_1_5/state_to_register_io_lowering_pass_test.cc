@@ -14,72 +14,22 @@
 
 #include "xls/codegen_v_1_5/state_to_register_io_lowering_pass.h"
 
-#include <memory>
-#include <optional>
 #include <string>
 #include <string_view>
 
 #include "gtest/gtest.h"
-#include "absl/status/statusor.h"
-#include "absl/strings/substitute.h"
-#include "xls/codegen/codegen_options.h"
-#include "xls/codegen_v_1_5/block_conversion_pass.h"
-#include "xls/common/golden_files.h"
-#include "xls/common/source_location.h"
+#include "xls/codegen_v_1_5/pass_test_base.h"
 #include "xls/common/status/matchers.h"
-#include "xls/common/status/ret_check.h"
-#include "xls/common/status/status_macros.h"
-#include "xls/ir/ir_parser.h"
-#include "xls/ir/ir_test_base.h"
-#include "xls/ir/package.h"
-#include "xls/ir/verifier.h"
-#include "xls/passes/pass_base.h"
 #include "xls/tools/codegen.h"
 
 namespace xls::codegen {
 namespace {
 
-constexpr std::string_view kTestSuiteName =
-    "state_to_register_io_lowering_test";
-constexpr std::string_view kTestDataPath = "xls/codegen_v_1_5/testdata";
-
-class StateToRegisterIoLoweringPassTest : public IrTestBase {
- protected:
-  absl::StatusOr<std::string> RunPass(
-      std::string_view input, bool expect_change = true, int stage_count = 2,
-      std::optional<verilog::CodegenOptions> codegen_options = std::nullopt) {
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
-                         Parser::ParsePackageNoVerify(input));
-
-    StateToRegisterIoLoweringPass pass;
-    PassResults results;
-    BlockConversionPassOptions options;
-    if (codegen_options.has_value()) {
-      options.codegen_options = *codegen_options;
-    } else {
-      options.codegen_options.clock_name("clk").reset("rst", false, false,
-                                                      false);
-    }
-    XLS_ASSIGN_OR_RETURN(bool result,
-                         pass.Run(package.get(), options, &results));
-
-    XLS_RET_CHECK(expect_change == result);
-
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> round_tripped_package,
-                         Parser::ParsePackageNoVerify(package->DumpIr()));
-    XLS_RETURN_IF_ERROR(VerifyPackage(round_tripped_package.get(),
-                                      {.incomplete_lowering = true}));
-    return round_tripped_package->DumpIr();
-  }
-
-  void ExpectEqualToGoldenFile(
-      std::string_view actual_ir,
-      xabsl::SourceLocation loc = xabsl::SourceLocation::current()) {
-    ::xls::ExpectEqualToGoldenFile(
-        absl::Substitute("$0/$1_$2.ir", kTestDataPath, kTestSuiteName,
-                         TestName()),
-        actual_ir, loc);
-  }
+class StateToRegisterIoLoweringPassTest
+    : public PassTestBase<StateToRegisterIoLoweringPass> {
+ public:
+  StateToRegisterIoLoweringPassTest()
+      : PassTestBase("state_to_register_io_lowering_test") {}
 };
 
 TEST_F(StateToRegisterIoLoweringPassTest, SimpleFunction) {
@@ -113,13 +63,14 @@ top scheduled_block __test__f(clk: clock, rst: bits[1]) {
 }
 )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::string output,
-                           RunPass(kInput, /*expect_change=*/false));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string output,
+      RunPassAndRoundTripIrText(kInput, /*expect_change=*/false));
   EXPECT_EQ(output, kInput);
 }
 
 TEST_F(StateToRegisterIoLoweringPassTest, SimpleProcWithProcScopedChannels) {
-  XLS_ASSERT_OK_AND_ASSIGN(std::string output, RunPass(R"(
+  XLS_ASSERT_OK_AND_ASSIGN(std::string output, RunPassAndRoundTripIrText(R"(
 package test
 
 top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
@@ -162,7 +113,8 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
 }
 
 TEST_F(StateToRegisterIoLoweringPassTest, SimpleProcWithGlobalChannels) {
-  XLS_ASSERT_OK_AND_ASSIGN(std::string output, RunPass(R"(package test
+  XLS_ASSERT_OK_AND_ASSIGN(std::string output,
+                           RunPassAndRoundTripIrText(R"(package test
 
 chan test__a(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
 chan test__b(bits[32], id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
@@ -205,7 +157,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
 }
 
 TEST_F(StateToRegisterIoLoweringPassTest, SimpleProcWithFullBit) {
-  XLS_ASSERT_OK_AND_ASSIGN(std::string output, RunPass(R"(
+  XLS_ASSERT_OK_AND_ASSIGN(std::string output, RunPassAndRoundTripIrText(R"(
 package test
 
 top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
@@ -254,7 +206,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
 }
 
 TEST_F(StateToRegisterIoLoweringPassTest, SimpleProcWithFullBitAndPredicates) {
-  XLS_ASSERT_OK_AND_ASSIGN(std::string output, RunPass(R"(
+  XLS_ASSERT_OK_AND_ASSIGN(std::string output, RunPassAndRoundTripIrText(R"(
 package test
 
 top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
@@ -315,7 +267,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
 }
 
 TEST_F(StateToRegisterIoLoweringPassTest, SimpleProcWithMultipleStateElements) {
-  XLS_ASSERT_OK_AND_ASSIGN(std::string output, RunPass(R"(
+  XLS_ASSERT_OK_AND_ASSIGN(std::string output, RunPassAndRoundTripIrText(R"(
 package test
 
 top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
@@ -367,7 +319,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
 }
 
 TEST_F(StateToRegisterIoLoweringPassTest, ProcWithNonZeroInitValue) {
-  XLS_ASSERT_OK_AND_ASSIGN(std::string output, RunPass(R"(
+  XLS_ASSERT_OK_AND_ASSIGN(std::string output, RunPassAndRoundTripIrText(R"(
 package test
 
 top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
@@ -410,7 +362,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
 }
 
 TEST_F(StateToRegisterIoLoweringPassTest, ProcWithTupleState) {
-  XLS_ASSERT_OK_AND_ASSIGN(std::string output, RunPass(R"(
+  XLS_ASSERT_OK_AND_ASSIGN(std::string output, RunPassAndRoundTripIrText(R"(
 package test
 
 top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {

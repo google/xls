@@ -1,0 +1,24 @@
+package test
+
+top scheduled_proc __test__P_0_next<a: bits[32] in, b: bits[32] in, result: bits[32] out>(__state: bits[32], init={0}) {
+  chan_interface a(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface b(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface result(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  literal.3: bits[1] = literal(value=1, id=3)
+  stage {
+    after_all.5: token = after_all(id=5)
+    receive.6: (token, bits[32]) = receive(after_all.5, predicate=literal.3, channel=a, id=6)
+    tok: token = tuple_index(receive.6, index=0, id=8)
+    receive.10: (token, bits[32]) = receive(tok, predicate=literal.3, channel=b, id=10)
+    a_value: bits[32] = tuple_index(receive.6, index=1, id=9)
+    tok__1: token = tuple_index(receive.10, index=0, id=12)
+    b_value: bits[32] = tuple_index(receive.10, index=1, id=13)
+    umul.14: bits[32] = umul(a_value, b_value, id=14)
+  }
+  stage {
+    __state: bits[32] = state_read(state_element=__state, id=2)
+    result_value: bits[32] = add(umul.14, __state, id=15)
+    send.16: token = send(tok__1, result_value, predicate=literal.3, channel=result, id=16)
+    next_value.17: () = next_value(param=__state, value=result_value, id=17)
+  }
+}

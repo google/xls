@@ -1,0 +1,11 @@
+package test
+
+top scheduled_fn __test__f(a: bits[32] id=1, b: bits[32] id=2, c: bits[32] id=3, d: bits[32] id=4) -> bits[32] {
+  stage {
+    umul.5: bits[32] = umul(a, b, id=5)
+    umul.6: bits[32] = umul(c, d, id=6)
+  }
+  stage {
+    ret add.7: bits[32] = add(umul.5, umul.6, id=7)
+  }
+}
