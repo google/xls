@@ -21,6 +21,7 @@
 #include <string_view>
 #include <tuple>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/container/btree_map.h"
@@ -937,13 +938,6 @@ FindPassThroughs(GeneratedFunction& func, OptimizationContext& context) {
     for (ContinuationValue& continuation_out : slice.continuations_out) {
       CHECK(continuation_out.output_node->op() == xls::Op::kIdentity);
 
-      absl::InlinedVector<xls::Type*, 1> leaf_types =
-          xls::leaf_type_tree_internal::GetLeafTypes(
-              continuation_out.output_node->GetType());
-
-      absl::flat_hash_map<const xls::Node*, absl::InlinedVector<xls::Type*, 1>>
-          leaf_types_by_node;
-
       const xls::SharedLeafTypeTree<NodeSourceSet>& sources =
           node_sources_info->GetInfo(continuation_out.output_node);
 
@@ -963,12 +957,6 @@ FindPassThroughs(GeneratedFunction& func, OptimizationContext& context) {
                 break;
               }
 
-              if (!leaf_types_by_node.contains(source_node)) {
-                leaf_types_by_node[source_node] =
-                    xls::leaf_type_tree_internal::GetLeafTypes(
-                        source_node->GetType());
-              }
-
               if (!source_node->Is<xls::Param>()) {
                 disallowed = true;
                 break;
@@ -984,7 +972,8 @@ FindPassThroughs(GeneratedFunction& func, OptimizationContext& context) {
           }));
 
       // Ensure that every element contains all the sources
-      int64_t linear_index = 0;
+      absl::flat_hash_map<const xls::Param*, xls::LeafTypeTree<std::monostate>>
+          source_type_trees;
       XLS_RETURN_IF_ERROR(xls::leaf_type_tree::ForEachIndex(
           sources.AsView(),
           [&](xls::Type* element_type, const NodeSourceSet& source_set,
@@ -998,12 +987,16 @@ FindPassThroughs(GeneratedFunction& func, OptimizationContext& context) {
                 break;
               }
 
-              // Check the leaf element type
-              CHECK(disallowed || leaf_types_by_node.at(allowed_source)
-                                      .at(linear_index)
-                                      ->IsEqualTo(leaf_types.at(linear_index)));
+              if (!disallowed) {
+                // Check the leaf element type, caching the type tree to avoid
+                // repeated work.
+                auto [it, _] = source_type_trees.try_emplace(
+                    allowed_source, allowed_source->GetType());
+                CHECK(it->second.AsView(tree_index)
+                          .type()
+                          ->IsEqualTo(element_type));
+              }
             }
-            linear_index++;
             return absl::OkStatus();
           }));
 
