@@ -29,7 +29,7 @@ namespace {
 // signedness.
 TEST(TypecheckTest, TokenArrayTypeAnnotation) {
   constexpr std::string_view kProgram = R"(proc t{e:token[0]})";
-  XLS_EXPECT_OK(Typecheck(kProgram));
+  XLS_EXPECT_OK(TypecheckV2(kProgram));
 }
 
 // Scenario where entry proc has a config with a "spawn" statement and a
@@ -48,7 +48,7 @@ proc entry {
     next (state: ()) { () }
 }
 )";
-  XLS_EXPECT_OK(Typecheck(kProgram));
+  XLS_EXPECT_OK(TypecheckV2(kProgram));
 }
 
 // As above, but with an explicit empty tuple to configure the zero members.
@@ -66,7 +66,7 @@ proc entry {
     next (state: ()) { () }
 }
 )";
-  XLS_EXPECT_OK(Typecheck(kProgram));
+  XLS_EXPECT_OK(TypecheckV2(kProgram));
 }
 
 TEST(TypecheckErrorTest, ConfigTooManyElementsGiven) {
@@ -80,10 +80,11 @@ proc entry {
     next (state: ()) { () }
 }
 )";
-  EXPECT_THAT(Typecheck(kProgram),
-              absl_testing::StatusIs(
-                  absl::StatusCode::kInvalidArgument,
-                  testing::HasSubstr("(chan(uN[32], dir=in))\nvs ()")));
+  EXPECT_THAT(
+      TypecheckV2(kProgram),
+      absl_testing::StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          testing::HasSubstr("Out-of-bounds tuple index specified: 0")));
 }
 
 TEST(TypecheckErrorTest, ConfigTooFewElementsGiven) {
@@ -97,10 +98,11 @@ proc entry {
     next (state: ()) { () }
 }
 )";
-  EXPECT_THAT(Typecheck(kProgram),
-              absl_testing::StatusIs(
-                  absl::StatusCode::kInvalidArgument,
-                  testing::HasSubstr("()\nvs (chan(uN[32], dir=in))")));
+  EXPECT_THAT(
+      TypecheckV2(kProgram),
+      absl_testing::StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          testing::HasSubstr("Cannot match a 1-element tuple to 0 values.")));
 }
 
 TEST(TypecheckErrorTest, ConfigNonTupleGiven) {
@@ -114,7 +116,7 @@ proc entry {
     next (state: ()) { () }
 }
 )";
-  EXPECT_THAT(Typecheck(kProgram),
+  EXPECT_THAT(TypecheckV2(kProgram),
               absl_testing::StatusIs(
                   absl::StatusCode::kInvalidArgument,
                   testing::HasSubstr(
@@ -149,12 +151,9 @@ proc entry {
     next (state: ()) { () }
 }
 )";
-  EXPECT_THAT(
-      Typecheck(kProgram),
-      absl_testing::StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          testing::HasSubstr(
-              "Want argument 3 to 'recv_if' to have type uN[32]; got uN[42]")));
+  EXPECT_THAT(TypecheckV2(kProgram),
+              absl_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                                     HasSizeMismatch("u32", "u42")));
 }
 
 TEST(TypecheckTest, InitDoesntMatchStateParam) {
@@ -166,11 +165,9 @@ proc oopsie {
       state
     }
 })";
-  EXPECT_THAT(
-      Typecheck(kProgram),
-      absl_testing::StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          testing::HasSubstr("'next' state param and 'init' types differ")));
+  EXPECT_THAT(TypecheckV2(kProgram),
+              absl_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                                     HasSizeMismatch("u32", "u33")));
 }
 
 TEST(TypecheckTest, NextReturnDoesntMatchState) {
@@ -183,10 +180,9 @@ proc oopsie {
     }
 })";
 
-  EXPECT_THAT(Typecheck(kProgram),
-              absl_testing::StatusIs(
-                  absl::StatusCode::kInvalidArgument,
-                  testing::HasSubstr("input and output state types differ")));
+  EXPECT_THAT(TypecheckV2(kProgram),
+              absl_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                                     HasSizeMismatch("u33", "u32")));
 }
 
 TEST(TypecheckTest, CantSendOnNonMember) {
@@ -205,12 +201,9 @@ proc foo {
     }
 }
 )";
-  EXPECT_THAT(
-      Typecheck(kProgram),
-      absl_testing::StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          testing::HasSubstr(
-              "Want argument 1 to 'send' to be a channel; got uN[32]")));
+  EXPECT_THAT(TypecheckV2(kProgram),
+              absl_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                                     HasTypeMismatch("u32", "chan<Any> out")));
 }
 
 TEST(TypecheckTest, CantSendOnNonChannel) {
@@ -227,12 +220,9 @@ proc foo {
     }
 }
 )";
-  EXPECT_THAT(
-      Typecheck(kProgram),
-      absl_testing::StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          testing::HasSubstr(
-              "Want argument 1 to 'send' to be a channel; got uN[32]")));
+  EXPECT_THAT(TypecheckV2(kProgram),
+              absl_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                                     HasTypeMismatch("u32", "chan<Any> out")));
 }
 
 TEST(TypecheckTest, CantRecvOnOutputChannel) {
@@ -263,11 +253,9 @@ proc entry {
 }
 )";
   EXPECT_THAT(
-      Typecheck(kProgram),
-      absl_testing::StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          testing::HasSubstr("Want argument 1 to 'recv' to be an 'in' (recv) "
-                             "channel; got chan(uN[32], dir=out)")));
+      TypecheckV2(kProgram),
+      absl_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                             HasTypeMismatch("chan<u32> out", "chan<u32> in")));
 }
 
 TEST(TypecheckTest, CantSendOnOutputChannel) {
@@ -287,11 +275,9 @@ proc entry {
 }
 )";
   EXPECT_THAT(
-      Typecheck(kProgram),
-      absl_testing::StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          testing::HasSubstr("Want argument 1 to 'send' to be an 'out' (send) "
-                             "channel; got chan(uN[32], dir=in)")));
+      TypecheckV2(kProgram),
+      absl_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                             HasTypeMismatch("chan<u32> in", "chan<u32> out")));
 }
 
 TEST(TypecheckTest, CanUseZeroMacroInInitIssue943) {
@@ -310,7 +296,7 @@ proc foo {
   }
 }
 )";
-  XLS_EXPECT_OK(Typecheck(kProgram));
+  XLS_EXPECT_OK(TypecheckV2(kProgram));
 }
 
 TEST(TypecheckTest, SendWithBadTokenType) {
@@ -329,11 +315,9 @@ proc entry {
     }
 }
 )";
-  EXPECT_THAT(Typecheck(kProgram),
-              absl_testing::StatusIs(
-                  absl::StatusCode::kInvalidArgument,
-                  testing::HasSubstr(
-                      "Want argument 0 to 'send' to be a token; got uN[32]")));
+  EXPECT_THAT(TypecheckV2(kProgram),
+              absl_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                                     HasTypeMismatch("token", "u32")));
 }
 
 TEST(TypecheckTest, SimpleProducer) {
@@ -353,11 +337,11 @@ proc producer {
     }
 }
 )";
-  XLS_EXPECT_OK(Typecheck(kProgram));
+  XLS_EXPECT_OK(TypecheckV2(kProgram));
 }
 
 TEST(TypecheckErrorTest, ProcWithConstant) {
-  XLS_EXPECT_OK(Typecheck(R"(
+  XLS_EXPECT_OK(TypecheckV2(R"(
 proc const_proc {
   const MY_CONST = u32:2;
   input_s: chan<u32> out;
@@ -381,7 +365,7 @@ proc const_proc {
 }
 
 TEST(TypecheckErrorTest, ProcWithConstantRefFunction) {
-  XLS_EXPECT_OK(Typecheck(R"(
+  XLS_EXPECT_OK(TypecheckV2(R"(
 fn double(x: u32) -> u32 {
   x * u32:2
 }
@@ -410,8 +394,7 @@ proc const_proc {
 
 TEST(TypecheckTest, ProcWithConstantInType) {
   constexpr std::string_view kProgram = R"(
-proc my_proc {
-    const VAL = u32:37;
+proc my_proc<VAL: u32 = {37}> {
     c: chan<uN[VAL]> in;
     s: chan<uN[VAL]> out;
 
@@ -455,15 +438,12 @@ proc test_proc {
 }
 
 )";
-  XLS_EXPECT_OK(Typecheck(kProgram));
+  XLS_EXPECT_OK(TypecheckV2(kProgram));
 }
 
-// TODO: https://github.com/google/xls/issues/1580 - Handle referencing param
-// values in constants.
-TEST(TypecheckTest, DISABLED_ParametricProcWithConstantRefParameter) {
+TEST(TypecheckTest, ParametricProcWithConstantRefParameter) {
   constexpr std::string_view kProgram = R"(
-proc parametric<N: u32> {
-    const VAL = u32:2 * N;
+proc parametric<N: u32, VAL: u32 = {2 * N}> {
     c: chan<uN[VAL]> in;
     s: chan<uN[VAL]> out;
 
@@ -481,12 +461,12 @@ proc parametric<N: u32> {
 #[test_proc]
 proc test_proc {
     terminator: chan<bool> out;
-    output_c: chan<u37> in;
-    input_p: chan<u37> out;
+    output_c: chan<u64> in;
+    input_p: chan<u64> out;
 
     config(terminator: chan<bool> out) {
-        let (input_p, input_c) = chan<u37>("input");
-        let (output_p, output_c) = chan<u37>("output");
+        let (input_p, input_c) = chan<u64>("input");
+        let (output_p, output_c) = chan<u64>("output");
         spawn parametric<u32:32>(input_c, output_p);
         (terminator, output_c, input_p)
     }
@@ -494,26 +474,25 @@ proc test_proc {
     init { () }
 
     next(state: ()) {
-        let tok = send(join(), input_p, u37:1);
+        let tok = send(join(), input_p, 1);
         let (tok, result) = recv(tok, output_c);
-        assert_eq(result, u37:2);
+        assert_eq(result, 2);
 
-        let tok = send(tok, input_p, u37:8);
+        let tok = send(tok, input_p, 8);
         let (tok, result) = recv(tok, output_c);
-        assert_eq(result, u37:16);
+        assert_eq(result, 16);
 
         let tok = send(tok, terminator, true);
     }
 }
 
 )";
-  XLS_EXPECT_OK(Typecheck(kProgram));
+  XLS_EXPECT_OK(TypecheckV2(kProgram));
 }
 
 TEST(TypecheckTest, ParametricProcWithConstant) {
   constexpr std::string_view kProgram = R"(
-proc parametric<N: u32> {
-    const VAL = u32:37;
+proc parametric<N: u32, VAL: u32 = {37}> {
     c: chan<uN[VAL]> in;
     s: chan<uN[VAL]> out;
 
@@ -557,7 +536,7 @@ proc test_proc {
 }
 
 )";
-  XLS_EXPECT_OK(Typecheck(kProgram));
+  XLS_EXPECT_OK(TypecheckV2(kProgram));
 }
 
 TEST(TypecheckTest, ProcWithParametricExpr) {
@@ -581,7 +560,7 @@ proc MyTestProc {
   next(st:()) { }
 }
 )";
-  XLS_EXPECT_OK(Typecheck(kProgram));
+  XLS_EXPECT_OK(TypecheckV2(kProgram));
 }
 
 TEST(TypecheckTest, ProcWithArrayOfChannels) {
@@ -594,7 +573,7 @@ proc p {
   next(state: ()) { send(join(), result[0], u32:0); }
 }
 )";
-  XLS_EXPECT_OK(Typecheck(kProgram));
+  XLS_EXPECT_OK(TypecheckV2(kProgram));
 }
 
 TEST(TypecheckErrorTest, ProcWithArrayOfChannelsIndexOob) {
@@ -607,7 +586,7 @@ proc p {
   next(state: ()) { send(join(), result[2], u32:0); }
 }
 )";
-  EXPECT_THAT(Typecheck(kProgram).status(),
+  EXPECT_THAT(TypecheckV2(kProgram).status(),
               IsPosError("TypeInferenceError",
                          testing::HasSubstr(
                              "Index has a compile-time constant value 2 that "
@@ -624,10 +603,9 @@ proc p {
   next(state: ()) { send(join(), result[1], u64:0); }
 }
 )";
-  EXPECT_THAT(Typecheck(kProgram).status(),
-              IsPosError("XlsTypeError",
-                         testing::HasSubstr(
-                             "Want argument 2 to 'send' to have type uN[32]")));
+  EXPECT_THAT(TypecheckV2(kProgram).status(),
+              absl_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                                     HasSizeMismatch("u32", "u64")));
 }
 
 // See also https://github.com/google/xls/issues/1359
@@ -640,7 +618,7 @@ proc p {
   next(state: MyU32) { zero!<MyU32>() }
 }
 )";
-  XLS_EXPECT_OK(Typecheck(kProgram));
+  XLS_EXPECT_OK(TypecheckV2(kProgram));
 }
 
 TEST(TypecheckTest, ProcLevelUselessExpression) {
@@ -653,7 +631,7 @@ proc MyProc {
   next(state: ()) { () }
 }
 )";
-  EXPECT_THAT(Typecheck(kProgram),
+  EXPECT_THAT(TypecheckV2(kProgram),
               absl_testing::StatusIs(
                   absl::StatusCode::kInvalidArgument,
                   testing::HasSubstr(
@@ -671,7 +649,7 @@ proc MyProc {
   next(state: ()) { () }
 }
 )";
-  XLS_EXPECT_OK(Typecheck(kProgram));
+  XLS_EXPECT_OK(TypecheckV2(kProgram));
 }
 
 TEST(TypecheckTest, ProcLevelConstAssertThatFails) {
@@ -692,7 +670,7 @@ proc Instantiator {
 }
 )";
   EXPECT_THAT(
-      Typecheck(kProgram),
+      TypecheckV2(kProgram),
       absl_testing::StatusIs(
           absl::StatusCode::kInvalidArgument,
           testing::HasSubstr("const_assert! failure: `X == Y` constexpr "
@@ -716,7 +694,7 @@ proc Instantiator {
   next(state: ()) { () }
 }
 )";
-  XLS_EXPECT_OK(Typecheck(kProgram));
+  XLS_EXPECT_OK(TypecheckV2(kProgram));
 }
 
 TEST(TypecheckTest, ProcLevelConstAssertThatPassesThenFails) {
@@ -738,7 +716,7 @@ proc Instantiator {
 }
 )";
   EXPECT_THAT(
-      Typecheck(kProgram),
+      TypecheckV2(kProgram),
       absl_testing::StatusIs(
           absl::StatusCode::kInvalidArgument,
           testing::HasSubstr("const_assert! failure: `X == Y` constexpr "

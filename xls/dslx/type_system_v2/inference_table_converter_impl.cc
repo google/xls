@@ -1769,6 +1769,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     }
 
     if (callee.IsInProc()) {
+      for (const AstNode* child : (*callee.proc())->GetChildren(false)) {
+        if (child->kind() == AstNodeKind::kConstAssert) {
+          XLS_RETURN_IF_ERROR(
+              ConvertSubtree(child, std::nullopt, invocation_context));
+        }
+      }
       for (const ProcMember* member : (*callee.proc())->members()) {
         XLS_RETURN_IF_ERROR(
             ConvertSubtree(member, std::nullopt, invocation_context));
