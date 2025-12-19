@@ -158,6 +158,20 @@ class FSMLayoutTest : public XlsccTestBase {
     return nullptr;
   }
 
+  bool AnyStateSavesDecl(const NewFSMLayout& layout, std::string_view name) {
+    for (const NewFSMState& state : layout.states) {
+      for (const ContinuationValue* value : state.values_to_save) {
+        for (const auto& decl : value->decls) {
+          if (decl->getNameAsString() == name) {
+            return true;
+          }
+        }
+      }
+    }
+
+    return false;
+  }
+
   int64_t StateSavesDeclCount(const NewFSMState& state, std::string_view name) {
     int64_t count = 0;
     for (const ContinuationValue* value : state.values_to_save) {
@@ -420,6 +434,105 @@ TEST_F(FSMLayoutTest, PipelinedLoop) {
 
   EXPECT_FALSE(StateSavesDecl(layout, /*slice_index=*/3,
                               /*jumped_from_slice_indices=*/{}, "r"));
+}
+
+TEST_F(FSMLayoutTest, PipelinedLoopConstantPropagation) {
+  const std::string content = R"(
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      const int c = 10;
+      const int r = in.read();
+      int a = 0;
+      #pragma hls_pipeline_init_interval 1
+      for (int i=0;i<10;++i) {
+        a += c * r;
+      }
+      out.write(a);
+    })";
+
+  XLS_ASSERT_OK_AND_ASSIGN(NewFSMLayout layout, GenerateTopFunction(content));
+
+  ExpectSliceTransition(layout, /*from_slice_index=*/2, /*to_slice_index=*/2,
+                        /*unconditional=*/false);
+
+  EXPECT_TRUE(StateInputsDecl(layout, /*slice_index=*/2,
+                              /*jumped_from_slice_indices=*/{}, "r",
+                              /*from_slice_index=*/1));
+  EXPECT_TRUE(StateInputsDecl(layout, /*slice_index=*/2,
+                              /*jumped_from_slice_indices=*/{}, "a",
+                              /*from_slice_index=*/1));
+  EXPECT_TRUE(StateInputsDecl(layout, /*slice_index=*/2,
+                              /*jumped_from_slice_indices=*/{}, "i",
+                              /*from_slice_index=*/1));
+
+  EXPECT_TRUE(StateInputsDecl(layout, /*slice_index=*/2,
+                              /*jumped_from_slice_indices=*/{2}, "r",
+                              /*from_slice_index=*/1));
+  EXPECT_TRUE(StateInputsDecl(layout, /*slice_index=*/2,
+                              /*jumped_from_slice_indices=*/{2}, "a",
+                              /*from_slice_index=*/2));
+  EXPECT_TRUE(StateInputsDecl(layout, /*slice_index=*/2,
+                              /*jumped_from_slice_indices=*/{2}, "i",
+                              /*from_slice_index=*/2));
+
+  EXPECT_TRUE(StateInputsDecl(layout, /*slice_index=*/3,
+                              /*jumped_from_slice_indices=*/{}, "a",
+                              /*from_slice_index=*/2));
+  EXPECT_FALSE(StateInputsDecl(layout, /*slice_index=*/3,
+                               /*jumped_from_slice_indices=*/{}, "r"));
+
+  EXPECT_FALSE(StateSavesDecl(layout, /*slice_index=*/1,
+                              /*jumped_from_slice_indices=*/{}, "a",
+                              /*from_slice_index=*/1));
+  EXPECT_FALSE(StateSavesDecl(layout, /*slice_index=*/1,
+                              /*jumped_from_slice_indices=*/{}, "i",
+                              /*from_slice_index=*/1));
+  const ContinuationValue* r_value = nullptr;
+  ASSERT_TRUE(r_value = StateSavesDecl(layout, /*slice_index=*/1,
+                                       /*jumped_from_slice_indices=*/{}, "r",
+                                       /*from_slice_index=*/1));
+  ASSERT_TRUE(layout.state_element_by_continuation_value.contains(r_value));
+  const int64_t r_index =
+      layout.state_element_by_continuation_value.at(r_value);
+
+  EXPECT_TRUE(StateSavesDecl(layout, /*slice_index=*/2,
+                             /*jumped_from_slice_indices=*/{}, "a",
+                             /*from_slice_index=*/2));
+  EXPECT_TRUE(StateSavesDecl(layout, /*slice_index=*/2,
+                             /*jumped_from_slice_indices=*/{}, "i",
+                             /*from_slice_index=*/2));
+  EXPECT_TRUE(StateSavesDecl(layout, /*slice_index=*/2,
+                             /*jumped_from_slice_indices=*/{}, "r",
+                             /*from_slice_index=*/1));
+
+  const ContinuationValue* a_value = nullptr;
+  ASSERT_TRUE(a_value = StateSavesDecl(layout, /*slice_index=*/2,
+                                       /*jumped_from_slice_indices=*/{2}, "a",
+                                       /*from_slice_index=*/2));
+  ASSERT_TRUE(layout.state_element_by_continuation_value.contains(a_value));
+  const int64_t a_index =
+      layout.state_element_by_continuation_value.at(a_value);
+  EXPECT_NE(r_index, a_index);
+
+  const ContinuationValue* i_value = nullptr;
+  ASSERT_TRUE(i_value = StateSavesDecl(layout, /*slice_index=*/2,
+                                       /*jumped_from_slice_indices=*/{2}, "i",
+                                       /*from_slice_index=*/2));
+  ASSERT_TRUE(layout.state_element_by_continuation_value.contains(i_value));
+  const int64_t i_index =
+      layout.state_element_by_continuation_value.at(i_value);
+  EXPECT_NE(i_index, a_index);
+  EXPECT_NE(i_index, r_index);
+
+  EXPECT_TRUE(StateSavesDecl(layout, /*slice_index=*/2,
+                             /*jumped_from_slice_indices=*/{2}, "r",
+                             /*from_slice_index=*/1));
+
+  EXPECT_FALSE(StateSavesDecl(layout, /*slice_index=*/3,
+                              /*jumped_from_slice_indices=*/{}, "r"));
+
+  EXPECT_FALSE(AnyStateSavesDecl(layout, "c"));
 }
 
 TEST_F(FSMLayoutTest, PipelinedLoopBypass) {

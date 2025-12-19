@@ -51,6 +51,9 @@
 #include "xls/ir/state_element.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/passes/data_flow_node_info.h"
+#include "xls/passes/node_source_analysis.h"
+#include "xls/passes/partial_info_query_engine.h"
 
 namespace xlscc {
 
@@ -1211,6 +1214,78 @@ void LogContinuations(const xlscc::GeneratedFunction& func);
 // 3) AND(0, a, b) => 0
 // 4) AND(1, a, b) => AND(a, b)
 absl::Status ShortCircuitBVal(TrackedBValue& bval, const xls::SourceInfo& loc);
+
+typedef absl::flat_hash_set<const xls::Param*> ParamSet;
+
+class SourcesSetNodeInfo
+    : public xls::DataFlowLazyNodeInfo<SourcesSetNodeInfo, ParamSet> {
+ public:
+  SourcesSetNodeInfo();
+
+  ParamSet ComputeInfoForBitsLiteral(
+      const xls::Bits& literal) const override final;
+
+  ParamSet ComputeInfoForNode(xls::Node* node) const override final;
+
+  xls::LeafTypeTree<ParamSet> ComputeInfoTreeForNode(
+      xls::Node* node) const override final;
+
+  ParamSet MergeInfos(
+      const absl::Span<const ParamSet>& infos) const override final;
+};
+
+// typedef absl::flat_hash_set<const xls::Node*> NodeSet;
+typedef absl::flat_hash_set<xls::NodeSource> NodeSourceSet;
+
+// This class sees through compound type operations, ie on tuples,
+// but it does not see through other operations, ie add.
+//
+// It returns a set of nodes, as some sources will be of the unsupported types,
+// ie the aforementioned add.
+class SourcesSetTreeNodeInfo
+    : public xls::DataFlowLazyNodeInfo<SourcesSetTreeNodeInfo, NodeSourceSet> {
+ public:
+  SourcesSetTreeNodeInfo();
+
+  NodeSourceSet ComputeInfoForBitsLiteral(
+      const xls::Bits& literal) const override final;
+
+  NodeSourceSet ComputeInfoForNode(xls::Node* node) const override final;
+
+  xls::LeafTypeTree<NodeSourceSet> ComputeInfoTreeForNode(
+      xls::Node* node) const override final;
+
+  NodeSourceSet MergeInfos(
+      const absl::Span<const NodeSourceSet>& infos) const override final;
+};
+
+class OptimizationContext {
+ public:
+  absl::StatusOr<SourcesSetNodeInfo*> GetSourcesSetNodeInfoForFunction(
+      xls::FunctionBase* in_function);
+
+  absl::StatusOr<SourcesSetTreeNodeInfo*> GetSourcesSetTreeNodeInfoForFunction(
+      xls::FunctionBase* in_function);
+
+  absl::StatusOr<xls::PartialInfoQueryEngine*> GetQueryEngineForFunction(
+      xls::FunctionBase* in_function);
+
+  absl::StatusOr<bool> CheckNodeSourcesInSet(
+      xls::FunctionBase* in_function, xls::Node* node,
+      absl::flat_hash_set<const xls::Param*> sources_set);
+
+ private:
+  absl::flat_hash_map<xls::FunctionBase*, std::unique_ptr<SourcesSetNodeInfo>>
+      sources_net_node_infos_by_function_;
+
+  absl::flat_hash_map<xls::FunctionBase*,
+                      std::unique_ptr<SourcesSetTreeNodeInfo>>
+      sources_set_tree_node_infos_by_function_;
+
+  absl::flat_hash_map<xls::FunctionBase*,
+                      std::unique_ptr<xls::PartialInfoQueryEngine>>
+      query_engines_by_function_;
+};
 
 }  // namespace xlscc
 

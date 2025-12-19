@@ -355,11 +355,19 @@ absl::Status NewFSMGenerator::LayoutNewFSMStates(
 
     for (const auto& [input_param, continuation_ins] : inputs_by_param) {
       XLSCC_CHECK_GE(continuation_ins.size(), 1, body_loc);
+      int64_t num_upstream_inputs_this_param = 0;
       int64_t latest_step_produced = -1;
       const ContinuationInput* latest_continuation_in = nullptr;
       for (const ContinuationInput* continuation_in : continuation_ins) {
         const ContinuationValue* continuation_out =
             continuation_in->continuation_out;
+
+        const int64_t output_slice_index =
+            layout.output_slice_index_by_value.at(continuation_out);
+        if (output_slice_index < slice_index) {
+          ++num_upstream_inputs_this_param;
+        }
+
         // Ignore if not produced yet
         if (!step_produced_by_value.contains(continuation_out)) {
           continue;
@@ -373,6 +381,8 @@ absl::Status NewFSMGenerator::LayoutNewFSMStates(
         }
       }
 
+      // We don't handle generating phis with multiple upstream inputs.
+      XLSCC_CHECK_LE(num_upstream_inputs_this_param, 1, body_loc);
       XLSCC_CHECK_GE(latest_step_produced, 0, body_loc);
       XLSCC_CHECK_NE(latest_continuation_in, nullptr, body_loc);
       new_state.current_inputs_by_input_param[input_param] =

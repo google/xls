@@ -10274,6 +10274,81 @@ TEST_P(TranslatorProcTest, SubroutineNotDuplicated) {
     function_names.insert(func->name());
   }
 }
+TEST_P(TranslatorProcTest, PassthroughCrossingFeedback) {
+  const std::string content = R"(
+       class Block {
+        public:
+         __xls_channel<int, __xls_channel_dir_In>& in;
+         __xls_channel<int, __xls_channel_dir_Out>& out;
+
+         #pragma hls_top
+         void Run() {
+          int value = in.read();
+
+          #pragma hls_pipeline_init_interval 1
+          for(int i=0;i<6;++i) {
+            const int prev_value = value;
+            value++;
+            __xlscc_trace("Another slice");
+            out.write(prev_value);
+          }
+        }
+      };)";
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(11, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {
+        xls::Value(xls::SBits(11 + 0, 32)), xls::Value(xls::SBits(11 + 1, 32)),
+        xls::Value(xls::SBits(11 + 2, 32)), xls::Value(xls::SBits(11 + 3, 32)),
+        xls::Value(xls::SBits(11 + 4, 32)), xls::Value(xls::SBits(11 + 5, 32))};
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /* min_ticks = */ 1,
+             /* max_ticks = */ 100,
+             /* top_level_init_interval = */ 1);
+  }
+}
+
+TEST_P(TranslatorProcTest, PassthroughFeedbackOrder) {
+  const std::string content = R"(
+       class Block {
+        public:
+         __xls_channel<int, __xls_channel_dir_In>& in;
+         __xls_channel<int, __xls_channel_dir_Out>& out;
+
+         #pragma hls_top
+         void Run() {
+          int value = in.read();
+          int set_it = 10;
+
+          #pragma hls_pipeline_init_interval 1
+          for(int i=0;i<2;++i) {
+            #pragma hls_pipeline_init_interval 1
+            for(int j=0;j<3;++j) {
+              out.write(value);
+            }
+            value = set_it;
+          }
+        }
+      };)";
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(34, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {
+        xls::Value(xls::SBits(34, 32)), xls::Value(xls::SBits(34, 32)),
+        xls::Value(xls::SBits(34, 32)), xls::Value(xls::SBits(10, 32)),
+        xls::Value(xls::SBits(10, 32)), xls::Value(xls::SBits(10, 32))};
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /* min_ticks = */ 1,
+             /* max_ticks = */ 100,
+             /* top_level_init_interval = */ 1);
+  }
+}
 
 }  // namespace
 
