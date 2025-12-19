@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "absl/container/flat_hash_map.h"
@@ -70,6 +71,7 @@ absl::StatusOr<std::unique_ptr<Package>> StripPackage(
   }
   absl::flat_hash_map<const Function*, Function*> func_map;
   absl::flat_hash_map<const FunctionBase*, FunctionBase*> func_base_map;
+  absl::flat_hash_map<std::string, std::string> proc_map;
   for (FunctionBase* fb : FunctionsInPostOrder(source)) {
     auto new_name = next_name(fb);
     if (fb->IsFunction()) {
@@ -79,8 +81,9 @@ absl::StatusOr<std::unique_ptr<Package>> StripPackage(
       func_map[fb->AsFunctionOrDie()] = new_func;
       func_base_map[fb] = new_func;
     } else if (fb->IsProc()) {
-      if (fb->AsProcOrDie()->is_new_style_proc()) {
-        for (auto c : fb->AsProcOrDie()->channels()) {
+      Proc* proc = fb->AsProcOrDie();
+      if (proc->is_new_style_proc()) {
+        for (auto c : proc->channels()) {
           // New style procs
           auto new_chan_name = options.strip_chan_names
                                    ? absl::StrFormat("chan_%d", chan_cnt++)
@@ -90,7 +93,7 @@ absl::StatusOr<std::unique_ptr<Package>> StripPackage(
       }
       int64_t state_cnt = 0;
       absl::flat_hash_map<std::string, std::string> state_map;
-      for (StateElement* state_element : fb->AsProcOrDie()->StateElements()) {
+      for (StateElement* state_element : proc->StateElements()) {
         auto new_state_name = options.strip_node_names
                                   ? absl::StrFormat("state_%d", state_cnt++)
                                   : std::string(state_element->name());
@@ -98,8 +101,9 @@ absl::StatusOr<std::unique_ptr<Package>> StripPackage(
       }
       XLS_ASSIGN_OR_RETURN(
           Proc * new_proc,
-          fb->AsProcOrDie()->Clone(new_name, result.get(), chan_map,
-                                   func_base_map, state_map));
+          proc->Clone(new_name, result.get(), chan_map, func_base_map,
+                      state_map, std::nullopt, proc_map));
+      proc_map[proc->name()] = new_name;
       func_base_map[fb] = new_proc;
     } else {
       absl::flat_hash_map<std::string, std::string> register_map;
