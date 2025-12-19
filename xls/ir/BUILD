@@ -1855,6 +1855,7 @@ cc_test(
         ":function_builder",
         ":ir",
         ":ir_matcher",
+        ":ir_parser",
         ":ir_test_base",
         ":op",
         ":source_location",

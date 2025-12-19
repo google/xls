@@ -16,8 +16,10 @@
 
 #include <array>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -32,11 +34,13 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
+#include "xls/ir/ir_parser.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc_instantiation.h"
 #include "xls/ir/scheduled_builder.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
@@ -365,6 +369,93 @@ TEST_F(ProcTest, CloneNewStyle) {
   next_value.24: () = next_value(param=state, value=add.22, id=24)
 }
 )");
+}
+
+TEST_F(ProcTest, CloneProcInstantiation) {
+  constexpr std::string_view kIrText = R"(package test
+proc spawnee<>(__state: (), init={()}) {
+}
+
+top proc main<>(__state: (), init={()}) {
+  proc_instantiation spawnee(proc=spawnee)
+}
+)";
+  auto target = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> source,
+                           Parser::ParsePackage(kIrText));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * spawnee, source->GetProc("spawnee"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * cloned_spawnee,
+                           spawnee->Clone("cloned_spawnee", target.get()));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, source->GetProc("main"));
+  XLS_ASSERT_OK(proc->GetProcInstantiation("spawnee"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * clone,
+      proc->Clone(
+          "cloned", target.get(),
+          /*channel_remapping=*/{},
+          /*call_remapping=*/{},
+          /*state_name_remapping=*/{},
+          /*original_node_to_clone=*/std::nullopt,
+          /*spawned_proc_name_remapping=*/{{"spawnee", "cloned_spawnee"}}));
+  EXPECT_TRUE(clone->IsProc());
+  EXPECT_FALSE(clone->GetProcInstantiation("spawnee").status().ok());
+  XLS_ASSERT_OK_AND_ASSIGN(ProcInstantiation * instantiation,
+                           clone->GetProcInstantiation("cloned_spawnee"));
+  EXPECT_EQ(instantiation->name(), "cloned_spawnee");
+  EXPECT_EQ(instantiation->proc(), cloned_spawnee);
+}
+
+TEST_F(ProcTest, CloneProcInstantiationWithChannels) {
+  constexpr std::string_view kIrText = R"(package test
+proc spawnee<spin: bits[32] in, spout: bits[32] out>(__state: (), init={()}) {
+  chan_interface spin(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface spout(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+}
+
+top proc main<mainin: bits[32] in, mainout: bits[32] out>(__state: (), init={()}) {
+  chan_interface mainin(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface mainout(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan declared(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+  chan_interface declared(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface declared(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  proc_instantiation spawnee(mainin, declared, proc=spawnee)
+}
+)";
+  auto target = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> source,
+                           Parser::ParsePackage(kIrText));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * spawnee, source->GetProc("spawnee"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * cloned_spawnee,
+      spawnee->Clone("cloned_spawnee", target.get(),
+                     /*channel_remapping=*/
+                     {{"spin", "newspin"}, {"spout", "newspout"}}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * main, source->GetProc("main"));
+  XLS_ASSERT_OK(main->GetProcInstantiation("spawnee"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * clone,
+      main->Clone(
+          "cloned", target.get(),
+          /*channel_remapping=*/
+          {{"declared", "newdeclared"},
+           {"mainin", "newmainin"},
+           {"mainout", "newmainout"}},
+          /*call_remapping=*/{},
+          /*state_name_remapping=*/{},
+          /*original_node_to_clone=*/std::nullopt,
+          /*spawned_proc_name_remapping=*/{{"spawnee", "cloned_spawnee"}}));
+  EXPECT_TRUE(clone->IsProc());
+  EXPECT_FALSE(clone->GetProcInstantiation("spawnee").status().ok());
+  XLS_ASSERT_OK_AND_ASSIGN(ProcInstantiation * instantiation,
+                           clone->GetProcInstantiation("cloned_spawnee"));
+  EXPECT_EQ(instantiation->name(), "cloned_spawnee");
+  EXPECT_EQ(instantiation->proc(), cloned_spawnee);
+  EXPECT_EQ(instantiation->channel_args().at(0)->name(), "newmainin");
+  EXPECT_EQ(instantiation->channel_args().at(1)->name(), "newdeclared");
 }
 
 TEST_F(ProcTest, TransformStateElement) {

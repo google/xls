@@ -38,7 +38,9 @@ namespace xls {
 namespace {
 
 static constexpr std::string_view kUninteresting = "uninteresting";
+
 class RemoveIdentifersTest : public IrTestBase {};
+
 TEST_F(RemoveIdentifersTest, BasicProc) {
   static constexpr std::array<std::string_view, 10> kSecrets{
       "the_answer_proc", "secret_handshake", "secret_tunnel", "astounding",
@@ -94,6 +96,26 @@ TEST_F(RemoveIdentifersTest, BasicProc) {
     EXPECT_THAT(stripped->DumpIr(),
                 testing::Not(testing::ContainsRegex(secret)));
   }
+}
+
+TEST_F(RemoveIdentifersTest, SpawnedProc) {
+  auto p = CreatePackage();
+  ProcBuilder spawnee_pb(NewStyleProc{}, "spawnee", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(auto* orig_spawnee, spawnee_pb.Build());
+
+  ProcBuilder main_pb(NewStyleProc{}, "main", p.get());
+  XLS_ASSERT_OK(main_pb.proc()->AddProcInstantiation(
+      orig_spawnee->name(), /*channel_args=*/{}, orig_spawnee));
+  XLS_ASSERT_OK_AND_ASSIGN(auto* orig_main, main_pb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto stripped,
+      StripPackage(p.get(), StripOptions{
+                                .new_package_name = std::string(kUninteresting),
+                            }));
+  EXPECT_THAT(stripped->procs(), testing::SizeIs(2));
+  EXPECT_NE(stripped->procs()[0]->name(), orig_spawnee->name());
+  EXPECT_NE(stripped->procs()[1]->name(), orig_main->name());
 }
 
 TEST_F(RemoveIdentifersTest, BasicFunction) {
