@@ -1,0 +1,41 @@
+package test
+
+top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
+  #![reset(port="rst", asynchronous=false, active_low=false)]
+  reg ____state(bits[32], reset_value=0)
+
+  source proc __test__P_0_next__src<a: bits[32] in, b: bits[32] in, result: bits[32] out>() {
+    chan_interface a(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+    chan_interface b(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+    chan_interface result(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  }
+  literal.3: bits[1] = literal(value=1, id=3)
+  stage_inputs_valid_0: bits[1] = literal(value=1, id=20)
+  stage_outputs_ready_0: bits[1] = literal(value=1, id=21)
+  controlled_stage(stage_inputs_valid_0, stage_outputs_ready_0) {
+    active_inputs_valid active_inputs_valid_0: bits[1] = literal(value=1, id=22)
+    after_all.5: token = after_all(id=5)
+    receive.6: (token, bits[32]) = receive(after_all.5, predicate=literal.3, channel=a, id=6)
+    tok: token = tuple_index(receive.6, index=0, id=8)
+    receive.10: (token, bits[32]) = receive(tok, predicate=literal.3, channel=b, id=10)
+    a_value: bits[32] = tuple_index(receive.6, index=1, id=9)
+    tok__1: token = tuple_index(receive.10, index=0, id=12)
+    b_value: bits[32] = tuple_index(receive.10, index=1, id=13)
+    umul.14: bits[32] = umul(a_value, b_value, id=14)
+    ret stage_outputs_valid_0: bits[1] = and(stage_inputs_valid_0, active_inputs_valid_0, id=23)
+  }
+  stage_inputs_valid_1: bits[1] = literal(value=1, id=24)
+  stage_outputs_ready_1: bits[1] = literal(value=1, id=25)
+  controlled_stage(stage_inputs_valid_1, stage_outputs_ready_1) {
+    active_inputs_valid active_inputs_valid_1: bits[1] = literal(value=1, id=26)
+    ____state__1: bits[32] = register_read(register=____state, id=40)
+    result_value: bits[32] = add(umul.14, ____state__1, id=15)
+    send.16: token = send(tok__1, result_value, predicate=literal.3, channel=result, id=16)
+    ret stage_outputs_valid_1: bits[1] = and(stage_inputs_valid_1, active_inputs_valid_1, id=27)
+  }
+  rst: bits[1] = input_port(name=rst, id=19)
+  and.41: bits[1] = and(stage_inputs_valid_1, active_inputs_valid_1, id=41)
+  and.42: bits[1] = and(stage_outputs_valid_1, stage_outputs_ready_1, id=42)
+  register_write.43: () = register_write(result_value, register=____state, load_enable=and.42, reset=rst, id=43)
+  tuple.44: () = tuple(id=44)
+}

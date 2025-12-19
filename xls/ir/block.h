@@ -562,7 +562,9 @@ class ScheduledBlock : public Block {
   // Sets the source entity that this block was derived from.
   void SetSource(std::unique_ptr<FunctionBase> source) {
     source_ = std::move(source);
-    source_->SetIsBlockSource(true);
+    if (source_ != nullptr) {
+      source_->SetIsBlockSource(true);
+    }
   }
 
   // Returns the source function return value. This is `nullptr` except when

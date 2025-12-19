@@ -1008,16 +1008,20 @@ absl::StatusOr<bool> Node::ReplaceImplicitUsesWith(Node* replacement) {
     // signals.
     ScheduledBlock* block =
         down_cast<ScheduledBlock*>(function_base()->AsBlockOrDie());
-    for (Stage& stage : block->stages()) {
+    for (int stage_index = 0; stage_index < block->stages().size();
+         stage_index++) {
+      Stage& stage = block->stages()[stage_index];
       if (this == stage.inputs_valid()) {
         stage.set_inputs_valid(replacement);
         changed = true;
       }
       if (this == stage.outputs_valid()) {
+        XLS_RETURN_IF_ERROR(AddNodeToStageInternal(stage_index, replacement));
         stage.set_outputs_valid(replacement);
         changed = true;
       }
       if (this == stage.active_inputs_valid()) {
+        XLS_RETURN_IF_ERROR(AddNodeToStageInternal(stage_index, replacement));
         stage.set_active_inputs_valid(replacement);
         changed = true;
       }

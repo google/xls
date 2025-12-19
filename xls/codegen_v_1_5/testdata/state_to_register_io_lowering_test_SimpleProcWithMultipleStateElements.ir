@@ -1,0 +1,67 @@
+package test
+
+top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
+  #![reset(port="rst", asynchronous=false, active_low=false)]
+  reg ____state_0(bits[32], reset_value=0)
+
+  reg ____state_0_full(bits[1], reset_value=1)
+
+  reg ____state_1(bits[32], reset_value=0)
+
+  reg ____state_1_full(bits[1], reset_value=1)
+
+  source proc __test__P_0_next__src<a: bits[32] in, b: bits[32] in, result: bits[32] out>() {
+    chan_interface a(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+    chan_interface b(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+    chan_interface result(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  }
+  stage_inputs_valid_0: bits[1] = literal(value=1, id=100)
+  stage_outputs_ready_0: bits[1] = literal(value=1, id=101)
+  controlled_stage(stage_inputs_valid_0, stage_outputs_ready_0) {
+    ____state_0_full: bits[1] = register_read(register=____state_0_full, id=127)
+    ____state_1_full: bits[1] = register_read(register=____state_1_full, id=136)
+    active_inputs_valid and.137: bits[1] = and(____state_0_full, ____state_1_full, id=137)
+    after_all.5: token = after_all(id=5)
+    receive.31: (token, bits[32]) = receive(after_all.5, channel=a, id=31)
+    tok: token = tuple_index(receive.31, index=0, id=8)
+    receive.32: (token, bits[32]) = receive(tok, channel=b, id=32)
+    ____state_0__1: bits[32] = register_read(register=____state_0, id=126)
+    ____state_1__1: bits[32] = register_read(register=____state_1, id=135)
+    a_value: bits[32] = tuple_index(receive.31, index=1, id=9)
+    tok__1: token = tuple_index(receive.32, index=0, id=12)
+    b_value: bits[32] = tuple_index(receive.32, index=1, id=13)
+    umul.14: bits[32] = umul(a_value, b_value, id=14)
+    add.17: bits[32] = add(umul.14, ____state_0__1, id=17)
+    ret stage_outputs_valid_0: bits[1] = and(stage_inputs_valid_0, and.137, id=103)
+  }
+  stage_inputs_valid_1: bits[1] = literal(value=1, id=104)
+  stage_outputs_ready_1: bits[1] = literal(value=1, id=106)
+  controlled_stage(stage_inputs_valid_1, stage_outputs_ready_1) {
+    active_inputs_valid active_inputs_valid_1: bits[1] = literal(value=1, id=107)
+    result_value: bits[32] = add(add.17, ____state_1__1, id=20)
+    send.33: token = send(tok__1, result_value, channel=result, id=33)
+    ret stage_outputs_valid_1: bits[1] = and(stage_inputs_valid_1, active_inputs_valid_1, id=108)
+  }
+  stage_inputs_valid_2: bits[1] = literal(value=1, id=109)
+  stage_outputs_ready_2: bits[1] = literal(value=1, id=110)
+  controlled_stage(stage_inputs_valid_2, stage_outputs_ready_2) {
+    active_inputs_valid active_inputs_valid_2: bits[1] = literal(value=1, id=111)
+    ret stage_outputs_valid_2: bits[1] = and(stage_inputs_valid_2, active_inputs_valid_2, id=112)
+  }
+  literal.3: bits[1] = literal(value=1, id=3)
+  rst: bits[1] = input_port(name=rst, id=105)
+  and.128: bits[1] = and(stage_inputs_valid_2, active_inputs_valid_2, id=128)
+  and.129: bits[1] = and(stage_outputs_valid_2, stage_outputs_ready_2, id=129)
+  register_write.130: () = register_write(result_value, register=____state_0, load_enable=and.129, reset=rst, id=130)
+  next_value_23_0: () = tuple(id=131)
+  and.132: bits[1] = and(stage_outputs_valid_0, stage_outputs_ready_0, id=132)
+  or.133: bits[1] = or(and.132, and.129, id=133)
+  register_write.134: () = register_write(and.129, register=____state_0_full, load_enable=or.133, reset=rst, id=134)
+  and.138: bits[1] = and(stage_inputs_valid_2, active_inputs_valid_2, id=138)
+  and.139: bits[1] = and(stage_outputs_valid_2, stage_outputs_ready_2, id=139)
+  register_write.140: () = register_write(result_value, register=____state_1, load_enable=and.139, reset=rst, id=140)
+  next_value_23_1: () = tuple(id=141)
+  and.142: bits[1] = and(stage_outputs_valid_0, stage_outputs_ready_0, id=142)
+  or.143: bits[1] = or(and.142, and.139, id=143)
+  register_write.144: () = register_write(and.139, register=____state_1_full, load_enable=or.143, reset=rst, id=144)
+}

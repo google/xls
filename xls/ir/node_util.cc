@@ -64,15 +64,25 @@ namespace {
 
 // Produces a vector of nodes from the given span removing duplicates. The
 // first instance of each node is kept and subsequent duplicates are dropped,
-// e.g. RemoveDuplicateNodes({a, b, a, c, a, d}) -> {a, b, c, d}.
-std::vector<Node*> RemoveDuplicateNodes(absl::Span<Node* const> values) {
+// e.g. RemoveRedundantNodes({a, b, a, c, a, d}) -> {a, b, c, d}.
+std::vector<Node*> RemoveRedundantNodes(absl::Span<Node* const> values,
+                                        bool consider_ones_redundant = false) {
   absl::flat_hash_set<Node*> unique_values_set(values.begin(), values.end());
   std::vector<Node*> unique_values_vector;
   unique_values_vector.reserve(unique_values_set.size());
   for (Node* value : values) {
+    if (consider_ones_redundant && value->Is<Literal>() &&
+        value->As<Literal>()->value().IsAllOnes()) {
+      continue;
+    }
     if (auto extracted = unique_values_set.extract(value)) {
       unique_values_vector.push_back(extracted.value());
     }
+  }
+
+  if (consider_ones_redundant && !values.empty() &&
+      unique_values_vector.empty()) {
+    unique_values_vector.push_back(values[0]);
   }
   return unique_values_vector;
 }
@@ -438,12 +448,14 @@ absl::StatusOr<Node*> ConcatIfNeeded(FunctionBase* f,
 absl::StatusOr<Node*> NaryAndIfNeeded(FunctionBase* f,
                                       absl::Span<Node* const> operands,
                                       std::string_view name,
-                                      const SourceInfo& source_info) {
+                                      const SourceInfo& source_info,
+                                      bool drop_literal_one_operands) {
   if (operands.empty()) {
     return f->MakeNodeWithName<Literal>(source_info, Value(UBits(1, 1)), name);
   }
 
-  std::vector<Node*> unique_operands = RemoveDuplicateNodes(operands);
+  std::vector<Node*> unique_operands = RemoveRedundantNodes(
+      operands, /*consider_ones_redundant=*/drop_literal_one_operands);
   if (unique_operands.size() == 1) {
     return unique_operands[0];
   }
@@ -459,7 +471,7 @@ absl::StatusOr<Node*> NaryOrIfNeeded(FunctionBase* f,
     return f->MakeNodeWithName<Literal>(source_info, Value(UBits(0, 1)), name);
   }
 
-  std::vector<Node*> unique_operands = RemoveDuplicateNodes(operands);
+  std::vector<Node*> unique_operands = RemoveRedundantNodes(operands);
   if (unique_operands.size() == 1) {
     return unique_operands[0];
   }
@@ -473,7 +485,8 @@ absl::StatusOr<Node*> NaryNorIfNeeded(FunctionBase* f,
                                       const SourceInfo& source_info) {
   XLS_RET_CHECK(!operands.empty());
 
-  std::vector<Node*> unique_operands = RemoveDuplicateNodes(operands);
+  std::vector<Node*> unique_operands =
+      RemoveRedundantNodes(operands, /*consider_ones_redundant=*/false);
   if (unique_operands.size() == 1) {
     return f->MakeNodeWithName<UnOp>(source_info, unique_operands[0], Op::kNot,
                                      name);

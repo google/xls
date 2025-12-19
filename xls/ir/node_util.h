@@ -259,7 +259,8 @@ absl::StatusOr<Node*> ConcatIfNeeded(FunctionBase* f,
 absl::StatusOr<Node*> NaryAndIfNeeded(FunctionBase* f,
                                       absl::Span<Node* const> operands,
                                       std::string_view name = "",
-                                      const SourceInfo& source_info = {});
+                                      const SourceInfo& source_info = {},
+                                      bool drop_literal_one_operands = false);
 
 // Or-reduce the given operands if needed. If there are 2+ operands, returns an
 // N-ary OR of them; if there is 1 operand, returns that operand; and if there
