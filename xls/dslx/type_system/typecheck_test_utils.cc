@@ -50,9 +50,8 @@ absl::StatusOr<TypecheckResult> Typecheck(
           : std::string(program);
   absl::StatusOr<TypecheckedModule> tm = ParseAndTypecheck(
       program_with_version_attribute, absl::StrCat(module_name, ".x"),
-      module_name, import_data, /*comments=*/nullptr,
-      /*force_version=*/std::nullopt, ConvertOptions{}, error_handler,
-      trait_deriver.get());
+      module_name, import_data, /*comments=*/nullptr, ConvertOptions{},
+      error_handler, trait_deriver.get());
 
   if (!tm.ok()) {
     UniformContentFilesystem vfs(program_with_version_attribute);

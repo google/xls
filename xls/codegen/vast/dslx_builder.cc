@@ -676,7 +676,6 @@ absl::StatusOr<dslx::TypecheckedModule> DslxBuilder::RoundTrip(
       dslx::TypecheckedModule parsed_module,
       ParseAndTypecheck(text, path, module_.name(), &import_data,
                         /*comments=*/nullptr,
-                        /*force_version=*/dslx::TypeInferenceVersion::kVersion2,
                         /*options=*/dslx::ConvertOptions{}, error_handler),
       _ << "Failed to parse and typecheck module:\n"
         << text);

@@ -44,7 +44,7 @@
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
-#include "xls/dslx/type_system/typecheck_module.h"
+#include "xls/dslx/type_system_v2/typecheck_module_v2.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/ir/bits.h"
 
@@ -363,8 +363,10 @@ absl::StatusOr<TypecheckedModule> TypecheckAndInstallCloned(
   WarningCollector warnings(import_data.enabled_warnings());
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<ModuleInfo> module_info,
-      TypecheckModule(std::move(cloned), tm.module->fs_path().value(),
-                      &import_data, &warnings));
+      TypecheckModuleV2(std::move(cloned), tm.module->fs_path().value(),
+                        &import_data, &warnings, /*sematics_analysis=*/nullptr,
+                        /*error_handler=*/nullptr,
+                        /*trait_deriver=*/std::nullopt));
   XLS_ASSIGN_OR_RETURN(ImportTokens subject,
                        ImportTokens::FromString(install_subject));
   XLS_ASSIGN_OR_RETURN(ModuleInfo * stored,
