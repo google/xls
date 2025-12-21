@@ -188,6 +188,29 @@ static absl::StatusOr<std::unique_ptr<ArrayType>> DeduceArrayInternal(
             NoteTypeForNumber(*number, annotated->element_type(), ctx));
       }
     }
+    // Likewise, propagate the annotated element type to range endpoints so
+    // nested arrays of ranges adopt the intended width.
+    const Type* target_range_type = &annotated->element_type();
+    if (auto* array_elem = dynamic_cast<const ArrayType*>(target_range_type)) {
+      target_range_type = &array_elem->element_type();
+    }
+    if (GetBitsLike(*target_range_type)) {
+      for (Expr* member : node->members()) {
+        auto* range = dynamic_cast<Range*>(member);
+        if (range == nullptr) {
+          continue;
+        }
+        for (Expr* endpoint : {range->start(), range->end()}) {
+          if (auto* number = dynamic_cast<Number*>(endpoint);
+              number != nullptr && number->type_annotation() == nullptr) {
+            XLS_RETURN_IF_ERROR(
+                TryEnsureFitsInType(*number, *target_range_type));
+            XLS_RETURN_IF_ERROR(
+                NoteTypeForNumber(*number, *target_range_type, ctx));
+          }
+        }
+      }
+    }
   }
 
   std::vector<std::unique_ptr<Type>> member_types;
