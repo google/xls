@@ -282,7 +282,7 @@ def : Pat<(Arith_UIToFPOp:$op $a),
 // NB: the order of the cases follows the xls::SelOp convention, i.e. 0 (false)
 // yields the first case, 1 (true) yields the second case.
 def createSelOp2Cases : NativeCodeCall<[{
-    $_builder.create<::mlir::xls::SelOp>(
+    ::mlir::xls::SelOp::create($_builder,
         $_loc, $0, ArrayRef<::mlir::Value>{$1, $2})
   }]>;
 
