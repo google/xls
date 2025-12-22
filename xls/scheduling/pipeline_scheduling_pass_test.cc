@@ -22,6 +22,7 @@
 #include "gtest/gtest.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
@@ -37,6 +38,7 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 #include "xls/passes/pass_base.h"
+#include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/scheduling/scheduling_pass.h"
 
@@ -429,6 +431,115 @@ TEST_F(PipelineSchedulingPassTest, MultiProcScopedChannels) {
   XLS_ASSERT_OK(RunPipelineSchedulingPass(
       p.get(),
       SchedulingOptions().pipeline_stages(2).schedule_all_procs(true)));
+}
+
+TEST_F(PipelineSchedulingPassTest, MinimizeClockOnFailure) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("main", p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  BValue add = fb.Add(x, y);
+  BValue div = fb.UDiv(x, y);
+  BValue div_two = fb.UDiv(x, div);
+  BValue ored = fb.Or({add, div_two});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ored));
+
+  // Fail if trying to schedule with a clock period that is too small.
+  auto failed_scheduled_result = RunPipelineSchedulingPass(
+      f, SchedulingOptions().clock_period_ps(1).pipeline_stages(2));
+  EXPECT_THAT(failed_scheduled_result.status().message(),
+              AllOf(HasSubstr("cannot achieve the specified clock period"),
+                    HasSubstr("clock_period_ps=3")));
+
+  // Succeed if trying to schedule with a large enough clock period.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto success_scheduled_result,
+      RunPipelineSchedulingPass(
+          f, SchedulingOptions().clock_period_ps(3).pipeline_stages(2)));
+  EXPECT_THAT(success_scheduled_result,
+              Pair(true, SchedulingContextWithElements(UnorderedElementsAre(
+                             Pair(f, VerifiedPipelineSchedule())))));
+  PipelineSchedule f_schedule =
+      success_scheduled_result.second.package_schedule().GetSchedule(f);
+  EXPECT_THAT(
+      f_schedule.GetCycleMap(),
+      UnorderedElementsAre(Pair(x.node(), 0), Pair(y.node(), 0),
+                           Pair(add.node(), 0), Pair(div.node(), 0),
+                           Pair(div_two.node(), 1), Pair(ored.node(), 1)));
+}
+
+TEST_F(PipelineSchedulingPassTest, MinimizeClockOnFailureWithIOConstraints) {
+  auto p = CreatePackage();
+  auto make_proc = [p = p.get()](
+                       std::string_view name, Channel* channel_in,
+                       Channel* channel_out) -> absl::StatusOr<Proc*> {
+    ProcBuilder pb(name, p);
+    BValue tok = pb.Literal(Value::Token());
+    BValue st = pb.StateElement("st", Value(UBits(0, 32)));
+    BValue recv = pb.Receive(channel_in, tok, SourceInfo(), "recv");
+    BValue recv_tok = pb.TupleIndex(recv, 0);
+    BValue recv_data = pb.TupleIndex(recv, 1);
+    for (int i = 0; i < 3; ++i) {
+      recv_data = pb.Add(recv_data, pb.Literal(UBits(1, 32)));
+      recv_data = pb.Subtract(recv_data, pb.Literal(UBits(1, 32)));
+    }
+    BValue add_st = pb.Add(st, recv_data);
+    pb.Send(channel_out, recv_tok, add_st, SourceInfo(), "send");
+    return pb.Build({add_st});
+  };
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch0, p->CreateStreamingChannel("ch0", ChannelOps::kReceiveOnly,
+                                               p->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch1, p->CreateStreamingChannel("ch1", ChannelOps::kSendReceive,
+                                               p->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch2, p->CreateStreamingChannel("ch2", ChannelOps::kSendOnly,
+                                               p->GetBitsType(32)));
+
+  XLS_ASSERT_OK(make_proc("proc0", ch0, ch1));
+  XLS_ASSERT_OK(make_proc("proc1", ch1, ch2));
+
+  auto failed_result = RunPipelineSchedulingPass(
+      p.get(), SchedulingOptions()
+                   .clock_period_ps(2)
+                   .pipeline_stages(4)
+                   .add_constraint(IOConstraint(
+                       /*source_channel=*/"ch0",
+                       /*source_direction=*/IODirection::kReceive,
+                       /*target_channel=*/"ch1",
+                       /*target_direction=*/IODirection::kSend,
+                       /*minimum_latency=*/1, /*maximum_latency=*/1))
+                   .add_constraint(IOConstraint(
+                       /*source_channel=*/"ch1",
+                       /*source_direction=*/IODirection::kReceive,
+                       /*target_channel=*/"ch2",
+                       /*target_direction=*/IODirection::kSend,
+                       /*minimum_latency=*/1, /*maximum_latency=*/1)));
+  EXPECT_THAT(
+      failed_result.status().message(),
+      AllOf(HasSubstr("cannot achieve the specified clock period"),
+            HasSubstr("clock_period_ps=4"),
+            HasSubstr("cannot satisfy the given I/O constraints. Would succeed "
+                      "with: {ch0→ch1 with maximum latency ≥ 3}")));
+
+  XLS_ASSERT_OK(RunPipelineSchedulingPass(
+      p.get(), SchedulingOptions()
+                   .clock_period_ps(4)
+                   .pipeline_stages(4)
+                   .add_constraint(IOConstraint(
+                       /*source_channel=*/"ch0",
+                       /*source_direction=*/IODirection::kReceive,
+                       /*target_channel=*/"ch1",
+                       /*target_direction=*/IODirection::kSend,
+                       /*minimum_latency=*/1, /*maximum_latency=*/1))
+                   .add_constraint(IOConstraint(
+                       /*source_channel=*/"ch1",
+                       /*source_direction=*/IODirection::kReceive,
+                       /*target_channel=*/"ch2",
+                       /*target_direction=*/IODirection::kSend,
+                       /*minimum_latency=*/1, /*maximum_latency=*/1))));
 }
 
 }  // namespace
