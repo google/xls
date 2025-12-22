@@ -191,7 +191,7 @@ static absl::StatusOr<std::unique_ptr<ArrayType>> DeduceArrayInternal(
     // Likewise, propagate the annotated element type to range endpoints so
     // nested arrays of ranges adopt the intended width.
     const Type* target_range_type = &annotated->element_type();
-    if (auto* array_elem = dynamic_cast<const ArrayType*>(target_range_type)) {
+    while (auto* array_elem = dynamic_cast<const ArrayType*>(target_range_type)) {
       target_range_type = &array_elem->element_type();
     }
     if (GetBitsLike(*target_range_type)) {

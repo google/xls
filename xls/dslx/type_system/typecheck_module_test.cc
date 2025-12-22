@@ -3371,13 +3371,12 @@ fn main() {
 
 TEST_F(TypecheckV2Test, RangeAnnotatesNestedArrays) {
   constexpr absl::string_view kProgram = R"(
-#![test]
+#[test]
 fn test_array2d_tiv2() {
     let data: u32[8][2] = [0..8, 8..16];
     assert_eq(u32:0 ++ u32:8, data[0][0] ++ data[1][0]);
 }
-)
-";
+)";
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
