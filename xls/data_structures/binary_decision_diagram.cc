@@ -16,10 +16,13 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <deque>
 #include <limits>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -31,7 +34,13 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/span.h"
+#include "cppitertools/chain.hpp"
+#include "cppitertools/enumerate.hpp"
+#include "cppitertools/sliding_window.hpp"
 #include "xls/common/math_util.h"
+#include "xls/common/status/ret_check.h"
+#include "xls/data_structures/inline_bitmap.h"
 
 namespace xls {
 
@@ -39,7 +48,7 @@ BinaryDecisionDiagram::BinaryDecisionDiagram()
     : BinaryDecisionDiagram(kDefaultMaxPaths) {}
 
 BinaryDecisionDiagram::BinaryDecisionDiagram(int64_t max_paths)
-    : max_paths_(max_paths) {
+    : free_node_head_(2), nodes_size_(2), max_paths_(max_paths) {
   // Leaf node 0.
   nodes_.push_back(BddNode(BddVariable(-1), BddNodeIndex(-1), BddNodeIndex(-1),
                            /*p=*/1));
@@ -48,12 +57,28 @@ BinaryDecisionDiagram::BinaryDecisionDiagram(int64_t max_paths)
                            /*p=*/1));
 }
 
+BddNodeIndex BinaryDecisionDiagram::CreateNode(BddNode node) {
+  auto slot = free_node_head_;
+  CHECK_LE(slot.value(), nodes_.size())
+      << "free list head is far outside of the available ids";
+  if (slot.value() == nodes_.size()) {
+    VLOG(2) << "Extending nodes_ to " << (nodes_.size() * 2) << " elements";
+    nodes_.resize(nodes_.size() * 2, FreeListNode());
+  }
+  CHECK(std::holds_alternative<FreeListNode>(nodes_.at(slot.value())))
+      << " at slot " << slot;
+  free_node_head_ =
+      std::get<FreeListNode>(nodes_.at(slot.value())).next_free(slot);
+  ++nodes_size_;
+  nodes_[slot.value()] = node;
+  return BddNodeIndex(slot.value());
+}
+
 BddNodeIndex BinaryDecisionDiagram::CreateVariableBaseNode(BddVariable var) {
   const BddNodeIndex high = one();
   const BddNodeIndex low = zero();
   const int32_t paths = 2;
-  nodes_.emplace_back(var, high, low, paths);
-  return BddNodeIndex(nodes_.size() - 1);
+  return CreateNode(BddNode(var, high, low, paths));
 }
 
 BddNodeIndex BinaryDecisionDiagram::GetOrCreateNode(BddVariable var,
@@ -66,7 +91,7 @@ BddNodeIndex BinaryDecisionDiagram::GetOrCreateNode(BddVariable var,
   // If low == 0 and high == 1, then this is a variable base node and is kept
   // in the variable_base_nodes_ vector.
   if (low == zero() && high == one()) {
-    return variable_base_nodes_[var.value()];
+    return variable_base_nodes_[var.value()].value();
   }
 
   // Otherwise, this is a normal node and is kept in node_map_.
@@ -78,8 +103,7 @@ BddNodeIndex BinaryDecisionDiagram::GetOrCreateNode(BddVariable var,
         std::min(static_cast<int64_t>(GetNode(low).path_count) +
                      GetNode(high).path_count,
                  static_cast<int64_t>(std::numeric_limits<int32_t>::max()));
-    nodes_.emplace_back(var, high, low, paths);
-    BddNodeIndex node_index = BddNodeIndex(nodes_.size() - 1);
+    BddNodeIndex node_index = CreateNode(BddNode(var, high, low, paths));
     ctor(key, node_index);
   });
   return it->second;
@@ -182,9 +206,6 @@ void ReserveVector(int64_t new_size, std::vector<T>& vec) {
 BddNodeIndex BinaryDecisionDiagram::NewVariable() {
   BddVariable var = BddVariable(variable_base_nodes_.size());
   BddNodeIndex index = CreateVariableBaseNode(var);
-  // Simply for consistency with NewVariables, we use ReserveVector here. See
-  // comment in NewVariables for details.
-  ReserveVector(variable_base_nodes_.size() + 1, variable_base_nodes_);
   variable_base_nodes_.push_back(index);
   return index;
 }
@@ -207,7 +228,6 @@ std::vector<BddNodeIndex> BinaryDecisionDiagram::NewVariables(int64_t count) {
   // to optimize for both cases.
   //
   // [0] https://en.cppreference.com/w/cpp/container/vector/reserve
-  ReserveVector(nodes_.size() + count, nodes_);
   ReserveVector(variable_base_nodes_.size() + count, variable_base_nodes_);
 
   std::vector<BddNodeIndex> indexes;
@@ -322,6 +342,123 @@ std::string BinaryDecisionDiagram::ToStringDnf(BddNodeIndex expr,
       minterm_limit == 0 ? std::numeric_limits<int64_t>::max() : minterm_limit;
   ToStringDnfHelper(expr, &minterms_to_emit, &terms, &result);
   return result;
+}
+
+absl::StatusOr<std::vector<BddNodeIndex>> BinaryDecisionDiagram::GarbageCollect(
+    absl::Span<BddNodeIndex const> roots, double gc_threshold) {
+  if (nodes_size_ * gc_threshold < prev_nodes_size_) {
+    // Cannot save enough
+    VLOG(2) << "Skipping GC of BDD since not enough new nodes were added to "
+               "get over threshold (current "
+            << nodes_size_ << ", last was at: " << prev_nodes_size_ << ")";
+    return std::vector<BddNodeIndex>();
+  }
+  VLOG(2) << "Performing GC of BDD with " << roots.size() << " roots";
+  // Mark all live nodes.
+  InlineBitmap live_nodes(nodes_.size());
+  InlineBitmap live_variables(variable_base_nodes_.size());
+  // Avoid having to deal with the leafs.
+  live_nodes.Set(zero().value());
+  live_nodes.Set(one().value());
+  std::deque<BddNodeIndex> worklist;
+  for (BddNodeIndex root : roots) {
+    worklist.push_back(root);
+  }
+  int64_t cnt_live = 2;
+  while (!worklist.empty()) {
+    BddNodeIndex node = worklist.front();
+    worklist.pop_front();
+    if (live_nodes.Get(node.value())) {
+      continue;
+    }
+    const BddNode& bdd_node = GetNode(node);
+    ++cnt_live;
+    live_nodes.Set(node.value());
+    live_variables.Set(bdd_node.variable.value());
+    if (bdd_node.high != one() && bdd_node.high != zero()) {
+      worklist.push_back(bdd_node.high);
+    }
+    if (bdd_node.low != one() && bdd_node.low != zero()) {
+      worklist.push_back(bdd_node.low);
+    }
+  }
+  VLOG(2) << "GC found " << cnt_live << "/" << nodes_size_ << " ("
+          << (cnt_live * 100.0 / nodes_size_) << "%) live nodes.";
+  if (static_cast<double>(cnt_live) / nodes_size_ >= gc_threshold ||
+      cnt_live == nodes_size_) {
+    VLOG(2) << "Skipping GC because insufficient dead nodes found.";
+    return std::vector<BddNodeIndex>();
+  }
+
+  // Get all the dead nodes in a list.
+  std::vector<BddNodeIndex> dead;
+  XLS_RET_CHECK_GT(nodes_size_, cnt_live) << "Bad size";
+  dead.reserve(nodes_size_ - cnt_live);
+  for (auto [idx, live] : iter::enumerate(live_nodes)) {
+    if (!live && std::holds_alternative<BddNode>(nodes_.at(idx))) {
+      dead.push_back(BddNodeIndex(idx));
+    }
+  }
+  // build a new free-list prefix.
+  for (auto vs : iter::sliding_window(
+           iter::chain(dead, std::vector<BddNodeIndex>{BddNodeIndex(
+                                 free_node_head_.value())}),
+           2)) {
+    BddNodeIndex first = vs[0];
+    BddNodeIndex second = vs[1];
+    nodes_[first.value()] = FreeListNode(FreeListNode::Index(second.value()));
+  }
+  free_node_head_ = FreeListNode::Index(dead.front().value());
+
+  // Clear the references to deleted variables.
+  for (auto [idx, live] : iter::enumerate(live_variables)) {
+    if (!live) {
+      variable_base_nodes_[idx] = std::nullopt;
+    }
+  }
+
+  // Clear the ite_map_ of references to deleted things.
+  for (auto it = ite_map_.begin(); it != ite_map_.end();) {
+    const auto& [key, value] = *it;
+    const auto& [cond, if_true, if_false] = key;
+    if (!live_nodes.Get(cond.value()) || !live_nodes.Get(if_true.value()) ||
+        !live_nodes.Get(if_false.value()) || !live_nodes.Get(value.value())) {
+      ite_map_.erase(it++);
+    } else {
+      ++it;
+    }
+  }
+  // clear out the node_map_ of references to deleted things.
+  for (auto it = node_map_.begin(); it != node_map_.end();) {
+    const auto& [key, value] = *it;
+    if (!live_nodes.Get(value.value())) {
+      node_map_.erase(it++);
+    } else {
+      ++it;
+    }
+  }
+  nodes_size_ = cnt_live;
+  prev_nodes_size_ = nodes_size_;
+  auto head = free_node_head_;
+  auto it = dead.begin();
+  InlineBitmap debug_seen(nodes_.size());
+  while (head.value() < nodes_.size() &&
+         head != FreeListNode::kNextIsConsecutive) {
+    CHECK(!debug_seen.Get(head.value()))
+        << " loop in free list at " << head.value();
+    debug_seen.Set(head.value());
+    if (it != dead.end()) {
+      CHECK_EQ(head, FreeListNode::Index(it->value()));
+      ++it;
+    }
+    CHECK(std::holds_alternative<FreeListNode>(nodes_[head.value()]));
+    auto cur = std::get<FreeListNode>(nodes_[head.value()]);
+    if (cur.raw_next() == FreeListNode::kNextIsConsecutive) {
+      break;
+    }
+    head = cur.next_free(head);
+  }
+  return std::move(dead);
 }
 
 }  // namespace xls

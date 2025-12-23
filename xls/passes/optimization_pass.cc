@@ -127,6 +127,15 @@ absl::StatusOr<std::vector<RamRewrite>> RamRewritesFromProto(
   return rewrites;
 }
 
+absl::Status OptimizationContext::CollectGarbage() {
+  for (auto& [f, query_engines] : shared_query_engines_) {
+    for (auto& [_, qe] : query_engines) {
+      XLS_RETURN_IF_ERROR(qe.CollectGarbage());
+    }
+  }
+  return absl::OkStatus();
+}
+
 const std::vector<Node*>& OptimizationContext::ReverseTopoSortReference(
     FunctionBase* f) {
   auto it = reverse_topo_sort_.find(f);

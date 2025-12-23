@@ -181,8 +181,10 @@ cc_library(
     srcs = ["binary_decision_diagram.cc"],
     hdrs = ["binary_decision_diagram.h"],
     deps = [
+        ":inline_bitmap",
         "//xls/common:math_util",
         "//xls/common:strong_int",
+        "//xls/common/status:ret_check",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
@@ -191,6 +193,8 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+        "@cppitertools",
     ],
 )
 

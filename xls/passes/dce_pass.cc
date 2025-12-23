@@ -71,6 +71,10 @@ absl::StatusOr<bool> DeadCodeEliminationPass::RunOnFunctionBaseInternal(
   }
 
   VLOG(2) << "Removed " << removed_count << " dead nodes";
+  // Use this pass to clean up context once we've removed nodes.
+  if (removed_count > 0) {
+    XLS_RETURN_IF_ERROR(context.CollectGarbage());
+  }
   return removed_count > 0;
 }
 

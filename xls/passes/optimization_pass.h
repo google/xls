@@ -41,6 +41,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/visitor.h"
 #include "xls/estimators/area_model/area_estimator.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/change_listener.h"
@@ -51,6 +52,7 @@
 #include "xls/ir/proc.h"
 #include "xls/ir/ram_rewrite.pb.h"
 #include "xls/ir/value.h"
+#include "xls/passes/lazy_query_engine.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/pass_pipeline.pb.h"
 #include "xls/passes/pass_registry.h"
@@ -205,6 +207,10 @@ struct OptimizationPassOptions : public PassOptionsBase {
 
 class OptimizationContext {
  public:
+  // Try to reduce memory use by asking query engines to perform full garbage
+  // collection.
+  absl::Status CollectGarbage();
+
   // Create or get a shared node data constructed using the given args. All args
   // must live at least as long as the entire compilation (including keeping
   // pointers allocated).
@@ -236,7 +242,7 @@ class OptimizationContext {
              std::copyable<std::tuple<Args...>>)
   QueryEngineT* SharedQueryEngine(FunctionBase* f, Args... args) {
     ConstructorArguments key(typeid(QueryEngineT), args...);
-    absl::flat_hash_map<ConstructorArguments, std::shared_ptr<QueryEngine>>&
+    absl::flat_hash_map<ConstructorArguments, SharableQueryEngine>&
         f_query_engines = shared_query_engines_[f];
     auto it = f_query_engines.find(key);
     if (it == f_query_engines.end()) {
@@ -245,15 +251,17 @@ class OptimizationContext {
       if constexpr (kArgCount == 0 &&
                     requires { QueryEngineT::MakeDefault(); }) {
         std::tie(it, inserted) = f_query_engines.emplace(
-            std::move(key), QueryEngineT::MakeDefault());
+            std::move(key), SharableQueryEngine(std::shared_ptr<QueryEngineT>(
+                                QueryEngineT::MakeDefault().release())));
       } else {
         std::tie(it, inserted) = f_query_engines.emplace(
-            std::move(key), std::make_unique<QueryEngineT>(args...));
+            std::move(key),
+            SharableQueryEngine(std::make_shared<QueryEngineT>(args...)));
       }
       CHECK(inserted);
-      CHECK_OK(it->second->Populate(f).status());
+      CHECK_OK(it->second.As<QueryEngineT>()->Populate(f).status());
     }
-    return dynamic_cast<QueryEngineT*>(it->second.get());
+    return it->second.As<QueryEngineT>();
   }
 
   template <typename QueryEngineT>
@@ -269,7 +277,7 @@ class OptimizationContext {
     for (auto& [f, f_query_engines] : shared_query_engines_) {
       query_engines.reserve(query_engines.size() + f_query_engines.size());
       for (auto& [type_index, query_engine] : f_query_engines) {
-        query_engines.push_back(query_engine.get());
+        query_engines.push_back(query_engine.As<QueryEngine>());
       }
     }
     return query_engines;
@@ -424,9 +432,50 @@ class OptimizationContext {
   static_assert(std::copyable<ConstructorArguments>,
                 "needed to allow for use as flat_hash_map key");
 
-  absl::flat_hash_map<
-      FunctionBase*,
-      absl::flat_hash_map<ConstructorArguments, std::shared_ptr<QueryEngine>>>
+  class SharableQueryEngine {
+   public:
+    template <typename T>
+      requires(std::is_base_of_v<internal::CacheableQueryEngine, T>)
+    explicit SharableQueryEngine(std::shared_ptr<T> qe)
+        : qe_(std::shared_ptr<internal::CacheableQueryEngine>(std::move(qe))) {}
+    template <typename T>
+      requires(std::is_base_of_v<QueryEngine, T> &&
+               !std::is_base_of_v<internal::CacheableQueryEngine, T>)
+    explicit SharableQueryEngine(std::shared_ptr<T> qe)
+        : qe_(std::shared_ptr<QueryEngine>(std::move(qe))) {}
+
+    absl::Status CollectGarbage() {
+      return std::visit(
+          Visitor{
+              [](std::shared_ptr<QueryEngine>& qe) { return absl::OkStatus(); },
+              [](std::shared_ptr<internal::CacheableQueryEngine>& qe) {
+                return qe->MaybePerformGarbageCollection();
+              },
+          },
+          qe_);
+    }
+
+    template <typename T>
+    T* As() const {
+      return dynamic_cast<T*>(std::visit(
+          Visitor{
+              [](const std::shared_ptr<QueryEngine>& qe) -> QueryEngine* {
+                return qe.get();
+              },
+              [](const std::shared_ptr<internal::CacheableQueryEngine>& qe)
+                  -> QueryEngine* { return qe.get(); },
+          },
+          qe_));
+    }
+
+   private:
+    std::variant<std::shared_ptr<QueryEngine>,
+                 std::shared_ptr<internal::CacheableQueryEngine>>
+        qe_;
+  };
+
+  absl::flat_hash_map<FunctionBase*, absl::flat_hash_map<ConstructorArguments,
+                                                         SharableQueryEngine>>
       shared_query_engines_;
   absl::flat_hash_map<FunctionBase*,
                       absl::flat_hash_map<ConstructorArguments,

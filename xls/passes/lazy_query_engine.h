@@ -33,6 +33,23 @@
 
 namespace xls {
 
+namespace internal {
+
+// A helper to represent a query engine that can be cached in some way. This
+// should only be used as an internal implementation detail in the context
+// classes or as an ABC for LazyQueryEngine. Note that
+class CacheableQueryEngine : public QueryEngine {
+ public:
+  // Perform a GC of information stored in the query engine. Use best-effort to
+  // guess whether a gc is even required and skip it if it looks unlikely to do
+  // anything.
+  virtual absl::Status MaybePerformGarbageCollection() = 0;
+  // Perform a GC of internal qe information. Do this regardless of whether it
+  // seems likely any garbage is present to be collected.
+  virtual absl::Status ForcePerformGarbageCollection() = 0;
+};
+}  // namespace internal
+
 // A base class for query engines that can be lazily populated; implements an
 // invalidating/"re-validating" cache for any analysis that depends only on the
 // transitive inputs to a node.
@@ -74,10 +91,11 @@ namespace xls {
 //       the main advantage of this cache over a more typical invalidating
 //       cache.
 template <typename Info>
-class LazyQueryEngine : public QueryEngine {
- private:
+class LazyQueryEngine : public internal::CacheableQueryEngine {
+ protected:
   class QueryEngineNodeInfo : public LazyNodeInfo<Info> {
    public:
+    using typename LazyNodeInfo<Info>::CacheState;
     explicit QueryEngineNodeInfo(LazyQueryEngine<Info>* owner)
         : LazyNodeInfo<Info>(DagCacheInvalidateDirection::kInvalidatesUsers),
           owner_(owner) {}
@@ -97,6 +115,23 @@ class LazyQueryEngine : public QueryEngine {
       info.owner_ = owner;
       return info;
     }
+
+    // This is likely to render some parts of the query engine obsolete. Just
+    // mark a GC as requested.
+    void NodeDeleted(Node* node) override {
+      owner_->MarkGcNeeded();
+      LazyNodeInfo<Info>::NodeDeleted(node);
+    }
+
+    // This is likely to render some parts of the query engine obsolete. Just
+    // mark a GC as requested.
+    void OperandRemoved(Node* node, Node* old_operand) override {
+      owner_->MarkGcNeeded();
+      LazyNodeInfo<Info>::OperandRemoved(node, old_operand);
+    }
+
+    // Allow direct access to the cache info to implement gc.
+    using LazyNodeInfo<Info>::cache;
 
    protected:
     LeafTypeTree<Info> ComputeInfo(
@@ -146,11 +181,11 @@ class LazyQueryEngine : public QueryEngine {
 
   // Access to the underlying data store for this query engine. Use this to
   // directly add givens if required.
-  LazyNodeInfo<Info>& info() { return info_; }
+  LazyNodeInfo<Info>& info() { return qe_info(); }
 
   // Access to the underlying data store for this query engine. Use this to
   // directly add givens if required.
-  const LazyNodeInfo<Info>& info() const { return info_; }
+  const LazyNodeInfo<Info>& info() const { return qe_info(); }
 
   std::optional<SharedLeafTypeTree<Info>> GetInfo(Node* node) const {
     return info_.GetInfo(node);
@@ -195,6 +230,19 @@ class LazyQueryEngine : public QueryEngine {
     return info_.RemoveForced(node);
   }
 
+  absl::Status ForcePerformGarbageCollection() override {
+    needs_gc_ = false;
+    return PerformGarbageCollection();
+  }
+
+  absl::Status MaybePerformGarbageCollection() override {
+    if (needs_gc_) {
+      needs_gc_ = false;
+      return PerformGarbageCollection();
+    }
+    return absl::OkStatus();
+  }
+
  protected:
   virtual LeafTypeTree<Info> ComputeInfo(
       Node* node,
@@ -202,13 +250,40 @@ class LazyQueryEngine : public QueryEngine {
 
   virtual absl::Status MergeWithGiven(Info& info, const Info& given) const = 0;
 
+  // Actually perform GC and remove unneeded data and minimize memory use as
+  // appropriate for the query engine. By default does nothing. This is only
+  // called if something has changed in the query engine since the last call.
+  //
+  // Note in general query engines should simply clean up garbage as they go.
+  // This is only used for cases where that is not possible and a more involved
+  // scan of values is required to determine dead information (eg Cleaning up
+  // bdd nodes). Most query engines should not override this function.
+  virtual absl::Status PerformGarbageCollection() { return absl::OkStatus(); }
+  void MarkGcNeeded() { needs_gc_ = true; }
+
+  // For MarkGcNeeded.
+  friend class QueryEngineNodeInfo;
+
+  // Get node-info as the internal QueryEngineNodeInfo to allow for more
+  // visibility.
+  QueryEngineNodeInfo& qe_info() { return info_; }
+  // Get node-info as the internal QueryEngineNodeInfo to allow for more
+  // visibility.
+  const QueryEngineNodeInfo& qe_info() const { return info_; }
+
  private:
   QueryEngineNodeInfo info_;
+
+  // Has any changes occurred that seem likely to have invalidated parts of the
+  // query engine, allowing data to be gc'd.
+  bool needs_gc_ = false;
 };
 
 template <typename Info>
 absl::Status LazyQueryEngine<Info>::QueryEngineNodeInfo::MergeWithGiven(
     Info& info, const Info& given) const {
+  // We are potentially invalidating things. Request a gc later.
+  owner_->MarkGcNeeded();
   return owner_->MergeWithGiven(info, given);
 }
 
@@ -216,6 +291,8 @@ template <typename Info>
 LeafTypeTree<Info> LazyQueryEngine<Info>::QueryEngineNodeInfo::ComputeInfo(
     Node* node,
     absl::Span<const LeafTypeTree<Info>* const> operand_infos) const {
+  // We are potentially invalidating things. Request a gc later.
+  owner_->MarkGcNeeded();
   return owner_->ComputeInfo(node, operand_infos);
 }
 

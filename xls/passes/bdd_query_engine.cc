@@ -39,7 +39,10 @@
 #include "cppitertools/zip.hpp"
 #include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/common/visitor.h"
 #include "xls/data_structures/binary_decision_diagram.h"
+#include "xls/data_structures/inline_bitmap.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/abstract_evaluator.h"
 #include "xls/ir/abstract_node_evaluator.h"
@@ -1337,6 +1340,70 @@ std::optional<TreeBitLocation> BddQueryEngine::GetTreeBitLocation(
     return it->second;
   }
   return std::nullopt;
+}
+
+absl::Status BddQueryEngine::PerformGarbageCollection() {
+  VLOG(1) << "Performing garbage collection on bdd for "
+          << info().bound_function()->name();
+  if (bdd_->size() * 0.5 < bdd_->last_gc_node_size()) {
+    VLOG(1) << "Skipping GC since not enough new nodes are present.";
+    return absl::OkStatus();
+  }
+  // Fraction of available ids to skip collection on.
+  using CacheState = typename QueryEngineNodeInfo::CacheState;
+  // FunctionBase* bound = info().bound_function();
+  std::vector<BddNodeIndex> bdd_roots{bdd_->zero(), bdd_->one()};
+  InlineBitmap seen_nodes(bdd_->capacity());
+  // Mark base zero and one. Don't do the recursive call as these are base
+  // cases.
+  seen_nodes.Set(bdd_->zero().value());
+  seen_nodes.Set(bdd_->one().value());
+  // Mark all living trees in the BDD.
+  for (const auto& [_, nv] : node_variables_) {
+    for (const auto& bdd_vec : nv->elements()) {
+      for (const auto& bdd_node : bdd_vec) {
+        if (std::holds_alternative<BddNodeIndex>(bdd_node)) {
+          auto node = std::get<BddNodeIndex>(bdd_node);
+          if (!seen_nodes.Get(node.value())) {
+            seen_nodes.Set(node.value());
+            bdd_roots.push_back(node);
+          }
+        }
+      }
+    }
+  }
+  for (const auto& [_, bit] : bit_variables_) {
+    if (!seen_nodes.Get(bit.value())) {
+      seen_nodes.Set(bit.value());
+      bdd_roots.push_back(bit);
+    }
+  }
+  for (const auto& [b, _] : bdd_to_bit_locs_) {
+    if (!seen_nodes.Get(b.value())) {
+      seen_nodes.Set(b.value());
+      bdd_roots.push_back(b);
+    }
+  }
+  for (const auto& [node, root] : this->qe_info().cache().entries()) {
+    XLS_RET_CHECK(root.state != CacheState::kUnknown) << "Invalid bdd cache";
+    for (const std::vector<SaturatingBddNodeIndex>& tree_entry :
+         root.value->elements()) {
+      for (SaturatingBddNodeIndex bdd_node : tree_entry) {
+        std::visit(Visitor{[](TooManyPaths) {},
+                           [&](BddNodeIndex idx) {
+                             if (!seen_nodes.Get(idx.value())) {
+                               seen_nodes.Set(idx.value());
+                               bdd_roots.push_back(idx);
+                             }
+                           }},
+                   bdd_node);
+      }
+    }
+  }
+  XLS_ASSIGN_OR_RETURN(auto dead, bdd_->GarbageCollect(bdd_roots),
+                       _ << "Failed to GC on bdd-query-engine for '"
+                         << info().bound_function()->name() << "'");
+  return absl::OkStatus();
 }
 
 }  // namespace xls

@@ -382,15 +382,10 @@ class LazyDagCache {
     return it->second.value.get();
   }
 
- private:
-  DagProvider* const provider_;
-
   struct CacheEntry {
     CacheState state = CacheState::kUnknown;
     std::unique_ptr<Value> value = nullptr;
   };
-  absl::flat_hash_map<Key, CacheEntry> cache_;
-
   struct CacheEntryView {
     CacheState state = CacheState::kUnknown;
     const Value* value = nullptr;
@@ -402,6 +397,13 @@ class LazyDagCache {
     }
     return {.state = it->second.state, .value = it->second.value.get()};
   }
+
+  const absl::flat_hash_map<Key, CacheEntry>& entries() const { return cache_; }
+
+ private:
+  DagProvider* const provider_;
+
+  absl::flat_hash_map<Key, CacheEntry> cache_;
 };
 
 template <typename Key, typename Value>

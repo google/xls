@@ -156,6 +156,8 @@ class BddQueryEngine
     if (!info.has_value()) {
       return std::nullopt;
     }
+    CHECK_GT(info->Get(location.tree_index()).size(), location.bit_index())
+        << location;
     SaturatingBddNodeIndex node =
         info->Get(location.tree_index()).at(location.bit_index());
     if (std::holds_alternative<TooManyPaths>(node)) {
@@ -188,6 +190,8 @@ class BddQueryEngine
 
   absl::Status MergeWithGiven(BddVector& info,
                               const BddVector& given) const override;
+
+  absl::Status PerformGarbageCollection() override;
 
  private:
   class AssumingQueryEngine;

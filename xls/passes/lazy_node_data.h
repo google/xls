@@ -83,7 +83,7 @@ namespace xls {
 template <typename CacheValueT>
 class LazyNodeData : public ChangeListener,
                      public LazyDagCache<Node*, CacheValueT>::DagProvider {
- private:
+ protected:
   using CacheState = LazyDagCache<Node*, CacheValueT>::CacheState;
   using DagProvider = LazyDagCache<Node*, CacheValueT>::DagProvider;
 
@@ -476,6 +476,9 @@ class LazyNodeData : public ChangeListener,
 
   virtual absl::Status MergeWithGiven(CacheValueT& info,
                                       const CacheValueT& given) const = 0;
+
+  const LazyDagCache<Node*, CacheValueT>& cache() const { return cache_; }
+  LazyDagCache<Node*, CacheValueT>& cache() { return cache_; }
 
  private:
   FunctionBase* f_ = nullptr;

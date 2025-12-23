@@ -17,12 +17,16 @@
 
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <string>
 #include <tuple>
+#include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/common/math_util.h"
 #include "xls/common/strong_int.h"
 
@@ -37,10 +41,13 @@ namespace xls {
 //   "Efficient Implementation of a BDD package"
 //   https://ieeexplore.ieee.org/document/114826
 
+namespace internal {
+using BddIdTy = int32_t;
+}
 // For efficiency variables and nodes are referred to by indices into vector
 // data members in the BDD.
-XLS_DEFINE_STRONG_INT_TYPE(BddVariable, int32_t);
-XLS_DEFINE_STRONG_INT_TYPE(BddNodeIndex, int32_t);
+XLS_DEFINE_STRONG_INT_TYPE(BddVariable, internal::BddIdTy);
+XLS_DEFINE_STRONG_INT_TYPE(BddNodeIndex, internal::BddIdTy);
 
 // A node in the BDD. The node is associated with a single variable and has
 // children corresponding to when the variable is true (high) and when it is
@@ -106,11 +113,16 @@ class BinaryDecisionDiagram {
 
   // Returns the BDD node with the given index.
   const BddNode& GetNode(BddNodeIndex node_index) const {
-    return nodes_.at(node_index.value());
+    CHECK_GT(nodes_.size(), node_index.value()) << "bad index";
+    const auto& e = nodes_.at(node_index.value());
+    CHECK(!std::holds_alternative<FreeListNode>(e))
+        << "Got a free list index at " << node_index;
+    return std::get<BddNode>(e);
   }
 
   // Returns the number of nodes in the graph.
-  int64_t size() const { return nodes_.size(); }
+  int64_t size() const { return nodes_size_; }
+  int64_t capacity() const { return nodes_.capacity(); }
 
   // Returns the number of variables in the graph.
   int64_t variable_count() const { return variable_base_nodes_.size(); }
@@ -141,7 +153,71 @@ class BinaryDecisionDiagram {
   BddNodeIndex IfThenElse(BddNodeIndex cond, BddNodeIndex if_true,
                           BddNodeIndex if_false);
 
+  // Perform a garbage collection and clear all bdd node information that isn't
+  // referenced (transitively or directly) by one of the bdd-nodes in the roots
+  // list. After calling this BddNodeIndex values might be reused. A node holds
+  // live any variables that point directly to it as well. Note that variable
+  // ids are never reused. Unreferenced variables will be marked as freed
+  // however and CHECK fail if used. This is done to allow for easier
+  // maintenance of internal invariants related to the shape of the diagram as
+  // a whole. Even on exceptionally large designs the memory cost of not
+  // compating the variables is O(10s of mb) so easily affordable.
+  //
+  // This is intended to combat the issues with excessive memory usage we have
+  // been seeing on some large designs.
+  //
+  // GC will only be performed if more than gc_threshold portion of the
+  // allocated nodes are dead.
+  //
+  // Returns a list of all node indexs which were freed dead.
+  absl::StatusOr<std::vector<BddNodeIndex>> GarbageCollect(
+      absl::Span<BddNodeIndex const> roots, double gc_threshold = 0.5);
+
+  int64_t last_gc_node_size() { return prev_nodes_size_; }
+
  private:
+  // Node in the ids free list.
+  class FreeListNode {
+   public:
+    // Actual offset in the list.
+    XLS_DEFINE_STRONG_INT_TYPE(Index, internal::BddIdTy);
+    // A special index value that indicates this is in a list where all
+    // consecutive numbers up to the last element in the free list are free.
+    // After hitting this every subsequent value in the free list must be this
+    // value.
+    static constexpr Index kNextIsConsecutive{-1};
+    // Zero-arg constructor so the address space can be extended with just
+    // resize.
+    constexpr FreeListNode() : next_(kNextIsConsecutive) {}
+
+    explicit FreeListNode(Index next) : next_(next) {
+      CHECK_NE(next, kNextIsConsecutive)
+          << "Next must be non-consecutive value.";
+    }
+
+    constexpr Index next_free(Index current_addr) const {
+      if (next_ == kNextIsConsecutive) {
+        return Index(current_addr.value() + 1);
+      }
+      return next_;
+    }
+
+    constexpr Index raw_next() const { return next_; }
+
+   private:
+    Index next_;
+  };
+  template <typename T>
+  const T& AllocatedElement(const std::variant<FreeListNode, T>& e) const {
+    CHECK(!std::holds_alternative<FreeListNode>(e)) << "Got a free list index.";
+    return std::get<T>(e);
+  }
+  template <typename T>
+  T& AllocatedElement(std::variant<FreeListNode, T>& e) {
+    CHECK(!std::holds_alternative<FreeListNode>(e)) << "Got a free list index.";
+    return std::get<T>(e);
+  }
+
   // Helper for constructing a DNF string respresentation.
   void ToStringDnfHelper(BddNodeIndex expr, int64_t* minterms_to_emit,
                          std::vector<std::string>* terms,
@@ -158,18 +234,48 @@ class BinaryDecisionDiagram {
 
   // Returns the node corresponding to the value of the given variable.
   BddNodeIndex GetVariableBaseNode(BddVariable variable) const {
-    return variable_base_nodes_.at(variable.value());
+    auto res = variable_base_nodes_.at(variable.value());
+    CHECK(res) << "Variable has been garbage collected: " << variable.value();
+    return *res;
   }
 
   // Creates the base BddNode corresponding to the given variable.
   BddNodeIndex CreateVariableBaseNode(BddVariable var);
 
-  // NodeIndexes corresponding to the base nodes (var, one, zero) for each
-  // variable.
-  std::vector<BddNodeIndex> variable_base_nodes_;
+  // Adds the node to the address space and returns the id.
+  BddNodeIndex CreateNode(BddNode node);
 
-  // The vector of all the nodes in the BDD.
-  std::vector<BddNode> nodes_;
+  // NodeIndexes corresponding to the base nodes (var, one, zero) for each
+  // variable. std::nullopt if the variable has been garbage collected.
+  //
+  // NB To make maintenance of the requirement that variables be increasing
+  // easier these are never collected or reused.
+  std::vector<std::optional<BddNodeIndex>> variable_base_nodes_;
+
+  // # Explanation of the node free-lists.
+  //
+  // Since bdd nodes are created quite rapidly and can quickly end up
+  // unreachable (due to nodes being removed or other simplifications) we need
+  // to be able to GC this BDD to avoid using an excessive amount of memory. To
+  // do this we use a mark-sweep GC and reuse node and variable ids using
+  // free-lists. Each of the nodes lists is an address space for their
+  // corresponding 'Index' pointers. For simplicity the node state is held in a
+  // cpp variant. If the variant is a 'FreeListNode' then that index is free to
+  // be allocated to a new node and functions as a singlely-linked-list, with
+  // each node having the pointer of the next free node held within it. The head
+  // of the list is held in the '_head_' field. Furthermore to make extending
+  // the address space easier the ending values of the address_space can have
+  // free nodes with the fixed 'kNextIsConsecutive' value which indicates that
+  // the address space is free from that node to the end of the address space.
+  //
+  // The address spaces are never compacted so care should be taken to call
+  // GarbageCollect often enough that they don't grow too large.
+  //
+  // The vector of all the nodes in the BDD and the free list of ids.
+  std::vector<std::variant<FreeListNode, BddNode>> nodes_;
+  // The first free offset in the nodes_ list.
+  FreeListNode::Index free_node_head_;
+  internal::BddIdTy nodes_size_;
 
   // A map from BDD node content (variable id, high child, low child) to the
   // index of the respective node. This map is used to ensure that no duplicate
@@ -184,6 +290,7 @@ class BinaryDecisionDiagram {
   absl::flat_hash_map<IteKey, BddNodeIndex> ite_map_;
 
   int64_t max_paths_;
+  int64_t prev_nodes_size_ = 2;
 };
 
 }  // namespace xls
