@@ -74,6 +74,21 @@ struct VisibilityAnalyses {
   const SingleSelectVisibilityAnalysis& single_select;
 };
 
+struct MutuallyExclPair {
+  Node* one;
+  Node* other;
+  MutuallyExclPair(Node* a, Node* b)
+      : one(std::min(a, b, NodeIdLessThan)),
+        other(std::max(a, b, NodeIdLessThan)) {}
+  bool operator==(const MutuallyExclPair& o) const {
+    return one == o.one && other == o.other;
+  }
+  template <typename H>
+  friend H AbslHashValue(H h, const MutuallyExclPair& d) {
+    return H::combine(std::move(h), d.one, d.other);
+  }
+};
+
 }  // namespace
 
 class TimingAnalysis {
@@ -282,21 +297,6 @@ bool CanTarget(Node* n, Node* selector,
   // In this case, @n cannot be considered for this select
   return !nda.IsDependent(n, selector);
 }
-
-struct MutuallyExclPair {
-  Node* one;
-  Node* other;
-  MutuallyExclPair(Node* a, Node* b)
-      : one(std::min(a, b, NodeIdLessThan)),
-        other(std::max(a, b, NodeIdLessThan)) {}
-  bool operator==(const MutuallyExclPair& o) const {
-    return one == o.one && other == o.other;
-  }
-  template <typename H>
-  friend H AbslHashValue(H h, const MutuallyExclPair& d) {
-    return H::combine(std::move(h), d.one, d.other);
-  }
-};
 
 // This function computes the set of mutual exclusive pairs of instructions.
 // Each pair of instruction is associated with the select (of any kind) that
@@ -962,16 +962,20 @@ ListOfFoldingActionsWithDestination(
   return potential_folding_actions_to_perform;
 }
 
-// Remove folding actions (via removing either a whole n-ary folding or a
-// sub-set of the froms of a given n-ary folding) to make the returned list
-// legal.
-absl::StatusOr<std::vector<std::unique_ptr<NaryFoldingAction>>>
+// Legalizes a sequence of folding actions by removing or modifying actions
+// that conflict.
+//
+// Returns a pair where the first element is the legalized sequence of
+// actions and the second element is a boolean that is true if the input
+// sequence was modified.
+absl::StatusOr<std::pair<std::vector<std::unique_ptr<NaryFoldingAction>>, bool>>
 LegalizeSequenceOfFolding(
     absl::Span<const std::unique_ptr<NaryFoldingAction>>
         potential_folding_actions_to_perform,
     absl::flat_hash_set<MutuallyExclPair>& mutual_exclusivity,
     std::optional<const AreaEstimator*> area_estimator) {
   std::vector<std::unique_ptr<NaryFoldingAction>> folding_actions_to_perform;
+  bool modified = false;
 
   // Remove folding actions (via removing either a whole n-ary folding or a
   // subset of the froms of a given n-ary folding) that overlaps.
@@ -994,7 +998,10 @@ LegalizeSequenceOfFolding(
     for (auto& [from_node, _] : folding->GetFrom()) {
       VLOG(3) << "      From: " << from_node->ToString();
     }
-    VLOG(3) << "      Area savings = " << folding->area_saved();
+    std::optional<double> area_saved_without_overhead = folding->area_saved();
+    if (area_saved_without_overhead.has_value()) {
+      VLOG(2) << "      Area savings = " << *area_saved_without_overhead;
+    }
 
     fold_chains.Insert(folding->GetTo());
     for (auto& [from_node, _] : folding->GetFrom()) {
@@ -1043,6 +1050,7 @@ LegalizeSequenceOfFolding(
         }
       }
       if (skip_current_folding) {
+        modified = true;
         continue;
       }
     }
@@ -1050,9 +1058,7 @@ LegalizeSequenceOfFolding(
     // Check all sources of the current n-ary folding
     std::vector<std::pair<Node*, FoldingAction::VisibilityEdges>> legal_froms;
     legal_froms.reserve(folding->GetNumberOfFroms());
-    std::optional<double> optional_area_saved = folding->area_saved();
-    XLS_RET_CHECK_EQ(optional_area_saved.has_value(), true);
-    double area_saved = *optional_area_saved;
+    double area_saved = area_saved_without_overhead.value_or(0.0);
     for (const auto& [source, source_edges] : folding->GetFrom()) {
       // Exclude folding sources that have already been selected as source
       // on another, previous folding action.
@@ -1117,6 +1123,7 @@ LegalizeSequenceOfFolding(
           }
         }
         if (!is_safe) {
+          modified = true;
           continue;
         }
       }
@@ -1125,6 +1132,7 @@ LegalizeSequenceOfFolding(
         VLOG(4) << "      Excluding the following source because it would cause"
                    "a chain of folds to become a cycle of folds";
         VLOG(4) << "        Source removed = " << source->ToString();
+        modified = true;
         continue;
       }
 
@@ -1134,6 +1142,7 @@ LegalizeSequenceOfFolding(
     if (legal_froms.empty()) {
       VLOG(4) << "      Excluding the current n-ary folding because it has no "
                  "sources left";
+      modified = true;
       continue;
     }
 
@@ -1144,6 +1153,7 @@ LegalizeSequenceOfFolding(
     // nodes would have been merged with the previous fold's nodes upon the
     // construction of these n-ary folding actions.
     if (prior_folding_of_destination.contains(to_node)) {
+      modified = true;
       continue;
     }
 
@@ -1172,7 +1182,7 @@ LegalizeSequenceOfFolding(
     folding_actions_to_perform.push_back(std::move(new_folding));
   }
 
-  return folding_actions_to_perform;
+  return std::make_pair(std::move(folding_actions_to_perform), modified);
 }
 
 // This function sorts the folding actions given as input in descending order
@@ -1366,9 +1376,9 @@ SelectFoldingActionsBasedOnInDegree(
   // isolation.
   // However, a given n-ary folding action might be illegal if another one run
   // before.
+  std::vector<std::unique_ptr<NaryFoldingAction>> folding_actions_to_perform;
   XLS_ASSIGN_OR_RETURN(
-      std::vector<std::unique_ptr<NaryFoldingAction>>
-          folding_actions_to_perform,
+      std::tie(folding_actions_to_perform, std::ignore),
       LegalizeSequenceOfFolding(
           std::move(
               potential_folding_actions_to_perform_without_timing_problems),
@@ -1455,9 +1465,9 @@ SelectAllFoldingActions(
   // isolation.
   // However, a given n-ary folding action might be illegal if another one run
   // before.
+  std::vector<std::unique_ptr<NaryFoldingAction>> folding_actions_to_perform;
   XLS_ASSIGN_OR_RETURN(
-      std::vector<std::unique_ptr<NaryFoldingAction>>
-          folding_actions_to_perform,
+      std::tie(folding_actions_to_perform, std::ignore),
       LegalizeSequenceOfFolding(std::move(potential_folding_actions_to_perform),
                                 mutual_exclusivity, &area_estimator));
 
@@ -1898,6 +1908,7 @@ absl::StatusOr<bool> ResourceSharingPass::RunOnFunctionBaseInternal(
   if (!options.enable_resource_sharing) {
     return false;
   }
+  // Check if we have an area estimator
   if (options.area_estimator == nullptr) {
     return absl::InvalidArgumentError(
         "Enabling resource sharing requires an area estimator");
