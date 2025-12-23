@@ -298,4 +298,54 @@ std::vector<BinaryFoldingAction*> FoldingGraph::GetEdgesTo(Node* n) const {
   return edges_to_n;
 }
 
+FoldingAction::FoldingAction(
+    const FoldingAction& other,
+    const absl::flat_hash_map<Node*, Node*>& original_node_to_clone) {
+  // Fetch the information about the original n-ary action.
+  const BinaryFoldingAction::VisibilityEdges& original_to_edges =
+      other.GetToVisibilityEdges();
+
+  // Fetch the clones of the Node instances referenced by @other.
+  Node* clone_to = original_node_to_clone.at(other.GetTo());
+  FoldingAction::VisibilityEdges clone_visibility_edges;
+  BinaryFoldingAction::VisibilityEdges clone_to_edges;
+  for (const OperandVisibilityAnalysis::OperandNode& visibility_edge :
+       original_to_edges) {
+    Node* clone_operand = original_node_to_clone.at(visibility_edge.operand);
+    Node* clone_node = original_node_to_clone.at(visibility_edge.node);
+    clone_to_edges.insert({clone_operand, clone_node});
+  }
+
+  // Set the fields
+  to_ = clone_to;
+  to_edges_ = std::move(clone_to_edges);
+  area_saved_ = other.area_saved_;
+}
+
+NaryFoldingAction::NaryFoldingAction(
+    const NaryFoldingAction& other,
+    const absl::flat_hash_map<Node*, Node*>& original_node_to_clone)
+    : FoldingAction(other, original_node_to_clone) {
+  // Fetch the information about the original n-ary action.
+  absl::Span<const std::pair<Node*, FoldingAction::VisibilityEdges>>
+      original_froms = other.GetFrom();
+
+  // Fetch the clones of the Node instances referenced by @other.
+  std::vector<std::pair<Node*, FoldingAction::VisibilityEdges>> clone_froms;
+  FoldingAction::VisibilityEdges clone_visibility_edges;
+  for (const auto& [original_from, original_visibility_edges] :
+       original_froms) {
+    Node* clone_from = original_node_to_clone.at(original_from);
+    for (const auto [operand, node] : original_visibility_edges) {
+      Node* clone_operand = original_node_to_clone.at(operand);
+      Node* clone_node = original_node_to_clone.at(node);
+      clone_visibility_edges.insert({clone_operand, clone_node});
+    }
+    clone_froms.push_back({clone_from, clone_visibility_edges});
+  }
+
+  // Set the fields specific to the NaryFoldingAction class
+  from_ = std::move(clone_froms);
+}
+
 }  // namespace xls
