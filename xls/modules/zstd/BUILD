@@ -2905,12 +2905,12 @@ xls_dslx_verilog(
             "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
                 latency = 1,
                 ram_name = "ram{}".format(num),
-                rd_req = "literals_buffer__rd_req_m{}_s".format(num),
-                rd_resp = "literals_buffer__rd_resp_m{}_r".format(num),
-                wr_req = "literals_buffer__wr_req_m{}_s".format(num),
-                wr_resp = "literals_buffer__wr_resp_m{}_r".format(num),
+                rd_req = "literals_buffer__rd_req_m_s__{}".format(num),
+                rd_resp = "literals_buffer__rd_resp_m_r__{}".format(num),
+                wr_req = "literals_buffer__wr_req_m_s__{}".format(num),
+                wr_resp = "literals_buffer__wr_resp_m_r__{}".format(num),
             )
-            for num in range(7)
+            for num in range(8)
         ]),
         "pipeline_stages": "6",
         "reset": "rst",
@@ -3068,12 +3068,12 @@ LITERALS_DECODER_CODEGEN_ARGS = {
         "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
             latency = 1,
             ram_name = "ram{}".format(num),
-            rd_req = "literals_decoder__rd_req_m{}_s".format(num),
-            rd_resp = "literals_decoder__rd_resp_m{}_r".format(num),
-            wr_req = "literals_decoder__wr_req_m{}_s".format(num),
-            wr_resp = "literals_decoder__wr_resp_m{}_r".format(num),
+            rd_req = "literals_decoder__rd_req_m_s__{}".format(num),
+            rd_resp = "literals_decoder__rd_resp_m_r__{}".format(num),
+            wr_req = "literals_decoder__wr_req_m_s__{}".format(num),
+            wr_resp = "literals_decoder__wr_resp_m_r__{}".format(num),
         )
-        for num in range(7)
+        for num in range(8)
     ]),
     "pipeline_stages": "8",
     "reset": "rst",

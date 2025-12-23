@@ -345,7 +345,6 @@ pub proc FseProbaFreqDecoder<
                 let lower_mask = get_lower_mask(bit_width);
                 let threshold = get_threshold(bit_width, state.remaining_proba as u16);
 
-                let mask = (u16:1 << out_data.length) - u16:1;
                 let data = out_data.data as u16;
 
                 let value = get_adjusted_value(data, state.remainder);
