@@ -1847,7 +1847,26 @@
       "general": {
         "bzlTransitiveDigest": "zKzjvlkMYt5ciDqNdVyTtZfAAPO39SuFy2B+xMqgTss=",
         "usagesDigest": "tuJgAyNZD8Ewzr/MlAnnittbPMDC60XQF8aGrsjU+nY=",
-        "recordedFileInputs": {},
+        "recordedFileInputs": {
+          "@@or-tools~//bazel/ortools_requirements.txt": "37e22395e78ef3572ab57b7717fd8f54851919bb73ca404f367536dc15a8e3eb",
+          "@@pybind11_abseil~//pybind11_abseil/requirements/requirements_lock_3_11.txt": "7d1074311e9f32f25ca112fc86fbec98bc024d820a8dc00f94e8679a7e6b480c",
+          "@@rules_python~//tools/publish/requirements_linux.txt": "8175b4c8df50ae2f22d1706961884beeb54e7da27bd2447018314a175981997d",
+          "@@//dependency_support/pip_requirements_lock.txt": "832b20765a17aebd47447fa6563be7295098fb3999f8c0dfa48903815960a4e5",
+          "@@or-tools~//bazel/notebook_requirements.txt": "ca78fad693f1b35eed8bb7c54e5ddf7ad255c4b9d94ce18efa55859759a8fb70",
+          "@@protoc-gen-validate~//python/requirements.txt": "6a540bc029bbf3a5f78f9f9282bd30e2965c98eeb150f2cfc5facccbd8a98297",
+          "@@pybind11_protobuf~//pybind11_protobuf/requirements/requirements_lock_3_10.txt": "afd6f9406f4e80a504f1575121a937f4c15388aec4a17393f0cb1ac9f09d18dd",
+          "@@pybind11_abseil~//pybind11_abseil/requirements/requirements_lock_3_9.txt": "f3908c1ef1a2947ed92693fb9797ac2050db90a86bd422921c7f226ed650d7ce",
+          "@@pybind11_protobuf~//pybind11_protobuf/requirements/requirements_lock_3_12.txt": "7cb4e656a0c88702302bae562670c4dd2bf85e44ff22c4704953b8ff807af7df",
+          "@@grpc~//requirements.bazel.lock": "ff9ad877bc63a73efb72b37635a33d06026c6e9b73f7de85a7da73c91d99a745",
+          "@@pybind11_protobuf~//pybind11_protobuf/requirements/requirements_lock_3_9.txt": "8b2739fd19485d1f3ee7e8303d7620fe4d953980d88e2b9edbcf4781f041be48",
+          "@@pybind11_abseil~//pybind11_abseil/requirements/requirements_lock_3_10.txt": "68e27caaca02d9a3be1e3a3f23e32c8e128508c7600805fb86f9848219e3fe1f",
+          "@@pybind11_abseil~//pybind11_abseil/requirements/requirements_lock_3_12.txt": "5cedc131b03d5f59c31fd3349ab15ba58d28c383ff189853366722d2226fadbd",
+          "@@pybind11_protobuf~//pybind11_protobuf/requirements/requirements_lock_3_11.txt": "9b1a0d8d75f6786b630fec859e7a2c289ec6c3aba8355d7e1d9aa6b473e3bcbc",
+          "@@rules_python~//tools/publish/requirements_windows.txt": "7673adc71dc1a81d3661b90924d7a7c0fc998cd508b3cb4174337cef3f2de556",
+          "@@pybind11_abseil~//pybind11_abseil/requirements/requirements_lock_3_8.txt": "9a29cdc6313dbcebf36742bc88c01a376eb89082d24a64cad883dfa16c2f3a20",
+          "@@pybind11_protobuf~//pybind11_protobuf/requirements/requirements_lock_3_8.txt": "661bd110107e5c236fe9a98a88f68702b89d43ba865bc75e63b7b3bffca7e234",
+          "@@rules_python~//tools/publish/requirements_darwin.txt": "2994136eab7e57b083c3de76faf46f70fad130bc8e7360a7fed2b288b69e79dc"
+        },
         "recordedDirentsInputs": {},
         "envVariables": {},
         "generatedRepoSpecs": {
