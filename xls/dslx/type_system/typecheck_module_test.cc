@@ -3380,6 +3380,17 @@ fn test_array2d_tiv2() {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
+TEST_F(TypecheckV2Test, RangeAnnotatesDeepNestedArrays) {
+  constexpr absl::string_view kProgram = R"(
+#[test]
+fn test_array3d_tiv2() {
+    let data: u32[2][2][2] = [[0..2, 2..4], [4..6, 6..8]];
+    assert_eq(u32:0 ++ u32:2 ++ u32:4, data[0][0][0] ++ data[0][1][0] ++ data[1][0][0]);
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
 TEST_F(TypecheckV2Test, RangeInclusive) {
   constexpr std::string_view kProgram = R"(
 const a:u32[5] = u32:0..=u32:4;
