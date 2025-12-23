@@ -873,8 +873,8 @@ proc ZstdDecoderTester<FRAMES: TestFrames, DECOMPRESSED_FRAMES: TestFrames> {
                     let (tok, axi_aw) = recv(tok, output_axi_aw_r);
                     trace_fmt!("ZstdDecTest: Received AXI AW: {:#x}", axi_aw);
 
-                    let tok = send(tok, csr_axi_ar_s, axi::AxiAr {
-                        addr: csr_addr<TEST_AXI_ADDR_W>(zstd_dec::Csr::STATUS),
+                    let tok = send(tok, csr_axi_ar_s, CsrAxiAr {
+                        addr: csr_addr(zstd_dec::Csr::STATUS),
                         id: uN[TEST_AXI_ID_W]:0,
                         size: axi::AxiAxSize::MAX_4B_TRANSFER,
                         len: u8:0,
@@ -1030,9 +1030,9 @@ proc RleLiteralsRepeatedSequencesTest {
     }
 }
 
-// TODO: Tests with the `_skip` suffix are disabled in CI
-// due to high memory usage. Re-enable them when the DSLX
-// interpreter becomes more memory-efficient.
+// Tests with the `_skip` suffix are disabled in CI
+// due to high memory usage and can be re-enabled
+// when the DSLX interpreter becomes more memory-efficient.
 
 #[test_proc]
 proc RawHuffmanLiteralsPredefinedSequencesTest_skip {

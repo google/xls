@@ -545,6 +545,7 @@
     "https://bcr.bazel.build/modules/rules_nodejs/6.3.0/MODULE.bazel": "45345e4aba35dd6e4701c1eebf5a4e67af4ed708def9ebcdc6027585b34ee52d",
     "https://bcr.bazel.build/modules/rules_nodejs/6.3.3/MODULE.bazel": "b66eadebd10f1f1b25f52f95ab5213a57e82c37c3f656fcd9a57ad04d2264ce7",
     "https://bcr.bazel.build/modules/rules_nodejs/6.3.3/source.json": "45bd343155bdfed2543f0e39b80ff3f6840efc31975da4b5795797f4c94147ad",
+    "https://bcr.bazel.build/modules/rules_perl/0.2.4/MODULE.bazel": "5f5af7be4bf5fb88d91af7469518f0fd2161718aefc606188f7cd51f436ca938",
     "https://bcr.bazel.build/modules/rules_perl/0.4.2/MODULE.bazel": "ade797b135be13d4715f7bb045bb06593ea3b8604f71330981cda6e5f95e42d1",
     "https://bcr.bazel.build/modules/rules_perl/0.4.2/source.json": "feb6b8996edcc944b5b82e6440c8104e5907f7eca7e0bf553c7c097d5181ac25",
     "https://bcr.bazel.build/modules/rules_pkg/0.7.0/MODULE.bazel": "df99f03fc7934a4737122518bb87e667e62d780b610910f0447665a7e2be62dc",
@@ -739,7 +740,7 @@
     },
     "@@aspect_rules_esbuild~//esbuild:extensions.bzl%esbuild": {
       "general": {
-        "bzlTransitiveDigest": "ByrhO7EMZ3RIaW8ldVEqFBXoJ5ogN4qmIfPfPbMGdUI=",
+        "bzlTransitiveDigest": "8jv3p0xDR/oitFeH8y0+Y5xlyrUbfsTRlc9TSwYkwl8=",
         "usagesDigest": "iDVoyPxUeADmfK8ssoyG3Ehq1bj6p7A43LpEiE266os=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},

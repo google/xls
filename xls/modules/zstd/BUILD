@@ -2894,7 +2894,7 @@ xls_dslx_verilog(
                 wr_req = "literals_buffer__wr_req_m{}_s".format(num),
                 wr_resp = "literals_buffer__wr_resp_m{}_r".format(num),
             )
-            for num in range(7)
+            for num in range(8)
         ]),
         "pipeline_stages": "6",
         "reset": "rst",
@@ -3056,7 +3056,7 @@ LITERALS_DECODER_CODEGEN_ARGS = {
             wr_req = "literals_decoder__wr_req_m{}_s".format(num),
             wr_resp = "literals_decoder__wr_resp_m{}_r".format(num),
         )
-        for num in range(7)
+        for num in range(8)
     ]),
     "pipeline_stages": "8",
     "reset": "rst",
