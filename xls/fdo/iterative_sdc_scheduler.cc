@@ -278,8 +278,10 @@ absl::Status BuildError(IterativeSDCSchedulingModel &model,
       (result.termination.reason == math_opt::TerminationReason::kInfeasible ||
        result.termination.reason ==
            math_opt::TerminationReason::kInfeasibleOrUnbounded)) {
-    XLS_RETURN_IF_ERROR(model.AddSlackVariables(
-        failure_behavior.infeasible_per_state_backedge_slack_pool));
+    XLS_ASSIGN_OR_RETURN(
+        IterativeSDCSchedulingModel::SlackHandle slack_handle,
+        model.AddSlackVariables(
+            failure_behavior.infeasible_per_state_backedge_slack_pool));
     XLS_ASSIGN_OR_RETURN(
         math_opt::SolveResult result_with_slack,
         math_opt::Solve(model.UnderlyingModel(), math_opt::SolverType::kGlop));
