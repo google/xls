@@ -685,6 +685,7 @@ cc_test(
         "@org_theopenroadproject//:opensta",
     ],
     deps = [
+        ":pipeline_schedule",
         ":pipeline_scheduling_pass",
         ":scheduling_options",
         ":scheduling_pass",

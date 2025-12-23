@@ -825,7 +825,8 @@ absl::StatusOr<int64_t> SDCSchedulingModel::ExtractPipelineLength(
   return static_cast<int64_t>(std::round(last_stage)) + 1;
 }
 
-absl::Status SDCSchedulingModel::AddSlackVariables(
+absl::StatusOr<SDCSchedulingModel::SlackHandle>
+SDCSchedulingModel::AddSlackVariables(
     std::optional<double> infeasible_per_state_backedge_slack_pool) {
   if (infeasible_per_state_backedge_slack_pool.has_value() &&
       *infeasible_per_state_backedge_slack_pool <= 0.0) {
@@ -905,6 +906,27 @@ absl::Status SDCSchedulingModel::AddSlackVariables(
     }
   }
 
+  return SlackHandle(this);
+}
+
+absl::Status SDCSchedulingModel::RemoveSlackVariables() {
+  if (last_stage_slack_.has_value()) {
+    XLS_RETURN_IF_ERROR(RemoveSlackVariable(*last_stage_slack_));
+    last_stage_slack_.reset();
+  }
+  if (shared_backedge_slack_.has_value()) {
+    XLS_RETURN_IF_ERROR(RemoveSlackVariable(*shared_backedge_slack_));
+    shared_backedge_slack_.reset();
+  }
+  for (auto& [nodes, node_backedge_var] : node_backedge_slack_) {
+    XLS_RETURN_IF_ERROR(RemoveSlackVariable(node_backedge_var));
+  }
+  node_backedge_slack_.clear();
+  for (auto& [io_constraint, slacks] : io_slack_) {
+    XLS_RETURN_IF_ERROR(RemoveSlackVariable(slacks.min));
+    XLS_RETURN_IF_ERROR(RemoveSlackVariable(slacks.max));
+  }
+  io_slack_.clear();
   return absl::OkStatus();
 }
 
@@ -1063,13 +1085,53 @@ math_opt::Variable SDCSchedulingModel::AddUpperBoundSlack(
   return *slack;
 }
 
-absl::Status SDCSchedulingModel::RemoveUpperBoundSlack(
-    math_opt::Variable v, math_opt::LinearConstraint upper_bound_with_slack,
-    math_opt::Variable slack) {
-  XLS_RET_CHECK_EQ(upper_bound_with_slack.coefficient(v), 1.0);
-  XLS_RET_CHECK_EQ(upper_bound_with_slack.coefficient(slack), -1.0);
-  model_.set_upper_bound(v, upper_bound_with_slack.upper_bound());
-  model_.DeleteLinearConstraint(upper_bound_with_slack);
+absl::Status SDCSchedulingModel::RemoveSlackVariable(math_opt::Variable slack) {
+  // All slack variables should have been created with these bounds.
+  XLS_RET_CHECK_EQ(slack.lower_bound(), 0.0);
+  XLS_RET_CHECK_EQ(slack.upper_bound(), kInfinity);
+
+  std::vector<math_opt::LinearConstraint> constraints_to_adjust =
+      model_.ColumnNonzeros(slack);
+  for (const math_opt::LinearConstraint& constraint : constraints_to_adjust) {
+    // Slack variables should only be used in constraints with a coefficient of
+    // +/-1.0.
+    XLS_RET_CHECK(constraint.coefficient(slack) == -1.0 ||
+                  constraint.coefficient(slack) == 1.0)
+        << "Constraint did not have a coefficient of -1.0 or 1.0 for slack "
+           "variable; had: "
+        << constraint.coefficient(slack);
+    constraints_to_adjust.push_back(constraint);
+  }
+  model_.DeleteVariable(slack);
+  for (const math_opt::LinearConstraint& constraint : constraints_to_adjust) {
+    std::vector<math_opt::Variable> variables = model_.RowNonzeros(constraint);
+    if (variables.size() != 1) {
+      // This constraint isn't just a single non-zero term, so leave it alone.
+      continue;
+    }
+    // This constraint has exactly one non-zero term, so we can convert it to
+    // upper and/or lower bounds on the variable.
+    double new_upper_bound;
+    double new_lower_bound;
+    if (constraint.coefficient(variables.front()) > 0.0) {
+      new_upper_bound = std::min(
+          constraint.upper_bound() / constraint.coefficient(variables.front()),
+          variables.front().upper_bound());
+      new_lower_bound = std::max(
+          constraint.lower_bound() / constraint.coefficient(variables.front()),
+          variables.front().lower_bound());
+    } else {
+      new_upper_bound = std::min(
+          constraint.lower_bound() / constraint.coefficient(variables.front()),
+          variables.front().upper_bound());
+      new_lower_bound = std::max(
+          constraint.upper_bound() / constraint.coefficient(variables.front()),
+          variables.front().lower_bound());
+    }
+    model_.set_upper_bound(variables.front(), new_upper_bound);
+    model_.set_lower_bound(variables.front(), new_lower_bound);
+    model_.DeleteLinearConstraint(constraint);
+  }
   return absl::OkStatus();
 }
 
@@ -1177,8 +1239,10 @@ absl::Status SDCScheduler::BuildError(
       (result.termination.reason == math_opt::TerminationReason::kInfeasible ||
        result.termination.reason ==
            math_opt::TerminationReason::kInfeasibleOrUnbounded)) {
-    XLS_RETURN_IF_ERROR(model_.AddSlackVariables(
-        failure_behavior.infeasible_per_state_backedge_slack_pool));
+    XLS_ASSIGN_OR_RETURN(
+        SDCSchedulingModel::SlackHandle slack_handle,
+        model_.AddSlackVariables(
+            failure_behavior.infeasible_per_state_backedge_slack_pool));
     XLS_ASSIGN_OR_RETURN(math_opt::SolveResult result_with_slack,
                          solver_->Solve());
     if (result_with_slack.termination.reason ==
