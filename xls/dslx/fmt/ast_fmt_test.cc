@@ -558,6 +558,33 @@ TEST_F(FunctionFmtTest, ConditionalWithUnnecessaryParens) {
   EXPECT_EQ(got, want);
 }
 
+TEST_F(FunctionFmtTest, ConstexprConditionalInTernaryStyle) {
+  const std::string_view original =
+      "fn f<TEST:bool>(y:u32,z:u32)->u32{const if TEST{y}else{z}}";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  const std::string_view want =
+      R"(fn f<TEST: bool>(y: u32, z: u32) -> u32 { const if TEST { y } else { z } })";
+  EXPECT_EQ(got, want);
+}
+
+TEST_F(FunctionFmtTest, ConstexprConditionalWithElseIf) {
+  const std::string_view original =
+      "fn f<TEST: bool[2]>(x:u32[3])->u32{const if TEST[0]{x[0]}else if "
+      "TEST[1]{x[1]}else{x[2]}}";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  const std::string_view want =
+      R"(fn f<TEST: bool[2]>(x: u32[3]) -> u32 {
+    const if TEST[0] {
+        x[0]
+    } else if TEST[1] {
+        x[1]
+    } else {
+        x[2]
+    }
+})";
+  EXPECT_EQ(got, want);
+}
+
 TEST_F(FunctionFmtTest, SimpleForOneStatementNoTypeAnnotation) {
   const std::string_view original =
       "fn f(x:u32)->u32{for(i,accum)in u32:0..u32:4{accum+i}(x)}";
