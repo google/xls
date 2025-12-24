@@ -312,6 +312,17 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "expr_clone",
+    srcs = ["expr_clone.cc"],
+    hdrs = ["expr_clone.h"],
+    deps = [
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@llvm-project//clang:ast",
+    ],
+)
+
 filegroup(
     name = "synth_only_headers",
     srcs = [
