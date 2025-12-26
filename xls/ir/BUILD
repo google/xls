@@ -827,6 +827,7 @@ cc_library(
     ],
     deps = [
         "//xls/common:strong_int",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",

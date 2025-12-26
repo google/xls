@@ -137,6 +137,21 @@ class StageSectioner : public DfsVisitorWithDefault {
 
 }  // namespace
 
+bool Stage::contains(Node* node) const {
+  switch (node->op()) {
+    case Op::kReceive:
+    case Op::kStateRead:
+    case Op::kRegisterRead:
+      return active_inputs_.contains(node);
+    case Op::kSend:
+    case Op::kNext:
+    case Op::kRegisterWrite:
+      return active_outputs_.contains(node);
+    default:
+      return logic_.contains(node);
+  }
+}
+
 bool Stage::AddNode(Node* node) {
   switch (node->op()) {
     case Op::kReceive:
@@ -412,9 +427,10 @@ absl::Status FunctionBase::RemoveNode(Node* node) {
   }
   if (IsScheduled()) {
     auto it = node_to_stage_.find(node);
-    CHECK_NE(it, node_to_stage_.end());
-    stages_[it->second].erase(node);
-    node_to_stage_.erase(it);
+    if (it != node_to_stage_.end()) {
+      stages_[it->second].erase(node);
+      node_to_stage_.erase(it);
+    }
   }
   auto node_it = node_iterators_.find(node);
   XLS_RET_CHECK(node_it != node_iterators_.end());
