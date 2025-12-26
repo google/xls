@@ -88,10 +88,7 @@ class Stage {
     return active_outputs_;
   }
 
-  bool contains(Node* node) const {
-    return active_inputs_.contains(node) || logic_.contains(node) ||
-           active_outputs_.contains(node);
-  }
+  bool contains(Node* node) const;
 
   bool AddNode(Node* node);
   void erase(Node* node) {
