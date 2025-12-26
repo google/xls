@@ -639,6 +639,28 @@ absl::StatusOr<ChannelWithInterfaces> Proc::AddChannel(
   return channel_interfaces;
 }
 
+absl::Status Proc::RemoveChannel(Channel* channel) {
+  XLS_RET_CHECK(is_new_style_proc());
+  auto chan_it = channels_.find(channel->name());
+  XLS_RET_CHECK(chan_it->second.get() == channel)
+      << "Channel with name `" << channel->name() << "` in proc `" << name()
+      << "` is not the same channel provided.";
+
+  XLS_ASSIGN_OR_RETURN(
+      ChannelInterface * send_interface,
+      GetChannelInterface(channel->name(), ChannelDirection::kSend));
+  XLS_ASSIGN_OR_RETURN(
+      ChannelInterface * receive_interface,
+      GetChannelInterface(channel->name(), ChannelDirection::kReceive));
+  std::erase_if(
+      channel_interfaces_, [&](const std::unique_ptr<ChannelInterface>& ref) {
+        return ref.get() == send_interface || ref.get() == receive_interface;
+      });
+
+  channels_.erase(chan_it);
+  return absl::OkStatus();
+}
+
 absl::StatusOr<Channel*> Proc::GetChannel(std::string_view name) {
   XLS_RET_CHECK(is_new_style_proc());
   auto it = channels_.find(name);
