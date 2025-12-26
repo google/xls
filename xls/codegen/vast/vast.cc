@@ -460,6 +460,13 @@ std::string MacroRef::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
   LineInfoIncrease(line_info, NumberOfNewlines(name_));
   LineInfoEnd(line_info, this);
+  if (args_.has_value()) {
+    std::string args_str = absl::StrJoin(
+        args_.value(), ", ", [=](std::string* out, Expression* e) {
+          absl::StrAppend(out, e->Emit(line_info));
+        });
+    return absl::StrCat("`", name_, "(", args_str, ")");
+  }
   return absl::StrCat("`", name_);
 }
 
@@ -470,9 +477,9 @@ std::string Include::Emit(LineInfo* line_info) const {
   return absl::StrFormat("`include \"%s\"", path_);
 }
 
-DataType* VerilogFile::ExternType(DataType* punable_type, std::string_view name,
+DataType* VerilogFile::ExternType(std::string_view name,
                                   const SourceInfo& loc) {
-  return Make<verilog::ExternType>(loc, punable_type, name);
+  return Make<verilog::ExternType>(loc, name);
 }
 
 BitVectorType* VerilogFile::BitVectorTypeNoScalar(int64_t bit_count,
@@ -1763,14 +1770,12 @@ std::string TypedefType::Emit(LineInfo* line_info) const {
 
 std::string ExternType::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
-  std::string result = name_;
-  LineInfoEnd(line_info, this);
-  return result;
-}
-
-std::string ExternPackageType::Emit(LineInfo* line_info) const {
-  LineInfoStart(line_info, this);
-  std::string result = absl::StrCat(package_name_, "::", type_name_);
+  std::string result;
+  if (package_name_.has_value()) {
+    result = absl::StrCat(package_name_.value(), "::", type_name_);
+  } else {
+    result = type_name_;
+  }
   LineInfoEnd(line_info, this);
   return result;
 }

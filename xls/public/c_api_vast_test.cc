@@ -196,9 +196,10 @@ endmodule
   EXPECT_EQ(std::string_view{emitted}, kWant);
 }
 
-TEST(XlsCApiTest, VastExternPackageTypePackedArrayPort) {
+TEST(XlsCApiTest, VastExternTypesPackedArrayPort) {
   const std::string_view kWantEmitted = R"(module top(
-  input mypack::mystruct_t [1:0][2:0][3:0] my_input
+  input mypack::mystruct_t [1:0][2:0][3:0] my_input,
+  output yourstruct_t my_output
 );
 
 endmodule
@@ -213,12 +214,15 @@ endmodule
 
   xls_vast_data_type* my_struct =
       xls_vast_verilog_file_make_extern_package_type(f, "mypack", "mystruct_t");
+  xls_vast_data_type* your_struct =
+      xls_vast_verilog_file_make_extern_type(f, "yourstruct_t");
   const std::vector<int64_t> packed_dims = {2, 3, 4};
   xls_vast_data_type* my_input_type =
       xls_vast_verilog_file_make_packed_array_type(
           f, my_struct, packed_dims.data(), packed_dims.size());
 
   xls_vast_verilog_module_add_input(m, "my_input", my_input_type);
+  xls_vast_verilog_module_add_output(m, "my_output", your_struct);
 
   char* emitted = xls_vast_verilog_file_emit(f);
   ASSERT_NE(emitted, nullptr);
@@ -294,6 +298,32 @@ TEST(XlsCApiTest, VastGenerateLoopElementwiseAssignment) {
 endmodule
 )";
   EXPECT_EQ(std::string_view{emitted}, kWantEmittedWithExtras);
+}
+
+TEST(XlsCApiTest, VastFileLevelBlankLineAndComment) {
+  const std::string_view kWantEmitted = R"(// file header
+
+module top;
+
+endmodule
+)";
+  xls_vast_verilog_file* f =
+      xls_vast_make_verilog_file(xls_vast_file_type_verilog);
+  ASSERT_NE(f, nullptr);
+  absl::Cleanup free_file([&] { xls_vast_verilog_file_free(f); });
+
+  // Add a file-level comment and a blank line.
+  xls_vast_verilog_file_add_comment(f, "file header");
+  xls_vast_verilog_file_add_blank_line(f);
+
+  // Add a trivial module so the file emits something after the header.
+  xls_vast_verilog_module* m = xls_vast_verilog_file_add_module(f, "top");
+  ASSERT_NE(m, nullptr);
+
+  char* emitted = xls_vast_verilog_file_emit(f);
+  ASSERT_NE(emitted, nullptr);
+  absl::Cleanup free_emitted([&] { xls_c_str_free(emitted); });
+  EXPECT_EQ(std::string_view{emitted}, kWantEmitted);
 }
 
 TEST(XlsCApiTest, VastEmitExpression) {
@@ -1996,6 +2026,79 @@ TEST(XlsCApiTest, VastMakeBlockingAssignmentFactorySmoke) {
       f, xls_vast_literal_as_expression(lit0),
       xls_vast_literal_as_expression(lit0));
   ASSERT_NE(stmt, nullptr);
+}
+
+TEST(XlsCApiTest, VastMacroStatements) {
+  const std::string_view kWantEmitted = R"(module top(
+  input wire [7:0] a,
+  input wire [7:0] b
+);
+  `MY_MACRO1;
+  `MY_MACRO2()
+  `MY_MACRO3(a)
+  `MY_MACRO4(a, b);
+endmodule
+)";
+  xls_vast_verilog_file* f =
+      xls_vast_make_verilog_file(xls_vast_file_type_verilog);
+  ASSERT_NE(f, nullptr);
+  absl::Cleanup free_file([&] { xls_vast_verilog_file_free(f); });
+
+  xls_vast_verilog_module* m = xls_vast_verilog_file_add_module(f, "top");
+  ASSERT_NE(m, nullptr);
+
+  xls_vast_data_type* u8 =
+      xls_vast_verilog_file_make_bit_vector_type(f, 8, /*is_signed=*/false);
+  xls_vast_logic_ref* a = xls_vast_verilog_module_add_input(m, "a", u8);
+  xls_vast_logic_ref* b = xls_vast_verilog_module_add_input(m, "b", u8);
+  ASSERT_NE(a, nullptr);
+  ASSERT_NE(b, nullptr);
+
+  // `MY_MACRO1;
+  xls_vast_macro_ref* mr1 =
+      xls_vast_verilog_file_make_macro_ref(f, "MY_MACRO1");
+  ASSERT_NE(mr1, nullptr);
+  xls_vast_macro_statement* ms1 = xls_vast_verilog_file_make_macro_statement(
+      f, mr1, /*emit_semicolon=*/true);
+  xls_vast_verilog_module_add_member_macro_statement(m, ms1);
+
+  // `MY_MACRO2();
+  xls_vast_expression** empty_args = nullptr;
+  xls_vast_macro_ref* mr2 = xls_vast_verilog_file_make_macro_ref_with_args(
+      f, "MY_MACRO2", empty_args, 0);
+  ASSERT_NE(mr2, nullptr);
+  xls_vast_macro_statement* ms2 = xls_vast_verilog_file_make_macro_statement(
+      f, mr2, /*emit_semicolon=*/false);
+  xls_vast_verilog_module_add_member_macro_statement(m, ms2);
+
+  // `MY_MACRO3(a);
+  xls_vast_expression* args3[] = {
+      xls_vast_logic_ref_as_expression(a),
+  };
+  xls_vast_macro_ref* mr3 =
+      xls_vast_verilog_file_make_macro_ref_with_args(f, "MY_MACRO3", args3, 1);
+  ASSERT_NE(mr3, nullptr);
+  xls_vast_macro_statement* ms3 = xls_vast_verilog_file_make_macro_statement(
+      f, mr3, /*emit_semicolon=*/false);
+  xls_vast_verilog_module_add_member_macro_statement(m, ms3);
+
+  // `MY_MACRO4(a, b);
+  xls_vast_expression* args4[] = {
+      xls_vast_logic_ref_as_expression(a),
+      xls_vast_logic_ref_as_expression(b),
+  };
+  xls_vast_macro_ref* mr4 =
+      xls_vast_verilog_file_make_macro_ref_with_args(f, "MY_MACRO4", args4, 2);
+  ASSERT_NE(mr4, nullptr);
+  xls_vast_macro_statement* ms4 = xls_vast_verilog_file_make_macro_statement(
+      f, mr4, /*emit_semicolon=*/true);
+  xls_vast_verilog_module_add_member_macro_statement(m, ms4);
+
+  char* emitted = xls_vast_verilog_file_emit(f);
+  ASSERT_NE(emitted, nullptr);
+  absl::Cleanup free_emitted([&] { xls_c_str_free(emitted); });
+
+  EXPECT_EQ(std::string_view{emitted}, kWantEmitted);
 }
 
 TEST(XlsCApiTest, ModuleWithParameterPort) {

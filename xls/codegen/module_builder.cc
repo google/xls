@@ -439,9 +439,8 @@ absl::StatusOr<LogicRef*> ModuleBuilder::AddInputPort(
   if (sv_type && options_.emit_sv_types()) {
     XLS_ASSIGN_OR_RETURN(
         LogicRef * port,
-        module_->AddInput(
-            name, file_->ExternType(raw_bits_type, *sv_type, SourceInfo()),
-            loc ? loc.value() : SourceInfo()));
+        module_->AddInput(name, file_->ExternType(*sv_type, SourceInfo()),
+                          loc ? loc.value() : SourceInfo()));
     if (!sv_type.has_value()) {
       return port;
     }
@@ -485,8 +484,7 @@ absl::Status ModuleBuilder::AddOutputPort(
     }
     XLS_ASSIGN_OR_RETURN(
         output_port,
-        module_->AddOutput(name,
-                           file_->ExternType(bits_type, *sv_type, SourceInfo()),
+        module_->AddOutput(name, file_->ExternType(*sv_type, SourceInfo()),
                            SourceInfo()));
   } else {
     XLS_ASSIGN_OR_RETURN(output_port,
@@ -524,8 +522,7 @@ absl::Status ModuleBuilder::AddOutputPort(
   if (sv_type && options_.emit_sv_types()) {
     XLS_ASSIGN_OR_RETURN(
         output_port,
-        module_->AddOutput(name,
-                           file_->ExternType(bits_type, *sv_type, SourceInfo()),
+        module_->AddOutput(name, file_->ExternType(*sv_type, SourceInfo()),
                            SourceInfo()));
   } else {
     XLS_ASSIGN_OR_RETURN(output_port,
