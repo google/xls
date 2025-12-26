@@ -255,12 +255,12 @@ class Channel {
   }
 
   // Struct form for passing comparators as template arguments.
-  struct NameLessThan {
+  struct CompareNameLessThan {
     bool operator()(const Channel* a, const Channel* b) const {
       return Channel::NameLessThan(a, b);
     }
   };
-  struct IdLessThan {
+  struct CompareIdLessThan {
     bool operator()(const Channel* a, const Channel* b) const {
       return Channel::IdLessThan(a, b);
     }
