@@ -268,15 +268,17 @@ absl::StatusOr<Node*> NaryAndIfNeeded(FunctionBase* f,
 absl::StatusOr<Node*> NaryOrIfNeeded(FunctionBase* f,
                                      absl::Span<Node* const> operands,
                                      std::string_view name = "",
-                                     const SourceInfo& source_info = {});
+                                     const SourceInfo& source_info = {},
+                                     bool drop_literal_zero_operands = false);
 
 // Nor-reduce the given operands if needed. If there are 2+ operands, returns an
 // N-ary NOR of them; if there is 1 operand, returns a negation of it; and if
-// there are no operands, fails.
+// there are no operands, returns a literal 1.
 absl::StatusOr<Node*> NaryNorIfNeeded(FunctionBase* f,
                                       absl::Span<Node* const> operands,
                                       std::string_view name = "",
-                                      const SourceInfo& source_info = {});
+                                      const SourceInfo& source_info = {},
+                                      bool drop_literal_zero_operands = false);
 
 // Returns whether the given node is a signed/unsigned comparison operation (for
 // example, ULe or SGt).
