@@ -24,6 +24,7 @@
 #include "xls/codegen_v_1_5/channel_to_port_io_lowering_pass.h"
 #include "xls/codegen_v_1_5/flow_control_insertion_pass.h"
 #include "xls/codegen_v_1_5/function_io_lowering_pass.h"
+#include "xls/codegen_v_1_5/idle_insertion_pass.h"
 #include "xls/codegen_v_1_5/pipeline_register_insertion_pass.h"
 #include "xls/codegen_v_1_5/scheduled_block_conversion_pass.h"
 #include "xls/codegen_v_1_5/scheduling_pass.h"
@@ -56,6 +57,9 @@ CreateBlockConversionPassPipeline() {
 
   // Add pipeline registers for data flowing between stages.
   top->Add<PipelineRegisterInsertionPass>();
+
+  // Add idle signal output if requested.
+  top->Add<IdleInsertionPass>();
 
   // Lower scheduled block to standard block, inlining each stage.
   top->Add<BlockFinalizationPass>();
