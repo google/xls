@@ -500,6 +500,7 @@ generate_crasher_regression_tests(
         "crashers/crasher_2025-09-04_5f36.x": [
             "optonly",
         ],
+        "crashers/crasher_2025-05-07_2d16.x": ["optonly"],
     },
 )
 
