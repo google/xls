@@ -26,6 +26,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/package.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/scheduling/scheduling_result.h"
@@ -56,8 +57,9 @@ absl::Status ConvertToBlock(
       .codegen_options = std::move(codegen_options),
       .package_schedule = schedule};
 
+  OptimizationContext opt_context;
   std::unique_ptr<BlockConversionCompoundPass> pipeline =
-      CreateBlockConversionPassPipeline();
+      CreateBlockConversionPassPipeline(opt_context);
   PassResults results;
   XLS_ASSIGN_OR_RETURN(bool result, pipeline->Run(p, options, &results));
   XLS_RET_CHECK(result);
