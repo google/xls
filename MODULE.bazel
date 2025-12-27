@@ -124,7 +124,7 @@ proto_bazel_features(name = "proto_bazel_features")
 
 # rules_hdl deps with bzlmod support.
 bazel_dep(name = "rules_bison", version = "0.3")
-bazel_dep(name = "rules_flex", version = "0.3")
+bazel_dep(name = "rules_flex", version = "0.4")
 bazel_dep(name = "rules_m4", version = "0.3")
 
 # Dev dependencies
