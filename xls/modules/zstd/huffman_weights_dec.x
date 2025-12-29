@@ -804,7 +804,7 @@ pub proc HuffmanFseDecoder<
                             if state.last_weight_is_odd {
                                 FSM::SEND_RAM_EVEN_RD_REQ
                             } else {
-                                FSM::SEND_RAM_ODD_RD_REQ
+                                FSM::DECODE_LAST_WEIGHT
                             }
                         }
                     } else {
