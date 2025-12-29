@@ -86,6 +86,10 @@ class FoldingAction {
   FoldingAction(Node* to, VisibilityEdges to_edges, double area_saved)
       : to_(to), to_edges_(to_edges), area_saved_(area_saved) {}
 
+  FoldingAction(
+      const FoldingAction& other,
+      const absl::flat_hash_map<Node*, Node*>& original_node_to_clone);
+
  private:
   Node* to_;
   VisibilityEdges to_edges_;
@@ -159,6 +163,10 @@ class NaryFoldingAction : public FoldingAction {
   absl::Span<const std::pair<Node*, VisibilityEdges>> GetFrom() const {
     return from_;
   }
+
+  NaryFoldingAction(
+      const NaryFoldingAction& other,
+      const absl::flat_hash_map<Node*, Node*>& original_node_to_clone);
 
   uint64_t GetNumberOfFroms() const { return from_.size(); }
 
