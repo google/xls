@@ -14,8 +14,8 @@
 
 #include "xls/contrib/xlscc/expr_clone.h"
 
-#include "clang/AST/Expr.h"
-#include "clang/AST/ExprCXX.h"
+#include "clang/include/clang/AST/Expr.h"
+#include "clang/include/clang/AST/ExprCXX.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/contrib/xlscc/cc_parser.h"

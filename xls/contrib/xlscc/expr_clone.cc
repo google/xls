@@ -14,12 +14,11 @@
 
 #include "xls/contrib/xlscc/expr_clone.h"
 
-#include <clang/AST/DeclCXX.h>
-
 #include <vector>
 
 #include "absl/strings/str_cat.h"
-#include "clang/AST/StmtVisitor.h"
+#include "clang/include/clang/AST/DeclCXX.h"
+#include "clang/include/clang/AST/StmtVisitor.h"
 
 namespace xlscc {
 namespace {
