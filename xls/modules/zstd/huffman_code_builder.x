@@ -93,6 +93,16 @@ struct WeightCodeBuilderState {
     huffman_base_codes:     uN[MAX_WEIGHT][MAX_WEIGHT + u32:1]
 }
 
+fn highbit(val: u32) -> u32 {
+    if val == u32:0 {
+        // val is zero and thus has no highbit,
+        // permit it and return some garbage result because it doesn't change anything in the algorithm outcome
+        u32:0
+    } else {
+        u32:31 - clz(val)
+    }
+}
+
 pub proc WeightCodeBuilder
 // TODO: enable parametric expresion when they start working
 //proc WeightCodeBuilder<
@@ -254,7 +264,7 @@ pub proc WeightCodeBuilder
         };
 
         // compute max number of bits
-        let max_number_of_bits = encode(sum_of_weights_powers >> u32:1) as uN[WEIGHT_LOG];
+        let max_number_of_bits = highbit(sum_of_weights_powers as u32 >> u32:1) as uN[WEIGHT_LOG];
 
         let huffman_codes = match(state.fsm, advance_state) {
             (FSM::IDLE, _) => {
