@@ -22,6 +22,19 @@
 
 namespace xls::codegen {
 
+// Adds an idle signal output to each scheduled block. The block is idle if
+// *every* stage is effectively idle. A stage is idle if it is:
+//   1. Empty (nothing coming down the pipeline),
+//   2. Blocked on active inputs, or
+//   3. All active outputs have resolved, but we're stalled due to internal
+//      backpressure (the next stage isn't ready).
+//
+// Additionally, if the `flop_inputs`/`flop_outputs` codegen options are
+// enabled, then the idle signal is also flopped if any I/O flops are actively
+// resolving a transaction.
+//
+// WARNING: This pass must be run after I/O port lowering is finished for both
+//          function and proc I/O.
 class IdleInsertionPass : public BlockConversionPass {
  public:
   IdleInsertionPass()
