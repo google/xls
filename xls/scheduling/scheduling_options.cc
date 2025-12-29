@@ -39,7 +39,7 @@ namespace xls {
 namespace {
 
 absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
-    Package* p, const SchedulingOptionsFlagsProto& proto) {
+    const Package* p, const SchedulingOptionsFlagsProto& proto) {
   // Some fields are pre-initialized with defaults
   SchedulingOptions scheduling_options;
 
@@ -297,7 +297,7 @@ absl::StatusOr<bool> IsDelayModelSpecifiedViaFlag(
 }
 
 absl::StatusOr<SchedulingOptions> SetUpSchedulingOptions(
-    const SchedulingOptionsFlagsProto& flags, Package* p) {
+    const SchedulingOptionsFlagsProto& flags, const Package* p) {
   return OptionsFromFlagProto(p, flags);
 }
 
