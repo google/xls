@@ -35,31 +35,16 @@
 #include "xls/ir/block.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/register.h"
-#include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls::codegen {
 namespace {
-
-absl::StatusOr<Node*> ReplaceWithAnd(Node* original, Node* new_operand) {
-  if (original->Is<Literal>() && original->As<Literal>()->value().IsAllOnes()) {
-    XLS_RETURN_IF_ERROR(original->ReplaceUsesWith(new_operand));
-    return new_operand;
-  }
-  if (original->Is<NaryOp>() && original->As<NaryOp>()->op() == Op::kAnd) {
-    std::vector<Node*> operands(original->operands().begin(),
-                                original->operands().end());
-    operands.push_back(new_operand);
-    return original->ReplaceUsesWithNew<NaryOp>(operands, Op::kAnd);
-  }
-  return original->ReplaceUsesWithNew<NaryOp>(
-      absl::MakeConstSpan({original, new_operand}), Op::kAnd);
-}
 
 absl::StatusOr<Node*> FlopNode(
     ScheduledBlock* block, std::string_view name, Node* input,
@@ -119,9 +104,9 @@ absl::StatusOr<bool> FunctionIOLoweringPass::LowerParams(
     // which will stop the pipeline from running new activations when the input
     // is invalid. This also automatically propagates validity to the output in
     // case an output-valid signal was requested.
-    XLS_RETURN_IF_ERROR(
-        ReplaceWithAnd(block->stages()[0].active_inputs_valid(), *input_valid)
-            .status());
+    XLS_RETURN_IF_ERROR(ReplaceWithAnd(block->stages()[0].active_inputs_valid(),
+                                       *input_valid, /*combine_literals=*/false)
+                            .status());
   }
 
   std::vector<Param*> params_to_remove;
@@ -182,10 +167,13 @@ absl::StatusOr<bool> FunctionIOLoweringPass::LowerReturnValue(
     return absl::UnimplementedError("Splitting outputs not supported.");
   }
 
-  // The return value is always expected to be in the last stage.
-  XLS_ASSIGN_OR_RETURN(int64_t stage_index,
-                       block->GetStageIndex(block->source_return_value()));
-  XLS_RET_CHECK_EQ(stage_index, block->stages().size() - 1);
+  // The return value is always assumed to be in the last stage - or possibly
+  // unscheduled, if (e.g.) returning a literal.
+  if (block->IsStaged(block->source_return_value())) {
+    XLS_ASSIGN_OR_RETURN(int64_t stage_index,
+                         block->GetStageIndex(block->source_return_value()));
+    XLS_RET_CHECK_EQ(stage_index, block->stages().size() - 1);
+  }
 
   std::optional<Node*> output_valid = std::nullopt;
   if (options.codegen_options.valid_control().has_value() &&
