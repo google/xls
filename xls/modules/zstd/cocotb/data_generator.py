@@ -17,6 +17,7 @@ from enum import Enum
 
 from xls.common import runfiles
 import subprocess
+import zstandard
 
 class BlockType(Enum):
   RAW = 0
@@ -24,12 +25,26 @@ class BlockType(Enum):
   COMPRESSED = 2
   RANDOM = 3
 
+  def __str__(self):
+    return self.name
+
+  @staticmethod
+  def from_string(s):
+    try:
+      return BlockType[s]
+    except KeyError as e:
+      raise ValueError(str(e))
+
 def CallDecodecorpus(args):
   decodecorpus = Path(runfiles.get_path("decodecorpus", repository = "zstd"))
   cmd = args
   cmd.insert(0, str(decodecorpus))
   cmd_concat = " ".join(cmd)
   subprocess.run(cmd_concat, shell=True, check=True)
+
+def DecompressFrame(data):
+  dctx = zstandard.ZstdDecompressor()
+  return dctx.decompress(data)
 
 def GenerateFrame(seed, btype, output_path):
   args = []
@@ -39,8 +54,8 @@ def GenerateFrame(seed, btype, output_path):
   args.append("--content-size")
   # Test payloads up to 16KB
   args.append("--max-content-size-log=14")
-  args.append("-p" + output_path);
-  args.append("-vvvvvvv");
+  args.append("-p" + output_path)
+  args.append("-vvvvvvv")
 
   CallDecodecorpus(args)
 
