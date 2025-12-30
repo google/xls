@@ -45,6 +45,7 @@ cc_library(
         ":channel_to_port_io_lowering_pass",
         ":flow_control_insertion_pass",
         ":function_io_lowering_pass",
+        ":idle_insertion_pass",
         ":pipeline_register_insertion_pass",
         ":scheduled_block_conversion_pass",
         ":scheduling_pass",
@@ -248,6 +249,46 @@ cc_test(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "idle_insertion_pass",
+    srcs = ["idle_insertion_pass.cc"],
+    hdrs = ["idle_insertion_pass.h"],
+    deps = [
+        ":block_conversion_pass",
+        "//xls/common:casts",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:node_util",
+        "//xls/ir:op",
+        "//xls/ir:source_location",
+        "//xls/passes:pass_base",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "idle_insertion_pass_test",
+    srcs = ["idle_insertion_pass_test.cc"],
+    deps = [
+        ":block_conversion_pass",
+        ":idle_insertion_pass",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:source_location",
+        "//xls/passes:pass_base",
+        "@com_google_absl//absl/status:statusor",
         "@googletest//:gtest",
     ],
 )
