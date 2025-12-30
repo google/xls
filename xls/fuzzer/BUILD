@@ -393,8 +393,6 @@ generate_crasher_regression_tests(
         "crashers/crasher_2022-10-19_a3a3.x",
         # TODO(https://github.com/google/xls/issues/1141): Remove when fixed.
         "crashers/crasher_2023-10-02_7c14.x",
-        # TODO(https://github.com/google/xls/issues/2011): Remove when no longer flaky
-        "crashers/crasher_2025-03-19_2e1f.x",
         # TODO(https://github.com/google/xls/issues/2049): Remove when fixed.
         "crashers/crasher_2025-04-23_0cd2.x",
         # TODO(https://github.com/google/xls/issues/2142): Remove when fixed.
@@ -499,6 +497,9 @@ generate_crasher_regression_tests(
             "optonly",
         ],
         "crashers/crasher_2024-09-24_6def.x": [
+            "optonly",
+        ],
+        "crashers/crasher_2025-03-19_2e1f.x": [
             "optonly",
         ],
     },
