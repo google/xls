@@ -1411,6 +1411,46 @@ TEST_F(BlockConversionTest, TwoToOneProc) {
                                         Pair("out", 123), Pair("a_rdy", 1))));
 }
 
+// TODO: https://github.com/google/xls/issues/3605 - combinational codegen for
+// procs can produce data loss if we receive from two channels, but only one is
+// valid. `a_rdy` is currently 1 in the case below (with unflopped inputs),
+// despite the pipeline being unable to progress or store the data.
+TEST_F(BlockConversionTest, DISABLED_JoinProc) {
+  Package package(TestName());
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_a,
+      package.CreateStreamingChannel("a", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_b,
+      package.CreateStreamingChannel("b", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  TokenlessProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  BValue a = pb.Receive(ch_a);
+  BValue b = pb.Receive(ch_b);
+  pb.Send(ch_out, pb.Add(a, b));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenContext context,
+                           ProcToCombinationalBlock(proc, codegen_options()));
+  Block* block = context.top_block();
+
+  // A is valid, C is ready, B is not yet valid.
+  // We expect a_rdy to be 0 since the pipeline is not ready to progress, and
+  // otherwise we would consume data from A and then have no place to put it,
+  // resulting in data loss.
+  EXPECT_THAT(
+      InterpretCombinationalBlock(
+          block,
+          {{"a", 10}, {"a_vld", 1}, {"b", 20}, {"b_vld", 0}, {"out_rdy", 1}}),
+      IsOkAndHolds(UnorderedElementsAre(Pair("out_vld", 0), Pair("a_rdy", 0),
+                                        Pair("b_rdy", 0), Pair("out", 30))));
+}
+
 TEST_F(BlockConversionTest, OneToTwoProc) {
   Package package(TestName());
   Type* u32 = package.GetBitsType(32);
