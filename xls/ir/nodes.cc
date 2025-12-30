@@ -26,9 +26,11 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/common/casts.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/format_strings.h"
 #include "xls/ir/function.h"
@@ -451,7 +453,14 @@ absl::StatusOr<Node*> BitwiseReductionOp::CloneInNewFunction(
 }
 
 absl::StatusOr<ChannelRef> ChannelNode::GetChannelRef() const {
-  Proc* proc = function_base()->AsProcOrDie();
+  FunctionBase* fb = this->function_base();
+  if (fb->IsBlock()) {
+    XLS_RET_CHECK(fb->IsScheduled());
+    ScheduledBlock* sb = down_cast<ScheduledBlock*>(fb);
+    XLS_RET_CHECK_NE(sb->source(), nullptr);
+    fb = sb->source();
+  }
+  Proc* proc = fb->AsProcOrDie();
   if (proc->is_new_style_proc()) {
     return proc->GetChannelInterface(channel_name(), direction());
   }
@@ -459,7 +468,14 @@ absl::StatusOr<ChannelRef> ChannelNode::GetChannelRef() const {
 }
 
 absl::StatusOr<ReceiveChannelRef> Receive::GetReceiveChannelRef() const {
-  Proc* proc = function_base()->AsProcOrDie();
+  FunctionBase* fb = this->function_base();
+  if (fb->IsBlock()) {
+    XLS_RET_CHECK(fb->IsScheduled());
+    ScheduledBlock* sb = down_cast<ScheduledBlock*>(fb);
+    XLS_RET_CHECK_NE(sb->source(), nullptr);
+    fb = sb->source();
+  }
+  Proc* proc = fb->AsProcOrDie();
   if (proc->is_new_style_proc()) {
     return proc->GetReceiveChannelInterface(channel_name());
   }
@@ -467,7 +483,14 @@ absl::StatusOr<ReceiveChannelRef> Receive::GetReceiveChannelRef() const {
 }
 
 absl::StatusOr<SendChannelRef> Send::GetSendChannelRef() const {
-  Proc* proc = function_base()->AsProcOrDie();
+  FunctionBase* fb = this->function_base();
+  if (fb->IsBlock()) {
+    XLS_RET_CHECK(fb->IsScheduled());
+    ScheduledBlock* sb = down_cast<ScheduledBlock*>(fb);
+    XLS_RET_CHECK_NE(sb->source(), nullptr);
+    fb = sb->source();
+  }
+  Proc* proc = fb->AsProcOrDie();
   if (proc->is_new_style_proc()) {
     return proc->GetSendChannelInterface(channel_name());
   }
@@ -475,7 +498,14 @@ absl::StatusOr<SendChannelRef> Send::GetSendChannelRef() const {
 }
 
 absl::StatusOr<ChannelInterface*> ChannelNode::GetChannelInterface() const {
-  Proc* proc = function_base()->AsProcOrDie();
+  FunctionBase* fb = this->function_base();
+  if (fb->IsBlock()) {
+    XLS_RET_CHECK(fb->IsScheduled());
+    ScheduledBlock* sb = down_cast<ScheduledBlock*>(fb);
+    XLS_RET_CHECK_NE(sb->source(), nullptr);
+    fb = sb->source();
+  }
+  Proc* proc = fb->AsProcOrDie();
   if (!proc->is_new_style_proc()) {
     return absl::InvalidArgumentError(
         "ChannelNode::GetChannelInterface() is only supported for new-style "
@@ -486,14 +516,26 @@ absl::StatusOr<ChannelInterface*> ChannelNode::GetChannelInterface() const {
 }
 
 Type* ChannelNode::GetPayloadType() const {
-  return function_base()
-      ->AsProcOrDie()
-      ->GetChannelReferenceType(channel_name())
-      .value();
+  FunctionBase* fb = this->function_base();
+  if (fb->IsBlock()) {
+    CHECK(fb->IsScheduled());
+    ScheduledBlock* sb = down_cast<ScheduledBlock*>(fb);
+    CHECK_NE(sb->source(), nullptr);
+    fb = sb->source();
+  }
+  Proc* proc = fb->AsProcOrDie();
+  return proc->GetChannelReferenceType(channel_name()).value();
 }
 
 absl::Status ChannelNode::ReplaceChannel(std::string_view new_channel_name) {
-  Proc* proc = function_base()->AsProcOrDie();
+  FunctionBase* fb = this->function_base();
+  if (fb->IsBlock()) {
+    XLS_RET_CHECK(fb->IsScheduled());
+    ScheduledBlock* sb = down_cast<ScheduledBlock*>(fb);
+    XLS_RET_CHECK_NE(sb->source(), nullptr);
+    fb = sb->source();
+  }
+  Proc* proc = fb->AsProcOrDie();
   if (proc->is_new_style_proc()) {
     XLS_RETURN_IF_ERROR(
         proc->GetChannelInterface(channel_name(), direction()).status());
