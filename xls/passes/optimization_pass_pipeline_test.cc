@@ -20,11 +20,12 @@
 #include <string_view>
 #include <utility>
 
+#include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
+#include "absl/time/time.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/fuzzing/fuzztest.h"
-#include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
 #include "xls/common/status/matchers.h"
 #include "xls/examples/sample_packages.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
@@ -40,13 +41,17 @@
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/solvers/z3_ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
 
 namespace xls {
 namespace {
 
+constexpr absl::Duration kProverTimeout = absl::Seconds(10);
+
 using ::absl_testing::IsOkAndHolds;
+using ::xls::solvers::z3::ScopedVerifyEquivalence;
 
 class OptimizationPipelineTest : public IrTestBase {
  protected:
@@ -232,6 +237,44 @@ TEST_F(OptimizationPipelineTest, CompareBoolAgainstZero) {
   EXPECT_TRUE(f->return_value()->Is<CompareOp>());
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Not(m::Param()));
+}
+
+TEST_F(OptimizationPipelineTest, SelectNegEqZero) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("f", p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue sign = fb.BitSlice(x, /*start=*/7, /*width=*/1);
+  BValue nx = fb.Negate(x);
+  BValue a = fb.Select(sign, std::vector<BValue>{x, nx});
+  BValue z = fb.Literal(UBits(0, /*bit_count=*/8));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(fb.Eq(a, z)));
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  ASSERT_TRUE(f->return_value()->Is<CompareOp>());
+  CompareOp* cmp = f->return_value()->As<CompareOp>();
+  EXPECT_EQ(cmp->op(), Op::kEq);
+  EXPECT_THAT(cmp->operand(0), m::Param("x"));
+  ASSERT_TRUE(cmp->operand(1)->Is<Literal>());
+  EXPECT_EQ(cmp->operand(1)->As<Literal>()->value().bits(), UBits(0, 8));
+}
+
+TEST_F(OptimizationPipelineTest, SelectNegNeZero) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("f", p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue sign = fb.BitSlice(x, /*start=*/7, /*width=*/1);
+  BValue nx = fb.Negate(x);
+  BValue a = fb.Select(sign, std::vector<BValue>{x, nx});
+  BValue z = fb.Literal(UBits(0, /*bit_count=*/8));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(fb.Ne(a, z)));
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  ASSERT_TRUE(f->return_value()->Is<CompareOp>());
+  CompareOp* cmp = f->return_value()->As<CompareOp>();
+  EXPECT_EQ(cmp->op(), Op::kNe);
+  EXPECT_THAT(cmp->operand(0), m::Param("x"));
+  ASSERT_TRUE(cmp->operand(1)->Is<Literal>());
+  EXPECT_EQ(cmp->operand(1)->As<Literal>()->value().bits(), UBits(0, 8));
 }
 
 TEST_F(OptimizationPipelineTest, MultiplyBy16StrengthReduction) {

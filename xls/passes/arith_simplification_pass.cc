@@ -976,6 +976,27 @@ absl::StatusOr<bool> MatchSignedDivide(Node* original_div_op,
 // different expression).
 absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n,
                                         const QueryEngine& query_engine) {
+  // Pattern: Add(Not(x), 1) => Neg(x)
+  //
+  // In two's complement arithmetic: ~x + 1 == -x (mod 2^N).
+  if (n->op() == Op::kAdd) {
+    Node* negated = nullptr;
+    if (n->operand(0)->op() == Op::kNot &&
+        IsLiteralUnsignedOne(n->operand(1))) {
+      negated = n->operand(0)->operand(0);
+    } else if (n->operand(1)->op() == Op::kNot &&
+               IsLiteralUnsignedOne(n->operand(0))) {
+      // Handle the commuted operand ordering as well.
+      negated = n->operand(1)->operand(0);
+    }
+    if (negated != nullptr) {
+      VLOG(2) << "FOUND: Add(Not(x), 1)";
+      XLS_RETURN_IF_ERROR(
+          n->ReplaceUsesWithNew<UnOp>(negated, Op::kNeg).status());
+      return true;
+    }
+  }
+
   // Pattern: UDiv/UMul/SMul by a positive power of two.
   if ((n->op() == Op::kSMul || n->op() == Op::kUMul || n->op() == Op::kUDiv) &&
       query_engine.IsFullyKnown(n->operand(1))) {
@@ -1769,6 +1790,70 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n,
                        MatchComparisonOfInjectiveOp(n, query_engine));
   if (injective_matched) {
     return true;
+  }
+
+  // Pattern: Comparison of binary select between a value and its negation.
+  //
+  // This is a common shape for abs-like logic:
+  //   sel(pred, cases=[x, neg(x)]) == 0  =>  x == 0
+  //   sel(pred, cases=[x, neg(x)]) != 0  =>  x != 0
+  if (IsBitsCompare(n) && (n->op() == Op::kEq || n->op() == Op::kNe)) {
+    Node* selector_node = nullptr;
+    Node* zero_node = nullptr;
+    if (query_engine.IsAllZeros(n->operand(1))) {
+      selector_node = n->operand(0);
+      zero_node = n->operand(1);
+    } else if (query_engine.IsAllZeros(n->operand(0))) {
+      selector_node = n->operand(1);
+      zero_node = n->operand(0);
+    }
+    if (selector_node != nullptr && IsBinarySelect(selector_node)) {
+      Select* sel = selector_node->As<Select>();
+      Node* case0 = sel->get_case(0);
+      Node* case1 = sel->get_case(1);
+      Node* x = nullptr;
+      if (case0->op() == Op::kNeg && case0->operand(0) == case1) {
+        x = case1;
+      } else if (case1->op() == Op::kNeg && case1->operand(0) == case0) {
+        x = case0;
+      }
+      if (x != nullptr) {
+        VLOG(2) << "FOUND: compare-to-zero of sel(x, neg(x))";
+        XLS_RETURN_IF_ERROR(
+            n->ReplaceUsesWithNew<CompareOp>(x, zero_node, n->op()).status());
+        return true;
+      }
+    }
+  }
+
+  // Pattern: Comparison of not (ones-complement negation) to literal
+  //   eq(~expr, K) => eq(expr, ~K)
+  //   ne(~expr, K) => ne(expr, ~K)
+  if (IsBitsCompare(n) && (n->op() == Op::kEq || n->op() == Op::kNe)) {
+    Node* not_node = nullptr;
+    Node* literal_node = nullptr;
+    if (n->operand(0)->op() == Op::kNot &&
+        query_engine.IsFullyKnown(n->operand(1))) {
+      not_node = n->operand(0);
+      literal_node = n->operand(1);
+    } else if (n->operand(1)->op() == Op::kNot &&
+               query_engine.IsFullyKnown(n->operand(0))) {
+      not_node = n->operand(1);
+      literal_node = n->operand(0);
+    }
+    if (not_node != nullptr) {
+      std::optional<Bits> k_bits = query_engine.KnownValueAsBits(literal_node);
+      XLS_RET_CHECK(k_bits.has_value());
+      XLS_RET_CHECK_EQ(k_bits->bit_count(), not_node->BitCountOrDie());
+      Bits not_k_bits = bits_ops::Not(*k_bits);
+      XLS_ASSIGN_OR_RETURN(Literal * not_k,
+                           n->function_base()->MakeNode<Literal>(
+                               literal_node->loc(), Value(not_k_bits)));
+      XLS_RETURN_IF_ERROR(
+          n->ReplaceUsesWithNew<CompareOp>(not_node->operand(0), not_k, n->op())
+              .status());
+      return true;
+    }
   }
 
   if ((n->OpIn({Op::kSMul, Op::kUMul})) &&
