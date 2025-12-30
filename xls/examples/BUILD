@@ -1423,12 +1423,18 @@ xls_dslx_ir(
     dslx_top = "Main",
     ir_file = "const_if.ir",
     library = ":const_if_dslx",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true",
+    },
 )
 
 xls_dslx_opt_ir(
     name = "const_if_opt_ir",
     dslx_top = "Main",
     library = ":const_if_dslx",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true",
+    },
 )
 
 xls_dslx_test(
