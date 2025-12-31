@@ -2043,7 +2043,7 @@
           "@@or-tools~//bazel/ortools_requirements.txt": "37e22395e78ef3572ab57b7717fd8f54851919bb73ca404f367536dc15a8e3eb",
           "@@pybind11_abseil~//pybind11_abseil/requirements/requirements_lock_3_11.txt": "7d1074311e9f32f25ca112fc86fbec98bc024d820a8dc00f94e8679a7e6b480c",
           "@@rules_python~//tools/publish/requirements_linux.txt": "8175b4c8df50ae2f22d1706961884beeb54e7da27bd2447018314a175981997d",
-          "@@//dependency_support/pip_requirements_lock.txt": "832b20765a17aebd47447fa6563be7295098fb3999f8c0dfa48903815960a4e5",
+          "@@//dependency_support/pip_requirements_lock.txt": "9301da6c6a7b310ba10266bc5e9cc83aa0b693bf8471fba119f34133e0126d46",
           "@@or-tools~//bazel/notebook_requirements.txt": "ca78fad693f1b35eed8bb7c54e5ddf7ad255c4b9d94ce18efa55859759a8fb70",
           "@@protoc-gen-validate~//python/requirements.txt": "6a540bc029bbf3a5f78f9f9282bd30e2965c98eeb150f2cfc5facccbd8a98297",
           "@@pybind11_protobuf~//pybind11_protobuf/requirements/requirements_lock_3_10.txt": "afd6f9406f4e80a504f1575121a937f4c15388aec4a17393f0cb1ac9f09d18dd",
@@ -14426,6 +14426,17 @@
               "timeout": 600000
             }
           },
+          "xls_pip_deps_312_iniconfig": {
+            "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "dep_template": "@xls_pip_deps//{name}:{target}",
+              "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
+              "repo": "xls_pip_deps_312",
+              "requirement": "iniconfig==2.3.0     --hash=sha256:c76315c77db068650d49c5b56314774a7804df16fee4402c1f19d6d15d8c4730     --hash=sha256:f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12",
+              "timeout": 600000
+            }
+          },
           "xls_pip_deps_312_itsdangerous": {
             "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
             "ruleClassName": "whl_library",
@@ -14525,6 +14536,17 @@
               "timeout": 600000
             }
           },
+          "xls_pip_deps_312_pluggy": {
+            "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "dep_template": "@xls_pip_deps//{name}:{target}",
+              "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
+              "repo": "xls_pip_deps_312",
+              "requirement": "pluggy==1.6.0     --hash=sha256:7dcc130b76258d33b90f61b658791dede3486c3e6bfb003ee5c9bfb396dd22f3     --hash=sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746",
+              "timeout": 600000
+            }
+          },
           "xls_pip_deps_312_portpicker": {
             "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
             "ruleClassName": "whl_library",
@@ -14555,6 +14577,17 @@
               "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
               "repo": "xls_pip_deps_312",
               "requirement": "pyparsing==3.2.1     --hash=sha256:506ff4f4386c4cec0590ec19e6302d3aedb992fdc02c761e90416f158dacf8e1     --hash=sha256:61980854fd66de3a90028d679a954d5f2623e83144b5afe5ee86f43d762e5f0a",
+              "timeout": 600000
+            }
+          },
+          "xls_pip_deps_312_pytest": {
+            "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "dep_template": "@xls_pip_deps//{name}:{target}",
+              "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
+              "repo": "xls_pip_deps_312",
+              "requirement": "pytest==8.2.2     --hash=sha256:c434598117762e2bd304e526244f67bf66bbd7b5d6cf22138be51ff661980343     --hash=sha256:de4bb8104e201939ccdc688b27a89a7be2079b22e2bd2b07f806b6ba71117977",
               "timeout": 600000
             }
           },
@@ -15177,6 +15210,7 @@
                 "find_libpython": "{\"xls_pip_deps_312_find_libpython\":[{\"version\":\"3.12\"}]}",
                 "flask": "{\"xls_pip_deps_312_flask\":[{\"version\":\"3.12\"}]}",
                 "fonttools": "{\"xls_pip_deps_312_fonttools\":[{\"version\":\"3.12\"}]}",
+                "iniconfig": "{\"xls_pip_deps_312_iniconfig\":[{\"version\":\"3.12\"}]}",
                 "itsdangerous": "{\"xls_pip_deps_312_itsdangerous\":[{\"version\":\"3.12\"}]}",
                 "jinja2": "{\"xls_pip_deps_312_jinja2\":[{\"version\":\"3.12\"}]}",
                 "kiwisolver": "{\"xls_pip_deps_312_kiwisolver\":[{\"version\":\"3.12\"}]}",
@@ -15186,9 +15220,11 @@
                 "numpy": "{\"xls_pip_deps_312_numpy\":[{\"version\":\"3.12\"}]}",
                 "packaging": "{\"xls_pip_deps_312_packaging\":[{\"version\":\"3.12\"}]}",
                 "pillow": "{\"xls_pip_deps_312_pillow\":[{\"version\":\"3.12\"}]}",
+                "pluggy": "{\"xls_pip_deps_312_pluggy\":[{\"version\":\"3.12\"}]}",
                 "portpicker": "{\"xls_pip_deps_312_portpicker\":[{\"version\":\"3.12\"}]}",
                 "psutil": "{\"xls_pip_deps_312_psutil\":[{\"version\":\"3.12\"}]}",
                 "pyparsing": "{\"xls_pip_deps_312_pyparsing\":[{\"version\":\"3.12\"}]}",
+                "pytest": "{\"xls_pip_deps_312_pytest\":[{\"version\":\"3.12\"}]}",
                 "python_dateutil": "{\"xls_pip_deps_312_python_dateutil\":[{\"version\":\"3.12\"}]}",
                 "pyyaml": "{\"xls_pip_deps_312_pyyaml\":[{\"version\":\"3.12\"}]}",
                 "scipy": "{\"xls_pip_deps_312_scipy\":[{\"version\":\"3.12\"}]}",
@@ -15208,6 +15244,7 @@
                 "find_libpython",
                 "flask",
                 "fonttools",
+                "iniconfig",
                 "itsdangerous",
                 "jinja2",
                 "kiwisolver",
@@ -15217,9 +15254,11 @@
                 "numpy",
                 "packaging",
                 "pillow",
+                "pluggy",
                 "portpicker",
                 "psutil",
                 "pyparsing",
+                "pytest",
                 "python_dateutil",
                 "pyyaml",
                 "scipy",

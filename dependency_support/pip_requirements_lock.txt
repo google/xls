@@ -51,6 +51,10 @@ cocotb==1.9.0 \
     --hash=sha256:f74c598e230e1035103f6e3a97dd7a0e1bcacf7f3ea7481cd3bcde477b74e379 \
     --hash=sha256:fcb81c6c37e11b0729768dd8e192a9cfb809778699ab1fe89f4d92ba0beb3092 \
     --hash=sha256:ff2ddc8b304eb7076ceead2534a1b9828df771798fa9c2601ea983c86d23ec08
+    # via
+    #   -r dependency_support/pip_requirements.in
+    #   cocotb-bus
+    #   cocotbext-axi
 cocotb-bus==0.2.1 \
     --hash=sha256:a197aa4b0e0ad28469c8877b41b3fb2ec0206da9f491b9276d1578ce6dd8aa8d
     # via
@@ -180,6 +184,10 @@ fonttools==4.55.8 \
     --hash=sha256:f089e8da0990cfe2d67e81d9cf581ff372b48dc5acf2782701844211cd1f0eb3 \
     --hash=sha256:f971aa5f50c22dc4b63a891503624ae2c77330429b34ead32f23c2260c5618cd
     # via matplotlib
+iniconfig==2.3.0 \
+    --hash=sha256:c76315c77db068650d49c5b56314774a7804df16fee4402c1f19d6d15d8c4730 \
+    --hash=sha256:f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12
+    # via pytest
 itsdangerous==2.1.2 \
     --hash=sha256:2c2349112351b88699d8d4b6b075022c0808887cb7ad10069318a8b0bc88db44 \
     --hash=sha256:5dbbc68b317e5e42f327f9021763545dc3fc3bfe22e6deb96aaf1fc38874156a
@@ -442,7 +450,9 @@ numpy==2.3.4 \
 packaging==24.2 \
     --hash=sha256:09abb1bccd265c01f4a3aa3f7a7db064b36514d2cba19a2f694fe6150451a759 \
     --hash=sha256:c228a6dc5e932d346bc5739379109d49e8853dd8223571c7c5b55260edc0b97f
-    # via matplotlib
+    # via
+    #   matplotlib
+    #   pytest
 pillow==11.1.0 \
     --hash=sha256:015c6e863faa4779251436db398ae75051469f7c903b043a48f078e437656f83 \
     --hash=sha256:0a2f91f8a8b367e7a57c6e91cd25af510168091fb89ec5146003e424e1558a96 \
@@ -516,6 +526,10 @@ pillow==11.1.0 \
     --hash=sha256:f86d3a7a9af5d826744fabf4afd15b9dfef44fe69a98541f666f66fbb8d3fef9 \
     --hash=sha256:fbd43429d0d7ed6533b25fc993861b8fd512c42d04514a0dd6337fb3ccf22761
     # via matplotlib
+pluggy==1.6.0 \
+    --hash=sha256:7dcc130b76258d33b90f61b658791dede3486c3e6bfb003ee5c9bfb396dd22f3 \
+    --hash=sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746
+    # via pytest
 portpicker==1.3.1 \
     --hash=sha256:d2cdc776873635ed421315c4d22e63280042456bbfa07397817e687b142b9667
     # via -r dependency_support/pip_requirements.in
@@ -536,6 +550,10 @@ pyparsing==3.2.1 \
     --hash=sha256:506ff4f4386c4cec0590ec19e6302d3aedb992fdc02c761e90416f158dacf8e1 \
     --hash=sha256:61980854fd66de3a90028d679a954d5f2623e83144b5afe5ee86f43d762e5f0a
     # via matplotlib
+pytest==8.2.2 \
+    --hash=sha256:c434598117762e2bd304e526244f67bf66bbd7b5d6cf22138be51ff661980343 \
+    --hash=sha256:de4bb8104e201939ccdc688b27a89a7be2079b22e2bd2b07f806b6ba71117977
+    # via -r dependency_support/pip_requirements.in
 python-dateutil==2.9.0.post0 \
     --hash=sha256:37dd54208da7e1cd875388217d5e00ebd4179249f90fb72437e91a35459a0ad3 \
     --hash=sha256:a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427
