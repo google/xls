@@ -21,10 +21,12 @@
 #include <string_view>
 
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
 #include "xls/common/status/ret_check.h"
 
 namespace xls {
@@ -140,6 +142,14 @@ absl::Status NameUniquer::ReleaseIdentifier(std::string_view sv) {
   }
   std::string_view root;
   std::optional<int64_t> suffix = ParseNumericSuffix(sv, separator_, &root);
+  if (!suffix.has_value()) {
+    LOG(DO_NOT_SUBMIT) << "Registered names: "
+                       << absl::StrJoin(
+                              generated_names_, ", ",
+                              [](std::string* out, const auto& entry) {
+                                absl::StrAppend(out, entry.first);
+                              });
+  }
   XLS_RET_CHECK(suffix)
       << "Name '" << sv
       << "' was not a bare identifier and didn't have a numeric suffix?";
