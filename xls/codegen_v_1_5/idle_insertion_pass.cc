@@ -18,20 +18,26 @@
 #include <memory>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "xls/codegen/codegen_options.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/block.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/value.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls::codegen {
@@ -50,6 +56,19 @@ absl::StatusOr<bool> IdleInsertionPass::RunInternal(
     }
     ScheduledBlock* scheduled_block = down_cast<ScheduledBlock*>(block.get());
     if (scheduled_block->stages().empty()) {
+      continue;
+    }
+
+    // If the block represents a function without input-valid control, then it's
+    // never idle.
+    if (scheduled_block->source()->IsFunction() &&
+        !options.codegen_options.valid_control().has_value()) {
+      XLS_ASSIGN_OR_RETURN(
+          Node * idle_signal,
+          scheduled_block->MakeNode<Literal>(SourceInfo(), Value(UBits(0, 1))));
+      XLS_RETURN_IF_ERROR(
+          scheduled_block->AddOutputPort("idle", idle_signal).status());
+      changed = true;
       continue;
     }
 
@@ -105,9 +124,92 @@ absl::StatusOr<bool> IdleInsertionPass::RunInternal(
       stage_idle_signals.push_back(stage_idle);
     }
 
-    XLS_ASSIGN_OR_RETURN(Node * idle_signal,
+    XLS_ASSIGN_OR_RETURN(Node * pipeline_idle,
                          NaryAndIfNeeded(scheduled_block, stage_idle_signals,
                                          /*name=*/"pipeline_idle"));
+
+    // Except... we also need to check if any I/O flops are active. The good
+    // news is that they're only active in isolation when they are completing an
+    // external-facing ready/valid handshake... *unless* we're flopping
+    // function inputs, which gets a bit trickier.
+    std::vector<Node*> idle_signals;
+    idle_signals.push_back(pipeline_idle);
+    if (scheduled_block->source()->IsFunction()) {
+      if (options.codegen_options.flop_inputs() &&
+          options.codegen_options.flop_inputs_kind() !=
+              verilog::CodegenOptions::IOKind::kZeroLatencyBuffer) {
+        // If we have no valid control, we shouldn't be here; we should have
+        // returned earlier with an always-false idle signal.
+        CHECK(options.codegen_options.valid_control().has_value());
+
+        // If we're flopping function I/O with any latency, we need to signal as
+        // active the same cycle that the input becomes valid.
+        XLS_ASSIGN_OR_RETURN(
+            InputPort * input_port,
+            scheduled_block->GetInputPort(
+                options.codegen_options.valid_control()->input_name()));
+        XLS_ASSIGN_OR_RETURN(Node * input_is_not_valid,
+                             scheduled_block->MakeNode<UnOp>(
+                                 SourceInfo(), input_port, Op::kNot));
+        idle_signals.push_back(input_is_not_valid);
+      }
+    } else {
+      for (const auto& [name, direction] :
+           scheduled_block->GetChannelsWithMappedPorts()) {
+        XLS_ASSIGN_OR_RETURN(
+            ChannelPortMetadata metadata,
+            scheduled_block->GetChannelPortMetadata(name, direction));
+
+        // In case this signal is flopped (which could be due to channel
+        // configuration, so we have to do this for every channel), we need to
+        // suppress the idle signal any time the I/O handshake is completing.
+        //
+        // If the channel doesn't implement a ready/valid handshake (i.e., is a
+        // single-value channel), it's presumed to never change in a way that
+        // could affect idle status, regardless of flopping.
+        Node* valid_signal = nullptr;
+        Node* ready_signal = nullptr;
+        switch (direction) {
+          case ChannelDirection::kSend: {
+            if (metadata.valid_port.has_value() &&
+                metadata.ready_port.has_value()) {
+              XLS_ASSIGN_OR_RETURN(ready_signal, scheduled_block->GetInputPort(
+                                                     *metadata.ready_port));
+              XLS_ASSIGN_OR_RETURN(
+                  OutputPort * valid_port,
+                  scheduled_block->GetOutputPort(*metadata.valid_port));
+              valid_signal = valid_port->output_source();
+            }
+            break;
+          }
+          case ChannelDirection::kReceive: {
+            if (metadata.valid_port.has_value() &&
+                metadata.ready_port.has_value()) {
+              XLS_ASSIGN_OR_RETURN(valid_signal, scheduled_block->GetInputPort(
+                                                     *metadata.valid_port));
+              XLS_ASSIGN_OR_RETURN(
+                  OutputPort * ready_port,
+                  scheduled_block->GetOutputPort(*metadata.ready_port));
+              ready_signal = ready_port->output_source();
+            }
+            break;
+          }
+        }
+        if (valid_signal != nullptr && ready_signal != nullptr) {
+          XLS_ASSIGN_OR_RETURN(
+              Node * channel_inactive,
+              scheduled_block->MakeNodeWithName<NaryOp>(
+                  SourceInfo(),
+                  absl::MakeConstSpan({valid_signal, ready_signal}), Op::kNand,
+                  absl::StrCat("__", name, "_inactive")));
+          idle_signals.push_back(channel_inactive);
+        }
+      }
+    }
+
+    XLS_ASSIGN_OR_RETURN(Node * idle_signal,
+                         NaryAndIfNeeded(scheduled_block, idle_signals,
+                                         /*name=*/"pipeline_and_io_idle"));
 
     XLS_RETURN_IF_ERROR(
         scheduled_block->AddOutputPort("idle", idle_signal).status());
