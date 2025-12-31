@@ -182,10 +182,13 @@ absl::StatusOr<bool> FunctionIOLoweringPass::LowerReturnValue(
     return absl::UnimplementedError("Splitting outputs not supported.");
   }
 
-  // The return value is always expected to be in the last stage.
-  XLS_ASSIGN_OR_RETURN(int64_t stage_index,
-                       block->GetStageIndex(block->source_return_value()));
-  XLS_RET_CHECK_EQ(stage_index, block->stages().size() - 1);
+  // The return value is always assumed to be in the last stage - or possibly
+  // unscheduled, if (e.g.) returning a literal.
+  if (block->IsStaged(block->source_return_value())) {
+    XLS_ASSIGN_OR_RETURN(int64_t stage_index,
+                         block->GetStageIndex(block->source_return_value()));
+    XLS_RET_CHECK_EQ(stage_index, block->stages().size() - 1);
+  }
 
   std::optional<Node*> output_valid = std::nullopt;
   if (options.codegen_options.valid_control().has_value() &&

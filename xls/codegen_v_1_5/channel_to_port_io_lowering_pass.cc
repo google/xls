@@ -39,6 +39,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "cppitertools/zip.hpp"
+#include "xls/codegen/codegen_options.h"
 #include "xls/codegen/conversion_utils.h"
 #include "xls/codegen/ram_configuration.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
@@ -316,9 +317,14 @@ absl::StatusOr<Connector> AddPortsForSend(
                       .ready = ready};
 
   XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
-      channel, ChannelDirection::kSend, connector.data->GetName(),
-      GetOptionalNodeName(connector.valid),
-      GetOptionalNodeName(connector.ready)));
+      ChannelPortMetadata{.channel_name = std::string(ChannelRefName(channel)),
+                          .type = ChannelRefType(channel),
+                          .direction = ChannelDirection::kSend,
+                          .channel_kind = ChannelRefKind(channel),
+                          .flop_kind = FlopKind::kNone,
+                          .data_port = data->GetName(),
+                          .valid_port = GetOptionalNodeName(valid),
+                          .ready_port = GetOptionalNodeName(ready)}));
 
   return connector;
 }
@@ -372,9 +378,14 @@ absl::StatusOr<Connector> AddPortsForReceive(
                       .ready = ready};
 
   XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
-      channel, ChannelDirection::kReceive, connector.data->GetName(),
-      GetOptionalNodeName(connector.valid),
-      GetOptionalNodeName(connector.ready)));
+      ChannelPortMetadata{.channel_name = std::string(ChannelRefName(channel)),
+                          .type = ChannelRefType(channel),
+                          .direction = ChannelDirection::kReceive,
+                          .channel_kind = ChannelRefKind(channel),
+                          .flop_kind = FlopKind::kNone,
+                          .data_port = data->GetName(),
+                          .valid_port = GetOptionalNodeName(valid),
+                          .ready_port = GetOptionalNodeName(ready)}));
 
   return connector;
 }
@@ -627,20 +638,28 @@ absl::Status ConnectReceivesToConnector(
   }
 
   // Connect the data & valid lines to all users (passing tokens through).
-  // Collect each stage's ready signal, which we'll OR together with the
-  // existing ready signal for the result.
+  // Collect each stage's ready signal, and OR them together to form the
+  // connector's ready signal.
   // In other words, we are ready to receive data from this connector if any
   // receive is active & ready.
   std::vector<Node*> ready_signals;
-  if (connector.ready.has_value()) {
-    ready_signals.reserve(1 + receives.size());
-    ready_signals.push_back(*connector.ReadySignal());
-  }
+  ready_signals.reserve(receives.size());
   for (const auto& [receive, stage_index] :
        iter::zip(receives, stage_indices)) {
     Stage& stage = block->stages()[stage_index];
     Node* token = receive->As<Receive>()->token();
+    bool is_blocking = receive->As<Receive>()->is_blocking();
     std::optional<Node*> predicate = receive->As<Receive>()->predicate();
+
+    // If needed, add identity nodes to signal that the predicate needs to be
+    // available at the receive's stage. (This enables pipeline register
+    // insertion later.)
+    if (predicate.has_value() && block->IsStaged(*predicate) &&
+        *block->GetStageIndex(*predicate) != stage_index) {
+      XLS_ASSIGN_OR_RETURN(
+          predicate, block->MakeNodeInStage<UnOp>(stage_index, receive->loc(),
+                                                  *predicate, Op::kIdentity));
+    }
 
     if (connector.ready.has_value()) {
       // The ready signal from this receive is:
@@ -658,7 +677,7 @@ absl::Status ConnectReceivesToConnector(
       ready_signals.push_back(recv_finishing);
     }
 
-    if (connector.valid.has_value()) {
+    if (connector.valid.has_value() && is_blocking) {
       // This active input is valid iff the receive is inactive (!predicate)
       // or the valid signal is asserted.
       Node* recv_valid_or_inactive = *connector.valid;
@@ -679,11 +698,54 @@ absl::Status ConnectReceivesToConnector(
               .status());
     }
 
-    XLS_RETURN_IF_ERROR(
-        receive
-            ->ReplaceUsesWithNewInStage<Tuple>(
-                stage_index, absl::MakeConstSpan({token, connector.data}))
-            .status());
+    Node* data = connector.data;
+    if (options.codegen_options.gate_recvs()) {
+      std::vector<Node*> gate_conditions;
+      gate_conditions.reserve(2);
+      if (predicate.has_value()) {
+        gate_conditions.push_back(*predicate);
+      }
+      if (!is_blocking && connector.valid.has_value()) {
+        gate_conditions.push_back(*connector.valid);
+      }
+
+      Node* gate_condition = nullptr;
+      if (gate_conditions.size() == 1) {
+        gate_condition = gate_conditions.front();
+      } else if (gate_conditions.size() > 1) {
+        XLS_ASSIGN_OR_RETURN(gate_condition, block->MakeNodeInStage<NaryOp>(
+                                                 stage_index, receive->loc(),
+                                                 gate_conditions, Op::kAnd));
+      }
+
+      if (gate_condition != nullptr) {
+        XLS_ASSIGN_OR_RETURN(Node * zero,
+                             block->MakeNodeInStage<Literal>(
+                                 stage_index, receive->loc(),
+                                 ZeroOfType(connector.data->GetType())));
+        XLS_ASSIGN_OR_RETURN(data,
+                             block->MakeNodeInStage<Select>(
+                                 stage_index, receive->loc(), gate_condition,
+                                 absl::MakeConstSpan({zero, connector.data}),
+                                 /*default_value=*/std::nullopt));
+      }
+    }
+
+    std::vector<Node*> replacement_elements = {token, data};
+    if (!is_blocking) {
+      if (connector.valid.has_value()) {
+        replacement_elements.push_back(*connector.valid);
+      } else {
+        XLS_ASSIGN_OR_RETURN(
+            Node * valid, block->MakeNodeInStage<Literal>(
+                              stage_index, receive->loc(), Value(UBits(1, 1))));
+        replacement_elements.push_back(valid);
+      }
+    }
+    XLS_RETURN_IF_ERROR(receive
+                            ->ReplaceUsesWithNewInStage<Tuple>(
+                                stage_index, replacement_elements)
+                            .status());
     XLS_RETURN_IF_ERROR(block->RemoveNode(receive));
   }
   if (connector.ready.has_value()) {
@@ -730,9 +792,26 @@ absl::Status ConnectSendsToConnector(
   for (const auto& [send, stage_index] : iter::zip(sends, stage_indices)) {
     Stage& stage = block->stages()[stage_index];
     Node* token = send->As<Send>()->token();
+
+    Node* data = send->As<Send>()->data();
     std::optional<Node*> predicate = send->As<Send>()->predicate();
 
-    data_signals.push_back(send->As<Send>()->data());
+    // If needed, add identity nodes to signal that the predicate & data need to
+    // be available at the send's stage. (This enables pipeline register
+    // insertion later.)
+    if (block->IsStaged(data) && *block->GetStageIndex(data) != stage_index) {
+      XLS_ASSIGN_OR_RETURN(
+          data, block->MakeNodeInStage<UnOp>(stage_index, send->loc(), data,
+                                             Op::kIdentity));
+    }
+    if (predicate.has_value() && block->IsStaged(*predicate) &&
+        *block->GetStageIndex(*predicate) != stage_index) {
+      XLS_ASSIGN_OR_RETURN(
+          predicate, block->MakeNodeInStage<UnOp>(stage_index, send->loc(),
+                                                  *predicate, Op::kIdentity));
+    }
+
+    data_signals.push_back(data);
 
     // This send is active if and only if the inputs are valid and the predicate
     // (if any) is true.
@@ -1027,25 +1106,58 @@ absl::flat_hash_set<std::string> GetRamChannelNames(
   return ram_channel_names;
 }
 
-absl::StatusOr<FlopKind> GetFlopKind(ChannelRef channel,
-                                     ChannelDirection direction,
-                                     ScheduledBlock* block) {
+FlopKind GetDefaultFlopKind(bool enabled,
+                            ::xls::verilog::CodegenOptions::IOKind kind) {
+  if (!enabled) {
+    return FlopKind::kNone;
+  }
+  return ::xls::verilog::CodegenOptions::IOKindToFlopKind(kind);
+}
+
+absl::StatusOr<FlopKind> GetFlopKind(
+    ChannelRef channel, ChannelDirection direction, ScheduledBlock* block,
+    const BlockConversionPassOptions& options) {
+  if (ChannelRefKind(channel) == ChannelKind::kSingleValue) {
+    // NOTE: We control the flop insertion for single-value channels globally,
+    // with no per-channel configuration. This matches the behavior in codegen
+    // v1.0.
+    if (!options.codegen_options.flop_single_value_channels()) {
+      return FlopKind::kNone;
+    }
+    switch (direction) {
+      case ChannelDirection::kSend: {
+        if (!options.codegen_options.flop_outputs()) {
+          return FlopKind::kNone;
+        }
+        return FlopKind::kFlop;
+      }
+      case ChannelDirection::kReceive: {
+        if (!options.codegen_options.flop_inputs()) {
+          return FlopKind::kNone;
+        }
+        return FlopKind::kFlop;
+      }
+    }
+    ABSL_UNREACHABLE();
+    return absl::InternalError(
+        absl::StrFormat("Unknown channel direction %d", direction));
+  }
+
   if (std::holds_alternative<Channel*>(channel)) {
     XLS_RET_CHECK(!block->package()->ChannelsAreProcScoped())
         << "For proc-scoped channels, the flop kind is set on the interface.";
+    XLS_RET_CHECK_EQ(ChannelRefKind(channel), ChannelKind::kStreaming);
     StreamingChannel* streaming_channel =
         down_cast<StreamingChannel*>(std::get<Channel*>(channel));
     switch (direction) {
-      case ChannelDirection::kSend: {
-        XLS_RET_CHECK(streaming_channel->channel_config().output_flop_kind())
-            << "No output flop kind";
-        return streaming_channel->channel_config().output_flop_kind().value();
-      }
-      case ChannelDirection::kReceive: {
-        XLS_RET_CHECK(streaming_channel->channel_config().input_flop_kind())
-            << "No input flop kind";
-        return streaming_channel->channel_config().input_flop_kind().value();
-      }
+      case ChannelDirection::kSend:
+        return streaming_channel->channel_config().output_flop_kind().value_or(
+            GetDefaultFlopKind(options.codegen_options.flop_outputs(),
+                               options.codegen_options.flop_outputs_kind()));
+      case ChannelDirection::kReceive:
+        return streaming_channel->channel_config().input_flop_kind().value_or(
+            GetDefaultFlopKind(options.codegen_options.flop_inputs(),
+                               options.codegen_options.flop_inputs_kind()));
     }
     ABSL_UNREACHABLE();
     return absl::InternalError(
@@ -1447,8 +1559,9 @@ absl::Status AddIOFlopsForSend(Connector& connector, FlopKind flop_kind,
 absl::Status AddIOFlopsForConnector(Connector& connector, ChannelRef channel,
                                     ScheduledBlock* block,
                                     const BlockConversionPassOptions& options) {
-  XLS_ASSIGN_OR_RETURN(FlopKind flop_kind,
-                       GetFlopKind(channel, connector.direction, block));
+  XLS_ASSIGN_OR_RETURN(
+      FlopKind flop_kind,
+      GetFlopKind(channel, connector.direction, block, options));
   switch (connector.direction) {
     case ChannelDirection::kReceive:
       return AddIOFlopsForReceive(connector, flop_kind, channel, block,
@@ -1494,6 +1607,13 @@ absl::StatusOr<bool> LowerIoToPorts(
     needs_one_shot_logic = !outputs_mutually_exclusive;
   }
   if (needs_one_shot_logic) {
+    if (options.codegen_options.generate_combinational()) {
+      return absl::UnimplementedError(absl::StrFormat(
+          "Proc combinational generator only supports streaming output "
+          "channels which can be determined to be mutually exclusive, got %d "
+          "output channels which were not proven to be mutually exclusive",
+          outgoing_channel_count));
+    }
     for (const auto& [directed_channel, _] : io_ops) {
       if (directed_channel.second != ChannelDirection::kSend) {
         continue;
@@ -1576,7 +1696,9 @@ absl::StatusOr<bool> ChannelToPortIoLoweringPass::RunInternal(
 
     // Make sure to delete any remaining channels owned by the source proc.
     if (source->is_new_style_proc()) {
-      for (Channel* channel : source->channels()) {
+      std::vector<Channel*> channels_to_remove(source->channels().begin(),
+                                               source->channels().end());
+      for (Channel* channel : channels_to_remove) {
         XLS_RETURN_IF_ERROR(source->RemoveChannel(channel));
         changed = true;
       }
@@ -1584,7 +1706,9 @@ absl::StatusOr<bool> ChannelToPortIoLoweringPass::RunInternal(
   }
 
   // Make sure to remove any remaining channels in the package.
-  for (Channel* channel : package->channels()) {
+  std::vector<Channel*> channels_to_remove(package->channels().begin(),
+                                           package->channels().end());
+  for (Channel* channel : channels_to_remove) {
     XLS_RETURN_IF_ERROR(package->RemoveChannel(channel));
     changed = true;
   }

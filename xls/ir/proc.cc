@@ -996,6 +996,10 @@ void Proc::MoveNonLogicFrom(Proc& other) {
   is_new_style_proc_ = other.is_new_style_proc_;
   state_elements_ = std::move(other.state_elements_);
   state_vec_ = std::move(other.state_vec_);
+  state_name_uniquer_ = std::move(other.state_name_uniquer_);
+  FunctionBase::MoveFrom(other,
+                         [](const Node* n) { return n->Is<StateRead>(); });
+  state_reads_ = std::move(other.state_reads_);
   channel_interfaces_ = std::move(other.channel_interfaces_);
   interface_ = std::move(other.interface_);
   proc_instantiations_ = std::move(other.proc_instantiations_);
