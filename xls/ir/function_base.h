@@ -467,7 +467,9 @@ class FunctionBase {
   // channels, or proc instantiations. The move includes the staging of the
   // logic, if this is a scheduled entity.
   void MoveLogicFrom(FunctionBase& other) {
-    MoveFrom(other, [](const Node* n) { return !n->Is<Param>(); });
+    MoveFrom(other, [](const Node* n) {
+      return !n->Is<Param>() && !n->Is<StateRead>();
+    });
     other.next_values_by_state_read_.clear();
     other.next_values_.clear();
   }

@@ -108,12 +108,11 @@ class FunctionIOLoweringPassTest : public IrTestBase {
 
   // Runs PipelineRegisterInsertionPass and BlockFinalizationPass, then
   // verify & return the output of block interpretation.
-  absl::StatusOr<Value> RunFunctionalTest(Package* p, Block* block,
-                                          absl::Span<const Value> inputs,
-                                          int64_t expected_latency,
-                                          FunctionalTestOptions options = {}) {
+  absl::StatusOr<Value> RunFunctionalTest(
+      Package* p, Block* block, const BlockConversionPassOptions& pass_options,
+      absl::Span<const Value> inputs, int64_t expected_latency,
+      FunctionalTestOptions options = {}) {
     std::string block_name = block->name();
-    BlockConversionPassOptions pass_options;
     PassResults pass_results;
     XLS_RETURN_IF_ERROR(PipelineRegisterInsertionPass()
                             .Run(p, pass_options, &pass_results)
@@ -221,7 +220,7 @@ TEST_F(FunctionIOLoweringPassTest, SingleStage) {
               ElementsAre(Property(&PortNode::GetName, "out")));
   EXPECT_EQ(sb->stages().size(), 1);
 
-  EXPECT_THAT(RunFunctionalTest(p.get(), sb, inputs,
+  EXPECT_THAT(RunFunctionalTest(p.get(), sb, options, inputs,
                                 /*expected_latency=*/1),
               IsOkAndHolds(expected_output));
 }
@@ -264,7 +263,7 @@ TEST_F(FunctionIOLoweringPassTest, SingleStageWithInputValid) {
   EXPECT_EQ(sb->stages().size(), 1);
 
   EXPECT_THAT(
-      RunFunctionalTest(p.get(), sb, inputs,
+      RunFunctionalTest(p.get(), sb, options, inputs,
                         /*expected_latency=*/1, {.input_valid = "x_valid"}),
       IsOkAndHolds(expected_output));
 }
@@ -308,7 +307,7 @@ TEST_F(FunctionIOLoweringPassTest, SingleStageWithIOValid) {
   EXPECT_EQ(sb->stages().size(), 1);
 
   EXPECT_THAT(RunFunctionalTest(
-                  p.get(), sb, inputs,
+                  p.get(), sb, options, inputs,
                   /*expected_latency=*/1,
                   {.input_valid = "x_valid", .output_valid = "out_valid"}),
               IsOkAndHolds(expected_output));
@@ -350,7 +349,7 @@ TEST_F(FunctionIOLoweringPassTest, MultiStage) {
               ElementsAre(Property(&PortNode::GetName, "out")));
   EXPECT_EQ(sb->stages().size(), 3);
 
-  EXPECT_THAT(RunFunctionalTest(p.get(), sb, inputs,
+  EXPECT_THAT(RunFunctionalTest(p.get(), sb, options, inputs,
                                 /*expected_latency=*/3),
               IsOkAndHolds(expected_output));
 }
@@ -396,7 +395,7 @@ TEST_F(FunctionIOLoweringPassTest, MultiStageWithInputValid) {
   EXPECT_EQ(sb->stages().size(), 3);
 
   EXPECT_THAT(
-      RunFunctionalTest(p.get(), sb, inputs,
+      RunFunctionalTest(p.get(), sb, options, inputs,
                         /*expected_latency=*/3, {.input_valid = "x_valid"}),
       IsOkAndHolds(expected_output));
 }
@@ -442,7 +441,7 @@ TEST_F(FunctionIOLoweringPassTest, MultiStageWithIOValidDelayed) {
                           Property(&PortNode::GetName, "out")));
   EXPECT_EQ(sb->stages().size(), 3);
 
-  EXPECT_THAT(RunFunctionalTest(p.get(), sb, inputs,
+  EXPECT_THAT(RunFunctionalTest(p.get(), sb, options, inputs,
                                 /*expected_latency=*/3,
                                 {.input_valid = "x_valid",
                                  .output_valid = "out_valid",
@@ -492,7 +491,7 @@ TEST_F(FunctionIOLoweringPassTest, MultiStageWithIOValid) {
   EXPECT_EQ(sb->stages().size(), 3);
 
   EXPECT_THAT(RunFunctionalTest(
-                  p.get(), sb, inputs,
+                  p.get(), sb, options, inputs,
                   /*expected_latency=*/3,
                   {.input_valid = "x_valid", .output_valid = "out_valid"}),
               IsOkAndHolds(expected_output));
@@ -541,7 +540,7 @@ TEST_F(FunctionIOLoweringPassTest, MultiStageMultiInputWithIOValid) {
   EXPECT_EQ(sb->stages().size(), 3);
 
   EXPECT_THAT(RunFunctionalTest(
-                  p.get(), sb, inputs,
+                  p.get(), sb, options, inputs,
                   /*expected_latency=*/3,
                   {.input_valid = "x_valid", .output_valid = "out_valid"}),
               IsOkAndHolds(expected_output));
@@ -587,7 +586,7 @@ TEST_F(FunctionIOLoweringPassTest, MultiStageMultiInputWithFloppedInputs) {
               ElementsAre(Property(&PortNode::GetName, "out")));
   EXPECT_EQ(sb->stages().size(), 3);
 
-  EXPECT_THAT(RunFunctionalTest(p.get(), sb, inputs,
+  EXPECT_THAT(RunFunctionalTest(p.get(), sb, options, inputs,
                                 /*expected_latency=*/4),
               IsOkAndHolds(expected_output));
 }
@@ -632,7 +631,7 @@ TEST_F(FunctionIOLoweringPassTest, MultiStageMultiInputWithFloppedOutputs) {
               ElementsAre(Property(&PortNode::GetName, "out")));
   EXPECT_EQ(sb->stages().size(), 3);
 
-  EXPECT_THAT(RunFunctionalTest(p.get(), sb, inputs,
+  EXPECT_THAT(RunFunctionalTest(p.get(), sb, options, inputs,
                                 /*expected_latency=*/4),
               IsOkAndHolds(expected_output));
 }
@@ -678,7 +677,7 @@ TEST_F(FunctionIOLoweringPassTest, MultiStageMultiInputWithFloppedIO) {
               ElementsAre(Property(&PortNode::GetName, "out")));
   EXPECT_EQ(sb->stages().size(), 3);
 
-  EXPECT_THAT(RunFunctionalTest(p.get(), sb, inputs,
+  EXPECT_THAT(RunFunctionalTest(p.get(), sb, options, inputs,
                                 /*expected_latency=*/5),
               IsOkAndHolds(expected_output));
 }
