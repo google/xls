@@ -163,6 +163,7 @@ cc_library(
     hdrs = ["channel_to_port_io_lowering_pass.h"],
     deps = [
         ":block_conversion_pass",
+        "//xls/codegen:codegen_options",
         "//xls/codegen:conversion_utils",
         "//xls/codegen:ram_configuration",
         "//xls/common:casts",

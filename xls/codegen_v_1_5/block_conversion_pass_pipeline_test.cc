@@ -348,10 +348,8 @@ TEST_F(BlockConversionTest, SimplePipelinedFunction) {
           SchedulingOptions().pipeline_stages(3)));
 
   EXPECT_THAT(GetOutputPort(block),
-              m::OutputPort(m::Neg(m::Register(m::Not(
-                  m::Register(m::Add(m::InputPort("x"), m::InputPort("y"))))))))
-      << "\n\nIR:\n"
-      << block->DumpIr();
+              m::OutputPort(m::Neg(m::Register(m::Not(m::Register(
+                  m::Add(m::InputPort("x"), m::InputPort("y"))))))));
 }
 
 TEST_F(BlockConversionTest, TrivialPipelinedFunctionNoFlopping) {
@@ -535,12 +533,10 @@ proc my_proc(my_state: (), init={()}) {
       Block * block,
       ConvertToBlock(proc, codegen_options().generate_combinational(true)));
   EXPECT_THAT(FindNode("out", block),
-              m::OutputPort("out", m::Neg(m::InputPort("in"))))
-      << "\n\nIR:\n"
-      << block->DumpIr();
+              m::OutputPort("out", m::Neg(m::InputPort("in"))));
 }
 
-TEST_F(BlockConversionTest, DISABLED_StreamingChannelMetadataForSimpleProc) {
+TEST_F(BlockConversionTest, StreamingChannelMetadataForSimpleProc) {
   Package package(TestName());
   Type* u32 = package.GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -594,7 +590,7 @@ TEST_F(BlockConversionTest, DISABLED_StreamingChannelMetadataForSimpleProc) {
               IsOkAndHolds(Optional(m::InputPort("out_rdy"))));
 }
 
-TEST_F(BlockConversionTest, DISABLED_SingleValueChannelMetadataForSimpleProc) {
+TEST_F(BlockConversionTest, SingleValueChannelMetadataForSimpleProc) {
   Package package(TestName());
   Type* u32 = package.GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -648,7 +644,7 @@ TEST_F(BlockConversionTest, DISABLED_SingleValueChannelMetadataForSimpleProc) {
               IsOkAndHolds(std::nullopt));
 }
 
-TEST_F(BlockConversionTest, DISABLED_ProcWithVariousNextStateNodes) {
+TEST_F(BlockConversionTest, ProcWithVariousNextStateNodes) {
   // A block with corner-case next state nodes (e.g., not dependent on state
   // param, same as state param, and shared next state nodes).
   auto p = CreatePackage();
@@ -819,7 +815,7 @@ TEST_F(BlockConversionTest, DISABLED_ProcWithNextStateNodeBeforeParam) {
               IsOkAndHolds(ElementsAre(10, 20, 30)));
 }
 
-TEST_F(BlockConversionTest, DISABLED_ChannelDefaultSuffixName) {
+TEST_F(BlockConversionTest, ChannelDefaultSuffixName) {
   const std::string ir_text = R"(package test
 
 chan in(bits[32], id=0, kind=streaming, ops=receive_only,
@@ -874,7 +870,7 @@ proc my_proc(my_state: (), init={()}) {
   EXPECT_FALSE(HasNode("out2_vld", block_default_suffix));
 }
 
-TEST_F(BlockConversionTest, DISABLED_ChannelNonDefaultSuffixName) {
+TEST_F(BlockConversionTest, ChannelNonDefaultSuffixName) {
   const std::string ir_text = R"(package test
 
 chan in(bits[32], id=0, kind=streaming, ops=receive_only,
@@ -940,7 +936,7 @@ proc my_proc(my_state: (), init={()}) {
   EXPECT_FALSE(HasNode("out2_valid", block_nondefault_suffix));
 }
 
-TEST_F(BlockConversionTest, DISABLED_ProcWithMultipleInputChannels) {
+TEST_F(BlockConversionTest, ProcWithMultipleInputChannels) {
   const std::string ir_text = R"(package test
 
 chan in0(bits[32], id=0, kind=single_value, ops=receive_only)
@@ -985,7 +981,7 @@ proc my_proc(my_state: (), init={()}) {
                            m::InputPort("in0"))));
 }
 
-TEST_F(BlockConversionTest, DISABLED_OnlyFIFOOutProc) {
+TEST_F(BlockConversionTest, OnlyFIFOOutProc) {
   const std::string ir_text = R"(package test
 chan in(bits[32], id=0, kind=single_value, ops=receive_only)
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
@@ -1011,10 +1007,10 @@ proc my_proc(st: (), init={()}) {
   EXPECT_THAT(FindNode("out", block), m::OutputPort("out", m::InputPort("in")));
   EXPECT_THAT(FindNode("out_vld", block),
               m::OutputPort("out_vld", m::And(m::Literal(1), m::Literal(1),
-                                              m::Literal(1), m::Literal(1))));
+                                              m::Literal(1))));
 }
 
-TEST_F(BlockConversionTest, DISABLED_NoRegsIfChannelsHaveNoFlopsSet) {
+TEST_F(BlockConversionTest, NoRegsIfChannelsHaveNoFlopsSet) {
   constexpr std::string_view kIrText = R"(
 package my_package
 
@@ -1048,7 +1044,7 @@ top proc my_proc() {
   EXPECT_THAT(block->GetRegisters(), testing::IsEmpty());
 }
 
-TEST_F(BlockConversionTest, DISABLED_OnlyFIFOInProcGateRecvsTrue) {
+TEST_F(BlockConversionTest, OnlyFIFOInProcGateRecvsTrue) {
   const std::string ir_text = R"(package test
 chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
 chan out(bits[32], id=1, kind=single_value, ops=send_only)
@@ -1079,11 +1075,15 @@ proc my_proc(st: (), init={()}) {
                                      {m::Literal(0), m::InputPort("in")})));
   EXPECT_THAT(FindNode("in", block), m::InputPort("in"));
   EXPECT_THAT(FindNode("in_vld", block), m::InputPort("in_vld"));
-  EXPECT_THAT(FindNode("in_rdy", block),
-              m::OutputPort("in_rdy", m::And(m::Literal(1), m::Literal(1))));
+  EXPECT_THAT(
+      FindNode("in_rdy", block),
+      m::OutputPort("in_rdy",
+                    m::And(m::And(m::Literal(1), m::Or(m::InputPort("in_vld"),
+                                                       m::Not(m::Literal(1)))),
+                           m::Literal(1), m::Literal(1))));
 }
 
-TEST_F(BlockConversionTest, DISABLED_OnlyFIFOInProcGateRecvsFalse) {
+TEST_F(BlockConversionTest, OnlyFIFOInProcGateRecvsFalse) {
   const std::string ir_text = R"(package test
 chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
 chan out(bits[32], id=1, kind=single_value, ops=send_only)
@@ -1111,11 +1111,15 @@ proc my_proc(st: (), init={()}) {
   EXPECT_THAT(FindNode("out", block), m::OutputPort("out", m::InputPort("in")));
   EXPECT_THAT(FindNode("in", block), m::InputPort("in"));
   EXPECT_THAT(FindNode("in_vld", block), m::InputPort("in_vld"));
-  EXPECT_THAT(FindNode("in_rdy", block),
-              m::OutputPort("in_rdy", m::And(m::Literal(1), m::Literal(1))));
+  EXPECT_THAT(
+      FindNode("in_rdy", block),
+      m::OutputPort("in_rdy",
+                    m::And(m::And(m::Literal(1), m::Or(m::InputPort("in_vld"),
+                                                       m::Not(m::Literal(1)))),
+                           m::Literal(1), m::Literal(1))));
 }
 
-TEST_F(BlockConversionTest, DISABLED_UnconditionalSendRdyVldProc) {
+TEST_F(BlockConversionTest, UnconditionalSendRdyVldProc) {
   const std::string ir_text = R"(package test
 chan in(bits[32], id=0, kind=single_value, ops=receive_only)
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
@@ -1140,13 +1144,12 @@ proc my_proc(st: (), init={()}) {
 
   EXPECT_THAT(FindNode("out", block), m::OutputPort("out", m::InputPort("in")));
   EXPECT_THAT(FindNode("out_vld", block),
-              m::OutputPort("out_vld", m::And(m::Literal(1), m::Literal(1),
-                                              m::Literal(1))));
+              m::OutputPort("out_vld", m::And(m::Literal(1), m::Literal(1))));
   EXPECT_THAT(FindNode("out_rdy", block), m::InputPort("out_rdy"));
 }
 
 // Ensure that the output of the receive is zero when the predicate is false.
-TEST_F(BlockConversionTest, DISABLED_ReceiveIfIsZeroWhenPredicateIsFalse) {
+TEST_F(BlockConversionTest, ReceiveIfIsZeroWhenPredicateIsFalse) {
   Package package(TestName());
   Type* u32 = package.GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -1189,8 +1192,7 @@ TEST_F(BlockConversionTest, DISABLED_ReceiveIfIsZeroWhenPredicateIsFalse) {
 
 // Ensure that the output of the receive is passthrough when the predicate is
 // false.
-TEST_F(BlockConversionTest,
-       DISABLED_ReceiveIfIsPassthroughWhenPredicateIsFalse) {
+TEST_F(BlockConversionTest, ReceiveIfIsPassthroughWhenPredicateIsFalse) {
   Package package(TestName());
   Type* u32 = package.GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -1233,7 +1235,7 @@ TEST_F(BlockConversionTest,
 }
 
 // Ensure that the output of the receive is zero when the data is not valid.
-TEST_F(BlockConversionTest, DISABLED_NonblockingReceiveIsZeroWhenDataInvalid) {
+TEST_F(BlockConversionTest, NonblockingReceiveIsZeroWhenDataInvalid) {
   Package package(TestName());
   Type* u32 = package.GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -1271,8 +1273,7 @@ TEST_F(BlockConversionTest, DISABLED_NonblockingReceiveIsZeroWhenDataInvalid) {
 
 // Ensure that the output of the receive is passthrough when the data is not
 // valid.
-TEST_F(BlockConversionTest,
-       DISABLED_NonblockingReceiveIsPassthroughWhenDataInvalid) {
+TEST_F(BlockConversionTest, NonblockingReceiveIsPassthroughWhenDataInvalid) {
   Package package(TestName());
   Type* u32 = package.GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -1311,8 +1312,7 @@ TEST_F(BlockConversionTest,
 }
 
 // Ensure that the output of the receive is zero when the predicate is false.
-TEST_F(BlockConversionTest,
-       DISABLED_NonblockingReceiveIsZeroWhenPredicateIsFalse) {
+TEST_F(BlockConversionTest, NonblockingReceiveIsZeroWhenPredicateIsFalse) {
   Package package(TestName());
   Type* u32 = package.GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -1360,7 +1360,7 @@ TEST_F(BlockConversionTest,
 // Ensure that the output of the receive is passthrough when the predicate is
 // false.
 TEST_F(BlockConversionTest,
-       DISABLED_NonblockingReceiveIsPassthroughWhenPredicateIsFalse) {
+       NonblockingReceiveIsPassthroughWhenPredicateIsFalse) {
   Package package(TestName());
   Type* u32 = package.GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -1406,7 +1406,7 @@ TEST_F(BlockConversionTest,
                                         Pair("out", 42))));
 }
 
-TEST_F(BlockConversionTest, DISABLED_TwoToOneProc) {
+TEST_F(BlockConversionTest, TwoToOneProc) {
   Package package(TestName());
   Type* u32 = package.GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -1479,10 +1479,44 @@ TEST_F(BlockConversionTest, DISABLED_TwoToOneProc) {
                                           {"b_vld", 1},
                                           {"out_rdy", 1}}),
       IsOkAndHolds(UnorderedElementsAre(Pair("out_vld", 0), Pair("b_rdy", 0),
-                                        Pair("out", 123), Pair("a_rdy", 1))));
+                                        Pair("out", 123), Pair("a_rdy", 0))));
 }
 
-TEST_F(BlockConversionTest, DISABLED_OneToTwoProc) {
+TEST_F(BlockConversionTest, JoinProc) {
+  Package package(TestName());
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_a,
+      package.CreateStreamingChannel("a", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_b,
+      package.CreateStreamingChannel("b", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  TokenlessProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  BValue a = pb.Receive(ch_a);
+  BValue b = pb.Receive(ch_b);
+  pb.Send(ch_out, pb.Add(a, b));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block,
+      ConvertToBlock(proc, codegen_options().generate_combinational(true)));
+
+  // A is valid, C is ready, B is not yet valid.
+  // a_rdy must be 0 to avoid accidentally consuming from A and losing data.
+  EXPECT_THAT(
+      InterpretCombinationalBlock(
+          block,
+          {{"a", 10}, {"a_vld", 1}, {"b", 20}, {"b_vld", 0}, {"out_rdy", 1}}),
+      IsOkAndHolds(UnorderedElementsAre(Pair("out_vld", 0), Pair("a_rdy", 0),
+                                        Pair("b_rdy", 0), Pair("out", 30))));
+}
+
+TEST_F(BlockConversionTest, OneToTwoProc) {
   Package package(TestName());
   Type* u32 = package.GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -1548,7 +1582,7 @@ TEST_F(BlockConversionTest, DISABLED_OneToTwoProc) {
                                         Pair("b", 123))));
 }
 
-TEST_F(BlockConversionTest, DISABLED_RamChannelsAreNotFlopped) {
+TEST_F(BlockConversionTest, RamChannelsAreNotFlopped) {
   // Test that RAM channels are not flopped even when flop_inputs/outputs is set
   auto package = CreatePackage();
   Type* u32 = package->GetBitsType(32);
@@ -1635,7 +1669,7 @@ TEST_F(BlockConversionTest, DISABLED_RamChannelsAreNotFlopped) {
   EXPECT_FALSE(has_reg_with_substr(block, "ram_wr_comp"));
 }
 
-TEST_F(BlockConversionTest, DISABLED_FlopSingleValueChannelProc) {
+TEST_F(BlockConversionTest, FlopSingleValueChannelProc) {
   const std::string ir_text = R"(package test
 chan in(bits[32], id=0, kind=single_value, ops=receive_only)
 chan out(bits[32], id=1, kind=single_value, ops=send_only)
@@ -1667,6 +1701,10 @@ proc my_proc(tkn: token, st: (), init={token, ()}) {
   options.reset("rst_n", false, /*active_low=*/true, false);
 
   {
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                             ClonePackage(package.get()));
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetProc("my_proc"));
+
     options.flop_single_value_channels(true).module_name(
         "with_single_value_channel");
 
@@ -1684,6 +1722,10 @@ proc my_proc(tkn: token, st: (), init={token, ()}) {
   }
 
   {
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                             ClonePackage(package.get()));
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetProc("my_proc"));
+
     options.flop_single_value_channels(false).module_name(
         "no_single_value_channel");
 
@@ -1741,7 +1783,7 @@ class SimplePipelinedProcTest : public ProcConversionTestFixture {
   }
 };
 
-TEST_F(SimplePipelinedProcTest, DISABLED_ChannelDefaultSuffixName) {
+TEST_F(SimplePipelinedProcTest, ChannelDefaultSuffixName) {
   CodegenOptions options;
   options.flop_inputs(false).flop_outputs(false).clock_name("clk");
   options.valid_control("input_valid", "output_valid");
@@ -1761,7 +1803,7 @@ TEST_F(SimplePipelinedProcTest, DISABLED_ChannelDefaultSuffixName) {
   EXPECT_TRUE(HasNode("out_vld", block_default_suffix));
 }
 
-TEST_F(SimplePipelinedProcTest, DISABLED_ChannelNonDefaultSuffixName) {
+TEST_F(SimplePipelinedProcTest, ChannelNonDefaultSuffixName) {
   CodegenOptions options;
   options.flop_inputs(false)
       .flop_outputs(false)

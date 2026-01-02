@@ -40,6 +40,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "cppitertools/zip.hpp"
+#include "xls/codegen/codegen_options.h"
 #include "xls/codegen/conversion_utils.h"
 #include "xls/codegen/ram_configuration.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
@@ -628,15 +629,12 @@ absl::Status ConnectReceivesToConnector(
   }
 
   // Connect the data & valid lines to all users (passing tokens through).
-  // Collect each stage's ready signal, which we'll OR together with the
-  // existing ready signal for the result.
+  // Collect each stage's ready signal, and OR them together to form the
+  // connector's ready signal.
   // In other words, we are ready to receive data from this connector if any
   // receive is active & ready.
   std::vector<Node*> ready_signals;
-  if (connector.ready.has_value()) {
-    ready_signals.reserve(1 + receives.size());
-    ready_signals.push_back(*connector.ReadySignal());
-  }
+  ready_signals.reserve(receives.size());
   for (const auto& [receive, stage_index] :
        iter::zip(receives, stage_indices)) {
     Stage& stage = block->stages()[stage_index];
@@ -660,7 +658,7 @@ absl::Status ConnectReceivesToConnector(
       ready_signals.push_back(recv_finishing);
     }
 
-    if (connector.valid.has_value()) {
+    if (connector.valid.has_value() && is_blocking) {
       // This active input is valid iff the receive is inactive (!predicate)
       // or the valid signal is asserted.
       Node* recv_valid_or_inactive = *connector.valid;
@@ -1072,13 +1070,41 @@ absl::flat_hash_set<std::string> GetRamChannelNames(
   return ram_channel_names;
 }
 
-absl::StatusOr<FlopKind> GetFlopKind(ChannelRef channel,
-                                     ChannelDirection direction,
-                                     ScheduledBlock* block) {
+FlopKind GetDefaultFlopKind(bool enabled,
+                            ::xls::verilog::CodegenOptions::IOKind kind) {
+  if (!enabled) {
+    return FlopKind::kNone;
+  }
+  return ::xls::verilog::CodegenOptions::IOKindToFlopKind(kind);
+}
+
+absl::StatusOr<FlopKind> GetFlopKind(
+    ChannelRef channel, ChannelDirection direction, ScheduledBlock* block,
+    const BlockConversionPassOptions& options) {
   if (ChannelRefKind(channel) == ChannelKind::kSingleValue) {
     // NOTE: We control the flop insertion for single-value channels globally,
-    // ignoring this result. This matches the behavior in codegen v1.
-    return FlopKind::kNone;
+    // with no per-channel configuration. This matches the behavior in codegen
+    // v1.0.
+    if (!options.codegen_options.flop_single_value_channels()) {
+      return FlopKind::kNone;
+    }
+    switch (direction) {
+      case ChannelDirection::kSend: {
+        if (!options.codegen_options.flop_outputs()) {
+          return FlopKind::kNone;
+        }
+        return FlopKind::kFlop;
+      }
+      case ChannelDirection::kReceive: {
+        if (!options.codegen_options.flop_inputs()) {
+          return FlopKind::kNone;
+        }
+        return FlopKind::kFlop;
+      }
+    }
+    ABSL_UNREACHABLE();
+    return absl::InternalError(
+        absl::StrFormat("Unknown channel direction %d", direction));
   }
 
   if (std::holds_alternative<Channel*>(channel)) {
@@ -1088,16 +1114,14 @@ absl::StatusOr<FlopKind> GetFlopKind(ChannelRef channel,
     StreamingChannel* streaming_channel =
         down_cast<StreamingChannel*>(std::get<Channel*>(channel));
     switch (direction) {
-      case ChannelDirection::kSend: {
-        XLS_RET_CHECK(streaming_channel->channel_config().output_flop_kind())
-            << "No output flop kind";
-        return streaming_channel->channel_config().output_flop_kind().value();
-      }
-      case ChannelDirection::kReceive: {
-        XLS_RET_CHECK(streaming_channel->channel_config().input_flop_kind())
-            << "No input flop kind";
-        return streaming_channel->channel_config().input_flop_kind().value();
-      }
+      case ChannelDirection::kSend:
+        return streaming_channel->channel_config().output_flop_kind().value_or(
+            GetDefaultFlopKind(options.codegen_options.flop_outputs(),
+                               options.codegen_options.flop_outputs_kind()));
+      case ChannelDirection::kReceive:
+        return streaming_channel->channel_config().input_flop_kind().value_or(
+            GetDefaultFlopKind(options.codegen_options.flop_inputs(),
+                               options.codegen_options.flop_inputs_kind()));
     }
     ABSL_UNREACHABLE();
     return absl::InternalError(
@@ -1499,8 +1523,9 @@ absl::Status AddIOFlopsForSend(Connector& connector, FlopKind flop_kind,
 absl::Status AddIOFlopsForConnector(Connector& connector, ChannelRef channel,
                                     ScheduledBlock* block,
                                     const BlockConversionPassOptions& options) {
-  XLS_ASSIGN_OR_RETURN(FlopKind flop_kind,
-                       GetFlopKind(channel, connector.direction, block));
+  XLS_ASSIGN_OR_RETURN(
+      FlopKind flop_kind,
+      GetFlopKind(channel, connector.direction, block, options));
   switch (connector.direction) {
     case ChannelDirection::kReceive:
       return AddIOFlopsForReceive(connector, flop_kind, channel, block,

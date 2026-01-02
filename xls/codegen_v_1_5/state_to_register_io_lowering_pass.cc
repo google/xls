@@ -164,9 +164,9 @@ absl::Status LowerStateElementToZero(ScheduledBlock* block,
   XLS_ASSIGN_OR_RETURN(
       Literal * replacement,
       block->MakeNode<xls::Literal>(read->loc(), ZeroOfType(type)));
-  XLS_ASSIGN_OR_RETURN(bool read_removed,
-                       ReplaceNode(block, read, replacement,
-                                   /*replace_implicit_uses=*/false));
+  XLS_ASSIGN_OR_RETURN(
+      bool read_removed,
+      ReplaceNode(block, read, replacement, /*replace_implicit_uses=*/false));
   XLS_RET_CHECK(!read_removed);
 
   for (Next* write : writes) {
@@ -201,9 +201,9 @@ absl::Status LowerStateElement(ScheduledBlock* block,
                        block->MakeNodeWithNameInStage<RegisterRead>(
                            read_stage_index, read->loc(), state_register,
                            /*name=*/state_register->name()));
-  XLS_ASSIGN_OR_RETURN(bool read_removed,
-                       ReplaceNode(block, read, reg_read,
-                                   /*replace_implicit_uses=*/false));
+  XLS_ASSIGN_OR_RETURN(
+      bool read_removed,
+      ReplaceNode(block, read, reg_read, /*replace_implicit_uses=*/false));
   XLS_RET_CHECK(!read_removed);
 
   Next* last_write = nullptr;
