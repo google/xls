@@ -241,20 +241,38 @@ absl::Status LowerStateElement(ScheduledBlock* block,
     XLS_ASSIGN_OR_RETURN(int stage_index, block->GetStageIndex(write));
     Stage& stage = block->stages()[stage_index];
 
+    Node* value = write->value();
+    std::optional<Node*> predicate = write->predicate();
+
+    // If needed, add identity nodes to signal that the value and predicate both
+    // need to be available at the write's stage. (This enables pipeline
+    // register insertion later.)
+    if (block->IsStaged(value) && *block->GetStageIndex(value) != stage_index) {
+      XLS_ASSIGN_OR_RETURN(
+          value, block->MakeNodeInStage<UnOp>(stage_index, write->loc(), value,
+                                              Op::kIdentity));
+    }
+    if (predicate.has_value() && block->IsStaged(*predicate) &&
+        *block->GetStageIndex(*predicate) != stage_index) {
+      XLS_ASSIGN_OR_RETURN(
+          predicate, block->MakeNodeInStage<UnOp>(stage_index, write->loc(),
+                                                  *predicate, Op::kIdentity));
+    }
+
     std::vector<Node*> gate_operands{stage.inputs_valid(),
                                      stage.active_inputs_valid()};
     std::vector<Node*> condition_operands{stage.outputs_valid(),
                                           stage.outputs_ready()};
-    if (write->predicate().has_value()) {
-      gate_operands.push_back(*write->predicate());
-      condition_operands.push_back(*write->predicate());
+    if (predicate.has_value()) {
+      gate_operands.push_back(*predicate);
+      condition_operands.push_back(*predicate);
     }
     XLS_ASSIGN_OR_RETURN(Node * gate, NaryAndIfNeeded(block, gate_operands));
     XLS_ASSIGN_OR_RETURN(Node * condition,
                          NaryAndIfNeeded(block, condition_operands));
     gates.push_back(gate);
     write_conditions.push_back(condition);
-    values.push_back(write->value());
+    values.push_back(value);
   }
 
   Node* value = nullptr;

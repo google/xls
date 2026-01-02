@@ -1828,7 +1828,7 @@ TEST_F(SimplePipelinedProcTest, ChannelNonDefaultSuffixName) {
   EXPECT_TRUE(HasNode("out_valid", block_nondefault_suffix));
 }
 
-TEST_F(SimplePipelinedProcTest, DISABLED_BasicDatapathResetAndInputFlop) {
+TEST_F(SimplePipelinedProcTest, BasicDatapathResetAndInputFlop) {
   CodegenOptions options;
   options.flop_inputs(true).flop_outputs(false).clock_name("clk");
   options.valid_control("input_valid", "output_valid");
@@ -1916,11 +1916,12 @@ TEST_F(SimplePipelinedProcTest, DISABLED_BasicDatapathResetAndInputFlop) {
       /*column_width=*/10, inputs, outputs, expected_outputs));
 
   for (int64_t i = 0; i < outputs.size(); ++i) {
-    EXPECT_EQ(outputs.at(i), expected_outputs.at(i));
+    EXPECT_EQ(outputs.at(i), expected_outputs.at(i))
+        << "Mismatch at cycle " << i;
   }
 }
 
-TEST_F(SimplePipelinedProcTest, DISABLED_BasicResetAndStall) {
+TEST_F(SimplePipelinedProcTest, BasicResetAndStall) {
   CodegenOptions options;
   options.flop_inputs(false).flop_outputs(false).clock_name("clk");
   options.valid_control("input_valid", "output_valid");
@@ -1948,17 +1949,12 @@ TEST_F(SimplePipelinedProcTest, DISABLED_BasicResetAndStall) {
       0, 9, {{"rst", 1}, {"in_vld", 1}, {"out_rdy", 1}}, inputs));
   XLS_ASSERT_OK(SetSignalsOverCycles(
       0, 2, {{"in_rdy", 1}, {"out_vld", 0}, {"out", 0}}, expected_outputs));
-  XLS_ASSERT_OK(SetSignalsOverCycles(1, 1, {{"out", 0}}, expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(1, 2, {{"out", 0}}, expected_outputs));
   XLS_ASSERT_OK(SetSignalsOverCycles(3, 9, {{"in_rdy", 1}, {"out_vld", 0}},
                                      expected_outputs));
   XLS_ASSERT_OK_AND_ASSIGN(running_out_val,
                            SetIncrementingSignalOverCycles(
                                3, 9, "out", running_out_val, expected_outputs));
-  // The way SDC schedules this requires this, because there's a not node after
-  // a register in stage 0, so on reset that outputs !0 = INT_MAX.
-  // We can't easily change SimplePipelinedProcTest to use a manual schedule
-  // because it accepts the number of stages as a parameter.
-  expected_outputs.at(2).at("out") = std::numeric_limits<uint32_t>::max();
 
   // Once reset is deasserted, then the pipeline is closed, no further changes
   // in the output is expected if the input is not valid.
@@ -2128,7 +2124,7 @@ class SimplePipelinedProcTestSweepFixture
   }
 };
 
-TEST_P(SimplePipelinedProcTestSweepFixture, DISABLED_RandomStalling) {
+TEST_P(SimplePipelinedProcTestSweepFixture, RandomStalling) {
   int64_t stage_count = std::get<0>(GetParam());
   bool flop_inputs = std::get<1>(GetParam());
   bool flop_outputs = std::get<2>(GetParam());
@@ -2329,7 +2325,7 @@ class SimpleRunningCounterProcTestSweepFixture
   }
 };
 
-TEST_P(SimpleRunningCounterProcTestSweepFixture, DISABLED_RandomStalling) {
+TEST_P(SimpleRunningCounterProcTestSweepFixture, RandomStalling) {
   int64_t stage_count = std::get<0>(GetParam());
   bool active_low_reset = std::get<1>(GetParam());
   bool flop_inputs = std::get<2>(GetParam());
@@ -2476,7 +2472,7 @@ INSTANTIATE_TEST_SUITE_P(
                         CodegenOptions::IOKind::kZeroLatencyBuffer)),
     SimpleRunningCounterProcTestSweepFixture::PrintToStringParamName);
 
-// Fixture used to test pipelined BlockConversion on a multi input  block.
+// Fixture used to test pipelined BlockConversion on a multi-input block.
 class MultiInputPipelinedProcTest : public ProcConversionTestFixture {
  protected:
   absl::StatusOr<std::unique_ptr<Package>> BuildBlockInPackage(
@@ -2656,10 +2652,11 @@ TEST_P(MultiInputPipelinedProcTestSweepFixture, DISABLED_RandomStalling) {
           {reset_signal, SignalType::kInput, active_low_reset}, inputs,
           outputs));
 
-  EXPECT_TRUE(output_sequence.size() == input0_sequence.size() ||
-              output_sequence.size() + 1 == input0_sequence.size());
-  EXPECT_TRUE(output_sequence.size() == input1_sequence.size() ||
-              output_sequence.size() + 1 == input1_sequence.size());
+  EXPECT_LE(output_sequence.size(), input0_sequence.size());
+  EXPECT_GE(output_sequence.size() + 1, input1_sequence.size());
+
+  EXPECT_LE(output_sequence.size(), input1_sequence.size());
+  EXPECT_GE(output_sequence.size() + 1, input0_sequence.size());
 
   for (int64_t i = 0; i < output_sequence.size(); ++i) {
     int64_t in0_val = input0_sequence.at(i).value;

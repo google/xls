@@ -33,6 +33,7 @@
 #include "xls/codegen_v_1_5/state_to_register_io_lowering_pass.h"
 #include "xls/passes/dataflow_simplification_pass.h"
 #include "xls/passes/dce_pass.h"
+#include "xls/passes/identity_removal_pass.h"
 #include "xls/passes/optimization_pass.h"
 
 namespace xls::codegen {
@@ -73,7 +74,9 @@ std::unique_ptr<BlockConversionCompoundPass> CreateBlockConversionPassPipeline(
   // registers).
   top->Add<RegisterCleanupPass>();
 
-  // Clean up unnecessary array/tuple manipulation.
+  // Clean up identity placeholders and unnecessary array/tuple manipulation.
+  top->Add<BlockConversionWrapperPass>(std::make_unique<IdentityRemovalPass>(),
+                                       opt_context);
   top->Add<BlockConversionWrapperPass>(
       std::make_unique<DataflowSimplificationPass>(), opt_context);
 

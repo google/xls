@@ -615,6 +615,20 @@ LowerChannelsToConnectors(ScheduledBlock* block,
   return result;
 }
 
+absl::StatusOr<Node*> MakeStagedUseIfNeeded(Node* operand, int64_t stage_index,
+                                            ScheduledBlock* block,
+                                            SourceInfo loc = SourceInfo()) {
+  if (!block->IsStaged(operand)) {
+    // Unstaged nodes don't need their uses to be stages.
+    return operand;
+  }
+  if (stage_index == *block->GetStageIndex(operand)) {
+    // Operand is already staged at the correct stage.
+    return operand;
+  }
+  return block->MakeNodeInStage<UnOp>(stage_index, loc, operand, Op::kIdentity);
+}
+
 absl::Status ConnectReceivesToConnector(
     absl::Span<Node* const> receives, Connector& connector,
     ScheduledBlock* block, const BlockConversionPassOptions& options) {
@@ -639,8 +653,17 @@ absl::Status ConnectReceivesToConnector(
        iter::zip(receives, stage_indices)) {
     Stage& stage = block->stages()[stage_index];
     Node* token = receive->As<Receive>()->token();
-    std::optional<Node*> predicate = receive->As<Receive>()->predicate();
     bool is_blocking = receive->As<Receive>()->is_blocking();
+    std::optional<Node*> predicate = receive->As<Receive>()->predicate();
+
+    // If needed, add identity nodes to signal that the predicate needs to be
+    // available at the receive's stage. (This enables pipeline register
+    // insertion later.)
+    if (predicate.has_value()) {
+      XLS_ASSIGN_OR_RETURN(predicate,
+                           MakeStagedUseIfNeeded(*predicate, stage_index, block,
+                                                 receive->loc()));
+    }
 
     if (connector.ready.has_value()) {
       // The ready signal from this receive is:
@@ -773,9 +796,22 @@ absl::Status ConnectSendsToConnector(
   for (const auto& [send, stage_index] : iter::zip(sends, stage_indices)) {
     Stage& stage = block->stages()[stage_index];
     Node* token = send->As<Send>()->token();
+
+    Node* data = send->As<Send>()->data();
     std::optional<Node*> predicate = send->As<Send>()->predicate();
 
-    data_signals.push_back(send->As<Send>()->data());
+    // If needed, add identity nodes to signal that the predicate & data need to
+    // be available at the send's stage. (This enables pipeline register
+    // insertion later.)
+    XLS_ASSIGN_OR_RETURN(
+        data, MakeStagedUseIfNeeded(data, stage_index, block, send->loc()));
+    if (predicate.has_value()) {
+      XLS_ASSIGN_OR_RETURN(
+          predicate,
+          MakeStagedUseIfNeeded(*predicate, stage_index, block, send->loc()));
+    }
+
+    data_signals.push_back(data);
 
     // This send is active if and only if the inputs are valid and the predicate
     // (if any) is true.
