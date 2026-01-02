@@ -417,6 +417,23 @@ bool IsBinarySelect(Node* node);
 // default value)
 bool IsBinaryPrioritySelect(Node* node);
 
+// A uniform view of a "binary select-like" node.
+//
+// For `sel(p, cases=[on_false, on_true])`, the selector is `p`.
+// For a binary `priority_sel(p, cases=[on_true], default=on_false)`, the
+// selector is `p` (which is required to be a single bit).
+struct BinarySelectArms {
+  Node* selector;
+  Node* on_false;
+  Node* on_true;
+};
+
+// Returns a uniform view of a binary `sel` or a binary `priority_sel`.
+//
+// Returns std::nullopt if `node` is not one of those binary forms.
+absl::StatusOr<std::optional<BinarySelectArms>> MatchBinarySelectLike(
+    Node* node);
+
 // Returns the op which is the inverse of the given comparison.
 //
 // That is (not (op L R)) == ((InvertComparisonOp op) L R).
