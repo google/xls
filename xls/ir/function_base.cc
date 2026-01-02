@@ -257,6 +257,12 @@ void FunctionBase::TakeOwnershipOfNode(std::unique_ptr<Node>&& node) {
   }
 
   node->function_base_ = this;
+  if (node->HasAssignedName()) {
+    std::string unique_name = UniquifyNodeName(node->GetNameView());
+    if (unique_name != node->GetName()) {
+      node->SetNameDirectly(unique_name);
+    }
+  }
   AddNodeInternal(std::move(node));
 }
 

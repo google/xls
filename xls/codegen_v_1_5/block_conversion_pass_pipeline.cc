@@ -31,6 +31,7 @@
 #include "xls/codegen_v_1_5/scheduled_block_conversion_pass.h"
 #include "xls/codegen_v_1_5/scheduling_pass.h"
 #include "xls/codegen_v_1_5/state_to_register_io_lowering_pass.h"
+#include "xls/passes/dataflow_simplification_pass.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
 
@@ -71,6 +72,10 @@ std::unique_ptr<BlockConversionCompoundPass> CreateBlockConversionPassPipeline(
   // Clean up unused registers & load-enable bits (including flow-control
   // registers).
   top->Add<RegisterCleanupPass>();
+
+  // Clean up unnecessary array/tuple manipulation.
+  top->Add<BlockConversionWrapperPass>(
+      std::make_unique<DataflowSimplificationPass>(), opt_context);
 
   // Remove anything we created & then left dead.
   top->Add<BlockConversionWrapperPass>(

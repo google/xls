@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -39,6 +40,17 @@ class NameUniquer {
 
   NameUniquer(const NameUniquer&) = delete;
   NameUniquer operator=(const NameUniquer&) = delete;
+
+  NameUniquer(NameUniquer&& other) : NameUniquer(other.separator_, {}) {
+    reserved_names_.swap(other.reserved_names_);
+    generated_names_.swap(other.generated_names_);
+  }
+  NameUniquer& operator=(NameUniquer&& other) {
+    separator_ = other.separator_;
+    reserved_names_.swap(other.reserved_names_);
+    generated_names_.swap(other.generated_names_);
+    return *this;
+  }
 
   // Return a sanitized unique name which starts with the given (sanitized)
   // prefix. Names are uniqued by adding a numeric suffix if necessary separated

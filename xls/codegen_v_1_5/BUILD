@@ -52,6 +52,7 @@ cc_library(
         ":scheduled_block_conversion_pass",
         ":scheduling_pass",
         ":state_to_register_io_lowering_pass",
+        "//xls/passes:dataflow_simplification_pass",
         "//xls/passes:dce_pass",
         "//xls/passes:optimization_pass",
     ],

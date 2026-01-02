@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <compare>
 #include <cstdint>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
@@ -1074,9 +1075,16 @@ absl::flat_hash_set<std::string> GetRamChannelNames(
 absl::StatusOr<FlopKind> GetFlopKind(ChannelRef channel,
                                      ChannelDirection direction,
                                      ScheduledBlock* block) {
+  if (ChannelRefKind(channel) == ChannelKind::kSingleValue) {
+    // NOTE: We control the flop insertion for single-value channels globally,
+    // ignoring this result. This matches the behavior in codegen v1.
+    return FlopKind::kNone;
+  }
+
   if (std::holds_alternative<Channel*>(channel)) {
     XLS_RET_CHECK(!block->package()->ChannelsAreProcScoped())
         << "For proc-scoped channels, the flop kind is set on the interface.";
+    XLS_RET_CHECK_EQ(ChannelRefKind(channel), ChannelKind::kStreaming);
     StreamingChannel* streaming_channel =
         down_cast<StreamingChannel*>(std::get<Channel*>(channel));
     switch (direction) {
@@ -1594,6 +1602,24 @@ absl::StatusOr<bool> LowerIoToPorts(
   return changed;
 }
 
+absl::StatusOr<absl::flat_hash_set<Channel*>> GetLivePackageScopedChannels(
+    Package* package) {
+  absl::flat_hash_set<Channel*> channels;
+  for (FunctionBase* fb : package->GetFunctionBases()) {
+    for (Node* node : fb->nodes()) {
+      if (!node->Is<ChannelNode>()) {
+        continue;
+      }
+      ChannelNode* channel_node = node->As<ChannelNode>();
+      XLS_ASSIGN_OR_RETURN(ChannelRef channel, channel_node->GetChannelRef());
+      if (std::holds_alternative<Channel*>(channel)) {
+        channels.insert(std::get<Channel*>(channel));
+      }
+    }
+  }
+  return channels;
+}
+
 }  // namespace
 
 absl::StatusOr<bool> ChannelToPortIoLoweringPass::RunInternal(
@@ -1620,15 +1646,23 @@ absl::StatusOr<bool> ChannelToPortIoLoweringPass::RunInternal(
 
     // Make sure to delete any remaining channels owned by the source proc.
     if (source->is_new_style_proc()) {
-      for (Channel* channel : source->channels()) {
+      std::vector<Channel*> channels_to_remove(source->channels().begin(),
+                                               source->channels().end());
+      for (Channel* channel : channels_to_remove) {
         XLS_RETURN_IF_ERROR(source->RemoveChannel(channel));
         changed = true;
       }
     }
   }
 
-  // Make sure to remove any remaining channels in the package.
-  for (Channel* channel : package->channels()) {
+  // Make sure to remove any now-dead channels in the package.
+  XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Channel*> live_channels,
+                       GetLivePackageScopedChannels(package));
+  std::vector<Channel*> channels_to_remove;
+  absl::c_copy_if(
+      package->channels(), std::back_inserter(channels_to_remove),
+      [&](Channel* channel) { return !live_channels.contains(channel); });
+  for (Channel* channel : channels_to_remove) {
     XLS_RETURN_IF_ERROR(package->RemoveChannel(channel));
     changed = true;
   }

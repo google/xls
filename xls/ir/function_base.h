@@ -467,7 +467,13 @@ class FunctionBase {
   // channels, or proc instantiations. The move includes the staging of the
   // logic, if this is a scheduled entity.
   void MoveLogicFrom(FunctionBase& other) {
-    MoveFrom(other, [](const Node* n) { return !n->Is<Param>(); });
+    MoveFrom(other, [](const Node* n) {
+      // We can't move Params because they're part of a function's interface.
+      // Procs broadly assume that StateReads will exist in a close 1-1
+      // association with their StateElements, so it's simpler to keep them
+      // together.
+      return !n->Is<Param>() && !n->Is<StateRead>();
+    });
     other.next_values_by_state_read_.clear();
     other.next_values_.clear();
   }

@@ -511,7 +511,7 @@ fn __implicit_token__main() -> () {
   XLS_ASSERT_OK(VerifyBlock(block));
 }
 
-TEST_F(BlockConversionTest, DISABLED_SimpleProc) {
+TEST_F(BlockConversionTest, SimpleProc) {
   const std::string ir_text = R"(package test
 
 chan in(bits[32], id=0, kind=single_value, ops=receive_only)
@@ -535,7 +535,9 @@ proc my_proc(my_state: (), init={()}) {
       Block * block,
       ConvertToBlock(proc, codegen_options().generate_combinational(true)));
   EXPECT_THAT(FindNode("out", block),
-              m::OutputPort("out", m::Neg(m::InputPort("in"))));
+              m::OutputPort("out", m::Neg(m::InputPort("in"))))
+      << "\n\nIR:\n"
+      << block->DumpIr();
 }
 
 TEST_F(BlockConversionTest, DISABLED_StreamingChannelMetadataForSimpleProc) {
