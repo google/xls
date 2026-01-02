@@ -66,6 +66,34 @@ absl::StatusOr<bool> FlowControlInsertionPass::InsertFlowControl(
     return changed;
   }
 
+  const bool uses_valid =
+      options.codegen_options.valid_control().has_value() &&
+      (options.codegen_options.valid_control()->has_input_name() ||
+       options.codegen_options.valid_control()->has_output_name());
+  if (block->source() != nullptr && block->source()->IsFunction() &&
+      !uses_valid) {
+    // If this block represents a function and neither gates on valid nor
+    // signals valid, then the pipeline registers can just be considered
+    // always-valid and always-ready.
+    for (Stage& stage : block->stages()) {
+      if (!IsLiteralUnsignedOne(stage.inputs_valid())) {
+        XLS_RETURN_IF_ERROR(
+            stage.inputs_valid()
+                ->ReplaceUsesWithNew<Literal>(Value(UBits(1, 1)))
+                .status());
+        changed = true;
+      }
+      if (!IsLiteralUnsignedOne(stage.outputs_ready())) {
+        XLS_RETURN_IF_ERROR(
+            stage.outputs_ready()
+                ->ReplaceUsesWithNew<Literal>(Value(UBits(1, 1)))
+                .status());
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
   absl::FixedArray<Node*> stage_done(block->stages().size());
   for (int64_t stage_index = 0; stage_index < block->stages().size();
        ++stage_index) {

@@ -1,4 +1,4 @@
-// Copyright 2025 The XLS Authors
+// Copyright 2021 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,21 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_CODEGEN_CODEGEN_V_1_5_BLOCK_CONVERSION_PASS_PIPELINE_H_
-#define XLS_CODEGEN_CODEGEN_V_1_5_BLOCK_CONVERSION_PASS_PIPELINE_H_
+#include "xls/codegen_v_1_5/block_conversion_wrapper_pass.h"
 
-#include <memory>
-
+#include "absl/status/statusor.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
+#include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls::codegen {
 
-// Returns a pipeline which converts an unscheduled IR package into a standard
-// block.
-std::unique_ptr<BlockConversionCompoundPass> CreateBlockConversionPassPipeline(
-    OptimizationContext& opt_context);
+absl::StatusOr<bool> BlockConversionWrapperPass::RunInternal(
+    Package* package, const BlockConversionPassOptions& options,
+    PassResults* results) const {
+  return wrapped_pass_->Run(package, OptimizationPassOptions(options), results,
+                            opt_context_);
+}
 
 }  // namespace xls::codegen
-
-#endif  // XLS_CODEGEN_CODEGEN_V_1_5_BLOCK_CONVERSION_PASS_PIPELINE_H_

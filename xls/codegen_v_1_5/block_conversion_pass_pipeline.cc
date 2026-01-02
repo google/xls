@@ -20,20 +20,24 @@
 #include <memory>
 
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
+#include "xls/codegen_v_1_5/block_conversion_wrapper_pass.h"
 #include "xls/codegen_v_1_5/block_finalization_pass.h"
 #include "xls/codegen_v_1_5/channel_to_port_io_lowering_pass.h"
 #include "xls/codegen_v_1_5/flow_control_insertion_pass.h"
 #include "xls/codegen_v_1_5/function_io_lowering_pass.h"
 #include "xls/codegen_v_1_5/idle_insertion_pass.h"
 #include "xls/codegen_v_1_5/pipeline_register_insertion_pass.h"
+#include "xls/codegen_v_1_5/register_cleanup_pass.h"
 #include "xls/codegen_v_1_5/scheduled_block_conversion_pass.h"
 #include "xls/codegen_v_1_5/scheduling_pass.h"
 #include "xls/codegen_v_1_5/state_to_register_io_lowering_pass.h"
+#include "xls/passes/dce_pass.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls::codegen {
 
-std::unique_ptr<BlockConversionCompoundPass>
-CreateBlockConversionPassPipeline() {
+std::unique_ptr<BlockConversionCompoundPass> CreateBlockConversionPassPipeline(
+    OptimizationContext& opt_context) {
   auto top = std::make_unique<BlockConversionCompoundPass>(
       "block_conversion", "Top level codegen v1.5 block conversion pipeline");
 
@@ -63,6 +67,14 @@ CreateBlockConversionPassPipeline() {
 
   // Lower scheduled block to standard block, inlining each stage.
   top->Add<BlockFinalizationPass>();
+
+  // Clean up unused registers & load-enable bits (including flow-control
+  // registers).
+  top->Add<RegisterCleanupPass>();
+
+  // Remove anything we created & then left dead.
+  top->Add<BlockConversionWrapperPass>(
+      std::make_unique<DeadCodeEliminationPass>(), opt_context);
 
   return top;
 }

@@ -54,7 +54,6 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/interpreter/block_evaluator.h"
 #include "xls/interpreter/block_interpreter.h"
 #include "xls/ir/bits.h"
@@ -97,6 +96,7 @@ using ::testing::ElementsAre;
 using ::testing::Eq;
 using ::testing::Ge;
 using ::testing::HasSubstr;
+using ::testing::IsEmpty;
 using ::testing::Optional;
 using ::testing::Pair;
 using ::testing::SizeIs;
@@ -282,7 +282,7 @@ TEST_F(BlockConversionTest, SimpleFunction) {
       m::OutputPort("out", m::Add(m::InputPort("x"), m::InputPort("y"))));
 }
 
-TEST_F(BlockConversionTest, DISABLED_SimpleFunctionWithNamedOutput) {
+TEST_F(BlockConversionTest, SimpleFunctionWithNamedOutput) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue x = fb.Param("x", p->GetBitsType(32));
@@ -331,7 +331,30 @@ TEST_F(BlockConversionTest, ZeroWidthInputsAndOutput) {
   EXPECT_EQ(block->GetPorts().size(), 4);
 }
 
-TEST_F(BlockConversionTest, DISABLED_SimplePipelinedFunction) {
+TEST_F(BlockConversionTest, SimplePipelinedFunction) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, fb.BuildWithReturnValue(fb.Negate(fb.Not(fb.Add(x, y)))));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block,
+      ConvertToBlock(
+          f,
+          CodegenOptions().flop_inputs(false).flop_outputs(false).clock_name(
+              "clk"),
+          SchedulingOptions().pipeline_stages(3)));
+
+  EXPECT_THAT(GetOutputPort(block),
+              m::OutputPort(m::Neg(m::Register(m::Not(
+                  m::Register(m::Add(m::InputPort("x"), m::InputPort("y"))))))))
+      << "\n\nIR:\n"
+      << block->DumpIr();
+}
+
+TEST_F(BlockConversionTest, TrivialPipelinedFunctionNoFlopping) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue x = fb.Param("x", p->GetBitsType(32));
@@ -352,28 +375,7 @@ TEST_F(BlockConversionTest, DISABLED_SimplePipelinedFunction) {
                   m::Add(m::InputPort("x"), m::InputPort("y"))))))));
 }
 
-TEST_F(BlockConversionTest, DISABLED_TrivialPipelinedFunctionNoFlopping) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  BValue x = fb.Param("x", p->GetBitsType(32));
-  BValue y = fb.Param("y", p->GetBitsType(32));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Function * f, fb.BuildWithReturnValue(fb.Negate(fb.Not(fb.Add(x, y)))));
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Block * block,
-      ConvertToBlock(
-          f,
-          CodegenOptions().flop_inputs(false).flop_outputs(false).clock_name(
-              "clk"),
-          SchedulingOptions().pipeline_stages(3)));
-
-  EXPECT_THAT(GetOutputPort(block),
-              m::OutputPort(m::Neg(m::Register(m::Not(m::Register(
-                  m::Add(m::InputPort("x"), m::InputPort("y"))))))));
-}
-
-TEST_F(BlockConversionTest, DISABLED_TrivialPipelinedFunctionFloppedInputs) {
+TEST_F(BlockConversionTest, TrivialPipelinedFunctionFloppedInputs) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue x = fb.Param("x", p->GetBitsType(32));
@@ -395,7 +397,7 @@ TEST_F(BlockConversionTest, DISABLED_TrivialPipelinedFunctionFloppedInputs) {
           m::Register(m::InputPort("x")), m::Register(m::InputPort("y")))))))));
 }
 
-TEST_F(BlockConversionTest, DISABLED_TrivialPipelinedFunctionFloppedOutputs) {
+TEST_F(BlockConversionTest, TrivialPipelinedFunctionFloppedOutputs) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue x = fb.Param("x", p->GetBitsType(32));
@@ -416,7 +418,7 @@ TEST_F(BlockConversionTest, DISABLED_TrivialPipelinedFunctionFloppedOutputs) {
                   m::Add(m::InputPort("x"), m::InputPort("y")))))))));
 }
 
-TEST_F(BlockConversionTest, DISABLED_TrivialPipelinedFunctionFloppedIo) {
+TEST_F(BlockConversionTest, TrivialPipelinedFunctionFloppedIo) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue x = fb.Param("x", p->GetBitsType(32));
@@ -438,7 +440,7 @@ TEST_F(BlockConversionTest, DISABLED_TrivialPipelinedFunctionFloppedIo) {
                                      m::Register(m::InputPort("y"))))))))));
 }
 
-TEST_F(BlockConversionTest, DISABLED_ZeroWidthPipeline) {
+TEST_F(BlockConversionTest, ZeroWidthPipeline) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue x = fb.Param("x", p->GetTupleType({}));
@@ -454,7 +456,28 @@ TEST_F(BlockConversionTest, DISABLED_ZeroWidthPipeline) {
               "clk"),
           SchedulingOptions().pipeline_stages(3)));
 
-  EXPECT_EQ(block->GetRegisters().size(), 4);
+  EXPECT_THAT(block->GetRegisters(), IsEmpty());
+}
+
+TEST_F(BlockConversionTest, ZeroWidthPipelineWithValidControl) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetTupleType({}));
+  BValue y = fb.Param("y", p->GetBitsType(0));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Tuple({x, y})));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block,
+      ConvertToBlock(f,
+                     CodegenOptions()
+                         .flop_inputs(false)
+                         .flop_outputs(false)
+                         .clock_name("clk")
+                         .valid_control("inputs_valid", "output_valid"),
+                     SchedulingOptions().pipeline_stages(3)));
+
+  EXPECT_THAT(block->GetRegisters(), SizeIs(2));
 }
 
 // Verifies that an implicit token, as generated by the DSLX IR converter, is
@@ -473,11 +496,10 @@ fn __itok__implicit_token__main(__token: token, __activated: bits[1]) ->
 fn __implicit_token__main() -> () {
   after_all.9: token = after_all(id=9)
   literal.10: bits[1] = literal(value=1, id=10)
-  invoke.11: (token, ()) = invoke(after_all.9, literal.10,
-  to_apply=__itok__implicit_token__main, id=11) tuple_index.12: token =
-  tuple_index(invoke.11, index=0, id=12) invoke.13: (token, ()) =
-  invoke(tuple_index.12, literal.10, to_apply=__itok__implicit_token__main,
-  id=13) ret tuple_index.14: () = tuple_index(invoke.13, index=1, id=14)
+  invoke.11: (token, ()) = invoke(after_all.9, literal.10, to_apply=__itok__implicit_token__main, id=11)
+  tuple_index.12: token = tuple_index(invoke.11, index=0, id=12)
+  invoke.13: (token, ()) = invoke(tuple_index.12, literal.10, to_apply=__itok__implicit_token__main, id=13)
+  ret tuple_index.14: () = tuple_index(invoke.13, index=1, id=14)
 }
   )";
   XLS_ASSERT_OK_AND_ASSIGN(auto p, Parser::ParsePackage(kIrText));
@@ -6394,7 +6416,7 @@ TEST_F(ProcConversionTestFixture,
   }
 }
 
-TEST_F(ProcConversionTestFixture, DISABLED_SimpleFunctionWithProcsPresent) {
+TEST_F(ProcConversionTestFixture, SimpleFunctionWithProcsPresent) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
                            CreateMultiProcPackage(/*with_functions=*/true));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f0, p->GetFunction("f0"));
