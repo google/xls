@@ -367,6 +367,20 @@ cc_test(
 )
 
 cc_test(
+    name = "expr_clone_test",
+    srcs = ["expr_clone_test.cc"],
+    deps = [
+        ":unit_test",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/contrib/xlscc:cc_parser",
+        "//xls/contrib/xlscc:expr_clone",
+        "@googletest//:gtest",
+        "@llvm-project//clang:ast",
+    ],
+)
+
+cc_test(
     name = "synth_only_test",
     srcs = ["synth_only_test.cc"],
     data = [
