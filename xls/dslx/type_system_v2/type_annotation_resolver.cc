@@ -96,6 +96,10 @@ class NeedsResolutionDetector : public AstNodeVisitorWithDefault {
   absl::Status HandleSliceTypeAnnotation(const SliceTypeAnnotation*) override {
     return MarkNeedsResolution();
   }
+  absl::Status HandleConstConditionalTypeAnnotation(
+      const ConstConditionalTypeAnnotation*) override {
+    return MarkNeedsResolution();
+  }
 
   absl::Status DefaultHandler(const AstNode* node) override {
     for (const AstNode* child : node->GetChildren(/*want_types=*/true)) {
@@ -499,6 +503,38 @@ class StatefulResolver : public TypeAnnotationResolver {
         absl::Substitute("Expected a bits-like type; got: `$0`",
                          annotation->ToString()),
         file_table_);
+  }
+
+  absl::StatusOr<const TypeAnnotation*> ResolveConstConditionalType(
+      std::optional<const ParametricContext*> parametric_context,
+      std::optional<const AstNode*> context_node,
+      const ConstConditionalTypeAnnotation* conditional_type,
+      TypeAnnotationFilter filter) {
+    if (!context_node.has_value()) {
+      return TypeInferenceErrorStatus(
+          conditional_type->span(), /*type=*/nullptr,
+          "context_node is required for ResolveConstConditionalType()",
+          file_table_);
+    }
+
+    const Conditional* conditional =
+        down_cast<const Conditional*>(*context_node);
+    absl::StatusOr<bool> evaluated_value = evaluator_.EvaluateBoolOrExpr(
+        parametric_context, conditional_type->test());
+    if (evaluated_value.ok()) {
+      const AstNode* selected_branch =
+          *evaluated_value ? conditional->consequent()
+                           : ToExprNode(conditional->alternate());
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<const TypeAnnotation*> selected_annotation,
+          ResolveAndUnifyTypeAnnotationsForNode(parametric_context,
+                                                selected_branch, filter));
+      return *selected_annotation;
+    }
+
+    return TypeInferenceErrorStatus(conditional_type->span(), /*type=*/nullptr,
+                                    "Unable to evaluate const conditional",
+                                    file_table_);
   }
 
   // Converts `member_type` into a regular `TypeAnnotation` that expresses the
@@ -948,6 +984,14 @@ class StatefulResolver : public TypeAnnotationResolver {
       XLS_ASSIGN_OR_RETURN(result_, resolver_.ResolveSliceType(
                                         parametric_context_, context_node_,
                                         slice_type, filter_));
+      return absl::OkStatus();
+    }
+
+    absl::Status HandleConstConditionalTypeAnnotation(
+        const ConstConditionalTypeAnnotation* const_conditional_type) override {
+      XLS_ASSIGN_OR_RETURN(result_, resolver_.ResolveConstConditionalType(
+                                        parametric_context_, context_node_,
+                                        const_conditional_type, filter_));
       return absl::OkStatus();
     }
 

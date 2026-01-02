@@ -501,16 +501,41 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
 
   absl::Status HandleConditional(const Conditional* node) override {
     VLOG(5) << "HandleConditional: " << node->ToString();
-    // In the example `const D = if (a) {b} else {c};`, the `ConstantDef`
-    // establishes a type variable that is just propagated down to `b` and
-    // `c` here, meaning that `b`, `c`, and the result must ultimately be
-    // the same type as 'D'. The test 'a' must be a bool, so we annotate it as
-    // such.
     const NameRef* type_variable = *table_.GetTypeVariable(node);
-    XLS_RETURN_IF_ERROR(
-        table_.SetTypeVariable(node->consequent(), type_variable));
-    XLS_RETURN_IF_ERROR(
-        table_.SetTypeVariable(ToAstNode(node->alternate()), type_variable));
+    if (node->IsConst()) {
+      // For constexpr if we create separate variables for each if branch.
+      // Later during the generation of TypeInfo, after resolving parametrics,
+      // and evaluating the test condition, we force the type of the selected
+      // if branch on the conditional node.
+      XLS_RETURN_IF_ERROR(DefineAndSetTypeVariable(node->test(), "test"));
+      XLS_ASSIGN_OR_RETURN(
+          const NameRef* consequent_type,
+          DefineTypeVariable(node->consequent(), "consequent"));
+      XLS_RETURN_IF_ERROR(
+          table_.SetTypeVariable(node->consequent(), consequent_type));
+
+      XLS_ASSIGN_OR_RETURN(
+          const NameRef* alternate_type,
+          DefineTypeVariable(ToAstNode(node->alternate()), "alternate"));
+      XLS_RETURN_IF_ERROR(
+          table_.SetTypeVariable(ToAstNode(node->alternate()), alternate_type));
+
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+          node, module_.Make<ConstConditionalTypeAnnotation>(
+                    node->span(), node->test(),
+                    module_.Make<TypeVariableTypeAnnotation>(consequent_type),
+                    module_.Make<TypeVariableTypeAnnotation>(alternate_type))));
+    } else {
+      // In the example `const D = if (a) {b} else {c};`, the `ConstantDef`
+      // establishes a type variable that is just propagated down to `b` and
+      // `c` here, meaning that `b`, `c`, and the result must ultimately be
+      // the same type as 'D'. The test 'a' must be a bool, so we annotate it as
+      // such.
+      XLS_RETURN_IF_ERROR(
+          table_.SetTypeVariable(node->consequent(), type_variable));
+      XLS_RETURN_IF_ERROR(
+          table_.SetTypeVariable(ToAstNode(node->alternate()), type_variable));
+    }
 
     // Mark the test as bool.
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(

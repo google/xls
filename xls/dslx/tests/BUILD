@@ -1374,3 +1374,8 @@ dslx_strip_comments(
     name = "x_files_stripped",
     srcs = [":x_files"],
 )
+
+dslx_lang_test(
+    name = "const_if",
+    dslx_entry = "main",
+)
