@@ -553,7 +553,7 @@ class AstCloner : public AstNodeVisitor {
 
     old_to_new_[n] = module(n)->Make<Match>(
         n->span(), down_cast<Expr*>(old_to_new_.at(n->matched())), new_arms,
-        n->in_parens());
+        n->in_parens(), n->IsConst());
     return absl::OkStatus();
   }
 

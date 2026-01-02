@@ -1151,8 +1151,8 @@ inline bool WeakerThan(Precedence x, Precedence y) {
 // (i.e. can produce runtime values).
 class Expr : public AstNode {
  public:
-  Expr(Module* owner, Span span, bool in_parens = false)
-      : AstNode(owner), span_(span), in_parens_(in_parens) {}
+  Expr(Module* owner, Span span, bool in_parens = false, bool is_const = false)
+      : AstNode(owner), span_(span), in_parens_(in_parens), is_const_(is_const) {}
 
   ~Expr() override;
 
@@ -1202,6 +1202,7 @@ class Expr : public AstNode {
   //    (x == y) == z
   bool in_parens() const { return in_parens_; }
   void set_in_parens(bool enabled) { in_parens_ = enabled; }
+  bool IsConst() const { return is_const_; }
 
  protected:
   virtual std::string ToStringInternal() const = 0;
@@ -1211,6 +1212,7 @@ class Expr : public AstNode {
  private:
   Span span_;
   bool in_parens_ = false;
+  bool is_const_;
 };
 
 // ChannelTypeAnnotation has to be placed after the definition of Expr, so it
@@ -2626,7 +2628,7 @@ class MatchArm : public AstNode {
 class Match : public Expr {
  public:
   Match(Module* owner, Span span, Expr* matched, std::vector<MatchArm*> arms,
-        bool in_parens = false);
+        bool in_parens = false, bool is_const = false);
 
   ~Match() override;
 

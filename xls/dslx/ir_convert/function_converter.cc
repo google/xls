@@ -1288,6 +1288,106 @@ absl::Status FunctionConverter::HandleBuiltinWideningCast(
   return absl::OkStatus();
 }
 
+absl::StatusOr<uint64_t> FunctionConverter::ConstMatchWhichArm(const Match* node) {
+  ParametricEnv bindings(parametric_env_map_);
+  std::vector<MatchArm*> construct_match_arms;
+  construct_match_arms.reserve(node->arms().size());
+
+  // Construct a new Match object, which has the same `matched` and `patterns` as the original.
+  // Create a new expression for each arm
+  // so that the whole match can be evaluated to know which arm is selected.
+  for (int64_t i = 0; i < node->arms().size(); ++i) {
+    MatchArm* arm = node->arms()[i];
+    // create a new expression for this arm - a number with the index of the arm.
+    Number* expr = module_->Make<Number>(
+        Span::Fake(),
+        absl::StrFormat("%d", i),
+        NumberKind::kOther,
+        CreateU32Annotation(*module_, Span::Fake()));
+
+    current_type_info_->SetItem(expr, BitsType::MakeU32());
+    current_type_info_->NoteConstExpr(expr, InterpValue::MakeUBits(32, i));
+
+    construct_match_arms.push_back(
+        module_->Make<MatchArm>(arm->span(), arm->patterns(), expr));
+  }
+  Match *fake_match = module_->Make<Match>(node->span(), node->matched(), construct_match_arms);
+
+  XLS_ASSIGN_OR_RETURN(InterpValue interp_match,
+                       ConstexprEvaluator::EvaluateToValue(
+                           import_data_, current_type_info_,
+                           kNoWarningCollector, bindings, fake_match));
+
+  XLS_ASSIGN_OR_RETURN(uint64_t arm_id, interp_match.GetBitValueUnsigned());
+
+  return arm_id;
+}
+
+bool pattern_has_namedef(const NameDefTree* pattern) {
+    if (pattern->is_leaf()) {
+      return absl::visit(
+        Visitor{
+              [&](NameDef* name_def) -> bool {
+                return true;
+              },
+              [&](AstNode* node) -> bool {
+                return false;
+              },
+          },
+        pattern->leaf());
+    } else {
+      return std::any_of(pattern->nodes().begin(), pattern->nodes().end(), pattern_has_namedef);
+    }
+}
+
+bool patterns_have_namedef(const std::vector<NameDefTree*>& patterns) {
+  return std::any_of(patterns.begin(), patterns.end(), pattern_has_namedef);
+}
+
+absl::Status FunctionConverter::HandleConstMatch(const Match* node) {
+  ParametricEnv bindings(parametric_env_map_);
+  std::optional<Value> matched_val;
+
+
+  XLS_RETURN_IF_ERROR(Visit(node->matched()));
+  XLS_ASSIGN_OR_RETURN(BValue matched, Use(node->matched()));
+  XLS_ASSIGN_OR_RETURN(InterpValue matched_const,
+                       ConstexprEvaluator::EvaluateToValue(
+                           import_data_, current_type_info_,
+                           kNoWarningCollector, bindings, node->matched()));
+
+  XLS_ASSIGN_OR_RETURN(matched_val, InterpValueToValue(matched_const));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> matched_type,
+                       ResolveType(node->matched()));
+
+  XLS_ASSIGN_OR_RETURN(uint64_t arm_id, ConstMatchWhichArm(node));
+
+  const MatchArm* arm = node->arms()[arm_id];
+  bool has_namedef = patterns_have_namedef(arm->patterns());
+  if (!has_namedef) { // simple case when the arm's expression can be converted to IR
+    XLS_RETURN_IF_ERROR(Visit(node->arms()[arm_id]->expr()));
+    XLS_ASSIGN_OR_RETURN(BValue bval, Use(node->arms()[arm_id]->expr()));
+    SetNodeToIr(node, bval);
+    return absl::OkStatus();
+  } else { }
+
+  BValue final_val = function_builder_->Literal(matched_val.value());
+  std::vector<BValue> arm_selectors;
+
+  for (NameDefTree* pattern : arm->patterns()) {
+    XLS_ASSIGN_OR_RETURN(BValue selector,
+                         HandleMatcher(pattern, final_val, *matched_type));
+    XLS_RET_CHECK(selector.valid());
+    arm_selectors.push_back(selector);
+  }
+
+  XLS_RETURN_IF_ERROR(Visit(arm->expr()));
+  XLS_ASSIGN_OR_RETURN(BValue arm_rhs_value, Use(arm->expr()));
+  SetNodeToIr(node, arm_rhs_value);
+
+  return absl::OkStatus();
+}
+
 absl::Status FunctionConverter::HandleMatch(const Match* node) {
   if (node->arms().empty()) {
     return IrConversionErrorStatus(
@@ -1295,6 +1395,10 @@ absl::Status FunctionConverter::HandleMatch(const Match* node) {
         "Only matches with complete patterns (i.e. a trailing `_ => ...`) "
         "are currently supported for IR conversion.",
         file_table());
+  }
+
+  if (node->IsConst()) {
+    return HandleConstMatch(node);
   }
 
   XLS_RETURN_IF_ERROR(Visit(node->matched()));

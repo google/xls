@@ -1396,3 +1396,30 @@ build_test(
     name = "xls_pipeline_build_test",
     targets = [":xls_pipeline"],
 )
+
+xls_dslx_library(
+    name = "const_match_dslx",
+    srcs = ["const_match.x"],
+)
+
+xls_dslx_test(
+    name = "const_match_test",
+    size = "small",
+    srcs = ["const_match.x"],
+    dslx_test_args = {"compare": "jit"},
+)
+
+xls_dslx_ir(
+    name = "const_match_ir",
+    dslx_top = "main",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
+    ir_file = "const_match.ir",
+    library = ":const_match_dslx",
+)
+
+xls_dslx_opt_ir(
+    name = "const_match_opt_ir",
+    srcs = ["const_match.x"],
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
+    dslx_top = "main",
+)

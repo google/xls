@@ -3339,6 +3339,20 @@ fn repro(x: u3) -> u2 {
               TypecheckSucceeds(HasNodeWithType("upper", "uN[2]")));
 }
 
+TEST(TypecheckV2Test, ConstMatch) {
+  EXPECT_THAT(R"(
+fn main(a: u32, b: u32) -> u32 {
+    const A = true;
+    let retval = const match A {
+        true => a,
+        false => b
+    };
+    retval
+}
+  )",
+              TypecheckSucceeds(HasNodeWithType("retval", "uN[32]")));
+
+}
 TEST(TypecheckV2Test, MatchMismatch) {
   EXPECT_THAT(R"(
 const X = u32:1;

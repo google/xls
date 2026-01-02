@@ -347,6 +347,9 @@ class FunctionConverter {
         ->GetInvocationCalleeBindings(invocation, key);
   }
 
+  // Helper to evaluate which arm of a const match should be used.
+  absl::StatusOr<uint64_t> ConstMatchWhichArm(const Match* node);
+
   // Helpers for HandleBinop().
   absl::Status HandleConcat(const Binop* node, BValue lhs, BValue rhs);
   absl::Status HandleEq(const Binop* node, BValue lhs, BValue rhs);
@@ -423,6 +426,7 @@ class FunctionConverter {
   absl::Status HandleLet(const Let* node);
   absl::Status HandleLetChannelDecl(const Let* node);
   absl::Status HandleMatch(const Match* node);
+  absl::Status HandleConstMatch(const Match* node);
   absl::Status HandleRange(const Range* node);
   absl::Status HandleSplatStructInstance(const SplatStructInstance* node);
   absl::Status HandleStatement(const Statement* node);
