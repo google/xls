@@ -627,6 +627,54 @@ TEST_F(BasicSimplificationPassTest, XorDuplicateOperandsCollapseToXor) {
   EXPECT_THAT(f->return_value(), m::Xor(m::Param("x"), m::Param("y")));
 }
 
+TEST_F(BasicSimplificationPassTest, AndOfSwappedTwoWaySelects) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue p_sel = fb.Param("p", p->GetBitsType(1));
+  BValue a = fb.Param("a", p->GetBitsType(32));
+  BValue b = fb.Param("b", p->GetBitsType(32));
+  BValue sel_ab = fb.Select(p_sel, {a, b});
+  BValue sel_ba = fb.Select(p_sel, {b, a});
+  fb.And(sel_ab, sel_ba);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::And(m::Param("a"), m::Param("b")));
+}
+
+TEST_F(BasicSimplificationPassTest, XorOfSwappedTwoWaySelects) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue p_sel = fb.Param("p", p->GetBitsType(1));
+  BValue a = fb.Param("a", p->GetBitsType(32));
+  BValue b = fb.Param("b", p->GetBitsType(32));
+  BValue sel_ab = fb.Select(p_sel, {a, b});
+  BValue sel_ba = fb.Select(p_sel, {b, a});
+  fb.Xor({sel_ab, sel_ba});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Xor(m::Param("a"), m::Param("b")));
+}
+
+TEST_F(BasicSimplificationPassTest, EqOfSwappedTwoWaySelects) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue p_sel = fb.Param("p", p->GetBitsType(1));
+  BValue a = fb.Param("a", p->GetBitsType(32));
+  BValue b = fb.Param("b", p->GetBitsType(32));
+  BValue sel_ab = fb.Select(p_sel, {a, b});
+  BValue sel_ba = fb.Select(p_sel, {b, a});
+  fb.Eq(sel_ab, sel_ba);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Eq(m::Param("a"), m::Param("b")));
+}
+
 TEST_F(BasicSimplificationPassTest, AddWithZero) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(

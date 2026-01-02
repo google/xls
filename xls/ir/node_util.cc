@@ -974,6 +974,25 @@ bool IsBinaryPrioritySelect(Node* node) {
   return sel->cases().size() == 1;
 }
 
+absl::StatusOr<std::optional<BinarySelectArms>> MatchBinarySelectLike(
+    Node* node) {
+  if (IsBinarySelect(node)) {
+    Select* sel = node->As<Select>();
+    XLS_RET_CHECK_EQ(sel->selector()->BitCountOrDie(), 1);
+    return BinarySelectArms{.selector = sel->selector(),
+                            .on_false = sel->get_case(0),
+                            .on_true = sel->get_case(1)};
+  }
+  if (IsBinaryPrioritySelect(node)) {
+    PrioritySelect* sel = node->As<PrioritySelect>();
+    XLS_RET_CHECK_EQ(sel->selector()->BitCountOrDie(), 1);
+    return BinarySelectArms{.selector = sel->selector(),
+                            .on_false = sel->default_value(),
+                            .on_true = sel->get_case(0)};
+  }
+  return std::nullopt;
+}
+
 absl::StatusOr<absl::flat_hash_map<Channel*, std::vector<Node*>>> ChannelUsers(
     Package* package) {
   absl::flat_hash_map<Channel*, std::vector<Node*>> channel_users;
