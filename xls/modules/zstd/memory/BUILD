@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pytype binary, library
 load("@rules_hdl//place_and_route:build_defs.bzl", "place_and_route")
 load("@rules_hdl//synthesis:build_defs.bzl", "benchmark_synth", "synthesize_rtl")
 load("@rules_hdl//verilog:providers.bzl", "verilog_library")
+load("@xls_pip_deps//:requirements.bzl", "requirement")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "xls_benchmark_ir",
@@ -67,8 +69,6 @@ common_codegen_args = {
     "streaming_channel_data_suffix": "_data",
     "fifo_module": "",
     "materialize_internal_fifos": "true",
-
-    # TODO: This should be adjusted when per channel separation of IO options is enabled
     "flop_inputs_kind": "skid",
     "flop_outputs_kind": "skid",
 }
@@ -89,7 +89,6 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
-# FIXME: Improve the proc to achieve CLOCK_PERIOD_PS
 AXI_READER_CLOCK_PERIOD_PS = "1700"
 
 axi_reader_codegen_args = common_codegen_args | {
@@ -345,7 +344,6 @@ xls_dslx_test(
     library = ":axi_ram_reader_dslx",
 )
 
-# FIXME: Improve the proc to achieve CLOCK_PERIOD_PS
 AXI_RAM_READER_CLOCK_PERIOD_PS = "850"
 
 axi_ram_reader_codegen_args = common_codegen_args | {
@@ -432,7 +430,6 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
-# FIXME: Improve the proc to achieve CLOCK_PERIOD_PS
 MEM_READER_CLOCK_PERIOD_PS = "2600"
 
 mem_reader_codegen_args = common_codegen_args | {
@@ -546,6 +543,31 @@ place_and_route(
     target_die_utilization_percentage = "10",
 )
 
+py_test(
+    name = "mem_reader_cocotb_test",
+    srcs = ["mem_reader_cocotb_test.py"],
+    data = [
+        ":mem_reader_adv.v",
+        "//xls/modules/zstd/memory/rtl:mem_reader_wrapper.v",
+        "@com_icarus_iverilog//:iverilog",
+        "@com_icarus_iverilog//:vvp",
+    ],
+    tags = ["manual"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        requirement("cocotb"),
+        requirement("cocotbext-axi"),
+        "//xls/common:runfiles",
+        "//xls/modules/zstd/cocotb:channel",
+        "//xls/modules/zstd/cocotb:memory",
+        "//xls/modules/zstd/cocotb:utils",
+        "//xls/modules/zstd/cocotb:xlsstruct",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
+        "@com_google_protobuf//:protobuf_python",
+    ],
+)
+
 xls_dslx_library(
     name = "axi_writer_dslx",
     srcs = ["axi_writer.x"],
@@ -613,6 +635,30 @@ place_and_route(
     synthesized_rtl = ":axi_writer_synth_asap7",
     tags = ["manual"],
     target_die_utilization_percentage = "10",
+)
+
+py_test(
+    name = "axi_writer_cocotb_test",
+    srcs = ["axi_writer_cocotb_test.py"],
+    data = [
+        ":axi_writer.v",
+        "//xls/modules/zstd/memory/rtl:axi_writer_wrapper.v",
+        "@com_icarus_iverilog//:iverilog",
+        "@com_icarus_iverilog//:vvp",
+    ],
+    tags = ["manual"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        requirement("cocotb"),
+        requirement("cocotbext-axi"),
+        "//xls/common:runfiles",
+        "//xls/modules/zstd/cocotb:channel",
+        "//xls/modules/zstd/cocotb:utils",
+        "//xls/modules/zstd/cocotb:xlsstruct",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
+        "@com_google_protobuf//:protobuf_python",
+    ],
 )
 
 xls_dslx_library(
@@ -752,4 +798,28 @@ place_and_route(
     synthesized_rtl = ":mem_writer_synth_asap7",
     tags = ["manual"],
     target_die_utilization_percentage = "10",
+)
+
+py_test(
+    name = "mem_writer_cocotb_test",
+    srcs = ["mem_writer_cocotb_test.py"],
+    data = [
+        ":mem_writer.v",
+        "//xls/modules/zstd/memory/rtl:mem_writer_wrapper.v",
+        "@com_icarus_iverilog//:iverilog",
+        "@com_icarus_iverilog//:vvp",
+    ],
+    tags = ["manual"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        requirement("cocotb"),
+        requirement("cocotbext-axi"),
+        "//xls/common:runfiles",
+        "//xls/modules/zstd/cocotb:channel",
+        "//xls/modules/zstd/cocotb:utils",
+        "//xls/modules/zstd/cocotb:xlsstruct",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
+        "@com_google_protobuf//:protobuf_python",
+    ],
 )

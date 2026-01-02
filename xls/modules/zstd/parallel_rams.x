@@ -28,7 +28,8 @@ type BlockPacketLength = common::BlockPacketLength;
 pub type Offset = common::Offset;
 
 // Configurable RAM parameters, RAM_NUM has to be a power of 2
-pub const RAM_NUM = u32:8;
+pub const RAM_NUM = common::LITERALS_IN_PACKET;
+pub type RamIndex = uN[std::clog2(RAM_NUM)];
 
 // Constants calculated from RAM parameters
 pub const RAM_NUM_WIDTH = std::clog2(RAM_NUM);
@@ -37,11 +38,11 @@ pub type RamNumber = bits[RAM_NUM_WIDTH];
 pub type RamReadStart = bits[RAM_NUM_WIDTH];
 pub type RamReadLen = bits[std::clog2(RAM_NUM + u32:1)];
 
-pub fn ram_size<RAM_DATA_WIDTH: u32 = {common::SYMBOL_WIDTH}>(hb_size_kb: u32) -> u32 {
+pub fn ram_size<RAM_DATA_WIDTH: u32 = {common::SYMBOLS_IN_PACKET}>(hb_size_kb: u32) -> u32 {
     (hb_size_kb * u32:1024 * u32:8) / RAM_DATA_WIDTH / RAM_NUM
 }
 
-pub fn ram_addr_width<RAM_DATA_WIDTH: u32 = {common::SYMBOL_WIDTH}>(hb_size_kb: u32) -> u32 {
+pub fn ram_addr_width<RAM_DATA_WIDTH: u32 = {common::SYMBOLS_IN_PACKET}>(hb_size_kb: u32) -> u32 {
     std::clog2(ram_size<RAM_DATA_WIDTH>(hb_size_kb))
 }
 
@@ -49,14 +50,16 @@ pub fn ram_addr_width<RAM_DATA_WIDTH: u32 = {common::SYMBOL_WIDTH}>(hb_size_kb: 
 const TEST_HISTORY_BUFFER_SIZE_KB = u32:1;
 const TEST_RAM_SIZE = ram_size(TEST_HISTORY_BUFFER_SIZE_KB);
 const TEST_RAM_ADDR_WIDTH = ram_addr_width(TEST_HISTORY_BUFFER_SIZE_KB);
-const TEST_RAM_DATA_WIDTH = common::SYMBOL_WIDTH;
+const TEST_RAM_DATA_WIDTH = u32:8;
 const TEST_RAM_WORD_PARTITION_SIZE = TEST_RAM_DATA_WIDTH;
 const TEST_RAM_NUM_PARTITIONS = ram::num_partitions(TEST_RAM_WORD_PARTITION_SIZE, TEST_RAM_DATA_WIDTH);
+const TEST_RAM_NUM = u32:8;
 const TEST_RAM_INITIALIZED = true;
 const TEST_RAM_SIMULTANEOUS_READ_WRITE_BEHAVIOR = ram::SimultaneousReadWriteBehavior::READ_BEFORE_WRITE;
 const TEST_RAM_REQ_MASK_ALL = std::unsigned_max_value<TEST_RAM_NUM_PARTITIONS>();
 const TEST_RAM_REQ_MASK_NONE = bits[TEST_RAM_NUM_PARTITIONS]:0;
 
+type TestCopyOrMatchContent = uN[TEST_RAM_DATA_WIDTH * u32:8];
 type TestRamAddr = bits[TEST_RAM_ADDR_WIDTH];
 type TestWriteReq = ram::WriteReq<TEST_RAM_ADDR_WIDTH, TEST_RAM_DATA_WIDTH, TEST_RAM_NUM_PARTITIONS>;
 type TestWriteResp = ram::WriteResp;
@@ -213,13 +216,13 @@ fn test_hb_ptr_from_offset_forw() {
 fn literal_packet_to_single_write_req<
     HISTORY_BUFFER_SIZE_KB: u32,
     RAM_ADDR_WIDTH: u32 = {ram_addr_width(HISTORY_BUFFER_SIZE_KB)},
-    RAM_DATA_WIDTH: u32 = {common::SYMBOL_WIDTH},
+    RAM_DATA_WIDTH: u32 = {common::SYMBOLS_IN_PACKET},
     RAM_WORD_PARTITION_SIZE: u32 = {RAM_DATA_WIDTH},
     RAM_NUM_PARTITIONS: u32 = {ram::num_partitions(RAM_WORD_PARTITION_SIZE, RAM_DATA_WIDTH)}
 >(ptr: HistoryBufferPtr<RAM_ADDR_WIDTH>, literal: SequenceExecutorPacket<RAM_DATA_WIDTH>, number: RamNumber)
-    -> ram::WriteReq<RAM_ADDR_WIDTH, RAM_DATA_WIDTH, RAM_NUM_PARTITIONS> {
-    type RamData = uN[RAM_DATA_WIDTH];
-    type WriteReq = ram::WriteReq<RAM_ADDR_WIDTH, RAM_DATA_WIDTH, RAM_NUM_PARTITIONS>;
+    -> ram::WriteReq<RAM_ADDR_WIDTH, RAM_WORD_PARTITION_SIZE, RAM_NUM_PARTITIONS> {
+    type RamData = uN[RAM_WORD_PARTITION_SIZE];
+    type WriteReq = ram::WriteReq<RAM_ADDR_WIDTH, RAM_WORD_PARTITION_SIZE, RAM_NUM_PARTITIONS>;
 
     let offset = std::mod_pow2(RAM_NUM - ptr.number as u32 + number as u32, RAM_NUM) as Offset;
     let we = literal.length >= offset as CopyOrMatchLength + CopyOrMatchLength:1;
@@ -227,7 +230,7 @@ fn literal_packet_to_single_write_req<
 
     if (we) {
         WriteReq {
-            data: literal.content[offset as u32 * RAM_DATA_WIDTH+:RamData] as RamData,
+            data: literal.content[offset as u32 * RAM_WORD_PARTITION_SIZE+:RamData] as RamData,
             addr: hb.addr,
             mask: std::unsigned_max_value<RAM_NUM_PARTITIONS>()
         }
@@ -250,40 +253,34 @@ fn test_literal_packet_to_single_write_req() {
     let literals = SequenceExecutorPacket<TEST_RAM_DATA_WIDTH> {
         msg_type: SequenceExecutorMessageType::LITERAL,
         length: CopyOrMatchLength:7,
-        content: CopyOrMatchContent:0x77_6655_4433_2211,
+        content: TestCopyOrMatchContent:0x77_6655_4433_2211,
         last: false
     };
     assert_eq(
-        literal_packet_to_single_write_req<TEST_HISTORY_BUFFER_SIZE_KB>(ptr, literals, RamNumber:0),
+        literal_packet_to_single_write_req<TEST_HISTORY_BUFFER_SIZE_KB, TEST_RAM_ADDR_WIDTH, TEST_RAM_DATA_WIDTH>(ptr, literals, RamNumber:0),
         TestWriteReq { data: RamData:0x22, addr: TestRamAddr:0x3, mask: TEST_RAM_REQ_MASK_ALL });
     assert_eq(
-        literal_packet_to_single_write_req<TEST_HISTORY_BUFFER_SIZE_KB>(ptr, literals, RamNumber:3),
+        literal_packet_to_single_write_req<TEST_HISTORY_BUFFER_SIZE_KB, TEST_RAM_ADDR_WIDTH, TEST_RAM_DATA_WIDTH>(ptr, literals, RamNumber:3),
         TestWriteReq { data: RamData:0x55, addr: TestRamAddr:0x3, mask: TEST_RAM_REQ_MASK_ALL });
     assert_eq(
-        literal_packet_to_single_write_req<TEST_HISTORY_BUFFER_SIZE_KB>(ptr, literals, RamNumber:6),
+        literal_packet_to_single_write_req<TEST_HISTORY_BUFFER_SIZE_KB, TEST_RAM_ADDR_WIDTH, TEST_RAM_DATA_WIDTH>(ptr, literals, RamNumber:6),
         zero!<TestWriteReq>());
 }
 
 pub fn literal_packet_to_write_reqs<
     HISTORY_BUFFER_SIZE_KB: u32,
+    RAM_NUM: u32,
     RAM_ADDR_WIDTH: u32 = {ram_addr_width(HISTORY_BUFFER_SIZE_KB)},
-    RAM_DATA_WIDTH: u32 = {common::SYMBOL_WIDTH},
+    RAM_DATA_WIDTH: u32 = {common::SYMBOLS_IN_PACKET},
     RAM_WORD_PARTITION_SIZE: u32 = {RAM_DATA_WIDTH},
-    RAM_NUM_PARTITIONS: u32 = {ram::num_partitions(RAM_WORD_PARTITION_SIZE, RAM_DATA_WIDTH)}
+    RAM_NUM_PARTITIONS: u32 = {ram::num_partitions(RAM_WORD_PARTITION_SIZE, RAM_DATA_WIDTH)},
 >(
     ptr: HistoryBufferPtr<RAM_ADDR_WIDTH>, literal: SequenceExecutorPacket<RAM_DATA_WIDTH>
-) -> (ram::WriteReq<RAM_ADDR_WIDTH, RAM_DATA_WIDTH, RAM_NUM_PARTITIONS>[RAM_NUM], HistoryBufferPtr<RAM_ADDR_WIDTH>) {
-    type WriteReq = ram::WriteReq<RAM_ADDR_WIDTH, RAM_DATA_WIDTH, RAM_NUM_PARTITIONS>;
-    let result = WriteReq[RAM_NUM]:[
-        literal_packet_to_single_write_req<HISTORY_BUFFER_SIZE_KB, RAM_ADDR_WIDTH, RAM_DATA_WIDTH>(ptr, literal, RamNumber:0),
-        literal_packet_to_single_write_req<HISTORY_BUFFER_SIZE_KB, RAM_ADDR_WIDTH, RAM_DATA_WIDTH>(ptr, literal, RamNumber:1),
-        literal_packet_to_single_write_req<HISTORY_BUFFER_SIZE_KB, RAM_ADDR_WIDTH, RAM_DATA_WIDTH>(ptr, literal, RamNumber:2),
-        literal_packet_to_single_write_req<HISTORY_BUFFER_SIZE_KB, RAM_ADDR_WIDTH, RAM_DATA_WIDTH>(ptr, literal, RamNumber:3),
-        literal_packet_to_single_write_req<HISTORY_BUFFER_SIZE_KB, RAM_ADDR_WIDTH, RAM_DATA_WIDTH>(ptr, literal, RamNumber:4),
-        literal_packet_to_single_write_req<HISTORY_BUFFER_SIZE_KB, RAM_ADDR_WIDTH, RAM_DATA_WIDTH>(ptr, literal, RamNumber:5),
-        literal_packet_to_single_write_req<HISTORY_BUFFER_SIZE_KB, RAM_ADDR_WIDTH, RAM_DATA_WIDTH>(ptr, literal, RamNumber:6),
-        literal_packet_to_single_write_req<HISTORY_BUFFER_SIZE_KB, RAM_ADDR_WIDTH, RAM_DATA_WIDTH>(ptr, literal, RamNumber:7),
-    ];
+) -> (ram::WriteReq<RAM_ADDR_WIDTH, RAM_WORD_PARTITION_SIZE, RAM_NUM_PARTITIONS>[RAM_NUM], HistoryBufferPtr<RAM_ADDR_WIDTH>) {
+    type WriteReq = ram::WriteReq<RAM_ADDR_WIDTH, RAM_WORD_PARTITION_SIZE, RAM_NUM_PARTITIONS>;
+    let result = unroll_for! (i, data): (u32, WriteReq[RAM_NUM]) in u32:0..RAM_NUM {
+        update(data, i, literal_packet_to_single_write_req<HISTORY_BUFFER_SIZE_KB, RAM_ADDR_WIDTH, RAM_DATA_WIDTH, RAM_WORD_PARTITION_SIZE, RAM_NUM_PARTITIONS>(ptr, literal, i as RamNumber))
+    }(zero!<WriteReq[RAM_NUM]>());
 
     let ptr_offset = literal.length;
     (result, hb_ptr_from_offset_forw<HISTORY_BUFFER_SIZE_KB>(ptr, ptr_offset as Offset))
@@ -302,14 +299,14 @@ fn test_literal_packet_to_write_reqs() {
     let ptr = HistoryBufferPtr { number: RamNumber:7, addr: TestRamAddr:0x2 };
     let literals = SequenceExecutorPacket<TEST_RAM_DATA_WIDTH> {
         msg_type: SequenceExecutorMessageType::LITERAL,
-        content: CopyOrMatchContent:0x11,
+        content: TestCopyOrMatchContent:0x11,
         length: CopyOrMatchLength:1,
         last: false
     };
     assert_eq(
-        literal_packet_to_write_reqs<TEST_HISTORY_BUFFER_SIZE_KB>(ptr, literals),
+        literal_packet_to_write_reqs<TEST_HISTORY_BUFFER_SIZE_KB, TEST_RAM_NUM, TEST_RAM_ADDR_WIDTH, TEST_RAM_DATA_WIDTH>(ptr, literals),
         (
-            TestWriteReq[RAM_NUM]:[
+            TestWriteReq[TEST_RAM_NUM]:[
                 zero!<TestWriteReq>(), zero!<TestWriteReq>(), zero!<TestWriteReq>(),
                 zero!<TestWriteReq>(), zero!<TestWriteReq>(), zero!<TestWriteReq>(),
                 zero!<TestWriteReq>(),
@@ -327,14 +324,14 @@ fn test_literal_packet_to_write_reqs() {
     let ptr = HistoryBufferPtr { number: RamNumber:7, addr: TestRamAddr:2 };
     let literals = SequenceExecutorPacket<TEST_RAM_DATA_WIDTH> {
         msg_type: SequenceExecutorMessageType::LITERAL,
-        content: CopyOrMatchContent:0x8877_6655_4433_2211,
+        content: TestCopyOrMatchContent:0x8877_6655_4433_2211,
         length: CopyOrMatchLength:8,
         last: false
     };
     assert_eq(
-        literal_packet_to_write_reqs<TEST_HISTORY_BUFFER_SIZE_KB>(ptr, literals),
+        literal_packet_to_write_reqs<TEST_HISTORY_BUFFER_SIZE_KB, TEST_RAM_NUM, TEST_RAM_ADDR_WIDTH, TEST_RAM_DATA_WIDTH>(ptr, literals),
         (
-            TestWriteReq[RAM_NUM]:[
+            TestWriteReq[TEST_RAM_NUM]:[
                 TestWriteReq { data: RamData:0x22, addr: TestRamAddr:0x3, mask: TEST_RAM_REQ_MASK_ALL },
                 TestWriteReq { data: RamData:0x33, addr: TestRamAddr:0x3, mask: TEST_RAM_REQ_MASK_ALL },
                 TestWriteReq { data: RamData:0x44, addr: TestRamAddr:0x3, mask: TEST_RAM_REQ_MASK_ALL },
@@ -350,7 +347,7 @@ fn test_literal_packet_to_write_reqs() {
 fn max_hb_ptr_for_sequence_packet<
     HISTORY_BUFFER_SIZE_KB: u32,
     RAM_ADDR_WIDTH: u32 = {ram_addr_width(HISTORY_BUFFER_SIZE_KB)},
-    RAM_DATA_WIDTH: u32 = {common::SYMBOL_WIDTH},
+    RAM_DATA_WIDTH: u32 = {common::SYMBOLS_IN_PACKET},
 > (
     ptr: HistoryBufferPtr<RAM_ADDR_WIDTH>, seq: SequenceExecutorPacket<RAM_DATA_WIDTH>
 ) -> HistoryBufferPtr<RAM_ADDR_WIDTH> {
@@ -360,7 +357,7 @@ fn max_hb_ptr_for_sequence_packet<
 fn sequence_packet_to_single_read_req<
     HISTORY_BUFFER_SIZE_KB: u32,
     RAM_ADDR_WIDTH: u32 = {ram_addr_width(HISTORY_BUFFER_SIZE_KB)},
-    RAM_DATA_WIDTH: u32 = {common::SYMBOL_WIDTH},
+    RAM_DATA_WIDTH: u32 = {common::SYMBOLS_IN_PACKET},
     RAM_WORD_PARTITION_SIZE: u32 = {RAM_DATA_WIDTH},
     RAM_NUM_PARTITIONS: u32 = {ram::num_partitions(RAM_WORD_PARTITION_SIZE, RAM_DATA_WIDTH)}
 > (
@@ -398,7 +395,7 @@ fn test_sequence_packet_to_single_read_req() {
     let ptr = HistoryBufferPtr { number: RamNumber:1, addr: TestRamAddr:0x3 };
     let sequence = SequenceExecutorPacket<TEST_RAM_DATA_WIDTH> {
         msg_type: SequenceExecutorMessageType::SEQUENCE,
-        content: CopyOrMatchContent:11,
+        content: TestCopyOrMatchContent:11,
         length: CopyOrMatchLength:4,
         last: false
     };
@@ -407,34 +404,35 @@ fn test_sequence_packet_to_single_read_req() {
     >(ptr, sequence);
 
     assert_eq(
-        sequence_packet_to_single_read_req<TEST_HISTORY_BUFFER_SIZE_KB>(
+        sequence_packet_to_single_read_req<TEST_HISTORY_BUFFER_SIZE_KB, TEST_RAM_ADDR_WIDTH, TEST_RAM_DATA_WIDTH>(
             ptr, max_ptr, sequence, RamNumber:0),
         TestReadReq { addr: TestRamAddr:0x2, mask: TEST_RAM_REQ_MASK_ALL });
 
     assert_eq(
-        sequence_packet_to_single_read_req<TEST_HISTORY_BUFFER_SIZE_KB>(
+        sequence_packet_to_single_read_req<TEST_HISTORY_BUFFER_SIZE_KB, TEST_RAM_ADDR_WIDTH, TEST_RAM_DATA_WIDTH>(
             ptr, max_ptr, sequence, RamNumber:1),
         TestReadReq { addr: TestRamAddr:0x2, mask: TEST_RAM_REQ_MASK_ALL });
 
     assert_eq(
-        sequence_packet_to_single_read_req<TEST_HISTORY_BUFFER_SIZE_KB>(
+        sequence_packet_to_single_read_req<TEST_HISTORY_BUFFER_SIZE_KB, TEST_RAM_ADDR_WIDTH, TEST_RAM_DATA_WIDTH>(
             ptr, max_ptr, sequence, RamNumber:2), zero!<TestReadReq>());
 
     assert_eq(
-        sequence_packet_to_single_read_req<TEST_HISTORY_BUFFER_SIZE_KB>(
+        sequence_packet_to_single_read_req<TEST_HISTORY_BUFFER_SIZE_KB, TEST_RAM_ADDR_WIDTH, TEST_RAM_DATA_WIDTH>(
             ptr, max_ptr, sequence, RamNumber:7),
         TestReadReq { addr: TestRamAddr:0x1, mask: TEST_RAM_REQ_MASK_ALL });
 
     assert_eq(
-        sequence_packet_to_single_read_req<TEST_HISTORY_BUFFER_SIZE_KB>(
+        sequence_packet_to_single_read_req<TEST_HISTORY_BUFFER_SIZE_KB, TEST_RAM_ADDR_WIDTH, TEST_RAM_DATA_WIDTH>(
             ptr, max_ptr, sequence, RamNumber:6),
         TestReadReq { addr: TestRamAddr:0x1, mask: TEST_RAM_REQ_MASK_ALL });
 }
 
 pub fn sequence_packet_to_read_reqs<
     HISTORY_BUFFER_SIZE_KB: u32,
+    RAM_NUM: u32,
     RAM_ADDR_WIDTH: u32 = {ram_addr_width(HISTORY_BUFFER_SIZE_KB)},
-    RAM_DATA_WIDTH: u32 = {common::SYMBOL_WIDTH},
+    RAM_DATA_WIDTH: u32 = {common::SYMBOLS_IN_PACKET},
     RAM_WORD_PARTITION_SIZE: u32 = {RAM_DATA_WIDTH},
     RAM_NUM_PARTITIONS: u32 = {ram::num_partitions(RAM_WORD_PARTITION_SIZE, RAM_DATA_WIDTH)}
 > (
@@ -477,16 +475,10 @@ pub fn sequence_packet_to_read_reqs<
     };
 
     let max_ptr = max_hb_ptr_for_sequence_packet<HISTORY_BUFFER_SIZE_KB, RAM_ADDR_WIDTH, RAM_DATA_WIDTH>(ptr, curr_seq);
-    let req0 = sequence_packet_to_single_read_req<HISTORY_BUFFER_SIZE_KB, RAM_ADDR_WIDTH, RAM_DATA_WIDTH>(ptr, max_ptr, curr_seq, RamNumber:0);
-    let req1 = sequence_packet_to_single_read_req<HISTORY_BUFFER_SIZE_KB, RAM_ADDR_WIDTH, RAM_DATA_WIDTH>(ptr, max_ptr, curr_seq, RamNumber:1);
-    let req2 = sequence_packet_to_single_read_req<HISTORY_BUFFER_SIZE_KB, RAM_ADDR_WIDTH, RAM_DATA_WIDTH>(ptr, max_ptr, curr_seq, RamNumber:2);
-    let req3 = sequence_packet_to_single_read_req<HISTORY_BUFFER_SIZE_KB, RAM_ADDR_WIDTH, RAM_DATA_WIDTH>(ptr, max_ptr, curr_seq, RamNumber:3);
-    let req4 = sequence_packet_to_single_read_req<HISTORY_BUFFER_SIZE_KB, RAM_ADDR_WIDTH, RAM_DATA_WIDTH>(ptr, max_ptr, curr_seq, RamNumber:4);
-    let req5 = sequence_packet_to_single_read_req<HISTORY_BUFFER_SIZE_KB, RAM_ADDR_WIDTH, RAM_DATA_WIDTH>(ptr, max_ptr, curr_seq, RamNumber:5);
-    let req6 = sequence_packet_to_single_read_req<HISTORY_BUFFER_SIZE_KB, RAM_ADDR_WIDTH, RAM_DATA_WIDTH>(ptr, max_ptr, curr_seq, RamNumber:6);
-    let req7 = sequence_packet_to_single_read_req<HISTORY_BUFFER_SIZE_KB, RAM_ADDR_WIDTH, RAM_DATA_WIDTH>(ptr, max_ptr, curr_seq, RamNumber:7);
 
-    let reqs = ReadReq[RAM_NUM]:[req0, req1, req2, req3, req4, req5, req6, req7];
+    let reqs = unroll_for! (i, data): (u32, ReadReq[RAM_NUM]) in u32:0..RAM_NUM {
+        update(data, i, sequence_packet_to_single_read_req<HISTORY_BUFFER_SIZE_KB, RAM_ADDR_WIDTH, RAM_DATA_WIDTH>(ptr, max_ptr, curr_seq, i as RamNumber))
+    }(zero!<ReadReq[RAM_NUM]>());
 
     (reqs, max_ptr.number, max_len as RamReadLen, next_seq, next_seq_valid)
 }
@@ -505,17 +497,18 @@ fn test_sequence_packet_to_read_reqs() {
     let ptr = HistoryBufferPtr { number: RamNumber:1, addr: TestRamAddr:0x3 };
     let sequence = SequenceExecutorPacket<TEST_RAM_DATA_WIDTH> {
         msg_type: SequenceExecutorMessageType::SEQUENCE,
-        content: CopyOrMatchContent:11,
+        content: TestCopyOrMatchContent:11,
         length: CopyOrMatchLength:4,
         last: false
     };
-    let result = sequence_packet_to_read_reqs<TEST_HISTORY_BUFFER_SIZE_KB, TEST_RAM_ADDR_WIDTH, TEST_RAM_DATA_WIDTH>(
+    let result = sequence_packet_to_read_reqs<TEST_HISTORY_BUFFER_SIZE_KB, TEST_RAM_NUM, TEST_RAM_ADDR_WIDTH, TEST_RAM_DATA_WIDTH>(
         ptr, sequence, HistoryBufferLength:20);
     let expected = (
-        TestReadReq[RAM_NUM]:[
+        TestReadReq[TEST_RAM_NUM]:[
             TestReadReq { addr: TestRamAddr:0x2, mask: TEST_RAM_REQ_MASK_ALL },
-            TestReadReq { addr: TestRamAddr:0x2, mask: TEST_RAM_REQ_MASK_ALL }, zero!<TestReadReq>(),
-            zero!<TestReadReq>(), zero!<TestReadReq>(), zero!<TestReadReq>(),
+            TestReadReq { addr: TestRamAddr:0x2, mask: TEST_RAM_REQ_MASK_ALL },
+            zero!<TestReadReq>(), zero!<TestReadReq>(),
+            zero!<TestReadReq>(), zero!<TestReadReq>(),
             TestReadReq { addr: TestRamAddr:0x1, mask: TEST_RAM_REQ_MASK_ALL },
             TestReadReq { addr: TestRamAddr:0x1, mask: TEST_RAM_REQ_MASK_ALL },
         ],
@@ -535,14 +528,14 @@ fn test_sequence_packet_to_read_reqs() {
     let ptr = HistoryBufferPtr { number: RamNumber:0, addr: TestRamAddr:0x4 };
     let sequence = Packet {
         msg_type: SequenceExecutorMessageType::SEQUENCE,
-        content: CopyOrMatchContent:10,
+        content: TestCopyOrMatchContent:10,
         length: CopyOrMatchLength:9,
         last: false
     };
-    let result = sequence_packet_to_read_reqs<TEST_HISTORY_BUFFER_SIZE_KB>(
+    let result = sequence_packet_to_read_reqs<TEST_HISTORY_BUFFER_SIZE_KB, TEST_RAM_NUM, TEST_RAM_ADDR_WIDTH, TEST_RAM_DATA_WIDTH>(
         ptr, sequence, HistoryBufferLength:20);
     let expected = (
-        TestReadReq[RAM_NUM]:[
+        TestReadReq[TEST_RAM_NUM]:[
             TestReadReq { addr: TestRamAddr:0x3, mask: TEST_RAM_REQ_MASK_ALL },
             TestReadReq { addr: TestRamAddr:0x3, mask: TEST_RAM_REQ_MASK_ALL },
             TestReadReq { addr: TestRamAddr:0x3, mask: TEST_RAM_REQ_MASK_ALL },
@@ -556,7 +549,7 @@ fn test_sequence_packet_to_read_reqs() {
         RamReadLen:8,
         Packet {
             msg_type: SequenceExecutorMessageType::SEQUENCE,
-            content: CopyOrMatchContent:10,
+            content: TestCopyOrMatchContent:10,
             length: CopyOrMatchLength:1,
             last: false
         }, true,
@@ -591,44 +584,29 @@ pub fn create_ram_wr_data<RAM_ADDR_WIDTH: u32, RAM_DATA_WIDTH: u32, RAM_NUM_PART
 pub proc RamWrRespHandler<RAM_ADDR_WIDTH: u32, RAM_DATA_WIDTH: u32 = {u32:8}> {
     input_r: chan<RamWrRespHandlerData<RAM_ADDR_WIDTH>> in;
     output_s: chan<RamWrRespHandlerResp<RAM_ADDR_WIDTH>> out;
-    wr_resp_m0_r: chan<ram::WriteResp> in;
-    wr_resp_m1_r: chan<ram::WriteResp> in;
-    wr_resp_m2_r: chan<ram::WriteResp> in;
-    wr_resp_m3_r: chan<ram::WriteResp> in;
-    wr_resp_m4_r: chan<ram::WriteResp> in;
-    wr_resp_m5_r: chan<ram::WriteResp> in;
-    wr_resp_m6_r: chan<ram::WriteResp> in;
-    wr_resp_m7_r: chan<ram::WriteResp> in;
+    wr_resp_m_r: chan<ram::WriteResp>[RAM_NUM] in;
 
     config(input_r: chan<RamWrRespHandlerData<RAM_ADDR_WIDTH>> in,
            output_s: chan<RamWrRespHandlerResp<RAM_ADDR_WIDTH>> out,
-           wr_resp_m0_r: chan<ram::WriteResp> in, wr_resp_m1_r: chan<ram::WriteResp> in,
-           wr_resp_m2_r: chan<ram::WriteResp> in, wr_resp_m3_r: chan<ram::WriteResp> in,
-           wr_resp_m4_r: chan<ram::WriteResp> in, wr_resp_m5_r: chan<ram::WriteResp> in,
-           wr_resp_m6_r: chan<ram::WriteResp> in, wr_resp_m7_r: chan<ram::WriteResp> in) {
+           wr_resp_m_r: chan<ram::WriteResp>[RAM_NUM] in) {
         (
-            input_r, output_s, wr_resp_m0_r, wr_resp_m1_r, wr_resp_m2_r, wr_resp_m3_r, wr_resp_m4_r,
-            wr_resp_m5_r, wr_resp_m6_r, wr_resp_m7_r,
+            input_r, output_s, wr_resp_m_r,
         )
     }
 
     init {  }
 
     next(state: ()) {
-        let tok0 = join();
-        let (tok1, input) = recv(tok0, input_r);
+        let tok = join();
+        let (tok, input) = recv(tok, input_r);
 
-        let (tok2_0, _) = recv_if(tok1, wr_resp_m0_r, input.resp[0], zero!<ram::WriteResp>());
-        let (tok2_1, _) = recv_if(tok1, wr_resp_m1_r, input.resp[1], zero!<ram::WriteResp>());
-        let (tok2_2, _) = recv_if(tok1, wr_resp_m2_r, input.resp[2], zero!<ram::WriteResp>());
-        let (tok2_3, _) = recv_if(tok1, wr_resp_m3_r, input.resp[3], zero!<ram::WriteResp>());
-        let (tok2_4, _) = recv_if(tok1, wr_resp_m4_r, input.resp[4], zero!<ram::WriteResp>());
-        let (tok2_5, _) = recv_if(tok1, wr_resp_m5_r, input.resp[5], zero!<ram::WriteResp>());
-        let (tok2_6, _) = recv_if(tok1, wr_resp_m6_r, input.resp[6], zero!<ram::WriteResp>());
-        let (tok2_7, _) = recv_if(tok1, wr_resp_m7_r, input.resp[7], zero!<ram::WriteResp>());
-        let tok2 = join(tok2_0, tok2_1, tok2_2, tok2_3, tok2_4, tok2_5, tok2_6, tok2_7);
+        let all_resps = unroll_for! (i, all_resps):
+        (u32, token) in u32:0..RAM_NUM {
+            let (tok_resp, _) = recv_if(tok, wr_resp_m_r[i], input.resp[i], zero!<ram::WriteResp>());
+            (join(tok_resp, all_resps))
+        }((tok));
 
-        let tok3 = send(tok2, output_s, RamWrRespHandlerResp {
+        let tok = send(all_resps, output_s, RamWrRespHandlerResp {
             length: std::popcount(std::convert_to_bits_msb0(input.resp)) as uN[std::clog2(RAM_NUM + u32:1)],
             ptr: input.ptr
         });
@@ -657,67 +635,43 @@ pub fn create_ram_rd_data<RAM_ADDR_WIDTH: u32, RAM_DATA_WIDTH: u32, RAM_NUM_PART
     (do_read, RamRdRespHandlerData { resp, read_start, read_len, last })
 }
 
-pub proc RamRdRespHandler<RAM_DATA_WIDTH: u32 = {u32:8}> {
+pub proc RamRdRespHandler<RAM_DATA_WIDTH: u32 = {u32:8}, RAM_WORD_PARTITION_SIZE: u32 = {u32:8}> {
     input_r: chan<RamRdRespHandlerData> in;
     output_s: chan<SequenceExecutorPacket<RAM_DATA_WIDTH>> out;
-    rd_resp_m0_r: chan<ram::ReadResp<RAM_DATA_WIDTH>> in;
-    rd_resp_m1_r: chan<ram::ReadResp<RAM_DATA_WIDTH>> in;
-    rd_resp_m2_r: chan<ram::ReadResp<RAM_DATA_WIDTH>> in;
-    rd_resp_m3_r: chan<ram::ReadResp<RAM_DATA_WIDTH>> in;
-    rd_resp_m4_r: chan<ram::ReadResp<RAM_DATA_WIDTH>> in;
-    rd_resp_m5_r: chan<ram::ReadResp<RAM_DATA_WIDTH>> in;
-    rd_resp_m6_r: chan<ram::ReadResp<RAM_DATA_WIDTH>> in;
-    rd_resp_m7_r: chan<ram::ReadResp<RAM_DATA_WIDTH>> in;
+    rd_resp_m_r: chan<ram::ReadResp<RAM_WORD_PARTITION_SIZE>>[RAM_NUM] in;
 
     config(input_r: chan<RamRdRespHandlerData> in, output_s: chan<SequenceExecutorPacket<RAM_DATA_WIDTH>> out,
-           rd_resp_m0_r: chan<ram::ReadResp<RAM_DATA_WIDTH>> in,
-           rd_resp_m1_r: chan<ram::ReadResp<RAM_DATA_WIDTH>> in,
-           rd_resp_m2_r: chan<ram::ReadResp<RAM_DATA_WIDTH>> in,
-           rd_resp_m3_r: chan<ram::ReadResp<RAM_DATA_WIDTH>> in,
-           rd_resp_m4_r: chan<ram::ReadResp<RAM_DATA_WIDTH>> in,
-           rd_resp_m5_r: chan<ram::ReadResp<RAM_DATA_WIDTH>> in,
-           rd_resp_m6_r: chan<ram::ReadResp<RAM_DATA_WIDTH>> in,
-           rd_resp_m7_r: chan<ram::ReadResp<RAM_DATA_WIDTH>> in) {
+           rd_resp_m_r: chan<ram::ReadResp<RAM_WORD_PARTITION_SIZE>>[RAM_NUM] in) {
         (
-            input_r, output_s, rd_resp_m0_r, rd_resp_m1_r, rd_resp_m2_r, rd_resp_m3_r, rd_resp_m4_r,
-            rd_resp_m5_r, rd_resp_m6_r, rd_resp_m7_r,
+            input_r, output_s, rd_resp_m_r,
         )
     }
 
     init {  }
 
     next(state: ()) {
-        let tok0 = join();
-        type ReadResp = ram::ReadResp<RAM_DATA_WIDTH>;
+        let tok = join();
+        type ReadResp = ram::ReadResp<RAM_WORD_PARTITION_SIZE>;
         type Content = uN[RAM_DATA_WIDTH * u32:8];
 
-        let (tok1, input) = recv(tok0, input_r);
+        let (tok1, input) = recv(tok, input_r);
 
-        let (tok2_0, resp_0) = recv_if(tok1, rd_resp_m0_r, input.resp[0], zero!<ReadResp>());
-        let (tok2_1, resp_1) = recv_if(tok1, rd_resp_m1_r, input.resp[1], zero!<ReadResp>());
-        let (tok2_2, resp_2) = recv_if(tok1, rd_resp_m2_r, input.resp[2], zero!<ReadResp>());
-        let (tok2_3, resp_3) = recv_if(tok1, rd_resp_m3_r, input.resp[3], zero!<ReadResp>());
-        let (tok2_4, resp_4) = recv_if(tok1, rd_resp_m4_r, input.resp[4], zero!<ReadResp>());
-        let (tok2_5, resp_5) = recv_if(tok1, rd_resp_m5_r, input.resp[5], zero!<ReadResp>());
-        let (tok2_6, resp_6) = recv_if(tok1, rd_resp_m6_r, input.resp[6], zero!<ReadResp>());
-        let (tok2_7, resp_7) = recv_if(tok1, rd_resp_m7_r, input.resp[7], zero!<ReadResp>());
-        let tok2 = join(tok2_0, tok2_1, tok2_2, tok2_3, tok2_4, tok2_5, tok2_6, tok2_7);
+        let (tok2, resp_data) =
+            unroll_for! (i, (all_resps, resp_data)):
+            (u32, (token, ReadResp[RAM_NUM])) in u32:0..RAM_NUM {
+                let (resp_tok, resp) = recv_if(tok1, rd_resp_m_r[i], input.resp[i], zero!<ReadResp>());
+                (
+                    join(all_resps, resp_tok),
+                    update(resp_data, i, resp)
+                )
+        }((tok1, zero!<ReadResp[RAM_NUM]>()));
 
-        let resp_data = [
-            resp_0.data, resp_1.data, resp_2.data, resp_3.data,
-            resp_4.data, resp_5.data, resp_6.data, resp_7.data
-        ];
-
-        let content = (
-            resp_data[input.read_start + u3:7] ++
-            resp_data[input.read_start + u3:6] ++
-            resp_data[input.read_start + u3:5] ++
-            resp_data[input.read_start + u3:4] ++
-            resp_data[input.read_start + u3:3] ++
-            resp_data[input.read_start + u3:2] ++
-            resp_data[input.read_start + u3:1] ++
-            resp_data[input.read_start + u3:0]
-        );
+        let content =
+            unroll_for! (i, content):
+            (u32, Content) in u32:0..RAM_NUM {
+                let index = input.read_start + i as RamIndex;
+                bit_slice_update(content, i * RAM_WORD_PARTITION_SIZE, resp_data[index].data)
+        }(zero!<Content>());
 
         let output_data = SequenceExecutorPacket<RAM_DATA_WIDTH> {
             msg_type: SequenceExecutorMessageType::LITERAL,

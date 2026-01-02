@@ -357,9 +357,11 @@ pub proc HuffmanControlAndSequence<AXI_ADDR_W: u32, AXI_DATA_W: u32> {
             (tok, zero!<uN[AXI_ADDR_W][4]>(), ctrl.len)
         };
 
-        let tok = send(tok, prescan_start_s, true);
-        let tok = send(tok, code_builder_start_s, true);
-        trace_fmt!("[HuffmanControlAndSequence] Sent START to prescan and code builder");
+        if ctrl.new_config {
+            let tok = send(tok, prescan_start_s, true);
+            let tok = send(tok, code_builder_start_s, true);
+            trace_fmt!("[HuffmanControlAndSequence] Sent START to prescan and code builder");
+        } else {};
 
         let tok = send(
             tok, multi_stream_config_s, MultiStreamConfig {
@@ -522,14 +524,6 @@ proc HuffmanControlAndSequence_test {
         };
         let tok = send(tok, ctrl_s, ctrl);
 
-        let (tok, prescan_start) = recv(tok, prescan_start_r);
-        trace_fmt!("[TEST] Received prescan START");
-        assert_eq(true, prescan_start);
-
-        let (tok, code_builder_start) = recv(tok, code_builder_start_r);
-        trace_fmt!("[TEST] Received code builder START");
-        assert_eq(true, code_builder_start);
-
         let (tok, axi_reader_ctrl) = recv(tok, axi_reader_ctrl_r);
         trace_fmt!("[TEST] Received AXI reader CTRL");
         assert_eq(AxiReaderCtrl {base_addr: ctrl.base_addr, len: ctrl.len}, axi_reader_ctrl);
@@ -627,14 +621,6 @@ proc HuffmanControlAndSequence_test {
             uN[TEST_AXI_ADDR_W]:0x3,
             uN[TEST_AXI_ADDR_W]:0x3,
         ];
-
-        let (tok, prescan_start) = recv(tok, prescan_start_r);
-        trace_fmt!("[TEST] Received prescan START");
-        assert_eq(true, prescan_start);
-
-        let (tok, code_builder_start) = recv(tok, code_builder_start_r);
-        trace_fmt!("[TEST] Received code builder START");
-        assert_eq(true, code_builder_start);
 
         for (i, tok) in u32:0..u32:4 {
             trace_fmt!("[TEST] Stream #{}", i);

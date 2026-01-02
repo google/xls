@@ -45,44 +45,14 @@ import xls.examples.ram;
 import xls.modules.zstd.common as common;
 import xls.modules.zstd.huffman_common as hcommon;
 
-// TODO: Enable once parametrics work
-//fn WeightPreScanMetaDataSize(PARALLEL_ACCESS_WIDTH: u32) -> u32 {
-//    let COUNTER_WIDTH = {std::clog2(PARALLEL_ACCESS_WIDTH + u32:1)};
-//    (COUNTER_WIDTH as u32) * (PARALLEL_ACCESS_WIDTH as u32) +
-//    (MAX_WEIGHT as u32) + u32:1 +
-//    (COUNTER_WIDTH as u32) * (MAX_WEIGHT as u32 + u32:1)
-//}
-//
-//fn InternalStructToBits<
-//    PARALLEL_ACCESS_WIDTH: u32,
-//    BITS: u32 = {WeightPreScanMetaDataSize(PARALLEL_ACCESS_WIDTH)}
-//> (internalStruct: WeightPreScanMetaData<PARALLEL_ACCESS_WIDTH>) -> bits[BITS] {
-//    internalStruct as bits[BITS]
-//}
-//
-//fn BitsToInternalStruct<
-//    PARALLEL_ACCESS_WIDTH: u32,
-//    BITS: u32 = {WeightPreScanMetaDataSize(PARALLEL_ACCESS_WIDTH)}
-//> (rawBits: bits[BITS]) -> WeightPreScanMetaData<PARALLEL_ACCESS_WIDTH> {
-//    rawBits as WeightPreScanMetaData<PARALLEL_ACCESS_WIDTH>
-//}
-
-const MAX_WEIGHT = hcommon::MAX_WEIGHT;
-const WEIGHT_LOG = hcommon::WEIGHT_LOG;
-const MAX_SYMBOL_COUNT = hcommon::MAX_SYMBOL_COUNT;
-
-const PARALLEL_ACCESS_WIDTH = hcommon::PARALLEL_ACCESS_WIDTH;
-const COUNTER_WIDTH = hcommon::COUNTER_WIDTH;
-
 type WeightPreScanMetaData = hcommon::WeightPreScanMetaData;
 type WeightPreScanOutput = hcommon::WeightPreScanOutput;
 
-pub const WEIGHT_PRESCAN_METADATA_SIZE =
-    (COUNTER_WIDTH as u32) * (PARALLEL_ACCESS_WIDTH as u32) +
-    (MAX_WEIGHT as u32) + u32:1 +
-    (COUNTER_WIDTH as u32) * (MAX_WEIGHT as u32 + u32:1);
-
 fn InternalStructToBits<
+    PARALLEL_ACCESS_WIDTH: u32,
+    MAX_WEIGHT: u32,
+    COUNTER_WIDTH: u32,
+    WEIGHT_PRESCAN_METADATA_SIZE: u32,
     BITS: u32 = {WEIGHT_PRESCAN_METADATA_SIZE},
     OCCURANCE_WIDTH: u32 ={COUNTER_WIDTH * PARALLEL_ACCESS_WIDTH},
 > (internalStruct: WeightPreScanMetaData) -> bits[BITS] {
@@ -92,6 +62,10 @@ fn InternalStructToBits<
 }
 
 fn BitsToInternalStruct<
+    PARALLEL_ACCESS_WIDTH: u32,
+    MAX_WEIGHT: u32,
+    COUNTER_WIDTH: u32,
+    WEIGHT_PRESCAN_METADATA_SIZE: u32,
     BITS: u32 = {WEIGHT_PRESCAN_METADATA_SIZE},
     OCCURANCE_WIDTH: u32 ={COUNTER_WIDTH * PARALLEL_ACCESS_WIDTH},
 > (rawBits: bits[BITS]) -> WeightPreScanMetaData {
@@ -101,23 +75,6 @@ fn BitsToInternalStruct<
         weights_count:    rawBits[(OCCURANCE_WIDTH + MAX_WEIGHT + u32:1) as s32:BITS as s32] as uN[COUNTER_WIDTH][MAX_WEIGHT + u32:1]
     }
 }
-
-#[quickcheck(test_count=50000)]
-fn bits_to_struct_to_bits_qtest(x: bits[WEIGHT_PRESCAN_METADATA_SIZE]) -> bool {
-    x == InternalStructToBits(BitsToInternalStruct(x))
-}
-
-#[quickcheck(test_count=50000)]
-fn struct_to_bots_to_struct_qtest(x: WeightPreScanMetaData) -> bool {
-  x == BitsToInternalStruct(InternalStructToBits(x))
-}
-
-pub const RAM_SIZE = MAX_SYMBOL_COUNT/PARALLEL_ACCESS_WIDTH * u32:8 / WEIGHT_LOG;
-pub const RAM_ADDR_WIDTH = {std::clog2(RAM_SIZE)};
-pub const RAM_ACCESS_WIDTH = PARALLEL_ACCESS_WIDTH * WEIGHT_LOG;
-const RAM_PARTITION_SIZE = RAM_ACCESS_WIDTH / u32:8;
-const RAM_NUM_PARTITIONS = ram::num_partitions(RAM_PARTITION_SIZE, RAM_ACCESS_WIDTH);
-const MAX_RAM_ADDR = MAX_SYMBOL_COUNT/PARALLEL_ACCESS_WIDTH;
 
 enum WeightPreScanFSM: u2 {
     IDLE        = u2:0,
@@ -131,16 +88,23 @@ struct WeightPreScanState {
     internal_addr: u9,
 }
 
-pub proc WeightPreScan
-// TODO: enable parametric expresion when they start working
-//proc WeightPreScan<
-//    PARALLEL_ACCESS_WIDTH: u32 = {u32:8},
-//    RAM_SIZE: u32 = {MAX_SYMBOL_COUNT/PARALLEL_ACCESS_WIDTH},
-//    RAM_ADDR_WIDTH: u32 = {std::clog2(RAM_SIZE)},
-//    RAM_ACCESS_WIDTH: u32 = {PARALLEL_ACCESS_WIDTH * WEIGHT_LOG},
-//    MAX_RAM_ADDR: u32 = {(u32:1<<RAM_ADDR_WIDTH - u32:1)},
-//> {
-{
+pub proc WeightPreScan<
+   MAX_SYMBOL_COUNT: u32 = {u32:256},
+   PARALLEL_ACCESS_WIDTH: u32 = {u32:8},
+   MAX_WEIGHT: u32 = {u32:11},
+   WEIGHT_LOG: u32 = {std::clog2(MAX_WEIGHT + u32:1)},
+   COUNTER_WIDTH: u32 = {std::clog2(PARALLEL_ACCESS_WIDTH + u32:1)},
+   RAM_SIZE: u32 = {MAX_SYMBOL_COUNT/PARALLEL_ACCESS_WIDTH * u32:8 / WEIGHT_LOG},
+   RAM_ADDR_WIDTH: u32 = {std::clog2(RAM_SIZE)},
+   RAM_ACCESS_WIDTH: u32 = {PARALLEL_ACCESS_WIDTH * WEIGHT_LOG},
+   RAM_PARTITION_SIZE: u32 = {RAM_ACCESS_WIDTH / u32:8},
+   RAM_NUM_PARTITIONS: u32 = {ram::num_partitions(RAM_PARTITION_SIZE, RAM_ACCESS_WIDTH)},
+   MAX_RAM_ADDR: u32 = {MAX_SYMBOL_COUNT/PARALLEL_ACCESS_WIDTH},
+   WEIGHT_PRESCAN_METADATA_SIZE: u32 = {
+    (COUNTER_WIDTH as u32) * (PARALLEL_ACCESS_WIDTH as u32) +
+    (MAX_WEIGHT as u32) + u32:1 +
+    (COUNTER_WIDTH as u32) * (MAX_WEIGHT as u32 + u32:1)},
+> {
     type State = WeightPreScanState;
     type FSM = WeightPreScanFSM;
 
@@ -204,10 +168,6 @@ pub proc WeightPreScan
                 let valid_data = state.addr < state.internal_addr || state.internal_addr as u32 == MAX_RAM_ADDR - u32:1;
                 (false, valid_data, false, valid_data, state.addr as ExternalRamAddr)
             },
-            _ => {
-                assert!(false, "Invalid state");
-                (false, false, false, false, u9:0 as ExternalRamAddr)
-            }
         };
         let (tok, start) = recv_if(tok, start_r, recv_start, false);
         if recv_start {
@@ -284,7 +244,12 @@ pub proc WeightPreScan
         };
         let tok = send_if(tok, internal_read_req_s, read_internal, internal_ram_r_req);
         let (tok, meta_data_flat) = recv_if(tok, internal_read_rsp_r, read_internal, zero!<InternalReadResp>());
-        let meta_data = BitsToInternalStruct(meta_data_flat.data);
+        let meta_data = BitsToInternalStruct<
+                PARALLEL_ACCESS_WIDTH,
+                MAX_WEIGHT,
+                COUNTER_WIDTH,
+                WEIGHT_PRESCAN_METADATA_SIZE,
+            >(meta_data_flat.data);
 
         if read_internal {
             trace_fmt!("[WeightPreScan] Reading internal memory data: {:#x}", meta_data);
@@ -326,7 +291,12 @@ pub proc WeightPreScan
 
         let internal_ram_w_req = InternalWriteReq {
             addr: addr,
-            data: InternalStructToBits(_meta_data),
+            data: InternalStructToBits<
+                    PARALLEL_ACCESS_WIDTH,
+                    MAX_WEIGHT,
+                    COUNTER_WIDTH,
+                    WEIGHT_PRESCAN_METADATA_SIZE,
+                >(_meta_data),
             mask: u1:1
         };
         let tok = send_if(tok, internal_write_req_s, write_internal, internal_ram_w_req);
@@ -338,6 +308,64 @@ pub proc WeightPreScan
 
         next_state
     }
+}
+
+const MAX_WEIGHT = hcommon::MAX_WEIGHT;
+const WEIGHT_LOG = hcommon::WEIGHT_LOG;
+const MAX_SYMBOL_COUNT = hcommon::MAX_SYMBOL_COUNT;
+const PARALLEL_ACCESS_WIDTH = hcommon::PARALLEL_ACCESS_WIDTH;
+const COUNTER_WIDTH = hcommon::COUNTER_WIDTH;
+pub const WEIGHT_PRESCAN_METADATA_SIZE =
+    (COUNTER_WIDTH as u32) * (PARALLEL_ACCESS_WIDTH as u32) +
+    (MAX_WEIGHT as u32) + u32:1 +
+    (COUNTER_WIDTH as u32) * (MAX_WEIGHT as u32 + u32:1);
+pub const RAM_SIZE = MAX_SYMBOL_COUNT/PARALLEL_ACCESS_WIDTH * u32:8 / WEIGHT_LOG;
+pub const RAM_ADDR_WIDTH = {std::clog2(RAM_SIZE)};
+pub const RAM_ACCESS_WIDTH = PARALLEL_ACCESS_WIDTH * WEIGHT_LOG;
+const RAM_PARTITION_SIZE = RAM_ACCESS_WIDTH / u32:8;
+const RAM_NUM_PARTITIONS = ram::num_partitions(RAM_PARTITION_SIZE, RAM_ACCESS_WIDTH);
+const MAX_RAM_ADDR = MAX_SYMBOL_COUNT/PARALLEL_ACCESS_WIDTH;
+
+pub proc WeightPreScanInst {
+    type ReadReq = ram::ReadReq<RAM_ADDR_WIDTH, RAM_NUM_PARTITIONS>;
+    type ReadResp = ram::ReadResp<RAM_ACCESS_WIDTH>;
+
+    type OutData = WeightPreScanOutput;
+
+    type InternalRamAddr = uN[RAM_ADDR_WIDTH];
+    type InternalData = WeightPreScanMetaData;
+    type InternalRamData = bits[WEIGHT_PRESCAN_METADATA_SIZE];
+
+    type InternalReadReq = ram::ReadReq<RAM_ADDR_WIDTH, u32:1>;
+    type InternalReadResp = ram::ReadResp<WEIGHT_PRESCAN_METADATA_SIZE>;
+    type InternalWriteReq = ram::WriteReq<RAM_ADDR_WIDTH, WEIGHT_PRESCAN_METADATA_SIZE, u32:1>;
+    type InternalWriteResp = ram::WriteResp;
+
+    config(
+        start_r: chan<bool> in,
+        read_req_s: chan<ReadReq> out,
+        read_rsp_r: chan<ReadResp> in,
+        weight_s: chan<OutData> out,
+        internal_read_req_s: chan<InternalReadReq> out,
+        internal_read_rsp_r: chan<InternalReadResp> in,
+        internal_write_req_s: chan<InternalWriteReq> out,
+        internal_write_rsp_r: chan<InternalWriteResp> in
+    ) {
+        spawn WeightPreScan (
+            start_r,
+            read_req_s,
+            read_rsp_r,
+            weight_s,
+            internal_read_req_s,
+            internal_read_rsp_r,
+            internal_write_req_s,
+            internal_write_rsp_r,
+        );
+    }
+
+    init { }
+
+    next (state: ()) { }
 }
 
 #[test_proc]

@@ -68,9 +68,6 @@ pub proc ShiftBufferAligner<
     init {zero!<State>()}
 
     next(state: State) {
-        // FIXME: Remove when https://github.com/google/xls/issues/1368 is resolved
-        type Inter = ShiftBufferPacket<DATA_WIDTH_X2, LENGTH_WIDTH>;
-
         let tok = join();
 
         let (tok0, data) = recv(tok, input_r);
@@ -150,16 +147,16 @@ proc ShiftBufferAlignerTest {
 
 struct ShiftBufferStorageState<BUFFER_WIDTH: u32, LENGTH_WIDTH: u32> {
     buffer: bits[BUFFER_WIDTH],  // The storage element.
-    buffer_cnt: bits[LENGTH_WIDTH + u32:2],  // Number of valid bits in the buffer.
-    read_ptr: bits[LENGTH_WIDTH + u32:2],  // First occupied bit in the buffer when buffer_cnt > 0.
-    write_ptr: bits[LENGTH_WIDTH + u32:2],  // First free bit in the buffer.
+    buffer_cnt: bits[LENGTH_WIDTH + u32:1],  // Number of valid bits in the buffer.
+    read_ptr: bits[LENGTH_WIDTH + u32:1],  // First occupied bit in the buffer when buffer_cnt > 0.
+    write_ptr: bits[LENGTH_WIDTH + u32:1],  // First free bit in the buffer.
     cmd: ShiftBufferCtrl<LENGTH_WIDTH>,  // Received command of ShiftBufferCtrl type.
     cmd_valid: bool,  // Field cmd is valid.
 }
 
 pub proc ShiftBufferStorage<DATA_WIDTH: u32, LENGTH_WIDTH: u32> {
     type Buffer = bits[DATA_WIDTH * u32:3];
-    type BufferLength = bits[LENGTH_WIDTH + u32:2]; // TODO: where does this "+ u32:2" come from? shouldn't it be number_of_bits_required_to_represent(DATA_WIDTH * u32:3)?
+    type BufferLength = bits[std::clog2(DATA_WIDTH * u32:3)];
     type Data = bits[DATA_WIDTH];
     type DataLength = bits[LENGTH_WIDTH];
     type State = ShiftBufferStorageState;
@@ -191,22 +188,16 @@ pub proc ShiftBufferStorage<DATA_WIDTH: u32, LENGTH_WIDTH: u32> {
         type OutputPayload = ShiftBufferPacket<DATA_WIDTH, LENGTH_WIDTH>;
         type OutputStatus = ShiftBufferStatus;
         type DataLength = bits[LENGTH_WIDTH];
-        // trace_fmt!("state: {:#x}", state);
 
         const _MAX_BUFFER_CNT = (DATA_WIDTH * u32:3) as BufferLength;
 
         let shift_buffer_right = state.read_ptr >= (DATA_WIDTH as BufferLength);
-        // trace_fmt!("shift_buffer_right: {:#x}", shift_buffer_right);
         let shift_data_left =
             state.write_ptr >= (DATA_WIDTH as BufferLength) && !shift_buffer_right;
-        // trace_fmt!("shift_data_left: {:#x}", shift_data_left);
         let recv_new_input = state.write_ptr < (DATA_WIDTH * u32:2) as BufferLength;
-        // trace_fmt!("recv_new_input: {:#x}", recv_new_input);
         let has_enough_data = (state.cmd.length as BufferLength <= state.buffer_cnt);
         let send_response = state.cmd_valid && has_enough_data;
-        // trace_fmt!("send_response: {:#x}", send_response);
         let recv_new_cmd = !state.cmd_valid || send_response;
-        // trace_fmt!("recv_new_cmd: {:#x}", recv_new_cmd);
 
         let tok = join();
 
@@ -220,13 +211,6 @@ pub proc ShiftBufferStorage<DATA_WIDTH: u32, LENGTH_WIDTH: u32> {
             state.read_ptr,
             state.write_ptr)
         };
-
-        // if (shift_buffer_right) {
-        //     trace_fmt!("Shifted data");
-        //     trace_fmt!("new_buffer: {:#x}", new_buffer);
-        //     trace_fmt!("new_read_ptr: {}", new_read_ptr);
-        //     trace_fmt!("new_write_ptr: {}", new_write_ptr);
-        // } else { () };
 
         // Handle incoming writes
         let (tok_input, wdata, wdata_valid) = recv_if_non_blocking(tok, inter, recv_new_input, zero!<Inter>());
@@ -246,19 +230,10 @@ pub proc ShiftBufferStorage<DATA_WIDTH: u32, LENGTH_WIDTH: u32> {
             (new_buffer, new_write_ptr)
         };
 
-        // if (wdata_valid) {
-        //     trace_fmt!("Received aligned data {:#x}", wdata);
-        //     trace_fmt!("new_buffer: {:#x}", new_buffer);
-        //     trace_fmt!("new_write_ptr: {}", new_write_ptr);
-        // } else { () };
-
         // Handle incoming reads
         let (tok_ctrl, new_cmd, new_cmd_valid) =
             recv_if_non_blocking(tok, ctrl, recv_new_cmd, state.cmd);
 
-        // if (new_cmd_valid) {
-        //     trace_fmt!("Received new cmd: {}", new_cmd);
-        // } else {()};
         let new_cmd_valid = if recv_new_cmd { new_cmd_valid } else { state.cmd_valid };
         // Handle current read
 
@@ -269,9 +244,6 @@ pub proc ShiftBufferStorage<DATA_WIDTH: u32, LENGTH_WIDTH: u32> {
                 data: math::mask((state.buffer >> state.read_ptr) as Data, state.cmd.length),
             };
 
-            // trace_fmt!("rdata: {:#x}", rdata);
-            // trace_fmt!("new_read_ptr: {}", new_read_ptr);
-
             (rdata, new_read_ptr)
         } else {
             (zero!<Output>(), new_read_ptr)
@@ -279,9 +251,6 @@ pub proc ShiftBufferStorage<DATA_WIDTH: u32, LENGTH_WIDTH: u32> {
 
         let tok = join(tok_input, tok_ctrl);
         send_if(tok, output, send_response, rdata);
-        // if (send_response) {
-        //     trace_fmt!("Sent out rdata: {:#x}", rdata);
-        // } else {()};
 
         let new_buffer_cnt = new_write_ptr - new_read_ptr;
 
@@ -299,7 +268,7 @@ pub proc ShiftBufferStorage<DATA_WIDTH: u32, LENGTH_WIDTH: u32> {
 }
 
 const STORAGE_TEST_DATA_WIDTH = u32:64;
-const STORAGE_TEST_LENGTH_WIDTH = length_width(STORAGE_TEST_DATA_WIDTH);
+const STORAGE_TEST_LENGTH_WIDTH = std::clog2(STORAGE_TEST_DATA_WIDTH + u32:1);
 const STORAGE_TEST_DATA_WIDTH_X2 = STORAGE_TEST_DATA_WIDTH * u32:2;
 
 #[test_proc]
@@ -468,7 +437,7 @@ pub proc ShiftBuffer<DATA_WIDTH: u32, LENGTH_WIDTH: u32> {
 
 const INST_DATA_WIDTH = u32:64;
 const INST_DATA_WIDTH_X2 = u32:128;
-const INST_LENGTH_WIDTH = std::clog2(INST_DATA_WIDTH) + u32:1;
+const INST_LENGTH_WIDTH = std::clog2(INST_DATA_WIDTH + u32:1);
 
 proc ShiftBufferInst {
     type Input = ShiftBufferPacket;
@@ -520,7 +489,7 @@ proc ShiftBufferStorageInst {
 }
 
 const TEST_DATA_WIDTH = u32:64;
-const TEST_LENGTH_WIDTH = std::clog2(TEST_DATA_WIDTH) + u32:1; // TODO: other places in the code use length_width(TEST_DATA_WIDTH) which is clog2(TEST_DATA_WIDTH + 1) instead, why clog2(TEST_DATA_WIDTH) + 1 here?
+const TEST_LENGTH_WIDTH = std::clog2(TEST_DATA_WIDTH + u32:1);
 
 #[test_proc]
 proc ShiftBufferTest {
