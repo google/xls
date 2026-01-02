@@ -641,6 +641,7 @@ absl::Status ConnectReceivesToConnector(
     Stage& stage = block->stages()[stage_index];
     Node* token = receive->As<Receive>()->token();
     std::optional<Node*> predicate = receive->As<Receive>()->predicate();
+    bool is_blocking = receive->As<Receive>()->is_blocking();
 
     if (connector.ready.has_value()) {
       // The ready signal from this receive is:
@@ -679,11 +680,54 @@ absl::Status ConnectReceivesToConnector(
               .status());
     }
 
-    XLS_RETURN_IF_ERROR(
-        receive
-            ->ReplaceUsesWithNewInStage<Tuple>(
-                stage_index, absl::MakeConstSpan({token, connector.data}))
-            .status());
+    Node* data = connector.data;
+    if (options.codegen_options.gate_recvs()) {
+      std::vector<Node*> gate_conditions;
+      gate_conditions.reserve(2);
+      if (predicate.has_value()) {
+        gate_conditions.push_back(*predicate);
+      }
+      if (!is_blocking && connector.valid.has_value()) {
+        gate_conditions.push_back(*connector.valid);
+      }
+
+      Node* gate_condition = nullptr;
+      if (gate_conditions.size() == 1) {
+        gate_condition = gate_conditions.front();
+      } else if (gate_conditions.size() > 1) {
+        XLS_ASSIGN_OR_RETURN(gate_condition, block->MakeNodeInStage<NaryOp>(
+                                                 stage_index, receive->loc(),
+                                                 gate_conditions, Op::kAnd));
+      }
+
+      if (gate_condition != nullptr) {
+        XLS_ASSIGN_OR_RETURN(Node * zero,
+                             block->MakeNodeInStage<Literal>(
+                                 stage_index, receive->loc(),
+                                 ZeroOfType(connector.data->GetType())));
+        XLS_ASSIGN_OR_RETURN(data,
+                             block->MakeNodeInStage<Select>(
+                                 stage_index, receive->loc(), gate_condition,
+                                 absl::MakeConstSpan({zero, connector.data}),
+                                 /*default_value=*/std::nullopt));
+      }
+    }
+
+    std::vector<Node*> replacement_elements = {token, data};
+    if (!is_blocking) {
+      if (connector.valid.has_value()) {
+        replacement_elements.push_back(*connector.valid);
+      } else {
+        XLS_ASSIGN_OR_RETURN(
+            Node * valid, block->MakeNodeInStage<Literal>(
+                              stage_index, receive->loc(), Value(UBits(1, 1))));
+        replacement_elements.push_back(valid);
+      }
+    }
+    XLS_RETURN_IF_ERROR(receive
+                            ->ReplaceUsesWithNewInStage<Tuple>(
+                                stage_index, replacement_elements)
+                            .status());
     XLS_RETURN_IF_ERROR(block->RemoveNode(receive));
   }
   if (connector.ready.has_value()) {

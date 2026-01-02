@@ -488,5 +488,150 @@ TEST_F(ChannelToPortIoLoweringPassTest, SingleValueOutputFlop) {
               Contains(m::RegisterRead(HasSubstr("__a_out_reg"))));
 }
 
+TEST_F(ChannelToPortIoLoweringPassTest, GateRecvsWithPredicate) {
+  auto p = std::make_unique<Package>("test");
+  ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(auto a_in,
+                           pb.AddInputChannel("a_in", p->GetBitsType(32)));
+  BValue tkn = pb.Literal(Value::Token());
+  BValue pred = pb.Literal(Value(UBits(1, 1)));
+  pb.ReceiveIf(a_in, tkn, pred);
+  XLS_ASSERT_OK(pb.Build());
+
+  BlockConversionPassOptions options;
+  options.codegen_options.gate_recvs(true);
+
+  EXPECT_THAT(Run(p.get(), options), IsOkAndHolds(true));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+
+  EXPECT_THAT(
+      block->nodes(),
+      Contains(m::Select(m::Literal(1),
+                         /*cases=*/{m::Literal(0), m::InputPort("a_in")})));
+}
+
+TEST_F(ChannelToPortIoLoweringPassTest, GateRecvsNonBlocking) {
+  auto p = std::make_unique<Package>("test");
+  ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(auto a_in,
+                           pb.AddInputChannel("a_in", p->GetBitsType(32)));
+  BValue tkn = pb.Literal(Value::Token());
+  pb.ReceiveNonBlocking(a_in, tkn);
+  XLS_ASSERT_OK(pb.Build());
+
+  BlockConversionPassOptions options;
+  options.codegen_options.gate_recvs(true);
+
+  EXPECT_THAT(Run(p.get(), options), IsOkAndHolds(true));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+
+  EXPECT_THAT(
+      block->nodes(),
+      Contains(m::Select(m::InputPort("a_in_vld"),
+                         /*cases=*/{m::Literal(0), m::InputPort("a_in")})));
+}
+
+TEST_F(ChannelToPortIoLoweringPassTest, GateRecvsNonBlockingWithPredicate) {
+  auto p = std::make_unique<Package>("test");
+  ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(auto a_in,
+                           pb.AddInputChannel("a_in", p->GetBitsType(32)));
+  BValue tkn = pb.Literal(Value::Token());
+  BValue pred = pb.Literal(Value(UBits(1, 1)));
+  pb.ReceiveIfNonBlocking(a_in, tkn, pred);
+  XLS_ASSERT_OK(pb.Build());
+
+  BlockConversionPassOptions options;
+  options.codegen_options.gate_recvs(true);
+
+  EXPECT_THAT(Run(p.get(), options), IsOkAndHolds(true));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+
+  EXPECT_THAT(
+      block->nodes(),
+      Contains(m::Select(m::And(m::Literal(1), m::InputPort("a_in_vld")),
+                         /*cases=*/{m::Literal(0), m::InputPort("a_in")})));
+}
+
+TEST_F(ChannelToPortIoLoweringPassTest, GateRecvsBlockingNoPredicate) {
+  auto p = std::make_unique<Package>("test");
+  ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(auto a_in,
+                           pb.AddInputChannel("a_in", p->GetBitsType(32)));
+  BValue tkn = pb.Literal(Value::Token());
+  pb.Receive(a_in, tkn);
+  XLS_ASSERT_OK(pb.Build());
+
+  BlockConversionPassOptions options;
+  options.codegen_options.gate_recvs(true);
+
+  EXPECT_THAT(Run(p.get(), options), IsOkAndHolds(true));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+
+  EXPECT_THAT(block->nodes(), Contains(m::Tuple(m::Literal(Value::Token()),
+                                                m::InputPort("a_in"))));
+}
+
+TEST_F(ChannelToPortIoLoweringPassTest, NoGateRecvsWithPredicate) {
+  auto p = std::make_unique<Package>("test");
+  ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(auto a_in,
+                           pb.AddInputChannel("a_in", p->GetBitsType(32)));
+  BValue tkn = pb.Literal(Value::Token());
+  BValue pred = pb.Literal(Value(UBits(1, 1)));
+  pb.ReceiveIf(a_in, tkn, pred);
+  XLS_ASSERT_OK(pb.Build());
+
+  BlockConversionPassOptions options;
+  options.codegen_options.gate_recvs(false);
+
+  EXPECT_THAT(Run(p.get(), options), IsOkAndHolds(true));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+
+  EXPECT_THAT(block->nodes(), Contains(m::Tuple(m::Literal(Value::Token()),
+                                                m::InputPort("a_in"))));
+}
+
+TEST_F(ChannelToPortIoLoweringPassTest, NoGateRecvsNonBlocking) {
+  auto p = std::make_unique<Package>("test");
+  ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(auto a_in,
+                           pb.AddInputChannel("a_in", p->GetBitsType(32)));
+  BValue tkn = pb.Literal(Value::Token());
+  pb.ReceiveNonBlocking(a_in, tkn);
+  XLS_ASSERT_OK(pb.Build());
+
+  BlockConversionPassOptions options;
+  options.codegen_options.gate_recvs(false);
+
+  EXPECT_THAT(Run(p.get(), options), IsOkAndHolds(true));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+
+  EXPECT_THAT(block->nodes(), Contains(m::Tuple(m::Literal(Value::Token()),
+                                                m::InputPort("a_in"),
+                                                m::InputPort("a_in_vld"))));
+}
+
+TEST_F(ChannelToPortIoLoweringPassTest, NoGateRecvsNonBlockingWithPredicate) {
+  auto p = std::make_unique<Package>("test");
+  ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(auto a_in,
+                           pb.AddInputChannel("a_in", p->GetBitsType(32)));
+  BValue tkn = pb.Literal(Value::Token());
+  BValue pred = pb.Literal(Value(UBits(1, 1)));
+  pb.ReceiveIfNonBlocking(a_in, tkn, pred);
+  XLS_ASSERT_OK(pb.Build());
+
+  BlockConversionPassOptions options;
+  options.codegen_options.gate_recvs(false);
+
+  EXPECT_THAT(Run(p.get(), options), IsOkAndHolds(true));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+
+  EXPECT_THAT(block->nodes(), Contains(m::Tuple(m::Literal(Value::Token()),
+                                                m::InputPort("a_in"),
+                                                m::InputPort("a_in_vld"))));
+}
+
 }  // namespace
 }  // namespace xls::codegen
