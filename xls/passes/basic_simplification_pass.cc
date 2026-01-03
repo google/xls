@@ -242,6 +242,17 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
     return true;
   }
 
+  // or_reduce(neg(x)) => or_reduce(x)
+  //
+  // x is zero iff neg(x) is zero. Since or_reduce(y) is equivalent to y != 0,
+  // the reductions are equivalent, and eliding the neg(x) would allow the value
+  // to be computed earlier in the computation.
+  if (n->op() == Op::kOrReduce && n->operand(0)->op() == Op::kNeg) {
+    VLOG(2) << "FOUND: replace or_reduce(neg(x)) with or_reduce(x)";
+    XLS_RETURN_IF_ERROR(n->ReplaceOperandNumber(0, n->operand(0)->operand(0)));
+    return true;
+  }
+
   // Replaces uses of n with a new node by eliminating operands for which the
   // "predicate" holds. If the predicate holds for all operands, the
   // NaryOpNullaryResult is used as a replacement.
