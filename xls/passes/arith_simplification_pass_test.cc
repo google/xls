@@ -138,6 +138,45 @@ TEST_F(ArithSimplificationPassTest, CompareEqNegatedConstant) {
   EXPECT_THAT(f->return_value(), m::Eq(m::Param("x"), m::Literal(253)));
 }
 
+TEST_F(ArithSimplificationPassTest, CompareEqTwosComplementNegatedConstant) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("compare_twos_complement_neg", p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue twos_comp_neg_x =
+      fb.Add(fb.Not(x), fb.Literal(UBits(1, /*bit_count=*/8)));
+  BValue k = fb.Literal(UBits(3, /*bit_count=*/8));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Eq(twos_comp_neg_x, k)));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Eq(m::Add(m::Not(m::Param("x")), m::Literal(1)), m::Literal(3)));
+
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Eq(m::Param("x"), m::Literal(253)));
+}
+
+TEST_F(ArithSimplificationPassTest, AddNotPlusOneIsNeg) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("f", p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue one = fb.Literal(UBits(1, /*bit_count=*/32));
+  BValue not_x = fb.Not(x);
+  BValue a = fb.Add(not_x, one);
+  BValue b = fb.Add(one, not_x);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f,
+      fb.BuildWithReturnValue(fb.Tuple(std::vector<BValue>{a, b})));
+  EXPECT_THAT(f->return_value(),
+              m::Tuple(m::Add(m::Not(m::Param("x")), m::Literal(1)),
+                       m::Add(m::Literal(1), m::Not(m::Param("x")))));
+
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Tuple(m::Neg(m::Param("x")), m::Neg(m::Param("x"))));
+}
+
 TEST_F(ArithSimplificationPassTest, CompareEqNegatedWithOneUsedElsewhere) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
@@ -157,6 +196,26 @@ TEST_F(ArithSimplificationPassTest, CompareEqNegatedWithOneUsedElsewhere) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Concat(m::Eq(m::Param("x"), m::Param("y")),
                                            m::Neg(m::Param("x"))));
+}
+
+TEST_F(ArithSimplificationPassTest, CompareEqTwosComplementNegated) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("compare_twos_complement_neg", p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  BValue one = fb.Literal(UBits(1, /*bit_count=*/8));
+  BValue twos_comp_neg_x = fb.Add(fb.Not(x), one);
+  BValue twos_comp_neg_y = fb.Add(fb.Not(y), one);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f,
+      fb.BuildWithReturnValue(fb.Eq(twos_comp_neg_x, twos_comp_neg_y)));
+  EXPECT_THAT(f->return_value(),
+              m::Eq(m::Add(m::Not(m::Param("x")), m::Literal(1)),
+                    m::Add(m::Not(m::Param("y")), m::Literal(1))));
+
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Eq(m::Param("x"), m::Param("y")));
 }
 
 TEST_F(ArithSimplificationPassTest, CompareEqNegatedWithBothUsedElsewhere) {
