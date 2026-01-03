@@ -2170,6 +2170,32 @@ TEST_F(ArithSimplificationPassTest, GuardedShiftOperationLowLimit) {
   EXPECT_THAT(f->return_value(), m::Shll(m::Param("x"), m::Select()));
 }
 
+TEST_F(ArithSimplificationPassTest, LogicalShiftLeftOfOneBitUnknownAmount) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue amt = fb.Param("amt", p->GetBitsType(10));
+  BValue y = fb.Param("y", p->GetBitsType(1));
+  fb.Shll(y, amt);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::And(m::Param("y"), m::Eq(m::Param("amt"), m::Literal(0))));
+}
+
+TEST_F(ArithSimplificationPassTest, LogicalShiftRightOfOneBitUnknownAmount) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue amt = fb.Param("amt", p->GetBitsType(10));
+  BValue y = fb.Param("y", p->GetBitsType(1));
+  fb.Shrl(y, amt);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::And(m::Param("y"), m::Eq(m::Param("amt"), m::Literal(0))));
+}
+
 TEST_F(ArithSimplificationPassTest, UMulCompare) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());

@@ -1231,6 +1231,22 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n,
     return true;
   }
 
+  // Logical shift of a 1-bit value:
+  //   shll(y:bits[1], amt) == y & (amt == 0)
+  //   shrl(y:bits[1], amt) == y & (amt == 0)
+  //
+  // A 1-bit logical shift by a nonzero amount produces zero, and a shift by
+  // zero is a no-op.
+  if ((n->op() == Op::kShll || n->op() == Op::kShrl) &&
+      n->operand(0)->BitCountOrDie() == 1) {
+    VLOG(2) << "FOUND: logical shift of 1-bit value";
+    XLS_ASSIGN_OR_RETURN(Node * amt_is_zero,
+                         CompareLiteral(n->operand(1), 0, Op::kEq));
+    std::vector<Node*> args = {n->operand(0), amt_is_zero};
+    XLS_RETURN_IF_ERROR(n->ReplaceUsesWithNew<NaryOp>(args, Op::kAnd).status());
+    return true;
+  }
+
   // An arithmetic shift-right of a 1-bit value is a no-op.
   if (n->op() == Op::kShra && n->operand(0)->BitCountOrDie() == 1) {
     VLOG(2) << "FOUND: arithmetic shift-right of 1-bit value";
