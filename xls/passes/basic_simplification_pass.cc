@@ -150,6 +150,28 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
     return true;
   }
 
+  // X(sel(p, cases=[a, b]), sel(p, cases=[b, a])) => X(a, b)
+  //
+  // Because X is commutative (X(a, b) == X(b, a)), the select becomes
+  // redundant.
+  if (n->operand_count() == 2 && OpIsCommutative(n->op()) &&
+      !OpIsSideEffecting(n->op())) {
+    XLS_ASSIGN_OR_RETURN(std::optional<BinarySelectArms> sel0,
+                         MatchBinarySelectLike(n->operand(0)));
+    XLS_ASSIGN_OR_RETURN(std::optional<BinarySelectArms> sel1,
+                         MatchBinarySelectLike(n->operand(1)));
+    if (sel0.has_value() && sel1.has_value() &&
+        sel0->selector == sel1->selector && sel0->on_false == sel1->on_true &&
+        sel0->on_true == sel1->on_false) {
+      VLOG(2) << "FOUND: commutative op on swapped two-way selects: "
+              << OpToString(n->op());
+      std::vector<Node*> new_operands = {sel0->on_false, sel0->on_true};
+      XLS_ASSIGN_OR_RETURN(Node * replacement, n->Clone(new_operands));
+      XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(replacement));
+      return true;
+    }
+  }
+
   // Remove duplicate operands of XORs.
   // For any duplicate operand that appears an even number of times, remove all
   // instances. For duplicates that appear an odd number of times, collapse to a

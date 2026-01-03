@@ -177,6 +177,54 @@ TEST_F(NodeUtilTest, GatherAllTheBits) {
   EXPECT_THAT(f->return_value(), m::Param("x"));
 }
 
+TEST_F(NodeUtilTest, MatchBinarySelectLikeSelect) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue selector = fb.Param("p", p->GetBitsType(1));
+  BValue a = fb.Param("a", p->GetBitsType(32));
+  BValue b = fb.Param("b", p->GetBitsType(32));
+  BValue sel = fb.Select(selector, {a, b});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::optional<BinarySelectArms> arms,
+                           MatchBinarySelectLike(f->return_value()));
+  ASSERT_TRUE(arms.has_value());
+  EXPECT_EQ(arms->selector, f->param(0));
+  EXPECT_EQ(arms->on_false, f->param(1));
+  EXPECT_EQ(arms->on_true, f->param(2));
+}
+
+TEST_F(NodeUtilTest, MatchBinarySelectLikePrioritySelect) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue selector = fb.Param("p", p->GetBitsType(1));
+  BValue a = fb.Param("a", p->GetBitsType(32));
+  BValue b = fb.Param("b", p->GetBitsType(32));
+  BValue sel = fb.PrioritySelect(selector, {a}, b);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::optional<BinarySelectArms> arms,
+                           MatchBinarySelectLike(f->return_value()));
+  ASSERT_TRUE(arms.has_value());
+  EXPECT_EQ(arms->selector, f->param(0));
+  EXPECT_EQ(arms->on_false, f->param(2));
+  EXPECT_EQ(arms->on_true, f->param(1));
+}
+
+TEST_F(NodeUtilTest, MatchBinarySelectLikeNonMatch) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue selector = fb.Param("p", p->GetBitsType(2));
+  BValue a = fb.Param("a", p->GetBitsType(32));
+  BValue b = fb.Param("b", p->GetBitsType(32));
+  BValue sel = fb.Select(selector, {a, b}, /*default_value=*/a);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::optional<BinarySelectArms> arms,
+                           MatchBinarySelectLike(f->return_value()));
+  EXPECT_FALSE(arms.has_value());
+}
+
 TEST_F(NodeUtilTest, GatherTreeBits) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
