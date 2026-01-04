@@ -270,6 +270,34 @@ cc_library(
 )
 
 cc_library(
+    name = "c_api_ir_analysis",
+    srcs = ["c_api_ir_analysis.cc"],
+    hdrs = ["c_api_ir_analysis.h"],
+    deps = [
+        ":c_api_impl_helpers",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:interval",
+        "//xls/ir:interval_set",
+        "//xls/ir:ir_parser",
+        "//xls/ir:ternary",
+        "//xls/ir:type",
+        "//xls/passes:bdd_query_engine",
+        "//xls/passes:bit_count_query_engine",
+        "//xls/passes:partial_info_query_engine",
+        "//xls/passes:proc_state_range_query_engine",
+        "//xls/passes:query_engine",
+        "//xls/passes:union_query_engine",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_library(
     name = "c_api_ir_builder",
     srcs = ["c_api_ir_builder.cc"],
     hdrs = ["c_api_ir_builder.h"],
@@ -293,6 +321,7 @@ cc_library(
         ":c_api_dslx",
         ":c_api_format_preference",
         ":c_api_impl_helpers",
+        ":c_api_ir_analysis",
         ":c_api_ir_builder",
         ":c_api_vast",
         ":runtime_codegen_actions",
