@@ -519,7 +519,7 @@ absl::StatusOr<Node*> NaryNorIfNeeded(FunctionBase* f,
 
 absl::StatusOr<Node*> JoinWithAnd(FunctionBase* f,
                                   absl::Span<Node* const> operands,
-                                  std::string_view name,
+                                  bool combine_literals, std::string_view name,
                                   std::optional<SourceInfo> loc) {
   XLS_RET_CHECK(!operands.empty());
   for (Node* operand : operands) {
@@ -536,9 +536,40 @@ absl::StatusOr<Node*> JoinWithAnd(FunctionBase* f,
     }
   }
 
+  std::optional<Bits> literal_value;
+  if (combine_literals) {
+    for (Node* operand : new_operands) {
+      if (operand->Is<Literal>()) {
+        Value operand_value = operand->As<Literal>()->value();
+        CHECK(operand_value.IsBits());
+        if (!literal_value.has_value()) {
+          literal_value = operand_value.bits();
+        } else {
+          literal_value = bits_ops::And(*literal_value, operand_value.bits());
+        }
+      }
+    }
+    if (literal_value.has_value() && literal_value->IsZero()) {
+      return f->MakeNodeWithName<Literal>(loc.value_or(SourceInfo()),
+                                          Value(*literal_value), name);
+    }
+    if (literal_value.has_value() && literal_value->IsAllOnes()) {
+      literal_value = std::nullopt;
+    }
+  }
+
   std::vector<Node*> unique_operands = RemoveRedundantNodes(
       new_operands,
-      /*drop_literal=*/[](const Value& v) { return v.IsAllOnes(); });
+      /*drop_literal=*/combine_literals
+          ? std::make_optional([](const Value&) { return true; })
+          : std::nullopt);
+  if (literal_value.has_value()) {
+    XLS_ASSIGN_OR_RETURN(Node * literal,
+                         f->MakeNode<Literal>(loc.value_or(SourceInfo()),
+                                              Value(*literal_value)));
+    unique_operands.push_back(literal);
+  }
+
   if (unique_operands.empty()) {
     return f->MakeNodeWithName<Literal>(
         loc.value_or(SourceInfo()), AllOnesOfType(operands.front()->GetType()),
@@ -561,6 +592,7 @@ absl::StatusOr<Node*> JoinWithAnd(FunctionBase* f,
 
 absl::StatusOr<Node*> ReplaceWithAnd(Node* old_node,
                                      absl::Span<Node* const> new_nodes,
+                                     bool combine_literals,
                                      std::string_view name,
                                      std::optional<SourceInfo> loc) {
   FunctionBase* f = old_node->function_base();
@@ -569,7 +601,8 @@ absl::StatusOr<Node*> ReplaceWithAnd(Node* old_node,
   operands.push_back(old_node);
   absl::c_copy(new_nodes, std::back_inserter(operands));
 
-  XLS_ASSIGN_OR_RETURN(Node * replacement, JoinWithAnd(f, operands, name, loc));
+  XLS_ASSIGN_OR_RETURN(Node * replacement,
+                       JoinWithAnd(f, operands, combine_literals, name, loc));
   if (f->IsStaged(old_node) && !f->IsStaged(replacement)) {
     XLS_ASSIGN_OR_RETURN(int64_t stage_index,
                          old_node->function_base()->GetStageIndex(old_node));
@@ -593,7 +626,7 @@ absl::StatusOr<Node*> ReplaceWithAnd(Node* old_node,
 
 absl::StatusOr<Node*> JoinWithOr(FunctionBase* f,
                                  absl::Span<Node* const> operands,
-                                 std::string_view name,
+                                 bool combine_literals, std::string_view name,
                                  std::optional<SourceInfo> loc) {
   XLS_RET_CHECK(!operands.empty());
   for (Node* operand : operands) {
@@ -610,9 +643,40 @@ absl::StatusOr<Node*> JoinWithOr(FunctionBase* f,
     }
   }
 
+  std::optional<Bits> literal_value;
+  if (combine_literals) {
+    for (Node* operand : new_operands) {
+      if (operand->Is<Literal>()) {
+        Value operand_value = operand->As<Literal>()->value();
+        CHECK(operand_value.IsBits());
+        if (!literal_value.has_value()) {
+          literal_value = operand_value.bits();
+        } else {
+          literal_value = bits_ops::Or(*literal_value, operand_value.bits());
+        }
+      }
+    }
+    if (literal_value.has_value() && literal_value->IsAllOnes()) {
+      return f->MakeNodeWithName<Literal>(loc.value_or(SourceInfo()),
+                                          Value(*literal_value), name);
+    }
+    if (literal_value.has_value() && literal_value->IsZero()) {
+      literal_value = std::nullopt;
+    }
+  }
+
   std::vector<Node*> unique_operands = RemoveRedundantNodes(
       new_operands,
-      /*drop_literal=*/[](const Value& v) { return v.IsAllZeros(); });
+      /*drop_literal=*/combine_literals
+          ? std::make_optional([](const Value&) { return true; })
+          : std::nullopt);
+  if (literal_value.has_value()) {
+    XLS_ASSIGN_OR_RETURN(Node * literal,
+                         f->MakeNode<Literal>(loc.value_or(SourceInfo()),
+                                              Value(*literal_value)));
+    unique_operands.push_back(literal);
+  }
+
   if (unique_operands.empty()) {
     return f->MakeNodeWithName<Literal>(
         loc.value_or(SourceInfo()),
@@ -635,6 +699,7 @@ absl::StatusOr<Node*> JoinWithOr(FunctionBase* f,
 
 absl::StatusOr<Node*> ReplaceWithOr(Node* old_node,
                                     absl::Span<Node* const> new_nodes,
+                                    bool combine_literals,
                                     std::string_view name,
                                     std::optional<SourceInfo> loc) {
   FunctionBase* f = old_node->function_base();
@@ -643,7 +708,8 @@ absl::StatusOr<Node*> ReplaceWithOr(Node* old_node,
   operands.push_back(old_node);
   absl::c_copy(new_nodes, std::back_inserter(operands));
 
-  XLS_ASSIGN_OR_RETURN(Node * replacement, JoinWithOr(f, operands, name, loc));
+  XLS_ASSIGN_OR_RETURN(Node * replacement,
+                       JoinWithOr(f, operands, combine_literals, name, loc));
   if (f->IsStaged(old_node) && !f->IsStaged(replacement)) {
     XLS_ASSIGN_OR_RETURN(int64_t stage_index,
                          old_node->function_base()->GetStageIndex(old_node));

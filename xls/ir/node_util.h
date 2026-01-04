@@ -282,33 +282,35 @@ absl::StatusOr<Node*> NaryNorIfNeeded(FunctionBase* f,
 
 // Build a node representing `AND(operands...)`, expressing it as (locally)
 // efficiently as possible. This will merge & deduplicate the nodes' operands if
-// any node is an AND, drop any operands that are literal all-ones, and
-// construct the AND of the remaining operands.
+// any node is an AND, combine all literals into at most one literal (unless
+// requested not to), and construct the AND of the remaining operands.
 //
 // If `source_info` is provided, the result will have that source info.
 // Otherwise, the result will have the merged source infos of the operands.
 absl::StatusOr<Node*> JoinWithAnd(FunctionBase* f,
                                   absl::Span<Node* const> operands,
+                                  bool combine_literals = true,
                                   std::string_view name = "",
                                   std::optional<SourceInfo> loc = std::nullopt);
 
 // Build a node representing `OR(operands...)`, expressing it as (locally)
 // efficiently as possible. This will merge & deduplicate the nodes' operands if
-// any node is an OR, drop any operands that are literal zeroes, and construct
-// the OR of the remaining operands.
+// any node is an OR, combine all literals into at most one literal (unless
+// requested not to), and construct the OR of the remaining operands.
 //
 // If `source_info` is provided, the result will have that source info.
 // Otherwise, the result will have the merged source infos of the operands.
 absl::StatusOr<Node*> JoinWithOr(FunctionBase* f,
                                  absl::Span<Node* const> operands,
+                                 bool combine_literals = true,
                                  std::string_view name = "",
                                  std::optional<SourceInfo> loc = std::nullopt);
 
 // Replaces all uses of `old_node` with `old_node AND new_nodes...`, expressing
 // it as efficiently as possible. This will merge & deduplicate the nodes'
-// operands if either node is an AND, drop any operands that are literal
-// all-ones, and construct the AND of the remaining operands, replacing
-// `old_node` with this new result.
+// operands if either node is an AND, combine all literals into at most one
+// literal (unless requested not to), and construct the AND of the remaining
+// operands, replacing `old_node` with this new result.
 //
 // - If a name is provided, the result will have that name.
 // - If no name is provided, the result will take `old_node`'s name if it has
@@ -320,18 +322,20 @@ absl::StatusOr<Node*> JoinWithOr(FunctionBase* f,
 // Also, if `old_node` is staged, the result will be placed in the same stage.
 absl::StatusOr<Node*> ReplaceWithAnd(
     Node* old_node, absl::Span<Node* const> new_nodes,
-    std::string_view name = "", std::optional<SourceInfo> loc = std::nullopt);
+    bool combine_literals = true, std::string_view name = "",
+    std::optional<SourceInfo> loc = std::nullopt);
 inline absl::StatusOr<Node*> ReplaceWithAnd(
-    Node* old_node, Node* new_node, std::string_view name = "",
-    std::optional<SourceInfo> loc = std::nullopt) {
-  return ReplaceWithAnd(old_node, absl::MakeConstSpan({new_node}), name, loc);
+    Node* old_node, Node* new_node, bool combine_literals = true,
+    std::string_view name = "", std::optional<SourceInfo> loc = std::nullopt) {
+  return ReplaceWithAnd(old_node, absl::MakeConstSpan({new_node}),
+                        combine_literals, name, loc);
 }
 
 // Replaces all uses of `old_node` with `old_node OR new_nodes...`, expressing
 // it as efficiently as possible. This will merge & deduplicate the nodes'
-// operands if either node is an OR, drop any operands that are literal zeroes,
-// and construct the OR of the remaining operands, replacing `old_node` with
-// this new result.
+// operands if either node is an OR, combine all literals into at most one
+// literal (unless requested not to), and construct the OR of the remaining
+// operands, replacing `old_node` with this new result.
 //
 // - If a name is provided, the result will have that name.
 // - If no name is provided, the result will take `old_node`'s name if it has
@@ -343,11 +347,13 @@ inline absl::StatusOr<Node*> ReplaceWithAnd(
 // Also, if `old_node` is staged, the result will be placed in the same stage.
 absl::StatusOr<Node*> ReplaceWithOr(
     Node* old_node, absl::Span<Node* const> new_nodes,
-    std::string_view name = "", std::optional<SourceInfo> loc = std::nullopt);
+    bool combine_literals = true, std::string_view name = "",
+    std::optional<SourceInfo> loc = std::nullopt);
 inline absl::StatusOr<Node*> ReplaceWithOr(
-    Node* old_node, Node* new_node, std::string_view name = "",
-    std::optional<SourceInfo> loc = std::nullopt) {
-  return ReplaceWithOr(old_node, absl::MakeConstSpan({new_node}), name, loc);
+    Node* old_node, Node* new_node, bool combine_literals = true,
+    std::string_view name = "", std::optional<SourceInfo> loc = std::nullopt) {
+  return ReplaceWithOr(old_node, absl::MakeConstSpan({new_node}),
+                       combine_literals, name, loc);
 }
 
 // Returns whether the given node is a signed/unsigned comparison operation (for

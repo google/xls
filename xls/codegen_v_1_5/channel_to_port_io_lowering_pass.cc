@@ -707,9 +707,11 @@ absl::Status ConnectReceivesToConnector(
                 absl::MakeConstSpan({*connector.valid, recv_inactive}),
                 Op::kOr));
       }
-      XLS_RETURN_IF_ERROR(
-          ReplaceWithAnd(stage.active_inputs_valid(), recv_valid_or_inactive)
-              .status());
+
+      XLS_RETURN_IF_ERROR(ReplaceWithAnd(stage.active_inputs_valid(),
+                                         recv_valid_or_inactive,
+                                         /*combine_literals=*/false)
+                              .status());
     }
 
     Node* data = connector.data;
@@ -763,13 +765,10 @@ absl::Status ConnectReceivesToConnector(
     XLS_RETURN_IF_ERROR(block->RemoveNode(receive));
   }
   if (connector.ready.has_value()) {
-    if (ready_signals.size() == 1) {
-      XLS_RETURN_IF_ERROR(connector.ReplaceReadySignal(ready_signals.front()));
-    } else {
-      XLS_ASSIGN_OR_RETURN(Node * ready_signal,
-                           JoinWithOr(block, ready_signals));
-      XLS_RETURN_IF_ERROR(connector.ReplaceReadySignal(ready_signal));
-    }
+    XLS_ASSIGN_OR_RETURN(
+        Node * ready_signal,
+        JoinWithOr(block, ready_signals, /*combine_literals=*/false));
+    XLS_RETURN_IF_ERROR(connector.ReplaceReadySignal(ready_signal));
   }
 
   return absl::OkStatus();
@@ -850,9 +849,17 @@ absl::Status ConnectSendsToConnector(
                 absl::MakeConstSpan({*connector.ready, send_inactive}),
                 Op::kOr));
       }
-      XLS_RETURN_IF_ERROR(
-          ReplaceWithAnd(stage.outputs_valid(), send_done_or_inactive)
-              .status());
+
+      if (stage.outputs_valid()->Is<Literal>() &&
+          stage.outputs_valid()->As<Literal>()->value().IsAllOnes()) {
+        XLS_RETURN_IF_ERROR(
+            stage.outputs_valid()->ReplaceUsesWith(send_done_or_inactive));
+      } else {
+        XLS_RETURN_IF_ERROR(ReplaceWithAnd(stage.outputs_valid(),
+                                           send_done_or_inactive,
+                                           /*combine_literals=*/false)
+                                .status());
+      }
     }
 
     if (connector.valid.has_value()) {

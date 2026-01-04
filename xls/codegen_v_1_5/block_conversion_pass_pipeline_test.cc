@@ -732,7 +732,7 @@ TEST_F(BlockConversionTest, ProcWithVariousNextStateNodes) {
               IsOkAndHolds(ElementsAre(10, 20, 30)));
 }
 
-TEST_F(BlockConversionTest, DISABLED_ProcWithNextStateNodeBeforeParam) {
+TEST_F(BlockConversionTest, ProcWithNextStateNodeBeforeParam) {
   // A block with the next-state node scheduled before the param.
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
@@ -1077,10 +1077,12 @@ proc my_proc(st: (), init={()}) {
   EXPECT_THAT(FindNode("in_vld", block), m::InputPort("in_vld"));
   EXPECT_THAT(
       FindNode("in_rdy", block),
-      m::OutputPort("in_rdy",
-                    m::And(m::And(m::Literal(1), m::Or(m::InputPort("in_vld"),
-                                                       m::Not(m::Literal(1)))),
-                           m::Literal(1), m::Literal(1))));
+      m::OutputPort(
+          "in_rdy",
+          m::And(m::And(m::Literal(1),
+                        m::And(m::Literal(1), m::Or(m::InputPort("in_vld"),
+                                                    m::Not(m::Literal(1))))),
+                 m::Literal(1), m::Literal(1))));
 }
 
 TEST_F(BlockConversionTest, OnlyFIFOInProcGateRecvsFalse) {
@@ -1113,10 +1115,12 @@ proc my_proc(st: (), init={()}) {
   EXPECT_THAT(FindNode("in_vld", block), m::InputPort("in_vld"));
   EXPECT_THAT(
       FindNode("in_rdy", block),
-      m::OutputPort("in_rdy",
-                    m::And(m::And(m::Literal(1), m::Or(m::InputPort("in_vld"),
-                                                       m::Not(m::Literal(1)))),
-                           m::Literal(1), m::Literal(1))));
+      m::OutputPort(
+          "in_rdy",
+          m::And(m::And(m::Literal(1),
+                        m::And(m::Literal(1), m::Or(m::InputPort("in_vld"),
+                                                    m::Not(m::Literal(1))))),
+                 m::Literal(1), m::Literal(1))));
 }
 
 TEST_F(BlockConversionTest, UnconditionalSendRdyVldProc) {
@@ -1569,7 +1573,7 @@ TEST_F(BlockConversionTest, OneToTwoProc) {
           block,
           {{"dir", 1}, {"in", 123}, {"in_vld", 0}, {"a_rdy", 1}, {"b_rdy", 1}}),
       IsOkAndHolds(UnorderedElementsAre(Pair("a", 123), Pair("b_vld", 0),
-                                        Pair("in_rdy", 1), Pair("a_vld", 0),
+                                        Pair("in_rdy", 0), Pair("a_vld", 0),
                                         Pair("b", 123))));
 
   // Output A selected. Input valid and output ready *not* asserted.
@@ -2541,7 +2545,7 @@ class MultiInputPipelinedProcTestSweepFixture
   }
 };
 
-TEST_P(MultiInputPipelinedProcTestSweepFixture, DISABLED_RandomStalling) {
+TEST_P(MultiInputPipelinedProcTestSweepFixture, RandomStalling) {
   int64_t stage_count = std::get<0>(GetParam());
   bool flop_inputs = std::get<1>(GetParam());
   bool flop_outputs = std::get<2>(GetParam());
@@ -3290,8 +3294,7 @@ class MultiInputWithStatePipelinedProcTestSweepFixture
   }
 };
 
-TEST_P(MultiInputWithStatePipelinedProcTestSweepFixture,
-       DISABLED_RandomStalling) {
+TEST_P(MultiInputWithStatePipelinedProcTestSweepFixture, RandomStalling) {
   int64_t stage_count = std::get<0>(GetParam());
   bool flop_inputs = std::get<1>(GetParam());
   bool flop_outputs = std::get<2>(GetParam());
@@ -3893,7 +3896,72 @@ proc pipelined_proc(tkn: token, st: bits[32], init={token, 1}) {
               IsOkAndHolds(testing::ElementsAreArray(expected_output)));
 }
 
-TEST_F(ProcConversionTestFixture, DISABLED_ProcIIGreaterThanOne) {
+TEST_F(ProcConversionTestFixture, SimpleProcIIGreaterThanOne) {
+  const std::string ir_text = R"(package test
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
+
+#[initiation_interval(2)]
+proc pipelined_proc(tkn: token, st: bits[32], init={token, 0}) {
+  send.1: token = send(tkn, st, channel=out, id=1)
+  min_delay.2: token = min_delay(send.1, delay=1, id=2)
+  receive.3: (token, bits[32]) = receive(min_delay.2, channel=in, id=3)
+  tuple_index.4: token = tuple_index(receive.3, index=0, id=4)
+  tuple_index.5: bits[32] = tuple_index(receive.3, index=1, id=5)
+  next_st: () = next_value(param=st, value=tuple_index.5)
+  next_tkn: () = next_value(param=tkn, value=tuple_index.4)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("pipelined_proc"));
+
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  options.valid_control("input_valid", "output_valid");
+  options.reset("rst", false, false, true);
+  options.streaming_channel_data_suffix("_data");
+  options.streaming_channel_valid_suffix("_valid");
+  options.streaming_channel_ready_suffix("_ready");
+  options.module_name("pipelined_proc");
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block,
+      ConvertToBlock(proc, options, SchedulingOptions().pipeline_stages(3)));
+
+  std::vector<ChannelSource> sources{
+      ChannelSource("in_data", "in_valid", "in_ready", 1.0, block),
+  };
+  XLS_ASSERT_OK(sources.front().SetDataSequence({10, 20, 30}));
+  std::vector<ChannelSink> sinks{
+      ChannelSink(
+          "out_data", "out_valid", "out_ready", 1.0, block,
+          /*reset_behavior=*/ChannelSink::BehaviorDuringReset::kIgnoreValid),
+  };
+
+  std::string reset_name = options.reset()->name();
+  uint64_t reset_active = options.reset()->active_low() ? 0 : 1;
+  uint64_t reset_inactive = options.reset()->active_low() ? 1 : 0;
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs(
+      20, {{reset_name, reset_inactive}});
+  XLS_ASSERT_OK(
+      SetSignalsOverCycles(0, 9, {{reset_name, reset_active}}, inputs));
+  XLS_ASSERT_OK_AND_ASSIGN(BlockIOResultsAsUint64 results,
+                           InterpretChannelizedSequentialBlockWithUint64(
+                               block, absl::MakeSpan(sources),
+                               absl::MakeSpan(sinks), inputs, options.reset()));
+  EXPECT_THAT(
+      sinks.at(0).GetOutputCycleSequenceAsUint64(),
+      IsOkAndHolds(Skipping(
+          10, ElementsAre(0, std::nullopt, 10, std::nullopt, 20, std::nullopt,
+                          30, std::nullopt, std::nullopt, std::nullopt))));
+  EXPECT_THAT(sinks.at(0).GetOutputSequenceAsUint64(),
+              IsOkAndHolds(ElementsAre(0, 10, 20, 30)));
+}
+
+TEST_F(ProcConversionTestFixture, ProcIIGreaterThanOne) {
   const std::string ir_text = R"(package test
 chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
@@ -3959,18 +4027,11 @@ proc pipelined_proc(tkn: token, st: bits[32], init={token, 0}) {
       IsOkAndHolds(Skipping(
           10, ElementsAre(0, std::nullopt, 10, std::nullopt, 20, std::nullopt,
                           30, std::nullopt, std::nullopt, std::nullopt))));
-  EXPECT_THAT(sinks.at(1).GetOutputCycleSequenceAsUint64(),
-              IsOkAndHolds(Skipping(
-                  10, ElementsAre(std::nullopt, 10, std::nullopt, 20,
-                                  std::nullopt, 30, std::nullopt, std::nullopt,
-                                  std::nullopt, std::nullopt))));
   EXPECT_THAT(sinks.at(0).GetOutputSequenceAsUint64(),
               IsOkAndHolds(ElementsAre(0, 10, 20, 30)));
-  EXPECT_THAT(sinks.at(1).GetOutputSequenceAsUint64(),
-              IsOkAndHolds(ElementsAre(10, 20, 30)));
 }
 
-TEST_F(ProcConversionTestFixture, DISABLED_ProcIIGreaterThanOneRandomStalls) {
+TEST_F(ProcConversionTestFixture, ProcIIGreaterThanOneRandomStalls) {
   const std::string ir_text = R"(package test
 chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
