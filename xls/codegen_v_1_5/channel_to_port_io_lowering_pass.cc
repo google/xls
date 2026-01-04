@@ -318,9 +318,14 @@ absl::StatusOr<Connector> AddPortsForSend(
                       .ready = ready};
 
   XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
-      channel, ChannelDirection::kSend, connector.data->GetName(),
-      GetOptionalNodeName(connector.valid),
-      GetOptionalNodeName(connector.ready)));
+      ChannelPortMetadata{.channel_name = std::string(ChannelRefName(channel)),
+                          .type = ChannelRefType(channel),
+                          .direction = ChannelDirection::kSend,
+                          .channel_kind = ChannelRefKind(channel),
+                          .flop_kind = FlopKind::kNone,
+                          .data_port = data->GetName(),
+                          .valid_port = GetOptionalNodeName(valid),
+                          .ready_port = GetOptionalNodeName(ready)}));
 
   return connector;
 }
@@ -374,9 +379,14 @@ absl::StatusOr<Connector> AddPortsForReceive(
                       .ready = ready};
 
   XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
-      channel, ChannelDirection::kReceive, connector.data->GetName(),
-      GetOptionalNodeName(connector.valid),
-      GetOptionalNodeName(connector.ready)));
+      ChannelPortMetadata{.channel_name = std::string(ChannelRefName(channel)),
+                          .type = ChannelRefType(channel),
+                          .direction = ChannelDirection::kReceive,
+                          .channel_kind = ChannelRefKind(channel),
+                          .flop_kind = FlopKind::kNone,
+                          .data_port = data->GetName(),
+                          .valid_port = GetOptionalNodeName(valid),
+                          .ready_port = GetOptionalNodeName(ready)}));
 
   return connector;
 }
@@ -1607,6 +1617,13 @@ absl::StatusOr<bool> LowerIoToPorts(
     needs_one_shot_logic = !outputs_mutually_exclusive;
   }
   if (needs_one_shot_logic) {
+    if (options.codegen_options.generate_combinational()) {
+      return absl::UnimplementedError(absl::StrFormat(
+          "Proc combinational generator only supports streaming output "
+          "channels which can be determined to be mutually exclusive, got %d "
+          "output channels which were not proven to be mutually exclusive",
+          outgoing_channel_count));
+    }
     for (const auto& [directed_channel, _] : io_ops) {
       if (directed_channel.second != ChannelDirection::kSend) {
         continue;

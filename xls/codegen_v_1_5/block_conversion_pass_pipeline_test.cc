@@ -2686,7 +2686,7 @@ INSTANTIATE_TEST_SUITE_P(
 
 class SpecificIoKindsTest : public ProcConversionTestFixture,
                             public testing::WithParamInterface<FlopKind> {};
-TEST_P(SpecificIoKindsTest, DISABLED_InputChannelSpecificFlopKindsRespected) {
+TEST_P(SpecificIoKindsTest, InputChannelSpecificFlopKindsRespected) {
   // Compile once with a specific override for the channel and once with the
   // default set and compare outputs.
   auto p = CreatePackage();
@@ -2751,7 +2751,7 @@ TEST_P(SpecificIoKindsTest, DISABLED_InputChannelSpecificFlopKindsRespected) {
   EXPECT_EQ(p->blocks().front()->DumpIr(), p2->blocks().front()->DumpIr());
 }
 
-TEST_P(SpecificIoKindsTest, DISABLED_InputChannelDefaultFlopKindsChange) {
+TEST_P(SpecificIoKindsTest, InputChannelDefaultFlopKindsChange) {
   // Compile once with a specific override for the channel and once with the
   // default set and compare outputs.
   auto p = CreatePackage();
@@ -2832,7 +2832,7 @@ TEST_P(SpecificIoKindsTest, DISABLED_InputChannelDefaultFlopKindsChange) {
   EXPECT_NE(p->blocks().front()->DumpIr(), p2->blocks().front()->DumpIr());
 }
 
-TEST_P(SpecificIoKindsTest, DISABLED_OutputChannelSpecificFlopKindsRespected) {
+TEST_P(SpecificIoKindsTest, OutputChannelSpecificFlopKindsRespected) {
   // Compile once with a specific override for the channel and once with the
   // default set and compare outputs.
   auto p = CreatePackage();
@@ -2903,7 +2903,7 @@ TEST_P(SpecificIoKindsTest, DISABLED_OutputChannelSpecificFlopKindsRespected) {
   EXPECT_EQ(p->blocks().front()->DumpIr(), p2->blocks().front()->DumpIr());
 }
 
-TEST_P(SpecificIoKindsTest, DISABLED_OutputChannelDefaultFlopKindsChange) {
+TEST_P(SpecificIoKindsTest, OutputChannelDefaultFlopKindsChange) {
   // Compile once with a specific override for the channel and once with the
   // default set and compare outputs.
   auto p = CreatePackage();
@@ -3434,7 +3434,7 @@ INSTANTIATE_TEST_SUITE_P(
                         CodegenOptions::IOKind::kZeroLatencyBuffer)),
     MultiInputWithStatePipelinedProcTestSweepFixture::PrintToStringParamName);
 
-TEST_F(BlockConversionTest, DISABLED_BlockWithNonMutuallyExclusiveSends) {
+TEST_F(BlockConversionTest, BlockWithNonMutuallyExclusiveSends) {
   auto package_ptr = std::make_unique<Package>(TestName());
   Package& package = *package_ptr;
 
@@ -3466,6 +3466,10 @@ TEST_F(BlockConversionTest, DISABLED_BlockWithNonMutuallyExclusiveSends) {
 
   // Pipelined test
   {
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                             ClonePackage(package_ptr.get()));
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetProc(TestName()));
+
     CodegenOptions options;
     options.module_name(TestName());
     options.flop_inputs(true).flop_outputs(true).clock_name("clk");
@@ -3479,6 +3483,10 @@ TEST_F(BlockConversionTest, DISABLED_BlockWithNonMutuallyExclusiveSends) {
 
   // Combinational test
   {
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                             ClonePackage(package_ptr.get()));
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetProc(TestName()));
+
     CodegenOptions options = codegen_options();
     options.module_name(TestName());
     options.valid_control("input_valid", "output_valid");
@@ -3743,7 +3751,7 @@ INSTANTIATE_TEST_SUITE_P(
                         CodegenOptions::IOKind::kZeroLatencyBuffer)),
     MultiIOWithStatePipelinedProcTestSweepFixture::PrintToStringParamName);
 
-TEST_F(BlockConversionTest, DISABLED_IOSignatureFunctionBaseToPipelinedBlock) {
+TEST_F(BlockConversionTest, IOSignatureFunctionBaseToPipelinedBlock) {
   Package package(TestName());
   Type* u32 = package.GetBitsType(32);
 
@@ -3789,7 +3797,7 @@ TEST_F(BlockConversionTest, DISABLED_IOSignatureFunctionBaseToPipelinedBlock) {
   XLS_VLOG_LINES(2, block->DumpIr());
 }
 
-TEST_F(BlockConversionTest, DISABLED_IOSignatureProcToCombBlock) {
+TEST_F(BlockConversionTest, IOSignatureProcToCombBlock) {
   Package package(TestName());
   Type* u32 = package.GetBitsType(32);
 
@@ -3829,7 +3837,7 @@ TEST_F(BlockConversionTest, DISABLED_IOSignatureProcToCombBlock) {
   XLS_VLOG_LINES(2, block->DumpIr());
 }
 
-TEST_F(ProcConversionTestFixture, DISABLED_ProcSendDuringReset) {
+TEST_F(ProcConversionTestFixture, ProcSendDuringReset) {
   const std::string ir_text = R"(package test
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
 
