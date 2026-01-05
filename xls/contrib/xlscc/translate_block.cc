@@ -2159,7 +2159,8 @@ absl::StatusOr<xls::Proc*> Translator::BuildWithNextStateValueMap(
       } else {
         next_state_value_bval = next_state_value.value;
       }
-      pb.Next(read_bval, next_state_value_bval, /*pred=*/std::nullopt, loc,
+      pb.Next(read_bval, next_state_value_bval, /*pred=*/std::nullopt,
+              /*label=*/std::nullopt, loc,
               /*name=*/absl::StrFormat("%s_next", elem->name()));
       continue;
     }
@@ -2221,7 +2222,8 @@ absl::StatusOr<xls::Proc*> Translator::BuildWithNextStateValueMap(
     }
 
     XLSCC_CHECK(next_state_value_bval.valid(), loc);
-    pb.Next(read_bval, next_state_value_bval, /*pred=*/std::nullopt, loc,
+    pb.Next(read_bval, next_state_value_bval, /*pred=*/std::nullopt,
+            /*label=*/std::nullopt, loc,
             /*name=*/absl::StrFormat("%s_next", elem->name()));
 
     // Generate asserts for same priority conditions being mutually exclusive

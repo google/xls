@@ -1539,6 +1539,29 @@ TEST_F(ParserTest, ParseRecvIfNb) {
   RoundTrip(std::string(kModule));
 }
 
+TEST_F(ParserTest, ParseReadWriteExplicitStateAccess) {
+  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
+
+struct Point {
+    x: u32,
+    y: u32,
+}
+proc p {
+    config() {}
+    init {
+        ()
+    }
+    next(state0: Point) {
+        let x = read(state0.x);
+        write(state0.x, x + u32:1);
+        let y = labeled_read(state0, "label_y");
+        labeled_write(state0.y, y + u32:1, "label_y");
+    }
+})";
+
+  RoundTrip(std::string(kModule));
+}
+
 TEST_F(ParserTest, ParseJoin) {
   constexpr std::string_view kModule = R"(proc foo {
     c0: chan<u32> out;
@@ -3449,6 +3472,35 @@ TEST_F(ParserTest, ParseTypeInferenceV1AndV2Attributes) {
       StatusIs(absl::StatusCode::kInvalidArgument,
                testing::HasSubstr("Module cannot have both `type_inference_v1` "
                                   "and `type_inference_v2` attributes")));
+}
+
+TEST_F(ParserTest, ParseExplicitStateAccessAttribute) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module, Parse(R"(
+#![feature(explicit_state_access)]
+)"));
+  EXPECT_THAT(module->attributes(),
+              testing::ElementsAre(ModuleAttribute::kExplicitStateAccess));
+}
+
+TEST_F(ParserTest, ExplicitStateAccessProcNextReturnsEmptyTuple) {
+  constexpr std::string_view kProgram = R"(#![feature(explicit_state_access)]
+proc simple {
+    config() {
+        ()
+    }
+    init {
+        u32:0
+    }
+    next(state: u32) {
+        state
+    }
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module, Parse(kProgram));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           module->GetMemberOrError<Proc>("simple"));
+  const Function& next = proc->next();
+  ASSERT_NE(next.return_type(), nullptr);
+  EXPECT_EQ(next.return_type()->ToString(), "()");
 }
 
 // Verifies that we can walk backwards through a tree. In this case, from the

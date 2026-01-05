@@ -177,7 +177,7 @@ absl::Status ReplaceProcState(Proc* proc,
                                        /*state_read=*/read,
                                        /*value=*/next_value.value,
                                        /*predicate=*/next_value.predicate,
-                                       next_value.name)
+                                       /*label=*/std::nullopt, next_value.name)
               .status());
       XLS_RETURN_IF_ERROR(element.placeholder->ReplaceUsesWith(read));
     }

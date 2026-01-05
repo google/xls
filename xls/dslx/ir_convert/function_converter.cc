@@ -2588,6 +2588,95 @@ absl::Status FunctionConverter::HandleCoverBuiltin(const Invocation* node,
   return absl::OkStatus();
 }
 
+absl::Status FunctionConverter::HandleBuiltinRead(const Invocation* node) {
+  if (!module_->attributes().contains(ModuleAttribute::kExplicitStateAccess)) {
+    return absl::InvalidArgumentError(
+        "#![feature(explicit_state_access)] not present");
+  }
+  XLS_RETURN_IF_ERROR(ValidateProcState("read", node));
+  XLS_RET_CHECK_EQ(node->args().size(), 1);
+  XLS_RETURN_IF_ERROR(Visit(node->args()[0]));
+  XLS_ASSIGN_OR_RETURN(BValue state_val, Use(node->args()[0]));
+  Def(node, [&](const SourceInfo& loc) {
+    return function_builder_->Identity(state_val, loc);
+  });
+  return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::HandleBuiltinWrite(const Invocation* node) {
+  if (!module_->attributes().contains(ModuleAttribute::kExplicitStateAccess)) {
+    return absl::InvalidArgumentError(
+        "#![feature(explicit_state_access)] not present");
+  }
+  XLS_RETURN_IF_ERROR(ValidateProcState("write", node));
+  XLS_RET_CHECK_EQ(node->args().size(), 2);
+  XLS_RETURN_IF_ERROR(Visit(node->args()[0]));
+  XLS_RETURN_IF_ERROR(Visit(node->args()[1]));
+  XLS_ASSIGN_OR_RETURN(BValue state_elem, Use(node->args()[0]));
+  XLS_ASSIGN_OR_RETURN(BValue update_val, Use(node->args()[1]));
+  ProcBuilder* builder_ptr =
+      dynamic_cast<ProcBuilder*>(function_builder_.get());
+  builder_ptr->Next(state_elem, update_val);
+  node_to_ir_[node] = function_builder_->Tuple({});
+  return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::HandleBuiltinLabeledRead(
+    const Invocation* node) {
+  if (!module_->attributes().contains(ModuleAttribute::kExplicitStateAccess)) {
+    return absl::InvalidArgumentError(
+        "#![feature(explicit_state_access)] not present");
+  }
+  XLS_RETURN_IF_ERROR(ValidateProcState("labeled_read", node));
+  XLS_RET_CHECK_EQ(node->args().size(), 2);
+  XLS_RETURN_IF_ERROR(Visit(node->args()[0]));
+  XLS_RETURN_IF_ERROR(Visit(node->args()[1]));
+  std::string label;
+  if (String* label_str = dynamic_cast<String*>(node->args()[1]);
+      label_str != nullptr) {
+    label = label_str->text();
+  } else {
+    return absl::InvalidArgumentError(
+        "labeled_read label must be a string literal.");
+  }
+  // Currently doesn't fetch the value with the corresponding label. Instead it
+  // simply returns the entire state.
+  // TODO(nelsonliang): Modify Read to fetch a specific value using a label.
+  XLS_ASSIGN_OR_RETURN(BValue state_val, Use(node->args()[0]));
+  Def(node, [&](const SourceInfo& loc) {
+    return function_builder_->Identity(state_val, loc);
+  });
+  return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::HandleBuiltinLabeledWrite(
+    const Invocation* node) {
+  if (!module_->attributes().contains(ModuleAttribute::kExplicitStateAccess)) {
+    return absl::InvalidArgumentError(
+        "#![feature(explicit_state_access)] not present");
+  }
+  XLS_RETURN_IF_ERROR(ValidateProcState("labeled_write", node));
+  XLS_RET_CHECK_EQ(node->args().size(), 3);
+  XLS_RETURN_IF_ERROR(Visit(node->args()[0]));
+  XLS_RETURN_IF_ERROR(Visit(node->args()[1]));
+  XLS_RETURN_IF_ERROR(Visit(node->args()[2]));
+  XLS_ASSIGN_OR_RETURN(BValue state_elem, Use(node->args()[0]));
+  XLS_ASSIGN_OR_RETURN(BValue update_val, Use(node->args()[1]));
+  std::string label;
+  if (String* label_str = dynamic_cast<String*>(node->args()[2]);
+      label_str != nullptr) {
+    label = label_str->text();
+  } else {
+    return absl::InvalidArgumentError(
+        "labeled_write label must be a string literal.");
+  }
+  ProcBuilder* builder_ptr =
+      dynamic_cast<ProcBuilder*>(function_builder_.get());
+  builder_ptr->Next(state_elem, update_val, /*pred=*/std::nullopt, label);
+  node_to_ir_[node] = function_builder_->Tuple({});
+  return absl::OkStatus();
+}
+
 absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
   VLOG(5) << "FunctionConverter::HandleInvocation: " << node->ToString();
   XLS_ASSIGN_OR_RETURN(std::string called_name, GetCalleeIdentifier(node));
@@ -2649,8 +2738,17 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
   if (called_name == "join") {
     return HandleBuiltinJoin(node);
   }
+  if (called_name == "labeled_read") {
+    return HandleBuiltinLabeledRead(node);
+  }
+  if (called_name == "labeled_write") {
+    return HandleBuiltinLabeledWrite(node);
+  }
   if (called_name == "map") {
     return HandleMap(node).status();
+  }
+  if (called_name == "read") {
+    return HandleBuiltinRead(node);
   }
   if (called_name == "recv") {
     return HandleBuiltinRecv(node);
@@ -2681,6 +2779,9 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
       return function_builder_->Identity(args[0], loc);
     });
     return absl::OkStatus();
+  }
+  if (called_name == "write") {
+    return HandleBuiltinWrite(node);
   }
 
   // The rest of the builtins have "handle" methods we can resolve.
@@ -3768,7 +3869,9 @@ absl::Status FunctionConverter::HandleProcNextFunction(
   channel_scope_->EnterFunctionContext(type_info, bindings);
   XLS_RETURN_IF_ERROR(Visit(f->body()));
 
-  builder_ptr->Next(state, std::get<BValue>(node_to_ir_[f->body()]));
+  if (!module_->attributes().contains(ModuleAttribute::kExplicitStateAccess)) {
+    builder_ptr->Next(state, std::get<BValue>(node_to_ir_[f->body()]));
+  }
 
   XLS_ASSIGN_OR_RETURN(xls::Proc * p, builder_ptr->Build());
 

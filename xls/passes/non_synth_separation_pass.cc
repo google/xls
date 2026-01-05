@@ -285,7 +285,8 @@ class CloneProcAsFunctionVisitor : public DfsVisitorWithDefault {
     XLS_RETURN_IF_ERROR(
         next->function_base()
             ->MakeNodeWithName<Next>(next->loc(), non_synth, next->value(),
-                                     next->predicate(), non_synth_name)
+                                     next->predicate(), /*label=*/std::nullopt,
+                                     non_synth_name)
             .status());
     return absl::OkStatus();
   }

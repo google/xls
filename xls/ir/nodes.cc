@@ -982,11 +982,12 @@ bool StateRead::IsDefinitelyEqualTo(const Node* other) const {
 }
 
 Next::Next(const SourceInfo& loc, Node* state_read, Node* value,
-           std::optional<Node*> predicate, std::string_view name,
-           FunctionBase* function)
+           std::optional<Node*> predicate, std::optional<std::string> label,
+           std::string_view name, FunctionBase* function)
     : Node(Op::kNext, function->package()->GetTupleType({}), loc, name,
            function),
-      has_predicate_(predicate.has_value()) {
+      has_predicate_(predicate.has_value()),
+      label_(label.has_value() ? label : std::nullopt) {
   CHECK(IsOpClass<Next>(op_))
       << "Op `" << op_ << "` is not a valid op for Node class `Next`.";
   AddOperand(state_read);
@@ -1001,8 +1002,9 @@ bool Next::IsDefinitelyEqualTo(const Node* other) const {
   if (!Node::IsDefinitelyEqualTo(other)) {
     return false;
   }
-
-  return has_predicate_ == other->As<Next>()->has_predicate_;
+  const Next* other_next = other->As<Next>();
+  return has_predicate_ == other_next->has_predicate_ &&
+         label_ == other_next->label_;
 }
 
 Select::Select(const SourceInfo& loc, Node* selector,
@@ -1453,7 +1455,7 @@ absl::StatusOr<Node*> Next::CloneInNewFunction(
       loc(), new_operands[0], new_operands[1],
       new_operands.size() > 2 ? std::make_optional(new_operands[2])
                               : std::nullopt,
-      GetNameView());
+      label(), GetNameView());
 }
 
 bool Select::AllCases(const std::function<bool(Node*)>& p) const {

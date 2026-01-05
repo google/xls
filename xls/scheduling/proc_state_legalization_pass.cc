@@ -308,6 +308,7 @@ absl::StatusOr<bool> AddDefaultNextValue(Proc* proc,
                                 state_read->loc(), /*state_read=*/state_read,
                                 /*value=*/state_read,
                                 /*predicate=*/state_read->predicate(),
+                                /*label=*/std::nullopt,
                                 absl::StrCat(state_element->name(), "_default"))
                             .status());
     return true;
@@ -399,6 +400,7 @@ absl::StatusOr<bool> AddDefaultNextValue(Proc* proc,
                               state_read->loc(), /*state_read=*/state_read,
                               /*value=*/state_read,
                               /*predicate=*/default_predicate,
+                              /*label=*/std::nullopt,
                               absl::StrCat(state_element->name(), "_default"))
                           .status());
   return true;

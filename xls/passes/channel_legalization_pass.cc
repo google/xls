@@ -617,7 +617,8 @@ absl::StatusOr<bool> ChannelLegalizationPass::RunInternal(
                            proc->MakeNode<TupleIndex>(recv->loc(), recv, 0));
       XLS_RETURN_IF_ERROR(proc->MakeNode<Next>(recv->loc(), /*state_read=*/tok,
                                                /*value=*/recv_tok,
-                                               /*predicate=*/recv->predicate())
+                                               /*predicate=*/recv->predicate(),
+                                               /*label=*/std::nullopt)
                               .status());
     }
     for (Receive* recv : ops) {
@@ -667,7 +668,8 @@ absl::StatusOr<bool> ChannelLegalizationPass::RunInternal(
       self_tokens.push_back(tok);
       XLS_RETURN_IF_ERROR(proc->MakeNode<Next>(send->loc(), /*state_read=*/tok,
                                                /*value=*/send,
-                                               /*predicate=*/send->predicate())
+                                               /*predicate=*/send->predicate(),
+                                               /*label=*/std::nullopt)
                               .status());
     }
     for (Send* send : ops) {

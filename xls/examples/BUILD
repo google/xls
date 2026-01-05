@@ -1384,6 +1384,28 @@ xls_dslx_test(
     library = ":proc_network_dslx",
 )
 
+xls_dslx_library(
+    name = "explicit_state_proc_struct_dslx",
+    srcs = ["explicit_state_proc_struct.x"],
+)
+
+xls_dslx_test(
+    name = "explicit_state_proc_struct_test",
+    evaluator = "ir-jit",
+    library = ":explicit_state_proc_struct_dslx",
+)
+
+xls_dslx_library(
+    name = "explicit_state_proc_dslx",
+    srcs = ["explicit_state_proc.x"],
+)
+
+xls_dslx_test(
+    name = "explicit_state_proc_test",
+    evaluator = "ir-jit",
+    library = ":explicit_state_proc_dslx",
+)
+
 # TODO(allight): Once the ir converter can generate new-style procs we should use this as test data for both ElaborationTest.GraphOldStyle and GraphNewStyle tests.
 xls_dslx_ir(
     name = "proc_network_ir",

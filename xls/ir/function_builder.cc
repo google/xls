@@ -1174,8 +1174,9 @@ BValue BuilderBase::SendIf(SendChannelRef channel, BValue token, BValue pred,
 }
 
 BValue BuilderBase::Next(BValue state_read, BValue value,
-                         std::optional<BValue> pred, const SourceInfo& loc,
-                         std::string_view name) {
+                         std::optional<BValue> pred,
+                         std::optional<std::string> label,
+                         const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1206,7 +1207,7 @@ BValue BuilderBase::Next(BValue state_read, BValue value,
       loc, /*state_read=*/state_read.node(), /*value=*/value.node(),
       /*predicate=*/pred.has_value() ? std::make_optional(pred->node())
                                      : std::nullopt,
-      name);
+      label, name);
 }
 
 FunctionBuilder::FunctionBuilder(std::string_view name, Package* package,

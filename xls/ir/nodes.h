@@ -812,8 +812,8 @@ class Next final : public Node {
   static constexpr int64_t kValueOperand = 1;
 
   Next(const SourceInfo& loc, Node* state_read, Node* value,
-       std::optional<Node*> predicate, std::string_view name,
-       FunctionBase* function);
+       std::optional<Node*> predicate, std::optional<std::string> label,
+       std::string_view name, FunctionBase* function);
 
   absl::StatusOr<Node*> CloneInNewFunction(
       absl::Span<Node* const> new_operands,
@@ -821,6 +821,8 @@ class Next final : public Node {
   Node* state_read() const { return operand(0); }
 
   Node* value() const { return operand(1); }
+
+  const std::optional<std::string>& label() const { return label_; }
 
   std::optional<Node*> predicate() const {
     return has_predicate_ ? std::make_optional(operand(kPredicateOperand))
@@ -867,6 +869,7 @@ class Next final : public Node {
   static constexpr int64_t kPredicateOperand = 2;
 
   bool has_predicate_;
+  std::optional<std::string> label_;
 };
 
 class OneHot final : public Node {

@@ -311,6 +311,9 @@ absl::Status Parser::ParseModuleAttribute() {
     } else if (feature == "channel_attributes") {
       module_->AddAttribute(ModuleAttribute::kChannelAttributes,
                             attribute_span);
+    } else if (feature == "explicit_state_access") {
+      module_->AddAttribute(ModuleAttribute::kExplicitStateAccess,
+                            attribute_span);
     } else if (feature == "generics") {
       module_->AddAttribute(ModuleAttribute::kGenerics, attribute_span);
     } else if (feature == "traits") {
@@ -3135,9 +3138,15 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
                             "Channels cannot be Proc next params.");
   }
 
-  XLS_ASSIGN_OR_RETURN(TypeAnnotation * return_type,
-                       CloneNode(state_param->type_annotation(),
-                                 &PreserveTypeDefinitionsReplacer));
+  TypeAnnotation* return_type;
+  if (module_->attributes().contains(ModuleAttribute::kExplicitStateAccess)) {
+    return_type = module_->Make<TupleTypeAnnotation>(
+        state_param->span(), std::vector<TypeAnnotation*>{});
+  } else {
+    XLS_ASSIGN_OR_RETURN(return_type,
+                         CloneNode(state_param->type_annotation(),
+                                   &PreserveTypeDefinitionsReplacer));
+  }
   XLS_ASSIGN_OR_RETURN(StatementBlock * body,
                        ParseBlockExpression(inner_bindings));
   Span span(oparen.span().start(), GetPos());
@@ -3456,12 +3465,22 @@ absl::StatusOr<ModuleMember> Parser::ParseProcLike(const Pos& start_pos,
 
   // Just as with proc member decls, we need the init fn to have its own return
   // type, to avoid parent/child relationship violations.
-  XLS_ASSIGN_OR_RETURN(auto* init_return_type,
-                       CloneNode(proc_like_body.next->return_type(),
-                                 &PreserveTypeDefinitionsReplacer));
-  init_return_type->SetParentage();
-  proc_like_body.init->set_return_type(
-      down_cast<TypeAnnotation*>(init_return_type));
+  if (module_->attributes().contains(ModuleAttribute::kExplicitStateAccess)) {
+    XLS_ASSIGN_OR_RETURN(
+        auto* init_return_type,
+        CloneNode(proc_like_body.next->params()[0]->type_annotation(),
+                  &PreserveTypeDefinitionsReplacer));
+    init_return_type->SetParentage();
+    proc_like_body.init->set_return_type(
+        down_cast<TypeAnnotation*>(init_return_type));
+  } else {
+    XLS_ASSIGN_OR_RETURN(auto* init_return_type,
+                         CloneNode(proc_like_body.next->return_type(),
+                                   &PreserveTypeDefinitionsReplacer));
+    init_return_type->SetParentage();
+    proc_like_body.init->set_return_type(
+        down_cast<TypeAnnotation*>(init_return_type));
+  }
   proc_like_body.init->SetParentage();
 
   auto* proc_like = module_->Make<T>(span, body_span, name_def,

@@ -63,6 +63,10 @@ fn gate!<T: type>(x: u1, y: T) -> T;
 // `join` can take zero or more `token` arguments; the varargs are handled by the type checker.
 fn join(t: token) -> token;
 
+fn labeled_read<T: type, N: u32>(source: T, labels: u8[N]) -> T;
+
+fn labeled_write<T: type, N: u32>(dest: T, value: T, label: u8[N]) -> ();
+
 fn one_hot<N: u32, M: u32={N + 1}>(x: uN[N], y: u1) -> uN[M];
 
 fn one_hot_sel<N: u32, M: u32, S: bool>(x: uN[N], y: xN[S][M][N]) -> xN[S][M];
@@ -70,6 +74,8 @@ fn one_hot_sel<N: u32, M: u32, S: bool>(x: uN[N], y: xN[S][M][N]) -> xN[S][M];
 fn or_reduce<N: u32>(x: uN[N]) -> u1;
 
 fn priority_sel<N: u32, M: u32, S: bool>(x: uN[N], y: xN[S][M][N], z: xN[S][M]) -> xN[S][M];
+
+fn read<T: type>(source: T) -> T;
 
 fn recv_if_non_blocking<T: type>(tok: token, channel: chan<T> in, predicate: bool, value: T) -> (token, T, bool);
 
@@ -103,6 +109,8 @@ fn update<T: type, U: type, V: type, N: u32>(array: T[N], index: U, new_value: V
 fn umulp<N: u32>(x: uN[N], y: uN[N]) -> (uN[N], uN[N]);
 
 fn widening_cast<DEST: type, SRC: type>(x: SRC) -> DEST;
+
+fn write<T: type>(dest: T, value: T) -> ();
 
 fn xor_reduce<N: u32>(x: uN[N]) -> u1;
 

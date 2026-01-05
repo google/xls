@@ -849,7 +849,8 @@ absl::StatusOr<BValue> Parser::ParseNode(
       std::optional<BValue>* predicate =
           arg_parser.AddOptionalKeywordArg<BValue>("predicate");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/0));
-      bvalue = fb->Next(*state_read, *value, *predicate, *loc, node_name);
+      bvalue = fb->Next(*state_read, *value, *predicate, /*label=*/std::nullopt,
+                        *loc, node_name);
       break;
     }
     case Op::kCountedFor: {
