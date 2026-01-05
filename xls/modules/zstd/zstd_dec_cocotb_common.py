@@ -888,8 +888,8 @@ def run_test(test_module, build_args=[], sim="icarus"):
     "external/com_github_alexforencich_verilog_axi/rtl/axi_register_wr.v",
     "external/com_github_alexforencich_verilog_axi/rtl/arbiter.v",
     "external/com_github_alexforencich_verilog_axi/rtl/priority_encoder.v",
-    "xls/modules/zstd/rtl/ram_1r1w.v",
-    "xls/modules/zstd/rtl/ram_2rw.v",
+    "xls/modules/zstd/rtl/ram_1r1w.sv",
+    "xls/modules/zstd/rtl/ram_2rw.sv",
   ]
 
   if sim == "verilator":

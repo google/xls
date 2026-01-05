@@ -35,12 +35,12 @@ package(
 exports_files(
     [
         "zstd_dec_wrapper.sv",
-        "zstd_enc_wrapper.v",
+        "zstd_enc_wrapper.sv",
         "xls_fifo_wrapper.sv",
-        "ram_demux_wrapper.v",
-        "match_finder_wrapper.v",
-        "ram_1r1w.v",
-        "ram_2rw.v",
+        "ram_demux_wrapper.sv",
+        "match_finder_wrapper.sv",
+        "ram_1r1w.sv",
+        "ram_2rw.sv",
         "cocotb_public_vars.vlt",
     ],
 )

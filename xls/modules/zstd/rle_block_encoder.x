@@ -84,7 +84,7 @@ fn entire_word_of_equal_bytes<DATA_W: u32>(word: uN[DATA_W], to_check: u8) -> bo
     const DATA_W_B = DATA_W as u8 / u8:8;
     let symbol = word as u8;
 
-    unroll_for! (i, eq) : (u8, bool) in range (u8: 0, DATA_W_B) {
+    unroll_for! (i, eq) : (u8, bool) in u8:0..DATA_W_B {
         let next_byte = (word >> (i as uN[DATA_W] * uN[DATA_W]:8)) as u8;
         if i >= to_check {
             eq
@@ -123,8 +123,6 @@ pub proc RleBlockEncoderFullSearch<ADDR_W: u32, DATA_W:u32, LENGTH_W: u32, MAX_T
     init { zero!<State>() }
 
     next(state: State) {
-        const DATA_W_B = DATA_W / u32:8;
-
         let tok = join();
         let conf = state.conf;
 
@@ -351,7 +349,6 @@ pub proc RleBlockEncoder<ADDR_W: u32, DATA_W: u32, LENGTH_W: u32, SAMPLE_COUNT: 
     init { }
 
     next(state: ()) {
-        const DATA_W_LOG2 = std::clog2(DATA_W / u32:8);
         let (tok, req) = recv(join(), req);
         let stride = req.length / (SAMPLE_COUNT);
 

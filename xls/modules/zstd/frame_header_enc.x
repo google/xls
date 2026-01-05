@@ -477,7 +477,7 @@ proc FrameHeaderEncoderTest {
             let (tok, mem_wr_req) = recv(tok, mem_wr_req_r);
             assert_eq(mem_wr_req, test_case.mem_wr_req);
 
-            let tok = for (i, tok): (u32, token) in range(u32:0, array_size(test_case.mem_wr_data)) {
+            let tok = for (i, tok): (u32, token) in u32:0..array_size(test_case.mem_wr_data) {
                 if i < test_case.mem_wr_data_length {
                     let (tok, mem_wr_data) = recv(tok, mem_wr_data_r);
                     assert_eq(mem_wr_data, test_case.mem_wr_data[i]);

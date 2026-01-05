@@ -243,7 +243,6 @@ pub proc AxiReaderNoFsm<
     next(state: State) {
         const BYTES_IN_TRANSFER = DATA_W_DIV8 as Addr;
         const MAX_AXI_BURST_BYTES = Addr:256 * BYTES_IN_TRANSFER;
-        const MAX_LANE = !Lane:0;
 
         let tok = join();
         if !state.active {

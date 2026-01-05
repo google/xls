@@ -650,7 +650,7 @@ proc ZstdEncoderTestBase {
             ht_ram_wr_req_r, ht_ram_wr_resp_s
         );
 
-        unroll_for! (i, _) : (u32, ()) in range(u32:0, u32:8) {
+        unroll_for! (i, _) : (u32, ()) in u32:0..u32:8 {
             spawn ram::RamModel<
             TEST_HB_RAM_DATA_W, TEST_HB_RAM_SIZE, TEST_HB_RAM_PARTITION_SIZE,
             TEST_HB_RAM_SIMULTANEOUS_RW_BEHAVIOR, TEST_HB_RAM_INITIALIZED

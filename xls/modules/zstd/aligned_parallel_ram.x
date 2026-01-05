@@ -170,7 +170,7 @@ proc AlignedParallelRamReadRespHandler<
             ram_read_resp_7,
         ];
 
-        let state = for (i, state) in range(u32:0, RAM_NUM) {
+        let state = for (i, state) in u32:0..RAM_NUM {
             if ram_read_resp_valid[i] {
                 State {
                     resp_recv: update(state.resp_recv, i, true),
@@ -183,7 +183,7 @@ proc AlignedParallelRamReadRespHandler<
         }(state);
 
         // check if all data is received
-        let all_received = for (i, all_received) in range(u32:0, RAM_NUM) {
+        let all_received = for (i, all_received) in u32:0..RAM_NUM {
             all_received & state.resp_recv[i]
         }(true);
 
@@ -300,7 +300,7 @@ proc AlignedParallelRamWriteRespHandler {
             ram_read_resp_7_valid,
         ];
 
-        let state = for (i, state) in range(u32:0, RAM_NUM) {
+        let state = for (i, state) in u32:0..RAM_NUM {
             if ram_read_resp_valid[i] {
                 State {
                     resp_recv: update(state.resp_recv, i, true),
@@ -311,7 +311,7 @@ proc AlignedParallelRamWriteRespHandler {
         }(state);
 
         // check if all data is received
-        let all_received = for (i, all_received) in range(u32:0, RAM_NUM) {
+        let all_received = for (i, all_received) in u32:0..RAM_NUM {
             all_received & state.resp_recv[i]
         }(true);
 
@@ -450,7 +450,7 @@ pub proc AlignedParallelRam<
         send_if(tok_read, read_resp_handler_ctrl_s, read_req_valid, read_resp_handler_ctrl);
 
         // send requests to each RAM
-        let ram_read_req =  for (i, ram_read_req) in range(u32:0, RAM_NUM) {
+        let ram_read_req =  for (i, ram_read_req) in u32:0..RAM_NUM {
             let offset = if read_req.addr as uN[RAM_NUM_W] > i as uN[RAM_NUM_W] {
                 uN[RAM_ADDR_W]:1
             } else {
@@ -474,7 +474,7 @@ pub proc AlignedParallelRam<
         let (tok_write, write_req, write_req_valid) = recv_non_blocking(join(), write_req_r, zero!<WriteReq>());
 
         // send requests to each RAM
-        let ram_write_req = for (i, ram_write_req) in range(u32:0, RAM_NUM) {
+        let ram_write_req = for (i, ram_write_req) in u32:0..RAM_NUM {
             update(ram_write_req, i, RamWriteReq {
                 addr: (write_req.addr >> std::clog2(RAM_NUM)) as uN[RAM_ADDR_W],
                 data: (write_req.data >> (RAM_DATA_W * i)) as uN[RAM_DATA_W],
@@ -727,7 +727,7 @@ proc AlignedParallelRam_test_aligned_read {
     next (state: ()) {
         let tok = join();
 
-        let tok = for (i, tok):(u32, token) in range(u32:0, array_size(TEST_DATA)) {
+        let tok = for (i, tok):(u32, token) in u32:0..array_size(TEST_DATA) {
             let test_data = TEST_DATA[i];
 
             let write_req = TestWriteReq {
@@ -925,7 +925,7 @@ proc AlignedParallelRam_test_non_aligned_read {
         let tok = join();
 
         // write RAM content
-        let tok = for (i, tok):(u32, token) in range(u32:0, array_size(TEST_RAM_CONTENT)) {
+        let tok = for (i, tok):(u32, token) in u32:0..array_size(TEST_RAM_CONTENT) {
             let test_data = TEST_RAM_CONTENT[i];
 
             let write_req = TestWriteReq {
@@ -953,7 +953,7 @@ proc AlignedParallelRam_test_non_aligned_read {
         }(tok);
 
         // read unaligned data
-        let tok = for (i, tok):(u32, token) in range(u32:0, array_size(TEST_READ_ADDR)) {
+        let tok = for (i, tok):(u32, token) in u32:0..array_size(TEST_READ_ADDR) {
             let test_read_addr = TEST_READ_ADDR[i];
 
             let read_req = TestReadReq {

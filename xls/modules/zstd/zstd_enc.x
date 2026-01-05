@@ -533,7 +533,7 @@ pub proc ZstdEncoder<
 
     next(state: ()) {
         let (tok, request) = recv(join(), enc_req);
-        let window_size = ZSTD_WINDOW_ABSOLUTEMIN; // TODO: Calculate the window size based on the frame content
+        let _window_size = ZSTD_WINDOW_ABSOLUTEMIN; // TODO: Calculate the window size based on the frame content
         trace_fmt!("writing frame header to {:#x}", request.output_offset);
 
         let tok = send(tok, fhw_req_s, FrameHeaderEncoderReq {

@@ -75,7 +75,7 @@ pub proc MemWriterMux<
     next(state: State) {
         let tok0 = join();
 
-        let (tok1_0, n_req, n_req_valid) = unroll_for! (i, (tok, resp, valid)): (uN[N_WIDTH], (token, MemWriterReq, bool)) in range(uN[N_WIDTH]:0, N as uN[N_WIDTH]) {
+        let (tok1_0, n_req, n_req_valid) = unroll_for! (i, (tok, resp, valid)): (uN[N_WIDTH], (token, MemWriterReq, bool)) in uN[N_WIDTH]:0..N as uN[N_WIDTH] {
             let (tok, r, v) = recv_if_non_blocking(tok, n_req_r[i], state.sel == i && !state.active, zero!<MemWriterReq>());
             if v { (tok, r, true) } else { (tok, resp, valid) }
         }((tok0, zero!<MemWriterReq>(), false));
@@ -84,7 +84,7 @@ pub proc MemWriterMux<
 
         let active = state.active || n_req_valid;
 
-        let (tok2_1, n_data, n_data_valid) = unroll_for! (i, (tok, resp, valid)): (uN[N_WIDTH], (token, MemWriterData, bool)) in range(uN[N_WIDTH]:0, N as uN[N_WIDTH]) {
+        let (tok2_1, n_data, n_data_valid) = unroll_for! (i, (tok, resp, valid)): (uN[N_WIDTH], (token, MemWriterData, bool)) in uN[N_WIDTH]:0..N as uN[N_WIDTH] {
             let (tok, r, v) = recv_if_non_blocking(tok, n_data_r[i], state.sel == i && active, zero!<MemWriterData>());
             if v { (tok, r, true) } else { (tok, resp, valid) }
         }((tok1_0, zero!<MemWriterData>(), false));
@@ -93,7 +93,7 @@ pub proc MemWriterMux<
 
         let (tok2_2, resp, resp_valid) = recv_if_non_blocking(tok1_0, resp_r, active, zero!<MemWriterResp>());
 
-        let tok3_1 = unroll_for! (i, tok): (uN[N_WIDTH], token) in range(uN[N_WIDTH]:0, N as uN[N_WIDTH]) {
+        let tok3_1 = unroll_for! (i, tok): (uN[N_WIDTH], token) in uN[N_WIDTH]:0..N as uN[N_WIDTH] {
             send_if(tok, n_resp_s[i], state.sel == i && resp_valid, resp)
         }(tok2_2);
         let active = (state.active || n_req_valid) && !(resp_valid);

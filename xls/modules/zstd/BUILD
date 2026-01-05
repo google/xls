@@ -455,7 +455,7 @@ xls_dslx_test(
 
 xls_dslx_verilog(
     name = "block_header_verilog",
-    codegen_args = common_codegen_args | {
+    codegen_args = COMMON_CODEGEN_ARGS | {
         "module_name": "BlockHeaderWriter",
     },
     dslx_top = "BlockHeaderWriterInst",
@@ -467,7 +467,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "block_header_opt_ir_benchmark",
     src = ":block_header_verilog.opt.ir",
-    benchmark_ir_args = common_codegen_args,
+    benchmark_ir_args = COMMON_CODEGEN_ARGS,
     tags = ["manual"],
 )
 
@@ -475,7 +475,7 @@ verilog_library(
     name = "block_header_verilog_lib",
     srcs = [
         ":block_header.v",
-        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
     ],
     tags = ["manual"],
 )
@@ -1733,8 +1733,8 @@ py_library(
         ":zstd_dec_xx_fse_default",
         ":perf_report",
         "//xls/modules/zstd:zstd_test_debugger",
-        "//xls/modules/zstd/rtl:ram_1r1w.v",
-        "//xls/modules/zstd/rtl:ram_2rw.v",
+        "//xls/modules/zstd/rtl:ram_1r1w.sv",
+        "//xls/modules/zstd/rtl:ram_2rw.sv",
         "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
         "//xls/modules/zstd/rtl:zstd_dec_wrapper.sv",
         "//xls/modules/zstd/rtl:cocotb_public_vars.vlt",
@@ -1791,7 +1791,7 @@ py_test(
     name = "ram_cocotb_test",
     srcs = ["ram_cocotb_test.py"],
     data = [
-        "//xls/modules/zstd/rtl:ram_2rw.v",
+        "//xls/modules/zstd/rtl:ram_2rw.sv",
         "@com_icarus_iverilog//:iverilog",
         "@com_icarus_iverilog//:vvp",
     ],
@@ -2254,8 +2254,8 @@ py_test(
     srcs = ["ram_demux_cocotb_test.py"],
     data = [
         "//xls/modules/zstd:ram_demux.v",
-        "//xls/modules/zstd/rtl:ram_1r1w.v",
-        "//xls/modules/zstd/rtl:ram_demux_wrapper.v",
+        "//xls/modules/zstd/rtl:ram_1r1w.sv",
+        "//xls/modules/zstd/rtl:ram_demux_wrapper.sv",
         "@com_icarus_iverilog//:iverilog",
         "@com_icarus_iverilog//:vvp",
     ],
@@ -3856,7 +3856,7 @@ xls_dslx_test(
     library = ":hash_table_dslx",
 )
 
-hash_table_codegen_args = common_codegen_args | {
+hash_table_codegen_args = COMMON_CODEGEN_ARGS | {
     "module_name": "HashTable",
     "pipeline_stages": "16",
 }
@@ -3865,7 +3865,7 @@ xls_dslx_verilog(
     name = "hash_table_verilog",
     codegen_args = hash_table_codegen_args | {
         "ram_configurations": "ram:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-            latency = 5,
+            latency = 1,
             rd_req = "hash_table__ram_read_req_s",
             rd_resp = "hash_table__ram_read_resp_r",
             wr_req = "hash_table__ram_write_req_s",
@@ -3938,7 +3938,7 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
-aligned_parallel_ram_codegen_args = common_codegen_args | {
+aligned_parallel_ram_codegen_args = COMMON_CODEGEN_ARGS | {
     "module_name": "AlignedParallelRam",
     "clock_period_ps": "750",
     "pipeline_stages": "8",
@@ -4016,12 +4016,12 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
-history_buffer_codegen_args = common_codegen_args | {
+history_buffer_codegen_args = COMMON_CODEGEN_ARGS | {
     "module_name": "HistoryBuffer",
     "clock_period_ps": CLOCK_PERIOD_PS,
     "ram_configurations": ",".join([
         "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-            latency = 5,
+            latency = 1,
             ram_name = "ram{}".format(num),
             rd_req = "history_buffer__ram_read_req_s__{}".format(num),
             rd_resp = "history_buffer__ram_read_resp_r__{}".format(num),
@@ -4109,7 +4109,7 @@ xls_dslx_test(
     library = ":match_finder_dslx",
 )
 
-match_finder_codegen_args = common_codegen_args | {
+match_finder_codegen_args = COMMON_CODEGEN_ARGS | {
     "module_name": "MatchFinder",
     "worst_case_throughput": "6",
     "clock_period_ps": CLOCK_PERIOD_PS,
@@ -4123,7 +4123,7 @@ xls_dslx_verilog(
     verilog_file = "match_finder.v",
 )
 
-match_finder_cocotb_codegen_args = common_codegen_args | {
+match_finder_cocotb_codegen_args = COMMON_CODEGEN_ARGS | {
     "module_name": "MatchFinder",
     "clock_period_ps": CLOCK_PERIOD_PS,
     "worst_case_throughput": "6",
@@ -4203,9 +4203,9 @@ py_test(
     name = "match_finder_cocotb_test",
     srcs = ["match_finder_cocotb_test.py"],
     data = [
-        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
-        "//xls/modules/zstd/rtl:match_finder_wrapper.v",
-        "//xls/modules/zstd/rtl:ram_1r1w.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
+        "//xls/modules/zstd/rtl:match_finder_wrapper.sv",
+        "//xls/modules/zstd/rtl:ram_1r1w.sv",
         ":match_finder_cocotb.v",
         "@com_icarus_iverilog//:iverilog",
         "@com_icarus_iverilog//:vvp",
@@ -4243,7 +4243,7 @@ xls_dslx_test(
 )
 
 
-mem_writer_mux_codegen_args = common_codegen_args | {
+mem_writer_mux_codegen_args = COMMON_CODEGEN_ARGS | {
     "module_name": "MemWriterMux",
     "clock_period_ps": "750",
     "pipeline_stages": "8",
@@ -4318,7 +4318,7 @@ xls_dslx_test(
     library = ":mem_reader_mux_dslx",
 )
 
-mem_reader_mux_codegen_args = common_codegen_args | {
+mem_reader_mux_codegen_args = COMMON_CODEGEN_ARGS | {
     "module_name": "MemReaderMux",
     "clock_period_ps": "750",
     "pipeline_stages": "8",
@@ -4413,7 +4413,7 @@ xls_dslx_test(
     library = ":mem_writer_simple_arbiter_dslx",
 )
 
-mem_writer_simple_arbiter_codegen_args = common_codegen_args | {
+mem_writer_simple_arbiter_codegen_args = COMMON_CODEGEN_ARGS | {
     "module_name": "MemWriterSimpleArbiter",
     "clock_period_ps": "750",
     "pipeline_stages": "8",
@@ -4441,7 +4441,7 @@ verilog_library(
     name = "mem_writer_simple_arbiter_verilog_lib",
     srcs = [
         ":mem_writer_simple_arbiter.v",
-        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
     ],
     tags = ["manual"],
 )
@@ -4490,7 +4490,7 @@ xls_dslx_test(
 )
 
 
-mem_reader_simple_arbiter_codegen_args = common_codegen_args | {
+mem_reader_simple_arbiter_codegen_args = COMMON_CODEGEN_ARGS | {
     "module_name": "MemReaderSimpleArbiter",
     "clock_period_ps": "750",
     "pipeline_stages": "8",
@@ -4518,7 +4518,7 @@ verilog_library(
     name = "mem_reader_simple_arbiter_verilog_lib",
     srcs = [
         ":mem_reader_simple_arbiter.v",
-        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
     ],
     tags = ["manual"],
 )
@@ -4567,7 +4567,7 @@ xls_dslx_test(
     library = ":sequence_header_writer_dslx",
 )
 
-sequence_header_writer_codegen_args = common_codegen_args | {
+sequence_header_writer_codegen_args = COMMON_CODEGEN_ARGS | {
     "module_name": "SequenceHeaderWriter",
     "clock_period_ps": "750",
     "pipeline_stages": "8",
@@ -4641,7 +4641,7 @@ xls_dslx_library(
 
 xls_dslx_verilog(
     name = "mem_copy_verilog",
-    codegen_args = common_codegen_args | {
+    codegen_args = COMMON_CODEGEN_ARGS | {
         "module_name": "RawMemcopyInst",
     },
     dslx_top = "RawMemcopyInst",
@@ -4653,7 +4653,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "mem_copy_opt_ir_benchmark",
     src = ":mem_copy_verilog.opt.ir",
-    benchmark_ir_args = common_codegen_args,
+    benchmark_ir_args = COMMON_CODEGEN_ARGS,
     tags = ["manual"],
 )
 
@@ -4661,7 +4661,7 @@ verilog_library(
     name = "mem_copy_verilog_lib",
     srcs = [
         ":mem_copy.v",
-        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
     ],
     tags = ["manual"],
 )
@@ -4723,7 +4723,7 @@ xls_dslx_test(
     library = ":frame_header_enc_dslx",
 )
 
-frame_header_enc_codegen_args = common_codegen_args | {
+frame_header_enc_codegen_args = COMMON_CODEGEN_ARGS | {
     "module_name": "FrameHeaderEncoder",
     "worst_case_throughput": "2",
 }
@@ -4812,7 +4812,7 @@ xls_dslx_test(
     ]
 )
 
-zstd_encoder_codegen_args = common_codegen_args | {
+zstd_encoder_codegen_args = COMMON_CODEGEN_ARGS | {
     "module_name": "ZstdEncoder",
     "worst_case_throughput": "5",
     "clock_period_ps": "900"
@@ -4827,7 +4827,7 @@ xls_dslx_verilog(
     verilog_file = "zstd_enc.v",
 )
 
-zstd_encoder_cocotb_codegen_args = common_codegen_args | {
+zstd_encoder_cocotb_codegen_args = COMMON_CODEGEN_ARGS | {
     "module_name": "ZstdEncoder",
     "clock_period_ps": "900",
     "worst_case_throughput": "5",
@@ -4965,9 +4965,9 @@ py_test(
     srcs = ["zstd_enc_cocotb_test.py"],
     data = [
         ":zstd_enc_cocotb.v",
-        "//xls/modules/zstd/rtl:zstd_enc_wrapper.v",
-        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
-        "//xls/modules/zstd/rtl:ram_1r1w.v",
+        "//xls/modules/zstd/rtl:zstd_enc_wrapper.sv",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
+        "//xls/modules/zstd/rtl:ram_1r1w.sv",
         "//xls/modules/zstd:zstd_enc_xx_xtable_default_default",
         "data/enc_pregenerated_200B",
         "data/enc_pregenerated_300B",
@@ -4980,13 +4980,13 @@ py_test(
     ],
     env = {"BUILD_WORKING_DIRECTORY": "sim_build"},
     imports = ["."],
+    size = "large",
     tags = ["manual"],
     visibility = ["//xls:xls_users"],
     deps = [
         requirement("cocotb"),
         requirement("cocotbext-axi"),
         requirement("pytest"),
-        requirement("zstandard"),
         "//xls/common:runfiles",
         "//xls/modules/zstd/cocotb:channel",
         "//xls/modules/zstd/cocotb:memory",
@@ -5016,7 +5016,7 @@ xls_dslx_test(
     library = "rle_block_encoder_dslx",
 )
 
-rle_block_encoder_codegen_args = common_codegen_args | {
+rle_block_encoder_codegen_args = COMMON_CODEGEN_ARGS | {
     "module_name": "RleBlockEncoder",
     "worst_case_throughput": "3",
 }
@@ -5041,7 +5041,7 @@ verilog_library(
     name = "rle_block_encoder_verilog_lib",
     srcs = [
         ":rle_block_encoder.v",
-        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
     ],
     tags = ["manual"],
 )
@@ -5098,7 +5098,7 @@ xls_dslx_test(
     library = "sequence_encoder_dslx",
 )
 
-sequence_encoder_buffer_codegen_args = common_codegen_args | {
+sequence_encoder_buffer_codegen_args = COMMON_CODEGEN_ARGS | {
     "module_name": "SequenceEncoderBuffer",
     "clock_period_ps": "900",
     "worst_case_throughput": "1",
@@ -5124,7 +5124,7 @@ verilog_library(
     name = "sequence_encoder_buffer_verilog_lib",
     srcs = [
         ":sequence_encoder_buffer.v",
-        # "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
     ],
     tags = ["manual"],
 )

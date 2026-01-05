@@ -426,7 +426,7 @@ proc HistoryBuffer_test {
     next (state: ()) {
         let tok = join();
 
-        let tok = for (i, tok) in range(u32:0, array_size(TEST_DATA)) {
+        let tok = for (i, tok) in u32:0..array_size(TEST_DATA) {
             let test_data = TEST_DATA[i];
 
             // write current test data
@@ -451,7 +451,7 @@ proc HistoryBuffer_test {
             assert_eq(test_data, read_resp.data);
 
             // check previously saved data
-            let tok = for (offset, tok) in range(u32:0, TEST_SIZE - TEST_DATA_W) {
+            let tok = for (offset, tok) in u32:0..(TEST_SIZE - TEST_DATA_W) {
                 // check only offsets where data was written also dont check for all offsets
                 // to speedup the test
                 if (offset < RAM_NUM * i) && ((offset + i) % u32:13 == u32:0) {

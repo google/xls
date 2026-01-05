@@ -166,8 +166,8 @@ if __name__ == "__main__":
     toplevel = "ram_demux_wrapper"
     verilog_sources = [
         "xls/modules/zstd/ram_demux.v",
-        "xls/modules/zstd/rtl/ram_1r1w.v",
-        "xls/modules/zstd/rtl/ram_demux_wrapper.v",
+        "xls/modules/zstd/rtl/ram_1r1w.sv",
+        "xls/modules/zstd/rtl/ram_demux_wrapper.sv",
     ]
     test_module = [pathlib.Path(__file__).stem]
     utils.run_test(toplevel, test_module, verilog_sources)

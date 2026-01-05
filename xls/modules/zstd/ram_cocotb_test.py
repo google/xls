@@ -69,7 +69,7 @@ async def comp_frame(dut):
 if __name__ == "__main__":
   toplevel = "ram_2rw"
   verilog_sources = [
-    "xls/modules/zstd/rtl/ram_2rw.v",
+    "xls/modules/zstd/rtl/ram_2rw.sv",
   ]
   test_module = [pathlib.Path(__file__).stem]
   run_test(toplevel, test_module, verilog_sources)

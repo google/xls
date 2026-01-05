@@ -162,7 +162,7 @@ proc MemWriterSimpleArbiterTest {
     }
 
     next(state: ()) {
-        let tok = unroll_for! (i, tok): (u32, token) in range(u32:0, TEST_N) {
+        let tok = unroll_for! (i, tok): (u32, token) in u32:0..TEST_N {
             let req = MemWriterReq {
                 addr: i as Addr,
                 length: (TEST_DATA_W / u32:8) as Length,
@@ -185,7 +185,7 @@ proc MemWriterSimpleArbiterTest {
             tok
         }(join());
 
-        let tok = unroll_for! (i, tok): (u32, token) in range(u32:0, TEST_N) {
+        let tok = unroll_for! (i, tok): (u32, token) in u32:0..TEST_N {
             let (tok, req) = recv(tok, req_r);
             trace_fmt!("Received req {:#x} on channel {}", req, i);
             let (tok, data) = recv(tok, data_r);

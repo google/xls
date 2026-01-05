@@ -28,9 +28,6 @@ import xls.modules.zstd.mem_copy;
 import xls.modules.zstd.rle_block_encoder;
 
 type RawMemcopyBlockType = mem_copy::RawMemcopyBlockType;
-type RawMemcopyStatus = mem_copy::RawMemcopyStatus;
-type RawMemcopyReq = mem_copy::RawMemcopyReq;
-type RawMemcopyResp = mem_copy::RawMemcopyResp;
 
 // This parameter controls the sampling in RleBlockEncoder.
 // It's the number of samples read from memory for a quick check
@@ -155,7 +152,11 @@ pub proc LiteralsEncoder<ADDR_W: u32, DATA_W: u32> {
     type HeaderWriterReq = LiteralSectionHeaderWriterReq<ADDR_W>;
     type HeaderWriterResp = LiteralSectionHeaderWriterResp<ADDR_W>;
 
-    type Status = RawMemcopyStatus;
+    type RawMemcopyReq = mem_copy::RawMemcopyReq<ADDR_W>;
+    type RawMemcopyResp = mem_copy::RawMemcopyResp<ADDR_W>;
+    type RawMemcopyStatus = mem_copy::RawMemcopyStatus;
+
+    type Status = mem_copy::RawMemcopyStatus;
 
     type RleBlockEncoderReq = rle_block_encoder::RleBlockEncoderReq<ADDR_W>;
     type RleBlockEncoderResp = rle_block_encoder::RleBlockEncoderResp<ADDR_W>;
@@ -219,8 +220,8 @@ pub proc LiteralsEncoder<ADDR_W: u32, DATA_W: u32> {
             raw_mem_wr_req_s, raw_mem_wr_data_s, raw_mem_wr_resp_r,
         );
 
-        let (rle_req_s, rle_req_r) = chan<RleBlockEncoderReq>("rle_req");
-        let (rle_resp_s, rle_resp_r) = chan<RleBlockEncoderResp>("rle_resp");
+        let (rle_req_s, rle_req_r) = chan<RleBlockEncoderReq, u32:1>("rle_req");
+        let (rle_resp_s, rle_resp_r) = chan<RleBlockEncoderResp, u32:1>("rle_resp");
 
         spawn rle_block_encoder::RleBlockEncoder<ADDR_W, DATA_W, ADDR_W, RLE_HEURISTIC_SAMPLE_COUNT>
         (
@@ -523,8 +524,9 @@ const LARGE_TEST_VALUES = [
 
 #[test_proc]
 proc LiteralsEncoderTest {
-    type Req = RawMemcopyReq<TEST_ADDR_W>;
-    type Resp = RawMemcopyResp<TEST_ADDR_W>;
+    type Req = mem_copy::RawMemcopyReq<TEST_ADDR_W>;
+    type Resp = mem_copy::RawMemcopyResp<TEST_ADDR_W>;
+    type Status = mem_copy::RawMemcopyStatus;
     type Addr = uN[TEST_ADDR_W];
     type Length = uN[TEST_ADDR_W];
     type Data = uN[TEST_DATA_W];
@@ -724,8 +726,8 @@ proc LiteralsEncoderTest {
 
             // Literals Encoder Response
             let (tok, resp) = recv(tok, resp_r);
-            assert_eq(resp, RawMemcopyResp {
-                status: RawMemcopyStatus::OK,
+            assert_eq(resp, Resp {
+                status: Status::OK,
                 btype: btype,
                 length: expected_bytes as Length
             });
@@ -748,7 +750,7 @@ proc LiteralsEncoderTest {
             // clear the output memory
             let mem_wr_req = MemWriterReq { addr: Addr:0, length: TEST_RAM_SIZE as uN[TEST_ADDR_W] };
             let tok = send(tok, output_mem_wr_req_s, mem_wr_req);
-            for (_, tok) in range(u32:0, (TEST_RAM_SIZE/TEST_DATA_W_DIV8)-u32:1) {
+            for (_, tok) in u32:0..((TEST_RAM_SIZE/TEST_DATA_W_DIV8)-u32:1) {
                 let mem_wr_data = MemWriterData {data: Data:0, length: TEST_DATA_W_DIV8, last: false };
                 let tok = send(tok, output_mem_wr_data_s, mem_wr_data);
                 tok
@@ -763,7 +765,7 @@ proc LiteralsEncoderTest {
         let tok = for ((_, (value, btype, result_size, expected_data_word)), tok) in enumerate(LARGE_TEST_VALUES) {
 
             // write input data
-            let tok = for (j, tok) in range(u32:0 , LARGE_TEST_BYTES/TEST_DATA_W_DIV8) {
+            let tok = for (j, tok) in u32:0..(LARGE_TEST_BYTES/TEST_DATA_W_DIV8) {
                 let ram_wr_req = InputRamWrReq {
                     addr: j as Addr,
                     data: value as Data,
@@ -785,8 +787,8 @@ proc LiteralsEncoderTest {
 
             // Literals Encoder Response
             let (tok, resp) = recv(tok, resp_r);
-            assert_eq(resp, RawMemcopyResp {
-                status: RawMemcopyStatus::OK,
+            assert_eq(resp, Resp {
+                status: Status::OK,
                 btype: btype,
                 length: result_size as Length
             });

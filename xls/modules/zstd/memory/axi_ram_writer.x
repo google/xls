@@ -47,7 +47,7 @@ proc AxiRamWriterRequesterInternal<
     type AxiAw = axi::AxiAw<ADDR_W, ID_W>;
     type AxiW = axi::AxiW<DATA_W, NUM_PARTITIONS>;
     type WriteReq = ram::WriteReq<RAM_ADDR_W, DATA_W, NUM_PARTITIONS>;
-    type WriteResp = ram::WriteResp<DATA_W>;
+    type WriteResp = ram::WriteResp;
     type Sync = AxiRamWriterSync<ID_W>;
 
     conf_r: chan<Conf> in;
@@ -128,11 +128,10 @@ proc AxiRamWriterRequester<
     type AxiW = axi::AxiW<DATA_W, NUM_PARTITIONS>;
     type AxiB = axi::AxiB<ID_W>;
     type WriteReq = ram::WriteReq<RAM_ADDR_W, DATA_W, NUM_PARTITIONS>;
-    type WriteResp = ram::WriteResp<DATA_W>;
+    type WriteResp = ram::WriteResp;
     type Conf = AxiRamWriterRequesterInternalConf<RAM_ADDR_W, ID_W>;
     type Sync = AxiRamWriterSync<ID_W>;
     type Addr = uN[ADDR_W];
-    const CONF_FIFO_DEPTH=u32:1;
 
     axi_aw_r: chan<AxiAw> in;
     axi_w_r: chan<AxiW> in;
@@ -151,6 +150,7 @@ proc AxiRamWriterRequester<
         wr_resp_r: chan<WriteResp> in,
         sync_s: chan<Sync> out,
     ) {
+        const CONF_FIFO_DEPTH=u32:1;
         let (conf_s, conf_r) = chan<Conf, CONF_FIFO_DEPTH>("conf");
 
         spawn AxiRamWriterRequesterInternal<
@@ -218,7 +218,7 @@ pub proc AxiRamWriter<
     type AxiW = axi::AxiW<DATA_W, NUM_PARTITIONS>;
     type AxiB = axi::AxiB<ID_W>;
     type WriteReq = ram::WriteReq<RAM_ADDR_W, DATA_W, NUM_PARTITIONS>;
-    type WriteResp = ram::WriteResp<DATA_W>;
+    type WriteResp = ram::WriteResp;
     type Sync = AxiRamWriterSync<ID_W>;
 
     init { }
@@ -261,7 +261,7 @@ proc AxiRamWriterInst{
     type AxiB = axi::AxiB<INST_ID_W>;
 
     type WriteReq = ram::WriteReq<INST_RAM_ADDR_W, INST_DATA_W, INST_NUM_PARTITIONS>;
-    type WriteResp = ram::WriteResp<INST_DATA_W>;
+    type WriteResp = ram::WriteResp;
 
     init { }
 

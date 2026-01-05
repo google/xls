@@ -538,7 +538,7 @@ pub proc SequenceEncoder<
     type State = SequenceEncoderState<ADDR_W, RAM_ADDR_W>;
 
     type HeaderReq = sequence_conf_enc::SequenceSectionHeaderWriterReq<ADDR_W>;
-    type HeaderResp = sequence_conf_enc::SequenceSectionHeaderWriterResp;
+    type HeaderResp = sequence_conf_enc::SequenceSectionHeaderWriterResp<ADDR_W>;
     type HeaderStatus = sequence_conf_enc::SequenceSectionHeaderWriterStatus;
     type BufferReq = SequenceEncoderBufferReq<ADDR_W, BUFF_W, BUFF_SIZE_W>;
     type BufferSync = SequenceEncoderBufferSync<ADDR_W>;

@@ -45,7 +45,7 @@ fn knuth_hash_slow<CONSTANT: u32, KEY_W: u32, HASH_W: u32>(key: uN[KEY_W]) -> uN
 }
 
 fn knuth_hash<CONSTANT: u32, KEY_W: u32, HASH_W: u32>(key: uN[KEY_W]) -> uN[HASH_W] {
-    let result = for (i, result): (u32, uN[KEY_W]) in range(u32:0, u32:32) {
+    let result = for (i, result): (u32, uN[KEY_W]) in u32:0..u32:32 {
         if (CONSTANT >> i) as u1 { result + (key << i) } else { result }
     }(uN[KEY_W]:0);
 
@@ -57,7 +57,7 @@ fn knuth_hash_check() {
     const KNUTH_CONSTANT = u32:0x1e35a7bd;
     const HASH_W = u32:32;
 
-    for (i, ()) in range(u32:0, u32:1 << u32:7) {
+    for (i, ()) in u32:0..(u32:1 << u32:7) {
         let hash_slow = knuth_hash_slow<KNUTH_CONSTANT, u32:32, HASH_W>(i);
         let hash_fast = knuth_hash<KNUTH_CONSTANT, u32:32, HASH_W>(i);
         assert_eq(hash_slow, hash_fast);

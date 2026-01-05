@@ -147,7 +147,7 @@ proc MemReaderSimpleArbiterTest {
     }
 
     next(state: ()) {
-        let tok = unroll_for! (i, tok): (u32, token) in range(u32:0, TEST_N) {
+        let tok = unroll_for! (i, tok): (u32, token) in u32:0..TEST_N {
             let req = MemReaderReq {
                 addr: i as Addr,
                 length: (TEST_DATA_W / u32:8) as Length,
@@ -166,7 +166,7 @@ proc MemReaderSimpleArbiterTest {
             tok
         }(join());
 
-        let tok = unroll_for! (i, tok): (u32, token) in range(u32:0, TEST_N) {
+        let tok = unroll_for! (i, tok): (u32, token) in u32:0..TEST_N {
             let (tok, req) = recv(tok, req_r);
             trace_fmt!("Received req {:#x} on channel {}", req, i);
             let (tok, resp) = recv(tok, n_resp_r[i]);

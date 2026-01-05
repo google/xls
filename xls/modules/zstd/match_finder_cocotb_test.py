@@ -185,9 +185,9 @@ if __name__ == "__main__":
   toplevel = "match_finder_wrapper"
   verilog_sources = [
     "xls/modules/zstd/match_finder_cocotb.v",
-    "xls/modules/zstd/rtl/ram_1r1w.v",
-    "xls/modules/zstd/rtl/xls_fifo_wrapper.v",
-    "xls/modules/zstd/rtl/match_finder_wrapper.v",
+    "xls/modules/zstd/rtl/ram_1r1w.sv",
+    "xls/modules/zstd/rtl/xls_fifo_wrapper.sv",
+    "xls/modules/zstd/rtl/match_finder_wrapper.sv",
   ]
   test_module=[Path(__file__).stem]
   run_test(toplevel, test_module, verilog_sources)

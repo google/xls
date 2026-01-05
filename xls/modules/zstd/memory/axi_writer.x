@@ -146,7 +146,6 @@ pub proc AxiWriterInternalW<
         } else {
             let (tok, r_data) = recv(tok, axi_st_r);
             let is_last_group = (conf.aw_len == u8:0);
-            let is_last_tran = (conf.len == Addr:0);
 
             let low_lane = conf.req_low_lane;
             let high_lane = if is_last_group { conf.req_high_lane } else { MAX_LANE };
@@ -238,7 +237,6 @@ pub proc AxiWriterNoFsm<
     next(state: State) {
         const BYTES_IN_TRANSFER = DATA_W_DIV8 as Addr;
         const MAX_AXI_BURST_BYTES = Addr:256 * BYTES_IN_TRANSFER;
-        const MAX_LANE = std::unsigned_max_value<LANE_W>();
 
         let tok = join();
         if (!state.active) {

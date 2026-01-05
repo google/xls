@@ -56,7 +56,7 @@ u32, FSE_CTABLE_RAM_DATA_W: u32, FSE_TTABLE_RAM_DATA_W: u32, FSE_CTABLE_RAM_NUM_
 u32, BITSTREAM_BUFFER_W: u32, DATA_W_LOG2: u32 = {std::clog2(DATA_W + u32:1)}>
 {
     type Req = CompressBlockEncoderReq<ADDR_W, DATA_W>;
-    type Resp = CompressBlockEncoderResp;
+    type Resp = CompressBlockEncoderResp<ADDR_W>;
     type Status = CompressBlockEncoderStatus;
     // input/output
     type MemReaderReq = mem_reader::MemReaderReq<ADDR_W>;
@@ -90,8 +90,8 @@ u32, BITSTREAM_BUFFER_W: u32, DATA_W_LOG2: u32 = {std::clog2(DATA_W + u32:1)}>
     // literals encoder
     type RawMemcopyBlockType = mem_copy::RawMemcopyBlockType;
     type RawMemcopyStatus = mem_copy::RawMemcopyStatus;
-    type RawMemcopyReq = mem_copy::RawMemcopyReq;
-    type RawMemcopyResp = mem_copy::RawMemcopyResp;
+    type RawMemcopyReq = mem_copy::RawMemcopyReq<ADDR_W>;
+    type RawMemcopyResp = mem_copy::RawMemcopyResp<ADDR_W>;
     // sequence encoder
     type SeReq = sequence_encoder::SequenceEncoderReq<ADDR_W>;
     type SeResp = sequence_encoder::SequenceEncoderResp<ADDR_W>;

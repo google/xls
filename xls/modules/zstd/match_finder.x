@@ -95,7 +95,7 @@ pub struct ZstdParams<HT_SIZE_W: u32> {
     num_entries_log2: uN[HT_SIZE_W],
 }
 
-enum MatchFinderRespStatus : u1 {
+pub enum MatchFinderRespStatus : u1 {
     OK = 0,
     ERROR = 1,
 }
@@ -531,7 +531,6 @@ pub proc MatchFinder<
     next(state: State) {
         const KEY_WIDTH_BYTES = KEY_WIDTH as Addr / Addr:8;
         const HB_DATA_BYTES = HB_DATA_W / u32:8;
-        const DATA_W_B = DATA_W / u32:8;
         const SEQUENCE_RECORD_B = sequence_encoder::SEQUENCE_RECORD_W / u32:8;
         let tok = join();
 
@@ -1119,7 +1118,7 @@ proc MatchFinderTest {
             ht_ram_wr_req_r, ht_ram_wr_resp_s
         );
 
-        unroll_for! (i, _) : (u32, ()) in range(u32:0, u32:8) {
+        unroll_for! (i, _) : (u32, ()) in u32:0..u32:8 {
             spawn ram::RamModel<
             TEST_HB_RAM_DATA_W, TEST_HB_RAM_SIZE, TEST_HB_RAM_PARTITION_SIZE,
             TEST_HB_RAM_SIMULTANEOUS_RW_BEHAVIOR, TEST_HB_RAM_INITIALIZED

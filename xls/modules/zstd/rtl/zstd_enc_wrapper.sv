@@ -313,7 +313,7 @@ module zstd_enc_wrapper #(
         .ADDR_WIDTH(FSE_TABLE_RAM_ADDR_W),
         .SIZE(FSE_RAM_SIZE),
         .NUM_PARTITIONS(FSE_CTABLE_NUM_PARTITIONS),
-        .INIT_FILE("../../xls/modules/zstd/zstd_enc_ll_ctable_default.mem")
+        .INIT_FILE("../xls/modules/zstd/zstd_enc_ll_ctable_default.mem")
     ) ll_ctable_ram (
         .clk(clk),
         .rst(rst),
@@ -332,7 +332,7 @@ module zstd_enc_wrapper #(
         .ADDR_WIDTH(FSE_TABLE_RAM_ADDR_W),
         .SIZE(FSE_RAM_SIZE),
         .NUM_PARTITIONS(FSE_CTABLE_NUM_PARTITIONS),
-        .INIT_FILE("../../xls/modules/zstd/zstd_enc_ml_ctable_default.mem")
+        .INIT_FILE("../xls/modules/zstd/zstd_enc_ml_ctable_default.mem")
     ) ml_ctable_ram (
         .clk(clk),
         .rst(rst),
@@ -351,7 +351,7 @@ module zstd_enc_wrapper #(
         .ADDR_WIDTH(FSE_TABLE_RAM_ADDR_W),
         .SIZE(FSE_RAM_SIZE),
         .NUM_PARTITIONS(FSE_CTABLE_NUM_PARTITIONS),
-        .INIT_FILE("../../xls/modules/zstd/zstd_enc_of_ctable_default.mem")
+        .INIT_FILE("../xls/modules/zstd/zstd_enc_of_ctable_default.mem")
     ) ol_ctable_ram (
         .clk(clk),
         .rst(rst),
@@ -370,7 +370,7 @@ module zstd_enc_wrapper #(
         .ADDR_WIDTH(FSE_TABLE_RAM_ADDR_W),
         .SIZE(FSE_RAM_SIZE),
         .NUM_PARTITIONS(FSE_TTABLE_NUM_PARTITIONS),
-        .INIT_FILE("../../xls/modules/zstd/zstd_enc_ll_ttable_default.mem")
+        .INIT_FILE("../xls/modules/zstd/zstd_enc_ll_ttable_default.mem")
     ) ll_ttable_ram (
         .clk(clk),
         .rst(rst),
@@ -389,7 +389,7 @@ module zstd_enc_wrapper #(
         .ADDR_WIDTH(FSE_TABLE_RAM_ADDR_W),
         .SIZE(FSE_RAM_SIZE),
         .NUM_PARTITIONS(FSE_TTABLE_NUM_PARTITIONS),
-        .INIT_FILE("../../xls/modules/zstd/zstd_enc_ml_ttable_default.mem")
+        .INIT_FILE("../xls/modules/zstd/zstd_enc_ml_ttable_default.mem")
     ) ml_ttable_ram (
         .clk(clk),
         .rst(rst),
@@ -408,7 +408,7 @@ module zstd_enc_wrapper #(
         .ADDR_WIDTH(FSE_TABLE_RAM_ADDR_W),
         .SIZE(FSE_RAM_SIZE),
         .NUM_PARTITIONS(FSE_TTABLE_NUM_PARTITIONS),
-        .INIT_FILE("../../xls/modules/zstd/zstd_enc_of_ttable_default.mem")
+        .INIT_FILE("../xls/modules/zstd/zstd_enc_of_ttable_default.mem")
     ) of_ttable_ram (
         .clk(clk),
         .rst(rst),
