@@ -63,49 +63,6 @@ cc_test(
 )
 
 cc_library(
-    name = "maybe_explain_error",
-    srcs = ["maybe_explain_error.cc"],
-    hdrs = ["maybe_explain_error.h"],
-    deps = [
-        ":format_type_mismatch",
-        "//xls/common/status:status_macros",
-        "//xls/dslx/frontend:ast",
-        "//xls/dslx/frontend:ast_node",
-        "//xls/dslx/frontend:pos",
-        "//xls/dslx/type_system:type",
-        "//xls/dslx/type_system:type_mismatch_error_data",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings:str_format",
-    ],
-)
-
-cc_test(
-    name = "maybe_explain_error_test",
-    srcs = ["maybe_explain_error_test.cc"],
-    deps = [
-        ":maybe_explain_error",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "//xls/dslx:create_import_data",
-        "//xls/dslx:import_data",
-        "//xls/dslx:parse_and_typecheck",
-        "//xls/dslx:warning_collector",
-        "//xls/dslx:warning_kind",
-        "//xls/dslx/frontend:module",
-        "//xls/dslx/frontend:pos",
-        "//xls/dslx/type_system:deduce",
-        "//xls/dslx/type_system:deduce_ctx",
-        "//xls/dslx/type_system:type_info",
-        "//xls/dslx/type_system:type_mismatch_error_data",
-        "//xls/dslx/type_system:typecheck_module",
-        "@com_google_absl//absl/status",
-        "@googletest//:gtest",
-    ],
-)
-
-cc_library(
     name = "format_type_mismatch",
     srcs = ["format_type_mismatch.cc"],
     hdrs = ["format_type_mismatch.h"],

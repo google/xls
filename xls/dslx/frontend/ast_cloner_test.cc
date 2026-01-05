@@ -2257,7 +2257,9 @@ fn divmod() {})*";
   EXPECT_EQ(kProgram, clone->ToString());
 }
 
-TEST(AstClonerTest, Use) {
+// https://github.com/google/xls/issues/2876 - Re-enable when `use` is supported
+// in TIv2.
+TEST(AstClonerTest, DISABLED_Use) {
   constexpr std::string_view kProgram =
       R"(#![feature(use_syntax)]
 
@@ -2333,7 +2335,9 @@ fn main() -> u32 {
   EXPECT_EQ(import->name_def().definer(), import);
 }
 
-TEST(AstClonerTest, UseSetsNameDefDefinerOnClone) {
+// https://github.com/google/xls/issues/2876 - Re-enable when `use` is supported
+// in TIv2.
+TEST(AstClonerTest, DISABLED_UseSetsNameDefDefinerOnClone) {
   // Minimal use of a single module to keep the test crisp while exercising
   // UseTreeEntry leaf definer behavior and typechecking via import.
   constexpr std::string_view kImportedProgram = R"(pub const D = u32:0; )";
@@ -2358,8 +2362,7 @@ fn main() -> u32 { foo::D }
   // Note: `use` only works with TIv1.
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule cloned_tm,
-      TypecheckModule(std::move(clone), "fake_path.x", &import_data,
-                      TypeInferenceVersion::kVersion1));
+      TypecheckModule(std::move(clone), "fake_path.x", &import_data));
 
   // Verify the Use leaves have their NameDef definer set to the UseTreeEntry.
   Use* use = nullptr;

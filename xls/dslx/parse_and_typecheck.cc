@@ -37,7 +37,6 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/type_system/type_info.h"
-#include "xls/dslx/type_system/typecheck_module.h"
 #include "xls/dslx/type_system_v2/builtin_trait_deriver.h"
 #include "xls/dslx/type_system_v2/trait_deriver.h"
 #include "xls/dslx/type_system_v2/type_inference_error_handler.h"
@@ -49,7 +48,6 @@ namespace xls::dslx {
 absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
     std::string_view text, std::string_view path, std::string_view module_name,
     ImportData* import_data, std::vector<CommentData>* comments,
-    std::optional<TypeInferenceVersion> force_version,
     const ConvertOptions& options, TypeInferenceErrorHandler error_handler,
     TraitDeriver* trait_deriver) {
   XLS_RET_CHECK(import_data != nullptr);
@@ -70,8 +68,8 @@ absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
                                    import_data->file_table(), comments));
 
   XLS_RETURN_IF_ERROR(module->SetConfiguredValues(options.configured_values));
-  return TypecheckModule(std::move(module), path, import_data, force_version,
-                         error_handler, trait_deriver);
+  return TypecheckModule(std::move(module), path, import_data, error_handler,
+                         trait_deriver);
 }
 
 absl::StatusOr<std::unique_ptr<Module>> ParseModule(
@@ -101,8 +99,8 @@ absl::StatusOr<std::unique_ptr<Module>> ParseModuleFromFileAtPath(
 
 absl::StatusOr<TypecheckedModule> TypecheckModule(
     std::unique_ptr<Module> module, std::string_view path,
-    ImportData* import_data, std::optional<TypeInferenceVersion> force_version,
-    TypeInferenceErrorHandler error_handler, TraitDeriver* trait_deriver) {
+    ImportData* import_data, TypeInferenceErrorHandler error_handler,
+    TraitDeriver* trait_deriver) {
   XLS_RET_CHECK(module.get() != nullptr);
   XLS_RET_CHECK(import_data != nullptr);
 
@@ -121,42 +119,17 @@ absl::StatusOr<TypecheckedModule> TypecheckModule(
       std::make_unique<SemanticsAnalysis>();
   XLS_RETURN_IF_ERROR(
       semantics_analysis->RunPreTypeCheckPass(*module, warnings));
-
-  using ExtendedTypecheckModuleFn =
-      absl::StatusOr<std::unique_ptr<ModuleInfo>> (*)(
-          std::unique_ptr<Module>, std::filesystem::path path, ImportData*,
-          WarningCollector*, std::unique_ptr<SemanticsAnalysis>,
-          TypeInferenceErrorHandler, std::optional<TraitDeriver*>);
-  ExtendedTypecheckModuleFn version_entry_point =
-      static_cast<ExtendedTypecheckModuleFn>(&TypecheckModule);
-
-  const bool force_v1 = force_version.has_value() &&
-                        *force_version == TypeInferenceVersion::kVersion1;
-  const bool force_v2 = force_version.has_value() &&
-                        *force_version == TypeInferenceVersion::kVersion2;
-  const bool module_has_v1 =
-      module->attributes().contains(ModuleAttribute::kTypeInferenceVersion1);
-  const bool module_has_v2 =
-      module->attributes().contains(ModuleAttribute::kTypeInferenceVersion2);
-  const bool default_v2 =
-      kDefaultTypeInferenceVersion == TypeInferenceVersion::kVersion2;
-  if (!force_v1 && !module_has_v1 &&
-      (force_v2 || module_has_v2 || default_v2)) {
-    version_entry_point = &TypecheckModuleV2;
-  }
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<ModuleInfo> module_info,
-      version_entry_point(std::move(module), path, import_data, &warnings,
-                          std::move(semantics_analysis), error_handler,
-                          trait_deriver == nullptr
-                              ? std::nullopt
-                              : std::make_optional(trait_deriver)));
+      TypecheckModuleV2(std::move(module), path, import_data, &warnings,
+                        std::move(semantics_analysis), error_handler,
+                        trait_deriver == nullptr
+                            ? std::nullopt
+                            : std::make_optional(trait_deriver)));
 
-  if (version_entry_point == TypecheckModuleV2) {
-    XLS_RETURN_IF_ERROR(module_info->inference_table_converter()
-                            ->GetSemanticsAnalysis()
-                            ->RunPostTypeCheckPass(warnings));
-  }
+  XLS_RETURN_IF_ERROR(module_info->inference_table_converter()
+                          ->GetSemanticsAnalysis()
+                          ->RunPostTypeCheckPass(warnings));
 
   TypeInfo* type_info = module_info->type_info();
   XLS_RETURN_IF_ERROR(

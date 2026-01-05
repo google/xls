@@ -43,8 +43,7 @@ class GetConversionRecordsTest : public ::testing::Test {
       std::string_view text, std::string_view path,
       std::string_view module_name, ImportData* import_data) {
     return xls::dslx::ParseAndTypecheck(text, path, module_name, import_data,
-                                        /* comments= */ nullptr,
-                                        TypeInferenceVersion::kVersion2);
+                                        /* comments= */ nullptr);
   }
 };
 

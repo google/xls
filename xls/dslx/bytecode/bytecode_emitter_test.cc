@@ -1604,8 +1604,7 @@ create_tuple 8)";
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data,
-                        /*comments=*/nullptr,
-                        /*force_version=*/std::nullopt, options));
+                        /*comments=*/nullptr, options));
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetMemberOrError<Function>("main"));
