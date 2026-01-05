@@ -755,7 +755,7 @@ absl::Status Block::ReorderInputPorts(
   }
   XLS_RET_CHECK_EQ(port_order.size(), port_names.size())
       << "Port order has duplicate names";
-  for (const Port& port : GetInputPorts()) {
+  for (InputPort* const& port : GetInputPorts()) {
     XLS_RET_CHECK(port_order.contains(PortName(port)))
         << absl::StreamFormat("Port order missing port \"%s\"", PortName(port));
   }
@@ -775,7 +775,7 @@ absl::Status Block::ReorderOutputPorts(
   }
   XLS_RET_CHECK_EQ(port_order.size(), port_names.size())
       << "Port order has duplicate names";
-  for (const Port& port : GetOutputPorts()) {
+  for (OutputPort* const& port : GetOutputPorts()) {
     XLS_RET_CHECK(port_order.contains(PortName(port)))
         << absl::StreamFormat("Port order missing port \"%s\"", PortName(port));
   }
