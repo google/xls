@@ -4106,7 +4106,7 @@ proc pipelined_proc(tkn: token, st: bits[32], init={token, 0}) {
   }
 }
 
-TEST_F(ProcConversionTestFixture, DISABLED_SimpleProcRandomScheduler) {
+TEST_F(ProcConversionTestFixture, SimpleProcRandomScheduler) {
   Package package(TestName());
   Type* u32 = package.GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -4121,7 +4121,7 @@ TEST_F(ProcConversionTestFixture, DISABLED_SimpleProcRandomScheduler) {
   TokenlessProcBuilder pb(TestName(), "tkn", &package);
   BValue recv = pb.Receive(in);
   pb.Send(out, pb.Not(pb.Not(pb.Not(pb.Not(recv)))));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+  XLS_ASSERT_OK(pb.Build({}).status());
 
   for (int32_t i = 0; i < 100; ++i) {
     int32_t seed = 100000 + 5000 * i;
@@ -4134,6 +4134,10 @@ TEST_F(ProcConversionTestFixture, DISABLED_SimpleProcRandomScheduler) {
     options.streaming_channel_valid_suffix("_valid");
     options.streaming_channel_ready_suffix("_ready");
     options.module_name(absl::StrFormat("pipelined_proc-%d", i));
+
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                             ClonePackage(&package));
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetProc(TestName()));
 
     XLS_ASSERT_OK_AND_ASSIGN(
         Block * block,
@@ -4195,7 +4199,7 @@ TEST_F(ProcConversionTestFixture, DISABLED_SimpleProcRandomScheduler) {
   }
 }
 
-TEST_F(ProcConversionTestFixture, DISABLED_AddRandomScheduler) {
+TEST_F(ProcConversionTestFixture, AddRandomScheduler) {
   Package package(TestName());
   Type* u32 = package.GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -4215,7 +4219,7 @@ TEST_F(ProcConversionTestFixture, DISABLED_AddRandomScheduler) {
   BValue a = pb.Receive(in_a);
   BValue b = pb.Receive(in_b);
   pb.Send(out, pb.Not(pb.Not(pb.Not(pb.Not(pb.Add(a, b))))));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+  XLS_ASSERT_OK(pb.Build({}).status());
 
   for (int32_t i = 0; i < 100; ++i) {
     int32_t seed = 100000 + 5000 * i;
@@ -4228,6 +4232,10 @@ TEST_F(ProcConversionTestFixture, DISABLED_AddRandomScheduler) {
     options.streaming_channel_valid_suffix("_valid");
     options.streaming_channel_ready_suffix("_ready");
     options.module_name(absl::StrFormat("pipelined_proc-%d", i));
+
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                             ClonePackage(&package));
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetProc(TestName()));
 
     XLS_ASSERT_OK_AND_ASSIGN(
         Block * block,
@@ -4294,7 +4302,7 @@ TEST_F(ProcConversionTestFixture, DISABLED_AddRandomScheduler) {
   }
 }
 
-TEST_F(ProcConversionTestFixture, DISABLED_TwoReceivesTwoSendsRandomScheduler) {
+TEST_F(ProcConversionTestFixture, TwoReceivesTwoSendsRandomScheduler) {
   Package package(TestName());
   Type* u32 = package.GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -4317,7 +4325,7 @@ TEST_F(ProcConversionTestFixture, DISABLED_TwoReceivesTwoSendsRandomScheduler) {
   TokenlessProcBuilder pb(TestName(), "tkn", &package);
   pb.Send(out_a, pb.Not(pb.Not(pb.Not(pb.Not(pb.Receive(in_a))))));
   pb.Send(out_b, pb.Not(pb.Not(pb.Not(pb.Not(pb.Receive(in_b))))));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+  XLS_ASSERT_OK(pb.Build({}).status());
 
   for (int32_t i = 0; i < 100; ++i) {
     int32_t seed = 100000 + 5000 * i;
@@ -4330,6 +4338,10 @@ TEST_F(ProcConversionTestFixture, DISABLED_TwoReceivesTwoSendsRandomScheduler) {
     options.streaming_channel_valid_suffix("_valid");
     options.streaming_channel_ready_suffix("_ready");
     options.module_name(absl::StrFormat("pipelined_proc-%d", i));
+
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                             ClonePackage(&package));
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetProc(TestName()));
 
     XLS_ASSERT_OK_AND_ASSIGN(
         Block * block,
