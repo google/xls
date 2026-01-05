@@ -401,8 +401,6 @@ generate_crasher_regression_tests(
         "crashers/crasher_2025-09-03_c1e3.x",
         # TODO: https://github.com/google/xls/issues/2998 - Remove when fixed.
         "crashers/crasher_2025-09-04_54f4.x",
-        # TODO: https://github.com/google/xls/issues/3269 - Remove when fixed.
-        "crashers/crasher_2025-10-31_baa8.x",
         # TODO: https://github.com/google/xls/issues/3330 - Remove when fixed.
         "crashers/crasher_2025-11-06_9f52.x",
         # TODO: https://github.com/google/xls/issues/3577 - Remove when fixed.
