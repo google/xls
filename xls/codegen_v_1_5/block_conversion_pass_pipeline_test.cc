@@ -13,8 +13,8 @@
 // limitations under the License.
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
-#include <limits>
 #include <memory>
 #include <numeric>
 #include <optional>
@@ -3713,9 +3713,12 @@ TEST_P(MultiIOWithStatePipelinedProcTestSweepFixture, DISABLED_RandomStalling) {
   EXPECT_GT(output0_sequence.size(), 1000);
   EXPECT_GT(output1_sequence.size(), 1000);
 
-  int64_t min_output_count = output0_sequence.size() > output1_sequence.size()
-                                 ? output1_sequence.size()
-                                 : output0_sequence.size();
+  size_t min_input_count =
+      std::min(input0_sequence.size(), input1_sequence.size());
+  size_t min_output_count =
+      std::min(output0_sequence.size(), output1_sequence.size());
+
+  ASSERT_GE(min_input_count, min_output_count);
 
   int64_t prior_sum = 0;
 
@@ -4516,7 +4519,7 @@ class NonblockingReceivesProcTestSweepFixture
   }
 };
 
-TEST_P(NonblockingReceivesProcTestSweepFixture, DISABLED_RandomInput) {
+TEST_P(NonblockingReceivesProcTestSweepFixture, RandomInput) {
   int64_t stage_count = std::get<0>(GetParam());
   bool flop_inputs = std::get<1>(GetParam());
   bool flop_outputs = std::get<2>(GetParam());
@@ -4773,14 +4776,14 @@ class ProcWithStateTest : public BlockConversionTest {
   }
 };
 
-TEST_F(ProcWithStateTest, DISABLED_ProcWithStateSingleCycle) {
+TEST_F(ProcWithStateTest, ProcWithStateSingleCycle) {
   xls::SchedulingOptions scheduling_options;
   scheduling_options.pipeline_stages(1);
 
   TestBlockWithSchedule(scheduling_options);
 }
 
-TEST_F(ProcWithStateTest, DISABLED_ProcWithStateBackedgesIn2Stages) {
+TEST_F(ProcWithStateTest, ProcWithStateBackedgesIn2Stages) {
   xls::SchedulingOptions scheduling_options;
   scheduling_options.pipeline_stages(2);
 
@@ -4791,7 +4794,7 @@ TEST_F(ProcWithStateTest, DISABLED_ProcWithStateBackedgesIn2Stages) {
   TestBlockWithSchedule(scheduling_options);
 }
 
-TEST_F(ProcWithStateTest, DISABLED_ProcWithStateBackedgesIn3Stages) {
+TEST_F(ProcWithStateTest, ProcWithStateBackedgesIn3Stages) {
   xls::SchedulingOptions scheduling_options;
   scheduling_options.pipeline_stages(3);
 
@@ -4805,7 +4808,7 @@ TEST_F(ProcWithStateTest, DISABLED_ProcWithStateBackedgesIn3Stages) {
   TestBlockWithSchedule(scheduling_options);
 }
 
-TEST_F(ProcWithStateTest, DISABLED_ProcWithStateBackedgesIn3StagesWithExtra) {
+TEST_F(ProcWithStateTest, ProcWithStateBackedgesIn3StagesWithExtra) {
   xls::SchedulingOptions scheduling_options;
   scheduling_options.pipeline_stages(4);
 
@@ -4829,7 +4832,7 @@ INSTANTIATE_TEST_SUITE_P(
                                      CodegenOptions::IOKind::kSkidBuffer)),
     NonblockingReceivesProcTestSweepFixture::PrintToStringParamName);
 
-TEST_F(ProcConversionTestFixture, DISABLED_RecvDataFeedingSendPredicate) {
+TEST_F(ProcConversionTestFixture, RecvDataFeedingSendPredicate) {
   Package package(TestName());
   Type* u32 = package.GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -4857,7 +4860,7 @@ TEST_F(ProcConversionTestFixture, DISABLED_RecvDataFeedingSendPredicate) {
   pb.SendIf(out0, lt_two_five, recv);
   pb.SendIf(out1, gt_one_five, recv);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+  XLS_ASSERT_OK(pb.Build({}).status());
 
   for (int32_t i = 0; i < 100; ++i) {
     int32_t seed = 100000 + 5000 * i;
@@ -4870,6 +4873,10 @@ TEST_F(ProcConversionTestFixture, DISABLED_RecvDataFeedingSendPredicate) {
     options.streaming_channel_valid_suffix("_valid");
     options.streaming_channel_ready_suffix("_ready");
     options.module_name(absl::StrFormat("pipelined_proc-%d", i));
+
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                             ClonePackage(&package));
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetProc(TestName()));
 
     XLS_ASSERT_OK_AND_ASSIGN(
         Block * block,
@@ -4947,7 +4954,7 @@ TEST_F(ProcConversionTestFixture, DISABLED_RecvDataFeedingSendPredicate) {
   }
 }
 
-TEST_F(ProcConversionTestFixture, DISABLED_SingleLoopbackChannel) {
+TEST_F(ProcConversionTestFixture, SingleLoopbackChannel) {
   constexpr std::string_view ir_text = R"(package test
 chan loopback(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=1, register_pop_outputs=true, register_push_outputs=true)
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
@@ -4991,7 +4998,7 @@ proc loopback_proc(tkn: token, st: bits[32], init={token, 1}) {
   // model to evaluate the block with.
 }
 
-TEST_F(ProcConversionTestFixture, DISABLED_MultipleLoopbackChannel) {
+TEST_F(ProcConversionTestFixture, MultipleLoopbackChannel) {
   constexpr std::string_view ir_text = R"(package test
 chan loopback0(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=1, register_push_outputs=true, register_pop_outputs=true)
 chan loopback1(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=1, register_push_outputs=true, register_pop_outputs=true)
@@ -5273,7 +5280,7 @@ proc proc_ut(st: bits[32], init={0}) {
   }
 }
 
-TEST_F(ProcConversionTestFixture, DISABLED_b315378547) {
+TEST_F(ProcConversionTestFixture, b315378547) {
   const std::string ir_text = R"(package test
 
 chan out(bits[8], id=0, kind=single_value, ops=send_only)
@@ -5373,7 +5380,7 @@ MATCHER_P(StateRegFoundInBlock, block, "") {
   return true;
 }
 
-TEST_F(BlockConversionTest, DISABLED_NoDanglingPipelinePointers) {
+TEST_F(BlockConversionTest, NoDanglingPipelinePointers) {
   constexpr std::string_view kIrText = R"(
 package subrosa
 
@@ -5418,7 +5425,7 @@ top proc proc_0(param: token, param__1: bits[18], param__2: bits[3], init={token
               Each(Optional(StateRegFoundInBlock(block))));
 }
 
-TEST_F(ProcConversionTestFixture, DISABLED_ProcWithConditionalNextValues) {
+TEST_F(ProcConversionTestFixture, ProcWithConditionalNextValues) {
   const std::string ir_text = R"(package test
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
 
@@ -5827,7 +5834,7 @@ proc alternating_counter(counter0: bits[32], counter1: bits[32], index: bits[1],
                           5, 10, std::nullopt, 6, 11, std::nullopt, 7))));
 }
 
-TEST_F(BlockConversionTest, DISABLED_SimpleMutualExclusiveRegions) {
+TEST_F(BlockConversionTest, SimpleMutualExclusiveRegions) {
   auto p = CreatePackage();
   ProcBuilder pb(TestName(), p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -5882,7 +5889,7 @@ TEST_F(BlockConversionTest, DISABLED_SimpleMutualExclusiveRegions) {
           1, 2));
 }
 
-TEST_F(BlockConversionTest, DISABLED_NodeToStageMapSimple) {
+TEST_F(BlockConversionTest, NodeToStageMapSimple) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(TestName(), "tok", p.get());
   auto a = pb.StateElement("a", UBits(0, 2));
@@ -5921,7 +5928,7 @@ TEST_F(BlockConversionTest, DISABLED_NodeToStageMapSimple) {
   RecordProperty("block", p->DumpIr());
 }
 
-TEST_F(BlockConversionTest, DISABLED_NodeToStageMapMulti) {
+TEST_F(BlockConversionTest, NodeToStageMapMulti) {
   auto p = CreatePackage();
   ProcBuilder pb(TestName(), p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -5985,8 +5992,7 @@ TEST_F(BlockConversionTest, DISABLED_NodeToStageMapMulti) {
                                 .streaming_io_and_pipeline.node_to_stage_map));
 }
 
-TEST_F(BlockConversionTest,
-       DISABLED_SimpleMutualExclusiveAndConcurrentRegions) {
+TEST_F(BlockConversionTest, SimpleMutualExclusiveAndConcurrentRegions) {
   auto p = CreatePackage();
   ProcBuilder pb(TestName(), p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -6039,7 +6045,7 @@ TEST_F(BlockConversionTest,
       context.GetMetadataForBlock(block).concurrent_stages->IsConcurrent(1, 2));
 }
 
-TEST_F(BlockConversionTest, DISABLED_SimpleConcurrentRegions) {
+TEST_F(BlockConversionTest, SimpleConcurrentRegions) {
   auto p = CreatePackage();
   ProcBuilder pb(TestName(), p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -6091,7 +6097,7 @@ TEST_F(BlockConversionTest, DISABLED_SimpleConcurrentRegions) {
       context.GetMetadataForBlock(block).concurrent_stages->IsConcurrent(1, 2));
 }
 
-TEST_F(BlockConversionTest, DISABLED_MultipleConcurrentRegions) {
+TEST_F(BlockConversionTest, MultipleConcurrentRegions) {
   auto p = CreatePackage();
   ProcBuilder pb(TestName(), p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -6167,7 +6173,7 @@ TEST_F(BlockConversionTest, DISABLED_MultipleConcurrentRegions) {
       context.GetMetadataForBlock(block).concurrent_stages->IsConcurrent(3, 4));
 }
 
-TEST_F(BlockConversionTest, DISABLED_CoveringRegions) {
+TEST_F(BlockConversionTest, CoveringRegions) {
   auto p = CreatePackage();
   ProcBuilder pb(TestName(), p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -6250,7 +6256,7 @@ TEST_F(BlockConversionTest, DISABLED_CoveringRegions) {
       context.GetMetadataForBlock(block).concurrent_stages->IsConcurrent(3, 4));
 }
 
-TEST_F(BlockConversionTest, DISABLED_PipelineRegisterStagesKnown) {
+TEST_F(BlockConversionTest, PipelineRegisterStagesKnown) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * x_out, p->CreateStreamingChannel("x_out", ChannelOps::kSendOnly,
@@ -6301,7 +6307,7 @@ TEST_F(BlockConversionTest, DISABLED_PipelineRegisterStagesKnown) {
                      write_at(na, 2), write_at(na, 3), write_at(na, 4)));
 }
 
-TEST_F(BlockConversionTest, DISABLED_NonTopBlockNamedModuleName) {
+TEST_F(BlockConversionTest, NonTopBlockNamedModuleName) {
   // Block conversion creates a top block with `module_name` as the name.
   // This tests that we get good behavior when a non-top block has the same name
   // as `module_name`.
@@ -6330,8 +6336,11 @@ TEST_F(BlockConversionTest, DISABLED_NonTopBlockNamedModuleName) {
       Block * block,
       ConvertToBlock(
           p.get(),
-          CodegenOptions().reset("foo", false, false, false).module_name("B"),
-          SchedulingOptions().pipeline_stages(2)));
+          CodegenOptions()
+              .reset("foo", false, false, false)
+              .clock_name("clk")
+              .module_name("B"),
+          SchedulingOptions().pipeline_stages(2).schedule_all_procs(true)));
 
   EXPECT_THAT(block, m::Block("B"));
   EXPECT_THAT(block->nodes(), Contains(m::Literal(24)));
@@ -6343,7 +6352,7 @@ TEST_F(BlockConversionTest, DISABLED_NonTopBlockNamedModuleName) {
   EXPECT_THAT(p->GetBlock("B__1").value()->nodes(), Contains(m::Literal(48)));
 }
 
-TEST_F(ProcConversionTestFixture, DISABLED_SimpleMultiProcConversion) {
+TEST_F(ProcConversionTestFixture, SimpleMultiProcConversion) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
                            CreateMultiProcPackage());
   SchedulingOptionsFlagsProto scheduling_options;
@@ -6590,8 +6599,7 @@ absl::StatusOr<Proc*> CreateNewStyleAccumProc(std::string_view proc_name,
   return pb.Build({next_accum});
 }
 
-TEST_F(ProcConversionTestFixture,
-       DISABLED_TrivialProcHierarchyWithProcScopedChannels) {
+TEST_F(ProcConversionTestFixture, TrivialProcHierarchyWithProcScopedChannels) {
   // Construct a proc which instantiates one proc which accumulates its inputs.
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Proc * leaf_proc,
@@ -6613,8 +6621,9 @@ TEST_F(ProcConversionTestFixture,
                            ProcElaboration::Elaborate(top));
 
   XLS_ASSERT_OK(ConvertToBlock(
-      p.get(), CodegenOptions().reset("rst", false, false, false),
-      SchedulingOptions().pipeline_stages(2)));
+      p.get(),
+      CodegenOptions().reset("rst", false, false, false).clock_name("clk"),
+      SchedulingOptions().pipeline_stages(2).schedule_all_procs(true)));
 
   EXPECT_EQ(p->blocks().size(), 2);
 }

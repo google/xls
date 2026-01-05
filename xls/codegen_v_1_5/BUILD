@@ -630,7 +630,6 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/estimators/delay_model:delay_estimator",
         "//xls/interpreter:block_evaluator",
         "//xls/interpreter:ir_interpreter",
         "//xls/ir",
