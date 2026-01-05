@@ -82,9 +82,9 @@ static_assert(std::is_same_v<JitFunctionType, decltype(&proc_1)>,
               "Jit function ABI updated. This test needs to be tweaked.");
 
 static constexpr std::string_view kTestCapsAotEntrypointsProto =
-    "xls/jit/specialized_caps_aot.pb";
+    "xls/jit/specialized_caps_aot_psc.pb";
 static constexpr std::string_view kCapsGoldIr =
-    "xls/jit/some_caps_no_idents.ir";
+    "xls/jit/some_caps_no_idents_psc.ir";
 static constexpr std::string_view kTestMultiAotEntrypointsProto =
     "xls/jit/multi_proc_aot_psc.pb";
 static constexpr std::string_view kMultiGoldIr = "xls/jit/multi_proc_psc.ir";
@@ -203,10 +203,12 @@ TEST_F(ProcJitAotPscTest, Tick) {
                               .unpacked = proc_1}}));
   XLS_ASSERT_OK_AND_ASSIGN(JitChannelQueueManager * chan_man,
                            aot_runtime->GetJitChannelQueueManager());
-  XLS_ASSERT_OK_AND_ASSIGN(ChannelQueue * chan_input,
-                           chan_man->GetQueueByName("chan_0"));
-  XLS_ASSERT_OK_AND_ASSIGN(ChannelQueue * chan_output,
-                           chan_man->GetQueueByName("chan_1"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ChannelQueue * chan_input,
+      chan_man->GetQueueByName("_external_input_wire", "proc_1"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ChannelQueue * chan_output,
+      chan_man->GetQueueByName("_external_output_wire", "proc_1"));
   XLS_EXPECT_OK(chan_input->Write(StrValue("abcdefgh")));
   XLS_EXPECT_OK(chan_input->Write(StrValue("ijklmnop")));
   XLS_EXPECT_OK(chan_input->Write(StrValue("qrstuvwx")));
@@ -241,10 +243,12 @@ TEST_F(ProcJitAotPscTest, TickUntilBlocked) {
                               .unpacked = proc_1}}));
   XLS_ASSERT_OK_AND_ASSIGN(JitChannelQueueManager * chan_man,
                            aot_runtime->GetJitChannelQueueManager());
-  XLS_ASSERT_OK_AND_ASSIGN(ChannelQueue * chan_input,
-                           chan_man->GetQueueByName("chan_0"));
-  XLS_ASSERT_OK_AND_ASSIGN(ChannelQueue * chan_output,
-                           chan_man->GetQueueByName("chan_1"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ChannelQueue * chan_input,
+      chan_man->GetQueueByName("_external_input_wire", "proc_1"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ChannelQueue * chan_output,
+      chan_man->GetQueueByName("_external_output_wire", "proc_1"));
   XLS_EXPECT_OK(chan_input->Write(StrValue("abcdefgh")));
   XLS_EXPECT_OK(chan_input->Write(StrValue("ijklmnop")));
   XLS_EXPECT_OK(chan_input->Write(StrValue("qrstuvwx")));
