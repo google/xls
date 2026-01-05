@@ -465,3 +465,226 @@ Assertions and failures occur in the following modules:
 
 Several `impossible cases` are also covered by `fail!()`, they should never
 be triggered and were added to satisfy the type checking system.
+
+# ZSTD Encoder
+
+The ZSTD encoder provided in this directory is a work in progress.
+Eventually, it should be compliant with
+[RFC 8879](https://www.rfc-editor.org/rfc/rfc8878.html).
+The encoder should act as a peripheral on the AXI bus and should expose input,
+output, and a separate control interface.
+
+Currently, only input and output are exposed, and the configuration parameters
+are placed directly in the code of the encoder.
+
+## Architecture
+
+The encoder consists of a few independent blocks that are used together
+to generate the ZSTD-encoded bitstream.
+
+The general architecture of the design is presented in the picture below:
+![ZSTD encoder](/home/rwinkler/Projects/xls_ws2/encoder.png)
+
+### ZstdEncoder
+
+`ZstdEncoder` is a proc that aggregates multiple modules needed to compress
+data located in memory. The proc must be connected to memory and will
+communicate with it using the `MemReader` and `MemWriter` procs. They are
+defined in `modules/zstd/memory/mem_{reader,writer}.x` files.
+
+Upon receiving a request, ZstdEncoder requests input data from `MemReader`,
+constructs a single frame with the data encoded as RAW blocks, and writes it
+to memory using `MemWriter`.
+
+The number of generated blocks depends on the request
+(`max_block_size` and `data_size`).
+
+### Frame Header Generator
+
+The Frame Header Generator is responsible for creating a
+[Frame Header](https://datatracker.ietf.org/doc/html/rfc8878#section-3.1.1.1)
+that contains the compression parameters.
+
+To simplify the decoding process, the length of the decoded stream is always
+included in the header. This means that the `Frame_Content_Size` field is
+always present.
+
+### Block Header Writer
+
+The BlockHeaderWriter proc is responsible for creating a Block Header
+in memory. Upon request, `BlockHeaderWriter` constructs a request to `MemWriter`
+with the provided Block Header information.
+
+### Match Finder
+
+The `MatchFinder` block processes the data stream, searching for repeating
+symbol patterns in its history. Symbols not found in the history are stored
+directly as literals in the literals buffer, while symbols that have matches
+are stored as sequences in the sequence buffer, using the matched offset
+and length information.
+
+Upon receiving a request, the `MatchFinder` starts the history-matching process.
+It reads data from the input buffer and sends it directly to the history buffer.
+At the same time, it sends requests to the hash table to check for available
+matches. If a match occurs, it reads the history buffer to determine how many
+symbols following the match are repeating. If enough symbols repeat, it writes
+the sequence description to the sequence buffer.
+If the symbol does not repeat, it is written to the literals buffer.
+
+Literals are stored as-is. Sequences are encoded using the number of literals
+that need to be copied from the last repetition, the match offset, and
+the match length, each taking 16 bits.
+
+### Hash Table
+
+A simple hash table is used for fast lookup of repeating symbols in
+the input data buffer. This table is implemented as RAM, where the address
+serves as the key, and the data stored at that address represents the value.
+
+For compression, a set of symbols is hashed to generate a key using Knuth’s
+multiplicative hashing, with `0x1e35a7bd` used as the constant:
+
+```
+hash = (value * CONSTANT) >> (32 - HASHBITS)
+```
+
+The selected constant is a bijection for values in the range 0 to 2^32−1 and
+has a good distribution of ones and zeros. `HASHBITS` should be adjusted so
+that the hash uses the most well-mixed values.
+
+The original symbols, together with their relative offset in the input buffer,
+are stored as the value. The original symbols are used to check matches.
+
+### History Buffer
+
+The History Buffer is used to track historical data. After a match is detected,
+it is used to check how many symbols following the match are equal.
+It can be implemented using a group of RAMs so that reads from arbitrary
+offsets still return valid data.
+
+The part related to managing multiple RAMs can be separated into a
+`AlignedParallelRAM` proc. The `HistoryBuffer` can then be implemented on top of it.
+The difference between these procs is that the HistoryBuffer refers to offsets
+from its top (how many symbols back to read), instead of using absolute
+addresses like the `AlignedParallelRAM` proc.
+
+### RawMemcopy
+
+The `RawMemcopy` block copies data from the input memory to the output memory
+without any modification. It is used by `LiteralEncoder` when encoding RAW
+literals.
+
+### RleBlockEncoder
+
+The `RleBlockEncoder` encodes RLE literals. It first uses a simple heuristic to
+check whether a block can be RLE-encoded. This is done by sampling the block at
+uniform positions and checking whether all samples have the same value. If they
+differ, the block is rejected early. If the samples match, the block is fully
+checked. When encoding is possible, the encoder outputs a symbol and the number
+of times it appears in the input stream.
+
+### SequenceEncoder
+
+The `SequenceEncoder` encodes sequences stored in the sequence buffer using FSE
+coding. It uses predefined FSE tables for the encoding process.
+
+### AlignedParallelRam
+
+The `AlignedParallelRam` proc combines eight RAMs, one per byte, to allow reading
+and writing each byte of a 64-bit wide memory in a single cycle. It is used by
+the `HistoryBuffer`.
+
+### CompressBlockEncoder
+
+The `CompressBlockEncoder` uses the `LiteralsEncoder` and the
+`SequenceEncoder` to produce
+[compressed blocks](https://datatracker.ietf.org/doc/html/rfc8878#name-compressed-blocks)
+from the input data.
+
+### MemReaderMux / MemWriterMux
+
+These procs allow multiple procs to share a single `MemReader` or `MemWriter`.
+They do this by multiplexing several input interfaces into one `MemReader` or
+`MemWriter` proc.
+
+### MemReaderSimpleArbiter / MemWriterSimpleArbiter
+
+These procs implement a simple round-robin arbiter. They control the
+`MemReaderMux` and `MemWriterMux` so that access to the `MemReader` and
+`MemWriter` interfaces is granted automatically.
+
+### LiteralSectionHeaderWriter
+
+The `LiteralSectionHeaderWriter` creates the
+[literals section header](https://datatracker.ietf.org/doc/html/rfc8878#section-3.1.1.3.1)
+and writes it to memory
+
+
+### SequenceConfEncoder
+
+The `SequenceConfEncoder` creates the
+[sequence section header](https://datatracker.ietf.org/doc/html/rfc8878#name-sequences_section_header)
+and writes it to memory.
+
+## Tests
+
+Testing of the ZSTD encoder is carried out on two levels:
+
+* Encoder components
+* Integrated encoder
+
+Each component of the encoder is tested individually using DSLX tests.
+Testing at the DSLX level allows the creation of small test cases that check
+the correct behavior of a given part of the design.
+
+When needed, these test cases can be modified by the user to better understand
+how the component operates.
+
+Tests of the integrated ZSTD encoder are carried out at the DSLX and
+Verilog levels. The objective is to verify the functionality of
+the encoder as a whole.
+
+- DSLX-level tests use hardcoded input and output.
+- Verilog-level tests feed random input to the simulated encoder,
+  decompress its output using a reference implementation, and compare
+  the result against the input.
+
+The basic test case for the ZstdEncoder is composed of the following steps:
+
+1. The testbench generates random input data.
+2. Input data is placed in an AXI RAM model connected to the encoder’s memory
+   interface.
+3. The testbench waits for the encoder response and forwards the encoder output
+   stored in memory to a reference decoder implementation.
+4. The result is compared against the input data.
+
+### Verilog Tests Details
+
+Verilog tests are written in Python using a
+[cocotb](https://github.com/cocotb/cocotb) testbench.
+
+ZstdEncoder’s main communication interfaces are AXI buses. Due to the way
+XLS handles code generation of DSLX channels that model AXI channels,
+the generated ports do not correctly represent AXI signals.
+This requires the use of a [Verilog wrapper](rtl/zstd_enc_wrapper.v)
+that maps the generated ports to proper AXI ports
+(see the AXI peripherals [README](memory/README.md) for more information).
+
+The cocotb testbench interacts with the encoder using
+the [cocotbext-axi](https://github.com/alexforencich/cocotbext-axi)
+extension, which provides AXI bus models, drivers, monitors,
+and an AXI-accessible RAM model. A cocotb AXI Master is connected to
+the encoder’s CSR interface and is used to simulate software interaction
+with the encoder.
+
+## Limitations
+
+Not all heuristics used in the reference software implementation are feasible
+in hardware. As a result, the hardware implementation may produce worse
+compression in some cases.
+
+As of the current version of the encoder:
+- The top module produces uncompressed output, but it is packed in proper
+  ZSTD control structures.
+- Procs strictly related to compression, such as the Match Finder, are not yet
+  integrated into the encoding flow.
