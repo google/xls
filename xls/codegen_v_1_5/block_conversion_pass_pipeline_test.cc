@@ -1657,7 +1657,7 @@ TEST_F(BlockConversionTest, RamChannelsAreNotFlopped) {
       // registers containing the channel name. Exclude these as they are not
       // flopping-related.
       if (absl::StrContains(reg->name(), s) &&
-          !absl::StrContains(reg->name(), "has_been_sent")) {
+          !absl::StrContains(reg->name(), "already_done")) {
         return true;
       }
     }
@@ -3774,7 +3774,7 @@ class MultiIOWithStatePipelinedProcTestSweepFixture
     CodegenOptions::IOKind flop_outputs_kind = std::get<4>(info.param);
 
     return absl::StrFormat(
-        "stage_count_%d_flop_inputs_%d_flop_outputs_%d_"
+        "stage_count_%d_flop_inputs_%v_flop_outputs_%v_"
         "flop_inputs_kind_%s_flop_outputs_kind_%s",
         stage_count, flop_inputs, flop_outputs,
         CodegenOptions::IOKindToString(flop_inputs_kind),
@@ -3782,7 +3782,7 @@ class MultiIOWithStatePipelinedProcTestSweepFixture
   }
 };
 
-TEST_P(MultiIOWithStatePipelinedProcTestSweepFixture, DISABLED_RandomStalling) {
+TEST_P(MultiIOWithStatePipelinedProcTestSweepFixture, RandomStalling) {
   int64_t stage_count = std::get<0>(GetParam());
   bool flop_inputs = std::get<1>(GetParam());
   bool flop_outputs = std::get<2>(GetParam());
@@ -3918,42 +3918,64 @@ TEST_P(MultiIOWithStatePipelinedProcTestSweepFixture, DISABLED_RandomStalling) {
       std::min(output0_sequence.size(), output1_sequence.size());
 
   ASSERT_GE(min_input_count, min_output_count);
+  size_t min_sequence_length = std::min(min_input_count, min_output_count);
 
   int64_t prior_sum = 0;
+  std::vector<uint64_t> actual_output0(min_sequence_length);
+  std::vector<uint64_t> actual_output1(min_sequence_length);
+  std::vector<uint64_t> expected_output0(min_sequence_length);
+  std::vector<uint64_t> expected_output1(min_sequence_length);
+  for (int64_t i = 0; i < min_sequence_length; ++i) {
+    actual_output0[i] = output0_sequence.at(i).value;
+    actual_output1[i] = output1_sequence.at(i).value;
 
-  for (int64_t i = 0; i < min_output_count; ++i) {
-    int64_t in0_val = input0_sequence.at(i).value;
-    int64_t in1_val = input1_sequence.at(i).value;
-    int64_t out0_val = output0_sequence.at(i).value;
-    int64_t out1_val = output1_sequence.at(i).value;
+    const CycleAndValue& in0 = input0_sequence.at(i);
+    const CycleAndValue& in1 = input1_sequence.at(i);
+    expected_output0[i] = in0.value + in1.value + prior_sum;
+    expected_output1[i] = prior_sum + in1.value;
+    prior_sum = expected_output0[i];
+  }
 
-    int64_t expected0_sum = in0_val + in1_val + prior_sum;
-    int64_t expected1_sum = prior_sum + in1_val;
+  EXPECT_EQ(actual_output0, expected_output0);
+  EXPECT_EQ(actual_output1, expected_output1);
+}
 
-    EXPECT_EQ(out0_val, expected0_sum) << absl::StreamFormat(
-        "Expected output0 index %d val %d == %d + %d + %d, got %d, expected %d",
-        i, out0_val, in0_val, prior_sum, in1_val, out0_val, expected0_sum);
-
-    EXPECT_EQ(out1_val, expected1_sum) << absl::StreamFormat(
-        "Expected output0 index %d val %d == %d + %d + %d, got %d, expected %d",
-        i, out1_val, in0_val, prior_sum, in1_val, out1_val, expected1_sum);
-
-    prior_sum = expected0_sum;
+std::tuple<bool, CodegenOptions::IOKind> GetIOKind(FlopKind flop_kind) {
+  switch (flop_kind) {
+    case FlopKind::kNone:
+      return std::make_tuple(false, CodegenOptions::IOKind::kFlop);
+    case FlopKind::kFlop:
+      return std::make_tuple(true, CodegenOptions::IOKind::kFlop);
+    case FlopKind::kSkid:
+      return std::make_tuple(true, CodegenOptions::IOKind::kSkidBuffer);
+    case FlopKind::kZeroLatency:
+      return std::make_tuple(true, CodegenOptions::IOKind::kZeroLatencyBuffer);
   }
 }
 
 INSTANTIATE_TEST_SUITE_P(
     MultiIOWithStatePipelinedProcTestSweep,
     MultiIOWithStatePipelinedProcTestSweepFixture,
-    testing::Combine(
-        testing::Values(1, 2, 3, 4), testing::Values(false, true),
-        testing::Values(false, true),
-        testing::Values(CodegenOptions::IOKind::kFlop,
-                        CodegenOptions::IOKind::kSkidBuffer,
-                        CodegenOptions::IOKind::kZeroLatencyBuffer),
-        testing::Values(CodegenOptions::IOKind::kFlop,
-                        CodegenOptions::IOKind::kSkidBuffer,
-                        CodegenOptions::IOKind::kZeroLatencyBuffer)),
+    testing::ConvertGenerator(
+        testing::Combine(
+            testing::Values(1, 2, 3, 4),
+            testing::Values(FlopKind::kNone, FlopKind::kFlop, FlopKind::kSkid,
+                            FlopKind::kZeroLatency),
+            testing::Values(FlopKind::kNone, FlopKind::kFlop, FlopKind::kSkid,
+                            FlopKind::kZeroLatency)),
+        [](const std::tuple<int, FlopKind, FlopKind>& raw_params)
+            -> std::tuple<int, bool, bool, CodegenOptions::IOKind,
+                          CodegenOptions::IOKind> {
+          // We map from FlopKind to [bool, IOKind] to reduce the number of test
+          // cases we need (from 4*2*2*3*3 = 144 to 4*4*4 = 64), since the bool
+          // controls whether to flop while IOKind controls the specific kind of
+          // flopping to use.
+          auto [stage_count, fk_inputs, fk_outputs] = raw_params;
+          auto [flop_inputs, flop_inputs_kind] = GetIOKind(fk_inputs);
+          auto [flop_outputs, flop_outputs_kind] = GetIOKind(fk_outputs);
+          return std::make_tuple(stage_count, flop_inputs, flop_outputs,
+                                 flop_inputs_kind, flop_outputs_kind);
+        }),
     MultiIOWithStatePipelinedProcTestSweepFixture::PrintToStringParamName);
 
 TEST_F(BlockConversionTest, IOSignatureFunctionBaseToPipelinedBlock) {

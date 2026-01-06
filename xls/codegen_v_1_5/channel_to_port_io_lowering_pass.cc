@@ -1078,8 +1078,8 @@ absl::Status AddOneShotLogic(Connector& connector, ScheduledBlock* block,
   XLS_RETURN_IF_ERROR(
       block
           ->MakeNode<RegisterWrite>(SourceInfo(), already_done_data,
-                                    already_done_load_enable, reset_one_shot,
-                                    already_done_reg)
+                                    already_done_load_enable,
+                                    block->GetResetPort(), already_done_reg)
           .status());
 
   // Actually record all of these changes in the connector, so it can correctly
@@ -1638,7 +1638,8 @@ absl::StatusOr<bool> LowerIoToPorts(
       auto it = connections.find(directed_channel);
       XLS_RET_CHECK(it != connections.end());
       Connector& connector = it->second;
-      XLS_RETURN_IF_ERROR(AddOneShotLogic(connector, block, options));
+      XLS_RETURN_IF_ERROR(AddOneShotLogic(
+          connector, block, options, ChannelRefName(directed_channel.first)));
       changed = true;
     }
   }
