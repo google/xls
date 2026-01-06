@@ -26,11 +26,14 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/node.h"
 #include "xls/ir/op.h"
+#include "xls/passes/visibility_analysis.h"
 #include "ortools/graph/cliques.h"
 
 namespace xls {
@@ -296,6 +299,76 @@ std::vector<BinaryFoldingAction*> FoldingGraph::GetEdgesTo(Node* n) const {
   }
 
   return edges_to_n;
+}
+
+absl::StatusOr<std::unique_ptr<NaryFoldingAction>> NaryFoldingAction::Clone(
+    const NaryFoldingAction& other,
+    const absl::flat_hash_map<Node*, Node*>& original_node_to_clone) {
+  // Fetch the information about the original n-ary action.
+  absl::Span<const std::pair<Node*, FoldingAction::VisibilityEdges>>
+      original_froms = other.GetFrom();
+  const BinaryFoldingAction::VisibilityEdges& original_to_edges =
+      other.GetToVisibilityEdges();
+
+  // Fetch the clones of the Node instances referenced by @other.
+  std::vector<std::pair<Node*, FoldingAction::VisibilityEdges>> clone_froms;
+  FoldingAction::VisibilityEdges clone_visibility_edges;
+  for (const auto& [original_from, original_visibility_edges] :
+       original_froms) {
+    auto it = original_node_to_clone.find(original_from);
+    if (it == original_node_to_clone.end()) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Node %s not found in the clone", original_from->ToString()));
+    }
+    Node* clone_from = it->second;
+    for (const auto [operand, node] : original_visibility_edges) {
+      auto it = original_node_to_clone.find(operand);
+      if (it == original_node_to_clone.end()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Node %s not found in the clone", operand->ToString()));
+      }
+      Node* clone_operand = it->second;
+      auto node_it = original_node_to_clone.find(node);
+      if (node_it == original_node_to_clone.end()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Node %s not found in the clone", node->ToString()));
+      }
+      Node* clone_node = node_it->second;
+      clone_visibility_edges.insert({clone_operand, clone_node});
+    }
+    clone_froms.push_back({clone_from, clone_visibility_edges});
+  }
+  auto it = original_node_to_clone.find(other.GetTo());
+  if (it == original_node_to_clone.end()) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Node %s not found in the clone", other.GetTo()->ToString()));
+  }
+  Node* clone_to = it->second;
+  BinaryFoldingAction::VisibilityEdges clone_to_edges;
+  for (const OperandVisibilityAnalysis::OperandNode& visibility_edge :
+       original_to_edges) {
+    auto operand_it = original_node_to_clone.find(visibility_edge.operand);
+    if (operand_it == original_node_to_clone.end()) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Node %s not found in the clone",
+                          visibility_edge.operand->ToString()));
+    }
+    Node* clone_operand = operand_it->second;
+    auto node_it = original_node_to_clone.find(visibility_edge.node);
+    if (node_it == original_node_to_clone.end()) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Node %s not found in the clone", visibility_edge.node->ToString()));
+    }
+    Node* clone_node = node_it->second;
+    clone_to_edges.insert({clone_operand, clone_node});
+  }
+
+  // Create the cloned object
+  auto clone_action = std::make_unique<NaryFoldingAction>(
+      std::move(clone_froms), clone_to, std::move(clone_to_edges),
+      other.area_saved());
+
+  return clone_action;
 }
 
 }  // namespace xls
