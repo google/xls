@@ -61,6 +61,7 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/clone_package.h"
+#include "xls/ir/foreign_function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/ir_matcher.h"
@@ -6679,7 +6680,7 @@ TEST_F(BlockConversionTest, ReturnArrayLiteral) {
                                {Value(UBits(0, 1)), Value(UBits(1, 1))}))));
 }
 
-TEST_F(BlockConversionTest, DISABLED_ValidSignalWithoutReset) {
+TEST_F(BlockConversionTest, ValidSignalWithoutReset) {
   Package package(TestName());
   FunctionBuilder fb(TestName(), &package);
   fb.Param("x", package.GetBitsType(8));
@@ -6790,6 +6791,41 @@ TEST_F(BlockConversionTest, TwoBitSelectorAllCasesPopulated) {
       m::OutputPort("out", m::Select(m::InputPort("s"),
                                      {m::InputPort("x"), m::InputPort("y"),
                                       m::InputPort("z"), m::InputPort("a")})));
+}
+
+TEST_F(BlockConversionTest, SimpleFfiCall) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+
+  // Simple function that has foreign function data attached.
+  FunctionBuilder fb(TestName() + "ffi_fun", p.get());
+  const BValue param_a = fb.Param("a", u32);
+  XLS_ASSERT_OK_AND_ASSIGN(ForeignFunctionData ffd,
+                           ForeignFunctionDataCreateFromTemplate(
+                               "foo {fn} (.ma({a})) .out({return})"));
+  fb.SetForeignFunctionData(ffd);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * ffi_fun,
+                           fb.BuildWithReturnValue(param_a));
+
+  FunctionBuilder top_fb(TestName() + "_top", p.get());
+  const BValue input = top_fb.Param("input", u32);
+  top_fb.Invoke({input}, ffi_fun);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * top, top_fb.Build());
+  XLS_ASSERT_OK(p->SetTop(top));
+
+  verilog::CodegenOptions codegen_options;
+  codegen_options.clock_name("clk");
+  SchedulingOptions scheduling_options = SchedulingOptions().pipeline_stages(1);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block,
+      ConvertToBlock(p.get(), codegen_options, scheduling_options));
+
+  ASSERT_EQ(block->GetInstantiations().size(), 1);
+  EXPECT_EQ(block->GetInstantiations()[0]->kind(), InstantiationKind::kExtern);
+  EXPECT_EQ(down_cast<ExternInstantiation*>(block->GetInstantiations()[0])
+                ->function(),
+            ffi_fun);
 }
 
 TEST_F(ProcConversionTestFixture, SimpleMultiProcConversion) {

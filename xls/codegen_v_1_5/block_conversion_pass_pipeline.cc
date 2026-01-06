@@ -23,6 +23,7 @@
 #include "xls/codegen_v_1_5/block_conversion_wrapper_pass.h"
 #include "xls/codegen_v_1_5/block_finalization_pass.h"
 #include "xls/codegen_v_1_5/channel_to_port_io_lowering_pass.h"
+#include "xls/codegen_v_1_5/ffi_instantiation_pass.h"
 #include "xls/codegen_v_1_5/flow_control_insertion_pass.h"
 #include "xls/codegen_v_1_5/function_io_lowering_pass.h"
 #include "xls/codegen_v_1_5/idle_insertion_pass.h"
@@ -48,6 +49,9 @@ std::unique_ptr<BlockConversionCompoundPass> CreateBlockConversionPassPipeline(
 
   // Convert ScheduledProc/ScheduledFunction to ScheduledBlock.
   top->Add<ScheduledBlockConversionPass>();
+
+  // Lower FFI invocations to instantiations.
+  top->Add<FfiInstantiationPass>();
 
   // Lower state reads/writes to register read/writes.
   top->Add<StateToRegisterIoLoweringPass>();

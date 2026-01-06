@@ -110,8 +110,9 @@ top fn __test__f(a: bits[32] id=1, b: bits[32] id=2, c: bits[32] id=3, d: bits[3
 }
 )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::string output,
-                           RunPassAndRoundTripIrText(kInput));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string output,
+      RunPassAndRoundTripIrText(kInput, /*expect_change=*/false));
   EXPECT_EQ(output, kInput);
 }
 

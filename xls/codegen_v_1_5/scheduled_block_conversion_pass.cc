@@ -23,6 +23,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
 #include "xls/common/casts.h"
@@ -71,9 +72,17 @@ absl::Status AddClockAndResetPorts(const verilog::CodegenOptions& options,
 absl::StatusOr<bool> ScheduledBlockConversionPass::RunInternal(
     Package* package, const BlockConversionPassOptions& options,
     PassResults* results) const {
+  bool changed = false;
   for (FunctionBase* old_fb : package->GetFunctionBases()) {
     if (!old_fb->IsScheduled() ||
         (!old_fb->IsFunction() && !old_fb->IsProc())) {
+      continue;
+    }
+
+    if (old_fb->IsFunction() &&
+        old_fb->AsFunctionOrDie()->ForeignFunctionData().has_value()) {
+      // Don't attempt to convert foreign functions; their invocations will be
+      // converted to instantiations in a later pass.
       continue;
     }
 
@@ -124,6 +133,18 @@ absl::StatusOr<bool> ScheduledBlockConversionPass::RunInternal(
       block->SetSource(std::move(source_fn));
       block->SetSourceReturnValue(return_value);
       block->MoveLogicFrom(*old_fb);
+
+      for (FunctionBase* fb : package->GetFunctionBases()) {
+        for (Node* node : fb->nodes()) {
+          if (node->Is<Invoke>() && node->As<Invoke>()->to_apply() == old_fb) {
+            return absl::InternalError(absl::StrFormat(
+                "Detected function call in IR to a non-FFI function `%s`. "
+                "Probable cause: IR was not run through optimizer (opt_main) "
+                "for inlining.",
+                old_fb->name()));
+          }
+        }
+      }
     } else if (old_fb->IsProc()) {
       auto source_proc = std::make_unique<Proc>(
           absl::StrCat(old_fb->name(), "__src"), package);
@@ -137,9 +158,11 @@ absl::StatusOr<bool> ScheduledBlockConversionPass::RunInternal(
       XLS_RETURN_IF_ERROR(package->SetTop(block));
     }
     XLS_RETURN_IF_ERROR(package->RemoveFunctionBase(old_fb));
+
+    changed = true;
   }
 
-  return true;
+  return changed;
 }
 
 }  // namespace xls::codegen

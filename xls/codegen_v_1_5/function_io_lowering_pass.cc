@@ -25,6 +25,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "cppitertools/reversed.hpp"
 #include "xls/codegen/conversion_utils.h"
@@ -40,6 +41,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/register.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/value_utils.h"
 #include "xls/passes/pass_base.h"
 
@@ -168,16 +170,37 @@ absl::StatusOr<bool> FunctionIOLoweringPass::LowerReturnValue(
   }
 
   // The return value is always assumed to be in the last stage - or possibly
-  // unscheduled, if (e.g.) returning a literal.
-  if (block->IsStaged(block->source_return_value())) {
+  // unscheduled, if (e.g.) returning a literal. If it's not in the last stage,
+  // it must be a Param - so we need to introduce an identity node to ensure
+  // that the value gets piped through the pipeline registers.
+  Node* return_value = block->source_return_value();
+  if (block->IsStaged(return_value)) {
     XLS_ASSIGN_OR_RETURN(int64_t stage_index,
-                         block->GetStageIndex(block->source_return_value()));
-    XLS_RET_CHECK_EQ(stage_index, block->stages().size() - 1);
+                         block->GetStageIndex(return_value));
+    const int64_t last_stage = block->stages().size() - 1;
+    if (stage_index != last_stage) {
+      XLS_ASSIGN_OR_RETURN(
+          return_value,
+          block->MakeNodeInStage<UnOp>(block->stages().size() - 1, SourceInfo(),
+                                       return_value, Op::kIdentity));
+    }
   }
 
   std::optional<Node*> output_valid = std::nullopt;
   if (options.codegen_options.valid_control().has_value() &&
       !options.codegen_options.valid_control()->output_name().empty()) {
+    // If the valid signal is passed all the way through to an output port, then
+    // the block must have a reset port. Otherwise, garbage will be passed out
+    // of the valid out port until the pipeline flushes. If there is not a valid
+    // output port, it's ok for the flopped valid to have garbage values because
+    // it is only used as a term in load enables for power savings.
+    if (!block->GetResetBehavior().has_value()) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Block `%s` has valid signal output but no reset; this would produce "
+          "an incorrect valid-output signal.",
+          block->name()));
+    }
+
     output_valid = block->stages().back().outputs_valid();
     if (options.codegen_options.flop_outputs()) {
       XLS_ASSIGN_OR_RETURN(
