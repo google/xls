@@ -14,12 +14,15 @@
 
 #include "xls/codegen_v_1_5/idle_insertion_pass.h"
 
+#include <memory>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/block.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
@@ -55,11 +58,32 @@ TEST_F(IdleInsertionPassTest, PassDoesNothingIfAddIdleOutputIsFalse) {
   BValue out = sbb.Add(in, sbb.Literal(UBits(1, 32)));
   sbb.OutputPort("out", out);
   sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
-  XLS_ASSERT_OK(sbb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * block, sbb.Build());
+  block->SetSource(std::make_unique<Function>(TestName(), p.get()));
 
   BlockConversionPassOptions options;
   options.codegen_options.add_idle_output(false);
   EXPECT_THAT(Run(p.get(), options), IsOkAndHolds(false));
+}
+
+TEST_F(IdleInsertionPassTest, IdleIsFalseForFunctionWithNoValidControl) {
+  auto p = CreatePackage();
+  ScheduledBlockBuilder sbb(TestName(), p.get());
+  BValue in = sbb.InputPort("in", p->GetBitsType(32));
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  BValue out = sbb.Add(in, sbb.Literal(UBits(1, 32)));
+  sbb.OutputPort("out", out);
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * scheduled_block, sbb.Build());
+  scheduled_block->SetSource(std::make_unique<Function>(TestName(), p.get()));
+
+  BlockConversionPassOptions options;
+  options.codegen_options.add_idle_output(true);
+  EXPECT_THAT(Run(p.get(), options), IsOkAndHolds(true));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock(TestName()));
+  EXPECT_THAT(block->GetOutputPort("idle"),
+              IsOkAndHolds(m::OutputPort(m::Literal(UBits(0, 1)))));
 }
 
 TEST_F(IdleInsertionPassTest, SingleStagePipeline) {

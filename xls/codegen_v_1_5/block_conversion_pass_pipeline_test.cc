@@ -2995,7 +2995,206 @@ INSTANTIATE_TEST_SUITE_P(SpecificIoKindsTest, SpecificIoKindsTest,
                                          FlopKind::kNone),
                          testing::PrintToStringParamName());
 
-TEST_F(MultiInputPipelinedProcTest, DISABLED_IdleSignalNoFlops) {
+TEST_F(MultiInputPipelinedProcTest, IdleSignalNoFlops) {
+  int64_t stage_count = 4;
+  bool active_low_reset = true;
+
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  options.valid_control("input_valid", "output_valid");
+  options.reset("rst_n", false, /*active_low=*/active_low_reset, false);
+  options.add_idle_output(true);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Package> package,
+      BuildBlockInPackage(/*stage_count=*/stage_count, options));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, package->GetBlock(kBlockName));
+
+  VLOG(2) << "Multi input counting pipelined block";
+  XLS_VLOG_LINES(2, block->DumpIr());
+
+  // The input stimulus to this test are
+  //  8. 10 cycles of idle
+  //  9. 10 cycles of data on in0 and in1
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> expected_outputs;
+
+  // During reset, the output will be invalid, but the pipeline
+  // is open and the in data will flow through to the output.
+
+  //  1. 10 cycles of reset - idle will be 1
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      0, 9, {{"rst_n", 0}, {"in0_vld", 0}, {"in1_vld", 0}, {"out_rdy", 1}},
+      inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      0, 9, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 0}, {"idle", 1}},
+      expected_outputs));
+
+  //  2. 10 cycles of idle - idle remains 1
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      10, 19, {{"rst_n", 1}, {"in0_vld", 0}, {"in1_vld", 0}, {"out_rdy", 1}},
+      inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      10, 19, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 0}, {"idle", 1}},
+      expected_outputs));
+
+  //  3. 20 cycles of data on in0 - idle remains 1 since the pipeline is still
+  //                                waiting on in1.
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      10, 29, {{"rst_n", 1}, {"in0_vld", 1}, {"in1_vld", 0}, {"out_rdy", 1}},
+      inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      10, 29, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 0}, {"idle", 1}},
+      expected_outputs));
+
+  //  4. 1 cycle of data on in1 - allows 4-stage pipeline to drain
+  //  5. After 4 more cycles (on 34th cycle), pipeline drains and block becomes
+  //     idle
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      30, 30, {{"rst_n", 1}, {"in0_vld", 1}, {"in1_vld", 1}, {"out_rdy", 1}},
+      inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      30, 30, {{"in0_rdy", 1}, {"in1_rdy", 1}, {"out_vld", 0}, {"idle", 0}},
+      expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      31, 39, {{"rst_n", 1}, {"in0_vld", 0}, {"in1_vld", 0}, {"out_rdy", 1}},
+      inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      31, 32, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 0}, {"idle", 0}},
+      expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      33, 33, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 1}, {"idle", 0}},
+      expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      34, 39, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 0}, {"idle", 1}},
+      expected_outputs));
+
+  //  6. 30 cycles of data on in1 - idle remains 1 since the pipeline is
+  //                                still waiting on in0.
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      40, 69, {{"rst_n", 1}, {"in0_vld", 0}, {"in1_vld", 1}, {"out_rdy", 1}},
+      inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      40, 69, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 0}, {"idle", 1}},
+      expected_outputs));
+
+  //  7. 1 cycle of data on in0 - allows 4-stage pipeline to drain
+  //  8. After 4 more cycles (on 74th cycle), pipeline drains and block becomes
+  //     idle
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      70, 70, {{"rst_n", 1}, {"in0_vld", 1}, {"in1_vld", 1}, {"out_rdy", 1}},
+      inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      70, 70, {{"in0_rdy", 1}, {"in1_rdy", 1}, {"out_vld", 0}, {"idle", 0}},
+      expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      71, 79, {{"rst_n", 1}, {"in0_vld", 0}, {"in1_vld", 0}, {"out_rdy", 1}},
+      inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      71, 72, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 0}, {"idle", 0}},
+      expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      73, 73, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 1}, {"idle", 0}},
+      expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      74, 79, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 0}, {"idle", 1}},
+      expected_outputs));
+
+  // 9. Skipping two cycles of valid input data, then drain the pipeline
+  //    input on cycle 80 appears on the output on cycle 83
+  //    input on cycle 83 appears on the output on cycle 86
+  //    idle aserts on cycle 87
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      80, 80, {{"rst_n", 1}, {"in0_vld", 1}, {"in1_vld", 1}, {"out_rdy", 1}},
+      inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      80, 80, {{"in0_rdy", 1}, {"in1_rdy", 1}, {"out_vld", 0}, {"idle", 0}},
+      expected_outputs));
+
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      81, 82, {{"rst_n", 1}, {"in0_vld", 0}, {"in1_vld", 0}, {"out_rdy", 1}},
+      inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      81, 82, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 0}, {"idle", 0}},
+      expected_outputs));
+
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      83, 83, {{"rst_n", 1}, {"in0_vld", 1}, {"in1_vld", 1}, {"out_rdy", 1}},
+      inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      83, 83, {{"in0_rdy", 1}, {"in1_rdy", 1}, {"out_vld", 1}, {"idle", 0}},
+      expected_outputs));
+
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      84, 89, {{"rst_n", 1}, {"in0_vld", 0}, {"in1_vld", 0}, {"out_rdy", 1}},
+      inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      84, 85, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 0}, {"idle", 0}},
+      expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      86, 86, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 1}, {"idle", 0}},
+      expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      87, 89, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 0}, {"idle", 1}},
+      expected_outputs));
+
+  // 12. Continuous data for 10 cycles means that idle becomes 0 again.
+  //     input on cycle 90 appears on the output on cycle 93
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      90, 99, {{"rst_n", 1}, {"in0_vld", 1}, {"in1_vld", 1}, {"out_rdy", 1}},
+      inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      90, 92, {{"in0_rdy", 1}, {"in1_rdy", 1}, {"out_vld", 0}, {"idle", 0}},
+      expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      93, 99, {{"in0_rdy", 1}, {"in1_rdy", 1}, {"out_vld", 1}, {"idle", 0}},
+      expected_outputs));
+
+  // Fill in the input data
+  uint64_t running_in_val = 0;
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, inputs.size() - 1, "in0",
+                                                running_in_val, inputs));
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, inputs.size() - 1, "in1",
+                                                running_in_val, inputs));
+
+  // Run interpreter
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> outputs;
+  XLS_ASSERT_OK_AND_ASSIGN(outputs, InterpretSequentialBlock(block, inputs));
+
+  // Add a cycle count for easier comparison with simulation results.
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, outputs.size() - 1, "cycle",
+                                                0, outputs));
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, expected_outputs.size() - 1,
+                                                "cycle", 0, expected_outputs));
+
+  XLS_ASSERT_OK(VLogTestPipelinedIO(
+      std::vector<SignalSpec>{{"cycle", SignalType::kOutput},
+                              {"rst_n", SignalType::kInput, true},
+                              {"in0", SignalType::kInput},
+                              {"in0_vld", SignalType::kInput},
+                              {"in0_rdy", SignalType::kOutput},
+                              {"in1", SignalType::kInput},
+                              {"in1_vld", SignalType::kInput},
+                              {"in1_rdy", SignalType::kOutput},
+                              {"out", SignalType::kOutput},
+                              {"out_vld", SignalType::kOutput},
+                              {"out_rdy", SignalType::kInput},
+                              {"idle", SignalType::kOutput}},
+      /*column_width=*/10, inputs, outputs));
+
+  ASSERT_EQ(inputs.size(), expected_outputs.size());
+  ASSERT_EQ(outputs.size(), expected_outputs.size());
+
+  for (int64_t i = 0; i < outputs.size(); ++i) {
+    // ignore the actual value of the output
+    outputs[i].erase("out");
+
+    EXPECT_EQ(outputs.at(i), expected_outputs.at(i));
+  }
+}
+
+TEST_F(MultiInputPipelinedProcTest, IdleSignalInputOutputFlops) {
   int64_t stage_count = 4;
   bool active_low_reset = true;
 
@@ -3031,7 +3230,7 @@ TEST_F(MultiInputPipelinedProcTest, DISABLED_IdleSignalNoFlops) {
       0, 9, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 0}, {"idle", 1}},
       expected_outputs));
 
-  //  2. 10 cycles of idle -- idle remains 1
+  //  2. 10 cycles of idle - idle remains 1
   XLS_ASSERT_OK(SetSignalsOverCycles(
       10, 19, {{"rst_n", 1}, {"in0_vld", 0}, {"in1_vld", 0}, {"out_rdy", 1}},
       inputs));
@@ -3039,10 +3238,9 @@ TEST_F(MultiInputPipelinedProcTest, DISABLED_IdleSignalNoFlops) {
       10, 19, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 0}, {"idle", 1}},
       expected_outputs));
 
-  //  3. 1 cycle of data on in0 - idle immediately becomes 0 due to
-  //  combinational path
-  //  4. 20 cycles of idle - idle continues to remain 0 as the pipeline is not
-  //  flowing.
+  //  3. 1 cycle of data on in0 - we receive from in0 into the input flop &
+  //                              briefly see idle go to 0.
+  //  4. 20 cycles of idle - idle goes back to 1 while we wait for in1.
   XLS_ASSERT_OK(SetSignalsOverCycles(
       10, 10, {{"rst_n", 1}, {"in0_vld", 1}, {"in1_vld", 0}, {"out_rdy", 1}},
       inputs));
@@ -3053,12 +3251,13 @@ TEST_F(MultiInputPipelinedProcTest, DISABLED_IdleSignalNoFlops) {
       11, 29, {{"rst_n", 1}, {"in0_vld", 0}, {"in1_vld", 0}, {"out_rdy", 1}},
       inputs));
   XLS_ASSERT_OK(SetSignalsOverCycles(
-      11, 29, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 0}, {"idle", 0}},
+      11, 29, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 0}, {"idle", 1}},
       expected_outputs));
 
-  //  5. 1 cycle of data on in1 -- allows 4-stage pipeline to drain
+  //  5. 1 cycle of data on in1 - allows 4-stage pipeline to drain, idle
+  //                              goes low immediately
   //  6. After 5 more cycles (on 36th cycle), pipeline drains and block becomes
-  //  idle
+  //     idle
   XLS_ASSERT_OK(SetSignalsOverCycles(
       30, 30, {{"rst_n", 1}, {"in0_vld", 0}, {"in1_vld", 1}, {"out_rdy", 1}},
       inputs));
@@ -3078,10 +3277,9 @@ TEST_F(MultiInputPipelinedProcTest, DISABLED_IdleSignalNoFlops) {
       36, 39, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 0}, {"idle", 1}},
       expected_outputs));
 
-  //  7. 1 cycle of data on in1 - idle immediately becomes 0 due to
-  //  combinational path
-  //  8. 20 cycles of idle - idle continues to remain 0 as the pipeline is not
-  //  flowing.
+  //  7. 1 cycle of data on in1 - we receive from in1 into the input flop &
+  //                              briefly see idle go to 0.
+  //  8. 20 cycles of idle - idle goes back to 1 while we wait for in0.
   XLS_ASSERT_OK(SetSignalsOverCycles(
       40, 40, {{"rst_n", 1}, {"in0_vld", 0}, {"in1_vld", 1}, {"out_rdy", 1}},
       inputs));
@@ -3092,12 +3290,13 @@ TEST_F(MultiInputPipelinedProcTest, DISABLED_IdleSignalNoFlops) {
       41, 69, {{"rst_n", 1}, {"in0_vld", 0}, {"in1_vld", 0}, {"out_rdy", 1}},
       inputs));
   XLS_ASSERT_OK(SetSignalsOverCycles(
-      41, 69, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 0}, {"idle", 0}},
+      41, 69, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 0}, {"idle", 1}},
       expected_outputs));
 
-  //  9. 1 cycle of data on in0 -- allows 4-stage pipeline to drain
+  //  9. 1 cycle of data on in0 - allows 4-stage pipeline to drain, idle
+  //                              immediately becomes 0.
   // 10. After 5 more cycles (on 76th cycle), pipeline drains and block becomes
-  // idle
+  //     idle
   XLS_ASSERT_OK(SetSignalsOverCycles(
       70, 70, {{"rst_n", 1}, {"in0_vld", 1}, {"in1_vld", 0}, {"out_rdy", 1}},
       inputs));
