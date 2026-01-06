@@ -143,6 +143,11 @@ const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins() {
 
           // -- Proc-oriented built-ins.
 
+          {"read", {.signature = "(T) -> T"}},
+          {"write", {.signature = "(T, T) -> ()"}},
+          {"labeled_read", {.signature = "(T, u8[N]) -> (T)"}},
+          {"labeled_write", {.signature = "(T, T, u8[N]) -> ()"}},
+
           // send/recv (communication) builtins that can only be used within
           // proc scope.
           {"send", {.signature = "(token, send_chan<T>, T) -> token"}},
