@@ -13,7 +13,6 @@
 // limitations under the License.
 
 #include <array>
-#include <bit>
 #include <cstdint>
 #include <optional>
 #include <string_view>
@@ -29,7 +28,6 @@
 #include "xls/examples/dslx_module/some_caps_jit_wrapper.h"
 #include "xls/examples/dslx_module/some_caps_opt_jit_wrapper.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/events.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_builder.h"
 #include "xls/ir/value_view.h"

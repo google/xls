@@ -15,7 +15,6 @@
 #include "xls/interpreter/tracing_observer.h"
 
 #include <cstdint>
-#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -43,7 +42,6 @@
 #include "xls/interpreter/evaluator_options.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/interpreter/interpreter_proc_runtime.h"
-#include "xls/interpreter/proc_runtime.h"
 #include "xls/interpreter/trace.pb.h"
 #include "xls/interpreter/trace_recorder.h"
 #include "xls/ir/bits.h"
