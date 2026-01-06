@@ -5250,7 +5250,7 @@ proc loopback_proc(tkn: token, st: bits[32], init={token, 1}) {
   // model to evaluate the block with.
 }
 
-TEST_F(ProcConversionTestFixture, DISABLED_ProcIdleWithoutInputChannels) {
+TEST_F(ProcConversionTestFixture, ProcIdleWithoutInputChannels) {
   const std::string ir_text = R"(package test
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
 
@@ -5346,7 +5346,7 @@ proc proc_ut(tkn: token, st: bits[32], init={token, 0}) {
   }
 }
 
-TEST_F(ProcConversionTestFixture, DISABLED_ProcIdleWithStageZeroRecvIfs) {
+TEST_F(ProcConversionTestFixture, ProcIdleWithStageZeroRecvIfs) {
   const std::string ir_text = R"(package test
 chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
@@ -5703,7 +5703,7 @@ proc slow_counter(tkn: token, counter: bits[32], odd_iteration: bits[1], init={t
                                                     5, 5, 6, 6, 7, 7))));
 }
 
-TEST_F(ProcConversionTestFixture, DISABLED_ProcWithDynamicStateFeedback) {
+TEST_F(ProcConversionTestFixture, ProcWithDynamicStateFeedback) {
   const std::string ir_text = R"(package test
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
 
@@ -5806,7 +5806,7 @@ class AddPredicate : public Proc::StateElementTransformer {
   Node* predicate_;
 };
 
-TEST_F(ProcConversionTestFixture, DISABLED_ProcWithDynamicStateReads) {
+TEST_F(ProcConversionTestFixture, ProcWithDynamicStateReads) {
   const std::string ir_text = R"(package test
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
 
@@ -5921,8 +5921,7 @@ proc alternating_counter(counter0: bits[32], counter1: bits[32], index: bits[1],
                                   12, 8, 13, 9, 14, 10, 15))));
 }
 
-TEST_F(ProcConversionTestFixture,
-       DISABLED_ProcWithComplexDynamicStateFeedback) {
+TEST_F(ProcConversionTestFixture, ProcWithComplexDynamicStateFeedback) {
   const std::string ir_text = R"(package test
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
 

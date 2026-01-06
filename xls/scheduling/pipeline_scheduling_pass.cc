@@ -17,10 +17,13 @@
 #include <cstdint>
 #include <optional>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/node.h"
@@ -37,14 +40,35 @@ namespace xls {
 namespace {
 
 // Adds cycle constraints from a PipelineSchedule into SchedulingOptions.
-void AddCycleConstraints(const PipelineSchedule& schedule,
-                         SchedulingOptions& scheduling_options) {
+absl::Status AddCycleConstraints(const PipelineSchedule& schedule,
+                                 SchedulingOptions& scheduling_options) {
   for (int64_t c = 0; c < schedule.length(); ++c) {
     for (Node* node : schedule.nodes_in_cycle(c)) {
-      scheduling_options.add_constraint(NodeInCycleConstraint(node, c));
+      bool already_constrained = false;
+      for (const SchedulingConstraint& constraint :
+           scheduling_options.constraints()) {
+        if (std::holds_alternative<NodeInCycleConstraint>(constraint)) {
+          const NodeInCycleConstraint& nic =
+              std::get<NodeInCycleConstraint>(constraint);
+          if (nic.GetNode() == node) {
+            if (nic.GetCycle() != c) {
+              return absl::InvalidArgumentError(absl::StrFormat(
+                  "Schedule contradicts cycle constraints for node %s: "
+                  "scheduled for cycle %d, but constrained to cycle %d",
+                  node->GetName(), c, nic.GetCycle()));
+            }
+            already_constrained = true;
+          }
+        }
+      }
+      if (!already_constrained) {
+        scheduling_options.add_constraint(NodeInCycleConstraint(node, c));
+      }
     }
   }
+  return absl::OkStatus();
 }
+
 }  // namespace
 
 absl::StatusOr<bool> PipelineSchedulingPass::RunInternal(
@@ -78,7 +102,7 @@ absl::StatusOr<bool> PipelineSchedulingPass::RunInternal(
           context.package_schedule().GetSchedule(f);
       schedule_cycle_map_before = schedule.GetCycleMap();
       if (!scheduling_options.use_fdo()) {
-        AddCycleConstraints(schedule, scheduling_options);
+        XLS_RETURN_IF_ERROR(AddCycleConstraints(schedule, scheduling_options));
       }
     }
     XLS_ASSIGN_OR_RETURN(
