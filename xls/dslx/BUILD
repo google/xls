@@ -509,38 +509,6 @@ cc_library(
 )
 
 cc_library(
-    name = "dslx_builtins_signatures",
-    srcs = ["dslx_builtins_signatures.cc"],
-    hdrs = ["dslx_builtins_signatures.h"],
-    deps = [
-        ":channel_direction",
-        ":errors",
-        ":interp_value",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "//xls/dslx/frontend:ast",
-        "//xls/dslx/frontend:ast_node",
-        "//xls/dslx/frontend:builtins_metadata",
-        "//xls/dslx/frontend:pos",
-        "//xls/dslx/type_system:deduce_ctx",
-        "//xls/dslx/type_system:parametric_instantiator",
-        "//xls/dslx/type_system:parametric_with_type",
-        "//xls/dslx/type_system:type",
-        "//xls/dslx/type_system:type_and_parametric_env",
-        "//xls/dslx/type_system:unwrap_meta_type",
-        "@com_google_absl//absl/base:no_destructor",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:span",
-    ],
-)
-
-cc_library(
     name = "error_printer",
     srcs = ["error_printer.cc"],
     hdrs = ["error_printer.h"],

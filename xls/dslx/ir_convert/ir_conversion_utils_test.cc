@@ -13,85 +13,31 @@
 // limitations under the License.
 #include "xls/dslx/ir_convert/ir_conversion_utils.h"
 
-#include <cstdint>
 #include <memory>
-#include <string>
 #include <utility>
 #include <vector>
 
 #include "gtest/gtest.h"
-#include "absl/container/flat_hash_map.h"
 #include "xls/common/status/matchers.h"
-#include "xls/dslx/frontend/pos.h"
-#include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/parametric_env.h"
-#include "xls/dslx/type_system/parametric_expression.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
 
 namespace xls::dslx {
 
-// Smoke test of ResolveDim.
-TEST(IrConversionUtilsTest, ResolveDimSmoke) {
-  constexpr int64_t kDimValue = 64;
-  TypeDim dim(InterpValue::MakeUBits(/*bit_count=*/64, kDimValue));
-  absl::flat_hash_map<std::string, InterpValue> items;
-  ParametricEnv bindings(items);
-  XLS_ASSERT_OK_AND_ASSIGN(TypeDim resolved, ResolveDim(dim, bindings));
-  XLS_ASSERT_OK_AND_ASSIGN(int64_t resolved_value, resolved.GetAsInt64());
-  EXPECT_EQ(resolved_value, kDimValue);
-}
-
-TEST(IrConversionUtilsTest, ResolveSymbolicDim) {
-  constexpr int64_t kDimValue = 64;
-  const std::string kSymbolName = "my_symbol";
-
-  auto symbol = std::make_unique<ParametricSymbol>(kSymbolName, Span::Fake());
-  TypeDim dim(std::move(symbol));
-  absl::flat_hash_map<std::string, InterpValue> items;
-  items.insert(
-      {kSymbolName, InterpValue::MakeUBits(/*bit_count=*/64, kDimValue)});
-  ParametricEnv bindings(items);
-  XLS_ASSERT_OK_AND_ASSIGN(TypeDim resolved, ResolveDim(dim, bindings));
-  XLS_ASSERT_OK_AND_ASSIGN(int64_t resolved_value, resolved.GetAsInt64());
-  EXPECT_EQ(resolved_value, kDimValue);
-}
-
-TEST(IrConversionUtilsTest, ResolveSymbolicDimToInt) {
-  constexpr int64_t kDimValue = 64;
-  const std::string kSymbolName = "my_symbol";
-
-  auto symbol = std::make_unique<ParametricSymbol>(kSymbolName, Span::Fake());
-  TypeDim dim(std::move(symbol));
-  absl::flat_hash_map<std::string, InterpValue> items;
-  items.insert(
-      {kSymbolName, InterpValue::MakeUBits(/*bit_count=*/64, kDimValue)});
-  ParametricEnv bindings(items);
-  XLS_ASSERT_OK_AND_ASSIGN(int64_t resolved_value,
-                           ResolveDimToInt(dim, bindings));
-  EXPECT_EQ(resolved_value, kDimValue);
-}
-
 TEST(IrConversionUtilsTest, TypeToIr) {
   constexpr int kArraySize = 7;
-  const std::string kSymbolName = "my_symbol";
 
   Package package("The Package");
-
-  absl::flat_hash_map<std::string, InterpValue> items;
-  auto symbol = std::make_unique<ParametricSymbol>(kSymbolName, Span::Fake());
-  items.insert(
-      {kSymbolName, InterpValue::MakeUBits(/*bit_count=*/64, kArraySize)});
-  ParametricEnv bindings(items);
 
   std::vector<std::unique_ptr<Type>> elements;
   elements.push_back(BitsType::MakeU32());
   elements.push_back(std::make_unique<ArrayType>(
       BitsType::MakeU8(), TypeDim::CreateU32(kArraySize)));
   auto dslx_tuple_type = std::make_unique<TupleType>(std::move(elements));
-  XLS_ASSERT_OK_AND_ASSIGN(xls::Type * type,
-                           TypeToIr(&package, *dslx_tuple_type, bindings));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xls::Type * type, TypeToIr(&package, *dslx_tuple_type, ParametricEnv{}));
 
   ASSERT_TRUE(type->IsTuple());
   xls::TupleType* tuple_type = type->AsTupleOrDie();

@@ -27,10 +27,6 @@
 
 namespace xls::dslx {
 
-// Resolves "dim" (from a possible parametric) against the given symbolic
-// bindings.
-absl::StatusOr<TypeDim> ResolveDim(TypeDim dim, const ParametricEnv& bindings);
-
 // As above, does ResolveDim() but then accesses the dimension value as an
 // expected int64_t.
 absl::StatusOr<int64_t> ResolveDimToInt(const TypeDim& dim,

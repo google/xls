@@ -23,12 +23,10 @@
 #include <string_view>
 #include <utility>
 #include <variant>
-#include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
-#include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
@@ -36,8 +34,6 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/type_system/deduce_ctx.h"
-#include "xls/dslx/type_system/parametric_with_type.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/warning_collector.h"
@@ -87,10 +83,6 @@ absl::Status ValidateArrayIndex(const Index& node, const Type& array_type,
 absl::Status ValidateTupleIndex(const TupleIndex& node, const Type& tuple_type,
                                 const Type& index_type, const TypeInfo& ti,
                                 const FileTable& file_table);
-
-// Record that the current function being checked has a side effect and will
-// require an implicit token when converted to IR.
-void UseImplicitToken(DeduceCtx* ctx);
 
 // Returns whether "e" is a NameRef referring to the given "name_def".
 bool IsNameRefTo(const Expr* e, const NameDef* name_def);
@@ -177,17 +169,6 @@ inline absl::StatusOr<T*> GetMemberOrTypeInferenceError(Module* m,
   XLS_RET_CHECK(result != nullptr);
   return result;
 }
-
-// Deduces the type for a ParametricBinding (via its type annotation).
-absl::StatusOr<std::unique_ptr<Type>> ParametricBindingToType(
-    const ParametricBinding& binding, DeduceCtx* ctx);
-
-// Decorates parametric binding AST nodes with their deduced types.
-//
-// This is used externally in things like parametric instantiation of DSLX
-// builtins like the higher order function "map".
-absl::StatusOr<std::vector<ParametricWithType>> ParametricBindingsToTyped(
-    absl::Span<ParametricBinding* const> bindings, DeduceCtx* ctx);
 
 // Dereferences the "original" struct reference to a struct definition or
 // returns an error.

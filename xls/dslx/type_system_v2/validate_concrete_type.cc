@@ -14,6 +14,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <variant>
 
@@ -43,13 +44,13 @@
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
-#include "xls/dslx/type_system/typecheck_invocation.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "re2/re2.h"
 
 namespace xls::dslx {
 namespace {
@@ -63,6 +64,48 @@ absl::StatusOr<BitsLikeProperties> GetBitsLikeOrError(
         "Operation can only be applied to bits-typed operands.", file_table);
   }
   return *bits_like;
+}
+
+absl::Status ValidateCoverBuiltinInvocation(const FileTable& file_table,
+                                            const Invocation* invocation) {
+  // Make sure that the coverpoint's identifier is valid in both Verilog
+  // and DSLX - notably, we don't support Verilog escaped strings.
+  // TODO(rspringer): 2021-05-26: Ensure only one instance of an identifier
+  // in a design.
+  String* identifier_node = dynamic_cast<String*>(invocation->args()[0]);
+  if (identifier_node == nullptr) {
+    return TypeInferenceErrorStatus(
+        invocation->args()[0]->span(), nullptr,
+        absl::StrCat(invocation->args()[0]->ToString(),
+                     " is not a string literal"),
+        file_table);
+  }
+
+  if (identifier_node->text().empty()) {
+    return InvalidIdentifierErrorStatus(
+        invocation->span(), "An identifier must be specified with a cover! op.",
+        file_table);
+  }
+
+  std::string identifier = identifier_node->text();
+  if (identifier[0] == '\\') {
+    return InvalidIdentifierErrorStatus(
+        invocation->span(), "Verilog escaped strings are not supported.",
+        file_table);
+  }
+
+  // We don't support Verilog "escaped strings", so we only have to worry
+  // about regular identifier matching.
+  if (!RE2::FullMatch(identifier, "[a-zA-Z_][a-zA-Z0-9$_]*")) {
+    return InvalidIdentifierErrorStatus(
+        invocation->span(),
+        "A coverpoint identifier must start with a letter or underscore, "
+        "and otherwise consist of letters, digits, underscores, and/or "
+        "dollar signs.",
+        file_table);
+  }
+
+  return absl::OkStatus();
 }
 
 // A non-recursive visitor that contains per-node-type handlers for

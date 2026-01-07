@@ -41,7 +41,6 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/type_system/parametric_expression.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/type_info.pb.h"
@@ -226,47 +225,10 @@ absl::StatusOr<InterpValueProto> ToProto(const InterpValue& v) {
   return proto;
 }
 
-absl::StatusOr<ParametricExpressionProto> ToProto(const ParametricExpression& e,
-                                                  const FileTable& file_table) {
-  ParametricExpressionProto proto;
-  if (const auto* s = dynamic_cast<const ParametricSymbol*>(&e)) {
-    ParametricSymbolProto* psproto = proto.mutable_symbol();
-    psproto->set_identifier(s->identifier());
-    *psproto->mutable_span() = ToProto(s->span(), file_table);
-    return proto;
-  }
-  if (const auto* s = dynamic_cast<const ParametricConstant*>(&e)) {
-    ParametricConstantProto* pp = proto.mutable_constant();
-    XLS_ASSIGN_OR_RETURN(*pp->mutable_constant(), ToProto(s->value()));
-    return proto;
-  }
-  if (const auto* p = dynamic_cast<const ParametricMul*>(&e)) {
-    ParametricMulProto* pp = proto.mutable_mul();
-    XLS_ASSIGN_OR_RETURN(*pp->mutable_lhs(), ToProto(p->lhs(), file_table));
-    XLS_ASSIGN_OR_RETURN(*pp->mutable_rhs(), ToProto(p->rhs(), file_table));
-    return proto;
-  }
-  if (const auto* p = dynamic_cast<const ParametricAdd*>(&e)) {
-    ParametricAddProto* pp = proto.mutable_add();
-    XLS_ASSIGN_OR_RETURN(*pp->mutable_lhs(), ToProto(p->lhs(), file_table));
-    XLS_ASSIGN_OR_RETURN(*pp->mutable_rhs(), ToProto(p->rhs(), file_table));
-    return proto;
-  }
-  return absl::UnimplementedError(
-      "TypeInfoToProto: convert ParametricExpression to proto: " +
-      e.ToString());
-}
-
 absl::StatusOr<TypeDimProto> ToProto(const TypeDim& ctd,
                                      const FileTable& file_table) {
   TypeDimProto proto;
-  if (std::holds_alternative<InterpValue>(ctd.value())) {
-    XLS_ASSIGN_OR_RETURN(*proto.mutable_interp_value(),
-                         ToProto(std::get<InterpValue>(ctd.value())));
-  } else {
-    auto& p = std::get<TypeDim::OwnedParametric>(ctd.value());
-    XLS_ASSIGN_OR_RETURN(*proto.mutable_parametric(), ToProto(*p, file_table));
-  }
+  XLS_ASSIGN_OR_RETURN(*proto.mutable_interp_value(), ToProto(ctd.value()));
   return proto;
 }
 
@@ -552,28 +514,6 @@ absl::StatusOr<InterpValue> FromProto(const InterpValueProto& ivp) {
       ivp.ShortDebugString());
 }
 
-std::unique_ptr<ParametricSymbol> FromProto(const ParametricSymbolProto& proto,
-                                            FileTable& file_table) {
-  return std::make_unique<ParametricSymbol>(
-      proto.identifier(), FromProto(proto.span(), file_table));
-}
-
-absl::StatusOr<std::unique_ptr<ParametricExpression>> FromProto(
-    const ParametricExpressionProto& proto, FileTable& file_table) {
-  switch (proto.expr_oneof_case()) {
-    case ParametricExpressionProto::ExprOneofCase::kSymbol: {
-      return FromProto(proto.symbol(), file_table);
-    }
-    default:
-      break;
-  }
-  return absl::UnimplementedError(
-      "TypeInfoFromProto: not yet implemented for "
-      "ParametricExpressionProto->ParametricExpression "
-      "conversion: " +
-      proto.ShortDebugString());
-}
-
 absl::StatusOr<TypeDim> FromProto(const TypeDimProto& ctdp,
                                   FileTable& file_table) {
   switch (ctdp.dim_oneof_case()) {
@@ -582,9 +522,9 @@ absl::StatusOr<TypeDim> FromProto(const TypeDimProto& ctdp,
       return TypeDim(std::move(iv));
     }
     case TypeDimProto::DimOneofCase::kParametric: {
-      XLS_ASSIGN_OR_RETURN(std::unique_ptr<ParametricExpression> p,
-                           FromProto(ctdp.parametric(), file_table));
-      return TypeDim(std::move(p));
+      return absl::UnimplementedError(
+          "TypeInfoFromProto no longer supports types containing unresolved "
+          "parametrics.");
     }
     default:
       return absl::UnimplementedError(

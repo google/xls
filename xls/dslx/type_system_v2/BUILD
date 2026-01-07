@@ -713,7 +713,6 @@ cc_library(
         "//xls/dslx/type_system:parametric_env",
         "//xls/dslx/type_system:type",
         "//xls/dslx/type_system:type_info",
-        "//xls/dslx/type_system:typecheck_invocation",
         "//xls/dslx/type_system:unwrap_meta_type",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
@@ -724,6 +723,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:variant",
+        "@re2",
     ],
 )
 

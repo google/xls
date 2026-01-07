@@ -702,6 +702,9 @@ struct xls_dslx_type_dim* xls_dslx_type_array_get_size(struct xls_dslx_type*);
 
 // -- type_dim (deduced type information)
 
+// TODO: https://github.com/google/xls/issues/3661 - remove this when downstream
+// code stops using it.
+[[deprecated("A TypeDim can never be parametric anymore; this returns false.")]]
 bool xls_dslx_type_dim_is_parametric(struct xls_dslx_type_dim*);
 
 // Determines whether `function` requires the implicit-token calling

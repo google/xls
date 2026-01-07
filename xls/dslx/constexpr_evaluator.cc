@@ -511,16 +511,8 @@ absl::StatusOr<InterpValue> EvaluateNumber(const Number& expr,
   InterpValueTag tag =
       is_signed ? InterpValueTag::kSBits : InterpValueTag::kUBits;
 
-  const std::variant<InterpValue, TypeDim::OwnedParametric>& value =
-      bits_like->size.value();
-  if (!std::holds_alternative<InterpValue>(value)) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("Cannot evaluate number %s as type %s is parametric",
-                        expr.ToString(), type.ToString()));
-  }
-
-  XLS_ASSIGN_OR_RETURN(int64_t bit_count,
-                       std::get<InterpValue>(value).GetBitValueViaSign());
+  const InterpValue& value = bits_like->size.value();
+  XLS_ASSIGN_OR_RETURN(int64_t bit_count, value.GetBitValueViaSign());
 
   XLS_ASSIGN_OR_RETURN(Bits bits, expr.GetBits(bit_count, file_table));
   return InterpValue::MakeBits(tag, std::move(bits));

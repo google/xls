@@ -49,8 +49,6 @@
 #include "xls/dslx/frontend/token_utils.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/type_system/deduce_ctx.h"
-#include "xls/dslx/type_system/parametric_with_type.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
@@ -234,27 +232,17 @@ absl::Status TryEnsureFitsInType(const Number& number,
   VLOG(5) << "TryEnsureFitsInType; number: " << number.ToString() << " @ "
           << number.span().ToString(file_table);
 
-  std::optional<bool> maybe_signed;
-  if (!bits_like.is_signed.IsParametric()) {
-    maybe_signed = bits_like.is_signed.GetAsBool().value();
-  }
+  bool is_signed = bits_like.is_signed.GetAsBool().value();
 
   // Characters have a `u8` type. They can support the dash (negation symbol).
   if (number.number_kind() != NumberKind::kCharacter &&
-      number.text()[0] == '-' && maybe_signed.has_value() &&
-      !maybe_signed.value()) {
+      number.text()[0] == '-' && !is_signed) {
     return TypeInferenceErrorStatus(
         number.span(), &type,
         absl::StrFormat("Number %s invalid: "
                         "can't assign a negative value to an unsigned type.",
                         number.ToString()),
         file_table);
-  }
-
-  if (bits_like.size.IsParametric()) {
-    // We have to wait for the dimension to be fully resolved before we can
-    // check that the number is compliant.
-    return absl::OkStatus();
   }
 
   XLS_ASSIGN_OR_RETURN(const int64_t bit_count, bits_like.size.GetAsInt64());
@@ -264,8 +252,8 @@ absl::Status TryEnsureFitsInType(const Number& number,
   auto does_not_fit = [&]() -> absl::Status {
     std::string low;
     std::string high;
-    XLS_RET_CHECK(maybe_signed.has_value());
-    if (maybe_signed.value()) {
+
+    if (is_signed) {
       low = BitsToString(Bits::MinSigned(bit_count),
                          FormatPreference::kSignedDecimal);
       high = BitsToString(Bits::MaxSigned(bit_count),
@@ -285,9 +273,8 @@ absl::Status TryEnsureFitsInType(const Number& number,
         file_table);
   };
 
-  XLS_ASSIGN_OR_RETURN(
-      bool fits_in_type,
-      number.FitsInType(bit_count, maybe_signed.value_or(false)));
+  XLS_ASSIGN_OR_RETURN(bool fits_in_type,
+                       number.FitsInType(bit_count, is_signed));
   if (!fits_in_type) {
     return does_not_fit();
   }
@@ -381,16 +368,16 @@ absl::Status ValidateArrayIndex(const Index& node, const Type& array_type,
   // Reject indexing into zero-sized arrays regardless of whether the index is
   // constexpr, since out-of-bounds semantics (return last element) are
   // undefined for empty arrays.
-  if (!casted_array_type.size().IsParametric()) {
-    XLS_ASSIGN_OR_RETURN(int64_t concrete_size,
-                         casted_array_type.size().GetAsInt64());
-    if (concrete_size == 0) {
-      return TypeInferenceErrorStatus(node.span(), &array_type,
-                                      "Zero-sized arrays cannot be indexed",
-                                      file_table);
-    }
+
+  XLS_ASSIGN_OR_RETURN(int64_t concrete_size,
+                       casted_array_type.size().GetAsInt64());
+  if (concrete_size == 0) {
+    return TypeInferenceErrorStatus(node.span(), &array_type,
+                                    "Zero-sized arrays cannot be indexed",
+                                    file_table);
   }
-  if (casted_array_type.size().IsParametric() || !ti.IsKnownConstExpr(rhs)) {
+
+  if (!ti.IsKnownConstExpr(rhs)) {
     return absl::OkStatus();
   }
 
@@ -427,19 +414,6 @@ absl::Status ValidateTupleIndex(const TupleIndex& node, const Type& tuple_type,
         file_table);
   }
   return absl::OkStatus();
-}
-
-void UseImplicitToken(DeduceCtx* ctx) {
-  CHECK(!ctx->fn_stack().empty());
-  Function* caller = ctx->fn_stack().back().f();
-  // Note: caller could be nullptr; e.g. when we're calling a function that
-  // can fail!() from the top level of a module; e.g. in a module-level const
-  // expression.
-  if (caller != nullptr) {
-    ctx->type_info()->NoteRequiresImplicitToken(*caller, true);
-  }
-
-  // TODO(rspringer): 2021-09-01: How to fail! from inside a proc?
 }
 
 bool IsNameRefTo(const Expr* e, const NameDef* name_def) {
@@ -759,33 +733,6 @@ absl::StatusOr<StartAndWidth> ResolveBitSliceIndices(
   limit = std::clamp(limit, int64_t{0}, bit_count);
   start = std::clamp(start, int64_t{0}, limit);
   return StartAndWidth{.start = start, .width = limit - start};
-}
-
-absl::StatusOr<std::unique_ptr<Type>> ParametricBindingToType(
-    const ParametricBinding& binding, DeduceCtx* ctx) {
-  Module* binding_module = binding.owner();
-  ImportData* import_data = ctx->import_data();
-  XLS_ASSIGN_OR_RETURN(TypeInfo * binding_type_info,
-                       import_data->GetRootTypeInfo(binding_module));
-
-  auto binding_ctx =
-      ctx->MakeCtxWithSameFnStack(binding_type_info, binding_module);
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> metatype,
-                       binding_ctx->Deduce(binding.type_annotation()));
-  return UnwrapMetaType(std::move(metatype), binding.type_annotation()->span(),
-                        "parametric binding type", ctx->file_table());
-}
-
-absl::StatusOr<std::vector<ParametricWithType>> ParametricBindingsToTyped(
-    absl::Span<ParametricBinding* const> bindings, DeduceCtx* ctx) {
-  std::vector<ParametricWithType> typed_parametrics;
-  for (ParametricBinding* binding : bindings) {
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> binding_type,
-                         ParametricBindingToType(*binding, ctx));
-    typed_parametrics.push_back(
-        ParametricWithType(*binding, std::move(binding_type)));
-  }
-  return typed_parametrics;
 }
 
 absl::StatusOr<StructDef*> DerefToStruct(const Span& span,
@@ -1192,9 +1139,8 @@ absl::StatusOr<InterpValue> GetBitCountAsInterpValue(const Type* type) {
     XLS_ASSIGN_OR_RETURN(type, UnwrapMetaType(*type));
   }
   XLS_ASSIGN_OR_RETURN(TypeDim bit_count_ctd, type->GetTotalBitCount());
-  XLS_ASSIGN_OR_RETURN(
-      int64_t bit_count,
-      std::get<InterpValue>(bit_count_ctd.value()).GetBitValueViaSign());
+  XLS_ASSIGN_OR_RETURN(int64_t bit_count,
+                       bit_count_ctd.value().GetBitValueViaSign());
   return InterpValue::MakeU32(bit_count);
 }
 
