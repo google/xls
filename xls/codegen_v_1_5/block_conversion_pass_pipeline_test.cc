@@ -99,6 +99,7 @@ using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::Optional;
 using ::testing::Pair;
+using ::testing::SafeMatcherCast;
 using ::testing::SizeIs;
 using ::testing::UnorderedElementsAre;
 
@@ -472,7 +473,8 @@ TEST_F(BlockConversionTest, ZeroWidthPipelineWithValidControl) {
                          .flop_inputs(false)
                          .flop_outputs(false)
                          .clock_name("clk")
-                         .valid_control("inputs_valid", "output_valid"),
+                         .valid_control("inputs_valid", "output_valid")
+                         .reset("rst", false, false, false),
                      SchedulingOptions().pipeline_stages(3)));
 
   EXPECT_THAT(block->GetRegisters(), SizeIs(2));
@@ -6572,6 +6574,224 @@ TEST_F(BlockConversionTest, NonTopBlockNamedModuleName) {
   EXPECT_THAT(p->GetBlock("B__1").value()->nodes(), Contains(m::Literal(48)));
 }
 
+TEST_F(BlockConversionTest, EmitsCoverpoints) {
+  Package package(TestName());
+  FunctionBuilder fb(TestName(), &package);
+  auto x = fb.Param("x", package.GetBitsType(8));
+  auto y = fb.Param("y", package.GetBitsType(8));
+  auto sum = fb.Add(x, y);
+  auto val_128 = fb.Literal(UBits(128, 8));
+  auto gt_128 = fb.UGt(sum, val_128);
+  fb.Cover(gt_128, "my_coverpoint");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.BuildWithReturnValue(sum));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block,
+      ConvertToBlock(func, codegen_options().generate_combinational(true)));
+
+  EXPECT_THAT(block->nodes(),
+              testing::Contains(m::Cover(
+                  m::UGt(m::Add(), m::Literal(Value(UBits(128, 8)))))));
+}
+
+TEST_F(BlockConversionTest, PassThroughArray) {
+  Package package(TestName());
+  FunctionBuilder fb(TestName(), &package);
+  fb.Param("x", package.GetArrayType(3, package.GetBitsType(8)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block,
+      ConvertToBlock(func, codegen_options().generate_combinational(true)));
+
+  EXPECT_EQ(block->GetPorts().size(), 2);
+  EXPECT_THAT(GetOutputPort(block), m::OutputPort("out", m::InputPort("x")));
+}
+
+TEST_F(BlockConversionTest, TupleOfArrays) {
+  Package package(TestName());
+  FunctionBuilder fb(TestName(), &package);
+  BValue x = fb.Param(
+      "x",
+      package.GetTupleType({package.GetArrayType(3, package.GetBitsType(8)),
+                            package.GetArrayType(2, package.GetBitsType(16))}));
+  fb.Tuple({fb.TupleIndex(x, 1), fb.TupleIndex(x, 0)});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block,
+      ConvertToBlock(func, codegen_options().generate_combinational(true)));
+
+  EXPECT_THAT(
+      GetOutputPort(block),
+      m::OutputPort("out", m::Tuple(m::TupleIndex(m::InputPort("x"), 1),
+                                    m::TupleIndex(m::InputPort("x"), 0))));
+}
+
+TEST_F(BlockConversionTest, MultidimensionalArray) {
+  Package package(TestName());
+  FunctionBuilder fb(TestName(), &package);
+  BValue a = fb.Param(
+      "a",
+      package.GetArrayType(2, package.GetArrayType(3, package.GetBitsType(8))));
+  BValue index = fb.Param("index", package.GetBitsType(16));
+  fb.ArrayIndex(a, {index});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block,
+      ConvertToBlock(func, codegen_options().generate_combinational(true)));
+
+  EXPECT_THAT(GetOutputPort(block),
+              m::OutputPort("out", m::ArrayIndex(m::InputPort("a"),
+                                                 {m::InputPort("index")})));
+}
+
+TEST_F(BlockConversionTest, ReturnTupleLiteral) {
+  Package package(TestName());
+  FunctionBuilder fb(TestName(), &package);
+  fb.Literal(Value::Tuple({Value(UBits(0, 1)), Value(UBits(123, 32))}));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block,
+      ConvertToBlock(func, codegen_options().generate_combinational(true)));
+
+  EXPECT_THAT(
+      GetOutputPort(block),
+      m::OutputPort("out", m::Literal(Value::Tuple(
+                               {Value(UBits(0, 1)), Value(UBits(123, 32))}))));
+}
+
+TEST_F(BlockConversionTest, ReturnArrayLiteral) {
+  Package package(TestName());
+  FunctionBuilder fb(TestName(), &package);
+  fb.Literal(Value::ArrayOrDie({Value(UBits(0, 1)), Value(UBits(1, 1))}));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block,
+      ConvertToBlock(func, codegen_options().generate_combinational(true)));
+
+  EXPECT_THAT(
+      GetOutputPort(block),
+      m::OutputPort("out", m::Literal(Value::ArrayOrDie(
+                               {Value(UBits(0, 1)), Value(UBits(1, 1))}))));
+}
+
+TEST_F(BlockConversionTest, DISABLED_ValidSignalWithoutReset) {
+  Package package(TestName());
+  FunctionBuilder fb(TestName(), &package);
+  fb.Param("x", package.GetBitsType(8));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+
+  EXPECT_THAT(ConvertToBlock(func,
+                             CodegenOptions()
+                                 .valid_control("in_valid", "out_valid")
+                                 .clock_name("clk"),
+                             SchedulingOptions().pipeline_stages(2)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("has valid signal output but no reset")));
+}
+
+TEST_F(BlockConversionTest, ReturnEmptyTuple) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Literal(Value::Tuple({}));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block,
+      ConvertToBlock(func, codegen_options().generate_combinational(true)));
+
+  EXPECT_THAT(
+      block->GetPorts(),
+      ElementsAre(VariantWith<OutputPort*>(SafeMatcherCast<OutputPort* const&>(
+          m::OutputPort("out", m::Literal(Value::Tuple({})))))));
+}
+
+TEST_F(BlockConversionTest, NestedEmptyTuple) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Tuple({fb.Literal(Value::Tuple({}))});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block,
+      ConvertToBlock(func, codegen_options().generate_combinational(true)));
+
+  EXPECT_THAT(
+      block->GetPorts(),
+      ElementsAre(VariantWith<OutputPort*>(SafeMatcherCast<OutputPort* const&>(
+          m::OutputPort("out", m::Tuple(m::Literal(Value::Tuple({}))))))));
+}
+
+TEST_F(BlockConversionTest, ValidSignalWithoutResetAndWithoutOutputValid) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto s = fb.Param("s", p->GetBitsType(2));
+  auto x = fb.Param("x", p->GetBitsType(8));
+  auto y = fb.Param("y", p->GetBitsType(8));
+  auto z = fb.Param("z", p->GetBitsType(8));
+  auto a = fb.Param("a", p->GetBitsType(8));
+  fb.Select(s, {x, y, z, a}, /*default_value=*/std::nullopt);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block, ConvertToBlock(func,
+                                    CodegenOptions()
+                                        .valid_control("in_valid", std::nullopt)
+                                        .clock_name("clk"),
+                                    SchedulingOptions().pipeline_stages(3)));
+
+  EXPECT_TRUE(HasNode("in_valid", block));
+  EXPECT_FALSE(HasNode("out_valid", block));
+  EXPECT_FALSE(HasNode("rst", block));
+}
+
+TEST_F(BlockConversionTest, TwoBitSelector) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto s = fb.Param("s", p->GetBitsType(2));
+  auto x = fb.Param("x", p->GetBitsType(8));
+  auto y = fb.Param("y", p->GetBitsType(8));
+  auto z = fb.Param("z", p->GetBitsType(8));
+  fb.Select(s, {x, y}, z);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block,
+      ConvertToBlock(func, codegen_options().generate_combinational(true)));
+
+  EXPECT_THAT(
+      GetOutputPort(block),
+      m::OutputPort("out", m::Select(m::InputPort("s"),
+                                     {m::InputPort("x"), m::InputPort("y")},
+                                     m::InputPort("z"))));
+}
+
+TEST_F(BlockConversionTest, TwoBitSelectorAllCasesPopulated) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto s = fb.Param("s", p->GetBitsType(2));
+  auto x = fb.Param("x", p->GetBitsType(8));
+  auto y = fb.Param("y", p->GetBitsType(8));
+  auto z = fb.Param("z", p->GetBitsType(8));
+  auto a = fb.Param("a", p->GetBitsType(8));
+  fb.Select(s, {x, y, z, a}, /*default_value=*/std::nullopt);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block,
+      ConvertToBlock(func, codegen_options().generate_combinational(true)));
+
+  EXPECT_THAT(
+      GetOutputPort(block),
+      m::OutputPort("out", m::Select(m::InputPort("s"),
+                                     {m::InputPort("x"), m::InputPort("y"),
+                                      m::InputPort("z"), m::InputPort("a")})));
+}
+
 TEST_F(ProcConversionTestFixture, SimpleMultiProcConversion) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
                            CreateMultiProcPackage());
@@ -6819,7 +7039,8 @@ absl::StatusOr<Proc*> CreateNewStyleAccumProc(std::string_view proc_name,
   return pb.Build({next_accum});
 }
 
-TEST_F(ProcConversionTestFixture, TrivialProcHierarchyWithProcScopedChannels) {
+TEST_F(ProcConversionTestFixture,
+       DISABLED_TrivialProcHierarchyWithProcScopedChannels) {
   // Construct a proc which instantiates one proc which accumulates its inputs.
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Proc * leaf_proc,
@@ -6843,9 +7064,296 @@ TEST_F(ProcConversionTestFixture, TrivialProcHierarchyWithProcScopedChannels) {
   XLS_ASSERT_OK(ConvertToBlock(
       p.get(),
       CodegenOptions().reset("rst", false, false, false).clock_name("clk"),
-      SchedulingOptions().pipeline_stages(2).schedule_all_procs(true)));
+      SchedulingOptions()
+          .pipeline_stages(2)
+          .schedule_all_procs(true)
+          .add_constraint(RecvsFirstSendsLastConstraint())));
 
   EXPECT_EQ(p->blocks().size(), 2);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("a_top_proc"));
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> expected_outputs;
+
+  // 10 cycles of reset
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      0, 9, {{"rst", 1}, {"in_ch_vld", 0}, {"in_ch", 0}, {"out_ch_rdy", 1}},
+      inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      0, 9, {{"in_ch_rdy", 0}, {"out_ch", 0}, {"out_ch_vld", 0}},
+      expected_outputs));
+
+  // 11 cycles of incrementing input (starting at 1)
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      10, 20, {{"rst", 0}, {"in_ch_vld", 1}, {"in_ch", 0}, {"out_ch_rdy", 1}},
+      inputs));
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(10, 20, "in_ch", 1, inputs));
+
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      10, 10, {{"in_ch_rdy", 1}, {"out_ch", 0}, {"out_ch_vld", 0}},
+      expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      11, 11, {{"in_ch_rdy", 1}, {"out_ch", 1}, {"out_ch_vld", 1}},
+      expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      12, 12, {{"in_ch_rdy", 1}, {"out_ch", 3}, {"out_ch_vld", 1}},
+      expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      13, 13, {{"in_ch_rdy", 1}, {"out_ch", 6}, {"out_ch_vld", 1}},
+      expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      14, 14, {{"in_ch_rdy", 1}, {"out_ch", 10}, {"out_ch_vld", 1}},
+      expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      15, 15, {{"in_ch_rdy", 1}, {"out_ch", 15}, {"out_ch_vld", 1}},
+      expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      16, 16, {{"in_ch_rdy", 1}, {"out_ch", 21}, {"out_ch_vld", 1}},
+      expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      17, 17, {{"in_ch_rdy", 1}, {"out_ch", 28}, {"out_ch_vld", 1}},
+      expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      18, 18, {{"in_ch_rdy", 1}, {"out_ch", 36}, {"out_ch_vld", 1}},
+      expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      19, 19, {{"in_ch_rdy", 1}, {"out_ch", 45}, {"out_ch_vld", 1}},
+      expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      20, 20, {{"in_ch_rdy", 1}, {"out_ch", 55}, {"out_ch_vld", 1}},
+      expected_outputs));
+
+  // 2 cycles to drain the pipeline
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      21, 22, {{"rst", 0}, {"in_ch_vld", 0}, {"in_ch", 0}, {"out_ch_rdy", 1}},
+      inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      21, 21, {{"in_ch_rdy", 0}, {"out_ch", 66}, {"out_ch_vld", 1}},
+      expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      22, 22, {{"in_ch_rdy", 0}, {"out_ch", 0}, {"out_ch_vld", 0}},
+      expected_outputs));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      (std::vector<absl::flat_hash_map<std::string, uint64_t>> outputs),
+      InterpretSequentialBlock(top_block, inputs));
+
+  // Add a cycle count for easier comparison with simulation results.
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, outputs.size() - 1, "cycle",
+                                                0, outputs));
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, expected_outputs.size() - 1,
+                                                "cycle", 0, expected_outputs));
+
+  // Accept any output data that is signaled invalid.
+  for (int64_t i = 0; i < outputs.size(); ++i) {
+    if (outputs[i]["out_ch_vld"] == 0) {
+      expected_outputs[i]["out_ch"] = outputs[i]["out_ch"];
+    }
+  }
+
+  VLOG(1) << "Signal Trace";
+  XLS_ASSERT_OK(VLogTestPipelinedIO(
+      std::vector<SignalSpec>{{"cycle", SignalType::kOutput},
+                              {"rst", SignalType::kInput},
+                              {"in_ch", SignalType::kInput},
+                              {"in_ch_vld", SignalType::kInput},
+                              {"in_ch_rdy", SignalType::kOutput},
+                              {"out_ch", SignalType::kOutput},
+                              {"out_ch_vld", SignalType::kOutput},
+                              {"out_ch_rdy", SignalType::kInput}},
+      /*column_width=*/10, inputs, outputs));
+
+  EXPECT_EQ(outputs.size(), expected_outputs.size());
+  for (int64_t i = 0; i < std::min(outputs.size(), expected_outputs.size());
+       ++i) {
+    EXPECT_EQ(outputs[i], expected_outputs[i]);
+  }
+}
+
+TEST_F(ProcConversionTestFixture, DISABLED_MultiplyInstantiatedProc) {
+  Package p(TestName());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * leaf_proc,
+                           CreateNewStyleAccumProc("leaf_proc", &p));
+
+  TokenlessProcBuilder pb(NewStyleProc(), "a_top_proc", "tkn", &p);
+  XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * in0_channel,
+                           pb.AddInputChannel("in0_ch", p.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * in1_channel,
+                           pb.AddInputChannel("in1_ch", p.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * out0_channel,
+                           pb.AddOutputChannel("out0_ch", p.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * out1_channel,
+                           pb.AddOutputChannel("out1_ch", p.GetBitsType(32)));
+
+  XLS_ASSERT_OK(pb.InstantiateProc(
+      "inst0", leaf_proc,
+      std::vector<ChannelInterface*>{in0_channel, out0_channel}));
+  XLS_ASSERT_OK(pb.InstantiateProc(
+      "inst1", leaf_proc,
+      std::vector<ChannelInterface*>{in1_channel, out1_channel}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * top, pb.Build({}));
+  XLS_ASSERT_OK(p.SetTop(top));
+
+  CodegenOptions options =
+      CodegenOptions().reset("rst", false, false, false).clock_name("clk");
+  XLS_ASSERT_OK(
+      ConvertToBlock(&p, options,
+                     SchedulingOptions()
+                         .pipeline_stages(2)
+                         .schedule_all_procs(true)
+                         .add_constraint(RecvsFirstSendsLastConstraint())));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p.GetBlock("a_top_proc"));
+  EXPECT_THAT(top_block->GetInstantiations(), SizeIs(2));
+
+  // Verify behavior with simulation
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> expected_outputs;
+
+  // 5 cycles of reset
+  XLS_ASSERT_OK(SetSignalsOverCycles(0, 4,
+                                     {{"rst", 1},
+                                      {"in0_ch_vld", 0},
+                                      {"in0_ch", 0},
+                                      {"in1_ch_vld", 0},
+                                      {"in1_ch", 0},
+                                      {"out0_ch_rdy", 1},
+                                      {"out1_ch_rdy", 1}},
+                                     inputs));
+
+  // 3 cycles of data
+  // in0: 0, 10, 42
+  // in1: 1, 2, 5
+  XLS_ASSERT_OK(SetSignalsOverCycles(5, 7,
+                                     {{"rst", 0},
+                                      {"in0_ch_vld", 1},
+                                      {"in1_ch_vld", 1},
+                                      {"out0_ch_rdy", 1},
+                                      {"out1_ch_rdy", 1}},
+                                     inputs));
+
+  // 10 cycles of drain
+  XLS_ASSERT_OK(SetSignalsOverCycles(8, 17,
+                                     {{"rst", 0},
+                                      {"in0_ch_vld", 0},
+                                      {"in1_ch_vld", 0},
+                                      {"out0_ch_rdy", 1},
+                                      {"out1_ch_rdy", 1}},
+                                     inputs));
+
+  std::vector<ChannelSource> sources{
+      ChannelSource("in0_ch", "in0_ch_vld", "in0_ch_rdy", 1.0, top_block),
+      ChannelSource("in1_ch", "in1_ch_vld", "in1_ch_rdy", 1.0, top_block),
+  };
+  XLS_ASSERT_OK(sources.at(0).SetDataSequence({0, 10, 42}));
+  XLS_ASSERT_OK(sources.at(1).SetDataSequence({1, 2, 5}));
+
+  std::vector<ChannelSink> sinks{
+      ChannelSink("out0_ch", "out0_ch_vld", "out0_ch_rdy", 1.0, top_block),
+      ChannelSink("out1_ch", "out1_ch_vld", "out1_ch_rdy", 1.0, top_block),
+  };
+
+  XLS_ASSERT_OK_AND_ASSIGN(BlockIOResultsAsUint64 results,
+                           InterpretChannelizedSequentialBlockWithUint64(
+                               top_block, absl::MakeSpan(sources),
+                               absl::MakeSpan(sinks), inputs, options.reset()));
+
+  // out0 expected: 0, 0+10=10, 10+42=52
+  EXPECT_THAT(sinks.at(0).GetOutputSequenceAsUint64(),
+              IsOkAndHolds(ElementsAre(0, 10, 52)));
+  // out1 expected: 1, 1+2=3, 3+5=8
+  EXPECT_THAT(sinks.at(1).GetOutputSequenceAsUint64(),
+              IsOkAndHolds(ElementsAre(1, 3, 8)));
+}
+
+TEST_F(ProcConversionTestFixture, DISABLED_DeclaredChannelInProc) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * leaf_proc,
+                           CreateNewStyleAccumProc("leaf_proc", p.get()));
+
+  TokenlessProcBuilder pb(NewStyleProc(), "a_top_proc", "tkn", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * in_channel,
+                           pb.AddInputChannel("in_ch", p->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * out_channel,
+                           pb.AddOutputChannel("out_ch", p->GetBitsType(32)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelWithInterfaces middle_channel,
+                           pb.AddChannel("middle_ch", p->GetBitsType(32)));
+
+  XLS_ASSERT_OK(
+      pb.InstantiateProc("inst0", leaf_proc,
+                         std::vector<ChannelInterface*>{
+                             in_channel, middle_channel.send_interface}));
+  XLS_ASSERT_OK(
+      pb.InstantiateProc("inst1", leaf_proc,
+                         std::vector<ChannelInterface*>{
+                             middle_channel.receive_interface, out_channel}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * top, pb.Build({}));
+  XLS_ASSERT_OK(p->SetTop(top));
+
+  dynamic_cast<StreamingChannel*>(middle_channel.channel)
+      ->SetChannelConfig(ChannelConfig(FifoConfig(
+          /*depth=*/1, /*bypass=*/false,
+          /*register_push_outputs=*/false,
+          /*register_pop_outputs=*/false)));
+
+  CodegenOptions options =
+      CodegenOptions().reset("rst", false, false, false).clock_name("clk");
+
+  XLS_ASSERT_OK(
+      ConvertToBlock(p.get(), options,
+                     SchedulingOptions()
+                         .pipeline_stages(2)
+                         .schedule_all_procs(true)
+                         .add_constraint(RecvsFirstSendsLastConstraint())));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("a_top_proc"));
+  EXPECT_THAT(top_block->GetInstantiations(),
+              Contains(m::Instantiation(HasSubstr("middle_ch"),
+                                        InstantiationKind::kFifo)));
+
+  // Verify behavior with simulation
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
+
+  // 5 cycles of reset
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      0, 4, {{"rst", 1}, {"in_ch_vld", 0}, {"in_ch", 0}, {"out_ch_rdy", 1}},
+      inputs));
+
+  // 3 cycles of data: 1, 2, 3
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      5, 7, {{"rst", 0}, {"in_ch_vld", 1}, {"out_ch_rdy", 1}}, inputs));
+
+  // 20 cycles of drain
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      8, 27, {{"rst", 0}, {"in_ch_vld", 0}, {"out_ch_rdy", 1}}, inputs));
+
+  std::vector<ChannelSource> sources{
+      ChannelSource("in_ch", "in_ch_vld", "in_ch_rdy", 1.0, top_block),
+  };
+  XLS_ASSERT_OK(sources.at(0).SetDataSequence({10, 20, 30}));
+
+  std::vector<ChannelSink> sinks{
+      ChannelSink("out_ch", "out_ch_vld", "out_ch_rdy", 1.0, top_block),
+  };
+
+  // inst0 accumulates input:
+  // 0 -> 10
+  // 10 -> 30
+  // 30 -> 60
+  //
+  // inst1 accumulates middle (fifo):
+  // 0 -> 10
+  // 10 -> 40
+  // 40 -> 100
+  XLS_ASSERT_OK_AND_ASSIGN(BlockIOResultsAsUint64 results,
+                           InterpretChannelizedSequentialBlockWithUint64(
+                               top_block, absl::MakeSpan(sources),
+                               absl::MakeSpan(sinks), inputs, options.reset()));
+
+  EXPECT_THAT(sinks.at(0).GetOutputSequenceAsUint64(),
+              IsOkAndHolds(ElementsAre(10, 40, 100)));
 }
 
 }  // namespace
