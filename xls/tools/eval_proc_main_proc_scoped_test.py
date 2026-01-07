@@ -288,6 +288,9 @@ block SingleValueTest(rst: bits[1], clk: clock, in: bits[32], out: bits[32], out
 '''
 
 SINGLE_VALUE_BLOCK_SIG = """
+# proto-file: xls/codegen/module_signature.proto
+# proto-message: ModuleSignatureProto
+
 module_name: "SingleValueTest"
 data_ports {
   direction: PORT_DIRECTION_INPUT

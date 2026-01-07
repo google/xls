@@ -873,6 +873,7 @@ xls_dslx_ir(
         # It needs to know what configuration to use for the fifo.
         "default_fifo_config": "depth: 0, bypass: true, " +
                                "register_push_outputs: false, register_pop_outputs: false",
+        "lower_to_proc_scoped_channels": "true",
     },
     ir_file = "delay.ir",
     library = ":delay_dslx",
@@ -897,9 +898,9 @@ xls_ir_verilog(
         # See https://google.github.io/xls/codegen_options/#rams-experimental
         # for more information about this option.
         "ram_configurations": "ram:1RW:{req}:{resp}:{wr_comp}".format(
-            req = "delay__ram_req",
-            resp = "delay__ram_resp",
-            wr_comp = "delay__ram_wr_comp",
+            req = "_ram_req",
+            resp = "_ram_resp",
+            wr_comp = "_ram_wr_comp",
         ),
         "pipeline_stages": "2",
         "reset": "rst",
@@ -960,6 +961,9 @@ xls_dslx_test(
 xls_dslx_ir(
     name = "delay_loopback_channel_ir",
     dslx_top = "Delay",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true",
+    },
     ir_file = "delay_loopback_channel.ir",
     library = ":delay_loopback_channel_dslx",
 )
