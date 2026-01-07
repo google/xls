@@ -130,22 +130,34 @@ class FunctionIOLoweringPassTest : public IrTestBase {
     const int64_t output_cycle =
         options.input_valid_delay + expected_latency - 1;
     in_values.resize(num_cycles);
+    const bool has_reset = pass_options.codegen_options.reset().has_value();
+    const bool has_input_valid = options.input_valid.has_value();
+    const int64_t value_offset =
+        (has_reset ? 1 : 0) + (has_input_valid ? 1 : 0);
     XLS_RET_CHECK_EQ(sim_block->GetInputPorts().size(),
-                     (options.input_valid.has_value() ? 1 : 0) + inputs.size());
+                     value_offset + inputs.size());
     for (int64_t i = 0; i < sim_block->GetInputPorts().size(); ++i) {
       std::string_view input_name = sim_block->GetInputPorts()[i]->name();
-      Value input_value;
-      if (options.input_valid.has_value()) {
-        if (i == 0) {
-          input_value = Value(UBits(1, 1));
-        } else {
-          input_value = inputs[i - 1];
+      if (has_reset && i == 0) {
+        Value reset_disabled = Value(UBits(
+            pass_options.codegen_options.reset()->active_low() ? 1 : 0, 1));
+        for (int64_t j = 0; j < num_cycles; ++j) {
+          in_values[j].emplace(input_name, reset_disabled);
         }
+        continue;
+      }
+
+      Value input_value;
+      if (i < value_offset) {
+        XLS_RET_CHECK(has_input_valid);
+        XLS_RET_CHECK_EQ(i, value_offset - 1);
+        // input_valid should be 1 whenever we have a valid input.
+        input_value = Value(UBits(1, 1));
       } else {
-        input_value = inputs[i];
+        input_value = inputs[i - value_offset];
       }
       for (int64_t j = 0; j <= options.input_valid_delay; ++j) {
-        if (i == 0 && j < options.input_valid_delay) {
+        if (i == value_offset - 1 && j < options.input_valid_delay) {
           in_values[j].emplace(input_name, Value(UBits(0, 1)));
         } else {
           in_values[j].emplace(input_name, input_value);
@@ -285,12 +297,13 @@ TEST_F(FunctionIOLoweringPassTest, SingleStageWithIOValid) {
                            InterpreterResultToStatusOrValue(result));
   ASSERT_EQ(expected_output, Value(UBits(42, 32)));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      BlockConversionPassOptions options,
-      CreateBlockConversionPassOptions(
-          p.get(), /*pipeline_stages=*/1,
-          ::xls::verilog::CodegenOptions().clock_name("clk").valid_control(
-              "x_valid", "out_valid")));
+  XLS_ASSERT_OK_AND_ASSIGN(BlockConversionPassOptions options,
+                           CreateBlockConversionPassOptions(
+                               p.get(), /*pipeline_stages=*/1,
+                               ::xls::verilog::CodegenOptions()
+                                   .clock_name("clk")
+                                   .reset("rst", false, false, false)
+                                   .valid_control("x_valid", "out_valid")));
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb,
                            CreateScheduledBlock(p.get(), "id_func", options));
 
@@ -299,7 +312,8 @@ TEST_F(FunctionIOLoweringPassTest, SingleStageWithIOValid) {
               IsOkAndHolds(true));
 
   EXPECT_THAT(sb->GetInputPorts(),
-              ElementsAre(Property(&PortNode::GetName, "x_valid"),
+              ElementsAre(Property(&PortNode::GetName, "rst"),
+                          Property(&PortNode::GetName, "x_valid"),
                           Property(&PortNode::GetName, "x")));
   EXPECT_THAT(sb->GetOutputPorts(),
               ElementsAre(Property(&PortNode::GetName, "out_valid"),
@@ -420,12 +434,13 @@ TEST_F(FunctionIOLoweringPassTest, MultiStageWithIOValidDelayed) {
                            InterpreterResultToStatusOrValue(result));
   ASSERT_EQ(expected_output, Value(UBits(42, 32)));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      BlockConversionPassOptions options,
-      CreateBlockConversionPassOptions(
-          p.get(), /*pipeline_stages=*/3,
-          ::xls::verilog::CodegenOptions().clock_name("clk").valid_control(
-              "x_valid", "out_valid")));
+  XLS_ASSERT_OK_AND_ASSIGN(BlockConversionPassOptions options,
+                           CreateBlockConversionPassOptions(
+                               p.get(), /*pipeline_stages=*/3,
+                               ::xls::verilog::CodegenOptions()
+                                   .clock_name("clk")
+                                   .reset("rst", false, false, false)
+                                   .valid_control("x_valid", "out_valid")));
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb,
                            CreateScheduledBlock(p.get(), "id_func", options));
 
@@ -434,7 +449,8 @@ TEST_F(FunctionIOLoweringPassTest, MultiStageWithIOValidDelayed) {
               IsOkAndHolds(true));
 
   EXPECT_THAT(sb->GetInputPorts(),
-              ElementsAre(Property(&PortNode::GetName, "x_valid"),
+              ElementsAre(Property(&PortNode::GetName, "rst"),
+                          Property(&PortNode::GetName, "x_valid"),
                           Property(&PortNode::GetName, "x")));
   EXPECT_THAT(sb->GetOutputPorts(),
               ElementsAre(Property(&PortNode::GetName, "out_valid"),
@@ -469,12 +485,13 @@ TEST_F(FunctionIOLoweringPassTest, MultiStageWithIOValid) {
                            InterpreterResultToStatusOrValue(result));
   ASSERT_EQ(expected_output, Value(UBits(42, 32)));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      BlockConversionPassOptions options,
-      CreateBlockConversionPassOptions(
-          p.get(), /*pipeline_stages=*/3,
-          ::xls::verilog::CodegenOptions().clock_name("clk").valid_control(
-              "x_valid", "out_valid")));
+  XLS_ASSERT_OK_AND_ASSIGN(BlockConversionPassOptions options,
+                           CreateBlockConversionPassOptions(
+                               p.get(), /*pipeline_stages=*/3,
+                               ::xls::verilog::CodegenOptions()
+                                   .clock_name("clk")
+                                   .reset("rst", false, false, false)
+                                   .valid_control("x_valid", "out_valid")));
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb,
                            CreateScheduledBlock(p.get(), "id_func", options));
 
@@ -483,7 +500,8 @@ TEST_F(FunctionIOLoweringPassTest, MultiStageWithIOValid) {
               IsOkAndHolds(true));
 
   EXPECT_THAT(sb->GetInputPorts(),
-              ElementsAre(Property(&PortNode::GetName, "x_valid"),
+              ElementsAre(Property(&PortNode::GetName, "rst"),
+                          Property(&PortNode::GetName, "x_valid"),
                           Property(&PortNode::GetName, "x")));
   EXPECT_THAT(sb->GetOutputPorts(),
               ElementsAre(Property(&PortNode::GetName, "out_valid"),
@@ -517,12 +535,13 @@ TEST_F(FunctionIOLoweringPassTest, MultiStageMultiInputWithIOValid) {
                            InterpreterResultToStatusOrValue(result));
   ASSERT_EQ(expected_output, Value(UBits(63, 32)));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      BlockConversionPassOptions options,
-      CreateBlockConversionPassOptions(
-          p.get(), /*pipeline_stages=*/3,
-          ::xls::verilog::CodegenOptions().clock_name("clk").valid_control(
-              "in_valid", "out_valid")));
+  XLS_ASSERT_OK_AND_ASSIGN(BlockConversionPassOptions options,
+                           CreateBlockConversionPassOptions(
+                               p.get(), /*pipeline_stages=*/3,
+                               ::xls::verilog::CodegenOptions()
+                                   .clock_name("clk")
+                                   .reset("rst", false, false, false)
+                                   .valid_control("in_valid", "out_valid")));
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb,
                            CreateScheduledBlock(p.get(), "id_func", options));
 
@@ -531,7 +550,8 @@ TEST_F(FunctionIOLoweringPassTest, MultiStageMultiInputWithIOValid) {
               IsOkAndHolds(true));
 
   EXPECT_THAT(sb->GetInputPorts(),
-              ElementsAre(Property(&PortNode::GetName, "in_valid"),
+              ElementsAre(Property(&PortNode::GetName, "rst"),
+                          Property(&PortNode::GetName, "in_valid"),
                           Property(&PortNode::GetName, "x"),
                           Property(&PortNode::GetName, "y")));
   EXPECT_THAT(sb->GetOutputPorts(),

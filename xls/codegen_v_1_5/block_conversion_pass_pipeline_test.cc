@@ -6679,7 +6679,7 @@ TEST_F(BlockConversionTest, ReturnArrayLiteral) {
                                {Value(UBits(0, 1)), Value(UBits(1, 1))}))));
 }
 
-TEST_F(BlockConversionTest, DISABLED_ValidSignalWithoutReset) {
+TEST_F(BlockConversionTest, ValidSignalWithoutReset) {
   Package package(TestName());
   FunctionBuilder fb(TestName(), &package);
   fb.Param("x", package.GetBitsType(8));
