@@ -17,7 +17,6 @@
 
 #include <cstdint>
 #include <functional>
-#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -26,9 +25,6 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
-#include "xls/common/status/ret_check.h"
-#include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
@@ -49,16 +45,6 @@ using ColonRefSubjectT =
 absl::Status TryEnsureFitsInType(const Number& number,
                                  const BitsLikeProperties& bits_like,
                                  const Type& type);
-
-// Validates whether the given `type` is bits-like and, if so, delegates to
-// `TryEnsureFitsInType(number, bits_like, type)`.
-absl::Status TryEnsureFitsInType(const Number& number, const Type& type);
-
-// Shorthand for the above where we know a prori the type is a `BitsType` (note
-// that there are types that are bits-like that are not exactly `BitsType`, see
-// `IsBitsLike`).
-absl::Status TryEnsureFitsInBitsType(const Number& number,
-                                     const BitsType& type);
 
 // Validates whether the purported array being indexed by an `Index` operation
 // is really a container that's allowed to be indexed like an array. Note that
@@ -134,42 +120,6 @@ absl::StatusOr<StartAndWidth> ResolveBitSliceIndices(
     int64_t bit_count, std::optional<int64_t> start_opt,
     std::optional<int64_t> limit_opt);
 
-// Returns an AST node typed T from module "m", resolved via name "name".
-//
-// Errors are attributed to span "span".
-//
-// Prefer this function to Module::GetMemberOrError(), as this gives a
-// positional type-inference-error as its status result when the requested
-// resolution cannot be performed.
-template <typename T>
-inline absl::StatusOr<T*> GetMemberOrTypeInferenceError(Module* m,
-                                                        std::string_view name,
-                                                        const Span& span) {
-  std::optional<ModuleMember*> member = m->FindMemberWithName(name);
-  if (!member.has_value()) {
-    return TypeInferenceErrorStatus(
-        span, nullptr,
-        absl::StrFormat("Name '%s' does not exist in module `%s`", name,
-                        m->name()),
-        *m->file_table());
-  }
-
-  if (!std::holds_alternative<T*>(*member.value())) {
-    const FileTable& file_table = *m->owner()->file_table();
-    return TypeInferenceErrorStatus(
-        span, nullptr,
-        absl::StrFormat(
-            "Name '%s' in module `%s` refers to a %s but a %s is required",
-            name, m->name(), GetModuleMemberTypeName(*member.value()),
-            T::GetDebugTypeName()),
-        file_table);
-  }
-
-  T* result = std::get<T*>(*member.value());
-  XLS_RET_CHECK(result != nullptr);
-  return result;
-}
-
 // Dereferences the "original" struct reference to a struct definition or
 // returns an error.
 //
@@ -228,21 +178,6 @@ absl::Status MatchTupleNodeToType(
         process_tuple_member,
     const NameDefTree* name_def_tree, TypeOrAnnotation type,
     const FileTable& file_table, std::optional<InterpValue> constexpr_value);
-
-// Converts a `BuiltinTypeAnnotation` to an appropriate `Type` that is not
-// wrapped in a `MetaType`.
-absl::StatusOr<std::unique_ptr<Type>> ConcretizeBuiltinTypeAnnotation(
-    const BuiltinTypeAnnotation& annotation, const FileTable& file_table);
-
-// If the attribute references an impl function, return that function.
-absl::StatusOr<std::optional<Function*>> ImplFnFromCallee(
-    const Attr* attr, const TypeInfo* type_info);
-
-// Determines the real type for `Self` in an impl method, i.e. the type of
-// the owning struct. This is lexically determined by AST traversal, with any
-// parametrics left unknown.
-absl::StatusOr<const TypeAnnotation*> GetRealTypeAnnotationForSelf(
-    const SelfTypeAnnotation* self, const FileTable& file_table);
 
 // Returns true if the cast-conversion from "from" to "to" is acceptable (i.e.
 // should not cause a type error to occur).

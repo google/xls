@@ -17,7 +17,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <functional>
-#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -279,26 +278,6 @@ absl::Status TryEnsureFitsInType(const Number& number,
     return does_not_fit();
   }
   return absl::OkStatus();
-}
-
-absl::Status TryEnsureFitsInType(const Number& number, const Type& type) {
-  if (std::optional<BitsLikeProperties> bits_like = GetBitsLike(type);
-      bits_like.has_value()) {
-    return TryEnsureFitsInType(number, bits_like.value(), type);
-  }
-  return TypeInferenceErrorStatus(
-      number.span(), &type,
-      absl::StrFormat("Non-bits type (%s) used to define a numeric literal.",
-                      type.GetDebugTypeName()),
-      *number.owner()->file_table());
-}
-
-absl::Status TryEnsureFitsInBitsType(const Number& number,
-                                     const BitsType& type) {
-  std::optional<BitsLikeProperties> bits_like = GetBitsLike(type);
-  XLS_RET_CHECK(bits_like.has_value())
-      << "bits type can always give bits-like properties";
-  return TryEnsureFitsInType(number, bits_like.value(), type);
 }
 
 absl::Status ValidateArrayTypeForIndex(const Index& node, const Type& type,
@@ -981,44 +960,6 @@ absl::Status MatchTupleNodeToType(
     ++tuple_index;
   }
   return absl::OkStatus();
-}
-
-absl::StatusOr<std::unique_ptr<Type>> ConcretizeBuiltinTypeAnnotation(
-    const BuiltinTypeAnnotation& annotation, const FileTable& file_table) {
-  if (annotation.builtin_type() == BuiltinType::kToken) {
-    return std::make_unique<TokenType>();
-  }
-  absl::StatusOr<bool> signedness = annotation.GetSignedness();
-  if (!signedness.ok()) {
-    return TypeInferenceErrorStatus(
-        annotation.span(), nullptr,
-        absl::StrFormat("Could not determine signedness to turn "
-                        "`%s` into a concrete bits type.",
-                        annotation.ToString()),
-        file_table);
-  }
-  int64_t bit_count = annotation.GetBitCount();
-  return std::make_unique<BitsType>(signedness.value(), bit_count);
-}
-
-absl::StatusOr<std::optional<Function*>> ImplFnFromCallee(
-    const Attr* attr, const TypeInfo* type_info) {
-  if (!type_info->Contains(attr->lhs())) {
-    return std::nullopt;
-  }
-  std::optional<Type*> type = type_info->GetItem(attr->lhs());
-  if (!type.has_value()) {
-    return std::nullopt;
-  }
-  if (!(*type)->IsStruct()) {
-    return TypeInferenceErrorStatus(
-        attr->span(), nullptr,
-        absl::StrFormat("Cannot invoke method `%s` on non-struct type `%s`",
-                        attr->attr(), (*type)->ToString()),
-        type_info->file_table());
-  }
-  StructDef sd = (*type)->AsStruct().nominal_type();
-  return sd.GetImplFunction(attr->attr());
 }
 
 bool IsAcceptableCast(const Type& from, const Type& to) {

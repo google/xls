@@ -79,16 +79,6 @@ cc_test(
 )
 
 cc_library(
-    name = "type_mismatch_error_data",
-    hdrs = ["type_mismatch_error_data.h"],
-    deps = [
-        ":type",
-        "//xls/dslx/frontend:ast",
-        "//xls/dslx/frontend:pos",
-    ],
-)
-
-cc_library(
     name = "typecheck_test_utils",
     testonly = True,
     srcs = ["typecheck_test_utils.cc"],
@@ -250,15 +240,6 @@ cc_test(
         "@com_google_absl//absl/strings:str_format",
         "@googletest//:gtest",
         "@re2",
-    ],
-)
-
-cc_library(
-    name = "type_and_parametric_env",
-    hdrs = ["type_and_parametric_env.h"],
-    deps = [
-        ":parametric_env",
-        ":type",
     ],
 )
 
