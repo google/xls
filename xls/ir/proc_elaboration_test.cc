@@ -426,107 +426,16 @@ proc2
 proc3)");
 }
 
-// TODO(allight): Use proc_network.x once ir_converter is capable of making
-// new-style procs.
 TEST_F(ElaborationTest, GraphNewStyle) {
   // Proc graph.
   // A -> B1 -> B2 -> B3 -> C -> A
   // EXT -> I -> A
   // C -> I -> EXT
-  // NB The actual ir is in examples/proc_network.x
-  auto p = CreatePackage();
-  Proc* initiator;
-  Proc* a_proc;
-  Proc* b_proc;
-  Proc* c_proc;
-  Type* s32 = p->GetBitsType(32);
-  {
-    TokenlessProcBuilder ab(NewStyleProc{}, "A_proc", "tok", p.get());
-    // A channels
-    XLS_ASSERT_OK_AND_ASSIGN(auto a_inp, ab.AddInputChannel("inp", s32));
-    XLS_ASSERT_OK_AND_ASSIGN(auto a_output, ab.AddOutputChannel("output", s32));
-    XLS_ASSERT_OK_AND_ASSIGN(auto a_ext, ab.AddInputChannel("ext", s32));
-    // A Next
-    auto recv_ext = ab.Receive(a_ext, ab.AfterAll({}));
-    auto recv_inp = ab.ReceiveNonBlocking(a_inp, ab.TupleIndex(recv_ext, 0));
-    ab.Send(
-        a_output, ab.TupleIndex(recv_inp, 0),
-        ab.Add(ab.Add(ab.TupleIndex(recv_ext, 1), ab.TupleIndex(recv_inp, 1)),
-               ab.Literal(UBits(1, 32))));
-    XLS_ASSERT_OK_AND_ASSIGN(a_proc, ab.Build({}));
-  }
-  {
-    TokenlessProcBuilder bb(NewStyleProc{}, "B_proc", "tok", p.get());
-    // B Channels
-    XLS_ASSERT_OK_AND_ASSIGN(auto b_inp, bb.AddInputChannel("inp", s32));
-    XLS_ASSERT_OK_AND_ASSIGN(auto b_output, bb.AddOutputChannel("output", s32));
-    // B Next
-    auto recv_inp = bb.Receive(b_inp, bb.AfterAll({}));
-    bb.Send(b_output, bb.TupleIndex(recv_inp, 0),
-            bb.Add(bb.TupleIndex(recv_inp, 1), bb.Literal(UBits(100, 32))));
-    XLS_ASSERT_OK_AND_ASSIGN(b_proc, bb.Build({}));
-  }
-  {
-    TokenlessProcBuilder cb(NewStyleProc{}, "C_proc", "tok", p.get());
-    // C Channels
-    XLS_ASSERT_OK_AND_ASSIGN(auto c_inp, cb.AddInputChannel("inp", s32));
-    XLS_ASSERT_OK_AND_ASSIGN(auto c_output, cb.AddOutputChannel("output", s32));
-    XLS_ASSERT_OK_AND_ASSIGN(auto c_ext, cb.AddOutputChannel("ext", s32));
-    // C Next
-    auto recv = cb.Receive(c_inp, cb.AfterAll({}));
-    auto c_data = cb.Add(cb.TupleIndex(recv, 1), cb.Literal(UBits(10000, 32)));
-    auto c_tok = cb.TupleIndex(recv, 0);
-    cb.Send(c_output, c_tok, c_data);
-    cb.Send(c_ext, c_tok, c_data);
-    XLS_ASSERT_OK_AND_ASSIGN(c_proc, cb.Build({}));
-  }
-
-  {
-    TokenlessProcBuilder ib(NewStyleProc{}, "initiator", "tok", p.get());
-    // initiator channels
-    XLS_ASSERT_OK_AND_ASSIGN(auto ext_in_ch, ib.AddInputChannel("ext_in", s32));
-    XLS_ASSERT_OK_AND_ASSIGN(auto ext_out_ch,
-                             ib.AddOutputChannel("ext_out", s32));
-    // config
-    XLS_ASSERT_OK_AND_ASSIGN((auto [c1, c_ext, init_rcv]),
-                             ib.AddChannel("init_in_chans", s32));
-    XLS_ASSERT_OK_AND_ASSIGN((auto [c2, init_snd, a_ext]),
-                             ib.AddChannel("init_out_chans", s32));
-    XLS_ASSERT_OK_AND_ASSIGN((auto [c3, a_to_b1_out, a_to_b1_in]),
-                             ib.AddChannel("a_to_b1", s32));
-    XLS_ASSERT_OK_AND_ASSIGN((auto [c4, b1_to_b2_out, b1_to_b2_in]),
-                             ib.AddChannel("b1_to_b2", s32));
-    XLS_ASSERT_OK_AND_ASSIGN((auto [c5, b2_to_b3_out, b2_to_b3_in]),
-                             ib.AddChannel("b2_to_b3", s32));
-    XLS_ASSERT_OK_AND_ASSIGN((auto [c6, b3_to_c_out, b3_to_c_in]),
-                             ib.AddChannel("b3_to_c", s32));
-    XLS_ASSERT_OK_AND_ASSIGN((auto [c7, c_to_a_out, c_to_a_in]),
-                             ib.AddChannel("c_to_a", s32));
-    XLS_ASSERT_OK(
-        ib.InstantiateProc("a_inst", a_proc, {c_to_a_in, a_to_b1_out, a_ext}));
-    XLS_ASSERT_OK(
-        ib.InstantiateProc("B1_inst", b_proc, {a_to_b1_in, b1_to_b2_out}));
-    XLS_ASSERT_OK(
-        ib.InstantiateProc("B2_inst", b_proc, {b1_to_b2_in, b2_to_b3_out}));
-    XLS_ASSERT_OK(
-        ib.InstantiateProc("B3_inst", b_proc, {b2_to_b3_in, b3_to_c_out}));
-    XLS_ASSERT_OK(
-        ib.InstantiateProc("C_inst", c_proc, {b3_to_c_in, c_to_a_out, c_ext}));
-    // next
-    auto ext_recv = ib.Receive(ext_in_ch, ib.AfterAll({}));
-    auto init_in = ib.Send(init_snd, ib.TupleIndex(ext_recv, 0),
-                           ib.TupleIndex(ext_recv, 1));
-    auto init_out = ib.Receive(init_rcv, init_in);
-    ib.Send(ext_out_ch, ib.TupleIndex(init_out, 0), ib.TupleIndex(init_out, 1));
-    XLS_ASSERT_OK_AND_ASSIGN(initiator, ib.Build({}));
-  }
-  // TODO(allight): Once ir_convert can create proc-scoped channels use the
-  // proc_network.x design instead.
-  // XLS_ASSERT_OK_AND_ASSIGN(
-  //     auto path, GetXlsRunfilePath("xls/examples/proc_network.psc.ir"));
-  // XLS_ASSERT_OK_AND_ASSIGN(auto ir, GetFileContents(path));
-  // XLS_ASSERT_OK_AND_ASSIGN(auto pkg, ParsePackage(ir));
-  RecordProperty("ir", p->DumpIr());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto path, GetXlsRunfilePath("xls/examples/proc_network_proc_scoped.ir"));
+  XLS_ASSERT_OK_AND_ASSIGN(auto ir, GetFileContents(path));
+  XLS_ASSERT_OK_AND_ASSIGN(auto pkg, ParsePackage(ir));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * initiator, pkg->GetTopAsProc());
   XLS_ASSERT_OK_AND_ASSIGN(auto elab, ProcElaboration::Elaborate(initiator));
   XLS_ASSERT_OK_AND_ASSIGN(const ProcElaboration::ChannelGraph& graph,
                            elab.GetChannelGraph());
@@ -687,6 +596,9 @@ TEST_F(ElaborationTest, GraphOldStyle) {
                            GetXlsRunfilePath("xls/examples/proc_network.ir"));
   XLS_ASSERT_OK_AND_ASSIGN(auto ir, GetFileContents(path));
   XLS_ASSERT_OK_AND_ASSIGN(auto pkg, ParsePackage(ir));
+  if (pkg->ChannelsAreProcScoped()) {
+    GTEST_SKIP();
+  }
   XLS_ASSERT_OK_AND_ASSIGN(
       auto elab, ProcElaboration::ElaborateOldStylePackage(pkg.get()));
   XLS_ASSERT_OK_AND_ASSIGN(const ProcElaboration::ChannelGraph& graph,

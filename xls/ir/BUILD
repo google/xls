@@ -2150,7 +2150,10 @@ cc_test(
 cc_test(
     name = "proc_elaboration_test",
     srcs = ["proc_elaboration_test.cc"],
-    data = ["//xls/examples:proc_network.ir"],
+    data = [
+        "//xls/examples:proc_network.ir",
+        "//xls/examples:proc_network_proc_scoped.ir",
+    ],
     deps = [
         ":bits",
         ":channel",

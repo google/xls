@@ -1384,11 +1384,23 @@ xls_dslx_test(
     library = ":proc_network_dslx",
 )
 
-# TODO(allight): Once the ir converter can generate new-style procs we should use this as test data for both ElaborationTest.GraphOldStyle and GraphNewStyle tests.
 xls_dslx_ir(
     name = "proc_network_ir",
     dslx_top = "Initiator",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "false",
+    },
     ir_file = "proc_network.ir",
+    library = ":proc_network_dslx",
+)
+
+xls_dslx_ir(
+    name = "proc_network_proc_scoped_ir",
+    dslx_top = "Initiator",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true",
+    },
+    ir_file = "proc_network_proc_scoped.ir",
     library = ":proc_network_dslx",
 )
 
