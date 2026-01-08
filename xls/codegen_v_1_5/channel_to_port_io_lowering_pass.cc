@@ -1717,7 +1717,8 @@ absl::StatusOr<bool> ChannelToPortIoLoweringPass::RunInternal(
       continue;
     }
     ScheduledBlock* scheduled_block = down_cast<ScheduledBlock*>(block.get());
-    if (!scheduled_block->source()->IsProc()) {
+    if (scheduled_block->source() == nullptr ||
+        !scheduled_block->source()->IsProc()) {
       continue;
     }
     Proc* source = scheduled_block->source()->AsProcOrDie();

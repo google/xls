@@ -35,6 +35,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/verifier.h"
 
 namespace xls {
 
@@ -182,8 +183,17 @@ void ScheduledBlockBuilder::ResumeStaging() {
 
 absl::StatusOr<ScheduledBlock*> ScheduledBlockBuilder::Build() {
   XLS_RET_CHECK(!staging_nodes_) << "Build() called without ending all stages.";
+
+  bool should_verify = should_verify_;
+  should_verify_ = false;
   XLS_ASSIGN_OR_RETURN(Block * b, BlockBuilder::Build());
-  return down_cast<ScheduledBlock*>(b);
+  should_verify_ = should_verify;
+
+  ScheduledBlock* sb = down_cast<ScheduledBlock*>(b);
+  if (should_verify_) {
+    XLS_RETURN_IF_ERROR(VerifyScheduledBlock(sb));
+  }
+  return sb;
 }
 
 BValue ScheduledBlockBuilder::AssignNodeToStage(BValue node, int64_t stage) {

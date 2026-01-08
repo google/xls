@@ -30,6 +30,7 @@
 #include "xls/codegen_v_1_5/register_cleanup_pass.h"
 #include "xls/codegen_v_1_5/scheduled_block_conversion_pass.h"
 #include "xls/codegen_v_1_5/scheduling_pass.h"
+#include "xls/codegen_v_1_5/side_effect_condition_pass.h"
 #include "xls/codegen_v_1_5/state_to_register_io_lowering_pass.h"
 #include "xls/passes/dataflow_simplification_pass.h"
 #include "xls/passes/dce_pass.h"
@@ -48,6 +49,9 @@ std::unique_ptr<BlockConversionCompoundPass> CreateBlockConversionPassPipeline(
 
   // Convert ScheduledProc/ScheduledFunction to ScheduledBlock.
   top->Add<ScheduledBlockConversionPass>();
+
+  // Update assert conditions to be guarded by stage_done signals.
+  top->Add<SideEffectConditionPass>();
 
   // Lower state reads/writes to register read/writes.
   top->Add<StateToRegisterIoLoweringPass>();

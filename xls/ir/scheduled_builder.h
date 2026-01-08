@@ -147,6 +147,11 @@ class ScheduledBlockBuilder : public BlockBuilder {
   // Hides BlockBuilder::Build().
   absl::StatusOr<ScheduledBlock*> Build();
 
+  // Returns the Block being constructed. Hides BlockBuilder::block().
+  ScheduledBlock* block() const {
+    return down_cast<ScheduledBlock*>(function());
+  }
+
   // Overrides the stage assignment for the given node, without affecting
   // current_stage_. Returns the node for chaining.
   BValue AssignNodeToStage(BValue node, int64_t stage);
