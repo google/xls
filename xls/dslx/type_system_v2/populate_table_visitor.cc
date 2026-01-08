@@ -918,8 +918,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return HandleForLoopBase(node);
   }
 
-  absl::Status HandleUnrollFor(const UnrollFor* node) override {
-    VLOG(5) << "HandleUnrollFor: " << node->ToString();
+  absl::Status HandleConstFor(const ConstFor* node) override {
+    VLOG(5) << "HandleConstFor: " << node->ToString();
     return HandleForLoopBase(node);
   }
 

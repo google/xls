@@ -169,7 +169,7 @@ class InvocationVisitor : public ExprVisitor {
     return expr->body()->AcceptExpr(this);
   }
 
-  absl::Status HandleUnrollFor(const UnrollFor* expr) override {
+  absl::Status HandleConstFor(const ConstFor* expr) override {
     std::optional<const Expr*> unrolled =
         type_info_->GetUnrolledLoop(expr, bindings_);
     if (unrolled.has_value()) {

@@ -393,14 +393,14 @@ class TypeInfo {
       const AstNode* const_expr) const;
 
   // Storage of unrolled loops by parametric env.
-  void NoteUnrolledLoop(const UnrollFor* loop, const ParametricEnv& env,
+  void NoteUnrolledLoop(const ConstFor* loop, const ParametricEnv& env,
                         Expr* unrolled_expr);
-  std::optional<Expr*> GetUnrolledLoop(const UnrollFor* loop,
+  std::optional<Expr*> GetUnrolledLoop(const ConstFor* loop,
                                        const ParametricEnv& env) const;
 
   // Returns all concrete unrolled loop expressions for a given loop across all
   // environments.
-  std::vector<Expr*> GetAllUnrolledLoops(const UnrollFor* loop) const;
+  std::vector<Expr*> GetAllUnrolledLoops(const ConstFor* loop) const;
 
   // Retrieves a string that shows the module associated with this type info and
   // which imported modules are present, suitable for debugging.
@@ -501,8 +501,8 @@ class TypeInfo {
   // instantiation contexts.
   absl::flat_hash_map<const AstNode*, std::optional<InterpValue>> const_exprs_;
 
-  // Unrolled versions of `unroll_for!` loops.
-  absl::flat_hash_map<const UnrollFor*,
+  // Unrolled versions of for-loops.
+  absl::flat_hash_map<const ConstFor*,
                       absl::flat_hash_map<ParametricEnv, Expr*>>
       unrolled_loops_;
 

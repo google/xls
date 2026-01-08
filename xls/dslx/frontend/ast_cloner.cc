@@ -1211,7 +1211,7 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleUnrollFor(const UnrollFor* n) override {
+  absl::Status HandleConstFor(const ConstFor* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
     auto new_type_annotation =
@@ -1219,11 +1219,12 @@ class AstCloner : public AstNodeVisitor {
             ? nullptr
             : down_cast<TypeAnnotation*>(old_to_new_.at(n->type_annotation()));
 
-    old_to_new_[n] = module(n)->Make<UnrollFor>(
+    old_to_new_[n] = module(n)->Make<ConstFor>(
         n->span(), down_cast<NameDefTree*>(old_to_new_.at(n->names())),
         new_type_annotation, down_cast<Expr*>(old_to_new_.at(n->iterable())),
         down_cast<StatementBlock*>(old_to_new_.at(n->body())),
-        down_cast<Expr*>(old_to_new_.at(n->init())), n->in_parens());
+        down_cast<Expr*>(old_to_new_.at(n->init())), n->IsUnrollFor(),
+        n->in_parens());
     return absl::OkStatus();
   }
 

@@ -1375,6 +1375,54 @@ fn main() -> u32 {
   }
 }
 
+TEST(BytecodeEmitterTest, SimpleConstFor) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> u32 {
+  const for (i, accum) : (u32, u32) in u32:0..u32:4 {
+    accum + i
+  }(u32:1)
+})";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
+                           EmitBytecodes(&import_data, kProgram, "main"));
+
+  const std::string_view kWant = R"(literal u32:1
+store 0
+literal u32:0
+store 1
+load 0
+load 1
+uadd
+store 2
+literal u32:1
+store 3
+load 2
+load 3
+uadd
+store 4
+literal u32:2
+store 5
+load 4
+load 5
+uadd
+store 6
+literal u32:3
+store 7
+load 6
+load 7
+uadd)";
+
+  std::string got = absl::StrJoin(
+      bf->bytecodes(), "\n",
+      [&import_data](std::string* out, const Bytecode& b) {
+        absl::StrAppend(
+            out, b.ToString(import_data.file_table(), /*source_locs=*/false));
+      });
+
+  EXPECT_EQ(kWant, got);
+}
+
 TEST(BytecodeEmitterTest, ForWithCover) {
   constexpr std::string_view kProgram = R"(
 struct SomeStruct {

@@ -302,8 +302,8 @@ absl::Status ProcConfigIrConverter::HandleStructInstance(
   return absl::OkStatus();
 }
 
-absl::Status ProcConfigIrConverter::HandleUnrollFor(const UnrollFor* node) {
-  VLOG(4) << "ProcConfigIrConverter::HandleUnrollFor : " << node->ToString();
+absl::Status ProcConfigIrConverter::HandleConstFor(const ConstFor* node) {
+  VLOG(4) << "ProcConfigIrConverter::HandleConstFor : " << node->ToString();
   std::optional<const Expr*> unrolled =
       type_info_->GetUnrolledLoop(node, bindings_);
   if (unrolled.has_value()) {
@@ -311,7 +311,7 @@ absl::Status ProcConfigIrConverter::HandleUnrollFor(const UnrollFor* node) {
     return absl::OkStatus();
   }
   return absl::InvalidArgumentError(
-      absl::StrCat("unroll_for! should have been unrolled by now at: ",
+      absl::StrCat("unroll_for! or const for should have been unrolled by now at: ",
                    node->span().ToString(file_table())));
 }
 

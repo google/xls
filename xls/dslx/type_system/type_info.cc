@@ -176,7 +176,7 @@ void TypeInfo::NoteConstExpr(const AstNode* const_expr, InterpValue value) {
       const_expr->ToString(), const_expr, value.ToString());
 
   // Note: this assertion will generally hold as of 2024-08-23, except in the
-  // case of `UnrollFor` nodes, which https://github.com/richmckeever is
+  // case of `ConstFor` nodes, which https://github.com/richmckeever is
   // actively working on alternative strategies for.
   //
   // auto it = const_exprs_.find(const_expr);
@@ -259,15 +259,15 @@ bool TypeInfo::IsKnownNonConstExpr(const AstNode* node) const {
   return false;
 }
 
-void TypeInfo::NoteUnrolledLoop(const UnrollFor* loop, const ParametricEnv& env,
+void TypeInfo::NoteUnrolledLoop(const ConstFor* loop, const ParametricEnv& env,
                                 Expr* unrolled_expr) {
-  VLOG(4) << "Converted unroll_for! at " << loop->span().ToString(file_table())
+  VLOG(4) << "Converted for-loop at " << loop->span().ToString(file_table())
           << " with bindings: " << env.ToString()
           << " to: " << unrolled_expr->ToString();
   GetRoot()->unrolled_loops_[loop][env] = unrolled_expr;
 }
 
-std::optional<Expr*> TypeInfo::GetUnrolledLoop(const UnrollFor* loop,
+std::optional<Expr*> TypeInfo::GetUnrolledLoop(const ConstFor* loop,
                                                const ParametricEnv& env) const {
   const auto exprs_it = unrolled_loops_.find(loop);
   if (exprs_it != unrolled_loops_.end()) {
@@ -284,7 +284,7 @@ std::optional<Expr*> TypeInfo::GetUnrolledLoop(const UnrollFor* loop,
   return std::nullopt;
 }
 
-std::vector<Expr*> TypeInfo::GetAllUnrolledLoops(const UnrollFor* loop) const {
+std::vector<Expr*> TypeInfo::GetAllUnrolledLoops(const ConstFor* loop) const {
   std::vector<Expr*> result;
   const TypeInfo* root = GetRoot();
   auto it = root->unrolled_loops_.find(loop);
