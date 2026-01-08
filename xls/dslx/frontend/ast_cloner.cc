@@ -331,7 +331,7 @@ class AstCloner : public AstNodeVisitor {
         n->span(), down_cast<NameDefTree*>(old_to_new_.at(n->names())),
         new_type_annotation, down_cast<Expr*>(old_to_new_.at(n->iterable())),
         down_cast<StatementBlock*>(old_to_new_.at(n->body())),
-        down_cast<Expr*>(old_to_new_.at(n->init())));
+        down_cast<Expr*>(old_to_new_.at(n->init())), n->IsConst());
     return absl::OkStatus();
   }
 
@@ -1215,7 +1215,7 @@ class AstCloner : public AstNodeVisitor {
         n->span(), down_cast<NameDefTree*>(old_to_new_.at(n->names())),
         new_type_annotation, down_cast<Expr*>(old_to_new_.at(n->iterable())),
         down_cast<StatementBlock*>(old_to_new_.at(n->body())),
-        down_cast<Expr*>(old_to_new_.at(n->init())), n->in_parens());
+        down_cast<Expr*>(old_to_new_.at(n->init())), /*is_const=*/false, n->in_parens());
     return absl::OkStatus();
   }
 

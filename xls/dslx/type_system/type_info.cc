@@ -259,15 +259,15 @@ bool TypeInfo::IsKnownNonConstExpr(const AstNode* node) const {
   return false;
 }
 
-void TypeInfo::NoteUnrolledLoop(const UnrollFor* loop, const ParametricEnv& env,
+void TypeInfo::NoteUnrolledLoop(const ForLoopBase* loop, const ParametricEnv& env,
                                 Expr* unrolled_expr) {
-  VLOG(4) << "Converted unroll_for! at " << loop->span().ToString(file_table())
+  VLOG(4) << "Converted for-loop at " << loop->span().ToString(file_table())
           << " with bindings: " << env.ToString()
           << " to: " << unrolled_expr->ToString();
   GetRoot()->unrolled_loops_[loop][env] = unrolled_expr;
 }
 
-std::optional<Expr*> TypeInfo::GetUnrolledLoop(const UnrollFor* loop,
+std::optional<Expr*> TypeInfo::GetUnrolledLoop(const ForLoopBase* loop,
                                                const ParametricEnv& env) const {
   const auto exprs_it = unrolled_loops_.find(loop);
   if (exprs_it != unrolled_loops_.end()) {
@@ -284,7 +284,7 @@ std::optional<Expr*> TypeInfo::GetUnrolledLoop(const UnrollFor* loop,
   return std::nullopt;
 }
 
-std::vector<Expr*> TypeInfo::GetAllUnrolledLoops(const UnrollFor* loop) const {
+std::vector<Expr*> TypeInfo::GetAllUnrolledLoops(const ForLoopBase* loop) const {
   std::vector<Expr*> result;
   const TypeInfo* root = GetRoot();
   auto it = root->unrolled_loops_.find(loop);

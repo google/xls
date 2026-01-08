@@ -2467,11 +2467,14 @@ absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
     if (peek_1->IsKeyword(Keyword::kIf)) {  // Constexpr conditional expression
       XLS_ASSIGN_OR_RETURN(
           lhs, ParseRangeExpression(outer_bindings, kNoRestrictions));
+    } else if (peek_1->IsKeyword(Keyword::kFor)) { // Const for expression
+      XLS_ASSIGN_OR_RETURN(lhs, ParseConstFor(outer_bindings));
+    } else {
+      return ParseErrorStatus(
+          peek_1->span(),
+          absl::StrFormat("Expected start of an expression; got: %s",
+                          peek_1->ToErrorString()));
     }
-    return ParseErrorStatus(
-        peek_1->span(),
-        absl::StrFormat("Expected start of an expression; got: %s",
-                        peek_1->ToErrorString()));
   } else {
     return ParseErrorStatus(
         peek->span(),
@@ -3781,6 +3784,35 @@ absl::StatusOr<For*> Parser::ParseFor(Bindings& bindings) {
                             iterable, body, init);
 }
 
+absl::StatusOr<For*> Parser::ParseConstFor(Bindings& bindings) {
+  XLS_RETURN_IF_ERROR(DropKeywordOrError(Keyword::kConst));
+  XLS_ASSIGN_OR_RETURN(Token const_for,
+                       PopKeywordOrError(Keyword::kFor));
+
+  Bindings for_bindings(&bindings);
+  XLS_ASSIGN_OR_RETURN(NameDefTree * names, ParseNameDefTree(for_bindings));
+  XLS_ASSIGN_OR_RETURN(bool peek_is_colon, PeekTokenIs(TokenKind::kColon));
+  TypeAnnotation* types = nullptr;
+  if (peek_is_colon) {
+    XLS_RETURN_IF_ERROR(
+        DropTokenOrError(TokenKind::kColon, /*start=*/nullptr,
+                         "Expect type annotation on for-loop values."));
+    XLS_ASSIGN_OR_RETURN(types, ParseTypeAnnotation(for_bindings));
+  }
+
+  XLS_RETURN_IF_ERROR(DropKeywordOrError(Keyword::kIn));
+  XLS_ASSIGN_OR_RETURN(Expr * iterable, ParseExpression(bindings));
+  XLS_ASSIGN_OR_RETURN(StatementBlock * body,
+                       ParseBlockExpression(for_bindings));
+  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
+  XLS_ASSIGN_OR_RETURN(Expr * init, ParseExpression(bindings));
+  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
+
+  return module_->Make<For>(Span(const_for.span().start(), GetPos()),
+                                 names, types, iterable, body, init,
+                                 /*is_const=*/true);
+}
+
 absl::StatusOr<UnrollFor*> Parser::ParseUnrollFor(Bindings& bindings) {
   XLS_ASSIGN_OR_RETURN(Token unroll_for,
                        PopKeywordOrError(Keyword::kUnrollFor));
@@ -4213,7 +4245,8 @@ absl::StatusOr<StatementBlock*> Parser::ParseBlockExpression(
         XLS_ASSIGN_OR_RETURN(const Token* peek_1, PeekToken(1));
         // handle the case when const is a regular constant, otherwise
         // it is a modifier and should be handled as expression with bindings
-        if (!peek_1->IsKeyword(Keyword::kIf)) {
+        if (!peek_1->IsKeyword(Keyword::kIf) &&
+            !peek_1->IsKeyword(Keyword::kFor)) {
           XLS_ASSIGN_OR_RETURN(Let * let, ParseLet(block_bindings));
           stmts.push_back(module_->Make<Statement>(let));
           last_expr_had_trailing_semi = true;

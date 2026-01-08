@@ -2308,6 +2308,15 @@ TEST_F(ParserTest, For) {
                 {"range"});
 }
 
+TEST_F(ParserTest, ConstFor) {
+  RoundTripExpr(R"({
+    let accum = const for (i, accum): (u32, u32) in u32:0..u32:4 {
+        accum + i;
+    }(u32:0);
+    accum
+})");
+}
+
 TEST_F(ParserTest, ForSansTypeAnnotation) {
   RoundTripExpr(
       R"({

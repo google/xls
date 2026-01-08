@@ -574,6 +574,19 @@ TEST_F(IrConverterTest, CountedFor) {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, ConstFor) {
+  constexpr std::string_view program =
+      R"(fn f() -> u32 {
+  const for (i, accum): (u32, u32) in u32:0..u32:4 {
+    accum + i
+  }(u32:0)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(program, "f"));
+  ExpectIr(converted);
+}
+
 TEST_F(IrConverterTest, ForOverArrayOfItems) {
   constexpr std::string_view program = R"(
 fn main(a: (u7, u7)[3]) -> u7 {

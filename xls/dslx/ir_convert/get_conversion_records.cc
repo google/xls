@@ -240,6 +240,19 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  absl::Status HandleFor(const For* expr) override {
+    if (!expr->IsConst()) {
+      return absl::OkStatus();
+    }
+
+    VLOG(5) << "HandleFor " << expr->ToString();
+    std::vector<Expr*> unrolled = type_info_->GetAllUnrolledLoops(expr);
+    for (const auto& expr : unrolled) {
+      XLS_RETURN_IF_ERROR(expr->Accept(this));
+    }
+    return absl::OkStatus();
+  }
+
   absl::Status HandleUnrollFor(const UnrollFor* unroll_for) override {
     VLOG(5) << "HandleUnrollFor " << unroll_for->ToString();
 

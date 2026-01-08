@@ -302,6 +302,22 @@ absl::Status ProcConfigIrConverter::HandleStructInstance(
   return absl::OkStatus();
 }
 
+absl::Status ProcConfigIrConverter::HandleFor(const For* node) {
+  if (!node->IsConst()) {
+    return absl::OkStatus();
+  }
+  VLOG(4) << "ProcConfigIrConverter::HandleFor : " << node->ToString();
+  std::optional<const Expr*> unrolled =
+      type_info_->GetUnrolledLoop(node, bindings_);
+  if (unrolled.has_value()) {
+    XLS_RETURN_IF_ERROR((*unrolled)->Accept(this));
+    return absl::OkStatus();
+  }
+  return absl::InvalidArgumentError(
+      absl::StrCat("const for should have been unrolled by now at: ",
+                   node->span().ToString(file_table())));
+}
+
 absl::Status ProcConfigIrConverter::HandleUnrollFor(const UnrollFor* node) {
   VLOG(4) << "ProcConfigIrConverter::HandleUnrollFor : " << node->ToString();
   std::optional<const Expr*> unrolled =

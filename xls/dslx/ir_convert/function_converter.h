@@ -310,7 +310,7 @@ class FunctionConverter {
   int64_t GetAndBumpCountedForCount() { return counted_for_count_++; }
 
   // Gets the unrolled version of the given for loop for the current context.
-  std::optional<const Expr*> GetUnrolledForLoop(const UnrollFor* loop);
+  std::optional<const Expr*> GetUnrolledForLoop(const ForLoopBase* loop);
 
   std::optional<InterpValue> GetParametricBinding(
       std::string_view identifier) const {
@@ -379,6 +379,7 @@ class FunctionConverter {
   absl::Status HandleConstantDef(const ConstantDef* node);
 
   absl::Status HandleFor(const For* node);
+  absl::Status HandleConstFor(const For* node);
   absl::Status HandleFormatMacro(const FormatMacro* node);
 
   // Helper that adds a parameter for the induction variable node for a ranged
