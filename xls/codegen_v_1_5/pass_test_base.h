@@ -79,7 +79,7 @@ class PassTestBase : public IrTestBase {
     XLS_ASSIGN_OR_RETURN(bool result,
                          pass.Run(package.get(), options, &results));
 
-    XLS_RET_CHECK(expect_change == result);
+    XLS_RET_CHECK_EQ(expect_change, result);
 
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> round_tripped_package,
                          Parser::ParsePackageNoVerify(package->DumpIr()));

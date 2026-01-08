@@ -80,6 +80,11 @@ absl::StatusOr<bool> SchedulingPass::RunInternal(
   for (FunctionBase* old_fb : package->GetFunctionBases()) {
     FunctionBase* new_fb = nullptr;
     if (old_fb->IsFunction()) {
+      if (old_fb->ForeignFunctionData().has_value()) {
+        // This isn't a real function; it's a placeholder for a foreign
+        // function that will be replaced late in codegen.
+        continue;
+      }
       Function* new_fn = package->AddFunction(
           std::make_unique<ScheduledFunction>(old_fb->name(), package));
       new_fb = new_fn;

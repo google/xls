@@ -807,8 +807,7 @@ bool ExtendOp::IsDefinitelyEqualTo(const Node* other) const {
 Invoke::Invoke(const SourceInfo& loc, absl::Span<Node* const> args,
                Function* to_apply, std::string_view name,
                FunctionBase* function)
-    : Node(Op::kInvoke, to_apply->return_value()->GetType(), loc, name,
-           function),
+    : Node(Op::kInvoke, to_apply->return_type(), loc, name, function),
       to_apply_(to_apply) {
   CHECK(IsOpClass<Invoke>(op_))
       << "Op `" << op_ << "` is not a valid op for Node class `Invoke`.";
