@@ -661,6 +661,15 @@ absl::Status Proc::RemoveChannel(Channel* channel) {
   return absl::OkStatus();
 }
 
+absl::Status Proc::RemoveAllChannelsAndInterfaces() {
+  XLS_RET_CHECK(is_new_style_proc());
+  channel_interfaces_.clear();
+  channels_.clear();
+  channel_vec_.clear();
+  interface_.clear();
+  return absl::OkStatus();
+}
+
 absl::StatusOr<Channel*> Proc::GetChannel(std::string_view name) {
   XLS_RET_CHECK(is_new_style_proc());
   auto it = channels_.find(name);

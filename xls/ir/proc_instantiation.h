@@ -45,6 +45,10 @@ class ProcInstantiation {
     return channel_args_;
   }
 
+  // Allows a pass that replaces procs to update instantiations targeting a
+  // replaced proc.
+  void set_proc(Proc* proc) { proc_ = proc; }
+
   // Returns the instantiated proc.
   Proc* proc() const { return proc_; }
 

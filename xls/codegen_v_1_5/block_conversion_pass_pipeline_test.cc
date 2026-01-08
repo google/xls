@@ -7039,8 +7039,7 @@ absl::StatusOr<Proc*> CreateNewStyleAccumProc(std::string_view proc_name,
   return pb.Build({next_accum});
 }
 
-TEST_F(ProcConversionTestFixture,
-       DISABLED_TrivialProcHierarchyWithProcScopedChannels) {
+TEST_F(ProcConversionTestFixture, TrivialProcHierarchyWithProcScopedChannels) {
   // Construct a proc which instantiates one proc which accumulates its inputs.
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Proc * leaf_proc,
@@ -7171,7 +7170,7 @@ TEST_F(ProcConversionTestFixture,
   }
 }
 
-TEST_F(ProcConversionTestFixture, DISABLED_MultiplyInstantiatedProc) {
+TEST_F(ProcConversionTestFixture, MultiplyInstantiatedProc) {
   Package p(TestName());
   XLS_ASSERT_OK_AND_ASSIGN(Proc * leaf_proc,
                            CreateNewStyleAccumProc("leaf_proc", &p));
@@ -7267,7 +7266,7 @@ TEST_F(ProcConversionTestFixture, DISABLED_MultiplyInstantiatedProc) {
               IsOkAndHolds(ElementsAre(1, 3, 8)));
 }
 
-TEST_F(ProcConversionTestFixture, DISABLED_DeclaredChannelInProc) {
+TEST_F(ProcConversionTestFixture, DeclaredChannelInProc) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Proc * leaf_proc,
                            CreateNewStyleAccumProc("leaf_proc", p.get()));

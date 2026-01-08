@@ -1673,15 +1673,6 @@ absl::StatusOr<bool> LowerIoToPorts(
           connector, directed_channel.first, block, options));
     }
 
-    // If this is a proc-scoped channel interface, remove it now that it is no
-    // longer used.
-    if (std::holds_alternative<ChannelInterface*>(directed_channel.first) &&
-        connector.kind == ConnectionKind::kExternal) {
-      XLS_RETURN_IF_ERROR(
-          block->source()->AsProcOrDie()->RemoveChannelInterface(
-              std::get<ChannelInterface*>(directed_channel.first)));
-    }
-
     changed = true;
   }
 
@@ -1721,7 +1712,6 @@ absl::StatusOr<bool> ChannelToPortIoLoweringPass::RunInternal(
         !scheduled_block->source()->IsProc()) {
       continue;
     }
-    Proc* source = scheduled_block->source()->AsProcOrDie();
 
     XLS_ASSIGN_OR_RETURN((auto [changed_connections, connections]),
                          LowerChannelsToConnectors(scheduled_block, options));
@@ -1730,16 +1720,6 @@ absl::StatusOr<bool> ChannelToPortIoLoweringPass::RunInternal(
     XLS_ASSIGN_OR_RETURN(bool changed_io,
                          LowerIoToPorts(scheduled_block, connections, options));
     changed |= changed_io;
-
-    // Make sure to delete any remaining channels owned by the source proc.
-    if (source->is_new_style_proc()) {
-      std::vector<Channel*> channels_to_remove(source->channels().begin(),
-                                               source->channels().end());
-      for (Channel* channel : channels_to_remove) {
-        XLS_RETURN_IF_ERROR(source->RemoveChannel(channel));
-        changed = true;
-      }
-    }
   }
 
   // Make sure to remove any now-dead channels in the package.

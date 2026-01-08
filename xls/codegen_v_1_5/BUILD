@@ -48,6 +48,7 @@ cc_library(
         ":function_io_lowering_pass",
         ":idle_insertion_pass",
         ":pipeline_register_insertion_pass",
+        ":proc_instantiation_lowering_pass",
         ":register_cleanup_pass",
         ":scheduled_block_conversion_pass",
         ":scheduling_pass",
@@ -57,6 +58,19 @@ cc_library(
         "//xls/passes:dce_pass",
         "//xls/passes:identity_removal_pass",
         "//xls/passes:optimization_pass",
+    ],
+)
+
+cc_library(
+    name = "block_conversion_utils",
+    srcs = ["block_conversion_utils.cc"],
+    hdrs = ["block_conversion_utils.h"],
+    deps = [
+        "//xls/common:casts",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -503,6 +517,58 @@ cc_test(
 )
 
 cc_library(
+    name = "proc_instantiation_lowering_pass",
+    srcs = ["proc_instantiation_lowering_pass.cc"],
+    hdrs = ["proc_instantiation_lowering_pass.h"],
+    deps = [
+        ":block_conversion_pass",
+        ":block_conversion_utils",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:channel",
+        "//xls/passes:pass_base",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "proc_instantiation_lowering_pass_test",
+    srcs = ["proc_instantiation_lowering_pass_test.cc"],
+    deps = [
+        ":block_conversion_pass",
+        ":block_conversion_utils",
+        ":channel_to_port_io_lowering_pass",
+        ":proc_instantiation_lowering_pass",
+        ":scheduled_block_conversion_pass",
+        ":scheduling_pass",
+        ":state_to_register_io_lowering_pass",
+        "//xls/codegen:codegen_options",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:channel",
+        "//xls/ir:channel_ops",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:proc_elaboration",
+        "//xls/ir:verifier",
+        "//xls/passes:pass_base",
+        "//xls/scheduling:scheduling_options",
+        "//xls/scheduling:scheduling_result",
+        "//xls/tools:codegen",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "state_to_register_io_lowering_pass",
     srcs = ["state_to_register_io_lowering_pass.cc"],
     hdrs = ["state_to_register_io_lowering_pass.h"],
@@ -553,6 +619,7 @@ cc_library(
     hdrs = ["scheduling_pass.h"],
     deps = [
         ":block_conversion_pass",
+        ":block_conversion_utils",
         "//xls/common:casts",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -561,6 +628,7 @@ cc_library(
         "//xls/passes:pass_base",
         "//xls/scheduling:pipeline_schedule",
         "//xls/scheduling:pipeline_schedule_cc_proto",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
     ],
@@ -589,6 +657,7 @@ cc_library(
     hdrs = ["scheduled_block_conversion_pass.h"],
     deps = [
         ":block_conversion_pass",
+        ":block_conversion_utils",
         "//xls/codegen:codegen_options",
         "//xls/common:casts",
         "//xls/common/status:status_macros",
@@ -599,6 +668,7 @@ cc_library(
         "//xls/ir:value",
         "//xls/passes:pass_base",
         "//xls/scheduling:pipeline_schedule_cc_proto",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

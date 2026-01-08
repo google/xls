@@ -27,6 +27,7 @@
 #include "xls/codegen_v_1_5/function_io_lowering_pass.h"
 #include "xls/codegen_v_1_5/idle_insertion_pass.h"
 #include "xls/codegen_v_1_5/pipeline_register_insertion_pass.h"
+#include "xls/codegen_v_1_5/proc_instantiation_lowering_pass.h"
 #include "xls/codegen_v_1_5/register_cleanup_pass.h"
 #include "xls/codegen_v_1_5/scheduled_block_conversion_pass.h"
 #include "xls/codegen_v_1_5/scheduling_pass.h"
@@ -70,6 +71,9 @@ std::unique_ptr<BlockConversionCompoundPass> CreateBlockConversionPassPipeline(
 
   // Add idle signal output if requested.
   top->Add<IdleInsertionPass>();
+
+  // Lower proc instantiations to block instantiations.
+  top->Add<ProcInstantiationLoweringPass>();
 
   // Lower scheduled block to standard block, inlining each stage.
   top->Add<BlockFinalizationPass>();
