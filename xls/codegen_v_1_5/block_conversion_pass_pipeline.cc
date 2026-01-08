@@ -55,6 +55,9 @@ std::unique_ptr<BlockConversionCompoundPass> CreateBlockConversionPassPipeline(
   // Update assert conditions to be guarded by stage_done signals.
   top->Add<SideEffectConditionPass>();
 
+  // Add pipeline registers for data flowing between stages.
+  top->Add<PipelineRegisterInsertionPass>();
+
   // Lower state reads/writes to register read/writes.
   top->Add<StateToRegisterIoLoweringPass>();
 
@@ -69,9 +72,6 @@ std::unique_ptr<BlockConversionCompoundPass> CreateBlockConversionPassPipeline(
 
   // Insert flow control between stages.
   top->Add<FlowControlInsertionPass>();
-
-  // Add pipeline registers for data flowing between stages.
-  top->Add<PipelineRegisterInsertionPass>();
 
   // Add idle signal output if requested.
   top->Add<IdleInsertionPass>();
