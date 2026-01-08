@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/optimization.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/types/span.h"
@@ -58,14 +59,24 @@ class CodegenOptions {
   static int64_t IOKindLatency(IOKind kind) {
     switch (kind) {
       case IOKind::kFlop:
-        return 1;
       case IOKind::kSkidBuffer:
         return 1;
       case IOKind::kZeroLatencyBuffer:
         return 0;
-      default:
-        return 9999;
     }
+    ABSL_UNREACHABLE();
+  }
+
+  static int64_t FlopKindLatency(FlopKind kind) {
+    switch (kind) {
+      case FlopKind::kNone:
+      case FlopKind::kZeroLatency:
+        return 0;
+      case FlopKind::kFlop:
+      case FlopKind::kSkid:
+        return 1;
+    }
+    ABSL_UNREACHABLE();
   }
 
   // TODO(allight): Merge these two enums.

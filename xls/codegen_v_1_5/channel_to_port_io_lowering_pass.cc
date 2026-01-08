@@ -266,6 +266,67 @@ GetLoopbackChannels(ScheduledBlock* block) {
   return loopback_channels;
 }
 
+FlopKind GetDefaultFlopKind(bool enabled,
+                            ::xls::verilog::CodegenOptions::IOKind kind) {
+  if (!enabled) {
+    return FlopKind::kNone;
+  }
+  return ::xls::verilog::CodegenOptions::IOKindToFlopKind(kind);
+}
+
+absl::StatusOr<FlopKind> GetFlopKind(
+    ChannelRef channel, ChannelDirection direction, ScheduledBlock* block,
+    const BlockConversionPassOptions& options) {
+  if (ChannelRefKind(channel) == ChannelKind::kSingleValue) {
+    // NOTE: We control the flop insertion for single-value channels globally,
+    // with no per-channel configuration. This matches the behavior in codegen
+    // v1.0.
+    if (!options.codegen_options.flop_single_value_channels()) {
+      return FlopKind::kNone;
+    }
+    switch (direction) {
+      case ChannelDirection::kSend: {
+        if (!options.codegen_options.flop_outputs()) {
+          return FlopKind::kNone;
+        }
+        return FlopKind::kFlop;
+      }
+      case ChannelDirection::kReceive: {
+        if (!options.codegen_options.flop_inputs()) {
+          return FlopKind::kNone;
+        }
+        return FlopKind::kFlop;
+      }
+    }
+    ABSL_UNREACHABLE();
+    return absl::InternalError(
+        absl::StrFormat("Unknown channel direction %d", direction));
+  }
+
+  if (std::holds_alternative<Channel*>(channel)) {
+    XLS_RET_CHECK(!block->package()->ChannelsAreProcScoped())
+        << "For proc-scoped channels, the flop kind is set on the interface.";
+    XLS_RET_CHECK_EQ(ChannelRefKind(channel), ChannelKind::kStreaming);
+    StreamingChannel* streaming_channel =
+        down_cast<StreamingChannel*>(std::get<Channel*>(channel));
+    switch (direction) {
+      case ChannelDirection::kSend:
+        return streaming_channel->channel_config().output_flop_kind().value_or(
+            GetDefaultFlopKind(options.codegen_options.flop_outputs(),
+                               options.codegen_options.flop_outputs_kind()));
+      case ChannelDirection::kReceive:
+        return streaming_channel->channel_config().input_flop_kind().value_or(
+            GetDefaultFlopKind(options.codegen_options.flop_inputs(),
+                               options.codegen_options.flop_inputs_kind()));
+    }
+    ABSL_UNREACHABLE();
+    return absl::InternalError(
+        absl::StrFormat("Unknown channel direction %d", direction));
+  } else {
+    return std::get<ChannelInterface*>(channel)->flop_kind();
+  }
+}
+
 absl::StatusOr<Connector> AddPortsForSend(
     ChannelRef channel, ScheduledBlock* block,
     const BlockConversionPassOptions& options) {
@@ -317,12 +378,15 @@ absl::StatusOr<Connector> AddPortsForSend(
                       .valid = valid,
                       .ready = ready};
 
+  XLS_ASSIGN_OR_RETURN(
+      FlopKind flop_kind,
+      GetFlopKind(channel, ChannelDirection::kSend, block, options));
   XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
       ChannelPortMetadata{.channel_name = std::string(ChannelRefName(channel)),
                           .type = ChannelRefType(channel),
                           .direction = ChannelDirection::kSend,
                           .channel_kind = ChannelRefKind(channel),
-                          .flop_kind = FlopKind::kNone,
+                          .flop_kind = flop_kind,
                           .data_port = data->GetName(),
                           .valid_port = GetOptionalNodeName(valid),
                           .ready_port = GetOptionalNodeName(ready)}));
@@ -378,12 +442,15 @@ absl::StatusOr<Connector> AddPortsForReceive(
                       .valid = valid,
                       .ready = ready};
 
+  XLS_ASSIGN_OR_RETURN(
+      FlopKind flop_kind,
+      GetFlopKind(channel, ChannelDirection::kReceive, block, options));
   XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
       ChannelPortMetadata{.channel_name = std::string(ChannelRefName(channel)),
                           .type = ChannelRefType(channel),
                           .direction = ChannelDirection::kReceive,
                           .channel_kind = ChannelRefKind(channel),
-                          .flop_kind = FlopKind::kNone,
+                          .flop_kind = flop_kind,
                           .data_port = data->GetName(),
                           .valid_port = GetOptionalNodeName(valid),
                           .ready_port = GetOptionalNodeName(ready)}));
@@ -1121,67 +1188,6 @@ absl::flat_hash_set<std::string> GetRamChannelNames(
     }
   }
   return ram_channel_names;
-}
-
-FlopKind GetDefaultFlopKind(bool enabled,
-                            ::xls::verilog::CodegenOptions::IOKind kind) {
-  if (!enabled) {
-    return FlopKind::kNone;
-  }
-  return ::xls::verilog::CodegenOptions::IOKindToFlopKind(kind);
-}
-
-absl::StatusOr<FlopKind> GetFlopKind(
-    ChannelRef channel, ChannelDirection direction, ScheduledBlock* block,
-    const BlockConversionPassOptions& options) {
-  if (ChannelRefKind(channel) == ChannelKind::kSingleValue) {
-    // NOTE: We control the flop insertion for single-value channels globally,
-    // with no per-channel configuration. This matches the behavior in codegen
-    // v1.0.
-    if (!options.codegen_options.flop_single_value_channels()) {
-      return FlopKind::kNone;
-    }
-    switch (direction) {
-      case ChannelDirection::kSend: {
-        if (!options.codegen_options.flop_outputs()) {
-          return FlopKind::kNone;
-        }
-        return FlopKind::kFlop;
-      }
-      case ChannelDirection::kReceive: {
-        if (!options.codegen_options.flop_inputs()) {
-          return FlopKind::kNone;
-        }
-        return FlopKind::kFlop;
-      }
-    }
-    ABSL_UNREACHABLE();
-    return absl::InternalError(
-        absl::StrFormat("Unknown channel direction %d", direction));
-  }
-
-  if (std::holds_alternative<Channel*>(channel)) {
-    XLS_RET_CHECK(!block->package()->ChannelsAreProcScoped())
-        << "For proc-scoped channels, the flop kind is set on the interface.";
-    XLS_RET_CHECK_EQ(ChannelRefKind(channel), ChannelKind::kStreaming);
-    StreamingChannel* streaming_channel =
-        down_cast<StreamingChannel*>(std::get<Channel*>(channel));
-    switch (direction) {
-      case ChannelDirection::kSend:
-        return streaming_channel->channel_config().output_flop_kind().value_or(
-            GetDefaultFlopKind(options.codegen_options.flop_outputs(),
-                               options.codegen_options.flop_outputs_kind()));
-      case ChannelDirection::kReceive:
-        return streaming_channel->channel_config().input_flop_kind().value_or(
-            GetDefaultFlopKind(options.codegen_options.flop_inputs(),
-                               options.codegen_options.flop_inputs_kind()));
-    }
-    ABSL_UNREACHABLE();
-    return absl::InternalError(
-        absl::StrFormat("Unknown channel direction %d", direction));
-  } else {
-    return std::get<ChannelInterface*>(channel)->flop_kind();
-  }
 }
 
 // Adds a register between the node and all its downstream users.

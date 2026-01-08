@@ -42,6 +42,7 @@
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "google/protobuf/text_format.h"
+#include "xls/codegen/module_signature.pb.h"
 #include "xls/common/casts.h"
 #include "xls/common/indent.h"
 #include "xls/common/status/ret_check.h"
@@ -1328,6 +1329,16 @@ absl::StatusOr<Block*> Block::Clone(
       correct_ordering.push_back(std::string(port->name()));
     }
     XLS_RETURN_IF_ERROR(cloned_block->ReorderOutputPorts(correct_ordering));
+  }
+
+  if (const std::optional<verilog::ModuleSignatureProto>& signature =
+          GetSignature();
+      signature.has_value()) {
+    cloned_block->SetSignature(*signature);
+  }
+  if (std::optional<int64_t> initiation_interval = GetInitiationInterval();
+      initiation_interval.has_value()) {
+    cloned_block->SetInitiationInterval(*initiation_interval);
   }
 
   if (IsScheduled() && preserve_schedule) {

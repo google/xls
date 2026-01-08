@@ -141,7 +141,7 @@ class BlockConversionTest : public BlockConversionTestFixture {
   }
 
   CodegenOptions codegen_options() {
-    return CodegenOptions().module_name(TestName());
+    return CodegenOptions().module_name(TestName()).clock_name("clk");
   }
 
   absl::StatusOr<Block*> ConvertToBlock(

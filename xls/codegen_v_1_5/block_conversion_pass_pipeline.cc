@@ -32,6 +32,7 @@
 #include "xls/codegen_v_1_5/scheduled_block_conversion_pass.h"
 #include "xls/codegen_v_1_5/scheduling_pass.h"
 #include "xls/codegen_v_1_5/side_effect_condition_pass.h"
+#include "xls/codegen_v_1_5/signature_generation_pass.h"
 #include "xls/codegen_v_1_5/state_to_register_io_lowering_pass.h"
 #include "xls/passes/dataflow_simplification_pass.h"
 #include "xls/passes/dce_pass.h"
@@ -62,6 +63,9 @@ std::unique_ptr<BlockConversionCompoundPass> CreateBlockConversionPassPipeline(
 
   // Lower params and return values to ports.
   top->Add<FunctionIOLoweringPass>();
+
+  // Add module signatures.
+  top->Add<SignatureGenerationPass>();
 
   // Insert flow control between stages.
   top->Add<FlowControlInsertionPass>();

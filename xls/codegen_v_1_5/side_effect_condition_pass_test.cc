@@ -121,7 +121,10 @@ class SideEffectConditionPassTest
 
   static BlockConversionPassOptions CreateBlockConversionPassOptions(
       ::xls::verilog::CodegenOptions codegen_options =
-          ::xls::verilog::CodegenOptions().clock_name("clk")) {
+          ::xls::verilog::CodegenOptions()) {
+    if (codegen_options.clock_name().value_or("").empty()) {
+      codegen_options.clock_name("clk");
+    }
     return BlockConversionPassOptions{
         .codegen_options = std::move(codegen_options),
         .package_schedule = {},
