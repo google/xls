@@ -63,7 +63,7 @@ namespace {
 // sections may be empty after it runs.
 class StageSectioner : public DfsVisitorWithDefault {
  public:
-  StageSectioner(const FunctionBase* fb)
+  explicit StageSectioner(const FunctionBase* fb)
       : fb_(fb), sections_(fb->stages().size() * 2 + 1) {}
 
   absl::Status Run() {

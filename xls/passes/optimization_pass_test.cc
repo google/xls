@@ -890,7 +890,7 @@ TEST_F(OptimizationContextTest, SharedQueryEngineWithArgs) {
 class TestListener final : public ChangeListener {
  public:
   TestListener() : v_(42) {}
-  TestListener(int64_t v) : v_(v) {}
+  explicit TestListener(int64_t v) : v_(v) {}
   absl::StatusOr<bool> Attach(FunctionBase* f) {
     XLS_RET_CHECK_LT(v_, 50);
     return true;

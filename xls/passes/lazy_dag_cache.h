@@ -76,7 +76,7 @@ class LazyDagCache {
     DagProvider()
         : invalidate_direction_(
               DagCacheInvalidateDirection::kInvalidatesUsers) {}
-    DagProvider(DagCacheInvalidateDirection invalidate_direction)
+    explicit DagProvider(DagCacheInvalidateDirection invalidate_direction)
         : invalidate_direction_(invalidate_direction) {}
     virtual ~DagProvider() = default;
 

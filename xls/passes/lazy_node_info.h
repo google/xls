@@ -32,7 +32,7 @@ namespace xls {
 template <typename Info>
 class LazyNodeInfo : public LazyNodeData<LeafTypeTree<Info>> {
  public:
-  LazyNodeInfo(DagCacheInvalidateDirection direction)
+  explicit LazyNodeInfo(DagCacheInvalidateDirection direction)
       : LazyNodeData<LeafTypeTree<Info>>(direction) {}
 
   // Users must implement ComputeInfo (inherited) and MergeWithGiven.
