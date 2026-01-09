@@ -16,12 +16,15 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
 #include "xls/codegen_v_1_5/block_finalization_pass.h"
@@ -30,6 +33,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/register.h"
@@ -38,11 +42,32 @@
 #include "xls/ir/value.h"
 #include "xls/passes/pass_base.h"
 
+namespace m = xls::op_matchers;
+
+namespace m2 {
+MATCHER_P2(Register, name, type,
+           absl::StrCat("Register with name ",
+                        testing::DescribeMatcher<std::string>(name, negation),
+                        " and type ",
+                        testing::DescribeMatcher<xls::Type*>(type, negation))) {
+  if (!testing::ExplainMatchResult(name, arg->name(), result_listener)) {
+    *result_listener << "where register name is " << arg->name();
+    return false;
+  }
+  if (!testing::ExplainMatchResult(type, arg->type(), result_listener)) {
+    *result_listener << "where register type is " << arg->type()->ToString();
+    return false;
+  }
+  return true;
+}
+}  // namespace m2
+
 namespace xls::codegen {
 namespace {
 
 using ::absl_testing::IsOkAndHolds;
 using ::testing::ElementsAre;
+using ::testing::IsEmpty;
 using ::testing::Pair;
 using ::testing::UnorderedElementsAre;
 
@@ -77,7 +102,7 @@ TEST_F(PipelineRegisterInsertionPassTest, TestNoCrossStageUses) {
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
-  EXPECT_EQ(sb->GetRegisters().size(), 0);
+  EXPECT_THAT(sb->GetRegisters(), IsEmpty());
 }
 
 TEST_F(PipelineRegisterInsertionPassTest, TestSingleStageForwarding) {
@@ -99,9 +124,8 @@ TEST_F(PipelineRegisterInsertionPassTest, TestSingleStageForwarding) {
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_EQ(sb->GetRegisters().size(), 1);
-  XLS_ASSERT_OK_AND_ASSIGN(Register * reg, sb->GetRegister("p0_v0"));
-  EXPECT_EQ(reg->type(), p->GetBitsType(32));
+  EXPECT_THAT(sb->GetRegisters(),
+              ElementsAre(m2::Register("p0_v0", m::Type("bits[32]"))));
 }
 
 TEST_F(PipelineRegisterInsertionPassTest, TestMultiStageForwarding) {
@@ -126,11 +150,9 @@ TEST_F(PipelineRegisterInsertionPassTest, TestMultiStageForwarding) {
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_EQ(sb->GetRegisters().size(), 2);
-  XLS_ASSERT_OK_AND_ASSIGN(Register * reg0, sb->GetRegister("p0_v0"));
-  XLS_ASSERT_OK_AND_ASSIGN(Register * reg1, sb->GetRegister("p1_v0"));
-  EXPECT_EQ(reg0->type(), p->GetBitsType(32));
-  EXPECT_EQ(reg1->type(), p->GetBitsType(32));
+  EXPECT_THAT(sb->GetRegisters(),
+              ElementsAre(m2::Register("p0_v0", m::Type("bits[32]")),
+                          m2::Register("p1_v0", m::Type("bits[32]"))));
 }
 
 TEST_F(PipelineRegisterInsertionPassTest, TestFanoutToDifferentStages) {
@@ -157,11 +179,9 @@ TEST_F(PipelineRegisterInsertionPassTest, TestFanoutToDifferentStages) {
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_EQ(sb->GetRegisters().size(), 2);
-  XLS_ASSERT_OK_AND_ASSIGN(Register * reg0, sb->GetRegister("p0_v0"));
-  XLS_ASSERT_OK_AND_ASSIGN(Register * reg1, sb->GetRegister("p1_v0"));
-  EXPECT_EQ(reg0->type(), p->GetBitsType(32));
-  EXPECT_EQ(reg1->type(), p->GetBitsType(32));
+  EXPECT_THAT(sb->GetRegisters(),
+              ElementsAre(m2::Register("p0_v0", m::Type("bits[32]")),
+                          m2::Register("p1_v0", m::Type("bits[32]"))));
 }
 
 TEST_F(PipelineRegisterInsertionPassTest, TestTupleSplitting) {
@@ -185,13 +205,10 @@ TEST_F(PipelineRegisterInsertionPassTest, TestTupleSplitting) {
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_EQ(sb->GetRegisters().size(), 3);
-  XLS_ASSERT_OK_AND_ASSIGN(Register * reg0, sb->GetRegister("p0_v0_index0"));
-  XLS_ASSERT_OK_AND_ASSIGN(Register * reg1, sb->GetRegister("p0_v0_index1"));
-  XLS_ASSERT_OK_AND_ASSIGN(Register * reg2, sb->GetRegister("p0_v0_index2"));
-  EXPECT_EQ(reg0->type(), p->GetBitsType(32));
-  EXPECT_EQ(reg1->type(), p->GetBitsType(0));
-  EXPECT_EQ(reg2->type(), p->GetBitsType(8));
+  EXPECT_THAT(sb->GetRegisters(),
+              ElementsAre(m2::Register("p0_v0_index0", m::Type("bits[32]")),
+                          m2::Register("p0_v0_index1", m::Type("bits[0]")),
+                          m2::Register("p0_v0_index2", m::Type("bits[8]"))));
 }
 
 TEST_F(PipelineRegisterInsertionPassTest, TestPipelineSimulation) {
@@ -391,6 +408,346 @@ TEST_F(PipelineRegisterInsertionPassTest, TestPipelineBubble) {
                   UnorderedElementsAre(Pair("out", Value(UBits(11, 32)))),
                   UnorderedElementsAre(Pair("out", Value(UBits(41, 32)))),
                   UnorderedElementsAre(Pair("out", Value(UBits(51, 32))))));
+}
+
+TEST_F(PipelineRegisterInsertionPassTest, TestCombinedRegisters) {
+  auto p = CreatePackage();
+  ScheduledBlockBuilder sbb(TestName(), p.get());
+  Proc* source;
+  {
+    std::unique_ptr<Proc> owned_source = std::make_unique<Proc>(
+        absl::StrCat("__", TestName(), "_source"), p.get());
+    source = owned_source.get();
+    sbb.SetSource(std::move(owned_source));
+  }
+  XLS_ASSERT_OK(sbb.block()->AddClockPort("clk"));
+  BValue x = sbb.InputPort("x", p->GetBitsType(32));
+
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * source_acc, source->AppendStateElement(
+                                                  "acc", Value(UBits(0, 32))));
+  BValue acc = sbb.SourceNode(source_acc);
+  sbb.AddStateReadToCurrentStage(acc);
+  BValue v0 = sbb.Add(x, acc, SourceInfo(), "v0");
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  BValue neg_v0 = sbb.Negate(v0);
+  sbb.Next(acc, neg_v0);
+  sbb.OutputPort("out", neg_v0);
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(sb->GetRegisters(),
+              ElementsAre(m2::Register("p0_v0", m::Type("bits[32]"))));
+}
+
+TEST_F(PipelineRegisterInsertionPassTest, TestCombinedRegistersWithState) {
+  auto p = CreatePackage();
+  ScheduledBlockBuilder sbb(TestName(), p.get());
+  Proc* source;
+  {
+    std::unique_ptr<Proc> owned_source = std::make_unique<Proc>(
+        absl::StrCat("__", TestName(), "_source"), p.get());
+    source = owned_source.get();
+    sbb.SetSource(std::move(owned_source));
+  }
+  XLS_ASSERT_OK(sbb.block()->AddClockPort("clk"));
+  BValue x = sbb.InputPort("x", p->GetBitsType(32));
+
+  // Stage 0 - starts mutex region
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * source_acc, source->AppendStateElement(
+                                                  "acc", Value(UBits(0, 32))));
+  BValue acc = sbb.SourceNode(source_acc);
+  sbb.AddStateReadToCurrentStage(acc);
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  // Stage 1
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  // Stage 2
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  BValue v0 = sbb.Add(x, acc, SourceInfo(), "v0");
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  // Stage 3
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  // Stage 4 - ends mutex region
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  BValue neg_v0 = sbb.Negate(v0);
+  sbb.Next(acc, neg_v0);
+  sbb.OutputPort("out", neg_v0);
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  // Since the value of `acc` can't change until stage 4, stage 2 can directly
+  // read from `acc` rather than needing any pipeline registers. The result (v0)
+  // can be stored in a pipeline register & then used directly in stage 4, since
+  // stages 2-4 are mutually exclusive.
+  EXPECT_THAT(sb->GetRegisters(),
+              UnorderedElementsAre(m2::Register("p2_v0", m::Type("bits[32]"))));
+}
+
+TEST_F(PipelineRegisterInsertionPassTest,
+       TestCombinedRegistersWithPredicatedWrites) {
+  auto p = CreatePackage();
+  ScheduledBlockBuilder sbb(TestName(), p.get());
+  Proc* source;
+  {
+    std::unique_ptr<Proc> owned_source = std::make_unique<Proc>(
+        absl::StrCat("__", TestName(), "_source"), p.get());
+    source = owned_source.get();
+    sbb.SetSource(std::move(owned_source));
+  }
+  XLS_ASSERT_OK(sbb.block()->AddClockPort("clk"));
+  BValue x = sbb.InputPort("x", p->GetBitsType(32));
+
+  // Stage 0 - starts mutex region
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * source_acc, source->AppendStateElement(
+                                                  "acc", Value(UBits(0, 32))));
+  BValue acc = sbb.SourceNode(source_acc);
+  sbb.AddStateReadToCurrentStage(acc);
+  BValue v0 = sbb.Add(x, acc, SourceInfo(), "v0");
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  // Stage 1
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  // Stage 2 - ends mutex region
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.Next(acc, v0, /*pred=*/sbb.Eq(v0, sbb.Literal(UBits(0, 32))));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  // Stage 3
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  // Stage 4
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  BValue neg_v0 = sbb.Negate(v0);
+  sbb.Next(acc, neg_v0, /*pred=*/sbb.Ne(v0, sbb.Literal(UBits(0, 32))));
+  sbb.OutputPort("out", neg_v0);
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(sb->GetRegisters(),
+              ElementsAre(m2::Register("p0_v0", m::Type("bits[32]")),
+                          m2::Register("p2_v0", m::Type("bits[32]")),
+                          m2::Register("p3_v0", m::Type("bits[32]"))))
+      << "actual registers: "
+      << absl::StrJoin(sb->GetRegisters(), ", ",
+                       [](std::string* out, const Register* reg) {
+                         absl::StrAppend(out, reg->ToString());
+                       });
+}
+
+TEST_F(PipelineRegisterInsertionPassTest,
+       TestCombinedRegistersWithCloselyOverlappingMutexRegions) {
+  auto p = CreatePackage();
+  ScheduledBlockBuilder sbb(TestName(), p.get());
+  Proc* source;
+  {
+    std::unique_ptr<Proc> owned_source = std::make_unique<Proc>(
+        absl::StrCat("__", TestName(), "_source"), p.get());
+    source = owned_source.get();
+    sbb.SetSource(std::move(owned_source));
+  }
+  XLS_ASSERT_OK(sbb.block()->AddClockPort("clk"));
+  BValue x = sbb.InputPort("x", p->GetBitsType(32));
+
+  // Stage 0 - starts mutex region 1
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * source_acc, source->AppendStateElement(
+                                                  "acc", Value(UBits(0, 32))));
+  BValue acc = sbb.SourceNode(source_acc);
+  sbb.AddStateReadToCurrentStage(acc);
+  BValue v0 = sbb.Add(x, acc, SourceInfo(), "v0");
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  // Stage 1 - starts mutex region 2
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * source_z, source->AppendStateElement("z", Value(UBits(0, 32))));
+  BValue z = sbb.SourceNode(source_z);
+  sbb.AddStateReadToCurrentStage(z);
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  // Stage 2 - ends mutex region 1
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.Next(acc, v0);
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  // Stage 3
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  // Stage 4
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  // Stage 5 - ends mutex region 2
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.Next(z, sbb.Literal(UBits(1, 32)));
+  BValue neg_v0 = sbb.Negate(v0);
+  sbb.OutputPort("out", neg_v0);
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(sb->GetRegisters(),
+              UnorderedElementsAre(m2::Register("p0_v0", m::Type("bits[32]")),
+                                   m2::Register("p2_v0", m::Type("bits[32]"))))
+      << "actual registers: "
+      << absl::StrJoin(sb->GetRegisters(), ", ",
+                       [](std::string* out, const Register* reg) {
+                         absl::StrAppend(out, reg->ToString());
+                       });
+}
+
+TEST_F(PipelineRegisterInsertionPassTest,
+       TestCombinedRegistersWithDistantOverlappingMutexRegions) {
+  auto p = CreatePackage();
+  ScheduledBlockBuilder sbb(TestName(), p.get());
+  Proc* source;
+  {
+    std::unique_ptr<Proc> owned_source = std::make_unique<Proc>(
+        absl::StrCat("__", TestName(), "_source"), p.get());
+    source = owned_source.get();
+    sbb.SetSource(std::move(owned_source));
+  }
+  XLS_ASSERT_OK(sbb.block()->AddClockPort("clk"));
+  BValue x = sbb.InputPort("x", p->GetBitsType(32));
+
+  // Stage 0 - starts mutex region 1
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * source_acc, source->AppendStateElement(
+                                                  "acc", Value(UBits(0, 32))));
+  BValue acc = sbb.SourceNode(source_acc);
+  sbb.AddStateReadToCurrentStage(acc);
+  BValue v0 = sbb.Add(x, acc, SourceInfo(), "v0");
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  // Stage 1
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  // Stage 2 - ends mutex region 1, starts mutex region 2
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * source_z, source->AppendStateElement("z", Value(UBits(0, 32))));
+  BValue z = sbb.SourceNode(source_z);
+  sbb.AddStateReadToCurrentStage(z);
+  sbb.Next(acc, v0);
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  // Stage 3
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  // Stage 4
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  // Stage 5 - ends mutex region 2
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.Next(z, sbb.Literal(UBits(1, 32)));
+  BValue neg_v0 = sbb.Negate(v0);
+  sbb.OutputPort("out", neg_v0);
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(sb->GetRegisters(),
+              UnorderedElementsAre(m2::Register("p0_v0", m::Type("bits[32]")),
+                                   m2::Register("p2_v0", m::Type("bits[32]"))))
+      << "actual registers: "
+      << absl::StrJoin(sb->GetRegisters(), ", ",
+                       [](std::string* out, const Register* reg) {
+                         absl::StrAppend(out, reg->ToString());
+                       });
+}
+
+TEST_F(PipelineRegisterInsertionPassTest,
+       TestCombinedRegistersWithDisjointMutexRegions) {
+  auto p = CreatePackage();
+  ScheduledBlockBuilder sbb(TestName(), p.get());
+  Proc* source;
+  {
+    std::unique_ptr<Proc> owned_source = std::make_unique<Proc>(
+        absl::StrCat("__", TestName(), "_source"), p.get());
+    source = owned_source.get();
+    sbb.SetSource(std::move(owned_source));
+  }
+  XLS_ASSERT_OK(sbb.block()->AddClockPort("clk"));
+  BValue x = sbb.InputPort("x", p->GetBitsType(32));
+
+  // Stage 0 - starts mutex region 1
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * source_acc, source->AppendStateElement(
+                                                  "acc", Value(UBits(0, 32))));
+  BValue acc = sbb.SourceNode(source_acc);
+  sbb.AddStateReadToCurrentStage(acc);
+  BValue v0 = sbb.Add(x, acc, SourceInfo(), "v0");
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  // Stage 1
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  // Stage 2 - ends mutex region 2
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.Next(acc, v0);
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  // Stage 3 - starts mutex region 2
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * source_z, source->AppendStateElement("z", Value(UBits(0, 32))));
+  BValue z = sbb.SourceNode(source_z);
+  sbb.AddStateReadToCurrentStage(z);
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  // Stage 4
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  // Stage 5 - ends mutex region 2
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.Next(z, sbb.Literal(UBits(1, 32)));
+  BValue neg_v0 = sbb.Negate(v0);
+  sbb.OutputPort("out", neg_v0);
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(sb->GetRegisters(),
+              UnorderedElementsAre(m2::Register("p0_v0", m::Type("bits[32]")),
+                                   m2::Register("p2_v0", m::Type("bits[32]")),
+                                   m2::Register("p3_v0", m::Type("bits[32]"))))
+      << "actual registers: "
+      << absl::StrJoin(sb->GetRegisters(), ", ",
+                       [](std::string* out, const Register* reg) {
+                         absl::StrAppend(out, reg->ToString());
+                       });
 }
 
 }  // namespace
