@@ -416,19 +416,26 @@ std::vector<NodePtrT> SetToSortedVector(
   return v;
 }
 
-// Returns true if the given node is a binary select (two cases, no default).
-bool IsBinarySelect(Node* node);
+// Returns true if the given node is a binary select with two explicit cases and
+// no default.
+bool IsBinarySelectTwoCases(Node* node);
 
 // Returns true if the given node is a binary priority select (1 case plus the
 // default value)
+//
+// Note: A PrioritySelect must have selector bit-width equal to the number of
+// cases (enforced by the IR verifier). As a result, this "binary" form (one
+// case) necessarily has a 1-bit selector.
 bool IsBinaryPrioritySelect(Node* node);
 
 // A uniform view of a "binary select-like" node.
 //
 // For `sel(p, cases=[on_false, on_true])`, the selector is `p`.
+// For `sel(p, cases=[on_false], default=on_true)`, the selector is `p` (which
+// is required to be a single bit).
 // For a binary `priority_sel(p, cases=[on_true], default=on_false)`, the
 // selector is `p` (which is required to be a single bit).
-struct BinarySelectArms {
+struct BinarySelectView {
   Node* selector;
   Node* on_false;
   Node* on_true;
@@ -437,7 +444,7 @@ struct BinarySelectArms {
 // Returns a uniform view of a binary `sel` or a binary `priority_sel`.
 //
 // Returns std::nullopt if `node` is not one of those binary forms.
-absl::StatusOr<std::optional<BinarySelectArms>> MatchBinarySelectLike(
+absl::StatusOr<std::optional<BinarySelectView>> MatchBinarySelectLike(
     Node* node);
 
 // Returns the op which is the inverse of the given comparison.

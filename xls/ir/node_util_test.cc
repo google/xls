@@ -91,13 +91,14 @@ class Result {
   }
 
  private:
-  friend std::ostream& operator<<(std::ostream&, const Result&);
+  friend std::ostream& operator<<(std::ostream& os, const Result& result);
 
   int64_t leading_zero_count_;
   int64_t set_bit_count_;
   int64_t trailing_zero_count_;
 };
 
+// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 std::ostream& operator<<(std::ostream& os, const Result& result) {
   os << absl::StreamFormat("{%d, %d, %d}", result.leading_zero_count_,
                            result.set_bit_count_, result.trailing_zero_count_);
@@ -184,9 +185,27 @@ TEST_F(NodeUtilTest, MatchBinarySelectLikeSelect) {
   BValue a = fb.Param("a", p->GetBitsType(32));
   BValue b = fb.Param("b", p->GetBitsType(32));
   BValue sel = fb.Select(selector, {a, b});
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::optional<BinarySelectArms> arms,
+  XLS_ASSERT_OK_AND_ASSIGN(std::optional<BinarySelectView> arms,
+                           MatchBinarySelectLike(f->return_value()));
+  ASSERT_TRUE(arms.has_value());
+  EXPECT_EQ(arms->selector, f->param(0));
+  EXPECT_EQ(arms->on_false, f->param(1));
+  EXPECT_EQ(arms->on_true, f->param(2));
+}
+
+TEST_F(NodeUtilTest, MatchBinarySelectLikeSelectSingleCaseWithDefault) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue selector = fb.Param("p", p->GetBitsType(1));
+  BValue a = fb.Param("a", p->GetBitsType(32));
+  BValue b = fb.Param("b", p->GetBitsType(32));
+  std::array<BValue, 1> cases = {a};
+  BValue sel = fb.Select(selector, cases, /*default_value=*/b);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::optional<BinarySelectView> arms,
                            MatchBinarySelectLike(f->return_value()));
   ASSERT_TRUE(arms.has_value());
   EXPECT_EQ(arms->selector, f->param(0));
@@ -201,9 +220,9 @@ TEST_F(NodeUtilTest, MatchBinarySelectLikePrioritySelect) {
   BValue a = fb.Param("a", p->GetBitsType(32));
   BValue b = fb.Param("b", p->GetBitsType(32));
   BValue sel = fb.PrioritySelect(selector, {a}, b);
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::optional<BinarySelectArms> arms,
+  XLS_ASSERT_OK_AND_ASSIGN(std::optional<BinarySelectView> arms,
                            MatchBinarySelectLike(f->return_value()));
   ASSERT_TRUE(arms.has_value());
   EXPECT_EQ(arms->selector, f->param(0));
@@ -218,9 +237,9 @@ TEST_F(NodeUtilTest, MatchBinarySelectLikeNonMatch) {
   BValue a = fb.Param("a", p->GetBitsType(32));
   BValue b = fb.Param("b", p->GetBitsType(32));
   BValue sel = fb.Select(selector, {a, b}, /*default_value=*/a);
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::optional<BinarySelectArms> arms,
+  XLS_ASSERT_OK_AND_ASSIGN(std::optional<BinarySelectView> arms,
                            MatchBinarySelectLike(f->return_value()));
   EXPECT_FALSE(arms.has_value());
 }
@@ -1062,11 +1081,6 @@ BValue ForceKnownBits(FunctionBuilder& fb, BValue n, TernarySpan ts) {
   auto vals = ternary_ops::ToKnownBitsValues(ts, /*default_set=*/false);
   auto mask = ternary_ops::ToKnownBits(ts);
   return fb.Or(fb.And(n, fb.Literal(bits_ops::Not(mask))), fb.Literal(vals));
-}
-absl::StatusOr<BValue> ForceKnownBits(FunctionBuilder& fb, BValue n,
-                                      std::string_view s) {
-  XLS_ASSIGN_OR_RETURN(auto ts, StringToTernaryVector(s));
-  return ForceKnownBits(fb, n, ts);
 }
 }  // namespace
 

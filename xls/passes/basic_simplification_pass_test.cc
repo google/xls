@@ -675,6 +675,24 @@ TEST_F(BasicSimplificationPassTest, EqOfSwappedTwoWaySelects) {
   EXPECT_THAT(f->return_value(), m::Eq(m::Param("a"), m::Param("b")));
 }
 
+TEST_F(BasicSimplificationPassTest, SubOfSwappedTwoWaySelectsDoesNotSimplify) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue p_sel = fb.Param("p", p->GetBitsType(1));
+  BValue a = fb.Param("a", p->GetBitsType(32));
+  BValue b = fb.Param("b", p->GetBitsType(32));
+  BValue sel_ab = fb.Select(p_sel, {a, b});
+  BValue sel_ba = fb.Select(p_sel, {b, a});
+  fb.Subtract(sel_ab, sel_ba);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(),
+              m::Sub(m::Select(m::Param("p"), {m::Param("a"), m::Param("b")}),
+                     m::Select(m::Param("p"), {m::Param("b"), m::Param("a")})));
+}
+
 TEST_F(BasicSimplificationPassTest, AddWithZero) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(

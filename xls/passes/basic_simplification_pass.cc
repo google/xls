@@ -156,9 +156,9 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
   // redundant.
   if (n->operand_count() == 2 && OpIsCommutative(n->op()) &&
       !OpIsSideEffecting(n->op())) {
-    XLS_ASSIGN_OR_RETURN(std::optional<BinarySelectArms> sel0,
+    XLS_ASSIGN_OR_RETURN(std::optional<BinarySelectView> sel0,
                          MatchBinarySelectLike(n->operand(0)));
-    XLS_ASSIGN_OR_RETURN(std::optional<BinarySelectArms> sel1,
+    XLS_ASSIGN_OR_RETURN(std::optional<BinarySelectView> sel1,
                          MatchBinarySelectLike(n->operand(1)));
     if (sel0.has_value() && sel1.has_value() &&
         sel0->selector == sel1->selector && sel0->on_false == sel1->on_true &&
