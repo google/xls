@@ -517,7 +517,84 @@ absl::Status RangeQueryVisitor::HandleDecode(Decode* decode) {
 absl::Status RangeQueryVisitor::HandleDynamicBitSlice(
     DynamicBitSlice* dynamic_bit_slice) {
   INITIALIZE_OR_SKIP(dynamic_bit_slice);
-  return absl::OkStatus();  // TODO(taktoa): implement
+  ASSIGN_INTERVAL_SET_REF_OR_RETURN(to_slice, dynamic_bit_slice->operand(0));
+  ASSIGN_INTERVAL_SET_REF_OR_RETURN(start, dynamic_bit_slice->start());
+  // Many IntervalSet query APIs (e.g. Size/Values/Intervals/ConvexHull) require
+  // the interval set to be normalized. The RangeQueryEngine may hold
+  // non-normalized sets, so normalize local copies here.
+  IntervalSet to_slice_norm = to_slice;
+  if (!to_slice_norm.IsNormalized()) {
+    to_slice_norm.Normalize();
+  }
+  IntervalSet start_norm = start;
+  if (!start_norm.IsNormalized()) {
+    start_norm.Normalize();
+  }
+
+  const int64_t input_width = dynamic_bit_slice->operand(0)->BitCountOrDie();
+  const int64_t result_width = dynamic_bit_slice->width();
+
+  // Strategy:
+  // - If the start is precise, compute the slice directly.
+  // - If the start set is small, enumerate possible start indices and union
+  //   the results (exact within the current `to_slice` interval set).
+  // - Otherwise, try a quick "always overshift" check, and fall back to
+  //   maximal if we can't prove anything cheaply.
+  //
+  // Note that DynamicBitSlice(x, start, width) is equivalent to:
+  //   BitSlice(Shrl(x, start), 0, width)
+  // with overshift yielding 0 for the shift-right.
+
+  // Fast path: if the start index is precise, we can compute the result
+  // directly.
+  if (start_norm.IsPrecise()) {
+    const int64_t shift_amount =
+        bits_ops::UnsignedBitsToSaturatedInt64(*start_norm.GetPreciseValue());
+    if (shift_amount >= input_width) {
+      return SetIntervalSet(dynamic_bit_slice,
+                            IntervalSet::Precise(UBits(0, result_width)));
+    }
+    return SetIntervalSet(
+        dynamic_bit_slice,
+        interval_ops::BitSlice(to_slice_norm, shift_amount, result_width));
+  }
+
+  // Exact path: enumerate possible start indices when the set is small enough.
+  if (std::optional<int64_t> sz = start_norm.Size();
+      sz.has_value() && *sz <= kMaxIterationSize) {
+    IntervalSet result(result_width);
+    for (const Bits& s : start_norm.Values()) {
+      const int64_t shift_amount = bits_ops::UnsignedBitsToSaturatedInt64(s);
+      if (shift_amount >= input_width) {
+        result.AddInterval(Interval::Precise(UBits(0, result_width)));
+      } else {
+        IntervalSet sliced =
+            interval_ops::BitSlice(to_slice_norm, shift_amount, result_width);
+        result = IntervalSet::Combine(result, sliced);
+      }
+      result.Normalize();
+      if (result.Intervals().size() > kMaxResIntervalSetSize) {
+        result = interval_ops::MinimizeIntervals(std::move(result),
+                                                 kDefaultIntervalSize);
+      }
+    }
+    result.Normalize();
+    return SetIntervalSet(dynamic_bit_slice, std::move(result));
+  }
+
+  // If the start is always large enough to overshift, the result is always 0.
+  if (std::optional<Interval> hull = start_norm.ConvexHull();
+      hull.has_value()) {
+    const int64_t min_shift =
+        bits_ops::UnsignedBitsToSaturatedInt64(hull->LowerBound());
+    if (min_shift >= input_width) {
+      return SetIntervalSet(dynamic_bit_slice,
+                            IntervalSet::Precise(UBits(0, result_width)));
+    }
+  }
+
+  // Conservative fallback: if the start set is large, avoid enumeration.
+  return SetIntervalSet(dynamic_bit_slice, IntervalSet::Maximal(result_width));
 }
 
 absl::Status RangeQueryVisitor::HandleDynamicCountedFor(
