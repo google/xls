@@ -528,7 +528,76 @@ absl::Status RangeQueryVisitor::HandleDynamicCountedFor(
 
 absl::Status RangeQueryVisitor::HandleEncode(Encode* encode) {
   INITIALIZE_OR_SKIP(encode);
-  return absl::OkStatus();  // TODO(taktoa): implement
+  ASSIGN_INTERVAL_SET_REF_OR_RETURN(arg, encode->operand(0));
+  XLS_RET_CHECK(arg.IsNormalized());
+
+  const int64_t input_width = encode->operand(0)->BitCountOrDie();
+  const int64_t output_width = encode->BitCountOrDie();
+
+  // For small ranges, compute the exact output by enumerating all possible
+  // input values. This keeps Encode precise when the input range is small, and
+  // avoids blowing up for large ranges.
+  if (std::optional<int64_t> sz = arg.Size();
+      sz.has_value() && *sz <= kMaxIterationSize) {
+    IntervalSet result(output_width);
+    for (const Bits& in : arg.Values()) {
+      Bits out(output_width);
+      for (int64_t j = 0; j < output_width; ++j) {
+        bool bit = false;
+        for (int64_t i = 0; i < input_width; ++i) {
+          if (((i >> j) & 1) == 0) {
+            continue;
+          }
+          if (in.Get(i)) {
+            bit = true;
+            break;
+          }
+        }
+        out = out.UpdateWithSet(j, bit);
+      }
+      result.AddInterval(Interval::Precise(out));
+    }
+    result.Normalize();
+    return SetIntervalSet(encode, std::move(result));
+  }
+
+  // Otherwise, fall back to extracting a ternary approximation for the input
+  // and computing the ternary of the OR-based encode operation.
+  TernaryVector input_ternary =
+      interval_ops::ExtractTernaryVector(arg, /*source=*/encode->operand(0));
+  TernaryVector output_ternary(output_width, TernaryValue::kKnownZero);
+  for (int64_t j = 0; j < output_width; ++j) {
+    bool any_one = false;
+    bool any_unknown = false;
+    for (int64_t i = 0; i < input_width; ++i) {
+      if (((i >> j) & 1) == 0) {
+        continue;
+      }
+      switch (input_ternary[i]) {
+        case TernaryValue::kKnownZero:
+          break;
+        case TernaryValue::kKnownOne:
+          any_one = true;
+          break;
+        case TernaryValue::kUnknown:
+          any_unknown = true;
+          break;
+      }
+      if (any_one) {
+        break;
+      }
+    }
+    if (any_one) {
+      output_ternary[j] = TernaryValue::kKnownOne;
+    } else if (any_unknown) {
+      output_ternary[j] = TernaryValue::kUnknown;
+    } else {
+      output_ternary[j] = TernaryValue::kKnownZero;
+    }
+  }
+
+  return SetIntervalSet(encode, interval_ops::FromTernary(
+                                    output_ternary, /*max_interval_bits=*/4));
 }
 
 absl::Status RangeQueryVisitor::HandleEq(CompareOp* eq) {

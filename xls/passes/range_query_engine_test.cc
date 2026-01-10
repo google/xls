@@ -134,6 +134,91 @@ TEST_F(RangeQueryEngineTest, Add) {
             "[[0, 1048575]]");
 }
 
+TEST_F(RangeQueryEngineTest, EncodeExhaustiveSmallWidth) {
+  constexpr int64_t kN = 6;
+
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(kN));
+  BValue y = fb.Encode(x);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  // Compute the Encode() result for a single concrete input value.
+  //
+  // Encode() produces ceil(log2(kN)) output bits, where each output bit is an
+  // OR of a subset of the input bits. Specifically, for output bit j, we OR
+  // together input bits i where the j'th bit of i is 1.
+  auto eval_encode = [](const Bits& in) -> Bits {
+    const int64_t out_w = CeilOfLog2(in.bit_count());
+    Bits out(out_w);
+    for (int64_t j = 0; j < out_w; ++j) {
+      bool bit = false;
+      for (int64_t i = 0; i < in.bit_count(); ++i) {
+        if (((i >> j) & 1) == 0) {
+          continue;
+        }
+        if (in.Get(i)) {
+          bit = true;
+          break;
+        }
+      }
+      out = out.UpdateWithSet(j, bit);
+    }
+    return out;
+  };
+
+  // This test exhaustively checks Encode() across all ternary masks for a small
+  // input width.
+  //
+  // For each ternary mask of width kN (3^kN masks), we construct the exact set
+  // of possible concrete input values and compute the exact set of possible
+  // outputs. We then require RangeQueryEngine's result to match exactly.
+  //
+  // We choose kN=6 so 3^kN is manageable (729 cases), and for each case the
+  // number of concrete values is at most 2^kN (64 values).
+  int64_t total_patterns = 1;
+  for (int64_t i = 0; i < kN; ++i) {
+    total_patterns *= 3;
+  }
+
+  TernaryVector pattern(kN, TernaryValue::kKnownZero);
+  for (int64_t code = 0; code < total_patterns; ++code) {
+    int64_t tmp = code;
+    for (int64_t i = 0; i < kN; ++i) {
+      int64_t digit = tmp % 3;
+      tmp /= 3;
+      pattern[i] = (digit == 0)   ? TernaryValue::kKnownZero
+                   : (digit == 1) ? TernaryValue::kKnownOne
+                                  : TernaryValue::kUnknown;
+    }
+
+    // Turn the ternary mask into an interval set representing exactly the set
+    // of concrete values that match the mask. Using max_interval_bits=kN-1
+    // avoids internal heuristics that would intentionally lose precision for
+    // larger masks.
+    IntervalSet input_is =
+        interval_ops::FromTernary(pattern, /*max_interval_bits=*/kN - 1);
+    ASSERT_TRUE(input_is.IsNormalized());
+
+    // Ground truth: evaluate Encode() for every concrete input value.
+    IntervalSet expected(CeilOfLog2(kN));
+    for (const Bits& in_val : input_is.Values()) {
+      expected.AddInterval(Interval::Precise(eval_encode(in_val)));
+    }
+    expected.Normalize();
+
+    // Provide the input range as a given, run analysis, and compare.
+    RangeQueryEngine engine;
+    LeafTypeTree<IntervalSet> input_ltt(x.node()->GetType());
+    input_ltt.Set({}, input_is);
+    engine.SetIntervalSetTree(x.node(), input_ltt);
+    XLS_ASSERT_OK(engine.Populate(f));
+
+    IntervalSet got = engine.GetIntervals(y.node()).Get({});
+    EXPECT_EQ(got, expected) << "pattern=" << ToString(pattern);
+  }
+}
+
 TEST_F(RangeQueryEngineTest, Array) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
