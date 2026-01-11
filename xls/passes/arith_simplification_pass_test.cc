@@ -1849,13 +1849,13 @@ TEST_F(ArithSimplificationPassTest, ZeroWidthMulOperand) {
 
 TEST_F(ArithSimplificationPassTest, SltZero) {
   auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
-    fn slt_zero(x: bits[32]) -> bits[1] {
-      zero: bits[32] = literal(value=0)
-      ret result: bits[1] = slt(x, zero)
-    }
-)",
-                                                       p.get()));
+  FunctionBuilder fb(TestName(), p.get());
+  Type* bits32 = p->GetBitsType(32);
+  BValue x = fb.Param("x", bits32);
+  fb.SLt(x, fb.Literal(UBits(0, 32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence sve(f, kProverTimeout);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::BitSlice(m::Param("x"), /*start=*/31, /*width=*/1));
@@ -1863,16 +1863,32 @@ TEST_F(ArithSimplificationPassTest, SltZero) {
 
 TEST_F(ArithSimplificationPassTest, SGeZero) {
   auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
-    fn sge_zero(x: bits[32]) -> bits[1] {
-      zero: bits[32] = literal(value=0)
-      ret result: bits[1] = sge(x, zero)
-    }
-)",
-                                                       p.get()));
+  FunctionBuilder fb(TestName(), p.get());
+  Type* bits32 = p->GetBitsType(32);
+  BValue x = fb.Param("x", bits32);
+  fb.SGe(x, fb.Literal(UBits(0, 32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence sve(f, kProverTimeout);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Not(m::BitSlice(m::Param("x"), /*start=*/31, /*width=*/1)));
+}
+
+TEST_F(ArithSimplificationPassTest, SGtZero) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* bits32 = p->GetBitsType(32);
+  BValue x = fb.Param("x", bits32);
+  fb.SGt(x, fb.Literal(UBits(0, 32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence sve(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::And(m::Not(m::BitSlice(m::Param("x"), /*start=*/31, /*width=*/1)),
+             m::Ne(m::Param("x"), m::Literal(UBits(0, 32)))));
 }
 
 TEST_F(ArithSimplificationPassTest, InvertedComparison) {

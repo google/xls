@@ -1586,6 +1586,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n,
 
   // SLt(x, 0) -> msb(x)
   // SGe(x, 0) -> not(msb(x))
+  // SGt(x, 0) -> and(not(msb(x)), ne(x, 0))
   //
   // Canonicalization puts the literal on the right for comparisons.
   //
@@ -1609,6 +1610,26 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n,
               /*start=*/n->operand(0)->BitCountOrDie() - 1, /*width=*/1));
       XLS_RETURN_IF_ERROR(
           n->ReplaceUsesWithNew<UnOp>(sign_bit, Op::kNot).status());
+      return true;
+    }
+    if (n->op() == Op::kSGt) {
+      VLOG(2) << "FOUND: SGt(x, 0)";
+      XLS_ASSIGN_OR_RETURN(
+          Node * sign_bit,
+          n->function_base()->MakeNode<BitSlice>(
+              n->loc(), n->operand(0),
+              /*start=*/n->operand(0)->BitCountOrDie() - 1, /*width=*/1));
+      XLS_ASSIGN_OR_RETURN(
+          Node * not_sign_bit,
+          n->function_base()->MakeNode<UnOp>(n->loc(), sign_bit, Op::kNot));
+      XLS_ASSIGN_OR_RETURN(
+          Node * nonzero,
+          n->function_base()->MakeNode<CompareOp>(n->loc(), n->operand(0),
+                                                  n->operand(1), Op::kNe));
+      XLS_RETURN_IF_ERROR(
+          n->ReplaceUsesWithNew<NaryOp>(
+               std::vector<Node*>{not_sign_bit, nonzero}, Op::kAnd)
+              .status());
       return true;
     }
   }
