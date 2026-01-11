@@ -949,6 +949,32 @@ TEST_F(ArithSimplificationPassTest, UModByVariable) {
   EXPECT_THAT(f->return_value(), m::UMod());
 }
 
+TEST_F(ArithSimplificationPassTest, UModShiftedOneBitDivisor) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  // The wide shift is canonicalized before ternary analysis can track it.
+  constexpr int64_t kWidth = 257;
+  constexpr int64_t kShift = 2;
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue b = fb.Param("b", p->GetBitsType(1));
+  BValue divisor =
+      fb.Shll(fb.ZeroExtend(b, kWidth), fb.Literal(UBits(kShift, 8)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f,
+      fb.BuildWithReturnValue(fb.UMod(fb.ZeroExtend(x, kWidth), divisor)));
+
+  ScopedVerifyEquivalence sve(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_THAT(
+      f->return_value(),
+      m::Select(
+          m::BitSlice(_, /*start=*/kShift, /*width=*/1),
+          /*cases=*/{m::Literal(UBits(0, kWidth)),
+                     m::ZeroExt(m::BitSlice(m::ZeroExt(m::Param("x")),
+                                            /*start=*/0, /*width=*/kShift))}));
+}
+
 TEST_F(ArithSimplificationPassTest, UModOf13) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
