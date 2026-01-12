@@ -27,6 +27,7 @@
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/numbers.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
@@ -191,9 +192,11 @@ ABSL_FLAG(std::string, simulation_macro_name, "SIMULATION",
 ABSL_FLAG(std::vector<std::string>, assertion_macro_names, {"ASSERT_ON"},
           "Verilog macro names to use in an `ifdef guard for assertions. If "
           "prefixed with `!` the polarity of the guard is inverted (`ifndef).");
-ABSL_FLAG(int64_t, codegen_version, 0,
-          "Version of codegen to use.  Either 2 (refactored codegen), 1 "
-          "(original codegen path), or 0 for default");
+ABSL_FLAG(
+    std::string, codegen_version, "0",
+    "Version of codegen to use. Can be 1 or 1.0 (original codegen), 1.5 "
+    "(refactored codegen), or 2 or 2.0 (revised codegen with a new "
+    "architecture). If set to 0, will use the default codegen version (1.0).");
 ABSL_FLAG(std::string, output_scheduling_pass_metrics_path, "",
           "Output path for the pass pipeline metrics for scheduling passes as "
           "a PassPipelineMetricsProto.");
@@ -315,6 +318,42 @@ absl::StatusOr<IOKindProto> IOKindProtoFromString(std::string_view s) {
       "Invalid I/O kind specified: `%s`; choices: flop, skid, zerolatency", s));
 }
 
+absl::StatusOr<CodegenVersionProto> CodegenVersionFromString(
+    std::string_view s) {
+  int64_t int_version;
+  if (absl::SimpleAtoi(s, &int_version)) {
+    switch (int_version) {
+      case 0:
+        // default
+        return CODEGEN_VERSION_ONE_DOT_ZERO;
+      case 1:
+        return CODEGEN_VERSION_ONE_DOT_ZERO;
+      case 2:
+        return CODEGEN_VERSION_TWO_DOT_ZERO;
+      default:
+        break;
+    }
+  }
+  double float_version;
+  if (absl::SimpleAtod(s, &float_version)) {
+    if (float_version == 0.0) {
+      // default
+      return CODEGEN_VERSION_ONE_DOT_ZERO;
+    }
+    if (float_version == 1.0) {
+      return CODEGEN_VERSION_ONE_DOT_ZERO;
+    }
+    if (float_version == 1.5) {
+      return CODEGEN_VERSION_ONE_DOT_FIVE;
+    }
+    if (float_version == 2.0) {
+      return CODEGEN_VERSION_TWO_DOT_ZERO;
+    }
+  }
+  return absl::InvalidArgumentError(absl::StrFormat(
+      "Invalid codegen version specified: `%s`; choices: 0, 1, 1.5, 2", s));
+}
+
 }  // namespace
 
 static absl::StatusOr<bool> SetOptionsFromFlags(CodegenFlagsProto& proto) {
@@ -365,7 +404,14 @@ static absl::StatusOr<bool> SetOptionsFromFlags(CodegenFlagsProto& proto) {
       IOKindProtoFromString(absl::GetFlag(FLAGS_flop_outputs_kind)));
   proto.set_flop_outputs_kind(flop_outputs_kind);
 
-  POPULATE_FLAG(codegen_version);
+  {
+    any_flags_set |= FLAGS_codegen_version.IsSpecifiedOnCommandLine();
+    XLS_ASSIGN_OR_RETURN(
+        CodegenVersionProto codegen_version,
+        CodegenVersionFromString(absl::GetFlag(FLAGS_codegen_version)));
+    proto.set_codegen_version(codegen_version);
+  }
+
   POPULATE_FLAG(flop_single_value_channels);
   POPULATE_FLAG(add_idle_output);
   POPULATE_FLAG(module_name);

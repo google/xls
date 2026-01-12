@@ -39,24 +39,21 @@
 #include "xls/codegen/verilog_conversion.h"
 #include "xls/codegen/verilog_line_map.pb.h"
 #include "xls/codegen/xls_metrics.pb.h"
+#include "xls/codegen_v_1_5/codegen.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/estimators/delay_model/ffi_delay_estimator.h"
-#include "xls/fdo/synthesizer.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/op.h"
 #include "xls/ir/verifier.h"
-#include "xls/passes/optimization_pass.h"
-#include "xls/passes/pass_base.h"
 #include "xls/passes/pass_metrics.pb.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
 #include "xls/scheduling/scheduling_options.h"
-#include "xls/scheduling/scheduling_pass.h"
-#include "xls/scheduling/scheduling_pass_pipeline.h"
 #include "xls/scheduling/scheduling_result.h"
 #include "xls/tools/codegen_flags.pb.h"
+#include "xls/tools/schedule.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 
 namespace xls {
@@ -199,10 +196,13 @@ absl::StatusOr<verilog::CodegenResult> CodegenCombinational(
 absl::StatusOr<verilog::CodegenResult> CodegenFromMetadata(
     Package* p, GeneratorKind generator_kind, const CodegenMetadata& metadata,
     const PackageSchedule* package_schedule) {
-  if (metadata.codegen_options.codegen_version() ==
-          verilog::CodegenOptions::Version::kOneDotZero ||
-      metadata.codegen_options.codegen_version() ==
-          verilog::CodegenOptions::Version::kDefault) {
+  verilog::CodegenOptions::Version codegen_version =
+      metadata.codegen_options.codegen_version();
+  if (codegen_version == verilog::CodegenOptions::Version::kDefault) {
+    codegen_version = verilog::CodegenOptions::Version::kOneDotZero;
+  }
+
+  if (codegen_version == verilog::CodegenOptions::Version::kOneDotZero) {
     if (generator_kind == GENERATOR_KIND_COMBINATIONAL) {
       return CodegenCombinational(p, metadata.codegen_options,
                                   metadata.delay_estimator);
@@ -213,15 +213,38 @@ absl::StatusOr<verilog::CodegenResult> CodegenFromMetadata(
                            metadata.delay_estimator);
   }
 
-  // Codegen 2.0.
-  XLS_ASSIGN_OR_RETURN(
-      PackageSchedule package_schedule_2,
-      DeterminePipelineSchedules(generator_kind, p, package_schedule));
+  // Codegen 1.5.
+  if (codegen_version == verilog::CodegenOptions::Version::kOneDotFive) {
+    verilog::CodegenOptions pass_options = metadata.codegen_options;
+    XLS_RET_CHECK(p->GetTop().has_value());
+    if (p->GetTop().value()->IsProc()) {
+      // Force using non-pretty printed codegen when generating procs.
+      // TODO: google/xls#1331 - Update pretty-printer to support blocks with
+      // flow control.
+      // TODO: google/xls#1332 - Update this setting per-block.
+      pass_options.emit_as_pipeline(false);
+    }
 
+    std::optional<PackageScheduleProto> schedule_proto;
+    if (package_schedule != nullptr) {
+      schedule_proto = package_schedule->ToProto(*metadata.delay_estimator);
+    }
+    return codegen::Codegen(p, pass_options, metadata.scheduling_options,
+                            metadata.delay_estimator,
+                            std::move(schedule_proto));
+  }
+
+  // Codegen 2.0.
+  XLS_RET_CHECK(codegen_version ==
+                verilog::CodegenOptions::Version::kTwoDotZero)
+      << "Unsupported codegen version: "
+      << verilog::CodegenOptions::VersionToString(codegen_version);
+  XLS_ASSIGN_OR_RETURN(
+      PackageSchedule schedule,
+      DeterminePipelineSchedules(generator_kind, p, package_schedule));
   XLS_RETURN_IF_ERROR(VerifyPackage(p, /*codegen=*/true));
 
-  return verilog::GenerateModuleText(package_schedule_2, p,
-                                     metadata.codegen_options,
+  return verilog::GenerateModuleText(schedule, p, metadata.codegen_options,
                                      metadata.delay_estimator);
 }
 
@@ -237,52 +260,6 @@ verilog::CodegenOptions::IOKind ToIOKind(IOKindProto p) {
     default:
       LOG(FATAL) << "Invalid IOKindProto value: " << static_cast<int>(p);
   }
-}
-
-absl::StatusOr<SchedulingResult> RunSchedulingPipeline(
-    FunctionBase* main, const SchedulingOptions& scheduling_options,
-    const DelayEstimator* delay_estimator,
-    synthesis::Synthesizer* synthesizer) {
-  PassResults results;
-  SchedulingPassOptions sched_options;
-  sched_options.scheduling_options = scheduling_options;
-  sched_options.delay_estimator = delay_estimator;
-  sched_options.synthesizer = synthesizer;
-  OptimizationContext optimization_context;
-  std::unique_ptr<SchedulingCompoundPass> scheduling_pipeline =
-      CreateSchedulingPassPipeline(optimization_context, scheduling_options);
-  XLS_RETURN_IF_ERROR(main->package()->SetTop(main));
-  auto scheduling_context =
-      (scheduling_options.schedule_all_procs())
-          ? SchedulingContext::CreateForWholePackage(main->package())
-          : SchedulingContext::CreateForSingleFunction(main);
-  absl::Status scheduling_status =
-      scheduling_pipeline
-          ->Run(main->package(), sched_options, &results, scheduling_context)
-          .status();
-  if (!scheduling_status.ok()) {
-    if (absl::IsResourceExhausted(scheduling_status)) {
-      // Resource exhausted error indicates that the schedule was
-      // infeasible. Emit a meaningful error in this case.
-      std::string error_message = "Design cannot be scheduled";
-      if (scheduling_options.pipeline_stages().has_value()) {
-        absl::StrAppendFormat(&error_message, " in %d stages",
-                              scheduling_options.pipeline_stages().value());
-      }
-      if (scheduling_options.clock_period_ps().has_value()) {
-        absl::StrAppendFormat(&error_message, " with a %dps clock",
-                              scheduling_options.clock_period_ps().value());
-      }
-      return xabsl::StatusBuilder(scheduling_status).SetPrepend()
-             << error_message << ": ";
-    }
-    return scheduling_status;
-  }
-  XLS_RET_CHECK(scheduling_context.package_schedule().HasSchedule(main));
-  return SchedulingResult{
-      .package_schedule =
-          scheduling_context.package_schedule().ToProto(*delay_estimator),
-      .pass_pipeline_metrics = results.ToProto()};
 }
 
 }  // namespace
@@ -445,7 +422,23 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
   }
 
   if (p.has_codegen_version()) {
-    options.codegen_version(p.codegen_version());
+    switch (p.codegen_version()) {
+      case CodegenVersionProto::CODEGEN_VERSION_DEFAULT:
+        options.codegen_version(verilog::CodegenOptions::Version::kDefault);
+        break;
+      case CodegenVersionProto::CODEGEN_VERSION_ONE_DOT_ZERO:
+        options.codegen_version(verilog::CodegenOptions::Version::kOneDotZero);
+        break;
+      case CodegenVersionProto::CODEGEN_VERSION_ONE_DOT_FIVE:
+        options.codegen_version(verilog::CodegenOptions::Version::kOneDotFive);
+        break;
+      case CodegenVersionProto::CODEGEN_VERSION_TWO_DOT_ZERO:
+        options.codegen_version(verilog::CodegenOptions::Version::kTwoDotZero);
+        break;
+      default:
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Unknown codegen version: %v", p.codegen_version()));
+    }
   }
 
   if (p.has_ir_dump_path()) {
@@ -453,21 +446,6 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
   }
 
   return options;
-}
-
-absl::StatusOr<SchedulingResult> Schedule(
-    Package* p, const SchedulingOptions& scheduling_options,
-    const DelayEstimator* delay_estimator) {
-  QCHECK(scheduling_options.pipeline_stages() != 0 ||
-         scheduling_options.clock_period_ps() != 0)
-      << "Must specify --pipeline_stages or --clock_period_ps (or both).";
-  synthesis::Synthesizer* synthesizer = nullptr;
-  if (scheduling_options.use_fdo() &&
-      !scheduling_options.fdo_synthesizer_name().empty()) {
-    XLS_ASSIGN_OR_RETURN(synthesizer, SetUpSynthesizer(scheduling_options));
-  }
-  return RunSchedulingPipeline(*p->GetTop(), scheduling_options,
-                               delay_estimator, synthesizer);
 }
 
 absl::StatusOr<SchedulingResult> Schedule(

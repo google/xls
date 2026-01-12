@@ -1989,7 +1989,7 @@ cc_test(
         "//xls/scheduling:pipeline_schedule",
         "//xls/scheduling:scheduling_options",
         "//xls/scheduling:scheduling_result",
-        "//xls/tools:codegen",
+        "//xls/tools:schedule",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",

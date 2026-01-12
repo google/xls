@@ -55,7 +55,7 @@
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/scheduling/scheduling_result.h"
-#include "xls/tools/codegen.h"
+#include "xls/tools/schedule.h"
 
 namespace xls::codegen {
 namespace {

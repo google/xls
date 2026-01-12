@@ -30,14 +30,15 @@
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/scheduling/scheduling_result.h"
-#include "xls/tools/codegen.h"
+#include "xls/tools/schedule.h"
 
 namespace xls::codegen {
 
 absl::Status ConvertToBlock(
     Package* p, verilog::CodegenOptions codegen_options,
     SchedulingOptions scheduling_options, const DelayEstimator* delay_estimator,
-    std::optional<PackageScheduleProto> schedule_override) {
+    std::optional<PackageScheduleProto> schedule_override,
+    OptimizationContext* opt_context) {
   XLS_RET_CHECK(!schedule_override.has_value() ||
                 !codegen_options.generate_combinational())
       << "A schedule must not be specified for combinational block conversion.";
@@ -55,11 +56,16 @@ absl::Status ConvertToBlock(
 
   BlockConversionPassOptions options{
       .codegen_options = std::move(codegen_options),
-      .package_schedule = schedule};
+      .package_schedule = std::move(schedule),
+  };
 
-  OptimizationContext opt_context;
+  std::optional<OptimizationContext> opt_context_local;
+  if (opt_context == nullptr) {
+    opt_context_local.emplace();
+    opt_context = &*opt_context_local;
+  }
   std::unique_ptr<BlockConversionCompoundPass> pipeline =
-      CreateBlockConversionPassPipeline(opt_context);
+      CreateBlockConversionPassPipeline(*opt_context);
   PassResults results;
   XLS_ASSIGN_OR_RETURN(bool result, pipeline->Run(p, options, &results));
   XLS_RET_CHECK(result);
