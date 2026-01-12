@@ -28,6 +28,7 @@
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
 #include "xls/codegen_v_1_5/block_conversion_utils.h"
 #include "xls/codegen_v_1_5/channel_to_port_io_lowering_pass.h"
+#include "xls/codegen_v_1_5/global_channel_block_stitching_pass.h"
 #include "xls/codegen_v_1_5/scheduled_block_conversion_pass.h"
 #include "xls/codegen_v_1_5/scheduling_pass.h"
 #include "xls/codegen_v_1_5/state_to_register_io_lowering_pass.h"
@@ -117,6 +118,11 @@ class ProcInstantiationLoweringPassTest : public IrTestBase {
     XLS_ASSIGN_OR_RETURN(
         bool result, ProcInstantiationLoweringPass().Run(p, options, &results));
     ran_pass_ = true;
+
+    // In case of global channels, the package would not be valid if we were to
+    // run channel lowering without block stitching.
+    XLS_RETURN_IF_ERROR(
+        GlobalChannelBlockStitchingPass().Run(p, options, &results).status());
 
     VLOG(5) << "IR after instantiation lowering: " << p_->DumpIr();
     return result;

@@ -19,10 +19,12 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/block.h"
+#include "xls/ir/instantiation.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/proc_instantiation.h"
@@ -66,6 +68,23 @@ absl::Status UpdateProcInstantiationsAndRemoveOldProcs(
   }
 
   return absl::OkStatus();
+}
+
+absl::flat_hash_map<Block*, BlockInstantiation*> GetInstantiatedBlocks(
+    Package* package) {
+  absl::flat_hash_map<Block*, BlockInstantiation*> map;
+  for (std::unique_ptr<Block>& block : package->blocks()) {
+    for (Instantiation* instantiation : block->GetInstantiations()) {
+      if (instantiation->kind() == InstantiationKind::kBlock) {
+        auto* block_instantiation =
+            down_cast<BlockInstantiation*>(instantiation);
+        CHECK(map.emplace(block_instantiation->instantiated_block(),
+                          block_instantiation)
+                  .second);
+      }
+    }
+  }
+  return map;
 }
 
 }  // namespace xls::codegen

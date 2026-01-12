@@ -6554,22 +6554,26 @@ TEST_F(BlockConversionTest, NonTopBlockNamedModuleName) {
   // We set A to top, but will set module name to B.
   XLS_ASSERT_OK(p->SetTop(proc0));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Block * block,
+  XLS_ASSERT_OK(
       ConvertToBlock(
           p.get(),
           CodegenOptions()
               .reset("foo", false, false, false)
               .clock_name("clk")
               .module_name("B"),
-          SchedulingOptions().pipeline_stages(2).schedule_all_procs(true)));
+          SchedulingOptions().pipeline_stages(2).schedule_all_procs(true))
+          .status());
 
-  EXPECT_THAT(block, m::Block("B"));
+  EXPECT_THAT(p->blocks(), UnorderedElementsAre(m::Block("B"), m::Block("B__1"),
+                                                m::Block("B__2")));
+
+  // Note that legacy stitching gives us block "B__2" for the proc "B", taking
+  // over the name "B" for the container.
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("B__2"));
+  EXPECT_THAT(block, m::Block("B__2"));
   EXPECT_THAT(block->nodes(), Contains(m::Literal(24)));
   EXPECT_THAT(block->nodes(), Not(Contains(m::Literal(48))));
 
-  EXPECT_THAT(p->blocks(),
-              UnorderedElementsAre(m::Block("B"), m::Block("B__1")));
   XLS_ASSERT_OK(p->GetBlock("B__1").status());
   EXPECT_THAT(p->GetBlock("B__1").value()->nodes(), Contains(m::Literal(48)));
 }
@@ -7039,6 +7043,18 @@ absl::StatusOr<Proc*> CreateNewStyleAccumProc(std::string_view proc_name,
   return pb.Build({next_accum});
 }
 
+absl::StatusOr<Proc*> CreateLegacyAccumProc(std::string_view proc_name,
+                                            Package* package,
+                                            Channel* in_channel,
+                                            Channel* out_channel) {
+  TokenlessProcBuilder pb(proc_name, "tkn", package);
+  BValue accum = pb.StateElement("accum", Value(UBits(0, 32)));
+  BValue input = pb.Receive(in_channel);
+  BValue next_accum = pb.Add(accum, input);
+  pb.Send(out_channel, next_accum);
+  return pb.Build({next_accum});
+}
+
 TEST_F(ProcConversionTestFixture, TrivialProcHierarchyWithProcScopedChannels) {
   // Construct a proc which instantiates one proc which accumulates its inputs.
   auto p = CreatePackage();
@@ -7069,6 +7085,136 @@ TEST_F(ProcConversionTestFixture, TrivialProcHierarchyWithProcScopedChannels) {
           .add_constraint(RecvsFirstSendsLastConstraint())));
 
   EXPECT_EQ(p->blocks().size(), 2);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("a_top_proc"));
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> expected_outputs;
+
+  // 10 cycles of reset
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      0, 9, {{"rst", 1}, {"in_ch_vld", 0}, {"in_ch", 0}, {"out_ch_rdy", 1}},
+      inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      0, 9, {{"in_ch_rdy", 0}, {"out_ch", 0}, {"out_ch_vld", 0}},
+      expected_outputs));
+
+  // 11 cycles of incrementing input (starting at 1)
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      10, 20, {{"rst", 0}, {"in_ch_vld", 1}, {"in_ch", 0}, {"out_ch_rdy", 1}},
+      inputs));
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(10, 20, "in_ch", 1, inputs));
+
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      10, 10, {{"in_ch_rdy", 1}, {"out_ch", 0}, {"out_ch_vld", 0}},
+      expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      11, 11, {{"in_ch_rdy", 1}, {"out_ch", 1}, {"out_ch_vld", 1}},
+      expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      12, 12, {{"in_ch_rdy", 1}, {"out_ch", 3}, {"out_ch_vld", 1}},
+      expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      13, 13, {{"in_ch_rdy", 1}, {"out_ch", 6}, {"out_ch_vld", 1}},
+      expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      14, 14, {{"in_ch_rdy", 1}, {"out_ch", 10}, {"out_ch_vld", 1}},
+      expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      15, 15, {{"in_ch_rdy", 1}, {"out_ch", 15}, {"out_ch_vld", 1}},
+      expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      16, 16, {{"in_ch_rdy", 1}, {"out_ch", 21}, {"out_ch_vld", 1}},
+      expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      17, 17, {{"in_ch_rdy", 1}, {"out_ch", 28}, {"out_ch_vld", 1}},
+      expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      18, 18, {{"in_ch_rdy", 1}, {"out_ch", 36}, {"out_ch_vld", 1}},
+      expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      19, 19, {{"in_ch_rdy", 1}, {"out_ch", 45}, {"out_ch_vld", 1}},
+      expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      20, 20, {{"in_ch_rdy", 1}, {"out_ch", 55}, {"out_ch_vld", 1}},
+      expected_outputs));
+
+  // 2 cycles to drain the pipeline
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      21, 22, {{"rst", 0}, {"in_ch_vld", 0}, {"in_ch", 0}, {"out_ch_rdy", 1}},
+      inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      21, 21, {{"in_ch_rdy", 0}, {"out_ch", 66}, {"out_ch_vld", 1}},
+      expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      22, 22, {{"in_ch_rdy", 0}, {"out_ch", 0}, {"out_ch_vld", 0}},
+      expected_outputs));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      (std::vector<absl::flat_hash_map<std::string, uint64_t>> outputs),
+      InterpretSequentialBlock(top_block, inputs));
+
+  // Add a cycle count for easier comparison with simulation results.
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, outputs.size() - 1, "cycle",
+                                                0, outputs));
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, expected_outputs.size() - 1,
+                                                "cycle", 0, expected_outputs));
+
+  // Accept any output data that is signaled invalid.
+  for (int64_t i = 0; i < outputs.size(); ++i) {
+    if (outputs[i]["out_ch_vld"] == 0) {
+      expected_outputs[i]["out_ch"] = outputs[i]["out_ch"];
+    }
+  }
+
+  VLOG(1) << "Signal Trace";
+  XLS_ASSERT_OK(VLogTestPipelinedIO(
+      std::vector<SignalSpec>{{"cycle", SignalType::kOutput},
+                              {"rst", SignalType::kInput},
+                              {"in_ch", SignalType::kInput},
+                              {"in_ch_vld", SignalType::kInput},
+                              {"in_ch_rdy", SignalType::kOutput},
+                              {"out_ch", SignalType::kOutput},
+                              {"out_ch_vld", SignalType::kOutput},
+                              {"out_ch_rdy", SignalType::kInput}},
+      /*column_width=*/10, inputs, outputs));
+
+  EXPECT_EQ(outputs.size(), expected_outputs.size());
+  for (int64_t i = 0; i < std::min(outputs.size(), expected_outputs.size());
+       ++i) {
+    EXPECT_EQ(outputs[i], expected_outputs[i]);
+  }
+}
+
+TEST_F(ProcConversionTestFixture, TrivialProcHierarchyWithGlobalChannels) {
+  // Construct a proc which instantiates one proc which accumulates its inputs.
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in_ch,
+      p->CreateStreamingChannel("in_ch", ChannelOps::kReceiveOnly,
+                                p->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out_ch,
+      p->CreateStreamingChannel("out_ch", ChannelOps::kSendOnly,
+                                p->GetBitsType(32)));
+
+  XLS_ASSERT_OK(
+      CreateLegacyAccumProc("leaf_proc", p.get(), in_ch, out_ch).status());
+
+  TokenlessProcBuilder pb("a_top_proc", "tkn", p.get());
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * top, pb.Build({}));
+  XLS_ASSERT_OK(p->SetTop(top));
+
+  XLS_ASSERT_OK(ConvertToBlock(
+      p.get(),
+      CodegenOptions().reset("rst", false, false, false).clock_name("clk"),
+      SchedulingOptions()
+          .pipeline_stages(2)
+          .schedule_all_procs(true)
+          .add_constraint(RecvsFirstSendsLastConstraint())));
+
+  EXPECT_EQ(p->blocks().size(), 3);
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("a_top_proc"));
 

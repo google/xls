@@ -391,6 +391,13 @@ class Block : public FunctionBase {
     return channel_port_metadata_.contains(
         std::pair<std::string, ChannelDirection>(channel_name, direction));
   }
+
+  const absl::flat_hash_map<std::pair<std::string, ChannelDirection>,
+                            ChannelPortMetadata>&
+  GetAllChannelPortMetadata() const {
+    return channel_port_metadata_;
+  }
+
   // Returns the port node associated with the ready/valid/data signal for the
   // given channel. Returns an error if no port metadata exists for the given
   // channel. Returns std::nullopt if port metadata exists for the channel but

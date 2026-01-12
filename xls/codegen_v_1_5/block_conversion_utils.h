@@ -21,6 +21,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "xls/ir/block.h"
+#include "xls/ir/instantiation.h"
 #include "xls/ir/package.h"
 
 namespace xls::codegen {
@@ -36,6 +37,10 @@ GetScheduledBlocksWithProcSources(Package* p, bool new_style_only = false);
 // in `old_to_new` from their package.
 absl::Status UpdateProcInstantiationsAndRemoveOldProcs(
     const absl::flat_hash_map<Proc*, Proc*>& old_to_new);
+
+// Gets the sub-blocks instantiated by `block`.
+absl::flat_hash_map<Block*, BlockInstantiation*> GetInstantiatedBlocks(
+    Package* package);
 
 }  // namespace xls::codegen
 

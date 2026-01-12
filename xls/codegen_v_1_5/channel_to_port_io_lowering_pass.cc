@@ -1685,24 +1685,6 @@ absl::StatusOr<bool> LowerIoToPorts(
   return changed;
 }
 
-absl::StatusOr<absl::flat_hash_set<Channel*>> GetLivePackageScopedChannels(
-    Package* package) {
-  absl::flat_hash_set<Channel*> channels;
-  for (FunctionBase* fb : package->GetFunctionBases()) {
-    for (Node* node : fb->nodes()) {
-      if (!node->Is<ChannelNode>()) {
-        continue;
-      }
-      ChannelNode* channel_node = node->As<ChannelNode>();
-      XLS_ASSIGN_OR_RETURN(ChannelRef channel, channel_node->GetChannelRef());
-      if (std::holds_alternative<Channel*>(channel)) {
-        channels.insert(std::get<Channel*>(channel));
-      }
-    }
-  }
-  return channels;
-}
-
 }  // namespace
 
 absl::StatusOr<bool> ChannelToPortIoLoweringPass::RunInternal(
@@ -1726,18 +1708,6 @@ absl::StatusOr<bool> ChannelToPortIoLoweringPass::RunInternal(
     XLS_ASSIGN_OR_RETURN(bool changed_io,
                          LowerIoToPorts(scheduled_block, connections, options));
     changed |= changed_io;
-  }
-
-  // Make sure to remove any now-dead channels in the package.
-  XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Channel*> live_channels,
-                       GetLivePackageScopedChannels(package));
-  std::vector<Channel*> channels_to_remove;
-  absl::c_copy_if(
-      package->channels(), std::back_inserter(channels_to_remove),
-      [&](Channel* channel) { return !live_channels.contains(channel); });
-  for (Channel* channel : channels_to_remove) {
-    XLS_RETURN_IF_ERROR(package->RemoveChannel(channel));
-    changed = true;
   }
 
   return changed;

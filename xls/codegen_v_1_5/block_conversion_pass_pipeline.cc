@@ -25,6 +25,7 @@
 #include "xls/codegen_v_1_5/channel_to_port_io_lowering_pass.h"
 #include "xls/codegen_v_1_5/flow_control_insertion_pass.h"
 #include "xls/codegen_v_1_5/function_io_lowering_pass.h"
+#include "xls/codegen_v_1_5/global_channel_block_stitching_pass.h"
 #include "xls/codegen_v_1_5/idle_insertion_pass.h"
 #include "xls/codegen_v_1_5/pipeline_register_insertion_pass.h"
 #include "xls/codegen_v_1_5/proc_instantiation_lowering_pass.h"
@@ -67,9 +68,6 @@ std::unique_ptr<BlockConversionCompoundPass> CreateBlockConversionPassPipeline(
   // Lower params and return values to ports.
   top->Add<FunctionIOLoweringPass>();
 
-  // Add module signatures.
-  top->Add<SignatureGenerationPass>();
-
   // Insert flow control between stages.
   top->Add<FlowControlInsertionPass>();
 
@@ -78,6 +76,12 @@ std::unique_ptr<BlockConversionCompoundPass> CreateBlockConversionPassPipeline(
 
   // Lower proc instantiations to block instantiations.
   top->Add<ProcInstantiationLoweringPass>();
+
+  // Stitch blocks that were lowered from procs using global channels.
+  top->Add<GlobalChannelBlockStitchingPass>();
+
+  // Add module signatures.
+  top->Add<SignatureGenerationPass>();
 
   // Lower scheduled block to standard block, inlining each stage.
   top->Add<BlockFinalizationPass>();
