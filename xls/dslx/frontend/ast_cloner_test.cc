@@ -142,6 +142,20 @@ fn main() -> u32 {
   XLS_ASSERT_OK(VerifyClone(body_expr, clone, *module->file_table()));
 }
 
+TEST(AstClonerTest, Lambda) {
+  constexpr std::string_view kProgram = R"(fn main() -> u32[10] {
+    let ARR = map(range(0, 10), |i: u32| -> u32 { 2 * i });
+    ARR
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(*module.get()));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
 TEST(AstClonerTest, NameRefParens) {
   constexpr std::string_view kProgram = R"(fn main() -> u32 {
     let a = u32:0;

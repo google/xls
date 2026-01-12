@@ -286,8 +286,13 @@ absl::StatusOr<Lambda*> Parser::ParseLambda(Bindings& bindings) {
   }
 
   XLS_ASSIGN_OR_RETURN(StatementBlock * body, ParseBlockExpression(bindings));
-  return module_->Make<Lambda>(Span(start_pos, GetPos()), params, return_type,
-                               body);
+  Span sp = Span(start_pos, GetPos());
+  NameDef* fn_name_def = module_->Make<NameDef>(sp, "lambda_fn", nullptr);
+  Function* fn = module_->Make<Function>(
+      sp, fn_name_def, std::vector<ParametricBinding*>(), params, return_type,
+      body, FunctionTag::kLambda,
+      /*is_public=*/false, /*is_stub=*/false);
+  return module_->Make<Lambda>(sp, fn);
 }
 
 absl::Status Parser::ParseModuleAttribute() {

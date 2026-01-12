@@ -115,6 +115,8 @@ std::string_view FunctionTagToString(FunctionTag tag) {
       return "proc next";
     case FunctionTag::kProcInit:
       return "proc init";
+    case FunctionTag::kLambda:
+      return "lambda";
   }
   LOG(FATAL) << "Out-of-range function tag: " << static_cast<int>(tag);
 }
@@ -2338,26 +2340,10 @@ TestFunction::~TestFunction() = default;
 
 // -- class Lambda
 
-Lambda::Lambda(Module* owner, Span span, std::vector<Param*> params,
-               TypeAnnotation* return_type, StatementBlock* body)
-    : Expr(owner, std::move(span)),
-      params_(std::move(params)),
-      return_type_(return_type),
-      body_(body) {}
+Lambda::Lambda(Module* owner, Span span, Function* function)
+    : Expr(owner, std::move(span)), function_(function) {}
 
 Lambda::~Lambda() = default;
-
-std::vector<AstNode*> Lambda::GetChildren(bool want_types) const {
-  std::vector<AstNode*> results;
-  for (Param* p : params()) {
-    results.push_back(p);
-  }
-  if (return_type_ != nullptr && want_types) {
-    results.push_back(return_type_);
-  }
-  results.push_back(body_);
-  return results;
-}
 
 std::string Lambda::ToStringInternal() const {
   std::string params_str =
@@ -2365,11 +2351,11 @@ std::string Lambda::ToStringInternal() const {
         absl::StrAppend(out, param->ToString());
       });
 
-  std::string return_str = return_type_ != nullptr
-                               ? absl::StrCat(" -> ", return_type_->ToString())
+  std::string return_str = return_type() != nullptr
+                               ? absl::StrCat(" -> ", return_type()->ToString())
                                : "";
   std::string body_str =
-      body_->size() > 1 ? body_->ToString() : body_->ToInlineString();
+      body()->size() > 1 ? body()->ToString() : body()->ToInlineString();
 
   return absl::StrFormat("|%s|%s %s", params_str, return_str, body_str);
 }

@@ -3823,6 +3823,14 @@ TEST_F(ParserTest, ParseMapWithLambdaParamAnnotation) {
   RoundTrip(R"(const ARR = map(range(0, u16:5), |i: u16| { 2 * i });)");
 }
 
+TEST_F(ParserTest, MultipleLambdas) {
+  RoundTrip(R"(const ARR = map([0..10], |i: u32| { i });
+fn uses_lambda(i: u32) -> u32 {
+    let X = || { u32:2 * i };
+    X()
+})");
+}
+
 TEST_F(ParserTest, LambdaInLetNoParams) {
   RoundTrip(R"(fn uses_lambda(i: u32) -> u32 {
     let X = || { u32:2 * i };

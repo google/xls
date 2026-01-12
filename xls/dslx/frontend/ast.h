@@ -2395,6 +2395,7 @@ enum class FunctionTag : uint8_t {
   kProcConfig,
   kProcNext,
   kProcInit,
+  kLambda,
 };
 
 std::string_view FunctionTagToString(FunctionTag tag);
@@ -2550,8 +2551,7 @@ class Function : public AstNode {
 // * body: The body of the lambda.
 class Lambda : public Expr {
  public:
-  Lambda(Module* owner, Span span, std::vector<Param*> params,
-         TypeAnnotation* return_type, StatementBlock* body);
+  Lambda(Module* owner, Span span, Function* function);
 
   ~Lambda() override;
 
@@ -2563,14 +2563,21 @@ class Lambda : public Expr {
     return v->HandleLambda(this);
   }
   std::string_view GetNodeTypeName() const override { return "Lambda"; }
-  std::vector<AstNode*> GetChildren(bool want_types) const override;
 
-  const std::vector<Param*>& params() const { return params_; }
+  // Lambda is a wrapper around the lambda function. Functions are top-level to
+  // the module, so there are no children here.
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    return {};
+  }
+
+  const std::vector<Param*>& params() const { return function_->params(); }
+  TypeAnnotation* return_type() const { return function_->return_type(); }
+  StatementBlock* body() const { return function_->body(); }
+
+  Function* function() const { return function_; }
 
  private:
-  std::vector<Param*> params_;
-  TypeAnnotation* return_type_;  // May be null.
-  StatementBlock* body_;
+  Function* function_;
 
   std::string ToStringInternal() const final;
 
