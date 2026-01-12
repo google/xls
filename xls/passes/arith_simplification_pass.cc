@@ -1586,7 +1586,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n,
 
   // SLt(x, 0) -> msb(x)
   // SGe(x, 0) -> not(msb(x))
-  // SGt(x, 0) -> and(not(msb(x)), ne(x, 0))
+  // SGt(x, 0) -> and(not(msb(x)), or_reduce(x[W-2:0]))
   //
   // Canonicalization puts the literal on the right for comparisons.
   //
@@ -1614,23 +1614,99 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n,
     }
     if (n->op() == Op::kSGt) {
       VLOG(2) << "FOUND: SGt(x, 0)";
+      const int64_t w = n->operand(0)->BitCountOrDie();
       XLS_ASSIGN_OR_RETURN(
           Node * sign_bit,
-          n->function_base()->MakeNode<BitSlice>(
-              n->loc(), n->operand(0),
-              /*start=*/n->operand(0)->BitCountOrDie() - 1, /*width=*/1));
+          n->function_base()->MakeNode<BitSlice>(n->loc(), n->operand(0),
+                                                 /*start=*/w - 1, /*width=*/1));
       XLS_ASSIGN_OR_RETURN(
           Node * not_sign_bit,
           n->function_base()->MakeNode<UnOp>(n->loc(), sign_bit, Op::kNot));
-      XLS_ASSIGN_OR_RETURN(
-          Node * nonzero,
-          n->function_base()->MakeNode<CompareOp>(n->loc(), n->operand(0),
-                                                  n->operand(1), Op::kNe));
+      Node* nonsign_or = nullptr;
+      if (w - 1 == 0) {
+        // w == 1: there are no non-sign bits, so "any non-sign bit set" is
+        // false.
+        XLS_ASSIGN_OR_RETURN(nonsign_or, n->function_base()->MakeNode<Literal>(
+                                             n->loc(), Value(UBits(0, 1))));
+      } else {
+        XLS_ASSIGN_OR_RETURN(
+            Node * nonsign_slice,
+            n->function_base()->MakeNode<BitSlice>(n->loc(), n->operand(0),
+                                                   /*start=*/0,
+                                                   /*width=*/w - 1));
+        if (w - 1 == 1) {
+          // Single non-sign bit: or_reduce is a no-op.
+          nonsign_or = nonsign_slice;
+        } else {
+          // Multiple non-sign bits: use an or_reduce to test for any set bit.
+          XLS_ASSIGN_OR_RETURN(nonsign_or,
+                               n->function_base()->MakeNode<BitwiseReductionOp>(
+                                   n->loc(), nonsign_slice, Op::kOrReduce));
+        }
+      }
       XLS_RETURN_IF_ERROR(
           n->ReplaceUsesWithNew<NaryOp>(
-               std::vector<Node*>{not_sign_bit, nonzero}, Op::kAnd)
+               std::vector<Node*>{not_sign_bit, nonsign_or}, Op::kAnd)
               .status());
       return true;
+    }
+  }
+
+  // SGt(x, 2^k - 1) ->
+  //   and(not(bit_slice(x, W-1, 1)), or_reduce(bit_slice(x, k, W-1-k)))
+  //
+  // This pattern applies when the RHS is a non-negative constant of the form
+  // 0b0..011..11 (a run of 1s starting at bit 0, not reaching the sign bit).
+  if (NarrowingEnabled(opt_level) && n->op() == Op::kSGt) {
+    std::optional<Bits> rhs = query_engine.KnownValueAsBits(n->operand(1));
+    if (rhs.has_value()) {
+      int64_t leading_zeros = 0;
+      int64_t trailing_ones = 0;
+      int64_t trailing_zeros = 0;
+      // We want RHS to be exactly 0b0..011..11 (i.e. (2^k - 1) for some k),
+      // where the run of ones starts at the LSB (trailing_zeros == 0) and does
+      // not reach the sign bit (leading_zeros > 0).
+      if (rhs->HasSingleRunOfSetBits(&leading_zeros, &trailing_ones,
+                                     &trailing_zeros) &&
+          trailing_zeros == 0 && leading_zeros > 0) {
+        VLOG(2) << "FOUND: SGt(x, 2^k - 1)";
+        const int64_t w = n->operand(0)->BitCountOrDie();
+        XLS_RET_CHECK_EQ(rhs->bit_count(), w);
+        const int64_t k = trailing_ones;
+        const int64_t slice_width = (w - 1) - k;
+
+        XLS_ASSIGN_OR_RETURN(
+            Node * sign_bit,
+            n->function_base()->MakeNode<BitSlice>(n->loc(), n->operand(0),
+                                                   /*start=*/w - 1,
+                                                   /*width=*/1));
+        XLS_ASSIGN_OR_RETURN(
+            Node * not_sign_bit,
+            n->function_base()->MakeNode<UnOp>(n->loc(), sign_bit, Op::kNot));
+        if (slice_width == 0) {
+          XLS_RETURN_IF_ERROR(
+              n->ReplaceUsesWithNew<Literal>(Value(UBits(0, 1))).status());
+          return true;
+        }
+        XLS_ASSIGN_OR_RETURN(
+            Node * upper_bits_slice,
+            n->function_base()->MakeNode<BitSlice>(n->loc(), n->operand(0),
+                                                   /*start=*/k,
+                                                   /*width=*/slice_width));
+        Node* upper_bits_or = nullptr;
+        if (slice_width == 1) {
+          upper_bits_or = upper_bits_slice;
+        } else {
+          XLS_ASSIGN_OR_RETURN(upper_bits_or,
+                               n->function_base()->MakeNode<BitwiseReductionOp>(
+                                   n->loc(), upper_bits_slice, Op::kOrReduce));
+        }
+        XLS_RETURN_IF_ERROR(
+            n->ReplaceUsesWithNew<NaryOp>(
+                 std::vector<Node*>{not_sign_bit, upper_bits_or}, Op::kAnd)
+                .status());
+        return true;
+      }
     }
   }
 

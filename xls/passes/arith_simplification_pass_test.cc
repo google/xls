@@ -1887,8 +1887,43 @@ TEST_F(ArithSimplificationPassTest, SGtZero) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
-      m::And(m::Not(m::BitSlice(m::Param("x"), /*start=*/31, /*width=*/1)),
-             m::Ne(m::Param("x"), m::Literal(UBits(0, 32)))));
+      m::And(
+          m::Not(m::BitSlice(m::Param("x"), /*start=*/31, /*width=*/1)),
+          m::OrReduce(m::BitSlice(m::Param("x"), /*start=*/0, /*width=*/31))));
+}
+
+TEST_F(ArithSimplificationPassTest, SGtPowerOfTwoMinusOne) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* bits32 = p->GetBitsType(32);
+  BValue x = fb.Param("x", bits32);
+
+  // 2^5 - 1 = 0b1_1111
+  fb.SGt(x, fb.Literal(UBits((1ULL << 5) - 1, 32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence sve(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::And(
+          m::Not(m::BitSlice(m::Param("x"), /*start=*/31, /*width=*/1)),
+          m::OrReduce(m::BitSlice(m::Param("x"), /*start=*/5, /*width=*/26))));
+}
+
+TEST_F(ArithSimplificationPassTest, SGtMaxPositiveIsFalse) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* bits32 = p->GetBitsType(32);
+  BValue x = fb.Param("x", bits32);
+
+  // Max positive signed 32-bit value: 2^31 - 1.
+  fb.SGt(x, fb.Literal(UBits((1ULL << 31) - 1, 32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence sve(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Literal(UBits(0, 1)));
 }
 
 TEST_F(ArithSimplificationPassTest, InvertedComparison) {
