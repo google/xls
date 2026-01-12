@@ -302,6 +302,7 @@ cc_test(
 
 cc_test(
     name = "arith_simplification_pass_test",
+    timeout = "long",
     srcs = ["arith_simplification_pass_test.cc"],
     shard_count = 10,
     deps = [
@@ -356,8 +357,10 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:op",
         "//xls/ir:value",
+        "//xls/solvers:z3_ir_equivalence_testutils",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/time",
         "@googletest//:gtest",
     ],
 )
