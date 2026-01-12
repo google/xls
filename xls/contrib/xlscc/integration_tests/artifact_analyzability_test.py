@@ -169,7 +169,7 @@ class ArtifactAnalyzabilityTest(absltest.TestCase):
         input_interface, for_variable="i", bit_count=32
     )
     self._assert_loop_variable_bit_width(
-        output_interface, for_variable="i", bit_count=2
+        output_interface, for_variable="i", bit_count=3
     )
 
 
