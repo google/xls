@@ -85,61 +85,6 @@ void ExpectAnnotateWithIntegerArg(
 }
 
 template <typename ClangT>
-const ClangT* GetStmtInCompoundStmt(const clang::CompoundStmt* stmt) {
-  for (const clang::Stmt* body_st : stmt->children()) {
-    if (const clang::LabelStmt* label =
-            clang::dyn_cast<clang::LabelStmt>(body_st);
-        label != nullptr) {
-      body_st = label->getSubStmt();
-    }
-
-    const ClangT* ret;
-    if (const clang::CompoundStmt* cmpnd_stmt =
-            clang::dyn_cast<clang::CompoundStmt>(body_st);
-        cmpnd_stmt != nullptr) {
-      ret = GetStmtInCompoundStmt<ClangT>(cmpnd_stmt);
-    } else {
-      ret = clang::dyn_cast<const ClangT>(body_st);
-    }
-    if (ret != nullptr) {
-      return ret;
-    }
-  }
-
-  return nullptr;
-}
-
-template <typename ClangT>
-const ClangT* GetStmtInFunction(const clang::FunctionDecl* func) {
-  const clang::Stmt* body = func->getBody();
-  if (body == nullptr) {
-    return nullptr;
-  }
-
-  for (const clang::Stmt* body_st : body->children()) {
-    if (const clang::LabelStmt* label =
-            clang::dyn_cast<clang::LabelStmt>(body_st);
-        label != nullptr) {
-      body_st = label->getSubStmt();
-    }
-
-    const ClangT* ret;
-    if (const clang::CompoundStmt* cmpnd_stmt =
-            clang::dyn_cast<clang::CompoundStmt>(body_st);
-        cmpnd_stmt != nullptr) {
-      ret = GetStmtInCompoundStmt<ClangT>(cmpnd_stmt);
-    } else {
-      ret = clang::dyn_cast<const ClangT>(body_st);
-    }
-    if (ret != nullptr) {
-      return ret;
-    }
-  }
-
-  return nullptr;
-}
-
-template <typename ClangT>
 const clang::AttributedStmt* GetAttributedStmtInCompoundStmt(
     const clang::CompoundStmt* stmt) {
   for (const clang::Stmt* body_st : stmt->children()) {
