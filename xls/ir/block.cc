@@ -257,16 +257,20 @@ std::vector<Node*> Block::DumpOrder() const {
   return order;
 }
 
-std::string Block::DumpIr() const {
-  std::string res;
-
+std::vector<std::string> Block::AttributeIrStrings() const {
+  std::vector<std::string> res = FunctionBase::AttributeIrStrings();
   if (GetSignature().has_value()) {
     std::string textproto;
     google::protobuf::TextFormat::Printer printer;
     printer.SetSingleLineMode(true);
     printer.PrintToString(*GetSignature(), &textproto);
-    absl::StrAppend(&res, "#[signature(\"\"\"", textproto, "\"\"\")]\n");
+    res.push_back(absl::StrCat("signature(\"\"\"", textproto, "\"\"\")"));
   }
+  return res;
+}
+
+std::string Block::DumpIr() const {
+  std::string res;
   std::vector<std::string> port_strings;
   for (const Port& port : GetPorts()) {
     if (std::holds_alternative<ClockPort*>(port)) {

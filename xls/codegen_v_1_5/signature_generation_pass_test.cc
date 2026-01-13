@@ -30,6 +30,7 @@
 #include "xls/codegen_v_1_5/scheduled_block_conversion_pass.h"
 #include "xls/common/proto_test_utils.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
@@ -76,7 +77,11 @@ class SignatureGenerationPassTest : public IrTestBase {
     XLS_RETURN_IF_ERROR(
         FunctionIOLoweringPass().Run(p, options, &results).status());
 
-    return SignatureGenerationPass().Run(p, options, &results);
+    XLS_ASSIGN_OR_RETURN(bool result,
+                         SignatureGenerationPass().Run(p, options, &results));
+
+    XLS_RET_CHECK_OK(Parser::ParsePackageNoVerify(p->DumpIr()).status());
+    return result;
   }
 };
 

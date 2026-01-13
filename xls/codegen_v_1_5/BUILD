@@ -864,6 +864,7 @@ cc_test(
         "//xls/common:proto_test_utils",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:channel",

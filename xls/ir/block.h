@@ -361,6 +361,7 @@ class Block : public FunctionBase {
           {},
       bool preserve_schedule = true) const;
 
+  std::vector<std::string> AttributeIrStrings() const override;
   std::string DumpIr() const override;
 
   FunctionBase::Kind kind() const final { return FunctionBase::Kind::kBlock; }

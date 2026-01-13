@@ -210,7 +210,7 @@ class FunctionBase {
   virtual Kind kind() const = 0;
 
   // Get FunctionBase attributes suitable for putting in #[...] in the IR.
-  std::vector<std::string> AttributeIrStrings() const;
+  virtual std::vector<std::string> AttributeIrStrings() const;
 
   // Return Span of parameters.
   absl::Span<Param* const> params() const { return params_; }
