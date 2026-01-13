@@ -426,6 +426,101 @@ TEST_F(BasicSimplificationPassTest, EmptyXorReduce) {
   EXPECT_THAT(f->return_value(), m::Literal(0, 1));
 }
 
+TEST_F(BasicSimplificationPassTest, OrReduceMaskedBySignExtPredicate) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue b = fb.Param("b", p->GetBitsType(1));
+  BValue se = fb.SignExtend(b, /*new_bit_count=*/8);
+  BValue masked = fb.And(x, se);
+  BValue result = fb.OrReduce(masked);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::And(m::Param("b"), m::OrReduce(m::Param("x"))));
+}
+
+TEST_F(BasicSimplificationPassTest,
+       OrReduceMaskedBySignExtPredicateCommutedAnd) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue b = fb.Param("b", p->GetBitsType(1));
+  BValue se = fb.SignExtend(b, /*new_bit_count=*/8);
+  BValue masked = fb.And(se, x);
+  BValue result = fb.OrReduce(masked);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::And(m::Param("b"), m::OrReduce(m::Param("x"))));
+}
+
+TEST_F(BasicSimplificationPassTest, AndReduceMaskedBySignExtPredicate) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue b = fb.Param("b", p->GetBitsType(1));
+  BValue se = fb.SignExtend(b, /*new_bit_count=*/8);
+  BValue masked = fb.And(x, se);
+  BValue result = fb.AndReduce(masked);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::And(m::Param("b"), m::AndReduce(m::Param("x"))));
+}
+
+TEST_F(BasicSimplificationPassTest, OrReduceMaskedByNotSignExtPredicate) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue b = fb.Param("b", p->GetBitsType(1));
+  BValue se = fb.SignExtend(b, /*new_bit_count=*/8);
+  BValue inv = fb.Not(se);
+  BValue masked = fb.And(x, inv);
+  BValue result = fb.OrReduce(masked);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::And(m::Not(m::Param("b")), m::OrReduce(m::Param("x"))));
+}
+
+TEST_F(BasicSimplificationPassTest, AndReduceMaskedByNotSignExtPredicate) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue b = fb.Param("b", p->GetBitsType(1));
+  BValue se = fb.SignExtend(b, /*new_bit_count=*/8);
+  BValue inv = fb.Not(se);
+  BValue masked = fb.And(inv, x);
+  BValue result = fb.AndReduce(masked);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::And(m::Not(m::Param("b")), m::AndReduce(m::Param("x"))));
+}
+
+TEST_F(BasicSimplificationPassTest, NoRewriteForWEquals1) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(1));
+  BValue b = fb.Param("b", p->GetBitsType(1));
+  BValue se = fb.SignExtend(b, /*new_bit_count=*/1);
+  BValue masked = fb.And(x, se);
+  BValue result = fb.OrReduce(masked);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  // or_reduce(bits[1]) is simplified to its operand; the w==1
+  // reduction-under-sign_ext(mask) simplification is intentionally not applied.
+  EXPECT_THAT(f->return_value(),
+              m::And(m::Param("x"), m::SignExt(m::Param("b"))));
+}
+
 TEST_F(BasicSimplificationPassTest, AndWithDuplicateOperands) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(

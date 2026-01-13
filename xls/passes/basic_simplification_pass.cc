@@ -253,6 +253,79 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
     return true;
   }
 
+  // Reduction of a value masked by sign_ext(bits[1]) (eliminate mask plumbing).
+  //
+  // Note on abbreviation in the pattern below:
+  //
+  // - `w` is the bit-width of the masked datapath value `x` (and thus the
+  //   width of the `and(x, mask)`).
+  // - `b` is the 1-bit predicate (bits[1]) being sign-extended to a `w`-bit
+  //   mask via `sign_ext(b, w)` (all-zeros when b=0, all-ones when b=1).
+  //
+  // For w > 1, sign_ext(b:bits[1], w) is either 0_w or all_ones_w, so:
+  //
+  //   or_reduce(and(x, sign_ext(b,w)))  == and(b, or_reduce(x))
+  //   and_reduce(and(x, sign_ext(b,w))) == and(b, and_reduce(x))
+  //
+  // And similarly for the inverted mask not(sign_ext(b,w)).
+  //
+  // This is always semantics-preserving and strictly reduces mask plumbing for
+  // w > 1.
+  if (n->OpIn({Op::kOrReduce, Op::kAndReduce}) &&
+      n->operand(0)->op() == Op::kAnd && n->operand(0)->operand_count() == 2) {
+    Node* and_op = n->operand(0);
+    const int64_t w = and_op->BitCountOrDie();
+    if (w > 1) {
+      auto match_sign_ext_mask = [&](Node* node, Node** b,
+                                     bool* inverted) -> bool {
+        *b = nullptr;
+        *inverted = false;
+        Node* maybe_sign_ext = node;
+        if (node->op() == Op::kNot && node->operand(0)->op() == Op::kSignExt) {
+          *inverted = true;
+          maybe_sign_ext = node->operand(0);
+        }
+        if (maybe_sign_ext->op() != Op::kSignExt) {
+          return false;
+        }
+        if (maybe_sign_ext->BitCountOrDie() != w) {
+          return false;
+        }
+        Node* sign_ext_operand = maybe_sign_ext->As<ExtendOp>()->operand(0);
+        if (sign_ext_operand->BitCountOrDie() != 1) {
+          return false;
+        }
+        *b = sign_ext_operand;
+        return true;
+      };
+
+      Node* b = nullptr;
+      bool inverted = false;
+      Node* x = nullptr;
+      if (match_sign_ext_mask(and_op->operand(0), &b, &inverted)) {
+        x = and_op->operand(1);
+      } else if (match_sign_ext_mask(and_op->operand(1), &b, &inverted)) {
+        x = and_op->operand(0);
+      }
+      if (b != nullptr && x != nullptr && x->BitCountOrDie() == w) {
+        FunctionBase* f = n->function_base();
+        Node* cond = b;
+        if (inverted) {
+          XLS_ASSIGN_OR_RETURN(cond, f->MakeNode<UnOp>(n->loc(), b, Op::kNot));
+        }
+        XLS_ASSIGN_OR_RETURN(Node * reduced_x, f->MakeNode<BitwiseReductionOp>(
+                                                   n->loc(), x, n->op()));
+        XLS_ASSIGN_OR_RETURN(
+            Node * gated,
+            f->MakeNode<NaryOp>(n->loc(), std::vector<Node*>{cond, reduced_x},
+                                Op::kAnd));
+        VLOG(2) << "FOUND: reduction of sign_ext(mask)-masked value";
+        XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(gated));
+        return true;
+      }
+    }
+  }
+
   // Replaces uses of n with a new node by eliminating operands for which the
   // "predicate" holds. If the predicate holds for all operands, the
   // NaryOpNullaryResult is used as a replacement.
