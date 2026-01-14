@@ -23,8 +23,8 @@
 #include <utility>
 #include <vector>
 
-#include "gtest/gtest.h"
 #include "absl/cleanup/cleanup.h"
+#include "gtest/gtest.h"
 #include "xls/public/c_api.h"
 #include "xls/public/c_api_format_preference.h"
 
@@ -1013,6 +1013,222 @@ endmodule
   ASSERT_NE(neg1, nullptr);
   auto* i_ref = xls_vast_verilog_module_add_parameter_with_def(m, i_def, neg1);
   ASSERT_NE(i_ref, nullptr);
+
+  char* emitted = xls_vast_verilog_file_emit(f);
+  ASSERT_NE(emitted, nullptr);
+  absl::Cleanup free_emitted([&] { xls_c_str_free(emitted); });
+  EXPECT_EQ(std::string_view{emitted}, kWantEmitted);
+}
+
+TEST(XlsCApiTest, VastArrayParametersWithDefAndAssignmentPattern) {
+  const std::string_view kWantEmitted = R"(module top;
+  parameter P0[2] = '{'0, '0};
+  parameter int P1[3] = '{1, 2, 3};
+  parameter logic [7:0] P2[2] = '{8'h42, 8'h43};
+  parameter integer P3[1][4] = '{'{1, 2, 3, 4}};
+  parameter int P4[2][3] = '{'{1, 2, 3}, '{4, 5, 6}};
+endmodule
+)";
+
+  xls_vast_verilog_file* f =
+      xls_vast_make_verilog_file(xls_vast_file_type_system_verilog);
+  ASSERT_NE(f, nullptr);
+  absl::Cleanup free_file([&] { xls_vast_verilog_file_free(f); });
+
+  xls_vast_verilog_module* m = xls_vast_verilog_file_add_module(f, "top");
+  ASSERT_NE(m, nullptr);
+
+  auto make_assignment_pattern =
+      [&](std::vector<xls_vast_expression*> elements) -> xls_vast_expression* {
+    return xls_vast_verilog_file_make_array_assignment_pattern(
+        f, elements.data(), elements.size());
+  };
+
+  // Helper: make an N-bit hex literal like 8'h42.
+  auto make_hex_literal = [&](int64_t bit_count,
+                              uint64_t value) -> xls_vast_expression* {
+    xls_bits* bits = nullptr;
+    char* error = nullptr;
+    absl::Cleanup free_error([&] { xls_c_str_free(error); });
+    EXPECT_TRUE(xls_bits_make_ubits(bit_count, value, &error, &bits))
+        << (error ? error : "");
+    absl::Cleanup free_bits([&] { xls_bits_free(bits); });
+    xls_vast_literal* lit = nullptr;
+    EXPECT_TRUE(xls_vast_verilog_file_make_literal(
+        f, bits, xls_format_preference_hex,
+        /*emit_bit_count=*/true, &error, &lit))
+        << (error ? error : "");
+    EXPECT_NE(lit, nullptr);
+    return xls_vast_literal_as_expression(lit);
+  };
+
+  // P0: parameter P0[2] = '{'0, '0};
+  xls_vast_data_type* scalar = xls_vast_verilog_file_make_scalar_type(f);
+  ASSERT_NE(scalar, nullptr);
+  const int64_t p0_dims[] = {2};
+  xls_vast_data_type* p0_type =
+      xls_vast_verilog_file_make_unpacked_array_type(f, scalar, p0_dims, 1);
+  ASSERT_NE(p0_type, nullptr);
+  xls_vast_def* p0_def =
+      xls_vast_verilog_file_make_def(f, "P0", xls_vast_data_kind_user, p0_type);
+  ASSERT_NE(p0_def, nullptr);
+  xls_vast_expression* tick0 =
+      xls_vast_verilog_file_make_unsized_zero_literal(f);
+  ASSERT_NE(tick0, nullptr);
+  xls_vast_expression* p0_rhs = make_assignment_pattern({tick0, tick0});
+  ASSERT_NE(p0_rhs, nullptr);
+  ASSERT_NE(xls_vast_verilog_module_add_parameter_with_def(m, p0_def, p0_rhs),
+            nullptr);
+
+  // P1: parameter int P1[3] = '{1, 2, 3};
+  const int64_t p1_dims[] = {3};
+  xls_vast_data_type* p1_type =
+      xls_vast_verilog_file_make_unpacked_array_type(f, scalar, p1_dims, 1);
+  ASSERT_NE(p1_type, nullptr);
+  xls_vast_def* p1_def =
+      xls_vast_verilog_file_make_def(f, "P1", xls_vast_data_kind_int, p1_type);
+  ASSERT_NE(p1_def, nullptr);
+  xls_vast_literal* one = xls_vast_verilog_file_make_plain_literal(f, 1);
+  xls_vast_literal* two = xls_vast_verilog_file_make_plain_literal(f, 2);
+  xls_vast_literal* three = xls_vast_verilog_file_make_plain_literal(f, 3);
+  xls_vast_literal* four = xls_vast_verilog_file_make_plain_literal(f, 4);
+  xls_vast_literal* five = xls_vast_verilog_file_make_plain_literal(f, 5);
+  xls_vast_literal* six = xls_vast_verilog_file_make_plain_literal(f, 6);
+  ASSERT_NE(one, nullptr);
+  ASSERT_NE(two, nullptr);
+  ASSERT_NE(three, nullptr);
+  ASSERT_NE(four, nullptr);
+  ASSERT_NE(five, nullptr);
+  ASSERT_NE(six, nullptr);
+  xls_vast_expression* p1_rhs = make_assignment_pattern(
+      {xls_vast_literal_as_expression(one), xls_vast_literal_as_expression(two),
+       xls_vast_literal_as_expression(three)});
+  ASSERT_NE(p1_rhs, nullptr);
+  ASSERT_NE(xls_vast_verilog_module_add_parameter_with_def(m, p1_def, p1_rhs),
+            nullptr);
+
+  // P2: parameter logic [7:0] P2[2] = '{8'h42, 8'h43};
+  xls_vast_data_type* u8 =
+      xls_vast_verilog_file_make_bit_vector_type(f, 8, /*is_signed=*/false);
+  ASSERT_NE(u8, nullptr);
+  const int64_t p2_dims[] = {2};
+  xls_vast_data_type* p2_type =
+      xls_vast_verilog_file_make_unpacked_array_type(f, u8, p2_dims, 1);
+  ASSERT_NE(p2_type, nullptr);
+  xls_vast_def* p2_def = xls_vast_verilog_file_make_def(
+      f, "P2", xls_vast_data_kind_logic, p2_type);
+  ASSERT_NE(p2_def, nullptr);
+  xls_vast_expression* p2_rhs = make_assignment_pattern(
+      {make_hex_literal(8, 0x42), make_hex_literal(8, 0x43)});
+  ASSERT_NE(p2_rhs, nullptr);
+  ASSERT_NE(xls_vast_verilog_module_add_parameter_with_def(m, p2_def, p2_rhs),
+            nullptr);
+
+  // P3: parameter integer P3[1][4] = '{'{1, 2, 3, 4}};
+  const int64_t p3_dims[] = {1, 4};
+  xls_vast_data_type* p3_type =
+      xls_vast_verilog_file_make_unpacked_array_type(f, scalar, p3_dims, 2);
+  ASSERT_NE(p3_type, nullptr);
+  xls_vast_def* p3_def = xls_vast_verilog_file_make_def(
+      f, "P3", xls_vast_data_kind_integer, p3_type);
+  ASSERT_NE(p3_def, nullptr);
+  xls_vast_expression* inner_1234 = make_assignment_pattern(
+      {xls_vast_literal_as_expression(one), xls_vast_literal_as_expression(two),
+       xls_vast_literal_as_expression(three),
+       xls_vast_literal_as_expression(four)});
+  ASSERT_NE(inner_1234, nullptr);
+  xls_vast_expression* p3_rhs = make_assignment_pattern({inner_1234});
+  ASSERT_NE(p3_rhs, nullptr);
+  ASSERT_NE(xls_vast_verilog_module_add_parameter_with_def(m, p3_def, p3_rhs),
+            nullptr);
+
+  // P4: parameter int P4[2][3] = '{'{1, 2, 3}, '{4, 5, 6}};
+  const int64_t p4_dims[] = {2, 3};
+  xls_vast_data_type* p4_type =
+      xls_vast_verilog_file_make_unpacked_array_type(f, scalar, p4_dims, 2);
+  ASSERT_NE(p4_type, nullptr);
+  xls_vast_def* p4_def =
+      xls_vast_verilog_file_make_def(f, "P4", xls_vast_data_kind_int, p4_type);
+  ASSERT_NE(p4_def, nullptr);
+  xls_vast_expression* row_123 = make_assignment_pattern(
+      {xls_vast_literal_as_expression(one), xls_vast_literal_as_expression(two),
+       xls_vast_literal_as_expression(three)});
+  xls_vast_expression* row_456 =
+      make_assignment_pattern({xls_vast_literal_as_expression(four),
+                               xls_vast_literal_as_expression(five),
+                               xls_vast_literal_as_expression(six)});
+  ASSERT_NE(row_123, nullptr);
+  ASSERT_NE(row_456, nullptr);
+  xls_vast_expression* p4_rhs = make_assignment_pattern({row_123, row_456});
+  ASSERT_NE(p4_rhs, nullptr);
+  ASSERT_NE(xls_vast_verilog_module_add_parameter_with_def(m, p4_def, p4_rhs),
+            nullptr);
+
+  char* emitted = xls_vast_verilog_file_emit(f);
+  ASSERT_NE(emitted, nullptr);
+  absl::Cleanup free_emitted([&] { xls_c_str_free(emitted); });
+  EXPECT_EQ(std::string_view{emitted}, kWantEmitted);
+}
+
+TEST(XlsCApiTest, VastIndexUnpackedArrayParameter) {
+  const std::string_view kWantEmitted = R"(module top;
+  parameter P0[2] = '{'0, '1};
+  wire w;
+  assign w = P0[0];
+endmodule
+)";
+
+  xls_vast_verilog_file* f =
+      xls_vast_make_verilog_file(xls_vast_file_type_system_verilog);
+  ASSERT_NE(f, nullptr);
+  absl::Cleanup free_file([&] { xls_vast_verilog_file_free(f); });
+
+  xls_vast_verilog_module* m = xls_vast_verilog_file_add_module(f, "top");
+  ASSERT_NE(m, nullptr);
+
+  // parameter P0[2] = '{'0, '1};
+  xls_vast_data_type* scalar = xls_vast_verilog_file_make_scalar_type(f);
+  ASSERT_NE(scalar, nullptr);
+  const int64_t p0_dims[] = {2};
+  xls_vast_data_type* p0_type =
+      xls_vast_verilog_file_make_unpacked_array_type(f, scalar, p0_dims, 1);
+  ASSERT_NE(p0_type, nullptr);
+  xls_vast_def* p0_def =
+      xls_vast_verilog_file_make_def(f, "P0", xls_vast_data_kind_user, p0_type);
+  ASSERT_NE(p0_def, nullptr);
+  xls_vast_expression* tick0 =
+      xls_vast_verilog_file_make_unsized_zero_literal(f);
+  xls_vast_expression* tick1 =
+      xls_vast_verilog_file_make_unsized_one_literal(f);
+  ASSERT_NE(tick0, nullptr);
+  ASSERT_NE(tick1, nullptr);
+  std::vector<xls_vast_expression*> p0_elems = {tick0, tick1};
+  xls_vast_expression* p0_rhs =
+      xls_vast_verilog_file_make_array_assignment_pattern(f, p0_elems.data(),
+                                                          p0_elems.size());
+  ASSERT_NE(p0_rhs, nullptr);
+  xls_vast_parameter_ref* p0_ref =
+      xls_vast_verilog_module_add_parameter_with_def(m, p0_def, p0_rhs);
+  ASSERT_NE(p0_ref, nullptr);
+
+  // wire w;
+  xls_vast_logic_ref* w = xls_vast_verilog_module_add_wire(m, "w", scalar);
+  ASSERT_NE(w, nullptr);
+
+  // assign w = P0[0];
+  xls_vast_indexable_expression* p0_indexable =
+      xls_vast_parameter_ref_as_indexable_expression(p0_ref);
+  ASSERT_NE(p0_indexable, nullptr);
+  xls_vast_index* p0_0 =
+      xls_vast_verilog_file_make_index_i64(f, p0_indexable, 0);
+  ASSERT_NE(p0_0, nullptr);
+  xls_vast_expression* rhs = xls_vast_index_as_expression(p0_0);
+  ASSERT_NE(rhs, nullptr);
+  xls_vast_continuous_assignment* assign =
+      xls_vast_verilog_file_make_continuous_assignment(
+          f, xls_vast_logic_ref_as_expression(w), rhs);
+  ASSERT_NE(assign, nullptr);
+  xls_vast_verilog_module_add_member_continuous_assignment(m, assign);
 
   char* emitted = xls_vast_verilog_file_emit(f);
   ASSERT_NE(emitted, nullptr);
