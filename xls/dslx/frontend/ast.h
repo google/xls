@@ -84,61 +84,62 @@
 //
 // (Note that this includes all the Expr node leaf kinds listed in
 // XLS_DSLX_EXPR_NODE_EACH).
-#define XLS_DSLX_AST_NODE_EACH(X) \
-  /* keep-sorted start */      \
-  X(Attribute)                    \
-  X(BuiltinNameDef)               \
-  X(ConstAssert)                  \
-  X(ConstantDef)                  \
-  X(EnumDef)                      \
-  X(Function)                     \
-  X(Impl)                         \
-  X(Import)                       \
-  X(Let)                          \
-  X(MatchArm)                     \
-  X(Module)                       \
-  X(NameDef)                      \
-  X(NameDefTree)                  \
-  X(Param)                        \
-  X(ParametricBinding)            \
-  X(Proc)                         \
-  X(ProcAlias)                    \
-  X(ProcDef)                      \
-  X(ProcMember)                   \
-  X(QuickCheck)                   \
-  X(RestOfTuple)                  \
-  X(Slice)                        \
-  X(Statement)                    \
-  X(StructDef)                    \
-  X(StructMemberNode)             \
-  X(TestFunction)                 \
-  X(TestProc)                     \
-  X(Trait)                        \
-  X(TypeAlias)                    \
-  X(TypeRef)                      \
-  X(Use)                          \
-  X(UseTreeEntry)                 \
-  X(WidthSlice)                   \
-  X(WildcardPattern)              \
-  /* keep-sorted end */        \
-  /* type annotations */          \
-  /* keep-sorted start */      \
-  X(AnyTypeAnnotation)            \
-  X(ArrayTypeAnnotation)          \
-  X(BuiltinTypeAnnotation)        \
-  X(ChannelTypeAnnotation)        \
-  X(ElementTypeAnnotation)        \
-  X(FunctionTypeAnnotation)       \
-  X(GenericTypeAnnotation)        \
-  X(MemberTypeAnnotation)         \
-  X(ParamTypeAnnotation)          \
-  X(ReturnTypeAnnotation)         \
-  X(SelfTypeAnnotation)           \
-  X(SliceTypeAnnotation)          \
-  X(TupleTypeAnnotation)          \
-  X(TypeRefTypeAnnotation)        \
-  X(TypeVariableTypeAnnotation)   \
-  /* keep-sorted end */        \
+#define XLS_DSLX_AST_NODE_EACH(X)   \
+  /* keep-sorted start */        \
+  X(Attribute)                      \
+  X(BuiltinNameDef)                 \
+  X(ConstAssert)                    \
+  X(ConstantDef)                    \
+  X(EnumDef)                        \
+  X(Function)                       \
+  X(Impl)                           \
+  X(Import)                         \
+  X(Let)                            \
+  X(MatchArm)                       \
+  X(Module)                         \
+  X(NameDef)                        \
+  X(NameDefTree)                    \
+  X(Param)                          \
+  X(ParametricBinding)              \
+  X(Proc)                           \
+  X(ProcAlias)                      \
+  X(ProcDef)                        \
+  X(ProcMember)                     \
+  X(QuickCheck)                     \
+  X(RestOfTuple)                    \
+  X(Slice)                          \
+  X(Statement)                      \
+  X(StructDef)                      \
+  X(StructMemberNode)               \
+  X(TestFunction)                   \
+  X(TestProc)                       \
+  X(Trait)                          \
+  X(TypeAlias)                      \
+  X(TypeRef)                        \
+  X(Use)                            \
+  X(UseTreeEntry)                   \
+  X(WidthSlice)                     \
+  X(WildcardPattern)                \
+  /* keep-sorted end */          \
+  /* type annotations */            \
+  /* keep-sorted start */        \
+  X(AnyTypeAnnotation)              \
+  X(ArrayTypeAnnotation)            \
+  X(BuiltinTypeAnnotation)          \
+  X(ChannelTypeAnnotation)          \
+  X(ConstConditionalTypeAnnotation) \
+  X(ElementTypeAnnotation)          \
+  X(FunctionTypeAnnotation)         \
+  X(GenericTypeAnnotation)          \
+  X(MemberTypeAnnotation)           \
+  X(ParamTypeAnnotation)            \
+  X(ReturnTypeAnnotation)           \
+  X(SelfTypeAnnotation)             \
+  X(SliceTypeAnnotation)            \
+  X(TupleTypeAnnotation)            \
+  X(TypeRefTypeAnnotation)          \
+  X(TypeVariableTypeAnnotation)     \
+  /* keep-sorted end */          \
   XLS_DSLX_EXPR_NODE_EACH(X)
 
 namespace xls::dslx {
@@ -303,6 +304,7 @@ enum class TypeAnnotationKind : uint8_t {
   kArray,
   kBuiltin,
   kChannel,
+  kConstConditional,
   kElement,
   kFunction,
   kGeneric,
@@ -955,6 +957,42 @@ class GenericTypeAnnotation : public TypeAnnotation {
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {};
   }
+};
+
+class ConstConditionalTypeAnnotation : public TypeAnnotation {
+ public:
+  static constexpr TypeAnnotationKind kAnnotationKind =
+      TypeAnnotationKind::kConstConditional;
+
+  ConstConditionalTypeAnnotation(Module* owner, Span span, const Expr* test,
+                                 TypeAnnotation* consequent_type,
+                                 TypeAnnotation* alternate_type);
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleConstConditionalTypeAnnotation(this);
+  }
+
+  std::string_view GetNodeTypeName() const override {
+    return "ConstConditionalTypeAnnotation";
+  }
+
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    return {};
+  }
+
+  const Expr* test() const { return test_; }
+  TypeAnnotation* consequent_type() const { return consequent_type_; }
+  TypeAnnotation* alternate_type() const { return alternate_type_; }
+  std::string ToString() const override {
+    return absl::StrFormat("ConstConditional: %s / %s",
+                           consequent_type()->ToString(),
+                           alternate_type()->ToString());
+  }
+
+ private:
+  const Expr* test_;
+  TypeAnnotation* consequent_type_;
+  TypeAnnotation* alternate_type_;
 };
 
 // Represents the definition point of a built-in name.
@@ -2278,7 +2316,8 @@ class Conditional : public Expr {
  public:
   Conditional(Module* owner, Span span, Expr* test, StatementBlock* consequent,
               std::variant<StatementBlock*, Conditional*> alternate,
-              bool in_parens = false, bool has_else = true);
+              bool in_parens = false, bool has_else = true,
+              bool is_const = false);
 
   ~Conditional() override;
 
@@ -2306,6 +2345,8 @@ class Conditional : public Expr {
     return alternate_;
   }
 
+  bool IsConst() const { return is_const_; }
+
   bool HasElse() const { return has_else_; }
 
   bool HasElseIf() const {
@@ -2323,6 +2364,9 @@ class Conditional : public Expr {
   // blocks of this if/else-if.../else ladder.
   std::vector<StatementBlock*> GatherBlocks();
 
+  // Returns true for 'else if' conditional nodes.
+  bool IsElseIf() const;
+
  private:
   std::string ToStringInternal() const final;
 
@@ -2330,6 +2374,7 @@ class Conditional : public Expr {
   StatementBlock* consequent_;
   std::variant<StatementBlock*, Conditional*> alternate_;
   bool has_else_;
+  bool is_const_;
 };
 
 // Represents a member in a parametric binding list.

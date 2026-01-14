@@ -3328,6 +3328,40 @@ fn repro(x: u3) -> u2 {
               TypecheckSucceeds(HasNodeWithType("upper", "uN[2]")));
 }
 
+TEST(TypecheckV2Test, ConstConditionalDisparateTypes) {
+  EXPECT_THAT(R"(
+fn f<N: u32>() -> uN[N] {
+  const if (N == 1) {
+    u1:1
+  } else {
+    zero!<uN[N]>()
+  }
+}
+fn main() {
+  let foo = f<u32:1>();
+  let bar = f<u32:10>();
+  let baz = f<u32:20>();
+}
+  )",
+              TypecheckSucceeds(AllOf(HasNodeWithType("foo", "uN[1]"),
+                                      HasNodeWithType("bar", "uN[10]"),
+                                      HasNodeWithType("baz", "uN[20]"))));
+}
+
+TEST(TypecheckV2Test, ConstConditionalUnableToEvaluate) {
+  EXPECT_THAT(
+      R"(
+fn broken_if(a: u32) -> bool {
+  const if a == u32:1 {
+    true
+  } else {
+    false
+  }
+}
+  )",
+      TypecheckFails(HasSubstr("Unable to evaluate const conditional")));
+}
+
 TEST(TypecheckV2Test, BinopWithConversionForUnification) {
   EXPECT_THAT(R"(
 fn lsb<S: bool, N: u32>(x: xN[S][N]) -> u1 { x as u1 }

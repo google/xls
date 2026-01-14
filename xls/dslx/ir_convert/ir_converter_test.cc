@@ -910,6 +910,23 @@ fn foo(a: bool) -> u8 {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, ConstConditional) {
+  constexpr std::string_view program =
+      R"(
+fn main() -> u32 {
+  const if true {
+    u16:42
+  } else {
+    u8:24
+  } as u32
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
+
 TEST_F(IrConverterTest, ConstantsWithConditionalsPlusStuff) {
   constexpr std::string_view program =
       R"(

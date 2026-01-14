@@ -985,7 +985,7 @@ class AstCloner : public AstNodeVisitor {
     old_to_new_[n] = module(n)->Make<Conditional>(
         n->span(), down_cast<Expr*>(old_to_new_.at(n->test())),
         down_cast<StatementBlock*>(old_to_new_.at(n->consequent())),
-        new_alternate, n->in_parens(), n->HasElse());
+        new_alternate, n->in_parens(), n->HasElse(), n->IsConst());
     return absl::OkStatus();
   }
 
@@ -1109,6 +1109,18 @@ class AstCloner : public AstNodeVisitor {
         n->span(),
         down_cast<const TypeAnnotation*>(old_to_new_[n->struct_type()]),
         n->member_name());
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleConstConditionalTypeAnnotation(
+      const ConstConditionalTypeAnnotation* n) override {
+    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->consequent_type()));
+    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->alternate_type()));
+    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->test()));
+    old_to_new_[n] = module(n)->Make<ConstConditionalTypeAnnotation>(
+        n->span(), down_cast<Expr*>(old_to_new_[n->test()]),
+        down_cast<TypeAnnotation*>(old_to_new_[n->consequent_type()]),
+        down_cast<TypeAnnotation*>(old_to_new_[n->alternate_type()]));
     return absl::OkStatus();
   }
 

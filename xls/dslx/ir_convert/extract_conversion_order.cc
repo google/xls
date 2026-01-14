@@ -44,6 +44,7 @@
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/proc_id.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/ir_convert/conversion_record.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
@@ -347,6 +348,18 @@ class InvocationVisitor : public ExprVisitor {
   }
 
   absl::Status HandleConditional(const Conditional* expr) override {
+    // constexpr if selects only one branch of the if to handle
+    if (expr->IsConst()) {
+      XLS_ASSIGN_OR_RETURN(InterpValue test_value,
+                           type_info_->GetConstExpr(expr->test()));
+      if (test_value.IsTrue()) {
+        XLS_RETURN_IF_ERROR(expr->consequent()->AcceptExpr(this));
+      } else {
+        XLS_RETURN_IF_ERROR(ToExprNode(expr->alternate())->AcceptExpr(this));
+      }
+      return absl::OkStatus();
+    }
+
     XLS_RETURN_IF_ERROR(expr->test()->AcceptExpr(this));
     XLS_RETURN_IF_ERROR(expr->consequent()->AcceptExpr(this));
     return ToExprNode(expr->alternate())->AcceptExpr(this);

@@ -1412,3 +1412,46 @@ build_test(
     name = "xls_pipeline_build_test",
     targets = [":xls_pipeline"],
 )
+
+xls_dslx_library(
+    name = "const_if_dslx",
+    srcs = ["const_if.x"],
+)
+
+xls_dslx_ir(
+    name = "const_if_ir",
+    dslx_top = "Main",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true",
+    },
+    ir_file = "const_if.ir",
+    library = ":const_if_dslx",
+)
+
+xls_dslx_opt_ir(
+    name = "const_if_opt_ir",
+    dslx_top = "Main",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true",
+    },
+    library = ":const_if_dslx",
+)
+
+xls_dslx_test(
+    name = "const_if_dslx_test",
+    srcs = ["const_if.x"],
+    dslx_test_args = {"compare": "jit"},
+)
+
+xls_dslx_verilog(
+    name = "const_if_verilog",
+    codegen_args = {
+        "module_name": "Main",
+        "delay_model": "unit",
+        "pipeline_stages": "1",
+        "reset": "rst",
+    },
+    dslx_top = "Main",
+    library = ":const_if_dslx",
+    verilog_file = "const_if.sv",
+)

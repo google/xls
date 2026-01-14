@@ -110,6 +110,19 @@ absl::Status ProcConfigIrConverter::HandleStatementBlock(
   return absl::OkStatus();
 }
 
+absl::Status ProcConfigIrConverter::HandleConditional(const Conditional* node) {
+  if (node->IsConst()) {
+    XLS_ASSIGN_OR_RETURN(InterpValue test_value,
+                         type_info_->GetConstExpr(node->test()));
+    if (test_value.IsTrue()) {
+      XLS_RETURN_IF_ERROR(node->consequent()->Accept(this));
+    } else {
+      XLS_RETURN_IF_ERROR(ToAstNode(node->alternate())->Accept(this));
+    }
+  }
+  return absl::OkStatus();
+}
+
 absl::Status ProcConfigIrConverter::HandleStatement(const Statement* node) {
   return ToAstNode(node->wrapped())->Accept(this);
 }
