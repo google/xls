@@ -40,6 +40,7 @@ absl::Status ConvertToBlock(
     std::optional<PackageScheduleProto> schedule_override,
     OptimizationContext* opt_context) {
   XLS_RET_CHECK(!schedule_override.has_value() ||
+                schedule_override->schedules_size() == 0 ||
                 !codegen_options.generate_combinational())
       << "A schedule must not be specified for combinational block conversion.";
 
