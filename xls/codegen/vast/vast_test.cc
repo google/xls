@@ -21,14 +21,14 @@
 #include <utility>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/fileno.h"
@@ -2124,6 +2124,79 @@ TEST_P(VastTest, ArrayAssignmentPattern) {
                   f.ArrayAssignmentPattern({baz, qux}, SourceInfo())},
                  SourceInfo())
                 ->Emit(nullptr));
+}
+
+TEST_P(VastTest, ArrayParameters) {
+  if (!UseSystemVerilog()) {
+    GTEST_SKIP();
+  }
+  VerilogFile f(GetFileType());
+  Module* m = f.AddModule("top", SourceInfo());
+
+  const SourceInfo si;
+  // Literals used for the array assignment patterns below.
+  Expression* tick0 = f.Make<UnsizedZeroLiteral>(si);
+
+  Def* p0_def =
+      f.Make<Def>(si, "P0", DataKind::kUser,
+                  f.UnpackedArrayType(/*element_bit_count=*/1, {2}, si));
+  m->AddParameter(p0_def, f.ArrayAssignmentPattern({tick0, tick0}, si), si);
+
+  Def* p1_def =
+      f.Make<Def>(si, "P1", DataKind::kInt,
+                  f.UnpackedArrayType(/*element_bit_count=*/1, {3}, si));
+  m->AddParameter(
+      p1_def,
+      f.ArrayAssignmentPattern(
+          {f.PlainLiteral(1, si), f.PlainLiteral(2, si), f.PlainLiteral(3, si)},
+          si),
+      si);
+
+  Def* p2_def =
+      f.Make<Def>(si, "P2", DataKind::kLogic,
+                  f.UnpackedArrayType(/*element_bit_count=*/8, {2}, si));
+  m->AddParameter(p2_def,
+                  f.ArrayAssignmentPattern(
+                      {f.Literal(0x42, 8, si), f.Literal(0x43, 8, si)}, si),
+                  si);
+  Expression* p3_row =
+      f.ArrayAssignmentPattern({f.PlainLiteral(1, si), f.PlainLiteral(2, si),
+                                f.PlainLiteral(3, si), f.PlainLiteral(4, si)},
+                               si);
+  Def* p3_def =
+      f.Make<Def>(si, "P3", DataKind::kUser,
+                  f.UnpackedArrayType(/*element_bit_count=*/1, {1, 4}, si));
+  m->AddParameter(p3_def, f.ArrayAssignmentPattern({p3_row}, si), si);
+  Expression* p4_row0 = f.ArrayAssignmentPattern(
+      {f.PlainLiteral(1, si), f.PlainLiteral(2, si), f.PlainLiteral(3, si)},
+      si);
+  Expression* p4_row1 = f.ArrayAssignmentPattern(
+      {f.PlainLiteral(4, si), f.PlainLiteral(5, si), f.PlainLiteral(6, si)},
+      si);
+  Def* p4_def =
+      f.Make<Def>(si, "P4", DataKind::kInt,
+                  f.UnpackedArrayType(/*element_bit_count=*/1, {2, 3}, si));
+  m->AddParameter(p4_def, f.ArrayAssignmentPattern({p4_row0, p4_row1}, si), si);
+  Expression* p5_row0 = f.ArrayAssignmentPattern(
+      {f.Literal(0x42, 8, si), f.Literal(0x43, 8, si), f.Literal(0x44, 8, si)},
+      si);
+  Expression* p5_row1 = f.ArrayAssignmentPattern(
+      {f.Literal(0x45, 8, si), f.Literal(0x46, 8, si), f.Literal(0x47, 8, si)},
+      si);
+  Def* p5_def =
+      f.Make<Def>(si, "P5", DataKind::kLogic,
+                  f.UnpackedArrayType(/*element_bit_count=*/8, {2, 3}, si));
+  m->AddParameter(p5_def, f.ArrayAssignmentPattern({p5_row0, p5_row1}, si), si);
+
+  EXPECT_EQ(m->Emit(nullptr),
+            R"(module top;
+  parameter P0[2] = '{'0, '0};
+  parameter int P1[3] = '{1, 2, 3};
+  parameter logic [7:0] P2[2] = '{8'h42, 8'h43};
+  parameter P3[1][4] = '{'{1, 2, 3, 4}};
+  parameter int P4[2][3] = '{'{1, 2, 3}, '{4, 5, 6}};
+  parameter logic [7:0] P5[2][3] = '{'{8'h42, 8'h43, 8'h44}, '{8'h45, 8'h46, 8'h47}};
+endmodule)");
 }
 
 TEST_P(VastTest, ModuleSections) {
