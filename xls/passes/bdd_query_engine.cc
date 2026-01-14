@@ -218,9 +218,9 @@ bool IsCheapForBdds(const Node* node) {
   };
 
   auto is_cheap_when_not_wide = [](const Node* node) {
-    return IsBinarySelect(const_cast<Node*>(node)) || node->Is<UnOp>() ||
-           node->Is<BitwiseReductionOp>() || node->Is<OneHot>() ||
-           node->op() == Op::kEq || node->op() == Op::kNe;
+    return IsBinarySelectTwoCases(const_cast<Node*>(node)) ||
+           node->Is<UnOp>() || node->Is<BitwiseReductionOp>() ||
+           node->Is<OneHot>() || node->op() == Op::kEq || node->op() == Op::kNe;
   };
 
   auto is_cheap_when_narrow = [](const Node* node) {

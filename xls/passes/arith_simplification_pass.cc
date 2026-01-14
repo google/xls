@@ -1823,7 +1823,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n,
       selector_node = n->operand(1);
       zero_node = n->operand(0);
     }
-    if (selector_node != nullptr && IsBinarySelect(selector_node)) {
+    if (selector_node != nullptr && IsBinarySelectTwoCases(selector_node)) {
       Select* sel = selector_node->As<Select>();
       Node* case0 = sel->get_case(0);
       Node* case1 = sel->get_case(1);

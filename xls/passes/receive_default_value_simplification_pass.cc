@@ -42,7 +42,7 @@ bool IsBinarySelectOrPrioritySelect(Node *node) {
   // Handle Select
   if (node->Is<Select>()) {
     Select *select = node->As<Select>();
-    return IsBinarySelect(select);
+    return IsBinarySelectTwoCases(select);
   }
 
   // Handle PrioritySelect

@@ -958,7 +958,7 @@ absl::StatusOr<Node*> ReplaceTupleElementsWith(Node* node, int64_t index,
   return ReplaceTupleElementsWith(node, {{index, replacement_element}});
 }
 
-bool IsBinarySelect(Node* node) {
+bool IsBinarySelectTwoCases(Node* node) {
   if (!node->Is<Select>()) {
     return false;
   }
@@ -972,6 +972,42 @@ bool IsBinaryPrioritySelect(Node* node) {
   }
   PrioritySelect* sel = node->As<PrioritySelect>();
   return sel->cases().size() == 1;
+}
+
+absl::StatusOr<std::optional<BinarySelectView>> MatchBinarySelectLike(
+    Node* node) {
+  if (IsBinarySelectTwoCases(node)) {
+    Select* sel = node->As<Select>();
+    XLS_RET_CHECK_EQ(sel->selector()->BitCountOrDie(), 1);
+    return BinarySelectView{.selector = sel->selector(),
+                            .on_false = sel->get_case(0),
+                            .on_true = sel->get_case(1)};
+  }
+  // A Select with one case plus a default can also represent a binary mux when
+  // the selector is 1-bit:
+  //
+  //   sel(p, cases=[x], default=y)  =>  p==0 ? x : y
+  //
+  // In this case we treat `x` as the on-false arm and `y` as the on-true arm.
+  if (node->Is<Select>()) {
+    Select* sel = node->As<Select>();
+    if (sel->cases().size() == 1 && sel->default_value().has_value()) {
+      if (sel->selector()->BitCountOrDie() != 1) {
+        return std::nullopt;
+      }
+      return BinarySelectView{.selector = sel->selector(),
+                              .on_false = sel->get_case(0),
+                              .on_true = *sel->default_value()};
+    }
+  }
+  if (IsBinaryPrioritySelect(node)) {
+    PrioritySelect* sel = node->As<PrioritySelect>();
+    XLS_RET_CHECK_EQ(sel->selector()->BitCountOrDie(), 1);
+    return BinarySelectView{.selector = sel->selector(),
+                            .on_false = sel->default_value(),
+                            .on_true = sel->get_case(0)};
+  }
+  return std::nullopt;
 }
 
 absl::StatusOr<absl::flat_hash_map<Channel*, std::vector<Node*>>> ChannelUsers(
