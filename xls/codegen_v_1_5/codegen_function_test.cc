@@ -267,7 +267,7 @@ TEST_P(CodegenTest, ReturnArrayLiteral) {
                   Value::ArrayOrDie({Value(UBits(0, 1)), Value(UBits(1, 1))})));
 }
 
-TEST_P(CodegenTest, DISABLED_PassThroughArray) {
+TEST_P(CodegenTest, PassThroughArray) {
   Package package(TestName());
   FunctionBuilder fb(TestName(), &package);
   fb.Param("x", package.GetArrayType(3, package.GetBitsType(8)));
