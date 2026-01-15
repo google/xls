@@ -393,7 +393,30 @@ TEST_P(CodegenProcTest, DeclaredChannelInProc) {
               IsOkAndHolds(outputs));
 }
 
-INSTANTIATE_TEST_SUITE_P(CodegenTestInstantiation, CodegenProcTest,
+TEST_P(CodegenProcTest, CombinationalSingleProcWithProcScopedChannels) {
+  Package package(TestBaseName());
+
+  TokenlessProcBuilder pb(NewStyleProc(), "myleaf", "tkn", &package);
+  XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * in,
+                           pb.AddInputChannel("in", package.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * out,
+                           pb.AddOutputChannel("out", package.GetBitsType(32)));
+
+  pb.Send(out, pb.Add(pb.Receive(in), pb.Literal(UBits(1, 32))));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(package.SetTop(proc));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result,
+      Codegen(&package, codegen_options().generate_combinational(true),
+              SchedulingOptions(),
+              /*delay_estimator=*/nullptr));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+}
+
+INSTANTIATE_TEST_SUITE_P(CodegenProcTestInstantiation, CodegenProcTest,
                          testing::ValuesIn(verilog::kDefaultSimulationTargets),
                          verilog::ParameterizedTestName<CodegenProcTest>);
 

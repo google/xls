@@ -1,0 +1,25 @@
+module ArrayUpdate2DUpdateArrayVariableIndex(
+  input wire [47:0] a,
+  input wire [23:0] value,
+  input wire [36:0] idx,
+  output wire [47:0] out
+);
+  wire [7:0] a_unflattened[0:1][0:2];
+  assign a_unflattened[0][0] = a[7:0];
+  assign a_unflattened[0][1] = a[15:8];
+  assign a_unflattened[0][2] = a[23:16];
+  assign a_unflattened[1][0] = a[31:24];
+  assign a_unflattened[1][1] = a[39:32];
+  assign a_unflattened[1][2] = a[47:40];
+  wire [7:0] value_unflattened[0:2];
+  assign value_unflattened[0] = value[7:0];
+  assign value_unflattened[1] = value[15:8];
+  assign value_unflattened[2] = value[23:16];
+  wire [7:0] array_update_18[0:1][0:2];
+  assign out = {{array_update_18[1][2], array_update_18[1][1], array_update_18[1][0]}, {array_update_18[0][2], array_update_18[0][1], array_update_18[0][0]}};
+  for (genvar __i0 = 0; __i0 < 2; __i0 = __i0 + 1) begin : gen__array_update_18_0
+    for (genvar __j0 = 0; __j0 < 3; __j0 = __j0 + 1) begin : gen__array_update_18_0__1
+      assign array_update_18[__i0][__j0] = idx == __i0 ? value_unflattened[__j0] : a_unflattened[__i0][__j0];
+    end
+  end
+endmodule

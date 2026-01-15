@@ -1,0 +1,20 @@
+module ArrayUpdate2DLiteralIndex(
+  input wire [47:0] a,
+  input wire [7:0] value,
+  output wire [47:0] out
+);
+  wire [7:0] a_unflattened[0:1][0:2];
+  assign a_unflattened[0][0] = a[7:0];
+  assign a_unflattened[0][1] = a[15:8];
+  assign a_unflattened[0][2] = a[23:16];
+  assign a_unflattened[1][0] = a[31:24];
+  assign a_unflattened[1][1] = a[39:32];
+  assign a_unflattened[1][2] = a[47:40];
+  wire [7:0] array_update_19[0:1][0:2];
+  assign out = {{array_update_19[1][2], array_update_19[1][1], array_update_19[1][0]}, {array_update_19[0][2], array_update_19[0][1], array_update_19[0][0]}};
+  for (genvar __i0 = 0; __i0 < 2; __i0 = __i0 + 1) begin : gen__array_update_19_0
+    for (genvar __i1 = 0; __i1 < 3; __i1 = __i1 + 1) begin : gen__array_update_19_1
+      assign array_update_19[__i0][__i1] = 32'h0000_0000 == __i0 && 14'h0002 == __i1 ? value : a_unflattened[__i0][__i1];
+    end
+  end
+endmodule

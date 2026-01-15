@@ -1070,7 +1070,7 @@ TEST_P(CodegenFunctionTest, ValidSignalWithReset) {
   }
 }
 
-INSTANTIATE_TEST_SUITE_P(CodegenTestInstantiation, CodegenFunctionTest,
+INSTANTIATE_TEST_SUITE_P(CodegenFunctionTestInstantiation, CodegenFunctionTest,
                          testing::ValuesIn(verilog::kDefaultSimulationTargets),
                          verilog::ParameterizedTestName<CodegenFunctionTest>);
 

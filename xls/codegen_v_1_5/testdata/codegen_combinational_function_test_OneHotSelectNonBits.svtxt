@@ -1,0 +1,8 @@
+module main(
+  input wire [1:0] p,
+  input wire [31:0] x,
+  input wire [31:0] y,
+  output wire [31:0] out
+);
+  assign out = x & {32{p[0]}} | y & {32{p[1]}};
+endmodule

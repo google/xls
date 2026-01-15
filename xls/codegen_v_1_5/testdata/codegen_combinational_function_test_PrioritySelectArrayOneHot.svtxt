@@ -1,0 +1,38 @@
+module main(
+  input wire p,
+  input wire [63:0] x,
+  input wire [63:0] y,
+  input wire [63:0] d,
+  output wire [63:0] out
+);
+  wire [15:0] x_unflattened[4];
+  assign x_unflattened[0] = x[15:0];
+  assign x_unflattened[1] = x[31:16];
+  assign x_unflattened[2] = x[47:32];
+  assign x_unflattened[3] = x[63:48];
+  wire [15:0] y_unflattened[4];
+  assign y_unflattened[0] = y[15:0];
+  assign y_unflattened[1] = y[31:16];
+  assign y_unflattened[2] = y[47:32];
+  assign y_unflattened[3] = y[63:48];
+  wire [15:0] d_unflattened[4];
+  assign d_unflattened[0] = d[15:0];
+  assign d_unflattened[1] = d[31:16];
+  assign d_unflattened[2] = d[47:32];
+  assign d_unflattened[3] = d[63:48];
+  wire [1:0] one_hot_21;
+  wire [2:0] one_hot_31;
+  wire [15:0] one_hot_sel_36[4];
+  wire eq_33;
+  assign one_hot_21 = {!p, p};
+  assign one_hot_31 = {one_hot_21[1:0] == 2'h0, one_hot_21[1] && !one_hot_21[0], one_hot_21[0]};
+  assign one_hot_sel_36[0] = x_unflattened[0] & {16{one_hot_21[0]}} | y_unflattened[0] & {16{one_hot_21[1]}};
+  assign one_hot_sel_36[1] = x_unflattened[1] & {16{one_hot_21[0]}} | y_unflattened[1] & {16{one_hot_21[1]}};
+  assign one_hot_sel_36[2] = x_unflattened[2] & {16{one_hot_21[0]}} | y_unflattened[2] & {16{one_hot_21[1]}};
+  assign one_hot_sel_36[3] = x_unflattened[3] & {16{one_hot_21[0]}} | y_unflattened[3] & {16{one_hot_21[1]}};
+  assign eq_33 = one_hot_21 == one_hot_31[1:0];
+  assign out = {one_hot_sel_36[3], one_hot_sel_36[2], one_hot_sel_36[1], one_hot_sel_36[0]};
+  `ifdef ASSERT_ON
+  __xls_invariant_priority_sel_27_selector_one_hot_A: assert final ($isunknown(eq_33) || eq_33) else $fatal(0, "Selector one_hot.21 was expected to be one-hot, and is not.");
+  `endif  // ASSERT_ON
+endmodule

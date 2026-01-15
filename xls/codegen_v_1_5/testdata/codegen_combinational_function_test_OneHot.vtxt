@@ -1,0 +1,6 @@
+module main(
+  input wire [2:0] x,
+  output wire [3:0] out
+);
+  assign out = {x[2:0] == 3'h0, x[2] && x[1:0] == 2'h0, x[1] && !x[0], x[0]};
+endmodule

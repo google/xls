@@ -1,0 +1,23 @@
+module ArrayUpdateWithNarrowIndex(
+  input wire [319:0] a,
+  input wire [1:0] idx,
+  input wire [31:0] v,
+  output wire [319:0] out
+);
+  wire [31:0] a_unflattened[0:9];
+  assign a_unflattened[0] = a[31:0];
+  assign a_unflattened[1] = a[63:32];
+  assign a_unflattened[2] = a[95:64];
+  assign a_unflattened[3] = a[127:96];
+  assign a_unflattened[4] = a[159:128];
+  assign a_unflattened[5] = a[191:160];
+  assign a_unflattened[6] = a[223:192];
+  assign a_unflattened[7] = a[255:224];
+  assign a_unflattened[8] = a[287:256];
+  assign a_unflattened[9] = a[319:288];
+  wire [31:0] array_update_18[0:9];
+  assign out = {array_update_18[9], array_update_18[8], array_update_18[7], array_update_18[6], array_update_18[5], array_update_18[4], array_update_18[3], array_update_18[2], array_update_18[1], array_update_18[0]};
+  for (genvar __i0 = 0; __i0 < 10; __i0 = __i0 + 1) begin : gen__array_update_18_0
+    assign array_update_18[__i0] = idx == __i0 ? v : a_unflattened[__i0];
+  end
+endmodule
