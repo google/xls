@@ -79,7 +79,7 @@ absl::StatusOr<bool> FunctionIOLoweringPass::LowerParams(
     return false;
   }
 
-  std::optional<Node*> input_valid = std::nullopt;
+  std::optional<Node*> input_valid_port = std::nullopt;
   if (options.codegen_options.valid_control().has_value()) {
     if (options.codegen_options.valid_control()->input_name().empty()) {
       return absl::InvalidArgumentError(
@@ -87,9 +87,11 @@ absl::StatusOr<bool> FunctionIOLoweringPass::LowerParams(
     }
 
     XLS_ASSIGN_OR_RETURN(
-        input_valid, block->AddInputPort(
-                         options.codegen_options.valid_control()->input_name(),
-                         block->package()->GetBitsType(1)));
+        Node * input_valid,
+        block->AddInputPort(
+            options.codegen_options.valid_control()->input_name(),
+            block->package()->GetBitsType(1)));
+    input_valid_port = input_valid;
 
     if (options.codegen_options.flop_inputs()) {
       XLS_ASSIGN_OR_RETURN(
@@ -98,7 +100,7 @@ absl::StatusOr<bool> FunctionIOLoweringPass::LowerParams(
                    absl::StrCat(
                        options.codegen_options.valid_control()->input_name(),
                        "__input_flop"),
-                   *input_valid,
+                   input_valid,
                    /*stage_index=*/0));
     }
 
@@ -107,7 +109,7 @@ absl::StatusOr<bool> FunctionIOLoweringPass::LowerParams(
     // is invalid. This also automatically propagates validity to the output in
     // case an output-valid signal was requested.
     XLS_RETURN_IF_ERROR(ReplaceWithAnd(block->stages()[0].active_inputs_valid(),
-                                       *input_valid, /*combine_literals=*/false)
+                                       input_valid, /*combine_literals=*/false)
                             .status());
   }
 
@@ -140,7 +142,7 @@ absl::StatusOr<bool> FunctionIOLoweringPass::LowerParams(
           input,
           FlopNode(block, absl::StrCat(param_name, "__input_flop"), input,
                    /*stage_index=*/0,
-                   /*load_enable=*/input_valid));
+                   /*load_enable=*/input_valid_port));
     }
 
     XLS_RETURN_IF_ERROR(
