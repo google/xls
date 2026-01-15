@@ -29,7 +29,9 @@
 #include "xls/interpreter/block_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
+#include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
@@ -40,6 +42,8 @@
 
 namespace xls::codegen {
 namespace {
+
+namespace m = ::xls::op_matchers;
 
 using ::absl_testing::IsOkAndHolds;
 using ::testing::ElementsAre;
@@ -345,6 +349,63 @@ TEST_F(FlowControlInsertionPassTest, FillingPipelineBubbles) {
           //     p1 gets 41*2=82
           //     S2 input p1_reg=82, iv=1. out=82+3=85
           UnorderedElementsAre(Pair("out", Value(UBits(85, 32))))));
+}
+
+TEST_F(FlowControlInsertionPassTest, TrivialFunctionFlowControl) {
+  auto p = CreatePackage();
+  ScheduledBlockBuilder sbb(TestName(), p.get());
+  sbb.SetSource(std::make_unique<Function>("my_func", p.get()));
+  XLS_ASSERT_OK(sbb.block()->AddClockPort("clk"));
+  XLS_ASSERT_OK(sbb.block()->AddResetPort(
+      "rst", ResetBehavior{.asynchronous = false, .active_low = false}));
+  BValue in = sbb.InputPort("in", p->GetBitsType(32));
+
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  BValue p0 = sbb.Add(in, sbb.Literal(UBits(1, 32)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  BValue out = sbb.UMul(p0, sbb.Literal(UBits(2, 32)));
+  sbb.OutputPort("out", out);
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  XLS_ASSERT_OK(sbb.Build().status());
+
+  // Without valid-control ports, functions should have trivial flow control
+  // with no stalls.
+  EXPECT_THAT(Run(p.get(), BlockConversionPassOptions()), IsOkAndHolds(false));
+}
+
+TEST_F(FlowControlInsertionPassTest, FunctionFlowControlOmitsBackpressure) {
+  auto p = CreatePackage();
+  ScheduledBlockBuilder sbb(TestName(), p.get());
+  sbb.SetSource(std::make_unique<Function>("my_func", p.get()));
+  XLS_ASSERT_OK(sbb.block()->AddClockPort("clk"));
+  XLS_ASSERT_OK(sbb.block()->AddResetPort(
+      "rst", ResetBehavior{.asynchronous = false, .active_low = false}));
+  BValue in = sbb.InputPort("in", p->GetBitsType(32));
+
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  BValue p0 = sbb.Add(in, sbb.Literal(UBits(1, 32)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  BValue out = sbb.UMul(p0, sbb.Literal(UBits(2, 32)));
+  sbb.OutputPort("out", out);
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
+
+  // Enable valid-control ports, to avoid disabling all flow control; only
+  // backpressure should be disabled.
+  BlockConversionPassOptions options;
+  options.codegen_options.valid_control("valid_in", "valid_out");
+
+  EXPECT_THAT(Run(p.get(), options), IsOkAndHolds(true));
+
+  ASSERT_EQ(sb->stages().size(), 2);
+  EXPECT_THAT(sb->stages()[0].outputs_ready(), m::Literal(1));
+  EXPECT_THAT(sb->stages()[1].outputs_ready(), m::Literal(1));
 }
 
 }  // namespace
