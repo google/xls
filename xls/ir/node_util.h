@@ -593,6 +593,8 @@ absl::StatusOr<Node*> RemoveFromTuple(Node* tuple,
 // select nodes.
 class GenericSelect {
  public:
+  enum class Kind { kSel, kPrioritySel, kOneHotSel };
+
   // noop constructor for lists and such
   GenericSelect() : sel_(static_cast<Select*>(nullptr)) {}
   explicit GenericSelect(Select* select) : sel_(select) {}
@@ -635,6 +637,13 @@ class GenericSelect {
   }
 
   bool valid() const { return AsNode() != nullptr; }
+  Kind kind() const {
+    return std::visit(
+        Visitor{[](Select*) { return Kind::kSel; },
+                [](PrioritySelect*) { return Kind::kPrioritySel; },
+                [](OneHotSelect*) { return Kind::kOneHotSel; }},
+        sel_);
+  }
   absl::Span<Node* const> cases() const {
     return std::visit(
         Visitor{
@@ -668,6 +677,16 @@ class GenericSelect {
 
   // Make and return a new node which is true if the default case is selected.
   absl::StatusOr<Node*> MakePredicateForDefault() const;
+
+  // Creates a new select-like node of the same kind as this GenericSelect.
+  //
+  // `new_cases` must have the same size as `cases()`.
+  //
+  // - For `priority_sel`, `new_default_value` must be present.
+  // - For `one_hot_sel`, `new_default_value` must be empty.
+  absl::StatusOr<Node*> MakeSelectLikeWithNewArms(
+      absl::Span<Node* const> new_cases, std::optional<Node*> new_default_value,
+      const SourceInfo& loc) const;
 
   friend bool operator==(const GenericSelect& lhs, const GenericSelect& rhs) {
     return lhs.AsNode() == rhs.AsNode();
