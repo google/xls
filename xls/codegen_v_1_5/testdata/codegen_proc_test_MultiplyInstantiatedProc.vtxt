@@ -1,0 +1,94 @@
+module leaf_proc(
+  input wire clk,
+  input wire rst,
+  input wire [31:0] accum_in,
+  input wire accum_in_vld,
+  input wire accum_out_rdy,
+  output wire accum_in_rdy,
+  output wire [31:0] accum_out,
+  output wire accum_out_vld
+);
+  reg [31:0] p0_tuple_index_5;
+  reg [31:0] __accum;
+  reg p1_inputs_valid;
+  wire stage_outputs_valid_1;
+  wire stage_outputs_ready_0;
+  wire p0_stage_done__1;
+  wire or_124;
+  wire [31:0] add_125;
+  wire or_129;
+  assign stage_outputs_valid_1 = p1_inputs_valid & accum_out_rdy;
+  assign stage_outputs_ready_0 = ~p1_inputs_valid | stage_outputs_valid_1;
+  assign p0_stage_done__1 = accum_in_vld & stage_outputs_ready_0;
+  assign or_124 = p0_stage_done__1 | rst;
+  assign add_125 = __accum + p0_tuple_index_5;
+  assign or_129 = p0_stage_done__1 | stage_outputs_valid_1;
+  always @ (posedge clk) begin
+    p0_tuple_index_5 <= or_124 ? accum_in : p0_tuple_index_5;
+  end
+  always @ (posedge clk) begin
+    if (rst) begin
+      __accum <= 32'h0000_0000;
+      p1_inputs_valid <= 1'h0;
+    end else begin
+      __accum <= stage_outputs_valid_1 ? add_125 : __accum;
+      p1_inputs_valid <= or_129 ? p0_stage_done__1 : p1_inputs_valid;
+    end
+  end
+  assign accum_in_rdy = p0_stage_done__1;
+  assign accum_out = add_125;
+  assign accum_out_vld = p1_inputs_valid;
+endmodule
+
+
+module a_top_proc(
+  input wire clk,
+  input wire rst,
+  input wire [31:0] in0_ch,
+  input wire in0_ch_vld,
+  input wire [31:0] in1_ch,
+  input wire in1_ch_vld,
+  input wire out0_ch_rdy,
+  input wire out1_ch_rdy,
+  output wire in0_ch_rdy,
+  output wire in1_ch_rdy,
+  output wire [31:0] out0_ch,
+  output wire out0_ch_vld,
+  output wire [31:0] out1_ch,
+  output wire out1_ch_vld
+);
+  wire instantiation_output_90;
+  wire [31:0] instantiation_output_91;
+  wire instantiation_output_92;
+  wire instantiation_output_97;
+  wire [31:0] instantiation_output_98;
+  wire instantiation_output_99;
+
+  // ===== Instantiations
+  leaf_proc inst0 (
+    .rst(rst),
+    .accum_in(in0_ch),
+    .accum_in_vld(in0_ch_vld),
+    .accum_out_rdy(out0_ch_rdy),
+    .accum_in_rdy(instantiation_output_90),
+    .accum_out(instantiation_output_91),
+    .accum_out_vld(instantiation_output_92),
+    .clk(clk)
+  );
+  leaf_proc inst1 (
+    .rst(rst),
+    .accum_in(in1_ch),
+    .accum_in_vld(in1_ch_vld),
+    .accum_out_rdy(out1_ch_rdy),
+    .accum_in_rdy(instantiation_output_97),
+    .accum_out(instantiation_output_98),
+    .accum_out_vld(instantiation_output_99),
+    .clk(clk)
+  );
+  assign in0_ch_rdy = instantiation_output_90;
+  assign in1_ch_rdy = instantiation_output_97;
+  assign out0_ch = instantiation_output_91;
+  assign out0_ch_vld = instantiation_output_92;
+  assign out1_ch = instantiation_output_98;
+  assign out1_ch_vld = instantiation_output_99;
+endmodule

@@ -1,0 +1,92 @@
+module myproc(
+  input wire clk,
+  input wire rst,
+  input wire out_rdy,
+  output wire [31:0] out,
+  output wire out_vld
+);
+  wire instantiation_output_46;
+  wire instantiation_output_48;
+  wire [31:0] instantiation_output_47;
+  reg [31:0] p0_tuple_index_4;
+  reg [31:0] p1_add_6;
+  reg __loopback_already_done_reg;
+  reg __out_already_done_reg;
+  reg p1_inputs_valid;
+  reg p2_inputs_valid;
+  wire stage_outputs_valid_2;
+  wire stage_outputs_valid_1;
+  wire stage_outputs_ready_1;
+  wire send_7_finished;
+  wire stage_outputs_ready_0;
+  wire and_188;
+  wire and_189;
+  wire p0_stage_done__1;
+  wire and_132;
+  wire and_134;
+  wire or_140;
+  wire [31:0] add_141;
+  wire or_142;
+  wire and_147;
+  wire or_148;
+  wire and_149;
+  wire or_150;
+  wire or_151;
+  wire or_152;
+
+  assign stage_outputs_valid_2 = p2_inputs_valid & (out_rdy | __out_already_done_reg);
+  assign stage_outputs_valid_1 = p1_inputs_valid & (instantiation_output_46 | __loopback_already_done_reg);
+  assign stage_outputs_ready_1 = ~p2_inputs_valid | stage_outputs_valid_2;
+  assign send_7_finished = stage_outputs_valid_1 & stage_outputs_ready_1;
+  assign stage_outputs_ready_0 = ~p1_inputs_valid | send_7_finished;
+  assign and_188 = p1_inputs_valid & ~__loopback_already_done_reg;
+  assign and_189 = p2_inputs_valid & ~__out_already_done_reg;
+  assign p0_stage_done__1 = instantiation_output_48 & stage_outputs_ready_0;
+  assign and_132 = and_188 & instantiation_output_46;
+  assign and_134 = and_189 & out_rdy;
+  assign or_140 = p0_stage_done__1 | rst;
+  assign add_141 = p0_tuple_index_4 + 32'h0000_0001;
+  assign or_142 = send_7_finished | rst;
+  assign and_147 = and_132 & ~send_7_finished;
+  assign or_148 = and_132 | send_7_finished;
+  assign and_149 = and_134 & ~stage_outputs_valid_2;
+  assign or_150 = and_134 | stage_outputs_valid_2;
+  assign or_151 = p0_stage_done__1 | send_7_finished;
+  assign or_152 = send_7_finished | stage_outputs_valid_2;
+  always @ (posedge clk) begin
+    p0_tuple_index_4 <= or_140 ? instantiation_output_47 : p0_tuple_index_4;
+    p1_add_6 <= or_142 ? add_141 : p1_add_6;
+  end
+  always @ (posedge clk) begin
+    if (rst) begin
+      __loopback_already_done_reg <= 1'h0;
+      __out_already_done_reg <= 1'h0;
+      p1_inputs_valid <= 1'h0;
+      p2_inputs_valid <= 1'h0;
+    end else begin
+      __loopback_already_done_reg <= or_148 ? and_147 : __loopback_already_done_reg;
+      __out_already_done_reg <= or_150 ? and_149 : __out_already_done_reg;
+      p1_inputs_valid <= or_151 ? p0_stage_done__1 : p1_inputs_valid;
+      p2_inputs_valid <= or_152 ? send_7_finished : p2_inputs_valid;
+    end
+  end
+  // ===== Instantiations
+  xls_fifo_wrapper #(
+    .Width(32'd32),
+    .Depth(32'd2),
+    .EnableBypass(1'd0),
+    .RegisterPushOutputs(1'd1),
+    .RegisterPopOutputs(1'd0)
+  ) fifo_loopback (
+    .clk(clk),
+    .rst(rst),
+    .push_data(add_141),
+    .push_valid(and_188),
+    .pop_ready(p0_stage_done__1),
+    .push_ready(instantiation_output_46),
+    .pop_data(instantiation_output_47),
+    .pop_valid(instantiation_output_48)
+  );
+  assign out = p1_add_6;
+  assign out_vld = and_189;
+endmodule

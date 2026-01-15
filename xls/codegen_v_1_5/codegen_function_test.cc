@@ -1,4 +1,4 @@
-// Copyright 2025 The XLS Authors
+// Copyright 2026 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -81,9 +81,9 @@ class TestDelayEstimator : public DelayEstimator {
   }
 };
 
-class CodegenTest : public verilog::VerilogTestBase {};
+class CodegenFunctionTest : public verilog::VerilogTestBase {};
 
-TEST_P(CodegenTest, ReturnLiteral) {
+TEST_P(CodegenFunctionTest, ReturnLiteral) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   fb.Literal(UBits(42, 32));
@@ -115,7 +115,7 @@ TEST_P(CodegenTest, ReturnLiteral) {
       IsOkAndHolds(UBits(42, 32)));
 }
 
-TEST_P(CodegenTest, ReturnTupleLiteral) {
+TEST_P(CodegenFunctionTest, ReturnTupleLiteral) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   fb.Literal(Value::Tuple({Value(UBits(0, 1)), Value(UBits(123, 32))}));
@@ -144,7 +144,7 @@ TEST_P(CodegenTest, ReturnTupleLiteral) {
       IsOkAndHolds(Value::Tuple({Value(UBits(0, 1)), Value(UBits(123, 32))})));
 }
 
-TEST_P(CodegenTest, ReturnEmptyTuple) {
+TEST_P(CodegenFunctionTest, ReturnEmptyTuple) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   fb.Literal(Value::Tuple({}));
@@ -172,7 +172,7 @@ TEST_P(CodegenTest, ReturnEmptyTuple) {
               IsOkAndHolds(Value::Tuple({})));
 }
 
-TEST_P(CodegenTest, NestedEmptyTuple) {
+TEST_P(CodegenFunctionTest, NestedEmptyTuple) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   fb.Tuple({fb.Literal(Value::Tuple({}))});
@@ -200,7 +200,7 @@ TEST_P(CodegenTest, NestedEmptyTuple) {
               IsOkAndHolds(Value::Tuple({Value::Tuple({})})));
 }
 
-TEST_P(CodegenTest, TakesEmptyTuple) {
+TEST_P(CodegenFunctionTest, TakesEmptyTuple) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   Type* u8 = package.GetBitsType(8);
@@ -234,7 +234,7 @@ TEST_P(CodegenTest, TakesEmptyTuple) {
               IsOkAndHolds(Value(UBits(142, 8))));
 }
 
-TEST_P(CodegenTest, PassesEmptyTuple) {
+TEST_P(CodegenFunctionTest, PassesEmptyTuple) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   fb.Param("x", package.GetTupleType({}));
@@ -262,7 +262,7 @@ TEST_P(CodegenTest, PassesEmptyTuple) {
               IsOkAndHolds(Value::Tuple({})));
 }
 
-TEST_P(CodegenTest, ReturnArrayLiteral) {
+TEST_P(CodegenFunctionTest, ReturnArrayLiteral) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   fb.Literal(Value::ArrayOrDie({Value(UBits(0, 1)), Value(UBits(1, 1))}));
@@ -291,7 +291,7 @@ TEST_P(CodegenTest, ReturnArrayLiteral) {
                   Value::ArrayOrDie({Value(UBits(0, 1)), Value(UBits(1, 1))})));
 }
 
-TEST_P(CodegenTest, SingleNegate) {
+TEST_P(CodegenFunctionTest, SingleNegate) {
   Package package(TestBaseName());
   FunctionBuilder fb("negate", &package);
   auto x = fb.Param("x", package.GetBitsType(8));
@@ -316,7 +316,7 @@ TEST_P(CodegenTest, SingleNegate) {
                                  result.verilog_text);
 }
 
-TEST_P(CodegenTest, PassThroughArray) {
+TEST_P(CodegenFunctionTest, PassThroughArray) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   fb.Param("x", package.GetArrayType(3, package.GetBitsType(8)));
@@ -345,7 +345,7 @@ TEST_P(CodegenTest, PassThroughArray) {
   EXPECT_THAT(simulator.RunFunction({{"x", array}}), IsOkAndHolds(array));
 }
 
-TEST_P(CodegenTest, TupleOfArrays) {
+TEST_P(CodegenFunctionTest, TupleOfArrays) {
   // Function takes a tuple of arrays and produces another tuple with the
   // elements interchanged.
   Package package(TestBaseName());
@@ -382,7 +382,7 @@ TEST_P(CodegenTest, TupleOfArrays) {
               IsOkAndHolds(Value::Tuple({array_1, array_0})));
 }
 
-TEST_P(CodegenTest, MultidimensionalArray) {
+TEST_P(CodegenFunctionTest, MultidimensionalArray) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   BValue a = fb.Param(
@@ -423,7 +423,7 @@ TEST_P(CodegenTest, MultidimensionalArray) {
       IsOkAndHolds(inner_array_1));
 }
 
-TEST_P(CodegenTest, TreeOfAdds) {
+TEST_P(CodegenFunctionTest, TreeOfAdds) {
   Package package(TestBaseName());
   FunctionBuilder fb("x_plus_y_plus_z", &package);
   Type* u32 = package.GetBitsType(32);
@@ -470,7 +470,7 @@ TEST_P(CodegenTest, TreeOfAdds) {
   EXPECT_EQ(output_type->ToString(), "bits[32]");
 }
 
-TEST_P(CodegenTest, BigExpressionInOneStage) {
+TEST_P(CodegenFunctionTest, BigExpressionInOneStage) {
   Package package(TestBaseName());
   FunctionBuilder fb("x_plus_y_plus_z", &package);
   Type* u32 = package.GetBitsType(32);
@@ -507,7 +507,7 @@ TEST_P(CodegenTest, BigExpressionInOneStage) {
   EXPECT_EQ(result.signature.proto().pipeline().latency(), 2);
 }
 
-TEST_P(CodegenTest, IdentityOfMul) {
+TEST_P(CodegenFunctionTest, IdentityOfMul) {
   Package package(TestBaseName());
   FunctionBuilder fb("identity_of_mul", &package);
   auto x = fb.Param("x", package.GetBitsType(8));
@@ -533,7 +533,7 @@ TEST_P(CodegenTest, IdentityOfMul) {
                                  result.verilog_text);
 }
 
-TEST_P(CodegenTest, RequiredNamedIntermediates) {
+TEST_P(CodegenFunctionTest, RequiredNamedIntermediates) {
   // Tests that nodes (such as bit slice) which require named intermediates are
   // properly emitted.
   Package package(TestBaseName());
@@ -563,7 +563,7 @@ TEST_P(CodegenTest, RequiredNamedIntermediates) {
                                  result.verilog_text);
 }
 
-TEST_P(CodegenTest, BinarySelect) {
+TEST_P(CodegenFunctionTest, BinarySelect) {
   // Tests that nodes (such as bit slice) which require named intermediates are
   // properly emitted.
   Package package(TestBaseName());
@@ -594,7 +594,7 @@ TEST_P(CodegenTest, BinarySelect) {
                                  result.verilog_text);
 }
 
-TEST_P(CodegenTest, TwoBitSelector) {
+TEST_P(CodegenFunctionTest, TwoBitSelector) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   auto s = fb.Param("s", package.GetBitsType(2));
@@ -624,7 +624,7 @@ TEST_P(CodegenTest, TwoBitSelector) {
                                  result.verilog_text);
 }
 
-TEST_P(CodegenTest, TwoBitSelectorAllCasesPopulated) {
+TEST_P(CodegenFunctionTest, TwoBitSelectorAllCasesPopulated) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   auto s = fb.Param("s", package.GetBitsType(2));
@@ -655,7 +655,7 @@ TEST_P(CodegenTest, TwoBitSelectorAllCasesPopulated) {
                                  result.verilog_text);
 }
 
-TEST_P(CodegenTest, AddNegateFlopInputsAndOutputs) {
+TEST_P(CodegenFunctionTest, AddNegateFlopInputsAndOutputs) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   auto x = fb.Param("x", package.GetBitsType(8));
@@ -688,7 +688,7 @@ TEST_P(CodegenTest, AddNegateFlopInputsAndOutputs) {
               IsOkAndHolds(UBits(91, 8)));
 }
 
-TEST_P(CodegenTest, AddNegateFlopInputsNotOutputs) {
+TEST_P(CodegenFunctionTest, AddNegateFlopInputsNotOutputs) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   auto x = fb.Param("x", package.GetBitsType(8));
@@ -721,7 +721,7 @@ TEST_P(CodegenTest, AddNegateFlopInputsNotOutputs) {
               IsOkAndHolds(UBits(91, 8)));
 }
 
-TEST_P(CodegenTest, AddNegateFlopOutputsNotInputs) {
+TEST_P(CodegenFunctionTest, AddNegateFlopOutputsNotInputs) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   auto x = fb.Param("x", package.GetBitsType(8));
@@ -754,7 +754,7 @@ TEST_P(CodegenTest, AddNegateFlopOutputsNotInputs) {
               IsOkAndHolds(UBits(91, 8)));
 }
 
-TEST_P(CodegenTest, AddNegateFlopNeitherInputsNorOutputs) {
+TEST_P(CodegenFunctionTest, AddNegateFlopNeitherInputsNorOutputs) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   auto x = fb.Param("x", package.GetBitsType(8));
@@ -787,7 +787,7 @@ TEST_P(CodegenTest, AddNegateFlopNeitherInputsNorOutputs) {
               IsOkAndHolds(UBits(91, 8)));
 }
 
-TEST_P(CodegenTest, ValidPipelineControlWithSimulation) {
+TEST_P(CodegenFunctionTest, ValidPipelineControlWithSimulation) {
   // Verify the valid signalling works as expected by driving the module with a
   // ModuleTestBench.
   Package package(TestBaseName());
@@ -863,7 +863,7 @@ TEST_P(CodegenTest, ValidPipelineControlWithSimulation) {
   XLS_ASSERT_OK(tb->Run());
 }
 
-TEST_P(CodegenTest, ValidPipelineControlWithResetSimulation) {
+TEST_P(CodegenFunctionTest, ValidPipelineControlWithResetSimulation) {
   // Verify the valid signaling works as expected by driving the module with a
   // ModuleTestBench when a reset is present.
   Package package(TestBaseName());
@@ -959,7 +959,7 @@ TEST_P(CodegenTest, ValidPipelineControlWithResetSimulation) {
   XLS_ASSERT_OK(tb->Run());
 }
 
-TEST_P(CodegenTest, ValidSignalWithReset) {
+TEST_P(CodegenFunctionTest, ValidSignalWithReset) {
   // Test with both active low and active high signals.
   for (bool active_low : {false, true}) {
     Package package(TestBaseName());
@@ -1070,9 +1070,9 @@ TEST_P(CodegenTest, ValidSignalWithReset) {
   }
 }
 
-INSTANTIATE_TEST_SUITE_P(CodegenTestInstantiation, CodegenTest,
+INSTANTIATE_TEST_SUITE_P(CodegenTestInstantiation, CodegenFunctionTest,
                          testing::ValuesIn(verilog::kDefaultSimulationTargets),
-                         verilog::ParameterizedTestName<CodegenTest>);
+                         verilog::ParameterizedTestName<CodegenFunctionTest>);
 
 }  // namespace
 }  // namespace xls::codegen

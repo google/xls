@@ -1,0 +1,101 @@
+module ii_greater_than_one(
+  input wire clk,
+  input wire rst,
+  input wire [31:0] in,
+  input wire in_vld,
+  input wire in_out_rdy,
+  input wire out_rdy,
+  output wire in_rdy,
+  output wire [31:0] in_out,
+  output wire in_out_vld,
+  output wire [31:0] out,
+  output wire out_vld
+);
+  reg [31:0] __st;
+  reg __st_full;
+  reg __in_out_already_done_reg;
+  reg __out_already_done_reg;
+  reg [31:0] __in_reg;
+  reg __in_valid_reg;
+  reg [31:0] __in_out_reg;
+  reg __in_out_valid_reg;
+  reg [31:0] __out_reg;
+  reg __out_valid_reg;
+  reg p1_inputs_valid;
+  wire in_out_valid_inv;
+  wire out_valid_inv;
+  wire __in_out_vld_buf;
+  wire in_out_valid_load_en;
+  wire __out_vld_buf;
+  wire out_valid_load_en;
+  wire in_out_load_en;
+  wire out_load_en;
+  wire stage_outputs_valid_1;
+  wire stage_outputs_valid_0;
+  wire stage_outputs_ready_0;
+  wire in_valid_inv;
+  wire send_1_finished;
+  wire in_valid_load_en;
+  wire and_1165;
+  wire and_1167;
+  wire or_1174;
+  wire in_load_en;
+  wire and_1178;
+  wire or_1179;
+  wire and_1180;
+  wire or_1181;
+  assign in_out_valid_inv = ~__in_out_valid_reg;
+  assign out_valid_inv = ~__out_valid_reg;
+  assign __in_out_vld_buf = p1_inputs_valid & __in_valid_reg & ~__in_out_already_done_reg;
+  assign in_out_valid_load_en = in_out_rdy | in_out_valid_inv;
+  assign __out_vld_buf = __st_full & ~__out_already_done_reg;
+  assign out_valid_load_en = out_rdy | out_valid_inv;
+  assign in_out_load_en = __in_out_vld_buf & in_out_valid_load_en;
+  assign out_load_en = __out_vld_buf & out_valid_load_en;
+  assign stage_outputs_valid_1 = p1_inputs_valid & __in_valid_reg & (in_out_load_en | __in_out_already_done_reg);
+  assign stage_outputs_valid_0 = __st_full & (out_load_en | __out_already_done_reg);
+  assign stage_outputs_ready_0 = ~p1_inputs_valid | stage_outputs_valid_1;
+  assign in_valid_inv = ~__in_valid_reg;
+  assign send_1_finished = stage_outputs_valid_0 & stage_outputs_ready_0;
+  assign in_valid_load_en = stage_outputs_valid_1 | in_valid_inv;
+  assign and_1165 = __in_out_vld_buf & in_out_load_en;
+  assign and_1167 = __out_vld_buf & out_load_en;
+  assign or_1174 = send_1_finished | stage_outputs_valid_1;
+  assign in_load_en = in_vld & in_valid_load_en;
+  assign and_1178 = and_1165 & ~stage_outputs_valid_1;
+  assign or_1179 = and_1165 | stage_outputs_valid_1;
+  assign and_1180 = and_1167 & ~send_1_finished;
+  assign or_1181 = and_1167 | send_1_finished;
+  always_ff @ (posedge clk) begin
+    if (rst) begin
+      __st <= 32'h0000_0000;
+      __st_full <= 1'h1;
+      __in_out_already_done_reg <= 1'h0;
+      __out_already_done_reg <= 1'h0;
+      __in_reg <= 32'h0000_0000;
+      __in_valid_reg <= 1'h0;
+      __in_out_reg <= 32'h0000_0000;
+      __in_out_valid_reg <= 1'h0;
+      __out_reg <= 32'h0000_0000;
+      __out_valid_reg <= 1'h0;
+      p1_inputs_valid <= 1'h0;
+    end else begin
+      __st <= stage_outputs_valid_1 ? __in_reg : __st;
+      __st_full <= or_1174 ? stage_outputs_valid_1 : __st_full;
+      __in_out_already_done_reg <= or_1179 ? and_1178 : __in_out_already_done_reg;
+      __out_already_done_reg <= or_1181 ? and_1180 : __out_already_done_reg;
+      __in_reg <= in_load_en ? in : __in_reg;
+      __in_valid_reg <= in_valid_load_en ? in_vld : __in_valid_reg;
+      __in_out_reg <= in_out_load_en ? __in_reg : __in_out_reg;
+      __in_out_valid_reg <= in_out_valid_load_en ? __in_out_vld_buf : __in_out_valid_reg;
+      __out_reg <= out_load_en ? __st : __out_reg;
+      __out_valid_reg <= out_valid_load_en ? __out_vld_buf : __out_valid_reg;
+      p1_inputs_valid <= or_1174 ? send_1_finished : p1_inputs_valid;
+    end
+  end
+  assign in_rdy = in_load_en;
+  assign in_out = __in_out_reg;
+  assign in_out_vld = __in_out_valid_reg;
+  assign out = __out_reg;
+  assign out_vld = __out_valid_reg;
+endmodule

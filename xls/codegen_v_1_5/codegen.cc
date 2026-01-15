@@ -42,6 +42,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
+#include "xls/ir/block.h"
 #include "xls/ir/package.h"
 #include "xls/passes/basic_simplification_pass.h"
 #include "xls/passes/cse_pass.h"
@@ -158,10 +159,16 @@ absl::StatusOr<verilog::CodegenResult> Codegen(
     const SchedulingOptions& scheduling_options,
     const DelayEstimator* delay_estimator,
     std::optional<PackageScheduleProto> schedule) {
+  verilog::CodegenOptions options = codegen_options;
+  if (package->GetTop().has_value() && package->GetTop().value()->IsProc()) {
+    // Force using non-pretty printed Verilog when generating procs.
+    // TODO - Update pretty-printer to support blocks with flow control.
+    options.emit_as_pipeline(false);
+  }
+
   OptimizationContext opt_context;
-  XLS_RETURN_IF_ERROR(ConvertToBlock(package, codegen_options,
-                                     scheduling_options, delay_estimator,
-                                     schedule, &opt_context));
+  XLS_RETURN_IF_ERROR(ConvertToBlock(package, options, scheduling_options,
+                                     delay_estimator, schedule, &opt_context));
 
   // Now that we've finished block conversion for the package, we can run the
   // remaining passes required before Verilog conversion.
@@ -172,17 +179,17 @@ absl::StatusOr<verilog::CodegenResult> Codegen(
     compatibility_context.metadata().insert(
         {block.get(), verilog::CodegenMetadata{}});
   }
-  verilog::CodegenPassOptions pass_options{
-      .codegen_options = codegen_options,
-  };
   PassResults pass_results;
+  verilog::CodegenPassOptions pass_options{
+      .codegen_options = options,
+  };
   XLS_RETURN_IF_ERROR(
       CreatePostBlockConversionPipeline(opt_context)
           ->Run(package, pass_options, &pass_results, compatibility_context)
           .status());
 
   // Finally, we convert the block to Verilog.
-  return ConvertToVerilog(top_block, codegen_options, delay_estimator);
+  return ConvertToVerilog(top_block, options, delay_estimator);
 }
 
 }  // namespace xls::codegen
