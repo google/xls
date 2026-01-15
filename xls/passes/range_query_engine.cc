@@ -583,10 +583,9 @@ absl::Status RangeQueryVisitor::HandleDynamicBitSlice(
   }
 
   // If the start is always large enough to overshift, the result is always 0.
-  if (std::optional<Interval> hull = start_norm.ConvexHull();
-      hull.has_value()) {
-    const int64_t min_shift =
-        bits_ops::UnsignedBitsToSaturatedInt64(hull->LowerBound());
+  if (std::optional<Bits> start_lb = start_norm.LowerBound();
+      start_lb.has_value()) {
+    const int64_t min_shift = bits_ops::UnsignedBitsToSaturatedInt64(*start_lb);
     if (min_shift >= input_width) {
       return SetIntervalSet(dynamic_bit_slice,
                             IntervalSet::Precise(UBits(0, result_width)));
