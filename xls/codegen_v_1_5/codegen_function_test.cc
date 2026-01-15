@@ -49,6 +49,9 @@ using ::testing::ContainsRegex;
 using ::testing::HasSubstr;
 using ::testing::Not;
 
+constexpr char kTestName[] = "codegen_function_test";
+constexpr char kTestdataPath[] = "xls/codegen_v_1_5/testdata";
+
 absl::StatusOr<verilog::ModuleSignature> StripResetFromSignature(
     const verilog::ModuleSignature& signature) {
   verilog::ModuleSignatureProto proto = signature.proto();
@@ -81,8 +84,8 @@ class TestDelayEstimator : public DelayEstimator {
 class CodegenTest : public verilog::VerilogTestBase {};
 
 TEST_P(CodegenTest, ReturnLiteral) {
-  Package package(TestName());
-  FunctionBuilder fb(TestName(), &package);
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
   fb.Literal(UBits(42, 32));
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
   XLS_ASSERT_OK(package.SetTop(func));
@@ -99,6 +102,9 @@ TEST_P(CodegenTest, ReturnLiteral) {
                   .use_system_verilog(UseSystemVerilog()),
               SchedulingOptions().pipeline_stages(5), &delay_estimator));
 
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+
   EXPECT_EQ(result.signature.proto().pipeline().initiation_interval(), 1);
   EXPECT_EQ(result.signature.proto().pipeline().latency(), 4);
 
@@ -110,8 +116,8 @@ TEST_P(CodegenTest, ReturnLiteral) {
 }
 
 TEST_P(CodegenTest, ReturnTupleLiteral) {
-  Package package(TestName());
-  FunctionBuilder fb(TestName(), &package);
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
   fb.Literal(Value::Tuple({Value(UBits(0, 1)), Value(UBits(123, 32))}));
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
   XLS_ASSERT_OK(package.SetTop(func));
@@ -128,6 +134,9 @@ TEST_P(CodegenTest, ReturnTupleLiteral) {
                   .use_system_verilog(UseSystemVerilog()),
               SchedulingOptions().pipeline_stages(5), &delay_estimator));
 
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+
   verilog::ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
   EXPECT_THAT(
@@ -136,8 +145,8 @@ TEST_P(CodegenTest, ReturnTupleLiteral) {
 }
 
 TEST_P(CodegenTest, ReturnEmptyTuple) {
-  Package package(TestName());
-  FunctionBuilder fb(TestName(), &package);
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
   fb.Literal(Value::Tuple({}));
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
   XLS_ASSERT_OK(package.SetTop(func));
@@ -154,6 +163,9 @@ TEST_P(CodegenTest, ReturnEmptyTuple) {
                   .use_system_verilog(UseSystemVerilog()),
               SchedulingOptions().pipeline_stages(5), &delay_estimator));
 
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+
   verilog::ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
   EXPECT_THAT(simulator.RunFunction(absl::flat_hash_map<std::string, Value>()),
@@ -161,8 +173,8 @@ TEST_P(CodegenTest, ReturnEmptyTuple) {
 }
 
 TEST_P(CodegenTest, NestedEmptyTuple) {
-  Package package(TestName());
-  FunctionBuilder fb(TestName(), &package);
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
   fb.Tuple({fb.Literal(Value::Tuple({}))});
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
   XLS_ASSERT_OK(package.SetTop(func));
@@ -179,6 +191,9 @@ TEST_P(CodegenTest, NestedEmptyTuple) {
                   .use_system_verilog(UseSystemVerilog()),
               SchedulingOptions().pipeline_stages(5), &delay_estimator));
 
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+
   verilog::ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
   EXPECT_THAT(simulator.RunFunction(absl::flat_hash_map<std::string, Value>()),
@@ -186,8 +201,8 @@ TEST_P(CodegenTest, NestedEmptyTuple) {
 }
 
 TEST_P(CodegenTest, TakesEmptyTuple) {
-  Package package(TestName());
-  FunctionBuilder fb(TestName(), &package);
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
   Type* u8 = package.GetBitsType(8);
   auto a = fb.Param("a", u8);
   fb.Param("b", package.GetTupleType({}));
@@ -208,6 +223,9 @@ TEST_P(CodegenTest, TakesEmptyTuple) {
                   .use_system_verilog(UseSystemVerilog()),
               SchedulingOptions().pipeline_stages(5), &delay_estimator));
 
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+
   verilog::ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
   EXPECT_THAT(simulator.RunFunction({{"a", Value(UBits(42, 8))},
@@ -217,8 +235,8 @@ TEST_P(CodegenTest, TakesEmptyTuple) {
 }
 
 TEST_P(CodegenTest, PassesEmptyTuple) {
-  Package package(TestName());
-  FunctionBuilder fb(TestName(), &package);
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
   fb.Param("x", package.GetTupleType({}));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK(package.SetTop(f));
@@ -235,6 +253,9 @@ TEST_P(CodegenTest, PassesEmptyTuple) {
                   .use_system_verilog(UseSystemVerilog()),
               SchedulingOptions().pipeline_stages(5), &delay_estimator));
 
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+
   verilog::ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
   EXPECT_THAT(simulator.RunFunction({{"x", Value::Tuple({})}}),
@@ -242,8 +263,8 @@ TEST_P(CodegenTest, PassesEmptyTuple) {
 }
 
 TEST_P(CodegenTest, ReturnArrayLiteral) {
-  Package package(TestName());
-  FunctionBuilder fb(TestName(), &package);
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
   fb.Literal(Value::ArrayOrDie({Value(UBits(0, 1)), Value(UBits(1, 1))}));
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
   XLS_ASSERT_OK(package.SetTop(func));
@@ -260,6 +281,9 @@ TEST_P(CodegenTest, ReturnArrayLiteral) {
                   .use_system_verilog(UseSystemVerilog()),
               SchedulingOptions().pipeline_stages(5), &delay_estimator));
 
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+
   verilog::ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
   EXPECT_THAT(simulator.RunFunction(absl::flat_hash_map<std::string, Value>()),
@@ -267,9 +291,34 @@ TEST_P(CodegenTest, ReturnArrayLiteral) {
                   Value::ArrayOrDie({Value(UBits(0, 1)), Value(UBits(1, 1))})));
 }
 
+TEST_P(CodegenTest, SingleNegate) {
+  Package package(TestBaseName());
+  FunctionBuilder fb("negate", &package);
+  auto x = fb.Param("x", package.GetBitsType(8));
+  fb.Negate(x);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+  XLS_ASSERT_OK(package.SetTop(func));
+
+  TestDelayEstimator delay_estimator;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      verilog::CodegenResult result,
+      Codegen(&package,
+              verilog::CodegenOptions()
+                  .flop_inputs(true)
+                  .flop_outputs(true)
+                  .clock_name("clk")
+                  .emit_as_pipeline(true)
+                  .use_system_verilog(UseSystemVerilog()),
+              SchedulingOptions().clock_period_ps(40), &delay_estimator));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+}
+
 TEST_P(CodegenTest, PassThroughArray) {
-  Package package(TestName());
-  FunctionBuilder fb(TestName(), &package);
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
   fb.Param("x", package.GetArrayType(3, package.GetBitsType(8)));
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
   XLS_ASSERT_OK(package.SetTop(func));
@@ -286,6 +335,9 @@ TEST_P(CodegenTest, PassThroughArray) {
                   .use_system_verilog(UseSystemVerilog()),
               SchedulingOptions().pipeline_stages(3), &delay_estimator));
 
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+
   verilog::ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
   Value array = Value::ArrayOrDie(
@@ -296,8 +348,8 @@ TEST_P(CodegenTest, PassThroughArray) {
 TEST_P(CodegenTest, TupleOfArrays) {
   // Function takes a tuple of arrays and produces another tuple with the
   // elements interchanged.
-  Package package(TestName());
-  FunctionBuilder fb(TestName(), &package);
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
   BValue x = fb.Param(
       "x",
       package.GetTupleType({package.GetArrayType(3, package.GetBitsType(8)),
@@ -318,6 +370,9 @@ TEST_P(CodegenTest, TupleOfArrays) {
                   .use_system_verilog(UseSystemVerilog()),
               SchedulingOptions().pipeline_stages(3), &delay_estimator));
 
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+
   verilog::ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
   Value array_0 = Value::ArrayOrDie(
@@ -328,8 +383,8 @@ TEST_P(CodegenTest, TupleOfArrays) {
 }
 
 TEST_P(CodegenTest, MultidimensionalArray) {
-  Package package(TestName());
-  FunctionBuilder fb(TestName(), &package);
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
   BValue a = fb.Param(
       "a",
       package.GetArrayType(2, package.GetArrayType(3, package.GetBitsType(8))));
@@ -350,6 +405,9 @@ TEST_P(CodegenTest, MultidimensionalArray) {
                   .use_system_verilog(UseSystemVerilog()),
               SchedulingOptions().pipeline_stages(3), &delay_estimator));
 
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+
   verilog::ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
   Value inner_array_0 = Value::ArrayOrDie(
@@ -365,9 +423,241 @@ TEST_P(CodegenTest, MultidimensionalArray) {
       IsOkAndHolds(inner_array_1));
 }
 
+TEST_P(CodegenTest, TreeOfAdds) {
+  Package package(TestBaseName());
+  FunctionBuilder fb("x_plus_y_plus_z", &package);
+  Type* u32 = package.GetBitsType(32);
+  auto a = fb.Param("a", u32);
+  auto b = fb.Param("b", u32);
+  auto c = fb.Param("c", u32);
+  auto d = fb.Param("d", u32);
+  auto e = fb.Param("e", u32);
+  auto out = a + b + c + d + e;
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.BuildWithReturnValue(out));
+  XLS_ASSERT_OK(package.SetTop(func));
+
+  TestDelayEstimator delay_estimator;
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t add_delay_in_ps,
+                           delay_estimator.GetOperationDelayInPs(out.node()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      verilog::CodegenResult result,
+      Codegen(&package,
+              verilog::CodegenOptions()
+                  .flop_inputs(true)
+                  .flop_outputs(true)
+                  .clock_name("clk")
+                  .emit_as_pipeline(true)
+                  .use_system_verilog(UseSystemVerilog()),
+              SchedulingOptions().clock_period_ps(add_delay_in_ps * 2),
+              &delay_estimator));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+
+  EXPECT_EQ(result.signature.proto().pipeline().initiation_interval(), 1);
+  EXPECT_EQ(result.signature.proto().pipeline().latency(), 3);
+  EXPECT_EQ(result.signature.data_inputs().size(), 5);
+  EXPECT_EQ(result.signature.data_outputs().size(), 1);
+  for (const verilog::PortProto& input_port : result.signature.data_inputs()) {
+    XLS_ASSERT_OK_AND_ASSIGN(Type * input_type,
+                             package.GetTypeFromProto(input_port.type()));
+    EXPECT_EQ(input_type->ToString(), "bits[32]");
+  }
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Type * output_type,
+      package.GetTypeFromProto(result.signature.data_inputs()[0].type()));
+  EXPECT_EQ(output_type->ToString(), "bits[32]");
+}
+
+TEST_P(CodegenTest, BigExpressionInOneStage) {
+  Package package(TestBaseName());
+  FunctionBuilder fb("x_plus_y_plus_z", &package);
+  Type* u32 = package.GetBitsType(32);
+  auto a = fb.Param("a", u32);
+  auto b = fb.Param("b", u32);
+  auto c = fb.Param("c", u32);
+  auto d = fb.Param("d", u32);
+  auto tmp0 = a + b;
+  auto tmp1 = fb.Xor(a, tmp0);
+  auto tmp2 = fb.Not(tmp0) + c;
+  auto tmp3 = tmp1 - tmp2;
+  auto tmp4 = d + tmp1;
+  auto out = tmp3 - tmp4;
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.BuildWithReturnValue(out));
+  XLS_ASSERT_OK(package.SetTop(func));
+
+  TestDelayEstimator delay_estimator;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      verilog::CodegenResult result,
+      Codegen(&package,
+              verilog::CodegenOptions()
+                  .flop_inputs(true)
+                  .flop_outputs(true)
+                  .clock_name("clk")
+                  .emit_as_pipeline(true)
+                  .use_system_verilog(UseSystemVerilog()),
+              SchedulingOptions().clock_period_ps(4000), &delay_estimator));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+
+  EXPECT_EQ(result.signature.proto().pipeline().initiation_interval(), 1);
+  EXPECT_EQ(result.signature.proto().pipeline().latency(), 2);
+}
+
+TEST_P(CodegenTest, IdentityOfMul) {
+  Package package(TestBaseName());
+  FunctionBuilder fb("identity_of_mul", &package);
+  auto x = fb.Param("x", package.GetBitsType(8));
+  auto y = fb.Param("y", package.GetBitsType(8));
+  fb.Identity(fb.UMul(x, y));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+  XLS_ASSERT_OK(package.SetTop(func));
+
+  TestDelayEstimator delay_estimator;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      verilog::CodegenResult result,
+      Codegen(&package,
+              verilog::CodegenOptions()
+                  .flop_inputs(true)
+                  .flop_outputs(true)
+                  .clock_name("clk")
+                  .emit_as_pipeline(true)
+                  .use_system_verilog(UseSystemVerilog()),
+              SchedulingOptions().clock_period_ps(50), &delay_estimator));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+}
+
+TEST_P(CodegenTest, RequiredNamedIntermediates) {
+  // Tests that nodes (such as bit slice) which require named intermediates are
+  // properly emitted.
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  auto x = fb.Param("x", package.GetBitsType(8));
+  auto y = fb.Param("y", package.GetBitsType(8));
+  fb.BitSlice(x + y, /*start=*/0, /*width=*/5);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+  XLS_ASSERT_OK(package.SetTop(func));
+
+  // Choose a large clock period such that all nodes are scheduled in the same
+  // stage.
+  TestDelayEstimator delay_estimator;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      verilog::CodegenResult result,
+      Codegen(&package,
+              verilog::CodegenOptions()
+                  .flop_inputs(true)
+                  .flop_outputs(true)
+                  .clock_name("clk")
+                  .emit_as_pipeline(true)
+                  .use_system_verilog(UseSystemVerilog()),
+              SchedulingOptions().clock_period_ps(400), &delay_estimator));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+}
+
+TEST_P(CodegenTest, BinarySelect) {
+  // Tests that nodes (such as bit slice) which require named intermediates are
+  // properly emitted.
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  auto s = fb.Param("s", package.GetBitsType(1));
+  auto x = fb.Param("x", package.GetBitsType(8));
+  auto y = fb.Param("y", package.GetBitsType(8));
+  fb.Select(s, x, y);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+  XLS_ASSERT_OK(package.SetTop(func));
+
+  // Choose a large clock period such that all nodes are scheduled in the same
+  // stage.
+  TestDelayEstimator delay_estimator;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      verilog::CodegenResult result,
+      Codegen(&package,
+              verilog::CodegenOptions()
+                  .flop_inputs(true)
+                  .flop_outputs(true)
+                  .clock_name("clk")
+                  .emit_as_pipeline(true)
+                  .use_system_verilog(UseSystemVerilog()),
+              SchedulingOptions().clock_period_ps(400), &delay_estimator));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+}
+
+TEST_P(CodegenTest, TwoBitSelector) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  auto s = fb.Param("s", package.GetBitsType(2));
+  auto x = fb.Param("x", package.GetBitsType(8));
+  auto y = fb.Param("y", package.GetBitsType(8));
+  auto z = fb.Param("z", package.GetBitsType(8));
+  fb.Select(s, {x, y}, z);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+  XLS_ASSERT_OK(package.SetTop(func));
+
+  // Choose a large clock period such that all nodes are scheduled in the same
+  // stage.
+  TestDelayEstimator delay_estimator;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      verilog::CodegenResult result,
+      Codegen(&package,
+              verilog::CodegenOptions()
+                  .flop_inputs(true)
+                  .flop_outputs(true)
+                  .clock_name("clk")
+                  .emit_as_pipeline(true)
+                  .use_system_verilog(UseSystemVerilog()),
+              SchedulingOptions().clock_period_ps(400), &delay_estimator));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+}
+
+TEST_P(CodegenTest, TwoBitSelectorAllCasesPopulated) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  auto s = fb.Param("s", package.GetBitsType(2));
+  auto x = fb.Param("x", package.GetBitsType(8));
+  auto y = fb.Param("y", package.GetBitsType(8));
+  auto z = fb.Param("z", package.GetBitsType(8));
+  auto a = fb.Param("a", package.GetBitsType(8));
+  fb.Select(s, {x, y, z, a}, /*default_value=*/std::nullopt);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+  XLS_ASSERT_OK(package.SetTop(func));
+
+  // Choose a large clock period such that all nodes are scheduled in the same
+  // stage.
+  TestDelayEstimator delay_estimator;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      verilog::CodegenResult result,
+      Codegen(&package,
+              verilog::CodegenOptions()
+                  .flop_inputs(true)
+                  .flop_outputs(true)
+                  .clock_name("clk")
+                  .emit_as_pipeline(true)
+                  .use_system_verilog(UseSystemVerilog()),
+              SchedulingOptions().clock_period_ps(400), &delay_estimator));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+}
+
 TEST_P(CodegenTest, AddNegateFlopInputsAndOutputs) {
-  Package package(TestName());
-  FunctionBuilder fb(TestName(), &package);
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
   auto x = fb.Param("x", package.GetBitsType(8));
   auto y = fb.Param("y", package.GetBitsType(8));
   fb.Negate(fb.Add(x, y));
@@ -385,6 +675,9 @@ TEST_P(CodegenTest, AddNegateFlopInputsAndOutputs) {
                   .emit_as_pipeline(true)
                   .use_system_verilog(UseSystemVerilog()),
               SchedulingOptions().pipeline_stages(2), &delay_estimator));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
 
   EXPECT_EQ(result.signature.proto().pipeline().latency(), 3);
 
@@ -396,8 +689,8 @@ TEST_P(CodegenTest, AddNegateFlopInputsAndOutputs) {
 }
 
 TEST_P(CodegenTest, AddNegateFlopInputsNotOutputs) {
-  Package package(TestName());
-  FunctionBuilder fb(TestName(), &package);
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
   auto x = fb.Param("x", package.GetBitsType(8));
   auto y = fb.Param("y", package.GetBitsType(8));
   fb.Negate(fb.Add(x, y));
@@ -416,6 +709,9 @@ TEST_P(CodegenTest, AddNegateFlopInputsNotOutputs) {
                   .use_system_verilog(UseSystemVerilog()),
               SchedulingOptions().pipeline_stages(2), &delay_estimator));
 
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+
   EXPECT_EQ(result.signature.proto().pipeline().latency(), 2);
 
   verilog::ModuleSimulator simulator =
@@ -426,8 +722,8 @@ TEST_P(CodegenTest, AddNegateFlopInputsNotOutputs) {
 }
 
 TEST_P(CodegenTest, AddNegateFlopOutputsNotInputs) {
-  Package package(TestName());
-  FunctionBuilder fb(TestName(), &package);
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
   auto x = fb.Param("x", package.GetBitsType(8));
   auto y = fb.Param("y", package.GetBitsType(8));
   fb.Negate(fb.Add(x, y));
@@ -446,6 +742,9 @@ TEST_P(CodegenTest, AddNegateFlopOutputsNotInputs) {
                   .use_system_verilog(UseSystemVerilog()),
               SchedulingOptions().pipeline_stages(2), &delay_estimator));
 
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+
   EXPECT_EQ(result.signature.proto().pipeline().latency(), 2);
 
   verilog::ModuleSimulator simulator =
@@ -456,8 +755,8 @@ TEST_P(CodegenTest, AddNegateFlopOutputsNotInputs) {
 }
 
 TEST_P(CodegenTest, AddNegateFlopNeitherInputsNorOutputs) {
-  Package package(TestName());
-  FunctionBuilder fb(TestName(), &package);
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
   auto x = fb.Param("x", package.GetBitsType(8));
   auto y = fb.Param("y", package.GetBitsType(8));
   fb.Negate(fb.Add(x, y));
@@ -475,6 +774,9 @@ TEST_P(CodegenTest, AddNegateFlopNeitherInputsNorOutputs) {
                   .emit_as_pipeline(true)
                   .use_system_verilog(UseSystemVerilog()),
               SchedulingOptions().pipeline_stages(2), &delay_estimator));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
 
   EXPECT_EQ(result.signature.proto().pipeline().latency(), 1);
 
@@ -488,8 +790,8 @@ TEST_P(CodegenTest, AddNegateFlopNeitherInputsNorOutputs) {
 TEST_P(CodegenTest, ValidPipelineControlWithSimulation) {
   // Verify the valid signalling works as expected by driving the module with a
   // ModuleTestBench.
-  Package package(TestName());
-  FunctionBuilder fb(TestName(), &package);
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
   auto x = fb.Param("x", package.GetBitsType(64));
   auto y = fb.Param("y", package.GetBitsType(64));
   auto z = fb.Param("z", package.GetBitsType(64));
@@ -518,6 +820,9 @@ TEST_P(CodegenTest, ValidPipelineControlWithSimulation) {
                   .reset(reset.name(), reset.asynchronous(), reset.active_low(),
                          reset.reset_data_path()),
               SchedulingOptions().pipeline_stages(5), &delay_estimator));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
 
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<verilog::ModuleTestbench> tb,
                            verilog::ModuleTestbench::CreateFromVerilogText(
@@ -561,8 +866,8 @@ TEST_P(CodegenTest, ValidPipelineControlWithSimulation) {
 TEST_P(CodegenTest, ValidPipelineControlWithResetSimulation) {
   // Verify the valid signaling works as expected by driving the module with a
   // ModuleTestBench when a reset is present.
-  Package package(TestName());
-  FunctionBuilder fb(TestName(), &package);
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
   auto x = fb.Param("x", package.GetBitsType(64));
   auto y = fb.Param("y", package.GetBitsType(64));
   auto z = fb.Param("z", package.GetBitsType(64));
@@ -592,6 +897,9 @@ TEST_P(CodegenTest, ValidPipelineControlWithResetSimulation) {
                      reset_proto.active_low(), reset_proto.reset_data_path())
               .use_system_verilog(UseSystemVerilog()),
           SchedulingOptions().pipeline_stages(5), &delay_estimator));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
 
   // We directly manipulate the reset line so strip reset from the signature
   // and add a regular port so the testbench does not drive the reset line.
@@ -654,8 +962,8 @@ TEST_P(CodegenTest, ValidPipelineControlWithResetSimulation) {
 TEST_P(CodegenTest, ValidSignalWithReset) {
   // Test with both active low and active high signals.
   for (bool active_low : {false, true}) {
-    Package package(TestName());
-    FunctionBuilder fb(TestName(), &package);
+    Package package(TestBaseName());
+    FunctionBuilder fb(TestBaseName(), &package);
     auto x = fb.Param("x", package.GetBitsType(64));
     auto y = fb.Param("y", package.GetBitsType(64));
     auto z = fb.Param("z", package.GetBitsType(64));

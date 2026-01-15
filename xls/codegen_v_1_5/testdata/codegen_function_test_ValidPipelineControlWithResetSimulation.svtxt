@@ -1,0 +1,144 @@
+module ValidPipelineControlWithResetSimulation(
+  input wire clk,
+  input wire rst,
+  input wire in_valid,
+  input wire [63:0] x,
+  input wire [63:0] y,
+  input wire [63:0] z,
+  output wire out_valid,
+  output wire [63:0] out
+);
+  // lint_off MULTIPLY
+  function automatic [63:0] umul64b_64b_x_64b (input reg [63:0] lhs, input reg [63:0] rhs);
+    begin
+      umul64b_64b_x_64b = lhs * rhs;
+    end
+  endfunction
+  // lint_on MULTIPLY
+
+  // ===== Pipe stage 0:
+  wire p0_input_flop_load_enable_comb;
+  assign p0_input_flop_load_enable_comb = in_valid | rst;
+
+  // Registers for pipe stage 0:
+  reg in_valid__input_flop;
+  reg [63:0] x__input_flop;
+  reg [63:0] y__input_flop;
+  reg [63:0] z__input_flop;
+  always_ff @ (posedge clk) begin
+    x__input_flop <= p0_input_flop_load_enable_comb ? x : x__input_flop;
+    y__input_flop <= p0_input_flop_load_enable_comb ? y : y__input_flop;
+    z__input_flop <= p0_input_flop_load_enable_comb ? z : z__input_flop;
+  end
+  always_ff @ (posedge clk) begin
+    if (rst) begin
+      in_valid__input_flop <= 1'h0;
+    end else begin
+      in_valid__input_flop <= in_valid;
+    end
+  end
+
+  // ===== Pipe stage 1:
+  wire p1_or_125_comb;
+  wire [63:0] p1_umul_132_comb;
+  assign p1_or_125_comb = in_valid__input_flop | rst;
+  assign p1_umul_132_comb = umul64b_64b_x_64b(x__input_flop, y__input_flop);
+
+  // Registers for pipe stage 1:
+  reg [63:0] p0_z;
+  reg [63:0] p0_umul_4;
+  reg p1_inputs_valid;
+  always_ff @ (posedge clk) begin
+    p0_z <= p1_or_125_comb ? z__input_flop : p0_z;
+    p0_umul_4 <= p1_or_125_comb ? p1_umul_132_comb : p0_umul_4;
+  end
+  always_ff @ (posedge clk) begin
+    if (rst) begin
+      p1_inputs_valid <= 1'h0;
+    end else begin
+      p1_inputs_valid <= in_valid__input_flop;
+    end
+  end
+
+  // ===== Pipe stage 2:
+  wire p2_or_127_comb;
+  assign p2_or_127_comb = p1_inputs_valid | rst;
+
+  // Registers for pipe stage 2:
+  reg [63:0] p1_z;
+  reg [63:0] p1_umul_4;
+  reg p2_inputs_valid;
+  always_ff @ (posedge clk) begin
+    p1_z <= p2_or_127_comb ? p0_z : p1_z;
+    p1_umul_4 <= p2_or_127_comb ? p0_umul_4 : p1_umul_4;
+  end
+  always_ff @ (posedge clk) begin
+    if (rst) begin
+      p2_inputs_valid <= 1'h0;
+    end else begin
+      p2_inputs_valid <= p1_inputs_valid;
+    end
+  end
+
+  // ===== Pipe stage 3:
+  wire p3_or_129_comb;
+  assign p3_or_129_comb = p2_inputs_valid | rst;
+
+  // Registers for pipe stage 3:
+  reg [63:0] p2_z;
+  reg [63:0] p2_umul_4;
+  reg p3_inputs_valid;
+  always_ff @ (posedge clk) begin
+    p2_z <= p3_or_129_comb ? p1_z : p2_z;
+    p2_umul_4 <= p3_or_129_comb ? p1_umul_4 : p2_umul_4;
+  end
+  always_ff @ (posedge clk) begin
+    if (rst) begin
+      p3_inputs_valid <= 1'h0;
+    end else begin
+      p3_inputs_valid <= p2_inputs_valid;
+    end
+  end
+
+  // ===== Pipe stage 4:
+  wire p4_or_131_comb;
+  assign p4_or_131_comb = p3_inputs_valid | rst;
+
+  // Registers for pipe stage 4:
+  reg [63:0] p3_z;
+  reg [63:0] p3_umul_4;
+  reg p4_inputs_valid;
+  always_ff @ (posedge clk) begin
+    p3_z <= p4_or_131_comb ? p2_z : p3_z;
+    p3_umul_4 <= p4_or_131_comb ? p2_umul_4 : p3_umul_4;
+  end
+  always_ff @ (posedge clk) begin
+    if (rst) begin
+      p4_inputs_valid <= 1'h0;
+    end else begin
+      p4_inputs_valid <= p3_inputs_valid;
+    end
+  end
+
+  // ===== Pipe stage 5:
+  wire [63:0] p5_umul_145_comb;
+  wire p5_output_flop_load_enable_comb;
+  assign p5_umul_145_comb = umul64b_64b_x_64b(p3_umul_4, p3_z);
+  assign p5_output_flop_load_enable_comb = p4_inputs_valid | rst;
+
+  // Registers for pipe stage 5:
+  reg out_valid__output_flop;
+  reg [63:0] out__output_flop;
+  always_ff @ (posedge clk) begin
+    out__output_flop <= p5_output_flop_load_enable_comb ? p5_umul_145_comb : out__output_flop;
+  end
+  always_ff @ (posedge clk) begin
+    if (rst) begin
+      out_valid__output_flop <= 1'h0;
+    end else begin
+      out_valid__output_flop <= p4_inputs_valid;
+    end
+  end
+  assign out_valid = out_valid__output_flop;
+  assign out = out__output_flop;
+endmodule

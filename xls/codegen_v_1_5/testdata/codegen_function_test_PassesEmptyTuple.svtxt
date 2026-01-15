@@ -1,0 +1,5 @@
+module PassesEmptyTuple(
+  input wire clk
+);
+
+endmodule

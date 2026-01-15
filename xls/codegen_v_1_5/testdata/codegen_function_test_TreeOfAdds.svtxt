@@ -1,0 +1,52 @@
+module x_plus_y_plus_z(
+  input wire clk,
+  input wire [31:0] a,
+  input wire [31:0] b,
+  input wire [31:0] c,
+  input wire [31:0] d,
+  input wire [31:0] e,
+  output wire [31:0] out
+);
+  // ===== Pipe stage 0:
+
+  // Registers for pipe stage 0:
+  reg [31:0] a__input_flop;
+  reg [31:0] b__input_flop;
+  reg [31:0] c__input_flop;
+  reg [31:0] d__input_flop;
+  reg [31:0] e__input_flop;
+  always_ff @ (posedge clk) begin
+    a__input_flop <= a;
+    b__input_flop <= b;
+    c__input_flop <= c;
+    d__input_flop <= d;
+    e__input_flop <= e;
+  end
+
+  // ===== Pipe stage 1:
+  wire [31:0] p1_add_53_comb;
+  wire [31:0] p1_add_54_comb;
+  wire [31:0] p1_add_61_comb;
+  assign p1_add_53_comb = a__input_flop + b__input_flop;
+  assign p1_add_54_comb = c__input_flop + d__input_flop;
+  assign p1_add_61_comb = p1_add_53_comb + p1_add_54_comb;
+
+  // Registers for pipe stage 1:
+  reg [31:0] p0_e;
+  reg [31:0] p0_add_12;
+  always_ff @ (posedge clk) begin
+    p0_e <= e__input_flop;
+    p0_add_12 <= p1_add_61_comb;
+  end
+
+  // ===== Pipe stage 2:
+  wire [31:0] p2_add_67_comb;
+  assign p2_add_67_comb = p0_add_12 + p0_e;
+
+  // Registers for pipe stage 2:
+  reg [31:0] out__output_flop;
+  always_ff @ (posedge clk) begin
+    out__output_flop <= p2_add_67_comb;
+  end
+  assign out = out__output_flop;
+endmodule

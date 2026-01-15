@@ -1,0 +1,11 @@
+module ReturnArrayLiteral(
+  input wire clk,
+  output wire [1:0] out
+);
+  wire literal_33[0:1];
+  assign literal_33[0] = 1'h0;
+  assign literal_33[1] = 1'h1;
+
+  // ===== Pipe stage 0:
+  assign out = {literal_33[1], literal_33[0]};
+endmodule

@@ -486,6 +486,7 @@ cc_library(
         "//xls/ir:value",
         "//xls/ir:value_utils",
         "//xls/passes:pass_base",
+        "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
@@ -1002,6 +1003,9 @@ cc_library(
 cc_test(
     name = "codegen_test",
     srcs = ["codegen_function_test.cc"],
+    data = glob([
+        "testdata/codegen_function_test_*",
+    ]),
     shard_count = 50,
     deps = [
         ":codegen",

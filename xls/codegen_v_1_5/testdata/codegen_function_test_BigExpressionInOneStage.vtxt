@@ -1,0 +1,39 @@
+module x_plus_y_plus_z(
+  input wire clk,
+  input wire [31:0] a,
+  input wire [31:0] b,
+  input wire [31:0] c,
+  input wire [31:0] d,
+  output wire [31:0] out
+);
+  // ===== Pipe stage 0:
+
+  // Registers for pipe stage 0:
+  reg [31:0] a__input_flop;
+  reg [31:0] b__input_flop;
+  reg [31:0] c__input_flop;
+  reg [31:0] d__input_flop;
+  always @ (posedge clk) begin
+    a__input_flop <= a;
+    b__input_flop <= b;
+    c__input_flop <= c;
+    d__input_flop <= d;
+  end
+
+  // ===== Pipe stage 1:
+  wire [31:0] p1_add_38_comb;
+  wire [31:0] p1_add_39_comb;
+  wire [31:0] p1_add_41_comb;
+  wire [31:0] p1_neg_48_comb;
+  assign p1_add_38_comb = a__input_flop + b__input_flop;
+  assign p1_add_39_comb = c__input_flop + d__input_flop;
+  assign p1_add_41_comb = p1_add_39_comb + ~p1_add_38_comb;
+  assign p1_neg_48_comb = -p1_add_41_comb;
+
+  // Registers for pipe stage 1:
+  reg [31:0] out__output_flop;
+  always @ (posedge clk) begin
+    out__output_flop <= p1_neg_48_comb;
+  end
+  assign out = out__output_flop;
+endmodule

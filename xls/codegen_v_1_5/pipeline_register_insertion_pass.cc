@@ -23,6 +23,7 @@
 #include <tuple>
 #include <vector>
 
+#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -99,17 +100,17 @@ absl::StatusOr<RegisterRead*> CreatePipelineRegister(
       !options.codegen_options.reset()->reset_data_path()) {
     // Note that if data registers are not reset, data path registers are
     // transparent during reset.
-    XLS_ASSIGN_OR_RETURN(
-        Node * reset_asserted,
-        block->MakeNode<UnOp>(SourceInfo(), *block->GetResetPort(),
-                              options.codegen_options.reset()->active_low()
-                                  ? Op::kNot
-                                  : Op::kIdentity));
+    Node* reset_active = *block->GetResetPort();
+    if (options.codegen_options.reset()->active_low()) {
+      XLS_ASSIGN_OR_RETURN(reset_active, block->MakeNodeWithName<UnOp>(
+                                             SourceInfo(), reset_active,
+                                             Op::kNot, "reset_active"));
+    }
     XLS_ASSIGN_OR_RETURN(
         load_enable,
-        block->MakeNode<NaryOp>(
-            node->loc(), absl::MakeConstSpan({stage_done, reset_asserted}),
-            Op::kOr));
+        block->MakeNode<NaryOp>(node->loc(),
+                                absl::MakeConstSpan({stage_done, reset_active}),
+                                Op::kOr));
   }
   // NOTE: The RegisterWrite is added to the block, but not to the stage. Its
   //       `load_enable` depends on `outputs_ready`, which comes from outside
@@ -247,7 +248,8 @@ absl::StatusOr<bool> PipelineRegisterInsertionPass::InsertPipelineRegisters(
 
   // Compile all the references that could require pipeline registers.
   absl::flat_hash_map<Node*, int64_t> last_stage_referencing;
-  absl::flat_hash_map<Node*, absl::flat_hash_map<int64_t, std::vector<Node*>>>
+  absl::btree_map<Node*, absl::flat_hash_map<int64_t, std::vector<Node*>>,
+                  Node::NodeIdLessThan>
       cross_stage_references;
   for (const auto& [stage_index, stage] : iter::enumerate(block->stages())) {
     for (Node* node : stage) {
@@ -327,7 +329,17 @@ absl::StatusOr<bool> PipelineRegisterInsertionPass::InsertPipelineRegisters(
           absl::Span<Node* const> stage_references =
               stage_references_it->second;
           for (Node* const user : stage_references) {
+            // The only exception: if the user is a Next and `node` is its
+            // corresponding StateRead, we need to avoid updating that specific
+            // operand, since no data is being passed. For simplicity, we put it
+            // back afterwards rather than actually avoiding the update.
+            bool restore_state_read =
+                user->Is<Next>() && user->As<Next>()->state_read() == node;
             user->ReplaceOperand(node, live_node);
+            if (restore_state_read) {
+              XLS_RETURN_IF_ERROR(user->As<Next>()->ReplaceOperandNumber(
+                  Next::kStateReadOperand, node));
+            }
           }
         }
       }
