@@ -996,3 +996,33 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
     ],
 )
+
+cc_test(
+    name = "codegen_test",
+    srcs = ["codegen_function_test.cc"],
+    shard_count = 50,
+    deps = [
+        ":codegen",
+        "//xls/codegen:codegen_options",
+        "//xls/codegen:codegen_result",
+        "//xls/codegen:module_signature",
+        "//xls/codegen:module_signature_cc_proto",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/estimators/delay_model:delay_estimator",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:op",
+        "//xls/ir:value",
+        "//xls/scheduling:scheduling_options",
+        "//xls/simulation:module_simulator",
+        "//xls/simulation:module_testbench",
+        "//xls/simulation:module_testbench_thread",
+        "//xls/simulation:verilog_test_base",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@googletest//:gtest",
+    ],
+)

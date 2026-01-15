@@ -50,21 +50,45 @@ namespace {
 
 absl::StatusOr<Node*> FlopNode(
     ScheduledBlock* block, std::string_view name, Node* input,
-    int64_t stage_index, std::optional<Node*> load_enable = std::nullopt) {
+    int64_t stage_index, std::optional<Node*> reset,
+    std::optional<Node*> load_enable = std::nullopt) {
   XLS_ASSIGN_OR_RETURN(
       Register * input_flop,
       block->AddRegister(name, input->GetType(),
-                         block->GetResetPort().has_value()
+                         reset.has_value()
                              ? std::make_optional(ZeroOfType(input->GetType()))
                              : std::nullopt));
-  XLS_RETURN_IF_ERROR(block
-                          ->MakeNodeWithName<RegisterWrite>(
-                              input->loc(), input, load_enable,
-                              /*reset=*/block->GetResetPort(), input_flop,
-                              absl::StrCat(name, "_write"))
-                          .status());
+  XLS_RETURN_IF_ERROR(
+      block
+          ->MakeNodeWithName<RegisterWrite>(input->loc(), input, load_enable,
+                                            /*reset=*/reset, input_flop,
+                                            absl::StrCat(name, "_write"))
+          .status());
   return block->MakeNodeWithNameInStage<RegisterRead>(
       stage_index, input->loc(), input_flop, absl::StrCat(name, "_read"));
+}
+
+// If reset is present, ORs the `load_enable_signal` with (reset-active) and
+// returns the result. Otherwise, returns `load_enable_signal`.
+absl::StatusOr<Node*> EnableOnReset(ScheduledBlock* block,
+                                    const BlockConversionPassOptions& options,
+                                    Node* load_enable_signal,
+                                    int64_t stage_index,
+                                    std::string_view or_node_name) {
+  if (!block->GetResetPort().has_value()) {
+    return load_enable_signal;
+  }
+  Node* reset_active = *block->GetResetPort();
+  if (options.codegen_options.reset().has_value() &&
+      options.codegen_options.reset()->active_low()) {
+    XLS_ASSIGN_OR_RETURN(
+        reset_active, block->MakeNodeWithName<UnOp>(SourceInfo(), reset_active,
+                                                    Op::kNot, "reset_active"));
+  }
+  return block->MakeNodeWithNameInStage<NaryOp>(
+      stage_index, SourceInfo(),
+      std::vector<Node*>{load_enable_signal, reset_active}, Op::kOr,
+      or_node_name);
 }
 
 }  // namespace
@@ -80,6 +104,7 @@ absl::StatusOr<bool> FunctionIOLoweringPass::LowerParams(
   }
 
   std::optional<Node*> input_valid_port = std::nullopt;
+  std::optional<Node*> input_flop_load_enable = std::nullopt;
   if (options.codegen_options.valid_control().has_value()) {
     if (options.codegen_options.valid_control()->input_name().empty()) {
       return absl::InvalidArgumentError(
@@ -101,7 +126,8 @@ absl::StatusOr<bool> FunctionIOLoweringPass::LowerParams(
                        options.codegen_options.valid_control()->input_name(),
                        "__input_flop"),
                    input_valid,
-                   /*stage_index=*/0));
+                   /*stage_index=*/0,
+                   /*reset=*/block->GetResetPort()));
     }
 
     // Update the active inputs valid signal to include the input-valid signal,
@@ -111,6 +137,23 @@ absl::StatusOr<bool> FunctionIOLoweringPass::LowerParams(
     XLS_RETURN_IF_ERROR(ReplaceWithAnd(block->stages()[0].active_inputs_valid(),
                                        input_valid, /*combine_literals=*/false)
                             .status());
+
+    // Note that if data path registers are not reset, they are instead
+    // transparent during reset.
+    input_flop_load_enable = input_valid_port;
+    if (options.codegen_options.reset().has_value() &&
+        !options.codegen_options.reset()->reset_data_path()) {
+      XLS_ASSIGN_OR_RETURN(
+          input_flop_load_enable,
+          EnableOnReset(block, options, *input_flop_load_enable,
+                        /*stage_index=*/0, "input_flop_load_enable"));
+    }
+  }
+
+  std::optional<Node*> reset = block->GetResetPort();
+  if (options.codegen_options.reset().has_value() &&
+      !options.codegen_options.reset()->reset_data_path()) {
+    reset = std::nullopt;
   }
 
   std::vector<Param*> params_to_remove;
@@ -142,7 +185,8 @@ absl::StatusOr<bool> FunctionIOLoweringPass::LowerParams(
           input,
           FlopNode(block, absl::StrCat(param_name, "__input_flop"), input,
                    /*stage_index=*/0,
-                   /*load_enable=*/input_valid_port));
+                   /*reset=*/reset,
+                   /*load_enable=*/input_flop_load_enable));
     }
 
     XLS_RETURN_IF_ERROR(
@@ -189,6 +233,7 @@ absl::StatusOr<bool> FunctionIOLoweringPass::LowerReturnValue(
   }
 
   std::optional<Node*> output_valid = std::nullopt;
+  std::optional<Node*> output_flop_load_enable = std::nullopt;
   if (options.codegen_options.valid_control().has_value() &&
       !options.codegen_options.valid_control()->output_name().empty()) {
     // If the valid signal is passed all the way through to an output port, then
@@ -212,7 +257,8 @@ absl::StatusOr<bool> FunctionIOLoweringPass::LowerReturnValue(
                        options.codegen_options.valid_control()->output_name(),
                        "__output_flop"),
                    *output_valid,
-                   /*stage_index=*/block->stages().size() - 1));
+                   /*stage_index=*/block->stages().size() - 1,
+                   /*reset=*/block->GetResetPort()));
     }
     XLS_ASSIGN_OR_RETURN(
         OutputPort * valid_output_port,
@@ -223,10 +269,27 @@ absl::StatusOr<bool> FunctionIOLoweringPass::LowerReturnValue(
         bool added,
         block->AddNodeToStage(block->stages().size() - 1, valid_output_port));
     XLS_RET_CHECK(added);
+
+    // Note that if data path registers are not reset, they are instead
+    // transparent during reset.
+    output_flop_load_enable = block->stages().back().outputs_valid();
+    if (options.codegen_options.reset().has_value() &&
+        !options.codegen_options.reset()->reset_data_path()) {
+      XLS_ASSIGN_OR_RETURN(
+          output_flop_load_enable,
+          EnableOnReset(block, options, *output_flop_load_enable,
+                        block->stages().size() - 1, "output_flop_load_enable"));
+    }
   }
 
   Node* output = block->source_return_value();
   if (options.codegen_options.flop_outputs()) {
+    std::optional<Node*> reset = block->GetResetPort();
+    if (options.codegen_options.reset().has_value() &&
+        !options.codegen_options.reset()->reset_data_path()) {
+      reset = std::nullopt;
+    }
+
     XLS_ASSIGN_OR_RETURN(
         output,
         FlopNode(block,
@@ -234,7 +297,8 @@ absl::StatusOr<bool> FunctionIOLoweringPass::LowerReturnValue(
                               "__output_flop"),
                  output,
                  /*stage_index=*/block->stages().size() - 1,
-                 /*load_enable=*/block->stages().back().outputs_valid()));
+                 /*reset=*/reset,
+                 /*load_enable=*/output_flop_load_enable));
   }
   XLS_ASSIGN_OR_RETURN(
       OutputPort * port,
