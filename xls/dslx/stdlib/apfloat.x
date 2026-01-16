@@ -2998,10 +2998,6 @@ fn to_uint_test() {
         u4:0, to_uint<u32:4>(APFloat<u32:8, u32:7> { sign: u1:1, bexp: u8:0x80, fraction: u7:0 }));
 }
 
-fn compound_adder<WIDTH: u32>(a: uN[WIDTH], b: uN[WIDTH]) -> (uN[WIDTH], uN[WIDTH]) {
-    (a + b, a + b + uN[WIDTH]:1)
-}
-
 // Calculate difference of two positive values and return values in sign-magnitude
 // form. Returns sign-magnitude tuple (|a| - |b| <= 0, abs(|a| - |b|)).
 // Note, this returns -0 if (a == b), which is used in our application, which is good
