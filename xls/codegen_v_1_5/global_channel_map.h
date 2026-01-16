@@ -16,7 +16,10 @@
 #define XLS_CODEGEN_V_1_5_GLOBAL_CHANNEL_MAP_H_
 
 #include <optional>
+#include <string>
+#include <vector>
 
+#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -69,6 +72,8 @@ class GlobalChannelMap {
                                               : std::make_optional(it->second);
   }
 
+  GlobalChannelMap GetBlockLevelMap(Block* block);
+
  private:
   absl::Status PopulateReceiveDirection(Block* block,
                                         BlockInstantiation* instantiation,
@@ -80,12 +85,24 @@ class GlobalChannelMap {
                                      Channel* channel,
                                      const ChannelPortMetadata& metadata);
 
+  template <typename T>
+  void CopyChannelData(Channel* channel,
+                       const absl::flat_hash_map<Channel*, T>& data,
+                       absl::flat_hash_map<Channel*, T>& dest) {
+    const auto it = data.find(channel);
+    if (it != data.end()) {
+      dest.emplace(channel, it->second);
+    }
+  }
+
   StreamingInputMap streaming_input_channels_;
   StreamingOutputMap streaming_output_channels_;
   SingleValueInputMap single_value_input_channels_;
   SingleValueOutputMap single_value_output_channels_;
   BlockInstantiationMap input_instantiations_;
   BlockInstantiationMap output_instantiations_;
+  absl::flat_hash_map<Block*, absl::btree_map<std::string, Channel*>>
+      block_to_channels_;
 };
 
 }  // namespace xls::codegen

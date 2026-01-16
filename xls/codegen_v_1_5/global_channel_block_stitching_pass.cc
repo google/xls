@@ -454,37 +454,6 @@ absl::StatusOr<Block*> AddBlockWithName(Package* package,
   return package->AddBlock(std::move(new_block));
 }
 
-absl::StatusOr<absl::flat_hash_set<Channel*>> GetLivePackageScopedChannels(
-    Package* package) {
-  absl::flat_hash_set<Channel*> channels;
-  for (FunctionBase* fb : package->GetFunctionBases()) {
-    for (Node* node : fb->nodes()) {
-      if (!node->Is<ChannelNode>()) {
-        continue;
-      }
-      ChannelNode* channel_node = node->As<ChannelNode>();
-      XLS_ASSIGN_OR_RETURN(ChannelRef channel, channel_node->GetChannelRef());
-      if (std::holds_alternative<Channel*>(channel)) {
-        channels.insert(std::get<Channel*>(channel));
-      }
-    }
-  }
-  return channels;
-}
-
-absl::StatusOr<bool> RemoveDeadChannels(Package* package) {
-  XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Channel*> live_channels,
-                       GetLivePackageScopedChannels(package));
-  std::vector<Channel*> channels_to_remove;
-  absl::c_copy_if(
-      package->channels(), std::back_inserter(channels_to_remove),
-      [&](Channel* channel) { return !live_channels.contains(channel); });
-  for (Channel* channel : channels_to_remove) {
-    XLS_RETURN_IF_ERROR(package->RemoveChannel(channel));
-  }
-  return !channels_to_remove.empty();
-}
-
 }  // namespace
 
 absl::StatusOr<bool> GlobalChannelBlockStitchingPass::RunInternal(
@@ -495,7 +464,7 @@ absl::StatusOr<bool> GlobalChannelBlockStitchingPass::RunInternal(
   if (package->blocks().size() < 2 ||
       !GetScheduledBlocksWithProcSources(package, /*new_style_only=*/true)
            .empty()) {
-    return RemoveDeadChannels(package);
+    return false;
   }
 
   // TODO: google/xls#1336 - support this codegen option.
@@ -517,8 +486,6 @@ absl::StatusOr<bool> GlobalChannelBlockStitchingPass::RunInternal(
 
   VLOG(2) << "Stitching blocks for " << top_block->name();
   XLS_RETURN_IF_ERROR(StitchBlocks(package, options.codegen_options));
-
-  XLS_RETURN_IF_ERROR(RemoveDeadChannels(package).status());
 
   return true;
 }

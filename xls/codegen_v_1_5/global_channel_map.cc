@@ -36,11 +36,16 @@ absl::StatusOr<GlobalChannelMap> GlobalChannelMap::Create(Package* package) {
   GlobalChannelMap map;
   absl::flat_hash_map<Block*, BlockInstantiation*> instantiations =
       GetInstantiatedBlocks(package);
-  for (const std::unique_ptr<Block>& block : package->blocks()) {
+  for (std::unique_ptr<Block>& block : package->blocks()) {
+    if (!instantiations.contains(block.get())) {
+      // Block lowered from passthrough proc.
+      continue;
+    }
     for (const auto& [key, metadata] : block->GetAllChannelPortMetadata()) {
       const auto& [channel_name, channel_direction] = key;
       XLS_ASSIGN_OR_RETURN(Channel * channel,
                            package->GetChannel(channel_name));
+      map.block_to_channels_[block.get()].emplace(channel->name(), channel);
       if (channel_direction == ChannelDirection::kReceive) {
         XLS_RETURN_IF_ERROR(map.PopulateReceiveDirection(
             block.get(), instantiations.at(block.get()), channel, metadata));
@@ -103,6 +108,30 @@ absl::Status GlobalChannelMap::PopulateSendDirection(
   }
   XLS_RET_CHECK(output_instantiations_.emplace(channel, instantiation).second);
   return absl::OkStatus();
+}
+
+GlobalChannelMap GlobalChannelMap::GetBlockLevelMap(Block* block) {
+  GlobalChannelMap block_level_map;
+  const auto it = block_to_channels_.find(block);
+  if (it == block_to_channels_.end()) {
+    return block_level_map;
+  }
+  block_level_map.block_to_channels_.emplace(block, it->second);
+  for (const auto& [_, channel] : it->second) {
+    CopyChannelData(channel, streaming_input_channels_,
+                    block_level_map.streaming_input_channels_);
+    CopyChannelData(channel, streaming_output_channels_,
+                    block_level_map.streaming_output_channels_);
+    CopyChannelData(channel, single_value_input_channels_,
+                    block_level_map.single_value_input_channels_);
+    CopyChannelData(channel, single_value_output_channels_,
+                    block_level_map.single_value_output_channels_);
+    CopyChannelData(channel, input_instantiations_,
+                    block_level_map.input_instantiations_);
+    CopyChannelData(channel, output_instantiations_,
+                    block_level_map.output_instantiations_);
+  }
+  return block_level_map;
 }
 
 }  // namespace xls::codegen

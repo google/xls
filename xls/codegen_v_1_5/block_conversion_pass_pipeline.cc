@@ -26,6 +26,7 @@
 #include "xls/codegen_v_1_5/flow_control_insertion_pass.h"
 #include "xls/codegen_v_1_5/function_io_lowering_pass.h"
 #include "xls/codegen_v_1_5/global_channel_block_stitching_pass.h"
+#include "xls/codegen_v_1_5/global_channel_removal_pass.h"
 #include "xls/codegen_v_1_5/idle_insertion_pass.h"
 #include "xls/codegen_v_1_5/pipeline_register_insertion_pass.h"
 #include "xls/codegen_v_1_5/proc_instantiation_lowering_pass.h"
@@ -79,6 +80,9 @@ std::unique_ptr<BlockConversionCompoundPass> CreateBlockConversionPassPipeline(
 
   // Stitch blocks that were lowered from procs using global channels.
   top->Add<GlobalChannelBlockStitchingPass>();
+
+  // Remove global channels.
+  top->Add<GlobalChannelRemovalPass>();
 
   // Add module signatures.
   top->Add<SignatureGenerationPass>();

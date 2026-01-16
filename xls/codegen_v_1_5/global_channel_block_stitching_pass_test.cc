@@ -58,22 +58,7 @@ using ::testing::IsEmpty;
 
 class GlobalChannelBlockStitchingPassTest : public IrTestBase {
  protected:
-  void SetUp() override {
-    p_ = CreatePackage();
-    ran_pass_ = false;
-  }
-
-  void TearDown() override {
-    if (!ran_pass_) {
-      return;
-    }
-
-    for (const auto& [_, proc] : GetScheduledBlocksWithProcSources(p_.get())) {
-      if (!proc->is_new_style_proc()) {
-        EXPECT_THAT(p_->channels(), IsEmpty());
-      }
-    }
-  }
+  void SetUp() override { p_ = CreatePackage(); }
 
   absl::StatusOr<BlockConversionPassOptions> CreateOptions(
       Package* p, int64_t pipeline_stages,
@@ -114,14 +99,12 @@ class GlobalChannelBlockStitchingPassTest : public IrTestBase {
 
     XLS_ASSIGN_OR_RETURN(bool result, GlobalChannelBlockStitchingPass().Run(
                                           p, options, &results));
-    ran_pass_ = true;
 
     VLOG(5) << "IR after instantiation lowering: " << p_->DumpIr();
     return result;
   }
 
   std::unique_ptr<VerifiedPackage> p_;
-  bool ran_pass_;
 };
 
 TEST_F(GlobalChannelBlockStitchingPassTest, NoProcs) {

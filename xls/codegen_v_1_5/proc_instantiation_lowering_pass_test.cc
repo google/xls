@@ -149,6 +149,7 @@ TEST_F(ProcInstantiationLoweringPassTest, NoProcs) {
 }
 
 TEST_F(ProcInstantiationLoweringPassTest, ProcWithGlobalChannels) {
+  p_->AcceptInvalid();
   Type* u32 = p_->GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * in_ch,
