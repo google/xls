@@ -2111,6 +2111,11 @@ class Param : public AstNode {
         st != nullptr && !st->explicit_type()) {
       return name_def_->ToString();
     }
+    if (auto* tvta =
+            dynamic_cast<TypeVariableTypeAnnotation*>(type_annotation_);
+        tvta != nullptr && tvta->internal()) {
+      return name_def_->ToString();
+    }
     return absl::StrFormat("%s: %s", name_def_->ToString(),
                            type_annotation_->ToString());
   }

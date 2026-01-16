@@ -269,12 +269,38 @@ absl::StatusOr<Lambda*> Parser::ParseLambda(Bindings& bindings) {
   Pos start_pos = GetPos();
   VLOG(5) << "ParseLambda @ " << start_pos;
   XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
+  std::vector<ParametricBinding*> parametrics;
+  const auto& missing_annotation_generator =
+      [&](const Span& span) -> absl::StatusOr<TypeAnnotation*> {
+    // For lambdas, we allow an implicit type annotation. Treat this as a new
+    // generic type and create a name_def to use to reference it. This must be
+    // added as a parametric binding to the function. For example:
+    //
+    //   | i | { 2 * i }
+    //
+    // results in a function like:
+    //
+    //   fn<T0: type, T1: type>(i: T0) -> T1 {
+    //       2 * i
+    //   }
+    TypeAnnotation* gta = module_->Make<GenericTypeAnnotation>(span);
+    NameDef* generic_name_def = module_->Make<NameDef>(
+        span,
+        absl::Substitute("lambda_param_type_$0_at_$1", parametrics.size(),
+                         span.ToString(file_table())),
+        /*definer=*/gta);
+    parametrics.push_back(
+        module_->Make<ParametricBinding>(generic_name_def, gta, nullptr));
+    NameRef* generic_name_ref = module_->Make<NameRef>(
+        span, generic_name_def->identifier(), generic_name_def);
+    return module_->Make<TypeVariableTypeAnnotation>(generic_name_ref,
+                                                     /*internal=*/true);
+  };
   std::vector<Param*> params;
   if (peek->kind() == TokenKind::kBar) {
-    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kBar));
-    auto parse_param = [&] { return ParseParam(bindings); };
-    XLS_ASSIGN_OR_RETURN(params,
-                         ParseCommaSeq<Param*>(parse_param, TokenKind::kBar));
+    XLS_ASSIGN_OR_RETURN(
+        params, ParseParamsInternal(bindings, TokenKind::kBar, TokenKind::kBar,
+                                    missing_annotation_generator));
   } else {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kDoubleBar));
   }
@@ -283,15 +309,18 @@ absl::StatusOr<Lambda*> Parser::ParseLambda(Bindings& bindings) {
   TypeAnnotation* return_type = nullptr;
   if (dropped_arrow) {
     XLS_ASSIGN_OR_RETURN(return_type, ParseTypeAnnotation(bindings));
+  } else {
+    XLS_ASSIGN_OR_RETURN(
+        return_type, missing_annotation_generator(Span(start_pos, GetPos())));
   }
 
   XLS_ASSIGN_OR_RETURN(StatementBlock * body, ParseBlockExpression(bindings));
   Span sp = Span(start_pos, GetPos());
   NameDef* fn_name_def = module_->Make<NameDef>(sp, "lambda_fn", nullptr);
-  Function* fn = module_->Make<Function>(
-      sp, fn_name_def, std::vector<ParametricBinding*>(), params, return_type,
-      body, FunctionTag::kLambda,
-      /*is_public=*/false, /*is_stub=*/false);
+  Function* fn =
+      module_->Make<Function>(sp, fn_name_def, parametrics, params, return_type,
+                              body, FunctionTag::kLambda,
+                              /*is_public=*/false, /*is_stub=*/false);
   return module_->Make<Lambda>(sp, fn);
 }
 
@@ -3856,7 +3885,9 @@ Parser::ParseNameDefOrWildcard(Bindings& bindings) {
   return ParseNameDef(bindings);
 }
 
-absl::StatusOr<Param*> Parser::ParseParam(Bindings& bindings) {
+absl::StatusOr<Param*> Parser::ParseParam(
+    Bindings& bindings,
+    const AnnotationGeneratorFn& missing_annotation_generator) {
   TypeAnnotation* type;
   XLS_ASSIGN_OR_RETURN(NameDef * name, ParseNameDef(bindings));
   XLS_ASSIGN_OR_RETURN(bool peek_is_colon, PeekTokenIs(TokenKind::kColon));
@@ -3875,10 +3906,15 @@ absl::StatusOr<Param*> Parser::ParseParam(Bindings& bindings) {
       XLS_RETURN_IF_ERROR(DropKeywordOrError(Keyword::kSelfType));
     }
   } else {
-    XLS_RETURN_IF_ERROR(
-        DropTokenOrError(TokenKind::kColon, /*start=*/nullptr,
-                         "Expect type annotation on parameters"));
-    XLS_ASSIGN_OR_RETURN(type, ParseTypeAnnotation(bindings));
+    XLS_ASSIGN_OR_RETURN(bool peek_is_colon, PeekTokenIs(TokenKind::kColon));
+    if (!peek_is_colon && missing_annotation_generator) {
+      XLS_ASSIGN_OR_RETURN(type, missing_annotation_generator(name->span()));
+    } else {
+      XLS_RETURN_IF_ERROR(
+          DropTokenOrError(TokenKind::kColon, /*start=*/nullptr,
+                           "Expect type annotation on parameters"));
+      XLS_ASSIGN_OR_RETURN(type, ParseTypeAnnotation(bindings));
+    }
   }
   if (dynamic_cast<SelfTypeAnnotation*>(type) &&
       name->identifier() != KeywordToString(Keyword::kSelf)) {
@@ -3903,11 +3939,19 @@ absl::StatusOr<ProcMember*> Parser::ParseProcMember(
 }
 
 absl::StatusOr<std::vector<Param*>> Parser::ParseParams(Bindings& bindings) {
-  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
-  auto sub_production = [&] { return ParseParam(bindings); };
-  XLS_ASSIGN_OR_RETURN(
-      std::vector<Param*> params,
-      ParseCommaSeq<Param*>(sub_production, TokenKind::kCParen));
+  return ParseParamsInternal(bindings, TokenKind::kOParen, TokenKind::kCParen,
+                             /*missing_annotation_generator=*/nullptr);
+}
+
+absl::StatusOr<std::vector<Param*>> Parser::ParseParamsInternal(
+    Bindings& bindings, TokenKind open_token, TokenKind close_token,
+    const AnnotationGeneratorFn& missing_annotation_generator) {
+  XLS_RETURN_IF_ERROR(DropTokenOrError(open_token));
+  auto sub_production = [&] {
+    return ParseParam(bindings, missing_annotation_generator);
+  };
+  XLS_ASSIGN_OR_RETURN(std::vector<Param*> params,
+                       ParseCommaSeq<Param*>(sub_production, close_token));
   for (int i = 1; i < params.size(); i++) {
     Param* p = params.at(i);
     if (dynamic_cast<SelfTypeAnnotation*>(p->type_annotation())) {

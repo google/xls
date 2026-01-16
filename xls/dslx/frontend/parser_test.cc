@@ -3840,7 +3840,7 @@ TEST_F(ParserTest, ParseMapWithLambdaParamAnnotation) {
 }
 
 TEST_F(ParserTest, MultipleLambdas) {
-  RoundTrip(R"(const ARR = map([0..10], |i: u32| { i });
+  RoundTrip(R"(const ARR = map(0..10, |i: u32| { i });
 fn uses_lambda(i: u32) -> u32 {
     let X = || { u32:2 * i };
     X()
@@ -3879,10 +3879,13 @@ TEST_F(ParserTest, ParseMapWithLambdaMultilineBody) {
 });)");
 }
 
-// TODO(https://github.com/google/xls/issues/1671): Support once
-// `AnyTypeAnnotation` is available.
-TEST_F(ParserTest, DISABLED_ParseMapWithLambdaNoParamAnnotation) {
+TEST_F(ParserTest, ParseMapWithLambdaNoParamAnnotation) {
   RoundTrip(R"(const ARR = map(range(0, u16:5), |i| { 2 * i });)");
+}
+
+TEST_F(ParserTest, ParseMapWithLambdaNoParamAnnotationMultipleParams) {
+  RoundTrip(
+      R"(const ARR = map(enumerate(range(0, u16:5)), |i, j| { 2 * i * j });)");
 }
 
 TEST_F(ParserTest, ParseParametricInMapBuiltin) {
