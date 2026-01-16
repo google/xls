@@ -72,7 +72,8 @@ bool xls_convert_dslx_to_ir(const char* dslx, const char* path,
                             const char* dslx_stdlib_path,
                             const char* additional_search_paths[],
                             size_t additional_search_paths_count,
-                            char** error_out, char** ir_out);
+                            char** error_out, char** ir_out,
+                            bool lower_to_proc_scoped_channels = false);
 
 // As above, but also takes `enable_warnings` and `disable_warnings` which
 // are arrays of warning names to enable or disable respectively against the
@@ -90,7 +91,8 @@ bool xls_convert_dslx_to_ir_with_warnings(
     size_t enable_warnings_count, const char* disable_warnings[],
     size_t disable_warnings_count, bool warnings_as_errors,
     bool force_implicit_token_calling_convention, char*** warnings_out,
-    size_t* warnings_out_count, char** error_out, char** ir_out);
+    size_t* warnings_out_count, char** error_out, char** ir_out,
+    bool lower_to_proc_scoped_channels = false);
 
 bool xls_convert_dslx_path_to_ir(const char* path, const char* dslx_stdlib_path,
                                  const char* additional_search_paths[],
@@ -106,7 +108,7 @@ bool xls_convert_dslx_path_to_ir_with_warnings(
     const char* disable_warnings[], size_t disable_warnings_count,
     bool warnings_as_errors, bool force_implicit_token_calling_convention,
     char*** warnings_out, size_t* warnings_out_count, char** error_out,
-    char** ir_out);
+    char** ir_out, bool lower_to_proc_scoped_channels = false);
 
 bool xls_optimize_ir(const char* ir, const char* top, char** error_out,
                      char** ir_out);

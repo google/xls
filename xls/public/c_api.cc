@@ -75,7 +75,8 @@ bool xls_convert_dslx_to_ir_with_warnings(
     size_t enable_warnings_count, const char* disable_warnings[],
     size_t disable_warnings_count, bool warnings_as_errors,
     bool force_implicit_token_calling_convention, char*** warnings_out,
-    size_t* warnings_out_count, char** error_out, char** ir_out) {
+    size_t* warnings_out_count, char** error_out, char** ir_out,
+    bool lower_to_proc_scoped_channels) {
   CHECK(dslx != nullptr);
   CHECK(path != nullptr);
   CHECK(dslx_stdlib_path != nullptr);
@@ -99,6 +100,7 @@ bool xls_convert_dslx_to_ir_with_warnings(
       .warnings_out = &warnings_out_cpp,
       .force_implicit_token_calling_convention =
           force_implicit_token_calling_convention,
+      .lower_to_proc_scoped_channels = lower_to_proc_scoped_channels,
   };
 
   absl::StatusOr<std::string> result =
@@ -118,7 +120,8 @@ bool xls_convert_dslx_to_ir(const char* dslx, const char* path,
                             const char* dslx_stdlib_path,
                             const char* additional_search_paths[],
                             size_t additional_search_paths_count,
-                            char** error_out, char** ir_out) {
+                            char** error_out, char** ir_out,
+                            bool lower_to_proc_scoped_channels) {
   const char* enable_warnings[] = {};
   const char* disable_warnings[] = {};
   return xls_convert_dslx_to_ir_with_warnings(
@@ -127,7 +130,8 @@ bool xls_convert_dslx_to_ir(const char* dslx, const char* path,
       /*warnings_as_errors=*/false,
       /*force_implicit_token_calling_convention=*/false,
       /*warnings_out=*/nullptr,
-      /*warnings_out_count=*/nullptr, error_out, ir_out);
+      /*warnings_out_count=*/nullptr, error_out, ir_out,
+      lower_to_proc_scoped_channels);
 }
 
 bool xls_convert_dslx_path_to_ir_with_warnings(
@@ -137,7 +141,7 @@ bool xls_convert_dslx_path_to_ir_with_warnings(
     const char* disable_warnings[], size_t disable_warnings_count,
     bool warnings_as_errors, bool force_implicit_token_calling_convention,
     char*** warnings_out, size_t* warnings_out_count, char** error_out,
-    char** ir_out) {
+    char** ir_out, bool lower_to_proc_scoped_channels) {
   CHECK(path != nullptr);
   CHECK(dslx_stdlib_path != nullptr);
   CHECK(error_out != nullptr);
@@ -163,6 +167,7 @@ bool xls_convert_dslx_path_to_ir_with_warnings(
       .warnings_out = &warnings_out_cpp,
       .force_implicit_token_calling_convention =
           force_implicit_token_calling_convention,
+      .lower_to_proc_scoped_channels = lower_to_proc_scoped_channels,
   };
   absl::StatusOr<std::string> result = xls::ConvertDslxPathToIr(path, options);
 

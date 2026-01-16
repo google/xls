@@ -83,6 +83,8 @@ absl::StatusOr<std::string> ConvertDslxToIr(
       typechecked.module, &import_data,
       dslx::ConvertOptions{
           .warnings_as_errors = options.warnings_as_errors,
+          .lower_to_proc_scoped_channels =
+              options.lower_to_proc_scoped_channels,
           .force_implicit_token_calling_convention =
               options.force_implicit_token_calling_convention,
       });
