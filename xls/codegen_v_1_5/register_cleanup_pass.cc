@@ -75,7 +75,9 @@ absl::StatusOr<bool> RegisterCleanupPass::RemoveTrivialLoadEnables(
 
 absl::StatusOr<bool> RegisterCleanupPass::RemoveImpossibleWrites(
     Block* block, QueryEngine& query_engine) const {
-  for (Register* reg : block->GetRegisters()) {
+  std::vector<Register*> registers(block->GetRegisters().begin(),
+                                   block->GetRegisters().end());
+  for (Register* reg : registers) {
     XLS_ASSIGN_OR_RETURN(std::vector<RegisterWrite*> writes,
                          GetRegisterWrites(block, reg));
     for (RegisterWrite* write : writes) {
@@ -89,19 +91,23 @@ absl::StatusOr<bool> RegisterCleanupPass::RemoveImpossibleWrites(
     }
 
     XLS_ASSIGN_OR_RETURN(writes, GetRegisterWrites(block, reg));
-    if (writes.empty() || (reg->reset_value().has_value() &&
-                           absl::c_all_of(writes, [&](RegisterWrite* write) {
-                             return query_engine.KnownValue(write->data()) ==
-                                    *reg->reset_value();
-                           }))) {
+    if (absl::c_all_of(writes, [&](RegisterWrite* write) {
+          return reg->reset_value().has_value() &&
+                 query_engine.KnownValue(write->data()) == *reg->reset_value();
+        })) {
       // Nothing can ever write a new value to this register, so it's equivalent
-      // to its reset value.
+      // to its reset value. We can remove the register & all ops.
       XLS_ASSIGN_OR_RETURN(RegisterRead * read, block->GetRegisterRead(reg));
       XLS_RETURN_IF_ERROR(
           read->ReplaceUsesWithNew<Literal>(
                   reg->reset_value().value_or(ZeroOfType(reg->type())))
               .status());
       XLS_RETURN_IF_ERROR(block->RemoveNode(read));
+      for (RegisterWrite* write : writes) {
+        XLS_RETURN_IF_ERROR(
+            write->ReplaceUsesWithNew<Literal>(Value::Tuple({})).status());
+        XLS_RETURN_IF_ERROR(block->RemoveNode(write));
+      }
       XLS_RETURN_IF_ERROR(block->RemoveRegister(reg));
     }
   }
