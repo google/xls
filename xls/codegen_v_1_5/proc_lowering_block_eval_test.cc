@@ -2246,7 +2246,7 @@ TEST_F(ProcLoweringBlockEvalTest, SequentialNestedProcsWithLoops) {
               IsOkAndHolds(BlockOutputsEq({{"out", {246, 44, 84}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_DoubleNestedLoops) {
+TEST_F(ProcLoweringBlockEvalTest, DoubleNestedLoops) {
   // Nested procs where the nested procs loop. The innermost proc loops 4 times,
   // the middle proc loops 2 times.
   auto p = CreatePackage();
@@ -2843,7 +2843,7 @@ TEST_F(ProcLoweringBlockEvalTest,
 }
 
 TEST_F(ProcLoweringBlockEvalTest,
-       DISABLED_DelayedReceiveWithNoDataLossFifoDepth1Variant1) {
+       DelayedReceiveWithNoDataLossFifoDepth1Variant1) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -2906,8 +2906,7 @@ TEST_F(ProcLoweringBlockEvalTest,
               IsOkAndHolds(BlockOutputsEq({{"out", {42, 43, 44}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest,
-       DISABLED_DelayedReceiveWithDataLossFifoDepth1) {
+TEST_F(ProcLoweringBlockEvalTest, DelayedReceiveWithDataLossFifoDepth1) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -2971,7 +2970,7 @@ TEST_F(ProcLoweringBlockEvalTest,
               IsOkAndHolds(BlockOutputsEq({{"out", {42, 42, 43}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_DataLoss) {
+TEST_F(ProcLoweringBlockEvalTest, DataLoss) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -3194,7 +3193,7 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_TwoSendsOneReceive) {
               IsOkAndHolds(BlockOutputsEq({{"result_out", {4, 14, 28}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_TwoReceivesOneSend) {
+TEST_F(ProcLoweringBlockEvalTest, TwoReceivesOneSend) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
