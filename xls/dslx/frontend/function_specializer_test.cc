@@ -33,8 +33,6 @@
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/replace_invocations.h"
 #include "xls/dslx/type_system/parametric_env.h"
-#include "xls/dslx/type_system/typecheck_module.h"
-#include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
 namespace {
@@ -147,15 +145,15 @@ TEST(FunctionSpecializerTest, SpecializedParametersRebindNameRefs) {
   // Typecheck the module again to ensure the specialized function integrates.
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> cloned, CloneModule(*module));
   std::unique_ptr<ImportData> tc_import_data = CreateImportDataPtrForTest();
-  WarningCollector warnings(tc_import_data->enabled_warnings());
+  tc_import_data->file_table() = *module->file_table();
   std::filesystem::path module_path = module->fs_path().value_or(
       std::filesystem::path("test_module.x"));
   XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ModuleInfo> module_info,
+      TypecheckedModule module_info,
       TypecheckModule(std::move(cloned), module_path.string(),
-                      tc_import_data.get(), &warnings));
-  EXPECT_NE(module_info->type_info(), nullptr);
-  EXPECT_TRUE(module_info->module().GetFunction("passthrough_N8").has_value());
+                      tc_import_data.get()));
+  EXPECT_NE(module_info.type_info, nullptr);
+  EXPECT_TRUE(module_info.module->GetFunction("passthrough_N8").has_value());
 }
 
 TEST(FunctionSpecializerTest, SpecializedFunctionReceivesSyntheticSpans) {
@@ -197,8 +195,12 @@ fn twice<N: u32>(x: bits[N]) -> bits[N] {
   std::string_view original_filename = add_one->span().GetFilename(files);
   std::string_view specialized_filename = specialized->span().GetFilename(files);
 
-  EXPECT_NE(original_filename, specialized_filename);
-  EXPECT_TRUE(absl::StrContains(specialized_filename, "<specialization:"));
+  if (module->fs_path().has_value()) {
+    EXPECT_EQ(specialized_filename, module->fs_path()->generic_string());
+  } else {
+    EXPECT_NE(original_filename, specialized_filename);
+    EXPECT_TRUE(absl::StrContains(specialized_filename, "<specialization:"));
+  }
 
   // The specialized function span should enclose its body span.
   ASSERT_NE(specialized->body(), nullptr);
