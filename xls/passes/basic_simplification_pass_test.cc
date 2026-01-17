@@ -693,6 +693,32 @@ TEST_F(BasicSimplificationPassTest, SubOfSwappedTwoWaySelectsDoesNotSimplify) {
                      m::Select(m::Param("p"), {m::Param("b"), m::Param("a")})));
 }
 
+TEST_F(BasicSimplificationPassTest, EqNeOfSelectNotOrIncrementAgainstZero) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue c = fb.Param("c", p->GetBitsType(1));
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue nx = fb.Not(x);
+  BValue one = fb.Literal(UBits(1, 32));
+  BValue inc = fb.Add(x, one);
+  BValue s = fb.Select(c, {nx, inc});
+  BValue zero = fb.Literal(UBits(0, 32));
+  BValue eq = fb.Eq(s, zero);
+  BValue ne = fb.Ne(s, zero);
+  BValue r = fb.Tuple({eq, ne});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(r));
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Tuple(
+          testing::AnyOf(m::Eq(m::Param("x"), m::Literal(Bits::AllOnes(32))),
+                         m::Eq(m::Literal(Bits::AllOnes(32)), m::Param("x"))),
+          testing::AnyOf(m::Ne(m::Param("x"), m::Literal(Bits::AllOnes(32))),
+                         m::Ne(m::Literal(Bits::AllOnes(32)), m::Param("x")))));
+}
+
 TEST_F(BasicSimplificationPassTest, AddWithZero) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
