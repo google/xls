@@ -85,8 +85,6 @@ class DataflowGraphAnalysis {
   absl::flat_hash_map<Node*, ArcIndex> sink_arcs_;
 
   std::unique_ptr<operations_research::GenericMaxFlow<Graph>> max_flow_;
-
-  bool first_ = true;
 };
 
 }  // namespace xls

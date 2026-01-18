@@ -89,8 +89,8 @@ class LazyNodeData : public ChangeListener,
 
  public:
   explicit LazyNodeData<CacheValueT>(DagCacheInvalidateDirection direction)
-      : cache_(this),
-        LazyDagCache<Node*, CacheValueT>::DagProvider(direction) {}
+      : LazyDagCache<Node*, CacheValueT>::DagProvider(direction),
+        cache_(this) {}
 
   ~LazyNodeData() override {
     if (f_ != nullptr) {
