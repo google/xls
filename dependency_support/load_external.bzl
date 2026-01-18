@@ -50,15 +50,6 @@ def load_external_repositories():
         build_file = Label("//dependency_support/z3:bundled.BUILD.bazel"),
     )
 
-    # Commit from 2024-02-22, current as of 2024-06-26
-    http_archive(
-        name = "linenoise",
-        sha256 = "839ed407fe0dfa5fd7dd103abfc695dee72fea2840df8d4250ad42b0e64839e8",
-        strip_prefix = "linenoise-d895173d679be70bcd8b23041fff3e458e1a3506",
-        urls = ["https://github.com/antirez/linenoise/archive/d895173d679be70bcd8b23041fff3e458e1a3506.tar.gz"],
-        build_file = Label("//dependency_support/linenoise:bundled.BUILD.bazel"),
-    )
-
     # Used by xlscc. Tagged 2024-02-16 (note: release is lagging tag), current as of 2024-06-26
     http_archive(
         name = "com_github_hlslibs_ac_types",
