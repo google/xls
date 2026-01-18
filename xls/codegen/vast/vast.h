@@ -2281,6 +2281,7 @@ using ModuleMember =
                  Typedef*, Enum*, Cover*, ConcurrentAssertion*,
                  DeferredImmediateAssertion*, ModuleConditionalDirective*,
                  ModuleSection*,
+                 Conditional*,
                  // Generate loop, can effectively generate more module members
                  // at elaboration time
                  GenerateLoop*, MacroStatement*>;
