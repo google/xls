@@ -1455,3 +1455,43 @@ xls_dslx_verilog(
     library = ":const_if_dslx",
     verilog_file = "const_if.sv",
 )
+
+xls_dslx_library(
+    name = "const_match_dslx",
+    srcs = ["const_match.x"],
+)
+
+xls_dslx_test(
+    name = "const_match_test",
+    size = "small",
+    srcs = ["const_match.x"],
+    dslx_test_args = {"compare": "jit"},
+)
+
+xls_dslx_ir(
+    name = "const_match_ir",
+    dslx_top = "main",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
+    ir_file = "const_match.ir",
+    library = ":const_match_dslx",
+)
+
+xls_dslx_opt_ir(
+    name = "const_match_opt_ir",
+    srcs = ["const_match.x"],
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
+    dslx_top = "main",
+)
+
+xls_dslx_verilog(
+    name = "const_match_verilog",
+    codegen_args = {
+        "module_name": "ConstMatchInst",
+        "delay_model": "unit",
+        "pipeline_stages": "1",
+        "reset": "rst",
+    },
+    dslx_top = "ConstMatchInst",
+    library = ":const_match_dslx",
+    verilog_file = "const_match.sv",
+)

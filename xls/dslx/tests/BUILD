@@ -1382,3 +1382,8 @@ dslx_lang_test(
     name = "const_if",
     dslx_entry = "main",
 )
+
+dslx_lang_test(
+    name = "const_match",
+    dslx_entry = "main",
+)
