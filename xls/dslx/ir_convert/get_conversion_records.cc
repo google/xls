@@ -265,6 +265,17 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     return DefaultHandler(invocation);
   }
 
+  absl::Status HandleMatch(const Match* expr) override {
+    if (expr->IsConst()) {
+      XLS_ASSIGN_OR_RETURN(uint32_t arm_id,
+                           type_info_->GetArmSelectionResult(expr));
+      MatchArm* arm = expr->arms()[arm_id];
+      return arm->expr()->Accept(this);
+    }
+
+    return DefaultHandler(expr);
+  }
+
   absl::Status HandleSpawn(const Spawn* spawn) override {
     VLOG(5) << "HandleSpawn " << spawn->ToString();
     Invocation* invocation = spawn->config();

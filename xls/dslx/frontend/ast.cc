@@ -1369,6 +1369,13 @@ std::vector<AstNode*> MatchArm::GetChildren(bool want_types) const {
 
 // -- class Match
 
+Match::Match(Module* owner, Span span, Expr* matched,
+             std::vector<MatchArm*> arms, bool in_parens, bool is_const)
+    : Expr(owner, std::move(span), in_parens),
+      matched_(matched),
+      arms_(std::move(arms)),
+      is_const_(is_const) {}
+
 Match::~Match() = default;
 
 std::vector<AstNode*> Match::GetChildren(bool want_types) const {
@@ -1380,7 +1387,8 @@ std::vector<AstNode*> Match::GetChildren(bool want_types) const {
 }
 
 std::string Match::ToStringInternal() const {
-  std::string result = absl::StrFormat("match %s {\n", matched_->ToString());
+  std::string result = absl::StrFormat(
+      "%smatch %s {\n", IsConst() ? "const " : "", matched_->ToString());
   for (MatchArm* arm : arms_) {
     absl::StrAppend(&result, Indent(absl::StrCat(arm->ToString(), ",\n"),
                                     kRustSpacesPerIndent));
@@ -2422,12 +2430,6 @@ Span MatchArm::GetPatternSpan() const {
   return Span(patterns_[0]->span().start(), patterns_.back()->span().limit());
 }
 
-Match::Match(Module* owner, Span span, Expr* matched,
-             std::vector<MatchArm*> arms, bool in_parens)
-    : Expr(owner, std::move(span), in_parens),
-      matched_(matched),
-      arms_(std::move(arms)) {}
-
 // -- class NameRef
 
 NameRef::~NameRef() = default;
@@ -2510,6 +2512,22 @@ std::string ChannelTypeAnnotation::ToString() const {
   return absl::StrFormat("chan<%s>%s %s", payload_->ToString(),
                          absl::StrJoin(dims, ""),
                          direction_ == ChannelDirection::kIn ? "in" : "out");
+}
+
+// -- class ConstMatchTypeAnnotation
+
+ConstMatchTypeAnnotation::ConstMatchTypeAnnotation(
+    Module* owner, Span span,
+    std::vector<TypeAnnotation*> members)
+    : TypeAnnotation(owner, std::move(span), kAnnotationKind),
+      members_(members) {}
+
+std::string ConstMatchTypeAnnotation::ToString() const {
+  std::string arms_types =
+      absl::StrJoin(members_, " / ", [](std::string* out, TypeAnnotation* t) {
+        absl::StrAppend(out, t->ToString());
+      });
+  return absl::StrFormat("ConstMatchTypeAnnotation: %s", arms_types);
 }
 
 // -- class TupleTypeAnnotation

@@ -1739,6 +1739,15 @@ absl::Status BytecodeEmitter::HandleConstFor(const ConstFor* node) {
 }
 
 absl::Status BytecodeEmitter::HandleMatch(const Match* node) {
+  // Const match only needs to produce bytecode for selected
+  // branch value, which should be already known and stored
+  // after the type evaluation stage.
+  if (node->IsConst()) {
+    XLS_ASSIGN_OR_RETURN(uint32_t arm_id, type_info_->GetArmSelectionResult(node));
+    MatchArm* arm = node->arms()[arm_id];
+    return arm->expr()->AcceptExpr(this);
+  }
+
   // Structure is: (value-to-match is at TOS0)
   //
   //  <value-to-match present>

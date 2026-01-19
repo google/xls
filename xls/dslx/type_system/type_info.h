@@ -424,6 +424,10 @@ class TypeInfo {
   // environments.
   std::vector<Expr*> GetAllUnrolledLoops(const ConstFor* loop) const;
 
+  // Stores the result index of `const match` arm selection evaluation.
+  void NoteArmSelectionResult(const Match* expr, uint32_t value);
+  absl::StatusOr<uint32_t> GetArmSelectionResult(const Match* expr) const;
+
   // Retrieves a string that shows the module associated with this type info and
   // which imported modules are present, suitable for debugging.
   std::string GetImportsDebugString() const;
@@ -529,6 +533,9 @@ class TypeInfo {
   absl::flat_hash_map<const ConstFor*,
                       absl::flat_hash_map<ParametricEnv, Expr*>>
       unrolled_loops_;
+
+  // Resolved arm selection results of `const match` expressions.
+  absl::flat_hash_map<const Match*, uint32_t> arm_selection_indices_;
 
   // The following are only present on the root type info.
   absl::flat_hash_map<ImportSubject, ImportedInfo> imports_;

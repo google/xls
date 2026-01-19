@@ -739,6 +739,22 @@ fn f(x: u8) -> u2 {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, ConstMatch) {
+  constexpr std::string_view program =
+      R"(
+fn f() -> u2 {
+  const COND = u8:5;
+  const match COND {
+    u8:0 => u2:0,
+    _ => u2:1
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
+
 TEST_F(IrConverterTest, MatchDefaultOnly) {
   constexpr std::string_view program =
       R"(
