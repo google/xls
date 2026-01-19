@@ -155,6 +155,14 @@ class EvaluatorImpl : public Evaluator {
     return result;
   }
 
+  absl::StatusOr<InterpValue> ConstMatchWhichArm(
+      std::optional<const ParametricContext*> parametric_context,
+      TypeInfo* type_info, const Match* match) override {
+      return ConstexprEvaluator::ConstMatchWhichArm(
+                           &import_data_, type_info,
+                           &warning_collector_, table_.GetParametricEnv(parametric_context), match);
+  }
+
  private:
   absl::StatusOr<int64_t> Evaluate32BitIntOrExpr(
       std::optional<const ParametricContext*> parametric_context,
