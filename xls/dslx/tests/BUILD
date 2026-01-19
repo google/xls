@@ -1388,3 +1388,8 @@ dslx_lang_test(
     # TODO: davidplass - turn on when supported after PSC launch.
     lower_to_proc_scoped_channels = False,
 )
+
+dslx_lang_test(
+    name = "const_match",
+    dslx_entry = "main",
+)

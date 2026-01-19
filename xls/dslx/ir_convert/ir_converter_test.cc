@@ -755,6 +755,65 @@ fn f() -> u2 {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, ConstMatchProcScopedWithParams) {
+  constexpr std::string_view program = R"(
+  proc Multiply {
+    input: chan<u32> in;
+    output: chan<u32> out;
+
+    init {}
+
+    config(input: chan<u32> in, output: chan<u32> out) {
+      (input, output)
+    }
+
+    next(state: ()) {
+      let (tok, req) = recv(join(), input);
+      let data = req * u32:2;
+      let tok = send(tok, output, data);
+    }
+  }
+
+  proc Passthrough {
+    input: chan<u32> in;
+    output: chan<u32> out;
+
+    init {}
+
+    config(input: chan<u32> in, output: chan<u32> out) {
+      (input, output)
+    }
+
+    next(state: ()) {
+      let (tok, req) = recv(join(), input);
+      let tok = send(tok, output, req);
+    }
+  }
+
+  const CONFIG = u32:31;
+
+  proc Top {
+    init {}
+
+    config(req_r: chan<u32> in, resp_s: chan<u32> out) {
+      const match CONFIG {
+        u32:32 => spawn Passthrough(req_r, resp_s),
+        _ => spawn Multiply(req_r, resp_s),
+      };
+      ()
+    }
+
+    next(state: ()) { state }
+  }
+  )";
+
+  ConvertOptions options;
+  options.lower_to_proc_scoped_channels = true;
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(program, "Top", options));
+  ExpectIr(converted);
+}
+
 TEST_F(IrConverterTest, MatchDefaultOnly) {
   constexpr std::string_view program =
       R"(

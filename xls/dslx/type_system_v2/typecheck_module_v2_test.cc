@@ -3425,15 +3425,17 @@ fn main() {
 }
 
 TEST(TypecheckV2Test, ConstMatchUnableToEvaluate) {
-  EXPECT_THAT(R"(
+  constexpr std::string_view kProgram = R"(
 fn main(cond: u32) -> bool {
     const match cond {
         u32:0 => u32:0,
         _ => u32:1
     }
 }
-  )",
-              TypecheckFails(HasSubstr("is not constexpr")));
+)";
+  EXPECT_THAT(TypecheckV2(kProgram),
+      StatusIs(absl::StatusCode::kNotFound,
+               HasSubstr("No constexpr value found for node `cond`")));
 }
 
 TEST(TypecheckV2Test, MatchMismatch) {
