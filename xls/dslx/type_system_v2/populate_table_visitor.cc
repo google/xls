@@ -544,6 +544,27 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return DefaultHandler(node);
   }
 
+  absl::Status HandleConstMatch(const Match* node) {
+    VLOG(5) << "HandleConstMatch: " << node->ToString();
+    std::vector<TypeAnnotation*> members;
+
+    for (MatchArm* arm : node->arms()) {
+      XLS_RETURN_IF_ERROR(
+          DefineAndSetTypeVariable(arm->expr(), "const_match_arm_expr"));
+      XLS_ASSIGN_OR_RETURN(const NameRef* arm_expr_type,
+                           DefineTypeVariable(arm->expr(), "const_match_arm"));
+      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(arm->expr(), arm_expr_type));
+
+      members.push_back(
+          module_.Make<TypeVariableTypeAnnotation>(arm_expr_type));
+    }
+
+    XLS_RETURN_IF_ERROR(
+        table_.SetTypeAnnotation(node, module_.Make<ConstMatchTypeAnnotation>(
+                                           node->span(), std::move(members))));
+    return absl::OkStatus();
+  }
+
   absl::Status HandleMatch(const Match* node) override {
     VLOG(5) << "HandleMatch: " << node->ToString();
     // Any `match` should be a descendant of some context-setting node and
@@ -583,6 +604,9 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
               table_.SetTypeVariable(ToAstNode(pattern->leaf()), matched_var));
         }
       }
+    }
+    if (node->IsConst()) {
+      XLS_RETURN_IF_ERROR(HandleConstMatch(node));
     }
     return DefaultHandler(node);
   }

@@ -128,6 +128,7 @@
   X(BuiltinTypeAnnotation)          \
   X(ChannelTypeAnnotation)          \
   X(ConstConditionalTypeAnnotation) \
+  X(ConstMatchTypeAnnotation)       \
   X(ElementTypeAnnotation)          \
   X(FunctionTypeAnnotation)         \
   X(GenericTypeAnnotation)          \
@@ -305,6 +306,7 @@ enum class TypeAnnotationKind : uint8_t {
   kBuiltin,
   kChannel,
   kConstConditional,
+  kConstMatch,
   kElement,
   kFunction,
   kGeneric,
@@ -484,6 +486,37 @@ class BuiltinTypeAnnotation : public TypeAnnotation {
  private:
   BuiltinType builtin_type_;
   BuiltinNameDef* builtin_name_def_;
+};
+
+// Represents a type for const match to be resolved later on,
+// as the arms of const match may be of disparate types.
+class ConstMatchTypeAnnotation : public TypeAnnotation {
+ public:
+  static constexpr TypeAnnotationKind kAnnotationKind =
+      TypeAnnotationKind::kConstMatch;
+
+  ConstMatchTypeAnnotation(Module* owner, Span span,
+                           std::vector<TypeAnnotation*> members);
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleConstMatchTypeAnnotation(this);
+  }
+
+  std::string_view GetNodeTypeName() const override {
+    return "ConstMatchTypeAnnotation";
+  }
+
+  std::string ToString() const override;
+
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    return ToAstNodes<TypeAnnotation>(members_);
+  }
+
+  const std::vector<TypeAnnotation*>& members() const { return members_; }
+  int64_t size() const { return members_.size(); }
+
+ private:
+  std::vector<TypeAnnotation*> members_;
 };
 
 // Represents a tuple type annotation; e.g. `(u32, s42)`.
@@ -2680,10 +2713,14 @@ class MatchArm : public AstNode {
 // Each *arm* has a set of *patterns* that can cause a match, and a "right hand
 // side" *expression* to yield the value of if any of the patterns match
 // (prioritized in sequential order from first arm to last arm).
+//
+// In case of const match, the selected arm index is known and stored
+// after resolving types as a constexpr value using fake `arm_idx` node.
+// This constexpr value is then used in bytecode emitter and IR converter.
 class Match : public Expr {
  public:
   Match(Module* owner, Span span, Expr* matched, std::vector<MatchArm*> arms,
-        bool in_parens = false);
+        Number* arm_idx, bool in_parens = false, bool is_const = false);
 
   ~Match() override;
 
@@ -2705,16 +2742,21 @@ class Match : public Expr {
 
   const std::vector<MatchArm*>& arms() const { return arms_; }
   Expr* matched() const { return matched_; }
+  Number* arm_idx() const { return arm_idx_; }
 
   Precedence GetPrecedenceWithoutParens() const final {
     return Precedence::kStrongest;
   }
+
+  bool IsConst() const { return is_const_; }
 
  private:
   std::string ToStringInternal() const final;
 
   Expr* matched_;
   std::vector<MatchArm*> arms_;
+  Number* arm_idx_;
+  bool is_const_;
 };
 
 // Represents an attribute access expression; e.g. `a.x`.

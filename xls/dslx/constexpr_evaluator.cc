@@ -126,6 +126,46 @@ std::string CallStackToString(std::string_view root_span_string,
   return NotConstantErrorStatus(expr->span(), expr, file_table);
 }
 
+/* static */ absl::StatusOr<InterpValue> ConstexprEvaluator::ConstMatchWhichArm(
+    ImportData* import_data, TypeInfo* type_info,
+    WarningCollector* warning_collector, const ParametricEnv& bindings,
+    const Match* match) {
+
+  Module* module = match->owner();
+  std::vector<MatchArm*> construct_match_arms;
+  construct_match_arms.reserve(match->arms().size());
+
+  // Construct a new Match object, which has the same `matched` and
+  // `patterns` as the original. Create a new expression for each arm
+  // so that the whole match can be evaluated to know which arm is selected.
+  for (int64_t i = 0; i < match->arms().size(); ++i) {
+    MatchArm* arm = match->arms()[i];
+    // Create a new expression for this arm - a number with the index of the arm.
+    Number* expr = module->Make<Number>(
+        Span::Fake(),
+        absl::StrFormat("%d", i),
+        NumberKind::kOther,
+        CreateU32Annotation(*module, Span::Fake()));
+
+    type_info->SetItem(expr, BitsType::MakeU32());
+    type_info->NoteConstExpr(expr, InterpValue::MakeUBits(32, i));
+
+    construct_match_arms.push_back(
+        module->Make<MatchArm>(arm->span(), arm->patterns(), expr));
+  }
+  Number* arm_idx = module->Make<Number>(
+      Span::Fake(),
+      "0",
+      NumberKind::kOther,
+      CreateU32Annotation(*module, Span::Fake()));
+  type_info->SetItem(arm_idx, BitsType::MakeU32());
+  Match *fake_match = module->Make<Match>(
+      match->span(), match->matched(), construct_match_arms, arm_idx);
+  return ConstexprEvaluator::EvaluateToValue(
+                           import_data, type_info,
+                           warning_collector, bindings, fake_match);
+
+}
 // Evaluates the given expression and terminates current function execution
 // if it is not constexpr.
 #define EVAL_AS_CONSTEXPR_OR_RETURN(EXPR)                                     \
