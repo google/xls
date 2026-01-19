@@ -419,6 +419,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(BuiltinTypeAnnotation)
   INVALID(ChannelTypeAnnotation)
   INVALID(ConstConditionalTypeAnnotation)
+  INVALID(ConstMatchTypeAnnotation)
   INVALID(ElementTypeAnnotation)
   INVALID(FunctionTypeAnnotation)
   INVALID(GenericTypeAnnotation)
@@ -1283,6 +1284,18 @@ absl::Status FunctionConverter::HandleBuiltinWideningCast(
   return absl::OkStatus();
 }
 
+absl::Status FunctionConverter::HandleConstMatch(const Match* node) {
+  XLS_ASSIGN_OR_RETURN(uint32_t arm_id,
+                       current_type_info_->GetArmSelectionResult(node));
+  const MatchArm* arm = node->arms()[arm_id];
+
+  XLS_RETURN_IF_ERROR(Visit(arm->expr()));
+  XLS_ASSIGN_OR_RETURN(BValue arm_rhs_value, Use(arm->expr()));
+  SetNodeToIr(node, arm_rhs_value);
+
+  return absl::OkStatus();
+}
+
 absl::Status FunctionConverter::HandleMatch(const Match* node) {
   if (node->arms().empty()) {
     return IrConversionErrorStatus(
@@ -1290,6 +1303,10 @@ absl::Status FunctionConverter::HandleMatch(const Match* node) {
         "Only matches with complete patterns (i.e. a trailing `_ => ...`) "
         "are currently supported for IR conversion.",
         file_table());
+  }
+
+  if (node->IsConst()) {
+    return HandleConstMatch(node);
   }
 
   XLS_RETURN_IF_ERROR(Visit(node->matched()));

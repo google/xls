@@ -1277,6 +1277,10 @@ DocRef FmtMatchArm(const MatchArm& n, Comments& comments, DocArena& arena) {
 
 DocRef Fmt(const Match& n, Comments& comments, DocArena& arena) {
   std::vector<DocRef> pieces;
+  if (n.IsConst()) {
+    pieces.push_back(arena.Make(Keyword::kConst));
+    pieces.push_back(arena.space());
+  }
   pieces.push_back(ConcatNGroup(
       arena,
       {arena.Make(Keyword::kMatch), arena.space(),

@@ -112,8 +112,6 @@ class Flattener : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleMatch(const Match* node) override {
-    XLS_RETURN_IF_ERROR(node->matched()->Accept(this));
-
     // For match arms with statement blocks, we need to deal with those blocks
     // up to the last statement before the return expr, then deal with the
     // return exprs across all the arms. This is because the final expression
@@ -139,6 +137,7 @@ class Flattener : public AstNodeVisitorWithDefault {
     for (const MatchArm* arm : node->arms()) {
       XLS_RETURN_IF_ERROR(arm->Accept(this));
     }
+    XLS_RETURN_IF_ERROR(node->matched()->Accept(this));
     nodes_.push_back(node);
     return absl::OkStatus();
   }

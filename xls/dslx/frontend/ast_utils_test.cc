@@ -173,53 +173,56 @@ fn f() -> u32 {
   auto* match = absl::down_cast<Match*>(match_expr);
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<AstNode*> nodes,
                            CollectUnder(match, /*want_types=*/false));
-  ASSERT_EQ(nodes.size(), 15);
+  ASSERT_EQ(nodes.size(), 16);
 
   EXPECT_EQ(nodes[0]->ToString(), "t");
   EXPECT_EQ(nodes[0]->GetNodeTypeName(), "NameRef");
 
-  EXPECT_EQ(nodes[1]->ToString(), "x");
-  EXPECT_EQ(nodes[1]->GetNodeTypeName(), "NameDef");
+  EXPECT_EQ(nodes[1]->ToString(), "0");
+  EXPECT_EQ(nodes[1]->GetNodeTypeName(), "Number");
 
   EXPECT_EQ(nodes[2]->ToString(), "x");
-  EXPECT_EQ(nodes[2]->GetNodeTypeName(), "NameDefTree");
+  EXPECT_EQ(nodes[2]->GetNodeTypeName(), "NameDef");
 
-  EXPECT_EQ(nodes[3]->ToString(), "u32");
-  EXPECT_EQ(nodes[3]->GetNodeTypeName(), "BuiltinTypeAnnotation");
+  EXPECT_EQ(nodes[3]->ToString(), "x");
+  EXPECT_EQ(nodes[3]->GetNodeTypeName(), "NameDefTree");
 
-  EXPECT_EQ(nodes[4]->ToString(), "u32:0");
-  EXPECT_EQ(nodes[4]->GetNodeTypeName(), "Number");
+  EXPECT_EQ(nodes[4]->ToString(), "u32");
+  EXPECT_EQ(nodes[4]->GetNodeTypeName(), "BuiltinTypeAnnotation");
 
-  EXPECT_EQ(nodes[5]->ToString(), "x => u32:0");
-  EXPECT_EQ(nodes[5]->GetNodeTypeName(), "MatchArm");
+  EXPECT_EQ(nodes[5]->ToString(), "u32:0");
+  EXPECT_EQ(nodes[5]->GetNodeTypeName(), "Number");
 
-  EXPECT_EQ(nodes[6]->ToString(), "y");
-  EXPECT_EQ(nodes[6]->GetNodeTypeName(), "NameDef");
+  EXPECT_EQ(nodes[6]->ToString(), "x => u32:0");
+  EXPECT_EQ(nodes[6]->GetNodeTypeName(), "MatchArm");
 
   EXPECT_EQ(nodes[7]->ToString(), "y");
-  EXPECT_EQ(nodes[7]->GetNodeTypeName(), "NameDefTree");
+  EXPECT_EQ(nodes[7]->GetNodeTypeName(), "NameDef");
 
-  EXPECT_EQ(nodes[8]->ToString(), "z");
-  EXPECT_EQ(nodes[8]->GetNodeTypeName(), "NameDef");
+  EXPECT_EQ(nodes[8]->ToString(), "y");
+  EXPECT_EQ(nodes[8]->GetNodeTypeName(), "NameDefTree");
 
   EXPECT_EQ(nodes[9]->ToString(), "z");
-  EXPECT_EQ(nodes[9]->GetNodeTypeName(), "NameDefTree");
+  EXPECT_EQ(nodes[9]->GetNodeTypeName(), "NameDef");
 
-  EXPECT_EQ(nodes[10]->ToString(), "(y, z)");
+  EXPECT_EQ(nodes[10]->ToString(), "z");
   EXPECT_EQ(nodes[10]->GetNodeTypeName(), "NameDefTree");
 
-  EXPECT_EQ(nodes[11]->ToString(), "u32");
-  EXPECT_EQ(nodes[11]->GetNodeTypeName(), "BuiltinTypeAnnotation");
+  EXPECT_EQ(nodes[11]->ToString(), "(y, z)");
+  EXPECT_EQ(nodes[11]->GetNodeTypeName(), "NameDefTree");
 
-  EXPECT_EQ(nodes[12]->ToString(), "u32:1");
-  EXPECT_EQ(nodes[12]->GetNodeTypeName(), "Number");
+  EXPECT_EQ(nodes[12]->ToString(), "u32");
+  EXPECT_EQ(nodes[12]->GetNodeTypeName(), "BuiltinTypeAnnotation");
 
-  EXPECT_EQ(nodes[13]->ToString(), "(y, z) => u32:1");
-  EXPECT_EQ(nodes[13]->GetNodeTypeName(), "MatchArm");
+  EXPECT_EQ(nodes[13]->ToString(), "u32:1");
+  EXPECT_EQ(nodes[13]->GetNodeTypeName(), "Number");
 
-  EXPECT_EQ(nodes[14]->ToString(),
+  EXPECT_EQ(nodes[14]->ToString(), "(y, z) => u32:1");
+  EXPECT_EQ(nodes[14]->GetNodeTypeName(), "MatchArm");
+
+  EXPECT_EQ(nodes[15]->ToString(),
             "match t {\n    x => u32:0,\n    (y, z) => u32:1,\n}");
-  EXPECT_EQ(nodes[14]->GetNodeTypeName(), "Match");
+  EXPECT_EQ(nodes[15]->GetNodeTypeName(), "Match");
 }
 
 // Tests that the ResolveLocalStructDef can see through transitive aliases.

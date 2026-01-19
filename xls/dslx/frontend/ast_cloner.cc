@@ -296,6 +296,19 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleConstMatchTypeAnnotation(
+      const ConstMatchTypeAnnotation* n) override {
+    std::vector<TypeAnnotation*> members;
+    for (const AstNode* member : n->GetChildren(/*want_types=*/false)) {
+      XLS_RETURN_IF_ERROR(ReplaceOrVisit(member));
+      members.push_back(absl::down_cast<TypeAnnotation*>(old_to_new_[member]));
+    }
+
+    old_to_new_[n] = module(n)->Make<ConstMatchTypeAnnotation>(
+        n->span(), std::move(members));
+    return absl::OkStatus();
+  }
+
   absl::Status HandleEnumDef(const EnumDef* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
@@ -575,7 +588,7 @@ class AstCloner : public AstNodeVisitor {
 
     old_to_new_[n] = module(n)->Make<Match>(
         n->span(), absl::down_cast<Expr*>(old_to_new_.at(n->matched())),
-        new_arms, n->in_parens());
+        new_arms, n->in_parens(), n->IsConst());
     return absl::OkStatus();
   }
 
