@@ -74,7 +74,8 @@ SprocOp createSprocSkeleton(ImplicitLocOpBuilder& builder, TypeRange inputs,
   OpBuilder::InsertionGuard guard(builder);
   auto sproc = SprocOp::create(builder, builder.getStringAttr(name),
                                /*is_top=*/false,
-                               /*boundary_channel_names=*/nullptr);
+                               /*boundary_channel_names=*/nullptr,
+                               /*min_pipeline_stages=*/nullptr);
   symbolTable.insert(sproc);
   Block& spawns = sproc.getSpawns().emplaceBlock();
   Block& next = sproc.getNext().emplaceBlock();
@@ -456,7 +457,10 @@ LogicalResult convertForOpToSprocCall(scf::ForOp forOp,
 
   // In the parent we have added a receive(send(...)) sequence, so it now won't
   // schedule unless it has at least one more pipeline stage.
-  parent.setMinPipelineStages(parent.getMinPipelineStages() + 1);
+  if (auto parentStages = parent.getMinPipelineStages();
+      parentStages.has_value()) {
+    parent.setMinPipelineStages(*parentStages + 1);
+  }
 
   return success();
 }

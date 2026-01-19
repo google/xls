@@ -1523,7 +1523,8 @@ absl::StatusOr<Operation*> translateProc(::xls::Proc& xls_proc,
   EprocOp eproc =
       EprocOp::create(builder, builder.getUnknownLoc(),
                       /*name=*/builder.getStringAttr(xls_proc.name()),
-                      /*discardable=*/false);
+                      /*discardable=*/false,
+                      /*min_pipeline_stages=*/nullptr);
 
   auto* body = &eproc.getRegion().emplaceBlock();
 

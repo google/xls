@@ -54,7 +54,7 @@
 // CHECK:      xls.yield %3 : i32
 // CHECK:    }
 // CHECK:  }
-// CHECK:  xls.sproc @reduce_zeroes() top attributes {boundary_channel_names = [], min_pipeline_stages = 2 : i64} {
+// CHECK:  xls.sproc @reduce_zeroes() top attributes {boundary_channel_names = []} {
 // CHECK:    spawns {
 // CHECK:      %out, %in = xls.schan<i32>("for_arg_0")
 // CHECK:      %out_0, %in_1 = xls.schan<i32>("for_result_0")
@@ -158,7 +158,7 @@ module @reduce_zeroes {
 // CHECK:      xls.yield %3, %1#1 : i32, i32
 // CHECK:    }
 // CHECK:  }
-// CHECK:  xls.sproc @reduce_invariants() top attributes {boundary_channel_names = [], min_pipeline_stages = 2 : i64} {
+// CHECK:  xls.sproc @reduce_invariants() top attributes {boundary_channel_names = []} {
 // CHECK:    spawns {
 // CHECK:      %out, %in = xls.schan<i32>("for_arg_0")
 // CHECK:      %out_0, %in_1 = xls.schan<i32>("for_arg_1")
@@ -262,7 +262,7 @@ module @reduce_invariants {
 // CHECK:      xls.yield %3 : i32
 // CHECK:    }
 // CHECK:  }
-// CHECK:  xls.sproc @reduce_clone() top attributes {boundary_channel_names = [], min_pipeline_stages = 2 : i64} {
+// CHECK:  xls.sproc @reduce_clone() top attributes {boundary_channel_names = []} {
 // CHECK:    spawns {
 // CHECK:      %out, %in = xls.schan<i32>("for_arg_0")
 // CHECK:      %out_0, %in_1 = xls.schan<i32>("for_result_0")

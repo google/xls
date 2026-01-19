@@ -1704,7 +1704,7 @@ def Xls_EprocOp : Xls_Op<"eproc", [
   let arguments = (ins
     SymbolNameAttr:$sym_name,
     UnitAttr:$discardable,
-    DefaultValuedAttr<I64Attr, "1">:$min_pipeline_stages,
+    OptionalAttr<I64Attr>:$min_pipeline_stages,
     DefaultValuedAttr<Xls_IoConstraintsAttr, "::llvm::ArrayRef<IoConstraintAttr>{}">:$io_constraints
   );
   let regions = (region
@@ -1989,7 +1989,7 @@ def Xls_SprocOp : Xls_Op<"sproc", [
     SymbolNameAttr:$sym_name,
     BoolAttr:$is_top,
     OptionalAttr<Xls_BoundaryChannelArrayAttr>:$boundary_channels,
-    DefaultValuedAttr<I64Attr, "1">:$min_pipeline_stages
+    OptionalAttr<I64Attr>:$min_pipeline_stages
   );
   let regions = (region
     SizedRegion<1>:$spawns,

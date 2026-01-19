@@ -756,9 +756,6 @@ void SprocOp::print(OpAsmPrinter& printer) {
     printer << " top";
   }
   SmallVector<StringRef> elideAttrNames = {"sym_name", "is_top"};
-  if (getMinPipelineStages() == 1) {
-    elideAttrNames.push_back("min_pipeline_stages");
-  }
   printer.printOptionalAttrDictWithKeyword(getOperation()->getAttrs(),
                                            elideAttrNames);
   printer << " {";
