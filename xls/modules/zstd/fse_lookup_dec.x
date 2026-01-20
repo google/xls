@@ -21,8 +21,6 @@ import xls.modules.zstd.memory.mem_reader;
 import xls.modules.zstd.memory.axi_ram_reader;
 import xls.modules.zstd.fse_table_creator;
 import xls.modules.zstd.refilling_shift_buffer;
-import xls.modules.zstd.fse_proba_freq_dec;
-import xls.modules.zstd.shift_buffer;
 import xls.modules.zstd.comp_lookup_dec;
 import xls.modules.zstd.rle_lookup_dec;
 import xls.modules.zstd.refilling_shift_buffer_mux;
@@ -30,7 +28,10 @@ import xls.modules.zstd.ram_mux;
 
 type AccuracyLog = common::FseAccuracyLog;
 
-pub struct FseLookupDecoderReq { is_rle: bool }
+pub struct FseLookupDecoderReq {
+    is_rle: bool,
+    remainder: common::Remainder
+}
 pub type FseLookupDecoderStatus = common::LookupDecoderStatus;
 pub type FseLookupDecoderResp = common::LookupDecoderResp;
 
@@ -233,12 +234,12 @@ pub proc FseLookupDecoder<
 
         let tok3 = join(tok3_1, tok3_0);
 
-        let tok4_0 = send_if(tok3, rle_lookup_req_s, req.is_rle, LookupDecoderReq {});
+        let tok4_0 = send_if(tok3, rle_lookup_req_s, req.is_rle, zero!<LookupDecoderReq>());
         if req.is_rle { trace_fmt!("[FseLookupDecoder]: Send request to RLE lookup decoder"); } else { };
         let (tok5_0, rle_lookup_resp) = recv_if(tok4_0, rle_lookup_resp_r, req.is_rle, zero!<LookupDecoderResp>());
         if req.is_rle { trace_fmt!("[FseLookupDecoder]: Received response from RLE lookup decoder"); } else { };
 
-        let tok4_1 = send_if(tok3, comp_lookup_req_s, !req.is_rle, CompLookupDecoderReq {});
+        let tok4_1 = send_if(tok3, comp_lookup_req_s, !req.is_rle, CompLookupDecoderReq { remainder: req.remainder });
         if !req.is_rle { trace_fmt!("[FseLookupDecoder]: Send request to Comp lookup decoder"); } else { };
         let (tok5_1, comp_lookup_resp) = recv_if(tok4_1, comp_lookup_resp_r, !req.is_rle, zero!<CompLookupDecoderResp>());
         if !req.is_rle { trace_fmt!("[FseLookupDecoder]: Received response from Comp lookup decoder"); } else { };
@@ -248,7 +249,8 @@ pub proc FseLookupDecoder<
         let resp = if req.is_rle { rle_lookup_resp } else {
             Resp {
                 status: comp_lookup_resp.status,
-                accuracy_log: comp_lookup_resp.accuracy_log
+                accuracy_log: comp_lookup_resp.accuracy_log,
+                remainder: comp_lookup_resp.remainder,
             }
         };
         let tok6 = send(tok5, fse_lookup_dec_resp_s, resp);
@@ -322,8 +324,8 @@ const COMP_LOOKUP_DECODER_TESTCASES: (u64[64], FseTableRecord[TEST_FSE_RAM_SIZE]
             FseTableRecord { symbol: u8:0xa, num_of_bits: u8:0x0, base: u16:0x0 },
             zero!<FseTableRecord>(), ...
         ],
-        FseLookupDecoderReq { is_rle: true },
-        FseLookupDecoderResp { status: FseLookupDecoderStatus::OK, accuracy_log: AccuracyLog:0 }
+        FseLookupDecoderReq { is_rle: true, remainder: zero!<common::Remainder>() },
+        FseLookupDecoderResp { status: FseLookupDecoderStatus::OK, accuracy_log: AccuracyLog:0, remainder: zero!<common::Remainder>() }
     ),
     (
         u64[64]:[u64:0x2, u64:0, ...],
@@ -331,8 +333,8 @@ const COMP_LOOKUP_DECODER_TESTCASES: (u64[64], FseTableRecord[TEST_FSE_RAM_SIZE]
             FseTableRecord { symbol: u8:0x2, num_of_bits: u8:0x0, base: u16:0x0 },
             zero!<FseTableRecord>(), ...
         ],
-        FseLookupDecoderReq { is_rle: true },
-        FseLookupDecoderResp { status: FseLookupDecoderStatus::OK, accuracy_log: AccuracyLog:0 }
+        FseLookupDecoderReq { is_rle: true, remainder: zero!<common::Remainder>() },
+        FseLookupDecoderResp { status: FseLookupDecoderStatus::OK, accuracy_log: AccuracyLog:0, remainder: zero!<common::Remainder>() }
     ),
     (
         u64[64]:[u64:0x7, u64:0, ...],
@@ -340,8 +342,8 @@ const COMP_LOOKUP_DECODER_TESTCASES: (u64[64], FseTableRecord[TEST_FSE_RAM_SIZE]
             FseTableRecord { symbol: u8:0x7, num_of_bits: u8:0x0, base: u16:0x0 },
             zero!<FseTableRecord>(), ...
         ],
-        FseLookupDecoderReq { is_rle: true },
-        FseLookupDecoderResp { status: FseLookupDecoderStatus::OK, accuracy_log: AccuracyLog:0 }
+        FseLookupDecoderReq { is_rle: true, remainder: zero!<common::Remainder>() },
+        FseLookupDecoderResp { status: FseLookupDecoderStatus::OK, accuracy_log: AccuracyLog:0, remainder: zero!<common::Remainder>() }
     ),
 
     // COMPRESSED
@@ -382,8 +384,8 @@ const COMP_LOOKUP_DECODER_TESTCASES: (u64[64], FseTableRecord[TEST_FSE_RAM_SIZE]
             FseTableRecord { symbol: u8:0x0, num_of_bits: u8:0x0, base: u16:0x15 },
             zero!<FseTableRecord>(), ...
         ],
-        FseLookupDecoderReq { is_rle: false },
-        FseLookupDecoderResp { status: FseLookupDecoderStatus::OK, accuracy_log: AccuracyLog:5 }
+        FseLookupDecoderReq { is_rle: false, remainder: zero!<common::Remainder>() },
+        FseLookupDecoderResp { status: FseLookupDecoderStatus::OK, accuracy_log: AccuracyLog:5, remainder: zero!<common::Remainder>() }
     ),
     (
         u64[64]:[u64:0x41081C158003A5D0, u64:0, ...],
@@ -422,8 +424,8 @@ const COMP_LOOKUP_DECODER_TESTCASES: (u64[64], FseTableRecord[TEST_FSE_RAM_SIZE]
             FseTableRecord { symbol: u8:0x0, num_of_bits: u8:0x0, base: u16:0x17 },
             zero!<FseTableRecord>(), ...
         ],
-        FseLookupDecoderReq { is_rle: false },
-        FseLookupDecoderResp { status: FseLookupDecoderStatus::OK, accuracy_log: AccuracyLog:5 }
+        FseLookupDecoderReq { is_rle: false, remainder: zero!<common::Remainder>() },
+        FseLookupDecoderResp { status: FseLookupDecoderStatus::OK, accuracy_log: AccuracyLog:5, remainder: zero!<common::Remainder>() }
     ),
 ];
 

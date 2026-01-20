@@ -35,7 +35,9 @@
     "https://bcr.bazel.build/modules/aspect_bazel_lib/1.38.0/MODULE.bazel": "6307fec451ba9962c1c969eb516ebfe1e46528f7fa92e1c9ac8646bef4cdaa3f",
     "https://bcr.bazel.build/modules/aspect_bazel_lib/1.40.3/MODULE.bazel": "668e6bcb4d957fc0e284316dba546b705c8d43c857f87119619ee83c4555b859",
     "https://bcr.bazel.build/modules/aspect_bazel_lib/2.11.0/MODULE.bazel": "cb1ba9f9999ed0bc08600c221f532c1ddd8d217686b32ba7d45b0713b5131452",
-    "https://bcr.bazel.build/modules/aspect_bazel_lib/2.11.0/source.json": "92494d5aa43b96665397dd13ee16023097470fa85e276b93674d62a244de47ee",
+    "https://bcr.bazel.build/modules/aspect_bazel_lib/2.14.0/MODULE.bazel": "2b31ffcc9bdc8295b2167e07a757dbbc9ac8906e7028e5170a3708cecaac119f",
+    "https://bcr.bazel.build/modules/aspect_bazel_lib/2.19.4/MODULE.bazel": "d39e4b18e594d81c526d7cfc513e7ecfa8ca9eb5b61488d1d790faa94b34f2d9",
+    "https://bcr.bazel.build/modules/aspect_bazel_lib/2.19.4/source.json": "506fa924e19fd8a33d617e33a17e4fce845f9ff9acb3a2aa7cf7300650698705",
     "https://bcr.bazel.build/modules/aspect_bazel_lib/2.7.7/MODULE.bazel": "491f8681205e31bb57892d67442ce448cda4f472a8e6b3dc062865e29a64f89c",
     "https://bcr.bazel.build/modules/aspect_bazel_lib/2.8.1/MODULE.bazel": "812d2dd42f65dca362152101fbec418029cc8fd34cbad1a2fde905383d705838",
     "https://bcr.bazel.build/modules/aspect_bazel_lib/2.9.3/MODULE.bazel": "66baf724dbae7aff4787bf2245cc188d50cb08e07789769730151c0943587c14",
@@ -305,6 +307,8 @@
     "https://bcr.bazel.build/modules/highs/1.9.0/source.json": "40f023f93f0bdcaeb14cfd3975c9b6f2f9a0315201791611ca203450f2b4c028",
     "https://bcr.bazel.build/modules/highwayhash/0.0.0-20240305-5ad3bf8/MODULE.bazel": "5c7f29d5bd70feff14b0f65b39584957e18e4a8d555e5a29a4c36019afbb44b9",
     "https://bcr.bazel.build/modules/highwayhash/0.0.0-20240305-5ad3bf8/source.json": "211c0937ef5f537da6c3c135d12e60927c71b380642e207e4a02b86d29c55e85",
+    "https://bcr.bazel.build/modules/jq.bzl/0.1.0/MODULE.bazel": "2ce69b1af49952cd4121a9c3055faa679e748ce774c7f1fda9657f936cae902f",
+    "https://bcr.bazel.build/modules/jq.bzl/0.1.0/source.json": "746bf13cac0860f091df5e4911d0c593971cd8796b5ad4e809b2f8e133eee3d5",
     "https://bcr.bazel.build/modules/jsoncpp/1.9.5/MODULE.bazel": "31271aedc59e815656f5736f282bb7509a97c7ecb43e927ac1a37966e0578075",
     "https://bcr.bazel.build/modules/jsoncpp/1.9.6/MODULE.bazel": "2f8d20d3b7d54143213c4dfc3d98225c42de7d666011528dc8fe91591e2e17b0",
     "https://bcr.bazel.build/modules/jsoncpp/1.9.6/source.json": "a04756d367a2126c3541682864ecec52f92cdee80a35735a3cb249ce015ca000",
@@ -340,6 +344,8 @@
     "https://bcr.bazel.build/modules/opentracing-cpp/1.6.0/source.json": "da1cb1add160f5e5074b7272e9db6fd8f1b3336c15032cd0a653af9d2f484aed",
     "https://bcr.bazel.build/modules/or-tools/9.12/MODULE.bazel": "9b3c0a7f08772f51b4083ccca0e69abf49b1488e2fd9078e535d8855cdda0cf2",
     "https://bcr.bazel.build/modules/or-tools/9.12/source.json": "98c1da7031be89e3f58e95a16784c1f5524c0ff6d8ea436ac6df4e9efe03458b",
+    "https://bcr.bazel.build/modules/package_metadata/0.0.2/MODULE.bazel": "fb8d25550742674d63d7b250063d4580ca530499f045d70748b1b142081ebb92",
+    "https://bcr.bazel.build/modules/package_metadata/0.0.2/source.json": "e53a759a72488d2c0576f57491ef2da0cf4aab05ac0997314012495935531b73",
     "https://bcr.bazel.build/modules/pcre2/10.43/MODULE.bazel": "08eaa025111bd0fedc14a8187c2905fa6ee4501fbe558193e9bf6cc3e2cdf23c",
     "https://bcr.bazel.build/modules/pcre2/10.43/source.json": "8b4149e707094f1d5b57df7216539c3415226e814085c4d960bd9f3d49581b88",
     "https://bcr.bazel.build/modules/platforms/0.0.10/MODULE.bazel": "8cb8efaf200bdeb2150d93e162c40f388529a25852b332cec879373771e48ed5",
@@ -507,7 +513,8 @@
     "https://bcr.bazel.build/modules/rules_nodejs/6.3.3/MODULE.bazel": "b66eadebd10f1f1b25f52f95ab5213a57e82c37c3f656fcd9a57ad04d2264ce7",
     "https://bcr.bazel.build/modules/rules_nodejs/6.3.3/source.json": "45bd343155bdfed2543f0e39b80ff3f6840efc31975da4b5795797f4c94147ad",
     "https://bcr.bazel.build/modules/rules_perl/0.2.4/MODULE.bazel": "5f5af7be4bf5fb88d91af7469518f0fd2161718aefc606188f7cd51f436ca938",
-    "https://bcr.bazel.build/modules/rules_perl/0.2.4/source.json": "574317d6b3c7e4843fe611b76f15e62a1889949f5570702e1ee4ad335ea3c339",
+    "https://bcr.bazel.build/modules/rules_perl/0.4.2/MODULE.bazel": "ade797b135be13d4715f7bb045bb06593ea3b8604f71330981cda6e5f95e42d1",
+    "https://bcr.bazel.build/modules/rules_perl/0.4.2/source.json": "feb6b8996edcc944b5b82e6440c8104e5907f7eca7e0bf553c7c097d5181ac25",
     "https://bcr.bazel.build/modules/rules_pkg/0.7.0/MODULE.bazel": "df99f03fc7934a4737122518bb87e667e62d780b610910f0447665a7e2be62dc",
     "https://bcr.bazel.build/modules/rules_pkg/1.0.1/MODULE.bazel": "5b1df97dbc29623bccdf2b0dcd0f5cb08e2f2c9050aab1092fd39a41e82686ff",
     "https://bcr.bazel.build/modules/rules_pkg/1.0.1/source.json": "bd82e5d7b9ce2d31e380dd9f50c111d678c3bdaca190cb76b0e1c71b05e1ba8a",
@@ -528,7 +535,8 @@
     "https://bcr.bazel.build/modules/rules_shell/0.2.0/MODULE.bazel": "fda8a652ab3c7d8fee214de05e7a9916d8b28082234e8d2c0094505c5268ed3c",
     "https://bcr.bazel.build/modules/rules_shell/0.3.0/MODULE.bazel": "de4402cd12f4cc8fda2354fce179fdb068c0b9ca1ec2d2b17b3e21b24c1a937b",
     "https://bcr.bazel.build/modules/rules_shell/0.4.0/MODULE.bazel": "0f8f11bb3cd11755f0b48c1de0bbcf62b4b34421023aa41a2fc74ef68d9584f0",
-    "https://bcr.bazel.build/modules/rules_shell/0.4.0/source.json": "1d7fa7f941cd41dc2704ba5b4edc2e2230eea1cc600d80bd2b65838204c50b95",
+    "https://bcr.bazel.build/modules/rules_shell/0.4.1/MODULE.bazel": "00e501db01bbf4e3e1dd1595959092c2fadf2087b2852d3f553b5370f5633592",
+    "https://bcr.bazel.build/modules/rules_shell/0.4.1/source.json": "4757bd277fe1567763991c4425b483477bb82e35e777a56fd846eb5cceda324a",
     "https://bcr.bazel.build/modules/rules_swift/1.16.0/MODULE.bazel": "4a09f199545a60d09895e8281362b1ff3bb08bbde69c6fc87aff5b92fcc916ca",
     "https://bcr.bazel.build/modules/rules_swift/1.18.0/MODULE.bazel": "a6aba73625d0dc64c7b4a1e831549b6e375fbddb9d2dde9d80c9de6ec45b24c9",
     "https://bcr.bazel.build/modules/rules_swift/2.1.1/MODULE.bazel": "494900a80f944fc7aa61500c2073d9729dff0b764f0e89b824eb746959bc1046",
@@ -556,6 +564,8 @@
     "https://bcr.bazel.build/modules/swift_argument_parser/1.3.1.1/source.json": "32bd87e5f4d7acc57c5b2ff7c325ae3061d5e242c0c4c214ae87e0f1c13e54cb",
     "https://bcr.bazel.build/modules/swig/4.3.0/MODULE.bazel": "51619e147172c5380869cc90460b1c7fecfe21d6f566e97bc7ecf61244bdc7b8",
     "https://bcr.bazel.build/modules/swig/4.3.0/source.json": "ea8dac67896e3a623cd92c48573a351c4bab1537f5aeb210c1c1e049994dd599",
+    "https://bcr.bazel.build/modules/tar.bzl/0.2.1/MODULE.bazel": "52d1c00a80a8cc67acbd01649e83d8dd6a9dc426a6c0b754a04fe8c219c76468",
+    "https://bcr.bazel.build/modules/tar.bzl/0.2.1/source.json": "600ac6ff61744667a439e7b814ae59c1f29632c3984fccf8000c64c9db8d7bb6",
     "https://bcr.bazel.build/modules/toolchains_llvm/1.4.0/MODULE.bazel": "05239402b7374293359c2f22806f420b75aa5d6f4b15a2eaa809a2c214d58b31",
     "https://bcr.bazel.build/modules/toolchains_llvm/1.4.0/source.json": "229a516d282b17a82be54c6e3ae220a1b750fb55a8495567e5c7a9d09423f3e2",
     "https://bcr.bazel.build/modules/upb/0.0.0-20211020-160625a/MODULE.bazel": "6cced416be2dc5b9c05efd5b997049ba795e5e4e6fafbe1624f4587767638928",
@@ -568,6 +578,8 @@
     "https://bcr.bazel.build/modules/xds/0.0.0-20240423-555b57e/source.json": "7227e1fcad55f3f3cab1a08691ecd753cb29cc6380a47bc650851be9f9ad6d20",
     "https://bcr.bazel.build/modules/xz/5.4.5.bcr.1/MODULE.bazel": "c037f75fa1b7e1ff15fbd15d807a8ce545e9b02f02df0a9777aa9aa7d8b268bb",
     "https://bcr.bazel.build/modules/xz/5.4.5.bcr.1/source.json": "766f28499a16fa9ed8dc94382d50e80ceda0d0ab80b79b7b104a67074ab10e1f",
+    "https://bcr.bazel.build/modules/yq.bzl/0.1.1/MODULE.bazel": "9039681f9bcb8958ee2c87ffc74bdafba9f4369096a2b5634b88abc0eaefa072",
+    "https://bcr.bazel.build/modules/yq.bzl/0.1.1/source.json": "2d2bad780a9f2b9195a4a370314d2c17ae95eaa745cefc2e12fbc49759b15aa3",
     "https://bcr.bazel.build/modules/zlib/1.2.11/MODULE.bazel": "07b389abc85fdbca459b69e2ec656ae5622873af3f845e1c9d80fe179f3effa0",
     "https://bcr.bazel.build/modules/zlib/1.2.12/MODULE.bazel": "3b1a8834ada2a883674be8cbd36ede1b6ec481477ada359cd2d3ddc562340b27",
     "https://bcr.bazel.build/modules/zlib/1.2.13/MODULE.bazel": "aa6deb1b83c18ffecd940c4119aff9567cd0a671d7bba756741cb2ef043a29d5",
@@ -671,7 +683,7 @@
     },
     "@@aspect_rules_esbuild~//esbuild:extensions.bzl%esbuild": {
       "general": {
-        "bzlTransitiveDigest": "8iOqbPY5ve3DvjzaI1mJZ8XTiJypN2PeWvcKOvmZLy8=",
+        "bzlTransitiveDigest": "8jv3p0xDR/oitFeH8y0+Y5xlyrUbfsTRlc9TSwYkwl8=",
         "usagesDigest": "iDVoyPxUeADmfK8ssoyG3Ehq1bj6p7A43LpEiE266os=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
@@ -2024,85 +2036,6 @@
         "recordedRepoMappingEntries": []
       }
     },
-    "@@rules_perl~//perl:extensions.bzl%perl_repositories": {
-      "general": {
-        "bzlTransitiveDigest": "zKzjvlkMYt5ciDqNdVyTtZfAAPO39SuFy2B+xMqgTss=",
-        "usagesDigest": "tuJgAyNZD8Ewzr/MlAnnittbPMDC60XQF8aGrsjU+nY=",
-        "recordedFileInputs": {},
-        "recordedDirentsInputs": {},
-        "envVariables": {},
-        "generatedRepoSpecs": {
-          "perl_darwin_arm64": {
-            "bzlFile": "@@rules_perl~//perl:repo.bzl",
-            "ruleClassName": "perl_download",
-            "attributes": {
-              "strip_prefix": "perl-darwin-arm64",
-              "sha256": "285769f3c50c339fb59a3987b216ae3c5c573b95babe6875a1ef56fb178433da",
-              "urls": [
-                "https://github.com/skaji/relocatable-perl/releases/download/5.36.0.1/perl-darwin-arm64.tar.xz"
-              ]
-            }
-          },
-          "perl_darwin_amd64": {
-            "bzlFile": "@@rules_perl~//perl:repo.bzl",
-            "ruleClassName": "perl_download",
-            "attributes": {
-              "strip_prefix": "perl-darwin-amd64",
-              "sha256": "63bc5ee36f5394d71c50cca6cafdd333ee58f9eaa40bca63c85f9bd06f2c1fd6",
-              "urls": [
-                "https://github.com/skaji/relocatable-perl/releases/download/5.36.0.1/perl-darwin-amd64.tar.xz"
-              ]
-            }
-          },
-          "perl_linux_amd64": {
-            "bzlFile": "@@rules_perl~//perl:repo.bzl",
-            "ruleClassName": "perl_download",
-            "attributes": {
-              "strip_prefix": "perl-linux-amd64",
-              "sha256": "3bdffa9d7a3f97c0207314637b260ba5115b1d0829f97e3e2e301191a4d4d076",
-              "urls": [
-                "https://github.com/skaji/relocatable-perl/releases/download/5.36.0.1/perl-linux-amd64.tar.xz"
-              ]
-            }
-          },
-          "perl_linux_arm64": {
-            "bzlFile": "@@rules_perl~//perl:repo.bzl",
-            "ruleClassName": "perl_download",
-            "attributes": {
-              "strip_prefix": "perl-linux-arm64",
-              "sha256": "6fa4ece99e790ecbc2861f6ecb7b52694c01c2eeb215b4370f16a3b12d952117",
-              "urls": [
-                "https://github.com/skaji/relocatable-perl/releases/download/5.36.0.1/perl-linux-arm64.tar.xz"
-              ]
-            }
-          },
-          "perl_windows_x86_64": {
-            "bzlFile": "@@rules_perl~//perl:repo.bzl",
-            "ruleClassName": "perl_download",
-            "attributes": {
-              "strip_prefix": "",
-              "sha256": "aeb973da474f14210d3e1a1f942dcf779e2ae7e71e4c535e6c53ebabe632cc98",
-              "urls": [
-                "https://mirror.bazel.build/strawberryperl.com/download/5.32.1.1/strawberry-perl-5.32.1.1-64bit.zip",
-                "https://strawberryperl.com/download/5.32.1.1/strawberry-perl-5.32.1.1-64bit.zip"
-              ]
-            }
-          }
-        },
-        "recordedRepoMappingEntries": [
-          [
-            "rules_perl~",
-            "bazel_tools",
-            "bazel_tools"
-          ],
-          [
-            "rules_perl~",
-            "rules_perl",
-            "rules_perl~"
-          ]
-        ]
-      }
-    },
     "@@rules_python~//python/extensions:pip.bzl%pip": {
       "general": {
         "bzlTransitiveDigest": "IydMzRepgVhGbwD4WBQd4WuJDipgbSZjrF0OvB+JldA=",
@@ -2111,7 +2044,7 @@
           "@@or-tools~//bazel/ortools_requirements.txt": "37e22395e78ef3572ab57b7717fd8f54851919bb73ca404f367536dc15a8e3eb",
           "@@pybind11_abseil~//pybind11_abseil/requirements/requirements_lock_3_11.txt": "7d1074311e9f32f25ca112fc86fbec98bc024d820a8dc00f94e8679a7e6b480c",
           "@@rules_python~//tools/publish/requirements_linux.txt": "8175b4c8df50ae2f22d1706961884beeb54e7da27bd2447018314a175981997d",
-          "@@//dependency_support/pip_requirements_lock.txt": "e813fef63629aaca3c070b25f1265afb21da8400c4dc846646f3056965670718",
+          "@@//dependency_support/pip_requirements_lock.txt": "9301da6c6a7b310ba10266bc5e9cc83aa0b693bf8471fba119f34133e0126d46",
           "@@or-tools~//bazel/notebook_requirements.txt": "ca78fad693f1b35eed8bb7c54e5ddf7ad255c4b9d94ce18efa55859759a8fb70",
           "@@protoc-gen-validate~//python/requirements.txt": "6a540bc029bbf3a5f78f9f9282bd30e2965c98eeb150f2cfc5facccbd8a98297",
           "@@pybind11_protobuf~//pybind11_protobuf/requirements/requirements_lock_3_10.txt": "afd6f9406f4e80a504f1575121a937f4c15388aec4a17393f0cb1ac9f09d18dd",
@@ -14406,6 +14339,39 @@
               "timeout": 600000
             }
           },
+          "xls_pip_deps_312_cocotb": {
+            "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "dep_template": "@xls_pip_deps//{name}:{target}",
+              "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
+              "repo": "xls_pip_deps_312",
+              "requirement": "cocotb==1.9.0     --hash=sha256:02a58ef6c941114964096e7c039bdd4e67e63816cfd2f6a9af6a34cd92b00e8e     --hash=sha256:0819794ef5e8fd14fee0b265933226cf600e85edc2f1a749b4d5f8fa2d31ce4e     --hash=sha256:0ba35617a677ff65a1273411a3dfdfc5f587128ad8cb9e941ab0eb17ec8fb3e2     --hash=sha256:17556e3a23562f64d577d0eb117fe02e384aedee997b29497b5c395f5010ff82     --hash=sha256:19b4e27b53a16e0b9c4cc5227c7f9d4dccac06e431a4f937e9f5513350196333     --hash=sha256:1a0381ced5590a726032ba2265c6b70ac12cfb49edb152be86a081bb7d104751     --hash=sha256:1aff68cf77059448a9a3278079037e34b50c8c2aee466d984295fa7fe699d390     --hash=sha256:277281420fd6fc3002bb85d6bec497bd20ff3a3905d4b5f1301faf975f750ede     --hash=sha256:2daf743320331615f4e8ffb877ab0b04e6f913b911bb11bf9dbc1d876d9c4220     --hash=sha256:2e9bcdbfba3e99c9297bd0d74ba781772d89d2c86e893980784ada252bd1a0f8     --hash=sha256:3058c977f9d4e1f6333d505947f34b9142910719f1d8631c40a151dd86bad727     --hash=sha256:5832d894419a9e8fe5c242e3ac86588e16e2cb379822dcb154bfec8544ae858e     --hash=sha256:598b841ed0809e5c64d8c383b8035f6ace5a6f9013f680cdc6981221911c005d     --hash=sha256:5a5c91027d7652aaf10e101743edd6b1e832039a19af75fca301275ef30f01d4     --hash=sha256:61418f619af72c8cca8de622785b4f4bfc17ace09981de6eb44feae560cf3bbb     --hash=sha256:784c914c8df3fd79cfb148d2bcd17c4b2703c89af1278ed98773afb57ceea3e6     --hash=sha256:87a19d3012f505ba7fda37483b851ef0ca40290ad8a9b28a820b84f8574287bb     --hash=sha256:89503f0749362d36b6fab8636710f1848943c21f9d488672921bac21e9edd29f     --hash=sha256:89e5189fd393918c27af2daefdcb13df4d52fa761f065d5964d2c4ff5c0642fb     --hash=sha256:8cb4b0edf8f0b47c3b604b461cb574fc75fd97efa893cbaf828f4f2f71cf459e     --hash=sha256:94e884e16186899ad5b4d131c3f7ff0a2277e67ea0660754e8810a4bbf2d610e     --hash=sha256:997dbca2a2cd933fd0a44d9fadeebc1e8a40701db15ea06f207811933dceb350     --hash=sha256:a7cea13cb2fe4f5ca735490846342885117778a73008a67ed9cac667aaaf3f0d     --hash=sha256:a84edfbfa57dc6e16845a55feb0b4e1c8b6bbfa5ef1ab6768beba8d81e0546aa     --hash=sha256:a95b5e5708a3629d319d2b655d11345cc7e97fea9bdc9bc1df7435926ac30966     --hash=sha256:aa6818c39ca1ce699e4bb1d84899c4f98c2d25c7671bd6c7beee3b1ee9d68834     --hash=sha256:ab99bf7e055780b57419d4133fd4dca9c72a03b766a3e2200552f10498eb8845     --hash=sha256:b966f5560a494fd99f95a1562f9326ca20c35bb118d4e6b50db41da8e4a6f718     --hash=sha256:bc44a7708a5a63d3059a622c2fb90831dc33534c3343e971f5a6c78905097baa     --hash=sha256:c11e21d291ba2f889e33c21d76e9aec6ffdfb5666053dc34452666579daa675b     --hash=sha256:c848de13583478d71cc91e528e17c051ca6a3b92e89d703ac5015f17cab1287b     --hash=sha256:d944aa5509a0f0786d6f30554a2f8b1f229847f9ac9988879d7a05497739f668     --hash=sha256:f50862153e1364f6edeaef9d70505093549fa097e9b2555ea46d1e4f94ac3287     --hash=sha256:f74c598e230e1035103f6e3a97dd7a0e1bcacf7f3ea7481cd3bcde477b74e379     --hash=sha256:fcb81c6c37e11b0729768dd8e192a9cfb809778699ab1fe89f4d92ba0beb3092     --hash=sha256:ff2ddc8b304eb7076ceead2534a1b9828df771798fa9c2601ea983c86d23ec08",
+              "timeout": 600000
+            }
+          },
+          "xls_pip_deps_312_cocotb_bus": {
+            "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "dep_template": "@xls_pip_deps//{name}:{target}",
+              "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
+              "repo": "xls_pip_deps_312",
+              "requirement": "cocotb-bus==0.2.1     --hash=sha256:a197aa4b0e0ad28469c8877b41b3fb2ec0206da9f491b9276d1578ce6dd8aa8d",
+              "timeout": 600000
+            }
+          },
+          "xls_pip_deps_312_cocotbext_axi": {
+            "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "dep_template": "@xls_pip_deps//{name}:{target}",
+              "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
+              "repo": "xls_pip_deps_312",
+              "requirement": "cocotbext-axi==0.1.24     --hash=sha256:3ed62dcaf9448833176826507c5bc5c346431c4846a731e409d87c862d960593     --hash=sha256:533ba6c7503c6302bdb9ef86e43a549ad5da876eafb1adce23d39751c54cced4",
+              "timeout": 600000
+            }
+          },
           "xls_pip_deps_312_contourpy": {
             "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
             "ruleClassName": "whl_library",
@@ -14428,6 +14394,17 @@
               "timeout": 600000
             }
           },
+          "xls_pip_deps_312_find_libpython": {
+            "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "dep_template": "@xls_pip_deps//{name}:{target}",
+              "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
+              "repo": "xls_pip_deps_312",
+              "requirement": "find-libpython==0.4.0     --hash=sha256:034a4253bd57da3408aefc59aeac1650150f6c1f42e10fdd31615cf1df0842e3     --hash=sha256:46f9cdcd397ddb563b2d7592ded3796a41c1df5222443bd9d981721c906c03e6",
+              "timeout": 600000
+            }
+          },
           "xls_pip_deps_312_flask": {
             "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
             "ruleClassName": "whl_library",
@@ -14447,6 +14424,17 @@
               "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
               "repo": "xls_pip_deps_312",
               "requirement": "fonttools==4.55.8     --hash=sha256:01ea3901b0802fc5f9e854f5aeb5bc27770dd9dd24c28df8f74ba90f8b3f5915     --hash=sha256:02c41322e5bdcb484b61b776fcea150215c83619b39c96aa0b44d4fd87bb5574     --hash=sha256:03c2b50b54e6e8b3564b232e57e8f58be217cf441cf0155745d9e44a76f9c30f     --hash=sha256:07636dae94f7fe88561f9da7a46b13d8e3f529f87fdb221b11d85f91eabceeb7     --hash=sha256:0f38bfb6b7a39c4162c3eb0820a0bdf8e3bdd125cd54e10ba242397d15e32439     --hash=sha256:1e10efc8ee10d6f1fe2931d41bccc90cd4b872f2ee4ff21f2231a2c293b2dbf8     --hash=sha256:2232012a1502b2b8ab4c6bc1d3524bfe90238c0c1a50ac94a0a2085aa87a58a5     --hash=sha256:243cbfc0b7cb1c307af40e321f8343a48d0a080bc1f9466cf2b5468f776ef108     --hash=sha256:285c1ac10c160fbdff6d05358230e66c4f98cbbf271f3ec7eb34e967771543e8     --hash=sha256:302e1003a760b222f711d5ba6d1ad7fd5f7f713eb872cd6a3eb44390bc9770af     --hash=sha256:332883b6280b9d90d2ba7e9e81be77cf2ace696161e60cdcf40cfcd2b3ed06fa     --hash=sha256:3461347016c94cb42b36caa907e11565878c4c2c375604f3651d11dc06d1ab3e     --hash=sha256:3d20f152de7625a0008ba1513f126daaaa0de3b4b9030aa72dd5c27294992260     --hash=sha256:450c354c04a6e12a3db968e915fe05730f79ff3d39560947ef8ee6eaa2ab2212     --hash=sha256:466a78984f0572305c3c48377f4e3f7f4e909f1209f45ef8e7041d5c8a744a56     --hash=sha256:4dfae7c94987149bdaa0388e6c937566aa398fa0eec973b17952350a069cff4e     --hash=sha256:54d481d456dcd59af25d4a9c56b2c4c3f20e9620b261b84144e5950f33e8df17     --hash=sha256:604c805b41241b4880e2dc86cf2d4754c06777371c8299799ac88d836cb18c3b     --hash=sha256:63403ee0f2fa4e1de28e539f8c24f2bdca1d8ecb503fa9ea2d231d9f1e729809     --hash=sha256:65cb8f97eed7906dcf19bc2736b70c6239e9d7e77aad7c6110ba7239ae082e81     --hash=sha256:67df1c3935838fb9e56f227d7f506c9043b149a4a3b667bef17929c7a1114d19     --hash=sha256:6b8d7c149d47b47de7ec81763396c8266e5ebe2e0b14aa9c3ccf29e52260ab2f     --hash=sha256:708cb17b2590b7f6c6854999df0039ff1140dda9e6f56d67c3599ba6f968fab5     --hash=sha256:8abd135e427d88e461a4833c03cf96cfb9028c78c15d58123291f22398e25492     --hash=sha256:9164f44add0acec0f12fce682824c040dc52e483bfe3838c37142897150c8364     --hash=sha256:95f5a1d4432b3cea6571f5ce4f4e9b25bf36efbd61c32f4f90130a690925d6ee     --hash=sha256:9b5f05ef72e846e9f49ccdd74b9da4309901a4248434c63c1ee9321adcb51d65     --hash=sha256:9b6fcff4dc755b32faff955d989ee26394ddad3a90ea7d558db17a4633c8390c     --hash=sha256:a0fe12f06169af2fdc642d26a8df53e40adc3beedbd6ffedb19f1c5397b63afd     --hash=sha256:a19059aa892676822c1f05cb5a67296ecdfeb267fe7c47d4758f3e8e942c2b2a     --hash=sha256:a7230f7590f9570d26ee903b6a4540274494e200fae978df0d9325b7b9144529     --hash=sha256:acfec948de41cd5e640d5c15d0200e8b8e7c5c6bb82afe1ca095cbc4af1188ee     --hash=sha256:b99d4fd2b6d0a00c7336c8363fccc7a11eccef4b17393af75ca6e77cf93ff413     --hash=sha256:b9f9fce3c9b2196e162182ec5db8af8eb3acd0d76c2eafe9fdba5f370044e556     --hash=sha256:ba45b637da80a262b55b7657aec68da2ac54b8ae7891cd977a5dbe5fd26db429     --hash=sha256:bf4b5b3496ddfdd4e57112e77ec51f1ab388d35ac17322c1248addb2eb0d429a     --hash=sha256:c96f2506ce1a0beeaa9595f9a8b7446477eb133f40c0e41fc078744c28149f80     --hash=sha256:cb121d6dd34625cece32234a5fa0359475bb118838b6b4295ffdb13b935edb04     --hash=sha256:ccf8ae02918f431953d338db4d0a675a395faf82bab3a76025582cf32a2f3b7b     --hash=sha256:cfe9cf30f391a0f2875247a3e5e44d8dcb61596e5cf89b360cdffec8a80e9961     --hash=sha256:d11600f5343092697d7434f3bf77a393c7ae74be206fe30e577b9a195fd53165     --hash=sha256:d2248ebfbcea0d0b3cb459d76a9f67f2eadc10ec0d07e9cadab8777d3f016bf2     --hash=sha256:d39f0c977639be0f9f5505d4c7c478236737f960c567a35f058649c056e41434     --hash=sha256:d5a3ff5bb95fd5a3962b2754f8435e6d930c84fc9e9921c51e802dddf40acd56     --hash=sha256:d637e4d33e46619c79d1a6c725f74d71b574cd15fb5bbb9b6f3eba8f28363573     --hash=sha256:de78d6d0dbe32561ce059265437021f4746e56073c4799f0f1095828ae7232bd     --hash=sha256:e72a7816ff8a759be9ca36ca46934f8ccf4383711ef597d9240306fe1878cb8d     --hash=sha256:edcffaeadba9a334c1c3866e275d7dd495465e7dbd296f688901bdbd71758113     --hash=sha256:f089e8da0990cfe2d67e81d9cf581ff372b48dc5acf2782701844211cd1f0eb3     --hash=sha256:f971aa5f50c22dc4b63a891503624ae2c77330429b34ead32f23c2260c5618cd",
+              "timeout": 600000
+            }
+          },
+          "xls_pip_deps_312_iniconfig": {
+            "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "dep_template": "@xls_pip_deps//{name}:{target}",
+              "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
+              "repo": "xls_pip_deps_312",
+              "requirement": "iniconfig==2.3.0     --hash=sha256:c76315c77db068650d49c5b56314774a7804df16fee4402c1f19d6d15d8c4730     --hash=sha256:f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12",
               "timeout": 600000
             }
           },
@@ -14549,6 +14537,17 @@
               "timeout": 600000
             }
           },
+          "xls_pip_deps_312_pluggy": {
+            "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "dep_template": "@xls_pip_deps//{name}:{target}",
+              "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
+              "repo": "xls_pip_deps_312",
+              "requirement": "pluggy==1.6.0     --hash=sha256:7dcc130b76258d33b90f61b658791dede3486c3e6bfb003ee5c9bfb396dd22f3     --hash=sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746",
+              "timeout": 600000
+            }
+          },
           "xls_pip_deps_312_portpicker": {
             "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
             "ruleClassName": "whl_library",
@@ -14579,6 +14578,17 @@
               "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
               "repo": "xls_pip_deps_312",
               "requirement": "pyparsing==3.2.1     --hash=sha256:506ff4f4386c4cec0590ec19e6302d3aedb992fdc02c761e90416f158dacf8e1     --hash=sha256:61980854fd66de3a90028d679a954d5f2623e83144b5afe5ee86f43d762e5f0a",
+              "timeout": 600000
+            }
+          },
+          "xls_pip_deps_312_pytest": {
+            "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "dep_template": "@xls_pip_deps//{name}:{target}",
+              "python_interpreter_target": "@@rules_python~~python~python_3_12_host//:python",
+              "repo": "xls_pip_deps_312",
+              "requirement": "pytest==8.2.2     --hash=sha256:c434598117762e2bd304e526244f67bf66bbd7b5d6cf22138be51ff661980343     --hash=sha256:de4bb8104e201939ccdc688b27a89a7be2079b22e2bd2b07f806b6ba71117977",
               "timeout": 600000
             }
           },
@@ -15193,10 +15203,15 @@
               "whl_map": {
                 "blinker": "{\"xls_pip_deps_312_blinker\":[{\"version\":\"3.12\"}]}",
                 "click": "{\"xls_pip_deps_312_click\":[{\"version\":\"3.12\"}]}",
+                "cocotb": "{\"xls_pip_deps_312_cocotb\":[{\"version\":\"3.12\"}]}",
+                "cocotb_bus": "{\"xls_pip_deps_312_cocotb_bus\":[{\"version\":\"3.12\"}]}",
+                "cocotbext_axi": "{\"xls_pip_deps_312_cocotbext_axi\":[{\"version\":\"3.12\"}]}",
                 "contourpy": "{\"xls_pip_deps_312_contourpy\":[{\"version\":\"3.12\"}]}",
                 "cycler": "{\"xls_pip_deps_312_cycler\":[{\"version\":\"3.12\"}]}",
+                "find_libpython": "{\"xls_pip_deps_312_find_libpython\":[{\"version\":\"3.12\"}]}",
                 "flask": "{\"xls_pip_deps_312_flask\":[{\"version\":\"3.12\"}]}",
                 "fonttools": "{\"xls_pip_deps_312_fonttools\":[{\"version\":\"3.12\"}]}",
+                "iniconfig": "{\"xls_pip_deps_312_iniconfig\":[{\"version\":\"3.12\"}]}",
                 "itsdangerous": "{\"xls_pip_deps_312_itsdangerous\":[{\"version\":\"3.12\"}]}",
                 "jinja2": "{\"xls_pip_deps_312_jinja2\":[{\"version\":\"3.12\"}]}",
                 "kiwisolver": "{\"xls_pip_deps_312_kiwisolver\":[{\"version\":\"3.12\"}]}",
@@ -15206,9 +15221,11 @@
                 "numpy": "{\"xls_pip_deps_312_numpy\":[{\"version\":\"3.12\"}]}",
                 "packaging": "{\"xls_pip_deps_312_packaging\":[{\"version\":\"3.12\"}]}",
                 "pillow": "{\"xls_pip_deps_312_pillow\":[{\"version\":\"3.12\"}]}",
+                "pluggy": "{\"xls_pip_deps_312_pluggy\":[{\"version\":\"3.12\"}]}",
                 "portpicker": "{\"xls_pip_deps_312_portpicker\":[{\"version\":\"3.12\"}]}",
                 "psutil": "{\"xls_pip_deps_312_psutil\":[{\"version\":\"3.12\"}]}",
                 "pyparsing": "{\"xls_pip_deps_312_pyparsing\":[{\"version\":\"3.12\"}]}",
+                "pytest": "{\"xls_pip_deps_312_pytest\":[{\"version\":\"3.12\"}]}",
                 "python_dateutil": "{\"xls_pip_deps_312_python_dateutil\":[{\"version\":\"3.12\"}]}",
                 "pyyaml": "{\"xls_pip_deps_312_pyyaml\":[{\"version\":\"3.12\"}]}",
                 "scipy": "{\"xls_pip_deps_312_scipy\":[{\"version\":\"3.12\"}]}",
@@ -15220,10 +15237,15 @@
               "packages": [
                 "blinker",
                 "click",
+                "cocotb",
+                "cocotb_bus",
+                "cocotbext_axi",
                 "contourpy",
                 "cycler",
+                "find_libpython",
                 "flask",
                 "fonttools",
+                "iniconfig",
                 "itsdangerous",
                 "jinja2",
                 "kiwisolver",
@@ -15233,9 +15255,11 @@
                 "numpy",
                 "packaging",
                 "pillow",
+                "pluggy",
                 "portpicker",
                 "psutil",
                 "pyparsing",
+                "pytest",
                 "python_dateutil",
                 "pyyaml",
                 "scipy",

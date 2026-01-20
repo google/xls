@@ -30,8 +30,7 @@ enum AxiRamReaderStatus: u1 {
     READ_BURST = 1,
 }
 
-// FIXME: add default value for RAM_DATA_W_PLUS1_LOG2 = {std::clog2(AXI_DATA_W + u32:1)} (https://github.com/google/xls/issues/992)
-struct AxiRamReaderSync<AXI_ID_W: u32, RAM_DATA_W: u32, RAM_DATA_W_PLUS1_LOG2: u32> {
+struct AxiRamReaderSync<AXI_ID_W: u32, RAM_DATA_W: u32, RAM_DATA_W_PLUS1_LOG2: u32 = {std::clog2(RAM_DATA_W + u32:1)}> {
     do_recv_ram_resp: bool,
     read_data_size: uN[RAM_DATA_W_PLUS1_LOG2],
     read_data_offset: uN[RAM_DATA_W_PLUS1_LOG2],
@@ -49,8 +48,7 @@ struct AxiRamReaderRequesterState<AXI_ADDR_W: u32, AXI_ID_W: u32> {
     ram_rd_req_idx: u8,
 }
 
-// FIXME: add default value for AXI_DATA_W_PLUS1_LOG2 = {std::clog2(AXI_DATA_W + u32:1)} (https://github.com/google/xls/issues/992)
-struct AxiRamReaderResponderState<AXI_DATA_W: u32, AXI_DATA_W_PLUS1_LOG2:u32> {
+struct AxiRamReaderResponderState<AXI_DATA_W: u32, AXI_DATA_W_PLUS1_LOG2:u32 = {std::clog2(AXI_DATA_W + u32:1)}> {
     data: uN[AXI_DATA_W],
     data_size: uN[AXI_DATA_W_PLUS1_LOG2],
 }
@@ -104,9 +102,6 @@ proc AxiRamReaderRequester<
 
         // validate bundle
         let ar_bundle_ok = ar_bundle_valid && ((ar_bundle.size as u32 + u32:3) <= AXI_DATA_W_LOG2);
-        //if ar_bundle_valid {
-        //    trace_fmt!("{:#x}", ar_bundle);
-        //} else {};
 
         let error = ar_bundle_valid && !ar_bundle_ok;
         let tok = send_if(tok, sync_s, error, Sync {
@@ -131,9 +126,6 @@ proc AxiRamReaderRequester<
             mask: !uN[RAM_NUM_PARTITIONS]:0,
         };
         let tok = send_if(join(), rd_req_s, do_read_from_ram, ram_read_req);
-        if do_read_from_ram {
-            trace_fmt!("Sent RAM read request {:#x}", ram_read_req);
-        } else {};
 
         // send sync
         let resp = if addr_valid {
@@ -254,13 +246,9 @@ proc AxiRamReaderResponder<
 
         // receive sync
         let (tok, sync_data) = recv(tok, sync_r);
-        trace_fmt!("Received sync {:#x}", sync_data);
 
         // receive RAM read respose
         let (tok, ram_read_resp) = recv_if(tok, rd_resp_r, sync_data.do_recv_ram_resp, zero!<ReadResp>());
-        if sync_data.do_recv_ram_resp {
-            trace_fmt!("Received RAM response {:#x}", ram_read_resp);
-        } else {};
 
         let mask = (uN[RAM_DATA_W]:1 << sync_data.read_data_size) as uN[RAM_DATA_W] - uN[RAM_DATA_W]:1;
         let mask = (mask << state.data_size);
@@ -362,9 +350,7 @@ const INST_RAM_NUM_PARTITIONS = INST_RAM_DATA_W / INST_RAM_WORD_PARTITION_SIZE;
 
 const INST_BASE_ADDR = u32:0x8000;
 
-proc AxiRamReaderInst<
-    FAKE_PARAM: u32 = {u32:0} // FIXME: remove after https://github.com/google/xls/issues/1415 is fixed
-> {
+proc AxiRamReaderInst {
     type AxiAr = axi::AxiAr<INST_AXI_ADDR_W, INST_AXI_ID_W>;
     type AxiR = axi::AxiR<INST_AXI_DATA_W, INST_AXI_ID_W>;
     type ReadReq = ram::ReadReq<INST_RAM_ADDR_W, INST_RAM_NUM_PARTITIONS>;
@@ -696,7 +682,6 @@ proc AxiRamReaderTest {
             for (j, tok): (u32, token) in u32:0..TEST_RAM_SIZE {
                 if (j <= data_len) {
                     let (tok, data) = recv(tok, axi_r_r);
-                    trace_fmt!("Received data #{} {:#x}", j, data);
                     // compute address
                     let araddr = match axi_ar_bundle.burst {
                         AxiAxBurst::FIXED => {

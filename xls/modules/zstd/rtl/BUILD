@@ -23,6 +23,7 @@ The sources contain:
 
 """
 
+# pytype binary, library
 load("@rules_hdl//verilog:providers.bzl", "verilog_library")
 
 package(
@@ -34,7 +35,13 @@ package(
 exports_files(
     [
         "zstd_dec_wrapper.sv",
+        "zstd_enc_wrapper.sv",
         "xls_fifo_wrapper.sv",
+        "ram_demux_wrapper.sv",
+        "match_finder_wrapper.sv",
+        "ram_1r1w.sv",
+        "ram_2rw.sv",
+        "cocotb_public_vars.vlt",
     ],
 )
 

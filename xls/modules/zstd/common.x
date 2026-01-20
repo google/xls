@@ -16,17 +16,28 @@ import std;
 import xls.examples.ram;
 import xls.modules.zstd.shift_buffer;
 
-pub const DATA_WIDTH = u32:64;
+pub const AXI_DATA_W = u32:64;
+pub const AXI_ADDR_W = u32:32;
+pub const AXI_DATA_BYTES_W = AXI_DATA_W / u32:8;
+
+pub const SYMBOLS_IN_PACKET = AXI_DATA_W / u32:8;
+
+pub const DATA_WIDTH = AXI_DATA_W;
 pub const MAX_ID = u32::MAX;
 pub const SYMBOL_WIDTH = u32:8;
 pub const BLOCK_SIZE_WIDTH = u32:21;
 pub const OFFSET_WIDTH = u32:22;
+
+// u32 here is sufficient for the maximum size of the history buffer
+// as RFC 8878 states that 3.75 TB is the maximum allowed value for
+// a window size and storing this value in KB units allows it to be
+// saved in a 32-bit unsigned integer (2^32 * 2^10 > 3.75 TB)
+// https://datatracker.ietf.org/doc/html/rfc8878#section-3.1.1.1.2-6
 pub const HISTORY_BUFFER_SIZE_KB = u32:64;
+
 pub const BUFFER_WIDTH = u32:128;
-pub const MAX_BLOCK_SIZE_KB = u32:64;
 
 pub const BLOCK_PACKET_WIDTH = u32:32;
-pub const SYMBOLS_IN_PACKET = DATA_WIDTH/SYMBOL_WIDTH;
 
 pub type BlockData = bits[DATA_WIDTH];
 pub type BlockPacketLength = bits[BLOCK_PACKET_WIDTH];
@@ -34,6 +45,12 @@ pub type BlockSize = bits[BLOCK_SIZE_WIDTH];
 pub type CopyOrMatchContent = BlockData;
 pub type CopyOrMatchLength = u64;
 pub type Offset = bits[OFFSET_WIDTH];
+pub type RefillingSBLength = uN[std::clog2(AXI_DATA_W) + u32:1];
+
+// BlockSize is limited by the smallest of: (Window_Size, 128KB)
+// see https://datatracker.ietf.org/doc/html/rfc8878#name-block_content-and-block_max
+pub const MAX_BLOCK_SIZE_KB = u32:128;
+pub const MAX_BLOCK_SIZE = (MAX_BLOCK_SIZE_KB << 10) as BlockSize;
 
 pub enum BlockType : u2 {
     RAW = 0,
@@ -50,7 +67,7 @@ pub struct BlockDataPacket {
     length: BlockPacketLength,
 }
 
-pub enum SequenceExecutorMessageType : u1 {
+pub enum SequenceExecutorMessageType: u1 {
     LITERAL = 0,
     SEQUENCE = 1,
 }
@@ -62,7 +79,6 @@ pub struct ExtendedBlockDataPacket {
 
 pub struct SequenceExecutorPacket<DATA_W: u32> {
     msg_type: SequenceExecutorMessageType,
-    // TODO: this should be max(8, clog2(maximum match value))
     length: CopyOrMatchLength, // Literal length or match length
     content: uN[DATA_W * u32:8], // Literal data or match offset
     last: bool, // Last packet in frame
@@ -122,8 +138,6 @@ pub const FSE_PROB_DIST_WIDTH = u32:16;
 pub const FSE_MAX_PROB_DIST = u32:256;
 pub const FSE_SYMBOL_WIDTH = u32:16;
 
-// FIXME: Tests in DSLX interpreter require smaller RAMs due to the problem
-// with ram consumtopn descibed in https://github.com/google/xls/issues/1042
 pub const TEST_FSE_MAX_ACCURACY_LOG = u32:9;
 
 pub type FseRemainingProba = uN[FSE_REMAINING_PROBA_WIDTH];
@@ -172,8 +186,8 @@ pub struct FseTableRecord {
     base: u16
 }
 
-pub struct FseRemainder { value: u1, valid: bool }
-pub struct FseProbaFreqDecoderCtrl { remainder: FseRemainder, finished: bool }
+pub struct Remainder { value: u1, valid: bool }
+pub struct FseProbaFreqDecoderCtrl { remainder: Remainder, finished: bool }
 
 pub struct FseTableCreatorCtrl {
     accuracy_log: FseAccuracyLog,
@@ -249,7 +263,8 @@ pub type SeqDecShiftBufferStatus = shift_buffer::ShiftBufferStatus;
 
 pub const RLE_LITERALS_DATA_WIDTH = u32:8;
 pub const RLE_LITERALS_REPEAT_WIDTH = u32:20;
-pub const LITERALS_DATA_WIDTH = u32:64;
+pub const LITERALS_IN_PACKET = AXI_DATA_W / u32:8;
+pub const LITERALS_DATA_WIDTH = LITERALS_IN_PACKET * u32:8;
 pub const LITERALS_LENGTH_WIDTH = std::clog2(
     std::ceil_div(LITERALS_DATA_WIDTH, RLE_LITERALS_DATA_WIDTH) + u32:1
 );
@@ -306,11 +321,14 @@ pub enum LookupDecoderStatus: u1 {
     ERROR = u1:1,
 }
 
-pub struct LookupDecoderReq {}
+pub struct LookupDecoderReq {
+    remainder: Remainder
+}
 
 pub struct LookupDecoderResp {
     status: LookupDecoderStatus,
     accuracy_log: FseAccuracyLog,
+    remainder: Remainder,
 }
 
 pub struct DataArray<BITS_PER_WORD: u32, LENGTH: u32>{

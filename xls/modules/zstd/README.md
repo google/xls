@@ -1,120 +1,170 @@
-# ZSTD decoder
+# ZSTD Decoder
 
-The ZSTD decoder decompresses the correctly formed ZSTD frames and blocks. It
-implements the [RFC 8878](https://www.rfc-editor.org/rfc/rfc8878.html)
-decompression algorithm. An overview of the decoder architecture is presented in
-the diagram below. The decoder comprises:
+The ZSTD Decoder is a hardware module that decompresses Zstandard (ZSTD) frames
+that are correctly formed according to the format specified in
+[RFC 8878](https://datatracker.ietf.org/doc/html/rfc8878).
 
-* Memory Readers
-* Memory Writer,
-* Control and Status Registers,
-* Frame Header Decoder,
-* Block Header Decoder,
-* 3 types of processing units: RAW-, RLE-, and Compressed Block Decoders[^1],
-* Command Aggregator,
+# Quickstart
 
-The Decoder interacts with the environment through a set of ports:
+To run the DSLX simulation of the entire ZSTD decoder use:
+```
+bazel run -- //xls/modules/zstd:zstd_dec_dslx_test --logtostderr
+```
 
-* Memory Interface (AXI)
-* CSR Interface (AXI)
-* Notify line
+The Verilog files can be obtained with:
+```
+bazel build //xls/modules/zstd:zstd_dec_verilog
+```
 
-The software controls the core through registers accessible through the `CSR
-Interface`. The CSRs are used to configure the decoder and to start the decoding
-process.
+To run the Verilog simulation with cocotb use:
+```
+bazel test //xls/modules/zstd:zstd_dec_cocotb_test
+```
 
-ZSTD frames to decode are placed in a memory that should be connected to
-decoder's `Memory Interface`.
+Note that the generated Verilog alone is not sufficient to use the decoder.
+See the [top-level wrapper](#top-level-wrapper) section for details.
+
+# General Overview
+
+This chapter provides a general overview of the ZSTD decoder IO interface,
+configuration process and simplified description of it's operation.
+
+## IO Interface
+
+The decoder interacts with the environment via:
+
+- Memory Interface (AXI manager compatible) for reading input frames
+  and writing output data
+- CSR Interface (AXI subordinate compatible) for configuration and control
+- Notify line for signaling completion or errors
+
+Additionally, the ZSTD Decoder requires external RAM memories to store
+intermediate results generated during the decompression process.
+
+## Configuration
+
+The decoder is controlled through a set of Control and Status Registers (CSRs),
+which are used to:
+
+- Specify adresses of input and output buffers
+- Start the decoding process
+- Monitor the decoder state
+
+More details abot registers and controling the decoder from software
+can be found in [Registers description](#registers-description) and
+[Controlling from software](#controlling-from-software).
+
+## Decoding process
 
 Once the decoding process is started, the decoder:
 
-1.  Reads the configuration from the CSRs,
-2.  Decodes the Frame Header,
-3.  Decodes the Block Header,
-4.  Decodes the Block Data with the correct processing unit picked based on the
-    Block Type from the Block Header,
-5.  Aggregates the processing unit results in the correct order into a stream
-    and routes it to the history buffer,
-6.  Assembles the data block outputs based on the history buffer contents and
-    updates the history,
-7.  Prepares the final output of the decoder and writes it to the memory,
-8.  (Optional) Calculates checksum and compares it against the checksum read
-    from the frame.[^2]
+1. Reads the configuration from the CSRs
+1. Decodes the Frame Header
+1. Decodes the Block Header
+1. Runs the dedicated block decoder unit based on the block type
+1. Aggregates the processing unit results in the correct order into a stream and routes it to the sequence execution unit
+1. Assembles the data block outputs based on the history buffer contents and updates the history
+1. Prepares the final output of the decoder and writes it to the memory
 
-![brief data flow diagram of ZstdDecoder](img/ZSTD_decoder.png)
+# Architecture Overview
 
-## Registers description
+This section provides more detailed information about the architecture of
+the ZSTD decoder contained in this directory.
 
-The ZSTD Decoder operation is based on the values stored in a set of CSRs
-accessible to the user through the AXI bus. The registers are defined below:
+## About ZSTD format
 
-| Name | Address | Description |
-| ---- | ------- | ----------- |
-| Status | 0x0 | Keeps the code describing the current state of the ZSTD Decoder |
-| Start | 0x8 | Writing `1` when the decoder is in the `IDLE` state starts the decoding process |
-| Input Buffer | 0x10 | Keeps the base address for the input buffer that is used for storing the frame to decode |
-| Output Buffer | 0x18 | Keeps the base address for the output buffer, ZSTD Decoder will write the decoded frame into memory starting from this address. |
+A Zstandard file consists of one or more independently decodable frames.
+Each frame starts with a magic number followed by a frame header that specifies
+decoding parameters, including window size, the presence of a content checksum,
+and an optional original content size. Frame data is encoded as
+a sequence of blocks, each consisting of a block header and block data.
 
-### Status codes
+There are three block types: RAW blocks, which contain uncompressed data;
+RLE-compressed blocks, which consist of repetitions of a single symbol;
+and compressed blocks, which encode literals and sequences that are used to
+restore data using previously decoded bytes.
 
-The following is a list of all available status codes that can be written in the
-`Status` register.
+A compressed block comprises literals and sequences. Literals are data that
+cannot be expressed in terms of previously decoded historic data and must be
+stored explicitly. There are three types of literals:
+RAW, RLE, and Huffman-encoded. The Huffman tree itself can be transmitted in
+a raw uncompressed form or in an FSE-compressed form. Sequences describe how to
+combine historical data with literals to reconstruct the original block content.
+They consist of three values: literal length, match length, and offset.
+Sequences are always compressed using FSE, but the FSE decoding tables can be
+provided in various forms, including predefined tables from RFC 8878,
+or encoded using RLE or FSE.
 
-| Name | Value | Description |
-| ---- | ------- | ----------- |
-| IDLE | 0 | Previous decoding finished successfully. The decoder waits for the configuration and writes to the `Start` register. |
-| RUNNING | 1 | Decoding process is started |
-| READ_CONFIG_OK |2 | Successfully read configuration from the CSRs |
-| FRAME_HEADER_OK | 3 | Successfully decoded frame header |
-| FRAME_HEADER_CORRUPTED | 4 | Frame header data is not valid |
-| FRAME_HEADER_UNSUPPORTED_WINDOW_SIZE | 5 | The `WindowSize` parameter read from the frame header is not supported in the decoder |
-| BLOCK_HEADER_OK | 6 | Successfully read the header of the Zstd data block |
-| BLOCK_HEADER_CORRUPTED | 7 | Block type is `Reserved` |
-| BLOCK_HEADER_MEMORY_ACCESS_ERROR | 8 | Failure in communication with the memory |
-| RAW_BLOCK_OK | 9 | Successfully decoded raw data block |
-| RAW_BLOCK_ERROR | 10 | Failure in communication with the memory |
-| RLE_BLOCK_OK | 11 | Successfully decoded RLE data block |
+Decoded sequences and literals are combined in a step called sequence execution,
+which uses previously decoded data from a sliding history buffer to restore
+the original contents of the block.
 
-## Controlling the decoder from the software
+There are many additional details required to decode a ZSTD file correctly;
+all of them are specified in [RFC 8878](https://datatracker.ietf.org/doc/html/rfc8878).
+However, this short description provides enough insight to understand
+the ZSTD decoder contained in this directory.
 
-The configuration done by the software must be carried out when the decoder is
-in the `IDLE` state. It is the only time when the decoder will be able to take
-the configuration values from the CSRs and use those in the decoding process.
+## Top-level overview
 
-The software should first read the `Status` register to confirm that the decoder
-is in the `IDLE` state.
+The following diagrams presents the top-level view of the ZSTD decoder:
+![diagram of zstd decoder](img/zstd-decoder.png)
 
-Then, the software has to reserve the memory for the input buffer and write the
-frame to decode there. The address of the buffer should be written into `Input
-Buffer` register so that the decoder will know where to look for the frame to
-decode.
+The structure of the decoder reflects the shape of the ZSTD frame.
+The similarities between the frame structure are the ZSTD decoder could be
+seen on every level of the design hierarchy.
 
-The next step is to reserve the memory space for the decoded frame where the
-Decoder will write the decompressed data. The address to that buffer should be
-written to the `Output Buffer` register.
+At the top level, the `ZstdDecoderInternal` proc encapsulates the control logic
+for the entire decoding pipeline. It starts with reading the csr configuration
+that carries the information about the addresses of the input and output buffers.
+Then the main part of the decompression starts.
 
-Finally, it is possible to start the decoding process by writing `1` to the
-`Start` register. This orders the Decoder to read the configuration CSRs and
-start reading and decoding data stored in the input buffer. The Decoder
-transitions to the `RUNNING` state and then to other states that describe the
-status of the last operation finished in the decoder (see #status-codes for
-other possible status codes) which will be visible in the `Status` register.
+First the control block invkes the `FrameHeaderDecoder` to extract the basic
+properties of the encoded file and to verify that the decoder can process it.
+Besides the standard requirement for a decoder to have sufficient size of
+the history buffer (configurable), this implementation requires also
+information about the decompressed frame size.
 
-When the decoding process is finished the Decoder transitions back to the `IDLE`
-state and signals this on the `Notify` IRQ line. The decoded data is stored
-under the address configured previously in the `Output Buffer` register.
+This component, like many others in the system, accesses input data through
+a `MemoryReader`, which fetches data directly over the system bus.
+For each block, the control logic triggers decoding of the block header via
+the `BlockHeaderDecoder` followed by execution of the corresponding block decoder.
+The selected block decoder produces input for the `SequenceExecutor`,
+which is responsible for executing the decoded sequences.
 
-In case an error occurs during the decoding process it is also signaled on the
-`Notify` IRQ line and the error code is written to the `Status` CSR.
+Two types of packets can be sent to the sequence execution stage:
+- Packets generated by RAW and RLE block decoders, containing literals
+  that are directly copied to both the history buffer and the output.
+- Packets generated by compressed block decoder, which require
+  history-buffer lookups during sequence execution.
 
-## ZSTD decoder architecture
+The fully decompressed frame is emitted from the `SequenceExecutor` and written
+to memory using the `MemoryWriter`, which stores the output via the system bus.
 
-### Top level Proc
+## Top-level wrapper
 
-This state machine is responsible for controlling the operation of the whole
-decoder. It uses the configuration data from the CSRs, connects all underlying
-modules and sends processing requests to those based on the state of the
-machine. The states defined for the processing of the ZSTD frame are as follows:
+Note that the design generated from the ZstdDecoder top-module is not sufficient
+to run the design in hardware, as the decoder requires external RAMs.
+Because of that a simple wrapper is provided in the `rtl` directory.
+
+Additionally the wrapper is used to transalte the signals generated from
+XLS channels to output matching with AXI interfaces. All the external
+interfaces are collected with a third party
+[AXI interconnect](https://github.com/alexforencich/verilog-axi), so that
+the design exposes only two interfaces - one for subordinate
+and the other for manager site of the bus.
+
+The diagram below shows the structure of the Verilog wrapper:
+![verilog-wrapper](img/zstd-decoder-wrapper.png)
+
+## Description of individual modules
+
+### ZstdDecoderInternal
+
+This process implements the main control logic for the decoder and manages
+the entire decompression flow. It uses configuration data from the CSRs,
+coordinates all internal modules, and issues processing requests according to
+the current state. The state machine below defines the steps involved in
+processing a ZSTD frame:
 
 ```mermaid
 stateDiagram
@@ -161,379 +211,480 @@ stateDiagram
     ERROR --> IDLE
 ```
 
-After going through the initial stage of reading the configuration from the
-CSRs, the decoder sends the processing requests to the underlying parts of the
-decoder. The processing requests contain the addresses in the memory where
-particular parts of the encoded ZSTD frames reside. The decoder, based on
-responses from consecutive internal modules, calculates offsets from the base
-address that was written to `Input Buffer` CSR and forms the requests for the
-next internal modules, e.g.: for `BlockHeaderDecoder` or any of the processing
-units (`RawBlockDecoder`, `RleBlockDecoder`, `CompressedBlockDecoder`).
-
-Each of the internal modules waits for the processing request. Once received,
-the module fetches the data from the memory starting from the address received
-in the processing request. `MemReader` procs are used by those modules to
-communicate with the external memory through the AXI interface. Internal modules
-decode the acquired parts of the frame and return responses with the results
-back to the top level proc.
-
-The processing units also output the decoded blocks of data through a
-stream-based interface to the `SequenceExecutor` proc. This proc performs the
-last step of the decoding before the final output is sent out back to the memory
-under the address stored in the `Output Buffer` CSR by the `MemWriter` proc.
-Once the decoding process is completed and the decoded frame is written back to
-the memory, the decoder sends the `Notify` signal and transitions back to the
-`IDLE` state.
-
-### Internal modules
-
-#### FrameHeaderDecoder
-
-This proc receives requests with the address of the beginning of the ZSTD frame.
-It then reads the frame data from the memory and starts parsing the frame
-header. If the magic number is not detected or the frame header is invalid, the
-proc will send a response with an error code. Otherwise, it will put the frame
-header into internal DSLX representation, calculate the length of the header and
-send those as a response with `OKAY` status.
-
-#### BlockHeaderDecoder
-
-ZSTD block header size is always 3 bytes. BlockHeaderDecoder always reads 4
-bytes of data. It extracts the information on block type, size and whether the
-block is the last one in the ZSTD frame and puts that data in the response. The
-additional byte is also placed in the response as an optimization for the
-RleBlockDecoder.
-
-#### RawBlockDecoder
-
-This proc passes the data read from the memory directly to its output channel.
-It preserves the block ID and attaches a tag, stating that the data contains
-literals and should be placed in the history buffer unchanged, to each data
-output.
-
-#### RleBlockDecoder
-
-This proc receives a tuple (s, N), where s is an 8-bit symbol and N is an
-accompanying `symbol_count`. It does not have to read the 8-bit symbol from the
-memory because `BlockHeaderDecoder` did that before and passed the symbol in the
-processing request to the `RleBlockDecoder`. The proc produces `N*s` repeats of
-the given symbol. This step preserves the block ID and attaches the literals tag
-to all its outputs.
-
-#### CompressedBlockDecoder[^1]
-
-This part of the design is responsible for decoding the compressed data blocks.
-It ingests the bytes stream, and internally translates and interprets incoming
-data. Only this part of the design creates data chunks tagged both with
-`literals` and/or `copy`. This step preserves the block ID. More in-depth
-description can be found in [Compressed block decoder
-architecture](#compressed-block-decoder-architecture1) paragraph of this doc.
-
-#### Commands aggregator (DecMux)
-
-This stage takes the output from either RAW, RLE or CompressedBlockDecoder and
-sends it to the History buffer and command execution stage. This stage orders
-streams based on the ID value assigned by the top level proc. It is expected
-that single base decoders (RAW, RLE, compressed block decoder) will be
-continuously transmitting a single ID to the point of sending the `last` signal
-which marks the last packet of currently decoded block. That ID can change only
-when mux receives the `last` signal or `last` and `last_block` signals.
-
-It works as a priority mux that waits for a stream with the expected ID. It
-continues to read that stream until the `last` signal is set, then it switches
-to the next stream ID.
-
-The command aggregator starts by waiting for `ID = 0`, after receiving the
-`last` signal it expects `ID = 1` and so on. Only when both `last` and
-`last_block` are set the command aggregator will wait for `ID = 0`.
-
-#### History buffer and command execution (SequenceExecutor)
-
-This stage receives data which is tagged either `literals` or `copy`. This stage
-will show the following behavior, depending on the tag:
-
-* `literals`
-    *   Packet contents placed as newest in the history buffer,
-    *   Packet contents copied to the decoder's output,
-* `copy`
-    *   Wait for all previous writes to be completed,
-    *   Copy `copy_length` literals starting `offset _length` from the newest in
-        history buffer to the decoder's output,
-    *   Copy `copy_length` literals starting `offset _length` from the newest in
-        history buffer to the history buffer as the newest.
+### AxiCsrAccessor
 
-### Compressed block decoder architecture[^1] {#compressed-block-decoder-architecture1}
+This proc provides an AXI interface to the CSRs of the Decoder.
+Any read / write operation on the AXI is translated to a read / write operation
+on the CSRs.
 
-This part of the design is responsible for processing the compressed blocks up
-to the `literals`/`copy` command sequence. This sequence is then processed by
-the history buffer to generate the expected data output. An overview of the
-architecture is provided in the diagram below. The architecture is split into 2
-paths: the literals path and the sequence path. Architecture is split into 3
-paths: literals path, FSE encoded Huffman trees and sequence path. Literals path
-uses Huffman trees to decode some types of compressed blocks: Compressed and
-Treeless blocks.
+### CsrConfig
 
-![data flow diagram of compressed block decoder](img/ZSTD_compressed_block_decoder.png)
+This proc implements the Control and Status Registers (CSRs). It's responsible
+for storing the state of the registers and handling read / write operations.
 
-#### Compressed block dispatcher
+### FrameHeaderDecoder
 
-This proc parses literals section headers to calculate block compression format,
-Huffmman tree size (if applicable based on compression format), compressed and
-regenerated sizes for literals. If compressed block format is
-`Compressed_Literals_Block`, dispatcher reads Huffman tree header byte from
-Huffman bitstream, and directs expected number of bytes to the Huffman tree
-decoder. Following this step, the proc sends an appropriate number of bytes to
-the literals decoder dispatcher.
+This proc receives the address of the start of a ZSTD frame, reads the frame
+data from memory, and parses the frame header. If the magic number is invalid
+or the header is corrupted, it responds with an error code. Otherwise,
+it converts the header into an internal DSLX representation, calculates its
+length, and responds with `OKAY` status.
 
-After sending literals to literals decompression, it redirects the remaining
-bytes to the sequence parsing stages.
+### BlockHeaderDecoder
 
-#### Command Constructor
+It extracts the block type, size, and whether it is the last block in the frame,
+and returns this information in the response.
+ZSTD block headers are 3 bytes, but this proc always reads 4 bytes.
+The extra byte is included to optimize processing for the RleBlockDecoder.
 
-This stage takes literals length, offset length and copy length. When `literals
-length` is greater than 0, it will send a request to the literals buffer to
-obtain `literals length` literals and then send them to the history buffer. Then
-based on the offset and copy length it either creates a match command using the
-provided offset and match lengths, or uses repeated offset and updates the
-repeated offset memory. Formed commands are sent to the Commands aggregator
-(mux).
+### DecoderMux
 
-#### Literals path architecture
+This stage collects outputs from `RAW`, `RLE`, or `CompressedBlockDecoder`
+and forwards them to the history buffer and command execution stage.
+Streams are processed in ID order assigned by the top-level proc.
+Each decoder sends a single ID until the last packet of the block.
+The aggregator waits for the expected ID, reads it until the last signal,
+then moves to the next ID, starting from 0 and wrapping back after both `last`
+and `last_block` are set.
 
-![data flow diagram of literals decoder](img/ZSTD_compressed_block_literals_decoder.png)
+### RamPassthrough
 
-##### Literals decoder dispatcher
+This proces is a simple wrapper for routing both read and write side of
+RAM interface through a single proc, so the ram rewritting step available
+in XLS toolchain can rewrite it to proper RAM interface in verilog.
 
-This proc parses and consumes the literals section header. Based on the received
-values it passes the remaining bytes to RAW/RLE/Huffman tree/Huffman code
-decoders. It also controls the 4 stream operation mode [4-stream mode in
-RFC](https://www.rfc-editor.org/rfc/rfc8878.html#name-jump_table).
+### SequenceExecutor
 
-All packets sent to the Huffman bitstream buffer will be tagged either
-`in_progress` or `finished`. If the compressed literals use the 4 streams
-encoding, the dispatcher will send the `finished` tag 4 times, each time a fully
-compressed stream is sent to the bitstream buffer.
+This block is responsible for managing `HistoryBuffer` using the data obtained
+from `RawBlockDecoder`, `RleBlockDecoder` and `CompressBlockDecoder`.
+The data comming from RAW and RLE block are sent directy to the output and
+history buffer. Wheras data from `CompressBlockDecoder` (sequences and literals)
+are processed first in the
+[sequence execution](https://datatracker.ietf.org/doc/html/rfc8878#name-sequence-execution) step.
 
-##### RAW Literals
+### RawBlockDecoder
 
-This stage simply passes the incoming bytes as literals to the literals buffer.
+This proc forwards the block data directly to its output channel.
+It preserves the block ID and tags all data as literals to be placed
+unchanged in the history buffer.
 
-##### RLE Literals
+### RleBlockDecoder
 
-This stage works similarly to the [RLE stage](#rleblockdecoder) for RLE data
-blocks.
+This proc receives a tuple `(s, N)` where `s` is an 8-bit symbol and `N` is
+the repeat count. The symbol is provided by `BlockHeaderDecoder`.
+The proc outputs `N` repetitions of the symbol, preserves the block ID,
+and tags all outputs as literals.
 
-##### Huffman bitstream buffer
+### CompressBlockDecoder
 
-This stage takes data from the literals decoder dispatcher and stores it in the
-buffer memory. Once the data with the `finished` tag set is received, this stage
-sends a tuple containing (start, end) positions for the current bitstream to the
-Huffman codes decoder. This stage receives a response from the Huffman codes
-decoder when decoding is done and all bits got processed. Upon receiving this
-message, the buffer will reclaim free space.
+This proc includes the `LiteralsDecoder` and `SequenceDecoder`,
+which decode literals and sequences, along with control logic that manages
+the decompression process. Both decoders use multiple sub-procs.
 
-##### Huffman codes decoder
+The diagram below illustrates the structure of the `CompressedBlockDecoder`:
+![Compress Block Decoder](img/zstd-compress-block-decoder.png)
 
-This stage receives bitstream pointers from the Huffman bitstream buffer and
-Huffman tree configuration from the Huffman tree builder. It accesses the
-bitstream buffers memory to retrieve bitstream data in reversed byte order and
-runs it through an array of comparators to decode Huffman code to correct
-literals values.
+## LiteralsDecoder
 
-##### Literals buffer
+LiteralsDecoder block is used to decode literals, it comprises of a
+dedicated `LiteralsHeaderDecoder` responsible for decoding the header of the
+literals section, `RawLiteralsDecoder`, `RleLiteralsDecoder` and `HuffmanLiteralsDecoder`
+for decoding three types of the literals that can be present in the literals section
+and `LiteralsBuffer` for storing the decoded literals. The control
+logic controling the decoding process is encapsulated in `LiteralsDecoderCtrl` block
 
-This stage receives data either from RAW, RLE or Huffman decoder and stores it.
-Upon receiving the literals copy command from the Command Constructor for `N`
-number of bytes, it provides a reply with `N` literals.
+![LiteralsDecoder](img/literals-decoder.png)
 
-#### FSE Huffman decoder architecture
+## RawLiteralsDecoder
 
-![data flow diagram of weight decoders](img/ZSTD_compressed_block_Huffman_decoder.png)
+This proc is responsible for fetching literals from a given address in memory
+and streaming them out as literal tokens.
 
-##### Huffman tree decoder dispatcher
+## RleLiteralsDecoder
 
-This stage parses and consumes the Huffman tree description header. Based on the
-value of the Huffman descriptor header, it passes the tree description to the
-FSE decoder or to direct weight extraction.
+This proc expands repeated symbols into literal data. On request, it receives
+the information about the symbol to be repeated and the regenerated size.
+It streams the symbol multiple times to satisfy the regenerated size.
 
-##### FSE weight decoder
+## HuffmanLiteralsDecoder
 
-This stage performs multiple functions.
+This is a module that wires together procs needed to decode Huffman-encoded
+literals: `HuffmanControlAndSequence`, `HuffmanWeightsDecoder`, `WeightPreScan`,
+`WeightCodeBuilder`, `HuffmanDataPreprocessor`, `HuffmanDecoder`, along with
+procs needed for memory access.
+
+## HuffmanWeightsDecoder
+
+This proc decodes Huffman tree weights from memory. It supports both RAW and
+FSE formats. It fetches the Huffman tree description from memory, decodes it,
+and writes the decoded weights into an internal RAM.
 
-1.  It decodes and builds the FSE distribution table.
-2.  It stores all remaining bitstream data.
-3.  After receiving the last byte, it translates the bitstream to Huffman
-    weights using 2 interleaved FSE streams.
+![HuffmanWeightsDecoder](img/huffman-weights-decoder.png)
 
-##### Direct weight decoder
+## LiteralsBuffer
 
-This stage takes the incoming bytes and translates them to the stream of Huffman
-tree weights. The first byte of the transfer defines the number of symbols to be
-decoded.
+This module provides interfaces to store and retrieve literals. It handles all
+types of decoded literals (RAW, RLE, and Huffman), and stores them in RAM. The
+module offers a uniform interface to access these literals, treating all types
+consistently.
+
+## SequenceDecoder
+
+This proc is responsible for decoding sequences. Its work consists of decoding
+the sequence header and decoding FSE lookups for LL, OF and ML into execution
+commands.
+
+![SequenceDecoder](img/sequence-decoder.png)
+
+
+# Registers description
+
+The ZSTD Decoder operation is based on the values stored in a set of CSRs
+accessible to the user through the AXI bus. The registers are defined below:
+
+| Register      | Address | Description                        |
+|---------------|---------|------------------------------------|
+| Status        | 0x00    | Current decoder state              |
+| Start         | 0x08    | Write 1 in IDLE to start decoding  |
+| Input Buffer  | 0x10    | Base address of input frame        |
+| Output Buffer | 0x18    | Base address of output buffer      |
+
+### Status codes
+
+The following is a list of all available status codes that can be written in the
+`Status` register.
+
+| Name                                 | Value | Description                                       |
+|--------------------------------------|-------|-------------------------------------------------- |
+| IDLE                                 | 0     | Decoder idle, waiting for configuration and start |
+| RUNNING                              | 1     | Decoding in progress                              |
+| READ_CONFIG_OK                       | 2     | Configuration read successfully                   |
+| FRAME_HEADER_OK                      | 3     | Frame header decoded                              |
+| FRAME_HEADER_CORRUPTED               | 4     | Invalid frame header                              |
+| FRAME_HEADER_UNSUPPORTED_WINDOW_SIZE | 5     | Unsupported window size                           |
+| BLOCK_HEADER_OK                      | 6     | Block header decoded                              |
+| BLOCK_HEADER_CORRUPTED               | 7     | Reserved block type                               |
+| BLOCK_HEADER_MEMORY_ACCESS_ERROR     | 8     | Memory access error                               |
+| RAW_BLOCK_OK                         | 9     | RAW block decoded                                 |
+| RAW_BLOCK_ERROR                      | 10    | RAW block memory error                            |
+| RLE_BLOCK_OK                         | 11    | RLE block decoded                                 |
+
+# Controlling from software
+
+Software configuration must be performed while the decoder is in
+the `IDLE` state, which is the only state in which CSRs are read and applied.
+The software should first read the `Status` register to confirm the IDLE state.
+It must then allocate memory for the input buffer, write the ZSTD frame to it,
+and store its base address in the `Input Buffer` register.
+Next, the software must allocate memory for the output buffer and writes
+its base address to the `Output Buffer` register.
+
+Decoding is started by writing `1` to the `Start` register.
+The decoder reads the configuration, transitions to the RUNNING state,
+and begins decoding the input data. Upon successful completion,
+the decoder returns to the `IDLE` state, asserts the `Notify` IRQ line,
+and writes the decoded data to the output buffer. If an error occurs,
+the decoder asserts the `Notify` IRQ line and writes the corresponding error
+code to the `Status` register.
+
+# Testing methodology
+
+Testing is performed at two levels: decoder components and the
+integrated decoder.
+
+Individual components are tested using DSLX tests on various,
+usually small inputs that test dedicated scenarios. Most of the proc should
+have dedicated tests in DSLX.
+
+Integration tests for the entire decoder are performed at both
+DSLX and Verilog levels by comparing the decoder output against
+the ZSTD reference library. Due to limitations of the frame generator,
+only valid ZSTD frames are currently tested.
+
+Verilog tests use [cocotb](https://github.com/cocotb/cocotb) testbenches
+with [cocotbext-axi](https://github.com/alexforencich/cocotbext-axi) extension
+to model AXI memory and interact with CSR interfaces. The AXI manager from
+the cocotb extension is used to interface with the decoder's CSRs
+to simulate software control.
+
+A basic integration test:
+
+1. Generates a ZSTD frame using [decodecorpus](https://github.com/facebook/zstd/blob/dev/tests/decodecorpus.c)
+1. Places the frame in AXI-connected memory.
+1. Produces the expected output using the original [zstd library](https://github.com/facebook/zstd).
+1. Configures and starts the decoder via CSRs.
+1. Waits for `Notify` signal and compares memory output with the expected result.
+1. Checks that the decoder returns to `IDLE` state with a `OKAY` in the `Status` CSR
 
-##### Weight aggregator
+## Failure points
 
-This stage receives tree weights either from the FSE decoder or the direct
-decoder and transfers them to Huffman tree builder. This stage also resolves the
-number of bits of the final weight and the max number of bits required in the
-tree representation. This stage will emit the weights and number of symbols of
-the same weight before the current symbol for all possible byte values.
+The tests report a failure if any of the following conditions occur:
 
-##### Huffman tree builder
+- The top-level state machine enters the `ERROR` state due
+  to corrupted input data.
+- An `assert!()` or `fail!()` is triggered during simulation,
+  indicating an internal error or incorrect decoder configuration.
+- The decoded output size or content differs from the output of the reference
+  zstd library.
+- Intermediate decoding results are incorrect, such as an invalid FSE table or
+  incorrect Huffman weights or codes.
+- The input data requires a larger history buffer than supported by
+  the current decoder configuration, indicating a mismatch between
+  the test file and decoder setup.
+
+### Failures trigered by internal components
+
+Some errors, such as invalid magic numbers or frame headers, can be triggered
+by modifying generated ZSTD frames. However most errors require deeper changes
+to the compressed frame, so DSLX component tests are preferred for focused testing.
+
+Components may trigger `assert!()` or `fail!()` or propagate error states to
+the top-level controller, causing it to enter the `ERROR` state.
+In this state, the decoder writes an error code to the `Status` CSR and
+asserts the `Notify` signal.
+
+The `ERROR` state can occur under these conditions:
+- Frame header corruption
+  - Invalid magic number (not 0xFD2FB528)
+  - Reserved bit set
+  - Window size exceeding `WINDOW_LOG_MAX` (0x78000000)
+- Block header corruption
+  - Block type set to `RESERVED`
+- Raw block memory access error
+
+Assertions and failures occur in the following modules:
+
+- `DecoderMux`: `ExtendedBlockDataPacket` with an ID less than any previously processed packet, or missing ID 0 at the start of a frame
+- `HuffmanDecoder` when input data cause invalid state transition
+- `HuffmanFseDecoder` when the FSE-encoded stream of weight contains 8 or more bits of padding
+- `AxiCsrAccessor` on access to non-existing CSR
+- `CompLookupDecoder` when the accuracy log of FSE table to decode is bigger then the maximal allowed value
+- `FseTableCreator` when thee corruption is detected during decoding of FSE lookup
+- `FseDecoder` when the FSE-encoded stream of sequences contains 8 or more bits of padding
+- `RefillingShiftBuffer` when internal state of the proc is incorrect
 
-This stage takes `max_number_of_bits` (maximal length of Huffman code) as the
-first value, then the number of symbols with lower weight for each possible
-weight (11 bytes), followed by a tuple (number of preceding symbols with the
-same weight, symbol's_weight). It's expected to receive weights for all possible
-byte values in the correct order. Based on this information, this stage will
-configure the Huffman codes decoder.
+Several `impossible cases` are also covered by `fail!()`, they should never
+be triggered and were added to satisfy the type checking system.
+
+# ZSTD Encoder
+
+The ZSTD encoder provided in this directory is a work in progress.
+Eventually, it should be compliant with
+[RFC 8879](https://www.rfc-editor.org/rfc/rfc8878.html).
+The encoder should act as a peripheral on the AXI bus and should expose input,
+output, and a separate control interface.
+
+Currently, only input and output are exposed, and the configuration parameters
+are placed directly in the code of the encoder.
 
-#### Sequence path architecture
+## Architecture
 
-![data flow diagram of sequence decoder](img/ZSTD_compressed_block_sequence_decoder.png)
+The encoder consists of a few independent blocks that are used together
+to generate the ZSTD-encoded bitstream.
+
+The general architecture of the design is presented in the picture below:
+![ZSTD encoder](/home/rwinkler/Projects/xls_ws2/encoder.png)
+
+### ZstdEncoder
 
-##### Sequence Header parser and dispatcher
+`ZstdEncoder` is a proc that aggregates multiple modules needed to compress
+data located in memory. The proc must be connected to memory and will
+communicate with it using the `MemReader` and `MemWriter` procs. They are
+defined in `modules/zstd/memory/mem_{reader,writer}.x` files.
 
-This stage parses and consumes `Sequences_Section_Header`. Based on the parsed
-data, it redirects FSE description to the FSE table decoder and triggers
-Literals FSE, Offset FSE or Match FSE decoder to reconfigure its values based on
-the FSE table decoder. After parsing the FSE tables, this stage buffers
-bitstream and starts sending bytes, starting from the last one received as per
-ZSTD format. Bytes are sent to all decoders at the same time. This stage
-monitors and triggers sequence decoding phases starting from initialization,
-followed by decode and state advance. FSE decoders send each other the number of
-bits they read.
+Upon receiving a request, ZstdEncoder requests input data from `MemReader`,
+constructs a single frame with the data encoded as RAW blocks, and writes it
+to memory using `MemWriter`.
 
-##### Literals FSE decoder
+The number of generated blocks depends on the request
+(`max_block_size` and `data_size`).
 
-This stage reconfigures its FSE table when triggered from [sequence header parse
-and dispatcher](#sequence-header-parser-and-dispatcher). It initializes its
-state as the first FSE decoder. In the decode phase, this stage is the last one
-to decode extra raw bits from the bitstream, and the number of ingested bits is
-transmitted to all other decoders. This stage is the first stage to get a new
-FSE state from the bitstream, and it transmits the number of bits it used.
+### Frame Header Generator
 
-##### Offset FSE decoder
+The Frame Header Generator is responsible for creating a
+[Frame Header](https://datatracker.ietf.org/doc/html/rfc8878#section-3.1.1.1)
+that contains the compression parameters.
 
-This stage reconfigures its FSE table when triggered from [sequence header parse
-and dispatcher](#sequence-header-parser-and-dispatcher). It initializes its
-state as the second FSE decoder. In the decode phase, this stage is the first
-one to decode extra raw bits from bitstream, and the number of ingested bits is
-transmitted to all other decoders. This stage is the last decoder to update its
-FSE state after the decode phase, and it transmits the number of used bits to
-other decoders.
+To simplify the decoding process, the length of the decoded stream is always
+included in the header. This means that the `Frame_Content_Size` field is
+always present.
 
-##### Match FSE decoder
+### Block Header Writer
 
-This stage reconfigures its FSE table when triggered from [sequence header parse
-and dispatcher](#sequence-header-parser-and-dispatcher). It initializes its
-state as the last FSE decoder. In the decode phase, this stage is the second one
-to decode extra raw bits from the bitstream, and the number of ingested bits is
-transmitted to all other decoders. This stage is the second stage to update its
-state after the decode phase, and the number of used bits is sent to all other
-decoders.
-
-## Testing methodology
-
-Testing of the `ZSTD decoder` is carried out on two levels:
-
-* Decoder components
-* Integrated decoder
-
-Each component of the decoder is tested individually in DSLX tests. Testing on
-the DSLX level allows the creation of small test cases that test for positive
-outcomes of a given part of the design. When need be, those test cases can be
-also modified by the user to better understand how the component operates.
-
-Tests of the integrated ZSTD decoder are carried out on DSLX and Verilog levels.
-The objective of those is to verify the functionality of the decoder as a whole.
-Testing setup for the ZSTD decoder is based on comparing the simulated decoding
-results against the decoding of the reference library. Currently, due to the
-restrictions from the ZSTD frame generator, it is possible to test only the
-positive cases (decoding valid ZSTD frames).
-
-ZstdDecoder's main communication interfaces are the AXI buses. Due to the way
-XLS handles the codegen of DSLX channels that model the AXI channels, the
-particular ports of the AXI channels are not represented correctly. This
-enforces the introduction of a Verilog wrapper that maps the ports generated by
-XLS into proper AXI ports (see AXI peripherals [README](memory/README.md) for
-more information). Additionally, the wrapper is used to mux multiple AXI
-interfaces from `Memory Readers` and `Memory Writer` into a single
-outside-facing AXI interface (`Memory Interface`) that can be connected to the
-external memory. The mux is implemented by a third-party [AXI
-Crossbar](https://github.com/alexforencich/verilog-axi).
-
-![diagram of interfaces of decoder and its wrapper](img/ZSTD_decoder_wrapper.png)
-
-### Failure points
-
-#### User-facing decoder errors
-
-The design will fail the tests under the following conditions:
-
-* Straightforward failures:
-  * Top Level State Machine transitions to `ERROR` state
-  * Simulation encounters `assert!()` or `fail!()` statements
-  * The decoding result from the simulation has a different size than the
-    results from the reference library
-  * The decoding result from the simulation has different contents than the
-    results from the reference library
-
-Currently, all mentioned conditions lead to an eventual test failure.
-
-#### Failures in ZSTD Decoder components
-
-It is important to note that some of the errors (e.g. errors in magic number or
-frame header decoding) are easy to trigger in the integration test cases by
-manual modification of the generated ZSTD frames. However, the majority of the
-errors require modification of the deeper parts of the raw ZSTD frame which is
-significantly harder. Because of that, it is better to rely on DSLX tests for
-the individual components where inputs for the test cases are smaller, easier to
-understand and modify when needed.
-
-The components of the ZSTD decoder can fail on `assert!()` and `fail!()`
-statements or propagate specific error states to the Top Level Proc and cause it
-to transition to the `ERROR` state. Upon entering the `ERROR` state, the decoder
-will write a specific error code to the `Status` CSR and send a `Notify` signal
-to the output. The interacting software can then read the code from the register
-and properly handle the error.
-
-The following enumeration will describe how to trigger each possible ZSTD
-Decoder error.
-
-The `ERROR` state can be encountered under the following conditions when running
-Top Level Proc Verilog tests but also in DSLX tests for the specific components:
-
-* Corrupted data on the frame header decoding stage
-  * Provide data for the decoding with the first 4 bytes not being the valid
-`Magic Number` (0xFD2FB528)
-  * Set the `Reserved bit` in the frame header descriptor
-  * Set `Window Size` in frame header to value greater than `max window size`
-calculated from current `WINDOW_LOG_MAX` (by default in Top Level Proc tests
-`Window Size` must be greater than `0x78000000` to trigger the error)
-* Corrupted data during Block Header decoding
-  * Set the `Block Type` of any block in the ZSTD frame to `RESERVED`
-
-The `assert!()` or `fail!()` will occur in:
-
-*   RawBlockDecoder
-    *   Receive `BlockDataPacket` with `ID` different than the previous packet
-        which did not have the `last` flag set
-*   DecoderMux
-    *   At the beginning of the simulation or after receiving
-        `ExtendedBlockDataPacket` with `last` and `last_block` (decoding new
-        ZSTD frame) set receive on channels `raw_r`, `rle_r` and `cmp_r`
-        `ExtendedBlockDataPackets` without any of those having `ID==0`
-    *   Receive `ExtendedBlockDataPacket` with a smaller `ID` than any of the
-        previously processed packets during the current ZSTD frame decoding
-*   SequenceExecutor
-    *   Receive `SequenceExecutorPacket` with `msg_type==SEQUENCE` and `content`
-        field with value: `0`
-
-There are also several `impossible cases` covered by `fail!()`.
-Those are mostly enforced by the type checker for the `match` expressions to
-cover unreachable cases.
-This is done for example in:
-
-* Frame header decoder
-* SequenceExecutor
+The BlockHeaderWriter proc is responsible for creating a Block Header
+in memory. Upon request, `BlockHeaderWriter` constructs a request to `MemWriter`
+with the provided Block Header information.
+
+### Match Finder
+
+The `MatchFinder` block processes the data stream, searching for repeating
+symbol patterns in its history. Symbols not found in the history are stored
+directly as literals in the literals buffer, while symbols that have matches
+are stored as sequences in the sequence buffer, using the matched offset
+and length information.
+
+Upon receiving a request, the `MatchFinder` starts the history-matching process.
+It reads data from the input buffer and sends it directly to the history buffer.
+At the same time, it sends requests to the hash table to check for available
+matches. If a match occurs, it reads the history buffer to determine how many
+symbols following the match are repeating. If enough symbols repeat, it writes
+the sequence description to the sequence buffer.
+If the symbol does not repeat, it is written to the literals buffer.
+
+Literals are stored as-is. Sequences are encoded using the number of literals
+that need to be copied from the last repetition, the match offset, and
+the match length, each taking 16 bits.
+
+### Hash Table
+
+A simple hash table is used for fast lookup of repeating symbols in
+the input data buffer. This table is implemented as RAM, where the address
+serves as the key, and the data stored at that address represents the value.
+
+For compression, a set of symbols is hashed to generate a key using Knuth’s
+multiplicative hashing, with `0x1e35a7bd` used as the constant:
+
+```
+hash = (value * CONSTANT) >> (32 - HASHBITS)
+```
+
+The selected constant is a bijection for values in the range 0 to 2^32−1 and
+has a good distribution of ones and zeros. `HASHBITS` should be adjusted so
+that the hash uses the most well-mixed values.
+
+The original symbols, together with their relative offset in the input buffer,
+are stored as the value. The original symbols are used to check matches.
+
+### History Buffer
+
+The History Buffer is used to track historical data. After a match is detected,
+it is used to check how many symbols following the match are equal.
+It can be implemented using a group of RAMs so that reads from arbitrary
+offsets still return valid data.
+
+The part related to managing multiple RAMs can be separated into a
+`AlignedParallelRAM` proc. The `HistoryBuffer` can then be implemented on top of it.
+The difference between these procs is that the HistoryBuffer refers to offsets
+from its top (how many symbols back to read), instead of using absolute
+addresses like the `AlignedParallelRAM` proc.
+
+### RawMemcopy
+
+The `RawMemcopy` block copies data from the input memory to the output memory
+without any modification. It is used by `LiteralEncoder` when encoding RAW
+literals.
+
+### RleBlockEncoder
+
+The `RleBlockEncoder` encodes RLE literals. It first uses a simple heuristic to
+check whether a block can be RLE-encoded. This is done by sampling the block at
+uniform positions and checking whether all samples have the same value. If they
+differ, the block is rejected early. If the samples match, the block is fully
+checked. When encoding is possible, the encoder outputs a symbol and the number
+of times it appears in the input stream.
+
+### SequenceEncoder
+
+The `SequenceEncoder` encodes sequences stored in the sequence buffer using FSE
+coding. It uses predefined FSE tables for the encoding process.
+
+### AlignedParallelRam
+
+The `AlignedParallelRam` proc combines eight RAMs, one per byte, to allow reading
+and writing each byte of a 64-bit wide memory in a single cycle. It is used by
+the `HistoryBuffer`.
+
+### CompressBlockEncoder
+
+The `CompressBlockEncoder` uses the `LiteralsEncoder` and the
+`SequenceEncoder` to produce
+[compressed blocks](https://datatracker.ietf.org/doc/html/rfc8878#name-compressed-blocks)
+from the input data.
+
+### MemReaderMux / MemWriterMux
+
+These procs allow multiple procs to share a single `MemReader` or `MemWriter`.
+They do this by multiplexing several input interfaces into one `MemReader` or
+`MemWriter` proc.
+
+### MemReaderSimpleArbiter / MemWriterSimpleArbiter
+
+These procs implement a simple round-robin arbiter. They control the
+`MemReaderMux` and `MemWriterMux` so that access to the `MemReader` and
+`MemWriter` interfaces is granted automatically.
+
+### LiteralSectionHeaderWriter
+
+The `LiteralSectionHeaderWriter` creates the
+[literals section header](https://datatracker.ietf.org/doc/html/rfc8878#section-3.1.1.3.1)
+and writes it to memory
+
+
+### SequenceConfEncoder
+
+The `SequenceConfEncoder` creates the
+[sequence section header](https://datatracker.ietf.org/doc/html/rfc8878#name-sequences_section_header)
+and writes it to memory.
+
+## Tests
+
+Testing of the ZSTD encoder is carried out on two levels:
+
+* Encoder components
+* Integrated encoder
+
+Each component of the encoder is tested individually using DSLX tests.
+Testing at the DSLX level allows the creation of small test cases that check
+the correct behavior of a given part of the design.
+
+When needed, these test cases can be modified by the user to better understand
+how the component operates.
+
+Tests of the integrated ZSTD encoder are carried out at the DSLX and
+Verilog levels. The objective is to verify the functionality of
+the encoder as a whole.
+
+- DSLX-level tests use hardcoded input and output.
+- Verilog-level tests feed random input to the simulated encoder,
+  decompress its output using a reference implementation, and compare
+  the result against the input.
+
+The basic test case for the ZstdEncoder is composed of the following steps:
+
+1. The testbench generates random input data.
+2. Input data is placed in an AXI RAM model connected to the encoder’s memory
+   interface.
+3. The testbench waits for the encoder response and forwards the encoder output
+   stored in memory to a reference decoder implementation.
+4. The result is compared against the input data.
+
+### Verilog Tests Details
+
+Verilog tests are written in Python using a
+[cocotb](https://github.com/cocotb/cocotb) testbench.
+
+ZstdEncoder’s main communication interfaces are AXI buses. Due to the way
+XLS handles code generation of DSLX channels that model AXI channels,
+the generated ports do not correctly represent AXI signals.
+This requires the use of a [Verilog wrapper](rtl/zstd_enc_wrapper.v)
+that maps the generated ports to proper AXI ports
+(see the AXI peripherals [README](memory/README.md) for more information).
+
+The cocotb testbench interacts with the encoder using
+the [cocotbext-axi](https://github.com/alexforencich/cocotbext-axi)
+extension, which provides AXI bus models, drivers, monitors,
+and an AXI-accessible RAM model. A cocotb AXI Master is connected to
+the encoder’s CSR interface and is used to simulate software interaction
+with the encoder.
+
+## Limitations
+
+Not all heuristics used in the reference software implementation are feasible
+in hardware. As a result, the hardware implementation may produce worse
+compression in some cases.
+
+As of the current version of the encoder:
+- The top module produces uncompressed output, but it is packed in proper
+  ZSTD control structures.
+- Procs strictly related to compression, such as the Match Finder, are not yet
+  integrated into the encoding flow.

@@ -26,16 +26,17 @@ import xls.modules.zstd.ram_demux;
 import xls.modules.zstd.ram_mux;
 import xls.modules.zstd.refilling_shift_buffer;
 import xls.modules.zstd.fse_dec;
-import xls.modules.zstd.shift_buffer;
 import xls.modules.zstd.fse_table_creator;
 
 
-type SequenceExecutorPacket = common::SequenceExecutorPacket<common::SYMBOL_WIDTH>;
+type SequenceExecutorPacket = common::SequenceExecutorPacket<common::SYMBOLS_IN_PACKET>;
+type CopyOrMatchContent = common::CopyOrMatchContent;
 type SequenceExecutorMessageType = common::SequenceExecutorMessageType;
 
 type BlockSyncData = common::BlockSyncData;
 type CommandConstructorData = common::CommandConstructorData;
 type CompressionMode = common::CompressionMode;
+type Remainder = common::Remainder;
 
 enum SequenceDecoderStatus: u3 {
     OK = 0,
@@ -51,22 +52,6 @@ pub struct SequenceDecoderReq<ADDR_W: u32> {
 
 pub struct SequenceDecoderResp {
     status: SequenceDecoderStatus,
-}
-
-enum SequenceDecoderFSM: u3 {
-    IDLE = 0,
-    DECODE_SEQUENCE_HEADER = 1,
-    PREPARE_LL_TABLE = 2,
-    PREPARE_OF_TABLE = 3,
-    PREPARE_ML_TABLE = 4,
-
-    ERROR = 7,
-}
-
-struct SequenceDecoderState<ADDR_W: u32> {
-    fsm: SequenceDecoderFSM,
-    req: SequenceDecoderReq<ADDR_W>,
-    conf_resp: sequence_conf_dec::SequenceConfDecoderResp,
 }
 
 struct FseLookupCtrlReq {
@@ -87,14 +72,19 @@ struct FseLookupCtrlState {
     mode_valid: bool,
     cnt: u2,
     accuracy_logs: u7[3],
+    remainder: common::Remainder,
 }
 
 struct FseLookupCtrlInternalReq {
     cnt: u2,
-    is_rle: bool
+    is_rle: bool,
+    remainder: common::Remainder,
 }
 
-type FseLookupCtrlInternalResp = u7;
+struct FseLookupCtrlInternalResp {
+    accuracy_log: u7,
+    remainder: common::Remainder,
+}
 
 pub proc FseLookupCtrlInternal {
     type Req = FseLookupCtrlInternalReq;
@@ -135,15 +125,17 @@ pub proc FseLookupCtrlInternal {
         trace_fmt!("[SequenceDecoderCtrl/FseLookupCtrl]: Sent fse_demux req {:#x}", req.cnt);
         let (tok, demux_resp) = recv(tok, fse_demux_resp_r);
         trace_fmt!("[SequenceDecoderCtrl/FseLookupCtrl]: Received demux resp {:#x}", demux_resp);
-        let fld_req = FseLookupDecoderReq { is_rle: req.is_rle };
+        let fld_req = FseLookupDecoderReq { is_rle: req.is_rle, remainder: req.remainder };
         let tok = send(tok, fld_req_s, fld_req);
         trace_fmt!("[SequenceDecoderCtrl/FseLookupCtrl]: Sent FseLookupDecoder req: {:x}", fld_req);
         let (tok, fld_resp) = recv(tok, fld_resp_r);
         trace_fmt!("[SequenceDecoderCtrl/FseLookupCtrl]: Received FseLookupDecoder resp {:#x}", fld_resp);
-        let tok = send(tok, resp_s, fld_resp.accuracy_log as u7);
+        let tok = send(tok, resp_s, FseLookupCtrlInternalResp {
+            accuracy_log: fld_resp.accuracy_log as u7,
+            remainder: fld_resp.remainder,
+        });
     }
 }
-
 
 pub proc FseLookupCtrl {
     type Req = FseLookupCtrlReq;
@@ -198,7 +190,8 @@ pub proc FseLookupCtrl {
                 mode: CompressionMode[3]:[req.ll_mode, req.of_mode, req.ml_mode],
                 mode_valid: true,
                 cnt: u2:0,
-                accuracy_logs: state.accuracy_logs // keep the accuracy logs from the previous block for "repeated" blocks
+                accuracy_logs: state.accuracy_logs, // keep the accuracy logs from the previous block for "repeated" blocks
+                ..state
             }
         } else {
             let is_rle = (state.mode[state.cnt] == CompressionMode::RLE);
@@ -207,6 +200,8 @@ pub proc FseLookupCtrl {
             let is_repeated = (state.mode[state.cnt] == CompressionMode::REPEAT);
             let do_set = is_rle || is_compressed;
 
+            trace_fmt!("[FseLookupCtrl] State: {}", state);
+
             match(state.cnt) {
                 u2:0 => trace_fmt!("Handling LL"),
                 u2:1 => trace_fmt!("Handling OF"),
@@ -214,23 +209,30 @@ pub proc FseLookupCtrl {
                 _    => trace_fmt!("Impossible case"),
             };
 
-            let accuracy_log = if do_set {
+            let resp = if do_set {
                 let tok = send(tok, flci_req_s, FseLookupCtrlInternalReq {
                     cnt: state.cnt,
-                    is_rle: is_rle
+                    is_rle: is_rle,
+                    remainder: state.remainder
                  });
-                let (tok, accuracy_log) = recv(tok, flci_resp_r);
-                accuracy_log
+                let (tok, resp) = recv(tok, flci_resp_r);
+                resp
             } else if is_predefined {
-                PREDEFINED_ACURACY_LOG[state.cnt]
+                FseLookupCtrlInternalResp {
+                    accuracy_log: PREDEFINED_ACURACY_LOG[state.cnt],
+                    remainder: state.remainder,
+                }
             } else if is_repeated {
-                state.accuracy_logs[state.cnt]
+                FseLookupCtrlInternalResp {
+                    accuracy_log: state.accuracy_logs[state.cnt],
+                    remainder: state.remainder,
+                }
             } else {
-                fail!("impossible_case", u7:0)
+                fail!("impossible_case", zero!<FseLookupCtrlInternalResp>())
             };
 
-            let accuracy_logs = update(state.accuracy_logs, state.cnt, accuracy_log);
-            trace_fmt!("[SequenceDecoderCtrl/FseLookupCtrl]: accuracy_log: {:#x}, accuracy_logs: {:#x}", accuracy_log, accuracy_logs);
+            let accuracy_logs = update(state.accuracy_logs, state.cnt, resp.accuracy_log);
+            trace_fmt!("[SequenceDecoderCtrl/FseLookupCtrl]: accuracy_log: {:#x}, accuracy_logs: {:#x}", resp.accuracy_log, accuracy_logs);
 
             if state.cnt >= u2:2 {
                 let tok = send(tok, resp_s, FseLookupCtrlResp {
@@ -240,7 +242,7 @@ pub proc FseLookupCtrl {
                 });
                 State { accuracy_logs, ..zero!<State>() }
             } else {
-                State { accuracy_logs, cnt: state.cnt + u2:1, ..state}
+                State { accuracy_logs, cnt: state.cnt + u2:1, remainder: resp.remainder, ..state}
             }
         }
     }
@@ -275,154 +277,191 @@ pub proc FseLookupCtrlInst {
     next(state: ()) {}
 }
 
-const TEST_FLC_AXI_ADDR_W = u32:32;
+#[test_proc]
+proc FseLookupCtrlTest {
+    type Req = FseLookupCtrlReq;
+    type Resp = FseLookupCtrlResp;
 
-//#[test_proc]
-//proc FseLookupCtrlTest {
-//
-//    type Req = FseLookupCtrlReq<TEST_FLC_AXI_ADDR_W>;
-//    type Resp = FseLookupCtrlResp;
-//
-//    type Addr = uN[TEST_FLC_AXI_ADDR_W];
-//
-//    type FseLookupDecoderReq = fse_lookup_dec::FseLookupDecoderReq;
-//    type FseLookupDecoderResp = fse_lookup_dec::FseLookupDecoderResp;
-//    type FseLookupDecoderStatus = fse_lookup_dec::FseLookupDecoderStatus;
-//
-//    terminator: chan<bool> out;
-//
-//    req_s: chan<Req> out;
-//    resp_r: chan<Resp> in;
-//    fld_req_r: chan<FseLookupDecoderReq> in;
-//    fld_resp_s: chan<FseLookupDecoderResp> out;
-//    demux_req_r: chan<u2> in;
-//    demux_resp_s: chan<()> out;
-//
-//    init {}
-//
-//    config(
-//        terminator: chan<bool> out,
-//    ) {
-//        let (req_s, req_r) = chan<Req>("req");
-//        let (resp_s, resp_r) = chan<Resp>("resp");
-//        let (fld_req_s, fld_req_r) = chan<FseLookupDecoderReq>("fld_req");
-//        let (fld_resp_s, fld_resp_r) = chan<FseLookupDecoderResp>("fld_resp");
-//        let (demux_req_s, demux_req_r) = chan<u2>("demux_req");
-//        let (demux_resp_s, demux_resp_r) = chan<()>("demux_resp");
-//
-//        spawn FseLookupCtrl<TEST_FLC_AXI_ADDR_W>(
-//            req_r, resp_s,
-//            fld_req_s, fld_resp_r,
-//            demux_req_s, demux_resp_r,
-//        );
-//
-//        (
-//            terminator,
-//            req_s, resp_r,
-//            fld_req_r, fld_resp_s,
-//            demux_req_r, demux_resp_s,
-//        )
-//    }
-//
-//    next(state: ()) {
-//
-//        // Decode all the tables
-//        // ---------------------
-//
-//        // Start
-//        let tok = join();
-//        let tok = send(tok, req_s, Req { ll: true, of: true, ml: true, addr: Addr:0 });
-//
-//        // Select LL ( u2:0 )
-//        let (tok, demux_req) = recv(tok, demux_req_r);
-//        assert_eq(demux_req, u2:0);
-//
-//        let tok = send(tok, demux_resp_s, ());
-//        let (tok, fld_req) = recv(tok, fld_req_r);
-//
-//        assert_eq(fld_req, zero!<FseLookupDecoderReq>());
-//        let tok = send(tok, fld_resp_s, FseLookupDecoderResp {status: FseLookupDecoderStatus::OK});
-//
-//        // Select OF ( u2:1 )
-//        let (tok, demux_req) = recv(tok, demux_req_r);
-//        assert_eq(demux_req, u2:1);
-//
-//        let tok = send(tok, demux_resp_s, ());
-//        let (tok, fld_req) = recv(tok, fld_req_r);
-//
-//        assert_eq(fld_req, zero!<FseLookupDecoderReq>());
-//        let tok = send(tok, fld_resp_s, FseLookupDecoderResp {status: FseLookupDecoderStatus::OK});
-//
-//        // Select ML ( u2:2 )
-//        let (tok, demux_req) = recv(tok, demux_req_r);
-//        assert_eq(demux_req, u2:2);
-//
-//        let tok = send(tok, demux_resp_s, ());
-//        let (tok, _fld_req) = recv(tok, fld_req_r);
-//
-//        assert_eq(fld_req, zero!<FseLookupDecoderReq>());
-//        let tok = send(tok, fld_resp_s, FseLookupDecoderResp {status: FseLookupDecoderStatus::OK});
-//
-//        // Stop
-//        let (tok, resp) = recv(tok, resp_r);
-//        assert_eq(resp, FseLookupCtrlResp {});
-//
-//        // Decode only LL and ML
-//        // ---------------------
-//
-//        // Start
-//        let tok = join();
-//        let tok = send(tok, req_s, Req { ll: true, of: false, ml: true, addr: Addr:0 });
-//
-//        // Select LL ( u2:0 )
-//        let (tok, demux_req) = recv(tok, demux_req_r);
-//        assert_eq(demux_req, u2:0);
-//
-//        let tok = send(tok, demux_resp_s, ());
-//        let (tok, fld_req) = recv(tok, fld_req_r);
-//
-//        assert_eq(fld_req, zero!<FseLookupDecoderReq>());
-//        let tok = send(tok, fld_resp_s, FseLookupDecoderResp {status: FseLookupDecoderStatus::OK});
-//
-//        // Select ML ( u2:2 )
-//        let (tok, demux_req) = recv(tok, demux_req_r);
-//        assert_eq(demux_req, u2:2);
-//
-//        let tok = send(tok, demux_resp_s, ());
-//        let (tok, _fld_req) = recv(tok, fld_req_r);
-//
-//        assert_eq(fld_req, zero!<FseLookupDecoderReq>());
-//        let tok = send(tok, fld_resp_s, FseLookupDecoderResp {status: FseLookupDecoderStatus::OK});
-//
-//        // Stop
-//        let (tok, resp) = recv(tok, resp_r);
-//        assert_eq(resp, FseLookupCtrlResp {});
-//
-//
-//        // Decode only OF
-//        // ---------------------
-//
-//        // Start
-//        let tok = join();
-//        let tok = send(tok, req_s, Req { ll: false, of: true, ml: false, addr: Addr:0 });
-//
-//        // Select OF ( u2:1 )
-//        let (tok, demux_req) = recv(tok, demux_req_r);
-//        assert_eq(demux_req, u2:1);
-//
-//        let tok = send(tok, demux_resp_s, ());
-//        let (tok, fld_req) = recv(tok, fld_req_r);
-//
-//        assert_eq(fld_req, zero!<FseLookupDecoderReq>());
-//        let tok = send(tok, fld_resp_s, FseLookupDecoderResp {status: FseLookupDecoderStatus::OK});
-//
-//        // Stop
-//        let (tok, resp) = recv(tok, resp_r);
-//        assert_eq(resp, FseLookupCtrlResp {});
-//
-//        let tok = send(tok, terminator, true);
-//    }
-//}
+    type FseLookupDecoderReq = fse_lookup_dec::FseLookupDecoderReq;
+    type FseLookupDecoderResp = fse_lookup_dec::FseLookupDecoderResp;
+    type FseLookupDecoderStatus = fse_lookup_dec::FseLookupDecoderStatus;
+
+    terminator: chan<bool> out;
+
+    req_s: chan<Req> out;
+    resp_r: chan<Resp> in;
+    fld_req_r: chan<FseLookupDecoderReq> in;
+    fld_resp_s: chan<FseLookupDecoderResp> out;
+    demux_req_r: chan<u2> in;
+    demux_resp_s: chan<()> out;
+
+    init {}
+
+    config(
+        terminator: chan<bool> out,
+    ) {
+        let (req_s, req_r) = chan<Req>("req");
+        let (resp_s, resp_r) = chan<Resp>("resp");
+        let (fld_req_s, fld_req_r) = chan<FseLookupDecoderReq>("fld_req");
+        let (fld_resp_s, fld_resp_r) = chan<FseLookupDecoderResp>("fld_resp");
+        let (demux_req_s, demux_req_r) = chan<u2>("demux_req");
+        let (demux_resp_s, demux_resp_r) = chan<()>("demux_resp");
+
+        spawn FseLookupCtrl(
+            req_r, resp_s,
+            fld_req_s, fld_resp_r,
+            demux_req_s, demux_resp_r,
+        );
+
+        (
+            terminator,
+            req_s, resp_r,
+            fld_req_r, fld_resp_s,
+            demux_req_r, demux_resp_s,
+        )
+    }
+
+    next(state: ()) {
+        // Start
+        let tok = join();
+        let tok = send(tok, req_s, Req {
+          ll_mode: CompressionMode::COMPRESSED,
+          ml_mode: CompressionMode::RLE,
+          of_mode: CompressionMode::COMPRESSED,
+        });
+
+        // Select LL ( u2:0 )
+        let (tok, demux_req) = recv(tok, demux_req_r);
+        assert_eq(demux_req, u2:0);
+
+        let tok = send(tok, demux_resp_s, ());
+        let (tok, fld_req) = recv(tok, fld_req_r);
+
+        assert_eq(fld_req, zero!<FseLookupDecoderReq>());
+        let tok = send(tok, fld_resp_s, FseLookupDecoderResp {
+            status: FseLookupDecoderStatus::OK,
+            accuracy_log: AccuracyLog:9,
+            remainder: zero!<Remainder>(),
+        });
+
+        // Select OF ( u2:1 )
+        let (tok, demux_req) = recv(tok, demux_req_r);
+        assert_eq(demux_req, u2:1);
+
+        let tok = send(tok, demux_resp_s, ());
+        let (tok, fld_req) = recv(tok, fld_req_r);
+
+        assert_eq(fld_req, zero!<FseLookupDecoderReq>());
+        let tok = send(tok, fld_resp_s, FseLookupDecoderResp {
+            status: FseLookupDecoderStatus::OK,
+            accuracy_log: AccuracyLog:9,
+            remainder: zero!<Remainder>(),
+        });
+
+        // Select ML ( u2:2 )
+        let (tok, demux_req) = recv(tok, demux_req_r);
+        assert_eq(demux_req, u2:2);
+
+        let tok = send(tok, demux_resp_s, ());
+        let (tok, _fld_req) = recv(tok, fld_req_r);
+
+        assert_eq(fld_req, zero!<FseLookupDecoderReq>());
+        let tok = send(tok, fld_resp_s, FseLookupDecoderResp {
+            status: FseLookupDecoderStatus::OK,
+            accuracy_log: AccuracyLog:8,
+            remainder: zero!<Remainder>(),
+        });
+
+        // Stop
+        let (tok, resp) = recv(tok, resp_r);
+        assert_eq(resp, FseLookupCtrlResp {
+            ll_accuracy_log: u7:9,
+            ml_accuracy_log: u7:8,
+            of_accuracy_log: u7:9,
+        });
+
+        // Decode only LL and ML
+
+        // Start
+        let tok = join();
+        let tok = send(tok, req_s, Req {
+          ll_mode: CompressionMode::COMPRESSED,
+          ml_mode: CompressionMode::COMPRESSED,
+          of_mode: CompressionMode::REPEAT
+        });
+
+        // Select LL ( u2:0 )
+        let (tok, demux_req) = recv(tok, demux_req_r);
+        assert_eq(demux_req, u2:0);
+
+        let tok = send(tok, demux_resp_s, ());
+        let (tok, fld_req) = recv(tok, fld_req_r);
+
+        assert_eq(fld_req, zero!<FseLookupDecoderReq>());
+        let tok = send(tok, fld_resp_s, FseLookupDecoderResp {
+            status: FseLookupDecoderStatus::OK,
+            accuracy_log: AccuracyLog:5,
+            remainder: zero!<Remainder>(),
+
+        });
+
+        // Select ML ( u2:2 )
+        let (tok, demux_req) = recv(tok, demux_req_r);
+        assert_eq(demux_req, u2:2);
+
+        let tok = send(tok, demux_resp_s, ());
+        let (tok, _fld_req) = recv(tok, fld_req_r);
+
+        assert_eq(fld_req, zero!<FseLookupDecoderReq>());
+        let tok = send(tok, fld_resp_s, FseLookupDecoderResp {
+            status: FseLookupDecoderStatus::OK,
+            accuracy_log: AccuracyLog:7,
+            remainder: zero!<Remainder>(),
+        });
+
+        // Stop
+        let (tok, resp) = recv(tok, resp_r);
+        assert_eq(resp, FseLookupCtrlResp {
+            ll_accuracy_log: u7:5,
+            ml_accuracy_log: u7:7,
+            of_accuracy_log: u7:9
+        });
+
+        // Decode only OF
+
+        // Start
+        let tok = join();
+        let tok = send(tok, req_s, Req {
+          ll_mode: CompressionMode::PREDEFINED,
+          ml_mode: CompressionMode::PREDEFINED,
+          of_mode: CompressionMode::COMPRESSED
+        });
+
+        // Select OF ( u2:1 )
+        let (tok, demux_req) = recv(tok, demux_req_r);
+        assert_eq(demux_req, u2:1);
+
+        let tok = send(tok, demux_resp_s, ());
+        let (tok, fld_req) = recv(tok, fld_req_r);
+
+        assert_eq(fld_req, zero!<FseLookupDecoderReq>());
+        let tok = send(tok, fld_resp_s, FseLookupDecoderResp {
+            status: FseLookupDecoderStatus::OK,
+            accuracy_log: AccuracyLog:7,
+            remainder: zero!<Remainder>(),
+        });
+
+        // Stop
+        let (tok, resp) = recv(tok, resp_r);
+        assert_eq(resp, FseLookupCtrlResp {
+            ll_accuracy_log: u7:6,
+            ml_accuracy_log: u7:6,
+            of_accuracy_log: u7:7
+        });
+
+        let tok = send(tok, terminator, true);
+    }
+}
 
 pub proc SequenceDecoderCtrl<
     AXI_ADDR_W: u32, AXI_DATA_W: u32,
@@ -431,8 +470,6 @@ pub proc SequenceDecoderCtrl<
 > {
     type Req = SequenceDecoderReq<AXI_ADDR_W>;
     type Resp = SequenceDecoderResp;
-    type State = SequenceDecoderState<AXI_ADDR_W>;
-    type FSM = SequenceDecoderFSM;
     type Status = SequenceDecoderStatus;
 
     type Addr = uN[AXI_ADDR_W];
@@ -661,174 +698,249 @@ const SDC_TEST_AXI_DATA_W = u32:64;
 const SDC_TEST_REFILLING_SB_DATA_W = {SDC_TEST_AXI_DATA_W};
 const SDC_TEST_REFILLING_SB_LENGTH_W = refilling_shift_buffer::length_width(SDC_TEST_AXI_DATA_W);
 
-//#[test_proc]
-//proc SequenceDecoderCtrlTest {
-//
-//    type Req = SequenceDecoderReq<SDC_TEST_AXI_ADDR_W>;
-//    type Resp = SequenceDecoderResp;
-//    type Status = SequenceDecoderStatus;
-//
-//    type CompressionMode = common::CompressionMode;
-//    type Addr = uN[SDC_TEST_AXI_ADDR_W];
-//
-//    type SequenceConf = common::SequenceConf;
-//    type SequenceConfDecoderReq = sequence_conf_dec::SequenceConfDecoderReq<SDC_TEST_AXI_ADDR_W>;
-//    type SequenceConfDecoderResp = sequence_conf_dec::SequenceConfDecoderResp;
-//    type SequenceConfDecoderStatus = sequence_conf_dec::SequenceConfDecoderStatus;
-//
-//    type FseLookupDecoderReq = fse_lookup_dec::FseLookupDecoderReq;
-//    type FseLookupDecoderResp = fse_lookup_dec::FseLookupDecoderResp;
-//    type FseLookupDecoderStatus = fse_lookup_dec::FseLookupDecoderStatus;
-//
-//    type RefillingShiftBufferStart = refilling_shift_buffer::RefillStart<SDC_TEST_AXI_ADDR_W>;
-//    type RefillingShiftBufferError = refilling_shift_buffer::RefillingShiftBufferInput<SDC_TEST_REFILLING_SB_DATA_W, SDC_TEST_REFILLING_SB_LENGTH_W>;
-//    type RefillingShiftBufferOutput = refilling_shift_buffer::RefillingShiftBufferOutput<SDC_TEST_REFILLING_SB_DATA_W, SDC_TEST_REFILLING_SB_LENGTH_W>;
-//    type RefillingShiftBufferCtrl = refilling_shift_buffer::RefillingShiftBufferCtrl<SDC_TEST_REFILLING_SB_LENGTH_W>;
-//
-//    type FseDecoderCtrl = fse_dec::FseDecoderCtrl;
-//    type FseDecoderFinish = fse_dec::FseDecoderFinish;
-//
-//    terminator: chan<bool> out;
-//
-//    sd_req_s: chan<Req> out;
-//    sd_resp_r: chan<Resp> in;
-//
-//    scd_req_r: chan<SequenceConfDecoderReq> in;
-//    scd_resp_s: chan<SequenceConfDecoderResp> out;
-//
-//    fld_req_r: chan<FseLookupDecoderReq> in;
-//    fld_resp_s: chan<FseLookupDecoderResp> out;
-//
-//    fse_demux_req_r: chan<u2> in;
-//    fse_demux_resp_s: chan<()> out;
-//
-//    ll_demux_req_r: chan<u1> in;
-//    ll_demux_resp_s: chan<()> out;
-//
-//    of_demux_req_r: chan<u1> in;
-//    of_demux_resp_s: chan<()> out;
-//
-//    ml_demux_req_r: chan<u1> in;
-//    ml_demux_resp_s: chan<()> out;
-//
-//    fd_rsb_start_req_r: chan<RefillingShiftBufferStart> in;
-//    fd_rsb_stop_flush_req_r: chan<()> in;
-//    fd_rsb_flushing_done_s: chan<()> out;
-//
-//    fd_ctrl_r: chan<FseDecoderCtrl> in;
-//    fd_finish_s: chan<FseDecoderFinish> out;
-//
-//    init { }
-//
-//    config(terminator: chan<bool> out) {
-//        let (sd_req_s, sd_req_r) = chan<Req>("sd_req");
-//        let (sd_resp_s, sd_resp_r) = chan<Resp>("sd_resp");
-//
-//        let (scd_req_s, scd_req_r) = chan<SequenceConfDecoderReq>("scd_req");
-//        let (scd_resp_s, scd_resp_r) = chan<SequenceConfDecoderResp>("scd_resp");
-//
-//        let (fld_req_s, fld_req_r) = chan<FseLookupDecoderReq>("fld_req");
-//        let (fld_resp_s, fld_resp_r) = chan<FseLookupDecoderResp>("fld_resp");
-//
-//        let (fse_demux_req_s, fse_demux_req_r) = chan<u2>("fse_demux_req");
-//        let (fse_demux_resp_s, fse_demux_resp_r) = chan<()>("fse_demux_resp");
-//
-//        let (ll_demux_req_s, ll_demux_req_r) = chan<u1>("ll_demux_req");
-//        let (ll_demux_resp_s, ll_demux_resp_r) = chan<()>("ll_demux_resp");
-//
-//        let (of_demux_req_s, of_demux_req_r) = chan<u1>("of_demux_req");
-//        let (of_demux_resp_s, of_demux_resp_r) = chan<()>("of_demux_resp");
-//
-//        let (ml_demux_req_s, ml_demux_req_r) = chan<u1>("ml_demux_req");
-//        let (ml_demux_resp_s, ml_demux_resp_r) = chan<()>("ml_demux_resp");
-//
-//        let (fd_rsb_start_req_s, fd_rsb_start_req_r) = chan<RefillingShiftBufferStart>("fd_rsb_start_req");
-//        let (fd_rsb_stop_flush_req_s, fd_rsb_stop_flush_req_r) = chan<()>("fd_rsb_stop_flush_req");
-//        let (fd_rsb_flushing_done_s, fd_rsb_flushing_done_r) = chan<()>("fd_rsb_flushing_done");
-//
-//        let (fd_ctrl_s, fd_ctrl_r) = chan<FseDecoderCtrl>("fd_ctrl");
-//        let (fd_finish_s, fd_finish_r) = chan<FseDecoderFinish>("fd_finish");
-//
-//        spawn SequenceDecoderCtrl<
-//            SDC_TEST_AXI_ADDR_W, SDC_TEST_AXI_DATA_W
-//        >(
-//            sd_req_r, sd_resp_s,
-//            scd_req_s, scd_resp_r,
-//            fld_req_s, fld_resp_r,
-//            fse_demux_req_s, fse_demux_resp_r,
-//            ll_demux_req_s, ll_demux_resp_r,
-//            of_demux_req_s, of_demux_resp_r,
-//            ml_demux_req_s, ml_demux_resp_r,
-//            fd_rsb_start_req_s, fd_rsb_stop_flush_req_s, fd_rsb_flushing_done_r,
-//            fd_ctrl_s, fd_finish_r,
-//        );
-//
-//        (
-//            terminator,
-//            sd_req_s, sd_resp_r,
-//            scd_req_r, scd_resp_s,
-//            fld_req_r, fld_resp_s,
-//            fse_demux_req_r, fse_demux_resp_s,
-//            ll_demux_req_r, ll_demux_resp_s,
-//            of_demux_req_r, of_demux_resp_s,
-//            ml_demux_req_r, ml_demux_resp_s,
-//            fd_rsb_start_req_r, fd_rsb_stop_flush_req_r, fd_rsb_flushing_done_s,
-//            fd_ctrl_r, fd_finish_s,
-//        )
-//    }
-//
-//    next(state: ()) {
-//        let tok = join();
-//
-//        let tok = send(tok, sd_req_s, Req {
-//            start_addr: Addr:0x1000,
-//            end_addr: Addr:0x1012,
-//        });
-//
-//        let (tok, scd_req) = recv(tok, scd_req_r);
-//        assert_eq(scd_req, SequenceConfDecoderReq { addr: Addr: 0x1000 });
-//
-//        let scd_resp = SequenceConfDecoderResp {
-//             header: SequenceConf {
-//                 sequence_count: u17:1,
-//                 literals_mode: CompressionMode::PREDEFINED,
-//                 offset_mode: CompressionMode::RLE,
-//                 match_mode: CompressionMode::COMPRESSED,
-//             },
-//             length: u3:5,
-//             status: SequenceConfDecoderStatus::OKAY
-//        };
-//        let tok = send(tok, scd_resp_s, scd_resp);
-//
-//        let (tok, demux_req) = recv(tok, fse_demux_req_r);
-//        assert_eq(demux_req, u2:2);
-//        let tok = send(tok, fse_demux_resp_s, ());
-//
-//        let (tok, fld_req) = recv(tok, fld_req_r);
-//        assert_eq(fld_req, FseLookupDecoderReq {
-//            addr: Addr:0x1005,
-//        });
-//
-//        let tok = send(tok, fld_resp_s, FseLookupDecoderResp {status: FseLookupDecoderStatus::OK});
-//
-//        let (tok, ll_demux) = recv(tok, ll_demux_req_r);
-//        assert_eq(ll_demux, u1:0);
-//        let tok = send(tok, ll_demux_resp_s, ());
-//
-//        let (tok, ml_demux) = recv(tok, ml_demux_req_r);
-//        assert_eq(ml_demux, u1:1);
-//        let tok = send(tok, ml_demux_resp_s, ());
-//
-//        let (tok, of_demux) = recv(tok, of_demux_req_r);
-//        assert_eq(of_demux, u1:1);
-//        let tok = send(tok, of_demux_resp_s, ());
-//
-//        let (tok, fd_ctrl)  = recv(tok, fd_ctrl_r);
-//        assert_eq(fd_ctrl, zero!<FseDecoderCtrl>());
-//
-//        send(tok, terminator, true);
-//    }
-//}
+#[test_proc]
+proc SequenceDecoderCtrlTest {
+
+    type Req = SequenceDecoderReq<SDC_TEST_AXI_ADDR_W>;
+    type Resp = SequenceDecoderResp;
+    type Status = SequenceDecoderStatus;
+
+    type CompressionMode = common::CompressionMode;
+    type Addr = uN[SDC_TEST_AXI_ADDR_W];
+
+    type SequenceConf = common::SequenceConf;
+    type SequenceConfDecoderReq = sequence_conf_dec::SequenceConfDecoderReq<SDC_TEST_AXI_ADDR_W>;
+    type SequenceConfDecoderResp = sequence_conf_dec::SequenceConfDecoderResp;
+    type SequenceConfDecoderStatus = sequence_conf_dec::SequenceConfDecoderStatus;
+
+    type FseLookupDecoderReq = fse_lookup_dec::FseLookupDecoderReq;
+    type FseLookupDecoderResp = fse_lookup_dec::FseLookupDecoderResp;
+    type FseLookupDecoderStatus = fse_lookup_dec::FseLookupDecoderStatus;
+
+    type RefillingShiftBufferStart = refilling_shift_buffer::RefillStart<SDC_TEST_AXI_ADDR_W>;
+    type RefillingShiftBufferError = refilling_shift_buffer::RefillingShiftBufferInput<SDC_TEST_REFILLING_SB_DATA_W, SDC_TEST_REFILLING_SB_LENGTH_W>;
+    type RefillingShiftBufferOutput = refilling_shift_buffer::RefillingShiftBufferOutput<SDC_TEST_REFILLING_SB_DATA_W, SDC_TEST_REFILLING_SB_LENGTH_W>;
+    type RefillingShiftBufferCtrl = refilling_shift_buffer::RefillingShiftBufferCtrl<SDC_TEST_REFILLING_SB_LENGTH_W>;
+
+    type FseDecoderCtrl = fse_dec::FseDecoderCtrl;
+    type FseDecoderFinish = fse_dec::FseDecoderFinish;
+
+    terminator: chan<bool> out;
+
+    sd_req_s: chan<Req> out;
+    sd_resp_r: chan<Resp> in;
+
+    scd_req_r: chan<SequenceConfDecoderReq> in;
+    scd_resp_s: chan<SequenceConfDecoderResp> out;
+
+    fld_req_r: chan<FseLookupDecoderReq> in;
+    fld_resp_s: chan<FseLookupDecoderResp> out;
+
+    fld_demux_req_r: chan<u2> in;
+    fld_demux_resp_s: chan<()> out;
+
+    ll_demux_req_r: chan<u1> in;
+    ll_demux_resp_s: chan<()> out;
+
+    of_demux_req_r: chan<u1> in;
+    of_demux_resp_s: chan<()> out;
+
+    ml_demux_req_r: chan<u1> in;
+    ml_demux_resp_s: chan<()> out;
+
+    fd_rsb_start_req_r: chan<RefillingShiftBufferStart> in;
+    fd_rsb_stop_flush_req_r: chan<()> in;
+    fd_rsb_flushing_done_s: chan<()> out;
+
+    fld_rsb_start_req_r: chan<RefillingShiftBufferStart> in;
+    fld_rsb_stop_flush_req_r: chan<()> in;
+    fld_rsb_flushing_done_s: chan<()> out;
+
+    fd_ctrl_r: chan<FseDecoderCtrl> in;
+    fd_finish_s: chan<FseDecoderFinish> out;
+
+    init { }
+
+    config(terminator: chan<bool> out) {
+        let (sd_req_s, sd_req_r) = chan<Req>("sd_req");
+        let (sd_resp_s, sd_resp_r) = chan<Resp>("sd_resp");
+
+        let (scd_req_s, scd_req_r) = chan<SequenceConfDecoderReq>("scd_req");
+        let (scd_resp_s, scd_resp_r) = chan<SequenceConfDecoderResp>("scd_resp");
+
+        let (fld_req_s, fld_req_r) = chan<FseLookupDecoderReq>("fld_req");
+        let (fld_resp_s, fld_resp_r) = chan<FseLookupDecoderResp>("fld_resp");
+
+        let (fld_demux_req_s, fld_demux_req_r) = chan<u2>("fld_demux_req");
+        let (fld_demux_resp_s, fld_demux_resp_r) = chan<()>("fld_demux_resp");
+
+        let (ll_demux_req_s, ll_demux_req_r) = chan<u1>("ll_demux_req");
+        let (ll_demux_resp_s, ll_demux_resp_r) = chan<()>("ll_demux_resp");
+
+        let (of_demux_req_s, of_demux_req_r) = chan<u1>("of_demux_req");
+        let (of_demux_resp_s, of_demux_resp_r) = chan<()>("of_demux_resp");
+
+        let (ml_demux_req_s, ml_demux_req_r) = chan<u1>("ml_demux_req");
+        let (ml_demux_resp_s, ml_demux_resp_r) = chan<()>("ml_demux_resp");
+
+        let (fd_rsb_start_req_s, fd_rsb_start_req_r) = chan<RefillingShiftBufferStart>("fd_rsb_start_req");
+        let (fd_rsb_stop_flush_req_s, fd_rsb_stop_flush_req_r) = chan<()>("fd_rsb_stop_flush_req");
+        let (fd_rsb_flushing_done_s, fd_rsb_flushing_done_r) = chan<()>("fd_rsb_flushing_done");
+
+        let (fld_rsb_start_req_s, fld_rsb_start_req_r) = chan<RefillingShiftBufferStart>("fld_rsb_start_req");
+        let (fld_rsb_stop_flush_req_s, fld_rsb_stop_flush_req_r) = chan<()>("fld_rsb_stop_flush_req");
+        let (fld_rsb_flushing_done_s, fld_rsb_flushing_done_r) = chan<()>("fld_rsb_flushing_done");
+
+        let (fd_ctrl_s, fd_ctrl_r) = chan<FseDecoderCtrl>("fd_ctrl");
+        let (fd_finish_s, fd_finish_r) = chan<FseDecoderFinish>("fd_finish");
+
+        spawn SequenceDecoderCtrl<
+            SDC_TEST_AXI_ADDR_W, SDC_TEST_AXI_DATA_W
+        >(
+            sd_req_r, sd_resp_s,
+            scd_req_s, scd_resp_r,
+            fld_req_s, fld_resp_r,
+            fld_demux_req_s, fld_demux_resp_r,
+            ll_demux_req_s, ll_demux_resp_r,
+            of_demux_req_s, of_demux_resp_r,
+            ml_demux_req_s, ml_demux_resp_r,
+            fd_rsb_start_req_s, fd_rsb_stop_flush_req_s, fd_rsb_flushing_done_r,
+            fld_rsb_start_req_s, fld_rsb_stop_flush_req_s, fld_rsb_flushing_done_r,
+            fd_ctrl_s, fd_finish_r
+        );
+
+        (
+            terminator,
+            sd_req_s, sd_resp_r,
+            scd_req_r, scd_resp_s,
+            fld_req_r, fld_resp_s,
+            fld_demux_req_r, fld_demux_resp_s,
+            ll_demux_req_r, ll_demux_resp_s,
+            of_demux_req_r, of_demux_resp_s,
+            ml_demux_req_r, ml_demux_resp_s,
+            fd_rsb_start_req_r, fd_rsb_stop_flush_req_r, fd_rsb_flushing_done_s,
+            fld_rsb_start_req_r, fld_rsb_stop_flush_req_r, fld_rsb_flushing_done_s,
+            fd_ctrl_r, fd_finish_s
+        )
+    }
+
+    next(state: ()) {
+        let tok = join();
+
+        trace_fmt!("Sending SequenceDecoder request");
+        let tok = send(tok, sd_req_s, Req {
+            start_addr: Addr:0x1000,
+            end_addr: Addr:0x1012,
+            sync: BlockSyncData { id: u32:1, last_block: false },
+            literals_count: u20:1234,
+        });
+
+        let (tok, scd_req) = recv(tok, scd_req_r);
+        trace_fmt!("Received SequenceConfDecoder response");
+        assert_eq(scd_req, SequenceConfDecoderReq {
+            addr: Addr: 0x1000
+        });
+
+        let scd_resp = SequenceConfDecoderResp {
+            header: SequenceConf {
+                sequence_count: u17:1,
+                literals_mode: CompressionMode::PREDEFINED,
+                offset_mode: CompressionMode::RLE,
+                match_mode: CompressionMode::COMPRESSED,
+            },
+            length: u3:5,
+            status: SequenceConfDecoderStatus::OKAY
+        };
+        trace_fmt!("Sending SequenceConfDecoder response");
+        let tok = send(tok, scd_resp_s, scd_resp);
+
+        let (tok, fld_rsb_start_req) = recv(tok, fld_rsb_start_req_r);
+        trace_fmt!("Received RefillingShiftBuffer start request: {:#x}",
+            fld_rsb_start_req
+        );
+
+        let (tok, demux_req) = recv(tok, fld_demux_req_r);
+        trace_fmt!("Received FseLookupDecoder demux request: {:#x}", demux_req);
+        assert_eq(demux_req, u2:1);
+
+        let tok = send(tok, fld_demux_resp_s, ());
+        trace_fmt!("Sending FSELookupDecoder demux response {:#x}", ());
+
+        let (tok, fld_req) = recv(tok, fld_req_r);
+        trace_fmt!("Received FSELookupDecoder request");
+        assert_eq(fld_req, FseLookupDecoderReq {
+            is_rle: true,
+            remainder: zero!<Remainder>()
+        });
+
+        trace_fmt!("Sending FSELookupDecoder response");
+        let tok = send(tok, fld_resp_s, FseLookupDecoderResp {
+            status: FseLookupDecoderStatus::OK,
+            remainder: zero!<Remainder>(),
+            accuracy_log: AccuracyLog:8,
+        });
+
+        let (tok, demux_req) = recv(tok, fld_demux_req_r);
+        trace_fmt!("Received FseLookupDecoder demux request: {:#x}", demux_req);
+        assert_eq(demux_req, u2:2);
+
+        let tok = send(tok, fld_demux_resp_s, ());
+        trace_fmt!("Sending FSELookupDecoder demux response {:#x}", ());
+
+        let (tok, fld_req) = recv(tok, fld_req_r);
+        trace_fmt!("[TEST] Received FSELookupDecoder request");
+        assert_eq(fld_req, FseLookupDecoderReq {
+            is_rle: false,
+            remainder: zero!<Remainder>()
+        });
+
+        trace_fmt!("Sending FSELookupDecoder response");
+        let tok = send(tok, fld_resp_s, FseLookupDecoderResp {
+            status: FseLookupDecoderStatus::OK,
+            remainder: zero!<Remainder>(),
+            accuracy_log: AccuracyLog:7,
+        });
+
+        let (tok, _) = recv(tok, fld_rsb_stop_flush_req_r);
+        trace_fmt!("Received RefillingShiftBuffer stop flush");
+        trace_fmt!("Sending RefillingShiftBuffer flushing done");
+        let tok = send(tok, fld_rsb_flushing_done_s, ());
+
+        let (tok, ll_demux) = recv(tok, ll_demux_req_r);
+        trace_fmt!("Received LL demux request");
+        assert_eq(ll_demux, u1:0);
+        trace_fmt!("Sending LL demux response");
+        let tok = send(tok, ll_demux_resp_s, ());
+
+        let (tok, of_demux) = recv(tok, of_demux_req_r);
+        trace_fmt!("Received OF demux request");
+        assert_eq(of_demux, u1:1);
+        trace_fmt!("Sending OF demux response");
+        let tok = send(tok, of_demux_resp_s, ());
+
+        trace_fmt!("Received ML demux request");
+        let (tok, ml_demux) = recv(tok, ml_demux_req_r);
+        assert_eq(ml_demux, u1:1);
+        trace_fmt!("Received ML demux response");
+        let tok = send(tok, ml_demux_resp_s, ());
+
+        let (tok, fd_ctrl)  = recv(tok, fd_ctrl_r);
+        trace_fmt!("Received Fse decoder ctrl");
+        assert_eq(fd_ctrl, FseDecoderCtrl {
+            sync: BlockSyncData {
+                id: u32:1,
+                last_block: u1:0
+            },
+            sequences_count: u24:1,
+            literals_count: u20:1234,
+            of_acc_log: u7:8,
+            ll_acc_log: u7:6,
+            ml_acc_log: u7:7
+        });
+
+        send(tok, terminator, true);
+    }
+}
 
 pub proc SequenceDecoder<
     AXI_ADDR_W: u32, AXI_DATA_W: u32, AXI_DEST_W: u32, AXI_ID_W: u32,
@@ -995,7 +1107,7 @@ pub proc SequenceDecoder<
         let (scd_mem_rd_req_s,  scd_mem_rd_req_r) = chan<MemReaderReq, CHANNEL_DEPTH>("scd_mem_rd_req");
         let (scd_mem_rd_resp_s, scd_mem_rd_resp_r) = chan<MemReaderResp, CHANNEL_DEPTH>("scd_mem_rd_resp");
 
-        spawn mem_reader::MemReader<AXI_DATA_W, AXI_ADDR_W, AXI_DEST_W, AXI_ID_W, CHANNEL_DEPTH>(
+        spawn mem_reader::MemReader<AXI_DATA_W, AXI_ADDR_W, AXI_DEST_W, AXI_ID_W>(
            scd_mem_rd_req_r, scd_mem_rd_resp_s,
            scd_axi_ar_s, scd_axi_r_r,
         );
@@ -1013,7 +1125,7 @@ pub proc SequenceDecoder<
         let (fld_mem_rd_req_s,  fld_mem_rd_req_r) = chan<MemReaderReq, CHANNEL_DEPTH>("fld_mem_rd_req");
         let (fld_mem_rd_resp_s, fld_mem_rd_resp_r) = chan<MemReaderResp, CHANNEL_DEPTH>("fld_mem_rd_resp");
 
-        spawn mem_reader::MemReader<AXI_DATA_W, AXI_ADDR_W, AXI_DEST_W, AXI_ID_W, CHANNEL_DEPTH>(
+        spawn mem_reader::MemReader<AXI_DATA_W, AXI_ADDR_W, AXI_DEST_W, AXI_ID_W>(
             fld_mem_rd_req_r, fld_mem_rd_resp_s,
             fld_axi_ar_s, fld_axi_r_r,
         );
@@ -1136,7 +1248,7 @@ pub proc SequenceDecoder<
         let (fd_mem_rd_req_s,  fd_mem_rd_req_r) = chan<MemReaderReq, CHANNEL_DEPTH>("fd_mem_rd_req");
         let (fd_mem_rd_resp_s, fd_mem_rd_resp_r) = chan<MemReaderResp, CHANNEL_DEPTH>("fd_mem_rd_resp");
 
-        spawn mem_reader::MemReader<AXI_DATA_W, AXI_ADDR_W, AXI_DEST_W, AXI_ID_W, CHANNEL_DEPTH>(
+        spawn mem_reader::MemReader<AXI_DATA_W, AXI_ADDR_W, AXI_DEST_W, AXI_ID_W>(
            fd_mem_rd_req_r, fd_mem_rd_resp_s,
            fd_axi_ar_s, fd_axi_r_r,
         );
@@ -1238,14 +1350,14 @@ pub proc SequenceDecoder<
 }
 
 const TEST_AXI_ADDR_W = u32:32;
-const TEST_AXI_DATA_W = u32:64;
+const TEST_AXI_DATA_W = common::AXI_DATA_W;
 const TEST_AXI_DEST_W = u32:8;
 const TEST_AXI_ID_W = u32:8;
 
 const TEST_INPUT_RAM_DATA_W = TEST_AXI_DATA_W;
 const TEST_INPUT_RAM_SIZE = u32:1024;
 const TEST_INPUT_RAM_ADDR_W = TEST_AXI_ADDR_W;
-const TEST_INPUT_RAM_WORD_PARTITION_SIZE = TEST_INPUT_RAM_DATA_W / u32:8;
+const TEST_INPUT_RAM_WORD_PARTITION_SIZE = u32:8;
 const TEST_INPUT_RAM_NUM_PARTITIONS = ram::num_partitions(TEST_INPUT_RAM_WORD_PARTITION_SIZE, TEST_INPUT_RAM_DATA_W);
 const TEST_INPUT_RAM_SIMULTANEOUS_READ_WRITE_BEHAVIOR = ram::SimultaneousReadWriteBehavior::READ_BEFORE_WRITE;
 const TEST_INPUT_RAM_INITIALIZED = true;
@@ -1295,78 +1407,42 @@ const SEQ_DEC_TESTCASES: (u32, u64[32], u32, SequenceExecutorPacket[64])[4] = [
             u64:0x0000000000000002,
             u64:0x0, ...
         ],
-        u32:12,
+        u32:6,
         SequenceExecutorPacket[64]:[
             SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0004,
-                content: u64:0x0,
+                content: CopyOrMatchContent:0x000b0005,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
-                length: u64:0x0005,
-                content: u64:0x000b,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
                 length: u64:0x0004,
-                content: u64:0x0,
+                content: CopyOrMatchContent:0x00010006,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
-                length: u64:0x0006,
-                content: u64:0x0001,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
                 length: u64:0x0,
-                content: u64:0x0,
+                content: CopyOrMatchContent:0x00320005,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
-                length: u64:0x0005,
-                content: u64:0x0032,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
                 length: u64:0x0006,
-                content: u64:0x0,
+                content: CopyOrMatchContent:0x003e0009,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0009,
-                content: u64:0x003e,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
-                length: u64:0x0009,
-                content: u64:0x0,
+                content: CopyOrMatchContent:0x003d0006,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
-                length: u64:0x0006,
-                content: u64:0x003d,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
                 length: u64:0x0,
-                content: u64:0x0,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::SEQUENCE,
-                length: u64:0x001a,
-                content: u64:0x0043,
+                content: CopyOrMatchContent:0x0043001a,
                 last: true,
             },
             zero!<SequenceExecutorPacket>(), ...
@@ -1384,162 +1460,84 @@ const SEQ_DEC_TESTCASES: (u32, u64[32], u32, SequenceExecutorPacket[64])[4] = [
             u64:0x6CBFAEE1A0DDEF00,
             u64:0x0, ...
         ],
-        u32:26,
+        u32:13,
         SequenceExecutorPacket[64]:[
             SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0001,
-                content: u64:0x0,
+                content: CopyOrMatchContent:0x00030003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
-                length: u64:0x0003,
-                content: u64:0x0003,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
                 length: u64:0x0001,
-                content: u64:0x0,
+                content: CopyOrMatchContent:0x000e0003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
-                length: u64:0x0003,
-                content: u64:0x000e,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
                 length: u64:0x0,
-                content: u64:0x0,
+                content: CopyOrMatchContent:0x00230004,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
-                length: u64:0x0004,
-                content: u64:0x0023,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
                 length: u64:0x0001,
-                content: u64:0x0,
+                content: CopyOrMatchContent:0x00de0004,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
-                length: u64:0x0004,
-                content: u64:0x00de,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
                 length: u64:0x0,
-                content: u64:0x0,
+                content: CopyOrMatchContent:0x003a0003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
-                length: u64:0x0003,
-                content: u64:0x003a,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
                 length: u64:0x0,
-                content: u64:0x0,
+                content: CopyOrMatchContent:0x01100003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
-                length: u64:0x0003,
-                content: u64:0x0110,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
                 length: u64:0x0,
-                content: u64:0x0,
+                content: CopyOrMatchContent:0x00b00004,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
-                length: u64:0x0004,
-                content: u64:0x00b0,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
                 length: u64:0x0,
-                content: u64:0x0,
+                content: CopyOrMatchContent:0x00da0003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
-                length: u64:0x0003,
-                content: u64:0x00da,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
                 length: u64:0x0,
-                content: u64:0x0,
+                content: CopyOrMatchContent:0x00440004,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
-                length: u64:0x0004,
-                content: u64:0x0044,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
                 length: u64:0x0,
-                content: u64:0x0,
+                content: CopyOrMatchContent:0x013f0003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
-                length: u64:0x0003,
-                content: u64:0x013f,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
                 length: u64:0x0001,
-                content: u64:0x0,
+                content: CopyOrMatchContent:0x001b0003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
-                length: u64:0x0003,
-                content: u64:0x001b,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
                 length: u64:0x0,
-                content: u64:0x0,
+                content: CopyOrMatchContent:0x00030004,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
-                length: u64:0x0004,
-                content: u64:0x0003,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
                 length: u64:0x0,
-                content: u64:0x0,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::SEQUENCE,
-                length: u64:0x0004,
-                content: u64:0x0031,
+                content: CopyOrMatchContent:0x00310004,
                 last: true,
             },
             zero!<SequenceExecutorPacket>(), ...
@@ -1557,126 +1555,66 @@ const SEQ_DEC_TESTCASES: (u32, u64[32], u32, SequenceExecutorPacket[64])[4] = [
             u64:0x000000000000003E,
             u64:0x0, ...
         ],
-        u32:20,
+        u32:10,
         SequenceExecutorPacket[64]:[
             SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0002,
-                content: u64:0x0,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::SEQUENCE,
-                length: u64:0x0005,
-                content: u64:0x0004,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
-                length: u64:0x0003,
-                content: u64:0x0,
+                content: CopyOrMatchContent:0x00040005,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0003,
-                content: u64:0x000d,
+                content: CopyOrMatchContent:0x000d0003,
                 last: false,
             },
             SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
-                length: u64:0x0000,
-                content: u64:0x0,
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0,
+                content: CopyOrMatchContent:0x00020003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0003,
-                content: u64:0x0002,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
-                length: u64:0x0003,
-                content: u64:0x0,
+                content: CopyOrMatchContent:0x000d0004,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
-                length: u64:0x0004,
-                content: u64:0x000d,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
                 length: u64:0x0002,
-                content: u64:0x0,
+                content: CopyOrMatchContent:0x00170004,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
-                length: u64:0x0004,
-                content: u64:0x0017,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
-                length: u64:0x0000,
-                content: u64:0x0,
+                length: u64:0x0,
+                content: CopyOrMatchContent:0x00190003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
-                length: u64:0x0003,
-                content: u64:0x0019,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
-                length: u64:0x0000,
-                content: u64:0x0,
+                length: u64:0x0,
+                content: CopyOrMatchContent:0x00210004,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
-                length: u64:0x0004,
-                content: u64:0x0021,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
                 length: u64:0x0001,
-                content: u64:0x0,
+                content: CopyOrMatchContent:0x00200003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
-                length: u64:0x0003,
-                content: u64:0x0020,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
                 length: u64:0x0006,
-                content: u64:0x0,
+                content: CopyOrMatchContent:0x001b0004,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
-                length: u64:0x0004,
-                content: u64:0x001b,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
-                length: u64:0x0000,
-                content: u64:0x0,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::SEQUENCE,
-                length: u64:0x0004,
-                content: u64:0x000d,
+                length: u64:0x0,
+                content: CopyOrMatchContent:0x000d0004,
                 last: true,
             },
             zero!<SequenceExecutorPacket>(), ...
@@ -1693,179 +1631,65 @@ const SEQ_DEC_TESTCASES: (u32, u64[32], u32, SequenceExecutorPacket[64])[4] = [
             u64:0xaca57e409b057,
             u64:0x0, ...
         ],
-        u32:18,
+        u32:9,
         SequenceExecutorPacket[64]:[
             SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
                 length: u64:0x0002,
-                content: u64:0x0,
+                content: CopyOrMatchContent:0x00040003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
-                length: u64:0x0003,
-                content: u64:0x0004,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
-                length: u64:0x0000,
-                content: u64:0x0,
+                length: u64:0x0,
+                content: CopyOrMatchContent:0x00070003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
-                length: u64:0x0003,
-                content: u64:0x0007,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
                 length: u64:0x0001,
-                content: u64:0x0,
+                content: CopyOrMatchContent:0x00090003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
-                length: u64:0x0003,
-                content: u64:0x0009,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
                 length: u64:0x0005,
-                content: u64:0x0,
+                content: CopyOrMatchContent:0x00090003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
-                length: u64:0x0003,
-                content: u64:0x0009,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
-                length: u64:0x0000,
-                content: u64:0x0,
+                length: u64:0x0,
+                content: CopyOrMatchContent:0x000b0003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
-                length: u64:0x0003,
-                content: u64:0x000b,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
                 length: u64:0x0011,
-                content: u64:0x0,
+                content: CopyOrMatchContent:0x00120003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
-                length: u64:0x0003,
-                content: u64:0x0012,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
                 length: u64:0x0004,
-                content: u64:0x0,
+                content: CopyOrMatchContent:0x00230003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
-                length: u64:0x0003,
-                content: u64:0x0023,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
                 length: u64:0x0002,
-                content: u64:0x0,
+                content: CopyOrMatchContent:0x000a0003,
                 last: false,
             },
             SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
-                length: u64:0x0003,
-                content: u64:0x000a,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::LITERAL,
                 length: u64:0x0002,
-                content: u64:0x0,
-                last: false,
-            },
-            SequenceExecutorPacket {
-                msg_type: SequenceExecutorMessageType::SEQUENCE,
-                length: u64:0x0003,
-                content: u64:0x0034,
+                content: CopyOrMatchContent:0x00340003,
                 last: true,
             },
             zero!<SequenceExecutorPacket>(), ...
         ]
     ),
-    // Test case N (WARNING: long test running time)
-    // 3 custom lookup tables with accuracy log 9, 8 and 9
-    // decodecorpus -pdata.out -odata.in -s58745 --block-type=2 --content-size --literal-type=0 --max-block-size-log=7
-    // (
-    //     u32:32,
-    //     u64[32]:[
-    //         u64:0x0, u64:0x0,
-    //         u64:0xFC0502602814A804,
-    //         u64:0x505040131FF60604,
-    //         u64:0xFE01C080140FE030,
-    //         u64:0x4040E65B84521B01,
-    //         u64:0x0, ...
-    //     ],
-    //     u32:7,
-    //     SequenceExecutorPacket[64]:[
-    //         SequenceExecutorPacket {
-    //             msg_type: SequenceExecutorMessageType::LITERAL,
-    //             length: u64:0x0005,
-    //             content: u64:0x0,
-    //             last: false,
-    //         },
-    //         SequenceExecutorPacket {
-    //             msg_type: SequenceExecutorMessageType::SEQUENCE,
-    //             length: u64:0x0004,
-    //             content: u64:0x0006,
-    //             last: false,
-    //         },
-    //         SequenceExecutorPacket {
-    //             msg_type: SequenceExecutorMessageType::SEQUENCE,
-    //             length: u64:0x0004,
-    //             content: u64:0x0002,
-    //             last: false,
-    //         },
-    //         SequenceExecutorPacket {
-    //             msg_type: SequenceExecutorMessageType::LITERAL,
-    //             length: u64:0x0011,
-    //             content: u64:0x0,
-    //             last: false,
-    //         },
-    //         SequenceExecutorPacket {
-    //             msg_type: SequenceExecutorMessageType::SEQUENCE,
-    //             length: u64:0x0004,
-    //             content: u64:0x000a,
-    //             last: false,
-    //         },
-    //         SequenceExecutorPacket {
-    //             msg_type: SequenceExecutorMessageType::LITERAL,
-    //             length: u64:0x002b,
-    //             content: u64:0x0,
-    //             last: false,
-    //         },
-    //         SequenceExecutorPacket {
-    //             msg_type: SequenceExecutorMessageType::SEQUENCE,
-    //             length: u64:0x0006,
-    //             content: u64:0x0023,
-    //             last: true,
-    //         },
-    //         zero!<SequenceExecutorPacket>(), ...
-    //     ]
-    // ),
 ];
 
 type Base = u16;
@@ -2526,7 +2350,7 @@ proc SequenceDecoderTest {
             // COUNT THE AMOUNT OF LITERALS
             let (tok, literals_count) = for (i, (tok, literals_count)): (u32, (token, u20)) in u32:0..expected_len {
                 let literals_count = match expected_data[i].msg_type {
-                    SequenceExecutorMessageType::SEQUENCE => literals_count,
+                    SequenceExecutorMessageType::SEQUENCE => literals_count + expected_data[i].length as u20,
                     SequenceExecutorMessageType::LITERAL => literals_count + expected_data[i].length as u20,
                 };
                 (tok, literals_count)
@@ -2592,7 +2416,7 @@ proc SequenceDecoderTest {
             let expected = SequenceExecutorPacket {
                 msg_type: SequenceExecutorMessageType::LITERAL,
                 length: ADDITIONAL_LITERALS as u64,
-                content: u64:0x0,
+                content: CopyOrMatchContent:0x0,
                 last: true,
             };
             let (tok, recv_output) = recv(tok, fd_command_r);
@@ -2608,5 +2432,4 @@ proc SequenceDecoderTest {
 
         send(tok, terminator, true);
    }
-
 }

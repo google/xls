@@ -12,15 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pytype binary, library
 load("@rules_hdl//place_and_route:build_defs.bzl", "place_and_route")
 load("@rules_hdl//synthesis:build_defs.bzl", "benchmark_synth", "synthesize_rtl")
 load("@rules_hdl//verilog:providers.bzl", "verilog_library")
+load("@xls_pip_deps//:requirements.bzl", "requirement")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "xls_benchmark_ir",
     "xls_dslx_library",
     "xls_dslx_test",
     "xls_dslx_verilog",
+    "xls_dslx_fmt_test",
 )
 load("//xls/common:openroad_warnings.bzl", "ASAP7_SUPPPRESSED_WARNINGS")
 
@@ -67,11 +70,11 @@ common_codegen_args = {
     "streaming_channel_data_suffix": "_data",
     "fifo_module": "",
     "materialize_internal_fifos": "true",
-
-    # TODO: This should be adjusted when per channel separation of IO options is enabled
     "flop_inputs_kind": "skid",
     "flop_outputs_kind": "skid",
 }
+
+# AxiReader (FSM-based)
 
 xls_dslx_library(
     name = "axi_reader_dslx",
@@ -89,12 +92,10 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
-# FIXME: Improve the proc to achieve CLOCK_PERIOD_PS
-AXI_READER_CLOCK_PERIOD_PS = "1700"
-
 axi_reader_codegen_args = common_codegen_args | {
-    "clock_period_ps": AXI_READER_CLOCK_PERIOD_PS,
+    "clock_period_ps": CLOCK_PERIOD_PS,
     "module_name": "axi_reader",
+    "worst_case_throughput": "2",
 }
 
 xls_dslx_verilog(
@@ -139,7 +140,7 @@ benchmark_synth(
 
 place_and_route(
     name = "axi_reader_place_and_route",
-    clock_period = AXI_READER_CLOCK_PERIOD_PS,
+    clock_period = axi_reader_codegen_args["clock_period_ps"],
     core_padding_microns = 2,
     min_pin_distance = "0.5",
     placement_density = "0.30",
@@ -149,6 +150,81 @@ place_and_route(
     tags = ["manual"],
     target_die_utilization_percentage = "10",
 )
+
+# AxiReader (no FSM)
+
+axi_reader_no_fsm_codegen_args = common_codegen_args | {
+    "worst_case_throughput": "4",
+    "module_name": "axi_reader",
+}
+
+xls_dslx_verilog(
+    name = "axi_reader_no_fsm_verilog",
+    codegen_args = axi_reader_no_fsm_codegen_args,
+    dslx_top = "AxiReaderInst",
+    library = ":axi_reader_dslx",
+    tags = ["manual"],
+    verilog_file = "axi_reader_no_fsm.v",
+)
+
+xls_benchmark_ir(
+    name = "axi_reader_no_fsm_opt_ir_benchmark",
+    src = ":axi_reader_no_fsm_verilog.opt.ir",
+    benchmark_ir_args = axi_reader_no_fsm_codegen_args,
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "axi_reader_no_fsm_verilog_lib",
+    srcs = [
+        ":axi_reader_no_fsm.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "axi_reader_no_fsm_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "axi_reader",
+    deps = [
+        ":axi_reader_no_fsm_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "axi_reader_no_fsm_benchmark_synth",
+    synth_target = ":axi_reader_no_fsm_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "axi_reader_no_fsm_place_and_route",
+    clock_period = axi_reader_codegen_args["clock_period_ps"],
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":axi_reader_no_fsm_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
+
+axi_reader_internal_r_codegen_args = common_codegen_args | {
+    "worst_case_throughput": "1",
+    "module_name": "axi_reader_internal_r",
+}
+
+xls_dslx_verilog(
+    name = "axi_reader_internal_r_verilog",
+    codegen_args = axi_reader_internal_r_codegen_args,
+    dslx_top = "AxiReaderInternalRInst",
+    library = ":axi_reader_dslx",
+    tags = ["manual"],
+    verilog_file = "axi_reader_internal_r.v",
+)
+
+# AxiStreamRemoveEmpty
 
 xls_dslx_library(
     name = "axi_stream_remove_empty_dslx",
@@ -210,6 +286,8 @@ place_and_route(
     target_die_utilization_percentage = "10",
 )
 
+# RemoveEmptyBytes
+
 xls_dslx_verilog(
     name = "remove_empty_bytes_verilog",
     codegen_args = common_codegen_args | {"module_name": "remove_empty_bytes"},
@@ -262,6 +340,8 @@ place_and_route(
     tags = ["manual"],
     target_die_utilization_percentage = "10",
 )
+
+# AxiStreamDownscaler
 
 xls_dslx_library(
     name = "axi_stream_downscaler_dslx",
@@ -330,6 +410,8 @@ place_and_route(
     target_die_utilization_percentage = "10",
 )
 
+# AxiRamReader
+
 xls_dslx_library(
     name = "axi_ram_reader_dslx",
     srcs = ["axi_ram_reader.x"],
@@ -345,9 +427,7 @@ xls_dslx_test(
     library = ":axi_ram_reader_dslx",
 )
 
-# FIXME: Improve the proc to achieve CLOCK_PERIOD_PS
 AXI_RAM_READER_CLOCK_PERIOD_PS = "850"
-
 axi_ram_reader_codegen_args = common_codegen_args | {
     "module_name": "axi_ram_reader",
     "clock_period_ps": AXI_RAM_READER_CLOCK_PERIOD_PS,
@@ -414,6 +494,8 @@ place_and_route(
     target_die_utilization_percentage = "10",
 )
 
+# MemReader (FSM-based)
+
 xls_dslx_library(
     name = "mem_reader_dslx",
     srcs = ["mem_reader.x"],
@@ -432,12 +514,9 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
-# FIXME: Improve the proc to achieve CLOCK_PERIOD_PS
-MEM_READER_CLOCK_PERIOD_PS = "2600"
-
 mem_reader_codegen_args = common_codegen_args | {
-    "clock_period_ps": MEM_READER_CLOCK_PERIOD_PS,
     "module_name": "mem_reader",
+    "worst_case_throughput": "2",
 }
 
 xls_dslx_verilog(
@@ -482,7 +561,7 @@ benchmark_synth(
 
 place_and_route(
     name = "mem_reader_place_and_route",
-    clock_period = CLOCK_PERIOD_PS,
+    clock_period = mem_reader_codegen_args["clock_period_ps"],
     core_padding_microns = 2,
     min_pin_distance = "0.5",
     placement_density = "0.30",
@@ -493,9 +572,84 @@ place_and_route(
     target_die_utilization_percentage = "10",
 )
 
+# MemReader (no FSM)
+
+mem_reader_no_fsm_codegen_args = common_codegen_args | {
+    "module_name": "mem_reader",
+    "worst_case_throughput": "4",
+}
+
+xls_dslx_verilog(
+    name = "mem_reader_no_fsm_verilog",
+    codegen_args = mem_reader_no_fsm_codegen_args,
+    dslx_top = "MemReaderNoFsmInst",
+    library = ":mem_reader_dslx",
+    tags = ["manual"],
+    verilog_file = "mem_reader_no_fsm.v",
+)
+
+verilog_library(
+    name = "mem_reader_no_fsm_verilog_lib",
+    srcs = [
+        ":mem_reader_no_fsm.v",
+    ],
+    tags = ["manual"],
+)
+
+xls_benchmark_ir(
+    name = "mem_reader_no_fsm_opt_ir_benchmark",
+    src = ":mem_reader_no_fsm_verilog.opt.ir",
+    benchmark_ir_args = mem_reader_no_fsm_codegen_args,
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "mem_reader_no_fsm_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "mem_reader",
+    deps = [
+        ":mem_reader_no_fsm_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "mem_reader_no_fsm_benchmark_synth",
+    synth_target = ":mem_reader_no_fsm_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "mem_reader_no_fsm_place_and_route",
+    clock_period = mem_reader_no_fsm_codegen_args["clock_period_ps"],
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":mem_reader_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
+
+xls_dslx_verilog(
+    name = "mem_reader_internal_no_fsm_verilog",
+    codegen_args = mem_reader_no_fsm_codegen_args,
+    dslx_top = "MemReaderInternalNoFsmInst",
+    library = ":mem_reader_dslx",
+    tags = ["manual"],
+    verilog_file = "mem_reader_internal_no_fsm.v",
+)
+
+# MemReaderAdv (FSM-based)
+
+mem_reader_adv_codegen_args = common_codegen_args | {
+    "module_name": "mem_reader_adv",
+    "worst_case_throughput": "2"
+}
+
 xls_dslx_verilog(
     name = "mem_reader_adv_verilog",
-    codegen_args = mem_reader_codegen_args | {"module_name": "mem_reader_adv"},
+    codegen_args = mem_reader_adv_codegen_args,
     dslx_top = "MemReaderAdvInst",
     library = ":mem_reader_dslx",
     tags = ["manual"],
@@ -505,7 +659,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "mem_reader_adv_opt_ir_benchmark",
     src = ":mem_reader_adv_verilog.opt.ir",
-    benchmark_ir_args = mem_reader_codegen_args,
+    benchmark_ir_args = mem_reader_adv_codegen_args,
     tags = ["manual"],
 )
 
@@ -546,6 +700,125 @@ place_and_route(
     target_die_utilization_percentage = "10",
 )
 
+py_test(
+    name = "mem_reader_adv_cocotb_test",
+    srcs = [
+        "mem_reader_adv_cocotb_test.py",
+        "mem_reader_cocotb.py"
+    ],
+    data = [
+        ":mem_reader_adv.v",
+        "//xls/modules/zstd/memory/rtl:mem_reader_wrapper.v",
+        "@com_icarus_iverilog//:iverilog",
+        "@com_icarus_iverilog//:vvp",
+    ],
+    tags = ["manual"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        requirement("cocotb"),
+        requirement("cocotbext-axi"),
+        "//xls/common:runfiles",
+        "//xls/modules/zstd/cocotb:channel",
+        "//xls/modules/zstd/cocotb:memory",
+        "//xls/modules/zstd/cocotb:utils",
+        "//xls/modules/zstd/cocotb:xlsstruct",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
+        "@com_google_protobuf//:protobuf_python",
+    ],
+)
+
+# MemReader (no FSM)
+
+mem_reader_adv_no_fsm_codegen_args = common_codegen_args | {
+    "module_name": "mem_reader_adv",
+    "worst_case_throughput": "4",
+}
+
+xls_dslx_verilog(
+    name = "mem_reader_adv_no_fsm_verilog",
+    codegen_args = mem_reader_adv_no_fsm_codegen_args,
+    dslx_top = "MemReaderAdvNoFsmInst",
+    library = ":mem_reader_dslx",
+    tags = ["manual"],
+    verilog_file = "mem_reader_adv_no_fsm.v",
+)
+
+xls_benchmark_ir(
+    name = "mem_reader_adv_no_fsm_opt_ir_benchmark",
+    src = ":mem_reader_adv_no_fsm_verilog.opt.ir",
+    benchmark_ir_args = mem_reader_adv_no_fsm_codegen_args,
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "mem_reader_adv_no_fsm_verilog_lib",
+    srcs = [
+        ":mem_reader_adv_no_fsm.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "mem_reader_adv_no_fsm_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "mem_reader_adv",
+    deps = [
+        ":mem_reader_adv_no_fsm_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "mem_reader_adv_no_fsm_benchmark_synth",
+    synth_target = ":mem_reader_adv_no_fsm_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "mem_reader_adv_no_fsm_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":mem_reader_adv_no_fsm_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
+
+py_test(
+    name = "mem_reader_adv_no_fsm_cocotb_test",
+    srcs = [
+        "mem_reader_adv_no_fsm_cocotb_test.py",
+        "mem_reader_cocotb.py"
+    ],
+    data = [
+        ":mem_reader_adv_no_fsm.v",
+        "//xls/modules/zstd/memory/rtl:mem_reader_wrapper.v",
+        "@com_icarus_iverilog//:iverilog",
+        "@com_icarus_iverilog//:vvp",
+    ],
+    env = {"BUILD_WORKING_DIRECTORY": "sim_build"},
+    tags = ["manual"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        requirement("cocotb"),
+        requirement("cocotbext-axi"),
+        requirement("pytest"),
+        "//xls/common:runfiles",
+        "//xls/modules/zstd/cocotb:channel",
+        "//xls/modules/zstd/cocotb:memory",
+        "//xls/modules/zstd/cocotb:utils",
+        "//xls/modules/zstd/cocotb:xlsstruct",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
+        "@com_google_protobuf//:protobuf_python",
+    ],
+)
+
+# AxiWriter (FSM-based)
+
 xls_dslx_library(
     name = "axi_writer_dslx",
     srcs = ["axi_writer.x"],
@@ -562,9 +835,13 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
+axi_writer_codegen_args = common_codegen_args | {
+    "module_name": "axi_writer"
+}
+
 xls_dslx_verilog(
     name = "axi_writer_verilog",
-    codegen_args = common_codegen_args | {"module_name": "axi_writer"},
+    codegen_args = axi_writer_codegen_args,
     dslx_top = "AxiWriterInst",
     library = ":axi_writer_dslx",
     tags = ["manual"],
@@ -574,7 +851,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "axi_writer_opt_ir_benchmark",
     src = ":axi_writer_verilog.opt.ir",
-    benchmark_ir_args = common_codegen_args,
+    benchmark_ir_args = axi_writer_codegen_args,
     tags = ["manual"],
 )
 
@@ -604,7 +881,7 @@ benchmark_synth(
 
 place_and_route(
     name = "axi_writer_place_and_route",
-    clock_period = CLOCK_PERIOD_PS,
+    clock_period = axi_writer_codegen_args["clock_period_ps"],
     core_padding_microns = 2,
     min_pin_distance = "0.5",
     placement_density = "0.30",
@@ -614,6 +891,123 @@ place_and_route(
     tags = ["manual"],
     target_die_utilization_percentage = "10",
 )
+
+py_test(
+    name = "axi_writer_cocotb_test",
+    srcs = [
+        "axi_writer_cocotb_test.py",
+        "axi_writer_cocotb.py"
+    ],
+    data = [
+        ":axi_writer.v",
+        "//xls/modules/zstd/memory/rtl:axi_writer_wrapper.v",
+        "@com_icarus_iverilog//:iverilog",
+        "@com_icarus_iverilog//:vvp",
+    ],
+    tags = ["manual"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        requirement("cocotb"),
+        requirement("cocotbext-axi"),
+        "//xls/common:runfiles",
+        "//xls/modules/zstd/cocotb:channel",
+        "//xls/modules/zstd/cocotb:utils",
+        "//xls/modules/zstd/cocotb:xlsstruct",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
+        "@com_google_protobuf//:protobuf_python",
+    ],
+)
+
+# AxiWriter (no FSM)
+
+axi_writer_no_fsm_codegen_args = common_codegen_args | {
+    "module_name": "axi_writer",
+    "worst_case_throughput": "4"
+}
+
+xls_dslx_verilog(
+    name = "axi_writer_no_fsm_verilog",
+    codegen_args = axi_writer_no_fsm_codegen_args,
+    dslx_top = "AxiWriterNoFsmInst",
+    library = ":axi_writer_dslx",
+    tags = ["manual"],
+    verilog_file = "axi_writer_no_fsm.v",
+)
+
+xls_benchmark_ir(
+    name = "axi_writer_no_fsm_opt_ir_benchmark",
+    src = ":axi_writer_no_fsm_verilog.opt.ir",
+    benchmark_ir_args = axi_writer_no_fsm_codegen_args,
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "axi_writer_no_fsm_verilog_lib",
+    srcs = [
+        ":axi_writer_no_fsm.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "axi_writer_no_fsm_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "axi_writer",
+    deps = [
+        ":axi_writer_no_fsm_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "axi_writer_no_fsm_benchmark_synth",
+    synth_target = ":axi_writer_no_fsm_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "axi_writer_no_fsm_place_and_route",
+    clock_period = axi_writer_codegen_args["clock_period_ps"],
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":axi_writer_no_fsm_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
+
+py_test(
+    name = "axi_writer_no_fsm_cocotb_test",
+    srcs = [
+        "axi_writer_no_fsm_cocotb_test.py",
+        "axi_writer_cocotb.py"
+    ],
+    data = [
+        ":axi_writer_no_fsm.v",
+        "//xls/modules/zstd/memory/rtl:axi_writer_wrapper.v",
+        "@com_icarus_iverilog//:iverilog",
+        "@com_icarus_iverilog//:vvp",
+    ],
+    env = {"BUILD_WORKING_DIRECTORY": "sim_build"},
+    tags = ["manual"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        requirement("cocotb"),
+        requirement("cocotbext-axi"),
+        requirement("pytest"),
+        "//xls/common:runfiles",
+        "//xls/modules/zstd/cocotb:channel",
+        "//xls/modules/zstd/cocotb:utils",
+        "//xls/modules/zstd/cocotb:xlsstruct",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
+        "@com_google_protobuf//:protobuf_python",
+    ],
+)
+
+# AxiStreamAddEmpty
 
 xls_dslx_library(
     name = "axi_stream_add_empty_dslx",
@@ -690,6 +1084,12 @@ place_and_route(
     target_die_utilization_percentage = "10",
 )
 
+# MemWriter (FSM-based)
+
+mem_writer_codegen_args = common_codegen_args | {
+    "module_name": "mem_writer"
+}
+
 xls_dslx_library(
     name = "mem_writer_dslx",
     srcs = ["mem_writer.x"],
@@ -710,7 +1110,7 @@ xls_dslx_test(
 
 xls_dslx_verilog(
     name = "mem_writer_verilog",
-    codegen_args = common_codegen_args | {"module_name": "mem_writer"},
+    codegen_args = mem_writer_codegen_args,
     dslx_top = "MemWriterInst",
     library = ":mem_writer_dslx",
     tags = ["manual"],
@@ -752,4 +1152,270 @@ place_and_route(
     synthesized_rtl = ":mem_writer_synth_asap7",
     tags = ["manual"],
     target_die_utilization_percentage = "10",
+)
+
+py_test(
+    name = "mem_writer_cocotb_test",
+    srcs = [
+        "mem_writer_cocotb_test.py",
+        "mem_writer_cocotb.py"
+    ],
+    data = [
+        ":mem_writer.v",
+        "//xls/modules/zstd/memory/rtl:mem_writer_wrapper.v",
+        "@com_icarus_iverilog//:iverilog",
+        "@com_icarus_iverilog//:vvp",
+    ],
+    tags = ["manual"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        requirement("cocotb"),
+        requirement("cocotbext-axi"),
+        "//xls/common:runfiles",
+        "//xls/modules/zstd/cocotb:channel",
+        "//xls/modules/zstd/cocotb:utils",
+        "//xls/modules/zstd/cocotb:xlsstruct",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
+        "@com_google_protobuf//:protobuf_python",
+    ],
+)
+
+# MemWriter (no FSM)
+
+mem_writer_no_fsm_codegen_args = common_codegen_args | {
+    "module_name": "mem_writer",
+    "worst_case_throughput": "4",
+}
+
+xls_dslx_verilog(
+    name = "mem_writer_no_fsm_verilog",
+    codegen_args = mem_writer_no_fsm_codegen_args,
+    dslx_top = "MemWriterNoFsmInst",
+    library = ":mem_writer_dslx",
+    tags = ["manual"],
+    verilog_file = "mem_writer_no_fsm.v",
+)
+
+verilog_library(
+    name = "mem_writer_no_fsm_verilog_lib",
+    srcs = [
+        ":mem_writer.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "mem_writer_no_fsm_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "mem_writer",
+    deps = [
+        ":mem_writer_no_fsm_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "mem_writer_no_fsm_benchmark_synth",
+    synth_target = ":mem_writer_no_fsm_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "mem_writer_no_fsm_place_and_route",
+    clock_period = mem_writer_codegen_args["clock_period_ps"],
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":mem_writer_no_fsm_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
+
+py_test(
+    name = "mem_writer_no_fsm_cocotb_test",
+    srcs = [
+        "mem_writer_no_fsm_cocotb_test.py",
+        "mem_writer_cocotb.py"
+    ],
+    data = [
+        ":mem_writer_no_fsm.v",
+        "//xls/modules/zstd/memory/rtl:mem_writer_wrapper.v",
+        "@com_icarus_iverilog//:iverilog",
+        "@com_icarus_iverilog//:vvp",
+    ],
+    env = {"BUILD_WORKING_DIRECTORY": "sim_build"},
+    tags = ["manual"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        requirement("cocotb"),
+        requirement("cocotbext-axi"),
+        requirement("pytest"),
+        "//xls/common:runfiles",
+        "//xls/modules/zstd/cocotb:channel",
+        "//xls/modules/zstd/cocotb:utils",
+        "//xls/modules/zstd/cocotb:xlsstruct",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
+        "@com_google_protobuf//:protobuf_python",
+    ],
+)
+
+# AxiRamWriter
+
+xls_dslx_library(
+    name = "axi_ram_writer_dslx",
+    srcs = ["axi_ram_writer.x"],
+    deps = [
+        ":mem_writer_dslx",
+        "//xls/examples:ram_dslx",
+        "//xls/modules/zstd:math_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "axi_ram_writer_dslx_test",
+    library = ":axi_ram_writer_dslx",
+)
+
+axi_ram_writer_codegen_args = common_codegen_args | {
+    "module_name": "AxiRamWriter",
+    "clock_period_ps": "750",
+    "pipeline_stages": "8",
+    "worst_case_throughput": "1",
+    "materialize_internal_fifos": "true"
+}
+
+xls_dslx_verilog(
+    name = "axi_ram_writer_verilog",
+    codegen_args = axi_ram_writer_codegen_args,
+    dslx_top = "AxiRamWriterInst",
+    library = ":axi_ram_writer_dslx",
+    tags = ["manual"],
+    verilog_file = "axi_ram_writer.v",
+)
+
+xls_benchmark_ir(
+    name = "axi_ram_writer_opt_ir_benchmark",
+    src = ":axi_ram_writer_verilog.opt.ir",
+    codegen_args = axi_ram_writer_codegen_args,
+    benchmark_ir_args = common_codegen_args,
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "axi_ram_writer_verilog_lib",
+    srcs = [
+        ":axi_ram_writer.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "axi_ram_writer_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "AxiRamWriter",
+    deps = [
+        ":axi_ram_writer_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "axi_ram_writer_benchmark_synth",
+    synth_target = ":axi_ram_writer_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "axi_ram_writer_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":axi_ram_writer_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
+
+# MemWriterDataDownscaler
+
+xls_dslx_library(
+    name = "mem_writer_data_downscaler_dslx",
+    srcs = ["mem_writer_data_downscaler.x"],
+    deps = [
+        ":mem_writer_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "mem_writer_data_downscaler_dslx_test",
+    library = ":mem_writer_data_downscaler_dslx",
+)
+
+xls_dslx_verilog(
+    name = "mem_writer_data_downscaler_verilog",
+    codegen_args = common_codegen_args,
+    dslx_top = "MemWriterDataDownscalerInst",
+    library = ":mem_writer_data_downscaler_dslx",
+    tags = ["manual"],
+    verilog_file = "mem_writer_data_downscaler.v",
+)
+
+xls_benchmark_ir(
+    name = "mem_writer_data_downscaler_opt_ir_benchmark",
+    src = ":mem_writer_data_downscaler_verilog.opt.ir",
+    benchmark_ir_args = common_codegen_args,
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "mem_writer_data_downscaler_verilog_lib",
+    srcs = [
+        ":mem_writer_data_downscaler.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "mem_writer_data_downscaler_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "__mem_writer_data_downscaler__MemWriterDataDownscalerInst_0_next",
+    deps = [
+        ":mem_writer_data_downscaler_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "mem_writer_data_downscaler_benchmark_synth",
+    synth_target = ":mem_writer_data_downscaler_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "mem_writer_data_downscaler_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":mem_writer_data_downscaler_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
+
+xls_dslx_library(
+    name = "mem_reader_data_upscaler_dslx",
+    srcs = ["mem_reader_data_upscaler.x"],
+    deps = [
+        ":mem_reader_dslx",
+    ],
+)
+
+xls_dslx_fmt_test(
+    name = "mem_reader_data_upscaler_fmt_test",
+    src = "mem_reader_data_upscaler.x"
 )

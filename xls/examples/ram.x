@@ -576,7 +576,7 @@ proc SinglePortRamModelTest {
 }
 
 // Models a true dual-port RAM.
-proc RamModel2RW<DATA_WIDTH: u32, SIZE: u32, WORD_PARTITION_SIZE: u32 = {u32:0}, SIMULTANEOUS_READ_WRITE_BEHAVIOR:
+pub proc RamModel2RW<DATA_WIDTH: u32, SIZE: u32, WORD_PARTITION_SIZE: u32 = {u32:0}, SIMULTANEOUS_READ_WRITE_BEHAVIOR:
 SimultaneousReadWriteBehavior = {
     SimultaneousReadWriteBehavior::READ_BEFORE_WRITE}, ADDR_WIDTH: u32 = {std::clog2(SIZE)}, NUM_PARTITIONS:
 u32 = {

@@ -17,7 +17,7 @@ import xls.examples.ram;
 import xls.modules.zstd.common;
 import xls.modules.zstd.memory.axi;
 import xls.modules.zstd.csr_config;
-import xls.modules.zstd.sequence_executor;
+import xls.modules.zstd.sequence_executor.sequence_executor;
 import xls.modules.zstd.memory.axi_ram_reader;
 import xls.modules.zstd.zstd_dec;
 import xls.modules.zstd.comp_block_dec;
@@ -28,13 +28,13 @@ import xls.modules.zstd.parallel_rams;
 import xls.modules.zstd.literals_buffer;
 import xls.modules.zstd.fse_table_creator;
 import xls.modules.zstd.ram_mux;
-// import xls.modules.zstd.zstd_frame_testcases as comp_frame;
-// import xls.modules.zstd.data.comp_frame_huffman as comp_frame;
-// import xls.modules.zstd.data.comp_frame_fse_comp as comp_frame;
-// import xls.modules.zstd.data.comp_frame_fse_repeated as comp_frame;
-import xls.modules.zstd.data.comp_frame;
 
-const TEST_WINDOW_LOG_MAX = u32:30;
+import xls.modules.zstd.data.comp_frame_huffman;
+import xls.modules.zstd.data.comp_frame_huffman_fse;
+import xls.modules.zstd.data.comp_frame_fse_comp;
+import xls.modules.zstd.data.comp_frame_fse_repeated;
+import xls.modules.zstd.data.comp_frame;
+import xls.modules.zstd.data.comp_frame_unsupported_window;
 
 const TEST_AXI_DATA_W = u32:64;
 const TEST_AXI_ADDR_W = u32:32;
@@ -46,14 +46,15 @@ const TEST_REGS_N = u32:5;
 const TEST_LOG2_REGS_N = std::clog2(TEST_REGS_N);
 
 const TEST_HB_RAM_N = u32:8;
-const TEST_HB_ADDR_W = sequence_executor::ZSTD_RAM_ADDR_WIDTH;
-const TEST_HB_DATA_W = sequence_executor::RAM_DATA_WIDTH;
-const TEST_HB_NUM_PARTITIONS = sequence_executor::RAM_NUM_PARTITIONS;
-const TEST_HB_SIZE_KB = sequence_executor::ZSTD_HISTORY_BUFFER_SIZE_KB;
-const TEST_HB_RAM_SIZE = sequence_executor::ZSTD_RAM_SIZE;
-const TEST_HB_RAM_WORD_PARTITION_SIZE = sequence_executor::RAM_WORD_PARTITION_SIZE;
-const TEST_HB_RAM_SIMULTANEOUS_READ_WRITE_BEHAVIOR = sequence_executor::TEST_RAM_SIMULTANEOUS_READ_WRITE_BEHAVIOR;
-const TEST_HB_RAM_INITIALIZED = sequence_executor::TEST_RAM_INITIALIZED;
+const TEST_HB_ADDR_W = sequence_executor::ZSTD_HB_RAM_ADDR_W;
+const TEST_HB_SINGLE_HB_RAM_ADDR_W = sequence_executor::ZSTD_SINGLE_HB_RAM_ADDR_W;
+const TEST_HB_DATA_W = sequence_executor::ZSTD_AXI_DATA_W;
+const TEST_HB_NUM_PARTITIONS = sequence_executor::ZSTD_HB_RAM_NUM;
+const TEST_HB_SIZE_B = sequence_executor::ZSTD_HISTORY_BUFFER_SIZE_KB as u64 * u64:1024;
+const TEST_HB_RAM_SIZE = sequence_executor::ZSTD_HB_RAM_SIZE_TOTAL as u32;
+const TEST_HB_RAM_WORD_PARTITION_SIZE = sequence_executor::ZSTD_SINGLE_RAM_DATA_W;
+const TEST_HB_RAM_SIMULTANEOUS_READ_WRITE_BEHAVIOR = ram::SimultaneousReadWriteBehavior::READ_BEFORE_WRITE;
+const TEST_HB_RAM_INITIALIZED = true;
 const TEST_HB_RAM_ASSERT_VALID_READ:bool = false;
 
 const TEST_RAM_DATA_W:u32 = TEST_AXI_DATA_W;
@@ -153,8 +154,9 @@ fn csr_addr(c: zstd_dec::Csr) -> uN[TEST_AXI_ADDR_W] {
     (c as uN[TEST_AXI_ADDR_W]) << 3
 }
 
-#[test_proc]
-proc ZstdDecoderTest {
+type TestFrames = common::DataArray<u32:64, u32:50>[1];
+
+proc ZstdDecoderTester<FRAMES: TestFrames, DECOMPRESSED_FRAMES: TestFrames> {
     type CsrAxiAr = axi::AxiAr<TEST_AXI_ADDR_W, TEST_AXI_ID_W>;
     type CsrAxiR = axi::AxiR<TEST_AXI_DATA_W, TEST_AXI_ID_W>;
     type CsrAxiAw = axi::AxiAw<TEST_AXI_ADDR_W, TEST_AXI_ID_W>;
@@ -173,10 +175,8 @@ proc ZstdDecoderTest {
     type MemAxiW = axi::AxiW<TEST_AXI_DATA_W, TEST_AXI_DATA_W_DIV8>;
     type MemAxiB = axi::AxiB<TEST_AXI_ID_W>;
 
-    type RamRdReqHB = ram::ReadReq<TEST_HB_ADDR_W, TEST_HB_NUM_PARTITIONS>;
-    type RamRdRespHB = ram::ReadResp<TEST_HB_DATA_W>;
-    type RamWrReqHB = ram::WriteReq<TEST_HB_ADDR_W, TEST_HB_DATA_W, TEST_HB_NUM_PARTITIONS>;
-    type RamWrRespHB = ram::WriteResp;
+    type RWRamReq = ram::RWRamReq<TEST_HB_SINGLE_HB_RAM_ADDR_W, TEST_HB_RAM_WORD_PARTITION_SIZE>;
+    type RWRamResp = ram::RWRamResp<TEST_HB_RAM_WORD_PARTITION_SIZE>;
 
     type RamRdReq = ram::ReadReq<TEST_RAM_ADDR_W, TEST_RAM_NUM_PARTITIONS>;
     type RamRdResp = ram::ReadResp<TEST_RAM_DATA_W>;
@@ -258,7 +258,8 @@ proc ZstdDecoderTest {
     type LitBufRamWrReq = ram::WriteReq<LITERALS_BUFFER_RAM_ADDR_W, LITERALS_BUFFER_RAM_DATA_W, LITERALS_BUFFER_RAM_NUM_PARTITIONS>;
     type LitBufRamWrResp = ram::WriteResp;
 
-    terminator: chan<bool> out;
+    start_r: chan<()> in;
+    finished_s: chan<zstd_dec::ZstdDecoderStatus> out;
 
     csr_axi_aw_s: chan<CsrAxiAw> out;
     csr_axi_w_s: chan<CsrAxiW> out;
@@ -288,11 +289,6 @@ proc ZstdDecoderTest {
     output_axi_w_r: chan<MemAxiW> in;
     output_axi_b_s: chan<MemAxiB> out;
 
-    hb_ram_rd_req_r: chan<RamRdReqHB>[8] in;
-    hb_ram_rd_resp_s: chan<RamRdRespHB>[8] out;
-    hb_ram_wr_req_r: chan<RamWrReqHB>[8] in;
-    hb_ram_wr_resp_s: chan<RamWrRespHB>[8] out;
-
     ll_sel_test_req_s: chan<u1> out;
     ll_sel_test_resp_r: chan<()> in;
     ll_def_test_rd_req_s: chan<FseRamRdReq> out;
@@ -318,7 +314,7 @@ proc ZstdDecoderTest {
 
     init {}
 
-    config(terminator: chan<bool> out) {
+    config(start_r: chan<()> in, finished_s: chan<zstd_dec::ZstdDecoderStatus> out) {
 
         let (csr_axi_aw_s, csr_axi_aw_r) = chan<CsrAxiAw>("csr_axi_aw");
         let (csr_axi_w_s, csr_axi_w_r) = chan<CsrAxiW>("csr_axi_w");
@@ -351,10 +347,13 @@ proc ZstdDecoderTest {
         let (output_axi_w_s, output_axi_w_r) = chan<MemAxiW>("output_axi_w");
         let (output_axi_b_s, output_axi_b_r) = chan<MemAxiB>("output_axi_b");
 
-        let (hb_ram_rd_req_s, hb_ram_rd_req_r) = chan<RamRdReqHB>[8]("hb_ram_rd_req");
-        let (hb_ram_rd_resp_s, hb_ram_rd_resp_r) = chan<RamRdRespHB>[8]("hb_ram_rd_resp");
-        let (hb_ram_wr_req_s, hb_ram_wr_req_r) = chan<RamWrReqHB>[8]("hb_ram_wr_req");
-        let (hb_ram_wr_resp_s, hb_ram_wr_resp_r) = chan<RamWrRespHB>[8]("hb_ram_wr_resp");
+        let (hb_ram_rd_req_s_0, hb_ram_rd_req_r_0) = chan<RWRamReq>[8]("hb_ram_rd_req_0");
+        let (hb_ram_rd_resp_s_0, hb_ram_rd_resp_r_0) = chan<RWRamResp>[8]("hb_ram_rd_resp_0");
+        let (hb_ram_wr_comp_s_0, hb_ram_wr_comp_r_0) = chan<()>[8]("hb_ram_rd_resp_0");
+
+        let (hb_ram_rd_req_s_1, hb_ram_rd_req_r_1) = chan<RWRamReq>[8]("hb_ram_rd_req_1");
+        let (hb_ram_rd_resp_s_1, hb_ram_rd_resp_r_1) = chan<RWRamResp>[8]("hb_ram_rd_resp_1");
+        let (hb_ram_wr_comp_s_1, hb_ram_wr_comp_r_1) = chan<()>[8]("hb_ram_rd_resp_1");
 
         let (notify_s, notify_r) = chan<()>("notify");
 
@@ -597,8 +596,8 @@ proc ZstdDecoderTest {
 
         spawn zstd_dec::ZstdDecoder<
             TEST_AXI_DATA_W, TEST_AXI_ADDR_W, TEST_AXI_ID_W, TEST_AXI_DEST_W,
-            TEST_REGS_N, TEST_WINDOW_LOG_MAX,
-            TEST_HB_ADDR_W, TEST_HB_DATA_W, TEST_HB_NUM_PARTITIONS, TEST_HB_SIZE_KB,
+            TEST_REGS_N,
+            TEST_HB_ADDR_W, TEST_HB_DATA_W, TEST_HB_NUM_PARTITIONS, TEST_HB_SIZE_B,
 
             TEST_DPD_RAM_ADDR_W, TEST_DPD_RAM_DATA_W, TEST_DPD_RAM_NUM_PARTITIONS,
             TEST_TMP_RAM_ADDR_W, TEST_TMP_RAM_DATA_W, TEST_TMP_RAM_NUM_PARTITIONS,
@@ -611,6 +610,9 @@ proc ZstdDecoderTest {
             TEST_HUFFMAN_WEIGHTS_FSE_RAM_ADDR_W, TEST_HUFFMAN_WEIGHTS_FSE_RAM_DATA_W, TEST_HUFFMAN_WEIGHTS_FSE_RAM_NUM_PARTITIONS,
 
             HISTORY_BUFFER_SIZE_KB, AXI_CHAN_N, TEST_FSE_MAX_ACCURACY_LOG,
+
+            TEST_HB_SINGLE_HB_RAM_ADDR_W,
+            TEST_HB_RAM_WORD_PARTITION_SIZE,
         >(
             csr_axi_aw_r, csr_axi_w_r, csr_axi_b_s, csr_axi_ar_r, csr_axi_r_s,
             fh_axi_ar_s, fh_axi_r_r,
@@ -650,24 +652,21 @@ proc ZstdDecoderTest {
             output_axi_aw_s, output_axi_w_s, output_axi_b_r,
 
             // RAMs for SequenceExecutor
-            hb_ram_rd_req_s[0], hb_ram_rd_req_s[1], hb_ram_rd_req_s[2], hb_ram_rd_req_s[3],
-            hb_ram_rd_req_s[4], hb_ram_rd_req_s[5], hb_ram_rd_req_s[6], hb_ram_rd_req_s[7],
-            hb_ram_rd_resp_r[0], hb_ram_rd_resp_r[1], hb_ram_rd_resp_r[2], hb_ram_rd_resp_r[3],
-            hb_ram_rd_resp_r[4], hb_ram_rd_resp_r[5], hb_ram_rd_resp_r[6], hb_ram_rd_resp_r[7],
-            hb_ram_wr_req_s[0], hb_ram_wr_req_s[1], hb_ram_wr_req_s[2], hb_ram_wr_req_s[3],
-            hb_ram_wr_req_s[4], hb_ram_wr_req_s[5], hb_ram_wr_req_s[6], hb_ram_wr_req_s[7],
-            hb_ram_wr_resp_r[0], hb_ram_wr_resp_r[1], hb_ram_wr_resp_r[2], hb_ram_wr_resp_r[3],
-            hb_ram_wr_resp_r[4], hb_ram_wr_resp_r[5], hb_ram_wr_resp_r[6], hb_ram_wr_resp_r[7],
+            hb_ram_rd_req_s_0, hb_ram_rd_resp_r_0, hb_ram_wr_comp_r_0,
+            hb_ram_rd_req_s_1, hb_ram_rd_resp_r_1, hb_ram_wr_comp_r_1,
 
             notify_s,
         );
 
         unroll_for! (i, ()): (u32, ()) in u32:0..u32:8 {
-            spawn ram::RamModel<
-                TEST_HB_DATA_W, TEST_HB_RAM_SIZE, TEST_HB_RAM_WORD_PARTITION_SIZE,
-                TEST_HB_RAM_SIMULTANEOUS_READ_WRITE_BEHAVIOR, TEST_HB_RAM_INITIALIZED,
-                TEST_HB_RAM_ASSERT_VALID_READ
-            >(hb_ram_rd_req_r[i], hb_ram_rd_resp_s[i], hb_ram_wr_req_r[i], hb_ram_wr_resp_s[i]);
+            spawn ram::RamModel2RW<
+                TEST_HB_RAM_WORD_PARTITION_SIZE, TEST_HB_RAM_SIZE,
+                TEST_HB_RAM_WORD_PARTITION_SIZE, TEST_HB_RAM_SIMULTANEOUS_READ_WRITE_BEHAVIOR,
+                TEST_HB_SINGLE_HB_RAM_ADDR_W, TEST_HB_NUM_PARTITIONS
+            >(
+                hb_ram_rd_req_r_0[i], hb_ram_rd_resp_s_0[i], hb_ram_wr_comp_s_0[i],
+                hb_ram_rd_req_r_1[i], hb_ram_rd_resp_s_1[i], hb_ram_wr_comp_s_1[i]
+            )
         }(());
 
 
@@ -702,14 +701,13 @@ proc ZstdDecoderTest {
         >(raw_axi_ar_r, raw_axi_r_s, raw_ram_rd_req_s, raw_ram_rd_resp_r);
 
         (
-            terminator,
+            start_r, finished_s,
             csr_axi_aw_s, csr_axi_w_s, csr_axi_b_r, csr_axi_ar_s, csr_axi_r_r,
             fh_axi_ar_r, fh_axi_r_s, fh_ram_wr_req_s, fh_ram_wr_resp_r,
             bh_axi_ar_r, bh_axi_r_s, bh_ram_wr_req_s, bh_ram_wr_resp_r,
             raw_axi_ar_r, raw_axi_r_s, raw_ram_wr_req_s, raw_ram_wr_resp_r,
             comp_ram_wr_req_s, comp_ram_wr_resp_r,
             output_axi_aw_r, output_axi_w_r, output_axi_b_s,
-            hb_ram_rd_req_r, hb_ram_rd_resp_s, hb_ram_wr_req_r, hb_ram_wr_resp_s,
             ll_sel_test_req_s, ll_sel_test_resp_r,
             ll_def_test_rd_req_s, ll_def_test_rd_resp_r, ll_def_test_wr_req_s, ll_def_test_wr_resp_r,
             of_sel_test_req_s, of_sel_test_resp_r,
@@ -721,10 +719,12 @@ proc ZstdDecoderTest {
     }
 
     next (state: ()) {
-        trace_fmt!("Test start");
-        let frames_count = array_size(comp_frame::FRAMES);
-
         let tok = join();
+        let (tok, _) = recv(tok, start_r);
+
+        trace_fmt!("Test start");
+        let frames_count = array_size(FRAMES);
+
 
         // FILL THE LL DEFAULT RAM
         trace_fmt!("Filling LL default FSE table");
@@ -779,7 +779,7 @@ proc ZstdDecoderTest {
 
         let tok = unroll_for! (test_i, tok): (u32, token) in u32:0..frames_count {
             trace_fmt!("Loading testcase {:x}", test_i + u32:1);
-            let frame = comp_frame::FRAMES[test_i];
+            let frame = FRAMES[test_i];
             let tok = for (i, tok): (u32, token) in u32:0..frame.array_length {
                 let req = RamWrReq {
                     addr: i as uN[TEST_RAM_ADDR_W],
@@ -839,7 +839,7 @@ proc ZstdDecoderTest {
             });
             let (tok, _) = recv(tok, csr_axi_b_r);
 
-            let decomp_frame = comp_frame::DECOMPRESSED_FRAMES[test_i];
+            let decomp_frame = DECOMPRESSED_FRAMES[test_i];
             // Test ZstdDecoder memory output interface
             // Mock the output memory buffer as a DSLX array
             // It is required to handle AXI write transactions and to write the incoming data to
@@ -858,7 +858,7 @@ proc ZstdDecoderTest {
             // The maximal number if beats in AXI burst transaction
             let MAX_AXI_TRANSFERS = u32:256;
             // Actual size of decompressed payload for current test
-            let DECOMPRESSED_BYTES = comp_frame::DECOMPRESSED_FRAMES[test_i].length;
+            let DECOMPRESSED_BYTES = DECOMPRESSED_FRAMES[test_i].length;
             trace_fmt!("ZstdDecTest: Start receiving output");
             let (tok, final_output_memory, final_output_memory_id, final_transfered_bytes) =
                 for (axi_transaction, (tok, output_memory, output_memory_id, transfered_bytes)):
@@ -868,6 +868,36 @@ proc ZstdDecoderTest {
                     trace_fmt!("ZstdDecTest: Handle AXI Write transaction #{}", axi_transaction);
                     let (tok, axi_aw) = recv(tok, output_axi_aw_r);
                     trace_fmt!("ZstdDecTest: Received AXI AW: {:#x}", axi_aw);
+
+                    let tok = send(tok, csr_axi_ar_s, CsrAxiAr {
+                        addr: csr_addr(zstd_dec::Csr::STATUS),
+                        id: uN[TEST_AXI_ID_W]:0,
+                        size: axi::AxiAxSize::MAX_4B_TRANSFER,
+                        len: u8:0,
+                        burst: axi::AxiAxBurst::FIXED,
+                        cache: axi::AxiArCache::DEV_BUF,
+                        prot: u3:0,
+                        qos: u4:0,
+                        region: u4:0
+                    });
+                    let (tok, csr_response) = recv(tok, csr_axi_r_r);
+                    trace_fmt!("ZstdDecTest: Received Csr status {:#x}", csr_response);
+
+                    let csr_status_data = csr_response.data as u5;
+                    let csr_status = csr_status_data as zstd_dec::ZstdDecoderStatus;
+                    let valid_state = match (csr_status) {
+                        zstd_dec::ZstdDecoderStatus::FRAME_HEADER_CORRUPTED => false,
+                        zstd_dec::ZstdDecoderStatus::FRAME_HEADER_UNSUPPORTED_WINDOW_SIZE => false,
+                        zstd_dec::ZstdDecoderStatus::BLOCK_HEADER_CORRUPTED => false,
+                        zstd_dec::ZstdDecoderStatus::BLOCK_HEADER_MEMORY_ACCESS_ERROR => false,
+                        zstd_dec::ZstdDecoderStatus::RAW_BLOCK_ERROR => false,
+                        _ => true
+                    };
+
+                    if !valid_state {
+                        send(tok, finished_s, csr_status);
+                    } else {};
+
                     let (tok, internal_output_memory, internal_output_memory_id, internal_transfered_bytes) =
                         for (axi_transfer, (tok, out_mem, out_mem_id, transf_bytes)):
                             (u32, (token, uN[TEST_AXI_DATA_W][TEST_MOCK_OUTPUT_RAM_SIZE], u32, u32))
@@ -913,6 +943,168 @@ proc ZstdDecoderTest {
             tok
         }(tok);
 
-        send(tok, terminator, true);
+        send(tok, finished_s, zstd_dec::ZstdDecoderStatus::IDLE);
+    }
+}
+
+#[test_proc]
+proc UnsupportedWindowSizeTest {
+    terminator: chan<bool> out;
+    start_s: chan<()> out;
+    finished_r: chan<zstd_dec::ZstdDecoderStatus> in;
+
+    init {}
+
+    config (terminator: chan<bool> out,) {
+        const FRAMES = comp_frame_unsupported_window::FRAMES;
+        const DECOMPRESSED_FRAMES = comp_frame_unsupported_window::DECOMPRESSED_FRAMES;
+
+        let (start_s, start_r) = chan<()>("start");
+        let (finished_s, finished_r) = chan<zstd_dec::ZstdDecoderStatus>("finished");
+
+        spawn ZstdDecoderTester<FRAMES, DECOMPRESSED_FRAMES>(start_r, finished_s);
+        (terminator, start_s, finished_r)
+    }
+
+    next(state: ()) {
+        let tok = send(join(), start_s, ());
+        let (tok, result) = recv(tok, finished_r);
+        send(tok, terminator, result == zstd_dec::ZstdDecoderStatus::FRAME_HEADER_UNSUPPORTED_WINDOW_SIZE);
+    }
+}
+
+#[test_proc]
+proc RawLiteralsPredefinedSequencesTest {
+    terminator: chan<bool> out;
+    start_s: chan<()> out;
+    finished_r: chan<zstd_dec::ZstdDecoderStatus> in;
+
+    init {}
+
+    config (terminator: chan<bool> out,) {
+        const FRAMES = comp_frame::FRAMES;
+        const DECOMPRESSED_FRAMES = comp_frame::DECOMPRESSED_FRAMES;
+
+        let (start_s, start_r) = chan<()>("start");
+        let (finished_s, finished_r) = chan<zstd_dec::ZstdDecoderStatus>("finished");
+
+        spawn ZstdDecoderTester<FRAMES, DECOMPRESSED_FRAMES>(start_r, finished_s);
+        (terminator, start_s, finished_r)
+    }
+
+    next(state: ()) {
+        let tok = send(join(), start_s, ());
+        let (tok, result) = recv(tok, finished_r);
+        send(tok, terminator, result == zstd_dec::ZstdDecoderStatus::IDLE);
+    }
+}
+
+#[test_proc]
+proc RleLiteralsRepeatedSequencesTest {
+    terminator: chan<bool> out;
+    start_s: chan<()> out;
+    finished_r: chan<zstd_dec::ZstdDecoderStatus> in;
+
+    init {}
+
+    config (terminator: chan<bool> out,) {
+
+        const FRAMES = comp_frame_fse_repeated::FRAMES;
+        const DECOMPRESSED_FRAMES = comp_frame_fse_repeated::DECOMPRESSED_FRAMES;
+
+        let (start_s, start_r) = chan<()>("start");
+        let (finished_s, finished_r) = chan<zstd_dec::ZstdDecoderStatus>("finished");
+
+        spawn ZstdDecoderTester<FRAMES, DECOMPRESSED_FRAMES>(start_r, finished_s);
+        (terminator, start_s, finished_r)
+    }
+
+    next(state: ()) {
+        let tok = send(join(), start_s, ());
+        let (tok, result) = recv(tok, finished_r);
+        send(tok, terminator, result == zstd_dec::ZstdDecoderStatus::IDLE);
+    }
+}
+
+// Tests with the `_skip` suffix are disabled in CI
+// due to high memory usage and can be re-enabled
+// when the DSLX interpreter becomes more memory-efficient.
+
+#[test_proc]
+proc RawHuffmanLiteralsPredefinedSequencesTest_skip {
+    terminator: chan<bool> out;
+    start_s: chan<()> out;
+    finished_r: chan<zstd_dec::ZstdDecoderStatus> in;
+
+    init {}
+
+    config (terminator: chan<bool> out,) {
+        const FRAMES = comp_frame_huffman::FRAMES;
+        const DECOMPRESSED_FRAMES = comp_frame_huffman::DECOMPRESSED_FRAMES;
+
+        let (start_s, start_r) = chan<()>("start");
+        let (finished_s, finished_r) = chan<zstd_dec::ZstdDecoderStatus>("finished");
+
+        spawn ZstdDecoderTester<FRAMES, DECOMPRESSED_FRAMES>(start_r, finished_s);
+        (terminator, start_s, finished_r)
+    }
+
+    next(state: ()) {
+        let tok = send(join(), start_s, ());
+        let (tok, result) = recv(tok, finished_r);
+        send(tok, terminator, result == zstd_dec::ZstdDecoderStatus::IDLE);
+    }
+}
+
+#[test_proc]
+proc FseHuffmanLiteralsPredefinedSequencesTest_skip {
+    terminator: chan<bool> out;
+    start_s: chan<()> out;
+    finished_r: chan<zstd_dec::ZstdDecoderStatus> in;
+
+    init {}
+
+    config (terminator: chan<bool> out,) {
+        const FRAMES = comp_frame_huffman_fse::FRAMES;
+        const DECOMPRESSED_FRAMES = comp_frame_huffman_fse::DECOMPRESSED_FRAMES;
+
+        let (start_s, start_r) = chan<()>("start");
+        let (finished_s, finished_r) = chan<zstd_dec::ZstdDecoderStatus>("finished");
+
+        spawn ZstdDecoderTester<FRAMES, DECOMPRESSED_FRAMES>(start_r, finished_s);
+        (terminator, start_s, finished_r)
+    }
+
+    next(state: ()) {
+        let tok = send(join(), start_s, ());
+        let (tok, result) = recv(tok, finished_r);
+        send(tok, terminator, result == zstd_dec::ZstdDecoderStatus::IDLE);
+    }
+}
+
+#[test_proc]
+proc RawHuffmanLiteralsCompressedSequencesTest_skip {
+    terminator: chan<bool> out;
+    start_s: chan<()> out;
+    finished_r: chan<zstd_dec::ZstdDecoderStatus> in;
+
+    init {}
+
+    config (terminator: chan<bool> out,) {
+
+        const FRAMES = comp_frame_fse_comp::FRAMES;
+        const DECOMPRESSED_FRAMES = comp_frame_fse_comp::DECOMPRESSED_FRAMES;
+
+        let (start_s, start_r) = chan<()>("start");
+        let (finished_s, finished_r) = chan<zstd_dec::ZstdDecoderStatus>("finished");
+
+        spawn ZstdDecoderTester<FRAMES, DECOMPRESSED_FRAMES>(start_r, finished_s);
+        (terminator, start_s, finished_r)
+    }
+
+    next(state: ()) {
+        let tok = send(join(), start_s, ());
+        let (tok, result) = recv(tok, finished_r);
+        send(tok, terminator, result == zstd_dec::ZstdDecoderStatus::IDLE);
     }
 }
