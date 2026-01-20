@@ -63,6 +63,15 @@ absl::Status InstantiateBlocksInContainer(
     if (block.get() == container) {
       continue;
     }
+
+    // Skip anything that has a function source; this doesn't need to talk over
+    // channels, so it doesn't need an instantiation.
+    if (block->IsScheduled() &&
+        down_cast<ScheduledBlock*>(block.get())->source() != nullptr &&
+        down_cast<ScheduledBlock*>(block.get())->source()->IsFunction()) {
+      continue;
+    }
+
     blocks_to_instantiate.push_back(block.get());
   }
   absl::c_sort(blocks_to_instantiate, &FunctionBase::NameLessThan);
@@ -399,10 +408,9 @@ absl::Status StitchChannel(Block* container, Channel* channel,
 
 // Stitch all blocks in the container block together, punching external
 // sends/receives through the container.
-absl::Status StitchBlocks(Package* package,
+absl::Status StitchBlocks(Package* package, Block* stitching_block,
                           const verilog::CodegenOptions& options) {
-  XLS_ASSIGN_OR_RETURN(Block * top_block, package->GetTopAsBlock());
-  XLS_RETURN_IF_ERROR(InstantiateBlocksInContainer(top_block, options));
+  XLS_RETURN_IF_ERROR(InstantiateBlocksInContainer(stitching_block, options));
 
   XLS_ASSIGN_OR_RETURN(GlobalChannelMap channel_map,
                        GlobalChannelMap::Create(package));
@@ -414,7 +422,7 @@ absl::Status StitchBlocks(Package* package,
   absl::c_sort(channels_sorted_by_name, Channel::NameLessThan);
 
   for (Channel* channel : channels_sorted_by_name) {
-    XLS_RETURN_IF_ERROR(StitchChannel(top_block, channel, channel_map));
+    XLS_RETURN_IF_ERROR(StitchChannel(stitching_block, channel, channel_map));
   }
 
   return absl::OkStatus();
@@ -423,8 +431,9 @@ absl::Status StitchBlocks(Package* package,
 // Adds a block with the given name to the package, renaming an existing block
 // that has the same name if one exists. Also, update the metadata for the
 // existing block if it is renamed.
-absl::StatusOr<Block*> AddBlockWithName(Package* package,
-                                        std::string_view name) {
+absl::StatusOr<Block*> AddBlockWithName(
+    Package* package, std::string_view name,
+    bool rename_old_block_on_conflict = true) {
   NameUniquer uniquer(/*separator=*/"__", /*reserved_names=*/{});
   Block* block_with_name = nullptr;
   std::vector<Block*> blocks_sorted_by_name;
@@ -446,8 +455,12 @@ absl::StatusOr<Block*> AddBlockWithName(Package* package,
   if (block_with_name != nullptr) {
     std::string new_name = uniquer.GetSanitizedUniqueName(name);
     XLS_RET_CHECK_NE(block_with_name->name(), new_name);
-    block_with_name->SetName(new_name);
-    XLS_RET_CHECK(block_with_name->IsScheduled());
+    if (rename_old_block_on_conflict) {
+      block_with_name->SetName(new_name);
+      XLS_RET_CHECK(block_with_name->IsScheduled());
+    } else {
+      name = new_name;
+    }
   }
 
   auto new_block = std::make_unique<ScheduledBlock>(name, package);
@@ -474,18 +487,35 @@ absl::StatusOr<bool> GlobalChannelBlockStitchingPass::RunInternal(
   }
 
   XLS_ASSIGN_OR_RETURN(Block * original_top_block, package->GetTopAsBlock());
-  std::string top_block_name(options.codegen_options.module_name().value_or(
-      original_top_block->name()));
 
-  XLS_ASSIGN_OR_RETURN(Block * top_block,
-                       AddBlockWithName(package, top_block_name));
+  std::string stitching_block_name(
+      options.codegen_options.module_name().value_or(
+          original_top_block->name()));
+  bool stitching_block_is_top = true;
+  if (original_top_block->IsScheduled() &&
+      down_cast<ScheduledBlock*>(original_top_block)->source() != nullptr &&
+      down_cast<ScheduledBlock*>(original_top_block)->source()->IsFunction()) {
+    // If the top block is a function, we need to leave it alone.
+    stitching_block_name = absl::StrCat(package->name(), "__stitching_block");
+    stitching_block_is_top = false;
+  }
 
-  XLS_RETURN_IF_ERROR(package->SetTop(top_block));
-  XLS_RETURN_IF_ERROR(top_block->AddClockPort("clk"));
-  XLS_RETURN_IF_ERROR(MaybeAddResetPort(top_block, options.codegen_options));
+  XLS_ASSIGN_OR_RETURN(
+      Block * stitching_block,
+      AddBlockWithName(
+          package, stitching_block_name,
+          /*rename_old_block_on_conflict=*/stitching_block_is_top));
 
-  VLOG(2) << "Stitching blocks for " << top_block->name();
-  XLS_RETURN_IF_ERROR(StitchBlocks(package, options.codegen_options));
+  if (stitching_block_is_top) {
+    XLS_RETURN_IF_ERROR(package->SetTop(stitching_block));
+  }
+  XLS_RETURN_IF_ERROR(stitching_block->AddClockPort("clk"));
+  XLS_RETURN_IF_ERROR(
+      MaybeAddResetPort(stitching_block, options.codegen_options));
+
+  VLOG(2) << "Stitching blocks for " << stitching_block->name();
+  XLS_RETURN_IF_ERROR(
+      StitchBlocks(package, stitching_block, options.codegen_options));
 
   return true;
 }

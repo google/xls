@@ -92,8 +92,15 @@ absl::StatusOr<bool> ScheduledBlockConversionPass::RunInternal(
       continue;
     }
 
-    ScheduledBlock* block = down_cast<ScheduledBlock*>(package->AddBlock(
-        std::make_unique<ScheduledBlock>(old_fb->name(), package)));
+    std::string_view name = old_fb->name();
+    if (package->IsTop(old_fb) && old_fb->IsFunction() &&
+        options.codegen_options.module_name().has_value()) {
+      // Rename the top function to the module name; we don't do this for procs,
+      // and instead handle it later while managing proc connections.
+      name = *options.codegen_options.module_name();
+    }
+    ScheduledBlock* block = down_cast<ScheduledBlock*>(
+        package->AddBlock(std::make_unique<ScheduledBlock>(name, package)));
 
     if (!options.codegen_options.generate_combinational()) {
       XLS_RETURN_IF_ERROR(
@@ -160,8 +167,7 @@ absl::StatusOr<bool> ScheduledBlockConversionPass::RunInternal(
       block->MoveLogicFrom(*old_fb);
     }
 
-    std::optional<FunctionBase*> top = package->GetTop();
-    if (top.has_value() && top == old_fb) {
+    if (package->IsTop(old_fb)) {
       XLS_RETURN_IF_ERROR(package->SetTop(block));
     }
 

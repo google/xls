@@ -24,7 +24,6 @@
 #include <string>
 #include <string_view>
 #include <tuple>
-#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -46,7 +45,6 @@
 #include "xls/codegen/block_conversion_test_fixture.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
-#include "xls/codegen/codegen_result.h"
 #include "xls/codegen/ram_configuration.h"
 #include "xls/codegen_v_1_5/convert_to_block.h"
 #include "xls/common/casts.h"
@@ -69,7 +67,6 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/proc.h"
-#include "xls/ir/proc_elaboration.h"
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
@@ -77,7 +74,6 @@
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/run_pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
-#include "xls/scheduling/scheduling_result.h"
 #include "xls/tools/codegen.h"
 #include "xls/tools/codegen_flags.pb.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
@@ -6799,27 +6795,25 @@ TEST_F(BlockConversionTest, TwoBitSelectorAllCasesPopulated) {
 TEST_F(ProcConversionTestFixture, SimpleMultiProcConversion) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
                            CreateMultiProcPackage());
-  SchedulingOptionsFlagsProto scheduling_options;
-  scheduling_options.set_pipeline_stages(2);
-  scheduling_options.set_delay_model("unit");
-  scheduling_options.set_multi_proc(true);
+  SchedulingOptions scheduling_options;
+  scheduling_options.pipeline_stages(2);
+  scheduling_options.delay_model("unit");
+  scheduling_options.schedule_all_procs(true);
 
-  CodegenFlagsProto codegen_options;
-  codegen_options.set_flop_inputs(false);
-  codegen_options.set_flop_outputs(false);
-  codegen_options.set_reset("rst");
-  codegen_options.set_streaming_channel_data_suffix("_data");
-  codegen_options.set_streaming_channel_valid_suffix("_valid");
-  codegen_options.set_streaming_channel_ready_suffix("_ready");
-  codegen_options.set_module_name("p");
-  codegen_options.set_generator(GeneratorKind::GENERATOR_KIND_PIPELINE);
+  CodegenOptions codegen_options;
+  codegen_options.clock_name("clk");
+  codegen_options.flop_inputs(false);
+  codegen_options.flop_outputs(false);
+  codegen_options.reset("rst", false, false, false);
+  codegen_options.streaming_channel_data_suffix("_data");
+  codegen_options.streaming_channel_valid_suffix("_valid");
+  codegen_options.streaming_channel_ready_suffix("_ready");
+  codegen_options.module_name("p");
+  codegen_options.generate_combinational(false);
 
-  std::pair<SchedulingResult, verilog::CodegenResult> result;
   XLS_ASSERT_OK_AND_ASSIGN(
-      result, ScheduleAndCodegen(p.get(), scheduling_options, codegen_options,
-                                 /*with_delay_model=*/true));
-
-  XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("p"));
+      Block * top_block,
+      ConvertToBlock(p.get(), codegen_options, scheduling_options));
 
   std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
   std::vector<absl::flat_hash_map<std::string, uint64_t>> outputs;
@@ -6897,27 +6891,25 @@ TEST_F(ProcConversionTestFixture,
        SimpleMultiProcConversionWithFunctionsPresent) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
                            CreateMultiProcPackage(/*with_functions=*/true));
-  SchedulingOptionsFlagsProto scheduling_options;
-  scheduling_options.set_pipeline_stages(2);
-  scheduling_options.set_delay_model("unit");
-  scheduling_options.set_multi_proc(true);
+  SchedulingOptions scheduling_options;
+  scheduling_options.pipeline_stages(2);
+  scheduling_options.delay_model("unit");
+  scheduling_options.schedule_all_procs(true);
 
-  CodegenFlagsProto codegen_options;
-  codegen_options.set_flop_inputs(false);
-  codegen_options.set_flop_outputs(false);
-  codegen_options.set_reset("rst");
-  codegen_options.set_streaming_channel_data_suffix("_data");
-  codegen_options.set_streaming_channel_valid_suffix("_valid");
-  codegen_options.set_streaming_channel_ready_suffix("_ready");
-  codegen_options.set_module_name("p");
-  codegen_options.set_generator(GeneratorKind::GENERATOR_KIND_PIPELINE);
+  CodegenOptions codegen_options;
+  codegen_options.clock_name("clk");
+  codegen_options.flop_inputs(false);
+  codegen_options.flop_outputs(false);
+  codegen_options.reset("rst", false, false, false);
+  codegen_options.streaming_channel_data_suffix("_data");
+  codegen_options.streaming_channel_valid_suffix("_valid");
+  codegen_options.streaming_channel_ready_suffix("_ready");
+  codegen_options.module_name("p");
+  codegen_options.generate_combinational(false);
 
-  std::pair<SchedulingResult, verilog::CodegenResult> result;
   XLS_ASSERT_OK_AND_ASSIGN(
-      result, ScheduleAndCodegen(p.get(), scheduling_options, codegen_options,
-                                 /*with_delay_model=*/true));
-
-  XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("p"));
+      Block * top_block,
+      ConvertToBlock(p.get(), codegen_options, scheduling_options));
 
   std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
   std::vector<absl::flat_hash_map<std::string, uint64_t>> outputs;
@@ -6997,27 +6989,25 @@ TEST_F(ProcConversionTestFixture, SimpleFunctionWithProcsPresent) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f0, p->GetFunction("f0"));
   XLS_ASSERT_OK(p->SetTop(f0));
 
-  SchedulingOptionsFlagsProto scheduling_options;
-  scheduling_options.set_pipeline_stages(1);
-  scheduling_options.set_delay_model("unit");
-  scheduling_options.set_multi_proc(true);
+  SchedulingOptions scheduling_options;
+  scheduling_options.pipeline_stages(1);
+  scheduling_options.delay_model("unit");
+  scheduling_options.schedule_all_procs(true);
 
-  CodegenFlagsProto codegen_options;
-  codegen_options.set_flop_inputs(false);
-  codegen_options.set_flop_outputs(false);
-  codegen_options.set_reset("rst");
-  codegen_options.set_streaming_channel_data_suffix("_data");
-  codegen_options.set_streaming_channel_valid_suffix("_valid");
-  codegen_options.set_streaming_channel_ready_suffix("_ready");
-  codegen_options.set_module_name("p");
-  codegen_options.set_generator(GeneratorKind::GENERATOR_KIND_PIPELINE);
+  CodegenOptions codegen_options;
+  codegen_options.clock_name("clk");
+  codegen_options.flop_inputs(false);
+  codegen_options.flop_outputs(false);
+  codegen_options.reset("rst", false, false, false);
+  codegen_options.streaming_channel_data_suffix("_data");
+  codegen_options.streaming_channel_valid_suffix("_valid");
+  codegen_options.streaming_channel_ready_suffix("_ready");
+  codegen_options.module_name("p");
+  codegen_options.generate_combinational(false);
 
-  std::pair<SchedulingResult, verilog::CodegenResult> result;
   XLS_ASSERT_OK_AND_ASSIGN(
-      result, ScheduleAndCodegen(p.get(), scheduling_options, codegen_options,
-                                 /*with_delay_model=*/true));
-
-  XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("p"));
+      Block * top_block,
+      ConvertToBlock(p.get(), codegen_options, scheduling_options));
 
   EXPECT_EQ(top_block->name(), "p");
   EXPECT_EQ(top_block->GetPorts().size(), 5);
@@ -7072,9 +7062,6 @@ TEST_F(ProcConversionTestFixture, TrivialProcHierarchyWithProcScopedChannels) {
       std::vector<ChannelInterface*>{in_channel, out_channel}));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * top, pb.Build({}));
   XLS_ASSERT_OK(p->SetTop(top));
-
-  XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
-                           ProcElaboration::Elaborate(top));
 
   XLS_ASSERT_OK(ConvertToBlock(
       p.get(),
