@@ -687,6 +687,7 @@ cc_test(
         "@org_theopenroadproject//:opensta",
     ],
     deps = [
+        ":pipeline_schedule",
         ":pipeline_scheduling_pass",
         ":scheduling_options",
         ":scheduling_pass",
@@ -708,6 +709,7 @@ cc_test(
         "//xls/passes:pass_base",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
         "@googletest//:gtest",
     ],
 )
