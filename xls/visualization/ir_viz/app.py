@@ -280,8 +280,17 @@ def graph_handler():
           stderr=subprocess.PIPE,
           encoding='utf-8',
       )
+    except subprocess.CalledProcessError as e:
+      # Surface the stderr from the underlying binary so callers can see why
+      # it failed instead of only getting the exit status.
+      flask.current_app.logger.error(
+          "ir_to_json_main failed: %s\nstderr:\n%s", e, e.stderr
+      )
+      error_msg = f"{e}\nstderr:\n{e.stderr}"
+      return flask.jsonify({'error_code': 'error', 'message': error_msg})
     except Exception as e:  # pylint: disable=broad-except
-      # TODO(meheff): Switch to more-specific exception.
+      # Fallback for any non-CalledProcessError exceptions.
+      flask.current_app.logger.exception("Unexpected error while running ir_to_json_main")
       return flask.jsonify({'error_code': 'error', 'message': str(e)})
 
   graph = json.loads(json_text)
