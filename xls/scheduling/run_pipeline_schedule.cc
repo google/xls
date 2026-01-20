@@ -620,11 +620,6 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
                                 worst_case_throughput,
                                 options.dynamic_throughput_objective_weight());
     if (!schedule_cycle_map.ok()) {
-      if (absl::IsInvalidArgument(schedule_cycle_map.status())) {
-        // The scheduler was able to explain the failure; report it up without
-        // further analysis.
-        return std::move(schedule_cycle_map).status();
-      }
       if (options.clock_period_ps().has_value()) {
         // The user specified a specific clock period; see if we can confirm
         // that that's the issue.
@@ -648,8 +643,9 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
             // Just increasing the clock period suffices.
             return absl::InvalidArgumentError(absl::StrFormat(
                 "cannot achieve the specified clock period. Try "
-                "`--clock_period_ps=%d`.",
-                *min_clock_period_ps));
+                "`--clock_period_ps=%d`. The reason the scheduler gave is: "
+                "%v",
+                *min_clock_period_ps, schedule_cycle_map.status()));
           }
           if (absl::IsInvalidArgument(min_clock_period_ps.status())) {
             // We failed with an explained error at the longest possible clock
@@ -658,8 +654,10 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
             return xabsl::StatusBuilder(std::move(min_clock_period_ps).status())
                        .SetPrepend()
                    << absl::StrFormat(
-                          "cannot achieve the specified clock period; try "
-                          "increasing `--clock_period_ps`. Also, ");
+                          "cannot achieve the specified clock period; the "
+                          "reason the scheduler gave is: %v. Try "
+                          "increasing `--clock_period_ps`. Also, ",
+                          schedule_cycle_map.status());
           }
           // We fail with an unexplained error even at the longest possible
           // clock period. Report the original error.
@@ -685,9 +683,11 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
                 .status();
         if (pessimistic_status.ok()) {
           // Just increasing the clock period suffices.
-          return absl::InvalidArgumentError(
-              "cannot achieve the specified clock period. Try increasing "
-              "`--clock_period_ps`.");
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "cannot achieve the specified clock period. The reason the "
+              "scheduler gave is: %v. Try increasing "
+              "`--clock_period_ps`.",
+              schedule_cycle_map.status()));
         }
         if (absl::IsInvalidArgument(pessimistic_status)) {
           // We failed with an explained error at the pessimistic clock period.
@@ -696,8 +696,10 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
           return xabsl::StatusBuilder(std::move(pessimistic_status))
                      .SetPrepend()
                  << absl::StrFormat(
-                        "cannot achieve the specified clock period; try "
-                        "increasing `--clock_period_ps`. Also, ");
+                        "cannot achieve the specified clock period; the reason "
+                        "the scheduler gave is: %v. Try "
+                        "increasing `--clock_period_ps`. Also, ",
+                        schedule_cycle_map.status());
         }
         return pessimistic_status;
       }

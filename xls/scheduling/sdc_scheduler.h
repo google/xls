@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -86,7 +87,33 @@ class SDCSchedulingModel {
       const operations_research::math_opt::VariableMap<double>& variable_values)
       const;
 
-  absl::Status AddSlackVariables(
+  class SlackHandle {
+   public:
+    ~SlackHandle() {
+      if (model_ != nullptr) {
+        CHECK_OK(model_->RemoveSlackVariables());
+      }
+    }
+
+    SlackHandle(const SlackHandle&) = delete;
+    SlackHandle& operator=(const SlackHandle&) = delete;
+    SlackHandle(SlackHandle&& other) { *this = std::move(other); }
+    SlackHandle& operator=(SlackHandle&& other) {
+      model_ = std::move(other.model_);
+      other.model_ = nullptr;
+      return *this;
+    }
+
+    void Release() { model_ = nullptr; }
+
+   private:
+    friend class SDCSchedulingModel;
+    SlackHandle(SDCSchedulingModel* model) : model_(model) {}
+
+    SDCSchedulingModel* model_;
+  };
+
+  absl::StatusOr<SlackHandle> AddSlackVariables(
       std::optional<double> infeasible_per_state_backedge_slack_pool);
 
   operations_research::math_opt::Model& UnderlyingModel() { return model_; }
@@ -138,9 +165,9 @@ class SDCSchedulingModel {
       std::optional<operations_research::math_opt::Variable> slack =
           std::nullopt);
 
-  absl::Status RemoveUpperBoundSlack(
-      operations_research::math_opt::Variable v,
-      operations_research::math_opt::LinearConstraint upper_bound_with_slack,
+  absl::Status RemoveSlackVariables();
+
+  absl::Status RemoveSlackVariable(
       operations_research::math_opt::Variable slack);
 
   operations_research::math_opt::Variable AddLowerBoundSlack(
