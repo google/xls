@@ -481,6 +481,32 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
     return true;
   }
 
+  // Or(UGt(a, b), ULt(a, b)) => Ne(a, b)
+  //
+  // i.e. (a > b) || (a < b)  <=>  (a != b)
+  if (n->op() == Op::kOr && n->operand_count() == 2 &&
+      n->operand(0)->Is<CompareOp>() && n->operand(1)->Is<CompareOp>()) {
+    Node* op0 = n->operand(0);
+    Node* op1 = n->operand(1);
+    Node* ugt = nullptr;
+    Node* ult = nullptr;
+    if (op0->op() == Op::kUGt && op1->op() == Op::kULt) {
+      ugt = op0;
+      ult = op1;
+    } else if (op0->op() == Op::kULt && op1->op() == Op::kUGt) {
+      ugt = op1;
+      ult = op0;
+    }
+    if (ugt != nullptr && ugt->operand(0) == ult->operand(0) &&
+        ugt->operand(1) == ult->operand(1)) {
+      VLOG(2) << "FOUND: replace (a>b)||(a<b) with a!=b";
+      XLS_RETURN_IF_ERROR(n->ReplaceUsesWithNew<CompareOp>(
+                               ugt->operand(0), ugt->operand(1), Op::kNe)
+                              .status());
+      return true;
+    }
+  }
+
   //   Add(X, Not(X)) => 1...
   //   Add(Not(X), X) => 1...
   //

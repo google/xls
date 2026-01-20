@@ -390,6 +390,42 @@ TEST_F(BasicSimplificationPassTest, OrReduceOfNegWithOtherUses) {
               m::Tuple(m::OrReduce(m::Param("x")), m::Neg(m::Param("x"))));
 }
 
+TEST_F(BasicSimplificationPassTest, OrOfUgtAndUltIsNe) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* t = p->GetBitsType(32);
+
+  BValue a = fb.Param("a", t);
+  BValue b = fb.Param("b", t);
+
+  BValue gt = fb.UGt(a, b);
+  BValue lt = fb.ULt(a, b);
+  BValue result = fb.Or(gt, lt);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Ne(m::Param("a"), m::Param("b")));
+}
+
+TEST_F(BasicSimplificationPassTest, OrOfUltAndUgtIsNe) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* t = p->GetBitsType(32);
+
+  BValue a = fb.Param("a", t);
+  BValue b = fb.Param("b", t);
+
+  BValue gt = fb.UGt(a, b);
+  BValue lt = fb.ULt(a, b);
+  BValue result = fb.Or(lt, gt);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Ne(m::Param("a"), m::Param("b")));
+}
+
 TEST_F(BasicSimplificationPassTest, SingleBitXorReduce) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
