@@ -37,8 +37,19 @@ TEST_F(TranslatorPointerTest, ToArraySubscript) {
   const std::string content = R"(
     int my_package() {
 	    int arr[10] = {1,2,3,4,5,6,7,8,9,10};
-      int*a = &arr[10];
+      int*a = &arr[9];
       return a[0];
+    })";
+  Run({}, 10, content);
+}
+
+TEST_F(TranslatorPointerTest, ToArraySubscript2) {
+  const std::string content = R"(
+    int my_package() {
+	    int arr[10] = {1,2,3,4,5,6,7,8,9,10};
+      int*a = &arr[9];
+      int b = a[0];
+      return b;
     })";
   Run({}, 10, content);
 }
