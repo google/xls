@@ -345,6 +345,9 @@ absl::Status Parser::ParseModuleAttribute() {
     } else if (feature == "channel_attributes") {
       module_->AddAttribute(ModuleAttribute::kChannelAttributes,
                             attribute_span);
+    } else if (feature == "explicit_state_access") {
+      module_->AddAttribute(ModuleAttribute::kExplicitStateAccess,
+                            attribute_span);
     } else if (feature == "generics") {
       module_->AddAttribute(ModuleAttribute::kGenerics, attribute_span);
     } else if (feature == "traits") {
@@ -3153,6 +3156,31 @@ absl::StatusOr<Function*> Parser::ParseProcConfig(
   return config;
 }
 
+absl::StatusOr<Function*> Parser::ParseProcNextExplicitStateAccess(
+    std::vector<Param*> next_params, std::string_view proc_name,
+    std::vector<ParametricBinding*> parametric_bindings, Token oparen,
+    Bindings& inner_bindings, bool is_public) {
+  for (Param* p : next_params) {
+    if (HasChannelElement(p->type_annotation())) {
+      return ParseErrorStatus(p->span(),
+                              "Channels cannot be Proc next params.");
+    }
+  }
+  TypeAnnotation* return_type = module_->Make<TupleTypeAnnotation>(
+      Span(GetPos(), GetPos()), std::vector<TypeAnnotation*>{});
+  XLS_ASSIGN_OR_RETURN(StatementBlock * body,
+                       ParseBlockExpression(inner_bindings));
+  Span span(oparen.span().start(), GetPos());
+  NameDef* name_def =
+      module_->Make<NameDef>(span, absl::StrCat(proc_name, ".next"), nullptr);
+  Function* next = module_->Make<Function>(
+      span, name_def, std::move(parametric_bindings), next_params, return_type,
+      body, FunctionTag::kProcNext, is_public,
+      /*is_stub=*/false);
+  name_def->set_definer(next);
+  return next;
+}
+
 absl::StatusOr<Function*> Parser::ParseProcNext(
     Bindings& bindings, std::vector<ParametricBinding*> parametric_bindings,
     std::string_view proc_name, bool is_public) {
@@ -3173,6 +3201,11 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
 
   XLS_ASSIGN_OR_RETURN(std::vector<Param*> next_params,
                        ParseCommaSeq<Param*>(parse_param, TokenKind::kCParen));
+  if (module_->attributes().contains(ModuleAttribute::kExplicitStateAccess)) {
+    return ParseProcNextExplicitStateAccess(next_params, proc_name,
+                                            parametric_bindings, oparen,
+                                            inner_bindings, is_public);
+  }
 
   if (next_params.size() != 1) {
     std::string next_params_str =
@@ -3192,9 +3225,11 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
                             "Channels cannot be Proc next params.");
   }
 
-  XLS_ASSIGN_OR_RETURN(TypeAnnotation * return_type,
+  TypeAnnotation* return_type;
+  XLS_ASSIGN_OR_RETURN(return_type,
                        CloneNode(state_param->type_annotation(),
                                  &PreserveTypeDefinitionsReplacer));
+
   XLS_ASSIGN_OR_RETURN(StatementBlock * body,
                        ParseBlockExpression(inner_bindings));
   Span span(oparen.span().start(), GetPos());

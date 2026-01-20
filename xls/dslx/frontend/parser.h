@@ -704,6 +704,10 @@ class Parser : public TokenParser {
       Bindings& bindings, std::vector<ParametricBinding*> parametric_bindings,
       const std::vector<ProcMember*>& proc_members, std::string_view proc_name,
       bool is_public);
+  absl::StatusOr<Function*> ParseProcNextExplicitStateAccess(
+      std::vector<Param*> next_params, std::string_view proc_name,
+      std::vector<ParametricBinding*> parametric_bindings, Token oparen,
+      Bindings& inner_bindings, bool is_public);
 
   absl::StatusOr<Function*> ParseProcNext(
       Bindings& bindings, std::vector<ParametricBinding*> parametric_bindings,
