@@ -410,7 +410,7 @@ class OptimizationContext {
       void HashValue(absl::HashState state) const override {
         absl::HashState::combine(std::move(state), idx_, inner_);
       }
-      bool operator==(const ArgsTuple& other) const {
+      bool operator==(const ArgsTuple& other) const override {
         if (other.type_index() != idx_) {
           return false;
         }

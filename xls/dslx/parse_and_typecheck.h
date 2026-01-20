@@ -40,7 +40,7 @@ namespace xls::dslx {
 
 enum class TypeInferenceVersion : uint8_t { kVersion1 = 1, kVersion2 = 2 };
 
-constexpr TypeInferenceVersion kDefaultTypeInferenceVersion =
+inline constexpr TypeInferenceVersion kDefaultTypeInferenceVersion =
     TypeInferenceVersion::kVersion2;
 
 // Options to parse and typecheck a DSLX module.

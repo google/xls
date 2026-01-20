@@ -182,7 +182,7 @@ class ScheduledBlockBuilder : public BlockBuilder {
   }
 
  protected:
-  void OnNodeAdded(Node* node);
+  void OnNodeAdded(Node* node) override;
 
  private:
   bool staging_nodes_ = false;

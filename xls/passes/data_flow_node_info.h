@@ -80,13 +80,13 @@ class DataFlowLazyNodeInfo : public LazyNodeInfo<Info> {
   explicit DataFlowLazyNodeInfo(bool compute_tree_for_source,
                                 bool default_info_source)
       : LazyNodeInfo<Info>(DagCacheInvalidateDirection::kInvalidatesUsers),
-        compute_tree_for_source_(compute_tree_for_source),
-        default_info_source_(default_info_source) {}
+        default_info_source_(default_info_source),
+        compute_tree_for_source_(compute_tree_for_source) {}
 
   DataFlowLazyNodeInfo(const DataFlowLazyNodeInfo& o)
       : LazyNodeInfo<Info>(o),
-        compute_tree_for_source_(o.compute_tree_for_source_),
         default_info_source_(o.default_info_source_),
+        compute_tree_for_source_(o.compute_tree_for_source_),
         query_engine_(o.query_engine_),
         parent_(o.parent_),
         parent_node_(o.parent_node_) {
@@ -148,7 +148,7 @@ class DataFlowLazyNodeInfo : public LazyNodeInfo<Info> {
 
   LeafTypeTree<Info> ComputeInfo(
       Node* node,
-      absl::Span<const LeafTypeTree<Info>* const> operand_infos) const {
+      absl::Span<const LeafTypeTree<Info>* const> operand_infos) const final {
     CHECK_NE(query_engine_, nullptr);
 
     absl::InlinedVector<const LeafTypeTree<Info>*, 1> operand_infos_out;
