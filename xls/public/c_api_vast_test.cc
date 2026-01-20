@@ -1047,6 +1047,203 @@ endmodule
   EXPECT_EQ(std::string_view{emitted}, kWantEmitted);
 }
 
+TEST(XlsCApiTest, VastModuleScopeConditional) {
+  const std::string_view kWantEmitted = R"(module top;
+  parameter A = 1;
+  parameter B = 2;
+  wire out;
+  if (A == B) begin
+    assign out = 1'h1;
+  end else begin
+    assign out = 1'h0;
+  end
+endmodule
+)";
+
+  xls_vast_verilog_file* f =
+      xls_vast_make_verilog_file(xls_vast_file_type_system_verilog);
+  ASSERT_NE(f, nullptr);
+  absl::Cleanup free_file([&] { xls_vast_verilog_file_free(f); });
+
+  xls_vast_verilog_module* m = xls_vast_verilog_file_add_module(f, "top");
+  ASSERT_NE(m, nullptr);
+
+  // parameter A = 1; parameter B = 2;
+  xls_vast_parameter_ref* A = xls_vast_verilog_module_add_parameter(
+      m, "A",
+      xls_vast_literal_as_expression(
+          xls_vast_verilog_file_make_plain_literal(f, 1)));
+  xls_vast_parameter_ref* B = xls_vast_verilog_module_add_parameter(
+      m, "B",
+      xls_vast_literal_as_expression(
+          xls_vast_verilog_file_make_plain_literal(f, 2)));
+  ASSERT_NE(A, nullptr);
+  ASSERT_NE(B, nullptr);
+
+  // wire out;
+  xls_vast_data_type* scalar = xls_vast_verilog_file_make_scalar_type(f);
+  ASSERT_NE(scalar, nullptr);
+  xls_vast_logic_ref* out = xls_vast_verilog_module_add_wire(m, "out", scalar);
+  ASSERT_NE(out, nullptr);
+
+  auto make_ubits_literal = [&](int64_t bit_count,
+                                uint64_t value) -> xls_vast_expression* {
+    xls_bits* bits = nullptr;
+    char* error = nullptr;
+    absl::Cleanup free_error([&] { xls_c_str_free(error); });
+    EXPECT_TRUE(xls_bits_make_ubits(bit_count, value, &error, &bits))
+        << (error ? error : "");
+    absl::Cleanup free_bits([&] { xls_bits_free(bits); });
+    xls_vast_literal* lit = nullptr;
+    EXPECT_TRUE(xls_vast_verilog_file_make_literal(
+        f, bits, xls_format_preference_hex, /*emit_bit_count=*/true, &error,
+        &lit))
+        << (error ? error : "");
+    EXPECT_NE(lit, nullptr);
+    return xls_vast_literal_as_expression(lit);
+  };
+
+  // if (A == B) ...
+  xls_vast_expression* eq = xls_vast_verilog_file_make_binary(
+      f, xls_vast_parameter_ref_as_expression(A),
+      xls_vast_parameter_ref_as_expression(B), xls_vast_operator_kind_eq);
+  ASSERT_NE(eq, nullptr);
+  xls_vast_conditional* cond = xls_vast_verilog_module_add_conditional(m, eq);
+  ASSERT_NE(cond, nullptr);
+
+  xls_vast_statement_block* then_block =
+      xls_vast_conditional_get_then_block(cond);
+  ASSERT_NE(then_block, nullptr);
+  ASSERT_NE(xls_vast_statement_block_add_continuous_assignment(
+                then_block, xls_vast_logic_ref_as_expression(out),
+                make_ubits_literal(/*bit_count=*/1, /*value=*/1)),
+            nullptr);
+
+  xls_vast_statement_block* else_block = xls_vast_conditional_add_else(cond);
+  ASSERT_NE(else_block, nullptr);
+  ASSERT_NE(xls_vast_statement_block_add_continuous_assignment(
+                else_block, xls_vast_logic_ref_as_expression(out),
+                make_ubits_literal(/*bit_count=*/1, /*value=*/0)),
+            nullptr);
+
+  char* emitted = xls_vast_verilog_file_emit(f);
+  ASSERT_NE(emitted, nullptr);
+  absl::Cleanup free_emitted([&] { xls_c_str_free(emitted); });
+  EXPECT_EQ(std::string_view{emitted}, kWantEmitted);
+}
+
+TEST(XlsCApiTest, VastGenerateLoopConditional) {
+  const std::string_view kWantEmitted = R"(module top;
+  wire [2:0] out;
+  for (genvar i = 0; i < 3; i = i + 1) begin : g
+    if (i == 0) begin
+      assign out[i] = 1'h0;
+    end else if (i == 1) begin
+      assign out[i] = 1'h1;
+    end else begin
+      assign out[i] = 'X;
+    end
+  end
+endmodule
+)";
+
+  xls_vast_verilog_file* f =
+      xls_vast_make_verilog_file(xls_vast_file_type_system_verilog);
+  ASSERT_NE(f, nullptr);
+  absl::Cleanup free_file([&] { xls_vast_verilog_file_free(f); });
+
+  xls_vast_verilog_module* m = xls_vast_verilog_file_add_module(f, "top");
+  ASSERT_NE(m, nullptr);
+
+  xls_vast_data_type* u3 =
+      xls_vast_verilog_file_make_bit_vector_type(f, 3, /*is_signed=*/false);
+  xls_vast_logic_ref* out = xls_vast_verilog_module_add_wire(m, "out", u3);
+  ASSERT_NE(out, nullptr);
+
+  xls_vast_generate_loop* loop = xls_vast_verilog_module_add_generate_loop(
+      m, "i",
+      xls_vast_literal_as_expression(
+          xls_vast_verilog_file_make_plain_literal(f, 0)),
+      xls_vast_literal_as_expression(
+          xls_vast_verilog_file_make_plain_literal(f, 3)),
+      "g");
+  ASSERT_NE(loop, nullptr);
+
+  xls_vast_logic_ref* i_lr = xls_vast_generate_loop_get_genvar(loop);
+  ASSERT_NE(i_lr, nullptr);
+
+  // Helper to form out[i] (as expression).
+  xls_vast_indexable_expression* out_idxable =
+      xls_vast_logic_ref_as_indexable_expression(out);
+  ASSERT_NE(out_idxable, nullptr);
+  xls_vast_index* out_i = xls_vast_verilog_file_make_index(
+      f, out_idxable, xls_vast_logic_ref_as_expression(i_lr));
+  ASSERT_NE(out_i, nullptr);
+  xls_vast_expression* out_i_expr = xls_vast_index_as_expression(out_i);
+  ASSERT_NE(out_i_expr, nullptr);
+
+  auto make_ubits_literal = [&](int64_t bit_count,
+                                uint64_t value) -> xls_vast_expression* {
+    xls_bits* bits = nullptr;
+    char* error = nullptr;
+    absl::Cleanup free_error([&] { xls_c_str_free(error); });
+    EXPECT_TRUE(xls_bits_make_ubits(bit_count, value, &error, &bits))
+        << (error ? error : "");
+    absl::Cleanup free_bits([&] { xls_bits_free(bits); });
+    xls_vast_literal* lit = nullptr;
+    EXPECT_TRUE(xls_vast_verilog_file_make_literal(
+        f, bits, xls_format_preference_hex, /*emit_bit_count=*/true, &error,
+        &lit))
+        << (error ? error : "");
+    EXPECT_NE(lit, nullptr);
+    return xls_vast_literal_as_expression(lit);
+  };
+
+  // if (i == 0) ...
+  xls_vast_expression* i_eq_0 = xls_vast_verilog_file_make_binary(
+      f, xls_vast_logic_ref_as_expression(i_lr),
+      xls_vast_literal_as_expression(
+          xls_vast_verilog_file_make_plain_literal(f, 0)),
+      xls_vast_operator_kind_eq);
+  ASSERT_NE(i_eq_0, nullptr);
+  xls_vast_conditional* cond =
+      xls_vast_generate_loop_add_conditional(loop, i_eq_0);
+  ASSERT_NE(cond, nullptr);
+
+  xls_vast_statement_block* then_block =
+      xls_vast_conditional_get_then_block(cond);
+  ASSERT_NE(then_block, nullptr);
+  ASSERT_NE(xls_vast_statement_block_add_continuous_assignment(
+                then_block, out_i_expr,
+                make_ubits_literal(/*bit_count=*/1, /*value=*/0)),
+            nullptr);
+
+  xls_vast_expression* i_eq_1 = xls_vast_verilog_file_make_binary(
+      f, xls_vast_logic_ref_as_expression(i_lr),
+      xls_vast_literal_as_expression(
+          xls_vast_verilog_file_make_plain_literal(f, 1)),
+      xls_vast_operator_kind_eq);
+  xls_vast_statement_block* else_if_block =
+      xls_vast_conditional_add_else_if(cond, i_eq_1);
+  ASSERT_NE(else_if_block, nullptr);
+  ASSERT_NE(xls_vast_statement_block_add_continuous_assignment(
+                else_if_block, out_i_expr,
+                make_ubits_literal(/*bit_count=*/1, /*value=*/1)),
+            nullptr);
+
+  xls_vast_statement_block* else_block = xls_vast_conditional_add_else(cond);
+  ASSERT_NE(else_block, nullptr);
+  ASSERT_NE(xls_vast_statement_block_add_continuous_assignment(
+                else_block, out_i_expr,
+                xls_vast_verilog_file_make_unsized_x_literal(f)),
+            nullptr);
+
+  char* emitted = xls_vast_verilog_file_emit(f);
+  ASSERT_NE(emitted, nullptr);
+  absl::Cleanup free_emitted([&] { xls_c_str_free(emitted); });
+  EXPECT_EQ(std::string_view{emitted}, kWantEmitted);
+}
+
 // Tests that we can assign a 128-bit output wire using a 128-bit literal
 // value.
 TEST(XlsCApiTest, ContinuousAssignmentOf128BitLiteral) {

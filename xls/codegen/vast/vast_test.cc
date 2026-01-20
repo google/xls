@@ -2884,6 +2884,86 @@ TEST_P(VastTest, NestedGenerateLoop) {
 endmodule)");
 }
 
+TEST_P(VastTest, ModuleScopeConditionalBasedOnParameterEquality) {
+  if (!UseSystemVerilog()) {
+    GTEST_SKIP();
+  }
+  VerilogFile f(GetFileType());
+  const SourceInfo si;
+  Module* m = f.AddModule("top", si);
+
+  // parameter A = 1; parameter B = 2;
+  ParameterRef* A = m->AddParameter("A", f.PlainLiteral(1, si), si);
+  ParameterRef* B = m->AddParameter("B", f.PlainLiteral(2, si), si);
+
+  // wire out;
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * out,
+                           m->AddWire("out", f.ScalarType(si), si));
+  (void)out;  // referenced via inline verilog statements below.
+
+  // Generate-style conditional at module scope based on (A == B) / (A != B).
+  Conditional* c = m->Add<Conditional>(si, f.Equals(A, B, si));
+  c->consequent()->Add<ContinuousAssignment>(si, out, f.Literal(1, 1, si));
+  StatementBlock* else_block = c->AddAlternate(/*condition=*/nullptr);
+  else_block->Add<ContinuousAssignment>(si, out, f.Literal(0, 1, si));
+
+  EXPECT_EQ(m->Emit(nullptr),
+            R"(module top;
+  parameter A = 1;
+  parameter B = 2;
+  wire out;
+  if (A == B) begin
+    assign out = 1'h1;
+  end else begin
+    assign out = 1'h0;
+  end
+endmodule)");
+}
+
+TEST_P(VastTest, GenerateLoopConditionalOnGenvarWithFallthrough) {
+  if (!UseSystemVerilog()) {
+    GTEST_SKIP();
+  }
+  VerilogFile f(GetFileType());
+  const SourceInfo si;
+  Module* m = f.AddModule("top", si);
+
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * out,
+                           m->AddWire("out", f.BitVectorType(3, si), si));
+  (void)out;  // referenced via inline verilog statements below.
+
+  auto* loop = m->Add<GenerateLoop>(si, std::string("i"), f.PlainLiteral(0, si),
+                                    f.PlainLiteral(3, si), "g");
+  LogicRef* i = loop->genvar();
+
+  // Compare genvar to constants with else-if and fallthrough else.
+  Conditional* c =
+      loop->Add<Conditional>(si, f.Equals(i, f.PlainLiteral(0, si), si));
+  c->consequent()->Add<ContinuousAssignment>(si, f.Make<Index>(si, out, i),
+                                             f.Literal(0, 1, si));
+  StatementBlock* else_if =
+      c->AddAlternate(f.Equals(i, f.PlainLiteral(1, si), si));
+  else_if->Add<ContinuousAssignment>(si, f.Make<Index>(si, out, i),
+                                     f.Literal(1, 1, si));
+  StatementBlock* else_block = c->AddAlternate(/*condition=*/nullptr);
+  else_block->Add<ContinuousAssignment>(si, f.Make<Index>(si, out, i),
+                                        f.Make<XSentinel>(si, 1));
+
+  EXPECT_EQ(m->Emit(nullptr),
+            R"(module top;
+  wire [2:0] out;
+  for (genvar i = 0; i < 3; i = i + 1) begin : g
+    if (i == 0) begin
+      assign out[i] = 1'h0;
+    end else if (i == 1) begin
+      assign out[i] = 1'h1;
+    end else begin
+      assign out[i] = 1'dx;
+    end
+  end
+endmodule)");
+}
+
 TEST_P(VastTest, ModuleParametersPortsNoIo) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
