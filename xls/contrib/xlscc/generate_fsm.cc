@@ -19,6 +19,7 @@
 #include <limits>
 #include <optional>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -32,6 +33,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/span.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/status_macros.h"
@@ -635,6 +637,8 @@ NewFSMGenerator::GenerateNewFSMInvocation(
   XLS_ASSIGN_OR_RETURN(layout,
                        LayoutNewFSM(func, state_element_for_static, body_loc));
 
+  absl::flat_hash_map<PhiConditionCacheKey, TrackedBValue> generated_conditions;
+
   const int64_t num_slice_index_bits =
       xls::CeilOfLog2(1 + xls_func->slices.size());
 
@@ -707,7 +711,7 @@ NewFSMGenerator::GenerateNewFSMInvocation(
   XLS_ASSIGN_OR_RETURN(
       phi_elements_by_param_node_id,
       GeneratePhiConditions(layout, state_element_by_jump_slice_index, pb,
-                            body_loc));
+                            body_loc, generated_conditions));
 
   // The value from the current activation's perspective,
   // either outputted from invoke or state element.
@@ -762,6 +766,30 @@ NewFSMGenerator::GenerateNewFSMInvocation(
   TrackedBValue last_op_out_value;
   TrackedBValue after_activation_transition =
       pb.Literal(xls::UBits(0, 1), body_loc);
+
+  // Sort by Node ID and StateElement name for determinism.
+  struct StateElementAndNodeLessThan {
+    bool operator()(const std::tuple<xls::StateElement*, xls::Node*>& a,
+                    const std::tuple<xls::StateElement*, xls::Node*>& b) const {
+      const auto& [a_elem, a_node] = a;
+      const auto& [b_elem, b_node] = b;
+      if (a_elem->name() != b_elem->name()) {
+        return a_elem->name() < b_elem->name();
+      }
+      return a_node->id() < b_node->id();
+    }
+  };
+
+  struct NodeIdLessThan {
+    bool operator()(const xls::Node* a, const xls::Node* b) const {
+      return a->id() < b->id();
+    }
+  };
+
+  absl::btree_map<std::tuple<xls::StateElement*, xls::Node*>,
+                  absl::btree_set<xls::Node*, NodeIdLessThan>,
+                  StateElementAndNodeLessThan>
+      next_value_conditions_by_state_element_and_value;
 
   for (int64_t slice_index = 0; slice_index < func.slices.size();
        ++slice_index) {
@@ -1026,7 +1054,6 @@ NewFSMGenerator::GenerateNewFSMInvocation(
         if (state.slice_index != slice_index) {
           continue;
         }
-
         absl::btree_set<int64_t> jumped_from_slice_indices_this_state;
         for (const JumpInfo& jump_info : state.jumped_from_slice_indices) {
           jumped_from_slice_indices_this_state.insert(jump_info.from_slice);
@@ -1034,10 +1061,10 @@ NewFSMGenerator::GenerateNewFSMInvocation(
 
         XLS_ASSIGN_OR_RETURN(
             TrackedBValue state_active_condition,
-            GeneratePhiCondition(from_jump_slice_indices,
-                                 jumped_from_slice_indices_this_state,
-                                 state_element_by_jump_slice_index, pb,
-                                 state.slice_index, body_loc));
+            GeneratePhiCondition(
+                from_jump_slice_indices, jumped_from_slice_indices_this_state,
+                state_element_by_jump_slice_index, pb, state.slice_index,
+                body_loc, generated_conditions));
 
         TrackedBValue next_value_condition =
             pb.And(state_active_condition, jump_condition, body_loc,
@@ -1045,23 +1072,45 @@ NewFSMGenerator::GenerateNewFSMInvocation(
 
         for (const ContinuationValue* continuation_out : state.values_to_save) {
           // Generate next values for state elements
-          NextStateValue next_value = {
-              .priority = 0,
-              .value = value_by_continuation_value.at(continuation_out),
-              .condition = next_value_condition,
-          };
-
           xls::StateElement* state_elem =
               state_element_by_continuation_value.at(continuation_out)
                   .node()
                   ->As<xls::StateRead>()
                   ->state_element();
 
+          std::tuple<xls::StateElement*, xls::Node*> key = {
+              state_elem,
+              value_by_continuation_value.at(continuation_out).node()};
+
           // Generate next values
-          extra_next_state_values.insert({state_elem, next_value});
+          next_value_conditions_by_state_element_and_value[key].insert(
+              next_value_condition.node());
         }
       }
     }
+  }
+
+  for (auto& [key, or_nodes] :
+       next_value_conditions_by_state_element_and_value) {
+    xls::StateElement* state_elem = std::get<0>(key);
+    xls::Node* next_value_node = std::get<1>(key);
+    std::vector<NATIVE_BVAL> or_bvals;
+    for (xls::Node* or_node : or_nodes) {
+      or_bvals.push_back(NATIVE_BVAL(or_node, &pb));
+    }
+
+    TrackedBValue or_bval =
+        pb.Or(absl::MakeSpan(or_bvals), body_loc,
+              /*name=*/
+              absl::StrFormat("%s_v_%s_or_bval", state_elem->name(),
+                              next_value_node->GetName()));
+
+    NextStateValue next_value = {
+        .priority = 0,
+        .value = TrackedBValue(next_value_node, &pb),
+        .condition = or_bval,
+    };
+    extra_next_state_values.insert({state_elem, next_value});
   }
 
   // Set next slice index
@@ -1098,8 +1147,16 @@ absl::StatusOr<TrackedBValue> NewFSMGenerator::GeneratePhiCondition(
     const absl::btree_set<int64_t>& jumped_from_slice_indices_this_state,
     const absl::flat_hash_map<int64_t, TrackedBValue>&
         state_element_by_jump_slice_index,
-    xls::ProcBuilder& pb, int64_t slice_index,
-    const xls::SourceInfo& body_loc) {
+    xls::ProcBuilder& pb, int64_t slice_index, const xls::SourceInfo& body_loc,
+    absl::flat_hash_map<PhiConditionCacheKey, TrackedBValue>&
+        phi_condition_cache) {
+  PhiConditionCacheKey key = {from_jump_slice_indices,
+                              jumped_from_slice_indices_this_state};
+
+  if (phi_condition_cache.contains(key)) {
+    return phi_condition_cache.at(key);
+  }
+
   TrackedBValue condition = pb.Literal(xls::UBits(1, 1), body_loc);
 
   // Include all jump slices in each condition
@@ -1110,6 +1167,7 @@ absl::StatusOr<TrackedBValue> NewFSMGenerator::GeneratePhiCondition(
         jumped_from_slice_indices_this_state.contains(from_jump_slice_index)
             ? 1
             : 0;
+
     TrackedBValue condition_part =
         pb.Eq(jump_state_element,
               pb.Literal(xls::UBits(active_value, 1), body_loc,
@@ -1125,6 +1183,7 @@ absl::StatusOr<TrackedBValue> NewFSMGenerator::GeneratePhiCondition(
                    absl::StrJoin(jumped_from_slice_indices_this_state, "_")));
   }
 
+  phi_condition_cache[key] = condition;
   return condition;
 }
 
@@ -1134,7 +1193,9 @@ NewFSMGenerator::GeneratePhiConditions(
     const NewFSMLayout& layout,
     const absl::flat_hash_map<int64_t, TrackedBValue>&
         state_element_by_jump_slice_index,
-    xls::ProcBuilder& pb, const xls::SourceInfo& body_loc) {
+    xls::ProcBuilder& pb, const xls::SourceInfo& body_loc,
+    absl::flat_hash_map<PhiConditionCacheKey, TrackedBValue>&
+        phi_condition_cache) {
   absl::flat_hash_map<int64_t, std::vector<PhiElement>>
       phi_elements_by_param_node_id;
 
@@ -1171,10 +1232,10 @@ NewFSMGenerator::GeneratePhiConditions(
 
       XLS_ASSIGN_OR_RETURN(
           TrackedBValue condition,
-          GeneratePhiCondition(from_jump_slice_indices,
-                               jumped_from_slice_indices_this_state,
-                               state_element_by_jump_slice_index, pb,
-                               state->slice_index, body_loc));
+          GeneratePhiCondition(
+              from_jump_slice_indices, jumped_from_slice_indices_this_state,
+              state_element_by_jump_slice_index, pb, state->slice_index,
+              body_loc, phi_condition_cache));
 
       PhiElement& phi_element = phi_elements.emplace_back();
       phi_element.value = state->current_inputs_by_input_param.at(param);
@@ -1204,13 +1265,47 @@ NewFSMGenerator::GenerateInputValueInContext(
   std::vector<TrackedBValue> phi_conditions;
   std::vector<TrackedBValue> phi_values;
 
+  // Sort by Node ID for determinism.
+  struct NodeIdLessThan {
+    bool operator()(const xls::Node* a, const xls::Node* b) const {
+      return a->id() < b->id();
+    }
+  };
+  struct BValueIdLessThan {
+    bool operator()(const TrackedBValue& a, const TrackedBValue& b) const {
+      return a.node()->id() < b.node()->id();
+    }
+  };
+  absl::btree_map<xls::Node*, absl::btree_set<TrackedBValue, BValueIdLessThan>,
+                  NodeIdLessThan>
+      conditions_by_value_node;
+
   phi_conditions.reserve(phi_elements.size());
   phi_values.reserve(phi_elements.size());
+
   for (const PhiElement& phi_element : phi_elements) {
-    phi_conditions.push_back(phi_element.condition);
     XLSCC_CHECK(value_by_continuation_value.contains(phi_element.value),
                 phi_element.value->output_node->loc());
-    phi_values.push_back(value_by_continuation_value.at(phi_element.value));
+
+    xls::Node* value_node =
+        value_by_continuation_value.at(phi_element.value).node();
+    conditions_by_value_node[value_node].insert(phi_element.condition);
+  }
+
+  for (auto& [value_node, or_nodes] : conditions_by_value_node) {
+    std::vector<NATIVE_BVAL> or_bvals;
+    or_bvals.reserve(or_nodes.size());
+    for (const TrackedBValue& or_node : or_nodes) {
+      or_bvals.push_back(or_node);
+    }
+
+    TrackedBValue or_bval =
+        pb.Or(absl::MakeSpan(or_bvals), body_loc,
+              /*name=*/
+              absl::StrFormat("%s_v_%s_or_bval", param->name(),
+                              value_node->GetName()));
+    phi_conditions.push_back(or_bval);
+    phi_values.push_back(TrackedBValue(value_node, &pb));
   }
 
   std::reverse(phi_conditions.begin(), phi_conditions.end());
