@@ -180,15 +180,12 @@ fn test_frame_content_size_exists() {
     assert_eq(frame_content_size_exists(desc), true);
 }
 
-
-// Calculate maximal accepted window_size for given WINDOW_LOG_MAX and return whether given
-// window_size should be accepted or discarded.
+// Calculate maximal accepted window_size for given WINDOW_LOG_MAX
 // Based on window_size calculation from: RFC 8878
 // https://datatracker.ietf.org/doc/html/rfc8878#name-window-descriptor
-fn window_size_valid<WINDOW_LOG_MAX: u32>(window_size: WindowSize) -> bool {
-    let max_window_size = (WindowSize:1 << WINDOW_LOG_MAX) + (((WindowSize:1 << WINDOW_LOG_MAX) >> WindowSize:3) * MAX_MANTISSA);
-
-    window_size <= max_window_size
+pub fn calc_max_window_size<WINDOW_LOG_MAX: u32>() -> WindowSize {
+    const MAX_MANTISSA = WindowSize:0b111;
+    (WindowSize:1 << WINDOW_LOG_MAX) + (((WindowSize:1 << WINDOW_LOG_MAX) >> WindowSize:3) * MAX_MANTISSA)
 }
 
 
@@ -381,7 +378,7 @@ struct FrameHeaderDecoderState<XFER_SIZE: u32, XFER_COUNT: u32> {
 }
 
 pub proc FrameHeaderDecoder<
-    WINDOW_LOG_MAX: u32,
+    WINDOW_SIZE_MAX: WindowSize,
     DATA_W: u32,
     ADDR_W: u32,
     XFERS_FOR_HEADER: u32 = {((MAX_MAGIC_PLUS_HEADER_LEN * u32:8) / DATA_W) + u32:1},
@@ -430,7 +427,7 @@ pub proc FrameHeaderDecoder<
 
         let status = if (!header_ok || !magic_number_ok) {
             FrameHeaderDecoderStatus::CORRUPTED
-        } else if (!window_size_valid<WINDOW_LOG_MAX>(decoded_header.window_size)) {
+        } else if (decoded_header.window_size > WINDOW_SIZE_MAX) {
             FrameHeaderDecoderStatus::UNSUPPORTED_WINDOW_SIZE
         } else {
             FrameHeaderDecoderStatus::OKAY
@@ -473,6 +470,7 @@ pub proc FrameHeaderDecoder<
 
 // The largest allowed WindowLog for DSLX tests
 pub const TEST_WINDOW_LOG_MAX = u32:22;
+pub const TEST_WINDOW_SIZE_MAX = calc_max_window_size<TEST_WINDOW_LOG_MAX>();
 pub const TEST_DATA_W = u32:32;
 pub const TEST_ADDR_W = u32:16;
 pub const TEST_XFERS_FOR_HEADER = ((MAX_MAGIC_PLUS_HEADER_LEN * u32:8) / TEST_DATA_W) + u32:1;
@@ -497,7 +495,7 @@ proc FrameHeaderDecoderTest {
         let (reader_resp_s, reader_resp_r) = chan<ReaderResp>("reader_resp");
         let (decode_req_s, decode_req_r) = chan<Req>("decode_req");
         let (decode_resp_s, decode_resp_r) = chan<Resp>("decode_resp");
-        spawn FrameHeaderDecoder<TEST_WINDOW_LOG_MAX, TEST_DATA_W, TEST_ADDR_W, TEST_XFERS_FOR_HEADER>(
+        spawn FrameHeaderDecoder<TEST_WINDOW_SIZE_MAX, TEST_DATA_W, TEST_ADDR_W, TEST_XFERS_FOR_HEADER>(
             reader_req_s,
             reader_resp_r,
             decode_req_r,
@@ -636,6 +634,7 @@ proc FrameHeaderDecoderTest {
 // https://github.com/facebook/zstd/blob/v1.4.7/lib/decompress/zstd_decompress.c#L296
 // Use only in C++ tests when comparing DSLX ZSTD Decoder with libzstd
 pub const TEST_WINDOW_LOG_MAX_LIBZSTD = u32:30;
+pub const TEST_WINDOW_SIZE_MAX_LIBZSTD = calc_max_window_size<TEST_WINDOW_LOG_MAX>();
 
 proc FrameHeaderDecoderInst {
     type Req = FrameHeaderDecoderReq<u32:16>;
@@ -655,7 +654,7 @@ proc FrameHeaderDecoderInst {
         decode_req_r: chan<Req> in,
         decode_resp_s: chan<Resp> out,
     ) {
-        spawn FrameHeaderDecoder<TEST_WINDOW_LOG_MAX_LIBZSTD, TEST_DATA_W, TEST_ADDR_W, TEST_XFERS_FOR_HEADER>(
+        spawn FrameHeaderDecoder<TEST_WINDOW_SIZE_MAX_LIBZSTD, TEST_DATA_W, TEST_ADDR_W, TEST_XFERS_FOR_HEADER>(
             reader_req_s,
             reader_resp_r,
             decode_req_r,

@@ -155,7 +155,7 @@ pub proc RawLiteralsDecoderInst {
     next(state: ()) {}
 }
 
-const TEST_DATA_W = u32:64;
+const TEST_DATA_W = common::AXI_DATA_W;
 const TEST_ADDR_W = u32:16;
 
 #[test_proc]

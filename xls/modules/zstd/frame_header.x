@@ -425,27 +425,17 @@ fn test_parse_frame_content_size() {
     assert_eq(frame_content_size, u64:0x0);
 }
 
-// Calculate maximal accepted window_size for given WINDOW_LOG_MAX and return whether given
-// window_size should be accepted or discarded.
-// Based on window_size calculation from: RFC 8878
-// https://datatracker.ietf.org/doc/html/rfc8878#name-window-descriptor
-fn window_size_valid<WINDOW_LOG_MAX: WindowSize>(window_size: WindowSize) -> bool {
-    let max_window_size = (WindowSize:1 << WINDOW_LOG_MAX) + (((WindowSize:1 << WINDOW_LOG_MAX) >> WindowSize:3) * MAX_MANTISSA);
-
-    window_size <= max_window_size
-}
-
 // Parses a Buffer with data and extracts Frame_Header information. The buffer
 // is assumed to contain a valid Frame_Header The function returns FrameHeaderResult
 // with BufferResult that contains outcome of the operations on the Buffer,
 // FrameHeader with the extracted frame header if the parsing was successful,
 // and the status of the operation in FrameHeaderStatus. On failure, the returned
 // buffer is the same as the input buffer.
-// WINDOW_LOG_MAX is the base 2 logarithm used for calculating the maximal allowed
-//                window_size. Frame header parsing function must discard all frames that
-//                have window_size above the maximal allowed window_size.
+// WINDOW_SIZE_MAX is the maximal window size allowed by the decoder and the
+//                frame header parsing function must discard all frames that
+//                requires a window size above the maximal allowed window size.
 // CAPACITY is the buffer capacity
-pub fn parse_frame_header<WINDOW_LOG_MAX: WindowSize, CAPACITY: u32>(buffer: Buffer<CAPACITY>) -> FrameHeaderResult {
+pub fn parse_frame_header<WINDOW_SIZE_MAX: WindowSize, CAPACITY: u32>(buffer: Buffer<CAPACITY>) -> FrameHeaderResult {
     trace_fmt!("parse_frame_header: ==== Parsing ==== \n");
     trace_fmt!("parse_frame_header: initial buffer: {:#x}", buffer);
 
@@ -539,7 +529,7 @@ pub fn parse_frame_header<WINDOW_LOG_MAX: WindowSize, CAPACITY: u32>(buffer: Buf
             buffer: zero!<Buffer>(),
             header: zero!<FrameHeader>(),
         }
-    } else if (!window_size_valid<WINDOW_LOG_MAX>(header.window_size)) {
+    } else if (header.window_size > WINDOW_SIZE_MAX) {
         trace_fmt!("parse_frame_header: frame discarded: window_size to big: {}", header.window_size);
         FrameHeaderResult {
             status: FrameHeaderStatus::UNSUPPORTED_WINDOW_SIZE,
@@ -553,12 +543,13 @@ pub fn parse_frame_header<WINDOW_LOG_MAX: WindowSize, CAPACITY: u32>(buffer: Buf
 
 // The largest allowed WindowLog for DSLX tests
 pub const TEST_WINDOW_LOG_MAX = WindowSize:22;
+pub const TEST_WINDOW_SIZE_MAX = calc_max_window_size<TEST_WINDOW_LOG_MAX>();
 
 #[test]
 fn test_parse_frame_header() {
     // normal cases
     let buffer = Buffer { content: bits[128]:0x1234567890ABCDEF_CAFE_09_C2, length: u32:96 };
-    let frame_header_result = parse_frame_header<TEST_WINDOW_LOG_MAX>(buffer);
+    let frame_header_result = parse_frame_header<TEST_WINDOW_SIZE_MAX>(buffer);
     assert_eq(frame_header_result, FrameHeaderResult {
         status: FrameHeaderStatus::OK,
         buffer: Buffer {
@@ -575,7 +566,7 @@ fn test_parse_frame_header() {
 
     // SingleSegmentFlag is set and FrameContentSize is bigger than accepted window_size
     let buffer = Buffer { content: bits[128]:0x1234567890ABCDEF_CAFE_E2, length: u32:88 };
-    let frame_header_result = parse_frame_header<TEST_WINDOW_LOG_MAX>(buffer);
+    let frame_header_result = parse_frame_header<TEST_WINDOW_SIZE_MAX>(buffer);
     assert_eq(frame_header_result, FrameHeaderResult {
         status: FrameHeaderStatus::UNSUPPORTED_WINDOW_SIZE,
         buffer: Buffer { content: bits[128]:0x0, length: u32:0 },
@@ -583,7 +574,7 @@ fn test_parse_frame_header() {
     });
 
     let buffer = Buffer { content: bits[128]:0xaa20, length: u32:16 };
-    let frame_header_result = parse_frame_header<TEST_WINDOW_LOG_MAX>(buffer);
+    let frame_header_result = parse_frame_header<TEST_WINDOW_SIZE_MAX>(buffer);
     assert_eq(frame_header_result, FrameHeaderResult {
         status: FrameHeaderStatus::OK,
         buffer: Buffer {
@@ -600,7 +591,7 @@ fn test_parse_frame_header() {
 
     // when buffer is too short
     let buffer = Buffer { content: bits[128]:0x0, length: u32:0 };
-    let frame_header_result = parse_frame_header<TEST_WINDOW_LOG_MAX>(buffer);
+    let frame_header_result = parse_frame_header<TEST_WINDOW_SIZE_MAX>(buffer);
     assert_eq(frame_header_result, FrameHeaderResult {
         status: FrameHeaderStatus::NO_ENOUGH_DATA,
         buffer: buffer,
@@ -608,7 +599,7 @@ fn test_parse_frame_header() {
     });
 
     let buffer = Buffer { content: bits[128]:0xC2, length: u32:8 };
-    let frame_header_result = parse_frame_header<TEST_WINDOW_LOG_MAX>(buffer);
+    let frame_header_result = parse_frame_header<TEST_WINDOW_SIZE_MAX>(buffer);
     assert_eq(frame_header_result, FrameHeaderResult {
         status: FrameHeaderStatus::NO_ENOUGH_DATA,
         buffer: buffer,
@@ -616,7 +607,7 @@ fn test_parse_frame_header() {
     });
 
     let buffer = Buffer { content: bits[128]:0x09_C2, length: u32:16 };
-    let frame_header_result = parse_frame_header<TEST_WINDOW_LOG_MAX>(buffer);
+    let frame_header_result = parse_frame_header<TEST_WINDOW_SIZE_MAX>(buffer);
     assert_eq(frame_header_result, FrameHeaderResult {
         status: FrameHeaderStatus::NO_ENOUGH_DATA,
         buffer: buffer,
@@ -624,7 +615,7 @@ fn test_parse_frame_header() {
     });
 
     let buffer = Buffer { content: bits[128]:0x1234_09_C2, length: u32:32 };
-    let frame_header_result = parse_frame_header<TEST_WINDOW_LOG_MAX>(buffer);
+    let frame_header_result = parse_frame_header<TEST_WINDOW_SIZE_MAX>(buffer);
     assert_eq(frame_header_result, FrameHeaderResult {
         status: FrameHeaderStatus::NO_ENOUGH_DATA,
         buffer: buffer,
@@ -632,7 +623,7 @@ fn test_parse_frame_header() {
     });
 
     let buffer = Buffer { content: bits[128]:0x1234_09_C2, length: u32:32 };
-    let frame_header_result = parse_frame_header<TEST_WINDOW_LOG_MAX>(buffer);
+    let frame_header_result = parse_frame_header<TEST_WINDOW_SIZE_MAX>(buffer);
     assert_eq(frame_header_result, FrameHeaderResult {
         status: FrameHeaderStatus::NO_ENOUGH_DATA,
         buffer: buffer,
@@ -641,7 +632,7 @@ fn test_parse_frame_header() {
 
     // when frame header descriptor is corrupted
     let buffer = Buffer { content: bits[128]:0x1234567890ABCDEF_1234_09_CA, length: u32:96 };
-    let frame_header_result = parse_frame_header<TEST_WINDOW_LOG_MAX>(buffer);
+    let frame_header_result = parse_frame_header<TEST_WINDOW_SIZE_MAX>(buffer);
     assert_eq(frame_header_result, FrameHeaderResult {
         status: FrameHeaderStatus::CORRUPTED,
         buffer: Buffer { content: bits[128]:0x0, length: u32:0 },
@@ -651,7 +642,7 @@ fn test_parse_frame_header() {
     // Frame Header is discarded because Window size required by frame is too big for given decoder
     // configuration
     let buffer = Buffer { content: bits[128]:0xd310, length: u32:16 };
-    let frame_header_result = parse_frame_header<TEST_WINDOW_LOG_MAX>(buffer);
+    let frame_header_result = parse_frame_header<TEST_WINDOW_SIZE_MAX>(buffer);
     assert_eq(frame_header_result, FrameHeaderResult {
         status: FrameHeaderStatus::UNSUPPORTED_WINDOW_SIZE,
         buffer: Buffer { content: bits[128]:0x0, length: u32:0 },
@@ -661,7 +652,7 @@ fn test_parse_frame_header() {
     // Frame Header is discarded because Frame Content Size required by frame is too big for given decoder
     // configuration
     let buffer = Buffer { content: bits[128]:0xf45b5b5b0db1, length: u32:48 };
-    let frame_header_result = parse_frame_header<TEST_WINDOW_LOG_MAX>(buffer);
+    let frame_header_result = parse_frame_header<TEST_WINDOW_SIZE_MAX>(buffer);
     assert_eq(frame_header_result, FrameHeaderResult {
         status: FrameHeaderStatus::UNSUPPORTED_WINDOW_SIZE,
         buffer: Buffer { content: bits[128]:0x0, length: u32:0 },
@@ -676,7 +667,7 @@ fn test_parse_frame_header() {
     // Frame Header is discarded because Frame Content Size required by frame is too big (above 64bits) for given decoder
     // configuration
     let buffer = Buffer { content: bits[128]:0xc0659db6813a16b33f3da53a79e4, length: u32:112 };
-    let frame_header_result = parse_frame_header<TEST_WINDOW_LOG_MAX>(buffer);
+    let frame_header_result = parse_frame_header<TEST_WINDOW_SIZE_MAX>(buffer);
     assert_eq(frame_header_result, FrameHeaderResult {
         status: FrameHeaderStatus::UNSUPPORTED_WINDOW_SIZE,
         buffer: Buffer { content: bits[128]:0x0, length: u32:0 },

@@ -33,7 +33,8 @@ import xls.modules.zstd.raw_block_dec;
 import xls.modules.zstd.rle_block_dec;
 import xls.modules.zstd.comp_block_dec;
 import xls.modules.zstd.dec_mux;
-import xls.modules.zstd.sequence_executor;
+import xls.modules.zstd.sequence_executor.sequence_executor;
+import xls.modules.zstd.sequence_executor.history_buffer;
 import xls.modules.zstd.huffman_literals_dec;
 import xls.modules.zstd.literals_buffer;
 import xls.modules.zstd.parallel_rams;
@@ -58,7 +59,7 @@ enum ZstdDecoderInternalFsm: u4 {
     INVALID = 15,
 }
 
-enum ZstdDecoderStatus: u5 {
+pub enum ZstdDecoderStatus: u5 {
     IDLE = 0,
     RUNNING = 1,
     READ_CONFIG_OK = 2,
@@ -933,8 +934,8 @@ pub proc ZstdDecoder<
     // AXI parameters
     AXI_DATA_W: u32, AXI_ADDR_W: u32, AXI_ID_W: u32, AXI_DEST_W: u32,
     // decoder parameters
-    REGS_N: u32, WINDOW_LOG_MAX: u32,
-    HB_ADDR_W: u32, HB_DATA_W: u32, HB_NUM_PARTITIONS: u32, HB_SIZE_KB: u32,
+    REGS_N: u32,
+    HB_ADDR_W: u32, HB_DATA_W: u32, HB_NUM_PARTITIONS: u32, HB_SIZE: u64,
 
     DPD_RAM_ADDR_W: u32, DPD_RAM_DATA_W: u32, DPD_RAM_NUM_PARTITIONS: u32,
     TMP_RAM_ADDR_W: u32, TMP_RAM_DATA_W: u32, TMP_RAM_NUM_PARTITIONS: u32,
@@ -949,6 +950,9 @@ pub proc ZstdDecoder<
     HISTORY_BUFFER_SIZE_KB: u32,
     AXI_CHAN_N: u32,
     FSE_MAX_ACCURACY_LOG: u32 = {common::FSE_MAX_ACCURACY_LOG},
+
+    SINGLE_HB_RAM_ADDR_W: u32,
+    SINGLE_HB_RAM_DATA_W: u32,
 
     // calculated parameters
     AXI_DATA_W_DIV8: u32 = {AXI_DATA_W / u32:8},
@@ -968,6 +972,8 @@ pub proc ZstdDecoder<
     LITERALS_BUFFER_RAM_DATA_W: u32 = {literals_buffer::RAM_DATA_WIDTH},
     LITERALS_BUFFER_RAM_NUM_PARTITIONS: u32 = {literals_buffer::RAM_NUM_PARTITIONS},
     LITERALS_BUFFER_RAM_WORD_PARTITION_SIZE: u32 = {LITERALS_BUFFER_RAM_DATA_W},
+
+    HB_RAM_REQ_DATA_W: u32 = {HB_DATA_W / u32:8},
 > {
     type CsrAxiAr = axi::AxiAr<AXI_ADDR_W, AXI_ID_W>;
     type CsrAxiR = axi::AxiR<AXI_DATA_W, AXI_ID_W>;
@@ -986,6 +992,12 @@ pub proc ZstdDecoder<
     type MemAxiAw = axi::AxiAw<AXI_ADDR_W, AXI_ID_W>;
     type MemAxiW = axi::AxiW<AXI_DATA_W, AXI_DATA_W_DIV8>;
     type MemAxiB = axi::AxiB<AXI_ID_W>;
+
+    type OutputMemAxiAr = axi::AxiAr<AXI_ADDR_W, AXI_ID_W>;
+    type OutputMemAxiR = axi::AxiR<AXI_DATA_W, AXI_ID_W>;
+    type OutputMemAxiAw = axi::AxiAw<AXI_ADDR_W, AXI_ID_W>;
+    type OutputMemAxiW = axi::AxiW<AXI_DATA_W, AXI_DATA_W_DIV8>;
+    type OutputMemAxiB = axi::AxiB<AXI_ID_W>;
 
     type MemReaderReq  = mem_reader::MemReaderReq<AXI_ADDR_W>;
     type MemReaderResp = mem_reader::MemReaderResp<AXI_DATA_W, AXI_ADDR_W>;
@@ -1006,13 +1018,17 @@ pub proc ZstdDecoder<
     type RleBlockDecoderReq = rle_block_dec::RleBlockDecoderReq;
     type RleBlockDecoderResp = rle_block_dec::RleBlockDecoderResp;
 
-    type SequenceExecutorPacket = common::SequenceExecutorPacket<common::SYMBOL_WIDTH>;
+    type SequenceExecutorPacket = common::SequenceExecutorPacket<common::LITERALS_IN_PACKET>;
     type ZstdDecodedPacket = common::ZstdDecodedPacket;
 
     type RamRdReq = ram::ReadReq<HB_ADDR_W, HB_NUM_PARTITIONS>;
     type RamRdResp = ram::ReadResp<HB_DATA_W>;
     type RamWrReq = ram::WriteReq<HB_ADDR_W, HB_DATA_W, HB_NUM_PARTITIONS>;
     type RamWrResp = ram::WriteResp;
+
+    type RWRamReq = ram::RWRamReq<SINGLE_HB_RAM_ADDR_W, SINGLE_HB_RAM_DATA_W>;
+    type RWRamResp = ram::RWRamResp<SINGLE_HB_RAM_DATA_W>;
+    type RWRamWrComp = history_buffer::HistoryBufferWrComp;
 
     type CompressBlockDecoderReq = comp_block_dec::CompressBlockDecoderReq<AXI_ADDR_W>;
     type CompressBlockDecoderResp = comp_block_dec::CompressBlockDecoderResp;
@@ -1073,6 +1089,7 @@ pub proc ZstdDecoder<
     type LitBufRamRdResp = ram::ReadResp<LITERALS_BUFFER_RAM_DATA_W>;
     type LitBufRamWrReq = ram::WriteReq<LITERALS_BUFFER_RAM_ADDR_W, LITERALS_BUFFER_RAM_DATA_W, LITERALS_BUFFER_RAM_NUM_PARTITIONS>;
     type LitBufRamWrResp = ram::WriteResp;
+    type LiteralsBufCtrl = common::LiteralsBufferCtrl;
 
     init {}
 
@@ -1145,10 +1162,10 @@ pub proc ZstdDecoder<
         ml_fse_wr_req_s: chan<FseRamWrReq> out,
         ml_fse_wr_resp_r: chan<FseRamWrResp> in,
 
-        litbuf_rd_req_s: chan<LitBufRamRdReq>[u32:8] out,
-        litbuf_rd_resp_r: chan<LitBufRamRdResp>[u32:8] in,
-        litbuf_wr_req_s: chan<LitBufRamWrReq>[u32:8] out,
-        litbuf_wr_resp_r: chan<LitBufRamWrResp>[u32:8] in,
+        litbuf_rd_req_s: chan<LitBufRamRdReq>[common::LITERALS_IN_PACKET] out,
+        litbuf_rd_resp_r: chan<LitBufRamRdResp>[common::LITERALS_IN_PACKET] in,
+        litbuf_wr_req_s: chan<LitBufRamWrReq>[common::LITERALS_IN_PACKET] out,
+        litbuf_wr_resp_r: chan<LitBufRamWrResp>[common::LITERALS_IN_PACKET] in,
 
         // Huffman weights memory
         huffman_lit_weights_mem_rd_req_s: chan<HuffmanWeightsReadReq> out,
@@ -1183,43 +1200,17 @@ pub proc ZstdDecoder<
         huffman_lit_weights_fse_wr_resp_r: chan<HuffmanWeightsFseRamWrResp> in,
 
         // AXI Output Writer (manager)
-        output_axi_aw_s: chan<MemAxiAw> out,
-        output_axi_w_s: chan<MemAxiW> out,
-        output_axi_b_r: chan<MemAxiB> in,
+        output_axi_aw_s: chan<OutputMemAxiAw> out,
+        output_axi_w_s: chan<OutputMemAxiW> out,
+        output_axi_b_r: chan<OutputMemAxiB> in,
 
         // History Buffer
-        ram_rd_req_0_s: chan<RamRdReq> out,
-        ram_rd_req_1_s: chan<RamRdReq> out,
-        ram_rd_req_2_s: chan<RamRdReq> out,
-        ram_rd_req_3_s: chan<RamRdReq> out,
-        ram_rd_req_4_s: chan<RamRdReq> out,
-        ram_rd_req_5_s: chan<RamRdReq> out,
-        ram_rd_req_6_s: chan<RamRdReq> out,
-        ram_rd_req_7_s: chan<RamRdReq> out,
-        ram_rd_resp_0_r: chan<RamRdResp> in,
-        ram_rd_resp_1_r: chan<RamRdResp> in,
-        ram_rd_resp_2_r: chan<RamRdResp> in,
-        ram_rd_resp_3_r: chan<RamRdResp> in,
-        ram_rd_resp_4_r: chan<RamRdResp> in,
-        ram_rd_resp_5_r: chan<RamRdResp> in,
-        ram_rd_resp_6_r: chan<RamRdResp> in,
-        ram_rd_resp_7_r: chan<RamRdResp> in,
-        ram_wr_req_0_s: chan<RamWrReq> out,
-        ram_wr_req_1_s: chan<RamWrReq> out,
-        ram_wr_req_2_s: chan<RamWrReq> out,
-        ram_wr_req_3_s: chan<RamWrReq> out,
-        ram_wr_req_4_s: chan<RamWrReq> out,
-        ram_wr_req_5_s: chan<RamWrReq> out,
-        ram_wr_req_6_s: chan<RamWrReq> out,
-        ram_wr_req_7_s: chan<RamWrReq> out,
-        ram_wr_resp_0_r: chan<RamWrResp> in,
-        ram_wr_resp_1_r: chan<RamWrResp> in,
-        ram_wr_resp_2_r: chan<RamWrResp> in,
-        ram_wr_resp_3_r: chan<RamWrResp> in,
-        ram_wr_resp_4_r: chan<RamWrResp> in,
-        ram_wr_resp_5_r: chan<RamWrResp> in,
-        ram_wr_resp_6_r: chan<RamWrResp> in,
-        ram_wr_resp_7_r: chan<RamWrResp> in,
+        rw_req_s_0: chan<RWRamReq>[HB_NUM_PARTITIONS] out,
+        rw_resp_r_0: chan<RWRamResp>[HB_NUM_PARTITIONS] in,
+        rw_wr_comp_r_0: chan<RWRamWrComp>[HB_NUM_PARTITIONS] in,
+        rw_req_s_1: chan<RWRamReq>[HB_NUM_PARTITIONS] out,
+        rw_resp_r_1: chan<RWRamResp>[HB_NUM_PARTITIONS] in,
+        rw_wr_comp_r_1: chan<RWRamWrComp>[HB_NUM_PARTITIONS] in,
 
         notify_s: chan<()> out,
     ) {
@@ -1267,7 +1258,7 @@ pub proc ZstdDecoder<
         let (fh_req_s, fh_req_r) = chan<FrameHeaderDecoderReq, CHANNEL_DEPTH>("fh_req");
         let (fh_resp_s, fh_resp_r) = chan<FrameHeaderDecoderResp, CHANNEL_DEPTH>("fh_resp");
 
-        spawn frame_header_dec::FrameHeaderDecoder<WINDOW_LOG_MAX, AXI_DATA_W, AXI_ADDR_W>(
+        spawn frame_header_dec::FrameHeaderDecoder<HB_SIZE, AXI_DATA_W, AXI_ADDR_W>(
             fh_mem_rd_req_s, fh_mem_rd_resp_r,
             fh_req_r, fh_resp_s,
         );
@@ -1320,7 +1311,8 @@ pub proc ZstdDecoder<
         );
 
         // Compressed block decoder
-
+        let (lit_buf_ctrl_s, lit_buf_ctrl_r) = chan<LiteralsBufCtrl, CHANNEL_DEPTH>("lit_buf_ctrl");
+        let (lit_buf_out_s, lit_buf_out_r) = chan<SequenceExecutorPacket, CHANNEL_DEPTH>("lit_buf_out");
         let (comp_block_req_s, comp_block_req_r) = chan<CompressBlockDecoderReq, CHANNEL_DEPTH>("comp_block_req");
         let (comp_block_resp_s, comp_block_resp_r) = chan<CompressBlockDecoderResp, CHANNEL_DEPTH>("comp_block_resp");
 
@@ -1376,14 +1368,14 @@ pub proc ZstdDecoder<
             comp_axi_ram_ar_s[8], comp_axi_ram_r_r[8],
             comp_axi_ram_ar_s[9], comp_axi_ram_r_r[9],
             comp_axi_ram_ar_s[10], comp_axi_ram_r_r[10],
-            litbuf_rd_req_s[0], litbuf_rd_req_s[1], litbuf_rd_req_s[2], litbuf_rd_req_s[3],
-            litbuf_rd_req_s[4], litbuf_rd_req_s[5], litbuf_rd_req_s[6], litbuf_rd_req_s[7],
-            litbuf_rd_resp_r[0], litbuf_rd_resp_r[1], litbuf_rd_resp_r[2], litbuf_rd_resp_r[3],
-            litbuf_rd_resp_r[4], litbuf_rd_resp_r[5], litbuf_rd_resp_r[6], litbuf_rd_resp_r[7],
-            litbuf_wr_req_s[0], litbuf_wr_req_s[1], litbuf_wr_req_s[2], litbuf_wr_req_s[3],
-            litbuf_wr_req_s[4], litbuf_wr_req_s[5], litbuf_wr_req_s[6], litbuf_wr_req_s[7],
-            litbuf_wr_resp_r[0], litbuf_wr_resp_r[1], litbuf_wr_resp_r[2], litbuf_wr_resp_r[3],
-            litbuf_wr_resp_r[4], litbuf_wr_resp_r[5], litbuf_wr_resp_r[6], litbuf_wr_resp_r[7],
+
+            litbuf_rd_req_s,
+            litbuf_rd_resp_r,
+            litbuf_wr_req_s,
+            litbuf_wr_resp_r,
+
+            lit_buf_ctrl_r, lit_buf_out_s,
+
             huffman_lit_weights_read_side_rd_req_s, huffman_lit_weights_read_side_rd_resp_r,
             huffman_lit_weights_write_side_wr_req_s, huffman_lit_weights_write_side_wr_resp_r,
             huffman_lit_prescan_mem_rd_req_s, huffman_lit_prescan_mem_rd_resp_r,
@@ -1415,25 +1407,23 @@ pub proc ZstdDecoder<
         );
 
         // Sequence Execution
-        let (seq_exec_looped_s, seq_exec_looped_r) = chan<SequenceExecutorPacket, CHANNEL_DEPTH>("seq_exec_looped");
-        let (output_mem_wr_data_in_s,  output_mem_wr_data_in_r) = chan<MemWriterDataPacket, CHANNEL_DEPTH>("output_mem_wr_data_in");
-
-        spawn sequence_executor::SequenceExecutor<HB_SIZE_KB, AXI_DATA_W, AXI_ADDR_W>(
-            seq_exec_input_r, output_mem_wr_data_in_s,
-            seq_exec_looped_r, seq_exec_looped_s,
-            ram_rd_req_0_s, ram_rd_req_1_s, ram_rd_req_2_s, ram_rd_req_3_s,
-            ram_rd_req_4_s, ram_rd_req_5_s, ram_rd_req_6_s, ram_rd_req_7_s,
-            ram_rd_resp_0_r, ram_rd_resp_1_r, ram_rd_resp_2_r, ram_rd_resp_3_r,
-            ram_rd_resp_4_r, ram_rd_resp_5_r, ram_rd_resp_6_r, ram_rd_resp_7_r,
-            ram_wr_req_0_s, ram_wr_req_1_s, ram_wr_req_2_s, ram_wr_req_3_s,
-            ram_wr_req_4_s, ram_wr_req_5_s, ram_wr_req_6_s, ram_wr_req_7_s,
-            ram_wr_resp_0_r, ram_wr_resp_1_r, ram_wr_resp_2_r, ram_wr_resp_3_r,
-            ram_wr_resp_4_r, ram_wr_resp_5_r, ram_wr_resp_6_r, ram_wr_resp_7_r
-        );
+        let (output_mem_wr_data_in_s, output_mem_wr_data_in_r) = chan<MemWriterDataPacket, CHANNEL_DEPTH>("output_mem_wr_data_in");
 
         // Zstd Decoder Control
         let (output_mem_wr_req_s,  output_mem_wr_req_r) = chan<MemWriterReq, CHANNEL_DEPTH>("output_mem_wr_req");
         let (output_mem_wr_resp_s, output_mem_wr_resp_r) = chan<MemWriterResp, CHANNEL_DEPTH>("output_mem_wr_resp");
+
+        spawn sequence_executor::SequenceExecutor<HISTORY_BUFFER_SIZE_KB, AXI_DATA_W, AXI_ADDR_W, HB_SIZE, HB_ADDR_W, HB_NUM_PARTITIONS>(
+            seq_exec_input_r,
+            lit_buf_ctrl_s, lit_buf_out_r,
+            rw_req_s_0,
+            rw_resp_r_0,
+            rw_wr_comp_r_0,
+            rw_req_s_1,
+            rw_resp_r_1,
+            rw_wr_comp_r_1,
+            output_mem_wr_data_in_s,
+        );
 
         spawn mem_writer::MemWriter<AXI_ADDR_W, AXI_DATA_W, AXI_DEST_W, AXI_ID_W, MEM_WRITER_ID>(
            output_mem_wr_req_r, output_mem_wr_data_in_r,
@@ -1457,16 +1447,18 @@ pub proc ZstdDecoder<
     next (state: ()) { }
 }
 
-const INST_AXI_DATA_W = u32:64;
+const INST_AXI_DATA_W = common::AXI_DATA_W;
 const INST_AXI_ADDR_W = u32:32;
 const INST_AXI_ID_W = u32:4;
 const INST_AXI_DEST_W = u32:4;
 const INST_REGS_N = u32:16;
-const INST_WINDOW_LOG_MAX = u32:30;
-const INST_HB_ADDR_W = sequence_executor::ZSTD_RAM_ADDR_WIDTH;
-const INST_HB_DATA_W = sequence_executor::RAM_DATA_WIDTH;
-const INST_HB_NUM_PARTITIONS = sequence_executor::RAM_NUM_PARTITIONS;
-const INST_HB_SIZE_KB = sequence_executor::ZSTD_HISTORY_BUFFER_SIZE_KB;
+const INST_HB_ADDR_W = sequence_executor::ZSTD_HB_RAM_ADDR_W;
+const INST_SINGLE_HB_ADDR_W = sequence_executor::ZSTD_SINGLE_HB_RAM_ADDR_W;
+const INST_SINGLE_HB_DATA_W = u32:8;
+const INST_HB_DATA_W = INST_AXI_DATA_W;
+const INST_HB_NUM_PARTITIONS = sequence_executor::ZSTD_HB_RAM_NUM;
+const INST_HB_SIZE_B = sequence_executor::ZSTD_HB_RAM_SIZE_TOTAL;
+const HB_RAM_REQ_DATA_W = INST_HB_DATA_W / u32:8;
 
 const INST_LOG2_REGS_N = std::clog2(INST_REGS_N);
 const INST_AXI_DATA_W_DIV8 = INST_AXI_DATA_W / u32:8;
@@ -1539,7 +1531,7 @@ const INST_HUFFMAN_WEIGHTS_TMP2_RAM_WORD_PARTITION_SIZE = INST_HUFFMAN_WEIGHTS_T
 const INST_HUFFMAN_WEIGHTS_TMP2_RAM_NUM_PARTITIONS = ram::num_partitions(
     INST_HUFFMAN_WEIGHTS_TMP2_RAM_WORD_PARTITION_SIZE, INST_HUFFMAN_WEIGHTS_TMP2_RAM_DATA_W);
 
-const INST_HISTORY_BUFFER_SIZE_KB = u32:64;
+const INST_HISTORY_BUFFER_SIZE_KB = common::HISTORY_BUFFER_SIZE_KB;
 const INST_AXI_CHAN_N = u32:11;
 
 // Literals buffer memory parameters
@@ -1646,10 +1638,15 @@ proc ZstdDecoderInst {
     type MemAxiW = axi::AxiW<INST_AXI_DATA_W, INST_AXI_DATA_W_DIV8>;
     type MemAxiB = axi::AxiB<INST_AXI_ID_W>;
 
-    type RamRdReq = ram::ReadReq<INST_HB_ADDR_W, INST_HB_NUM_PARTITIONS>;
-    type RamRdResp = ram::ReadResp<INST_HB_DATA_W>;
-    type RamWrReq = ram::WriteReq<INST_HB_ADDR_W, INST_HB_DATA_W, INST_HB_NUM_PARTITIONS>;
-    type RamWrResp = ram::WriteResp;
+    type OutputMemAxiAr = axi::AxiAr<INST_AXI_ADDR_W, INST_AXI_ID_W>;
+    type OutputMemAxiR = axi::AxiR<INST_AXI_DATA_W, INST_AXI_ID_W>;
+    type OutputMemAxiAw = axi::AxiAw<INST_AXI_ADDR_W, INST_AXI_ID_W>;
+    type OutputMemAxiW = axi::AxiW<INST_AXI_DATA_W, INST_AXI_DATA_W_DIV8>;
+    type OutputMemAxiB = axi::AxiB<INST_AXI_ID_W>;
+
+    type RWRamReq = ram::RWRamReq<INST_SINGLE_HB_ADDR_W, INST_SINGLE_HB_DATA_W>;
+    type RWRamResp = ram::RWRamResp<INST_SINGLE_HB_DATA_W>;
+    type RWRamWrComp = history_buffer::HistoryBufferWrComp;
 
     type ZstdDecodedPacket = common::ZstdDecodedPacket;
 
@@ -1778,10 +1775,10 @@ proc ZstdDecoderInst {
         ml_fse_wr_req_s: chan<FseRamWrReq> out,
         ml_fse_wr_resp_r: chan<FseRamWrResp> in,
 
-        litbuf_rd_req_s: chan<LitBufRamRdReq>[u32:8] out,
-        litbuf_rd_resp_r: chan<LitBufRamRdResp>[u32:8] in,
-        litbuf_wr_req_s: chan<LitBufRamWrReq>[u32:8] out,
-        litbuf_wr_resp_r: chan<LitBufRamWrResp>[u32:8] in,
+        litbuf_rd_req_s: chan<LitBufRamRdReq>[common::LITERALS_IN_PACKET] out,
+        litbuf_rd_resp_r: chan<LitBufRamRdResp>[common::LITERALS_IN_PACKET] in,
+        litbuf_wr_req_s: chan<LitBufRamWrReq>[common::LITERALS_IN_PACKET] out,
+        litbuf_wr_resp_r: chan<LitBufRamWrResp>[common::LITERALS_IN_PACKET] in,
 
         // Huffman prescan memory
         huffman_lit_prescan_mem_rd_req_s: chan<HuffmanPrescanReadReq> out,
@@ -1815,50 +1812,24 @@ proc ZstdDecoderInst {
         huffman_lit_weights_mem_wr_resp_r: chan<HuffmanWeightsWriteResp> in,
 
         // AXI Output Writer (manager)
-        output_axi_aw_s: chan<MemAxiAw> out,
-        output_axi_w_s: chan<MemAxiW> out,
-        output_axi_b_r: chan<MemAxiB> in,
+        output_axi_aw_s: chan<OutputMemAxiAw> out,
+        output_axi_w_s: chan<OutputMemAxiW> out,
+        output_axi_b_r: chan<OutputMemAxiB> in,
 
         // History Buffer
-        ram_rd_req_0_s: chan<RamRdReq> out,
-        ram_rd_req_1_s: chan<RamRdReq> out,
-        ram_rd_req_2_s: chan<RamRdReq> out,
-        ram_rd_req_3_s: chan<RamRdReq> out,
-        ram_rd_req_4_s: chan<RamRdReq> out,
-        ram_rd_req_5_s: chan<RamRdReq> out,
-        ram_rd_req_6_s: chan<RamRdReq> out,
-        ram_rd_req_7_s: chan<RamRdReq> out,
-        ram_rd_resp_0_r: chan<RamRdResp> in,
-        ram_rd_resp_1_r: chan<RamRdResp> in,
-        ram_rd_resp_2_r: chan<RamRdResp> in,
-        ram_rd_resp_3_r: chan<RamRdResp> in,
-        ram_rd_resp_4_r: chan<RamRdResp> in,
-        ram_rd_resp_5_r: chan<RamRdResp> in,
-        ram_rd_resp_6_r: chan<RamRdResp> in,
-        ram_rd_resp_7_r: chan<RamRdResp> in,
-        ram_wr_req_0_s: chan<RamWrReq> out,
-        ram_wr_req_1_s: chan<RamWrReq> out,
-        ram_wr_req_2_s: chan<RamWrReq> out,
-        ram_wr_req_3_s: chan<RamWrReq> out,
-        ram_wr_req_4_s: chan<RamWrReq> out,
-        ram_wr_req_5_s: chan<RamWrReq> out,
-        ram_wr_req_6_s: chan<RamWrReq> out,
-        ram_wr_req_7_s: chan<RamWrReq> out,
-        ram_wr_resp_0_r: chan<RamWrResp> in,
-        ram_wr_resp_1_r: chan<RamWrResp> in,
-        ram_wr_resp_2_r: chan<RamWrResp> in,
-        ram_wr_resp_3_r: chan<RamWrResp> in,
-        ram_wr_resp_4_r: chan<RamWrResp> in,
-        ram_wr_resp_5_r: chan<RamWrResp> in,
-        ram_wr_resp_6_r: chan<RamWrResp> in,
-        ram_wr_resp_7_r: chan<RamWrResp> in,
+        rw_req_s_0: chan<RWRamReq>[INST_HB_NUM_PARTITIONS] out,
+        rw_resp_r_0: chan<RWRamResp>[INST_HB_NUM_PARTITIONS] in,
+        rw_wr_comp_r_0: chan<RWRamWrComp>[INST_HB_NUM_PARTITIONS] in,
+        rw_req_s_1: chan<RWRamReq>[INST_HB_NUM_PARTITIONS] out,
+        rw_resp_r_1: chan<RWRamResp>[INST_HB_NUM_PARTITIONS] in,
+        rw_wr_comp_r_1: chan<RWRamWrComp>[INST_HB_NUM_PARTITIONS] in,
 
         notify_s: chan<()> out,
     ) {
         spawn ZstdDecoder<
             INST_AXI_DATA_W, INST_AXI_ADDR_W, INST_AXI_ID_W, INST_AXI_DEST_W,
-            INST_REGS_N, INST_WINDOW_LOG_MAX,
-            INST_HB_ADDR_W, INST_HB_DATA_W, INST_HB_NUM_PARTITIONS, INST_HB_SIZE_KB,
+            INST_REGS_N,
+            INST_HB_ADDR_W, INST_HB_DATA_W, INST_HB_NUM_PARTITIONS, INST_HB_SIZE_B,
 
             INST_DPD_RAM_ADDR_W, INST_DPD_RAM_DATA_W, INST_DPD_RAM_NUM_PARTITIONS,
             INST_TMP_RAM_ADDR_W, INST_TMP_RAM_DATA_W, INST_TMP_RAM_NUM_PARTITIONS,
@@ -1873,6 +1844,9 @@ proc ZstdDecoderInst {
             INST_HISTORY_BUFFER_SIZE_KB,
             INST_AXI_CHAN_N,
             INST_FSE_MAX_ACCURACY_LOG,
+
+            INST_SINGLE_HB_ADDR_W,
+            INST_SINGLE_HB_DATA_W,
         >(
             csr_axi_aw_r, csr_axi_w_r, csr_axi_b_s, csr_axi_ar_r, csr_axi_r_s,
             fh_axi_ar_s, fh_axi_r_r,
@@ -1906,14 +1880,8 @@ proc ZstdDecoderInst {
             huffman_lit_weights_fse_rd_req_s, huffman_lit_weights_fse_rd_resp_r,
             huffman_lit_weights_fse_wr_req_s, huffman_lit_weights_fse_wr_resp_r,
             output_axi_aw_s, output_axi_w_s, output_axi_b_r,
-            ram_rd_req_0_s, ram_rd_req_1_s, ram_rd_req_2_s, ram_rd_req_3_s,
-            ram_rd_req_4_s, ram_rd_req_5_s, ram_rd_req_6_s, ram_rd_req_7_s,
-            ram_rd_resp_0_r, ram_rd_resp_1_r, ram_rd_resp_2_r, ram_rd_resp_3_r,
-            ram_rd_resp_4_r, ram_rd_resp_5_r, ram_rd_resp_6_r, ram_rd_resp_7_r,
-            ram_wr_req_0_s, ram_wr_req_1_s, ram_wr_req_2_s, ram_wr_req_3_s,
-            ram_wr_req_4_s, ram_wr_req_5_s, ram_wr_req_6_s, ram_wr_req_7_s,
-            ram_wr_resp_0_r, ram_wr_resp_1_r, ram_wr_resp_2_r, ram_wr_resp_3_r,
-            ram_wr_resp_4_r, ram_wr_resp_5_r, ram_wr_resp_6_r, ram_wr_resp_7_r,
+            rw_req_s_0, rw_resp_r_0, rw_wr_comp_r_0,
+            rw_req_s_1, rw_resp_r_1, rw_wr_comp_r_1,
             notify_s,
         );
     }

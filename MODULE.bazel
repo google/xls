@@ -153,3 +153,7 @@ git_override(
 )
 
 register_toolchains("//xls/common/toolchains:all")
+
+# Verilator support
+bazel_dep(name = "aspect_bazel_lib", version = "2.19.4")
+bazel_dep(name = "rules_perl", version = "0.4.2")

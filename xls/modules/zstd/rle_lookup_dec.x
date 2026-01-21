@@ -93,6 +93,7 @@ pub proc RleLookupDecoder<
         let tok = send(tok, resp_s, Resp {
             status: if byte.error { Status::ERROR } else { Status::OK },
             accuracy_log: common::FseAccuracyLog:0,
+            remainder: zero!<common::Remainder>(),
         });
     }
 }
@@ -163,7 +164,7 @@ proc RleLookupDecoderTest {
     next(_: ()) {
         let tok = join();
 
-        let tok = send(tok, req_s, Req {});
+        let tok = send(tok, req_s, zero!<Req>());
         let (tok, buf_req) = recv(tok, buffer_ctrl_r);
         assert_eq(buf_req, SBCtrl {
             length: uN[TEST_SB_LENGTH_W]:8
@@ -184,6 +185,7 @@ proc RleLookupDecoderTest {
         assert_eq(resp, Resp {
             status: Status::OK,
             accuracy_log: common::FseAccuracyLog:0,
+            remainder: zero!<common::Remainder>(),
         });
         send(tok, terminator, true);
     }

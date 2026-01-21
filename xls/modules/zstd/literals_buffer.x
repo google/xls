@@ -23,8 +23,6 @@ import xls.modules.zstd.common as common;
 import xls.modules.zstd.parallel_rams as parallel_rams;
 import xls.modules.zstd.ram_printer as ram_printer;
 
-type CopyOrMatchContent = common::CopyOrMatchContent;
-type CopyOrMatchLength = common::CopyOrMatchLength;
 type LitData = common::LitData;
 type LitID = common::LitID;
 type LitLength = common::LitLength;
@@ -44,12 +42,20 @@ type RamWrRespHandlerResp = parallel_rams::RamWrRespHandlerResp;
 // Constants calculated from RAM parameters
 pub const RAM_NUM = parallel_rams::RAM_NUM;
 const RAM_NUM_WIDTH = parallel_rams::RAM_NUM_WIDTH;
-pub const RAM_DATA_WIDTH = common::SYMBOL_WIDTH + u32:1; // the +1 is used to store "last" flag
+const NUM_OF_LITERALS = RAM_NUM;
+
+// the +1 is used to store "last" flag
+pub const RAM_DATA_WIDTH = common::SYMBOL_WIDTH + u32:1;
+pub const LITERALS_DATA_WIDTH = NUM_OF_LITERALS + u32:1;
+
 pub const RAM_WORD_PARTITION_SIZE = RAM_DATA_WIDTH;
 pub const RAM_NUM_PARTITIONS = ram::num_partitions(RAM_WORD_PARTITION_SIZE, RAM_DATA_WIDTH);
 
 // Literals data with last flag
-type LiteralsWithLast = uN[RAM_DATA_WIDTH * RAM_NUM];
+type LiteralsWithLast = uN[LITERALS_DATA_WIDTH * u32:8];
+
+type CopyOrMatchContent = uN[NUM_OF_LITERALS * u32:8];
+type CopyOrMatchLength = common::CopyOrMatchLength;
 
 // RAM related constants common for tests
 const TEST_HISTORY_BUFFER_SIZE_KB = u32:1;
@@ -106,13 +112,13 @@ struct LiteralsBufferReaderToWriterSync {
 // handler, removing the "literals_last" flag from each literal and adding this flag
 // to the packet. It also validates the data.
 proc PacketDecoder<RAM_ADDR_WIDTH: u32> {
-    literals_in_r: chan<SequenceExecutorPacket<RAM_DATA_WIDTH>> in;
-    literals_out_s: chan<SequenceExecutorPacket<common::SYMBOL_WIDTH>> out;
+    literals_in_r: chan<SequenceExecutorPacket<LITERALS_DATA_WIDTH>> in;
+    literals_out_s: chan<SequenceExecutorPacket<NUM_OF_LITERALS>> out;
     buffer_sync_s: chan<LiteralsBufferReaderToWriterSync> out;
 
     config(
-        literals_in_r: chan<SequenceExecutorPacket<RAM_DATA_WIDTH>> in,
-        literals_out_s: chan<SequenceExecutorPacket<common::SYMBOL_WIDTH>> out,
+        literals_in_r: chan<SequenceExecutorPacket<LITERALS_DATA_WIDTH>> in,
+        literals_out_s: chan<SequenceExecutorPacket<NUM_OF_LITERALS>> out,
         buffer_sync_s: chan<LiteralsBufferReaderToWriterSync> out,
     ) {
         (literals_in_r, literals_out_s, buffer_sync_s)
@@ -139,11 +145,8 @@ proc PacketDecoder<RAM_ADDR_WIDTH: u32> {
         }(bool[RAM_NUM]:[0, ...]);
         let literals_last = literals_lasts[literals.length - u64:1];
 
-        // TODO: Restore this check after extending request to CommandConstructor
-        // assert!(literals.last == literals_last, "Invalid packet");
-
         // Send literals data
-        let literals_out = SequenceExecutorPacket<common::SYMBOL_WIDTH> {
+        let literals_out = SequenceExecutorPacket<NUM_OF_LITERALS> {
             msg_type: SequenceExecutorMessageType::LITERAL,
             length: literals.length,
             content: literals_data,
@@ -158,7 +161,7 @@ proc PacketDecoder<RAM_ADDR_WIDTH: u32> {
     }
 }
 
-fn literals_content(literal: u8, last: u1, pos: u3) -> LiteralsWithLast {
+fn literals_content(literal: u8, last: u1, pos: u32) -> LiteralsWithLast {
     (
         literal as LiteralsWithLast |
         ((last as LiteralsWithLast) << common::SYMBOL_WIDTH)) << (RAM_DATA_WIDTH * (pos as u32)
@@ -166,70 +169,70 @@ fn literals_content(literal: u8, last: u1, pos: u3) -> LiteralsWithLast {
 }
 
 
-const TEST_LITERALS_IN: SequenceExecutorPacket<RAM_DATA_WIDTH>[4] = [
-    SequenceExecutorPacket<RAM_DATA_WIDTH> {
+const TEST_LITERALS_IN: SequenceExecutorPacket<LITERALS_DATA_WIDTH>[4] = [
+    SequenceExecutorPacket<LITERALS_DATA_WIDTH> {
         msg_type: SequenceExecutorMessageType::LITERAL,
         length: CopyOrMatchLength:1,
-        content: literals_content(u8:0xAB, u1:0, u3:0),
+        content: literals_content(u8:0xAB, u1:0, u32:0),
         last: false,
     },
-    SequenceExecutorPacket<RAM_DATA_WIDTH> {
+    SequenceExecutorPacket<LITERALS_DATA_WIDTH> {
         msg_type: SequenceExecutorMessageType::LITERAL,
         length: CopyOrMatchLength:2,
         content: (
-            literals_content(u8:0x12, u1:0, u3:1) |
-            literals_content(u8:0x34, u1:0, u3:0)
+            literals_content(u8:0x12, u1:0, u32:1) |
+            literals_content(u8:0x34, u1:0, u32:0)
         ),
         last: false,
     },
-    SequenceExecutorPacket<RAM_DATA_WIDTH> {
+    SequenceExecutorPacket<LITERALS_DATA_WIDTH> {
         msg_type: SequenceExecutorMessageType::LITERAL,
         length: CopyOrMatchLength:8,
         content: (
-            literals_content(u8:0xFE, u1:0, u3:7) |
-            literals_content(u8:0xDC, u1:0, u3:6) |
-            literals_content(u8:0xBA, u1:0, u3:5) |
-            literals_content(u8:0x98, u1:0, u3:4) |
-            literals_content(u8:0x76, u1:0, u3:3) |
-            literals_content(u8:0x54, u1:0, u3:2) |
-            literals_content(u8:0x32, u1:0, u3:1) |
-            literals_content(u8:0x10, u1:0, u3:0)
+            literals_content(u8:0xFE, u1:0, u32:7) |
+            literals_content(u8:0xDC, u1:0, u32:6) |
+            literals_content(u8:0xBA, u1:0, u32:5) |
+            literals_content(u8:0x98, u1:0, u32:4) |
+            literals_content(u8:0x76, u1:0, u32:3) |
+            literals_content(u8:0x54, u1:0, u32:2) |
+            literals_content(u8:0x32, u1:0, u32:1) |
+            literals_content(u8:0x10, u1:0, u32:0)
         ),
         last: false,
     },
-    SequenceExecutorPacket<RAM_DATA_WIDTH> {
+    SequenceExecutorPacket<LITERALS_DATA_WIDTH> {
         msg_type: SequenceExecutorMessageType::LITERAL,
         length: CopyOrMatchLength:4,
         content: (
-            literals_content(u8:0xAA, u1:1, u3:3) |
-            literals_content(u8:0xBB, u1:1, u3:2) |
-            literals_content(u8:0xCC, u1:0, u3:1) |
-            literals_content(u8:0xDD, u1:0, u3:0)
+            literals_content(u8:0xAA, u1:1, u32:3) |
+            literals_content(u8:0xBB, u1:1, u32:2) |
+            literals_content(u8:0xCC, u1:0, u32:1) |
+            literals_content(u8:0xDD, u1:0, u32:0)
         ),
         last: true,
     },
 ];
 
-const TEST_LITERALS_OUT: SequenceExecutorPacket<common::SYMBOL_WIDTH>[4] = [
-    SequenceExecutorPacket<common::SYMBOL_WIDTH> {
+const TEST_LITERALS_OUT: SequenceExecutorPacket<NUM_OF_LITERALS>[4] = [
+    SequenceExecutorPacket<NUM_OF_LITERALS> {
         msg_type: SequenceExecutorMessageType::LITERAL,
         length: CopyOrMatchLength:1,
         content: CopyOrMatchContent:0xAB,
         last: false,
     },
-    SequenceExecutorPacket<common::SYMBOL_WIDTH> {
+    SequenceExecutorPacket<NUM_OF_LITERALS> {
         msg_type: SequenceExecutorMessageType::LITERAL,
         length: CopyOrMatchLength:2,
         content: CopyOrMatchContent:0x1234,
         last: false,
     },
-    SequenceExecutorPacket<common::SYMBOL_WIDTH> {
+    SequenceExecutorPacket<NUM_OF_LITERALS> {
         msg_type: SequenceExecutorMessageType::LITERAL,
         length: CopyOrMatchLength:8,
         content: CopyOrMatchContent:0xFEDC_BA98_7654_3210,
         last: false,
     },
-    SequenceExecutorPacket<common::SYMBOL_WIDTH> {
+    SequenceExecutorPacket<NUM_OF_LITERALS> {
         msg_type: SequenceExecutorMessageType::LITERAL,
         length: CopyOrMatchLength:4,
         content: CopyOrMatchContent:0xAABB_CCDD,
@@ -241,13 +244,13 @@ const TEST_LITERALS_OUT: SequenceExecutorPacket<common::SYMBOL_WIDTH>[4] = [
 proc PacketDecoder_test {
     terminator: chan<bool> out;
 
-    literals_in_s: chan<SequenceExecutorPacket<RAM_DATA_WIDTH>> out;
-    literals_out_r: chan<SequenceExecutorPacket<common::SYMBOL_WIDTH>> in;
+    literals_in_s: chan<SequenceExecutorPacket<LITERALS_DATA_WIDTH>> out;
+    literals_out_r: chan<SequenceExecutorPacket<NUM_OF_LITERALS>> in;
     buffer_sync_r: chan<LiteralsBufferReaderToWriterSync> in;
 
     config(terminator: chan<bool> out) {
-        let (literals_in_s, literals_in_r) = chan<SequenceExecutorPacket<RAM_DATA_WIDTH>>("literals_in");
-        let (literals_out_s, literals_out_r) = chan<SequenceExecutorPacket<common::SYMBOL_WIDTH>>("literals_out");
+        let (literals_in_s, literals_in_r) = chan<SequenceExecutorPacket<LITERALS_DATA_WIDTH>>("literals_in");
+        let (literals_out_s, literals_out_r) = chan<SequenceExecutorPacket<NUM_OF_LITERALS>>("literals_out");
         let (buffer_sync_s, buffer_sync_r) = chan<LiteralsBufferReaderToWriterSync>("buffer_sync");
 
         spawn PacketDecoder<TEST_RAM_ADDR_WIDTH>(literals_in_r, literals_out_s, buffer_sync_s);
@@ -397,51 +400,27 @@ proc LiteralsBufferWriter<
     buffer_sync_r: chan<LiteralsBufferReaderToWriterSync> in;
     buffer_sync_s: chan<LiteralsBufferWriterToReaderSync> out;
 
-    wr_req_m0_s: chan<WriteReq> out;
-    wr_req_m1_s: chan<WriteReq> out;
-    wr_req_m2_s: chan<WriteReq> out;
-    wr_req_m3_s: chan<WriteReq> out;
-    wr_req_m4_s: chan<WriteReq> out;
-    wr_req_m5_s: chan<WriteReq> out;
-    wr_req_m6_s: chan<WriteReq> out;
-    wr_req_m7_s: chan<WriteReq> out;
+    wr_req_m_s: chan<WriteReq>[RAM_NUM] out;
 
     config (
         literals_r: chan<LiteralsData> in,
         buffer_sync_r: chan<LiteralsBufferReaderToWriterSync> in,
         buffer_sync_s: chan<LiteralsBufferWriterToReaderSync> out,
-        wr_req_m0_s: chan<WriteReq> out,
-        wr_req_m1_s: chan<WriteReq> out,
-        wr_req_m2_s: chan<WriteReq> out,
-        wr_req_m3_s: chan<WriteReq> out,
-        wr_req_m4_s: chan<WriteReq> out,
-        wr_req_m5_s: chan<WriteReq> out,
-        wr_req_m6_s: chan<WriteReq> out,
-        wr_req_m7_s: chan<WriteReq> out,
-        wr_resp_m0_r: chan<WriteResp> in,
-        wr_resp_m1_r: chan<WriteResp> in,
-        wr_resp_m2_r: chan<WriteResp> in,
-        wr_resp_m3_r: chan<WriteResp> in,
-        wr_resp_m4_r: chan<WriteResp> in,
-        wr_resp_m5_r: chan<WriteResp> in,
-        wr_resp_m6_r: chan<WriteResp> in,
-        wr_resp_m7_r: chan<WriteResp> in
+        wr_req_m_s: chan<WriteReq>[RAM_NUM] out,
+        wr_resp_m_r: chan<WriteResp>[RAM_NUM] in,
     ) {
         let (ram_comp_input_s, ram_comp_input_r) = chan<RamWrRespHandlerData<RAM_ADDR_WIDTH>, u32:1>("ram_comp_input");
         let (ram_comp_output_s, ram_comp_output_r) = chan<RamWrRespHandlerResp<RAM_ADDR_WIDTH>, u32:1>("ram_comp_output");
 
-        spawn parallel_rams::RamWrRespHandler<RAM_ADDR_WIDTH, RAM_DATA_WIDTH>(
-            ram_comp_input_r, ram_comp_output_s,
-            wr_resp_m0_r, wr_resp_m1_r, wr_resp_m2_r, wr_resp_m3_r,
-            wr_resp_m4_r, wr_resp_m5_r, wr_resp_m6_r, wr_resp_m7_r,
+        spawn parallel_rams::RamWrRespHandler<RAM_ADDR_WIDTH, LITERALS_DATA_WIDTH>(
+            ram_comp_input_r, ram_comp_output_s, wr_resp_m_r,
         );
 
         (
             literals_r,
             ram_comp_input_s, ram_comp_output_r,
             buffer_sync_r, buffer_sync_s,
-            wr_req_m0_s, wr_req_m1_s, wr_req_m2_s, wr_req_m3_s,
-            wr_req_m4_s, wr_req_m5_s, wr_req_m6_s, wr_req_m7_s,
+            wr_req_m_s,
         )
     }
 
@@ -459,7 +438,6 @@ proc LiteralsBufferWriter<
     }
     next (state: State) {
         let tok0 = join();
-        // TODO: Remove this workaround when fixed: https://github.com/google/xls/issues/1368
         type State = LiteralsBufferWriterState<RAM_ADDR_WIDTH>;
         type WriteReq = ram::WriteReq<RAM_ADDR_WIDTH, RAM_DATA_WIDTH, RAM_NUM_PARTITIONS>;
 
@@ -486,14 +464,14 @@ proc LiteralsBufferWriter<
             data | (literal << (RAM_DATA_WIDTH * i))
         }(LiteralsWithLast:0);
 
-        let packet = SequenceExecutorPacket<RAM_DATA_WIDTH> {
+        let packet = SequenceExecutorPacket<LITERALS_DATA_WIDTH> {
             msg_type: SequenceExecutorMessageType::LITERAL,
             length: literals_data.length as CopyOrMatchLength,
             content: packet_data,
             last: literals_data.last,
         };
         let (write_reqs, new_hyp_ptr) = parallel_rams::literal_packet_to_write_reqs<
-            HISTORY_BUFFER_SIZE_KB, RAM_ADDR_WIDTH, RAM_DATA_WIDTH
+            HISTORY_BUFFER_SIZE_KB, RAM_NUM, RAM_ADDR_WIDTH, LITERALS_DATA_WIDTH, RAM_DATA_WIDTH, u32:1
         >(
             state.hyp_ptr, packet
         );
@@ -507,16 +485,12 @@ proc LiteralsBufferWriter<
         };
 
         // send write requests to RAMs
-        let tok2_0 = send_if(tok1, wr_req_m0_s, write_reqs[0].mask != RAM_REQ_MASK_NONE, write_reqs[0]);
-        let tok2_1 = send_if(tok1, wr_req_m1_s, write_reqs[1].mask != RAM_REQ_MASK_NONE, write_reqs[1]);
-        let tok2_2 = send_if(tok1, wr_req_m2_s, write_reqs[2].mask != RAM_REQ_MASK_NONE, write_reqs[2]);
-        let tok2_3 = send_if(tok1, wr_req_m3_s, write_reqs[3].mask != RAM_REQ_MASK_NONE, write_reqs[3]);
-        let tok2_4 = send_if(tok1, wr_req_m4_s, write_reqs[4].mask != RAM_REQ_MASK_NONE, write_reqs[4]);
-        let tok2_5 = send_if(tok1, wr_req_m5_s, write_reqs[5].mask != RAM_REQ_MASK_NONE, write_reqs[5]);
-        let tok2_6 = send_if(tok1, wr_req_m6_s, write_reqs[6].mask != RAM_REQ_MASK_NONE, write_reqs[6]);
-        let tok2_7 = send_if(tok1, wr_req_m7_s, write_reqs[7].mask != RAM_REQ_MASK_NONE, write_reqs[7]);
-
-        let tok2 = join(tok2_0, tok2_1, tok2_2, tok2_3, tok2_4, tok2_5, tok2_6, tok2_7);
+        let tok2 =
+            unroll_for! (i, all_reqs):
+            (u32, token) in u32:0..RAM_NUM {
+                let req_tok = send_if(tok1, wr_req_m_s[i], write_reqs[i].mask != RAM_REQ_MASK_NONE, write_reqs[i]);
+                join(all_reqs, req_tok)
+        }(tok1);
 
         // write completion
         let (do_write, wr_resp_handler_data) = parallel_rams::create_ram_wr_data(write_reqs, state.hyp_ptr);
@@ -561,7 +535,7 @@ proc LiteralsBufferWriter<
         let tok3 = join(tok3_0, tok3_1);
 
         let sync_data = LiteralsBufferWriterToReaderSync {
-            literals_written: comp_data.length,
+            literals_written: comp_data.length as LitLength,
         };
         let tok4 = send_if(tok3, buffer_sync_s, comp_data_valid, sync_data);
 
@@ -590,50 +564,27 @@ proc LiteralsBufferReader<
     type State = LiteralsBufferReaderState<RAM_ADDR_WIDTH>;
 
     literals_buf_ctrl_r: chan<LiteralsBufferCtrl> in;
-    literals_s: chan<SequenceExecutorPacket<common::SYMBOL_WIDTH>> out;
+    literals_s: chan<SequenceExecutorPacket<NUM_OF_LITERALS>> out;
 
     ram_resp_input_s: chan<RamRdRespHandlerData> out;
 
     buffer_sync_r: chan<LiteralsBufferWriterToReaderSync> in;
 
-    rd_req_m0_s: chan<ReadReq> out;
-    rd_req_m1_s: chan<ReadReq> out;
-    rd_req_m2_s: chan<ReadReq> out;
-    rd_req_m3_s: chan<ReadReq> out;
-    rd_req_m4_s: chan<ReadReq> out;
-    rd_req_m5_s: chan<ReadReq> out;
-    rd_req_m6_s: chan<ReadReq> out;
-    rd_req_m7_s: chan<ReadReq> out;
+    rd_req_m_s: chan<ReadReq>[RAM_NUM] out;
 
     config (
         literals_buf_ctrl_r: chan<LiteralsBufferCtrl> in,
-        literals_s: chan<SequenceExecutorPacket<common::SYMBOL_WIDTH>> out,
+        literals_s: chan<SequenceExecutorPacket<NUM_OF_LITERALS>> out,
         buffer_sync_r: chan<LiteralsBufferWriterToReaderSync> in,
         buffer_sync_s: chan<LiteralsBufferReaderToWriterSync> out,
-        rd_req_m0_s: chan<ReadReq> out,
-        rd_req_m1_s: chan<ReadReq> out,
-        rd_req_m2_s: chan<ReadReq> out,
-        rd_req_m3_s: chan<ReadReq> out,
-        rd_req_m4_s: chan<ReadReq> out,
-        rd_req_m5_s: chan<ReadReq> out,
-        rd_req_m6_s: chan<ReadReq> out,
-        rd_req_m7_s: chan<ReadReq> out,
-        rd_resp_m0_r: chan<ReadResp> in,
-        rd_resp_m1_r: chan<ReadResp> in,
-        rd_resp_m2_r: chan<ReadResp> in,
-        rd_resp_m3_r: chan<ReadResp> in,
-        rd_resp_m4_r: chan<ReadResp> in,
-        rd_resp_m5_r: chan<ReadResp> in,
-        rd_resp_m6_r: chan<ReadResp> in,
-        rd_resp_m7_r: chan<ReadResp> in,
+        rd_req_m_s: chan<ReadReq>[RAM_NUM] out,
+        rd_resp_m_r: chan<ReadResp>[RAM_NUM] in,
     ) {
         let (ram_resp_input_s, ram_resp_input_r) = chan<RamRdRespHandlerData, u32:1>("ram_resp_input");
-        let (literals_enc_s, literals_enc_r) = chan<SequenceExecutorPacket<RAM_DATA_WIDTH>, u32:1>("literals_enc");
+        let (literals_enc_s, literals_enc_r) = chan<SequenceExecutorPacket<LITERALS_DATA_WIDTH>, u32:1>("literals_enc");
 
-        spawn parallel_rams::RamRdRespHandler<RAM_DATA_WIDTH>(
-            ram_resp_input_r, literals_enc_s,
-            rd_resp_m0_r, rd_resp_m1_r, rd_resp_m2_r, rd_resp_m3_r,
-            rd_resp_m4_r, rd_resp_m5_r, rd_resp_m6_r, rd_resp_m7_r,
+        spawn parallel_rams::RamRdRespHandler<LITERALS_DATA_WIDTH, RAM_DATA_WIDTH>(
+            ram_resp_input_r, literals_enc_s, rd_resp_m_r,
         );
 
         spawn PacketDecoder<RAM_ADDR_WIDTH>(
@@ -645,8 +596,7 @@ proc LiteralsBufferReader<
             literals_s,
             ram_resp_input_s,
             buffer_sync_r,
-            rd_req_m0_s, rd_req_m1_s, rd_req_m2_s, rd_req_m3_s,
-            rd_req_m4_s, rd_req_m5_s, rd_req_m6_s, rd_req_m7_s,
+            rd_req_m_s,
         )
     }
 
@@ -665,7 +615,6 @@ proc LiteralsBufferReader<
 
     next (state: State) {
         let tok0 = join();
-        // TODO: Remove this workaround when fixed: https://github.com/google/xls/issues/1368
         type ReadReq = ram::ReadReq<RAM_ADDR_WIDTH, RAM_NUM_PARTITIONS>;
         type State = LiteralsBufferReaderState<RAM_ADDR_WIDTH>;
 
@@ -689,7 +638,6 @@ proc LiteralsBufferReader<
         };
 
         // read literals from RAM
-        // limit read to 8 literals
         let literals_to_read = if (left_to_read > (RAM_NUM as u32)) {
             RAM_NUM as u32
         } else {
@@ -702,7 +650,7 @@ proc LiteralsBufferReader<
             literals_to_read
         };
 
-        let packet = SequenceExecutorPacket<RAM_DATA_WIDTH> {
+        let packet = SequenceExecutorPacket<LITERALS_DATA_WIDTH> {
             msg_type: SequenceExecutorMessageType::LITERAL,
             length: literals_to_read as CopyOrMatchLength,
             content: state.hb_len as LiteralsWithLast,
@@ -710,7 +658,7 @@ proc LiteralsBufferReader<
         };
 
         let (read_reqs, read_start, read_len, _, _) = parallel_rams::sequence_packet_to_read_reqs<
-            HISTORY_BUFFER_SIZE_KB, RAM_ADDR_WIDTH, RAM_DATA_WIDTH
+            HISTORY_BUFFER_SIZE_KB, RAM_NUM, RAM_ADDR_WIDTH, LITERALS_DATA_WIDTH
         >(
             state.hyp_ptr, packet, state.hb_len
         );
@@ -739,17 +687,13 @@ proc LiteralsBufferReader<
             )
         };
 
-        // read requests
-        let tok2_0 = send_if(tok1, rd_req_m0_s, read_reqs[0].mask != RAM_REQ_MASK_NONE, read_reqs[0]);
-        let tok2_1 = send_if(tok1, rd_req_m1_s, read_reqs[1].mask != RAM_REQ_MASK_NONE, read_reqs[1]);
-        let tok2_2 = send_if(tok1, rd_req_m2_s, read_reqs[2].mask != RAM_REQ_MASK_NONE, read_reqs[2]);
-        let tok2_3 = send_if(tok1, rd_req_m3_s, read_reqs[3].mask != RAM_REQ_MASK_NONE, read_reqs[3]);
-        let tok2_4 = send_if(tok1, rd_req_m4_s, read_reqs[4].mask != RAM_REQ_MASK_NONE, read_reqs[4]);
-        let tok2_5 = send_if(tok1, rd_req_m5_s, read_reqs[5].mask != RAM_REQ_MASK_NONE, read_reqs[5]);
-        let tok2_6 = send_if(tok1, rd_req_m6_s, read_reqs[6].mask != RAM_REQ_MASK_NONE, read_reqs[6]);
-        let tok2_7 = send_if(tok1, rd_req_m7_s, read_reqs[7].mask != RAM_REQ_MASK_NONE, read_reqs[7]);
+        let tok2 =
+            unroll_for! (i, all_reqs):
+            (u32, token) in u32:0..RAM_NUM {
+                let req_tok = send_if(tok1, rd_req_m_s[i], read_reqs[i].mask != RAM_REQ_MASK_NONE, read_reqs[i]);
+                join(all_reqs, req_tok)
+        }(tok1);
 
-        let tok2 = join(tok2_0, tok2_1, tok2_2, tok2_3, tok2_4, tok2_5, tok2_6, tok2_7);
         let last_access = if (state.left_to_read > u32:0) {
           false
         } else {
@@ -757,7 +701,7 @@ proc LiteralsBufferReader<
         };
 
         let (do_read, rd_resp_handler_data) =
-            parallel_rams::create_ram_rd_data<RAM_ADDR_WIDTH, RAM_DATA_WIDTH, RAM_NUM_PARTITIONS>(
+            parallel_rams::create_ram_rd_data<RAM_ADDR_WIDTH, LITERALS_DATA_WIDTH, RAM_NUM_PARTITIONS>(
                 read_reqs, read_start, read_len, last_access, !last_access
             );
         if do_read {
@@ -810,39 +754,11 @@ pub proc LiteralsBuffer<
         rle_literals_r: chan<LiteralsDataWithSync> in,
         huff_literals_r: chan<LiteralsDataWithSync> in,
         literals_buf_ctrl_r: chan<LiteralsBufferCtrl> in,
-        literals_s: chan<SequenceExecutorPacket<common::SYMBOL_WIDTH>> out,
-        rd_req_m0_s: chan<ReadReq> out,
-        rd_req_m1_s: chan<ReadReq> out,
-        rd_req_m2_s: chan<ReadReq> out,
-        rd_req_m3_s: chan<ReadReq> out,
-        rd_req_m4_s: chan<ReadReq> out,
-        rd_req_m5_s: chan<ReadReq> out,
-        rd_req_m6_s: chan<ReadReq> out,
-        rd_req_m7_s: chan<ReadReq> out,
-        rd_resp_m0_r: chan<ReadResp> in,
-        rd_resp_m1_r: chan<ReadResp> in,
-        rd_resp_m2_r: chan<ReadResp> in,
-        rd_resp_m3_r: chan<ReadResp> in,
-        rd_resp_m4_r: chan<ReadResp> in,
-        rd_resp_m5_r: chan<ReadResp> in,
-        rd_resp_m6_r: chan<ReadResp> in,
-        rd_resp_m7_r: chan<ReadResp> in,
-        wr_req_m0_s: chan<WriteReq> out,
-        wr_req_m1_s: chan<WriteReq> out,
-        wr_req_m2_s: chan<WriteReq> out,
-        wr_req_m3_s: chan<WriteReq> out,
-        wr_req_m4_s: chan<WriteReq> out,
-        wr_req_m5_s: chan<WriteReq> out,
-        wr_req_m6_s: chan<WriteReq> out,
-        wr_req_m7_s: chan<WriteReq> out,
-        wr_resp_m0_r: chan<WriteResp> in,
-        wr_resp_m1_r: chan<WriteResp> in,
-        wr_resp_m2_r: chan<WriteResp> in,
-        wr_resp_m3_r: chan<WriteResp> in,
-        wr_resp_m4_r: chan<WriteResp> in,
-        wr_resp_m5_r: chan<WriteResp> in,
-        wr_resp_m6_r: chan<WriteResp> in,
-        wr_resp_m7_r: chan<WriteResp> in
+        literals_s: chan<SequenceExecutorPacket<NUM_OF_LITERALS>> out,
+        rd_req_m_s: chan<ReadReq>[RAM_NUM] out,
+        rd_resp_m_r: chan<ReadResp>[RAM_NUM] in,
+        wr_req_m_s: chan<WriteReq>[RAM_NUM] out,
+        wr_resp_m_r: chan<WriteResp>[RAM_NUM] in,
     ) {
         type SyncWriterToReader = LiteralsBufferWriterToReaderSync;
         type SyncReaderToWriter = LiteralsBufferReaderToWriterSync;
@@ -861,10 +777,7 @@ pub proc LiteralsBuffer<
         > (
             sync_literals_r,
             buffer_sync_reader_to_writer_r, buffer_sync_writer_to_reader_s,
-            wr_req_m0_s, wr_req_m1_s, wr_req_m2_s, wr_req_m3_s,
-            wr_req_m4_s, wr_req_m5_s, wr_req_m6_s, wr_req_m7_s,
-            wr_resp_m0_r, wr_resp_m1_r, wr_resp_m2_r, wr_resp_m3_r,
-            wr_resp_m4_r, wr_resp_m5_r, wr_resp_m6_r, wr_resp_m7_r,
+            wr_req_m_s, wr_resp_m_r,
         );
 
         spawn LiteralsBufferReader<
@@ -872,21 +785,19 @@ pub proc LiteralsBuffer<
         > (
             literals_buf_ctrl_r, literals_s,
             buffer_sync_writer_to_reader_r, buffer_sync_reader_to_writer_s,
-            rd_req_m0_s, rd_req_m1_s, rd_req_m2_s, rd_req_m3_s,
-            rd_req_m4_s, rd_req_m5_s, rd_req_m6_s, rd_req_m7_s,
-            rd_resp_m0_r, rd_resp_m1_r, rd_resp_m2_r, rd_resp_m3_r,
-            rd_resp_m4_r, rd_resp_m5_r, rd_resp_m6_r, rd_resp_m7_r,
+            rd_req_m_s, rd_resp_m_r,
         );
     }
 
     next (state: ()) { }
 }
 
-const INST_HISTORY_BUFFER_SIZE_KB = u32:64;
+const INST_HISTORY_BUFFER_SIZE_KB = common::HISTORY_BUFFER_SIZE_KB;
 const INST_RAM_ADDR_WIDTH = parallel_rams::ram_addr_width(INST_HISTORY_BUFFER_SIZE_KB);
+const INST_RAM_NUM = RAM_NUM;
 const INST_RAM_NUM_PARTITIONS = RAM_NUM_PARTITIONS;
 const INST_RAM_DATA_WIDTH = RAM_DATA_WIDTH;
-const INST_SYMBOL_WIDTH = common::SYMBOL_WIDTH;
+const INST_SYMBOL_WIDTH = NUM_OF_LITERALS;
 
 pub proc LiteralsBufferInst {
     type ReadReq = ram::ReadReq<INST_RAM_ADDR_WIDTH, INST_RAM_NUM_PARTITIONS>;
@@ -902,50 +813,16 @@ pub proc LiteralsBufferInst {
         huff_literals_r: chan<LiteralsDataWithSync> in,
         literals_buf_ctrl_r: chan<LiteralsBufferCtrl> in,
         literals_s: chan<SequenceExecutorPacket<INST_SYMBOL_WIDTH>> out,
-        rd_req_m0_s: chan<ReadReq> out,
-        rd_req_m1_s: chan<ReadReq> out,
-        rd_req_m2_s: chan<ReadReq> out,
-        rd_req_m3_s: chan<ReadReq> out,
-        rd_req_m4_s: chan<ReadReq> out,
-        rd_req_m5_s: chan<ReadReq> out,
-        rd_req_m6_s: chan<ReadReq> out,
-        rd_req_m7_s: chan<ReadReq> out,
-        rd_resp_m0_r: chan<ReadResp> in,
-        rd_resp_m1_r: chan<ReadResp> in,
-        rd_resp_m2_r: chan<ReadResp> in,
-        rd_resp_m3_r: chan<ReadResp> in,
-        rd_resp_m4_r: chan<ReadResp> in,
-        rd_resp_m5_r: chan<ReadResp> in,
-        rd_resp_m6_r: chan<ReadResp> in,
-        rd_resp_m7_r: chan<ReadResp> in,
-        wr_req_m0_s: chan<WriteReq> out,
-        wr_req_m1_s: chan<WriteReq> out,
-        wr_req_m2_s: chan<WriteReq> out,
-        wr_req_m3_s: chan<WriteReq> out,
-        wr_req_m4_s: chan<WriteReq> out,
-        wr_req_m5_s: chan<WriteReq> out,
-        wr_req_m6_s: chan<WriteReq> out,
-        wr_req_m7_s: chan<WriteReq> out,
-        wr_resp_m0_r: chan<WriteResp> in,
-        wr_resp_m1_r: chan<WriteResp> in,
-        wr_resp_m2_r: chan<WriteResp> in,
-        wr_resp_m3_r: chan<WriteResp> in,
-        wr_resp_m4_r: chan<WriteResp> in,
-        wr_resp_m5_r: chan<WriteResp> in,
-        wr_resp_m6_r: chan<WriteResp> in,
-        wr_resp_m7_r: chan<WriteResp> in
+        rd_req_m_s: chan<ReadReq>[INST_RAM_NUM] out,
+        rd_resp_m_r: chan<ReadResp>[INST_RAM_NUM] in,
+        wr_req_m_s: chan<WriteReq>[INST_RAM_NUM] out,
+        wr_resp_m_r: chan<WriteResp>[INST_RAM_NUM] in
     ) {
         spawn LiteralsBuffer<INST_HISTORY_BUFFER_SIZE_KB> (
             raw_literals_r, rle_literals_r, huff_literals_r,
             literals_buf_ctrl_r, literals_s,
-            rd_req_m0_s, rd_req_m1_s, rd_req_m2_s, rd_req_m3_s,
-            rd_req_m4_s, rd_req_m5_s, rd_req_m6_s, rd_req_m7_s,
-            rd_resp_m0_r, rd_resp_m1_r, rd_resp_m2_r, rd_resp_m3_r,
-            rd_resp_m4_r, rd_resp_m5_r, rd_resp_m6_r, rd_resp_m7_r,
-            wr_req_m0_s, wr_req_m1_s, wr_req_m2_s, wr_req_m3_s,
-            wr_req_m4_s, wr_req_m5_s, wr_req_m6_s, wr_req_m7_s,
-            wr_resp_m0_r, wr_resp_m1_r, wr_resp_m2_r, wr_resp_m3_r,
-            wr_resp_m4_r, wr_resp_m5_r, wr_resp_m6_r, wr_resp_m7_r,
+            rd_req_m_s, rd_resp_m_r,
+            wr_req_m_s, wr_resp_m_r,
         );
     }
 
@@ -992,76 +869,76 @@ const TEST_BUFFER_CTRL: LiteralsBufferCtrl[11] = [
     LiteralsBufferCtrl {length: u32:1, last: true},
 ];
 
-const TEST_EXPECTED_PACKETS: SequenceExecutorPacket<common::SYMBOL_WIDTH>[11] = [
+const TEST_EXPECTED_PACKETS: SequenceExecutorPacket<NUM_OF_LITERALS>[11] = [
     // Literal #0
-    SequenceExecutorPacket<common::SYMBOL_WIDTH> {
+    SequenceExecutorPacket<NUM_OF_LITERALS> {
         msg_type: SequenceExecutorMessageType::LITERAL,
         length: CopyOrMatchLength:2,
         content: CopyOrMatchContent:0x789A,
         last: false
     },
-    SequenceExecutorPacket<common::SYMBOL_WIDTH> {
+    SequenceExecutorPacket<NUM_OF_LITERALS> {
         msg_type: SequenceExecutorMessageType::LITERAL,
         length: CopyOrMatchLength:1,
         content: CopyOrMatchContent:0x56,
         last: false
     },
-    SequenceExecutorPacket<common::SYMBOL_WIDTH> {
+    SequenceExecutorPacket<NUM_OF_LITERALS> {
         msg_type: SequenceExecutorMessageType::LITERAL,
         length: CopyOrMatchLength:2,
         content: CopyOrMatchContent:0x1234,
         last: true
     },
     // Literal #1
-    SequenceExecutorPacket<common::SYMBOL_WIDTH> {
+    SequenceExecutorPacket<NUM_OF_LITERALS> {
         msg_type: SequenceExecutorMessageType::LITERAL,
         length: CopyOrMatchLength:4,
         content: CopyOrMatchContent:0xBBBB_BBBB,
         last: true
     },
     // Literal #2
-    SequenceExecutorPacket<common::SYMBOL_WIDTH> {
+    SequenceExecutorPacket<NUM_OF_LITERALS> {
         msg_type: SequenceExecutorMessageType::LITERAL,
         length: CopyOrMatchLength:1,
         content: CopyOrMatchContent:0x64,
         last: true
     },
     // Literal #3
-    SequenceExecutorPacket<common::SYMBOL_WIDTH> {
+    SequenceExecutorPacket<NUM_OF_LITERALS> {
         msg_type: SequenceExecutorMessageType::LITERAL,
         length: CopyOrMatchLength:8,
         content: CopyOrMatchContent:0xABCD_DCBA_1234_4321,
         last: true
     },
     // Literal #4
-    SequenceExecutorPacket<common::SYMBOL_WIDTH> {
+    SequenceExecutorPacket<NUM_OF_LITERALS> {
         msg_type: SequenceExecutorMessageType::LITERAL,
         length: CopyOrMatchLength:3,
         content: CopyOrMatchContent:0x21_4365,
         last: true
     },
     // Literal #5
-    SequenceExecutorPacket<common::SYMBOL_WIDTH> {
+    SequenceExecutorPacket<NUM_OF_LITERALS> {
         msg_type: SequenceExecutorMessageType::LITERAL,
         length: CopyOrMatchLength:7,
         content: CopyOrMatchContent:0xAA_BBBB_CCCC_DDDD,
         last: true
     },
     // Literal #6
-    SequenceExecutorPacket<common::SYMBOL_WIDTH> {
+    SequenceExecutorPacket<NUM_OF_LITERALS> {
         msg_type: SequenceExecutorMessageType::LITERAL,
         length: CopyOrMatchLength:8,
         content: CopyOrMatchContent:0xDCBA_ABCD_1234_4321,
         last: false
     },
-    SequenceExecutorPacket<common::SYMBOL_WIDTH> {
+    SequenceExecutorPacket<NUM_OF_LITERALS> {
         msg_type: SequenceExecutorMessageType::LITERAL,
         length: CopyOrMatchLength:1,
         content: CopyOrMatchContent:0x78,
         last: true
     },
     // Literal #7
-    SequenceExecutorPacket<common::SYMBOL_WIDTH> {
+    SequenceExecutorPacket<NUM_OF_LITERALS> {
         msg_type: SequenceExecutorMessageType::LITERAL,
         length: CopyOrMatchLength:1,
         content: CopyOrMatchContent:0x26,
@@ -1078,7 +955,7 @@ proc LiteralsBuffer_test {
     huff_literals_s: chan<LiteralsDataWithSync> out;
 
     literals_buf_ctrl_s: chan<LiteralsBufferCtrl> out;
-    literals_r: chan<SequenceExecutorPacket<common::SYMBOL_WIDTH>> in;
+    literals_r: chan<SequenceExecutorPacket<NUM_OF_LITERALS>> in;
 
     print_start_s: chan<()> out;
     print_finish_r: chan<()> in;
@@ -1094,7 +971,7 @@ proc LiteralsBuffer_test {
         let (huff_literals_s, huff_literals_r) = chan<LiteralsDataWithSync>("huff_literals");
 
         let (literals_buf_ctrl_s, literals_buf_ctrl_r) = chan<LiteralsBufferCtrl>("literals_buf_ctrl");
-        let (literals_s, literals_r) = chan<SequenceExecutorPacket<common::SYMBOL_WIDTH>>("literals");
+        let (literals_s, literals_r) = chan<SequenceExecutorPacket<NUM_OF_LITERALS>>("literals");
 
         let (print_start_s, print_start_r) = chan<()>("print_start");
         let (print_finish_s, print_finish_r) = chan<()>("print_finish");
@@ -1112,14 +989,8 @@ proc LiteralsBuffer_test {
         > (
             raw_literals_r, rle_literals_r, huff_literals_r,
             literals_buf_ctrl_r, literals_s,
-            ram_rd_req_s[0], ram_rd_req_s[1], ram_rd_req_s[2], ram_rd_req_s[3],
-            ram_rd_req_s[4], ram_rd_req_s[5], ram_rd_req_s[6], ram_rd_req_s[7],
-            ram_rd_resp_r[0], ram_rd_resp_r[1], ram_rd_resp_r[2], ram_rd_resp_r[3],
-            ram_rd_resp_r[4], ram_rd_resp_r[5], ram_rd_resp_r[6], ram_rd_resp_r[7],
-            ram_wr_req_s[0], ram_wr_req_s[1], ram_wr_req_s[2], ram_wr_req_s[3],
-            ram_wr_req_s[4], ram_wr_req_s[5], ram_wr_req_s[6], ram_wr_req_s[7],
-            ram_wr_resp_r[0], ram_wr_resp_r[1], ram_wr_resp_r[2], ram_wr_resp_r[3],
-            ram_wr_resp_r[4], ram_wr_resp_r[5], ram_wr_resp_r[6], ram_wr_resp_r[7]
+            ram_rd_req_s, ram_rd_resp_r,
+            ram_wr_req_s, ram_wr_resp_r
         );
         spawn ram_printer::RamPrinter<
             RAM_DATA_WIDTH, TEST_RAM_SIZE, RAM_NUM_PARTITIONS,
@@ -1193,7 +1064,7 @@ proc LiteralsBuffer_test {
         }(tok);
 
         // receive and check packets
-        let tok = for ((i, test_exp_literals), tok): ((u32, SequenceExecutorPacket<common::SYMBOL_WIDTH>), token) in enumerate(TEST_EXPECTED_PACKETS) {
+        let tok = for ((i, test_exp_literals), tok): ((u32, SequenceExecutorPacket<NUM_OF_LITERALS>), token) in enumerate(TEST_EXPECTED_PACKETS) {
             let (tok, literals) = recv(tok, literals_r);
             trace_fmt!("Received #{} literals packet {:#x}", i + u32:1, literals);
             assert_eq(test_exp_literals, literals);
