@@ -115,7 +115,7 @@ maven.artifact(
 )
 
 # Used both by XLS and rules_hdl.
-bazel_dep(name = "rules_pkg", version = "1.0.1")
+bazel_dep(name = "rules_pkg", version = "1.2.0")
 
 # Workaround suggested by a Bazel team member; only needed for WORKSPACE to work correctly.
 # TODO: https://github.com/google/xls/issues/931 - Remove this workaround once the WORKSPACE file is migrated to MODULE.bazel.
