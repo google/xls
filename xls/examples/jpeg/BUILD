@@ -44,7 +44,7 @@ xls_dslx_opt_ir(
     name = "idct_chen",
     srcs = ["idct_chen.x"],
     dslx_top = "idct",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     # Note: times out in fastbuild 2020-11-09.
     tags = ["optonly"],
 )

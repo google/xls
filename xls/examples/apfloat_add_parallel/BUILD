@@ -47,7 +47,7 @@ xls_dslx_opt_ir(
     name = "apfloat_add_parallel_opt_ir",
     srcs = ["apfloat_add_parallel.x"],
     dslx_top = "float32_top",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     ir_file = "apfloat_add_parallel.ir",
     opt_ir_file = "apfloat_add_parallel.opt.ir",
 )
