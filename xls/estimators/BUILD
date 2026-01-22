@@ -17,7 +17,6 @@ load("@rules_python//python:proto.bzl", "py_proto_library")
 # Load proto_library
 # cc_proto_library is used in this file
 
-load("@xls_pip_deps//:requirements.bzl", "requirement")
 load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary", "pytype_strict_contrib_test", "pytype_strict_library")
 
 package(
@@ -59,8 +58,8 @@ pytype_strict_library(
     srcs = ["estimator_model.py"],
     deps = [
         ":estimator_model_py_pb2",
-        requirement("numpy"),
-        requirement("scipy"),
+        "@xls_pip_deps//numpy",
+        "@xls_pip_deps//scipy",
     ],
 )
 
@@ -175,13 +174,13 @@ pytype_strict_binary(
     name = "estimator_model_stats",
     srcs = ["estimator_model_stats.py"],
     deps = [
-        requirement("numpy"),
         "//xls/estimators:estimator_model",
         "//xls/estimators:estimator_model_py_pb2",
         "@abseil-py//absl:app",
         "@abseil-py//absl/flags",
         "@abseil-py//absl/logging",
         "@com_google_protobuf//:protobuf_python",
+        "@xls_pip_deps//numpy",
     ],
 )
 
@@ -212,9 +211,9 @@ pytype_strict_binary(
     name = "run_op_characterization",
     srcs = ["run_op_characterization.py"],
     deps = [
-        requirement("portpicker"),
         "@abseil-py//absl:app",
         "@abseil-py//absl/flags",
         "@abseil-py//absl/logging",
+        "@xls_pip_deps//portpicker",
     ],
 )

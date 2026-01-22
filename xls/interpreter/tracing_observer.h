@@ -15,10 +15,6 @@
 #ifndef XLS_INTERPRETER_TRACING_OBSERVER_H_
 #define XLS_INTERPRETER_TRACING_OBSERVER_H_
 
-#include <memory>
-#include <utility>
-
-#include "riegeli/records/record_writer.h"
 #include "xls/interpreter/observer.h"
 #include "xls/interpreter/trace_recorder.h"
 #include "xls/ir/node.h"

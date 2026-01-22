@@ -88,10 +88,7 @@ class Stage {
     return active_outputs_;
   }
 
-  bool contains(Node* node) const {
-    return active_inputs_.contains(node) || logic_.contains(node) ||
-           active_outputs_.contains(node);
-  }
+  bool contains(Node* node) const;
 
   bool AddNode(Node* node);
   void erase(Node* node) {
@@ -213,7 +210,7 @@ class FunctionBase {
   virtual Kind kind() const = 0;
 
   // Get FunctionBase attributes suitable for putting in #[...] in the IR.
-  std::vector<std::string> AttributeIrStrings() const;
+  virtual std::vector<std::string> AttributeIrStrings() const;
 
   // Return Span of parameters.
   absl::Span<Param* const> params() const { return params_; }
@@ -470,7 +467,13 @@ class FunctionBase {
   // channels, or proc instantiations. The move includes the staging of the
   // logic, if this is a scheduled entity.
   void MoveLogicFrom(FunctionBase& other) {
-    MoveFrom(other, [](const Node* n) { return !n->Is<Param>(); });
+    MoveFrom(other, [](const Node* n) {
+      // We can't move Params because they're part of a function's interface.
+      // Procs broadly assume that StateReads will exist in a close 1-1
+      // association with their StateElements, so it's simpler to keep them
+      // together.
+      return !n->Is<Param>() && !n->Is<StateRead>();
+    });
     other.next_values_by_state_read_.clear();
     other.next_values_.clear();
   }

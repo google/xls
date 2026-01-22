@@ -17,7 +17,6 @@ load("@rules_python//python:proto.bzl", "py_proto_library")
 # Load proto_library
 # cc_proto_library is used in this file
 
-load("@xls_pip_deps//:requirements.bzl", "requirement")
 load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary", "pytype_strict_contrib_test", "pytype_strict_library")
 
 package(
@@ -56,10 +55,10 @@ pytype_strict_library(
     data = [":xls_ir_to_cytoscape"],
     deps = [
         "@abseil-py//absl/logging",
-        requirement("networkx"),
+        "@xls_pip_deps//networkx",
         # networkx annoyingly marks scipy as an optional dep, but our usage requires it.
         # Also see b/394358042.
-        requirement("scipy"),  # buildcleaner: keep
+        "@xls_pip_deps//scipy",  # buildcleaner: keep
         "//xls/common:runfiles",
     ],
 )
@@ -70,9 +69,9 @@ pytype_strict_contrib_test(
     data = ["//xls/examples:riscv_simple.opt.ir"],
     deps = [
         ":xls_ir_to_networkx",
-        requirement("networkx"),
         "//xls/common:runfiles",
         "@abseil-py//absl/testing:absltest",
+        "@xls_pip_deps//networkx",
     ],
 )
 
@@ -80,7 +79,7 @@ pytype_strict_library(
     name = "ir_diff",
     srcs = ["ir_diff.py"],
     deps = [
-        requirement("networkx"),
+        "@xls_pip_deps//networkx",
     ],
 )
 
@@ -89,8 +88,8 @@ pytype_strict_library(
     srcs = ["ir_diff_utils.py"],
     deps = [
         ":ir_diff",
-        requirement("matplotlib"),
-        requirement("networkx"),
+        "@xls_pip_deps//matplotlib",
+        "@xls_pip_deps//networkx",
     ],
 )
 

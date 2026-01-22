@@ -509,6 +509,12 @@ struct xls_vast_statement* xls_vast_statement_block_add_blocking_assignment(
     struct xls_vast_statement_block* block, struct xls_vast_expression* lhs,
     struct xls_vast_expression* rhs);
 
+// Adds a continuous assignment statement (assign lhs = rhs;) to a statement
+// block and returns a pointer to the created statement.
+struct xls_vast_statement* xls_vast_statement_block_add_continuous_assignment(
+    struct xls_vast_statement_block* block, struct xls_vast_expression* lhs,
+    struct xls_vast_expression* rhs);
+
 struct xls_vast_statement* xls_vast_statement_block_add_comment_text(
     struct xls_vast_statement_block* block, const char* text);
 
@@ -611,6 +617,14 @@ struct xls_vast_statement_block* xls_vast_conditional_add_else_if(
 // associated statement block. Must be called at most once.
 struct xls_vast_statement_block* xls_vast_conditional_add_else(
     struct xls_vast_conditional* cond);
+
+// Adds a conditional (if) with the given condition at module scope.
+struct xls_vast_conditional* xls_vast_verilog_module_add_conditional(
+    struct xls_vast_verilog_module* m, struct xls_vast_expression* cond);
+
+// Adds a conditional (if) inside a generate loop.
+struct xls_vast_conditional* xls_vast_generate_loop_add_conditional(
+    struct xls_vast_generate_loop* loop, struct xls_vast_expression* cond);
 
 // Adds a case statement with the given selector to a statement block and
 // returns a handle to the created case statement.

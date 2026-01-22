@@ -39,14 +39,15 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
   stage_outputs_ready_2: bits[1] = literal(value=1, id=29)
   controlled_stage(stage_inputs_valid_2, stage_outputs_ready_2) {
     active_inputs_valid active_inputs_valid_2: bits[1] = literal(value=1, id=30)
+    identity.46: bits[32] = identity(result_value, id=46)
     ret stage_outputs_valid_2: bits[1] = and(stage_inputs_valid_2, active_inputs_valid_2, id=32)
   }
   rst: bits[1] = input_port(name=rst, id=19)
-  and.46: bits[1] = and(stage_inputs_valid_2, active_inputs_valid_2, id=46)
-  and.47: bits[1] = and(stage_outputs_valid_2, stage_outputs_ready_2, id=47)
-  register_write.48: () = register_write(result_value, register=____state, load_enable=and.47, reset=rst, id=48)
-  tuple.49: () = tuple(id=49)
-  and.50: bits[1] = and(stage_outputs_valid_1, stage_outputs_ready_1, id=50)
-  or.51: bits[1] = or(and.50, and.47, id=51)
-  register_write.52: () = register_write(and.47, register=____state_full, load_enable=or.51, reset=rst, id=52)
+  and.47: bits[1] = and(stage_inputs_valid_2, active_inputs_valid_2, id=47)
+  and.48: bits[1] = and(stage_outputs_valid_2, stage_outputs_ready_2, id=48)
+  register_write.49: () = register_write(identity.46, register=____state, load_enable=and.48, reset=rst, id=49)
+  tuple.50: () = tuple(id=50)
+  and.51: bits[1] = and(stage_outputs_valid_1, stage_outputs_ready_1, id=51)
+  or.52: bits[1] = or(and.51, and.48, id=52)
+  register_write.53: () = register_write(and.48, register=____state_full, load_enable=or.52, reset=rst, id=53)
 }

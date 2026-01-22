@@ -2940,6 +2940,22 @@ TEST_F(ParserTest, TernaryConditional) {
                 {"really_long_identifier_so_that_this_is_too_many_chars"});
 }
 
+TEST_F(ParserTest, ConstexprTernaryConditional) {
+  Expr* e = RoundTripExpr("const if true { u32:42 } else { u32:24 }", {});
+
+  EXPECT_TRUE(down_cast<Conditional*>(e)->IsConst());
+  EXPECT_FALSE(down_cast<Conditional*>(e)->HasElseIf());
+  EXPECT_FALSE(down_cast<Conditional*>(e)->HasMultiStatementBlocks());
+
+  RoundTripExpr(
+      R"(const if really_long_identifier_so_that_this_is_too_many_chars {
+    u32:42
+} else {
+    u32:24
+})",
+      {"really_long_identifier_so_that_this_is_too_many_chars"});
+}
+
 TEST_F(ParserTest, ConditionalInBinopChain) {
   RoundTrip("const X = if true { u32:42 } else { u32:24 } + u32:1;");
   RoundTrip("const X = u32:1 + if true { u32:42 } else { u32:24 };");
@@ -3451,6 +3467,34 @@ TEST_F(ParserTest, ParseTypeInferenceV1AndV2Attributes) {
                                   "and `type_inference_v2` attributes")));
 }
 
+TEST_F(ParserTest, ParseExplicitStateAccessAttribute) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module, Parse(R"(
+#![feature(explicit_state_access)]
+)"));
+  EXPECT_THAT(module->attributes(),
+              testing::ElementsAre(ModuleAttribute::kExplicitStateAccess));
+}
+
+TEST_F(ParserTest, ExplicitStateAccessProcNextReturnsEmptyTuple) {
+  constexpr std::string_view kProgram = R"(#![feature(explicit_state_access)]
+proc simple {
+    config() {
+        ()
+    }
+    init {
+        u32:0
+    }
+    next(state: u32) {
+    }
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module, Parse(kProgram));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           module->GetMemberOrError<Proc>("simple"));
+  const Function& next = proc->next();
+  ASSERT_NE(next.return_type(), nullptr);
+  EXPECT_EQ(next.return_type()->ToString(), "()");
+}
+
 // Verifies that we can walk backwards through a tree. In this case, from the
 // terminal node to the defining expr.
 TEST(ParserBackrefTest, CanFindDefiner) {
@@ -3823,6 +3867,14 @@ TEST_F(ParserTest, ParseMapWithLambdaParamAnnotation) {
   RoundTrip(R"(const ARR = map(range(0, u16:5), |i: u16| { 2 * i });)");
 }
 
+TEST_F(ParserTest, MultipleLambdas) {
+  RoundTrip(R"(const ARR = map(0..10, |i: u32| { i });
+fn uses_lambda(i: u32) -> u32 {
+    let X = || { u32:2 * i };
+    X()
+})");
+}
+
 TEST_F(ParserTest, LambdaInLetNoParams) {
   RoundTrip(R"(fn uses_lambda(i: u32) -> u32 {
     let X = || { u32:2 * i };
@@ -3855,10 +3907,13 @@ TEST_F(ParserTest, ParseMapWithLambdaMultilineBody) {
 });)");
 }
 
-// TODO(https://github.com/google/xls/issues/1671): Support once
-// `AnyTypeAnnotation` is available.
-TEST_F(ParserTest, DISABLED_ParseMapWithLambdaNoParamAnnotation) {
+TEST_F(ParserTest, ParseMapWithLambdaNoParamAnnotation) {
   RoundTrip(R"(const ARR = map(range(0, u16:5), |i| { 2 * i });)");
+}
+
+TEST_F(ParserTest, ParseMapWithLambdaNoParamAnnotationMultipleParams) {
+  RoundTrip(
+      R"(const ARR = map(enumerate(range(0, u16:5)), |i, j| { 2 * i * j });)");
 }
 
 TEST_F(ParserTest, ParseParametricInMapBuiltin) {

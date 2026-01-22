@@ -19,7 +19,6 @@
 
 #include "gtest/gtest.h"
 #include "absl/base/casts.h"
-#include "absl/container/btree_set.h"
 #include "absl/log/check.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/status/matchers.h"

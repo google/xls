@@ -15,7 +15,6 @@
 #ifndef XLS_DSLX_FRONTEND_PARSER_H_
 #define XLS_DSLX_FRONTEND_PARSER_H_
 
-#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <initializer_list>
@@ -71,6 +70,7 @@ inline T TryGet(const std::variant<Types...>& v) {
 enum class ExprRestriction : uint8_t {
   kNone = 0,
   kNoStructLiteral = 1,
+  kNoConst = 2,
 };
 
 // Flag set of ExprRestriction values.
@@ -502,9 +502,17 @@ class Parser : public TokenParser {
   // Parses a conditional construct and returns it -- the token cursor should be
   // hovering over the "if" keyword on invocation for this to be successful.
   absl::StatusOr<Conditional*> ParseConditionalNode(
-      Bindings& bindings, ExprRestrictions restrictions);
+      Bindings& bindings, ExprRestrictions restrictions, bool is_const = true);
 
-  absl::StatusOr<Param*> ParseParam(Bindings& bindings);
+  using AnnotationGeneratorFn =
+      std::function<absl::StatusOr<TypeAnnotation*>(const Span&)>;
+
+  // Parse a parameter. If `missing_annotation_generator` is provided, it will
+  // be called if the parameter is missing a type annotation; the returned type
+  // annotation will be used as the parameter's type.
+  absl::StatusOr<Param*> ParseParam(
+      Bindings& bindings,
+      const AnnotationGeneratorFn& missing_annotation_generator = nullptr);
 
   // Parses a member declaration in the body of a `proc` definition.
   absl::StatusOr<ProcMember*> ParseProcMember(Bindings& bindings,
@@ -605,6 +613,10 @@ class Parser : public TokenParser {
   absl::StatusOr<Function*> ParseFunctionInternal(const Pos& start_pos,
                                                   bool is_public,
                                                   Bindings& outer_bindings);
+
+  absl::StatusOr<std::vector<Param*>> ParseParamsInternal(
+      Bindings& bindings, TokenKind open_token, TokenKind close_token,
+      const AnnotationGeneratorFn& missing_annotation_generator);
 
   // Parses an import statement into an `Import` AST node.
   absl::StatusOr<Import*> ParseImport(Bindings& bindings);

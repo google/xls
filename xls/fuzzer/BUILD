@@ -17,7 +17,6 @@ load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_python//python:proto.bzl", "py_proto_library")
-load("@xls_pip_deps//:requirements.bzl", "requirement")
 load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_contrib_test", "pytype_strict_library")
 
 # Load proto_library
@@ -391,34 +390,16 @@ generate_crasher_regression_tests(
     failing = [
         # TODO(https://github.com/google/xls/issues/746): Remove when fixed.
         "crashers/crasher_2022-10-19_a3a3.x",
-        # TODO(https://github.com/google/xls/issues/1140): Remove when fixed.
-        "crashers/crasher_2023-10-01_eb60.x",
         # TODO(https://github.com/google/xls/issues/1141): Remove when fixed.
         "crashers/crasher_2023-10-02_7c14.x",
-        # TODO(https://github.com/google/xls/issues/1609): Remove when fixed.
-        "crashers/crasher_2024-09-14_6bbb.x",
-        # TODO(https://github.com/google/xls/issues/1618): Remove when fixed.
-        "crashers/crasher_2024-09-20_67c5.x",
-        # TODO(https://github.com/google/xls/issues/2011): Remove when no longer flaky
-        "crashers/crasher_2025-03-19_2e1f.x",
         # TODO(https://github.com/google/xls/issues/2049): Remove when fixed.
         "crashers/crasher_2025-04-23_0cd2.x",
         # TODO(https://github.com/google/xls/issues/2142): Remove when fixed.
         "crashers/crasher_2025-05-07_2d16.x",
-        # TODO(https://github.com/google/xls/issues/2458): Remove when fixed.
-        "crashers/crasher_2025-06-23_5597.x",
         # TODO: https://github.com/google/xls/issues/2989 - Remove when fixed.
         "crashers/crasher_2025-09-03_c1e3.x",
         # TODO: https://github.com/google/xls/issues/2998 - Remove when fixed.
         "crashers/crasher_2025-09-04_54f4.x",
-        # TODO: https://github.com/google/xls/issues/3005 - Remove when fixed.
-        "crashers/crasher_2025-09-04_5f36.x",
-        # TODO: https://github.com/google/xls/issues/3026 - Remove when fixed.
-        "crashers/crasher_2025-09-09_9c1d.x",
-        # TODO: https://github.com/google/xls/issues/3269 - Remove when fixed.
-        "crashers/crasher_2025-10-31_baa8.x",
-        # TODO: https://github.com/google/xls/issues/3330 - Remove when fixed.
-        "crashers/crasher_2025-11-06_9f52.x",
         # TODO: https://github.com/google/xls/issues/3577 - Remove when fixed.
         "crashers/crasher_2025-12-18_bd85.x",
     ],
@@ -505,6 +486,15 @@ generate_crasher_regression_tests(
             "optonly",
         ],
         "crashers/crasher_2024-09-24_6def.x": [
+            "optonly",
+        ],
+        "crashers/crasher_2025-03-19_2e1f.x": [
+            "optonly",
+        ],
+        "crashers/crasher_2025-06-23_5597.x": [
+            "optonly",
+        ],
+        "crashers/crasher_2025-09-04_5f36.x": [
             "optonly",
         ],
     },

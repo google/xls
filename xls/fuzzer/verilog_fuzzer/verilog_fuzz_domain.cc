@@ -14,7 +14,6 @@
 
 #include "xls/fuzzer/verilog_fuzzer/verilog_fuzz_domain.h"
 
-#include <cstdint>
 #include <memory>
 #include <string>
 
@@ -81,8 +80,11 @@ fuzztest::Domain<std::string> VerilogFuzzDomain(
 
 fuzztest::Domain<CodegenFlagsProto> CodegenFlagsDomain() {
   return fuzztest::Arbitrary<CodegenFlagsProto>()
-      .WithInt64Field("codegen_version",
-                      fuzztest::ElementOf<int64_t>({0, 1, 2}))
+      .WithEnumFieldAlwaysSet(
+          "codegen_version",
+          fuzztest::ElementOf<int>(
+              {CodegenVersionProto::CODEGEN_VERSION_ONE_DOT_ZERO,
+               CodegenVersionProto::CODEGEN_VERSION_TWO_DOT_ZERO}))
       .WithEnumFieldAlwaysSet(
           "generator", fuzztest::ElementOf<int>(
                            {GeneratorKind::GENERATOR_KIND_PIPELINE,

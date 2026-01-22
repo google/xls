@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "absl/status/status.h"
+#include "xls/ir/block.h"
 #include "xls/ir/topo_sort.h"
 
 namespace xls {
@@ -58,6 +59,11 @@ inline absl::Status VerifyProc(Proc* proc, bool codegen = false) {
 absl::Status VerifyBlock(Block* block, const VerifyOptions& options);
 inline absl::Status VerifyBlock(Block* block, bool codegen = false) {
   return VerifyBlock(block, {.codegen = codegen});
+}
+
+inline absl::Status VerifyScheduledBlock(ScheduledBlock* block,
+                                         bool codegen = false) {
+  return VerifyBlock(block, {.codegen = codegen, .incomplete_lowering = true});
 }
 
 }  // namespace xls

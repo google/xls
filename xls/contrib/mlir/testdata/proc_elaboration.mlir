@@ -5,7 +5,7 @@
 // CHECK-NEXT:    xls.chan @rom1_resp : i32
 
 // CHECK-LABEL:   xls.eproc @rom(
-// CHECK-SAME:                   %[[ARG0:.*]]: i32) zeroinitializer discardable attributes {io_constraints = #xls<io_constraints{<source_channel = @rom1_req, source_direction = recv, target_channel = @rom1_resp, target_direction = send, min_latency = 1, max_latency = 1>}>} {
+// CHECK-SAME:                   %[[ARG0:.*]]: i32) zeroinitializer discardable attributes {io_constraints = #xls<io_constraints{<source_channel = @rom1_req, source_direction = recv, target_channel = @rom1_resp, target_direction = send, min_latency = 0, max_latency = 0>}>} {
 // CHECK-NEXT:      %[[AFTER_ALL_0:.*]] = xls.after_all  : !xls.token
 // CHECK-NEXT:      %[[VAL_0:.*]], %[[BLOCKING_RECEIVE_0:.*]] = xls.blocking_receive %[[AFTER_ALL_0]], @rom_arg0 : i32
 // CHECK-NEXT:      %[[VAL_1:.*]] = "xls.constant_scalar"() <{value = 1 : i32}> : () -> i32
@@ -35,7 +35,7 @@
 // CHECK-NEXT:    xls.instantiate_eproc @proxy (@proxy_arg0 as @req, @proxy_arg1 as @resp, @proxy_arg2 as @rom1_req, @proxy_arg3 as @rom1_resp)
 
 // CHECK-LABEL:   xls.eproc @fetch(
-// CHECK-SAME:                     %[[ARG0:.*]]: i32) zeroinitializer discardable attributes {io_constraints = #xls<io_constraints{<source_channel = @resp, source_direction = recv, target_channel = @req, target_direction = send, min_latency = 1, max_latency = 1>}>} {
+// CHECK-SAME:                     %[[ARG0:.*]]: i32) zeroinitializer discardable attributes {io_constraints = #xls<io_constraints{<source_channel = @resp, source_direction = recv, target_channel = @req, target_direction = send, min_latency = 0, max_latency = 0>}>} {
 // CHECK-NEXT:      %[[AFTER_ALL_0:.*]] = xls.after_all  : !xls.token
 // CHECK-NEXT:      %[[SEND_0:.*]] = xls.send %[[AFTER_ALL_0]], %[[ARG0]], @fetch_arg0 : i32
 // CHECK-NEXT:      %[[VAL_0:.*]], %[[BLOCKING_RECEIVE_0:.*]] = xls.blocking_receive %[[SEND_0]], @fetch_arg1 : i32

@@ -23,7 +23,6 @@
 #include <string>
 #include <string_view>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -36,28 +35,18 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
-#include "absl/types/variant.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/common/visitor.h"
 #include "xls/dslx/channel_direction.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/type_system/parametric_expression.h"
 #include "xls/ir/bits_ops.h"
 
 namespace xls::dslx {
 namespace {
-
-ParametricExpression::EnvValue TypeDimToEnvValue(const TypeDim& dim) {
-  if (std::holds_alternative<InterpValue>(dim.value())) {
-    return std::get<InterpValue>(dim.value());
-  }
-  return ParametricExpression::EnvValue(&dim.parametric());
-}
 
 std::vector<std::unique_ptr<Type>> CloneStructMembers(
     const std::vector<std::unique_ptr<Type>>& members) {
@@ -67,55 +56,6 @@ std::vector<std::unique_ptr<Type>> CloneStructMembers(
     cloned_members.push_back(next->CloneToUnique());
   }
   return cloned_members;
-}
-
-absl::flat_hash_map<std::string, TypeDim> CombineNominalTypeDims(
-    const StructDefBase& struct_def_base,
-    const absl::flat_hash_map<std::string, TypeDim>& existing_dims,
-    const absl::flat_hash_map<std::string, TypeDim>& added_dims) {
-  absl::flat_hash_map<std::string, TypeDim> combined_dims = existing_dims;
-  for (const ParametricBinding* binding :
-       struct_def_base.parametric_bindings()) {
-    const auto it = added_dims.find(binding->identifier());
-    if (it == added_dims.end()) {
-      continue;
-    }
-    const auto existing_it = combined_dims.find(binding->identifier());
-    if (existing_it != combined_dims.end()) {
-      // Don't overwrite a dim that already has a concrete value. We believe
-      // nothing will attempt this, now that resolution uses
-      // `ResolveNominalTypeDims` to have the `StructType` request the ones it
-      // wants.
-      CHECK(std::holds_alternative<TypeDim::OwnedParametric>(
-          existing_it->second.value()));
-    }
-    combined_dims.insert_or_assign(binding->identifier(), it->second.Clone());
-  }
-  return combined_dims;
-}
-
-absl::flat_hash_map<std::string, TypeDim> ResolveDims(
-    const absl::flat_hash_map<std::string, TypeDim>& dims,
-    const ParametricExpression::Env& env) {
-  absl::flat_hash_map<std::string, TypeDim> new_dims = dims;
-  for (auto& [key, dim] : new_dims) {
-    if (std::holds_alternative<TypeDim::OwnedParametric>(dim.value())) {
-      dim = TypeDim(
-          std::get<TypeDim::OwnedParametric>(dim.value())->Evaluate(env));
-    }
-  }
-  return new_dims;
-}
-
-absl::StatusOr<std::vector<std::unique_ptr<Type>>> MapMemberSizes(
-    const StructTypeBase& type,
-    const std::function<absl::StatusOr<TypeDim>(TypeDim)>& f) {
-  std::vector<std::unique_ptr<Type>> new_members;
-  for (const std::unique_ptr<Type>& member : type.members()) {
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> mapped, member->MapSize(f));
-    new_members.push_back(std::move(mapped));
-  }
-  return new_members;
 }
 
 }  // namespace
@@ -195,41 +135,18 @@ absl::StatusOr<std::unique_ptr<Type>> Type::FromInterpValue(
 // -- class TypeDim
 
 /* static */ absl::StatusOr<int64_t> TypeDim::GetAs64Bits(
-    const std::variant<InterpValue, OwnedParametric>& variant) {
-  if (std::holds_alternative<InterpValue>(variant)) {
-    return std::get<InterpValue>(variant).GetBitValueViaSign();
-  }
-
-  return absl::InvalidArgumentError(
-      "Can't evaluate a ParametricExpression to an integer.");
+    const InterpValue& value) {
+  return value.GetBitValueViaSign();
 }
 
 TypeDim::TypeDim(const TypeDim& other)
     : value_(std::move(other.Clone().value_)) {}
 
-TypeDim::TypeDim(std::variant<InterpValue, OwnedParametric> value)
-    : value_(std::move(value)) {
-  if (std::holds_alternative<OwnedParametric>(value_)) {
-    const OwnedParametric& parametric = std::get<OwnedParametric>(value_);
-    CHECK(!parametric->const_value().has_value());
-  }
-}
+TypeDim::TypeDim(InterpValue value) : value_(std::move(value)) {}
 
-TypeDim TypeDim::Clone() const {
-  if (std::holds_alternative<InterpValue>(value_)) {
-    return TypeDim(std::get<InterpValue>(value_));
-  }
-  if (std::holds_alternative<std::unique_ptr<ParametricExpression>>(value_)) {
-    return TypeDim(
-        std::get<std::unique_ptr<ParametricExpression>>(value_)->Clone());
-  }
-  LOG(FATAL) << "Impossible TypeDim value variant.";
-}
+TypeDim TypeDim::Clone() const { return TypeDim(value_); }
 
 std::string TypeDim::ToString() const {
-  if (std::holds_alternative<std::unique_ptr<ParametricExpression>>(value_)) {
-    return std::get<std::unique_ptr<ParametricExpression>>(value_)->ToString();
-  }
   // Note: we don't print out the type/width of the InterpValue that serves as
   // the dimension, because printing `uN[u32:42]` would appear odd vs just
   // `uN[42]`.
@@ -240,7 +157,7 @@ std::string TypeDim::ToString() const {
   // InterpValues to be passed as parametrics, not just ones that become (used)
   // dimension data -- we need to allow for e.g. signed types which may not end
   // up in any particular dimension position.
-  return BitsToString(std::get<InterpValue>(value_).GetBitsOrDie());
+  return BitsToString(value_.GetBitsOrDie());
 }
 
 ModuleType::~ModuleType() = default;
@@ -254,181 +171,54 @@ std::string ModuleType::ToStringInternal(FullyQualify fully_qualify,
   return absl::StrFormat("typeof(module:%s)", module_.name());
 }
 
-absl::StatusOr<std::unique_ptr<Type>> ModuleType::MapSize(
-    const MapFn& f) const {
-  return std::make_unique<ModuleType>(module_);
+std::string TypeDim::ToDebugString() const {
+  return absl::StrFormat("InterpValue{%s}", value_.ToString());
 }
 
-static std::string VariantToString(
-    const std::variant<InterpValue, const ParametricExpression*>& variant) {
-  return absl::visit(Visitor{[](const InterpValue& value) {
-                               return absl::StrFormat("InterpValue{%s}",
-                                                      value.ToString());
-                             },
-                             [](const ParametricExpression* pe) {
-                               return absl::StrFormat(
-                                   "ParametricExpression{%s}", pe->ToString());
-                             }},
-                     variant);
-}
-
-static std::string VariantToString(
-    const std::variant<InterpValue, TypeDim::OwnedParametric>& variant) {
-  return absl::visit(Visitor{[](const InterpValue& value) {
-                               return absl::StrFormat("InterpValue{%s}",
-                                                      value.ToString());
-                             },
-                             [](const TypeDim::OwnedParametric& pe) {
-                               return absl::StrFormat(
-                                   "ParametricExpression{%s}", pe->ToString());
-                             }},
-                     variant);
-}
-
-std::string TypeDim::ToDebugString() const { return VariantToString(value_); }
-
-bool TypeDim::operator==(
-    const std::variant<InterpValue, const ParametricExpression*>& other) const {
-  VLOG(10) << "TypeDim::operator==; this: " << VariantToString(value_)
-           << " other variant: " << VariantToString(other);
-  return absl::visit(
-      Visitor{
-          [this](const InterpValue& other_value) {
-            if (std::holds_alternative<InterpValue>(value_)) {
-              return std::get<InterpValue>(value_) == other_value;
-            }
-            return false;
-          },
-          [this](const ParametricExpression* other_pe) {
-            return std::holds_alternative<
-                       std::unique_ptr<ParametricExpression>>(value_) &&
-                   *std::get<std::unique_ptr<ParametricExpression>>(value_) ==
-                       *other_pe;
-          },
-      },
-      other);
+bool TypeDim::operator==(const InterpValue& other) const {
+  VLOG(10) << "TypeDim::operator==; this: " << ToDebugString()
+           << " other: " << other.ToString();
+  return value_ == other;
 }
 
 bool TypeDim::operator==(const TypeDim& other) const {
-  // Extracts the variant from "other" and delegates to the variant-based
-  // equality comparison.
-  using VariantT = std::variant<InterpValue, const ParametricExpression*>;
-  VariantT other_variant = absl::visit(
-      Visitor{
-          [](const InterpValue& v) -> VariantT { return v; },
-          [](const std::unique_ptr<ParametricExpression>& p) -> VariantT {
-            return p.get();
-          },
-      },
-      other.value_);
-  return *this == other_variant;
+  return value_ == other.value_;
 }
 
 absl::StatusOr<TypeDim> TypeDim::Mul(const TypeDim& rhs) const {
-  if (std::holds_alternative<InterpValue>(value_) &&
-      std::holds_alternative<InterpValue>(rhs.value_)) {
-    XLS_ASSIGN_OR_RETURN(
-        InterpValue result,
-        std::get<InterpValue>(value_).Mul(std::get<InterpValue>(rhs.value_)));
-    return TypeDim(std::move(result));
-  }
-  if (IsParametric() && rhs.IsParametric()) {
-    return TypeDim(std::make_unique<ParametricMul>(parametric().Clone(),
-                                                   rhs.parametric().Clone()));
-  }
-  return absl::InvalidArgumentError(absl::StrFormat(
-      "Cannot multiply dimensions: %s * %s", ToString(), rhs.ToString()));
+  XLS_ASSIGN_OR_RETURN(InterpValue result, value_.Mul(rhs.value_));
+  return TypeDim(std::move(result));
 }
 
 absl::StatusOr<TypeDim> TypeDim::Add(const TypeDim& rhs) const {
-  if (std::holds_alternative<InterpValue>(value_) &&
-      std::holds_alternative<InterpValue>(rhs.value_)) {
-    XLS_ASSIGN_OR_RETURN(
-        InterpValue result,
-        std::get<InterpValue>(value_).Add(std::get<InterpValue>(rhs.value_)));
-    return TypeDim(result);
-  }
-  if (IsParametric() && rhs.IsParametric()) {
-    return TypeDim(std::make_unique<ParametricAdd>(parametric().Clone(),
-                                                   rhs.parametric().Clone()));
-  }
-  return absl::InvalidArgumentError(absl::StrFormat(
-      "Cannot add dimensions: %s + %s", ToString(), rhs.ToString()));
+  XLS_ASSIGN_OR_RETURN(InterpValue result, value_.Add(rhs.value_));
+  return TypeDim(std::move(result));
 }
 
 absl::StatusOr<TypeDim> TypeDim::CeilOfLog2() const {
-  if (std::holds_alternative<InterpValue>(value_)) {
-    XLS_ASSIGN_OR_RETURN(InterpValue result,
-                         std::get<InterpValue>(value_).CeilOfLog2());
-    return TypeDim(result);
-  }
-  if (IsParametric()) {
-    return TypeDim(std::make_unique<ParametricWidth>(parametric().Clone()));
-  }
-  return absl::InvalidArgumentError(absl::StrFormat(
-      "Cannot find the bit width of dimension: %s", ToString()));
+  XLS_ASSIGN_OR_RETURN(InterpValue result, value_.CeilOfLog2());
+  return TypeDim(std::move(result));
 }
 
 absl::StatusOr<int64_t> TypeDim::GetAsInt64() const {
-  if (std::holds_alternative<InterpValue>(value_)) {
-    InterpValue value = std::get<InterpValue>(value_);
-    if (!value.IsBits()) {
-      return absl::InvalidArgumentError(
-          "Cannot convert non-bits type to int64_t.");
-    }
-
-    if (value.IsSigned()) {
-      return value.GetBitValueSigned();
-    }
-    return value.GetBitValueUnsigned();
+  if (!value_.IsBits()) {
+    return absl::InvalidArgumentError(
+        "Cannot convert non-bits type to int64_t.");
   }
 
-  std::optional<InterpValue> maybe_value = parametric().const_value();
-  if (maybe_value.has_value()) {
-    InterpValue value = maybe_value.value();
-    if (value.IsBits()) {
-      if (value.IsSigned()) {
-        return value.GetBitValueSigned();
-      }
-      return value.GetBitValueUnsigned();
-    }
+  if (value_.IsSigned()) {
+    return value_.GetBitValueSigned();
   }
-
-  return absl::InvalidArgumentError(
-      absl::StrCat("Expected concrete type dimension to be integral; got: ",
-                   std::get<OwnedParametric>(value_)->ToString()));
+  return value_.GetBitValueUnsigned();
 }
 
 absl::StatusOr<bool> TypeDim::GetAsBool() const {
-  if (std::holds_alternative<InterpValue>(value_)) {
-    InterpValue value = std::get<InterpValue>(value_);
-    if (!value.IsBits()) {
-      return absl::InvalidArgumentError(
-          "Cannot convert non-bits type to bool.");
-    }
-
-    XLS_RET_CHECK(!value.IsSigned());
-    return value.GetBitValueUnsigned();
+  if (!value_.IsBits()) {
+    return absl::InvalidArgumentError("Cannot convert non-bits type to bool.");
   }
 
-  return absl::InvalidArgumentError(
-      absl::StrCat("Expected concrete type dimension to be integral; got: ",
-                   std::get<OwnedParametric>(value_)->ToString()));
-}
-
-// -- TypeDimMap
-
-void TypeDimMap::Insert(std::string_view identifier, TypeDim dim) {
-  const TypeDim& stored_dim =
-      dims_.insert_or_assign(identifier, std::move(dim)).first->second;
-  env_.insert_or_assign(identifier, TypeDimToEnvValue(stored_dim));
-}
-
-TypeDimMap::TypeDimMap(
-    const absl::flat_hash_map<std::string, InterpValue>& values) {
-  for (const auto& [key, value] : values) {
-    Insert(key, TypeDim(value));
-  }
+  XLS_RET_CHECK(!value_.IsSigned());
+  return value_.GetBitValueUnsigned();
 }
 
 // -- Type
@@ -556,35 +346,17 @@ BitsConstructorType::BitsConstructorType(TypeDim is_signed)
   VLOG(10) << "BitsConstructorType constructor; is_signed: "
            << is_signed_.ToDebugString();
 
-  // Validate that if we hold a parametric it is not just wrapping a concrete
-  // value -- that should always be represented with just the concrete value
-  // directly.
-  if (!is_signed_.IsParametric()) {
-    // Check that the InterpValue is a boolean.
-    const InterpValue& value = std::get<InterpValue>(is_signed_.value());
-    CHECK(value.IsBool())
-        << "BitsConstructorType is_signed must be a boolean; got: "
-        << value.ToString();
-  }
+  // Check that the InterpValue is a boolean.
+  const InterpValue& value = is_signed_.value();
+  CHECK(value.IsBool())
+      << "BitsConstructorType is_signed must be a boolean; got: "
+      << value.ToString();
 }
 
 BitsConstructorType::~BitsConstructorType() = default;
 
 absl::Status BitsConstructorType::Accept(TypeVisitor& v) const {
   return v.HandleBitsConstructor(*this);
-}
-
-absl::StatusOr<std::unique_ptr<Type>> BitsConstructorType::MapSize(
-    const MapFn& f) const {
-  XLS_ASSIGN_OR_RETURN(TypeDim new_is_signed, f(is_signed_));
-  if (!new_is_signed.IsParametric()) {
-    // Check that the concrete value that we got for signedness is a boolean.
-    const InterpValue& value = std::get<InterpValue>(new_is_signed.value());
-    XLS_RET_CHECK(value.IsBool())
-        << "Bits constructor `is_signed` value must be a boolean; got: "
-        << value.ToString();
-  }
-  return std::make_unique<BitsConstructorType>(std::move(new_is_signed));
 }
 
 bool BitsConstructorType::operator==(const Type& other) const {
@@ -651,12 +423,6 @@ bool BitsType::operator==(const Type& other) const {
            bc->is_signed() == TypeDim::CreateBool(is_signed());
   }
   return false;
-}
-
-absl::StatusOr<std::unique_ptr<Type>> BitsType::MapSize(
-    const std::function<absl::StatusOr<TypeDim>(TypeDim)>& f) const {
-  XLS_ASSIGN_OR_RETURN(TypeDim new_size, f(size_));
-  return std::make_unique<BitsType>(is_signed_, new_size);
 }
 
 std::string BitsType::ToStringInternal(FullyQualify fully_qualify,
@@ -796,58 +562,6 @@ bool StructTypeBase::operator==(const Type& other) const {
   return false;
 }
 
-// -- StructType
-
-absl::StatusOr<std::unique_ptr<Type>> StructType::MapSize(
-    const std::function<absl::StatusOr<TypeDim>(TypeDim)>& f) const {
-  XLS_ASSIGN_OR_RETURN(std::vector<std::unique_ptr<Type>> new_members,
-                       MapMemberSizes(*this, f));
-  return std::make_unique<StructType>(std::move(new_members), nominal_type(),
-                                      nominal_type_dims_by_identifier());
-}
-
-std::unique_ptr<Type> StructType::ResolveNominalTypeDims(
-    const ParametricExpression::Env& env) const {
-  absl::flat_hash_map<std::string, TypeDim> new_dims =
-      ResolveDims(nominal_type_dims_by_identifier(), env);
-  return std::make_unique<StructType>(CloneStructMembers(members()),
-                                      nominal_type(), std::move(new_dims));
-}
-
-std::unique_ptr<Type> StructType::AddNominalTypeDims(
-    const absl::flat_hash_map<std::string, TypeDim>& added_dims) const {
-  return std::make_unique<StructType>(
-      CloneStructMembers(members()), nominal_type(),
-      CombineNominalTypeDims(struct_def_base(),
-                             nominal_type_dims_by_identifier(), added_dims));
-}
-
-// -- ProcType
-
-absl::StatusOr<std::unique_ptr<Type>> ProcType::MapSize(
-    const std::function<absl::StatusOr<TypeDim>(TypeDim)>& f) const {
-  XLS_ASSIGN_OR_RETURN(std::vector<std::unique_ptr<Type>> new_members,
-                       MapMemberSizes(*this, f));
-  return std::make_unique<ProcType>(std::move(new_members), nominal_type(),
-                                    nominal_type_dims_by_identifier());
-}
-
-std::unique_ptr<Type> ProcType::ResolveNominalTypeDims(
-    const ParametricExpression::Env& env) const {
-  absl::flat_hash_map<std::string, TypeDim> new_dims =
-      ResolveDims(nominal_type_dims_by_identifier(), env);
-  return std::make_unique<ProcType>(CloneStructMembers(members()),
-                                    nominal_type(), std::move(new_dims));
-}
-
-std::unique_ptr<Type> ProcType::AddNominalTypeDims(
-    const absl::flat_hash_map<std::string, TypeDim>& added_dims) const {
-  return std::make_unique<ProcType>(
-      CloneStructMembers(members()), nominal_type(),
-      CombineNominalTypeDims(struct_def_base(),
-                             nominal_type_dims_by_identifier(), added_dims));
-}
-
 // -- TupleType
 
 TupleType::TupleType(std::vector<std::unique_ptr<Type>> members)
@@ -891,16 +605,6 @@ bool TupleType::CompatibleWith(const TupleType& other) const {
   }
   // Same member count and all compatible members.
   return true;
-}
-
-absl::StatusOr<std::unique_ptr<Type>> TupleType::MapSize(
-    const std::function<absl::StatusOr<TypeDim>(TypeDim)>& f) const {
-  std::vector<std::unique_ptr<Type>> new_members;
-  for (const auto& member_type : members_) {
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> mapped, member_type->MapSize(f));
-    new_members.push_back(std::move(mapped));
-  }
-  return std::make_unique<TupleType>(std::move(new_members));
 }
 
 std::unique_ptr<Type> TupleType::CloneToUnique() const {
@@ -955,15 +659,6 @@ ArrayType::ArrayType(std::unique_ptr<Type> element_type, const TypeDim& size)
       << "Array element cannot be a metatype because arrays cannot hold types; "
          "got: "
       << element_type_->ToStringInternal(FullyQualify::kNo, nullptr);
-}
-
-absl::StatusOr<std::unique_ptr<Type>> ArrayType::MapSize(
-    const std::function<absl::StatusOr<TypeDim>(TypeDim)>& f) const {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> new_element_type,
-                       element_type_->MapSize(f));
-  XLS_ASSIGN_OR_RETURN(TypeDim new_size, f(size_));
-  return std::make_unique<ArrayType>(std::move(new_element_type),
-                                     std::move(new_size));
 }
 
 std::string ArrayType::ToStringInternal(FullyQualify fully_qualify,
@@ -1049,13 +744,6 @@ int ArrayType::ArrayDimensions() const {
 
 // -- EnumType
 
-absl::StatusOr<std::unique_ptr<Type>> EnumType::MapSize(
-    const std::function<absl::StatusOr<TypeDim>(TypeDim)>& f) const {
-  XLS_ASSIGN_OR_RETURN(TypeDim new_size, f(size_));
-  return std::make_unique<EnumType>(enum_def_, std::move(new_size), is_signed_,
-                                    members_);
-}
-
 std::string EnumType::ToStringInternal(FullyQualify fully_qualify,
                                        const FileTable* file_table) const {
   if (fully_qualify == FullyQualify::kYes) {
@@ -1072,19 +760,6 @@ std::vector<TypeDim> EnumType::GetAllDims() const {
 }
 
 // -- FunctionType
-
-absl::StatusOr<std::unique_ptr<Type>> FunctionType::MapSize(
-    const std::function<absl::StatusOr<TypeDim>(TypeDim)>& f) const {
-  std::vector<std::unique_ptr<Type>> new_params;
-  for (const auto& param : params_) {
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> new_param, param->MapSize(f));
-    new_params.push_back(std::move(new_param));
-  }
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> new_return_type,
-                       return_type_->MapSize(f));
-  return std::make_unique<FunctionType>(std::move(new_params),
-                                        std::move(new_return_type));
-}
 
 bool FunctionType::operator==(const Type& other) const {
   if (auto* o = dynamic_cast<const FunctionType*>(&other)) {
@@ -1166,12 +841,6 @@ absl::StatusOr<TypeDim> ChannelType::GetTotalBitCount() const {
   return payload_type_->GetTotalBitCount();
 }
 
-absl::StatusOr<std::unique_ptr<Type>> ChannelType::MapSize(
-    const MapFn& f) const {
-  XLS_ASSIGN_OR_RETURN(auto new_payload, payload_type_->MapSize(f));
-  return std::make_unique<ChannelType>(std::move(new_payload), direction_);
-}
-
 bool ChannelType::operator==(const Type& other) const {
   if (auto* o = dynamic_cast<const ChannelType*>(&other)) {
     return *payload_type_ == *o->payload_type_ && direction_ == o->direction_;
@@ -1203,26 +872,12 @@ absl::StatusOr<bool> IsSigned(const Type& c) {
   const BitsConstructorType* bc;
   if (IsArrayOfBitsConstructor(c, &bc)) {
     const TypeDim& is_signed = bc->is_signed();
-    if (is_signed.IsParametric()) {
-      return absl::InvalidArgumentError(
-          "Cannot determine signedness; type has parametric signedness: " +
-          c.ToStringInternal(FullyQualify::kNo, nullptr));
-    }
     XLS_ASSIGN_OR_RETURN(int64_t value, is_signed.GetAsInt64());
     return value != 0;
   }
   return absl::InvalidArgumentError(
       "Cannot determined signedness; type is neither enum nor bits: " +
       c.ToStringInternal(FullyQualify::kNo, nullptr));
-}
-
-const ParametricSymbol* TryGetParametricSymbol(const TypeDim& dim) {
-  if (!std::holds_alternative<TypeDim::OwnedParametric>(dim.value())) {
-    return nullptr;
-  }
-  const ParametricExpression* parametric =
-      std::get<TypeDim::OwnedParametric>(dim.value()).get();
-  return dynamic_cast<const ParametricSymbol*>(parametric);
 }
 
 absl::StatusOr<TypeDim> MetaType::GetTotalBitCount() const {
@@ -1238,10 +893,6 @@ bool IsBitsLike(const Type& t) {
 }
 
 std::string ToTypeString(const BitsLikeProperties& properties) {
-  if (properties.is_signed.IsParametric()) {
-    return absl::StrFormat("xN[%s][%s]", properties.is_signed.ToString(),
-                           properties.size.ToString());
-  }
   bool is_signed = properties.is_signed.GetAsBool().value();
   return absl::StrFormat("%sN[%s]", is_signed ? "s" : "u",
                          properties.size.ToString());
@@ -1266,19 +917,13 @@ std::optional<BitsLikeProperties> GetBitsLike(const Type& t) {
 static std::optional<bool> GetKnownSignedness(
     const BitsLikeProperties& properties) {
   const TypeDim& is_signed = properties.is_signed;
-  if (is_signed.IsParametric()) {
-    return std::nullopt;
-  }
-  CHECK(std::get<InterpValue>(is_signed.value()).IsBool());
+  CHECK(is_signed.value().IsBool());
   return is_signed.GetAsBool().value();
 }
 
 static std::optional<int64_t> GetKnownBitCount(
     const BitsLikeProperties& properties) {
   const TypeDim& size = properties.size;
-  if (size.IsParametric()) {
-    return std::nullopt;
-  }
   return size.GetAsInt64().value();
 }
 

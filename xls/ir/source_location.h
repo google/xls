@@ -16,10 +16,12 @@
 #define XLS_IR_SOURCE_LOCATION_H_
 
 #include <compare>
+#include <iterator>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
@@ -86,6 +88,11 @@ struct SourceInfo {
   SourceInfo Extend(const SourceLocation& location) const {
     SourceInfo extended = *this;
     extended.locations.push_back(location);
+    return extended;
+  }
+  SourceInfo Extend(const SourceInfo& source_info) const {
+    SourceInfo extended = *this;
+    absl::c_copy(source_info.locations, std::back_inserter(extended.locations));
     return extended;
   }
 };

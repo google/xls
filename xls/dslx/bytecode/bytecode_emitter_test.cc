@@ -274,6 +274,37 @@ fn do_ternary() -> u32 {
 006 jump_dest)");
 }
 
+TEST(BytecodeEmitterTest, ConstexprTernary) {
+  constexpr std::string_view kProgram = R"(
+fn do_ternary() -> u32 {
+  const if true { u32:42 } else { u32:64 }
+})";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
+                           EmitBytecodes(&import_data, kProgram, "do_ternary"));
+
+  EXPECT_EQ(BytecodesToString(bf->bytecodes(), /*source_locs=*/false,
+                              import_data.file_table()),
+            R"(000 literal u32:42)");
+}
+
+TEST(BytecodeEmitterTest, ConstexprTernaryWithDifferentTypes) {
+  constexpr std::string_view kProgram = R"(
+fn do_ternary() -> u32 {
+  const if true { u16:42 } else { u32:64 } as u32
+})";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
+                           EmitBytecodes(&import_data, kProgram, "do_ternary"));
+
+  EXPECT_EQ(BytecodesToString(bf->bytecodes(), /*source_locs=*/false,
+                              import_data.file_table()),
+            R"(000 literal u16:42
+001 cast uN[32])");
+}
+
 TEST(BytecodeEmitterTest, CastToXbits) {
   constexpr std::string_view kProgram = R"(
 fn main(x: u1) -> s1 {
@@ -1604,8 +1635,7 @@ create_tuple 8)";
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data,
-                        /*comments=*/nullptr,
-                        /*force_version=*/std::nullopt, options));
+                        /*comments=*/nullptr, options));
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetMemberOrError<Function>("main"));

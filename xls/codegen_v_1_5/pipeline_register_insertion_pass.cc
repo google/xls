@@ -14,6 +14,7 @@
 
 #include "xls/codegen_v_1_5/pipeline_register_insertion_pass.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -22,13 +23,16 @@
 #include <tuple>
 #include <vector>
 
+#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "cppitertools/enumerate.hpp"
+#include "xls/codegen/concurrent_stage_groups.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
@@ -41,6 +45,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/state_element.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
@@ -95,17 +100,17 @@ absl::StatusOr<RegisterRead*> CreatePipelineRegister(
       !options.codegen_options.reset()->reset_data_path()) {
     // Note that if data registers are not reset, data path registers are
     // transparent during reset.
-    XLS_ASSIGN_OR_RETURN(
-        Node * reset_asserted,
-        block->MakeNode<UnOp>(SourceInfo(), *block->GetResetPort(),
-                              options.codegen_options.reset()->active_low()
-                                  ? Op::kNot
-                                  : Op::kIdentity));
+    Node* reset_active = *block->GetResetPort();
+    if (options.codegen_options.reset()->active_low()) {
+      XLS_ASSIGN_OR_RETURN(reset_active, block->MakeNodeWithName<UnOp>(
+                                             SourceInfo(), reset_active,
+                                             Op::kNot, "reset_active"));
+    }
     XLS_ASSIGN_OR_RETURN(
         load_enable,
-        block->MakeNode<NaryOp>(
-            node->loc(), absl::MakeConstSpan({stage_done, reset_asserted}),
-            Op::kOr));
+        block->MakeNode<NaryOp>(node->loc(),
+                                absl::MakeConstSpan({stage_done, reset_active}),
+                                Op::kOr));
   }
   // NOTE: The RegisterWrite is added to the block, but not to the stage. Its
   //       `load_enable` depends on `outputs_ready`, which comes from outside
@@ -175,13 +180,76 @@ absl::StatusOr<Node*> AddPipelineRegisterFor(
                                 options);
 }
 
+// Determine which stages are mutually exclusive with each other.
+//
+// Since each state element defines a mutual exclusive zone lasting from its
+// first read to its first write we can walk through the stage list updating
+// the mutual exclusion state.
+absl::StatusOr<ConcurrentStageGroups> CalculateConcurrentStages(
+    ScheduledBlock* block) {
+  ConcurrentStageGroups result(block->stages().size());
+  if (block->source() == nullptr || !block->source()->IsProc()) {
+    return result;
+  }
+
+  // Find all the mutex regions created by unconditional state feedback.
+  absl::flat_hash_map<StateElement*, int64_t> read_by_stage;
+  absl::flat_hash_map<StateElement*, int64_t> first_write_stage;
+  for (Node* node : block->nodes()) {
+    if (!node->Is<Next>()) {
+      continue;
+    }
+    Next* next = node->As<Next>();
+    StateRead* state_read = node->As<Next>()->state_read()->As<StateRead>();
+    StateElement* state_element = state_read->state_element();
+    if (state_read->predicate().has_value()) {
+      // If the state read is predicated, then it doesn't start a mutual
+      // exclusion zone.
+      continue;
+    }
+    XLS_ASSIGN_OR_RETURN(read_by_stage[state_element],
+                         block->GetStageIndex(state_read));
+
+    XLS_ASSIGN_OR_RETURN(int64_t write_stage, block->GetStageIndex(next));
+    auto [it, inserted] =
+        first_write_stage.try_emplace(state_element, write_stage);
+    if (!inserted) {
+      it->second = std::min(it->second, write_stage);
+    }
+  }
+  for (const auto& [state_element, read_stage] : read_by_stage) {
+    auto write_stage_it = first_write_stage.find(state_element);
+    if (write_stage_it == first_write_stage.end()) {
+      // This state element is never written, so it doesn't create a mutex
+      // region. (It should be optimized away elsewhere.)
+      continue;
+    }
+    int64_t write_stage = write_stage_it->second;
+    VLOG(2) << "State element " << state_element->name()
+            << " creates a mutex region from stage " << read_stage
+            << " to stage " << write_stage;
+    for (int64_t i = read_stage; i < write_stage; ++i) {
+      // NB <= since end is inclusive.
+      for (int64_t j = i + 1; j <= write_stage; ++j) {
+        result.MarkMutuallyExclusive(i, j);
+      }
+    }
+  }
+
+  return result;
+}
+
 }  // namespace
 
 absl::StatusOr<bool> PipelineRegisterInsertionPass::InsertPipelineRegisters(
     ScheduledBlock* block, const BlockConversionPassOptions& options) const {
-  // Compile all the references that will require pipeline registers.
+  XLS_ASSIGN_OR_RETURN(ConcurrentStageGroups concurrent_stages,
+                       CalculateConcurrentStages(block));
+
+  // Compile all the references that could require pipeline registers.
   absl::flat_hash_map<Node*, int64_t> last_stage_referencing;
-  absl::flat_hash_map<Node*, absl::flat_hash_map<int64_t, std::vector<Node*>>>
+  absl::btree_map<Node*, absl::flat_hash_map<int64_t, std::vector<Node*>>,
+                  Node::NodeIdLessThan>
       cross_stage_references;
   for (const auto& [stage_index, stage] : iter::enumerate(block->stages())) {
     for (Node* node : stage) {
@@ -192,6 +260,13 @@ absl::StatusOr<bool> PipelineRegisterInsertionPass::InsertPipelineRegisters(
         if (!block->IsStaged(user)) {
           // This user is outside the schedule, so its pipeline support should
           // be handled separately.
+          continue;
+        }
+        if (user->Is<Next>() && user->As<Next>()->value() != node &&
+            user->As<Next>()->predicate() != node) {
+          // This user is just referencing `node` as its associated StateRead;
+          // no actual data is being passed, so we don't need pipeline
+          // registers.
           continue;
         }
         int64_t user_stage_index = *block->GetStageIndex(user);
@@ -238,22 +313,84 @@ absl::StatusOr<bool> PipelineRegisterInsertionPass::InsertPipelineRegisters(
     CHECK(stage_it != last_stage_referencing.end());
     XLS_ASSIGN_OR_RETURN(int64_t orig_stage_index, block->GetStageIndex(node));
     int64_t last_stage_index = stage_it->second;
-    Node* last_stage_node = node;
+
+    Node* live_node = node;
+    int64_t live_node_update_stage = orig_stage_index;
+    bool live_node_is_pipelined = false;
     for (int64_t stage_index = orig_stage_index;
          stage_index <= last_stage_index; ++stage_index) {
       const Stage& stage = block->stages()[stage_index];
-      auto stage_references_it = references.find(stage_index);
-      if (stage_references_it != references.end()) {
-        absl::Span<Node* const> stage_references = stage_references_it->second;
-        for (Node* const user : stage_references) {
-          // Replace `node` with the pipeline register holding its value for the
-          // current stage.
-          user->ReplaceOperand(node, last_stage_node);
+
+      if (live_node != node) {
+        // Update all references to `node` in the current stage to point to the
+        // live node holding its value.
+        auto stage_references_it = references.find(stage_index);
+        if (stage_references_it != references.end()) {
+          absl::Span<Node* const> stage_references =
+              stage_references_it->second;
+          for (Node* const user : stage_references) {
+            // The only exception: if the user is a Next and `node` is its
+            // corresponding StateRead, we need to avoid updating that specific
+            // operand, since no data is being passed. For simplicity, we put it
+            // back afterwards rather than actually avoiding the update.
+            bool restore_state_read =
+                user->Is<Next>() && user->As<Next>()->state_read() == node;
+            user->ReplaceOperand(node, live_node);
+            if (restore_state_read) {
+              XLS_RETURN_IF_ERROR(user->As<Next>()->ReplaceOperandNumber(
+                  Next::kStateReadOperand, node));
+            }
+          }
         }
       }
 
       if (stage_index == last_stage_index) {
-        continue;
+        // No later stages reference this value, so we're finished.
+        break;
+      }
+
+      // Check if we can extend the lifetime of the `live_node` to cover
+      // the next stage. If so, we can avoid adding a pipeline register here.
+      //
+      // NOTE: Only RegisterReads (and StateReads, which lower to RegisterReads)
+      //       can be treated as having lifetimes beyond a single stage without
+      //       creating multi-cycle paths.
+      //
+      // In general, we can extend the lifetime of the `live_node` to the next
+      // stage if the next stage is mutually exclusive with everything back to
+      // the earliest stage that can *change* the value in the register.
+      // Currently, we only extend lifetimes for StateReads and pipeline
+      // registers.
+      //
+      // Since StateReads always come before the corresponding Next, it's safe
+      // to extend as long as the next stage is mutually exclusive with
+      // everything up to the StateRead.
+      //
+      // If the live node is a pipeline register, it's safe to extend as long as
+      // the next stage is mutually exclusive with everything up to the register
+      // write (which is from the previous stage).
+      //
+      // TODO(epastor): Add support for extending lifetimes for more registers,
+      //                (e.g.) flopped Receives. Might be simplest if each
+      //                register records the earliest stage that can enable a
+      //                write (where known).
+      if (live_node_is_pipelined || live_node->Is<StateRead>()) {
+        bool can_extend_lifetime = true;
+        for (int64_t i = live_node_update_stage; i <= stage_index; ++i) {
+          if (!concurrent_stages.IsMutuallyExclusive(i, stage_index + 1)) {
+            VLOG(3) << "Can't extend lifetime of " << live_node->GetName()
+                    << " through stage " << stage_index + 1
+                    << " because of possible concurrency between stages " << i
+                    << " and " << stage_index + 1;
+            can_extend_lifetime = false;
+            break;
+          }
+        }
+        if (can_extend_lifetime) {
+          VLOG(3) << "Extending lifetime of " << live_node->GetName()
+                  << " through stage " << stage_index + 1;
+          continue;
+        }
       }
 
       // Store the current value in the next pipeline register.
@@ -268,9 +405,11 @@ absl::StatusOr<bool> PipelineRegisterInsertionPass::InsertPipelineRegisters(
                                      "stage_done", stage_index))));
       }
       XLS_ASSIGN_OR_RETURN(
-          last_stage_node,
-          AddPipelineRegisterFor(last_stage_node, stage_index,
+          live_node,
+          AddPipelineRegisterFor(live_node, stage_index,
                                  stage_done[stage_index], block, options));
+      live_node_update_stage = stage_index;
+      live_node_is_pipelined = true;
     }
   }
 

@@ -1,0 +1,15 @@
+module ArrayUpdateLiteralIndex(
+  input wire [23:0] a,
+  input wire [7:0] value,
+  output wire [23:0] out
+);
+  wire [7:0] a_unflattened[3];
+  assign a_unflattened[0] = a[7:0];
+  assign a_unflattened[1] = a[15:8];
+  assign a_unflattened[2] = a[23:16];
+  wire [7:0] array_update_17[3];
+  assign out = {array_update_17[2], array_update_17[1], array_update_17[0]};
+  for (genvar __i0 = 0; __i0 < 3; __i0 = __i0 + 1) begin : gen__array_update_17_0
+    assign array_update_17[__i0] = 16'h0001 == __i0 ? value : a_unflattened[__i0];
+  end
+endmodule

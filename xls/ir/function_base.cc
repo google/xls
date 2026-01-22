@@ -29,7 +29,6 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/container/btree_set.h"
-#include "absl/container/fixed_array.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
@@ -64,7 +63,7 @@ namespace {
 // sections may be empty after it runs.
 class StageSectioner : public DfsVisitorWithDefault {
  public:
-  StageSectioner(const FunctionBase* fb)
+  explicit StageSectioner(const FunctionBase* fb)
       : fb_(fb), sections_(fb->stages().size() * 2 + 1) {}
 
   absl::Status Run() {
@@ -136,6 +135,21 @@ class StageSectioner : public DfsVisitorWithDefault {
 };
 
 }  // namespace
+
+bool Stage::contains(Node* node) const {
+  switch (node->op()) {
+    case Op::kReceive:
+    case Op::kStateRead:
+    case Op::kRegisterRead:
+      return active_inputs_.contains(node);
+    case Op::kSend:
+    case Op::kNext:
+    case Op::kRegisterWrite:
+      return active_outputs_.contains(node);
+    default:
+      return logic_.contains(node);
+  }
+}
 
 bool Stage::AddNode(Node* node) {
   switch (node->op()) {
@@ -242,6 +256,12 @@ void FunctionBase::TakeOwnershipOfNode(std::unique_ptr<Node>&& node) {
   }
 
   node->function_base_ = this;
+  if (node->HasAssignedName()) {
+    std::string unique_name = UniquifyNodeName(node->GetNameView());
+    if (unique_name != node->GetName()) {
+      node->SetNameDirectly(unique_name);
+    }
+  }
   AddNodeInternal(std::move(node));
 }
 
@@ -412,9 +432,10 @@ absl::Status FunctionBase::RemoveNode(Node* node) {
   }
   if (IsScheduled()) {
     auto it = node_to_stage_.find(node);
-    CHECK_NE(it, node_to_stage_.end());
-    stages_[it->second].erase(node);
-    node_to_stage_.erase(it);
+    if (it != node_to_stage_.end()) {
+      stages_[it->second].erase(node);
+      node_to_stage_.erase(it);
+    }
   }
   auto node_it = node_iterators_.find(node);
   XLS_RET_CHECK(node_it != node_iterators_.end());

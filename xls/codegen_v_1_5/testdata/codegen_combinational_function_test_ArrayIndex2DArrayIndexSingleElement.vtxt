@@ -1,0 +1,16 @@
+module ArrayIndex2DArrayIndexSingleElement(
+  input wire [47:0] a,
+  input wire [15:0] idx0,
+  input wire [15:0] idx1,
+  output wire [7:0] out
+);
+  wire [7:0] a_unflattened[0:1][0:2];
+  assign a_unflattened[0][0] = a[7:0];
+  assign a_unflattened[0][1] = a[15:8];
+  assign a_unflattened[0][2] = a[23:16];
+  assign a_unflattened[1][0] = a[31:24];
+  assign a_unflattened[1][1] = a[39:32];
+  assign a_unflattened[1][2] = a[47:40];
+
+  assign out = a_unflattened[idx0 > 16'h0001 ? 1'h1 : idx0[0:0]][idx1 > 16'h0002 ? 2'h2 : idx1[1:0]];
+endmodule

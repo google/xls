@@ -13,7 +13,6 @@
 // limitations under the License.
 
 #include <cstdint>
-#include <memory>
 
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"

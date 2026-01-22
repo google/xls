@@ -501,12 +501,6 @@ absl::Status DslxTypeToVerilogManager::AddTypeToVerilogPackage(
     Type* type, const TypeDefinition& type_definition, ImportData* import_data,
     std::string_view typedef_identifier) {
   // Filter out unsupported interface types.
-  if (type->HasParametricDims()) {
-    return absl::InternalError(
-        absl::StrFormat("Interface type %s should not be parametric for "
-                        "DslxTypeToVerilogManager.",
-                        type->ToString()));
-  }
   if (type->HasToken()) {
     return absl::UnimplementedError(
         absl::StrFormat("Interface type %s containing tokens not supported.",
@@ -529,12 +523,6 @@ absl::Status DslxTypeToVerilogManager::AddTypeToVerilogPackage(
     Type* type, TypeAnnotation* type_annotation, TypeInfo* type_info,
     ImportData* import_data, std::string_view typedef_identifier) {
   // Filter out unsupported interface types.
-  if (type->HasParametricDims()) {
-    return absl::InternalError(
-        absl::StrFormat("Interface type %s should not be parametric for "
-                        "DslxTypeToVerilogManager.",
-                        type->ToString()));
-  }
   if (type->HasToken()) {
     return absl::UnimplementedError(
         absl::StrFormat("Interface type %s containing tokens not supported.",

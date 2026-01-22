@@ -2280,7 +2280,7 @@ using ModuleMember =
                  VerilogFunction*,         // Function definition
                  Typedef*, Enum*, Cover*, ConcurrentAssertion*,
                  DeferredImmediateAssertion*, ModuleConditionalDirective*,
-                 ModuleSection*,
+                 ModuleSection*, Conditional*,
                  // Generate loop, can effectively generate more module members
                  // at elaboration time
                  GenerateLoop*, MacroStatement*>;

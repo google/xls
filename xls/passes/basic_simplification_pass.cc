@@ -68,6 +68,66 @@ bool IsBinaryIrreflexiveRelation(Node* node) {
   }
 }
 
+struct EqNeSelectNotOrIncMatch {
+  Node* x;
+  Op cmp;
+};
+
+// Matches either:
+//   (eq|ne)(sel(c, cases=[not(x), add(x, 1)]), 0)
+//   (eq|ne)(0, sel(c, cases=[not(x), add(x, 1)]))
+//
+// Also handles swapped select arms.
+//
+// This is exploiting "not/inc zero-equivalence": the arms `~x` and `x+1` are
+// both equal to zero under the same precondition, namely `x == all_ones`.
+absl::StatusOr<std::optional<EqNeSelectNotOrIncMatch>>
+TryMatchEqOrNeSelectNotOrIncAgainstZero(Node* n) {
+  if (n->op() != Op::kEq && n->op() != Op::kNe) {
+    return std::nullopt;
+  }
+  Node* maybe_sel = nullptr;
+  if (IsLiteralZero(n->operand(0))) {
+    maybe_sel = n->operand(1);
+  } else if (IsLiteralZero(n->operand(1))) {
+    maybe_sel = n->operand(0);
+  } else {
+    return std::nullopt;
+  }
+
+  XLS_ASSIGN_OR_RETURN(std::optional<BinarySelectView> sel,
+                       MatchBinarySelectLike(maybe_sel));
+  if (!sel.has_value()) {
+    return std::nullopt;
+  }
+
+  auto match_add_one = [](Node* node) -> Node* {
+    if (node->op() != Op::kAdd) {
+      return nullptr;
+    }
+    if (IsLiteralUnsignedOne(node->operand(0))) {
+      return node->operand(1);
+    }
+    if (IsLiteralUnsignedOne(node->operand(1))) {
+      return node->operand(0);
+    }
+    return nullptr;
+  };
+
+  // on_false = not(x), on_true = add(x, 1)
+  if (Node* x = match_add_one(sel->on_true);
+      x != nullptr && IsNotOf(sel->on_false, x)) {
+    return EqNeSelectNotOrIncMatch{.x = x, .cmp = n->op()};
+  }
+  // swapped arms
+  if (Node* x = match_add_one(sel->on_false);
+      x != nullptr && IsNotOf(sel->on_true, x)) {
+    return EqNeSelectNotOrIncMatch{.x = x, .cmp = n->op()};
+  }
+
+  return std::nullopt;
+}
+
 // MatchPatterns matches simple tree patterns to find opportunities
 // for simplification.
 //
@@ -91,6 +151,32 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
       query_engine.IsAllZeros(n->operand(1))) {
     VLOG(2) << "FOUND: Useless operation of value with zero";
     XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
+    return true;
+  }
+
+  // Pattern:
+  //   `(eq|ne)(sel(c, cases=[not(x), add(x, 1)]), 0)` =>
+  //   `(eq|ne)(x, all_ones(width(x)))`
+  //
+  // Why this works (not/inc zero-equivalence):
+  // - `(~x == 0)`  <=>  `(x == all_ones)`
+  // - `(x+1 == 0)` <=>  `(x == all_ones)`   (note: given wraparound arithmetic)
+  // Therefore for `y = sel(c, [~x, x+1])`, `(y != 0)` is exactly `(x !=
+  // all_ones)`, independent of selector `c`.
+  XLS_ASSIGN_OR_RETURN(std::optional<EqNeSelectNotOrIncMatch> not_or_inc_match,
+                       TryMatchEqOrNeSelectNotOrIncAgainstZero(n));
+  if (not_or_inc_match.has_value()) {
+    Node* x = not_or_inc_match->x;
+    XLS_ASSIGN_OR_RETURN(
+        Node * all_ones,
+        n->function_base()->MakeNode<Literal>(
+            n->loc(), Value(Bits::AllOnes(x->BitCountOrDie()))));
+    VLOG(2)
+        << "FOUND: not/inc zero-equivalence: "
+           "(eq|ne)(sel(c, [not(x), add(x, 1)]), 0) => (eq|ne)(x, all_ones)";
+    XLS_RETURN_IF_ERROR(
+        n->ReplaceUsesWithNew<CompareOp>(x, all_ones, not_or_inc_match->cmp)
+            .status());
     return true;
   }
 
@@ -148,6 +234,28 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<UnOp>(n->operand(0), Op::kNot).status());
     return true;
+  }
+
+  // X(sel(p, cases=[a, b]), sel(p, cases=[b, a])) => X(a, b)
+  //
+  // Because X is commutative (X(a, b) == X(b, a)), the select becomes
+  // redundant.
+  if (n->operand_count() == 2 && OpIsCommutative(n->op()) &&
+      !OpIsSideEffecting(n->op())) {
+    XLS_ASSIGN_OR_RETURN(std::optional<BinarySelectView> sel0,
+                         MatchBinarySelectLike(n->operand(0)));
+    XLS_ASSIGN_OR_RETURN(std::optional<BinarySelectView> sel1,
+                         MatchBinarySelectLike(n->operand(1)));
+    if (sel0.has_value() && sel1.has_value() &&
+        sel0->selector == sel1->selector && sel0->on_false == sel1->on_true &&
+        sel0->on_true == sel1->on_false) {
+      VLOG(2) << "FOUND: commutative op on swapped two-way selects: "
+              << OpToString(n->op());
+      std::vector<Node*> new_operands = {sel0->on_false, sel0->on_true};
+      XLS_ASSIGN_OR_RETURN(Node * replacement, n->Clone(new_operands));
+      XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(replacement));
+      return true;
+    }
   }
 
   // Remove duplicate operands of XORs.
@@ -240,6 +348,90 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<Literal>(Value(identity)).status());
     return true;
+  }
+
+  // or_reduce(neg(x)) => or_reduce(x)
+  //
+  // x is zero iff neg(x) is zero. Since or_reduce(y) is equivalent to y != 0,
+  // the reductions are equivalent, and eliding the neg(x) would allow the value
+  // to be computed earlier in the computation.
+  if (n->op() == Op::kOrReduce && n->operand(0)->op() == Op::kNeg) {
+    VLOG(2) << "FOUND: replace or_reduce(neg(x)) with or_reduce(x)";
+    XLS_RETURN_IF_ERROR(n->ReplaceOperandNumber(0, n->operand(0)->operand(0)));
+    return true;
+  }
+
+  // Reduction of a value masked by sign_ext(bits[1]) (eliminate mask plumbing).
+  //
+  // Note on abbreviation in the pattern below:
+  //
+  // - `w` is the bit-width of the masked datapath value `x` (and thus the
+  //   width of the `and(x, mask)`).
+  // - `b` is the 1-bit predicate (bits[1]) being sign-extended to a `w`-bit
+  //   mask via `sign_ext(b, w)` (all-zeros when b=0, all-ones when b=1).
+  //
+  // For w > 1, sign_ext(b:bits[1], w) is either 0_w or all_ones_w, so:
+  //
+  //   or_reduce(and(x, sign_ext(b,w)))  == and(b, or_reduce(x))
+  //   and_reduce(and(x, sign_ext(b,w))) == and(b, and_reduce(x))
+  //
+  // And similarly for the inverted mask not(sign_ext(b,w)).
+  //
+  // This is always semantics-preserving and strictly reduces mask plumbing for
+  // w > 1.
+  if (n->OpIn({Op::kOrReduce, Op::kAndReduce}) &&
+      n->operand(0)->op() == Op::kAnd && n->operand(0)->operand_count() == 2) {
+    Node* and_op = n->operand(0);
+    const int64_t w = and_op->BitCountOrDie();
+    if (w > 1) {
+      auto match_sign_ext_mask = [&](Node* node, Node** b,
+                                     bool* inverted) -> bool {
+        *b = nullptr;
+        *inverted = false;
+        Node* maybe_sign_ext = node;
+        if (node->op() == Op::kNot && node->operand(0)->op() == Op::kSignExt) {
+          *inverted = true;
+          maybe_sign_ext = node->operand(0);
+        }
+        if (maybe_sign_ext->op() != Op::kSignExt) {
+          return false;
+        }
+        if (maybe_sign_ext->BitCountOrDie() != w) {
+          return false;
+        }
+        Node* sign_ext_operand = maybe_sign_ext->As<ExtendOp>()->operand(0);
+        if (sign_ext_operand->BitCountOrDie() != 1) {
+          return false;
+        }
+        *b = sign_ext_operand;
+        return true;
+      };
+
+      Node* b = nullptr;
+      bool inverted = false;
+      Node* x = nullptr;
+      if (match_sign_ext_mask(and_op->operand(0), &b, &inverted)) {
+        x = and_op->operand(1);
+      } else if (match_sign_ext_mask(and_op->operand(1), &b, &inverted)) {
+        x = and_op->operand(0);
+      }
+      if (b != nullptr && x != nullptr && x->BitCountOrDie() == w) {
+        FunctionBase* f = n->function_base();
+        Node* cond = b;
+        if (inverted) {
+          XLS_ASSIGN_OR_RETURN(cond, f->MakeNode<UnOp>(n->loc(), b, Op::kNot));
+        }
+        XLS_ASSIGN_OR_RETURN(Node * reduced_x, f->MakeNode<BitwiseReductionOp>(
+                                                   n->loc(), x, n->op()));
+        XLS_ASSIGN_OR_RETURN(
+            Node * gated,
+            f->MakeNode<NaryOp>(n->loc(), std::vector<Node*>{cond, reduced_x},
+                                Op::kAnd));
+        VLOG(2) << "FOUND: reduction of sign_ext(mask)-masked value";
+        XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(gated));
+        return true;
+      }
+    }
   }
 
   // Replaces uses of n with a new node by eliminating operands for which the
@@ -375,6 +567,32 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
     return true;
   }
 
+  // Or(UGt(a, b), ULt(a, b)) => Ne(a, b)
+  //
+  // i.e. (a > b) || (a < b)  <=>  (a != b)
+  if (n->op() == Op::kOr && n->operand_count() == 2 &&
+      n->operand(0)->Is<CompareOp>() && n->operand(1)->Is<CompareOp>()) {
+    Node* op0 = n->operand(0);
+    Node* op1 = n->operand(1);
+    Node* ugt = nullptr;
+    Node* ult = nullptr;
+    if (op0->op() == Op::kUGt && op1->op() == Op::kULt) {
+      ugt = op0;
+      ult = op1;
+    } else if (op0->op() == Op::kULt && op1->op() == Op::kUGt) {
+      ugt = op1;
+      ult = op0;
+    }
+    if (ugt != nullptr && ugt->operand(0) == ult->operand(0) &&
+        ugt->operand(1) == ult->operand(1)) {
+      VLOG(2) << "FOUND: replace (a>b)||(a<b) with a!=b";
+      XLS_RETURN_IF_ERROR(n->ReplaceUsesWithNew<CompareOp>(
+                               ugt->operand(0), ugt->operand(1), Op::kNe)
+                              .status());
+      return true;
+    }
+  }
+
   //   Add(X, Not(X)) => 1...
   //   Add(Not(X), X) => 1...
   //
@@ -478,6 +696,25 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
   if (n->op() == Op::kNot && n->operand(0)->op() == Op::kNot) {
     VLOG(2) << "FOUND: replace not(not(x)) with x";
     XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)->operand(0)));
+    return true;
+  }
+
+  // Pattern: 1-bit negate is identity: `neg(x:bits[1])` => `x`
+  //
+  // In 1-bit two's complement arithmetic: -0 == 0 and -1 == 1.
+  if (n->op() == Op::kNeg && n->BitCountOrDie() == 1) {
+    VLOG(2) << "FOUND: 1-bit negate is identity";
+    XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
+    return true;
+  }
+
+  // Pattern: 1-bit subtract-from-zero is identity: `sub(0, x:bits[1])` => `x`
+  //
+  // For bits[1], 0 - x == -x == x.
+  if (n->op() == Op::kSub && n->BitCountOrDie() == 1 &&
+      query_engine.IsAllZeros(n->operand(0))) {
+    VLOG(2) << "FOUND: 1-bit subtract-from-zero is identity";
+    XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(1)));
     return true;
   }
 

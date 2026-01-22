@@ -15,7 +15,6 @@
 # Templates for embeding binary data into a c file. Needs a build file to make it a visible target.
 
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
-load("@xls_pip_deps//:requirements.bzl", "requirement")
 load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary")
 
 package(
@@ -32,11 +31,10 @@ pytype_strict_binary(
         ":embedded_data.h.tmpl",
     ],
     deps = [
-        requirement("Jinja2"),
-        requirement("MarkupSafe"),
         "//xls/common:runfiles",
         "@abseil-py//absl:app",
         "@abseil-py//absl/flags",
+        "@xls_pip_deps//jinja2",
     ],
 )
 

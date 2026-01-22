@@ -1,0 +1,5 @@
+module NestedEmptyTuple(
+  input wire clk
+);
+
+endmodule

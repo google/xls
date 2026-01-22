@@ -280,6 +280,82 @@ absl::StatusOr<Node*> NaryNorIfNeeded(FunctionBase* f,
                                       const SourceInfo& source_info = {},
                                       bool drop_literal_zero_operands = false);
 
+// Build a node representing `AND(operands...)`, expressing it as (locally)
+// efficiently as possible. This will merge & deduplicate the nodes' operands if
+// any node is an AND, combine all literals into at most one literal (unless
+// requested not to), and construct the AND of the remaining operands.
+//
+// If `source_info` is provided, the result will have that source info.
+// Otherwise, the result will have the merged source infos of the operands.
+absl::StatusOr<Node*> JoinWithAnd(FunctionBase* f,
+                                  absl::Span<Node* const> operands,
+                                  bool combine_literals = true,
+                                  std::string_view name = "",
+                                  std::optional<SourceInfo> loc = std::nullopt);
+
+// Build a node representing `OR(operands...)`, expressing it as (locally)
+// efficiently as possible. This will merge & deduplicate the nodes' operands if
+// any node is an OR, combine all literals into at most one literal (unless
+// requested not to), and construct the OR of the remaining operands.
+//
+// If `source_info` is provided, the result will have that source info.
+// Otherwise, the result will have the merged source infos of the operands.
+absl::StatusOr<Node*> JoinWithOr(FunctionBase* f,
+                                 absl::Span<Node* const> operands,
+                                 bool combine_literals = true,
+                                 std::string_view name = "",
+                                 std::optional<SourceInfo> loc = std::nullopt);
+
+// Replaces all uses of `old_node` with `old_node AND new_nodes...`, expressing
+// it as efficiently as possible. This will merge & deduplicate the nodes'
+// operands if either node is an AND, combine all literals into at most one
+// literal (unless requested not to), and construct the AND of the remaining
+// operands, replacing `old_node` with this new result.
+//
+// - If a name is provided, the result will have that name.
+// - If no name is provided, the result will take `old_node`'s name if it has
+//   one.
+// - If `source_info` is provided, the result will have that source info.
+// - If no `source_info` is provided, the result will have the merged source
+//   infos of the two nodes.
+//
+// Also, if `old_node` is staged, the result will be placed in the same stage.
+absl::StatusOr<Node*> ReplaceWithAnd(
+    Node* old_node, absl::Span<Node* const> new_nodes,
+    bool combine_literals = true, std::string_view name = "",
+    std::optional<SourceInfo> loc = std::nullopt);
+inline absl::StatusOr<Node*> ReplaceWithAnd(
+    Node* old_node, Node* new_node, bool combine_literals = true,
+    std::string_view name = "", std::optional<SourceInfo> loc = std::nullopt) {
+  return ReplaceWithAnd(old_node, absl::MakeConstSpan({new_node}),
+                        combine_literals, name, loc);
+}
+
+// Replaces all uses of `old_node` with `old_node OR new_nodes...`, expressing
+// it as efficiently as possible. This will merge & deduplicate the nodes'
+// operands if either node is an OR, combine all literals into at most one
+// literal (unless requested not to), and construct the OR of the remaining
+// operands, replacing `old_node` with this new result.
+//
+// - If a name is provided, the result will have that name.
+// - If no name is provided, the result will take `old_node`'s name if it has
+//   one.
+// - If `source_info` is provided, the result will have that source info.
+// - If no `source_info` is provided, the result will have the merged source
+//   infos of the two nodes.
+//
+// Also, if `old_node` is staged, the result will be placed in the same stage.
+absl::StatusOr<Node*> ReplaceWithOr(
+    Node* old_node, absl::Span<Node* const> new_nodes,
+    bool combine_literals = true, std::string_view name = "",
+    std::optional<SourceInfo> loc = std::nullopt);
+inline absl::StatusOr<Node*> ReplaceWithOr(
+    Node* old_node, Node* new_node, bool combine_literals = true,
+    std::string_view name = "", std::optional<SourceInfo> loc = std::nullopt) {
+  return ReplaceWithOr(old_node, absl::MakeConstSpan({new_node}),
+                       combine_literals, name, loc);
+}
+
 // Returns whether the given node is a signed/unsigned comparison operation (for
 // example, ULe or SGt).
 bool IsUnsignedCompare(Node* node);
@@ -340,12 +416,36 @@ std::vector<NodePtrT> SetToSortedVector(
   return v;
 }
 
-// Returns true if the given node is a binary select (two cases, no default).
-bool IsBinarySelect(Node* node);
+// Returns true if the given node is a binary select with two explicit cases and
+// no default.
+bool IsBinarySelectTwoCases(Node* node);
 
 // Returns true if the given node is a binary priority select (1 case plus the
 // default value)
+//
+// Note: A PrioritySelect must have selector bit-width equal to the number of
+// cases (enforced by the IR verifier). As a result, this "binary" form (one
+// case) necessarily has a 1-bit selector.
 bool IsBinaryPrioritySelect(Node* node);
+
+// A uniform view of a "binary select-like" node.
+//
+// For `sel(p, cases=[on_false, on_true])`, the selector is `p`.
+// For `sel(p, cases=[on_false], default=on_true)`, the selector is `p` (which
+// is required to be a single bit).
+// For a binary `priority_sel(p, cases=[on_true], default=on_false)`, the
+// selector is `p` (which is required to be a single bit).
+struct BinarySelectView {
+  Node* selector;
+  Node* on_false;
+  Node* on_true;
+};
+
+// Returns a uniform view of a binary `sel` or a binary `priority_sel`.
+//
+// Returns std::nullopt if `node` is not one of those binary forms.
+absl::StatusOr<std::optional<BinarySelectView>> MatchBinarySelectLike(
+    Node* node);
 
 // Returns the op which is the inverse of the given comparison.
 //

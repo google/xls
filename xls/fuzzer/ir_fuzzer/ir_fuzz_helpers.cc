@@ -14,7 +14,6 @@
 
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_helpers.h"
 
-#include <bit>
 #include <cstdint>
 #include <string>
 #include <vector>

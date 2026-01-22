@@ -919,7 +919,6 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
 
   absl::StatusOr<TypecheckedModule> tm = ParseAndTypecheck(
       program, filename, module_name, &import_data, nullptr,
-      parse_and_typecheck_options.type_inference_version,
       ConvertOptions{.configured_values =
                          parse_and_typecheck_options.configured_values});
   if (!tm.ok()) {

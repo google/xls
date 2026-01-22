@@ -1009,11 +1009,13 @@ class EvalProcTest(parameterized.TestCase):
     tick_count = 3 * 2048
     ir_file = MULTI_BLOCK_MEMORY_IR_FILE
     signature_file = MULTI_BLOCK_MEMORY_SIG_FILE
+    # Note, this is the proc-scoped channel channel name, because the source
+    # (delay.x) is now always compiled with proc-scoped channels.
     input_channel = proc_channel_values_pb2.ProcChannelValuesProto.Channel(
-        name="delay__data_in"
+        name="_data_in"
     )
     output_channel = proc_channel_values_pb2.ProcChannelValuesProto.Channel(
-        name="delay__data_out"
+        name="_data_out"
     )
     # Make a little oracle to get the results.
     buffer = [3] * 2048

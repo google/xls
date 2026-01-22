@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <cassert>
+#include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>
@@ -137,9 +138,10 @@ class ElaborationContext
     }
 
     StringRef originalName = originalSymbolName(sproc);
-    EprocOp eproc =
-        EprocOp::create(builder, sproc.getLoc(), originalName,
-                        /*discardable=*/true, sproc.getMinPipelineStages());
+    EprocOp eproc = EprocOp::create(
+        builder, sproc.getLoc(), originalName,
+        /*discardable=*/true,
+        /*min_pipeline_stages=*/sproc.getMinPipelineStagesAttr());
 
     SmallVector<StringAttr> inChannels, outChannels;
 
@@ -169,10 +171,11 @@ class ElaborationContext
     replaceStructuredChannelOps(eproc.getBody(), chanMap);
     eproc.getBody().front().eraseArguments(0, sproc.getNextChannels().size());
 
-    // TODO: b/461995846 - Investigate whether this should only be applied
-    // either if stages > 1, or if set explicitly or for pipeline maps only.
-    if (auto stages = sproc.getMinPipelineStages(); stages > 0) {
+    // Disable io-constraints by default to not impact Beignet codegen.
+    if (use_io_constraints_on_eprocs) {
       SmallVector<IoConstraintAttr> ioConstraints;
+      // New default: Use 0 stages if no pipeline stages are specified.
+      int64_t stages = sproc.getMinPipelineStages().value_or(0);
 
       // Create io constraints between all input and output channels.
       // It is a little unclear if we really need from all input to all outputs.
@@ -188,9 +191,7 @@ class ElaborationContext
               /*min_latency=*/stages, /*max_latency=*/stages);
           ioConstraints.push_back(constraint);
         }
-      }
 
-      if (use_io_constraints_on_eprocs) {
         eproc.setIoConstraints(ioConstraints);
       }
     }

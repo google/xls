@@ -493,9 +493,9 @@ absl::StatusOr<Sample> GenerateSample(
   dslx::ConvertOptions convert_options{
       .warnings = dslx::DisableWarning(
           dslx::kDefaultWarningsSet, dslx::WarningKind::kWidthSliceOutOfRange)};
-  absl::StatusOr<TypecheckedModule> tm = ParseAndTypecheck(
-      dslx_text, "sample.x", "sample", &import_data, /*comments=*/nullptr,
-      /*force_version=*/std::nullopt, convert_options);
+  absl::StatusOr<TypecheckedModule> tm =
+      ParseAndTypecheck(dslx_text, "sample.x", "sample", &import_data,
+                        /*comments=*/nullptr, convert_options);
   if (!tm.ok()) {
     LOG(ERROR) << "Generated sample failed to parse-and-typecheck ("
                << dslx_text.size() << " bytes):";

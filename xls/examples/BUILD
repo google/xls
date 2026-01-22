@@ -873,6 +873,7 @@ xls_dslx_ir(
         # It needs to know what configuration to use for the fifo.
         "default_fifo_config": "depth: 0, bypass: true, " +
                                "register_push_outputs: false, register_pop_outputs: false",
+        "lower_to_proc_scoped_channels": "true",
     },
     ir_file = "delay.ir",
     library = ":delay_dslx",
@@ -897,9 +898,9 @@ xls_ir_verilog(
         # See https://google.github.io/xls/codegen_options/#rams-experimental
         # for more information about this option.
         "ram_configurations": "ram:1RW:{req}:{resp}:{wr_comp}".format(
-            req = "delay__ram_req",
-            resp = "delay__ram_resp",
-            wr_comp = "delay__ram_wr_comp",
+            req = "_ram_req",
+            resp = "_ram_resp",
+            wr_comp = "_ram_wr_comp",
         ),
         "pipeline_stages": "2",
         "reset": "rst",
@@ -960,6 +961,9 @@ xls_dslx_test(
 xls_dslx_ir(
     name = "delay_loopback_channel_ir",
     dslx_top = "Delay",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true",
+    },
     ir_file = "delay_loopback_channel.ir",
     library = ":delay_loopback_channel_dslx",
 )
@@ -1384,15 +1388,70 @@ xls_dslx_test(
     library = ":proc_network_dslx",
 )
 
-# TODO(allight): Once the ir converter can generate new-style procs we should use this as test data for both ElaborationTest.GraphOldStyle and GraphNewStyle tests.
 xls_dslx_ir(
     name = "proc_network_ir",
     dslx_top = "Initiator",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "false",
+    },
     ir_file = "proc_network.ir",
+    library = ":proc_network_dslx",
+)
+
+xls_dslx_ir(
+    name = "proc_network_proc_scoped_ir",
+    dslx_top = "Initiator",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true",
+    },
+    ir_file = "proc_network_proc_scoped.ir",
     library = ":proc_network_dslx",
 )
 
 build_test(
     name = "xls_pipeline_build_test",
     targets = [":xls_pipeline"],
+)
+
+xls_dslx_library(
+    name = "const_if_dslx",
+    srcs = ["const_if.x"],
+)
+
+xls_dslx_ir(
+    name = "const_if_ir",
+    dslx_top = "Main",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true",
+    },
+    ir_file = "const_if.ir",
+    library = ":const_if_dslx",
+)
+
+xls_dslx_opt_ir(
+    name = "const_if_opt_ir",
+    dslx_top = "Main",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true",
+    },
+    library = ":const_if_dslx",
+)
+
+xls_dslx_test(
+    name = "const_if_dslx_test",
+    srcs = ["const_if.x"],
+    dslx_test_args = {"compare": "jit"},
+)
+
+xls_dslx_verilog(
+    name = "const_if_verilog",
+    codegen_args = {
+        "module_name": "Main",
+        "delay_model": "unit",
+        "pipeline_stages": "1",
+        "reset": "rst",
+    },
+    dslx_top = "Main",
+    library = ":const_if_dslx",
+    verilog_file = "const_if.sv",
 )

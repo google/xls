@@ -18,7 +18,6 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_closure//closure:defs.bzl", "closure_js_binary", "closure_js_library")
 load("@rules_python//python:proto.bzl", "py_proto_library")
-load("@xls_pip_deps//:requirements.bzl", "requirement")
 load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary", "pytype_strict_contrib_test")
 
 # Load proto_library
@@ -63,15 +62,11 @@ pytype_strict_binary(
         "//xls/tools:opt_main",
     ],
     deps = [
-        requirement("Flask"),
-        requirement("Jinja2"),
-        requirement("click"),
-        requirement("itsdangerous"),
-        requirement("MarkupSafe"),
-        requirement("Werkzeug"),
         "//xls/common:runfiles",
         "@abseil-py//absl:app",
         "@abseil-py//absl/flags",
+        "@xls_pip_deps//flask",
+        "@xls_pip_deps//werkzeug",
     ],
 )
 
@@ -155,10 +150,10 @@ pytype_strict_binary(
     data = [":ir_to_proto_main"],
     deps = [
         ":visualization_proto_py_pb2",
-        requirement("networkx"),
         "//xls/common:runfiles",
         "@abseil-py//absl:app",
         "@abseil-py//absl/flags",
+        "@xls_pip_deps//networkx",
     ],
 )
 

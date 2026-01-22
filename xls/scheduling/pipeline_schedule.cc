@@ -118,7 +118,8 @@ absl::StatusOr<PipelineSchedule> PipelineSchedule::FromProto(
   const auto schedule_it =
       package_schedules_proto.schedules().find(function->name());
   if (schedule_it == package_schedules_proto.schedules().end()) {
-    return absl::InvalidArgumentError("Function does not have a schedule.");
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Function `%s` does not have a schedule.", function->name()));
   }
   // Getting a node by name is slow (linear in number of nodes in the function)
   // so build up a map for fast lookup.

@@ -1,0 +1,12 @@
+module ArrayIndexWithoutBoundsCheck(
+  input wire [23:0] A,
+  input wire [7:0] index,
+  output wire [7:0] out
+);
+  wire [7:0] A_unflattened[0:2];
+  assign A_unflattened[0] = A[7:0];
+  assign A_unflattened[1] = A[15:8];
+  assign A_unflattened[2] = A[23:16];
+
+  assign out = A_unflattened[index];
+endmodule

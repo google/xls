@@ -158,12 +158,7 @@ absl::Status RealMain(absl::Span<const std::string_view> paths) {
         }
         type = *type_from_type_info;
       }
-      if (type->HasParametricDims()) {
-        VLOG(3) << absl::StreamFormat("Skipping %s with parametric type.",
-                                      def_node->ToInlineString());
 
-        continue;
-      }
       VLOG(3) << absl::StreamFormat("Converting definition %s to Verilog",
                                     def_node->ToInlineString());
       XLS_RETURN_IF_ERROR(

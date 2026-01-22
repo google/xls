@@ -41,7 +41,8 @@ enum TypeCase {
 
 class IrFuzzHelpers {
  public:
-  constexpr IrFuzzHelpers(FuzzVersion version) : fuzz_version_(version) {}
+  constexpr explicit IrFuzzHelpers(FuzzVersion version)
+      : fuzz_version_(version) {}
 
   BValue Coerced(Package* p, FunctionBuilder* fb, BValue bvalue,
                  const CoercedTypeProto& coerced_type, Type* target_type) const;

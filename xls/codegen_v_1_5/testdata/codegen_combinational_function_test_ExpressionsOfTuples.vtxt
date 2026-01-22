@@ -1,0 +1,12 @@
+module ExpressionsOfTuples(
+  input wire [7:0] a,
+  input wire [9:0] b,
+  input wire [25:0] c,
+  output wire [31:0] out
+);
+  wire [15:0] add_36;
+  wire [15:0] sub_37;
+  assign add_36 = {8'h00, a} + {6'h00, b};
+  assign sub_37 = {6'h00, c[25:16]} - c[15:0];
+  assign out = {add_36, sub_37};
+endmodule

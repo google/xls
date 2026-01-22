@@ -517,6 +517,220 @@ absl::StatusOr<Node*> NaryNorIfNeeded(FunctionBase* f,
                                      name);
 }
 
+absl::StatusOr<Node*> JoinWithAnd(FunctionBase* f,
+                                  absl::Span<Node* const> operands,
+                                  bool combine_literals, std::string_view name,
+                                  std::optional<SourceInfo> loc) {
+  XLS_RET_CHECK(!operands.empty());
+  for (Node* operand : operands) {
+    XLS_RET_CHECK_EQ(operand->function_base(), f);
+  }
+
+  std::vector<Node*> new_operands;
+  new_operands.reserve(operands.size());
+  for (Node* operand : operands) {
+    if (operand->op() == Op::kAnd) {
+      absl::c_copy(operand->operands(), std::back_inserter(new_operands));
+    } else {
+      new_operands.push_back(operand);
+    }
+  }
+
+  std::optional<Bits> literal_value;
+  if (combine_literals) {
+    for (Node* operand : new_operands) {
+      if (operand->Is<Literal>()) {
+        Value operand_value = operand->As<Literal>()->value();
+        CHECK(operand_value.IsBits());
+        if (!literal_value.has_value()) {
+          literal_value = operand_value.bits();
+        } else {
+          literal_value = bits_ops::And(*literal_value, operand_value.bits());
+        }
+      }
+    }
+    if (literal_value.has_value() && literal_value->IsZero()) {
+      return f->MakeNodeWithName<Literal>(loc.value_or(SourceInfo()),
+                                          Value(*literal_value), name);
+    }
+    if (literal_value.has_value() && literal_value->IsAllOnes()) {
+      literal_value = std::nullopt;
+    }
+  }
+
+  std::vector<Node*> unique_operands = RemoveRedundantNodes(
+      new_operands,
+      /*drop_literal=*/combine_literals
+          ? std::make_optional([](const Value&) { return true; })
+          : std::nullopt);
+  if (literal_value.has_value()) {
+    XLS_ASSIGN_OR_RETURN(Node * literal,
+                         f->MakeNode<Literal>(loc.value_or(SourceInfo()),
+                                              Value(*literal_value)));
+    unique_operands.push_back(literal);
+  }
+
+  if (unique_operands.empty()) {
+    return f->MakeNodeWithName<Literal>(
+        loc.value_or(SourceInfo()), AllOnesOfType(operands.front()->GetType()),
+        name);
+  }
+
+  if (unique_operands.size() == 1) {
+    return unique_operands.front();
+  }
+
+  if (!loc.has_value()) {
+    loc = unique_operands.front()->loc();
+    for (Node* operand : unique_operands) {
+      loc = loc->Extend(operand->loc());
+    }
+  }
+
+  return NaryAndIfNeeded(f, unique_operands, name, *loc);
+}
+
+absl::StatusOr<Node*> ReplaceWithAnd(Node* old_node,
+                                     absl::Span<Node* const> new_nodes,
+                                     bool combine_literals,
+                                     std::string_view name,
+                                     std::optional<SourceInfo> loc) {
+  FunctionBase* f = old_node->function_base();
+  std::vector<Node*> operands;
+  operands.reserve(new_nodes.size() + 1);
+  operands.push_back(old_node);
+  absl::c_copy(new_nodes, std::back_inserter(operands));
+
+  XLS_ASSIGN_OR_RETURN(Node * replacement,
+                       JoinWithAnd(f, operands, combine_literals, name, loc));
+  if (f->IsStaged(old_node) && !f->IsStaged(replacement)) {
+    XLS_ASSIGN_OR_RETURN(int64_t stage_index,
+                         old_node->function_base()->GetStageIndex(old_node));
+    XLS_RETURN_IF_ERROR(old_node->function_base()
+                            ->AddNodeToStage(stage_index, replacement)
+                            .status());
+  }
+  // Take over the name of the old node, if possible; not all replacement nodes
+  // have configurable names (e.g. ports).
+  if (!old_node->OpIn({Op::kInputPort, Op::kOutputPort, Op::kParam}) &&
+      !replacement->OpIn({Op::kInputPort, Op::kOutputPort, Op::kParam}) &&
+      old_node->HasAssignedName() &&
+      (name.empty() || name == old_node->GetNameView())) {
+    std::string old_name = old_node->GetName();
+    old_node->ClearName();
+    replacement->SetNameDirectly(old_name);
+  }
+  XLS_RETURN_IF_ERROR(old_node->ReplaceUsesWith(replacement));
+  return replacement;
+}
+
+absl::StatusOr<Node*> JoinWithOr(FunctionBase* f,
+                                 absl::Span<Node* const> operands,
+                                 bool combine_literals, std::string_view name,
+                                 std::optional<SourceInfo> loc) {
+  XLS_RET_CHECK(!operands.empty());
+  for (Node* operand : operands) {
+    XLS_RET_CHECK_EQ(operand->function_base(), f);
+  }
+
+  std::vector<Node*> new_operands;
+  new_operands.reserve(operands.size());
+  for (Node* operand : operands) {
+    if (operand->op() == Op::kOr) {
+      absl::c_copy(operand->operands(), std::back_inserter(new_operands));
+    } else {
+      new_operands.push_back(operand);
+    }
+  }
+
+  std::optional<Bits> literal_value;
+  if (combine_literals) {
+    for (Node* operand : new_operands) {
+      if (operand->Is<Literal>()) {
+        Value operand_value = operand->As<Literal>()->value();
+        CHECK(operand_value.IsBits());
+        if (!literal_value.has_value()) {
+          literal_value = operand_value.bits();
+        } else {
+          literal_value = bits_ops::Or(*literal_value, operand_value.bits());
+        }
+      }
+    }
+    if (literal_value.has_value() && literal_value->IsAllOnes()) {
+      return f->MakeNodeWithName<Literal>(loc.value_or(SourceInfo()),
+                                          Value(*literal_value), name);
+    }
+    if (literal_value.has_value() && literal_value->IsZero()) {
+      literal_value = std::nullopt;
+    }
+  }
+
+  std::vector<Node*> unique_operands = RemoveRedundantNodes(
+      new_operands,
+      /*drop_literal=*/combine_literals
+          ? std::make_optional([](const Value&) { return true; })
+          : std::nullopt);
+  if (literal_value.has_value()) {
+    XLS_ASSIGN_OR_RETURN(Node * literal,
+                         f->MakeNode<Literal>(loc.value_or(SourceInfo()),
+                                              Value(*literal_value)));
+    unique_operands.push_back(literal);
+  }
+
+  if (unique_operands.empty()) {
+    return f->MakeNodeWithName<Literal>(
+        loc.value_or(SourceInfo()),
+        Value(ZeroOfType(operands.front()->GetType())), name);
+  }
+
+  if (unique_operands.size() == 1) {
+    return unique_operands.front();
+  }
+
+  if (!loc.has_value()) {
+    loc = operands.front()->loc();
+    for (Node* operand : operands) {
+      loc = loc->Extend(operand->loc());
+    }
+  }
+
+  return NaryOrIfNeeded(f, unique_operands, name, *loc);
+}
+
+absl::StatusOr<Node*> ReplaceWithOr(Node* old_node,
+                                    absl::Span<Node* const> new_nodes,
+                                    bool combine_literals,
+                                    std::string_view name,
+                                    std::optional<SourceInfo> loc) {
+  FunctionBase* f = old_node->function_base();
+  std::vector<Node*> operands;
+  operands.reserve(new_nodes.size() + 1);
+  operands.push_back(old_node);
+  absl::c_copy(new_nodes, std::back_inserter(operands));
+
+  XLS_ASSIGN_OR_RETURN(Node * replacement,
+                       JoinWithOr(f, operands, combine_literals, name, loc));
+  if (f->IsStaged(old_node) && !f->IsStaged(replacement)) {
+    XLS_ASSIGN_OR_RETURN(int64_t stage_index,
+                         old_node->function_base()->GetStageIndex(old_node));
+    XLS_RETURN_IF_ERROR(old_node->function_base()
+                            ->AddNodeToStage(stage_index, replacement)
+                            .status());
+  }
+  // Take over the name of the old node, if possible; not all replacement nodes
+  // have configurable names (e.g. ports).
+  if (!old_node->OpIn({Op::kInputPort, Op::kOutputPort, Op::kParam}) &&
+      !replacement->OpIn({Op::kInputPort, Op::kOutputPort, Op::kParam}) &&
+      old_node->HasAssignedName() &&
+      (name.empty() || name == old_node->GetNameView())) {
+    std::string old_name = old_node->GetName();
+    old_node->ClearName();
+    replacement->SetNameDirectly(old_name);
+  }
+  XLS_RETURN_IF_ERROR(old_node->ReplaceUsesWith(replacement));
+  return replacement;
+}
+
 bool IsUnsignedCompare(Node* node) {
   switch (node->op()) {
     case Op::kEq:
@@ -744,7 +958,7 @@ absl::StatusOr<Node*> ReplaceTupleElementsWith(Node* node, int64_t index,
   return ReplaceTupleElementsWith(node, {{index, replacement_element}});
 }
 
-bool IsBinarySelect(Node* node) {
+bool IsBinarySelectTwoCases(Node* node) {
   if (!node->Is<Select>()) {
     return false;
   }
@@ -758,6 +972,42 @@ bool IsBinaryPrioritySelect(Node* node) {
   }
   PrioritySelect* sel = node->As<PrioritySelect>();
   return sel->cases().size() == 1;
+}
+
+absl::StatusOr<std::optional<BinarySelectView>> MatchBinarySelectLike(
+    Node* node) {
+  if (IsBinarySelectTwoCases(node)) {
+    Select* sel = node->As<Select>();
+    XLS_RET_CHECK_EQ(sel->selector()->BitCountOrDie(), 1);
+    return BinarySelectView{.selector = sel->selector(),
+                            .on_false = sel->get_case(0),
+                            .on_true = sel->get_case(1)};
+  }
+  // A Select with one case plus a default can also represent a binary mux when
+  // the selector is 1-bit:
+  //
+  //   sel(p, cases=[x], default=y)  =>  p==0 ? x : y
+  //
+  // In this case we treat `x` as the on-false arm and `y` as the on-true arm.
+  if (node->Is<Select>()) {
+    Select* sel = node->As<Select>();
+    if (sel->cases().size() == 1 && sel->default_value().has_value()) {
+      if (sel->selector()->BitCountOrDie() != 1) {
+        return std::nullopt;
+      }
+      return BinarySelectView{.selector = sel->selector(),
+                              .on_false = sel->get_case(0),
+                              .on_true = *sel->default_value()};
+    }
+  }
+  if (IsBinaryPrioritySelect(node)) {
+    PrioritySelect* sel = node->As<PrioritySelect>();
+    XLS_RET_CHECK_EQ(sel->selector()->BitCountOrDie(), 1);
+    return BinarySelectView{.selector = sel->selector(),
+                            .on_false = sel->default_value(),
+                            .on_true = sel->get_case(0)};
+  }
+  return std::nullopt;
 }
 
 absl::StatusOr<absl::flat_hash_map<Channel*, std::vector<Node*>>> ChannelUsers(

@@ -19,7 +19,6 @@ load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_python//python:proto.bzl", "py_proto_library")
-load("@xls_pip_deps//:requirements.bzl", "requirement")
 
 # Load proto_library
 load("//xls/build_rules:genrule_wrapper.bzl", "genrule_wrapper")
@@ -649,7 +648,6 @@ cc_library(
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/container:btree",
-        "@com_google_absl//absl/container:fixed_array",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/container:inlined_vector",
@@ -827,6 +825,7 @@ cc_library(
     ],
     deps = [
         "//xls/common:strong_int",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
@@ -1760,6 +1759,7 @@ cc_library(
         "//xls/common/status:ret_check",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
@@ -2148,7 +2148,10 @@ cc_test(
 cc_test(
     name = "proc_elaboration_test",
     srcs = ["proc_elaboration_test.cc"],
-    data = ["//xls/examples:proc_network.ir"],
+    data = [
+        "//xls/examples:proc_network.ir",
+        "//xls/examples:proc_network_proc_scoped.ir",
+    ],
     deps = [
         ":bits",
         ":channel",

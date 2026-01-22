@@ -135,5 +135,6 @@ pytype_strict_binary(
         "//xls/common:gfile",
         "@abseil-py//absl:app",
         "@abseil-py//absl/flags",
+        "@xls_pip_deps//matplotlib",
     ],
 )

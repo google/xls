@@ -55,7 +55,7 @@
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/scheduling/scheduling_result.h"
-#include "xls/tools/codegen.h"
+#include "xls/tools/schedule.h"
 
 namespace xls::codegen {
 namespace {
@@ -108,12 +108,11 @@ class FunctionIOLoweringPassTest : public IrTestBase {
 
   // Runs PipelineRegisterInsertionPass and BlockFinalizationPass, then
   // verify & return the output of block interpretation.
-  absl::StatusOr<Value> RunFunctionalTest(Package* p, Block* block,
-                                          absl::Span<const Value> inputs,
-                                          int64_t expected_latency,
-                                          FunctionalTestOptions options = {}) {
+  absl::StatusOr<Value> RunFunctionalTest(
+      Package* p, Block* block, const BlockConversionPassOptions& pass_options,
+      absl::Span<const Value> inputs, int64_t expected_latency,
+      FunctionalTestOptions options = {}) {
     std::string block_name = block->name();
-    BlockConversionPassOptions pass_options;
     PassResults pass_results;
     XLS_RETURN_IF_ERROR(PipelineRegisterInsertionPass()
                             .Run(p, pass_options, &pass_results)
@@ -131,22 +130,34 @@ class FunctionIOLoweringPassTest : public IrTestBase {
     const int64_t output_cycle =
         options.input_valid_delay + expected_latency - 1;
     in_values.resize(num_cycles);
+    const bool has_reset = pass_options.codegen_options.reset().has_value();
+    const bool has_input_valid = options.input_valid.has_value();
+    const int64_t value_offset =
+        (has_reset ? 1 : 0) + (has_input_valid ? 1 : 0);
     XLS_RET_CHECK_EQ(sim_block->GetInputPorts().size(),
-                     (options.input_valid.has_value() ? 1 : 0) + inputs.size());
+                     value_offset + inputs.size());
     for (int64_t i = 0; i < sim_block->GetInputPorts().size(); ++i) {
       std::string_view input_name = sim_block->GetInputPorts()[i]->name();
-      Value input_value;
-      if (options.input_valid.has_value()) {
-        if (i == 0) {
-          input_value = Value(UBits(1, 1));
-        } else {
-          input_value = inputs[i - 1];
+      if (has_reset && i == 0) {
+        Value reset_disabled = Value(UBits(
+            pass_options.codegen_options.reset()->active_low() ? 1 : 0, 1));
+        for (int64_t j = 0; j < num_cycles; ++j) {
+          in_values[j].emplace(input_name, reset_disabled);
         }
+        continue;
+      }
+
+      Value input_value;
+      if (i < value_offset) {
+        XLS_RET_CHECK(has_input_valid);
+        XLS_RET_CHECK_EQ(i, value_offset - 1);
+        // input_valid should be 1 whenever we have a valid input.
+        input_value = Value(UBits(1, 1));
       } else {
-        input_value = inputs[i];
+        input_value = inputs[i - value_offset];
       }
       for (int64_t j = 0; j <= options.input_valid_delay; ++j) {
-        if (i == 0 && j < options.input_valid_delay) {
+        if (i == value_offset - 1 && j < options.input_valid_delay) {
           in_values[j].emplace(input_name, Value(UBits(0, 1)));
         } else {
           in_values[j].emplace(input_name, input_value);
@@ -221,7 +232,7 @@ TEST_F(FunctionIOLoweringPassTest, SingleStage) {
               ElementsAre(Property(&PortNode::GetName, "out")));
   EXPECT_EQ(sb->stages().size(), 1);
 
-  EXPECT_THAT(RunFunctionalTest(p.get(), sb, inputs,
+  EXPECT_THAT(RunFunctionalTest(p.get(), sb, options, inputs,
                                 /*expected_latency=*/1),
               IsOkAndHolds(expected_output));
 }
@@ -264,7 +275,7 @@ TEST_F(FunctionIOLoweringPassTest, SingleStageWithInputValid) {
   EXPECT_EQ(sb->stages().size(), 1);
 
   EXPECT_THAT(
-      RunFunctionalTest(p.get(), sb, inputs,
+      RunFunctionalTest(p.get(), sb, options, inputs,
                         /*expected_latency=*/1, {.input_valid = "x_valid"}),
       IsOkAndHolds(expected_output));
 }
@@ -286,12 +297,13 @@ TEST_F(FunctionIOLoweringPassTest, SingleStageWithIOValid) {
                            InterpreterResultToStatusOrValue(result));
   ASSERT_EQ(expected_output, Value(UBits(42, 32)));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      BlockConversionPassOptions options,
-      CreateBlockConversionPassOptions(
-          p.get(), /*pipeline_stages=*/1,
-          ::xls::verilog::CodegenOptions().clock_name("clk").valid_control(
-              "x_valid", "out_valid")));
+  XLS_ASSERT_OK_AND_ASSIGN(BlockConversionPassOptions options,
+                           CreateBlockConversionPassOptions(
+                               p.get(), /*pipeline_stages=*/1,
+                               ::xls::verilog::CodegenOptions()
+                                   .clock_name("clk")
+                                   .reset("rst", false, false, false)
+                                   .valid_control("x_valid", "out_valid")));
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb,
                            CreateScheduledBlock(p.get(), "id_func", options));
 
@@ -300,7 +312,8 @@ TEST_F(FunctionIOLoweringPassTest, SingleStageWithIOValid) {
               IsOkAndHolds(true));
 
   EXPECT_THAT(sb->GetInputPorts(),
-              ElementsAre(Property(&PortNode::GetName, "x_valid"),
+              ElementsAre(Property(&PortNode::GetName, "rst"),
+                          Property(&PortNode::GetName, "x_valid"),
                           Property(&PortNode::GetName, "x")));
   EXPECT_THAT(sb->GetOutputPorts(),
               ElementsAre(Property(&PortNode::GetName, "out_valid"),
@@ -308,7 +321,7 @@ TEST_F(FunctionIOLoweringPassTest, SingleStageWithIOValid) {
   EXPECT_EQ(sb->stages().size(), 1);
 
   EXPECT_THAT(RunFunctionalTest(
-                  p.get(), sb, inputs,
+                  p.get(), sb, options, inputs,
                   /*expected_latency=*/1,
                   {.input_valid = "x_valid", .output_valid = "out_valid"}),
               IsOkAndHolds(expected_output));
@@ -350,7 +363,7 @@ TEST_F(FunctionIOLoweringPassTest, MultiStage) {
               ElementsAre(Property(&PortNode::GetName, "out")));
   EXPECT_EQ(sb->stages().size(), 3);
 
-  EXPECT_THAT(RunFunctionalTest(p.get(), sb, inputs,
+  EXPECT_THAT(RunFunctionalTest(p.get(), sb, options, inputs,
                                 /*expected_latency=*/3),
               IsOkAndHolds(expected_output));
 }
@@ -396,7 +409,7 @@ TEST_F(FunctionIOLoweringPassTest, MultiStageWithInputValid) {
   EXPECT_EQ(sb->stages().size(), 3);
 
   EXPECT_THAT(
-      RunFunctionalTest(p.get(), sb, inputs,
+      RunFunctionalTest(p.get(), sb, options, inputs,
                         /*expected_latency=*/3, {.input_valid = "x_valid"}),
       IsOkAndHolds(expected_output));
 }
@@ -421,12 +434,13 @@ TEST_F(FunctionIOLoweringPassTest, MultiStageWithIOValidDelayed) {
                            InterpreterResultToStatusOrValue(result));
   ASSERT_EQ(expected_output, Value(UBits(42, 32)));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      BlockConversionPassOptions options,
-      CreateBlockConversionPassOptions(
-          p.get(), /*pipeline_stages=*/3,
-          ::xls::verilog::CodegenOptions().clock_name("clk").valid_control(
-              "x_valid", "out_valid")));
+  XLS_ASSERT_OK_AND_ASSIGN(BlockConversionPassOptions options,
+                           CreateBlockConversionPassOptions(
+                               p.get(), /*pipeline_stages=*/3,
+                               ::xls::verilog::CodegenOptions()
+                                   .clock_name("clk")
+                                   .reset("rst", false, false, false)
+                                   .valid_control("x_valid", "out_valid")));
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb,
                            CreateScheduledBlock(p.get(), "id_func", options));
 
@@ -435,14 +449,15 @@ TEST_F(FunctionIOLoweringPassTest, MultiStageWithIOValidDelayed) {
               IsOkAndHolds(true));
 
   EXPECT_THAT(sb->GetInputPorts(),
-              ElementsAre(Property(&PortNode::GetName, "x_valid"),
+              ElementsAre(Property(&PortNode::GetName, "rst"),
+                          Property(&PortNode::GetName, "x_valid"),
                           Property(&PortNode::GetName, "x")));
   EXPECT_THAT(sb->GetOutputPorts(),
               ElementsAre(Property(&PortNode::GetName, "out_valid"),
                           Property(&PortNode::GetName, "out")));
   EXPECT_EQ(sb->stages().size(), 3);
 
-  EXPECT_THAT(RunFunctionalTest(p.get(), sb, inputs,
+  EXPECT_THAT(RunFunctionalTest(p.get(), sb, options, inputs,
                                 /*expected_latency=*/3,
                                 {.input_valid = "x_valid",
                                  .output_valid = "out_valid",
@@ -470,12 +485,13 @@ TEST_F(FunctionIOLoweringPassTest, MultiStageWithIOValid) {
                            InterpreterResultToStatusOrValue(result));
   ASSERT_EQ(expected_output, Value(UBits(42, 32)));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      BlockConversionPassOptions options,
-      CreateBlockConversionPassOptions(
-          p.get(), /*pipeline_stages=*/3,
-          ::xls::verilog::CodegenOptions().clock_name("clk").valid_control(
-              "x_valid", "out_valid")));
+  XLS_ASSERT_OK_AND_ASSIGN(BlockConversionPassOptions options,
+                           CreateBlockConversionPassOptions(
+                               p.get(), /*pipeline_stages=*/3,
+                               ::xls::verilog::CodegenOptions()
+                                   .clock_name("clk")
+                                   .reset("rst", false, false, false)
+                                   .valid_control("x_valid", "out_valid")));
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb,
                            CreateScheduledBlock(p.get(), "id_func", options));
 
@@ -484,7 +500,8 @@ TEST_F(FunctionIOLoweringPassTest, MultiStageWithIOValid) {
               IsOkAndHolds(true));
 
   EXPECT_THAT(sb->GetInputPorts(),
-              ElementsAre(Property(&PortNode::GetName, "x_valid"),
+              ElementsAre(Property(&PortNode::GetName, "rst"),
+                          Property(&PortNode::GetName, "x_valid"),
                           Property(&PortNode::GetName, "x")));
   EXPECT_THAT(sb->GetOutputPorts(),
               ElementsAre(Property(&PortNode::GetName, "out_valid"),
@@ -492,7 +509,7 @@ TEST_F(FunctionIOLoweringPassTest, MultiStageWithIOValid) {
   EXPECT_EQ(sb->stages().size(), 3);
 
   EXPECT_THAT(RunFunctionalTest(
-                  p.get(), sb, inputs,
+                  p.get(), sb, options, inputs,
                   /*expected_latency=*/3,
                   {.input_valid = "x_valid", .output_valid = "out_valid"}),
               IsOkAndHolds(expected_output));
@@ -518,12 +535,13 @@ TEST_F(FunctionIOLoweringPassTest, MultiStageMultiInputWithIOValid) {
                            InterpreterResultToStatusOrValue(result));
   ASSERT_EQ(expected_output, Value(UBits(63, 32)));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      BlockConversionPassOptions options,
-      CreateBlockConversionPassOptions(
-          p.get(), /*pipeline_stages=*/3,
-          ::xls::verilog::CodegenOptions().clock_name("clk").valid_control(
-              "in_valid", "out_valid")));
+  XLS_ASSERT_OK_AND_ASSIGN(BlockConversionPassOptions options,
+                           CreateBlockConversionPassOptions(
+                               p.get(), /*pipeline_stages=*/3,
+                               ::xls::verilog::CodegenOptions()
+                                   .clock_name("clk")
+                                   .reset("rst", false, false, false)
+                                   .valid_control("in_valid", "out_valid")));
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb,
                            CreateScheduledBlock(p.get(), "id_func", options));
 
@@ -532,7 +550,8 @@ TEST_F(FunctionIOLoweringPassTest, MultiStageMultiInputWithIOValid) {
               IsOkAndHolds(true));
 
   EXPECT_THAT(sb->GetInputPorts(),
-              ElementsAre(Property(&PortNode::GetName, "in_valid"),
+              ElementsAre(Property(&PortNode::GetName, "rst"),
+                          Property(&PortNode::GetName, "in_valid"),
                           Property(&PortNode::GetName, "x"),
                           Property(&PortNode::GetName, "y")));
   EXPECT_THAT(sb->GetOutputPorts(),
@@ -541,7 +560,7 @@ TEST_F(FunctionIOLoweringPassTest, MultiStageMultiInputWithIOValid) {
   EXPECT_EQ(sb->stages().size(), 3);
 
   EXPECT_THAT(RunFunctionalTest(
-                  p.get(), sb, inputs,
+                  p.get(), sb, options, inputs,
                   /*expected_latency=*/3,
                   {.input_valid = "x_valid", .output_valid = "out_valid"}),
               IsOkAndHolds(expected_output));
@@ -587,7 +606,7 @@ TEST_F(FunctionIOLoweringPassTest, MultiStageMultiInputWithFloppedInputs) {
               ElementsAre(Property(&PortNode::GetName, "out")));
   EXPECT_EQ(sb->stages().size(), 3);
 
-  EXPECT_THAT(RunFunctionalTest(p.get(), sb, inputs,
+  EXPECT_THAT(RunFunctionalTest(p.get(), sb, options, inputs,
                                 /*expected_latency=*/4),
               IsOkAndHolds(expected_output));
 }
@@ -632,7 +651,7 @@ TEST_F(FunctionIOLoweringPassTest, MultiStageMultiInputWithFloppedOutputs) {
               ElementsAre(Property(&PortNode::GetName, "out")));
   EXPECT_EQ(sb->stages().size(), 3);
 
-  EXPECT_THAT(RunFunctionalTest(p.get(), sb, inputs,
+  EXPECT_THAT(RunFunctionalTest(p.get(), sb, options, inputs,
                                 /*expected_latency=*/4),
               IsOkAndHolds(expected_output));
 }
@@ -678,8 +697,60 @@ TEST_F(FunctionIOLoweringPassTest, MultiStageMultiInputWithFloppedIO) {
               ElementsAre(Property(&PortNode::GetName, "out")));
   EXPECT_EQ(sb->stages().size(), 3);
 
-  EXPECT_THAT(RunFunctionalTest(p.get(), sb, inputs,
+  EXPECT_THAT(RunFunctionalTest(p.get(), sb, options, inputs,
                                 /*expected_latency=*/5),
+              IsOkAndHolds(expected_output));
+}
+
+TEST_F(FunctionIOLoweringPassTest, MultiStageWithFloppedInputsAndValid) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+ fn id_func(x: bits[32], y: bits[32]) -> bits[32] {
+   literal.1: bits[32] = literal(value=1)
+   shll.2: bits[32] = shll(x, literal.1)
+   shrl.3: bits[32] = shrl(shll.2, literal.1)
+   ret add.4: bits[32] = add(shrl.3, y)
+ }
+  )",
+                                                       p.get()));
+  XLS_ASSERT_OK(p->SetTopByName("id_func"));
+
+  std::vector<Value> inputs = {Value(UBits(42, 32)), Value(UBits(21, 32))};
+  XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result,
+                           InterpretFunction(f, inputs));
+  XLS_ASSERT_OK_AND_ASSIGN(Value expected_output,
+                           InterpreterResultToStatusOrValue(result));
+  ASSERT_EQ(expected_output, Value(UBits(63, 32)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(BlockConversionPassOptions options,
+                           CreateBlockConversionPassOptions(
+                               p.get(), /*pipeline_stages=*/3,
+                               ::xls::verilog::CodegenOptions()
+                                   .clock_name("clk")
+                                   .reset("rst", false, false, false)
+                                   .flop_inputs(true)
+                                   .valid_control("in_valid", "out_valid")));
+  XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb,
+                           CreateScheduledBlock(p.get(), "id_func", options));
+
+  PassResults results;
+  ASSERT_THAT(FunctionIOLoweringPass().Run(p.get(), options, &results),
+              IsOkAndHolds(true));
+
+  EXPECT_THAT(sb->GetInputPorts(),
+              ElementsAre(Property(&PortNode::GetName, "rst"),
+                          Property(&PortNode::GetName, "in_valid"),
+                          Property(&PortNode::GetName, "x"),
+                          Property(&PortNode::GetName, "y")));
+  EXPECT_THAT(sb->GetOutputPorts(),
+              ElementsAre(Property(&PortNode::GetName, "out_valid"),
+                          Property(&PortNode::GetName, "out")));
+  EXPECT_EQ(sb->stages().size(), 3);
+
+  EXPECT_THAT(RunFunctionalTest(
+                  p.get(), sb, options, inputs,
+                  /*expected_latency=*/4,
+                  {.input_valid = "in_valid", .output_valid = "out_valid"}),
               IsOkAndHolds(expected_output));
 }
 

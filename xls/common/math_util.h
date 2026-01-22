@@ -15,7 +15,6 @@
 #ifndef XLS_COMMON_MATH_UTIL_H_
 #define XLS_COMMON_MATH_UTIL_H_
 
-#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <functional>

@@ -18,13 +18,14 @@
 #include <memory>
 
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls::codegen {
 
 // Returns a pipeline which converts an unscheduled IR package into a standard
 // block.
-std::unique_ptr<BlockConversionCompoundPass>
-CreateBlockConversionPassPipeline();
+std::unique_ptr<BlockConversionCompoundPass> CreateBlockConversionPassPipeline(
+    OptimizationContext& opt_context);
 
 }  // namespace xls::codegen
 

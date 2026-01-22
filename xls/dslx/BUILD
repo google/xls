@@ -20,7 +20,6 @@ load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
-load("@xls_pip_deps//:requirements.bzl", "requirement")
 load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_contrib_test")
 
 package(
@@ -58,7 +57,7 @@ cc_library(
         "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:parametric_env",
         "//xls/dslx/type_system:type_info",
-        "//xls/dslx/type_system:typecheck_module",
+        "//xls/dslx/type_system_v2:typecheck_module_v2",
         "//xls/ir:bits",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -509,38 +508,6 @@ cc_library(
 )
 
 cc_library(
-    name = "dslx_builtins_signatures",
-    srcs = ["dslx_builtins_signatures.cc"],
-    hdrs = ["dslx_builtins_signatures.h"],
-    deps = [
-        ":channel_direction",
-        ":errors",
-        ":interp_value",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "//xls/dslx/frontend:ast",
-        "//xls/dslx/frontend:ast_node",
-        "//xls/dslx/frontend:builtins_metadata",
-        "//xls/dslx/frontend:pos",
-        "//xls/dslx/type_system:deduce_ctx",
-        "//xls/dslx/type_system:parametric_instantiator",
-        "//xls/dslx/type_system:parametric_with_type",
-        "//xls/dslx/type_system:type",
-        "//xls/dslx/type_system:type_and_parametric_env",
-        "//xls/dslx/type_system:unwrap_meta_type",
-        "@com_google_absl//absl/base:no_destructor",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:span",
-    ],
-)
-
-cc_library(
     name = "error_printer",
     srcs = ["error_printer.cc"],
     hdrs = ["error_printer.h"],
@@ -595,7 +562,6 @@ cc_library(
         "//xls/dslx/frontend:semantics_analysis",
         "//xls/dslx/ir_convert:convert_options",
         "//xls/dslx/type_system:type_info",
-        "//xls/dslx/type_system:typecheck_module",
         "//xls/dslx/type_system_v2:builtin_trait_deriver",
         "//xls/dslx/type_system_v2:trait_deriver",
         "//xls/dslx/type_system_v2:type_inference_error_handler",

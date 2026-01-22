@@ -1,0 +1,74 @@
+module MultidimensionalArray(
+  input wire clk,
+  input wire [47:0] a,
+  input wire [15:0] index,
+  output wire [23:0] out
+);
+  wire [7:0] a_unflattened[0:1][0:2];
+  assign a_unflattened[0][0] = a[7:0];
+  assign a_unflattened[0][1] = a[15:8];
+  assign a_unflattened[0][2] = a[23:16];
+  assign a_unflattened[1][0] = a[31:24];
+  assign a_unflattened[1][1] = a[39:32];
+  assign a_unflattened[1][2] = a[47:40];
+
+  // ===== Pipe stage 0:
+
+  // Registers for pipe stage 0:
+  reg [7:0] a__input_flop[0:1][0:2];
+  reg [15:0] index__input_flop;
+  always @ (posedge clk) begin
+    a__input_flop[0][0] <= a_unflattened[0][0];
+    a__input_flop[0][1] <= a_unflattened[0][1];
+    a__input_flop[0][2] <= a_unflattened[0][2];
+    a__input_flop[1][0] <= a_unflattened[1][0];
+    a__input_flop[1][1] <= a_unflattened[1][1];
+    a__input_flop[1][2] <= a_unflattened[1][2];
+    index__input_flop <= index;
+  end
+
+  // ===== Pipe stage 1:
+
+  // Registers for pipe stage 1:
+  reg [7:0] p0_a[0:1][0:2];
+  reg [15:0] p0_index;
+  always @ (posedge clk) begin
+    p0_a[0][0] <= a__input_flop[0][0];
+    p0_a[0][1] <= a__input_flop[0][1];
+    p0_a[0][2] <= a__input_flop[0][2];
+    p0_a[1][0] <= a__input_flop[1][0];
+    p0_a[1][1] <= a__input_flop[1][1];
+    p0_a[1][2] <= a__input_flop[1][2];
+    p0_index <= index__input_flop;
+  end
+
+  // ===== Pipe stage 2:
+
+  // Registers for pipe stage 2:
+  reg [7:0] p1_a[0:1][0:2];
+  reg [15:0] p1_index;
+  always @ (posedge clk) begin
+    p1_a[0][0] <= p0_a[0][0];
+    p1_a[0][1] <= p0_a[0][1];
+    p1_a[0][2] <= p0_a[0][2];
+    p1_a[1][0] <= p0_a[1][0];
+    p1_a[1][1] <= p0_a[1][1];
+    p1_a[1][2] <= p0_a[1][2];
+    p1_index <= p0_index;
+  end
+
+  // ===== Pipe stage 3:
+  wire [7:0] p3_array_index_55_comb[0:2];
+  assign p3_array_index_55_comb[0] = p1_a[p1_index > 16'h0001 ? 1'h1 : p1_index[0:0]][0];
+  assign p3_array_index_55_comb[1] = p1_a[p1_index > 16'h0001 ? 1'h1 : p1_index[0:0]][1];
+  assign p3_array_index_55_comb[2] = p1_a[p1_index > 16'h0001 ? 1'h1 : p1_index[0:0]][2];
+
+  // Registers for pipe stage 3:
+  reg [7:0] out__output_flop[0:2];
+  always @ (posedge clk) begin
+    out__output_flop[0] <= p3_array_index_55_comb[0];
+    out__output_flop[1] <= p3_array_index_55_comb[1];
+    out__output_flop[2] <= p3_array_index_55_comb[2];
+  end
+  assign out = {out__output_flop[2], out__output_flop[1], out__output_flop[0]};
+endmodule

@@ -636,7 +636,7 @@ class SchedulingOptions {
 using ScheduleCycleMap = absl::flat_hash_map<Node*, int64_t>;
 
 absl::StatusOr<SchedulingOptions> SetUpSchedulingOptions(
-    const SchedulingOptionsFlagsProto& flags, Package* p);
+    const SchedulingOptionsFlagsProto& flags, const Package* p);
 
 absl::StatusOr<DelayEstimator*> SetUpDelayEstimator(
     const SchedulingOptionsFlagsProto& flags);

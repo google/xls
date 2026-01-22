@@ -91,7 +91,7 @@ class FuzzPackageDomainBuilder {
 // Helper to build a package with args domain.
 class PackageWithArgsDomainBuilder {
  public:
-  PackageWithArgsDomainBuilder(int64_t arg_set_count)
+  explicit PackageWithArgsDomainBuilder(int64_t arg_set_count)
       : arg_set_count_(arg_set_count) {}
   fuzztest::Domain<FuzzPackageWithArgs> Build() &&;
   PackageWithArgsDomainBuilder WithOnlyBitsOperations() && {

@@ -286,7 +286,8 @@ static absl::StatusOr<bool> CanonicalizeNode(Node* n) {
   // becomes:
   //
   //   sel = sel(p, case=[b, a])
-  if (IsBinarySelect(n) && n->As<Select>()->selector()->op() == Op::kNot) {
+  if (IsBinarySelectTwoCases(n) &&
+      n->As<Select>()->selector()->op() == Op::kNot) {
     Select* sel = n->As<Select>();
     XLS_RETURN_IF_ERROR(
         sel->ReplaceUsesWithNew<Select>(

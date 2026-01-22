@@ -48,8 +48,8 @@
 #include "xls/scheduling/pipeline_schedule.pb.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/scheduling/scheduling_result.h"
-#include "xls/tools/codegen.h"
 #include "xls/tools/delay_info_flags.pb.h"
+#include "xls/tools/schedule.h"
 #include "xls/tools/scheduling_options_flags.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 

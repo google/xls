@@ -3328,6 +3328,40 @@ fn repro(x: u3) -> u2 {
               TypecheckSucceeds(HasNodeWithType("upper", "uN[2]")));
 }
 
+TEST(TypecheckV2Test, ConstConditionalDisparateTypes) {
+  EXPECT_THAT(R"(
+fn f<N: u32>() -> uN[N] {
+  const if (N == 1) {
+    u1:1
+  } else {
+    zero!<uN[N]>()
+  }
+}
+fn main() {
+  let foo = f<u32:1>();
+  let bar = f<u32:10>();
+  let baz = f<u32:20>();
+}
+  )",
+              TypecheckSucceeds(AllOf(HasNodeWithType("foo", "uN[1]"),
+                                      HasNodeWithType("bar", "uN[10]"),
+                                      HasNodeWithType("baz", "uN[20]"))));
+}
+
+TEST(TypecheckV2Test, ConstConditionalUnableToEvaluate) {
+  EXPECT_THAT(
+      R"(
+fn broken_if(a: u32) -> bool {
+  const if a == u32:1 {
+    true
+  } else {
+    false
+  }
+}
+  )",
+      TypecheckFails(HasSubstr("Unable to evaluate const conditional")));
+}
+
 TEST(TypecheckV2Test, BinopWithConversionForUnification) {
   EXPECT_THAT(R"(
 fn lsb<S: bool, N: u32>(x: xN[S][N]) -> u1 { x as u1 }
@@ -9173,6 +9207,80 @@ const F = Foo { a: C };
 )",
               TypecheckFailsWithPayload(HasSizeMismatch("u32", "u33"),
                                         HasSpan(8, 19, 8, 20)));
+}
+
+// TODO: erinzmoore - Add `const_assert!` statements to lambda tests once
+// constexpr is supported for lambdas.
+TEST(TypecheckV2Test, LambdaWithExplicitTypes) {
+  EXPECT_THAT(R"(
+const M = 0..6;
+
+const ARR = map(M, | i: u16 | -> u16 { 2 * i });
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("M", "uN[3][6]"),
+                                      HasNodeWithType("ARR", "uN[16][6]"))));
+}
+
+TEST(TypecheckV2Test, LambdaWithImplicitParam) {
+  EXPECT_THAT(
+      R"(
+const ARR = map(0..6, | i | -> u16 { i });
+)",
+      TypecheckSucceeds(HasNodeWithType("ARR", "uN[16][6]")));
+}
+
+TEST(TypecheckV2Test, LambdaWithMultipleParams) {
+  EXPECT_THAT(
+      R"(
+fn main() -> u32 {
+  (|i, j| -> u32 {i * j})(2, 4)
+}
+)",
+      TypecheckSucceeds(HasNodeWithType("main", "() -> uN[32]")));
+}
+
+TEST(TypecheckV2Test, LambdaWithMultipleParamsMismatch) {
+  EXPECT_THAT(
+      R"(
+fn main() -> u32 {
+  (|i, j: bool| -> u32 {i * j})(2, u32:4)
+}
+)",
+      TypecheckFails(HasSizeMismatch("bool", "u32")));
+}
+
+TEST(TypecheckV2Test, LambdaWithContextCapture) {
+  EXPECT_THAT(
+      R"(
+fn main() -> u32 {
+  const X = u32:0;
+  let ARR = map(0..5, |i| -> u32 { X * i });
+  ARR[0]
+}
+)",
+      TypecheckSucceeds(HasNodeWithType("ARR", "uN[32][5]")));
+}
+
+TEST(TypecheckV2Test, LambdaWithContextParamsTypeMismatch) {
+  EXPECT_THAT(
+      R"(
+fn main() {
+  const X = false;
+  let ARR = map(0..5, |i| -> u32 { X * i });
+}
+)",
+      TypecheckFails(HasSizeMismatch("uN[1]", "uN[32]")));
+}
+
+// TODO: Support lambdas in constant_collector.
+TEST(TypecheckV2Test, DISABLED_LambdaConstEval) {
+  EXPECT_THAT(R"(
+const X = u32:3;
+const ARR = map(0..5, |i: u32| -> u32 { X * i });
+const TEST = uN[ARR[1]]:0;
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("ARR", "uN[32][5]"),
+                                      HasNodeWithType("TEST", "uN[3]"))));
 }
 
 }  // namespace

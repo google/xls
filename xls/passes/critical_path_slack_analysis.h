@@ -28,7 +28,7 @@ namespace xls {
 
 class CriticalPathSlackAnalysis : public LazyNodeData<int64_t> {
  public:
-  CriticalPathSlackAnalysis(
+  explicit CriticalPathSlackAnalysis(
       const CriticalPathDelayAnalysis* critical_path_delay_analysis)
       : LazyNodeData<int64_t>(DagCacheInvalidateDirection::kInvalidatesBoth),
         critical_path_delay_analysis_(critical_path_delay_analysis) {}

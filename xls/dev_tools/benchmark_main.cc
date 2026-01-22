@@ -92,6 +92,7 @@
 #include "xls/tools/codegen.h"
 #include "xls/tools/codegen_flags.h"
 #include "xls/tools/codegen_flags.pb.h"
+#include "xls/tools/schedule.h"
 #include "xls/tools/scheduling_options_flags.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 
@@ -442,7 +443,7 @@ absl::Status PrintScheduleInfo(FunctionBase* f,
   return absl::OkStatus();
 }
 
-absl::Status PrintProcInfo(Proc* p) {
+absl::StatusOr<std::string> ProcInfo(Proc* p) {
   XLS_RET_CHECK(p != nullptr);
 
   int64_t total_flops = 0;
@@ -450,9 +451,7 @@ absl::Status PrintProcInfo(Proc* p) {
     total_flops += state_element->type()->GetFlatBitCount();
   }
 
-  std::cout << absl::StreamFormat("Total state flops: %d\n", total_flops);
-
-  return absl::OkStatus();
+  return absl::StrFormat("Total state flops: %d\n", total_flops);
 }
 
 // Invokes `f` until (approximately) at least`duration_ms` milliseconds have
@@ -865,6 +864,10 @@ absl::Status RealMain(std::string_view path) {
                     scheduling_options_flags_proto.clock_period_ps())
               : std::nullopt));
     }
+
+    XLS_ASSIGN_OR_RETURN(std::string proc_info,
+                         f->IsProc() ? ProcInfo(f->AsProcOrDie()) : "");
+
     XLS_ASSIGN_OR_RETURN(
         verilog::CodegenResult codegen_result,
         Codegen(package.get(), scheduling_options_flags_proto,
@@ -884,9 +887,8 @@ absl::Status RealMain(std::string_view path) {
             .size());
 
     // Print out state information for procs.
-    if (f->IsProc()) {
-      XLS_RETURN_IF_ERROR(PrintProcInfo(f->AsProcOrDie()));
-    }
+    std::cout << proc_info;
+
     if (absl::GetFlag(FLAGS_run_evaluators)) {
       XLS_RETURN_IF_ERROR(
           RunInterpreterAndJit(package->blocks()[0].get(), "block"));

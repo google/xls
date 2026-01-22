@@ -153,14 +153,12 @@ void ExpectIr(std::string_view got) {
 
 absl::StatusOr<std::string> ConvertOneFunctionForTest(
     std::string_view program, std::string_view fn_name, ImportData& import_data,
-    const ConvertOptions& options,
-    std::optional<TypeInferenceVersion> force_typecheck_version =
-        std::nullopt) {
+    const ConvertOptions& options) {
   XLS_ASSIGN_OR_RETURN(
       TypecheckedModule tm,
       ParseAndTypecheck(program, /*path=*/"test_module.x",
                         /*module_name=*/"test_module", &import_data,
-                        /*comments=*/nullptr, force_typecheck_version));
+                        /*comments=*/nullptr));
   return ConvertOneFunction(tm.module, /*entry_function_name=*/fn_name,
                             &import_data,
                             /*parametric_env=*/nullptr, options);
@@ -168,19 +166,14 @@ absl::StatusOr<std::string> ConvertOneFunctionForTest(
 
 absl::StatusOr<std::string> ConvertOneFunctionForTest(
     std::string_view program, std::string_view fn_name,
-    const ConvertOptions& options = kNoPosOptions,
-    std::optional<TypeInferenceVersion> force_typecheck_version =
-        std::nullopt) {
+    const ConvertOptions& options = kNoPosOptions) {
   auto import_data = CreateImportDataForTest();
-  return ConvertOneFunctionForTest(program, fn_name, import_data, options,
-                                   force_typecheck_version);
+  return ConvertOneFunctionForTest(program, fn_name, import_data, options);
 }
 
 absl::StatusOr<std::string> ConvertModuleForTest(
     std::string_view program, const ConvertOptions& options = kNoPosOptions,
-    ImportData* import_data = nullptr,
-    std::optional<TypeInferenceVersion> force_typecheck_version =
-        std::nullopt) {
+    ImportData* import_data = nullptr) {
   std::optional<ImportData> import_data_value;
   if (import_data == nullptr) {
     import_data_value.emplace(CreateImportDataForTest());
@@ -189,8 +182,7 @@ absl::StatusOr<std::string> ConvertModuleForTest(
   XLS_ASSIGN_OR_RETURN(
       TypecheckedModule tm,
       ParseAndTypecheck(program, "test_module.x", "test_module", import_data,
-                        /*comments=*/nullptr, force_typecheck_version,
-                        options));
+                        /*comments=*/nullptr, options));
   XLS_ASSIGN_OR_RETURN(std::string converted,
                        ConvertModule(tm.module, import_data, options));
   return converted;
@@ -201,31 +193,28 @@ class IrConverterLegacyTest : public ::testing::Test {
   absl::StatusOr<std::string> ConvertOneFunctionForTest(
       std::string_view program, std::string_view fn_name,
       ImportData& import_data, const ConvertOptions& options) {
-    return ::xls::dslx::ConvertOneFunctionForTest(
-        program, fn_name, import_data, options,
-        TypeInferenceVersion::kVersion2);
+    return ::xls::dslx::ConvertOneFunctionForTest(program, fn_name, import_data,
+                                                  options);
   }
 
   absl::StatusOr<std::string> ConvertOneFunctionForTest(
       std::string_view program, std::string_view fn_name,
       const ConvertOptions& options = kNoPosOptions) {
-    return ::xls::dslx::ConvertOneFunctionForTest(
-        program, fn_name, options, TypeInferenceVersion::kVersion2);
+    return ::xls::dslx::ConvertOneFunctionForTest(program, fn_name, options);
   }
 
   absl::StatusOr<std::string> ConvertModuleForTest(
       std::string_view program, const ConvertOptions& options = kNoPosOptions,
       ImportData* import_data = nullptr) {
-    return ::xls::dslx::ConvertModuleForTest(program, options, import_data,
-                                             TypeInferenceVersion::kVersion2);
+    return ::xls::dslx::ConvertModuleForTest(program, options, import_data);
   }
 
   absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
       std::string_view program, std::string_view path,
       std::string_view module_name, ImportData* import_data = nullptr) {
-    return ::xls::dslx::ParseAndTypecheck(
-        program, path, module_name, import_data,
-        /*comments=*/nullptr, TypeInferenceVersion::kVersion2);
+    return ::xls::dslx::ParseAndTypecheck(program, path, module_name,
+                                          import_data,
+                                          /*comments=*/nullptr);
   }
 };
 

@@ -1,0 +1,30 @@
+module BinarySelect(
+  input wire clk,
+  input wire s,
+  input wire [7:0] x,
+  input wire [7:0] y,
+  output wire [7:0] out
+);
+  // ===== Pipe stage 0:
+
+  // Registers for pipe stage 0:
+  reg s__input_flop;
+  reg [7:0] x__input_flop;
+  reg [7:0] y__input_flop;
+  always @ (posedge clk) begin
+    s__input_flop <= s;
+    x__input_flop <= x;
+    y__input_flop <= y;
+  end
+
+  // ===== Pipe stage 1:
+  wire [7:0] p1_sel_29_comb;
+  assign p1_sel_29_comb = s__input_flop ? x__input_flop : y__input_flop;
+
+  // Registers for pipe stage 1:
+  reg [7:0] out__output_flop;
+  always @ (posedge clk) begin
+    out__output_flop <= p1_sel_29_comb;
+  end
+  assign out = out__output_flop;
+endmodule

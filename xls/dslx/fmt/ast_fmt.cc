@@ -1629,14 +1629,19 @@ DocRef Fmt(const String& n, Comments& comments, DocArena& arena) {
 //  if <break1> $test_expr <break1> {
 DocRef MakeConditionalTest(const Conditional& n, Comments& comments,
                            DocArena& arena) {
-  return ConcatN(
-      arena, {
-                 arena.Make(Keyword::kIf),
-                 arena.space(),
-                 FmtExpr(*n.test(), comments, arena, /*suppress_parens=*/true),
-                 arena.space(),
-                 arena.ocurl(),
-             });
+  std::vector<DocRef> pieces;
+  if (n.IsConst() && !n.IsElseIf()) {
+    pieces.push_back(arena.Make(Keyword::kConst));
+    pieces.push_back(arena.space());
+  }
+  pieces.push_back(arena.Make(Keyword::kIf));
+  pieces.push_back(arena.space());
+  pieces.push_back(
+      FmtExpr(*n.test(), comments, arena, /*suppress_parens=*/true));
+  pieces.push_back(arena.space());
+  pieces.push_back(arena.ocurl());
+
+  return ConcatNGroup(arena, pieces);
 }
 
 // When there's an else-if, or multiple statements inside of the blocks, we
@@ -3123,6 +3128,11 @@ absl::StatusOr<DocRef> Formatter::Format(const Module& n) {
           break;
         case ModuleAttribute::kChannelAttributes:
           pieces.push_back(arena_.MakeText("#![feature(channel_attributes)]"));
+          pieces.push_back(arena_.hard_line());
+          break;
+        case ModuleAttribute::kExplicitStateAccess:
+          pieces.push_back(
+              arena_.MakeText("#![feature(explicit_state_access)]"));
           pieces.push_back(arena_.hard_line());
           break;
         case ModuleAttribute::kGenerics:

@@ -170,12 +170,11 @@ class IrConverterTest : public ::testing::Test {
       std::string_view program, std::string_view fn_name,
       ImportData& import_data,
       const ConvertOptions& options = kProcScopedChannelOptions) {
-    XLS_ASSIGN_OR_RETURN(
-        TypecheckedModule tm,
-        ::xls::dslx::ParseAndTypecheck(
-            program, /*path=*/"test_module.x",
-            /*module_name=*/"test_module", &import_data,
-            /*comments=*/nullptr, TypeInferenceVersion::kVersion2));
+    XLS_ASSIGN_OR_RETURN(TypecheckedModule tm,
+                         ::xls::dslx::ParseAndTypecheck(
+                             program, /*path=*/"test_module.x",
+                             /*module_name=*/"test_module", &import_data,
+                             /*comments=*/nullptr));
     return ConvertOneFunction(tm.module, /*entry_function_name=*/fn_name,
                               &import_data,
                               /*parametric_env=*/nullptr, options);
@@ -199,9 +198,9 @@ class IrConverterTest : public ::testing::Test {
     }
     XLS_ASSIGN_OR_RETURN(
         TypecheckedModule tm,
-        ::xls::dslx::ParseAndTypecheck(
-            program, "test_module.x", "test_module", import_data,
-            /*comments=*/nullptr, TypeInferenceVersion::kVersion2, options));
+        ::xls::dslx::ParseAndTypecheck(program, "test_module.x", "test_module",
+                                       import_data,
+                                       /*comments=*/nullptr, options));
     XLS_ASSIGN_OR_RETURN(std::string converted,
                          ConvertModule(tm.module, import_data, options));
     return converted;
@@ -210,9 +209,9 @@ class IrConverterTest : public ::testing::Test {
   absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
       std::string_view program, std::string_view path,
       std::string_view module_name, ImportData* import_data = nullptr) {
-    return ::xls::dslx::ParseAndTypecheck(
-        program, path, module_name, import_data,
-        /*comments=*/nullptr, TypeInferenceVersion::kVersion2);
+    return ::xls::dslx::ParseAndTypecheck(program, path, module_name,
+                                          import_data,
+                                          /*comments=*/nullptr);
   }
 };
 
@@ -906,6 +905,23 @@ fn foo(a: bool) -> u8 {
   x + y + z
 }
 )";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, ConstConditional) {
+  constexpr std::string_view program =
+      R"(
+fn main() -> u32 {
+  const if true {
+    u16:42
+  } else {
+    u8:24
+  } as u32
+}
+)";
+
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
                            ConvertModuleForTest(program));
   ExpectIr(converted);
@@ -6860,6 +6876,80 @@ pub proc Main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(program, "Main", import_data));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, MultipleSpawnsTestAndTopNoTests) {
+  ImportData import_data = CreateImportDataForTest();
+  constexpr std::string_view kMain = R"(
+pub proc ParametricProc<DATA_W: u32, ADDR_W: u32> {
+    init {}
+    config() { }
+    next(_: ()) { }
+}
+
+#[test_proc]
+proc TestProc {
+    terminator: chan<bool> out;
+    init {}
+    config(terminator: chan<bool> out) {
+        spawn ParametricProc<u32:64, u32:32>();
+        (terminator, )
+    }
+    next(_: ()) { }
+}
+
+proc TopProc {
+    init {}
+    config() {
+        spawn ParametricProc<u32:64, u32:16>();
+    }
+    next(_: ()) {}
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted, ConvertModuleForTest(kMain));
+
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, MultipleSpawnsTestAndTop) {
+  ImportData import_data = CreateImportDataForTest();
+  constexpr std::string_view kMain = R"(
+pub proc ParametricProc<DATA_W: u32, ADDR_W: u32> {
+    init {}
+    config() { }
+    next(_: ()) { }
+}
+
+#[test_proc]
+proc TestProc {
+    terminator: chan<bool> out;
+    init {}
+    config(terminator: chan<bool> out) {
+        spawn ParametricProc<u32:64, u32:32>();
+        (terminator, )
+    }
+    next(_: ()) { }
+}
+
+proc TopProc {
+    init {}
+    config() {
+        spawn ParametricProc<u32:64, u32:16>();
+    }
+    next(_: ()) {}
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kMain, ConvertOptions{
+                                      .emit_positions = false,
+                                      .convert_tests = true,
+                                      .lower_to_proc_scoped_channels = true,
+                                  }));
+
   ExpectIr(converted);
 }
 

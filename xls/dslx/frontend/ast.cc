@@ -115,6 +115,8 @@ std::string_view FunctionTagToString(FunctionTag tag) {
       return "proc next";
     case FunctionTag::kProcInit:
       return "proc init";
+    case FunctionTag::kLambda:
+      return "lambda";
   }
   LOG(FATAL) << "Out-of-range function tag: " << static_cast<int>(tag);
 }
@@ -695,12 +697,13 @@ NameDef::~NameDef() = default;
 Conditional::Conditional(Module* owner, Span span, Expr* test,
                          StatementBlock* consequent,
                          std::variant<StatementBlock*, Conditional*> alternate,
-                         bool in_parens, bool has_else)
+                         bool in_parens, bool has_else, bool is_const)
     : Expr(owner, std::move(span), in_parens),
       test_(test),
       consequent_(consequent),
       alternate_(alternate),
-      has_else_(has_else) {}
+      has_else_(has_else),
+      is_const_(is_const) {}
 
 Conditional::~Conditional() = default;
 
@@ -719,23 +722,44 @@ std::vector<StatementBlock*> Conditional::GatherBlocks() {
   return blocks;
 }
 
-std::string Conditional::ToStringInternal() const {
-  std::string inline_str = absl::StrFormat(
-      R"(if %s %s%s)", test_->ToInlineString(), consequent_->ToInlineString(),
-      has_else_
-          ? absl::StrFormat(" else %s", ToAstNode(alternate_)->ToInlineString())
-          : std::string());
+bool Conditional::IsElseIf() const {
+  if (parent() == nullptr) {
+    return false;
+  }
 
+  if (parent()->kind() == AstNodeKind::kConditional) {
+    AstNode* parent_node = parent();
+    Conditional* parent = down_cast<Conditional*>(parent_node);
+    return ToAstNode(parent->alternate()) == this;
+  }
+
+  return false;
+}
+
+std::string Conditional::ToStringInternal() const {
+  const std::string_view const_prefix =
+      (is_const_ && !IsElseIf()) ? "const " : "";
+
+  auto make_string = [&](std::string (AstNode::*to_str_fn)()
+                             const) -> std::string {
+    std::string test_str = (test_->*to_str_fn)();
+    std::string then_str = (consequent_->*to_str_fn)();
+    std::string else_str = "";
+    if (has_else_) {
+      else_str =
+          absl::StrFormat(" else %s", (ToAstNode(alternate_)->*to_str_fn)());
+    }
+
+    return absl::StrFormat("%sif %s %s%s", const_prefix, test_str, then_str,
+                           else_str);
+  };
+
+  std::string inline_str = make_string(&AstNode::ToInlineString);
   if (inline_str.size() <= kTargetLineChars) {
     return inline_str;
   }
 
-  return absl::StrFormat(
-      R"(if %s %s%s)", test_->ToString(), consequent_->ToString(),
-      has_else_ ? absl::StrFormat(" else %s", ToAstNode(alternate_)->ToString())
-                : std::string()
-
-  );
+  return make_string(&AstNode::ToString);
 }
 
 bool Conditional::HasMultiStatementBlocks() const {
@@ -1279,6 +1303,16 @@ SelfTypeAnnotation::SelfTypeAnnotation(Module* owner, Span span,
       struct_ref_(struct_ref) {}
 
 SelfTypeAnnotation::~SelfTypeAnnotation() = default;
+
+// -- class ConstConditionalTypeAnnotation
+
+ConstConditionalTypeAnnotation::ConstConditionalTypeAnnotation(
+    Module* owner, Span span, const Expr* test, TypeAnnotation* consequent_type,
+    TypeAnnotation* alternate_type)
+    : TypeAnnotation(owner, std::move(span), kAnnotationKind),
+      test_(test),
+      consequent_type_(consequent_type),
+      alternate_type_(alternate_type) {}
 
 // -- class BuiltinNameDef
 
@@ -2338,26 +2372,10 @@ TestFunction::~TestFunction() = default;
 
 // -- class Lambda
 
-Lambda::Lambda(Module* owner, Span span, std::vector<Param*> params,
-               TypeAnnotation* return_type, StatementBlock* body)
-    : Expr(owner, std::move(span)),
-      params_(std::move(params)),
-      return_type_(return_type),
-      body_(body) {}
+Lambda::Lambda(Module* owner, Span span, Function* function)
+    : Expr(owner, std::move(span)), function_(function) {}
 
 Lambda::~Lambda() = default;
-
-std::vector<AstNode*> Lambda::GetChildren(bool want_types) const {
-  std::vector<AstNode*> results;
-  for (Param* p : params()) {
-    results.push_back(p);
-  }
-  if (return_type_ != nullptr && want_types) {
-    results.push_back(return_type_);
-  }
-  results.push_back(body_);
-  return results;
-}
 
 std::string Lambda::ToStringInternal() const {
   std::string params_str =
@@ -2365,11 +2383,13 @@ std::string Lambda::ToStringInternal() const {
         absl::StrAppend(out, param->ToString());
       });
 
-  std::string return_str = return_type_ != nullptr
-                               ? absl::StrCat(" -> ", return_type_->ToString())
+  auto* tvta = dynamic_cast<TypeVariableTypeAnnotation*>(return_type());
+  bool has_explicit_return = tvta == nullptr || !tvta->internal();
+  std::string return_str = has_explicit_return
+                               ? absl::StrCat(" -> ", return_type()->ToString())
                                : "";
   std::string body_str =
-      body_->size() > 1 ? body_->ToString() : body_->ToInlineString();
+      body()->size() > 1 ? body()->ToString() : body()->ToInlineString();
 
   return absl::StrFormat("|%s|%s %s", params_str, return_str, body_str);
 }

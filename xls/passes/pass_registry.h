@@ -41,7 +41,7 @@ class PassRegistry;
 template <typename OptionsT, typename... ContextT>
 class PassGenerator {
  public:
-  PassGenerator(const PassRegistry<OptionsT, ContextT...>& registry)
+  explicit PassGenerator(const PassRegistry<OptionsT, ContextT...>& registry)
       : registry_(&registry) {}
   PassGenerator(PassGenerator&&) = delete;
   PassGenerator& operator=(PassGenerator&&) = delete;

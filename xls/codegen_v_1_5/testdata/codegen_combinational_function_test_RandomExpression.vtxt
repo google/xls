@@ -1,0 +1,23 @@
+module RandomExpression(
+  input wire [7:0] a,
+  input wire [7:0] b,
+  input wire [7:0] c,
+  output wire [7:0] out
+);
+  // lint_off MULTIPLY
+  function automatic [7:0] umul8b_8b_x_8b (input reg [7:0] lhs, input reg [7:0] rhs);
+    begin
+      umul8b_8b_x_8b = lhs * rhs;
+    end
+  endfunction
+  // lint_on MULTIPLY
+  wire [7:0] diff;
+  wire [7:0] umul_20;
+  wire [7:0] umul_21;
+  wire [7:0] the_output;
+  assign diff = a - b;
+  assign umul_20 = umul8b_8b_x_8b(diff, diff);
+  assign umul_21 = umul8b_8b_x_8b(c, diff);
+  assign the_output = umul_20 + umul_21;
+  assign out = the_output;
+endmodule

@@ -550,7 +550,7 @@ bool CanSimplifyThreeWayCompare(Node* first_compare, Node* second_compare,
 // Simplify the select if it is a three way compare.
 absl::StatusOr<bool> TrySimplifyThreeWayCompareSelect(
     Select* sel, const QueryEngine& query_engine) {
-  if (IsBinarySelect(sel->cases()[0])) {
+  if (IsBinarySelectTwoCases(sel->cases()[0])) {
     // sel(ugt, [sel(ult, [eq_result, ult_result]), ugt_result]) becomes
     // sel(ugt, [sel(eq, [ult_result, eq_result]), ugt_result])
     Select* sub_sel = sel->cases()[0]->As<Select>();
@@ -580,7 +580,7 @@ absl::StatusOr<bool> TrySimplifyThreeWayCompareSelect(
                                std::nullopt)
                             .status());
     return true;
-  } else if (IsBinarySelect(sel->cases()[1])) {
+  } else if (IsBinarySelectTwoCases(sel->cases()[1])) {
     // sel(ule, [ugt_result, sel(uge, [ult_result, eq_result])) becomes
     // sel(ule, [ugt_result, sel(eq, [ult_result, eq_result])])
     Select* sub_sel = sel->cases()[1]->As<Select>();
@@ -1267,7 +1267,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
   // if (a > b) {
   // } else if (a == b) {
   // } else {}  // a < b
-  if (IsBinarySelect(node)) {
+  if (IsBinarySelectTwoCases(node)) {
     Select* sel = node->As<Select>();
     XLS_ASSIGN_OR_RETURN(bool changed,
                          TrySimplifyThreeWayCompareSelect(sel, query_engine));

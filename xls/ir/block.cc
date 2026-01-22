@@ -29,7 +29,6 @@
 
 #include "absl/base/casts.h"
 #include "absl/container/btree_set.h"
-#include "absl/container/fixed_array.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
@@ -43,6 +42,7 @@
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "google/protobuf/text_format.h"
+#include "xls/codegen/module_signature.pb.h"
 #include "xls/common/casts.h"
 #include "xls/common/indent.h"
 #include "xls/common/status/ret_check.h"
@@ -257,16 +257,20 @@ std::vector<Node*> Block::DumpOrder() const {
   return order;
 }
 
-std::string Block::DumpIr() const {
-  std::string res;
-
+std::vector<std::string> Block::AttributeIrStrings() const {
+  std::vector<std::string> res = FunctionBase::AttributeIrStrings();
   if (GetSignature().has_value()) {
     std::string textproto;
     google::protobuf::TextFormat::Printer printer;
     printer.SetSingleLineMode(true);
     printer.PrintToString(*GetSignature(), &textproto);
-    absl::StrAppend(&res, "#[signature(\"\"\"", textproto, "\"\"\")]\n");
+    res.push_back(absl::StrCat("signature(\"\"\"", textproto, "\"\"\")"));
   }
+  return res;
+}
+
+std::string Block::DumpIr() const {
+  std::string res;
   std::vector<std::string> port_strings;
   for (const Port& port : GetPorts()) {
     if (std::holds_alternative<ClockPort*>(port)) {
@@ -755,7 +759,7 @@ absl::Status Block::ReorderInputPorts(
   }
   XLS_RET_CHECK_EQ(port_order.size(), port_names.size())
       << "Port order has duplicate names";
-  for (const Port& port : GetInputPorts()) {
+  for (InputPort* const& port : GetInputPorts()) {
     XLS_RET_CHECK(port_order.contains(PortName(port)))
         << absl::StreamFormat("Port order missing port \"%s\"", PortName(port));
   }
@@ -775,7 +779,7 @@ absl::Status Block::ReorderOutputPorts(
   }
   XLS_RET_CHECK_EQ(port_order.size(), port_names.size())
       << "Port order has duplicate names";
-  for (const Port& port : GetOutputPorts()) {
+  for (OutputPort* const& port : GetOutputPorts()) {
     XLS_RET_CHECK(port_order.contains(PortName(port)))
         << absl::StreamFormat("Port order missing port \"%s\"", PortName(port));
   }
@@ -1329,6 +1333,16 @@ absl::StatusOr<Block*> Block::Clone(
       correct_ordering.push_back(std::string(port->name()));
     }
     XLS_RETURN_IF_ERROR(cloned_block->ReorderOutputPorts(correct_ordering));
+  }
+
+  if (const std::optional<verilog::ModuleSignatureProto>& signature =
+          GetSignature();
+      signature.has_value()) {
+    cloned_block->SetSignature(*signature);
+  }
+  if (std::optional<int64_t> initiation_interval = GetInitiationInterval();
+      initiation_interval.has_value()) {
+    cloned_block->SetInitiationInterval(*initiation_interval);
   }
 
   if (IsScheduled() && preserve_schedule) {

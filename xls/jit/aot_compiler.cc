@@ -14,15 +14,12 @@
 
 #include "xls/jit/aot_compiler.h"
 
-#include <cstdint>
 #include <memory>
 #include <string>
 #include <utility>
-#include <vector>
 
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "llvm/include/llvm/ADT/SmallVector.h"
 #include "llvm/include/llvm/ADT/StringRef.h"

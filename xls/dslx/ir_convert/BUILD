@@ -161,9 +161,7 @@ cc_library(
     deps = [
         "//xls/common/status:status_macros",
         "//xls/dslx:interp_value",
-        "//xls/dslx/type_system:deduce_ctx",
         "//xls/dslx/type_system:parametric_env",
-        "//xls/dslx/type_system:parametric_expression",
         "//xls/dslx/type_system:type",
         "//xls/ir",
         "//xls/ir:type",
@@ -171,7 +169,6 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
@@ -182,14 +179,10 @@ cc_test(
         ":ir_conversion_utils",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "//xls/dslx:interp_value",
-        "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:parametric_env",
-        "//xls/dslx/type_system:parametric_expression",
         "//xls/dslx/type_system:type",
         "//xls/ir",
         "//xls/ir:type",
-        "@com_google_absl//absl/container:flat_hash_map",
         "@googletest//:gtest",
     ],
 )
@@ -474,6 +467,7 @@ cc_library(
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/dslx:interp_value",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_node",
         "//xls/dslx/frontend:ast_utils",

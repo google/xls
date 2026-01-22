@@ -1706,8 +1706,7 @@ bool xls_dslx_type_is_bits_like(struct xls_dslx_type* type,
 // -- type_dim
 
 bool xls_dslx_type_dim_is_parametric(struct xls_dslx_type_dim* td) {
-  auto* cpp_type_dim = reinterpret_cast<xls::dslx::TypeDim*>(td);
-  return cpp_type_dim->IsParametric();
+  return false;
 }
 
 bool xls_dslx_type_dim_get_as_bool(struct xls_dslx_type_dim* td,

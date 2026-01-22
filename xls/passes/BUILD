@@ -18,7 +18,6 @@ load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_python//python:proto.bzl", "py_proto_library")
-load("@xls_pip_deps//:requirements.bzl", "requirement")
 load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary")
 
 # Load proto_library
@@ -302,6 +301,7 @@ cc_test(
 
 cc_test(
     name = "arith_simplification_pass_test",
+    timeout = "long",
     srcs = ["arith_simplification_pass_test.cc"],
     shard_count = 10,
     deps = [
@@ -356,8 +356,10 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:op",
         "//xls/ir:value",
+        "//xls/solvers:z3_ir_equivalence_testutils",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/time",
         "@googletest//:gtest",
     ],
 )
@@ -1064,6 +1066,8 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "@com_google_ortools//ortools/graph",
         "@com_google_ortools//ortools/graph:cliques",
@@ -4635,7 +4639,7 @@ pytype_strict_binary(
     deps = [
         "@abseil-py//absl:app",
         "@abseil-py//absl/flags",
-        requirement("z3-solver"),
+        "@xls_pip_deps//z3_solver",
     ],
 )
 

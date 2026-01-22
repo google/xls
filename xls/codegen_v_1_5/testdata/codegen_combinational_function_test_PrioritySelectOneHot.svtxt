@@ -1,0 +1,18 @@
+module main(
+  input wire p,
+  input wire [15:0] x,
+  input wire [15:0] y,
+  input wire [15:0] d,
+  output wire [15:0] out
+);
+  wire [1:0] one_hot_21;
+  wire [2:0] one_hot_31;
+  wire eq_33;
+  assign one_hot_21 = {!p, p};
+  assign one_hot_31 = {one_hot_21[1:0] == 2'h0, one_hot_21[1] && !one_hot_21[0], one_hot_21[0]};
+  assign eq_33 = one_hot_21 == one_hot_31[1:0];
+  assign out = x & {16{one_hot_21[0]}} | y & {16{one_hot_21[1]}};
+  `ifdef ASSERT_ON
+  __xls_invariant_priority_sel_27_selector_one_hot_A: assert final ($isunknown(eq_33) || eq_33) else $fatal(0, "Selector one_hot.21 was expected to be one-hot, and is not.");
+  `endif  // ASSERT_ON
+endmodule

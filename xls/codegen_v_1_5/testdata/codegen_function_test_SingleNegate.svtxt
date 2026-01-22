@@ -1,0 +1,24 @@
+module negate(
+  input wire clk,
+  input wire [7:0] x,
+  output wire [7:0] out
+);
+  // ===== Pipe stage 0:
+
+  // Registers for pipe stage 0:
+  reg [7:0] x__input_flop;
+  always_ff @ (posedge clk) begin
+    x__input_flop <= x;
+  end
+
+  // ===== Pipe stage 1:
+  wire [7:0] p1_neg_17_comb;
+  assign p1_neg_17_comb = -x__input_flop;
+
+  // Registers for pipe stage 1:
+  reg [7:0] out__output_flop;
+  always_ff @ (posedge clk) begin
+    out__output_flop <= p1_neg_17_comb;
+  end
+  assign out = out__output_flop;
+endmodule

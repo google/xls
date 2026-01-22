@@ -17,7 +17,6 @@
 
 #include <cstdint>
 
-#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "riegeli/records/record_writer.h"
 #include "xls/interpreter/trace.pb.h"

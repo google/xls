@@ -15,7 +15,6 @@
 #include "xls/scheduling/run_pipeline_schedule.h"
 
 #include <algorithm>
-#include <cmath>
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -724,6 +723,9 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
 
       cycle_map = ScheduleCycleMap();
       for (Node* node : TopoSort(f)) {
+        if (IsUntimed(node)) {
+          continue;
+        }
         int64_t cycle = absl::Uniform<int64_t>(
             absl::IntervalClosed, gen, bounds.lb(node), bounds.ub(node));
         XLS_RETURN_IF_ERROR(bounds.TightenNodeLb(node, cycle));

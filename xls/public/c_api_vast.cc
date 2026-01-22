@@ -1240,6 +1240,18 @@ struct xls_vast_statement* xls_vast_statement_block_add_blocking_assignment(
   return reinterpret_cast<xls_vast_statement*>(cpp_assignment);
 }
 
+struct xls_vast_statement* xls_vast_statement_block_add_continuous_assignment(
+    struct xls_vast_statement_block* block, struct xls_vast_expression* lhs,
+    struct xls_vast_expression* rhs) {
+  auto* cpp_block = reinterpret_cast<xls::verilog::StatementBlock*>(block);
+  auto* cpp_lhs = reinterpret_cast<xls::verilog::Expression*>(lhs);
+  auto* cpp_rhs = reinterpret_cast<xls::verilog::Expression*>(rhs);
+  xls::verilog::ContinuousAssignment* cpp_assignment =
+      cpp_block->Add<xls::verilog::ContinuousAssignment>(xls::SourceInfo(),
+                                                         cpp_lhs, cpp_rhs);
+  return reinterpret_cast<xls_vast_statement*>(cpp_assignment);
+}
+
 struct xls_vast_conditional* xls_vast_statement_block_add_conditional(
     struct xls_vast_statement_block* block, struct xls_vast_expression* cond) {
   auto* cpp_block = reinterpret_cast<xls::verilog::StatementBlock*>(block);
@@ -1269,6 +1281,24 @@ struct xls_vast_statement_block* xls_vast_conditional_add_else(
   auto* cpp_cond = reinterpret_cast<xls::verilog::Conditional*>(cond);
   xls::verilog::StatementBlock* block = cpp_cond->AddAlternate(nullptr);
   return reinterpret_cast<xls_vast_statement_block*>(block);
+}
+
+struct xls_vast_conditional* xls_vast_verilog_module_add_conditional(
+    struct xls_vast_verilog_module* m, struct xls_vast_expression* cond) {
+  auto* cpp_module = reinterpret_cast<xls::verilog::Module*>(m);
+  auto* cpp_cond = reinterpret_cast<xls::verilog::Expression*>(cond);
+  xls::verilog::Conditional* cpp_if =
+      cpp_module->Add<xls::verilog::Conditional>(xls::SourceInfo(), cpp_cond);
+  return reinterpret_cast<xls_vast_conditional*>(cpp_if);
+}
+
+struct xls_vast_conditional* xls_vast_generate_loop_add_conditional(
+    struct xls_vast_generate_loop* loop, struct xls_vast_expression* cond) {
+  auto* cpp_loop = reinterpret_cast<xls::verilog::GenerateLoop*>(loop);
+  auto* cpp_cond = reinterpret_cast<xls::verilog::Expression*>(cond);
+  xls::verilog::Conditional* cpp_if =
+      cpp_loop->Add<xls::verilog::Conditional>(xls::SourceInfo(), cpp_cond);
+  return reinterpret_cast<xls_vast_conditional*>(cpp_if);
 }
 
 struct xls_vast_case_statement* xls_vast_statement_block_add_case(

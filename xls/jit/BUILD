@@ -21,7 +21,6 @@ load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_python//python:proto.bzl", "py_proto_library")
-load("@xls_pip_deps//:requirements.bzl", "requirement")
 load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary", "pytype_strict_contrib_test")
 
 # Load proto_library
@@ -149,12 +148,11 @@ pytype_strict_binary(
     deps = [
         ":aot_entrypoint_py_pb2",
         ":type_layout_py_pb2",
-        requirement("Jinja2"),
-        requirement("MarkupSafe"),
         "//xls/common:runfiles",
         "@abseil-py//absl:app",
         "@abseil-py//absl/flags",
         "@com_google_protobuf//:protobuf_python",
+        "@xls_pip_deps//jinja2",
     ],
 )
 
@@ -322,13 +320,12 @@ pytype_strict_binary(
     visibility = ["//xls:xls_users"],
     deps = [
         ":aot_entrypoint_py_pb2",
-        requirement("Jinja2"),
-        requirement("MarkupSafe"),
         "//xls/common:runfiles",
         "//xls/ir:xls_ir_interface_py_pb2",
         "//xls/ir:xls_type_py_pb2",
         "@abseil-py//absl:app",
         "@abseil-py//absl/flags",
+        "@xls_pip_deps//jinja2",
     ],
 )
 
@@ -597,8 +594,8 @@ xls_dslx_library(
             data = [
                 ":multi_proc%s.ir" % suffix,
                 ":multi_proc_aot%s" % suffix,
-                ":some_caps_no_idents.ir",
-                ":specialized_caps_aot",
+                ":some_caps_no_idents%s.ir" % suffix,
+                ":specialized_caps_aot%s" % suffix,
             ],
             deps = [
                 ":aot_entrypoint_cc_proto",
@@ -608,7 +605,7 @@ xls_dslx_library(
                 ":jit_proc_runtime",
                 ":jit_runtime",
                 ":multi_proc_aot%s" % suffix,  # build_cleaner: keep
-                ":specialized_caps_aot",  # build_cleaner: keep
+                ":specialized_caps_aot%s" % suffix,  # build_cleaner: keep
                 "//xls/common:xls_gunit_main",
                 "//xls/common/file:filesystem",
                 "//xls/common/file:get_runfile_path",
@@ -1386,9 +1383,26 @@ genrule(
     tools = ["//xls/dev_tools:remove_identifiers_main"],
 )
 
+genrule(
+    name = "some_caps_no_idents_psc",
+    srcs = ["//xls/examples/dslx_module:manual_chan_caps_streaming_configured_opt_ir_proc_scoped.opt.ir"],
+    outs = ["some_caps_no_idents_psc.ir"],
+    cmd = """
+        $(location //xls/dev_tools:remove_identifiers_main) $< > $@
+        """,
+    tools = ["//xls/dev_tools:remove_identifiers_main"],
+)
+
 xls_aot_generate(
     name = "specialized_caps_aot",
     src = ":some_caps_no_idents",
+    salt_symbols = False,
+    with_msan = XLS_IS_MSAN_BUILD,
+)
+
+xls_aot_generate(
+    name = "specialized_caps_aot_psc",
+    src = ":some_caps_no_idents_psc",
     salt_symbols = False,
     with_msan = XLS_IS_MSAN_BUILD,
 )
@@ -1437,11 +1451,10 @@ pytype_strict_binary(
     deps = [
         ":aot_entrypoint_py_pb2",
         ":type_layout_py_pb2",
-        requirement("Jinja2"),
-        requirement("MarkupSafe"),
         "//xls/common:runfiles",
         "@abseil-py//absl:app",
         "@abseil-py//absl/flags",
+        "@xls_pip_deps//jinja2",
     ],
 )
 

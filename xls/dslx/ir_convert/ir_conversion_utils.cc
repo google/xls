@@ -15,46 +15,24 @@
 
 #include <cstdint>
 #include <memory>
-#include <utility>
-#include <variant>
 #include <vector>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_format.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/parametric_env.h"
-#include "xls/dslx/type_system/parametric_expression.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
 
 namespace xls::dslx {
 
-absl::StatusOr<TypeDim> ResolveDim(TypeDim dim, const ParametricEnv& bindings) {
-  while (std::holds_alternative<TypeDim::OwnedParametric>(dim.value())) {
-    ParametricExpression& original =
-        *std::get<TypeDim::OwnedParametric>(dim.value());
-    ParametricExpression::Evaluated evaluated =
-        original.Evaluate(ToParametricEnv(bindings));
-    dim = TypeDim(std::move(evaluated));
-  }
-  return dim;
-}
-
 absl::StatusOr<int64_t> ResolveDimToInt(const TypeDim& dim,
                                         const ParametricEnv& bindings) {
-  XLS_ASSIGN_OR_RETURN(TypeDim resolved, ResolveDim(dim, bindings));
-  if (std::holds_alternative<InterpValue>(resolved.value())) {
-    return std::get<InterpValue>(resolved.value()).GetBitValueViaSign();
-  }
-  return absl::InternalError(absl::StrFormat(
-      "Expected resolved dimension of %s to be an integer, got: %s",
-      dim.ToString(), resolved.ToString()));
+  return dim.value().GetBitValueViaSign();
 }
 
 absl::StatusOr<xls::Type*> TypeToIr(Package* package, const Type& type,

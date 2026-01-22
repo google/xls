@@ -181,20 +181,7 @@ TEST_F(TypecheckV2Test, ParametricThatWorksForTheOneBindingPresented) {
 fn p<X: u32, Y: bits[X] = {u1:0}>(x: bits[X]) -> bits[X] { x }
 fn main() -> u1 { p(u1:0) }
 )";
-  if (GetParam() == TypeInferenceVersion::kVersion1) {
-    // The following is the explanation of why this case didn't work in v1:
-    // Right now the bits[X] is a symbolic type and it is not allowed to accept
-    // the `u1`. Once we drive all typechecking from instantiations this will
-    // work with the concrete type presented (via the invocation in `main()`).
-    EXPECT_THAT(
-        Typecheck(text),
-        StatusIs(
-            absl::StatusCode::kInvalidArgument,
-            HasSubstr("uN[X] vs uN[1]: Annotated type of derived parametric "
-                      "value did not match inferred type")));
-  } else {
-    XLS_EXPECT_OK(Typecheck(text));
-  }
+  XLS_EXPECT_OK(Typecheck(text));
 }
 
 TEST_F(TypecheckV2Test, ParametricWrongArgCount) {
@@ -822,13 +809,10 @@ TEST_F(TypecheckV2Test, Gh1473_UnboundButAlsoUnusedParametricNoDefaultExpr) {
 fn p<X: u32, Y: u32>(y: uN[Y]) -> u32 { Y }
 fn f() -> u32 { p(u7:0) }
 )";
-  if (GetParam() == TypeInferenceVersion::kVersion1) {
-    XLS_EXPECT_OK(Typecheck(kProgram));
-  } else {
-    EXPECT_THAT(Typecheck(kProgram),
-                StatusIs(absl::StatusCode::kInvalidArgument,
-                         HasSubstr("Could not infer parametric(s): X")));
-  }
+
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Could not infer parametric(s): X")));
 }
 
 TEST_F(TypecheckV2Test, Gh1473_UnboundButAlsoUnusedParametricWithDefaultExpr) {
@@ -872,13 +856,9 @@ TEST_F(TypecheckV2Test, Gh1473_UnboundAndUsedParametricInBody) {
 fn p<X: u32, Y: u32>(y: uN[Y]) -> bool { uN[X]:0 == uN[X]:1 }
 fn f() -> bool { p(u7:0) }
 )";
-  if (GetParam() == TypeInferenceVersion::kVersion1) {
-    XLS_EXPECT_OK(Typecheck(kProgram));
-  } else {
-    EXPECT_THAT(Typecheck(kProgram),
-                StatusIs(absl::StatusCode::kInvalidArgument,
-                         HasSubstr("Could not infer parametric(s): X")));
-  }
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Could not infer parametric(s): X")));
 }
 
 TEST_F(TypecheckV2Test, MapOfParametric) {
@@ -1084,16 +1064,12 @@ fn f() -> u32 {
 
 class LogicalOpTypecheckTest
     : public testing::Test,
-      public testing::WithParamInterface<
-          std::tuple<TypeInferenceVersion, std::string_view>> {
+      public testing::WithParamInterface<std::tuple<std::string_view>> {
  public:
   absl::Status TypecheckOp(std::string_view tmpl) {
     const std::string program = absl::StrReplaceAll(
         tmpl, {{"$OP", std::get<std::string_view>(GetParam())}});
-    return std::get<TypeInferenceVersion>(GetParam()) ==
-                   TypeInferenceVersion::kVersion1
-               ? ::xls::dslx::Typecheck(program).status()
-               : ::xls::dslx::TypecheckV2(program).status();
+    return ::xls::dslx::TypecheckV2(program).status();
   }
 };
 
@@ -1108,30 +1084,22 @@ TEST_P(LogicalOpTypecheckTest, LogicalAndOnVariousOkTypes) {
 }
 
 TEST_P(LogicalOpTypecheckTest, LogicalAndOnVariousInvalidTypes) {
-  TypeInferenceVersion version = std::get<TypeInferenceVersion>(GetParam());
   EXPECT_THAT(TypecheckOp("fn f(a: u2, b: u2) -> bool { a $OP b }"),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       AllOf(HasSizeMismatchInV1(version, "uN[2]", "uN[1]"),
-                             HasSizeMismatchInV2(version, "u2", "bool"))));
+                       HasSizeMismatch("u2", "bool")));
   EXPECT_THAT(TypecheckOp("fn f(a: u32, b: u32) -> bool { a $OP b }"),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       AllOf(HasSizeMismatchInV1(version, "uN[32]", "uN[1]"),
-                             HasSizeMismatchInV2(version, "u32", "bool"))));
-  EXPECT_THAT(
-      TypecheckOp("fn f(a: s1, b: s1) -> bool { a $OP b }"),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               AllOf(HasSignednessMismatchInV1(version, "sN[1]", "uN[1]"),
-                     HasSignednessMismatchInV2(version, "s1", "bool"))));
+                       HasSizeMismatch("u32", "bool")));
+  EXPECT_THAT(TypecheckOp("fn f(a: s1, b: s1) -> bool { a $OP b }"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSignednessMismatch("s1", "bool")));
   EXPECT_THAT(TypecheckOp("fn f(a: s32, b: s32) -> bool { a $OP b }"),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       AllOf(HasTypeMismatchInV1(version, "sN[32]", "uN[1]"),
-                             HasTypeMismatchInV2(version, "s32", "bool"))));
+                       HasTypeMismatch("s32", "bool")));
 }
 
-INSTANTIATE_TEST_SUITE_P(
-    LogicalOpTypecheckTestInstance, LogicalOpTypecheckTest,
-    ::testing::Combine(::testing::Values(TypeInferenceVersion::kVersion2),
-                       ::testing::Values("&&", "||")));
+INSTANTIATE_TEST_SUITE_P(LogicalOpTypecheckTestInstance, LogicalOpTypecheckTest,
+                         ::testing::Values("&&", "||"));
 
 // --
 
@@ -2303,13 +2271,9 @@ const MY_ARRAY = imported::MyStruct<u32:4, u32:8>[2]:[
       ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
   absl::StatusOr<TypecheckedModule> result =
       ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data);
-  EXPECT_THAT(
-      result,
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr(kDefaultTypeInferenceVersion ==
-                                 TypeInferenceVersion::kVersion1
-                             ? "Array element cannot be a metatype"
-                             : "Array element cannot be a type reference.")))
+  EXPECT_THAT(result,
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Array element cannot be a type reference.")))
       << result.status();
 }
 
@@ -2744,18 +2708,7 @@ TEST_F(TypecheckV2Test, ArrayEllipsisNoLeadingTypeAnnotation) {
     x
 })";
 
-  if (GetParam() == TypeInferenceVersion::kVersion1) {
-    EXPECT_THAT(
-        Typecheck(kProgram),
-        StatusIs(absl::StatusCode::kInvalidArgument,
-                 HasSubstr("does not have a type annotation; please add a type "
-                           "annotation to indicate how many elements to expand "
-                           "to; for example: `uN[8][N]:[u8:0, ...]`")));
-  } else {
-    // Unification in v2 will let the type annotation on the LHS govern the size
-    // of the RHS in the absence of an RHS annotation.
-    XLS_EXPECT_OK(Typecheck(kProgram));
-  }
+  XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
 TEST_F(TypecheckV2Test, BadArrayAddition) {
@@ -2891,13 +2844,11 @@ TEST_F(TypecheckV2Test, WidthSliceTypeTooLarge) {
 TEST_F(TypecheckV2Test, WidthSliceOutOfRangeConsideringStartIndex) {
   XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
                            Typecheck("fn f(x: u32) -> u2 { x[32+:u2] }"));
-  if (GetParam() == TypeInferenceVersion::kVersion2) {
-    // In V2 this is a warning. It is not an error since `u2` is not larger than
-    // the type of `x`.
-    ASSERT_THAT(result.tm.warnings.warnings().size(), 1);
-    EXPECT_EQ(result.tm.warnings.warnings().at(0).kind,
-              WarningKind::kWidthSliceOutOfRange);
-  }
+
+  // This is not an error since `u2` is not larger than the type of `x`.
+  ASSERT_THAT(result.tm.warnings.warnings().size(), 1);
+  EXPECT_EQ(result.tm.warnings.warnings().at(0).kind,
+            WarningKind::kWidthSliceOutOfRange);
 }
 
 TEST_F(TypecheckV2Test, WidthSliceNegativeStartNumberLiteral) {
@@ -3387,9 +3338,7 @@ struct Point {
   y: u32,
 }
 )" + program;
-  return version == TypeInferenceVersion::kVersion1
-             ? Typecheck(program).status()
-             : TypecheckV2(program).status();
+  return TypecheckV2(program).status();
 }
 
 TEST_F(TypecheckV2Test, AccessMissingStructMember) {
@@ -3539,9 +3488,8 @@ fn f(p: Point<u5:3>) -> uN[3] {
   p.x
 }
 )";
-  if (GetParam() != TypeInferenceVersion::kVersion1) {
-    XLS_EXPECT_OK(Typecheck(kProgram));
-  }
+
+  XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
 // Helper for parametric struct instance based tests.
@@ -3553,18 +3501,7 @@ struct Point<N: u32, M: u32 = {N + N}> {
   y: bits[M],
 }
 )" + program;
-  return version == TypeInferenceVersion::kVersion1
-             ? Typecheck(program).status()
-             : TypecheckV2(program).status();
-}
-
-TEST_F(TypecheckV2Test, WrongDerivedType) {
-  EXPECT_THAT(
-      TypecheckParametricStructInstance(
-          TypeInferenceVersion::kVersion1,
-          "fn f() -> Point<32, 63> { Point { x: u32:5, y: u63:255 } }"),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("first saw M = u32:63; then saw M = N + N = u32:64")));
+  return TypecheckV2(program).status();
 }
 
 TEST_F(TypecheckV2Test, TooManyParametricStructArgs) {
@@ -3685,26 +3622,6 @@ TEST_F(TypecheckV2Test, BadParametricStructReturnType) {
                                    "Point { x: uN[32], y: uN[64] }\nvs Point { "
                                    "x: uN[5], y: uN[10] }"),
                      HasSizeMismatchInV2(GetParam(), "u32", "bits[5]"))));
-}
-
-// Bad struct type-parametric instantiation in parametric function.
-TEST_F(TypecheckV2Test, BadParametricInstantiation) {
-  EXPECT_THAT(
-      TypecheckParametricStructInstance(TypeInferenceVersion::kVersion1, R"(
-fn f<A: u32, B: u32>(x: bits[A], y: bits[B]) -> Point<A, B> {
-  Point { x, y }
-}
-
-fn main() {
-  let _ = f(u5:1, u10:2);
-  let _ = f(u14:1, u15:2);
-  ()
-}
-)"),
-      StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          HasSubstr("Inconsistent parametric instantiation of struct, first "
-                    "saw M = u32:15; then saw M = N + N = u32:28")));
 }
 
 TEST_F(TypecheckV2Test, BadParametricSplatInstantiation) {

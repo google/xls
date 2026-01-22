@@ -1,0 +1,46 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+proc __test_module__ParametricProc_0__32_64_next<>(__state: (), init={()}) {
+  __state: () = state_read(state_element=__state, id=2)
+  tuple.7: () = tuple(id=7)
+  __token: token = literal(value=token, id=1)
+  literal.3: bits[1] = literal(value=1, id=3)
+  DATA_W: bits[32] = literal(value=64, id=4)
+  ADDR_W: bits[32] = literal(value=32, id=5)
+  tuple.6: () = tuple(id=6)
+  next_value.8: () = next_value(param=__state, value=tuple.7, id=8)
+}
+
+top proc __test_module__TestProc_0_next<_terminator: bits[1] out>(__state: (), init={()}) {
+  chan_interface _terminator(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  proc_instantiation __test_module__ParametricProc_0__32_64_next_inst(proc=__test_module__ParametricProc_0__32_64_next)
+  __state: () = state_read(state_element=__state, id=18)
+  tuple.21: () = tuple(id=21)
+  __token: token = literal(value=token, id=17)
+  literal.19: bits[1] = literal(value=1, id=19)
+  tuple.20: () = tuple(id=20)
+  next_value.22: () = next_value(param=__state, value=tuple.21, id=22)
+}
+
+proc __test_module__ParametricProc_0__16_64_next<>(__state: (), init={()}) {
+  __state: () = state_read(state_element=__state, id=10)
+  tuple.15: () = tuple(id=15)
+  __token: token = literal(value=token, id=9)
+  literal.11: bits[1] = literal(value=1, id=11)
+  DATA_W: bits[32] = literal(value=64, id=12)
+  ADDR_W: bits[32] = literal(value=16, id=13)
+  tuple.14: () = tuple(id=14)
+  next_value.16: () = next_value(param=__state, value=tuple.15, id=16)
+}
+
+proc __test_module__TopProc_0_next<>(__state: (), init={()}) {
+  proc_instantiation __test_module__ParametricProc_0__16_64_next_inst(proc=__test_module__ParametricProc_0__16_64_next)
+  __state: () = state_read(state_element=__state, id=24)
+  tuple.27: () = tuple(id=27)
+  __token: token = literal(value=token, id=23)
+  literal.25: bits[1] = literal(value=1, id=25)
+  tuple.26: () = tuple(id=26)
+  next_value.28: () = next_value(param=__state, value=tuple.27, id=28)
+}

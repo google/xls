@@ -1,0 +1,9 @@
+module rrot(
+  input wire [31:0] x,
+  input wire [31:0] y,
+  output wire [31:0] out
+);
+  wire [31:0] sub_18;
+  assign sub_18 = 32'h0000_0020 - y;
+  assign out = (y >= 32'h0000_0020 ? 32'h0000_0000 : x >> y) | (sub_18 >= 32'h0000_0020 ? 32'h0000_0000 : x << sub_18);
+endmodule

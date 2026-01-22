@@ -160,6 +160,10 @@ class NaryFoldingAction : public FoldingAction {
     return from_;
   }
 
+  static absl::StatusOr<std::unique_ptr<NaryFoldingAction>> Clone(
+      const NaryFoldingAction& other,
+      const absl::flat_hash_map<Node*, Node*>& original_node_to_clone);
+
   uint64_t GetNumberOfFroms() const { return from_.size(); }
 
  private:

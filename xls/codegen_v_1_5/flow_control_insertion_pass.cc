@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "absl/container/fixed_array.h"
@@ -66,6 +67,36 @@ absl::StatusOr<bool> FlowControlInsertionPass::InsertFlowControl(
     return changed;
   }
 
+  const bool is_function =
+      block->source() != nullptr && block->source()->IsFunction();
+
+  const bool uses_valid =
+      options.codegen_options.valid_control().has_value() &&
+      (options.codegen_options.valid_control()->has_input_name() ||
+       options.codegen_options.valid_control()->has_output_name());
+  if (is_function && !uses_valid) {
+    // If this block represents a function and neither gates on valid nor
+    // signals valid, then the pipeline registers can just be considered
+    // always-valid and always-ready.
+    for (Stage& stage : block->stages()) {
+      if (!IsLiteralUnsignedOne(stage.inputs_valid())) {
+        XLS_RETURN_IF_ERROR(
+            stage.inputs_valid()
+                ->ReplaceUsesWithNew<Literal>(Value(UBits(1, 1)))
+                .status());
+        changed = true;
+      }
+      if (!IsLiteralUnsignedOne(stage.outputs_ready())) {
+        XLS_RETURN_IF_ERROR(
+            stage.outputs_ready()
+                ->ReplaceUsesWithNew<Literal>(Value(UBits(1, 1)))
+                .status());
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
   absl::FixedArray<Node*> stage_done(block->stages().size());
   for (int64_t stage_index = 0; stage_index < block->stages().size();
        ++stage_index) {
@@ -96,6 +127,7 @@ absl::StatusOr<bool> FlowControlInsertionPass::InsertFlowControl(
                             .status());
     changed = true;
   }
+
   for (int64_t stage_index = 1; stage_index < block->stages().size();
        ++stage_index) {
     const Stage& stage = block->stages()[stage_index];
@@ -114,11 +146,18 @@ absl::StatusOr<bool> FlowControlInsertionPass::InsertFlowControl(
             : block->AddRegister(inputs_valid_name,
                                  stage.inputs_valid()->GetType()));
     Node* data = prev_stage_done;
-    XLS_ASSIGN_OR_RETURN(
-        Node * load_enable,
-        block->MakeNode<NaryOp>(
-            loc, absl::MakeConstSpan({prev_stage_done, cur_stage_done}),
-            Op::kOr));
+    std::optional<Node*> load_enable;
+    if (is_function) {
+      // If this is a function, then the pipeline can never stall; we can just
+      // update the inputs_valid register every cycle.
+      load_enable = std::nullopt;
+    } else {
+      XLS_ASSIGN_OR_RETURN(
+          load_enable,
+          block->MakeNode<NaryOp>(
+              loc, absl::MakeConstSpan({prev_stage_done, cur_stage_done}),
+              Op::kOr));
+    }
     XLS_RETURN_IF_ERROR(block
                             ->MakeNodeWithName<RegisterWrite>(
                                 loc, data, load_enable,
@@ -151,6 +190,17 @@ absl::StatusOr<bool> FlowControlInsertionPass::InsertFlowControl(
   for (int64_t stage_index = block->stages().size() - 2; stage_index >= 0;
        --stage_index) {
     const Stage& stage = block->stages()[stage_index];
+
+    if (is_function) {
+      // As currently implemented, functions can never stall and do not accept
+      // output backpressure, so all stages are always ready.
+      XLS_RETURN_IF_ERROR(stage.outputs_ready()
+                              ->ReplaceUsesWithNew<Literal>(Value(UBits(1, 1)))
+                              .status());
+      changed = true;
+      continue;
+    }
+
     const Stage& next_stage = block->stages()[stage_index + 1];
     const SourceInfo& loc = stage.outputs_ready()->loc();
     XLS_ASSIGN_OR_RETURN(

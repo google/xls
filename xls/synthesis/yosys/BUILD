@@ -15,7 +15,6 @@
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
-load("@xls_pip_deps//:requirements.bzl", "requirement")
 load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_contrib_test")
 
 package(
@@ -114,11 +113,11 @@ pytype_strict_contrib_test(
         "//xls/synthesis:synthesis_client_main",
     ],
     deps = [
-        requirement("portpicker"),
         "//xls/common:runfiles",
         "//xls/synthesis:synthesis_py_pb2",
         "@abseil-py//absl/testing:absltest",
         "@com_google_protobuf//:protobuf_python",
+        "@xls_pip_deps//portpicker",
     ],
 )
 

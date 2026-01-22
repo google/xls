@@ -1,0 +1,27 @@
+module RequiredNamedIntermediates(
+  input wire clk,
+  input wire [7:0] x,
+  input wire [7:0] y,
+  output wire [4:0] out
+);
+  // ===== Pipe stage 0:
+
+  // Registers for pipe stage 0:
+  reg [7:0] x__input_flop;
+  reg [7:0] y__input_flop;
+  always_ff @ (posedge clk) begin
+    x__input_flop <= x;
+    y__input_flop <= y;
+  end
+
+  // ===== Pipe stage 1:
+  wire [4:0] p1_add_29_comb;
+  assign p1_add_29_comb = x__input_flop[4:0] + y__input_flop[4:0];
+
+  // Registers for pipe stage 1:
+  reg [4:0] out__output_flop;
+  always_ff @ (posedge clk) begin
+    out__output_flop <= p1_add_29_comb;
+  end
+  assign out = out__output_flop;
+endmodule

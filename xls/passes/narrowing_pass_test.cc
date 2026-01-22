@@ -1933,7 +1933,7 @@ TEST_P(NarrowingPassTest, UninterestingBitSlice) {
               m::Literal(Value::Tuple({Value(UBits(0, 243))})));
 }
 
-TEST_P(NarrowingPassTest, DISABLED_Reproducer_4d97dfa3ad3738ac) {
+TEST_P(NarrowingPassTest, Reproducer_4d97dfa3ad3738ac) {
   // NOTE: We use the exact program here, as matching this with a
   //       FunctionBuilder didn't reproduce the error.
   const std::string program = R"(

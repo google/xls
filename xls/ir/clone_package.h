@@ -19,6 +19,7 @@
 #include <optional>
 #include <string_view>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "xls/ir/node.h"
 #include "xls/ir/package.h"

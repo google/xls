@@ -639,6 +639,37 @@ absl::StatusOr<ChannelWithInterfaces> Proc::AddChannel(
   return channel_interfaces;
 }
 
+absl::Status Proc::RemoveChannel(Channel* channel) {
+  XLS_RET_CHECK(is_new_style_proc());
+  auto chan_it = channels_.find(channel->name());
+  XLS_RET_CHECK(chan_it->second.get() == channel)
+      << "Channel with name `" << channel->name() << "` in proc `" << name()
+      << "` is not the same channel provided.";
+
+  XLS_ASSIGN_OR_RETURN(
+      ChannelInterface * send_interface,
+      GetChannelInterface(channel->name(), ChannelDirection::kSend));
+  XLS_ASSIGN_OR_RETURN(
+      ChannelInterface * receive_interface,
+      GetChannelInterface(channel->name(), ChannelDirection::kReceive));
+  std::erase_if(
+      channel_interfaces_, [&](const std::unique_ptr<ChannelInterface>& ref) {
+        return ref.get() == send_interface || ref.get() == receive_interface;
+      });
+
+  channels_.erase(chan_it);
+  return absl::OkStatus();
+}
+
+absl::Status Proc::RemoveAllChannelsAndInterfaces() {
+  XLS_RET_CHECK(is_new_style_proc());
+  channel_interfaces_.clear();
+  channels_.clear();
+  channel_vec_.clear();
+  interface_.clear();
+  return absl::OkStatus();
+}
+
 absl::StatusOr<Channel*> Proc::GetChannel(std::string_view name) {
   XLS_RET_CHECK(is_new_style_proc());
   auto it = channels_.find(name);
@@ -974,6 +1005,13 @@ void Proc::MoveNonLogicFrom(Proc& other) {
   is_new_style_proc_ = other.is_new_style_proc_;
   state_elements_ = std::move(other.state_elements_);
   state_vec_ = std::move(other.state_vec_);
+  state_name_uniquer_ = std::move(other.state_name_uniquer_);
+  // We keep the StateReads alongside their StateElements, which makes it
+  // possible to maintain the `state_reads_` map even while building the
+  // skeletal "source" proc for a ScheduledBlock.
+  FunctionBase::MoveFrom(other,
+                         [](const Node* n) { return n->Is<StateRead>(); });
+  state_reads_ = std::move(other.state_reads_);
   channel_interfaces_ = std::move(other.channel_interfaces_);
   interface_ = std::move(other.interface_);
   proc_instantiations_ = std::move(other.proc_instantiations_);

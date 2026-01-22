@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/optimization.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/types/span.h"
@@ -45,8 +46,23 @@ class CodegenOptions {
   enum class Version : uint8_t {
     kDefault = 0,
     kOneDotZero = 1,
-    kTwoDotZero = 2
+    kOneDotFive = 2,
+    kTwoDotZero = 3,
   };
+
+  static std::string_view VersionToString(Version version) {
+    switch (version) {
+      case Version::kDefault:
+        return "0";
+      case Version::kOneDotZero:
+        return "1";
+      case Version::kOneDotFive:
+        return "1.5";
+      case Version::kTwoDotZero:
+        return "2";
+    }
+    ABSL_UNREACHABLE();
+  }
 
   // Enum to describe how IO should be registered.
   enum class IOKind : uint8_t { kFlop = 0, kSkidBuffer, kZeroLatencyBuffer };
@@ -58,14 +74,24 @@ class CodegenOptions {
   static int64_t IOKindLatency(IOKind kind) {
     switch (kind) {
       case IOKind::kFlop:
-        return 1;
       case IOKind::kSkidBuffer:
         return 1;
       case IOKind::kZeroLatencyBuffer:
         return 0;
-      default:
-        return 9999;
     }
+    ABSL_UNREACHABLE();
+  }
+
+  static int64_t FlopKindLatency(FlopKind kind) {
+    switch (kind) {
+      case FlopKind::kNone:
+      case FlopKind::kZeroLatency:
+        return 0;
+      case FlopKind::kFlop:
+      case FlopKind::kSkid:
+        return 1;
+    }
+    ABSL_UNREACHABLE();
   }
 
   // TODO(allight): Merge these two enums.
@@ -144,13 +170,13 @@ class CodegenOptions {
   CodegenOptions& clock_name(std::string_view clock_name);
   std::optional<std::string_view> clock_name() const { return clock_name_; }
 
-  // Whether to use SystemVerilog in the generated code otherwise Verilog is
+  // Whether to use SystemVerilog in the generated code; otherwise, Verilog is
   // used. The default is to use SystemVerilog.
   CodegenOptions& use_system_verilog(bool value);
   bool use_system_verilog() const { return use_system_verilog_; }
 
-  // Whether to emit everything on a separate line, which is useful when
-  // using the area profiler.
+  // Whether to emit everything on a separate line, which is useful when using
+  // the area profiler.
   CodegenOptions& separate_lines(bool value);
   bool separate_lines() const { return separate_lines_; }
 
@@ -175,18 +201,20 @@ class CodegenOptions {
   CodegenOptions& flop_outputs_kind(IOKind value);
   IOKind flop_outputs_kind() const { return flop_outputs_kind_; }
 
-  // Returns the input latency, if any, associated with registring the input.
+  // Returns the input latency, if any, associated with registering the input.
   int64_t GetInputLatency() const {
     return flop_inputs() ? IOKindLatency(flop_inputs_kind_) : 0;
   }
 
-  // Returns the output latency, if any, associated with registring the input.
+  // Returns the output latency, if any, associated with registering the input.
   int64_t GetOutputLatency() const {
     return flop_outputs() ? IOKindLatency(flop_outputs_kind_) : 0;
   }
 
-  // When false, single value channels are not registered even if
-  // flop_inputs() or flop_outputs() is true.
+  // When false, single value channels are not registered even if flop_inputs()
+  // or flop_outputs() is true. When true, single value channels are registered
+  // with a plain flop (ignoring flop kind) if flop_inputs() or flop_outputs()
+  // is true (as appropriate for the direction).
   CodegenOptions& flop_single_value_channels(bool value);
   bool flop_single_value_channels() const {
     return flop_single_value_channels_;
@@ -325,8 +353,21 @@ class CodegenOptions {
 
   // Sets which codegen version to use.
   CodegenOptions& codegen_version(int64_t value) {
-    QCHECK(value >= 0 && value <= 2) << "codegen_version must be 0, 1, or 2";
-    codegen_version_ = static_cast<Version>(value);
+    QCHECK(value == 0 || value == 1 || value == 2)
+        << "codegen_version must be 0, 1, or 2";
+    switch (value) {
+      case 0:
+        codegen_version_ = Version::kDefault;
+        break;
+      case 1:
+        codegen_version_ = Version::kOneDotZero;
+        break;
+      case 2:
+        codegen_version_ = Version::kTwoDotZero;
+        break;
+      default:
+        ABSL_UNREACHABLE();
+    }
     return *this;
   }
   CodegenOptions& codegen_version(Version value) {

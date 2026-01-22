@@ -281,6 +281,14 @@ class Proc : public FunctionBase {
   absl::StatusOr<ChannelWithInterfaces> AddChannel(
       std::unique_ptr<Channel> channel);
 
+  // Remove a channel definition from the proc. Only can be called for new style
+  // procs. Also removes the interfaces for the channel.
+  absl::Status RemoveChannel(Channel* channel);
+
+  // Removes all channels and channel interfaces from this proc. Only can be
+  // called for new style procs.
+  absl::Status RemoveAllChannelsAndInterfaces();
+
   // Returns the channel with the given name defined in the proc. Only can be
   // called for new style procs.
   absl::StatusOr<Channel*> GetChannel(std::string_view name);
@@ -356,6 +364,9 @@ class Proc : public FunctionBase {
   }
 
   // Returns the list of instantiations of other procs in this proc.
+  absl::Span<std::unique_ptr<ProcInstantiation>> proc_instantiations() {
+    return absl::MakeSpan(proc_instantiations_);
+  }
   absl::Span<const std::unique_ptr<ProcInstantiation>> proc_instantiations()
       const {
     return proc_instantiations_;

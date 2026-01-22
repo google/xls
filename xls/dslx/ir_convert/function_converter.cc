@@ -418,6 +418,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(ArrayTypeAnnotation)
   INVALID(BuiltinTypeAnnotation)
   INVALID(ChannelTypeAnnotation)
+  INVALID(ConstConditionalTypeAnnotation)
   INVALID(ElementTypeAnnotation)
   INVALID(FunctionTypeAnnotation)
   INVALID(GenericTypeAnnotation)
@@ -735,8 +736,7 @@ absl::Status FunctionConverter::HandleNumber(const Number* node) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type, ResolveType(node));
   XLS_RET_CHECK(!type->IsMeta());
   XLS_ASSIGN_OR_RETURN(TypeDim dim, type->GetTotalBitCount());
-  XLS_ASSIGN_OR_RETURN(int64_t bit_count,
-                       std::get<InterpValue>(dim.value()).GetBitValueViaSign());
+  XLS_ASSIGN_OR_RETURN(int64_t bit_count, dim.value().GetBitValueViaSign());
   XLS_ASSIGN_OR_RETURN(Bits bits, node->GetBits(bit_count, file_table()));
   DefConst(node, Value(bits));
   return absl::OkStatus();
@@ -1134,15 +1134,13 @@ absl::Status FunctionConverter::HandleCast(const Cast* node) {
 
   XLS_ASSIGN_OR_RETURN(TypeDim new_bit_count_ctd,
                        output_type->GetTotalBitCount());
-  XLS_ASSIGN_OR_RETURN(
-      int64_t new_bit_count,
-      std::get<InterpValue>(new_bit_count_ctd.value()).GetBitValueViaSign());
+  XLS_ASSIGN_OR_RETURN(int64_t new_bit_count,
+                       new_bit_count_ctd.value().GetBitValueViaSign());
 
   XLS_ASSIGN_OR_RETURN(TypeDim input_bit_count_ctd,
                        input_type->GetTotalBitCount());
-  XLS_ASSIGN_OR_RETURN(
-      int64_t old_bit_count,
-      std::get<InterpValue>(input_bit_count_ctd.value()).GetBitValueViaSign());
+  XLS_ASSIGN_OR_RETURN(int64_t old_bit_count,
+                       input_bit_count_ctd.value().GetBitValueViaSign());
 
   if (new_bit_count < old_bit_count) {
     // Truncating conversion -- since the bit count is going down, we just bit
@@ -1189,15 +1187,13 @@ absl::Status FunctionConverter::HandleBuiltinCheckedCast(
 
   XLS_ASSIGN_OR_RETURN(TypeDim new_bit_count_ctd,
                        output_type->GetTotalBitCount());
-  XLS_ASSIGN_OR_RETURN(
-      int64_t new_bit_count,
-      std::get<InterpValue>(new_bit_count_ctd.value()).GetBitValueViaSign());
+  XLS_ASSIGN_OR_RETURN(int64_t new_bit_count,
+                       new_bit_count_ctd.value().GetBitValueViaSign());
 
   XLS_ASSIGN_OR_RETURN(TypeDim input_bit_count_ctd,
                        input_type->GetTotalBitCount());
-  XLS_ASSIGN_OR_RETURN(
-      int64_t old_bit_count,
-      std::get<InterpValue>(input_bit_count_ctd.value()).GetBitValueViaSign());
+  XLS_ASSIGN_OR_RETURN(int64_t old_bit_count,
+                       input_bit_count_ctd.value().GetBitValueViaSign());
 
   std::optional<BitsLikeProperties> output_bits_like =
       GetBitsLike(*output_type);
@@ -1273,9 +1269,8 @@ absl::Status FunctionConverter::HandleBuiltinWideningCast(
 
   XLS_ASSIGN_OR_RETURN(TypeDim new_bit_count_ctd,
                        output_type->GetTotalBitCount());
-  XLS_ASSIGN_OR_RETURN(
-      int64_t new_bit_count,
-      std::get<InterpValue>(new_bit_count_ctd.value()).GetBitValueViaSign());
+  XLS_ASSIGN_OR_RETURN(int64_t new_bit_count,
+                       new_bit_count_ctd.value().GetBitValueViaSign());
 
   // Perform actual cast. Validity is checked during type_check.
   Def(node, [this, arg, signed_input, new_bit_count](const SourceInfo& loc) {
@@ -4237,6 +4232,26 @@ absl::Status FunctionConverter::HandleStatement(const Statement* node) {
 }
 
 absl::Status FunctionConverter::HandleConditional(const Conditional* node) {
+  // constexpr if select only one branch of the if to handle
+  if (node->IsConst()) {
+    ParametricEnv bindings(parametric_env_map_);
+    XLS_ASSIGN_OR_RETURN(InterpValue test_value,
+                         ConstexprEvaluator::EvaluateToValue(
+                             import_data_, current_type_info_,
+                             kNoWarningCollector, bindings, node->test()));
+
+    BValue bvalue;
+    if (test_value.IsTrue()) {
+      XLS_RETURN_IF_ERROR(Visit(node->consequent()));
+      XLS_ASSIGN_OR_RETURN(bvalue, Use(node->consequent()));
+    } else {
+      XLS_RETURN_IF_ERROR(Visit(ToExprNode(node->alternate())));
+      XLS_ASSIGN_OR_RETURN(bvalue, Use(ToExprNode(node->alternate())));
+    }
+    SetNodeToIr(node, bvalue);
+    return absl::OkStatus();
+  }
+
   XLS_RETURN_IF_ERROR(Visit(node->test()));
   XLS_ASSIGN_OR_RETURN(BValue arg0, Use(node->test()));
 
@@ -4708,9 +4723,7 @@ absl::StatusOr<std::unique_ptr<Type>> FunctionConverter::ResolveType(
         file_table());
   }
 
-  return t.value()->MapSize([this](const TypeDim& dim) {
-    return ResolveDim(dim, ParametricEnv(parametric_env_map_));
-  });
+  return (*t)->CloneToUnique();
 }
 
 absl::StatusOr<Value> FunctionConverter::GetConstValue(

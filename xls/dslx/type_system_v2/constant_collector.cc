@@ -404,11 +404,8 @@ class Visitor : public AstNodeVisitorWithDefault {
       absl::StatusOr<uint64_t> size_from_type(TypeMissingErrorStatus(
           *unroll_for->iterable(), nullptr, file_table_));
       std::optional<Type*> iterable_type = ti_->GetItem(unroll_for->iterable());
-      if (iterable_type.has_value() && (*iterable_type)->IsArray() &&
-          std::holds_alternative<InterpValue>(
-              (*iterable_type)->AsArray().size().value())) {
-        InterpValue dim =
-            std::get<InterpValue>((*iterable_type)->AsArray().size().value());
+      if (iterable_type.has_value() && (*iterable_type)->IsArray()) {
+        InterpValue dim = (*iterable_type)->AsArray().size().value();
         size_from_type = dim.GetBitValueUnsigned();
       }
       XLS_ASSIGN_OR_RETURN(size, size_from_type);

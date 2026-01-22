@@ -1,0 +1,72 @@
+module leaf_proc(
+  input wire clk,
+  input wire rst,
+  input wire [31:0] accum_in,
+  input wire accum_in_vld,
+  input wire accum_out_rdy,
+  output wire accum_in_rdy,
+  output wire [31:0] accum_out,
+  output wire accum_out_vld
+);
+  reg [31:0] p0_tuple_index_5;
+  reg [31:0] __accum;
+  reg p1_inputs_valid;
+  wire stage_outputs_valid_1;
+  wire stage_outputs_ready_0;
+  wire p0_stage_done__1;
+  wire or_108;
+  wire [31:0] add_109;
+  wire or_113;
+  assign stage_outputs_valid_1 = p1_inputs_valid & accum_out_rdy;
+  assign stage_outputs_ready_0 = ~p1_inputs_valid | stage_outputs_valid_1;
+  assign p0_stage_done__1 = accum_in_vld & stage_outputs_ready_0;
+  assign or_108 = p0_stage_done__1 | rst;
+  assign add_109 = __accum + p0_tuple_index_5;
+  assign or_113 = p0_stage_done__1 | stage_outputs_valid_1;
+  always @ (posedge clk) begin
+    p0_tuple_index_5 <= or_108 ? accum_in : p0_tuple_index_5;
+  end
+  always @ (posedge clk) begin
+    if (rst) begin
+      __accum <= 32'h0000_0000;
+      p1_inputs_valid <= 1'h0;
+    end else begin
+      __accum <= stage_outputs_valid_1 ? add_109 : __accum;
+      p1_inputs_valid <= or_113 ? p0_stage_done__1 : p1_inputs_valid;
+    end
+  end
+  assign accum_in_rdy = p0_stage_done__1;
+  assign accum_out = add_109;
+  assign accum_out_vld = p1_inputs_valid;
+endmodule
+
+
+module a_top_proc(
+  input wire clk,
+  input wire rst,
+  input wire [31:0] in_ch,
+  input wire in_ch_vld,
+  input wire out_ch_rdy,
+  output wire in_ch_rdy,
+  output wire [31:0] out_ch,
+  output wire out_ch_vld
+);
+  wire instantiation_output_81;
+  wire [31:0] instantiation_output_82;
+  wire instantiation_output_83;
+
+  // ===== Instantiations
+  leaf_proc inst (
+    .rst(rst),
+    .accum_in(in_ch),
+    .accum_in_vld(in_ch_vld),
+    .accum_out_rdy(out_ch_rdy),
+    .accum_in_rdy(instantiation_output_81),
+    .accum_out(instantiation_output_82),
+    .accum_out_vld(instantiation_output_83),
+    .clk(clk)
+  );
+  assign in_ch_rdy = instantiation_output_81;
+  assign out_ch = instantiation_output_82;
+  assign out_ch_vld = instantiation_output_83;
+endmodule

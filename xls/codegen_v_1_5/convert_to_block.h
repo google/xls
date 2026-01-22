@@ -21,6 +21,7 @@
 #include "xls/codegen/codegen_options.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/package.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
 #include "xls/scheduling/scheduling_options.h"
 
@@ -31,7 +32,8 @@ namespace xls::codegen {
 absl::Status ConvertToBlock(
     Package* p, verilog::CodegenOptions codegen_options,
     SchedulingOptions scheduling_options, const DelayEstimator* delay_estimator,
-    std::optional<PackageScheduleProto> schedule_override = std::nullopt);
+    std::optional<PackageScheduleProto> schedule_override = std::nullopt,
+    OptimizationContext* opt_context = nullptr);
 
 }  // namespace xls::codegen
 

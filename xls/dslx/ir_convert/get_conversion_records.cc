@@ -312,7 +312,7 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
         VLOG(4) << "Parametric proc `" << p->identifier()
                 << "` is only called from test code, but test conversion is "
                    "disabled.";
-        return absl::OkStatus();
+        continue;
       }
 
       XLS_ASSIGN_OR_RETURN(ConversionRecord cr,

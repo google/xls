@@ -32,7 +32,6 @@
 #include <string_view>
 #include <type_traits>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -50,7 +49,6 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/type_system/parametric_expression.h"
 
 namespace xls::dslx {
 
@@ -68,11 +66,8 @@ class StructType;
 // See comment on `Type` below for more details.
 class TypeDim {
  public:
-  using OwnedParametric = std::unique_ptr<ParametricExpression>;
-
   // Evaluates the given value to a 64-bit quantity.
-  static absl::StatusOr<int64_t> GetAs64Bits(
-      const std::variant<InterpValue, OwnedParametric>& variant);
+  static absl::StatusOr<int64_t> GetAs64Bits(const InterpValue& value);
 
   // Creates a u32 `InterpValue`-based TypeDim with the given "value".
   static TypeDim CreateU32(uint32_t value) {
@@ -84,7 +79,7 @@ class TypeDim {
     return TypeDim(InterpValue::MakeBool(value));
   }
 
-  explicit TypeDim(std::variant<InterpValue, OwnedParametric> value);
+  explicit TypeDim(InterpValue value);
 
   TypeDim(const TypeDim& other);
   TypeDim(TypeDim&& other) = default;
@@ -106,22 +101,10 @@ class TypeDim {
   std::string ToDebugString() const;
 
   bool operator==(const TypeDim& other) const;
-  bool operator==(const std::variant<InterpValue, const ParametricExpression*>&
-                      other) const;
+  bool operator==(const InterpValue& other) const;
   bool operator!=(const TypeDim& other) const { return !(*this == other); }
 
-  const std::variant<InterpValue, OwnedParametric>& value() const {
-    return value_;
-  }
-
-  // Note: if it is not parametric it is an interpreter value.
-  bool IsParametric() const {
-    return std::holds_alternative<OwnedParametric>(value_);
-  }
-
-  const ParametricExpression& parametric() const {
-    return *std::get<OwnedParametric>(value_);
-  }
+  const InterpValue& value() const { return value_; }
 
   // Retrieves the bit value of the underlying InterpValue as an int64_t.
   absl::StatusOr<int64_t> GetAsInt64() const;
@@ -130,45 +113,7 @@ class TypeDim {
   absl::StatusOr<bool> GetAsBool() const;
 
  private:
-  std::variant<InterpValue, OwnedParametric> value_;
-};
-
-// A utility for building a `ParametricExpression::Env` using `TypeDim` objects.
-// Because a `ParametricExpression::Env` cannot own the `ParametricExpression`
-// objects in it, the `TypeDimMap` also contains a backing store which owns
-// those.
-class TypeDimMap {
- public:
-  TypeDimMap() = default;
-
-  // For the use case where the caller is starting with a map of known concrete
-  // values, or has nothing but that. Equivalent to constructing and then
-  // `Insert()`ing them all.
-  explicit TypeDimMap(
-      const absl::flat_hash_map<std::string, InterpValue>& values);
-
-  // Disallow copy; if we wanted this to work, we'd need to fix up `env_` in the
-  // copy to point to its own `dims_`.
-  TypeDimMap(const TypeDimMap&) = delete;
-  TypeDimMap& operator=(const TypeDimMap&) = delete;
-
-  // Inserts a `dim` that has the given `identifier` (according to e.g. the
-  // parametric bindings of a struct definition).
-  void Insert(std::string_view identifier, TypeDim dim);
-
-  // Returns an environment that can be used to evaluate a
-  // `ParametricExpression` against the values in this map. The returned object
-  // is only valid during the lifetime of this `TypeDimMap`.
-  const ParametricExpression::Env& env() const { return env_; }
-
-  // Returns a direct view of the dims that have been inserted.
-  const absl::flat_hash_map<std::string, TypeDim>& dims() const {
-    return dims_;
-  }
-
- private:
-  absl::flat_hash_map<std::string, TypeDim> dims_;
-  ParametricExpression::Env env_;
+  InterpValue value_;
 };
 
 inline std::ostream& operator<<(std::ostream& os, const TypeDim& ctd) {
@@ -353,12 +298,6 @@ class Type {
   // this type.
   virtual std::vector<TypeDim> GetAllDims() const = 0;
 
-  bool HasParametricDims() const {
-    std::vector<TypeDim> all_dims = GetAllDims();
-    return absl::c_any_of(all_dims,
-                          [](const TypeDim& d) { return d.IsParametric(); });
-  }
-
   virtual absl::StatusOr<TypeDim> GetTotalBitCount() const = 0;
 
   // Returns a "type name" suitable for debugging; e.g. "array", "bits", "enum",
@@ -369,32 +308,6 @@ class Type {
   //
   // Postcondition: *retval == *this.
   virtual std::unique_ptr<Type> CloneToUnique() const = 0;
-
-  // Maps all the dimensions contained (transitively) within this Type
-  // (and any concrete types held herein) with "f" and returns the new
-  // (resulting) Type.
-  virtual absl::StatusOr<std::unique_ptr<Type>> MapSize(
-      const MapFn& f) const = 0;
-
-  // Returns a clone of this type that retains concrete nominal type dimensions,
-  // if the subclass desires to do that for traceability (the base
-  // implementation is a no-op clone). For example, if a parameterized type
-  // `Foo<M: u32, N:u32>` is instantiated somewhere as `Foo<u32:5, u32:6>`, then
-  // during the creation of that instance of the type, the deduction system
-  // would call this function with the `dims` being `{{"M", 5}, {"N", 6}}`. This
-  // function can be used incrementally to populate more and more dims in
-  // successive calls, but it cannot be used to replace a prior concrete value.
-  virtual std::unique_ptr<Type> AddNominalTypeDims(
-      const absl::flat_hash_map<std::string, TypeDim>&) const {
-    return CloneToUnique();
-  }
-
-  // Returns a clone of this type that has any previously added nominal type
-  // dims as resolved as possible using the given environment.
-  virtual std::unique_ptr<Type> ResolveNominalTypeDims(
-      const ParametricExpression::Env&) const {
-    return CloneToUnique();
-  }
 
   // Type equality, but ignores tuple member naming discrepancies.
   bool CompatibleWith(const Type& other) const;
@@ -462,20 +375,6 @@ class MetaType : public Type {
     return wrapped_->GetAllDims();
   }
   absl::StatusOr<TypeDim> GetTotalBitCount() const override;
-  absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override {
-    XLS_ASSIGN_OR_RETURN(auto wrapped, wrapped_->MapSize(f));
-    return std::make_unique<MetaType>(std::move(wrapped));
-  }
-
-  std::unique_ptr<Type> AddNominalTypeDims(
-      const absl::flat_hash_map<std::string, TypeDim>& dims) const override {
-    return std::make_unique<MetaType>(wrapped_->AddNominalTypeDims(dims));
-  }
-
-  std::unique_ptr<Type> ResolveNominalTypeDims(
-      const ParametricExpression::Env& env) const override {
-    return std::make_unique<MetaType>(wrapped_->ResolveNominalTypeDims(env));
-  }
 
   std::unique_ptr<Type> CloneToUnique() const override {
     return std::make_unique<MetaType>(wrapped_->CloneToUnique());
@@ -526,9 +425,6 @@ class TokenType : public Type {
   bool IsAggregate() const override { return false; }
 
   std::unique_ptr<Type> CloneToUnique() const override {
-    return std::make_unique<TokenType>();
-  }
-  absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override {
     return std::make_unique<TokenType>();
   }
 };
@@ -644,14 +540,6 @@ class StructType : public StructTypeBase {
   std::string ToInlayHintString() const override {
     return nominal_type().identifier();
   }
-
-  absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
-
-  std::unique_ptr<Type> AddNominalTypeDims(
-      const absl::flat_hash_map<std::string, TypeDim>& dims) const override;
-
-  std::unique_ptr<Type> ResolveNominalTypeDims(
-      const ParametricExpression::Env&) const override;
 };
 
 // Represents a proc that is formatted like a struct and may contain members
@@ -682,14 +570,6 @@ class ProcType : public StructTypeBase {
   std::string ToInlayHintString() const override {
     return nominal_type().identifier();
   }
-
-  absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
-
-  std::unique_ptr<Type> AddNominalTypeDims(
-      const absl::flat_hash_map<std::string, TypeDim>& dims) const override;
-
-  std::unique_ptr<Type> ResolveNominalTypeDims(
-      const ParametricExpression::Env&) const override;
 };
 
 // Represents a tuple type. Tuples have unnamed members.
@@ -719,7 +599,6 @@ class TupleType : public Type {
   absl::Status Accept(TypeVisitor& v) const override {
     return v.HandleTuple(*this);
   }
-  absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
 
   bool operator==(const Type& other) const override;
   std::string ToStringInternal(FullyQualify fully_qualify,
@@ -776,7 +655,6 @@ class ArrayType : public Type {
   absl::Status Accept(TypeVisitor& v) const override {
     return v.HandleArray(*this);
   }
-  absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
 
   std::string ToStringInternal(FullyQualify fully_qualify,
                                const FileTable* file_table) const override;
@@ -823,7 +701,6 @@ class EnumType : public Type {
   absl::Status Accept(TypeVisitor& v) const override {
     return v.HandleEnum(*this);
   }
-  absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
 
   std::string ToStringInternal(FullyQualify fully_qualify,
                                const FileTable* file_table) const override;
@@ -874,7 +751,6 @@ class BitsConstructorType : public Type {
   ~BitsConstructorType() override;
 
   absl::Status Accept(TypeVisitor& v) const override;
-  absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
 
   bool operator==(const Type& other) const override;
   std::string ToStringInternal(FullyQualify fully_qualify,
@@ -903,7 +779,6 @@ class ModuleType : public Type {
   ~ModuleType() override;
 
   absl::Status Accept(TypeVisitor& v) const override;
-  absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
 
   bool operator==(const Type& other) const override {
     if (auto* o = dynamic_cast<const ModuleType*>(&other)) {
@@ -973,7 +848,6 @@ class BitsType : public Type {
   absl::Status Accept(TypeVisitor& v) const override {
     return v.HandleBits(*this);
   }
-  absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
 
   bool operator==(const Type& other) const override;
   std::string ToStringInternal(FullyQualify fully_qualify,
@@ -1027,8 +901,6 @@ class FunctionType : public Type {
   std::string GetDebugTypeName() const override { return "function"; }
   std::vector<TypeDim> GetAllDims() const override;
   absl::StatusOr<TypeDim> GetTotalBitCount() const override;
-
-  absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
 
   bool operator==(const Type& other) const override;
 
@@ -1088,7 +960,6 @@ class ChannelType : public Type {
   std::string GetDebugTypeName() const override { return "channel"; }
   std::vector<TypeDim> GetAllDims() const override;
   absl::StatusOr<TypeDim> GetTotalBitCount() const override;
-  absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
   bool operator==(const Type& other) const override;
   bool HasEnum() const override;
   bool HasToken() const override;
@@ -1252,10 +1123,6 @@ inline bool IsBool(const Type& t) {
 // Returns whether the given type, which should be either a bits or an enum
 // type, is signed.
 absl::StatusOr<bool> IsSigned(const Type& c);
-
-// Attempts to get a ParametricSymbol contained in the given dimension, or
-// nullptr if there is none.
-const ParametricSymbol* TryGetParametricSymbol(const TypeDim& dim);
 
 }  // namespace xls::dslx
 

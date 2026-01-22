@@ -361,6 +361,7 @@ class Block : public FunctionBase {
           {},
       bool preserve_schedule = true) const;
 
+  std::vector<std::string> AttributeIrStrings() const override;
   std::string DumpIr() const override;
 
   FunctionBase::Kind kind() const final { return FunctionBase::Kind::kBlock; }
@@ -375,6 +376,13 @@ class Block : public FunctionBase {
       std::optional<std::string> ready_port,
       std::optional<int64_t> stage = std::nullopt);
 
+  // Returns the metadata for all channels which have port metadata.
+  const absl::flat_hash_map<std::pair<std::string, ChannelDirection>,
+                            ChannelPortMetadata>&
+  GetChannelPortMetadata() const {
+    return channel_port_metadata_;
+  }
+
   // Returns the port metadata for the channel with the given name or an error
   // if no such metadata exists.
   absl::StatusOr<ChannelPortMetadata> GetChannelPortMetadata(
@@ -384,6 +392,13 @@ class Block : public FunctionBase {
     return channel_port_metadata_.contains(
         std::pair<std::string, ChannelDirection>(channel_name, direction));
   }
+
+  const absl::flat_hash_map<std::pair<std::string, ChannelDirection>,
+                            ChannelPortMetadata>&
+  GetAllChannelPortMetadata() const {
+    return channel_port_metadata_;
+  }
+
   // Returns the port node associated with the ready/valid/data signal for the
   // given channel. Returns an error if no port metadata exists for the given
   // channel. Returns std::nullopt if port metadata exists for the channel but
@@ -442,6 +457,7 @@ class Block : public FunctionBase {
   void SetSignature(verilog::ModuleSignatureProto signature) {
     signature_ = std::move(signature);
   }
+  void ClearSignature() { signature_.reset(); }
 
  protected:
   absl::Status InternalRebuildSideTables() final {
