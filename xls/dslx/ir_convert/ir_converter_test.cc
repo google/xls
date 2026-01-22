@@ -6879,6 +6879,80 @@ pub proc Main {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, MultipleSpawnsTestAndTopNoTests) {
+  ImportData import_data = CreateImportDataForTest();
+  constexpr std::string_view kMain = R"(
+pub proc ParametricProc<DATA_W: u32, ADDR_W: u32> {
+    init {}
+    config() { }
+    next(_: ()) { }
+}
+
+#[test_proc]
+proc TestProc {
+    terminator: chan<bool> out;
+    init {}
+    config(terminator: chan<bool> out) {
+        spawn ParametricProc<u32:64, u32:32>();
+        (terminator, )
+    }
+    next(_: ()) { }
+}
+
+proc TopProc {
+    init {}
+    config() {
+        spawn ParametricProc<u32:64, u32:16>();
+    }
+    next(_: ()) {}
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted, ConvertModuleForTest(kMain));
+
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, MultipleSpawnsTestAndTop) {
+  ImportData import_data = CreateImportDataForTest();
+  constexpr std::string_view kMain = R"(
+pub proc ParametricProc<DATA_W: u32, ADDR_W: u32> {
+    init {}
+    config() { }
+    next(_: ()) { }
+}
+
+#[test_proc]
+proc TestProc {
+    terminator: chan<bool> out;
+    init {}
+    config(terminator: chan<bool> out) {
+        spawn ParametricProc<u32:64, u32:32>();
+        (terminator, )
+    }
+    next(_: ()) { }
+}
+
+proc TopProc {
+    init {}
+    config() {
+        spawn ParametricProc<u32:64, u32:16>();
+    }
+    next(_: ()) {}
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kMain, ConvertOptions{
+                                      .emit_positions = false,
+                                      .convert_tests = true,
+                                      .lower_to_proc_scoped_channels = true,
+                                  }));
+
+  ExpectIr(converted);
+}
+
 // Because the function is not instantiated, we should not observe the error at
 // conversion time.
 TEST_F(IrConverterTest, TypeErrorInUninstantiatedParametric) {
