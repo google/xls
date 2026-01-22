@@ -699,6 +699,25 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
     return true;
   }
 
+  // Pattern: 1-bit negate is identity: `neg(x:bits[1])` => `x`
+  //
+  // In 1-bit two's complement arithmetic: -0 == 0 and -1 == 1.
+  if (n->op() == Op::kNeg && n->BitCountOrDie() == 1) {
+    VLOG(2) << "FOUND: 1-bit negate is identity";
+    XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
+    return true;
+  }
+
+  // Pattern: 1-bit subtract-from-zero is identity: `sub(0, x:bits[1])` => `x`
+  //
+  // For bits[1], 0 - x == -x == x.
+  if (n->op() == Op::kSub && n->BitCountOrDie() == 1 &&
+      query_engine.IsAllZeros(n->operand(0))) {
+    VLOG(2) << "FOUND: 1-bit subtract-from-zero is identity";
+    XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(1)));
+    return true;
+  }
+
   // Pattern: Double negative.
   //   -(-expr)
   if (n->op() == Op::kNeg && n->operand(0)->op() == Op::kNeg) {

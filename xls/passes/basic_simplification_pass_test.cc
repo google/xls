@@ -373,6 +373,35 @@ TEST_F(BasicSimplificationPassTest, OrReduceOfNeg) {
   EXPECT_THAT(f->return_value(), m::OrReduce(m::Param("x")));
 }
 
+TEST_F(BasicSimplificationPassTest, OneBitNegateIsIdentity) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue x = fb.Param("x", p->GetBitsType(1));
+  BValue result = fb.Negate(x);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
+  ScopedVerifyEquivalence sve(f);
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Param("x"));
+}
+
+TEST_F(BasicSimplificationPassTest, OneBitSubFromZeroIsIdentity) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue x = fb.Param("x", p->GetBitsType(1));
+  BValue zero = fb.Literal(UBits(0, 1));
+  BValue result = fb.Subtract(zero, x);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
+  ScopedVerifyEquivalence sve(f);
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Param("x"));
+}
+
 TEST_F(BasicSimplificationPassTest, OrReduceOfNegWithOtherUses) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
