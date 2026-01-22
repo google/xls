@@ -17,7 +17,6 @@
 #include <algorithm>
 #include <compare>
 #include <cstdint>
-#include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
@@ -1638,7 +1637,8 @@ absl::StatusOr<bool> LowerIoToPorts(
           outgoing_channel_count));
     }
     for (const auto& [directed_channel, _] : io_ops) {
-      if (directed_channel.second != ChannelDirection::kSend) {
+      if (directed_channel.second != ChannelDirection::kSend ||
+          ChannelRefKind(directed_channel.first) != ChannelKind::kStreaming) {
         continue;
       }
       auto it = connections.find(directed_channel);

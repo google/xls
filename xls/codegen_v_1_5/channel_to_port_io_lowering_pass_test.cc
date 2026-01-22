@@ -172,6 +172,42 @@ TEST_F(ChannelToPortIoLoweringPassTest, MultiOutputWithOneShotLogic) {
               Contains(m::RegisterRead(HasSubstr("already_done_reg"))));
 }
 
+TEST_F(ChannelToPortIoLoweringPassTest, NoOneShotLogicForSingleValueChannel) {
+  // Three output channels, not mutually exclusive, one of them single-value.
+  // Should generate one-shot logic (already_done registers) but only for the
+  // streaming ones.
+  auto p = std::make_unique<Package>("test");
+  ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(auto ch_a,
+                           pb.AddOutputChannel("ch_a", p->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(auto ch_b,
+                           pb.AddOutputChannel("ch_b", p->GetBitsType(32)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto ch_c,
+                           pb.AddOutputChannel("ch_c", p->GetBitsType(32),
+                                               ChannelKind::kSingleValue));
+
+  BValue tkn = pb.Literal(Value::Token());
+  BValue lit = pb.Literal(Value(UBits(123, 32)));
+  pb.Send(ch_a, tkn, lit);
+  pb.Send(ch_b, tkn, lit);
+  pb.Send(ch_c, tkn, lit);
+  XLS_ASSERT_OK(pb.Build());
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+
+  // Check for registers named something like "*already_done_reg"
+  EXPECT_THAT(block->nodes(),
+              Contains(m::RegisterRead(HasSubstr("ch_a_already_done_reg"))));
+  EXPECT_THAT(block->nodes(),
+              Contains(m::RegisterRead(HasSubstr("ch_b_already_done_reg"))));
+  EXPECT_THAT(
+      block->nodes(),
+      Not(Contains(m::RegisterRead(HasSubstr("ch_c_already_done_reg")))));
+}
+
 TEST_F(ChannelToPortIoLoweringPassTest,
        MutuallyExclusiveOutputsNoOneShotLogic) {
   // Two output channels, strictly mutually exclusive. Should NOT generate

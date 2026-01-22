@@ -2576,7 +2576,7 @@ TEST_F(ProcLoweringBlockEvalTest, NonTopProcsWithExternalSingleValueIO) {
                                            {"x_minus_y_out", {113, 12, 32}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_SingleValueAndStreamingChannels) {
+TEST_F(ProcLoweringBlockEvalTest, SingleValueAndStreamingChannels) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
