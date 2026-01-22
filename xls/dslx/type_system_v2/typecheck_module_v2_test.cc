@@ -9209,5 +9209,79 @@ const F = Foo { a: C };
                                         HasSpan(8, 19, 8, 20)));
 }
 
+// TODO: erinzmoore - Add `const_assert!` statements to lambda tests once
+// constexpr is supported for lambdas.
+TEST(TypecheckV2Test, LambdaWithExplicitTypes) {
+  EXPECT_THAT(R"(
+const M = 0..6;
+
+const ARR = map(M, | i: u16 | -> u16 { 2 * i });
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("M", "uN[3][6]"),
+                                      HasNodeWithType("ARR", "uN[16][6]"))));
+}
+
+TEST(TypecheckV2Test, LambdaWithImplicitParam) {
+  EXPECT_THAT(
+      R"(
+const ARR = map(0..6, | i | -> u16 { i });
+)",
+      TypecheckSucceeds(HasNodeWithType("ARR", "uN[16][6]")));
+}
+
+TEST(TypecheckV2Test, LambdaWithMultipleParams) {
+  EXPECT_THAT(
+      R"(
+fn main() -> u32 {
+  (|i, j| -> u32 {i * j})(2, 4)
+}
+)",
+      TypecheckSucceeds(HasNodeWithType("main", "() -> uN[32]")));
+}
+
+TEST(TypecheckV2Test, LambdaWithMultipleParamsMismatch) {
+  EXPECT_THAT(
+      R"(
+fn main() -> u32 {
+  (|i, j: bool| -> u32 {i * j})(2, u32:4)
+}
+)",
+      TypecheckFails(HasSizeMismatch("bool", "u32")));
+}
+
+TEST(TypecheckV2Test, LambdaWithContextCapture) {
+  EXPECT_THAT(
+      R"(
+fn main() -> u32 {
+  const X = u32:0;
+  let ARR = map(0..5, |i| -> u32 { X * i });
+  ARR[0]
+}
+)",
+      TypecheckSucceeds(HasNodeWithType("ARR", "uN[32][5]")));
+}
+
+TEST(TypecheckV2Test, LambdaWithContextParamsTypeMismatch) {
+  EXPECT_THAT(
+      R"(
+fn main() {
+  const X = false;
+  let ARR = map(0..5, |i| -> u32 { X * i });
+}
+)",
+      TypecheckFails(HasSizeMismatch("uN[1]", "uN[32]")));
+}
+
+// TODO: Support lambdas in constant_collector.
+TEST(TypecheckV2Test, DISABLED_LambdaConstEval) {
+  EXPECT_THAT(R"(
+const X = u32:3;
+const ARR = map(0..5, |i: u32| -> u32 { X * i });
+const TEST = uN[ARR[1]]:0;
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("ARR", "uN[32][5]"),
+                                      HasNodeWithType("TEST", "uN[3]"))));
+}
+
 }  // namespace
 }  // namespace xls::dslx

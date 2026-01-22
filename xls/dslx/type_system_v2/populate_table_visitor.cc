@@ -1372,6 +1372,19 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
 
   absl::Status HandleTrait(const Trait*) override { return absl::OkStatus(); }
 
+  absl::Status HandleLambda(const Lambda* node) override {
+    VLOG(5) << "HandleLambda: " << node->ToString();
+    // Most of the type inference should happen within the internal function,
+    // but the type assigned to the function should also apply to the
+    // lambda node.
+    XLS_ASSIGN_OR_RETURN(const NameRef* lambda_type_variable,
+                         DefineTypeVariable(node, "lambda"));
+    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node, lambda_type_variable));
+    XLS_RETURN_IF_ERROR(
+        table_.SetTypeVariable(node->function(), lambda_type_variable));
+    return node->function()->Accept(this);
+  }
+
   absl::Status HandleFunction(const Function* node) override {
     // Proc functions are reachable via both the `Module` and the `Proc`, as an
     // oddity of how procs are set up in the AST. We only want to handle them in
@@ -1420,8 +1433,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     }
 
     // Descend into the function body.
-    XLS_RETURN_IF_ERROR(node->body()->Accept(this));
-    return absl::OkStatus();
+    return node->body()->Accept(this);
   }
 
   absl::Status HandleParametricBinding(const ParametricBinding* node) override {
