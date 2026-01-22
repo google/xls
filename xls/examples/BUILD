@@ -698,6 +698,41 @@ xls_dslx_verilog(
     verilog_file = "tiny_adder.sv",
 )
 
+# -- const_fn sample
+
+xls_dslx_library(
+    name = "const_fn_dslx",
+    srcs = ["const_fn.x"],
+)
+
+xls_dslx_test(
+    name = "const_fn_test",
+    dslx_test_args = {"compare": "jit"},
+    library = ":const_fn_dslx",
+)
+
+xls_dslx_opt_ir(
+    name = "const_fn_opt_ir",
+    srcs = ["const_fn.x"],
+    dslx_top = "main",
+    ir_file = "const_fn.ir",
+    opt_ir_file = "const_fn.opt.ir",
+)
+
+xls_dslx_verilog(
+    name = "const_fn_sv",
+    codegen_args = {
+        "module_name": "const_fn",
+        "generator": "combinational",
+        "delay_model": "unit",
+        "use_system_verilog": "true",
+        "output_port_name": "result",
+    },
+    dslx_top = "main",
+    library = ":const_fn_dslx",
+    verilog_file = "const_fn.sv",
+)
+
 # -- find_index sample, with OpenROAD synthesis
 
 xls_dslx_library(
