@@ -3467,6 +3467,14 @@ TEST_F(ParserTest, ParseTypeInferenceV1AndV2Attributes) {
                                   "and `type_inference_v2` attributes")));
 }
 
+TEST_F(ParserTest, ParseExplicitStateAccessAttribute) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module, Parse(R"(
+#![feature(explicit_state_access)]
+)"));
+  EXPECT_THAT(module->attributes(),
+              testing::ElementsAre(ModuleAttribute::kExplicitStateAccess));
+}
+
 // Verifies that we can walk backwards through a tree. In this case, from the
 // terminal node to the defining expr.
 TEST(ParserBackrefTest, CanFindDefiner) {

@@ -82,6 +82,10 @@ enum class ModuleAttribute : uint8_t {
   // Enable #channel() attributes for this module.
   kChannelAttributes,
 
+  // Enable read and write with optional labels for state access for this
+  // module.
+  kExplicitStateAccess,
+
   kGenerics,
 
   // Enable `trait` declarations.

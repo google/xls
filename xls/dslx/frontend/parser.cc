@@ -345,6 +345,9 @@ absl::Status Parser::ParseModuleAttribute() {
     } else if (feature == "channel_attributes") {
       module_->AddAttribute(ModuleAttribute::kChannelAttributes,
                             attribute_span);
+    } else if (feature == "explicit_state_access") {
+      module_->AddAttribute(ModuleAttribute::kExplicitStateAccess,
+                            attribute_span);
     } else if (feature == "generics") {
       module_->AddAttribute(ModuleAttribute::kGenerics, attribute_span);
     } else if (feature == "traits") {
