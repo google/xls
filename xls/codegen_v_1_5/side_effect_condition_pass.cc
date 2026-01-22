@@ -142,7 +142,7 @@ absl::StatusOr<bool> SideEffectConditionPass::RunInternal(
       continue;
     }
 
-    absl::FixedArray<Node*> all_inputs_valid_by_stage(
+    absl::FixedArray<Node*> internal_condition_by_stage(
         scheduled_block->stages().size(), nullptr);
     for (Node* node : scheduled_block->nodes()) {
       XLS_ASSIGN_OR_RETURN(bool should_be_rewritten,
@@ -155,17 +155,28 @@ absl::StatusOr<bool> SideEffectConditionPass::RunInternal(
                            scheduled_block->GetStageIndex(node));
       VLOG(5) << absl::StreamFormat("Node %s is in stage %d.", node->GetName(),
                                     stage_index);
-      if (all_inputs_valid_by_stage[stage_index] == nullptr) {
-        XLS_ASSIGN_OR_RETURN(
-            all_inputs_valid_by_stage[stage_index],
-            scheduled_block->MakeNodeWithName<NaryOp>(
-                SourceInfo(),
-                absl::MakeConstSpan(
-                    {scheduled_block->stages()[stage_index].inputs_valid(),
-                     scheduled_block->stages()[stage_index]
-                         .active_inputs_valid()}),
-                Op::kAnd,
-                absl::StrFormat("p%d_all_inputs_valid", stage_index)));
+      if (internal_condition_by_stage[stage_index] == nullptr) {
+        if (is_function || options.codegen_options.generate_combinational()) {
+          XLS_ASSIGN_OR_RETURN(
+              internal_condition_by_stage[stage_index],
+              scheduled_block->MakeNodeWithName<NaryOp>(
+                  SourceInfo(),
+                  absl::MakeConstSpan(
+                      {scheduled_block->stages()[stage_index].inputs_valid(),
+                       scheduled_block->stages()[stage_index]
+                           .active_inputs_valid()}),
+                  Op::kAnd,
+                  absl::StrFormat("p%d_all_inputs_valid", stage_index)));
+        } else {
+          XLS_ASSIGN_OR_RETURN(
+              internal_condition_by_stage[stage_index],
+              scheduled_block->MakeNodeWithName<NaryOp>(
+                  SourceInfo(),
+                  absl::MakeConstSpan(
+                      {scheduled_block->stages()[stage_index].outputs_valid(),
+                       scheduled_block->stages()[stage_index].outputs_ready()}),
+                  Op::kAnd, absl::StrFormat("p%d_stage_done", stage_index)));
+        }
       }
 
       XLS_ASSIGN_OR_RETURN(int64_t condition_operand,
@@ -174,7 +185,7 @@ absl::StatusOr<bool> SideEffectConditionPass::RunInternal(
           Node * guarded_condition,
           MakeGuardedConditionForOp(
               node->op(), node->operand(condition_operand),
-              all_inputs_valid_by_stage[stage_index], block.get()));
+              internal_condition_by_stage[stage_index], block.get()));
       XLS_RETURN_IF_ERROR(
           node->ReplaceOperandNumber(condition_operand, guarded_condition));
       changed = true;

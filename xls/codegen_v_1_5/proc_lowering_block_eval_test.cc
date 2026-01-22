@@ -48,6 +48,7 @@
 #include "xls/codegen_v_1_5/global_channel_block_stitching_pass.h"
 #include "xls/codegen_v_1_5/global_channel_map.h"
 #include "xls/codegen_v_1_5/idle_insertion_pass.h"
+#include "xls/codegen_v_1_5/pipeline_register_insertion_pass.h"
 #include "xls/codegen_v_1_5/scheduled_block_conversion_pass.h"
 #include "xls/codegen_v_1_5/scheduling_pass.h"
 #include "xls/codegen_v_1_5/side_effect_condition_pass.h"
@@ -188,6 +189,9 @@ absl::StatusOr<bool> RunBlockStitchingPass(
 
   XLS_RETURN_IF_ERROR(
       SideEffectConditionPass().Run(p, options, &results).status());
+
+  XLS_RETURN_IF_ERROR(
+      PipelineRegisterInsertionPass().Run(p, options, &results).status());
 
   XLS_RETURN_IF_ERROR(
       StateToRegisterIoLoweringPass().Run(p, options, &results).status());
@@ -1563,7 +1567,7 @@ TEST_F(ProcLoweringBlockEvalTest, NestedProcPassThrough) {
               IsOkAndHolds(BlockOutputsEq({{"out", {123, 22, 42}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcDelayedPassThrough) {
+TEST_F(ProcLoweringBlockEvalTest, NestedProcDelayedPassThrough) {
   // Nested procs where the inner proc passes through the value after a delay.
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
@@ -3799,7 +3803,7 @@ TEST_F(ProcLoweringBlockEvalTest, TokenFanOut) {
               IsOkAndHolds(BlockOutputsEq({{"out", {10, 19, 25}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_RandomProcNetworks) {
+TEST_F(ProcLoweringBlockEvalTest, RandomProcNetworks) {
   // Create random proc networks and verify the results are the same before and
   // after proc inlining.
 
@@ -3995,8 +3999,7 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_RandomProcNetworks) {
   }
 }
 
-TEST_F(ProcLoweringBlockEvalTest,
-       DISABLED_DataDependencyWithoutTokenDependency) {
+TEST_F(ProcLoweringBlockEvalTest, DataDependencyWithoutTokenDependency) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -4049,7 +4052,7 @@ TEST_F(ProcLoweringBlockEvalTest,
               IsOkAndHolds(BlockOutputsEq({{"out", {246, 44, 84}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_ReceivedValueSentAndNext) {
+TEST_F(ProcLoweringBlockEvalTest, ReceivedValueSentAndNext) {
   // Receive a value and pass to a send and a next-state value. This tests
   // whether the received value is properly saved due to being passed to the
   // next-state value.
@@ -5074,7 +5077,7 @@ TEST_F(ProcLoweringBlockEvalTest, ProcWithGate) {
       IsOkAndHolds(BlockOutputsEq({{"out", {0, 1, 2, 99, 100, 0, 0, 0}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_ProcWithTrace) {
+TEST_F(ProcLoweringBlockEvalTest, ProcWithTrace) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
 

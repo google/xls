@@ -722,6 +722,7 @@ cc_test(
         ":global_channel_block_stitching_pass",
         ":global_channel_map",
         ":idle_insertion_pass",
+        ":pipeline_register_insertion_pass",
         ":scheduled_block_conversion_pass",
         ":scheduling_pass",
         ":side_effect_condition_pass",

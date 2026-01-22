@@ -278,6 +278,7 @@ TEST_P(SideEffectConditionPassTest, CombinationalProc) {
   XLS_ASSERT_OK(bb.Build().status());
 
   BlockConversionPassOptions options = CreateBlockConversionPassOptions();
+  options.codegen_options.generate_combinational(true);
   PassResults results;
   OptimizationContext opt_context;
   EXPECT_THAT(
@@ -610,7 +611,7 @@ TEST_P(SideEffectConditionPassTest, SingleStageProc) {
   XLS_ASSERT_OK_AND_ASSIGN(Node * assertion, block->GetNode("assertion"));
   ASSERT_NE(assertion, nullptr);
   Node* condition = assertion->As<xls::Assert>()->condition();
-  EXPECT_THAT(condition, m::Or(m::Not(m::Name("p0_all_inputs_valid")),
+  EXPECT_THAT(condition, m::Or(m::Not(m::Name("p0_stage_done")),
                                m::Name("x_lt_y"), m::Name("rst")));
 
   if (GetParam() == CodegenPassType::kDefault) {
@@ -799,7 +800,7 @@ TEST_P(SideEffectConditionPassTest, AssertionInLastStageOfProc) {
   ASSERT_NE(assertion, nullptr);
   Node* condition = assertion->As<xls::Assert>()->condition();
   EXPECT_THAT(condition,
-              m::Or(m::Not(m::Name(HasSubstr("p1_all_inputs_valid"))),
+              m::Or(m::Not(m::Name(HasSubstr("p1_stage_done"))),
                     m::Name(HasSubstr("xy_plus_1_gt_4")), m::Name("rst")));
 
   if (GetParam() == CodegenPassType::kDefault) {
@@ -900,9 +901,8 @@ TEST_P(SideEffectConditionPassTest, IIGreaterThanOne) {
   XLS_ASSERT_OK_AND_ASSIGN(Node * assertion, block->GetNode("assertion"));
   ASSERT_NE(assertion, nullptr);
   Node* condition = assertion->As<xls::Assert>()->condition();
-  EXPECT_THAT(condition,
-              m::Or(m::Not(m::Name(HasSubstr("p1_all_inputs_valid"))),
-                    m::Name("receive_data_lt_5"), m::Name("rst")));
+  EXPECT_THAT(condition, m::Or(m::Not(m::Name(HasSubstr("p1_stage_done"))),
+                               m::Name("receive_data_lt_5"), m::Name("rst")));
 
   if (GetParam() == CodegenPassType::kDefault) {
     constexpr int64_t kNumCycles = 10;
