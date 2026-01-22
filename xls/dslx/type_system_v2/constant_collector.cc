@@ -569,7 +569,7 @@ class Visitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleFunction(const Function* function) override {
-    if (function->tag() == FunctionTag::kProcInit) {
+    if ((function->tag() == FunctionTag::kProcInit) || (function->is_const())) {
       XLS_RETURN_IF_ERROR(EvaluateAndNoteExpr(function->body()));
     }
     return absl::OkStatus();
