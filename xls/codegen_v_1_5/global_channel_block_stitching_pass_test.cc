@@ -33,6 +33,7 @@
 #include "xls/codegen_v_1_5/state_to_register_io_lowering_pass.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
@@ -41,6 +42,7 @@
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/node.h"
+#include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/scheduling_options.h"
@@ -121,6 +123,27 @@ TEST_F(GlobalChannelBlockStitchingPassTest, NoProcs) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, p_->GetTopAsBlock());
   EXPECT_THAT(block->GetInstantiations(), IsEmpty());
+}
+
+TEST_F(GlobalChannelBlockStitchingPassTest, ExtraneousProcWithFunctionAsTop) {
+  FunctionBuilder fb("f", p_.get());
+  BValue a = fb.Param("a", p_->GetBitsType(32));
+  BValue b = fb.Param("b", p_->GetBitsType(32));
+  BValue c = fb.Param("c", p_->GetBitsType(32));
+  BValue res = fb.UMul(c, fb.Add(a, b));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(res));
+  XLS_ASSERT_OK(p_->SetTop(f));
+
+  TokenlessProcBuilder pb_main(TestName(), /*token_name=*/"tkn", p_.get());
+  BValue state = pb_main.StateElement("state", Value(UBits(0, 32)));
+  pb_main.Add(state, pb_main.Literal(Value(UBits(1, 32))));
+  XLS_ASSERT_OK(pb_main.Build().status());
+
+  XLS_ASSERT_OK_AND_ASSIGN(bool changed, Run(p_.get(), /*pipeline_stages=*/2));
+  EXPECT_FALSE(changed);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * top, p_->GetTopAsBlock());
+  EXPECT_EQ(top->name(), "f");
 }
 
 TEST_F(GlobalChannelBlockStitchingPassTest, ProcWithProcScopedChannels) {

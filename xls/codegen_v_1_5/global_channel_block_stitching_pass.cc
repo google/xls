@@ -459,11 +459,17 @@ absl::StatusOr<Block*> AddBlockWithName(Package* package,
 absl::StatusOr<bool> GlobalChannelBlockStitchingPass::RunInternal(
     Package* package, const BlockConversionPassOptions& options,
     PassResults* results) const {
-  // No need to stitch blocks when we don't have 2+ blocks or if channels are
-  // proc-scoped.
-  if (package->blocks().size() < 2 ||
-      !GetScheduledBlocksWithProcSources(package, /*new_style_only=*/true)
-           .empty()) {
+  // No need to stitch blocks when we don't have 2+ blocks, channels are
+  // proc-scoped, or the top is not a proc.
+  std::vector<std::pair<ScheduledBlock*, Proc*>> blocks_with_proc_sources =
+      GetScheduledBlocksWithProcSources(package);
+  const bool proc_scoped_channels = absl::c_any_of(
+      blocks_with_proc_sources,
+      [](const auto& pair) { return pair.second->is_new_style_proc(); });
+  const bool proc_top = absl::c_any_of(
+      blocks_with_proc_sources,
+      [&](const auto& pair) { return package->IsTop(pair.first); });
+  if (package->blocks().size() < 2 || proc_scoped_channels || !proc_top) {
     return false;
   }
 
