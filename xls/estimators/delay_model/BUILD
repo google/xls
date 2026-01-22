@@ -17,7 +17,6 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_hdl//dependency_support/com_google_skywater_pdk:cells_info.bzl", "for_each_sky130_cells")
 load("@rules_hdl//dependency_support/org_theopenroadproject_asap7_pdk_r1p7:cells_info.bzl", "for_each_asap7_cells")
 load("@rules_python//python:proto.bzl", "py_proto_library")
-load("@xls_pip_deps//:requirements.bzl", "requirement")
 load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary")
 
 # Load proto_library
@@ -207,14 +206,13 @@ pytype_strict_binary(
     srcs = ["generate_delay_lookup.py"],
     data = ["generate_delay_lookup.tmpl"],
     deps = [
-        requirement("Jinja2"),
-        requirement("MarkupSafe"),
         "//xls/common:runfiles",
         "//xls/estimators:estimator_model",
         "//xls/estimators:estimator_model_py_pb2",
         "@abseil-py//absl:app",
         "@abseil-py//absl/flags",
         "@com_google_protobuf//:protobuf_python",
+        "@xls_pip_deps//jinja2",
     ],
 )
 

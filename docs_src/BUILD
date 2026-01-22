@@ -14,7 +14,6 @@
 
 # Targets for documentation files.
 
-load("@xls_pip_deps//:requirements.bzl", "requirement")
 load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_contrib_test")
 
 package(
@@ -63,8 +62,8 @@ pytype_strict_contrib_test(
         "//:mkdocs.yml",
     ],
     deps = [
-        requirement("pyyaml"),
         "//xls/common:runfiles",
         "@abseil-py//absl:app",
+        "@xls_pip_deps//pyyaml",
     ],
 )

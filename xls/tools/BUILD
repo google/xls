@@ -19,7 +19,6 @@ load("@rules_python//python:proto.bzl", "py_proto_library")
 # Load proto_library
 # cc_proto_library is used in this file
 
-load("@xls_pip_deps//:requirements.bzl", "requirement")
 load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary", "pytype_strict_contrib_test")
 
 package(

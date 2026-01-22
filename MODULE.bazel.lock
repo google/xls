@@ -1883,7 +1883,7 @@
           "@@or-tools~//bazel/ortools_requirements.txt": "37e22395e78ef3572ab57b7717fd8f54851919bb73ca404f367536dc15a8e3eb",
           "@@pybind11_abseil~//pybind11_abseil/requirements/requirements_lock_3_11.txt": "7d1074311e9f32f25ca112fc86fbec98bc024d820a8dc00f94e8679a7e6b480c",
           "@@rules_python~//tools/publish/requirements_linux.txt": "8175b4c8df50ae2f22d1706961884beeb54e7da27bd2447018314a175981997d",
-          "@@//dependency_support/pip_requirements_lock.txt": "e813fef63629aaca3c070b25f1265afb21da8400c4dc846646f3056965670718",
+          "@@//dependency_support/pip_requirements_lock.txt": "9b707f7da8e40dfc19f2bd58e4f4b388e88e2316c730c723e17f745276867bf1",
           "@@or-tools~//bazel/notebook_requirements.txt": "ca78fad693f1b35eed8bb7c54e5ddf7ad255c4b9d94ce18efa55859759a8fb70",
           "@@protoc-gen-validate~//python/requirements.txt": "6a540bc029bbf3a5f78f9f9282bd30e2965c98eeb150f2cfc5facccbd8a98297",
           "@@pybind11_protobuf~//pybind11_protobuf/requirements/requirements_lock_3_10.txt": "afd6f9406f4e80a504f1575121a937f4c15388aec4a17393f0cb1ac9f09d18dd",

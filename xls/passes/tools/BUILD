@@ -17,7 +17,6 @@ load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_python//python:proto.bzl", "py_proto_library")
-load("@xls_pip_deps//:requirements.bzl", "requirement")
 load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary")
 
 # Load proto_library
@@ -193,11 +192,10 @@ pytype_strict_binary(
     srcs = ["generate_documentation_md.py"],
     deps = [
         ":pass_documentation_py_pb2",
-        requirement("Jinja2"),
-        requirement("MarkupSafe"),
         "//xls/passes:optimization_pass_pipeline_py_pb2",
         "@abseil-py//absl:app",
         "@abseil-py//absl/flags",
+        "@xls_pip_deps//jinja2",
     ],
 )
 

@@ -20,7 +20,6 @@ load("@rules_python//python:proto.bzl", "py_proto_library")
 # Load proto_library
 # cc_proto_library is used in this file
 
-load("@xls_pip_deps//:requirements.bzl", "requirement")
 load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary", "pytype_strict_contrib_test", "pytype_strict_library")
 
 package(
@@ -147,10 +146,10 @@ pytype_strict_contrib_test(
     shard_count = 2,
     deps = [
         ":synthesis_py_pb2",
-        requirement("portpicker"),
         "//xls/common:runfiles",
         "@abseil-py//absl/testing:absltest",
         "@com_google_protobuf//:protobuf_python",
+        "@xls_pip_deps//portpicker",
     ],
 )
 
@@ -209,9 +208,9 @@ pytype_strict_contrib_test(
     deps = [
         ":client_credentials",
         ":synthesis_utils",
-        requirement("portpicker"),
         "//xls/common:runfiles",
         "@abseil-py//absl/testing:absltest",
+        "@xls_pip_deps//portpicker",
     ],
 )
 

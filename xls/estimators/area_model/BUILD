@@ -16,7 +16,6 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_hdl//dependency_support/com_google_skywater_pdk:cells_info.bzl", "for_each_sky130_cells")
 load("@rules_hdl//dependency_support/org_theopenroadproject_asap7_pdk_r1p7:cells_info.bzl", "for_each_asap7_cells")
-load("@xls_pip_deps//:requirements.bzl", "requirement")
 load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary", "pytype_strict_contrib_test", "pytype_strict_library")
 load("//xls/build_rules:xls_build_defs.bzl", "xls_model_generation")
 
@@ -119,8 +118,6 @@ pytype_strict_binary(
     srcs = ["generate_area_lookup.py"],
     data = ["generate_area_lookup.tmpl"],
     deps = [
-        requirement("Jinja2"),
-        requirement("MarkupSafe"),
         "//xls/common:runfiles",
         "//xls/estimators:estimator_model",
         "//xls/estimators:estimator_model_py_pb2",
@@ -128,6 +125,7 @@ pytype_strict_binary(
         "@abseil-py//absl:app",
         "@abseil-py//absl/flags",
         "@com_google_protobuf//:protobuf_python",
+        "@xls_pip_deps//jinja2",
     ],
 )
 

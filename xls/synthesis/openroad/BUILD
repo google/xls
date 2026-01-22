@@ -13,7 +13,6 @@
 # limitations under the License.
 
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
-load("@xls_pip_deps//:requirements.bzl", "requirement")
 load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_contrib_test")
 
 package(
@@ -71,11 +70,11 @@ pytype_strict_contrib_test(
     # One shard for each different server test.
     shard_count = 5,
     deps = [
-        requirement("portpicker"),
         "//xls/common:runfiles",
         "//xls/synthesis:synthesis_py_pb2",
         "@abseil-py//absl/testing:absltest",
         "@com_google_protobuf//:protobuf_python",
+        "@xls_pip_deps//portpicker",
     ],
 )
 
