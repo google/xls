@@ -3195,9 +3195,15 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
                             "Channels cannot be Proc next params.");
   }
 
-  XLS_ASSIGN_OR_RETURN(TypeAnnotation * return_type,
-                       CloneNode(state_param->type_annotation(),
-                                 &PreserveTypeDefinitionsReplacer));
+  TypeAnnotation* return_type;
+  if (module_->attributes().contains(ModuleAttribute::kExplicitStateAccess)) {
+    return_type = module_->Make<TupleTypeAnnotation>(
+        state_param->span(), std::vector<TypeAnnotation*>{});
+  } else {
+    XLS_ASSIGN_OR_RETURN(return_type,
+                         CloneNode(state_param->type_annotation(),
+                                   &PreserveTypeDefinitionsReplacer));
+  }
   XLS_ASSIGN_OR_RETURN(StatementBlock * body,
                        ParseBlockExpression(inner_bindings));
   Span span(oparen.span().start(), GetPos());
