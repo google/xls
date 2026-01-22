@@ -2982,6 +2982,7 @@ absl::StatusOr<AnnotatedFunction> AstGenerator::GenerateFunction(
       /*params=*/params,
       /*return_type=*/retval.type, block, FunctionTag::kNormal,
       /*is_public=*/false,
+      /*is_const=*/false,
       /*test_only=*/false);
   name_def->set_definer(f);
 
@@ -3049,6 +3050,7 @@ absl::StatusOr<Function*> AstGenerator::GenerateProcConfigFunction(
       /*params=*/params,
       /*return_type=*/ret_tuple_type, block, FunctionTag::kProcConfig,
       /*is_public=*/false,
+      /*is_const=*/false,
       /*test_only=*/false);
   name_def->set_definer(f);
   return f;
@@ -3087,6 +3089,7 @@ absl::StatusOr<AnnotatedFunction> AstGenerator::GenerateProcNextFunction(
       /*params=*/params,
       /*return_type=*/retval.type, block, FunctionTag::kProcNext,
       /*is_public=*/false,
+      /*is_const=*/false,
       /*test_only=*/false);
   name_def->set_definer(f);
 
@@ -3113,6 +3116,7 @@ absl::StatusOr<Function*> AstGenerator::GenerateProcInitFunction(
       /*params=*/std::vector<Param*>(),
       /*return_type=*/return_type, b, FunctionTag::kProcInit,
       /*is_public=*/false,
+      /*is_const=*/false,
       /*test_only=*/false);
   name_def->set_definer(f);
   return f;
