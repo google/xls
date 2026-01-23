@@ -118,7 +118,7 @@ absl::StatusOr<TypecheckedModule> TypecheckModule(
   std::unique_ptr<SemanticsAnalysis> semantics_analysis =
       std::make_unique<SemanticsAnalysis>();
   XLS_RETURN_IF_ERROR(
-      semantics_analysis->RunPreTypeCheckPass(*module, warnings));
+      semantics_analysis->RunPreTypeCheckPass(*module, warnings, *import_data));
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<ModuleInfo> module_info,
       TypecheckModuleV2(std::move(module), path, import_data, &warnings,

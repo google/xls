@@ -37,6 +37,7 @@
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/token_utils.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/warning_collector.h"
@@ -443,7 +444,8 @@ class CollectUseDef : public AstNodeVisitorWithDefault {
 }  // namespace
 
 absl::Status SemanticsAnalysis::RunPreTypeCheckPass(
-    Module& module, WarningCollector& warning_collector) {
+    Module& module, WarningCollector& warning_collector,
+    ImportData& import_data) {
   PreTypecheckPass pass(warning_collector);
 
   for (const ModuleMember& top : module.top()) {

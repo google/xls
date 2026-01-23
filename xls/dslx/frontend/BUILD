@@ -744,6 +744,7 @@ cc_library(
         ":token_utils",
         "//xls/common:casts",
         "//xls/common/status:status_macros",
+        "//xls/dslx:import_data",
         "//xls/dslx:warning_collector",
         "//xls/dslx:warning_kind",
         "//xls/dslx/type_system:deduce_utils",

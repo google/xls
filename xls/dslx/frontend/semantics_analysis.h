@@ -22,6 +22,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/warning_collector.h"
 
@@ -36,7 +37,8 @@ namespace xls::dslx {
 class SemanticsAnalysis {
  public:
   absl::Status RunPreTypeCheckPass(Module& module,
-                                   WarningCollector& warning_collector);
+                                   WarningCollector& warning_collector,
+                                   ImportData& import_data);
 
   absl::Status RunPostTypeCheckPass(WarningCollector& warning_collector);
 
