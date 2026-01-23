@@ -99,6 +99,7 @@ bool xls_convert_dslx_to_ir_with_warnings(
       .warnings_out = &warnings_out_cpp,
       .force_implicit_token_calling_convention =
           force_implicit_token_calling_convention,
+      .lower_to_proc_scoped_channels = false,
   };
 
   absl::StatusOr<std::string> result =
@@ -163,6 +164,7 @@ bool xls_convert_dslx_path_to_ir_with_warnings(
       .warnings_out = &warnings_out_cpp,
       .force_implicit_token_calling_convention =
           force_implicit_token_calling_convention,
+      .lower_to_proc_scoped_channels = false,
   };
   absl::StatusOr<std::string> result = xls::ConvertDslxPathToIr(path, options);
 

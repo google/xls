@@ -35,6 +35,7 @@ struct ConvertDslxToIrOptions {
   bool warnings_as_errors = true;
   std::vector<std::string>* warnings_out = nullptr;
   bool force_implicit_token_calling_convention = false;
+  bool lower_to_proc_scoped_channels = false;
 };
 
 absl::StatusOr<std::string> ConvertDslxToIr(
