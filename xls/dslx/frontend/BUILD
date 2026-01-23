@@ -57,6 +57,50 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "function_specializer",
+    srcs = ["function_specializer.cc"],
+    hdrs = ["function_specializer.h"],
+    deps = [
+        ":ast",
+        ":ast_cloner",
+        ":module",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/dslx/type_system:parametric_env",
+        "//xls/ir:bits_ops",
+        "//xls/ir:format_preference",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "function_specializer_test",
+    srcs = ["function_specializer_test.cc"],
+    deps = [
+        ":ast",
+        ":function_specializer",
+        ":module",
+        "//xls/common:casts",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:interp_value",
+        "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx:replace_invocations",
+        "//xls/dslx:warning_collector",
+        "//xls/dslx/type_system:parametric_env",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/strings",
+        "@googletest//:gtest",
+    ],
+)
+
 cc_test(
     name = "ast_cloner_test",
     srcs = ["ast_cloner_test.cc"],
