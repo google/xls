@@ -569,7 +569,7 @@ class Visitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleFunction(const Function* function) override {
-    if ((function->tag() == FunctionTag::kProcInit) || (function->is_const())) {
+    if (function->tag() == FunctionTag::kProcInit) {
       XLS_RETURN_IF_ERROR(EvaluateAndNoteExpr(function->body()));
     }
     return absl::OkStatus();
@@ -584,8 +584,9 @@ class Visitor : public AstNodeVisitorWithDefault {
       // enforced at IR conversion time. A compiler-derived trait function has a
       // good chance of being constexpr, and straightforward testing of
       // derivation requires const asserts on their output.
-      if (f.has_value() && ((*f)->tag() == FunctionTag::kProcInit ||
-                            (*f)->IsCompilerDerived())) {
+      if ((f.has_value() && ((*f)->tag() == FunctionTag::kProcInit ||
+                             (*f)->IsCompilerDerived())) ||
+          (*f)->is_const()) {
         XLS_RETURN_IF_ERROR(EvaluateAndNoteExpr(invocation));
       }
       return absl::OkStatus();

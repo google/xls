@@ -13,16 +13,35 @@
 // limitations under the License.
 
 const CONST_1 = u32:666;
-const CONST_2 = CONST_1;
+const CONST_2 = u32:256;
+const CONST_3 = u32:3;
 
-const fn const_get() -> u32 { CONST_2 }
+const fn const_get() -> u32 { CONST_3 }
 const fn const_adder() -> u32 { CONST_1 + CONST_2 }
+const fn const_param_adder<A:u32, B:u32>() -> u32 { A + B }
+const fn const_mix_mul<N:u32>() -> u32 { N * CONST_3 }
 
 fn main() -> u32 {
-    const_adder() + const_get() + u32::MAX
+    let first = const_adder();
+    let second = const_param_adder<CONST_1, CONST_2>();
+    let third = const_mix_mul<CONST_2>();
+    let array: u32[const_get()] = [first, second, third];
+    for (i, accum) in u32:0..const_get() {
+        accum + array[i]
+    }(u32:0)
 }
 
 #[test]
 fn can_add_const() {
-    assert_eq(const_adder(), u32:1332);
+    assert_eq(const_adder(), u32:922);
+}
+
+#[test]
+fn can_add_params() {
+    assert_eq(const_param_adder<CONST_1, CONST_2>(), u32:922);
+}
+
+#[test]
+fn can_mul_mix() {
+    assert_eq(const_mix_mul<CONST_1>(), u32:1998);
 }

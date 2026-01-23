@@ -2288,18 +2288,14 @@ absl::Status FunctionConverter::HandleUdfInvocation(const Invocation* node,
     args = new_args;
   }
 
-  if (dslx_callee->is_const() && !dslx_callee->IsParametric()) {
+  if (dslx_callee->is_const()) {
     XLS_ASSIGN_OR_RETURN(InterpValue iv,
-                         current_type_info_->GetConstExpr(dslx_callee->body()));
+                         current_type_info_->GetConstExpr(node));
     XLS_ASSIGN_OR_RETURN(Value const_result, InterpValueToValue(iv));
     Def(node, [&](const SourceInfo& loc) {
       return function_builder_->Literal(const_result, loc);
     });
   } else {
-    if (dslx_callee->is_const() && dslx_callee->IsParametric()) {
-      return absl::Status(absl::StatusCode::kUnimplemented,
-                          "Constant parametric functions aren't supported.");
-    }
     Def(node, [&](const SourceInfo& loc) {
       BValue result = function_builder_->Invoke(args, f, loc);
       if (!callee_requires_implicit_token) {
