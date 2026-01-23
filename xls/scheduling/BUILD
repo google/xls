@@ -246,6 +246,7 @@ cc_library(
         ":schedule_util",
         ":scheduling_options",
         ":sdc_scheduler",
+        "//xls/common:math_util",
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",

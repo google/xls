@@ -40,6 +40,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/log_lines.h"
+#include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/binary_search.h"
@@ -221,7 +222,7 @@ absl::StatusOr<int64_t> FindMinimumClockPeriod(
   if (pipeline_stages.has_value()) {
     optimistic_clk_period_ps =
         std::max(optimistic_clk_period_ps,
-                 (function_cp_ps + *pipeline_stages - 1) / *pipeline_stages);
+                 CeilOfRatio(function_cp_ps, *pipeline_stages));
   }
   if (target_clock_period_ps.has_value()) {
     // Don't check any clock period less than the specified target.
