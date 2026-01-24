@@ -847,6 +847,94 @@ TEST_F(ConcatSimplificationPassTest,
                         m::BitSlice(m::Param("x"), 0, 6)));
 }
 
+// Test for OR with zeros - the zeros are identity elements for OR, so we
+// can narrow the OR to only operate on the non-zero portion and pass
+// through the rest unchanged.
+TEST_F(ConcatSimplificationPassTest,
+       NarrowBitwiseSurroundingConcatWithLiteralOrZeros) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+    fn foo(x: bits[10], b: bits[4]) -> bits[10] {
+      literal_zeros: bits[6] = literal(value=0b000000, id=1)
+      concat.2: bits[10] = concat(b, literal_zeros, id=2)
+      ret or.3: bits[10] = or(x, concat.2, id=3, pos=[(0,1,2)])
+    }
+  )",
+                                                       p.get()));
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  // The result should be: Concat(Or(x[9:6], b), x[5:0])
+  // where the lower 6 bits of x pass through unchanged.
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::Or(m::BitSlice(m::Param("x"), 6, 4), m::Param("b")),
+                        m::BitSlice(m::Param("x"), 0, 6)));
+}
+
+// Test for OR with zeros where zeros are in the high bits.
+TEST_F(ConcatSimplificationPassTest,
+       NarrowBitwiseSurroundingConcatWithLiteralOrZerosHighBits) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+    fn foo(x: bits[10], b: bits[4]) -> bits[10] {
+      literal_zeros: bits[6] = literal(value=0b000000, id=1)
+      concat.2: bits[10] = concat(literal_zeros, b, id=2)
+      ret or.3: bits[10] = or(x, concat.2, id=3, pos=[(0,1,2)])
+    }
+  )",
+                                                       p.get()));
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  // The result should be: Concat(x[9:4], Or(x[3:0], b))
+  // where the upper 6 bits of x pass through unchanged.
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::BitSlice(m::Param("x"), 4, 6),
+                        m::Or(m::BitSlice(m::Param("x"), 0, 4), m::Param("b"))));
+}
+
+// Test for AND with all-ones - the ones are identity elements for AND, so we
+// can narrow the AND to only operate on the non-ones portion and pass
+// through the rest unchanged.
+TEST_F(ConcatSimplificationPassTest,
+       NarrowBitwiseSurroundingConcatWithLiteralAndOnes) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+    fn foo(x: bits[10], b: bits[4]) -> bits[10] {
+      literal_ones: bits[6] = literal(value=0b111111, id=1)
+      concat.2: bits[10] = concat(b, literal_ones, id=2)
+      ret and.3: bits[10] = and(x, concat.2, id=3, pos=[(0,1,2)])
+    }
+  )",
+                                                       p.get()));
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  // The result should be: Concat(And(x[9:6], b), x[5:0])
+  // where the lower 6 bits of x pass through unchanged.
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::And(m::BitSlice(m::Param("x"), 6, 4), m::Param("b")),
+                        m::BitSlice(m::Param("x"), 0, 6)));
+}
+
+// Test for AND with all-ones where ones are in the high bits.
+TEST_F(ConcatSimplificationPassTest,
+       NarrowBitwiseSurroundingConcatWithLiteralAndOnesHighBits) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+    fn foo(x: bits[10], b: bits[4]) -> bits[10] {
+      literal_ones: bits[6] = literal(value=0b111111, id=1)
+      concat.2: bits[10] = concat(literal_ones, b, id=2)
+      ret and.3: bits[10] = and(x, concat.2, id=3, pos=[(0,1,2)])
+    }
+  )",
+                                                       p.get()));
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  // The result should be: Concat(x[9:4], And(x[3:0], b))
+  // where the upper 6 bits of x pass through unchanged.
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::BitSlice(m::Param("x"), 4, 6),
+                        m::And(m::BitSlice(m::Param("x"), 0, 4), m::Param("b"))));
+}
+
 void IrFuzzConcatSimplification(FuzzPackageWithArgs fuzz_package_with_args) {
   ConcatSimplificationPass pass;
   OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);

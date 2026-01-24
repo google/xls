@@ -521,8 +521,11 @@ absl::StatusOr<bool> TryNarrowAndHoistBitWiseOperation(
           "concat");
     }
 
-    // If the user is a And or Or operation, we can narrow it
-    // and hoist it above the concat.
+    // If the user is an And operation with zeros, the zeros act as a mask
+    // and the result for those bits is always zero. We can narrow the And
+    // to only the non-zero portion.
+    // Similarly for Or with all-ones, the ones act as a mask and the result
+    // for those bits is always one.
     if ((user->op() == Op::kAnd && constant_bits.IsZero()) ||
         (user->op() == Op::kOr && constant_bits.IsAllOnes())) {
       // Produce a bit slice of the other operand that matches the length
@@ -558,15 +561,21 @@ absl::StatusOr<bool> TryNarrowAndHoistBitWiseOperation(
       worklist->push_back(new_concat);
       changed = true;
       break;
-    } else if (user->op() == Op::kXor && constant_bits.IsZero()) {
-      // If the user is a Xor operation, we can narrow it
-      // and hoist it above the concat but requires a different semantics
-      // compared to And/Or operations.
+    } else if ((user->op() == Op::kXor && constant_bits.IsZero()) ||
+               (user->op() == Op::kOr && constant_bits.IsZero()) ||
+               (user->op() == Op::kAnd && constant_bits.IsAllOnes())) {
+      // These are cases where the constant bits are identity elements:
+      //   x ^ 0 = x (XOR with zeros)
+      //   x | 0 = x (OR with zeros)
+      //   x & 1 = x (AND with ones)
+      // We can narrow the operation to only the non-identity portion and pass
+      // through the rest of non_concat unchanged.
+      // For example: x | Concat(0...0, b) => Concat(x[31:1], x[0:1] | b)
 
       // Produce a bit slice of the non_concat operand that matches the length
       // of the target operand.
       XLS_ASSIGN_OR_RETURN(
-          Node * bit_slice_for_xor,
+          Node * bit_slice_for_op,
           user->function_base()->MakeNode<BitSlice>(
               user->loc(), non_concat, bit_position_start, bit_length));
 
@@ -585,9 +594,9 @@ absl::StatusOr<bool> TryNarrowAndHoistBitWiseOperation(
                                  non_concat->BitCountOrDie() - bit_length));
       }
 
-      // Clone the user with the bit slice as the first operand
+      // Clone the user with the bit slice as the first operand.
       XLS_ASSIGN_OR_RETURN(Node * narrowed_op,
-                           user->Clone({bit_slice_for_xor, target_operand}));
+                           user->Clone({bit_slice_for_op, target_operand}));
 
       // Create a new concat with the narrowed operation and the rest of the
       // non_concat operand.
