@@ -74,11 +74,18 @@ class BaseFunctionJitWrapper {
     XLS_ASSIGN_OR_RETURN(auto jit, FunctionJit::CreateFromAot(
                                        proto.entrypoint(0), proto.data_layout(),
                                        unpacked_entrypoint, packed_entrypoint));
-    return std::unique_ptr<RealType>(
+
+    auto res = std::unique_ptr<RealType>(
         new RealType(std::move(jit),
                      MatchesImplicitToken(entrypoint_proto.function_metadata()
                                               .function_interface()
                                               .parameters())));
+    res->aot_entrypoints_proto_ = std::move(proto);
+    return res;
+  }
+
+  const AotPackageEntrypointsProto& aot_entrypoints_proto() const {
+    return aot_entrypoints_proto_;
   }
 
   // Matches the parameter signature for an "implicit token/activation taking"
@@ -137,6 +144,7 @@ class BaseFunctionJitWrapper {
 
   std::unique_ptr<FunctionJit> jit_;
   const bool needs_fake_token_;
+  AotPackageEntrypointsProto aot_entrypoints_proto_;
 };
 
 }  // namespace xls

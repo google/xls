@@ -98,8 +98,14 @@ class BaseProcJitWrapper {
     XLS_ASSIGN_OR_RETURN(auto* man, aot->GetJitChannelQueueManager());
     JitRuntime& runtime = man->runtime();
 
-    return std::unique_ptr<RealType>(
+    auto result = std::unique_ptr<RealType>(
         new RealType(std::move(package), proc, std::move(aot), runtime));
+    result->aot_entrypoints_proto_ = std::move(proto);
+    return result;
+  }
+
+  const AotPackageEntrypointsProto& aot_entrypoints_proto() const {
+    return aot_entrypoints_proto_;
   }
 
   Package* package() const { return package_.get(); }
@@ -203,6 +209,8 @@ class BaseProcJitWrapper {
   Proc* proc_;
   std::unique_ptr<ProcRuntime> runtime_;
   JitRuntime& jit_runtime_;
+  // Filled in after initialization. The entrypoints we wrap.
+  AotPackageEntrypointsProto aot_entrypoints_proto_;
 
  private:
   std::tuple<std::unique_ptr<Package>, std::unique_ptr<ProcRuntime>>

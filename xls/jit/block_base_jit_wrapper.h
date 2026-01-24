@@ -157,11 +157,19 @@ class BaseBlockJitWrapper {
     XLS_ASSIGN_OR_RETURN(
         auto jit, BlockJit::CreateFromAot(proto.entrypoint(0),
                                           proto.data_layout(), entrypoint));
-    return std::unique_ptr<RealType>(new RealType(std ::move(jit)));
+
+    auto res = std::unique_ptr<RealType>(new RealType(std ::move(jit)));
+    res->aot_entrypoints_proto_ = std::move(proto);
+    return res;
+  }
+
+  const AotPackageEntrypointsProto& aot_entrypoints_proto() const {
+    return aot_entrypoints_proto_;
   }
 
  private:
   std::unique_ptr<BlockJit> jit_;
+  AotPackageEntrypointsProto aot_entrypoints_proto_;
 };
 
 }  // namespace xls
