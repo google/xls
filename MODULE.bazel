@@ -137,7 +137,7 @@ bazel_dep(name = "googletest", version = "1.17.0", dev_dependency = True)
 # for other dependencies as they are using old versions that are not
 # compatible with current bazel.
 bazel_dep(name = "rules_java", version = "8.14.0")
-bazel_dep(name = "protoc-gen-validate", version = "1.2.1.bcr.1")
+bazel_dep(name = "protoc-gen-validate", version = "1.3.0")
 
 # compilation DB; build_cleaner
 bazel_dep(name = "bant", version = "0.2.4", dev_dependency = True)
