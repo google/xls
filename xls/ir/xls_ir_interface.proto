@@ -62,8 +62,16 @@ message PackageInterfaceProto {
   }
 
   message Proc {
+    message StateValue {
+      optional NamedValue name = 1;
+      // If true this state value is marked as non_synth
+      optional bool non_synthesizable = 2;
+    }
     optional FunctionBase base = 1;
-    repeated NamedValue state = 2;
+    // DEPRECATED: Use state_values instead.
+    repeated NamedValue state = 2 [deprecated = true];
+    // The state value information.
+    repeated StateValue state_values = 5;
     // Names of channels which this particular proc sends on. Refers to entries
     // in the channels list.
     repeated string send_channels = 3;

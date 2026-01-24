@@ -78,9 +78,9 @@ class ArtifactAnalyzabilityTest(absltest.TestCase):
     target_element = _for_loop_state_element_matcher(for_variable)
     self.assertLen(ir_interface.procs, 1)
     loop_elements = [
-        nv
-        for nv in ir_interface.procs[0].state
-        if target_element.match(nv.name)
+        nv.name
+        for nv in ir_interface.procs[0].state_values
+        if target_element.match(nv.name.name)
     ]
     self.assertLen(
         loop_elements,

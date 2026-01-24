@@ -70,6 +70,10 @@ PackageInterfaceProto::Proc ExtractProcInterface(Proc* proc) {
                   /*top=*/proc->package()->GetTop() == proc);
   for (StateElement* state_element : proc->StateElements()) {
     AddNamed(proto.add_state(), state_element);
+    PackageInterfaceProto::Proc::StateValue* state_value =
+        proto.add_state_values();
+    AddNamed(state_value->mutable_name(), state_element);
+    state_value->set_non_synthesizable(state_element->non_synthesizable());
   }
   for (const auto& c : proc->channel_interfaces()) {
     if (c->direction() == ChannelDirection::kSend) {

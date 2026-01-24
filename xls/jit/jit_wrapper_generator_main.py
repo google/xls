@@ -425,7 +425,7 @@ def interpret_proc_interface(
     raise app.UsageError(
         f"AOT info does not contain an entry for top proc {proc_ir.base.name}"
     )
-  state = [to_param(p) for p in proc_ir.state]
+  state = [to_param(p.name) for p in proc_ir.state_values]
   input_channels = [to_chan(p, package.name) for p in package.channels]
   output_channels = [to_chan(p, package.name) for p in package.channels]
   return WrappedIr(
