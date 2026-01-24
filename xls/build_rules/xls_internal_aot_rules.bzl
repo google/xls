@@ -102,14 +102,31 @@ def _xls_aot_generate_impl(ctx):
     proto_file = ctx.actions.declare_file(out_proto_filename)
     obj_file = ctx.actions.declare_file(out_obj_filename)
     args = ctx.actions.args()
-    args.add("-input", src.ir_file.path)
+    skeleton_args = ctx.actions.args()
+
+    def common_add(*va, **kwargs):
+        args.add(*va, **kwargs)
+        skeleton_args.add(*va, **kwargs)
+
+    common_add("-input", src.ir_file.path)
     if (ctx.attr.salt_symbols):
-        args.add("-symbol_salt", str(ctx.label))
-    args.add("-top", ctx.attr.top)
+        common_add("-symbol_salt", str(ctx.label))
+    common_add("-aot_target", ctx.attr.aot_target)
+    common_add("-top", ctx.attr.top)
+    other_linking_contexts = []
+    if ctx.attr.with_msan:
+        common_add("--include_msan=true")
+
+        # With msan we need the TLS implementation.
+        other_linking_contexts = [ctx.attr._jit_emulated_tls[CcInfo].linking_context]
+    else:
+        common_add("--include_msan=false")
+
     args.add("-output_object", obj_file.path)
-    args.add("-output_proto", proto_file.path)
     args.add("-llvm_opt_level", ctx.attr.llvm_opt_level)
-    args.add("--aot_target", ctx.attr.aot_target)
+
+    skeleton_args.add("-output_proto", proto_file.path)
+
     extra_files = []
     aot_direct_request = ctx.attr._emit_aot_intermediates[BuildSettingInfo].value
     save_temps_reqest = ctx.attr._save_temps_is_requested[BoolConfigSettingInfo].value
@@ -124,16 +141,9 @@ def _xls_aot_generate_impl(ctx):
         args.add("-output_llvm_opt_ir", llvm_opt_ir_file.path)
         args.add("-output_asm", asm_file.path)
 
-    other_linking_contexts = []
-    if ctx.attr.with_msan:
-        args.add("--include_msan=true")
-
-        # With msan we need the TLS implementation.
-        other_linking_contexts = [ctx.attr._jit_emulated_tls[CcInfo].linking_context]
-    else:
-        args.add("--include_msan=false")
+    # Non-skeleton run to create the object file.
     ctx.actions.run(
-        outputs = [proto_file, obj_file] + extra_files,
+        outputs = [obj_file] + extra_files,
         inputs = [src.ir_file],
         arguments = [args],
         executable = aot_compiler,
@@ -141,6 +151,18 @@ def _xls_aot_generate_impl(ctx):
         progress_message = "Aot(JIT)Compiling %{label}: %{input}",
         toolchain = None,
     )
+
+    # Skeleton run to create the proto file.
+    ctx.actions.run(
+        outputs = [proto_file],
+        inputs = [src.ir_file],
+        arguments = [skeleton_args],
+        executable = aot_compiler,
+        mnemonic = "AotSkeleton",
+        progress_message = "Generating AOT skeleton %{label}: %{input}",
+        toolchain = None,
+    )
+
     obj_file_outputs = cc_common.create_compilation_outputs(
         objects = depset([obj_file]),
         pic_objects = depset([obj_file]),

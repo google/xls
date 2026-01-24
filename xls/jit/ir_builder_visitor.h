@@ -61,6 +61,7 @@ class JitBuilderContext {
   LlvmCompiler& llvm_compiler() { return llvm_compiler_; }
   LlvmTypeConverter& type_converter() { return type_converter_; }
   FunctionBase* top() const { return top_; }
+  bool is_skeleton() const { return llvm_compiler_.is_skeleton(); }
 
   // Destructively returns the underlying llvm::Module.
   std::unique_ptr<llvm::Module> ConsumeModule() { return std::move(module_); }

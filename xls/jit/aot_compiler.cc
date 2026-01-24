@@ -14,12 +14,15 @@
 
 #include "xls/jit/aot_compiler.h"
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "llvm/include/llvm/ADT/SmallVector.h"
 #include "llvm/include/llvm/ADT/StringRef.h"
@@ -46,6 +49,7 @@
 #include "llvm/include/llvm/TargetParser/Triple.h"
 #include "llvm/include/llvm/TargetParser/X86TargetParser.h"
 #include "llvm/include/llvm/Transforms/Utils/Cloning.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/jit/jit_emulated_tls.h"
 #include "xls/jit/jit_evaluator_options.h"
@@ -201,6 +205,16 @@ absl::Status AddWeakEmuTls(llvm::Module& module, llvm::LLVMContext* context) {
 absl::Status AotCompiler::CompileModule(
     std::unique_ptr<llvm::Module>&& module) {
   JitObserverRequests notification;
+  if (jit_options_.generate_skeleton()) {
+    // No need to actually compile anything.
+    object_code_.emplace();
+    XLS_RET_CHECK(jit_options_.jit_observer() == nullptr ||
+                  !jit_options_.jit_observer()
+                       ->GetNotificationOptions()
+                       .has_any_requests())
+        << "skeleton not compatible with observers";
+    return absl::OkStatus();
+  }
   if (jit_options_.jit_observer() != nullptr) {
     notification = jit_options_.jit_observer()->GetNotificationOptions();
   }

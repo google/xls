@@ -92,6 +92,10 @@ class LlvmCompiler {
     return include_observer_callbacks_;
   }
 
+  // Return true if this is a skeleton compilation. That is don't actually
+  // compile anything just create the symbols.
+  virtual bool is_skeleton() const { return false; }
+
  protected:
   absl::Status Init();
 

@@ -62,6 +62,8 @@ class AotCompiler final : public LlvmCompiler {
     return *object_code_;
   }
 
+  bool is_skeleton() const override { return jit_options_.generate_skeleton(); }
+
  protected:
   absl::Status InitInternal() override;
 

@@ -39,6 +39,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dev_tools/extract_interface.h"
+#include "xls/interpreter/evaluator_options.h"
 #include "xls/ir/block_elaboration.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
@@ -58,6 +59,18 @@
 #include "xls/jit/observer.h"
 #include "xls/jit/type_buffer_metadata.h"
 #include "xls/jit/type_layout.pb.h"
+
+static constexpr std::string_view kUsage = R"(
+aot_compiler <flags>
+
+Compile the given IR file to an object file and a proto file.
+
+If --output_proto/--output_textproto is given and all of --output_object,
+--output_llvm_ir, --output_llvm_opt_ir, and --output_asm are not given, the
+compilation will not be performed and only the proto will be generated. This is
+significantly faster than performing the compilation and can be used to quickly
+check the output of the compiler.
+)";
 
 ABSL_FLAG(std::string, input, "", "Path to the IR to compile.");
 ABSL_FLAG(std::string, symbol_salt, "",
@@ -264,11 +277,14 @@ absl::Status RealMain(const std::string& input_ir_path,
   }
 
   std::optional<JitObjectCode> object_code;
+  bool generate_skeleton = !output_object_path && !output_llvm_ir_path &&
+                           !output_llvm_opt_ir_path && !output_asm_path;
   JitEvaluatorOptions jit_opts;
   jit_opts.set_opt_level(llvm_opt_level)
       .set_jit_observer(&obs)
       .set_symbol_salt(absl::GetFlag(FLAGS_symbol_salt))
-      .set_include_msan(include_msan);
+      .set_include_msan(include_msan)
+      .set_generate_skeleton(generate_skeleton);
   if (f->IsFunction()) {
     XLS_ASSIGN_OR_RETURN(
         object_code, FunctionJit::CreateObjectCode(
@@ -288,33 +304,35 @@ absl::Status RealMain(const std::string& input_ir_path,
     XLS_ASSIGN_OR_RETURN(object_code,
                          BlockJit::CreateObjectCode(elab, jit_opts));
   }
-  AotPackageEntrypointsProto all_entrypoints;
   if (output_object_path) {
     XLS_RETURN_IF_ERROR(SetFileContents(
         *output_object_path, std::string(object_code->object_code.begin(),
                                          object_code->object_code.end())));
   }
 
-  *all_entrypoints.mutable_data_layout() =
-      object_code->data_layout.getStringRepresentation();
+  if (output_proto_path || output_textproto_path) {
+    AotPackageEntrypointsProto all_entrypoints;
+    *all_entrypoints.mutable_data_layout() =
+        object_code->data_layout.getStringRepresentation();
 
-  auto context = std::make_unique<llvm::LLVMContext>();
-  LlvmTypeConverter type_converter(context.get(), object_code->data_layout);
-  for (const FunctionEntrypoint& oc : object_code->entrypoints) {
-    XLS_ASSIGN_OR_RETURN(
-        *all_entrypoints.add_entrypoint(),
-        GenerateEntrypointProto(
-            object_code->package ? object_code->package.get() : package.get(),
-            oc, include_msan, type_converter));
-  }
-  if (output_textproto_path) {
-    std::string text;
-    XLS_RET_CHECK(google::protobuf::TextFormat::PrintToString(all_entrypoints, &text));
-    XLS_RETURN_IF_ERROR(SetFileContents(*output_textproto_path, text));
-  }
-  if (output_proto_path) {
-    XLS_RETURN_IF_ERROR(SetFileContents(*output_proto_path,
-                                        all_entrypoints.SerializeAsString()));
+    auto context = std::make_unique<llvm::LLVMContext>();
+    LlvmTypeConverter type_converter(context.get(), object_code->data_layout);
+    for (const FunctionEntrypoint& oc : object_code->entrypoints) {
+      XLS_ASSIGN_OR_RETURN(
+          *all_entrypoints.add_entrypoint(),
+          GenerateEntrypointProto(
+              object_code->package ? object_code->package.get() : package.get(),
+              oc, include_msan, type_converter));
+    }
+    if (output_textproto_path) {
+      std::string text;
+      XLS_RET_CHECK(google::protobuf::TextFormat::PrintToString(all_entrypoints, &text));
+      XLS_RETURN_IF_ERROR(SetFileContents(*output_textproto_path, text));
+    }
+    if (output_proto_path) {
+      XLS_RETURN_IF_ERROR(SetFileContents(*output_proto_path,
+                                          all_entrypoints.SerializeAsString()));
+    }
   }
   if (output_llvm_ir_path) {
     XLS_RETURN_IF_ERROR(
@@ -335,7 +353,7 @@ absl::Status RealMain(const std::string& input_ir_path,
 }  // namespace xls
 
 int main(int argc, char** argv) {
-  xls::InitXls(argv[0], argc, argv);
+  xls::InitXls(kUsage, argc, argv);
   std::string input_ir_path = absl::GetFlag(FLAGS_input);
   QCHECK(!input_ir_path.empty()) << "--input must be specified.";
 

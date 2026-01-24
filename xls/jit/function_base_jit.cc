@@ -853,6 +853,15 @@ absl::StatusOr<PartitionedFunction> BuildFunctionInternal(
           .name = "continuation_point",
           .type = llvm::Type::getInt64Ty(jit_context.context())});
 
+  // NB Ideally we would be able to just immediately return here and not
+  // generate any of the llvm ir code or partition functions. Unfortunately we
+  // need to do that to figure out how big some of the buffers need to be. We
+  // still skip actually doing anything with the llvm bitcode we generate so the
+  // skeleton is still significantly faster than a full aot compile.
+  // TODO(https://github.com/google/xls/issues/3724): This shouldn't be needed.
+  // Ideally we should be able to determine the buffer sizes without writing out
+  // the llvm ir and return immediately.
+
   XLS_RETURN_IF_ERROR(AllocateBuffers(partitions, wrapper, allocator));
 
   std::vector<llvm::Function*> partition_functions;
@@ -1174,6 +1183,15 @@ absl::StatusOr<llvm::Function*> BuildPackedWrapper(
       LlvmFunctionWrapper::FunctionArg{
           .name = "continuation_point",
           .type = llvm::Type::getInt64Ty(*context)});
+  if (jit_context.is_skeleton()) {
+    // No need to actually generate any code for a skeleton compile
+    // Add a ret to ensure the code is well formed (though since we don't
+    // actually try to do anything with it this isn't necessary it still keeps
+    // it cleaner).
+    wrapper.entry_builder().CreateRet(
+        llvm::ConstantInt::get(llvm::Type::getInt64Ty(*context), /*value=*/0));
+    return wrapper.function();
+  }
 
   // First load and unpack the arguments then store them in LLVM native data
   // layout. These unpacked values are pointed to by an array of pointers passed
@@ -1333,6 +1351,8 @@ absl::StatusOr<JittedFunctionBase> JittedFunctionBase::BuildInternal(
 
   jitted_function.function_name_ = function_name;
   if (jit_context.llvm_compiler().IsOrcJit()) {
+    XLS_RET_CHECK(!jit_context.is_skeleton())
+        << "Only AOT can generate skeleton compiles";
     XLS_ASSIGN_OR_RETURN(auto* orc_jit, jit_context.llvm_compiler().AsOrcJit());
     XLS_ASSIGN_OR_RETURN(auto fn_address, orc_jit->LoadSymbol(function_name));
     jitted_function.function_ = absl::bit_cast<JitFunctionType>(fn_address);
@@ -1345,6 +1365,8 @@ absl::StatusOr<JittedFunctionBase> JittedFunctionBase::BuildInternal(
   if (build_packed_wrapper) {
     jitted_function.packed_function_name_ = packed_wrapper_name;
     if (jit_context.llvm_compiler().IsOrcJit()) {
+      XLS_RET_CHECK(!jit_context.is_skeleton())
+          << "Only AOT can generate skeleton compiles";
       XLS_ASSIGN_OR_RETURN(auto* orc_jit,
                            jit_context.llvm_compiler().AsOrcJit());
       XLS_ASSIGN_OR_RETURN(auto packed_fn_address,

@@ -66,12 +66,22 @@ class JitEvaluatorOptions {
   }
   JitObserver* jit_observer() const { return jit_observer_; }
 
+  // Tell the JIT to generate skeleton object code. Don't actually compile
+  // anything but just create the symbols we would generate if we were doing a
+  // full compile.
+  JitEvaluatorOptions& set_generate_skeleton(bool value) {
+    generate_skeleton_ = value;
+    return *this;
+  }
+  bool generate_skeleton() const { return generate_skeleton_; }
+
  private:
   int64_t opt_level_ = LlvmCompiler::kDefaultOptLevel;
   std::string symbol_salt_;
   bool include_observer_callbacks_ = false;
   bool include_msan_ = false;
   JitObserver* jit_observer_ = nullptr;
+  bool generate_skeleton_ = false;
 };
 
 }  // namespace xls

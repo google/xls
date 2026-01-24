@@ -45,6 +45,10 @@ struct JitObserverRequests {
   bool optimized_module = false;
   // Do we want to get called with optimized asm code.
   bool assembly_code_str = false;
+
+  bool has_any_requests() const {
+    return unoptimized_module || optimized_module || assembly_code_str;
+  }
 };
 
 // Basic observer for JIT compilation events
