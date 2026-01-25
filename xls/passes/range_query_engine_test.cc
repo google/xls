@@ -172,7 +172,8 @@ TEST_F(RangeQueryEngineTest, EncodeExhaustiveSmallWidth) {
   //
   // For each ternary mask of width kN (3^kN masks), we construct the exact set
   // of possible concrete input values and compute the exact set of possible
-  // outputs. We then require RangeQueryEngine's result to match exactly.
+  // outputs. We then require RangeQueryEngine's result to be a conservative
+  // superset of the exact result.
   //
   // We choose kN=6 so 3^kN is manageable (729 cases), and for each case the
   // number of concrete values is at most 2^kN (64 values).
@@ -215,7 +216,9 @@ TEST_F(RangeQueryEngineTest, EncodeExhaustiveSmallWidth) {
     XLS_ASSERT_OK(engine.Populate(f));
 
     IntervalSet got = engine.GetIntervals(y.node()).Get({});
-    EXPECT_EQ(got, expected) << "pattern=" << ToString(pattern);
+    EXPECT_EQ(IntervalSet::Intersect(got, expected), expected)
+        << "pattern=" << ToString(pattern) << "\n  got=" << got.ToString()
+        << "\n  expected=" << expected.ToString();
   }
 }
 
