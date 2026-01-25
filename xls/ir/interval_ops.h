@@ -119,6 +119,8 @@ IntervalSet SignExtend(const IntervalSet& a, int64_t width);
 IntervalSet ZeroExtend(const IntervalSet& a, int64_t width);
 IntervalSet Truncate(const IntervalSet& a, int64_t width);
 IntervalSet BitSlice(const IntervalSet& a, int64_t start, int64_t width);
+IntervalSet DynamicBitSlice(const IntervalSet& to_slice,
+                            const IntervalSet& start, int64_t width);
 
 // Cmp
 IntervalSet Eq(const IntervalSet& a, const IntervalSet& b);
