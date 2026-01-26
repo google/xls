@@ -45,7 +45,7 @@ jobs:
 
       - name: Bazel Test xls/... (opt)
         run: |
-          bazel test --config=ci -c opt --noshow_progress --test_output=errors -- //xls/... -//xls/contrib/... -//xls/dev_tools/... //docs_src/... //xls/tests:documentation_test
+          bazel test --config=ci -c opt --noshow_progress --sandbox_debug -- //xls/... -//xls/contrib/... -//xls/dev_tools/... //docs_src/... //xls/tests:documentation_test
 
       - name: Bazel Test Including Contrib & DevTools (opt)
         run: |
