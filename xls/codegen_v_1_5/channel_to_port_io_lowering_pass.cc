@@ -815,14 +815,23 @@ absl::Status ConnectReceivesToConnector(
 
     std::vector<Node*> replacement_elements = {token, data};
     if (!is_blocking) {
+      Node* valid = nullptr;
       if (connector.valid.has_value()) {
-        replacement_elements.push_back(*connector.valid);
+        valid = *connector.valid;
       } else {
         XLS_ASSIGN_OR_RETURN(
-            Node * valid, block->MakeNodeInStage<Literal>(
-                              stage_index, receive->loc(), Value(UBits(1, 1))));
-        replacement_elements.push_back(valid);
+            valid, block->MakeNodeInStage<Literal>(stage_index, receive->loc(),
+                                                   Value(UBits(1, 1))));
       }
+
+      if (predicate.has_value()) {
+        XLS_ASSIGN_OR_RETURN(
+            valid, block->MakeNodeInStage<NaryOp>(
+                       stage_index, receive->loc(),
+                       absl::MakeConstSpan({valid, *predicate}), Op::kAnd));
+      }
+
+      replacement_elements.push_back(valid);
     }
     XLS_RETURN_IF_ERROR(receive
                             ->ReplaceUsesWithNewInStage<Tuple>(

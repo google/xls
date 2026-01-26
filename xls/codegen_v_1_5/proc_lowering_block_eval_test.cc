@@ -5367,7 +5367,7 @@ proc output_passthrough(state: bits[1], init={1}) {
 }
 
 TEST_F(ProcLoweringBlockEvalTest,
-       DISABLED_ProcWithExternalConditionalNonblockingReceives) {
+       ProcWithExternalConditionalNonblockingReceives) {
   constexpr std::string_view ir_text = R"(package test
 
 chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)

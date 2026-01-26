@@ -664,9 +664,10 @@ TEST_F(ChannelToPortIoLoweringPassTest, NoGateRecvsNonBlockingWithPredicate) {
   EXPECT_THAT(Run(p.get(), options), IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
 
-  EXPECT_THAT(block->nodes(), Contains(m::Tuple(m::Literal(Value::Token()),
-                                                m::InputPort("a_in"),
-                                                m::InputPort("a_in_vld"))));
+  EXPECT_THAT(
+      block->nodes(),
+      Contains(m::Tuple(m::Literal(Value::Token()), m::InputPort("a_in"),
+                        m::And(m::InputPort("a_in_vld"), m::Literal(1)))));
 }
 
 }  // namespace
