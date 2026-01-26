@@ -11,7 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 #include "xls/dslx/frontend/builtins_metadata.h"
 
 #include <string>
@@ -32,20 +31,12 @@ const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins() {
       absl::flat_hash_map<std::string, BuiltinsData>>
       map({
           // -- Functions that require implicit tokens
-          {"assert_eq",
-           {.signature = "(T, T) -> ()", .requires_implicit_token = true}},
-          {"assert_lt",
-           {.signature = "(xN[N], xN[N]) -> ()",
-            .requires_implicit_token = true}},
-          {"cover!",
-           {.signature = "(u8[N], u1) -> ()", .requires_implicit_token = true}},
-          {"fail!",
-           {.signature = "(u8[N], T) -> T", .requires_implicit_token = true}},
-          {"assert!",
-           {.signature = "(bool, u8[N]) -> ()",
-            .requires_implicit_token = true}},
-          {"trace!",
-           {.signature = "(T) -> T", .requires_implicit_token = true}},
+          {"assert_eq", {.requires_implicit_token = true}},
+          {"assert_lt", {.requires_implicit_token = true}},
+          {"cover!", {.requires_implicit_token = true}},
+          {"fail!", {.requires_implicit_token = true}},
+          {"assert!", {.requires_implicit_token = true}},
+          {"trace!", {.requires_implicit_token = true}},
 
           // -- Functions that are represented as AST nodes.
           //
@@ -53,30 +44,16 @@ const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins() {
           // special syntactic construct that is not capable of being handled
           // with the normal grammar.
           {"all_ones!",
-           {.signature = "() -> T",
-            .is_ast_node = true,
-            .requires_implicit_token = false,
-            .allows_explicit_parametrics = true}},
-          {"zero!",
-           {.signature = "() -> T",
-            .is_ast_node = true,
-            .requires_implicit_token = false,
-            .allows_explicit_parametrics = true}},
+           {.is_ast_node = true, .allows_explicit_parametrics = true}},
+          {"zero!", {.is_ast_node = true, .allows_explicit_parametrics = true}},
           {"trace_fmt!",
-           {.signature = "(T) -> T",
-            .is_ast_node = true,
-            .requires_implicit_token = false,
-            .allows_explicit_parametrics = false}},
+           {.is_ast_node = true, .allows_explicit_parametrics = false}},
           {"assert_fmt!",
-           {.signature = "(bool, str, ...) -> ()",
-            .is_ast_node = true,
+           {.is_ast_node = true,
             .requires_implicit_token = true,
             .allows_explicit_parametrics = false}},
           {"vtrace_fmt!",
-           {.signature = "(u32, T) -> T",
-            .is_ast_node = true,
-            .requires_implicit_token = false,
-            .allows_explicit_parametrics = false}},
+           {.is_ast_node = true, .allows_explicit_parametrics = false}},
 
           // -- Normal built-in functions
           //
@@ -90,76 +67,57 @@ const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins() {
           // can be passed directly as primitives to the XLS IR without
           // decomposing them and losing any associated high-level semantic
           // information in the process.
-          {"bit_slice_update", {.signature = "(uN[N], uN[U], uN[V]) -> uN[N]"}},
-          {"ceillog2", {.signature = "(uN[N]) -> uN[N]"}},
-          {"clz", {.signature = "(uN[N]) -> uN[N]"}},
-          {"configured_value_or", {.signature = "(u8[N], T) -> T"}},
-          {"ctz", {.signature = "(uN[N]) -> uN[N]"}},
-          {"gate!", {.signature = "(u1, T) -> T"}},
-          {"map", {.signature = "(T[N], (T) -> U) -> U[N]"}},
-          {"decode", {.signature = "<uN[M]>(uN[N]) -> uN[M]"}},
-          {"encode", {.signature = "(uN[N]) -> uN[ceil(log2(N))]"}},
-          {"one_hot", {.signature = "(uN[N], u1) -> uN[N+1]"}},
-          {"one_hot_sel", {.signature = "(uN[N], xN[M][N]) -> xN[M]"}},
-          {"priority_sel", {.signature = "(uN[N], xN[M][N], xN[M]) -> xN[M]"}},
-          {"rev", {.signature = "(uN[N]) -> uN[N]"}},
-          {"umulp", {.signature = "(uN[N], uN[N]) -> (uN[N], uN[N])"}},
-
+          {"bit_slice_update", {}},
+          {"ceillog2", {}},
+          {"clz", {}},
+          {"configured_value_or", {}},
+          {"ctz", {}},
+          {"gate!", {}},
+          {"map", {}},
+          {"decode", {}},
+          {"encode", {}},
+          {"one_hot", {}},
+          {"one_hot_sel", {}},
+          {"priority_sel", {}},
+          {"rev", {}},
+          {"umulp", {}},
           // Note: the result tuple from `smulp` are two "bags of bits" that
           // must be added together in order to arrive at the signed product. So
           // we give them back as unsigned and users should cast the sum of
           // these elements to a signed number.
-          {"smulp", {.signature = "(sN[N], sN[N]) -> (uN[N], uN[N])"}},
-
-          {"array_rev", {.signature = "(T[N]) -> T[N]"}},
-          {"array_size", {.signature = "(T[N]) -> u32"}},
-
-          {"bit_count", {.signature = "() -> u32"}},
-          {"element_count", {.signature = "() -> u32"}},
-
+          {"smulp", {}},
+          {"array_rev", {}},
+          {"array_size", {}},
+          {"bit_count", {}},
+          {"element_count", {}},
           // Bitwise reduction ops.
-          {"and_reduce", {.signature = "(uN[N]) -> u1"}},
-          {"or_reduce", {.signature = "(uN[N]) -> u1"}},
-          {"xor_reduce", {.signature = "(uN[N]) -> u1"}},
-
+          {"and_reduce", {}},
+          {"or_reduce", {}},
+          {"xor_reduce", {}},
           // Use a dummy value to determine size.
-          {"signex", {.signature = "(xN[M], xN[N]) -> xN[N]"}},
-          {"array_slice", {.signature = "(T[M], uN[N], T[P]) -> T[P]"}},
-
-          {"update",
-           {.signature = "(T[...], uN[M]|(uN[M], ...), T) -> T[...]"}},
-          {"enumerate", {.signature = "(T[N]) -> (u32, T)[N]"}},
-
-          {"widening_cast", {.signature = "<U>(T) -> U"}},
-          {"checked_cast", {.signature = "<U>(T) -> U"}},
+          {"signex", {}},
+          {"array_slice", {}},
+          {"update", {}},
+          {"enumerate", {}},
+          {"widening_cast", {}},
+          {"checked_cast", {}},
 
           // Require-const-argument.
-          //
-          // Note this is a messed up type signature to need to support and
-          // should really be replaced with known-statically-sized iota syntax.
-          {"range", {.signature = "(const uN[N], const uN[N]) -> uN[N][R]"}},
-
-          {"zip", {.signature = "(T[N], U[N]) -> (T, U)[N]"}},
+          {"range", {}},
+          {"zip", {}},
 
           // -- Proc-oriented built-ins.
-
           // send/recv (communication) builtins that can only be used within
           // proc scope.
-          {"send", {.signature = "(token, send_chan<T>, T) -> token"}},
-          {"send_if", {.signature = "(token, send_chan<T>, bool, T) -> token"}},
-
-          {"recv", {.signature = "(token, recv_chan<T>) -> (token, T)"}},
-          {"recv_if",
-           {.signature = "(token, recv_chan<T>, bool, T) -> (token, T)"}},
-
+          {"send", {}},
+          {"send_if", {}},
+          {"recv", {}},
+          {"recv_if", {}},
           // non-blocking variants
-          {"recv_non_blocking",
-           {.signature = "(token, recv_chan<T>, T) -> (token, T, bool)"}},
-          {"recv_if_non_blocking",
-           {.signature = "(token, recv_chan<T>, bool, T) -> (token, T, bool)"}},
-
-          {"join", {.signature = "(token...) -> token"}},
-          {"token", {.signature = "() -> token"}},
+          {"recv_non_blocking", {}},
+          {"recv_if_non_blocking", {}},
+          {"join", {}},
+          {"token", {}},
       });
 
   return *map;

@@ -23,8 +23,6 @@
 namespace xls::dslx {
 
 struct BuiltinsData {
-  std::string signature;
-
   // Indicates whether this builtin is represented in the AST as a "first class
   // node" or as an invocation of a builtin name-definition. Most builtins don't
   // need to be AST nodes and thus this is false by default, which is the most
@@ -47,11 +45,12 @@ struct BuiltinsData {
 };
 
 // Map from the name of the parametric builtin function; e.g. `assert_eq` to a
-// struct that shows 1) the parametric signature; for example: `(T, T) -> ()`
-// and 2) whether the builtin is represented as an AST node.
+// struct that shows 1) whether the function requires the explicit-token calling
+// convention and 2) whether calls to the builtin are represented using a
+// dedicated type of AST node rather than an `Invocation` node.
 const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins();
 
-// Returns whether the identifier is a builtin parameetric function (i.e. a key
+// Returns whether the identifier is a builtin parametric function (i.e. a key
 // in the `GetParametricBuiltins` map)
 // -- built-in functions are always available at the DSLX top level scope, but
 // are not implemented as AST nodes.
