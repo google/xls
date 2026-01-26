@@ -671,9 +671,14 @@ class AstCloner : public AstNodeVisitor {
 
   absl::Status HandleParam(const Param* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
-    old_to_new_[n] = module(n)->Make<Param>(
+    Param* new_param = module(n)->Make<Param>(
         down_cast<NameDef*>(old_to_new_.at(n->name_def())),
         down_cast<TypeAnnotation*>(old_to_new_.at(n->type_annotation())));
+    if (n->context_node() != nullptr) {
+      XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->context_node()));
+      new_param->set_context_node(old_to_new_.at(n->context_node()));
+    }
+    old_to_new_[n] = new_param;
     return absl::OkStatus();
   }
 

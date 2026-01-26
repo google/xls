@@ -2130,10 +2130,19 @@ class Param : public AstNode {
   const std::string& identifier() const { return name_def_->identifier(); }
   std::optional<Span> GetSpan() const override { return span_; }
 
+  bool IsCaptured() const { return context_node_ != nullptr; }
+  void set_context_node(AstNode* context_node) { context_node_ = context_node; }
+  AstNode* context_node() const { return context_node_; }
+
  private:
   NameDef* name_def_;
   TypeAnnotation* type_annotation_;
   Span span_;
+
+  // If this parameter is captured from context, this is the node that is
+  // captured. May only be used for lambda functions; will be null in other
+  // cases.
+  AstNode* context_node_;
 };
 
 #define XLS_DSLX_UNOP_KIND_EACH(X)                 \
@@ -2567,6 +2576,8 @@ class Function : public AstNode {
     return Span(parametric_bindings_.front()->span().start(),
                 parametric_bindings_.back()->span().limit());
   }
+
+  int GetNumCapturedParams() const;
 
  private:
   Span span_;

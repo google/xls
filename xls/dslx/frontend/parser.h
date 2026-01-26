@@ -504,8 +504,8 @@ class Parser : public TokenParser {
   absl::StatusOr<Conditional*> ParseConditionalNode(
       Bindings& bindings, ExprRestrictions restrictions, bool is_const = true);
 
-  using AnnotationGeneratorFn =
-      std::function<absl::StatusOr<TypeAnnotation*>(const Span&)>;
+  using AnnotationGeneratorFn = std::function<absl::StatusOr<TypeAnnotation*>(
+      const Span&, std::string_view)>;
 
   // Parse a parameter. If `missing_annotation_generator` is provided, it will
   // be called if the parameter is missing a type annotation; the returned type

@@ -179,7 +179,19 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
 
   absl::Status HandleParam(const Param* node) override {
     VLOG(5) << "HandleParam: " << node->ToString();
-    XLS_RETURN_IF_ERROR(DefineTypeVariableForVariableOrConstant(node).status());
+    if (node->IsCaptured()) {
+      // If the parameter is captured from context, re-use the captured node
+      // type variable.
+      const NameRef* captured_type_variable =
+          *table_.GetTypeVariable(node->context_node());
+      XLS_RET_CHECK(captured_type_variable != nullptr);
+      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node, captured_type_variable));
+      XLS_RETURN_IF_ERROR(
+          table_.SetTypeVariable(node->name_def(), captured_type_variable));
+    } else {
+      XLS_RETURN_IF_ERROR(
+          DefineTypeVariableForVariableOrConstant(node).status());
+    }
     return DefaultHandler(node);
   }
 

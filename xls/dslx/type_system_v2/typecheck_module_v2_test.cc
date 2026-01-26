@@ -9254,7 +9254,7 @@ TEST(TypecheckV2Test, LambdaWithContextCapture) {
       R"(
 fn main() -> u32 {
   const X = u32:0;
-  let ARR = map(0..5, |i| -> u32 { X * i });
+  let ARR = map(0..5, |i, X| -> u32 { X * i });
   ARR[0]
 }
 )",
@@ -9266,7 +9266,7 @@ TEST(TypecheckV2Test, LambdaWithContextParamsTypeMismatch) {
       R"(
 fn main() {
   const X = false;
-  let ARR = map(0..5, |i| -> u32 { X * i });
+  let ARR = map(0..5, |i, X| -> u32 { X * i });
 }
 )",
       TypecheckFails(HasSizeMismatch("uN[1]", "uN[32]")));
