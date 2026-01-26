@@ -1,0 +1,26 @@
+diff --git a/dependency_support/com_github_yosyshq_nextpnr/bundled.BUILD.bazel b/dependency_support/com_github_yosyshq_nextpnr/bundled.BUILD.bazel
+index ca6a2f7..b63fd7a 100644
+--- dependency_support/com_github_yosyshq_nextpnr/bundled.BUILD.bazel
++++ dependency_support/com_github_yosyshq_nextpnr/bundled.BUILD.bazel
+@@ -42,7 +42,7 @@ DEPS = [
+     "@boost//:python",
+     "@boost//:system",
+     "@boost//:thread",
+-    "@eigen//:eigen3",
++    "@eigen//:eigen",
+     "@rules_python//python/cc:current_py_cc_headers",
+ ]
+
+diff --git a/dependency_support/org_theopenroadproject/build_helper.bzl b/dependency_support/org_theopenroadproject/build_helper.bzl
+index fd4259c..2b58b21 100644
+--- dependency_support/org_theopenroadproject/build_helper.bzl
++++ dependency_support/org_theopenroadproject/build_helper.bzl
+@@ -299,7 +299,7 @@ OPENROAD_LIBRARY_DEPS = [
+     "@boost//:property_tree",
+     "@boost//:stacktrace",
+     "@boost//:thread",
+-    "@eigen//:eigen3",
++    "@eigen//:eigen",
+     "@com_github_quantamhd_lemon//:lemon",
+     "@org_llvm_openmp//:openmp",
+     "@com_github_gabime_spdlog//:spdlog",
