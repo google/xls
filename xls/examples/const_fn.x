@@ -31,17 +31,33 @@ fn main() -> u32 {
     }(u32:0)
 }
 
-#[test]
-fn can_add_const() {
-    assert_eq(const_adder(), u32:922);
+proc ParamProc<N: u32> {
+    value: chan<uN[N]> out;
+
+    config(value: chan<uN[N]> out) { (value,) }
+    init { (uN[N]:0) }
+    next(state: uN[N]) {
+        send(join(), value, state);
+        let value = const_mix_mul<N>();
+        let next_state = state + (value as uN[N]);
+        next_state
+    }
 }
 
-#[test]
-fn can_add_params() {
-    assert_eq(const_param_adder<CONST_1, CONST_2>(), u32:922);
-}
+proc Top {
+    response: chan<uN[const_get()]> in;
 
-#[test]
-fn can_mul_mix() {
-    assert_eq(const_mix_mul<CONST_1>(), u32:1998);
+    config() {
+        let N = const_get();
+        let (s, r) = chan<uN[N], u32:1>("test_chan");
+        spawn ParamProc<N>(s);
+        (r,)
+     }
+    init { () }
+    next(state: ()) {
+        let (tok, data) = recv(join(), response);
+        const VALUE = const_param_adder<CONST_3, CONST_3>();
+        let sum = data + (VALUE as uN[const_get()]);
+        trace!(sum);
+    }
 }

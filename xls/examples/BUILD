@@ -714,21 +714,28 @@ xls_dslx_test(
 xls_dslx_opt_ir(
     name = "const_fn_opt_ir",
     srcs = ["const_fn.x"],
-    dslx_top = "main",
+    dslx_top = "Top",
     ir_file = "const_fn.ir",
     opt_ir_file = "const_fn.opt.ir",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true",
+    },
 )
 
 xls_dslx_verilog(
     name = "const_fn_sv",
     codegen_args = {
         "module_name": "const_fn",
-        "generator": "combinational",
         "delay_model": "unit",
         "use_system_verilog": "true",
         "output_port_name": "result",
+        "pipeline_stages": "2",
+        "reset": "rst",
     },
-    dslx_top = "main",
+    dslx_top = "Top",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true",
+    },
     library = ":const_fn_dslx",
     verilog_file = "const_fn.sv",
 )
