@@ -64,7 +64,7 @@ constexpr std::string_view kDataInChannelName = "aes_gcm__data_r";
 constexpr std::string_view kDataOutChannelName = "aes_gcm__data_s";
 
 struct JitData {
-  std::unique_ptr<Package> package;
+  Package* package;
   std::unique_ptr<ProcRuntime> runtime;
 };
 
@@ -106,7 +106,7 @@ static absl::StatusOr<Result> XlsEncrypt(JitData* jit_data,
                                          const SampleData& sample_data,
                                          bool encrypt) {
   // Create (and send) the initial command.
-  Package* package = jit_data->package.get();
+  Package* package = jit_data->package;
   ProcRuntime* runtime = jit_data->runtime.get();
   XLS_ASSIGN_OR_RETURN(Channel * cmd_channel,
                        package->GetChannel(kCmdChannelName));
@@ -305,7 +305,7 @@ static absl::StatusOr<JitData> CreateJitData() {
   XLS_ASSIGN_OR_RETURN((std::unique_ptr<wrapped::AesGcm> aes_gcm),
                        wrapped::AesGcm::Create());
   auto [package, runtime] = wrapped::AesGcm::TakeRuntime(std::move(aes_gcm));
-  return JitData{.package = std::move(package), .runtime = std::move(runtime)};
+  return JitData{.package = package, .runtime = std::move(runtime)};
 }
 
 static absl::Status RunTest(int num_samples, int key_bits) {

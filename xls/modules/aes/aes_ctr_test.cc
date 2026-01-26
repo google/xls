@@ -63,7 +63,7 @@ struct SampleData {
 
 // Holds together all the data needed for ProcJit management.
 struct JitData {
-  std::unique_ptr<Package> package;
+  Package* package;
   Proc* proc;
   std::unique_ptr<ProcRuntime> proc_runtime;
 };
@@ -273,9 +273,8 @@ static absl::StatusOr<JitData> CreateProcJit() {
   auto [package, runtime] = wrapped::AesCtr::TakeRuntime(std::move(ctr));
   XLS_ASSIGN_OR_RETURN(Proc * proc,
                        package->GetProc("__aes_ctr__aes_ctr_0_next"));
-  return JitData{.package = std::move(package),
-                 .proc = proc,
-                 .proc_runtime = std::move(runtime)};
+  return JitData{
+      .package = package, .proc = proc, .proc_runtime = std::move(runtime)};
 }
 
 static absl::Status RunTest(int32_t num_samples, int32_t key_bits) {

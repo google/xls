@@ -44,7 +44,6 @@
 #include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/jit_proc_runtime.h"
 #include "xls/jit/jit_runtime.h"
-#include "xls/public/ir_parser.h"
 
 namespace xls {
 
@@ -62,13 +61,16 @@ class BaseProcJitWrapper {
       const EvaluatorOptions& options)
     requires(std::is_base_of_v<BaseProcJitWrapper, RealType>)
   {
-    XLS_ASSIGN_OR_RETURN(auto package,
-                         ParsePackage(ir_text, /*filename=*/std::nullopt));
+    XLS_ASSIGN_OR_RETURN(Package * package,
+                         BaseProcJitWrapper::GetCachedPackage(ir_text));
+    XLS_RET_CHECK(package != nullptr);
     XLS_ASSIGN_OR_RETURN(Proc * proc, package->GetProc(function_name));
     XLS_RET_CHECK_EQ(proc, package->GetTop().value_or(nullptr))
         << "Only top proc supported right now.";
-    AotPackageEntrypointsProto proto;
-    XLS_RET_CHECK(proto.ParseFromArray(aot_proto.data(), aot_proto.size()));
+    XLS_ASSIGN_OR_RETURN(AotPackageEntrypointsProto const* proto_ptr,
+                         BaseProcJitWrapper::GetCachedEntrypoints(aot_proto));
+    XLS_RET_CHECK(proto_ptr != nullptr);
+    const AotPackageEntrypointsProto& proto = *proto_ptr;
 
     absl::flat_hash_map<std::string, PackageInterfaceProto::Proc>
         proc_interfaces;
@@ -91,24 +93,24 @@ class BaseProcJitWrapper {
             absl::StrFormat("Proc interface not found for %s.", e.proc_name));
       }
     }
-    XLS_ASSIGN_OR_RETURN(auto aot,
-                         CreateAotSerialProcRuntime(package.get(), proto,
-                                                    real_entrypoints, options));
+    XLS_ASSIGN_OR_RETURN(
+        auto aot,
+        CreateAotSerialProcRuntime(package, proto, real_entrypoints, options));
 
     XLS_ASSIGN_OR_RETURN(auto* man, aot->GetJitChannelQueueManager());
     JitRuntime& runtime = man->runtime();
 
     auto result = std::unique_ptr<RealType>(
         new RealType(std::move(package), proc, std::move(aot), runtime));
-    result->aot_entrypoints_proto_ = std::move(proto);
+    result->aot_entrypoints_proto_ = proto_ptr;
     return result;
   }
 
   const AotPackageEntrypointsProto& aot_entrypoints_proto() const {
-    return aot_entrypoints_proto_;
+    return *aot_entrypoints_proto_;
   }
 
-  Package* package() const { return package_.get(); }
+  Package* package() const { return package_; }
   ProcRuntime* runtime() const { return runtime_.get(); }
 
   // Reset the state of all of the procs to their initial state.
@@ -167,7 +169,7 @@ class BaseProcJitWrapper {
   }
 
  protected:
-  BaseProcJitWrapper(std::unique_ptr<Package> package, Proc* proc,
+  BaseProcJitWrapper(Package* package, Proc* proc,
                      std::unique_ptr<ProcRuntime> runtime,
                      JitRuntime& jit_runtime)
       : package_(std::move(package)),
@@ -175,8 +177,8 @@ class BaseProcJitWrapper {
         runtime_(std::move(runtime)),
         jit_runtime_(jit_runtime) {}
 
-  static std::tuple<std::unique_ptr<Package>, std::unique_ptr<ProcRuntime>>
-  TakeRuntimeBase(std::unique_ptr<BaseProcJitWrapper> w) {
+  static std::tuple<Package*, std::unique_ptr<ProcRuntime>> TakeRuntimeBase(
+      std::unique_ptr<BaseProcJitWrapper> w) {
     return w->DoTakeRuntime();
   }
 
@@ -205,18 +207,21 @@ class BaseProcJitWrapper {
     return true;
   }
 
-  std::unique_ptr<Package> package_;
+  Package* package_;
   Proc* proc_;
   std::unique_ptr<ProcRuntime> runtime_;
   JitRuntime& jit_runtime_;
   // Filled in after initialization. The entrypoints we wrap.
-  AotPackageEntrypointsProto aot_entrypoints_proto_;
+  AotPackageEntrypointsProto const* aot_entrypoints_proto_;
 
  private:
-  std::tuple<std::unique_ptr<Package>, std::unique_ptr<ProcRuntime>>
-  DoTakeRuntime() {
+  std::tuple<Package*, std::unique_ptr<ProcRuntime>> DoTakeRuntime() {
     return {std::move(package_), std::move(runtime_)};
   }
+
+  static absl::StatusOr<Package*> GetCachedPackage(std::string_view ir);
+  static absl::StatusOr<AotPackageEntrypointsProto const*> GetCachedEntrypoints(
+      absl::Span<uint8_t const> pb);
 };
 
 }  // namespace xls

@@ -280,6 +280,7 @@ cc_library(
 
 cc_library(
     name = "proc_base_jit_wrapper",
+    srcs = ["proc_base_jit_wrapper.cc"],
     hdrs = ["proc_base_jit_wrapper.h"],
     # Allow jit-wrapper users to see this.
     visibility = ["//xls:xls_users"],
@@ -294,14 +295,17 @@ cc_library(
         "//xls/interpreter:evaluator_options",
         "//xls/interpreter:proc_runtime",
         "//xls/ir",
+        "//xls/ir:ir_parser",
         "//xls/ir:state_element",
         "//xls/ir:value",
         "//xls/ir:xls_ir_interface_cc_proto",
-        "//xls/public:ir_parser",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/types:span",
     ],
 )

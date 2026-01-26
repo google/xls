@@ -17,7 +17,10 @@ namespace {{ wrapped.namespace }} {
 
 class {{ wrapped.class_name }} final : public xls::BaseProcJitWrapper {
  public:
-  static std::tuple<std::unique_ptr<xls::Package>, std::unique_ptr<xls::ProcRuntime>>
+  // Take the ProcRuntime which implements this jit. Also returns the package
+  // that the runtime is attached to. The package pointer will be valid at least
+  // as long as the returned runtime is alive.
+  static std::tuple<xls::Package*, std::unique_ptr<xls::ProcRuntime>>
   TakeRuntime(std::unique_ptr<{{ wrapped.class_name }}> r) {
     return BaseProcJitWrapper::TakeRuntimeBase(std::move(r));
   }
