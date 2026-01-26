@@ -205,6 +205,54 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
   ExpectEqualToGoldenFile(output);
 }
 
+TEST_F(StateToRegisterIoLoweringPassTest, ProcWithFullBitForToken) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::string output, RunPassAndRoundTripIrText(R"(
+package test
+
+top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
+  #![reset(port="rst", asynchronous=false, active_low=false)]
+  source proc __test__P_0_next__src<a: bits[32] in, b: bits[32] in, result: bits[32] out>(__state: token, init={token}) {
+    chan_interface a(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+    chan_interface b(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+    chan_interface result(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  }
+  literal.3: bits[1] = literal(value=1, id=3)
+  stage_inputs_valid_0: bits[1] = literal(value=1, id=20)
+  stage_outputs_ready_0: bits[1] = literal(value=1, id=21)
+  controlled_stage(stage_inputs_valid_0, stage_outputs_ready_0) {
+    after_all.5: token = after_all(id=5)
+    receive.6: (token, bits[32]) = receive(after_all.5, predicate=literal.3, channel=a, id=6)
+    tok: token = tuple_index(receive.6, index=0, id=8)
+    receive.10: (token, bits[32]) = receive(tok, predicate=literal.3, channel=b, id=10)
+    a_value: bits[32] = tuple_index(receive.6, index=1, id=9)
+    b_value: bits[32] = tuple_index(receive.10, index=1, id=13)
+    umul.14: bits[32] = umul(a_value, b_value, id=14)
+    active_inputs_valid active_inputs_valid_0: bits[1] = literal(value=1, id=22)
+    tok__1: token = tuple_index(receive.10, index=0, id=12)
+    ret stage_outputs_valid_0: bits[1] = and(stage_inputs_valid_0, active_inputs_valid_0, id=23)
+  }
+  stage_inputs_valid_1: bits[1] = literal(value=1, id=24)
+  rst: bits[1] = input_port(name=rst, id=19)
+  stage_outputs_ready_1: bits[1] = literal(value=1, id=25)
+  controlled_stage(stage_inputs_valid_1, stage_outputs_ready_1) {
+    __state: token = state_read(state_element=__state, id=2)
+    active_inputs_valid active_inputs_valid_1: bits[1] = literal(value=1, id=26)
+    send.16: token = send(tok__1, umul.14, predicate=literal.3, channel=result, id=16)
+    ret stage_outputs_valid_1: bits[1] = and(stage_inputs_valid_1, active_inputs_valid_1, id=27)
+  }
+  stage_inputs_valid_2: bits[1] = literal(value=1, id=28)
+  stage_outputs_ready_2: bits[1] = literal(value=1, id=29)
+  controlled_stage(stage_inputs_valid_2, stage_outputs_ready_2) {
+    active_inputs_valid active_inputs_valid_2: bits[1] = literal(value=1, id=30)
+    next_value.17: () = next_value(param=__state, value=tok, id=17)
+    ret stage_outputs_valid_2: bits[1] = and(stage_inputs_valid_2, active_inputs_valid_2, id=32)
+  }
+}
+)"));
+
+  ExpectEqualToGoldenFile(output);
+}
+
 TEST_F(StateToRegisterIoLoweringPassTest, SimpleProcWithFullBitAndPredicates) {
   XLS_ASSERT_OK_AND_ASSIGN(std::string output, RunPassAndRoundTripIrText(R"(
 package test

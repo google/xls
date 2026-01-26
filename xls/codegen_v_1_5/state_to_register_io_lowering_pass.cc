@@ -148,12 +148,14 @@ absl::Status AddFullRegisterWrite(Block* block, Register* reg_full,
   return absl::OkStatus();
 }
 
-absl::Status LowerStateElementToZero(ScheduledBlock* block,
-                                     const StateElement& state_element,
-                                     StateRead* read,
-                                     absl::Span<Next*> writes) {
+absl::Status LowerStateElement(ScheduledBlock* block,
+                               const StateElement& state_element,
+                               StateRead* read, absl::Span<Next*> writes) {
+  // A token or empty tuple state element has no real functionality.
   Type* type = state_element.type();
-  if (!state_element.type()->IsToken() &&
+  const bool has_data = type->GetFlatBitCount() > 0;
+
+  if (!has_data && !state_element.type()->IsToken() &&
       state_element.type() != block->package()->GetTupleType({})) {
     return absl::UnimplementedError(
         absl::StrFormat("Proc has zero-width state element `%s`, but type is "
@@ -161,49 +163,31 @@ absl::Status LowerStateElementToZero(ScheduledBlock* block,
                         state_element.name(), type->ToString()));
   }
 
-  XLS_ASSIGN_OR_RETURN(
-      Literal * replacement,
-      block->MakeNode<xls::Literal>(read->loc(), ZeroOfType(type)));
-  XLS_ASSIGN_OR_RETURN(
-      bool read_removed,
-      ReplaceNode(block, read, replacement, /*replace_implicit_uses=*/false));
-  XLS_RET_CHECK(!read_removed);
-
-  for (Next* write : writes) {
-    XLS_RETURN_IF_ERROR(block->RemoveNode(write));
-  }
-
-  return absl::OkStatus();
-}
-
-absl::Status LowerStateElement(ScheduledBlock* block,
-                               const StateElement& state_element,
-                               StateRead* read, absl::Span<Next*> writes) {
-  // A token or empty tuple state element has no real functionality.
-  Type* type = state_element.type();
-  if (type->IsToken() || type->GetFlatBitCount() == 0) {
-    XLS_RETURN_IF_ERROR(
-        LowerStateElementToZero(block, state_element, read, writes));
-    return absl::OkStatus();
-  }
-
   // Lower the read of the state element.
   std::optional<Node*> read_predicate = read->predicate();
   std::string name =
       block->UniquifyNodeName(absl::StrCat("__", state_element.name()));
-  XLS_ASSIGN_OR_RETURN(Register * state_register,
-                       block->AddRegister(name, state_element.type(),
-                                          state_element.initial_value()));
 
   XLS_ASSIGN_OR_RETURN(int read_stage_index, block->GetStageIndex(read));
   Stage& read_stage = block->stages()[read_stage_index];
-  XLS_ASSIGN_OR_RETURN(RegisterRead * reg_read,
-                       block->MakeNodeWithNameInStage<RegisterRead>(
-                           read_stage_index, read->loc(), state_register,
-                           /*name=*/state_register->name()));
-  XLS_ASSIGN_OR_RETURN(
-      bool read_removed,
-      ReplaceNode(block, read, reg_read, /*replace_implicit_uses=*/false));
+  Node* reg_read_or_zero = nullptr;
+  Register* state_register = nullptr;
+  if (has_data) {
+    XLS_ASSIGN_OR_RETURN(state_register,
+                         block->AddRegister(name, state_element.type(),
+                                            state_element.initial_value()));
+    XLS_ASSIGN_OR_RETURN(reg_read_or_zero,
+                         block->MakeNodeWithNameInStage<RegisterRead>(
+                             read_stage_index, read->loc(), state_register,
+                             /*name=*/state_register->name()));
+  } else {
+    XLS_ASSIGN_OR_RETURN(reg_read_or_zero, block->MakeNode<xls::Literal>(
+                                               read->loc(), ZeroOfType(type)));
+  }
+
+  XLS_ASSIGN_OR_RETURN(bool read_removed,
+                       ReplaceNode(block, read, reg_read_or_zero,
+                                   /*replace_implicit_uses=*/false));
   XLS_RET_CHECK(!read_removed);
 
   Next* last_write = nullptr;
@@ -280,31 +264,37 @@ absl::Status LowerStateElement(ScheduledBlock* block,
   if (values.empty()) {
     // If we never change the state element, write the current value
     // unconditionally.
-    value = reg_read;
+    value = reg_read_or_zero;
   } else if (values.size() == 1) {
     value = values[0];
     write_load_enable = write_conditions[0];
   } else {
-    XLS_ASSIGN_OR_RETURN(Node * selector, block->MakeNode<xls::Concat>(
-                                              last_write->loc(), gates));
-
-    // Reverse the order of the values, so they match up to the selector.
-    std::reverse(values.begin(), values.end());
-    XLS_ASSIGN_OR_RETURN(value, block->MakeNode<OneHotSelect>(
-                                    last_write->loc(), selector, values));
-
     XLS_ASSIGN_OR_RETURN(
         write_load_enable,
         block->MakeNode<NaryOp>(last_write->loc(), write_conditions, Op::kOr));
+
+    if (has_data) {
+      XLS_ASSIGN_OR_RETURN(Node * selector, block->MakeNode<xls::Concat>(
+                                                last_write->loc(), gates));
+
+      // Reverse the order of the values, so they match up to the selector.
+      std::reverse(values.begin(), values.end());
+      XLS_ASSIGN_OR_RETURN(value, block->MakeNode<OneHotSelect>(
+                                      last_write->loc(), selector, values));
+    }
   }
 
-  // Create the register write, and replace the Next nodes with empty tuples.
-  XLS_RETURN_IF_ERROR(block
-                          ->MakeNode<RegisterWrite>(
-                              last_value_loc, value,
-                              /*load_enable=*/write_load_enable,
-                              /*reset=*/block->GetResetPort(), state_register)
-                          .status());
+  // Create the register write, if it's not a token or empty bits.
+  if (has_data) {
+    XLS_RETURN_IF_ERROR(block
+                            ->MakeNode<RegisterWrite>(
+                                last_value_loc, value,
+                                /*load_enable=*/write_load_enable,
+                                /*reset=*/block->GetResetPort(), state_register)
+                            .status());
+  }
+
+  // Replace the Next nodes with empty tuples.
   XLS_ASSIGN_OR_RETURN(
       Node * empty_tuple,
       block->MakeNode<Tuple>(SourceInfo{}, absl::Span<Node*>{}));

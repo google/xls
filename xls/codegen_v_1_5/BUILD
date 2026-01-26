@@ -755,6 +755,8 @@ cc_test(
         "//xls/ir:type",
         "//xls/ir:value",
         "//xls/ir:value_utils",
+        "//xls/passes:channel_legalization_pass",
+        "//xls/passes:optimization_pass",
         "//xls/passes:pass_base",
         "//xls/scheduling:scheduling_options",
         "//xls/scheduling:scheduling_result",

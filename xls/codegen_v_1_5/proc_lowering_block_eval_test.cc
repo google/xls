@@ -80,6 +80,8 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
+#include "xls/passes/channel_legalization_pass.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/scheduling/scheduling_result.h"
@@ -159,6 +161,14 @@ absl::StatusOr<BlockConversionPassOptions> CreateOptions(
   };
 }
 
+absl::Status RunRequiredOptimizationPasses(Package* p) {
+  OptimizationContext opt_context;
+  PassResults opt_results;
+  return ChannelLegalizationPass()
+      .Run(p, OptimizationPassOptions(), &opt_results, opt_context)
+      .status();
+}
+
 // Run channel legalization, multi-proc scheduling, block conversion,
 // side-effect condition pass, and ultimately the  block stitching pass on the
 // given package. If `unit_out` is non-null, the codegen unit will be returned
@@ -171,6 +181,8 @@ absl::StatusOr<bool> RunBlockStitchingPass(
   if (VerifiedPackage* verified_package = dynamic_cast<VerifiedPackage*>(p)) {
     verified_package->AcceptInvalid();
   }
+
+  XLS_RETURN_IF_ERROR(RunRequiredOptimizationPasses(p));
 
   codegen_options.module_name(top_name);
   if (!p->GetTop().has_value()) {
@@ -3107,7 +3119,7 @@ TEST_F(ProcLoweringBlockEvalTest, BlockingReceiveBlocksSendsForDepth0Fifos) {
               IsOkAndHolds(BlockOutputsEq({{"out", {}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_TwoSendsOneReceive) {
+TEST_F(ProcLoweringBlockEvalTest, TwoSendsOneReceive) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -3316,8 +3328,7 @@ TEST_F(ProcLoweringBlockEvalTest, TwoReceivesOneSend) {
 // adapter. So... this test doesn't really look like the original test. Still,
 // we end up getting the same outputs as the original test and `y` is still a
 // single value channel.
-TEST_F(ProcLoweringBlockEvalTest,
-       DISABLED_SingleValueChannelWithVariantElements1) {
+TEST_F(ProcLoweringBlockEvalTest, SingleValueChannelWithVariantElements1) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   Type* u64 = p->GetBitsType(64);
@@ -3404,8 +3415,7 @@ TEST_F(ProcLoweringBlockEvalTest,
                                            {"result1_out", {20, 40, 60}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest,
-       DISABLED_SingleValueChannelWithVariantElements2) {
+TEST_F(ProcLoweringBlockEvalTest, SingleValueChannelWithVariantElements2) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   Type* u64 = p->GetBitsType(64);
@@ -3491,8 +3501,7 @@ TEST_F(ProcLoweringBlockEvalTest,
                                            {"result1_out", {22, 44, 66}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest,
-       DISABLED_SingleValueChannelWithVariantElements3) {
+TEST_F(ProcLoweringBlockEvalTest, SingleValueChannelWithVariantElements3) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   Type* u32_u32 = p->GetTupleType({u32, u32});
@@ -3576,8 +3585,7 @@ TEST_F(ProcLoweringBlockEvalTest,
                                            {"result1_out", {24, 54, 88}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest,
-       DISABLED_SingleValueChannelWithVariantElements4) {
+TEST_F(ProcLoweringBlockEvalTest, SingleValueChannelWithVariantElements4) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   Type* u32_u32 = p->GetTupleType({u32, u32});
