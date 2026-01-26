@@ -34,6 +34,7 @@ xls_dslx_opt_ir(
     name = "f_proc",
     srcs = ["f_proc.x"],
     dslx_top = "f_proc",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
 )
 
 xls_ir_verilog(
@@ -95,6 +96,7 @@ xls_dslx_opt_ir(
     name = "f_func",
     srcs = ["f_func.x"],
     dslx_top = "f_func",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
 )
 
 xls_ir_verilog(

@@ -43,6 +43,7 @@ xls_dslx_test(
 xls_dslx_opt_ir(
     name = "matmul_4x4_opt_ir",
     dslx_top = "matmul_4x4",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
     library = ":matmul_4x4_dslx",
 )
 

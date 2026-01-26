@@ -36,6 +36,7 @@ xls_dslx_opt_ir(
     name = "adler32",
     srcs = ["adler32.x"],
     dslx_top = "main",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
     ir_file = "adler32.ir",
     opt_ir_file = "adler32.opt.ir",
 )

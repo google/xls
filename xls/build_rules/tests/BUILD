@@ -296,12 +296,14 @@ xls_dslx_library(
 xls_dslx_ir(
     name = "add_one_dslx_ir",
     dslx_top = "main",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
     library = ":add_one_dslx",
 )
 
 xls_dslx_opt_ir(
     name = "add_one_dslx_opt_ir",
     dslx_top = "main",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
     library = ":add_one_dslx",
 )
 
@@ -655,6 +657,7 @@ xls_dslx_opt_ir(
     name = "simple_example_5_top_five",
     srcs = ["simple_example_five.x"],
     dslx_top = "five",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
     deps = [":simple_example_4_dslx"],
 )
 
@@ -886,6 +889,7 @@ xls_dslx_opt_ir(
     name = "die_if_odd",
     srcs = ["die_if_odd.x"],
     dslx_top = "die_if_odd",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
     ir_file = "die_if_odd.ir",
     opt_ir_file = "die_if_odd.opt.ir",
 )

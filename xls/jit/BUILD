@@ -1198,6 +1198,7 @@ xls_dslx_library(
 xls_dslx_opt_ir(
     name = "null_function",
     dslx_top = "null_function",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
     library = ":null_function_dslx",
 )
 
@@ -1216,6 +1217,7 @@ xls_dslx_library(
 xls_dslx_ir(
     name = "multi_function",
     dslx_top = "multi_function_one",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
     library = ":multi_function_dslx",
 )
 
@@ -1284,6 +1286,7 @@ xls_dslx_library(
 xls_dslx_ir(
     name = "multi_function_with_trace",
     dslx_top = "multi_function_one",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
     library = ":multi_function_with_trace_dslx",
 )
 
@@ -1338,6 +1341,7 @@ xls_dslx_library(
 xls_dslx_opt_ir(
     name = "compound_type",
     dslx_top = "fun_test_function",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
     library = ":compound_type_dslx",
 )
 

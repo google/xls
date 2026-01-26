@@ -48,6 +48,7 @@ xls_dslx_test(
 xls_dslx_ir(
     name = "assertions_ir",
     dslx_top = "main",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
     ir_file = "assertions.ir",
     library = ":assertions_dslx",
 )

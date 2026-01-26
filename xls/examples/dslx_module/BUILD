@@ -65,6 +65,7 @@ xls_dslx_ir(
     name = "some_caps_streaming_configured_ir",
     dslx_top = "some_caps_specialized",
     ir_conv_args = {
+        "lower_to_proc_scoped_channels": "false",
         # Set fifo config for multi-proc codegen.
         # It needs to know what configuration to use for the fifo.
         "default_fifo_config": "depth: 4, bypass: true, " +
@@ -91,6 +92,7 @@ xls_dslx_opt_ir(
     # liveness instead of spawn tree. This is done to avoid having to deal with mangled names.
     dslx_top = "manual_chan_caps_specialized",
     ir_conv_args = {
+        "lower_to_proc_scoped_channels": "false",
         # Set fifo config for multi-proc codegen.
         # It needs to know what configuration to use for the fifo.
         "default_fifo_config": "depth: 4, bypass: true, " +

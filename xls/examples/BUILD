@@ -171,9 +171,7 @@ xls_dslx_opt_ir(
     name = "custom_schedule",
     srcs = ["custom_schedule.x"],
     dslx_top = "Accumulator",
-    ir_conv_args = {
-        "lower_to_proc_scoped_channels": "true",
-    },
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
 )
 
 xls_dslx_fmt_test(
@@ -242,6 +240,7 @@ xls_dslx_opt_ir(
     name = "riscv_simple_opt_ir",
     srcs = ["riscv_simple.x"],
     dslx_top = "run_instruction",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
     ir_file = "riscv_simple.ir",
     opt_ir_file = "riscv_simple.opt.ir",
 )
@@ -422,6 +421,7 @@ xls_dslx_opt_ir(
     name = "sha256",
     srcs = ["sha256.x"],
     dslx_top = "main",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
     ir_file = "sha256.ir",
     opt_ir_file = "sha256.opt.ir",
     tags = ["optonly"],
@@ -490,6 +490,7 @@ xls_dslx_opt_ir(
     name = "sobel_filter_ir",
     srcs = ["sobel_filter_benchmark.x"],
     dslx_top = "apply_stencil_float32_8x8",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
     deps = [":sobel_filter_dslx"],
 )
 
@@ -678,6 +679,7 @@ xls_dslx_opt_ir(
     name = "tiny_adder_opt_ir",
     srcs = ["tiny_adder.x"],
     dslx_top = "tiny_adder",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
     ir_file = "tiny_adder.ir",
     opt_ir_file = "tiny_adder.opt.ir",
 )
@@ -713,6 +715,7 @@ xls_dslx_opt_ir(
     name = "find_index_opt_ir",
     srcs = ["find_index.x"],
     dslx_top = "find_index",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
     ir_file = "find_index.ir",
     opt_ir_file = "find_index.opt.ir",
 )
@@ -779,6 +782,7 @@ xls_dslx_opt_ir(
     name = "large_array",
     srcs = ["large_array.x"],
     dslx_top = "large_array",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
     ir_file = "large_array.ir",
     opt_ir_file = "large_array.opt.ir",
 )
@@ -805,6 +809,7 @@ xls_dslx_opt_ir(
     name = "prefix_sum",
     srcs = ["prefix_sum.x"],
     dslx_top = "prefix_sum",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
     ir_file = "prefix_sum.ir",
     opt_ir_file = "prefix_sum.opt.ir",
 )
@@ -831,6 +836,7 @@ xls_dslx_opt_ir(
     name = "sparse_prefix_sum",
     srcs = ["sparse_prefix_sum.x"],
     dslx_top = "sparse_prefix_sum",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
     ir_file = "sparse_prefix_sum.ir",
     opt_ir_file = "sparse_prefix_sum.opt.ir",
 )
@@ -961,9 +967,7 @@ xls_dslx_test(
 xls_dslx_ir(
     name = "delay_loopback_channel_ir",
     dslx_top = "Delay",
-    ir_conv_args = {
-        "lower_to_proc_scoped_channels": "true",
-    },
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     ir_file = "delay_loopback_channel.ir",
     library = ":delay_loopback_channel_dslx",
 )
@@ -1048,6 +1052,7 @@ xls_dslx_test(
 xls_dslx_ir(
     name = "constraint_ir",
     dslx_top = "main",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
     ir_file = "constraint.ir",
     library = ":constraint_dslx",
 )
@@ -1143,6 +1148,7 @@ xls_dslx_library(
 xls_dslx_opt_ir(
     name = "fp32_fmac",
     dslx_top = "fp32_fmac",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
     library = ":fp32_fmac_dslx",
 )
 
@@ -1169,6 +1175,7 @@ xls_dslx_opt_ir(
     name = "overflow_detect",
     srcs = ["overflow_detect.x"],
     dslx_top = "main",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
     ir_file = "overflow_detect.ir",
     opt_ir_file = "overflow_detect.opt.ir",
 )
@@ -1188,6 +1195,7 @@ xls_dslx_opt_ir(
     name = "nested_sel",
     srcs = ["nested_sel.x"],
     dslx_top = "main",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
 )
 
 xls_dslx_opt_ir_test(
@@ -1242,6 +1250,7 @@ xls_dslx_test(
 xls_dslx_ir(
     name = "serialized_decomposer_ir",
     dslx_top = "serialized_decomposer",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
     ir_file = "serialized_decomposer.ir",
     library = ":serialized_decomposer_dslx",
 )
@@ -1375,6 +1384,7 @@ xls_dslx_opt_ir(
     name = "xls_pipeline",
     srcs = ["xls_pipeline.x"],
     dslx_top = "xls_pipeline",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
 )
 
 xls_dslx_library(
@@ -1391,9 +1401,7 @@ xls_dslx_test(
 xls_dslx_ir(
     name = "proc_network_ir",
     dslx_top = "Initiator",
-    ir_conv_args = {
-        "lower_to_proc_scoped_channels": "false",
-    },
+    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
     ir_file = "proc_network.ir",
     library = ":proc_network_dslx",
 )
@@ -1401,9 +1409,7 @@ xls_dslx_ir(
 xls_dslx_ir(
     name = "proc_network_proc_scoped_ir",
     dslx_top = "Initiator",
-    ir_conv_args = {
-        "lower_to_proc_scoped_channels": "true",
-    },
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     ir_file = "proc_network_proc_scoped.ir",
     library = ":proc_network_dslx",
 )
@@ -1431,9 +1437,7 @@ xls_dslx_ir(
 xls_dslx_opt_ir(
     name = "const_if_opt_ir",
     dslx_top = "Main",
-    ir_conv_args = {
-        "lower_to_proc_scoped_channels": "true",
-    },
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     library = ":const_if_dslx",
 )
 

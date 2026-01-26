@@ -28,12 +28,14 @@ xls_dslx_ir(
     name = "test_ir",
     srcs = ["test.x"],
     dslx_top = "main",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
 )
 
 xls_dslx_ir(
     name = "multi_proc_ir",
     srcs = ["multi_proc.x"],
     dslx_top = "proc_ten",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
 )
 
 xls_dslx_ir(

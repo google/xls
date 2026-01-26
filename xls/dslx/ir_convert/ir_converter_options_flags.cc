@@ -112,6 +112,13 @@ absl::StatusOr<bool> SetOptionsFromFlags(IrConverterOptionsFlagsProto& proto) {
     any_flags_set |= FLAGS_##__x.IsSpecifiedOnCommandLine(); \
     proto.set_##__x(absl::GetFlag(FLAGS_##__x));             \
   }
+#define POPULATE_FLAG_IF_SPECIFIED(__x)            \
+  {                                                \
+    if (FLAGS_##__x.IsSpecifiedOnCommandLine()) {  \
+      any_flags_set = true;                        \
+      proto.set_##__x(absl::GetFlag(FLAGS_##__x)); \
+    }                                              \
+  }
 #define POPULATE_OPTIONAL_FLAG(__x)                          \
   {                                                          \
     any_flags_set |= FLAGS_##__x.IsSpecifiedOnCommandLine(); \
@@ -143,7 +150,7 @@ absl::StatusOr<bool> SetOptionsFromFlags(IrConverterOptionsFlagsProto& proto) {
   POPULATE_OPTIONAL_FLAG(interface_proto_file);
   POPULATE_OPTIONAL_FLAG(interface_textproto_file);
   POPULATE_FLAG(type_inference_v2);
-  POPULATE_FLAG(lower_to_proc_scoped_channels);
+  POPULATE_FLAG_IF_SPECIFIED(lower_to_proc_scoped_channels);
   POPULATE_FLAG(force_implicit_token_calling_convention);
   POPULATE_REPEATED_FLAG(configured_values);
   POPULATE_FLAG(emit_assert);

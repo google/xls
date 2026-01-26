@@ -54,6 +54,7 @@ xls_dslx_opt_ir(
     name = "crc32",
     srcs = ["crc32.x"],
     dslx_top = "main",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
     ir_file = "crc32.ir",
     opt_ir_file = "crc32.opt.ir",
 )

@@ -131,6 +131,7 @@ xls_dslx_test(
 xls_dslx_ir(
     name = "rle_enc_ir",
     dslx_top = "RunLengthEncoder32",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
     ir_file = "rle_enc.ir",
     library = "rle_enc_dslx",
 )
@@ -258,6 +259,7 @@ xls_dslx_test(
 xls_dslx_ir(
     name = "rle_dec_ir",
     dslx_top = "RunLengthDecoder32",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
     ir_file = "rle_dec.ir",
     library = "rle_dec_dslx",
 )
