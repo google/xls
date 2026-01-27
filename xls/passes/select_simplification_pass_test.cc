@@ -163,6 +163,145 @@ TEST_P(SelectSimplificationPassTest, BinaryTuplePrioritySelect) {
                    /*default_value=*/m::TupleIndex(m::Tuple(), 1))));
 }
 
+TEST_P(SelectSimplificationPassTest,
+       PushCompareThroughSelectLikeWithMostlyLiteralArms) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue s = fb.Param("s", p->GetBitsType(2));
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue param_p = fb.Param("p", p->GetBitsType(1));
+
+  BValue lit0 = fb.Literal(Value(UBits(0, 8)));
+  BValue lit1 = fb.Literal(Value(UBits(1, 8)));
+  BValue lit2 = fb.Literal(Value(UBits(2, 8)));
+
+  BValue pr = fb.PrioritySelect(s, /*cases=*/{lit1, x}, /*default_value=*/lit2);
+  BValue eq_pr = fb.Eq(pr, lit0);
+
+  BValue se = fb.Select(s, /*cases=*/{lit1, x}, /*default_value=*/lit2);
+  BValue eq_se = fb.Eq(se, lit0);
+
+  // Selector is provably exactly-one-hot: concat(not(p), p).
+  BValue not_p = fb.Not(param_p);
+  BValue oh = fb.Concat({not_p, param_p});
+  BValue ohs = fb.OneHotSelect(oh, /*cases=*/{lit1, x});
+  BValue eq_ohs = fb.Eq(ohs, lit0);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, fb.BuildWithReturnValue(fb.Tuple({eq_pr, eq_se, eq_ohs})));
+  EXPECT_TRUE(f->return_value()->Is<Tuple>());
+
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Tuple(m::PrioritySelect(m::Param("s"),
+                                 {m::Eq(m::Literal(1), m::Literal(0)),
+                                  m::Eq(m::Param("x"), m::Literal(0))},
+                                 m::Eq(m::Literal(2), m::Literal(0))),
+               m::Select(m::Param("s"),
+                         {m::Eq(m::Literal(1), m::Literal(0)),
+                          m::Eq(m::Param("x"), m::Literal(0))},
+                         m::Eq(m::Literal(2), m::Literal(0))),
+               m::OneHotSelect(m::Concat(m::Not(m::Param("p")), m::Param("p")),
+                               {m::Eq(m::Literal(1), m::Literal(0)),
+                                m::Eq(m::Param("x"), m::Literal(0))})));
+}
+
+TEST_P(SelectSimplificationPassTest,
+       PushNonCommutativeCompareThroughSelectPreservesOrder) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue s = fb.Param("s", p->GetBitsType(2));
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue lit0 = fb.Literal(Value(UBits(0, 8)));
+  BValue lit1 = fb.Literal(Value(UBits(1, 8)));
+  BValue lit2 = fb.Literal(Value(UBits(2, 8)));
+
+  BValue se = fb.Select(s, /*cases=*/{lit1, x}, /*default_value=*/lit2);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.ULt(lit0, se)));
+  EXPECT_TRUE(f->return_value()->Is<CompareOp>());
+
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Select(m::Param("s"),
+                        {m::ULt(m::Literal(0), m::Literal(1)),
+                         m::ULt(m::Literal(0), m::Param("x"))},
+                        m::ULt(m::Literal(0), m::Literal(2))));
+}
+
+TEST_P(SelectSimplificationPassTest,
+       PushCompareThroughSelectLikeWithAllLiteralArms) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue s = fb.Param("s", p->GetBitsType(2));
+  BValue param_p = fb.Param("p", p->GetBitsType(1));
+
+  BValue lit0 = fb.Literal(Value(UBits(0, 8)));
+  BValue lit1 = fb.Literal(Value(UBits(1, 8)));
+  BValue lit2 = fb.Literal(Value(UBits(2, 8)));
+
+  BValue pr =
+      fb.PrioritySelect(s, /*cases=*/{lit0, lit1}, /*default_value=*/lit2);
+  BValue eq_pr = fb.Eq(pr, lit0);
+
+  BValue se = fb.Select(s, /*cases=*/{lit0, lit1}, /*default_value=*/lit2);
+  BValue eq_se = fb.Eq(se, lit0);
+
+  BValue not_p = fb.Not(param_p);
+  BValue oh = fb.Concat({not_p, param_p});
+  BValue ohs = fb.OneHotSelect(oh, /*cases=*/{lit0, lit1});
+  BValue eq_ohs = fb.Eq(ohs, lit0);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, fb.BuildWithReturnValue(fb.Tuple({eq_pr, eq_se, eq_ohs})));
+  EXPECT_TRUE(f->return_value()->Is<Tuple>());
+
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+
+  // Key invariant: after pushdown, no compare should directly compare a
+  // select-like node (sel/priority_sel/one_hot_sel) against the literal.
+  for (Node* n : f->nodes()) {
+    if (!n->Is<CompareOp>()) {
+      continue;
+    }
+    if (n->operand(0)->OpIn({Op::kPrioritySel, Op::kSel, Op::kOneHotSel}) ||
+        n->operand(1)->OpIn({Op::kPrioritySel, Op::kSel, Op::kOneHotSel})) {
+      // The pushed-down compares can still exist (e.g. eq(lit0, lit0)), but the
+      // compare itself should no longer be comparing the select-like result to
+      // the literal.
+      FAIL() << "Unexpected compare of select-like value: " << n->ToString();
+    }
+  }
+}
+
+TEST_P(SelectSimplificationPassTest,
+       CompareThroughSelectLikeWithTwoNonLiteralArmsDoesNotHoist) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue s = fb.Param("s", p->GetBitsType(2));
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  BValue lit0 = fb.Literal(Value(UBits(0, 8)));
+  BValue lit2 = fb.Literal(Value(UBits(2, 8)));
+
+  // Two non-literal arms => profitability guard should block the rewrite.
+  BValue se = fb.Select(s, /*cases=*/{x, y}, /*default_value=*/lit2);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Eq(se, lit0)));
+
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(),
+              m::Eq(m::Select(m::Param("s"),
+                              /*cases=*/{m::Param("x"), m::Param("y")},
+                              /*default_value=*/m::Literal(2)),
+                    m::Literal(0)));
+}
+
 TEST_P(SelectSimplificationPassTest, FourWayTupleSelect) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(

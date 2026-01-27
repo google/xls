@@ -14,6 +14,7 @@
 
 #include "xls/passes/union_query_engine.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -235,6 +236,27 @@ bool UnownedUnionQueryEngine::AtLeastOneTrue(
     }
   }
   return false;
+}
+
+bool UnownedUnionQueryEngine::AtMostOneBitTrue(Node* node) const {
+  return std::any_of(engines_.begin(), engines_.end(),
+                     [&](const QueryEngine* engine) {
+                       return engine->AtMostOneBitTrue(node);
+                     });
+}
+
+bool UnownedUnionQueryEngine::AtLeastOneBitTrue(Node* node) const {
+  return std::any_of(engines_.begin(), engines_.end(),
+                     [&](const QueryEngine* engine) {
+                       return engine->AtLeastOneBitTrue(node);
+                     });
+}
+
+bool UnownedUnionQueryEngine::ExactlyOneBitTrue(Node* node) const {
+  return std::any_of(engines_.begin(), engines_.end(),
+                     [&](const QueryEngine* engine) {
+                       return engine->ExactlyOneBitTrue(node);
+                     });
 }
 
 bool UnownedUnionQueryEngine::KnownEquals(const TreeBitLocation& a,

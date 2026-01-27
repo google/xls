@@ -1623,4 +1623,28 @@ absl::StatusOr<Node*> GenericSelect::MakePredicateForDefault() const {
           absl::StrFormat("%s is not a select like operation.", n->ToString()));
   }
 }
+
+absl::StatusOr<Node*> GenericSelect::MakeSelectLikeWithNewArms(
+    absl::Span<Node* const> new_cases, std::optional<Node*> new_default_value,
+    const SourceInfo& loc) const {
+  XLS_RET_CHECK(valid());
+  XLS_RET_CHECK_EQ(new_cases.size(), cases().size());
+  FunctionBase* fb = AsNode()->function_base();
+  return std::visit(
+      Visitor{[&](Select* /*unused*/) -> absl::StatusOr<Node*> {
+                return fb->MakeNode<Select>(loc, selector(), new_cases,
+                                            new_default_value);
+              },
+              [&](PrioritySelect* /*unused*/) -> absl::StatusOr<Node*> {
+                XLS_RET_CHECK(new_default_value.has_value());
+                return fb->MakeNode<PrioritySelect>(loc, selector(), new_cases,
+                                                    *new_default_value);
+              },
+              [&](OneHotSelect* /*unused*/) -> absl::StatusOr<Node*> {
+                XLS_RET_CHECK(!new_default_value.has_value());
+                return fb->MakeNode<OneHotSelect>(loc, selector(), new_cases);
+              }},
+      sel_);
+}
+
 }  // namespace xls

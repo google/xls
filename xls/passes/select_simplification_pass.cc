@@ -1202,9 +1202,115 @@ absl::StatusOr<bool> MaybeReorderSelect(Node* node,
   return true;
 }
 
+absl::StatusOr<bool> TryHoistCompareThroughSelectLike(
+    Node* node, const QueryEngine& query_engine) {
+  if (!node->Is<CompareOp>()) {
+    return false;
+  }
+  CompareOp* cmp = node->As<CompareOp>();
+
+  std::optional<GenericSelect> sel;
+  Node* other = nullptr;
+  bool select_like_is_lhs = false;
+  // Look for `cmp(sel_like, literal)` or `cmp(literal, sel_like)` where
+  // `sel_like` is any select-like node wrapped by `GenericSelect`. We keep
+  // track of which side the select-like node is on so we preserve operand
+  // ordering for non-commutative compares (e.g. ULT/UGT).
+  if (auto gs = GenericSelect::From(cmp->operand(0)); gs.ok()) {
+    sel = *gs;
+    other = cmp->operand(1);
+    select_like_is_lhs = true;
+  } else if (auto gs = GenericSelect::From(cmp->operand(1)); gs.ok()) {
+    sel = *gs;
+    other = cmp->operand(0);
+    select_like_is_lhs = false;
+  } else {
+    return false;
+  }
+  XLS_RET_CHECK(sel.has_value() && sel->valid());
+  if (sel->kind() == GenericSelect::Kind::kOneHotSel &&
+      !query_engine.ExactlyOneBitTrue(sel->selector())) {
+    // For `one_hot_sel`, hoisting the compare into the arms is only semantics-
+    // preserving when the selector is exactly-one-hot. Otherwise, `one_hot_sel`
+    // has "multiple active arms" behavior which is not equivalent to selecting
+    // exactly one arm and then comparing.
+    return false;
+  }
+
+  // Guardrails:
+  //
+  // - Single use: avoids duplicating the select tree under multiple
+  //   compares/users (this rewrite clones the compare into each arm). Use
+  //   `HasSingleUse()` so we account for implicit uses.
+  // - Literal other operand: maximizes folding opportunities after hoisting the
+  //   comparison through the select(-like) into the arms.
+  //   This keeps the rewrite roughly area-preserving in the intended cases:
+  //   all-but-(at most)-one arm becomes a constant after folding.
+  if (!HasSingleUse(sel->AsNode()) || !other->Is<Literal>()) {
+    return false;
+  }
+
+  auto count_non_literal_arms =
+      [&](absl::Span<Node* const> cases,
+          std::optional<Node*> default_value) -> int64_t {
+    int64_t non_literal_arm_count = 0;
+    for (Node* c : cases) {
+      if (!c->Is<Literal>()) {
+        ++non_literal_arm_count;
+      }
+    }
+    if (default_value.has_value() && !default_value.value()->Is<Literal>()) {
+      ++non_literal_arm_count;
+    }
+    return non_literal_arm_count;
+  };
+
+  auto make_cmp = [&](Node* arm) -> absl::StatusOr<Node*> {
+    // Preserve operand order for non-commutative compares by placing `arm` on
+    // the same side where the select-like result originally appeared.
+    Node* lhs = select_like_is_lhs ? arm : other;
+    Node* rhs = select_like_is_lhs ? other : arm;
+    return node->function_base()->MakeNode<CompareOp>(cmp->loc(), lhs, rhs,
+                                                      cmp->op());
+  };
+
+  // Profitability: we only rewrite when there is at most one non-literal arm
+  // (including the default). In these cases, hoisting the compare into the arms
+  // enables aggressive folding of constant arms and can reduce critical-path
+  // delay by moving the compare "closer" to the data.
+  if (count_non_literal_arms(sel->cases(), sel->default_value()) > 1) {
+    return false;
+  }
+
+  std::vector<Node*> new_cases;
+  new_cases.reserve(sel->cases().size());
+  for (Node* c : sel->cases()) {
+    XLS_ASSIGN_OR_RETURN(Node * new_case, make_cmp(c));
+    new_cases.push_back(new_case);
+  }
+  std::optional<Node*> new_default = std::nullopt;
+  if (sel->default_value().has_value()) {
+    XLS_ASSIGN_OR_RETURN(new_default, make_cmp(*sel->default_value()));
+  }
+
+  XLS_ASSIGN_OR_RETURN(
+      Node * replacement,
+      sel->MakeSelectLikeWithNewArms(new_cases, new_default, cmp->loc()));
+  VLOG(2) << "Hoisting compare through " << sel->AsNode()->op() << ": "
+          << node->ToString();
+  XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(replacement));
+  return true;
+}
+
 absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
                                   BitProvenanceAnalysis& provenance,
                                   int64_t opt_level, bool range_analysis) {
+  XLS_ASSIGN_OR_RETURN(bool hoisted_cmp,
+                       TryHoistCompareThroughSelectLike(node, query_engine));
+  if (hoisted_cmp) {
+    return true;
+  }
+
   // Select with a constant selector can be replaced with the respective
   // case.
   if (node->Is<Select>() &&

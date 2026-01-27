@@ -101,6 +101,12 @@ class UnownedUnionQueryEngine : public QueryEngine {
   bool IsAllZeros(Node* n) const override;
   bool IsAllOnes(Node* n) const override;
 
+  // Returns true if at most/at least/exactly one of the bits in 'node' is true.
+  // 'node' must be bits-typed.
+  bool AtMostOneBitTrue(Node* node) const override;
+  bool AtLeastOneBitTrue(Node* node) const override;
+  bool ExactlyOneBitTrue(Node* node) const override;
+
   Bits MaxUnsignedValue(Node* node) const override;
   Bits MinUnsignedValue(Node* node) const override;
   std::optional<int64_t> KnownLeadingZeros(Node* node) const override;
