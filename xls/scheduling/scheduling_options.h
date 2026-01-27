@@ -280,8 +280,8 @@ class SchedulingOptions {
   int64_t opt_level() const { return opt_level_; }
 
   // Sets/gets the target delay model
-  SchedulingOptions& delay_model(std::string& value) {
-    delay_model_ = value;
+  SchedulingOptions& delay_model(std::string_view value) {
+    delay_model_ = std::string(value);
     return *this;
   }
   std::optional<std::string> delay_model() const { return delay_model_; }

@@ -63,6 +63,14 @@ absl::Status InstantiateBlocksInContainer(
     if (block.get() == container) {
       continue;
     }
+    // Skip anything that has a function source; this doesn't need to talk over
+    // channels, so it doesn't need an instantiation.
+    if (block->IsScheduled() &&
+        down_cast<ScheduledBlock*>(block.get())->source() != nullptr &&
+        down_cast<ScheduledBlock*>(block.get())->source()->IsFunction()) {
+      continue;
+    }
+
     blocks_to_instantiate.push_back(block.get());
   }
   absl::c_sort(blocks_to_instantiate, &FunctionBase::NameLessThan);
