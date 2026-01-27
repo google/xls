@@ -81,7 +81,7 @@ absl::Status NewFSMGenerator::SetupNewFSMGenerationContext(
 
 absl::StatusOr<NewFSMLayout> NewFSMGenerator::LayoutNewFSM(
     const GeneratedFunction& func,
-    const absl::flat_hash_map<const clang::NamedDecl*, xls::StateElement*>&
+    const absl::flat_hash_map<DeclLeaf, xls::StateElement*>&
         state_element_for_static,
     const xls::SourceInfo& body_loc) {
   NewFSMLayout ret;
@@ -189,25 +189,20 @@ absl::StatusOr<NewFSMLayout> NewFSMGenerator::LayoutNewFSM(
   // For optimization purposes, such as narrowing, it is better that the values
   // saved in a state element share semantics. Therefore, Clang NamedDecls are
   // used to identify values that may share a state element.
-  absl::flat_hash_map<const clang::NamedDecl*, std::vector<int64_t>>
+  absl::flat_hash_map<DeclLeaf, std::vector<int64_t>>
       state_element_indices_by_decl;
 
   // Inject statics: this enables state element sharing with statics
-  std::vector<const clang::NamedDecl*> static_decls =
-      func.GetDeterministicallyOrderedStaticValues();
-
-  for (const clang::NamedDecl* decl : static_decls) {
-    xls::StateElement* existing_state_element =
-        state_element_for_static.at(decl);
-
+  for (const auto& [decl_leaf, existing_state_element] :
+       state_element_for_static) {
     NewFSMStateElement state_element = {
         .name = existing_state_element->name(),
         .type = existing_state_element->type(),
         .existing_state_element = existing_state_element,
     };
     ret.state_elements.push_back(state_element);
-    state_element_indices_by_decl[decl].push_back(ret.state_elements.size() -
-                                                  1);
+    state_element_indices_by_decl[decl_leaf].push_back(
+        ret.state_elements.size() - 1);
   }
 
   for (const NewFSMState& state : ret.states) {
@@ -235,26 +230,30 @@ absl::StatusOr<NewFSMLayout> NewFSMGenerator::LayoutNewFSM(
       // This value has not already been assigned a state element
       // Try to find state elements to share by decl
       std::optional<int64_t> found_element_by_decl = std::nullopt;
-      std::vector<const clang::NamedDecl*> decls;
+      std::vector<DeclLeaf> decls;
 
-      for (const clang::NamedDecl* decl : value->decls) {
+      for (const DeclLeaf& decl : value->decls) {
         decls.push_back(decl);
       }
       func.SortNamesDeterministically(decls);
 
-      for (const clang::NamedDecl* decl : decls) {
+      for (const DeclLeaf& decl : decls) {
         if (!state_element_indices_by_decl.contains(decl)) {
           continue;
         }
         const std::vector<int64_t>& elements_for_this_decl =
             state_element_indices_by_decl.at(decl);
+
         for (const int64_t element_for_decl_index : elements_for_this_decl) {
           if (used_state_element_indices.contains(element_for_decl_index)) {
             continue;
           }
-          XLSCC_CHECK(ret.state_elements.at(element_for_decl_index)
-                          .type->IsEqualTo(value->output_node->GetType()),
-                      body_loc);
+
+          if (!ret.state_elements.at(element_for_decl_index)
+                   .type->IsEqualTo(value->output_node->GetType())) {
+            continue;
+          }
+
           found_element_by_decl = element_for_decl_index;
           break;
         }
@@ -266,9 +265,12 @@ absl::StatusOr<NewFSMLayout> NewFSMGenerator::LayoutNewFSM(
 
       // Create a new state element if none were found to share
       if (!found_element_by_decl.has_value()) {
+        std::string elem_name = value->name;
+        if (element_index >= 0) {
+          elem_name = absl::StrFormat("%s_el%li", elem_name, element_index);
+        }
         NewFSMStateElement state_element = {
-            .name =
-                absl::StrFormat("%s_slc_%li", value->name, state.slice_index),
+            .name = absl::StrFormat("%s_slc%li", elem_name, state.slice_index),
             .type = value->output_node->GetType(),
         };
         ret.state_elements.push_back(state_element);
@@ -281,7 +283,7 @@ absl::StatusOr<NewFSMLayout> NewFSMGenerator::LayoutNewFSM(
       XLSCC_CHECK_LT(element_index, ret.state_elements.size(), body_loc);
       ret.state_element_by_continuation_value[value] = element_index;
       used_state_element_indices.insert(element_index);
-      for (const clang::NamedDecl* decl : decls) {
+      for (const DeclLeaf& decl : decls) {
         state_element_indices_by_decl[decl].push_back(element_index);
       }
     }
@@ -311,8 +313,9 @@ absl::StatusOr<NewFSMLayout> NewFSMGenerator::LayoutNewFSM(
             absl::StrFormat("%s from slice %li", value->name,
                             ret.output_slice_index_by_value.at(value)));
       }
-      LOG(INFO) << absl::StrFormat("    %s (%s), values: %s", elem.name,
-                                   elem.type->ToString(),
+      LOG(INFO) << absl::StrFormat("    %s type %s (%i bits), values: %s",
+                                   elem.name, elem.type->ToString(),
+                                   elem.type->GetFlatBitCount(),
                                    absl::StrJoin(value_names, ", "));
     }
   }
@@ -615,8 +618,10 @@ absl::StatusOr<GenerateFSMInvocationReturn>
 NewFSMGenerator::GenerateNewFSMInvocation(
     const GeneratedFunction* xls_func,
     const std::vector<TrackedBValue>& direct_in_args,
-    const absl::flat_hash_map<const clang::NamedDecl*, xls::StateElement*>&
+    const absl::flat_hash_map<DeclLeaf, xls::StateElement*>&
         state_element_for_static,
+    const absl::flat_hash_map<const clang::NamedDecl*, xls::Type*>&
+        type_for_static,
     const absl::flat_hash_map<const clang::NamedDecl*, int64_t>&
         return_index_for_static,
     xls::ProcBuilder& pb, const xls::SourceInfo& body_loc) {
@@ -847,9 +852,12 @@ NewFSMGenerator::GenerateNewFSMInvocation(
 
     // Add statics
     for (const clang::NamedDecl* decl : slice.static_values) {
-      xls::StateElement* state_element = state_element_for_static.at(decl);
-      xls::StateRead* state_read = pb.proc()->GetStateRead(state_element);
-      TrackedBValue prev_val(state_read, &pb);
+      TrackedBValue prev_val;
+      XLS_ASSIGN_OR_RETURN(
+          prev_val, ComposeStaticValueInput(decl,
+                                            /*generate_new_fsm=*/true,
+                                            state_element_for_static,
+                                            type_for_static, pb, body_loc));
       invoke_params.push_back(prev_val);
     }
 

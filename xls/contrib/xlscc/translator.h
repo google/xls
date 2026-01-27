@@ -757,7 +757,9 @@ class Translator final : public GeneratorBase,
   absl::StatusOr<CValue> GenerateIR_Call(
       const clang::FunctionDecl* funcdecl,
       std::vector<const clang::Expr*> expr_args, TrackedBValue* this_inout,
-      std::shared_ptr<LValue>* this_lval, const xls::SourceInfo& loc);
+      std::shared_ptr<LValue>* this_lval,
+      std::optional<const clang::Expr*> this_expr_for_decl_translation,
+      const xls::SourceInfo& loc);
 
   absl::Status AddIOOpForSliceForCall(
       const GeneratedFunction& func, GeneratedFunctionSlice& slice,
@@ -834,8 +836,10 @@ class Translator final : public GeneratorBase,
     absl::flat_hash_map<const IOOp*, int64_t> return_index_for_op;
     absl::flat_hash_map<const clang::NamedDecl*, int64_t>
         return_index_for_static;
-    absl::flat_hash_map<const clang::NamedDecl*, xls::StateElement*>
+
+    absl::flat_hash_map<DeclLeaf, xls::StateElement*>
         state_element_for_variable;
+    absl::flat_hash_map<const clang::NamedDecl*, xls::Type*> type_for_variable;
     TrackedBValue orig_token;
     TrackedBValue token;
     bool contains_fsm = false;
@@ -902,6 +906,11 @@ class Translator final : public GeneratorBase,
       // Can be nullptr
       const GeneratedFunction* caller_sub_function,
       const xls::SourceInfo& body_loc);
+
+  absl::StatusOr<absl::InlinedVector<xls::StateElement*, 1>>
+  DecomposeStaticValueInput(PreparedBlock& prepared,
+                            const clang::NamedDecl* namedecl,
+                            xls::ProcBuilder& pb, const xls::SourceInfo& loc);
 
   // Generates a dummy no-op with condition 0 for channels in
   // unused_external_channels_
@@ -1086,6 +1095,9 @@ class Translator final : public GeneratorBase,
                                     const xls::SourceInfo& loc);
   absl::Status FinishLastSlice(TrackedBValue return_bval,
                                const xls::SourceInfo& loc);
+  absl::Status DecomposeContinuationValues(GeneratedFunction& func,
+                                           bool& changed,
+                                           const xls::SourceInfo& loc);
   absl::Status OptimizeContinuations(GeneratedFunction& func,
                                      OptimizationContext& context,
                                      const xls::SourceInfo& loc);
@@ -1240,7 +1252,7 @@ class Translator final : public GeneratorBase,
       const PipelinedLoopSubProc& pipelined_loop_proc, xls::ProcBuilder& pb,
       TrackedBValue token_in, TrackedBValue received_context_tuple,
       TrackedBValue in_state_condition, bool in_fsm,
-      absl::flat_hash_map<const clang::NamedDecl*, xls::StateElement*>*
+      absl::flat_hash_map<DeclLeaf, xls::StateElement*>*
           state_element_for_variable = nullptr,
       int nesting_level = -1);
 

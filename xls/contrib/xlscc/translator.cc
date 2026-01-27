@@ -3294,7 +3294,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(const clang::CallExpr* call,
 
   XLS_ASSIGN_OR_RETURN(
       CValue call_res,
-      GenerateIR_Call(funcdecl, args, pthisval, &this_lval, loc));
+      GenerateIR_Call(funcdecl, args, pthisval, &this_lval, this_expr, loc));
 
   if (add_this_return) {
     const int64_t reads_masked_before =
@@ -3394,7 +3394,8 @@ absl::StatusOr<bool> Translator::ApplyArrayAssignHack(
       XLS_ASSIGN_OR_RETURN(
           CValue f_return,
           GenerateIR_Call(to_call, {ivalue, rvalue}, &this_inout,
-                          /*this_lval=*/nullptr, loc));
+                          /*this_lval=*/nullptr,
+                          /*this_expr_for_decl_translation=*/nullptr, loc));
       XLS_RETURN_IF_ERROR(
           Assign(lvalue, CValue(this_inout, lvalue_initial.type()), loc));
       *output = f_return;
@@ -3485,7 +3486,9 @@ absl::Status Translator::GetChannelsForLValue(
 absl::StatusOr<CValue> Translator::GenerateIR_Call(
     const clang::FunctionDecl* funcdecl,
     std::vector<const clang::Expr*> expr_args, TrackedBValue* this_inout,
-    std::shared_ptr<LValue>* this_lval, const xls::SourceInfo& loc) {
+    std::shared_ptr<LValue>* this_lval,
+    std::optional<const clang::Expr*> this_expr_for_decl_translation,
+    const xls::SourceInfo& loc) {
   // Ensure callee has been parsed
   XLS_RETURN_IF_ERROR(GetFunctionBody(funcdecl).status());
 
@@ -3947,6 +3950,30 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
 
   std::list<PhiInputToInsert> phi_inputs_to_insert;
 
+  auto translate_decls = [this, funcdecl, this_expr_for_decl_translation](
+                             const absl::flat_hash_set<DeclLeaf>& decls)
+      -> absl::flat_hash_set<DeclLeaf> {
+    absl::flat_hash_set<DeclLeaf> ret;
+    for (const DeclLeaf& decl : decls) {
+      if (decl.decl != funcdecl) {
+        ret.insert(decl);
+        continue;
+      }
+      if (this_expr_for_decl_translation.has_value()) {
+        const clang::Expr* this_expr_to_use =
+            RemoveParensAndCasts(this_expr_for_decl_translation.value());
+        const clang::DeclRefExpr* var_ref =
+            clang::dyn_cast<clang::DeclRefExpr>(this_expr_to_use);
+        if (var_ref != nullptr) {
+          ret.insert(DeclLeaf(var_ref->getDecl(), decl.leaf_index));
+        }
+        continue;
+      }
+      ret.insert(decl);
+    }
+    return ret;
+  };
+
   // Add N-1 slices to the caller, where N is the number of slices in the
   // callee. A callee with only one slice does not need to add slices to the
   // caller. When adding caller slices, copy the (optimized) continuation
@@ -4016,6 +4043,9 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
         for (const ContinuationValue& callee_continuation_out :
              last_callee_slice.continuations_out) {
           ContinuationValue caller_continuation_out = callee_continuation_out;
+
+          caller_continuation_out.decls =
+              translate_decls(caller_continuation_out.decls);
 
           NATIVE_BVAL return_bval =
               returns_by_continuation_value.at(&callee_continuation_out);
@@ -4197,6 +4227,9 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     GeneratedFunctionSlice* caller_slice = phi_input.caller_slice;
     ContinuationInput caller_continuation_in =
         *phi_input.callee_continuation_in;
+
+    caller_continuation_in.decls =
+        translate_decls(caller_continuation_in.decls);
 
     caller_continuation_in.input_node = caller_params_for_callee_params.at(
         phi_input.callee_continuation_in->input_node);
@@ -4692,9 +4725,12 @@ absl::StatusOr<CValue> Translator::HandleConstructors(
     args.push_back(ctor->getArg(pi));
   }
   std::shared_ptr<LValue> this_lval;
+
   XLS_ASSIGN_OR_RETURN(
-      CValue ret, GenerateIR_Call(ctor->getConstructor(), args, &single_element,
-                                  /*this_lval=*/&this_lval, loc));
+      CValue ret,
+      GenerateIR_Call(ctor->getConstructor(), args, &single_element,
+                      /*this_lval=*/&this_lval,
+                      /*this_expr_for_decl_translation=*/nullptr, loc));
   TrackedBValue result;
   if (ctype->Is<CArrayType>()) {
     XLS_ASSIGN_OR_RETURN(result,
@@ -6094,6 +6130,21 @@ void GeneratedFunction::SortNamesDeterministically(
               CHECK(declaration_order_by_name_.contains(b));
               return declaration_order_by_name_.at(a) <
                      declaration_order_by_name_.at(b);
+            });
+}
+
+void GeneratedFunction::SortNamesDeterministically(
+    std::vector<DeclLeaf>& decls) const {
+  std::sort(decls.begin(), decls.end(),
+            [this](const DeclLeaf& a, const DeclLeaf& b) {
+              CHECK(declaration_order_by_name_.contains(a.decl));
+              CHECK(declaration_order_by_name_.contains(b.decl));
+              const int64_t a_order = declaration_order_by_name_.at(a.decl);
+              const int64_t b_order = declaration_order_by_name_.at(b.decl);
+              if (a_order != b_order) {
+                return a_order < b_order;
+              }
+              return a.leaf_index < b.leaf_index;
             });
 }
 

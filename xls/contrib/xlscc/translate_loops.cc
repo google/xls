@@ -1274,7 +1274,7 @@ Translator::GenerateIR_PipelinedLoopContents(
     const PipelinedLoopSubProc& pipelined_loop_proc, xls::ProcBuilder& pb,
     TrackedBValue token_in, TrackedBValue received_context_tuple,
     TrackedBValue in_state_condition, bool in_fsm,
-    absl::flat_hash_map<const clang::NamedDecl*, xls::StateElement*>*
+    absl::flat_hash_map<DeclLeaf, xls::StateElement*>*
         state_element_for_variable,
     int nesting_level) {
   const std::shared_ptr<CStructType>& context_in_cvars_struct_ctype =
@@ -1346,7 +1346,7 @@ Translator::GenerateIR_PipelinedLoopContents(
     }
 
     const bool do_create_state_element =
-        !prepared.state_element_for_variable.contains(decl);
+        !prepared.state_element_for_variable.contains(DeclLeaf{.decl = decl});
 
     if (debug_ir_trace_flags_ & DebugIrTraceFlags_LoopContext) {
       LOG(INFO) << absl::StrFormat(
@@ -1367,10 +1367,10 @@ Translator::GenerateIR_PipelinedLoopContents(
           state_read_bval.node()->As<xls::StateRead>()->state_element();
 
       state_reads_by_decl[decl] = state_read_bval;
-      prepared.state_element_for_variable[decl] = state_elem;
+      prepared.state_element_for_variable[DeclLeaf{.decl = decl}] = state_elem;
     } else {
       xls::StateElement* state_elem =
-          prepared.state_element_for_variable.at(decl);
+          prepared.state_element_for_variable.at(DeclLeaf{.decl = decl});
       state_reads_by_decl[decl] =
           TrackedBValue(pb.proc()->GetStateRead(state_elem), &pb);
     }
@@ -1602,7 +1602,8 @@ Translator::GenerateIR_PipelinedLoopContents(
     }
 
     next_state_values.insert(
-        {prepared.state_element_for_variable[decl], next_state_value});
+        {prepared.state_element_for_variable[DeclLeaf{.decl = decl}],
+         next_state_value});
 
     if (context_in_field_indices.contains(decl)) {
       out_tuple_values[context_in_field_indices.at(decl)] = out_bval;
@@ -1624,7 +1625,7 @@ Translator::GenerateIR_PipelinedLoopContents(
                                       namedecl->getNameAsString()));
 
     next_state_values.insert(
-        {prepared.state_element_for_variable.at(namedecl),
+        {prepared.state_element_for_variable.at(DeclLeaf{.decl = namedecl}),
          NextStateValue{.priority = nesting_level,
                         .extra_label = name_prefix,
                         .value = ret_next,
@@ -1641,7 +1642,8 @@ Translator::GenerateIR_PipelinedLoopContents(
       // Can't re-use state elements that are fed into context output,
       // as the context output must be kept steady outside of the state
       // containing the loop.
-      if (context_in_field_indices.contains(decl)) {
+      XLSCC_CHECK_EQ(decl.leaf_index, -1, loc);
+      if (context_in_field_indices.contains(decl.decl)) {
         continue;
       }
       (*state_element_for_variable)[decl] = param;

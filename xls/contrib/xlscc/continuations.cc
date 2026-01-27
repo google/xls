@@ -113,11 +113,59 @@ std::string GraphvizEscape(std::string_view s) {
                          absl::StrReplaceAll(label, {{"\"", "\\\""}}));
 };
 
+absl::Status ValidateContinuations(GeneratedFunction& func,
+                                   const xls::SourceInfo& loc) {
+  absl::flat_hash_map<const ContinuationValue*, int64_t>
+      slice_index_by_continuation_out;
+  absl::flat_hash_map<const GeneratedFunctionSlice*, int64_t>
+      slice_index_by_slice;
+
+  for (GeneratedFunctionSlice& slice : func.slices) {
+    const int64_t slice_index = slice_index_by_slice.size();
+    slice_index_by_slice[&slice] = slice_index;
+    for (const ContinuationValue& continuation_out : slice.continuations_out) {
+      slice_index_by_continuation_out[&continuation_out] = slice_index;
+    }
+  }
+
+  for (GeneratedFunctionSlice& slice : func.slices) {
+    const int64_t slice_index = slice_index_by_slice.at(&slice);
+
+    absl::flat_hash_map<const xls::Param*, int64_t>
+        num_upstream_inputs_by_param;
+
+    for (const ContinuationInput& continuation_in : slice.continuations_in) {
+      const int64_t upstream_slice_index =
+          slice_index_by_continuation_out.at(continuation_in.continuation_out);
+
+      const bool is_feedback = slice_index <= upstream_slice_index;
+      int64_t& num_upstream_inputs_for_param =
+          num_upstream_inputs_by_param[continuation_in.input_node];
+
+      if (!is_feedback) {
+        ++num_upstream_inputs_for_param;
+      }
+    }
+
+    for (const auto& [param, num_upstream_inputs] :
+         num_upstream_inputs_by_param) {
+      if (num_upstream_inputs != 1) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Param %s to slice %s has %i upstream inputs, should have exactly "
+            "1",
+            param->name(), slice.function->name(), num_upstream_inputs));
+      }
+    }
+  }
+  return absl::OkStatus();
+}
+
 }  // namespace
 
 SourcesSetNodeInfo::SourcesSetNodeInfo()
     : xls::DataFlowLazyNodeInfo<SourcesSetNodeInfo, ParamSet>(
-          /*compute_tree_for_source=*/false, /*default_to_leaf=*/false) {}
+          /*compute_tree_for_source=*/false, /*default_to_leaf=*/false,
+          /*include_selectors=*/true) {}
 
 ParamSet SourcesSetNodeInfo::ComputeInfoForBitsLiteral(
     const xls::Bits& literal) const {
@@ -149,7 +197,8 @@ ParamSet SourcesSetNodeInfo::MergeInfos(
 
 SourcesSetTreeNodeInfo::SourcesSetTreeNodeInfo()
     : xls::DataFlowLazyNodeInfo<SourcesSetTreeNodeInfo, NodeSourceSet>(
-          /*compute_tree_for_source=*/true, /*default_to_leaf=*/true) {}
+          /*compute_tree_for_source=*/true, /*default_to_leaf=*/true,
+          /*include_selectors=*/false) {}
 
 NodeSourceSet SourcesSetTreeNodeInfo::ComputeInfoForBitsLiteral(
     const xls::Bits& literal) const {
@@ -294,6 +343,7 @@ Translator::ConvertBValuesToContinuationOutputsForCurrentSlice(
       if (!cval.rvalue().valid()) {
         continue;
       }
+
       decls_by_bval_top_context[&cval.rvalue()] = decl;
     }
 
@@ -322,7 +372,8 @@ Translator::ConvertBValuesToContinuationOutputsForCurrentSlice(
         CHECK(!continuation_outputs_by_bval.contains(bval));
         continuation_outputs_by_bval[bval] = &new_continuation;
         if (decls_by_bval_top_context.contains(bval)) {
-          new_continuation.decls.insert(decls_by_bval_top_context.at(bval));
+          new_continuation.decls.insert(
+              DeclLeaf{.decl = decls_by_bval_top_context.at(bval)});
         }
       }
     }
@@ -787,18 +838,325 @@ absl::Status Translator::RemoveMaskedOpParams(GeneratedFunction& func,
   return absl::OkStatus();
 }
 
+absl::Status Translator::DecomposeContinuationValues(
+    GeneratedFunction& func, bool& changed, const xls::SourceInfo& loc) {
+  absl::flat_hash_map<const ContinuationValue*, bool>
+      original_output_decomposable;
+
+  absl::flat_hash_map<const xls::Param*, bool> decomposable_params;
+
+  absl::flat_hash_map<const ContinuationValue*, std::vector<const xls::Param*>>
+      params_by_output;
+
+  {
+    for (GeneratedFunctionSlice& slice : func.slices) {
+      // Ensure params_by_output is initialized for all outputs
+      for (ContinuationValue& continuation_out : slice.continuations_out) {
+        params_by_output[&continuation_out] = {};
+      }
+    }
+
+    // Ensure decomposable_params is initialized
+    for (GeneratedFunctionSlice& slice : func.slices) {
+      for (ContinuationInput& continuation_in : slice.continuations_in) {
+        params_by_output[continuation_in.continuation_out].push_back(
+            continuation_in.input_node);
+        decomposable_params[continuation_in.input_node] = true;
+      }
+    }
+
+    for (GeneratedFunctionSlice& slice : func.slices) {
+      for (ContinuationValue& continuation_out : slice.continuations_out) {
+        original_output_decomposable[&continuation_out] =
+            TypeIsDecomposable(continuation_out.output_node->GetType()) &&
+            !continuation_out.direct_in;
+      }
+    }
+
+    // Iteratively mark things not decomposable
+    for (bool iter_changed = true; iter_changed;) {
+      iter_changed = false;
+
+      for (GeneratedFunctionSlice& slice : func.slices) {
+        for (ContinuationInput& continuation_in : slice.continuations_in) {
+          if (!decomposable_params.at(continuation_in.input_node)) {
+            continue;
+          }
+          if (!original_output_decomposable.at(
+                  continuation_in.continuation_out)) {
+            decomposable_params[continuation_in.input_node] = false;
+            iter_changed = true;
+          }
+        }
+      }
+
+      for (GeneratedFunctionSlice& slice : func.slices) {
+        for (ContinuationValue& continuation_out : slice.continuations_out) {
+          if (!original_output_decomposable.at(&continuation_out)) {
+            continue;
+          }
+
+          // The output is not decomposable if it feeds any parameter fed by a
+          // direct-in
+          for (const xls::Param* feeds_param :
+               params_by_output.at(&continuation_out)) {
+            if (!decomposable_params.at(feeds_param)) {
+              original_output_decomposable[&continuation_out] = false;
+              iter_changed = true;
+              break;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  absl::flat_hash_map<ContinuationValue*,
+                      absl::InlinedVector<ContinuationValue*, 1>>
+      decomposed_cont_values_by_original_output;
+
+  for (GeneratedFunctionSlice& slice : func.slices) {
+    absl::InlinedVector<xls::Node*, 1> new_returns;
+
+    // Last slice has no continuation outputs
+    if (&slice == &func.slices.back()) {
+      XLSCC_CHECK(slice.continuations_out.empty(), loc);
+      break;
+    }
+
+    xls::Node* return_tuple = slice.function->return_value();
+    XLSCC_CHECK(return_tuple->Is<xls::Tuple>(), loc);
+    const int64_t extra_returns =
+        return_tuple->operand_count() - slice.continuations_out.size();
+    XLSCC_CHECK_GE(extra_returns, 0, loc);
+
+    // NOTE: This iterates over the output continuations while adding more at
+    // the end
+    std::vector<ContinuationValue*> original_continuations_out;
+    original_continuations_out.reserve(slice.continuations_out.size());
+    for (ContinuationValue& continuation_out : slice.continuations_out) {
+      original_continuations_out.push_back(&continuation_out);
+    }
+
+    for (ContinuationValue* continuation_out_ptr : original_continuations_out) {
+      ContinuationValue& continuation_out = *continuation_out_ptr;
+
+      // Don't reference the output identity, so that it can be removed later.
+      XLSCC_CHECK_EQ(continuation_out.output_node->op(), xls::Op::kIdentity,
+                     loc);
+      xls::Node* output_source = continuation_out.output_node->operand(0);
+
+      if (!original_output_decomposable.at(&continuation_out)) {
+        continue;
+      }
+
+      if (!TypeIsDecomposable(output_source->GetType())) {
+        continue;
+      }
+
+      for (const xls::Param* param : params_by_output.at(&continuation_out)) {
+        XLSCC_CHECK(decomposable_params.at(param), loc);
+      }
+
+      absl::InlinedVector<xls::Node*, 1> decomposed_nodes;
+      XLS_ASSIGN_OR_RETURN(decomposed_nodes, DecomposeTuples(output_source));
+
+      absl::InlinedVector<xls::Value, 1> decomposed_literals;
+      if (continuation_out.literal.has_value()) {
+        XLS_ASSIGN_OR_RETURN(decomposed_literals,
+                             DecomposeValue(output_source->GetType(),
+                                            *continuation_out.literal));
+      }
+
+      // Create decomposed outputs
+      absl::InlinedVector<ContinuationValue*, 1> decomposed_cont_values;
+
+      for (int64_t di = 0; di < decomposed_nodes.size(); ++di) {
+        xls::Node* node = decomposed_nodes.at(di);
+        ContinuationValue new_continuation_out = continuation_out;
+
+        if (continuation_out.literal.has_value()) {
+          new_continuation_out.literal = decomposed_literals.at(di);
+        }
+
+        absl::flat_hash_set<DeclLeaf> new_decls;
+        for (const DeclLeaf& decl : new_continuation_out.decls) {
+          new_decls.insert(DeclLeaf{.decl = decl.decl, .leaf_index = di});
+        }
+        new_continuation_out.decls = new_decls;
+
+        XLS_ASSIGN_OR_RETURN(
+            xls::UnOp * output_identity,
+            slice.function->MakeNodeWithName<xls::UnOp>(
+                loc, node, xls::Op::kIdentity,
+                /*name=*/absl::StrFormat("%s_ident", node->GetName())));
+        new_continuation_out.output_node = output_identity;
+        new_returns.push_back(new_continuation_out.output_node);
+        slice.continuations_out.push_back(new_continuation_out);
+        decomposed_cont_values.push_back(&slice.continuations_out.back());
+        changed = true;
+      }
+
+      decomposed_cont_values_by_original_output[&continuation_out] =
+          decomposed_cont_values;
+    }
+
+    // Update return value
+    if (!new_returns.empty()) {
+      std::vector<xls::Node*> all_returns;
+      all_returns.insert(all_returns.end(), return_tuple->operands().begin(),
+                         return_tuple->operands().begin() +
+                             return_tuple->operands().size() - extra_returns);
+      all_returns.insert(all_returns.end(), new_returns.begin(),
+                         new_returns.end());
+
+      CHECK_EQ(all_returns.size(), slice.continuations_out.size());
+
+      for (int64_t i = return_tuple->operand_count() - extra_returns;
+           i < return_tuple->operand_count(); ++i) {
+        all_returns.push_back(return_tuple->operand(i));
+      }
+
+      XLS_ASSIGN_OR_RETURN(
+          xls::Node * new_return_node,
+          slice.function->MakeNode<xls::Tuple>(loc, all_returns));
+      XLS_RETURN_IF_ERROR(slice.function->set_return_value(new_return_node));
+      XLS_RETURN_IF_ERROR(slice.function->RemoveNode(return_tuple));
+      changed = true;
+    }
+  }
+
+  // To accomodate phis, first decompose all slices' outputs, then all slices'
+  // inputs
+  for (GeneratedFunctionSlice& slice : func.slices) {
+    absl::flat_hash_map<const xls::Param*, absl::InlinedVector<xls::Param*, 1>>
+        decomposed_params_by_original;
+    absl::flat_hash_set<const xls::Param*> all_cont_params;
+    std::vector<xls::Param*> all_params_decomposed;
+    all_params_decomposed.reserve(slice.continuations_in.size());
+
+    for (ContinuationInput& continuation_in : slice.continuations_in) {
+      all_cont_params.insert(continuation_in.input_node->As<xls::Param>());
+    }
+
+    // Add decomposed continuation inputs
+    // NOTE: This loop iterates over continuation inputs while adding more at
+    // the end.
+    std::vector<ContinuationInput*> original_continuations_in;
+    original_continuations_in.reserve(slice.continuations_in.size());
+    for (ContinuationInput& continuation_in : slice.continuations_in) {
+      original_continuations_in.push_back(&continuation_in);
+    }
+    for (ContinuationInput* continuation_in_ptr : original_continuations_in) {
+      ContinuationInput& continuation_in = *continuation_in_ptr;
+      XLSCC_CHECK_EQ(continuation_in.input_node->op(), xls::Op::kParam, loc);
+      xls::Param* input_param = continuation_in.input_node->As<xls::Param>();
+
+      if (!decomposable_params.at(input_param)) {
+        continue;
+      }
+
+      CHECK(TypeIsDecomposable(input_param->GetType()));
+      CHECK(!continuation_in.continuation_out->direct_in);
+
+      CHECK(original_output_decomposable.at(continuation_in.continuation_out));
+
+      const absl::InlinedVector<ContinuationValue*, 1>& decomposed_cont_values =
+          decomposed_cont_values_by_original_output.at(
+              continuation_in.continuation_out);
+
+      // Create params to replace original param, if not done already
+      if (!decomposed_params_by_original.contains(input_param)) {
+        decomposed_params_by_original[input_param] = {};
+
+        all_params_decomposed.push_back(input_param);
+
+        for (int64_t di = 0; di < decomposed_cont_values.size(); ++di) {
+          const ContinuationValue& decomposed_value =
+              *decomposed_cont_values.at(di);
+          xls::Type* type = decomposed_value.output_node->GetType();
+          XLSCC_CHECK(!TypeIsDecomposable(type), loc);
+
+          std::string decomposed_name =
+              absl::StrFormat("%s_%d", input_param->GetName(), di);
+
+          xls::Node* decomposed_param_node =
+              slice.function->AddNode(std::make_unique<xls::Param>(
+                  loc, decomposed_value.output_node->GetType(),
+                  /*name=*/decomposed_name, slice.function));
+
+          xls::Param* decomposed_param =
+              decomposed_param_node->As<xls::Param>();
+
+          XLS_RETURN_IF_ERROR(slice.function->MoveParamToIndex(
+              decomposed_param, all_cont_params.size()));
+
+          decomposed_params_by_original[input_param].push_back(
+              decomposed_param);
+          all_cont_params.insert(decomposed_param);
+
+          changed = true;
+        }
+      }
+
+      // Create inputs to replace original input.
+      const absl::InlinedVector<xls::Param*, 1>& decomposed_params =
+          decomposed_params_by_original.at(input_param);
+
+      for (int64_t di = 0; di < decomposed_cont_values.size(); ++di) {
+        ContinuationValue* decomposed_cont_value =
+            decomposed_cont_values.at(di);
+
+        std::string decomposed_name =
+            absl::StrFormat("%s_%d", continuation_in.name, di);
+
+        ContinuationInput new_continuation_in = continuation_in;
+        new_continuation_in.continuation_out = decomposed_cont_value;
+        new_continuation_in.input_node = decomposed_params.at(di);
+        new_continuation_in.name = decomposed_name;
+        new_continuation_in.decls = decomposed_cont_value->decls;
+
+        slice.continuations_in.push_back(new_continuation_in);
+        changed = true;
+      }
+    }
+
+    // Replace uses of original param with a tuple of new params.
+    for (xls::Param* orig_param : all_params_decomposed) {
+      const absl::InlinedVector<xls::Param*, 1>& decomposed_params =
+          decomposed_params_by_original.at(orig_param);
+
+      absl::InlinedVector<xls::Node*, 1> decomposed_param_nodes;
+      decomposed_param_nodes.reserve(decomposed_params.size());
+      for (xls::Param* param : decomposed_params) {
+        decomposed_param_nodes.push_back(param);
+      }
+
+      XLS_ASSIGN_OR_RETURN(
+          xls::Node * param_replace_tuple,
+          ComposeTuples(orig_param->GetName(), orig_param->GetType(),
+                        slice.function, loc, decomposed_param_nodes));
+
+      XLS_RETURN_IF_ERROR(orig_param->ReplaceUsesWith(param_replace_tuple));
+      changed = true;
+    }
+  }
+
+  return absl::OkStatus();
+}
+
 absl::Status Translator::FinishLastSlice(TrackedBValue return_bval,
                                          const xls::SourceInfo& loc) {
   XLS_RETURN_IF_ERROR(FinishSlice(return_bval, loc));
 
   XLS_RETURN_IF_ERROR(RemoveMaskedOpParams(*context().sf, loc));
 
+  // Direct-inness is used in optimization
   OptimizationContext optimization_context;
+  XLS_RETURN_IF_ERROR(MarkDirectIns(*context().sf, optimization_context, loc));
 
   XLS_RETURN_IF_ERROR(
       OptimizeContinuations(*context().sf, optimization_context, loc));
-
-  XLS_RETURN_IF_ERROR(MarkDirectIns(*context().sf, optimization_context, loc));
 
   if (debug_ir_trace_flags_ & DebugIrTraceFlags_FSMStates) {
     LogContinuations(*context().sf);
@@ -838,6 +1196,7 @@ absl::Status RemoveUnusedContinuationOutputs(GeneratedFunction& func,
     for (auto cont_out_it = slice.continuations_out.begin();
          cont_out_it != slice.continuations_out.end();) {
       ContinuationValue& continuation_out = *cont_out_it;
+
       if (outputs_used_by_inputs.contains(&continuation_out)) {
         ++cont_out_it;
         new_output_elems.push_back(continuation_out.output_node);
@@ -880,6 +1239,7 @@ absl::Status RemoveUnusedContinuationOutputs(GeneratedFunction& func,
 }
 
 absl::Status RemoveUnusedContinuationInputs(GeneratedFunction& func,
+                                            OptimizationContext& context,
                                             bool& changed,
                                             const xls::SourceInfo& loc) {
   // Multiple inputs can share a parameter in the case of a phi /
@@ -888,6 +1248,13 @@ absl::Status RemoveUnusedContinuationInputs(GeneratedFunction& func,
   absl::flat_hash_set<const xls::Param*> deleted_params;
 
   for (GeneratedFunctionSlice& slice : func.slices) {
+    XLS_ASSIGN_OR_RETURN(
+        SourcesSetNodeInfo * node_info,
+        context.GetSourcesSetNodeInfoForFunction(slice.function));
+
+    ParamSet return_value_from_params =
+        node_info->GetSingleInfoForNode(slice.function->return_value());
+
     for (auto cont_in_it = slice.continuations_in.begin();
          cont_in_it != slice.continuations_in.end();) {
       ContinuationInput& continuation_in = *cont_in_it;
@@ -900,11 +1267,18 @@ absl::Status RemoveUnusedContinuationInputs(GeneratedFunction& func,
 
       CHECK_EQ(continuation_in.input_node->function_base(), slice.function);
 
-      if (!continuation_in.input_node->users().empty() ||
-          slice.function->HasImplicitUse(continuation_in.input_node)) {
+      if (return_value_from_params.contains(continuation_in.input_node)) {
         ++cont_in_it;
         continue;
       }
+
+      // There may still be uses like forming a tuple, the element of which is
+      // never indexed
+      XLS_RETURN_IF_ERROR(
+          continuation_in.input_node
+              ->ReplaceUsesWithNew<xls::Literal>(
+                  xls::ZeroOfType(continuation_in.input_node->GetType()))
+              .status());
 
       XLS_RETURN_IF_ERROR(
           slice.function->RemoveNode(continuation_in.input_node));
@@ -918,6 +1292,13 @@ absl::Status RemoveUnusedContinuationInputs(GeneratedFunction& func,
   return absl::OkStatus();
 }
 
+// For each continuation value, finds the whole parameters that feed it.
+// For a simple pass through, there will just be one. However, for example,
+// in the case of a select, there could be several.
+//
+// Whole parameter means that the entire value is passed through. For example,
+// a tuple parameter's entire tuple value must be passed through, with all
+// elements in the original positions.
 absl::StatusOr<absl::flat_hash_map<const ContinuationValue*,
                                    absl::flat_hash_set<const xls::Param*>>>
 FindPassThroughs(GeneratedFunction& func, OptimizationContext& context) {
@@ -961,6 +1342,16 @@ FindPassThroughs(GeneratedFunction& func, OptimizationContext& context) {
                 disallowed = true;
                 break;
               }
+
+              // Check that param has the same number of elements as
+              // continuation_out. This avoids marking slices as pass-throughs.
+              xls::LeafTypeTree<std::monostate> param_tree(
+                  source_node->GetType());
+              if (param_tree.elements().size() != sources.elements().size()) {
+                disallowed = true;
+                break;
+              }
+
               xls::Param* from_param = source_node->As<xls::Param>();
               if (!continuation_params.contains(from_param)) {
                 disallowed = true;
@@ -1398,11 +1789,13 @@ absl::Status RemovePassthroughFeedbacks(GeneratedFunction& func, bool& changed,
 
     for (const xls::Param* param : params_per_slice.at(&slice)) {
       ParamInputs& param_inputs = all_continuation_params.at(param);
+      CHECK(!param_inputs.all_inputs.empty());
+
       CHECK_NE(param_inputs.upstream_input, nullptr);
+
       if (param_inputs.multiple_upstream_inputs) {
         continue;
       }
-      CHECK(!param_inputs.all_inputs.empty());
       if (param_inputs.all_inputs.size() == 1) {
         continue;
       }
@@ -1506,6 +1899,7 @@ absl::Status RemoveDuplicateParams(GeneratedFunction& func, bool& changed,
           this_param_upstream_values = upstream_values_by_param.at(this_param);
       const absl::flat_hash_set<xls::Param*>& params_for_upstream_values =
           params_by_upstream_values.at(this_param_upstream_values);
+
       CHECK(params_for_upstream_values.contains(this_param));
       if (params_for_upstream_values.size() == 1) {
         continue;
@@ -1596,19 +1990,30 @@ absl::Status Translator::OptimizeContinuations(GeneratedFunction& func,
   bool changed = true;
   xls::OptimizationContext xls_opt_context;
 
+  XLS_RETURN_IF_ERROR(ValidateContinuations(func, loc));
+
   do {
-    changed = false;
-    XLS_RETURN_IF_ERROR(RemoveUnusedContinuationInputs(func, changed, loc));
-    XLS_RETURN_IF_ERROR(RemoveUnusedContinuationOutputs(func, changed, loc));
-    XLS_RETURN_IF_ERROR(RemovePassThroughs(func, changed, context, loc));
-    XLS_RETURN_IF_ERROR(
-        RemoveDeadCode(func, changed, package_, xls_opt_context, loc));
-    XLS_RETURN_IF_ERROR(RemoveDuplicateInputs(func, changed, loc));
-    XLS_RETURN_IF_ERROR(RemoveDuplicateParams(func, changed, loc));
-    XLS_RETURN_IF_ERROR(
-        RemovePassthroughFeedbacks(func, changed, context, loc));
-    XLS_RETURN_IF_ERROR(SubstituteLiterals(func, changed, loc));
+    do {
+      changed = false;
+      XLS_RETURN_IF_ERROR(
+          RemoveUnusedContinuationInputs(func, context, changed, loc));
+      XLS_RETURN_IF_ERROR(RemoveUnusedContinuationOutputs(func, changed, loc));
+      XLS_RETURN_IF_ERROR(RemovePassThroughs(func, changed, context, loc));
+      XLS_RETURN_IF_ERROR(
+          RemoveDeadCode(func, changed, package_, xls_opt_context, loc));
+      XLS_RETURN_IF_ERROR(RemoveDuplicateInputs(func, changed, loc));
+      XLS_RETURN_IF_ERROR(RemoveDuplicateParams(func, changed, loc));
+      XLS_RETURN_IF_ERROR(
+          RemovePassthroughFeedbacks(func, changed, context, loc));
+      XLS_RETURN_IF_ERROR(SubstituteLiterals(func, changed, loc));
+    } while (changed);
+
+    // For efficiency's sake, do a round of optimization before decomposing
+    // Decompose relies on other passes to clean up
+    XLS_RETURN_IF_ERROR(DecomposeContinuationValues(func, changed, loc));
   } while (changed);
+
+  XLS_RETURN_IF_ERROR(ValidateContinuations(func, loc));
 
   return absl::OkStatus();
 }
@@ -1635,6 +2040,7 @@ absl::Status Translator::GetDirectInSourcesForSlice(
   for (int64_t p = 0; p < slice.function->params().size(); ++p) {
     const xls::Param* param = slice.function->params().at(p);
 
+    // Don't mark statics direct-in
     if (static_param_names.contains(param->name())) {
       continue;
     }

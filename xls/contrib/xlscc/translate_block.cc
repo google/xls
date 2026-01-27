@@ -27,6 +27,7 @@
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -244,6 +245,62 @@ absl::Status Translator::GenerateExternalChannels(
     }
   }
   return absl::OkStatus();
+}
+
+absl::StatusOr<TrackedBValue> ComposeStaticValueInput(
+    const clang::NamedDecl* namedecl, bool generate_new_fsm,
+    const absl::flat_hash_map<DeclLeaf, xls::StateElement*>&
+        state_element_for_static,
+    const absl::flat_hash_map<const clang::NamedDecl*, xls::Type*>&
+        type_for_static,
+    xls::ProcBuilder& pb, const xls::SourceInfo& loc) {
+  xls::Type* xls_type = type_for_static.at(namedecl);
+  if (!generate_new_fsm || !TypeIsDecomposable(xls_type)) {
+    xls::StateElement* state_element = state_element_for_static.at(
+        DeclLeaf{.decl = namedecl, .leaf_index = -1});
+    return TrackedBValue(pb.proc()->GetStateRead(state_element), &pb);
+  }
+  absl::InlinedVector<xls::Type*, 1> decomposed_types =
+      DecomposeTupleTypes(xls_type);
+  absl::InlinedVector<xls::Node*, 1> nodes;
+
+  for (int64_t i = 0; i < decomposed_types.size(); ++i) {
+    xls::StateElement* decomposed_element = state_element_for_static.at(
+        DeclLeaf{.decl = namedecl, .leaf_index = i});
+    nodes.push_back(pb.proc()->GetStateRead(decomposed_element));
+  }
+
+  XLS_ASSIGN_OR_RETURN(xls::Node * node,
+                       ComposeTuples(namedecl->getNameAsString(), xls_type,
+                                     pb.proc(), loc, nodes));
+  return TrackedBValue(node, &pb);
+}
+
+absl::StatusOr<absl::InlinedVector<xls::StateElement*, 1>>
+Translator::DecomposeStaticValueInput(PreparedBlock& prepared,
+                                      const clang::NamedDecl* namedecl,
+                                      xls::ProcBuilder& pb,
+                                      const xls::SourceInfo& loc) {
+  xls::Type* xls_type = prepared.type_for_variable.at(namedecl);
+  if (!generate_new_fsm_ || !TypeIsDecomposable(xls_type)) {
+    xls::StateElement* state_element = prepared.state_element_for_variable.at(
+        DeclLeaf{.decl = namedecl, .leaf_index = -1});
+    return absl::InlinedVector<xls::StateElement*, 1>{state_element};
+  }
+  absl::InlinedVector<xls::Type*, 1> decomposed_types =
+      DecomposeTupleTypes(xls_type);
+  if (decomposed_types.empty()) {
+    decomposed_types.push_back(xls_type);
+  }
+  absl::InlinedVector<xls::StateElement*, 1> ret;
+  ret.reserve(decomposed_types.size());
+
+  for (int64_t i = 0; i < decomposed_types.size(); ++i) {
+    ret.push_back(prepared.state_element_for_variable.at(
+        DeclLeaf{.decl = namedecl, .leaf_index = i}));
+  }
+
+  return ret;
 }
 
 absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
@@ -530,7 +587,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
         generator.GenerateNewFSMInvocation(
             prepared.xls_func,
             /*direct_in_args=*/prepared.args,
-            /*state_element_for_static=*/prepared.state_element_for_variable,
+            prepared.state_element_for_variable, prepared.type_for_variable,
             prepared.return_index_for_static, pb, body_loc));
   } else {
     XLS_ASSIGN_OR_RETURN(
@@ -573,27 +630,49 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
     TrackedBValue next_val =
         GetFlexTupleField(fsm_ret.return_value, ret_idx,
                           prepared.xls_func->return_value_count, body_loc);
-    xls::StateElement* state_elem =
-        prepared.state_element_for_variable.at(namedecl);
-    xls::StateRead* state_read = pb.proc()->GetStateRead(state_elem);
-    TrackedBValue prev_val(state_read, &pb);
+
+    absl::InlinedVector<xls::StateElement*, 1> decomposed_elems;
+    XLS_ASSIGN_OR_RETURN(
+        decomposed_elems,
+        DecomposeStaticValueInput(prepared, namedecl, pb, body_loc));
+    absl::InlinedVector<xls::Node*, 1> decomposed_next_vals;
+    XLS_ASSIGN_OR_RETURN(decomposed_next_vals,
+                         DecomposeTuples(next_val.node()));
+
+    // Empty tuple case
+    if (decomposed_next_vals.empty() || !generate_new_fsm_) {
+      decomposed_next_vals.clear();
+      decomposed_next_vals.push_back(next_val.node());
+      XLSCC_CHECK_EQ(decomposed_elems.size(), 1, body_loc);
+    } else {
+      XLSCC_CHECK_EQ(decomposed_elems.size(), decomposed_next_vals.size(),
+                     body_loc);
+    }
 
     XLS_ASSIGN_OR_RETURN(bool is_on_reset, DeclIsOnReset(namedecl));
 
-    NextStateValue next_state_value = {.priority = 0,
-                                       .extra_label = std::string{block_name}};
+    for (int64_t i = 0; i < decomposed_elems.size(); ++i) {
+      xls::StateElement* decomposed_elem = decomposed_elems.at(i);
+      xls::Node* decomposed_next_val = decomposed_next_vals.at(i);
 
-    if (!is_on_reset) {
-      next_state_value.value = next_val;
-    } else {
-      next_state_value.value =
-          pb.And(prev_val,
-                 pb.Not(fsm_ret.returns_this_activation, body_loc,
-                        /*name=*/"does_not_return_this_activation"),
-                 body_loc, /*name=*/"next_on_reset");
+      NextStateValue next_state_value = {
+          .priority = 0, .extra_label = std::string{block_name}};
+
+      if (!is_on_reset) {
+        next_state_value.value = TrackedBValue(decomposed_next_val, &pb);
+      } else {
+        XLSCC_CHECK_EQ(decomposed_elems.size(), 1, body_loc);
+        xls::StateRead* state_read = pb.proc()->GetStateRead(decomposed_elem);
+        TrackedBValue prev_val(state_read, &pb);
+        next_state_value.value =
+            pb.And(prev_val,
+                   pb.Not(fsm_ret.returns_this_activation, body_loc,
+                          /*name=*/"does_not_return_this_activation"),
+                   body_loc, /*name=*/"next_on_reset");
+      }
+      next_state_value.condition = fsm_ret.returns_this_activation;
+      next_state_values.insert({decomposed_elem, next_state_value});
     }
-    next_state_value.condition = fsm_ret.returns_this_activation;
-    next_state_values.insert({state_elem, next_state_value});
   }
 
   for (const auto& [state_elem, bval] : fsm_ret.extra_next_state_values) {
@@ -1662,15 +1741,18 @@ absl::StatusOr<Translator::SubFSMReturn> Translator::GenerateSubFSM(
     const clang::NamedDecl* caller_decl =
         *unique_caller_decls_for_param.begin();
 
-    if (!outer_prepared.state_element_for_variable.contains(caller_decl)) {
+    if (!outer_prepared.state_element_for_variable.contains(
+            DeclLeaf{.decl = caller_decl})) {
       continue;
     }
 
     xls::StateElement* state_elem =
-        outer_prepared.state_element_for_variable.at(caller_decl);
+        outer_prepared.state_element_for_variable.at(
+            DeclLeaf{.decl = caller_decl});
 
     // Avoid [] = .at()
-    outer_prepared.state_element_for_variable[callee_param] = state_elem;
+    outer_prepared.state_element_for_variable[DeclLeaf{.decl = callee_param}] =
+        state_elem;
   }
 
   // Generate inner FSM
@@ -1970,6 +2052,45 @@ Translator::GenerateIRBlockPrepare(
   context().sf = temp_sf.get();
   context().fb = dynamic_cast<xls::BuilderBase*>(&pb);
 
+  auto generate_decomposed_elements =
+      [this, &prepared, &pb, body_loc](
+          const xls::Value& init_value, const std::string& name,
+          const clang::NamedDecl* decl) -> absl::Status {
+    absl::InlinedVector<xls::Value, 1> decomposed_values;
+    XLS_ASSIGN_OR_RETURN(xls::TypeProto type_proto, init_value.TypeAsProto());
+    XLS_ASSIGN_OR_RETURN(xls::Type * xls_type,
+                         package_->GetTypeFromProto(type_proto));
+    prepared.type_for_variable[decl] = xls_type;
+    const bool do_decompose = generate_new_fsm_ && TypeIsDecomposable(xls_type);
+    if (do_decompose) {
+      XLS_ASSIGN_OR_RETURN(decomposed_values,
+                           DecomposeValue(xls_type, init_value));
+
+      // Empty tuple case
+      if (decomposed_values.empty()) {
+        decomposed_values.push_back(init_value);
+      }
+    } else {
+      decomposed_values.push_back(init_value);
+    }
+    for (int64_t i = 0; i < decomposed_values.size(); ++i) {
+      const xls::Value& decomposed_value = decomposed_values.at(i);
+      DeclLeaf decl_leaf = {.decl = decl, .leaf_index = -1};
+      std::string decomposed_name = name;
+      if (do_decompose) {
+        decomposed_name = absl::StrFormat("%s_%d", name, i);
+        decl_leaf.leaf_index = i;
+      }
+      TrackedBValue elem_bval =
+          pb.StateElement(decomposed_name, decomposed_value, body_loc);
+      xls::StateElement* state_elem =
+          elem_bval.node()->As<xls::StateRead>()->state_element();
+      prepared.state_element_for_variable[decl_leaf] = state_elem;
+    }
+
+    return absl::OkStatus();
+  };
+
   // This state and argument
   if (this_decl != nullptr) {
     XLS_ASSIGN_OR_RETURN(CValue this_cval, GenerateTopClassInitValue(
@@ -1979,29 +2100,28 @@ Translator::GenerateIRBlockPrepare(
     XLS_ASSIGN_OR_RETURN(xls::Value this_init_val,
                          EvaluateBVal(this_cval.rvalue(), body_loc));
 
-    TrackedBValue elem_bval = pb.StateElement("this", this_init_val, body_loc);
-    xls::StateElement* state_elem =
-        elem_bval.node()->As<xls::StateRead>()->state_element();
+    XLS_RETURN_IF_ERROR(
+        generate_decomposed_elements(this_init_val, "this", this_decl));
 
-    // Don't need to worry about sharing for this, as it's only used at the top
-    // level (block as class)
-    prepared.state_element_for_variable[this_decl] = state_elem;
-    prepared.args.push_back(elem_bval);
+    XLS_ASSIGN_OR_RETURN(
+        TrackedBValue bval,
+        ComposeStaticValueInput(this_decl,
+                                /*generate_new_fsm=*/generate_new_fsm_,
+                                prepared.state_element_for_variable,
+                                prepared.type_for_variable, pb, body_loc));
+
+    prepared.args.push_back(bval);
   }
 
   for (const clang::NamedDecl* namedecl :
        prepared.xls_func->GetDeterministicallyOrderedStaticValues()) {
     const ConstValue& initval = prepared.xls_func->static_values.at(namedecl);
 
-    // Don't need to worry about sharing for this, as it's only used when a
-    // static variable is declared in the loop body
-    TrackedBValue elem_bval = pb.StateElement(
-        XLSNameMangle(clang::GlobalDecl(namedecl)), initval.rvalue(), body_loc);
-    xls::StateElement* state_elem =
-        elem_bval.node()->As<xls::StateRead>()->state_element();
+    XLS_RETURN_IF_ERROR(generate_decomposed_elements(
+        initval.rvalue(), XLSNameMangle(clang::GlobalDecl(namedecl)),
+        namedecl));
 
     prepared.return_index_for_static[namedecl] = next_return_index++;
-    prepared.state_element_for_variable[namedecl] = state_elem;
   }
 
   // This return
@@ -2092,10 +2212,11 @@ Translator::GenerateIRBlockPrepare(
         break;
       }
       case xlscc::SideEffectingParameterType::kStatic: {
-        TrackedBValue bval(
-            pb.proc()->GetStateRead(
-                prepared.state_element_for_variable.at(param.static_value)),
-            &pb);
+        XLS_ASSIGN_OR_RETURN(
+            TrackedBValue bval,
+            ComposeStaticValueInput(param.static_value, generate_new_fsm_,
+                                    prepared.state_element_for_variable,
+                                    prepared.type_for_variable, pb, body_loc));
         prepared.args.push_back(bval);
         break;
       }
@@ -2151,6 +2272,11 @@ absl::StatusOr<xls::Proc*> Translator::BuildWithNextStateValueMap(
           next_state_values.find(elem)->second;
       TrackedBValue next_state_value_bval;
       if (next_state_value.condition.valid()) {
+        XLSCC_CHECK_EQ(next_state_value.condition.GetType()->GetFlatBitCount(),
+                       1, loc);
+        XLSCC_CHECK(
+            next_state_value.value.GetType()->IsEqualTo(read_bval.GetType()),
+            loc);
         next_state_value_bval =
             pb.Select(next_state_value.condition,
                       /*on_true=*/next_state_value.value,

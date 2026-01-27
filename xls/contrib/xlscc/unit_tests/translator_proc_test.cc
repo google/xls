@@ -10274,6 +10274,7 @@ TEST_P(TranslatorProcTest, SubroutineNotDuplicated) {
     function_names.insert(func->name());
   }
 }
+
 TEST_P(TranslatorProcTest, PassthroughCrossingFeedback) {
   const std::string content = R"(
        class Block {

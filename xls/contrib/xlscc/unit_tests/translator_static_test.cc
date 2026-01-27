@@ -14,6 +14,7 @@
 
 #include <cstdint>
 #include <list>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -27,6 +28,8 @@
 #include "xls/contrib/xlscc/translator_types.h"
 #include "xls/contrib/xlscc/unit_tests/unit_test.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/proc.h"
+#include "xls/ir/state_element.h"
 #include "xls/ir/value.h"
 
 namespace xlscc {
@@ -415,7 +418,9 @@ TEST_F(TranslatorStaticTest, IOProcStaticNoIO) {
     ch_out->set_type(CHANNEL_TYPE_FIFO);
   }
 
-  { ProcTest(content, block_spec, {}, {}); }
+  {
+    ProcTest(content, block_spec, {}, {});
+  }
 }
 
 TEST_F(TranslatorStaticTest, IOProcStaticStruct) {
@@ -1230,6 +1235,62 @@ TEST_F(TranslatorStaticTest, ReturnStaticLValueTemplated) {
   };
 
   RunWithStatics(args, expected_vals, content);
+}
+
+TEST_F(TranslatorStaticTest, StaticDecomposed) {
+  const std::string content = R"(
+    struct Thing {
+      int x;
+      long y;
+    };
+
+    class Block {
+      __xls_channel<int, __xls_channel_dir_In> in;
+      __xls_channel<int, __xls_channel_dir_Out> out;
+
+      #pragma hls_top
+      void foo() {
+        static Thing thing;
+        thing.x += in.read();
+        thing.y = thing.x * 3;
+        out.write(thing.y);
+      }
+    };
+  )";
+
+  generate_new_fsm_ = true;
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(80, 32)),
+                  xls::Value(xls::SBits(100, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(3 * 80, 32)),
+                      xls::Value(xls::SBits(3 * (80 + 100), 32))};
+
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs);
+  }
+
+  ASSERT_EQ(package_->procs().size(), 1);
+  const xls::Proc* proc = package_->procs().at(0).get();
+
+  int64_t total_32bit_elems = 0;
+  int64_t total_64bit_elems = 0;
+
+  for (const xls::StateElement* state : proc->StateElements()) {
+    EXPECT_FALSE(state->type()->IsTuple() &&
+                 state->type()->GetFlatBitCount() > 0);
+    if (state->type()->IsBits() && state->type()->GetFlatBitCount() == 32) {
+      ++total_32bit_elems;
+    }
+    if (state->type()->IsBits() && state->type()->GetFlatBitCount() == 64) {
+      ++total_64bit_elems;
+    }
+  }
+
+  EXPECT_EQ(total_32bit_elems, 1);
+  EXPECT_EQ(total_64bit_elems, 1);
 }
 
 }  // namespace

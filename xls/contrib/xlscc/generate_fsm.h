@@ -115,7 +115,7 @@ class NewFSMGenerator : public GeneratorBase {
   // XLS IR.
   absl::StatusOr<NewFSMLayout> LayoutNewFSM(
       const GeneratedFunction& func,
-      const absl::flat_hash_map<const clang::NamedDecl*, xls::StateElement*>&
+      const absl::flat_hash_map<DeclLeaf, xls::StateElement*>&
           state_element_for_static,
       const xls::SourceInfo& body_loc);
 
@@ -123,8 +123,10 @@ class NewFSMGenerator : public GeneratorBase {
   absl::StatusOr<GenerateFSMInvocationReturn> GenerateNewFSMInvocation(
       const GeneratedFunction* xls_func,
       const std::vector<TrackedBValue>& direct_in_args,
-      const absl::flat_hash_map<const clang::NamedDecl*, xls::StateElement*>&
+      const absl::flat_hash_map<DeclLeaf, xls::StateElement*>&
           state_element_for_static,
+      const absl::flat_hash_map<const clang::NamedDecl*, xls::Type*>&
+          type_for_static,
       const absl::flat_hash_map<const clang::NamedDecl*, int64_t>&
           return_index_for_static,
       xls::ProcBuilder& pb, const xls::SourceInfo& body_loc);

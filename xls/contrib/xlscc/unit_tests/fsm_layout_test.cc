@@ -22,7 +22,9 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/container/inlined_vector.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
@@ -36,6 +38,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/state_element.h"
+#include "xls/ir/value.h"
 
 namespace xlscc {
 
@@ -43,7 +46,7 @@ class FSMLayoutTest : public XlsccTestBase {
  public:
   absl::StatusOr<NewFSMLayout> GenerateTopFunction(
       std::string_view content,
-      absl::flat_hash_map<const clang::NamedDecl*, xls::StateElement*>*
+      absl::flat_hash_map<DeclLeaf, xls::StateElement*>*
           state_element_for_static_out = nullptr) {
     generate_new_fsm_ = true;
 
@@ -69,16 +72,35 @@ class FSMLayoutTest : public XlsccTestBase {
                               DebugIrTraceFlags_FSMStates,
                               split_states_on_channel_ops_);
 
-    absl::flat_hash_map<const clang::NamedDecl*, xls::StateElement*>
-        state_element_for_static;
+    absl::flat_hash_map<DeclLeaf, xls::StateElement*> state_element_for_static;
 
     xls::ProcBuilder pb("test", package_.get());
+    for (const auto& [decl, init_cvalue] : func->static_values) {
+      const xls::Value& init_value = init_cvalue.rvalue();
+      absl::InlinedVector<xls::Value, 1> decomposed_values;
 
-    for (const auto& [decl, init_val] : func->static_values) {
-      NATIVE_BVAL state_read_bval = pb.StateElement(
-          decl->getNameAsString(), init_val.rvalue(), xls::SourceInfo());
-      state_element_for_static[decl] =
-          state_read_bval.node()->As<xls::StateRead>()->state_element();
+      XLS_ASSIGN_OR_RETURN(xls::TypeProto type_proto, init_value.TypeAsProto());
+      XLS_ASSIGN_OR_RETURN(xls::Type * xls_type,
+                           package_->GetTypeFromProto(type_proto));
+
+      XLS_ASSIGN_OR_RETURN(decomposed_values,
+                           DecomposeValue(xls_type, init_value));
+
+      // Empty tuple case
+      if (decomposed_values.empty()) {
+        decomposed_values.push_back(init_value);
+      }
+
+      for (int64_t i = 0; i < decomposed_values.size(); ++i) {
+        const xls::Value& decomposed_value = decomposed_values.at(i);
+        DeclLeaf decl_leaf = {.decl = decl, .leaf_index = i};
+        const std::string& name = decl->getNameAsString();
+        std::string decomposed_name = absl::StrFormat("%s_%d", name, i);
+        NATIVE_BVAL state_read_bval = pb.StateElement(
+            decomposed_name, decomposed_value, xls::SourceInfo());
+        state_element_for_static[decl_leaf] =
+            state_read_bval.node()->As<xls::StateRead>()->state_element();
+      }
     }
 
     if (state_element_for_static_out != nullptr) {
@@ -87,6 +109,21 @@ class FSMLayoutTest : public XlsccTestBase {
 
     return generator.LayoutNewFSM(*func, state_element_for_static,
                                   xls::SourceInfo());
+  }
+
+  bool TypeContainsArray(xls::Type* type) {
+    if (type->IsArray()) {
+      return true;
+    }
+    if (type->IsTuple()) {
+      for (xls::Type* elem_type : type->AsTupleOrDie()->element_types()) {
+        if (TypeContainsArray(elem_type)) {
+          return true;
+        }
+      }
+      return false;
+    }
+    return false;
   }
 
   std::vector<int64_t> FilterStates(
@@ -124,7 +161,7 @@ class FSMLayoutTest : public XlsccTestBase {
         continue;
       }
       for (const auto& decl : continuation_value->decls) {
-        if (decl->getNameAsString() == name) {
+        if (decl.decl->getNameAsString() == name) {
           return true;
         }
       }
@@ -149,7 +186,7 @@ class FSMLayoutTest : public XlsccTestBase {
         continue;
       }
       for (const auto& decl : value->decls) {
-        if (decl->getNameAsString() == name) {
+        if (decl.decl->getNameAsString() == name) {
           return value;
         }
       }
@@ -162,7 +199,7 @@ class FSMLayoutTest : public XlsccTestBase {
     for (const NewFSMState& state : layout.states) {
       for (const ContinuationValue* value : state.values_to_save) {
         for (const auto& decl : value->decls) {
-          if (decl->getNameAsString() == name) {
+          if (decl.decl->getNameAsString() == name) {
             return true;
           }
         }
@@ -177,7 +214,7 @@ class FSMLayoutTest : public XlsccTestBase {
     for (const ContinuationValue* value : state.values_to_save) {
       bool count_value = false;
       for (const auto& decl : value->decls) {
-        if (decl->getNameAsString() == name) {
+        if (decl.decl->getNameAsString() == name) {
           count_value = true;
         }
       }
@@ -736,30 +773,119 @@ TEST_F(FSMLayoutTest, IOActivationTransitionsNoTransition) {
   EXPECT_TRUE(layout.transition_by_slice_from_index.empty());
 }
 
-TEST_F(FSMLayoutTest, StaticStateElementShared) {
+TEST_F(FSMLayoutTest, StaticStateElementLeafShared) {
   const std::string content = R"(
+    struct Test {
+      int x = 0;
+      int y = 0;
+    };
+
     #pragma hls_top
     void my_package(__xls_channel<int>& in,
                     __xls_channel<int>& out) {
-      static int count = 0;
-      const int x = in.read();
-      count += x;
-      const int y = in.read();
-      out.write(count + y);
-    })";
-  split_states_on_channel_ops_ = true;
+      static Test count;
+      int z;
 
-  absl::flat_hash_map<const clang::NamedDecl*, xls::StateElement*>
-      state_element_for_static;
+      [[hls_pipeline_init_interval(1)]]
+      for (int i=0;i<1;++i) {
+        count.x = in.read();
+        z = 3 * count.x;
+        count.y = in.read();
+      }
+      out.write(count.y + z);
+    })";
+  split_states_on_channel_ops_ = false;
+
+  absl::flat_hash_map<DeclLeaf, xls::StateElement*> state_element_for_static;
 
   XLS_ASSERT_OK_AND_ASSIGN(
       NewFSMLayout layout,
       GenerateTopFunction(content, &state_element_for_static));
 
-  ASSERT_EQ(layout.state_elements.size(), 1);
-  ASSERT_EQ(state_element_for_static.size(), 1);
-  EXPECT_EQ(layout.state_elements.front().existing_state_element,
-            state_element_for_static.begin()->second);
+  ASSERT_EQ(layout.state_elements.size(), 3);
+
+  for (const NewFSMStateElement& elem : layout.state_elements) {
+    EXPECT_TRUE(elem.type->IsBits());
+    EXPECT_EQ(elem.type->GetFlatBitCount(), 32L);
+  }
+}
+
+TEST_F(FSMLayoutTest, StateElementSharedForAlias) {
+  const std::string content = R"(
+    struct TestBase {
+      long arr[16];
+
+      void WriteIt(__xls_channel<int>& out) {
+        [[hls_pipeline_init_interval(1)]]
+        for (int i=0;i<16;++i) {
+          out.write(arr[i]);
+          arr[i] += 5;
+        }
+      }
+    };
+
+    struct Test : TestBase {
+    };
+
+    #pragma hls_top
+    void my_package(__xls_channel<Test>& in,
+                    __xls_channel<int>& out) {
+      static Test count = in.read();
+      count.WriteIt(out);
+      [[hls_pipeline_init_interval(1)]]
+      for (int i=0;i<16;++i) {
+        out.write(count.arr[i]);
+        count.arr[i] -= 1;
+      }
+    })";
+  split_states_on_channel_ops_ = true;
+
+  absl::flat_hash_map<DeclLeaf, xls::StateElement*> state_element_for_static;
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      NewFSMLayout layout,
+      GenerateTopFunction(content, &state_element_for_static));
+
+  int64_t n_array_state_elements = 0;
+  for (const NewFSMStateElement& elem : layout.state_elements) {
+    if (TypeContainsArray(elem.type)) {
+      ++n_array_state_elements;
+    }
+  }
+  EXPECT_EQ(n_array_state_elements, 1);
+}
+
+TEST_F(FSMLayoutTest, StaticStateElementLeafSharedByRef) {
+  const std::string content = R"(
+    struct Test {
+      int x = 0;
+      int y = 0;
+    };
+
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      Test count;
+      int z;
+
+      count.x = in.read();
+      z = 3 * count.x;
+
+      [[hls_pipeline_init_interval(1)]]
+      for (int i=0;i<1;++i) {
+        count.y = in.read();
+      }
+      out.write(count.y + z);
+    })";
+  split_states_on_channel_ops_ = false;
+
+  absl::flat_hash_map<DeclLeaf, xls::StateElement*> state_element_for_static;
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      NewFSMLayout layout,
+      GenerateTopFunction(content, &state_element_for_static));
+
+  ASSERT_EQ(layout.state_elements.size(), 2);
 }
 
 }  // namespace

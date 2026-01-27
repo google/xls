@@ -29,6 +29,7 @@
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -87,7 +88,8 @@ absl::StatusOr<bool> CType::ContainsLValues(
 CType::operator std::string() const { return "CType"; }
 
 xls::Type* CType::GetXLSType(xls::Package* /*package*/) const {
-  LOG(FATAL) << "GetXLSType() unsupported in CType base class";
+  LOG(FATAL) << "GetXLSType() unsupported in CType base class: "
+             << this->debug_string();
   return nullptr;
 }
 
@@ -1235,14 +1237,14 @@ void LogContinuations(const xlscc::GeneratedFunction& func) {
       slices_by_continuation_out[&continuation_out] = &slice;
     }
   }
-  auto decl_names_string =
-      [](const absl::flat_hash_set<const clang::NamedDecl*>& decls) {
-        std::vector<std::string> decl_names;
-        for (const clang::NamedDecl* decl : decls) {
-          decl_names.push_back(decl->getNameAsString());
-        }
-        return absl::StrJoin(decl_names, ",");
-      };
+  auto decl_names_string = [](const absl::flat_hash_set<DeclLeaf>& decls) {
+    std::vector<std::string> decl_names;
+    for (const DeclLeaf& decl : decls) {
+      decl_names.push_back(absl::StrFormat(
+          "%s:%li", decl.decl->getNameAsString(), decl.leaf_index));
+    }
+    return absl::StrJoin(decl_names, ",");
+  };
   int64_t slice_index = 0;
   for (const GeneratedFunctionSlice& slice : func.slices) {
     LOG(INFO) << "";
@@ -1437,6 +1439,121 @@ absl::Status ShortCircuitBVal(TrackedBValue& bval, const xls::SourceInfo& loc) {
     bval = TrackedBValue(iter->second, bval.builder());
   }
   return absl::OkStatus();
+}
+
+namespace {
+
+void DecomposeTupleTypes(xls::Type* type,
+                         absl::InlinedVector<xls::Type*, 1>& out) {
+  if (!type->IsTuple()) {
+    out.push_back(type);
+    return;
+  }
+  for (xls::Type* element_type : type->AsTupleOrDie()->element_types()) {
+    DecomposeTupleTypes(element_type, out);
+  }
+}
+
+absl::Status DecomposeTuples(xls::Node* node,
+                             absl::InlinedVector<xls::Node*, 1>& out) {
+  if (!TypeIsDecomposable(node->GetType())) {
+    out.push_back(node);
+    return absl::OkStatus();
+  }
+  xls::TupleType* tuple_type = node->GetType()->AsTupleOrDie();
+  xls::FunctionBase* func = node->function_base();
+  for (int64_t ti = 0; ti < tuple_type->size(); ++ti) {
+    XLS_ASSIGN_OR_RETURN(
+        xls::Node * new_index,
+        func->MakeNodeWithName<xls::TupleIndex>(
+            node->loc(), node, ti,
+            /*name=*/absl::StrFormat("%s_%li", node->GetName(), ti)));
+    XLS_RETURN_IF_ERROR(DecomposeTuples(new_index, out));
+  }
+  return absl::OkStatus();
+}
+
+absl::StatusOr<xls::Node*> ComposeTuples(
+    std::string_view name, xls::Type* to_type, xls::FunctionBase* in_func,
+    const xls::SourceInfo& loc, const absl::InlinedVector<xls::Node*, 1>& nodes,
+    int64_t& index_offset) {
+  absl::InlinedVector<xls::Node*, 1> operands;
+
+  if (!(to_type->IsTuple() && to_type->AsTupleOrDie()->size() == 0)) {
+    if (!TypeIsDecomposable(to_type)) {
+      xls::Node* first_node = nodes.at(index_offset);
+      ++index_offset;
+      return first_node;
+    }
+
+    xls::TupleType* tuple_type = to_type->AsTupleOrDie();
+
+    for (int64_t elem = 0; elem < tuple_type->size(); ++elem) {
+      XLS_ASSIGN_OR_RETURN(
+          xls::Node * new_operand,
+          ComposeTuples(name, tuple_type->element_types().at(elem), in_func,
+                        loc, nodes,
+
+                        index_offset));
+      operands.push_back(new_operand);
+    }
+  }
+
+  XLS_ASSIGN_OR_RETURN(
+      xls::Node * new_tuple,
+      in_func->MakeNodeWithName<xls::Tuple>(
+          loc, operands,
+          /*name=*/absl::StrFormat("%s_%li", name, index_offset)));
+
+  CHECK(new_tuple->GetType()->IsEqualTo(to_type));
+  return new_tuple;
+}
+
+absl::Status DecomposeValue(xls::Type* type, const xls::Value& value,
+                            absl::InlinedVector<xls::Value, 1>& ret) {
+  if (!TypeIsDecomposable(type)) {
+    ret.push_back(value);
+    return absl::OkStatus();
+  }
+
+  for (int64_t ei = 0; ei < type->AsTupleOrDie()->size(); ++ei) {
+    XLS_RETURN_IF_ERROR(DecomposeValue(type->AsTupleOrDie()->element_type(ei),
+                                       value.element(ei), ret));
+  }
+
+  return absl::OkStatus();
+}
+
+}  // namespace
+
+bool TypeIsDecomposable(xls::Type* type) { return type->IsTuple(); }
+
+absl::InlinedVector<xls::Type*, 1> DecomposeTupleTypes(xls::Type* type) {
+  absl::InlinedVector<xls::Type*, 1> ret;
+  DecomposeTupleTypes(type, ret);
+  return ret;
+}
+
+absl::StatusOr<absl::InlinedVector<xls::Node*, 1>> DecomposeTuples(
+    xls::Node* node) {
+  absl::InlinedVector<xls::Node*, 1> ret;
+  XLS_RETURN_IF_ERROR(DecomposeTuples(node, ret));
+  return ret;
+}
+
+absl::StatusOr<xls::Node*> ComposeTuples(
+    std::string_view name, xls::Type* to_type, xls::FunctionBase* in_func,
+    const xls::SourceInfo& loc,
+    const absl::InlinedVector<xls::Node*, 1>& nodes) {
+  int64_t index_offset = 0;
+  return ComposeTuples(name, to_type, in_func, loc, nodes, index_offset);
+}
+
+absl::StatusOr<absl::InlinedVector<xls::Value, 1>> DecomposeValue(
+    xls::Type* type, const xls::Value& value) {
+  absl::InlinedVector<xls::Value, 1> ret;
+  XLS_RETURN_IF_ERROR(DecomposeValue(type, value, ret));
+  return ret;
 }
 
 }  //  namespace xlscc

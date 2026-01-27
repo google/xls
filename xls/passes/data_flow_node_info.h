@@ -47,6 +47,12 @@ namespace xls {
 // CRTP is used to instantiate sub-caches for each invoke, since their
 // parameters can vary. The CRTP type is called Derived.
 //
+// The include_selectors flag controls whether or not dynamic selectors or
+// indices are included in the output info. Even when this is turned on,
+// selectors known at compile time (eg literals) will not be included. By
+// selectors here are meant selectors for Op::kSel, indices for Op::ArrayIndex,
+// and so on.
+//
 // The compute_tree_for_source flag controls which API is used to originate
 // Infos.
 //
@@ -78,15 +84,18 @@ class DataFlowLazyNodeInfo : public LazyNodeInfo<Info> {
   virtual Info MergeInfos(const absl::Span<const Info>& infos) const = 0;
 
   explicit DataFlowLazyNodeInfo(bool compute_tree_for_source,
-                                bool default_info_source)
+                                bool default_info_source,
+                                bool include_selectors)
       : LazyNodeInfo<Info>(DagCacheInvalidateDirection::kInvalidatesUsers),
         default_info_source_(default_info_source),
-        compute_tree_for_source_(compute_tree_for_source) {}
+        compute_tree_for_source_(compute_tree_for_source),
+        include_selectors_(include_selectors) {}
 
   DataFlowLazyNodeInfo(const DataFlowLazyNodeInfo& o)
       : LazyNodeInfo<Info>(o),
         default_info_source_(o.default_info_source_),
         compute_tree_for_source_(o.compute_tree_for_source_),
+        include_selectors_(o.include_selectors_),
         query_engine_(o.query_engine_),
         parent_(o.parent_),
         parent_node_(o.parent_node_) {
@@ -125,8 +134,8 @@ class DataFlowLazyNodeInfo : public LazyNodeInfo<Info> {
     LOG(FATAL) << "Unsupported value type";
   }
 
-  void DuplicateInfo(xls::Type* type, const Info& info,
-                     absl::InlinedVector<Info, 1>& infos) const {
+  static void DuplicateInfo(xls::Type* type, const Info& info,
+                            absl::InlinedVector<Info, 1>& infos) {
     if (type->IsBits()) {
       infos.push_back(info);
       return;
@@ -159,6 +168,9 @@ class DataFlowLazyNodeInfo : public LazyNodeInfo<Info> {
     xls::Type* ret_type = node->GetType();
 
     bool is_info_source = false;
+
+    // A place to put a synthetic tree.
+    LeafTypeTree<Info> selector_tree;
 
     switch (node->op()) {
       case xls::Op::kParam: {
@@ -200,9 +212,15 @@ class DataFlowLazyNodeInfo : public LazyNodeInfo<Info> {
           return ret.AsShared().ToOwned();
         }
 
-        // With dynamic indexing, merge all infos in the array (but not the
-        // index)
+        // With dynamic indexing, merge all infos in the array, and optionally
+        // the index
         operand_infos_out.clear();
+        if (include_selectors_) {
+          for (int64_t i = 0; i < indices.size(); ++i) {
+            operand_infos_out.push_back(
+                operand_infos[xls::ArrayIndex::kIndexOperandStart + i]);
+          }
+        }
         operand_infos_out.push_back(
             operand_infos[xls::ArrayIndex::kArgOperand]);
 
@@ -238,6 +256,12 @@ class DataFlowLazyNodeInfo : public LazyNodeInfo<Info> {
         operand_infos_out.clear();
         operand_infos_out.push_back(to_update_info);
         operand_infos_out.push_back(replace_info);
+        if (include_selectors_) {
+          for (int64_t i = 0; i < array_update->indices().size(); ++i) {
+            operand_infos_out.push_back(
+                operand_infos[xls::ArrayUpdate::kIndexOperandStart + i]);
+          }
+        }
 
         // Fall through to default handling
         break;
@@ -349,6 +373,16 @@ class DataFlowLazyNodeInfo : public LazyNodeInfo<Info> {
         } else {
           for (int64_t op = 0; op < operand_infos.size(); ++op) {
             if (op == xls::Select::kSelectorOperand) {
+              if (!include_selectors_) {
+                continue;
+              }
+              CHECK_EQ(operand_infos.at(op)->elements().size(), 1);
+              absl::InlinedVector<Info, 1> infos;
+              DuplicateInfo(node->GetType(),
+                            operand_infos.at(op)->elements().at(0), infos);
+              selector_tree = LeafTypeTree<Info>::CreateFromVector(
+                  node->GetType(), std::move(infos));
+              operand_infos_out.push_back(&selector_tree);
               continue;
             }
             operand_infos_out.push_back(operand_infos.at(op));
@@ -486,7 +520,6 @@ class DataFlowLazyNodeInfo : public LazyNodeInfo<Info> {
     if (operand_infos.empty()) {
       return LeafTypeTree<Info>();
     }
-
     const LeafTypeTree<Info>* const first_info = operand_infos.at(0);
 
     for (int64_t op = 0; op < operand_infos.size(); ++op) {
@@ -510,6 +543,7 @@ class DataFlowLazyNodeInfo : public LazyNodeInfo<Info> {
 
   bool default_info_source_ = false;
   bool compute_tree_for_source_ = false;
+  bool include_selectors_ = false;
 
   DataFlowLazyNodeInfo<Derived, Info>* parent_ = nullptr;
   xls::Node* parent_node_ = nullptr;

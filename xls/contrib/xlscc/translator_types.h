@@ -1006,6 +1006,33 @@ struct PipelinedLoopSubProc {
   std::vector<const clang::NamedDecl*> vars_to_save_between_iters;
 };
 
+struct DeclLeaf {
+  friend bool operator==(const DeclLeaf& lhs, const DeclLeaf& rhs) {
+    return lhs.decl == rhs.decl && lhs.leaf_index == rhs.leaf_index;
+  }
+
+  template <typename H>
+  friend H AbslHashValue(H h, const DeclLeaf& c) {
+    return H::combine(std::move(h), c.decl, c.leaf_index);
+  }
+
+  std::string ToString() const {
+    return absl::StrFormat("%s_%li", decl->getNameAsString().c_str(),
+                           leaf_index);
+  }
+
+  const clang::NamedDecl* decl = nullptr;
+
+  // The reason for linear indexing here, while most of XLS uses
+  // multi-dimensional indexing (via LeafTypeTree), is that one wants X, (X),
+  // ((X)), etc to be the same. This is mainly for state element sharing
+  // purposes, for example when you have a derived and base class with method
+  // calls to each. The base sees it as (...) and the derived as ((...)...).
+  // The (...) part should be able to share state elements, continuation values,
+  // etc.
+  int64_t leaf_index = -1L;
+};
+
 // A value outputted from a function slice for potential later use.
 // One of these is generated per node that is referred to by a TrackedBValue
 // at the time the function gets "sliced" during generation.
@@ -1015,9 +1042,10 @@ struct PipelinedLoopSubProc {
 struct ContinuationValue {
   xls::Node* output_node = nullptr;
 
-  // name, decls are for test/debug only
+  // name is for test/debug only
   std::string name;
-  absl::flat_hash_set<const clang::NamedDecl*> decls;
+  // decls are used for state element sharing
+  absl::flat_hash_set<DeclLeaf> decls;
 
   // Precomputed literal, used for unrolling, IO pruning, etc
   std::optional<xls::Value> literal = std::nullopt;
@@ -1039,7 +1067,7 @@ struct ContinuationInput {
 
   // name, decls are for test/debug only
   std::string name;
-  absl::flat_hash_set<const clang::NamedDecl*> decls;
+  absl::flat_hash_set<DeclLeaf> decls;
 };
 
 // One "slice" of a C++ function. When there are side-effecting operations
@@ -1165,6 +1193,7 @@ struct GeneratedFunction {
   }
   void SortNamesDeterministically(
       std::vector<const clang::NamedDecl*>& names) const;
+  void SortNamesDeterministically(std::vector<DeclLeaf>& decls) const;
   std::vector<const clang::NamedDecl*> GetDeterministicallyOrderedStaticValues()
       const;
 };
@@ -1217,6 +1246,8 @@ absl::Status ShortCircuitBVal(TrackedBValue& bval, const xls::SourceInfo& loc);
 
 typedef absl::flat_hash_set<const xls::Param*> ParamSet;
 
+// This class sees through all operation types, and includes dynamic selectors
+// and indices in its output.
 class SourcesSetNodeInfo
     : public xls::DataFlowLazyNodeInfo<SourcesSetNodeInfo, ParamSet> {
  public:
@@ -1234,11 +1265,12 @@ class SourcesSetNodeInfo
       const absl::Span<const ParamSet>& infos) const override final;
 };
 
-// typedef absl::flat_hash_set<const xls::Node*> NodeSet;
 typedef absl::flat_hash_set<xls::NodeSource> NodeSourceSet;
 
 // This class sees through compound type operations, ie on tuples,
 // but it does not see through other operations, ie add.
+//
+// It also does not include dynamic selectors or indices in its output.
 //
 // It returns a set of nodes, as some sources will be of the unsupported types,
 // ie the aforementioned add.
@@ -1286,6 +1318,36 @@ class OptimizationContext {
                       std::unique_ptr<xls::PartialInfoQueryEngine>>
       query_engines_by_function_;
 };
+
+absl::InlinedVector<xls::Type*, 1> DecomposeTupleTypes(xls::Type* type);
+
+bool TypeIsDecomposable(xls::Type* type);
+absl::StatusOr<absl::InlinedVector<xls::Node*, 1>> DecomposeTuples(
+    xls::Node* node);
+
+absl::StatusOr<xls::Node*> ComposeTuples(
+    std::string_view name, xls::Type* to_type, xls::FunctionBase* in_func,
+    const xls::SourceInfo& loc,
+    const absl::InlinedVector<xls::Node*, 1>& nodes);
+
+absl::StatusOr<absl::InlinedVector<xls::Value, 1>> DecomposeValue(
+    xls::Type* type, const xls::Value& value);
+
+struct GeneratedFunctionSliceMaps {
+  absl::flat_hash_map<const GeneratedFunctionSlice*, int64_t> slice_index_map;
+  absl::flat_hash_map<const ContinuationInput*, const GeneratedFunctionSlice*>
+      slice_by_continuation_input;
+  absl::flat_hash_map<const ContinuationValue*, const GeneratedFunctionSlice*>
+      slice_by_continuation_output;
+};
+
+absl::StatusOr<TrackedBValue> ComposeStaticValueInput(
+    const clang::NamedDecl* namedecl, bool generate_new_fsm,
+    const absl::flat_hash_map<DeclLeaf, xls::StateElement*>&
+        state_element_for_static,
+    const absl::flat_hash_map<const clang::NamedDecl*, xls::Type*>&
+        type_for_static,
+    xls::ProcBuilder& pb, const xls::SourceInfo& loc);
 
 }  // namespace xlscc
 
