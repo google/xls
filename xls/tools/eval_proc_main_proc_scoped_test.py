@@ -559,7 +559,7 @@ class EvalProcTest(parameterized.TestCase):
 
     shared_args = [
         EVAL_PROC_MAIN_PATH,
-        BLOCK_PATH,
+        PROC_PATH,
         "--ticks",
         "-1",
         "-v=3",

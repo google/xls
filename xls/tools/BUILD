@@ -1014,6 +1014,7 @@ pytype_strict_contrib_test(
         "//xls/examples:delay.sig.textproto",
         "//xls/examples/dslx_module:manual_chan_caps_streaming_configured_multiproc.block.ir",
         "//xls/examples/dslx_module:manual_chan_caps_streaming_configured_multiproc.sig.textproto",
+        "//xls/examples/dslx_module:manual_chan_caps_streaming_configured_opt_ir.opt.ir",
         "//xls/tools/testdata:eval_proc_main_conditional_test.opt.ir",
         "//xls/tools/testdata:eval_proc_main_test.opt.ir",
         "//xls/tools/testdata:eval_proc_main_test.sig.textproto",

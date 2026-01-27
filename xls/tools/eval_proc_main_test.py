@@ -33,6 +33,11 @@ from xls.tools import proc_channel_values_pb2
 EVAL_PROC_MAIN_PATH = runfiles.get_path("xls/tools/eval_proc_main")
 
 PROC_PATH = runfiles.get_path("xls/tools/testdata/eval_proc_main_test.opt.ir")
+
+MULTI_PROC_PATH = runfiles.get_path(
+    "xls/examples/dslx_module/manual_chan_caps_streaming_configured_opt_ir.opt.ir"
+)
+
 PROC_CONDITIONAL_PATH = runfiles.get_path(
     "xls/tools/testdata/eval_proc_main_conditional_test.opt.ir"
 )
@@ -556,7 +561,7 @@ class EvalProcTest(parameterized.TestCase):
 
     shared_args = [
         EVAL_PROC_MAIN_PATH,
-        BLOCK_PATH,
+        PROC_PATH,
         "--ticks",
         "-1",
         "-v=3",
@@ -1377,7 +1382,7 @@ out: {
 
   @parameterized_proc_backends
   def test_multi_proc(self, backend):
-    ir_file = MULTI_BLOCK_IR_FILE
+    ir_file = MULTI_PROC_PATH
     channels_in_file = self.create_tempfile(
         content=MULTI_BLOCK_INPUT_CHANNEL_VALUES.SerializeToString()
     )
