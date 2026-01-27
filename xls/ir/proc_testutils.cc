@@ -92,8 +92,25 @@ class UnrollProcVisitor final : public DfsVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  absl::Status HandleTrace(Trace* t) override {
+    XLS_RETURN_IF_ERROR(fb_.GetError());
+    std::vector<Node*> new_ops{fb_.Literal(Value::Token()).node()};
+    for (Node* v : t->operands().subspan(1)) {
+      new_ops.push_back(values_[{v, activation_}].node());
+    }
+    XLS_ASSIGN_OR_RETURN(Node * new_node,
+                         t->CloneInNewFunction(new_ops, fb_.function()));
+    values_[{t, activation_}] = BValue(new_node, &fb_);
+    return absl::OkStatus();
+  }
+  absl::Status HandleCover(Cover* c) override {
+    XLS_RETURN_IF_ERROR(DefaultHandler(c));
+    Cover* new_cover = values_[{c, activation_}].node()->As<Cover>();
+    new_cover->set_label(
+        absl::StrFormat("%s_act%d_cover", c->GetName(), activation_));
+    return absl::OkStatus();
+  }
   // Asserts are kept around but the token argument is just dropped.
-  // TODO(allight): Should we handle trace/cover the same way?
   absl::Status HandleAssert(Assert* n) override {
     XLS_RETURN_IF_ERROR(fb_.GetError());
     std::vector<Node*> new_ops{fb_.Literal(Value::Token()).node(),
@@ -173,11 +190,6 @@ class UnrollProcVisitor final : public DfsVisitorWithDefault {
     values_[{r, activation_}] = fb_.Tuple(std::move(result_values));
     VLOG(2) << "got " << r << " -> " << values_[{r, activation_}];
     return absl::OkStatus();
-  }
-
-  absl::Status HandleCover(Cover* c) override {
-    return absl::UnimplementedError(
-        "UnrollProcVisitor: cover is not supported");
   }
 
   absl::Status HandleAfterAll(AfterAll* aa) override {
