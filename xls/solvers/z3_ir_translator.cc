@@ -1427,27 +1427,31 @@ absl::StatusOr<LeafTypeTree<Z3_ast>> IrTranslator::ToLeafTypeTree(Type* type,
 
 absl::StatusOr<Z3_ast> IrTranslator::FromLeafTypeTree(
     LeafTypeTreeView<Z3_ast> ast) {
-  if (ast.type()->IsBits()) {
-    return ast.Get({});
-  }
   Type* ty = ast.type();
-  if (ty->IsArray()) {
-    std::vector<Z3_ast> elements;
-    elements.reserve(ty->AsArrayOrDie()->size());
-    for (int64_t i = 0; i < ty->AsArrayOrDie()->size(); ++i) {
-      XLS_ASSIGN_OR_RETURN(Z3_ast elem, FromLeafTypeTree(ast.AsView({i})));
-      elements.push_back(elem);
+  switch (ty->kind()) {
+    case TypeKind::kToken:
+    case TypeKind::kBits:
+      // Already a leaf value.
+      return ast.Get({});
+    case TypeKind::kTuple: {
+      std::vector<Z3_ast> elements;
+      elements.reserve(ty->AsTupleOrDie()->size());
+      for (int64_t i = 0; i < ty->AsTupleOrDie()->size(); ++i) {
+        XLS_ASSIGN_OR_RETURN(Z3_ast elem, FromLeafTypeTree(ast.AsView({i})));
+        elements.push_back(elem);
+      }
+      return CreateTuple(ty->AsTupleOrDie(), elements);
     }
-    return CreateArray(ty->AsArrayOrDie(), elements);
+    case TypeKind::kArray: {
+      std::vector<Z3_ast> elements;
+      elements.reserve(ty->AsArrayOrDie()->size());
+      for (int64_t i = 0; i < ty->AsArrayOrDie()->size(); ++i) {
+        XLS_ASSIGN_OR_RETURN(Z3_ast elem, FromLeafTypeTree(ast.AsView({i})));
+        elements.push_back(elem);
+      }
+      return CreateArray(ty->AsArrayOrDie(), elements);
+    }
   }
-  XLS_RET_CHECK(ty->IsTuple());
-  std::vector<Z3_ast> elements;
-  elements.reserve(ty->AsTupleOrDie()->size());
-  for (int64_t i = 0; i < ty->AsTupleOrDie()->size(); ++i) {
-    XLS_ASSIGN_OR_RETURN(Z3_ast elem, FromLeafTypeTree(ast.AsView({i})));
-    elements.push_back(elem);
-  }
-  return CreateTuple(ty->AsTupleOrDie(), elements);
 }
 
 absl::Status IrTranslator::HandleAndReduce(BitwiseReductionOp* and_reduce) {

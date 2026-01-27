@@ -44,12 +44,14 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc_elaboration.h"
 #include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/solvers/z3_ir_equivalence_testutils.h"
 
 namespace xls {
 namespace {
@@ -98,8 +100,7 @@ struct TestParam {
   };
 };
 
-class ChannelLegalizationPassTest
-    : public TestWithParam<std::tuple<TestParam, ChannelStrictness>> {
+class ChannelLegalizationPassIrTest : public IrTestBase {
  protected:
   absl::StatusOr<bool> Run(Package* package) {
     PassResults results;
@@ -110,6 +111,11 @@ class ChannelLegalizationPassTest
     return changed;
   }
 };
+
+class ChannelLegalizationPassTest
+    : public testing::WithParamInterface<
+          std::tuple<TestParam, ChannelStrictness>>,
+      public ChannelLegalizationPassIrTest {};
 
 TestParam kTestParameters[] = {
     TestParam{
@@ -993,6 +999,29 @@ TEST_P(ChannelLegalizationPassTest, EvaluatesCorrectly) {
   XLS_ASSERT_OK_AND_ASSIGN(interpreter, CreateRuntime(p.get()));
   XLS_EXPECT_OK(std::get<0>(GetParam())
                     .evaluate(interpreter.get(), std::get<1>(GetParam())));
+}
+
+TEST_F(ChannelLegalizationPassIrTest, LegalizeWithTokenSel) {
+  auto p = CreatePackage();
+  ProcBuilder pb(NewStyleProc{}, TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto chan_out,
+      pb.AddOutputChannel("out", p->GetBitsType(32), ChannelKind::kStreaming,
+                          ChannelStrictness::kRuntimeMutuallyExclusive));
+  auto st = pb.StateElement("state", UBits(0, 1));
+  auto tok = pb.StateElement("tok", Value::Token());
+  auto not_st = pb.Not(st);
+  auto tok_new_a1 = pb.SendIf(chan_out, tok, st, pb.Literal(UBits(32, 32)));
+  auto tok_new_b1 = pb.SendIf(chan_out, tok, not_st, pb.Literal(UBits(12, 32)));
+  pb.Next(st, not_st);
+  // NB This can come about from fairly normal dslx see:
+  // https://github.com/google/xls/issues/3738
+  pb.Next(tok, pb.Select(st, tok_new_a1, tok_new_b1));
+  XLS_ASSERT_OK_AND_ASSIGN(auto f, pb.Build());
+  XLS_ASSERT_OK(p->SetTop(f));
+  solvers::z3::ScopedVerifyProcEquivalence svpe(f, /*activation_count=*/5);
+  ScopedRecordIr sri(p.get());
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
 }
 
 INSTANTIATE_TEST_SUITE_P(
