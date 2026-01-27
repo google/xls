@@ -119,9 +119,7 @@ proc entry {
   EXPECT_THAT(TypecheckV2(kProgram),
               absl_testing::StatusIs(
                   absl::StatusCode::kInvalidArgument,
-                  testing::HasSubstr(
-                      "final expression in a Proc config must be a tuple with "
-                      "one element for each Proc data member")));
+                  HasTypeMismatch("(chan<u32> in,)", "u32")));
 }
 
 TEST(TypecheckTest, RecvIfDefaultValueWrongType) {
