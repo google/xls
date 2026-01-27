@@ -101,7 +101,6 @@ xls_dslx_verilog(
     dslx_top = "WindowBuffer64",
     ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":window_buffer_dslx",
-    tags = ["manual"],
     verilog_file = "window_buffer.v",
 )
 
@@ -167,7 +166,6 @@ xls_dslx_verilog(
     dslx_top = "ShiftBufferAlignerInst",
     ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":shift_buffer_dslx",
-    tags = ["manual"],
     verilog_file = "shift_buffer_aligner.v",
 )
 
@@ -232,7 +230,6 @@ xls_dslx_verilog(
     dslx_top = "ShiftBufferStorageInst",
     ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":shift_buffer_dslx",
-    tags = ["manual"],
     verilog_file = "shift_buffer_storage.v",
 )
 
@@ -300,7 +297,6 @@ xls_dslx_verilog(
     dslx_top = "ShiftBufferInst",
     ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":shift_buffer_dslx",
-    tags = ["manual"],
     verilog_file = "shift_buffer.v",
 )
 
@@ -349,7 +345,6 @@ place_and_route(
 
 xls_benchmark_verilog(
     name = "shift_buffer_verilog_benchmark",
-    tags = ["manual"],
     verilog_target = "shift_buffer_verilog",
 )
 
@@ -392,7 +387,6 @@ xls_dslx_verilog(
     dslx_top = "FrameHeaderDecoderInst",
     ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":frame_header_dec_dslx",
-    tags = ["manual"],
     verilog_file = "frame_header_dec.v",
 )
 
@@ -488,7 +482,6 @@ xls_dslx_verilog(
     dslx_top = "BlockHeaderDecoderInst",
     ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":block_header_dec_dslx",
-    tags = ["manual"],
     verilog_file = "block_header_dec.v",
 )
 
@@ -567,7 +560,6 @@ xls_dslx_verilog(
     dslx_top = "RawBlockDecoderInst",
     ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":raw_block_dec_dslx",
-    tags = ["manual"],
     verilog_file = "raw_block_dec.v",
 )
 
@@ -645,7 +637,6 @@ xls_dslx_verilog(
     dslx_top = "RleBlockDecoderInst",
     ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":rle_block_dec_dslx",
-    tags = ["manual"],
     verilog_file = "rle_block_dec.v",
 )
 
@@ -724,7 +715,6 @@ xls_dslx_verilog(
     dslx_top = "DecoderMux",
     ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":dec_mux_dslx",
-    tags = ["manual"],
     verilog_file = "dec_mux.v",
 )
 
@@ -944,7 +934,6 @@ xls_dslx_verilog(
     dslx_top = "AxiCsrAccessorInst",
     ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":axi_csr_accessor_dslx",
-    tags = ["manual"],
     verilog_file = "axi_csr_accessor.v",
 )
 
@@ -1021,7 +1010,6 @@ xls_dslx_verilog(
     dslx_top = "CsrConfigInst",
     ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":csr_config_dslx",
-    tags = ["manual"],
     verilog_file = "csr_config.v",
 )
 
@@ -1102,7 +1090,6 @@ xls_dslx_verilog(
     opt_ir_args = {
         "top": "__ram_wr_handler__RamWrRespHandlerInst_0_next",
     },
-    tags = ["manual"],
     verilog_file = "ram_rw_handler.v",
 )
 
@@ -1194,7 +1181,6 @@ xls_dslx_verilog(
     dslx_top = "FseProbaFreqDecoderInst",
     ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":fse_proba_freq_dec_dslx",
-    tags = ["manual"],
     verilog_file = "fse_proba_freq_dec.v",
 )
 
@@ -1215,12 +1201,10 @@ xls_benchmark_ir(
         #),
         "codegen_version": CODEGEN_VERSION,
     },
-    tags = ["manual"],
 )
 
 xls_benchmark_verilog(
     name = "fse_proba_freq_dec_verilog_benchmark",
-    tags = ["manual"],
     verilog_target = "fse_proba_freq_dec_verilog",
 )
 
@@ -1284,7 +1268,6 @@ xls_dslx_verilog(
     dslx_top = "LiteralsHeaderDecoderInst",
     ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":literals_block_header_dec_dslx",
-    tags = ["manual"],
     verilog_file = "literals_block_header_dec.v",
 )
 
@@ -1321,7 +1304,6 @@ xls_dslx_verilog(
     dslx_top = "SequenceConfDecoderInst",
     ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":sequence_conf_dec_dslx",
-    tags = ["manual"],
     verilog_file = "sequence_conf_dec.v",
 )
 
@@ -1361,7 +1343,6 @@ xls_dslx_verilog(
     dslx_top = "RefillingShiftBufferInternalInst",
     ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":refilling_shift_buffer_dslx",
-    tags = ["manual"],
     verilog_file = "refilling_shift_buffer_internal.v",
 )
 
@@ -1502,7 +1483,6 @@ xls_dslx_verilog(
     dslx_top = "ZstdDecoderInternalInst",
     ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":zstd_dec_dslx",
-    tags = ["manual"],
     verilog_file = "zstd_dec_internal.v",
 )
 
@@ -1636,7 +1616,6 @@ xls_dslx_verilog(
     dslx_top = "FseTableIterator",
     ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":fse_table_iterator_dslx",
-    tags = ["manual"],
     verilog_file = "fse_table_iterator.v",
 )
 
@@ -1717,7 +1696,6 @@ xls_dslx_verilog(
     dslx_top = "FseTableCreatorInst",
     ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":fse_table_creator_dslx",
-    tags = ["manual"],
     verilog_file = "fse_table_creator.v",
 )
 
@@ -1802,7 +1780,6 @@ xls_dslx_verilog(
     dslx_top = "CommandConstructor",
     ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":command_constructor_dslx",
-    tags = ["manual"],
     verilog_file = "command_constructor.v",
 )
 
@@ -1818,7 +1795,6 @@ xls_benchmark_ir(
 
 xls_benchmark_verilog(
     name = "command_constructor_verilog_benchmark",
-    tags = ["manual"],
     verilog_target = "command_constructor_verilog",
 )
 
@@ -1903,7 +1879,6 @@ xls_dslx_verilog(
     dslx_top = "RamDemuxWrappedInst",
     ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":ram_demux_dslx",
-    tags = ["manual"],
     verilog_file = "ram_demux.v",
 )
 
@@ -1911,7 +1886,6 @@ xls_benchmark_ir(
     name = "ram_demux_opt_ir_benchmark",
     src = "ram_demux_verilog.opt.ir",
     codegen_args = RAM_DEMUX_CODEGEN_ARGS,
-    tags = ["manual"],
 )
 
 verilog_library(
@@ -2067,7 +2041,6 @@ xls_dslx_verilog(
     dslx_top = "RamPassthroughInst",
     ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":ram_passthrough_dslx",
-    tags = ["manual"],
     verilog_file = "ram_passthrough.v",
 )
 
@@ -2107,7 +2080,6 @@ xls_dslx_verilog(
     opt_ir_args = {
         "top": "__fse_dec__FseDecoderInst_0_next",
     },
-    tags = ["manual"],
     verilog_file = "fse_dec.v",
 )
 
@@ -2199,7 +2171,6 @@ xls_dslx_verilog(
     dslx_top = "RamDemux3Inst",
     ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":ram_demux3_dslx",
-    tags = ["manual"],
     verilog_file = "ram_demux3.v",
 )
 
@@ -2391,7 +2362,6 @@ xls_dslx_verilog(
     opt_ir_args = {
         "top": "__sequence_dec__FseLookupCtrlInst_0_next",
     },
-    tags = ["manual"],
     verilog_file = "fse_lookup_ctrl.v",
 )
 
@@ -2435,7 +2405,6 @@ xls_dslx_verilog(
     dslx_top = "RleLiteralsDecoderInst",
     ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":rle_literals_dec_dslx",
-    tags = ["manual"],
     verilog_file = "rle_literals_dec.v",
 )
 
@@ -2517,7 +2486,6 @@ xls_dslx_verilog(
     opt_ir_args = {
         "top": "__raw_literals_dec__RawLiteralsDecoder_0__16_64_next",
     },
-    tags = ["manual"],
     verilog_file = "raw_literals_dec.v",
 )
 
@@ -2534,7 +2502,6 @@ xls_benchmark_ir(
 
 xls_benchmark_verilog(
     name = "raw_literals_dec_verilog_benchmark",
-    tags = ["manual"],
     verilog_target = "raw_literals_dec_verilog",
 )
 
@@ -2620,7 +2587,6 @@ xls_dslx_verilog(
     dslx_top = "LiteralsBufferInst",
     ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":literals_buffer_dslx",
-    tags = ["manual"],
     verilog_file = "literals_buffer.v",
 )
 
@@ -2636,7 +2602,6 @@ xls_benchmark_ir(
 
 xls_benchmark_verilog(
     name = "literals_buffer_verilog_benchmark",
-    tags = ["manual"],
     verilog_target = "literals_buffer_verilog",
 )
 
@@ -2714,7 +2679,6 @@ xls_dslx_verilog(
     dslx_top = "LiteralsDecoderCtrlInst",
     ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":literals_decoder_dslx",
-    tags = ["manual"],
     verilog_file = "literals_decoder_ctrl.v",
 )
 
@@ -2899,7 +2863,6 @@ xls_dslx_verilog(
     dslx_top = "WeightPreScan",
     ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":huffman_prescan_dslx",
-    tags = ["manual"],
     verilog_file = "huffman_prescan.v",
 )
 
@@ -2911,7 +2874,6 @@ xls_benchmark_ir(
 
 xls_benchmark_verilog(
     name = "huffman_prescan_verilog_benchmark",
-    tags = ["manual"],
     verilog_target = "huffman_prescan_verilog",
 )
 
@@ -2983,7 +2945,6 @@ xls_dslx_verilog(
     dslx_top = "WeightCodeBuilder",
     ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":huffman_code_builder_dslx",
-    tags = ["manual"],
     verilog_file = "huffman_code_builder.v",
 )
 
@@ -2995,7 +2956,6 @@ xls_benchmark_ir(
 
 xls_benchmark_verilog(
     name = "huffman_code_builder_verilog_benchmark",
-    tags = ["manual"],
     verilog_target = "huffman_code_builder_verilog",
 )
 
@@ -3063,7 +3023,6 @@ xls_dslx_verilog(
     dslx_top = "HuffmanAxiReaderInst",
     ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":huffman_axi_reader_dslx",
-    tags = ["manual"],
     verilog_file = "huffman_axi_reader.v",
 )
 
@@ -3141,7 +3100,6 @@ xls_dslx_verilog(
     dslx_top = "HuffmanDataPreprocessor",
     ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":huffman_data_preprocessor_dslx",
-    tags = ["manual"],
     verilog_file = "huffman_data_preprocessor.v",
 )
 
@@ -3219,7 +3177,6 @@ xls_dslx_verilog(
     dslx_top = "HuffmanDecoder",
     ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":huffman_decoder_dslx",
-    tags = ["manual"],
     verilog_file = "huffman_decoder.v",
 )
 
@@ -3306,7 +3263,6 @@ xls_dslx_verilog(
     dslx_top = "HuffmanControlAndSequenceInst",
     ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":huffman_ctrl_dslx",
-    tags = ["manual"],
     verilog_file = "huffman_ctrl.v",
 )
 
@@ -3398,7 +3354,6 @@ xls_dslx_verilog(
     opt_ir_args = {
         "top": "__huffman_weights_dec__HuffmanWeightsDecoderInst_0_next",
     },
-    tags = ["manual"],
     verilog_file = "huffman_weights_dec.v",
 )
 
@@ -3466,7 +3421,6 @@ xls_dslx_library(
 xls_dslx_test(
     name = "huffman_literals_dec_dslx_test",
     library = ":huffman_literals_dec_dslx",
-    tags = ["manual"],
 )
 
 HUFFMAN_LITERALS_DEC_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
@@ -3484,7 +3438,6 @@ xls_dslx_verilog(
     dslx_top = "HuffmanLiteralsDecoderInst",
     ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":huffman_literals_dec_dslx",
-    tags = ["manual"],
     verilog_file = "huffman_literals_dec.v",
 )
 
