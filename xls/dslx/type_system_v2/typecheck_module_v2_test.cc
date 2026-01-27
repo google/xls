@@ -7416,6 +7416,56 @@ proc Proc {
                 HasNodeWithType("b", "chan(sN[32], dir=in)[2]"))));
 }
 
+TEST(TypecheckV2Test, ProcWithBranchedFinalExpression) {
+  EXPECT_THAT(
+      R"(
+const A = u32:5;
+proc Proc {
+  input: chan<()> in;
+  output: chan<()> out;
+  config() {
+    const if A == u32:1 {
+      let (first_output, first_input) = chan<()>("first");
+      (first_input, first_output)
+    } else {
+      let (second_output, second_input) = chan<()>("second");
+      (second_input, second_output)
+    }
+  }
+  init { () }
+  next(state: ()) { () }
+}
+
+)",
+      TypecheckSucceeds(
+          AllOf(HasNodeWithType("second_input", "chan((), dir=in)"),
+                HasNodeWithType("second_output", "chan((), dir=out)"))));
+}
+
+TEST(TypecheckV2Test, ProcWithFailedBranchedFinalExpression) {
+  EXPECT_THAT(
+      R"(
+const A = u32:5;
+proc Proc {
+  input: chan<()> in;
+  output: chan<()> out;
+  config() {
+    const if A == u32:5 {
+      let (first_output, first_input) = chan<()>("first");
+      (first_input)
+    } else {
+      let (second_output, second_input) = chan<()>("second");
+      (second_input, second_output)
+    }
+  }
+  init { () }
+  next(state: ()) { () }
+}
+
+)",
+      TypecheckFails(HasTypeMismatch("(chan<()> in, chan<()> out)", "chan<()> in")));
+}
+
 TEST(TypecheckV2Test, ImportParametricFunctionWithDefaultExpression) {
   constexpr std::string_view kImported = R"(
 pub fn some_function<N: u32, M: u32 = {N + 1}>() -> uN[M] { uN[M]:0 }
