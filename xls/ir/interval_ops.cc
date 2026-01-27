@@ -584,7 +584,7 @@ IntervalSet PerformVariadicOp(Calculate calc,
   }
 
   result_intervals.Normalize();
-  return MinimizeIntervals(result_intervals, /*size=*/16);
+  return MinimizeIntervals(result_intervals, /*size=*/kMaxExactCalculations);
 }
 
 template <typename Calculate>
@@ -1090,8 +1090,9 @@ IntervalSet DynamicBitSlice(const IntervalSet& to_slice,
     }
     result.Normalize();
     // Avoid unbounded growth if the union gets too large.
-    if (result.NumberOfIntervals() > 16) {
-      result = MinimizeIntervals(std::move(result), /*size=*/16);
+    if (result.NumberOfIntervals() > kMaxExactCalculations) {
+      result = MinimizeIntervals(std::move(result),
+                                 /*size=*/kMaxExactCalculations);
     }
     return result;
   }
