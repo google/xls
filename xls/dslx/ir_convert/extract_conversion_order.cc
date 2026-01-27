@@ -164,6 +164,15 @@ class InvocationVisitor : public ExprVisitor {
   }
 
   absl::Status HandleFor(const For* expr) override {
+    if (expr->IsConst()) {
+      std::optional<const Expr*> unrolled =
+          type_info_->GetUnrolledLoop(expr, bindings_);
+      if (unrolled.has_value()) {
+        XLS_RETURN_IF_ERROR((*unrolled)->AcceptExpr(this));
+      }
+      return absl::OkStatus();
+    }
+
     XLS_RETURN_IF_ERROR(expr->init()->AcceptExpr(this));
     XLS_RETURN_IF_ERROR(expr->iterable()->AcceptExpr(this));
     return expr->body()->AcceptExpr(this);

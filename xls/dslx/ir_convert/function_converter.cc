@@ -314,14 +314,17 @@ class FunctionConverterVisitor : public AstNodeVisitor {
 
   // Causes all children of "node" to accept this visitor.
   absl::Status VisitChildren(const AstNode* node) {
-    if (const UnrollFor* loop = dynamic_cast<const UnrollFor*>(node); loop) {
+    if (const ForLoopBase* loop = dynamic_cast<const ForLoopBase*>(node)) {
+      if (loop->kind() == AstNodeKind::kFor && !loop->IsConst()) {
+        return absl::OkStatus();
+      }
       std::optional<const Expr*> unrolled_for =
           converter_->GetUnrolledForLoop(loop);
       if (unrolled_for.has_value()) {
         return (*unrolled_for)->Accept(this);
       } else {
         return absl::FailedPreconditionError(
-            absl::StrCat("unroll_for! should have been unrolled by now at: ",
+            absl::StrCat("unroll_for! or const for should have been unrolled by now at: ",
                          loop->span().ToString(converter_->file_table())));
       }
     }
@@ -348,6 +351,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   TRAVERSE_DISPATCH(AllOnesMacro)
   TRAVERSE_DISPATCH(Binop)
   TRAVERSE_DISPATCH(Unop)
+  TRAVERSE_DISPATCH(For)
   TRAVERSE_DISPATCH(UnrollFor)
   TRAVERSE_DISPATCH(XlsTuple)
   TRAVERSE_DISPATCH(ZeroMacro)
@@ -368,7 +372,6 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   NO_TRAVERSE_DISPATCH(ColonRef)
   NO_TRAVERSE_DISPATCH(Conditional)
   NO_TRAVERSE_DISPATCH(ConstantDef)
-  NO_TRAVERSE_DISPATCH(For)
   NO_TRAVERSE_DISPATCH(FormatMacro)
   NO_TRAVERSE_DISPATCH(Index)
   NO_TRAVERSE_DISPATCH(Invocation)
@@ -1738,8 +1741,20 @@ static bool IsRangeExpr(AstNode* node) {
   return false;
 }
 
+absl::Status FunctionConverter::HandleConstFor(const For* node) {
+  std::optional<const Expr*> unrolled_expr = current_type_info_->GetUnrolledLoop(
+      node, ParametricEnv(parametric_env_map_));
+  XLS_RET_CHECK(unrolled_expr.has_value());
+  SetNodeToIr(node, node_to_ir_.at(*unrolled_expr));
+  return absl::OkStatus();
+}
+
 absl::Status FunctionConverter::HandleFor(const For* node) {
   XLS_RETURN_IF_ERROR(Visit(node->init()));
+
+  if (node->IsConst()) {
+    return HandleConstFor(node);
+  }
 
   std::optional<BValue> indexable;
   std::optional<RangeData> range_data;
@@ -3985,7 +4000,7 @@ absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
 }
 
 std::optional<const Expr*> FunctionConverter::GetUnrolledForLoop(
-    const UnrollFor* loop) {
+    const ForLoopBase* loop) {
   return current_type_info_->GetUnrolledLoop(
       loop, ParametricEnv(parametric_env_map_));
 }

@@ -2211,13 +2211,15 @@ std::string StatementBlock::ToStringInternal() const {
 
 ForLoopBase::ForLoopBase(Module* owner, Span span, NameDefTree* names,
                          TypeAnnotation* type_annotation, Expr* iterable,
-                         StatementBlock* body, Expr* init, bool in_parens)
+                         StatementBlock* body, Expr* init, bool is_const,
+                         bool in_parens)
     : Expr(owner, span, in_parens),
       names_(names),
       type_annotation_(type_annotation),
       iterable_(iterable),
       body_(body),
-      init_(init) {}
+      init_(init),
+      is_const_(is_const) {}
 
 std::vector<AstNode*> ForLoopBase::GetChildren(bool want_types) const {
   std::vector<AstNode*> results = {names_};
@@ -2235,7 +2237,8 @@ std::string ForLoopBase::ToStringInternal() const {
   if (type_annotation_ != nullptr) {
     type_str = absl::StrCat(": ", type_annotation_->ToString());
   }
-  return absl::StrFormat("%s %s%s in %s %s(%s)", keyword(), names_->ToString(),
+  std::string const_str = IsConst() ? "const " : "";
+  return absl::StrFormat("%s%s %s%s in %s %s(%s)", const_str, keyword(), names_->ToString(),
                          type_str, iterable_->ToString(), body_->ToString(),
                          init_->ToString());
 }

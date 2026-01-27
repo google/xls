@@ -341,8 +341,8 @@ class Visitor : public AstNodeVisitorWithDefault {
                              /*is_const=*/false);
   }
 
-  absl::Status HandleUnrollFor(const UnrollFor* unroll_for) override {
-    // Unroll for is expanded to a sequence of statements as following.
+  absl::Status UnrollForLoop(const ForLoopBase* for_loop) {
+    // for-loop is expanded to a sequence of statements as following.
     // ```
     // let X = unroll_for! (i, a) in iterable {
     //   body_statements
@@ -363,16 +363,16 @@ class Visitor : public AstNodeVisitorWithDefault {
     // body_statements
     // let X = last_body_expr;
     // ```
-    TypeSystemTrace trace = tracer_.TraceUnroll(unroll_for);
+    TypeSystemTrace trace = tracer_.TraceUnroll(for_loop);
     std::vector<Statement*> unrolled_statements;
 
-    CHECK_EQ(unroll_for->names()->nodes().size(), 2);
-    NameDefTree* iterator_name = unroll_for->names()->nodes()[0];
-    NameDefTree* accumulator_name = unroll_for->names()->nodes()[1];
+    CHECK_EQ(for_loop->names()->nodes().size(), 2);
+    NameDefTree* iterator_name = for_loop->names()->nodes()[0];
+    NameDefTree* accumulator_name = for_loop->names()->nodes()[1];
     TypeAnnotation* iterator_type = nullptr;
     TypeAnnotation* accumulator_type = nullptr;
     std::optional<const TypeAnnotation*> name_type_annotation =
-        table_.GetTypeAnnotation(unroll_for->names());
+        table_.GetTypeAnnotation(for_loop->names());
     if (name_type_annotation.has_value()) {
       // Note that common type checking for ForLoopBase should verify this
       // before it gets here.
@@ -394,7 +394,7 @@ class Visitor : public AstNodeVisitorWithDefault {
         ConstexprEvaluator::EvaluateToValue(
             &import_data_, ti_, &warning_collector_,
             table_.GetParametricEnv(parametric_context_),
-            unroll_for->iterable());
+            for_loop->iterable());
     const std::vector<InterpValue>* iterable_values = nullptr;
     uint64_t size = 0;
     if (const_iterable.ok()) {
@@ -402,8 +402,8 @@ class Visitor : public AstNodeVisitorWithDefault {
       size = iterable_values->size();
     } else {
       absl::StatusOr<uint64_t> size_from_type(TypeMissingErrorStatus(
-          *unroll_for->iterable(), nullptr, file_table_));
-      std::optional<Type*> iterable_type = ti_->GetItem(unroll_for->iterable());
+          *for_loop->iterable(), nullptr, file_table_));
+      std::optional<Type*> iterable_type = ti_->GetItem(for_loop->iterable());
       if (iterable_type.has_value() && (*iterable_type)->IsArray()) {
         InterpValue dim = (*iterable_type)->AsArray().size().value();
         size_from_type = dim.GetBitValueUnsigned();
@@ -412,8 +412,8 @@ class Visitor : public AstNodeVisitorWithDefault {
     }
 
     bool has_result_value = !accumulator_name->IsWildcardLeaf() &&
-                            !unroll_for->body()->trailing_semi();
-    Expr* accumulator_value = unroll_for->init();
+                            !for_loop->body()->trailing_semi();
+    Expr* accumulator_value = for_loop->init();
     for (uint64_t i = 0; i < size; i++) {
       absl::flat_hash_map<const NameDef*, NameDef*> iteration_name_def_mapping;
       if (has_result_value) {
@@ -429,7 +429,7 @@ class Visitor : public AstNodeVisitorWithDefault {
         Let* iterator = nullptr;
         if (iterable_values && (*iterable_values)[i].FitsInUint64()) {
           Number* value =
-              module_.Make<Number>(unroll_for->iterable()->span(),
+              module_.Make<Number>(for_loop->iterable()->span(),
                                    (*iterable_values)[i].ToString(true),
                                    NumberKind::kOther, nullptr);
           XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(value, iterator_type));
@@ -444,18 +444,18 @@ class Visitor : public AstNodeVisitorWithDefault {
                                              iteration_name_def_mapping));
         } else {
           Expr* index = module_.Make<Number>(
-              unroll_for->iterable()->span(), absl::StrCat(i),
+              for_loop->iterable()->span(), absl::StrCat(i),
               NumberKind::kOther,
-              CreateU32Annotation(module_, unroll_for->span()), false);
+              CreateU32Annotation(module_, for_loop->span()), false);
           XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-              index, CreateU32Annotation(module_, unroll_for->span())));
+              index, CreateU32Annotation(module_, for_loop->span())));
           XLS_RETURN_IF_ERROR(converter_.ConvertSubtree(index, std::nullopt,
                                                         parametric_context_));
           XLS_ASSIGN_OR_RETURN(Type * index_type, ti_->GetItemOrError(index));
           ti_->SetItem(index, MetaType(index_type->CloneToUnique()));
           Expr* element =
-              module_.Make<Index>(unroll_for->iterable()->span(),
-                                  unroll_for->iterable(), index, false);
+              module_.Make<Index>(for_loop->iterable()->span(),
+                                  for_loop->iterable(), index, false);
           XLS_ASSIGN_OR_RETURN(
               iterator, ShadowUnrollForInput(iterator_name, element,
                                              iteration_name_def_mapping));
@@ -473,7 +473,7 @@ class Visitor : public AstNodeVisitorWithDefault {
       // from scratch, further below.
       XLS_ASSIGN_OR_RETURN(
           AstNode * copy_body,
-          CloneAst(unroll_for->body(),
+          CloneAst(for_loop->body(),
                    ChainCloneReplacers(
                        &PreserveTypeDefinitionsReplacer,
                        NameRefReplacer(&iteration_name_def_mapping))));
@@ -495,7 +495,7 @@ class Visitor : public AstNodeVisitorWithDefault {
                                    statements.begin(), statements.end());
       }
     }
-    // Handle the final result of unroll_for! expr.
+    // Handle the final result of for-loop expr.
     if (has_result_value) {
       XLS_RETURN_IF_ERROR(
           table_.SetTypeAnnotation(accumulator_value, accumulator_type));
@@ -503,19 +503,19 @@ class Visitor : public AstNodeVisitorWithDefault {
       unrolled_statements.push_back(last);
     }
     StatementBlock* unrolled_statement_block = module_.Make<StatementBlock>(
-        unroll_for->span(), unrolled_statements, !has_result_value);
+        for_loop->span(), unrolled_statements, !has_result_value);
 
-    // This enables us to figure out whether a nested unroll_for! is in a proc.
-    unrolled_statement_block->SetParentNonLexical(unroll_for->parent());
+    // This enables us to figure out whether a nested for-loop is in a proc.
+    unrolled_statement_block->SetParentNonLexical(for_loop->parent());
 
     VLOG(6) << "Unrolled loop: " << unrolled_statement_block->ToString();
     auto populate_visitor = CreatePopulateTableVisitor(
-        unroll_for->owner(), &table_, &import_data_,
+        for_loop->owner(), &table_, &import_data_,
         [](std::unique_ptr<Module>, std::filesystem::path path)
             -> absl::StatusOr<std::unique_ptr<ModuleInfo>> {
           XLS_RET_CHECK_FAIL()
               << "Typecheck for an import should not be triggered while "
-                 "populating an expanded unroll_for! body.";
+                 "populating an expanded for-loop body.";
         });
 
     XLS_RETURN_IF_ERROR(populate_visitor->PopulateFromUnrolledLoopBody(
@@ -530,14 +530,25 @@ class Visitor : public AstNodeVisitorWithDefault {
               std::get<Expr*>(unrolled_statements.back()->wrapped()));
       if (const_result.ok()) {
         trace_.SetResult(*const_result);
-        ti_->NoteConstExpr(unroll_for, *const_result);
+        ti_->NoteConstExpr(for_loop, *const_result);
       }
     }
 
-    ti_->NoteUnrolledLoop(unroll_for,
+    ti_->NoteUnrolledLoop(for_loop,
                           table_.GetParametricEnv(parametric_context_),
                           unrolled_statement_block);
     return absl::OkStatus();
+  }
+
+  absl::Status HandleFor(const For* node) override {
+    if (node->IsConst()) {
+      return UnrollForLoop(node);
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleUnrollFor(const UnrollFor* unroll_for) override {
+    return UnrollForLoop(unroll_for);
   }
 
   absl::Status HandleFormatMacro(const FormatMacro* node) override {

@@ -385,6 +385,13 @@ absl::Status ConstexprEvaluator::HandleColonRef(const ColonRef* expr) {
 }
 
 absl::Status ConstexprEvaluator::HandleFor(const For* expr) {
+  if (expr->IsConst()) {
+    std::optional<const Expr*> unrolled =
+        type_info_->GetUnrolledLoop(expr, bindings_);
+    if (unrolled.has_value()) {
+      return (*unrolled)->AcceptExpr(this);
+    }
+  }
   return absl::OkStatus();
 }
 

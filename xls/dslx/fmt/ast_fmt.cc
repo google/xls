@@ -1018,11 +1018,15 @@ DocRef Fmt(const ColonRef& n, Comments& comments, DocArena& arena) {
 DocRef FmtForLoopBaseLeader(Keyword keyword, DocRef names_ref,
                             const ForLoopBase& n, Comments& comments,
                             DocArena& arena) {
-  std::vector<DocRef> pieces = {
-      arena.Make(keyword),
-      arena.MakeNestIfFlatFits(
-          /*on_nested_flat_ref=*/names_ref,
-          /*on_other_ref=*/arena.MakeConcat(arena.space(), names_ref))};
+  std::vector<DocRef> pieces;
+  if (n.IsConst()) {
+    pieces.push_back(arena.Make(Keyword::kConst));
+    pieces.push_back(arena.space());
+  }
+  pieces.push_back(arena.Make(keyword));
+  pieces.push_back(arena.MakeNestIfFlatFits(
+      /*on_nested_flat_ref=*/names_ref,
+      /*on_other_ref=*/arena.MakeConcat(arena.space(), names_ref)));
 
   if (n.type_annotation() != nullptr) {
     pieces.push_back(arena.colon());

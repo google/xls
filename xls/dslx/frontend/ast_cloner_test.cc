@@ -1712,6 +1712,21 @@ TEST(AstClonerTest, For) {
   EXPECT_EQ(kProgram, clone->ToString());
 }
 
+TEST(AstClonerTest, ConstFor) {
+  constexpr std::string_view kProgram = R"(fn main() -> u32 {
+    const for (i, a): (u32, u32) in range(0, u32:100) {
+        i + a
+    }(u32:0)
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(*module.get()));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
 TEST(AstClonerTest, ForWithoutTypeAnnotations) {
   constexpr std::string_view kProgram = R"(fn main() -> u32 {
     for (i, a) in range(0, u32:100) {

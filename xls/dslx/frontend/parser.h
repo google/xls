@@ -556,6 +556,13 @@ class Parser : public TokenParser {
   // ultimately the loop terminates and the final accum value is returned.
   absl::StatusOr<For*> ParseFor(Bindings& bindings);
 
+  // Parses a const for loop construct; e.g.
+  //
+  //  const for (i, accum) in range(3) {
+  //    accum + i
+  //  }(0)
+  absl::StatusOr<For*> ParseConstFor(Bindings& bindings);
+
   // Parses an "unroll for" macro-like construct, e.g.
   //
   // unroll_for! i in range(u32:, u32:4) {

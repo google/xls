@@ -3967,7 +3967,7 @@ class ForLoopBase : public Expr {
  public:
   ForLoopBase(Module* owner, Span span, NameDefTree* names,
               TypeAnnotation* type, Expr* iterable, StatementBlock* body,
-              Expr* init, bool in_parens = false);
+              Expr* init, bool is_const = false, bool in_parens = false);
 
   // Leader chars are the for loop bindings and iterable.
   bool IsBlockedExprWithLeader() const override { return true; }
@@ -3993,6 +3993,8 @@ class ForLoopBase : public Expr {
     return Precedence::kStrongest;
   }
 
+  bool IsConst() const { return is_const_; }
+
  protected:
   // Used by string conversion to determine the loop keyword for this loop.
   virtual std::string_view keyword() const { return "for"; }
@@ -4005,6 +4007,7 @@ class ForLoopBase : public Expr {
   Expr* iterable_;
   StatementBlock* body_;
   Expr* init_;
+  bool is_const_;
 };
 
 // Represents a for-loop expression.

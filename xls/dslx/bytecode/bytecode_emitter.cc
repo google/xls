@@ -872,6 +872,14 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefInternal(
 }
 
 absl::Status BytecodeEmitter::HandleFor(const For* node) {
+  if (node->IsConst()) {
+    std::optional<const Expr*> unrolled = type_info_->GetUnrolledLoop(
+        node, caller_bindings_.has_value() ? *caller_bindings_ : ParametricEnv());
+    if (unrolled.has_value()) {
+      return (*unrolled)->AcceptExpr(this);
+    }
+  }
+
   // Here's how a `for` loop is implemented, in some sort of pseudocode:
   //  - Initialize iterable & index
   //  - Initialize the accumulator

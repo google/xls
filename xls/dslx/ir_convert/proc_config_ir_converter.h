@@ -93,6 +93,7 @@ class ProcConfigIrConverter : public AstNodeVisitorWithDefault {
   absl::Status HandleParam(const Param* node) override;
   absl::Status HandleSpawn(const Spawn* node) override;
   absl::Status HandleStructInstance(const StructInstance* node) override;
+  absl::Status HandleFor(const For* node) override;
   absl::Status HandleUnrollFor(const UnrollFor* node) override;
   absl::Status HandleXlsTuple(const XlsTuple* node) override;
 
