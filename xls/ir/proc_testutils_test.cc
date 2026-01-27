@@ -87,6 +87,53 @@ TEST_F(UnrollProcTest, BasicProcEquivalence) {
   EXPECT_THAT(TryProveEquivalence(f, converted), IsOkAndHolds(IsProvenTrue()));
 }
 
+TEST_F(UnrollProcTest, BasicProcEquivalenceWithAsserts) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(absl::StrCat(TestName(), "_func"), p.get());
+  ProcBuilder pb(absl::StrCat(TestName(), "_proc"), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto foo_ch, p->CreateStreamingChannel("foo_ch", ChannelOps::kReceiveOnly,
+                                             p->GetBitsType(4)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto ret_ch, p->CreateStreamingChannel("ret_ch", ChannelOps::kSendOnly,
+                                             p->GetBitsType(4)));
+  auto tok = pb.StateElement("tok", Value::Token());
+  auto state = pb.StateElement("cnt", UBits(1, 4));
+  auto recv = pb.Receive(foo_ch, tok);
+  auto nxt_val = pb.Add(state, pb.TupleIndex(recv, 1));
+  auto final_tok = pb.Send(ret_ch, pb.TupleIndex(recv, 0), nxt_val);
+  pb.Assert(pb.Literal(Value::Token()), pb.ULt(state, pb.Literal(UBits(4, 4))),
+            "assert_msg", /*label=*/"my_label");
+  pb.Next(state, nxt_val);
+  pb.Next(tok, final_tok);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  auto read_1 = fb.Param("foo_ch_act0_read", p->GetBitsType(4));
+  auto read_2 = fb.Param("foo_ch_act1_read", p->GetBitsType(4));
+  auto st_1 = fb.Literal(UBits(1, 4));
+  auto ftok = fb.Literal(Value::Token());
+  auto limit = fb.Literal(UBits(4, 4));
+  fb.Assert(ftok, fb.ULt(st_1, limit), "assert_msg",
+            /*label=*/"my_label_act0_assert");
+  auto st_2 = fb.Add(st_1, read_1);
+  fb.Assert(ftok, fb.ULt(st_2, limit), "assert_msg",
+            /*label=*/"my_label_act1_assert");
+  auto st_3 = fb.Add(st_2, read_2);
+
+  fb.Tuple({fb.Tuple({fb.Tuple({fb.Literal(UBits(1, 1)), st_2})}),
+            fb.Tuple({fb.Tuple({fb.Literal(UBits(1, 1)), st_3})})});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * converted,
+      UnrollProcToFunction(proc, 2, /*include_state=*/false));
+
+  RecordProperty("func", f->DumpIr());
+  RecordProperty("proc", proc->DumpIr());
+  RecordProperty("converted", converted->DumpIr());
+  EXPECT_THAT(TryProveEquivalence(f, converted), IsOkAndHolds(IsProvenTrue()));
+}
+
 TEST_F(UnrollProcTest, StateOnlyProcs) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(

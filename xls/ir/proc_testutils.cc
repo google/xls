@@ -92,6 +92,23 @@ class UnrollProcVisitor final : public DfsVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  // Asserts are kept around but the token argument is just dropped.
+  // TODO(allight): Should we handle trace/cover the same way?
+  absl::Status HandleAssert(Assert* n) override {
+    XLS_RETURN_IF_ERROR(fb_.GetError());
+    std::vector<Node*> new_ops{fb_.Literal(Value::Token()).node(),
+                               values_[{n->condition(), activation_}].node()};
+    XLS_ASSIGN_OR_RETURN(Node * new_node,
+                         n->CloneInNewFunction(new_ops, fb_.function()));
+    // Give the assert a new label.
+    if (n->label()) {
+      new_node->As<Assert>()->set_label(absl::StrFormat(
+          "%s_act%d_assert", n->label().value_or(n->GetName()), activation_));
+    }
+    values_[{n, activation_}] = BValue(new_node, &fb_);
+    return absl::OkStatus();
+  }
+
   absl::Status HandleStateRead(StateRead* state_read) override {
     XLS_RETURN_IF_ERROR(fb_.GetError());
     if (state_read->GetType()->IsToken()) {
