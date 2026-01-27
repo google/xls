@@ -1339,8 +1339,9 @@ IntervalSet DynamicBitSlice(const IntervalSet& to_slice,
     }
     result.Normalize();
     // Avoid unbounded growth if the union gets too large.
-    if (result.NumberOfIntervals() > 16) {
-      result = MinimizeIntervals(std::move(result), /*size=*/16);
+    if (result.NumberOfIntervals() > kMaxIntervalSegments) {
+      result = MinimizeIntervals(std::move(result),
+                                 /*size=*/kMaxIntervalSegments);
     }
     return result;
   }
