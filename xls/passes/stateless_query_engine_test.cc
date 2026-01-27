@@ -117,6 +117,31 @@ TEST_F(StatelessQueryEngineTest, OneHotMsb) {
   EXPECT_TRUE(query_engine.ExactlyOneBitTrue(f->return_value()));
 }
 
+TEST_F(StatelessQueryEngineTest, ExactlyOneBitTrueConcatNotXAndX) {
+  Package p("test_package");
+  FunctionBuilder fb("f", &p);
+  BValue x = fb.Param("x", p.GetBitsType(1));
+  BValue selector = fb.Concat({fb.Not(x), x});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(selector));
+  VLOG(3) << f->DumpIr();
+
+  StatelessQueryEngine query_engine;
+  EXPECT_TRUE(query_engine.ExactlyOneBitTrue(f->return_value()));
+}
+
+TEST_F(StatelessQueryEngineTest, ExactlyOneBitTrueConcatEqXZeroAndX) {
+  Package p("test_package");
+  FunctionBuilder fb("f", &p);
+  BValue x = fb.Param("x", p.GetBitsType(1));
+  BValue x_eq_zero = fb.Eq(x, fb.Literal(UBits(0, 1)));
+  BValue selector = fb.Concat({x_eq_zero, x});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(selector));
+  VLOG(3) << f->DumpIr();
+
+  StatelessQueryEngine query_engine;
+  EXPECT_TRUE(query_engine.ExactlyOneBitTrue(f->return_value()));
+}
+
 TEST_F(StatelessQueryEngineTest, ZeroExtend) {
   Package p("test_package");
   FunctionBuilder fb("f", &p);

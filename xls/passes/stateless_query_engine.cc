@@ -262,6 +262,10 @@ bool StatelessQueryEngine::AtMostOneBitTrue(Node* node) const {
   if (node->Is<OneHot>()) {
     return true;
   }
+  // A <=1-bit value can never have more than one bit set.
+  if (node->GetType()->IsBits() && node->BitCountOrDie() <= 1) {
+    return true;
+  }
 
   return QueryEngine::AtMostOneBitTrue(node);
 }
@@ -275,6 +279,49 @@ bool StatelessQueryEngine::AtLeastOneBitTrue(Node* node) const {
 bool StatelessQueryEngine::ExactlyOneBitTrue(Node* node) const {
   if (node->Is<OneHot>()) {
     return true;
+  }
+
+  // Fast pattern matches for selectors which are exactly-one-hot by
+  // construction.
+  //
+  // Note: This is intentionally local/structural reasoning; stateless query
+  // engine does not propagate facts through the graph.
+  if (node->op() == Op::kConcat && node->operand_count() == 2) {
+    Node* msb = node->operand(0);
+    Node* lsb = node->operand(1);
+    auto is_single_bit = [](Node* n) {
+      return n->GetType()->IsBits() && n->BitCountOrDie() == 1;
+    };
+    auto is_not_of = [](Node* n, Node* x) {
+      return n->op() == Op::kNot && n->operand_count() == 1 &&
+             n->operand(0) == x;
+    };
+
+    // concat(not(x), x) or concat(x, not(x)) is exactly-one-hot when x is a
+    // single-bit value.
+    if (is_single_bit(lsb) && is_not_of(msb, lsb)) {
+      return true;
+    }
+    if (is_single_bit(msb) && is_not_of(lsb, msb)) {
+      return true;
+    }
+
+    // OneHot(x) may be rewritten into concat(eq(x, 0), x) (e.g. by select
+    // simplification). This concat is exactly-one-hot when x is mutually
+    // exclusive (at most one bit set).
+    Node* maybe_eq = msb;
+    Node* x = lsb;
+    if (maybe_eq->op() == Op::kEq && maybe_eq->operand_count() == 2) {
+      Node* eq_lhs = maybe_eq->operand(0);
+      Node* eq_rhs = maybe_eq->operand(1);
+      // We only handle the literal-zero comparison in stateless mode.
+      if ((eq_lhs == x && IsAllZeros(eq_rhs)) ||
+          (eq_rhs == x && IsAllZeros(eq_lhs))) {
+        if (AtMostOneBitTrue(x)) {
+          return true;
+        }
+      }
+    }
   }
 
   return QueryEngine::ExactlyOneBitTrue(node);

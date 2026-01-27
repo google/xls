@@ -58,13 +58,14 @@ enum class AnalysisType {
   kTernary,
   kRange,
 };
-std::ostream& operator<<(std::ostream& os, AnalysisType a) {
+[[maybe_unused]] std::ostream& operator<<(std::ostream& os, AnalysisType a) {
   switch (a) {
     case AnalysisType::kTernary:
       return os << "Ternary";
     case AnalysisType::kRange:
       return os << "Range";
   }
+  return os;
 }
 class SelectSimplificationPassTest
     : public IrTestBase,
@@ -161,6 +162,261 @@ TEST_P(SelectSimplificationPassTest, BinaryTuplePrioritySelect) {
                    /*cases=*/
                    {m::TupleIndex(m::Tuple(), 1), m::TupleIndex(m::Tuple(), 1)},
                    /*default_value=*/m::TupleIndex(m::Tuple(), 1))));
+}
+
+TEST_P(SelectSimplificationPassTest,
+       HoistCompareThroughSelectLikeWithMostlyLiteralArms) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue s = fb.Param("s", p->GetBitsType(2));
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue param_p = fb.Param("p", p->GetBitsType(1));
+
+  BValue lit0 = fb.Literal(Value(UBits(0, 8)));
+  BValue lit1 = fb.Literal(Value(UBits(1, 8)));
+  BValue lit2 = fb.Literal(Value(UBits(2, 8)));
+
+  BValue pr = fb.PrioritySelect(s, /*cases=*/{lit1, x}, /*default_value=*/lit2);
+  BValue eq_pr = fb.Eq(pr, lit0);
+
+  BValue se = fb.Select(s, /*cases=*/{lit1, x}, /*default_value=*/lit2);
+  BValue eq_se = fb.Eq(se, lit0);
+
+  // Selector is provably exactly-one-hot: concat(not(p), p).
+  BValue not_p = fb.Not(param_p);
+  BValue oh = fb.Concat({not_p, param_p});
+  BValue ohs = fb.OneHotSelect(oh, /*cases=*/{lit1, x});
+  BValue eq_ohs = fb.Eq(ohs, lit0);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, fb.BuildWithReturnValue(fb.Tuple({eq_pr, eq_se, eq_ohs})));
+  EXPECT_TRUE(f->return_value()->Is<Tuple>());
+
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Tuple(m::PrioritySelect(m::Param("s"),
+                                 {m::Eq(m::Literal(1), m::Literal(0)),
+                                  m::Eq(m::Param("x"), m::Literal(0))},
+                                 m::Eq(m::Literal(2), m::Literal(0))),
+               m::Select(m::Param("s"),
+                         {m::Eq(m::Literal(1), m::Literal(0)),
+                          m::Eq(m::Param("x"), m::Literal(0))},
+                         m::Eq(m::Literal(2), m::Literal(0))),
+               m::OneHotSelect(m::Concat(m::Not(m::Param("p")), m::Param("p")),
+                               {m::Eq(m::Literal(1), m::Literal(0)),
+                                m::Eq(m::Param("x"), m::Literal(0))})));
+}
+
+TEST_P(SelectSimplificationPassTest,
+       HoistOrReduceThroughSelectLikeWithMostlyLiteralArms) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue s = fb.Param("s", p->GetBitsType(2));
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue param_p = fb.Param("p", p->GetBitsType(1));
+
+  BValue lit1 = fb.Literal(Value(UBits(1, 8)));
+  BValue lit2 = fb.Literal(Value(UBits(2, 8)));
+
+  BValue pr = fb.PrioritySelect(s, /*cases=*/{lit1, x}, /*default_value=*/lit2);
+  BValue or_pr = fb.OrReduce(pr);
+
+  BValue se = fb.Select(s, /*cases=*/{lit1, x}, /*default_value=*/lit2);
+  BValue or_se = fb.OrReduce(se);
+
+  // Selector is provably exactly-one-hot: concat(not(p), p).
+  BValue not_p = fb.Not(param_p);
+  BValue oh = fb.Concat({not_p, param_p});
+  BValue ohs = fb.OneHotSelect(oh, /*cases=*/{lit1, x});
+  BValue or_ohs = fb.OrReduce(ohs);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, fb.BuildWithReturnValue(fb.Tuple({or_pr, or_se, or_ohs})));
+  EXPECT_TRUE(f->return_value()->Is<Tuple>());
+
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Tuple(
+          m::PrioritySelect(
+              m::Param("s"),
+              {m::OrReduce(m::Literal(1)), m::OrReduce(m::Param("x"))},
+              m::OrReduce(m::Literal(2))),
+          m::Select(m::Param("s"),
+                    {m::OrReduce(m::Literal(1)), m::OrReduce(m::Param("x"))},
+                    m::OrReduce(m::Literal(2))),
+          m::OneHotSelect(
+              m::Concat(m::Not(m::Param("p")), m::Param("p")),
+              {m::OrReduce(m::Literal(1)), m::OrReduce(m::Param("x"))})));
+}
+
+TEST_P(SelectSimplificationPassTest,
+       HoistAndXorReduceThroughSelectLikeWithMostlyLiteralArms) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue s = fb.Param("s", p->GetBitsType(2));
+  BValue x = fb.Param("x", p->GetBitsType(8));
+
+  BValue lit1 = fb.Literal(Value(UBits(1, 8)));
+  BValue lit2 = fb.Literal(Value(UBits(2, 8)));
+
+  // Keep the single-use profitability guard enabled by giving each select-like
+  // node exactly one use.
+  BValue pr_and =
+      fb.PrioritySelect(s, /*cases=*/{lit1, x}, /*default_value=*/lit2);
+  BValue and_pr = fb.AndReduce(pr_and);
+  BValue pr_xor =
+      fb.PrioritySelect(s, /*cases=*/{lit1, x}, /*default_value=*/lit2);
+  BValue xor_pr = fb.XorReduce(pr_xor);
+
+  BValue se_and = fb.Select(s, /*cases=*/{lit1, x}, /*default_value=*/lit2);
+  BValue and_se = fb.AndReduce(se_and);
+  BValue se_xor = fb.Select(s, /*cases=*/{lit1, x}, /*default_value=*/lit2);
+  BValue xor_se = fb.XorReduce(se_xor);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f,
+      fb.BuildWithReturnValue(fb.Tuple({and_pr, xor_pr, and_se, xor_se})));
+  EXPECT_TRUE(f->return_value()->Is<Tuple>());
+
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Tuple(
+          m::PrioritySelect(
+              m::Param("s"),
+              {m::AndReduce(m::Literal(1)), m::AndReduce(m::Param("x"))},
+              m::AndReduce(m::Literal(2))),
+          m::PrioritySelect(
+              m::Param("s"),
+              {m::XorReduce(m::Literal(1)), m::XorReduce(m::Param("x"))},
+              m::XorReduce(m::Literal(2))),
+          m::Select(m::Param("s"),
+                    {m::AndReduce(m::Literal(1)), m::AndReduce(m::Param("x"))},
+                    m::AndReduce(m::Literal(2))),
+          m::Select(m::Param("s"),
+                    {m::XorReduce(m::Literal(1)), m::XorReduce(m::Param("x"))},
+                    m::XorReduce(m::Literal(2)))));
+}
+
+TEST_P(SelectSimplificationPassTest,
+       HoistNonCommutativeCompareThroughSelectPreservesOrder) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue s = fb.Param("s", p->GetBitsType(2));
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue lit0 = fb.Literal(Value(UBits(0, 8)));
+  BValue lit1 = fb.Literal(Value(UBits(1, 8)));
+  BValue lit2 = fb.Literal(Value(UBits(2, 8)));
+
+  BValue se = fb.Select(s, /*cases=*/{lit1, x}, /*default_value=*/lit2);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.ULt(lit0, se)));
+  EXPECT_TRUE(f->return_value()->Is<CompareOp>());
+
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Select(m::Param("s"),
+                        {m::ULt(m::Literal(0), m::Literal(1)),
+                         m::ULt(m::Literal(0), m::Param("x"))},
+                        m::ULt(m::Literal(0), m::Literal(2))));
+}
+
+TEST_P(SelectSimplificationPassTest,
+       HoistCompareThroughSelectLikeWithAllLiteralArms) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue s = fb.Param("s", p->GetBitsType(2));
+  BValue param_p = fb.Param("p", p->GetBitsType(1));
+
+  BValue lit0 = fb.Literal(Value(UBits(0, 8)));
+  BValue lit1 = fb.Literal(Value(UBits(1, 8)));
+  BValue lit2 = fb.Literal(Value(UBits(2, 8)));
+
+  BValue pr =
+      fb.PrioritySelect(s, /*cases=*/{lit0, lit1}, /*default_value=*/lit2);
+  BValue eq_pr = fb.Eq(pr, lit0);
+
+  BValue se = fb.Select(s, /*cases=*/{lit0, lit1}, /*default_value=*/lit2);
+  BValue eq_se = fb.Eq(se, lit0);
+
+  BValue not_p = fb.Not(param_p);
+  BValue oh = fb.Concat({not_p, param_p});
+  BValue ohs = fb.OneHotSelect(oh, /*cases=*/{lit0, lit1});
+  BValue eq_ohs = fb.Eq(ohs, lit0);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, fb.BuildWithReturnValue(fb.Tuple({eq_pr, eq_se, eq_ohs})));
+  EXPECT_TRUE(f->return_value()->Is<Tuple>());
+
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+
+  // Key invariant: after hoisting, no compare should directly compare a
+  // select-like node (sel/priority_sel/one_hot_sel) against the literal.
+  for (Node* n : f->nodes()) {
+    if (!n->Is<CompareOp>()) {
+      continue;
+    }
+    if (n->operand(0)->OpIn({Op::kPrioritySel, Op::kSel, Op::kOneHotSel}) ||
+        n->operand(1)->OpIn({Op::kPrioritySel, Op::kSel, Op::kOneHotSel})) {
+      // The hoisted compares can still exist (e.g. eq(lit0, lit0)), but the
+      // compare itself should no longer be comparing the select-like result to
+      // the literal.
+      FAIL() << "Unexpected compare of select-like value: " << n->ToString();
+    }
+  }
+}
+
+TEST_P(SelectSimplificationPassTest,
+       CompareThroughSelectLikeWithTwoNonLiteralArmsDoesNotHoist) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue s = fb.Param("s", p->GetBitsType(2));
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  BValue lit0 = fb.Literal(Value(UBits(0, 8)));
+  BValue lit2 = fb.Literal(Value(UBits(2, 8)));
+
+  // Two non-literal arms => profitability guard should block the rewrite.
+  BValue se = fb.Select(s, /*cases=*/{x, y}, /*default_value=*/lit2);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Eq(se, lit0)));
+
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(),
+              m::Eq(m::Select(m::Param("s"),
+                              /*cases=*/{m::Param("x"), m::Param("y")},
+                              /*default_value=*/m::Literal(2)),
+                    m::Literal(0)));
+}
+
+TEST_P(SelectSimplificationPassTest,
+       OrReduceThroughSelectLikeWithTwoNonLiteralArmsDoesNotHoist) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue s = fb.Param("s", p->GetBitsType(2));
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  BValue lit2 = fb.Literal(Value(UBits(2, 8)));
+
+  // Two non-literal arms => profitability guard should block the rewrite.
+  BValue se = fb.Select(s, /*cases=*/{x, y}, /*default_value=*/lit2);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.OrReduce(se)));
+
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(),
+              m::OrReduce(m::Select(m::Param("s"),
+                                    /*cases=*/{m::Param("x"), m::Param("y")},
+                                    /*default_value=*/m::Literal(2))));
 }
 
 TEST_P(SelectSimplificationPassTest, FourWayTupleSelect) {
