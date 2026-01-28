@@ -69,6 +69,10 @@ class Evaluator {
       std::optional<const ParametricContext*> parametric_context,
       TypeInfo* type_info, const TypeAnnotation* type_annotation,
       const Expr* expr) = 0;
+
+  virtual absl::StatusOr<InterpValue> ConstMatchWhichArm(
+      std::optional<const ParametricContext*> parametric_context,
+      TypeInfo* type_info, const Match* match) = 0;
 };
 
 // Creates an evaluator bound to the given dependencies.

@@ -423,6 +423,7 @@ class FunctionConverter {
   absl::Status HandleLet(const Let* node);
   absl::Status HandleLetChannelDecl(const Let* node);
   absl::Status HandleMatch(const Match* node);
+  absl::Status HandleConstMatch(const Match* node);
   absl::Status HandleRange(const Range* node);
   absl::Status HandleSplatStructInstance(const SplatStructInstance* node);
   absl::Status HandleStatement(const Statement* node);
