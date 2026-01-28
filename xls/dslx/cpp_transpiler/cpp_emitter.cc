@@ -14,8 +14,10 @@
 
 #include "xls/dslx/cpp_transpiler/cpp_emitter.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <functional>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
@@ -24,14 +26,17 @@
 #include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/span.h"
 #include "xls/common/case_converters.h"
 #include "xls/common/indent.h"
 #include "xls/common/status/ret_check.h"
@@ -418,6 +423,10 @@ class TypeRefCppEmitter : public CppEmitter {
 // std::array.
 class ArrayCppEmitter : public CppEmitter {
  public:
+  // NOTE: until we implement variable name tracking across generated scopes,
+  // prefixes must be kept unique across all emitters and generators
+  std::string kArrayVarPrefix = "elements";
+
   explicit ArrayCppEmitter(const CppType& cpp_type, std::string_view dslx_type,
                            int64_t array_size,
                            std::unique_ptr<CppEmitter> element_emitter)
@@ -455,6 +464,8 @@ class ArrayCppEmitter : public CppEmitter {
 
   std::string AssignToValue(std::string_view lhs, std::string_view rhs,
                             int64_t nesting) const override {
+    std::string tmp_var_name =
+        UniqueVarName({std::string(rhs)}, kArrayVarPrefix);
     std::string ind_var = absl::StrCat("i", nesting);
 
     std::vector<std::string> loop_body;
@@ -462,16 +473,18 @@ class ArrayCppEmitter : public CppEmitter {
     std::string element_assignment = element_emitter_->AssignToValue(
         "element", absl::StrFormat("%s[%s]", rhs, ind_var), nesting + 1);
     loop_body.push_back(element_assignment);
-    loop_body.push_back("elements.push_back(element);");
+    loop_body.push_back(
+        absl::StrFormat("%s.push_back(element);", tmp_var_name));
 
     std::vector<std::string> pieces;
-    pieces.push_back("std::vector<::xls::Value> elements;");
+    pieces.push_back(
+        absl::StrFormat("std::vector<::xls::Value> %s;", tmp_var_name));
     pieces.push_back(absl::StrFormat("for (int64_t %s = 0; %s < %d; ++%s) {",
                                      ind_var, ind_var, array_size(), ind_var));
     pieces.push_back(Indent(absl::StrJoin(loop_body, "\n"), 2));
     pieces.push_back("}");
-    pieces.push_back(
-        absl::StrFormat("%s = ::xls::Value::ArrayOrDie(elements);", lhs));
+    pieces.push_back(absl::StrFormat("%s = ::xls::Value::ArrayOrDie(%s);", lhs,
+                                     tmp_var_name));
     std::string lines = absl::StrJoin(pieces, "\n");
 
     return absl::StrCat("{\n", Indent(lines, 2), "\n}");
@@ -575,6 +588,10 @@ class ArrayCppEmitter : public CppEmitter {
 // std::tuple.
 class TupleCppEmitter : public CppEmitter {
  public:
+  // NOTE: until we implement variable name tracking across generated scopes,
+  // prefixes must be kept unique across all emitters and generators
+  std::string kTupleVarPrefix = "entries";
+
   explicit TupleCppEmitter(
       const CppType& cpp_type, std::string_view dslx_type,
       std::vector<std::unique_ptr<CppEmitter>> element_emitters)
@@ -606,16 +623,20 @@ class TupleCppEmitter : public CppEmitter {
   std::string AssignToValue(std::string_view lhs, std::string_view rhs,
                             int64_t nesting) const override {
     std::vector<std::string> pieces;
-    pieces.push_back("std::vector<::xls::Value> members;");
-    pieces.push_back(absl::StrFormat("members.resize(%d);", size()));
+    std::vector<std::string> user_defined_names{std::string(rhs)};
+    std::string tmp_var_name =
+        UniqueVarName(user_defined_names, kTupleVarPrefix);
+    pieces.push_back(
+        absl::StrFormat("std::vector<::xls::Value> %s;", tmp_var_name));
+    pieces.push_back(absl::StrFormat("%s.resize(%d);", tmp_var_name, size()));
     for (int64_t i = 0; i < size(); ++i) {
       std::string assignment = element_emitters_[i]->AssignToValue(
-          absl::StrFormat("members[%d]", i),
+          absl::StrFormat("%s[%d]", tmp_var_name, i),
           absl::StrFormat("std::get<%d>(%s)", i, rhs), nesting + 1);
       pieces.push_back(assignment);
     }
     pieces.push_back(
-        absl::StrFormat("%s = ::xls::Value::Tuple(members);", lhs));
+        absl::StrFormat("%s = ::xls::Value::Tuple(%s);", lhs, tmp_var_name));
     return absl::StrFormat("{\n%s\n}", Indent(absl::StrJoin(pieces, "\n"), 2));
   }
 
@@ -803,8 +824,29 @@ std::string SanitizeCppName(std::string_view name) {
   return std::string{name};
 }
 
+std::string PreserveTrimmedCharacter(std::string_view original,
+                                     std::string_view sanitized,
+                                     char c_to_preserve) {
+  bool all_match_so_far = true;
+  auto still_underscore = [&](char c) -> bool {
+    all_match_so_far &= (c == c_to_preserve);
+    return all_match_so_far;
+  };
+  int64_t leading_underscores =
+      std::count_if(original.begin(), original.end(), still_underscore);
+  all_match_so_far = true;
+  int64_t trailing_underscores =
+      std::count_if(original.rbegin(), original.rend(), still_underscore);
+  return absl::StrCat(std::string(leading_underscores, c_to_preserve),
+                      sanitized,
+                      std::string(trailing_underscores, c_to_preserve));
+}
+
 std::string DslxTypeNameToCpp(std::string_view dslx_type) {
-  return SanitizeCppName(Camelize(dslx_type));
+  std::string cpp_name = SanitizeCppName(Camelize(dslx_type));
+  // Retain trimmed underscores to ensure names are unique. This matters for
+  // user defined names only differing by underscores.
+  return PreserveTrimmedCharacter(dslx_type, cpp_name, '_');
 }
 
 std::string DslxModuleNameToCppNamespace(std::string_view dslx_module) {
@@ -854,6 +896,29 @@ std::string DslxModuleNameToCppNamespace(std::string_view dslx_module) {
 
   return absl::InvalidArgumentError(absl::StrCat(
       "Unsupported TypeAnnotation kind: ", type_annotation->ToString()));
+}
+
+std::string UniqueVarName(absl::Span<const std::string> user_names,
+                          std::string_view prefix) {
+  std::string unique_name = std::string(prefix);
+  if (!absl::c_contains(user_names, unique_name)) {
+    return unique_name;
+  }
+  std::vector<std::string> existing_user_names;
+  absl::c_copy_if(user_names, std::back_inserter(existing_user_names),
+                  [prefix](std::string_view name) {
+                    return absl::StartsWith(name, prefix);
+                  });
+  absl::c_sort(existing_user_names);
+  // Appending a character avoids collision with previous names because the
+  // potentially colliding names are sorted. Names [x, x_, x__, ...] will be
+  // caught by subsequent iterations and enough "_" will be appended.
+  for (int64_t i = 0; i < existing_user_names.size(); ++i) {
+    if (existing_user_names[i] == unique_name) {
+      unique_name += "_";
+    }
+  }
+  return unique_name;
 }
 
 }  // namespace xls::dslx

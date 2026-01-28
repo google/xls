@@ -501,21 +501,21 @@ std::string MyFirstTupleToDslxString(const MyFirstTuple& value, int64_t indent) 
 absl::StatusOr<::xls::Value> MyFirstTupleToValue(const MyFirstTuple& input) {
   ::xls::Value value;
   {
-    std::vector<::xls::Value> members;
-    members.resize(6);
+    std::vector<::xls::Value> entries;
+    entries.resize(6);
     if (!FitsInNBitsUnsigned(std::get<0>(input), 7)) {
       return absl::InvalidArgumentError(absl::StrFormat("Unsigned value %#x does not fit in 7 bits", std::get<0>(input)));
     }
-    members[0] = ::xls::Value(::xls::UBits(std::get<0>(input), 7));
+    entries[0] = ::xls::Value(::xls::UBits(std::get<0>(input), 7));
     if (!FitsInNBitsSigned(std::get<1>(input), 8)) {
       return absl::InvalidArgumentError(absl::StrFormat("Signed value %#x does not fit in 8 bits", std::get<1>(input)));
     }
-    members[1] = ::xls::Value(::xls::SBits(std::get<1>(input), 8));
-    XLS_ASSIGN_OR_RETURN(members[2], MyTypeToValue(std::get<2>(input)));
-    XLS_ASSIGN_OR_RETURN(members[3], MySignedTypeToValue(std::get<3>(input)));
-    XLS_ASSIGN_OR_RETURN(members[4], MyArrayType1ToValue(std::get<4>(input)));
-    XLS_ASSIGN_OR_RETURN(members[5], MyArrayType2ToValue(std::get<5>(input)));
-    value = ::xls::Value::Tuple(members);
+    entries[1] = ::xls::Value(::xls::SBits(std::get<1>(input), 8));
+    XLS_ASSIGN_OR_RETURN(entries[2], MyTypeToValue(std::get<2>(input)));
+    XLS_ASSIGN_OR_RETURN(entries[3], MySignedTypeToValue(std::get<3>(input)));
+    XLS_ASSIGN_OR_RETURN(entries[4], MyArrayType1ToValue(std::get<4>(input)));
+    XLS_ASSIGN_OR_RETURN(entries[5], MyArrayType2ToValue(std::get<5>(input)));
+    value = ::xls::Value::Tuple(entries);
   }
   return value;
 }

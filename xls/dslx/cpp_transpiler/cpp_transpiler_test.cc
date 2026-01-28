@@ -179,7 +179,9 @@ struct MyStruct {
   y: u15,
   z: u8,
   w: s63,
-  v: u1,
+  result: u1,
+  result__: u1,
+  result_: u1,
 })";
 
   auto import_data = CreateImportDataForTest();

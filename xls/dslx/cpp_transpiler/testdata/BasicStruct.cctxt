@@ -39,36 +39,44 @@
 namespace my_module {
 
 absl::StatusOr<MyStruct> MyStruct::FromValue(const ::xls::Value& value) {
-  if (!value.IsTuple() || value.size() != 5) {
-    return absl::InvalidArgumentError("Value is not a tuple of 5 elements.");
+  if (!value.IsTuple() || value.size() != 7) {
+    return absl::InvalidArgumentError("Value is not a tuple of 7 elements.");
   }
-  MyStruct result;
+  MyStruct result___;
   if (!value.element(0).IsBits() || value.element(0).bits().bit_count() != 32) {
     return absl::InvalidArgumentError("Value is not a bits type of 32 bits.");
   }
-  result.x = value.element(0).bits().ToUint64().value();
+  result___.x = value.element(0).bits().ToUint64().value();
   if (!value.element(1).IsBits() || value.element(1).bits().bit_count() != 15) {
     return absl::InvalidArgumentError("Value is not a bits type of 15 bits.");
   }
-  result.y = value.element(1).bits().ToUint64().value();
+  result___.y = value.element(1).bits().ToUint64().value();
   if (!value.element(2).IsBits() || value.element(2).bits().bit_count() != 8) {
     return absl::InvalidArgumentError("Value is not a bits type of 8 bits.");
   }
-  result.z = value.element(2).bits().ToUint64().value();
+  result___.z = value.element(2).bits().ToUint64().value();
   if (!value.element(3).IsBits() || value.element(3).bits().bit_count() != 63) {
     return absl::InvalidArgumentError("Value is not a bits type of 63 bits.");
   }
-  result.w = value.element(3).bits().ToInt64().value();
+  result___.w = value.element(3).bits().ToInt64().value();
   if (!value.element(4).IsBits() || value.element(4).bits().bit_count() != 1) {
     return absl::InvalidArgumentError("Value is not a bits type of 1 bits.");
   }
-  result.v = value.element(4).bits().ToUint64().value();
-  return result;
+  result___.result = value.element(4).bits().ToUint64().value();
+  if (!value.element(5).IsBits() || value.element(5).bits().bit_count() != 1) {
+    return absl::InvalidArgumentError("Value is not a bits type of 1 bits.");
+  }
+  result___.result__ = value.element(5).bits().ToUint64().value();
+  if (!value.element(6).IsBits() || value.element(6).bits().bit_count() != 1) {
+    return absl::InvalidArgumentError("Value is not a bits type of 1 bits.");
+  }
+  result___.result_ = value.element(6).bits().ToUint64().value();
+  return result___;
 }
 
 absl::StatusOr<::xls::Value> MyStruct::ToValue() const {
   std::vector<::xls::Value> members;
-  members.resize(5);
+  members.resize(7);
   if (!FitsInNBitsUnsigned(x, 32)) {
     return absl::InvalidArgumentError(absl::StrFormat("Unsigned value %#x does not fit in 32 bits", x));
   }
@@ -85,53 +93,73 @@ absl::StatusOr<::xls::Value> MyStruct::ToValue() const {
     return absl::InvalidArgumentError(absl::StrFormat("Signed value %#x does not fit in 63 bits", w));
   }
   members[3] = ::xls::Value(::xls::SBits(w, 63));
-  if (!FitsInNBitsUnsigned(v, 1)) {
-    return absl::InvalidArgumentError(absl::StrFormat("Unsigned value %#x does not fit in 1 bits", v));
+  if (!FitsInNBitsUnsigned(result, 1)) {
+    return absl::InvalidArgumentError(absl::StrFormat("Unsigned value %#x does not fit in 1 bits", result));
   }
-  members[4] = ::xls::Value(::xls::UBits(v, 1));
+  members[4] = ::xls::Value(::xls::UBits(result, 1));
+  if (!FitsInNBitsUnsigned(result__, 1)) {
+    return absl::InvalidArgumentError(absl::StrFormat("Unsigned value %#x does not fit in 1 bits", result__));
+  }
+  members[5] = ::xls::Value(::xls::UBits(result__, 1));
+  if (!FitsInNBitsUnsigned(result_, 1)) {
+    return absl::InvalidArgumentError(absl::StrFormat("Unsigned value %#x does not fit in 1 bits", result_));
+  }
+  members[6] = ::xls::Value(::xls::UBits(result_, 1));
   return ::xls::Value::Tuple(members);
 }
 
 std::string MyStruct::ToString(int indent) const {
-  std::string result = "MyStruct {\n";
-  result += __indent(indent + 1) + "x: ";
-  result += "bits[32]:" + absl::StrFormat("0x%x", x);
-  result += ",\n";
-  result += __indent(indent + 1) + "y: ";
-  result += "bits[15]:" + absl::StrFormat("0x%x", y);
-  result += ",\n";
-  result += __indent(indent + 1) + "z: ";
-  result += "bits[8]:" + absl::StrFormat("0x%x", z);
-  result += ",\n";
-  result += __indent(indent + 1) + "w: ";
-  result += "bits[63]:" + absl::StrFormat("0x%x", w);
-  result += ",\n";
-  result += __indent(indent + 1) + "v: ";
-  result += "bits[1]:" + absl::StrFormat("0x%x", v);
-  result += ",\n";
-  result += __indent(indent) + "}";
-  return result;
+  std::string result___ = "MyStruct {\n";
+  result___ += __indent(indent + 1) + "x: ";
+  result___ += "bits[32]:" + absl::StrFormat("0x%x", x);
+  result___ += ",\n";
+  result___ += __indent(indent + 1) + "y: ";
+  result___ += "bits[15]:" + absl::StrFormat("0x%x", y);
+  result___ += ",\n";
+  result___ += __indent(indent + 1) + "z: ";
+  result___ += "bits[8]:" + absl::StrFormat("0x%x", z);
+  result___ += ",\n";
+  result___ += __indent(indent + 1) + "w: ";
+  result___ += "bits[63]:" + absl::StrFormat("0x%x", w);
+  result___ += ",\n";
+  result___ += __indent(indent + 1) + "result: ";
+  result___ += "bits[1]:" + absl::StrFormat("0x%x", result);
+  result___ += ",\n";
+  result___ += __indent(indent + 1) + "result__: ";
+  result___ += "bits[1]:" + absl::StrFormat("0x%x", result__);
+  result___ += ",\n";
+  result___ += __indent(indent + 1) + "result_: ";
+  result___ += "bits[1]:" + absl::StrFormat("0x%x", result_);
+  result___ += ",\n";
+  result___ += __indent(indent) + "}";
+  return result___;
 }
 
 std::string MyStruct::ToDslxString(int indent) const {
-  std::string result = "MyStruct {\n";
-  result += __indent(indent + 1) + "x: ";
-  result += "u32:" + absl::StrFormat("0x%x", x);
-  result += ",\n";
-  result += __indent(indent + 1) + "y: ";
-  result += "u15:" + absl::StrFormat("0x%x", y);
-  result += ",\n";
-  result += __indent(indent + 1) + "z: ";
-  result += "u8:" + absl::StrFormat("0x%x", z);
-  result += ",\n";
-  result += __indent(indent + 1) + "w: ";
-  result += "s63:" + absl::StrFormat("%d", w);
-  result += ",\n";
-  result += __indent(indent + 1) + "v: ";
-  result += "u1:" + absl::StrFormat("0x%x", v);
-  result += ",\n";
-  result += __indent(indent) + "}";
-  return result;
+  std::string result___ = "MyStruct {\n";
+  result___ += __indent(indent + 1) + "x: ";
+  result___ += "u32:" + absl::StrFormat("0x%x", x);
+  result___ += ",\n";
+  result___ += __indent(indent + 1) + "y: ";
+  result___ += "u15:" + absl::StrFormat("0x%x", y);
+  result___ += ",\n";
+  result___ += __indent(indent + 1) + "z: ";
+  result___ += "u8:" + absl::StrFormat("0x%x", z);
+  result___ += ",\n";
+  result___ += __indent(indent + 1) + "w: ";
+  result___ += "s63:" + absl::StrFormat("%d", w);
+  result___ += ",\n";
+  result___ += __indent(indent + 1) + "result: ";
+  result___ += "u1:" + absl::StrFormat("0x%x", result);
+  result___ += ",\n";
+  result___ += __indent(indent + 1) + "result__: ";
+  result___ += "u1:" + absl::StrFormat("0x%x", result__);
+  result___ += ",\n";
+  result___ += __indent(indent + 1) + "result_: ";
+  result___ += "u1:" + absl::StrFormat("0x%x", result_);
+  result___ += ",\n";
+  result___ += __indent(indent) + "}";
+  return result___;
 }
 
 absl::Status MyStruct::Verify() const {
@@ -147,14 +175,20 @@ absl::Status MyStruct::Verify() const {
   if (!FitsInNBitsSigned(w, 63)) {
     return absl::InvalidArgumentError(absl::StrCat("MyStruct.w value does not fit in signed 63 bits: ", absl::StrFormat("0x%x", w)));
   }
-  if (!FitsInNBitsUnsigned(v, 1)) {
-    return absl::InvalidArgumentError(absl::StrCat("MyStruct.v value does not fit in 1 bits: ", absl::StrFormat("0x%x", v)));
+  if (!FitsInNBitsUnsigned(result, 1)) {
+    return absl::InvalidArgumentError(absl::StrCat("MyStruct.result value does not fit in 1 bits: ", absl::StrFormat("0x%x", result)));
+  }
+  if (!FitsInNBitsUnsigned(result__, 1)) {
+    return absl::InvalidArgumentError(absl::StrCat("MyStruct.result__ value does not fit in 1 bits: ", absl::StrFormat("0x%x", result__)));
+  }
+  if (!FitsInNBitsUnsigned(result_, 1)) {
+    return absl::InvalidArgumentError(absl::StrCat("MyStruct.result_ value does not fit in 1 bits: ", absl::StrFormat("0x%x", result_)));
   }
   return absl::OkStatus();
 }
 
 bool MyStruct::operator==(const MyStruct& other) const {
-    return x == other.x && y == other.y && z == other.z && w == other.w && v == other.v;
+    return x == other.x && y == other.y && z == other.z && w == other.w && result == other.result && result__ == other.result__ && result_ == other.result_;
 }
 
 std::ostream& operator<<(std::ostream& os, const MyStruct& data) {

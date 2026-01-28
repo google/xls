@@ -23,6 +23,7 @@
 
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/types/span.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/type_info.h"
@@ -39,6 +40,9 @@ std::string DslxTypeNameToCpp(std::string_view dslx_type);
 // Avoids collisions with C++ keywords and well-known namespaces
 // (https://abseil.io/tips/130).
 std::string DslxModuleNameToCppNamespace(std::string_view dslx_module);
+
+std::string UniqueVarName(absl::Span<const std::string> user_names,
+                          std::string_view prefix);
 
 struct CppType {
   std::string name;

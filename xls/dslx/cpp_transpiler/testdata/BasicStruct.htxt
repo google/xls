@@ -18,13 +18,17 @@ struct MyStruct {
   uint16_t y;
   uint8_t z;
   int64_t w;
-  bool v;
+  bool result;
+  bool result__;
+  bool result_;
 
   static constexpr int64_t kXWidth = 32;
   static constexpr int64_t kYWidth = 15;
   static constexpr int64_t kZWidth = 8;
   static constexpr int64_t kWWidth = 63;
-  static constexpr int64_t kVWidth = 1;
+  static constexpr int64_t kResultWidth = 1;
+  static constexpr int64_t kResult__Width = 1;
+  static constexpr int64_t kResult_Width = 1;
 
   static absl::StatusOr<MyStruct> FromValue(const ::xls::Value& value);
   absl::StatusOr<::xls::Value> ToValue() const;

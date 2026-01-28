@@ -28,6 +28,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/indent.h"
 #include "xls/common/status/status_macros.h"
@@ -465,6 +466,11 @@ class TypeAliasCppTypeGenerator : public CppTypeGenerator {
 // A type generator for emitting a C++ struct for representing a DSLX struct.
 class StructCppTypeGenerator : public CppTypeGenerator {
  public:
+  // NOTE: until we implement variable name tracking across generated scopes,
+  // prefixes must be kept unique across all emitters and generators
+  std::string kResultVarPrefix = "result";
+  std::string kListVarPrefix = "members";
+
   explicit StructCppTypeGenerator(
       std::string_view cpp_type, std::string_view dslx_type,
       const StructDef* struct_def,
@@ -558,6 +564,8 @@ class StructCppTypeGenerator : public CppTypeGenerator {
 
  protected:
   CppSource FromValueMethod() const {
+    std::string tmp_var_name =
+        UniqueVarName(cpp_member_names_, kResultVarPrefix);
     std::vector<std::string> pieces;
     pieces.push_back(absl::StrFormat(
         "if (!value.IsTuple() || value.size() != %d) {", struct_def_->size()));
@@ -566,14 +574,14 @@ class StructCppTypeGenerator : public CppTypeGenerator {
                         "tuple of %d elements.\");",
                         struct_def_->size()));
     pieces.push_back("}");
-    pieces.push_back(absl::StrFormat("%s result;", cpp_type()));
+    pieces.push_back(absl::StrFormat("%s %s;", cpp_type(), tmp_var_name));
     for (int i = 0; i < struct_def_->members().size(); i++) {
       std::string assignment = member_emitters_[i]->AssignFromValue(
-          /*lhs=*/absl::StrFormat("result.%s", cpp_member_names_[i]),
+          /*lhs=*/absl::StrFormat("%s.%s", tmp_var_name, cpp_member_names_[i]),
           /*rhs=*/absl::StrFormat("value.element(%d)", i), /*nesting=*/0);
       pieces.push_back(assignment);
     }
-    pieces.push_back("return result;");
+    pieces.push_back(absl::StrFormat("return %s;", tmp_var_name));
     std::string body = absl::StrJoin(pieces, "\n");
 
     return CppSource{
@@ -587,17 +595,20 @@ class StructCppTypeGenerator : public CppTypeGenerator {
   }
 
   CppSource ToValueMethod() const {
+    std::string tmp_var_name = UniqueVarName(cpp_member_names_, kListVarPrefix);
     std::vector<std::string> pieces;
-    pieces.push_back("std::vector<::xls::Value> members;");
     pieces.push_back(
-        absl::StrFormat("members.resize(%d);", struct_def_->members().size()));
+        absl::StrFormat("std::vector<::xls::Value> %s;", tmp_var_name));
+    pieces.push_back(absl::StrFormat("%s.resize(%d);", tmp_var_name,
+                                     struct_def_->members().size()));
     for (int i = 0; i < struct_def_->members().size(); i++) {
       std::string assignment = member_emitters_[i]->AssignToValue(
-          /*lhs=*/absl::StrFormat("members[%d]", i),
+          /*lhs=*/absl::StrFormat("%s[%d]", tmp_var_name, i),
           /*rhs=*/cpp_member_names_[i], /*nesting=*/0);
       pieces.push_back(assignment);
     }
-    pieces.push_back("return ::xls::Value::Tuple(members);");
+    pieces.push_back(
+        absl::StrFormat("return ::xls::Value::Tuple(%s);", tmp_var_name));
     std::string body = absl::StrJoin(pieces, "\n");
 
     return CppSource{
@@ -626,19 +637,21 @@ class StructCppTypeGenerator : public CppTypeGenerator {
   }
 
   CppSource ToStringMethod() const {
+    std::string tmp_var_name =
+        UniqueVarName(cpp_member_names_, kResultVarPrefix);
     std::vector<std::string> pieces;
-    pieces.push_back(
-        absl::StrFormat("std::string result = \"%s {\\n\";", cpp_type()));
+    pieces.push_back(absl::StrFormat("std::string %s = \"%s {\\n\";",
+                                     tmp_var_name, cpp_type()));
     for (int i = 0; i < struct_def_->members().size(); i++) {
-      pieces.push_back(absl::StrFormat(
-          "result += __indent(indent + 1) + \"%s: \";", cpp_member_names_[i]));
+      pieces.push_back(absl::StrFormat("%s += __indent(indent + 1) + \"%s: \";",
+                                       tmp_var_name, cpp_member_names_[i]));
       std::string to_string = member_emitters_[i]->ToString(
-          "result", "indent + 2", cpp_member_names_[i], /*nesting=*/0);
+          tmp_var_name, "indent + 2", cpp_member_names_[i], /*nesting=*/0);
       pieces.push_back(to_string);
-      pieces.push_back("result += \",\\n\";");
+      pieces.push_back(tmp_var_name + " += \",\\n\";");
     }
-    pieces.push_back("result += __indent(indent) + \"}\";");
-    pieces.push_back("return result;");
+    pieces.push_back(tmp_var_name + " += __indent(indent) + \"}\";");
+    pieces.push_back(absl::StrFormat("return %s;", tmp_var_name));
     std::string body = absl::StrJoin(pieces, "\n");
 
     return CppSource{.header = "std::string ToString(int indent = 0) const;",
@@ -648,19 +661,21 @@ class StructCppTypeGenerator : public CppTypeGenerator {
   }
 
   CppSource ToDslxStringMethod() const {
+    std::string tmp_var_name =
+        UniqueVarName(cpp_member_names_, kResultVarPrefix);
     std::vector<std::string> pieces;
-    pieces.push_back(
-        absl::StrFormat("std::string result = \"%s {\\n\";", dslx_type()));
+    pieces.push_back(absl::StrFormat("std::string %s = \"%s {\\n\";",
+                                     tmp_var_name, dslx_type()));
     for (int i = 0; i < struct_def_->members().size(); i++) {
-      pieces.push_back(absl::StrFormat(
-          "result += __indent(indent + 1) + \"%s: \";", cpp_member_names_[i]));
+      pieces.push_back(absl::StrFormat("%s += __indent(indent + 1) + \"%s: \";",
+                                       tmp_var_name, cpp_member_names_[i]));
       std::string to_string = member_emitters_[i]->ToDslxString(
-          "result", "indent + 2", cpp_member_names_[i], /*nesting=*/0);
+          tmp_var_name, "indent + 2", cpp_member_names_[i], /*nesting=*/0);
       pieces.push_back(to_string);
-      pieces.push_back("result += \",\\n\";");
+      pieces.push_back(tmp_var_name + " += \",\\n\";");
     }
-    pieces.push_back("result += __indent(indent) + \"}\";");
-    pieces.push_back("return result;");
+    pieces.push_back(tmp_var_name + " += __indent(indent) + \"}\";");
+    pieces.push_back(absl::StrFormat("return %s;", tmp_var_name));
     std::string body = absl::StrJoin(pieces, "\n");
 
     return CppSource{

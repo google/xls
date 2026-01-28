@@ -67,6 +67,7 @@ cc_library(
         "//xls/dslx/type_system:type_info",
         "//xls/dslx/type_system_v2:import_utils",
         "//xls/dslx/type_system_v2:type_annotation_utils",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
@@ -74,6 +75,7 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -98,6 +100,7 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
         "@com_google_absl//absl/types:variant",
     ],
 )
