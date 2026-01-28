@@ -14,7 +14,6 @@
 
 #include "xls/public/c_api_ir_analysis.h"
 
-#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <utility>
@@ -34,6 +33,7 @@
 #include "xls/ir/type.h"
 #include "xls/passes/bdd_query_engine.h"
 #include "xls/passes/bit_count_query_engine.h"
+#include "xls/passes/context_sensitive_range_query_engine.h"
 #include "xls/passes/partial_info_query_engine.h"
 #include "xls/passes/proc_state_range_query_engine.h"
 #include "xls/passes/query_engine.h"
@@ -108,6 +108,25 @@ absl::StatusOr<std::pair<Bits, Bits>> KnownBitsMaskAndValue(
   return std::make_pair(std::move(mask), std::move(value));
 }
 
+absl::StatusOr<xls::UnionQueryEngine> MakeQueryEngine(
+    xls_ir_analysis_level level) {
+  switch (level) {
+    case xls_ir_analysis_level_fast:
+      return xls::UnionQueryEngine::Of(
+          xls::BddQueryEngine(xls::BddQueryEngine::kDefaultPathLimit),
+          xls::PartialInfoQueryEngine(), xls::ProcStateRangeQueryEngine(),
+          xls::BitCountQueryEngine());
+    case xls_ir_analysis_level_range_with_context:
+      return xls::UnionQueryEngine::Of(
+          xls::BddQueryEngine(xls::BddQueryEngine::kDefaultPathLimit),
+          xls::PartialInfoQueryEngine(), xls::ProcStateRangeQueryEngine(),
+          xls::BitCountQueryEngine(), xls::ContextSensitiveRangeQueryEngine());
+    default:
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Invalid xls_ir_analysis_level value: %d", level));
+  }
+}
+
 }  // namespace
 }  // namespace xls
 
@@ -131,6 +150,13 @@ extern "C" {
 bool xls_ir_analysis_create_from_package(struct xls_package* p,
                                          char** error_out,
                                          struct xls_ir_analysis** out) {
+  return xls_ir_analysis_create_from_package_with_options(
+      p, /*options=*/nullptr, error_out, out);
+}
+
+bool xls_ir_analysis_create_from_package_with_options(
+    struct xls_package* p, const struct xls_ir_analysis_options* options,
+    char** error_out, struct xls_ir_analysis** out) {
   CHECK(p != nullptr);
   CHECK(error_out != nullptr);
   CHECK(out != nullptr);
@@ -148,10 +174,20 @@ bool xls_ir_analysis_create_from_package(struct xls_package* p,
   }
   analysis->top = top_status.value();
 
-  analysis->query_engine = xls::UnionQueryEngine::Of(
-      xls::BddQueryEngine(xls::BddQueryEngine::kDefaultPathLimit),
-      xls::PartialInfoQueryEngine(), xls::ProcStateRangeQueryEngine(),
-      xls::BitCountQueryEngine());
+  xls_ir_analysis_level level = xls_ir_analysis_level_fast;
+  if (options != nullptr) {
+    level = options->level;
+  }
+  absl::StatusOr<xls::UnionQueryEngine> query_engine =
+      xls::MakeQueryEngine(level);
+  if (!query_engine.ok()) {
+    delete analysis;
+    *out = nullptr;
+    *error_out = xls::ToOwnedCString(query_engine.status().ToString());
+    return false;
+  }
+  analysis->query_engine = std::move(query_engine).value();
+
   if (absl::Status st = analysis->query_engine.Populate(analysis->top).status();
       !st.ok()) {
     delete analysis;

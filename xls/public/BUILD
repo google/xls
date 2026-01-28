@@ -285,6 +285,7 @@ cc_library(
         "//xls/ir:type",
         "//xls/passes:bdd_query_engine",
         "//xls/passes:bit_count_query_engine",
+        "//xls/passes:context_sensitive_range_query_engine",
         "//xls/passes:partial_info_query_engine",
         "//xls/passes:proc_state_range_query_engine",
         "//xls/passes:query_engine",

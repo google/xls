@@ -37,6 +37,22 @@ extern "C" {
 struct xls_bits;
 struct xls_package;
 
+// Selects how much work is done to compute ranges.
+//
+// More expensive levels may produce tighter (more precise) ranges.
+typedef int32_t xls_ir_analysis_level;
+enum {
+  // Fast analysis level (default).
+  xls_ir_analysis_level_fast = 0,
+  // Enables context-sensitive range analysis for `sel` nodes.
+  xls_ir_analysis_level_range_with_context = 1,
+};
+
+// Options for creating an IR analysis handle.
+struct xls_ir_analysis_options {
+  xls_ir_analysis_level level;
+};
+
 // Opaque analysis handle. Owns analysis state and (optionally) the IR package.
 struct xls_ir_analysis;
 
@@ -52,6 +68,15 @@ struct xls_interval_set;
 bool xls_ir_analysis_create_from_package(struct xls_package* p,
                                          char** error_out,
                                          struct xls_ir_analysis** out);
+
+// Creates an analysis handle from an existing package with options.
+//
+// Precondition: `p` must have a top function base set.
+//
+// If `options` is null, defaults are used.
+bool xls_ir_analysis_create_from_package_with_options(
+    struct xls_package* p, const struct xls_ir_analysis_options* options,
+    char** error_out, struct xls_ir_analysis** out);
 
 void xls_ir_analysis_free(struct xls_ir_analysis* a);
 

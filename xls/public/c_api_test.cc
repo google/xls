@@ -1969,7 +1969,7 @@ fn main(x: u32) -> u32 {
       &cloned_tm));
   EXPECT_NE(error, nullptr);
   absl::Cleanup free_error([&] { xls_c_str_free(error); });
-  EXPECT_TRUE(std::string_view{error}.find("helper") != std::string::npos);
+  EXPECT_THAT(error, HasSubstr("helper"));
   EXPECT_EQ(cloned_tm, nullptr);
 }
 
@@ -4026,6 +4026,123 @@ top fn f(s: bits[1] id=1) -> bits[8] {
   EXPECT_EQ(std::string_view(hi0_s), "0x0 [8 bits]");
   EXPECT_EQ(std::string_view(lo1_s), "0x2 [8 bits]");
   EXPECT_EQ(std::string_view(hi1_s), "0x2 [8 bits]");
+}
+
+TEST(XlsCApiTest, IrAnalysisOptionsEnableContextSensitiveRange) {
+  const std::string_view kIr = R"(package p
+top fn f(x: bits[4] id=1) -> bits[4] {
+  k: bits[4] = literal(value=2, id=2)
+  p: bits[1] = sgt(x, k, id=3)
+  ret y: bits[4] = sel(p, cases=[k, x], id=4)
+})";
+
+  char* error = nullptr;
+  xls_package* package = nullptr;
+  ASSERT_TRUE(xls_parse_ir_package(std::string(kIr).c_str(), "test.ir", &error,
+                                   &package))
+      << "xls_parse_ir_package error: " << error;
+  ASSERT_EQ(error, nullptr);
+  ASSERT_NE(package, nullptr);
+  absl::Cleanup free_package([&] { xls_package_free(package); });
+
+  // Default analysis (fast).
+  xls_ir_analysis* default_analysis = nullptr;
+  ASSERT_TRUE(
+      xls_ir_analysis_create_from_package(package, &error, &default_analysis))
+      << "xls_ir_analysis_create_from_package error: " << error;
+  ASSERT_EQ(error, nullptr);
+  ASSERT_NE(default_analysis, nullptr);
+  absl::Cleanup free_default_analysis(
+      [&] { xls_ir_analysis_free(default_analysis); });
+
+  // Context-sensitive analysis.
+  xls_ir_analysis* context_analysis = nullptr;
+  xls_ir_analysis_options options;
+  options.level = xls_ir_analysis_level_range_with_context;
+  ASSERT_TRUE(xls_ir_analysis_create_from_package_with_options(
+      package, &options, &error, &context_analysis))
+      << "xls_ir_analysis_create_from_package_with_options error: " << error;
+  ASSERT_EQ(error, nullptr);
+  ASSERT_NE(context_analysis, nullptr);
+  absl::Cleanup free_context_analysis(
+      [&] { xls_ir_analysis_free(context_analysis); });
+
+  // Node id 4 is the clamp select: sel(sgt(x, 2), cases=[2, x]).
+  uint64_t default_lo = 0;
+  uint64_t default_hi = 0;
+  {
+    xls_interval_set* intervals = nullptr;
+    ASSERT_TRUE(xls_ir_analysis_get_intervals_for_node_id(
+        default_analysis, /*node_id=*/4, &error, &intervals))
+        << "xls_ir_analysis_get_intervals_for_node_id error: " << error;
+    ASSERT_EQ(error, nullptr);
+    ASSERT_NE(intervals, nullptr);
+    absl::Cleanup free_intervals([&] { xls_interval_set_free(intervals); });
+
+    ASSERT_EQ(xls_interval_set_get_interval_count(intervals), 1);
+
+    xls_bits* lo = nullptr;
+    xls_bits* hi = nullptr;
+    ASSERT_TRUE(xls_interval_set_get_interval_bounds(intervals, /*i=*/0, &error,
+                                                     &lo, &hi))
+        << "xls_interval_set_get_interval_bounds error: " << error;
+    ASSERT_EQ(error, nullptr);
+    ASSERT_NE(lo, nullptr);
+    ASSERT_NE(hi, nullptr);
+    absl::Cleanup free_bounds([&] {
+      xls_bits_free(lo);
+      xls_bits_free(hi);
+    });
+
+    ASSERT_TRUE(xls_bits_to_uint64(lo, &error, &default_lo))
+        << "xls_bits_to_uint64(lo) error: " << error;
+    ASSERT_EQ(error, nullptr);
+    ASSERT_TRUE(xls_bits_to_uint64(hi, &error, &default_hi))
+        << "xls_bits_to_uint64(hi) error: " << error;
+    ASSERT_EQ(error, nullptr);
+  }
+
+  uint64_t context_lo = 0;
+  uint64_t context_hi = 0;
+  {
+    xls_interval_set* intervals = nullptr;
+    ASSERT_TRUE(xls_ir_analysis_get_intervals_for_node_id(
+        context_analysis, /*node_id=*/4, &error, &intervals))
+        << "xls_ir_analysis_get_intervals_for_node_id error: " << error;
+    ASSERT_EQ(error, nullptr);
+    ASSERT_NE(intervals, nullptr);
+    absl::Cleanup free_intervals([&] { xls_interval_set_free(intervals); });
+
+    ASSERT_EQ(xls_interval_set_get_interval_count(intervals), 1);
+
+    xls_bits* lo = nullptr;
+    xls_bits* hi = nullptr;
+    ASSERT_TRUE(xls_interval_set_get_interval_bounds(intervals, /*i=*/0, &error,
+                                                     &lo, &hi))
+        << "xls_interval_set_get_interval_bounds error: " << error;
+    ASSERT_EQ(error, nullptr);
+    ASSERT_NE(lo, nullptr);
+    ASSERT_NE(hi, nullptr);
+    absl::Cleanup free_bounds([&] {
+      xls_bits_free(lo);
+      xls_bits_free(hi);
+    });
+
+    ASSERT_TRUE(xls_bits_to_uint64(lo, &error, &context_lo))
+        << "xls_bits_to_uint64(lo) error: " << error;
+    ASSERT_EQ(error, nullptr);
+    ASSERT_TRUE(xls_bits_to_uint64(hi, &error, &context_hi))
+        << "xls_bits_to_uint64(hi) error: " << error;
+    ASSERT_EQ(error, nullptr);
+  }
+
+  // The clamp implies the result is always >= 2, and always <= 7.
+  EXPECT_EQ(context_lo, 2);
+  EXPECT_EQ(context_hi, 7);
+
+  // Default analysis is expected to be weaker (at least on the lower bound).
+  EXPECT_LT(default_lo, 2);
+  EXPECT_GE(default_hi, context_hi);
 }
 
 }  // namespace
