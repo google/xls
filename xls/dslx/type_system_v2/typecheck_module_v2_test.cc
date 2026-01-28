@@ -9209,22 +9209,21 @@ const F = Foo { a: C };
                                         HasSpan(8, 19, 8, 20)));
 }
 
-// TODO: erinzmoore - Add `const_assert!` statements to lambda tests once
-// constexpr is supported for lambdas.
 TEST(TypecheckV2Test, LambdaWithExplicitTypes) {
   EXPECT_THAT(R"(
-const M = 0..6;
-
-const ARR = map(M, | i: u16 | -> u16 { 2 * i });
+const M = u16:0..6;
+const ARR = map(M, | i: u16 | -> u16 { u16:2 * i });
+const_assert!(ARR[1] == u16:2);
 )",
-              TypecheckSucceeds(AllOf(HasNodeWithType("M", "uN[3][6]"),
-                                      HasNodeWithType("ARR", "uN[16][6]"))));
+              TypecheckSucceeds(HasNodeWithType("ARR", "uN[16][6]")));
 }
 
 TEST(TypecheckV2Test, LambdaWithImplicitParam) {
   EXPECT_THAT(
       R"(
-const ARR = map(0..6, | i | -> u16 { i });
+const ARR = map(u16:0..6, | i | -> u16 { i });
+const_assert!(ARR[1] == u16:1);
+const_assert!(ARR[5] == u16:5);
 )",
       TypecheckSucceeds(HasNodeWithType("ARR", "uN[16][6]")));
 }
@@ -9233,8 +9232,9 @@ TEST(TypecheckV2Test, LambdaWithMultipleParams) {
   EXPECT_THAT(
       R"(
 fn main() -> u32 {
-  (|i, j| -> u32 {i * j})(2, 4)
+  (|i, j| -> u32 {i * j})(u32:2, u32:4)
 }
+const_assert!(main() == 8);
 )",
       TypecheckSucceeds(HasNodeWithType("main", "() -> uN[32]")));
 }
@@ -9249,13 +9249,15 @@ fn main() -> u32 {
       TypecheckFails(HasSizeMismatch("bool", "u32")));
 }
 
+// TODO: Add `const_assert!` statements once we fully support lambdas with
+// captured variables.
 TEST(TypecheckV2Test, LambdaWithContextCapture) {
   EXPECT_THAT(
       R"(
 fn main() -> u32 {
-  const X = u32:0;
-  let ARR = map(0..5, |i| -> u32 { X * i });
-  ARR[0]
+  const X = u32:8;
+  let ARR = map(u32:0..5, |i| -> u32 { X * i });
+  ARR[4]
 }
 )",
       TypecheckSucceeds(HasNodeWithType("ARR", "uN[32][5]")));
@@ -9272,11 +9274,11 @@ fn main() {
       TypecheckFails(HasSizeMismatch("uN[1]", "uN[32]")));
 }
 
-// TODO: Support lambdas in constant_collector.
-TEST(TypecheckV2Test, DISABLED_LambdaConstEval) {
+// TODO: Fully support lambdas with captured variables.
+TEST(TypecheckV2Test, DISABLED_LambdaGeneratedValueAsType) {
   EXPECT_THAT(R"(
 const X = u32:3;
-const ARR = map(0..5, |i: u32| -> u32 { X * i });
+const ARR = map(u32:0..5, |i: u32| -> u32 { X * i });
 const TEST = uN[ARR[1]]:0;
 )",
               TypecheckSucceeds(AllOf(HasNodeWithType("ARR", "uN[32][5]"),

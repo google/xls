@@ -2596,12 +2596,11 @@ class Function : public AstNode {
 // Example: `let squares = map(range(u32:0, u32:5), |x| { x * x });`
 //
 // Attributes:
-// * params: The explicit parameters of the lambda.
-// * return_type: The return type of the lambda.
-// * body: The body of the lambda.
+// * function: A Function that represents the lambda behavior.
+// * name_ref: A NameRef pointing to the lambda function.
 class Lambda : public Expr {
  public:
-  Lambda(Module* owner, Span span, Function* function);
+  Lambda(Module* owner, Span span, Function* function, NameRef* name_ref);
 
   ~Lambda() override;
 
@@ -2615,9 +2614,9 @@ class Lambda : public Expr {
   std::string_view GetNodeTypeName() const override { return "Lambda"; }
 
   // Lambda is a wrapper around the lambda function. Functions are top-level to
-  // the module, so there are no children here.
+  // the module, so it won't be included as a child.
   std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {};
+    return {name_ref_};
   }
 
   const std::vector<Param*>& params() const { return function_->params(); }
@@ -2626,8 +2625,12 @@ class Lambda : public Expr {
 
   Function* function() const { return function_; }
 
+  NameRef* name_ref() const { return name_ref_; }
+
  private:
   Function* function_;
+
+  NameRef* name_ref_;
 
   std::string ToStringInternal() const final;
 
