@@ -465,8 +465,15 @@ FreeVariables GetFreeVariablesByLambda(
   FreeVariables freevars;
   while (it.HasNext()) {
     const AstNode* n = it.Next();
-    if (n->kind() == AstNodeKind::kNameRef) {
-      const auto* name_ref = down_cast<const NameRef*>(n);
+    if (n->kind() == AstNodeKind::kNameRef ||
+        n->kind() == AstNodeKind::kLambda) {
+      const NameRef* name_ref;
+      if (n->kind() == AstNodeKind::kLambda) {
+        const auto* lambda = down_cast<const Lambda*>(n);
+        name_ref = lambda->name_ref();
+      } else {
+        name_ref = down_cast<const NameRef*>(n);
+      }
       if (consider_free == nullptr || consider_free(*name_ref)) {
         freevars.Add(name_ref->identifier(), name_ref);
       }
@@ -2372,8 +2379,8 @@ TestFunction::~TestFunction() = default;
 
 // -- class Lambda
 
-Lambda::Lambda(Module* owner, Span span, Function* function)
-    : Expr(owner, std::move(span)), function_(function) {}
+Lambda::Lambda(Module* owner, Span span, Function* function, NameRef* name_ref)
+    : Expr(owner, std::move(span)), function_(function), name_ref_(name_ref) {}
 
 Lambda::~Lambda() = default;
 

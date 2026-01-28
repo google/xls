@@ -1405,7 +1405,7 @@ absl::Status BytecodeEmitter::DestructureLet(
 }
 
 absl::Status BytecodeEmitter::HandleLambda(const Lambda* node) {
-  return absl::UnimplementedError("lambdas not yet supported");
+  return node->name_ref()->AcceptExpr(this);
 }
 
 absl::Status BytecodeEmitter::HandleLet(const Let* node) {
