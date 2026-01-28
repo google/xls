@@ -280,14 +280,18 @@ OptimizationContext::GetSourcesSetTreeNodeInfoForFunction(
 
 absl::StatusOr<bool> OptimizationContext::CheckNodeSourcesInSet(
     xls::FunctionBase* in_function, xls::Node* node,
-    absl::flat_hash_set<const xls::Param*> sources_set) {
+    absl::flat_hash_set<const xls::Param*> sources_set,
+    bool allow_empty_sources_result) {
   // Save lazy node analysis for each function for efficiency
   XLS_ASSIGN_OR_RETURN(SourcesSetNodeInfo * info,
                        GetSourcesSetNodeInfoForFunction(in_function));
 
   ParamSet param_sources = info->GetSingleInfoForNode(node);
 
-  // No param sources will return true
+  if (param_sources.empty()) {
+    return allow_empty_sources_result;
+  }
+
   bool all_in_set = true;
   for (const xls::Param* param : param_sources) {
     CHECK_EQ(param->function_base(), in_function);
@@ -2090,10 +2094,14 @@ absl::Status Translator::MarkDirectIns(GeneratedFunction& func,
         continue;
       }
 
+      // Don't count things that don't actually use any direct-ins as direct-in,
+      // for example literals. Allow literal substitution pass to prevent these
+      // from being stored in state elements.
       XLS_ASSIGN_OR_RETURN(
           continuation_out.direct_in,
           context.CheckNodeSourcesInSet(
-              slice.function, continuation_out.output_node, direct_in_sources));
+              slice.function, continuation_out.output_node, direct_in_sources,
+              /*allow_empty_sources_result=*/false));
     }
 
     first_slice = false;

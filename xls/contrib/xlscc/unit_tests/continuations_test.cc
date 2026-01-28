@@ -1060,9 +1060,9 @@ TEST_F(ContinuationsTest, PipelinedLoopBackwardsPropagation) {
 
   EXPECT_EQ(SliceInputsDeclCount(third_slice, "i"), 2);
   EXPECT_EQ(SliceInputsDeclCount(third_slice, "a"), 2);
-  EXPECT_TRUE(SliceInputsDecl(third_slice, "a", /*direct_in=*/true,
+  EXPECT_TRUE(SliceInputsDecl(third_slice, "a", /*direct_in=*/false,
                               /*is_feedback=*/false, /*func=*/func));
-  EXPECT_TRUE(SliceInputsDecl(third_slice, "i", /*direct_in=*/true,
+  EXPECT_TRUE(SliceInputsDecl(third_slice, "i", /*direct_in=*/false,
                               /*is_feedback=*/false, /*func=*/func));
   EXPECT_TRUE(SliceInputsDecl(third_slice, "a", /*direct_in=*/false,
                               /*is_feedback=*/true, /*func=*/func));
@@ -1322,9 +1322,9 @@ TEST_F(ContinuationsTest, PipelinedLoopNothingOutside) {
   ++slice_it;
   const xlscc::GeneratedFunctionSlice& third_slice = *slice_it;
 
-  EXPECT_TRUE(SliceOutputsDecl(first_slice, "a", /*direct_in*/ true));
-  EXPECT_TRUE(SliceOutputsDecl(first_slice, "i", /*direct_in*/ true));
-  EXPECT_TRUE(SliceOutputsDecl(first_slice, "c", /*direct_in*/ true));
+  EXPECT_TRUE(SliceOutputsDecl(first_slice, "a", /*direct_in*/ false));
+  EXPECT_TRUE(SliceOutputsDecl(first_slice, "i", /*direct_in*/ false));
+  EXPECT_TRUE(SliceOutputsDecl(first_slice, "c", /*direct_in*/ false));
 
   EXPECT_FALSE(SliceInputsDecl(second_slice, "i"));
   EXPECT_FALSE(SliceInputsDecl(second_slice, "a"));
@@ -2131,8 +2131,8 @@ TEST_F(ContinuationsTest, PipelinedLoopBackwardsPropagationInSubroutine) {
   const xlscc::GeneratedFunctionSlice& fourth_slice = *slice_it;
 
   EXPECT_TRUE(SliceOutputsDecl(second_slice, "ctrl"));
-  EXPECT_TRUE(SliceOutputsDecl(second_slice, "a", /*direct_in=*/true));
-  EXPECT_TRUE(SliceOutputsDecl(second_slice, "i", /*direct_in=*/true));
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "a", /*direct_in=*/false));
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "i", /*direct_in=*/false));
 
   EXPECT_EQ(SliceInputsDeclCount(third_slice, "i"), 2);
   EXPECT_EQ(SliceInputsDeclCount(third_slice, "a"), 2);
@@ -2420,15 +2420,12 @@ TEST_F(ContinuationsTest, ContinuationLiteralDecomposed) {
   ++slice_it;
   const xlscc::GeneratedFunctionSlice& second_slice = *slice_it;
 
-  // TODO(seanhaskell): Calling literals direct-in is stopped them from being
-  // decomposed. This makes loops less efficient
-
-  EXPECT_TRUE(SliceInputsDecl(second_slice, "x", /*direct_in=*/true,
+  EXPECT_TRUE(SliceInputsDecl(second_slice, "x", /*direct_in=*/false,
                               /*is_feedback=*/false, /*func=*/func,
-                              /*decl_index=*/-1));
+                              /*decl_index=*/0));
   EXPECT_TRUE(SliceInputsDecl(second_slice, "x", /*direct_in=*/false,
                               /*is_feedback=*/true, /*func=*/func,
-                              /*decl_index=*/-1));
+                              /*decl_index=*/0));
 }
 
 TEST_F(ContinuationsTest, StaticThisDecomposed) {

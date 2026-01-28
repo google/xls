@@ -539,6 +539,9 @@ absl::Status NewFSMGenerator::LayoutValuesToSaveForNewFSMStates(
       if (key.value->direct_in) {
         continue;
       }
+      if (key.value->literal.has_value()) {
+        continue;
+      }
       state.values_to_save.insert(key.value);
     }
   }
