@@ -267,6 +267,9 @@ FunctionTypeAnnotation* CreateFunctionTypeAnnotation(Module& module,
   std::vector<const TypeAnnotation*> param_types;
   param_types.reserve(function.params().size());
   for (const Param* param : function.params()) {
+    if (param->IsCaptured()) {
+      continue;
+    }
     param_types.push_back(param->type_annotation());
   }
   return module.Make<FunctionTypeAnnotation>(

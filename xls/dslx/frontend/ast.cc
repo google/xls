@@ -1065,7 +1065,8 @@ Param::Param(Module* owner, NameDef* name_def, TypeAnnotation* type_annotation)
     : AstNode(owner),
       name_def_(name_def),
       type_annotation_(type_annotation),
-      span_(name_def_->span().start(), type_annotation_->span().limit()) {}
+      span_(name_def_->span().start(), type_annotation_->span().limit()),
+      context_node_(nullptr) {}
 
 Param::~Param() = default;
 
@@ -2364,6 +2365,16 @@ std::vector<std::string> Function::GetFreeParametricKeys() const {
     }
   }
   return results;
+}
+
+int Function::GetNumCapturedParams() const {
+  int num_captured_params = 0;
+  for (const Param* param : params_) {
+    if (param->IsCaptured()) {
+      ++num_captured_params;
+    }
+  }
+  return num_captured_params;
 }
 
 // -- class TestFunction

@@ -144,7 +144,8 @@ fn main() -> u32 {
 
 TEST(AstClonerTest, Lambda) {
   constexpr std::string_view kProgram = R"(fn main() -> u32[10] {
-    let ARR = map(range(0, 10), |i: u32| -> u32 { 2 * i });
+    let a = u32:0;
+    let ARR = map(range(0, 10), |i: u32, a: u32| -> u32 { a * i });
     ARR
 })";
 

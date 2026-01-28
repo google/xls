@@ -653,7 +653,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           file_table_);
     }
     const int formal_param_count_without_self =
-        (function->params().size() - (function->IsMethod() ? 1 : 0));
+        (function->params().size() - (function->IsMethod() ? 1 : 0) -
+         function->GetNumCapturedParams());
     if (invocation->args().size() != formal_param_count_without_self) {
       // Note that the eventual unification of the signature would also catch
       // this, but this redundant check ensures that an arg count mismatch error
