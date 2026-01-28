@@ -3156,6 +3156,31 @@ absl::StatusOr<Function*> Parser::ParseProcConfig(
   return config;
 }
 
+absl::StatusOr<Function*> Parser::ParseProcNextExplicitStateAccess(
+    std::vector<Param*> next_params, std::string_view proc_name,
+    std::vector<ParametricBinding*> parametric_bindings, Token oparen,
+    Bindings& inner_bindings, bool is_public) {
+  for (Param* p : next_params) {
+    if (HasChannelElement(p->type_annotation())) {
+      return ParseErrorStatus(p->span(),
+                              "Channels cannot be Proc next params.");
+    }
+  }
+  TypeAnnotation* return_type = module_->Make<TupleTypeAnnotation>(
+      Span(GetPos(), GetPos()), std::vector<TypeAnnotation*>{});
+  XLS_ASSIGN_OR_RETURN(StatementBlock * body,
+                       ParseBlockExpression(inner_bindings));
+  Span span(oparen.span().start(), GetPos());
+  NameDef* name_def =
+      module_->Make<NameDef>(span, absl::StrCat(proc_name, ".next"), nullptr);
+  Function* next = module_->Make<Function>(
+      span, name_def, std::move(parametric_bindings), next_params, return_type,
+      body, FunctionTag::kProcNext, is_public,
+      /*is_stub=*/false);
+  name_def->set_definer(next);
+  return next;
+}
+
 absl::StatusOr<Function*> Parser::ParseProcNext(
     Bindings& bindings, std::vector<ParametricBinding*> parametric_bindings,
     std::string_view proc_name, bool is_public) {
@@ -3176,7 +3201,11 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
 
   XLS_ASSIGN_OR_RETURN(std::vector<Param*> next_params,
                        ParseCommaSeq<Param*>(parse_param, TokenKind::kCParen));
-
+  if (module_->attributes().contains(ModuleAttribute::kExplicitStateAccess)) {
+    return ParseProcNextExplicitStateAccess(next_params, proc_name,
+                                            parametric_bindings, oparen,
+                                            inner_bindings, is_public);
+  }
   if (next_params.size() != 1) {
     std::string next_params_str =
         absl::StrJoin(next_params, ", ", [](std::string* out, const Param* p) {
@@ -3195,15 +3224,9 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
                             "Channels cannot be Proc next params.");
   }
 
-  TypeAnnotation* return_type;
-  if (module_->attributes().contains(ModuleAttribute::kExplicitStateAccess)) {
-    return_type = module_->Make<TupleTypeAnnotation>(
-        state_param->span(), std::vector<TypeAnnotation*>{});
-  } else {
-    XLS_ASSIGN_OR_RETURN(return_type,
-                         CloneNode(state_param->type_annotation(),
-                                   &PreserveTypeDefinitionsReplacer));
-  }
+  XLS_ASSIGN_OR_RETURN(TypeAnnotation * return_type,
+                       CloneNode(state_param->type_annotation(),
+                                 &PreserveTypeDefinitionsReplacer));
   XLS_ASSIGN_OR_RETURN(StatementBlock * body,
                        ParseBlockExpression(inner_bindings));
   Span span(oparen.span().start(), GetPos());
@@ -3522,12 +3545,34 @@ absl::StatusOr<ModuleMember> Parser::ParseProcLike(const Pos& start_pos,
 
   // Just as with proc member decls, we need the init fn to have its own return
   // type, to avoid parent/child relationship violations.
-  XLS_ASSIGN_OR_RETURN(auto* init_return_type,
-                       CloneNode(proc_like_body.next->return_type(),
-                                 &PreserveTypeDefinitionsReplacer));
+  TypeAnnotation* type_to_clone;
+  if (module_->attributes().contains(ModuleAttribute::kExplicitStateAccess)) {
+    if (proc_like_body.next->params().empty()) {
+      type_to_clone = proc_like_body.next->return_type();
+    } else if (proc_like_body.next->params().size() == 1) {
+      type_to_clone = proc_like_body.next->params()[0]->type_annotation();
+    } else {
+      std::vector<TypeAnnotation*> member_types;
+      member_types.reserve(proc_like_body.next->params().size());
+      for (Param* param : proc_like_body.next->params()) {
+        XLS_ASSIGN_OR_RETURN(TypeAnnotation * cloned_type,
+                             CloneNode(param->type_annotation(),
+                                       &PreserveTypeDefinitionsReplacer));
+        member_types.push_back(cloned_type);
+      }
+      Span span(proc_like_body.next->params().front()->span().start(),
+                proc_like_body.next->params().back()->span().limit());
+      type_to_clone = module_->Make<TupleTypeAnnotation>(span, member_types);
+    }
+  } else {
+    type_to_clone = proc_like_body.next->return_type();
+  }
+
+  XLS_ASSIGN_OR_RETURN(
+      TypeAnnotation * init_return_type,
+      CloneNode(type_to_clone, &PreserveTypeDefinitionsReplacer));
   init_return_type->SetParentage();
-  proc_like_body.init->set_return_type(
-      down_cast<TypeAnnotation*>(init_return_type));
+  proc_like_body.init->set_return_type(init_return_type);
   proc_like_body.init->SetParentage();
 
   auto* proc_like = module_->Make<T>(span, body_span, name_def,

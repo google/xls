@@ -3495,6 +3495,47 @@ proc simple {
   EXPECT_EQ(next.return_type()->ToString(), "()");
 }
 
+TEST_F(ParserTest, ExplicitStateAccessProcInitReturnsSameTypeAsSelf) {
+  constexpr std::string_view kProgram = R"(#![feature(explicit_state_access)]
+proc simple {
+    config() {
+        ()
+    }
+    init {
+        u32:0
+    }
+    next(state: u32) {
+    }
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module, Parse(kProgram));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           module->GetMemberOrError<Proc>("simple"));
+  const Function& init = proc->init();
+  ASSERT_NE(init.return_type(), nullptr);
+  EXPECT_EQ(init.return_type()->ToString(), "u32");
+}
+
+TEST_F(ParserTest,
+       ExplicitStateAccessProcInitMultipleStatesReturnsSameTypeAsSelf) {
+  constexpr std::string_view kProgram = R"(#![feature(explicit_state_access)]
+proc simple {
+    config() {
+        ()
+    }
+    init {
+        ((u32:0, u32:1), u32:0)
+    }
+    next(state1: (u32, u32), state2: u32) {
+    }
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module, Parse(kProgram));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           module->GetMemberOrError<Proc>("simple"));
+  const Function& init = proc->init();
+  ASSERT_NE(init.return_type(), nullptr);
+  EXPECT_EQ(init.return_type()->ToString(), "((u32, u32), u32)");
+}
+
 // Verifies that we can walk backwards through a tree. In this case, from the
 // terminal node to the defining expr.
 TEST(ParserBackrefTest, CanFindDefiner) {
