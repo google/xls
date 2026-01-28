@@ -34,6 +34,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/type.h"
 #include "xls/passes/dataflow_visitor.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/query_engine.h"
 
 namespace xls {
@@ -301,6 +302,13 @@ BitProvenanceAnalysis::CreatePrepopulated(FunctionBase* func) {
   XLS_RETURN_IF_ERROR(result.Populate(func));
   return result;
 }
+/* static */ absl::StatusOr<BitProvenanceAnalysis>
+BitProvenanceAnalysis::CreatePrepopulated(FunctionBase* func,
+                                          OptimizationContext& context) {
+  BitProvenanceAnalysis result;
+  XLS_RETURN_IF_ERROR(result.Populate(func, context));
+  return result;
+}
 
 BitProvenanceAnalysis::BitProvenanceAnalysis()
     : visitor_{std::make_unique<internal::BitProvenanceVisitor>()} {}
@@ -318,6 +326,14 @@ BitProvenanceAnalysis& BitProvenanceAnalysis::operator=(
 
 absl::Status BitProvenanceAnalysis::Populate(FunctionBase* func) {
   XLS_RETURN_IF_ERROR(func->Accept(visitor_.get()));
+  return absl::OkStatus();
+}
+absl::Status BitProvenanceAnalysis::Populate(FunctionBase* func,
+                                             OptimizationContext& context) {
+  for (Node* node : context.TopoSort(func)) {
+    XLS_RETURN_IF_ERROR(node->VisitSingleNode(visitor_.get()));
+    visitor_->MarkVisited(node);
+  }
   return absl::OkStatus();
 }
 

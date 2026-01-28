@@ -2258,7 +2258,7 @@ absl::StatusOr<bool> NarrowingPass::RunOnFunctionBaseInternal(
   XLS_ASSIGN_OR_RETURN(AliasingQueryEngine query_engine,
                        GetQueryEngine(f, RealAnalysis(options), context));
 
-  PredicateDominatorAnalysis pda = PredicateDominatorAnalysis::Run(f);
+  PredicateDominatorAnalysis pda = PredicateDominatorAnalysis::Run(f, context);
   SpecializedQueryEngines sqe(RealAnalysis(options), pda, query_engine);
 
   NarrowVisitor narrower(sqe, RealAnalysis(options), options,

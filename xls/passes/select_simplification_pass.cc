@@ -2402,8 +2402,9 @@ absl::StatusOr<bool> SelectSimplificationPassBase::RunOnFunctionBaseInternal(
       UnionQueryEngine::Of(StatelessQueryEngine(), value_engine);
   XLS_RETURN_IF_ERROR(query_engine.Populate(func).status());
 
-  XLS_ASSIGN_OR_RETURN(BitProvenanceAnalysis provenance,
-                       BitProvenanceAnalysis::CreatePrepopulated(func));
+  XLS_ASSIGN_OR_RETURN(
+      BitProvenanceAnalysis provenance,
+      BitProvenanceAnalysis::CreatePrepopulated(func, context));
 
   bool changed = false;
   for (Node* node : context.TopoSort(func)) {
@@ -2421,8 +2422,9 @@ absl::StatusOr<bool> SelectSimplificationPassBase::RunOnFunctionBaseInternal(
     // We need to recalculate provenance and qe if changes happened.
     std::optional<BitProvenanceAnalysis> post_simplify_provenance;
     if (changed) {
-      XLS_ASSIGN_OR_RETURN(post_simplify_provenance,
-                           BitProvenanceAnalysis::CreatePrepopulated(func));
+      XLS_ASSIGN_OR_RETURN(
+          post_simplify_provenance,
+          BitProvenanceAnalysis::CreatePrepopulated(func, context));
     } else {
       post_simplify_provenance = std::move(provenance);
     }

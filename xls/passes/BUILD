@@ -1337,6 +1337,7 @@ cc_library(
     srcs = ["predicate_dominator_analysis.cc"],
     hdrs = ["predicate_dominator_analysis.h"],
     deps = [
+        ":optimization_pass",
         ":predicate_state",
         "//xls/common:strong_int",
         "//xls/ir",
@@ -3193,6 +3194,7 @@ cc_test(
     name = "predicate_dominator_analysis_test",
     srcs = ["predicate_dominator_analysis_test.cc"],
     deps = [
+        ":optimization_pass",
         ":predicate_dominator_analysis",
         ":predicate_state",
         "//xls/common:xls_gunit_main",
@@ -4080,6 +4082,7 @@ cc_library(
     hdrs = ["bit_provenance_analysis.h"],
     deps = [
         ":dataflow_visitor",
+        ":optimization_pass",
         ":query_engine",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",

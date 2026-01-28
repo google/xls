@@ -21,16 +21,24 @@
 #include "xls/common/status/matchers.h"
 #include "xls/ir/benchmark_support.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/predicate_state.h"
 
 namespace xls {
 
 namespace {
-class PredicateDominatorAnalysisTest : public IrTestBase {};
+class PredicateDominatorAnalysisTest : public IrTestBase {
+ public:
+  PredicateDominatorAnalysis RunAnalysis(FunctionBase* f) {
+    OptimizationContext context;
+    return PredicateDominatorAnalysis::Run(f, context);
+  }
+};
 
 TEST_F(PredicateDominatorAnalysisTest, NoPredicates) {
   // No predicates everything goes to base predicate state.
@@ -43,7 +51,7 @@ TEST_F(PredicateDominatorAnalysisTest, NoPredicates) {
   BValue wxyz = fb.Add(fb.Add(w, x), fb.Add(y, z));
 
   XLS_ASSERT_OK_AND_ASSIGN(auto* f, fb.Build());
-  auto analysis = PredicateDominatorAnalysis::Run(f);
+  auto analysis = RunAnalysis(f);
 
   EXPECT_EQ(analysis.GetSingleNearestPredicate(w.node()), PredicateState());
   EXPECT_EQ(analysis.GetSingleNearestPredicate(x.node()), PredicateState());
@@ -85,7 +93,7 @@ TEST_F(PredicateDominatorAnalysisTest, Simple) {
   BValue nwxyz = fb.Not(wxyz);
 
   XLS_ASSERT_OK_AND_ASSIGN(auto* f, fb.Build());
-  auto analysis = PredicateDominatorAnalysis::Run(f);
+  auto analysis = RunAnalysis(f);
 
   auto* select = wxyz.node()->As<Select>();
   // condition
@@ -132,7 +140,7 @@ TEST_F(PredicateDominatorAnalysisTest, ValueInSelectorAndArm) {
   BValue v2 = fb.Select(s, {v1, c});
 
   XLS_ASSERT_OK_AND_ASSIGN(auto* f, fb.Build());
-  auto analysis = PredicateDominatorAnalysis::Run(f);
+  auto analysis = RunAnalysis(f);
 
   auto s_v1 = v1.node()->As<Select>();
   auto s_v2 = v2.node()->As<Select>();
@@ -166,7 +174,7 @@ TEST_F(PredicateDominatorAnalysisTest, ValueInSelectorAndDefaultArm) {
   BValue v2 = fb.Select(s, {v1, c});
 
   XLS_ASSERT_OK_AND_ASSIGN(auto* f, fb.Build());
-  auto analysis = PredicateDominatorAnalysis::Run(f);
+  auto analysis = RunAnalysis(f);
 
   auto s_v1 = v1.node()->As<Select>();
   auto s_v2 = v2.node()->As<Select>();
@@ -205,7 +213,7 @@ TEST_F(PredicateDominatorAnalysisTest, MultipleIndependentSelects) {
   auto s_yz = yz.node()->As<Select>();
 
   XLS_ASSERT_OK_AND_ASSIGN(auto* f, fb.Build());
-  auto analysis = PredicateDominatorAnalysis::Run(f);
+  auto analysis = RunAnalysis(f);
 
   EXPECT_EQ(analysis.GetSingleNearestPredicate(s1.node()), PredicateState());
   EXPECT_EQ(analysis.GetSingleNearestPredicate(s2.node()), PredicateState());
@@ -246,7 +254,7 @@ TEST_F(PredicateDominatorAnalysisTest, NestedSelects) {
   auto* s_wxyz = wxyz.node()->As<Select>();
 
   XLS_ASSERT_OK_AND_ASSIGN(auto* f, fb.Build());
-  auto analysis = PredicateDominatorAnalysis::Run(f);
+  auto analysis = RunAnalysis(f);
 
   EXPECT_EQ(analysis.GetSingleNearestPredicate(s1.node()),
             PredicateState(s_wxy, 0));
@@ -279,7 +287,7 @@ TEST_F(PredicateDominatorAnalysisTest, SimpleCovering) {
   BValue xyx = fb.Add(x, yx);
 
   XLS_ASSERT_OK_AND_ASSIGN(auto* f, fb.Build());
-  auto analysis = PredicateDominatorAnalysis::Run(f);
+  auto analysis = RunAnalysis(f);
 
   auto* select = yx.node()->As<Select>();
   // condition
@@ -316,7 +324,7 @@ TEST_F(PredicateDominatorAnalysisTest, DisjointCovering) {
   auto* s_xyt = xyt.node()->As<Select>();
 
   XLS_ASSERT_OK_AND_ASSIGN(auto* f, fb.Build());
-  auto analysis = PredicateDominatorAnalysis::Run(f);
+  auto analysis = RunAnalysis(f);
 
   EXPECT_EQ(analysis.GetSingleNearestPredicate(s1.node()), PredicateState());
   EXPECT_EQ(analysis.GetSingleNearestPredicate(s2.node()), PredicateState());
@@ -364,7 +372,7 @@ TEST_F(PredicateDominatorAnalysisTest, NestedCovering) {
   auto* s_wxtyzt = wxtyzt.node()->As<Select>();
 
   XLS_ASSERT_OK_AND_ASSIGN(auto* f, fb.Build());
-  auto analysis = PredicateDominatorAnalysis::Run(f);
+  auto analysis = RunAnalysis(f);
 
   EXPECT_EQ(analysis.GetSingleNearestPredicate(s1.node()),
             PredicateState(s_wxty, 0));
@@ -420,7 +428,7 @@ TEST_F(PredicateDominatorAnalysisTest, NestedPartialDisjointCovering) {
   auto* s_xatbt = xatbt.node()->As<Select>();
 
   XLS_ASSERT_OK_AND_ASSIGN(auto* f, fb.Build());
-  auto analysis = PredicateDominatorAnalysis::Run(f);
+  auto analysis = RunAnalysis(f);
 
   EXPECT_EQ(analysis.GetSingleNearestPredicate(s1.node()),
             PredicateState(s_atbt, 0));
@@ -448,6 +456,90 @@ TEST_F(PredicateDominatorAnalysisTest, NestedPartialDisjointCovering) {
 // A balanced tree with all leaf nodes and all selector nodes fully independent
 // of one another. NB They are all Literals. Binary trees with deep predicate
 // chains is the near-worst-case for the analysis performance.
+void BM_NoShareBalancedTreeShareContext(benchmark::State& state) {
+  std::unique_ptr<VerifiedPackage> p =
+      std::make_unique<VerifiedPackage>("balanced_tree_pkg");
+  benchmark_support::strategy::DistinctLiteral selectors(UBits(1, 1));
+  benchmark_support::strategy::DistinctLiteral leaf(UBits(42, 8));
+  benchmark_support::strategy::CaseSelect csts(selectors);
+  XLS_ASSERT_OK_AND_ASSIGN(auto* f, benchmark_support::GenerateBalancedTree(
+                                        p.get(), /*depth=*/state.range(0),
+                                        /*fan_out=*/2, csts, leaf));
+  OptimizationContext context;
+  // Run once outside benchmark loop to warm up context.
+  PredicateDominatorAnalysis::Run(f, context);
+  for (auto _ : state) {
+    auto v = PredicateDominatorAnalysis::Run(f, context);
+    benchmark::DoNotOptimize(v);
+  }
+}
+
+// A balanced tree with all leaf nodes fully independent of
+// one another. All selectors share a single Param node. Binary trees with deep
+// predicate chains is the near-worst-case for the analysis performance.
+void BM_ShareSelectorBalancedTreeShareContext(benchmark::State& state) {
+  std::unique_ptr<VerifiedPackage> p =
+      std::make_unique<VerifiedPackage>("balanced_tree_pkg");
+  benchmark_support::strategy::SharedLiteral selectors(UBits(1, 1));
+  benchmark_support::strategy::DistinctLiteral leaf(UBits(42, 8));
+  benchmark_support::strategy::CaseSelect csts(selectors);
+  XLS_ASSERT_OK_AND_ASSIGN(auto* f, benchmark_support::GenerateBalancedTree(
+                                        p.get(), /*depth=*/state.range(0),
+                                        /*fan_out=*/2, csts, leaf));
+  OptimizationContext context;
+  // Run once outside benchmark loop to warm up context.
+  PredicateDominatorAnalysis::Run(f, context);
+  for (auto _ : state) {
+    auto v = PredicateDominatorAnalysis::Run(f, context);
+    benchmark::DoNotOptimize(v);
+  }
+}
+
+// A balanced tree with all selector nodes fully independent of
+// one another. All leaf nodes share a single Param node. Binary trees with deep
+// predicate chains is the near-worst-case for the analysis performance.
+void BM_ShareReturnBalancedTreeShareContext(benchmark::State& state) {
+  std::unique_ptr<VerifiedPackage> p =
+      std::make_unique<VerifiedPackage>("balanced_tree_pkg");
+  benchmark_support::strategy::DistinctLiteral selectors(UBits(1, 1));
+  benchmark_support::strategy::SharedLiteral leaf(UBits(42, 8));
+  benchmark_support::strategy::CaseSelect csts(selectors);
+  XLS_ASSERT_OK_AND_ASSIGN(auto* f, benchmark_support::GenerateBalancedTree(
+                                        p.get(), /*depth=*/state.range(0),
+                                        /*fan_out=*/2, csts, leaf));
+  OptimizationContext context;
+  // Run once outside benchmark loop to warm up context.
+  PredicateDominatorAnalysis::Run(f, context);
+  for (auto _ : state) {
+    auto v = PredicateDominatorAnalysis::Run(f, context);
+    benchmark::DoNotOptimize(v);
+  }
+}
+
+// A balanced tree with all leaf and selector nodes sharing a param node each.
+// Binary trees with deep predicate chains is the near-worst-case for the
+// analysis performance.
+void BM_ShareAllBalancedTreeShareContext(benchmark::State& state) {
+  std::unique_ptr<VerifiedPackage> p =
+      std::make_unique<VerifiedPackage>("balanced_tree_pkg");
+  benchmark_support::strategy::SharedLiteral selectors(UBits(1, 1));
+  benchmark_support::strategy::SharedLiteral leaf(UBits(42, 8));
+  benchmark_support::strategy::CaseSelect csts(selectors);
+  XLS_ASSERT_OK_AND_ASSIGN(auto* f, benchmark_support::GenerateBalancedTree(
+                                        p.get(), /*depth=*/state.range(0),
+                                        /*fan_out=*/2, csts, leaf));
+  OptimizationContext context;
+  // Run once outside benchmark loop to warm up context.
+  PredicateDominatorAnalysis::Run(f, context);
+  for (auto _ : state) {
+    auto v = PredicateDominatorAnalysis::Run(f, context);
+    benchmark::DoNotOptimize(v);
+  }
+}
+
+// A balanced tree with all leaf nodes and all selector nodes fully independent
+// of one another. NB They are all Literals. Binary trees with deep predicate
+// chains is the near-worst-case for the analysis performance.
 void BM_NoShareBalancedTree(benchmark::State& state) {
   std::unique_ptr<VerifiedPackage> p =
       std::make_unique<VerifiedPackage>("balanced_tree_pkg");
@@ -458,7 +550,8 @@ void BM_NoShareBalancedTree(benchmark::State& state) {
                                         p.get(), /*depth=*/state.range(0),
                                         /*fan_out=*/2, csts, leaf));
   for (auto _ : state) {
-    auto v = PredicateDominatorAnalysis::Run(f);
+    OptimizationContext context;
+    auto v = PredicateDominatorAnalysis::Run(f, context);
     benchmark::DoNotOptimize(v);
   }
 }
@@ -476,7 +569,8 @@ void BM_ShareSelectorBalancedTree(benchmark::State& state) {
                                         p.get(), /*depth=*/state.range(0),
                                         /*fan_out=*/2, csts, leaf));
   for (auto _ : state) {
-    auto v = PredicateDominatorAnalysis::Run(f);
+    OptimizationContext context;
+    auto v = PredicateDominatorAnalysis::Run(f, context);
     benchmark::DoNotOptimize(v);
   }
 }
@@ -494,7 +588,8 @@ void BM_ShareReturnBalancedTree(benchmark::State& state) {
                                         p.get(), /*depth=*/state.range(0),
                                         /*fan_out=*/2, csts, leaf));
   for (auto _ : state) {
-    auto v = PredicateDominatorAnalysis::Run(f);
+    OptimizationContext context;
+    auto v = PredicateDominatorAnalysis::Run(f, context);
     benchmark::DoNotOptimize(v);
   }
 }
@@ -512,11 +607,16 @@ void BM_ShareAllBalancedTree(benchmark::State& state) {
                                         p.get(), /*depth=*/state.range(0),
                                         /*fan_out=*/2, csts, leaf));
   for (auto _ : state) {
-    auto v = PredicateDominatorAnalysis::Run(f);
+    OptimizationContext context;
+    auto v = PredicateDominatorAnalysis::Run(f, context);
     benchmark::DoNotOptimize(v);
   }
 }
 
+BENCHMARK(BM_NoShareBalancedTreeShareContext)->DenseRange(2, 20, 2);
+BENCHMARK(BM_ShareReturnBalancedTreeShareContext)->DenseRange(2, 20, 2);
+BENCHMARK(BM_ShareSelectorBalancedTreeShareContext)->DenseRange(2, 20, 2);
+BENCHMARK(BM_ShareAllBalancedTreeShareContext)->DenseRange(2, 20, 2);
 BENCHMARK(BM_NoShareBalancedTree)->DenseRange(2, 20, 2);
 BENCHMARK(BM_ShareReturnBalancedTree)->DenseRange(2, 20, 2);
 BENCHMARK(BM_ShareSelectorBalancedTree)->DenseRange(2, 20, 2);

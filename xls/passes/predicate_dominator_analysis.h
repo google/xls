@@ -20,6 +20,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/predicate_state.h"
 
 namespace xls {
@@ -38,7 +39,8 @@ class PredicateDominatorAnalysis {
   PredicateDominatorAnalysis& operator=(PredicateDominatorAnalysis&&) = default;
 
   // Execute this analysis and return results.
-  static PredicateDominatorAnalysis Run(FunctionBase* f);
+  static PredicateDominatorAnalysis Run(FunctionBase* f,
+                                        OptimizationContext& context);
 
   // Returns a single element of the common predicate dominators which is
   // closest to the node (ie the last predicate which gates the use of this

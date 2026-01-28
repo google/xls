@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <optional>
 #include <ostream>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -26,7 +27,7 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
-#include "xls/ir/topo_sort.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/predicate_state.h"
 
 namespace xls {
@@ -97,7 +98,8 @@ class AnalysisHelper {
       .previous = kRootPredicateId,
       .distance_to_root = 0};
 
-  explicit AnalysisHelper(FunctionBase* func) : function_(func) {}
+  AnalysisHelper(FunctionBase* func, OptimizationContext& context)
+      : function_(func), context_(context) {}
 
   absl::flat_hash_map<Node*, PredicateState> Analyze() {
     CHECK(node_states_.empty());
@@ -105,7 +107,7 @@ class AnalysisHelper {
     node_states_.reserve(function_->node_count());
     predicate_stacks_.push_back(kRootPredicateStackNode);
     // Run in reverse topo sort order. Handle users before the values they use.
-    for (Node* node : ReverseTopoSort(function_)) {
+    for (Node* node : context_.ReverseTopoSort(function_)) {
       HandleNode(node);
     }
 
@@ -259,6 +261,7 @@ class AnalysisHelper {
 
  private:
   FunctionBase* function_;
+  OptimizationContext& context_;
   // Map of node to the predicate list head they are guarded by.
   absl::flat_hash_map<Node*, PredicateStackId> node_states_;
   // Map from 'PredicateStackId' to the predicate node.
@@ -266,8 +269,9 @@ class AnalysisHelper {
 };
 }  // namespace
 
-PredicateDominatorAnalysis PredicateDominatorAnalysis::Run(FunctionBase* f) {
-  AnalysisHelper helper(f);
+PredicateDominatorAnalysis PredicateDominatorAnalysis::Run(
+    FunctionBase* f, OptimizationContext& context) {
+  AnalysisHelper helper(f, context);
   return PredicateDominatorAnalysis(helper.Analyze());
 }
 

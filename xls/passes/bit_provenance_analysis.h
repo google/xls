@@ -28,6 +28,7 @@
 #include "absl/types/span.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/node.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/query_engine.h"
 
 namespace xls {
@@ -157,6 +158,8 @@ class BitProvenanceAnalysis {
   // invalid if the function is modified.
   static absl::StatusOr<BitProvenanceAnalysis> CreatePrepopulated(
       FunctionBase* func);
+  static absl::StatusOr<BitProvenanceAnalysis> CreatePrepopulated(
+      FunctionBase* func, OptimizationContext& context);
 
   // constructors and destructors need to be declared here and implemented in
   // the .cc file to avoid the compiler inserting constructors and destructors
@@ -170,6 +173,7 @@ class BitProvenanceAnalysis {
   BitProvenanceAnalysis& operator=(BitProvenanceAnalysis&& other);
 
   absl::Status Populate(FunctionBase* func);
+  absl::Status Populate(FunctionBase* func, OptimizationContext& context);
 
   // Get the tree-bit-location which provides the original source of the given
   // bit.
