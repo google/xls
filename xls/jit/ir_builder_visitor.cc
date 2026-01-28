@@ -595,7 +595,7 @@ absl::Status InvokeStringStepCallback(llvm::IRBuilder<>* builder,
                                       const std::string& step_string,
                                       llvm::Value* buffer_ptr,
                                       llvm::Value* instance_ctx) {
-  llvm::Constant* step_constant = builder->CreateGlobalStringPtr(step_string);
+  llvm::Constant* step_constant = builder->CreateGlobalString(step_string);
   InvokeCallback<InstanceContext::kPerformStringStepOffset>(
       builder, llvm::Type::getVoidTy(builder->getContext()), instance_ctx,
       {step_constant, buffer_ptr});
@@ -619,7 +619,7 @@ absl::Status InvokeFormatStepCallback(
   auto proto_str = operand_type->ToProto().SerializeAsString();
   llvm::ConstantInt* proto_len =
       llvm::ConstantInt::get(i64_type, proto_str.size());
-  llvm::Constant* proto_llvm_str = builder->CreateGlobalStringPtr(proto_str);
+  llvm::Constant* proto_llvm_str = builder->CreateGlobalString(proto_str);
   InvokeCallback<InstanceContext::kPerformFormatStepOffset>(
       builder, void_type, instance_ctx,
       {jit_runtime_ptr, proto_llvm_str, proto_len, operand, llvm_format,
@@ -658,7 +658,7 @@ absl::Status InvokeAssertCallback(llvm::IRBuilder<>* builder,
                                   const std::string& message,
                                   llvm::Value* interpreter_events_ptr,
                                   llvm::Value* instance_ctx) {
-  llvm::Constant* msg_constant = builder->CreateGlobalStringPtr(message);
+  llvm::Constant* msg_constant = builder->CreateGlobalString(message);
   llvm::Type* void_type = llvm::Type::getVoidTy(builder->getContext());
 
   InvokeCallback<InstanceContext::kRecordAssertionOffset>(
