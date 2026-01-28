@@ -316,6 +316,7 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
           kDefaultMaxPathCountForEdgeInGeneralVisibilityAnalysis,
       int64_t max_path_count_for_bdd_engine = kDefaultMaxPathCountForBddEngine)
       : OptimizationFunctionBasePass(kName, "Resource Sharing"),
+        profitability_guard_(profitability_guard),
         config_(min_area_savings, max_delay_spread_squared, max_delay_increase,
                 max_delay_increase_per_fold, max_edges_to_handle,
                 max_path_count_for_edge_in_general_visibility_analysis,
