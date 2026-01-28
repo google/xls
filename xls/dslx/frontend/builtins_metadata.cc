@@ -118,6 +118,8 @@ const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins() {
           {"recv_if_non_blocking", {}},
           {"join", {}},
           {"token", {}},
+          {"read", {}},
+          {"write", {}},
       });
 
   return *map;

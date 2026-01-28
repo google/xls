@@ -441,12 +441,84 @@ class CollectUseDef : public AstNodeVisitorWithDefault {
   absl::flat_hash_set<const NameDef*> uses_;
 };
 
+class NextParamStateVisitor : public AstNodeVisitorWithDefault {
+ public:
+  NextParamStateVisitor(StructDef* state_struct_def)
+      : state_struct_def_(state_struct_def) {}
+
+  absl::Status HandleParam(const Param* node) override {
+    if (node->parent() != nullptr &&
+        node->parent()->kind() == AstNodeKind::kFunction) {
+      const Function* fn = down_cast<const Function*>(node->parent());
+      if (fn->tag() == FunctionTag::kProcNext) {
+        // Prevent double-casting State<T> to the param.
+        if (node->type_annotation()->IsAnnotation<TypeRefTypeAnnotation>()) {
+          auto* type_ref_type_annotation =
+              node->type_annotation()->AsAnnotation<TypeRefTypeAnnotation>();
+          if (auto* struct_def = std::get_if<StructDef*>(
+                  &type_ref_type_annotation->type_ref()->type_definition());
+              struct_def != nullptr && *struct_def == state_struct_def_) {
+            return DefaultHandler(node);
+          }
+        }
+        TypeRef* state_typeref =
+            node->owner()->Make<TypeRef>(node->span(), state_struct_def_);
+        std::vector<ExprOrType> parametrics = {node->type_annotation()};
+        TypeRefTypeAnnotation* state_type_annotation =
+            node->owner()->Make<TypeRefTypeAnnotation>(
+                node->span(), state_typeref, parametrics);
+        std::cout << "Setting state type annotation: "
+                  << state_type_annotation->ToString() << "\n";
+        for (const auto& parametric : state_type_annotation->parametrics()) {
+          std::cout << "parametric is: "
+                    << std::visit([](auto* n) { return n->ToString(); },
+                                  parametric)
+                    << "\n";
+        }
+        const_cast<Param*>(node)->set_type_annotation(state_type_annotation);
+      }
+    }
+    return DefaultHandler(node);
+  }
+
+  absl::Status DefaultHandler(const AstNode* node) override {
+    for (auto child : node->GetChildren(false)) {
+      XLS_RETURN_IF_ERROR(child->Accept(this));
+    }
+    return absl::OkStatus();
+  }
+
+ private:
+  StructDef* state_struct_def_;
+};
+
 }  // namespace
 
 absl::Status SemanticsAnalysis::RunPreTypeCheckPass(
     Module& module, WarningCollector& warning_collector,
     ImportData& import_data) {
+  if (module.attributes().contains(ModuleAttribute::kExplicitStateAccess)) {
+    XLS_ASSIGN_OR_RETURN(Module * builtins,
+                         import_data.GetBuiltinStubsModule());
+    XLS_ASSIGN_OR_RETURN(StructDef * state_struct_def,
+                         builtins->GetMemberOrError<StructDef>("State"));
+    NextParamStateVisitor next_param_visitor(state_struct_def);
+    XLS_RETURN_IF_ERROR(module.Accept(&next_param_visitor));
+  }
   PreTypecheckPass pass(warning_collector);
+  // XLS_ASSIGN_OR_RETURN(Module * builtins,
+  // import_data.GetBuiltinStubsModule()); for (const ModuleMember& top :
+  // builtins->top()) {
+  //   if (const auto* func_def = std::get_if<Function*>(&top)) {
+  //     std::cout << "Builtin function: " << (*func_def)->ToString() << "\n";
+  //   }
+  //   if (const auto* struct_def = std::get_if<StructDef*>(&top)) {
+  //     std::cout << "Builtin struct: " << (*struct_def)->ToString() << "\n";
+  //   }
+  //   if (const auto* proc_def = std::get_if<Trait*>(&top)) {
+  //     std::cout << "Builtin Trait: " << (*proc_def)->ToString() << "\n";
+  //   }
+  // }
 
   for (const ModuleMember& top : module.top()) {
     if (const Function* const* func = std::get_if<Function*>(&top)) {

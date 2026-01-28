@@ -2130,6 +2130,10 @@ class Param : public AstNode {
   const std::string& identifier() const { return name_def_->identifier(); }
   std::optional<Span> GetSpan() const override { return span_; }
 
+  void set_type_annotation(TypeAnnotation* type_annotation) {
+    type_annotation_ = type_annotation;
+  }
+
  private:
   NameDef* name_def_;
   TypeAnnotation* type_annotation_;
