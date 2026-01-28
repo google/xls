@@ -59,6 +59,11 @@ absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
   }
 
   InferenceTable* table = import_data->GetOrCreateInferenceTable();
+  XLS_RETURN_IF_ERROR(PopulateBuiltinStubs(import_data, warnings, table));
+  if (semantics_analysis != nullptr) {
+    XLS_RETURN_IF_ERROR(semantics_analysis->RunPreTypeCheckPass(
+        *module, *warnings, *import_data));
+  }
   XLS_ASSIGN_OR_RETURN(TypecheckFlagsProto flags, GetTypecheckFlagsProto());
   std::unique_ptr<TypeSystemTracer> tracer =
       TypeSystemTracer::Create(flags.dump_traces(), flags.time_every_action());
@@ -133,9 +138,14 @@ absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
     }
   }
 
-  return std::make_unique<ModuleInfo>(std::move(module), type_info,
-                                      std::filesystem::path(path),
-                                      std::move(converter));
+  auto module_info = std::make_unique<ModuleInfo>(std::move(module), type_info,
+                                                  std::filesystem::path(path),
+                                                  std::move(converter));
+  if (auto* semantics_analysis =
+          module_info->inference_table_converter()->GetSemanticsAnalysis()) {
+    XLS_RETURN_IF_ERROR(semantics_analysis->RunPostTypeCheckPass(*warnings));
+  }
+  return module_info;
 }
 
 }  // namespace xls::dslx

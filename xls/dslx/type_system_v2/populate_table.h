@@ -24,6 +24,12 @@
 
 namespace xls::dslx {
 
+// Populates the inference table with type variables and annotations for
+// builtins.
+absl::Status PopulateBuiltinStubs(ImportData* import_data,
+                                  WarningCollector* warnings,
+                                  InferenceTable* table);
+
 // Populates the inference table with type variables and annotations.
 absl::Status PopulateTable(InferenceTable* table, Module* module,
                            ImportData* import_data, WarningCollector* warnings,

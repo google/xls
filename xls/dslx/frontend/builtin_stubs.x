@@ -115,3 +115,5 @@ fn zip<LHS_TYPE: type, N: u32, RHS_TYPE: type>(lhs: LHS_TYPE[N], rhs: RHS_TYPE[N
 trait ToBits {
   fn to_bits(self) -> bits[bit_count<Self>()];
 }
+
+struct State<T: type> {}

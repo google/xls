@@ -84,8 +84,6 @@ absl::Status PopulateBuiltinStubs(ImportData* import_data,
 absl::Status PopulateTable(InferenceTable* table, Module* module,
                            ImportData* import_data, WarningCollector* warnings,
                            TypecheckModuleFn typecheck_imported_module) {
-  XLS_RETURN_IF_ERROR(PopulateBuiltinStubs(import_data, warnings, table));
-
   std::unique_ptr<PopulateTableVisitor> visitor = CreatePopulateTableVisitor(
       module, table, import_data, std::move(typecheck_imported_module));
   return visitor->PopulateFromModule(module);
