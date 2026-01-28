@@ -278,6 +278,20 @@ OptimizationContext::GetSourcesSetTreeNodeInfoForFunction(
   return sources_set_tree_node_infos_by_function_.at(in_function).get();
 }
 
+const xls::LeafTypeTree<std::monostate>&
+OptimizationContext::GetBlankTypeTreeForType(xls::Type* type) {
+  std::ostringstream oss;
+  oss << *type;
+  std::string type_proto = oss.str();
+  if (!param_tree_cache_.contains(type_proto)) {
+    param_tree_cache_[type_proto] = xls::LeafTypeTree<std::monostate>(type);
+  }
+  const xls::LeafTypeTree<std::monostate>& ret =
+      param_tree_cache_.at(type_proto);
+  CHECK(ret.type()->IsEqualTo(type));
+  return ret;
+}
+
 absl::StatusOr<bool> OptimizationContext::CheckNodeSourcesInSet(
     xls::FunctionBase* in_function, xls::Node* node,
     absl::flat_hash_set<const xls::Param*> sources_set,
@@ -1270,12 +1284,10 @@ absl::Status RemoveUnusedContinuationInputs(GeneratedFunction& func,
       }
 
       CHECK_EQ(continuation_in.input_node->function_base(), slice.function);
-
       if (return_value_from_params.contains(continuation_in.input_node)) {
         ++cont_in_it;
         continue;
       }
-
       // There may still be uses like forming a tuple, the element of which is
       // never indexed
       XLS_RETURN_IF_ERROR(
@@ -1349,8 +1361,8 @@ FindPassThroughs(GeneratedFunction& func, OptimizationContext& context) {
 
               // Check that param has the same number of elements as
               // continuation_out. This avoids marking slices as pass-throughs.
-              xls::LeafTypeTree<std::monostate> param_tree(
-                  source_node->GetType());
+              const xls::LeafTypeTree<std::monostate>& param_tree =
+                  context.GetBlankTypeTreeForType(source_node->GetType());
               if (param_tree.elements().size() != sources.elements().size()) {
                 disallowed = true;
                 break;
