@@ -118,9 +118,12 @@ class BaseExecutionFuzzer {
     oracle_continuation = FuzzFiles::MakeContinuation(oracle_block);
     test_continuation = FuzzFiles::MakeContinuation(test_block);
 
-    // Validate that test and oracle blocks have the same input and outputs.
-    CHECK_NE(oracle_block->GetRegisters().size(),
-             test_block->GetRegisters().size());
+    if (codegen_flags.codegen_version() !=
+        CodegenVersionProto::CODEGEN_VERSION_ONE_DOT_ZERO) {
+      // Validate that test and oracle blocks have the same input and outputs.
+      CHECK_EQ(oracle_block->GetRegisters().size(),
+               test_block->GetRegisters().size());
+    }
 
     auto filename = GetXlsRunfilePath(kSigFile);
     CHECK_OK(filename.status());
