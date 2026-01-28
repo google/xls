@@ -344,6 +344,14 @@ std::string BinaryDecisionDiagram::ToStringDnf(BddNodeIndex expr,
   return result;
 }
 
+namespace {
+#ifdef NDEBUG
+constexpr bool kDebug = false;
+#else
+constexpr bool kDebug = true;
+#endif
+}  // namespace
+
 absl::StatusOr<std::vector<BddNodeIndex>> BinaryDecisionDiagram::GarbageCollect(
     absl::Span<BddNodeIndex const> roots, double gc_threshold) {
   if (nodes_size_ * gc_threshold < prev_nodes_size_) {
@@ -400,12 +408,12 @@ absl::StatusOr<std::vector<BddNodeIndex>> BinaryDecisionDiagram::GarbageCollect(
     }
   }
   // build a new free-list prefix.
-  for (auto vs : iter::sliding_window(
-           iter::chain(dead, std::vector<BddNodeIndex>{BddNodeIndex(
-                                 free_node_head_.value())}),
-           2)) {
-    BddNodeIndex first = vs[0];
-    BddNodeIndex second = vs[1];
+  // Don't use iter::sliding_window because this is faster.
+  for (int i = 0; i < dead.size(); ++i) {
+    BddNodeIndex first = dead[i];
+    BddNodeIndex second = i + 1 < dead.size()
+                              ? dead[i + 1]
+                              : BddNodeIndex(free_node_head_.value());
     nodes_[first.value()] = FreeListNode(FreeListNode::Index(second.value()));
   }
   free_node_head_ = FreeListNode::Index(dead.front().value());
@@ -439,24 +447,26 @@ absl::StatusOr<std::vector<BddNodeIndex>> BinaryDecisionDiagram::GarbageCollect(
   }
   nodes_size_ = cnt_live;
   prev_nodes_size_ = nodes_size_;
-  auto head = free_node_head_;
-  auto it = dead.begin();
-  InlineBitmap debug_seen(nodes_.size());
-  while (head.value() < nodes_.size() &&
-         head != FreeListNode::kNextIsConsecutive) {
-    CHECK(!debug_seen.Get(head.value()))
-        << " loop in free list at " << head.value();
-    debug_seen.Set(head.value());
-    if (it != dead.end()) {
-      CHECK_EQ(head, FreeListNode::Index(it->value()));
-      ++it;
+  if constexpr (kDebug) {
+    auto head = free_node_head_;
+    auto it = dead.begin();
+    InlineBitmap debug_seen(nodes_.size());
+    while (head.value() < nodes_.size() &&
+           head != FreeListNode::kNextIsConsecutive) {
+      CHECK(!debug_seen.Get(head.value()))
+          << " loop in free list at " << head.value();
+      debug_seen.Set(head.value());
+      if (it != dead.end()) {
+        CHECK_EQ(head, FreeListNode::Index(it->value()));
+        ++it;
+      }
+      CHECK(std::holds_alternative<FreeListNode>(nodes_[head.value()]));
+      auto cur = std::get<FreeListNode>(nodes_[head.value()]);
+      if (cur.raw_next() == FreeListNode::kNextIsConsecutive) {
+        break;
+      }
+      head = cur.next_free(head);
     }
-    CHECK(std::holds_alternative<FreeListNode>(nodes_[head.value()]));
-    auto cur = std::get<FreeListNode>(nodes_[head.value()]);
-    if (cur.raw_next() == FreeListNode::kNextIsConsecutive) {
-      break;
-    }
-    head = cur.next_free(head);
   }
   return std::move(dead);
 }
