@@ -86,6 +86,7 @@ absl::StatusOr<bool> DataflowSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* func, const OptimizationPassOptions& options,
     PassResults* results, OptimizationContext& context) const {
   NodeSourceDataflowVisitor visitor;
+  visitor.ReserveNodes(func->node_count());
   for (Node* node : context.TopoSort(func)) {
     XLS_RETURN_IF_ERROR(node->VisitSingleNode(&visitor));
   }

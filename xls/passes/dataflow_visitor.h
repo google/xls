@@ -84,6 +84,10 @@ namespace xls {
 template <typename LeafT>
 class DataflowVisitor : public DfsVisitorWithDefault {
  public:
+  void ReserveNodes(int64_t count) override {
+    DfsVisitorWithDefault::ReserveNodes(count);
+    map_.reserve(count);
+  }
   absl::Status HandleArray(Array* array) override {
     std::vector<LeafTypeTreeView<LeafT>> elements;
     for (Node* operand : array->operands()) {

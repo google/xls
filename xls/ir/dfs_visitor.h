@@ -30,6 +30,12 @@ class DfsVisitor {
  public:
   virtual ~DfsVisitor() = default;
 
+  // Let the visitor know that 'count' nodes are likely to be visited in the
+  // near future. This is purely advisory to allow the visitor to reserve space
+  // to avoid reallocations. The visitor is free to ignore this hint. The user
+  // is free to call this method or not.
+  virtual void ReserveNodes(int64_t count) { visited_.reserve(count); }
+
   virtual absl::Status HandleAdd(BinOp* add) = 0;
   virtual absl::Status HandleAfterAll(AfterAll* after_all) = 0;
   virtual absl::Status HandleMinDelay(MinDelay* min_delay) = 0;
