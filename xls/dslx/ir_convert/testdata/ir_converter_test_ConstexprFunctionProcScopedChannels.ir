@@ -1,0 +1,32 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn __test_module__const_get() -> bits[32] {
+  ret literal.1: bits[32] = literal(value=3, id=1, pos=[(0,1,30)])
+}
+
+proc __test_module__ParamProc_0__3_next<_value: bits[3] out>(__state: bits[3], init={0}) {
+  chan_interface _value(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  __state: bits[3] = state_read(state_element=__state, id=3)
+  literal.9: bits[3] = literal(value=1, id=9, pos=[(0,8,33)])
+  after_all.7: token = after_all(id=7)
+  literal.4: bits[1] = literal(value=1, id=4)
+  next_state: bits[3] = add(__state, literal.9, id=10, pos=[(0,8,25)])
+  __token: token = literal(value=token, id=2)
+  N: bits[32] = literal(value=3, id=5, pos=[(0,2,15)])
+  tuple.6: () = tuple(id=6, pos=[(0,4,37)])
+  send.8: token = send(after_all.7, __state, predicate=literal.4, channel=_value, id=8)
+  next_value.11: () = next_value(param=__state, value=next_state, id=11)
+}
+
+top proc __test_module__Top_0_next<_resp_s: bits[3] out>(__state: (), init={()}) {
+  chan_interface _resp_s(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  proc_instantiation __test_module__ParamProc_0__3_next_inst(_resp_s, proc=__test_module__ParamProc_0__3_next)
+  __state: () = state_read(state_element=__state, id=13)
+  __token: token = literal(value=token, id=12)
+  literal.14: bits[1] = literal(value=1, id=14)
+  N: bits[32] = literal(value=3, id=15, pos=[(0,15,27)])
+  tuple.16: () = tuple(id=16, pos=[(0,17,8)])
+  next_value.17: () = next_value(param=__state, value=__state, id=17)
+}

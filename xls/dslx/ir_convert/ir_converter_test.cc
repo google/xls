@@ -1628,6 +1628,39 @@ fn f() -> u32 {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, ConstexprFunctionProcScopedChannels) {
+  constexpr std::string_view program =
+      R"(
+const fn const_get() -> u32 { u32:3 }
+proc ParamProc<N: u32> {
+    value: chan<uN[N]> out;
+    config(value: chan<uN[N]> out) { (value,) }
+    init { (uN[N]:0) }
+    next(state: uN[N]) {
+        send(join(), value, state);
+        let next_state = state + uN[N]:1;
+        next_state
+    }
+}
+
+proc Top {
+    config(resp_s: chan<uN[const_get()]> out) {
+        const N = const_get();
+        spawn ParamProc<N>(resp_s);
+        ()
+    }
+    init { () }
+    next(state: ()) { state }
+}
+)";
+
+  ConvertOptions options;
+  options.lower_to_proc_scoped_channels = true;
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(program, "Top", options));
+  ExpectIr(converted);
+}
+
 TEST_F(IrConverterTest, NestedTupleSignature) {
   constexpr std::string_view program =
       R"(
