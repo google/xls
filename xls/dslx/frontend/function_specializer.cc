@@ -346,7 +346,8 @@ absl::StatusOr<Function*> InsertFunctionSpecialization(
       function_span, new_name_def,
       /*parametric_bindings=*/std::vector<ParametricBinding*>{}, new_params,
       new_return_type, new_body, source_function->tag(),
-      source_function->is_public(), source_function->is_test_utility());
+      source_function->is_public(), source_function->is_const(),
+      source_function->is_test_utility());
   new_name_def->set_definer(new_function);
 
   if (source_function->extern_verilog_module().has_value()) {

@@ -48,7 +48,7 @@
 
 // Higher-order macro for all the Expr node leaf types (non-abstract).
 #define XLS_DSLX_EXPR_NODE_EACH(X) \
-  /* keep-sorted start */       \
+  /* keep-sorted start */          \
   X(AllOnesMacro)                  \
   X(Array)                         \
   X(Attr)                          \
@@ -2467,7 +2467,8 @@ class Function : public AstNode {
   Function(Module* owner, Span span, NameDef* name_def,
            std::vector<ParametricBinding*> parametric_bindings,
            std::vector<Param*> params, TypeAnnotation* return_type,
-           StatementBlock* body, FunctionTag tag, bool is_public, bool is_stub);
+           StatementBlock* body, FunctionTag tag, bool is_public, bool is_const,
+           bool is_stub);
 
   ~Function() override;
   AstNodeKind kind() const override { return AstNodeKind::kFunction; }
@@ -2504,6 +2505,7 @@ class Function : public AstNode {
   bool IsParametric() const { return !parametric_bindings_.empty(); }
   bool is_public() const { return is_public_; }
   bool is_test_utility() const { return is_test_utility_; }
+  bool is_const() const { return is_const_; }
   void set_test_utility(bool value) { is_test_utility_ = value; }
   void set_compiler_derived(bool value) { is_compiler_derived_ = value; }
   bool IsMethod() const;
@@ -2581,6 +2583,7 @@ class Function : public AstNode {
   std::optional<Impl*> impl_;
 
   const bool is_public_;
+  const bool is_const_;
   bool is_test_utility_ = false;  // Set by the parser on applying attributes.
   bool is_compiler_derived_ = false;  // Set by type inference upon deriving.
   bool is_stub_;

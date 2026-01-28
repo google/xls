@@ -2246,7 +2246,7 @@ Function::Function(Module* owner, Span span, NameDef* name_def,
                    std::vector<ParametricBinding*> parametric_bindings,
                    std::vector<Param*> params, TypeAnnotation* return_type,
                    StatementBlock* body, FunctionTag tag, bool is_public,
-                   bool is_stub)
+                   bool is_const, bool is_stub)
     : AstNode(owner),
       span_(std::move(span)),
       name_def_(name_def),
@@ -2256,6 +2256,7 @@ Function::Function(Module* owner, Span span, NameDef* name_def,
       body_(body),
       tag_(tag),
       is_public_(is_public),
+      is_const_(is_const),
       is_stub_(is_stub) {
   for (const ParametricBinding* pb : parametric_bindings_) {
     CHECK(parametric_keys_.insert(pb->identifier()).second)
@@ -2330,6 +2331,7 @@ std::string Function::ToString() const {
   }
   std::string pub_str = is_public() && !is_stub_ ? "pub " : "";
   std::string annotation_str;
+  std::string const_str = is_const() ? "const " : "";
 
   if (is_test_utility()) {
     annotation_str = absl::StrFormat("#[%s]\n", kCfgTestAttr);
@@ -2337,9 +2339,10 @@ std::string Function::ToString() const {
     annotation_str = absl::StrFormat("#[extern_verilog(\"%s\")]\n",
                                      extern_verilog_module_->code_template());
   }
-  return absl::StrFormat("%s%sfn %s%s(%s)%s%s", annotation_str, pub_str,
-                         name_def_->ToString(), parametric_str, params_str,
-                         return_type_str, is_stub_ ? ";" : body_->ToString());
+  return absl::StrFormat("%s%s%sfn %s%s(%s)%s%s", annotation_str, pub_str,
+                         const_str, name_def_->ToString(), parametric_str,
+                         params_str, return_type_str,
+                         is_stub_ ? ";" : body_->ToString());
 }
 
 std::string Function::ToUndecoratedString(std::string_view identifier) const {

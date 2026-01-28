@@ -233,7 +233,7 @@ TEST(AstTest, GetFuncParam) {
 
   Function* f = m.Make<Function>(fake_span, func_name_def, parametric_bindings,
                                  params, u32_type_annotation, block,
-                                 FunctionTag::kNormal, false, false);
+                                 FunctionTag::kNormal, false, false, false);
 
   XLS_ASSERT_OK_AND_ASSIGN(Param * found_param, f->GetParamByName("p"));
   EXPECT_EQ(found_param, params[0]);
