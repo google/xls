@@ -963,9 +963,9 @@ TEST_F(ParserTest, ParseIdentityFunction) {
   Scanner s{file_table_, Fileno(0), std::string{text}};
   Parser p{"test", &s};
   Bindings bindings;
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           p.ParseFunction(Pos(), /*is_public=*/false,
-                                           /*bindings=*/bindings));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, p.ParseFunction(Pos(), /*is_public=*/false,
+                                    /*is_const=*/false, /*bindings=*/bindings));
 
   StatementBlock* block = f->body();
   ASSERT_TRUE(block != nullptr);
@@ -1731,9 +1731,9 @@ TEST_F(ParserTest, ConcatFunction) {
   Scanner s{file_table_, Fileno(0), std::string{text}};
   Parser p{"test", &s};
   Bindings bindings;
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           p.ParseFunction(Pos(), /*is_public=*/false,
-                                           /*bindings=*/bindings));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, p.ParseFunction(Pos(), /*is_public=*/false,
+                                    /*is_const=*/false, /*bindings=*/bindings));
   EXPECT_EQ(f->params().size(), 2);
 
   StatementBlock* block = f->body();
@@ -1765,9 +1765,9 @@ fn concat(
   Scanner s{file_table_, Fileno(0), std::string{text}};
   Parser p{"test", &s};
   Bindings bindings;
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           p.ParseFunction(Pos(), /*is_public=*/false,
-                                           /*bindings=*/bindings));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, p.ParseFunction(Pos(), /*is_public=*/false,
+                                    /*is_const=*/false, /*bindings=*/bindings));
   EXPECT_EQ(f->params().size(), 2);
 }
 
@@ -1780,9 +1780,9 @@ fn f(x: u32) -> u8 {
   Scanner s{file_table_, Fileno(0), std::string{text}};
   Parser p{"test", &s};
   Bindings bindings;
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           p.ParseFunction(Pos(), /*is_public=*/false,
-                                           /*bindings=*/bindings));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, p.ParseFunction(Pos(), /*is_public=*/false,
+                                    /*is_const=*/false, /*bindings=*/bindings));
 
   StatementBlock* block = f->body();
   absl::Span<Statement* const> stmts = block->statements();
@@ -1807,9 +1807,9 @@ TEST_F(ParserTest, LocalConstBinding) {
   Scanner s{file_table_, Fileno(0), std::string{text}};
   Parser p{"test", &s};
   Bindings bindings;
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           p.ParseFunction(Pos(), /*is_public=*/false,
-                                           /*bindings=*/bindings));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, p.ParseFunction(Pos(), /*is_public=*/false,
+                                    /*is_const=*/false, /*bindings=*/bindings));
   StatementBlock* body = f->body();
   absl::Span<Statement* const> stmts = body->statements();
   ASSERT_EQ(stmts.size(), 2);
@@ -3131,7 +3131,7 @@ fn f() -> u8 {
   Scanner s(file_table_, Fileno(0), std::string(text));
   Parser p("test", &s);
   Bindings bindings;
-  XLS_ASSERT_OK(p.ParseFunction(Pos(), /*is_public=*/false,
+  XLS_ASSERT_OK(p.ParseFunction(Pos(), /*is_public=*/false, /*is_const=*/false,
                                 /*bindings=*/bindings));
 }
 
@@ -3145,7 +3145,7 @@ fn f() -> u8 {
   Scanner s(file_table_, Fileno(0), std::string(text));
   Parser p("test", &s);
   Bindings bindings;
-  XLS_ASSERT_OK(p.ParseFunction(Pos(), /*is_public=*/false,
+  XLS_ASSERT_OK(p.ParseFunction(Pos(), /*is_public=*/false, /*is_const=*/false,
                                 /*bindings=*/bindings));
 }
 
@@ -3159,9 +3159,8 @@ fn f() -> u8 {
   Scanner s(file_table_, Fileno(0), std::string(text));
   Parser p("test", &s);
   Bindings bindings;
-  absl::StatusOr<Function*> function =
-      p.ParseFunction(Pos(), /*is_public=*/false,
-                      /*bindings=*/bindings);
+  absl::StatusOr<Function*> function = p.ParseFunction(
+      Pos(), /*is_public=*/false, /*is_const=*/false, /*bindings=*/bindings);
   EXPECT_THAT(function.status(),
               IsPosError("ParseError",
                          HasSubstr("Expected ':', got ',': Expect colon after "
@@ -3180,7 +3179,7 @@ fn f() -> u8 {
   Scanner s(file_table_, Fileno(0), std::string(text));
   Parser p("test", &s);
   Bindings bindings;
-  XLS_ASSERT_OK(p.ParseFunction(Pos(), /*is_public=*/false,
+  XLS_ASSERT_OK(p.ParseFunction(Pos(), /*is_public=*/false, /*is_const=*/false,
                                 /*bindings=*/bindings));
 }
 
@@ -3193,9 +3192,9 @@ fn f(x: u32) -> u8 {
   Scanner s{file_table_, Fileno(0), std::string{text}};
   Parser p{"test", &s};
   Bindings bindings;
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           p.ParseFunction(Pos(), /*is_public=*/false,
-                                           /*bindings=*/bindings));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, p.ParseFunction(Pos(), /*is_public=*/false,
+                                    /*is_const=*/false, /*bindings=*/bindings));
 
   StatementBlock* body = f->body();
   absl::Span<Statement* const> stmts = body->statements();
@@ -4004,9 +4003,9 @@ TEST_F(ParserTest, StubFunctionIsEmpty) {
   Scanner s{file_table_, Fileno(0), std::string(kProgram)};
   Parser p{"test", &s, true};
   Bindings bindings;
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           p.ParseFunction(Pos(), /*is_public=*/false,
-                                           /*bindings=*/bindings));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, p.ParseFunction(Pos(), /*is_public=*/false,
+                                    /*is_const=*/false, /*bindings=*/bindings));
 
   StatementBlock* block = f->body();
   absl::Span<Statement* const> stmts = block->statements();
@@ -4036,9 +4035,10 @@ TEST_F(ParserTest, GenericTypeReturn) {
   Scanner s{file_table_, Fileno(0), std::string(kProgram)};
   Parser p{"test", &s, true};
   Bindings bindings;
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           p.ParseFunction(Pos(), /*is_public=*/false,
-                                           /*bindings=*/bindings));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f,
+      p.ParseFunction(Pos(), /*is_public=*/false, /*is_const=*/false,
+                      /*bindings=*/bindings));
 
   const TypeAnnotation* return_type = f->return_type();
   const TypeVariableTypeAnnotation* tvta =
@@ -4054,9 +4054,10 @@ TEST_F(ParserTest, GenericTypeParameters) {
   Scanner s{file_table_, Fileno(0), std::string(kProgram)};
   Parser p{"test", &s, true};
   Bindings bindings;
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           p.ParseFunction(Pos(), /*is_public=*/false,
-                                           /*bindings=*/bindings));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f,
+      p.ParseFunction(Pos(), /*is_public=*/false, /*is_const=*/false,
+                      /*bindings=*/bindings));
 
   auto params = f->params();
   EXPECT_EQ(params.size(), 2);
@@ -4075,9 +4076,9 @@ TEST_F(ParserTest, GenericTypeParametersDifferentTypes) {
   Scanner s{file_table_, Fileno(0), std::string(kProgram)};
   Parser p{"test", &s, true};
   Bindings bindings;
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           p.ParseFunction(Pos(), /*is_public=*/false,
-                                           /*bindings=*/bindings));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, p.ParseFunction(Pos(), /*is_public=*/false,
+                                    /*is_const=*/false, /*bindings=*/bindings));
 
   auto params = f->params();
   EXPECT_EQ(params.size(), 2);
@@ -4094,9 +4095,9 @@ TEST_F(ParserTest, GenericTypeArray) {
   Scanner s{file_table_, Fileno(0), std::string(kProgram)};
   Parser p{"test", &s, true};
   Bindings bindings;
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           p.ParseFunction(Pos(), /*is_public=*/false,
-                                           /*bindings=*/bindings));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, p.ParseFunction(Pos(), /*is_public=*/false,
+                                    /*is_const=*/false, /*bindings=*/bindings));
 
   const TypeAnnotation* return_type = f->return_type();
   const ArrayTypeAnnotation* array_type =

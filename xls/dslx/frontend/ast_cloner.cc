@@ -416,7 +416,8 @@ class AstCloner : public AstNodeVisitor {
         CastIfNotVerbatim<StatementBlock*>(old_to_new_.at(n->body())));
     auto new_function = module(n)->Make<Function>(
         n->span(), new_name_def, new_parametric_bindings, new_params,
-        new_return_type, new_body, n->tag(), n->is_public(), n->IsStub());
+        new_return_type, new_body, n->tag(), n->is_public(), n->is_const(),
+        n->IsStub());
     new_function->set_test_utility(n->is_test_utility());
     if (n->extern_verilog_module().has_value()) {
       new_function->set_extern_verilog_module(*n->extern_verilog_module());

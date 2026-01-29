@@ -244,10 +244,10 @@ absl::Status Parser::ParseErrorStatus(const Span& span,
 }
 
 absl::StatusOr<Function*> Parser::ParseFunction(
-    const Pos& start_pos, bool is_public, Bindings& bindings,
+    const Pos& start_pos, bool is_public, bool is_const, Bindings& bindings,
     absl::flat_hash_map<std::string, Function*>* name_to_fn) {
-  XLS_ASSIGN_OR_RETURN(Function * f,
-                       ParseFunctionInternal(start_pos, is_public, bindings));
+  XLS_ASSIGN_OR_RETURN(Function * f, ParseFunctionInternal(start_pos, is_public,
+                                                           is_const, bindings));
   if (name_to_fn == nullptr) {
     return f;
   }
@@ -319,8 +319,8 @@ absl::StatusOr<Lambda*> Parser::ParseLambda(Bindings& bindings) {
   NameDef* fn_name_def = module_->Make<NameDef>(sp, "lambda_fn", nullptr);
   Function* fn =
       module_->Make<Function>(sp, fn_name_def, parametrics, params, return_type,
-                              body, FunctionTag::kLambda,
-                              /*is_public=*/false, /*is_stub=*/false);
+                              body, FunctionTag::kLambda, /*is_public=*/false,
+                              /*is_const*/ false, /*is_stub=*/false);
   return module_->Make<Lambda>(sp, fn);
 }
 
@@ -466,8 +466,18 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
     if (!module_member_start_pos.has_value()) {
       module_member_start_pos = GetPos();
     }
+
     XLS_ASSIGN_OR_RETURN(is_public, TryDropKeyword(Keyword::kPub));
     XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
+
+    bool is_const_fn = false;
+    if (peek->IsKeyword(Keyword::kConst)) {
+      XLS_ASSIGN_OR_RETURN(const Token* postpeek, PeekToken(1));
+      if (postpeek->IsKeyword(Keyword::kFn)) {
+        XLS_ASSIGN_OR_RETURN(is_const_fn, TryDropKeyword(Keyword::kConst));
+        XLS_ASSIGN_OR_RETURN(peek, PeekToken());
+      }
+    }
 
     if (peek->IsIdentifier(kConstAssertIdentifier)) {
       XLS_RETURN_IF_ERROR(verify_no_attributes());
@@ -498,9 +508,9 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
 
     switch (peek->GetKeyword()) {
       case Keyword::kFn: {
-        XLS_ASSIGN_OR_RETURN(Function * fn,
-                             ParseFunction(*module_member_start_pos, is_public,
-                                           *bindings, &name_to_fn));
+        XLS_ASSIGN_OR_RETURN(
+            Function * fn, ParseFunction(*module_member_start_pos, is_public,
+                                         is_const_fn, *bindings, &name_to_fn));
         XLS_ASSIGN_OR_RETURN(ModuleMember fn_or_wrapper,
                              ApplyFunctionAttributes(fn, pending_attributes));
         XLS_RETURN_IF_ERROR(
@@ -611,6 +621,7 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
         return top_level_error();
     }
     is_public = false;
+    is_const_fn = false;
     pending_attributes.clear();
     module_member_start_pos = std::nullopt;
   }
@@ -2215,7 +2226,8 @@ absl::StatusOr<Import*> Parser::ParseImport(Bindings& bindings) {
 }
 
 absl::StatusOr<Function*> Parser::ParseFunctionInternal(
-    const Pos& start_pos, bool is_public, Bindings& outer_bindings) {
+    const Pos& start_pos, bool is_public, bool is_const,
+    Bindings& outer_bindings) {
   XLS_ASSIGN_OR_RETURN(Token fn_tok, PopKeywordOrError(Keyword::kFn));
 
   // Do not add the function name to bindings until after the signature is
@@ -2260,9 +2272,10 @@ absl::StatusOr<Function*> Parser::ParseFunctionInternal(
   } else {
     XLS_ASSIGN_OR_RETURN(body, ParseBlockExpression(bindings));
   }
-  Function* f = module_->Make<Function>(
-      Span(start_pos, GetPos()), name_def, std::move(parametric_bindings),
-      params, return_type, body, FunctionTag::kNormal, is_public, stub);
+  Function* f = module_->Make<Function>(Span(start_pos, GetPos()), name_def,
+                                        std::move(parametric_bindings), params,
+                                        return_type, body, FunctionTag::kNormal,
+                                        is_public, is_const, stub);
   name_def->set_definer(f);
   return f;
 }
@@ -3150,7 +3163,7 @@ absl::StatusOr<Function*> Parser::ParseProcConfig(
   Function* config = module_->Make<Function>(
       block->span(), name_def, std::move(parametric_bindings),
       std::move(config_params), return_type, block, FunctionTag::kProcConfig,
-      is_public, /*is_stub=*/false);
+      is_public, /*is_const=*/false, /*is_stub=*/false);
   name_def->set_definer(config);
 
   return config;
@@ -3235,7 +3248,7 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
   Function* next = module_->Make<Function>(
       span, name_def, std::move(parametric_bindings),
       std::vector<Param*>({state_param}), return_type, body,
-      FunctionTag::kProcNext, is_public, /*is_stub=*/false);
+      FunctionTag::kProcNext, is_public, /*is_const=*/false, /*is_stub=*/false);
   name_def->set_definer(next);
 
   return next;
@@ -3263,7 +3276,7 @@ absl::StatusOr<Function*> Parser::ParseProcInit(
   Function* init = module_->Make<Function>(
       span, name_def, std::move(parametric_bindings), std::vector<Param*>(),
       /*return_type=*/nullptr, body, FunctionTag::kProcInit, is_public,
-      /*is_stub=*/false);
+      /*is_const=*/false, /*is_stub=*/false);
   name_def->set_definer(init);
   return init;
 }
@@ -4148,7 +4161,7 @@ absl::StatusOr<Impl*> Parser::ParseImpl(const Pos& start_pos, bool is_public,
       XLS_ASSIGN_OR_RETURN(
           Function * function,
           ParseFunctionInternal(member_start_pos, next_is_public,
-                                impl_bindings));
+                                /*is_const=*/false, impl_bindings));
       members.push_back(function);
     } else {
       return ParseErrorStatus(
@@ -4188,7 +4201,7 @@ absl::StatusOr<Trait*> Parser::ParseTrait(const Pos& start_pos, bool is_public,
       XLS_ASSIGN_OR_RETURN(
           Function * function,
           ParseFunctionInternal(member_start_pos, /*is_public=*/true,
-                                trait_bindings));
+                                /*is_const=*/false, trait_bindings));
       members.push_back(function);
     } else {
       return ParseErrorStatus(peek->span(),

@@ -2173,6 +2173,12 @@ DocRef Formatter::Format(const Function& n, bool is_test) {
     signature_pieces.push_back(arena_.Make(Keyword::kPub));
     signature_pieces.push_back(arena_.space());
   }
+
+  if (n.is_const()) {
+    signature_pieces.push_back(arena_.Make(Keyword::kConst));
+    signature_pieces.push_back(arena_.space());
+  }
+
   signature_pieces.push_back(arena_.Make(Keyword::kFn));
   signature_pieces.push_back(arena_.space());
   signature_pieces.push_back(arena_.MakeText(n.identifier()));

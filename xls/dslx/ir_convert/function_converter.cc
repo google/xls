@@ -2288,19 +2288,29 @@ absl::Status FunctionConverter::HandleUdfInvocation(const Invocation* node,
     args = new_args;
   }
 
-  Def(node, [&](const SourceInfo& loc) {
-    BValue result = function_builder_->Invoke(args, f, loc);
-    if (!callee_requires_implicit_token) {
-      return result;
-    }
-    // If the callee needs an implicit token it will also produce an implicit
-    // result token. We have to grab that and make it one of our
-    // "control_tokens_". It is guaranteed to be the first member of the
-    // tuple result.
-    BValue result_token = function_builder_->TupleIndex(result, 0);
-    implicit_token_data_->control_tokens.push_back(result_token);
-    return function_builder_->TupleIndex(result, 1);
-  });
+  if (dslx_callee->is_const()) {
+    XLS_ASSIGN_OR_RETURN(InterpValue iv,
+                         current_type_info_->GetConstExpr(node));
+    XLS_ASSIGN_OR_RETURN(Value const_result, InterpValueToValue(iv));
+    Def(node, [&](const SourceInfo& loc) {
+      return function_builder_->Literal(const_result, loc);
+    });
+  } else {
+    Def(node, [&](const SourceInfo& loc) {
+      BValue result = function_builder_->Invoke(args, f, loc);
+      if (!callee_requires_implicit_token) {
+        return result;
+      }
+      // If the callee needs an implicit token it will also produce an implicit
+      // result token. We have to grab that and make it one of our
+      // "control_tokens_". It is guaranteed to be the first member of the
+      // tuple result.
+      BValue result_token = function_builder_->TupleIndex(result, 0);
+      implicit_token_data_->control_tokens.push_back(result_token);
+      return function_builder_->TupleIndex(result, 1);
+    });
+  }
+
   return absl::OkStatus();
 }
 
