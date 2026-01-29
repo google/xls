@@ -2596,9 +2596,7 @@ class Function : public AstNode {
 // Example: `let squares = map(range(u32:0, u32:5), |x| { x * x });`
 //
 // Attributes:
-// * params: The explicit parameters of the lambda.
-// * return_type: The return type of the lambda.
-// * body: The body of the lambda.
+// * function: A Function that represents the lambda behavior.
 class Lambda : public Expr {
  public:
   Lambda(Module* owner, Span span, Function* function);

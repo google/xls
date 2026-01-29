@@ -100,6 +100,8 @@ class BytecodeEmitter : public ExprVisitor {
 
   // Adds the given bytecode to the program.
   void Add(Bytecode bytecode) { bytecode_.push_back(std::move(bytecode)); }
+  void AddResult(const Span span,
+                 std::variant<InterpValue, Bytecode::SlotIndex> result);
   absl::Status HandleArray(const Array* node) override;
   absl::Status HandleAttr(const Attr* node) override;
   absl::Status HandleBinop(const Binop* node) override;
@@ -125,6 +127,8 @@ class BytecodeEmitter : public ExprVisitor {
 
   absl::StatusOr<std::variant<InterpValue, Bytecode::SlotIndex>>
   HandleNameRefInternal(const NameRef* node);
+  absl::StatusOr<std::variant<InterpValue, Bytecode::SlotIndex>>
+  HandleNameDefInternal(const NameDef* node);
 
   absl::StatusOr<InterpValue> HandleExternRef(const NameRef& name_ref,
                                               const NameDef& name_def,

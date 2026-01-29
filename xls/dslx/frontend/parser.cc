@@ -321,6 +321,7 @@ absl::StatusOr<Lambda*> Parser::ParseLambda(Bindings& bindings) {
       module_->Make<Function>(sp, fn_name_def, parametrics, params, return_type,
                               body, FunctionTag::kLambda,
                               /*is_public=*/false, /*is_stub=*/false);
+  fn_name_def->set_definer(fn);
   return module_->Make<Lambda>(sp, fn);
 }
 

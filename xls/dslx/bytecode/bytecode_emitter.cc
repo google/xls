@@ -1405,7 +1405,10 @@ absl::Status BytecodeEmitter::DestructureLet(
 }
 
 absl::Status BytecodeEmitter::HandleLambda(const Lambda* node) {
-  return absl::UnimplementedError("lambdas not yet supported");
+  XLS_ASSIGN_OR_RETURN(auto result,
+                       HandleNameDefInternal(node->function()->name_def()));
+  AddResult(node->span(), result);
+  return absl::OkStatus();
 }
 
 absl::Status BytecodeEmitter::HandleLet(const Let* node) {
@@ -1421,13 +1424,17 @@ absl::Status BytecodeEmitter::HandleLet(const Let* node) {
 
 absl::Status BytecodeEmitter::HandleNameRef(const NameRef* node) {
   XLS_ASSIGN_OR_RETURN(auto result, HandleNameRefInternal(node));
-  if (std::holds_alternative<InterpValue>(result)) {
-    Add(Bytecode::MakeLiteral(node->span(), std::get<InterpValue>(result)));
-  } else {
-    Add(Bytecode::MakeLoad(node->span(),
-                           std::get<Bytecode::SlotIndex>(result)));
-  }
+  AddResult(node->span(), result);
   return absl::OkStatus();
+}
+
+void BytecodeEmitter::AddResult(
+    const Span span, std::variant<InterpValue, Bytecode::SlotIndex> result) {
+  if (std::holds_alternative<InterpValue>(result)) {
+    Add(Bytecode::MakeLiteral(span, std::get<InterpValue>(result)));
+  } else {
+    Add(Bytecode::MakeLoad(span, std::get<Bytecode::SlotIndex>(result)));
+  }
 }
 
 absl::StatusOr<InterpValue> BytecodeEmitter::HandleExternRef(
@@ -1498,40 +1505,41 @@ BytecodeEmitter::HandleNameRefInternal(const NameRef* node) {
                     use_tree_entry != nullptr) {
                   return HandleExternRef(*node, *name_def, *use_tree_entry);
                 }
-
-                // Emit function and constant refs directly so that they can be
-                // stack elements without having to load slots with them.
-                if (auto* f = dynamic_cast<Function*>(definer); f != nullptr) {
-                  return InterpValue::MakeFunction(
-                      InterpValue::UserFnData{f->owner(), f});
-                }
-                if (auto* cd = dynamic_cast<ConstantDef*>(name_def->definer());
-                    cd != nullptr) {
-                  return type_info_->GetConstExpr(cd->value());
-                }
-
-                // The value is either a local name or a parametric name.
-                if (namedef_to_slot_.contains(name_def)) {
-                  int64_t slotno = namedef_to_slot_.at(name_def);
-                  return Bytecode::SlotIndex(slotno);
-                }
-
-                if (caller_bindings_.has_value()) {
-                  absl::flat_hash_map<std::string, InterpValue> bindings_map =
-                      caller_bindings_.value().ToMap();
-                  if (bindings_map.contains(name_def->identifier())) {
-                    return caller_bindings_.value().ToMap().at(
-                        name_def->identifier());
-                  }
-                }
-
-                return absl::InternalError(absl::StrCat(
-                    "BytecodeEmitter could not find slot or binding for name: ",
-                    name_def->ToString(), " @ ",
-                    name_def->span().ToString(file_table()),
-                    " stack: ", GetSymbolizedStackTraceAsString()));
+                return HandleNameDefInternal(name_def);
               }},
       any_name_def);
+}
+
+absl::StatusOr<std::variant<InterpValue, Bytecode::SlotIndex>>
+BytecodeEmitter::HandleNameDefInternal(const NameDef* node) {
+  AstNode* definer = node->definer();
+  // Emit function and constant refs directly so that they can be
+  // stack elements without having to load slots with them.
+  if (auto* f = dynamic_cast<Function*>(definer); f != nullptr) {
+    return InterpValue::MakeFunction(InterpValue::UserFnData{f->owner(), f});
+  }
+  if (auto* cd = dynamic_cast<ConstantDef*>(definer); cd != nullptr) {
+    return type_info_->GetConstExpr(cd->value());
+  }
+
+  // The value is either a local name or a parametric name.
+  if (namedef_to_slot_.contains(node)) {
+    int64_t slotno = namedef_to_slot_.at(node);
+    return Bytecode::SlotIndex(slotno);
+  }
+
+  if (caller_bindings_.has_value()) {
+    absl::flat_hash_map<std::string, InterpValue> bindings_map =
+        caller_bindings_.value().ToMap();
+    if (bindings_map.contains(node->identifier())) {
+      return caller_bindings_.value().ToMap().at(node->identifier());
+    }
+  }
+
+  return absl::InternalError(
+      absl::StrCat("BytecodeEmitter could not find slot or binding for name: ",
+                   node->ToString(), " @ ", node->span().ToString(file_table()),
+                   " stack: ", GetSymbolizedStackTraceAsString()));
 }
 
 absl::Status BytecodeEmitter::HandleNumber(const Number* node) {
