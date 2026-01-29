@@ -53,6 +53,52 @@ class FfiInstantiationPassTest : public IrTestBase {
     return FfiInstantiationPass().Run(block->package(), CodegenPassOptions(),
                                       &results, context);
   }
+
+  // Creates a block that contains one invocation of that ffi_fun.
+  absl::StatusOr<Block*> CreateSimpleFfiBlockWrapper(
+      Package* p, Function* ffi_fun, std::string_view name_suffix = "") {
+    BitsType* const u32 = p->GetBitsType(32);
+    BitsType* const u17 = p->GetBitsType(17);
+
+    BlockBuilder bb(absl::StrCat(TestName(), name_suffix), p);
+    const BValue input_port_a = bb.InputPort("block_a_input", u32);
+    const BValue input_port_b = bb.InputPort("block_b_input", u17);
+    bb.OutputPort("out", bb.Invoke({input_port_a, input_port_b}, ffi_fun));
+    return bb.Build();
+  }
+
+  void CheckSimpleFfiBlockWrapper(Package* p, Block* block, Function* ffi_fun) {
+    BitsType* const u32 = p->GetBitsType(32);
+    BitsType* const u17 = p->GetBitsType(17);
+
+    // Postcondition: no invoke() and one instantiation.
+    // instantiation to be in the block referencing the original function.
+    EXPECT_EQ(0, std::count_if(block->nodes().begin(), block->nodes().end(),
+                               [](Node* n) { return n->Is<Invoke>(); }));
+    ASSERT_EQ(block->GetInstantiations().size(), 1);
+
+    xls::Instantiation* const instantiation = block->GetInstantiations()[0];
+    ASSERT_EQ(instantiation->kind(), InstantiationKind::kExtern);
+
+    xls::ExternInstantiation* const extern_inst =
+        down_cast<xls::ExternInstantiation*>(instantiation);
+    EXPECT_EQ(extern_inst->function(), ffi_fun);
+    for (std::string_view param : {"a", "b"}) {
+      XLS_ASSERT_OK_AND_ASSIGN(InstantiationPort input_param,
+                               extern_inst->GetInputPort(param));
+      EXPECT_EQ(input_param.name, param);
+      EXPECT_EQ(input_param.type, param == "a" ? u32 : u17);
+    }
+
+    XLS_ASSERT_OK_AND_ASSIGN(InstantiationPort return_port,
+                             extern_inst->GetOutputPort("return"));
+    EXPECT_EQ(return_port.name, "return");
+    EXPECT_EQ(return_port.type, u32);
+
+    // Requesting a non-existent port.
+    EXPECT_THAT(extern_inst->GetInputPort("bogus"),
+                StatusIs(absl::StatusCode::kNotFound));
+  }
 };
 
 TEST_F(FfiInstantiationPassTest, InvocationsReplacedByInstance) {
@@ -72,11 +118,8 @@ TEST_F(FfiInstantiationPassTest, InvocationsReplacedByInstance) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * ffi_fun, fb.BuildWithReturnValue(add));
 
   // A block that contains one invocation of that ffi_fun.
-  BlockBuilder bb(TestName(), p.get());
-  const BValue input_port_a = bb.InputPort("block_a_input", u32);
-  const BValue input_port_b = bb.InputPort("block_b_input", u17);
-  bb.OutputPort("out", bb.Invoke({input_port_a, input_port_b}, ffi_fun));
-  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                           CreateSimpleFfiBlockWrapper(p.get(), ffi_fun));
 
   // Precondition: one invoke(), and no instantiations
   EXPECT_EQ(1, std::count_if(block->nodes().begin(), block->nodes().end(),
@@ -89,33 +132,7 @@ TEST_F(FfiInstantiationPassTest, InvocationsReplacedByInstance) {
   // Nothing to be done the second time around.
   EXPECT_THAT(Run(block), IsOkAndHolds(false));
 
-  // Postcondition: no invoke() and one instantiation.
-  // instantiation to be in the block referencing the original function.
-  EXPECT_EQ(0, std::count_if(block->nodes().begin(), block->nodes().end(),
-                             [](Node* n) { return n->Is<Invoke>(); }));
-  ASSERT_EQ(block->GetInstantiations().size(), 1);
-
-  xls::Instantiation* const instantiation = block->GetInstantiations()[0];
-  ASSERT_EQ(instantiation->kind(), InstantiationKind::kExtern);
-
-  xls::ExternInstantiation* const extern_inst =
-      down_cast<xls::ExternInstantiation*>(instantiation);
-  EXPECT_EQ(extern_inst->function(), ffi_fun);
-  for (std::string_view param : {"a", "b"}) {
-    XLS_ASSERT_OK_AND_ASSIGN(InstantiationPort input_param,
-                             extern_inst->GetInputPort(param));
-    EXPECT_EQ(input_param.name, param);
-    EXPECT_EQ(input_param.type, param == "a" ? u32 : u17);
-  }
-
-  XLS_ASSERT_OK_AND_ASSIGN(InstantiationPort return_port,
-                           extern_inst->GetOutputPort("return"));
-  EXPECT_EQ(return_port.name, "return");
-  EXPECT_EQ(return_port.type, u32);
-
-  // Requesting a non-existent port.
-  EXPECT_THAT(extern_inst->GetInputPort("bogus"),
-              StatusIs(absl::StatusCode::kNotFound));
+  CheckSimpleFfiBlockWrapper(p.get(), block, ffi_fun);
 
   // Explicitly testing the resulting block passes verification.
   XLS_EXPECT_OK(VerifyPackage(p.get()));
@@ -351,6 +368,36 @@ TEST_F(FfiInstantiationPassTest, FunctionReturningNestedTuple) {
                        testing::HasSubstr(
                            "Attempting to access tuple-field `return.1.1.1` "
                            "but `return.1.1` is already a scalar")));
+}
+
+TEST_F(FfiInstantiationPassTest, MultiBlockPackage) {
+  auto p = CreatePackage();
+  BitsType* const u32 = p->GetBitsType(32);
+  BitsType* const u17 = p->GetBitsType(17);
+
+  // Simple function that has foreign function data attached.
+  FunctionBuilder fb(TestName() + "ffi_fun", p.get());
+  const BValue param_a = fb.Param("a", u32);
+  const BValue param_b = fb.Param("b", u17);
+  const BValue add = fb.Add(param_a, fb.ZeroExtend(param_b, 32));
+  XLS_ASSERT_OK_AND_ASSIGN(ForeignFunctionData ffd,
+                           ForeignFunctionDataCreateFromTemplate(
+                               "foo {fn} (.ma({a}), .mb{b}) .out({return})"));
+  fb.SetForeignFunctionData(ffd);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * ffi_fun, fb.BuildWithReturnValue(add));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block1,
+                           CreateSimpleFfiBlockWrapper(p.get(), ffi_fun));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block2,
+                           CreateSimpleFfiBlockWrapper(p.get(), ffi_fun, "_2"));
+
+  EXPECT_THAT(Run(block1), IsOkAndHolds(true));
+
+  CheckSimpleFfiBlockWrapper(p.get(), block1, ffi_fun);
+  CheckSimpleFfiBlockWrapper(p.get(), block2, ffi_fun);
+
+  // Explicitly testing the resulting block passes verification.
+  XLS_EXPECT_OK(VerifyPackage(p.get()));
 }
 
 }  // namespace

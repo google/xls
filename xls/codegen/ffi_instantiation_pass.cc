@@ -153,8 +153,10 @@ static absl::StatusOr<NameSet> ExtractReturnNames(std::string_view tpl) {
 absl::StatusOr<bool> FfiInstantiationPass::RunInternal(
     Package* package, const CodegenPassOptions& options, PassResults* results,
     CodegenContext& context) const {
-  std::vector<Node*> to_remove;
+  bool changed = false;
   for (const std::unique_ptr<Block>& block : package->blocks()) {
+    std::vector<Node*> to_remove;
+
     for (Node* node : block->nodes()) {
       if (!node->Is<Invoke>()) {
         continue;
@@ -193,12 +195,15 @@ absl::StatusOr<bool> FfiInstantiationPass::RunInternal(
     for (Node* n : to_remove) {
       XLS_RETURN_IF_ERROR(block->RemoveNode(n));
     }
+
+    changed |= !to_remove.empty();
   }
-  if (!to_remove.empty()) {
+
+  if (changed) {
     context.GcMetadata();
   }
 
-  return !to_remove.empty();
+  return changed;
 }
 
 }  // namespace xls::verilog
