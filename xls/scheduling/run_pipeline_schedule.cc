@@ -614,12 +614,16 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
     }
 
     XLS_RETURN_IF_ERROR(initialize_sdc_scheduler());
+    SchedulingFailureBehavior failure_behavior = options.failure_behavior();
+    if (options.clock_period_ps().has_value() &&
+        options.minimize_clock_on_failure().value_or(true)) {
+      failure_behavior.explain_infeasibility = false;
+    }
     absl::StatusOr<ScheduleCycleMap> schedule_cycle_map =
-        sdc_scheduler->Schedule(options.pipeline_stages(), clock_period_ps,
-                                options.failure_behavior(),
-                                /*check_feasibility=*/false,
-                                worst_case_throughput,
-                                options.dynamic_throughput_objective_weight());
+        sdc_scheduler->Schedule(
+            options.pipeline_stages(), clock_period_ps, failure_behavior,
+            /*check_feasibility=*/false, worst_case_throughput,
+            options.dynamic_throughput_objective_weight());
     if (!schedule_cycle_map.ok()) {
       if (absl::IsInvalidArgument(schedule_cycle_map.status())) {
         // The scheduler was able to explain the failure; report it up without
@@ -647,10 +651,53 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
           if (min_clock_period_ps.ok()) {
             min_clock_period_ps_for_tracing = *min_clock_period_ps;
             // Just increasing the clock period suffices.
-            return absl::InvalidArgumentError(absl::StrFormat(
-                "cannot achieve the specified clock period. Try "
-                "`--clock_period_ps=%d`.",
-                *min_clock_period_ps));
+            if (options.failure_behavior().explain_infeasibility == true) {
+              // We can also try explaining the original failure now, to give
+              // more detail.
+              schedule_cycle_map = sdc_scheduler->Schedule(
+                  options.pipeline_stages(), clock_period_ps,
+                  options.failure_behavior(),
+                  /*check_feasibility=*/false, worst_case_throughput,
+                  options.dynamic_throughput_objective_weight());
+              XLS_RET_CHECK(!schedule_cycle_map.ok())
+                  << "Rerunning the scheduler with explain_infeasibility=true "
+                     "should not succeed when the original scheduling attempt "
+                     "failed.";
+              return absl::InvalidArgumentError(absl::StrFormat(
+                  "cannot achieve the specified clock period (%d ps). Try "
+                  "`--clock_period_ps=%d`.\n"
+                  "\n"
+                  "We failed at the specified clock period with error: %v",
+                  clock_period_ps, *min_clock_period_ps,
+                  schedule_cycle_map.status()));
+            } else {
+              return absl::InvalidArgumentError(absl::StrFormat(
+                  "cannot achieve the specified clock period (%d ps). Try "
+                  "`--clock_period_ps=%d`.",
+                  clock_period_ps, *min_clock_period_ps));
+            }
+          }
+          if (!min_clock_period_ps.ok() &&
+              options.failure_behavior().explain_infeasibility == true) {
+            // We haven't tried to explain the original failure yet, and backing
+            // off the clock period didn't help. Try explaining the original
+            // failure now.
+            schedule_cycle_map = sdc_scheduler->Schedule(
+                options.pipeline_stages(), clock_period_ps,
+                options.failure_behavior(),
+                /*check_feasibility=*/false, worst_case_throughput,
+                options.dynamic_throughput_objective_weight());
+            XLS_RET_CHECK(!schedule_cycle_map.ok())
+                << "Rerunning the scheduler with explain_infeasibility=true "
+                   "should not succeed when the original scheduling attempt "
+                   "failed.";
+            return xabsl::StatusBuilder(std::move(schedule_cycle_map).status())
+                       .SetAppend()
+                   << absl::StreamFormat(
+                          "\n\nWe also failed at the longest feasible clock "
+                          "period "
+                          "with error: %v",
+                          min_clock_period_ps.status());
           }
           if (absl::IsInvalidArgument(min_clock_period_ps.status())) {
             // We failed with an explained error at the longest possible clock
@@ -658,9 +705,10 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
             // also need to be increased - though we don't know by how much.
             return xabsl::StatusBuilder(std::move(min_clock_period_ps).status())
                        .SetPrepend()
-                   << absl::StrFormat(
-                          "cannot achieve the specified clock period; try "
-                          "increasing `--clock_period_ps`. Also, ");
+                   << absl::StreamFormat(
+                          "cannot achieve the specified clock period (%d ps); "
+                          "try increasing `--clock_period_ps`. Also, ",
+                          clock_period_ps);
           }
           // We fail with an unexplained error even at the longest possible
           // clock period. Report the original error.
@@ -671,7 +719,7 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
         XLS_ASSIGN_OR_RETURN(int64_t pessimistic_clock_period_ps,
                              ComputeCriticalPath(f, io_delay_added));
         // Make a copy of failure behavior with explain_feasibility true- we
-        // always want to produce an error message because this we are
+        // always want to produce an error message because here we are
         // re-running the scheduler for its error message.
         SchedulingFailureBehavior pessimistic_failure_behavior =
             options.failure_behavior();
@@ -687,8 +735,9 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
         if (pessimistic_status.ok()) {
           // Just increasing the clock period suffices.
           return absl::InvalidArgumentError(
-              "cannot achieve the specified clock period. Try increasing "
-              "`--clock_period_ps`.");
+              absl::StrFormat("cannot achieve the specified clock period (%d "
+                              "ps). Try increasing `--clock_period_ps`.",
+                              clock_period_ps));
         }
         if (absl::IsInvalidArgument(pessimistic_status)) {
           // We failed with an explained error at the pessimistic clock period.
@@ -696,9 +745,10 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
           // to be increased - though we don't know by how much.
           return xabsl::StatusBuilder(std::move(pessimistic_status))
                      .SetPrepend()
-                 << absl::StrFormat(
-                        "cannot achieve the specified clock period; try "
-                        "increasing `--clock_period_ps`. Also, ");
+                 << absl::StreamFormat(
+                        "cannot achieve the specified clock period (%d ps); "
+                        "try increasing `--clock_period_ps`. Also, ",
+                        clock_period_ps);
         }
         return pessimistic_status;
       }
