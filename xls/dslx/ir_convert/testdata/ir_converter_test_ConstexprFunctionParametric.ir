@@ -1,0 +1,15 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn __test_module__const_mix_mul__3() -> bits[32] {
+  N: bits[32] = literal(value=3, id=1)
+  TEST: bits[32] = literal(value=3, id=2)
+  ret umul.3: bits[32] = umul(N, TEST, id=3)
+}
+
+fn __test_module__f() -> bits[32] {
+  literal.5: bits[32] = literal(value=9, id=5)
+  TEST: bits[32] = literal(value=3, id=4)
+  ret add.6: bits[32] = add(literal.5, TEST, id=6)
+}

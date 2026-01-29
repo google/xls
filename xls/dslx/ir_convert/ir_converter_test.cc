@@ -1628,6 +1628,21 @@ fn f() -> u32 {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, ConstexprFunctionParametric) {
+  constexpr std::string_view program =
+      R"(
+const TEST = u32:3;
+const fn const_mix_mul<N:u32>() -> u32 { N * TEST }
+
+fn f() -> u32 {
+  const_mix_mul<TEST>() + TEST
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
+
 TEST_F(IrConverterTest, ConstexprFunctionProcScopedChannels) {
   constexpr std::string_view program =
       R"(
