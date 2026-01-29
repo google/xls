@@ -1,0 +1,13 @@
+diff --git a/dependency_support/org_theopenroadproject/tcl_wrap_cc.bzl b/dependency_support/org_theopenroadproject/tcl_wrap_cc.bzl
+index b5c1242..8f852da 100644
+--- dependency_support/org_theopenroadproject/tcl_wrap_cc.bzl
++++ dependency_support/org_theopenroadproject/tcl_wrap_cc.bzl
+@@ -136,7 +136,7 @@ tcl_wrap_cc = rule(
+             doc = "args to pass directly to the swig binary",
+         ),
+         "_swig": attr.label(
+-            default = "@org_swig//:swig_stable",
++            default = "@swig//:swig",
+             allow_files = True,
+             cfg = "exec",
+         ),
