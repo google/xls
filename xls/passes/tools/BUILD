@@ -62,11 +62,12 @@ xls_generate_documentation(
     codelink_format = "http://github.com/google/xls/tree/main%s",
     # Specifically generate for the oss passes regardless of what the default passes are.
     passes = "//xls/passes:oss_optimization_passes",
+    # Requirements on libcxx being explicit in include path.
     tags = [
         "manual",
         "noasan",
         "nomsan",
-    ],  # Requirements on libcxx being explicit in include path.
+    ],
     template = "passes.md.tmpl",
 )
 
@@ -109,11 +110,12 @@ diff_test(
     failure_message = _FAILURE_MESSAGE,
     file1 = ":rebuild_documentation",
     file2 = "//docs_src:passes_list.md",
+    # Requirements on libcxx being explicit in include path.
     tags = [
         "manual",
         "noasan",
         "nomsan",
-    ],  # Requirements on libcxx being explicit in include path.
+    ],
 )
 
 ####################################################
