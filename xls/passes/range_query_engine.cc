@@ -117,7 +117,6 @@ class RangeQueryVisitor : public DfsVisitor {
 
   // The maximum number of points covered by an interval set that can be
   // iterated over in an analysis.
-  static constexpr int64_t kMaxIterationSize = 1024;
 
   // Wrapper around GetIntervalSetTree for consistency with the
   // SetIntervalSetTree wrapper.
@@ -517,7 +516,23 @@ absl::Status RangeQueryVisitor::HandleDecode(Decode* decode) {
 absl::Status RangeQueryVisitor::HandleDynamicBitSlice(
     DynamicBitSlice* dynamic_bit_slice) {
   INITIALIZE_OR_SKIP(dynamic_bit_slice);
-  return absl::OkStatus();  // TODO(taktoa): implement
+  ASSIGN_INTERVAL_SET_REF_OR_RETURN(to_slice, dynamic_bit_slice->operand(0));
+  ASSIGN_INTERVAL_SET_REF_OR_RETURN(start, dynamic_bit_slice->start());
+  // Many IntervalSet query APIs (e.g. Size/Values/Intervals/ConvexHull) require
+  // the interval set to be normalized. The RangeQueryEngine may hold
+  // non-normalized sets, so normalize local copies here.
+  IntervalSet to_slice_norm = to_slice;
+  if (!to_slice_norm.IsNormalized()) {
+    to_slice_norm.Normalize();
+  }
+  IntervalSet start_norm = start;
+  if (!start_norm.IsNormalized()) {
+    start_norm.Normalize();
+  }
+
+  return SetIntervalSet(dynamic_bit_slice, interval_ops::DynamicBitSlice(
+                                               to_slice_norm, start_norm,
+                                               dynamic_bit_slice->width()));
 }
 
 absl::Status RangeQueryVisitor::HandleDynamicCountedFor(
