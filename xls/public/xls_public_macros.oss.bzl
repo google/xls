@@ -61,6 +61,7 @@ def py_test_c_api_symbols(name = "test_c_api_symbols"):
         data = [
             ":c_api",
             ":c_api_dslx",
+            ":c_api_ir_analysis",
             ":c_api_ir_builder",
             ":c_api_symbols.txt",
             ":c_api_vast",
