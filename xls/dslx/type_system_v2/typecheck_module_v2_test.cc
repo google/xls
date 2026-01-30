@@ -7416,6 +7416,151 @@ proc Proc {
                 HasNodeWithType("b", "chan(sN[32], dir=in)[2]"))));
 }
 
+TEST(TypecheckV2Test, ProcConfigRequireTuple) {
+  EXPECT_THAT(
+      R"(
+proc Proc {
+  input: chan<()> in;
+  config(input: chan<()> in) {
+    (input)
+  }
+  init { () }
+  next(state: ()) { () }
+}
+
+)",
+      TypecheckFails(HasTypeMismatch("(chan<()> in,)", "chan<()> in")));
+}
+
+TEST(TypecheckV2Test, ProcConfigTooFewChannels) {
+  EXPECT_THAT(
+      R"(
+proc Proc {
+  input: chan<()> in;
+  output: chan<()> out;
+  config(input: chan<()> in) {
+    (input,)
+  }
+  init { () }
+  next(state: ()) { () }
+}
+
+)",
+      TypecheckFails(HasSubstr("Cannot match a 2-element tuple to 1 values.")));
+}
+
+TEST(TypecheckV2Test, ProcConfigTooManyChannels) {
+  EXPECT_THAT(
+      R"(
+proc Proc {
+  req: chan<()> in;
+  resp: chan<()> out;
+  config(data_in: chan<()> in) {
+    let (resp, req) = chan<()>("io");
+    (req, resp, data_in)
+  }
+  init { () }
+  next(state: ()) { () }
+}
+
+)",
+      TypecheckFails(HasSubstr("Out-of-bounds tuple index specified: 2")));
+}
+
+TEST(TypecheckV2Test, ProcConfigMismatchingChannelTypes) {
+  EXPECT_THAT(
+      R"(
+proc Proc {
+  req: chan<()> in;
+  resp: chan<()> out;
+  data_in: chan<u32> in;
+  data_out: chan<u32> out;
+  config(data_in: chan<u32> in, data_out: chan<u32> out) {
+    let (resp, req) = chan<()>("io");
+    (data_in, data_out, req, resp)
+  }
+  init { () }
+  next(state: ()) { () }
+}
+
+)",
+      TypecheckFails(HasTypeMismatch("()", "u32")));
+}
+
+TEST(TypecheckV2Test, ProcWithBranchedFinalExpression) {
+  EXPECT_THAT(
+      R"(
+const A = u32:5;
+proc Proc {
+  input: chan<()> in;
+  output: chan<()> out;
+  config() {
+    const if A == u32:1 {
+      let (first_output, first_input) = chan<()>("first");
+      (first_input, first_output)
+    } else {
+      let (second_output, second_input) = chan<()>("second");
+      (second_input, second_output)
+    }
+  }
+  init { () }
+  next(state: ()) { () }
+}
+
+)",
+      TypecheckSucceeds(
+          AllOf(HasNodeWithType("second_input", "chan((), dir=in)"),
+                HasNodeWithType("second_output", "chan((), dir=out)"))));
+}
+
+TEST(TypecheckV2Test, ProcConfigBranchedChannelTypeMismatch) {
+  EXPECT_THAT(
+      R"(
+const A = u32:4;
+proc Proc {
+  input: chan<u32> in;
+  output: chan<u32> out;
+  config() {
+    const if A == u32:5 {
+      let (first_output, first_input) = chan<u32>("first");
+      (first_input, first_output)
+    } else {
+      let (second_output, second_input) = chan<()>("second");
+      (second_input, second_output)
+    }
+  }
+  init { () }
+  next(state: ()) { () }
+}
+
+)",
+      TypecheckFails(HasTypeMismatch("()", "u32")));
+}
+
+TEST(TypecheckV2Test, ProcConfigFailedBranchedFinalExpression) {
+  EXPECT_THAT(
+      R"(
+const A = u32:5;
+proc Proc {
+  input: chan<()> in;
+  output: chan<()> out;
+  config() {
+    const if A == u32:5 {
+      let (first_output, first_input) = chan<()>("first");
+      (first_input,)
+    } else {
+      let (second_output, second_input) = chan<()>("second");
+      (second_input, second_output)
+    }
+  }
+  init { () }
+  next(state: ()) { () }
+}
+
+)",
+      TypecheckFails(HasSubstr("Cannot match a 2-element tuple to 1 values.")));
+}
+
 TEST(TypecheckV2Test, ImportParametricFunctionWithDefaultExpression) {
   constexpr std::string_view kImported = R"(
 pub fn some_function<N: u32, M: u32 = {N + 1}>() -> uN[M] { uN[M]:0 }

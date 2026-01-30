@@ -3121,16 +3121,6 @@ absl::StatusOr<Function*> Parser::ParseProcConfig(
     // Implicitly nil tuple as a result.
   } else {
     Expr* final_expr = std::get<Expr*>(block->statements().back()->wrapped());
-
-    if (dynamic_cast<XlsTuple*>(final_expr) == nullptr) {
-      Span final_stmt_span =
-          ToAstNode(block->statements().back()->wrapped())->GetSpan().value();
-      return ParseErrorStatus(
-          final_stmt_span,
-          "The final expression in a Proc config must be a tuple with one "
-          "element for each Proc data member.");
-    }
-
     VLOG(5) << "ParseProcConfig; final expr: `" << final_expr->ToString()
             << "`";
   }
