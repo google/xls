@@ -1202,28 +1202,45 @@ absl::StatusOr<bool> MaybeReorderSelect(Node* node,
   return true;
 }
 
-absl::StatusOr<bool> TryHoistCompareThroughSelectLike(
+absl::StatusOr<bool> TryHoistPredicateThroughSelectLike(
     Node* node, const QueryEngine& query_engine) {
-  if (!node->Is<CompareOp>()) {
-    return false;
-  }
-  CompareOp* cmp = node->As<CompareOp>();
+  enum class HoistKind : uint8_t { kCompare, kBitwiseReduce };
+  HoistKind kind;
+  CompareOp* cmp = nullptr;
+  Op bitwise_reduce_op;
 
   std::optional<GenericSelect> sel;
   Node* other = nullptr;
   bool select_like_is_lhs = false;
-  // Look for `cmp(sel_like, literal)` or `cmp(literal, sel_like)` where
-  // `sel_like` is any select-like node wrapped by `GenericSelect`. We keep
-  // track of which side the select-like node is on so we preserve operand
-  // ordering for non-commutative compares (e.g. ULT/UGT).
-  if (auto gs = GenericSelect::From(cmp->operand(0)); gs.ok()) {
-    sel = *gs;
-    other = cmp->operand(1);
-    select_like_is_lhs = true;
-  } else if (auto gs = GenericSelect::From(cmp->operand(1)); gs.ok()) {
-    sel = *gs;
-    other = cmp->operand(0);
-    select_like_is_lhs = false;
+  if (node->Is<CompareOp>()) {
+    kind = HoistKind::kCompare;
+    cmp = node->As<CompareOp>();
+
+    // Look for `cmp(sel_like, literal)` or `cmp(literal, sel_like)` where
+    // `sel_like` is any select-like node wrapped by `GenericSelect`. We keep
+    // track of which side the select-like node is on so we preserve operand
+    // ordering for non-commutative compares (e.g. ULT/UGT).
+    if (auto gs = GenericSelect::From(cmp->operand(0)); gs.ok()) {
+      sel = *gs;
+      other = cmp->operand(1);
+      select_like_is_lhs = true;
+    } else if (auto gs = GenericSelect::From(cmp->operand(1)); gs.ok()) {
+      sel = *gs;
+      other = cmp->operand(0);
+      select_like_is_lhs = false;
+    } else {
+      return false;
+    }
+  } else if (node->Is<BitwiseReductionOp>()) {
+    kind = HoistKind::kBitwiseReduce;
+    bitwise_reduce_op = node->op();
+    // Treat `reduce(sel_like(...))` similarly to applying the reduction to the
+    // selected value.
+    if (auto gs = GenericSelect::From(node->operand(0)); gs.ok()) {
+      sel = *gs;
+    } else {
+      return false;
+    }
   } else {
     return false;
   }
@@ -1246,7 +1263,8 @@ absl::StatusOr<bool> TryHoistCompareThroughSelectLike(
   //   comparison through the select(-like) into the arms.
   //   This keeps the rewrite roughly area-preserving in the intended cases:
   //   all-but-(at most)-one arm becomes a constant after folding.
-  if (!HasSingleUse(sel->AsNode()) || !other->Is<Literal>()) {
+  if (!HasSingleUse(sel->AsNode()) ||
+      (kind == HoistKind::kCompare && !other->Is<Literal>())) {
     return false;
   }
 
@@ -1265,39 +1283,44 @@ absl::StatusOr<bool> TryHoistCompareThroughSelectLike(
     return non_literal_arm_count;
   };
 
-  auto make_cmp = [&](Node* arm) -> absl::StatusOr<Node*> {
-    // Preserve operand order for non-commutative compares by placing `arm` on
-    // the same side where the select-like result originally appeared.
-    Node* lhs = select_like_is_lhs ? arm : other;
-    Node* rhs = select_like_is_lhs ? other : arm;
-    return node->function_base()->MakeNode<CompareOp>(cmp->loc(), lhs, rhs,
-                                                      cmp->op());
-  };
-
   // Profitability: we only rewrite when there is at most one non-literal arm
-  // (including the default). In these cases, hoisting the compare into the arms
-  // enables aggressive folding of constant arms and can reduce critical-path
-  // delay by moving the compare "closer" to the data.
+  // (including the default). In these cases, hoisting the predicate into the
+  // arms enables aggressive folding of constant arms and can reduce critical-
+  // path delay by moving the predicate "closer" to the data.
   if (count_non_literal_arms(sel->cases(), sel->default_value()) > 1) {
     return false;
   }
 
+  FunctionBase* f = node->function_base();
+  auto make_predicate = [&](Node* arm) -> absl::StatusOr<Node*> {
+    if (kind == HoistKind::kCompare) {
+      // Preserve operand order for non-commutative compares by placing `arm` on
+      // the same side where the select-like result originally appeared.
+      Node* lhs = select_like_is_lhs ? arm : other;
+      Node* rhs = select_like_is_lhs ? other : arm;
+      return f->MakeNode<CompareOp>(node->loc(), lhs, rhs, cmp->op());
+    }
+    XLS_RET_CHECK(kind == HoistKind::kBitwiseReduce);
+    return f->MakeNode<BitwiseReductionOp>(node->loc(), arm, bitwise_reduce_op);
+  };
+
   std::vector<Node*> new_cases;
   new_cases.reserve(sel->cases().size());
   for (Node* c : sel->cases()) {
-    XLS_ASSIGN_OR_RETURN(Node * new_case, make_cmp(c));
+    XLS_ASSIGN_OR_RETURN(Node * new_case, make_predicate(c));
     new_cases.push_back(new_case);
   }
   std::optional<Node*> new_default = std::nullopt;
   if (sel->default_value().has_value()) {
-    XLS_ASSIGN_OR_RETURN(new_default, make_cmp(*sel->default_value()));
+    XLS_ASSIGN_OR_RETURN(new_default, make_predicate(*sel->default_value()));
   }
 
   XLS_ASSIGN_OR_RETURN(
       Node * replacement,
-      sel->MakeSelectLikeWithNewArms(new_cases, new_default, cmp->loc()));
-  VLOG(2) << "Hoisting compare through " << sel->AsNode()->op() << ": "
-          << node->ToString();
+      sel->MakeSelectLikeWithNewArms(new_cases, new_default, node->loc()));
+  VLOG(2) << "Hoisting "
+          << (kind == HoistKind::kCompare ? "compare" : OpToString(node->op()))
+          << " through " << sel->AsNode()->op() << ": " << node->ToString();
   XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(replacement));
   return true;
 }
@@ -1306,7 +1329,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
                                   BitProvenanceAnalysis& provenance,
                                   int64_t opt_level, bool range_analysis) {
   XLS_ASSIGN_OR_RETURN(bool hoisted_cmp,
-                       TryHoistCompareThroughSelectLike(node, query_engine));
+                       TryHoistPredicateThroughSelectLike(node, query_engine));
   if (hoisted_cmp) {
     return true;
   }
