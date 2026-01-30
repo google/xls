@@ -480,6 +480,18 @@ class ChannelInterface {
 
   std::string ToString() const;
 
+  static bool NameLessThan(const ChannelInterface* a,
+                           const ChannelInterface* b) {
+    return a->name() < b->name();
+  }
+
+  struct NameLessThan {
+    bool operator()(const ChannelInterface* a,
+                    const ChannelInterface* b) const {
+      return ChannelInterface::NameLessThan(a, b);
+    }
+  };
+
  private:
   std::string name_;
   Type* type_;
