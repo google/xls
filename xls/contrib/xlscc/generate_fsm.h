@@ -145,11 +145,17 @@ class NewFSMGenerator : public GeneratorBase {
     const ContinuationValue* value;
   };
 
+  typedef std::tuple<absl::btree_set<int64_t>, absl::btree_set<int64_t>>
+      PhiConditionCacheKey;
+
   absl::StatusOr<absl::flat_hash_map<int64_t, std::vector<PhiElement>>>
-  GeneratePhiConditions(const NewFSMLayout& layout,
-                        const absl::flat_hash_map<int64_t, TrackedBValue>&
-                            state_element_by_jump_slice_index,
-                        xls::ProcBuilder& pb, const xls::SourceInfo& body_loc);
+  GeneratePhiConditions(
+      const NewFSMLayout& layout,
+      const absl::flat_hash_map<int64_t, TrackedBValue>&
+          state_element_by_jump_slice_index,
+      xls::ProcBuilder& pb, const xls::SourceInfo& body_loc,
+      absl::flat_hash_map<PhiConditionCacheKey, TrackedBValue>&
+          phi_condition_cache);
 
   absl::StatusOr<TrackedBValue> GeneratePhiCondition(
       const absl::btree_set<int64_t>& from_jump_slice_indices,
@@ -157,7 +163,9 @@ class NewFSMGenerator : public GeneratorBase {
       const absl::flat_hash_map<int64_t, TrackedBValue>&
           state_element_by_jump_slice_index,
       xls::ProcBuilder& pb, int64_t slice_index,
-      const xls::SourceInfo& body_loc);
+      const xls::SourceInfo& body_loc,
+      absl::flat_hash_map<PhiConditionCacheKey, TrackedBValue>&
+          phi_condition_cache);
 
   absl::StatusOr<std::optional<TrackedBValue>> GenerateInputValueInContext(
       const xls::Param* param,
