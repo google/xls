@@ -1092,8 +1092,10 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateMatch(Context* ctx) {
   last_delaying_op =
       ComposeDelayingOps(last_delaying_op, wc_return.last_delaying_op);
   min_stage = std::max(min_stage, wc_return.min_stage);
+  Number* arm_idx = module_->Make<Number>(
+      fake_span_, "0", NumberKind::kOther, /*type=*/nullptr);
   return TypedExpr{
-      .expr = module_->Make<Match>(fake_span_, match.expr, match_arms),
+      .expr = module_->Make<Match>(fake_span_, match.expr, match_arms, arm_idx),
       .type = match_return_type,
       .last_delaying_op = last_delaying_op,
       .min_stage = min_stage,

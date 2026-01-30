@@ -539,7 +539,7 @@ class Parser : public TokenParser {
                                             bool within_tuple_pattern);
 
   // Parses a match expression.
-  absl::StatusOr<Match*> ParseMatch(Bindings& bindings);
+  absl::StatusOr<Match*> ParseMatch(Bindings& bindings, bool is_const);
 
   // Parses a channel declaration.
   absl::StatusOr<ChannelDecl*> ParseChannelDecl(

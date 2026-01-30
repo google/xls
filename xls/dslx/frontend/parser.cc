@@ -2035,7 +2035,10 @@ absl::StatusOr<NameDefTree*> Parser::ParsePattern(Bindings& bindings,
       absl::StrFormat("Expected pattern; got %s", peek->ToErrorString()));
 }
 
-absl::StatusOr<Match*> Parser::ParseMatch(Bindings& bindings) {
+absl::StatusOr<Match*> Parser::ParseMatch(Bindings& bindings, bool is_const) {
+  if (is_const) {
+    XLS_RETURN_IF_ERROR(DropKeywordOrError(Keyword::kConst));
+  }
   XLS_ASSIGN_OR_RETURN(Token match, PopKeywordOrError(Keyword::kMatch));
   XLS_ASSIGN_OR_RETURN(Expr * matched, ParseExpression(bindings));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
@@ -2092,7 +2095,9 @@ absl::StatusOr<Match*> Parser::ParseMatch(Bindings& bindings) {
     must_end = !dropped_comma;
   }
   Span span(match.span().start(), GetPos());
-  return module_->Make<Match>(span, matched, std::move(arms));
+  Number* arm_idx = module_->Make<Number>(span, "0", NumberKind::kOther,
+                                          /*type=*/nullptr);
+  return module_->Make<Match>(span, matched, std::move(arms), arm_idx, false, is_const);
 }
 
 absl::StatusOr<UseTreeEntry*> Parser::ParseUseTreeEntry(Bindings& bindings) {
@@ -2460,7 +2465,7 @@ absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
     XLS_ASSIGN_OR_RETURN(
         lhs, ParseParentheticalOrCastLhs(outer_bindings, start_pos));
   } else if (peek->IsKeyword(Keyword::kMatch)) {  // Match expression.
-    XLS_ASSIGN_OR_RETURN(lhs, ParseMatch(outer_bindings));
+    XLS_ASSIGN_OR_RETURN(lhs, ParseMatch(outer_bindings, false));
   } else if (peek->kind() == TokenKind::kOBrack) {  // Array expression.
     XLS_ASSIGN_OR_RETURN(lhs, ParseArray(outer_bindings));
   } else if (peek->IsKeyword(Keyword::kIf)) {  // Conditional expression.
@@ -2468,14 +2473,17 @@ absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
                          ParseRangeExpression(outer_bindings, kNoRestrictions));
   } else if (peek->IsKeyword(Keyword::kConst)) {
     XLS_ASSIGN_OR_RETURN(const Token* peek_1, PeekToken(1));
-    if (peek_1->IsKeyword(Keyword::kIf)) {  // Constexpr conditional expression
+    if (peek_1->IsKeyword(Keyword::kIf)) {
       XLS_ASSIGN_OR_RETURN(
           lhs, ParseRangeExpression(outer_bindings, kNoRestrictions));
+    } else if (peek_1->IsKeyword(Keyword::kMatch)) { // constexpr match
+      XLS_ASSIGN_OR_RETURN(lhs, ParseMatch(outer_bindings, true));
+    } else {
+      return ParseErrorStatus(
+          peek_1->span(),
+          absl::StrFormat("Expected start of an expression; got: %s",
+                          peek_1->ToErrorString()));
     }
-    return ParseErrorStatus(
-        peek_1->span(),
-        absl::StrFormat("Expected start of an expression; got: %s",
-                        peek_1->ToErrorString()));
   } else {
     return ParseErrorStatus(
         peek->span(),
@@ -4263,12 +4271,12 @@ absl::StatusOr<StatementBlock*> Parser::ParseBlockExpression(
       stmts.push_back(module_->Make<Statement>(const_assert));
       last_expr_had_trailing_semi = true;
     } else {
-      // const can be a constant or a modifier
+      // `const` can be a constant or a modifier.
       if (peek->IsKeyword(Keyword::kConst)) {
         XLS_ASSIGN_OR_RETURN(const Token* peek_1, PeekToken(1));
-        // handle the case when const is a regular constant, otherwise
-        // it is a modifier and should be handled as expression with bindings
-        if (!peek_1->IsKeyword(Keyword::kIf)) {
+        // Handle the case when const is a regular constant, otherwise
+        // it is a modifier and should be handled as expression with bindings.
+        if (!peek_1->IsKeyword(Keyword::kIf) && !peek_1->IsKeyword(Keyword::kMatch)) {
           XLS_ASSIGN_OR_RETURN(Let * let, ParseLet(block_bindings));
           stmts.push_back(module_->Make<Statement>(let));
           last_expr_had_trailing_semi = true;

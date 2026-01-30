@@ -312,6 +312,14 @@ class InvocationVisitor : public ExprVisitor {
   }
 
   absl::Status HandleMatch(const Match* expr) override {
+    // Const match selects only one arm expression to handle.
+    if (expr->IsConst()) {
+      XLS_ASSIGN_OR_RETURN(InterpValue interp_match, type_info_->GetConstExpr(expr->arm_idx()));
+      XLS_ASSIGN_OR_RETURN(uint32_t arm_id, interp_match.GetBitValueUnsigned());
+      MatchArm* arm = expr->arms()[arm_id];
+      return arm->expr()->AcceptExpr(this);
+    }
+
     XLS_RETURN_IF_ERROR(expr->matched()->AcceptExpr(this));
     for (const MatchArm* arm : expr->arms()) {
       XLS_RETURN_IF_ERROR(arm->expr()->AcceptExpr(this));
