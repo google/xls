@@ -1302,6 +1302,9 @@ class OptimizationContext {
   absl::StatusOr<xls::PartialInfoQueryEngine*> GetQueryEngineForFunction(
       xls::FunctionBase* in_function);
 
+  const xls::LeafTypeTree<std::monostate>& GetBlankTypeTreeForType(
+      xls::Type* type);
+
   absl::StatusOr<bool> CheckNodeSourcesInSet(
       xls::FunctionBase* in_function, xls::Node* node,
       absl::flat_hash_set<const xls::Param*> sources_set,
@@ -1314,6 +1317,9 @@ class OptimizationContext {
   absl::flat_hash_map<xls::FunctionBase*,
                       std::unique_ptr<SourcesSetTreeNodeInfo>>
       sources_set_tree_node_infos_by_function_;
+
+  absl::flat_hash_map<xls::Type*, xls::LeafTypeTree<std::monostate>>
+      param_tree_cache_;
 
   absl::flat_hash_map<xls::FunctionBase*,
                       std::unique_ptr<xls::PartialInfoQueryEngine>>
