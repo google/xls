@@ -150,8 +150,12 @@ class Bindings {
     // NameDefs shadow the corresponding BuiltinNameDefs for the same entities.
     // Without this check, a builtin that uses another builtin in its signature
     // would cause problems in type concretization.
-    if (IsBuiltinModule() && ResolveNode(name).has_value()) {
-      return;
+    if (IsBuiltinModule()) {
+      std::optional<BoundNode> existing = ResolveNode(name);
+      if (existing.has_value() &&
+          std::holds_alternative<BuiltinNameDef*>(*existing)) {
+        return;
+      }
     }
     local_bindings_[std::move(name)] = binding;
   }

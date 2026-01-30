@@ -35,4 +35,4 @@
 5:46-5:50: NUMBER :: `true` :: uN[1]
 5:52-5:56: NUMBER :: `true` :: uN[1]
 5:60-5:65: NUMBER :: `false` :: uN[1]
-23:37-23:39: TYPE_ANNOTATION :: `()` :: typeof(())
+25:37-25:39: TYPE_ANNOTATION :: `()` :: typeof(())

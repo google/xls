@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+struct State<T: type> {}
+
 fn and_reduce<N: u32>(x: uN[N]) -> u1;
 
 fn array_rev<T: type, N: u32>(x: T[N]) -> T[N];
@@ -71,6 +73,8 @@ fn or_reduce<N: u32>(x: uN[N]) -> u1;
 
 fn priority_sel<N: u32, M: u32, S: bool>(x: uN[N], y: xN[S][M][N], z: xN[S][M]) -> xN[S][M];
 
+fn read<T: type>(source: State<T>) -> T;
+
 fn recv_if_non_blocking<T: type>(tok: token, channel: chan<T> in, predicate: bool, value: T) -> (token, T, bool);
 
 fn recv_if<T: type>(tok: token, channel: chan<T> in, predicate: bool, value: T) -> (token, T);
@@ -104,6 +108,8 @@ fn umulp<N: u32>(x: uN[N], y: uN[N]) -> (uN[N], uN[N]);
 
 fn widening_cast<DEST: type, SRC: type>(x: SRC) -> DEST;
 
+fn write<T: type>(dest: State<T>, value: T);
+
 fn xor_reduce<N: u32>(x: uN[N]) -> u1;
 
 fn zip<LHS_TYPE: type, N: u32, RHS_TYPE: type>(lhs: LHS_TYPE[N], rhs: RHS_TYPE[N]) ->
@@ -115,5 +121,3 @@ fn zip<LHS_TYPE: type, N: u32, RHS_TYPE: type>(lhs: LHS_TYPE[N], rhs: RHS_TYPE[N
 trait ToBits {
   fn to_bits(self) -> bits[bit_count<Self>()];
 }
-
-struct State<T: type> {}
