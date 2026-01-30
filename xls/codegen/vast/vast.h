@@ -1477,11 +1477,19 @@ class LocalParam final : public VastNode {
   std::vector<LocalParamItem*> items_;
 };
 
+// An indexable expression that can be bit-sliced or indexed.
+class IndexableExpression : public Expression {
+ public:
+  using Expression::Expression;
+
+  bool IsIndexableExpression() const final { return true; }
+};
+
 // Refers to a Parameter's definition for use in an expression.
-class ParameterRef final : public Expression {
+class ParameterRef final : public IndexableExpression {
  public:
   ParameterRef(Parameter* parameter, VerilogFile* file, const SourceInfo& loc)
-      : Expression(file, loc), parameter_(parameter) {}
+      : IndexableExpression(file, loc), parameter_(parameter) {}
 
   std::string Emit(LineInfo* line_info) const final {
     return parameter_->GetName();
@@ -1496,14 +1504,6 @@ class ParameterRef final : public Expression {
 
  private:
   Parameter* parameter_;
-};
-
-// An indexable expression that can be bit-sliced or indexed.
-class IndexableExpression : public Expression {
- public:
-  using Expression::Expression;
-
-  bool IsIndexableExpression() const final { return true; }
 };
 
 // Reference to the definition of a WireDef, RegDef, or LogicDef.
