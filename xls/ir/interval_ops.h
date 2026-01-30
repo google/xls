@@ -104,6 +104,7 @@ IntervalSet Shrl(const IntervalSet& a, const IntervalSet& b);
 IntervalSet Shra(const IntervalSet& a, const IntervalSet& b);
 
 // Encode/decode
+IntervalSet Encode(const IntervalSet& a, int64_t width);
 IntervalSet Decode(const IntervalSet& a, int64_t width);
 
 // Bit ops.
