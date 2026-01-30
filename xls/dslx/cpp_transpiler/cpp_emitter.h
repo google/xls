@@ -158,7 +158,7 @@ class CppEmitter {
   static absl::StatusOr<std::unique_ptr<CppEmitter>> Create(
       const TypeAnnotation* type_annotation, std::string_view dslx_type,
       TypeInfo* type_info, ImportData* import_data,
-      std::string_view parent_namespaces);
+      std::string_view parent_namespaces, bool for_enum = false);
 
  private:
   CppType cpp_type_;

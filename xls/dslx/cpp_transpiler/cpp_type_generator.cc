@@ -70,7 +70,8 @@ class EnumCppTypeGenerator : public CppTypeGenerator {
     XLS_ASSIGN_OR_RETURN(
         std::unique_ptr<CppEmitter> emitter,
         CppEmitter::Create(enum_def->type_annotation(), enum_def->identifier(),
-                           type_info, import_data, parent_namespaces));
+                           type_info, import_data, parent_namespaces,
+                           /*for_enum=*/true));
     auto generator = std::make_unique<EnumCppTypeGenerator>(
         DslxTypeNameToCpp(enum_def->identifier()), enum_def->identifier(),
         std::move(emitter));

@@ -16,6 +16,7 @@
 #define XLS_IR_BITS_H_
 
 #include <algorithm>
+#include <bitset>
 #include <cstdint>
 #include <ostream>
 #include <string>
@@ -26,7 +27,9 @@
 #include "absl/base/attributes.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/math_util.h"
 #include "xls/data_structures/inline_bitmap.h"
@@ -135,6 +138,27 @@ class Bits {
   //
   // Returns absl::InlinedVector to avoid std::vector<bool> specialization.
   absl::InlinedVector<bool, 1> ToBitVector() const;
+
+  template <int64_t N>
+  absl::Status FillBitSet(std::bitset<N>& bitset) const {
+    if (N != bit_count()) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Bit array size %d does not match bit count %d", N, bit_count()));
+    }
+    for (int64_t i = 0; i < N; ++i) {
+      bitset[i] = Get(i);
+    }
+    return absl::OkStatus();
+  }
+
+  template <int64_t N>
+  static Bits FromBitSet(const std::bitset<N>& bitset) {
+    InlineBitmap bits(N);
+    for (int64_t i = 0; i < N; ++i) {
+      bits.Set(i, bitset[i]);
+    }
+    return Bits::FromBitmap(std::move(bits));
+  }
 
   int64_t bit_count() const { return bitmap_.bit_count(); }
 

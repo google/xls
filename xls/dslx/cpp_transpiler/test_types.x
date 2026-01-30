@@ -27,6 +27,7 @@ type MyTupleAliasAlias = MyTupleAlias;
 type MyEmptyTuple = ();
 type MyArray = u17[2];
 type MyU5 = u5;
+type MyU555 = bits[555];
 type MyArrayOfArrays = MyU5[2][3];
 type MyTupleArray = MyTuple[2];
 type OtherTupleArray = (u32, u2)[2];

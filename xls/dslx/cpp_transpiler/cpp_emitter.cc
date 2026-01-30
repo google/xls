@@ -112,12 +112,10 @@ absl::StatusOr<std::string> GetBitVectorCppType(int64_t bit_count,
   // Type is wider that 64-bits
   //
   // This is wrong! Bit-vectors wider than 64-bits are being represented using
-  // (u)int64_t. Fortunately this is no less wrong than the previous version of
-  // the cpp transpiler. However, bad implementation does enable conversion of
-  // files which contain (unused) >64-bit types though those types are
-  // non-functional.
-  // TODO(https://github.com/google/xls/issues/1135): Fix this.
-  return prefix + "int64_t";
+  // (u)int64_t.
+  return absl::InternalError(
+      "Attempting to create a cpp int bit-vector representation which is "
+      "larger than 64 bits.");
 }
 
 // Returns the number of elements in the array defined by `type_annotation`.
@@ -131,22 +129,58 @@ absl::StatusOr<int64_t> ArraySize(const ArrayTypeAnnotation* type_annotation,
 // types (bool, int8_t, uint16_t, etc).
 class BitVectorCppEmitter : public CppEmitter {
  public:
+  ~BitVectorCppEmitter() override = default;
+
+  static absl::StatusOr<std::unique_ptr<BitVectorCppEmitter>> Create(
+      std::string_view dslx_type, int64_t dslx_bit_count, bool is_signed,
+      bool for_enum);
+
+  std::string ToString(std::string_view str_to_append,
+                       std::string_view indent_amount,
+                       std::string_view identifier,
+                       int64_t nesting) const override {
+    return absl::StrCat(str_to_append, " += \"bits[", dslx_bit_count(),
+                        "]:\" + ", ValueAsString(identifier), ";");
+  }
+
+  std::string ToDslxString(std::string_view str_to_append,
+                           std::string_view indent_amount,
+                           std::string_view identifier,
+                           int64_t nesting) const override {
+    return absl::StrCat(str_to_append, " += \"", dslx_type(), ":\" + ",
+                        ValueAsDslxString(identifier), ";");
+  }
+
+  std::optional<int64_t> GetBitCountIfBitVector() const override {
+    return dslx_bit_count_;
+  }
+  int64_t dslx_bit_count() const { return dslx_bit_count_; }
+  bool is_signed() const { return is_signed_; }
+
+ protected:
   explicit BitVectorCppEmitter(const CppType& cpp_type,
                                std::string_view dslx_type,
                                int64_t dslx_bit_count, bool is_signed)
       : CppEmitter(cpp_type, dslx_type),
         dslx_bit_count_(dslx_bit_count),
         is_signed_(is_signed) {}
-  ~BitVectorCppEmitter() override = default;
+  virtual std::string ValueAsString(std::string_view identifier) const = 0;
 
-  static absl::StatusOr<std::unique_ptr<BitVectorCppEmitter>> Create(
-      std::string_view dslx_type, int64_t dslx_bit_count, bool is_signed) {
-    XLS_ASSIGN_OR_RETURN(std::string cpp_type_name,
-                         GetBitVectorCppType(dslx_bit_count, is_signed));
-    CppType cpp_type = {.name = cpp_type_name};
-    return std::make_unique<BitVectorCppEmitter>(cpp_type, dslx_type,
-                                                 dslx_bit_count, is_signed);
-  }
+  virtual std::string ValueAsDslxString(std::string_view identifier) const = 0;
+
+  // Bit-count of the underlying DSLX type.
+  int64_t dslx_bit_count_;
+  bool is_signed_;
+};
+
+// A bit vector emitter where the underlying type is a C++ int type.
+class CppIntBitVectorEmitter final : public BitVectorCppEmitter {
+ public:
+  explicit CppIntBitVectorEmitter(const CppType& cpp_type,
+                                  std::string_view dslx_type,
+                                  int64_t dslx_bit_count, bool is_signed)
+      : BitVectorCppEmitter(cpp_type, dslx_type, dslx_bit_count, is_signed) {}
+  ~CppIntBitVectorEmitter() override = default;
 
   std::string AssignToValue(std::string_view lhs, std::string_view rhs,
                             int64_t nesting) const override {
@@ -216,34 +250,12 @@ class BitVectorCppEmitter : public CppEmitter {
     return absl::StrJoin(pieces, "\n");
   }
 
-  std::string ToString(std::string_view str_to_append,
-                       std::string_view indent_amount,
-                       std::string_view identifier,
-                       int64_t nesting) const override {
-    return absl::StrCat(str_to_append, " += \"bits[", dslx_bit_count(),
-                        "]:\" + ", ValueAsString(identifier), ";");
-  }
-
-  std::string ToDslxString(std::string_view str_to_append,
-                           std::string_view indent_amount,
-                           std::string_view identifier,
-                           int64_t nesting) const override {
-    return absl::StrCat(str_to_append, " += \"", dslx_type(), ":\" + ",
-                        ValueAsDslxString(identifier), ";");
-  }
-
-  std::optional<int64_t> GetBitCountIfBitVector() const override {
-    return dslx_bit_count_;
-  }
-  int64_t dslx_bit_count() const { return dslx_bit_count_; }
-  bool is_signed() const { return is_signed_; }
-
  protected:
-  std::string ValueAsString(std::string_view identifier) const {
+  std::string ValueAsString(std::string_view identifier) const override {
     return absl::StrCat("absl::StrFormat(\"0x%x\", ", identifier, ")");
   }
 
-  std::string ValueAsDslxString(std::string_view identifier) const {
+  std::string ValueAsDslxString(std::string_view identifier) const override {
     if (dslx_type() == "bool") {
       return absl::StrFormat("std::string{%s ? \"true\" : \"false\"}",
                              identifier);
@@ -253,11 +265,77 @@ class BitVectorCppEmitter : public CppEmitter {
     }
     return ValueAsString(identifier);
   }
-
-  // Bit-count of the underlying DSLX type.
-  int64_t dslx_bit_count_;
-  bool is_signed_;
 };
+
+// An emitter that generates a std::bitset<size> for a bit-vector. Used if the
+// bit vector is larger than 64 bits.
+class RawBitVectorCppEmitter : public BitVectorCppEmitter {
+ public:
+  explicit RawBitVectorCppEmitter(const CppType& cpp_type,
+                                  std::string_view dslx_type,
+                                  int64_t dslx_bit_count, bool is_signed)
+      : BitVectorCppEmitter(cpp_type, dslx_type, dslx_bit_count, is_signed) {}
+  ~RawBitVectorCppEmitter() override = default;
+
+  std::string AssignToValue(std::string_view lhs, std::string_view rhs,
+                            int64_t nesting) const override {
+    std::vector<std::string> pieces;
+    pieces.push_back(
+        absl::StrFormat("%s = ::xls::Value(::xls::Bits::FromBitSet<%d>(%s));",
+                        lhs, dslx_bit_count(), rhs));
+    return absl::StrJoin(pieces, "\n");
+  }
+  std::string AssignFromValue(std::string_view lhs, std::string_view rhs,
+                              int64_t nesting) const override {
+    std::vector<std::string> pieces;
+    pieces.push_back(
+        absl::StrFormat("if (!%s.IsBits() || %s.bits().bit_count() != %d) {",
+                        rhs, rhs, dslx_bit_count()));
+    pieces.push_back(
+        absl::StrFormat("  return absl::InvalidArgumentError(\"Value is not a "
+                        "bits type of %d bits.\");",
+                        dslx_bit_count()));
+    pieces.push_back("}");
+    pieces.push_back(
+        absl::StrFormat("  XLS_RETURN_IF_ERROR(%s.bits().FillBitSet<%d>(%s));",
+                        rhs, dslx_bit_count(), lhs));
+    return absl::StrJoin(pieces, "\n");
+  }
+  std::string Verify(std::string_view identifier, std::string_view name,
+                     int64_t nesting) const override {
+    // No need to verify anything. The array forces the right size.
+    return "";
+  }
+
+ protected:
+  std::string ValueAsString(std::string_view identifier) const override {
+    return absl::StrFormat(R"Fmt(absl::StrCat("0b", (%s).to_string()))Fmt",
+                           identifier);
+  }
+  std::string ValueAsDslxString(std::string_view identifier) const override {
+    return ValueAsString(identifier);
+  }
+};
+
+absl::StatusOr<std::unique_ptr<BitVectorCppEmitter>>
+BitVectorCppEmitter::Create(std::string_view dslx_type, int64_t dslx_bit_count,
+                            bool is_signed, bool for_enum) {
+  if (for_enum) {
+    dslx_bit_count = std::min(dslx_bit_count, int64_t{64});
+  }
+  if (dslx_bit_count <= 64) {
+    XLS_ASSIGN_OR_RETURN(std::string cpp_type_name,
+                         GetBitVectorCppType(dslx_bit_count, is_signed));
+    CppType cpp_type = {.name = cpp_type_name};
+    return std::make_unique<CppIntBitVectorEmitter>(cpp_type, dslx_type,
+                                                    dslx_bit_count, is_signed);
+  } else {
+    CppType cpp_type = {.name =
+                            absl::StrFormat("std::bitset<%d>", dslx_bit_count)};
+    return std::make_unique<RawBitVectorCppEmitter>(cpp_type, dslx_type,
+                                                    dslx_bit_count, is_signed);
+  }
+}
 
 // An emitter for DSLX type refs. The emitted C++ code delegates all
 // functionality (ToString, etc) to code generated by other emitters.
@@ -861,7 +939,7 @@ std::string DslxModuleNameToCppNamespace(std::string_view dslx_module) {
 /* static */ absl::StatusOr<std::unique_ptr<CppEmitter>> CppEmitter::Create(
     const TypeAnnotation* type_annotation, std::string_view dslx_type,
     TypeInfo* type_info, ImportData* import_data,
-    std::string_view parent_namespaces) {
+    std::string_view parent_namespaces, bool for_enum) {
   // Both builtin (e.g., `u32`) and array types (e.g, `sU[22]`) can represent
   // bit-vector types so call IsBitVectorType to identify them.
   std::optional<BitVectorMetadata> bit_vector_metadata =
@@ -872,9 +950,10 @@ std::string DslxModuleNameToCppNamespace(std::string_view dslx_module) {
     XLS_ASSIGN_OR_RETURN(int64_t bit_count,
                          GetBitCountFromBitVectorMetadata(
                              *bit_vector_metadata, type_info, import_data));
-    return BitVectorCppEmitter::Create(dslx_type, bit_count,
-                                       bit_vector_metadata->is_signed);
+    return BitVectorCppEmitter::Create(
+        dslx_type, bit_count, bit_vector_metadata->is_signed, for_enum);
   }
+  XLS_RET_CHECK(!for_enum) << "Enums must be bits!";
   if (const ArrayTypeAnnotation* array_type =
           dynamic_cast<const ArrayTypeAnnotation*>(type_annotation);
       array_type != nullptr) {

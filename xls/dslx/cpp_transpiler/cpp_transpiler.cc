@@ -44,6 +44,7 @@ absl::StatusOr<CppSource> TranspileToCpp(
 #ifndef $0
 #define $0
 #include <array>
+#include <bitset>
 #include <cstdint>
 #include <ostream>
 #include <string>
@@ -61,6 +62,7 @@ $2$1$3
   constexpr std::string_view kSourceTemplate =
       R"(// AUTOMATICALLY GENERATED FILE FROM `xls/dslx/cpp_transpiler`. DO NOT EDIT!
 #include <array>
+#include <bitset>
 #include <string>
 #include <string_view>
 #include <vector>

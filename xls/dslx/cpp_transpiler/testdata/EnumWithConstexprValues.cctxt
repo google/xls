@@ -1,5 +1,6 @@
 // AUTOMATICALLY GENERATED FILE FROM `xls/dslx/cpp_transpiler`. DO NOT EDIT!
 #include <array>
+#include <bitset>
 #include <string>
 #include <string_view>
 #include <vector>

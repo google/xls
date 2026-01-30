@@ -351,16 +351,18 @@ type MyUnsupportedSignedBit = s1;
                HasSubstr("Signed one-bit numbers are not supported")));
 }
 
-TEST(CppTranspilerTest, UnsupportedTypes) {
+TEST(CppTranspilerTest, WideTypes) {
   constexpr std::string_view kModule = R"(
-type MyUnsupportedWideAlias = sN[123];
+type MyWideAlias = sN[123];
 
+// NB This is not supported yet
+// https://github.com/google/xls/issues/1135
 enum MyUnsupportedWideEnum : uN[555] {
   A = 0,
   B = 1,
 }
 
-struct MyUnsupportedWideStruct {
+struct MyWideStruct {
   wide_field: bits[100],
 }
 )";
@@ -369,16 +371,14 @@ struct MyUnsupportedWideStruct {
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule module,
       ParseAndTypecheck(kModule, "fake_path", "my_module", &import_data));
-  // The types compile, but the code is wrong.
-  // TODO(https://github.com/google/xls/issues/1135): Fix this.
   XLS_ASSERT_OK_AND_ASSIGN(
       auto result,
       TranspileToCpp(module.module, &import_data,
                      /*additional_include_headers=*/{}, "/tmp/fake_path.h"));
   EXPECT_THAT(result.header,
-              HasSubstr("using MyUnsupportedWideAlias = int64_t;"));
-  EXPECT_THAT(result.header, HasSubstr("uint64_t wide_field"));
-  EXPECT_THAT(result.header, HasSubstr("uint64_t wide_field"));
+              HasSubstr("using MyWideAlias = std::bitset<123>;"));
+  EXPECT_THAT(result.header, HasSubstr("std::bitset<100> wide_field"));
+  EXPECT_THAT(result.header, HasSubstr("std::bitset<100> wide_field"));
   EXPECT_THAT(result.header,
               HasSubstr("enum class MyUnsupportedWideEnum : uint64_t"));
 }
