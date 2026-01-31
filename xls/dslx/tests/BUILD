@@ -802,7 +802,7 @@ xls_dslx_opt_ir(
     name = "mod_parametric_id_user_opt_ir",
     srcs = ["mod_parametric_id_user.x"],
     dslx_top = "main",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     deps = [":mod_parametric_id_dslx"],
 )
 
@@ -1037,7 +1037,7 @@ xls_dslx_opt_ir(
     name = "mod_const_importer_opt_ir",
     srcs = ["mod_const_importer.x"],
     dslx_top = "main",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     deps = [":mod_simple_const_dslx"],
 )
 
@@ -1095,7 +1095,7 @@ xls_dslx_opt_ir(
     name = "mod_const_array_of_enum_importer_opt_ir",
     srcs = ["mod_const_array_of_enum_importer.x"],
     dslx_top = "main",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     deps = [":mod_simple_const_array_of_enums_dslx"],
 )
 
@@ -1110,7 +1110,7 @@ xls_dslx_opt_ir(
     name = "simple_enum_usage_opt_ir",
     srcs = ["simple_enum_usage.x"],
     dslx_top = "main",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
 )
 
 xls_dslx_opt_ir_test(
