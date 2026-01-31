@@ -173,7 +173,7 @@ cc_test(
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/types:span",
-        "@eigen//:eigen3",
+        "@eigen",
     ],
 )
 
@@ -546,7 +546,7 @@ cc_test(
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status:statusor",
-        "@eigen//:eigen3",
+        "@eigen",
         "@googletest//:gtest",
     ] + [":bfloat16_" + top + "_jit_wrapper" for top in BFLOAT16_CMP_TOPS],
 )
@@ -582,7 +582,7 @@ cc_test(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status:statusor",
-        "@eigen//:eigen3",
+        "@eigen",
         "@googletest//:gtest",
     ],
 )

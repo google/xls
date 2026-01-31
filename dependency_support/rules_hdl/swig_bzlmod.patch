@@ -1,0 +1,20 @@
+diff --git a/BUILD b/BUILD
+index a2b99dc83..d5e6f7a8b 100644
+--- a/BUILD
++++ b/BUILD
+@@ -161,3 +161,15 @@ filegroup(
+     licenses = ["notice"],  # simple notice license for Lib/
+     visibility = ["//visibility:public"],
+ )
++
++filegroup(
++    name = "lib_tcl",
++    srcs = glob([
++        "Lib/*",
++        "Lib/tcl/*",
++        "Lib/std/*",
++        "Lib/typemaps/*",
++    ]),
++    licenses = ["notice"],  # simple notice license for Lib/
++    visibility = ["//visibility:public"],
++)
