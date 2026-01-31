@@ -142,6 +142,27 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "register_cleanup_pass_test",
+    srcs = ["register_cleanup_pass_test.cc"],
+    deps = [
+        ":block_conversion_pass",
+        ":register_cleanup_pass",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:register",
+        "//xls/ir:source_location",
+        "//xls/passes:pass_base",
+        "@com_google_absl//absl/status:statusor",
+        "@googletest//:gtest",
+    ],
+)
+
 cc_library(
     name = "block_conversion_wrapper_pass",
     srcs = ["block_conversion_wrapper_pass.cc"],

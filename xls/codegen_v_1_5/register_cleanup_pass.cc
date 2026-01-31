@@ -127,7 +127,8 @@ absl::StatusOr<bool> RegisterCleanupPass::RemoveUnreadRegisters(
       if (user->Is<RegisterWrite>()) {
         can_receive_value_from[reg].insert(
             user->As<RegisterWrite>()->GetRegister());
-      } else if (user->Is<OutputPort>()) {
+      } else if (user->Is<OutputPort>() || user->Is<Assert>() ||
+                 user->Is<Cover>() || user->Is<Trace>()) {
         directly_read_registers.insert(reg);
       }
     }
