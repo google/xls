@@ -115,7 +115,10 @@ absl::StatusOr<bool> SchedulingPass::RunInternal(
                                  return_value, Op::kIdentity));
         XLS_RETURN_IF_ERROR(new_fn->set_return_value(staged_return_value));
       }
-    } else if (old_fb->IsProc()) {
+    } else if (old_fb->IsProc() &&
+               (options.codegen_options.generate_combinational() ||
+                options.package_schedule.schedules().contains(
+                    old_fb->name()))) {
       Proc* new_proc = package->AddProc(
           std::make_unique<ScheduledProc>(old_fb->name(), package));
       new_fb = new_proc;

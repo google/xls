@@ -120,5 +120,46 @@ top proc __test__P_0_next(__state: bits[32], init={0}) {
   ExpectEqualToGoldenFile(output);
 }
 
+TEST_F(SchedulingPassTest, MultiProcWithOneProcScheduled) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string output, RunPassAndRoundTripIrText(
+                              R"(
+package test
+
+chan test__a(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+chan test__b(bits[32], id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+chan test__result(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+
+proc __test2__P_0_next(__state: bits[32], init={0}) {
+  __last_state: bits[32] = state_read(state_element=__state)
+  next_value.100: () = next_value(param=__state, value=__last_state)
+}
+
+top proc __test__P_0_next(__state: bits[32], init={0}) {
+  after_all.4: token = after_all(id=4)
+  literal.3: bits[1] = literal(value=1, id=3)
+  receive.5: (token, bits[32]) = receive(after_all.4, predicate=literal.3, channel=test__a, id=5)
+  tok: token = tuple_index(receive.5, index=0, id=7)
+  receive.9: (token, bits[32]) = receive(tok, predicate=literal.3, channel=test__b, id=9)
+  a_value: bits[32] = tuple_index(receive.5, index=1, id=8)
+  b_value: bits[32] = tuple_index(receive.9, index=1, id=12)
+  umul.13: bits[32] = umul(a_value, b_value, id=13)
+  __state: bits[32] = state_read(state_element=__state, id=2)
+  tok__1: token = tuple_index(receive.9, index=0, id=11)
+  result_value: bits[32] = add(umul.13, __state, id=14)
+  __token: token = literal(value=token, id=1)
+  tuple_index.6: token = tuple_index(receive.5, index=0, id=6)
+  tuple_index.10: token = tuple_index(receive.9, index=0, id=10)
+  send.15: token = send(tok__1, result_value, predicate=literal.3, channel=test__result, id=15)
+  next_value.16: () = next_value(param=__state, value=result_value, id=16)
+}
+
+)",
+                              /*expect_change=*/true, verilog::CodegenOptions(),
+                              SchedulingOptions().pipeline_stages(2)));
+
+  ExpectEqualToGoldenFile(output);
+}
+
 }  // namespace
 }  // namespace xls::codegen
