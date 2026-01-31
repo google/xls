@@ -83,7 +83,7 @@ use_repo(perfetto_ext, "perfetto")
 use_repo(perfetto_ext, "perfetto_cfg")
 
 # Perfetto requires this to get through bazel analysis, but seems unused for our use.
-bazel_dep(name = "rules_android", version = "0.6.0")
+bazel_dep(name = "rules_android", version = "0.7.1")
 
 # Pin this as otherwise we encounter some bazel analysis failure.
 bazel_dep(name = "rules_jvm_external", version = "6.8")
