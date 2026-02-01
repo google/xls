@@ -73,6 +73,11 @@ absl::Status RealMain(std::string_view ir_path) {
 
   XLS_ASSIGN_OR_RETURN(CodegenFlagsProto codegen_flags_proto,
                        GetCodegenFlags());
+  if (p->ChannelsAreProcScoped()) {
+    // Force Codegen 1.5 if proc-scoped channels were generated during the IR
+    // conversion.
+    codegen_flags_proto.set_codegen_version(CODEGEN_VERSION_ONE_DOT_FIVE);
+  }
   if (codegen_flags_proto.has_reference_residual_data()) {
     return absl::UnimplementedError(
         "Reference residual data is not supported in codegen_main; use "

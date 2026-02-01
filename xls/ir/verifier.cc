@@ -111,7 +111,9 @@ absl::Status VerifyName(FunctionBase* function_base) {
 
 // Verify common invariants to function-level constructs.
 absl::Status VerifyFunctionBase(FunctionBase* function) {
-  VLOG(2) << absl::StreamFormat("Verifying function %s:", function->name());
+  VLOG(2) << "Verifying function " << function->name() << "\n"
+          << function->DumpIr();
+  VLOG(2) << "PSC: " << function->package()->ChannelsAreProcScoped();
   XLS_VLOG_LINES(4, function->DumpIr());
 
   XLS_RETURN_IF_ERROR(VerifyName(function));
@@ -600,8 +602,8 @@ absl::Status VerifyPackage(
 }
 
 absl::Status VerifyFunction(Function* function, const VerifyOptions& options) {
-  VLOG(4) << "Verifying function:\n";
-  XLS_VLOG_LINES(4, function->DumpIr());
+  VLOG(2) << "Verifying function:\n";
+  XLS_VLOG_LINES(2, function->DumpIr());
 
   XLS_RETURN_IF_ERROR(VerifyFunctionBase(function));
 
@@ -864,7 +866,7 @@ static absl::Status VerifyProcInstantiations(Proc* proc) {
 }
 
 absl::Status VerifyProc(Proc* proc, const VerifyOptions& options) {
-  VLOG(4) << "Verifying proc:\n";
+  VLOG(2) << "Verifying proc:\n";
   XLS_VLOG_LINES(4, proc->DumpIr());
 
   XLS_RETURN_IF_ERROR(VerifyFunctionBase(proc));
@@ -1209,8 +1211,8 @@ static absl::Status VerifyDelayLineInstantiation(
 }
 
 absl::Status VerifyBlock(Block* block, const VerifyOptions& options) {
-  VLOG(4) << "Verifying block:\n";
-  XLS_VLOG_LINES(4, block->DumpIr());
+  VLOG(2) << "Verifying block:\n";
+  XLS_VLOG_LINES(2, block->DumpIr());
 
   XLS_RETURN_IF_ERROR(VerifyFunctionBase(block));
 
