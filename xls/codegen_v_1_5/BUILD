@@ -127,6 +127,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/data_structures:transitive_closure",
         "//xls/ir",
+        "//xls/ir:op",
         "//xls/ir:register",
         "//xls/ir:value",
         "//xls/ir:value_utils",

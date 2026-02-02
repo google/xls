@@ -29,6 +29,7 @@
 #include "xls/ir/block.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/register.h"
 #include "xls/ir/value.h"
@@ -118,18 +119,21 @@ absl::StatusOr<bool> RegisterCleanupPass::RemoveUnreadRegisters(
     Block* block, QueryEngine& query_engine) const {
   absl::flat_hash_map<Register*, absl::flat_hash_set<Register*>>
       can_receive_value_from;
-  absl::flat_hash_set<Register*> directly_read_registers;
+  absl::flat_hash_set<Register*> directly_visible_registers;
   NodeBackwardDependencyAnalysis nda;
   XLS_RETURN_IF_ERROR(nda.Attach(block).status());
   for (Register* reg : block->GetRegisters()) {
     XLS_ASSIGN_OR_RETURN(RegisterRead * read, block->GetRegisterRead(reg));
     for (Node* user : nda.NodesDependingOn(read)) {
+      if (user == read) {
+        continue;
+      }
+
       if (user->Is<RegisterWrite>()) {
         can_receive_value_from[reg].insert(
             user->As<RegisterWrite>()->GetRegister());
-      } else if (user->Is<OutputPort>() || user->Is<Assert>() ||
-                 user->Is<Cover>() || user->Is<Trace>()) {
-        directly_read_registers.insert(reg);
+      } else if (OpIsSideEffecting(user->op())) {
+        directly_visible_registers.insert(reg);
       }
     }
   }
@@ -138,9 +142,9 @@ absl::StatusOr<bool> RegisterCleanupPass::RemoveUnreadRegisters(
       transitive_receivers = TransitiveClosure(can_receive_value_from);
   std::vector<Register*> unread_registers;
   for (Register* reg : block->GetRegisters()) {
-    if (!directly_read_registers.contains(reg) &&
+    if (!directly_visible_registers.contains(reg) &&
         absl::c_none_of(transitive_receivers[reg], [&](Register* user) {
-          return directly_read_registers.contains(user);
+          return directly_visible_registers.contains(user);
         })) {
       unread_registers.push_back(reg);
     }
