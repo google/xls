@@ -29,15 +29,20 @@ def repo():
         sha256 = "fd9e99f6ccb9e946755f9bc444abefbdd1eedb32c372c56dcacc7eb486aed178",
     )
 
-    # Current as of 2025-11-07
-    git_hash = "d17bb1646fa36e6172b349cc59af8d31a427cf23"
+    # Current as of 2026-01-26
+    git_hash = "af93b9a5893e482f9959ce351834960e09a45a7b"
 
     maybe(
         http_archive,
         name = "rules_hdl",
-        integrity = "sha256-aWjEZVtMMTiO80C3a2c3WBtKJA0WzUgUzqMkA0QLsjs=",
+        integrity = "sha256-qphNuOxqovqNpGtk7sKxclWLPtxnoPm8ViyT+hiMaiw=",
         strip_prefix = "bazel_rules_hdl-%s" % git_hash,
         urls = [
             "https://github.com/hdl/bazel_rules_hdl/archive/%s.tar.gz" % git_hash,
+        ],
+        patches = [
+            Label("@//dependency_support/rules_hdl:rules_hdl_deps.patch"),
+            Label("@//dependency_support/rules_hdl:rename_eigen.patch"),
+            Label("@//dependency_support/rules_hdl:rename_swig.patch"),
         ],
     )

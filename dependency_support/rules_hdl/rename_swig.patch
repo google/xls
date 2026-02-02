@@ -1,0 +1,29 @@
+index b5c1242..7a43e4f 100644
+--- dependency_support/org_theopenroadproject/tcl_wrap_cc.bzl
++++ dependency_support/org_theopenroadproject/tcl_wrap_cc.bzl
+@@ -85,6 +85,9 @@ def _tcl_wrap_cc_impl(ctx):
+         outputs = [output_file],
+         inputs = src_inputs,
+         arguments = [args],
++        env = {
++            "SWIG_LIB": "external/swig~/Lib",
++        },
+-        tools = ctx.files._swig,
++        tools = ctx.files._swig_lib,
+         executable = ([file for file in ctx.files._swig if file.basename == "swig"][0]),
+     )
+@@ -135,8 +138,13 @@ tcl_wrap_cc = rule(
+         "swig_options": attr.string_list(
+             doc = "args to pass directly to the swig binary",
+         ),
++        "_swig_lib": attr.label(
++            default = "@swig//:lib_tcl",
++            allow_files = True,
++            cfg = "exec",
++        ),
+         "_swig": attr.label(
+-            default = "@org_swig//:swig_stable",
++            default = "@swig//:swig",
+             allow_files = True,
+             cfg = "exec",
+         ),

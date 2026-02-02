@@ -115,6 +115,7 @@ maven.artifact(
 )
 
 # Used both by XLS and rules_hdl.
+bazel_dep(name = "eigen", version = "4.0.0-20241125.bcr.2")
 bazel_dep(name = "rules_pkg", version = "1.2.0")
 
 # Workaround suggested by a Bazel team member; only needed for WORKSPACE to work correctly.
@@ -127,6 +128,14 @@ proto_bazel_features(name = "proto_bazel_features")
 bazel_dep(name = "rules_bison", version = "0.3")
 bazel_dep(name = "rules_flex", version = "0.3")
 bazel_dep(name = "rules_m4", version = "0.3")
+bazel_dep(name = "swig", version = "4.3.0")
+
+# TODO: rigge - Remove this override once the patch is in the main repo.
+single_version_override(
+    module_name = "swig",
+    patch_strip = 1,
+    patches = ["//dependency_support/rules_hdl:swig_bzlmod.patch"],
+)
 
 # Dev dependencies
 bazel_dep(name = "fuzztest", version = "20250805.0", dev_dependency = True, repo_name = "com_google_fuzztest")

@@ -1,0 +1,42 @@
+diff --git a/dependency_support/dependency_support.bzl b/dependency_support/dependency_support.bzl
+index 5f559a7..310c40f 100644
+--- dependency_support/dependency_support.bzl
++++ dependency_support/dependency_support.bzl
+@@ -32,10 +32,6 @@ load("//dependency_support/com_github_westes_flex:com_github_westes_flex.bzl", "
+ load("//dependency_support/com_github_yosyshq_nextpnr:com_github_yosyshq_nextpnr.bzl", "com_github_yosyshq_nextpnr")
+ load("//dependency_support/com_github_yosyshq_prjtrellis:com_github_yosyshq_prjtrellis.bzl", "com_github_yosyshq_prjtrellis")
+ load("//dependency_support/com_github_yosyshq_prjtrellis_db:com_github_yosyshq_prjtrellis_db.bzl", "com_github_yosyshq_prjtrellis_db")
+-load("//dependency_support/com_google_absl:com_google_absl.bzl", "com_google_absl")
+-load("//dependency_support/com_google_googletest:com_google_googletest.bzl", "com_google_googletest")
+-load("//dependency_support/com_google_ortools:com_google_ortools.bzl", "com_google_ortools")
+-load("//dependency_support/com_google_protobuf:com_google_protobuf.bzl", "com_google_protobuf")
+ load("//dependency_support/com_google_skywater_pdk:com_google_skywater_pdk.bzl", "com_google_skywater_pdk")
+ load("//dependency_support/com_icarus_iverilog:com_icarus_iverilog.bzl", "com_icarus_iverilog")
+ load("//dependency_support/com_opencircuitdesign_magic:com_opencircuitdesign_magic.bzl", "com_opencircuitdesign_magic")
+@@ -55,7 +51,6 @@ load("//dependency_support/org_nixos_patchelf:org_nixos_patchelf.bzl", "org_nixo
+ load("//dependency_support/org_pcre_ftp:org_pcre_ftp.bzl", "org_pcre_ftp")
+ load("//dependency_support/org_sourceware_bzip2:org_sourceware_bzip2.bzl", "org_sourceware_bzip2")
+ load("//dependency_support/org_sourceware_libffi:org_sourceware_libffi.bzl", "org_sourceware_libffi")
+-load("//dependency_support/org_swig:org_swig.bzl", "org_swig")
+ load("//dependency_support/org_theopenroadproject:org_theopenroadproject.bzl", "org_theopenroadproject")
+ load("//dependency_support/org_theopenroadproject_asap7_pdk_r1p7:org_theopenroadproject_asap7_pdk_r1p7.bzl", "org_theopenroadproject_asap7_pdk_r1p7")
+ load("//dependency_support/org_theopenroadproject_asap7sc6t_26:org_theopenroadproject_asap7sc6t_26.bzl", "org_theopenroadproject_asap7sc6t_26")
+@@ -86,10 +81,6 @@ def dependency_support(register_toolchains = True):
+     com_github_yosyshq_nextpnr()
+     com_github_yosyshq_prjtrellis()
+     com_github_yosyshq_prjtrellis_db()
+-    com_google_absl()
+-    com_google_googletest()
+-    com_google_protobuf()
+-    com_google_ortools()
+     com_google_skywater_pdk()
+     com_icarus_iverilog()
+     com_opencircuitdesign_magic()
+@@ -109,7 +100,6 @@ def dependency_support(register_toolchains = True):
+     org_pcre_ftp()
+     org_sourceware_bzip2()
+     org_sourceware_libffi()
+-    org_swig()
+     org_theopenroadproject()
+     org_theopenroadproject_asap7_pdk_r1p7()
+     org_theopenroadproject_asap7sc6t_26()
