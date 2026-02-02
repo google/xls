@@ -441,11 +441,63 @@ class CollectUseDef : public AstNodeVisitorWithDefault {
   absl::flat_hash_set<const NameDef*> uses_;
 };
 
+// Replaces the type annotation of next() params to State<TheOriginalType>.
+class NextParamStateVisitor : public AstNodeVisitorWithDefault {
+ public:
+  NextParamStateVisitor(StructDef* state_struct_def)
+      : state_struct_def_(state_struct_def) {}
+
+  absl::Status HandleFunction(const Function* node) override {
+    // Legacy proc has multiple pointers to functions within the AST. This could
+    // cause the HandleParam visitor to run multiple times on the same function.
+    if (!processed_fns_.insert(node).second) {
+      return absl::OkStatus();
+    }
+    return DefaultHandler(node);
+  }
+
+  absl::Status HandleParam(const Param* node) override {
+    if (node->parent() != nullptr &&
+        node->parent()->kind() == AstNodeKind::kFunction) {
+      const Function* fn = down_cast<const Function*>(node->parent());
+      if (fn->tag() == FunctionTag::kProcNext) {
+        TypeRef* state_typeref =
+            node->owner()->Make<TypeRef>(node->span(), state_struct_def_);
+        std::vector<ExprOrType> parametrics = {node->type_annotation()};
+        TypeRefTypeAnnotation* state_type_annotation =
+            node->owner()->Make<TypeRefTypeAnnotation>(
+                node->span(), state_typeref, parametrics);
+        const_cast<Param*>(node)->set_type_annotation(state_type_annotation);
+      }
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status DefaultHandler(const AstNode* node) override {
+    for (auto child : node->GetChildren(false)) {
+      XLS_RETURN_IF_ERROR(child->Accept(this));
+    }
+    return absl::OkStatus();
+  }
+
+ private:
+  StructDef* state_struct_def_;
+  absl::flat_hash_set<const Function*> processed_fns_;
+};
+
 }  // namespace
 
 absl::Status SemanticsAnalysis::RunPreTypeCheckPass(
     Module& module, WarningCollector& warning_collector,
     ImportData& import_data) {
+  if (module.attributes().contains(ModuleAttribute::kExplicitStateAccess)) {
+    XLS_ASSIGN_OR_RETURN(Module * builtins,
+                         import_data.GetBuiltinStubsModule());
+    XLS_ASSIGN_OR_RETURN(StructDef * state_struct_def,
+                         builtins->GetMemberOrError<StructDef>("State"));
+    NextParamStateVisitor next_param_visitor(state_struct_def);
+    XLS_RETURN_IF_ERROR(module.Accept(&next_param_visitor));
+  }
   PreTypecheckPass pass(warning_collector);
 
   for (const ModuleMember& top : module.top()) {

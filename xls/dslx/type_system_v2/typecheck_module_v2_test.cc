@@ -9430,5 +9430,49 @@ const TEST = uN[ARR[1]]:0;
                                       HasNodeWithType("TEST", "uN[3]"))));
 }
 
+TEST(TypecheckV2Test, ExplicitStateAccessSimpleU32) {
+  EXPECT_THAT(
+      R"(#![feature(explicit_state_access)]
+proc Counter {
+  init { u32:0 }
+  config() { }
+  next(state: u32) {
+    let x = read(state);
+    let y = x + u32:1;
+    write(state, y);
+  }
+}
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("read(state)", "uN[32]"),
+                              HasNodeWithType("y", "uN[32]"),
+                              HasNodeWithType("write(state, y)", "()"))));
+}
+
+TEST(TypecheckV2Test, ExplicitStateAccessFailOnInteractingWithState) {
+  EXPECT_THAT(R"(#![feature(explicit_state_access)]
+proc Counter {
+  init { u32:0 }
+  config() { }
+  next(state: u32) {
+    let sum = state + u32:1;
+  }
+}
+)",
+              TypecheckFails(HasTypeMismatch("State<u32>", "u32")));
+}
+
+TEST(TypecheckV2Test, ExplicitStateAccessAddingStateToState) {
+  EXPECT_THAT(R"(#![feature(explicit_state_access)]
+proc Counter {
+  init { u32:0 }
+  config() { }
+  next(state: u32) {
+    let sum = state + state;
+  }
+}
+)",
+              TypecheckFails(HasSubstr("State {} Binary operations can only be "
+                                       "applied to bits-typed operands.")));
+}
 }  // namespace
 }  // namespace xls::dslx
