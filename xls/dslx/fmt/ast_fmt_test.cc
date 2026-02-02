@@ -1420,6 +1420,10 @@ this_is_a_very_long_name_this_is_a_very_long_name_this_is_a_very_long_name_this_
 )");
 }
 
+TEST_F(ModuleFmtTest, ConstantFn) {
+  DoFmt("const fn f(N: u32) -> u32 { N * u32:3 }\n");
+}
+
 TEST_F(ModuleFmtTest, ConstantDefWithType) {
   DoFmt("pub const MOL: u32 = u32:42;\n");
 }
