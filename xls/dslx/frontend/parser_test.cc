@@ -1828,6 +1828,55 @@ TEST_F(ParserTest, LocalConstBinding) {
   EXPECT_EQ(definer, const_let);
 }
 
+TEST_F(ParserTest, SyntaxConstexprFn) {
+  const char* text = R"(const fn f() -> u32 {
+    u32:66 + u32:99
+})";
+  RoundTrip(text);
+  Scanner s{file_table_, Fileno(0), std::string{text}};
+  Parser parser{"test", &s};
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module,
+                           parser.ParseModule());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           module->GetMemberOrError<Function>("f"));
+  EXPECT_TRUE(f->is_const());
+}
+
+TEST_F(ParserTest, TestConstexprFn) {
+  const char* text = R"(#[test]
+const fn test_fn() -> u32 {
+    u32:6 * u32:9
+})";
+  RoundTrip(text);
+  Scanner s{file_table_, Fileno(0), std::string{text}};
+  Parser parser{"test", &s};
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module,
+                           parser.ParseModule());
+  auto* tf = std::get<TestFunction*>(module->top()[0]);
+  EXPECT_EQ(tf->name_def()->identifier(), "test_fn");
+}
+
+TEST_F(ParserTest, UtilityConstexprFn) {
+  const char* text = R"(#[cfg(test)]
+const fn utility_fn() -> u32 {
+    u32:66 / u32:3
+}
+fn main() -> u32 {
+    u32:33 - utility_fn()
+})";
+  RoundTrip(text);
+  Scanner s{file_table_, Fileno(0), std::string{text}};
+  Parser parser{"test", &s};
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module,
+                           parser.ParseModule());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * main_f,
+                           module->GetMemberOrError<Function>("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * const_f,
+                           module->GetMemberOrError<Function>("utility_fn"));
+  EXPECT_TRUE(const_f->is_const());
+  EXPECT_FALSE(main_f->is_const());
+}
+
 TEST_F(ParserTest, ParenthesizedUnop) {
   Expr* e = RoundTripExpr("(!x)", {"x"});
   EXPECT_EQ(e->span().ToString(file_table_), "<no-file>:1:2-1:4");
