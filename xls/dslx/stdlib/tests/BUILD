@@ -38,7 +38,7 @@ xls_dslx_opt_ir(
     name = "umul_with_overflow_21_21_18",
     srcs = ["umul_instances.x"],
     dslx_top = "umul_with_overflow_21_21_18",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
 )
 
 cc_xls_ir_jit_wrapper(
@@ -55,7 +55,7 @@ xls_dslx_opt_ir(
     name = "umul_with_overflow_35_32_18",
     srcs = ["umul_instances.x"],
     dslx_top = "umul_with_overflow_35_32_18",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
 )
 
 cc_xls_ir_jit_wrapper(
@@ -186,7 +186,7 @@ xls_dslx_opt_ir(
     name = "float32_downcast",
     srcs = ["float32_downcast_test.x"],
     dslx_top = "f64_to_f32",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     ir_file = "float32_downcast.ir",
     opt_ir_file = "float32_downcast.opt.ir",
 )
@@ -222,7 +222,7 @@ xls_dslx_opt_ir(
     name = "float32_upcast",
     srcs = ["float32_upcast_test.x"],
     dslx_top = "f32_to_f64",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     ir_file = "float32_upcast.ir",
     opt_ir_file = "float32_upcast.opt.ir",
 )
@@ -520,7 +520,7 @@ BFLOAT16_CMP_TOPS = [
             name = "bfloat16_" + top,
             srcs = ["//xls/dslx/stdlib:bfloat16.x"],
             dslx_top = top,
-            ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+            ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
         ),
         cc_xls_ir_jit_wrapper(
             name = "bfloat16_" + top + "_jit_wrapper",
@@ -555,7 +555,7 @@ xls_dslx_opt_ir(
     name = "bfloat16_full_precision_mul",
     srcs = ["//xls/dslx/stdlib:bfloat16.x"],
     dslx_top = "full_precision_mul",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
 )
 
 cc_xls_ir_jit_wrapper(

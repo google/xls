@@ -41,7 +41,7 @@ xls_dslx_opt_ir(
     # the project consuming the Verilog.
     ir_conv_args = {
         "emit_assert": "false",
-        "lower_to_proc_scoped_channels": "false",
+        "lower_to_proc_scoped_channels": "true",
     },
     library = ":trace_fmt_repro_dslx",
 )
@@ -49,7 +49,7 @@ xls_dslx_opt_ir(
 xls_dslx_opt_ir(
     name = "trace_fmt_repro_no_conv_args",
     dslx_top = "foo",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     library = ":trace_fmt_repro_dslx",
 )
 

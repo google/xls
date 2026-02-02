@@ -62,7 +62,7 @@ xls_dslx_library(
 xls_dslx_ir(
     name = "design_ir",
     dslx_top = "design_top",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     ir_file = "design.ir",
     library = "design_lib",
 )

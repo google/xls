@@ -146,7 +146,7 @@ xls_dslx_test(
 xls_dslx_opt_ir(
     name = "bfloat16_add",
     dslx_top = "add",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     ir_file = "bfloat16_add.ir",
     library = "bfloat16_dslx",
 )
@@ -173,7 +173,7 @@ xls_benchmark_ir(
 xls_dslx_opt_ir(
     name = "bfloat16_sub",
     dslx_top = "sub",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     ir_file = "bfloat16_sub.ir",
     library = "bfloat16_dslx",
 )
@@ -200,7 +200,7 @@ xls_benchmark_ir(
 xls_dslx_opt_ir(
     name = "bfloat16_mul",
     dslx_top = "mul",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     ir_file = "bfloat16_mul.ir",
     library = "bfloat16_dslx",
     opt_ir_file = "bfloat16_mul.opt.ir",
@@ -258,7 +258,7 @@ xls_dslx_test(
 xls_dslx_opt_ir(
     name = "float32_add",
     dslx_top = "add",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     ir_file = "float32_add.ir",
     library = ":float32_dslx",
     opt_ir_file = "float32_add.opt.ir",
@@ -301,7 +301,7 @@ cc_xls_ir_jit_wrapper(
 xls_dslx_opt_ir(
     name = "float32",
     dslx_top = "sub",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     ir_file = "float32_sub.ir",
     library = ":float32_dslx",
     opt_ir_file = "float32_sub.opt.ir",
@@ -329,7 +329,7 @@ xls_benchmark_ir(
 xls_dslx_opt_ir(
     name = "float32_mul",
     dslx_top = "mul",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     ir_file = "float32_mul.ir",
     library = ":float32_dslx",
     opt_ir_file = "float32_mul.opt.ir",
@@ -359,7 +359,7 @@ xls_dslx_opt_ir(
     name = "float32_to_int32",
     srcs = ["float32.x"],
     dslx_top = "to_int32",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     deps = [
         ":apfloat_dslx",
     ],
@@ -379,7 +379,7 @@ xls_dslx_opt_ir(
     name = "float32_from_int32",
     srcs = ["float32.x"],
     dslx_top = "from_int32",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     deps = [
         ":apfloat_dslx",
     ],
@@ -398,7 +398,7 @@ cc_xls_ir_jit_wrapper(
 xls_dslx_opt_ir(
     name = "float32_fma",
     dslx_top = "fma",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     library = ":float32_dslx",
     opt_ir_file = "float32_fma.opt.ir",
 )
@@ -433,7 +433,7 @@ cc_xls_ir_jit_wrapper(
 xls_dslx_opt_ir(
     name = "float32_ldexp",
     dslx_top = "ldexp",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     ir_file = "float32_ldexp.ir",
     library = ":float32_dslx",
     opt_ir_file = "float32_ldexp.opt.ir",
@@ -451,7 +451,7 @@ cc_xls_ir_jit_wrapper(
 xls_dslx_opt_ir(
     name = "float32_fast_rsqrt",
     dslx_top = "fast_rsqrt",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     ir_file = "float32_fast_rsqrt.ir",
     library = ":float32_dslx",
     opt_ir_file = "float32_fast_rsqrt.opt.ir",
@@ -497,7 +497,7 @@ xls_dslx_test(
 xls_dslx_opt_ir(
     name = "float64_add",
     dslx_top = "add",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     ir_file = "float64_add.ir",
     library = "float64_dslx",
     opt_ir_file = "float64_add.opt.ir",
@@ -526,7 +526,7 @@ cc_xls_ir_jit_wrapper(
 xls_dslx_opt_ir(
     name = "float64_sub",
     dslx_top = "sub",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     ir_file = "float64_sub.ir",
     library = ":float64_dslx",
     opt_ir_file = "float64_sub.opt.ir",
@@ -547,7 +547,7 @@ xls_benchmark_ir(
 xls_dslx_opt_ir(
     name = "float64_mul",
     dslx_top = "mul",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     ir_file = "float64_mul.ir",
     library = ":float64_dslx",
     opt_ir_file = "float64_mul.opt.ir",
@@ -576,7 +576,7 @@ cc_xls_ir_jit_wrapper(
 xls_dslx_opt_ir(
     name = "float64_fma",
     dslx_top = "fma",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     ir_file = "float64_fma.ir",
     library = ":float64_dslx",
     opt_ir_file = "float64_fma.opt.ir",
@@ -606,7 +606,7 @@ cc_xls_ir_jit_wrapper(
 xls_dslx_opt_ir(
     name = "float32_ceil",
     dslx_top = "ceil_with_denorms",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     ir_file = "float32_ceil.ir",
     library = ":float32_dslx",
     opt_ir_file = "float32_ceil.opt.ir",
@@ -624,7 +624,7 @@ cc_xls_ir_jit_wrapper(
 xls_dslx_opt_ir(
     name = "float32_floor",
     dslx_top = "floor_with_denorms",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     ir_file = "float32_floor.ir",
     library = ":float32_dslx",
     opt_ir_file = "float32_floor.opt.ir",
@@ -642,7 +642,7 @@ cc_xls_ir_jit_wrapper(
 xls_dslx_opt_ir(
     name = "float32_trunc",
     dslx_top = "trunc",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     ir_file = "float32_trunc.ir",
     library = ":float32_dslx",
     opt_ir_file = "float32_trunc.opt.ir",

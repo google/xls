@@ -47,7 +47,7 @@ xls_dslx_test(
 xls_dslx_ir(
     name = "verint_encode_ir",
     dslx_top = "varint_encode_u32",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     ir_file = "varint_encode.ir",
     library = ":varint_encode_dslx",
 )
