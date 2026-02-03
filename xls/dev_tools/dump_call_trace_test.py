@@ -19,7 +19,6 @@ import re
 import subprocess
 import tempfile
 import textwrap
-from typing import List
 
 from absl.testing import absltest
 
@@ -71,7 +70,7 @@ def _file_line_col(path: str, needle: str) -> tuple[int, int]:
     return _line_col(f.read(), needle)
 
 
-def _run_dump(input_path: str, extra_flags: List[str] | None = None) -> str:
+def _run_dump(input_path: str, extra_flags: list[str] | None = None) -> str:
   tool = runfiles.get_path('xls/dev_tools/dump_call_trace')
   cmd = [tool, f'--input={input_path}', '--log_prefix=false']
   if extra_flags:
