@@ -1345,9 +1345,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcs) {
       EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {2, 4, 6}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
 
   EXPECT_EQ(p->blocks().size(), 3);  // 2 leaf + 1 container
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
@@ -1387,9 +1386,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcsFifoDepth1) {
       EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {2, 4, 6}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
@@ -1465,9 +1463,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcsWithNonzeroFifoDepth) {
       EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {2, 4, 6}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"in", {1, 2, 3}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {2, 4, 6}}})));
@@ -1498,9 +1495,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcsWithSingleValue) {
   EXPECT_EQ(p->procs().size(), 2);
   XLS_EXPECT_OK(EvalAndExpect(p.get(), {{"in", {1}}}, {{"out", {2}}}).status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(
@@ -1548,9 +1544,8 @@ TEST_F(ProcLoweringBlockEvalTest,
                               {{"out", {2, 2, 6, 6, 10}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"in", {1, 2, 3, 4, 5}}}),
@@ -1593,9 +1588,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcPassThrough) {
       EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {123, 22, 42}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
@@ -1644,9 +1638,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcDelayedPassThrough) {
       EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {246, 44, 84}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
@@ -1690,9 +1683,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_InputPlusDelayedInput) {
       EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {123, 22, 42}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
@@ -1749,9 +1741,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcsTrivialInnerLoop) {
       EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {42, 42, 42}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
@@ -1793,9 +1784,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcsIota) {
   EXPECT_EQ(p->procs().size(), 2);
   XLS_EXPECT_OK(EvalAndExpect(p.get(), {}, {{"out", {42, 43, 44}}}).status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
@@ -1840,9 +1830,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcsOddIota) {
   XLS_EXPECT_OK(
       EvalAndExpect(p.get(), {}, {{"out", {43, 45, 47, 49}}}).status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
@@ -1921,9 +1910,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_SynchronizedNestedProcs) {
       EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {43, 44, 45}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
@@ -1991,9 +1979,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcsNontrivialInnerLoop) {
       EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {7, 8, 9}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
@@ -2046,9 +2033,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_DoubleNestedProcsPassThrough) {
       EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {123, 22, 42}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
 
   EXPECT_EQ(p->blocks().size(), 4);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
@@ -2117,9 +2103,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_SequentialNestedProcsPassThrough) {
       EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {123, 22, 42}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
 
   EXPECT_EQ(p->blocks().size(), 4);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
@@ -2209,9 +2194,8 @@ TEST_F(ProcLoweringBlockEvalTest,
       EvalAndExpect(p.get(), {{"in", {0, 1, 2}}}, {{"out", {13, 14, 15}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
 
   EXPECT_EQ(p->blocks().size(), 5);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
@@ -2278,9 +2262,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_SequentialNestedProcsWithLoops) {
       EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {246, 44, 84}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
 
   EXPECT_EQ(p->blocks().size(), 4);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
@@ -2398,9 +2381,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_DoubleNestedLoops) {
                               {{"out", {16, 116, 100116}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
 
   EXPECT_EQ(p->blocks().size(), 4);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
@@ -2476,9 +2458,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_MultiIO) {
           {{"x_plus_y_out", {133, 42, 72}}, {"x_minus_y_out", {113, 2, 12}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
@@ -2540,9 +2521,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_NonTopProcsWithExternalStreamingIO) {
           {{"x_plus_y_out", {133, 42, 72}}, {"x_minus_y_out", {113, 2, 12}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
@@ -2605,9 +2585,8 @@ TEST_F(ProcLoweringBlockEvalTest,
                                {"x_minus_y_out", {113, 12, 32}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"x", {123, 22, 42}}, {"y_sv", {10}}},
                         /*num_cycles=*/15),
@@ -2667,7 +2646,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_SingleValueAndStreamingChannels) {
                               {{"sum", {148, 47, 67}}})
                     .status());
 
-  XLS_ASSERT_OK(RunBlockStitchingPass(p.get(), /*top_name=*/"A").status());
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
@@ -2758,9 +2738,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_TriangleProcNetwork) {
       EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {369, 66, 126}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
 
   EXPECT_EQ(p->blocks().size(), 4);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
@@ -2817,9 +2796,8 @@ TEST_F(ProcLoweringBlockEvalTest,
       EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {43, 44, 45}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
 
   EXPECT_THAT(p->blocks().size(), 3);
 
@@ -2876,9 +2854,8 @@ TEST_F(ProcLoweringBlockEvalTest,
       EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {43, 44, 45}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
   EXPECT_EQ(p->blocks().size(), 3);
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
@@ -2939,9 +2916,8 @@ TEST_F(ProcLoweringBlockEvalTest,
       EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {42, 43, 44}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
 
   EXPECT_EQ(p->blocks().size(), 3);
 
@@ -3002,9 +2978,8 @@ TEST_F(ProcLoweringBlockEvalTest,
       EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {42, 42, 43}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
@@ -3066,9 +3041,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_DataLoss) {
       EvalAndExpect(p.get(), {{"in", {1, 2, 3, 4, 5}}}, {{"out", {1, 2, 3}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
@@ -3137,9 +3111,8 @@ TEST_F(ProcLoweringBlockEvalTest,
                               {{"out", {}}})  // produces no outputs
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
 
   // For proc inlining, inlined channels could not backpressure and this would
   // be an assertion failure. With block stitching, the depth-0 FIFO will
@@ -3225,12 +3198,11 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_TwoSendsOneReceive) {
       EvalAndExpect(p.get(), {{"x", {2, 5, 7}}}, {{"result_out", {4, 14, 28}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      bool changed, RunBlockStitchingPass(
-                        p.get(), /*top_name=*/"A",
-                        /*scheduling_options=*/
-                        DefaultSchedulingOptions().worst_case_throughput(2)));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(
+                  p.get(), /*top_name=*/"A",
+                  /*scheduling_options=*/
+                  DefaultSchedulingOptions().worst_case_throughput(2)),
+              IsOkAndHolds(true));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   // A, B, and the top block.
@@ -3325,12 +3297,11 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_TwoReceivesOneSend) {
       EvalAndExpect(p.get(), {{"x", {2, 5, 7}}}, {{"result_out", {4, 14, 28}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      bool changed, RunBlockStitchingPass(
-                        p.get(), /*top_name=*/"A",
-                        /*scheduling_options=*/
-                        DefaultSchedulingOptions().worst_case_throughput(2)));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(
+                  p.get(), /*top_name=*/"A",
+                  /*scheduling_options=*/
+                  DefaultSchedulingOptions().worst_case_throughput(2)),
+              IsOkAndHolds(true));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   // A, B, and the top block.
@@ -3431,12 +3402,12 @@ TEST_F(ProcLoweringBlockEvalTest,
                                {"result1_out", {20, 40, 60}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      bool changed, RunBlockStitchingPass(
-                        p.get(), /*top_name=*/"A",
-                        /*scheduling_options=*/
-                        DefaultSchedulingOptions().worst_case_throughput(2)));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(
+                  p.get(),
+                  /*top_name=*/"A",
+                  /*scheduling_options=*/
+                  DefaultSchedulingOptions().worst_case_throughput(2)),
+              IsOkAndHolds(true));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   // A, B, and the top block.
@@ -3519,12 +3490,11 @@ TEST_F(ProcLoweringBlockEvalTest,
                                {"result1_out", {22, 44, 66}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      bool changed, RunBlockStitchingPass(
-                        p.get(), /*top_name=*/"A",
-                        /*scheduling_options=*/
-                        DefaultSchedulingOptions().worst_case_throughput(2)));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(
+                  p.get(), /*top_name=*/"A",
+                  /*scheduling_options=*/
+                  DefaultSchedulingOptions().worst_case_throughput(2)),
+              IsOkAndHolds(true));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_EQ(p->blocks().size(), 3);
@@ -3605,12 +3575,12 @@ TEST_F(ProcLoweringBlockEvalTest,
                                {"result1_out", {24, 54, 88}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      bool changed, RunBlockStitchingPass(
-                        p.get(), /*top_name=*/"A",
-                        /*scheduling_options=*/
-                        DefaultSchedulingOptions().worst_case_throughput(2)));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(
+                  p.get(), /*top_name=*/"A",
+                  /*scheduling_options=*/
+                  DefaultSchedulingOptions().worst_case_throughput(2)),
+              IsOkAndHolds(true));
+
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"x", {2, 5, 7}}, {"y", {10}}}),
@@ -3690,11 +3660,11 @@ TEST_F(ProcLoweringBlockEvalTest,
                                {"result1_out", {24, 54, 88}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      bool changed, RunBlockStitchingPass(
-                        p.get(), /*top_name=*/"A", /*scheduling_options=*/
-                        DefaultSchedulingOptions().worst_case_throughput(2)));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(
+                  p.get(), /*top_name=*/"A",
+                  /*scheduling_options=*/
+                  DefaultSchedulingOptions().worst_case_throughput(2)),
+              IsOkAndHolds(true));
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"x", {2, 5, 7}}, {"y", {10}}}),
@@ -3750,9 +3720,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_TokenFanIn) {
                               {{"out", {12, 25, 37}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
   EXPECT_EQ(p->blocks().size(), 3);
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
@@ -3834,9 +3803,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_TokenFanOut) {
       EvalAndExpect(p.get(), {{"in", {2, 5, 7}}}, {{"out", {10, 19, 25}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
 
   EXPECT_EQ(p->blocks().size(), 4);
 
@@ -4030,9 +3998,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_RandomProcNetworks) {
           output.bits().ToUint64().value());
     }
 
-    XLS_ASSERT_OK_AND_ASSIGN(
-        bool changed, RunBlockStitchingPass(p.get(), /*top_name=*/"top_proc"));
-    EXPECT_TRUE(changed);
+    ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"top_proc"),
+                IsOkAndHolds(true));
 
     VLOG(1) << "Sample " << sample << " (after inlining):\n" << p->DumpIr();
     XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("top_proc"));
@@ -4085,9 +4052,8 @@ TEST_F(ProcLoweringBlockEvalTest,
       EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {246, 44, 84}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
@@ -4153,9 +4119,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_ReceivedValueSentAndNext) {
       EvalAndExpect(p.get(), {{"in", {5, 7, 13}}}, {{"out", {5, 12, 20}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
@@ -4218,9 +4183,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_OffsetSendAndReceive) {
   XLS_EXPECT_OK(
       EvalAndExpect(p.get(), {}, {{"out", {0, 16, 32, 48, 64}}}).status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
@@ -4296,9 +4260,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_InliningProducesCycle) {
   EXPECT_EQ(p->procs().size(), 2);
   XLS_EXPECT_OK(EvalAndExpect(p.get(), {}, {{"out", {0, 1, 2, 3}}}).status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
@@ -4349,11 +4312,11 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_MultipleSends) {
                               {{"out", {1, 12, 3, 52, 123}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      bool changed, RunBlockStitchingPass(
-                        p.get(), /*top_name=*/"A", /*scheduling_options=*/
-                        DefaultSchedulingOptions().worst_case_throughput(2)));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(
+                  p.get(), /*top_name=*/"A",
+                  /*scheduling_options=*/
+                  DefaultSchedulingOptions().worst_case_throughput(2)),
+              IsOkAndHolds(true));
 
   // A, B, and top
   EXPECT_EQ(p->blocks().size(), 3);
@@ -4407,11 +4370,11 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_MultipleSendsInDifferentOrder) {
                               {{"out", {1, 12, 3, 52, 123}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      bool changed, RunBlockStitchingPass(
-                        p.get(), /*top_name=*/"A", /*scheduling_options=*/
-                        DefaultSchedulingOptions().worst_case_throughput(2)));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(
+                  p.get(), /*top_name=*/"A",
+                  /*scheduling_options=*/
+                  DefaultSchedulingOptions().worst_case_throughput(2)),
+              IsOkAndHolds(true));
 
   // A, B, and top
   EXPECT_EQ(p->blocks().size(), 3);
@@ -4465,11 +4428,11 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_MultipleReceivesFifoWithBypass) {
                               {{"out", {1, 12, 3, 52, 123}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      bool changed, RunBlockStitchingPass(
-                        p.get(), /*top_name=*/"A", /*scheduling_options=*/
-                        DefaultSchedulingOptions().worst_case_throughput(2)));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(
+                  p.get(), /*top_name=*/"A",
+                  /*scheduling_options=*/
+                  DefaultSchedulingOptions().worst_case_throughput(2)),
+              IsOkAndHolds(true));
 
   // A, B, and top
   EXPECT_EQ(p->blocks().size(), 3);
@@ -4522,11 +4485,11 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_MultipleReceivesFifoDepth1) {
                               {{"out", {1, 12, 3, 52, 123}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      bool changed, RunBlockStitchingPass(
-                        p.get(), /*top_name=*/"A", /*scheduling_options=*/
-                        DefaultSchedulingOptions().worst_case_throughput(2)));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(
+                  p.get(), /*top_name=*/"A",
+                  /*scheduling_options=*/
+                  DefaultSchedulingOptions().worst_case_throughput(2)),
+              IsOkAndHolds(true));
 
   // A, B, and top
   EXPECT_EQ(p->blocks().size(), 3);
@@ -4594,9 +4557,8 @@ TEST_F(ProcLoweringBlockEvalTest,
                               {{"out", {1, 3, 5, 0, 42, 124}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
 
   // A, B, and top
   EXPECT_EQ(p->blocks().size(), 3);
@@ -4666,9 +4628,8 @@ TEST_F(ProcLoweringBlockEvalTest,
                               {{"out", {1, 3, 5, 0, 42, 124}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
 
   // A, B, and top
   EXPECT_EQ(p->blocks().size(), 3);
@@ -4739,12 +4700,11 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_MultipleSendsAndReceives) {
                               {{"out", {11, 102, 13, 142, 133}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      bool changed, RunBlockStitchingPass(
-                        p.get(), /*top_name=*/"A",
-                        /*scheduling_options=*/
-                        DefaultSchedulingOptions().worst_case_throughput(2)));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(
+                  p.get(), /*top_name=*/"A",
+                  /*scheduling_options=*/
+                  DefaultSchedulingOptions().worst_case_throughput(2)),
+              IsOkAndHolds(true));
 
   // A, B, and top
   EXPECT_EQ(p->blocks().size(), 3);
@@ -4807,9 +4767,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_ReceiveIfsWithFalseCondition) {
                                {"out1", {1, 0, 3, 0, 123}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
@@ -4850,9 +4809,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_ProcsWithDifferentII) {
   XLS_EXPECT_OK(
       EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {2, 4, 6}}})
           .status());
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
+              IsOkAndHolds(true));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"in", {1, 2, 3}}}),
@@ -4901,9 +4859,8 @@ TEST_F(ProcLoweringBlockEvalTest,
                                {"in1", {0, 2, 4, 6, 8, 10}}},
                               {{"out", {100, 0, 2, 4, 6, 8, 10}}})
                     .status());
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"arb"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"arb"),
+              IsOkAndHolds(true));
 
   EXPECT_THAT(p->blocks(),
               UnorderedElementsAre(m::Block("arb"), m::Block("arb__1"),
@@ -4949,9 +4906,8 @@ TEST_F(ProcLoweringBlockEvalTest,
                     {{"out", {0, 2, 103, 4, 6, 203, 8, 10, 303}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      bool changed, RunBlockStitchingPass(p.get(), /*top_name=*/"accum"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"accum"),
+              IsOkAndHolds(true));
   EXPECT_THAT(p->blocks(),
               UnorderedElementsAre(m::Block("accum"), m::Block("accum__1"),
                                    m::Block("arb")));
@@ -5007,9 +4963,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_ProcWithAssert) {
               StatusIs(absl::StatusCode::kAborted,
                        HasSubstr("input must not be zero")));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      bool changed, RunBlockStitchingPass(p.get(), /*top_name=*/"loopback"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"loopback"),
+              IsOkAndHolds(true));
 
   EXPECT_EQ(p->blocks().size(), 3);
 
@@ -5064,9 +5019,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_ProcWithCover) {
                               {{"out", {100, 200, 300, 0}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      bool changed, RunBlockStitchingPass(p.get(), /*top_name=*/"loopback"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"loopback"),
+              IsOkAndHolds(true));
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("loopback"));
@@ -5110,9 +5064,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_ProcWithGate) {
                               {{"out", {0, 1, 2, 99, 100, 0, 0, 0}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      bool changed, RunBlockStitchingPass(p.get(), /*top_name=*/"loopback"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"loopback"),
+              IsOkAndHolds(true));
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("loopback"));
@@ -5166,10 +5119,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_ProcWithTrace) {
                   HasSubstr("data: 300"), HasSubstr("data: 400"),
                   HasSubstr("data: 500")));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      bool changed,
-      RunBlockStitchingPass(p.get(), /*top_name=*/"trace_not_zero"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"trace_nont_zero"),
+              IsOkAndHolds(true));
 
   EXPECT_EQ(p->blocks().size(), 3);
 
@@ -5267,9 +5218,8 @@ proc output_passthrough(state:(), init={()}) {
                                          1000, 1000, 1000, 1000}}})
                             .status());
 
-          XLS_ASSERT_OK_AND_ASSIGN(
-              bool changed, RunBlockStitchingPass(p.get(), /*top_name=*/"foo"));
-          EXPECT_TRUE(changed);
+          ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"foo"),
+                      IsOkAndHolds(true));
           EXPECT_THAT(p->blocks(),
                       UnorderedElementsAre(m::Block("foo"), m::Block("foo__1"),
                                            m::Block("output_passthrough")));
@@ -5358,9 +5308,8 @@ proc output_passthrough(state: bits[1], init={1}) {
                                    500, 1000, 500, 1000, 500, 1000, 500}}})
                       .status());
 
-    XLS_ASSERT_OK_AND_ASSIGN(
-        bool changed, RunBlockStitchingPass(p.get(), /*top_name=*/"foo"));
-    EXPECT_TRUE(changed);
+    ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"foo"),
+                IsOkAndHolds(true));
     EXPECT_THAT(p->blocks(),
                 UnorderedElementsAre(m::Block("foo"), m::Block("foo__1"),
                                      m::Block("output_passthrough")));
@@ -5448,9 +5397,8 @@ proc output_passthrough(state:bits[1], init={0}) {
                               {{"out0", {5, 10}}, {"out1", {5, 10}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"foo"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"foo"),
+              IsOkAndHolds(true));
   EXPECT_THAT(p->blocks(),
               UnorderedElementsAre(m::Block("foo"), m::Block("foo__1"),
                                    m::Block("output_passthrough")));
@@ -5509,9 +5457,8 @@ top proc foo<data_in: bits[32] in, data_out: bits[32] out>(__state: (), init={()
       EvalAndExpect(p.get(), {{"data_in", {7, 10}}}, {{"data_out", {7, 10}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"foo"));
-  EXPECT_TRUE(changed);
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"foo"),
+              IsOkAndHolds(true));
   EXPECT_THAT(p->blocks(), UnorderedElementsAre(m::Block("foo"),
                                                 m::Block("input_passthrough")));
 
