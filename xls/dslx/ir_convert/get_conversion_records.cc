@@ -114,6 +114,21 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
                : *type_info_->GetImportedTypeInfo(node->owner());
   }
 
+  absl::Status HandleConditional(const Conditional* expr) override {
+    if (expr->IsConst()) {
+      XLS_ASSIGN_OR_RETURN(InterpValue test_value,
+                           GetTypeInfo(expr)->GetConstExpr(expr->test()));
+      if (test_value.IsTrue()) {
+        XLS_RETURN_IF_ERROR(DefaultHandler(expr->consequent()));
+      } else {
+        XLS_RETURN_IF_ERROR(DefaultHandler(ToExprNode(expr->alternate())));
+      }
+      return absl::OkStatus();
+    }
+
+    return DefaultHandler(expr);
+  }
+
   // Generates a conversion record for the given function if it is a real
   // function (not parametric or compiler-derived) that has no incoming calls
   // known to `type_info_`. Also traverses such functions to ensure that

@@ -927,6 +927,121 @@ fn main() -> u32 {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, ConstConditionalProcScoped) {
+  constexpr std::string_view program = R"(
+  proc Multiply {
+    input: chan<u32> in;
+    output: chan<u32> out;
+
+    init {}
+
+    config(input: chan<u32> in, output: chan<u32> out) {
+      (input, output)
+    }
+
+    next(state: ()) {
+      let (tok, req) = recv(join(), input);
+      let data = req * u32:2;
+      let tok = send(tok, output, data);
+    }
+  }
+
+  proc Passthrough {
+    input: chan<u32> in;
+    output: chan<u32> out;
+
+    init {}
+
+    config(input: chan<u32> in, output: chan<u32> out) {
+      (input, output)
+    }
+
+    next(state: ()) {
+      let (tok, req) = recv(join(), input);
+      let tok = send(tok, output, req);
+    }
+  }
+
+  const CONFIG = u32:31;
+
+  proc Top {
+    init {}
+
+    config(req_r: chan<u32> in, resp_s: chan<u32> out) {
+      const if CONFIG <= u32:27 {
+        spawn Passthrough(req_r, resp_s);
+      } else {
+        spawn Multiply(req_r, resp_s);
+      };
+      ()
+    }
+
+    next(state: ()) { state }
+  }
+  )";
+
+  ConvertOptions options;
+  options.lower_to_proc_scoped_channels = true;
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(program, "Top", options));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, ConstConditionalProcScopedWithParams) {
+  constexpr std::string_view program = R"(
+  proc Falsy {
+    req_r: chan<()> in;
+    resp_s: chan<bool> out;
+
+    config(req_r: chan<()> in, resp_s: chan<bool> out) { (req_r, resp_s) }
+
+    init {  }
+
+    next(_: ()) {
+        let (tok, _d) = recv(join(), req_r);
+        let tok = send(tok, resp_s, false);
+    }
+  }
+
+  proc Truthy {
+    req_r: chan<()> in;
+    resp_s: chan<bool> out;
+
+    config(req_r: chan<()> in, resp_s: chan<bool> out) { (req_r, resp_s) }
+
+    init {  }
+
+    next(_: ()) {
+        let (tok, _d) = recv(join(), req_r);
+        let tok = send(tok, resp_s, true);
+    }
+  }
+
+  proc Foo<CONFIG: bool> {
+      config(req_r: chan<()> in, resp_s: chan<bool> out) {
+          const if CONFIG {
+            spawn Truthy(req_r, resp_s);
+          } else {
+            spawn Falsy(req_r, resp_s);
+          };
+          ()
+      }
+
+      init {  }
+
+      next(_: ()) {  }
+  }
+
+  pub proc Top = Foo<true>;
+  )";
+
+  ConvertOptions options;
+  options.lower_to_proc_scoped_channels = true;
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(program, "Top", options));
+  ExpectIr(converted);
+}
+
 TEST_F(IrConverterTest, ConstantsWithConditionalsPlusStuff) {
   constexpr std::string_view program =
       R"(
