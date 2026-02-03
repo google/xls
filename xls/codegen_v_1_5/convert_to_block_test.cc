@@ -20,6 +20,8 @@
 #include "xls/common/status/matchers.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 #include "xls/scheduling/scheduling_options.h"
 
 namespace xls::codegen {
@@ -55,8 +57,11 @@ TEST_F(ConvertToBlockTest, SimpleFunction) {
   XLS_ASSERT_OK(p->SetTop(top));
   TestDelayEstimator delay_estimator;
 
+  OptimizationContext opt_context;
+  PassResults pass_results;
   XLS_ASSERT_OK(ConvertToBlock(p.get(), codegen_options().clock_name("clk"),
-                               scheduling_options(), &delay_estimator_));
+                               scheduling_options(), &delay_estimator_,
+                               &opt_context, &pass_results));
 
   // TODO: https://github.com/google/xls/issues/3356 - assert stuff.
 }

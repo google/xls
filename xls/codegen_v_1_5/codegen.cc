@@ -124,7 +124,8 @@ std::unique_ptr<verilog::CodegenCompoundPass> CreatePostBlockConversionPipeline(
 
 absl::StatusOr<verilog::CodegenResult> ConvertToVerilog(
     Block* top_block, const verilog::CodegenOptions& options,
-    const DelayEstimator* delay_estimator) {
+    const DelayEstimator* delay_estimator,
+    PassPipelineMetricsProto pass_pipeline_metrics) {
   XLS_RET_CHECK(top_block->GetSignature().has_value());
   verilog::VerilogLineMap verilog_line_map;
   verilog::CodegenResidualData residual_data;
@@ -148,7 +149,8 @@ absl::StatusOr<verilog::CodegenResult> ConvertToVerilog(
       .verilog_line_map = std::move(verilog_line_map),
       .signature = signature,
       .block_metrics = metrics,
-      .pass_pipeline_metrics = {},
+      .residual_data = std::move(residual_data),
+      .pass_pipeline_metrics = std::move(pass_pipeline_metrics),
   };
 }
 
@@ -167,8 +169,10 @@ absl::StatusOr<verilog::CodegenResult> Codegen(
   }
 
   OptimizationContext opt_context;
+  PassResults pass_results;
   XLS_RETURN_IF_ERROR(ConvertToBlock(package, options, scheduling_options,
-                                     delay_estimator, schedule, &opt_context));
+                                     delay_estimator, &opt_context,
+                                     &pass_results, schedule));
 
   // Now that we've finished block conversion for the package, we can run the
   // remaining passes required before Verilog conversion.
@@ -179,7 +183,6 @@ absl::StatusOr<verilog::CodegenResult> Codegen(
     compatibility_context.metadata().insert(
         {block.get(), verilog::CodegenMetadata{}});
   }
-  PassResults pass_results;
   verilog::CodegenPassOptions pass_options{
       .codegen_options = options,
   };
@@ -189,7 +192,8 @@ absl::StatusOr<verilog::CodegenResult> Codegen(
           .status());
 
   // Finally, we convert the block to Verilog.
-  return ConvertToVerilog(top_block, options, delay_estimator);
+  return ConvertToVerilog(top_block, options, delay_estimator,
+                          pass_results.ToProto());
 }
 
 }  // namespace xls::codegen

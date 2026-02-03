@@ -37,8 +37,8 @@ namespace xls::codegen {
 absl::Status ConvertToBlock(
     Package* p, verilog::CodegenOptions codegen_options,
     SchedulingOptions scheduling_options, const DelayEstimator* delay_estimator,
-    std::optional<PackageScheduleProto> schedule_override,
-    OptimizationContext* opt_context) {
+    OptimizationContext* opt_context, PassResults* pass_results,
+    std::optional<PackageScheduleProto> schedule_override) {
   XLS_RET_CHECK(!schedule_override.has_value() ||
                 schedule_override->schedules_size() == 0 ||
                 !codegen_options.generate_combinational())
@@ -60,15 +60,9 @@ absl::Status ConvertToBlock(
       .package_schedule = std::move(schedule),
   };
 
-  std::optional<OptimizationContext> opt_context_local;
-  if (opt_context == nullptr) {
-    opt_context_local.emplace();
-    opt_context = &*opt_context_local;
-  }
   std::unique_ptr<BlockConversionCompoundPass> pipeline =
       CreateBlockConversionPassPipeline(*opt_context);
-  PassResults results;
-  XLS_ASSIGN_OR_RETURN(bool result, pipeline->Run(p, options, &results));
+  XLS_ASSIGN_OR_RETURN(bool result, pipeline->Run(p, options, pass_results));
   XLS_RET_CHECK(result);
   return absl::OkStatus();
 }

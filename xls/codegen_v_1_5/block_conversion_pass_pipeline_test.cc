@@ -71,6 +71,8 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
+#include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/run_pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
@@ -147,9 +149,11 @@ class BlockConversionTest : public BlockConversionTestFixture {
     XLS_RETURN_IF_ERROR(fb->package()->SetTop(fb));
     TestDelayEstimator delay_estimator;
     Package* p = fb->package();
+    OptimizationContext opt_context;
+    PassResults results;
     XLS_RETURN_IF_ERROR(::xls::codegen::ConvertToBlock(
         fb->package(), codegen_options, scheduling_options, &delay_estimator,
-        schedule_proto));
+        &opt_context, &results, schedule_proto));
     return p->GetTopAsBlock();
   }
 
@@ -158,9 +162,11 @@ class BlockConversionTest : public BlockConversionTestFixture {
       SchedulingOptions scheduling_options = SchedulingOptions(),
       std::optional<PackageScheduleProto> schedule_proto = std::nullopt) {
     TestDelayEstimator delay_estimator;
-    XLS_RETURN_IF_ERROR(
-        ::xls::codegen::ConvertToBlock(p, codegen_options, scheduling_options,
-                                       &delay_estimator, schedule_proto));
+    OptimizationContext opt_context;
+    PassResults results;
+    XLS_RETURN_IF_ERROR(::xls::codegen::ConvertToBlock(
+        p, codegen_options, scheduling_options, &delay_estimator, &opt_context,
+        &results, schedule_proto));
     return p->GetTopAsBlock();
   }
 };
