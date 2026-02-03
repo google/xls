@@ -1001,6 +1001,10 @@ absl::StatusOr<ModuleMember> Parser::ApplyFunctionAttributes(
   fn->SetAttributes(attributes);
 
   if (is_test) {
+    if (fn->is_const()) {
+      return ParseErrorStatus(*attributes[0]->GetSpan(),
+                              "Test function cannot be marked as const.");
+    }
     Span tf_span(attributes[0]->GetSpan()->start(), fn->span().limit());
     TestFunction* tf = module_->Make<TestFunction>(tf_span, *fn);
     tf->SetParentage();  // Ensure the function has its parent marked.

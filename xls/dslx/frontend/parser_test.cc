@@ -1847,13 +1847,12 @@ TEST_F(ParserTest, TestConstexprFn) {
 const fn test_fn() -> u32 {
     u32:6 * u32:9
 })";
-  RoundTrip(text);
   Scanner s{file_table_, Fileno(0), std::string{text}};
   Parser parser{"test", &s};
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module,
-                           parser.ParseModule());
-  auto* tf = std::get<TestFunction*>(module->top()[0]);
-  EXPECT_EQ(tf->name_def()->identifier(), "test_fn");
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
+  EXPECT_THAT(module.status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Test function cannot be marked as const.")));
 }
 
 TEST_F(ParserTest, UtilityConstexprFn) {
