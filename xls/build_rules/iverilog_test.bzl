@@ -14,6 +14,7 @@
 
 """Contains internal XLS macros."""
 
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
 load("//xls/build_rules:elab_test.bzl", "elab_test")
 
 def iverilog_test(name, top, main, srcs, execute = True, tick_defines = None):
@@ -75,7 +76,7 @@ def iverilog_test(name, top, main, srcs, execute = True, tick_defines = None):
             outs = [name + "-vvp-runner.sh"],
             tools = ["//xls/dev_tools:generate_vvp_runner"],
         )
-        native.sh_test(
+        sh_test(
             name = name + "-run_test",
             srcs = [":" + name + "-vvp-runner"],
             data = [

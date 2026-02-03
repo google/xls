@@ -14,6 +14,8 @@
 
 """Generates a fuzz issue regression suite."""
 
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
+
 def _to_suffix(path):
     basename = path.split("/")[-1]
     if not basename.endswith(".x"):
@@ -56,8 +58,7 @@ def generate_crasher_regression_tests(name, srcs, prefix, failing = None, no_uno
         extra_args = []
         if f in no_unopt_interpreter:
             extra_args.append("--unopt_interpreter=false")
-
-        native.sh_test(
+        sh_test(
             name = test_name,
             srcs = ["//xls/fuzzer:run_crasher_sh"],
             args = [fullpath] + extra_args,
