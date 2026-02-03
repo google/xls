@@ -65,14 +65,6 @@ namespace xls::verilog {
 
 namespace {
 
-absl::StatusOr<ChannelRef> GetChannelRefUsedByNode(ChannelNode* node) {
-  if (node->package()->ChannelsAreProcScoped()) {
-    return node->function_base()->AsProcOrDie()->GetChannelInterface(
-        node->channel_name(), node->direction());
-  }
-  return GetChannelUsedByNode(node);
-}
-
 absl::StatusOr<std::vector<Channel*>> GetLoopbackChannels(Proc* proc) {
   XLS_RET_CHECK(!proc->is_new_style_proc());
   absl::flat_hash_set<Channel*> send_channels;
