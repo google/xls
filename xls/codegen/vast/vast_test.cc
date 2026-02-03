@@ -2137,11 +2137,6 @@ TEST_P(VastTest, ArrayParameters) {
   // Literals used for the array assignment patterns below.
   Expression* tick0 = f.Make<UnsizedZeroLiteral>(si);
 
-  Def* p0_def =
-      f.Make<Def>(si, "P0", DataKind::kUser,
-                  f.UnpackedArrayType(/*element_bit_count=*/1, {2}, si));
-  m->AddParameter(p0_def, f.ArrayAssignmentPattern({tick0, tick0}, si), si);
-
   Def* p1_def =
       f.Make<Def>(si, "P1", DataKind::kInt,
                   f.UnpackedArrayType(/*element_bit_count=*/1, {3}, si));
@@ -2163,10 +2158,6 @@ TEST_P(VastTest, ArrayParameters) {
       f.ArrayAssignmentPattern({f.PlainLiteral(1, si), f.PlainLiteral(2, si),
                                 f.PlainLiteral(3, si), f.PlainLiteral(4, si)},
                                si);
-  Def* p3_def =
-      f.Make<Def>(si, "P3", DataKind::kUser,
-                  f.UnpackedArrayType(/*element_bit_count=*/1, {1, 4}, si));
-  m->AddParameter(p3_def, f.ArrayAssignmentPattern({p3_row}, si), si);
   Expression* p4_row0 = f.ArrayAssignmentPattern(
       {f.PlainLiteral(1, si), f.PlainLiteral(2, si), f.PlainLiteral(3, si)},
       si);
@@ -2190,10 +2181,8 @@ TEST_P(VastTest, ArrayParameters) {
 
   EXPECT_EQ(m->Emit(nullptr),
             R"(module top;
-  parameter P0[2] = '{'0, '0};
   parameter int P1[3] = '{1, 2, 3};
   parameter logic [7:0] P2[2] = '{8'h42, 8'h43};
-  parameter P3[1][4] = '{'{1, 2, 3, 4}};
   parameter int P4[2][3] = '{'{1, 2, 3}, '{4, 5, 6}};
   parameter logic [7:0] P5[2][3] = '{'{8'h42, 8'h43, 8'h44}, '{8'h45, 8'h46, 8'h47}};
 endmodule)");

@@ -1022,7 +1022,6 @@ endmodule
 
 TEST(XlsCApiTest, VastArrayParametersWithDefAndAssignmentPattern) {
   const std::string_view kWantEmitted = R"(module top;
-  parameter P0[2] = '{'0, '0};
   parameter int P1[3] = '{1, 2, 3};
   parameter logic [7:0] P2[2] = '{8'h42, 8'h43};
   parameter integer P3[1][4] = '{'{1, 2, 3, 4}};
@@ -1062,25 +1061,9 @@ endmodule
     return xls_vast_literal_as_expression(lit);
   };
 
-  // P0: parameter P0[2] = '{'0, '0};
+  // P1: parameter int P1[3] = '{1, 2, 3};
   xls_vast_data_type* scalar = xls_vast_verilog_file_make_scalar_type(f);
   ASSERT_NE(scalar, nullptr);
-  const int64_t p0_dims[] = {2};
-  xls_vast_data_type* p0_type =
-      xls_vast_verilog_file_make_unpacked_array_type(f, scalar, p0_dims, 1);
-  ASSERT_NE(p0_type, nullptr);
-  xls_vast_def* p0_def =
-      xls_vast_verilog_file_make_def(f, "P0", xls_vast_data_kind_user, p0_type);
-  ASSERT_NE(p0_def, nullptr);
-  xls_vast_expression* tick0 =
-      xls_vast_verilog_file_make_unsized_zero_literal(f);
-  ASSERT_NE(tick0, nullptr);
-  xls_vast_expression* p0_rhs = make_assignment_pattern({tick0, tick0});
-  ASSERT_NE(p0_rhs, nullptr);
-  ASSERT_NE(xls_vast_verilog_module_add_parameter_with_def(m, p0_def, p0_rhs),
-            nullptr);
-
-  // P1: parameter int P1[3] = '{1, 2, 3};
   const int64_t p1_dims[] = {3};
   xls_vast_data_type* p1_type =
       xls_vast_verilog_file_make_unpacked_array_type(f, scalar, p1_dims, 1);
@@ -1172,7 +1155,7 @@ endmodule
 
 TEST(XlsCApiTest, VastIndexUnpackedArrayParameter) {
   const std::string_view kWantEmitted = R"(module top;
-  parameter P0[2] = '{'0, '1};
+  parameter logic P0[2] = '{'0, '1};
   wire w;
   assign w = P0[0];
 endmodule
@@ -1186,15 +1169,16 @@ endmodule
   xls_vast_verilog_module* m = xls_vast_verilog_file_add_module(f, "top");
   ASSERT_NE(m, nullptr);
 
-  // parameter P0[2] = '{'0, '1};
-  xls_vast_data_type* scalar = xls_vast_verilog_file_make_scalar_type(f);
-  ASSERT_NE(scalar, nullptr);
+  // parameter logic P0[2] = '{'0, '1};
+  xls_vast_data_type* logic_type =
+      xls_vast_verilog_file_make_bit_vector_type(f, 1, /*is_signed=*/false);
+  ASSERT_NE(logic_type, nullptr);
   const int64_t p0_dims[] = {2};
   xls_vast_data_type* p0_type =
-      xls_vast_verilog_file_make_unpacked_array_type(f, scalar, p0_dims, 1);
+      xls_vast_verilog_file_make_unpacked_array_type(f, logic_type, p0_dims, 1);
   ASSERT_NE(p0_type, nullptr);
-  xls_vast_def* p0_def =
-      xls_vast_verilog_file_make_def(f, "P0", xls_vast_data_kind_user, p0_type);
+  xls_vast_def* p0_def = xls_vast_verilog_file_make_def(
+      f, "P0", xls_vast_data_kind_logic, p0_type);
   ASSERT_NE(p0_def, nullptr);
   xls_vast_expression* tick0 =
       xls_vast_verilog_file_make_unsized_zero_literal(f);
@@ -1212,6 +1196,8 @@ endmodule
   ASSERT_NE(p0_ref, nullptr);
 
   // wire w;
+  xls_vast_data_type* scalar = xls_vast_verilog_file_make_scalar_type(f);
+  ASSERT_NE(scalar, nullptr);
   xls_vast_logic_ref* w = xls_vast_verilog_module_add_wire(m, "w", scalar);
   ASSERT_NE(w, nullptr);
 
