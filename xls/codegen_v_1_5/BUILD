@@ -496,6 +496,7 @@ cc_library(
     hdrs = ["pipeline_register_insertion_pass.h"],
     deps = [
         ":block_conversion_pass",
+        "//xls/codegen:codegen_options",
         "//xls/codegen:concurrent_stage_groups",
         "//xls/common:casts",
         "//xls/common/status:ret_check",

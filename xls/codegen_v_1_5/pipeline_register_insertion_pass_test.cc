@@ -442,9 +442,53 @@ TEST_F(PipelineRegisterInsertionPassTest, TestCombinedRegisters) {
 
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
 
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  BlockConversionPassOptions options;
+  options.codegen_options.register_merge_strategy(
+      verilog::CodegenOptions::RegisterMergeStrategy::kIdentityOnly);
+  EXPECT_THAT(Run(p.get(), options), IsOkAndHolds(true));
   EXPECT_THAT(sb->GetRegisters(),
               ElementsAre(m2::Register("p0_v0", m::Type("bits[32]"))));
+}
+
+TEST_F(PipelineRegisterInsertionPassTest, TestRegistersDontCombine) {
+  auto p = CreatePackage();
+  ScheduledBlockBuilder sbb(TestName(), p.get());
+  Proc* source;
+  {
+    std::unique_ptr<Proc> owned_source = std::make_unique<Proc>(
+        absl::StrCat("__", TestName(), "_source"), p.get());
+    source = owned_source.get();
+    sbb.SetSource(std::move(owned_source));
+  }
+  XLS_ASSERT_OK(sbb.block()->AddClockPort("clk"));
+  BValue x = sbb.InputPort("x", p->GetBitsType(32));
+
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * source_acc, source->AppendStateElement(
+                                                  "acc", Value(UBits(0, 32))));
+  BValue acc = sbb.SourceNode(source_acc);
+  sbb.AddStateReadToCurrentStage(acc);
+  BValue v0 = sbb.Add(x, acc, SourceInfo(), "v0");
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  BValue neg_v0 = sbb.Negate(v0);
+  sbb.Next(acc, neg_v0);
+  sbb.OutputPort("out", neg_v0);
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
+
+  BlockConversionPassOptions options;
+  options.codegen_options.register_merge_strategy(
+      verilog::CodegenOptions::RegisterMergeStrategy::kDontMerge);
+  EXPECT_THAT(Run(p.get(), options), IsOkAndHolds(true));
+  EXPECT_THAT(sb->GetRegisters(),
+              ElementsAre(m2::Register("p0_v0", m::Type("bits[32]")),
+                          m2::Register("p1_v0", m::Type("bits[32]"))));
 }
 
 TEST_F(PipelineRegisterInsertionPassTest, TestCombinedRegistersWithState) {
@@ -490,7 +534,10 @@ TEST_F(PipelineRegisterInsertionPassTest, TestCombinedRegistersWithState) {
 
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
 
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  BlockConversionPassOptions options;
+  options.codegen_options.register_merge_strategy(
+      verilog::CodegenOptions::RegisterMergeStrategy::kIdentityOnly);
+  EXPECT_THAT(Run(p.get(), options), IsOkAndHolds(true));
 
   // Since the value of `acc` can't change until stage 4, stage 2 can directly
   // read from `acc` rather than needing any pipeline registers. The result (v0)
@@ -545,7 +592,10 @@ TEST_F(PipelineRegisterInsertionPassTest,
 
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
 
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  BlockConversionPassOptions options;
+  options.codegen_options.register_merge_strategy(
+      verilog::CodegenOptions::RegisterMergeStrategy::kIdentityOnly);
+  EXPECT_THAT(Run(p.get(), options), IsOkAndHolds(true));
   EXPECT_THAT(sb->GetRegisters(),
               ElementsAre(m2::Register("p0_v0", m::Type("bits[32]")),
                           m2::Register("p2_v0", m::Type("bits[32]")),
@@ -610,7 +660,10 @@ TEST_F(PipelineRegisterInsertionPassTest,
 
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
 
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  BlockConversionPassOptions options;
+  options.codegen_options.register_merge_strategy(
+      verilog::CodegenOptions::RegisterMergeStrategy::kIdentityOnly);
+  EXPECT_THAT(Run(p.get(), options), IsOkAndHolds(true));
   EXPECT_THAT(sb->GetRegisters(),
               UnorderedElementsAre(m2::Register("p0_v0", m::Type("bits[32]")),
                                    m2::Register("p2_v0", m::Type("bits[32]"))))
@@ -674,7 +727,10 @@ TEST_F(PipelineRegisterInsertionPassTest,
 
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
 
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  BlockConversionPassOptions options;
+  options.codegen_options.register_merge_strategy(
+      verilog::CodegenOptions::RegisterMergeStrategy::kIdentityOnly);
+  EXPECT_THAT(Run(p.get(), options), IsOkAndHolds(true));
   EXPECT_THAT(sb->GetRegisters(),
               UnorderedElementsAre(m2::Register("p0_v0", m::Type("bits[32]")),
                                    m2::Register("p2_v0", m::Type("bits[32]"))))
@@ -738,7 +794,10 @@ TEST_F(PipelineRegisterInsertionPassTest,
 
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
 
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  BlockConversionPassOptions options;
+  options.codegen_options.register_merge_strategy(
+      verilog::CodegenOptions::RegisterMergeStrategy::kIdentityOnly);
+  EXPECT_THAT(Run(p.get(), options), IsOkAndHolds(true));
   EXPECT_THAT(sb->GetRegisters(),
               UnorderedElementsAre(m2::Register("p0_v0", m::Type("bits[32]")),
                                    m2::Register("p2_v0", m::Type("bits[32]")),

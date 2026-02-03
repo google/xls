@@ -32,6 +32,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "cppitertools/enumerate.hpp"
+#include "xls/codegen/codegen_options.h"
 #include "xls/codegen/concurrent_stage_groups.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
 #include "xls/common/casts.h"
@@ -349,47 +350,50 @@ absl::StatusOr<bool> PipelineRegisterInsertionPass::InsertPipelineRegisters(
         break;
       }
 
-      // Check if we can extend the lifetime of the `live_node` to cover
-      // the next stage. If so, we can avoid adding a pipeline register here.
-      //
-      // NOTE: Only RegisterReads (and StateReads, which lower to RegisterReads)
-      //       can be treated as having lifetimes beyond a single stage without
-      //       creating multi-cycle paths.
-      //
-      // In general, we can extend the lifetime of the `live_node` to the next
-      // stage if the next stage is mutually exclusive with everything back to
-      // the earliest stage that can *change* the value in the register.
-      // Currently, we only extend lifetimes for StateReads and pipeline
-      // registers.
-      //
-      // Since StateReads always come before the corresponding Next, it's safe
-      // to extend as long as the next stage is mutually exclusive with
-      // everything up to the StateRead.
-      //
-      // If the live node is a pipeline register, it's safe to extend as long as
-      // the next stage is mutually exclusive with everything up to the register
-      // write (which is from the previous stage).
-      //
-      // TODO(epastor): Add support for extending lifetimes for more registers,
-      //                (e.g.) flopped Receives. Might be simplest if each
-      //                register records the earliest stage that can enable a
-      //                write (where known).
-      if (live_node_is_pipelined || live_node->Is<StateRead>()) {
-        bool can_extend_lifetime = true;
-        for (int64_t i = live_node_update_stage; i <= stage_index; ++i) {
-          if (!concurrent_stages.IsMutuallyExclusive(i, stage_index + 1)) {
-            VLOG(3) << "Can't extend lifetime of " << live_node->GetName()
-                    << " through stage " << stage_index + 1
-                    << " because of possible concurrency between stages " << i
-                    << " and " << stage_index + 1;
-            can_extend_lifetime = false;
-            break;
+      if (options.codegen_options.register_merge_strategy() !=
+          verilog::CodegenOptions::RegisterMergeStrategy::kDontMerge) {
+        // Check if we can extend the lifetime of the `live_node` to cover
+        // the next stage. If so, we can avoid adding a pipeline register here.
+        //
+        // NOTE: Only RegisterReads (and StateReads, which lower to
+        //       RegisterReads) can be treated as having lifetimes beyond a
+        //       single stage without creating multi-cycle paths.
+        //
+        // In general, we can extend the lifetime of the `live_node` to the next
+        // stage if the next stage is mutually exclusive with everything back to
+        // the earliest stage that can *change* the value in the register.
+        // Currently, we only extend lifetimes for StateReads and pipeline
+        // registers.
+        //
+        // Since StateReads always come before the corresponding Next, it's safe
+        // to extend as long as the next stage is mutually exclusive with
+        // everything up to the StateRead.
+        //
+        // If the live node is a pipeline register, it's safe to extend as long
+        // as the next stage is mutually exclusive with everything up to the
+        // register write (which is from the previous stage).
+        //
+        // TODO(epastor): Add support for extending lifetimes for more
+        //                registers, (e.g.) flopped Receives. Might be simplest
+        //                if each register records the earliest stage that can
+        //                enable a write (where known).
+        if (live_node_is_pipelined || live_node->Is<StateRead>()) {
+          bool can_extend_lifetime = true;
+          for (int64_t i = live_node_update_stage; i <= stage_index; ++i) {
+            if (!concurrent_stages.IsMutuallyExclusive(i, stage_index + 1)) {
+              VLOG(3) << "Can't extend lifetime of " << live_node->GetName()
+                      << " through stage " << stage_index + 1
+                      << " because of possible concurrency between stages " << i
+                      << " and " << stage_index + 1;
+              can_extend_lifetime = false;
+              break;
+            }
           }
-        }
-        if (can_extend_lifetime) {
-          VLOG(3) << "Extending lifetime of " << live_node->GetName()
-                  << " through stage " << stage_index + 1;
-          continue;
+          if (can_extend_lifetime) {
+            VLOG(3) << "Extending lifetime of " << live_node->GetName()
+                    << " through stage " << stage_index + 1;
+            continue;
+          }
         }
       }
 
