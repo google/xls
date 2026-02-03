@@ -42,6 +42,7 @@ public:
 
 ```shell
 $ ./bazel-bin/xls/contrib/xlscc/xlscc test_memory.cc \
+  --split_states_on_channel_ops=false \
   --block_from_class TestBlock --block_pb block.pb \
   > test_memory.ir
 ```
@@ -127,6 +128,8 @@ $ ./bazel-bin/xls/tools/codegen_main test_memory.opt.ir \
   --generator=pipeline \
   --delay_model="sky130" \
   --output_verilog_path=memory_test.v \
+  --output_signature_path=memory_test.sig.textproto \
+  --output_block_ir_path=memory_test.block.ir \
   --module_name=memory_test \
   --top=TestBlock_proc \
   --reset=rst \
@@ -136,7 +139,7 @@ $ ./bazel-bin/xls/tools/codegen_main test_memory.opt.ir \
   --pipeline_stages=2  \
   --flop_inputs=false \
   --flop_outputs=false \
-  --ram_configurations=ram:1R1W:store__read_req:store__read_resp:store__write_req:store__write_completion
+  --ram_configurations=store_:1R1W:store__read_req:store__read_resp:store__write_req:store__write_completion
 ```
 
 Below is a quick summary of the options.
@@ -145,6 +148,34 @@ Below is a quick summary of the options.
     codegen of the necessary information about the memory to generate the top
     level ports in the correct style. "ram" is the name prefix the ports will
     use.
+
+## Run IR simulation with concrete memory model
+
+Create file for inputs to feed into input channels:
+
+```
+in: {
+    bits[32]:55,
+    bits[32]:100,
+    bits[32]:303
+}
+```
+
+Create file for outputs to expect from output channels;
+
+```
+out: {
+    bits[32]:55,
+    bits[32]:100
+}
+```
+
+```shell
+$ ./bazel-bin/xls/tools/eval_proc_main memory_test.block.ir --top memory_test --backend=block_jit --abstract_ram_model=false --block_signature_proto=memory_test.sig.textproto --ram_rewrites_textproto rewrites.textproto --ticks -1 --show_trace --alsologtostderr --inputs_for_all_channels=inputs.textproto --expected_outputs_for_all_channels=outputs.textproto
+```
+
+Use abstract_memory_model=true for IR simulation before rewrites, eg IR directly
+from xlscc.
 
 ## Additional XLS[cc] examples.
 

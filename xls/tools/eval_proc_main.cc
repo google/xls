@@ -846,6 +846,10 @@ absl::Status EvaluateBlock(
 
   for (const RamRewriteProto& rewrite : ram_rewrites.rewrites()) {
     const std::string& name = rewrite.to_name_prefix();
+    if (!ram_info.contains(name)) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "No ram info from block signature for %s from rewrites", name));
+    }
     const std::string_view& wr_data = ram_info.at(name).wr_data;
     XLS_ASSIGN_OR_RETURN(const OutputPort* port, block->GetOutputPort(wr_data));
 
@@ -957,6 +961,7 @@ absl::Status EvaluateBlock(
         input_set[name] = queue.front();
       }
     }
+
     for (const auto& [name, model] : model_memories) {
       XLS_RET_CHECK(ram_info.contains(name));
       std::string_view rd_data = ram_info.at(name).rd_data;
@@ -1078,7 +1083,6 @@ absl::Status EvaluateBlock(
           const Value wr_addr_val = outputs.at(info.wr_addr);
           const Value wr_data_val = outputs.at(info.wr_data);
           XLS_RET_CHECK(wr_addr_val.IsBits());
-          XLS_RET_CHECK(wr_data_val.IsBits());
           XLS_ASSIGN_OR_RETURN(uint64_t addr, wr_addr_val.bits().ToUint64());
           XLS_RETURN_IF_ERROR(model->Write(addr, wr_data_val));
         }
