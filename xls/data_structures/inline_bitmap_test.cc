@@ -90,6 +90,17 @@ TEST(InlineBitmapTest, FromWord) {
   }
 }
 
+TEST(InlineBitmapTest, MutableView) {
+  InlineBitmap b(/*bit_count=*/10);
+  MutableBitmapView view(b, /*start_bit=*/2, /*bit_count=*/3);
+  view.Set(0, true);
+  view.Set(1, false);
+  view.Set(2, true);
+  EXPECT_TRUE(b.Get(2));
+  EXPECT_FALSE(b.Get(3));
+  EXPECT_TRUE(b.Get(4));
+}
+
 TEST(InlineBitmapTest, SetRange) {
   InlineBitmap b(/*bit_count=*/3);
   b.SetRange(0, 0, true);

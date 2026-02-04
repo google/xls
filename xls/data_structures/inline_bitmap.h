@@ -484,6 +484,61 @@ class InlineBitmap {
   }
 };
 
+class MutableBitmapView {
+ public:
+  explicit MutableBitmapView(InlineBitmap& bitmap,
+                             std::optional<int64_t> start_bit = std::nullopt,
+                             std::optional<int64_t> bit_count = std::nullopt)
+      : bitmap_(bitmap) {
+    start_bit_ = start_bit.value_or(0);
+    CHECK_LE(start_bit_, bitmap_.bit_count());
+    bit_count_ = bit_count.value_or(bitmap_.bit_count() - start_bit_);
+  }
+
+  void Set(int64_t bit_index, bool value) {
+    CHECK_LT(bit_index, bit_count_);
+    bitmap_.Set(start_bit_ + bit_index, value);
+  }
+
+  void Overwrite(const InlineBitmap& other, int64_t off = 0) {
+    CHECK_LE(off + other.bit_count(), bit_count_);
+    bitmap_.Overwrite(other, other.bit_count(), /*w_offset=*/start_bit_ + off,
+                      /*r_offset=*/0);
+  }
+
+  void Overwrite(const MutableBitmapView& other, int64_t off = 0) {
+    CHECK_LE(off + other.bit_count(), bit_count_);
+    bitmap_.Overwrite(other.bitmap_, other.bit_count(),
+                      /*w_offset=*/start_bit_ + off,
+                      /*r_offset=*/other.start_bit_);
+  }
+
+  void Overwrite(const BitmapView& other, int64_t off = 0);
+
+  bool Get(int64_t bit_index) const {
+    CHECK_LT(bit_index, bit_count_);
+    return bitmap_.Get(start_bit_ + bit_index);
+  }
+
+  MutableBitmapView Slice(int64_t start_bit, int64_t bit_count) const {
+    return MutableBitmapView(bitmap_, start_bit_ + start_bit, bit_count);
+  }
+
+  InlineBitmap ToBitmap() const {
+    InlineBitmap result(bit_count_, false);
+    result.Overwrite(bitmap_, bit_count_, /*w_offset=*/0,
+                     /*r_offset=*/start_bit_);
+    return result;
+  }
+
+  int64_t bit_count() const { return bit_count_; }
+
+ private:
+  InlineBitmap& bitmap_;
+  int64_t start_bit_;
+  int64_t bit_count_;
+};
+
 class BitmapView {
  public:
   explicit BitmapView(const InlineBitmap& bitmap,
@@ -517,7 +572,16 @@ class BitmapView {
   const InlineBitmap& bitmap_;
   int64_t start_bit_;
   int64_t bit_count_;
+  // To get at the inner bitmap.
+  friend class MutableBitmapView;
 };
+
+inline void MutableBitmapView::Overwrite(const BitmapView& other, int64_t off) {
+  CHECK_LE(off + other.bit_count(), bit_count_);
+  bitmap_.Overwrite(other.bitmap_, other.bit_count(),
+                    /*w_offset=*/start_bit_ + off,
+                    /*r_offset=*/other.start_bit_);
+}
 
 // Let fuzz-tests pretty-print reproducers.
 void FuzzTestPrintSourceCode(const InlineBitmap& bm, std::ostream* os);
