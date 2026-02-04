@@ -61,6 +61,13 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
       WarningCollector* warning_collector, const ParametricEnv& bindings,
       const Expr* expr, bool warn_rollover = false);
 
+  // Helper for `const match` expressions where the whole expression cannot be
+  // evaluated to a value, but can be reduced to a single arm.
+  static absl::StatusOr<InterpValue> ConstMatchWhichArm(
+      ImportData* import_data, TypeInfo* type_info,
+      WarningCollector* warning_collector, const ParametricEnv& bindings,
+      const Match* match);
+
   // A concrete type is only necessary when:
   //  - Deducing a Number that is undecorated and whose type is specified by
   //    context, e.g., an element in a constant array:
