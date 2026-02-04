@@ -231,5 +231,59 @@ const_assert!(D == 26);
                               HasNodeWithType("D", "uN[32]"))));
 }
 
+TEST(TypecheckV2GenericsTest, GenericStructTypeExplicit) {
+  XLS_ASSERT_OK(TypecheckV2(
+      R"(
+#![feature(generics)]
+
+struct Anything<T: type> {
+  value: T
+}
+
+const C = Anything<u32>{value: u32:5};
+const D = Anything<u3>{value: u3:5};
+
+const_assert!(C.value == 5);
+const_assert!(D.value == 5);
+
+)"));
+}
+
+TEST(TypecheckV2GenericsTest, GenericStructTypeExplicitTypeMismatch) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+struct Anything<T: type> {
+  value: T
+}
+
+const C = Anything<u16>{value: u32:5};
+
+)",
+      TypecheckFails(HasTypeMismatch("u32", "u16")));
+}
+
+TEST(TypecheckV2GenericsTest, GenericStructTypeInferred) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+struct Anything<T: type> {
+  value: T
+}
+
+const C = Anything{value: u32:5};
+const D = Anything{value: u3:5};
+
+const_assert!(C.value == 5);
+const_assert!(D.value == 5);
+
+)",
+      TypecheckSucceeds(
+          AllOf(HasNodeWithType("C", "Anything { value: uN[32] }"),
+                HasNodeWithType("D", "Anything { value: uN[3] }"))));
+}
+
 }  // namespace
 }  // namespace xls::dslx

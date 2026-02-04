@@ -1967,7 +1967,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           output_ti->NoteConstExpr(binding->name_def(), value);
           values.emplace(binding->identifier(), std::move(value));
         } else {
-          XLS_RET_CHECK(target_context.has_value());
           XLS_ASSIGN_OR_RETURN(
               const TypeAnnotation* type,
               CleanseGenericTypeArgument(
@@ -1975,9 +1974,11 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                   std::get<const TypeAnnotation*>(value_or_type)));
           values.emplace(binding->identifier(),
                          InterpValue::MakeTypeReference(type));
-          XLS_RETURN_IF_ERROR(
-              table_.AddTypeAnnotationToVariableForParametricContext(
-                  target_context, binding, type));
+          if (target_context.has_value()) {
+            XLS_RETURN_IF_ERROR(
+                table_.AddTypeAnnotationToVariableForParametricContext(
+                    target_context, binding, type));
+          }
         }
       }
     }
@@ -2156,8 +2157,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       }
 
       absl::flat_hash_map<std::string, InterpValue> new_values;
-      // Note: setting target_context to null is temporary until we support
-      // generic type parametrics for structs.
       XLS_ASSIGN_OR_RETURN(
           new_values,
           InferImplicitParametrics(
