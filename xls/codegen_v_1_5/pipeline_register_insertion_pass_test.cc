@@ -809,5 +809,60 @@ TEST_F(PipelineRegisterInsertionPassTest,
                        });
 }
 
+TEST_F(PipelineRegisterInsertionPassTest,
+       TestRAWStateHazardWithMutualExclusion) {
+  auto p = CreatePackage();
+  ScheduledBlockBuilder sbb(TestName(), p.get());
+  Proc* source;
+  {
+    std::unique_ptr<Proc> owned_source = std::make_unique<Proc>(
+        absl::StrCat("__", TestName(), "_source"), p.get());
+    source = owned_source.get();
+    sbb.SetSource(std::move(owned_source));
+  }
+  XLS_ASSERT_OK(sbb.block()->AddClockPort("clk"));
+  BValue x = sbb.InputPort("x", p->GetBitsType(32));
+
+  // Stage 0 - read from both `acc` and `z`, update `acc`
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * source_acc, source->AppendStateElement(
+                                                  "acc", Value(UBits(0, 32))));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * source_z, source->AppendStateElement("z", Value(UBits(0, 32))));
+  BValue acc = sbb.SourceNode(source_acc);
+  BValue z = sbb.SourceNode(source_z);
+  sbb.AddStateReadToCurrentStage(acc);
+  sbb.AddStateReadToCurrentStage(z);
+  BValue next_acc = sbb.Add(x, acc, SourceInfo(), "next_acc");
+  sbb.Next(acc, next_acc);
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  // Stage 1 - update `z`, ending a mutex region on stages [0, 1]
+  // Also uses `acc`, requiring a pipeline register for `acc` if we behave
+  // correctly, as the write in stage 0 would otherwise clobber its value.
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.Next(z, sbb.Add(z, sbb.Literal(UBits(1, 32))));
+  BValue out = sbb.Add(acc, z, SourceInfo(), "out");
+  sbb.OutputPort("result", out);
+
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
+
+  BlockConversionPassOptions options;
+  options.codegen_options.register_merge_strategy(
+      verilog::CodegenOptions::RegisterMergeStrategy::kIdentityOnly);
+
+  EXPECT_THAT(Run(p.get(), options), IsOkAndHolds(true));
+
+  // Verify the correct set of pipeline registers. `z` doesn't need one, even
+  // though the read is in stage 0, because we can extend its lifetime to stage
+  // 1 due to no earlier writes. `acc` *does* need a pipeline register; its
+  // write in stage 0 would otherwise clobber the value needed for the addition
+  // in stage 1.
+  EXPECT_THAT(sb->GetRegisters(),
+              testing::Contains(m2::Register("p0_acc", m::Type("bits[32]"))));
+}
+
 }  // namespace
 }  // namespace xls::codegen

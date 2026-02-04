@@ -247,6 +247,23 @@ absl::StatusOr<bool> PipelineRegisterInsertionPass::InsertPipelineRegisters(
   XLS_ASSIGN_OR_RETURN(ConcurrentStageGroups concurrent_stages,
                        CalculateConcurrentStages(block));
 
+  // Map of StateElement -> earliest stage index containing a Next for it.
+  // This is used to determine if a StateRead's lifetime can be extended.
+  absl::flat_hash_map<StateElement*, int64_t> earliest_next_stage;
+  for (Node* node : block->nodes()) {
+    if (node->Is<Next>()) {
+      Next* next = node->As<Next>();
+      StateElement* state_element =
+          next->state_read()->As<StateRead>()->state_element();
+      int64_t stage = *block->GetStageIndex(next);
+      auto [it, inserted] =
+          earliest_next_stage.try_emplace(state_element, stage);
+      if (!inserted) {
+        it->second = std::min(it->second, stage);
+      }
+    }
+  }
+
   // Compile all the references that could require pipeline registers.
   absl::flat_hash_map<Node*, int64_t> last_stage_referencing;
   absl::btree_map<Node*, absl::flat_hash_map<int64_t, std::vector<Node*>>,
@@ -365,35 +382,52 @@ absl::StatusOr<bool> PipelineRegisterInsertionPass::InsertPipelineRegisters(
         // Currently, we only extend lifetimes for StateReads and pipeline
         // registers.
         //
-        // Since StateReads always come before the corresponding Next, it's safe
-        // to extend as long as the next stage is mutually exclusive with
-        // everything up to the StateRead.
-        //
         // If the live node is a pipeline register, it's safe to extend as long
         // as the next stage is mutually exclusive with everything up to the
         // register write (which is from the previous stage).
+        //
+        // If the live node is a StateRead, it's safe to extend its lifetime up
+        // to its earliest Next operation. If the state could be updated in
+        // stage K, its backing register will contain the *new* value in stage
+        // K+1, so we cannot extend the StateRead's lifetime into K+1; we must
+        // insert a pipeline register to capture the old value. (Mutual
+        // exclusion is guaranteed by the way state feedback loops are
+        // implemented.)
         //
         // TODO(epastor): Add support for extending lifetimes for more
         //                registers, (e.g.) flopped Receives. Might be simplest
         //                if each register records the earliest stage that can
         //                enable a write (where known).
-        if (live_node_is_pipelined || live_node->Is<StateRead>()) {
-          bool can_extend_lifetime = true;
-          for (int64_t i = live_node_update_stage; i <= stage_index; ++i) {
+        bool can_extend_lifetime = false;
+        if (live_node_is_pipelined) {
+          can_extend_lifetime = true;
+          for (int64_t i = live_node_update_stage;
+               can_extend_lifetime && i <= stage_index; ++i) {
             if (!concurrent_stages.IsMutuallyExclusive(i, stage_index + 1)) {
               VLOG(3) << "Can't extend lifetime of " << live_node->GetName()
                       << " through stage " << stage_index + 1
                       << " because of possible concurrency between stages " << i
                       << " and " << stage_index + 1;
               can_extend_lifetime = false;
-              break;
             }
           }
-          if (can_extend_lifetime) {
-            VLOG(3) << "Extending lifetime of " << live_node->GetName()
-                    << " through stage " << stage_index + 1;
-            continue;
+        } else if (live_node->Is<StateRead>()) {
+          can_extend_lifetime = true;
+          StateElement* se = live_node->As<StateRead>()->state_element();
+          if (auto it = earliest_next_stage.find(se);
+              it != earliest_next_stage.end()) {
+            if (stage_index + 1 > it->second) {
+              VLOG(3) << "Can't extend lifetime of " << live_node->GetName()
+                      << " through stage " << stage_index + 1
+                      << " because state is updated in stage " << it->second;
+              can_extend_lifetime = false;
+            }
           }
+        }
+        if (can_extend_lifetime) {
+          VLOG(3) << "Extending lifetime of " << live_node->GetName()
+                  << " through stage " << stage_index + 1;
+          continue;
         }
       }
 
