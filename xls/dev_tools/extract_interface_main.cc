@@ -32,10 +32,12 @@
 #include "xls/public/ir_parser.h"
 
 const char kUsage[] = R"(
-  Parse an IR file and write a PackageInterfaceProto to stdout.
+  Parse an IR file and write a PackageInterfaceProto to stdout (or the specified
+  --output_file).
 )";
 
 ABSL_FLAG(bool, binary_proto, false, "Print as a binary proto");
+ABSL_FLAG(std::string, output_file, "/dev/stdout", "Output file");
 
 namespace xls {
 namespace {
@@ -51,7 +53,8 @@ absl::Status RealMain(bool binary_proto, const std::filesystem::path& path) {
   } else {
     XLS_RET_CHECK(google::protobuf::TextFormat::PrintToString(proto, &output));
   }
-  std::cout << output;
+  XLS_RETURN_IF_ERROR(
+      SetFileContents(absl::GetFlag(FLAGS_output_file), output));
   return absl::OkStatus();
 }
 
