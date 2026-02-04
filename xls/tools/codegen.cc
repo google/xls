@@ -201,6 +201,9 @@ absl::StatusOr<verilog::CodegenResult> CodegenFromMetadata(
   if (codegen_version == verilog::CodegenOptions::Version::kDefault) {
     codegen_version = verilog::CodegenOptions::Version::kOneDotZero;
   }
+  if (p->ChannelsAreProcScoped()) {
+    codegen_version = verilog::CodegenOptions::Version::kOneDotFive;
+  }
 
   if (codegen_version == verilog::CodegenOptions::Version::kOneDotZero) {
     if (generator_kind == GENERATOR_KIND_COMBINATIONAL) {
