@@ -285,5 +285,51 @@ const_assert!(D.value == 5);
                 HasNodeWithType("D", "Anything { value: uN[3] }"))));
 }
 
+TEST(TypecheckV2GenericsTest, GenericStructAndImpl) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+struct Anything<T: type> {
+  value: T
+}
+
+impl Anything {
+  fn foo<S: type>(self, x: S) -> S {
+    x + self.value
+  }
+}
+
+const X = u32:5;
+const X_STRUCT = Anything { value: X };
+const Y = X_STRUCT.foo(u32:10);
+
+const_assert!(Y == 15);
+)",
+      TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
+}
+
+TEST(TypecheckV2GenericsTest, GenericStructAndImplTypeMismatch) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+struct Anything<T: type> {
+  value: T
+}
+
+impl Anything {
+  fn foo<S: type>(self, x: S) -> S {
+    x + self.value
+  }
+}
+
+const X = u32:5;
+const X_STRUCT = Anything { value: X };
+const Y = X_STRUCT.foo(u16:10);
+)",
+      TypecheckFails(HasTypeMismatch("uN[32]", "uN[16]")));
+}
+
 }  // namespace
 }  // namespace xls::dslx
