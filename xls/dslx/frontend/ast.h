@@ -1535,7 +1535,8 @@ class Number : public Expr {
   // type_annotation is imbued *into* the number. Cleaner would be to make a
   // TypedNumber construct that decorated a bare number with its literal
   // type_annotation context.
-  void SetTypeAnnotation(TypeAnnotation* type_annotation);
+  void SetTypeAnnotation(TypeAnnotation* type_annotation,
+                         bool update_span = true);
 
   // Warning: be careful not to iterate over signed chars of the result, as they
   // may sign extend on platforms that compile with signed chars. Preferred
@@ -2047,7 +2048,8 @@ using ImportSubject = std::variant<UseTreeEntry*, Import*>;
 // Then the ColonRef `some_mod::SomeEnum` is the LHS.
 class ColonRef : public Expr {
  public:
-  using Subject = std::variant<NameRef*, ColonRef*, TypeRefTypeAnnotation*>;
+  using Subject = std::variant<NameRef*, ColonRef*, TypeRefTypeAnnotation*,
+                               TypeVariableTypeAnnotation*>;
 
   ColonRef(Module* owner, Span span, Subject subject, std::string attr,
            bool in_parens = false);

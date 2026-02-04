@@ -259,6 +259,14 @@ class AstCloner : public AstNodeVisitor {
                 [&](ColonRef* colon_ref) -> ColonRef::Subject {
                   return down_cast<ColonRef*>(old_to_new_.at(colon_ref));
                 },
+                [&](TypeVariableTypeAnnotation* tvta) -> ColonRef::Subject {
+                  TypeAnnotation* new_node =
+                      down_cast<TypeAnnotation*>(old_to_new_.at(tvta));
+                  if (new_node->IsAnnotation<TypeRefTypeAnnotation>()) {
+                    return down_cast<TypeRefTypeAnnotation*>(new_node);
+                  }
+                  return down_cast<TypeVariableTypeAnnotation*>(new_node);
+                },
                 [&](TypeRefTypeAnnotation* type_ref) -> ColonRef::Subject {
                   return down_cast<TypeRefTypeAnnotation*>(
                       old_to_new_.at(type_ref));

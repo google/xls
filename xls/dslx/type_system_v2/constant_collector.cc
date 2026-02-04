@@ -137,17 +137,89 @@ class Visitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  // Converts a `ColonRef` with a generic type subject into a `ColonRef` with
+  // the resolved type as a subject. For example, in:
+  //   fn foo<T: type>() -> u32 { T::SOME_CONSTANT }
+  //   const C = foo<MyStruct>();
+  // If we pass in `T::SOME_CONSTANT` while this collector instance is in the
+  // context of the `foo` invocation shown, the result will be
+  // `MyStruct::SOME_CONSTANT`.
+  absl::StatusOr<ColonRef*> ConvertGenericColonRefToDirect(
+      const ColonRef* colon_ref) {
+    const auto* tvta =
+        std::get<TypeVariableTypeAnnotation*>(colon_ref->subject());
+    const auto* name_def =
+        std::get<const NameDef*>(tvta->type_variable()->name_def());
+    XLS_ASSIGN_OR_RETURN(TypeAnnotation * actual_type,
+                         table_.GetGenericType(parametric_context_, name_def));
+    XLS_ASSIGN_OR_RETURN(std::optional<const EnumDef*> enum_def,
+                         GetEnumDef(actual_type, import_data_));
+    if (enum_def.has_value()) {
+      return name_def->owner()->Make<ColonRef>(
+          Span::None(),
+          name_def->owner()->Make<NameRef>(
+              Span::None(), (*enum_def)->name_def()->identifier(), name_def),
+          colon_ref->attr());
+    }
+
+    XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,
+                         GetStructOrProcRef(actual_type, import_data_));
+    if (struct_or_proc_ref.has_value()) {
+      return name_def->owner()->Make<ColonRef>(
+          Span::None(),
+          name_def->owner()->Make<TypeRefTypeAnnotation>(
+              Span::None(),
+              name_def->owner()->Make<TypeRef>(
+                  Span::None(),
+                  const_cast<StructDef*>(
+                      down_cast<const StructDef*>(struct_or_proc_ref->def))),
+              struct_or_proc_ref->parametrics),
+          colon_ref->attr());
+    }
+
+    return TypeInferenceErrorStatus(
+        colon_ref->span(), /*type=*/nullptr,
+        absl::Substitute("Cannot resolve generic member reference "
+                         "`$0` to a member of a real type.",
+                         colon_ref->ToString()),
+        file_table_);
+  }
+
   absl::Status HandleColonRef(const ColonRef* colon_ref) override {
-    // Imported Enums have been handled by their own module. If they can be
-    // constexpr evaluated, record value.
-    if (IsImport(colon_ref) && type_.IsEnum()) {
-      absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
-          &import_data_, ti_, &warning_collector_,
-          table_.GetParametricEnv(parametric_context_), colon_ref);
-      if (value.ok()) {
-        trace_.SetResult(*value);
-        ti_->NoteConstExpr(colon_ref, *value);
+    const ColonRef* direct_colon_ref = colon_ref;
+    std::optional<const AstNode*> target = table_.GetColonRefTarget(colon_ref);
+
+    // Pre-process ColonRefs to generic-type subjects, like `T::SOME_CONSTANT`,
+    // so that further down it is as if we were dealing with
+    // `<what T stands for>::SOME_CONSTANT`. After this, `direct_colon_ref`
+    // represents the latter, and we keep `colon_ref` as it was, for use in
+    // logging and some error messages.
+    if (std::holds_alternative<TypeVariableTypeAnnotation*>(
+            colon_ref->subject())) {
+      XLS_ASSIGN_OR_RETURN(direct_colon_ref,
+                           ConvertGenericColonRefToDirect(colon_ref));
+      auto populate_visitor = CreatePopulateTableVisitor(
+          colon_ref->owner(), &table_, &import_data_,
+          [](std::unique_ptr<Module>, std::filesystem::path path)
+              -> absl::StatusOr<std::unique_ptr<ModuleInfo>> {
+            XLS_RET_CHECK_FAIL()
+                << "Typecheck for an import should not be triggered while "
+                   "populating a replaced ColonRef.";
+          });
+
+      if (target.has_value() && *target == colon_ref && !type_.IsEnum()) {
+        XLS_RETURN_IF_ERROR(
+            populate_visitor->PopulateFromColonRef(direct_colon_ref));
+        target = table_.GetColonRefTarget(direct_colon_ref);
       }
+    }
+
+    // We can distinguish a ColonRef to an imported enum type itself, from an
+    // imported enum member, by the subject type (the subject type of a member
+    // if a ColonRef). An imported enum type itself is problematic, if we try to
+    // use enum member logic for it below, so short-circuit that.
+    if (IsImport(direct_colon_ref) && type_.IsEnum() &&
+        std::holds_alternative<NameRef*>(direct_colon_ref->subject())) {
       return absl::OkStatus();
     }
 
@@ -156,10 +228,11 @@ class Visitor : public AstNodeVisitorWithDefault {
     if (type_.IsEnum()) {
       const auto& enum_type = type_.AsEnum();
       const EnumDef& enum_def = enum_type.nominal_type();
-      absl::StatusOr<Expr*> enum_value = enum_def.GetValue(colon_ref->attr());
+      absl::StatusOr<Expr*> enum_value =
+          enum_def.GetValue(direct_colon_ref->attr());
       if (!enum_value.ok()) {
-        return UndefinedNameErrorStatus(colon_ref->span(), colon_ref,
-                                        colon_ref->attr(), file_table_);
+        return UndefinedNameErrorStatus(colon_ref->span(), direct_colon_ref,
+                                        direct_colon_ref->attr(), file_table_);
       }
       XLS_ASSIGN_OR_RETURN(
           TypeInfo * eval_ti,
@@ -171,9 +244,6 @@ class Visitor : public AstNodeVisitorWithDefault {
       return absl::OkStatus();
     }
 
-    const std::optional<const AstNode*> target =
-        table_.GetColonRefTarget(colon_ref);
-
     if (!target.has_value()) {
       std::optional<BitsLikeProperties> bits_like = GetBitsLike(type_);
       if (bits_like.has_value()) {
@@ -184,12 +254,14 @@ class Visitor : public AstNodeVisitorWithDefault {
         XLS_ASSIGN_OR_RETURN(uint32_t bit_count, bits_like->size.GetAsInt64());
         XLS_ASSIGN_OR_RETURN(
             InterpValueWithTypeAnnotation member,
-            GetBuiltinMember(module_, is_signed, bit_count, colon_ref->attr(),
-                             colon_ref->span(), type_.ToString(), file_table_));
+            GetBuiltinMember(module_, is_signed, bit_count,
+                             direct_colon_ref->attr(), colon_ref->span(),
+                             type_.ToString(), file_table_));
         trace_.SetResult(member.value);
         ti_->NoteConstExpr(colon_ref, std::move(member.value));
       } else {
-        VLOG(6) << "ColonRef has no constexpr value: " << colon_ref->ToString();
+        VLOG(6) << "ColonRef has no constexpr value: "
+                << direct_colon_ref->ToString();
       }
       return absl::OkStatus();
     }
@@ -209,12 +281,12 @@ class Visitor : public AstNodeVisitorWithDefault {
     if ((*target)->kind() == AstNodeKind::kConstantDef) {
       XLS_ASSIGN_OR_RETURN(
           std::optional<StructOrProcRef> struct_or_proc,
-          GetStructOrProcRefForSubject(colon_ref, import_data_));
+          GetStructOrProcRefForSubject(direct_colon_ref, import_data_));
       if (struct_or_proc.has_value() && struct_or_proc->def->IsParametric()) {
         XLS_ASSIGN_OR_RETURN(
             const ParametricContext* struct_context,
             parametric_struct_instantiator_.GetOrCreateParametricStructContext(
-                parametric_context_, *struct_or_proc, colon_ref));
+                parametric_context_, *struct_or_proc, direct_colon_ref));
         evaluation_ti = struct_context->type_info();
       }
 

@@ -300,6 +300,11 @@ absl::Status ConstexprEvaluator::HandleChannelDecl(const ChannelDecl* expr) {
 }
 
 absl::Status ConstexprEvaluator::HandleColonRef(const ColonRef* expr) {
+  if (type_info_->IsKnownNonConstExpr(expr) ||
+      !type_info_->IsKnownConstExpr(expr)) {
+    return absl::OkStatus();
+  }
+
   XLS_ASSIGN_OR_RETURN(auto subject, ResolveColonRefSubjectAfterTypeChecking(
                                          import_data_, type_info_, expr));
   return absl::visit(
@@ -377,7 +382,16 @@ absl::Status ConstexprEvaluator::HandleColonRef(const ColonRef* expr) {
             return absl::OkStatus();
           },
           [&](Impl* impl) -> absl::Status {
-            XLS_RET_CHECK(type_info_->IsKnownConstExpr(expr));
+            if (type_info_->IsKnownConstExpr(expr)) {
+              return absl::OkStatus();
+            }
+            std::optional<ConstantDef*> constant =
+                impl->GetConstant(expr->attr());
+            if (constant.has_value()) {
+              XLS_RET_CHECK(type_info_->IsKnownConstExpr(*constant));
+              type_info_->NoteConstExpr(expr,
+                                        *type_info_->GetConstExpr(*constant));
+            }
             return absl::OkStatus();
           },
       },

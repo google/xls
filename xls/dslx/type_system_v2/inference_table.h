@@ -647,10 +647,18 @@ bool IsColonRefWithTypeTarget(const InferenceTable& table, const Expr* expr);
 // with the corresponding `ExprOrType`. This is used for replacement of
 // parametric variables with values. Each time the returned replacer uses a node
 // that is value in `map`, it clones it via `table.Clone()`.
+
+// If `add_parametric_binding_type_annotation` is true, then any replacement
+// whose `NameDef` belongs to a parametric binding will be prefixed with the
+// type annotation of the parametric binding. This behavior should be used when
+// replacing parametric bindings with their actual literal values. Otherwise
+// subsequent type inference would in some contexts presume the literals are the
+// minimum size needed to fit their values.
 CloneReplacer NameRefMapper(
     InferenceTable& table,
     const absl::flat_hash_map<const NameDef*, ExprOrType>& map,
-    std::optional<Module*> target_module = std::nullopt);
+    std::optional<Module*> target_module = std::nullopt,
+    bool add_parametric_binding_type_annotation = false);
 
 }  // namespace xls::dslx
 

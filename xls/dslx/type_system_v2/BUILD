@@ -472,6 +472,7 @@ cc_library(
         "//xls/dslx:import_data",
         "//xls/dslx:import_routines",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_cloner",
         "//xls/dslx/frontend:ast_node",
         "//xls/dslx/frontend:ast_node_visitor_with_default",
         "//xls/dslx/frontend:ast_utils",

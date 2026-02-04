@@ -172,5 +172,64 @@ const_assert!(D == 4);
 )"));
 }
 
+TEST(TypecheckV2GenericsTest, GenericConstantAccess) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+struct S1 {}
+
+impl S1 {
+  const SZ = u32:32;
+  const C = u32:5;
+}
+
+struct S2 {}
+
+impl S2 {
+  const SZ = u32:64;
+  const C = u64:6;
+}
+
+fn foo<T: type>() -> uN[T::SZ] {
+  T::C
+}
+
+const S1_RESULT = foo<S1>();
+const S2_RESULT = foo<S2>();
+
+const_assert!(S1_RESULT == 5);
+const_assert!(S2_RESULT == 6);
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("S1_RESULT", "uN[32]"),
+                              HasNodeWithType("S2_RESULT", "uN[64]"))));
+}
+
+TEST(TypecheckV2GenericsTest, GenericEnumAccess) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+enum E1 : u32 {
+  FOO = 5
+}
+
+enum E2 : u32 {
+  FOO = 6
+}
+
+fn add_foo<E: type>(a: u32) -> u32 {
+  a + E::FOO as u32
+}
+
+const C = add_foo<E1>(10);
+const D = add_foo<E2>(20);
+const_assert!(C == 15);
+const_assert!(D == 26);
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("C", "uN[32]"),
+                              HasNodeWithType("D", "uN[32]"))));
+}
+
 }  // namespace
 }  // namespace xls::dslx

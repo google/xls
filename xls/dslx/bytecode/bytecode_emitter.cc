@@ -830,6 +830,11 @@ absl::Status BytecodeEmitter::HandleColonRef(const ColonRef* node) {
 
 absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefInternal(
     const ColonRef* node) {
+  std::optional<InterpValue> const_value = type_info_->GetConstExprOption(node);
+  if (const_value.has_value()) {
+    return *const_value;
+  }
+
   XLS_ASSIGN_OR_RETURN(
       auto resolved_subject,
       ResolveColonRefSubjectAfterTypeChecking(import_data_, type_info_, node));

@@ -232,6 +232,24 @@ absl::StatusOr<AttributeKind> ParseAttributeKind(Token token,
   return it->second;
 }
 
+ColonRef::Subject ConvertToTvtaIfGeneric(ColonRef::Subject subject) {
+  if (!std::holds_alternative<NameRef*>(subject)) {
+    return subject;
+  }
+  auto* name_ref = std::get<NameRef*>(subject);
+  if (!std::holds_alternative<const NameDef*>(name_ref->name_def())) {
+    return subject;
+  }
+  const auto* name_def = std::get<const NameDef*>(name_ref->name_def());
+  if (name_def->definer() == nullptr ||
+      dynamic_cast<const GenericTypeAnnotation*>(name_def->definer()) ==
+          nullptr) {
+    return subject;
+  }
+  return name_ref->owner()->Make<TypeVariableTypeAnnotation>(
+      name_ref, /*internal=*/false);
+}
+
 }  // namespace
 
 absl::StatusOr<BuiltinType> Parser::TokenToBuiltinType(const Token& tok) {
@@ -1488,6 +1506,8 @@ absl::StatusOr<ColonRef*> Parser::ParseColonRef(Bindings& bindings,
         PopTokenOrError(TokenKind::kIdentifier, /*start=*/nullptr,
                         "Expected colon-reference identifier"));
     Span span(start, GetPos());
+
+    subject = ConvertToTvtaIfGeneric(subject);
     subject = module_->Make<ColonRef>(span, subject, *value_tok.GetValue());
     start = GetPos();
     XLS_ASSIGN_OR_RETURN(bool dropped_colon,

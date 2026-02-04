@@ -45,6 +45,7 @@
 #include "xls/dslx/channel_direction.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/ast_utils.h"
@@ -88,6 +89,11 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return function->Accept(this);
   }
 
+  absl::Status PopulateFromTypeAnnotation(
+      const TypeAnnotation* annotation) override {
+    return annotation->Accept(this);
+  }
+
   absl::Status PopulateFromUnrolledLoopBody(
       const StatementBlock* root) override {
     XLS_RET_CHECK(!handle_proc_functions_);
@@ -99,6 +105,10 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     absl::Status result = root->Accept(this);
     handle_proc_functions_ = false;
     return result;
+  }
+
+  absl::Status PopulateFromColonRef(const ColonRef* colon_ref) override {
+    return colon_ref->Accept(this);
   }
 
   absl::Status HandleImport(const Import* node) override {
@@ -347,6 +357,22 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       return table_.SetTypeAnnotation(
           node, module_.Make<MemberTypeAnnotation>(AttrSpan(node), annotation,
                                                    node->attr()));
+    }
+
+    // `T::CONSTANT` or `T::static_fn` where `T` is a parametric. We call the
+    // node its own target (because it's expected that we set some target) and
+    // use a `MemberTypeAnnotation` for the member access.
+    if (std::holds_alternative<TypeVariableTypeAnnotation*>(node->subject())) {
+      const auto* annotation =
+          std::get<TypeVariableTypeAnnotation*>(node->subject());
+      XLS_RETURN_IF_ERROR(annotation->Accept(this));
+      table_.SetColonRefTarget(node, node);
+      XLS_ASSIGN_OR_RETURN(AstNode * cloned_annotation, CloneAst(annotation));
+      return table_.SetTypeAnnotation(
+          node, module_.Make<MemberTypeAnnotation>(
+                    AttrSpan(node),
+                    down_cast<TypeVariableTypeAnnotation*>(cloned_annotation),
+                    node->attr()));
     }
 
     // Any imported_module::entity case not covered above.

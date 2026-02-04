@@ -947,6 +947,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
             << " with owner: " << node->owner()->name()
             << " for module: " << module_.name()
             << " in parametric context: " << ToString(parametric_context);
+
     if (pre_unified_type.has_value()) {
       VLOG(5) << "Using pre-unified type: " << (*pre_unified_type)->ToString();
     }
@@ -2324,19 +2325,22 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     }
 
     CloneReplacer replacer = ChainCloneReplacers(
-        NameRefMapper(table_, actual_values, type->owner()),
-        [&](const AstNode* node, Module*,
-            const absl::flat_hash_map<const AstNode*, AstNode*>&)
-            -> absl::StatusOr<std::optional<AstNode*>> {
-          // Explicitly leave attrs alone in an example like
-          // `uN[STRUCT_CONST.n]`. With the current grammar, there is no way
-          // these nodes need parametric replacement. Trying to clone them
-          // across modules can make them fail to evaluate.
-          if (node->kind() == AstNodeKind::kAttr) {
-            return const_cast<AstNode*>(node);
-          }
-          return std::nullopt;
-        });
+        &PreserveTypeDefinitionsReplacer,
+        ChainCloneReplacers(
+            NameRefMapper(table_, actual_values, type->owner(),
+                          /*add_parametric_binding_type_annotation=*/true),
+            [&](const AstNode* node, Module*,
+                const absl::flat_hash_map<const AstNode*, AstNode*>&)
+                -> absl::StatusOr<std::optional<AstNode*>> {
+              // Explicitly leave attrs alone in an example like
+              // `uN[STRUCT_CONST.n]`. With the current grammar, there is no way
+              // these nodes need parametric replacement. Trying to clone them
+              // across modules can make them fail to evaluate.
+              if (node->kind() == AstNodeKind::kAttr) {
+                return const_cast<AstNode*>(node);
+              }
+              return std::nullopt;
+            }));
 
     replacer = ChainCloneReplacers(
         std::move(replacer),
@@ -2369,8 +2373,24 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         });
 
     XLS_ASSIGN_OR_RETURN(
-        AstNode * clone,
-        table_.Clone(type, std::move(replacer), type->owner()));
+        (absl::flat_hash_map<const AstNode*, AstNode*> clones),
+        CloneAstAndGetAllPairs(type, type->owner(), std::move(replacer)));
+    AstNode* clone = clones.at(type);
+    std::unique_ptr<PopulateTableVisitor> visitor =
+        CreatePopulateTableVisitor(type->owner(), &table_, &import_data_,
+                                   /*typecheck_imported_module=*/nullptr);
+
+    // The replacement type annotation may not have fully valid table data at
+    // this point. For example, if we have replaced a `T::FOO` with
+    // `SomeActualType::FOO`, we will have cloned just `SomeActualType` from
+    // `actual_values` and not the whole new ColonRef; therefore the new
+    // ColonRef will not have an accurate target in the table. Its declaration
+    // type will also not have propagated to affected nodes. To ensure the table
+    // data is correct, we repopulate the table for the subtree under the new
+    // type annotation.
+    XLS_RETURN_IF_ERROR(
+        visitor->PopulateFromTypeAnnotation(down_cast<TypeAnnotation*>(clone)));
+
     return down_cast<const TypeAnnotation*>(clone);
   }
 

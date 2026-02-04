@@ -88,6 +88,9 @@ static AnyNameDef GetSubjectNameDef(const ColonRef::Subject& subject) {
   return absl::visit(
       Visitor{[](NameRef* n) { return n->name_def(); },
               [](ColonRef* n) { return GetSubjectNameDef(n->subject()); },
+              [](TypeVariableTypeAnnotation* n) {
+                return n->type_variable()->name_def();
+              },
               [](TypeRefTypeAnnotation* n) {
                 return TypeDefinitionGetNameDef(
                     n->type_ref()->type_definition());
@@ -2796,9 +2799,12 @@ Number::Number(Module* owner, Span span, std::string text,
 
 Number::~Number() = default;
 
-void Number::SetTypeAnnotation(TypeAnnotation* type_annotation) {
+void Number::SetTypeAnnotation(TypeAnnotation* type_annotation,
+                               bool update_span) {
   type_annotation_ = type_annotation;
-  UpdateSpan(MakeNumberSpan(span(), type_annotation));
+  if (update_span) {
+    UpdateSpan(MakeNumberSpan(span(), type_annotation));
+  }
 }
 
 std::vector<AstNode*> Number::GetChildren(bool want_types) const {

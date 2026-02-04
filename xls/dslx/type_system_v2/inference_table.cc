@@ -1096,25 +1096,53 @@ bool IsColonRefWithTypeTarget(const InferenceTable& table, const Expr* expr) {
 CloneReplacer NameRefMapper(
     InferenceTable& table,
     const absl::flat_hash_map<const NameDef*, ExprOrType>& map,
-    std::optional<Module*> target_module) {
-  return [table = &table, map = &map, target_module](
+    std::optional<Module*> target_module,
+    bool add_parametric_binding_type_annotation) {
+  return [table = &table, map = &map, target_module,
+          add_parametric_binding_type_annotation](
              const AstNode* node, Module* new_module,
              const absl::flat_hash_map<const AstNode*, AstNode*>&)
              -> absl::StatusOr<std::optional<AstNode*>> {
-    if (node->kind() == AstNodeKind::kNameRef) {
-      const auto* ref = down_cast<const NameRef*>(node);
-      if (std::holds_alternative<const NameDef*>(ref->name_def())) {
-        const auto it = map->find(std::get<const NameDef*>(ref->name_def()));
-        if (it != map->end()) {
-          Module* module_for_clone =
-              target_module ? *target_module : new_module;
-          return table->Clone(ToAstNode(it->second),
-                              &PreserveTypeDefinitionsReplacer,
-                              module_for_clone);
-        }
-      }
+    if (node->kind() != AstNodeKind::kNameRef) {
+      return std::nullopt;
     }
-    return std::nullopt;
+    const auto* ref = down_cast<const NameRef*>(node);
+    if (!std::holds_alternative<const NameDef*>(ref->name_def())) {
+      return std::nullopt;
+    }
+    const NameDef* name_def = std::get<const NameDef*>(ref->name_def());
+    const auto it = map->find(name_def);
+    if (it == map->end()) {
+      return std::nullopt;
+    }
+    Module* module_for_clone = target_module ? *target_module : new_module;
+    XLS_ASSIGN_OR_RETURN(
+        AstNode * clone,
+        table->Clone(ToAstNode(it->second), &PreserveTypeDefinitionsReplacer,
+                     module_for_clone));
+
+    if (!add_parametric_binding_type_annotation ||
+        name_def->parent()->kind() != AstNodeKind::kParametricBinding) {
+      return clone;
+    }
+
+    // Note that within direct children of type annotations or indices, we
+    // generally do not need the `add_parametric_binding_type_annotation`
+    // behavior in order to infer the correct type for the literal. Since adding
+    // it hurts error message readability, we filter out those cases here, even
+    // though adding the annotation would technically be equally correct. For
+    // example, we filter out `uN[5]` from the behavior but not `uN[5 + X]`.
+    if (clone->kind() == AstNodeKind::kNumber &&
+        (ref->parent() == nullptr ||
+         (ref->parent()->kind() != AstNodeKind::kIndex &&
+          ref->parent()->kind() != AstNodeKind::kTypeAnnotation))) {
+      down_cast<Number*>(clone)->SetTypeAnnotation(
+          down_cast<TypeAnnotation*>(
+              down_cast<ParametricBinding*>(name_def->parent())
+                  ->type_annotation()),
+          /*update_span=*/false);
+    }
+    return clone;
   };
 }
 
