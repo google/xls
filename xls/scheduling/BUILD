@@ -105,6 +105,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+        "@com_google_ortools//ortools/math_opt/cpp:math_opt",
     ],
 )
 
@@ -190,6 +191,7 @@ cc_library(
         "@com_google_absl//absl/types:span",
         "@com_google_ortools//ortools/math_opt/cpp:math_opt",
         "@com_google_ortools//ortools/math_opt/solvers:glop_solver",
+        "@com_google_ortools//ortools/math_opt/solvers:pdlp_solver",
     ],
 )
 
@@ -707,8 +709,11 @@ cc_test(
         "//xls/ir:source_location",
         "//xls/ir:value",
         "//xls/passes:pass_base",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_ortools//ortools/math_opt/cpp:math_opt",
+        "@com_google_ortools//ortools/pdlp:solvers_cc_proto",
         "@googletest//:gtest",
     ],
 )

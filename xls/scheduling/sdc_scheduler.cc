@@ -203,9 +203,10 @@ ComputeCombinationalDelayConstraints(
 
 SDCSchedulingModel::SDCSchedulingModel(
     ScheduleGraph graph, const DelayMap& delay_map,
-    std::optional<int64_t> initiation_interval)
+    std::optional<int64_t> initiation_interval, double sdc_solution_tolerance)
     : graph_(std::move(graph)),
       model_(absl::StrCat("sdc_model:", graph_.name())),
+      sdc_solution_tolerance_(sdc_solution_tolerance),
       delay_map_(delay_map),
       initiation_interval_(initiation_interval),
       last_stage_(model_.AddContinuousVariable(0.0, kMaxStages, "last_stage")),
@@ -724,9 +725,9 @@ absl::StatusOr<ScheduleCycleMap> SDCSchedulingModel::ExtractResult(
       continue;
     }
     double cycle = variable_values.at(cycle_var_.at(node));
-    if (std::fabs(cycle - std::round(cycle)) > 0.001) {
-      return absl::InternalError(
-          "The scheduling result is expected to be integer");
+    if (std::fabs(cycle - std::round(cycle)) > sdc_solution_tolerance_) {
+      return absl::InternalError(absl::StrFormat(
+          "The scheduling result is expected to be integer (got %f)", cycle));
     }
     cycle_map[node] = std::round(cycle);
   }
@@ -1120,7 +1121,8 @@ SDCSchedulingModel::AddLowerBoundSlack(
 }
 
 absl::StatusOr<std::unique_ptr<SDCScheduler>> SDCScheduler::Create(
-    FunctionBase* f, const DelayEstimator& delay_estimator) {
+    FunctionBase* f, const DelayEstimator& delay_estimator,
+    const SchedulingOptions& options) {
   absl::flat_hash_set<Node*> dead_after_synthesis =
       GetDeadAfterSynthesisNodes(f);
   ScheduleGraph graph = ScheduleGraph::Create(f, dead_after_synthesis);
@@ -1131,31 +1133,38 @@ absl::StatusOr<std::unique_ptr<SDCScheduler>> SDCScheduler::Create(
                         f->AsProcOrDie()->GetInitiationInterval().value_or(1))
                   : std::nullopt;
   std::unique_ptr<SDCScheduler> scheduler(new SDCScheduler(
-      std::move(graph), initiation_interval, std::move(delay_map)));
+      std::move(graph), options.sdc_solution_tolerance(), options.solver_type(),
+      options.solve_parameters(), initiation_interval, std::move(delay_map)));
   XLS_RETURN_IF_ERROR(scheduler->Initialize());
   return std::move(scheduler);
 }
 
 absl::StatusOr<std::unique_ptr<SDCScheduler>> SDCScheduler::Create(
-    ScheduleGraph graph, const DelayEstimator& delay_estimator) {
+    ScheduleGraph graph, const DelayEstimator& delay_estimator,
+    const SchedulingOptions& options) {
   XLS_ASSIGN_OR_RETURN(DelayMap delay_map,
                        ComputeNodeDelays(graph, delay_estimator));
-  std::unique_ptr<SDCScheduler> scheduler(
-      new SDCScheduler(std::move(graph), std::nullopt, std::move(delay_map)));
+  std::unique_ptr<SDCScheduler> scheduler(new SDCScheduler(
+      std::move(graph), options.sdc_solution_tolerance(), options.solver_type(),
+      options.solve_parameters(), std::nullopt, std::move(delay_map)));
   XLS_RETURN_IF_ERROR(scheduler->Initialize());
   return std::move(scheduler);
 }
 
-SDCScheduler::SDCScheduler(ScheduleGraph graph,
-                           std::optional<int64_t> initiation_interval,
-                           DelayMap&& delay_map)
+SDCScheduler::SDCScheduler(
+    ScheduleGraph graph, double sdc_solution_tolerance,
+    ::operations_research::math_opt::SolverType solver_type,
+    ::operations_research::math_opt::SolveParameters&& solve_parameters,
+    std::optional<int64_t> initiation_interval, DelayMap&& delay_map)
     : delay_map_(std::move(delay_map)),
-      model_(std::move(graph), delay_map_, initiation_interval) {}
+      solver_type_(solver_type),
+      solve_parameters_(std::move(solve_parameters)),
+      model_(std::move(graph), delay_map_, initiation_interval,
+             sdc_solution_tolerance) {}
 
 absl::Status SDCScheduler::Initialize() {
-  XLS_ASSIGN_OR_RETURN(
-      solver_, math_opt::NewIncrementalSolver(&model_.UnderlyingModel(),
-                                              math_opt::SolverType::kGlop));
+  XLS_ASSIGN_OR_RETURN(solver_, math_opt::NewIncrementalSolver(
+                                    &model_.UnderlyingModel(), solver_type_));
   XLS_RETURN_IF_ERROR(model_.AddAllDefUseConstraints());
   return absl::OkStatus();
 }
@@ -1180,7 +1189,7 @@ absl::Status SDCScheduler::BuildError(
     XLS_RETURN_IF_ERROR(model_.AddSlackVariables(
         failure_behavior.infeasible_per_state_backedge_slack_pool));
     XLS_ASSIGN_OR_RETURN(math_opt::SolveResult result_with_slack,
-                         solver_->Solve());
+                         solver_->Solve({.parameters = solve_parameters_}));
     if (result_with_slack.termination.reason ==
             math_opt::TerminationReason::kOptimal ||
         result_with_slack.termination.reason ==
@@ -1219,7 +1228,7 @@ absl::StatusOr<ScheduleCycleMap> SDCScheduler::Schedule(
     model_.MinimizePipelineLength();
     XLS_ASSIGN_OR_RETURN(
         const math_opt::SolveResult result_with_minimized_pipeline_length,
-        solver_->Solve());
+        solver_->Solve({.parameters = solve_parameters_}));
     if (result_with_minimized_pipeline_length.termination.reason !=
         math_opt::TerminationReason::kOptimal) {
       return BuildError(result_with_minimized_pipeline_length,
@@ -1238,7 +1247,8 @@ absl::StatusOr<ScheduleCycleMap> SDCScheduler::Schedule(
     model_.SetObjective(dynamic_throughput_objective_weight);
   }
 
-  XLS_ASSIGN_OR_RETURN(math_opt::SolveResult result, solver_->Solve());
+  XLS_ASSIGN_OR_RETURN(math_opt::SolveResult result,
+                       solver_->Solve({.parameters = solve_parameters_}));
   if (result.termination.reason == math_opt::TerminationReason::kOptimal ||
       (check_feasibility &&
        result.termination.reason == math_opt::TerminationReason::kFeasible)) {

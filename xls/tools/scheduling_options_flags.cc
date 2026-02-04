@@ -32,7 +32,10 @@
 #include "xls/common/file/filesystem.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/scheduling/scheduling_options.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
+#include "ortools/math_opt/cpp/math_opt.h"
+#include "ortools/math_opt/parameters.pb.h"
 
 struct ChannelDelayMap {
   absl::flat_hash_map<std::string, int64_t> delay;
@@ -220,6 +223,16 @@ ABSL_FLAG(bool, merge_on_mutual_exclusion, true,
 // procs.
 ABSL_FLAG(bool, multi_proc, true,
           "If true, schedule all procs and codegen them all.");
+ABSL_FLAG(double, sdc_solution_tolerance, xls::kDefaultSdcSolutionTolerance,
+          "The SDC scheduler expects integer solutions, but implementation "
+          "details of the solver may result in seeing significant error (e.g. "
+          "a cycle variable with exact solution 0 could be 0.11). This flag "
+          "sets the tolerance for such errors.");
+ABSL_FLAG(operations_research::math_opt::SolverType, solver_type,
+          operations_research::math_opt::SolverType::kGlop,
+          "The solver to use for scheduling.");
+ABSL_FLAG(std::string, solve_parameters_proto, "",
+          "Path to a protobuf containing all solver parameters.");
 // LINT.ThenChange(
 //   //xls/build_rules/xls_providers.bzl,
 //   //docs_src/codegen_options.md
@@ -300,6 +313,7 @@ static absl::StatusOr<bool> SetOptionsFromFlags(
   POPULATE_FLAG(fdo_default_load);
   POPULATE_FLAG(multi_proc);
   POPULATE_FLAG(merge_on_mutual_exclusion);
+  POPULATE_FLAG(sdc_solution_tolerance);
 #undef POPULATE_FLAG
 #undef POPULATE_REPEATED_FLAG
 
@@ -322,6 +336,21 @@ static absl::StatusOr<bool> SetOptionsFromFlags(
     }
     failure_behavior->set_infeasible_per_state_backedge_slack_pool(
         *infeasible_per_state_backedge_slack_pool);
+  }
+
+  // SolverType uses values from SolverTypeProto, so we just static_cast<> it.
+  if (FLAGS_solver_type.IsSpecifiedOnCommandLine()) {
+    any_flags_set |= true;
+    proto.set_solver_type(
+        static_cast<operations_research::math_opt::SolverTypeProto>(
+            absl::GetFlag(FLAGS_solver_type)));
+  }
+
+  if (FLAGS_solve_parameters_proto.IsSpecifiedOnCommandLine()) {
+    any_flags_set |= true;
+    XLS_RETURN_IF_ERROR(
+        xls::ParseTextProtoFile(absl::GetFlag(FLAGS_solve_parameters_proto),
+                                proto.mutable_solve_parameters()));
   }
 
   return any_flags_set;

@@ -20,8 +20,10 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "ortools/pdlp/solvers.pb.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
@@ -39,11 +41,13 @@
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/scheduling/scheduling_pass.h"
+#include "ortools/math_opt/cpp/math_opt.h"
 
 namespace xls {
 namespace {
 
 using ::absl_testing::IsOkAndHolds;
+using ::absl_testing::StatusIs;
 using ::testing::AllOf;
 using ::testing::Eq;
 using ::testing::HasSubstr;
@@ -429,6 +433,78 @@ TEST_F(PipelineSchedulingPassTest, MultiProcScopedChannels) {
   XLS_ASSERT_OK(RunPipelineSchedulingPass(
       p.get(),
       SchedulingOptions().pipeline_stages(2).schedule_all_procs(true)));
+}
+
+TEST_F(PipelineSchedulingPassTest, SchedulesWithPdlp) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("main", p.get());
+  fb.SignExtend(fb.Negate(fb.Add(fb.Param("x", p->GetBitsType(32)),
+                                 fb.Param("y", p->GetBitsType(32)))),
+                64);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ::operations_research::math_opt::SolveParameters solve_parameters;
+  solve_parameters.pdlp = ::operations_research::pdlp::
+      PrimalDualHybridGradientParams::default_instance();
+  auto& termination_criteria =
+      *solve_parameters.pdlp.mutable_termination_criteria();
+  auto& optimality_criteria =
+      *termination_criteria.mutable_detailed_optimality_criteria();
+  optimality_criteria.set_eps_optimal_dual_residual_relative(1e-20);
+  optimality_criteria.set_eps_optimal_primal_residual_relative(1e-20);
+  optimality_criteria.set_eps_optimal_objective_gap_relative(1e-20);
+  termination_criteria.set_eps_primal_infeasible(1e-20);
+  termination_criteria.set_eps_dual_infeasible(1e-20);
+  SchedulingOptions options;
+  options.pipeline_stages(2);
+  options.set_solver_type(::operations_research::math_opt::SolverType::kPdlp);
+  options.set_solve_parameters(std::move(solve_parameters));
+  // Needed for PDLP.
+  options.sdc_solution_tolerance(0.4);
+  EXPECT_THAT(RunPipelineSchedulingPass(f, options),
+              IsOkAndHolds(
+                  Pair(true, SchedulingContextWithElements(UnorderedElementsAre(
+                                 Pair(f, VerifiedPipelineSchedule()))))));
+}
+
+TEST_F(PipelineSchedulingPassTest,
+       GlopGivesNonIntegerSolutionsWithoutTolerance) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("main", p.get());
+  fb.UMul(fb.Add(fb.Param("x", p->GetBitsType(32)),
+                 fb.Param("y", p->GetBitsType(32))),
+          fb.Param("z", p->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  EXPECT_THAT(
+      RunPipelineSchedulingPass(
+          f,
+          // With negative tolerance, we will never accept a solution as an
+          // integer (the comparison is |x - round(x)| > tolerance).
+          SchedulingOptions().pipeline_stages(2).sdc_solution_tolerance(-1.0)),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("The scheduling result is expected to be integer")));
+}
+
+TEST_F(PipelineSchedulingPassTest, GlopGivesNonIntegerSolutionsWithBadOptions) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("main", p.get());
+  fb.Add(fb.Param("x", p->GetBitsType(32)), fb.Param("y", p->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ::operations_research::math_opt::SolveParameters bad_solve_parameters;
+  bad_solve_parameters.glop.set_max_number_of_iterations(1);
+  bad_solve_parameters.iteration_limit = 1;
+  bad_solve_parameters.glop.set_change_status_to_imprecise(true);
+  bad_solve_parameters.glop.set_use_preprocessing(false);
+  bad_solve_parameters.glop.set_initial_basis(
+      ::operations_research::glop::GlopParameters::NONE);
+  EXPECT_THAT(
+      RunPipelineSchedulingPass(
+          f, SchedulingOptions().pipeline_stages(2).set_solve_parameters(
+                 std::move(bad_solve_parameters))),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("solver terminated with no_solution_found")));
 }
 
 }  // namespace

@@ -49,7 +49,8 @@ class SDCSchedulingModel {
 
  public:
   SDCSchedulingModel(ScheduleGraph graph, const DelayMap& delay_map,
-                     std::optional<int64_t> initiation_interval);
+                     std::optional<int64_t> initiation_interval,
+                     double sdc_solution_tolerance);
 
   absl::Status AddAllDefUseConstraints();
   absl::Status AddDefUseConstraints(Node* node, std::optional<Node*> user);
@@ -163,6 +164,7 @@ class SDCSchedulingModel {
   ScheduleGraph graph_;
 
   operations_research::math_opt::Model model_;
+  double sdc_solution_tolerance_;
   const DelayMap& delay_map_;
   std::optional<int64_t> initiation_interval_;
 
@@ -231,10 +233,12 @@ class SDCScheduler {
 
  public:
   static absl::StatusOr<std::unique_ptr<SDCScheduler>> Create(
-      FunctionBase* f, const DelayEstimator& delay_estimator);
+      FunctionBase* f, const DelayEstimator& delay_estimator,
+      const SchedulingOptions& options);
 
   static absl::StatusOr<std::unique_ptr<SDCScheduler>> Create(
-      ScheduleGraph graph, const DelayEstimator& delay_estimator);
+      ScheduleGraph graph, const DelayEstimator& delay_estimator,
+      const SchedulingOptions& options);
 
   absl::Status AddConstraints(
       absl::Span<const SchedulingConstraint> constraints);
@@ -270,8 +274,11 @@ class SDCScheduler {
       std::optional<double> dynamic_throughput_objective_weight = std::nullopt);
 
  private:
-  SDCScheduler(ScheduleGraph graph, std::optional<int64_t> initiation_interval,
-               DelayMap&& delay_map);
+  SDCScheduler(
+      ScheduleGraph graph, double sdc_solution_tolerance,
+      ::operations_research::math_opt::SolverType solver_type,
+      ::operations_research::math_opt::SolveParameters&& solve_parameters,
+      std::optional<int64_t> initiation_interval, DelayMap&& delay_map);
   absl::Status Initialize();
 
   absl::Status BuildError(
@@ -279,6 +286,8 @@ class SDCScheduler {
       SchedulingFailureBehavior failure_behavior);
 
   DelayMap delay_map_;
+  ::operations_research::math_opt::SolverType solver_type_;
+  ::operations_research::math_opt::SolveParameters solve_parameters_;
   SDCSchedulingModel model_;
   std::unique_ptr<operations_research::math_opt::IncrementalSolver> solver_;
 };

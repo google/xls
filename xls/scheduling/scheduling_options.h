@@ -1,3 +1,4 @@
+#include "ortools/math_opt/cpp/math_opt.h"
 // Copyright 2022 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -34,6 +35,8 @@
 #include "xls/tools/scheduling_options_flags.pb.h"
 
 namespace xls {
+
+inline constexpr double kDefaultSdcSolutionTolerance = 0.001;
 
 // The strategy to use when scheduling pipelines.
 enum class SchedulingStrategy : int8_t {
@@ -267,6 +270,9 @@ class SchedulingOptions {
         fdo_path_evaluate_strategy_(PathEvaluateStrategy::WINDOW),
         fdo_synthesizer_name_("yosys"),
         schedule_all_procs_(false),
+        sdc_solution_tolerance_(kDefaultSdcSolutionTolerance),
+        solver_type_(operations_research::math_opt::SolverType::kGlop),
+        solve_parameters_(),
         merge_on_mutual_exclusion_(true) {}
 
   // Returns the scheduling strategy.
@@ -588,6 +594,30 @@ class SchedulingOptions {
   }
   bool schedule_all_procs() const { return schedule_all_procs_; }
 
+  SchedulingOptions& sdc_solution_tolerance(double value) {
+    sdc_solution_tolerance_ = value;
+    return *this;
+  }
+  double sdc_solution_tolerance() const { return sdc_solution_tolerance_; }
+
+  SchedulingOptions& set_solver_type(
+      ::operations_research::math_opt::SolverType value) {
+    solver_type_ = value;
+    return *this;
+  }
+  ::operations_research::math_opt::SolverType solver_type() const {
+    return solver_type_;
+  }
+
+  SchedulingOptions& set_solve_parameters(
+      ::operations_research::math_opt::SolveParameters&& value) {
+    solve_parameters_ = std::move(value);
+    return *this;
+  }
+  ::operations_research::math_opt::SolveParameters solve_parameters() const {
+    return solve_parameters_;
+  }
+
   SchedulingOptions& merge_on_mutual_exclusion(bool value) {
     merge_on_mutual_exclusion_ = value;
     return *this;
@@ -629,6 +659,9 @@ class SchedulingOptions {
   std::string fdo_default_driver_cell_;
   std::string fdo_default_load_;
   bool schedule_all_procs_;
+  double sdc_solution_tolerance_;
+  ::operations_research::math_opt::SolverType solver_type_;
+  ::operations_research::math_opt::SolveParameters solve_parameters_;
   bool merge_on_mutual_exclusion_;
 };
 

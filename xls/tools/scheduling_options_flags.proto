@@ -17,6 +17,7 @@ syntax = "proto3";
 package xls;
 
 import "google/api/field_behavior.proto";
+import "ortools/math_opt/parameters.proto";
 
 message SchedulingFailureBehaviorProto {
   optional bool explain_infeasibility = 1
@@ -65,4 +66,8 @@ message SchedulingOptionsFlagsProto {
   optional int64 opt_level = 30;
   optional double dynamic_throughput_objective_weight = 32;
   optional bool merge_on_mutual_exclusion = 34;
+  optional double sdc_solution_tolerance = 35;
+  optional operations_research.math_opt.SolverTypeProto solver_type = 36;
+  optional operations_research.math_opt.SolveParametersProto solve_parameters =
+      37;
 }

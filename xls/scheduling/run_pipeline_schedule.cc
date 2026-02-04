@@ -471,7 +471,7 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
   auto initialize_sdc_scheduler = [&]() -> absl::Status {
     if (sdc_scheduler == nullptr) {
       XLS_ASSIGN_OR_RETURN(sdc_scheduler,
-                           SDCScheduler::Create(f, io_delay_added));
+                           SDCScheduler::Create(f, io_delay_added, options));
       XLS_RETURN_IF_ERROR(sdc_scheduler->AddConstraints(options.constraints()));
     }
     return absl::OkStatus();
@@ -817,7 +817,7 @@ absl::StatusOr<PackageSchedule> RunSynchronousPipelineSchedule(
                                             elab, /*dead_after_synthesis=*/{}));
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<SDCScheduler> sdc_scheduler,
-                       SDCScheduler::Create(graph, delay_estimator));
+                       SDCScheduler::Create(graph, delay_estimator, options));
   XLS_RETURN_IF_ERROR(sdc_scheduler->AddConstraints(options.constraints()));
 
   XLS_ASSIGN_OR_RETURN(

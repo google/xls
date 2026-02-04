@@ -41,7 +41,13 @@ class IterativeSDCSchedulingModel : public SDCSchedulingModel {
   IterativeSDCSchedulingModel(ScheduleGraph graph,
                               const DelayManager& delay_manager)
       : SDCSchedulingModel(std::move(graph), DelayMap(),
-                           /*initiation_interval=*/std::nullopt),
+                           /*initiation_interval=*/std::nullopt,
+                           // Use kDefaultSdcSolutionTolerance as the tolerance
+                           // as we unconditionally use glop with iterative
+                           // SDC. This value has been our default for a long
+                           // time with glop.
+                           /*sdc_solution_tolerance=*/
+                           kDefaultSdcSolutionTolerance),
         delay_manager_(delay_manager) {}
 
   // Overrides the original timing constraints builder. This method directly

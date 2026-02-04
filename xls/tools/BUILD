@@ -591,13 +591,10 @@ proto_library(
     name = "scheduling_options_flags_proto",
     srcs = ["scheduling_options_flags.proto"],
     visibility = ["//xls:xls_users"],
-    deps = ["@googleapis//google/api:field_behavior_proto"],
-)
-
-py_proto_library(
-    name = "scheduling_options_flags_py_pb2",
-    visibility = ["//xls:xls_users"],
-    deps = [":scheduling_options_flags_proto"],
+    deps = [
+        "@com_google_ortools//ortools/math_opt:parameters_proto",
+        "@googleapis//google/api:field_behavior_proto",
+    ],
 )
 
 cc_proto_library(
@@ -670,12 +667,15 @@ cc_library(
         "//xls/common/file:filesystem",
         "//xls/common/status:status_macros",
         "//xls/passes:optimization_pass",
+        "//xls/scheduling:scheduling_options",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_ortools//ortools/math_opt:parameters_cc_proto",
+        "@com_google_ortools//ortools/math_opt/cpp:math_opt",
     ],
 )
 

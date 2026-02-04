@@ -33,6 +33,7 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/package.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
+#include "ortools/math_opt/cpp/math_opt.h"
 
 namespace xls {
 
@@ -277,6 +278,23 @@ absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
   scheduling_options.fdo_default_load(proto.fdo_default_load());
 
   scheduling_options.schedule_all_procs(proto.multi_proc());
+
+  if (proto.has_sdc_solution_tolerance()) {
+    scheduling_options.sdc_solution_tolerance(proto.sdc_solution_tolerance());
+  }
+
+  if (proto.has_solver_type()) {
+    scheduling_options.set_solver_type(
+        static_cast<operations_research::math_opt::SolverType>(
+            proto.solver_type()));
+  }
+  if (proto.has_solve_parameters()) {
+    XLS_ASSIGN_OR_RETURN(
+        operations_research::math_opt::SolveParameters solve_parameters,
+        operations_research::math_opt::SolveParameters::FromProto(
+            proto.solve_parameters()));
+    scheduling_options.set_solve_parameters(std::move(solve_parameters));
+  }
 
   scheduling_options.merge_on_mutual_exclusion(
       proto.merge_on_mutual_exclusion());
