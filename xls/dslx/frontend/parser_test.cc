@@ -2609,6 +2609,29 @@ fn non_parametric(T: type) -> u32 {
               "Generic type keyword 'type' is not permitted in this context")));
 }
 
+TEST_F(ParserTest, MultiLevelGenericStruct) {
+  RoundTrip(
+      R"(#![feature(generics)]
+
+struct Wrapper<T: type> {
+    value: T,
+}
+struct Foo {
+    value: Wrapper<Wrapper<u32>>,
+}
+fn f<T: type>(a: Wrapper<Wrapper<Wrapper<T>>>) -> Wrapper<Wrapper<Wrapper<T>>> {
+    a
+}
+fn f2(a: Wrapper<Wrapper<Wrapper<T>>>) -> u32 {
+    1
+}
+const C = Wrapper<Wrapper<u32>> { value: zero!<Wrapper<u32>>() };
+const D = Wrapper<Wrapper<Wrapper<u32>>> { value: zero!<Wrapper<Wrapper<Wrapper<u32>>>>() };
+const E = Foo { value: zero!<Wrapper<Wrapper<u32>>>() };
+const F = f(zero!<Wrapper<Wrapper<Wrapper<u32>>>>());
+const G: u32 = f2(zero!<Wrapper<Wrapper<Wrapper<u32>>>>()) >> 1;)");
+}
+
 TEST_F(ParserTest, MatchRangeFollowedByTypeIsParseError) {
   // Original sample that previously caused a BadStatusOrAccess crash; it should
   // now produce a regular parse error.

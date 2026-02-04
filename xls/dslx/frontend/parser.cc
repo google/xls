@@ -56,6 +56,7 @@
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/proc.h"
+#include "xls/dslx/frontend/scanner.h"
 #include "xls/dslx/frontend/scanner_keywords.inc"
 #include "xls/dslx/frontend/token.h"
 #include "xls/ir/channel.h"
@@ -3620,8 +3621,7 @@ absl::StatusOr<ChannelDecl*> Parser::ParseChannelDecl(
   //
   // Which can require us to interpret the >> as two close-angle tokens instead
   // of a single '>>' token.
-  DisableDoubleCAngle();
-  absl::Cleanup re_enable_double_cangle = [this] { EnableDoubleCAngle(); };
+  Scanner::CAngleContextGuard guard = EnterSeparateCAngleContext();
   XLS_ASSIGN_OR_RETURN(auto* type, ParseTypeAnnotation(bindings));
   Pos limit_pos = type->span().limit();
 
@@ -4455,9 +4455,7 @@ absl::StatusOr<std::vector<ExprOrType>> Parser::ParseParametrics(
   //
   // Which can require us to interpret the >> as two close-angle tokens instead
   // of a single '>>' token.
-  DisableDoubleCAngle();
-  absl::Cleanup re_enable_double_cangle = [this] { EnableDoubleCAngle(); };
-
+  Scanner::CAngleContextGuard guard = EnterSeparateCAngleContext();
   return ParseCommaSeq<ExprOrType>(
       [this, &bindings]() { return ParseParametricArg(bindings); },
       TokenKind::kCAngle);

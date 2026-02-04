@@ -185,8 +185,9 @@ class TokenParser {
 
   absl::Status DropKeywordOrError(Keyword target, Pos* limit_pos = nullptr);
 
-  void DisableDoubleCAngle() { scanner_->DisableDoubleCAngle(); }
-  void EnableDoubleCAngle() { scanner_->EnableDoubleCAngle(); }
+  Scanner::CAngleContextGuard EnterSeparateCAngleContext() {
+    return scanner_->EnterSeparateCAngleContext();
+  }
 
   FileTable& file_table() { return scanner_->file_table(); }
   const Scanner& scanner() const { return *scanner_; }

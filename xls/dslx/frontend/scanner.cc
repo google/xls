@@ -533,7 +533,7 @@ absl::StatusOr<Token> Scanner::Pop() {
       break;
     case '>':
       DropChar();
-      if (double_c_angle_enabled_ && TryDropChar('>')) {
+      if (separate_c_angle_contexts_ == 0 && TryDropChar('>')) {
         result = Token(TokenKind::kDoubleCAngle, mk_span());
       } else if (TryDropChar('=')) {
         result = Token(TokenKind::kCAngleEquals, mk_span());

@@ -52,6 +52,36 @@ absl::Status ScanErrorStatus(const Span& span, std::string_view message,
 // tokens according to the DSLX syntax.
 class Scanner {
  public:
+  friend class CAngleContextGuard;
+
+  // A lifetime guard dealt out by `EnterSeparateCAngleContext`, which undoes
+  // the effect of the function when it goes out of scope.
+  class CAngleContextGuard {
+   public:
+    explicit CAngleContextGuard(Scanner* scanner) : scanner_(scanner) {
+      ++scanner_->separate_c_angle_contexts_;
+    }
+
+    ~CAngleContextGuard() {
+      if (!moved_) {
+        --scanner_->separate_c_angle_contexts_;
+        CHECK_GE(scanner_->separate_c_angle_contexts_, 0);
+      }
+    }
+
+    CAngleContextGuard(const CAngleContextGuard&) = delete;
+    CAngleContextGuard(CAngleContextGuard&& frame) : scanner_(frame.scanner_) {
+      frame.moved_ = true;
+    }
+
+    CAngleContextGuard& operator=(const CAngleContextGuard&) = delete;
+    CAngleContextGuard& operator=(CAngleContextGuard&&) = delete;
+
+   private:
+    Scanner* const scanner_;
+    bool moved_ = false;
+  };
+
   Scanner(FileTable& file_table, Fileno fileno, std::string text,
           bool include_whitespace_and_comments = false)
       : file_table_(file_table),
@@ -92,8 +122,13 @@ class Scanner {
   // false until you try to Pop(), at which point you'll see an EOF-kind token.
   bool AtEof() const { return AtCharEof(); }
 
-  void EnableDoubleCAngle() { double_c_angle_enabled_ = true; }
-  void DisableDoubleCAngle() { double_c_angle_enabled_ = false; }
+  // Notifies the scanner that a context is being entered where close angle
+  // brackets should be considered separate from each other rather than as
+  // potential right shifts. The context lasts until the returned guard goes out
+  // of scope.
+  [[nodiscard]] CAngleContextGuard EnterSeparateCAngleContext() {
+    return CAngleContextGuard(this);
+  }
 
   FileTable& file_table() const { return file_table_; }
 
@@ -271,7 +306,7 @@ class Scanner {
   int64_t index_ = 0;
   int64_t lineno_ = 0;
   int64_t colno_ = 0;
-  bool double_c_angle_enabled_ = true;
+  int64_t separate_c_angle_contexts_ = 0;
   std::vector<CommentData> comments_;
 };
 
