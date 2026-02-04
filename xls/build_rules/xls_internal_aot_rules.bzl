@@ -84,6 +84,11 @@ _xls_aot_files_attrs = {
         doc = "emit intermediates",
         default = "//xls/common/config:emit_aot_intermediates",
     ),
+    "top_type": attr.string(
+        doc = "Type of top (FUNCTION/PROC/BLOCK)",
+        default = "FUNCTION",
+        mandatory = False,
+    ),
 }
 
 def _xls_aot_generate_impl(ctx):
@@ -113,6 +118,7 @@ def _xls_aot_generate_impl(ctx):
         common_add("-symbol_salt", str(ctx.label))
     common_add("-aot_target", ctx.attr.aot_target)
     common_add("-top", ctx.attr.top)
+    common_add("-top_type", ctx.attr.top_type)
     other_linking_contexts = []
     if ctx.attr.with_msan:
         common_add("--include_msan=true")

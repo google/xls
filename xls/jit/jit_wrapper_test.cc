@@ -34,6 +34,8 @@
 #include "xls/jit/compound_type_jit_wrapper.h"
 #include "xls/jit/multi_func_block_wrapper.h"
 #include "xls/jit/multi_func_with_trace_block_wrapper.h"
+#include "xls/jit/parameterized_design_func_wrapper.h"
+#include "xls/jit/parameterized_design_wrapper.h"
 #include "xls/jit/testdata/v1/multi_proc_jit_wrapper.h"
 #include "xls/jit/testdata/v1/multi_proc_jit_wrapper_proc_scoped.h"
 #include "xls/jit/testdata/v1/test_jit_wrapper.h"
@@ -343,6 +345,23 @@ TEST(JitWrapperTest, BlockTraceEventsWork) {
   EXPECT_THAT(cont->interpreter_events().GetAssertMessages(), IsEmpty());
   EXPECT_THAT(cont->interpreter_events().GetTraceMessageStrings(),
               ElementsAre("mf_2(2) -> 4", "mf_1(1) -> 5"));
+}
+
+TEST(JitWrapperTest, NameCollisionsAreHandled) {
+  // This does a 2 bit add after truncating to 1 bit.
+  XLS_ASSERT_OK_AND_ASSIGN(auto func,
+                           something::cool::ParameterizedDesignFunc::Create());
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit,
+                           something::cool::ParameterizedDesignBlock::Create());
+  auto cont = jit->NewContinuation();
+  XLS_ASSERT_OK(cont->SetInputPorts(
+      something::cool::ParameterizedDesignBlockPorts().SetX(3).SetY(5)));
+  // Both input and output are flopped so need 3 cycles.
+  XLS_ASSERT_OK(jit->RunOneCycle(*cont));
+  XLS_ASSERT_OK(jit->RunOneCycle(*cont));
+  XLS_ASSERT_OK(jit->RunOneCycle(*cont));
+  EXPECT_EQ(cont->GetOut(), 2);
+  EXPECT_THAT(func->Run(3, 5), IsOkAndHolds(2));
 }
 
 }  // namespace

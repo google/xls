@@ -27,9 +27,11 @@
 
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "llvm/include/llvm/IR/DataLayout.h"
 #include "llvm/include/llvm/IR/LLVMContext.h"
 #include "llvm/include/llvm/Support/raw_ostream.h"
@@ -79,6 +81,8 @@ ABSL_FLAG(std::optional<std::string>, top, std::nullopt,
           "IR function to compile. "
           "If unspecified, the package top function will be used - "
           "in that case, the package-scoping mangling will be removed.");
+ABSL_FLAG(std::optional<xls::FunctionBase::Kind>, top_type, std::nullopt,
+          "Type of top (FUNCTION/PROC/BLOCK)");
 ABSL_FLAG(std::optional<std::string>, output_object, std::nullopt,
           "Path at which to write the output object file.");
 ABSL_FLAG(std::optional<std::string>, output_proto, std::nullopt,
@@ -106,6 +110,36 @@ ABSL_FLAG(bool, include_msan, kHasMsan,
           "the configuration of the binary the jitted code is included in.");
 
 namespace xls {
+bool AbslParseFlag(std::string_view flag_value, FunctionBase::Kind* kind,
+                   std::string* error) {
+  if (flag_value == "FUNCTION") {
+    *kind = FunctionBase::Kind::kFunction;
+    return true;
+  }
+  if (flag_value == "PROC") {
+    *kind = FunctionBase::Kind::kProc;
+    return true;
+  }
+  if (flag_value == "BLOCK") {
+    *kind = FunctionBase::Kind::kBlock;
+    return true;
+  }
+  *error = absl::StrFormat(
+      "Unknown FunctionBase::Kind: %s. Expected FUNCTION, PROC, or BLOCK.",
+      flag_value);
+  return false;
+}
+std::string AbslUnparseFlag(FunctionBase::Kind kind) {
+  switch (kind) {
+    case FunctionBase::Kind::kFunction:
+      return "FUNCTION";
+    case FunctionBase::Kind::kProc:
+      return "PROC";
+    case FunctionBase::Kind::kBlock:
+      return "BLOCK";
+  }
+}
+
 namespace {
 
 class IntermediatesObserver final : public JitObserver {
@@ -242,6 +276,21 @@ absl::StatusOr<AotEntrypointProto> GenerateEntrypointProto(
   return proto;
 }
 
+absl::StatusOr<FunctionBase*> GetFunctionBaseByNameOfKind(
+    Package* pkg, std::string_view top,
+    std::optional<FunctionBase::Kind> kind) {
+  if (!kind) {
+    return pkg->GetFunctionBaseByName(top);
+  }
+  switch (*kind) {
+    case FunctionBase::Kind::kFunction:
+      return pkg->GetFunction(top);
+    case FunctionBase::Kind::kProc:
+      return pkg->GetProc(top);
+    case FunctionBase::Kind::kBlock:
+      return pkg->GetBlock(top);
+  }
+}
 absl::Status RealMain(const std::string& input_ir_path,
                       const std::optional<std::string>& top,
                       const std::optional<std::string>& output_object_path,
@@ -251,7 +300,8 @@ absl::Status RealMain(const std::string& input_ir_path,
                       const std::optional<std::string>& output_llvm_ir_path,
                       const std::optional<std::string>& output_llvm_opt_ir_path,
                       const std::optional<std::string>& output_asm_path,
-                      std::string_view symbol_salt) {
+                      std::string_view symbol_salt,
+                      std::optional<FunctionBase::Kind> expected_kind) {
   XLS_ASSIGN_OR_RETURN(std::string input_ir, GetFileContents(input_ir_path));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                        Parser::ParsePackage(input_ir, input_ir_path));
@@ -265,16 +315,25 @@ absl::Status RealMain(const std::string& input_ir_path,
   if (!top || top->empty()) {
     XLS_RET_CHECK(package->HasTop()) << "No top given.";
     f = *package->GetTop();
+    if (expected_kind.has_value()) {
+      XLS_RET_CHECK_EQ(*expected_kind, f->kind())
+          << "Top function " << f->name() << " is not of kind "
+          << *expected_kind << "\n"
+          << f;
+    }
   } else {
     absl::StatusOr<FunctionBase*> maybe_f =
-        package->GetFunctionBaseByName(*top);
+        GetFunctionBaseByNameOfKind(package.get(), *top, expected_kind);
     if (maybe_f.ok()) {
       f = *maybe_f;
     } else {
-      XLS_ASSIGN_OR_RETURN(f, package->GetFunctionBaseByName(
-                                  absl::StrCat(package_prefix, *top)));
+      XLS_ASSIGN_OR_RETURN(
+          f, GetFunctionBaseByNameOfKind(package.get(),
+                                         absl::StrCat(package_prefix, *top),
+                                         expected_kind));
     }
   }
+  VLOG(1) << "Compiling function\n" << f->DumpIr();
 
   std::optional<JitObjectCode> object_code;
   bool generate_skeleton = !output_object_path && !output_llvm_ir_path &&
@@ -365,13 +424,15 @@ int main(int argc, char** argv) {
       absl::GetFlag(FLAGS_output_proto);
 
   bool include_msan = absl::GetFlag(FLAGS_include_msan);
+  std::optional<xls::FunctionBase::Kind> expected_kind =
+      absl::GetFlag(FLAGS_top_type);
   absl::Status status = xls::RealMain(
       input_ir_path, top, output_object_path, output_proto_path, include_msan,
       absl::GetFlag(FLAGS_llvm_opt_level),
       absl::GetFlag(FLAGS_output_textproto),
       absl::GetFlag(FLAGS_output_llvm_ir),
       absl::GetFlag(FLAGS_output_llvm_opt_ir), absl::GetFlag(FLAGS_output_asm),
-      absl::GetFlag(FLAGS_symbol_salt));
+      absl::GetFlag(FLAGS_symbol_salt), expected_kind);
   if (!status.ok()) {
     std::cout << status.message();
     return 1;

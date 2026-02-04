@@ -128,10 +128,12 @@ cc_binary(
         "//xls/ir:ir_parser",
         "//xls/ir:type",
         "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_protobuf//:protobuf",
         "@llvm-project//llvm:Support",
         "@llvm-project//llvm:ir_headers",
@@ -341,6 +343,8 @@ cc_test(
         ":compound_type_jit_wrapper",
         ":multi_func_block_wrapper",
         ":multi_func_with_trace_block_wrapper",
+        ":parameterized_design_func_wrapper",
+        ":parameterized_design_wrapper",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx/stdlib:float32_mul_jit_wrapper",
@@ -348,7 +352,6 @@ cc_test(
         "//xls/examples/dslx_module:some_caps_jit_wrapper",
         "//xls/examples/dslx_module:some_caps_opt_jit_wrapper",
         "//xls/ir:bits",
-        "//xls/ir:events",
         "//xls/ir:value",
         "//xls/ir:value_builder",
         "//xls/ir:value_view",
@@ -589,6 +592,7 @@ xls_dslx_library(
             name = "multi_proc_aot%s" % suffix,
             src = ":multi_proc%s" % suffix,
             salt_symbols = False,
+            top_type = "PROC",
             with_msan = XLS_IS_MSAN_BUILD,
         ),
         cc_test(
@@ -1271,6 +1275,7 @@ xls_aot_generate(
     src = ":multi_function",
     salt_symbols = False,
     top = "multi_function_one",
+    top_type = "FUNCTION",
     with_msan = XLS_IS_MSAN_BUILD,
 )
 
@@ -1370,6 +1375,7 @@ xls_aot_generate(
     src = ":multi_function_with_trace.ir",
     salt_symbols = False,
     top = "multi_function_one",
+    top_type = "FUNCTION",
     with_msan = XLS_IS_MSAN_BUILD,
 )
 
@@ -1407,6 +1413,7 @@ xls_aot_generate(
     name = "specialized_caps_aot",
     src = ":some_caps_no_idents",
     salt_symbols = False,
+    top_type = "PROC",
     with_msan = XLS_IS_MSAN_BUILD,
 )
 
@@ -1414,6 +1421,7 @@ xls_aot_generate(
     name = "specialized_caps_aot_psc",
     src = ":some_caps_no_idents_psc",
     salt_symbols = False,
+    top_type = "PROC",
     with_msan = XLS_IS_MSAN_BUILD,
 )
 
@@ -1491,6 +1499,28 @@ bzl_library(
     srcs = ["aot_test_helper.bzl"],
     visibility = ["//visibility:private"],
     deps = ["//xls/build_rules:xls_providers_bzl"],
+)
+
+cc_xls_ir_jit_wrapper(
+    name = "parameterized_design_wrapper",
+    src = "//xls/examples/parameterized:design.block.ir",
+    jit_wrapper_args = {
+        "class_name": "ParameterizedDesignBlock",
+        "namespace": "something::cool",
+    },
+    top = "design_top",
+    wrapper_type = "BLOCK",
+)
+
+cc_xls_ir_jit_wrapper(
+    name = "parameterized_design_func_wrapper",
+    src = "//xls/examples/parameterized:design.block.ir",
+    jit_wrapper_args = {
+        "class_name": "ParameterizedDesignFunc",
+        "namespace": "something::cool",
+    },
+    top = "design_top",
+    wrapper_type = "FUNCTION",
 )
 
 cc_library(

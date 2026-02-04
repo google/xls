@@ -366,8 +366,8 @@ def cc_xls_ir_jit_wrapper(
                     FUNCTION_WRAPPER_TYPE, BLOCK_WRAPPER_TYPE, or
                     PROC_WRAPPER_TYPE symbols. Defaults to FUNCTION_WRAPPER_TYPE
                     for compatibility.
-      llvm_opt_level: what opt level to configure aot compiled code to use.
       top: Name of the top function/proc/block.
+      llvm_opt_level: what opt level to configure aot compiled code to use.
       **kwargs: Keyword arguments. Named arguments.
     """
 
@@ -396,6 +396,7 @@ def cc_xls_ir_jit_wrapper(
         top = top,
         with_msan = XLS_IS_MSAN_BUILD,
         llvm_opt_level = llvm_opt_level,
+        top_type = wrapper_type,
         aot_target = select({
             "@platforms//cpu:aarch64": "aarch64",
             "@platforms//cpu:x86_64": "x86_64",
