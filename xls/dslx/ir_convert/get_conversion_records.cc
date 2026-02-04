@@ -75,6 +75,25 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
         records_(records),
         processed_invocations_(processed_invocations) {}
 
+  absl::Status VisitProcFunctionsWithSeparateTypeInfos(
+      Module* owner, const Function* config_function,
+      TypeInfo* config_type_info, const Function* next_function,
+      TypeInfo* next_type_info) {
+    // Get conversion records from invocations in this proc's "config"
+    // "next" functions and add to our list of records. Don't use Accept
+    // because that will run HandleFunction, which ignores "config" and
+    // "next" functions.
+    ConversionRecordVisitor config_visitor(
+        owner, config_type_info, include_tests_, proc_id_factory_, top_,
+        resolved_proc_alias_, records_, processed_invocations_);
+    XLS_RETURN_IF_ERROR(config_visitor.DefaultHandler(config_function));
+
+    ConversionRecordVisitor next_visitor(
+        owner, next_type_info, include_tests_, proc_id_factory_, top_,
+        resolved_proc_alias_, records_, processed_invocations_);
+    return next_visitor.DefaultHandler(next_function);
+  }
+
   absl::StatusOr<ConversionRecord> SpawnDataToConversionRecord(
       const SpawnData& spawn, ProcId proc_id) {
     VLOG(5) << "Making conversion record for SpawnData with proc: "
@@ -83,14 +102,9 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
             << "; config TI: " << std::hex << spawn.config_type_info
             << "; next TI: " << spawn.next_type_info;
 
-    ConversionRecordVisitor visitor(spawn.proc->owner(), spawn.next_type_info,
-                                    include_tests_, proc_id_factory_, top_,
-                                    resolved_proc_alias_, records_,
-                                    processed_invocations_);
-    // Get additional conversion records from invocations in this proc's "next"
-    // function and add to our list of records. Don't use Accept because that
-    // will run HandleFunction, which ignores "next" functions.
-    XLS_RETURN_IF_ERROR(visitor.DefaultHandler(&spawn.proc->next()));
+    XLS_RETURN_IF_ERROR(VisitProcFunctionsWithSeparateTypeInfos(
+        spawn.proc->owner(), &spawn.proc->config(), spawn.config_type_info,
+        &spawn.proc->next(), spawn.next_type_info));
 
     XLS_ASSIGN_OR_RETURN(
         ConversionRecord config_record,
@@ -112,6 +126,21 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     return node->owner() == module_
                ? type_info_
                : *type_info_->GetImportedTypeInfo(node->owner());
+  }
+
+  absl::Status HandleConditional(const Conditional* expr) override {
+    if (expr->IsConst()) {
+      XLS_ASSIGN_OR_RETURN(InterpValue test_value,
+                           GetTypeInfo(expr)->GetConstExpr(expr->test()));
+      if (test_value.IsTrue()) {
+        XLS_RETURN_IF_ERROR(DefaultHandler(expr->consequent()));
+      } else {
+        XLS_RETURN_IF_ERROR(DefaultHandler(ToExprNode(expr->alternate())));
+      }
+      return absl::OkStatus();
+    }
+
+    return DefaultHandler(expr);
   }
 
   // Generates a conversion record for the given function if it is a real
@@ -270,17 +299,25 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
   absl::Status HandleProc(const Proc* p) override {
     VLOG(5) << "HandleProc " << p->ToString();
     const Function* next_fn = &p->next();
-    // Handle any calls inside function bodies.
-    XLS_RETURN_IF_ERROR(DefaultHandler(next_fn));
-    // This is required in order to process cross-module spawns; otherwise it
-    // will never add procs from imported modules to the list of functions to
-    // convert.
-    XLS_RETURN_IF_ERROR(DefaultHandler(&p->config()));
+    // Traversing parametric procs is done later with proper
+    // type infos for proc's "config" and "next" functions separately.
+    if (!p->IsParametric()) {
+      // Handle any calls inside function bodies.
+      XLS_RETURN_IF_ERROR(DefaultHandler(next_fn));
+      // This is required in order to process cross-module spawns; otherwise it
+      // will never add procs from imported modules to the list of functions to
+      // convert.
+      XLS_RETURN_IF_ERROR(DefaultHandler(&p->config()));
+    }
 
     ProcId proc_id = proc_id_factory_.CreateProcId(
         /*parent=*/std::nullopt, const_cast<Proc*>(p),
         /*count_as_new_instance=*/false);
     if (top_ == next_fn && resolved_proc_alias_.has_value()) {
+      XLS_RETURN_IF_ERROR(VisitProcFunctionsWithSeparateTypeInfos(
+          top_->owner(), &p->config(), resolved_proc_alias_->config_type_info,
+          &p->next(), resolved_proc_alias_->next_type_info));
+
       proc_id.alias_name = resolved_proc_alias_->name;
       XLS_ASSIGN_OR_RETURN(
           ConversionRecord config_record,
