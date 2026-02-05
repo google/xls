@@ -75,6 +75,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc_conversion.h"
 #include "xls/ir/proc_elaboration.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
@@ -230,29 +231,33 @@ absl::StatusOr<bool> RunBlockStitchingPass(
   return changed;
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_SingleBlockIsNoop) {
+TEST_F(ProcLoweringBlockEvalTest, SingleBlockIsNoop) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
+  ProcBuilder pb(NewStyleProc{}, TestName(), p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
-      StreamingChannel * ch0,
-      p->CreateStreamingChannel("ch0", ChannelOps::kReceiveOnly, u32));
+      ReceiveChannelInterface * ch0,
+      pb.AddInputChannel("ch0", u32, ChannelKind::kStreaming, std::nullopt,
+                         std::nullopt));
   XLS_ASSERT_OK_AND_ASSIGN(
-      StreamingChannel * ch1,
-      p->CreateStreamingChannel("ch1", ChannelOps::kSendOnly, u32));
-  ProcBuilder pb(TestName(), p.get());
+      SendChannelInterface * ch1,
+      pb.AddOutputChannel("ch1", u32, ChannelKind::kStreaming, std::nullopt,
+                          std::nullopt));
   BValue rcv = pb.Receive(ch0, pb.AfterAll({}));
   pb.Send(ch1, pb.TupleIndex(rcv, 0), pb.TupleIndex(rcv, 1));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
-  XLS_ASSERT_OK(p->SetTop(proc));
+  XLS_ASSERT_OK(pb.SetAsTop());
+  XLS_ASSERT_OK(pb.Build());
 
+  // Unlike GlobalChannelBlockStitchingPass, this will return true because it
+  // will have lowered the proc instantiations and removed them from the IR.
   EXPECT_THAT(
-      RunBlockStitchingPass(p.get(), /*top_name=*/"top_proc",
+      RunBlockStitchingPass(p.get(), /*top_name=*/TestName(),
                             /*scheduling_options=*/DefaultSchedulingOptions(),
                             /*codegen_options=*/DefaultCodegenOptions()),
-      IsOkAndHolds(false));
+      IsOkAndHolds(true));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_StitchNetworkWithFifos) {
+TEST_F(ProcLoweringBlockEvalTest, StitchNetworkWithFifos) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -282,37 +287,22 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_StitchNetworkWithFifos) {
   XLS_ASSERT_OK(p->SetTop(proc0));
   std::string proc1_name = proc1->name();
 
+  XLS_ASSERT_OK(xls::ConvertPackageToNewStyleProcs(p.get()));
+
   EXPECT_THAT(RunBlockStitchingPass(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(p->blocks(),
-              UnorderedElementsAre(m::Block("top_proc__1"),
-                                   m::Block("top_proc"), m::Block(proc1_name)));
+              UnorderedElementsAre(m::Block("top_proc"), m::Block(proc1_name)));
   EXPECT_THAT(
       p->GetBlock("top_proc").value()->GetInstantiations(),
       UnorderedElementsAre(
-          m::Instantiation(proc1_name + "_inst0", InstantiationKind::kBlock),
-          m::Instantiation("top_proc__1_inst1", InstantiationKind::kBlock),
+          m::Instantiation(proc1_name + "_inst", InstantiationKind::kBlock),
           m::Instantiation(HasSubstr("fifo"), InstantiationKind::kFifo)));
   XLS_ASSERT_OK_AND_ASSIGN(
-      xls::Instantiation * inst1,
-      p->GetBlock("top_proc").value()->GetInstantiation("top_proc__1_inst1"));
-  XLS_ASSERT_OK_AND_ASSIGN(
       xls::Instantiation * inst0,
-      p->GetBlock("top_proc").value()->GetInstantiation(proc1_name + "_inst0"));
+      p->GetBlock("top_proc").value()->GetInstantiation(proc1_name + "_inst"));
   EXPECT_THAT(
       p->GetBlock("top_proc").value()->nodes(),
       IsSupersetOf({
-          m::InstantiationInput(m::InputPort("ch0_valid"), "ch0_valid",
-                                Eq(inst1)),
-          m::InstantiationInput(m::InputPort("ch0_data"), "ch0_data",
-                                Eq(inst1)),
-          m::InstantiationInput(
-              m::InstantiationOutput(
-                  "push_ready", m::Instantiation(HasSubstr("fifo"),
-                                                 InstantiationKind::kFifo)),
-              "ch1_ready", Eq(inst1)),
-          m::InstantiationOutput("ch1_data", Eq(inst1)),
-          m::InstantiationOutput("ch1_valid", Eq(inst1)),
-          m::InstantiationOutput("ch0_ready", Eq(inst1)),
           m::InstantiationInput(
               m::InstantiationOutput(
                   "pop_valid", m::Instantiation(HasSubstr("fifo"),
@@ -352,10 +342,10 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_StitchNetworkWithFifos) {
   EXPECT_THAT(top_block->GetReadyPortForChannel("ch2", ChannelDirection::kSend),
               IsOkAndHolds(Optional(m::InputPort("ch2_ready"))));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Block * block0, p->GetBlock("top_proc__1"));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block0, p->GetBlock("top_proc"));
   EXPECT_THAT(block0->GetChannelsWithMappedPorts(),
               UnorderedElementsAre(Pair("ch0", ChannelDirection::kReceive),
-                                   Pair("ch1", ChannelDirection::kSend)));
+                                   Pair("ch2", ChannelDirection::kSend)));
   EXPECT_THAT(block0->GetDataPortForChannel("ch0", ChannelDirection::kReceive),
               IsOkAndHolds(Optional(m::InputPort("ch0_data"))));
   EXPECT_THAT(block0->GetValidPortForChannel("ch0", ChannelDirection::kReceive),
@@ -363,12 +353,12 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_StitchNetworkWithFifos) {
   EXPECT_THAT(block0->GetReadyPortForChannel("ch0", ChannelDirection::kReceive),
               IsOkAndHolds(Optional(m::OutputPort("ch0_ready"))));
 
-  EXPECT_THAT(block0->GetDataPortForChannel("ch1", ChannelDirection::kSend),
-              IsOkAndHolds(Optional(m::OutputPort("ch1_data"))));
-  EXPECT_THAT(block0->GetValidPortForChannel("ch1", ChannelDirection::kSend),
-              IsOkAndHolds(Optional(m::OutputPort("ch1_valid"))));
-  EXPECT_THAT(block0->GetReadyPortForChannel("ch1", ChannelDirection::kSend),
-              IsOkAndHolds(Optional(m::InputPort("ch1_ready"))));
+  EXPECT_THAT(block0->GetDataPortForChannel("ch2", ChannelDirection::kSend),
+              IsOkAndHolds(Optional(m::OutputPort("ch2_data"))));
+  EXPECT_THAT(block0->GetValidPortForChannel("ch2", ChannelDirection::kSend),
+              IsOkAndHolds(Optional(m::OutputPort("ch2_valid"))));
+  EXPECT_THAT(block0->GetReadyPortForChannel("ch2", ChannelDirection::kSend),
+              IsOkAndHolds(Optional(m::InputPort("ch2_ready"))));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * block1, p->GetBlock(proc1_name));
   EXPECT_THAT(block1->GetChannelsWithMappedPorts(),
@@ -5074,7 +5064,7 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_ProcWithGate) {
       IsOkAndHolds(BlockOutputsEq({{"out", {0, 1, 2, 99, 100, 0, 0, 0}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_ProcWithTrace) {
+TEST_F(ProcLoweringBlockEvalTest, ProcWithTrace) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
 
@@ -5093,6 +5083,7 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_ProcWithTrace) {
       MakeDelayedLoopbackProc("loopback", 4, in, middle, p.get()).status());
   {
     ProcBuilder b("trace_not_zero", p.get());
+    XLS_ASSERT_OK(b.SetAsTop());
     BValue recv = b.Receive(middle, b.Literal(Value::Token()));
     BValue recv_token = b.TupleIndex(recv, 0);
     BValue recv_data = b.TupleIndex(recv, 1);
@@ -5105,6 +5096,7 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_ProcWithTrace) {
     XLS_ASSERT_OK(b.Build());
   }
 
+  XLS_ASSERT_OK(xls::ConvertPackageToNewStyleProcs(p.get()));
   EXPECT_EQ(p->procs().size(), 2);
   // Every number except for the zeros should appear in the trace output.
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -5119,10 +5111,10 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_ProcWithTrace) {
                   HasSubstr("data: 300"), HasSubstr("data: 400"),
                   HasSubstr("data: 500")));
 
-  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"trace_nont_zero"),
+  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"trace_not_zero"),
               IsOkAndHolds(true));
 
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("trace_not_zero"));
   EXPECT_THAT(
@@ -5139,8 +5131,7 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_ProcWithTrace) {
                                 HasSubstr("data: 500")))))));
 }
 
-TEST_F(ProcLoweringBlockEvalTest,
-       DISABLED_ProcWithNonblockingReceivesWithPassthrough) {
+TEST_F(ProcLoweringBlockEvalTest, ProcWithNonblockingReceivesWithPassthrough) {
   // Constructs two procs:
   //  foo: a counter that counts down to zero and then receives on 'in',
   //   sending the value to 'internal' and counting down from that value.
@@ -5207,6 +5198,7 @@ proc output_passthrough(state:(), init={()}) {
               ParsePackage(absl::Substitute(ir_text, fifo_depth, bypass,
                                             register_push_outputs,
                                             register_pop_outputs)));
+          XLS_ASSERT_OK(xls::ConvertPackageToNewStyleProcs(p.get()));
           EXPECT_THAT(p->GetFunctionBases(),
                       UnorderedElementsAre(m::Proc("foo"),
                                            m::Proc("output_passthrough")));
@@ -5221,7 +5213,7 @@ proc output_passthrough(state:(), init={()}) {
           ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"foo"),
                       IsOkAndHolds(true));
           EXPECT_THAT(p->blocks(),
-                      UnorderedElementsAre(m::Block("foo"), m::Block("foo__1"),
+                      UnorderedElementsAre(m::Block("foo"),
                                            m::Block("output_passthrough")));
           XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("foo"));
           EXPECT_THAT(
@@ -5239,8 +5231,7 @@ proc output_passthrough(state:(), init={()}) {
   }
 }
 
-TEST_F(ProcLoweringBlockEvalTest,
-       DISABLED_ProcWithConditionalNonblockingReceives) {
+TEST_F(ProcLoweringBlockEvalTest, ProcWithConditionalNonblockingReceives) {
   // Similar to ProcWithNonblockingReceivesWithPassthrough, except the
   // passthrough proc has a state bit which alternates between 0 and 1. When the
   // state is 0, it does not perform the non-blocking receive and instead sends
@@ -5289,6 +5280,7 @@ proc output_passthrough(state: bits[1], init={1}) {
         std::unique_ptr<Package> p,
         ParsePackage(absl::Substitute(ir_text, fifo_depth,
                                       fifo_depth == 0 ? "true" : "false")));
+    XLS_ASSERT_OK(xls::ConvertPackageToNewStyleProcs(p.get()));
     EXPECT_THAT(
         p->GetFunctionBases(),
         UnorderedElementsAre(m::Proc("foo"), m::Proc("output_passthrough")));
@@ -5310,9 +5302,9 @@ proc output_passthrough(state: bits[1], init={1}) {
 
     ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"foo"),
                 IsOkAndHolds(true));
-    EXPECT_THAT(p->blocks(),
-                UnorderedElementsAre(m::Block("foo"), m::Block("foo__1"),
-                                     m::Block("output_passthrough")));
+    EXPECT_THAT(
+        p->blocks(),
+        UnorderedElementsAre(m::Block("foo"), m::Block("output_passthrough")));
 
     XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("foo"));
     // This test is latency sensitive, so the output can (and does) differ from
