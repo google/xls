@@ -281,6 +281,41 @@ TEST(XlsCApiTest, VastGenerateLoopElementwiseAssignment) {
           f, "inline_verilog_statement;");
   xls_vast_generate_loop_add_inline_verilog_statement(loop, inline_stmt);
 
+  // Add macro statements with and without semicolons, with and without args.
+  // `GL_MACRO1;
+  {
+    xls_vast_macro_ref* mr =
+        xls_vast_verilog_file_make_macro_ref(f, "GL_MACRO1");
+    ASSERT_NE(mr, nullptr);
+    xls_vast_macro_statement* ms = xls_vast_verilog_file_make_macro_statement(
+        f, mr, /*emit_semicolon=*/true);
+    ASSERT_NE(ms, nullptr);
+    ASSERT_NE(xls_vast_generate_loop_add_macro_statement(loop, ms), nullptr);
+  }
+  // `GL_MACRO2(i)
+  {
+    xls_vast_expression* args[] = {genvar_expr};
+    xls_vast_macro_ref* mr =
+        xls_vast_verilog_file_make_macro_ref_with_args(f, "GL_MACRO2", args, 1);
+    ASSERT_NE(mr, nullptr);
+    xls_vast_macro_statement* ms = xls_vast_verilog_file_make_macro_statement(
+        f, mr, /*emit_semicolon=*/false);
+    ASSERT_NE(ms, nullptr);
+    ASSERT_NE(xls_vast_generate_loop_add_macro_statement(loop, ms), nullptr);
+  }
+  // `GL_MACRO3(out[i], in[i]);
+  {
+    xls_vast_expression* args[] = {xls_vast_index_as_expression(out_index),
+                                   xls_vast_index_as_expression(in_index)};
+    xls_vast_macro_ref* mr =
+        xls_vast_verilog_file_make_macro_ref_with_args(f, "GL_MACRO3", args, 2);
+    ASSERT_NE(mr, nullptr);
+    xls_vast_macro_statement* ms = xls_vast_verilog_file_make_macro_statement(
+        f, mr, /*emit_semicolon=*/true);
+    ASSERT_NE(ms, nullptr);
+    ASSERT_NE(xls_vast_generate_loop_add_macro_statement(loop, ms), nullptr);
+  }
+
   char* emitted = xls_vast_verilog_file_emit(f);
   ASSERT_NE(emitted, nullptr);
   absl::Cleanup free_emitted([&] { xls_c_str_free(emitted); });
@@ -294,6 +329,9 @@ TEST(XlsCApiTest, VastGenerateLoopElementwiseAssignment) {
 
     // This is a comment.
     inline_verilog_statement;
+    `GL_MACRO1;
+    `GL_MACRO2(i)
+    `GL_MACRO3(out[i], in[i]);
   end
 endmodule
 )";
