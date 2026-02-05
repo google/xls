@@ -1,0 +1,24 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+proc __test_module__const_if_disparate_types_0__0_next<>(__state: bits[32], init={1}) {
+  data: bits[16] = literal(value=600, id=6)
+  __state: bits[32] = state_read(state_element=__state, id=2)
+  zero_ext.7: bits[32] = zero_ext(data, new_bit_count=32, id=7)
+  __token: token = literal(value=token, id=1)
+  literal.3: bits[1] = literal(value=1, id=3)
+  A: bits[32] = literal(value=0, id=4)
+  tuple.5: () = tuple(id=5)
+  next_value.8: () = next_value(param=__state, value=zero_ext.7, id=8)
+}
+
+top proc __test_module__main_0_next<>(__state: (), init={()}) {
+  proc_instantiation __test_module__const_if_disparate_types_0__0_next_inst(proc=__test_module__const_if_disparate_types_0__0_next)
+  __state: () = state_read(state_element=__state, id=10)
+  tuple.13: () = tuple(id=13)
+  __token: token = literal(value=token, id=9)
+  literal.11: bits[1] = literal(value=1, id=11)
+  tuple.12: () = tuple(id=12)
+  next_value.14: () = next_value(param=__state, value=tuple.13, id=14)
+}

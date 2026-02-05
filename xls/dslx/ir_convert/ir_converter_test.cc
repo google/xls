@@ -1042,6 +1042,59 @@ TEST_F(IrConverterTest, ConstConditionalProcScopedWithParams) {
   ExpectIr(converted);
 }
 
+// TODO: davidplass - enable this when it's fixed (after PSC launch)
+TEST_F(IrConverterTest, DISABLED_ConstIfOfParametricInFn) {
+  constexpr std::string_view kProgram = R"(
+fn const_if_disparate_types<A: u32>() -> u32 {
+    let data = const if A == u32:0 {
+        u16:600
+    } else if A == u32:1 {
+        u32:70000
+    } else {
+        u8:4
+    };
+
+    data as u32
+}
+
+fn main() -> u32 { const_if_disparate_types<u32:0>() }
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kProgram));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, ConstIfOfParametricInProc) {
+  constexpr std::string_view kProgram = R"(
+proc const_if_disparate_types<A: u32> {
+  init{u32:1}
+  config() {}
+  next(state: u32) {
+    let data = const if A == u32:0 {
+        u16:600
+    } else if A == u32:1 {
+        u32:70000
+    } else {
+        u8:4
+    };
+
+    data as u32
+  }
+}
+
+proc main {
+  init{}
+  config() {
+    spawn const_if_disparate_types<u32:0>();
+  }
+  next(_: ()) {}
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kProgram));
+  ExpectIr(converted);
+}
+
 TEST_F(IrConverterTest, ConstantsWithConditionalsPlusStuff) {
   constexpr std::string_view program =
       R"(

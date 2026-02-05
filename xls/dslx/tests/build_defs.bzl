@@ -44,7 +44,8 @@ def dslx_lang_test(
         benchmark_ir = True,
         warnings_as_errors = True,
         test_autofmt = True,
-        compare = "jit"):
+        compare = "jit",
+        lower_to_proc_scoped_channels = True):
     """This macro is convenient shorthand for our many DSLX test targets.
 
     The primary target that it generates that developers may want to depend upon is:
@@ -96,6 +97,8 @@ def dslx_lang_test(
         language test remains auto-formatted.
       compare: Whether to compare DSL-interpreted results with IR execution for each
         function for consistency checking.
+      lower_to_proc_scoped_channels: Whether to lower to proc-scoped channels when converting to IR.
+        Only used when convert_to_ir is True.
 
     As a byproduct this makes a "{name}_dslx" library target that other
     dslx_interp_tests can reference via the dslx_deps attribute.
@@ -140,6 +143,7 @@ def dslx_lang_test(
             dslx_top = dslx_entry,
             ir_conv_args = {
                 "warnings_as_errors": test_args["warnings_as_errors"],
+                "lower_to_proc_scoped_channels": "true" if lower_to_proc_scoped_channels else "false",
             },
         )
         if test_ir_equivalence:

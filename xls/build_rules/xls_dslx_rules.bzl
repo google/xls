@@ -111,6 +111,7 @@ def _get_dslx_test_cmdline(ctx, src, all_srcs, append_cmd_line_args = True):
         "max_ticks",
         "format_preference",
         "configured_values",
+        "lower_to_proc_scoped_channels",
     )
 
     dslx_test_args = dict(_dslx_test_args)
