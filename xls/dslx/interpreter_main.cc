@@ -33,6 +33,7 @@
 #include "absl/strings/str_split.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "google/protobuf/text_format.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
@@ -46,8 +47,8 @@
 #include "xls/dslx/run_routines/test_xml.h"
 #include "xls/dslx/virtualizable_file_system.h"
 #include "xls/dslx/warning_kind.h"
+#include "xls/ir/evaluator_result.pb.h"
 #include "xls/ir/format_preference.h"
-#include "re2/re2.h"
 
 // LINT.IfChange
 ABSL_FLAG(std::string, dslx_path, "",
@@ -69,6 +70,9 @@ ABSL_FLAG(
     "Seed for quickcheck random stimulus; 0 for an nondetermistic value.");
 ABSL_FLAG(std::string, test_filter, "",
           "Regexp that must be a full match of test name(s) to run.");
+ABSL_FLAG(std::string, output_results_proto, "",
+          "If non-empty, write a text EvaluatorResultsProto (one entry per "
+          "test) to the given file path.");
 
 ABSL_FLAG(std::string, disable_warnings, "",
           "Comma-delimited list of warnings to disable from the default set of "
@@ -245,6 +249,12 @@ absl::StatusOr<TestResult> RealMain(
       .max_ticks = max_ticks,
   };
 
+  // Create a results proto if requested and plumb it through options.
+  xls::EvaluatorResultsProto results_proto;
+  options.results_out = !absl::GetFlag(FLAGS_output_results_proto).empty()
+                            ? &results_proto
+                            : nullptr;
+
   std::unique_ptr<AbstractTestRunner> test_runner = GetTestRunner(evaluator);
   XLS_ASSIGN_OR_RETURN(TestResultData test_result,
                        test_runner->ParseAndTest(program, module_name,
@@ -256,6 +266,14 @@ absl::StatusOr<TestResult> RealMain(
     std::unique_ptr<test_xml::XmlNode> root = ToXml(suites, local_tz);
     std::string contents = test_xml::XmlRootToString(*root);
     XLS_RETURN_IF_ERROR(SetFileContents(xml_output_file.value(), contents));
+  }
+
+  // If requested, write the results proto to the given file in text format.
+  if (options.results_out != nullptr) {
+    std::string text;
+    QCHECK(google::protobuf::TextFormat::PrintToString(results_proto, &text));
+    XLS_RETURN_IF_ERROR(
+        SetFileContents(absl::GetFlag(FLAGS_output_results_proto), text));
   }
 
   return test_result.result();

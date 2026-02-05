@@ -18,12 +18,12 @@
 #include <string>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/types/span.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/interpreter/evaluator_options.h"
 #include "xls/interpreter/function_interpreter.h"
@@ -125,11 +125,12 @@ TEST_F(IrInterpreterOnlyTest, TraceCalls) {
       InterpreterResult<Value> result,
       InterpretFunction(top, {Value(UBits(1, 8)), Value(UBits(2, 8))}, opts));
 
-  // Calls should be recorded in order: top, mid, inner (from within mid),
-  // then inner (direct from top). Arguments should be included.
-  EXPECT_THAT(result.events.GetTraceMessageStrings(),
-              ElementsAre("my_function(1, 2)", "  mid(1, 2)", "    inner(1, 2)",
-                          "  inner(2, 1)"));
+  // Calls should be recorded with entries and separate returns in order.
+  EXPECT_THAT(
+      result.events.GetTraceMessageStrings(),
+      ElementsAre("my_function(1, 2)", "  mid(1, 2)", "    inner(1, 2)",
+                  "    inner(...) => 3", "  mid(...) => 3", "  inner(2, 1)",
+                  "  inner(...) => 3", "my_function(...) => 6"));
 }
 
 TEST_F(IrInterpreterOnlyTest, SideEffectingNodes) {

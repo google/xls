@@ -16,6 +16,8 @@
 #define XLS_IR_EVENTS_H_
 
 #include <cstdint>
+#include <iosfwd>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -23,12 +25,11 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
-#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "google/protobuf/repeated_ptr_field.h"
 #include "xls/ir/evaluator_result.pb.h"
 #include "xls/ir/format_preference.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 
 namespace xls {
@@ -37,77 +38,61 @@ namespace xls {
 // (DSLX, IR, JIT, etc.)
 class InterpreterEvents {
  public:
-  void AddTraceStatementMessage(int64_t verbosity, std::string msg) {
-    TraceMessageProto* tm = proto_.add_trace_msgs();
-    tm->set_message(std::move(msg));
-    tm->mutable_statement()->set_verbosity(verbosity);
-  }
+  void AddTraceStatementMessage(
+      int64_t verbosity, std::string msg,
+      std::optional<SourceInfo> source_info = std::nullopt,
+      std::optional<std::string> source_filename = std::nullopt);
 
-  void AddTraceCallMessage(std::string_view function_name,
-                           absl::Span<const Value> args, int64_t call_depth,
-                           FormatPreference format_preference) {
-    TraceMessageProto* tm = proto_.add_trace_msgs();
-    // Build an indented message like: "  foo(1, 2, 3)".
-    tm->set_message(absl::StrFormat(
-        "%*s%s(%s)", call_depth * 2, "", function_name,
-        absl::StrJoin(args, ", ",
-                      [format_preference](std::string* out, const Value& v) {
-                        out->append(v.ToHumanString(format_preference));
-                      })));
-    tm->mutable_call()->set_function_name(std::string{function_name});
-    tm->mutable_call()->set_call_depth(call_depth);
-    for (const Value& v : args) {
-      *tm->mutable_call()->add_args() = v.AsProto().value();
-    }
-  }
-  void AddAssertMessage(const std::string& msg) {
-    proto_.add_assert_msgs()->set_message(msg);
-  }
+  void AddTraceCallMessage(
+      std::string_view function_name, absl::Span<const Value> args,
+      int64_t call_depth, FormatPreference format_preference,
+      std::optional<SourceInfo> source_info = std::nullopt,
+      std::optional<std::string> source_filename = std::nullopt);
+  void AddTraceCallReturnMessage(
+      std::string_view function_name, int64_t call_depth,
+      FormatPreference format_preference, const Value& return_value,
+      std::optional<SourceInfo> source_info = std::nullopt,
+      std::optional<std::string> source_filename = std::nullopt);
+  void AddAssertMessage(
+      std::string_view msg,
+      std::optional<SourceInfo> source_info = std::nullopt,
+      std::optional<std::string> source_filename = std::nullopt);
 
-  const ::google::protobuf::RepeatedPtrField<TraceMessageProto>& GetTraceMessages()
-      const {
-    return proto_.trace_msgs();
-  }
-  std::vector<std::string> GetTraceMessageStrings() const {
-    std::vector<std::string> messages;
-    messages.reserve(proto_.trace_msgs_size());
-    for (const TraceMessageProto& t : proto_.trace_msgs()) {
-      messages.push_back(t.message());
-    }
-    return messages;
-  }
-  std::vector<std::string> GetAssertMessages() const {
-    std::vector<std::string> asserts;
-    asserts.reserve(proto_.assert_msgs_size());
-    for (const AssertMessageProto& a : proto_.assert_msgs()) {
-      asserts.push_back(a.message());
-    }
-    return asserts;
-  }
+  const ::google::protobuf::RepeatedPtrField<TraceMessageProto>&
+  GetTraceMessages() const;
+  std::vector<std::string> GetTraceMessageStrings() const;
+  std::vector<std::string> GetAssertMessages() const;
 
   void Clear() { proto_.Clear(); }
 
-  bool operator==(const InterpreterEvents& other) const {
-    return proto_.SerializeAsString() == other.proto_.SerializeAsString();
-  }
+  bool operator==(const InterpreterEvents& other) const;
+
   bool operator!=(const InterpreterEvents& other) const {
     return !(*this == other);
   }
-
-  void AppendFrom(const InterpreterEvents& other) {
-    for (const TraceMessageProto& t : other.proto_.trace_msgs()) {
-      *proto_.add_trace_msgs() = t;
-    }
-    for (const AssertMessageProto& a : other.proto_.assert_msgs()) {
-      *proto_.add_assert_msgs() = a;
-    }
-  }
+  void AppendFrom(const InterpreterEvents& other);
 
   const EvaluatorEventsProto& AsProto() const { return proto_; }
+
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink, const InterpreterEvents& events) {
+    for (const std::string& s : events.GetTraceMessageStrings()) {
+      absl::Format(&sink, "%s\n", s);
+    }
+    for (const std::string& s : events.GetAssertMessages()) {
+      absl::Format(&sink, "%s\n", s);
+    }
+  }
 
  private:
   EvaluatorEventsProto proto_;
 };
+
+inline std::ostream& operator<<(std::ostream& os,
+                                const InterpreterEvents& events) {
+  return os << absl::StrCat(events);
+}
+
 // Convert an InterpreterEvents structure into a result status, returning
 // a failure when an assertion has been raised.
 absl::Status InterpreterEventsToStatus(const InterpreterEvents& events);
