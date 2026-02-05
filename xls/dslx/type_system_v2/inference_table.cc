@@ -601,7 +601,7 @@ class InferenceTableImpl : public InferenceTable {
 
   absl::StatusOr<TypeAnnotation*> GetGenericType(
       std::optional<const ParametricContext*> parametric_context,
-      const NameDef* variable) override {
+      const NameDef* variable) const override {
     XLS_ASSIGN_OR_RETURN(
         std::vector<const TypeAnnotation*> annotations,
         GetTypeAnnotationsForTypeVariable(parametric_context, variable));
@@ -1043,107 +1043,6 @@ InferenceTable::~InferenceTable() = default;
 
 std::unique_ptr<InferenceTable> InferenceTable::Create() {
   return std::make_unique<InferenceTableImpl>();
-}
-
-absl::StatusOr<Number*> MakeTypeCheckedNumber(
-    Module& module, InferenceTable& table, const Span& span,
-    const InterpValue& value, const TypeAnnotation* type_annotation) {
-  // Invariant: nodes created into `module` should either have a "no-file" span
-  // (for internally-fabricated nodes) or a span that points at `module`'s own
-  // source file. Violating this makes downstream consumers that resolve nodes
-  // by (kind, span) fragile and can lead to confusing "could not find node"
-  // errors.
-  //
-  // Note: not all modules have a filesystem path (e.g. in-memory modules); we
-  // only enforce this when `fs_path()` is known.
-  XLS_RET_CHECK(module.file_table() != nullptr);
-  if (span.HasFile() && module.fs_path().has_value()) {
-    std::string_view span_filename = span.GetFilename(*module.file_table());
-    XLS_RET_CHECK_EQ(span_filename, module.fs_path()->generic_string())
-        << "MakeTypeCheckedNumber span filename must match module fs_path; "
-        << "module name: `" << module.name() << "`; "
-        << "span: `" << span.ToString(*module.file_table()) << "`; "
-        << "module fs_path: `" << module.fs_path()->generic_string() << "`";
-  }
-
-  VLOG(5) << "Creating type-checked number: " << value.ToString()
-          << " of type: " << type_annotation->ToString();
-  Number* number = module.Make<Number>(span, value.ToString(/*humanize=*/true),
-                                       NumberKind::kOther, nullptr);
-  XLS_RETURN_IF_ERROR(table.SetTypeAnnotation(number, type_annotation));
-  return number;
-}
-
-absl::StatusOr<Number*> MakeTypeCheckedNumber(
-    Module& module, InferenceTable& table, const Span& span, int64_t value,
-    const TypeAnnotation* type_annotation) {
-  return MakeTypeCheckedNumber(module, table, span, InterpValue::MakeS64(value),
-                               type_annotation);
-}
-
-bool IsColonRefWithTypeTarget(const InferenceTable& table, const Expr* expr) {
-  if (expr->kind() != AstNodeKind::kColonRef) {
-    return false;
-  }
-  std::optional<const AstNode*> colon_ref_target =
-      table.GetColonRefTarget(down_cast<const ColonRef*>(expr));
-  return colon_ref_target.has_value() &&
-         ((*colon_ref_target)->kind() == AstNodeKind::kTypeAlias ||
-          (*colon_ref_target)->kind() == AstNodeKind::kEnumDef ||
-          (*colon_ref_target)->kind() == AstNodeKind::kTypeAnnotation);
-}
-
-CloneReplacer NameRefMapper(
-    InferenceTable& table,
-    const absl::flat_hash_map<const NameDef*, ExprOrType>& map,
-    std::optional<Module*> target_module,
-    bool add_parametric_binding_type_annotation) {
-  return [table = &table, map = &map, target_module,
-          add_parametric_binding_type_annotation](
-             const AstNode* node, Module* new_module,
-             const absl::flat_hash_map<const AstNode*, AstNode*>&)
-             -> absl::StatusOr<std::optional<AstNode*>> {
-    if (node->kind() != AstNodeKind::kNameRef) {
-      return std::nullopt;
-    }
-    const auto* ref = down_cast<const NameRef*>(node);
-    if (!std::holds_alternative<const NameDef*>(ref->name_def())) {
-      return std::nullopt;
-    }
-    const NameDef* name_def = std::get<const NameDef*>(ref->name_def());
-    const auto it = map->find(name_def);
-    if (it == map->end()) {
-      return std::nullopt;
-    }
-    Module* module_for_clone = target_module ? *target_module : new_module;
-    XLS_ASSIGN_OR_RETURN(
-        AstNode * clone,
-        table->Clone(ToAstNode(it->second), &PreserveTypeDefinitionsReplacer,
-                     module_for_clone));
-
-    if (!add_parametric_binding_type_annotation ||
-        name_def->parent()->kind() != AstNodeKind::kParametricBinding) {
-      return clone;
-    }
-
-    // Note that within direct children of type annotations or indices, we
-    // generally do not need the `add_parametric_binding_type_annotation`
-    // behavior in order to infer the correct type for the literal. Since adding
-    // it hurts error message readability, we filter out those cases here, even
-    // though adding the annotation would technically be equally correct. For
-    // example, we filter out `uN[5]` from the behavior but not `uN[5 + X]`.
-    if (clone->kind() == AstNodeKind::kNumber &&
-        (ref->parent() == nullptr ||
-         (ref->parent()->kind() != AstNodeKind::kIndex &&
-          ref->parent()->kind() != AstNodeKind::kTypeAnnotation))) {
-      down_cast<Number*>(clone)->SetTypeAnnotation(
-          down_cast<TypeAnnotation*>(
-              down_cast<ParametricBinding*>(name_def->parent())
-                  ->type_annotation()),
-          /*update_span=*/false);
-    }
-    return clone;
-  };
 }
 
 }  // namespace xls::dslx

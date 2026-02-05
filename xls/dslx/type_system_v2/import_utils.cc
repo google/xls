@@ -31,7 +31,6 @@
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
-#include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
 
 namespace xls::dslx {
@@ -139,11 +138,6 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
   std::optional<const StructInstanceBase*> instantiator_;
 };
 
-bool IsAbstractStructOrProcRef(const StructOrProcRef& ref) {
-  return GetRequiredParametricBindings(ref.def->parametric_bindings()).size() >
-         ref.parametrics.size();
-}
-
 }  // namespace
 
 absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
@@ -208,27 +202,6 @@ absl::StatusOr<std::optional<const StructDefBase*>> GetStructOrProcDef(
   XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> ref,
                        GetStructOrProcRef(annotation, import_data));
   return ref.has_value() ? std::make_optional(ref->def) : std::nullopt;
-}
-
-absl::StatusOr<bool> IsReferenceToAbstractType(const AstNode* node,
-                                               const ImportData& import_data,
-                                               const InferenceTable& table) {
-  std::optional<StructOrProcRef> ref;
-  if (node->kind() == AstNodeKind::kColonRef &&
-      IsColonRefWithTypeTarget(table, down_cast<const ColonRef*>(node))) {
-    XLS_ASSIGN_OR_RETURN(
-        ref, GetStructOrProcRef(down_cast<const ColonRef*>(node), import_data));
-  } else if (node->kind() == AstNodeKind::kTypeAlias ||
-             (node->kind() == AstNodeKind::kNameDef &&
-              node->parent() != nullptr &&
-              node->parent()->kind() == AstNodeKind::kTypeAlias)) {
-    const TypeAlias* alias = node->kind() == AstNodeKind::kTypeAlias
-                                 ? down_cast<const TypeAlias*>(node)
-                                 : down_cast<const TypeAlias*>(node->parent());
-    XLS_ASSIGN_OR_RETURN(
-        ref, GetStructOrProcRef(&alias->type_annotation(), import_data));
-  }
-  return ref.has_value() && IsAbstractStructOrProcRef(*ref);
 }
 
 absl::StatusOr<std::optional<const EnumDef*>> GetEnumDef(

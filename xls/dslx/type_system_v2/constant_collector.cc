@@ -51,6 +51,7 @@
 #include "xls/dslx/type_system_v2/import_utils.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/inference_table_converter.h"
+#include "xls/dslx/type_system_v2/inference_table_utils.h"
 #include "xls/dslx/type_system_v2/parametric_struct_instantiator.h"
 #include "xls/dslx/type_system_v2/populate_table_visitor.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
@@ -137,54 +138,6 @@ class Visitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  // Converts a `ColonRef` with a generic type subject into a `ColonRef` with
-  // the resolved type as a subject. For example, in:
-  //   fn foo<T: type>() -> u32 { T::SOME_CONSTANT }
-  //   const C = foo<MyStruct>();
-  // If we pass in `T::SOME_CONSTANT` while this collector instance is in the
-  // context of the `foo` invocation shown, the result will be
-  // `MyStruct::SOME_CONSTANT`.
-  absl::StatusOr<ColonRef*> ConvertGenericColonRefToDirect(
-      const ColonRef* colon_ref) {
-    const auto* tvta =
-        std::get<TypeVariableTypeAnnotation*>(colon_ref->subject());
-    const auto* name_def =
-        std::get<const NameDef*>(tvta->type_variable()->name_def());
-    XLS_ASSIGN_OR_RETURN(TypeAnnotation * actual_type,
-                         table_.GetGenericType(parametric_context_, name_def));
-    XLS_ASSIGN_OR_RETURN(std::optional<const EnumDef*> enum_def,
-                         GetEnumDef(actual_type, import_data_));
-    if (enum_def.has_value()) {
-      return name_def->owner()->Make<ColonRef>(
-          Span::None(),
-          name_def->owner()->Make<NameRef>(
-              Span::None(), (*enum_def)->name_def()->identifier(), name_def),
-          colon_ref->attr());
-    }
-
-    XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,
-                         GetStructOrProcRef(actual_type, import_data_));
-    if (struct_or_proc_ref.has_value()) {
-      return name_def->owner()->Make<ColonRef>(
-          Span::None(),
-          name_def->owner()->Make<TypeRefTypeAnnotation>(
-              Span::None(),
-              name_def->owner()->Make<TypeRef>(
-                  Span::None(),
-                  const_cast<StructDef*>(
-                      down_cast<const StructDef*>(struct_or_proc_ref->def))),
-              struct_or_proc_ref->parametrics),
-          colon_ref->attr());
-    }
-
-    return TypeInferenceErrorStatus(
-        colon_ref->span(), /*type=*/nullptr,
-        absl::Substitute("Cannot resolve generic member reference "
-                         "`$0` to a member of a real type.",
-                         colon_ref->ToString()),
-        file_table_);
-  }
-
   absl::Status HandleColonRef(const ColonRef* colon_ref) override {
     const ColonRef* direct_colon_ref = colon_ref;
     std::optional<const AstNode*> target = table_.GetColonRefTarget(colon_ref);
@@ -196,8 +149,10 @@ class Visitor : public AstNodeVisitorWithDefault {
     // logging and some error messages.
     if (std::holds_alternative<TypeVariableTypeAnnotation*>(
             colon_ref->subject())) {
-      XLS_ASSIGN_OR_RETURN(direct_colon_ref,
-                           ConvertGenericColonRefToDirect(colon_ref));
+      XLS_ASSIGN_OR_RETURN(
+          direct_colon_ref,
+          ConvertGenericColonRefToDirect(table_, import_data_,
+                                         parametric_context_, colon_ref));
       auto populate_visitor = CreatePopulateTableVisitor(
           colon_ref->owner(), &table_, &import_data_,
           [](std::unique_ptr<Module>, std::filesystem::path path)

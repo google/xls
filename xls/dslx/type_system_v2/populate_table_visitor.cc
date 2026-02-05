@@ -57,6 +57,7 @@
 #include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system_v2/import_utils.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
+#include "xls/dslx/type_system_v2/inference_table_utils.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
 #include "xls/ir/format_strings.h"
 

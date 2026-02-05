@@ -39,7 +39,6 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/ast_node.h"
-#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
@@ -553,7 +552,7 @@ class InferenceTable {
   // Retrieves the actual type of the given generic type in the given context.
   virtual absl::StatusOr<TypeAnnotation*> GetGenericType(
       std::optional<const ParametricContext*> parametric_context,
-      const NameDef* variable) = 0;
+      const NameDef* variable) const = 0;
 
   // Returns the `Invocation` nodes that feed information into the given type
   // variable.
@@ -626,39 +625,6 @@ class InferenceTable {
   // Converts the table to string for debugging purposes.
   virtual std::string ToString() const = 0;
 };
-
-// Fabricates a `Number` node and sets the given type annotation for it in the
-// inference table.
-absl::StatusOr<Number*> MakeTypeCheckedNumber(
-    Module& module, InferenceTable& table, const Span& span,
-    const InterpValue& value, const TypeAnnotation* type_annotation);
-
-// Variant that takes a raw `int64_t` value for the number.
-absl::StatusOr<Number*> MakeTypeCheckedNumber(
-    Module& module, InferenceTable& table, const Span& span, int64_t value,
-    const TypeAnnotation* type_annotation);
-
-// Returns whether the given `expr` is a `ColonRef` to a type as opposed to a
-// value. The determination is based on table data for `expr`; this function
-// will not actually resolve and analyze the `ColonRef` itself.
-bool IsColonRefWithTypeTarget(const InferenceTable& table, const Expr* expr);
-
-// Creates a CloneReplacer that replaces any `NameRef` to a `NameDef` in `map`
-// with the corresponding `ExprOrType`. This is used for replacement of
-// parametric variables with values. Each time the returned replacer uses a node
-// that is value in `map`, it clones it via `table.Clone()`.
-
-// If `add_parametric_binding_type_annotation` is true, then any replacement
-// whose `NameDef` belongs to a parametric binding will be prefixed with the
-// type annotation of the parametric binding. This behavior should be used when
-// replacing parametric bindings with their actual literal values. Otherwise
-// subsequent type inference would in some contexts presume the literals are the
-// minimum size needed to fit their values.
-CloneReplacer NameRefMapper(
-    InferenceTable& table,
-    const absl::flat_hash_map<const NameDef*, ExprOrType>& map,
-    std::optional<Module*> target_module = std::nullopt,
-    bool add_parametric_binding_type_annotation = false);
 
 }  // namespace xls::dslx
 
