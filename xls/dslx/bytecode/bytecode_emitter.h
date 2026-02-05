@@ -130,6 +130,11 @@ class BytecodeEmitter : public ExprVisitor {
   absl::StatusOr<std::variant<InterpValue, Bytecode::SlotIndex>>
   HandleNameDefInternal(const NameDef* node);
 
+  // Pushes the callee function that type inference resolved for the given
+  // invocation. This may be sensitive to the parametric context, which is
+  // captured by the current `type_info_` pointer.
+  absl::Status PushResolvedCallee(const Invocation* invocation);
+
   absl::StatusOr<InterpValue> HandleExternRef(const NameRef& name_ref,
                                               const NameDef& name_def,
                                               UseTreeEntry& use_tree_entry);

@@ -18,6 +18,7 @@
 
 #include "xls/dslx/type_system_v2/function_resolver.h"
 
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>
@@ -43,7 +44,9 @@
 #include "xls/dslx/type_system_v2/import_utils.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/inference_table_converter.h"
+#include "xls/dslx/type_system_v2/inference_table_utils.h"
 #include "xls/dslx/type_system_v2/parametric_struct_instantiator.h"
+#include "xls/dslx/type_system_v2/populate_table_visitor.h"
 #include "xls/dslx/type_system_v2/trait_deriver.h"
 #include "xls/dslx/type_system_v2/type_annotation_resolver.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
@@ -81,6 +84,25 @@ class FunctionResolverImpl : public FunctionResolver {
       const auto* colon_ref = down_cast<const ColonRef*>(callee);
       std::optional<const AstNode*> target =
           table_.GetColonRefTarget(colon_ref);
+
+      if (std::holds_alternative<TypeVariableTypeAnnotation*>(
+              colon_ref->subject())) {
+        // It's a ColonRef to a generic type, like `T::some_static_method()`. We
+        // need to resolve T in order to determine what the actual method is.
+        XLS_ASSIGN_OR_RETURN(
+            colon_ref, ConvertGenericColonRefToDirect(
+                           table_, import_data_, caller_context, colon_ref));
+        auto populate_visitor = CreatePopulateTableVisitor(
+            colon_ref->owner(), &table_, &import_data_,
+            [](std::unique_ptr<Module>, std::filesystem::path)
+                -> absl::StatusOr<std::unique_ptr<ModuleInfo>> {
+              XLS_RET_CHECK_FAIL()
+                  << "Typecheck for an import should not be triggered while "
+                     "populating a replaced ColonRef.";
+            });
+        XLS_RETURN_IF_ERROR(populate_visitor->PopulateFromColonRef(colon_ref));
+        target = table_.GetColonRefTarget(colon_ref);
+      }
       if (target.has_value()) {
         function_node = *target;
       }

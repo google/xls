@@ -1142,6 +1142,14 @@ absl::Status BytecodeEmitter::HandleIndex(const Index* node) {
   return absl::OkStatus();
 }
 
+absl::Status BytecodeEmitter::PushResolvedCallee(const Invocation* invocation) {
+  XLS_ASSIGN_OR_RETURN(const Function* func, type_info_->GetCallee(invocation));
+  Add(Bytecode::MakeLiteral(
+      invocation->span(),
+      InterpValue::MakeFunction(InterpValue::UserFnData{func->owner(), func})));
+  return absl::OkStatus();
+}
+
 absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
   if (NameRef* name_ref = dynamic_cast<NameRef*>(node->callee());
       name_ref != nullptr && name_ref->IsBuiltin()) {
@@ -1205,13 +1213,9 @@ absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
     // Place the struct instance on the stack as the self argument.
     XLS_RETURN_IF_ERROR(
         down_cast<const Attr*>(node->callee())->lhs()->AcceptExpr(this));
-
-    // Dispatch to the function implementation that was decided by type
-    // inference.
-    XLS_ASSIGN_OR_RETURN(const Function* func, type_info_->GetCallee(node));
-    Add(Bytecode::MakeLiteral(
-        node->span(), InterpValue::MakeFunction(
-                          InterpValue::UserFnData{func->owner(), func})));
+    XLS_RETURN_IF_ERROR(PushResolvedCallee(node));
+  } else if (node->callee()->kind() == AstNodeKind::kColonRef) {
+    XLS_RETURN_IF_ERROR(PushResolvedCallee(node));
   } else {
     XLS_RETURN_IF_ERROR(node->callee()->AcceptExpr(this));
   }

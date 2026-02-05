@@ -331,5 +331,80 @@ const Y = X_STRUCT.foo(u16:10);
       TypecheckFails(HasTypeMismatch("uN[32]", "uN[16]")));
 }
 
+TEST(TypecheckV2GenericsTest, GenericColonRefFunctionCall) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+struct U32Adder {}
+
+impl U32Adder {
+    fn add(a: u32, b: u32) -> u32 { a + b }
+}
+
+struct Foo {
+    value: u16
+}
+
+struct FooAdder {}
+
+impl FooAdder {
+    fn add(a: Foo, b: Foo) -> Foo { Foo { value: a.value + b.value } }
+}
+
+fn add_wrapper<ADDER: type, T: type>(a: T, b: T) -> T {
+    ADDER::add(a, b)
+}
+
+const A = add_wrapper<U32Adder>(u32:1, u32:2);
+const B = add_wrapper<FooAdder>(Foo { value: 3 }, Foo { value: 4 });
+const_assert!(A == 3);
+const_assert!(B == Foo { value: 7 });
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("A", "uN[32]"),
+                              HasNodeWithType("B", "Foo { value: uN[16] }"))));
+}
+
+TEST(TypecheckV2GenericsTest, GenericColonRefCallToNonexistentFunction) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+struct U32Adder {}
+
+impl U32Adder {
+    fn add(a: u32, b: u32) -> u32 { a + b }
+}
+
+fn sub_wrapper<ALG: type, T: type>(a: T, b: T) -> T {
+    ALG::sub(a, b)
+}
+
+const A = sub_wrapper<U32Adder>(u32:1, u32:2);
+)",
+      TypecheckFails(HasSubstr(
+          "Name 'sub' is not defined by the impl for struct 'U32Adder'")));
+}
+
+TEST(TypecheckV2GenericsTest, GenericColonRefCallWithArgTypeMismatch) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+struct U32Adder {}
+
+impl U32Adder {
+    fn add(a: u32, b: u32) -> u32 { a + b }
+}
+
+fn add_wrapper<ADDER: type, T: type>(a: T, b: T) -> T {
+    ADDER::add(a, b)
+}
+
+const A = add_wrapper<U32Adder>(u16:1, 2);
+)",
+      TypecheckFails(HasTypeMismatch("uN[16]", "uN[32]")));
+}
+
 }  // namespace
 }  // namespace xls::dslx
