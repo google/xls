@@ -64,6 +64,9 @@ absl::Status RealMain(const std::filesystem::path& crasher_path,
     options.set_disable_unopt_interpreter(true);
     crasher = Sample(crasher.input_text(), options, crasher.testvector());
   }
+  SampleOptions options = crasher.options();
+  options.set_ir_converter_args({"--lower_to_proc_scoped_channels=false"});
+  crasher = Sample(crasher.input_text(), options, crasher.testvector());
   return RunSample(crasher, run_dir).status();
 }
 

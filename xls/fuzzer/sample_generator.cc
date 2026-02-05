@@ -546,6 +546,8 @@ absl::StatusOr<Sample> GenerateSample(
   if (generator_options.generate_proc) {
     CHECK(std::holds_alternative<dslx::Proc*>(*member));
     sample_options_copy.set_sample_type(fuzzer::SAMPLE_TYPE_PROC);
+    sample_options_copy.set_ir_converter_args(
+        {"--lower_to_proc_scoped_channels=false"});
     return GenerateProcSample(std::get<dslx::Proc*>(*member), *tm,
                               sample_options_copy, bit_gen, dslx_text);
   }

@@ -118,7 +118,8 @@ class RunFuzzTest : public ::testing::Test {
   static SampleOptions GetSampleOptions() {
     SampleOptions options;
     options.set_input_is_dslx(true);
-    options.set_ir_converter_args({"--top=main"});
+    options.set_ir_converter_args(
+        {"--top=main", "--lower_to_proc_scoped_channels=false"});
     options.set_calls_per_sample(
         absl::GetFlag(FLAGS_generate_proc) ? 0 : kCallsPerSample);
     options.set_convert_to_ir(true);

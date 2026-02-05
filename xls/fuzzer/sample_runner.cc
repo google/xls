@@ -1031,8 +1031,11 @@ absl::Status SampleRunner::RunProc(
     }
 
     Stopwatch t;
+    SampleOptions options_copy = options;
+    options_copy.set_ir_converter_args(
+        {"--lower_to_proc_scoped_channels=false"});
     XLS_ASSIGN_OR_RETURN(
-        ir_path, DslxToIrProc(input_path, options, run_dir_, commands_));
+        ir_path, DslxToIrProc(input_path, options_copy, run_dir_, commands_));
     timing_.set_convert_ir_ns(absl::ToInt64Nanoseconds(t.GetElapsedTime()));
   } else {
     ir_path = run_dir_ / "sample.ir";

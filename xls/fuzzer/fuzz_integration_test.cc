@@ -114,7 +114,8 @@ TEST(FuzzIntegrationTest, Fuzzing) {
 
   SampleOptions sample_options;
   sample_options.set_input_is_dslx(true);
-  sample_options.set_ir_converter_args({"--top=main"});
+  sample_options.set_ir_converter_args(
+      {"--top=main", "--lower_to_proc_scoped_channels=false"});
   sample_options.set_convert_to_ir(true);
   if (absl::GetFlag(FLAGS_generate_proc)) {
     sample_options.set_calls_per_sample(0);
