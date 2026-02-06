@@ -131,6 +131,7 @@ class IrConverterMainTest(test_base.TestCase):
     ] + [s.path for s in dslx]
     if package_name is not None:
       cmd.append("--package_name=" + package_name)
+    cmd.append("--lower_to_proc_scoped_channels=true")
     cmd.extend(extra_flags)
     out = subprocess.run(
         cmd,
@@ -177,6 +178,7 @@ class IrConverterMainTest(test_base.TestCase):
       cmd.append(f"--top={top}")
     if package_name is not None:
       cmd.append("--package_name=" + package_name)
+    cmd.append("--lower_to_proc_scoped_channels=true")
     cmd.extend(extra_flags)
     out = subprocess.run(
         cmd,
@@ -619,13 +621,13 @@ class IrConverterMainTest(test_base.TestCase):
             name="exec",
             channels=[
                 _Channel(
-                    name="exec__foo",
+                    name="_foo",
                     type=_MY_TUPLE,
                     direction=xls_ir_interface_pb2.PackageInterfaceProto.Channel.IN,
                     sv_type="sv_tuple",
                 ),
                 _Channel(
-                    name="exec__bar",
+                    name="_bar",
                     type=_MY_TUPLE,
                     direction=xls_ir_interface_pb2.PackageInterfaceProto.Channel.OUT,
                     sv_type="sv_tuple",
@@ -634,6 +636,7 @@ class IrConverterMainTest(test_base.TestCase):
             procs=[
                 _proc(
                     name="__proc_channel_test__Execute_0_next",
+                    top=True,
                     state=[
                         _Param(
                             name="__state",
@@ -715,26 +718,32 @@ class IrConverterMainTest(test_base.TestCase):
             name="foo",
             channels=[
                 _Channel(
-                    name="foo__terminator",
+                    name="_start",
+                    type=xls_type_pb2.TypeProto(
+                        type_enum=xls_type_pb2.TypeProto.TUPLE
+                    ),
+                    direction=xls_ir_interface_pb2.PackageInterfaceProto.Channel.IN,
+                ),
+                _Channel(
+                    name="_answer",
+                    type=_32BITS,
+                    direction=xls_ir_interface_pb2.PackageInterfaceProto.Channel.OUT,
+                ),
+                _Channel(
+                    name="_terminator",
                     type=_1BITS,
                     direction=xls_ir_interface_pb2.PackageInterfaceProto.Channel.OUT,
-                )
+                ),
             ],
             procs=[
+                _proc(
+                    name="__d__DeepThought_0_next",
+                    state=[_Param(name="__state", type=_EMPTY_TUPLE)],
+                ),
                 _proc(
                     name="__d__TestPass_0_next",
                     top=True,
                     state=[_Param(name="__state", type=_EMPTY_TUPLE)],
-                ),
-                _proc(
-                    name="__d__TestPass__DeepThought_0_next",
-                    state=[_Param(name="__state", type=_EMPTY_TUPLE)],
-                ),
-            ],
-            functions=[
-                _function(
-                    name="__d__DeepThought.init",
-                    ret=_EMPTY_TUPLE,
                 ),
             ],
         ),
