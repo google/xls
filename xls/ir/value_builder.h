@@ -46,6 +46,7 @@ namespace xls {
 class ValueBuilder {
  public:
   using MaybeValueBuilder = std::variant<ValueBuilder, Value>;
+  ValueBuilder() : my_value_(Value()) {}
   explicit ValueBuilder(Value real) : my_value_(real) {}
   ValueBuilder(const ValueBuilder&) = default;
   ValueBuilder(ValueBuilder&&) = default;
