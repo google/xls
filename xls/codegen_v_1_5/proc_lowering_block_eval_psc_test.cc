@@ -172,13 +172,15 @@ absl::Status RunRequiredOptimizationPasses(Package* p) {
 
 // Run channel legalization, multi-proc scheduling, block conversion,
 // side-effect condition pass, and ultimately the  block stitching pass on the
-// given package. If `unit_out` is non-null, the codegen unit will be returned
-// in it.
+// given package.
 absl::StatusOr<bool> RunBlockStitchingPass(
     Package* p, std::string_view top_name = "top_proc",
     SchedulingOptions scheduling_options = DefaultSchedulingOptions(),
     verilog::CodegenOptions codegen_options = DefaultCodegenOptions(),
     bool generate_signature = true) {
+  if (!p->ChannelsAreProcScoped()) {
+    XLS_RETURN_IF_ERROR(xls::ConvertPackageToNewStyleProcs(p));
+  }
   if (VerifiedPackage* verified_package = dynamic_cast<VerifiedPackage*>(p)) {
     verified_package->AcceptInvalid();
   }
@@ -286,8 +288,6 @@ TEST_F(ProcLoweringBlockEvalTest, StitchNetworkWithFifos) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc1, pb1.Build());
   XLS_ASSERT_OK(p->SetTop(proc0));
   std::string proc1_name = proc1->name();
-
-  XLS_ASSERT_OK(xls::ConvertPackageToNewStyleProcs(p.get()));
 
   EXPECT_THAT(RunBlockStitchingPass(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(p->blocks(),
@@ -466,7 +466,7 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_StitchNetworkWithDirectConnections) {
       }));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_BlocksWithHardToUniquifyNames) {
+TEST_F(ProcLoweringBlockEvalTest, BlocksWithHardToUniquifyNames) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -513,13 +513,9 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_BlocksWithHardToUniquifyNames) {
   XLS_ASSERT_OK(p->SetTop(proc0));
   EXPECT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/TestName()),
               IsOkAndHolds(true));
-  EXPECT_THAT(
-      p->blocks(),
-      UnorderedElementsAre(
-          m::Block(proc0_name), m::Block(proc1_name), m::Block(proc2_name),
-          // proc0 should be renamed to next available suffix to make
-          // room for top, which has the name proc0 originally had.
-          m::Block(absl::StrCat(TestName(), "__3"))));
+  EXPECT_THAT(p->blocks(),
+              UnorderedElementsAre(m::Block(proc0_name), m::Block(proc1_name),
+                                   m::Block(proc2_name)));
 }
 
 TEST_F(ProcLoweringBlockEvalTest, DISABLED_StitchBlockWithLoopback) {
@@ -615,7 +611,7 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_StitchBlockWithLoopback) {
                   m::Instantiation("fifo_ch1", InstantiationKind::kFifo)));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_StitchBlockWithFfi) {
+TEST_F(ProcLoweringBlockEvalTest, StitchBlockWithFfi) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -653,6 +649,7 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_StitchBlockWithFfi) {
     pb0.Send(ch1, pb0.TupleIndex(rcv0, 0), invocation);
     XLS_ASSERT_OK_AND_ASSIGN(proc0, pb0.Build());
   }
+  std::string proc0_name = proc0->name();
 
   Proc* proc1;
   {
@@ -666,8 +663,7 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_StitchBlockWithFfi) {
   XLS_ASSERT_OK(p->SetTop(proc0));
   EXPECT_THAT(RunBlockStitchingPass(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(p->blocks(),
-              UnorderedElementsAre(m::Block("top_proc__1"),
-                                   m::Block("top_proc"), m::Block(proc1_name)));
+              UnorderedElementsAre(m::Block("top_proc"), m::Block(proc1_name)));
 }
 
 TEST_F(ProcLoweringBlockEvalTest, DISABLED_StitchBlockWithIdleOutput) {
@@ -686,16 +682,16 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_StitchBlockWithIdleOutput) {
       StreamingChannel * ch2,
       p->CreateStreamingChannel("ch2", ChannelOps::kSendOnly, u32));
 
-  ProcBuilder pb0(absl::StrCat(TestName(), 0), p.get());
+  ProcBuilder pb0("top_proc", p.get());
   BValue rcv0 = pb0.Receive(ch0, pb0.AfterAll({}));
   pb0.Send(ch1, pb0.TupleIndex(rcv0, 0), pb0.TupleIndex(rcv0, 1));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc0, pb0.Build());
+  XLS_ASSERT_OK(p->SetTop(proc0));
 
   ProcBuilder pb1(absl::StrCat(TestName(), 1), p.get());
   BValue rcv1 = pb1.Receive(ch1, pb1.AfterAll({}));
   pb1.Send(ch2, pb1.TupleIndex(rcv1, 0), pb1.TupleIndex(rcv1, 1));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc1, pb1.Build());
-  XLS_ASSERT_OK(p->SetTop(proc0));
   std::string proc1_name = proc1->name();
 
   EXPECT_THAT(
@@ -704,13 +700,12 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_StitchBlockWithIdleOutput) {
           /*scheduling_options=*/DefaultSchedulingOptions(),
           /*codegen_options=*/DefaultCodegenOptions().add_idle_output(true)),
       IsOkAndHolds(true));
-  EXPECT_THAT(p->blocks(),
-              UnorderedElementsAre(m::Block("top_proc__1"),
-                                   m::Block("top_proc"), m::Block(proc1_name)));
 
+  EXPECT_EQ(p->blocks().size(), 2);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("top_proc"));
-  // top_proc__1, proc1, and fifo
-  ASSERT_EQ(top_block->GetInstantiations().size(), 3);
+  ASSERT_EQ(top_block->GetInstantiations().size(), 2);
+
+  // This fails with proc-scoped channels.
   EXPECT_THAT(
       top_block->nodes(),
       Contains(m::OutputPort(
@@ -926,6 +921,9 @@ absl::StatusOr<BlockEvaluationResults> EvalBlock(
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateInterpreter(
     Package* p,
     const absl::flat_hash_map<std::string, std::vector<int64_t>>& inputs) {
+  if (!p->ChannelsAreProcScoped()) {
+    XLS_RETURN_IF_ERROR(xls::ConvertPackageToNewStyleProcs(p));
+  }
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<SerialProcRuntime> interpreter,
                        CreateInterpreterSerialProcRuntime(p));
   XLS_ASSIGN_OR_RETURN(Proc * top_proc, p->GetTopAsProc());
@@ -1278,7 +1276,7 @@ absl::StatusOr<Proc*> MakeArbiterProc(std::string_view name,
   return b.Build();
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_SingleProc) {
+TEST_F(ProcLoweringBlockEvalTest, SingleProc) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -1293,6 +1291,7 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_SingleProc) {
   b.Send(ch_out, b.TupleIndex(rcv, 0), b.TupleIndex(rcv, 1));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build());
   std::string proc_name = proc->name();
+  XLS_ASSERT_OK(p->SetTop(proc));
 
   ASSERT_THAT(
       RunBlockStitchingPass(
@@ -1301,10 +1300,10 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_SingleProc) {
           /*codegen_options=*/DefaultCodegenOptions(),
           /*generate_signature=*/false),  // Don't generate signature, otherwise
                                           // we'll always get changed=true.
-      IsOkAndHolds(false));
+      IsOkAndHolds(true));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcs) {
+TEST_F(ProcLoweringBlockEvalTest, NestedProcs) {
   // Nested procs where the inner proc does a trivial arithmetic operation.
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
@@ -1326,9 +1325,11 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcs) {
                                 /*initial_values=*/{},
                                 /*fifo_config=*/FifoConfigWithDepth(1)));
 
-  XLS_ASSERT_OK(MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get())
-                    .status());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * top_proc,
+      MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get()));
   XLS_ASSERT_OK(MakeDoublerProc("B", a_to_b, b_to_a, p.get()).status());
+  XLS_ASSERT_OK(p->SetTop(top_proc));
 
   EXPECT_EQ(p->procs().size(), 2);
   XLS_EXPECT_OK(
@@ -1338,14 +1339,14 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcs) {
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
               IsOkAndHolds(true));
 
-  EXPECT_EQ(p->blocks().size(), 3);  // 2 leaf + 1 container
+  EXPECT_EQ(p->blocks().size(), 2);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"in", {1, 2, 3}}},
                         /*num_cycles=*/10),
               IsOkAndHolds(BlockOutputsEq({{"out", {2, 4, 6}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcsFifoDepth1) {
+TEST_F(ProcLoweringBlockEvalTest, NestedProcsFifoDepth1) {
   // Nested procs where the inner proc does a trivial arithmetic operation.
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
@@ -1367,8 +1368,10 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcsFifoDepth1) {
                                 /*initial_values=*/{},
                                 /*fifo_config=*/FifoConfigWithDepth(1)));
 
-  XLS_ASSERT_OK(MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get())
-                    .status());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * top_proc,
+      MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get()));
+  XLS_ASSERT_OK(p->SetTop(top_proc));
   XLS_ASSERT_OK(MakeDoublerProc("B", a_to_b, b_to_a, p.get()).status());
 
   EXPECT_EQ(p->procs().size(), 2);
@@ -1379,15 +1382,14 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcsFifoDepth1) {
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
               IsOkAndHolds(true));
 
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"in", {1, 2, 3}}},
                         /*num_cycles=*/12),
               IsOkAndHolds(BlockOutputsEq({{"out", {2, 4, 6}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest,
-       DISABLED_NestedProcsWithUnspecifiedFifoDepth) {
+TEST_F(ProcLoweringBlockEvalTest, NestedProcsWithUnspecifiedFifoDepth) {
   // Nested procs where the inner proc does a trivial arithmetic operation.
   // Don't use CreatePackage() because that returns a
   // VerifiedPackage and this purposely will fail to verify.
@@ -1409,8 +1411,10 @@ TEST_F(ProcLoweringBlockEvalTest,
                                /*initial_values=*/{},
                                /*fifo_config=*/FifoConfigWithDepth(0)));
 
-  XLS_ASSERT_OK(
-      MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, &p).status());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * top_proc,
+      MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, &p));
+  XLS_ASSERT_OK(p.SetTop(top_proc));
   XLS_ASSERT_OK(MakeDoublerProc("B", a_to_b, b_to_a, &p).status());
 
   EXPECT_EQ(p.procs().size(), 2);
@@ -1422,7 +1426,7 @@ TEST_F(ProcLoweringBlockEvalTest,
                        HasSubstr("Channel a_to_b has no fifo config.")));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcsWithNonzeroFifoDepth) {
+TEST_F(ProcLoweringBlockEvalTest, NestedProcsWithNonzeroFifoDepth) {
   // Nested procs where the inner proc does a trivial arithmetic operation.
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
@@ -1444,13 +1448,15 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcsWithNonzeroFifoDepth) {
                                 /*initial_values=*/{},
                                 /*fifo_config=*/FifoConfigWithDepth(42)));
 
-  XLS_ASSERT_OK(MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get())
-                    .status());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * top_proc,
+      MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get()));
+  XLS_ASSERT_OK(p->SetTop(top_proc));
   XLS_ASSERT_OK(MakeDoublerProc("B", a_to_b, b_to_a, p.get()).status());
 
   EXPECT_EQ(p->procs().size(), 2);
   XLS_EXPECT_OK(
-      EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {2, 4, 6}}})
+      EvalAndExpect(p.get(), {{"in", {1, 3, 5}}}, {{"out", {2, 6, 10}}})
           .status());
 
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
@@ -1478,8 +1484,10 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcsWithSingleValue) {
       Channel * b_to_a,
       p->CreateSingleValueChannel("b_to_a", ChannelOps::kSendReceive, u32));
 
-  XLS_ASSERT_OK(MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get())
-                    .status());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * top_proc,
+      MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get()));
+  XLS_ASSERT_OK(p->SetTop(top_proc));
   XLS_ASSERT_OK(MakeDoublerProc("B", a_to_b, b_to_a, p.get()).status());
 
   EXPECT_EQ(p->procs().size(), 2);
@@ -1495,6 +1503,12 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcsWithSingleValue) {
       IsOkAndHolds(BlockOutputsMatch(ElementsAre(Pair("out", Each(Eq(2)))))));
 }
 
+/**
+ * Fails with PSC with: Check failed: config.Validate() is OK
+ * (FAILED_PRECONDITION: register_pop_outputs adds an extra FIFO entry for the
+ * output and still requires a depth>=1 FIFO in front of the output stage, so we
+ * require depth>=2
+ */
 TEST_F(ProcLoweringBlockEvalTest,
        DISABLED_NestedProcsWithConditionalSingleValueSend) {
   // Nested procs where the outer proc conditionally sends on a single value
@@ -1525,7 +1539,8 @@ TEST_F(ProcLoweringBlockEvalTest,
                                /*pred=*/pred_data_is_odd, /*data=*/data_in);
   BValue rcv_from_b = ab.Receive(b_to_a, send_to_b);
   ab.Send(ch_out, ab.TupleIndex(rcv_from_b, 0), ab.TupleIndex(rcv_from_b, 1));
-  XLS_ASSERT_OK(ab.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc, ab.Build());
+  XLS_ASSERT_OK(p->SetTop(top_proc));
 
   XLS_ASSERT_OK(MakeDoublerProc("B", a_to_b, b_to_a, p.get()).status());
 
@@ -1547,7 +1562,7 @@ TEST_F(ProcLoweringBlockEvalTest,
                   Pair("out", _)))));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcPassThrough) {
+TEST_F(ProcLoweringBlockEvalTest, NestedProcPassThrough) {
   // Nested procs where the inner proc passes through the value.
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
@@ -1569,8 +1584,10 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcPassThrough) {
                                 /*initial_values=*/{},
                                 /*fifo_config=*/FifoConfigWithDepth(1)));
 
-  XLS_ASSERT_OK(MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get())
-                    .status());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * top_proc,
+      MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get()));
+  XLS_ASSERT_OK(p->SetTop(top_proc));
   XLS_ASSERT_OK(MakeLoopbackProc("B", a_to_b, b_to_a, p.get()).status());
 
   EXPECT_EQ(p->procs().size(), 2);
@@ -1581,14 +1598,14 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcPassThrough) {
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
               IsOkAndHolds(true));
 
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"in", {123, 22, 42}}},
                         /*num_cycles=*/12),
               IsOkAndHolds(BlockOutputsEq({{"out", {123, 22, 42}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcDelayedPassThrough) {
+TEST_F(ProcLoweringBlockEvalTest, NestedProcDelayedPassThrough) {
   // Nested procs where the inner proc passes through the value after a delay.
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
@@ -1617,7 +1634,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcDelayedPassThrough) {
   BValue rcv_from_b = ab.Receive(b_to_a, send_to_b);
   ab.Send(ch_out, ab.TupleIndex(rcv_from_b, 0),
           ab.Add(in_data, ab.TupleIndex(rcv_from_b, 1)));
-  XLS_ASSERT_OK(ab.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc, ab.Build());
+  XLS_ASSERT_OK(p->SetTop(top_proc));
 
   XLS_ASSERT_OK(
       MakeDelayedLoopbackProc("B", /*delay=*/3, a_to_b, b_to_a, p.get())
@@ -1631,14 +1649,14 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcDelayedPassThrough) {
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
               IsOkAndHolds(true));
 
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"in", {123, 22, 42}}},
                         /*num_cycles=*/12),
               IsOkAndHolds(BlockOutputsEq({{"out", {246, 44, 84}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_InputPlusDelayedInput) {
+TEST_F(ProcLoweringBlockEvalTest, InputPlusDelayedInput) {
   // Proc where a value is added to a delayed version of itself. The value is
   // delayed by sending it through another proc. This tests the saving of inputs
   // from external channels.
@@ -1662,8 +1680,10 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_InputPlusDelayedInput) {
                                 /*initial_values=*/{},
                                 /*fifo_config=*/FifoConfigWithDepth(1)));
 
-  XLS_ASSERT_OK(MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get())
-                    .status());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * top_proc,
+      MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get()));
+  XLS_ASSERT_OK(p->SetTop(top_proc));
   XLS_ASSERT_OK(
       MakeDelayedLoopbackProc("B", /*delay=*/42, a_to_b, b_to_a, p.get())
           .status());
@@ -1676,14 +1696,14 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_InputPlusDelayedInput) {
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
               IsOkAndHolds(true));
 
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"in", {123, 22, 42}}},
                         /*num_cycles=*/168),
               IsOkAndHolds(BlockOutputsEq({{"out", {123, 22, 42}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcsTrivialInnerLoop) {
+TEST_F(ProcLoweringBlockEvalTest, NestedProcsTrivialInnerLoop) {
   // Nested procs where the inner proc loops more than once for each received
   // input.
   auto p = CreatePackage();
@@ -1706,8 +1726,10 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcsTrivialInnerLoop) {
                                 /*initial_values=*/{},
                                 /*fifo_config=*/FifoConfigWithDepth(1)));
 
-  XLS_ASSERT_OK(MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get())
-                    .status());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * top_proc,
+      MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get()));
+  XLS_ASSERT_OK(p->SetTop(top_proc));
 
   {
     // Inner proc performs the following:
@@ -1734,14 +1756,14 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcsTrivialInnerLoop) {
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
               IsOkAndHolds(true));
 
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"in", {1, 2, 3}}},
                         /*num_cycles=*/12),
               IsOkAndHolds(BlockOutputsEq({{"out", {42, 42, 42}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcsIota) {
+TEST_F(ProcLoweringBlockEvalTest, NestedProcsIota) {
   // Output only nested procs where the inner proc just implements iota
   // starting at 42.
   auto p = CreatePackage();
@@ -1760,7 +1782,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcsIota) {
     ProcBuilder ab("A", p.get());
     BValue rcv_from_b = ab.Receive(b_to_a, ab.Literal(Value::Token()));
     ab.Send(ch_out, ab.TupleIndex(rcv_from_b, 0), ab.TupleIndex(rcv_from_b, 1));
-    XLS_ASSERT_OK(ab.Build());
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc, ab.Build());
+    XLS_ASSERT_OK(p->SetTop(top_proc));
   }
 
   {
@@ -1777,14 +1800,14 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcsIota) {
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
               IsOkAndHolds(true));
 
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {},
                         /*num_cycles=*/3),
               IsOkAndHolds(BlockOutputsEq({{"out", {42, 43, 44}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcsOddIota) {
+TEST_F(ProcLoweringBlockEvalTest, NestedProcsOddIota) {
   // Output only nested procs where the inner proc just implements iota
   // starting at 42 but only sends the odd values.
   auto p = CreatePackage();
@@ -1803,7 +1826,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcsOddIota) {
     ProcBuilder ab("A", p.get());
     BValue rcv_from_b = ab.Receive(b_to_a, ab.Literal(Value::Token()));
     ab.Send(ch_out, ab.TupleIndex(rcv_from_b, 0), ab.TupleIndex(rcv_from_b, 1));
-    XLS_ASSERT_OK(ab.Build());
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc, ab.Build());
+    XLS_ASSERT_OK(p->SetTop(top_proc));
   }
 
   {
@@ -1823,14 +1847,14 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcsOddIota) {
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
               IsOkAndHolds(true));
 
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {},
                         /*num_cycles=*/12),
               IsOkAndHolds(BlockOutputsEq({{"out", {43, 45, 47, 49}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_SynchronizedNestedProcs) {
+TEST_F(ProcLoweringBlockEvalTest, SynchronizedNestedProcs) {
   // Nested procs where every other iteration each proc does nothing (send and
   // receive predicates off). The procs are synchronized in that they are active
   // on the same ticks.
@@ -1874,7 +1898,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_SynchronizedNestedProcs) {
     ab.SendIf(ch_out, ab.TupleIndex(rcv_from_b, 0), ab.GetStateParam(0),
               ab.TupleIndex(rcv_from_b, 1));
     ab.Next(st, ab.Not(st));
-    XLS_ASSERT_OK(ab.Build());
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc, ab.Build());
+    XLS_ASSERT_OK(p->SetTop(top_proc));
   }
 
   {
@@ -1903,14 +1928,14 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_SynchronizedNestedProcs) {
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
               IsOkAndHolds(true));
 
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"in", {1, 2, 3}}},
                         /*num_cycles=*/12),
               IsOkAndHolds(BlockOutputsEq({{"out", {43, 44, 45}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcsNontrivialInnerLoop) {
+TEST_F(ProcLoweringBlockEvalTest, NestedProcsNontrivialInnerLoop) {
   // Nested procs where the inner proc loops more than once for each received
   // input and does something interesting.
   auto p = CreatePackage();
@@ -1933,8 +1958,11 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcsNontrivialInnerLoop) {
                                 /*initial_values=*/{},
                                 /*fifo_config=*/FifoConfigWithDepth(1)));
 
-  XLS_ASSERT_OK(MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get())
-                    .status());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * top_proc,
+      MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get()));
+  XLS_ASSERT_OK(p->SetTop(top_proc));
+
   {
     // Inner proc has a counter which loops from 0, 1, 2, 3. It essentially
     // performs the following:
@@ -1972,13 +2000,13 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_NestedProcsNontrivialInnerLoop) {
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
               IsOkAndHolds(true));
 
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"in", {1, 2, 3}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {7, 8, 9}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_DoubleNestedProcsPassThrough) {
+TEST_F(ProcLoweringBlockEvalTest, DoubleNestedProcsPassThrough) {
   // Nested procs where the inner proc passes through the value.
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
@@ -2011,8 +2039,10 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_DoubleNestedProcsPassThrough) {
                                 /*initial_values=*/{},
                                 /*fifo_config=*/FifoConfigWithDepth(1)));
 
-  XLS_ASSERT_OK(MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get())
-                    .status());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * top_proc,
+      MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get()));
+  XLS_ASSERT_OK(p->SetTop(top_proc));
   XLS_ASSERT_OK(
       MakePassThroughProc("B", a_to_b, b_to_c, c_to_b, b_to_a, p.get())
           .status());
@@ -2026,13 +2056,13 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_DoubleNestedProcsPassThrough) {
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
               IsOkAndHolds(true));
 
-  EXPECT_EQ(p->blocks().size(), 4);
+  EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"in", {123, 22, 42}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {123, 22, 42}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_SequentialNestedProcsPassThrough) {
+TEST_F(ProcLoweringBlockEvalTest, SequentialNestedProcsPassThrough) {
   // Sequential procs where each inner proc passes through the value.
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
@@ -2078,7 +2108,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_SequentialNestedProcsPassThrough) {
     BValue rcv_from_c = ab.Receive(c_to_a, send_to_c);
 
     ab.Send(ch_out, ab.TupleIndex(rcv_from_c, 0), ab.TupleIndex(rcv_from_c, 1));
-    XLS_ASSERT_OK(ab.Build());
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc, ab.Build());
+    XLS_ASSERT_OK(p->SetTop(top_proc));
   }
 
   XLS_ASSERT_OK(
@@ -2096,14 +2127,13 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_SequentialNestedProcsPassThrough) {
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
               IsOkAndHolds(true));
 
-  EXPECT_EQ(p->blocks().size(), 4);
+  EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"in", {123, 22, 42}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {123, 22, 42}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest,
-       DISABLED_SequentialNestedLoopingProcsWithState) {
+TEST_F(ProcLoweringBlockEvalTest, SequentialNestedLoopingProcsWithState) {
   // Sequential procs where each inner proc loops several times.
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
@@ -2164,7 +2194,8 @@ TEST_F(ProcLoweringBlockEvalTest,
     BValue rcv_from_d = ab.Receive(d_to_a, send_to_d);
 
     ab.Send(ch_out, ab.TupleIndex(rcv_from_d, 0), ab.TupleIndex(rcv_from_d, 1));
-    XLS_ASSERT_OK(ab.Build());
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc, ab.Build());
+    XLS_ASSERT_OK(p->SetTop(top_proc));
   }
 
   XLS_ASSERT_OK(
@@ -2187,13 +2218,13 @@ TEST_F(ProcLoweringBlockEvalTest,
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
               IsOkAndHolds(true));
 
-  EXPECT_EQ(p->blocks().size(), 5);
+  EXPECT_EQ(p->blocks().size(), 4);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"in", {0, 1, 2}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {13, 14, 15}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_SequentialNestedProcsWithLoops) {
+TEST_F(ProcLoweringBlockEvalTest, SequentialNestedProcsWithLoops) {
   // Sequential procs where the inner procs loop and do interesting things.
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
@@ -2239,7 +2270,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_SequentialNestedProcsWithLoops) {
     BValue rcv_from_c = ab.Receive(c_to_a, send_to_c);
 
     ab.Send(ch_out, ab.TupleIndex(rcv_from_c, 0), ab.TupleIndex(rcv_from_c, 1));
-    XLS_ASSERT_OK(ab.Build());
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc, ab.Build());
+    XLS_ASSERT_OK(p->SetTop(top_proc));
   }
 
   XLS_ASSERT_OK(
@@ -2255,13 +2287,13 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_SequentialNestedProcsWithLoops) {
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
               IsOkAndHolds(true));
 
-  EXPECT_EQ(p->blocks().size(), 4);
+  EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"in", {123, 22, 42}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {246, 44, 84}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_DoubleNestedLoops) {
+TEST_F(ProcLoweringBlockEvalTest, DoubleNestedLoops) {
   // Nested procs where the nested procs loop. The innermost proc loops 4 times,
   // the middle proc loops 2 times.
   auto p = CreatePackage();
@@ -2295,8 +2327,10 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_DoubleNestedLoops) {
                                 /*initial_values=*/{},
                                 /*fifo_config=*/FifoConfigWithDepth(1)));
 
-  XLS_ASSERT_OK(MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get())
-                    .status());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * top_proc,
+      MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get()));
+  XLS_ASSERT_OK(p->SetTop(top_proc));
   {
     // Middle proc "B" accumulates the input and passes on the accumulation
     // value:
@@ -2374,14 +2408,14 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_DoubleNestedLoops) {
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
               IsOkAndHolds(true));
 
-  EXPECT_EQ(p->blocks().size(), 4);
+  EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"in", {1, 100, 100000}}},
                         /*num_cycles=*/16),
               IsOkAndHolds(BlockOutputsEq({{"out", {16, 116, 100116}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_MultiIO) {
+TEST_F(ProcLoweringBlockEvalTest, MultiIO) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -2435,7 +2469,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_MultiIO) {
     BValue send_sum = ab.Send(x_plus_y_out, ab.TupleIndex(rcv_diff, 0),
                               ab.TupleIndex(rcv_sum, 1));
     ab.Send(x_minus_y_out, send_sum, ab.TupleIndex(rcv_diff, 1));
-    XLS_ASSERT_OK(ab.Build());
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc, ab.Build());
+    XLS_ASSERT_OK(p->SetTop(top_proc));
   }
 
   XLS_ASSERT_OK(MakeSumAndDifferenceProc("B", pass_x, pass_y, x_plus_y,
@@ -2451,14 +2486,14 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_MultiIO) {
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
               IsOkAndHolds(true));
 
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"x", {123, 22, 42}}, {"y", {10, 20, 30}}}),
               IsOkAndHolds(BlockOutputsEq({{"x_plus_y_out", {133, 42, 72}},
                                            {"x_minus_y_out", {113, 2, 12}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_NonTopProcsWithExternalStreamingIO) {
+TEST_F(ProcLoweringBlockEvalTest, NonTopProcsWithExternalStreamingIO) {
   // The inlined proc has streaming IO (external channels).
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
@@ -2496,7 +2531,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_NonTopProcsWithExternalStreamingIO) {
 
     BValue rcv_sum = ab.Receive(x_plus_y, send_x);
     ab.Send(x_plus_y_out, ab.TupleIndex(rcv_sum, 0), ab.TupleIndex(rcv_sum, 1));
-    XLS_ASSERT_OK(ab.Build());
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc, ab.Build());
+    XLS_ASSERT_OK(p->SetTop(top_proc));
   }
 
   // Proc "B" will be inlined and has internal communication with "A" (pass_x
@@ -2514,7 +2550,7 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_NonTopProcsWithExternalStreamingIO) {
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
               IsOkAndHolds(true));
 
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"x", {123, 22, 42}}, {"y", {10, 20, 30}}},
                         /*num_cycles=*/15),
@@ -2522,8 +2558,7 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_NonTopProcsWithExternalStreamingIO) {
                                            {"x_minus_y_out", {113, 2, 12}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest,
-       DISABLED_NonTopProcsWithExternalSingleValueIO) {
+TEST_F(ProcLoweringBlockEvalTest, NonTopProcsWithExternalSingleValueIO) {
   // The inlined proc has single-value input on an external channel.
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
@@ -2561,7 +2596,8 @@ TEST_F(ProcLoweringBlockEvalTest,
 
     BValue rcv_sum = ab.Receive(x_plus_y, send_x);
     ab.Send(x_plus_y_out, ab.TupleIndex(rcv_sum, 0), ab.TupleIndex(rcv_sum, 1));
-    XLS_ASSERT_OK(ab.Build());
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc, ab.Build());
+    XLS_ASSERT_OK(p->SetTop(top_proc));
   }
 
   // Proc "B" will be inlined and has internal communication with "A" (pass_x
@@ -2584,6 +2620,13 @@ TEST_F(ProcLoweringBlockEvalTest,
                                            {"x_minus_y_out", {113, 12, 32}}})));
 }
 
+/**
+ * With PSC this fails with
+ * block_interpreter.cc:196] Check failed: config.Validate() is OK
+ * (FAILED_PRECONDITION: register_pop_outputs adds an extra FIFO entry for the
+ * output and still requires a depth>=1 FIFO in front of the output stage, so we
+ * require depth>=2
+ */
 TEST_F(ProcLoweringBlockEvalTest, DISABLED_SingleValueAndStreamingChannels) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
@@ -2623,7 +2666,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_SingleValueAndStreamingChannels) {
 
     BValue rcv_sum = ab.Receive(pass_sum, send_sv);
     ab.Send(sum_out, ab.TupleIndex(rcv_sum, 0), ab.TupleIndex(rcv_sum, 1));
-    XLS_ASSERT_OK(ab.Build());
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc, ab.Build());
+    XLS_ASSERT_OK(p->SetTop(top_proc));
   }
 
   XLS_ASSERT_OK(MakeSumProc("B", pass_x, pass_sv, pass_sum, p.get()));
@@ -2636,10 +2680,9 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_SingleValueAndStreamingChannels) {
                               {{"sum", {148, 47, 67}}})
                     .status());
 
-  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
-              IsOkAndHolds(true));
+  XLS_ASSERT_OK(RunBlockStitchingPass(p.get(), /*top_name=*/"A").status());
 
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"x", {123, 22, 42}}, {"sv", {10}}}),
               IsOkAndHolds(BlockOutputsEq({{"sum", {133, 32, 52}}})));
@@ -2647,7 +2690,7 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_SingleValueAndStreamingChannels) {
               IsOkAndHolds(BlockOutputsEq({{"sum", {148, 47, 67}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_TriangleProcNetwork) {
+TEST_F(ProcLoweringBlockEvalTest, TriangleProcNetwork) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -2698,7 +2741,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_TriangleProcNetwork) {
     BValue rcv_from_c = ab.Receive(c_to_a, send_to_c);
 
     ab.Send(ch_out, ab.TupleIndex(rcv_from_c, 0), ab.TupleIndex(rcv_from_c, 1));
-    XLS_ASSERT_OK(ab.Build());
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc, ab.Build());
+    XLS_ASSERT_OK(p->SetTop(top_proc));
   }
 
   {
@@ -2731,15 +2775,14 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_TriangleProcNetwork) {
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
               IsOkAndHolds(true));
 
-  EXPECT_EQ(p->blocks().size(), 4);
+  EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"in", {123, 22, 42}}},
                         /*num_cycles=*/30),
               IsOkAndHolds(BlockOutputsEq({{"out", {369, 66, 126}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest,
-       DISABLED_DelayedReceiveWithDataLossFifoDepth0) {
+TEST_F(ProcLoweringBlockEvalTest, DelayedReceiveWithDataLossFifoDepth0) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -2760,8 +2803,10 @@ TEST_F(ProcLoweringBlockEvalTest,
                                 /*initial_values=*/{},
                                 /*fifo_config=*/FifoConfigWithDepth(1)));
 
-  XLS_ASSERT_OK(MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get())
-                    .status());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * top_proc,
+      MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get()));
+  XLS_ASSERT_OK(p->SetTop(top_proc));
   {
     // Inner proc does nothing on the first tick (i.e., doesn't receive
     // data). This causes data loss because the channel is FIFO depth 0.
@@ -2789,14 +2834,14 @@ TEST_F(ProcLoweringBlockEvalTest,
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
               IsOkAndHolds(true));
 
-  EXPECT_THAT(p->blocks().size(), 3);
+  EXPECT_THAT(p->blocks().size(), 2);
 
   EXPECT_THAT(EvalBlock(p->GetBlock("A").value(), {{"in", {1, 2, 3}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {43, 44, 45}}})));
 }
 
 TEST_F(ProcLoweringBlockEvalTest,
-       DISABLED_DelayedReceiveWithNoDataLossFifoDepth1Variant0) {
+       DelayedReceiveWithNoDataLossFifoDepth1Variant0) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -2817,8 +2862,10 @@ TEST_F(ProcLoweringBlockEvalTest,
                                 /*initial_values=*/{},
                                 /*fifo_config=*/FifoConfigWithDepth(0)));
 
-  XLS_ASSERT_OK(MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get())
-                    .status());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * top_proc,
+      MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get()));
+  XLS_ASSERT_OK(p->SetTop(top_proc));
   {
     // Inner proc does nothing on the first tick (i.e., doesn't receive
     // data). Because the FIFO depth is 1, data is stored for a cycle which
@@ -2846,7 +2893,7 @@ TEST_F(ProcLoweringBlockEvalTest,
 
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
               IsOkAndHolds(true));
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"in", {1, 2, 3}}}),
@@ -2854,7 +2901,7 @@ TEST_F(ProcLoweringBlockEvalTest,
 }
 
 TEST_F(ProcLoweringBlockEvalTest,
-       DISABLED_DelayedReceiveWithNoDataLossFifoDepth1Variant1) {
+       DelayedReceiveWithNoDataLossFifoDepth1Variant1) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -2875,8 +2922,10 @@ TEST_F(ProcLoweringBlockEvalTest,
                                 /*initial_values=*/{},
                                 /*fifo_config=*/FifoConfigWithDepth(5)));
 
-  XLS_ASSERT_OK(MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get())
-                    .status());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * top_proc,
+      MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get()));
+  XLS_ASSERT_OK(p->SetTop(top_proc));
   {
     // Inner proc does not receive on the first tick, but does send. Because the
     // FIFO depth is 1 no data should be lost. On the second tick of the inner
@@ -2909,15 +2958,14 @@ TEST_F(ProcLoweringBlockEvalTest,
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
               IsOkAndHolds(true));
 
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"in", {1, 2, 3}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {42, 43, 44}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest,
-       DISABLED_DelayedReceiveWithDataLossFifoDepth1) {
+TEST_F(ProcLoweringBlockEvalTest, DelayedReceiveWithDataLossFifoDepth1) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -2938,8 +2986,10 @@ TEST_F(ProcLoweringBlockEvalTest,
                                 /*initial_values=*/{},
                                 /*fifo_config=*/FifoConfigWithDepth(1)));
 
-  XLS_ASSERT_OK(MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get())
-                    .status());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * top_proc,
+      MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get()));
+  XLS_ASSERT_OK(p->SetTop(top_proc));
   {
     // Inner proc does not receive on the first *two* ticks (i.e., doesn't
     // receive data). The FIFO depth is 1 but that is insufficient to prevent
@@ -2971,7 +3021,7 @@ TEST_F(ProcLoweringBlockEvalTest,
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
               IsOkAndHolds(true));
 
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   // For proc inlining, inlined channels could not backpressure and this would
   // be an assertion failure. With block stitching, the FIFO will backpressure
@@ -2980,7 +3030,7 @@ TEST_F(ProcLoweringBlockEvalTest,
               IsOkAndHolds(BlockOutputsEq({{"out", {42, 42, 43}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_DataLoss) {
+TEST_F(ProcLoweringBlockEvalTest, DataLoss) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -3022,7 +3072,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_DataLoss) {
   ab.SendIf(ch_out, ab.TupleIndex(rcv_from_b, 0), st,
             ab.TupleIndex(rcv_from_b, 1));
   ab.Next(st, ab.Not(st));
-  XLS_ASSERT_OK(ab.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc, ab.Build());
+  XLS_ASSERT_OK(p->SetTop(top_proc));
 
   XLS_ASSERT_OK(MakeLoopbackProc("B", a_to_b, b_to_a, p.get()).status());
 
@@ -3034,14 +3085,13 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_DataLoss) {
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
               IsOkAndHolds(true));
 
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"in", {1, 2, 3, 4, 5}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {1, 2, 3}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest,
-       DISABLED_BlockingReceiveBlocksSendsForDepth0Fifos) {
+TEST_F(ProcLoweringBlockEvalTest, BlockingReceiveBlocksSendsForDepth0Fifos) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -3078,7 +3128,8 @@ TEST_F(ProcLoweringBlockEvalTest,
         ab.SendIf(a_to_b0, ab.TupleIndex(rcv, 0), st, ab.Literal(UBits(0, 32)));
     ab.Send(a_to_b1, send0, ab.Literal(UBits(0, 32)));
     ab.Next(st, ab.Literal(UBits(1, 1)));
-    XLS_ASSERT_OK(ab.Build().status());
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc, ab.Build());
+    XLS_ASSERT_OK(p->SetTop(top_proc));
   }
 
   {
@@ -3107,12 +3158,12 @@ TEST_F(ProcLoweringBlockEvalTest,
   // For proc inlining, inlined channels could not backpressure and this would
   // be an assertion failure. With block stitching, the depth-0 FIFO will
   // backpressure and you get the same behavior as the proc network.
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
   EXPECT_THAT(EvalBlock(p->GetBlock("A").value(), {{"in", {1, 2, 3}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_TwoSendsOneReceive) {
+TEST_F(ProcLoweringBlockEvalTest, TwoSendsOneReceive) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -3158,7 +3209,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_TwoSendsOneReceive) {
     ab.Send(result_out, ab.TupleIndex(rcv_result, 0),
             ab.TupleIndex(rcv_result, 1));
 
-    XLS_ASSERT_OK(ab.Build());
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc, ab.Build());
+    XLS_ASSERT_OK(p->SetTop(top_proc));
   }
 
   {
@@ -3195,13 +3247,12 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_TwoSendsOneReceive) {
               IsOkAndHolds(true));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  // A, B, and the top block.
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
   EXPECT_THAT(EvalBlock(top_block, {{"x", {2, 5, 7}}}),
               IsOkAndHolds(BlockOutputsEq({{"result_out", {4, 14, 28}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_TwoReceivesOneSend) {
+TEST_F(ProcLoweringBlockEvalTest, TwoReceivesOneSend) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -3258,7 +3309,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_TwoReceivesOneSend) {
     ab.Next(new_input, done);
     ab.Next(last_input, received_input, new_input);
 
-    XLS_ASSERT_OK(ab.Build());
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc, ab.Build());
+    XLS_ASSERT_OK(p->SetTop(top_proc));
   }
 
   {
@@ -3294,8 +3346,7 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_TwoReceivesOneSend) {
               IsOkAndHolds(true));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  // A, B, and the top block.
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
   EXPECT_THAT(EvalBlock(top_block, {{"x", {2, 5, 7}}}),
               IsOkAndHolds(BlockOutputsEq({{"result_out", {4, 14, 28}}})));
 }
@@ -3319,8 +3370,7 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_TwoReceivesOneSend) {
 // adapter. So... this test doesn't really look like the original test. Still,
 // we end up getting the same outputs as the original test and `y` is still a
 // single value channel.
-TEST_F(ProcLoweringBlockEvalTest,
-       DISABLED_SingleValueChannelWithVariantElements1) {
+TEST_F(ProcLoweringBlockEvalTest, SingleValueChannelWithVariantElements1) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   Type* u64 = p->GetBitsType(64);
@@ -3380,7 +3430,8 @@ TEST_F(ProcLoweringBlockEvalTest,
                                   ab.TupleIndex(rcv_result_data, 0));
     ab.Send(result1_out, send_result0, ab.TupleIndex(rcv_result_data, 1));
 
-    XLS_ASSERT_OK(ab.Build());
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc, ab.Build());
+    XLS_ASSERT_OK(p->SetTop(top_proc));
   }
 
   XLS_ASSERT_OK(
@@ -3400,15 +3451,13 @@ TEST_F(ProcLoweringBlockEvalTest,
               IsOkAndHolds(true));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  // A, B, and the top block.
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
   EXPECT_THAT(EvalBlock(top_block, {{"x", {2, 5, 7}}, {"y", {10}}}),
               IsOkAndHolds(BlockOutputsEq({{"result0_out", {4, 14, 28}},
                                            {"result1_out", {20, 40, 60}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest,
-       DISABLED_SingleValueChannelWithVariantElements2) {
+TEST_F(ProcLoweringBlockEvalTest, SingleValueChannelWithVariantElements2) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   Type* u64 = p->GetBitsType(64);
@@ -3468,7 +3517,8 @@ TEST_F(ProcLoweringBlockEvalTest,
                                   ab.TupleIndex(rcv_result_data, 0));
     ab.Send(result1_out, send_result0, ab.TupleIndex(rcv_result_data, 1));
 
-    XLS_ASSERT_OK(ab.Build());
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc, ab.Build());
+    XLS_ASSERT_OK(p->SetTop(top_proc));
   }
 
   XLS_ASSERT_OK(
@@ -3487,14 +3537,13 @@ TEST_F(ProcLoweringBlockEvalTest,
               IsOkAndHolds(true));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
   EXPECT_THAT(EvalBlock(top_block, {{"x", {2, 5, 7}}, {"y", {10}}}),
               IsOkAndHolds(BlockOutputsEq({{"result0_out", {6, 18, 34}},
                                            {"result1_out", {22, 44, 66}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest,
-       DISABLED_SingleValueChannelWithVariantElements3) {
+TEST_F(ProcLoweringBlockEvalTest, SingleValueChannelWithVariantElements3) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   Type* u32_u32 = p->GetTupleType({u32, u32});
@@ -3553,7 +3602,8 @@ TEST_F(ProcLoweringBlockEvalTest,
                                   ab.TupleIndex(rcv_result_data, 0));
     ab.Send(result1_out, send_result0, ab.TupleIndex(rcv_result_data, 1));
 
-    XLS_ASSERT_OK(ab.Build());
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc, ab.Build());
+    XLS_ASSERT_OK(p->SetTop(top_proc));
   }
 
   XLS_ASSERT_OK(
@@ -3571,15 +3621,14 @@ TEST_F(ProcLoweringBlockEvalTest,
                   DefaultSchedulingOptions().worst_case_throughput(2)),
               IsOkAndHolds(true));
 
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"x", {2, 5, 7}}, {"y", {10}}}),
               IsOkAndHolds(BlockOutputsEq({{"result0_out", {20, 40, 60}},
                                            {"result1_out", {24, 54, 88}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest,
-       DISABLED_SingleValueChannelWithVariantElements4) {
+TEST_F(ProcLoweringBlockEvalTest, SingleValueChannelWithVariantElements4) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   Type* u32_u32 = p->GetTupleType({u32, u32});
@@ -3638,7 +3687,8 @@ TEST_F(ProcLoweringBlockEvalTest,
                                   ab.TupleIndex(rcv_result_data, 0));
     ab.Send(result1_out, send_result0, ab.TupleIndex(rcv_result_data, 1));
 
-    XLS_ASSERT_OK(ab.Build());
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc, ab.Build());
+    XLS_ASSERT_OK(p->SetTop(top_proc));
   }
 
   XLS_ASSERT_OK(
@@ -3655,14 +3705,14 @@ TEST_F(ProcLoweringBlockEvalTest,
                   /*scheduling_options=*/
                   DefaultSchedulingOptions().worst_case_throughput(2)),
               IsOkAndHolds(true));
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"x", {2, 5, 7}}, {"y", {10}}}),
               IsOkAndHolds(BlockOutputsEq({{"result0_out", {4, 14, 28}},
                                            {"result1_out", {24, 54, 88}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_TokenFanIn) {
+TEST_F(ProcLoweringBlockEvalTest, TokenFanIn) {
   // Receive from two inputs, join the tokens then send the sum through another
   // proc.
   auto p = CreatePackage();
@@ -3700,7 +3750,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_TokenFanIn) {
                 ab.Add(ab.TupleIndex(rcv_in0, 1), ab.TupleIndex(rcv_in1, 1)));
     BValue rcv_from_b = ab.Receive(b_to_a, send_to_b);
     ab.Send(ch_out, ab.TupleIndex(rcv_from_b, 0), ab.TupleIndex(rcv_from_b, 1));
-    XLS_ASSERT_OK(ab.Build());
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc, ab.Build());
+    XLS_ASSERT_OK(p->SetTop(top_proc));
   }
 
   XLS_ASSERT_OK(MakeLoopbackProc("B", a_to_b, b_to_a, p.get()).status());
@@ -3712,14 +3763,14 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_TokenFanIn) {
 
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
               IsOkAndHolds(true));
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"in0", {2, 5, 7}}, {"in1", {10, 20, 30}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {12, 25, 37}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_TokenFanOut) {
+TEST_F(ProcLoweringBlockEvalTest, TokenFanOut) {
   // Send an input to two different procs, receive from them, join the tokens
   // and send the sum of the results.
   auto p = CreatePackage();
@@ -3779,7 +3830,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_TokenFanOut) {
         {ab.TupleIndex(rcv_from_b, 0), ab.TupleIndex(rcv_from_c, 0)});
     ab.Send(ch_out, tkn_join,
             ab.Add(ab.TupleIndex(rcv_from_b, 1), ab.TupleIndex(rcv_from_c, 1)));
-    XLS_ASSERT_OK(ab.Build());
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc, ab.Build());
+    XLS_ASSERT_OK(p->SetTop(top_proc));
   }
 
   XLS_ASSERT_OK(
@@ -3796,7 +3848,7 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_TokenFanOut) {
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
               IsOkAndHolds(true));
 
-  EXPECT_EQ(p->blocks().size(), 4);
+  EXPECT_EQ(p->blocks().size(), 3);
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"in", {2, 5, 7}}}),
@@ -3998,8 +4050,7 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_RandomProcNetworks) {
   }
 }
 
-TEST_F(ProcLoweringBlockEvalTest,
-       DISABLED_DataDependencyWithoutTokenDependency) {
+TEST_F(ProcLoweringBlockEvalTest, DataDependencyWithoutTokenDependency) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -4031,7 +4082,8 @@ TEST_F(ProcLoweringBlockEvalTest,
   // (data-dependent) receive from b.
   ab.Send(ch_out, tok, ab.Add(in_data, ab.TupleIndex(rcv_from_b, 1)));
 
-  XLS_ASSERT_OK(ab.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc, ab.Build());
+  XLS_ASSERT_OK(p->SetTop(top_proc));
 
   XLS_ASSERT_OK(
       MakeDelayedLoopbackProc("B", /*delay=*/3, a_to_b, b_to_a, p.get())
@@ -4045,13 +4097,13 @@ TEST_F(ProcLoweringBlockEvalTest,
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
               IsOkAndHolds(true));
 
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"in", {123, 22, 42}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {246, 44, 84}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_ReceivedValueSentAndNext) {
+TEST_F(ProcLoweringBlockEvalTest, ReceivedValueSentAndNext) {
   // Receive a value and pass to a send and a next-state value. This tests
   // whether the received value is properly saved due to being passed to the
   // next-state value.
@@ -4097,7 +4149,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_ReceivedValueSentAndNext) {
     ab.Send(ch_out, ab.TupleIndex(rcv_from_b, 0),
             ab.Add(ab.TupleIndex(rcv_from_b, 1), st));
     ab.Next(st, ab.Identity(rcv_data));
-    XLS_ASSERT_OK(ab.Build().status());
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc, ab.Build());
+    XLS_ASSERT_OK(p->SetTop(top_proc));
   }
 
   XLS_ASSERT_OK(
@@ -4112,13 +4165,13 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_ReceivedValueSentAndNext) {
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
               IsOkAndHolds(true));
 
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"in", {5, 7, 13}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {5, 12, 20}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_OffsetSendAndReceive) {
+TEST_F(ProcLoweringBlockEvalTest, OffsetSendAndReceive) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
 
@@ -4145,7 +4198,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_OffsetSendAndReceive) {
         ab.Eq(ab.And(st, ab.Literal(UBits(0xf, 32))), ab.Literal(UBits(0, 32)));
     ab.SendIf(a_to_b, ab.Literal(Value::Token()), send_cond, st);
     ab.Next(st, ab.Add(st, ab.Literal(UBits(1, 32))));
-    XLS_ASSERT_OK(ab.Build());
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc, ab.Build());
+    XLS_ASSERT_OK(p->SetTop(top_proc));
   }
 
   {
@@ -4176,13 +4230,13 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_OffsetSendAndReceive) {
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
               IsOkAndHolds(true));
 
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {}, /*num_cycles=*/80),
               IsOkAndHolds(BlockOutputsEq({{"out", {0, 16, 32, 48, 64}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_InliningProducesCycle) {
+TEST_F(ProcLoweringBlockEvalTest, InliningProducesCycle) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
 
@@ -4229,7 +4283,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_InliningProducesCycle) {
     BValue send_to_b = ab.Send(a_to_b, rcv_token, rcv_data);
     ab.Send(ch_out, send_to_b, rcv_data);
     ab.Next(st, ab.Literal(UBits(1, 1)));
-    XLS_ASSERT_OK(ab.Build());
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc, ab.Build());
+    XLS_ASSERT_OK(p->SetTop(top_proc));
   }
 
   {
@@ -4253,13 +4308,13 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_InliningProducesCycle) {
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
               IsOkAndHolds(true));
 
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {}, /*num_cycles=*/6),
               IsOkAndHolds(BlockOutputsEq({{"out", {0, 1, 2, 3}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_MultipleSends) {
+TEST_F(ProcLoweringBlockEvalTest, MultipleSends) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
 
@@ -4292,7 +4347,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_MultipleSends) {
     ab.SendIf(a_to_b, st, ab.Add(input, ab.Literal(UBits(10, 32))));
     ab.SendIf(a_to_b, ab.Not(st), input);
     ab.Next(st, ab.Not(st));
-    XLS_ASSERT_OK(ab.Build());
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc, ab.Build());
+    XLS_ASSERT_OK(p->SetTop(top_proc));
   }
 
   XLS_ASSERT_OK(MakeLoopbackProc("B", a_to_b, ch_out, p.get()).status());
@@ -4308,8 +4364,7 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_MultipleSends) {
                   DefaultSchedulingOptions().worst_case_throughput(2)),
               IsOkAndHolds(true));
 
-  // A, B, and top
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(
       // Seems to hang on last output unless you give another input.
@@ -4317,7 +4372,7 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_MultipleSends) {
       IsOkAndHolds(BlockOutputsEq({{"out", {1, 12, 3, 52, 123, 210}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_MultipleSendsInDifferentOrder) {
+TEST_F(ProcLoweringBlockEvalTest, MultipleSendsInDifferentOrder) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
 
@@ -4350,7 +4405,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_MultipleSendsInDifferentOrder) {
     ab.SendIf(a_to_b, ab.Not(st), input);
     ab.SendIf(a_to_b, st, ab.Add(input, ab.Literal(UBits(10, 32))));
     ab.Next(st, ab.Not(st));
-    XLS_ASSERT_OK(ab.Build());
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc, ab.Build());
+    XLS_ASSERT_OK(p->SetTop(top_proc));
   }
 
   XLS_ASSERT_OK(MakeLoopbackProc("B", a_to_b, ch_out, p.get()).status());
@@ -4366,14 +4422,13 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_MultipleSendsInDifferentOrder) {
                   DefaultSchedulingOptions().worst_case_throughput(2)),
               IsOkAndHolds(true));
 
-  // A, B, and top
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"in", {1, 2, 3, 42, 123}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {1, 12, 3, 52, 123}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_MultipleReceivesFifoWithBypass) {
+TEST_F(ProcLoweringBlockEvalTest, MultipleReceivesFifoWithBypass) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
 
@@ -4392,7 +4447,9 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_MultipleReceivesFifoWithBypass) {
       Channel * ch_out,
       p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
-  XLS_ASSERT_OK(MakeLoopbackProc("A", ch_in, a_to_b, p.get()).status());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc,
+                           MakeLoopbackProc("A", ch_in, a_to_b, p.get()));
+  XLS_ASSERT_OK(p->SetTop(top_proc));
 
   {
     // u1 st = 0
@@ -4424,14 +4481,13 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_MultipleReceivesFifoWithBypass) {
                   DefaultSchedulingOptions().worst_case_throughput(2)),
               IsOkAndHolds(true));
 
-  // A, B, and top
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"in", {1, 2, 3, 42, 123}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {1, 12, 3, 52, 123}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_MultipleReceivesFifoDepth1) {
+TEST_F(ProcLoweringBlockEvalTest, MultipleReceivesFifoDepth1) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
 
@@ -4449,7 +4505,9 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_MultipleReceivesFifoDepth1) {
       Channel * ch_out,
       p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
-  XLS_ASSERT_OK(MakeLoopbackProc("A", ch_in, a_to_b, p.get()).status());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc,
+                           MakeLoopbackProc("A", ch_in, a_to_b, p.get()));
+  XLS_ASSERT_OK(p->SetTop(top_proc));
 
   {
     // u1 st = 0
@@ -4481,15 +4539,13 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_MultipleReceivesFifoDepth1) {
                   DefaultSchedulingOptions().worst_case_throughput(2)),
               IsOkAndHolds(true));
 
-  // A, B, and top
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"in", {1, 2, 3, 42, 123}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {1, 12, 3, 52, 123}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest,
-       DISABLED_MultipleReceivesDoesNotFireEveryTick) {
+TEST_F(ProcLoweringBlockEvalTest, MultipleReceivesDoesNotFireEveryTick) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
 
@@ -4508,7 +4564,9 @@ TEST_F(ProcLoweringBlockEvalTest,
       Channel * ch_out,
       p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
-  XLS_ASSERT_OK(MakeLoopbackProc("A", ch_in, a_to_b, p.get()).status());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc,
+                           MakeLoopbackProc("A", ch_in, a_to_b, p.get()));
+  XLS_ASSERT_OK(p->SetTop(top_proc));
 
   {
     // u2 st = 0
@@ -4550,8 +4608,7 @@ TEST_F(ProcLoweringBlockEvalTest,
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
               IsOkAndHolds(true));
 
-  // A, B, and top
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(
       EvalBlock(top_block, {{"in", {1, 2, 3, 42, 123, 333}}}),
@@ -4560,7 +4617,7 @@ TEST_F(ProcLoweringBlockEvalTest,
 }
 
 TEST_F(ProcLoweringBlockEvalTest,
-       DISABLED_MultipleReceivesDoesNotFireEveryTickFifoDepth0) {
+       MultipleReceivesDoesNotFireEveryTickFifoDepth0) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
 
@@ -4579,7 +4636,9 @@ TEST_F(ProcLoweringBlockEvalTest,
       Channel * ch_out,
       p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
-  XLS_ASSERT_OK(MakeLoopbackProc("A", ch_in, a_to_b, p.get()).status());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc,
+                           MakeLoopbackProc("A", ch_in, a_to_b, p.get()));
+  XLS_ASSERT_OK(p->SetTop(top_proc));
 
   {
     // u2 st = 0
@@ -4621,8 +4680,7 @@ TEST_F(ProcLoweringBlockEvalTest,
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
               IsOkAndHolds(true));
 
-  // A, B, and top
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
 
   EXPECT_THAT(
       EvalBlock(p->GetBlock("A").value(), {{"in", {1, 2, 3, 42, 123, 333}}}),
@@ -4630,7 +4688,7 @@ TEST_F(ProcLoweringBlockEvalTest,
       IsOkAndHolds(BlockOutputsEq({{"out", {1, 3, 5, 0, 42, 124, 335, 0}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_MultipleSendsAndReceives) {
+TEST_F(ProcLoweringBlockEvalTest, MultipleSendsAndReceives) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
 
@@ -4663,7 +4721,8 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_MultipleSendsAndReceives) {
     ab.SendIf(a_to_b, st, ab.Add(input, ab.Literal(UBits(10, 32))));
     ab.SendIf(a_to_b, ab.Not(st), input);
     ab.Next(st, ab.Not(st));
-    XLS_ASSERT_OK(ab.Build());
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc, ab.Build());
+    XLS_ASSERT_OK(p->SetTop(top_proc));
   }
 
   {
@@ -4696,15 +4755,14 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_MultipleSendsAndReceives) {
                   DefaultSchedulingOptions().worst_case_throughput(2)),
               IsOkAndHolds(true));
 
-  // A, B, and top
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"in", {1, 2, 3, 42, 123}}},
                         /*num_cycles=*/2000),
               IsOkAndHolds(BlockOutputsEq({{"out", {11, 102, 13, 142, 133}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_ReceiveIfsWithFalseCondition) {
+TEST_F(ProcLoweringBlockEvalTest, ReceiveIfsWithFalseCondition) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
 
@@ -4723,7 +4781,9 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_ReceiveIfsWithFalseCondition) {
       Channel * ch_out1,
       p->CreateStreamingChannel("out1", ChannelOps::kSendOnly, u32));
 
-  XLS_ASSERT_OK(MakeLoopbackProc("A", ch_in, a_to_b, p.get()).status());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc,
+                           MakeLoopbackProc("A", ch_in, a_to_b, p.get()));
+  XLS_ASSERT_OK(p->SetTop(top_proc));
 
   {
     // u1 st = 0
@@ -4760,14 +4820,14 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_ReceiveIfsWithFalseCondition) {
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
               IsOkAndHolds(true));
 
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, {{"in", {1, 2, 3, 42, 123}}}),
               IsOkAndHolds(BlockOutputsEq({{"out0", {100, 102, 100, 142, 100}},
                                            {"out1", {1, 0, 3, 0, 123}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_ProcsWithDifferentII) {
+TEST_F(ProcLoweringBlockEvalTest, ProcsWithDifferentII) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -4790,6 +4850,7 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_ProcsWithDifferentII) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Proc * top,
       MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get()));
+  XLS_ASSERT_OK(p->SetTop(top));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * inner,
                            MakeDoublerProc("B", a_to_b, b_to_a, p.get()));
 
@@ -4807,6 +4868,9 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_ProcsWithDifferentII) {
               IsOkAndHolds(BlockOutputsEq({{"out", {2, 4, 6}}})));
 }
 
+/**
+ * With PSC this fails before Run
+ */
 TEST_F(ProcLoweringBlockEvalTest,
        DISABLED_ProcsWithNonblockingReceivesWithDroppingProc) {
   auto p = CreatePackage();
@@ -4839,11 +4903,14 @@ TEST_F(ProcLoweringBlockEvalTest,
     XLS_ASSERT_OK(b.Build());
   }
 
-  XLS_ASSERT_OK(
-      MakeArbiterProc("arb", {drop_to_arb, in1}, out, p.get()).status());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * top_proc,
+      MakeArbiterProc("arb", {drop_to_arb, in1}, out, p.get()));
+  XLS_ASSERT_OK(p->SetTop(top_proc));
 
   EXPECT_THAT(p->GetFunctionBases(),
               UnorderedElementsAre(m::Proc("drop"), m::Proc("arb")));
+  // This eval fails with proc-scoped channels.
   XLS_EXPECT_OK(EvalAndExpect(p.get(),
                               {{"in0", {100, 3, 5, 7, 9, 11}},
                                {"in1", {0, 2, 4, 6, 8, 10}}},
@@ -4852,9 +4919,7 @@ TEST_F(ProcLoweringBlockEvalTest,
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"arb"),
               IsOkAndHolds(true));
 
-  EXPECT_THAT(p->blocks(),
-              UnorderedElementsAre(m::Block("arb"), m::Block("arb__1"),
-                                   m::Block("arb__2")));
+  EXPECT_EQ(p->blocks().size(), 2);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("arb"));
   EXPECT_THAT(
       EvalBlock(top_block,
@@ -4862,6 +4927,9 @@ TEST_F(ProcLoweringBlockEvalTest,
       IsOkAndHolds(BlockOutputsEq({{"out", {100, 0, 2, 4, 6, 8, 10}}})));
 }
 
+/**
+ * This fails with proc-scoped channels.
+ */
 TEST_F(ProcLoweringBlockEvalTest,
        DISABLED_ProcsWithNonblockingReceivesWithLoopingAccumulator) {
   auto p = CreatePackage();
@@ -4882,8 +4950,10 @@ TEST_F(ProcLoweringBlockEvalTest,
       Channel * out,
       p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
-  XLS_ASSERT_OK(
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * top_proc,
       MakeLoopingAccumulatorProc("accum", in0, accum_to_arb, 3, p.get()));
+  XLS_ASSERT_OK(p->SetTop(top_proc));
 
   XLS_ASSERT_OK(
       MakeArbiterProc("arb", {accum_to_arb, in1}, out, p.get()).status());
@@ -4898,10 +4968,9 @@ TEST_F(ProcLoweringBlockEvalTest,
 
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"accum"),
               IsOkAndHolds(true));
-  EXPECT_THAT(p->blocks(),
-              UnorderedElementsAre(m::Block("accum"), m::Block("accum__1"),
-                                   m::Block("arb")));
+  EXPECT_EQ(p->blocks().size(), 2);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("accum"));
+  // This fails with a different order of the output.
   EXPECT_THAT(
       EvalBlock(top_block,
                 {{"in0", {100, 200, 300}}, {"in1", {0, 2, 4, 6, 8, 10}}}),
@@ -4911,7 +4980,7 @@ TEST_F(ProcLoweringBlockEvalTest,
           BlockOutputsEq({{"out", {0, 103, 2, 4, 203, 6, 303, 8, 10}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_ProcWithAssert) {
+TEST_F(ProcLoweringBlockEvalTest, ProcWithAssert) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
 
@@ -4926,8 +4995,10 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_ProcWithAssert) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * out,
       p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
-  XLS_ASSERT_OK(
-      MakeDelayedLoopbackProc("loopback", 4, in, middle, p.get()).status());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * top_proc,
+      MakeDelayedLoopbackProc("loopback", 4, in, middle, p.get()));
+  XLS_ASSERT_OK(p->SetTop(top_proc));
   {
     ProcBuilder b("assert_not_zero", p.get());
     BValue recv = b.Receive(middle, b.Literal(Value::Token()));
@@ -4956,7 +5027,7 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_ProcWithAssert) {
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"loopback"),
               IsOkAndHolds(true));
 
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
 
   // Eval without tripping the assertion
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("loopback"));
@@ -4972,7 +5043,7 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_ProcWithAssert) {
                    ElementsAre(HasSubstr("input must not be zero"))))));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_ProcWithCover) {
+TEST_F(ProcLoweringBlockEvalTest, ProcWithCover) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
 
@@ -4987,8 +5058,10 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_ProcWithCover) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * out,
       p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
-  XLS_ASSERT_OK(
-      MakeDelayedLoopbackProc("loopback", 4, in, middle, p.get()).status());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * top_proc,
+      MakeDelayedLoopbackProc("loopback", 4, in, middle, p.get()));
+  XLS_ASSERT_OK(p->SetTop(top_proc));
   {
     ProcBuilder b("cover_not_zero", p.get());
     BValue recv = b.Receive(middle, b.Literal(Value::Token()));
@@ -5012,13 +5085,13 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_ProcWithCover) {
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"loopback"),
               IsOkAndHolds(true));
 
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("loopback"));
   EXPECT_THAT(EvalBlock(top_block, {{"in", {100, 200, 300, 0}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {100, 200, 300, 0}}})));
 }
 
-TEST_F(ProcLoweringBlockEvalTest, DISABLED_ProcWithGate) {
+TEST_F(ProcLoweringBlockEvalTest, ProcWithGate) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
 
@@ -5033,8 +5106,10 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_ProcWithGate) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * out,
       p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
-  XLS_ASSERT_OK(
-      MakeDelayedLoopbackProc("loopback", 4, in, middle, p.get()).status());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * top_proc,
+      MakeDelayedLoopbackProc("loopback", 4, in, middle, p.get()));
+  XLS_ASSERT_OK(p->SetTop(top_proc));
   {
     ProcBuilder b("gate_proc", p.get());
     BValue recv = b.Receive(middle, b.Literal(Value::Token()));
@@ -5057,7 +5132,7 @@ TEST_F(ProcLoweringBlockEvalTest, DISABLED_ProcWithGate) {
   ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"loopback"),
               IsOkAndHolds(true));
 
-  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_EQ(p->blocks().size(), 2);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("loopback"));
   EXPECT_THAT(
       EvalBlock(top_block, {{"in", {0, 1, 2, 99, 100, 200, 300, 1000}}}),
@@ -5096,7 +5171,6 @@ TEST_F(ProcLoweringBlockEvalTest, ProcWithTrace) {
     XLS_ASSERT_OK(b.Build());
   }
 
-  XLS_ASSERT_OK(xls::ConvertPackageToNewStyleProcs(p.get()));
   EXPECT_EQ(p->procs().size(), 2);
   // Every number except for the zeros should appear in the trace output.
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -5143,6 +5217,7 @@ TEST_F(ProcLoweringBlockEvalTest, ProcWithNonblockingReceivesWithPassthrough) {
   // Note the '$0' in the declaration of chan internal. This lets us substitute
   // different values for fifo_depth to be sure that does impact proc
   // inlinining's correctness.
+  // TODO: davidplass - convert this IR to proc-scoped.
   constexpr std::string_view ir_text = R"(package test
 
 chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
@@ -5347,6 +5422,7 @@ proc output_passthrough(state: bits[1], init={1}) {
 
 TEST_F(ProcLoweringBlockEvalTest,
        DISABLED_ProcWithExternalConditionalNonblockingReceives) {
+  // TODO: davidplass - convert this IR to proc-scoped.
   constexpr std::string_view ir_text = R"(package test
 
 chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
