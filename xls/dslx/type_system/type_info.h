@@ -179,6 +179,10 @@ class TypeInfoOwner {
 
 class TypeInfo {
  public:
+  using ResolvedColonRefSubject =
+      std::variant<Module*, EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*,
+                   Impl*>;
+
   ~TypeInfo();
 
   // Type information can be "differential"; e.g. when we obtain type
@@ -253,6 +257,18 @@ class TypeInfo {
 
   // Retrieves the Function of the given Invocation.
   absl::StatusOr<const Function*> GetCallee(const Invocation* invocation) const;
+
+  // Used by type inference to set the resolved subject (first part) of a
+  // ColonRef once it resolves it.
+  void SetResolvedColonRefSubject(const ColonRef* node,
+                                  ResolvedColonRefSubject subject);
+
+  // Retrieves the resolved subject that was set by type inference for the given
+  // ColonRef. Note that in some cases, there isn't one, even for a node that
+  // has been through type inference, e.g. if it's a reference to a member of a
+  // built-in type.
+  absl::StatusOr<ResolvedColonRefSubject> GetResolvedColonRefSubject(
+      const ColonRef* node) const;
 
   // Sets the type info for the given proc when typechecked at top-level (i.e.,
   // not via an instantiation). Can only be called on the module root TypeInfo.
@@ -525,6 +541,9 @@ class TypeInfo {
   absl::flat_hash_map<const ProcAlias*, ResolvedProcAlias>
       resolved_proc_aliases_;
   absl::flat_hash_map<const Proc*, std::vector<SpawnData>> spawns_;
+
+  absl::flat_hash_map<const ColonRef*, ResolvedColonRefSubject>
+      resolved_colon_ref_subjects_;
 
   TypeInfo* parent_;  // Note: may be nullptr.
 };

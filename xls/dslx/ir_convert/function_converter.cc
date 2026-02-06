@@ -3809,88 +3809,13 @@ absl::Status FunctionConverter::HandleColonRef(const ColonRef* node) {
     return DefAlias(constant_def->name_def(), /*to=*/node);
   }
 
-  // Bypass for built-in attrs "MIN", "MAX", and "ZERO".
-  if (std::optional<Type*> maybe_type =
-          current_type_info_->GetItem(ToAstNode(node->subject()))) {
-    if (IsBitsLike(**maybe_type) && IsBuiltinBitsTypeAttr(node->attr())) {
-      XLS_ASSIGN_OR_RETURN(InterpValue iv,
-                           current_type_info_->GetConstExpr(node));
-      XLS_ASSIGN_OR_RETURN(Value value, InterpValueToValue(iv));
-      Def(node, [this, &value](const SourceInfo& loc) {
-        return function_builder_->Literal(value, loc);
-      });
-      return absl::OkStatus();
-    }
-  }
-
-  using SubjectT = std::variant<Module*, EnumDef*, BuiltinNameDef*,
-                                ArrayTypeAnnotation*, Impl*>;
-  XLS_ASSIGN_OR_RETURN(SubjectT subject,
-                       ResolveColonRefSubjectAfterTypeChecking(
-                           import_data_, current_type_info_, node));
-
-  // TODO(williamjhuang): The following should not be needed in TIv2 because
-  // there should be type info for the verbatim ColonRef node (not its resolved
-  // type).
-  return absl::visit(
-      Visitor{
-          [&](Module* module) {
-            return absl::InternalError("ColonRefs with imports unhandled.");
-          },
-          [&](EnumDef* enum_def) -> absl::Status {
-            XLS_ASSIGN_OR_RETURN(
-                TypeInfo * type_info,
-                import_data_->GetRootTypeInfo(enum_def->owner()));
-            ScopedTypeInfoSwap stis(this, type_info);
-            XLS_ASSIGN_OR_RETURN(Expr * attr_value,
-                                 enum_def->GetValue(node->attr()));
-
-            // We've already computed enum member values during constexpr
-            // evaluation.
-            XLS_ASSIGN_OR_RETURN(InterpValue iv,
-                                 current_type_info_->GetConstExpr(attr_value));
-            XLS_ASSIGN_OR_RETURN(Value value, InterpValueToValue(iv));
-            Def(node, [this, &value](const SourceInfo& loc) {
-              return function_builder_->Literal(value, loc);
-            });
-            return absl::OkStatus();
-          },
-          [&](BuiltinNameDef* builtin_name_def) -> absl::Status {
-            XLS_ASSIGN_OR_RETURN(
-                InterpValue interp_value,
-                GetBuiltinNameDefColonAttr(builtin_name_def, node->attr()));
-            XLS_ASSIGN_OR_RETURN(Value value, InterpValueToValue(interp_value));
-            DefConst(node, value);
-            return absl::OkStatus();
-          },
-          [&](ArrayTypeAnnotation* array_type) -> absl::Status {
-            // Type checking currently ensures that we're not taking a '::' on
-            // anything other than a bits type.
-            xls::Type* input_type;
-            {
-              XLS_ASSIGN_OR_RETURN(
-                  TypeInfo * type_info,
-                  import_data_->GetRootTypeInfo(array_type->owner()));
-              ScopedTypeInfoSwap stis(this, type_info);
-              XLS_ASSIGN_OR_RETURN(input_type, ResolveTypeToIr(array_type));
-            }
-            xls::BitsType* bits_type = input_type->AsBitsOrDie();
-            const int64_t bit_count = bits_type->bit_count();
-            XLS_ASSIGN_OR_RETURN(
-                InterpValue interp_value,
-                GetArrayTypeColonAttr(array_type, bit_count, node->attr()));
-            XLS_ASSIGN_OR_RETURN(Value value, InterpValueToValue(interp_value));
-            DefConst(node, value);
-            return absl::OkStatus();
-          },
-          [&](Impl* impl) -> absl::Status {
-            XLS_ASSIGN_OR_RETURN(InterpValue iv,
-                                 current_type_info_->GetConstExpr(node));
-            XLS_ASSIGN_OR_RETURN(Value value, InterpValueToValue(iv));
-            DefConst(node, value);
-            return absl::OkStatus();
-          }},
-      subject);
+  // In all other cases, we are just lowering the constant that type inference
+  // computed.
+  XLS_ASSIGN_OR_RETURN(InterpValue interp_value,
+                       current_type_info_->GetConstExpr(node));
+  XLS_ASSIGN_OR_RETURN(Value value, InterpValueToValue(interp_value));
+  DefConst(node, value);
+  return absl::OkStatus();
 }
 
 absl::Status FunctionConverter::HandleSplatStructInstance(
