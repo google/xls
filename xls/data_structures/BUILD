@@ -133,7 +133,6 @@ cc_library(
     hdrs = ["inline_bitmap.h"],
     deps = [
         "//xls/common:bits_util",
-        "//xls/common:endian",
         "//xls/common:math_util",
         "//xls/common:test_macros",
         "@com_google_absl//absl/base",

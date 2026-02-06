@@ -624,12 +624,6 @@ cc_library(
 )
 
 cc_library(
-    name = "endian",
-    hdrs = ["endian.h"],
-    deps = ["@com_google_absl//absl/base:config"],
-)
-
-cc_library(
     name = "stopwatch",
     srcs = ["stopwatch.cc"],
     hdrs = ["stopwatch.h"],

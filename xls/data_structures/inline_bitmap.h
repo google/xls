@@ -16,6 +16,7 @@
 #define XLS_DATA_STRUCTURES_INLINE_BITMAP_H_
 
 #include <algorithm>
+#include <bit>
 #include <compare>
 #include <cstdint>
 #include <cstring>
@@ -30,7 +31,6 @@
 #include "absl/log/check.h"
 #include "absl/types/span.h"
 #include "xls/common/bits_util.h"
-#include "xls/common/endian.h"
 #include "xls/common/math_util.h"
 #include "xls/common/test_macros.h"
 
@@ -40,6 +40,9 @@ class BitmapView;
 
 // A bitmap that has 64-bits of inline storage by default.
 class InlineBitmap {
+  static_assert(std::endian::native == std::endian::little,
+                "InlineBitmap requires little-endianness.");
+
  public:
   // Constructs an InlineBitmap of width `bit_count` using the bits in
   // `word`. If `bit_count` is greater than 64, then all high bits are set to
@@ -263,7 +266,7 @@ class InlineBitmap {
   // is mapped to the least significant bits of word 1, and so on.
   void SetByte(int64_t byteno, uint8_t value) {
     DCHECK_LT(byteno, byte_count());
-    CHECK(kEndianness == Endianness::kLittleEndian);
+    DCHECK(std::endian::native == std::endian::little);
     absl::bit_cast<uint8_t*>(data_.data())[byteno] = value;
     // Ensure the data is appropriately masked in case this byte writes to that
     // region of bits.
@@ -273,14 +276,14 @@ class InlineBitmap {
   // Returns the byte at the given offset. Byte order is little-endian.
   uint8_t GetByte(int64_t byteno) const {
     DCHECK_LT(byteno, byte_count());
-    CHECK(kEndianness == Endianness::kLittleEndian);
+    DCHECK(std::endian::native == std::endian::little);
     return absl::bit_cast<uint8_t*>(data_.data())[byteno];
   }
 
   // Writes the underlying bytes of the inline bit map to the given buffer. Byte
   // order is little-endian. Writes out Ceil(bit_count_ / 8) number of bytes.
   void WriteBytesToBuffer(absl::Span<uint8_t> bytes) const {
-    CHECK(kEndianness == Endianness::kLittleEndian);
+    DCHECK(std::endian::native == std::endian::little);
     // memcpy() requires valid pointers even when the number of bytes copied is
     // zero, and an empty absl::Span's data() pointer may not be valid. Guard
     // the memcpy with a check that the span is not empty.
