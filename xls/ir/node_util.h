@@ -53,6 +53,73 @@ inline bool IsLiteralZero(Node* node) {
          node->As<Literal>()->value().bits().IsZero();
 }
 
+// A uniform view of a bits-typed node that represents a zero-extension of a
+// narrower bits-typed `base` value.
+//
+// This matches either:
+// - `zero_ext(base, new_bit_count=W)` where base has width N < W
+// - `concat(0..., base)` where all leading operands are literal zeros and base
+//   is the final operand.
+struct ZeroExtendedBitsView {
+  // The original value being extended.
+  Node* base;
+  // Bit width of `base`.
+  int64_t base_width;
+  // Bit width of the zero-extended result (i.e. the node being matched).
+  int64_t result_width;
+  // Number of leading zero bits added (result_width - base_width).
+  int64_t leading_zero_width;
+};
+
+// Returns a view if `node` is a zero extension of a narrower bits value, as
+// defined by `ZeroExtendedBitsView`.
+inline std::optional<ZeroExtendedBitsView> MatchZeroExtendedBits(Node* node) {
+  if (node == nullptr || !node->GetType()->IsBits()) {
+    return std::nullopt;
+  }
+  const int64_t result_width = node->BitCountOrDie();
+
+  if (node->op() == Op::kZeroExt) {
+    ExtendOp* ext = node->As<ExtendOp>();
+    Node* base = ext->operand(0);
+    const int64_t base_width = base->BitCountOrDie();
+    if (base_width < result_width) {
+      return ZeroExtendedBitsView{
+          .base = base,
+          .base_width = base_width,
+          .result_width = result_width,
+          .leading_zero_width = result_width - base_width};
+    }
+    return std::nullopt;
+  }
+
+  if (node->op() == Op::kConcat) {
+    Concat* concat = node->As<Concat>();
+    if (concat->operand_count() < 2) {
+      return std::nullopt;
+    }
+    int64_t prefix_width = 0;
+    for (int64_t i = 0; i < concat->operand_count() - 1; ++i) {
+      Node* prefix = concat->operand(i);
+      if (!IsLiteralZero(prefix)) {
+        return std::nullopt;
+      }
+      prefix_width += prefix->BitCountOrDie();
+    }
+    Node* base = concat->operand(concat->operand_count() - 1);
+    const int64_t base_width = base->BitCountOrDie();
+    if (prefix_width <= 0) {
+      return std::nullopt;
+    }
+    return ZeroExtendedBitsView{.base = base,
+                                .base_width = base_width,
+                                .result_width = result_width,
+                                .leading_zero_width = prefix_width};
+  }
+
+  return std::nullopt;
+}
+
 // Returns true if the given node is a literal with the value one when
 // interpreted as an unsigned number
 inline bool IsLiteralUnsignedOne(Node* node) {
@@ -119,6 +186,29 @@ inline bool AnyTwoOperandsWhere(Node* node,
     if (count >= 2) {
       return true;
     }
+  }
+  return false;
+}
+
+// Returns true if `pred_a` and `pred_b` match `a` and `b` in either order.
+//
+// If a match is found, `on_match(matched_a, matched_b)` is invoked with
+// `matched_a` being the node that satisfied `pred_a` and `matched_b` being the
+// node that satisfied `pred_b`.
+//
+// This is useful for matching commutative patterns while populating additional
+// context via captures in `on_match`.
+inline bool MatchNodesInAnyOrder(
+    Node* a, Node* b, const std::function<bool(Node*)>& pred_a,
+    const std::function<bool(Node*)>& pred_b,
+    const std::function<void(Node*, Node*)>& on_match) {
+  if (pred_a(a) && pred_b(b)) {
+    on_match(a, b);
+    return true;
+  }
+  if (pred_a(b) && pred_b(a)) {
+    on_match(b, a);
+    return true;
   }
   return false;
 }
