@@ -146,9 +146,9 @@ class Flattener : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleUnrollFor(const UnrollFor* node) override {
-    // node->body() will not be handled because unroll_for generates new
-    // unrolled body statements.
+  absl::Status HandleConstFor(const ConstFor* node) override {
+    // node->body() will not be handled because const for and unroll_for!
+    // generate new unrolled body statements.
     if (node->type_annotation()) {
       XLS_RETURN_IF_ERROR(node->type_annotation()->Accept(this));
     }

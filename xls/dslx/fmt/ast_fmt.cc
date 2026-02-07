@@ -1017,12 +1017,16 @@ DocRef Fmt(const ColonRef& n, Comments& comments, DocArena& arena) {
 
 DocRef FmtForLoopBaseLeader(Keyword keyword, DocRef names_ref,
                             const ForLoopBase& n, Comments& comments,
-                            DocArena& arena) {
-  std::vector<DocRef> pieces = {
-      arena.Make(keyword),
-      arena.MakeNestIfFlatFits(
-          /*on_nested_flat_ref=*/names_ref,
-          /*on_other_ref=*/arena.MakeConcat(arena.space(), names_ref))};
+                            DocArena& arena, bool is_const_for) {
+  std::vector<DocRef> pieces;
+  if (is_const_for) {
+    pieces.push_back(arena.Make(Keyword::kConst));
+    pieces.push_back(arena.space());
+  }
+  pieces.push_back(arena.Make(keyword));
+  pieces.push_back(arena.MakeNestIfFlatFits(
+      /*on_nested_flat_ref=*/names_ref,
+      /*on_other_ref=*/arena.MakeConcat(arena.space(), names_ref)));
 
   if (n.type_annotation() != nullptr) {
     pieces.push_back(arena.colon());
@@ -1044,11 +1048,12 @@ DocRef FmtForLoopBaseLeader(Keyword keyword, DocRef names_ref,
 }
 
 DocRef FmtForLoopBase(Keyword keyword, const ForLoopBase& n, Comments& comments,
-                      DocArena& arena) {
+                      DocArena& arena, bool is_const_for) {
   CHECK(keyword == Keyword::kFor || keyword == Keyword::kUnrollFor)
       << static_cast<std::underlying_type_t<Keyword>>(keyword);
   DocRef names_ref = Fmt(*n.names(), comments, arena);
-  DocRef leader = FmtForLoopBaseLeader(keyword, names_ref, n, comments, arena);
+  DocRef leader = FmtForLoopBaseLeader(keyword, names_ref, n, comments,
+                                       arena, is_const_for);
 
   std::vector<DocRef> body_pieces;
   body_pieces.push_back(arena.hard_line());
@@ -1064,12 +1069,14 @@ DocRef FmtForLoopBase(Keyword keyword, const ForLoopBase& n, Comments& comments,
   return arena.MakeConcat(leader, ConcatN(arena, body_pieces));
 }
 
-DocRef Fmt(const UnrollFor& n, Comments& comments, DocArena& arena) {
-  return FmtForLoopBase(Keyword::kUnrollFor, n, comments, arena);
+DocRef Fmt(const ConstFor& n, Comments& comments, DocArena& arena) {
+  Keyword keyword = n.IsUnrollFor() ? Keyword::kUnrollFor : Keyword::kFor;
+  return FmtForLoopBase(keyword, n, comments, arena, !n.IsUnrollFor());
 }
 
 DocRef Fmt(const For& n, Comments& comments, DocArena& arena) {
-  return FmtForLoopBase(Keyword::kFor, n, comments, arena);
+  return FmtForLoopBase(Keyword::kFor, n, comments,
+                        arena, /*is_const_for=*/false);
 }
 
 DocRef Fmt(const FormatMacro& n, Comments& comments, DocArena& arena) {
@@ -1901,13 +1908,18 @@ DocRef FmtBlockedExprLeader(const Expr& e, Comments& comments,
       return ConcatN(arena, {FmtStructLeader(n.struct_ref(), comments, arena),
                              arena.space(), arena.ocurl()});
     }
-    case AstNodeKind::kFor:
-    case AstNodeKind::kUnrollFor: {
+    case AstNodeKind::kFor: {
       const ForLoopBase& n = static_cast<const ForLoopBase&>(e);
-      Keyword keyword =
-          e.kind() == AstNodeKind::kFor ? Keyword::kFor : Keyword::kUnrollFor;
       DocRef names_ref = Fmt(*n.names(), comments, arena);
-      return FmtForLoopBaseLeader(keyword, names_ref, n, comments, arena);
+      return FmtForLoopBaseLeader(Keyword::kFor, names_ref, n, comments,
+                                  arena, /*is_const_for=*/false);
+    }
+    case AstNodeKind::kConstFor: {
+      const ConstFor& n = static_cast<const ConstFor&>(e);
+      Keyword keyword = n.IsUnrollFor() ? Keyword::kUnrollFor : Keyword::kFor;
+      DocRef names_ref = Fmt(*n.names(), comments, arena);
+      return FmtForLoopBaseLeader(keyword, names_ref, n, comments,
+                                  arena, !n.IsUnrollFor());
     }
     default:
       LOG(FATAL) << "Unhandled node kind for FmtBlockedExprLeader: `"

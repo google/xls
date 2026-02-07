@@ -180,8 +180,8 @@ AstNodeKindProto ToProto(AstNodeKind kind) {
       return AST_NODE_KIND_TRAIT;
     case AstNodeKind::kStatement:
       return AST_NODE_KIND_STATEMENT;
-    case AstNodeKind::kUnrollFor:
-      return AST_NODE_KIND_UNROLL_FOR;
+    case AstNodeKind::kConstFor:
+      return AST_NODE_KIND_CONST_FOR;
     case AstNodeKind::kProcMember:
       return AST_NODE_KIND_PROC_MEMBER;
     case AstNodeKind::kRestOfTuple:
@@ -788,8 +788,8 @@ absl::StatusOr<AstNodeKind> FromProto(AstNodeKindProto p) {
       return AstNodeKind::kStatementBlock;
     case AST_NODE_KIND_TRAIT:
       return AstNodeKind::kTrait;
-    case AST_NODE_KIND_UNROLL_FOR:
-      return AstNodeKind::kUnrollFor;
+    case AST_NODE_KIND_CONST_FOR:
+      return AstNodeKind::kConstFor;
     case AST_NODE_KIND_STATEMENT:
       return AstNodeKind::kStatement;
     case AST_NODE_KIND_ZERO_MACRO:

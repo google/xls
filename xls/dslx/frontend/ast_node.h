@@ -98,7 +98,7 @@ enum class AstNodeKind : uint8_t {
   kTypeAnnotation,
   kTypeRef,
   kUnop,
-  kUnrollFor,
+  kConstFor,
   kUse,
   kUseTreeEntry,
   kVerbatimNode,

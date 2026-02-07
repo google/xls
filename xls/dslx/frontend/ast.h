@@ -74,7 +74,7 @@
   X(StructInstance)                \
   X(TupleIndex)                    \
   X(Unop)                          \
-  X(UnrollFor)                     \
+  X(ConstFor)                     \
   X(VerbatimNode)                  \
   X(XlsTuple)                      \
   X(ZeroMacro)
@@ -2886,7 +2886,8 @@ class Invocation : public Instantiation {
 // Spawns need to still be Instantiation subclasses.
 class Spawn : public Instantiation {
  public:
-  // A Spawn's body can be nullopt if it's the last expr in an unroll_for body.
+  // A Spawn's body can be nullopt if it's the last expr
+  // in an unroll_for or a const for body.
   Spawn(Module* owner, Span span, Expr* callee, Invocation* config,
         Invocation* next, std::vector<ExprOrType> explicit_parametrics);
 
@@ -3965,8 +3966,8 @@ class XlsTuple : public Expr {
 };
 
 // Abstract base class for a `for` loop-like expression, which may be e.g. a
-// regular `for` loop or an `unroll_for!`. The structure of these types of loops
-// should be as much the same as possible.
+// regular `for` loop, a const for or an `unroll_for!`. The structure of these
+// types of loops should be as much the same as possible.
 class ForLoopBase : public Expr {
  public:
   ForLoopBase(Module* owner, Span span, NameDefTree* names,
@@ -4035,24 +4036,33 @@ class For : public ForLoopBase {
 
 // Represents an operation to "unroll" the given for-like expression by the
 // number of elements in the iterable.
-class UnrollFor : public ForLoopBase {
+class ConstFor : public ForLoopBase {
  public:
-  using ForLoopBase::ForLoopBase;
+  ConstFor(Module* owner, Span span, NameDefTree* names,
+           TypeAnnotation* type, Expr* iterable, StatementBlock* body,
+           Expr* init, bool is_unroll_for, bool in_parens = false);
 
-  ~UnrollFor() override;
+  ~ConstFor() override;
 
-  AstNodeKind kind() const override { return AstNodeKind::kUnrollFor; }
+  AstNodeKind kind() const override { return AstNodeKind::kConstFor; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
-    return v->HandleUnrollFor(this);
+    return v->HandleConstFor(this);
   }
   absl::Status AcceptExpr(ExprVisitor* v) const override {
-    return v->HandleUnrollFor(this);
+    return v->HandleConstFor(this);
   }
-  std::string_view GetNodeTypeName() const override { return "unroll-for"; }
+  std::string_view GetNodeTypeName() const override {
+    return is_unroll_for_ ? "unroll-for" : "const for";
+  }
+  bool IsUnrollFor() const { return is_unroll_for_; }
 
  protected:
-  std::string_view keyword() const override { return "unroll_for!"; }
+  std::string_view keyword() const override {
+    return is_unroll_for_ ? "unroll_for!" : "const for";
+  }
+
+  bool is_unroll_for_;
 };
 
 // Represents a cast expression; converting a new value to a target type.
@@ -4273,7 +4283,8 @@ class NameDefTree : public AstNode {
 // Represents a let-binding expression.
 class Let : public AstNode {
  public:
-  // A Let's body can be nullopt if it's the last expr in an unroll_for body.
+  // A Let's body can be nullopt if it's the last expr
+  // in an unroll_for or a const for body.
   Let(Module* owner, Span span, NameDefTree* name_def_tree,
       TypeAnnotation* type, Expr* rhs, bool is_const);
 
