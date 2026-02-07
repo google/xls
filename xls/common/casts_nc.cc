@@ -20,6 +20,8 @@
 
 #include "xls/common/casts.h"  // IWYU pragma: keep
 
+using ::xls::down_cast;
+
 // A base class.
 class Base {
  public:

@@ -16,17 +16,14 @@ use_repo(llvm, "llvm_toolchain")
 register_toolchains("@llvm_toolchain//:all")
 
 # Python toolchain
-# TODO: https://github.com/google/xls/issues/2941 - Update to more recent version once we've
-# migrated to Bazel 8.
-# We need to pin to 1.0.0 until moving to Bazel 8, or else we run into missing py_library attribute
-# (e.g. pyi_srcs) errors in pip dependencies.
-bazel_dep(name = "rules_python", version = "1.0.0")
-
-# or-tools otherwise forces us to 1.2.0.
-single_version_override(
-    module_name = "rules_python",
-    version = "1.0.0",
-)
+# TODO: https://github.com/google/xls/issues/2941 - revisit versioning once we're on bazel 8.
+# We previously pinned to 1.0.0 until moving to Bazel 8, or else we ran into missing py_library
+# attribute (e.g. pyi_srcs) errors in pip dependencies. More recent versions of rules_python seem
+# to fix this, only to have a new problem in that grpc requires a "preview" release of python 3.14
+# that later rules_python releases dropped. This was fixed in grpc/grpc#41278 but doesn't seem to
+# have made it into the latest release. For now, we stick to the same version of rules_python as
+# grpc.
+bazel_dep(name = "rules_python", version = "1.5.4")
 
 PYTHON_VERSION = "3.12"
 
@@ -56,14 +53,14 @@ use_repo(pip, "xls_pip_deps")
 
 # Root module dependencies.
 # Note: some WORKSPACE dependencies still require repo_name aliases.
-bazel_dep(name = "abseil-cpp", version = "20250814.1", repo_name = "com_google_absl")
+bazel_dep(name = "abseil-cpp", version = "20260107.0", repo_name = "com_google_absl")
 bazel_dep(name = "abseil-py", version = "2.1.0")
 bazel_dep(name = "bazel_features", version = "1.30.0")
 bazel_dep(name = "bazel_skylib", version = "1.8.1")
 bazel_dep(name = "boringssl", version = "0.20250114.0")
 bazel_dep(name = "cppitertools", version = "2.2")
 bazel_dep(name = "googleapis", version = "0.0.0-20260109-6145b5ff")
-bazel_dep(name = "grpc", version = "1.74.1")
+bazel_dep(name = "grpc", version = "1.78.0")
 bazel_dep(name = "linenoise", version = "2.0.0")
 bazel_dep(name = "nlohmann_json", version = "3.11.3.bcr.1")
 bazel_dep(name = "or-tools", version = "9.12", repo_name = "com_google_ortools")

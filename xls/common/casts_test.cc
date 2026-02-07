@@ -67,7 +67,7 @@ TEST(TemplateFunctionTest, down_cast_pointer) {
   // that the compiler doesn't warn about it at compile time.
   Base* base2 = NewBase(false);
 #if GTEST_HAS_DEATH_TEST
-  EXPECT_DEBUG_DEATH(down_cast<Derived*>(base2), "dynamic_cast<To>");
+  EXPECT_DEBUG_DEATH(down_cast<Derived*>(base2), "RAW: down cast");
 #endif  // GTEST_HAS_DEATH_TEST
   delete base2;
 }
@@ -97,7 +97,7 @@ TEST(TemplateFunctionTest, down_cast_reference) {
   // that the compiler doesn't warn about it at compile time.
   Base& base2 = *NewBase(false);
 #if GTEST_HAS_DEATH_TEST
-  EXPECT_DEBUG_DEATH(down_cast<Derived&>(base2), "dynamic_cast<.*To.*>");
+  EXPECT_DEBUG_DEATH(down_cast<Derived&>(base2), "RAW: down cast");
 #endif  // GTEST_HAS_DEATH_TEST
   delete &base2;
 }

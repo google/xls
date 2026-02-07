@@ -141,6 +141,10 @@ cc_library(
 cc_library(
     name = "casts",
     hdrs = ["casts.h"],
+    deps = [
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/base:core_headers",
+    ],
 )
 
 cc_test(

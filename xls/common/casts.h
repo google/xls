@@ -17,8 +17,8 @@
 #ifndef XLS_COMMON_CASTS_H_
 #define XLS_COMMON_CASTS_H_
 
-#include <cassert>
-#include <type_traits>
+#include "absl/base/casts.h"
+#include "absl/base/macros.h"
 
 namespace xls {
 
@@ -47,19 +47,10 @@ namespace xls {
 //    if (auto* p = dynamic_cast<Subclass2*>(foo)) HandleASubclass2Object(p);
 // You should design the code some other way not to need this.
 
-template <typename To, typename From>  // use like this: down_cast<T*>(foo);
-inline To down_cast(From* f) {         // so we only accept pointers
-  static_assert(
-      (std::is_base_of<From, typename std::remove_pointer<To>::type>::value),
-      "target type not derived from source type");
-
-  // We skip the assert and hence the dynamic_cast if RTTI is disabled.
-#if !defined(__GNUC__) || defined(__GXX_RTTI)
-  // Uses RTTI in dbg and fastbuild. asserts are disabled in opt builds.
-  assert(f == nullptr || dynamic_cast<To>(f) != nullptr);
-#endif  // !defined(__GNUC__) || defined(__GXX_RTTI)
-
-  return static_cast<To>(f);
+template <typename To, typename From>
+ABSL_DEPRECATE_AND_INLINE()
+inline To down_cast(From* f) {
+  return absl::down_cast<To>(f);
 }
 
 // Overload of down_cast for references. Use like this: down_cast<T&>(foo).
@@ -71,21 +62,9 @@ inline To down_cast(From* f) {         // so we only accept pointers
 // or the reference form. If you call down_cast with a const T&, the
 // compiler will just bind From to const T.
 template <typename To, typename From>
+ABSL_DEPRECATE_AND_INLINE()
 inline To down_cast(From& f) {
-  static_assert(std::is_lvalue_reference<To>::value,
-                "target type not a reference");
-  static_assert(
-      (std::is_base_of<From, typename std::remove_reference<To>::type>::value),
-      "target type not derived from source type");
-
-  // We skip the assert and hence the dynamic_cast if RTTI is disabled.
-#if !defined(__GNUC__) || defined(__GXX_RTTI)
-  // RTTI: debug mode only
-  assert(dynamic_cast<typename std::remove_reference<To>::type*>(&f) !=
-         nullptr);
-#endif  // !defined(__GNUC__) || defined(__GXX_RTTI)
-
-  return static_cast<To>(f);
+  return absl::down_cast<To>(f);
 }
 
 }  // namespace xls
