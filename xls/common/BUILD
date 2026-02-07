@@ -536,6 +536,10 @@ pytype_strict_library(
 cc_library(
     name = "iterator_range",
     hdrs = ["iterator_range.h"],
+    deps = [
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/iterator:range",
+    ],
 )
 
 cc_library(
