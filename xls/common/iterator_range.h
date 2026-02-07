@@ -19,9 +19,10 @@
 #ifndef XLS_COMMON_ITERATOR_RANGE_H_
 #define XLS_COMMON_ITERATOR_RANGE_H_
 
-#include <iterator>
 #include <utility>
 
+#include "absl/base/macros.h"
+#include "absl/iterator/range.h"
 
 namespace xabsl {
 
@@ -30,38 +31,25 @@ namespace xabsl {
 // This just wraps two iterators into a range-compatible interface. Nothing
 // fancy at all.
 template <typename IteratorT>
-class iterator_range {
- public:
-  using iterator = IteratorT;
-  using const_iterator = IteratorT;
-  using value_type = typename std::iterator_traits<IteratorT>::value_type;
-
-  iterator_range() : begin_iterator_(), end_iterator_() {}
-  iterator_range(IteratorT begin_iterator, IteratorT end_iterator)
-      : begin_iterator_(std::move(begin_iterator)),
-        end_iterator_(std::move(end_iterator)) {}
-
-  IteratorT begin() const { return begin_iterator_; }
-  IteratorT end() const { return end_iterator_; }
-
- private:
-  IteratorT begin_iterator_, end_iterator_;
-};
+using iterator_range ABSL_DEPRECATE_AND_INLINE() =
+    absl::iterator_range<IteratorT>;
 
 // Convenience function for iterating over sub-ranges.
 //
 // This provides a bit of syntactic sugar to make using sub-ranges
 // in for loops a bit easier. Analogous to std::make_pair().
 template <typename T>
+ABSL_DEPRECATE_AND_INLINE()
 iterator_range<T> make_range(T x, T y) {
-  return iterator_range<T>(std::move(x), std::move(y));
+  return absl::make_range(std::move(x), std::move(y));
 }
 
 // Converts std::pair<Iter,Iter> to iterator_range<Iter>. E.g.:
 //   for (const auto& e : make_range(m.equal_range(k))) ...
 template <typename T>
+ABSL_DEPRECATE_AND_INLINE()
 iterator_range<T> make_range(std::pair<T, T> p) {
-  return iterator_range<T>(std::move(p.first), std::move(p.second));
+  return absl::make_range(std::move(p));
 }
 
 }  // namespace xabsl
