@@ -19,8 +19,6 @@ import os
 
 from xls.eco import ir_diff
 from xls.eco import ir_patch_pb2
-from xls.eco import xls_types
-from xls.eco import xls_values
 
 
 class IrPatch:
@@ -76,6 +74,7 @@ class IrPatch:
           )
           if 'ret' in graph1.graph and graph1.graph['ret'] == node_edit_path[1]:
             return_node = self.ir_edit_paths_pb.return_node
+            return_node.name = node_edit_path[1]
             self._export_pb_node_attributes(
                 return_node, graph1.nodes[node_edit_path[1]]
             )
@@ -93,6 +92,7 @@ class IrPatch:
           )
           if 'ret' in graph1.graph and graph1.graph['ret'] == node_edit_path[1]:
             return_node = self.ir_edit_paths_pb.return_node
+            return_node.name = node_edit_path[1]
             self._export_pb_node_attributes(
                 return_node, graph1.nodes[node_edit_path[1]]
             )
@@ -146,52 +146,57 @@ class IrPatch:
     """
     if 'id' in nx_node and nx_node['id'] is not None:
       pb_node.id = nx_node['id']
-    data_type = xls_types.parse_data_type(nx_node['data_type'])
+    data_type = nx_node['data_type']
     pb_node.data_type.CopyFrom(data_type.to_proto())
     pb_node.op = nx_node['op']
-    node_attributes = (
-        nx_node['cost_attributes']['node_attributes']
-        if 'node_attributes' in nx_node['cost_attributes']
-        else {}
-    )
+    # node_attributes = (nx_node['cost_attributes']['node_attributes']]
+    # if 'node_attributes' in nx_node['cost_attributes']else {})
     if 'operand_data_type' in nx_node:
-      operand_data_type = xls_types.parse_data_type(
-          nx_node['operand_data_type']
-      )
+      operand_data_type = nx_node['operand_data_type']
       pb_node.operand_data_types.append(operand_data_type.to_proto())
     elif 'operand_data_types' in nx_node:
-      for operand_data_type_str in nx_node['operand_data_types']:
-        operand_data_type = xls_types.parse_data_type(operand_data_type_str)
+      for operand_data_type in nx_node['operand_data_types']:
         pb_node.operand_data_types.append(operand_data_type.to_proto())
     if nx_node['op'] == 'literal':
       pb_unique_args = pb_node.unique_args.add()
-      _, node_value = xls_values.parse_value(node_attributes['value'])
-      node_type = xls_types.parse_data_type(nx_node['data_type'])
-      pb_unique_args.value.CopyFrom(node_value.to_proto(node_type))
+      node_value = nx_node['value']
+      pb_unique_args.value.CopyFrom(node_value.to_proto(data_type))
     elif nx_node['op'] == 'bit_slice':
       pb_unique_args = pb_node.unique_args.add()
-      pb_unique_args.start = node_attributes['start']
+      pb_unique_args.start = nx_node['start']
     elif nx_node['op'] == 'tuple_index':
       pb_unique_args = pb_node.unique_args.add()
-      pb_unique_args.index = node_attributes['index']
+      pb_unique_args.index = nx_node['index']
+    elif nx_node['op'] == 'array_index' or nx_node['op'] == 'array_update':
+      if nx_node['assumed_in_bounds'] is not None:
+        pb_unique_args = pb_node.unique_args.add()
+        pb_unique_args.assumed_in_bounds = nx_node['assumed_in_bounds']
     elif nx_node['op'] == 'one_hot':
       pb_unique_args = pb_node.unique_args.add()
-      pb_unique_args.lsb_prio = node_attributes['lsb_prio']
+      pb_unique_args.lsb_prio = nx_node['lsb_prio']
     elif nx_node['op'] == 'sign_ext':
       pb_unique_args = pb_node.unique_args.add()
-      pb_unique_args.new_bit_count = int(node_attributes['new_bit_count'])
-    elif nx_node['op'] == 'sel':
+      pb_unique_args.new_bit_count = nx_node['new_bit_count']
+    elif nx_node['op'] == 'sel' or nx_node['op'] == 'priority_sel':
       pb_unique_args = pb_node.unique_args.add()
-      pb_unique_args.has_default_value = node_attributes['has_default']
+      pb_unique_args.has_default_value = nx_node['has_default_value']
     elif nx_node['op'] == 'receive':
       pb_unique_args = pb_node.unique_args.add()
-      pb_unique_args.channel = node_attributes['channel']
-      if node_attributes['blocking'] is not None:
+      pb_unique_args.channel = nx_node['channel']
+      if 'blocking' in nx_node:
         pb_unique_args = pb_node.unique_args.add()
-        pb_unique_args.blocking = node_attributes['blocking']
+        pb_unique_args.blocking = nx_node['blocking']
     elif nx_node['op'] == 'send':
       pb_unique_args = pb_node.unique_args.add()
-      pb_unique_args.channel = node_attributes['channel']
+      pb_unique_args.channel = nx_node['channel']
+    elif nx_node['op'] == 'state_read':
+      pb_unique_args = pb_node.unique_args.add()
+      pb_unique_args.index = nx_node['index']
+      pb_unique_args = pb_node.unique_args.add()
+      pb_unique_args.state_element = nx_node['state_element']
+      pb_unique_args = pb_node.unique_args.add()
+      node_init_value = nx_node['init']
+      pb_unique_args.init.CopyFrom(node_init_value.to_proto(data_type))
 
   def write_proto(self) -> None:
     """Writes the serialized protocol buffer message to a specified file.

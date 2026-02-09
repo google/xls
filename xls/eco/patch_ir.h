@@ -48,6 +48,14 @@ class PatchIr {
   absl::Status ExportScheduleProto();
   absl::Status PatchSchedule(const PipelineSchedule& schedule);
   absl::StatusOr<PipelineSchedule> GetPatchedSchedule();
+  enum class EditPathPriority : uint8_t {
+    kEdgeDelete,
+    kNodeDelete,
+    kNodeUpdate,
+    kNodeInsert,
+    kEdgeUpdate,
+    kEdgeInsert
+  };
 
  private:
   absl::Status ApplyPath(const xls_eco::EditPathProto& edit_path);
@@ -57,55 +65,13 @@ class PatchIr {
   absl::Status ApplyInsertPath(const xls_eco::EdgeEditPathProto& edge_insert);
   absl::Status ApplyUpdatePath(const xls_eco::NodeEditPathProto& node_update);
   absl::Status ApplyUpdatePath(const xls_eco::EdgeEditPathProto& edge_update);
-  absl::flat_hash_map<xls_eco::Operation, std::string> patch_op_to_str_map_ = {
-      {xls_eco::Operation::DELETE, "delete"},
-      {xls_eco::Operation::INSERT, "insert"},
-      {xls_eco::Operation::UPDATE, "update"},
-  };
-
-  enum class EditPathPriority : uint8_t {
-    kEdgeDelete,
-    kNodeDelete,
-    kNodeUpdate,
-    kNodeInsert,
-    kEdgeUpdate,
-    kEdgeInsert,
-  };
-  absl::flat_hash_map<std::pair<bool, xls_eco::Operation>, EditPathPriority>
-      edit_path_priority_map_ = {
-          {{true, xls_eco::UPDATE}, EditPathPriority::kNodeUpdate},
-          {{true, xls_eco::INSERT}, EditPathPriority::kNodeInsert},
-          {{true, xls_eco::DELETE}, EditPathPriority::kNodeDelete},
-          {{false, xls_eco::UPDATE}, EditPathPriority::kEdgeUpdate},
-          {{false, xls_eco::INSERT}, EditPathPriority::kEdgeInsert},
-          {{false, xls_eco::DELETE}, EditPathPriority::kEdgeDelete},
-  };
-
-  absl::flat_hash_map<std::string, Op> patch_to_ir_op_map_{
-      {"literal", Op::kLiteral},
-      {"param", Op::kParam},
-      {"sub", Op::kSub},
-      {"add", Op::kAdd},
-      {"umul", Op::kUMul},
-      {"smul", Op::kSMul},
-      {"concat", Op::kConcat},
-      {"bit_slice", Op::kBitSlice},
-      {"one_hot_sel", Op::kOneHotSel},
-      {"or", Op::kOr},
-      {"and", Op::kAnd},
-      {"nand", Op::kNand},
-      {"nor", Op::kNor},
-      {"not", Op::kNot},
-      {"sel", Op::kSel},
-      {"or_reduce", Op::kOrReduce},
-      {"tuple", Op::kTuple},
-      {"sign_ext", Op::kSignExt}};
 
   bool CompareEditPaths(const xls_eco::EditPathProto& lhs,
                         const xls_eco::EditPathProto& rhs);
   absl::StatusOr<std::vector<Node*>> MakeDummyNodes(absl::Span<Type*> types);
   absl::StatusOr<Node*> MakeDummyNode(Type* type);
   absl::StatusOr<int64_t> GetProtoBitCount(const TypeProto& type);
+  absl::StatusOr<Node*> ResolveNodeByPatchName(std::string_view patch_name);
   absl::Status UpdateNodeMaps(Node* n, absl::Span<Node*> dummy_operands,
                               std::string_view node_name);
   absl::Status CleanupDummyNodes(Node* node);
@@ -116,10 +82,12 @@ class PatchIr {
   Package* package_;
   std::optional<PipelineSchedule> schedule_;
   absl::flat_hash_map<Node*, std::vector<Node*>> dummy_nodes_map_;
+  absl::flat_hash_map<std::pair<Node*, uint>, uint>
+      commutative_edge_index_map_;
+  // Tracks available slots (dummy operands) on commutative nodes.
+  absl::flat_hash_map<Node*, int64_t> commutative_free_slots_;
   Node* dummy_return_node_ = nullptr;
   absl::flat_hash_map<std::string, std::string> patch_to_ir_node_map_;
-  absl::flat_hash_map<std::pair<Node*, uint>, uint>
-      commiutative_edge_index_map_;
   absl::Status IsolateReturnNode();
   absl::Status RestoreReturnNode();
   absl::Status ValidatePatch();
