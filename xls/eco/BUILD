@@ -89,7 +89,7 @@ py_library(
     deps = [
         ":xls_types",
         ":xls_values",
-        requirement("networkx"),
+        "@xls_pip_deps//networkx",
     ],
 )
 
@@ -107,7 +107,7 @@ py_binary(
     main = "ir2gxl.py",
     deps = [
         ":ir2nx",
-        requirement("networkx"),
+        "@xls_pip_deps//networkx",
     ],
 )
 
