@@ -767,6 +767,21 @@ absl::StatusOr<const Function*> TypeInfo::GetCallee(
   return (*invocation_data)->callee();
 }
 
+void TypeInfo::SetResolvedColonRefSubject(const ColonRef* node,
+                                          ResolvedColonRefSubject subject) {
+  resolved_colon_ref_subjects_[node] = subject;
+}
+
+absl::StatusOr<TypeInfo::ResolvedColonRefSubject>
+TypeInfo::GetResolvedColonRefSubject(const ColonRef* node) const {
+  const auto it = resolved_colon_ref_subjects_.find(node);
+  if (it == resolved_colon_ref_subjects_.end()) {
+    return absl::NotFoundError(absl::StrCat(
+        "No ColonRef subject was resolved for: ", node->ToString()));
+  }
+  return it->second;
+}
+
 std::optional<const ParametricEnv*> TypeInfo::GetInvocationCalleeBindings(
     const Invocation* invocation, const ParametricEnv& caller) const {
   CHECK_EQ(invocation->owner(), module_)

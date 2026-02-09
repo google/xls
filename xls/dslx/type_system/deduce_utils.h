@@ -35,9 +35,6 @@
 #include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
-using ColonRefSubjectT =
-    std::variant<Module*, EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*,
-                 StructDef*, TypeRefTypeAnnotation*, ColonRef*>;
 
 // Validates that "number" fits in `bits_like` if the size is known. `bits_like`
 // should have been derived from `type` -- this routine uses `type` for error
@@ -81,26 +78,6 @@ absl::Status ValidateNumber(const Number& number, const Type& type);
 absl::Status ValidateFormatMacroArgument(const Type& type, const Span& span,
                                          const FileTable& file_table);
 
-// Returns the basis of the given ColonRef.
-//
-// In valid cases this will generally be:
-// * a module
-// * an enum definition
-// * a builtin type (with a constant item on it, a la `u7::MAX`)
-// * a `StructDef` with an `impl`.
-absl::StatusOr<ColonRefSubjectT> ResolveColonRefSubjectForTypeChecking(
-    ImportData* import_data, const TypeInfo* type_info,
-    const ColonRef* colon_ref);
-
-// Implementation of the above that can be called after type checking has been
-// performed, in which case we can eliminate some of the (invalid) possibilities
-// so they no longer need to be handled.
-absl::StatusOr<std::variant<Module*, EnumDef*, BuiltinNameDef*,
-                            ArrayTypeAnnotation*, Impl*>>
-ResolveColonRefSubjectAfterTypeChecking(ImportData* import_data,
-                                        const TypeInfo* type_info,
-                                        const ColonRef* colon_ref);
-
 // Finds the Proc identified by the given node (either NameRef or ColonRef),
 // using the associated ImportData for import Module lookup.
 // The target proc must have been typechecked prior to this call.
@@ -113,29 +90,6 @@ absl::StatusOr<Proc*> ResolveProc(Expr* callee, const TypeInfo* type_info);
 absl::StatusOr<StartAndWidth> ResolveBitSliceIndices(
     int64_t bit_count, std::optional<int64_t> start_opt,
     std::optional<int64_t> limit_opt);
-
-// Dereferences the "original" struct reference to a struct definition or
-// returns an error.
-//
-// Args:
-//  span: The span of the original construct trying to dereference the struct
-//    (e.g. a StructInstance).
-//  original: The original struct reference value (used in error reporting).
-//  current: The current type definition being dereferenced towards a struct
-//    definition (note there can be multiple levels of typedefs and such).
-//  type_info: The type information that the "current" TypeDefinition resolves
-//    against.
-absl::StatusOr<StructDef*> DerefToStruct(const Span& span,
-                                         std::string_view original_ref_text,
-                                         TypeDefinition current,
-                                         const TypeInfo* type_info);
-
-// Wrapper around the DerefToStruct above (that works on TypeDefinitions) that
-// takes a `TypeAnnotation` instead.
-absl::StatusOr<StructDef*> DerefToStruct(const Span& span,
-                                         std::string_view original_ref_text,
-                                         const TypeAnnotation& type_annotation,
-                                         const TypeInfo* type_info);
 
 // Checks that the number of tuple elements in the name def tree matches the
 // number of tuple elements in the type; if a "rest of tuple" leaf is

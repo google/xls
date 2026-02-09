@@ -830,50 +830,7 @@ absl::Status BytecodeEmitter::HandleColonRef(const ColonRef* node) {
 
 absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefInternal(
     const ColonRef* node) {
-  std::optional<InterpValue> const_value = type_info_->GetConstExprOption(node);
-  if (const_value.has_value()) {
-    return *const_value;
-  }
-
-  XLS_ASSIGN_OR_RETURN(
-      auto resolved_subject,
-      ResolveColonRefSubjectAfterTypeChecking(import_data_, type_info_, node));
-
-  return absl::visit(
-      Visitor{
-          [&](EnumDef* enum_def) -> absl::StatusOr<InterpValue> {
-            const TypeInfo* type_info = type_info_;
-            if (enum_def->owner() != type_info_->module()) {
-              type_info =
-                  import_data_->GetRootTypeInfo(enum_def->owner()).value();
-            }
-            return HandleColonRefToEnum(node, enum_def, type_info);
-          },
-          [&](BuiltinNameDef* builtin_name_def) -> absl::StatusOr<InterpValue> {
-            return GetBuiltinNameDefColonAttr(builtin_name_def, node->attr());
-          },
-          [&](ArrayTypeAnnotation* array_type) -> absl::StatusOr<InterpValue> {
-            const TypeInfo& type_info = GetTypeInfoForNodeIfDifferentModule(
-                array_type, *type_info_, *import_data_);
-            XLS_ASSIGN_OR_RETURN(InterpValue value,
-                                 type_info.GetConstExpr(array_type->dim()));
-            XLS_ASSIGN_OR_RETURN(uint64_t dim_u64, value.GetBitValueUnsigned());
-            return GetArrayTypeColonAttr(array_type, dim_u64, node->attr());
-          },
-          [&](Module* module) -> absl::StatusOr<InterpValue> {
-            return HandleColonRefToValue(module, node);
-          },
-          [&](Impl* impl) -> absl::StatusOr<InterpValue> {
-            std::optional<ImplMember> member = impl->GetMember(node->attr());
-            XLS_RET_CHECK(member.has_value());
-            if (std::holds_alternative<Function*>(*member)) {
-              Function* f = std::get<Function*>(*member);
-              return InterpValue::MakeFunction(
-                  InterpValue::UserFnData{f->owner(), f});
-            }
-            return type_info_->GetConstExpr(node);
-          }},
-      resolved_subject);
+  return type_info_->GetConstExpr(node);
 }
 
 absl::Status BytecodeEmitter::HandleFor(const For* node) {

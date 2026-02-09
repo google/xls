@@ -106,10 +106,8 @@ std::optional<const NameDef*> FindDefinition(const Module& m,
       VLOG(3) << "Intercepting node is ColonRef: `" << colon_ref->ToString()
               << "`";
 
-      using Resolved = std::variant<Module*, EnumDef*, BuiltinNameDef*,
-                                    ArrayTypeAnnotation*, Impl*>;
-      absl::StatusOr<Resolved> node = ResolveColonRefSubjectAfterTypeChecking(
-          &import_data, &type_info, colon_ref);
+      absl::StatusOr<TypeInfo::ResolvedColonRefSubject> node =
+          type_info.GetResolvedColonRefSubject(colon_ref);
       if (!node.ok()) {
         VLOG(3) << "Could not resolve ColonRef subject; status: "
                 << node.status();

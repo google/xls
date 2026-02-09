@@ -22,6 +22,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -169,18 +170,31 @@ class Visitor : public AstNodeVisitorWithDefault {
       }
     }
 
+    const bool target_is_constant_def =
+        target.has_value() && (*target)->kind() == AstNodeKind::kConstantDef;
+
     // We can distinguish a ColonRef to an imported enum type itself, from an
     // imported enum member, by the subject type (the subject type of a member
     // if a ColonRef). An imported enum type itself is problematic, if we try to
     // use enum member logic for it below, so short-circuit that.
     if (IsImport(direct_colon_ref) && type_.IsEnum() &&
-        std::holds_alternative<NameRef*>(direct_colon_ref->subject())) {
+        std::holds_alternative<NameRef*>(direct_colon_ref->subject()) &&
+        !target_is_constant_def) {
+      const NameDef* name_def = std::get<const NameDef*>(
+          std::get<NameRef*>(direct_colon_ref->subject())->name_def());
+      if (name_def->definer()->kind() == AstNodeKind::kModule) {
+        ti_->SetResolvedColonRefSubject(
+            colon_ref, absl::down_cast<Module*>(name_def->definer()));
+      }
       return absl::OkStatus();
     }
 
-    // Handle enum here, at this point its type is concretized and all its
-    // values are evaluated as constexpr.
-    if (type_.IsEnum()) {
+    // Direct enum reference like MyEnum::FOO or imported_mod::MyEnum::FOO. When
+    // handling the enum declaration itself, we should have noted a constexpr
+    // for each name in it. Just get that value and propagate it. This logic
+    // doesn't apply to a const declaration whose value happens to be some enum
+    // value; that is dealt with like any other const declaration below.
+    if (type_.IsEnum() && !target_is_constant_def) {
       const auto& enum_type = type_.AsEnum();
       const EnumDef& enum_def = enum_type.nominal_type();
       absl::StatusOr<Expr*> enum_value =
@@ -196,6 +210,8 @@ class Visitor : public AstNodeVisitorWithDefault {
                            eval_ti->GetConstExpr(*enum_value));
       trace_.SetResult(value);
       ti_->NoteConstExpr(colon_ref, value);
+      ti_->SetResolvedColonRefSubject(colon_ref,
+                                      const_cast<EnumDef*>(&enum_def));
       return absl::OkStatus();
     }
 
@@ -221,6 +237,30 @@ class Visitor : public AstNodeVisitorWithDefault {
       return absl::OkStatus();
     }
 
+    // In all other cases, the resolved subject is the effective parent of the
+    // target. Set that using uniform logic before determining how we will get a
+    // value for the ColonRef.
+    AstNode* resolved_subject = (*target)->parent();
+    if (resolved_subject == nullptr) {
+      ti_->SetResolvedColonRefSubject(colon_ref, (*target)->owner());
+    } else if (resolved_subject->kind() == AstNodeKind::kModule) {
+      ti_->SetResolvedColonRefSubject(
+          colon_ref, absl::down_cast<Module*>(resolved_subject));
+    } else if (resolved_subject->kind() == AstNodeKind::kImpl) {
+      ti_->SetResolvedColonRefSubject(colon_ref,
+                                      absl::down_cast<Impl*>(resolved_subject));
+    }
+
+    // Function targets like have a value that is similar to a function pointer,
+    // mainly for use by the interpreter.
+    if ((*target)->kind() == AstNodeKind::kFunction) {
+      const Function* f = absl::down_cast<const Function*>(*target);
+      ti_->NoteConstExpr(
+          colon_ref,
+          InterpValue::MakeFunction(InterpValue::UserFnData{f->owner(), f}));
+      return absl::OkStatus();
+    }
+
     // In a case like `S<parametrics>::CONSTANT`, what we do here is
     // constexpr-evaluate `CONSTANT` against the parametric context `TypeInfo`
     // for `S<parametrics>`. This will be `evaluation_ti`. Then we map the
@@ -233,7 +273,7 @@ class Visitor : public AstNodeVisitorWithDefault {
     VLOG(6) << "Checking ColonRef constexpr value for: "
             << colon_ref->ToString()
             << " with target: " << (*target)->ToString();
-    if ((*target)->kind() == AstNodeKind::kConstantDef) {
+    if (target_is_constant_def) {
       XLS_ASSIGN_OR_RETURN(
           std::optional<StructOrProcRef> struct_or_proc,
           GetStructOrProcRefForSubject(direct_colon_ref, import_data_));
