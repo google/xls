@@ -670,7 +670,7 @@ proc AxiRamReaderTest {
         let tok = join();
 
         // write test RAM data
-        let tok = for ((i, data), tok): ((u32, u32), token) in enumerate(TEST_RAM_DATA) {
+        let tok = for ((i, data), tok): ((u32, u32), token) in std::enumerate(TEST_RAM_DATA) {
             let tok = send(tok, wr_req_s, TestWriteReq {
                 addr: i as RamAddr,
                 data: data,
@@ -681,7 +681,7 @@ proc AxiRamReaderTest {
             tok
         }(tok);
 
-        let tok = for ((_i, axi_ar_bundle), tok): ((u32, TestAxiAr), token) in enumerate(TEST_AXI_AR_BUNDLES) {
+        let tok = for ((_i, axi_ar_bundle), tok): ((u32, TestAxiAr), token) in std::enumerate(TEST_AXI_AR_BUNDLES) {
             let tok = send(tok, axi_ar_s, axi_ar_bundle);
             // trace_fmt!("Sent bundle #{} {:#x}", i + u32:1, axi_ar_bundle);
 

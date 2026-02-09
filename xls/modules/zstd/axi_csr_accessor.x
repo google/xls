@@ -306,7 +306,7 @@ proc AxiCsrAccessorTest {
 
     next (state: ()) {
         // test writing via AXI
-        let tok = for ((i, test_data), tok): ((u32, TestData), token) in enumerate(TEST_DATA) {
+        let tok = for ((i, test_data), tok): ((u32, TestData), token) in std::enumerate(TEST_DATA) {
             // write CSR via AXI
             let axi_aw = TestAxiAw {
                 id: i as uN[TEST_ID_W],

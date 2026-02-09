@@ -811,8 +811,9 @@ fn main(input: u8[2]) -> u8[2] {
 
 TEST_F(IrConverterTest, ArrayEnumerate) {
   constexpr std::string_view program = R"(
+import std;
 fn main(array: u8[4]) -> (u32, u8)[4] {
-  enumerate(array)
+  std::enumerate(array)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted,

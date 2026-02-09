@@ -334,12 +334,6 @@ dslx_lang_test(
 dslx_lang_test(name = "for_over_range")
 
 dslx_lang_test(
-    name = "enumerate",
-    compare = "interpreter",
-    convert_to_ir = True,
-)
-
-dslx_lang_test(
     name = "character_conversion",
     # TODO: https://github.com/google/xls/issues/1526 - fails opportunistic_postcondition in autofmt
     # due to mismatch between /0 and /x00.

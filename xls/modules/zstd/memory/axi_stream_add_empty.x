@@ -990,19 +990,19 @@ proc AxiStreamAddEmptyTest {
     init { }
 
     next (state: ()) {
-        let tok = for ((i, test_write_req), tok): ((u32, TestReq), token) in enumerate(TEST_WRITE_REQUEST) {
+        let tok = for ((i, test_write_req), tok): ((u32, TestReq), token) in std::enumerate(TEST_WRITE_REQUEST) {
             let tok = send(tok, write_req_s, test_write_req);
             trace_fmt!("Sent #{} write request {:#x}", i + u32:1, test_write_req);
             tok
         }(join());
 
-        let tok = for ((i, test_raw_stream), tok): ((u32, TestAxiStream), token) in enumerate(TEST_STREAM_IN) {
+        let tok = for ((i, test_raw_stream), tok): ((u32, TestAxiStream), token) in std::enumerate(TEST_STREAM_IN) {
             let tok = send(tok, raw_stream_s, test_raw_stream);
             trace_fmt!("Sent #{} stream input {:#x}", i + u32:1, test_raw_stream);
             tok
         }(tok);
 
-        let tok = for ((i, test_stream_out), tok): ((u32, TestAxiStream), token) in enumerate(TEST_STREAM_OUT) {
+        let tok = for ((i, test_stream_out), tok): ((u32, TestAxiStream), token) in std::enumerate(TEST_STREAM_OUT) {
             let (tok, stream_out) = recv(tok, padded_stream_r);
             trace_fmt!("Received #{} stream output {:#x}", i + u32:1, stream_out);
             assert_eq(test_stream_out, stream_out);

@@ -376,7 +376,7 @@ proc HuffmanDataPreprocessor_test {
     next (state: ()) {
         let tok = join();
 
-        let (tok, _, _) = for ((i, test_start), (tok, cfg_idx, data_idx)): ((u32, Start), (token, u32, u32)) in enumerate(TEST_START) {
+        let (tok, _, _) = for ((i, test_start), (tok, cfg_idx, data_idx)): ((u32, Start), (token, u32, u32)) in std::enumerate(TEST_START) {
             let tok = send(tok, start_s, test_start);
             trace_fmt!("Sent #{} start {:#x}", i + u32:1, test_start);
 

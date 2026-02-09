@@ -168,7 +168,7 @@ proc RunLengthDecoderTransactionTest {
     ];
     let tok = for ((counter, stimulus), tok):
         ((u32, (TestSymbol, TestCount)) , token)
-        in enumerate(TransactionTestStimuli) {
+        in std::enumerate(TransactionTestStimuli) {
       let last = counter == (array_size(TransactionTestStimuli) - u32:1);
       let data_in = TestDecInData{
         symbol: stimulus.0,
@@ -191,7 +191,7 @@ proc RunLengthDecoderTransactionTest {
     ];
     let tok = for ((counter, symbol), tok):
         ((u32, TestSymbol) , token)
-        in enumerate(TransationTestOutputs) {
+        in std::enumerate(TransationTestOutputs) {
       let last = counter == (array_size(TransationTestOutputs) - u32:1);
       let data_out = TestDecOutData{
         symbol: symbol,
@@ -243,7 +243,7 @@ proc RunLengthDecoderLastAfterLastTest {
     ];
     let tok = for ((counter, stimulus), tok):
         ((u32, TestDecInData) , token)
-        in enumerate(LastAfterLastTestStimuli) {
+        in std::enumerate(LastAfterLastTestStimuli) {
       let tok = send(tok, dec_input_s, stimulus);
       trace_fmt!("Sent {} stimuli, symbol: 0x{:x}, count:{}, last: {}",
           counter + u32:1, stimulus.symbol, stimulus.count, stimulus.last);
@@ -255,7 +255,7 @@ proc RunLengthDecoderLastAfterLastTest {
     ];
     let tok = for ((counter, output), tok):
         ((u32, TestDecOutData) , token)
-        in enumerate(LastAfterLastTestOutputs) {
+        in std::enumerate(LastAfterLastTestOutputs) {
       let (tok, dec_output) = recv(tok, dec_output_r);
       trace_fmt!(
           "Received {} transactions, symbol: 0x{:x}, last: {}",

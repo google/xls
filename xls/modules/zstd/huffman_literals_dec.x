@@ -1073,7 +1073,7 @@ proc HuffmanLiteralsDecoder_test {
         let tok = join();
 
         trace_fmt!("Filling system memory mock");
-        let tok = for ((i, mem_req), tok):((u32, TestAxiRamWrReq), token) in enumerate(TEST_MEMORY) {
+        let tok = for ((i, mem_req), tok):((u32, TestAxiRamWrReq), token) in std::enumerate(TEST_MEMORY) {
             trace_fmt!("Sent memory write request #{}: {:#x}", i + u32:1, mem_req);
             let tok = send(tok, ram_wr_req_huffman_s, mem_req);
             let (tok, _) = recv(tok, ram_wr_resp_huffman_r);
@@ -1092,14 +1092,14 @@ proc HuffmanLiteralsDecoder_test {
         trace_fmt!("Filling system memory mock done");
 
         // Send Huffman Literals decoding requests
-        let tok = for ((i, ctrl_req), tok):((u32, TestCtrl), token) in enumerate(TEST_CTRL) {
+        let tok = for ((i, ctrl_req), tok):((u32, TestCtrl), token) in std::enumerate(TEST_CTRL) {
             let tok = send(tok, ctrl_s, ctrl_req);
             trace_fmt!("Sent #{} ctrl {:#x}", i + u32:1, ctrl_req);
             tok
         }(tok);
 
         // receive decoded literals
-        let tok = for ((i, expected_decoded_literals), tok):((u32, common::LiteralsDataWithSync), token) in enumerate(TEST_DECODED_LITERALS) {
+        let tok = for ((i, expected_decoded_literals), tok):((u32, common::LiteralsDataWithSync), token) in std::enumerate(TEST_DECODED_LITERALS) {
             trace_fmt!("Waiting for #{} decoded literals", i + u32:1);
             let (tok, decoded_literals) = recv(tok, decoded_literals_r);
             trace_fmt!("Received #{} decoded literals {:#x}", i + u32:1, decoded_literals);

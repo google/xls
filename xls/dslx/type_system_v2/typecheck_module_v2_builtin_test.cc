@@ -659,21 +659,6 @@ const_assert!(element_count<imported::T>() == 10);
   XLS_EXPECT_OK(TypecheckV2(kProgram, "main", &import_data));
 }
 
-TEST(TypecheckV2BuiltinTest, Enumerate) {
-  EXPECT_THAT(R"(const Y = enumerate<u16, u32:3>([u16:1, u16:2, u16:3]);)",
-              TypecheckSucceeds(HasNodeWithType("Y", "(uN[32], uN[16])[3]")));
-}
-
-TEST(TypecheckV2BuiltinTest, EnumerateImplicitSize) {
-  EXPECT_THAT(R"(const Y = enumerate<u16>([u16:1, u16:2, u16:3]);)",
-              TypecheckSucceeds(HasNodeWithType("Y", "(uN[32], uN[16])[3]")));
-}
-
-TEST(TypecheckV2BuiltinTest, EnumerateImplicitType) {
-  EXPECT_THAT(R"(const Y = enumerate([u16:1, u16:2, u16:3]);)",
-              TypecheckSucceeds(HasNodeWithType("Y", "(uN[32], uN[16])[3]")));
-}
-
 TEST(TypecheckV2BuiltinTest, Fail) {
   EXPECT_THAT(
       R"(

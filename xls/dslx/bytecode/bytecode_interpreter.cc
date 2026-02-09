@@ -1528,8 +1528,6 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
       return RunBuiltinCover(bytecode, stack_);
     case Builtin::kCtz:
       return RunBuiltinCtz(bytecode, stack_);
-    case Builtin::kEnumerate:
-      return RunBuiltinEnumerate(bytecode, stack_);
     case Builtin::kFail: {
       XLS_ASSIGN_OR_RETURN(InterpValue value, Pop());
       std::string message{value.ToString()};

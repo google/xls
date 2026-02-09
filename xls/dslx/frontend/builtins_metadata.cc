@@ -98,7 +98,6 @@ const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins() {
           {"signex", {}},
           {"array_slice", {}},
           {"update", {}},
-          {"enumerate", {}},
           {"widening_cast", {}},
           {"checked_cast", {}},
 
