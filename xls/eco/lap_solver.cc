@@ -1,4 +1,4 @@
-#include "lap.h"
+#include "xls/eco/lap_solver.h"
 
 #include <algorithm>
 #include <cstdint>
