@@ -463,7 +463,7 @@ absl::StatusOr<std::vector<Proc*>> GetTopLevelProcs(Module* module,
       continue;
     }
 
-    auto* this_spawned = down_cast<Proc*>(spawnee_nameref->GetDefiner());
+    auto* this_spawned = absl::down_cast<Proc*>(spawnee_nameref->GetDefiner());
     spawned.insert(this_spawned);
   }
 

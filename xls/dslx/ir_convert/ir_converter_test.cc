@@ -7335,7 +7335,7 @@ proc main {
   XLS_ASSERT_OK_AND_ASSIGN(Channel * my_chan,
                            test_proc->GetChannel("_my_chan"));
   ASSERT_EQ(my_chan->kind(), ChannelKind::kStreaming);
-  EXPECT_EQ(down_cast<StreamingChannel*>(my_chan)->GetFifoDepth(), 7);
+  EXPECT_EQ(absl::down_cast<StreamingChannel*>(my_chan)->GetFifoDepth(), 7);
 }
 
 TEST_F(IrConverterTest, ConvertMultipleInternalChannelsWithSameNameInSameProc) {
