@@ -265,9 +265,9 @@ cc_proto_library(
 
 cc_library(
     name = "tinyxml2",
-    srcs = ["libs/tinyxml2.cpp"],
-    hdrs = ["libs/tinyxml2.h"],
-    strip_include_prefix = "libs",
+    srcs = ["libs/tinyxml2/tinyxml2.cpp"],
+    hdrs = ["libs/tinyxml2/tinyxml2.h"],
+    strip_include_prefix = "libs/tinyxml2",
     visibility = ["//visibility:private"],
 )
 
@@ -368,4 +368,3 @@ cc_binary(
         "@com_google_absl//absl/strings",
     ],
 )
-
