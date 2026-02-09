@@ -1385,4 +1385,6 @@ dslx_strip_comments(
 dslx_lang_test(
     name = "const_if",
     dslx_entry = "main",
+    # TODO: davidplass - turn on when supported after PSC launch.
+    lower_to_proc_scoped_channels = False,
 )
