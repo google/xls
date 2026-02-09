@@ -342,7 +342,7 @@ LanguageServerAdapter::InlayHint(LspUri uri,
         module.FindContained(want_span);
     for (const AstNode* node : contained) {
       if (node->kind() == AstNodeKind::kLet) {
-        const auto* let = down_cast<const Let*>(node);
+        const auto* let = absl::down_cast<const Let*>(node);
         if (let->type_annotation() != nullptr) {
           // Already has a type annotated, no need for inlay.
           continue;
@@ -453,7 +453,7 @@ LanguageServerAdapter::Rename(LspUri uri,
           return std::nullopt;
         }
         if (node->kind() == AstNodeKind::kFunction) {
-          const auto* function = down_cast<const Function*>(node);
+          const auto* function = absl::down_cast<const Function*>(node);
           XLS_RETURN_IF_ERROR(
               RenameInGeneric(*function, *name_def, new_name, edits));
           break;
