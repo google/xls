@@ -19,7 +19,7 @@
 pub fn enumerate<T: type, N: u32>(x: T[N]) -> (u32, T)[N] {
     for (i, result): (u32, (u32, T)[N]) in u32:0..N {
         update(result, i, (i, x[i]))
-    }(((u32, T)[N]: [(u32:0, zero!<T>()), ...]))
+    }(((u32, T)[N]:[(u32:0, zero!<T>()), ...]))
 }
 
 #[test]
@@ -35,7 +35,7 @@ fn emumerate_test() {
 #[test]
 fn enumerate_type_test() {
     type RamData = uN[8];
-    const DATA = RamData[4]: [RamData:1, RamData:2, RamData:4, RamData:8];
+    const DATA = RamData[4]:[RamData:1, RamData:2, RamData:4, RamData:8];
     let enumerated = enumerate(DATA);
     assert_eq(enumerated[u32:0], (u32:0, u8:1));
     assert_eq(enumerated[u32:1], (u32:1, u8:2));
