@@ -574,10 +574,17 @@ absl::Status PatchIr::ApplyInsertPath(
         predicate = dummy_operands.back();
         dummy_operands.pop_back();
       }
+      // Get the payload type from the Receive node's tuple return type
+      // Receive returns a tuple (token, payload), so we need element 1
+      XLS_ASSIGN_OR_RETURN(Type* node_type,
+                           package_->GetTypeFromProto(patch_node.data_type()));
+      TupleType* tuple_type = node_type->AsTupleOrDie();
+      Type* payload_type = tuple_type->element_type(1);
       XLS_ASSIGN_OR_RETURN(n, function_base_->MakeNode<Receive>(
                                   SourceInfo(), dummy_operands[0], predicate,
                                   patch_node.unique_args(0).channel(),
-                                  patch_node.unique_args(1).blocking()));
+                                  patch_node.unique_args(1).blocking(),
+                                  payload_type));
       XLS_RETURN_IF_ERROR(
           UpdateNodeMaps(n, all_dummy_operands, patch_node.name()));
       break;
