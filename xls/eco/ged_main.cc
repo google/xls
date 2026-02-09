@@ -17,13 +17,13 @@
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
-#include "cost_functions.h"
-#include "ged.h"
-#include "gxl_parser.h"
-#include "mcs.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/init_xls.h"
-#include "xls/eco/mcs_ged/ir_patch_gen.h"
+#include "xls/eco/ged.h"
+#include "xls/eco/ged_cost_functions.h"
+#include "xls/eco/gxl_parser.h"
+#include "xls/eco/ir_patch_gen.h"
+#include "xls/eco/mcs.h"
 
 // TODO(DELETE): Stats collection for paper
 struct PaperStats {
@@ -163,7 +163,6 @@ absl::Status RealMain(const std::vector<std::string_view>& positional_args) {
           << " timeout=" << timeout << " optimal=" << optimal
           << " verbosity=" << verbosity;
 
-  auto t_start = std::chrono::high_resolution_clock::now();
   XLSGraph graph1 = parse_gxl(before_ir);
   XLSGraph graph2 = parse_gxl(after_ir);
   
