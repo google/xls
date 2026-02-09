@@ -83,6 +83,34 @@ pytype_strict_library(
     ],
 )
 
+py_library(
+    name = "ir2nx",
+    srcs = ["ir2nx.py"],
+    deps = [
+        ":xls_types",
+        ":xls_values",
+        requirement("networkx"),
+    ],
+)
+
+py_binary(
+    name = "ir_stats",
+    srcs = ["ir_stats.py"],
+    deps = [
+        ":ir2nx",
+    ],
+)
+
+py_binary(
+    name = "ir2gxl",
+    srcs = ["ir2gxl.py"],
+    main = "ir2gxl.py",
+    deps = [
+        ":ir2nx",
+        requirement("networkx"),
+    ],
+)
+
 pytype_strict_library(
     name = "ir_diff_utils",
     srcs = ["ir_diff_utils.py"],
@@ -170,7 +198,174 @@ py_proto_library(
     deps = [":ir_patch_proto"],
 )
 
+cc_library(
+    name = "patch_ir_lib",
+    srcs = ["patch_ir.cc"],
+    hdrs = ["patch_ir.h"],
+    deps = [
+        ":ir_patch_cc_proto",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:status_macros",
+        "//xls/estimators/delay_model:delay_estimator",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:node_util",
+        "//xls/ir:op",
+        "//xls/ir:source_location",
+        "//xls/ir:type",
+        "//xls/ir:value",
+        "//xls/ir:value_utils",
+        "//xls/ir:xls_type_cc_proto",
+        "//xls/ir:xls_value_cc_proto",
+        "//xls/scheduling:pipeline_schedule",
+        "//xls/scheduling:pipeline_schedule_cc_proto",
+        "//xls/scheduling:run_pipeline_schedule",
+        "//xls/scheduling:scheduling_options",
+        "//xls/tools:codegen_flags",
+        "//xls/tools:scheduling_options_flags",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_binary(
+    name = "patch_ir_main",
+    srcs = ["patch_ir_main.cc"],
+    deps = [
+        ":ir_patch_cc_proto",
+        ":patch_ir_lib",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:ir_parser",
+        "//xls/scheduling:pipeline_schedule",
+        "//xls/scheduling:pipeline_schedule_cc_proto",
+        "//xls/scheduling:scheduling_options",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
 cc_proto_library(
     name = "ir_patch_cc_proto",
     deps = [":ir_patch_proto"],
 )
+
+# Graph Edit Distance (GED) and Maximum Common Subgraph (MCS) implementation
+
+cc_library(
+    name = "tinyxml2",
+    srcs = ["libs/tinyxml2.cpp"],
+    hdrs = ["libs/tinyxml2.h"],
+    strip_include_prefix = "libs",
+    visibility = ["//visibility:private"],
+)
+
+cc_library(
+    name = "scipy_lap",
+    srcs = ["libs/scipy_lap/rectangular_lsap.cpp"],
+    hdrs = ["libs/scipy_lap/rectangular_lsap.h"],
+    strip_include_prefix = "libs",
+    visibility = ["//visibility:private"],
+)
+
+cc_library(
+    name = "graph",
+    srcs = ["graph.cc"],
+    hdrs = ["graph.h"],
+    deps = [
+        "@com_google_absl//absl/log",
+    ],
+)
+
+cc_library(
+    name = "gxl_parser",
+    srcs = ["gxl_parser.cc"],
+    hdrs = ["gxl_parser.h"],
+    deps = [
+        ":graph",
+        ":tinyxml2",
+        "@com_google_absl//absl/log",
+    ],
+)
+
+cc_library(
+    name = "lap_solver",
+    srcs = ["lap_solver.cc"],
+    hdrs = ["lap_solver.h"],
+    deps = [
+        ":scipy_lap",
+    ],
+)
+
+cc_library(
+    name = "ged",
+    srcs = ["ged.cc"],
+    hdrs = [
+        "ged.h",
+        "ged_cost_functions.h",
+    ],
+    deps = [
+        ":graph",
+        ":lap_solver",
+        "@com_google_absl//absl/log",
+    ],
+)
+
+cc_library(
+    name = "mcs",
+    srcs = ["mcs.cc"],
+    hdrs = ["mcs.h"],
+    deps = [
+        ":graph",
+        "@com_google_absl//absl/log",
+    ],
+)
+
+cc_library(
+    name = "ir_patch_gen_lib",
+    srcs = ["ir_patch_gen.cc"],
+    hdrs = ["ir_patch_gen.h"],
+    deps = [
+        ":ged",
+        ":graph",
+        ":ir_patch_cc_proto",
+        "//xls/ir",
+        "//xls/ir:ir_parser",
+        "//xls/ir:type",
+        "//xls/ir:value",
+        "//xls/ir:xls_value_cc_proto",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_binary(
+    name = "ged_main",
+    srcs = ["ged_main.cc"],
+    deps = [
+        ":ged",
+        ":gxl_parser",
+        ":ir_patch_gen_lib",
+        ":mcs",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:globals",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
