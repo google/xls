@@ -1,3 +1,10 @@
+# TODO(b/1234567890): DEPRECATED - This Python patch generator will be replaced
+# by patch_ir.h/cc (C++ implementation) which provides:
+# - Better type safety and error handling
+# - Direct integration with XLS IR infrastructure
+# - More efficient patch application
+# Please use //xls/eco:patch_ir_main instead.
+
 #
 # Copyright 2023 The XLS Authors
 #
