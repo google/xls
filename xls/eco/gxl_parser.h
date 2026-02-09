@@ -1,7 +1,7 @@
-#ifndef GXL_PARSER_H
-#define GXL_PARSER_H
+#ifndef XLS_ECO_GXL_PARSER_H_
+#define XLS_ECO_GXL_PARSER_H_
 
-#include "graph.h"
+#include "xls/eco/graph.h"
 #include "tinyxml2.h"
 #include <iostream>
 #include <map>
@@ -13,4 +13,4 @@
 XLSGraph parse_gxl(const std::string &filename);
 bool export_gxl(const XLSGraph &graph, const std::string &filename);
 
-#endif // GXL_PARSER_H
+#endif  // XLS_ECO_GXL_PARSER_H_

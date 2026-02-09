@@ -1,4 +1,4 @@
-#include "graph.h"
+#include "xls/eco/graph.h"
 
 #include <algorithm>
 #include <cstdint>
