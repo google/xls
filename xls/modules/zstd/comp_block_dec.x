@@ -1608,7 +1608,7 @@ proc CompressBlockDecoderTest {
             let (input_length, input, output_length, output) = COMP_BLOCK_DEC_TESTCASES[test_i];
 
             trace_fmt!("Loading testcase {}", test_i);
-            let tok = for ((i, input_data), tok): ((u32, u64), token) in enumerate(input) {
+            let tok = for ((i, input_data), tok): ((u32, u64), token) in std::enumerate(input) {
                 let req = TestcaseRamWrReq {
                     addr: i as uN[TEST_CASE_RAM_ADDR_W],
                     data: input_data as uN[TEST_CASE_RAM_DATA_W],

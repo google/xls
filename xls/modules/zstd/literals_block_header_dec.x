@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import std;
 import xls.modules.zstd.memory.mem_reader;
 
 pub enum LiteralsHeaderSize : u3 {
@@ -368,7 +369,7 @@ proc LiteralsHeaderDecoderTest {
         const ADDR = uN[TEST_AXI_ADDR_W]:0xDEAD;
 
         // positive cases
-        let tok = for ((_, (test_vec, expected_length, expected_header, expected_symbol)), tok): ((u32, (u40, u3, LiteralsHeader, u8)), token) in enumerate(tests) {
+        let tok = for ((_, (test_vec, expected_length, expected_header, expected_symbol)), tok): ((u32, (u40, u3, LiteralsHeader, u8)), token) in std::enumerate(tests) {
             send(tok, req_s, Req {
                 addr: ADDR,
             });

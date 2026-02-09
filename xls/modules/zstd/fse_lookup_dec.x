@@ -596,7 +596,7 @@ proc FseLookupDecoderTest {
 
             trace_fmt!("Loading testcase {:x}", test_i);
 
-            let tok = for ((i, input_data), tok): ((u32, u64), token) in enumerate(input) {
+            let tok = for ((i, input_data), tok): ((u32, u64), token) in std::enumerate(input) {
                 let req = TestcaseRamWrReq {
                     addr: i as uN[TEST_CASE_RAM_ADDR_WIDTH],
                     data: input_data as uN[TEST_CASE_RAM_DATA_WIDTH],
@@ -616,7 +616,7 @@ proc FseLookupDecoderTest {
             let (tok, resp) = recv(tok, resp_r);
             assert_eq(resp, exp_resp);
 
-            let tok = for ((i, output_data), tok): ((u32, FseTableRecord), token) in enumerate(output) {
+            let tok = for ((i, output_data), tok): ((u32, FseTableRecord), token) in std::enumerate(output) {
                 let req = FseRamRdReq {
                     addr: i as uN[TEST_FSE_RAM_ADDR_WIDTH],
                     mask: std::unsigned_max_value<TEST_FSE_RAM_NUM_PARTITIONS>(),
