@@ -1,3 +1,10 @@
+# TODO(b/1234567890): DEPRECATED - This Python NetworkX-based GED implementation
+# will be replaced by the C++ implementation in ged.h/cc which offers:
+# - 10-100x faster performance through optimized C++ and LAP solver
+# - MCS preprocessing for additional speedup
+# - Better integration with XLS IR infrastructure
+# Please migrate to using xls_ir_to_cytoscape.cc with the C++ GED tools.
+
 #
 # Copyright 2023 The XLS Authors
 #
