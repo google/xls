@@ -1,11 +1,11 @@
-#ifndef MCS_H
-#define MCS_H
+#ifndef XLS_ECO_MCS_H_
+#define XLS_ECO_MCS_H_
 
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
-#include "graph.h"
+#include "xls/eco/graph.h"
 
 namespace mcs {
 // Maximum Common Subgraph (MCS) solver using recursive backtracking
