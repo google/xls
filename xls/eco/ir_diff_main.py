@@ -1,3 +1,10 @@
+# TODO(b/1234567890): DEPRECATED - This Python NetworkX-based GED tool
+# will be replaced by ged_main.cc (C++ implementation) which provides:
+# - 10-100x faster graph edit distance computation
+# - MCS preprocessing optimization
+# - Direct GXL file parsing without NetworkX dependency
+# Please use //xls/eco:ged_main instead.
+
 #
 # Copyright 2023 The XLS Authors
 #
