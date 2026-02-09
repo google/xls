@@ -1,5 +1,5 @@
-#ifndef GRAPH_H
-#define GRAPH_H
+#ifndef XLS_ECO_GRAPH_H_
+#define XLS_ECO_GRAPH_H_
 
 #include <cstddef>
 #include <functional>
@@ -88,4 +88,4 @@ struct XLSGraph
   void ValidateEdges();
 };
 
-#endif
+#endif  // XLS_ECO_GRAPH_H_
