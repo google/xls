@@ -1,5 +1,5 @@
-#ifndef GED_H
-#define GED_H
+#ifndef XLS_ECO_GED_H_
+#define XLS_ECO_GED_H_
 
 #include <climits>
 #include <cstdint>
@@ -10,7 +10,7 @@
 #include <unordered_map>
 
 
-#include "graph.h"
+#include "xls/eco/graph.h"
 
 namespace ged
 {
@@ -184,4 +184,4 @@ MakePruneFunction(const GEDOptions& options,
 GEDResult SolveGED(const XLSGraph& graph1, const XLSGraph& graph2,
                    const GEDOptions& options);
 }  // namespace ged
-#endif  // GED_H
+#endif  // XLS_ECO_GED_H_

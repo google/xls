@@ -1,4 +1,4 @@
-#include "ged.h"
+#include "xls/eco/ged.h"
 
 #include <algorithm>
 #include <chrono>
@@ -7,7 +7,7 @@
 #include <unordered_set>
 
 #include "absl/log/log.h"
-#include "lap.h"
+#include "xls/eco/lap_solver.h"
 
 /* Algorithm based on:
 Zeina Abu-Aisheh, Romain Raveaux, Jean-Yves Ramel, Patrick Martineau.
