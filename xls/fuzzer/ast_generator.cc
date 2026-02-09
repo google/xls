@@ -530,7 +530,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
         AstNode * type_annotation,
         CloneAst(p->type_annotation(), &PreserveTypeDefinitionsReplacer));
     return module_->Make<ProcMember>(
-        name_def, down_cast<TypeAnnotation*>(type_annotation));
+        name_def, absl::down_cast<TypeAnnotation*>(type_annotation));
   };
   XLS_ASSIGN_OR_RETURN(ProcMember * member, to_member(param));
   proc_properties_.members.push_back(member);
@@ -1658,7 +1658,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArray(Context* ctx) {
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateArrayIndex(Context* ctx) {
   XLS_ASSIGN_OR_RETURN(TypedExpr array, ChooseEnvValueArray(&ctx->env));
-  ArrayTypeAnnotation* array_type = down_cast<ArrayTypeAnnotation*>(array.type);
+  ArrayTypeAnnotation* array_type =
+      absl::down_cast<ArrayTypeAnnotation*>(array.type);
   XLS_ASSIGN_OR_RETURN(TypedExpr index, ChooseEnvValueUBits(&ctx->env));
   int64_t array_size = GetArraySize(array_type);
   // An out-of-bounds array index raises an error in the DSLX interpreter so
@@ -1680,7 +1681,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArrayIndex(Context* ctx) {
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateArrayUpdate(Context* ctx) {
   XLS_ASSIGN_OR_RETURN(TypedExpr array, ChooseEnvValueArray(&ctx->env));
-  ArrayTypeAnnotation* array_type = down_cast<ArrayTypeAnnotation*>(array.type);
+  ArrayTypeAnnotation* array_type =
+      absl::down_cast<ArrayTypeAnnotation*>(array.type);
   XLS_ASSIGN_OR_RETURN(TypedExpr index, ChooseEnvValueUBits(&ctx->env));
   XLS_ASSIGN_OR_RETURN(TypedExpr element,
                        ChooseEnvValue(&ctx->env, array_type->element_type()));
@@ -1966,7 +1968,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateMap(int64_t call_depth,
   // Choose a random array from the environment and create a single-argument
   // function which takes an element of that array.
   XLS_ASSIGN_OR_RETURN(TypedExpr array, ChooseEnvValueArray(&ctx->env));
-  ArrayTypeAnnotation* array_type = down_cast<ArrayTypeAnnotation*>(array.type);
+  ArrayTypeAnnotation* array_type =
+      absl::down_cast<ArrayTypeAnnotation*>(array.type);
   XLS_ASSIGN_OR_RETURN(
       AnnotatedFunction map_fn,
       GenerateFunction(map_fn_name, call_depth + 1,
