@@ -113,7 +113,7 @@ TEST(FormatDisablerTest, DisabledAroundImport) {
                            disabler(import_node));
 
   ASSERT_TRUE(actual.has_value());
-  VerbatimNode* actual_node = down_cast<VerbatimNode*>(*actual);
+  VerbatimNode* actual_node = absl::down_cast<VerbatimNode*>(*actual);
   ASSERT_NE(actual_node, nullptr);
 
   EXPECT_EQ(actual_node->text(), absl::StrCat(kImport, kFmtOn));
@@ -139,7 +139,7 @@ TEST(FormatDisablerTest, EnabledOnSameLine) {
                            disabler(import_node));
 
   ASSERT_TRUE(actual.has_value());
-  VerbatimNode* actual_node = down_cast<VerbatimNode*>(*actual);
+  VerbatimNode* actual_node = absl::down_cast<VerbatimNode*>(*actual);
   ASSERT_NE(actual_node, nullptr);
 
   EXPECT_EQ(actual_node->text(), absl::StrCat(kImport, kFmtOn));
@@ -165,7 +165,7 @@ TEST(FormatDisablerTest, EnabledOnSameLineWithNewlineBetween) {
                            disabler(import_node));
 
   ASSERT_TRUE(actual.has_value());
-  VerbatimNode* actual_node = down_cast<VerbatimNode*>(*actual);
+  VerbatimNode* actual_node = absl::down_cast<VerbatimNode*>(*actual);
   ASSERT_NE(actual_node, nullptr);
 
   EXPECT_EQ(actual_node->text(), absl::StrCat(kImport, kFmtOn));
@@ -192,7 +192,8 @@ TEST(FormatDisablerTest, MultipleDisabledStatements) {
                            disabler(first_import_node));
 
   ASSERT_TRUE(first_actual.has_value());
-  VerbatimNode* first_verbatim_node = down_cast<VerbatimNode*>(*first_actual);
+  VerbatimNode* first_verbatim_node =
+      absl::down_cast<VerbatimNode*>(*first_actual);
   ASSERT_NE(first_verbatim_node, nullptr);
 
   // Text should be the two imports concatenated.
@@ -203,7 +204,8 @@ TEST(FormatDisablerTest, MultipleDisabledStatements) {
   XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> second_actual,
                            disabler(second_import_node));
   ASSERT_TRUE(second_actual.has_value());
-  VerbatimNode* second_verbatim_node = down_cast<VerbatimNode*>(*second_actual);
+  VerbatimNode* second_verbatim_node =
+      absl::down_cast<VerbatimNode*>(*second_actual);
   ASSERT_NE(second_verbatim_node, nullptr);
 
   EXPECT_TRUE(second_verbatim_node->IsEmpty());
@@ -231,7 +233,7 @@ TEST(FormatDisablerTest, OneDisabledOneEnabledStatement) {
                            disabler(first_import_node));
 
   ASSERT_TRUE(first_actual.has_value());
-  VerbatimNode* actual_node = down_cast<VerbatimNode*>(*first_actual);
+  VerbatimNode* actual_node = absl::down_cast<VerbatimNode*>(*first_actual);
   ASSERT_NE(actual_node, nullptr);
 
   // Text should be just the first import.
@@ -315,7 +317,7 @@ TEST(FormatDisablerTest, NeverEnabled) {
                            disabler(import_node));
 
   ASSERT_TRUE(actual.has_value());
-  VerbatimNode* actual_node = down_cast<VerbatimNode*>(*actual);
+  VerbatimNode* actual_node = absl::down_cast<VerbatimNode*>(*actual);
   ASSERT_NE(actual_node, nullptr);
 
   EXPECT_EQ(actual_node->text(), kImport);
@@ -415,7 +417,7 @@ TEST(FormatDisablerTest, InternalCommentIncludedInVerbatimNode) {
                            disabler(import_node));
 
   ASSERT_TRUE(actual.has_value());
-  VerbatimNode* actual_node = down_cast<VerbatimNode*>(*actual);
+  VerbatimNode* actual_node = absl::down_cast<VerbatimNode*>(*actual);
   ASSERT_NE(actual_node, nullptr);
 
   // There should be zero comments in the verbatim node's span, and two fewer in
