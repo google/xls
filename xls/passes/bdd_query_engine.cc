@@ -332,7 +332,7 @@ std::unique_ptr<QueryEngine>
 BddQueryEngine::AssumingQueryEngine::SpecializeGivenPredicate(
     const absl::btree_set<PredicateState>& state) const {
   std::unique_ptr<AssumingQueryEngine> specialized(
-      down_cast<AssumingQueryEngine*>(
+      absl::down_cast<AssumingQueryEngine*>(
           query_engine_->SpecializeGivenPredicate(state).release()));
   specialized->assumption_ =
       query_engine_->bdd().And(assumption_, specialized->assumption_);

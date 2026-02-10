@@ -308,7 +308,7 @@ TEST(PassesTest, InvariantCheckerFailsAfterPass) {
   OptimizationContext context;
   XLS_EXPECT_OK(
       top->Run(p.get(), OptimizationPassOptions(), &results, context).status());
-  down_cast<OptimizationCompoundPass*>(top->passes()[0])
+  absl::down_cast<OptimizationCompoundPass*>(top->passes()[0])
       ->Add<FunctionAdderPass>("bar");
   auto result = top->Run(p.get(), OptimizationPassOptions(), &results, context);
   EXPECT_THAT(result,
