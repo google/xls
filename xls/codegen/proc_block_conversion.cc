@@ -1339,7 +1339,7 @@ static absl::Status AddInputOutputFlops(
           // With proc scoped channels, the interface holds the flop kind.
           continue;
         }
-        StreamingChannel* channel = down_cast<StreamingChannel*>(
+        StreamingChannel* channel = absl::down_cast<StreamingChannel*>(
             std::get<Channel*>(input.GetChannel()));
         XLS_RET_CHECK(channel->channel_config().input_flop_kind())
             << "No input flop kind";
@@ -1376,7 +1376,7 @@ static absl::Status AddInputOutputFlops(
           // With proc scoped channels, the interface holds the flop kind.
           continue;
         }
-        StreamingChannel* channel = down_cast<StreamingChannel*>(
+        StreamingChannel* channel = absl::down_cast<StreamingChannel*>(
             std::get<Channel*>(output.GetChannel()));
         XLS_RET_CHECK(channel->channel_config().output_flop_kind())
             << "No output flop kind";

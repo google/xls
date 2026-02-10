@@ -124,7 +124,7 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
   for (const ::xls::Instantiation* instantiation : block->GetInstantiations()) {
     if (instantiation->kind() == ::xls::InstantiationKind::kFifo) {
       const FifoInstantiation* fifo =
-          down_cast<const FifoInstantiation*>(instantiation);
+          absl::down_cast<const FifoInstantiation*>(instantiation);
       if (fifo->channel_name().has_value()) {
         b.AddStreamingChannel(fifo->channel_name().value(), fifo->data_type(),
                               FlowControl::kReadyValid, fifo->fifo_config());
@@ -133,7 +133,7 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
                              fifo->data_type(), fifo->fifo_config());
     } else if (instantiation->kind() == ::xls::InstantiationKind::kBlock) {
       const BlockInstantiation* block_instantiation =
-          down_cast<const BlockInstantiation*>(instantiation);
+          absl::down_cast<const BlockInstantiation*>(instantiation);
       b.AddBlockInstantiation(p,
                               block_instantiation->instantiated_block()->name(),
                               block_instantiation->name());

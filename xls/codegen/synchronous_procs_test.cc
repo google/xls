@@ -165,11 +165,11 @@ TEST_P(SynchronousProcsTest, ChainedProc) {
   XLS_ASSERT_OK_AND_ASSIGN(ChannelWithInterfaces tmp3_ch,
                            pb.AddChannel("tmp3", u32));
 
-  down_cast<StreamingChannel*>(tmp1_ch.channel)
+  absl::down_cast<StreamingChannel*>(tmp1_ch.channel)
       ->SetChannelConfig(ChannelConfig(kDepth1Fifo.config));
-  down_cast<StreamingChannel*>(tmp2_ch.channel)
+  absl::down_cast<StreamingChannel*>(tmp2_ch.channel)
       ->SetChannelConfig(ChannelConfig(kDepth1Fifo.config));
-  down_cast<StreamingChannel*>(tmp3_ch.channel)
+  absl::down_cast<StreamingChannel*>(tmp3_ch.channel)
       ->SetChannelConfig(ChannelConfig(kDepth1Fifo.config));
 
   Proc* subproc1;
