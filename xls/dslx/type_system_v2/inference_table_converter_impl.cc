@@ -94,7 +94,8 @@ bool NeedsMetaType(const InferenceTable& table, const AstNode* node) {
                       AstNodeKind::kProcDef});
   return kMetaTypeKinds->contains(node->kind()) ||
          (node->kind() == AstNodeKind::kColonRef &&
-          IsColonRefWithTypeTarget(table, down_cast<const ColonRef*>(node))) ||
+          IsColonRefWithTypeTarget(table,
+                                   absl::down_cast<const ColonRef*>(node))) ||
          (node->kind() == AstNodeKind::kNameDef && node->parent() &&
           node->parent()->kind() == AstNodeKind::kTypeAlias);
 }
@@ -215,10 +216,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     std::unique_ptr<ProcTypeInfoFrame> proc_type_info_frame;
     if (node->kind() == AstNodeKind::kProc ||
         (node->kind() == AstNodeKind::kFunction &&
-         down_cast<const Function*>(node)->IsInProc())) {
+         absl::down_cast<const Function*>(node)->IsInProc())) {
       const Proc* proc = node->kind() == AstNodeKind::kProc
-                             ? down_cast<const Proc*>(node)
-                             : *down_cast<const Function*>(node)->proc();
+                             ? absl::down_cast<const Proc*>(node)
+                             : *absl::down_cast<const Function*>(node)->proc();
       if (!proc->IsParametric() && !converted_procs_.insert(proc).second) {
         return absl::OkStatus();
       }
@@ -239,9 +240,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       VLOG(5) << "Next node: " << node->ToString();
       if (node->kind() == AstNodeKind::kInvocation) {
         XLS_RETURN_IF_ERROR(ConvertInvocation(
-            down_cast<const Invocation*>(node), parametric_context));
+            absl::down_cast<const Invocation*>(node), parametric_context));
       } else if (node->kind() == AstNodeKind::kProc &&
-                 !IsProcAtTopOfTypeInfoStack(down_cast<const Proc*>(node))) {
+                 !IsProcAtTopOfTypeInfoStack(
+                     absl::down_cast<const Proc*>(node))) {
         // When we encounter a proc root, do a dedicated `ConvertSubtree` call
         // for the proc, targeted to the converter for its owning module. This
         // gets the proc's type info onto the appropriate stack. Note that
@@ -441,7 +443,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       // the invocation, and therefore its conversion can't be done up front
       // (nor does it need to be).
       if (node->kind() == AstNodeKind::kInvocation &&
-          down_cast<const Invocation*>(node)->callee() == name_ref) {
+          absl::down_cast<const Invocation*>(node)->callee() == name_ref) {
         continue;
       }
 
@@ -792,7 +794,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                                 /*clone_if_no_parametrics=*/false));
 
       parametric_free_function_type =
-          down_cast<const FunctionTypeAnnotation*>(parametric_free_type);
+          absl::down_cast<const FunctionTypeAnnotation*>(parametric_free_type);
       table_.SetAnnotationFlag(parametric_free_function_type,
                                TypeInferenceFlag::kFormalFunctionType);
       invocation_context->SetParametricFreeFunctionType(
@@ -858,7 +860,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       // next() invocation.
       XLS_RET_CHECK_GE(invocation->args().size(), 1);
       Invocation* config_invocation =
-          down_cast<Spawn*>(invocation->parent())->config();
+          absl::down_cast<Spawn*>(invocation->parent())->config();
       ParametricEnv caller_env = table_.GetParametricEnv(caller_context);
       ParametricEnv callee_env = table_.GetParametricEnv(invocation_context);
       std::optional<TypeInfo*> config_ti =
@@ -954,7 +956,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     }
 
     if (node->kind() == AstNodeKind::kImport) {
-      const Import* import = down_cast<const Import*>(node);
+      const Import* import = absl::down_cast<const Import*>(node);
       XLS_ASSIGN_OR_RETURN(ModuleInfo * imported_module_info,
                            import_data_.Get(ImportTokens(import->subject())));
       base_type_info_->AddImport(const_cast<Import*>(import),
@@ -967,7 +969,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                          GetTypeInfo(node->owner(), parametric_context));
 
     if (node->kind() == AstNodeKind::kProcAlias) {
-      const auto* alias = down_cast<const ProcAlias*>(node);
+      const auto* alias = absl::down_cast<const ProcAlias*>(node);
       XLS_ASSIGN_OR_RETURN(ResolvedProcAlias resolved,
                            ResolveProcAlias(ti, alias));
       ti->SetResolvedProcAlias(alias, resolved);
@@ -1005,7 +1007,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         // If the node itself is a `TypeAnnotation`, we can usually use it as
         // is.
         node_is_annotation = true;
-        annotation = down_cast<const TypeAnnotation*>(node);
+        annotation = absl::down_cast<const TypeAnnotation*>(node);
 
         // An annotation that is a generic argument, e.g.
         // `element_count<annotation>()`, may be an internally-fabricated
@@ -1040,13 +1042,13 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       // Don't require an implicit token by default. `ConvertInvocation` will
       // set this to true, for the caller of an invocation, in the narrow cases
       // where we want it.
-      const Function& function = *down_cast<const Function*>(node);
+      const Function& function = *absl::down_cast<const Function*>(node);
       if (!ti->GetRequiresImplicitToken(function).has_value()) {
         ti->NoteRequiresImplicitToken(function, false);
       }
     }
     if (node->kind() == AstNodeKind::kFormatMacro) {
-      const auto* fmt = down_cast<const FormatMacro*>(node);
+      const auto* fmt = absl::down_cast<const FormatMacro*>(node);
       if (fmt->macro() == "assert_fmt!") {
         for (int i = 0; i < fmt->args().size(); ++i) {
           if (!ConstexprEvaluator::EvaluateToValue(
@@ -1095,8 +1097,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     // Mark NameDef's concretized type to tell if it is actually unused.
     if (semantics_analysis_) {
       if (node->kind() == AstNodeKind::kNameDef) {
-        semantics_analysis_->SetNameDefType(down_cast<const NameDef*>(node),
-                                            type->get());
+        semantics_analysis_->SetNameDefType(
+            absl::down_cast<const NameDef*>(node), type->get());
       }
     }
 
@@ -1274,7 +1276,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       XLS_RET_CHECK(annotation->parent() != nullptr);
       XLS_RET_CHECK(annotation->parent()->kind() ==
                     AstNodeKind::kParametricBinding);
-      const auto* binding = down_cast<ParametricBinding*>(annotation->parent());
+      const auto* binding =
+          absl::down_cast<ParametricBinding*>(annotation->parent());
       XLS_ASSIGN_OR_RETURN(
           annotation,
           table_.GetGenericType(parametric_context, binding->name_def()));
@@ -1460,13 +1463,14 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       if (struct_def_base->kind() == AstNodeKind::kStructDef) {
         std::unique_ptr<Type> type = std::make_unique<StructType>(
             std::move(member_types),
-            *down_cast<const StructDef*>(struct_def_base));
+            *absl::down_cast<const StructDef*>(struct_def_base));
         XLS_RETURN_IF_ERROR(
             AddCachedType(struct_def_base, struct_context, *type));
         return type;
       }
       std::unique_ptr<Type> type = std::make_unique<ProcType>(
-          std::move(member_types), *down_cast<const ProcDef*>(struct_def_base));
+          std::move(member_types),
+          *absl::down_cast<const ProcDef*>(struct_def_base));
       XLS_RETURN_IF_ERROR(
           AddCachedType(struct_def_base, struct_context, *type));
       return type;
@@ -2121,7 +2125,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       if (actual_member_exprs_by_name.size() != formal_member_types.size() &&
           (*instantiator_node)->kind() == AstNodeKind::kSplatStructInstance) {
         const auto* splat =
-            down_cast<const SplatStructInstance*>(*instantiator_node);
+            absl::down_cast<const SplatStructInstance*>(*instantiator_node);
         for (const StructMemberNode* member : struct_def.members()) {
           if (!actual_member_exprs_by_name.contains(member->name())) {
             XLS_ASSIGN_OR_RETURN(
@@ -2230,7 +2234,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       // parentage of the original invocation node.
       XLS_ASSIGN_OR_RETURN(AstNode * clone, table_.Clone(instance.splatted(),
                                                          &NoopCloneReplacer));
-      splatted = down_cast<Expr*>(clone);
+      splatted = absl::down_cast<Expr*>(clone);
     }
     Expr* expr = module_.Make<Attr>(instance.span(), splatted, member.name());
     XLS_ASSIGN_OR_RETURN(
@@ -2351,7 +2355,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
             return std::nullopt;
           }
 
-          const auto* annotation = down_cast<const TypeAnnotation*>(node);
+          const auto* annotation = absl::down_cast<const TypeAnnotation*>(node);
           if (real_self_type.has_value() &&
               annotation->IsAnnotation<SelfTypeAnnotation>()) {
             return table_.Clone(*real_self_type, &NoopCloneReplacer,
@@ -2362,7 +2366,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           // want to replace the enclosing TVTA that contains the NameRef.
           if (annotation->IsAnnotation<TypeVariableTypeAnnotation>()) {
             const auto* tvta =
-                down_cast<const TypeVariableTypeAnnotation*>(annotation);
+                absl::down_cast<const TypeVariableTypeAnnotation*>(annotation);
             const auto it = actual_values.find(
                 std::get<const NameDef*>(tvta->type_variable()->name_def()));
             if (it != actual_values.end()) {
@@ -2388,10 +2392,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     // type will also not have propagated to affected nodes. To ensure the table
     // data is correct, we repopulate the table for the subtree under the new
     // type annotation.
-    XLS_RETURN_IF_ERROR(
-        visitor->PopulateFromTypeAnnotation(down_cast<TypeAnnotation*>(clone)));
+    XLS_RETURN_IF_ERROR(visitor->PopulateFromTypeAnnotation(
+        absl::down_cast<TypeAnnotation*>(clone)));
 
-    return down_cast<const TypeAnnotation*>(clone);
+    return absl::down_cast<const TypeAnnotation*>(clone);
   }
 
   // Cache a concretized type for a (node, parametric_context) pair to be
@@ -2436,7 +2440,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           file_table_);
     }
 
-    Proc* proc = down_cast<Proc*>(target_node);
+    Proc* proc = absl::down_cast<Proc*>(target_node);
 
     // For now, require all parametrics to be specified.
     // TODO: Support default exprs here.

@@ -111,7 +111,7 @@ class FastConcretizerImpl : public FastConcretizer,
     }
     if (std::get<const Expr*>(value)->kind() == AstNodeKind::kNumber) {
       const auto* literal =
-          down_cast<const Number*>(std::get<const Expr*>(value));
+          absl::down_cast<const Number*>(std::get<const Expr*>(value));
       XLS_ASSIGN_OR_RETURN(Bits bits, literal->GetBits(32, file_table_));
       if (bits_ops::SGreaterThanOrEqual(bits, 0) &&
           bits_ops::SLessThanOrEqual(bits, 1)) {
@@ -131,7 +131,7 @@ class FastConcretizerImpl : public FastConcretizer,
     }
     if (std::get<const Expr*>(value)->kind() == AstNodeKind::kNumber) {
       const auto* literal =
-          down_cast<const Number*>(std::get<const Expr*>(value));
+          absl::down_cast<const Number*>(std::get<const Expr*>(value));
       XLS_ASSIGN_OR_RETURN(const Bits bits, literal->GetBits(32, file_table_));
       if (bits_ops::SGreaterThanOrEqual(bits, 0) &&
           bits_ops::SLessThanOrEqual(bits, kMaxUint32AsInt64)) {

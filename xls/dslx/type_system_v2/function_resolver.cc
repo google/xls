@@ -81,7 +81,7 @@ class FunctionResolverImpl : public FunctionResolver {
             : std::nullopt;
 
     if (callee->kind() == AstNodeKind::kColonRef) {
-      const auto* colon_ref = down_cast<const ColonRef*>(callee);
+      const auto* colon_ref = absl::down_cast<const ColonRef*>(callee);
       std::optional<const AstNode*> target =
           table_.GetColonRefTarget(colon_ref);
 
@@ -107,12 +107,12 @@ class FunctionResolverImpl : public FunctionResolver {
         function_node = *target;
       }
     } else if (callee->kind() == AstNodeKind::kLambda) {
-      function_node = down_cast<const Lambda*>(callee)->function();
+      function_node = absl::down_cast<const Lambda*>(callee)->function();
       XLS_RETURN_IF_ERROR(converter_.ConvertSubtree(
           function_node, caller_function, caller_context));
     } else if (callee->kind() == AstNodeKind::kNameRef) {
       // Either a local function or a built-in function call.
-      const auto* name_ref = down_cast<const NameRef*>(callee);
+      const auto* name_ref = absl::down_cast<const NameRef*>(callee);
       if (std::holds_alternative<const NameDef*>(name_ref->name_def())) {
         const NameDef* def = std::get<const NameDef*>(name_ref->name_def());
         function_node = def->definer();
@@ -136,12 +136,12 @@ class FunctionResolverImpl : public FunctionResolver {
         }
       }
     } else if (callee->kind() == AstNodeKind::kAttr) {
-      const auto* attr = down_cast<const Attr*>(callee);
+      const auto* attr = absl::down_cast<const Attr*>(callee);
 
       // Disallow the form `module.fn()`. If they really want to do that, it
       // should be `module::fn()`.
       if (attr->lhs()->kind() == AstNodeKind::kNameRef &&
-          IsImportedModuleReference(down_cast<NameRef*>(attr->lhs()))) {
+          IsImportedModuleReference(absl::down_cast<NameRef*>(attr->lhs()))) {
         return TypeInferenceErrorStatus(
             attr->span(), nullptr,
             "An invocation callee must be a function, with a possible scope.",
@@ -183,7 +183,7 @@ class FunctionResolverImpl : public FunctionResolver {
         XLS_RET_CHECK(struct_type.has_value());
         XLS_RET_CHECK((*struct_type)->IsStruct());
         StructDef* struct_def = const_cast<StructDef*>(
-            down_cast<const StructDef*>(struct_or_proc_ref->def));
+            absl::down_cast<const StructDef*>(struct_or_proc_ref->def));
 
         XLS_ASSIGN_OR_RETURN(
             InferenceTableConverter * struct_def_owner_converter,

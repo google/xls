@@ -199,9 +199,9 @@ class Resolver {
     if (resolvable->kind() == AstNodeKind::kTypeAnnotation &&
         dependent->kind() == AstNodeKind::kTypeAnnotation) {
       const auto* resolvable_annotation =
-          down_cast<const TypeAnnotation*>(resolvable);
+          absl::down_cast<const TypeAnnotation*>(resolvable);
       const auto* dependent_annotation =
-          down_cast<const TypeAnnotation* const>(dependent);
+          absl::down_cast<const TypeAnnotation* const>(dependent);
       if (resolvable_annotation->IsAnnotation<TypeRefTypeAnnotation>() &&
           dependent_annotation->IsAnnotation<TypeRefTypeAnnotation>()) {
         XLS_ASSIGN_OR_RETURN(

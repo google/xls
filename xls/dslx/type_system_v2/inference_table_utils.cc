@@ -91,7 +91,7 @@ bool IsColonRefWithTypeTarget(const InferenceTable& table, const Expr* expr) {
     return false;
   }
   std::optional<const AstNode*> colon_ref_target =
-      table.GetColonRefTarget(down_cast<const ColonRef*>(expr));
+      table.GetColonRefTarget(absl::down_cast<const ColonRef*>(expr));
   return colon_ref_target.has_value() &&
          ((*colon_ref_target)->kind() == AstNodeKind::kTypeAlias ||
           (*colon_ref_target)->kind() == AstNodeKind::kEnumDef ||
@@ -111,7 +111,7 @@ CloneReplacer NameRefMapper(
     if (node->kind() != AstNodeKind::kNameRef) {
       return std::nullopt;
     }
-    const auto* ref = down_cast<const NameRef*>(node);
+    const auto* ref = absl::down_cast<const NameRef*>(node);
     if (!std::holds_alternative<const NameDef*>(ref->name_def())) {
       return std::nullopt;
     }
@@ -141,8 +141,8 @@ CloneReplacer NameRefMapper(
         (ref->parent() == nullptr ||
          (ref->parent()->kind() != AstNodeKind::kIndex &&
           ref->parent()->kind() != AstNodeKind::kTypeAnnotation))) {
-      down_cast<Number*>(clone)->SetTypeAnnotation(
-          down_cast<TypeAnnotation*>(
+      absl::down_cast<Number*>(clone)->SetTypeAnnotation(
+          absl::down_cast<TypeAnnotation*>(
               down_cast<ParametricBinding*>(name_def->parent())
                   ->type_annotation()),
           /*update_span=*/false);
@@ -156,16 +156,18 @@ absl::StatusOr<bool> IsReferenceToAbstractType(const AstNode* node,
                                                const InferenceTable& table) {
   std::optional<StructOrProcRef> ref;
   if (node->kind() == AstNodeKind::kColonRef &&
-      IsColonRefWithTypeTarget(table, down_cast<const ColonRef*>(node))) {
+      IsColonRefWithTypeTarget(table, absl::down_cast<const ColonRef*>(node))) {
     XLS_ASSIGN_OR_RETURN(
-        ref, GetStructOrProcRef(down_cast<const ColonRef*>(node), import_data));
+        ref, GetStructOrProcRef(absl::down_cast<const ColonRef*>(node),
+                                import_data));
   } else if (node->kind() == AstNodeKind::kTypeAlias ||
              (node->kind() == AstNodeKind::kNameDef &&
               node->parent() != nullptr &&
               node->parent()->kind() == AstNodeKind::kTypeAlias)) {
-    const TypeAlias* alias = node->kind() == AstNodeKind::kTypeAlias
-                                 ? down_cast<const TypeAlias*>(node)
-                                 : down_cast<const TypeAlias*>(node->parent());
+    const TypeAlias* alias =
+        node->kind() == AstNodeKind::kTypeAlias
+            ? absl::down_cast<const TypeAlias*>(node)
+            : absl::down_cast<const TypeAlias*>(node->parent());
     XLS_ASSIGN_OR_RETURN(
         ref, GetStructOrProcRef(&alias->type_annotation(), import_data));
   }
@@ -201,8 +203,8 @@ absl::StatusOr<ColonRef*> ConvertGenericColonRefToDirect(
             Span::None(),
             name_def->owner()->Make<TypeRef>(
                 Span::None(),
-                const_cast<StructDef*>(
-                    down_cast<const StructDef*>(struct_or_proc_ref->def))),
+                const_cast<StructDef*>(absl::down_cast<const StructDef*>(
+                    struct_or_proc_ref->def))),
             struct_or_proc_ref->parametrics),
         colon_ref->attr());
   }

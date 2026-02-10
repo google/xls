@@ -708,20 +708,21 @@ class InferenceTableImpl : public InferenceTable {
         }
         if (new_node->kind() == AstNodeKind::kTypeAnnotation) {
           const auto flag_it = annotation_flags_.find(
-              down_cast<const TypeAnnotation*>(old_node));
+              absl::down_cast<const TypeAnnotation*>(old_node));
           if (flag_it != annotation_flags_.end()) {
             const TypeInferenceFlag flag = flag_it->second;
             annotation_flags_.emplace(
-                down_cast<const TypeAnnotation*>(new_node), flag);
+                absl::down_cast<const TypeAnnotation*>(new_node), flag);
           }
         }
         if (old_node->kind() == AstNodeKind::kColonRef) {
           const auto* old_node_as_colon_ref =
-              down_cast<const ColonRef*>(old_node);
+              absl::down_cast<const ColonRef*>(old_node);
           std::optional<const AstNode*> target =
               GetColonRefTarget(old_node_as_colon_ref);
           if (target.has_value()) {
-            SetColonRefTarget(down_cast<const ColonRef*>(new_node), *target);
+            SetColonRefTarget(absl::down_cast<const ColonRef*>(new_node),
+                              *target);
           }
         }
       }
@@ -960,7 +961,7 @@ class InferenceTableImpl : public InferenceTable {
     if (node_data.type_variable.has_value()) {
       if (node->kind() == AstNodeKind::kInvocation) {
         invocations_feeding_type_variable_[*node_data.type_variable].push_back(
-            down_cast<const Invocation*>(node));
+            absl::down_cast<const Invocation*>(node));
       }
       cache_.InvalidateVariable(/*parametric_context=*/std::nullopt,
                                 (*node_data.type_variable)->name_ref());

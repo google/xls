@@ -289,7 +289,7 @@ class Visitor : public AstNodeVisitorWithDefault {
       absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
           &import_data_, evaluation_ti, &warning_collector_,
           table_.GetParametricEnv(parametric_context_),
-          down_cast<const ConstantDef*>(*target)->value());
+          absl::down_cast<const ConstantDef*>(*target)->value());
       if (value.ok()) {
         VLOG(6) << "Noting constexpr for ColonRef: " << colon_ref->ToString()
                 << ", value: " << value->ToString();
@@ -396,11 +396,11 @@ class Visitor : public AstNodeVisitorWithDefault {
     XLS_ASSIGN_OR_RETURN(
         pairs, CloneAstAndGetAllPairs(input, input->owner(),
                                       &PreserveTypeDefinitionsReplacer));
-    NameDefTree* iteration_ndt = down_cast<NameDefTree*>(pairs.at(input));
+    NameDefTree* iteration_ndt = absl::down_cast<NameDefTree*>(pairs.at(input));
     for (const auto& [old_node, new_node] : pairs) {
       if (old_node->kind() == AstNodeKind::kNameDef) {
-        old_to_new_name_defs.emplace(down_cast<const NameDef*>(old_node),
-                                     down_cast<NameDef*>(new_node));
+        old_to_new_name_defs.emplace(absl::down_cast<const NameDef*>(old_node),
+                                     absl::down_cast<NameDef*>(new_node));
       }
     }
     return module_.Make<Let>(input->span(), iteration_ndt, /*type=*/nullptr,
@@ -545,7 +545,7 @@ class Visitor : public AstNodeVisitorWithDefault {
                        &PreserveTypeDefinitionsReplacer,
                        NameRefReplacer(&iteration_name_def_mapping))));
       StatementBlock* copy_body_statementblock =
-          down_cast<StatementBlock*>(copy_body);
+          absl::down_cast<StatementBlock*>(copy_body);
       absl::Span<Statement* const> statements =
           copy_body_statementblock->statements();
 
@@ -658,7 +658,7 @@ class Visitor : public AstNodeVisitorWithDefault {
       return absl::OkStatus();
     }
 
-    NameRef* callee_nameref = down_cast<NameRef*>(invocation->callee());
+    NameRef* callee_nameref = absl::down_cast<NameRef*>(invocation->callee());
     std::optional<const Type*> callee_type = ti_->GetItem(invocation->callee());
     if (callee_type.has_value()) {
       const auto& function_type = (*callee_type)->AsFunction();

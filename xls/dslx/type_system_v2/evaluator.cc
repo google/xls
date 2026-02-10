@@ -211,7 +211,7 @@ class EvaluatorImpl : public Evaluator {
     } else if (expr->kind() == AstNodeKind::kNameRef &&
                parametric_context.has_value()) {
       // If it's a parametric, we can get it from the context.
-      const auto* name_ref = down_cast<const NameRef*>(expr);
+      const auto* name_ref = absl::down_cast<const NameRef*>(expr);
       if (std::holds_alternative<const NameDef*>(name_ref->name_def())) {
         return (*parametric_context)
             ->GetEnvValue(std::get<const NameDef*>(name_ref->name_def()));

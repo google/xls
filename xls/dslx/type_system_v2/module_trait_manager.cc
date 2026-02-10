@@ -168,7 +168,7 @@ class ModuleTraitManagerImpl : public ModuleTraitManager {
                     return std::nullopt;
                   })));
 
-      Function* derived = down_cast<Function*>(clones.at(function));
+      Function* derived = absl::down_cast<Function*>(clones.at(function));
 
       if (!existed_before) {
         // Put a stub for the derived function in the impl so that things like
@@ -177,7 +177,7 @@ class ModuleTraitManagerImpl : public ModuleTraitManager {
         XLS_ASSIGN_OR_RETURN(
             AstNode * derived_stub,
             CloneAst(derived, &PreserveTypeDefinitionsReplacer));
-        impl.AddMember(down_cast<Function*>(derived_stub));
+        impl.AddMember(absl::down_cast<Function*>(derived_stub));
       }
 
       derived->set_compiler_derived(true);

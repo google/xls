@@ -408,11 +408,11 @@ class TypeValidator : public AstNodeVisitorWithDefault {
   absl::Status DefaultHandler(const AstNode* node) override {
     if (node->parent() != nullptr &&
         node->parent()->kind() == AstNodeKind::kBinop) {
-      if (const auto* binop = down_cast<Binop*>(node->parent());
+      if (const auto* binop = absl::down_cast<Binop*>(node->parent());
           binop->binop_kind() == BinopKind::kConcat &&
           (binop->lhs() == node || binop->rhs() == node)) {
         XLS_RETURN_IF_ERROR(
-            PreValidateConcatOperand(down_cast<const Expr*>(node)));
+            PreValidateConcatOperand(absl::down_cast<const Expr*>(node)));
       }
     }
     return absl::OkStatus();
@@ -514,8 +514,8 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     }
 
     if (lhs_is_array) {
-      const auto* lhs_array = down_cast<const ArrayType*>(lhs);
-      const auto* rhs_array = down_cast<const ArrayType*>(rhs);
+      const auto* lhs_array = absl::down_cast<const ArrayType*>(lhs);
+      const auto* rhs_array = absl::down_cast<const ArrayType*>(rhs);
       if (lhs_array->element_type() != rhs_array->element_type()) {
         return TypeMismatchErrorStatus(
             lhs_array->element_type(), rhs_array->element_type(),

@@ -106,7 +106,7 @@ TypeAnnotation* CreateStructAnnotation(Module& module,
                                        const StructOrProcRef& ref) {
   CHECK(ref.def->kind() == AstNodeKind::kStructDef);
   return CreateStructAnnotation(
-      module, down_cast<StructDef*>(const_cast<StructDefBase*>(ref.def)),
+      module, absl::down_cast<StructDef*>(const_cast<StructDefBase*>(ref.def)),
       ref.parametrics, std::nullopt);
 }
 
@@ -411,7 +411,7 @@ const BuiltinTypeAnnotation* CastToTokenType(const TypeAnnotation* annotation) {
   if (!IsToken(annotation)) {
     return nullptr;
   }
-  return down_cast<const BuiltinTypeAnnotation*>(annotation);
+  return absl::down_cast<const BuiltinTypeAnnotation*>(annotation);
 }
 
 const FunctionTypeAnnotation* ExpandVarargs(
@@ -459,20 +459,21 @@ std::string GetParametricBindingOwnerDescription(
     case AstNodeKind::kFunction:
       return absl::Substitute(
           "function `$0`",
-          down_cast<Function*>(binding->parent())->identifier());
+          absl::down_cast<Function*>(binding->parent())->identifier());
 
     case AstNodeKind::kProc:
       return absl::Substitute(
-          "proc `$0`", down_cast<Proc*>(binding->parent())->identifier());
+          "proc `$0`", absl::down_cast<Proc*>(binding->parent())->identifier());
 
     case AstNodeKind::kProcDef:
       return absl::Substitute(
-          "proc `$0`", down_cast<ProcDef*>(binding->parent())->identifier());
+          "proc `$0`",
+          absl::down_cast<ProcDef*>(binding->parent())->identifier());
 
     case AstNodeKind::kStructDef:
       return absl::Substitute(
           "struct `$0`",
-          down_cast<StructDef*>(binding->parent())->identifier());
+          absl::down_cast<StructDef*>(binding->parent())->identifier());
 
     default:
       return binding->parent()->ToString();

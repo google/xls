@@ -232,7 +232,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       if (const NameDef** name_def = std::get_if<const NameDef*>(&any_name_def);
           name_def && (*name_def)->definer()->kind() == AstNodeKind::kEnumDef) {
         const auto* enum_def =
-            down_cast<const EnumDef*>((*name_def)->definer());
+            absl::down_cast<const EnumDef*>((*name_def)->definer());
         const TypeAnnotation* type_ref_annotation =
             module_.Make<TypeRefTypeAnnotation>(
                 (*name_def)->span(),
@@ -370,10 +370,11 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       table_.SetColonRefTarget(node, node);
       XLS_ASSIGN_OR_RETURN(AstNode * cloned_annotation, CloneAst(annotation));
       return table_.SetTypeAnnotation(
-          node, module_.Make<MemberTypeAnnotation>(
-                    AttrSpan(node),
-                    down_cast<TypeVariableTypeAnnotation*>(cloned_annotation),
-                    node->attr()));
+          node,
+          module_.Make<MemberTypeAnnotation>(
+              AttrSpan(node),
+              absl::down_cast<TypeVariableTypeAnnotation*>(cloned_annotation),
+              node->attr()));
     }
 
     // Any imported_module::entity case not covered above.
@@ -1612,7 +1613,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       // An invocation like foo.bar(args), which is targeting an instance
       // function of a struct, needs the actual object type added to the
       // signature in place of the formal `Self`.
-      const Attr* attr = down_cast<const Attr*>(node->callee());
+      const Attr* attr = absl::down_cast<const Attr*>(node->callee());
       XLS_ASSIGN_OR_RETURN(const NameRef* obj_type_variable,
                            DefineTypeVariable(attr->lhs(), "target_obj"));
       XLS_RETURN_IF_ERROR(
@@ -2143,7 +2144,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     }
 
     const StructDef* struct_def =
-        down_cast<const StructDef*>(struct_or_proc_ref->def);
+        absl::down_cast<const StructDef*>(struct_or_proc_ref->def);
     const NameRef* type_variable = *table_.GetTypeVariable(node);
     if (source.has_value()) {
       XLS_RETURN_IF_ERROR(table_.SetTypeVariable(*source, type_variable));

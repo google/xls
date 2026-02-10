@@ -230,7 +230,9 @@ TypeAnnotationFilter TypeAnnotationFilter::FilterFormalMemberTypes(
         CHECK_OK(nodes);
         for (const AstNode* node : *nodes) {
           if (node->kind() == AstNodeKind::kTypeAnnotation &&
-              table->GetAnnotationFlag(down_cast<const TypeAnnotation*>(node))
+              table
+                  ->GetAnnotationFlag(
+                      absl::down_cast<const TypeAnnotation*>(node))
                   .HasFlag(TypeInferenceFlag::kFormalMemberType)) {
             return true;
           }

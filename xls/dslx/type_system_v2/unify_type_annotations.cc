@@ -73,7 +73,7 @@ std::optional<const TypeAnnotation*> GetSliceContainerSize(
 
 bool IsArrayTypeWithMinSize(const TypeAnnotation* annotation) {
   return annotation->annotation_kind() == TypeAnnotationKind::kArray &&
-         down_cast<const ArrayTypeAnnotation*>(annotation)->dim_is_min();
+         absl::down_cast<const ArrayTypeAnnotation*>(annotation)->dim_is_min();
 }
 
 absl::Status MinSizeLargerThanStandardSizeError(
@@ -204,7 +204,7 @@ class Unifier {
                          GetStructOrProcRef(annotations[0], import_data_));
     if (first_struct_or_proc.has_value()) {
       const auto* struct_def =
-          down_cast<const StructDef*>(first_struct_or_proc->def);
+          absl::down_cast<const StructDef*>(first_struct_or_proc->def);
       std::vector<const TypeAnnotation*> annotations_to_unify;
       for (const TypeAnnotation* annotation : annotations) {
         XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> next_struct_or_proc,
@@ -256,7 +256,7 @@ class Unifier {
             max_static_member_count - tuple_annotation->members().size();
         for (auto* member : tuple_annotation->members()) {
           if (member->IsAnnotation<AnyTypeAnnotation>() &&
-              down_cast<AnyTypeAnnotation*>(member)->multiple()) {
+              absl::down_cast<AnyTypeAnnotation*>(member)->multiple()) {
             for (int i = 0; i < delta + 1; i++) {
               expanded_members.push_back(module_.Make<AnyTypeAnnotation>());
             }

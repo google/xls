@@ -206,7 +206,7 @@ class StatefulResolver : public TypeAnnotationResolver {
       }
       if (node->kind() == AstNodeKind::kFor ||
           node->kind() == AstNodeKind::kUnrollFor) {
-        const auto* loop = down_cast<const ForLoopBase*>(node);
+        const auto* loop = absl::down_cast<const ForLoopBase*>(node);
         if (!VariableHasAnyExplicitTypeAnnotations(parametric_context,
                                                    *type_variable)) {
           // Disallow this with similar rationale to the const/NameDef case
@@ -478,7 +478,7 @@ class StatefulResolver : public TypeAnnotationResolver {
                                              std::move(replace_indirect),
                                              std::move(replace_type_aliases))));
       if (replaced_anything) {
-        annotation = down_cast<const TypeAnnotation*>(clone);
+        annotation = absl::down_cast<const TypeAnnotation*>(clone);
       } else {
         break;
       }
@@ -518,7 +518,7 @@ class StatefulResolver : public TypeAnnotationResolver {
     }
 
     const Conditional* conditional =
-        down_cast<const Conditional*>(*context_node);
+        absl::down_cast<const Conditional*>(*context_node);
     absl::StatusOr<bool> evaluated_value = evaluator_.EvaluateBoolOrExpr(
         parametric_context, conditional_type->test());
     if (evaluated_value.ok()) {
@@ -1041,7 +1041,7 @@ class StatefulResolver : public TypeAnnotationResolver {
     bool replaced_anything = false;
     std::optional<const TypeAnnotation*> latest;
     if (node->kind() == AstNodeKind::kTypeAnnotation) {
-      latest = down_cast<const TypeAnnotation*>(node);
+      latest = absl::down_cast<const TypeAnnotation*>(node);
     }
     while (latest.has_value() &&
            (*latest)->IsAnnotation<TypeRefTypeAnnotation>()) {
@@ -1057,7 +1057,7 @@ class StatefulResolver : public TypeAnnotationResolver {
             table_.GetColonRefTarget(colon_ref);
         if (target.has_value() &&
             (*target)->kind() == AstNodeKind::kTypeAnnotation) {
-          latest = down_cast<const TypeAnnotation*>(*target);
+          latest = absl::down_cast<const TypeAnnotation*>(*target);
         } else {
           latest = table_.GetTypeAnnotation(colon_ref);
           // We expect the ColonRef in this context to be a type alias, so it
@@ -1143,11 +1143,12 @@ class StatefulResolver : public TypeAnnotationResolver {
                 return const_cast<AstNode*>(node);
               }
               if (node->kind() != AstNodeKind::kNameRef ||
-                  !vars.name_refs().contains(down_cast<const NameRef*>(node))) {
+                  !vars.name_refs().contains(
+                      absl::down_cast<const NameRef*>(node))) {
                 return std::nullopt;
               }
 
-              const NameRef* ref = down_cast<const NameRef*>(node);
+              const NameRef* ref = absl::down_cast<const NameRef*>(node);
               const NameDef* def = std::get<const NameDef*>(ref->name_def());
               XLS_ASSIGN_OR_RETURN(TypeInfo * ti,
                                    import_data_.GetRootTypeInfoForNode(def));
@@ -1163,7 +1164,7 @@ class StatefulResolver : public TypeAnnotationResolver {
               return result;
             }));
 
-    return down_cast<const TypeAnnotation*>(result);
+    return absl::down_cast<const TypeAnnotation*>(result);
   }
 
   Module& module_;

@@ -116,7 +116,7 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
       return std::nullopt;
     }
     return StructOrProcRef{
-        .def = down_cast<StructDefBase*>(ToAstNode(*type_def_)),
+        .def = absl::down_cast<StructDefBase*>(ToAstNode(*type_def_)),
         .parametrics = parametrics_,
         .instantiator = instantiator_,
         .type_ref_type_annotation = type_ref_type_annotation_};

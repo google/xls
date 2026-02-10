@@ -241,9 +241,9 @@ TEST_F(InferenceTableTest, ParametricVariable) {
   XLS_ASSERT_OK_AND_ASSIGN(const Function* bar,
                            module_->GetMemberOrError<Function>("bar"));
   ASSERT_EQ(bar->body()->statements().size(), 2);
-  const Invocation* invocation1 = down_cast<const Invocation*>(
+  const Invocation* invocation1 = absl::down_cast<const Invocation*>(
       ToAstNode(bar->body()->statements().at(0)->wrapped()));
-  const Invocation* invocation2 = down_cast<const Invocation*>(
+  const Invocation* invocation2 = absl::down_cast<const Invocation*>(
       ToAstNode(bar->body()->statements().at(1)->wrapped()));
   XLS_ASSERT_OK_AND_ASSIGN(const ParametricContext* parametric_context1,
                            table_->AddParametricInvocation(
@@ -302,9 +302,9 @@ TEST_F(InferenceTableTest, ParametricVariableWithDefault) {
   XLS_ASSERT_OK_AND_ASSIGN(const Function* bar,
                            module_->GetMemberOrError<Function>("bar"));
   ASSERT_EQ(bar->body()->statements().size(), 2);
-  const Invocation* invocation1 = down_cast<const Invocation*>(
+  const Invocation* invocation1 = absl::down_cast<const Invocation*>(
       ToAstNode(bar->body()->statements().at(0)->wrapped()));
-  const Invocation* invocation2 = down_cast<const Invocation*>(
+  const Invocation* invocation2 = absl::down_cast<const Invocation*>(
       ToAstNode(bar->body()->statements().at(1)->wrapped()));
   XLS_ASSERT_OK_AND_ASSIGN(const ParametricContext* parametric_context1,
                            table_->AddParametricInvocation(
@@ -381,7 +381,7 @@ TEST_F(InferenceTableTest, ParametricVariableWithArrayAnnotation) {
   XLS_ASSERT_OK_AND_ASSIGN(const Function* bar,
                            module_->GetMemberOrError<Function>("bar"));
   ASSERT_EQ(bar->body()->statements().size(), 1);
-  const Invocation* invocation = down_cast<const Invocation*>(
+  const Invocation* invocation = absl::down_cast<const Invocation*>(
       ToAstNode(bar->body()->statements().at(0)->wrapped()));
   XLS_ASSERT_OK_AND_ASSIGN(const ParametricContext* parametric_context,
                            table_->AddParametricInvocation(
@@ -441,7 +441,7 @@ TEST_F(InferenceTableTest, Clone) {
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone,
                            table_->Clone(add_node, &NoopCloneReplacer));
 
-  Binop* cloned_add_node = down_cast<Binop*>(clone);
+  Binop* cloned_add_node = absl::down_cast<Binop*>(clone);
   EXPECT_EQ(table_->GetTypeAnnotation(cloned_add_node), annotation);
   EXPECT_EQ(table_->GetTypeAnnotation(cloned_add_node->lhs()), annotation);
   EXPECT_EQ(table_->GetTypeAnnotation(cloned_add_node->rhs()), std::nullopt);
@@ -588,9 +588,9 @@ TEST_F(InferenceTableTest, CachingForSpecificParametricContext) {
   XLS_ASSERT_OK_AND_ASSIGN(const Function* bar,
                            module_->GetMemberOrError<Function>("bar"));
   ASSERT_EQ(bar->body()->statements().size(), 2);
-  const Invocation* invocation1 = down_cast<const Invocation*>(
+  const Invocation* invocation1 = absl::down_cast<const Invocation*>(
       ToAstNode(bar->body()->statements().at(0)->wrapped()));
-  const Invocation* invocation2 = down_cast<const Invocation*>(
+  const Invocation* invocation2 = absl::down_cast<const Invocation*>(
       ToAstNode(bar->body()->statements().at(1)->wrapped()));
   XLS_ASSERT_OK_AND_ASSIGN(const ParametricContext* parametric_context1,
                            table_->AddParametricInvocation(
@@ -647,11 +647,11 @@ TEST_F(InferenceTableTest, CachingForCanonicalizedParametricContext) {
   XLS_ASSERT_OK_AND_ASSIGN(const Function* bar,
                            module_->GetMemberOrError<Function>("bar"));
   ASSERT_EQ(bar->body()->statements().size(), 3);
-  const Invocation* invocation1 = down_cast<const Invocation*>(
+  const Invocation* invocation1 = absl::down_cast<const Invocation*>(
       ToAstNode(bar->body()->statements().at(0)->wrapped()));
-  const Invocation* invocation2 = down_cast<const Invocation*>(
+  const Invocation* invocation2 = absl::down_cast<const Invocation*>(
       ToAstNode(bar->body()->statements().at(1)->wrapped()));
-  const Invocation* invocation3 = down_cast<const Invocation*>(
+  const Invocation* invocation3 = absl::down_cast<const Invocation*>(
       ToAstNode(bar->body()->statements().at(2)->wrapped()));
   ParametricEnv canonical_env(absl::flat_hash_map<std::string, InterpValue>{
       {"N", InterpValue::MakeU32(4)}});

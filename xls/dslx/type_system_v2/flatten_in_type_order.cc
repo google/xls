@@ -200,7 +200,7 @@ class Flattener : public AstNodeVisitorWithDefault {
 
     const Invocation* current_invocation =
         node->kind() == AstNodeKind::kInvocation
-            ? down_cast<const Invocation*>(node)
+            ? absl::down_cast<const Invocation*>(node)
             : nullptr;
     for (const AstNode* child : node->GetChildren(/*want_types=*/true)) {
       if (current_invocation != nullptr &&
