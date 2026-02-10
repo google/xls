@@ -1169,7 +1169,7 @@ absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
   if (node->callee()->kind() == AstNodeKind::kAttr) {
     // Place the struct instance on the stack as the self argument.
     XLS_RETURN_IF_ERROR(
-        down_cast<const Attr*>(node->callee())->lhs()->AcceptExpr(this));
+        absl::down_cast<const Attr*>(node->callee())->lhs()->AcceptExpr(this));
     XLS_RETURN_IF_ERROR(PushResolvedCallee(node));
   } else if (node->callee()->kind() == AstNodeKind::kColonRef) {
     XLS_RETURN_IF_ERROR(PushResolvedCallee(node));
@@ -1216,10 +1216,10 @@ absl::StatusOr<Bytecode::MatchArmItem> BytecodeEmitter::HandleNameDefTreeExpr(
             [&](Range* n) -> absl::StatusOr<Bytecode::MatchArmItem> {
               XLS_ASSIGN_OR_RETURN(
                   FormattedInterpValue start,
-                  HandleNumberInternal(down_cast<Number*>(n->start())));
+                  HandleNumberInternal(absl::down_cast<Number*>(n->start())));
               XLS_ASSIGN_OR_RETURN(
                   FormattedInterpValue end,
-                  HandleNumberInternal(down_cast<Number*>(n->end())));
+                  HandleNumberInternal(absl::down_cast<Number*>(n->end())));
               if (n->inclusive_end()) {
                 XLS_ASSIGN_OR_RETURN(end.value,
                                      end.value.IncrementZeroExtendIfOverflow());
@@ -1248,7 +1248,7 @@ absl::StatusOr<Bytecode::MatchArmItem> BytecodeEmitter::HandleNameDefTreeExpr(
   }
 
   // Not a leaf; must be a tuple
-  auto* tuple_type = down_cast<TupleType*>(type);
+  auto* tuple_type = absl::down_cast<TupleType*>(type);
   if (tuple_type == nullptr) {
     return TypeInferenceErrorStatus(
         tree->span(), type, "Pattern expected matched-on type to be a tuple.",
@@ -1353,7 +1353,7 @@ absl::Status BytecodeEmitter::DestructureLet(
       }
       XLS_RETURN_IF_ERROR(std::visit(
           Visitor{[&](Type* type) -> absl::Status {
-                    TupleType* tuple_type = down_cast<TupleType*>(type);
+                    TupleType* tuple_type = absl::down_cast<TupleType*>(type);
                     return DestructureLet(
                         node, &tuple_type->GetMemberType(tuple_index));
                   },

@@ -1796,7 +1796,7 @@ proc Parent {
 
   StatementBlock* config_body = parent->config().body();
   EXPECT_EQ(config_body->statements().size(), 3);
-  Spawn* spawn = down_cast<Spawn*>(
+  Spawn* spawn = absl::down_cast<Spawn*>(
       std::get<Expr*>(config_body->statements().at(1)->wrapped()));
   XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * parent_ti,
                            tm.type_info->GetTopLevelProcTypeInfo(parent));
