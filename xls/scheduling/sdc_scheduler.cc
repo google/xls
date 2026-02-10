@@ -26,6 +26,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -268,6 +269,10 @@ absl::Status SDCSchedulingModel::AddAllDefUseConstraints() {
     if (IsUntimed(node)) {
       continue;
     }
+    // non-synthesis nodes are given trivial schedules after running SDC.
+    if (graph_.GetScheduleNode(node).is_dead_after_synthesis) {
+      continue;
+    }
     for (Node* successor : schedule_node.successors) {
       XLS_RETURN_IF_ERROR(AddDefUseConstraints(node, successor));
     }
@@ -280,6 +285,9 @@ absl::Status SDCSchedulingModel::AddAllDefUseConstraints() {
 
 absl::Status SDCSchedulingModel::AddDefUseConstraints(
     Node* node, std::optional<Node*> user) {
+  XLS_RET_CHECK(!IsUntimed(node) &&
+                !graph_.GetScheduleNode(node).is_dead_after_synthesis)
+      << node->ToString() << " is untimed or dead after synthesis";
   // Nodes must be scheduled no later than their users.
   XLS_RETURN_IF_ERROR(AddCausalConstraint(node, user));
 
@@ -686,7 +694,7 @@ void SDCSchedulingModel::SetObjective(std::optional<double> throughput_weight) {
   math_opt::LinearExpression objective;
   for (const ScheduleNode& schedule_node : graph_.nodes()) {
     Node* node = schedule_node.node;
-    if (IsUntimed(node)) {
+    if (IsUntimed(node) || schedule_node.is_dead_after_synthesis) {
       continue;
     }
     // Maximize throughput at the user-specified weight.
@@ -724,12 +732,36 @@ absl::StatusOr<ScheduleCycleMap> SDCSchedulingModel::ExtractResult(
     if (IsUntimed(node)) {
       continue;
     }
-    double cycle = variable_values.at(cycle_var_.at(node));
-    if (std::fabs(cycle - std::round(cycle)) > sdc_solution_tolerance_) {
-      return absl::InternalError(absl::StrFormat(
-          "The scheduling result is expected to be integer (got %f)", cycle));
+    int64_t cycle;
+    if (!schedule_node.is_dead_after_synthesis) {
+      // The constraint solver found the cycle for this node.
+      double dcycle = variable_values.at(cycle_var_.at(node));
+      if (std::fabs(dcycle - std::round(dcycle)) > sdc_solution_tolerance_) {
+        return absl::InternalError(absl::StrFormat(
+            "The scheduling result is expected to be integer (got %f)",
+            dcycle));
+      }
+      cycle = std::round(dcycle);
+    } else {
+      // Dead-after-synthesis nodes can be trivially placed after all of their
+      // operands.
+      auto to_cycle = [&](Node* operand) {
+        CHECK(IsUntimed(operand) || cycle_map.contains(operand))
+            << operand->ToString() << " not found for "
+            << schedule_node.node->ToStringWithOperandTypes();
+        return IsUntimed(operand) ? 0 : cycle_map.at(operand);
+      };
+      auto cmp = [&](Node* operand, Node* operand2) -> bool {
+        return to_cycle(operand) < to_cycle(operand2);
+      };
+      absl::Span<Node* const> operands = schedule_node.node->operands();
+      if (operands.empty()) {
+        cycle = 0;
+      } else {
+        cycle = to_cycle(*absl::c_max_element(operands, cmp));
+      }
     }
-    cycle_map[node] = std::round(cycle);
+    cycle_map[node] = cycle;
   }
   return cycle_map;
 }
@@ -743,6 +775,9 @@ void SDCSchedulingModel::SetClockPeriod(int64_t clock_period_ps) {
   for (const ScheduleNode& schedule_node : graph_.nodes()) {
     Node* source = schedule_node.node;
     if (IsUntimed(source)) {
+      continue;
+    }
+    if (schedule_node.is_dead_after_synthesis) {
       continue;
     }
     if (!prev_delay_constraints.empty()) {
