@@ -446,8 +446,8 @@ class ElaboratedBlockInterpreter final : public ElaboratedBlockDfsVisitor {
       if (instance->instantiation().has_value() &&
           instance->instantiation().value()->kind() ==
               InstantiationKind::kFifo) {
-        auto* fifo_instantiation =
-            down_cast<FifoInstantiation*>(instance->instantiation().value());
+        auto* fifo_instantiation = absl::down_cast<FifoInstantiation*>(
+            instance->instantiation().value());
         fifo_models_.insert(
             {instance, FifoModel(fifo_instantiation->data_type(),
                                  fifo_instantiation->fifo_config(),
@@ -456,8 +456,9 @@ class ElaboratedBlockInterpreter final : public ElaboratedBlockDfsVisitor {
       } else if (instance->instantiation().has_value() &&
                  instance->instantiation().value()->kind() ==
                      InstantiationKind::kDelayLine) {
-        auto* delay_line_instantiation = down_cast<DelayLineInstantiation*>(
-            instance->instantiation().value());
+        auto* delay_line_instantiation =
+            absl::down_cast<DelayLineInstantiation*>(
+                instance->instantiation().value());
         delay_line_models_.insert(
             {instance, DelayLineModel(delay_line_instantiation,
                                       instance->RegisterPrefix(), reg_state_,
@@ -1116,8 +1117,8 @@ InterpreterBlockEvaluator::MakeNewContinuation(
         }
       } else if (inst->instantiation().value()->kind() ==
                  InstantiationKind::kDelayLine) {
-        auto* delay_line_inst =
-            down_cast<DelayLineInstantiation*>(inst->instantiation().value());
+        auto* delay_line_inst = absl::down_cast<DelayLineInstantiation*>(
+            inst->instantiation().value());
         for (const auto& [name, initial_value] :
              DelayLineModel::RegisterNamesAndInitialValues(
                  delay_line_inst->latency(), delay_line_inst->data_type())) {
