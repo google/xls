@@ -73,7 +73,7 @@ absl::StatusOr<std::unique_ptr<Synthesizer>>
 GrpcSynthesizerFactory::CreateSynthesizer(
     const SynthesizerParameters& parameters) {
   return std::make_unique<GrpcSynthesizer>(
-      down_cast<const GrpcSynthesizerParameters&>(parameters));
+      absl::down_cast<const GrpcSynthesizerParameters&>(parameters));
 }
 
 XLS_REGISTER_MODULE_INITIALIZER(grpc_synthesizer_factory, {

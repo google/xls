@@ -118,7 +118,7 @@ absl::StatusOr<std::string> Synthesizer::FunctionBaseToVerilog(
     options.entry(f->name());
     XLS_ASSIGN_OR_RETURN(verilog::CodegenContext context,
                          verilog::FunctionToCombinationalBlock(
-                             down_cast<Function*>(f), options));
+                             absl::down_cast<Function*>(f), options));
     XLS_RET_CHECK(context.HasTopBlock());
     tmp_block = context.top_block();
   } else {
