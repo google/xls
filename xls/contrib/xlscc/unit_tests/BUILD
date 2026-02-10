@@ -346,7 +346,6 @@ py_test(
         "//xls/interpreter:ir_interpreter",
         "//xls/tools:eval_ir_main",
     ],
-    strict_deps = False,
     deps = [
         "//xls/contrib/xlscc:hls_block_py_pb2",
         "@abseil-py//absl/testing:absltest",
