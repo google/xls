@@ -445,7 +445,7 @@ class VastToDslxTranslator {
         if (number_value != nullptr) {
           number_value->SetTypeAnnotation(enum_type_annotation);
         }
-        auto* expr = down_cast<dslx::Expr*>(constant_value);
+        auto* expr = absl::down_cast<dslx::Expr*>(constant_value);
         expr = module().Make<dslx::Cast>(CreateNodeSpan(member), expr,
                                          enum_type_annotation);
         members.push_back({name_def, expr});

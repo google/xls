@@ -219,7 +219,7 @@ dslx::ColonRef::Subject DslxResolver::NameRefToColonRefSubject(
   if (auto* name_ref = dynamic_cast<dslx::NameRef*>(ref); name_ref) {
     return name_ref;
   }
-  return down_cast<dslx::ColonRef*>(ref);
+  return absl::down_cast<dslx::ColonRef*>(ref);
 }
 
 void DslxResolver::AddTypedef(dslx::Module& module, verilog::Module* definer,

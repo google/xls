@@ -97,7 +97,7 @@ class DslxTypeFixerImpl : public DslxTypeFixer {
     // Verilog allows a signed index value but DSLX does not. We drop the
     // signed annotation to fix this.
     if (node->kind() == AstNodeKind::kNumber) {
-      const auto* number = down_cast<const Number*>(node);
+      const auto* number = absl::down_cast<const Number*>(node);
       if (number->parent() && number->type_annotation() &&
           dynamic_cast<const ArrayTypeAnnotation*>(node->parent())) {
         literals_with_dropped_annotations_.insert(number);
@@ -113,11 +113,11 @@ class DslxTypeFixerImpl : public DslxTypeFixer {
     for (const CandidateType& candidate : types) {
       if (candidate.type->IsFunction()) {
         return_types.emplace_back(CandidateType{
-            .annotation =
-                down_cast<const FunctionTypeAnnotation*>(candidate.annotation)
-                    ->return_type(),
-            .type = &(
-                down_cast<const FunctionType*>(candidate.type)->return_type()),
+            .annotation = absl::down_cast<const FunctionTypeAnnotation*>(
+                              candidate.annotation)
+                              ->return_type(),
+            .type = &(absl::down_cast<const FunctionType*>(candidate.type)
+                          ->return_type()),
             .flags = TypeInferenceFlag::kNone});
         if (candidate.flags.HasFlag(TypeInferenceFlag::kFormalFunctionType)) {
           XLS_RET_CHECK(node->parent() != nullptr);
@@ -125,7 +125,8 @@ class DslxTypeFixerImpl : public DslxTypeFixer {
           XLS_RET_CHECK(candidate.annotation->annotation_kind() ==
                         TypeAnnotationKind::kFunction);
           const FunctionTypeAnnotation* fixed_function_type =
-              down_cast<const FunctionTypeAnnotation*>(candidate.annotation);
+              absl::down_cast<const FunctionTypeAnnotation*>(
+                  candidate.annotation);
           invocations_with_fixed_callees_.emplace(node->parent(),
                                                   fixed_function_type);
           function_result = candidate.annotation;
@@ -148,7 +149,7 @@ class DslxTypeFixerImpl : public DslxTypeFixer {
           invocations_with_fixed_callees_.find(node->parent());
       if (fixed_callee != invocations_with_fixed_callees_.end()) {
         absl::Span<Expr* const> args =
-            down_cast<Invocation*>(node->parent())->args();
+            absl::down_cast<Invocation*>(node->parent())->args();
         for (int i = 0; i < args.size(); i++) {
           if (args[i] == node) {
             XLS_RET_CHECK(i < fixed_callee->second->param_types().size());
@@ -216,7 +217,7 @@ class DslxTypeFixerImpl : public DslxTypeFixer {
 
       // Drop literal annotations that the error handler said we don't want.
       if (literals_with_dropped_annotations_.contains(node)) {
-        const auto* number = down_cast<const Number*>(node);
+        const auto* number = absl::down_cast<const Number*>(node);
         return target_module->Make<Number>(number->span(), number->text(),
                                            NumberKind::kOther,
                                            /*type_annotation=*/nullptr);
@@ -231,7 +232,7 @@ class DslxTypeFixerImpl : public DslxTypeFixer {
             CloneAst(node, GetErrorFixReplacerInternal(ti, node)));
         return target_module->Make<Cast>(
             Span::None(),
-            const_cast<Expr*>(down_cast<const dslx::Expr*>(clone)),
+            const_cast<Expr*>(absl::down_cast<const Expr*>(clone)),
             const_cast<TypeAnnotation*>(cast->second));
       }
 
@@ -252,14 +253,14 @@ class DslxTypeFixerImpl : public DslxTypeFixer {
       // Drop the LHS annotation on a constant def if unnecessary.
       if (node->kind() == AstNodeKind::kConstantDef) {
         const std::optional<Type*> lhs_type =
-            ti->GetItem(down_cast<const ConstantDef*>(node)->name_def());
+            ti->GetItem(absl::down_cast<const ConstantDef*>(node)->name_def());
         const std::optional<Type*> rhs_type =
-            ti->GetItem(down_cast<const ConstantDef*>(node)->value());
+            ti->GetItem(absl::down_cast<const ConstantDef*>(node)->value());
         if (TypeEq(**lhs_type, **rhs_type)) {
           XLS_ASSIGN_OR_RETURN(
               AstNode * clone,
               CloneAst(node, GetSimplifyReplacerInternal(ti, node)));
-          down_cast<ConstantDef*>(clone)->set_type_annotation(nullptr);
+          absl::down_cast<ConstantDef*>(clone)->set_type_annotation(nullptr);
           return clone;
         }
       }
@@ -270,7 +271,7 @@ class DslxTypeFixerImpl : public DslxTypeFixer {
         XLS_ASSIGN_OR_RETURN(
             AstNode * clone_of_unwrapped,
             CloneAst(*unwrapped, GetSimplifyReplacerInternal(ti, node)));
-        Expr* result = down_cast<Expr*>(clone_of_unwrapped);
+        Expr* result = absl::down_cast<Expr*>(clone_of_unwrapped);
         result->set_in_parens(false);
         return result;
       }
@@ -287,7 +288,7 @@ class DslxTypeFixerImpl : public DslxTypeFixer {
     // Walk through the layers of a potential cast onion. Note that there are
     // usually at most 2-3 layers.
     while (node->kind() == AstNodeKind::kCast) {
-      const Expr* expr = down_cast<const Cast*>(node)->expr();
+      const Expr* expr = absl::down_cast<const Cast*>(node)->expr();
       const std::optional<Type*> uncasted = ti->GetItem(expr);
 
       // See if we are OK to drop all layers of casts up to here.
