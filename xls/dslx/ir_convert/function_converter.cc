@@ -2583,6 +2583,34 @@ absl::Status FunctionConverter::HandleCoverBuiltin(const Invocation* node,
   return absl::OkStatus();
 }
 
+absl::Status FunctionConverter::HandleBuiltinRead(const Invocation* node) {
+  XLS_RETURN_IF_ERROR(ValidateProcState("read", node));
+  XLS_RET_CHECK_EQ(node->args().size(), 1);
+  Expr* source = node->args()[0];
+  XLS_RETURN_IF_ERROR(Visit(source));
+  XLS_ASSIGN_OR_RETURN(BValue state_element, Use(source));
+  Def(node, [&](const SourceInfo& loc) {
+    return function_builder_->Identity(state_element, loc);
+  });
+  return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::HandleBuiltinWrite(const Invocation* node) {
+  XLS_RETURN_IF_ERROR(ValidateProcState("write", node));
+  XLS_RET_CHECK_EQ(node->args().size(), 2);
+  XLS_RETURN_IF_ERROR(Visit(node->args()[1]));
+  XLS_ASSIGN_OR_RETURN(BValue update_val, Use(node->args()[1]));
+
+  Expr* target = node->args()[0];
+  XLS_RETURN_IF_ERROR(Visit(target));
+  XLS_ASSIGN_OR_RETURN(BValue state_element, Use(target));
+  ProcBuilder* builder_ptr =
+      dynamic_cast<ProcBuilder*>(function_builder_.get());
+  builder_ptr->Next(state_element, update_val);
+  node_to_ir_[node] = function_builder_->Tuple({});
+  return absl::OkStatus();
+}
+
 absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
   VLOG(5) << "FunctionConverter::HandleInvocation: " << node->ToString();
   XLS_ASSIGN_OR_RETURN(std::string called_name, GetCalleeIdentifier(node));
@@ -2647,6 +2675,9 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
   if (called_name == "map") {
     return HandleMap(node).status();
   }
+  if (called_name == "read") {
+    return HandleBuiltinRead(node);
+  }
   if (called_name == "recv") {
     return HandleBuiltinRecv(node);
   }
@@ -2676,6 +2707,9 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
       return function_builder_->Identity(args[0], loc);
     });
     return absl::OkStatus();
+  }
+  if (called_name == "write") {
+    return HandleBuiltinWrite(node);
   }
 
   // The rest of the builtins have "handle" methods we can resolve.
@@ -3763,7 +3797,9 @@ absl::Status FunctionConverter::HandleProcNextFunction(
   channel_scope_->EnterFunctionContext(type_info, bindings);
   XLS_RETURN_IF_ERROR(Visit(f->body()));
 
-  builder_ptr->Next(state, std::get<BValue>(node_to_ir_[f->body()]));
+  if (!module_->attributes().contains(ModuleAttribute::kExplicitStateAccess)) {
+    builder_ptr->Next(state, std::get<BValue>(node_to_ir_[f->body()]));
+  }
 
   XLS_ASSIGN_OR_RETURN(xls::Proc * p, builder_ptr->Build());
 

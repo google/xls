@@ -1,0 +1,16 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+top proc __test_module__Counter_0_next<>(__state: bits[32], init={0}) {
+  __state: bits[32] = state_read(state_element=__state, id=2)
+  x: bits[32] = identity(__state, id=5)
+  literal.6: bits[32] = literal(value=1, id=6)
+  y: bits[32] = add(x, literal.6, id=7)
+  __token: token = literal(value=token, id=1)
+  literal.3: bits[1] = literal(value=1, id=3)
+  tuple.4: () = tuple(id=4)
+  next_value.8: () = next_value(param=__state, value=y, id=8)
+  tuple.9: () = tuple(id=9)
+  tuple.10: () = tuple(id=10)
+}

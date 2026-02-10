@@ -7763,5 +7763,152 @@ proc passthrough {
   EXPECT_FALSE(proc->is_new_style_proc());
 }
 
+TEST_F(IrConverterTest, ExplicitStateAccessU32) {
+  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
+proc Counter {
+  init { u32:0 }
+  config() { }
+  next(state: u32) {
+    let x = read(state);
+    let y = x + u32:1;
+    write(state, y);
+  }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData conv,
+                           ConvertModuleToPackage(tm.module, &import_data,
+                                                  kProcScopedChannelOptions));
+  ExpectIr(conv.DumpIr());
+}
+
+TEST_F(IrConverterTest, ExplicitStateAccessSigned32) {
+  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
+proc Counter {
+  init { s32:-5 }
+  config() { }
+  next(state: s32) {
+    let current = read(state);
+    write(state, current + s32:1);
+  }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData conv,
+                           ConvertModuleToPackage(tm.module, &import_data,
+                                                  kProcScopedChannelOptions));
+  ExpectIr(conv.DumpIr());
+}
+
+TEST_F(IrConverterTest, ExplicitStateAccessString) {
+  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
+proc String {
+  init { "hello" }
+  config() { }
+  next(state: u8[5]) {
+    let current = read(state);
+    write(state, "world");
+  }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData conv,
+                           ConvertModuleToPackage(tm.module, &import_data,
+                                                  kProcScopedChannelOptions));
+  ExpectIr(conv.DumpIr());
+}
+
+TEST_F(IrConverterTest, ExplicitStateAccessBool) {
+  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
+proc Bool {
+  init { bool:false }
+  config() { }
+  next(state: bool) {
+    let false_val = read(state);
+    write(state, true);
+  }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData conv,
+                           ConvertModuleToPackage(tm.module, &import_data,
+                                                  kProcScopedChannelOptions));
+  ExpectIr(conv.DumpIr());
+}
+
+TEST_F(IrConverterTest, ExplicitStateAccessStruct) {
+  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
+struct Point {
+  x: u32,
+  y: u32,
+}
+proc Struct {
+  init { Point { x: 0, y: 0 } }
+  config() { }
+  next(state: Point) {
+    let curr_point = read(state);
+    let shift = Point { x: curr_point.x + u32:1, y: curr_point.y + u32:1 };
+    write(state, shift)
+  }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData conv,
+                           ConvertModuleToPackage(tm.module, &import_data,
+                                                  kProcScopedChannelOptions));
+  ExpectIr(conv.DumpIr());
+}
+
+TEST_F(IrConverterTest, ExplicitStateAccessArray) {
+  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
+proc Array {
+  init { u32[4]:[0, 1, 2, 3] }
+  config() { }
+  next(state: u32[4]) {
+    let array = read(state);
+    let new_array = unroll_for! (i, arr): (u32, u32[4]) in u32:0..u32:4 {
+      update(arr, i, arr[i] + u32:1)
+    }(array);
+    write(state, new_array);
+  }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData conv,
+                           ConvertModuleToPackage(tm.module, &import_data,
+                                                  kProcScopedChannelOptions));
+  ExpectIr(conv.DumpIr());
+}
+
 }  // namespace
 }  // namespace xls::dslx
