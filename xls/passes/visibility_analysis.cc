@@ -807,6 +807,41 @@ absl::StatusOr<bool> OperandVisibilityAnalysis::IsVisibilityIndependentOf(
   return true;
 }
 
+namespace {
+
+// Determines if a visibility expression for 'one' given excluded edges can
+// still determine that none of 'others' are visible while ensuring that if
+// 'one' is visible, the expression must be true.
+// Computes a VisibilityAnalysis restricted by the given edge exclusions,
+// where the visibility BDD expr for 'one' is not derived using those edges.
+absl::StatusOr<bool> IsVisUsefulWithExclusions(
+    Node* one, BddNodeIndex one_visible,
+    absl::Span<const BddNodeIndex> others_visible,
+    const absl::flat_hash_set<OperandNode>& exclusions,
+    const OperandVisibilityAnalysis* operand_visibility,
+    const BddQueryEngine* bdd_query_engine,
+    const LazyPostDominatorAnalysis* post_dom_analysis,
+    int64_t max_edge_count_for_pruning) {
+  XLS_ASSIGN_OR_RETURN(
+      auto simplified_vis,
+      VisibilityAnalysis::Create(operand_visibility, bdd_query_engine,
+                                 post_dom_analysis, max_edge_count_for_pruning,
+                                 exclusions));
+  BinaryDecisionDiagram& bdd = bdd_query_engine->bdd();
+  BddNodeIndex vis_expr = *simplified_vis->GetInfo(one);
+  if (bdd.Implies(one_visible, vis_expr) != bdd.one()) {
+    return false;
+  }
+  for (BddNodeIndex other_visible : others_visible) {
+    if (bdd.Implies(vis_expr, bdd.Not(other_visible)) != bdd.one()) {
+      return false;
+    }
+  }
+  return true;
+};
+
+}  // namespace
+
 absl::StatusOr<absl::flat_hash_set<OperandNode>>
 VisibilityAnalysis::GetEdgesForMutuallyExclusiveVisibilityExpr(
     Node* one, absl::Span<Node* const> others,
@@ -817,6 +852,14 @@ VisibilityAnalysis::GetEdgesForMutuallyExclusiveVisibilityExpr(
   for (Node* other : others) {
     sources.push_back(other);
   }
+
+  // This set contains edges that are not to be used in constructing the
+  // visibility expression for 'one' because of either:
+  //   1. The expression for the edge depends on a value from 'others'; if this
+  //      was used in resource sharing's foldings, it would produce a cycle.
+  //   2. The edge is not needed to ensure the resulting visibility expression
+  //      is true if 'one' is visible and NOT true when any 'other' is visible.
+  absl::flat_hash_set<OperandNode> exclusions;
 
   // Populate edges by computing visibility
   BddNodeIndex one_visible = *GetInfo(one);
@@ -835,6 +878,11 @@ VisibilityAnalysis::GetEdgesForMutuallyExclusiveVisibilityExpr(
                                  node, user, sources));
         if (is_independent) {
           edges.push_back({node, user});
+        } else {
+          // The visibility defined by this edge is dependent on a value from
+          // 'others'; we cannot use it in producing the visibility IR
+          // expression for 'one' without risking a cycle.
+          exclusions.insert({node, user});
         }
       }
       if (visited.contains(user)) {
@@ -845,18 +893,34 @@ VisibilityAnalysis::GetEdgesForMutuallyExclusiveVisibilityExpr(
     }
   }
 
+  // If there are more edges than the given threshold, do not proceed.
   if (max_edges_to_handle >= 0 && edges.size() > max_edges_to_handle) {
     return absl::flat_hash_set<OperandNode>{};
   }
-  if (edges.size() == 1) {
-    return absl::flat_hash_set<OperandNode>{edges[0]};
+
+  BinaryDecisionDiagram& bdd = bdd_query_engine_->bdd();
+  std::vector<BddNodeIndex> others_visible;
+  others_visible.reserve(others.size());
+  for (Node* other : others) {
+    others_visible.push_back(*GetInfo(other));
   }
-  if (others.empty() || absl::c_contains(others, one)) {
+
+  // Confirm that even with all the required exclusions so far, a useful
+  // visibility expression can be constructed.
+  XLS_ASSIGN_OR_RETURN(
+      bool is_baseline_useful,
+      IsVisUsefulWithExclusions(
+          one, one_visible, others_visible, exclusions, operand_visibility_,
+          bdd_query_engine_, post_dom_analysis_, max_edge_count_for_pruning_));
+  if (!is_baseline_useful) {
+    return absl::flat_hash_set<OperandNode>{};
+  }
+
+  if (others.empty() || (others.size() == 1 && absl::c_contains(others, one))) {
     absl::flat_hash_set<OperandNode> edges_set(edges.begin(), edges.end());
     return edges_set;
   }
 
-  BinaryDecisionDiagram& bdd = bdd_query_engine_->bdd();
   // Heuristic: prefer pruning more complex edges first to reduce the chance
   // they are disqualified later.
   absl::c_sort(edges, [&](OperandNode a, OperandNode b) {
@@ -871,32 +935,16 @@ VisibilityAnalysis::GetEdgesForMutuallyExclusiveVisibilityExpr(
   });
 
   absl::flat_hash_set<OperandNode> kept_edges;
-  absl::flat_hash_set<OperandNode> exclusions;
-  std::vector<BddNodeIndex> others_visible;
-  others_visible.reserve(others.size());
-  for (Node* other : others) {
-    others_visible.push_back(*GetInfo(other));
-  }
 
   for (auto& edge : edges) {
     exclusions.insert(edge);
-    XLS_ASSIGN_OR_RETURN(
-        auto simplified_vis,
-        VisibilityAnalysis::Create(operand_visibility_, bdd_query_engine_,
-                                   post_dom_analysis_,
-                                   max_edge_count_for_pruning_, exclusions));
-    BddNodeIndex vis_expr = *simplified_vis->GetInfo(one);
-    if (bdd.Implies(one_visible, vis_expr) == bdd.one()) {
-      bool implies_others_invisible = true;
-      for (BddNodeIndex other_visible : others_visible) {
-        if (bdd.Implies(vis_expr, bdd.Not(other_visible)) != bdd.one()) {
-          implies_others_invisible = false;
-          break;
-        }
-      }
-      if (implies_others_invisible) {
-        continue;
-      }
+    XLS_ASSIGN_OR_RETURN(bool can_exclude_edge,
+                         IsVisUsefulWithExclusions(
+                             one, one_visible, others_visible, exclusions,
+                             operand_visibility_, bdd_query_engine_,
+                             post_dom_analysis_, max_edge_count_for_pruning_));
+    if (can_exclude_edge) {
+      continue;
     }
 
     // The edge is needed to ensure the visibility expression is true if 'one'

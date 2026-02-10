@@ -352,7 +352,7 @@ ResourceSharingPass::ComputeFoldableActions(
       XLS_ASSIGN_OR_RETURN(
           other_edges,
           visibility.general.GetEdgesForMutuallyExclusiveVisibilityExpr(
-              one_node, {other_node}, config.max_edges_to_handle));
+              other_node, {one_node}, config.max_edges_to_handle));
     }
     if (one_edges.empty() || other_edges.empty()) {
       // This will only ever happen if visibility analysis returns no edges
