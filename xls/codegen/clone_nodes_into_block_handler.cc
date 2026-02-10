@@ -343,8 +343,8 @@ AddChannelConnections(Proc* proc, Block* block, const CodegenOptions& options) {
     for (Channel* channel : proc->channels()) {
       XLS_ASSIGN_OR_RETURN(
           FifoConnections fifo_connections,
-          AddFifoInstantiation(down_cast<StreamingChannel*>(channel), block,
-                               options));
+          AddFifoInstantiation(absl::down_cast<StreamingChannel*>(channel),
+                               block, options));
 
       connections.push_back(fifo_connections.send_connection);
       connections.push_back(fifo_connections.receive_connection);
@@ -356,8 +356,8 @@ AddChannelConnections(Proc* proc, Block* block, const CodegenOptions& options) {
     for (Channel* channel : loopback_channels) {
       XLS_ASSIGN_OR_RETURN(
           FifoConnections fifo_connections,
-          AddFifoInstantiation(down_cast<StreamingChannel*>(channel), block,
-                               options));
+          AddFifoInstantiation(absl::down_cast<StreamingChannel*>(channel),
+                               block, options));
       connections.push_back(fifo_connections.send_connection);
       connections.push_back(fifo_connections.receive_connection);
     }

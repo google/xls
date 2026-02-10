@@ -44,7 +44,7 @@ absl::StatusOr<bool> MarkChannelFifosPass::RunInternal(
     if (chan->kind() != ChannelKind::kStreaming) {
       continue;
     }
-    StreamingChannel* schan = down_cast<StreamingChannel*>(chan);
+    StreamingChannel* schan = absl::down_cast<StreamingChannel*>(chan);
     if (!schan->channel_config().input_flop_kind()) {
       schan->SetChannelConfig(schan->channel_config().WithInputFlopKind(
           GetRealFlopKind(options.codegen_options.flop_inputs(),

@@ -541,12 +541,12 @@ absl::Status StitchChannel(
   switch (channel->kind()) {
     case ChannelKind::kStreaming:
       return StitchStreamingChannel(container,
-                                    down_cast<StreamingChannel*>(channel),
+                                    absl::down_cast<StreamingChannel*>(channel),
                                     channel_map, instantiations);
     case ChannelKind::kSingleValue:
-      return StitchSingleValueChannel(container,
-                                      down_cast<SingleValueChannel*>(channel),
-                                      channel_map, instantiations);
+      return StitchSingleValueChannel(
+          container, absl::down_cast<SingleValueChannel*>(channel), channel_map,
+          instantiations);
   }
 }
 

@@ -67,7 +67,8 @@ absl::Status CheckForMultiplexingCycle(Channel* channel,
   if (channel->kind() != ChannelKind::kStreaming) {
     return absl::OkStatus();
   }
-  StreamingChannel* streaming_channel = down_cast<StreamingChannel*>(channel);
+  StreamingChannel* streaming_channel =
+      absl::down_cast<StreamingChannel*>(channel);
   if (!streaming_channel->channel_config().fifo_config().has_value()) {
     return absl::InvalidArgumentError(
         absl::StrCat("Cannot allow multiple operations from proc `", proc_name,

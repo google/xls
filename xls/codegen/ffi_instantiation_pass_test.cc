@@ -81,7 +81,7 @@ class FfiInstantiationPassTest : public IrTestBase {
     ASSERT_EQ(instantiation->kind(), InstantiationKind::kExtern);
 
     xls::ExternInstantiation* const extern_inst =
-        down_cast<xls::ExternInstantiation*>(instantiation);
+        absl::down_cast<ExternInstantiation*>(instantiation);
     EXPECT_EQ(extern_inst->function(), ffi_fun);
     for (std::string_view param : {"a", "b"}) {
       XLS_ASSERT_OK_AND_ASSIGN(InstantiationPort input_param,
@@ -170,7 +170,7 @@ TEST_F(FfiInstantiationPassTest, FunctionParameterIsTuple) {
   xls::Instantiation* const instantiation = block->GetInstantiations()[0];
   ASSERT_EQ(instantiation->kind(), InstantiationKind::kExtern);
   xls::ExternInstantiation* const extern_inst =
-      down_cast<xls::ExternInstantiation*>(instantiation);
+      absl::down_cast<ExternInstantiation*>(instantiation);
   EXPECT_EQ(extern_inst->function(), ffi_fun);
 
   // Make sure that all elements are expanded so that they are accessible
@@ -226,7 +226,7 @@ TEST_F(FfiInstantiationPassTest, FunctionTakingNoParametersJustReturns) {
   ASSERT_EQ(instantiation->kind(), InstantiationKind::kExtern);
 
   xls::ExternInstantiation* const extern_inst =
-      down_cast<xls::ExternInstantiation*>(instantiation);
+      absl::down_cast<ExternInstantiation*>(instantiation);
 
   XLS_ASSERT_OK_AND_ASSIGN(InstantiationPort return_port,
                            extern_inst->GetOutputPort("return"));
@@ -261,7 +261,7 @@ TEST_F(FfiInstantiationPassTest, FunctionReturningTupleAccessAsScalars) {
   ASSERT_EQ(instantiation->kind(), InstantiationKind::kExtern);
 
   xls::ExternInstantiation* const extern_inst =
-      down_cast<xls::ExternInstantiation*>(instantiation);
+      absl::down_cast<ExternInstantiation*>(instantiation);
 
   for (int i = 0; i < 2; ++i) {
     const std::string return_name = absl::StrCat("return.", i);
@@ -298,7 +298,7 @@ TEST_F(FfiInstantiationPassTest, FunctionReturningTupleAccessAsTuple) {
   ASSERT_EQ(instantiation->kind(), InstantiationKind::kExtern);
 
   xls::ExternInstantiation* const extern_inst =
-      down_cast<xls::ExternInstantiation*>(instantiation);
+      absl::down_cast<ExternInstantiation*>(instantiation);
 
   // Access of "return" template parameter yields full tuple
   XLS_ASSERT_OK_AND_ASSIGN(InstantiationPort return_port,
@@ -337,7 +337,7 @@ TEST_F(FfiInstantiationPassTest, FunctionReturningNestedTuple) {
   ASSERT_EQ(instantiation->kind(), InstantiationKind::kExtern);
 
   xls::ExternInstantiation* const extern_inst =
-      down_cast<xls::ExternInstantiation*>(instantiation);
+      absl::down_cast<ExternInstantiation*>(instantiation);
 
   // first, non-nested element
   std::string return_name = "return.0";

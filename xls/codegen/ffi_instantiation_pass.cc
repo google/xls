@@ -162,7 +162,7 @@ absl::StatusOr<bool> FfiInstantiationPass::RunInternal(
         continue;
       }
       Invoke* const invocation = node->As<Invoke>();
-      Function* const fun = down_cast<Function*>(invocation->to_apply());
+      Function* const fun = absl::down_cast<Function*>(invocation->to_apply());
       if (!fun || !fun->ForeignFunctionData().has_value()) {
         return absl::InternalError(
             absl::StrCat("Detected function call in IR. Probable cause: IR was "
