@@ -239,7 +239,7 @@ absl::StatusOr<std::vector<ElaboratedNode>> InstantiationOutputPredecessor(
   switch (child_instantiation->kind()) {
     case InstantiationKind::kBlock: {
       absl::StatusOr<OutputPort*> output_port =
-          down_cast<BlockInstantiation*>(child_instantiation)
+          absl::down_cast<BlockInstantiation*>(child_instantiation)
               ->instantiated_block()
               ->GetOutputPort(instantiation_output->port_name());
       if (output_port.ok()) {
@@ -256,7 +256,7 @@ absl::StatusOr<std::vector<ElaboratedNode>> InstantiationOutputPredecessor(
       XLS_RET_CHECK(child_instance->parent_instance().has_value());
       return FifoInstantiationPredecessors(
           *child_instance->parent_instance(),
-          down_cast<FifoInstantiation*>(child_instantiation),
+          absl::down_cast<FifoInstantiation*>(child_instantiation),
           instantiation_output->port_name());
     }
     case InstantiationKind::kExtern: {
@@ -267,7 +267,7 @@ absl::StatusOr<std::vector<ElaboratedNode>> InstantiationOutputPredecessor(
       XLS_RET_CHECK(child_instance->parent_instance().has_value());
       return DelayLineInstantiationPredecessors(
           *child_instance->parent_instance(),
-          down_cast<DelayLineInstantiation*>(child_instantiation),
+          absl::down_cast<DelayLineInstantiation*>(child_instantiation),
           instantiation_output);
     }
   }
@@ -280,7 +280,7 @@ absl::StatusOr<std::vector<ElaboratedNode>> InstantiationInputSuccessor(
   switch (child_instantiation->kind()) {
     case InstantiationKind::kBlock: {
       absl::StatusOr<InputPort*> input_port =
-          down_cast<BlockInstantiation*>(child_instantiation)
+          absl::down_cast<BlockInstantiation*>(child_instantiation)
               ->instantiated_block()
               ->GetInputPort(instantiation_input->port_name());
       if (input_port.ok()) {
@@ -297,7 +297,7 @@ absl::StatusOr<std::vector<ElaboratedNode>> InstantiationInputSuccessor(
       XLS_RET_CHECK(child_instance->parent_instance().has_value());
       return FifoInstantiationSuccessors(
           *child_instance->parent_instance(),
-          down_cast<FifoInstantiation*>(child_instantiation),
+          absl::down_cast<FifoInstantiation*>(child_instantiation),
           instantiation_input->port_name());
     }
     case InstantiationKind::kExtern: {
@@ -438,243 +438,257 @@ absl::Status ElaboratedNode::VisitSingleNode(
   VLOG(5) << "Visiting elaborated node: " << ToString() << "\n";
   switch (node->op()) {
     case Op::kAdd:
-      return visitor.HandleAdd(down_cast<BinOp*>(node), instance);
+      return visitor.HandleAdd(absl::down_cast<BinOp*>(node), instance);
 
     case Op::kAnd:
-      return visitor.HandleNaryAnd(down_cast<NaryOp*>(node), instance);
+      return visitor.HandleNaryAnd(absl::down_cast<NaryOp*>(node), instance);
 
     case Op::kAndReduce:
-      return visitor.HandleAndReduce(down_cast<BitwiseReductionOp*>(node),
+      return visitor.HandleAndReduce(absl::down_cast<BitwiseReductionOp*>(node),
                                      instance);
 
     case Op::kAssert:
-      return visitor.HandleAssert(down_cast<Assert*>(node), instance);
+      return visitor.HandleAssert(absl::down_cast<Assert*>(node), instance);
 
     case Op::kCover:
-      return visitor.HandleCover(down_cast<Cover*>(node), instance);
+      return visitor.HandleCover(absl::down_cast<Cover*>(node), instance);
 
     case Op::kTrace:
-      return visitor.HandleTrace(down_cast<Trace*>(node), instance);
+      return visitor.HandleTrace(absl::down_cast<Trace*>(node), instance);
 
     case Op::kReceive:
-      return visitor.HandleReceive(down_cast<Receive*>(node), instance);
+      return visitor.HandleReceive(absl::down_cast<Receive*>(node), instance);
 
     case Op::kSend:
-      return visitor.HandleSend(down_cast<Send*>(node), instance);
+      return visitor.HandleSend(absl::down_cast<Send*>(node), instance);
 
     case Op::kNand:
-      return visitor.HandleNaryNand(down_cast<NaryOp*>(node), instance);
+      return visitor.HandleNaryNand(absl::down_cast<NaryOp*>(node), instance);
 
     case Op::kNor:
-      return visitor.HandleNaryNor(down_cast<NaryOp*>(node), instance);
+      return visitor.HandleNaryNor(absl::down_cast<NaryOp*>(node), instance);
 
     case Op::kAfterAll:
-      return visitor.HandleAfterAll(down_cast<AfterAll*>(node), instance);
+      return visitor.HandleAfterAll(absl::down_cast<AfterAll*>(node), instance);
 
     case Op::kMinDelay:
-      return visitor.HandleMinDelay(down_cast<MinDelay*>(node), instance);
+      return visitor.HandleMinDelay(absl::down_cast<MinDelay*>(node), instance);
 
     case Op::kArray:
-      return visitor.HandleArray(down_cast<Array*>(node), instance);
+      return visitor.HandleArray(absl::down_cast<Array*>(node), instance);
 
     case Op::kBitSlice:
-      return visitor.HandleBitSlice(down_cast<BitSlice*>(node), instance);
+      return visitor.HandleBitSlice(absl::down_cast<BitSlice*>(node), instance);
 
     case Op::kDynamicBitSlice:
-      return visitor.HandleDynamicBitSlice(down_cast<DynamicBitSlice*>(node),
-                                           instance);
+      return visitor.HandleDynamicBitSlice(
+          absl::down_cast<DynamicBitSlice*>(node), instance);
 
     case Op::kBitSliceUpdate:
-      return visitor.HandleBitSliceUpdate(down_cast<BitSliceUpdate*>(node),
-                                          instance);
+      return visitor.HandleBitSliceUpdate(
+          absl::down_cast<BitSliceUpdate*>(node), instance);
 
     case Op::kConcat:
-      return visitor.HandleConcat(down_cast<Concat*>(node), instance);
+      return visitor.HandleConcat(absl::down_cast<Concat*>(node), instance);
 
     case Op::kDecode:
-      return visitor.HandleDecode(down_cast<Decode*>(node), instance);
+      return visitor.HandleDecode(absl::down_cast<Decode*>(node), instance);
 
     case Op::kEncode:
-      return visitor.HandleEncode(down_cast<Encode*>(node), instance);
+      return visitor.HandleEncode(absl::down_cast<Encode*>(node), instance);
 
     case Op::kEq:
-      return visitor.HandleEq(down_cast<CompareOp*>(node), instance);
+      return visitor.HandleEq(absl::down_cast<CompareOp*>(node), instance);
 
     case Op::kIdentity:
-      return visitor.HandleIdentity(down_cast<UnOp*>(node), instance);
+      return visitor.HandleIdentity(absl::down_cast<UnOp*>(node), instance);
 
     case Op::kArrayIndex:
-      return visitor.HandleArrayIndex(down_cast<ArrayIndex*>(node), instance);
+      return visitor.HandleArrayIndex(absl::down_cast<ArrayIndex*>(node),
+                                      instance);
 
     case Op::kArrayUpdate:
-      return visitor.HandleArrayUpdate(down_cast<ArrayUpdate*>(node), instance);
+      return visitor.HandleArrayUpdate(absl::down_cast<ArrayUpdate*>(node),
+                                       instance);
 
     case Op::kArrayConcat:
-      return visitor.HandleArrayConcat(down_cast<ArrayConcat*>(node), instance);
+      return visitor.HandleArrayConcat(absl::down_cast<ArrayConcat*>(node),
+                                       instance);
 
     case Op::kArraySlice:
-      return visitor.HandleArraySlice(down_cast<ArraySlice*>(node), instance);
+      return visitor.HandleArraySlice(absl::down_cast<ArraySlice*>(node),
+                                      instance);
 
     case Op::kInvoke:
-      return visitor.HandleInvoke(down_cast<Invoke*>(node), instance);
+      return visitor.HandleInvoke(absl::down_cast<Invoke*>(node), instance);
 
     case Op::kCountedFor:
-      return visitor.HandleCountedFor(down_cast<CountedFor*>(node), instance);
+      return visitor.HandleCountedFor(absl::down_cast<CountedFor*>(node),
+                                      instance);
 
     case Op::kDynamicCountedFor:
       return visitor.HandleDynamicCountedFor(
-          down_cast<DynamicCountedFor*>(node), instance);
+          absl::down_cast<DynamicCountedFor*>(node), instance);
 
     case Op::kLiteral:
-      return visitor.HandleLiteral(down_cast<Literal*>(node), instance);
+      return visitor.HandleLiteral(absl::down_cast<Literal*>(node), instance);
 
     case Op::kMap:
-      return visitor.HandleMap(down_cast<Map*>(node), instance);
+      return visitor.HandleMap(absl::down_cast<Map*>(node), instance);
 
     case Op::kNe:
-      return visitor.HandleNe(down_cast<CompareOp*>(node), instance);
+      return visitor.HandleNe(absl::down_cast<CompareOp*>(node), instance);
 
     case Op::kNeg:
-      return visitor.HandleNeg(down_cast<UnOp*>(node), instance);
+      return visitor.HandleNeg(absl::down_cast<UnOp*>(node), instance);
 
     case Op::kNot:
-      return visitor.HandleNot(down_cast<UnOp*>(node), instance);
+      return visitor.HandleNot(absl::down_cast<UnOp*>(node), instance);
 
     case Op::kOneHot:
-      return visitor.HandleOneHot(down_cast<OneHot*>(node), instance);
+      return visitor.HandleOneHot(absl::down_cast<OneHot*>(node), instance);
 
     case Op::kOneHotSel:
-      return visitor.HandleOneHotSel(down_cast<OneHotSelect*>(node), instance);
+      return visitor.HandleOneHotSel(absl::down_cast<OneHotSelect*>(node),
+                                     instance);
 
     case Op::kPrioritySel:
-      return visitor.HandlePrioritySel(down_cast<PrioritySelect*>(node),
+      return visitor.HandlePrioritySel(absl::down_cast<PrioritySelect*>(node),
                                        instance);
 
     case Op::kOr:
-      return visitor.HandleNaryOr(down_cast<NaryOp*>(node), instance);
+      return visitor.HandleNaryOr(absl::down_cast<NaryOp*>(node), instance);
 
     case Op::kOrReduce:
-      return visitor.HandleOrReduce(down_cast<BitwiseReductionOp*>(node),
+      return visitor.HandleOrReduce(absl::down_cast<BitwiseReductionOp*>(node),
                                     instance);
 
     case Op::kParam:
-      return visitor.HandleParam(down_cast<Param*>(node), instance);
+      return visitor.HandleParam(absl::down_cast<Param*>(node), instance);
 
     case Op::kStateRead:
-      return visitor.HandleStateRead(down_cast<StateRead*>(node), instance);
+      return visitor.HandleStateRead(absl::down_cast<StateRead*>(node),
+                                     instance);
 
     case Op::kNext:
-      return visitor.HandleNext(down_cast<Next*>(node), instance);
+      return visitor.HandleNext(absl::down_cast<Next*>(node), instance);
 
     case Op::kRegisterRead:
-      return visitor.HandleRegisterRead(down_cast<RegisterRead*>(node),
+      return visitor.HandleRegisterRead(absl::down_cast<RegisterRead*>(node),
                                         instance);
 
     case Op::kRegisterWrite:
-      return visitor.HandleRegisterWrite(down_cast<RegisterWrite*>(node),
+      return visitor.HandleRegisterWrite(absl::down_cast<RegisterWrite*>(node),
                                          instance);
 
     case Op::kReverse:
-      return visitor.HandleReverse(down_cast<UnOp*>(node), instance);
+      return visitor.HandleReverse(absl::down_cast<UnOp*>(node), instance);
 
     case Op::kSDiv:
-      return visitor.HandleSDiv(down_cast<BinOp*>(node), instance);
+      return visitor.HandleSDiv(absl::down_cast<BinOp*>(node), instance);
 
     case Op::kSel:
-      return visitor.HandleSel(down_cast<Select*>(node), instance);
+      return visitor.HandleSel(absl::down_cast<Select*>(node), instance);
 
     case Op::kSGt:
-      return visitor.HandleSGt(down_cast<CompareOp*>(node), instance);
+      return visitor.HandleSGt(absl::down_cast<CompareOp*>(node), instance);
 
     case Op::kSGe:
-      return visitor.HandleSGe(down_cast<CompareOp*>(node), instance);
+      return visitor.HandleSGe(absl::down_cast<CompareOp*>(node), instance);
 
     case Op::kShll:
-      return visitor.HandleShll(down_cast<BinOp*>(node), instance);
+      return visitor.HandleShll(absl::down_cast<BinOp*>(node), instance);
 
     case Op::kShra:
-      return visitor.HandleShra(down_cast<BinOp*>(node), instance);
+      return visitor.HandleShra(absl::down_cast<BinOp*>(node), instance);
 
     case Op::kShrl:
-      return visitor.HandleShrl(down_cast<BinOp*>(node), instance);
+      return visitor.HandleShrl(absl::down_cast<BinOp*>(node), instance);
 
     case Op::kSLe:
-      return visitor.HandleSLe(down_cast<CompareOp*>(node), instance);
+      return visitor.HandleSLe(absl::down_cast<CompareOp*>(node), instance);
 
     case Op::kSLt:
-      return visitor.HandleSLt(down_cast<CompareOp*>(node), instance);
+      return visitor.HandleSLt(absl::down_cast<CompareOp*>(node), instance);
 
     case Op::kSMod:
-      return visitor.HandleSMod(down_cast<BinOp*>(node), instance);
+      return visitor.HandleSMod(absl::down_cast<BinOp*>(node), instance);
 
     case Op::kSMul:
-      return visitor.HandleSMul(down_cast<ArithOp*>(node), instance);
+      return visitor.HandleSMul(absl::down_cast<ArithOp*>(node), instance);
 
     case Op::kSMulp:
-      return visitor.HandleSMulp(down_cast<PartialProductOp*>(node), instance);
+      return visitor.HandleSMulp(absl::down_cast<PartialProductOp*>(node),
+                                 instance);
 
     case Op::kSub:
-      return visitor.HandleSub(down_cast<BinOp*>(node), instance);
+      return visitor.HandleSub(absl::down_cast<BinOp*>(node), instance);
 
     case Op::kTupleIndex:
-      return visitor.HandleTupleIndex(down_cast<TupleIndex*>(node), instance);
+      return visitor.HandleTupleIndex(absl::down_cast<TupleIndex*>(node),
+                                      instance);
 
     case Op::kTuple:
-      return visitor.HandleTuple(down_cast<Tuple*>(node), instance);
+      return visitor.HandleTuple(absl::down_cast<Tuple*>(node), instance);
 
     case Op::kUDiv:
-      return visitor.HandleUDiv(down_cast<BinOp*>(node), instance);
+      return visitor.HandleUDiv(absl::down_cast<BinOp*>(node), instance);
 
     case Op::kUGe:
-      return visitor.HandleUGe(down_cast<CompareOp*>(node), instance);
+      return visitor.HandleUGe(absl::down_cast<CompareOp*>(node), instance);
 
     case Op::kUGt:
-      return visitor.HandleUGt(down_cast<CompareOp*>(node), instance);
+      return visitor.HandleUGt(absl::down_cast<CompareOp*>(node), instance);
 
     case Op::kULe:
-      return visitor.HandleULe(down_cast<CompareOp*>(node), instance);
+      return visitor.HandleULe(absl::down_cast<CompareOp*>(node), instance);
 
     case Op::kULt:
-      return visitor.HandleULt(down_cast<CompareOp*>(node), instance);
+      return visitor.HandleULt(absl::down_cast<CompareOp*>(node), instance);
 
     case Op::kUMod:
-      return visitor.HandleUMod(down_cast<BinOp*>(node), instance);
+      return visitor.HandleUMod(absl::down_cast<BinOp*>(node), instance);
 
     case Op::kUMul:
-      return visitor.HandleUMul(down_cast<ArithOp*>(node), instance);
+      return visitor.HandleUMul(absl::down_cast<ArithOp*>(node), instance);
 
     case Op::kUMulp:
-      return visitor.HandleUMulp(down_cast<PartialProductOp*>(node), instance);
+      return visitor.HandleUMulp(absl::down_cast<PartialProductOp*>(node),
+                                 instance);
 
     case Op::kXor:
-      return visitor.HandleNaryXor(down_cast<NaryOp*>(node), instance);
+      return visitor.HandleNaryXor(absl::down_cast<NaryOp*>(node), instance);
 
     case Op::kXorReduce:
-      return visitor.HandleXorReduce(down_cast<BitwiseReductionOp*>(node),
+      return visitor.HandleXorReduce(absl::down_cast<BitwiseReductionOp*>(node),
                                      instance);
 
     case Op::kSignExt:
-      return visitor.HandleSignExtend(down_cast<ExtendOp*>(node), instance);
+      return visitor.HandleSignExtend(absl::down_cast<ExtendOp*>(node),
+                                      instance);
 
     case Op::kZeroExt:
-      return visitor.HandleZeroExtend(down_cast<ExtendOp*>(node), instance);
+      return visitor.HandleZeroExtend(absl::down_cast<ExtendOp*>(node),
+                                      instance);
 
     case Op::kInputPort:
-      return visitor.HandleInputPort(down_cast<InputPort*>(node), instance);
+      return visitor.HandleInputPort(absl::down_cast<InputPort*>(node),
+                                     instance);
 
     case Op::kOutputPort:
-      return visitor.HandleOutputPort(down_cast<OutputPort*>(node), instance);
+      return visitor.HandleOutputPort(absl::down_cast<OutputPort*>(node),
+                                      instance);
 
     case Op::kGate:
-      return visitor.HandleGate(down_cast<Gate*>(node), instance);
+      return visitor.HandleGate(absl::down_cast<Gate*>(node), instance);
 
     case Op::kInstantiationInput:
       return visitor.HandleInstantiationInput(
-          down_cast<InstantiationInput*>(node), instance);
+          absl::down_cast<InstantiationInput*>(node), instance);
 
     case Op::kInstantiationOutput:
       return visitor.HandleInstantiationOutput(
-          down_cast<InstantiationOutput*>(node), instance);
+          absl::down_cast<InstantiationOutput*>(node), instance);
 
     case Op::kNewChannel:
     case Op::kRecvChannelEnd:
@@ -734,7 +748,8 @@ static absl::StatusOr<std::unique_ptr<BlockInstance>> ElaborateBlock(
 
     Block* absl_nullable inst_block = nullptr;
     if (inst->kind() == InstantiationKind::kBlock) {
-      inst_block = down_cast<BlockInstantiation*>(inst)->instantiated_block();
+      inst_block =
+          absl::down_cast<BlockInstantiation*>(inst)->instantiated_block();
     }
 
     // Check for circular dependencies. Walk the original path and see if
@@ -744,7 +759,7 @@ static absl::StatusOr<std::unique_ptr<BlockInstance>> ElaborateBlock(
          std::find_if(path.path.begin(), path.path.end(),
                       [&](Instantiation* bi) {
                         return bi->kind() == InstantiationKind::kBlock &&
-                               down_cast<BlockInstantiation*>(bi)
+                               absl::down_cast<BlockInstantiation*>(bi)
                                        ->instantiated_block() == inst_block;
                       }) != path.path.end())) {
       return absl::InternalError(

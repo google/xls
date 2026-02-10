@@ -456,7 +456,7 @@ absl::StatusOr<ChannelRef> ChannelNode::GetChannelRef() const {
   FunctionBase* fb = this->function_base();
   if (fb->IsBlock()) {
     XLS_RET_CHECK(fb->IsScheduled());
-    ScheduledBlock* sb = down_cast<ScheduledBlock*>(fb);
+    ScheduledBlock* sb = absl::down_cast<ScheduledBlock*>(fb);
     XLS_RET_CHECK_NE(sb->source(), nullptr);
     fb = sb->source();
   }
@@ -471,7 +471,7 @@ absl::StatusOr<ReceiveChannelRef> Receive::GetReceiveChannelRef() const {
   FunctionBase* fb = this->function_base();
   if (fb->IsBlock()) {
     XLS_RET_CHECK(fb->IsScheduled());
-    ScheduledBlock* sb = down_cast<ScheduledBlock*>(fb);
+    ScheduledBlock* sb = absl::down_cast<ScheduledBlock*>(fb);
     XLS_RET_CHECK_NE(sb->source(), nullptr);
     fb = sb->source();
   }
@@ -486,7 +486,7 @@ absl::StatusOr<SendChannelRef> Send::GetSendChannelRef() const {
   FunctionBase* fb = this->function_base();
   if (fb->IsBlock()) {
     XLS_RET_CHECK(fb->IsScheduled());
-    ScheduledBlock* sb = down_cast<ScheduledBlock*>(fb);
+    ScheduledBlock* sb = absl::down_cast<ScheduledBlock*>(fb);
     XLS_RET_CHECK_NE(sb->source(), nullptr);
     fb = sb->source();
   }
@@ -501,7 +501,7 @@ absl::StatusOr<ChannelInterface*> ChannelNode::GetChannelInterface() const {
   FunctionBase* fb = this->function_base();
   if (fb->IsBlock()) {
     XLS_RET_CHECK(fb->IsScheduled());
-    ScheduledBlock* sb = down_cast<ScheduledBlock*>(fb);
+    ScheduledBlock* sb = absl::down_cast<ScheduledBlock*>(fb);
     XLS_RET_CHECK_NE(sb->source(), nullptr);
     fb = sb->source();
   }
@@ -519,7 +519,7 @@ Type* ChannelNode::GetPayloadType() const {
   FunctionBase* fb = this->function_base();
   if (fb->IsBlock()) {
     CHECK(fb->IsScheduled());
-    ScheduledBlock* sb = down_cast<ScheduledBlock*>(fb);
+    ScheduledBlock* sb = absl::down_cast<ScheduledBlock*>(fb);
     CHECK_NE(sb->source(), nullptr);
     fb = sb->source();
   }
@@ -531,7 +531,7 @@ absl::Status ChannelNode::ReplaceChannel(std::string_view new_channel_name) {
   FunctionBase* fb = this->function_base();
   if (fb->IsBlock()) {
     XLS_RET_CHECK(fb->IsScheduled());
-    ScheduledBlock* sb = down_cast<ScheduledBlock*>(fb);
+    ScheduledBlock* sb = absl::down_cast<ScheduledBlock*>(fb);
     XLS_RET_CHECK_NE(sb->source(), nullptr);
     fb = sb->source();
   }

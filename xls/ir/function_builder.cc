@@ -1259,10 +1259,10 @@ absl::StatusOr<Function*> FunctionBuilder::BuildWithReturnValue(
   Function* f;
   if (overridden_dest_ != nullptr) {
     *overridden_dest_ = absl::WrapUnique(function_.release());
-    f = down_cast<Function*>(overridden_dest_->get());
+    f = absl::down_cast<Function*>(overridden_dest_->get());
   } else {
     f = package()->AddFunction(
-        absl::WrapUnique(down_cast<Function*>(function_.release())));
+        absl::WrapUnique(absl::down_cast<Function*>(function_.release())));
   }
 
   XLS_RETURN_IF_ERROR(f->set_return_value(return_value.node()));
@@ -1282,10 +1282,10 @@ absl::StatusOr<Function*> FunctionBuilder::BuildWithNoReturnValue() {
   Function* f;
   if (overridden_dest_ != nullptr) {
     *overridden_dest_ = absl::WrapUnique(function_.release());
-    f = down_cast<Function*>(overridden_dest_->get());
+    f = absl::down_cast<Function*>(overridden_dest_->get());
   } else {
     f = package()->AddFunction(
-        absl::WrapUnique(down_cast<Function*>(function_.release())));
+        absl::WrapUnique(absl::down_cast<Function*>(function_.release())));
   }
   if (should_verify_) {
     XLS_RETURN_IF_ERROR(VerifyFunction(f));
@@ -1320,7 +1320,7 @@ ProcBuilder::ProcBuilder(NewStyleProc tag, std::string_view proc_name,
   }
 }
 
-Proc* ProcBuilder::proc() const { return down_cast<Proc*>(function()); }
+Proc* ProcBuilder::proc() const { return absl::down_cast<Proc*>(function()); }
 
 absl::StatusOr<ChannelWithInterfaces> ProcBuilder::AddChannel(
     std::string_view name, Type* type, ChannelKind kind,
@@ -1418,10 +1418,10 @@ absl::StatusOr<Proc*> ProcBuilder::Build() {
   Proc* proc;
   if (overridden_dest_ != nullptr) {
     *overridden_dest_ = absl::WrapUnique(function_.release());
-    proc = down_cast<Proc*>(overridden_dest_->get());
+    proc = absl::down_cast<Proc*>(overridden_dest_->get());
   } else {
     proc = package()->AddProc(
-        absl::WrapUnique(down_cast<Proc*>(function_.release())));
+        absl::WrapUnique(absl::down_cast<Proc*>(function_.release())));
   }
 
   if (should_verify_) {
@@ -1982,7 +1982,7 @@ absl::StatusOr<Block*> BlockBuilder::Build() {
   // BlockBuilder constructs and passes a Block to BuilderBase constructor so
   // function_ is always a Block.
   Block* block = package()->AddBlock(
-      absl::WrapUnique(down_cast<Block*>(function_.release())));
+      absl::WrapUnique(absl::down_cast<Block*>(function_.release())));
   if (should_verify_) {
     XLS_RETURN_IF_ERROR(VerifyBlock(block));
   }

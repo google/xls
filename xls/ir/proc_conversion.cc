@@ -96,12 +96,12 @@ absl::Status DeclareChannelInProc(Proc* proc, Channel* channel) {
   if (channel->kind() == ChannelKind::kStreaming) {
     return proc
         ->AddChannel(std::make_unique<StreamingChannel>(
-            *down_cast<StreamingChannel*>(channel)))
+            *absl::down_cast<StreamingChannel*>(channel)))
         .status();
   }
   return proc
       ->AddChannel(std::make_unique<SingleValueChannel>(
-          *down_cast<SingleValueChannel*>(channel)))
+          *absl::down_cast<SingleValueChannel*>(channel)))
       .status();
 }
 

@@ -1649,7 +1649,7 @@ TEST(IrParserErrorTest, ParseStreamingChannelWithStrictness) {
   EXPECT_EQ(ch->supported_ops(), ChannelOps::kSendReceive);
   EXPECT_EQ(ch->kind(), ChannelKind::kStreaming);
   EXPECT_EQ(ch->type(), p.GetBitsType(32));
-  EXPECT_EQ(down_cast<StreamingChannel*>(ch)->strictness(),
+  EXPECT_EQ(absl::down_cast<StreamingChannel*>(ch)->strictness(),
             ChannelStrictness::kArbitraryStaticOrder);
 }
 
@@ -1666,12 +1666,15 @@ TEST(IrParserErrorTest, ParseStreamingChannelWithExtraFifoMetadata) {
   EXPECT_EQ(ch->supported_ops(), ChannelOps::kSendReceive);
   ASSERT_EQ(ch->kind(), ChannelKind::kStreaming);
   EXPECT_EQ(ch->type(), p.GetBitsType(32));
-  ASSERT_THAT(down_cast<StreamingChannel*>(ch)->channel_config().fifo_config(),
-              Not(Eq(std::nullopt)));
-  EXPECT_EQ(
-      down_cast<StreamingChannel*>(ch)->channel_config().fifo_config()->depth(),
-      3);
-  EXPECT_EQ(down_cast<StreamingChannel*>(ch)
+  ASSERT_THAT(
+      absl::down_cast<StreamingChannel*>(ch)->channel_config().fifo_config(),
+      Not(Eq(std::nullopt)));
+  EXPECT_EQ(absl::down_cast<StreamingChannel*>(ch)
+                ->channel_config()
+                .fifo_config()
+                ->depth(),
+            3);
+  EXPECT_EQ(absl::down_cast<StreamingChannel*>(ch)
                 ->channel_config()
                 .fifo_config()
                 ->bypass(),
@@ -1802,9 +1805,11 @@ proc my_proc(my_token: token, my_state: bits[32], init={token, 42}) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("my_proc"));
   EXPECT_EQ(proc->name(), "my_proc");
   XLS_ASSERT_OK_AND_ASSIGN(Channel * hbo, package->GetChannel("hbo"));
-  EXPECT_THAT(down_cast<StreamingChannel*>(hbo)->GetFifoDepth(), Optional(42));
+  EXPECT_THAT(absl::down_cast<StreamingChannel*>(hbo)->GetFifoDepth(),
+              Optional(42));
   XLS_ASSERT_OK_AND_ASSIGN(Channel * mtv, package->GetChannel("mtv"));
-  EXPECT_EQ(down_cast<StreamingChannel*>(mtv)->GetFifoDepth(), std::nullopt);
+  EXPECT_EQ(absl::down_cast<StreamingChannel*>(mtv)->GetFifoDepth(),
+            std::nullopt);
 }
 
 TEST(IrParserErrorTest, ParseTupleIndexWithInvalidBValue) {

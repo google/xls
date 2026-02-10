@@ -65,7 +65,7 @@ absl::StatusOr<ScheduledFunction*> ScheduledFunctionBuilder::Build() {
     XLS_RETURN_IF_ERROR(function()->AddNodeToStage(stage, node).status());
   }
   XLS_ASSIGN_OR_RETURN(Function * f, FunctionBuilder::Build());
-  return down_cast<ScheduledFunction*>(f);
+  return absl::down_cast<ScheduledFunction*>(f);
 }
 
 absl::StatusOr<ScheduledFunction*>
@@ -81,7 +81,7 @@ ScheduledFunctionBuilder::BuildWithReturnValue(BValue return_value) {
   }
   XLS_ASSIGN_OR_RETURN(Function * f,
                        FunctionBuilder::BuildWithReturnValue(return_value));
-  return down_cast<ScheduledFunction*>(f);
+  return absl::down_cast<ScheduledFunction*>(f);
 }
 
 void ScheduledProcBuilder::SetCurrentStage(int64_t stage) {
@@ -110,7 +110,7 @@ absl::StatusOr<ScheduledProc*> ScheduledProcBuilder::Build() {
     XLS_RETURN_IF_ERROR(function()->AddNodeToStage(stage, node).status());
   }
   XLS_ASSIGN_OR_RETURN(Proc * p, ProcBuilder::Build());
-  return down_cast<ScheduledProc*>(p);
+  return absl::down_cast<ScheduledProc*>(p);
 }
 
 absl::StatusOr<ScheduledProc*> ScheduledProcBuilder::Build(
@@ -189,7 +189,7 @@ absl::StatusOr<ScheduledBlock*> ScheduledBlockBuilder::Build() {
   XLS_ASSIGN_OR_RETURN(Block * b, BlockBuilder::Build());
   should_verify_ = should_verify;
 
-  ScheduledBlock* sb = down_cast<ScheduledBlock*>(b);
+  ScheduledBlock* sb = absl::down_cast<ScheduledBlock*>(b);
   if (should_verify_) {
     XLS_RETURN_IF_ERROR(VerifyScheduledBlock(sb));
   }
@@ -222,7 +222,7 @@ void ScheduledBlockBuilder::OnNodeAdded(Node* node) {
 }
 
 void ScheduledBlockBuilder::SetSourceReturnValue(Node* return_value) {
-  auto* sb = down_cast<ScheduledBlock*>(block());
+  auto* sb = absl::down_cast<ScheduledBlock*>(block());
   CHECK(sb->source() != nullptr);
   auto* source_fn = dynamic_cast<Function*>(sb->source());
   CHECK(source_fn != nullptr);

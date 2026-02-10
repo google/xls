@@ -474,31 +474,31 @@ absl::Status FunctionBase::Accept(DfsVisitor* visitor) {
 
 const Function* FunctionBase::AsFunctionOrDie() const {
   CHECK(IsFunction());
-  return down_cast<const Function*>(this);
+  return absl::down_cast<const Function*>(this);
 }
 
 const Proc* FunctionBase::AsProcOrDie() const {
   CHECK(IsProc());
-  return down_cast<const Proc*>(this);
+  return absl::down_cast<const Proc*>(this);
 }
 
 const Block* FunctionBase::AsBlockOrDie() const {
   CHECK(IsBlock());
-  return down_cast<const Block*>(this);
+  return absl::down_cast<const Block*>(this);
 }
 Function* FunctionBase::AsFunctionOrDie() {
   CHECK(IsFunction());
-  return down_cast<Function*>(this);
+  return absl::down_cast<Function*>(this);
 }
 
 Proc* FunctionBase::AsProcOrDie() {
   CHECK(IsProc());
-  return down_cast<Proc*>(this);
+  return absl::down_cast<Proc*>(this);
 }
 
 Block* FunctionBase::AsBlockOrDie() {
   CHECK(IsBlock());
-  return down_cast<Block*>(this);
+  return absl::down_cast<Block*>(this);
 }
 
 Node* FunctionBase::AddNodeInternal(std::unique_ptr<Node> node) {

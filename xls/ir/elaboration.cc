@@ -45,13 +45,15 @@ template <>
     const Instantiation& inst) {
   switch (inst.kind()) {
     case InstantiationKind::kBlock:
-      return down_cast<const BlockInstantiation&>(inst)
+      return absl::down_cast<const BlockInstantiation&>(inst)
           .instantiated_block()
           ->name();
     case InstantiationKind::kFifo:
       return "fifo";
     case InstantiationKind::kExtern:
-      return down_cast<const ExternInstantiation&>(inst).function()->name();
+      return absl::down_cast<const ExternInstantiation&>(inst)
+          .function()
+          ->name();
     case InstantiationKind::kDelayLine:
       return "delay_line";
   }
@@ -63,7 +65,8 @@ template <>
     const Instantiation& inst) {
   switch (inst.kind()) {
     case InstantiationKind::kBlock:
-      return down_cast<const BlockInstantiation&>(inst).instantiated_block();
+      return absl::down_cast<const BlockInstantiation&>(inst)
+          .instantiated_block();
     default:
       return std::nullopt;
   }

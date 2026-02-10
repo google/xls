@@ -315,7 +315,7 @@ std::string Block::DumpIr() const {
   }
 
   if (IsScheduled()) {
-    const ScheduledBlock* sb = down_cast<const ScheduledBlock*>(this);
+    const ScheduledBlock* sb = absl::down_cast<const ScheduledBlock*>(this);
     if (const auto* source = sb->source(); source != nullptr) {
       std::string source_text = source->DumpIr();
       absl::StrAppendFormat(&res, "  source %s",
@@ -808,7 +808,7 @@ absl::StatusOr<BlockInstantiation*> Block::AddBlockInstantiation(
       AddInstantiation(instantiation_name,
                        std::make_unique<BlockInstantiation>(
                            instantiation_name, instantiated_block)));
-  return down_cast<BlockInstantiation*>(instantiation.value());
+  return absl::down_cast<BlockInstantiation*>(instantiation.value());
 }
 
 absl::StatusOr<Block::BlockInstantiationAndConnections>
@@ -920,7 +920,7 @@ absl::StatusOr<FifoInstantiation*> Block::AddFifoInstantiation(
       AddInstantiation(name,
                        std::make_unique<FifoInstantiation>(
                            name, fifo_config, data_type, channel, package())));
-  return down_cast<FifoInstantiation*>(instantiation.value());
+  return absl::down_cast<FifoInstantiation*>(instantiation.value());
 }
 
 absl::StatusOr<DelayLineInstantiation*> Block::AddDelayLineInstantiation(
@@ -933,7 +933,7 @@ absl::StatusOr<DelayLineInstantiation*> Block::AddDelayLineInstantiation(
       AddInstantiation(name, std::make_unique<DelayLineInstantiation>(
                                  name, latency, data_type, channel,
                                  reset_behavior, package())));
-  return down_cast<DelayLineInstantiation*>(instantiation.value());
+  return absl::down_cast<DelayLineInstantiation*>(instantiation.value());
 }
 
 absl::StatusOr<Instantiation*> Block::AddInstantiation(

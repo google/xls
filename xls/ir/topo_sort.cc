@@ -96,7 +96,7 @@ std::vector<Node*> ReverseTopoSort(FunctionBase* f,
     setup(node);
   }
   if (f->IsBlock() && f->IsScheduled()) {
-    const FunctionBase* source = down_cast<ScheduledBlock*>(f)->source();
+    const FunctionBase* source = absl::down_cast<ScheduledBlock*>(f)->source();
     if (source != nullptr) {
       for (Node* node : source->nodes_reversed()) {
         setup(node);
@@ -269,7 +269,7 @@ std::vector<Node*> StableTopoSort(FunctionBase* f,
   }
 
   if (f->IsBlock() && f->IsScheduled()) {
-    const FunctionBase* source = down_cast<ScheduledBlock*>(f)->source();
+    const FunctionBase* source = absl::down_cast<ScheduledBlock*>(f)->source();
     if (source != nullptr) {
       for (Node* node : source->nodes_reversed()) {
         setup(node);

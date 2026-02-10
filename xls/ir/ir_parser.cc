@@ -689,9 +689,10 @@ absl::StatusOr<Proc*> GetEffectiveProcOrError(BuilderBase* builder,
     return pb->proc();
   }
   if (auto* sbb = dynamic_cast<ScheduledBlockBuilder*>(builder)) {
-    FunctionBase* source = down_cast<ScheduledBlock*>(sbb->block())->source();
+    FunctionBase* source =
+        absl::down_cast<ScheduledBlock*>(sbb->block())->source();
     if (source != nullptr && source->IsProc()) {
-      return down_cast<Proc*>(source);
+      return absl::down_cast<Proc*>(source);
     }
   }
   return absl::InvalidArgumentError(
@@ -1834,11 +1835,11 @@ absl::StatusOr<Parser::BodyResult> Parser::ParseBody(
           Stage stage, ParseScheduledStage(fb, name_to_value, &return_value));
 
       if (auto* scheduled_pb = dynamic_cast<ScheduledProcBuilder*>(fb)) {
-        down_cast<ScheduledProc*>(scheduled_pb->proc())->AddStage(stage);
+        absl::down_cast<ScheduledProc*>(scheduled_pb->proc())->AddStage(stage);
       } else {
         // Note that blocks use `controlled_stage` rather than `stage`.
         XLS_RET_CHECK(dynamic_cast<ScheduledFunctionBuilder*>(fb) != nullptr);
-        down_cast<ScheduledFunction*>(fb->function())->AddStage(stage);
+        absl::down_cast<ScheduledFunction*>(fb->function())->AddStage(stage);
       }
       continue;
     }
@@ -3389,7 +3390,7 @@ absl::StatusOr<ScheduledFunction*> Parser::ParseScheduledFunction(
       Function * fn,
       ParseFunctionInternal(package, outer_attributes, /*scheduled=*/true,
                             /*overridden_dest=*/nullptr));
-  return down_cast<ScheduledFunction*>(fn);
+  return absl::down_cast<ScheduledFunction*>(fn);
 }
 
 absl::StatusOr<ScheduledProc*> Parser::ParseScheduledProc(
@@ -3402,7 +3403,7 @@ absl::StatusOr<ScheduledProc*> Parser::ParseScheduledProc(
       Proc * proc,
       ParseProcInternal(package, outer_attributes,
                         /*scheduled=*/true, /*overridden_dest=*/nullptr));
-  return down_cast<ScheduledProc*>(proc);
+  return absl::down_cast<ScheduledProc*>(proc);
 }
 
 absl::StatusOr<ScheduledBlock*> Parser::ParseScheduledBlock(
@@ -3410,7 +3411,7 @@ absl::StatusOr<ScheduledBlock*> Parser::ParseScheduledBlock(
   XLS_ASSIGN_OR_RETURN(
       Block * block,
       ParseBlockInternal(package, outer_attributes, /*scheduled=*/true));
-  return down_cast<ScheduledBlock*>(block);
+  return absl::down_cast<ScheduledBlock*>(block);
 }
 
 absl::Status Parser::ParseControlledStage(

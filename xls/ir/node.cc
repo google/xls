@@ -150,269 +150,294 @@ void Node::RemoveUser(Node* user) {
 absl::Status Node::VisitSingleNode(DfsVisitor* visitor) {
   switch (op()) {
     case Op::kAdd:
-      XLS_RETURN_IF_ERROR(visitor->HandleAdd(down_cast<BinOp*>(this)));
+      XLS_RETURN_IF_ERROR(visitor->HandleAdd(absl::down_cast<BinOp*>(this)));
       break;
     case Op::kAnd:
-      XLS_RETURN_IF_ERROR(visitor->HandleNaryAnd(down_cast<NaryOp*>(this)));
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleNaryAnd(absl::down_cast<NaryOp*>(this)));
       break;
     case Op::kAndReduce:
       XLS_RETURN_IF_ERROR(
-          visitor->HandleAndReduce(down_cast<BitwiseReductionOp*>(this)));
+          visitor->HandleAndReduce(absl::down_cast<BitwiseReductionOp*>(this)));
       break;
     case Op::kAssert:
-      XLS_RETURN_IF_ERROR(visitor->HandleAssert(down_cast<Assert*>(this)));
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleAssert(absl::down_cast<Assert*>(this)));
       break;
     case Op::kCover:
-      XLS_RETURN_IF_ERROR(visitor->HandleCover(down_cast<Cover*>(this)));
+      XLS_RETURN_IF_ERROR(visitor->HandleCover(absl::down_cast<Cover*>(this)));
       break;
     case Op::kTrace:
-      XLS_RETURN_IF_ERROR(visitor->HandleTrace(down_cast<Trace*>(this)));
+      XLS_RETURN_IF_ERROR(visitor->HandleTrace(absl::down_cast<Trace*>(this)));
       break;
     case Op::kReceive:
-      XLS_RETURN_IF_ERROR(visitor->HandleReceive(down_cast<Receive*>(this)));
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleReceive(absl::down_cast<Receive*>(this)));
       break;
     case Op::kSend:
-      XLS_RETURN_IF_ERROR(visitor->HandleSend(down_cast<Send*>(this)));
+      XLS_RETURN_IF_ERROR(visitor->HandleSend(absl::down_cast<Send*>(this)));
       break;
     case Op::kNand:
-      XLS_RETURN_IF_ERROR(visitor->HandleNaryNand(down_cast<NaryOp*>(this)));
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleNaryNand(absl::down_cast<NaryOp*>(this)));
       break;
     case Op::kNor:
-      XLS_RETURN_IF_ERROR(visitor->HandleNaryNor(down_cast<NaryOp*>(this)));
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleNaryNor(absl::down_cast<NaryOp*>(this)));
       break;
     case Op::kAfterAll:
-      XLS_RETURN_IF_ERROR(visitor->HandleAfterAll(down_cast<AfterAll*>(this)));
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleAfterAll(absl::down_cast<AfterAll*>(this)));
       break;
     case Op::kMinDelay:
-      XLS_RETURN_IF_ERROR(visitor->HandleMinDelay(down_cast<MinDelay*>(this)));
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleMinDelay(absl::down_cast<MinDelay*>(this)));
       break;
     case Op::kArray:
-      XLS_RETURN_IF_ERROR(visitor->HandleArray(down_cast<Array*>(this)));
+      XLS_RETURN_IF_ERROR(visitor->HandleArray(absl::down_cast<Array*>(this)));
       break;
     case Op::kBitSlice:
-      XLS_RETURN_IF_ERROR(visitor->HandleBitSlice(down_cast<BitSlice*>(this)));
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleBitSlice(absl::down_cast<BitSlice*>(this)));
       break;
     case Op::kDynamicBitSlice:
-      XLS_RETURN_IF_ERROR(
-          visitor->HandleDynamicBitSlice(down_cast<DynamicBitSlice*>(this)));
+      XLS_RETURN_IF_ERROR(visitor->HandleDynamicBitSlice(
+          absl::down_cast<DynamicBitSlice*>(this)));
       break;
     case Op::kBitSliceUpdate:
-      XLS_RETURN_IF_ERROR(
-          visitor->HandleBitSliceUpdate(down_cast<BitSliceUpdate*>(this)));
+      XLS_RETURN_IF_ERROR(visitor->HandleBitSliceUpdate(
+          absl::down_cast<BitSliceUpdate*>(this)));
       break;
     case Op::kConcat:
-      XLS_RETURN_IF_ERROR(visitor->HandleConcat(down_cast<Concat*>(this)));
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleConcat(absl::down_cast<Concat*>(this)));
       break;
     case Op::kDecode:
-      XLS_RETURN_IF_ERROR(visitor->HandleDecode(down_cast<Decode*>(this)));
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleDecode(absl::down_cast<Decode*>(this)));
       break;
     case Op::kEncode:
-      XLS_RETURN_IF_ERROR(visitor->HandleEncode(down_cast<Encode*>(this)));
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleEncode(absl::down_cast<Encode*>(this)));
       break;
     case Op::kEq:
-      XLS_RETURN_IF_ERROR(visitor->HandleEq(down_cast<CompareOp*>(this)));
+      XLS_RETURN_IF_ERROR(visitor->HandleEq(absl::down_cast<CompareOp*>(this)));
       break;
     case Op::kIdentity:
-      XLS_RETURN_IF_ERROR(visitor->HandleIdentity(down_cast<UnOp*>(this)));
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleIdentity(absl::down_cast<UnOp*>(this)));
       break;
     case Op::kArrayIndex:
       XLS_RETURN_IF_ERROR(
-          visitor->HandleArrayIndex(down_cast<ArrayIndex*>(this)));
+          visitor->HandleArrayIndex(absl::down_cast<ArrayIndex*>(this)));
       break;
     case Op::kArrayUpdate:
       XLS_RETURN_IF_ERROR(
-          visitor->HandleArrayUpdate(down_cast<ArrayUpdate*>(this)));
+          visitor->HandleArrayUpdate(absl::down_cast<ArrayUpdate*>(this)));
       break;
     case Op::kArrayConcat:
       XLS_RETURN_IF_ERROR(
-          visitor->HandleArrayConcat(down_cast<ArrayConcat*>(this)));
+          visitor->HandleArrayConcat(absl::down_cast<ArrayConcat*>(this)));
       break;
     case Op::kArraySlice:
       XLS_RETURN_IF_ERROR(
-          visitor->HandleArraySlice(down_cast<ArraySlice*>(this)));
+          visitor->HandleArraySlice(absl::down_cast<ArraySlice*>(this)));
       break;
     case Op::kInvoke:
-      XLS_RETURN_IF_ERROR(visitor->HandleInvoke(down_cast<Invoke*>(this)));
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleInvoke(absl::down_cast<Invoke*>(this)));
       break;
     case Op::kCountedFor:
       XLS_RETURN_IF_ERROR(
-          visitor->HandleCountedFor(down_cast<CountedFor*>(this)));
+          visitor->HandleCountedFor(absl::down_cast<CountedFor*>(this)));
       break;
     case Op::kDynamicCountedFor:
       XLS_RETURN_IF_ERROR(visitor->HandleDynamicCountedFor(
-          down_cast<DynamicCountedFor*>(this)));
+          absl::down_cast<DynamicCountedFor*>(this)));
       break;
     case Op::kLiteral:
-      XLS_RETURN_IF_ERROR(visitor->HandleLiteral(down_cast<Literal*>(this)));
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleLiteral(absl::down_cast<Literal*>(this)));
       break;
     case Op::kMap:
-      XLS_RETURN_IF_ERROR(visitor->HandleMap(down_cast<Map*>(this)));
+      XLS_RETURN_IF_ERROR(visitor->HandleMap(absl::down_cast<Map*>(this)));
       break;
     case Op::kNe:
-      XLS_RETURN_IF_ERROR(visitor->HandleNe(down_cast<CompareOp*>(this)));
+      XLS_RETURN_IF_ERROR(visitor->HandleNe(absl::down_cast<CompareOp*>(this)));
       break;
     case Op::kNeg:
-      XLS_RETURN_IF_ERROR(visitor->HandleNeg(down_cast<UnOp*>(this)));
+      XLS_RETURN_IF_ERROR(visitor->HandleNeg(absl::down_cast<UnOp*>(this)));
       break;
     case Op::kNot:
-      XLS_RETURN_IF_ERROR(visitor->HandleNot(down_cast<UnOp*>(this)));
+      XLS_RETURN_IF_ERROR(visitor->HandleNot(absl::down_cast<UnOp*>(this)));
       break;
     case Op::kOneHot:
-      XLS_RETURN_IF_ERROR(visitor->HandleOneHot(down_cast<OneHot*>(this)));
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleOneHot(absl::down_cast<OneHot*>(this)));
       break;
     case Op::kOneHotSel:
       XLS_RETURN_IF_ERROR(
-          visitor->HandleOneHotSel(down_cast<OneHotSelect*>(this)));
+          visitor->HandleOneHotSel(absl::down_cast<OneHotSelect*>(this)));
       break;
     case Op::kPrioritySel:
       XLS_RETURN_IF_ERROR(
-          visitor->HandlePrioritySel(down_cast<PrioritySelect*>(this)));
+          visitor->HandlePrioritySel(absl::down_cast<PrioritySelect*>(this)));
       break;
     case Op::kOr:
-      XLS_RETURN_IF_ERROR(visitor->HandleNaryOr(down_cast<NaryOp*>(this)));
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleNaryOr(absl::down_cast<NaryOp*>(this)));
       break;
     case Op::kOrReduce:
       XLS_RETURN_IF_ERROR(
-          visitor->HandleOrReduce(down_cast<BitwiseReductionOp*>(this)));
+          visitor->HandleOrReduce(absl::down_cast<BitwiseReductionOp*>(this)));
       break;
     case Op::kParam:
-      XLS_RETURN_IF_ERROR(visitor->HandleParam(down_cast<Param*>(this)));
+      XLS_RETURN_IF_ERROR(visitor->HandleParam(absl::down_cast<Param*>(this)));
       break;
     case Op::kStateRead:
       XLS_RETURN_IF_ERROR(
-          visitor->HandleStateRead(down_cast<StateRead*>(this)));
+          visitor->HandleStateRead(absl::down_cast<StateRead*>(this)));
       break;
     case Op::kNext:
-      XLS_RETURN_IF_ERROR(visitor->HandleNext(down_cast<Next*>(this)));
+      XLS_RETURN_IF_ERROR(visitor->HandleNext(absl::down_cast<Next*>(this)));
       break;
     case Op::kRegisterRead:
       XLS_RETURN_IF_ERROR(
-          visitor->HandleRegisterRead(down_cast<RegisterRead*>(this)));
+          visitor->HandleRegisterRead(absl::down_cast<RegisterRead*>(this)));
       break;
     case Op::kRegisterWrite:
       XLS_RETURN_IF_ERROR(
-          visitor->HandleRegisterWrite(down_cast<RegisterWrite*>(this)));
+          visitor->HandleRegisterWrite(absl::down_cast<RegisterWrite*>(this)));
       break;
     case Op::kReverse:
-      XLS_RETURN_IF_ERROR(visitor->HandleReverse(down_cast<UnOp*>(this)));
+      XLS_RETURN_IF_ERROR(visitor->HandleReverse(absl::down_cast<UnOp*>(this)));
       break;
     case Op::kSDiv:
-      XLS_RETURN_IF_ERROR(visitor->HandleSDiv(down_cast<BinOp*>(this)));
+      XLS_RETURN_IF_ERROR(visitor->HandleSDiv(absl::down_cast<BinOp*>(this)));
       break;
     case Op::kSel:
-      XLS_RETURN_IF_ERROR(visitor->HandleSel(down_cast<Select*>(this)));
+      XLS_RETURN_IF_ERROR(visitor->HandleSel(absl::down_cast<Select*>(this)));
       break;
     case Op::kSGt:
-      XLS_RETURN_IF_ERROR(visitor->HandleSGt(down_cast<CompareOp*>(this)));
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleSGt(absl::down_cast<CompareOp*>(this)));
       break;
     case Op::kSGe:
-      XLS_RETURN_IF_ERROR(visitor->HandleSGe(down_cast<CompareOp*>(this)));
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleSGe(absl::down_cast<CompareOp*>(this)));
       break;
     case Op::kShll:
-      XLS_RETURN_IF_ERROR(visitor->HandleShll(down_cast<BinOp*>(this)));
+      XLS_RETURN_IF_ERROR(visitor->HandleShll(absl::down_cast<BinOp*>(this)));
       break;
     case Op::kShra:
-      XLS_RETURN_IF_ERROR(visitor->HandleShra(down_cast<BinOp*>(this)));
+      XLS_RETURN_IF_ERROR(visitor->HandleShra(absl::down_cast<BinOp*>(this)));
       break;
     case Op::kShrl:
-      XLS_RETURN_IF_ERROR(visitor->HandleShrl(down_cast<BinOp*>(this)));
+      XLS_RETURN_IF_ERROR(visitor->HandleShrl(absl::down_cast<BinOp*>(this)));
       break;
     case Op::kSLe:
-      XLS_RETURN_IF_ERROR(visitor->HandleSLe(down_cast<CompareOp*>(this)));
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleSLe(absl::down_cast<CompareOp*>(this)));
       break;
     case Op::kSLt:
-      XLS_RETURN_IF_ERROR(visitor->HandleSLt(down_cast<CompareOp*>(this)));
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleSLt(absl::down_cast<CompareOp*>(this)));
       break;
     case Op::kSMod:
-      XLS_RETURN_IF_ERROR(visitor->HandleSMod(down_cast<BinOp*>(this)));
+      XLS_RETURN_IF_ERROR(visitor->HandleSMod(absl::down_cast<BinOp*>(this)));
       break;
     case Op::kSMul:
-      XLS_RETURN_IF_ERROR(visitor->HandleSMul(down_cast<ArithOp*>(this)));
+      XLS_RETURN_IF_ERROR(visitor->HandleSMul(absl::down_cast<ArithOp*>(this)));
       break;
     case Op::kSMulp:
       XLS_RETURN_IF_ERROR(
-          visitor->HandleSMulp(down_cast<PartialProductOp*>(this)));
+          visitor->HandleSMulp(absl::down_cast<PartialProductOp*>(this)));
       break;
     case Op::kSub:
-      XLS_RETURN_IF_ERROR(visitor->HandleSub(down_cast<BinOp*>(this)));
+      XLS_RETURN_IF_ERROR(visitor->HandleSub(absl::down_cast<BinOp*>(this)));
       break;
     case Op::kTupleIndex:
       XLS_RETURN_IF_ERROR(
-          visitor->HandleTupleIndex(down_cast<TupleIndex*>(this)));
+          visitor->HandleTupleIndex(absl::down_cast<TupleIndex*>(this)));
       break;
     case Op::kTuple:
-      XLS_RETURN_IF_ERROR(visitor->HandleTuple(down_cast<Tuple*>(this)));
+      XLS_RETURN_IF_ERROR(visitor->HandleTuple(absl::down_cast<Tuple*>(this)));
       break;
     case Op::kUDiv:
-      XLS_RETURN_IF_ERROR(visitor->HandleUDiv(down_cast<BinOp*>(this)));
+      XLS_RETURN_IF_ERROR(visitor->HandleUDiv(absl::down_cast<BinOp*>(this)));
       break;
     case Op::kUGe:
-      XLS_RETURN_IF_ERROR(visitor->HandleUGe(down_cast<CompareOp*>(this)));
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleUGe(absl::down_cast<CompareOp*>(this)));
       break;
     case Op::kUGt:
-      XLS_RETURN_IF_ERROR(visitor->HandleUGt(down_cast<CompareOp*>(this)));
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleUGt(absl::down_cast<CompareOp*>(this)));
       break;
     case Op::kULe:
-      XLS_RETURN_IF_ERROR(visitor->HandleULe(down_cast<CompareOp*>(this)));
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleULe(absl::down_cast<CompareOp*>(this)));
       break;
     case Op::kULt:
-      XLS_RETURN_IF_ERROR(visitor->HandleULt(down_cast<CompareOp*>(this)));
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleULt(absl::down_cast<CompareOp*>(this)));
       break;
     case Op::kUMod:
-      XLS_RETURN_IF_ERROR(visitor->HandleUMod(down_cast<BinOp*>(this)));
+      XLS_RETURN_IF_ERROR(visitor->HandleUMod(absl::down_cast<BinOp*>(this)));
       break;
     case Op::kUMul:
-      XLS_RETURN_IF_ERROR(visitor->HandleUMul(down_cast<ArithOp*>(this)));
+      XLS_RETURN_IF_ERROR(visitor->HandleUMul(absl::down_cast<ArithOp*>(this)));
       break;
     case Op::kUMulp:
       XLS_RETURN_IF_ERROR(
-          visitor->HandleUMulp(down_cast<PartialProductOp*>(this)));
+          visitor->HandleUMulp(absl::down_cast<PartialProductOp*>(this)));
       break;
     case Op::kXor:
-      XLS_RETURN_IF_ERROR(visitor->HandleNaryXor(down_cast<NaryOp*>(this)));
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleNaryXor(absl::down_cast<NaryOp*>(this)));
       break;
     case Op::kXorReduce:
       XLS_RETURN_IF_ERROR(
-          visitor->HandleXorReduce(down_cast<BitwiseReductionOp*>(this)));
+          visitor->HandleXorReduce(absl::down_cast<BitwiseReductionOp*>(this)));
       break;
     case Op::kSignExt:
       XLS_RETURN_IF_ERROR(
-          visitor->HandleSignExtend(down_cast<ExtendOp*>(this)));
+          visitor->HandleSignExtend(absl::down_cast<ExtendOp*>(this)));
       break;
     case Op::kZeroExt:
       XLS_RETURN_IF_ERROR(
-          visitor->HandleZeroExtend(down_cast<ExtendOp*>(this)));
+          visitor->HandleZeroExtend(absl::down_cast<ExtendOp*>(this)));
       break;
     case Op::kInputPort:
       XLS_RETURN_IF_ERROR(
-          visitor->HandleInputPort(down_cast<InputPort*>(this)));
+          visitor->HandleInputPort(absl::down_cast<InputPort*>(this)));
       break;
     case Op::kOutputPort:
       XLS_RETURN_IF_ERROR(
-          visitor->HandleOutputPort(down_cast<OutputPort*>(this)));
+          visitor->HandleOutputPort(absl::down_cast<OutputPort*>(this)));
       break;
     case Op::kGate:
-      XLS_RETURN_IF_ERROR(visitor->HandleGate(down_cast<Gate*>(this)));
+      XLS_RETURN_IF_ERROR(visitor->HandleGate(absl::down_cast<Gate*>(this)));
       break;
     case Op::kInstantiationInput:
       XLS_RETURN_IF_ERROR(visitor->HandleInstantiationInput(
-          down_cast<InstantiationInput*>(this)));
+          absl::down_cast<InstantiationInput*>(this)));
       break;
     case Op::kInstantiationOutput:
       XLS_RETURN_IF_ERROR(visitor->HandleInstantiationOutput(
-          down_cast<InstantiationOutput*>(this)));
+          absl::down_cast<InstantiationOutput*>(this)));
       break;
     case Op::kNewChannel:
       XLS_RETURN_IF_ERROR(
-          visitor->HandleNewChannel(down_cast<NewChannel*>(this)));
+          visitor->HandleNewChannel(absl::down_cast<NewChannel*>(this)));
       break;
     case Op::kRecvChannelEnd:
-      XLS_RETURN_IF_ERROR(
-          visitor->HandleRecvChannelEnd(down_cast<RecvChannelEnd*>(this)));
+      XLS_RETURN_IF_ERROR(visitor->HandleRecvChannelEnd(
+          absl::down_cast<RecvChannelEnd*>(this)));
       break;
     case Op::kSendChannelEnd:
-      XLS_RETURN_IF_ERROR(
-          visitor->HandleSendChannelEnd(down_cast<SendChannelEnd*>(this)));
+      XLS_RETURN_IF_ERROR(visitor->HandleSendChannelEnd(
+          absl::down_cast<SendChannelEnd*>(this)));
       break;
   }
   return absl::OkStatus();
@@ -1007,7 +1032,7 @@ absl::StatusOr<bool> Node::ReplaceImplicitUsesWith(Node* replacement) {
     // Scheduled blocks have implicitly-used nodes, for their stage valid/ready
     // signals.
     ScheduledBlock* block =
-        down_cast<ScheduledBlock*>(function_base()->AsBlockOrDie());
+        absl::down_cast<ScheduledBlock*>(function_base()->AsBlockOrDie());
     for (int stage_index = 0; stage_index < block->stages().size();
          stage_index++) {
       Stage& stage = block->stages()[stage_index];

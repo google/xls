@@ -236,7 +236,8 @@ absl::Status VerifyChannels(
     if (!block->IsScheduled()) {
       continue;
     }
-    FunctionBase* source = down_cast<ScheduledBlock*>(block.get())->source();
+    FunctionBase* source =
+        absl::down_cast<ScheduledBlock*>(block.get())->source();
     if (source == nullptr || !source->IsProc() ||
         source->AsProcOrDie()->is_new_style_proc()) {
       continue;
@@ -622,7 +623,8 @@ absl::Status VerifyFunction(Function* function, const VerifyOptions& options) {
   }
 
   if (function->IsScheduled()) {
-    const ScheduledFunction* sf = down_cast<const ScheduledFunction*>(function);
+    const ScheduledFunction* sf =
+        absl::down_cast<const ScheduledFunction*>(function);
     absl::flat_hash_map<Node*, int64_t> node_to_stage;
     absl::flat_hash_set<Node*>
         all_scheduled_nodes;  // Tracks nodes across all stages
@@ -878,7 +880,7 @@ absl::Status VerifyProc(Proc* proc, const VerifyOptions& options) {
   XLS_RET_CHECK(proc->params().empty());
 
   if (proc->IsScheduled()) {
-    const ScheduledProc* sp = down_cast<const ScheduledProc*>(proc);
+    const ScheduledProc* sp = absl::down_cast<const ScheduledProc*>(proc);
     absl::flat_hash_map<Node*, int64_t> node_to_stage;
     absl::flat_hash_set<Node*>
         all_scheduled_nodes;  // Tracks nodes across all stages
@@ -1164,7 +1166,8 @@ static absl::Status VerifyFifoInstantiation(Package* package,
                           channel->name(), instantiation->name(),
                           ChannelKindToString(channel->kind())));
     }
-    StreamingChannel* streaming_channel = down_cast<StreamingChannel*>(channel);
+    StreamingChannel* streaming_channel =
+        absl::down_cast<StreamingChannel*>(channel);
     if (!streaming_channel->channel_config().fifo_config().has_value()) {
       return absl::InvalidArgumentError(
           absl::StrFormat("Expected channel %s with fifo instantiation %s to "
@@ -1380,19 +1383,20 @@ absl::Status VerifyBlock(Block* block, const VerifyOptions& options) {
         // Verify each instantiation is a block instantiation and the block is
         // owned the package.
         XLS_RETURN_IF_ERROR(VerifyBlockInstantiation(
-            down_cast<BlockInstantiation*>(instantiation), block));
+            absl::down_cast<BlockInstantiation*>(instantiation), block));
         break;
       case InstantiationKind::kExtern:
         XLS_RETURN_IF_ERROR(VerifyExternInstantiation(
-            down_cast<ExternInstantiation*>(instantiation)));
+            absl::down_cast<ExternInstantiation*>(instantiation)));
         break;
       case InstantiationKind::kFifo:
         XLS_RETURN_IF_ERROR(VerifyFifoInstantiation(
-            block->package(), down_cast<FifoInstantiation*>(instantiation)));
+            block->package(),
+            absl::down_cast<FifoInstantiation*>(instantiation)));
         break;
       case InstantiationKind::kDelayLine:
         XLS_RETURN_IF_ERROR(VerifyDelayLineInstantiation(
-            down_cast<DelayLineInstantiation*>(instantiation), block));
+            absl::down_cast<DelayLineInstantiation*>(instantiation), block));
         break;
       default:
         XLS_RET_CHECK_FAIL()
@@ -1407,7 +1411,7 @@ absl::Status VerifyBlock(Block* block, const VerifyOptions& options) {
     return absl::OkStatus();
   }
 
-  ScheduledBlock* scheduled_block = down_cast<ScheduledBlock*>(block);
+  ScheduledBlock* scheduled_block = absl::down_cast<ScheduledBlock*>(block);
 
   absl::flat_hash_set<Node*>
       all_scheduled_nodes;  // Tracks nodes across all stages

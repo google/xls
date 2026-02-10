@@ -501,7 +501,7 @@ TEST_F(PackageTest, CloneStreamingChannelSamePackage) {
   EXPECT_EQ(ch0->supported_ops(), ch1->supported_ops());
 
   // Check streaming-specific fields.
-  StreamingChannel* streaming_ch1 = down_cast<StreamingChannel*>(ch1);
+  StreamingChannel* streaming_ch1 = absl::down_cast<StreamingChannel*>(ch1);
   EXPECT_EQ(streaming_ch1->initial_values(), initial_values);
   EXPECT_EQ(streaming_ch1->GetFifoDepth(), 3);
   EXPECT_EQ(streaming_ch1->flow_control(), FlowControl::kReadyValid);
@@ -529,7 +529,7 @@ TEST_F(PackageTest, CloneStreamingChannelSetParams) {
       p.CloneChannel(ch0, "ch1",
                      Package::CloneChannelOverrides().OverrideInitialValues(
                          initial_values_override)));
-  StreamingChannel* ch1 = down_cast<StreamingChannel*>(ch1_base);
+  StreamingChannel* ch1 = absl::down_cast<StreamingChannel*>(ch1_base);
   ASSERT_NE(ch1, nullptr);
 
   EXPECT_EQ(ch1->name(), "ch1");
@@ -550,7 +550,7 @@ TEST_F(PackageTest, CloneStreamingChannelSetParams) {
       p.CloneChannel(ch0, "ch2",
                      Package::CloneChannelOverrides().OverrideChannelConfig(
                          ChannelConfig())));
-  StreamingChannel* ch2 = down_cast<StreamingChannel*>(ch2_base);
+  StreamingChannel* ch2 = absl::down_cast<StreamingChannel*>(ch2_base);
   ASSERT_NE(ch2, nullptr);
 
   EXPECT_EQ(ch2->name(), "ch2");
@@ -567,7 +567,7 @@ TEST_F(PackageTest, CloneStreamingChannelSetParams) {
       p.CloneChannel(ch0, "ch3",
                      Package::CloneChannelOverrides().OverrideFlowControl(
                          FlowControl::kReadyValid)));
-  StreamingChannel* ch3 = down_cast<StreamingChannel*>(ch3_base);
+  StreamingChannel* ch3 = absl::down_cast<StreamingChannel*>(ch3_base);
   ASSERT_NE(ch3, nullptr);
 
   EXPECT_EQ(ch3->name(), "ch3");
@@ -582,7 +582,7 @@ TEST_F(PackageTest, CloneStreamingChannelSetParams) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch4_base,
       p.CloneChannel(ch0, "ch4", Package::CloneChannelOverrides()));
-  StreamingChannel* ch4 = down_cast<StreamingChannel*>(ch4_base);
+  StreamingChannel* ch4 = absl::down_cast<StreamingChannel*>(ch4_base);
   ASSERT_NE(ch4, nullptr);
 
   EXPECT_EQ(ch4->name(), "ch4");
@@ -598,7 +598,7 @@ TEST_F(PackageTest, CloneStreamingChannelSetParams) {
       p.CloneChannel(ch0, "ch5",
                      Package::CloneChannelOverrides().OverrideStrictness(
                          ChannelStrictness::kArbitraryStaticOrder)));
-  StreamingChannel* ch5 = down_cast<StreamingChannel*>(ch5_base);
+  StreamingChannel* ch5 = absl::down_cast<StreamingChannel*>(ch5_base);
   ASSERT_NE(ch5, nullptr);
 
   EXPECT_EQ(ch5->name(), "ch5");
@@ -641,7 +641,7 @@ TEST_F(PackageTest, CloneStreamingChannelSamePackageButDifferentOps) {
   EXPECT_EQ(ch1->supported_ops(), ChannelOps::kSendReceive);
 
   // Check streaming-specific fields.
-  StreamingChannel* streaming_ch1 = down_cast<StreamingChannel*>(ch1);
+  StreamingChannel* streaming_ch1 = absl::down_cast<StreamingChannel*>(ch1);
   EXPECT_EQ(streaming_ch1->initial_values(), initial_values);
   EXPECT_EQ(streaming_ch1->GetFifoDepth(), 3);
   EXPECT_EQ(streaming_ch1->flow_control(), FlowControl::kReadyValid);
@@ -675,7 +675,7 @@ TEST_F(PackageTest, CloneStreamingChannelDifferentPackage) {
 
   // Check streaming-specific fields.
   StreamingChannel* streaming_ch0_clone =
-      down_cast<StreamingChannel*>(ch0_clone);
+      absl::down_cast<StreamingChannel*>(ch0_clone);
   EXPECT_EQ(streaming_ch0_clone->initial_values(), initial_values);
   EXPECT_EQ(streaming_ch0_clone->GetFifoDepth(), 3);
   EXPECT_EQ(streaming_ch0_clone->flow_control(), FlowControl::kReadyValid);

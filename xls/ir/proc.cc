@@ -371,7 +371,7 @@ absl::StatusOr<Proc*> Proc::Clone(
           target_package->MapTypeFromOtherPackage(channel->type()));
       if (channel->kind() == ChannelKind::kStreaming) {
         StreamingChannel* streaming_channel =
-            down_cast<StreamingChannel*>(channel);
+            absl::down_cast<StreamingChannel*>(channel);
         new_channel = std::make_unique<StreamingChannel>(
             new_chan_name(channel->name()), channel->id(),
             channel->supported_ops(), chan_type, channel->initial_values(),
@@ -710,14 +710,14 @@ absl::StatusOr<ReceiveChannelInterface*> Proc::AddInputChannelInterface(
     std::unique_ptr<ReceiveChannelInterface> channel_interface) {
   XLS_ASSIGN_OR_RETURN(ChannelInterface * channel_interface_ptr,
                        AddChannelInterface(std::move(channel_interface)));
-  return down_cast<ReceiveChannelInterface*>(channel_interface_ptr);
+  return absl::down_cast<ReceiveChannelInterface*>(channel_interface_ptr);
 }
 
 absl::StatusOr<SendChannelInterface*> Proc::AddOutputChannelInterface(
     std::unique_ptr<SendChannelInterface> channel_interface) {
   XLS_ASSIGN_OR_RETURN(ChannelInterface * channel_interface_ptr,
                        AddChannelInterface(std::move(channel_interface)));
-  return down_cast<SendChannelInterface*>(channel_interface_ptr);
+  return absl::down_cast<SendChannelInterface*>(channel_interface_ptr);
 }
 
 absl::StatusOr<ChannelInterface*> Proc::AddChannelInterface(
@@ -853,7 +853,7 @@ absl::StatusOr<SendChannelInterface*> Proc::GetSendChannelInterface(
   XLS_RET_CHECK(is_new_style_proc());
   XLS_ASSIGN_OR_RETURN(ChannelInterface * channel_interface,
                        GetChannelInterface(name, ChannelDirection::kSend));
-  return down_cast<SendChannelInterface*>(channel_interface);
+  return absl::down_cast<SendChannelInterface*>(channel_interface);
 }
 
 absl::StatusOr<ReceiveChannelInterface*> Proc::GetReceiveChannelInterface(
@@ -861,7 +861,7 @@ absl::StatusOr<ReceiveChannelInterface*> Proc::GetReceiveChannelInterface(
   XLS_RET_CHECK(is_new_style_proc());
   XLS_ASSIGN_OR_RETURN(ChannelInterface * channel_interface,
                        GetChannelInterface(name, ChannelDirection::kReceive));
-  return down_cast<ReceiveChannelInterface*>(channel_interface);
+  return absl::down_cast<ReceiveChannelInterface*>(channel_interface);
 }
 
 absl::StatusOr<ProcInstantiation*> Proc::GetProcInstantiation(
