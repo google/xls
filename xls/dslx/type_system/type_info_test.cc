@@ -83,7 +83,7 @@ fn main() -> u32 {
 
   Function* main = tm.module->GetFunctionByName().at("main");
 
-  const Invocation* invoke_p = down_cast<const Invocation*>(
+  const Invocation* invoke_p = absl::down_cast<const Invocation*>(
       ToAstNode(main->body()->statements().at(0)->wrapped()));
   ASSERT_NE(invoke_p, nullptr);
 

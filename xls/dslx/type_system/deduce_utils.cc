@@ -528,7 +528,8 @@ absl::Status NoteBuiltinInvocationConstExpr(std::string_view fn_name,
   // array_size is always a constexpr result since it just needs the type
   // information
   if (fn_name == "array_size") {
-    auto* array_type = down_cast<const ArrayType*>(fn_type.params()[0].get());
+    auto* array_type =
+        absl::down_cast<const ArrayType*>(fn_type.params()[0].get());
     XLS_ASSIGN_OR_RETURN(int64_t array_size, array_type->size().GetAsInt64());
     ti->NoteConstExpr(invocation,
                       InterpValue::MakeU32(static_cast<int32_t>(array_size)));
@@ -551,7 +552,8 @@ absl::Status NoteBuiltinInvocationConstExpr(std::string_view fn_name,
 
   if (fn_name == "configured_value_or") {
     XLS_RET_CHECK_EQ(invocation->args().size(), 2);
-    std::string key = down_cast<const String*>(invocation->args()[0])->text();
+    std::string key =
+        absl::down_cast<const String*>(invocation->args()[0])->text();
     if (!invocation->owner()->configured_values().contains(key)) {
       Expr* default_value_expr = invocation->args()[1];
       XLS_ASSIGN_OR_RETURN(InterpValue default_value,

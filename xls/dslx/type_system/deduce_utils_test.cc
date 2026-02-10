@@ -44,10 +44,10 @@ TEST(DeduceUtilsTest, ValidateNumber) {
   Parser parser("test", &scanner);
   Bindings bindings;
   XLS_ASSERT_OK_AND_ASSIGN(Expr * e, parser.ParseExpression(bindings));
-  auto* ft = down_cast<Number*>(e);
+  auto* ft = absl::down_cast<Number*>(e);
 
   XLS_ASSERT_OK_AND_ASSIGN(e, parser.ParseExpression(bindings));
-  auto* tfs = down_cast<Number*>(e);
+  auto* tfs = absl::down_cast<Number*>(e);
 
   auto u8 = BitsType::MakeU8();
   XLS_ASSERT_OK(ValidateNumber(*ft, *u8));

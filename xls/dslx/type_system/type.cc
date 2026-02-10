@@ -417,8 +417,9 @@ bool BitsType::operator==(const Type& other) const {
     return t->is_signed_ == is_signed_ && t->size_ == size_;
   }
   if (IsArrayOfBitsConstructor(other)) {
-    const auto* a = down_cast<const ArrayType*>(&other);
-    const auto* bc = down_cast<const BitsConstructorType*>(&a->element_type());
+    const auto* a = absl::down_cast<const ArrayType*>(&other);
+    const auto* bc =
+        absl::down_cast<const BitsConstructorType*>(&a->element_type());
     return a->size() == size_ &&
            bc->is_signed() == TypeDim::CreateBool(is_signed());
   }
