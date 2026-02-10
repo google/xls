@@ -423,11 +423,11 @@ class CollectUseDef : public AstNodeVisitorWithDefault {
       const AstNode* node = *name_def;
       while (node->parent() &&
              node->parent()->kind() == AstNodeKind::kNameDefTree) {
-        node = down_cast<const NameDefTree*>(node->parent());
+        node = absl::down_cast<const NameDefTree*>(node->parent());
       }
       if (node != *name_def) {
         for (NameDefTree::Leaf& leaf :
-             down_cast<const NameDefTree*>(node)->Flatten()) {
+             absl::down_cast<const NameDefTree*>(node)->Flatten()) {
           if (const NameDef* const* tree_name_def =
                   std::get_if<NameDef*>(&leaf)) {
             uses_.insert(*tree_name_def);
@@ -459,7 +459,7 @@ class NextParamStateVisitor : public AstNodeVisitorWithDefault {
   absl::Status HandleParam(const Param* node) override {
     if (node->parent() != nullptr &&
         node->parent()->kind() == AstNodeKind::kFunction) {
-      const Function* fn = down_cast<const Function*>(node->parent());
+      const Function* fn = absl::down_cast<const Function*>(node->parent());
       if (fn->tag() == FunctionTag::kProcNext) {
         TypeRef* state_typeref =
             node->owner()->Make<TypeRef>(node->span(), state_struct_def_);

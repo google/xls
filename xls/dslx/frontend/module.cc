@@ -200,15 +200,16 @@ std::vector<std::string> Module::GetMemberNames(
 }
 
 const StructDef* Module::FindStructDef(const Span& span) const {
-  return down_cast<const StructDef*>(FindNode(AstNodeKind::kStructDef, span));
+  return absl::down_cast<const StructDef*>(
+      FindNode(AstNodeKind::kStructDef, span));
 }
 
 const ProcDef* Module::FindProcDef(const Span& span) const {
-  return down_cast<const ProcDef*>(FindNode(AstNodeKind::kProcDef, span));
+  return absl::down_cast<const ProcDef*>(FindNode(AstNodeKind::kProcDef, span));
 }
 
 const EnumDef* Module::FindEnumDef(const Span& span) const {
-  return down_cast<const EnumDef*>(FindNode(AstNodeKind::kEnumDef, span));
+  return absl::down_cast<const EnumDef*>(FindNode(AstNodeKind::kEnumDef, span));
 }
 
 bool Module::IsPublicMember(const AstNode& node) const {

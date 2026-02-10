@@ -560,7 +560,7 @@ CollectReferencedUnder(const AstNode* root, bool want_types) {
   std::vector<std::pair<const NameRef*, const NameDef*>> result;
   for (const AstNode* n : nodes) {
     if (n->kind() == AstNodeKind::kNameRef) {
-      const auto* nr = down_cast<const NameRef*>(n);
+      const auto* nr = absl::down_cast<const NameRef*>(n);
       if (std::holds_alternative<const NameDef*>(nr->name_def())) {
         result.emplace_back(nr, std::get<const NameDef*>(nr->name_def()));
       }

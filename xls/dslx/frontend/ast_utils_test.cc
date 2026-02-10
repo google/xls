@@ -170,7 +170,7 @@ fn f() -> u32 {
   ASSERT_TRUE(f.has_value());
   Statement* stmt = (*f.value()).body()->statements().back();
   auto* match_expr = std::get<Expr*>(stmt->wrapped());
-  auto* match = down_cast<Match*>(match_expr);
+  auto* match = absl::down_cast<Match*>(match_expr);
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<AstNode*> nodes,
                            CollectUnder(match, /*want_types=*/false));
   ASSERT_EQ(nodes.size(), 15);
@@ -265,7 +265,7 @@ fn main() { f() }
   Function* main = module->GetFunctionByName().at("main");
   const Statement* last_stmt = main->body()->statements().back();
   const Expr* last_expr = std::get<Expr*>(last_stmt->wrapped());
-  const Invocation* call_f = down_cast<const Invocation*>(last_expr);
+  const Invocation* call_f = absl::down_cast<const Invocation*>(last_expr);
 
   // The function "main" has the call to f.
   ASSERT_TRUE(ContainedWithinFunction(*call_f, *main));
@@ -285,7 +285,8 @@ const X = f();
                                                     "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(const ConstantDef* x,
                            module->GetMemberOrError<ConstantDef>("X"));
-  const Invocation* standalone_call = down_cast<const Invocation*>(x->value());
+  const Invocation* standalone_call =
+      absl::down_cast<const Invocation*>(x->value());
 
   ASSERT_EQ(GetContainingFunction(standalone_call), std::nullopt);
 }
@@ -300,7 +301,7 @@ fn main(x: u32, y: u32, z: u32) -> u32 { bit_slice_update(x, y, z) }
   Function* main = module->GetFunctionByName().at("main");
   const Statement* last_stmt = main->body()->statements().back();
   const Expr* last_expr = std::get<Expr*>(last_stmt->wrapped());
-  const Invocation* call = down_cast<const Invocation*>(last_expr);
+  const Invocation* call = absl::down_cast<const Invocation*>(last_expr);
 
   // The function "main" has the call to f.
   ASSERT_TRUE(ContainedWithinFunction(*call, *main));
@@ -320,7 +321,7 @@ fn f<X: u32, Y: u32 = {id(X)}>() -> u32 { Y }
       f->parametric_bindings();
   ASSERT_EQ(parametric_bindings.size(), 2);
   const ParametricBinding* pb = parametric_bindings.at(1);
-  const Invocation* call = down_cast<const Invocation*>(pb->expr());
+  const Invocation* call = absl::down_cast<const Invocation*>(pb->expr());
 
   // The function "f" has the call to id() contained within its bounds.
   ASSERT_TRUE(ContainedWithinFunction(*call, *f));

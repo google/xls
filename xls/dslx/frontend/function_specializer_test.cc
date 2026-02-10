@@ -72,9 +72,9 @@ TEST(FunctionSpecializerTest, SpecializesParametricFunction) {
   EXPECT_EQ(specialized->identifier(), "scale_M32");
 
   ASSERT_EQ(specialized->params().size(), 1);
-  auto* array_type = down_cast<ArrayTypeAnnotation*>(
+  auto* array_type = absl::down_cast<ArrayTypeAnnotation*>(
       specialized->params()[0]->type_annotation());
-  auto* literal_dim = down_cast<Number*>(array_type->dim());
+  auto* literal_dim = absl::down_cast<Number*>(array_type->dim());
   EXPECT_EQ(literal_dim->text(), "0x20");
 
   StatementBlock* specialized_body = specialized->body();
@@ -84,8 +84,8 @@ TEST(FunctionSpecializerTest, SpecializesParametricFunction) {
       specialized_body->statements().front()->wrapped();
   ASSERT_TRUE(std::holds_alternative<Let*>(shifted_statement));
   auto* let_stmt = std::get<Let*>(shifted_statement);
-  auto* shift = down_cast<Binop*>(let_stmt->rhs());
-  auto* shift_amount = down_cast<Number*>(shift->rhs());
+  auto* shift = absl::down_cast<Binop*>(let_stmt->rhs());
+  auto* shift_amount = absl::down_cast<Number*>(shift->rhs());
   EXPECT_EQ(shift_amount->text(), "0x20");
 
   ASSERT_TRUE(module->GetFunction("scale_M32").has_value());
@@ -135,7 +135,7 @@ TEST(FunctionSpecializerTest, SpecializedParametersRebindNameRefs) {
   ASSERT_TRUE(std::holds_alternative<Expr*>(specialized_wrapped));
   Expr* ret_expr = std::get<Expr*>(specialized_wrapped);
 
-  auto* name_ref = down_cast<NameRef*>(ret_expr);
+  auto* name_ref = absl::down_cast<NameRef*>(ret_expr);
   ASSERT_TRUE(std::holds_alternative<const NameDef*>(name_ref->name_def()));
   const NameDef* bound_name_def =
       std::get<const NameDef*>(name_ref->name_def());
@@ -412,15 +412,15 @@ TEST(FunctionSpecializerTest, TypeAnnotationsSubstituteParametricBindings) {
 
   ASSERT_EQ(specialized->params().size(), 1);
   Param* specialized_param = specialized->params()[0];
-  auto* param_type =
-      down_cast<ArrayTypeAnnotation*>(specialized_param->type_annotation());
+  auto* param_type = absl::down_cast<ArrayTypeAnnotation*>(
+      specialized_param->type_annotation());
   ASSERT_NE(param_type, nullptr);
   auto* param_dim = dynamic_cast<Number*>(param_type->dim());
   ASSERT_NE(param_dim, nullptr);
   EXPECT_EQ(param_dim->text(), "0x10");
 
   auto* return_type =
-      down_cast<ArrayTypeAnnotation*>(specialized->return_type());
+      absl::down_cast<ArrayTypeAnnotation*>(specialized->return_type());
   ASSERT_NE(return_type, nullptr);
   auto* return_dim = dynamic_cast<Binop*>(return_type->dim());
   ASSERT_NE(return_dim, nullptr);
@@ -441,7 +441,8 @@ TEST(FunctionSpecializerTest, TypeAnnotationsSubstituteParametricBindings) {
   const Statement::Wrapped& let_wrapped = body->statements().front()->wrapped();
   ASSERT_TRUE(std::holds_alternative<Let*>(let_wrapped));
   auto* let_stmt = std::get<Let*>(let_wrapped);
-  auto* let_type = down_cast<ArrayTypeAnnotation*>(let_stmt->type_annotation());
+  auto* let_type =
+      absl::down_cast<ArrayTypeAnnotation*>(let_stmt->type_annotation());
   ASSERT_NE(let_type, nullptr);
   auto* let_dim = dynamic_cast<Binop*>(let_type->dim());
   ASSERT_NE(let_dim, nullptr);

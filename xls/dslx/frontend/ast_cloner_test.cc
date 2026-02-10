@@ -1300,7 +1300,7 @@ TEST(AstClonerTest, ReplacerCreatesNodesInTargetModule) {
   std::optional<Number*> old_number_opt = FindFirstNumber(main_fn);
   ASSERT_TRUE(old_number_opt.has_value());
   Number* old_number = *old_number_opt;
-  auto* new_number = down_cast<Number*>(pairs.at(old_number));
+  auto* new_number = absl::down_cast<Number*>(pairs.at(old_number));
   EXPECT_EQ(new_number->owner(), &dst_module);
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t value,
                            new_number->GetAsUint64(*dst_module.file_table()));
@@ -1354,7 +1354,7 @@ TEST(AstClonerTest, ReplacerUsesOldToNewMappingForNameRef) {
                 nr != nullptr && nr->identifier() == "a") {
               auto it = old_to_new.find(b_name_def);
               XLS_RET_CHECK(it != old_to_new.end());
-              auto* new_b_def = down_cast<NameDef*>(it->second);
+              auto* new_b_def = absl::down_cast<NameDef*>(it->second);
               return std::optional<AstNode*>{new_module->Make<NameRef>(
                   Span::Fake(), new_b_def->identifier(), new_b_def)};
             }
@@ -1853,10 +1853,10 @@ fn bar() -> u32{
   ASSERT_EQ(body_expr->statements().size(), 1);
   ASSERT_TRUE(
       std::holds_alternative<Expr*>(body_expr->statements().at(0)->wrapped()));
-  auto* orig_ref = down_cast<NameRef*>(
+  auto* orig_ref = absl::down_cast<NameRef*>(
       std::get<Expr*>(body_expr->statements().at(0)->wrapped()));
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(orig_ref));
-  NameRef* new_ref = down_cast<NameRef*>(clone);
+  NameRef* new_ref = absl::down_cast<NameRef*>(clone);
   EXPECT_EQ(orig_ref->name_def(), new_ref->name_def());
 }
 
@@ -1878,17 +1878,18 @@ fn foo(x: MyU32) -> MyU32 {
 
   // Clone just the function into the same target module.
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(foo));
-  Function* cloned_foo = down_cast<Function*>(clone);
+  Function* cloned_foo = absl::down_cast<Function*>(clone);
 
   // Param type and the return type should reference the same alias.
-  auto* param_trta = down_cast<TypeRefTypeAnnotation*>(
+  auto* param_trta = absl::down_cast<TypeRefTypeAnnotation*>(
       cloned_foo->params()[0]->type_annotation());
   TypeRef* param_tr = param_trta->type_ref();
   ASSERT_TRUE(std::holds_alternative<TypeAlias*>(param_tr->type_definition()));
   EXPECT_EQ(param_tr->owner(), clone->owner());
   TypeAlias* param_alias = std::get<TypeAlias*>(param_tr->type_definition());
   EXPECT_EQ(param_alias->owner(), clone->owner());
-  auto* ret_trta = down_cast<TypeRefTypeAnnotation*>(cloned_foo->return_type());
+  auto* ret_trta =
+      absl::down_cast<TypeRefTypeAnnotation*>(cloned_foo->return_type());
   TypeRef* ret_tr = ret_trta->type_ref();
   ASSERT_TRUE(std::holds_alternative<TypeAlias*>(ret_tr->type_definition()));
   EXPECT_EQ(std::get<TypeAlias*>(param_tr->type_definition()),
@@ -1922,14 +1923,14 @@ fn id(x: MyEnum) -> MyEnum { x }
                            clone->GetMemberOrError<Function>("id"));
 
   // Param type should reference the cloned top-level enum, not a detached copy.
-  auto* param_trta =
-      down_cast<TypeRefTypeAnnotation*>(id->params()[0]->type_annotation());
+  auto* param_trta = absl::down_cast<TypeRefTypeAnnotation*>(
+      id->params()[0]->type_annotation());
   TypeRef* param_tr = param_trta->type_ref();
   ASSERT_TRUE(std::holds_alternative<EnumDef*>(param_tr->type_definition()));
   EXPECT_EQ(std::get<EnumDef*>(param_tr->type_definition()), enum_def);
 
   // Return type should also reference the same cloned top-level enum.
-  auto* ret_trta = down_cast<TypeRefTypeAnnotation*>(id->return_type());
+  auto* ret_trta = absl::down_cast<TypeRefTypeAnnotation*>(id->return_type());
   TypeRef* ret_tr = ret_trta->type_ref();
   ASSERT_TRUE(std::holds_alternative<EnumDef*>(ret_tr->type_definition()));
   EXPECT_EQ(std::get<EnumDef*>(ret_tr->type_definition()), enum_def);
@@ -1957,13 +1958,13 @@ fn id(x: MyStruct) -> MyStruct { x }
                            module->GetMemberOrError<Function>("id"));
 
   // Param and return types should be backed by the StructDef.
-  auto* param_trta =
-      down_cast<TypeRefTypeAnnotation*>(id->params()[0]->type_annotation());
+  auto* param_trta = absl::down_cast<TypeRefTypeAnnotation*>(
+      id->params()[0]->type_annotation());
   TypeRef* param_tr = param_trta->type_ref();
   ASSERT_TRUE(std::holds_alternative<StructDef*>(param_tr->type_definition()));
   EXPECT_EQ(std::get<StructDef*>(param_tr->type_definition()), struct_def);
 
-  auto* ret_trta = down_cast<TypeRefTypeAnnotation*>(id->return_type());
+  auto* ret_trta = absl::down_cast<TypeRefTypeAnnotation*>(id->return_type());
   TypeRef* ret_tr = ret_trta->type_ref();
   ASSERT_TRUE(std::holds_alternative<StructDef*>(ret_tr->type_definition()));
   EXPECT_EQ(std::get<StructDef*>(ret_tr->type_definition()), struct_def);
@@ -1973,8 +1974,8 @@ fn id(x: MyStruct) -> MyStruct { x }
   EXPECT_EQ(kExpectedFunction, clone->ToString());
   XLS_ASSERT_OK(VerifyClone(id, clone, *module->file_table()));
 
-  auto* cloned_id = down_cast<Function*>(clone);
-  auto* cloned_param_trta = down_cast<TypeRefTypeAnnotation*>(
+  auto* cloned_id = absl::down_cast<Function*>(clone);
+  auto* cloned_param_trta = absl::down_cast<TypeRefTypeAnnotation*>(
       cloned_id->params()[0]->type_annotation());
   ASSERT_TRUE(std::holds_alternative<StructDef*>(
       cloned_param_trta->type_ref()->type_definition()));
@@ -1988,7 +1989,7 @@ TEST(AstClonerTest, CloneAstClonesVerbatimNode) {
 
   VerbatimNode original(module.get(), Span(), "foo");
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(&original));
-  VerbatimNode* clone_node = down_cast<VerbatimNode*>(clone);
+  VerbatimNode* clone_node = absl::down_cast<VerbatimNode*>(clone);
   EXPECT_EQ(original.text(), clone_node->text());
   EXPECT_EQ(original.span(), clone_node->span());
 }
@@ -2020,7 +2021,7 @@ TEST(AstClonerTest, CloneStatementBlockSkipsEmptyVerbatimNode) {
 
   // The clone should have zero children now that we replaced the original
   // node with an empty VerbatimNode.
-  StatementBlock* clone_node = down_cast<StatementBlock*>(clone);
+  StatementBlock* clone_node = absl::down_cast<StatementBlock*>(clone);
   EXPECT_THAT(clone_node->statements(), IsEmpty());
 }
 
@@ -2049,7 +2050,8 @@ TEST(AstClonerTest, CloneStatementBlockUsesVerbatimNode) {
                  return std::nullopt;
                }));
 
-  StatementBlock* clone_statement_block = down_cast<StatementBlock*>(clone);
+  StatementBlock* clone_statement_block =
+      absl::down_cast<StatementBlock*>(clone);
   ASSERT_EQ(clone_statement_block->statements().size(), 1);
 
   Statement* first = clone_statement_block->statements().at(0);

@@ -2952,8 +2952,8 @@ TEST_F(ParserTest, EmptyTernary) { RoundTripExpr("if true {} else {}"); }
 TEST_F(ParserTest, TernaryConditional) {
   Expr* e = RoundTripExpr("if true { u32:42 } else { u32:24 }", {});
 
-  EXPECT_FALSE(down_cast<Conditional*>(e)->HasElseIf());
-  EXPECT_FALSE(down_cast<Conditional*>(e)->HasMultiStatementBlocks());
+  EXPECT_FALSE(absl::down_cast<Conditional*>(e)->HasElseIf());
+  EXPECT_FALSE(absl::down_cast<Conditional*>(e)->HasMultiStatementBlocks());
 
   RoundTripExpr(R"(if really_long_identifier_so_that_this_is_too_many_chars {
     u32:42
@@ -2966,9 +2966,9 @@ TEST_F(ParserTest, TernaryConditional) {
 TEST_F(ParserTest, ConstexprTernaryConditional) {
   Expr* e = RoundTripExpr("const if true { u32:42 } else { u32:24 }", {});
 
-  EXPECT_TRUE(down_cast<Conditional*>(e)->IsConst());
-  EXPECT_FALSE(down_cast<Conditional*>(e)->HasElseIf());
-  EXPECT_FALSE(down_cast<Conditional*>(e)->HasMultiStatementBlocks());
+  EXPECT_TRUE(absl::down_cast<Conditional*>(e)->IsConst());
+  EXPECT_FALSE(absl::down_cast<Conditional*>(e)->HasElseIf());
+  EXPECT_FALSE(absl::down_cast<Conditional*>(e)->HasMultiStatementBlocks());
 
   RoundTripExpr(
       R"(const if really_long_identifier_so_that_this_is_too_many_chars {
@@ -2996,8 +2996,8 @@ TEST_F(ParserTest, LadderedConditional) {
   Expr* e = RoundTripExpr(
       "if true { u32:42 } else if false { u32:33 } else { u32:24 }");
 
-  EXPECT_TRUE(down_cast<Conditional*>(e)->HasElseIf());
-  EXPECT_FALSE(down_cast<Conditional*>(e)->HasMultiStatementBlocks());
+  EXPECT_TRUE(absl::down_cast<Conditional*>(e)->HasElseIf());
+  EXPECT_FALSE(absl::down_cast<Conditional*>(e)->HasMultiStatementBlocks());
 
   RoundTripExpr(
       R"(if really_long_identifier_so_that_this_is_too_many_chars {

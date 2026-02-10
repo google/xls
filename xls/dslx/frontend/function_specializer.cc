@@ -256,7 +256,7 @@ absl::StatusOr<Function*> InsertFunctionSpecialization(
       if (original->kind() != AstNodeKind::kNameRef) {
         return std::nullopt;
       }
-      const NameRef* name_ref = down_cast<const NameRef*>(original);
+      const NameRef* name_ref = absl::down_cast<const NameRef*>(original);
       if (std::holds_alternative<const NameDef*>(name_ref->name_def())) {
         const NameDef* def = std::get<const NameDef*>(name_ref->name_def());
         if (param_name_replacements != nullptr) {

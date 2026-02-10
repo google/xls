@@ -185,7 +185,7 @@ ExprOrType ToExprOrType(AstNode* n) {
   if (Expr* e = dynamic_cast<Expr*>(n)) {
     return e;
   }
-  auto* type = down_cast<TypeAnnotation*>(n);
+  auto* type = absl::down_cast<TypeAnnotation*>(n);
   CHECK_NE(type, nullptr);
   return type;
 }
@@ -371,19 +371,19 @@ AstNode* TypeDefinitionToAstNode(const TypeDefinition& td) {
 
 absl::StatusOr<TypeDefinition> ToTypeDefinition(AstNode* node) {
   if (node->kind() == AstNodeKind::kTypeAlias) {
-    return down_cast<TypeAlias*>(node);
+    return absl::down_cast<TypeAlias*>(node);
   }
   if (node->kind() == AstNodeKind::kProcDef) {
-    return down_cast<ProcDef*>(node);
+    return absl::down_cast<ProcDef*>(node);
   }
   if (node->kind() == AstNodeKind::kStructDef) {
-    return down_cast<StructDef*>(node);
+    return absl::down_cast<StructDef*>(node);
   }
   if (node->kind() == AstNodeKind::kEnumDef) {
-    return down_cast<EnumDef*>(node);
+    return absl::down_cast<EnumDef*>(node);
   }
   if (node->kind() == AstNodeKind::kColonRef) {
-    return down_cast<ColonRef*>(node);
+    return absl::down_cast<ColonRef*>(node);
   }
   return absl::InvalidArgumentError(
       absl::StrCat("AST node is not a type definition: ", node->kind()));
@@ -469,7 +469,7 @@ FreeVariables GetFreeVariablesByLambda(
   while (it.HasNext()) {
     const AstNode* n = it.Next();
     if (n->kind() == AstNodeKind::kNameRef) {
-      const auto* name_ref = down_cast<const NameRef*>(n);
+      const auto* name_ref = absl::down_cast<const NameRef*>(n);
       if (consider_free == nullptr || consider_free(*name_ref)) {
         freevars.Add(name_ref->identifier(), name_ref);
       }
@@ -732,7 +732,7 @@ bool Conditional::IsElseIf() const {
 
   if (parent()->kind() == AstNodeKind::kConditional) {
     AstNode* parent_node = parent();
-    Conditional* parent = down_cast<Conditional*>(parent_node);
+    Conditional* parent = absl::down_cast<Conditional*>(parent_node);
     return ToAstNode(parent->alternate()) == this;
   }
 
