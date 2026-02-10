@@ -82,8 +82,8 @@ absl::StatusOr<bool> BlockFinalizationPass::RunInternal(
     }
   }
   for (Block* block : blocks_to_process) {
-    XLS_RETURN_IF_ERROR(RemoveStages(down_cast<ScheduledBlock*>(block), package,
-                                     options, results)
+    XLS_RETURN_IF_ERROR(RemoveStages(absl::down_cast<ScheduledBlock*>(block),
+                                     package, options, results)
                             .status());
   }
   return !blocks_to_process.empty();

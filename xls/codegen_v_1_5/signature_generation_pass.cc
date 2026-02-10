@@ -125,7 +125,7 @@ absl::StatusOr<verilog::ModuleSignature> GenerateSignature(
   for (const ::xls::Instantiation* instantiation : block->GetInstantiations()) {
     if (instantiation->kind() == ::xls::InstantiationKind::kFifo) {
       const FifoInstantiation* fifo =
-          down_cast<const FifoInstantiation*>(instantiation);
+          absl::down_cast<const FifoInstantiation*>(instantiation);
       if (fifo->channel_name().has_value()) {
         b.AddStreamingChannel(fifo->channel_name().value(), fifo->data_type(),
                               FlowControl::kReadyValid, fifo->fifo_config());
@@ -134,7 +134,7 @@ absl::StatusOr<verilog::ModuleSignature> GenerateSignature(
                              fifo->data_type(), fifo->fifo_config());
     } else if (instantiation->kind() == ::xls::InstantiationKind::kBlock) {
       const BlockInstantiation* block_instantiation =
-          down_cast<const BlockInstantiation*>(instantiation);
+          absl::down_cast<const BlockInstantiation*>(instantiation);
       b.AddBlockInstantiation(p,
                               block_instantiation->instantiated_block()->name(),
                               block_instantiation->name());
@@ -184,8 +184,8 @@ absl::StatusOr<verilog::ModuleSignature> GenerateSignature(
   // configured in our options; otherwise, we'll rely entirely on channel
   // metadata to account for this.
   if (block->IsScheduled() &&
-      down_cast<ScheduledBlock*>(block)->source() != nullptr &&
-      down_cast<ScheduledBlock*>(block)->source()->IsFunction()) {
+      absl::down_cast<ScheduledBlock*>(block)->source() != nullptr &&
+      absl::down_cast<ScheduledBlock*>(block)->source()->IsFunction()) {
     if (options.flop_inputs()) {
       register_levels +=
           verilog::CodegenOptions::IOKindLatency(options.flop_inputs_kind());

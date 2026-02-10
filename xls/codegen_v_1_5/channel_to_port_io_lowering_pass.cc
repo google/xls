@@ -307,7 +307,7 @@ absl::StatusOr<FlopKind> GetFlopKind(
         << "For proc-scoped channels, the flop kind is set on the interface.";
     XLS_RET_CHECK_EQ(ChannelRefKind(channel), ChannelKind::kStreaming);
     StreamingChannel* streaming_channel =
-        down_cast<StreamingChannel*>(std::get<Channel*>(channel));
+        absl::down_cast<StreamingChannel*>(std::get<Channel*>(channel));
     switch (direction) {
       case ChannelDirection::kSend:
         return streaming_channel->channel_config().output_flop_kind().value_or(
@@ -600,7 +600,8 @@ LowerChannelsToConnectors(ScheduledBlock* block,
 
       XLS_ASSIGN_OR_RETURN(
           ConnectorPair fifo_connections,
-          AddFifoInstantiation(down_cast<StreamingChannel*>(channel), block));
+          AddFifoInstantiation(absl::down_cast<StreamingChannel*>(channel),
+                               block));
       changed = true;
 
       XLS_ASSIGN_OR_RETURN(ChannelInterface * send_interface,
@@ -646,7 +647,8 @@ LowerChannelsToConnectors(ScheduledBlock* block,
 
       XLS_ASSIGN_OR_RETURN(
           ConnectorPair fifo_connections,
-          AddFifoInstantiation(down_cast<StreamingChannel*>(channel), block));
+          AddFifoInstantiation(absl::down_cast<StreamingChannel*>(channel),
+                               block));
       changed = true;
 
       connections.emplace(DirectedChannelRef{channel, ChannelDirection::kSend},
@@ -1704,7 +1706,8 @@ absl::StatusOr<bool> ChannelToPortIoLoweringPass::RunInternal(
     if (!block->IsScheduled()) {
       continue;
     }
-    ScheduledBlock* scheduled_block = down_cast<ScheduledBlock*>(block.get());
+    ScheduledBlock* scheduled_block =
+        absl::down_cast<ScheduledBlock*>(block.get());
     if (scheduled_block->source() == nullptr ||
         !scheduled_block->source()->IsProc()) {
       continue;

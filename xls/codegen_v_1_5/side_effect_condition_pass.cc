@@ -132,7 +132,8 @@ absl::StatusOr<bool> SideEffectConditionPass::RunInternal(
     if (!block->IsScheduled()) {
       continue;
     }
-    ScheduledBlock* scheduled_block = down_cast<ScheduledBlock*>(block.get());
+    ScheduledBlock* scheduled_block =
+        absl::down_cast<ScheduledBlock*>(block.get());
 
     // Don't rewrite side-effecting ops for functions without valid control:
     // every input is presumed valid and the op should fire every cycle.

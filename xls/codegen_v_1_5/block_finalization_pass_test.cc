@@ -59,7 +59,7 @@ class BlockFinalizationPassTest : public IrTestBase {
 TEST_F(BlockFinalizationPassTest, BasicScheduledBlock) {
   auto p = CreatePackage();
   ScheduledBlockBuilder sbb(TestName(), p.get());
-  ScheduledBlock* sblk = down_cast<ScheduledBlock*>(sbb.block());
+  ScheduledBlock* sblk = absl::down_cast<ScheduledBlock*>(sbb.block());
 
   XLS_ASSERT_OK(sblk->AddClockPort("clk"));
   BValue in = sbb.InputPort("in", p->GetBitsType(32));
@@ -89,7 +89,8 @@ TEST_F(BlockFinalizationPassTest, BasicScheduledBlock) {
   XLS_ASSERT_OK_AND_ASSIGN(Block * scheduled_block, sbb.Build());
   ASSERT_EQ(scheduled_block, sblk);
   ASSERT_TRUE(scheduled_block->IsScheduled());
-  EXPECT_EQ(down_cast<ScheduledBlock*>(scheduled_block)->stages().size(), 2);
+  EXPECT_EQ(absl::down_cast<ScheduledBlock*>(scheduled_block)->stages().size(),
+            2);
   int64_t node_count_before = scheduled_block->node_count();
   int64_t port_count_before = scheduled_block->GetPorts().size();
   int64_t reg_count_before = scheduled_block->GetRegisters().size();
@@ -142,7 +143,7 @@ TEST_F(BlockFinalizationPassTest, EmptyScheduledBlock) {
 TEST_F(BlockFinalizationPassTest, ResetAndPortOrder) {
   auto p = CreatePackage();
   ScheduledBlockBuilder sbb(TestName(), p.get());
-  ScheduledBlock* sblk = down_cast<ScheduledBlock*>(sbb.block());
+  ScheduledBlock* sblk = absl::down_cast<ScheduledBlock*>(sbb.block());
 
   XLS_ASSERT_OK(sblk->AddClockPort("clk"));
   BValue rst = sbb.InputPort("rst", p->GetBitsType(1));

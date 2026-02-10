@@ -96,12 +96,12 @@ absl::StatusOr<bool> SchedulingPass::RunInternal(
         continue;
       }
       ScheduledFunction* new_fn =
-          down_cast<ScheduledFunction*>(package->AddFunction(
+          absl::down_cast<ScheduledFunction*>(package->AddFunction(
               std::make_unique<ScheduledFunction>(old_fb->name(), package)));
       new_fb = new_fn;
-      new_fn->MoveFrom(*down_cast<Function*>(old_fb));
+      new_fn->MoveFrom(*absl::down_cast<Function*>(old_fb));
       XLS_RETURN_IF_ERROR(
-          ScheduleNodes(options, down_cast<ScheduledFunction*>(new_fb)));
+          ScheduleNodes(options, absl::down_cast<ScheduledFunction*>(new_fb)));
 
       Node* return_value = new_fn->return_value();
       if (new_fn->IsStaged(return_value) &&
@@ -122,10 +122,10 @@ absl::StatusOr<bool> SchedulingPass::RunInternal(
       Proc* new_proc = package->AddProc(
           std::make_unique<ScheduledProc>(old_fb->name(), package));
       new_fb = new_proc;
-      new_proc->MoveFrom(*down_cast<Proc*>(old_fb));
-      proc_map.emplace(down_cast<Proc*>(old_fb), new_proc);
+      new_proc->MoveFrom(*absl::down_cast<Proc*>(old_fb));
+      proc_map.emplace(absl::down_cast<Proc*>(old_fb), new_proc);
       XLS_RETURN_IF_ERROR(
-          ScheduleNodes(options, down_cast<ScheduledProc*>(new_fb)));
+          ScheduleNodes(options, absl::down_cast<ScheduledProc*>(new_fb)));
     }
 
     if (new_fb != nullptr) {

@@ -92,7 +92,7 @@ absl::StatusOr<bool> ScheduledBlockConversionPass::RunInternal(
       continue;
     }
 
-    ScheduledBlock* block = down_cast<ScheduledBlock*>(package->AddBlock(
+    ScheduledBlock* block = absl::down_cast<ScheduledBlock*>(package->AddBlock(
         std::make_unique<ScheduledBlock>(old_fb->name(), package)));
 
     if (!options.codegen_options.generate_combinational()) {
@@ -133,8 +133,8 @@ absl::StatusOr<bool> ScheduledBlockConversionPass::RunInternal(
     if (old_fb->IsFunction()) {
       auto source_fn = std::make_unique<Function>(
           absl::StrCat(old_fb->name(), "__src"), package);
-      Node* return_value = down_cast<Function*>(old_fb)->return_value();
-      source_fn->MoveParamsFrom(*down_cast<Function*>(old_fb));
+      Node* return_value = absl::down_cast<Function*>(old_fb)->return_value();
+      source_fn->MoveParamsFrom(*absl::down_cast<Function*>(old_fb));
       source_fn->set_return_type(return_value->GetType());
       block->SetSource(std::move(source_fn));
       block->SetSourceReturnValue(return_value);
@@ -154,8 +154,8 @@ absl::StatusOr<bool> ScheduledBlockConversionPass::RunInternal(
     } else if (old_fb->IsProc()) {
       auto source_proc = std::make_unique<Proc>(
           absl::StrCat(old_fb->name(), "__src"), package);
-      source_proc->MoveNonLogicFrom(down_cast<Proc&>(*old_fb));
-      proc_map.emplace(down_cast<Proc*>(old_fb), source_proc.get());
+      source_proc->MoveNonLogicFrom(absl::down_cast<Proc&>(*old_fb));
+      proc_map.emplace(absl::down_cast<Proc*>(old_fb), source_proc.get());
       block->SetSource(std::move(source_proc));
       block->MoveLogicFrom(*old_fb);
     }

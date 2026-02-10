@@ -103,7 +103,7 @@ class FunctionIOLoweringPassTest : public IrTestBase {
     XLS_RETURN_IF_ERROR(
         ScheduledBlockConversionPass().Run(p, options, &results).status());
     XLS_ASSIGN_OR_RETURN(Block * block, p->GetBlock(function_name));
-    return down_cast<ScheduledBlock*>(block);
+    return absl::down_cast<ScheduledBlock*>(block);
   }
 
   // Runs PipelineRegisterInsertionPass and BlockFinalizationPass, then

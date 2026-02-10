@@ -66,8 +66,8 @@ absl::Status InstantiateBlocksInContainer(
     // Skip anything that has a function source; this doesn't need to talk over
     // channels, so it doesn't need an instantiation.
     if (block->IsScheduled() &&
-        down_cast<ScheduledBlock*>(block.get())->source() != nullptr &&
-        down_cast<ScheduledBlock*>(block.get())->source()->IsFunction()) {
+        absl::down_cast<ScheduledBlock*>(block.get())->source() != nullptr &&
+        absl::down_cast<ScheduledBlock*>(block.get())->source()->IsFunction()) {
       continue;
     }
 
@@ -398,10 +398,11 @@ absl::Status StitchChannel(Block* container, Channel* channel,
   switch (channel->kind()) {
     case ChannelKind::kStreaming:
       return StitchStreamingChannel(
-          container, down_cast<StreamingChannel*>(channel), channel_map);
+          container, absl::down_cast<StreamingChannel*>(channel), channel_map);
     case ChannelKind::kSingleValue:
       return StitchSingleValueChannel(
-          container, down_cast<SingleValueChannel*>(channel), channel_map);
+          container, absl::down_cast<SingleValueChannel*>(channel),
+          channel_map);
   }
 }
 

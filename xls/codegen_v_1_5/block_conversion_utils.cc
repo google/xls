@@ -39,7 +39,7 @@ GetScheduledBlocksWithProcSources(Package* p, bool new_style_only) {
       continue;
     }
 
-    auto* scheduled_block = down_cast<ScheduledBlock*>(block.get());
+    auto* scheduled_block = absl::down_cast<ScheduledBlock*>(block.get());
     if (scheduled_block->source() == nullptr ||
         !scheduled_block->source()->IsProc()) {
       continue;
@@ -77,7 +77,7 @@ absl::flat_hash_map<Block*, BlockInstantiation*> GetInstantiatedBlocks(
     for (Instantiation* instantiation : block->GetInstantiations()) {
       if (instantiation->kind() == InstantiationKind::kBlock) {
         auto* block_instantiation =
-            down_cast<BlockInstantiation*>(instantiation);
+            absl::down_cast<BlockInstantiation*>(instantiation);
         CHECK(map.emplace(block_instantiation->instantiated_block(),
                           block_instantiation)
                   .second);

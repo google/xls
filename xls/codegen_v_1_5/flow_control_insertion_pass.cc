@@ -225,7 +225,8 @@ absl::StatusOr<bool> FlowControlInsertionPass::RunInternal(
   bool changed = false;
   for (const std::unique_ptr<Block>& block : package->blocks()) {
     if (block->IsScheduled()) {
-      ScheduledBlock* scheduled_block = down_cast<ScheduledBlock*>(block.get());
+      ScheduledBlock* scheduled_block =
+          absl::down_cast<ScheduledBlock*>(block.get());
       XLS_ASSIGN_OR_RETURN(bool changed_block,
                            InsertFlowControl(scheduled_block, options));
       changed |= changed_block;

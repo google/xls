@@ -358,11 +358,11 @@ absl::StatusOr<bool> StateToRegisterIoLoweringPass::RunInternal(
   bool changed = false;
   for (FunctionBase* fb : package->GetFunctionBases()) {
     if (fb->IsBlock() && fb->IsScheduled()) {
-      ScheduledBlock* sb = down_cast<ScheduledBlock*>(fb);
+      ScheduledBlock* sb = absl::down_cast<ScheduledBlock*>(fb);
       if (sb->source() != nullptr && sb->source()->IsProc()) {
         XLS_ASSIGN_OR_RETURN(
             bool block_changed,
-            LowerStateIoForBlock(down_cast<ScheduledBlock*>(fb)));
+            LowerStateIoForBlock(absl::down_cast<ScheduledBlock*>(fb)));
         changed |= block_changed;
       }
     }
