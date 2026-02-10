@@ -209,6 +209,29 @@ fn f() {
       TypecheckSucceeds(HasNodeWithType("assert_eq", "(E, E) -> ()")));
 }
 
+TEST(TypecheckV2BuiltinTest, AssertEqWithAutoLiteralFirst) {
+  EXPECT_THAT(
+      R"(
+fn f() {
+  let foo = u32:5;
+  assert_eq(0, foo);
+}
+)",
+      TypecheckSucceeds(
+          AllOf(HasNodeWithType("0", "uN[32]"),
+                HasNodeWithType("assert_eq", "(uN[32], uN[32]) -> ()"))));
+}
+
+TEST(TypecheckV2BuiltinTest, AssertEqWithOnlyAutoLiteralsFails) {
+  EXPECT_THAT(
+      R"(
+fn f() {
+  assert_eq(0, 0);
+}
+)",
+      TypecheckFails(HasSubstr("Could not infer parametric")));
+}
+
 TEST(TypecheckV2BuiltinTest, AssertLt) {
   EXPECT_THAT(
       R"(

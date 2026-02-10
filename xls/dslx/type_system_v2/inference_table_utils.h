@@ -81,6 +81,13 @@ absl::StatusOr<ColonRef*> ConvertGenericColonRefToDirect(
     std::optional<const ParametricContext*> parametric_context,
     const ColonRef* colon_ref);
 
+// Determines if the given `type_variable` has any annotations in the table
+// that were explicitly written in the DSLX source.
+bool VariableHasAnyExplicitTypeAnnotations(
+    const InferenceTable& table,
+    std::optional<const ParametricContext*> parametric_context,
+    const NameRef* type_variable);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_V2_INFERENCE_TABLE_UTILS_H_

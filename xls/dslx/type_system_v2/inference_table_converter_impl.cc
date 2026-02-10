@@ -1884,8 +1884,24 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                 << "` has no type variable.";
         continue;
       }
+
       VLOG(6) << "Using type variable: " << (*actual_arg_type_var)->ToString();
       XLS_RETURN_IF_ERROR(pre_use_actual_arg(actual_args[i]));
+
+      // In an example like `foo(3, other_stuff)`, we want to solve for
+      // parametrics using `other_stuff` and not `3`; the reason being that
+      // `other_stuff`, having a name, must have a type from some explicit
+      // source. If we were to solve using the `3`, the solution would just be
+      // one default assumption built on top of another (that u2 is a plausible
+      // type because it fits that literal). Even in `foo(3)`, we opt to just
+      // fail rather than trying to use the `3`.
+      if (!VariableHasAnyExplicitTypeAnnotations(table_, actual_arg_context,
+                                                 *actual_arg_type_var)) {
+        VLOG(6) << "The actual argument: `" << actual_args[i]->ToString()
+                << "` has no explicit type annotations.";
+        continue;
+      }
+
       XLS_ASSIGN_OR_RETURN(
           std::vector<const TypeAnnotation*> actual_arg_annotations,
           table_.GetTypeAnnotationsForTypeVariable(actual_arg_context,

@@ -2144,7 +2144,8 @@ fn foo<N: u32>(a: uN[N]) -> u32 { a as u32 }
 // Note: the point is to make it obvious in manual runs if there is exponential
 // growth in typechecking an expr like this. That was the case with the original
 // rev of `HandleInvocation`.
-const Y = foo(1) + foo(2) + foo(3) + foo(4) + foo(5) + foo(6) + foo(7);
+const Y = foo(u32:1) + foo(u32:2) + foo(u32:3) + foo(u32:4) + foo(u32:5) +
+    foo(u32:6) + foo(u32:7);
 )",
       TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
 }
@@ -5511,8 +5512,8 @@ impl Data<M> {
   }
 }
 
-const X = Data{a: 5}.combine(-42);
-const Y = Data{a: 120}.combine(256);
+const X = Data{a: u3:5}.combine(s7:-42);
+const Y = Data{a: u7:120}.combine(u9:256);
 )",
       TypecheckSucceeds(AllOf(HasNodeWithType("X", "(uN[3], sN[7])"),
                               HasNodeWithType("Y", "(uN[7], uN[9])"))));
@@ -5533,8 +5534,8 @@ impl Data<M> {
   }
 }
 
-const X = Data{a: 5}.foo(42);
-const Y = Data{a: 120}.foo(256);
+const X = Data{a: u3:5}.foo(u6:42);
+const Y = Data{a: u7:120}.foo(u9:256);
 )",
       TypecheckSucceeds(AllOf(HasNodeWithType("X", "(uN[3], uN[6], uN[16])"),
                               HasNodeWithType("Y", "(uN[7], uN[9], uN[16])"))));
@@ -9175,7 +9176,7 @@ pub type Word = bits[X_VAL.x];
 import imported;
 
 fn test() -> imported::Word {
-    widening_cast<imported::Word>(0)
+    widening_cast<imported::Word>(u1:0)
 }
 )";
   ImportData import_data = CreateImportDataForTest();
@@ -9388,7 +9389,7 @@ TEST(TypecheckV2Test, LambdaWithMultipleParamsMismatch) {
   EXPECT_THAT(
       R"(
 fn main() -> u32 {
-  (|i, j: bool| -> u32 {i * j})(2, u32:4)
+  (|i, j: bool| -> u32 {i * j})(u32:2, u32:4)
 }
 )",
       TypecheckFails(HasSizeMismatch("bool", "u32")));

@@ -17,7 +17,9 @@
 #include <string_view>
 #include <utility>
 #include <variant>
+#include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
@@ -215,6 +217,21 @@ absl::StatusOr<ColonRef*> ConvertGenericColonRefToDirect(
                        "`$0` to a member of a real type.",
                        colon_ref->ToString()),
       *colon_ref->owner()->file_table());
+}
+
+bool VariableHasAnyExplicitTypeAnnotations(
+    const InferenceTable& table,
+    std::optional<const ParametricContext*> parametric_context,
+    const NameRef* type_variable) {
+  absl::StatusOr<std::vector<const TypeAnnotation*>> annotations =
+      table.GetTypeAnnotationsForTypeVariable(parametric_context,
+                                              type_variable);
+  return annotations.ok() &&
+         absl::c_any_of(
+             *annotations, [&table](const TypeAnnotation* annotation) {
+               TypeInferenceFlag flag = table.GetAnnotationFlag(annotation);
+               return !flag.HasNonExplicitTypeSemantics();
+             });
 }
 
 }  // namespace xls::dslx

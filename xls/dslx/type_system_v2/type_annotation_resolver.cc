@@ -22,7 +22,6 @@
 #include <variant>
 #include <vector>
 
-#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
@@ -32,7 +31,6 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
-#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/errors.h"
@@ -49,6 +47,7 @@
 #include "xls/dslx/type_system_v2/evaluator.h"
 #include "xls/dslx/type_system_v2/import_utils.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
+#include "xls/dslx/type_system_v2/inference_table_utils.h"
 #include "xls/dslx/type_system_v2/parametric_struct_instantiator.h"
 #include "xls/dslx/type_system_v2/simplified_type_annotation_cache.h"
 #include "xls/dslx/type_system_v2/type_annotation_filter.h"
@@ -183,7 +182,7 @@ class StatefulResolver : public TypeAnnotationResolver {
       if (node->parent() != nullptr &&
           ((node->parent()->kind() == AstNodeKind::kConstantDef ||
             node->parent()->kind() == AstNodeKind::kNameDef)) &&
-          !VariableHasAnyExplicitTypeAnnotations(parametric_context,
+          !VariableHasAnyExplicitTypeAnnotations(table_, parametric_context,
                                                  *type_variable)) {
         // The motivation for disallowing this, irrespective of its
         // unifiability, is that otherwise a snippet like this would present
@@ -207,7 +206,7 @@ class StatefulResolver : public TypeAnnotationResolver {
       if (node->kind() == AstNodeKind::kFor ||
           node->kind() == AstNodeKind::kUnrollFor) {
         const auto* loop = absl::down_cast<const ForLoopBase*>(node);
-        if (!VariableHasAnyExplicitTypeAnnotations(parametric_context,
+        if (!VariableHasAnyExplicitTypeAnnotations(table_, parametric_context,
                                                    *type_variable)) {
           // Disallow this with similar rationale to the const/NameDef case
           // above.
@@ -884,22 +883,6 @@ class StatefulResolver : public TypeAnnotationResolver {
     XLS_RETURN_IF_ERROR(
         table_.SetSliceStartAndWidthExprs(width_slice, start_and_width));
     return width_type;
-  }
-
-  // Determines if the given `type_variable` has any annotations in the table
-  // that were explicitly written in the DSLX source.
-  bool VariableHasAnyExplicitTypeAnnotations(
-      std::optional<const ParametricContext*> parametric_context,
-      const NameRef* type_variable) {
-    absl::StatusOr<std::vector<const TypeAnnotation*>> annotations =
-        table_.GetTypeAnnotationsForTypeVariable(parametric_context,
-                                                 type_variable);
-    return annotations.ok() &&
-           absl::c_any_of(
-               *annotations, [this](const TypeAnnotation* annotation) {
-                 TypeInferenceFlag flag = table_.GetAnnotationFlag(annotation);
-                 return !flag.HasNonExplicitTypeSemantics();
-               });
   }
 
   // Helper for `ReplaceIndirectTypeAnnotations`. A visitor instance is intended
