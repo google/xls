@@ -17,38 +17,38 @@
 #![feature(generics)]
 
 pub fn enumerate<T: type, N: u32>(x: T[N]) -> (u32, T)[N] {
-    for (i, result): (u32, (u32, T)[N]) in u32:0..N {
+    for (i, result) in 0..N {
         update(result, i, (i, x[i]))
-    }(((u32, T)[N]:[(u32:0, zero!<T>()), ...]))
+    }([(u32:0, zero!<T>()), ...])
 }
 
 #[test]
 fn emumerate_test() {
-    let array = u8[4]:[1, 2, 4, 8];
+    let array = [1, 2, 4, 8];
     let enumerated = enumerate(array);
-    assert_eq(enumerated[u32:0], (u32:0, u8:1));
-    assert_eq(enumerated[u32:1], (u32:1, u8:2));
-    assert_eq(enumerated[u32:2], (u32:2, u8:4));
-    assert_eq(enumerated[u32:3], (u32:3, u8:8));
+    assert_eq(enumerated[0], (0, 1));
+    assert_eq(enumerated[1], (1, 2));
+    assert_eq(enumerated[2], (2, 4));
+    assert_eq(enumerated[3], (3, 8));
 }
 
 #[test]
 fn enumerate_type_test() {
     type RamData = uN[8];
-    const DATA = RamData[4]:[RamData:1, RamData:2, RamData:4, RamData:8];
+    const DATA = [RamData:1, 2, 4, 8];
     let enumerated = enumerate(DATA);
-    assert_eq(enumerated[u32:0], (u32:0, u8:1));
-    assert_eq(enumerated[u32:1], (u32:1, u8:2));
-    assert_eq(enumerated[u32:2], (u32:2, u8:4));
-    assert_eq(enumerated[u32:3], (u32:3, u8:8));
+    assert_eq(enumerated[0], (0, 1));
+    assert_eq(enumerated[1], (1, 2));
+    assert_eq(enumerated[2], (2, 4));
+    assert_eq(enumerated[3], (3, 8));
 }
 
 #[test]
 fn enumerate_tuple_test() {
-    let x = [(true, u2:3), (false, u2:2)];
+    let x = [(true, 3), (false, 2)];
     let enumerated = enumerate(x);
-    assert_eq(enumerated[u32:0], (u32:0, (true, u2:3)));
-    assert_eq(enumerated[u32:1], (u32:1, (false, u2:2)));
+    assert_eq(enumerated[0], (0, (true, 3)));
+    assert_eq(enumerated[1], (1, (false, 2)));
 }
 
 pub fn sizeof<S: bool, N: u32>(x: xN[S][N]) -> u32 { N }
