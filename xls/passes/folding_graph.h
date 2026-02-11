@@ -17,11 +17,14 @@
 
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
@@ -122,6 +125,10 @@ class BinaryFoldingAction : public FoldingAction {
   Node* GetFrom() const { return from_; }
 
   const VisibilityEdges& GetFromVisibilityEdges() const { return from_edges_; }
+
+  std::string GetName() const {
+    return absl::StrCat(from_->GetName(), "->", GetTo()->GetName());
+  }
 
  private:
   Node* from_;
