@@ -16,27 +16,19 @@ module neg_proc(
   wire out_valid_inv;
   wire out_valid_load_en;
   wire out_load_en;
-  wire stage_outputs_valid_0;
+  wire p0_stage_done;
   wire in_valid_inv;
   wire in_valid_load_en;
   wire in_load_en;
-  wire stage_0_idle;
-  wire __in_inactive;
-  wire __out_inactive;
   wire [31:0] negate;
-  wire pipeline_and_io_idle;
   assign out_valid_inv = ~__out_valid_reg;
   assign out_valid_load_en = out_rdy | out_valid_inv;
   assign out_load_en = __in_valid_reg & out_valid_load_en;
-  assign stage_outputs_valid_0 = __in_valid_reg & out_load_en;
+  assign p0_stage_done = __in_valid_reg & out_load_en;
   assign in_valid_inv = ~__in_valid_reg;
-  assign in_valid_load_en = stage_outputs_valid_0 | in_valid_inv;
+  assign in_valid_load_en = p0_stage_done | in_valid_inv;
   assign in_load_en = in_vld & in_valid_load_en;
-  assign stage_0_idle = ~__in_valid_reg;
-  assign __in_inactive = ~(in_vld & in_load_en);
-  assign __out_inactive = ~(__out_valid_reg & out_rdy);
   assign negate = -__in_reg;
-  assign pipeline_and_io_idle = stage_0_idle & __in_inactive & __out_inactive;
   always_ff @ (posedge clk) begin
     if (rst) begin
       __in_reg <= 32'h0000_0000;
@@ -53,5 +45,5 @@ module neg_proc(
   assign in_rdy = in_load_en;
   assign out = __out_reg;
   assign out_vld = __out_valid_reg;
-  assign idle = pipeline_and_io_idle;
+  assign idle = ~(__in_valid_reg | __out_valid_reg | in_vld);
 endmodule

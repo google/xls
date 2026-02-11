@@ -292,10 +292,8 @@ TEST(JitWrapperTest, BlockSetRegisterWorks) {
       auto jit, something::cool::MultiFuncWithTraceBlockJit::Create());
   auto cont = jit->NewContinuation();
   XLS_ASSERT_OK(cont->SetRegisters({
-      {"out__output_flop",
-       Value(UBits(10, 8))},  // this will output immediately
-      {"x__input_flop",
-       Value(UBits(1, 8))},  // 5*1 will be the output next cycle
+      {"p1_res", Value(UBits(10, 8))},  // this will output immediately
+      {"p0_x", Value(UBits(1, 8))},     // 5*1 will be the output next cycle
   }));
   XLS_ASSERT_OK(cont->SetInputPorts(
       something::cool::MultiFuncWithTraceBlockJitPorts().SetX(
@@ -313,27 +311,23 @@ TEST(JitWrapperTest, BlockSetRegisterObservable) {
       auto jit, something::cool::MultiFuncWithTraceBlockJit::Create());
   auto cont = jit->NewContinuation();
   XLS_ASSERT_OK(cont->SetRegisters({
-      {"out__output_flop",
-       Value(UBits(10, 8))},  // this will output immediately
-      {"x__input_flop",
-       Value(UBits(1, 8))},  // 5*1 will be the output next cycle
+      {"p1_res", Value(UBits(10, 8))},  // this will output immediately
+      {"p0_x", Value(UBits(1, 8))},     // 5*1 will be the output next cycle
   }));
-  EXPECT_THAT(
-      cont->GetRegistersMap(),
-      UnorderedElementsAre(Pair("out__output_flop", Value(UBits(10, 8))),
-                           Pair("x__input_flop", Value(UBits(1, 8)))));
+  EXPECT_THAT(cont->GetRegistersMap(),
+              UnorderedElementsAre(Pair("p1_res", Value(UBits(10, 8))),
+                                   Pair("p0_x", Value(UBits(1, 8)))));
   XLS_ASSERT_OK(cont->SetInputPorts(
       something::cool::MultiFuncWithTraceBlockJitPorts().SetX(
           3)));  // After the pipeline is flushed, 5*3 will be the output.
-  EXPECT_THAT(
-      cont->GetRegistersMap(),
-      UnorderedElementsAre(Pair("out__output_flop", Value(UBits(10, 8))),
-                           Pair("x__input_flop", Value(UBits(1, 8)))));
+  EXPECT_THAT(cont->GetRegistersMap(),
+              UnorderedElementsAre(Pair("p1_res", Value(UBits(10, 8))),
+                                   Pair("p0_x", Value(UBits(1, 8)))));
   XLS_ASSERT_OK(jit->RunOneCycle(*cont));
   EXPECT_EQ(cont->GetOut(), 10);
   EXPECT_THAT(cont->GetRegistersMap(),
-              UnorderedElementsAre(Pair("out__output_flop", Value(UBits(5, 8))),
-                                   Pair("x__input_flop", Value(UBits(3, 8)))));
+              UnorderedElementsAre(Pair("p1_res", Value(UBits(5, 8))),
+                                   Pair("p0_x", Value(UBits(3, 8)))));
 }
 
 TEST(JitWrapperTest, BlockTraceEventsWork) {
@@ -341,10 +335,8 @@ TEST(JitWrapperTest, BlockTraceEventsWork) {
       auto jit, something::cool::MultiFuncWithTraceBlockJit::Create());
   auto cont = jit->NewContinuation();
   XLS_ASSERT_OK(cont->SetRegisters({
-      {"out__output_flop",
-       Value(UBits(10, 8))},  // this will output immediately
-      {"x__input_flop",
-       Value(UBits(1, 8))},  // 5*1 will be the output next cycle
+      {"p1_res", Value(UBits(10, 8))},  // this will output immediately
+      {"p0_x", Value(UBits(1, 8))},     // 5*1 will be the output next cycle
   }));
   XLS_ASSERT_OK(cont->SetInputPorts(
       something::cool::MultiFuncWithTraceBlockJitPorts().SetX(

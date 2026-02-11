@@ -9,48 +9,48 @@ module multi_proc__1(
   output wire internal_vld
 );
   reg [31:0] p0_data;
+  reg p0_valid;
   reg [31:0] __in_reg;
   reg __in_valid_reg;
   reg [31:0] __internal_reg;
   reg __internal_valid_reg;
-  reg p1_inputs_valid;
   wire internal_valid_inv;
   wire internal_valid_load_en;
   wire internal_load_en;
-  wire stage_outputs_valid_1;
-  wire stage_outputs_ready_0;
-  wire p0_stage_done__1;
+  wire p1_stage_done;
+  wire p1_not_valid;
+  wire p0_enable;
+  wire p0_data_enable;
   wire in_valid_inv;
   wire in_valid_load_en;
   wire in_load_en;
   wire [31:0] negate;
-  wire or_217;
   assign internal_valid_inv = ~__internal_valid_reg;
   assign internal_valid_load_en = internal_rdy | internal_valid_inv;
-  assign internal_load_en = p1_inputs_valid & internal_valid_load_en;
-  assign stage_outputs_valid_1 = p1_inputs_valid & internal_load_en;
-  assign stage_outputs_ready_0 = ~p1_inputs_valid | stage_outputs_valid_1;
-  assign p0_stage_done__1 = __in_valid_reg & stage_outputs_ready_0;
+  assign internal_load_en = p0_valid & internal_valid_load_en;
+  assign p1_stage_done = p0_valid & internal_load_en;
+  assign p1_not_valid = ~p0_valid;
+  assign p0_enable = p1_stage_done | p1_not_valid;
+  assign p0_data_enable = p0_enable & __in_valid_reg;
   assign in_valid_inv = ~__in_valid_reg;
-  assign in_valid_load_en = p0_stage_done__1 | in_valid_inv;
+  assign in_valid_load_en = p0_data_enable | in_valid_inv;
   assign in_load_en = in_vld & in_valid_load_en;
   assign negate = -p0_data;
-  assign or_217 = p0_stage_done__1 | stage_outputs_valid_1;
   always_ff @ (posedge clk) begin
     if (rst) begin
       p0_data <= 32'h0000_0000;
+      p0_valid <= 1'h0;
       __in_reg <= 32'h0000_0000;
       __in_valid_reg <= 1'h0;
       __internal_reg <= 32'h0000_0000;
       __internal_valid_reg <= 1'h0;
-      p1_inputs_valid <= 1'h0;
     end else begin
-      p0_data <= p0_stage_done__1 ? __in_reg : p0_data;
+      p0_data <= p0_data_enable ? __in_reg : p0_data;
+      p0_valid <= p0_enable ? __in_valid_reg : p0_valid;
       __in_reg <= in_load_en ? in : __in_reg;
       __in_valid_reg <= in_valid_load_en ? in_vld : __in_valid_reg;
       __internal_reg <= internal_load_en ? negate : __internal_reg;
-      __internal_valid_reg <= internal_valid_load_en ? p1_inputs_valid : __internal_valid_reg;
-      p1_inputs_valid <= or_217 ? p0_stage_done__1 : p1_inputs_valid;
+      __internal_valid_reg <= internal_valid_load_en ? p0_valid : __internal_valid_reg;
     end
   end
   assign in_rdy = in_load_en;
@@ -70,48 +70,48 @@ module proc1(
   output wire out_vld
 );
   reg [31:0] p0_data;
+  reg p0_valid;
   reg [31:0] __internal_reg;
   reg __internal_valid_reg;
   reg [31:0] __out_reg;
   reg __out_valid_reg;
-  reg p1_inputs_valid;
   wire out_valid_inv;
   wire out_valid_load_en;
   wire out_load_en;
-  wire stage_outputs_valid_1;
-  wire stage_outputs_ready_0;
-  wire p0_stage_done__1;
+  wire p1_stage_done;
+  wire p1_not_valid;
+  wire p0_enable;
+  wire p0_data_enable;
   wire internal_valid_inv;
   wire internal_valid_load_en;
   wire internal_load_en;
   wire [31:0] negate;
-  wire or_277;
   assign out_valid_inv = ~__out_valid_reg;
   assign out_valid_load_en = out_rdy | out_valid_inv;
-  assign out_load_en = p1_inputs_valid & out_valid_load_en;
-  assign stage_outputs_valid_1 = p1_inputs_valid & out_load_en;
-  assign stage_outputs_ready_0 = ~p1_inputs_valid | stage_outputs_valid_1;
-  assign p0_stage_done__1 = __internal_valid_reg & stage_outputs_ready_0;
+  assign out_load_en = p0_valid & out_valid_load_en;
+  assign p1_stage_done = p0_valid & out_load_en;
+  assign p1_not_valid = ~p0_valid;
+  assign p0_enable = p1_stage_done | p1_not_valid;
+  assign p0_data_enable = p0_enable & __internal_valid_reg;
   assign internal_valid_inv = ~__internal_valid_reg;
-  assign internal_valid_load_en = p0_stage_done__1 | internal_valid_inv;
+  assign internal_valid_load_en = p0_data_enable | internal_valid_inv;
   assign internal_load_en = internal_vld & internal_valid_load_en;
   assign negate = -p0_data;
-  assign or_277 = p0_stage_done__1 | stage_outputs_valid_1;
   always_ff @ (posedge clk) begin
     if (rst) begin
       p0_data <= 32'h0000_0000;
+      p0_valid <= 1'h0;
       __internal_reg <= 32'h0000_0000;
       __internal_valid_reg <= 1'h0;
       __out_reg <= 32'h0000_0000;
       __out_valid_reg <= 1'h0;
-      p1_inputs_valid <= 1'h0;
     end else begin
-      p0_data <= p0_stage_done__1 ? __internal_reg : p0_data;
+      p0_data <= p0_data_enable ? __internal_reg : p0_data;
+      p0_valid <= p0_enable ? __internal_valid_reg : p0_valid;
       __internal_reg <= internal_load_en ? internal : __internal_reg;
       __internal_valid_reg <= internal_valid_load_en ? internal_vld : __internal_valid_reg;
       __out_reg <= out_load_en ? negate : __out_reg;
-      __out_valid_reg <= out_valid_load_en ? p1_inputs_valid : __out_valid_reg;
-      p1_inputs_valid <= or_277 ? p0_stage_done__1 : p1_inputs_valid;
+      __out_valid_reg <= out_valid_load_en ? p0_valid : __out_valid_reg;
     end
   end
   assign internal_rdy = internal_load_en;
@@ -130,35 +130,35 @@ module multi_proc(
   output wire [31:0] out,
   output wire out_vld
 );
-  wire instantiation_output_156;
-  wire [31:0] instantiation_output_161;
-  wire instantiation_output_162;
-  wire instantiation_output_169;
-  wire [31:0] instantiation_output_173;
-  wire instantiation_output_174;
-  wire instantiation_output_163;
-  wire [31:0] instantiation_output_167;
-  wire instantiation_output_168;
+  wire instantiation_output_160;
+  wire [31:0] instantiation_output_165;
+  wire instantiation_output_166;
+  wire instantiation_output_173;
+  wire [31:0] instantiation_output_177;
+  wire instantiation_output_178;
+  wire instantiation_output_167;
+  wire [31:0] instantiation_output_171;
+  wire instantiation_output_172;
 
   // ===== Instantiations
   multi_proc__1 multi_proc__1_inst0 (
     .rst(rst),
     .in(in),
     .in_vld(in_vld),
-    .internal_rdy(instantiation_output_163),
-    .in_rdy(instantiation_output_156),
-    .internal(instantiation_output_161),
-    .internal_vld(instantiation_output_162),
+    .internal_rdy(instantiation_output_167),
+    .in_rdy(instantiation_output_160),
+    .internal(instantiation_output_165),
+    .internal_vld(instantiation_output_166),
     .clk(clk)
   );
   proc1 proc1_inst1 (
     .rst(rst),
-    .internal(instantiation_output_167),
-    .internal_vld(instantiation_output_168),
+    .internal(instantiation_output_171),
+    .internal_vld(instantiation_output_172),
     .out_rdy(out_rdy),
-    .internal_rdy(instantiation_output_169),
-    .out(instantiation_output_173),
-    .out_vld(instantiation_output_174),
+    .internal_rdy(instantiation_output_173),
+    .out(instantiation_output_177),
+    .out_vld(instantiation_output_178),
     .clk(clk)
   );
   xls_fifo_wrapper #(
@@ -170,14 +170,14 @@ module multi_proc(
   ) fifo_internal (
     .clk(clk),
     .rst(rst),
-    .push_data(instantiation_output_161),
-    .push_valid(instantiation_output_162),
-    .pop_ready(instantiation_output_169),
-    .push_ready(instantiation_output_163),
-    .pop_data(instantiation_output_167),
-    .pop_valid(instantiation_output_168)
+    .push_data(instantiation_output_165),
+    .push_valid(instantiation_output_166),
+    .pop_ready(instantiation_output_173),
+    .push_ready(instantiation_output_167),
+    .pop_data(instantiation_output_171),
+    .pop_valid(instantiation_output_172)
   );
-  assign in_rdy = instantiation_output_156;
-  assign out = instantiation_output_173;
-  assign out_vld = instantiation_output_174;
+  assign in_rdy = instantiation_output_160;
+  assign out = instantiation_output_177;
+  assign out_vld = instantiation_output_178;
 endmodule

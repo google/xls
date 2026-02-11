@@ -7,15 +7,15 @@ module not_add(
   // ===== Pipe stage 0:
 
   // Registers for pipe stage 0:
-  reg [31:0] x__input_flop;
-  reg [31:0] y__input_flop;
+  reg [31:0] p0_x;
+  reg [31:0] p0_y;
   always_ff @ (posedge clk) begin
-    x__input_flop <= x;
-    y__input_flop <= y;
+    p0_x <= x;
+    p0_y <= y;
   end
 
   // ===== Pipe stage 1:
-  wire [31:0] p1_add_20_comb;
-  assign p1_add_20_comb = x__input_flop + y__input_flop;
-  assign out = ~p1_add_20_comb;
+  wire [31:0] p1_add_13_comb;
+  assign p1_add_13_comb = p0_x + p0_y;
+  assign out = ~p1_add_13_comb;
 endmodule

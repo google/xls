@@ -171,8 +171,8 @@ control the scheduler.
 
 -   `--codegen_version` is the version of codegen pipeline to use; options are 0
     (default), 1 (original codegen path), 1.5 (refactored codegen), or 2
-    (revised codegen with a new architecture). Currently default means v1.5
-    (refactored).
+    (revised codegen with a new architecture). Currently default means v1
+    (original).
 
 -   `--merge_on_mutual_exclusion` runs a mutual-exclusion analysis and attempts
     to merge any I/O operations on the same channel that can be proven to be

@@ -1514,7 +1514,7 @@ cc_xls_ir_jit_wrapper(
 
 cc_xls_ir_jit_wrapper(
     name = "parameterized_design_func_wrapper",
-    src = "//xls/examples/parameterized:design_opt_ir.opt.ir",
+    src = "//xls/examples/parameterized:design.block.ir",
     jit_wrapper_args = {
         "class_name": "ParameterizedDesignFunc",
         "namespace": "something::cool",

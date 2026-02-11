@@ -196,7 +196,7 @@ ABSL_FLAG(
     std::string, codegen_version, "0",
     "Version of codegen to use. Can be 1 or 1.0 (original codegen), 1.5 "
     "(refactored codegen), or 2 or 2.0 (revised codegen with a new "
-    "architecture). If set to 0, will use the default codegen version (1.5).");
+    "architecture). If set to 0, will use the default codegen version (1.0).");
 ABSL_FLAG(std::string, output_scheduling_pass_metrics_path, "",
           "Output path for the pass pipeline metrics for scheduling passes as "
           "a PassPipelineMetricsProto.");
@@ -325,7 +325,7 @@ absl::StatusOr<CodegenVersionProto> CodegenVersionFromString(
     switch (int_version) {
       case 0:
         // default
-        return CODEGEN_VERSION_DEFAULT;
+        return CODEGEN_VERSION_ONE_DOT_ZERO;
       case 1:
         return CODEGEN_VERSION_ONE_DOT_ZERO;
       case 2:
@@ -338,7 +338,7 @@ absl::StatusOr<CodegenVersionProto> CodegenVersionFromString(
   if (absl::SimpleAtod(s, &float_version)) {
     if (float_version == 0.0) {
       // default
-      return CODEGEN_VERSION_DEFAULT;
+      return CODEGEN_VERSION_ONE_DOT_ZERO;
     }
     if (float_version == 1.0) {
       return CODEGEN_VERSION_ONE_DOT_ZERO;
