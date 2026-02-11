@@ -26,11 +26,11 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -2604,6 +2604,36 @@ fn make() -> Foo {
   const std::array<const AstNode*, 1> removed = {foo};
   EXPECT_THAT(CloneModuleRemovingMembers(*module, removed),
               StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("Foo")));
+}
+
+TEST(AstClonerTest, ParametricFunctionClonesParamTypeDefiner) {
+  constexpr std::string_view kProgram = R"(
+#![feature(generics)]
+
+fn foo<T: type>(x: T) -> T {
+  x
+}
+)";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "struct_fail.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(*module.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * clone_foo,
+                           clone->GetMemberOrError<Function>("foo"));
+
+  // In the case of a generic parametric, we expect the param of the generic
+  // type to use a TVTA defined by the parametric type.
+  TypeAnnotation* binding_annotation =
+      clone_foo->parametric_bindings().at(0)->type_annotation();
+  Param* param = clone_foo->params().at(0);
+  const AstNode* param_annotation_definer =
+      absl::down_cast<const TypeVariableTypeAnnotation*>(
+          param->type_annotation())
+          ->type_variable()
+          ->GetDefiner();
+  ASSERT_EQ(binding_annotation, param_annotation_definer);
 }
 
 }  // namespace

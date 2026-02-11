@@ -628,11 +628,18 @@ class AstCloner : public AstNodeVisitor {
   }
 
   absl::Status HandleNameDef(const NameDef* n) override {
+    // If the definer is a type annotation, ensure it has been cloned so
+    // we can set as the definer. Other definers should be skipped to avoid
+    // infinite loops (e.g. Function -> NameDef -> Function -> NameDef -> ...).
+    if (n->definer() != nullptr &&
+        n->definer()->kind() == AstNodeKind::kTypeAnnotation) {
+      XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->definer()));
+    }
     if (!old_to_new_.contains(n)) {
-      // We need to set the definer in the definer itself, not here, to avoid
-      // looping (Function -> NameDef -> Function -> NameDef -> ...).
-      old_to_new_[n] =
-          module(n)->Make<NameDef>(n->span(), n->identifier(), nullptr);
+      old_to_new_[n] = module(n)->Make<NameDef>(
+          n->span(), n->identifier(),
+          old_to_new_.contains(n->definer()) ? old_to_new_.at(n->definer())
+                                             : nullptr);
     }
 
     return absl::OkStatus();
