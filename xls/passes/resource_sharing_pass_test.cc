@@ -41,6 +41,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
@@ -1310,6 +1311,37 @@ void IrFuzzResourceSharing(FuzzPackageWithArgs fuzz_package_with_args) {
 }
 FUZZ_TEST(IrFuzzTest, IrFuzzResourceSharing)
     .WithDomains(IrFuzzDomainWithArgs(/*arg_set_count=*/10));
+
+TEST_F(ResourceSharingPassTest, PreventCyclesInFoldingChains) {
+  // Construct two def-use chains: B <- A <- X and D <- C <- Y. Folding X => D
+  // makes B depend on Y; folding Y => B would then cause a cycle.
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(8);
+  BValue i = fb.Param("i", u32);
+  BValue X = fb.UMul(i, i, 8, SourceInfo(), "X");
+  BValue A = fb.Shll(X, fb.Literal(UBits(1, 8)), SourceInfo(), "A");
+  BValue B = fb.Add(A, i, SourceInfo(), "B");
+  BValue Y = fb.Add(i, i, SourceInfo(), "Y");
+  BValue C = fb.Shll(Y, fb.Literal(UBits(1, 8)), SourceInfo(), "C");
+  BValue D = fb.UMul(C, i, 8, SourceInfo(), "D");
+
+  // Make the following pairs mutually exclusive: (X, D) and (Y, B)
+  BValue cond = fb.Param("cond", p->GetBitsType(1));
+  BValue sel1 = fb.Select(cond, {X, D});
+  BValue sel2 = fb.Select(cond, {B, Y});
+  BValue result = fb.Tuple({sel1, sel2});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
+
+  // Initially, there are 2 multipliers, X and D, and two adders B and Y
+  // Only one fold should occur, not both
+  EXPECT_EQ(NumberOfMultiplications(f), 2);
+  EXPECT_EQ(NumberOfAdders(f), 2);
+  ScopedVerifyEquivalence check_equivalent(f, absl::Seconds(10));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_EQ(NumberOfMultiplications(f), 1);
+  EXPECT_EQ(NumberOfAdders(f), 2);
+}
 
 }  // namespace
 

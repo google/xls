@@ -288,6 +288,7 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
           potential_folding_actions_to_perform,
       absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
           mutual_exclusivity,
+      const NodeBackwardDependencyAnalysis& nda,
       std::optional<const AreaEstimator*> area_estimator, const Config& config);
 
   // This function performs the folding actions specified in its input following

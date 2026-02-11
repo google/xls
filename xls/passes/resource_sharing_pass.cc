@@ -40,13 +40,11 @@
 #include "cppitertools/zip.hpp"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/data_structures/union_find.h"
 #include "xls/estimators/area_model/area_estimator.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/node.h"
-#include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/passes/bdd_query_engine.h"
@@ -943,10 +941,43 @@ ResourceSharingPass::LegalizeSequenceOfFolding(
         potential_folding_actions_to_perform,
     absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
         mutual_exclusivity,
+    const NodeBackwardDependencyAnalysis& nda,
     std::optional<const AreaEstimator*> area_estimator,
     const ResourceSharingPass::Config& config) {
+  if (potential_folding_actions_to_perform.empty()) {
+    return std::make_pair(std::vector<std::unique_ptr<NaryFoldingAction>>(),
+                          false);
+  }
   std::vector<std::unique_ptr<NaryFoldingAction>> folding_actions_to_perform;
   bool modified = false;
+
+  // Prevent cycles by tracking what nodes are folded together; paired with nda,
+  // we detect when a `to` node will depend on a `from` node after foldings
+  // occur, which if `to` and `from` are also folded together, creates a cycle.
+  // Consider if B <- A <- X and D <- C <- Y are two def-use chains; folding
+  // X into D to produce D' makes a new def-use chain B <- A <- D' <- C <- Y.
+  // Folding Y into B would cause a cycle because B now depends on Y via D'.
+  // NOTE: If nda could be modified to merge dependency sets of nodes that
+  // will be folded together, this map would not be necessary:
+  absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>> one_to_others_folded;
+  auto will_to_use_from = [&](Node* from, Node* to) -> bool {
+    const absl::flat_hash_set<Node*>* nodes_using_from = nda.GetInfo(from);
+    if (nodes_using_from->contains(to)) {
+      return true;
+    }
+    for (Node* node_using_from : *nodes_using_from) {
+      if (auto merged_nodes_it = one_to_others_folded.find(node_using_from);
+          merged_nodes_it != one_to_others_folded.end()) {
+        // Check `to` does not use any nodes that will use `from` post-foldings.
+        for (Node* will_use_from : merged_nodes_it->second) {
+          if (nda.IsDependent(will_use_from, to)) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  };
 
   // Remove folding actions (via removing either a whole n-ary folding or a
   // subset of the froms of a given n-ary folding) that overlaps.
@@ -959,8 +990,6 @@ ResourceSharingPass::LegalizeSequenceOfFolding(
   absl::flat_hash_map<Node*, NaryFoldingAction*>
       nodes_already_selected_as_folding_sources;
   absl::flat_hash_map<Node*, NaryFoldingAction*> prior_folding_of_destination;
-  // Used to prevent cycles of folds:
-  UnionFind<Node*> fold_chains;
   for (const std::unique_ptr<NaryFoldingAction>& folding :
        potential_folding_actions_to_perform) {
     // Print the n-ary folding
@@ -972,11 +1001,6 @@ ResourceSharingPass::LegalizeSequenceOfFolding(
     std::optional<double> area_saved_without_overhead = folding->area_saved();
     if (area_saved_without_overhead.has_value()) {
       VLOG(2) << "      Area savings = " << *area_saved_without_overhead;
-    }
-
-    fold_chains.Insert(folding->GetTo());
-    for (auto& [from_node, _] : folding->GetFrom()) {
-      fold_chains.Insert(from_node);
     }
 
     // Check the destination
@@ -1099,9 +1123,10 @@ ResourceSharingPass::LegalizeSequenceOfFolding(
         }
       }
 
-      if (fold_chains.Find(source) == fold_chains.Find(to_node)) {
-        VLOG(4) << "      Excluding the following source because it would cause"
-                   "a chain of folds to become a cycle of folds";
+      if (will_to_use_from(source, to_node) ||
+          will_to_use_from(to_node, source)) {
+        VLOG(4) << "      Excluding the following source because it causes a"
+                   "use-chain between source and destination to become a cycle";
         VLOG(4) << "        Source removed = " << source->ToString();
         modified = true;
         continue;
@@ -1128,8 +1153,10 @@ ResourceSharingPass::LegalizeSequenceOfFolding(
       continue;
     }
 
+    // Track what nodes are merged together for future cycle detection.
     for (auto& [from, _] : legal_froms) {
-      fold_chains.Union(to_node, from);
+      one_to_others_folded[from].insert(to_node);
+      one_to_others_folded[to_node].insert(from);
     }
 
     // The current n-ary folding is worth considering. Allocate a new n-ary
@@ -1260,6 +1287,7 @@ SelectFoldingActionsBasedOnInDegree(
     absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
         mutual_exclusivity,
     const ResourceSharingPass::VisibilityAnalyses& visibility,
+    const NodeBackwardDependencyAnalysis& nda,
     const AreaEstimator& area_estimator,
     const CriticalPathDelayAnalysis& critical_path_delay,
     const ResourceSharingPass::Config& config,
@@ -1355,7 +1383,7 @@ SelectFoldingActionsBasedOnInDegree(
       ResourceSharingPass::LegalizeSequenceOfFolding(
           std::move(
               potential_folding_actions_to_perform_without_timing_problems),
-          mutual_exclusivity, &area_estimator, config));
+          mutual_exclusivity, nda, &area_estimator, config));
 
   return folding_actions_to_perform;
 }
@@ -1377,6 +1405,7 @@ SelectAllFoldingActions(
     absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
         mutual_exclusivity,
     const ResourceSharingPass::VisibilityAnalyses& visibility,
+    const NodeBackwardDependencyAnalysis& nda,
     const AreaEstimator& area_estimator,
     const CriticalPathDelayAnalysis& critical_path_delay,
     const ResourceSharingPass::Config& config,
@@ -1445,7 +1474,7 @@ SelectAllFoldingActions(
   XLS_ASSIGN_OR_RETURN(std::tie(folding_actions_to_perform, std::ignore),
                        ResourceSharingPass::LegalizeSequenceOfFolding(
                            std::move(potential_folding_actions_to_perform),
-                           mutual_exclusivity, &area_estimator, config));
+                           mutual_exclusivity, nda, &area_estimator, config));
 
   return folding_actions_to_perform;
 }
@@ -1527,6 +1556,7 @@ SelectFoldingActions(OptimizationContext& context, FoldingGraph* folding_graph,
                      absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
                          mutual_exclusivity,
                      const ResourceSharingPass::VisibilityAnalyses& visibility,
+                     const NodeBackwardDependencyAnalysis& nda,
                      const AreaEstimator& area_estimator,
                      const CriticalPathDelayAnalysis& critical_path_delay,
                      const ResourceSharingPass::Config& config,
@@ -1537,11 +1567,12 @@ SelectFoldingActions(OptimizationContext& context, FoldingGraph* folding_graph,
   // Decide the sub-set of legal folding actions to perform
   switch (heuristics) {
     case ResourceSharingPass::ProfitabilityGuard::kInDegree: {
-      XLS_ASSIGN_OR_RETURN(folding_actions_to_perform,
-                           SelectFoldingActionsBasedOnInDegree(
-                               context, folding_graph, mutual_exclusivity,
-                               visibility, area_estimator, critical_path_delay,
-                               config, visibility_estimator));
+      XLS_ASSIGN_OR_RETURN(
+          folding_actions_to_perform,
+          SelectFoldingActionsBasedOnInDegree(
+              context, folding_graph, mutual_exclusivity, visibility, nda,
+              area_estimator, critical_path_delay, config,
+              visibility_estimator));
       break;
     }
 
@@ -1561,11 +1592,12 @@ SelectFoldingActions(OptimizationContext& context, FoldingGraph* folding_graph,
     }
 
     case ResourceSharingPass::ProfitabilityGuard::kAlways: {
-      XLS_ASSIGN_OR_RETURN(folding_actions_to_perform,
-                           SelectAllFoldingActions(
-                               context, folding_graph, mutual_exclusivity,
-                               visibility, area_estimator, critical_path_delay,
-                               config, visibility_estimator));
+      XLS_ASSIGN_OR_RETURN(
+          folding_actions_to_perform,
+          SelectAllFoldingActions(context, folding_graph, mutual_exclusivity,
+                                  visibility, nda, area_estimator,
+                                  critical_path_delay, config,
+                                  visibility_estimator));
       break;
     }
   }
@@ -1904,7 +1936,9 @@ absl::StatusOr<bool> ResourceSharingPass::RunOnFunctionBaseInternal(
   XLS_RETURN_IF_ERROR(critical_path_delay->Attach(f).status());
 
   NodeForwardDependencyAnalysis nda;
+  NodeBackwardDependencyAnalysis nda_backwards;
   XLS_RETURN_IF_ERROR(nda.Attach(f).status());
+  XLS_RETURN_IF_ERROR(nda_backwards.Attach(f).status());
 
   LazyPostDominatorAnalysis post_dom;
   XLS_RETURN_IF_ERROR(post_dom.Attach(f).status());
@@ -1968,7 +2002,7 @@ absl::StatusOr<bool> ResourceSharingPass::RunOnFunctionBaseInternal(
       std::vector<std::unique_ptr<NaryFoldingAction>>
           folding_actions_to_perform,
       SelectFoldingActions(context, &folding_graph, selection_heuristic,
-                           mutual_exclusivity, visibilities,
+                           mutual_exclusivity, visibilities, nda_backwards,
                            *options.area_estimator, *critical_path_delay,
                            config_, &visibility_estimator));
 

@@ -4512,6 +4512,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "//xls/ir:op",
+        "//xls/ir:source_location",
         "//xls/ir:value",
         "//xls/solvers:z3_ir_equivalence_testutils",
         "@com_google_absl//absl/log:check",
