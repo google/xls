@@ -40,7 +40,9 @@
 #include "xls/common/init_xls.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/command_line_utils.h"
+#include "xls/dslx/create_import_data.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
+#include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/run_routines/ir_test_runner.h"
 #include "xls/dslx/run_routines/run_comparator.h"
@@ -106,6 +108,12 @@ ABSL_FLAG(
     "this flag is off because the IR interpreter is too slow.");
 ABSL_FLAG(std::string, configured_values, "",
           "Configured values to use in DSLX parsing.");
+ABSL_FLAG(std::optional<bool>, lower_to_ir, true,
+          "Enable checking if the code cannot be lowered to IR.");
+ABSL_FLAG(std::optional<bool>, convert_tests, false,
+          "Include tests in the IR conversion test. Has effect only when "
+          "'lower_to_ir' flag is set.");
+
 // LINT.ThenChange(//xls/build_rules/xls_dslx_rules.bzl)
 
 namespace xls::dslx {
@@ -275,6 +283,73 @@ absl::StatusOr<TestResult> RealMain(
     QCHECK(google::protobuf::TextFormat::PrintToString(results_proto, &text));
     XLS_RETURN_IF_ERROR(
         SetFileContents(absl::GetFlag(FLAGS_output_results_proto), text));
+  }
+
+  // Early feeback if the code cannot be lowered to IR.
+  std::optional<bool> lower_to_ir_flag = absl::GetFlag(FLAGS_lower_to_ir);
+  if (lower_to_ir_flag.value_or(false)) {
+    LOG(INFO) << "Checking if code can be lowered to IR";
+    std::optional<bool> convert_tests = absl::GetFlag(FLAGS_convert_tests);
+    bool is_convert_tests = convert_tests.value_or(false);
+    bool is_type_inference_v2 = type_inference_v2_flag.value_or(false);
+    bool printed_error = true;
+
+    ConvertOptions ir_convert_options = {
+        .emit_positions = true,
+        .emit_assert = true,
+        .emit_cover = true,
+        .verify_ir = true,
+        .warnings_as_errors = false,
+        .warnings = kAllWarningsSet,
+        .convert_tests = is_convert_tests,
+        .type_inference_v2 = is_type_inference_v2,
+        .lower_to_proc_scoped_channels = true,
+    };
+    std::array<std::string_view, 1> module_path{entry_module_path};
+
+    ImportData import_data(CreateImportData(
+        dslx_stdlib_path.string(), dslx_paths, ir_convert_options.warnings,
+        std::make_unique<RealFilesystem>()));
+
+    absl::StatusOr<TypecheckedModule> tm = ParseAndTypecheck(
+        program, entry_module_path, module_name, &import_data);
+
+    // Module conversion cannot be used because it skips CheckAcceptableTopProc.
+    // Instead, we collect non-parametric processes and functions which are then
+    // passed separately as tops.
+    std::vector<std::string> module_elements;
+
+    std::vector<Proc*> module_procs = tm->module->GetProcs();
+    for (Proc* elem : module_procs) {
+      if (!elem->IsParametric()) {
+        module_elements.push_back(elem->identifier());
+      }
+    }
+
+    std::vector<Function*> module_funcs = tm->module->GetFunctions();
+    for (Function* elem : module_funcs) {
+      if (!elem->IsParametric()) {
+        module_elements.push_back(elem->identifier());
+      }
+    }
+
+    std::vector<std::string> failed_ir_conversion_entries;
+    for (std::string& elem : module_elements) {
+      // Convert to IR each element separately.
+      absl::StatusOr<PackageConversionData> ir_conv_result =
+          ConvertFilesToPackage(module_path, dslx_stdlib_path.string(),
+                                dslx_paths, ir_convert_options, elem,
+                                module_name, &printed_error);
+      if (!ir_conv_result.ok()) {
+        failed_ir_conversion_entries.push_back(std::move(elem));
+      }
+    }
+
+    if (!failed_ir_conversion_entries.empty()) {
+      return absl::AbortedError(absl::StrFormat(
+          "IR conversion test failed for %s.",
+          absl::StrJoin(failed_ir_conversion_entries, ", ")));
+    }
   }
 
   return test_result.result();
