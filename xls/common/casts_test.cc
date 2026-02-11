@@ -48,7 +48,7 @@ TEST(TemplateFunctionTest, down_cast_pointer) {
   Base* const base_ptr = &derived;
 
   // Tests casting a Base* to a Derived*.
-  EXPECT_EQ(&derived, down_cast<Derived*>(base_ptr));
+  EXPECT_EQ(&derived, absl::down_cast<Derived*>(base_ptr));
 
   // Tests casting a const Base* to a const Derived*.
   const Base* const_base_ptr = base_ptr;
