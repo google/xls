@@ -82,6 +82,29 @@ ABSL_FLAG(int64_t, pipeline_stages, 0,
           "https://google.github.io/xls/scheduling for details.");
 ABSL_FLAG(std::string, delay_model, "",
           "Delay model name to use from registry.");
+ABSL_FLAG(xls::SchedulingStrategy, scheduling_strategy,
+          xls::SchedulingStrategy::SDC,
+          "Scheduler algorithm to use.\n"
+          "\n"
+          "Options: [sdc, asap, min_cut, random]\n"
+          "\n"
+          "Standard Scheduler:\n"
+          "sdc: Default. Constraint based scheduling to minimize registers.\n"
+          "\n"
+          "Testing/Development Schedulers:\n"
+          "\n"
+          "These are meant for testing and rapid iteration only.\n"
+          "\n"
+          "asap: Fast scheduler which schedules nodes as early as possible. "
+          "Good for development and rapid iteration.\n"
+          // TODO(allight): Fix this missing feature.
+          "      Does not respect io_constraints.\n"
+          "min_cut: Approximates the minimum number of registers using a "
+          "min-cut based algorithm.\n"
+          "         Does not respect io_constraints.\n"
+          "min_cut: Approximates the minimum number of registers using a "
+          "random: Randomly schedules nodes. For internal testing only.\n"
+          "        Does not respect io_constraints.");
 ABSL_FLAG(int64_t, clock_margin_percent, 0,
           "The percentage of clock period to set aside as a margin to ensure "
           "timing is met. Effectively, this lowers the clock period by this "
@@ -262,6 +285,12 @@ static absl::StatusOr<bool> SetOptionsFromFlags(
   }
   bool any_flags_set = false;
   POPULATE_FLAG(opt_level);
+  {
+    any_flags_set |= FLAGS_scheduling_strategy.IsSpecifiedOnCommandLine();
+    ProtoSchedulingStrategy scheduling_strategy =
+        ToProtoSchedulingStrategy(absl::GetFlag(FLAGS_scheduling_strategy));
+    proto.set_scheduling_strategy(scheduling_strategy);
+  }
   POPULATE_FLAG(clock_period_ps);
   POPULATE_FLAG(pipeline_stages);
   POPULATE_FLAG(delay_model);
