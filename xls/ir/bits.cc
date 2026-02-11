@@ -16,7 +16,6 @@
 
 #include <cstdint>
 #include <limits>
-#include <ostream>
 #include <string>
 #include <utility>
 
@@ -303,18 +302,5 @@ Bits Bits::Slice(int64_t start, int64_t width) const& {
   return Bits::FromBitmap(std::move(bm));
 }
 
-void FuzzTestPrintSourceCode(const Bits& bits, std::ostream* os) {
-  if (bits.FitsInUint64()) {
-    *os << "UBits(" << bits.ToUint64().value() << ", " << bits.bit_count()
-        << ")";
-  } else if (bits.FitsInInt64()) {
-    *os << "SBits(" << bits.ToInt64().value() << ", " << bits.bit_count()
-        << ")";
-  } else {
-    *os << "Bits::FromBitmap(";
-    FuzzTestPrintSourceCode(bits.bitmap(), os);
-    *os << ")";
-  }
-}
 
 }  // namespace xls

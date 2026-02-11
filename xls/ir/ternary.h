@@ -74,6 +74,20 @@ void AbslStringify(Sink& sink, TernaryValue e) {
   sink.Append(ToString(e));
 }
 
+template <typename Sink>
+void FuzzTestPrintSourceCode(Sink& sink, TernaryValue tv) {
+  absl::Format(&sink, "%s", ToString(tv));
+}
+template <typename Sink>
+void FuzzTestPrintSourceCode(Sink& sink, const TernaryVector& tv) {
+  FuzzTestPrintSourceCode(sink, TernarySpan(tv));
+}
+template <typename Sink>
+void FuzzTestPrintSourceCode(Sink& sink, TernarySpan tv) {
+  absl::Format(&sink, "ternary_ops::StringToTernaryVector(\"%s\").value()",
+               ToString(tv));
+}
+
 inline std::ostream& operator<<(std::ostream& os, const TernaryValue& value) {
   os << ToString(value);
   return os;
@@ -379,10 +393,6 @@ absl::StatusOr<std::vector<Value>> AllValues(
     LeafTypeTreeView<TernaryVector> ltt);
 
 }  // namespace ternary_ops
-
-void FuzzTestPrintSourceCode(const TernaryValue& tv, std::ostream* os);
-void FuzzTestPrintSourceCode(const TernarySpan& tv, std::ostream* os);
-void FuzzTestPrintSourceCode(const TernaryVector& tv, std::ostream* os);
 }  // namespace xls
 
 #endif  // XLS_IR_TERNARY_H_

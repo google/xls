@@ -17,7 +17,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <optional>
-#include <ostream>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -469,17 +468,4 @@ absl::StatusOr<std::vector<Value>> AllValues(
 }
 
 }  // namespace ternary_ops
-
-void FuzzTestPrintSourceCode(const TernaryValue& tv, std::ostream* os) {
-  *os << ToString(tv);
-}
-void FuzzTestPrintSourceCode(const TernarySpan& tv, std::ostream* os) {
-  *os << "ternary_ops::StringToTernaryVector(\"" << ToString(tv)
-      << "\").value()";
-}
-void FuzzTestPrintSourceCode(const TernaryVector& tv, std::ostream* os) {
-  *os << "ternary_ops::StringToTernaryVector(\"" << ToString(tv)
-      << "\").value()";
-}
-
 }  // namespace xls

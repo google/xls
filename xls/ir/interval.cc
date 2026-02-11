@@ -16,7 +16,6 @@
 
 #include <cstdint>
 #include <optional>
-#include <ostream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -281,14 +280,6 @@ std::string Interval::ToString() const {
   FormatPreference pref = FormatPreference::kDefault;
   return absl::StrFormat("[%s, %s]", BitsToString(lower_bound_, pref, false),
                          BitsToString(upper_bound_, pref, false));
-}
-
-void FuzzTestPrintSourceCode(const Interval& is, std::ostream* os) {
-  *os << "Interval(";
-  FuzzTestPrintSourceCode(is.LowerBound(), os);
-  *os << ", ";
-  FuzzTestPrintSourceCode(is.UpperBound(), os);
-  *os << ")";
 }
 
 }  // namespace xls

@@ -18,7 +18,6 @@
 #include <cstdint>
 #include <limits>
 #include <optional>
-#include <sstream>
 #include <utility>
 #include <vector>
 
@@ -496,9 +495,10 @@ TEST(IntervalTest, IterSingleElement) {
 }
 
 TEST(IntervalTest, FuzzTestPrintSourceCode) {
-  std::stringstream ss;
-  FuzzTestPrintSourceCode(Interval(UBits(10, 8), UBits(20, 8)), &ss);
-  EXPECT_EQ(ss.str(), "Interval(UBits(10, 8), UBits(20, 8))");
+  std::string s;
+  FuzzTestPrintSourceCode(s, Interval(UBits(10, 8), UBits(20, 8)));
+  EXPECT_EQ(s, "Interval(UBits(10, 8), UBits(20, 8))");
 }
+
 }  // namespace
 }  // namespace xls

@@ -16,16 +16,11 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <ios>
-#include <ostream>
 
 #include "absl/log/check.h"
-#include "absl/strings/str_format.h"
 #include "xls/common/bits_util.h"
 
 namespace xls {
-
-namespace {}  // namespace
 
 void InlineBitmap::Overwrite(const InlineBitmap& other, int64_t cnt,
                              int64_t w_offset, int64_t r_offset) {
@@ -85,20 +80,6 @@ int64_t InlineBitmap::GetWordBitsAt(int64_t bit_offset) const {
   uint64_t high_word = GetWord(start_word_num + 1);
   uint64_t high_bits = high_word << (kWordBits - bits_off);
   return high_bits | low_bits;
-}
-
-void FuzzTestPrintSourceCode(const InlineBitmap& bm, std::ostream* os) {
-  *os << "InlineBitmap::FromBytes(" << bm.bit_count() << ", {";
-  bool first = true;
-  for (int64_t i = 0; i < bm.byte_count(); ++i) {
-    if (first) {
-      first = false;
-    } else {
-      *os << ", ";
-    }
-    *os << absl::StreamFormat("0x%02hhx", bm.GetByte(i));
-  }
-  *os << "})";
 }
 
 }  // namespace xls

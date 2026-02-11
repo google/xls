@@ -17,7 +17,6 @@
 
 #include <cstdint>
 #include <memory>
-#include <ostream>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -25,6 +24,7 @@
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
 #include "xls/ir/node.h"
 #include "xls/ir/value.h"
@@ -43,6 +43,16 @@ inline constexpr std::string_view kFuzzTestName = "FuzzTest";
 struct FuzzPackage {
   std::unique_ptr<Package> p;
   FuzzProgramProto fuzz_program;
+
+  // Intentionally override just this printer to avoid printing the protobuf.
+  template <typename Sink>
+  friend void FuzzTestPrintSourceCode(Sink& sink, const FuzzPackage& fp) {
+    // TODO(allight): Should we bother to serialize the proto. I don't think its
+    // useful very often.
+    absl::Format(&sink, "FuzzPackage{ .p = ");
+    FuzzTestPrintSourceCode(sink, fp.p);
+    absl::Format(&sink, " }");
+  }
 };
 
 // Same as FuzzPackage but also can store arguments that are compatible with the
@@ -69,12 +79,6 @@ absl::StatusOr<FuzzPackage> BuildPackageFromProtoString(
 
 FuzzPackageWithArgs GenArgSetsForPackage(FuzzPackage fuzz_package,
                                          int64_t arg_set_count);
-
-// Intentionally override just this printer to avoid printing the protobuf.
-void FuzzTestPrintSourceCode(const FuzzPackage& fp, std::ostream* os);
-// Implement printing for arg sets.
-void FuzzTestPrintSourceCode(const std::vector<std::vector<Value>>& fp,
-                             std::ostream* os);
 
 }  // namespace xls
 

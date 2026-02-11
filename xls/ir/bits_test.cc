@@ -18,7 +18,6 @@
 #include <bit>
 #include <cstdint>
 #include <limits>
-#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -729,22 +728,16 @@ void BM_BitsRopePushBack(benchmark::State& state) {
 BENCHMARK(BM_BitsRopePushBack)->RangePair(5, 500, 10, 2000);
 
 TEST(BitsTest, FuzzTestPrintSourceCode) {
-  std::stringstream ss;
-  FuzzTestPrintSourceCode(UBits(0, 0), &ss);
-  EXPECT_EQ(ss.str(), "UBits(0, 0)");
-
-  ss.str("");
-  FuzzTestPrintSourceCode(UBits(10, 8), &ss);
-  EXPECT_EQ(ss.str(), "UBits(10, 8)");
-
-  ss.str("");
-  FuzzTestPrintSourceCode(SBits(-1, 8), &ss);
-  EXPECT_EQ(ss.str(), "UBits(255, 8)");
-
-  ss.str("");
+  auto to_src = [](const Bits& bits) {
+    std::string s;
+    FuzzTestPrintSourceCode(s, bits);
+    return s;
+  };
+  EXPECT_EQ(to_src(UBits(0, 0)), "UBits(0, 0)");
+  EXPECT_EQ(to_src(UBits(10, 8)), "UBits(10, 8)");
+  EXPECT_EQ(to_src(SBits(-1, 8)), "UBits(255, 8)");
   Bits b65 = bits_ops::Concat({UBits(1, 1), UBits(0, 64)});
-  FuzzTestPrintSourceCode(b65, &ss);
-  EXPECT_EQ(ss.str(),
+  EXPECT_EQ(to_src(b65),
             "Bits::FromBitmap(InlineBitmap::FromBytes(65, {0x00, 0x00, 0x00, "
             "0x00, 0x00, 0x00, 0x00, 0x00, 0x01}))");
 }

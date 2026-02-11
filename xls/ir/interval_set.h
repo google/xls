@@ -415,6 +415,20 @@ class IntervalSet {
     absl::Format(&sink, "%s", set.ToString());
   }
 
+  template <typename Sink>
+  friend void FuzzTestPrintSourceCode(Sink& sink, const IntervalSet& is) {
+    absl::Format(&sink, "IntervalSet::Of({");
+    bool first = true;
+    for (const Interval& interval : is.Intervals()) {
+      if (!first) {
+        absl::Format(&sink, ", ");
+      }
+      FuzzTestPrintSourceCode(sink, interval);
+      first = false;
+    }
+    absl::Format(&sink, "})");
+  }
+
   // Actually check exhaustively for normalization instead of trusting the flag.
   absl::Status CheckIsNormalizedForTesting() const;
 
@@ -435,9 +449,6 @@ inline std::ostream& operator<<(std::ostream& os,
   os << interval_set.ToString();
   return os;
 }
-
-// Let fuzz-tests pretty-print reproducers.
-void FuzzTestPrintSourceCode(const IntervalSet& is, std::ostream* os);
 
 }  // namespace xls
 

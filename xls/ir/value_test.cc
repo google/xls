@@ -15,10 +15,8 @@
 #include "xls/ir/value.h"
 
 #include <cstdint>
-#include <sstream>
 #include <string>
 #include <string_view>
-#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -804,10 +802,10 @@ TEST(ValueProto, RoundTripFlattenToPopulateFromRegression) {
 }
 
 TEST(ValueTest, FuzzTestPrintSourceCode) {
-  auto to_src = [](const Value& v) -> std::string {
-    std::ostringstream oss;
-    FuzzTestPrintSourceCode(v, &oss);
-    return std::move(oss).str();
+  auto to_src = [](const Value& v) {
+    std::string s;
+    FuzzTestPrintSourceCode(s, v);
+    return s;
   };
   EXPECT_EQ(to_src(Value::Token()), "Value::Token()");
   EXPECT_EQ(to_src(Value::TupleOwned({Value::Token(), Value::Token()})),

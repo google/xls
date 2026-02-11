@@ -18,7 +18,6 @@
 #include <cstdint>
 #include <list>
 #include <optional>
-#include <ostream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -659,17 +658,5 @@ bool IntervalSet::SignedIntervalIterator::InSplit() const {
   return cur_->Covers(Bits::MinSigned(cur_->BitCount())) &&
          cur_->Covers(Bits::MaxSigned(cur_->BitCount()));
 }
-void FuzzTestPrintSourceCode(const IntervalSet& is, std::ostream* os) {
-  *os << "IntervalSet::Of({";
-  bool first = true;
-  for (const Interval& interval : is.Intervals()) {
-    if (first) {
-      first = false;
-    } else {
-      *os << ", ";
-    }
-    FuzzTestPrintSourceCode(interval, os);
-  }
-  *os << "})";
-}
+
 }  // namespace xls

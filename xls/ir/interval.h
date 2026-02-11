@@ -27,6 +27,7 @@
 
 #include "absl/base/macros.h"
 #include "absl/log/check.h"
+#include "absl/strings/str_format.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 
@@ -311,6 +312,15 @@ class Interval {
     absl::Format(&sink, "%s", interval.ToString());
   }
 
+  template <typename Sink>
+  friend void FuzzTestPrintSourceCode(Sink& sink, const Interval& interval) {
+    absl::Format(&sink, "Interval(");
+    FuzzTestPrintSourceCode(sink, interval.LowerBound());
+    absl::Format(&sink, ", ");
+    FuzzTestPrintSourceCode(sink, interval.UpperBound());
+    absl::Format(&sink, ")");
+  }
+
  private:
   void EnsureValid() const { CHECK(is_valid_); }
 
@@ -323,9 +333,6 @@ inline std::ostream& operator<<(std::ostream& os, const Interval& interval) {
   os << interval.ToString();
   return os;
 }
-
-// Let fuzz-tests pretty-print reproducers.
-void FuzzTestPrintSourceCode(const Interval& is, std::ostream* os);
 
 }  // namespace xls
 

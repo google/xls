@@ -17,7 +17,6 @@
 #include <cstdint>
 #include <limits>
 #include <optional>
-#include <sstream>
 #include <utility>
 #include <vector>
 
@@ -748,13 +747,14 @@ BENCHMARK(BM_CombineOracle);
 BENCHMARK(BM_Combine);
 
 TEST(IntervalSetTest, FuzzTestPrintSourceCode) {
-  std::stringstream ss;
-  FuzzTestPrintSourceCode(IntervalSet(8), &ss);
-  EXPECT_EQ(ss.str(), "IntervalSet::Of({})");
+  auto to_src = [](const IntervalSet& is) {
+    std::string s;
+    FuzzTestPrintSourceCode(s, is);
+    return s;
+  };
+  EXPECT_EQ(to_src(IntervalSet(8)), "IntervalSet::Of({})");
 
-  ss.str("");
-  FuzzTestPrintSourceCode(FromRanges({{10, 20}, {30, 40}}, 8), &ss);
-  EXPECT_EQ(ss.str(),
+  EXPECT_EQ(to_src(FromRanges({{10, 20}, {30, 40}}, 8)),
             "IntervalSet::Of({Interval(UBits(10, 8), UBits(20, 8)), "
             "Interval(UBits(30, 8), UBits(40, 8))})");
 }

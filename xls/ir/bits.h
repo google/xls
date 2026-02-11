@@ -18,7 +18,6 @@
 #include <algorithm>
 #include <bitset>
 #include <cstdint>
-#include <ostream>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -282,6 +281,21 @@ class Bits {
     return H::combine(std::move(h), bits.bitmap_);
   }
 
+  template <typename Sink>
+  friend void FuzzTestPrintSourceCode(Sink& sink, const Bits& bits) {
+    if (bits.FitsInUint64()) {
+      absl::Format(&sink, "UBits(%v, %v)", bits.ToUint64().value(),
+                   bits.bit_count());
+    } else if (bits.FitsInInt64()) {
+      absl::Format(&sink, "SBits(%v, %v)", bits.ToInt64().value(),
+                   bits.bit_count());
+    } else {
+      absl::Format(&sink, "Bits::FromBitmap(");
+      FuzzTestPrintSourceCode(sink, bits.bitmap());
+      absl::Format(&sink, ")");
+    }
+  }
+
  private:
   friend class BitsRope;
   friend absl::StatusOr<Bits> UBitsWithStatus(uint64_t, int64_t);
@@ -291,9 +305,6 @@ class Bits {
 
   InlineBitmap bitmap_;
 };
-
-// Let fuzz-tests pretty-print reproducers.
-void FuzzTestPrintSourceCode(const Bits& bits, std::ostream* os);
 
 // Helper for "stringing together" bits objects into a final result, avoiding
 // intermediate allocations.

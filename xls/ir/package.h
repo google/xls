@@ -448,7 +448,26 @@ class Package {
   }
   TransformMetrics& transform_metrics() { return transform_metrics_; }
 
+  template <typename Sink>
+  friend void FuzzTestPrintSourceCode(Sink& sink,
+                                      const std::unique_ptr<Package>& package) {
+    WriteParseFunction(sink, *package);
+  }
+  template <typename Sink>
+  friend void FuzzTestPrintSourceCode(Sink& sink,
+                                      const std::shared_ptr<Package>& package) {
+    absl::Format(&sink, "std::shared_ptr<Package>(");
+    WriteParseFunction(sink, *package);
+    absl::Format(&sink, ")");
+  }
+
  private:
+  template <typename Sink>
+  static void WriteParseFunction(Sink& sink, const Package& package) {
+    absl::Format(&sink, "Parser::ParsePackage(R\"xls_ir(%s)xls_ir\").value()",
+                 package.DumpIr());
+  }
+
   std::vector<std::string> GetChannelNames() const;
 
   // Adds the given channel to the package.
@@ -494,12 +513,6 @@ class Package {
   // Metrics which record the total number of transformations to the package.
   TransformMetrics transform_metrics_ = {0};
 };
-
-// Printers for fuzztest use.
-void FuzzTestPrintSourceCode(const std::unique_ptr<Package>& p,
-                             std::ostream* os);
-void FuzzTestPrintSourceCode(const std::shared_ptr<Package>& p,
-                             std::ostream* os);
 
 std::ostream& operator<<(std::ostream& os, const Package& package);
 

@@ -22,13 +22,13 @@
 #include <cstring>
 #include <iterator>
 #include <optional>
-#include <ostream>
 #include <string_view>
 #include <utility>
 
 #include "absl/base/casts.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/bits_util.h"
 #include "xls/common/math_util.h"
@@ -485,6 +485,18 @@ class InlineBitmap {
     }
     return Iterator(data_.cend() - 1, bit_count_ % kWordBits);
   }
+
+  template <typename Sink>
+  friend void FuzzTestPrintSourceCode(Sink& sink, const InlineBitmap& bm) {
+    absl::Format(&sink, "InlineBitmap::FromBytes(%v, {", bm.bit_count());
+    for (int64_t i = 0; i < bm.byte_count(); ++i) {
+      if (i > 0) {
+        absl::Format(&sink, ", ");
+      }
+      absl::Format(&sink, "0x%02x", bm.GetByte(i));
+    }
+    absl::Format(&sink, "})");
+  }
 };
 
 class MutableBitmapView {
@@ -585,9 +597,6 @@ inline void MutableBitmapView::Overwrite(const BitmapView& other, int64_t off) {
                     /*w_offset=*/start_bit_ + off,
                     /*r_offset=*/other.start_bit_);
 }
-
-// Let fuzz-tests pretty-print reproducers.
-void FuzzTestPrintSourceCode(const InlineBitmap& bm, std::ostream* os);
 
 }  // namespace xls
 

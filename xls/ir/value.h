@@ -25,6 +25,8 @@
 
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/data_structures/inline_bitmap.h"
 #include "xls/ir/bit_push_buffer.h"
@@ -193,6 +195,44 @@ class Value {
     absl::Format(&sink, "%s", v.ToString(FormatPreference::kDefault));
   }
 
+  template <typename Sink>
+  friend void FuzzTestPrintSourceCode(Sink& sink, const Value& v) {
+    if (v.IsBits()) {
+      if (v.bits().IsZero()) {
+        absl::Format(&sink, "Value(Bits(%v))", v.bits().bit_count());
+      } else if (v.bits().IsAllOnes()) {
+        absl::Format(&sink, "Value(Bits::AllOnes(%v))", v.bits().bit_count());
+      } else if (v.bits().bit_count() <= 64) {
+        absl::Format(&sink, "Value(UBits(%v, %v))", v.bits().ToUint64().value(),
+                     v.bits().bit_count());
+      } else {
+        absl::Format(&sink, "Value(Bits::FromBytes({%v}, %v))",
+                     absl::StrJoin(v.bits().ToBytes(), ", ",
+                                   [](std::string* out, uint8_t v) {
+                                     absl::StrAppendFormat(out, "%d", v);
+                                   }),
+                     v.bits().bit_count());
+      }
+    } else if (v.IsToken()) {
+      absl::Format(&sink, "Value::Token()");
+    } else {
+      if (v.IsTuple()) {
+        absl::Format(&sink, "Value::TupleOwned({");
+      } else {
+        absl::Format(&sink, "Value::ArrayOwned({");
+      }
+      bool first = true;
+      for (const Value& element : v.elements()) {
+        if (!first) {
+          absl::Format(&sink, ", ");
+        }
+        FuzzTestPrintSourceCode(sink, element);
+        first = false;
+      }
+      absl::Format(&sink, "})");
+    }
+  }
+
   template <typename H>
   friend H AbslHashValue(H h, const Value& v) {
     return H::combine(std::move(h), v.kind_, v.payload_);
@@ -215,8 +255,34 @@ inline std::ostream& operator<<(std::ostream& os, const Value& value) {
   return os;
 }
 
-void FuzzTestPrintSourceCode(const Value& v, std::ostream* os);
-void FuzzTestPrintSourceCode(const std::vector<Value>& v, std::ostream* os);
+template <typename Sink>
+void FuzzTestPrintSourceCode(Sink& sink, const std::vector<Value>& vs) {
+  absl::Format(&sink, "std::vector<Value>{");
+  bool first = true;
+  for (const Value& v : vs) {
+    if (!first) {
+      absl::Format(&sink, ", ");
+    }
+    FuzzTestPrintSourceCode(sink, v);
+    first = false;
+  }
+  absl::Format(&sink, "}");
+}
+
+template <typename Sink>
+void FuzzTestPrintSourceCode(Sink& sink,
+                             const std::vector<std::vector<Value>>& vs) {
+  absl::Format(&sink, "std::vector<std::vector<Value>>{");
+  bool first = true;
+  for (const std::vector<Value>& v : vs) {
+    if (!first) {
+      absl::Format(&sink, ", ");
+    }
+    FuzzTestPrintSourceCode(sink, v);
+    first = false;
+  }
+  absl::Format(&sink, "}");
+}
 
 }  // namespace xls
 

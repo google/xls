@@ -18,7 +18,6 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
-#include <ostream>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -307,24 +306,4 @@ FuzzPackageWithArgs GenArgSetsForPackage(FuzzPackage fuzz_package,
   return fuzz_package_with_args;
 }
 
-// TODO(allight): Should we bother to serialize the proto. I don't think its
-// useful very often.
-void FuzzTestPrintSourceCode(const FuzzPackage& fp, std::ostream* os) {
-  *os << "FuzzPackage{ .p = ";
-  FuzzTestPrintSourceCode(fp.p, os);
-  *os << " }";
-}
-void FuzzTestPrintSourceCode(const std::vector<std::vector<Value>>& fp,
-                             std::ostream* os) {
-  *os << "std::vector<std::vector<Value>>{";
-  bool first = true;
-  for (auto& v : fp) {
-    if (!first) {
-      *os << ", ";
-    }
-    first = false;
-    FuzzTestPrintSourceCode(v, os);
-  }
-  *os << "}";
-}
 }  // namespace xls

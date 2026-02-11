@@ -16,7 +16,6 @@
 
 #include <cstdint>
 #include <optional>
-#include <sstream>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -321,27 +320,22 @@ TEST_F(AllValuesTest, AllValuesEmptyTypes) {
 }
 
 TEST(TernaryTest, FuzzTestPrintSourceCode) {
-  std::stringstream ss;
-  FuzzTestPrintSourceCode(TernaryValue::kKnownZero, &ss);
-  EXPECT_EQ(ss.str(), "TernaryValue::kKnownZero");
+  auto to_src = [](auto tv) {
+    std::string s;
+    FuzzTestPrintSourceCode(s, tv);
+    return s;
+  };
+  EXPECT_EQ(to_src(TernaryValue::kKnownZero), "TernaryValue::kKnownZero");
+  EXPECT_EQ(to_src(TernaryValue::kKnownOne), "TernaryValue::kKnownOne");
+  EXPECT_EQ(to_src(TernaryValue::kUnknown), "TernaryValue::kUnknown");
 
-  ss.str("");
-  FuzzTestPrintSourceCode(TernaryValue::kKnownOne, &ss);
-  EXPECT_EQ(ss.str(), "TernaryValue::kKnownOne");
-
-  ss.str("");
-  FuzzTestPrintSourceCode(TernaryValue::kUnknown, &ss);
-  EXPECT_EQ(ss.str(), "TernaryValue::kUnknown");
-
-  ss.str("");
   XLS_ASSERT_OK_AND_ASSIGN(TernaryVector vec, StringToTernaryVector("0b01X"));
-  FuzzTestPrintSourceCode(vec, &ss);
-  EXPECT_EQ(ss.str(), "ternary_ops::StringToTernaryVector(\"0b01X\").value()");
+  EXPECT_EQ(to_src(vec),
+            "ternary_ops::StringToTernaryVector(\"0b01X\").value()");
 
-  ss.str("");
   TernarySpan span(vec);
-  FuzzTestPrintSourceCode(span, &ss);
-  EXPECT_EQ(ss.str(), "ternary_ops::StringToTernaryVector(\"0b01X\").value()");
+  EXPECT_EQ(to_src(span),
+            "ternary_ops::StringToTernaryVector(\"0b01X\").value()");
 }
 
 TEST(TernaryTest, TryUpdateWithUnionNotesChanges) {
