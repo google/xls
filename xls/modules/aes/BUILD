@@ -69,7 +69,7 @@ xls_dslx_test(
 xls_dslx_ir(
     name = "aes_ctr",
     dslx_top = "aes_ctr",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     library = ":aes_ctr_dslx",
 )
 
@@ -113,7 +113,7 @@ cc_test(
 xls_dslx_ir(
     name = "aes_decrypt",
     dslx_top = "decrypt",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     library = ":aes_dslx",
 )
 
@@ -135,7 +135,7 @@ xls_dslx_library(
 xls_dslx_ir(
     name = "aes_encrypt",
     dslx_top = "encrypt",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     library = ":aes_dslx",
 )
 
@@ -168,7 +168,7 @@ xls_dslx_test(
 xls_dslx_ir(
     name = "aes_gcm",
     dslx_top = "aes_gcm",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     library = ":aes_gcm_dslx",
 )
 
@@ -197,6 +197,7 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:channel",
         "//xls/ir:value",
+        "//xls/jit:jit_channel_queue",
         "@boringssl//:crypto",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/flags:flag",
@@ -235,7 +236,7 @@ xls_dslx_test(
 xls_dslx_ir(
     name = "aes_ghash",
     dslx_top = "ghash",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     library = ":ghash_dslx",
 )
 

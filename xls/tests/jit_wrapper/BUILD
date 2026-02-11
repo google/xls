@@ -42,7 +42,7 @@ xls_dslx_opt_ir(
     name = "simple_identity",
     srcs = ["simple.x"],
     dslx_top = "identity",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
 )
 
 cc_xls_ir_jit_wrapper(
@@ -59,7 +59,7 @@ xls_dslx_opt_ir(
     name = "simple_wide_identity",
     srcs = ["simple.x"],
     dslx_top = "wide_identity",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
 )
 
 cc_xls_ir_jit_wrapper(
@@ -76,7 +76,7 @@ xls_dslx_opt_ir(
     name = "simple_is_inf",
     srcs = ["simple.x"],
     dslx_top = "is_inf",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
 )
 
 cc_xls_ir_jit_wrapper(
@@ -93,7 +93,7 @@ xls_dslx_opt_ir(
     name = "simple_fail_on_42",
     srcs = ["simple.x"],
     dslx_top = "fail_on_42",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
 )
 
 cc_xls_ir_jit_wrapper(
@@ -110,7 +110,7 @@ xls_dslx_opt_ir(
     name = "simple_make_tuple",
     srcs = ["simple.x"],
     dslx_top = "make_tuple",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
 )
 
 cc_xls_ir_jit_wrapper(

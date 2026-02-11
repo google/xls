@@ -131,7 +131,7 @@ xls_dslx_test(
 xls_dslx_ir(
     name = "rle_enc_ir",
     dslx_top = "RunLengthEncoder32",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     ir_file = "rle_enc.ir",
     library = "rle_enc_dslx",
 )
@@ -139,7 +139,7 @@ xls_dslx_ir(
 xls_ir_opt_ir(
     name = "rle_enc_opt_ir",
     src = "rle_enc.ir",
-    top = "__rle_enc__RunLengthEncoder32__RunLengthEncoder_0__2_32_next",
+    top = "__rle_enc__RunLengthEncoder_0__2_32_next",
 )
 
 xls_ir_verilog(
@@ -259,7 +259,7 @@ xls_dslx_test(
 xls_dslx_ir(
     name = "rle_dec_ir",
     dslx_top = "RunLengthDecoder32",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     ir_file = "rle_dec.ir",
     library = "rle_dec_dslx",
 )
@@ -267,7 +267,7 @@ xls_dslx_ir(
 xls_ir_opt_ir(
     name = "rle_dec_opt_ir",
     src = "rle_dec.ir",
-    top = "__rle_dec__RunLengthDecoder32__RunLengthDecoder_0__2_32_next",
+    top = "__rle_dec__RunLengthDecoder_0__2_32_next",
 )
 
 xls_ir_verilog(

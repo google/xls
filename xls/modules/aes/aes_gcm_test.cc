@@ -42,6 +42,7 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
+#include "xls/jit/jit_channel_queue.h"
 #include "xls/modules/aes/aes_gcm_wrapper.h"
 #include "xls/modules/aes/aes_test_common.h"
 
@@ -59,9 +60,9 @@ constexpr int kMaxPtxtBlocks = 128;
 constexpr int kTagBits = 128;
 constexpr int kTagBytes = kTagBits / 8;
 
-constexpr std::string_view kCmdChannelName = "aes_gcm__command_in";
-constexpr std::string_view kDataInChannelName = "aes_gcm__data_r";
-constexpr std::string_view kDataOutChannelName = "aes_gcm__data_s";
+constexpr std::string_view kCmdChannelName = "_command_in";
+constexpr std::string_view kDataInChannelName = "_data_r";
+constexpr std::string_view kDataOutChannelName = "_data_s";
 
 struct JitData {
   Package* package;
@@ -108,37 +109,37 @@ static absl::StatusOr<Result> XlsEncrypt(JitData* jit_data,
   // Create (and send) the initial command.
   Package* package = jit_data->package;
   ProcRuntime* runtime = jit_data->runtime.get();
-  XLS_ASSIGN_OR_RETURN(Channel * cmd_channel,
-                       package->GetChannel(kCmdChannelName));
   XLS_ASSIGN_OR_RETURN(Value command, CreateCommandValue(sample_data, encrypt));
-  XLS_RETURN_IF_ERROR(
-      runtime->queue_manager().GetQueue(cmd_channel).Write(command));
+  XLS_ASSIGN_OR_RETURN(JitChannelQueueManager * qm,
+                       runtime->GetJitChannelQueueManager());
+  XLS_ASSIGN_OR_RETURN(Proc * proc,
+                       package->GetProc("__aes_gcm__aes_gcm_0_next"));
+  JitChannelQueue& cmd_queue =
+      qm->GetJitQueueByName(kCmdChannelName, proc->name());
+  XLS_RETURN_IF_ERROR(cmd_queue.Write(command));
 
   // Then send all input data: the AAD followed by the message body.
-  XLS_ASSIGN_OR_RETURN(Channel * data_in_channel,
-                       package->GetChannel(kDataInChannelName));
+  JitChannelQueue& data_in_queue =
+      qm->GetJitQueueByName(kDataInChannelName, proc->name());
   for (int i = 0; i < sample_data.aad.size(); i++) {
     XLS_ASSIGN_OR_RETURN(Value block_value, BlockToValue(sample_data.aad[i]));
-    XLS_RETURN_IF_ERROR(
-        runtime->queue_manager().GetQueue(data_in_channel).Write(block_value));
+    XLS_RETURN_IF_ERROR(data_in_queue.Write(block_value));
   }
 
   for (int i = 0; i < sample_data.input_data.size(); i++) {
     XLS_ASSIGN_OR_RETURN(Value block_value,
                          BlockToValue(sample_data.input_data[i]));
-    XLS_RETURN_IF_ERROR(
-        runtime->queue_manager().GetQueue(data_in_channel).Write(block_value));
+    XLS_RETURN_IF_ERROR(data_in_queue.Write(block_value));
   }
 
   // Tick the network until we have all results.
   Result result;
-  XLS_ASSIGN_OR_RETURN(Channel * data_out_channel,
-                       package->GetChannel(kDataOutChannelName));
+  JitChannelQueue& data_out_queue =
+      qm->GetJitQueueByName(kDataOutChannelName, proc->name());
   int msg_blocks_left = sample_data.input_data.size();
   while (true) {
     XLS_RETURN_IF_ERROR(runtime->Tick());
-    std::optional<Value> maybe_value =
-        runtime->queue_manager().GetQueue(data_out_channel).Read();
+    std::optional<Value> maybe_value = data_out_queue.Read();
     if (!maybe_value.has_value()) {
       continue;
     }
