@@ -36,6 +36,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/change_listener.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/ir_annotator.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
@@ -69,13 +70,27 @@ FunctionType* Function::GetType() {
   return package_->GetFunctionType(arg_types, return_type_);
 }
 
-std::string Function::DumpIr() const {
-  return DumpIrWithAnnotations(
-      [](Node* n) -> std::optional<std::string> { return std::nullopt; });
-}
-
 std::string Function::DumpIrWithAnnotations(
     const std::function<std::optional<std::string>(Node*)>& annotate) const {
+  class Annotator : public IrAnnotator {
+   public:
+    explicit Annotator(
+        const std::function<std::optional<std::string>(Node*)>& annotate)
+        : annotate_(annotate) {}
+    Annotation NodeAnnotation(Node* node) const override {
+      if (auto v = annotate_(node); v.has_value()) {
+        return {.suffix = absl::StrCat("(", *v, ")")};
+      }
+      return {};
+    }
+
+   private:
+    const std::function<std::optional<std::string>(Node*)>& annotate_;
+  };
+  return DumpIr(Annotator{annotate});
+}
+
+std::string Function::DumpIr(const IrAnnotator& annotate) const {
   std::string res;
   if (non_synth()) {
     res = "#[non_synth]\n";
@@ -85,11 +100,11 @@ std::string Function::DumpIrWithAnnotations(
   absl::StrAppend(
       &res,
       absl::StrJoin(params_, ", ", [&](std::string* s, Param* const param) {
-        std::optional<std::string> annotation = annotate(param);
-        absl::StrAppendFormat(
-            s, "%s: %s id=%d%s", param->name(), param->GetType()->ToString(),
-            param->id(),
-            annotation ? absl::StrCat(" (", *annotation, ")") : "");
+        Annotation param_annotation = annotate.NodeAnnotation(param);
+        std::string base =
+            absl::StrFormat("%s: %s id=%d", param->name(),
+                            param->GetType()->ToString(), param->id());
+        absl::StrAppend(s, param_annotation.Decorate(base));
       }));
   absl::StrAppend(&res, ") -> ");
 
@@ -98,46 +113,44 @@ std::string Function::DumpIrWithAnnotations(
   }
   absl::StrAppend(&res, " {\n");
 
-  std::vector<Node*> sorted_nodes;
-  if (is_block_source_) {
-    sorted_nodes.reserve(nodes_.size());
-    for (const std::unique_ptr<Node>& node : nodes_) {
-      sorted_nodes.push_back(node.get());
-    }
-  } else {
-    sorted_nodes = TopoSort(const_cast<Function*>(this));
-  }
-
-  if (IsScheduled()) {
-    for (const Stage& stage : stages()) {
-      absl::StrAppend(&res, "  stage {\n");
-      for (Node* node : sorted_nodes) {
-        if (stage.contains(node)) {
-          if (node->op() == Op::kParam) {
-            continue;
-          }
-          std::optional<std::string> annotation = annotate(node);
-          absl::StrAppend(
-              &res, "    ", node == return_value() ? "ret " : "",
-              node->ToString(),
-              annotation ? absl::StrCat(" (", *annotation, ")") : "", "\n");
-        }
-      }
-      absl::StrAppend(&res, "  }\n");
-    }
-  } else {
-    for (Node* node : sorted_nodes) {
-      if (node->op() == Op::kParam && node == return_value()) {
-        absl::StrAppendFormat(&res, "  ret %s\n", node->ToString());
-        continue;
-      }
+  struct SkipParamsAnnotator : public IrAnnotator {
+    Annotation NodeAnnotation(Node* node) const override {
       if (node->op() == Op::kParam) {
-        continue;  // Already accounted for in the signature.
+        return {.filter = true};
       }
-      std::optional<std::string> annotation = annotate(node);
-      absl::StrAppend(
-          &res, "  ", node == return_value() ? "ret " : "", node->ToString(),
-          annotation ? absl::StrCat(" (", *annotation, ")") : "", "\n");
+      return {};
+    }
+  };
+  class AddRetAnnotator : public IrAnnotator {
+   public:
+    explicit AddRetAnnotator(Node* return_value)
+        : return_value_(return_value) {}
+    Annotation NodeAnnotation(Node* node) const override {
+      if (node == return_value_) {
+        return {.prefix = "ret"};
+      }
+      return {};
+    }
+
+   private:
+    Node* return_value_;
+  };
+  if (IsScheduled()) {
+    absl::StrAppend(&res,
+                    DumpFunctionBaseNodes(IrAnnotatorJoiner(
+                        SkipParamsAnnotator{}, AddRetAnnotator{return_value()},
+                        IrAnnotatorRef(annotate))));
+  } else {
+    absl::StrAppend(
+        &res,
+        DumpFunctionBaseNodes(IrAnnotatorJoiner(
+            SkipParamsAnnotator{}, AddRetAnnotator{return_value()},
+            IrAnnotatorRef(annotate), TopoSortAnnotator(!is_block_source_))));
+    // Need to add the 'ret' specially if the ret is also a parameter.
+    if (return_value() != nullptr && return_value()->op() == Op::kParam) {
+      absl::StrAppendFormat(&res, "  ret %s\n",
+                            annotate.NodeAnnotation(return_value())
+                                .Decorate(return_value()->ToString()));
     }
   }
 

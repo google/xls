@@ -28,6 +28,7 @@
 #include "xls/common/casts.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/ir_annotator.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
@@ -75,15 +76,12 @@ class Function : public FunctionBase {
   bool non_synth() const { return non_synth_; }
   void set_non_synth(bool value) { non_synth_ = value; }
 
-  // DumpIr emits the IR in a parsable, hierarchical text format.
-  // Parameter:
-  //   'recursive' if true, will dump counted-for body functions as well.
-  //   This is only useful when dumping individual functions, and not packages.
-  std::string DumpIr() const override;
-
   FunctionBase::Kind kind() const final {
     return FunctionBase::Kind::kFunction;
   }
+
+  using FunctionBase::DumpIr;
+  std::string DumpIr(const IrAnnotator& annotate) const override;
 
   // DumpIr emits the IR in a hierarchical text format with the returned
   // annotations after each node definition.

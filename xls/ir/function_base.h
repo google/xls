@@ -41,6 +41,7 @@
 #include "xls/ir/change_listener.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/foreign_function_data.pb.h"
+#include "xls/ir/ir_annotator.h"
 #include "xls/ir/name_uniquer.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
@@ -53,6 +54,9 @@ namespace xls {
 class FunctionBase;
 class Function;
 class Proc;
+class ChannelInterface;
+class StateElement;
+class ProcInstantiation;
 
 // Represents a pipeline stage after scheduling.
 class Stage {
@@ -204,7 +208,8 @@ class FunctionBase {
   bool IsTop() const { return package()->IsTop(this); }
 
   // DumpIr emits the IR in a parsable, hierarchical text format.
-  virtual std::string DumpIr() const = 0;
+  virtual std::string DumpIr(const IrAnnotator& annotate) const = 0;
+  std::string DumpIr() const { return DumpIr(IrAnnotator{}); }
 
   // Get the kind of function base this is as an enum.
   virtual Kind kind() const = 0;
@@ -496,10 +501,11 @@ class FunctionBase {
   // vectors of the old owner; therefore, it does not update those vectors.
   void TakeOwnershipOfNode(std::unique_ptr<Node>&& node);
 
-  // Dumps the nodes in a scheduled type of `FunctionBase`, with scoping of the
-  // staged nodes. This is a helper for the DumpIr() implementation for these
-  // entities.
-  std::string DumpScheduledFunctionBaseNodes() const;
+  // Dumps the nodes in a `FunctionBase`. For scheduled entities, with scoping
+  // of the staged nodes. This is a helper for the DumpIr() implementation for
+  // these entities.
+  std::string DumpFunctionBaseNodes(
+      const IrAnnotator& annotate = IrAnnotator{}) const;
 
   // Many function-types have side-tables that store various pieces of
   // information. This function should, as much as possible, rebuild any using

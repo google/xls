@@ -37,6 +37,7 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/instantiation.h"
+#include "xls/ir/ir_annotator.h"
 #include "xls/ir/name_uniquer.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
@@ -363,7 +364,8 @@ class Block : public FunctionBase {
       bool preserve_schedule = true) const;
 
   std::vector<std::string> AttributeIrStrings() const override;
-  std::string DumpIr() const override;
+  using FunctionBase::DumpIr;
+  std::string DumpIr(const IrAnnotator& annotate) const override;
 
   FunctionBase::Kind kind() const final { return FunctionBase::Kind::kBlock; }
 

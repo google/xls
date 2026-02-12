@@ -16,6 +16,7 @@
 #define XLS_IR_PROC_H_
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -33,6 +34,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/ir_annotator.h"
 #include "xls/ir/name_uniquer.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
@@ -250,7 +252,8 @@ class Proc : public FunctionBase {
       const absl::flat_hash_map<std::string, std::string>&
           spawned_proc_name_remapping = {}) const;
 
-  std::string DumpIr() const override;
+  using FunctionBase::DumpIr;
+  std::string DumpIr(const IrAnnotator& annotate) const override;
 
   FunctionBase::Kind kind() const final { return FunctionBase::Kind::kProc; }
 

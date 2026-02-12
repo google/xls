@@ -591,6 +591,7 @@ cc_library(
         "function.cc",
         "function_base.cc",
         "instantiation.cc",
+        "ir_annotator.cc",
         "node.cc",
         "nodes.cc",
         "package.cc",
@@ -606,6 +607,7 @@ cc_library(
         "function.h",
         "function_base.h",
         "instantiation.h",
+        "ir_annotator.h",
         "lsb_or_msb.h",
         "node.h",
         "nodes.h",
@@ -2580,6 +2582,20 @@ cc_test(
         "//xls/solvers:z3_ir_translator_matchers",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/strings",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "ir_annotator_test",
+    srcs = ["ir_annotator_test.cc"],
+    deps = [
+        ":ir",
+        ":ir_test_base",
+        ":op",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@googletest//:gtest",
     ],
 )

@@ -46,6 +46,7 @@
 #include "xls/ir/change_listener.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/function.h"
+#include "xls/ir/ir_annotator.h"
 #include "xls/ir/ir_scanner.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
@@ -265,44 +266,92 @@ void FunctionBase::TakeOwnershipOfNode(std::unique_ptr<Node>&& node) {
   AddNodeInternal(std::move(node));
 }
 
-std::string FunctionBase::DumpScheduledFunctionBaseNodes() const {
-  CHECK(IsScheduled());
+std::string FunctionBase::DumpFunctionBaseNodes(
+    const IrAnnotator& annotate) const {
   std::string res;
-  StageSectioner sectioner(this);
-  CHECK(sectioner.Run().ok());
-  for (const std::list<Node*>& section : sectioner.sections()) {
-    if (section.empty()) {
-      continue;
-    }
-
-    Node* first = *section.begin();
-    if (IsStaged(first)) {
-      const Stage& stage = stages()[*GetStageIndex(first)];
-      if (stage.IsControlled()) {
-        absl::StrAppendFormat(&res, "  controlled_stage(%s, %s) {\n",
-                              stage.inputs_valid()->GetName(),
-                              stage.outputs_ready()->GetName());
-      } else {
-        absl::StrAppendFormat(&res, "  stage {\n");
+  if (IsScheduled()) {
+    CHECK(!annotate.NodeOrder(const_cast<FunctionBase*>(this)))
+        << "Cannot use custom node order for scheduled entities";
+    StageSectioner sectioner(this);
+    CHECK(sectioner.Run().ok());
+    for (const std::list<Node*>& section : sectioner.sections()) {
+      if (section.empty()) {
+        continue;
       }
 
-      for (Node* node : section) {
-        std::string prefix;
-        if (node == stage.outputs_valid()) {
-          prefix = "ret ";
-        } else if (node == stage.active_inputs_valid()) {
-          prefix = "active_inputs_valid ";
+      struct ScheduledAnnotations : public IrAnnotator {
+       public:
+        ScheduledAnnotations(Node* outputs_valid, Node* active_inputs_valid)
+            : outputs_valid_(outputs_valid),
+              active_inputs_valid_(active_inputs_valid) {}
+        Annotation NodeAnnotation(Node* node) const override {
+          if (node == outputs_valid_) {
+            return {.prefix = "ret"};
+          } else if (node == active_inputs_valid_) {
+            return {.prefix = "active_inputs_valid"};
+          }
+          return {};
         }
-        absl::StrAppend(&res, "    ", prefix, node->ToString(), "\n");
+
+       private:
+        Node* outputs_valid_;
+        Node* active_inputs_valid_;
+      };
+
+      Node* first = *section.begin();
+      if (IsStaged(first)) {
+        const Stage& stage = stages()[*GetStageIndex(first)];
+        IrAnnotatorJoiner joiner(
+            ScheduledAnnotations(stage.outputs_valid(),
+                                 stage.active_inputs_valid()),
+            IrAnnotatorRef(annotate));
+        if (stage.IsControlled()) {
+          absl::StrAppendFormat(&res, "  controlled_stage(%s, %s) {\n",
+                                stage.inputs_valid()->GetName(),
+                                stage.outputs_ready()->GetName());
+        } else {
+          absl::StrAppendFormat(&res, "  stage {\n");
+        }
+
+        for (Node* node : section) {
+          auto annotation = joiner.NodeAnnotation(node);
+          if (!annotation.filter) {
+            absl::StrAppendFormat(&res, "    %s\n",
+                                  annotation.Decorate(node->ToString()));
+          }
+        }
+
+        absl::StrAppend(&res, "  }\n");
+        continue;
       }
 
-      absl::StrAppend(&res, "  }\n");
-      continue;
+      // It's one of the stageless sections.
+      for (Node* node : section) {
+        auto annotation = annotate.NodeAnnotation(node);
+        if (!annotation.filter) {
+          absl::StrAppendFormat(&res, "  %s\n",
+                                annotation.Decorate(node->ToString()));
+        }
+      }
     }
-
-    // It's one of the stageless sections.
-    for (Node* node : section) {
-      absl::StrAppend(&res, "  ", node->ToString(), "\n");
+  } else {
+    auto order = annotate.NodeOrder(const_cast<FunctionBase*>(this));
+    if (order) {
+      for (Node* node : *order) {
+        auto annotation = annotate.NodeAnnotation(node);
+        if (!annotation.filter) {
+          absl::StrAppendFormat(&res, "  %s\n",
+                                annotation.Decorate(node->ToString()));
+        }
+      }
+    } else {
+      for (Node* node : nodes()) {
+        auto annotation = annotate.NodeAnnotation(node);
+        if (!annotation.filter) {
+          absl::StrAppendFormat(&res, "  %s\n",
+                                annotation.Decorate(node->ToString()));
+        }
+      }
     }
   }
   return res;

@@ -51,6 +51,7 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/instantiation.h"
+#include "xls/ir/ir_annotator.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/register.h"
@@ -269,21 +270,27 @@ std::vector<std::string> Block::AttributeIrStrings() const {
   return res;
 }
 
-std::string Block::DumpIr() const {
+std::string Block::DumpIr(const IrAnnotator& annotate) const {
   std::string res;
   std::vector<std::string> port_strings;
   for (const Port& port : GetPorts()) {
     if (std::holds_alternative<ClockPort*>(port)) {
-      port_strings.push_back(
-          absl::StrFormat("%s: clock", std::get<ClockPort*>(port)->name));
+      Annotation annotation =
+          annotate.ClockPortAnnotation(std::get<ClockPort*>(port));
+      port_strings.push_back(annotation.Decorate(
+          absl::StrFormat("%s: clock", std::get<ClockPort*>(port)->name)));
     } else if (std::holds_alternative<InputPort*>(port)) {
-      port_strings.push_back(
+      Annotation annotation =
+          annotate.NodeAnnotation(std::get<InputPort*>(port));
+      port_strings.push_back(annotation.Decorate(
           absl::StrFormat("%s: %s", std::get<InputPort*>(port)->GetName(),
-                          std::get<InputPort*>(port)->GetType()->ToString()));
+                          std::get<InputPort*>(port)->GetType()->ToString())));
     } else {
-      port_strings.push_back(absl::StrFormat(
+      Annotation annotation =
+          annotate.NodeAnnotation(std::get<OutputPort*>(port));
+      port_strings.push_back(annotation.Decorate(absl::StrFormat(
           "%s: %s", std::get<OutputPort*>(port)->GetName(),
-          std::get<OutputPort*>(port)->operand(0)->GetType()->ToString()));
+          std::get<OutputPort*>(port)->operand(0)->GetType()->ToString())));
     }
   }
   absl::StrAppendFormat(&res, "%sblock %s(%s) {\n",
@@ -307,28 +314,44 @@ std::string Block::DumpIr() const {
         channel_port_metadata_.at(channel_direction).ToString());
   }
   for (Instantiation* instantiation : GetInstantiations()) {
-    absl::StrAppendFormat(&res, "  %s\n", instantiation->ToString());
+    Annotation annotation = annotate.InstantiationAnnotation(instantiation);
+    absl::StrAppendFormat(&res, "  %s\n",
+                          annotation.Decorate(instantiation->ToString()));
   }
 
   for (Register* reg : GetRegisters()) {
-    absl::StrAppendFormat(&res, "  %s\n", reg->ToString());
+    Annotation annotation = annotate.RegisterAnnotation(reg);
+    absl::StrAppendFormat(&res, "  %s\n", annotation.Decorate(reg->ToString()));
   }
 
   if (IsScheduled()) {
     const ScheduledBlock* sb = absl::down_cast<const ScheduledBlock*>(this);
     if (const auto* source = sb->source(); source != nullptr) {
-      std::string source_text = source->DumpIr();
+      // NB: joiner not needed since this is the source.
+      std::string source_text = source->DumpIr(annotate);
       absl::StrAppendFormat(&res, "  source %s",
                             absl::StripPrefix(Indent(source_text, 2), "  "));
     }
-    absl::StrAppend(&res, DumpScheduledFunctionBaseNodes());
+    absl::StrAppend(&res, DumpFunctionBaseNodes(annotate));
     if (Node* ret = sb->source_return_value(); ret != nullptr) {
       absl::StrAppendFormat(&res, "  ret %s\n", ret->GetName());
     }
   } else {
-    for (Node* node : DumpOrder()) {
-      absl::StrAppend(&res, "  ", node->ToString(), "\n");
-    }
+    class BlockNodeOrderAnnotator : public IrAnnotator {
+     public:
+      explicit BlockNodeOrderAnnotator(std::vector<Node*> order)
+          : order_(std::move(order)) {}
+      std::optional<std::vector<Node*>> NodeOrder(
+          FunctionBase* fb) const override {
+        return order_;
+      }
+
+     private:
+      std::vector<Node*> order_;
+    };
+    IrAnnotatorJoiner joiner(IrAnnotatorRef(annotate),
+                             BlockNodeOrderAnnotator{DumpOrder()});
+    absl::StrAppend(&res, DumpFunctionBaseNodes(joiner));
   }
   absl::StrAppend(&res, "}\n");
   return res;

@@ -41,6 +41,7 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/ir_annotator.h"
 #include "xls/ir/name_uniquer.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
@@ -56,29 +57,35 @@
 
 namespace xls {
 
-std::string Proc::DumpIr() const {
+std::string Proc::DumpIr(const IrAnnotator& annotate) const {
   std::string res =
       absl::StrFormat("%sproc %s", IsScheduled() ? "scheduled_" : "", name());
   if (is_new_style_proc()) {
     absl::StrAppendFormat(
         &res, "<%s>",
-        absl::StrJoin(interface_, ", ",
-                      [](std::string* s, const ChannelInterface* interface) {
-                        absl::StrAppendFormat(
-                            s, "%s: %s %s", interface->name(),
-                            interface->type()->ToString(),
-                            interface->direction() == ChannelDirection::kSend
-                                ? "out"
-                                : "in");
-                      }));
+        absl::StrJoin(
+            interface_, ", ",
+            [&](std::string* s, const ChannelInterface* interface) {
+              auto chan_note = annotate.ChannelInterfaceAnnotation(interface);
+              std::string base = absl::StrFormat(
+                  "%s: %s %s", interface->name(), interface->type()->ToString(),
+                  interface->direction() == ChannelDirection::kSend ? "out"
+                                                                    : "in");
+              absl::StrAppend(s, chan_note.Decorate(base));
+            }));
   }
-  auto state_formatter = [](std::string* s, StateElement* state) {
-    absl::StrAppend(s, state->name(), ": ", state->type()->ToString());
+  auto state_formatter = [&](std::string* s, StateElement* state) {
+    auto state_note = annotate.StateElementAnnotation(state);
+    std::string base =
+        absl::StrFormat("%s: %s", state->name(), state->type()->ToString());
+    absl::StrAppend(s, state_note.Decorate(base));
   };
   absl::StrAppend(&res, "(",
                   absl::StrJoin(StateElements(), ", ", state_formatter));
-  auto initial_value_formatter = [](std::string* s, StateElement* state) {
-    UntypedValueFormatter(s, state->initial_value());
+  auto initial_value_formatter = [&](std::string* s, StateElement* state) {
+    auto init_note = annotate.StateElementInitialValueAnnotation(state);
+    absl::StrAppend(s,
+                    init_note.Decorate(state->initial_value().ToHumanString()));
   };
   if (!StateElements().empty()) {
     absl::StrAppendFormat(
@@ -106,33 +113,40 @@ std::string Proc::DumpIr() const {
 
   if (is_new_style_proc()) {
     for (ChannelInterface* channel_interface : interface_) {
-      absl::StrAppendFormat(&res, "  %s\n", channel_interface->ToString());
+      auto chan_note = annotate.ChannelInterfaceAnnotation(channel_interface);
+      absl::StrAppendFormat(&res, "  %s\n",
+                            chan_note.Decorate(channel_interface->ToString()));
     }
     for (Channel* channel : channels()) {
-      absl::StrAppendFormat(&res, "  %s\n", channel->ToString());
-      absl::StrAppendFormat(
-          &res, "  %s\n",
-          GetChannelInterface(channel->name(), ChannelDirection::kSend)
-              .value()
-              ->ToString());
-      absl::StrAppendFormat(
-          &res, "  %s\n",
+      auto chan_note = annotate.ChannelAnnotation(channel);
+      absl::StrAppendFormat(&res, "  %s\n",
+                            chan_note.Decorate(channel->ToString()));
+      ChannelInterface* send_iface =
+          GetChannelInterface(channel->name(), ChannelDirection::kSend).value();
+      auto send_note = annotate.ChannelInterfaceAnnotation(send_iface);
+      absl::StrAppendFormat(&res, "  %s\n",
+                            send_note.Decorate(send_iface->ToString()));
+      ChannelInterface* recv_iface =
           GetChannelInterface(channel->name(), ChannelDirection::kReceive)
-              .value()
-              ->ToString());
+              .value();
+      auto recv_note = annotate.ChannelInterfaceAnnotation(recv_iface);
+      absl::StrAppendFormat(&res, "  %s\n",
+                            recv_note.Decorate(recv_iface->ToString()));
     }
     for (const std::unique_ptr<ProcInstantiation>& instantiation :
          proc_instantiations()) {
-      absl::StrAppendFormat(&res, "  %s\n", instantiation->ToString());
+      auto inst_note =
+          annotate.ProcInstantiationAnnotation(instantiation.get());
+      absl::StrAppendFormat(&res, "  %s\n",
+                            inst_note.Decorate(instantiation->ToString()));
     }
   }
 
   if (IsScheduled()) {
-    absl::StrAppend(&res, DumpScheduledFunctionBaseNodes());
+    absl::StrAppend(&res, DumpFunctionBaseNodes(annotate));
   } else if (!is_block_source_) {
-    for (Node* node : TopoSort(const_cast<Proc*>(this))) {
-      absl::StrAppend(&res, "  ", node->ToString(), "\n");
-    }
+    absl::StrAppend(&res, DumpFunctionBaseNodes(IrAnnotatorJoiner(
+                              IrAnnotatorRef(annotate), TopoSortAnnotator())));
   }
   absl::StrAppend(&res, "}\n");
   return res;
