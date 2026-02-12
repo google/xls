@@ -82,12 +82,12 @@ static_assert(std::is_same_v<JitFunctionType, decltype(&proc_1)>,
               "Jit function ABI updated. This test needs to be tweaked.");
 
 static constexpr std::string_view kTestCapsAotEntrypointsProto =
-    "xls/jit/specialized_caps_aot_psc.pb";
+    "xls/jit/specialized_caps_aot.pb";
 static constexpr std::string_view kCapsGoldIr =
-    "xls/jit/some_caps_no_idents_psc.ir";
+    "xls/jit/some_caps_no_idents.ir";
 static constexpr std::string_view kTestMultiAotEntrypointsProto =
-    "xls/jit/multi_proc_aot_psc.pb";
-static constexpr std::string_view kMultiGoldIr = "xls/jit/multi_proc_psc.ir";
+    "xls/jit/multi_proc_aot.pb";
+static constexpr std::string_view kMultiGoldIr = "xls/jit/multi_proc.ir";
 
 absl::StatusOr<AotPackageEntrypointsProto> GetMultiEntrypointsProto() {
   AotPackageEntrypointsProto proto;

@@ -580,70 +580,64 @@ xls_dslx_library(
     srcs = ["multi_proc.x"],
 )
 
-[
-    (
-        xls_dslx_ir(
-            name = "multi_proc%s" % suffix,
-            dslx_top = "proc_ten",
-            ir_conv_args = {"lower_to_proc_scoped_channels": "true" if lower_to_proc_scoped_channels else "false"},
-            library = ":multi_proc_dslx",
-        ),
-        xls_aot_generate(
-            name = "multi_proc_aot%s" % suffix,
-            src = ":multi_proc%s" % suffix,
-            salt_symbols = False,
-            top_type = "PROC",
-            with_msan = XLS_IS_MSAN_BUILD,
-        ),
-        cc_test(
-            name = "proc_jit_aot%s_test" % suffix,
-            srcs = [
-                "proc_jit_aot%s_test.cc" % suffix,
-            ],
-            data = [
-                ":multi_proc%s.ir" % suffix,
-                ":multi_proc_aot%s" % suffix,
-                ":some_caps_no_idents%s.ir" % suffix,
-                ":specialized_caps_aot%s" % suffix,
-            ],
-            deps = [
-                ":aot_entrypoint_cc_proto",
-                ":function_base_jit",
-                ":jit_callbacks",
-                ":jit_channel_queue",
-                ":jit_proc_runtime",
-                ":jit_runtime",
-                ":multi_proc_aot%s" % suffix,  # build_cleaner: keep
-                ":specialized_caps_aot%s" % suffix,  # build_cleaner: keep
-                "//xls/common:xls_gunit_main",
-                "//xls/common/file:filesystem",
-                "//xls/common/file:get_runfile_path",
-                "//xls/common/status:matchers",
-                "//xls/common/status:ret_check",
-                "//xls/common/status:status_macros",
-                "//xls/dev_tools:extract_interface",
-                "//xls/interpreter:channel_queue",
-                "//xls/ir",
-                "//xls/ir:bits",
-                "//xls/ir:events",
-                "//xls/ir:proc_elaboration",  # build_cleaner: keep (for psc)
-                "//xls/ir:type_manager",
-                "//xls/ir:value",
-                "//xls/ir:value_builder",
-                "//xls/ir:value_utils",
-                "//xls/ir:xls_ir_interface_cc_proto",
-                "//xls/public:ir_parser",
-                "@com_google_absl//absl/algorithm:container",
-                "@com_google_absl//absl/status:statusor",
-                "@googletest//:gtest",
-            ],
-        ),
-    )
-    for (lower_to_proc_scoped_channels, suffix) in [
-        (True, "_psc"),
-        (False, ""),
-    ]
-]
+xls_dslx_ir(
+    name = "multi_proc",
+    dslx_top = "proc_ten",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
+    library = ":multi_proc_dslx",
+)
+
+xls_aot_generate(
+    name = "multi_proc_aot",
+    src = ":multi_proc",
+    salt_symbols = False,
+    top_type = "PROC",
+    with_msan = XLS_IS_MSAN_BUILD,
+)
+
+cc_test(
+    name = "proc_jit_aot_test",
+    srcs = [
+        "proc_jit_aot_psc_test.cc",
+    ],
+    data = [
+        ":multi_proc.ir",
+        ":multi_proc_aot",
+        ":some_caps_no_idents.ir",
+        ":specialized_caps_aot",
+    ],
+    deps = [
+        ":aot_entrypoint_cc_proto",
+        ":function_base_jit",
+        ":jit_callbacks",
+        ":jit_channel_queue",
+        ":jit_proc_runtime",
+        ":jit_runtime",
+        ":multi_proc_aot",
+        ":specialized_caps_aot",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/status:matchers",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/dev_tools:extract_interface",
+        "//xls/interpreter:channel_queue",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:events",
+        "//xls/ir:proc_elaboration",
+        "//xls/ir:type_manager",
+        "//xls/ir:value",
+        "//xls/ir:value_builder",
+        "//xls/ir:value_utils",
+        "//xls/ir:xls_ir_interface_cc_proto",
+        "//xls/public:ir_parser",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/status:statusor",
+        "@googletest//:gtest",
+    ],
+)
 
 cc_library(
     name = "jit_channel_queue",
@@ -1385,24 +1379,12 @@ aot_protobuf(
     aot = ":multi_function_with_trace_aot",
 )
 
-# Procs get the file name embedded in their identifier when they have generics.
-# This means that writing a test which also works in OSS would be difficult. To
-# avoid this problem we just remove all identifiers. Normal users should never
-# need to do this since the generated wrappers handle all of this for you.
 genrule(
     name = "some_caps_no_idents",
-    srcs = ["//xls/examples/dslx_module:manual_chan_caps_streaming_configured_opt_ir.opt.ir"],
-    outs = ["some_caps_no_idents.ir"],
-    cmd = """
-        $(location //xls/dev_tools:remove_identifiers_main) $< > $@
-        """,
-    tools = ["//xls/dev_tools:remove_identifiers_main"],
-)
-
-genrule(
-    name = "some_caps_no_idents_psc",
+    # The targets in examples/dslx_module need to still be segregated between global and proc-scoped
+    # channels because there are other targets that haven't been upgraded to PSC yet.
     srcs = ["//xls/examples/dslx_module:manual_chan_caps_streaming_configured_opt_ir_proc_scoped.opt.ir"],
-    outs = ["some_caps_no_idents_psc.ir"],
+    outs = ["some_caps_no_idents.ir"],
     cmd = """
         $(location //xls/dev_tools:remove_identifiers_main) $< > $@
         """,
@@ -1412,14 +1394,6 @@ genrule(
 xls_aot_generate(
     name = "specialized_caps_aot",
     src = ":some_caps_no_idents",
-    salt_symbols = False,
-    top_type = "PROC",
-    with_msan = XLS_IS_MSAN_BUILD,
-)
-
-xls_aot_generate(
-    name = "specialized_caps_aot_psc",
-    src = ":some_caps_no_idents_psc",
     salt_symbols = False,
     top_type = "PROC",
     with_msan = XLS_IS_MSAN_BUILD,
