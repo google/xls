@@ -88,12 +88,12 @@ TEST(Mux3VerilogTest, BasicPipelineSignaturePresent) {
     EXPECT_THAT(verilog_text, HasSubstr("always_ff @ (posedge clk)"));
 
     // Has 5 pipeline stages
-    //  x | p0 | p1 | p2 | p3
-    EXPECT_THAT(verilog_text, HasSubstr("p0_valid"));
-    EXPECT_THAT(verilog_text, HasSubstr("p1_valid"));
-    EXPECT_THAT(verilog_text, HasSubstr("p2_valid"));
-    EXPECT_THAT(verilog_text, HasSubstr("p3_valid"));
-    EXPECT_THAT(verilog_text, Not(HasSubstr("p4_valid")));
+    //  x | p1_inputs | p2_inputs | p3_inputs | p4_inputs
+    EXPECT_THAT(
+        verilog_text,
+        AllOf(HasSubstr("p1_inputs_valid"), HasSubstr("p2_inputs_valid"),
+              HasSubstr("p3_inputs_valid"), HasSubstr("p4_inputs_valid"),
+              Not(HasSubstr("p5_inputs_valid"))));
   }
 }
 

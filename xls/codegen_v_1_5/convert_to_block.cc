@@ -18,6 +18,7 @@
 #include <optional>
 #include <utility>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
@@ -63,7 +64,10 @@ absl::Status ConvertToBlock(
   std::unique_ptr<BlockConversionCompoundPass> pipeline =
       CreateBlockConversionPassPipeline(*opt_context);
   XLS_ASSIGN_OR_RETURN(bool result, pipeline->Run(p, options, pass_results));
-  XLS_RET_CHECK(result);
+  if (!result) {
+    LOG(WARNING)
+        << "Block conversion changed nothing; did you run codegen twice?";
+  }
   return absl::OkStatus();
 }
 
