@@ -85,7 +85,7 @@ class BlockTest : public IrTestBase {
       names.push_back(
           absl::visit(Visitor{[](InputPort* p) { return p->GetName(); },
                               [](OutputPort* p) { return p->GetName(); },
-                              [](Block::ClockPort* p) { return p->name; }},
+                              [](ClockPort* p) { return p->name; }},
                       port));
     }
     return names;

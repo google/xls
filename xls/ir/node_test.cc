@@ -24,6 +24,7 @@
 #include "absl/status/status_matchers.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/block.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
@@ -626,7 +627,7 @@ TEST_F(NodeTest, MakeNodeForType) {
   static_assert(MakeNodeWillSubstituteWith<Param>::value);
   static_assert(!MakeNodeWillSubstituteWith<int>::value);
   static_assert(!MakeNodeWillSubstituteWith<Param*>::value);
-  static_assert(!MakeNodeWillSubstituteWith<Block::ClockPort>::value);
+  static_assert(!MakeNodeWillSubstituteWith<ClockPort>::value);
   static_assert(!MakeNodeWillSubstituteWith<Block::Port>::value);
 }
 

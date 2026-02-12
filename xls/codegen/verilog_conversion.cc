@@ -1038,7 +1038,7 @@ class BlockGenerator {
 
       if (xls::BlockInstantiation* block_instantiation =
               dynamic_cast<BlockInstantiation*>(instantiation)) {
-        std::optional<Block::ClockPort> port =
+        std::optional<ClockPort> port =
             block_instantiation->instantiated_block()->GetClockPort();
         if (port.has_value()) {
           if (mb_.clock() == nullptr) {

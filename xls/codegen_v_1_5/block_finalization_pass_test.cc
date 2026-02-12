@@ -185,9 +185,7 @@ TEST_F(BlockFinalizationPassTest, ResetAndPortOrder) {
             [&](OutputPort* p) {
               port_names.push_back(std::string(p->name()));
             },
-            [&](Block::ClockPort* p) {
-              port_names.push_back(std::string(p->name));
-            }),
+            [&](ClockPort* p) { port_names.push_back(std::string(p->name)); }),
         port);
   }
   EXPECT_THAT(port_names, UnorderedElementsAre("clk", "rst", "in", "out"));

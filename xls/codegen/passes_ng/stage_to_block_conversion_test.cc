@@ -34,6 +34,7 @@
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/instantiation.h"
@@ -79,7 +80,7 @@ TEST_P(SweepTrivialPipelinedFunctionFixture, TestBlockAndClocksCreation) {
   // Each block should have a clock/reset and a corresponding metadata entry.
   for (std::unique_ptr<Block>& block : package_->blocks()) {
     EXPECT_THAT(block->GetClockPort(),
-                Optional(Field(&Block::ClockPort::name, "clk")));
+                Optional(Field(&ClockPort::name, "clk")));
     EXPECT_THAT(block->GetResetPort(), Optional(m::InputPort("rst")));
 
     XLS_ASSERT_OK_AND_ASSIGN(

@@ -99,6 +99,12 @@ struct ChannelPortMetadata {
   std::string ToString() const;
 };
 
+// Abstraction representing the clock port. Needed to keep track of the name for
+// verilog conversion.
+struct ClockPort {
+  std::string name;
+};
+
 // Abstraction representing a Verilog module used in code generation. Blocks are
 // function-level constructs similar to functions and procs. Like functions and
 // procs, blocks contain (and own) a data-flow graph of nodes. With a small
@@ -113,11 +119,6 @@ class Block : public FunctionBase {
   Block(std::string_view name, Package* package)
       : FunctionBase(name, package), register_name_uniquer_("__") {}
   ~Block() override = default;
-
-  // Abstraction describing the clock port.
-  struct ClockPort {
-    std::string name;
-  };
 
   // Representation of a port of a block. Ports are the interface of the block
   // and represent ports on a Verilog module.
@@ -155,7 +156,7 @@ class Block : public FunctionBase {
       const SourceInfo& loc = SourceInfo());
 
   // Add/get a clock port to the block. The clock is not represented as a value
-  // within the IR (no input_port operation), but rather a Block::ClockPort
+  // within the IR (no input_port operation), but rather a ClockPort
   // object is added to the list of ports as a place-holder for the clock which
   // records the port name and position.
   absl::Status AddClockPort(std::string_view name);

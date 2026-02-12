@@ -112,7 +112,7 @@ absl::StatusOr<verilog::ModuleSignature> GenerateSignature(
       b.AddDataOutput(output_port->GetName(), type);
     } else {
       // No need to do anything for the clock port.
-      XLS_RET_CHECK(std::holds_alternative<Block::ClockPort*>(port));
+      XLS_RET_CHECK(std::holds_alternative<ClockPort*>(port));
     }
   }
 

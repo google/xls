@@ -91,7 +91,7 @@ class PortByNameMatcher : public ::testing::MatcherInterface<Block::Port> {
       ::testing::MatchResultListener* listener) const override {
     return absl::visit(
         Visitor{
-            [=, this](Block::ClockPort* p) {
+            [=, this](ClockPort* p) {
               *listener << "ClockPort(" << p->name << ")";
               if (p->name != port_name_) {
                 *listener << " does not match expected " << port_name_ << ".";
