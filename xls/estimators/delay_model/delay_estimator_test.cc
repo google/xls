@@ -373,4 +373,23 @@ TEST_F(DelayEstimatorTest, FirstMatchDelegationEstimator) {
   }
 }
 
+TEST_F(DelayEstimatorTest, DelayAnnotator) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(32));
+  BValue b = fb.Param("b", p->GetBitsType(32));
+  BValue add = fb.Add(a, b);
+  BValue neg = fb.Negate(add);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(neg));
+
+  FakeDelayEstimator estimator(10, "ten");
+  XLS_ASSERT_OK_AND_ASSIGN(DelayAnnotator annotator,
+                           DelayAnnotator::Create(f, estimator));
+
+  EXPECT_EQ(annotator.NodeAnnotation(a.node()).suffix, "[10ps (+10ps)]");
+  EXPECT_EQ(annotator.NodeAnnotation(b.node()).suffix, "[10ps (+10ps)]");
+  EXPECT_EQ(annotator.NodeAnnotation(add.node()).suffix, "[20ps (+10ps)]");
+  EXPECT_EQ(annotator.NodeAnnotation(neg.node()).suffix, "[30ps (+10ps)]");
+}
+
 }  // namespace xls

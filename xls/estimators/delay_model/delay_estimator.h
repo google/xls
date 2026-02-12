@@ -31,6 +31,7 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
 #include "xls/common/test_macros.h"
+#include "xls/ir/ir_annotator.h"
 #include "xls/ir/node.h"
 #include "xls/ir/op.h"
 
@@ -164,6 +165,26 @@ class DelayEstimatorManager {
 
 // Returns the singleton manager which holds the
 DelayEstimatorManager& GetDelayEstimatorManagerSingleton();
+
+// An IrAnnotator which annotates every node with its node delay and the maximum
+// path delay to that node.
+class DelayAnnotator : public IrAnnotator {
+ public:
+  static absl::StatusOr<DelayAnnotator> Create(
+      FunctionBase* f, const DelayEstimator& delay_estimator);
+
+  Annotation NodeAnnotation(Node* node) const override;
+
+ private:
+  struct Entry {
+    int64_t node_delay_ps;
+    int64_t path_delay_ps;
+  };
+  explicit DelayAnnotator(absl::flat_hash_map<Node*, Entry> entries)
+      : entries_(std::move(entries)) {}
+
+  absl::flat_hash_map<Node*, Entry> entries_;
+};
 
 }  // namespace xls
 

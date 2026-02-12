@@ -19,14 +19,17 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/estimators/delay_model/delay_info.pb.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/ir_annotator.h"
 #include "xls/ir/node.h"
 
 namespace xls {
@@ -77,6 +80,38 @@ std::string CriticalPathToString(
 
 CriticalPathProto CriticalPathToProto(
     absl::Span<const CriticalPathEntry> critical_path);
+
+class CriticalPathAnnotator : public IrAnnotator {
+ public:
+  struct Options {
+    std::string critical_marker = "!";
+    bool include_node_delay = true;
+    bool include_path_delay = true;
+  };
+
+  static absl::StatusOr<CriticalPathAnnotator> Create(
+      FunctionBase* f, std::optional<int64_t> clock_period_ps,
+      const DelayEstimator& delay_estimator, Options options = kDefaultOptions,
+      absl::AnyInvocable<bool(Node*)> source_filter =
+          [](Node*) { return true; },
+      absl::AnyInvocable<bool(Node*)> sink_filter = [](Node*) { return true; });
+
+  Annotation NodeAnnotation(Node* node) const override;
+
+ private:
+  explicit CriticalPathAnnotator(
+      Options options,
+      absl::flat_hash_map<Node*, CriticalPathEntry> critical_path_entries)
+      : options_(options),
+        critical_path_entries_(std::move(critical_path_entries)) {}
+
+  Options options_;
+  absl::flat_hash_map<Node*, CriticalPathEntry> critical_path_entries_;
+
+  // Due to clang/gcc weirdness around when struct definition is available
+  // this is needed for use in this file only.
+  static const Options kDefaultOptions;
+};
 
 }  // namespace xls
 

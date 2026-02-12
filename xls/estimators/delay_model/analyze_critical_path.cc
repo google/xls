@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <iostream>
 #include <optional>
 #include <string>
 #include <utility>
@@ -28,17 +29,22 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/estimators/delay_model/delay_info.pb.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/ir_annotator.h"
 #include "xls/ir/node.h"
 #include "xls/ir/op.h"
 #include "xls/ir/topo_sort.h"
 
 namespace xls {
+
+const CriticalPathAnnotator::Options CriticalPathAnnotator::kDefaultOptions =
+    CriticalPathAnnotator::Options();
 
 absl::StatusOr<std::vector<CriticalPathEntry>> AnalyzeCriticalPath(
     FunctionBase* f, std::optional<int64_t> clock_period_ps,
@@ -173,6 +179,46 @@ CriticalPathProto CriticalPathToProto(
   }
   proto.set_total_delay_ps(critical_path.front().path_delay_ps);
   return proto;
+}
+
+absl::StatusOr<CriticalPathAnnotator> CriticalPathAnnotator::Create(
+    FunctionBase* f, std::optional<int64_t> clock_period_ps,
+    const DelayEstimator& delay_estimator, Options options,
+    absl::AnyInvocable<bool(Node*)> source_filter,
+    absl::AnyInvocable<bool(Node*)> sink_filter) {
+  XLS_ASSIGN_OR_RETURN(
+      std::vector<CriticalPathEntry> cp,
+      AnalyzeCriticalPath(f, clock_period_ps, delay_estimator,
+                          std::move(source_filter), std::move(sink_filter)));
+  absl::flat_hash_map<Node*, CriticalPathEntry> entries;
+  for (const auto& entry : cp) {
+    entries.emplace(entry.node, entry);
+  }
+  return CriticalPathAnnotator(options, std::move(entries));
+}
+
+Annotation CriticalPathAnnotator::NodeAnnotation(Node* node) const {
+  auto it = critical_path_entries_.find(node);
+  if (it == critical_path_entries_.end()) {
+    return Annotation();
+  }
+  std::vector<std::string> parts;
+  parts.push_back(options_.critical_marker);
+  if (options_.include_node_delay && options_.include_path_delay) {
+    parts.push_back(absl::StrFormat(
+        "[%dps (+%dps)%s]", it->second.path_delay_ps, it->second.node_delay_ps,
+        it->second.delayed_by_cycle_boundary ? "!" : ""));
+  } else if (options_.include_node_delay) {
+    parts.push_back(
+        absl::StrFormat("[+%dps%s]", it->second.node_delay_ps,
+                        it->second.delayed_by_cycle_boundary ? "!" : ""));
+  } else if (options_.include_path_delay) {
+    parts.push_back(
+        absl::StrFormat("[%dps%s]", it->second.path_delay_ps,
+                        it->second.delayed_by_cycle_boundary ? "!" : ""));
+  }
+  Annotation annotation{.suffix = absl::StrJoin(parts, " ")};
+  return annotation;
 }
 
 }  // namespace xls

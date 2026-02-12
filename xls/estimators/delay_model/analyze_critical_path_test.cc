@@ -15,6 +15,8 @@
 #include "xls/estimators/delay_model/analyze_critical_path.h"
 
 #include <optional>
+#include <string>
+#include <string_view>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -167,6 +169,35 @@ TEST_F(AnalyzeCriticalPathTest, EmptyProc) {
       AnalyzeCriticalPath(proc, /*clock_period_ps=*/std::nullopt,
                           *delay_estimator_));
   EXPECT_TRUE(cp.empty());
+}
+
+TEST_F(AnalyzeCriticalPathTest, Annotator) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto x = fb.Param("x", p->GetBitsType(32));
+  auto neg = fb.Negate(x);
+  auto rev = fb.Reverse(neg);
+  auto succ = fb.Add(rev, fb.Literal(UBits(1, 32)));
+  fb.Select(fb.Param("bar", p->GetBitsType(1)), {x, succ});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      CriticalPathAnnotator annotator,
+      CriticalPathAnnotator::Create(f, /*clock_period_ps=*/std::nullopt,
+                                    *delay_estimator_));
+
+  std::string ir = f->DumpIr(annotator);
+  RecordProperty("ir", ir);
+  static constexpr std::string_view kExpectedIr =
+      R"ir(fn Annotator(x: bits[32] id=1 ! [0ps (+0ps)], bar: bits[1] id=6) -> bits[32] {
+  neg.2: bits[32] = neg(x, id=2) ! [1ps (+1ps)]
+  reverse.3: bits[32] = reverse(neg.2, id=3) ! [2ps (+1ps)]
+  literal.4: bits[32] = literal(value=1, id=4)
+  add.5: bits[32] = add(reverse.3, literal.4, id=5) ! [3ps (+1ps)]
+  ret sel.7: bits[32] = sel(bar, cases=[x, add.5], id=7) ! [4ps (+1ps)]
+}
+)ir";
+  EXPECT_EQ(ir, kExpectedIr);
 }
 
 }  // namespace

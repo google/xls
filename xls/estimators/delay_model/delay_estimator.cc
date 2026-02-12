@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "absl/base/no_destructor.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/die_if_null.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -32,9 +33,11 @@
 #include "absl/strings/str_join.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/ir_annotator.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/ir/topo_sort.h"
 #include "xls/netlist/cell_library.h"
 #include "xls/netlist/logical_effort.h"
 
@@ -349,6 +352,35 @@ absl::StatusOr<int64_t> CachingDelayEstimator::GetOperationDelayInPs(
     Node* node, int64_t tau_in_ps) {
   XLS_ASSIGN_OR_RETURN(int64_t delay_in_tau, GetLogicalEffortDelayInTau(node));
   return delay_in_tau * tau_in_ps;
+}
+
+absl::StatusOr<DelayAnnotator> DelayAnnotator::Create(
+    FunctionBase* f, const DelayEstimator& delay_estimator) {
+  absl::flat_hash_map<Node*, Entry> entries;
+  for (Node* node : TopoSort(f)) {
+    int64_t max_path_delay = 0;
+    for (Node* operand : node->operands()) {
+      max_path_delay =
+          std::max(max_path_delay, entries.at(operand).path_delay_ps);
+    }
+    XLS_ASSIGN_OR_RETURN(int64_t node_delay,
+                         delay_estimator.GetOperationDelayInPs(node));
+    entries[node] = {
+        .node_delay_ps = node_delay,
+        .path_delay_ps = max_path_delay + node_delay,
+    };
+  }
+  return DelayAnnotator(std::move(entries));
+}
+
+Annotation DelayAnnotator::NodeAnnotation(Node* node) const {
+  auto it = entries_.find(node);
+  if (it == entries_.end()) {
+    return Annotation();
+  }
+  return Annotation{.suffix = absl::StrFormat("[%dps (+%dps)]",
+                                              it->second.path_delay_ps,
+                                              it->second.node_delay_ps)};
 }
 
 }  // namespace xls
