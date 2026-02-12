@@ -6494,6 +6494,49 @@ const X = iterative_div_mod(u32:20, u32:3);
               TypecheckSucceeds(HasNodeWithType("X", "(uN[32], uN[32])")));
 }
 
+TEST(TypecheckV2Test, ConstFor) {
+  EXPECT_THAT(
+      R"(
+fn foo() {
+  let res = const for (i, acc) in u32:0..u32:5 {
+    let acc = acc + i;
+    acc * u32:2
+  } (u32:0);
+}
+)",
+      TypecheckSucceeds(
+          AllOf(HasNodeWithType("acc", "uN[32]"),
+                HasRepeatedNodeWithType("let acc = acc + i;", "uN[32]", 5))));
+}
+
+TEST(TypecheckV2Test, ConstForParametrized) {
+  EXPECT_THAT(
+      R"(
+fn param_for<loops: u32>() -> u32 {
+  const for (i, acc) in u32:0..loops {
+    acc + i
+  } (u32:0)
+}
+
+fn main() {
+  let res = param_for<u32:6>();
+}
+  )",
+      TypecheckSucceeds(HasNodeWithType("res", "uN[32]")));
+}
+
+TEST(TypecheckV2Test, ConstForUnableToEvaluate) {
+  EXPECT_THAT(
+      R"(
+fn broken_for(a: u32) -> u32 {
+  const for (i, acc) in u32:0..a {
+    acc + i
+  } (u32:0)
+}
+  )",
+      TypecheckFails(HasSubstr("is not constexpr")));
+}
+
 TEST(TypecheckV2Test, UnrollFor) {
   // Verify that the loop is unrolled 5 times, and is also constant-folded.
   EXPECT_THAT(

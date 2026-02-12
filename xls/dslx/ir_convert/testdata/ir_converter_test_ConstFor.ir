@@ -1,0 +1,15 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+top fn __test_module__f() -> bits[32] {
+  accum: bits[32] = literal(value=0, id=1)
+  i: bits[32] = literal(value=0, id=2)
+  accum__1: bits[32] = add(accum, i, id=3)
+  i__1: bits[32] = literal(value=1, id=4)
+  accum__2: bits[32] = add(accum__1, i__1, id=5)
+  i__2: bits[32] = literal(value=2, id=6)
+  accum__3: bits[32] = add(accum__2, i__2, id=7)
+  i__3: bits[32] = literal(value=3, id=8)
+  ret add.9: bits[32] = add(accum__3, i__3, id=9)
+}

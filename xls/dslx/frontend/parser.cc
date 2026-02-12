@@ -1153,11 +1153,8 @@ absl::StatusOr<Expr*> Parser::ParseExpression(Bindings& bindings,
 
   VLOG(5) << "ParseExpression @ " << GetPos() << " peek: `" << peek->ToString()
           << "`";
-  if (peek->IsKeyword(Keyword::kFor)) {
+  if (peek->IsKeyword(Keyword::kFor) || peek->IsKeyword(Keyword::kUnrollFor)) {
     return ParseFor(bindings);
-  }
-  if (peek->IsKeyword(Keyword::kUnrollFor)) {
-    return ParseUnrollFor(bindings);
   }
   if (peek->IsKeyword(Keyword::kChan)) {
     return ParseChannelDecl(bindings, channel_config);
@@ -2492,11 +2489,14 @@ absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
     if (peek_1->IsKeyword(Keyword::kIf)) {  // Constexpr conditional expression
       XLS_ASSIGN_OR_RETURN(
           lhs, ParseRangeExpression(outer_bindings, kNoRestrictions));
+    } else if (peek_1->IsKeyword(Keyword::kFor)) {  // Const for expression
+      XLS_ASSIGN_OR_RETURN(lhs, ParseFor(outer_bindings));
+    } else {
+      return ParseErrorStatus(
+          peek_1->span(),
+          absl::StrFormat("Expected start of an expression; got: %s",
+                          peek_1->ToErrorString()));
     }
-    return ParseErrorStatus(
-        peek_1->span(),
-        absl::StrFormat("Expected start of an expression; got: %s",
-                        peek_1->ToErrorString()));
   } else {
     return ParseErrorStatus(
         peek->span(),
@@ -3823,8 +3823,14 @@ absl::StatusOr<Let*> Parser::ParseLet(Bindings& bindings) {
   return let;
 }
 
-absl::StatusOr<For*> Parser::ParseFor(Bindings& bindings) {
-  XLS_ASSIGN_OR_RETURN(Token for_kw, PopKeywordOrError(Keyword::kFor));
+absl::StatusOr<ForLoopBase*> Parser::ParseFor(Bindings& bindings) {
+  XLS_ASSIGN_OR_RETURN(Token for_kw, PopToken());
+  bool is_const_for = for_kw.IsKeyword(Keyword::kConst);
+  if (is_const_for) {
+    XLS_ASSIGN_OR_RETURN(for_kw, PopToken());
+  }
+  bool is_unroll_for = for_kw.IsKeyword(Keyword::kUnrollFor);
+  XLS_RET_CHECK(for_kw.IsKeyword(Keyword::kFor) || is_unroll_for);
 
   Bindings for_bindings(&bindings);
   XLS_ASSIGN_OR_RETURN(NameDefTree * names, ParseNameDefTree(for_bindings));
@@ -3852,35 +3858,14 @@ absl::StatusOr<For*> Parser::ParseFor(Bindings& bindings) {
   // trips have iterated when the init value is evaluated).
   XLS_ASSIGN_OR_RETURN(Expr * init, ParseExpression(bindings));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
-  return module_->Make<For>(Span(for_kw.span().start(), GetPos()), names, type,
-                            iterable, body, init);
-}
 
-absl::StatusOr<UnrollFor*> Parser::ParseUnrollFor(Bindings& bindings) {
-  XLS_ASSIGN_OR_RETURN(Token unroll_for,
-                       PopKeywordOrError(Keyword::kUnrollFor));
-
-  Bindings for_bindings(&bindings);
-  XLS_ASSIGN_OR_RETURN(NameDefTree * names, ParseNameDefTree(for_bindings));
-  XLS_ASSIGN_OR_RETURN(bool peek_is_colon, PeekTokenIs(TokenKind::kColon));
-  TypeAnnotation* types = nullptr;
-  if (peek_is_colon) {
-    XLS_RETURN_IF_ERROR(
-        DropTokenOrError(TokenKind::kColon, /*start=*/nullptr,
-                         "Expect type annotation on for-loop values."));
-    XLS_ASSIGN_OR_RETURN(types, ParseTypeAnnotation(for_bindings));
+  if (is_const_for || is_unroll_for) {
+    return module_->Make<ConstFor>(Span(for_kw.span().start(), GetPos()), names,
+                                   type, iterable, body, init, is_unroll_for);
+  } else {
+    return module_->Make<For>(Span(for_kw.span().start(), GetPos()), names,
+                              type, iterable, body, init);
   }
-
-  XLS_RETURN_IF_ERROR(DropKeywordOrError(Keyword::kIn));
-  XLS_ASSIGN_OR_RETURN(Expr * iterable, ParseExpression(bindings));
-  XLS_ASSIGN_OR_RETURN(StatementBlock * body,
-                       ParseBlockExpression(for_bindings));
-  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
-  XLS_ASSIGN_OR_RETURN(Expr * init, ParseExpression(bindings));
-  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
-
-  return module_->Make<UnrollFor>(Span(unroll_for.span().start(), GetPos()),
-                                  names, types, iterable, body, init);
 }
 
 absl::StatusOr<EnumDef*> Parser::ParseEnumDef(const Pos& start_pos,
@@ -4288,7 +4273,8 @@ absl::StatusOr<StatementBlock*> Parser::ParseBlockExpression(
         XLS_ASSIGN_OR_RETURN(const Token* peek_1, PeekToken(1));
         // handle the case when const is a regular constant, otherwise
         // it is a modifier and should be handled as expression with bindings
-        if (!peek_1->IsKeyword(Keyword::kIf)) {
+        if (!peek_1->IsKeyword(Keyword::kIf) &&
+            !peek_1->IsKeyword(Keyword::kFor)) {
           XLS_ASSIGN_OR_RETURN(Let * let, ParseLet(block_bindings));
           stmts.push_back(module_->Make<Statement>(let));
           last_expr_had_trailing_semi = true;

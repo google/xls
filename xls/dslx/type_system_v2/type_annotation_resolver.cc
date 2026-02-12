@@ -204,7 +204,7 @@ class StatefulResolver : public TypeAnnotationResolver {
             file_table_);
       }
       if (node->kind() == AstNodeKind::kFor ||
-          node->kind() == AstNodeKind::kUnrollFor) {
+          node->kind() == AstNodeKind::kConstFor) {
         const auto* loop = absl::down_cast<const ForLoopBase*>(node);
         if (!VariableHasAnyExplicitTypeAnnotations(table_, parametric_context,
                                                    *type_variable)) {

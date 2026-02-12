@@ -1440,3 +1440,43 @@ xls_dslx_verilog(
     library = ":const_if_dslx",
     verilog_file = "const_if.sv",
 )
+
+xls_dslx_library(
+    name = "const_for_dslx",
+    srcs = ["const_for.x"],
+)
+
+xls_dslx_test(
+    name = "const_for_test",
+    size = "small",
+    srcs = ["const_for.x"],
+    dslx_test_args = {"compare": "jit"},
+)
+
+xls_dslx_ir(
+    name = "const_for_ir",
+    dslx_top = "main",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
+    ir_file = "const_for.ir",
+    library = ":const_for_dslx",
+)
+
+xls_dslx_opt_ir(
+    name = "const_for_opt_ir",
+    srcs = ["const_for.x"],
+    dslx_top = "main",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
+)
+
+xls_dslx_verilog(
+    name = "const_for_verilog",
+    codegen_args = {
+        "module_name": "const_for",
+        "delay_model": "unit",
+        "pipeline_stages": "2",
+        "reset": "rst",
+    },
+    dslx_top = "ConstForInst",
+    library = "const_for_dslx",
+    verilog_file = "const_for.sv",
+)

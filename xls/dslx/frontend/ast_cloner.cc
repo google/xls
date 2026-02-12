@@ -20,6 +20,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/functional/any_invocable.h"
@@ -1239,7 +1240,7 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleUnrollFor(const UnrollFor* n) override {
+  absl::Status HandleConstFor(const ConstFor* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
     auto new_type_annotation = n->type_annotation() == nullptr
@@ -1247,12 +1248,13 @@ class AstCloner : public AstNodeVisitor {
                                    : absl::down_cast<TypeAnnotation*>(
                                          old_to_new_.at(n->type_annotation()));
 
-    old_to_new_[n] = module(n)->Make<UnrollFor>(
+    old_to_new_[n] = module(n)->Make<ConstFor>(
         n->span(), absl::down_cast<NameDefTree*>(old_to_new_.at(n->names())),
         new_type_annotation,
         absl::down_cast<Expr*>(old_to_new_.at(n->iterable())),
         absl::down_cast<StatementBlock*>(old_to_new_.at(n->body())),
-        absl::down_cast<Expr*>(old_to_new_.at(n->init())), n->in_parens());
+        absl::down_cast<Expr*>(old_to_new_.at(n->init())), n->IsUnrollFor(),
+        n->in_parens());
     return absl::OkStatus();
   }
 

@@ -328,8 +328,8 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
       return "parametric binding";
     case AstNodeKind::kTupleIndex:
       return "tuple index";
-    case AstNodeKind::kUnrollFor:
-      return "unroll-for";
+    case AstNodeKind::kConstFor:
+      return "const for";
     case AstNodeKind::kUse:
       return "use";
     case AstNodeKind::kUseTreeEntry:
@@ -828,7 +828,15 @@ std::string MatchArm::ToString() const {
 
 For::~For() = default;
 
-UnrollFor::~UnrollFor() = default;
+ConstFor::ConstFor(Module* owner, Span span, NameDefTree* names,
+                   TypeAnnotation* type_annotation, Expr* iterable,
+                   StatementBlock* body, Expr* init, bool is_unroll_for,
+                   bool in_parens)
+    : ForLoopBase(owner, span, names, type_annotation, iterable, body, init,
+                  in_parens),
+      is_unroll_for_(is_unroll_for) {}
+
+ConstFor::~ConstFor() = default;
 
 ConstantDef::ConstantDef(Module* owner, Span span, NameDef* name_def,
                          TypeAnnotation* type_annotation, Expr* value,

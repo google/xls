@@ -554,14 +554,7 @@ class Parser : public TokenParser {
   //
   // The init value is passed to the loop and the body updates the value;
   // ultimately the loop terminates and the final accum value is returned.
-  absl::StatusOr<For*> ParseFor(Bindings& bindings);
-
-  // Parses an "unroll for" macro-like construct, e.g.
-  //
-  // unroll_for! i in range(u32:, u32:4) {
-  //   spawn my_proc(...)(...);
-  // }
-  absl::StatusOr<UnrollFor*> ParseUnrollFor(Bindings& bindings);
+  absl::StatusOr<ForLoopBase*> ParseFor(Bindings& bindings);
 
   // Parses an enum definition; e.g.
   //

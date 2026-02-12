@@ -314,15 +314,15 @@ class FunctionConverterVisitor : public AstNodeVisitor {
 
   // Causes all children of "node" to accept this visitor.
   absl::Status VisitChildren(const AstNode* node) {
-    if (const UnrollFor* loop = dynamic_cast<const UnrollFor*>(node); loop) {
+    if (const ConstFor* loop = dynamic_cast<const ConstFor*>(node)) {
       std::optional<const Expr*> unrolled_for =
           converter_->GetUnrolledForLoop(loop);
       if (unrolled_for.has_value()) {
         return (*unrolled_for)->Accept(this);
       } else {
-        return absl::FailedPreconditionError(
-            absl::StrCat("unroll_for! should have been unrolled by now at: ",
-                         loop->span().ToString(converter_->file_table())));
+        return absl::FailedPreconditionError(absl::StrCat(
+            "unroll_for! or const for should have been unrolled by now at: ",
+            loop->span().ToString(converter_->file_table())));
       }
     }
     for (AstNode* child : node->GetChildren(/*want_types=*/false)) {
@@ -347,8 +347,8 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   // keep-sorted start
   TRAVERSE_DISPATCH(AllOnesMacro)
   TRAVERSE_DISPATCH(Binop)
+  TRAVERSE_DISPATCH(ConstFor)
   TRAVERSE_DISPATCH(Unop)
-  TRAVERSE_DISPATCH(UnrollFor)
   TRAVERSE_DISPATCH(XlsTuple)
   TRAVERSE_DISPATCH(ZeroMacro)
   // keep-sorted end
@@ -3910,12 +3910,12 @@ absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
 }
 
 std::optional<const Expr*> FunctionConverter::GetUnrolledForLoop(
-    const UnrollFor* loop) {
+    const ConstFor* loop) {
   return current_type_info_->GetUnrolledLoop(
       loop, ParametricEnv(parametric_env_map_));
 }
 
-absl::Status FunctionConverter::HandleUnrollFor(const UnrollFor* node) {
+absl::Status FunctionConverter::HandleConstFor(const ConstFor* node) {
   std::optional<const Expr*> unrolled_expr = GetUnrolledForLoop(node);
   XLS_RET_CHECK(unrolled_expr.has_value());
   SetNodeToIr(node, node_to_ir_.at(*unrolled_expr));
