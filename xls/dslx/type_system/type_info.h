@@ -21,6 +21,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -160,7 +161,8 @@ class TypeInfoOwner {
  public:
   // Returns an error status iff parent is nullptr and "module" already has a
   // root type info.
-  absl::StatusOr<TypeInfo*> New(Module* module, TypeInfo* parent = nullptr);
+  absl::StatusOr<TypeInfo*> New(Module* module, std::string_view name,
+                                TypeInfo* parent = nullptr);
 
   // Retrieves the root type information for the given module, or a not-found
   // status error if it is not present.
@@ -179,11 +181,15 @@ class TypeInfoOwner {
 
 class TypeInfo {
  public:
+  static constexpr std::string_view kRootName = "root";
+
   using ResolvedColonRefSubject =
       std::variant<Module*, EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*,
                    Impl*>;
 
   ~TypeInfo();
+
+  std::string_view name() const { return name_; }
 
   // Type information can be "differential"; e.g. when we obtain type
   // information for a particular parametric instantiation the type information
@@ -495,7 +501,8 @@ class TypeInfo {
   //  parent: Type information that should be queried from the same scope (i.e.
   //    if an AST node is not resolved in the local member maps, the lookup is
   //    then performed in the parent, and so on transitively).
-  explicit TypeInfo(Module* module, TypeInfo* parent = nullptr);
+  explicit TypeInfo(Module* module, std::string_view name,
+                    TypeInfo* parent = nullptr);
 
   // Returns whether this is the root type information for the module (vs. a
   // derived type info for e.g. a parametric instantiation context).
@@ -506,6 +513,7 @@ class TypeInfo {
   }
 
   Module* module_;
+  const std::string name_;
 
   // Node to type mapping -- this is present on "derived" type info (i.e. for
   // instantiated parametric type info) as well as the root type information for

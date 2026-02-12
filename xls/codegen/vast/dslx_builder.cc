@@ -111,7 +111,7 @@ dslx::CommentData CommentAtBeginning(const dslx::AstNode* node,
 dslx::TypeInfo* GetTypeInfoOrDie(dslx::ImportData& import_data,
                                  dslx::Module* module) {
   absl::StatusOr<dslx::TypeInfo*> result =
-      import_data.type_info_owner().New(module);
+      import_data.type_info_owner().New(module, dslx::TypeInfo::kRootName);
   CHECK_OK(result);
   return *result;
 }

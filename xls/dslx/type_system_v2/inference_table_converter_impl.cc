@@ -677,7 +677,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         GetTypeInfo(function->owner(), caller_or_target_struct_context));
     XLS_ASSIGN_OR_RETURN(
         TypeInfo * invocation_type_info,
-        import_data_.type_info_owner().New(function->owner(), base_type_info));
+        import_data_.type_info_owner().New(
+            function->owner(),
+            absl::StrCat("invocation_of_", function->identifier()),
+            base_type_info));
 
     XLS_ASSIGN_OR_RETURN(ParametricContext * invocation_context,
                          table_.AddParametricInvocation(
@@ -912,9 +915,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     absl::StatusOr<TypeInfo*> ti =
         base_type_info_for_proc_module->GetTopLevelProcTypeInfo(proc);
     if (!ti.ok()) {
-      XLS_ASSIGN_OR_RETURN(ti,
-                           import_data_.type_info_owner().New(
-                               proc->owner(), base_type_info_for_proc_module));
+      XLS_ASSIGN_OR_RETURN(
+          ti, import_data_.type_info_owner().New(
+                  proc->owner(), absl::StrCat("proc_", proc->identifier()),
+                  base_type_info_for_proc_module));
       XLS_RETURN_IF_ERROR(
           base_type_info_for_proc_module->SetTopLevelProcTypeInfo(proc, *ti));
     }
@@ -1140,8 +1144,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     XLS_ASSIGN_OR_RETURN(TypeInfo * struct_base_ti,
                          GetTypeInfo(ref.def->owner(), parent_context));
     auto type_info_factory = [&] {
-      return import_data_.type_info_owner().New(ref.def->owner(),
-                                                struct_base_ti);
+      return import_data_.type_info_owner().New(
+          ref.def->owner(), absl::StrCat("struct_", ref.def->identifier()),
+          struct_base_ti);
     };
     XLS_ASSIGN_OR_RETURN(
         InferenceTable::StructContextResult lookup_result,
@@ -2092,7 +2097,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                          GetTypeInfo(&module, parent_context));
     XLS_ASSIGN_OR_RETURN(TypeInfo * instance_type_info,
                          import_data_.type_info_owner().New(
-                             struct_def.owner(), instance_parent_ti));
+                             struct_def.owner(),
+                             absl::StrCat("struct_", struct_def.identifier()),
+                             instance_parent_ti));
     ParametricBindings bindings(struct_def.parametric_bindings());
     absl::flat_hash_map<std::string, ExprOrType> resolved_parametrics;
     auto set_value = [&](const ParametricBinding* binding,
@@ -2487,10 +2494,16 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     // For a parametric proc, we need to create a `ParametricContext` and
     // `ParametricEnv` and then actually convert the proc functions and members
     // in that context.
-    XLS_ASSIGN_OR_RETURN(TypeInfo * config_ti,
-                         import_data_.type_info_owner().New(proc->owner(), ti));
-    XLS_ASSIGN_OR_RETURN(TypeInfo * next_ti,
-                         import_data_.type_info_owner().New(proc->owner(), ti));
+    XLS_ASSIGN_OR_RETURN(
+        TypeInfo * config_ti,
+        import_data_.type_info_owner().New(
+            proc->owner(),
+            absl::StrCat("proc_alias_config_", alias->identifier()), ti));
+    XLS_ASSIGN_OR_RETURN(
+        TypeInfo * next_ti,
+        import_data_.type_info_owner().New(
+            proc->owner(),
+            absl::StrCat("proc_alias_next_", alias->identifier()), ti));
     absl::flat_hash_map<std::string, InterpValue> parametrics;
     std::vector<Expr*> parametric_exprs;
     parametric_exprs.reserve(alias->parametrics().size());
@@ -2687,8 +2700,8 @@ CreateInferenceTableConverter(
     std::optional<TraitDeriver*> trait_deriver) {
   VLOG(1) << "CreateInferenceTableConverter: module " << &module;
 
-  XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
-                       import_data.type_info_owner().New(&module));
+  XLS_ASSIGN_OR_RETURN(TypeInfo * type_info, import_data.type_info_owner().New(
+                                                 &module, TypeInfo::kRootName));
   return std::make_unique<InferenceTableConverterImpl>(
       table, module, import_data, warning_collector, type_info, file_table,
       std::move(tracer), std::move(semantics_analysis), error_handler,

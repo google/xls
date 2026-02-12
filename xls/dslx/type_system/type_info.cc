@@ -32,6 +32,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/substitute.h"
 #include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -133,9 +134,11 @@ absl::Status InvocationData::ValidateEnvForCaller(
 
 // -- class TypeInfoOwner
 
-absl::StatusOr<TypeInfo*> TypeInfoOwner::New(Module* module, TypeInfo* parent) {
+absl::StatusOr<TypeInfo*> TypeInfoOwner::New(Module* module,
+                                             std::string_view name,
+                                             TypeInfo* parent) {
   // Note: private constructor so not using make_unique.
-  type_infos_.push_back(absl::WrapUnique(new TypeInfo(module, parent)));
+  type_infos_.push_back(absl::WrapUnique(new TypeInfo(module, name, parent)));
   TypeInfo* result = type_infos_.back().get();
   if (parent == nullptr) {
     // Check we only have a single nullptr-parent TypeInfo for a given module.
@@ -210,9 +213,11 @@ absl::StatusOr<InterpValue> TypeInfo::GetConstExpr(
   }
 
   return absl::NotFoundError(
-      absl::StrFormat("No constexpr value found for node `%s` (%s) @ %s",
-                      const_expr->ToString(), const_expr->GetNodeTypeName(),
-                      SpanToString(const_expr->GetSpan(), file_table())));
+      absl::Substitute("No constexpr value found for node `$0` ($1) @ $2 in "
+                       "TypeInfo $3 for module $4",
+                       const_expr->ToString(), const_expr->GetNodeTypeName(),
+                       SpanToString(const_expr->GetSpan(), file_table()),
+                       name(), module_->name()));
 }
 
 std::optional<InterpValue> TypeInfo::GetConstExprOption(
@@ -520,14 +525,14 @@ std::vector<InvocationCalleeData> TypeInfo::GetAllInvocationCalleeData(
 }
 
 std::optional<Type*> TypeInfo::GetItem(const AstNode* key) const {
-  CHECK_EQ(key->owner(), module_) << absl::StreamFormat(
-      "attempted to get type information for AST node: `%s` at `%s`; but it is "
-      "from module `%s` and type information is for module `%s`",
+  CHECK_EQ(key->owner(), module_) << absl::Substitute(
+      "attempted to get type information for AST node: `$0` at `$1`; but it is "
+      "from module `$2` and type information is $3 for module `$4`",
       key->ToString(),
       key->GetSpan().has_value()
           ? key->GetSpan()->ToString(*key->owner()->file_table())
           : "<unknown>",
-      key->owner()->name(), module_->name());
+      key->owner()->name(), name(), module_->name());
   auto it = dict_.find(key);
   if (it != dict_.end()) {
     return it->second.get();
@@ -972,8 +977,8 @@ std::optional<TypeInfo*> TypeInfo::GetImportedTypeInfo(Module* m) {
   return std::nullopt;
 }
 
-TypeInfo::TypeInfo(Module* module, TypeInfo* parent)
-    : module_(module), parent_(parent) {
+TypeInfo::TypeInfo(Module* module, std::string_view name, TypeInfo* parent)
+    : module_(module), name_(name), parent_(parent) {
   VLOG(6) << "Created type info for module \"" << module_->name() << "\" @ "
           << this << " parent " << parent << " root " << GetRoot();
 }

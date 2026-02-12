@@ -62,7 +62,8 @@ TEST(TypeInfoTest, Instantiate) {
   FileTable file_table;
   Module module("test", /*fs_path=*/std::nullopt, file_table);
   TypeInfoOwner owner;
-  XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * type_info, owner.New(&module));
+  XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * type_info,
+                           owner.New(&module, TypeInfo::kRootName));
   EXPECT_EQ(type_info->parent(), nullptr);
 }
 

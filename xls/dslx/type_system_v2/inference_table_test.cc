@@ -89,15 +89,18 @@ class InferenceTableTest : public ::testing::Test {
                     std::string(program));
     Parser parser("fake", &scanner);
     XLS_ASSERT_OK_AND_ASSIGN(module_, parser.ParseModule());
-    root_type_info_ = *import_data_->type_info_owner().New(module_.get());
+    root_type_info_ = *import_data_->type_info_owner().New(module_.get(),
+                                                           TypeInfo::kRootName);
     table_ = InferenceTable::Create();
   }
 
   TypeInfo* CreateTypeInfo() {
     if (root_type_info_ == nullptr) {
-      root_type_info_ = *import_data_->type_info_owner().New(module_.get());
+      root_type_info_ = *import_data_->type_info_owner().New(
+          module_.get(), TypeInfo::kRootName);
     }
-    return *import_data_->type_info_owner().New(module_.get(), root_type_info_);
+    return *import_data_->type_info_owner().New(
+        module_.get(), TypeInfo::kRootName, root_type_info_);
   }
 
   FileTable file_table_;

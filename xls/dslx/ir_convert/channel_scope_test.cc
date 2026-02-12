@@ -64,7 +64,8 @@ class ChannelScopeTest : public ::testing::TestWithParam<bool> {
     import_data_ = std::make_unique<ImportData>(CreateImportDataForTest());
     module_ = std::make_unique<Module>("test", /*fs_path=*/std::nullopt,
                                        import_data_->file_table());
-    XLS_ASSERT_OK_AND_ASSIGN(type_info_, type_info_owner_.New(module_.get()));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        type_info_, type_info_owner_.New(module_.get(), TypeInfo::kRootName));
     scope_ =
         std::make_unique<ChannelScope>(&conv_, import_data_.get(), options_);
     scope_->EnterFunctionContext(type_info_, bindings_);
