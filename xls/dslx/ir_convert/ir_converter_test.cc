@@ -1055,8 +1055,7 @@ TEST_F(IrConverterTest, ConstConditionalProcScopedWithParams) {
   ExpectIr(converted);
 }
 
-// TODO: davidplass - enable this when it's fixed (after PSC launch)
-TEST_F(IrConverterTest, DISABLED_ConstIfOfParametricInFn) {
+TEST_F(IrConverterTest, ConstIfOfParametricInFn) {
   constexpr std::string_view kProgram = R"(
 fn const_if_disparate_types<A: u32>() -> u32 {
     let data = const if A == u32:0 {

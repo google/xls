@@ -65,7 +65,7 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
       ProcIdFactory proc_id_factory, AstNode* top,
       std::optional<ResolvedProcAlias> resolved_proc_alias,
       std::vector<ConversionRecord>& records,
-      absl::flat_hash_set<const Invocation*> processed_invocations)
+      absl::flat_hash_set<const Invocation*>& processed_invocations)
       : module_(module),
         type_info_(type_info),
         include_tests_(include_tests),
@@ -151,21 +151,42 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
   // dealt with in `HandleInvocation`.
   absl::Status HandleFunction(const Function* f) override {
     VLOG(5) << "HandleFunction " << f->ToString();
-    if (f->tag() == FunctionTag::kProcInit ||
-        f->tag() == FunctionTag::kProcConfig ||
-        f->tag() == FunctionTag::kProcNext) {
+    if (f->IsParametric() || f->IsInProc()) {
       // TODO: https://github.com/google/xls/issues/1029 - remove module-level
       // proc functions.
+      VLOG(5) << "Skipping function " << f->identifier()
+              << " during AST traversal because it needs to be processed in an "
+                 "invocation context.";
       return absl::OkStatus();
+    }
+
+    return HandleFunctionInternal(f, ParametricEnv{});
+  }
+
+  // Handles all non-proc functions. For parametric functions, we only get here
+  // via `HandleInvocation`, the visitor must have a `type_info_` from the
+  // invocation, and the `env` passed in must also be from the invocation. For
+  // non-parametric, standalone functions, the `env` should be empty and the
+  // `type_info_` on the visitor can be the root one.
+  absl::Status HandleFunctionInternal(const Function* f,
+                                      const ParametricEnv& env) {
+    XLS_RET_CHECK(module_ == f->owner());
+    XLS_RET_CHECK(!f->IsInProc());
+    if (f->IsParametric()) {
+      XLS_RET_CHECK(!env.empty());
+      XLS_RET_CHECK_NE(type_info_->GetRoot(), type_info_);
+    } else {
+      XLS_RET_CHECK(env.empty());
     }
 
     std::vector<InvocationCalleeData> calls =
         type_info_->GetUniqueInvocationCalleeData(f);
-    if ((f->IsParametric() || f->IsCompilerDerived()) && calls.empty()) {
-      VLOG(5) << "No calls to parametric function " << f->name_def()->ToString()
+    if (f->IsCompilerDerived() && calls.empty()) {
+      VLOG(5) << "No calls to derived function " << f->name_def()->ToString()
               << "; not traversing for dependencies.";
       return absl::OkStatus();
     }
+
     // Process the child nodes first, so that function invocations or proc
     // spawns that _we_ make are added to the list _before us_. This only
     // matters to invocations to functions outside our module; functions inside
@@ -190,7 +211,7 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
       XLS_ASSIGN_OR_RETURN(ConversionRecord cr,
                            MakeConversionRecord(const_cast<Function*>(f),
                                                 f->owner(), invocation_ti,
-                                                /*bindings=*/ParametricEnv(),
+                                                /*bindings=*/env,
                                                 /*proc_id=*/std::nullopt,
                                                 /*is_top=*/f == top_));
       records_.push_back(std::move(cr));
@@ -212,21 +233,22 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
         << module_->name();
 
     for (const InvocationCalleeData& call : calls) {
+      VLOG(5) << "Processing call to " << call.callee->identifier()
+              << " with bindings: " << call.callee_bindings.ToString();
       if (call.callee == nullptr || IsBuiltin(call.callee)) {
         return DefaultHandler(invocation);
       }
-      if (call.callee->owner() != module_) {
-        // Function is outside this module; get additional conversion records
-        // from its invocation and add to our list of records.
-        ConversionRecordVisitor visitor(
-            call.callee->owner(), call.derived_type_info, include_tests_,
-            proc_id_factory_, top_, resolved_proc_alias_, records_,
-            processed_invocations_);
-        // Handle outgoing calls from the function.
-        XLS_RETURN_IF_ERROR(visitor.DefaultHandler(call.callee));
-      } else {
-        XLS_RETURN_IF_ERROR(call.callee->Accept(this));
-      }
+
+      // Use a visitor for the callee's module and with the specific TypeInfo
+      // for the call. Even if the function is in the same module, the TypeInfo
+      // may be different than the one the current visitor has.
+      ConversionRecordVisitor visitor(
+          call.callee->owner(), call.derived_type_info, include_tests_,
+          proc_id_factory_, top_, resolved_proc_alias_, records_,
+          processed_invocations_);
+
+      XLS_RETURN_IF_ERROR(
+          visitor.HandleFunctionInternal(call.callee, call.callee_bindings));
 
       VLOG(5) << "Processing invocation " << invocation->ToString();
       XLS_ASSIGN_OR_RETURN(
@@ -460,7 +482,7 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
   std::optional<ResolvedProcAlias> resolved_proc_alias_;
 
   std::vector<ConversionRecord>& records_;
-  absl::flat_hash_set<const Invocation*> processed_invocations_;
+  absl::flat_hash_set<const Invocation*>& processed_invocations_;
 };
 
 }  // namespace
