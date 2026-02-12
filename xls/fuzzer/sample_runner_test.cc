@@ -833,6 +833,51 @@ TEST_F(SampleRunnerTest, CodegenPipelineProcWithState) {
               IsOkAndHolds(HasSubstr(expected_result)));
 }
 
+TEST_F(SampleRunnerTest, ProcScopedCodegenPipelineProcWithState) {
+  if (!DefaultSimulatorSupportsSystemVerilog()) {
+    GTEST_SKIP() << "uses SystemVerilog, default simulator does not support";
+  }
+  SampleRunner runner(GetTempPath());
+  SampleOptions options;
+  options.set_input_is_dslx(true);
+  options.set_lower_to_proc_scoped_channels(true);
+  options.set_ir_converter_args({"--top=main"});
+  options.set_codegen(true);
+  options.set_codegen_ng(false);
+  options.set_codegen_args({
+      "--codegen_version=1.5",
+      "--generator=pipeline",
+      "--pipeline_stages=2",
+      "--reset=rst",
+      "--reset_data_path=false",
+  });
+  options.set_use_system_verilog(true);
+  options.set_sample_type(fuzzer::SAMPLE_TYPE_PROC);
+  options.set_simulate(true);
+  XLS_ASSERT_OK_AND_ASSIGN(ArgsBatch args_batch, ToArgsBatch({
+                                                     {
+                                                         "bits[1]:1",
+                                                     },
+                                                     {
+                                                         "bits[1]:0",
+                                                     },
+                                                 }));
+  XLS_ASSERT_OK(
+      runner.Run(Sample(std::string(kProcCounterDSLX), options, args_batch,
+                        /*ir_channel_names=*/{"_enable_counter"})));
+
+  constexpr std::string_view expected_result =
+      "_result : {\n  bits[32]:0x2b\n  bits[32]:0x2b\n}";
+  EXPECT_THAT(GetFileContents(GetTempPath() / "sample.x.results"),
+              IsOkAndHolds(HasSubstr(expected_result)));
+  EXPECT_THAT(GetFileContents(GetTempPath() / "sample.ir.results"),
+              IsOkAndHolds(HasSubstr(expected_result)));
+  EXPECT_THAT(GetFileContents(GetTempPath() / "sample.opt.ir.results"),
+              IsOkAndHolds(HasSubstr(expected_result)));
+  EXPECT_THAT(GetFileContents(GetTempPath() / "sample.sv.results"),
+              IsOkAndHolds(HasSubstr(expected_result)));
+}
+
 TEST_F(SampleRunnerTest, MiscompareNumberOfChannels) {
   SampleRunner runner(
       GetTempPath(),

@@ -492,7 +492,10 @@ absl::StatusOr<Sample> GenerateSample(
   // error.
   dslx::ConvertOptions convert_options{
       .warnings = dslx::DisableWarning(
-          dslx::kDefaultWarningsSet, dslx::WarningKind::kWidthSliceOutOfRange)};
+          dslx::kDefaultWarningsSet, dslx::WarningKind::kWidthSliceOutOfRange),
+      .lower_to_proc_scoped_channels =
+          sample_options.lower_to_proc_scoped_channels(),
+  };
   absl::StatusOr<TypecheckedModule> tm =
       ParseAndTypecheck(dslx_text, "sample.x", "sample", &import_data,
                         /*comments=*/nullptr, convert_options);

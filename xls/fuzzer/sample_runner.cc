@@ -532,7 +532,7 @@ absl::Status CompareResultsProc(
 absl::StatusOr<absl::flat_hash_map<std::string, std::vector<dslx::InterpValue>>>
 RunProc(dslx::Proc* proc, dslx::ImportData& import_data,
         const dslx::TypecheckedModule& tm, const ArgsBatch& args_batch,
-        int64_t proc_ticks) {
+        int64_t proc_ticks, const SampleOptions& options) {
   XLS_ASSIGN_OR_RETURN(dslx::TypeInfo * proc_type_info,
                        tm.type_info->GetTopLevelProcTypeInfo(proc));
 
@@ -556,8 +556,14 @@ RunProc(dslx::Proc* proc, dslx::ImportData& import_data,
       in_chan_indexes.push_back(index);
     } else {
       out_chan_indexes.push_back(index);
-      out_ir_channel_names.push_back(absl::StrCat(
-          module_name, "__", proc->config().params().at(index)->identifier()));
+      if (options.lower_to_proc_scoped_channels()) {
+        out_ir_channel_names.push_back(
+            absl::StrCat("_", proc->config().params().at(index)->identifier()));
+      } else {
+        out_ir_channel_names.push_back(
+            absl::StrCat(module_name, "__",
+                         proc->config().params().at(index)->identifier()));
+      }
     }
   }
 
@@ -599,7 +605,8 @@ RunProc(dslx::Proc* proc, dslx::ImportData& import_data,
 absl::StatusOr<absl::flat_hash_map<std::string, std::vector<Value>>>
 InterpretDslxProc(std::string_view text, std::string_view top_name,
                   const ArgsBatch& args_batch, int tick_count,
-                  const std::filesystem::path& run_dir) {
+                  const std::filesystem::path& run_dir,
+                  const SampleOptions& options) {
   dslx::ImportData import_data = dslx::CreateImportData(
       GetDefaultDslxStdlibPath(),
       /*additional_search_paths=*/{}, dslx::kDefaultWarningsSet,
@@ -616,8 +623,8 @@ InterpretDslxProc(std::string_view text, std::string_view top_name,
   dslx::Proc* proc = std::get<dslx::Proc*>(*member);
 
   absl::flat_hash_map<std::string, std::vector<dslx::InterpValue>> dslx_results;
-  XLS_ASSIGN_OR_RETURN(dslx_results,
-                       RunProc(proc, import_data, tm, args_batch, tick_count));
+  XLS_ASSIGN_OR_RETURN(dslx_results, RunProc(proc, import_data, tm, args_batch,
+                                             tick_count, options));
 
   absl::flat_hash_map<std::string, std::vector<Value>> ir_channel_values;
   for (const auto& [key, values] : dslx_results) {
@@ -1019,7 +1026,7 @@ absl::Status SampleRunner::RunProc(
       Stopwatch t;
       XLS_ASSIGN_OR_RETURN(results["interpreted DSLX"],
                            InterpretDslxProc(input_text, "main", *args_batch,
-                                             tick_count, run_dir_));
+                                             tick_count, run_dir_, options));
       reference = results["interpreted DSLX"];
       absl::Duration elapsed = t.GetElapsedTime();
       VLOG(1) << "Interpreting DSLX complete, elapsed: " << elapsed;
@@ -1032,8 +1039,13 @@ absl::Status SampleRunner::RunProc(
 
     Stopwatch t;
     SampleOptions options_copy = options;
-    options_copy.set_ir_converter_args(
-        {"--lower_to_proc_scoped_channels=false"});
+    if (options.lower_to_proc_scoped_channels()) {
+      options_copy.set_ir_converter_args(
+          {"--lower_to_proc_scoped_channels=true"});
+    } else {
+      options_copy.set_ir_converter_args(
+          {"--lower_to_proc_scoped_channels=false"});
+    }
     XLS_ASSIGN_OR_RETURN(
         ir_path, DslxToIrProc(input_path, options_copy, run_dir_, commands_));
     timing_.set_convert_ir_ns(absl::ToInt64Nanoseconds(t.GetElapsedTime()));

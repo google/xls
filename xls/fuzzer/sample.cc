@@ -136,6 +136,7 @@ bool SampleOptions::operator==(const SampleOptions& other) const {
   proto.set_simulate(false);
   proto.set_use_system_verilog(true);
   proto.set_calls_per_sample(1);
+  proto.set_lower_to_proc_scoped_channels(false);
   // TODO(https://github.com/google/xls/issues/1140): Remove when fixed.
   auto* pipeline = proto.add_known_failure();
   pipeline->set_tool(".*codegen_main");

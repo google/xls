@@ -101,6 +101,10 @@ message SampleOptionsProto {
   //
   // We should try to reduce these to nothing if possible over time.
   repeated KnownFailure known_failure = 15;
+
+  // If true, lower the IR to proc-scoped channels. Effectively ignored if
+  // input_is_dslx is false.
+  optional bool lower_to_proc_scoped_channels = 19;
 }
 
 message CrasherConfigurationProto {

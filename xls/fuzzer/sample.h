@@ -154,6 +154,13 @@ class SampleOptions {
     proto_.set_disable_unopt_interpreter(value);
   }
 
+  bool lower_to_proc_scoped_channels() const {
+    return proto_.lower_to_proc_scoped_channels();
+  }
+  void set_lower_to_proc_scoped_channels(bool value) {
+    proto_.set_lower_to_proc_scoped_channels(value);
+  }
+
   const std::vector<KnownFailure>& known_failures() const {
     if (known_failures_.empty() && proto_.known_failure_size() > 0) {
       known_failures_.reserve(proto_.known_failure_size());
