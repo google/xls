@@ -2884,6 +2884,16 @@ absl::StatusOr<Expr*> Parser::BuildMacroOrInvocation(
                                                      parametrics);
       }
 
+      if (name == "read" || name == "write") {
+        if (!module_->attributes().contains(
+                ModuleAttribute::kExplicitStateAccess)) {
+          return ParseErrorStatus(
+              span,
+              absl::StrFormat(
+                  "%s() requires #![feature(explicit_state_access)]", name));
+        }
+      }
+
       if (name == "zero!") {
         if (parametrics.size() != 1) {
           return ParseErrorStatus(

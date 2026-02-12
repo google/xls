@@ -3498,6 +3498,26 @@ TEST_F(ParserTest, ParseExplicitStateAccessAttribute) {
               testing::ElementsAre(ModuleAttribute::kExplicitStateAccess));
 }
 
+TEST_F(ParserTest, ParseExplicitStateAccessNoFeatureFlag) {
+  constexpr std::string_view kProgram = R"(
+proc foo {
+    config() { () }
+    init { u32: 10 }
+    next(state: u32) {
+        read(state);
+        write(state, state + 1);
+        state
+    }
+}
+)";
+  Scanner s{file_table_, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  EXPECT_THAT(parser.ParseModule(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("read() requires "
+                                 "#![feature(explicit_state_access)]")));
+}
+
 TEST_F(ParserTest, ExplicitStateAccessProcNextReturnsEmptyTuple) {
   constexpr std::string_view kProgram = R"(#![feature(explicit_state_access)]
 proc simple {
