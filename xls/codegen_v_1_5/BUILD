@@ -123,7 +123,6 @@ cc_library(
     deps = [
         ":block_conversion_pass",
         "//xls/common/status:status_macros",
-        "//xls/data_structures:transitive_closure",
         "//xls/ir",
         "//xls/ir:op",
         "//xls/ir:register",
@@ -136,6 +135,7 @@ cc_library(
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
     ],
@@ -281,6 +281,7 @@ cc_library(
         "//xls/scheduling:scheduling_options",
         "//xls/scheduling:scheduling_result",
         "//xls/tools:schedule",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
     ],
 )
