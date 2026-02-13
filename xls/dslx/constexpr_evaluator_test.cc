@@ -95,7 +95,7 @@ fn Foo() -> u64 {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            module->GetMemberOrError<Function>("Foo"));
 
-  Attr* attr = down_cast<Attr*>(
+  Attr* attr = absl::down_cast<Attr*>(
       std::get<Expr*>(f->body()->statements().at(0)->wrapped()));
 
   XLS_ASSERT_OK_AND_ASSIGN(Type * type, GetType(type_info, attr));
@@ -118,7 +118,7 @@ const kFoo = u32:7;
   TypeInfo* type_info = test_data.type_info;
   XLS_ASSERT_OK_AND_ASSIGN(ConstantDef * constant_def,
                            module->GetConstantDef("kFoo"));
-  Number* number = down_cast<Number*>(constant_def->value());
+  Number* number = absl::down_cast<Number*>(constant_def->value());
 
   XLS_ASSERT_OK_AND_ASSIGN(Type * type, GetType(type_info, number));
   WarningCollector warnings(kAllWarningsSet);
@@ -146,7 +146,7 @@ fn Foo() -> u64 {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            module->GetMemberOrError<Function>("Foo"));
 
-  Cast* cast = down_cast<Cast*>(GetSingleBodyExpr(f));
+  Cast* cast = absl::down_cast<Cast*>(GetSingleBodyExpr(f));
   XLS_ASSERT_OK_AND_ASSIGN(Type * type, GetType(type_info, cast));
   WarningCollector warnings(kAllWarningsSet);
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(test_data.import_data.get(),
@@ -169,7 +169,8 @@ fn main() -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            module->GetMemberOrError<Function>("main"));
 
-  Conditional* conditional = down_cast<Conditional*>(GetSingleBodyExpr(f));
+  Conditional* conditional =
+      absl::down_cast<Conditional*>(GetSingleBodyExpr(f));
   XLS_ASSERT_OK_AND_ASSIGN(Type * type, GetType(type_info, conditional));
   WarningCollector warnings(kAllWarningsSet);
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
@@ -200,7 +201,7 @@ fn Foo() -> MyStruct {
                            module->GetMemberOrError<Function>("Foo"));
 
   StructInstance* struct_instance =
-      down_cast<StructInstance*>(GetSingleBodyExpr(f));
+      absl::down_cast<StructInstance*>(GetSingleBodyExpr(f));
   XLS_ASSERT_OK_AND_ASSIGN(Type * type, GetType(type_info, struct_instance));
   WarningCollector warnings(kAllWarningsSet);
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
@@ -236,7 +237,7 @@ fn main() -> MyStruct {
                            module->GetMemberOrError<Function>("main"));
 
   SplatStructInstance* struct_instance =
-      down_cast<SplatStructInstance*>(GetSingleBodyExpr(f));
+      absl::down_cast<SplatStructInstance*>(GetSingleBodyExpr(f));
   XLS_ASSERT_OK_AND_ASSIGN(Type * type, GetType(type_info, struct_instance));
   WarningCollector warnings(kAllWarningsSet);
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
@@ -271,7 +272,7 @@ fn main() -> u32 {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetMemberOrError<Function>("main"));
-  ColonRef* colon_ref = down_cast<ColonRef*>(GetSingleBodyExpr(f));
+  ColonRef* colon_ref = absl::down_cast<ColonRef*>(GetSingleBodyExpr(f));
   XLS_ASSERT_OK_AND_ASSIGN(Type * type, GetType(tm.type_info, colon_ref));
   WarningCollector warnings(kAllWarningsSet);
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
@@ -305,7 +306,7 @@ fn main() -> imported::MyEnum {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetMemberOrError<Function>("main"));
-  ColonRef* colon_ref = down_cast<ColonRef*>(GetSingleBodyExpr(f));
+  ColonRef* colon_ref = absl::down_cast<ColonRef*>(GetSingleBodyExpr(f));
   XLS_ASSERT_OK_AND_ASSIGN(Type * type, GetType(tm.type_info, colon_ref));
   WarningCollector warnings(kAllWarningsSet);
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
@@ -331,7 +332,7 @@ fn main() -> u32 {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetMemberOrError<Function>("main"));
-  Index* index = down_cast<Index*>(GetSingleBodyExpr(f));
+  Index* index = absl::down_cast<Index*>(GetSingleBodyExpr(f));
   XLS_ASSERT_OK_AND_ASSIGN(Type * type, GetType(tm.type_info, index));
   WarningCollector warnings(kAllWarningsSet);
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
@@ -358,7 +359,7 @@ fn main() -> u16 {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetMemberOrError<Function>("main"));
   Expr* body_expr = GetSingleBodyExpr(f);
-  Index* index = down_cast<Index*>(body_expr);
+  Index* index = absl::down_cast<Index*>(body_expr);
   XLS_ASSERT_OK_AND_ASSIGN(Type * type, GetType(tm.type_info, index));
   WarningCollector warnings(kAllWarningsSet);
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
@@ -384,7 +385,7 @@ fn main() -> u16 {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetMemberOrError<Function>("main"));
-  Index* index = down_cast<Index*>(GetSingleBodyExpr(f));
+  Index* index = absl::down_cast<Index*>(GetSingleBodyExpr(f));
   XLS_ASSERT_OK_AND_ASSIGN(Type * type, GetType(tm.type_info, index));
   WarningCollector warnings(kAllWarningsSet);
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
@@ -408,7 +409,7 @@ fn main() -> (u32, u32, u32) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetMemberOrError<Function>("main"));
-  XlsTuple* xls_tuple = down_cast<XlsTuple*>(GetSingleBodyExpr(f));
+  XlsTuple* xls_tuple = absl::down_cast<XlsTuple*>(GetSingleBodyExpr(f));
   std::vector<InterpValue> elements;
   elements.push_back(InterpValue::MakeU32(1));
   elements.push_back(InterpValue::MakeU32(2));
@@ -441,7 +442,7 @@ fn main() -> u32 {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetMemberOrError<Function>("main"));
-  Match* match = down_cast<Match*>(GetSingleBodyExpr(f));
+  Match* match = absl::down_cast<Match*>(GetSingleBodyExpr(f));
   XLS_ASSERT_OK_AND_ASSIGN(Type * type, GetType(tm.type_info, match));
   WarningCollector warnings(kAllWarningsSet);
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
@@ -465,7 +466,7 @@ fn main() -> s32 {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetMemberOrError<Function>("main"));
-  Unop* unop = down_cast<Unop*>(GetSingleBodyExpr(f));
+  Unop* unop = absl::down_cast<Unop*>(GetSingleBodyExpr(f));
   XLS_ASSERT_OK_AND_ASSIGN(Type * type, GetType(tm.type_info, unop));
   WarningCollector warnings(kAllWarningsSet);
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
