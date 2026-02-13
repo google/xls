@@ -2595,52 +2595,6 @@ class Function : public AstNode {
   bool disable_format_ = false;
 };
 
-// A lambda expression.
-// Syntax: `|<PARAM>[: <TYPE], ... | [-> <RETURN_TYPE>]  { <BODY> }`
-//
-// Parameter types and return type are optional.
-//
-// Example: `let squares = map(range(u32:0, u32:5), |x| { x * x });`
-//
-// Attributes:
-// * function: A Function that represents the lambda behavior.
-class Lambda : public Expr {
- public:
-  Lambda(Module* owner, Span span, Function* function);
-
-  ~Lambda() override;
-
-  AstNodeKind kind() const override { return AstNodeKind::kLambda; }
-  absl::Status Accept(AstNodeVisitor* v) const override {
-    return v->HandleLambda(this);
-  }
-  absl::Status AcceptExpr(ExprVisitor* v) const override {
-    return v->HandleLambda(this);
-  }
-  std::string_view GetNodeTypeName() const override { return "Lambda"; }
-
-  // Lambda is a wrapper around the lambda function. Functions are top-level to
-  // the module, so there are no children here.
-  std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {};
-  }
-
-  const std::vector<Param*>& params() const { return function_->params(); }
-  TypeAnnotation* return_type() const { return function_->return_type(); }
-  StatementBlock* body() const { return function_->body(); }
-
-  Function* function() const { return function_; }
-
- private:
-  Function* function_;
-
-  std::string ToStringInternal() const final;
-
-  Precedence GetPrecedenceWithoutParens() const final {
-    return Precedence::kStrongest;
-  }
-};
-
 // Represents a single arm in a match expression.
 //
 // Attributes:
@@ -3474,6 +3428,54 @@ class Impl : public AstNode {
 
   template <typename T>
   std::vector<T> GetMembersOfType() const;
+};
+
+// A lambda expression.
+// Syntax: `|<PARAM>[: <TYPE], ... | [-> <RETURN_TYPE>]  { <BODY> }`
+//
+// Parameter types and return type are optional.
+//
+// Example: `let squares = map(range(u32:0, u32:5), |x| { x * x });`
+//
+// Attributes:
+// * impl: An impl containing the function for the lambda.
+
+class Lambda : public Expr {
+ public:
+  static constexpr std::string_view kCallLambdaFn = "call";
+
+  Lambda(Module* owner, Span span, Impl* impl);
+
+  ~Lambda() override;
+
+  AstNodeKind kind() const override { return AstNodeKind::kLambda; }
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleLambda(this);
+  }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleLambda(this);
+  }
+  std::string_view GetNodeTypeName() const override { return "Lambda"; }
+
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    return {impl_};
+  }
+
+  const std::vector<Param*>& params() const { return function()->params(); }
+  TypeAnnotation* return_type() const { return function()->return_type(); }
+  StatementBlock* body() const { return function()->body(); }
+
+  Function* function() const { return *impl_->GetFunction(kCallLambdaFn); }
+  Impl* impl() const { return impl_; }
+
+ private:
+  Impl* impl_;
+
+  std::string ToStringInternal() const final;
+
+  Precedence GetPrecedenceWithoutParens() const final {
+    return Precedence::kStrongest;
+  }
 };
 
 class Trait : public AstNode {
