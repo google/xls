@@ -27,6 +27,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/base/casts.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
@@ -39,7 +40,6 @@
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
-#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
@@ -1074,7 +1074,7 @@ absl::Status FunctionConverter::HandleLet(const Let* node) {
         // level (i.e., siblings to the "rest of tuple") via the parent
         // NameDefTree.
         const NameDefTree* parent =
-            down_cast<const NameDefTree*>(name_def_tree->parent());
+            absl::down_cast<const NameDefTree*>(name_def_tree->parent());
         int64_t number_of_bindings = parent->nodes().size();
         int64_t number_of_tuple_elements = tuple_type->size();
 
@@ -4254,7 +4254,8 @@ absl::Status FunctionConverter::HandleBuiltinZip(const Invocation* node) {
   XLS_ASSIGN_OR_RETURN(xls::Type * result_type_base, ResolveTypeToIr(node));
   // Should never fail, because type inference should ensure this is a array
   // type.
-  xls::ArrayType* result_type = down_cast<xls::ArrayType*>(result_type_base);
+  xls::ArrayType* result_type =
+      absl::down_cast<xls::ArrayType*>(result_type_base);
 
   Def(node, [&](const SourceInfo& loc) {
     std::vector<BValue> elems;
@@ -4280,7 +4281,7 @@ absl::Status FunctionConverter::HandleBuiltinArraySlice(
 
   const Expr* arg2 = node->args()[2];
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> output_type, ResolveType(arg2));
-  const auto* array_type = down_cast<const ArrayType*>(output_type.get());
+  const auto* array_type = absl::down_cast<const ArrayType*>(output_type.get());
   XLS_ASSIGN_OR_RETURN(int64_t width, array_type->size().GetAsInt64());
 
   Def(node, [&](const SourceInfo& loc) {

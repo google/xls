@@ -24,6 +24,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -35,7 +36,6 @@
 #include "xls/codegen/vast/dslx_type_fixer.h"
 #include "xls/codegen/vast/fold_vast_constants.h"
 #include "xls/codegen/vast/vast.h"
-#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"

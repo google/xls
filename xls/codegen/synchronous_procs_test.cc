@@ -20,6 +20,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
@@ -29,7 +30,6 @@
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/pipeline_generator.h"
 #include "xls/codegen/test_fifos.h"
-#include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/bits.h"

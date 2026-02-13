@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/base/casts.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -34,7 +35,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/variant.h"
-#include "xls/common/casts.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/channel.pb.h"
 #include "xls/ir/channel_ops.h"

@@ -22,8 +22,8 @@
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "absl/base/casts.h"
 #include "absl/log/log.h"
-#include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"

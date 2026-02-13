@@ -22,10 +22,10 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "xls/common/casts.h"
 #include "xls/ir/block.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
@@ -149,7 +149,7 @@ class ScheduledBlockBuilder : public BlockBuilder {
 
   // Returns the Block being constructed. Hides BlockBuilder::block().
   ScheduledBlock* block() const {
-    return down_cast<ScheduledBlock*>(function());
+    return absl::down_cast<ScheduledBlock*>(function());
   }
 
   // Overrides the stage assignment for the given node, without affecting
@@ -164,7 +164,7 @@ class ScheduledBlockBuilder : public BlockBuilder {
   // which is partially lowered and still refers to non-block constructs in the
   // source.
   void SetSource(std::unique_ptr<FunctionBase> source) {
-    down_cast<ScheduledBlock*>(block())->SetSource(std::move(source));
+    absl::down_cast<ScheduledBlock*>(block())->SetSource(std::move(source));
   }
 
   // Creates a BValue in this builder for the given node in the source entity.

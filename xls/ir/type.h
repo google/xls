@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
@@ -29,7 +30,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
-#include "xls/common/casts.h"
 #include "xls/ir/xls_type.pb.h"
 
 namespace xls {
@@ -288,42 +288,42 @@ class InstantiationType {
 
 inline const BitsType* Type::AsBitsOrDie() const {
   CHECK_EQ(kind(), TypeKind::kBits) << ToString();
-  return down_cast<const BitsType*>(this);
+  return absl::down_cast<const BitsType*>(this);
 }
 
 inline BitsType* Type::AsBitsOrDie() {
   CHECK_EQ(kind(), TypeKind::kBits) << ToString();
-  return down_cast<BitsType*>(this);
+  return absl::down_cast<BitsType*>(this);
 }
 
 inline const TupleType* Type::AsTupleOrDie() const {
   CHECK_EQ(kind(), TypeKind::kTuple);
-  return down_cast<const TupleType*>(this);
+  return absl::down_cast<const TupleType*>(this);
 }
 
 inline TupleType* Type::AsTupleOrDie() {
   CHECK_EQ(kind(), TypeKind::kTuple);
-  return down_cast<TupleType*>(this);
+  return absl::down_cast<TupleType*>(this);
 }
 
 inline const ArrayType* Type::AsArrayOrDie() const {
   CHECK_EQ(kind(), TypeKind::kArray);
-  return down_cast<const ArrayType*>(this);
+  return absl::down_cast<const ArrayType*>(this);
 }
 
 inline ArrayType* Type::AsArrayOrDie() {
   CHECK_EQ(kind(), TypeKind::kArray);
-  return down_cast<ArrayType*>(this);
+  return absl::down_cast<ArrayType*>(this);
 }
 
 inline const TokenType* Type::AsTokenOrDie() const {
   CHECK_EQ(kind(), TypeKind::kToken);
-  return down_cast<const TokenType*>(this);
+  return absl::down_cast<const TokenType*>(this);
 }
 
 inline TokenType* Type::AsTokenOrDie() {
   CHECK_EQ(kind(), TypeKind::kToken);
-  return down_cast<TokenType*>(this);
+  return absl::down_cast<TokenType*>(this);
 }
 
 // Returns type of the nested element inside of "type_to_index" resulting from

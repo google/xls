@@ -17,8 +17,8 @@
 #include <optional>
 #include <string_view>
 
+#include "absl/base/casts.h"
 #include "absl/base/optimization.h"
-#include "xls/common/casts.h"
 #include "xls/ir/function.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/node.h"

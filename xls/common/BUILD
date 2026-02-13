@@ -138,26 +138,6 @@ cc_library(
     ],
 )
 
-cc_library(
-    name = "casts",
-    hdrs = ["casts.h"],
-    deps = [
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/base:core_headers",
-    ],
-)
-
-cc_test(
-    name = "casts_test",
-    srcs = ["casts_test.cc"],
-    deps = [
-        ":casts",
-        ":xls_gunit_main",
-        "@com_google_absl//absl/base",
-        "@googletest//:gtest",
-    ],
-)
-
 cc_test(
     name = "xls_gunit_sample",
     srcs = ["xls_gunit_sample.cc"],

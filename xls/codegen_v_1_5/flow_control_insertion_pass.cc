@@ -19,13 +19,13 @@
 #include <optional>
 #include <string>
 
+#include "absl/base/casts.h"
 #include "absl/container/fixed_array.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
-#include "xls/common/casts.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"

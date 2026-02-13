@@ -18,10 +18,10 @@
 #include <memory>
 #include <string_view>
 
+#include "absl/base/casts.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
-#include "xls/common/casts.h"
 #include "xls/common/module_initializer.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/fdo/synthesizer.h"

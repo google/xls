@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
@@ -135,7 +136,7 @@ template <typename T>
 inline absl::StatusOr<T*> CloneNode(
     T* node, CloneReplacer replacer = &NoopCloneReplacer) {
   XLS_ASSIGN_OR_RETURN(AstNode * cloned, CloneAst(node, std::move(replacer)));
-  return down_cast<T*>(cloned);
+  return absl::down_cast<T*>(cloned);
 }
 
 // Helper that vectorizes the CloneNode routine.

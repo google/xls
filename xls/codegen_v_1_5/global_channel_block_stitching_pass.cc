@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/base/casts.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -36,7 +37,6 @@
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
 #include "xls/codegen_v_1_5/block_conversion_utils.h"
 #include "xls/codegen_v_1_5/global_channel_map.h"
-#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/block.h"

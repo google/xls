@@ -62,7 +62,6 @@ cc_library(
     hdrs = ["experiment_factory.h"],
     deps = [
         ":experiment",
-        "//xls/common:casts",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",

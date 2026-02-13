@@ -24,12 +24,12 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/channel.h"
@@ -454,7 +454,7 @@ class ScheduledProc : public Proc {
         Proc * cloned_proc,
         Proc::Clone(new_name, target_package, channel_remapping, call_remapping,
                     state_name_remapping));
-    return down_cast<ScheduledProc*>(cloned_proc);
+    return absl::down_cast<ScheduledProc*>(cloned_proc);
   }
 };
 

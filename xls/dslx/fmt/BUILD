@@ -188,7 +188,6 @@ cc_test(
     deps = [
         ":comments",
         ":format_disabler",
-        "//xls/common:casts",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:parse_and_typecheck",
@@ -197,6 +196,7 @@ cc_test(
         "//xls/dslx/frontend:comment_data",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
+        "@com_google_absl//absl/base",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/strings",

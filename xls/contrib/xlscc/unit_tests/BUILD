@@ -216,7 +216,6 @@ cc_test(
     shard_count = 32,
     deps = [
         ":unit_test",
-        "//xls/common:casts",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/contrib/xlscc:hls_block_cc_proto",
@@ -235,6 +234,7 @@ cc_test(
         "//xls/passes:optimization_pass",
         "//xls/passes:optimization_pass_pipeline",
         "//xls/passes:pass_base",
+        "@com_google_absl//absl/base",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",

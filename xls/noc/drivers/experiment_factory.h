@@ -24,7 +24,6 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
-#include "xls/common/casts.h"
 #include "xls/noc/drivers/experiment.h"
 
 namespace xls::noc {
@@ -68,7 +67,7 @@ class ExperimentFactory {
     }
 
     experiments_[tag] = std::make_unique<ExperimentBuilder>();
-    return down_cast<ExperimentBuilder*>(experiments_[tag].get());
+    return absl::down_cast<ExperimentBuilder*>(experiments_[tag].get());
   }
 
  private:

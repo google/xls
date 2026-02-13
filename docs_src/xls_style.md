@@ -157,7 +157,7 @@ performant alternatives to C++'s RTTI. For example,
 
 ```
 if (node->Is<Send>()) {
-  return node->As<Send>()->channel_id();  // As<Send>() is down_cast<Send*>()
+  return node->As<Send>()->channel_id();  // As<Send>() is absl:down_cast<Send*>()
 }
 ```
 
@@ -166,7 +166,7 @@ or
 ```
 switch (node->op()) {
   case Op::kSend:
-    return down_cast<Send*>(node)->channel_id();
+    return absl::down_cast<Send*>(node)->channel_id();
   // case Op:: ...
 }
 ```

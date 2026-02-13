@@ -31,6 +31,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
@@ -49,7 +50,6 @@
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/codegen_result.h"
 #include "xls/codegen/ram_configuration.h"
-#include "xls/common/casts.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"

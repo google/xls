@@ -22,13 +22,13 @@
 #include <variant>
 #include <vector>
 
+#include "absl/base/casts.h"
 #include "absl/functional/function_ref.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/substitute.h"
-#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/channel_direction.h"
@@ -715,7 +715,7 @@ class Unifier {
       absl::FunctionRef<const T*(const TypeAnnotation*)> cast_fn =
           [](const TypeAnnotation* annotation) {
             return annotation->IsAnnotation<T>()
-                       ? down_cast<const T*>(annotation)
+                       ? absl::down_cast<const T*>(annotation)
                        : nullptr;
           }) {
     std::vector<const T*> result;

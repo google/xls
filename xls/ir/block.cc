@@ -43,7 +43,6 @@
 #include "absl/types/variant.h"
 #include "google/protobuf/text_format.h"
 #include "xls/codegen/module_signature.pb.h"
-#include "xls/common/casts.h"
 #include "xls/common/indent.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"

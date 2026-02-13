@@ -22,10 +22,10 @@
 #include <string>
 #include <string_view>
 
+#include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "xls/common/casts.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/ir_annotator.h"
@@ -139,7 +139,7 @@ class ScheduledFunction : public Function {
     XLS_ASSIGN_OR_RETURN(
         Function * cloned_function,
         Function::Clone(new_name, target_package, call_remapping));
-    return down_cast<ScheduledFunction*>(cloned_function);
+    return absl::down_cast<ScheduledFunction*>(cloned_function);
   }
 };
 

@@ -19,10 +19,10 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/base/casts.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
-#include "xls/common/casts.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/block.h"
 #include "xls/ir/instantiation.h"

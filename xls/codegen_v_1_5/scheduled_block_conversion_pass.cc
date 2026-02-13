@@ -20,6 +20,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -28,7 +29,6 @@
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
 #include "xls/codegen_v_1_5/block_conversion_utils.h"
-#include "xls/common/casts.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"

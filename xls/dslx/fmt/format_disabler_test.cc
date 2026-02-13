@@ -22,10 +22,10 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/base/casts.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
-#include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/fmt/comments.h"
 #include "xls/dslx/frontend/ast.h"

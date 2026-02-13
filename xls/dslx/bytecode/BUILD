@@ -96,7 +96,6 @@ cc_library(
     hdrs = ["bytecode_emitter.h"],
     deps = [
         ":bytecode",
-        "//xls/common:casts",
         "//xls/common:symbolized_stacktrace",
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
@@ -119,6 +118,7 @@ cc_library(
         "//xls/ir:bits",
         "//xls/ir:format_preference",
         "//xls/ir:format_strings",
+        "@com_google_absl//absl/base",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/functional:function_ref",
@@ -139,7 +139,6 @@ cc_test(
     deps = [
         ":bytecode",
         ":bytecode_emitter",
-        "//xls/common:casts",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -153,6 +152,7 @@ cc_test(
         "//xls/dslx/type_system:parametric_env",
         "//xls/dslx/type_system:type_info",
         "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/base",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",

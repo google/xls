@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -32,7 +33,6 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/codegen/module_signature.pb.h"
-#include "xls/common/casts.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function_base.h"
@@ -637,7 +637,7 @@ class ScheduledBlock : public Block {
     XLS_ASSIGN_OR_RETURN(Block * cloned_block,
                          Block::Clone(new_name, target_package, reg_name_map,
                                       block_instantiation_map));
-    return down_cast<ScheduledBlock*>(cloned_block);
+    return absl::down_cast<ScheduledBlock*>(cloned_block);
   }
 
   // Creates a clone of the scheduled block with the new name 'new_name', but

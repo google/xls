@@ -31,7 +31,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
-#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
@@ -503,11 +502,11 @@ class AstCloner : public AstNodeVisitor {
   absl::Status HandleIndex(const Index* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
-    IndexRhs new_rhs =
-        absl::visit(Visitor{[&](auto* expr) -> IndexRhs {
-                      return down_cast<decltype(expr)>(old_to_new_.at(expr));
-                    }},
-                    n->rhs());
+    IndexRhs new_rhs = absl::visit(
+        Visitor{[&](auto* expr) -> IndexRhs {
+          return absl::down_cast<decltype(expr)>(old_to_new_.at(expr));
+        }},
+        n->rhs());
 
     old_to_new_[n] = module(n)->Make<Index>(
         n->span(), absl::down_cast<Expr*>(old_to_new_.at(n->lhs())), new_rhs,
@@ -605,7 +604,7 @@ class AstCloner : public AstNodeVisitor {
     if (replacement->kind() == AstNodeKind::kVerbatimNode) {
       return absl::down_cast<VerbatimNode*>(replacement);
     }
-    return down_cast<T>(replacement);
+    return absl::down_cast<T>(replacement);
   }
 
   absl::Status HandleModule(const Module* n) override {
@@ -652,7 +651,9 @@ class AstCloner : public AstNodeVisitor {
     if (n->is_leaf()) {
       NameDefTree::Leaf leaf;
       absl::visit(
-          [&](auto* x) { leaf = down_cast<decltype(x)>(old_to_new_.at(x)); },
+          [&](auto* x) {
+            leaf = absl::down_cast<decltype(x)>(old_to_new_.at(x));
+          },
           n->leaf());
       old_to_new_[n] = module(n)->Make<NameDefTree>(n->span(), leaf);
       return absl::OkStatus();
@@ -854,7 +855,7 @@ class AstCloner : public AstNodeVisitor {
           absl::StrCat("Cannot disable formatting here yet: ",
                        absl::down_cast<VerbatimNode*>(node)->text()));
     }
-    return down_cast<T>(node);
+    return absl::down_cast<T>(node);
   }
 
   // Helper function to clone a node of type `T` where `T` is a concrete
@@ -886,7 +887,8 @@ class AstCloner : public AstNodeVisitor {
           member->span(), new_name, member->colon_span(), new_type));
     }
 
-    auto* new_name_def = down_cast<NameDef*>(old_to_new_.at(n->name_def()));
+    auto* new_name_def =
+        absl::down_cast<NameDef*>(old_to_new_.at(n->name_def()));
     auto* new_struct_def =
         m->Make<T>(n->span(), new_name_def, new_parametric_bindings,
                    new_members, n->is_public());
@@ -896,7 +898,8 @@ class AstCloner : public AstNodeVisitor {
       if (!old_to_new_.contains(n->impl().value())) {
         XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->impl().value()));
       }
-      auto* new_impl = down_cast<Impl*>(old_to_new_.at(n->impl().value()));
+      auto* new_impl =
+          absl::down_cast<Impl*>(old_to_new_.at(n->impl().value()));
       new_struct_def->set_impl(new_impl);
     }
     new_name_def->set_definer(new_struct_def);
@@ -1111,7 +1114,8 @@ class AstCloner : public AstNodeVisitor {
     XLS_RETURN_IF_ERROR(absl::visit(
         Visitor{[&](auto* ref) -> absl::Status {
           XLS_RETURN_IF_ERROR(ReplaceOrVisit(ref));
-          new_type_definition = down_cast<decltype(ref)>(old_to_new_.at(ref));
+          new_type_definition =
+              absl::down_cast<decltype(ref)>(old_to_new_.at(ref));
           return absl::OkStatus();
         }},
         n->type_definition()));
@@ -1385,7 +1389,7 @@ absl::StatusOr<ModuleMember> MakeClonedModuleMember(
               return absl::OkStatus();
             }
             using NodeT = std::remove_pointer_t<decltype(node)>;
-            new_member = down_cast<NodeT*>(replacement);
+            new_member = absl::down_cast<NodeT*>(replacement);
             return absl::OkStatus();
           },
       },

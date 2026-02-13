@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/base/casts.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -30,7 +31,6 @@
 #include "cppitertools/reversed.hpp"
 #include "xls/codegen/conversion_utils.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
-#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/block.h"

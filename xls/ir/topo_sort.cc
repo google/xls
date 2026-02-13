@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
@@ -28,7 +29,6 @@
 #include "absl/random/bit_gen_ref.h"
 #include "absl/status/status.h"
 #include "absl/types/span.h"
-#include "xls/common/casts.h"
 #include "xls/ir/block.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/function.h"

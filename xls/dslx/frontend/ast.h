@@ -27,6 +27,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/base/casts.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -406,12 +407,12 @@ class TypeAnnotation : public AstNode {
   template <typename T>
   T* AsAnnotation() {
     CHECK(IsAnnotation<T>());
-    return down_cast<T*>(this);
+    return absl::down_cast<T*>(this);
   }
   template <typename T>
   const T* AsAnnotation() const {
     CHECK(IsAnnotation<T>());
-    return down_cast<const T*>(this);
+    return absl::down_cast<const T*>(this);
   }
 
   const Span& span() const { return span_; }

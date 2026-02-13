@@ -20,9 +20,9 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/base/casts.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
-#include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"

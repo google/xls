@@ -30,7 +30,6 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "xls/common/casts.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/change_listener.h"
 #include "xls/ir/op.h"
@@ -209,12 +208,12 @@ class Node {
   template <typename OpT>
   const OpT* As() const {
     CHECK(Is<OpT>());
-    return down_cast<const OpT*>(this);
+    return absl::down_cast<const OpT*>(this);
   }
   template <typename OpT>
   OpT* As() {
     CHECK(Is<OpT>());
-    return down_cast<OpT*>(this);
+    return absl::down_cast<OpT*>(this);
   }
 
   // Returns whether this node was assigned a name at construction. Nodes

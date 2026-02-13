@@ -562,7 +562,6 @@ cc_library(
     deps = [
         ":scheduling_options",
         ":scheduling_pass",
-        "//xls/common:casts",
         "//xls/common:stopwatch",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -582,6 +581,7 @@ cc_library(
         "//xls/solvers:z3_ir_translator",
         "//xls/solvers:z3_utils",
         "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/base",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",

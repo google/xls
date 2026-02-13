@@ -30,11 +30,11 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/casts.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
@@ -1042,7 +1042,7 @@ class BlockBuilder : public BuilderBase {
   BlockBuilder& operator=(BlockBuilder&&) = delete;
 
   // Returns the Block being constructed.
-  Block* block() const { return down_cast<Block*>(function()); }
+  Block* block() const { return absl::down_cast<Block*>(function()); }
 
   // Build the block.
   absl::StatusOr<Block*> Build();

@@ -19,6 +19,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -26,7 +27,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
-#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"

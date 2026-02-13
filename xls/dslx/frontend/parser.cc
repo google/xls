@@ -41,7 +41,6 @@
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
-#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_builder.h"
 #include "xls/common/status/status_macros.h"

@@ -747,7 +747,6 @@ cc_library(
     deps = [
         ":ast_generator_options_cc_proto",
         ":value_generator",
-        "//xls/common:casts",
         "//xls/common:math_util",
         "//xls/common:random_util",
         "//xls/common:symbolized_stacktrace",
@@ -767,6 +766,7 @@ cc_library(
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
         "//xls/ir:format_preference",
+        "@com_google_absl//absl/base",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",

@@ -23,6 +23,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/base/casts.h"
 #include "absl/base/nullability.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -40,7 +41,6 @@
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/conversion_utils.h"
 #include "xls/codegen/ram_configuration.h"
-#include "xls/common/casts.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"

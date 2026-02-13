@@ -25,11 +25,11 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/base/casts.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen/vast/vast.h"
-#include "xls/common/casts.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/source_location.h"
 
@@ -182,7 +182,7 @@ class FsmBlock : public FsmBlockBase {
   T& NextState(FsmState* next_state) {
     CHECK(next_state_ == nullptr);
     next_state_ = next_state;
-    return down_cast<T&>(*this);
+    return absl::down_cast<T&>(*this);
   }
 
   // Sets the given output to the given value. This occurs immediately and
@@ -193,7 +193,7 @@ class FsmBlock : public FsmBlockBase {
   }
   T& SetOutputAsExpression(FsmOutput* output, Expression* value) {
     AddAssignment(output->logic_ref, value);
-    return down_cast<T&>(*this);
+    return absl::down_cast<T&>(*this);
   }
 
   // Sets the given register to the given value in the next cycle.
@@ -203,7 +203,7 @@ class FsmBlock : public FsmBlockBase {
   }
   T& SetRegisterNextAsExpression(FsmRegister* reg, Expression* value) {
     AddAssignment(reg->next, value);
-    return down_cast<T&>(*this);
+    return absl::down_cast<T&>(*this);
   }
 
   // Sets the given counter to the given value in the next cycle.
@@ -213,7 +213,7 @@ class FsmBlock : public FsmBlockBase {
   }
   T& SetCounterAsExpression(FsmCounter* counter, Expression* value) {
     AddAssignment(counter->next, value);
-    return down_cast<T&>(*this);
+    return absl::down_cast<T&>(*this);
   }
 
   // Adds a conditional statement using the given condition to the block.

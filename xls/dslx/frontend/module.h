@@ -27,6 +27,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/base/casts.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -36,7 +37,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
-#include "xls/common/casts.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/proc.h"
@@ -239,9 +239,9 @@ class Module : public AstNode {
     // user-written TVTAs, which are entities whose type is a `T: type` kind of
     // parametric, and these are not marked internal.
     return node->kind() == AstNodeKind::kTypeAnnotation &&
-           down_cast<const TypeAnnotation*>(node)->annotation_kind() ==
+           absl::down_cast<const TypeAnnotation*>(node)->annotation_kind() ==
                TypeAnnotationKind::kTypeVariable &&
-           down_cast<const TypeVariableTypeAnnotation*>(node)->internal();
+           absl::down_cast<const TypeVariableTypeAnnotation*>(node)->internal();
   }
 
   // Finds the first top-level member in top() with the given "target" name as

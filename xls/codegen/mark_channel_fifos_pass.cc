@@ -14,10 +14,10 @@
 
 #include "xls/codegen/mark_channel_fifos_pass.h"
 
+#include "absl/base/casts.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
-#include "xls/common/casts.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/package.h"
 #include "xls/passes/pass_base.h"

@@ -35,6 +35,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/memory/memory.h"
@@ -43,7 +44,6 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
-#include "xls/common/casts.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/channel_direction.h"
 #include "xls/dslx/frontend/ast.h"
@@ -1097,7 +1097,7 @@ inline bool IsBitsLikeWithNBitsAndSignedness(const Type& t, bool is_signed,
   const BitsConstructorType* bc;
   if (IsArrayOfBitsConstructor(t, &bc)) {
     return bc->is_signed() == want &&
-           down_cast<const ArrayType&>(t).size() == want;
+           absl::down_cast<const ArrayType&>(t).size() == want;
   }
 
   return false;
