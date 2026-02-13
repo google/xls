@@ -309,6 +309,62 @@ const_assert!(Y == 15);
       TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
 }
 
+TEST(TypecheckV2GenericsTest, GenericStructAndImplWithMap) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+struct Anything<T: type> {
+  value: T
+}
+
+impl Anything {
+  fn foo<U: type>(self, x: U) -> u32 {
+    x + self.value
+  }
+}
+
+fn main() -> u32 {
+  let u = u32:4..10;
+  let x = u32:10;
+  let arr = map(u, Anything { value: x }.foo);
+  arr[1]
+}
+
+const_assert!(main() == 15);
+)",
+      TypecheckSucceeds(HasNodeWithType("main", "() -> uN[32]")));
+}
+
+// TODO: This case currently doesn't pass const evaluation because the type of
+// `self` isn't available in TypeInfo for the impl function.
+TEST(TypecheckV2GenericsTest, GenericStructAndImplWithMapNonParametricFn) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+struct Anything<T: type> {
+  value: T
+}
+
+impl Anything<T> {
+  fn foo(self, x: u32) -> u32 {
+    x + self.value
+  }
+}
+
+fn main() -> u32 {
+  let u = u32:4..10;
+  let x = u32:10;
+  let arr = map(u, Anything { value: x }.foo);
+  arr[2]
+}
+
+const_assert!(main() == 16);
+)",
+      TypecheckSucceeds(HasNodeWithType("main", "() -> uN[32]")));
+}
+
 TEST(TypecheckV2GenericsTest, GenericStructAndImplTypeMismatch) {
   EXPECT_THAT(
       R"(

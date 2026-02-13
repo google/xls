@@ -889,6 +889,31 @@ TEST(TypecheckV2BuiltinTest, MapParametricBuiltinMapperImpliedConst) {
               TypecheckSucceeds(HasNodeWithType("Y", "uN[32][1]")));
 }
 
+TEST(TypecheckV2BuiltinTest, MapWithAttrInvocation) {
+  EXPECT_THAT(
+      R"(
+struct S {
+ x: u32
+}
+
+impl S {
+  fn add(self, i: u32) -> u32 {
+    self.x + i
+  }
+}
+
+fn main() -> u32 {
+  let s = u32:5;
+  let arr = map(u32:0..5, S { x: s }.add);
+  arr[2]
+}
+
+const_assert!(main() == 7);
+
+)",
+      TypecheckSucceeds(HasNodeWithType("main", "() -> uN[32]")));
+}
+
 TEST(TypecheckV2BuiltinTest, OneHot) {
   EXPECT_THAT(R"(const Y = one_hot(u32:2, true);)",
               TypecheckSucceeds(HasNodeWithType("Y", "uN[33]")));

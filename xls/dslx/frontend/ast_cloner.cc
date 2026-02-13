@@ -540,10 +540,9 @@ class AstCloner : public AstNodeVisitor {
 
   absl::Status HandleLambda(const Lambda* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
-    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->function()));
 
     auto new_lambda = module(n)->Make<Lambda>(
-        n->span(), absl::down_cast<Function*>(old_to_new_.at(n->function())));
+        n->span(), absl::down_cast<Impl*>(old_to_new_.at(n->impl())));
     old_to_new_[n] = new_lambda;
     return absl::OkStatus();
   }

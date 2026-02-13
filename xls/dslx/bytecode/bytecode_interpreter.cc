@@ -1627,7 +1627,19 @@ absl::Status BytecodeInterpreter::RunBuiltinMap(const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(Bytecode::InvocationData invocation_data,
                        bytecode.invocation_data());
   XLS_ASSIGN_OR_RETURN(InterpValue callee, Pop());
-  XLS_RET_CHECK(callee.IsFunction());
+  XLS_ASSIGN_OR_RETURN(const InterpValue::FnData* callee_fn_data,
+                       callee.GetFunction());
+  // Allow a single input other than the value from the map. We only expect this
+  // for instance functions in impls.
+  std::optional<InterpValue> non_map_arg = std::nullopt;
+  if (std::holds_alternative<InterpValue::UserFnData>(*callee_fn_data)) {
+    InterpValue::UserFnData user_fn_data =
+        std::get<InterpValue::UserFnData>(*callee_fn_data);
+    if (user_fn_data.function->params().size() > 1) {
+      XLS_ASSIGN_OR_RETURN(non_map_arg, Pop());
+    }
+  }
+
   XLS_ASSIGN_OR_RETURN(InterpValue inputs, Pop());
 
   XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* elements,
@@ -1656,6 +1668,9 @@ absl::Status BytecodeInterpreter::RunBuiltinMap(const Bytecode& bytecode) {
   bytecodes.push_back(
       Bytecode(span, Bytecode::Op::kLoad, Bytecode::SlotIndex(1)));
   bytecodes.push_back(Bytecode(span, Bytecode::Op::kIndex));
+  if (non_map_arg.has_value()) {
+    bytecodes.push_back(Bytecode(span, Bytecode::Op::kLiteral, *non_map_arg));
+  }
   bytecodes.push_back(Bytecode(span, Bytecode::Op::kLiteral, callee));
   bytecodes.push_back(Bytecode(span, Bytecode::Op::kCall, invocation_data));
 

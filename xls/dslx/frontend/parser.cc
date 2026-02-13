@@ -334,13 +334,34 @@ absl::StatusOr<Lambda*> Parser::ParseLambda(Bindings& bindings) {
 
   XLS_ASSIGN_OR_RETURN(StatementBlock * body, ParseBlockExpression(bindings));
   Span sp = Span(start_pos, GetPos());
-  NameDef* fn_name_def = module_->Make<NameDef>(sp, "lambda_fn", nullptr);
+  NameDef* fn_name_def =
+      module_->Make<NameDef>(sp, std::string(Lambda::kCallLambdaFn), nullptr);
   Function* fn =
       module_->Make<Function>(sp, fn_name_def, parametrics, params, return_type,
                               body, FunctionTag::kLambda,
                               /*is_public=*/false, /*is_stub=*/false);
   fn_name_def->set_definer(fn);
-  return module_->Make<Lambda>(sp, fn);
+
+  NameDef* struct_name_def =
+      module_->Make<NameDef>(sp,
+                             absl::Substitute("lambda_capture_struct_at_$0",
+                                              sp.ToString(file_table())),
+                             /*definer=*/nullptr);
+
+  StructDef* struct_def = module_->Make<StructDef>(
+      sp, struct_name_def, std::vector<ParametricBinding*>{},
+      std::vector<StructMemberNode*>{},
+      /*is_public=*/false);
+  TypeRefTypeAnnotation* struct_type_annotation =
+      module_->Make<TypeRefTypeAnnotation>(
+          sp, module_->Make<TypeRef>(sp, struct_def),
+          std::vector<ExprOrType>{});
+
+  Impl* impl = module_->Make<Impl>(sp, struct_type_annotation,
+                                   std::vector<ImplMember>{fn},
+                                   /*is_public=*/false);
+
+  return module_->Make<Lambda>(sp, impl);
 }
 
 absl::Status Parser::ParseModuleAttribute() {

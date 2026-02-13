@@ -1163,6 +1163,25 @@ absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
   }
 
   for (auto* arg : node->args()) {
+    // If the arg is an attribute that references a function on a struct
+    // instance, add the struct instance and the function to the bytecode.
+    if (arg->kind() == AstNodeKind::kAttr) {
+      auto* attr = absl::down_cast<const Attr*>(arg);
+      std::optional<Type*> type = type_info_->GetItem(attr->lhs());
+      if (type.has_value() && (*type)->IsStruct()) {
+        const StructDef& struct_def = (*type)->AsStruct().nominal_type();
+        if (struct_def.impl().has_value() &&
+            (*struct_def.impl())->GetFunction(attr->attr()).has_value()) {
+          XLS_RETURN_IF_ERROR(attr->lhs()->AcceptExpr(this));
+          Impl* impl = *struct_def.impl();
+          Function* fn = *impl->GetFunction(attr->attr());
+          Add(Bytecode::MakeLiteral(
+              arg->span(), InterpValue::MakeFunction(
+                               InterpValue::UserFnData{fn->owner(), fn})));
+          continue;
+        }
+      }
+    }
     XLS_RETURN_IF_ERROR(arg->AcceptExpr(this));
   }
 
