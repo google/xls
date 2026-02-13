@@ -27,12 +27,17 @@ public:
     Memory<short, 32> store;
 
     int addr = 0;
+    bool first = true;
 
     #pragma hls_top
     void Run() {
         const int next_addr = (addr + 1) & 0b11111;
-        store[addr] = in.read();
-        out.write(store[next_addr]);
+        store[next_addr] = in.read();
+        if (!first) {
+            out.write(store[addr]);
+        } else {
+            first = false;
+        }
         addr = next_addr;
     }
 };
