@@ -107,7 +107,7 @@ class ProcToBlockClonerBase {
     for (const ChannelInterface* chan_interface : proc->interface()) {
       if (chan_interface->direction() == ChannelDirection::kSend) {
         auto send_chan_interface =
-            down_cast<const SendChannelInterface*>(chan_interface);
+            absl::down_cast<const SendChannelInterface*>(chan_interface);
 
         XLS_ASSIGN_OR_RETURN(
             BlockRDVSlot slot,
@@ -118,7 +118,7 @@ class ProcToBlockClonerBase {
 
       } else {
         auto receive_chan_interface =
-            down_cast<const ReceiveChannelInterface*>(chan_interface);
+            absl::down_cast<const ReceiveChannelInterface*>(chan_interface);
 
         XLS_ASSIGN_OR_RETURN(
             BlockRDVSlot slot,
