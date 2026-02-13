@@ -85,7 +85,7 @@ absl::flat_hash_map<const NameDef*, NameDef*> BuildNameDefMap(
   absl::flat_hash_map<const NameDef*, NameDef*> name_def_map;
   for (const auto& kv : old_to_new) {
     if (auto* old_nd = dynamic_cast<const NameDef*>(kv.first)) {
-      name_def_map.emplace(old_nd, down_cast<NameDef*>(kv.second));
+      name_def_map.emplace(old_nd, absl::down_cast<NameDef*>(kv.second));
     }
   }
   return name_def_map;
@@ -97,7 +97,7 @@ absl::StatusOr<Expr*> CloneExprIntoModule(
     const absl::flat_hash_map<const NameDef*, NameDef*>& name_def_map) {
   auto it = old_to_new.find(e);
   if (it != old_to_new.end()) {
-    return down_cast<Expr*>(it->second);
+    return absl::down_cast<Expr*>(it->second);
   }
   XLS_ASSIGN_OR_RETURN(
       auto pairs, CloneAstAndGetAllPairs(
@@ -106,7 +106,7 @@ absl::StatusOr<Expr*> CloneExprIntoModule(
                       /*replacer=*/NameRefReplacer(&name_def_map)));
   auto it_cloned = pairs.find(e);
   XLS_RET_CHECK(it_cloned != pairs.end());
-  return down_cast<Expr*>(it_cloned->second);
+  return absl::down_cast<Expr*>(it_cloned->second);
 }
 
 absl::StatusOr<ColonRef::Subject> MakeColonRefSubjectFromTypeRef(
@@ -117,14 +117,15 @@ absl::StatusOr<ColonRef::Subject> MakeColonRefSubjectFromTypeRef(
                          [&](ColonRef* old_cref) -> ReturnT {
                            auto it = old_to_new.find(old_cref);
                            XLS_RET_CHECK(it != old_to_new.end());
-                           auto* new_cref = down_cast<ColonRef*>(it->second);
+                           auto* new_cref =
+                               absl::down_cast<ColonRef*>(it->second);
                            return ColonRef::Subject(new_cref);
                          },
                          [&](EnumDef* old_enum) -> ReturnT {
                            const NameDef* old_nd = old_enum->name_def();
                            auto it = old_to_new.find(old_nd);
                            XLS_RET_CHECK(it != old_to_new.end());
-                           auto* new_nd = down_cast<NameDef*>(it->second);
+                           auto* new_nd = absl::down_cast<NameDef*>(it->second);
                            NameRef* nr = target_module->Make<NameRef>(
                                inv_span, new_nd->identifier(), new_nd,
                                /*in_parens=*/false);
@@ -133,7 +134,7 @@ absl::StatusOr<ColonRef::Subject> MakeColonRefSubjectFromTypeRef(
                          [&](TypeAlias* ta) -> ReturnT {
                            auto it = old_to_new.find(&ta->name_def());
                            XLS_RET_CHECK(it != old_to_new.end());
-                           auto* new_nd = down_cast<NameDef*>(it->second);
+                           auto* new_nd = absl::down_cast<NameDef*>(it->second);
                            NameRef* nr = target_module->Make<NameRef>(
                                inv_span, new_nd->identifier(), new_nd,
                                /*in_parens=*/false);
@@ -144,7 +145,7 @@ absl::StatusOr<ColonRef::Subject> MakeColonRefSubjectFromTypeRef(
                            XLS_RET_CHECK(leaf.has_value());
                            auto it = old_to_new.find(*leaf);
                            XLS_RET_CHECK(it != old_to_new.end());
-                           auto* new_nd = down_cast<NameDef*>(it->second);
+                           auto* new_nd = absl::down_cast<NameDef*>(it->second);
                            NameRef* nr = target_module->Make<NameRef>(
                                inv_span, new_nd->identifier(), new_nd,
                                /*in_parens=*/false);
@@ -340,7 +341,7 @@ absl::StatusOr<std::vector<ExprOrType>> RetainExplicitParametrics(
       TypeAnnotation* ta = std::get<TypeAnnotation*>(eot);
       auto it = old_to_new.find(ta);
       if (it != old_to_new.end()) {
-        new_parametrics.push_back(down_cast<TypeAnnotation*>(it->second));
+        new_parametrics.push_back(absl::down_cast<TypeAnnotation*>(it->second));
         continue;
       }
       XLS_ASSIGN_OR_RETURN(
@@ -351,7 +352,8 @@ absl::StatusOr<std::vector<ExprOrType>> RetainExplicitParametrics(
               /*replacer=*/NameRefReplacer(&name_def_map)));
       auto it_cloned = pairs.find(ta);
       XLS_RET_CHECK(it_cloned != pairs.end());
-      new_parametrics.push_back(down_cast<TypeAnnotation*>(it_cloned->second));
+      new_parametrics.push_back(
+          absl::down_cast<TypeAnnotation*>(it_cloned->second));
     }
   }
   return new_parametrics;
@@ -448,7 +450,7 @@ absl::StatusOr<TypecheckedModule> ReplaceInvocationsInModule(
     const NameDef* old_target = matched_rule->to_callee->name_def();
     auto it_nd = old_to_new.find(old_target);
     XLS_RET_CHECK(it_nd != old_to_new.end());
-    auto* new_target = down_cast<NameDef*>(it_nd->second);
+    auto* new_target = absl::down_cast<NameDef*>(it_nd->second);
     const NameDef* from_name_def = matched_rule->from_callee->name_def();
 
     // Pre-built the name def map to avoid rebuilding it for each invocation.
