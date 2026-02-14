@@ -49,6 +49,7 @@
 #include "llvm/include/llvm/IR/DataLayout.h"
 #include "llvm/include/llvm/IR/Instruction.h"
 #include "llvm/include/llvm/IR/LegacyPassManager.h"
+#include "llvm/include/llvm/Support/MemoryBuffer.h"
 #include "llvm/include/llvm/IR/Module.h"
 #include "llvm/include/llvm/IRPrinter/IRPrintingPasses.h"
 #include "llvm/include/llvm/Passes/PassBuilder.h"
@@ -306,6 +307,21 @@ absl::StatusOr<llvm::orc::ExecutorAddr> OrcJit::LoadSymbol(
                         llvm::toString(symbol.takeError())));
   }
   return symbol->getAddress();
+}
+
+absl::Status OrcJit::LoadObjectCode(absl::Span<const uint8_t> object_code) {
+  auto object_buffer = llvm::MemoryBuffer::getMemBufferCopy(
+      llvm::StringRef(
+          reinterpret_cast<const char*>(object_code.data()),
+          object_code.size()),
+      "xls_aot_object_code");
+  llvm::Error error = object_layer_.add(dylib_, std::move(object_buffer));
+  if (error) {
+    return absl::InternalError(
+        absl::StrCat("Unable to load object code into ORC: ",
+                     llvm::toString(std::move(error))));
+  }
+  return absl::OkStatus();
 }
 
 }  // namespace xls

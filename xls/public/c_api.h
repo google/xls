@@ -533,6 +533,35 @@ bool xls_make_function_jit(struct xls_function* function, char** error_out,
 
 void xls_function_jit_free(struct xls_function_jit* jit);
 
+// AOT-compiles the given function and returns the resulting object code and ABI
+// metadata in newly allocated output buffers.
+//
+// Note: the returned buffers are owned by the caller and must be freed via
+// `xls_aot_object_code_free` and `xls_aot_entrypoints_proto_free`
+// respectively.
+bool xls_aot_compile_function(
+    struct xls_function* function, char** error_out,
+    uint8_t** object_code_out, size_t* object_code_count_out,
+    uint8_t** entrypoints_proto_out, size_t* entrypoints_proto_count_out);
+
+void xls_aot_object_code_free(uint8_t* object_code);
+void xls_aot_entrypoints_proto_free(uint8_t* entrypoints_proto);
+
+// Runs the first FUNCTION entrypoint from serialized AOT artifacts.
+//
+// Note:
+// * `trace_messages_out` should be freed by the caller via
+//   `xls_trace_messages_free`.
+// * `assert_messages_out` should be freed by the caller via
+//   `xls_c_strs_free`.
+bool xls_aot_run_function(
+    const uint8_t* object_code, size_t object_code_count,
+    const uint8_t* entrypoints_proto, size_t entrypoints_proto_count,
+    size_t argc, const struct xls_value* const* args, char** error_out,
+    struct xls_trace_message** trace_messages_out,
+    size_t* trace_messages_count_out, char*** assert_messages_out,
+    size_t* assert_messages_count_out, struct xls_value** result_out);
+
 struct xls_trace_message {
   char* message;
   int64_t verbosity;

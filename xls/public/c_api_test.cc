@@ -37,6 +37,7 @@
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
+#include "xls/jit/aot_entrypoint.pb.h"
 #include "xls/public/c_api_dslx.h"
 #include "xls/public/c_api_format_preference.h"
 #include "xls/public/c_api_ir_builder.h"
@@ -2155,6 +2156,78 @@ top fn add_one(tok: token, x: bits[32]) -> bits[32] {
   ASSERT_TRUE(xls_value_to_string(result, &result_str));
   absl::Cleanup free_result_str([=] { xls_c_str_free(result_str); });
   EXPECT_EQ(std::string_view{result_str}, "bits[32]:43");
+}
+
+TEST(XlsCApiTest, AotCompileFunction) {
+  const std::string_view kIr = R"(package my_package
+
+top fn add_one(x: bits[32]) -> bits[32] {
+  one: bits[32] = literal(value=1)
+  ret result: bits[32] = add(x, one)
+}
+)";
+
+  char* error = nullptr;
+  xls_package* package = nullptr;
+  ASSERT_TRUE(xls_parse_ir_package(kIr.data(), "test.ir", &error, &package))
+      << "error: " << error;
+  ASSERT_NE(package, nullptr);
+  absl::Cleanup free_package([=] { xls_package_free(package); });
+
+  xls_function* function = nullptr;
+  ASSERT_TRUE(xls_package_get_function(package, "add_one", &error, &function));
+  ASSERT_NE(function, nullptr);
+
+  uint8_t* object_bytes = nullptr;
+  size_t object_byte_count = 0;
+  uint8_t* proto_bytes = nullptr;
+  size_t proto_byte_count = 0;
+  ASSERT_TRUE(xls_aot_compile_function(function, &error, &object_bytes,
+                                       &object_byte_count, &proto_bytes,
+                                       &proto_byte_count))
+      << "error: " << error;
+  ASSERT_GT(object_byte_count, 0);
+  absl::Cleanup free_object_bytes(
+      [=] { xls_aot_object_code_free(object_bytes); });
+  ASSERT_GT(proto_byte_count, 0);
+  absl::Cleanup free_proto_bytes(
+      [=] { xls_aot_entrypoints_proto_free(proto_bytes); });
+
+  xls::AotPackageEntrypointsProto entrypoints;
+  ASSERT_TRUE(entrypoints.ParseFromArray(proto_bytes, proto_byte_count));
+  ASSERT_EQ(entrypoints.entrypoint_size(), 1);
+  EXPECT_TRUE(entrypoints.entrypoint(0).has_function_symbol());
+  EXPECT_TRUE(entrypoints.entrypoint(0).has_packed_function_symbol());
+
+  xls_bits* input_bits = nullptr;
+  ASSERT_TRUE(xls_bits_make_ubits(32, 41, &error, &input_bits));
+  xls_value* input = xls_value_from_bits_owned(input_bits);
+  absl::Cleanup free_input([=] { xls_value_free(input); });
+
+  std::vector<xls_value*> args = {input};
+  xls_trace_message* trace_messages = nullptr;
+  size_t trace_messages_count = 0;
+  char** assert_messages = nullptr;
+  size_t assert_messages_count = 0;
+  xls_value* result = nullptr;
+  ASSERT_TRUE(xls_aot_run_function(
+      object_bytes, object_byte_count, proto_bytes, proto_byte_count,
+      args.size(), args.data(), &error, &trace_messages, &trace_messages_count,
+      &assert_messages, &assert_messages_count, &result))
+      << "error: " << error;
+  absl::Cleanup free_result([=] { xls_value_free(result); });
+  absl::Cleanup free_trace_messages(
+      [=] { xls_trace_messages_free(trace_messages, trace_messages_count); });
+  absl::Cleanup free_assert_messages(
+      [=] { xls_c_strs_free(assert_messages, assert_messages_count); });
+
+  EXPECT_EQ(trace_messages_count, 0);
+  EXPECT_EQ(assert_messages_count, 0);
+
+  char* result_str = nullptr;
+  ASSERT_TRUE(xls_value_to_string(result, &result_str));
+  absl::Cleanup free_result_str([=] { xls_c_str_free(result_str); });
+  EXPECT_EQ(std::string_view{result_str}, "bits[32]:42");
 }
 
 // Tests that we can build a simple sample function. For fun we make one that
