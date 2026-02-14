@@ -22,14 +22,15 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/cpp_transpiler/cpp_transpiler.h"
-#include "xls/dslx/cpp_transpiler/cpp_type_generator.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/import_data.h"
@@ -40,8 +41,9 @@
 ABSL_FLAG(std::vector<std::string>, include_headers, {}, "Include headers.");
 ABSL_FLAG(std::string, output_header_path, "",
           "Path at which to write the generated header.");
-ABSL_FLAG(std::string, output_source_path, "",
-          "Path at which to write the generated source.");
+ABSL_FLAG(std::string, output_source_path_prefix, "",
+          "Path at which to write the generated sources (suffix of .<index>.cc "
+          "will be added).");
 ABSL_FLAG(std::string, namespaces, "",
           "Double-colon-delimited namespaces with which to wrap the "
           "generated code, e.g., \"my::namespace\" (note: no leading `::`).");
@@ -69,7 +71,7 @@ absl::Status RealMain(const std::filesystem::path& module_path,
                       absl::Span<const std::filesystem::path> dslx_paths,
                       absl::Span<const std::string> include_headers,
                       std::string_view output_header_path,
-                      std::string_view output_source_path,
+                      std::string_view output_source_path_prefix,
                       std::string_view namespaces) {
   XLS_ASSIGN_OR_RETURN(std::string module_text, GetFileContents(module_path));
 
@@ -81,12 +83,16 @@ absl::Status RealMain(const std::filesystem::path& module_path,
       ParseAndTypecheck(module_text, std::string(module_path),
                         module_path.stem().string(), &import_data));
   XLS_ASSIGN_OR_RETURN(
-      CppSource sources,
+      CppSourceGroup sources,
       TranspileToCpp(module.module, &import_data, include_headers,
                      output_header_path, std::string(namespaces)));
+  XLS_RET_CHECK_GT(sources.source.size(), 0);
 
   XLS_RETURN_IF_ERROR(SetFileContents(output_header_path, sources.header));
-  XLS_RETURN_IF_ERROR(SetFileContents(output_source_path, sources.source));
+  for (int i = 0; i < sources.source.size(); ++i) {
+    XLS_RETURN_IF_ERROR(SetFileContents(
+        absl::StrCat(output_source_path_prefix, i, ".cc"), sources.source[i]));
+  }
   return absl::OkStatus();
 }
 
@@ -104,9 +110,10 @@ int main(int argc, char* argv[]) {
   std::string output_header_path = absl::GetFlag(FLAGS_output_header_path);
   QCHECK(!output_header_path.empty())
       << "--output_header_path must be specified.";
-  std::string output_source_path = absl::GetFlag(FLAGS_output_source_path);
-  QCHECK(!output_source_path.empty())
-      << "--output_source_path must be specified.";
+  std::string output_source_path_prefix =
+      absl::GetFlag(FLAGS_output_source_path_prefix);
+  QCHECK(!output_source_path_prefix.empty())
+      << "--output_source_path_prefix must be specified.";
 
   std::string dslx_path = absl::GetFlag(FLAGS_dslx_path);
   std::vector<std::string> dslx_path_strs = absl::StrSplit(dslx_path, ':');
@@ -120,7 +127,7 @@ int main(int argc, char* argv[]) {
   return xls::ExitStatus(xls::dslx::RealMain(
       args[0], absl::GetFlag(FLAGS_dslx_stdlib_path), dslx_paths,
       absl::GetFlag(FLAGS_include_headers), output_header_path,
-      output_source_path, absl::GetFlag(FLAGS_namespaces)));
+      output_source_path_prefix, absl::GetFlag(FLAGS_namespaces)));
 
   return 0;
 }

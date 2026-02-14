@@ -14,6 +14,7 @@
 
 #include "xls/dslx/cpp_transpiler/cpp_transpiler.h"
 
+#include <cstddef>
 #include <filesystem>
 #include <string>
 #include <string_view>
@@ -23,10 +24,10 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "xls/common/golden_files.h"
 #include "xls/common/source_location.h"
 #include "xls/common/status/matchers.h"
-#include "xls/dslx/cpp_transpiler/cpp_type_generator.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
@@ -41,16 +42,25 @@ using ::testing::HasSubstr;
 constexpr char kTestdataPath[] = "xls/dslx/cpp_transpiler/testdata";
 
 void ExpectEqualToGoldenFiles(
-    const CppSource& sources,
+    const CppSourceGroup& sources,
     xabsl::SourceLocation loc = xabsl::SourceLocation::current()) {
-  const std::filesystem::path header_path = absl::StrFormat(
-      "%s/%s.htxt", kTestdataPath,
-      ::testing::UnitTest::GetInstance()->current_test_info()->name());
+  const std::string test_name =
+      ::testing::UnitTest::GetInstance()->current_test_info()->name();
+  const std::filesystem::path header_path =
+      absl::StrFormat("%s/%s.htxt", kTestdataPath, test_name);
+  ASSERT_FALSE(sources.source.empty());
   ExpectEqualToGoldenFile(header_path, sources.header, loc);
-  const std::filesystem::path source_path = absl::StrFormat(
-      "%s/%s.cctxt", kTestdataPath,
-      ::testing::UnitTest::GetInstance()->current_test_info()->name());
-  ExpectEqualToGoldenFile(source_path, sources.source, loc);
+  if (sources.source.size() == 1) {
+    const std::filesystem::path source_path =
+        absl::StrFormat("%s/%s.cctxt", kTestdataPath, test_name);
+    ExpectEqualToGoldenFile(source_path, sources.source[0], loc);
+  } else {
+    for (size_t i = 0; i < sources.source.size(); ++i) {
+      const std::filesystem::path source_path =
+          absl::StrFormat("%s/%s_%d.cctxt", kTestdataPath, test_name, i);
+      ExpectEqualToGoldenFile(source_path, sources.source[i], loc);
+    }
+  }
 }
 
 // Verifies that the transpiler can convert a basic enum into C++.
@@ -398,7 +408,8 @@ type Foo = u32;
                      /*additional_include_headers=*/{}, "/tmp/fake_path.h",
                      /*namespaces=*/"foo::bar"));
   EXPECT_THAT(result.header, HasSubstr("namespace foo::bar::baz"));
-  EXPECT_THAT(result.source, HasSubstr("namespace foo::bar::baz"));
+  ASSERT_EQ(result.source.size(), 1);
+  EXPECT_THAT(result.source[0], HasSubstr("namespace foo::bar::baz"));
 }
 
 TEST(CppTranspilerTest, DslxModuleNameIsCppKeyword) {
@@ -415,7 +426,8 @@ type Foo = u32;
       TranspileToCpp(module.module, &import_data,
                      /*additional_include_headers=*/{}, "/tmp/fake_path.h"));
   EXPECT_THAT(result.header, HasSubstr("namespace _namespace"));
-  EXPECT_THAT(result.source, HasSubstr("namespace _namespace"));
+  ASSERT_EQ(result.source.size(), 1);
+  EXPECT_THAT(result.source[0], HasSubstr("namespace _namespace"));
 }
 
 TEST(CppTranspilerTest, DslxModuleNameIsWellKnownNamespace) {
@@ -432,7 +444,8 @@ type Foo = u32;
       TranspileToCpp(module.module, &import_data,
                      /*additional_include_headers=*/{}, "/tmp/fake_path.h"));
   EXPECT_THAT(result.header, HasSubstr("namespace _std"));
-  EXPECT_THAT(result.source, HasSubstr("namespace _std"));
+  ASSERT_EQ(result.source.size(), 1);
+  EXPECT_THAT(result.source[0], HasSubstr("namespace _std"));
 }
 
 TEST(CppTranspilerTest, DepHeadersIncluded) {
@@ -452,9 +465,40 @@ type Foo = u32;
                      "/tmp/fake_path.h"));
   EXPECT_THAT(result.header, HasSubstr("#include \"path/to/some_types.h\"\n"
                                        "#include \"path/to/other_types.h\"\n"));
-  EXPECT_THAT(result.source, HasSubstr("#include \"/tmp/fake_path.h\"\n"
-                                       "#include \"path/to/some_types.h\"\n"
+  ASSERT_EQ(result.source.size(), 1);
+  EXPECT_THAT(result.source[0],
+              HasSubstr("#include \"/tmp/fake_path.h\"\n"
+                        "#include \"path/to/some_types.h\"\n"
+                        "#include \"path/to/other_types.h\"\n"));
+}
+
+TEST(CppTranspilerTest, ShardedSource) {
+  constexpr std::string_view kModule = R"(
+type Foo = u32;
+type Bar = u32;
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule module,
+      ParseAndTypecheck(kModule, "fake_path", "my_module", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result,
+      TranspileToCpp(module.module, &import_data,
+                     /*additional_include_headers=*/
+                     {"path/to/some_types.h", "path/to/other_types.h"},
+                     "/tmp/fake_path.h"));
+  EXPECT_THAT(result.header, HasSubstr("#include \"path/to/some_types.h\"\n"
                                        "#include \"path/to/other_types.h\"\n"));
+  ASSERT_EQ(result.source.size(), 2);
+  EXPECT_THAT(result.source[0],
+              HasSubstr("#include \"/tmp/fake_path.h\"\n"
+                        "#include \"path/to/some_types.h\"\n"
+                        "#include \"path/to/other_types.h\"\n"));
+  EXPECT_THAT(result.source[1],
+              HasSubstr("#include \"/tmp/fake_path.h\"\n"
+                        "#include \"path/to/some_types.h\"\n"
+                        "#include \"path/to/other_types.h\"\n"));
 }
 
 }  // namespace

@@ -113,7 +113,6 @@ cc_test(
     ]),
     deps = [
         ":cpp_transpiler",
-        ":cpp_type_generator",
         "//xls/common:golden_files",
         "//xls/common:source_location",
         "//xls/common:xls_gunit_main",
@@ -124,6 +123,7 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
         "@googletest//:gtest",
     ],
 )
@@ -134,10 +134,10 @@ cc_binary(
     visibility = ["//xls:xls_public"],
     deps = [
         ":cpp_transpiler",
-        ":cpp_type_generator",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:create_import_data",
         "//xls/dslx:default_dslx_stdlib_path",

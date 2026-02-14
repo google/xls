@@ -16,14 +16,20 @@
 
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "xls/dslx/cpp_transpiler/cpp_type_generator.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
 
 namespace xls::dslx {
+
+// A group of C++ sources which all share the same header.
+struct CppSourceGroup {
+  std::string header;
+  std::vector<std::string> source;
+};
 
 // Converts DSLX types contained inside of "module" into their C++ equivalents.
 // For enums and constant declarations, this simply dumps the elements into the
@@ -40,7 +46,7 @@ namespace xls::dslx {
 // should be infrequent, so users should feel comfortable using these
 // interfaces, but should also be aware of the potential for change in the
 // future.
-absl::StatusOr<CppSource> TranspileToCpp(
+absl::StatusOr<CppSourceGroup> TranspileToCpp(
     Module* module, ImportData* import_data,
     absl::Span<const std::string> additional_include_headers,
     std::string_view output_header_path, std::string_view namespaces = "");

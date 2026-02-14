@@ -401,8 +401,8 @@ def xls_dslx_cpp_type_library(
 
     ```
 
-    will generate b_cpp_types_generate.cc and b_cpp_types_generate.h, and package them into a
-    cc_library under the namespace "::xls::b".
+    will generate (potentially many) c++ sources in _gen_b_cpp_types_generate_srcs/ as well as
+    b_cpp_types_generate.h, and package them into a cc_library under the namespace "::xls::b".
 
     If another DSLX library `a.x` depends on types in `:b_dslx`, the `xls_dslx_cpp_type_library` for
      `a` should explicitly depend on the C++ library above and use the same parent namespace:
@@ -426,19 +426,21 @@ def xls_dslx_cpp_type_library(
         strongly encouraged to avoid polluting top-level namespaces per
         https://google.github.io/styleguide/cppguide.html#Namespace_Names.
     """
+    generated_sources_name = "_gen_" + name
     xls_dslx_generate_cpp_type_files(
-        name = name + "_generate_sources",
+        name = generated_sources_name,
         srcs = [src],
-        source_file = name + ".cc",
         header_file = name + ".h",
-        deps = deps,
         cpp_deps = cpp_deps,
+        deps = deps,
         namespace = namespace,
     )
     cc_library(
         name = name,
-        srcs = [":" + name + ".cc"],
+        srcs = [":" + generated_sources_name],
         hdrs = [":" + name + ".h"],
+        # TODO: bazelbuild/bazel#14843 - Remove this once no longer needed.
+        linkstatic = True,
         deps = [
             "@com_google_absl//absl/base:core_headers",
             "@com_google_absl//absl/status:status",

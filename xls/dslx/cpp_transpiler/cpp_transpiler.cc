@@ -18,6 +18,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
@@ -35,7 +36,7 @@
 
 namespace xls::dslx {
 
-absl::StatusOr<CppSource> TranspileToCpp(
+absl::StatusOr<CppSourceGroup> TranspileToCpp(
     Module* module, ImportData* import_data,
     absl::Span<const std::string> additional_include_headers,
     std::string_view output_header_path, std::string_view namespaces) {
@@ -76,7 +77,9 @@ $2$1$3
 #include "xls/public/status_macros.h"
 #include "xls/public/value.h"
 
-[[maybe_unused]] static bool FitsInNBitsSigned(int64_t value, int64_t n) {
+namespace {
+
+[[maybe_unused]] bool FitsInNBitsSigned(int64_t value, int64_t n) {
   // All bits from [n - 1, 64) must be all zero or all ones.
   if (n >= 64) {
     return true;
@@ -88,16 +91,18 @@ $2$1$3
        (mask & value_as_unsigned) == mask;
 }
 
-[[maybe_unused]] static bool FitsInNBitsUnsigned(uint64_t value, int64_t n) {
+[[maybe_unused]] bool FitsInNBitsUnsigned(uint64_t value, int64_t n) {
   if (n >= 64) {
     return true;
   }
   return value < (uint64_t{1} << n);
 }
 
-[[maybe_unused]] static std::string __indent(int64_t amount) {
+[[maybe_unused]] std::string __indent(int64_t amount) {
   return std::string(amount * 2, ' ');
 }
+
+}  // namespace
 
 %s%s%s
 )";
@@ -139,13 +144,17 @@ $2$1$3
     absl::StrAppend(&include_headers, "#include \"", header, "\"\n");
   }
 
-  return CppSource{
-      absl::Substitute(kHeaderTemplate, header_guard,
-                       absl::StrJoin(header, "\n\n"), namespace_begin,
-                       namespace_end, include_headers),
-      absl::StrFormat(kSourceTemplate, output_header_path, include_headers,
-                      namespace_begin, absl::StrJoin(source, "\n\n"),
-                      namespace_end)};
+  for (std::string& src : source) {
+    src = absl::StrFormat(kSourceTemplate, output_header_path, include_headers,
+                          namespace_begin, src, namespace_end);
+  }
+  std::string header_text = absl::Substitute(
+      kHeaderTemplate, header_guard, absl::StrJoin(header, "\n\n"),
+      namespace_begin, namespace_end, include_headers);
+  return CppSourceGroup{
+      .header = std::move(header_text),
+      .source = std::move(source),
+  };
 }
 
 }  // namespace xls::dslx

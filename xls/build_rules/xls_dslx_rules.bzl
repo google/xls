@@ -724,7 +724,7 @@ def _xls_dslx_generate_cpp_type_files_impl(ctx):
     dslx_path = ":${PWD}:" + ctx.genfiles_dir.path + ":" + ctx.bin_dir.path + dslx_srcs_wsroot_path + wsroot_dslx_path
 
     # Make arguments for the cpp_transpiler tool.
-    cc_file = ctx.outputs.source_file
+    cc_source_dir = ctx.actions.declare_directory(ctx.label.name + "_srcs")
     h_file = ctx.outputs.header_file
 
     include_header_files = []
@@ -740,7 +740,7 @@ def _xls_dslx_generate_cpp_type_files_impl(ctx):
 
     my_args.add(src.path)
 
-    my_args.add("--output_source_path={}".format(cc_file.path))
+    my_args.add("--output_source_path_prefix={}/{}".format(cc_source_dir.path, h_file.basename.removesuffix(_H_FILE_EXTENSION)))
     my_args.add("--output_header_path={}".format(h_file.path))
     my_args.add("--dslx_path=={}".format(dslx_path))
     my_args.add_joined("--include_headers", include_header_files, join_with = ",")
@@ -749,7 +749,7 @@ def _xls_dslx_generate_cpp_type_files_impl(ctx):
         my_args.add("--namespaces={}".format(ctx.attr.namespace))
 
     ctx.actions.run(
-        outputs = [cc_file, h_file],
+        outputs = [cc_source_dir, h_file],
         tools = [cpp_transpiler_tool],
         # The files required for converting the DSLX source file.
         inputs = runfiles.files,
@@ -763,7 +763,7 @@ def _xls_dslx_generate_cpp_type_files_impl(ctx):
     return [
         DefaultInfo(
             files = depset(
-                direct = [cc_file, h_file],
+                direct = [cc_source_dir, h_file],
                 transitive = get_transitive_built_files_for_xls(ctx),
             ),
             runfiles = runfiles,
@@ -775,11 +775,6 @@ xls_dslx_generate_cpp_type_files_attrs = {
         doc = "Direct cc_library dependencies that should be included in the generated C++ files.",
     ),
     "namespace": attr.string(doc = "The C++ namespace to generate the code in (e.g., `foo::bar`)."),
-    "source_file": attr.output(
-        doc = "The filename of the generated source file. The filename must " +
-              "have a '" + _CC_FILE_EXTENSION + "' extension.",
-        mandatory = True,
-    ),
     "header_file": attr.output(
         doc = "The filename of the generated header file. The filename must " +
               "have a '" + _H_FILE_EXTENSION + "' extension.",
@@ -798,7 +793,6 @@ Example:
         name = "b_cpp_types_generate",
         srcs = ["b.x"],
         deps = [":a_dslx"],
-        source_file = "b_cpp_types.cc",
         header_file = "b_cpp_types.h",
         namespace = "xls",
     )
