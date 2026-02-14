@@ -2134,8 +2134,6 @@ TEST_P(VastTest, ArrayParameters) {
   Module* m = f.AddModule("top", SourceInfo());
 
   const SourceInfo si;
-  // Literals used for the array assignment patterns below.
-  Expression* tick0 = f.Make<UnsizedZeroLiteral>(si);
 
   Def* p1_def =
       f.Make<Def>(si, "P1", DataKind::kInt,
@@ -2154,10 +2152,6 @@ TEST_P(VastTest, ArrayParameters) {
                   f.ArrayAssignmentPattern(
                       {f.Literal(0x42, 8, si), f.Literal(0x43, 8, si)}, si),
                   si);
-  Expression* p3_row =
-      f.ArrayAssignmentPattern({f.PlainLiteral(1, si), f.PlainLiteral(2, si),
-                                f.PlainLiteral(3, si), f.PlainLiteral(4, si)},
-                               si);
   Expression* p4_row0 = f.ArrayAssignmentPattern(
       {f.PlainLiteral(1, si), f.PlainLiteral(2, si), f.PlainLiteral(3, si)},
       si);
