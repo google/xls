@@ -876,7 +876,7 @@
     },
     "@@aspect_rules_js~//npm:extensions.bzl%pnpm": {
       "general": {
-        "bzlTransitiveDigest": "qc72K4qllzk240HsRo3COWi6OW610sFo1VIz9n71NJw=",
+        "bzlTransitiveDigest": "K+B/ieLJuYMVh5FwJjhzO9BOd+QQfSvOZNhMBCn+myY=",
         "usagesDigest": "nreWOSoW3keGlKdHpT5drUTOjHwIzGpp1haLECAZ4dM=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
@@ -1434,7 +1434,7 @@
     },
     "@@rules_apple~//apple:apple.bzl%provisioning_profile_repository_extension": {
       "general": {
-        "bzlTransitiveDigest": "/9KrM8aU7/tlEUart8UZBMK9iX+TNzbwR35egBVzYrE=",
+        "bzlTransitiveDigest": "T2FM8QmuY1thr/Urp5qQ/bA0i4uvAgSpEd6UPQYyFRY=",
         "usagesDigest": "cLx5XGjlbSDOpyA053y/jlr4GcaXFVTeHQic6eyG38E=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
@@ -2122,7 +2122,7 @@
     "@@toolchains_llvm~//toolchain/extensions:llvm.bzl%llvm": {
       "general": {
         "bzlTransitiveDigest": "afRF0aFOIUrkYl3o040WQ606ep1qciEXzjnAxT3Kek8=",
-        "usagesDigest": "F0syCVWRlRbrF5pWeTRWHTunsatGGMP8RAAK3ssBV/0=",
+        "usagesDigest": "eV4KeUtfPC1ktM2NlJ8vZsS2GL4LeJ3y3lwmAfUUY0Y=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
@@ -2158,7 +2158,9 @@
               "coverage_link_flags": {},
               "cxx_builtin_include_directories": {},
               "cxx_flags": {},
-              "cxx_standard": {},
+              "cxx_standard": {
+                "": "c++20"
+              },
               "dbg_compile_flags": {},
               "exec_arch": "",
               "exec_os": "",

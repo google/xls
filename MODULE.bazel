@@ -10,6 +10,7 @@ bazel_dep(name = "toolchains_llvm", version = "1.4.0")
 llvm = use_extension("@toolchains_llvm//toolchain/extensions:llvm.bzl", "llvm")
 llvm.toolchain(
     llvm_version = "19.1.7",
+    cxx_standard = {"": "c++20"},
 )
 use_repo(llvm, "llvm_toolchain")
 

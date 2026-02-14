@@ -28,10 +28,6 @@ build --incompatible_default_to_explicit_init_py=true
 build:macos --host_macos_minimum_os=10.13
 build:macos --macos_minimum_os=10.13
 
-# Minimium c++ standard used.
-build --cxxopt "-std=c++20"            --host_cxxopt "-std=c++20"
-build --action_env=BAZEL_CXXOPTS=-std=c++20
-
 # Depending on the installation, clang or clang-tidy need to be told that
 # a c++ file is, indeed, containing c++ (bazel just invokes clang, not clang++)
 build --cxxopt "-xc++"                 --host_cxxopt "-xc++"
