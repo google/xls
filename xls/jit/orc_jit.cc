@@ -49,6 +49,7 @@
 #include "llvm/include/llvm/IR/DataLayout.h"
 #include "llvm/include/llvm/IR/Instruction.h"
 #include "llvm/include/llvm/IR/LegacyPassManager.h"
+#include "llvm/include/llvm/Support/MemoryBuffer.h"
 #include "llvm/include/llvm/IR/Module.h"
 #include "llvm/include/llvm/IRPrinter/IRPrintingPasses.h"
 #include "llvm/include/llvm/Passes/PassBuilder.h"

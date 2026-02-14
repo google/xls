@@ -26,17 +26,22 @@
 #include <variant>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/base/macros.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
+#include "llvm/include/llvm/ExecutionEngine/Orc/ExecutionUtils.h"
+#include "llvm/include/llvm/ExecutionEngine/Orc/LLJIT.h"
+#include "llvm/include/llvm/Support/Error.h"
+#include "llvm/include/llvm/Support/MemoryBuffer.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/temp_directory.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
+#include "xls/jit/aot_entrypoint.pb.h"
 #include "xls/public/c_api_dslx.h"
 #include "xls/public/c_api_format_preference.h"
 #include "xls/public/c_api_ir_builder.h"
@@ -2109,6 +2114,156 @@ top fn add_one(tok: token, x: bits[32]) -> bits[32] {
   ASSERT_TRUE(xls_value_to_string(result, &result_str));
   absl::Cleanup free_result_str([=] { xls_c_str_free(result_str); });
   EXPECT_EQ(std::string_view{result_str}, "bits[32]:43");
+}
+
+TEST(XlsCApiTest, AotCompileFunction) {
+  const std::string_view kIr = R"(package my_package
+
+top fn add_one(x: bits[32]) -> bits[32] {
+  one: bits[32] = literal(value=1)
+  ret result: bits[32] = add(x, one)
+}
+)";
+
+  char* error = nullptr;
+  xls_package* package = nullptr;
+  ASSERT_TRUE(xls_parse_ir_package(kIr.data(), "test.ir", &error, &package))
+      << "error: " << error;
+  ASSERT_NE(package, nullptr);
+  absl::Cleanup free_package([=] { xls_package_free(package); });
+
+  xls_function* function = nullptr;
+  ASSERT_TRUE(xls_package_get_function(package, "add_one", &error, &function));
+  ASSERT_NE(function, nullptr);
+
+  uint8_t* object_bytes = nullptr;
+  size_t object_byte_count = 0;
+  uint8_t* proto_bytes = nullptr;
+  size_t proto_byte_count = 0;
+  ASSERT_TRUE(xls_aot_compile_function(function, &error, &object_bytes,
+                                       &object_byte_count, &proto_bytes,
+                                       &proto_byte_count))
+      << "error: " << error;
+  ASSERT_GT(object_byte_count, 0);
+  absl::Cleanup free_object_bytes(
+      [=] { xls_aot_object_code_free(object_bytes); });
+  ASSERT_GT(proto_byte_count, 0);
+  absl::Cleanup free_proto_bytes(
+      [=] { xls_aot_entrypoints_proto_free(proto_bytes); });
+
+  xls::AotPackageEntrypointsProto entrypoints;
+  ASSERT_TRUE(entrypoints.ParseFromArray(proto_bytes, proto_byte_count));
+  ASSERT_EQ(entrypoints.entrypoint_size(), 1);
+  EXPECT_EQ(entrypoints.entrypoint(0).type(),
+            xls::AotEntrypointProto::FUNCTION);
+  EXPECT_TRUE(entrypoints.entrypoint(0).has_function_symbol());
+  EXPECT_TRUE(entrypoints.entrypoint(0).has_packed_function_symbol());
+}
+
+TEST(XlsCApiTest, AotEntrypointTrampoline) {
+  const std::string_view kIr = R"(package my_package
+
+top fn add_one(x: bits[8]) -> bits[8] {
+  one: bits[8] = literal(value=1)
+  ret result: bits[8] = add(x, one)
+}
+)";
+
+  char* error = nullptr;
+  xls_package* package = nullptr;
+  ASSERT_TRUE(xls_parse_ir_package(kIr.data(), "test.ir", &error, &package))
+      << "error: " << error;
+  ASSERT_NE(package, nullptr);
+  absl::Cleanup free_package([=] { xls_package_free(package); });
+  absl::Cleanup free_error([&] { xls_c_str_free(error); });
+
+  xls_function* function = nullptr;
+  ASSERT_TRUE(xls_package_get_function(package, "add_one", &error, &function));
+  ASSERT_NE(function, nullptr);
+
+  uint8_t* object_bytes = nullptr;
+  size_t object_byte_count = 0;
+  uint8_t* proto_bytes = nullptr;
+  size_t proto_byte_count = 0;
+  ASSERT_TRUE(xls_aot_compile_function(function, &error, &object_bytes,
+                                       &object_byte_count, &proto_bytes,
+                                       &proto_byte_count))
+      << "error: " << error;
+  ASSERT_GT(object_byte_count, 0);
+  absl::Cleanup free_object_bytes(
+      [=] { xls_aot_object_code_free(object_bytes); });
+  ASSERT_GT(proto_byte_count, 0);
+  absl::Cleanup free_proto_bytes(
+      [=] { xls_aot_entrypoints_proto_free(proto_bytes); });
+
+  xls::AotPackageEntrypointsProto entrypoints;
+  ASSERT_TRUE(entrypoints.ParseFromArray(proto_bytes, proto_byte_count));
+  ASSERT_EQ(entrypoints.entrypoint_size(), 1);
+  const xls::AotEntrypointProto& entrypoint = entrypoints.entrypoint(0);
+  ASSERT_TRUE(entrypoint.has_packed_function_symbol());
+
+  llvm::Expected<std::unique_ptr<llvm::orc::LLJIT>> maybe_jit =
+      llvm::orc::LLJITBuilder().create();
+  ASSERT_TRUE(static_cast<bool>(maybe_jit))
+      << llvm::toString(maybe_jit.takeError());
+  std::unique_ptr<llvm::orc::LLJIT> jit = std::move(*maybe_jit);
+  jit->getMainJITDylib().addGenerator(llvm::cantFail(
+      llvm::orc::DynamicLibrarySearchGenerator::GetForCurrentProcess(
+          jit->getDataLayout().getGlobalPrefix())));
+
+  auto object_buffer = llvm::MemoryBuffer::getMemBufferCopy(
+      llvm::StringRef(reinterpret_cast<const char*>(object_bytes),
+                      object_byte_count),
+      "xls_aot_object_code");
+  llvm::Error add_object_error = jit->addObjectFile(std::move(object_buffer));
+  ASSERT_FALSE(static_cast<bool>(add_object_error))
+      << llvm::toString(std::move(add_object_error));
+
+  std::string packed_symbol = entrypoint.packed_function_symbol();
+  llvm::Expected<llvm::orc::ExecutorAddr> maybe_packed_address =
+      jit->lookup(packed_symbol);
+  ASSERT_TRUE(static_cast<bool>(maybe_packed_address))
+      << llvm::toString(maybe_packed_address.takeError());
+  llvm::orc::ExecutorAddr packed_address = *maybe_packed_address;
+
+  xls_aot_exec_context* context = nullptr;
+  ASSERT_TRUE(xls_aot_exec_context_create(proto_bytes, proto_byte_count, &error,
+                                          &context))
+      << "error: " << error;
+  ASSERT_NE(context, nullptr);
+  absl::Cleanup free_context([=] { xls_aot_exec_context_free(context); });
+
+  uint8_t input = 41;
+  uint8_t output = 0;
+  const uint8_t* inputs[1] = {&input};
+  uint8_t* outputs[1] = {&output};
+
+  int64_t alignment = entrypoint.temp_buffer_alignment();
+  if (alignment < 1) {
+    alignment = 1;
+  }
+  int64_t size = entrypoint.temp_buffer_size();
+  if (size < 1) {
+    size = 1;
+  }
+  int64_t alloc_size = ((size + alignment - 1) / alignment) * alignment;
+  void* temp_buffer = std::aligned_alloc(static_cast<size_t>(alignment),
+                                         static_cast<size_t>(alloc_size));
+  ASSERT_NE(temp_buffer, nullptr);
+  absl::Cleanup free_temp_buffer([=] { std::free(temp_buffer); });
+
+  size_t trace_messages_count = 0;
+  size_t assert_messages_count = 0;
+  int64_t continuation = xls_aot_entrypoint_trampoline(
+      static_cast<uintptr_t>(packed_address.getValue()), inputs, outputs,
+      temp_buffer, context, /*continuation_point=*/0, &trace_messages_count,
+      &assert_messages_count);
+
+  EXPECT_EQ(continuation, 0);
+  EXPECT_EQ(output, 42);
+  EXPECT_EQ(trace_messages_count, 0);
+  EXPECT_EQ(assert_messages_count, 0);
+  xls_aot_exec_context_clear_events(context);
 }
 
 // Tests that we can build a simple sample function. For fun we make one that

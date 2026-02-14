@@ -40,7 +40,6 @@
 #include "xls/common/init_xls.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/dev_tools/extract_interface.h"
 #include "xls/interpreter/evaluator_options.h"
 #include "xls/ir/block_elaboration.h"
 #include "xls/ir/function.h"
@@ -49,6 +48,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
+#include "xls/jit/aot_entrypoint.h"
 #include "xls/jit/aot_entrypoint.pb.h"
 #include "xls/jit/block_jit.h"
 #include "xls/jit/function_base_jit.h"
@@ -59,7 +59,6 @@
 #include "xls/jit/llvm_compiler.h"
 #include "xls/jit/llvm_type_converter.h"
 #include "xls/jit/observer.h"
-#include "xls/jit/type_buffer_metadata.h"
 #include "xls/jit/type_layout.pb.h"
 
 static constexpr std::string_view kUsage = R"(
@@ -175,107 +174,6 @@ class IntermediatesObserver final : public JitObserver {
   std::string asm_;
 };
 
-absl::StatusOr<AotEntrypointProto> GenerateEntrypointProto(
-    Package* package, const FunctionEntrypoint& entrypoint, bool include_msan,
-    LlvmTypeConverter& type_converter) {
-  FunctionBase* func = entrypoint.function;
-  const JittedFunctionBase& object_code = entrypoint.jit_info;
-  AotEntrypointProto proto;
-  proto.set_has_msan(include_msan);
-  if (func->IsFunction()) {
-    proto.set_type(AotEntrypointProto::FUNCTION);
-    proto.add_outputs_names("result");
-    for (const Param* p : func->params()) {
-      proto.add_inputs_names(p->name());
-      *proto.mutable_inputs_layout()->add_layouts() =
-          type_converter.CreateTypeLayout(p->GetType()).ToProto();
-    }
-    *proto.mutable_outputs_layout()->add_layouts() =
-        type_converter
-            .CreateTypeLayout(func->AsFunctionOrDie()->GetType()->return_type())
-            .ToProto();
-    AotEntrypointProto::FunctionMetadataProto* function_metadata_proto =
-        proto.mutable_function_metadata();
-    *function_metadata_proto->mutable_function_interface() =
-        ExtractFunctionInterface(func->AsFunctionOrDie());
-  } else if (func->IsProc()) {
-    proto.set_type(AotEntrypointProto::PROC);
-    for (const Param* p : func->params()) {
-      proto.add_inputs_names(p->name());
-      proto.add_outputs_names(p->name());
-      auto layout_proto =
-          type_converter.CreateTypeLayout(p->GetType()).ToProto();
-      *proto.mutable_inputs_layout()->add_layouts() = layout_proto;
-      *proto.mutable_outputs_layout()->add_layouts() = layout_proto;
-    }
-    AotEntrypointProto::ProcMetadataProto* proc_metadata_proto =
-        proto.mutable_proc_metadata();
-    proc_metadata_proto->mutable_continuation_point_node_ids()->insert(
-        object_code.continuation_points().begin(),
-        object_code.continuation_points().end());
-    proc_metadata_proto->mutable_channel_queue_indices()->insert(
-        object_code.queue_indices().begin(), object_code.queue_indices().end());
-    *proc_metadata_proto->mutable_proc_interface() =
-        ExtractProcInterface(func->AsProcOrDie());
-  } else {
-    XLS_RET_CHECK(func->IsBlock());
-    proto.set_type(AotEntrypointProto::BLOCK);
-    for (InputPort* p : func->AsBlockOrDie()->GetInputPorts()) {
-      proto.add_inputs_names(p->name());
-      auto layout_proto =
-          type_converter.CreateTypeLayout(p->GetType()).ToProto();
-      *proto.mutable_inputs_layout()->add_layouts() = layout_proto;
-    }
-    for (OutputPort* p : func->AsBlockOrDie()->GetOutputPorts()) {
-      proto.add_outputs_names(p->name());
-      auto layout_proto =
-          type_converter.CreateTypeLayout(p->GetType()).ToProto();
-      *proto.mutable_outputs_layout()->add_layouts() = layout_proto;
-    }
-    AotEntrypointProto::BlockMetadataProto* block_metadata_proto =
-        proto.mutable_block_metadata();
-
-    for (const auto& [orig, translated] : entrypoint.register_aliases) {
-      block_metadata_proto->mutable_register_aliases()->insert(
-          {orig, translated});
-    }
-    for (const auto& [reg, ty] : entrypoint.added_registers) {
-      block_metadata_proto->mutable_added_registers()->insert(
-          {reg, ty->ToProto()});
-    }
-    *block_metadata_proto->mutable_block_interface() =
-        ExtractBlockInterface(func->AsBlockOrDie());
-  }
-  proto.set_xls_package_name(package->name());
-  proto.set_xls_function_identifier(func->name());
-  proto.set_function_symbol(object_code.function_name());
-  if (object_code.HasPackedFunction()) {
-    proto.set_packed_function_symbol(*object_code.packed_function_name());
-  }
-  for (const TypeBufferMetadata& metadata :
-       object_code.GetInputBufferMetadata()) {
-    proto.add_input_buffer_sizes(metadata.size);
-    proto.add_input_buffer_alignments(metadata.preferred_alignment);
-    proto.add_input_buffer_abi_alignments(metadata.abi_alignment);
-    if (object_code.HasPackedFunction()) {
-      proto.add_packed_input_buffer_sizes(metadata.packed_size);
-    }
-  }
-  for (const TypeBufferMetadata& metadata :
-       object_code.GetOutputBufferMetadata()) {
-    proto.add_output_buffer_sizes(metadata.size);
-    proto.add_output_buffer_alignments(metadata.preferred_alignment);
-    proto.add_output_buffer_abi_alignments(metadata.abi_alignment);
-    if (object_code.HasPackedFunction()) {
-      proto.add_packed_output_buffer_sizes(metadata.packed_size);
-    }
-  }
-
-  proto.set_temp_buffer_size(object_code.temp_buffer_size());
-  proto.set_temp_buffer_alignment(object_code.temp_buffer_alignment());
-  return proto;
-}
-
 absl::StatusOr<FunctionBase*> GetFunctionBaseByNameOfKind(
     Package* pkg, std::string_view top,
     std::optional<FunctionBase::Kind> kind) {
@@ -379,7 +277,7 @@ absl::Status RealMain(const std::string& input_ir_path,
     for (const FunctionEntrypoint& oc : object_code->entrypoints) {
       XLS_ASSIGN_OR_RETURN(
           *all_entrypoints.add_entrypoint(),
-          GenerateEntrypointProto(
+          GenerateAotEntrypointProto(
               object_code->package ? object_code->package.get() : package.get(),
               oc, include_msan, type_converter));
     }

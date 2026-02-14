@@ -55,6 +55,7 @@ enum {
 // Opaque structs.
 struct xls_bits;
 struct xls_bits_rope;
+struct xls_aot_exec_context;
 struct xls_function;
 struct xls_function_base;
 struct xls_function_jit;
@@ -520,10 +521,67 @@ bool xls_make_function_jit(struct xls_function* function, char** error_out,
 
 void xls_function_jit_free(struct xls_function_jit* jit);
 
+// AOT-compiles the given function and returns the resulting object code and ABI
+// metadata in newly allocated output buffers.
+//
+// Note: the returned buffers are owned by the caller and must be freed via
+// `xls_aot_object_code_free` and `xls_aot_entrypoints_proto_free`
+// respectively.
+bool xls_aot_compile_function(struct xls_function* function, char** error_out,
+                              uint8_t** object_code_out,
+                              size_t* object_code_count_out,
+                              uint8_t** entrypoints_proto_out,
+                              size_t* entrypoints_proto_count_out);
+
+void xls_aot_object_code_free(uint8_t* object_code);
+void xls_aot_entrypoints_proto_free(uint8_t* entrypoints_proto);
+
+// Creates execution context required for direct invocation of AOT entrypoints.
+//
+// `entrypoints_proto` should contain serialized AotPackageEntrypointsProto
+// bytes. The returned object is owned by the caller and must be freed via
+// `xls_aot_exec_context_free`.
+bool xls_aot_exec_context_create(const uint8_t* entrypoints_proto,
+                                 size_t entrypoints_proto_count,
+                                 char** error_out,
+                                 struct xls_aot_exec_context** out);
+
+// Clears trace/assert events accumulated in `context`.
+void xls_aot_exec_context_clear_events(struct xls_aot_exec_context* context);
+
+// Frees context created via `xls_aot_exec_context_create`.
+void xls_aot_exec_context_free(struct xls_aot_exec_context* context);
+
+// Invokes a compiled AOT entrypoint using an opaque exec contextobject.
+//
+// `function_ptr` must be the symbol address of an AOT entrypoint compatible
+// with the `JitFunctionType` ABI.
+int64_t xls_aot_entrypoint_trampoline(
+    uintptr_t function_ptr, const uint8_t* const* inputs,
+    uint8_t* const* outputs, void* temp_buffer,
+    struct xls_aot_exec_context* context, int64_t continuation_point,
+    size_t* trace_messages_count_out, size_t* assert_messages_count_out);
+
 struct xls_trace_message {
   char* message;
   int64_t verbosity;
 };
+
+// Gets a trace message from `context` at `index`.
+//
+// On success, returns true and fills `trace_message_out`. The caller owns
+// `trace_message_out->message` and must free it with `xls_c_str_free`.
+bool xls_aot_exec_context_get_trace_message(
+    const struct xls_aot_exec_context* context, size_t index, char** error_out,
+    struct xls_trace_message* trace_message_out);
+
+// Gets an assert message from `context` at `index`.
+//
+// On success, returns true and fills `assert_message_out`. The caller owns
+// `*assert_message_out` and must free it with `xls_c_str_free`.
+bool xls_aot_exec_context_get_assert_message(
+    const struct xls_aot_exec_context* context, size_t index, char** error_out,
+    char** assert_message_out);
 
 // Runs the given `jit` function with the given `args` (an array of size `argc`)
 // and returns the result in `result_out`.
