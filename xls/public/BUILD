@@ -386,11 +386,13 @@ cc_test(
         "//xls/dslx:default_dslx_stdlib_path",
         "//xls/estimators",
         "//xls/jit:aot_entrypoint_cc_proto",
+        "//xls/jit:orc_jit",
         "//xls/passes",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
         "@googletest//:gtest",
     ],
 )

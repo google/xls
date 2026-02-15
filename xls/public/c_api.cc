@@ -37,6 +37,8 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "llvm/include/llvm/IR/DataLayout.h"
+#include "llvm/include/llvm/Support/Error.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/dslx/mangle.h"
@@ -65,6 +67,12 @@
 #include "xls/solvers/z3_ir_translator.h"
 #include "xls/tools/codegen_flags.pb.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
+
+struct xls_aot_entrypoint_metadata {
+  xls::InterpreterEvents events;
+  xls::InstanceContext instance_context = xls::InstanceContext::CreateForFunc();
+  std::unique_ptr<xls::JitRuntime> jit_runtime;
+};
 
 namespace {
 
@@ -1535,6 +1543,76 @@ void xls_aot_object_code_free(uint8_t* object_code) {
 
 void xls_aot_entrypoints_proto_free(uint8_t* entrypoints_proto) {
   xls_bytes_free(entrypoints_proto);
+}
+
+bool xls_aot_entrypoint_metadata_create(
+    const char* data_layout, char** error_out,
+    struct xls_aot_entrypoint_metadata** out) {
+  CHECK(data_layout != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(out != nullptr);
+
+  llvm::Expected<llvm::DataLayout> maybe_data_layout =
+      llvm::DataLayout::parse(data_layout);
+  if (!maybe_data_layout) {
+    std::string parse_error = llvm::toString(maybe_data_layout.takeError());
+    *error_out = xls::ToOwnedCString(
+        absl::InvalidArgumentError(
+            absl::StrFormat("Unable to parse '%s' to an llvm data-layout: %s",
+                            data_layout, parse_error))
+            .ToString());
+    *out = nullptr;
+    return false;
+  }
+
+  auto* metadata = new (std::nothrow) xls_aot_entrypoint_metadata();
+  if (metadata == nullptr) {
+    *error_out = xls::ToOwnedCString(
+        absl::InternalError("Failed to allocate AOT entrypoint metadata")
+            .ToString());
+    *out = nullptr;
+    return false;
+  }
+  metadata->jit_runtime = std::unique_ptr<xls::JitRuntime>(
+      new (std::nothrow) xls::JitRuntime(*maybe_data_layout));
+  if (metadata->jit_runtime == nullptr) {
+    delete metadata;
+    *error_out = xls::ToOwnedCString(
+        absl::InternalError("Failed to allocate AOT JIT runtime").ToString());
+    *out = nullptr;
+    return false;
+  }
+
+  *out = metadata;
+  *error_out = nullptr;
+  return true;
+}
+
+void xls_aot_entrypoint_metadata_clear_events(
+    struct xls_aot_entrypoint_metadata* metadata) {
+  CHECK(metadata != nullptr);
+  metadata->events.Clear();
+}
+
+void xls_aot_entrypoint_metadata_free(
+    struct xls_aot_entrypoint_metadata* metadata) {
+  delete metadata;
+}
+
+int64_t xls_aot_entrypoint_trampoline(
+    uintptr_t function_ptr, const uint8_t* const* inputs,
+    uint8_t* const* outputs, void* temp_buffer,
+    struct xls_aot_entrypoint_metadata* metadata, int64_t continuation_point) {
+  CHECK(function_ptr != 0);
+  CHECK(inputs != nullptr);
+  CHECK(outputs != nullptr);
+  CHECK(metadata != nullptr);
+  CHECK(metadata->jit_runtime != nullptr);
+
+  xls::JitFunctionType fn = absl::bit_cast<xls::JitFunctionType>(function_ptr);
+  return fn(inputs, outputs, temp_buffer, &metadata->events,
+            &metadata->instance_context, metadata->jit_runtime.get(),
+            continuation_point);
 }
 
 bool xls_aot_run_function(

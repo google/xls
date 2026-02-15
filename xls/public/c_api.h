@@ -56,6 +56,7 @@ enum {
 // Opaque structs.
 struct xls_bits;
 struct xls_bits_rope;
+struct xls_aot_entrypoint_metadata;
 struct xls_function;
 struct xls_function_base;
 struct xls_function_jit;
@@ -546,6 +547,33 @@ bool xls_aot_compile_function(
 
 void xls_aot_object_code_free(uint8_t* object_code);
 void xls_aot_entrypoints_proto_free(uint8_t* entrypoints_proto);
+
+// Creates metadata required for direct invocation of AOT entrypoints.
+//
+// `data_layout` should come from `AotPackageEntrypointsProto::data_layout`.
+// The returned object is owned by the caller and must be freed via
+// `xls_aot_entrypoint_metadata_free`.
+bool xls_aot_entrypoint_metadata_create(const char* data_layout,
+                                        char** error_out,
+                                        struct xls_aot_entrypoint_metadata** out);
+
+// Clears trace/assert events accumulated in `metadata`.
+void xls_aot_entrypoint_metadata_clear_events(
+    struct xls_aot_entrypoint_metadata* metadata);
+
+// Frees metadata created via `xls_aot_entrypoint_metadata_create`.
+void xls_aot_entrypoint_metadata_free(
+    struct xls_aot_entrypoint_metadata* metadata);
+
+// Invokes a compiled AOT entrypoint using an opaque metadata object.
+//
+// `function_ptr` must be the symbol address of an AOT entrypoint compatible
+// with the `JitFunctionType` ABI.
+int64_t xls_aot_entrypoint_trampoline(
+    uintptr_t function_ptr, const uint8_t* const* inputs,
+    uint8_t* const* outputs, void* temp_buffer,
+    struct xls_aot_entrypoint_metadata* metadata,
+    int64_t continuation_point);
 
 // Runs the first FUNCTION entrypoint from serialized AOT artifacts.
 //

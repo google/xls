@@ -1,4 +1,8 @@
 xls_aot_compile_function
+xls_aot_entrypoint_metadata_clear_events
+xls_aot_entrypoint_metadata_create
+xls_aot_entrypoint_metadata_free
+xls_aot_entrypoint_trampoline
 xls_aot_entrypoints_proto_free
 xls_aot_object_code_free
 xls_aot_run_function
