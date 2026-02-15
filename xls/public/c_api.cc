@@ -68,7 +68,7 @@
 #include "xls/tools/codegen_flags.pb.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 
-struct xls_aot_entrypoint_metadata {
+struct xls_aot_exec_context {
   xls::InterpreterEvents events;
   xls::InstanceContext instance_context = xls::InstanceContext::CreateForFunc();
   std::unique_ptr<xls::JitRuntime> jit_runtime;
@@ -131,6 +131,7 @@ absl::StatusOr<xls::AotPackageEntrypointsProto> GenerateAotEntrypointsProto(
 bool RunFunctionJit(
     xls::FunctionJit* xls_jit, size_t argc,
     const struct xls_value* const* args, char** error_out,
+    xls::InterpreterEvents* events_out,
     struct xls_trace_message** trace_messages_out,
     size_t* trace_messages_count_out, char*** assert_messages_out,
     size_t* assert_messages_count_out, struct xls_value** result_out) {
@@ -146,6 +147,10 @@ bool RunFunctionJit(
   if (!result.ok()) {
     *error_out = xls::ToOwnedCString(result.status().ToString());
     return false;
+  }
+  if (events_out != nullptr) {
+    events_out->Clear();
+    events_out->AppendFrom(result->events);
   }
 
   std::vector<std::string> trace_msgs = result->events.GetTraceMessageStrings();
@@ -1545,91 +1550,112 @@ void xls_aot_entrypoints_proto_free(uint8_t* entrypoints_proto) {
   xls_bytes_free(entrypoints_proto);
 }
 
-bool xls_aot_entrypoint_metadata_create(
-    const char* data_layout, char** error_out,
-    struct xls_aot_entrypoint_metadata** out) {
-  CHECK(data_layout != nullptr);
+bool xls_aot_exec_context_create(const uint8_t* entrypoints_proto,
+                                 size_t entrypoints_proto_count,
+                                 char** error_out,
+                                 struct xls_aot_exec_context** out) {
+  CHECK(entrypoints_proto != nullptr);
   CHECK(error_out != nullptr);
   CHECK(out != nullptr);
 
+  xls::AotPackageEntrypointsProto proto;
+  if (!proto.ParseFromArray(entrypoints_proto, entrypoints_proto_count)) {
+    *error_out = xls::ToOwnedCString(
+        absl::InvalidArgumentError("Unable to parse AotPackageEntrypointsProto")
+            .ToString());
+    *out = nullptr;
+    return false;
+  }
+  if (!proto.has_data_layout()) {
+    *error_out = xls::ToOwnedCString(
+        absl::InvalidArgumentError(
+            "AotPackageEntrypointsProto missing required `data_layout`")
+            .ToString());
+    *out = nullptr;
+    return false;
+  }
+
   llvm::Expected<llvm::DataLayout> maybe_data_layout =
-      llvm::DataLayout::parse(data_layout);
+      llvm::DataLayout::parse(proto.data_layout());
   if (!maybe_data_layout) {
     std::string parse_error = llvm::toString(maybe_data_layout.takeError());
     *error_out = xls::ToOwnedCString(
         absl::InvalidArgumentError(
             absl::StrFormat("Unable to parse '%s' to an llvm data-layout: %s",
-                            data_layout, parse_error))
+                            proto.data_layout(), parse_error))
             .ToString());
     *out = nullptr;
     return false;
   }
 
-  auto* metadata = new (std::nothrow) xls_aot_entrypoint_metadata();
-  if (metadata == nullptr) {
+  auto* context = new (std::nothrow) xls_aot_exec_context();
+  if (context == nullptr) {
     *error_out = xls::ToOwnedCString(
-        absl::InternalError("Failed to allocate AOT entrypoint metadata")
+        absl::InternalError("Failed to allocate AOT exec context")
             .ToString());
     *out = nullptr;
     return false;
   }
-  metadata->jit_runtime = std::unique_ptr<xls::JitRuntime>(
+  context->jit_runtime = std::unique_ptr<xls::JitRuntime>(
       new (std::nothrow) xls::JitRuntime(*maybe_data_layout));
-  if (metadata->jit_runtime == nullptr) {
-    delete metadata;
+  if (context->jit_runtime == nullptr) {
+    delete context;
     *error_out = xls::ToOwnedCString(
         absl::InternalError("Failed to allocate AOT JIT runtime").ToString());
     *out = nullptr;
     return false;
   }
 
-  *out = metadata;
+  *out = context;
   *error_out = nullptr;
   return true;
 }
 
-void xls_aot_entrypoint_metadata_clear_events(
-    struct xls_aot_entrypoint_metadata* metadata) {
-  CHECK(metadata != nullptr);
-  metadata->events.Clear();
+void xls_aot_exec_context_clear_events(struct xls_aot_exec_context* context) {
+  CHECK(context != nullptr);
+  context->events.Clear();
 }
 
-void xls_aot_entrypoint_metadata_free(
-    struct xls_aot_entrypoint_metadata* metadata) {
-  delete metadata;
+void xls_aot_exec_context_free(struct xls_aot_exec_context* context) {
+  delete context;
 }
 
 int64_t xls_aot_entrypoint_trampoline(
     uintptr_t function_ptr, const uint8_t* const* inputs,
     uint8_t* const* outputs, void* temp_buffer,
-    struct xls_aot_entrypoint_metadata* metadata, int64_t continuation_point) {
+    struct xls_aot_exec_context* context, int64_t continuation_point,
+    size_t* trace_messages_count_out, size_t* assert_messages_count_out) {
   CHECK(function_ptr != 0);
   CHECK(inputs != nullptr);
   CHECK(outputs != nullptr);
-  CHECK(metadata != nullptr);
-  CHECK(metadata->jit_runtime != nullptr);
+  CHECK(context != nullptr);
+  CHECK(context->jit_runtime != nullptr);
+  CHECK(trace_messages_count_out != nullptr);
+  CHECK(assert_messages_count_out != nullptr);
 
   xls::JitFunctionType fn = absl::bit_cast<xls::JitFunctionType>(function_ptr);
-  return fn(inputs, outputs, temp_buffer, &metadata->events,
-            &metadata->instance_context, metadata->jit_runtime.get(),
-            continuation_point);
+  int64_t continuation = fn(inputs, outputs, temp_buffer, &context->events,
+                            &context->instance_context, context->jit_runtime.get(),
+                            continuation_point);
+  *trace_messages_count_out = context->events.GetTraceMessages().size();
+  *assert_messages_count_out = context->events.GetAssertMessages().size();
+  return continuation;
 }
 
 bool xls_aot_run_function(
     const uint8_t* object_code, size_t object_code_count,
     const uint8_t* entrypoints_proto, size_t entrypoints_proto_count,
-    size_t argc, const struct xls_value* const* args, char** error_out,
-    struct xls_trace_message** trace_messages_out,
-    size_t* trace_messages_count_out, char*** assert_messages_out,
-    size_t* assert_messages_count_out, struct xls_value** result_out) {
+    struct xls_aot_exec_context* context, size_t argc,
+    const struct xls_value* const* args, char** error_out,
+    struct xls_value** result_out, size_t* trace_messages_count_out,
+    size_t* assert_messages_count_out) {
   CHECK(object_code != nullptr);
   CHECK(entrypoints_proto != nullptr);
+  CHECK(context != nullptr);
   CHECK(error_out != nullptr);
-  CHECK(trace_messages_out != nullptr);
-  CHECK(trace_messages_count_out != nullptr);
-  CHECK(assert_messages_out != nullptr);
-  CHECK(assert_messages_count_out != nullptr);
   CHECK(result_out != nullptr);
+  CHECK(trace_messages_count_out != nullptr);
+  CHECK(assert_messages_count_out != nullptr);
 
   xls::AotPackageEntrypointsProto proto;
   if (!proto.ParseFromArray(entrypoints_proto, entrypoints_proto_count)) {
@@ -1702,9 +1728,77 @@ bool xls_aot_run_function(
     return false;
   }
 
-  return RunFunctionJit(jit->get(), argc, args, error_out, trace_messages_out,
-                        trace_messages_count_out, assert_messages_out,
-                        assert_messages_count_out, result_out);
+  std::vector<xls::Value> cpp_args;
+  cpp_args.reserve(argc);
+  for (size_t i = 0; i < argc; ++i) {
+    CHECK(args[i] != nullptr);
+    cpp_args.push_back(*reinterpret_cast<const xls::Value*>(args[i]));
+  }
+
+  absl::StatusOr<xls::InterpreterResult<xls::Value>> result =
+      jit->get()->Run(absl::MakeConstSpan(cpp_args));
+  if (!result.ok()) {
+    *error_out = xls::ToOwnedCString(result.status().ToString());
+    return false;
+  }
+
+  context->events.Clear();
+  context->events.AppendFrom(result->events);
+  *result_out = reinterpret_cast<struct xls_value*>(
+      new xls::Value(std::move(result->value)));
+  *trace_messages_count_out = context->events.GetTraceMessages().size();
+  *assert_messages_count_out = context->events.GetAssertMessages().size();
+  *error_out = nullptr;
+  return true;
+}
+
+bool xls_aot_exec_context_get_trace_message(
+    const struct xls_aot_exec_context* context, size_t index, char** error_out,
+    struct xls_trace_message* trace_message_out) {
+  CHECK(context != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(trace_message_out != nullptr);
+
+  const auto& trace_messages = context->events.GetTraceMessages();
+  if (index >= trace_messages.size()) {
+    *error_out = xls::ToOwnedCString(absl::InvalidArgumentError(absl::StrFormat(
+                                        "Trace-message index %zu out of range "
+                                        "(trace count: %zu)",
+                                        index, static_cast<size_t>(trace_messages.size())))
+                                        .ToString());
+    return false;
+  }
+
+  trace_message_out->message =
+      xls::ToOwnedCString(trace_messages.Get(index).message());
+  trace_message_out->verbosity =
+      trace_messages.Get(index).has_statement()
+          ? trace_messages.Get(index).statement().verbosity()
+          : 0;
+  *error_out = nullptr;
+  return true;
+}
+
+bool xls_aot_exec_context_get_assert_message(
+    const struct xls_aot_exec_context* context, size_t index, char** error_out,
+    char** assert_message_out) {
+  CHECK(context != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(assert_message_out != nullptr);
+
+  std::vector<std::string> assert_messages = context->events.GetAssertMessages();
+  if (index >= assert_messages.size()) {
+    *error_out = xls::ToOwnedCString(absl::InvalidArgumentError(absl::StrFormat(
+                                        "Assert-message index %zu out of range "
+                                        "(assert count: %zu)",
+                                        index, assert_messages.size()))
+                                        .ToString());
+    return false;
+  }
+
+  *assert_message_out = xls::ToOwnedCString(assert_messages[index]);
+  *error_out = nullptr;
+  return true;
 }
 
 void xls_function_ptr_array_free(struct xls_function** function_pointer_array) {
@@ -1727,9 +1821,10 @@ bool xls_function_jit_run(struct xls_function_jit* jit, size_t argc,
   CHECK(result_out != nullptr);
 
   xls::FunctionJit* xls_jit = reinterpret_cast<xls::FunctionJit*>(jit);
-  return RunFunctionJit(xls_jit, argc, args, error_out, trace_messages_out,
-                        trace_messages_count_out, assert_messages_out,
-                        assert_messages_count_out, result_out);
+  return RunFunctionJit(xls_jit, argc, args, error_out, /*events_out=*/nullptr,
+                        trace_messages_out, trace_messages_count_out,
+                        assert_messages_out, assert_messages_count_out,
+                        result_out);
 }
 
 void xls_trace_messages_free(struct xls_trace_message* trace_messages,
