@@ -38,12 +38,12 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "llvm/include/llvm/IR/DataLayout.h"
+#include "llvm/include/llvm/IR/LLVMContext.h"
 #include "llvm/include/llvm/Support/Error.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/type_system/parametric_env.h"
-#include "xls/dev_tools/extract_interface.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/bit_push_buffer.h"
 #include "xls/ir/bits.h"
@@ -57,7 +57,9 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
+#include "xls/jit/aot_entrypoint.h"
 #include "xls/jit/function_jit.h"
+#include "xls/jit/llvm_type_converter.h"
 #include "xls/jit/orc_jit.h"
 #include "xls/public/c_api_format_preference.h"
 #include "xls/public/c_api_impl_helpers.h"
@@ -76,57 +78,11 @@ struct xls_aot_exec_context {
 
 namespace {
 
-absl::StatusOr<xls::AotPackageEntrypointsProto> GenerateAotEntrypointsProto(
-    xls::Function* function, const xls::JitObjectCode& object_code) {
-  if (object_code.entrypoints.size() != 1) {
-    return absl::InternalError(
-        absl::StrFormat("Expected exactly one AOT entrypoint; got: %d",
-                        object_code.entrypoints.size()));
-  }
-
-  const xls::FunctionEntrypoint& entrypoint = object_code.entrypoints.front();
-  const xls::JittedFunctionBase& jit_info = entrypoint.jit_info;
-
-  xls::AotEntrypointProto aot_entrypoint;
-  aot_entrypoint.set_type(xls::AotEntrypointProto::FUNCTION);
-  aot_entrypoint.set_xls_package_name(function->package()->name());
-  aot_entrypoint.set_xls_function_identifier(function->name());
-  aot_entrypoint.set_function_symbol(std::string(jit_info.function_name()));
-  if (jit_info.HasPackedFunction()) {
-    aot_entrypoint.set_packed_function_symbol(
-        std::string(*jit_info.packed_function_name()));
-  }
-  *aot_entrypoint.mutable_function_metadata()->mutable_function_interface() =
-      xls::ExtractFunctionInterface(function);
-
-  for (const xls::TypeBufferMetadata& metadata : jit_info.GetInputBufferMetadata()) {
-    aot_entrypoint.add_input_buffer_sizes(metadata.size);
-    aot_entrypoint.add_input_buffer_alignments(metadata.preferred_alignment);
-    aot_entrypoint.add_input_buffer_abi_alignments(metadata.abi_alignment);
-    if (jit_info.HasPackedFunction()) {
-      aot_entrypoint.add_packed_input_buffer_sizes(metadata.packed_size);
-    }
-  }
-
-  for (const xls::TypeBufferMetadata& metadata :
-       jit_info.GetOutputBufferMetadata()) {
-    aot_entrypoint.add_output_buffer_sizes(metadata.size);
-    aot_entrypoint.add_output_buffer_alignments(metadata.preferred_alignment);
-    aot_entrypoint.add_output_buffer_abi_alignments(metadata.abi_alignment);
-    if (jit_info.HasPackedFunction()) {
-      aot_entrypoint.add_packed_output_buffer_sizes(metadata.packed_size);
-    }
-  }
-
-  aot_entrypoint.set_temp_buffer_size(jit_info.temp_buffer_size());
-  aot_entrypoint.set_temp_buffer_alignment(jit_info.temp_buffer_alignment());
-
-  xls::AotPackageEntrypointsProto output;
-  *output.mutable_data_layout() =
-      object_code.data_layout.getStringRepresentation();
-  *output.add_entrypoint() = std::move(aot_entrypoint);
-  return output;
-}
+#ifdef ABSL_HAVE_MEMORY_SANITIZER
+static constexpr bool kHasMsan = true;
+#else
+static constexpr bool kHasMsan = false;
+#endif
 
 bool RunFunctionJit(
     xls::FunctionJit* xls_jit, size_t argc,
@@ -1505,12 +1461,31 @@ bool xls_aot_compile_function(
     return false;
   }
 
-  absl::StatusOr<xls::AotPackageEntrypointsProto> entrypoints_proto =
-      GenerateAotEntrypointsProto(xls_function, *object_code);
-  if (!entrypoints_proto.ok()) {
-    *error_out = xls::ToOwnedCString(entrypoints_proto.status().ToString());
+  if (object_code->entrypoints.size() != 1) {
+    *error_out = xls::ToOwnedCString(
+        absl::InternalError(absl::StrFormat(
+                                "Expected exactly one AOT entrypoint; got: %d",
+                                object_code->entrypoints.size()))
+            .ToString());
     return false;
   }
+
+  const xls::FunctionEntrypoint& entrypoint = object_code->entrypoints.front();
+  auto context = std::make_unique<llvm::LLVMContext>();
+  xls::LlvmTypeConverter type_converter(context.get(), object_code->data_layout);
+  xls::Package* package = object_code->package ? object_code->package.get()
+                                               : xls_function->package();
+  absl::StatusOr<xls::AotEntrypointProto> aot_entrypoint =
+      xls::GenerateAotEntrypointProto(package, entrypoint, kHasMsan,
+                                      type_converter);
+  if (!aot_entrypoint.ok()) {
+    *error_out = xls::ToOwnedCString(aot_entrypoint.status().ToString());
+    return false;
+  }
+  xls::AotPackageEntrypointsProto entrypoints_proto;
+  *entrypoints_proto.mutable_data_layout() =
+      object_code->data_layout.getStringRepresentation();
+  *entrypoints_proto.add_entrypoint() = std::move(*aot_entrypoint);
 
   *object_code_out = nullptr;
   *entrypoints_proto_out = nullptr;
@@ -1524,7 +1499,7 @@ bool xls_aot_compile_function(
   }
   memcpy(*object_code_out, object_code->object_code.data(), *object_code_count_out);
 
-  std::string proto_bytes = entrypoints_proto->SerializeAsString();
+  std::string proto_bytes = entrypoints_proto.SerializeAsString();
   *entrypoints_proto_count_out = proto_bytes.size();
   *entrypoints_proto_out = new (std::nothrow) uint8_t[*entrypoints_proto_count_out];
   if (*entrypoints_proto_out == nullptr) {
