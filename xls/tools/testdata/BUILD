@@ -82,7 +82,7 @@ xls_dslx_ir(
 xls_dslx_ir(
     name = "eval_proc_main_test_ir",
     dslx_top = "test_proc",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     library = ":eval_proc_main_test",
 )
 
@@ -167,7 +167,7 @@ xls_dslx_library(
 xls_dslx_ir(
     name = "eval_proc_main_zero_size_test_ir",
     dslx_top = "test_proc",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     library = ":eval_proc_main_zero_size_test",
 )
 
@@ -248,7 +248,7 @@ xls_dslx_library(
 xls_dslx_ir(
     name = "eval_proc_main_conditional_test_ir",
     dslx_top = "test_proc",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     library = ":eval_proc_main_conditional_test",
 )
 
@@ -342,7 +342,7 @@ xls_dslx_library(
 xls_dslx_ir(
     name = "eval_proc_main_test_memory",
     dslx_top = "test_proc",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     library = ":eval_proc_main_test_memory_lib",
 )
 
@@ -367,7 +367,7 @@ xls_ir_opt_ir(
     src = ":eval_proc_main_test_memory",
     opt_ir_file = "eval_proc_main_test_memory.opt.ir",
     ram_rewrites = [
-        "//xls/tools/testdata:eval_proc_main_test_memory.ram_rewrites.textproto",
+        "//xls/tools/testdata:eval_proc_main_test_memory_proc_scoped.ram_rewrites.textproto",
     ],
 )
 

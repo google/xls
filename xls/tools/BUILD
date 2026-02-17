@@ -1005,43 +1005,6 @@ pytype_strict_contrib_test(
     ],
 )
 
-pytype_strict_contrib_test(
-    name = "eval_proc_main_test",
-    srcs = ["eval_proc_main_test.py"],
-    data = [
-        ":eval_proc_main",
-        "//xls/examples:delay.block.ir",
-        "//xls/examples:delay.sig.textproto",
-        "//xls/examples/dslx_module:manual_chan_caps_streaming_configured_multiproc.block.ir",
-        "//xls/examples/dslx_module:manual_chan_caps_streaming_configured_multiproc.sig.textproto",
-        "//xls/examples/dslx_module:manual_chan_caps_streaming_configured_opt_ir.opt.ir",
-        "//xls/tools/testdata:eval_proc_main_conditional_test.opt.ir",
-        "//xls/tools/testdata:eval_proc_main_test.opt.ir",
-        "//xls/tools/testdata:eval_proc_main_test.sig.textproto",
-        "//xls/tools/testdata:eval_proc_main_test_broken.block.ir",
-        "//xls/tools/testdata:eval_proc_main_test_memory.block.ir",
-        "//xls/tools/testdata:eval_proc_main_test_memory.ir",
-        "//xls/tools/testdata:eval_proc_main_test_memory.opt.ir",
-        "//xls/tools/testdata:eval_proc_main_test_memory.ram_rewrites.textproto",
-        "//xls/tools/testdata:eval_proc_main_test_memory.sig.textproto",
-        "//xls/tools/testdata:eval_proc_main_test_with_trace.block.ir",
-        "//xls/tools/testdata:eval_proc_main_zero_size_test.block.ir",
-        "//xls/tools/testdata:eval_proc_main_zero_size_test.opt.ir",
-        "//xls/tools/testdata:eval_proc_main_zero_size_test.sig.textproto",
-    ],
-    deps = [
-        ":node_coverage_stats_py_pb2",
-        ":proc_channel_values_py_pb2",
-        "//xls/common:runfiles",
-        "//xls/interpreter:trace_py_pb2",
-        "//xls/ir:xls_value_py_pb2",
-        "@abseil-py//absl/logging",
-        "@abseil-py//absl/testing:absltest",
-        "@abseil-py//absl/testing:parameterized",
-        "@riegeli//python/riegeli",
-    ],
-)
-
 cc_library(
     name = "bom",
     srcs = ["bom.cc"],

@@ -1,8 +1,8 @@
-eval_proc_main_test__in_ch : {
+_in_ch : {
   bits[64]:42
   bits[64]:101
 }
-eval_proc_main_test__in_ch_2 : {
+_in_ch_2 : {
   bits[64]:10
   bits[64]:6
 }
