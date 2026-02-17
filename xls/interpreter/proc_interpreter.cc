@@ -325,7 +325,13 @@ absl::StatusOr<TickResult> ProcInterpreter::Tick(
   // proc state, then pass it to the continuation.
   std::vector<Value> next_state = cont->GetState();
   for (const auto& [state_element, next_values] : cont->GetActiveNextValues()) {
+    XLS_ASSIGN_OR_RETURN(int64_t index,
+                         proc()->GetStateElementIndex(state_element));
+    next_state[index] = ir_interpreter.ResolveAsValue(next_values[0]->value());
     if (next_values.size() > 1) {
+      if (!cont->GetEvents().GetAssertMessages().empty()) {
+        XLS_RETURN_IF_ERROR(InterpreterEventsToStatus(cont->GetEvents()));
+      }
       return absl::AlreadyExistsError(absl::StrFormat(
           "Multiple active next values for state element %d (\"%s\") in a "
           "single activation: %s",
@@ -334,10 +340,6 @@ absl::StatusOr<TickResult> ProcInterpreter::Tick(
             absl::StrAppend(out, next->GetName());
           })));
     }
-
-    XLS_ASSIGN_OR_RETURN(int64_t index,
-                         proc()->GetStateElementIndex(state_element));
-    next_state[index] = ir_interpreter.ResolveAsValue(next_values[0]->value());
   }
   cont->ClearActiveNextValues();
   cont->NextTick(std::move(next_state));

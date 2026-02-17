@@ -649,6 +649,11 @@ class FunctionConverter {
   // Used to uniquify proc instantiation node names when lowering to
   // proc-scoped channels
   NameUniquer name_uniquer_;
+
+  // Explicit state access flags indicating if read/write occurred in this
+  // activation.
+  std::optional<BValue> state_read_called_;
+  std::optional<BValue> state_write_called_;
 };
 
 }  // namespace xls::dslx
