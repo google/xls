@@ -83,6 +83,7 @@ cc_library(
 cc_library(
     name = "proto_adaptor_utils",
     hdrs = ["proto_adaptor_utils.h"],
+    deps = ["@com_google_absl//absl/base:core_headers"],
 )
 
 cc_library(
@@ -115,16 +116,6 @@ cc_test(
         ":proto_test_utils",
         ":xls_gunit_main",
         "@com_google_protobuf//:protobuf",
-        "@googletest//:gtest",
-    ],
-)
-
-cc_test(
-    name = "proto_adaptor_utils_test",
-    srcs = ["proto_adaptor_utils_test.cc"],
-    deps = [
-        ":proto_adaptor_utils",
-        ":xls_gunit_main",
         "@googletest//:gtest",
     ],
 )

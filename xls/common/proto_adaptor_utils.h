@@ -17,19 +17,17 @@
 #ifndef XLS_COMMON_PROTO_ADAPTOR_UTILS_H_
 #define XLS_COMMON_PROTO_ADAPTOR_UTILS_H_
 
-#include <string>
 #include <string_view>
+
+#include "absl/base/macros.h"
 
 namespace xls {
 
-// Returns a string type with contents equivalent to the string view.
-// The generated proto API for strings does not support string_view assignment.
-//
-// This gives us a convenient way to note which "string view to string"
-// conversions are done "just for conformance with the open source API's need
-// for full `std::string`s" -- if at some point the protobuf APIs are upgraded
-// in open source, all of these conversion calls could be removed.
-inline std::string ToProtoString(std::string_view s) { return std::string(s); }
+// Previously, this function marked places where we had to construct a
+// std::string to conform to an API that demanded a string, but we anticipated
+// would eventually change to accept string_view. That day has come.
+ABSL_DEPRECATE_AND_INLINE()
+inline std::string_view ToProtoString(std::string_view s) { return s; }
 
 }  // namespace xls
 
