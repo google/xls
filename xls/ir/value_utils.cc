@@ -141,6 +141,9 @@ absl::StatusOr<Value> LeafTypeTreeToValue(LeafTypeTreeView<Value> tree) {
 absl::StatusOr<LeafTypeTree<Value>> ValueToLeafTypeTree(const Value& value,
                                                         Type* type) {
   XLS_RET_CHECK(ValueConformsToType(value, type));
+  if (IsLeafType(type)) {
+    return LeafTypeTree<Value>::CreateSingleElementTree(type, value);
+  }
   // Values can be expensive to copy so build a vector of the type LeafTypeTree
   // needs and move in during construction.
   LeafTypeTree<Value>::DataContainerT leaf_nodes;
@@ -151,6 +154,9 @@ absl::StatusOr<LeafTypeTree<Value>> ValueToLeafTypeTree(const Value& value,
 absl::StatusOr<LeafTypeTree<Bits>> ValueToBitsLeafTypeTree(const Value& value,
                                                            Type* type) {
   XLS_RET_CHECK(ValueConformsToType(value, type));
+  if (type->IsBits()) {
+    return LeafTypeTree<Bits>::CreateSingleElementTree(type, value.bits());
+  }
   XLS_RET_CHECK(!TypeHasToken(type)) << type << " has non-bits component";
   XLS_ASSIGN_OR_RETURN(LeafTypeTree<Value> val,
                        ValueToLeafTypeTree(value, type));
