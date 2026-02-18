@@ -20,6 +20,7 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
 #include "xls/fuzzer/verilog_fuzzer/verilog_fuzz_domain.h"
 #include "xls/tools/codegen_flags.pb.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
@@ -35,6 +36,13 @@ using ::testing::IsEmpty;
 using ::testing::Not;
 
 constexpr std::string_view kTop = "dut";
+
+MATCHER_P(HasVerilogText, text,
+          absl::StrCat("Expected verilog text to match ",
+                       testing::DescribeMatcher<std::string>(text))) {
+  return testing::ExplainMatchResult(text, arg.codegen_result.verilog_text,
+                                     result_listener);
+}
 
 SchedulingOptionsFlagsProto DefaultSchedulingOptions() {
   SchedulingOptionsFlagsProto scheduling_options;
@@ -55,15 +63,18 @@ CodegenFlagsProto DefaultCodegenOptions() {
 }
 
 void CodegenSucceedsForEveryFunctionWithNoPipelineLimit(
-    absl::StatusOr<std::string> verilog) {
-  EXPECT_THAT(verilog, IsOkAndHolds(Not(IsEmpty())));
+    VerilogGenerator verilog) {
+  auto result = verilog.GenerateVerilog();
+  EXPECT_THAT(result, IsOkAndHolds(HasVerilogText(Not(IsEmpty()))))
+      << result.status();
 }
-FUZZ_TEST(CodegenFuzzTest, CodegenSucceedsForEveryFunctionWithNoPipelineLimit)
-    .WithDomains(StatusOrVerilogFuzzDomain(DefaultSchedulingOptions(),
-                                           DefaultCodegenOptions()));
 
-void CodegenSucceedsOrThrowsReasonableError(
-    absl::StatusOr<std::string> verilog) {
+FUZZ_TEST(CodegenFuzzTest, CodegenSucceedsForEveryFunctionWithNoPipelineLimit)
+    .WithDomains(VerilogGeneratorDomain(
+        IrFuzzDomain(), fuzztest::Just(DefaultSchedulingOptions()),
+        fuzztest::Just(DefaultCodegenOptions())));
+
+void CodegenSucceedsOrThrowsReasonableError(VerilogGenerator verilog) {
   // We check for success or expected errors here. The expected errors are:
   // - absl::NotFoundError("No delay estimator found named")- an
   //   incorrectly-named delay estimator in the scheduling options.
@@ -77,8 +88,8 @@ void CodegenSucceedsOrThrowsReasonableError(
   // We don't expect:
   // - CHECK-fails, OOMs, etc.
   // - Random absl::InternalError(), or other "unexpected" errors.
-  EXPECT_THAT(verilog,
-              AnyOf(IsOkAndHolds(Not(IsEmpty())),
+  EXPECT_THAT(verilog.GenerateVerilog(),
+              AnyOf(IsOkAndHolds(HasVerilogText(Not(IsEmpty()))),
                     StatusIs(absl::StatusCode::kNotFound,
                              HasSubstr("No delay estimator found named")),
                     StatusIs(absl::StatusCode::kInternal,
@@ -89,9 +100,9 @@ void CodegenSucceedsOrThrowsReasonableError(
                                    absl::StatusCode::kUnimplemented))));
 }
 FUZZ_TEST(CodegenFuzzTest, CodegenSucceedsOrThrowsReasonableError)
-    .WithDomains(fuzztest::FlatMap(StatusOrVerilogFuzzDomain,
-                                   NoFdoSchedulingOptionsFlagsDomain(),
-                                   CodegenFlagsDomain()));
+    .WithDomains(VerilogGeneratorDomain(IrFuzzDomain(),
+                                        NoFdoSchedulingOptionsFlagsDomain(),
+                                        CodegenFlagsDomain()));
 
 }  // namespace
 }  // namespace xls

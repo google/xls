@@ -19,19 +19,21 @@
 
 #include "xls/common/fuzzing/fuzztest.h"
 #include "absl/status/statusor.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
+#include "xls/ir/package.h"
+#include "xls/public/runtime_codegen_actions.h"
 #include "xls/tools/codegen_flags.pb.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 
 namespace xls {
 
-// A domain that generates standalone Verilog files.
-// These files are created by taking the output of IrFuzzDomain() and
-// running codegen on it with the provided options. The returned domain
-// contains a StatusOr<> because codegen can fail for a variety of reasons,
-// e.g. scheduling options that cannot be satisfied.
-fuzztest::Domain<absl::StatusOr<std::string>> StatusOrVerilogFuzzDomain(
-    SchedulingOptionsFlagsProto scheduling_options,
-    CodegenFlagsProto codegen_options);
+struct VerilogGenerator {
+  std::shared_ptr<Package> package;
+  SchedulingOptionsFlagsProto scheduling_options;
+  CodegenFlagsProto codegen_options;
+
+  absl::StatusOr<ScheduleAndCodegenResult> GenerateVerilog();
+};
 
 // A domain like StatusOrVerilogFuzzDomain that filters out any inputs that are
 // infeasible given the provided scheduling and codegen options.
@@ -47,6 +49,26 @@ fuzztest::Domain<CodegenFlagsProto> CodegenFlagsDomain();
 // more fragile and is not appropriate for fuzzing.
 fuzztest::Domain<SchedulingOptionsFlagsProto>
 NoFdoSchedulingOptionsFlagsDomain();
+
+// A domain that can be used to create verilog out of arbitrary xls packages.
+//
+// To get the actual verilog the user should call the 'GenerateVerilog()'
+// function. This domain may not always be able to generate verilog because
+// some combinations of XLS packages and scheduling/codegen options are
+// infeasible.
+fuzztest::Domain<VerilogGenerator> VerilogGeneratorDomain(
+    fuzztest::Domain<std::shared_ptr<Package>>&& package_domain =
+        IrFuzzDomain(),
+    fuzztest::Domain<SchedulingOptionsFlagsProto>&& scheduling_options =
+        NoFdoSchedulingOptionsFlagsDomain(),
+    fuzztest::Domain<CodegenFlagsProto>&& codegen_options =
+        CodegenFlagsDomain());
+namespace internal {
+std::string UnwrapStatusOrVerilog(
+    const absl::StatusOr<ScheduleAndCodegenResult>& verilog);
+absl::StatusOr<ScheduleAndCodegenResult> DoGenerateVerilog(
+    VerilogGenerator verilog);
+}  // namespace internal
 
 }  // namespace xls
 

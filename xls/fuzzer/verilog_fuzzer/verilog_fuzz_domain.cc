@@ -16,9 +16,11 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "xls/common/fuzzing/fuzztest.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/ret_check.h"
@@ -31,51 +33,65 @@
 
 namespace xls {
 
-fuzztest::Domain<absl::StatusOr<std::string>> StatusOrVerilogFuzzDomain(
-    SchedulingOptionsFlagsProto scheduling_options,
-    CodegenFlagsProto codegen_options) {
-  return fuzztest::Map(
-      [scheduling_options, codegen_options](
-          std::shared_ptr<Package> package) -> absl::StatusOr<std::string> {
-        XLS_RET_CHECK_GE(package->functions().size(), 1)
-            << "We expect IrFuzzDomain() to return a package with at least one "
-               "function.\n"
-            << package->DumpIr();
-        // Make the function the top-level module.
-        XLS_RETURN_IF_ERROR(package->SetTop(package->functions().front().get()))
-            << "Failed to set top-level module in:\n"
-            << package->DumpIr();
-
-        XLS_ASSIGN_OR_RETURN(
-            (auto [scheduling_result, codegen_result]),
-            ScheduleAndCodegenPackage(package.get(), scheduling_options,
-                                      codegen_options,
-                                      /*with_delay_model=*/true),
-            _ << " while scheduling and codegening package:\n"
-              << package->DumpIr());
-
-        XLS_LOG_LINES(INFO, package->DumpIr());
-        XLS_LOG_LINES(INFO, codegen_result.verilog_text);
-
-        return codegen_result.verilog_text;
-      },
-      IrFuzzDomain());
+fuzztest::Domain<VerilogGenerator> VerilogGeneratorDomain(
+    fuzztest::Domain<std::shared_ptr<Package>>&& package_domain,
+    fuzztest::Domain<SchedulingOptionsFlagsProto>&& scheduling_options,
+    fuzztest::Domain<CodegenFlagsProto>&& codegen_options) {
+  return fuzztest::StructOf<VerilogGenerator>(std::move(package_domain),
+                                              std::move(scheduling_options),
+                                              std::move(codegen_options));
 }
+
+absl::StatusOr<ScheduleAndCodegenResult> VerilogGenerator::GenerateVerilog() {
+  XLS_RET_CHECK_GE(package->functions().size(), 1)
+      << "We expect IrFuzzDomain() to return a package with at least one "
+         "function.\n"
+      << package->DumpIr();
+  // Make the function the top-level module.
+  XLS_RETURN_IF_ERROR(package->SetTop(package->functions().front().get()))
+      << "Failed to set top-level module in:\n"
+      << package->DumpIr();
+
+  XLS_ASSIGN_OR_RETURN(auto result,
+                       ScheduleAndCodegenPackage(
+                           package.get(), scheduling_options, codegen_options,
+                           /*with_delay_model=*/true),
+                       _ << " while scheduling and codegening package:\n"
+                         << package->DumpIr());
+
+  if (VLOG_IS_ON(2)) {
+    XLS_LOG_LINES(INFO, package->DumpIr());
+    XLS_LOG_LINES(INFO, result.codegen_result.verilog_text);
+  }
+
+  return std::move(result);
+}
+
+namespace internal {
+std::string UnwrapStatusOrVerilog(
+    const absl::StatusOr<ScheduleAndCodegenResult>& verilog) {
+  CHECK_OK(verilog.status());
+  return verilog->codegen_result.verilog_text;
+}
+absl::StatusOr<ScheduleAndCodegenResult> DoGenerateVerilog(
+    VerilogGenerator verilog) {
+  return verilog.GenerateVerilog();
+}
+}  // namespace internal
 
 fuzztest::Domain<std::string> VerilogFuzzDomain(
     SchedulingOptionsFlagsProto scheduling_options,
     CodegenFlagsProto codegen_options) {
   return fuzztest::Map(
-      [](absl::StatusOr<std::string> verilog) -> std::string {
-        // Should be filtered
-        CHECK_OK(verilog.status());
-        return *verilog;
-      },
+      &internal::UnwrapStatusOrVerilog,
       fuzztest::Filter(
-          [](const absl::StatusOr<std::string> &verilog) {
+          [](const absl::StatusOr<ScheduleAndCodegenResult>& verilog) {
             return verilog.ok();
           },
-          StatusOrVerilogFuzzDomain(scheduling_options, codegen_options)));
+          fuzztest::Map(internal::DoGenerateVerilog,
+                        VerilogGeneratorDomain(
+                            IrFuzzDomain(), fuzztest::Just(scheduling_options),
+                            fuzztest::Just(codegen_options)))));
 }
 
 fuzztest::Domain<CodegenFlagsProto> CodegenFlagsDomain() {
