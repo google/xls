@@ -43,7 +43,7 @@ const FFT_SIZE = u32:1024;
 const FFT_HALF_SIZE = u32:512;
 
 fn fft_root_twiddle(root_index: u32, odd: u32, even: u32,
-                    real: F32[FFT_SIZE], img: F32[FFT_SIZE],
+                    real_values: F32[FFT_SIZE], img: F32[FFT_SIZE],
                     real_twid: F32[FFT_HALF_SIZE],
                     img_twid: F32[FFT_HALF_SIZE])
                     -> (F32[FFT_SIZE], F32[FFT_SIZE]) {
@@ -51,31 +51,31 @@ fn fft_root_twiddle(root_index: u32, odd: u32, even: u32,
   // or other types.
   let diff = float32::sub(
                float32::mul(real_twid[root_index],
-                                      real[odd]),
+                                      real_values[odd]),
                float32::mul(img_twid[root_index],
                                       img[odd]));
   let sum = float32::add(
                float32::mul(real_twid[root_index],
                                       img[odd]),
                float32::mul(img_twid[root_index],
-                                      real[odd]));
+                                      real_values[odd]));
   let img = update(img, odd, sum);
-  let real = update(real, odd, diff);
-  (real, img)
+  let real_values = update(real_values, odd, diff);
+  (real_values, img)
 }
 
 
 // This does the bulk of the work in the body of the nested fft loop.
-fn fft_inner_loop_body(log: u32, odd: u32, span: u32, real: F32[FFT_SIZE],
+fn fft_inner_loop_body(log: u32, odd: u32, span: u32, real_values: F32[FFT_SIZE],
                        img: F32[FFT_SIZE], real_twid: F32[FFT_HALF_SIZE],
                        img_twid: F32[FFT_HALF_SIZE])
                        -> (F32[FFT_SIZE], F32[FFT_SIZE]) {
   let even = odd ^ span;
 
-  let real_sum = float32::add(real[even], real[odd]);
-  let real_diff = float32::sub(real[even], real[odd]);
-  let real = update(real, odd, real_diff);
-  let real = update(real, even, real_sum);
+  let real_sum = float32::add(real_values[even], real_values[odd]);
+  let real_diff = float32::sub(real_values[even], real_values[odd]);
+  let real_values = update(real_values, odd, real_diff);
+  let real_values = update(real_values, even, real_sum);
 
   let img_sum = float32::add(img[even], img[odd]);
   let img_diff = float32::sub(img[even], img[odd]);
@@ -84,9 +84,10 @@ fn fft_inner_loop_body(log: u32, odd: u32, span: u32, real: F32[FFT_SIZE],
 
   let root_index = (even << log) & (FFT_SIZE - u32:1);
   if root_index != u32:0 {
-    fft_root_twiddle(root_index, odd, even, real, img, real_twid, img_twid)
+    fft_root_twiddle(
+        root_index, odd, even, real_values, img, real_twid, img_twid)
   } else {
-    (real, img)
+    (real_values, img)
   }
 }
 
@@ -96,14 +97,16 @@ fn fft_inner_loop_body(log: u32, odd: u32, span: u32, real: F32[FFT_SIZE],
 // imaginary components.
 // TODO(jbaileyhandle): Can we make this parametric in the
 // number of inputs?
-fn fft(real: F32[FFT_SIZE], img: F32[FFT_SIZE], real_twid: F32[FFT_HALF_SIZE],
-       img_twid: F32[FFT_HALF_SIZE]) -> (F32[FFT_SIZE], F32[FFT_SIZE]) {
+fn fft(
+    real_values: F32[FFT_SIZE], img: F32[FFT_SIZE],
+    real_twid: F32[FFT_HALF_SIZE], img_twid: F32[FFT_HALF_SIZE])
+    -> (F32[FFT_SIZE], F32[FFT_SIZE]) {
 
-  for (log, (real, img)): (u32, (F32[FFT_SIZE], F32[FFT_SIZE]))
+  for (log, (real_values, img)): (u32, (F32[FFT_SIZE], F32[FFT_SIZE]))
     in u32:0..std::clog2(FFT_SIZE) {
     let span = FFT_SIZE >> log + u32:1;
 
-    for (odd, (real, img)): (u32, (F32[FFT_SIZE], F32[FFT_SIZE]))
+    for (odd, (real_values, img)): (u32, (F32[FFT_SIZE], F32[FFT_SIZE]))
       in u32:0..FFT_SIZE {
       // We want to loop dynamically, going from span to 1023
       // while skipping half of the numbers in the range.
@@ -115,13 +118,14 @@ fn fft(real: F32[FFT_SIZE], img: F32[FFT_SIZE], real_twid: F32[FFT_HALF_SIZE],
       // same hardware for each iteration, the module may be idle
       // over half of the time...
       if odd >= span && ((odd & span) != u32:0) {
-        fft_inner_loop_body(log, odd, span, real, img, real_twid, img_twid)
+        fft_inner_loop_body(
+            log, odd, span, real_values, img, real_twid, img_twid)
       } else {
-        (real, img)
+        (real_values, img)
       }
 
-    } ((real, img))
-  } ((real, img))
+    } ((real_values, img))
+  } ((real_values, img))
 }
 
 #[test]

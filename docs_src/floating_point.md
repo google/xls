@@ -873,7 +873,7 @@ denormal inputs get flushed to zero.
 ### `bfloat16:increment_fraction`
 
 ```dslx-snippet
-pub fn increment_fraction(input: BF16) -> BF16
+pub fn increment_fraction(x: BF16) -> BF16
 ```
 
 Increments the fraction of the input BF16 by one and returns the normalized

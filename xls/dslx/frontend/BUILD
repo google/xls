@@ -740,6 +740,7 @@ cc_library(
         ":module",
         ":pos",
         ":token_utils",
+        "//xls/codegen/vast:verilog_keywords",
         "//xls/common/status:status_macros",
         "//xls/dslx:import_data",
         "//xls/dslx:warning_collector",

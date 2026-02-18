@@ -91,6 +91,12 @@ TEST(WarningKindTest, WarningKindSetFromString) {
   ASSERT_TRUE(WarningIsEnabled(set, WarningKind::kShouldUseAssert));
 }
 
+TEST(WarningKindTest, WarningKindSetFromStringKeywordParameterName) {
+  XLS_ASSERT_OK_AND_ASSIGN(WarningKindSet set,
+                           WarningKindSetFromString("keyword_parameter_name"));
+  ASSERT_TRUE(WarningIsEnabled(set, WarningKind::kKeywordParameterName));
+}
+
 TEST(WarningKindTest, GetWarningsSetFromFlagsEmpty) {
   XLS_ASSERT_OK_AND_ASSIGN(WarningKindSet set, GetWarningsSetFromFlags("", ""));
   EXPECT_EQ(set, kDefaultWarningsSet);

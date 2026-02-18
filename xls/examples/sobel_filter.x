@@ -33,8 +33,8 @@ const Y_STENCIL = s32[3][3]:[s32[3]:[-1, -2, -1],
 
 // TODO(jbaileyhandle): Do we have a way to reshape multidimensional
 // arrays or to apply map to multidemnsional arrays?
-fn convert_triplet(input: s32[3]) -> F32[3] {
-  map(input, float32::cast_from_fixed_using_rne)
+fn convert_triplet(x: s32[3]) -> F32[3] {
+  map(x, float32::cast_from_fixed_using_rne)
 }
 const X_STENCIL_F32 = map(X_STENCIL, convert_triplet);
 const Y_STENCIL_F32 = map(Y_STENCIL, convert_triplet);
