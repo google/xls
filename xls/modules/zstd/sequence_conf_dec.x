@@ -24,22 +24,22 @@ enum SequenceHeaderSize : u2 {
     FOUR_BYTES  = 2,
 }
 
-fn parse_sequence_first_byte(byte :u8) -> SequenceHeaderSize {
-    if byte == u8:0 {
+fn parse_sequence_first_byte(b: u8) -> SequenceHeaderSize {
+    if b == u8:0 {
         SequenceHeaderSize::TWO_BYTES
-    } else if byte == u8:255 {
+    } else if b == u8:255 {
         SequenceHeaderSize::FOUR_BYTES
-    } else if byte[7:] == u1:1 {
+    } else if b[7:] == u1:1 {
         SequenceHeaderSize::THREE_BYTES
     } else {
         SequenceHeaderSize::TWO_BYTES
     }
 }
 
-fn extract_seq_mode(byte: u8) -> (CompressionMode, CompressionMode, CompressionMode) {
-    (byte[2:4] as CompressionMode,
-     byte[4:6] as CompressionMode,
-     byte[6:] as CompressionMode)
+fn extract_seq_mode(b: u8) -> (CompressionMode, CompressionMode, CompressionMode) {
+    (b[2:4] as CompressionMode,
+     b[4:6] as CompressionMode,
+     b[6:] as CompressionMode)
 }
 
 pub fn parse_sequence_conf(header: u32) -> (SequenceConf, u3) {

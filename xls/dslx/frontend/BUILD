@@ -746,6 +746,7 @@ cc_library(
         ":pos",
         ":token",
         ":token_utils",
+        "//xls/codegen/vast:verilog_keywords",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:import_data",
