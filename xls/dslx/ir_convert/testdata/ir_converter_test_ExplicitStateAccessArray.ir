@@ -1,0 +1,31 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn ____test_module__Array_0_next_counted_for_0_body(i: bits[3] id=6, __token_wrapped: (token, bits[1], bits[32][4]) id=9) -> (token, bits[1], bits[32][4]) {
+  literal.7: bits[3] = literal(value=0, id=7)
+  tuple_index.12: bits[32][4] = tuple_index(__token_wrapped, index=2, id=12)
+  add.8: bits[3] = add(i, literal.7, id=8)
+  array_index.13: bits[32] = array_index(tuple_index.12, indices=[add.8], id=13)
+  literal.14: bits[32] = literal(value=1, id=14)
+  add.15: bits[32] = add(array_index.13, literal.14, id=15)
+  tuple_index.10: token = tuple_index(__token_wrapped, index=0, id=10)
+  tuple_index.11: bits[1] = tuple_index(__token_wrapped, index=1, id=11)
+  array_update.16: bits[32][4] = array_update(tuple_index.12, add.15, indices=[add.8], id=16)
+  ret tuple.17: (token, bits[1], bits[32][4]) = tuple(tuple_index.10, tuple_index.11, array_update.16, id=17)
+}
+
+top proc __test_module__Array_0_next<>(__state: bits[32][4], init={[0, 1, 2, 3]}) {
+  __state: bits[32][4] = state_read(state_element=__state, id=2)
+  __token: token = literal(value=token, id=1)
+  literal.3: bits[1] = literal(value=1, id=3)
+  array: bits[32][4] = identity(__state, id=5)
+  tuple.18: (token, bits[1], bits[32][4]) = tuple(__token, literal.3, array, id=18)
+  counted_for.19: (token, bits[1], bits[32][4]) = counted_for(tuple.18, trip_count=4, stride=1, body=____test_module__Array_0_next_counted_for_0_body, id=19)
+  new_array: bits[32][4] = tuple_index(counted_for.19, index=2, id=21)
+  tuple.4: () = tuple(id=4)
+  tuple_index.20: token = tuple_index(counted_for.19, index=0, id=20)
+  next_value.22: () = next_value(param=__state, value=new_array, id=22)
+  tuple.23: () = tuple(id=23)
+  tuple.24: () = tuple(id=24)
+}

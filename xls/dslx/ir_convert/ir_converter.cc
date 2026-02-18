@@ -85,9 +85,25 @@ namespace {
 
 constexpr WarningCollector* kNoWarningCollector = nullptr;
 
-// Tries four heuristics as names for potential entry functions of the package.
-// Returns the first found heuristic. Otherwise, returns an absl::NotFoundError.
+// Tries to determine and return the entry function of the package.
+// If package->top() is a function then that is returned. Otherwise, tries four
+// heuristics as names for potential entry functions. Returns the first found
+// heuristic. Otherwise, returns an absl::NotFoundError.
 absl::StatusOr<xls::Function*> GetEntryFunction(xls::Package* package) {
+  if (package->HasTop()) {
+    xls::FunctionBase* top = package->GetTop().value();
+    if (top->IsFunction()) {
+      return top->AsFunctionOrDie();
+    }
+    // If top is defined but is not a function (i.e. it's a proc), it cannot be
+    // returned as an xls::Function*.
+    return absl::NotFoundError(absl::StrFormat(
+        "Top entity in package '%s' is not a function.", package->name()));
+  }
+
+  // The heuristics below for finding the entry function are for legacy
+  // file-conversion paths where 'top' is not marked in the package. This logic
+  // should be removed if the 'top' field is always set.
   constexpr char kMain[] = "main";
   // Try a few possibilities of names for the canonical entry function.
   const std::vector<std::string> to_try = {

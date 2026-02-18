@@ -486,6 +486,7 @@ class FunctionConverter {
   absl::Status HandleBuiltinOneHotSel(const Invocation* node);
   absl::Status HandleBuiltinOrReduce(const Invocation* node);
   absl::Status HandleBuiltinPrioritySel(const Invocation* node);
+  absl::Status HandleBuiltinRead(const Invocation* node);
   absl::Status HandleBuiltinRecv(const Invocation* node);
   absl::Status HandleBuiltinRecvIf(const Invocation* node);
   absl::Status HandleBuiltinRecvIfNonBlocking(const Invocation* node);
@@ -499,6 +500,7 @@ class FunctionConverter {
   absl::Status HandleBuiltinUMulp(const Invocation* node);
   absl::Status HandleBuiltinUpdate(const Invocation* node);
   absl::Status HandleBuiltinWideningCast(const Invocation* node);
+  absl::Status HandleBuiltinWrite(const Invocation* node);
   absl::Status HandleBuiltinXorReduce(const Invocation* node);
   absl::Status HandleBuiltinZip(const Invocation* node);
   // keep-sorted end
