@@ -32,6 +32,7 @@ def _dslx_strip_comments_impl(ctx):
         ctx.actions.run(
             outputs = [out_file],
             inputs = [src] + [ctx.executable.strip_comments],
+            mnemonic = "DslxStripComments",
             executable = ctx.executable.strip_comments,
             arguments = [args],
             progress_message = "Stripping comments from DSLX file %{input} to create %{output}",
