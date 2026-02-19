@@ -978,6 +978,35 @@ FUZZ_TEST(IntervalOpsTest, BitSliceZ3Fuzz)
     .WithDomains(IntervalDomain(8), fuzztest::InRange<int8_t>(1, 15),
                  fuzztest::InRange<int8_t>(1, 15));
 
+TEST(IntervalOpsTest, DynamicBitSlice) {
+  IntervalSet x = FromRanges({{10, 200}}, 8);
+  IntervalSet start = FromValues({0, 2, 7, 8}, 4);
+
+  IntervalSet expected(4);
+  expected = IntervalSet::Combine(expected, interval_ops::BitSlice(x, 0, 4));
+  expected = IntervalSet::Combine(expected, interval_ops::BitSlice(x, 2, 4));
+  expected = IntervalSet::Combine(expected, interval_ops::BitSlice(x, 7, 4));
+  expected = IntervalSet::Combine(expected, IntervalSet::Precise(UBits(0, 4)));
+  expected.Normalize();
+
+  EXPECT_EQ(interval_ops::DynamicBitSlice(x, start, /*width=*/4), expected);
+}
+
+void DynamicBitSliceZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
+                           absl::Span<std::pair<int64_t, int64_t> const> rhs) {
+  BinaryOpFuzz(
+      "dynamic_bit_slice",
+      [](FunctionBuilder& fb, BValue l, BValue r) {
+        return fb.DynamicBitSlice(l, r, /*width=*/4);
+      },
+      [](const IntervalSet& l, const IntervalSet& r) {
+        return interval_ops::DynamicBitSlice(l, r, /*width=*/4);
+      },
+      lhs, rhs, /*bits=*/8);
+}
+FUZZ_TEST(IntervalOpsTest, DynamicBitSliceZ3Fuzz)
+    .WithDomains(IntervalDomain(8), IntervalDomain(8));
+
 void EqZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
               absl::Span<std::pair<int64_t, int64_t> const> rhs) {
   BinaryOpFuzz(
