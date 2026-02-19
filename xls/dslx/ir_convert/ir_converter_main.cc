@@ -103,7 +103,7 @@ absl::Status RealMain(absl::Span<const std::string_view> paths) {
   bool lower_to_proc_scoped_channels =
       ir_converter_options.has_lower_to_proc_scoped_channels()
           ? ir_converter_options.lower_to_proc_scoped_channels()
-          : false;
+          : true;
   bool force_implicit_token_calling_convention =
       ir_converter_options.force_implicit_token_calling_convention();
   bool emit_trace = ir_converter_options.emit_trace();
