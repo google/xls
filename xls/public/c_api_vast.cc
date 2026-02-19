@@ -401,6 +401,19 @@ struct xls_vast_data_type* xls_vast_verilog_file_make_packed_array_type(
   return reinterpret_cast<xls_vast_data_type*>(type);
 }
 
+struct xls_vast_data_type* xls_vast_verilog_file_make_unpacked_array_type(
+    struct xls_vast_verilog_file* f, struct xls_vast_data_type* element_type,
+    const int64_t* unpacked_dims, size_t unpacked_dims_count) {
+  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
+  auto* cpp_element_type =
+      reinterpret_cast<xls::verilog::DataType*>(element_type);
+  absl::Span<const int64_t> dims(unpacked_dims, unpacked_dims_count);
+  xls::verilog::DataType* type =
+      cpp_file->Make<xls::verilog::UnpackedArrayType>(xls::SourceInfo(),
+                                                      cpp_element_type, dims);
+  return reinterpret_cast<xls_vast_data_type*>(type);
+}
+
 struct xls_vast_def* xls_vast_verilog_file_make_def(
     struct xls_vast_verilog_file* f, const char* name, xls_vast_data_kind kind,
     struct xls_vast_data_type* type) {
@@ -410,6 +423,21 @@ struct xls_vast_def* xls_vast_verilog_file_make_def(
   xls::verilog::Def* def = cpp_file->Make<xls::verilog::Def>(
       xls::SourceInfo(), name, cpp_kind, cpp_type);
   return reinterpret_cast<xls_vast_def*>(def);
+}
+
+struct xls_vast_expression* xls_vast_verilog_file_make_array_assignment_pattern(
+    struct xls_vast_verilog_file* f, struct xls_vast_expression** elements,
+    size_t element_count) {
+  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
+  std::vector<xls::verilog::Expression*> cpp_elements;
+  cpp_elements.reserve(element_count);
+  for (size_t i = 0; i < element_count; ++i) {
+    cpp_elements.push_back(
+        reinterpret_cast<xls::verilog::Expression*>(elements[i]));
+  }
+  xls::verilog::Expression* expr =
+      cpp_file->ArrayAssignmentPattern(cpp_elements, xls::SourceInfo());
+  return reinterpret_cast<xls_vast_expression*>(expr);
 }
 
 void xls_vast_verilog_module_add_member_instantiation(
@@ -683,6 +711,17 @@ xls_vast_logic_ref_as_indexable_expression(
   auto* cpp_logic_ref = reinterpret_cast<xls::verilog::LogicRef*>(logic_ref);
   auto* cpp_indexable_expression =
       static_cast<xls::verilog::IndexableExpression*>(cpp_logic_ref);
+  return reinterpret_cast<xls_vast_indexable_expression*>(
+      cpp_indexable_expression);
+}
+
+struct xls_vast_indexable_expression*
+xls_vast_parameter_ref_as_indexable_expression(
+    struct xls_vast_parameter_ref* parameter_ref) {
+  auto* cpp_parameter_ref =
+      reinterpret_cast<xls::verilog::ParameterRef*>(parameter_ref);
+  auto* cpp_indexable_expression =
+      static_cast<xls::verilog::IndexableExpression*>(cpp_parameter_ref);
   return reinterpret_cast<xls_vast_indexable_expression*>(
       cpp_indexable_expression);
 }

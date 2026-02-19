@@ -152,6 +152,15 @@ struct xls_vast_data_type* xls_vast_verilog_file_make_packed_array_type(
     struct xls_vast_verilog_file* f, xls_vast_data_type* element_type,
     const int64_t* packed_dims, size_t packed_dims_count);
 
+// Creates an unpacked array type.
+//
+// Example (SystemVerilog):
+//   element_type = bit_vector_type(8) and unpacked_dims = {2, 3} yields a type
+//   that emits like: `[7:0] <ident>[2][3]`.
+struct xls_vast_data_type* xls_vast_verilog_file_make_unpacked_array_type(
+    struct xls_vast_verilog_file* f, xls_vast_data_type* element_type,
+    const int64_t* unpacked_dims, size_t unpacked_dims_count);
+
 // -- Module::Add*
 
 void xls_vast_verilog_module_add_member_instantiation(
@@ -349,6 +358,11 @@ struct xls_vast_concat* xls_vast_verilog_file_make_replicated_concat_i64(
     struct xls_vast_verilog_file* f, int64_t replication_count,
     struct xls_vast_expression** elements, size_t element_count);
 
+// Creates an array assignment pattern expression: `'{a, b, c}`.
+struct xls_vast_expression* xls_vast_verilog_file_make_array_assignment_pattern(
+    struct xls_vast_verilog_file* f, struct xls_vast_expression** elements,
+    size_t element_count);
+
 struct xls_vast_slice* xls_vast_verilog_file_make_slice_i64(
     struct xls_vast_verilog_file* f,
     struct xls_vast_indexable_expression* subject, int64_t hi, int64_t lo);
@@ -430,6 +444,10 @@ struct xls_vast_expression* xls_vast_indexable_expression_as_expression(
 struct xls_vast_indexable_expression*
 xls_vast_logic_ref_as_indexable_expression(
     struct xls_vast_logic_ref* logic_ref);
+
+struct xls_vast_indexable_expression*
+xls_vast_parameter_ref_as_indexable_expression(
+    struct xls_vast_parameter_ref* parameter_ref);
 struct xls_vast_logic_ref* xls_vast_generate_loop_get_genvar(
     struct xls_vast_generate_loop* loop);
 
