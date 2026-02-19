@@ -205,13 +205,15 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
           import_data, type_info, proc->next(), callee_bindings, member_defs,
           BytecodeEmitterOptions{.format_preference =
                                      options.format_preference()}));
+  auto events = std::make_unique<InfoLoggingDslxInterpreterEvents>();
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<BytecodeInterpreter> next_interpreter,
       CreateUnique(import_data, callee_proc_id, next_bf.get(), full_next_args,
-                   &hierarchy_interpreter->channel_manager(), options));
+                   &hierarchy_interpreter->channel_manager(), options,
+                   events.get()));
   hierarchy_interpreter->AddProcInstance(
       ProcInstance{proc, std::move(next_interpreter), std::move(next_bf),
-                   *proc_members, initial_state, type_info});
+                   *proc_members, initial_state, type_info, std::move(events)});
   return absl::OkStatus();
 }
 

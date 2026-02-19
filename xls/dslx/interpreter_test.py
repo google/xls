@@ -365,6 +365,69 @@ class InterpreterTest(test_base.TestCase):
     self.assertRegex(stderr, r'MyEnum::ONE\s+// u2:1')
     self.assertRegex(stderr, r'MyEnum::TWO\s+// u2:2')
 
+  def test_output_results_proto(self):
+    """Tests that --output_results_proto writes a textproto."""
+    program = textwrap.dedent("""
+    fn main() {
+      trace_fmt!("hello");
+    }
+
+    #[test]
+    fn hello_test() { main() }
+    """)
+    with tempfile.TemporaryDirectory() as tmpdir:
+      out_path = os.path.join(tmpdir, 'results.textproto')
+      # Use compare=none to avoid IR/JIT overhead; ensure deterministic logging.
+      self._parse_and_test(
+          program,
+          want_error=False,
+          compare='none',
+          extra_flags=(
+              f'--output_results_proto={out_path}',
+              '--log_prefix=false',
+          ),
+      )
+      # Read the emitted textproto and perform simple content checks.
+      with open(out_path, encoding='utf-8') as f:
+        text = f.read()
+      self.assertIn('results {', text)
+      self.assertIn('trace_msgs {', text)
+      self.assertIn('message: "hello"', text)
+      # Verify a source location is present for DSLX interpreter traces.
+      self.assertIn('location {', text)
+      self.assertIn('line:', text)
+
+  def test_output_results_proto_ir_interpreter(self):
+    """Same as test_output_results_proto but runs with IR interpreter."""
+    program = textwrap.dedent(
+        """
+        fn main() {
+          trace_fmt!("hello");
+        }
+
+        #[test]
+        fn hello_test() { main() }
+        """
+    )
+    with tempfile.TemporaryDirectory() as tmpdir:
+      out_path = os.path.join(tmpdir, 'results.textproto')
+      # Use compare=none to avoid JIT overhead; ensure deterministic logging.
+      self._parse_and_test(
+          program,
+          want_error=False,
+          compare='none',
+          extra_flags=(
+              f'--output_results_proto={out_path}',
+              '--log_prefix=false',
+              '--evaluator=ir-interpreter',
+          ),
+      )
+      with open(out_path, encoding='utf-8') as f:
+        text = f.read()
+      self.assertIn('results {', text)
+      self.assertIn('trace_msgs {', text)
+      self.assertIn('message: "hello"', text)
+
   def test_trace_fmt_array_of_ints(self):
     """Tests we can trace-format an array of u8 values."""
     program = """
@@ -411,7 +474,10 @@ class InterpreterTest(test_base.TestCase):
     self.assertIn('0x2a', stderr)
 
   def test_trace_calls(self):
-    """Tests that --trace_calls emits indented call traces with args."""
+    """Tests that --trace_calls emits call traces with args and return values.
+
+    Also verifies the top-level test function is logged.
+    """
     program = """
     fn baz(z: u32) -> u32 { z + u32:1 }
     fn bar(y: u32) -> u32 { baz(y + u32:1) }
@@ -436,17 +502,20 @@ class InterpreterTest(test_base.TestCase):
             '--log_prefix=false',
             '--compare=none',
             '--trace_calls',
+            '--format_preference=unsigned-decimal',
         ),
     )
-    # Expect nested calls foo(10) -> bar(11) -> baz(12) with indentation.
-    self.assertIn('foo(u32:10)', stderr)
-    self.assertIn('bar(u32:11)', stderr)
-    self.assertIn('baz(u32:12)', stderr)
-    # Ensure ordering: foo before bar before baz.
-    self.assertLess(stderr.find('foo(u32:10)'), stderr.find('bar(u32:11)'))
-    self.assertLess(stderr.find('bar(u32:11)'), stderr.find('baz(u32:12)'))
-    # Multiple-arg formatting.
-    self.assertIn('sum2(u32:7, u32:8)', stderr)
+     # Verify indentation: two spaces per depth at line start.
+    self.assertRegex(stderr, r'(?m)^call_trace_test\(\)')
+    self.assertRegex(stderr, r'(?m)^\s{2}foo\(u32:10\)')
+    self.assertRegex(stderr, r'(?m)^\s{4}bar\(u32:11\)')
+    self.assertRegex(stderr, r'(?m)^\s{6}baz\(u32:12\)')
+    self.assertRegex(stderr, r'(?m)^\s{2}sum2\(u32:7, u32:8\)')
+    self.assertRegex(stderr, r'(?m)^call_trace_test\(.*\) => \(\)')
+    self.assertRegex(stderr, r'(?m)^\s{2}foo\(.*\) => u32:13')
+    self.assertRegex(stderr, r'(?m)^\s{4}bar\(.*\) => u32:13')
+    self.assertRegex(stderr, r'(?m)^\s{6}baz\(.*\) => u32:13')
+    self.assertRegex(stderr, r'(?m)^\s{2}sum2\(.*\) => u32:15')
 
   def test_cast_array_to_wrong_bit_count(self):
     """Tests that casing an array to the wrong bit count causes a failure."""

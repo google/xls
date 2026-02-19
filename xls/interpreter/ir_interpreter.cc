@@ -273,8 +273,10 @@ absl::Status IrInterpreter::HandleCountedFor(CountedFor* counted_for) {
     for (const auto& value : invariant_args) {
       args_for_body.push_back(value);
     }
-    XLS_ASSIGN_OR_RETURN(InterpreterResult<Value> loop_result,
-                         InterpretFunction(body, args_for_body));
+    XLS_ASSIGN_OR_RETURN(
+        InterpreterResult<Value> loop_result,
+        InterpretFunction(body, args_for_body, options_, observer_,
+                          call_depth_ + 1, counted_for->loc()));
     XLS_RETURN_IF_ERROR(AddInterpreterEvents(loop_result.events));
     loop_state = loop_result.value;
   }
@@ -325,8 +327,10 @@ absl::Status IrInterpreter::HandleDynamicCountedFor(
     for (const auto& value : invariant_args) {
       args_for_body.push_back(value);
     }
-    XLS_ASSIGN_OR_RETURN(InterpreterResult<Value> loop_result,
-                         InterpretFunction(body, args_for_body));
+    XLS_ASSIGN_OR_RETURN(
+        InterpreterResult<Value> loop_result,
+        InterpretFunction(body, args_for_body, options_, observer_,
+                          call_depth_ + 1, dynamic_counted_for->loc()));
     XLS_RETURN_IF_ERROR(AddInterpreterEvents(loop_result.events));
     loop_state = loop_result.value;
     index = bits_ops::Add(index, extended_stride);
@@ -498,7 +502,13 @@ absl::Status IrInterpreter::HandleAssert(Assert* assert_op) {
   VLOG(2) << "Checking assert " << assert_op->ToString();
   VLOG(2) << "Condition is " << ResolveAsBool(assert_op->condition());
   if (!ResolveAsBool(assert_op->condition())) {
-    GetInterpreterEvents().AddAssertMessage(assert_op->message());
+    std::optional<std::string> filename;
+    if (!assert_op->loc().locations.empty()) {
+      const SourceLocation& loc = assert_op->loc().locations.front();
+      filename = assert_op->package()->GetFilename(loc.fileno());
+    }
+    GetInterpreterEvents().AddAssertMessage(assert_op->message(),
+                                            assert_op->loc(), filename);
   }
   return SetValueResult(assert_op, Value::Token());
 }
@@ -540,9 +550,13 @@ absl::Status IrInterpreter::HandleTrace(Trace* trace_op) {
     }
 
     VLOG(3) << "Trace output: " << trace_output;
-
-    GetInterpreterEvents().AddTraceStatementMessage(trace_op->verbosity(),
-                                                    trace_output);
+    std::optional<std::string> filename;
+    if (!trace_op->loc().locations.empty()) {
+      const SourceLocation& loc = trace_op->loc().locations.front();
+      filename = trace_op->package()->GetFilename(loc.fileno());
+    }
+    GetInterpreterEvents().AddTraceStatementMessage(
+        trace_op->verbosity(), trace_output, trace_op->loc(), filename);
   }
   return SetValueResult(trace_op, Value::Token());
 }
@@ -560,7 +574,8 @@ absl::Status IrInterpreter::HandleInvoke(Invoke* invoke) {
   }
   XLS_ASSIGN_OR_RETURN(
       InterpreterResult<Value> result,
-      InterpretFunction(to_apply, args, options_, observer_, call_depth_ + 1));
+      InterpretFunction(to_apply, args, options_, observer_, call_depth_ + 1,
+                        std::optional<SourceInfo>(invoke->loc())));
   XLS_RETURN_IF_ERROR(AddInterpreterEvents(result.events));
   return SetValueResult(invoke, result.value);
 }
@@ -610,8 +625,10 @@ absl::Status IrInterpreter::HandleMap(Map* map) {
   std::vector<Value> results;
   for (const Value& operand_element :
        ResolveAsValue(map->operand(0)).elements()) {
-    XLS_ASSIGN_OR_RETURN(InterpreterResult<Value> result,
-                         InterpretFunction(to_apply, {operand_element}));
+    XLS_ASSIGN_OR_RETURN(
+        InterpreterResult<Value> result,
+        InterpretFunction(to_apply, {operand_element}, options_, observer_,
+                          call_depth_ + 1));
     XLS_RETURN_IF_ERROR(AddInterpreterEvents(result.events));
     results.push_back(result.value);
   }

@@ -17,12 +17,11 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
@@ -31,7 +30,6 @@
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/frontend/ast.h"
-#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/run_routines/run_routines.h"
@@ -76,27 +74,41 @@ class ProcHierarchyInterpreterTest : public ::testing::Test {
     return tm_->module->GetTestProc(test_proc_name);
   }
 
-  absl::Status Run(TestProc* test_proc,
-                   const BytecodeInterpreterOptions& options) {
+  absl::StatusOr<std::unique_ptr<ProcHierarchyInterpreter>> Create(
+      TestProc* test_proc, const BytecodeInterpreterOptions& options) {
     XLS_ASSIGN_OR_RETURN(TypeInfo * ti, tm_->type_info->GetTopLevelProcTypeInfo(
                                             test_proc->proc()));
-    std::vector<std::string> trace_output;
-    XLS_ASSIGN_OR_RETURN(
-        std::unique_ptr<ProcHierarchyInterpreter> hierarchy_interpreter,
-        ProcHierarchyInterpreter::Create(&import_data_.value(), ti,
-                                         test_proc->proc(), options));
+    return ProcHierarchyInterpreter::Create(&import_data_.value(), ti,
+                                            test_proc->proc(), options);
+  }
+
+  absl::Status Run(ProcHierarchyInterpreter& hierarchy_interpreter,
+                   const BytecodeInterpreterOptions& /*options*/) {
     // There should be a single top config argument: a reference to the
     // terminator channel. Determine the actual channel object.
-    XLS_RET_CHECK_EQ(hierarchy_interpreter->InterfaceArgs().size(), 1);
+    XLS_RET_CHECK_EQ(hierarchy_interpreter.InterfaceArgs().size(), 1);
     std::string terminal_channel_name =
-        std::string{hierarchy_interpreter->GetInterfaceChannelName(0)};
+        std::string{hierarchy_interpreter.GetInterfaceChannelName(0)};
 
     // Run until a single output appears in the terminal channel.
     XLS_RETURN_IF_ERROR(
-        hierarchy_interpreter->TickUntilOutput({{terminal_channel_name, 1}})
+        hierarchy_interpreter.TickUntilOutput({{terminal_channel_name, 1}})
             .status());
 
     return absl::OkStatus();
+  }
+
+  absl::StatusOr<ProcInstance*> GetProcInstance(
+      ProcHierarchyInterpreter& hierarchy_interpreter,
+      std::string_view proc_id_str) {
+    for (ProcInstance& instance : hierarchy_interpreter.proc_instances()) {
+      const std::optional<ProcId>& pid = instance.interpreter().proc_id();
+      if (pid.has_value() && pid->ToString() == proc_id_str) {
+        return &instance;
+      }
+    }
+    return absl::NotFoundError(
+        absl::StrFormat("No ProcInstance found with ProcId `%s`", proc_id_str));
   }
 
  protected:
@@ -394,27 +406,34 @@ proc tester_proc {
 
   XLS_ASSERT_OK_AND_ASSIGN(TestProc * test_proc,
                            ParseAndGetTestProc(kProgram, "tester_proc"));
-  std::vector<std::string> trace_output;
-  XLS_ASSERT_OK(Run(
-      test_proc, BytecodeInterpreterOptions().trace_channels(true).trace_hook(
-                     [&](const Span&, std::string_view s) {
-                       trace_output.push_back(std::string{s});
-                     })));
-  EXPECT_THAT(trace_output,
+  auto options = BytecodeInterpreterOptions().trace_channels(true);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ProcHierarchyInterpreter> interpreter,
+      Create(test_proc, options));
+  XLS_ASSERT_OK(Run(*interpreter, options));
+  EXPECT_THAT(GetProcInstance(*interpreter, "tester_proc:0")
+                  .value()
+                  ->events()
+                  .GetTraceMessageStrings(),
               testing::ElementsAre(
                   "Sent data on channel `tester_proc::data_out`:\n  u32:42",
-                  "Received data on channel "
-                  "`tester_proc->incrementer#0::in_ch`:\n  u32:42",
-                  "Sent data on channel "
-                  "`tester_proc->incrementer#0::out_ch`:\n  u32:43",
                   "Received data on channel `tester_proc::data_in`:\n  u32:43",
                   "Sent data on channel `tester_proc::data_out`:\n  u32:100",
-                  "Received data on channel "
-                  "`tester_proc->incrementer#0::in_ch`:\n  u32:100",
-                  "Sent data on channel "
-                  "`tester_proc->incrementer#0::out_ch`:\n  u32:101",
                   "Received data on channel `tester_proc::data_in`:\n  u32:101",
                   "Sent data on channel `tester_proc::terminator`:\n  u1:1"));
+  EXPECT_THAT(
+      GetProcInstance(*interpreter, "tester_proc->incrementer:0")
+          .value()
+          ->events()
+          .GetTraceMessageStrings(),
+      testing::ElementsAre("Received data on channel "
+                           "`tester_proc->incrementer#0::in_ch`:\n  u32:42",
+                           "Sent data on channel "
+                           "`tester_proc->incrementer#0::out_ch`:\n  u32:43",
+                           "Received data on channel "
+                           "`tester_proc->incrementer#0::in_ch`:\n  u32:100",
+                           "Sent data on channel "
+                           "`tester_proc->incrementer#0::out_ch`:\n  u32:101"));
 }
 
 TEST_F(ProcHierarchyInterpreterTest, TraceChannelsHexValues) {
@@ -463,30 +482,37 @@ proc tester_proc {
 
   XLS_ASSERT_OK_AND_ASSIGN(TestProc * test_proc,
                            ParseAndGetTestProc(kProgram, "tester_proc"));
-  std::vector<std::string> trace_output;
-  XLS_ASSERT_OK(
-      Run(test_proc, BytecodeInterpreterOptions()
-                         .trace_channels(true)
-                         .format_preference(FormatPreference::kHex)
-                         .trace_hook([&](const Span&, std::string_view s) {
-                           trace_output.push_back(std::string{s});
-                         })));
+  auto options =
+      BytecodeInterpreterOptions().trace_channels(true).format_preference(
+          FormatPreference::kHex);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ProcHierarchyInterpreter> interpreter,
+      Create(test_proc, options));
+  XLS_ASSERT_OK(Run(*interpreter, options));
   EXPECT_THAT(
-      trace_output,
+      GetProcInstance(*interpreter, "tester_proc:0")
+          .value()
+          ->events()
+          .GetTraceMessageStrings(),
       testing::ElementsAre(
           "Sent data on channel `tester_proc::data_out`:\n  u32:0x2a",
-          "Received data on channel `tester_proc->incrementer#0::in_ch`:\n  "
-          "u32:0x2a",
-          "Sent data on channel `tester_proc->incrementer#0::out_ch`:\n  "
-          "u32:0x2b",
           "Received data on channel `tester_proc::data_in`:\n  u32:0x2b",
           "Sent data on channel `tester_proc::data_out`:\n  u32:0x64",
-          "Received data on channel `tester_proc->incrementer#0::in_ch`:\n  "
-          "u32:0x64",
-          "Sent data on channel `tester_proc->incrementer#0::out_ch`:\n  "
-          "u32:0x65",
           "Received data on channel `tester_proc::data_in`:\n  u32:0x65",
           "Sent data on channel `tester_proc::terminator`:\n  u1:0x1"));
+  EXPECT_THAT(GetProcInstance(*interpreter, "tester_proc->incrementer:0")
+                  .value()
+                  ->events()
+                  .GetTraceMessageStrings(),
+              testing::ElementsAre(
+                  "Received data on channel "
+                  "`tester_proc->incrementer#0::in_ch`:\n  u32:0x2a",
+                  "Sent data on channel "
+                  "`tester_proc->incrementer#0::out_ch`:\n  u32:0x2b",
+                  "Received data on channel "
+                  "`tester_proc->incrementer#0::in_ch`:\n  u32:0x64",
+                  "Sent data on channel "
+                  "`tester_proc->incrementer#0::out_ch`:\n  u32:0x65"));
 }
 
 TEST_F(ProcHierarchyInterpreterTest, TraceChannelsWithNonblockingReceive) {
@@ -531,18 +557,25 @@ proc tester_proc {
 
   XLS_ASSERT_OK_AND_ASSIGN(TestProc * test_proc,
                            ParseAndGetTestProc(kProgram, "tester_proc"));
-  std::vector<std::string> trace_output;
-  XLS_ASSERT_OK(Run(
-      test_proc, BytecodeInterpreterOptions().trace_channels(true).trace_hook(
-                     [&](const Span&, std::string_view s) {
-                       trace_output.push_back(std::string{s});
-                     })));
+  auto options = BytecodeInterpreterOptions().trace_channels(true);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ProcHierarchyInterpreter> interpreter,
+      Create(test_proc, options));
+  XLS_ASSERT_OK(Run(*interpreter, options));
   EXPECT_THAT(
-      trace_output,
-      testing::ElementsAre(
-          "Sent data on channel `tester_proc->incrementer#0::out_ch`:\n  u32:1",
-          "Received data on channel `tester_proc::data_in`:\n  u32:1",
-          "Sent data on channel `tester_proc::terminator`:\n  u1:1"));
+      GetProcInstance(*interpreter, "tester_proc->incrementer:0")
+          .value()
+          ->events()
+          .GetTraceMessageStrings(),
+      testing::ElementsAre("Sent data on channel "
+                           "`tester_proc->incrementer#0::out_ch`:\n  u32:1"));
+  EXPECT_THAT(GetProcInstance(*interpreter, "tester_proc:0")
+                  .value()
+                  ->events()
+                  .GetTraceMessageStrings(),
+              testing::ElementsAre(
+                  "Received data on channel `tester_proc::data_in`:\n  u32:1",
+                  "Sent data on channel `tester_proc::terminator`:\n  u1:1"));
 }
 
 TEST_F(ProcHierarchyInterpreterTest, TraceStructChannels) {
@@ -597,19 +630,24 @@ proc tester_proc {
 
   XLS_ASSERT_OK_AND_ASSIGN(TestProc * test_proc,
                            ParseAndGetTestProc(kProgram, "tester_proc"));
-  std::vector<std::string> trace_output;
-  XLS_ASSERT_OK(Run(
-      test_proc, BytecodeInterpreterOptions().trace_channels(true).trace_hook(
-                     [&](const Span&, std::string_view s) {
-                       trace_output.push_back(std::string{s});
-                     })));
-  EXPECT_EQ(trace_output[0],
+  auto options = BytecodeInterpreterOptions().trace_channels(true);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ProcHierarchyInterpreter> interpreter,
+      Create(test_proc, options));
+  XLS_ASSERT_OK(Run(*interpreter, options));
+  EXPECT_EQ(GetProcInstance(*interpreter, "tester_proc:0")
+                .value()
+                ->events()
+                .GetTraceMessageStrings()[0],
             R"(Sent data on channel `tester_proc::data_out`:
   Foo {
     a: u32:42,
     b: u16:100
 })");
-  EXPECT_EQ(trace_output[1],
+  EXPECT_EQ(GetProcInstance(*interpreter, "tester_proc->incrementer:0")
+                .value()
+                ->events()
+                .GetTraceMessageStrings()[0],
             R"(Received data on channel `tester_proc->incrementer#0::in_ch`:
   Foo {
     a: u32:42,
@@ -664,28 +702,35 @@ proc tester_proc {
 
   XLS_ASSERT_OK_AND_ASSIGN(TestProc * test_proc,
                            ParseAndGetTestProc(kProgram, "tester_proc"));
-  std::vector<std::string> trace_output;
-  XLS_ASSERT_OK(Run(
-      test_proc, BytecodeInterpreterOptions().trace_channels(true).trace_hook(
-                     [&](const Span&, std::string_view s) {
-                       trace_output.push_back(std::string{s});
-                     })));
+  auto options = BytecodeInterpreterOptions().trace_channels(true);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ProcHierarchyInterpreter> interpreter,
+      Create(test_proc, options));
+  XLS_ASSERT_OK(Run(*interpreter, options));
   EXPECT_THAT(
-      trace_output,
+      GetProcInstance(*interpreter, "tester_proc:0")
+          .value()
+          ->events()
+          .GetTraceMessageStrings(),
       testing::ElementsAre(
           "Sent data on channel `tester_proc::data_out[0]`:\n  u32:42",
-          "Received data on channel `tester_proc->incrementer#0::in_ch`:\n  "
-          "u32:42",
-          "Sent data on channel `tester_proc->incrementer#0::out_ch`:\n  "
-          "u32:43",
           "Received data on channel `tester_proc::data_in[0]`:\n  u32:43",
           "Sent data on channel `tester_proc::data_out[0]`:\n  u32:100",
-          "Received data on channel `tester_proc->incrementer#0::in_ch`:\n  "
-          "u32:100",
-          "Sent data on channel `tester_proc->incrementer#0::out_ch`:\n  "
-          "u32:101",
           "Received data on channel `tester_proc::data_in[0]`:\n  u32:101",
           "Sent data on channel `tester_proc::terminator`:\n  u1:1"));
+  EXPECT_THAT(
+      GetProcInstance(*interpreter, "tester_proc->incrementer:0")
+          .value()
+          ->events()
+          .GetTraceMessageStrings(),
+      testing::ElementsAre("Received data on channel "
+                           "`tester_proc->incrementer#0::in_ch`:\n  u32:42",
+                           "Sent data on channel "
+                           "`tester_proc->incrementer#0::out_ch`:\n  u32:43",
+                           "Received data on channel "
+                           "`tester_proc->incrementer#0::in_ch`:\n  u32:100",
+                           "Sent data on channel "
+                           "`tester_proc->incrementer#0::out_ch`:\n  u32:101"));
 }
 
 // Tests https://github.com/google/xls/issues/1552
@@ -748,40 +793,52 @@ proc tester_proc {
 
   XLS_ASSERT_OK_AND_ASSIGN(TestProc * test_proc,
                            ParseAndGetTestProc(kProgram, "tester_proc"));
-  std::vector<std::string> trace_output;
-  XLS_ASSERT_OK(Run(
-      test_proc, BytecodeInterpreterOptions().trace_channels(true).trace_hook(
-                     [&](const Span&, std::string_view s) {
-                       trace_output.push_back(std::string{s});
-                     })));
+  auto options = BytecodeInterpreterOptions().trace_channels(true);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ProcHierarchyInterpreter> interpreter,
+      Create(test_proc, options));
+  XLS_ASSERT_OK(Run(*interpreter, options));
   EXPECT_THAT(
-      trace_output,
+      GetProcInstance(*interpreter, "tester_proc:0")
+          .value()
+          ->events()
+          .GetTraceMessageStrings(),
       testing::ElementsAre(
           "Sent data on channel `tester_proc::data_out`:\n  u32:42",
-          "Received data on channel `tester_proc->incrementer#0::in_ch`:\n  "
-          "u32:42",
-          "Sent data on channel `tester_proc->incrementer#0::out_ch`:\n  "
-          "u32:43",
           "Received data on channel `tester_proc::data_in`:\n  u32:43",
           "Sent data on channel `tester_proc::data_out`:\n  u32:100",
-          "Received data on channel `tester_proc->incrementer#0::in_ch`:\n  "
-          "u32:100",
-          "Sent data on channel `tester_proc->incrementer#0::out_ch`:\n  "
-          "u32:101",
           "Received data on channel `tester_proc::data_in`:\n  u32:101",
           "Sent data on channel `tester_proc::data_out_2`:\n  u32:43",
-          "Received data on channel `tester_proc->incrementer#1::in_ch`:\n  "
-          "u32:43",
-          "Sent data on channel `tester_proc->incrementer#1::out_ch`:\n  "
-          "u32:44",
           "Received data on channel `tester_proc::data_in_2`:\n  u32:44",
           "Sent data on channel `tester_proc::data_out_2`:\n  u32:101",
-          "Received data on channel `tester_proc->incrementer#1::in_ch`:\n  "
-          "u32:101",
-          "Sent data on channel `tester_proc->incrementer#1::out_ch`:\n  "
-          "u32:102",
           "Received data on channel `tester_proc::data_in_2`:\n  u32:102",
           "Sent data on channel `tester_proc::terminator`:\n  u1:1"));
+  EXPECT_THAT(
+      GetProcInstance(*interpreter, "tester_proc->incrementer:0")
+          .value()
+          ->events()
+          .GetTraceMessageStrings(),
+      testing::ElementsAre("Received data on channel "
+                           "`tester_proc->incrementer#0::in_ch`:\n  u32:42",
+                           "Sent data on channel "
+                           "`tester_proc->incrementer#0::out_ch`:\n  u32:43",
+                           "Received data on channel "
+                           "`tester_proc->incrementer#0::in_ch`:\n  u32:100",
+                           "Sent data on channel "
+                           "`tester_proc->incrementer#0::out_ch`:\n  u32:101"));
+  EXPECT_THAT(
+      GetProcInstance(*interpreter, "tester_proc->incrementer:1")
+          .value()
+          ->events()
+          .GetTraceMessageStrings(),
+      testing::ElementsAre("Received data on channel "
+                           "`tester_proc->incrementer#1::in_ch`:\n  u32:43",
+                           "Sent data on channel "
+                           "`tester_proc->incrementer#1::out_ch`:\n  u32:44",
+                           "Received data on channel "
+                           "`tester_proc->incrementer#1::in_ch`:\n  u32:101",
+                           "Sent data on channel "
+                           "`tester_proc->incrementer#1::out_ch`:\n  u32:102"));
 }
 
 TEST_F(ProcHierarchyInterpreterTest, AssertsInProcsShowHierarchyInErrors) {
