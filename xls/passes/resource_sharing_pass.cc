@@ -399,10 +399,10 @@ ResourceSharingPass::ComputeFoldableActions(
   return foldable_actions;
 }
 
-bool GreaterBitwidthComparator(BinaryFoldingAction* a0,
-                               BinaryFoldingAction* a1) {
-  Node* a0_source = a0->GetFrom();
-  Node* a1_source = a1->GetFrom();
+bool GreaterBitwidthComparator(const BinaryFoldingAction* a0,
+                               const BinaryFoldingAction* a1) {
+  const Node* a0_source = a0->GetFrom();
+  const Node* a1_source = a1->GetFrom();
   int64_t a0_bitwidth = a0_source->BitCountOrDie();
   int64_t a1_bitwidth = a1_source->BitCountOrDie();
   if (a0_bitwidth == a1_bitwidth) {
