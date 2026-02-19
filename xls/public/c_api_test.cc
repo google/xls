@@ -26,20 +26,22 @@
 #include <variant>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/base/macros.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
-#include "absl/types/span.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
+#include "llvm/include/llvm/ExecutionEngine/Orc/ExecutionUtils.h"
+#include "llvm/include/llvm/ExecutionEngine/Orc/LLJIT.h"
+#include "llvm/include/llvm/Support/Error.h"
+#include "llvm/include/llvm/Support/MemoryBuffer.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/temp_directory.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/jit/aot_entrypoint.pb.h"
-#include "xls/jit/orc_jit.h"
 #include "xls/public/c_api_dslx.h"
 #include "xls/public/c_api_format_preference.h"
 #include "xls/public/c_api_ir_builder.h"
@@ -2198,7 +2200,8 @@ top fn add_one(x: bits[32]) -> bits[32] {
   xls::AotPackageEntrypointsProto entrypoints;
   ASSERT_TRUE(entrypoints.ParseFromArray(proto_bytes, proto_byte_count));
   ASSERT_EQ(entrypoints.entrypoint_size(), 1);
-  EXPECT_EQ(entrypoints.entrypoint(0).type(), xls::AotEntrypointProto::FUNCTION);
+  EXPECT_EQ(entrypoints.entrypoint(0).type(),
+            xls::AotEntrypointProto::FUNCTION);
   EXPECT_TRUE(entrypoints.entrypoint(0).has_function_symbol());
   EXPECT_TRUE(entrypoints.entrypoint(0).has_packed_function_symbol());
 }
@@ -2245,13 +2248,29 @@ top fn add_one(x: bits[8]) -> bits[8] {
   const xls::AotEntrypointProto& entrypoint = entrypoints.entrypoint(0);
   ASSERT_TRUE(entrypoint.has_packed_function_symbol());
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<xls::OrcJit> orc_jit,
-                           xls::OrcJit::Create());
-  XLS_ASSERT_OK(
-      orc_jit->LoadObjectCode(absl::MakeConstSpan(object_bytes, object_byte_count)));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      llvm::orc::ExecutorAddr packed_address,
-      orc_jit->LoadSymbol(entrypoint.packed_function_symbol()));
+  llvm::Expected<std::unique_ptr<llvm::orc::LLJIT>> maybe_jit =
+      llvm::orc::LLJITBuilder().create();
+  ASSERT_TRUE(static_cast<bool>(maybe_jit))
+      << llvm::toString(maybe_jit.takeError());
+  std::unique_ptr<llvm::orc::LLJIT> jit = std::move(*maybe_jit);
+  jit->getMainJITDylib().addGenerator(llvm::cantFail(
+      llvm::orc::DynamicLibrarySearchGenerator::GetForCurrentProcess(
+          jit->getDataLayout().getGlobalPrefix())));
+
+  auto object_buffer = llvm::MemoryBuffer::getMemBufferCopy(
+      llvm::StringRef(reinterpret_cast<const char*>(object_bytes),
+                      object_byte_count),
+      "xls_aot_object_code");
+  llvm::Error add_object_error = jit->addObjectFile(std::move(object_buffer));
+  ASSERT_FALSE(static_cast<bool>(add_object_error))
+      << llvm::toString(std::move(add_object_error));
+
+  std::string packed_symbol = entrypoint.packed_function_symbol();
+  llvm::Expected<llvm::orc::ExecutorAddr> maybe_packed_address =
+      jit->lookup(packed_symbol);
+  ASSERT_TRUE(static_cast<bool>(maybe_packed_address))
+      << llvm::toString(maybe_packed_address.takeError());
+  llvm::orc::ExecutorAddr packed_address = *maybe_packed_address;
 
   xls_aot_exec_context* context = nullptr;
   ASSERT_TRUE(xls_aot_exec_context_create(proto_bytes, proto_byte_count, &error,
@@ -2274,9 +2293,8 @@ top fn add_one(x: bits[8]) -> bits[8] {
     size = 1;
   }
   int64_t alloc_size = ((size + alignment - 1) / alignment) * alignment;
-  void* temp_buffer =
-      std::aligned_alloc(static_cast<size_t>(alignment),
-                         static_cast<size_t>(alloc_size));
+  void* temp_buffer = std::aligned_alloc(static_cast<size_t>(alignment),
+                                         static_cast<size_t>(alloc_size));
   ASSERT_NE(temp_buffer, nullptr);
   absl::Cleanup free_temp_buffer([=] { std::free(temp_buffer); });
 
