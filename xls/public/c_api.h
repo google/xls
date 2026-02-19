@@ -20,6 +20,7 @@
 
 #include "xls/public/c_api_dslx.h"
 #include "xls/public/c_api_format_preference.h"
+#include "xls/public/c_api_ir_analysis.h"
 #include "xls/public/c_api_ir_builder.h"
 #include "xls/public/c_api_vast.h"  // IWYU pragma: export
 
