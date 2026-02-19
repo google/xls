@@ -4719,6 +4719,56 @@ cc_test(
 )
 
 cc_library(
+    name = "data_flow_lazy_input_use_conditions",
+    hdrs = ["data_flow_lazy_input_use_conditions.h"],
+    deps = [
+        ":lazy_dag_cache",
+        ":lazy_node_info",
+        ":query_engine",
+        "//xls/data_structures:leaf_type_tree",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:op",
+        "//xls/ir:type",
+        "//xls/ir:value",
+        "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/container:inlined_vector",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "data_flow_lazy_input_use_conditions_test",
+    srcs = ["data_flow_lazy_input_use_conditions_test.cc"],
+    deps = [
+        ":data_flow_lazy_input_use_conditions",
+        ":node_source_analysis",
+        ":partial_info_query_engine",
+        ":query_engine",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/data_structures:leaf_type_tree",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:op",
+        "//xls/ir:value",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "expression_builder",
     srcs = ["expression_builder.cc"],
     hdrs = ["expression_builder.h"],
