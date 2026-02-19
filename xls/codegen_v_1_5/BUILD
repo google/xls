@@ -281,6 +281,7 @@ cc_library(
         "//xls/scheduling:scheduling_options",
         "//xls/scheduling:scheduling_result",
         "//xls/tools:schedule",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
     ],
 )

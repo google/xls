@@ -2,20 +2,20 @@ module assertions_top(
   input wire [31:0] y,
   output wire [31:0] out
 );
-  wire [30:0] add_195;
-  wire ult_202;
-  wire [30:0] add_209;
-  wire ult_206;
-  wire nand_211;
-  wire nand_212;
-  assign add_195 = y[31:1] + 31'h7fff_fffb;
-  assign ult_202 = y < 32'h0000_0014;
-  assign add_209 = y[31:1] + 31'h0000_000f;
-  assign ult_206 = y < 32'h0000_000a;
-  assign nand_211 = ~(y > 32'h0000_0009 & ult_202 & {add_195, y[0]} > 32'h0000_0004);
-  assign nand_212 = ~(ult_206 & y > 32'h0000_0004);
-  assign out = ult_206 ? {add_209, y[0]} : y & {32{ult_202}};
-  y_ge_than_21: assert final ($isunknown(ult_202) || ult_202) else $fatal(0, "Assertion failure via fail! @ xls/examples/assertions/assertions.x:32:14-32:37");
-  __assertions__main_0___itok__assertions__main___itok__assertions__main_0___itok__assertions__func_0__32_x_less_than_5: assert final ($isunknown(nand_211) || nand_211) else $fatal(0, "Assertion failure via assert! @ xls/examples/assertions/assertions.x:21:12-21:40");
-  __assertions__main_0___itok__assertions__main___itok__assertions__main_1___itok__assertions__func_0__32_x_less_than_5: assert final ($isunknown(nand_212) || nand_212) else $fatal(0, "Assertion failure via assert! @ xls/examples/assertions/assertions.x:21:12-21:40");
+  wire [30:0] add_202;
+  wire ult_204;
+  wire [30:0] add_211;
+  wire ult_214;
+  wire nand_221;
+  wire nand_222;
+  assign add_202 = y[31:1] + 31'h7fff_fffb;
+  assign ult_204 = y < 32'h0000_0014;
+  assign add_211 = y[31:1] + 31'h0000_000f;
+  assign ult_214 = y < 32'h0000_000a;
+  assign nand_221 = ~(y > 32'h0000_0009 & ult_204 & {add_202, y[0]} > 32'h0000_0004);
+  assign nand_222 = ~(ult_214 & y > 32'h0000_0004);
+  assign out = ult_214 ? {add_211, y[0]} : y & {32{ult_204}};
+  y_ge_than_21: assert final ($isunknown(ult_204) || ult_204) else $fatal(0, "Assertion failure via fail! @ xls/examples/assertions/assertions.x:32:14-32:37");
+  __assertions__main_0___itok__assertions__main___itok__assertions__main_0___itok__assertions__func_0__32_x_less_than_5: assert final ($isunknown(nand_221) || nand_221) else $fatal(0, "Assertion failure via assert! @ xls/examples/assertions/assertions.x:21:12-21:40");
+  __assertions__main_0___itok__assertions__main___itok__assertions__main_1___itok__assertions__func_0__32_x_less_than_5: assert final ($isunknown(nand_222) || nand_222) else $fatal(0, "Assertion failure via assert! @ xls/examples/assertions/assertions.x:21:12-21:40");
 endmodule
