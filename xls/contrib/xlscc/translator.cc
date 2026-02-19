@@ -1750,6 +1750,10 @@ absl::StatusOr<CValue> Translator::CreateInitValue(
 
   if (initializer != nullptr) {
     LValueModeGuard lvalue_mode(*this);
+    XLS_ASSIGN_OR_RETURN(bool lvalue_result, ctype->ContainsLValues(*this));
+    if (!lvalue_result) {
+      context().lvalue_mode = false;
+    }
 
     XLS_ASSIGN_OR_RETURN(CValue cv, GenerateIR_Expr(initializer, loc));
 
@@ -4912,7 +4916,15 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
     // Implicit dereference
     if (arr_val.type()->Is<CPointerType>()) {
       XLSCC_CHECK_NE(arr_val.lvalue(), nullptr, loc);
+      CValue arr_val_orig = arr_val;
+
       XLS_ASSIGN_OR_RETURN(arr_val, GenerateIR_Expr(arr_val.lvalue(), loc));
+
+      if (!arr_val.type()->Is<CArrayType>()) {
+        return absl::UnimplementedError(ErrorMessage(
+            loc, "Dereference didn't yield an array type, but %s from %s",
+            std::string(*arr_val.type()), std::string(*arr_val_orig.type())));
+      }
     }
 
     XLS_ASSIGN_OR_RETURN(CValue index_bval,
