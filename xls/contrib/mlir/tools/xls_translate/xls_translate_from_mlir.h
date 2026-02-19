@@ -51,6 +51,11 @@ class Package;
 
 namespace mlir::xls {
 
+// Forward declarations of XLS attribute types.
+class SchedulingOptions;
+class OptimizationOptions;
+class CodegenOptions;
+
 // Caches DSLX translation results. DSLX translation is expensive, so this
 // avoids re-translating the same file multiple times across calls to
 // MlirXlsToXlsTranslate.
@@ -101,6 +106,18 @@ struct MlirXlsToXlsTranslateOptions {
   ::xls::SchedulingOptionsFlagsProto scheduling_options_flags_proto =
       DieUnlessOk(::xls::GetSchedulingOptionsFlagsProto());
 };
+
+// Populates SchedulingOptionsFlagsProto from SchedulingOptions attribute.
+void PopulateSchedulingOptionsFromAttr(
+    SchedulingOptions attr, ::xls::SchedulingOptionsFlagsProto& proto);
+
+// Populates OptOptions from OptimizationOptions attribute.
+void PopulateOptOptionsFromAttr(OptimizationOptions attr,
+                                ::xls::tools::OptOptions& options);
+
+// Populates CodegenFlagsProto from CodegenOptions attribute.
+void PopulateCodegenFlagsFromAttr(CodegenOptions attr,
+                                  ::xls::CodegenFlagsProto& proto);
 
 // Callback for reporting codegen metrics.
 using MetricsReporter = llvm::function_ref<void(

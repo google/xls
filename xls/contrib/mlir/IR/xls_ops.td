@@ -204,6 +204,61 @@ def Xls_FifoConfig : Xls_Attr<"FifoConfig"> {
   let assemblyFormat = "`<` struct(params) `>`";
 }
 
+def Xls_SchedulingOptions : Xls_Attr<"SchedulingOptions"> {
+  let summary = "Scheduling options for XLS pipeline generation";
+  let description = [{
+    Specifies scheduling options for XLS pipeline generation.
+  }];
+
+  let parameters = (ins
+    DefaultValuedParameter<"int64_t", "0", "Target clock period, in picoseconds.">:$clock_period_ps,
+    DefaultValuedParameter<"int64_t", "0", "The number of stages in the generated pipeline.">:$pipeline_stages,
+    DefaultValuedParameter<"::mlir::StringAttr", "::mlir::StringAttr()", "Delay model name to use from registry.">:$delay_model,
+    DefaultValuedParameter<"int64_t", "0", "The percentage of clock period to set aside as a margin to ensure timing is met.">:$clock_margin_percent,
+    DefaultValuedParameter<"int64_t", "1", "Allow scheduling a pipeline with worst-case throughput no slower than once per N cycles.">:$worst_case_throughput,
+    DefaultValuedParameter<"bool", "false", "If true, schedule all procs and codegen them all.">:$multi_proc
+  );
+
+  let mnemonic = "scheduling_options";
+  let assemblyFormat = "`<` struct(params) `>`";
+}
+
+def Xls_OptimizationOptions : Xls_Attr<"OptimizationOptions"> {
+  let summary = "Optimization options for XLS IR";
+  let description = [{
+    Specifies optimization options for XLS IR transformation.
+  }];
+
+  let parameters = (ins
+    DefaultValuedParameter<"int64_t", "3", "Optimization level (0-3).">:$opt_level,
+    DefaultValuedParameter<"int64_t", "0", "Threshold for converting array indices to select chains.">:$convert_array_index_to_select,
+    DefaultValuedParameter<"bool", "false", "Use context narrowing analysis during optimization.">:$use_context_narrowing_analysis,
+    DefaultValuedParameter<"bool", "false", "Optimize for best-case throughput.">:$optimize_for_best_case_throughput,
+    DefaultValuedParameter<"bool", "false", "Enable resource sharing optimization.">:$enable_resource_sharing,
+    DefaultValuedParameter<"bool", "false", "Force resource sharing.">:$force_resource_sharing,
+    DefaultValuedParameter<"::mlir::StringAttr", "::mlir::StringAttr()", "Custom pass pipeline specification.">:$pass_pipeline
+  );
+
+  let mnemonic = "opt_options";
+  let assemblyFormat = "`<` struct(params) `>`";
+}
+
+def Xls_CodegenOptions : Xls_Attr<"CodegenOptions"> {
+  let summary = "Codegen options for Verilog generation";
+  let description = [{
+    Specifies code generation options for Verilog output.
+  }];
+
+  let parameters = (ins
+    DefaultValuedParameter<"bool", "true", "If true, emit SystemVerilog otherwise emit Verilog.">:$use_system_verilog,
+    DefaultValuedParameter<"bool", "true", "If true, emit bounds checking on array-index operations in Verilog.">:$array_index_bounds_checking,
+    DefaultValuedParameter<"bool", "true", "If true, emit logic to gate the data value to zero for a receive operation in Verilog.">:$gate_recvs
+  );
+
+  let mnemonic = "codegen_options";
+  let assemblyFormat = "`<` struct(params) `>`";
+}
+
 def Xls_BoundaryChannelAttr : Xls_Attr<"BoundaryChannelAttr"> {
   let summary = "Boundary channel attribute";
   let description = [{
