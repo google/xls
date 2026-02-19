@@ -917,7 +917,6 @@ cc_library(
     deps = [
         ":status_payload_cc_proto",
         "//xls/dslx/frontend:pos",
-        "//xls/dslx/frontend:pos_cc_proto",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:cord",
     ],

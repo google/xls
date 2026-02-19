@@ -170,7 +170,6 @@ cc_library(
     data = ["@llvm-project//clang:builtin_headers_gen"],
     deps = [
         ":pass_documentation_cc_proto",
-        "//xls/common:iterator_range",
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
